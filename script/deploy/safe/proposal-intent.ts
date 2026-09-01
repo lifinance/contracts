@@ -29,7 +29,16 @@ export function normalizeProposalReason(
   raw: string | undefined
 ): string | undefined {
   const collapsed = sanitizeProvenanceText(raw)
-  if (collapsed.length === 0) return undefined
+  // Presence is decided on what a signer can SEE, not on string length. A
+  // zero-width joiner and a lone combining mark both survive sanitizing and
+  // render as nothing, so a reason of only those passed as present — and thirty
+  // of them would satisfy OQ3's adoption trigger while telling signers nothing.
+  //
+  // Tested on a stripped COPY, never on the value: a combining mark inside real
+  // text is part of the word (`déployer`), and a joiner inside an emoji is part
+  // of the character.
+  if (collapsed.replace(/[\p{Cf}\p{Mn}]/gu, '').trim().length === 0)
+    return undefined
   // Capped by code point, so the cut cannot leave a lone surrogate half behind.
   return [...collapsed].slice(0, MAX_PROPOSAL_REASON_LENGTH).join('')
 }

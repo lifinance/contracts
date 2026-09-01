@@ -18,6 +18,7 @@ import {
   MISSING_TICKET_MESSAGE,
   assertTicketPresent,
   formatReasonWarning,
+  normalizeProposalReason,
   parseTicketLink,
   resolveProposalIntent,
   summarizeReasonAdoption,
@@ -545,5 +546,46 @@ describe('assertTicketPresent — the same blank-flag rule as the resolver', () 
     expect(() =>
       assertTicketPresent(['EXSC-1', 'EXSC-2'] as unknown as string)
     ).toThrow(/^--ticket was not given a single text value/)
+  })
+})
+
+describe('normalizeProposalReason — invisible content is not content', () => {
+  it.each([
+    ['a zero-width joiner', '‍'],
+    ['several joiners', '‍‍‍'],
+    ['a lone combining mark', '́'],
+    ['joiners and marks together', '‍́‍'],
+    // Sanitizing trims the edges but keeps interior spaces, so a value that
+    // begins and ends with an invisible character can still hold whitespace in
+    // the middle — the only input for which the trim is load-bearing.
+    ['invisible characters around a space', '‍ ‍'],
+  ])('treats %s as no reason at all', (_label, raw) => {
+    // These survive sanitizeProvenanceText and render as nothing, so the
+    // presence check passed and reasonMissing went false. Thirty such proposals
+    // would satisfy OQ3's adoption trigger while telling signers nothing — the
+    // trigger measures whether the warning fired, so a reason nobody can read
+    // corrupts the one number the flip decision rests on.
+    expect(normalizeProposalReason(raw)).toBeUndefined()
+  })
+
+  it('keeps a combining mark that is part of real text', () => {
+    // The presence test must not strip marks from the VALUE — only decide
+    // whether anything visible remains. `déployer` is a real word.
+    const reason = normalizeProposalReason('déployer AcrossFacetV4')
+
+    expect(reason).toBe('déployer AcrossFacetV4')
+  })
+
+  it('keeps a reason that merely contains a joiner', () => {
+    // A family emoji is a legitimate string containing joiners.
+    const reason = normalizeProposalReason('rotate the key \u{1F468}‍\u{1F469}')
+
+    expect(reason).toContain('rotate the key')
+  })
+
+  it('reports the invisible case as missing through the resolver too', () => {
+    expect(
+      resolveProposalIntent({ ticket: 'EXSC-1', reason: '‍' }).reasonMissing
+    ).toBe(true)
   })
 })
