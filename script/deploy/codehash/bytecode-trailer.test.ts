@@ -234,6 +234,21 @@ describe('readMetadataTrailer, against a trailer chosen by the deployer', () => 
     if (trailer.present) expect(trailer.solcVersion).toBeUndefined()
   })
 
+  it.each([
+    ['two bytes, which would render as 0.8.NaN', 'a164736f6c63420008'],
+    [
+      'four bytes, which would render as 0.8.29 and hide one',
+      'a164736f6c634400081d00',
+    ],
+  ])('reports no version when the solc value is %s', (_label, cbor) => {
+    // The map decodes, so the value's width is the only thing left saying this is
+    // a release triple.
+    const trailer = readMetadataTrailer(withTrailer(cbor))
+
+    expect(trailer.present).toBe(true)
+    if (trailer.present) expect(trailer.solcVersion).toBeUndefined()
+  })
+
   it('still reads a genuine key at an even offset', () => {
     // The positive control: without it, every assertion above is satisfied by a
     // reader that has simply stopped reading versions.
