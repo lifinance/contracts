@@ -94,8 +94,9 @@ created and claims no nonce, and it names both `--ticket` and
 
 That check is the backstop, not the first line: the entry points whose late
 failure costs most — `unpauseAllDiamonds.ts`, `add-safe-owners-and-threshold.ts`,
-the Tron route, and the `sendOrPropose` chokepoint — also call
-`assertTicketPresent` before they sign, so an unset ticket costs one message
+the Tron route, and the TS `sendOrPropose` — also call `assertTicketPresent`
+before they sign, and `propose-to-safe.ts` resolves the same intent up front in
+`runPropose`, so an unset ticket costs one message
 rather than a signature or a device confirmation per network. Those pre-checks
 run only on the branches that actually propose; a staging or testnet-only run, a
 `--check` audit and a `--dryRun` need no ticket. Entry points:

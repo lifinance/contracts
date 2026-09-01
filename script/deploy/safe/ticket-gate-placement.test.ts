@@ -1,16 +1,13 @@
 /**
- * Where the ticket check sits, not what it decides.
+ * Where the ticket check sits, not what it decides — `proposal-intent.test.ts`
+ * covers the decision.
  *
- * `proposal-intent.test.ts` covers the decision. Nothing covered the placement,
- * and deleting all three `assertTicketPresent()` call sites left the suite fully
- * green while two of the three were in the wrong place — refusing runs that
- * create no proposal at all. Both halves matter and neither implies the other:
- * a guard that never fires is a hole, and a guard that fires on a read-only run
- * is an outage.
+ * Two invariants, neither implying the other: a guard that never fires is a
+ * hole, and a guard that fires on a run creating no proposal is an outage. Each
+ * case pairs its claim about the refusal with a positive marker, so a run that
+ * died before reaching the guard cannot satisfy it.
  *
  * Spawns the real entry points, following `facetCompanionReminder.test.ts`.
- * `DOTENV_CONFIG_PATH` is pointed at an empty file so a developer's own
- * `SAFE_PROPOSAL_TICKET` cannot make these pass locally and fail in CI.
  */
 
 import { join } from 'path'
@@ -24,7 +21,7 @@ import {
 
 const REFUSAL = 'No Linear ticket supplied'
 
-/** Long enough to reach the gate, short enough that a run past it is cheap. */
+/** 20 seconds: long enough to reach the gate, short enough that a run past it is cheap. */
 const TIMEOUT_MS = 20_000
 
 const run = (
@@ -35,14 +32,11 @@ const run = (
   const env: Record<string, string> = {
     ...(process.env as Record<string, string>),
   }
-  // `bun test` sets NODE_ENV=test, and consola silences itself in a test
-  // environment — so a child that inherits it produces NO output at all, and an
-  // assertion that a refusal is ABSENT then passes against anything. Removing it
-  // is what makes these assertions mean something.
+  // `bun test` sets NODE_ENV=test; these children are exercised as CLIs, so they
+  // must not run as if under a test harness.
   delete env.NODE_ENV
-  // Bun auto-loads the env file into this process regardless of
-  // DOTENV_CONFIG_PATH, so the child would inherit it through process.env.
-  // Cleared explicitly, or a developer's own value decides the outcome.
+  // Bun auto-loads the repo env file into this process, so the child inherits any
+  // local value through process.env. Cleared, or a developer's own decides these.
   delete env.SAFE_PROPOSAL_TICKET
   if (ticket !== undefined) env.SAFE_PROPOSAL_TICKET = ticket
 
@@ -112,12 +106,9 @@ describe('the ticket gate fires on the paths that propose', () => {
 })
 
 describe('the ticket gate does not fire on paths that create no proposal', () => {
-  // Each of these was refused by an earlier placement of the guard. A read-only
-  // or direct-send run needs no ticket, and refusing one is a self-inflicted
-  // outage on a path that touches nothing.
+  // A read-only or direct-send run needs no ticket, and refusing one is a
+  // self-inflicted outage on a path that touches nothing.
   it('lets a read-only Safe-owner audit reach its own checking', () => {
-    // The marker matters as much as the absence: asserting only that the
-    // refusal is missing would also pass if the run died before the gate.
     const result = run('deploy/safe/add-safe-owners-and-threshold.ts', [
       '--network',
       'mainnet',
@@ -130,9 +121,7 @@ describe('the ticket gate does not fire on paths that create no proposal', () =>
 
   it('lets an unpause run reach its own network filtering first', () => {
     // Selects nothing, so the run stops at "no matching active networks" — which
-    // is downstream of where the gate belongs and upstream of any proposal. The
-    // earlier placement produced the ticket refusal here instead, on a run that
-    // proposes nothing and contacts no chain.
+    // is downstream of where the gate belongs and upstream of any proposal.
     const result = run('tasks/unpauseAllDiamonds.ts', [
       '--environment',
       'staging',

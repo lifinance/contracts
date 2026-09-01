@@ -14,9 +14,9 @@ import { sanitizeProvenanceText } from '../shared/git-provenance'
 export const MAX_PROPOSAL_REASON_LENGTH = 200
 
 /**
- * Longest ticket link stored. Linear's own URLs are far shorter; the cap exists
- * because the value is written to every proposal document and rendered to
- * signers, and `reason` beside it has always been bounded.
+ * Longest ticket link stored. Linear truncates its own URL slugs, so a real
+ * issue URL runs to roughly 120 characters; the cap bounds a value written to
+ * every proposal document and rendered to signers.
  */
 export const MAX_TICKET_URL_LENGTH = 300
 
@@ -35,12 +35,9 @@ export function normalizeProposalReason(
 }
 
 /**
- * Linear's own issue-identifier shape: a team key then a number.
- *
- * Deliberately stricter than the `[A-Z]+-[0-9]+` that
- * `.github/scripts/ticket-linkage-metric.sh` greps PR text with. That one only
- * counts linkage and can afford false positives; this one decides whether a
- * proposal is created, and nothing keeps the two in step.
+ * Linear's own issue-identifier shape: a team key then a number. Deliberately
+ * stricter than the pattern `.github/scripts/ticket-linkage-metric.sh` greps PR
+ * text with — that one only counts linkage and can afford false positives.
  */
 const TICKET_ID = /^[A-Z][A-Z0-9]*-\d+$/
 
@@ -49,11 +46,13 @@ const LINEAR_WORKSPACE = 'lifi-linear'
 
 const LINEAR_HOST = 'linear.app'
 
+/** A ticket link that passed validation, reduced to its canonical URL. */
 export interface ITicketLinkAccepted {
   ok: true
   url: string
 }
 
+/** A refused ticket link, with the reason an operator is shown. */
 export interface ITicketLinkRejected {
   ok: false
   /** `absent` means nothing was supplied; `invalid` means it was not a link. */
@@ -61,11 +60,14 @@ export interface ITicketLinkRejected {
   message: string
 }
 
+/** Outcome of validating a ticket link. */
 export type TicketLinkResult = ITicketLinkAccepted | ITicketLinkRejected
 
-// Leads with the environment variable because every proposal path reads it,
-// while only some offer a --ticket flag — and this is the line an operator reads
-// mid-incident.
+/**
+ * Refusal shown when no ticket was supplied. Leads with the environment
+ * variable because every proposal path reads it, while only some offer a
+ * `--ticket` flag.
+ */
 export const MISSING_TICKET_MESSAGE =
   'No Linear ticket supplied. Every Safe proposal must carry one: export SAFE_PROPOSAL_TICKET=<url|TEAM-123>, or pass --ticket where the script offers it.'
 
@@ -112,12 +114,10 @@ export const parseTicketLink = (raw: string | undefined): TicketLinkResult => {
     return invalid('not a parseable URL')
   }
 
-  // The host check alone is not enough: `javascript://linear.app/issue/EXSC-1`
-  // parses with hostname `linear.app`, so without this a scheme that executes
-  // wherever the stored link is rendered reaches the signer's provenance block.
-  // https only. Linear serves nothing over http, so an http link is either a
-  // typo or a downgrade, and this value is later rendered as a clickable link to
-  // a signer.
+  // The host check further down is not enough on its own:
+  // `javascript://linear.app/issue/EXSC-1` also parses with hostname
+  // `linear.app`, so a scheme that executes wherever this link is rendered would
+  // reach the signer's provenance block. Linear serves nothing over http either.
   if (parsed.protocol !== 'https:')
     return invalid(`scheme is '${parsed.protocol}', expected https`)
 
@@ -156,6 +156,7 @@ export const parseTicketLink = (raw: string | undefined): TicketLinkResult => {
   return { ok: true, url: parsed.href }
 }
 
+/** Raw intent as a caller supplies it: each flag with its environment fallback. */
 export interface IProposalIntentInput {
   /** `--ticket`, when the caller has a CLI. */
   ticket?: string
@@ -167,6 +168,7 @@ export interface IProposalIntentInput {
   envReason?: string
 }
 
+/** Resolved intent that travels with a proposal onto its provenance block. */
 export interface IProposalIntent {
   ticketUrl: string
   reason?: string
@@ -208,7 +210,7 @@ export const resolveProposalIntent = (
  * @returns The one-line warning for a proposal with no stated reason.
  */
 export const formatReasonWarning = (ticketUrl: string): string =>
-  `No --reason given for ${ticketUrl}. The signer sees the ticket but not why this is being proposed now — pass --reason "<one line>" or export SAFE_PROPOSAL_REASON.`
+  `No reason given for ${ticketUrl}. The signer sees the ticket but not why this is being proposed now — export SAFE_PROPOSAL_REASON="<one line>", or pass --reason where the script offers it.`
 
 /**
  * The reason becomes mandatory once the warning has fired zero times across
@@ -216,6 +218,7 @@ export const formatReasonWarning = (ticketUrl: string): string =>
  */
 export const REASON_FLIP_WINDOW = 30
 
+/** The reason-adoption counter the OQ3 flip trigger is defined against. */
 export interface IReasonAdoption {
   /** How many proposals the window actually contained. */
   examined: number

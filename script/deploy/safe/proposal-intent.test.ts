@@ -1,3 +1,10 @@
+/**
+ * What the proposal-intent helpers decide: which ticket links are accepted,
+ * how a reason is normalized, and how the adoption counter is read.
+ *
+ * `ticket-gate-placement.test.ts` covers where the resulting check sits.
+ */
+
 import {
   afterEach,
   describe,
@@ -336,8 +343,6 @@ describe('parseTicketLink — credential leakage', () => {
 
 describe('parseTicketLink — https only, and bounded', () => {
   it('refuses an http link', () => {
-    // Linear serves nothing over http, so an http link is a typo or a
-    // downgrade, and this value is later rendered as a clickable link.
     const result = parseTicketLink('http://linear.app/lifi-linear/issue/EXSC-1')
 
     expect(result.ok).toBe(false)
@@ -360,5 +365,22 @@ describe('parseTicketLink — https only, and bounded', () => {
       parseTicketLink('https://linear.app/lifi-linear/issue/EXSC-694/some-slug')
         .ok
     ).toBe(true)
+  })
+
+  it('accepts an uppercase scheme and host, which the URL parser normalizes', () => {
+    const result = parseTicketLink(
+      'HTTPS://LINEAR.APP/lifi-linear/issue/EXSC-694'
+    )
+
+    expect(result.ok).toBe(true)
+    if (result.ok)
+      expect(result.url).toBe('https://linear.app/lifi-linear/issue/EXSC-694')
+  })
+
+  it('refuses a string that looks like a URL but does not parse', () => {
+    const result = parseTicketLink('https://[')
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.message).toContain('not a parseable URL')
   })
 })

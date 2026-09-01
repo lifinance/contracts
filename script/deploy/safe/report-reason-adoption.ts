@@ -41,7 +41,7 @@ const main = defineCommand({
       )
 
     const client = new MongoClient(process.env.SC_MONGODB_URI, {
-      serverSelectionTimeoutMS: 10_000,
+      serverSelectionTimeoutMS: 10_000, // 10 seconds
     })
 
     try {
