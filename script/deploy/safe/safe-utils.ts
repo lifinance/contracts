@@ -2063,6 +2063,8 @@ export interface ISafeSigningOptions {
   derivationPath?: string
   /** The key to fall back on when no Ledger is requested. */
   envPrivateKey?: string
+  /** Named in the no-key error so it points at the variable the caller read. */
+  envPrivateKeyName?: string
 }
 
 export interface IResolvedSafeSigning {
@@ -2079,17 +2081,17 @@ export interface IResolvedSafeSigning {
 /**
  * Decides how a Safe proposal gets signed.
  *
- * Shared rather than reimplemented per funnel: `propose-to-safe.ts` already
- * offers a Ledger, and a second funnel resolving these flags differently is how
- * one path ends up quietly key-only.
- *
  * `derivationPath` and `ledgerLive` are refused together because they name
  * different paths for the same account, so accepting both would silently pick
- * one and sign with an address the operator did not choose.
+ * one and sign with an address the operator did not choose. A non-integer
+ * `accountIndex` is refused for the same reason: the vendored BIP32 parser drops
+ * a `NaN` path segment and truncates a fractional one, both of which derive a
+ * different, valid-looking address without erroring.
  *
  * @param options - the CLI/caller flags plus the environment key to fall back on.
  * @returns what to hand `initializeSafeClient`.
- * @throws If both path options are given, or if neither a Ledger nor a key is available.
+ * @throws If both path options are given, if `accountIndex` is not a non-negative
+ * integer, or if neither a Ledger nor a key is available.
  */
 export const resolveSafeSigningOptions = (
   options: ISafeSigningOptions
@@ -2103,7 +2105,21 @@ export const resolveSafeSigningOptions = (
 
   if (!useLedger && !options.envPrivateKey)
     throw new Error(
-      'Missing PRIVATE_KEY_PRODUCTION in environment. Set it, or pass --ledger to sign with a hardware wallet.'
+      `Missing ${
+        options.envPrivateKeyName ?? 'private key'
+      } in environment. Set it, or pass --ledger to sign with a hardware wallet.`
+    )
+
+  // An empty string Numbers to 0, so `--accountIndex "$UNSET_VAR"` would sign
+  // from account 0 instead of the index the caller meant to pass.
+  const rawAccountIndex = options.accountIndex ?? 0
+  const accountIndex =
+    String(rawAccountIndex).trim() === '' ? NaN : Number(rawAccountIndex)
+  if (!Number.isInteger(accountIndex) || accountIndex < 0)
+    throw new Error(
+      `accountIndex must be a non-negative integer, got '${String(
+        options.accountIndex
+      )}'`
     )
 
   // Sub-options are read only when the Ledger is actually selected: applying
@@ -2111,7 +2127,7 @@ export const resolveSafeSigningOptions = (
   const ledgerOptions = useLedger
     ? {
         ledgerLive: options.ledgerLive === true,
-        accountIndex: Number(options.accountIndex ?? 0),
+        accountIndex,
         ...(options.derivationPath
           ? { derivationPath: options.derivationPath }
           : {}),

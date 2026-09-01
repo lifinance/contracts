@@ -39,6 +39,7 @@ import {
   isFutureNonceExecutionAllowed,
   mongoSafeTxRowFilter,
   normalizeProposalReason,
+  isAddressASafeOwner,
   resolveSafeSigningOptions,
   safeTxStatusConsumedNonce,
   serializeSafeTxForMongo,
@@ -1251,6 +1252,33 @@ describe('classifyIndexEnsureFailure', () => {
   })
 })
 
+describe('isAddressASafeOwner', () => {
+  const OWNER = '0x1234567890AbcdEF1234567890aBcdef12345678' as Address
+
+  it('matches an owner regardless of the casing on either side', () => {
+    // The Safe returns checksummed owners while a signer address can arrive in
+    // any casing, so a case-sensitive compare would reject a real owner and
+    // block the proposal — the same casing trap that made the in-flight nonce
+    // collide (EXSC-874 D3).
+    expect(isAddressASafeOwner([OWNER], OWNER.toLowerCase() as Address)).toBe(
+      true
+    )
+    expect(isAddressASafeOwner([OWNER.toLowerCase() as Address], OWNER)).toBe(
+      true
+    )
+  })
+
+  it('rejects an address that is not an owner', () => {
+    expect(
+      isAddressASafeOwner(
+        [OWNER],
+        '0x000000000000000000000000000000000000dEaD' as Address
+      )
+    ).toBe(false)
+    expect(isAddressASafeOwner([], OWNER)).toBe(false)
+  })
+})
+
 describe('resolveSafeSigningOptions', () => {
   it('defaults to the env private key when no ledger flag is given', () => {
     expect(resolveSafeSigningOptions({ envPrivateKey: 'abc123' })).toEqual({
@@ -1261,9 +1289,15 @@ describe('resolveSafeSigningOptions', () => {
   })
 
   it('refuses when neither a ledger nor a private key is available', () => {
-    expect(() => resolveSafeSigningOptions({})).toThrow(
-      /PRIVATE_KEY_PRODUCTION/
-    )
+    expect(() => resolveSafeSigningOptions({})).toThrow(/Missing private key/)
+  })
+
+  it("names the caller's env variable in the no-key error", () => {
+    // Hardcoding one variable name would misdirect any caller reading a
+    // different one.
+    expect(() =>
+      resolveSafeSigningOptions({ envPrivateKeyName: 'PRIVATE_KEY_SOMETHING' })
+    ).toThrow(/PRIVATE_KEY_SOMETHING/)
   })
 
   it('does not require a private key when signing with a ledger', () => {
@@ -1341,5 +1375,39 @@ describe('resolveSafeSigningOptions', () => {
         accountIndex: '4' as unknown as number,
       }).ledgerOptions.accountIndex
     ).toBe(4)
+  })
+
+  // The vendored BIP32 parser does not reject these — measured against
+  // @ledgerhq/hw-app-eth's splitPath, "NaN" DROPS the whole path segment
+  // (m/44'/60'/0/0, one element short and non-hardened), 3.7 truncates to 3 and
+  // -1 wraps to 2147483647. Each derives a different, valid-looking address with
+  // no error anywhere, so the refusal has to happen here.
+  it.each([
+    ['non-numeric', 'abc'],
+    ['fractional', '3.7'],
+    ['negative', '-1'],
+    ['empty', ''],
+  ])(
+    'refuses a %s accountIndex rather than deriving a different address',
+    (_label, value) => {
+      expect(() =>
+        resolveSafeSigningOptions({
+          ledger: true,
+          ledgerLive: true,
+          accountIndex: value as unknown as number,
+        })
+      ).toThrow(/accountIndex must be a non-negative integer/)
+    }
+  )
+
+  it('still refuses a bad accountIndex when no ledger was selected', () => {
+    // The sub-options are unused on the key path, but accepting a malformed one
+    // silently teaches the operator the flag was understood.
+    expect(() =>
+      resolveSafeSigningOptions({
+        envPrivateKey: 'abc123',
+        accountIndex: 'abc' as unknown as number,
+      })
+    ).toThrow(/accountIndex must be a non-negative integer/)
   })
 })

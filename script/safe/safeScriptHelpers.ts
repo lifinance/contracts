@@ -14,6 +14,7 @@ import {
   getNextNonce,
   getSafeMongoCollection,
   initializeSafeClient,
+  isAddressASafeOwner,
   resolveSafeSigningOptions,
   storeTransactionInMongoDB,
   type ISafeSigningOptions,
@@ -33,14 +34,19 @@ export async function sendOrPropose({
   network,
   environment,
   diamondAddress,
-  signing = {},
+  signing,
 }: {
   calldata: `0x${string}`
   network: string
   environment: EnvironmentEnum
   diamondAddress: string
-  /** Ledger flags for the Safe-proposal path; ignored on the direct-send path. */
-  signing?: Omit<ISafeSigningOptions, 'envPrivateKey'>
+  /**
+   * Ledger flags for the Safe-proposal path; the direct-send path broadcasts
+   * with the environment key and warns if a Ledger was asked for. Required, not
+   * optional-with-a-default, so a new call site cannot silently omit it and fall
+   * back to key-only signing.
+   */
+  signing: Omit<ISafeSigningOptions, 'envPrivateKey' | 'envPrivateKeyName'>
 }) {
   const isProd = environment === EnvironmentEnum.production
   const isTestnet = isTestnetNetwork(network)
@@ -52,6 +58,11 @@ export async function sendOrPropose({
   // ───────────── DIRECT TX FLOW ───────────── //
   if (sendDirectly) {
     consola.info('📤 Sending transaction directly to the Diamond...')
+
+    if (signing.ledger)
+      consola.warn(
+        'Ignoring --ledger: this route broadcasts directly to the Diamond and signs with the environment key, not via the Safe.'
+      )
 
     const pkVar = isProd ? 'PRIVATE_KEY_PRODUCTION' : 'PRIVATE_KEY'
     const pk = process.env[pkVar]
@@ -101,6 +112,7 @@ export async function sendOrPropose({
   const { useLedger, privateKey, ledgerOptions } = resolveSafeSigningOptions({
     ...signing,
     envPrivateKey: process.env.PRIVATE_KEY_PRODUCTION,
+    envPrivateKeyName: 'PRIVATE_KEY_PRODUCTION',
   })
 
   if (useLedger) consola.info('Using Ledger hardware wallet for signing')
@@ -112,6 +124,17 @@ export async function sendOrPropose({
     useLedger,
     ledgerOptions
   )
+
+  // Every other TS proposal funnel checks this. Without it a proposal signed by
+  // a non-owner is stored and occupies a nonce, failing only at execution time —
+  // and an operator-selected Ledger can now derive an unexpected address here.
+  const signerAddress = safe.account.address
+  const owners = await safe.getOwners()
+  if (!isAddressASafeOwner(owners, signerAddress))
+    throw new Error(
+      `Cannot propose transactions: signer ${signerAddress} is not an owner of Safe ${safeAddress}`
+    )
+
   consola.info(`🔐 Proposing transaction to Safe ${safeAddress}`)
 
   const { client: mongoClient, pendingTransactions } =

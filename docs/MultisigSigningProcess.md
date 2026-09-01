@@ -102,8 +102,12 @@ All EVM funnels end in `storeTransactionInMongoDB`
 - **TS `sendOrPropose`** (`script/safe/safeScriptHelpers.ts`) — used by
   `script/tasks/cleanUpProdDiamond.ts`. Signs the Safe proposal with
   `PRIVATE_KEY_PRODUCTION` by default, or with a Ledger via `--ledger`
-  (`--ledgerLive` + `--accountIndex`, or `--derivationPath`; the two path options
-  are refused together). The direct-send path is unchanged and remains key-only.
+  (`--ledgerLive true` + `--accountIndex <n>`, or `--derivationPath <path>`; the
+  two path options are refused together, and a non-integer `--accountIndex` is
+  refused rather than silently deriving a different address). The signer is
+  checked against the Safe's owners before the proposal is stored. The
+  direct-send path is unchanged and remains key-only; it warns and ignores
+  `--ledger`.
 - **Deferred-cleanup drain** (`script/deploy/safe/drain-parked-tasks.ts`) —
   gated on `DRAIN_PARKED_TASKS`, hooked at the tail of `runPropose`
   ([DeferredDiamondCleanupQueue.md](./DeferredDiamondCleanupQueue.md)).
