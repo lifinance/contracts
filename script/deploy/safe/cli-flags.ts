@@ -1,9 +1,10 @@
 /**
  * Reads CLI flags straight from `argv`, refusing any form whose meaning is not
  * unambiguous. Import it in a citty command that reads a signing flag: citty
- * cannot distinguish `--ledgerLive=no` from a bare `--ledgerLive`, discards a
- * space-separated value, and keeps one occurrence of a repeated flag, and none
- * of that is recoverable once the command body runs.
+ * cannot distinguish `--ledgerLive=no` from a bare `--ledgerLive`, passes the raw
+ * value through for the kebab spelling, drops a `-`-prefixed value (`--accountIndex
+ * -1` parses to `''`), and keeps one occurrence of a repeated flag, and none of
+ * that is recoverable once the command body runs.
  */
 
 export interface IFlagName {
@@ -63,7 +64,7 @@ const uniqueOccurrence = (
 }
 
 export interface IBooleanFlagOptions {
-  /** What absence means. Some flags default ON, e.g. `--ledger` when signing. */
+  /** Some flags default ON, e.g. `--ledger` when signing. */
   whenAbsent?: boolean
 }
 
@@ -87,8 +88,7 @@ export const readBooleanFlag = (
 
   const value = occurrence.assigned ?? occurrence.following
 
-  // `--no-flag=false` is a double negative with no obvious reading, and it
-  // resolved to ON. Refused rather than resolved either way.
+  // `--no-flag=false` is a double negative with no obvious reading.
   if (occurrence.negated && value !== undefined)
     throw new Error(
       `--no-${name.camel} takes no value; got '${value}'. Pass --no-${name.camel} on its own, or --${name.camel}=${value}.`

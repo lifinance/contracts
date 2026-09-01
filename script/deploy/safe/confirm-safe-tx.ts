@@ -854,10 +854,8 @@ const main = defineCommand({
     // Set up signing options
     let privateKey: string | undefined
     let keyType = PrivateKeyTypeEnum.DEPLOYER // default value
-    // Read from argv, not from the parsed args: citty cannot represent the
-    // difference between `--ledgerLive` and `--ledgerLive=no`. A Ledger is the
-    // default signer here, so a misread flag derives a different address on the
-    // path that actually signs.
+    // Read from argv, not from `args` — see `cli-flags.ts`. A Ledger is the
+    // default signer here, so a misread flag signs from a different address.
     const useLedger = readBooleanFlag(
       process.argv,
       { camel: 'ledger', kebab: 'ledger' },

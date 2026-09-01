@@ -155,8 +155,6 @@ describe('readBooleanFlag — flags that default on', () => {
 })
 
 describe('readBooleanFlag — the negated spelling takes no value', () => {
-  const LEDGER_LIVE = { camel: 'ledgerLive', kebab: 'ledger-live' } as const
-
   it.each([
     ['--no-ledgerLive=false', ['--no-ledgerLive=false']],
     ['--no-ledgerLive=true', ['--no-ledgerLive=true']],
@@ -164,8 +162,6 @@ describe('readBooleanFlag — the negated spelling takes no value', () => {
   ])(
     'refuses %s, a double negative with no obvious reading',
     (_label, argv) => {
-      // `--no-ledgerLive=false` resolved to ON, which is the opposite of what
-      // either half of it says.
       expect(() => readBooleanFlag(argv, LEDGER_LIVE)).toThrow(/takes no value/)
     }
   )
