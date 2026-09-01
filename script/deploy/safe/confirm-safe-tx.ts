@@ -22,6 +22,7 @@ import { createDefaultCache } from '../shared/deployment-cache'
 import { sanitizeProvenanceText } from '../shared/git-provenance'
 import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
 
+import { readBooleanFlag, readValueFlag } from './cli-flags'
 import {
   buildAcknowledgementKey,
   buildProposalKey,
@@ -62,6 +63,7 @@ import {
   isFutureNonceExecutionAllowed,
   isSignedByProductionWallet,
   mongoSafeTxRowFilter,
+  parseAccountIndex,
   PrivateKeyTypeEnum,
   releaseAllPooledSafeClients,
   safeTxStatusConsumedNonce,
@@ -839,7 +841,8 @@ const main = defineCommand({
     },
     accountIndex: {
       type: 'string',
-      description: 'Ledger account index (default: 0)',
+      description:
+        'Ledger Live account index (default: 0); only read together with --ledgerLive',
       required: false,
     },
     derivationPath: {
@@ -853,22 +856,46 @@ const main = defineCommand({
     let privateKey: string | undefined
     let keyType = PrivateKeyTypeEnum.DEPLOYER // default value
     const useLedger = args.ledger ?? true
-    const ledgerOptions = {
-      ledgerLive: args.ledgerLive || false,
-      accountIndex: args.accountIndex ? Number(args.accountIndex) : 0,
-      derivationPath: args.derivationPath,
-    }
+
+    // Both read from argv rather than from `args`: citty coerces the kebab
+    // spelling of a boolean to the raw string (`--ledger-live=false` becomes
+    // truthy `'false'`) and a valueless `--account-index` to boolean `true`,
+    // and neither is recoverable from the parsed value. See `cli-flags.ts`.
+    const ledgerLive = readBooleanFlag(process.argv, {
+      camel: 'ledgerLive',
+      kebab: 'ledger-live',
+    })
+    const accountIndex = parseAccountIndex(
+      readValueFlag(process.argv, {
+        camel: 'accountIndex',
+        kebab: 'account-index',
+      })
+    )
 
     // Validate that incompatible Ledger options aren't provided together
-    if (args.derivationPath && args.ledgerLive)
+    if (args.derivationPath && ledgerLive)
       throw new Error(
         "Cannot use both 'derivationPath' and 'ledgerLive' options together"
       )
 
+    // Refused rather than ignored: `getLedgerAccount` reads `accountIndex` only
+    // on the Ledger Live path, so without it an operator who asked for account 3
+    // signs from account 0 and is told nothing.
+    if (useLedger && accountIndex !== 0 && !ledgerLive)
+      throw new Error(
+        "'accountIndex' only selects an account on the Ledger Live path. Add --ledgerLive, or drop --accountIndex."
+      )
+
+    const ledgerOptions = {
+      ledgerLive,
+      accountIndex,
+      derivationPath: args.derivationPath,
+    }
+
     // If using ledger, we don't need a private key
     if (useLedger) {
       consola.info('Using Ledger hardware wallet for signing')
-      if (args.ledgerLive)
+      if (ledgerLive)
         consola.info(
           `Using Ledger Live derivation path with account index ${ledgerOptions.accountIndex}`
         )

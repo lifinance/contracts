@@ -221,6 +221,7 @@ parked tasks are reconciled weekly by `reconcileParkedTasks.yml`.
 | Propose | Production `deployUpgradesToSAFE` from a feature branch: selected facet sources must match `origin/main`, else open PR + audit-log commit freeze; `main` and staging are not gated | Block (prod, that entry point only) | `script/deploy/github/verify-approvals.ts` via `deployUpgradesToSAFE.sh` (PR #2128) |
 | Confirm | Signer must be an owner; network must be active; threshold and nonce read on-chain per Safe | Block / skip | `confirm-safe-tx.ts`, `safe-utils.ts` |
 | Confirm | Ledger blind-signing enabled, fail-fast before any review | Block | `checkBlindSigningEnabled` in `ledger.ts` |
+| Confirm | Ledger account selection: `--accountIndex` must be a non-negative integer and only takes effect with `--ledgerLive`; `--derivationPath` and `--ledgerLive` are mutually exclusive. Applies to every script that offers the flags — `confirm-safe-tx.ts`, `propose-to-safe.ts`, `add-safe-owners-and-threshold.ts`, `ledger-flex-calibrate.ts`, `cleanUpProdDiamond.ts` | Block | `parseAccountIndex` in `safe-utils.ts`, read from argv via `cli-flags.ts` |
 | Confirm | Full calldata decode: diamond cut, scheduleBatch, whitelist, periphery, roles; per-selector name resolution | Display / warn only | `safe-decode-utils.ts` (`formatDecodedTxDataForDisplay`) |
 | Confirm | Deployed-version vs target-state mismatch highlight | **Warn only** | `facet-version-utils.ts`, `safe-utils.ts` |
 | Confirm | Stale nonce blocks Execute; future nonce prompts | Block / prompt | `confirm-safe-tx.ts` |

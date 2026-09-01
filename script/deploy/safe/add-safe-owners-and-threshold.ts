@@ -27,6 +27,7 @@ import globalConfig from '../../../config/global.json'
 import networksData from '../../../config/networks.json'
 import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 
+import { readBooleanFlag, readValueFlag } from './cli-flags'
 import type { ILedgerAccountResult } from './ledger'
 import {
   getNextNonce,
@@ -35,6 +36,7 @@ import {
   getSafeMongoCollection,
   initializeSafeClient,
   isAddressASafeOwner,
+  parseAccountIndex,
   storeTransactionInMongoDB,
   type ISafeTxDocument,
 } from './safe-utils'
@@ -120,7 +122,8 @@ const main = defineCommand({
     },
     accountIndex: {
       type: 'string',
-      description: 'Ledger account index (default: 0)',
+      description:
+        'Ledger Live account index (default: 0); only read together with --ledgerLive',
     },
     derivationPath: {
       type: 'string',
@@ -174,18 +177,42 @@ const main = defineCommand({
     }
 
     const useLedger = args.ledger ?? true
-    const ledgerOptions: ILedgerOptions | undefined = useLedger
-      ? {
-          ledgerLive: args.ledgerLive || false,
-          accountIndex: args.accountIndex ? Number(args.accountIndex) : 0,
-          derivationPath: args.derivationPath,
-        }
-      : undefined
 
-    if (useLedger && args.derivationPath && args.ledgerLive)
+    // Both read from argv rather than from `args`: citty coerces the kebab
+    // spelling of a boolean to the raw string (`--ledger-live=false` becomes
+    // truthy `'false'`) and a valueless `--account-index` to boolean `true`,
+    // and neither is recoverable from the parsed value. See `cli-flags.ts`.
+    const ledgerLive = readBooleanFlag(process.argv, {
+      camel: 'ledgerLive',
+      kebab: 'ledger-live',
+    })
+    const accountIndex = parseAccountIndex(
+      readValueFlag(process.argv, {
+        camel: 'accountIndex',
+        kebab: 'account-index',
+      })
+    )
+
+    if (useLedger && args.derivationPath && ledgerLive)
       throw new Error(
         "Cannot use both 'derivationPath' and 'ledgerLive' options together"
       )
+
+    // Refused rather than ignored: `getLedgerAccount` reads `accountIndex` only
+    // on the Ledger Live path, so without it an operator who asked for account 3
+    // signs from account 0 and is told nothing.
+    if (useLedger && accountIndex !== 0 && !ledgerLive)
+      throw new Error(
+        "'accountIndex' only selects an account on the Ledger Live path. Add --ledgerLive, or drop --accountIndex."
+      )
+
+    const ledgerOptions: ILedgerOptions | undefined = useLedger
+      ? {
+          ledgerLive,
+          accountIndex,
+          derivationPath: args.derivationPath,
+        }
+      : undefined
 
     const privateKey = useLedger
       ? undefined

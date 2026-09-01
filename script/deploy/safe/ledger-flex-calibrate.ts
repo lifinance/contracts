@@ -25,7 +25,9 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import { getAddress, type Account, type Hex } from 'viem'
 
+import { readValueFlag } from './cli-flags'
 import { closeLedgerConnection, getLedgerAccount } from './ledger'
+import { parseAccountIndex } from './safe-utils'
 
 interface ICalibrationTarget {
   name: string
@@ -238,7 +240,15 @@ const main = defineCommand({
 
     const { account, transport } = await getLedgerAccount({
       ledgerLive: args.ledgerLive,
-      accountIndex: args.accountIndex ? Number(args.accountIndex) : 0,
+      // Read from argv and left unconverted: citty turns a valueless
+      // `--account-index` into boolean `true`, so converting here would derive
+      // account 1 from a flag that named no account. See `cli-flags.ts`.
+      accountIndex: parseAccountIndex(
+        readValueFlag(process.argv, {
+          camel: 'accountIndex',
+          kebab: 'account-index',
+        })
+      ),
     })
     consola.success(`Connected: ${account.address}`)
 
