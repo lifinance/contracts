@@ -177,24 +177,14 @@ describe('deriveTimelockSalt', () => {
     )
   })
 
-  it('is insensitive to address casing, so one Safe cannot yield two salts', () => {
-    expect(
+  it('rejects a malformed address instead of deferring the failure to scheduleBatch', () => {
+    expect(() =>
       deriveTimelockSalt({
         ...action,
-        targets: ['0x2222222222222222222222222222222222222222'],
+        targets: ['0xnot-an-address' as Address],
         attempt: 0,
       })
-    ).toBe(
-      deriveTimelockSalt({
-        ...action,
-        targets: [
-          '0x2222222222222222222222222222222222222222'
-            .toUpperCase()
-            .replace('0X', '0x') as Address,
-        ],
-        attempt: 0,
-      })
-    )
+    ).toThrow()
   })
 
   it('does not collide when call order changes — inner calls execute in array order', () => {

@@ -2993,16 +2993,14 @@ export interface IPickTimelockSaltInput {
  * Picks the first action-derived salt whose operation the timelock does not
  * already know.
  *
- * The salt has to be derived from the action so that re-proposing work already
- * in flight produces identical calldata and the duplicate-proposal index can see
- * it. But OZ's `_schedule` rejects any id it has a timestamp for, and it keeps
- * one after execute, so the first candidate is unusable for an action that has
- * run before — and scheduling it anyway would revert only after signatures had
- * been collected and the delay had elapsed.
+ * OZ's `_schedule` rejects any id it already has a timestamp for, and it keeps
+ * one after execute, so the action's first candidate salt is unusable for an
+ * action that has run before — scheduling it would revert only after signatures
+ * had been collected and the delay had elapsed.
  *
- * A pending hit is reported rather than skipped quietly: that is a duplicate of
- * live work, which is exactly what a caller needs to know before spending
- * signatures on it.
+ * A pending hit refuses. Advancing past one would schedule the same batch twice
+ * under two operation ids, and the second proposal's intentHash would differ, so
+ * neither the timelock nor the duplicate index would stop a double execution.
  *
  * The scan is deterministic given chain state, so two proposers racing on the
  * same repeat converge on the same salt and stay deduplicated.
@@ -3055,16 +3053,21 @@ export const pickTimelockSalt = async (
 
     if (state === 'unknown') return salt
 
+    // Pending refuses instead of advancing. Advancing would mint a second
+    // operation for the same batch under a different salt — a different
+    // intentHash too, so the duplicate index cannot see it either — and both
+    // would then be executable, running the batch twice. Catching this is the
+    // reason the salt is action-derived at all.
     if (state === 'pending')
-      consola.warn(
-        `Timelock operation ${operationId} for this exact batch is already scheduled and not yet ` +
-          `executed. This proposal duplicates work already in flight — cancel or execute the existing ` +
-          `operation instead of scheduling a second one.`
+      throw new Error(
+        `Timelock operation ${operationId} for this exact batch is already scheduled on ${timelockAddress} ` +
+          `and has not executed. This proposal duplicates work already in flight — execute or cancel the ` +
+          `existing operation instead of scheduling a second one. Nothing was proposed.`
       )
-    else
-      consola.info(
-        `Timelock operation ${operationId} for this batch has already executed; deriving the next salt.`
-      )
+
+    consola.info(
+      `Timelock operation ${operationId} for this batch has already executed; deriving the next salt.`
+    )
   }
 
   throw new Error(

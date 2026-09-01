@@ -36,12 +36,13 @@ import {
 
 import { EnvironmentEnum } from '../common/types'
 import {
+  OperationTypeEnum,
   getNextNonce,
   getPrivateKey,
   getSafeMongoCollection,
   initializeSafeClient,
   isAddressASafeOwner,
-  OperationTypeEnum,
+  pickTimelockSalt,
   storeTransactionInMongoDB,
 } from '../deploy/safe/safe-utils'
 import {
@@ -257,7 +258,13 @@ async function buildTimelockScheduleBatchCalldata(params: {
     'function scheduleBatch(address[] targets, uint256[] values, bytes[] payloads, bytes32 predecessor, bytes32 salt, uint256 delay)',
   ])
 
-  const salt = `0x${Date.now().toString(16).padStart(64, '0')}` as Hex
+  const salt = await pickTimelockSalt({
+    client,
+    chainId: chain.id,
+    timelockAddress,
+    targetAddresses: targets,
+    originalCalldatas: payloads,
+  })
 
   return encodeFunctionData({
     abi: scheduleBatchAbi,

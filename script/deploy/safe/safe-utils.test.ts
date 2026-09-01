@@ -25,7 +25,7 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 import { type Collection, type InsertOneResult, type ObjectId } from 'mongodb'
-import { type Address, type Hex } from 'viem'
+import { keccak256, encodeAbiParameters, type Address, type Hex } from 'viem'
 
 import {
   buildProposalProvenance,
@@ -50,7 +50,7 @@ import {
   type NonceExecutionDecision,
   type SafeNonceStatus,
 } from './safe-utils'
-import { deriveTimelockSalt } from './timelock-abi'
+import { TIMELOCK_ZERO_PREDECESSOR, deriveTimelockSalt } from './timelock-abi'
 
 const SAFE_ADDR = '0x1111111111111111111111111111111111111111' as Address
 const TARGET = '0x2222222222222222222222222222222222222222' as Address
@@ -1253,29 +1253,49 @@ describe('classifyIndexEnsureFailure', () => {
 })
 
 /**
- * Fake timelock: answers `hashOperationBatch` with a hash of the salt alone and
- * `getTimestamp` from a caller-supplied table, so the salt-scan loop is testable
- * without a chain. The id derivation does not need to match OZ here — only that
- * distinct salts give distinct ids, which is what the loop depends on.
+ * Fake timelock that derives the operation id the way OZ does, so the id is a
+ * function of every field the real contract hashes.
+ *
+ * A fake that echoed the salt back would make salt and operation id
+ * indistinguishable and never observe `values` or `predecessor` — and would then
+ * pass even if the code probed `getTimestamp` with the salt instead of the id, or
+ * probed a different `values` array than the one it schedules. Both of those
+ * silently reintroduce a guaranteed revert after signing.
  */
+const ozOperationId = (args: readonly unknown[]): Hex =>
+  keccak256(
+    encodeAbiParameters(
+      [
+        { type: 'address[]' },
+        { type: 'uint256[]' },
+        { type: 'bytes[]' },
+        { type: 'bytes32' },
+        { type: 'bytes32' },
+      ],
+      args as never
+    )
+  )
+
 const fakeTimelockClient = (
-  timestampsBySalt: Record<string, bigint>
-): { client: unknown; reads: string[] } => {
-  const reads: string[] = []
+  timestampsByOperationId: Record<string, bigint>
+): { client: unknown; probedIds: string[]; hashArgs: readonly unknown[][] } => {
+  const probedIds: string[] = []
+  const hashArgs: readonly unknown[][] = []
   const client = {
     readContract: async (args: {
       functionName: string
       args: readonly unknown[]
     }): Promise<unknown> => {
       if (args.functionName === 'hashOperationBatch') {
-        const salt = args.args[4] as string
-        reads.push(salt)
-        return salt
+        ;(hashArgs as unknown[][]).push([...args.args])
+        return ozOperationId(args.args)
       }
-      return timestampsBySalt[args.args[0] as string] ?? 0n
+      const id = args.args[0] as string
+      probedIds.push(id)
+      return timestampsByOperationId[id] ?? 0n
     },
   }
-  return { client, reads }
+  return { client, probedIds, hashArgs }
 }
 
 describe('pickTimelockSalt', () => {
@@ -1296,6 +1316,16 @@ describe('pickTimelockSalt', () => {
       payloads: action.originalCalldatas,
       attempt,
     })
+
+  /** The id the real timelock would report for a given attempt's salt. */
+  const idFor = (attempt: number): Hex =>
+    ozOperationId([
+      action.targetAddresses,
+      action.targetAddresses.map(() => 0n),
+      action.originalCalldatas,
+      TIMELOCK_ZERO_PREDECESSOR,
+      saltFor(attempt),
+    ])
 
   it('uses the first attempt when the timelock knows nothing about it', async () => {
     const { client } = fakeTimelockClient({})
@@ -1322,7 +1352,7 @@ describe('pickTimelockSalt', () => {
   })
 
   it('skips an executed operation and takes the next attempt', async () => {
-    const { client } = fakeTimelockClient({ [saltFor(0)]: 1n })
+    const { client } = fakeTimelockClient({ [idFor(0)]: 1n })
 
     expect(await pickTimelockSalt({ ...action, client: client as never })).toBe(
       saltFor(1)
@@ -1330,29 +1360,36 @@ describe('pickTimelockSalt', () => {
   })
 
   it('skips several executed operations in order', async () => {
-    const { client, reads } = fakeTimelockClient({
-      [saltFor(0)]: 1n,
-      [saltFor(1)]: 1n,
-      [saltFor(2)]: 1n,
+    const { client, probedIds } = fakeTimelockClient({
+      [idFor(0)]: 1n,
+      [idFor(1)]: 1n,
+      [idFor(2)]: 1n,
     })
 
     expect(await pickTimelockSalt({ ...action, client: client as never })).toBe(
       saltFor(3)
     )
-    expect(reads).toEqual([saltFor(0), saltFor(1), saltFor(2), saltFor(3)])
+    expect(probedIds).toEqual([idFor(0), idFor(1), idFor(2), idFor(3)])
   })
 
-  it('moves past a PENDING operation rather than proposing a guaranteed revert', async () => {
-    const { client } = fakeTimelockClient({ [saltFor(0)]: 1_800_000_000n })
+  it('refuses on a PENDING operation rather than scheduling the batch twice', async () => {
+    const { client } = fakeTimelockClient({ [idFor(0)]: 1_800_000_000n })
 
-    expect(await pickTimelockSalt({ ...action, client: client as never })).toBe(
-      saltFor(1)
-    )
+    let thrown: unknown
+    try {
+      await pickTimelockSalt({ ...action, client: client as never })
+    } catch (error) {
+      thrown = error
+    }
+
+    expect(thrown).toBeInstanceOf(Error)
+    expect((thrown as Error).message).toMatch(/already scheduled/i)
+    expect((thrown as Error).message).toMatch(/nothing was proposed/i)
   })
 
   it('refuses rather than guessing when every attempt is taken', async () => {
     const taken: Record<string, bigint> = {}
-    for (let attempt = 0; attempt < 16; attempt++) taken[saltFor(attempt)] = 1n
+    for (let attempt = 0; attempt < 16; attempt++) taken[idFor(attempt)] = 1n
 
     let thrown: unknown
     try {

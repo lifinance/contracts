@@ -28,8 +28,8 @@ export const TIMELOCK_SCHEDULE_BATCH_SELECTOR = toFunctionSelector(
 /**
  * Reads used to pick a salt that will not collide with an existing operation.
  *
- * `hashOperationBatch` is read from the contract rather than recomputed locally
- * so the id cannot drift from the timelock's own definition of it.
+ * `hashOperationBatch` is read from the contract so the id cannot drift from the
+ * timelock's own definition of it.
  */
 export const TIMELOCK_OPERATION_STATE_ABI = parseAbi([
   'function hashOperationBatch(address[] targets, uint256[] values, bytes[] payloads, bytes32 predecessor, bytes32 salt) view returns (bytes32)',
@@ -37,8 +37,8 @@ export const TIMELOCK_OPERATION_STATE_ABI = parseAbi([
 ])
 
 /**
- * Exported so the operation-id read and the encoder cannot disagree: a different
- * predecessor here would hash to a different id than the one actually scheduled.
+ * Shared by the operation-id read and the encoder: a different predecessor in
+ * either would hash to a different operation than the one scheduled.
  */
 export const TIMELOCK_ZERO_PREDECESSOR =
   // pre-commit-checker: not a secret — zero bytes32 means "no predecessor"
@@ -130,10 +130,10 @@ export type TimelockOperationState = 'unknown' | 'pending' | 'done'
 /**
  * Reads OZ's `_timestamps` value for an operation id.
  *
- * The encoding is OZ's, not ours: 0 means never scheduled, and `_DONE_TIMESTAMP`
- * (1) is written on execute, so a done operation is indistinguishable from a
- * scheduled one by presence alone. `_schedule` rejects both, which is why the
- * two are told apart here rather than lumped into "exists".
+ * The encoding is OZ's: 0 means never scheduled, and `_DONE_TIMESTAMP` (1) is
+ * written on execute, so presence alone cannot distinguish a done operation from
+ * a scheduled one. `_schedule` rejects both, but the caller must treat them
+ * differently.
  *
  * @param timestamp - the value `getTimestamp(id)` returned.
  * @returns whether the operation is unknown, pending, or already executed.
@@ -157,15 +157,13 @@ export interface ITimelockSaltInput {
 }
 
 /**
- * Derives the timelock salt from the action itself rather than from the clock.
+ * Derives the timelock salt from the action, so the same action yields the same
+ * `scheduleBatch` calldata and a re-proposal is visible to the duplicate-proposal
+ * index.
  *
- * A clock-derived salt gives the same logical action a different `scheduleBatch`
- * calldata on every attempt, so `intentHash` differs and the duplicate-proposal
- * index cannot see a re-proposal of work already in flight.
- *
- * Addresses are checksummed before hashing: the same Safe reaches this code in
- * lowercase from the Tron path and checksummed from the EVM path, and two salts
- * for one action would defeat the dedup this exists to restore.
+ * `getAddress` is for validation, not normalisation — viem ABI-encodes `address`
+ * to the same bytes either way — and it rejects a malformed address here rather
+ * than at `scheduleBatch`.
  *
  * `attempt` is in the preimage because a purely action-derived salt can be
  * scheduled only once ever — OZ keeps `_timestamps[id]` non-zero after execute —

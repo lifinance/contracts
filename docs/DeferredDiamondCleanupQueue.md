@@ -147,8 +147,12 @@ the source prompt or inferred, **not** confirmed.
    (`safe-utils.ts:1322-1349`); `intentHash = keccak256(network, chainId,
    safeAddress, to, value, data, operation)` (`:1218-1249`). Duplicate insert → E11000
    → returns `null` (`:1296-1309`).
-9. `[code]` **Timelock-wrap salt is time-derived and non-deterministic:**
-   `wrapWithTimelockSchedule` builds `salt = 0x{Date.now()…}` (`safe-utils.ts:2392`)
+9. `[code]` **Timelock-wrap salt was time-derived and non-deterministic — fixed by EXSC-874 D4:**
+   `wrapWithTimelockSchedule` now derives the salt from the action and checks it against
+   the timelock (`deriveTimelockSalt` / `pickTimelockSalt`), so two wraps of the same
+   removal cut produce the same calldata and the `intentHash` dedup does apply. The
+   queue-layer flip remains the guarantee that does not depend on it. Historically it built
+   `salt = 0x{Date.now()…}`
    and always encodes a single `scheduleBatch` (N inner calls; length-1 for one).
    ⇒ Two wraps of the **same** removal cut produce **different** calldata → different
    `intentHash`. **The Mongo `intentHash` dedup (Fact 8) cannot prevent a duplicate
