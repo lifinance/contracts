@@ -49,6 +49,8 @@ export interface ICardProposal {
   prUrl?: unknown
   gitCommit?: unknown
   dirtyTreeScoped?: unknown
+  /** Capture sets this when it stopped counting; the list is then a floor. */
+  dirtyTreeTruncated?: unknown
   /**
    * Result of a check the PROPOSER ran. Rendered as advisory: the authoritative
    * status is the signer-side attestation, and a card that states a result
@@ -283,21 +285,25 @@ export const renderProposalCard = (
   // Union across rows: a dirty tree on any network must never read as clean.
   // A row carrying anything at all in this field is a row that reported a dirty
   // tree, whatever shape the value arrived in.
-  const dirtyRows = proposals.filter(
-    (p) => p.dirtyTreeScoped !== undefined && p.dirtyTreeScoped !== null
-  )
-  const usable = dirtyRows.filter(
+  const dirty = proposals.filter(
     (p) => Array.isArray(p.dirtyTreeScoped) && p.dirtyTreeScoped.length > 0
   )
-  const unreadable = dirtyRows.filter((p) => !Array.isArray(p.dirtyTreeScoped))
+  // Only a measured empty array reads as clean. `provenance-display.ts` already
+  // holds that rule for the signing prompt, where a non-array — absent and null
+  // included — is 'unreadable'; a card that stayed silent left the two
+  // renderers disagreeing about one field.
+  const uncaptured = proposals.filter((p) => !Array.isArray(p.dirtyTreeScoped))
 
-  if (usable.length > 0 || unreadable.length > 0) {
+  if (dirty.length > 0 || uncaptured.length > 0) {
     const paths = [
       ...new Set(
-        usable.flatMap((p) => (p.dirtyTreeScoped as unknown[]).map(escape))
+        dirty.flatMap((p) => (p.dirtyTreeScoped as unknown[]).map(escape))
       ),
     ].filter(Boolean)
-    const reported = [...usable, ...unreadable]
+    // Capture stopped counting on at least one row, so the list is a floor.
+    // Without this a 500-file dirty tree rendered exactly like a 20-file one.
+    const truncated = dirty.some((p) => p.dirtyTreeTruncated === true)
+    const reported = [...dirty, ...uncaptured]
     const where =
       reported.length === proposals.length
         ? ''
@@ -305,15 +311,22 @@ export const renderProposalCard = (
             reported.map((p) => escape(p.network)),
             NAMED_NETWORK_LIMIT
           )})`
+
     const detail =
       paths.length > 0
-        ? summarise(paths, MAX_DIRTY_PATHS)
-        : 'paths could not be read'
-    const shapeNote =
-      unreadable.length > 0 && paths.length > 0
-        ? '; some paths could not be read'
+        ? truncated
+          ? `${paths
+              .slice(0, MAX_DIRTY_PATHS)
+              .join(', ')}, and more that capture stopped counting`
+          : summarise(paths, MAX_DIRTY_PATHS)
+        : 'paths not captured'
+    const note =
+      uncaptured.length > 0 && paths.length > 0
+        ? '; some rows captured no path list'
         : ''
-    lines.push(`*Working tree:* dirty${where} — ${detail}${shapeNote}`)
+
+    const state = dirty.length > 0 ? 'dirty' : 'not captured'
+    lines.push(`*Working tree:* ${state}${where} — ${detail}${note}`)
   }
 
   const checkSummary = escape(first.checkSummary)

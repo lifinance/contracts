@@ -19,6 +19,10 @@ const proposal = (overrides: Partial<ICardProposal> = {}): ICardProposal => ({
   reason: 'add AcrossFacetV4 to the whitelist',
   prUrl: 'https://github.com/lifinance/contracts/pull/2125',
   gitCommit: '1234567890abcdef',
+  // A measured empty array, which is what capture actually writes for a clean
+  // tree. Omitting it made the default fixture look like a pre-provenance row,
+  // for which the card now correctly says "not captured".
+  dirtyTreeScoped: [],
   ...overrides,
 })
 
@@ -585,7 +589,7 @@ describe('renderProposalCard — an unreadable dirty-tree field is not clean', (
       const line = card.split('\n').find((l) => l.startsWith('*Working tree:*'))
       expect(line).toBeDefined()
       expect(line).toContain('arbitrum')
-      expect(line).toMatch(/could not be read/)
+      expect(line).toMatch(/not captured/)
     }
   )
 
@@ -658,5 +662,60 @@ describe('renderProposalCard — the unions cannot become the overflow', () => {
 
     expect(small).toBeGreaterThan(0)
     expect(large - small).toBeLessThan(10)
+  })
+})
+
+describe('renderProposalCard — the dirty-path list cannot understate itself', () => {
+  it('says so when capture truncated the path list', () => {
+    // Capture sets dirtyTreeTruncated and the signing prompt renders "20+
+    // dirty". The card had no such field, so exactly MAX_DIRTY_PATHS paths took
+    // the "<= limit" branch and a 500-file dirty tree rendered identically to a
+    // 20-file one — the same understating-a-warning class as reading the field
+    // from row zero.
+    const card = renderProposalCard([
+      proposal({
+        dirtyTreeScoped: Array.from({ length: 20 }, (_, i) => `src/F${i}.sol`),
+        dirtyTreeTruncated: true,
+      }),
+    ])
+
+    const line = card.split('\n').find((l) => l.startsWith('*Working tree:*'))
+    expect(line).toMatch(/more/)
+  })
+
+  it('stays exact when capture was not truncated', () => {
+    const card = renderProposalCard([
+      proposal({
+        dirtyTreeScoped: Array.from({ length: 20 }, (_, i) => `src/F${i}.sol`),
+      }),
+    ])
+
+    const line = card.split('\n').find((l) => l.startsWith('*Working tree:*'))
+    expect(line).not.toMatch(/more/)
+  })
+})
+
+describe('renderProposalCard — an uncaptured working tree is not a clean one', () => {
+  it('reports an absent dirtyTreeScoped rather than rendering nothing', () => {
+    // `provenance-display.ts` already holds this rule for the signing prompt:
+    // only a measured empty array may read as clean, and a non-array — absent
+    // and null included — is 'unreadable'. Emitting no line for those left the
+    // card and the prompt disagreeing about one field.
+    const card = renderProposalCard([
+      proposal({ dirtyTreeScoped: undefined }),
+      proposal({ network: 'arbitrum', dirtyTreeScoped: undefined }),
+    ])
+
+    expect(card).toContain('*Working tree:*')
+    expect(card).toMatch(/not captured/)
+  })
+
+  it('is silent only for a measured empty array', () => {
+    const card = renderProposalCard([
+      proposal({ dirtyTreeScoped: [] }),
+      proposal({ network: 'arbitrum', dirtyTreeScoped: [] }),
+    ])
+
+    expect(card).not.toContain('*Working tree:*')
   })
 })

@@ -42,6 +42,7 @@ interface IRow {
     prUrl?: unknown
     gitCommit?: unknown
     dirtyTreeScoped?: unknown
+    dirtyTreeTruncated?: unknown
   }
 }
 
@@ -127,6 +128,7 @@ const main = defineCommand({
           prUrl: row.provenance?.prUrl,
           gitCommit: row.provenance?.gitCommit,
           dirtyTreeScoped: row.provenance?.dirtyTreeScoped,
+          dirtyTreeTruncated: row.provenance?.dirtyTreeTruncated,
         }))
 
       if (proposals.length === 0)
