@@ -2220,6 +2220,7 @@ describe('facets-registered scheduled-registration coverage', () => {
 
 describe('periphery-registered scheduled-registration coverage', () => {
   const DIAMOND = '0xD1A0000000000000000000000000000000000002'
+  const OTHER_TARGET = '0xD1A0000000000000000000000000000000000003'
   const EXECUTOR = '0xEEEE000000000000000000000000000000000021'
   const OPERATION_ID = `0x${'ef'.repeat(32)}` as Hex
 
@@ -2246,7 +2247,8 @@ describe('periphery-registered scheduled-registration coverage', () => {
   }
 
   const covering = (
-    peripheryName = 'Executor'
+    peripheryName = 'Executor',
+    target = DIAMOND
   ): Map<string, Map<string, IPendingRegistration[]>> =>
     new Map([
       [
@@ -2259,7 +2261,7 @@ describe('periphery-registered scheduled-registration coverage', () => {
                 address: EXECUTOR.toLowerCase(),
                 peripheryName,
                 operationId: OPERATION_ID,
-                target: DIAMOND.toLowerCase(),
+                target: target.toLowerCase(),
               },
             ],
           ],
@@ -2285,6 +2287,13 @@ describe('periphery-registered scheduled-registration coverage', () => {
   // leaves getPeripheryContract('Executor') unset, so it must not downgrade.
   it('still errors when the queued operation registers the address under another name', async () => {
     const ctx = makePeripheryCtx(covering('Other'))
+    await invariant('periphery-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('Executor')
+  })
+
+  it('still errors when the queued operation targets another contract', async () => {
+    const ctx = makePeripheryCtx(covering('Executor', OTHER_TARGET))
     await invariant('periphery-registered').run(ctx)
     expect(ctx.errors).toHaveLength(1)
     expect(ctx.errors[0]).toContain('Executor')
