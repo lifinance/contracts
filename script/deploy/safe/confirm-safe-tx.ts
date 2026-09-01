@@ -19,6 +19,7 @@ import { type Address, type Hex } from 'viem'
 import networksData from '../../../config/networks.json'
 import { buildExplorerAddressUrl } from '../../utils/viemScriptHelpers'
 import { createDefaultCache } from '../shared/deployment-cache'
+import { sanitizeProvenanceText } from '../shared/git-provenance'
 import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
 
 import {
@@ -43,12 +44,14 @@ import {
   LEDGER_FLEX_WRAP_NOTE,
   renderLedgerFlexFlow,
 } from './ledger-flex-preview'
+import { formatProvenanceLines } from './provenance-display'
 import { reconcileAllSubmittedSafeTxs } from './reconcile'
 import {
   formatDecodedTxDataForDisplay,
   getTargetName,
 } from './safe-decode-utils'
 import {
+  canExecuteWithNonceStatus,
   getNetworksWithActionableTransactions,
   getNetworksWithPendingTransactions,
   getPendingTransactionsByNetwork,
@@ -56,6 +59,7 @@ import {
   getSafeMongoCollection,
   getOrInitializeSafeClient,
   hasEnoughSignatures,
+  isFutureNonceExecutionAllowed,
   isSignedByProductionWallet,
   mongoSafeTxRowFilter,
   PrivateKeyTypeEnum,
@@ -68,6 +72,7 @@ import {
   type ISafeTxDocument,
   type ISafeTxMongoDocument,
   type SafeClient,
+  type SafeNonceStatus,
   type SafeTxStatus,
 } from './safe-utils'
 import { enqueueTimelockOpIfApplicable } from './timelock-queue'
@@ -339,7 +344,7 @@ const processTxs = async (
     const txNonce = BigInt(tx.safeTx.data.nonce)
     // 'stale': nonce already used on-chain (proposal was created with a wrong/old nonce, e.g. due to stale RPC)
     // 'future': nonce not yet reachable (a lower-nonce proposal must execute first)
-    const nonceStatus =
+    const nonceStatus: SafeNonceStatus =
       txNonce === expectedNonce
         ? 'current'
         : txNonce < expectedNonce
@@ -410,6 +415,18 @@ const processTxs = async (
         detailLines.push(`        [32m${ref.facet}[0m → [36m${ref.prUrl}[0m`)
     }
 
+    // Belt-and-braces around a total function: no shape of stored row may cost
+    // the operator the rest of the networks in this run.
+    try {
+      detailLines.push(...formatProvenanceLines(tx.provenance))
+    } catch (error) {
+      detailLines.push(
+        `    Provenance:      \u001b[33mUNKNOWN — could not be rendered: ${sanitizeProvenanceText(
+          error instanceof Error ? error.message : error
+        )}\u001b[0m`
+      )
+    }
+
     consola.info(detailLines.join('\n'))
 
     // Ledger Flex signing filmstrip: reproduce the on-device screens the
@@ -473,7 +490,8 @@ const processTxs = async (
     })
 
     // Determine available actions based on signature status
-    // Execute options are shown regardless of nonce status — GS026 risk is explained at execution time
+    // Execute options are offered regardless of nonce status; the nonce gate runs
+    // after the choice so the operator sees why a specific proposal is refused
     let action: string
     if (privKeyType === PrivateKeyTypeEnum.SAFE_SIGNER) {
       const options = ['Do Nothing']
@@ -531,7 +549,6 @@ const processTxs = async (
 
     if (action === 'Do Nothing') continue
 
-    // If user chose an execute action but nonce is not current, warn clearly and confirm
     const isExecuteAction = [
       'Execute',
       'Execute with Deployer',
@@ -539,7 +556,17 @@ const processTxs = async (
       'Sign and Execute With Deployer',
     ].includes(action)
 
-    if (isExecuteAction && nonceStatus === 'stale') {
+    // Both nonce mismatches are guaranteed on-chain reverts, so broadcasting is
+    // refused by default (the future case is overridable — see safe-utils). Only
+    // execute actions are gated: a future-nonce proposal must still be signable
+    // so signatures accumulate while the blocking proposal is pending.
+    const nonceDecision = isExecuteAction
+      ? canExecuteWithNonceStatus(nonceStatus, {
+          allowFutureNonce: isFutureNonceExecutionAllowed(),
+        })
+      : undefined
+
+    if (nonceDecision?.reason === 'stale-nonce') {
       consola.error('')
       consola.error('='.repeat(80))
       consola.error('✗  STALE PROPOSAL — THIS TRANSACTION WILL REVERT')
@@ -562,53 +589,73 @@ const processTxs = async (
       continue
     }
 
-    if (isExecuteAction && nonceStatus === 'future') {
-      // Check if there is actually a pending proposal for the blocking nonce in the DB
-      const blockingPendingTx = await pendingTransactions.findOne({
-        safeAddress: txSafeAddress,
-        network: network.toLowerCase(),
-        chainId: chain.id,
-        status: 'pending',
-        'safeTx.data.nonce': Number(expectedNonce),
-      })
+    if (nonceDecision && nonceDecision.reason !== 'nonce-current') {
+      if (!nonceDecision.canExecute) {
+        // Check if there is actually a pending proposal for the blocking nonce in the DB
+        const blockingPendingTx = await pendingTransactions.findOne({
+          safeAddress: txSafeAddress,
+          network: network.toLowerCase(),
+          chainId: chain.id,
+          status: 'pending',
+          'safeTx.data.nonce': Number(expectedNonce),
+        })
 
-      consola.warn('')
-      consola.warn('='.repeat(80))
-      consola.warn('⚠  GS026 WARNING — THIS TRANSACTION WILL REVERT')
-      consola.warn('='.repeat(80))
-      consola.warn(
-        `  This transaction has nonce \u001b[33m${tx.safeTx.data.nonce}\u001b[0m but the Safe's current on-chain nonce is \u001b[33m${expectedNonce}\u001b[0m.`
-      )
-      consola.warn(
-        `  The Safe requires nonce ${expectedNonce} to be executed first — executing this will revert with GS026.`
-      )
-      if (blockingPendingTx) {
+        consola.warn('')
+        consola.warn('='.repeat(80))
+        consola.warn('⚠  GS026 — THIS TRANSACTION WILL REVERT')
+        consola.warn('='.repeat(80))
         consola.warn(
-          `  A pending proposal for nonce ${expectedNonce} exists in the database — execute that one first.`
-        )
-      } else {
-        consola.warn(
-          `  There is no pending proposal for nonce ${expectedNonce} in the database.`
+          `  This transaction has nonce \u001b[33m${tx.safeTx.data.nonce}\u001b[0m but the Safe's current on-chain nonce is \u001b[33m${expectedNonce}\u001b[0m.`
         )
         consola.warn(
-          `  You need to re-create a proposal with nonce \u001b[33m${expectedNonce}\u001b[0m and execute it first.`
+          `  The Safe requires nonce ${expectedNonce} to be executed first — executing this will revert with GS026.`
         )
-      }
-      consola.warn('='.repeat(80))
-      consola.warn('')
-
-      const proceed = await consola.prompt(
-        'Proceed anyway? (will revert with GS026)',
-        {
-          type: 'select',
-          options: ['No — abort execution', 'Yes — execute anyway'],
+        if (blockingPendingTx) {
+          consola.warn(
+            `  A pending proposal for nonce ${expectedNonce} exists in the database — execute that one first.`
+          )
+        } else {
+          consola.warn(
+            `  There is no pending proposal for nonce ${expectedNonce} in the database.`
+          )
+          consola.warn(
+            `  You need to re-create a proposal with nonce \u001b[33m${expectedNonce}\u001b[0m and execute it first.`
+          )
         }
-      )
+        consola.warn('='.repeat(80))
+        consola.warn('')
 
-      if (proceed.startsWith('No')) {
-        consola.info('Execution aborted')
+        consola.error(
+          '  Execution refused — broadcasting would spend gas on a guaranteed revert.'
+        )
+        consola.info(
+          '  Signing is still available: re-run and choose "Sign" to add your signature now.'
+        )
+        consola.info(
+          '  If the blocking proposal was just executed elsewhere, re-run this script to refresh the on-chain nonce.'
+        )
+        consola.info(
+          '  If the configured RPC is known to report an out-of-date on-chain nonce, re-run with ALLOW_FUTURE_NONCE_EXECUTION=true.'
+        )
+        consola.info('Execution aborted — proposal nonce is not reachable yet')
         continue
       }
+
+      consola.warn('')
+      consola.warn('='.repeat(80))
+      consola.warn('⚠  NONCE GAP — EXECUTING BY OPERATOR OVERRIDE')
+      consola.warn('='.repeat(80))
+      consola.warn(
+        `  This transaction has nonce \u001b[33m${tx.safeTx.data.nonce}\u001b[0m but the configured RPC reports on-chain nonce \u001b[33m${expectedNonce}\u001b[0m.`
+      )
+      consola.warn(
+        '  ALLOW_FUTURE_NONCE_EXECUTION=true — proceeding on the assumption that the RPC nonce is out of date.'
+      )
+      consola.warn(
+        '  If the RPC nonce is accurate, this execution will revert with GS026.'
+      )
+      consola.warn('='.repeat(80))
+      consola.warn('')
     }
 
     if (
