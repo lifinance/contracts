@@ -142,7 +142,9 @@ async function store(
   collection: Collection<ISafeTxDocument>,
   safeTx: ISafeTransaction,
   provenance: IProposalProvenance = FIXED_PROVENANCE,
-  options: { ticket?: string | undefined } = { ticket: TICKET }
+  options: { ticket?: string | undefined; reason?: string | undefined } = {
+    ticket: TICKET,
+  }
 ): Promise<InsertOneResult<ISafeTxDocument> | null> {
   return storeTransactionInMongoDB(
     collection,
@@ -153,7 +155,7 @@ async function store(
     ('0x' + 'ab'.repeat(32)) as Hex,
     PROPOSER,
     undefined,
-    { override: provenance, ticket: options.ticket }
+    { override: provenance, ticket: options.ticket, reason: options.reason }
   )
 }
 
@@ -439,6 +441,21 @@ describe('storeTransactionInMongoDB — provenance', () => {
     })
   })
 
+  it('stores the reason the resolver settled on, not the raw flag', async () => {
+    // The funnel resolves the reason once to decide whether to warn. Storing a
+    // separately-derived value lets a proposal be recorded reasonless while the
+    // operator saw no warning, and the adoption counter reads the stored field.
+    process.env.SAFE_PROPOSAL_REASON = 'rotate the pauser key'
+    const collection = createFakeCollection()
+
+    await store(collection, buildSafeTx(), FIXED_PROVENANCE, {
+      ticket: TICKET,
+      reason: '',
+    })
+
+    expect(collection.rows[0]?.provenance?.reason).toBe('rotate the pauser key')
+  })
+
   it('keeps provenance out of the intent hash', async () => {
     const collection = createFakeCollection()
 
@@ -547,6 +564,23 @@ describe('buildProposalProvenance', () => {
       }).reason
     ).toBe('from caller')
   })
+
+  it.each([
+    ['empty string', ''],
+    ['whitespace', '   '],
+  ])(
+    'falls back to the environment when the caller passes %s',
+    (_label, reason) => {
+      // A bare `--reason` arrives as '', which `??` treats as supplied. The
+      // resolver applies the same rule, and the two must not disagree about
+      // whether a reason was given — one drives the warning, this one the field.
+      process.env.SAFE_PROPOSAL_REASON = 'rotate the pauser key'
+
+      expect(
+        buildProposalProvenance({ override: FIXED_PROVENANCE, reason }).reason
+      ).toBe('rotate the pauser key')
+    }
+  )
 
   it('never overwrites a reason the block already carries', () => {
     expect(

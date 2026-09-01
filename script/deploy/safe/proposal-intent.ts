@@ -139,6 +139,11 @@ export const parseTicketLink = (raw: string | undefined): TicketLinkResult => {
   if (parsed.hostname !== LINEAR_HOST)
     return invalid(`host is '${parsed.hostname}', expected '${LINEAR_HOST}'`)
 
+  // Linear answers on 443 only, which the parser drops as the default, so any
+  // surviving port makes this a link that resolves nowhere.
+  if (parsed.port !== '')
+    return invalid(`host carries port '${parsed.port}', expected none`)
+
   const segments = parsed.pathname.split('/').filter(Boolean)
   const issueAt = segments.indexOf('issue')
   if (issueAt === -1)
@@ -148,6 +153,14 @@ export const parseTicketLink = (raw: string | undefined): TicketLinkResult => {
   if (!id || !TICKET_ID.test(id))
     return invalid(
       `'${id ?? ''}' after /issue/ is not an issue id like EXSC-123`
+    )
+
+  // Re-measured on the parsed form, which is what gets stored: percent-encoding
+  // a non-ASCII path multiplies its length several times over, so checking the
+  // input alone leaves the stored value unbounded.
+  if (parsed.href.length > MAX_TICKET_URL_LENGTH)
+    return invalid(
+      `link is ${parsed.href.length} characters once encoded, longer than the ${MAX_TICKET_URL_LENGTH} allowed`
     )
 
   // The parsed form, not the raw input: URL parsing drops the tab and newline
@@ -183,25 +196,24 @@ export interface IProposalIntent {
  * Picks the first value that carries something, treating blank as absent.
  *
  * `??` is not enough: citty hands back `''` for a valueless `--ticket`, which is
- * not nullish, so a bare flag consumed the slot and the environment fallback was
- * never consulted. The ticket half then refused with a message naming the
- * variable the operator had exported, and the reason half failed open — it
- * discarded `SAFE_PROPOSAL_REASON`, stored a reasonless proposal, and fed a
- * false data point into the adoption counter the flip trigger reads.
+ * not nullish, so a bare flag consumes the slot and the environment fallback is
+ * never consulted.
  *
+ * @param flag - Named in the refusal, so an operator knows which one to correct.
  * @param values - Candidates in precedence order, flag before environment.
  * @returns The first one with non-blank content, or undefined.
+ * @throws If a candidate is not text, which `.trim()` would fail on obscurely.
  */
-const firstSupplied = (
+export const firstSupplied = (
+  flag: string,
   ...values: (string | undefined)[]
 ): string | undefined => {
-  // citty hands back an ARRAY for a repeated flag, and reaching `.trim()` on one
-  // crashed with a TypeError from inside this helper. Which of two tickets a
-  // proposal is filed under is not a choice to make quietly either way.
-  for (const value of values)
-    if (Array.isArray(value))
+  // Widened deliberately: these arrive from an argv parser, so the declared type
+  // is a hope rather than a guarantee.
+  for (const value of values as unknown[])
+    if (value !== undefined && typeof value !== 'string')
       throw new Error(
-        `A flag was given more than once (${value.length}×). Pass it once.`
+        `${flag} was not given a single text value. Pass it once, as text.`
       )
 
   return values.find((value) => (value ?? '').trim() !== '')
@@ -221,11 +233,13 @@ const firstSupplied = (
 export const resolveProposalIntent = (
   input: IProposalIntentInput
 ): IProposalIntent => {
-  const ticket = parseTicketLink(firstSupplied(input.ticket, input.envTicket))
+  const ticket = parseTicketLink(
+    firstSupplied('--ticket', input.ticket, input.envTicket)
+  )
   if (!ticket.ok) throw new Error(ticket.message)
 
   const reason = normalizeProposalReason(
-    firstSupplied(input.reason, input.envReason)
+    firstSupplied('--reason', input.reason, input.envReason)
   )
 
   return {
@@ -305,7 +319,9 @@ export const summarizeReasonAdoption = (
  * @throws If no ticket is available, or it is not a Linear issue link.
  */
 export const assertTicketPresent = (ticket?: string): string => {
-  const result = parseTicketLink(ticket ?? process.env.SAFE_PROPOSAL_TICKET)
+  const result = parseTicketLink(
+    firstSupplied('--ticket', ticket, process.env.SAFE_PROPOSAL_TICKET)
+  )
   if (!result.ok) throw new Error(result.message)
   return result.url
 }

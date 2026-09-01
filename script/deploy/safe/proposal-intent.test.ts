@@ -14,6 +14,7 @@ import {
 } from 'bun:test'
 
 import {
+  MAX_TICKET_URL_LENGTH,
   MISSING_TICKET_MESSAGE,
   assertTicketPresent,
   formatReasonWarning,
@@ -383,6 +384,52 @@ describe('parseTicketLink — https only, and bounded', () => {
     expect(result.ok).toBe(false)
     if (!result.ok) expect(result.message).toContain('not a parseable URL')
   })
+
+  it('refuses a link whose encoded form exceeds the cap', () => {
+    // Under the cap as typed, several times over it once stored: the check has
+    // to see the value that is actually written, not the one that was pasted.
+    const withinCapAsTyped = `https://linear.app/lifi-linear/issue/EXSC-1/${'ä'.repeat(
+      120
+    )}`
+
+    expect(withinCapAsTyped.length).toBeLessThan(MAX_TICKET_URL_LENGTH)
+
+    const result = parseTicketLink(withinCapAsTyped)
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.message).toMatch(/once encoded/)
+  })
+
+  it('keeps every accepted link inside the cap it advertises', () => {
+    const result = parseTicketLink(
+      `https://linear.app/lifi-linear/issue/EXSC-1/${'ä'.repeat(30)}`
+    )
+
+    expect(result.ok).toBe(true)
+    if (result.ok)
+      expect(result.url.length).toBeLessThanOrEqual(MAX_TICKET_URL_LENGTH)
+  })
+})
+
+describe('parseTicketLink — the host must be reachable, not merely spelled right', () => {
+  it('refuses a non-default port, which points at nothing Linear serves', () => {
+    const result = parseTicketLink(
+      'https://linear.app:8443/lifi-linear/issue/EXSC-1'
+    )
+
+    expect(result.ok).toBe(false)
+    if (!result.ok) expect(result.message).toMatch(/port '8443'/)
+  })
+
+  it('accepts an explicit 443, which the parser drops as the default', () => {
+    const result = parseTicketLink(
+      'https://linear.app:443/lifi-linear/issue/EXSC-1'
+    )
+
+    expect(result.ok).toBe(true)
+    if (result.ok)
+      expect(result.url).toBe('https://linear.app/lifi-linear/issue/EXSC-1')
+  })
 })
 
 describe('resolveProposalIntent — a valueless flag must not defeat its own fallback', () => {
@@ -392,9 +439,8 @@ describe('resolveProposalIntent — a valueless flag must not defeat its own fal
   ])(
     'falls back to the environment when --ticket carries %s',
     (_label, ticket) => {
-      // citty returns '' for a bare `--ticket`, and `??` only falls back on
-      // nullish — so a bare flag threw "no ticket supplied" while the variable
-      // was exported, a message contradicting the operator's own environment.
+      // citty returns '' rather than undefined for a bare flag, so a `??`
+      // fallback treats the blank as a supplied value.
       expect(
         resolveProposalIntent({ ticket, envTicket: 'EXSC-694' }).ticketUrl
       ).toBe('https://linear.app/lifi-linear/issue/EXSC-694')
@@ -407,9 +453,8 @@ describe('resolveProposalIntent — a valueless flag must not defeat its own fal
   ])(
     'falls back to the environment when --reason carries %s',
     (_label, reason) => {
-      // This half failed OPEN: the empty flag silently discarded
-      // SAFE_PROPOSAL_REASON, stored a reasonless proposal, and fed a false
-      // data point into the OQ3 adoption counter.
+      // This half fails open rather than closed, so nothing downstream would
+      // surface the discarded value.
       expect(
         resolveProposalIntent({
           ticket: 'EXSC-1',
@@ -434,25 +479,29 @@ describe('resolveProposalIntent — a valueless flag must not defeat its own fal
   })
 })
 
-describe('resolveProposalIntent — a repeated flag is refused, not crashed on', () => {
-  it('refuses a repeated --ticket rather than picking one', () => {
-    // citty hands back an ARRAY for a repeated flag. Which of two tickets a
-    // proposal is filed under is not something to decide quietly, and the
-    // previous code crashed with a TypeError from deep inside a helper.
+describe('resolveProposalIntent — a non-text flag value is named, not crashed on', () => {
+  // These shapes do not come from citty 0.1.6, which coerces a `type: 'string'`
+  // arg to a string and resolves a repeat as last-wins. They come from the
+  // argv parser being an untyped boundary: whatever reaches `.trim()` decides
+  // whether the operator gets a flag name or a TypeError from inside a helper.
+  it.each([
+    ['an array', ['EXSC-2', 'EXSC-3']],
+    ['a number', 694],
+    ['an object', { id: 'EXSC-2' }],
+    ['a boolean', true],
+  ])('names --ticket when it carries %s', (_label, ticket) => {
     expect(() =>
-      resolveProposalIntent({
-        ticket: ['EXSC-2', 'EXSC-3'] as unknown as string,
-      })
-    ).toThrow(/more than once/)
+      resolveProposalIntent({ ticket: ticket as unknown as string })
+    ).toThrow(/^--ticket was not given a single text value/)
   })
 
-  it('refuses a repeated --reason too', () => {
+  it('names --reason, not --ticket, when the reason is the non-text one', () => {
     expect(() =>
       resolveProposalIntent({
         ticket: 'EXSC-1',
         reason: ['a', 'b'] as unknown as string,
       })
-    ).toThrow(/more than once/)
+    ).toThrow(/^--reason was not given a single text value/)
   })
 
   it('still accepts a single value of each', () => {
@@ -460,5 +509,36 @@ describe('resolveProposalIntent — a repeated flag is refused, not crashed on',
 
     expect(intent.ticketUrl).toContain('EXSC-1')
     expect(intent.reason).toBe('why')
+  })
+})
+
+describe('assertTicketPresent — the same blank-flag rule as the resolver', () => {
+  const original = process.env.SAFE_PROPOSAL_TICKET
+
+  afterEach(() => {
+    if (original === undefined) delete process.env.SAFE_PROPOSAL_TICKET
+    else process.env.SAFE_PROPOSAL_TICKET = original
+  })
+
+  it('falls back to the environment when the passed flag is blank', () => {
+    // The parameter exists for a script that wires up its own `--ticket`, so
+    // the first such caller would otherwise be refused while the variable is set.
+    process.env.SAFE_PROPOSAL_TICKET = 'EXSC-694'
+
+    expect(assertTicketPresent('')).toBe(
+      'https://linear.app/lifi-linear/issue/EXSC-694'
+    )
+  })
+
+  it('still refuses when the flag is blank and the environment is empty', () => {
+    process.env.SAFE_PROPOSAL_TICKET = '   '
+
+    expect(() => assertTicketPresent('')).toThrow(/SAFE_PROPOSAL_TICKET/)
+  })
+
+  it('names the flag rather than crashing on a non-text value', () => {
+    expect(() =>
+      assertTicketPresent(['EXSC-1', 'EXSC-2'] as unknown as string)
+    ).toThrow(/^--ticket was not given a single text value/)
   })
 })

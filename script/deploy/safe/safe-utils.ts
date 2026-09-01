@@ -63,6 +63,7 @@ import {
   getTargetStateFacetVersion,
 } from './facet-version-utils'
 import {
+  firstSupplied,
   formatReasonWarning,
   normalizeProposalReason,
   resolveProposalIntent,
@@ -1558,7 +1559,7 @@ export function buildProposalProvenance(
   // The environment is the only channel the bash deploy chain can supply a
   // rationale through without touching any script signature.
   const reason = normalizeProposalReason(
-    options?.reason ?? process.env.SAFE_PROPOSAL_REASON
+    firstSupplied('--reason', options?.reason, process.env.SAFE_PROPOSAL_REASON)
   )
 
   // Recorded, not validated, here: this function must never block a proposal,
@@ -1709,8 +1710,11 @@ export async function storeTransactionInMongoDB(
 
   // Never derived from `safeTx`: the Tron route hands in a cast-together object
   // whose shape does not match the type.
+  // The resolved reason, not the raw one: re-deriving it here would let the
+  // stored field disagree with the warning above about whether one was given.
   const provenance = buildProposalProvenance({
     ...provenanceOptions,
+    reason: intent.reason,
     ticketUrl: intent.ticketUrl,
   })
 

@@ -39,6 +39,11 @@ const run = (
   // local value through process.env. Cleared, or a developer's own decides these.
   delete env.SAFE_PROPOSAL_TICKET
   if (ticket !== undefined) env.SAFE_PROPOSAL_TICKET = ticket
+  // Withheld so a child that runs past the gate cannot reach a signature. One
+  // case below asserts a run is NOT refused, which means letting it go on to a
+  // branch that sends directly.
+  delete env.PRIVATE_KEY
+  delete env.PRIVATE_KEY_PRODUCTION
 
   const result = Bun.spawnSync(
     [process.execPath, join(import.meta.dir, '..', '..', script), ...args],
@@ -117,6 +122,23 @@ describe('the ticket gate does not fire on paths that create no proposal', () =>
 
     expect(result.refused).toBe(false)
     expect(result.output).toContain('Checking 1 network(s)')
+  })
+
+  it('lets a staging unpause run reach the branch that sends directly', () => {
+    // The one case that exercises the condition on the gate rather than the gate
+    // itself: staging selects a real network but leaves the proposing pass
+    // empty, so a gate called unconditionally would refuse a run that proposes
+    // nothing. The previous case cannot show this — it exits at the network
+    // filter, upstream of the gate.
+    const result = run('tasks/unpauseAllDiamonds.ts', [
+      '--environment',
+      'staging',
+      '--networks',
+      'mainnet',
+    ])
+
+    expect(result.refused).toBe(false)
+    expect(result.output).toContain('Processing staging network')
   })
 
   it('lets an unpause run reach its own network filtering first', () => {
