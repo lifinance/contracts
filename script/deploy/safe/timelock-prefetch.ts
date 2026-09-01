@@ -3,10 +3,13 @@
  * blocked ops.
  *
  * Lives outside `execute-pending-timelock-tx.ts` because that module calls
- * `runMain` at module scope and so cannot be imported by tests. Guarding it with
- * `import.meta.main`, as some siblings in this directory do, is not an option:
- * the CLI runs under `bunx tsx`, where `import.meta.main` is `undefined`, so the
- * guard would silently turn the whole command into a no-op.
+ * `runMain` at module scope and so cannot be imported by tests. The
+ * `import.meta.main` guard some siblings in this directory use is deliberately
+ * not applied there: the flag comes from tsx's entry-point detection, which
+ * resolves to `undefined` when the entry path does not compare equal to the
+ * module URL (a symlinked path is enough), and a false negative would leave the
+ * scheduled executor exiting 0 having executed nothing. Extraction buys the same
+ * testability without betting the cron on that comparison.
  */
 
 import { existsSync } from 'fs'

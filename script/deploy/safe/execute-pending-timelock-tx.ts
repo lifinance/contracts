@@ -2041,8 +2041,9 @@ function formatTimeRemaining(seconds: bigint): string {
   return result
 }
 
-// Deliberately unguarded: this CLI runs under `bunx tsx`, where
-// `import.meta.main` is `undefined`, so the `import.meta.main` guard some
-// siblings use would turn the whole command into a silent no-op. Logic that
-// needs test coverage goes into a sibling module instead (timelock-prefetch.ts).
+// Deliberately unguarded. `import.meta.main` is set by tsx's entry-point
+// detection, which resolves to `undefined` whenever the entry path does not
+// compare equal to the module URL; a false negative here would leave the
+// scheduled run exiting 0 having executed nothing. Logic that needs test
+// coverage goes into a sibling module instead (timelock-prefetch.ts).
 runMain(cmd)
