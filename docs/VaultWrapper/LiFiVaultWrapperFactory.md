@@ -121,6 +121,23 @@ the same instance address on every chain — provided the factory and the beacon
 sit at identical addresses per chain, which the CREATE3 system deploy
 (`DeployLiFiVaultWrapperFactory.s.sol`) provides.
 
+`_nonce` is the only disambiguator for a repeated
+(namespace, adapter, underlying) triple. The salt preimage is deliberately
+**not** versioned: it is `abi.encode`d (fixed-width, so no packing ambiguity),
+and a repeated triple simply makes `Create2.deploy` revert on the occupied
+address rather than colliding into one. A future factory version that needs a
+fresh address for an existing triple bumps the nonce.
+
+**The beacon address is parity-critical.** `_proxyInitCode()` embeds `beacon`
+into the init code that fixes every instance address, and `beacon` lives in
+factory *proxy storage*. It is written once in `initialize` and no setter
+exists, which is what keeps addresses stable today — but a timelocked
+factory-logic upgrade could introduce one. Changing the beacon after the first
+deploy would silently move every subsequently predicted address and break parity
+against chains already deployed. Treat `beacon` as write-once for the life of
+the system; replace the *implementation* through the beacon's `upgradeTo`, never
+the beacon itself.
+
 ## Related contracts
 
 - [LiFiVaultWrapper](./LiFiVaultWrapper.md) — the per-instance ERC-4626 vault.
