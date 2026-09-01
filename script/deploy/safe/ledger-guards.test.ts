@@ -36,3 +36,14 @@ describe('assertLedgerProposesOnce', () => {
     expect(() => assertLedgerProposesOnce(0, true, '--facets')).not.toThrow()
   })
 })
+
+describe('assertLedgerProposesOnce — a dry run proposes nothing', () => {
+  it('is not called at all for a count of zero, and refuses nothing', () => {
+    // A fleet sweep without --yes never reaches sendOrPropose, so no transport
+    // opens and there is nothing to refuse. Callers express that by not calling
+    // this, or by passing the count the run will actually propose.
+    expect(() =>
+      assertLedgerProposesOnce(0, true, '--all-networks')
+    ).not.toThrow()
+  })
+})

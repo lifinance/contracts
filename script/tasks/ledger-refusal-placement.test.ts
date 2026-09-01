@@ -41,9 +41,15 @@ const run = (...args: string[]): string => {
 
 describe('a Ledger run that would propose more than once is refused', () => {
   it.each([
-    ['--all-networks', ['--all-networks', '--environment', 'production']],
-    ['--allNetworks', ['--allNetworks', '--environment', 'production']],
-  ])('refuses a fleet sweep (%s)', (_label, args) => {
+    [
+      '--all-networks',
+      ['--all-networks', '--environment', 'production', '--yes'],
+    ],
+    [
+      '--allNetworks',
+      ['--allNetworks', '--environment', 'production', '--yes'],
+    ],
+  ])('refuses a fleet sweep that will propose (%s)', (_label, args) => {
     expect(run(...args, '--ledger')).toContain('cannot be combined')
   })
 

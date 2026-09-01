@@ -277,7 +277,14 @@ const command = defineCommand({
     }
 
     if (allNetworks)
-      assertLedgerProposesOnce(getAllActiveNetworks().length, '--all-networks')
+      // The count is what the sweep will actually propose, which is none without
+      // --yes: `runAutoRemoval` gets 'dry-run', `proposeRemovals` returns before
+      // `sendOrPropose`, and no transport opens. Passing 0 rather than skipping
+      // the call keeps the guard's parameter meaning one thing.
+      assertLedgerProposesOnce(
+        yes ? getAllActiveNetworks().length : 0,
+        '--all-networks'
+      )
 
     // ---------------- FLEET removals across all networks ----------------
     if (allNetworks) {
