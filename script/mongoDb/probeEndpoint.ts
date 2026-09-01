@@ -2,8 +2,12 @@
  * Reachability probe for a single RPC endpoint.
  *
  * Two calls, not one: `eth_chainId` is answered by endpoints that then refuse the state reads
- * every consumer actually makes — a plan that does not cover the chain, or a node serving a
- * restricted method set. `eth_getCode` is the cheapest call that exercises that path.
+ * consumers actually make, and `eth_getCode` is the cheapest call that exercises that path.
+ *
+ * This establishes that an endpoint serves state reads from here, and nothing stronger. It does
+ * not clear an endpoint for every method — a provider can serve `eth_getCode` and refuse
+ * `eth_call` on the same chain — and reachability can differ by caller IP, so an endpoint that
+ * passes here can still fail from a CI runner.
  */
 
 const PROBE_TIMEOUT_MS = 12_000

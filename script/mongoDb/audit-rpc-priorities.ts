@@ -131,7 +131,7 @@ const main = defineCommand({
     probe: {
       type: 'boolean',
       description:
-        'Check each endpoint answers eth_chainId and eth_getCode before ranking it',
+        'Check each endpoint answers eth_chainId and eth_getCode from here before ranking it',
       required: false,
       default: false,
     },
