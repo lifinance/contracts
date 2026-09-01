@@ -161,7 +161,7 @@ describe('collectDeployGateFailures', () => {
         divergedSubmodules: ['lib/solady'],
       })
     ).toEqual([
-      'Dependencies under lib/ differ from origin/main (lib/solady). They are compiled into the facet, so restore them with git submodule update --init --recursive before deploying',
+      'Dependencies under lib/ differ from origin/main (lib/solady). They are compiled into the facet, so restore them with git submodule update --init --recursive (or drop local edits inside them) before deploying',
     ])
   })
 
@@ -182,7 +182,7 @@ describe('collectDeployGateFailures', () => {
     })
 
     expect(failures).toEqual([
-      'Dependencies under lib/ differ from origin/main (lib/openzeppelin-contracts). They are compiled into the facet, so restore them with git submodule update --init --recursive before deploying',
+      'Dependencies under lib/ differ from origin/main (lib/openzeppelin-contracts). They are compiled into the facet, so restore them with git submodule update --init --recursive (or drop local edits inside them) before deploying',
     ])
   })
 
@@ -869,6 +869,63 @@ describe('main ref resolution', () => {
     expect(run('rev-parse', 'origin/main').stdout.trim()).not.toBe(stale)
   })
 
+  // `git ls-remote <remote> main` matches every ref ending in /main, so picking the
+  // first line would compare against whichever one happens to sort first
+  it('picks refs/heads/main rather than the first ref ls-remote returns', () => {
+    const repoRoot = mkdtempSync(join(tmpdir(), 'gate-ref-multi-'))
+    const run = initWithRemote(repoRoot)
+    const remote = run('remote', 'get-url', 'origin').stdout.trim()
+    const head = run('rev-parse', 'origin/main').stdout.trim()
+
+    // an unrelated commit parked under a ref that sorts before refs/heads/main
+    const scratch = mkdtempSync(join(tmpdir(), 'gate-scratch-'))
+    const runScratch = (...args: string[]) =>
+      spawnSync('git', args, { cwd: scratch, encoding: 'utf8' })
+    runScratch('init', '-b', 'main')
+    runScratch('config', 'user.email', 'gate@example.com')
+    runScratch('config', 'user.name', 'gate')
+    writeFileSync(join(scratch, 'other.md'), 'unrelated\n')
+    runScratch('add', '.')
+    runScratch('commit', '-m', 'unrelated', '--no-gpg-sign')
+    runScratch('push', '-q', remote, 'HEAD:refs/backup/main')
+
+    expect(createDefaultDeps(repoRoot).mainRef).toBe('origin/main')
+    expect(run('rev-parse', 'origin/main').stdout.trim()).toBe(head)
+  })
+
+  // `git fetch <remote> <branch>` moves the remote-tracking ref only through the
+  // configured refspec, so under a narrow one it exits 0 having updated nothing but
+  // FETCH_HEAD - the gate would then compare against the very ref it just refused
+  it('fails closed when a fetch leaves origin/main pointing at the old commit', () => {
+    const repoRoot = mkdtempSync(join(tmpdir(), 'gate-ref-refspec-'))
+    const run = initWithRemote(repoRoot)
+    const remote = run('remote', 'get-url', 'origin').stdout.trim()
+    const stale = run('rev-parse', 'origin/main').stdout.trim()
+
+    // advance the remote so a fetch is genuinely required
+    const other = mkdtempSync(join(tmpdir(), 'gate-other-refspec-'))
+    spawnSync('git', ['clone', '-q', remote, other])
+    const runOther = (...args: string[]) =>
+      spawnSync('git', args, { cwd: other, encoding: 'utf8' })
+    runOther('config', 'user.email', 'gate@example.com')
+    runOther('config', 'user.name', 'gate')
+    writeFileSync(join(other, 'README.md'), 'moved on\n')
+    runOther('commit', '-qam', 'advance main', '--no-gpg-sign')
+    runOther('push', '-q', 'origin', 'main')
+
+    // a refspec that does not cover main: the fetch succeeds and updates nothing
+    run(
+      'config',
+      'remote.origin.fetch',
+      '+refs/heads/other:refs/remotes/origin/other'
+    )
+
+    expect(() => createDefaultDeps(repoRoot).mainRef).toThrow(
+      'still does not point at'
+    )
+    expect(run('rev-parse', 'origin/main').stdout.trim()).toBe(stale)
+  })
+
   it('fails closed when the remote cannot be reached', () => {
     const repoRoot = mkdtempSync(join(tmpdir(), 'gate-ref-offline-'))
     const run = initWithRemote(repoRoot)
@@ -880,10 +937,50 @@ describe('main ref resolution', () => {
   })
 })
 
+describe('git read memoization', () => {
+  // the gate asks about the same path twice - once against main, once against the
+  // audited commit - so a cache keyed on the path alone would answer the audit
+  // question with the main answer and certify a facet that changed since its audit
+  it('keeps answers for the same path under different refs apart', () => {
+    const repoRoot = mkdtempSync(join(tmpdir(), 'gate-memo-'))
+    const remote = mkdtempSync(join(tmpdir(), 'gate-memo-remote-'))
+    const run = (...args: string[]) =>
+      spawnSync('git', args, { cwd: repoRoot, encoding: 'utf8' })
+
+    spawnSync('git', ['init', '--bare', '-b', 'main', remote])
+    run('init', '-b', 'main')
+    run('config', 'user.email', 'gate@example.com')
+    run('config', 'user.name', 'gate')
+    run('remote', 'add', 'origin', remote)
+    mkdirSync(join(repoRoot, 'src/Facets'), { recursive: true })
+    writeFileSync(join(repoRoot, 'src/Facets/A.sol'), 'contract A { }\n')
+    run('add', '.')
+    run('commit', '-m', 'audited state', '--no-gpg-sign')
+    const audited = run('rev-parse', 'HEAD').stdout.trim()
+
+    writeFileSync(
+      join(repoRoot, 'src/Facets/A.sol'),
+      'contract A { uint256 x; }\n'
+    )
+    run('commit', '-qam', 'later state', '--no-gpg-sign')
+    run('push', '-q', 'origin', 'main')
+
+    const deps = createDefaultDeps(repoRoot)
+
+    expect(deps.fileMatchesRef('origin/main', 'src/Facets/A.sol')).toBe(true)
+    expect(deps.fileMatchesRef(audited, 'src/Facets/A.sol')).toBe(false)
+    // and again, to prove the second answer is not the first one served from cache
+    expect(deps.fileMatchesRef('origin/main', 'src/Facets/A.sol')).toBe(true)
+    expect(deps.fileMatchesRef(audited, 'src/Facets/A.sol')).toBe(false)
+  })
+})
+
 describe('lib/ submodule divergence', () => {
-  // submodule content is not in this repo's tree, so it is compared by gitlink;
-  // an edited dependency changes the deployed bytecode with every src/ file intact
-  it('reports a submodule whose checkout has moved off the recorded commit', () => {
+  /**
+   * Builds a superproject pinning a submodule at its first commit.
+   * @returns the superproject root, the submodule path, and its later commit
+   */
+  const makeSuperproject = () => {
     const dep = mkdtempSync(join(tmpdir(), 'gate-dep-'))
     const runDep = (...args: string[]) =>
       spawnSync('git', args, { cwd: dep, encoding: 'utf8' })
@@ -912,22 +1009,66 @@ describe('lib/ submodule divergence', () => {
       dep,
       'lib/dep'
     )
-    spawnSync('git', ['checkout', '-q', pinned], {
-      cwd: join(repoRoot, 'lib/dep'),
-    })
+    const subPath = join(repoRoot, 'lib/dep')
+    spawnSync('git', ['checkout', '-q', pinned], { cwd: subPath })
+    mkdirSync(join(repoRoot, 'src/Facets'), { recursive: true })
+    writeFileSync(join(repoRoot, 'src/Facets/A.sol'), 'contract A { }\n')
     run('add', '-A')
     run('commit', '-m', 'pin dep', '--no-gpg-sign')
     run('update-ref', 'refs/remotes/origin/main', 'HEAD')
 
-    // called directly rather than through createDefaultDeps so the test exercises the
-    // comparison itself, not the remote refresh that resolving the ref would trigger
+    return { repoRoot, subPath, run }
+  }
+
+  // called directly rather than through createDefaultDeps so these exercise the
+  // comparison itself, not the remote refresh that resolving the ref would trigger
+  it('reports a submodule whose checkout has moved off the recorded commit', () => {
+    const { repoRoot, subPath } = makeSuperproject()
+
     expect(divergedSubmodules(repoRoot, 'origin/main')).toEqual([])
 
-    spawnSync('git', ['checkout', '-q', 'main'], {
-      cwd: join(repoRoot, 'lib/dep'),
-    })
+    spawnSync('git', ['checkout', '-q', 'main'], { cwd: subPath })
 
     expect(divergedSubmodules(repoRoot, 'origin/main')).toEqual(['lib/dep'])
+  })
+
+  // this is the case --ignore-submodules=dirty would miss, and it is the one that
+  // actually changes the compiled bytecode
+  it('reports a submodule with a modified tracked file', () => {
+    const { repoRoot, subPath } = makeSuperproject()
+    writeFileSync(join(subPath, 'Lib.sol'), 'contract Lib { bool tampered; }\n')
+
+    expect(divergedSubmodules(repoRoot, 'origin/main')).toEqual(['lib/dep'])
+  })
+
+  // ...but an untracked stray changes no bytecode, and most of these submodules do
+  // not gitignore .DS_Store, so blocking on it would stop every deploy from a Mac
+  it('ignores an untracked stray file inside a submodule', () => {
+    const { repoRoot, subPath } = makeSuperproject()
+    writeFileSync(join(subPath, '.DS_Store'), 'finder junk\n')
+
+    expect(divergedSubmodules(repoRoot, 'origin/main')).toEqual([])
+  })
+
+  // the flag is passed explicitly precisely so this cannot happen
+  it('is not weakened by a repo-level diff.ignoreSubmodules setting', () => {
+    const { repoRoot, subPath, run } = makeSuperproject()
+    run('config', 'diff.ignoreSubmodules', 'all')
+    writeFileSync(join(subPath, 'Lib.sol'), 'contract Lib { bool tampered; }\n')
+
+    expect(divergedSubmodules(repoRoot, 'origin/main')).toEqual(['lib/dep'])
+  })
+
+  // the pathspec is what keeps this check about dependencies; without it every
+  // ordinary feature-branch edit under src/ would read as a lib/ divergence
+  it('is scoped to lib/ and ignores a diverged file under src/', () => {
+    const { repoRoot } = makeSuperproject()
+    writeFileSync(
+      join(repoRoot, 'src/Facets/A.sol'),
+      'contract A { uint256 y; }\n'
+    )
+
+    expect(divergedSubmodules(repoRoot, 'origin/main')).toEqual([])
   })
 })
 

@@ -123,9 +123,13 @@ differs — so a never-fetched checkout cannot pass by comparing against a stale
 and an unreachable remote fails the gate rather than falling back to the local copy.
 Dependencies under `lib/` are compiled into every facet but their content is not in
 this repo's tree, so they are compared by **submodule gitlink** instead
-(`git diff --ignore-submodules=none`, which catches both a submodule checked out off
-its recorded commit and one with a dirty working tree); a divergence there is not
-excused by an open PR or an audit freeze. Staging is not gated, and neither are
+(`git diff --ignore-submodules=untracked`, which catches both a submodule checked out
+off its recorded commit and one with modified tracked files, while ignoring stray
+untracked files that change no bytecode — most of these submodules do not gitignore
+`.DS_Store`, so the stricter `none` would block every deploy from a Mac); a divergence
+there is not excused by an open PR or an audit freeze. The remote calls run with
+prompts disabled and a 30 s timeout, so a stalled or credential-prompting remote fails
+the gate instead of hanging the rollout. Staging is not gated, and neither are
 testnets — deploying an unmerged facet to a testnet is how it is validated before
 the audit, and no Safe is involved there.
 

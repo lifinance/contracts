@@ -170,7 +170,7 @@ export const collectDeployGateFailures = (
     ? [
         `Dependencies under lib/ differ from ${MAIN_REF} (${describePaths(
           input.divergedSubmodules
-        )}). They are compiled into the facet, so restore them with git submodule update --init --recursive before deploying`,
+        )}). They are compiled into the facet, so restore them with git submodule update --init --recursive (or drop local edits inside them) before deploying`,
       ]
     : []
 
@@ -250,15 +250,41 @@ export const resolveAuditCommitHash = (
 
 const facetSourcePath = (name: string): string => `src/Facets/${name}.sol`
 
+const NETWORK_TIMEOUT_MS = 30_000
+const SSH_CONNECT_TIMEOUT_S = 10
+
+/**
+ * Runs git with prompts disabled, so a missing credential or an unknown host key
+ * fails instead of blocking on a terminal the deploy may not even have.
+ * @param args - git arguments
+ * @param cwd - working directory
+ * @param timeoutMs - kill the process after this long; used for the network calls,
+ * which would otherwise hang indefinitely against a remote that accepts and stalls
+ * @returns exit status and captured output; a timeout surfaces as a non-zero status
+ */
 const git = (
   args: string[],
-  cwd: string
+  cwd: string,
+  timeoutMs?: number
 ): { status: number; stdout: string; stderr: string } => {
-  const result = spawnSync('git', args, { cwd, encoding: 'utf8' })
+  const result = spawnSync('git', args, {
+    cwd,
+    encoding: 'utf8',
+    timeout: timeoutMs,
+    env: {
+      ...process.env,
+      GIT_TERMINAL_PROMPT: '0',
+      GIT_SSH_COMMAND: `${
+        process.env.GIT_SSH_COMMAND ?? 'ssh'
+      } -o BatchMode=yes -o ConnectTimeout=${SSH_CONNECT_TIMEOUT_S}`,
+    },
+  })
+
   return {
+    // a timeout leaves status null, which must not read as success
     status: result.status ?? 1,
     stdout: result.stdout ?? '',
-    stderr: result.stderr ?? '',
+    stderr: result.stderr ?? result.error?.message ?? '',
   }
 }
 
@@ -282,7 +308,11 @@ const resolveMainRef = (repoRoot: string): string => {
       `Cannot resolve ${MAIN_REF} in this checkout. Fetch it before deploying.`
     )
 
-  const remote = git(['ls-remote', REMOTE, MAIN_BRANCH], repoRoot)
+  const remote = git(
+    ['ls-remote', REMOTE, MAIN_BRANCH],
+    repoRoot,
+    NETWORK_TIMEOUT_MS
+  )
   if (remote.status !== 0)
     throw new Error(
       `Cannot reach ${REMOTE} to check whether ${MAIN_REF} is current. The gate compares against the merged main, so it cannot run offline.\n${remote.stderr.trim()}`
@@ -301,10 +331,22 @@ const resolveMainRef = (repoRoot: string): string => {
   if (remoteSha === localSha) return MAIN_REF
 
   consola.info(`${MAIN_REF} is behind ${REMOTE}, fetching before comparing`)
-  const fetch = git(['fetch', '--quiet', REMOTE, MAIN_BRANCH], repoRoot)
+  const fetch = git(
+    ['fetch', '--quiet', REMOTE, MAIN_BRANCH],
+    repoRoot,
+    NETWORK_TIMEOUT_MS
+  )
   if (fetch.status !== 0)
     throw new Error(
       `Failed to fetch ${MAIN_BRANCH} from ${REMOTE}.\n${fetch.stderr.trim()}`
+    )
+
+  // `git fetch <remote> <branch>` updates the remote-tracking ref only through the
+  // configured refspec, so under a narrow refspec it can exit 0 having moved nothing
+  // but FETCH_HEAD - which would leave the comparison on the stale ref it just refused
+  if (git(['rev-parse', MAIN_REF], repoRoot).stdout.trim() !== remoteSha)
+    throw new Error(
+      `Fetched ${MAIN_BRANCH} from ${REMOTE}, but ${MAIN_REF} still does not point at ${remoteSha}. Check this checkout's fetch refspec.`
     )
 
   return MAIN_REF
@@ -315,9 +357,12 @@ const resolveMainRef = (repoRoot: string): string => {
  *
  * Dependencies there are compiled into the facet but live in submodules, so their
  * content is not in the superproject tree and cannot be compared file by file. The
- * gitlink can be: `--ignore-submodules=none` reports a submodule whose HEAD differs
- * from the recorded commit *or* whose working tree is dirty, and it is passed
+ * gitlink can be: `--ignore-submodules=untracked` reports a submodule whose HEAD differs
+ * from the recorded commit *or* whose tracked files are modified, and it is passed
  * explicitly so a repo-level or user-level `ignore` setting cannot weaken the check.
+ * `untracked` rather than `none` because a stray untracked file changes no bytecode -
+ * and most of these submodules do not gitignore `.DS_Store`, so `none` would block
+ * every deploy after one Finder visit.
  * @param repoRoot - repository root
  * @param ref - git ref to compare against
  * @returns repo-relative submodule paths that differ
@@ -325,7 +370,7 @@ const resolveMainRef = (repoRoot: string): string => {
  */
 export const divergedSubmodules = (repoRoot: string, ref: string): string[] => {
   const result = git(
-    ['diff', '--name-only', '--ignore-submodules=none', ref, '--', 'lib/'],
+    ['diff', '--name-only', '--ignore-submodules=untracked', ref, '--', 'lib/'],
     repoRoot
   )
 
