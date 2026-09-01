@@ -1256,10 +1256,9 @@ describe('classifyIndexEnsureFailure', () => {
  * Fake timelock whose operation id is a function of every field the real contract
  * hashes, and which refuses any read it was not expecting.
  *
- * It refuses any read it was not expecting, because a loose fake cannot see the
- * address it was called at or which function was asked for — and `getMinDelay`'s
- * non-zero return classifies as `pending`, which would refuse every timelock
- * proposal on every path.
+ * A loose fake cannot see the address it was called at or which function was
+ * asked for — and `getMinDelay`'s non-zero return classifies as `pending`, which
+ * would refuse every timelock proposal on every path.
  */
 const ozOperationId = (args: readonly unknown[]): Hex =>
   keccak256(
@@ -1322,14 +1321,17 @@ describe('pickTimelockSalt', () => {
     chainId: 1,
     timelockAddress: '0x1111111111111111111111111111111111111111' as Address,
     // Two distinct calls on purpose: a single-element fixture makes every
-    // array-ordering bug a no-op, and three of the converted call sites build
-    // genuinely multi-element batches.
+    // array-ordering bug a no-op, and two of the converted call sites build
+    // multi-element batches.
     targetAddresses: [
       '0x2222222222222222222222222222222222222222',
       '0x4444444444444444444444444444444444444444',
     ] as Address[],
     originalCalldatas: ['0xdeadbeef', '0xfeedface'] as Hex[],
-    values: [0n, 0n],
+    // Deliberately not all-zero: an all-zero fixture is byte-identical to the
+    // hardcoded array this parameter replaced, so the fix would pass with the fix
+    // deleted.
+    values: [0n, 7n],
   }
 
   const saltFor = (attempt: number): Hex =>
@@ -1370,7 +1372,7 @@ describe('pickTimelockSalt', () => {
     expect(hashArgs).toHaveLength(1)
     expect(hashArgs[0]).toEqual([
       action.targetAddresses,
-      action.targetAddresses.map(() => 0n),
+      action.values,
       action.originalCalldatas,
       TIMELOCK_ZERO_PREDECESSOR,
       salt,
@@ -1442,6 +1444,44 @@ describe('pickTimelockSalt', () => {
     expect(thrown).toBeInstanceOf(Error)
     expect((thrown as Error).message).toMatch(/already scheduled/i)
     expect((thrown as Error).message).toMatch(/nothing was proposed/i)
+  })
+
+  it('refuses on a pending operation found after an executed one', async () => {
+    // The normal state once a legitimate repeat has been scheduled, and the case
+    // `attempt` exists for. A refusal that only fires on the first attempt lets
+    // the scan mint a second operation for a batch already scheduled.
+    const { client } = fakeTimelockClient(
+      { [idFor(0)]: 1n, [idFor(1)]: 1_800_000_000n },
+      action.timelockAddress
+    )
+
+    let thrown: unknown
+    try {
+      await pickTimelockSalt({ ...action, client: client as never })
+    } catch (error) {
+      thrown = error
+    }
+
+    expect(thrown).toBeInstanceOf(Error)
+    expect((thrown as Error).message).toMatch(/already scheduled/i)
+  })
+
+  it('rejects a values array whose length does not match the targets', async () => {
+    const { client } = fakeTimelockClient({}, action.timelockAddress)
+
+    let thrown: unknown
+    try {
+      await pickTimelockSalt({
+        ...action,
+        values: [0n],
+        client: client as never,
+      })
+    } catch (error) {
+      thrown = error
+    }
+
+    expect(thrown).toBeInstanceOf(Error)
+    expect((thrown as Error).message).toMatch(/values/i)
   })
 
   it('refuses rather than guessing when every attempt is taken', async () => {

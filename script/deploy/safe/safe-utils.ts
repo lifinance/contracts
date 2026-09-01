@@ -3027,6 +3027,13 @@ export const pickTimelockSalt = async (
     values,
   } = input
 
+  // A mismatched length probes an id `scheduleBatch` can never create, so a taken
+  // id reads as free and the revert lands after signatures and the full delay.
+  if (values.length !== targetAddresses.length)
+    throw new Error(
+      `pickTimelockSalt: values (${values.length}) and targetAddresses (${targetAddresses.length}) must have the same length`
+    )
+
   for (let attempt = 0; attempt < MAX_SALT_ATTEMPTS; attempt++) {
     const salt = deriveTimelockSalt({
       chainId,
@@ -3160,20 +3167,23 @@ export async function wrapWithTimelockSchedule(
     }
   }
 
+  const values = targetAddresses.map(() => 0n)
+
   const salt = await pickTimelockSalt({
     client,
     chainId: chain.id,
     timelockAddress,
     targetAddresses,
     originalCalldatas,
-    values: targetAddresses.map(() => 0n),
+    values,
   })
 
   const scheduleBatchCalldata = encodeTimelockScheduleBatch(
     targetAddresses,
     originalCalldatas,
     salt,
-    minDelay
+    minDelay,
+    values
   )
 
   consola.info(

@@ -340,7 +340,7 @@ whichever session next touches the network. A git file models a *snapshot* revie
 merge, not a record that flips status out-of-band; recording each `proposed`/`executed`
 flip as a commit is friction, and concurrent drains would collide on JSON merges. Mongo
 also wins the two places the git file is weakest: **atomic dedup** (the
-proposal `intentHash` does not provide it unconditionally (Fact 9) — `claimForProposal` does,
+proposal `intentHash` does not provide it unconditionally per Fact 9 — `claimForProposal` does,
 §7) and **on-chain-truth reconciliation**.
 
 The git file's one real virtue — the parked set being a peer-reviewed diff — is

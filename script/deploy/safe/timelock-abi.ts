@@ -82,6 +82,8 @@ export function validateCallPairs(
  * @param payloads - Calldata per inner call (parallel to `targets`)
  * @param salt - Unique salt for the timelock operation id
  * @param minDelay - Timelock delay in seconds
+ * @param values - Value per inner call; defaults to all-zero. Pass the same array
+ *        given to `pickTimelockSalt`, or the id probed is not the id scheduled
  * @returns The encoded `scheduleBatch` calldata
  * @throws If `targets` is empty, `targets` and `payloads` differ in length, a
  *         target is not a valid address, or a payload is not well-formed hex
@@ -90,13 +92,18 @@ export function encodeTimelockScheduleBatch(
   targets: Address[],
   payloads: Hex[],
   salt: Hex,
-  minDelay: bigint
+  minDelay: bigint,
+  values: bigint[] = targets.map(() => 0n)
 ): Hex {
   if (targets.length === 0)
     throw new Error('encodeTimelockScheduleBatch requires at least one call')
   if (targets.length !== payloads.length)
     throw new Error(
       `encodeTimelockScheduleBatch: targets (${targets.length}) and payloads (${payloads.length}) must have the same length`
+    )
+  if (targets.length !== values.length)
+    throw new Error(
+      `encodeTimelockScheduleBatch: targets (${targets.length}) and values (${values.length}) must have the same length`
     )
 
   // Defensive re-validation at the encoding boundary: today's only caller
@@ -114,7 +121,7 @@ export function encodeTimelockScheduleBatch(
     functionName: 'scheduleBatch',
     args: [
       targets,
-      targets.map(() => 0n), // values
+      values,
       payloads,
       TIMELOCK_ZERO_PREDECESSOR,
       salt,

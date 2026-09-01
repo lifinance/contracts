@@ -177,6 +177,29 @@ describe('deriveTimelockSalt', () => {
     )
   })
 
+  it('throws on a malformed address, so the failure lands before any signature', () => {
+    // Not a claim about `getAddress` — viem's `address` encoder is strict EIP-55
+    // on its own. Pinned because the property matters and nothing else asserts
+    // it: if the preimage field type ever became `bytes` or `string`, a malformed
+    // address would reach `scheduleBatch` and revert after signing instead.
+    for (const bad of ['0xnot-an-address', '0x1234', 'deadbeef', ''])
+      expect(() =>
+        deriveTimelockSalt({ ...action, targets: [bad as Address], attempt: 0 })
+      ).toThrow()
+  })
+
+  it('throws on an address whose EIP-55 checksum is wrong', () => {
+    // Upper-cased: mixed case makes viem verify the checksum, and this fails it.
+    // An all-lowercase address is accepted, since there is no checksum to check.
+    expect(() =>
+      deriveTimelockSalt({
+        ...action,
+        targets: ['0x1231DEB6F5749EF6CE6943A275A1D3E7486F4EAE' as Address],
+        attempt: 0,
+      })
+    ).toThrow()
+  })
+
   it('does not collide when call order changes — inner calls execute in array order', () => {
     const first = '0x2222222222222222222222222222222222222222' as Address
     const second = '0x4444444444444444444444444444444444444444' as Address
