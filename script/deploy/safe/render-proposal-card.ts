@@ -1,8 +1,7 @@
 /**
  * Renders the signing-ask card for the proposals a run just created.
  *
- * Split from the posting step so `send-slack-webhook-message.ts` stays the only
- * thing that talks to Slack: this writes text, that posts it.
+ * Writes the text; `send-slack-webhook-message.ts` posts it.
  *
  * Opens its own client. `getSafeMongoCollection` creates indexes on connect, and
  * a read-only renderer must not alter the schema it reads.
@@ -17,21 +16,29 @@ import { consola } from 'consola'
 import { MongoClient } from 'mongodb'
 
 import { renderProposalCard, type ICardProposal } from './proposal-card'
+import type { SafeTxStatus } from './safe-utils'
 
 const DEFAULT_DB = 'sc_private'
 const DEFAULT_COLLECTION = 'pendingTransactions'
 
+/**
+ * The subset of `ISafeTxDocument` this renderer reads, typed as it may actually
+ * be on disk: `timestamp` and `provenance` are absent on rows stored before
+ * those fields existed, and each provenance value is `unknown` because a
+ * hand-edited or half-migrated row can hold a non-string there.
+ */
 interface IRow {
   network: string
-  safeTxHash: string
+  safeTxHash?: unknown
+  status?: SafeTxStatus
   timestamp?: Date
   provenance?: {
-    proposerHandle?: string
-    actor?: string
-    reason?: string
-    prUrl?: string
-    gitCommit?: string
-    dirtyTreeScoped?: string[]
+    proposerHandle?: unknown
+    actor?: unknown
+    reason?: unknown
+    prUrl?: unknown
+    gitCommit?: unknown
+    dirtyTreeScoped?: unknown
   }
 }
 
@@ -72,13 +79,16 @@ const main = defineCommand({
         .db(DEFAULT_DB)
         .collection<IRow>(DEFAULT_COLLECTION)
 
-      // Newest pending row per network. A network can carry an older unsigned
-      // proposal, and the card is about the run that just finished — so this
-      // takes the most recent rather than trying to match the run itself, which
-      // nothing in the document identifies.
+      // Takes the most recent rather than trying to match the run itself, which
+      // nothing in the document identifies. A network can carry an older
+      // unsigned proposal, and the card is about the run that just finished.
+      // `$eq` per the repo's operator-injection convention (mongoEq).
       const rows = await collection
         .find(
-          { network: { $in: networks }, status: 'pending' },
+          {
+            network: { $in: networks },
+            status: { $eq: 'pending' as SafeTxStatus },
+          },
           { sort: { timestamp: -1 } }
         )
         .toArray()
@@ -95,7 +105,7 @@ const main = defineCommand({
         .map((network) => newestByNetwork.get(network))
         .filter((row): row is IRow => row !== undefined)
         .map((row) => ({
-          network: row.network,
+          network: String(row.network),
           safeTxHash: row.safeTxHash,
           proposerHandle: row.provenance?.proposerHandle,
           actor: row.provenance?.actor,

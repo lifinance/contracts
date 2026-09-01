@@ -1280,13 +1280,10 @@ function notifyProposalsCreatedToSlack() {
     local MESSAGE_FILE
     MESSAGE_FILE=$(mktemp)
 
-    # The card is rendered from the proposal documents, so it carries the reason,
-    # proposer, PR and per-network review command. Falls back to the count-only
-    # message if that fails for any reason: a missing reason is worth a worse
-    # message, never a missing signing ask.
+    # A worse message is acceptable; a missing signing ask is not.
     local NETWORK_LIST
     NETWORK_LIST=$(IFS=,; printf '%s' "${SUCCESSFUL_NETWORKS[*]}")
-    if ! bunx tsx script/deploy/safe/render-proposal-card.ts --networks "$NETWORK_LIST" --out "$MESSAGE_FILE" 2>&1; then
+    if ! bunx tsx script/deploy/safe/render-proposal-card.ts --networks "$NETWORK_LIST" --out "$MESSAGE_FILE"; then
         logWithTimestamp "Warning: could not render the proposal card - falling back to the summary line"
         if [[ "$PROPOSAL_COUNT" -eq 1 ]]; then
             printf '%s\n' "1x proposal created: $PROPOSAL_CONTRACT on ${SUCCESSFUL_NETWORKS[0]} — please sign and schedule 🙏" >"$MESSAGE_FILE"
