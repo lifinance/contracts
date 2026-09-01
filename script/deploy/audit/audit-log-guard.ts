@@ -154,3 +154,83 @@ const describe = (violation: IAuditLogViolation): string => {
 export const formatAuditLogViolations = (
   violations: IAuditLogViolation[]
 ): string => violations.map(describe).join('\n')
+
+export type AppendOnlyVerdict = 'pass' | 'fail' | 'error'
+
+export interface IAppendOnlyDecision {
+  verdict: AppendOnlyVerdict
+  reason: string
+}
+
+export interface IAppendOnlyInput {
+  auditLogPath: string
+  baseTreeish: string
+  headTreeish: string
+  /** Whether `baseTreeish` resolved to a commit that is present locally. */
+  baseResolved: boolean
+  before: IAuditLogFile | undefined
+  after: IAuditLogFile | undefined
+}
+
+/**
+ * Decides whether a PR leaves the audit log append-only.
+ *
+ * The `baseResolved` flag is load-bearing rather than defensive. A git read
+ * returns nothing both when the file is absent at a readable commit and when the
+ * commit itself could not be read, and those must not share a verdict: this log
+ * has existed for the whole life of the repo, so "absent at base" on a real base
+ * commit means the read failed, and answering that with "nothing recorded yet"
+ * would report a broken guard as a clean one.
+ *
+ * @param input - both log versions, the tree-ishes they came from, and whether the base resolved.
+ * @returns the verdict and a reason naming what blocked it.
+ */
+export const decideAppendOnly = (
+  input: IAppendOnlyInput
+): IAppendOnlyDecision => {
+  const {
+    auditLogPath,
+    baseTreeish,
+    headTreeish,
+    baseResolved,
+    before,
+    after,
+  } = input
+
+  // Checked ahead of an unresolvable base: deleting the log discards every
+  // recorded expectation at once, so it is the finding worth naming.
+  if (after === undefined)
+    return {
+      verdict: 'fail',
+      reason: `${auditLogPath} does not exist at ${headTreeish}. The audit log cannot be removed.`,
+    }
+
+  if (!baseResolved)
+    return {
+      verdict: 'error',
+      reason: `${auditLogPath} could not be compared: the PR base ${baseTreeish} could not be resolved to a commit, so the guard cannot tell an untouched log from a rewritten one`,
+    }
+
+  if (before === undefined)
+    return {
+      verdict: 'pass',
+      reason: `${auditLogPath} does not exist at ${baseTreeish} — nothing recorded yet, so nothing can have been rewritten.`,
+    }
+
+  const { violations } = diffAuditLog(before, after)
+
+  if (violations.length === 0)
+    return {
+      verdict: 'pass',
+      reason: `${auditLogPath} is append-only in this PR: no existing entry was changed or removed.`,
+    }
+
+  return {
+    verdict: 'fail',
+    reason: `${formatAuditLogViolations(
+      violations
+    )}\nThe audit log is append-only. ${
+      violations.length
+    } existing record(s) were modified or removed — add new entries instead.`,
+  }
+}

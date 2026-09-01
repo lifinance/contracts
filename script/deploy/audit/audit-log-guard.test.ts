@@ -9,7 +9,11 @@
 // eslint-disable-next-line import/no-unresolved
 import { describe, expect, it } from 'bun:test'
 
-import { diffAuditLog, formatAuditLogViolations } from './audit-log-guard'
+import {
+  decideAppendOnly,
+  diffAuditLog,
+  formatAuditLogViolations,
+} from './audit-log-guard'
 
 /** Concrete shape so fixtures need no non-null assertions. */
 interface IConcreteLog {
@@ -192,5 +196,95 @@ describe('formatAuditLogViolations', () => {
 
   it('renders nothing for an empty violation list', () => {
     expect(formatAuditLogViolations([])).toBe('')
+  })
+})
+
+describe('decideAppendOnly', () => {
+  const next = () => clone(base)
+
+  it('blocks when the log was deleted at head', () => {
+    const decision = decideAppendOnly({
+      baseResolved: true,
+      before: base,
+      after: undefined,
+      baseTreeish: 'origin/main',
+      headTreeish: 'HEAD',
+      auditLogPath: 'audit/auditLog.json',
+    })
+
+    expect(decision.verdict).toBe('fail')
+  })
+
+  it('ERRORs when the base commit cannot be resolved, rather than reporting nothing to compare', () => {
+    const decision = decideAppendOnly({
+      baseResolved: false,
+      before: undefined,
+      after: next(),
+      baseTreeish: 'deadbeef'.repeat(5),
+      headTreeish: 'HEAD',
+      auditLogPath: 'audit/auditLog.json',
+    })
+
+    expect(decision.verdict).toBe('error')
+    expect(decision.reason).toContain('deadbeef')
+  })
+
+  it('passes only when the base commit resolved and the log is genuinely absent there', () => {
+    const decision = decideAppendOnly({
+      baseResolved: true,
+      before: undefined,
+      after: next(),
+      baseTreeish: 'origin/main',
+      headTreeish: 'HEAD',
+      auditLogPath: 'audit/auditLog.json',
+    })
+
+    expect(decision.verdict).toBe('pass')
+  })
+
+  it('passes an append-only change', () => {
+    const after = next()
+    after.audits.audit3 = { auditCommitHash: 'c'.repeat(40) }
+
+    const decision = decideAppendOnly({
+      baseResolved: true,
+      before: base,
+      after,
+      baseTreeish: 'origin/main',
+      headTreeish: 'HEAD',
+      auditLogPath: 'audit/auditLog.json',
+    })
+
+    expect(decision.verdict).toBe('pass')
+  })
+
+  it('blocks a rewritten existing entry', () => {
+    const after = next()
+    auditOf(after, 'audit1').auditCommitHash = 'b'.repeat(40)
+
+    const decision = decideAppendOnly({
+      baseResolved: true,
+      before: base,
+      after,
+      baseTreeish: 'origin/main',
+      headTreeish: 'HEAD',
+      auditLogPath: 'audit/auditLog.json',
+    })
+
+    expect(decision.verdict).toBe('fail')
+    expect(decision.reason).toContain('audit1')
+  })
+
+  it('reports the deleted log before the unresolvable base, so the stronger tamper is named', () => {
+    const decision = decideAppendOnly({
+      baseResolved: false,
+      before: undefined,
+      after: undefined,
+      baseTreeish: 'deadbeef'.repeat(5),
+      headTreeish: 'HEAD',
+      auditLogPath: 'audit/auditLog.json',
+    })
+
+    expect(decision.verdict).toBe('fail')
   })
 })

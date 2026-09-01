@@ -15,12 +15,14 @@
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 
+import { decideAppendOnly, type IAuditLogFile } from './audit-log-guard'
 import {
-  diffAuditLog,
-  formatAuditLogViolations,
-  type IAuditLogFile,
-} from './audit-log-guard'
-import { createGitSourceReader } from './git-source-reader'
+  createGitSourceReader,
+  ensureCommitAvailable,
+} from './git-source-reader'
+
+const EXIT_FAIL = 1
+const EXIT_ERROR = 2
 
 const readLogAt = (
   treeish: string,
@@ -58,40 +60,23 @@ const main = defineCommand({
   },
   run({ args }) {
     const cwd = process.cwd()
-    const before = readLogAt(args.base, args.auditLog, cwd)
-    const after = readLogAt(args.head, args.auditLog, cwd)
 
-    if (after === undefined) {
-      // Deleting the log is not "no violations" — it removes every recorded
-      // expectation at once, which is the strongest form of the tampering this
-      // guard exists to catch.
-      consola.error(
-        `${args.auditLog} does not exist at ${args.head}. The audit log cannot be removed.`
-      )
-      process.exit(1)
-    }
+    const decision = decideAppendOnly({
+      auditLogPath: args.auditLog,
+      baseTreeish: args.base,
+      headTreeish: args.head,
+      baseResolved: ensureCommitAvailable(args.base, cwd),
+      before: readLogAt(args.base, args.auditLog, cwd),
+      after: readLogAt(args.head, args.auditLog, cwd),
+    })
 
-    if (before === undefined) {
-      consola.success(
-        `${args.auditLog} does not exist at ${args.base} — nothing recorded yet, so nothing can have been rewritten.`
-      )
+    if (decision.verdict === 'pass') {
+      consola.success(decision.reason)
       return
     }
 
-    const { violations } = diffAuditLog(before, after)
-
-    if (violations.length === 0) {
-      consola.success(
-        `${args.auditLog} is append-only in this PR: no existing entry was changed or removed.`
-      )
-      return
-    }
-
-    consola.error(formatAuditLogViolations(violations))
-    consola.error(
-      `The audit log is append-only. ${violations.length} existing record(s) were modified or removed — add new entries instead.`
-    )
-    process.exit(1)
+    consola.error(decision.reason)
+    process.exit(decision.verdict === 'error' ? EXIT_ERROR : EXIT_FAIL)
   },
 })
 
