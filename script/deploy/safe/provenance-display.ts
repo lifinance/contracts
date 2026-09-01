@@ -12,10 +12,8 @@ import {
   sanitizeProvenanceText,
 } from '../shared/git-provenance'
 
-import {
-  MAX_PROPOSAL_REASON_LENGTH,
-  type IProposalProvenance,
-} from './safe-utils'
+import { MAX_PROPOSAL_REASON_LENGTH } from './proposal-intent'
+import { type IProposalProvenance } from './safe-utils'
 
 /** Dirty paths named inline before the list is elided. */
 const DIRTY_PATHS_SHOWN = 3
@@ -161,9 +159,9 @@ export function formatProvenanceLines(
     const prUrl = sanitize(provenance.prUrl)
     if (prUrl) lines.push(detailLine('PR', color(CYAN, prUrl)))
 
-    // Always shown, present or not. A proposal stored after WP-1.2 cannot lack
-    // one, so an absent link means a pre-WP-1.2 row or a hand-edited document —
-    // both things a signer should see rather than have quietly omitted.
+    // Always shown, present or not: an absent link means a row predating the
+    // requirement or a hand-edited document — both things a signer should see
+    // rather than have quietly omitted.
     const ticketUrl = sanitize(provenance.ticketUrl)
     lines.push(
       detailLine(

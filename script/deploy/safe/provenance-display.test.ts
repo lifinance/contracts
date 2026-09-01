@@ -16,11 +16,9 @@ import {
 
 import { PROVENANCE_UNKNOWN } from '../shared/git-provenance'
 
+import { MAX_PROPOSAL_REASON_LENGTH } from './proposal-intent'
 import { formatProvenanceLines } from './provenance-display'
-import {
-  MAX_PROPOSAL_REASON_LENGTH,
-  type IProposalProvenance,
-} from './safe-utils'
+import { type IProposalProvenance } from './safe-utils'
 
 const SHA = '1234567890abcdef1234567890abcdef12345678'
 

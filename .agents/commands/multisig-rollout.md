@@ -35,6 +35,11 @@ See also: the wallet-rotation orchestrators `rotate-deployer-wallet` and `offboa
 Run from the repo root. Check and report (don't fix silently) the lifecycle prerequisites:
 
 - `.env` exists, `PRODUCTION=true`, `SEND_PROPOSALS_DIRECTLY_TO_DIAMOND` not `true`, `MAX_CONCURRENT_JOBS` set.
+- `SAFE_PROPOSAL_TICKET` exported with the Linear issue this rollout belongs to,
+  e.g. `export SAFE_PROPOSAL_TICKET="EXSC-812"` (a full issue URL works too).
+  **Mandatory** — no proposal is created without it, so an unset value fails every
+  network in Phase 2. Export it **before Phase 2**; only `propose-to-safe.ts` has a
+  `--ticket` flag, every other funnel reads this variable.
 - `SAFE_PROPOSAL_REASON` exported with a one-line rationale for this rollout, e.g.
   `export SAFE_PROPOSAL_REASON="roll out AcrossFacetV4 v1.2.0 (EXSC-812)"`. Every
   proposal stored during the run records it, and `confirm-safe-tx` shows it to the

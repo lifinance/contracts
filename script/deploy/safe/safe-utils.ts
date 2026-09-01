@@ -63,7 +63,6 @@ import {
   getTargetStateFacetVersion,
 } from './facet-version-utils'
 import {
-  MAX_PROPOSAL_REASON_LENGTH,
   formatReasonWarning,
   normalizeProposalReason,
   resolveProposalIntent,
@@ -124,10 +123,6 @@ export interface ISafeSignature {
  *                 consumed — a top-level revert rolls back the `nonce++`, so
  *                 the slot can be re-proposed; flagged for manual review.
  */
-// Re-exported: these moved to `proposal-intent.ts` when the ticket link joined
-// the reason, and importers of this module should not have to care.
-export { MAX_PROPOSAL_REASON_LENGTH, normalizeProposalReason }
-
 export type SafeTxStatus = 'pending' | 'submitted' | 'executed' | 'reverted'
 
 /**
@@ -154,9 +149,9 @@ export interface IProposalProvenance extends IGitProvenance {
   /** One-line rationale, when the proposer supplied one. */
   reason?: string
   /**
-   * Canonical Linear issue URL. Always present on a proposal stored after
-   * WP-1.2 — {@link storeTransactionInMongoDB} refuses to create one without it.
-   * Optional on the type because rows written before that still exist.
+   * Canonical Linear issue URL. {@link storeTransactionInMongoDB} refuses to
+   * create a proposal without one, so it is optional on the type only because
+   * rows predating the requirement still exist.
    */
   ticketUrl?: string
 }
@@ -1537,8 +1532,7 @@ let reasonWarningEmitted = false
  * Once, not per proposal: a fleet sweep proposes on 40+ networks in one run, and
  * repeating the same line 40 times trains operators to scroll past it. The
  * per-proposal record is the absent `provenance.reason` field, which is what
- * `report-reason-adoption.ts` counts for OQ3's flip trigger — so suppressing the
- * repeat loses no information.
+ * the adoption report counts — so suppressing the repeat loses no information.
  *
  * @param ticketUrl - Identifies the first proposal that triggered the warning.
  */
@@ -1703,7 +1697,7 @@ export async function storeTransactionInMongoDB(
   // Before anything is written. Every proposal funnel reaches this function, so
   // this is the one place a link can be required without each caller opting in —
   // and a refusal after the insert would leave an unlinked proposal holding a
-  // nonce (WP-1.2 scope B, Daniel 2026-08-31: blocking from day one).
+  // nonce.
   const intent = resolveProposalIntent({
     ticket: provenanceOptions?.ticket,
     envTicket: process.env.SAFE_PROPOSAL_TICKET,

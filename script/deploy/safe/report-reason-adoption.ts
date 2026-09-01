@@ -1,13 +1,6 @@
 /**
- * Read-only report of the reason-adoption counter behind OQ3's flip trigger.
- *
- * OQ3 keeps `--reason` optional-with-warning and commits to making it mandatory
- * once the warning fires zero times across 30 consecutive proposals. This is how
- * that condition is read, so the trigger is measurable rather than aspirational.
- *
- * The counter is derived from the proposals rather than stored: a missing
- * `provenance.reason` IS the recorded warning, so the two cannot disagree, and
- * no in-process counter could span 30 proposals anyway.
+ * Read-only report of how many recent proposals stated a reason, and whether
+ * the threshold for making `--reason` mandatory has been reached.
  *
  * Opens its own client, like `report-nonce-collisions.ts`, because
  * `getSafeMongoCollection` creates indexes on connect and a diagnostic must not

@@ -40,6 +40,15 @@ describe('parseTicketLink', () => {
     })
   })
 
+  it('stores the parsed URL, so control characters inside it do not survive', () => {
+    // URL parsing tolerates a mid-string newline by dropping it; the stored
+    // value must not be the raw input that still carries one.
+    expect(parseTicketLink('https://linear.app/iss\nue/EXSC-694')).toEqual({
+      ok: true,
+      url: 'https://linear.app/issue/EXSC-694',
+    })
+  })
+
   it.each([
     ['undefined', undefined],
     ['empty', ''],
@@ -88,6 +97,12 @@ describe('parseTicketLink', () => {
       'a malformed id in the path',
       'https://linear.app/lifi-linear/issue/not-a-ticket',
     ],
+    // These parse with hostname `linear.app`, so the host check passes them and
+    // only the scheme check stands between them and the stored field.
+    ['a javascript: URL', 'javascript://linear.app/issue/EXSC-694/%0Aalert(1)'],
+    ['a data: URL', 'data://linear.app/issue/EXSC-694'],
+    ['a file: URL', 'file://linear.app/issue/EXSC-694'],
+    ['a non-web scheme', 'ftp://linear.app/issue/EXSC-694'],
     ['a lowercase bare id', 'exsc-694'],
     ['a bare id with no number', 'EXSC-'],
     ['a bare id with no team', '-694'],

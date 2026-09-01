@@ -27,6 +27,7 @@ import {
 import { type Collection, type InsertOneResult, type ObjectId } from 'mongodb'
 import { type Address, type Hex } from 'viem'
 
+import { normalizeProposalReason } from './proposal-intent'
 import {
   buildProposalProvenance,
   canExecuteWithNonceStatus,
@@ -37,7 +38,6 @@ import {
   getSigners,
   isFutureNonceExecutionAllowed,
   mongoSafeTxRowFilter,
-  normalizeProposalReason,
   safeTxStatusConsumedNonce,
   serializeSafeTxForMongo,
   storeTransactionInMongoDB,
