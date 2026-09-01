@@ -872,8 +872,19 @@ const main = defineCommand({
       })
     )
 
+    // An empty string is a value the operator typed, not an absence: passed on
+    // as one, `splitPath('')` yields an empty BIP32 path and derives an address
+    // instead of erroring, and treated as absent it silently selects the
+    // default path.
+    const derivationPath = readValueFlag(process.argv, {
+      camel: 'derivationPath',
+      kebab: 'derivation-path',
+    })
+    if (derivationPath !== undefined && derivationPath.trim() === '')
+      throw new Error("'derivationPath' was given but is empty.")
+
     // Validate that incompatible Ledger options aren't provided together
-    if (args.derivationPath && ledgerLive)
+    if (derivationPath && ledgerLive)
       throw new Error(
         "Cannot use both 'derivationPath' and 'ledgerLive' options together"
       )
@@ -889,7 +900,7 @@ const main = defineCommand({
     const ledgerOptions = {
       ledgerLive,
       accountIndex,
-      derivationPath: args.derivationPath,
+      derivationPath,
     }
 
     // If using ledger, we don't need a private key
@@ -899,8 +910,8 @@ const main = defineCommand({
         consola.info(
           `Using Ledger Live derivation path with account index ${ledgerOptions.accountIndex}`
         )
-      else if (args.derivationPath)
-        consola.info(`Using custom derivation path: ${args.derivationPath}`)
+      else if (derivationPath)
+        consola.info(`Using custom derivation path: ${derivationPath}`)
       else consola.info(`Using default derivation path: m/44'/60'/0'/0/0`)
 
       privateKey = undefined

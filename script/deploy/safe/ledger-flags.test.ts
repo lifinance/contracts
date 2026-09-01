@@ -1,13 +1,13 @@
 /**
- * The `--accountIndex` wiring shared by every Safe script that can sign with a
- * Ledger.
+ * The Ledger account-selection flags shared by every Safe script that can sign
+ * with one: `--accountIndex` and `--derivationPath`.
  *
- * The refusal lives in `parseAccountIndex`; what these tests hold is that each
- * script reaches it with the value the operator typed. Every layer below is
- * permissive — citty coerces, `Number()` converts and the Ledger SDK's BIP32
- * parser accepts whatever segment it is handed — so a script that validates
- * anywhere other than at the flag derives a valid-looking address from a value
- * nobody chose.
+ * What these tests hold is that each script reaches its guard with the value
+ * the operator typed. Every layer below is permissive — citty coerces,
+ * `Number()` converts, and the Ledger SDK's BIP32 parser accepts whatever
+ * segment it is handed, dropping an unparseable one and deriving from the rest
+ * — so a script that validates anywhere other than at the flag produces a
+ * valid-looking address from a value nobody chose.
  */
 
 import { readFileSync, readdirSync } from 'fs'
@@ -124,8 +124,10 @@ describe('--accountIndex, as the Safe CLIs read it', () => {
     ['a valueless flag', ['--accountIndex']],
     ['a valueless kebab flag', ['--account-index']],
   ])('refuses %s', (_label, argv) => {
-    // citty reports both as boolean `true`, indistinguishable from a deliberate
-    // index once converted, so the flag has to be read before the parser sees it.
+    // citty reports the first as `''` and the second as boolean `true`, so a
+    // conversion reads the same typo as account 0 or account 1 depending only
+    // on which spelling was used. Neither is distinguishable from a deliberate
+    // index once converted, so the flag has to be read before the parser.
     expect(() => readAccountIndex(...argv)).toThrow(/needs a value/)
   })
 
@@ -136,7 +138,21 @@ describe('--accountIndex, as the Safe CLIs read it', () => {
   })
 })
 
-describe('every Ledger-signing script routes --accountIndex through the guard', () => {
+/**
+ * Any numeric conversion applied to something named after the account index.
+ *
+ * Matched on the identifier rather than on one call shape: naming the raw value
+ * and converting it a line later reinstates the whole defect while a pattern
+ * anchored on `args.accountIndex` still passes.
+ */
+const CONVERTS_THE_INDEX =
+  /(?:Number|parseInt|parseFloat)\s*\(\s*[^)]*[Aa]ccount[Ii]ndex/
+
+/** Any read of the index off citty's parsed args, in any accessor spelling. */
+const READS_THE_PARSED_ARG =
+  /args\s*(?:\?\.|\.)\s*accountIndex|args\s*\[\s*['"`]accountIndex/
+
+describe('no Ledger-signing script converts --accountIndex itself', () => {
   const source = (file: string) => readFileSync(join(SCRIPT_ROOT, file), 'utf8')
 
   it('finds the scripts that offer the flag', () => {
@@ -145,16 +161,12 @@ describe('every Ledger-signing script routes --accountIndex through the guard', 
     expect(LEDGER_SIGNING_SCRIPTS.length).toBeGreaterThanOrEqual(5)
   })
 
-  it.each(LEDGER_SIGNING_SCRIPTS)(
-    '%s does not convert the index with Number()',
-    (file) => {
-      // Converting at the call site accepts '' as 0 and boolean `true` as 1,
-      // neither of which the operator asked for.
-      expect(source(file)).not.toMatch(
-        /Number\(\s*(args|options)\.accountIndex\s*\)/
-      )
-    }
-  )
+  it.each(LEDGER_SIGNING_SCRIPTS)('%s does not convert the index', (file) => {
+    // Converting anywhere ahead of the guard destroys the evidence it needs:
+    // '' and boolean `true` both become plausible indices and nothing downstream
+    // can tell them from a deliberate one.
+    expect(source(file)).not.toMatch(CONVERTS_THE_INDEX)
+  })
 
   it.each(LEDGER_SIGNING_SCRIPTS)(
     '%s reads the raw flag from argv, not from the parsed args',
@@ -164,7 +176,47 @@ describe('every Ledger-signing script routes --accountIndex through the guard', 
       // longer tell an operator's value from an absence.
       const text = source(file)
       expect(text).toContain("kebab: 'account-index'")
-      expect(text).not.toMatch(/args\.accountIndex/)
+      expect(text).not.toMatch(READS_THE_PARSED_ARG)
     }
   )
+
+  // Listed, not discovered: the claim is about these three specifically, which
+  // hand the flag straight to the guard in one expression. The two remaining
+  // scripts validate a hop away — `propose-to-safe.ts` inside `_runPropose`,
+  // `cleanUpProdDiamond.ts` inside `resolveSafeSigningOptions` — so the
+  // adjacency below would not hold for them.
+  it.each([
+    'deploy/safe/confirm-safe-tx.ts',
+    'deploy/safe/add-safe-owners-and-threshold.ts',
+    'deploy/safe/ledger-flex-calibrate.ts',
+  ])('%s guards the flag in the same expression that reads it', (file) => {
+    expect(source(file)).toMatch(/parseAccountIndex\(\s*readValueFlag\(/)
+  })
+})
+
+describe('--derivationPath is read as a value, not as a flag', () => {
+  const source = (file: string) => readFileSync(join(SCRIPT_ROOT, file), 'utf8')
+
+  // The two scripts that resolve the path inline. `cleanUpProdDiamond.ts` gets
+  // the same treatment through `resolveSafeSigningOptions`, and
+  // `ledger-flex-calibrate.ts` offers no `--derivationPath` at all.
+  const INLINE = [
+    'deploy/safe/confirm-safe-tx.ts',
+    'deploy/safe/add-safe-owners-and-threshold.ts',
+  ]
+
+  it.each(INLINE)('%s reads the path from argv', (file) => {
+    const text = source(file)
+    expect(text).toContain("kebab: 'derivation-path'")
+    expect(text).not.toMatch(/args\s*(?:\?\.|\.)\s*derivationPath/)
+  })
+
+  it.each(INLINE)('%s refuses an empty path', (file) => {
+    // `--derivationPath "$UNSET_VAR"` arrives as ''. Passed on, splitPath('')
+    // returns an empty BIP32 path and the device derives from it without
+    // erroring; treated as absent, it silently selects the default path.
+    expect(source(file)).toMatch(
+      /derivationPath[\s\S]{0,120}trim\(\)\s*===\s*''/
+    )
+  })
 })

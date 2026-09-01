@@ -193,7 +193,18 @@ const main = defineCommand({
       })
     )
 
-    if (useLedger && args.derivationPath && ledgerLive)
+    // An empty string is a value the operator typed, not an absence: passed on
+    // as one, `splitPath('')` yields an empty BIP32 path and derives an address
+    // instead of erroring, and treated as absent it silently selects the
+    // default path.
+    const derivationPath = readValueFlag(process.argv, {
+      camel: 'derivationPath',
+      kebab: 'derivation-path',
+    })
+    if (derivationPath !== undefined && derivationPath.trim() === '')
+      throw new Error("'derivationPath' was given but is empty.")
+
+    if (useLedger && derivationPath && ledgerLive)
       throw new Error(
         "Cannot use both 'derivationPath' and 'ledgerLive' options together"
       )
@@ -210,7 +221,7 @@ const main = defineCommand({
       ? {
           ledgerLive,
           accountIndex,
-          derivationPath: args.derivationPath,
+          derivationPath,
         }
       : undefined
 
