@@ -125,3 +125,67 @@ describe('stripMetadataTrailer', () => {
     expect(stripMetadataTrailer(once).code).toBe(once)
   })
 })
+
+/**
+ * One source, two lineages. Both are the tail of `AccessManagerFacet`'s
+ * `deployedBytecode.object`: 96 code bytes, then a 51-byte trailer, then its
+ * length word.
+ *
+ * - CANCUN_TAIL: `out/` at 67922f138, default profile, solc 0.8.29 / cancun.
+ * - LONDON_TAIL: `out-floor/` at 67922f138, `FOUNDRY_PROFILE=solc_floor`, solc
+ *   0.8.17 / london — the floor every `src/` file pins, built in CI by
+ *   `solc-floor-build.yml`.
+ *
+ * The code differs because 0.8.29 emits PUSH0 (`5f`) where 0.8.17 has to spell
+ * out `6000`; a lineage difference is not a cosmetic one.
+ */
+const CANCUN_TAIL =
+  '0x5b9150610508602084016104bd565b90509250929050565b5f5f5f60608486031215610523575f5ffd5b61052c84610489565b925061053a602085016104bd565b91506040840135801515811461054e575f5ffd5b80915050925092509256fea2646970667358221220d03ac5dc4a08882370fe06263f9bcf6dee1812146c63a9d19ed384af9919e81e64736f6c634300081d0033'
+
+const LONDON_TAIL =
+  '0x0515602084016104c7565b90509250929050565b60008060006060848603121561053357600080fd5b61053c84610492565b925061054a602085016104c7565b91506040840135801515811461055f57600080fd5b80915050925092509256fea26469706673582212205bfef31b47d1e8650e0c547fe943a009dbb2467002129adbfe64624c618a0bf164736f6c63430008110033'
+
+describe('across build lineages', () => {
+  it('reads the compiler from the london lineage too, not just the default one', () => {
+    const london = readMetadataTrailer(LONDON_TAIL)
+
+    expect(london.present).toBe(true)
+    if (!london.present) return
+    // 0x11 = 17, against 0x1d = 29 in the cancun fixture: a reader that
+    // mis-slices the version triple cannot satisfy both.
+    expect(london.solcVersion).toBe('0.8.17')
+    expect(london.byteLength).toBe(51)
+  })
+
+  it('distinguishes lineages by the decoded version, not by trailer size', () => {
+    const cancun = readMetadataTrailer(CANCUN_TAIL)
+    const london = readMetadataTrailer(LONDON_TAIL)
+
+    expect([cancun.present, london.present]).toEqual([true, true])
+    if (!cancun.present || !london.present) return
+    expect(cancun.solcVersion).toBe('0.8.29')
+    expect(london.solcVersion).toBe('0.8.17')
+    // Both are 51-byte `a2` maps of ipfs + solc, so size carries no lineage
+    // information at all.
+    expect(london.totalStrippedBytes).toBe(cancun.totalStrippedBytes)
+  })
+
+  it('strips both lineages but does not reconcile them', () => {
+    const cancun = stripMetadataTrailer(CANCUN_TAIL)
+    const london = stripMetadataTrailer(LONDON_TAIL)
+
+    // Both really stripped — without this the inequality below would also hold
+    // for two inputs the stripper never touched.
+    expect([cancun.stripped, london.stripped]).toEqual([true, true])
+    expect(cancun.code.length).toBe(CANCUN_TAIL.length - 53 * 2)
+    expect(london.code.length).toBe(LONDON_TAIL.length - 53 * 2)
+
+    // The measurement WP-2.1 exists to act on: stripping normalises a rebuild
+    // of ONE lineage, and leaves two lineages of one source as far apart as
+    // before. Whole artifacts: 1370 bytes hashing to 0x9b3646… on cancun
+    // against 1387 and 0x632dab… on london. A sign-time gate therefore has to
+    // compare against a SET of expected hashes, one per lineage a network can
+    // legitimately have been built from — never a single expected value.
+    expect(cancun.code).not.toBe(london.code)
+  })
+})
