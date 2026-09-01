@@ -153,7 +153,14 @@ const escape = (value: unknown): string => escapeCapped(value, MAX_FIELD_CHARS)
 const renderLink = (value: unknown): string => {
   const text = escape(value)
   if (!text) return ''
-  return text.startsWith('https://') ? text : `${text} — not a link, ignored`
+  // Case-insensitive per RFC 3986. Treating `HTTPS://` as invalid was worse than
+  // useless: the value was printed verbatim beside "ignored", and Slack
+  // auto-links what it recognises — an assertion that it was ignored, sitting
+  // next to a live link to it.
+  if (/^https:\/\//i.test(text)) return text
+  // Never reproduced: echoing it puts the string on the card and lets Slack link
+  // it, which is what the check exists to prevent.
+  return '— recorded value is not a link, withheld'
 }
 
 const shortHash = (hash: unknown): string =>
@@ -219,6 +226,7 @@ export const renderProposalCard = (
     gitCommit: 'Commit',
     prUrl: 'PR',
     proposerHandle: 'Proposed by',
+    checkSummary: 'Proposer-side check',
   } as const
   const differing = (
     Object.keys(COMPARED_FIELDS) as (keyof typeof COMPARED_FIELDS)[]
@@ -245,8 +253,12 @@ export const renderProposalCard = (
     )
 
   const handle = escape(first.proposerHandle)
-  const actorName = escape(first.actor)
-  const actor = actorName && actorName !== 'human' ? ` (${actorName})` : ''
+  // Any non-human actor on the card, not just row zero's: read from the first
+  // row, a bot-proposed network hid behind a human-proposed one.
+  const nonHuman = [
+    ...new Set(proposals.map((p) => escape(p.actor)).filter(Boolean)),
+  ].filter((a) => a !== 'human')
+  const actor = nonHuman.length > 0 ? ` (${nonHuman.join(', ')})` : ''
   lines.push(`*Proposed by:* ${handle || 'unknown'}${actor}`)
 
   const gitCommit = escapeCapped(first.gitCommit, SHORT_COMMIT_CHARS)
@@ -257,16 +269,31 @@ export const renderProposalCard = (
   // A dirty tree means the commit above does not describe what was proposed.
   // Capped at the same limit capture uses, so a hand-edited row cannot push the
   // review commands off the bottom of the card.
-  const dirty: unknown[] = Array.isArray(first.dirtyTreeScoped)
-    ? first.dirtyTreeScoped
-    : []
-  if (dirty.length > 0) {
-    const shown = dirty.slice(0, MAX_DIRTY_PATHS).map(escape).filter(Boolean)
+  // Collected across EVERY row, not read from the first. Read from row zero, a
+  // run where one network was proposed from a dirty tree rendered no
+  // working-tree line at all, so the card affirmatively looked clean.
+  const dirtyRows = proposals.filter(
+    (p) => Array.isArray(p.dirtyTreeScoped) && p.dirtyTreeScoped.length > 0
+  )
+  if (dirtyRows.length > 0) {
+    const paths = [
+      ...new Set(
+        dirtyRows.flatMap((p) => (p.dirtyTreeScoped as unknown[]).map(escape))
+      ),
+    ].filter(Boolean)
     const more =
-      dirty.length > MAX_DIRTY_PATHS
-        ? `, …and ${dirty.length - MAX_DIRTY_PATHS} more`
+      paths.length > MAX_DIRTY_PATHS
+        ? `, …and ${paths.length - MAX_DIRTY_PATHS} more`
         : ''
-    lines.push(`*Working tree:* dirty — ${shown.join(', ')}${more}`)
+    const where =
+      dirtyRows.length === proposals.length
+        ? ''
+        : ` (on ${dirtyRows.map((p) => escape(p.network)).join(', ')})`
+    lines.push(
+      `*Working tree:* dirty${where} — ${paths
+        .slice(0, MAX_DIRTY_PATHS)
+        .join(', ')}${more}`
+    )
   }
 
   const checkSummary = escape(first.checkSummary)
