@@ -24,6 +24,7 @@ import {
   getRoleName,
   formatRoleChange,
   formatBatchSetContractSelectorWhitelist,
+  formatDecodedArg,
 } from './safe-decode-utils'
 
 const DEFAULT_ADMIN_ROLE = `0x${'00'.repeat(32)}`
@@ -260,5 +261,47 @@ describe('formatBatchSetContractSelectorWhitelist', () => {
     const output = await capture([FALLBACK_ONLY])
     expect(output).toContain('signature unknown')
     expect(output).not.toContain('transfer(address,uint256)')
+  })
+})
+
+describe('formatDecodedArg', () => {
+  it('renders a tuple array carrying bigints instead of failing the decode', () => {
+    // initFrax((uint256 chainId, uint32 eid)[]) shape: viem decodes the numeric
+    // fields as bigints, which a plain JSON.stringify throws on — taking the
+    // whole decode down and leaving the operator approving an unshown payload.
+    const arg = [
+      { chainId: 1n, eid: 30101 },
+      { chainId: 480n, eid: 30319 },
+    ]
+
+    const output = formatDecodedArg(arg)
+
+    expect(output).toContain('"chainId":"1"')
+    expect(output).toContain('"chainId":"480"')
+    expect(output).toContain('30319')
+  })
+
+  it('renders nested bigints at any depth', () => {
+    const output = formatDecodedArg({ outer: [{ inner: [7n] }] })
+
+    expect(output).toBe('{"outer":[{"inner":["7"]}]}')
+  })
+
+  it('still renders a top-level bigint bare, without JSON quoting', () => {
+    expect(formatDecodedArg(10800n)).toBe('10800')
+  })
+
+  it('renders a nested address in the network format, like a top-level one', () => {
+    const address = '0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE'
+    const nested = formatDecodedArg({ target: address }, 'tron')
+
+    expect(nested).toContain(formatDecodedArg(address, 'tron'))
+    expect(nested).not.toContain(`"${address}"`)
+  })
+
+  it('leaves a nested non-address string untouched', () => {
+    expect(formatDecodedArg({ name: 'FraxFacet' }, 'tron')).toBe(
+      '{"name":"FraxFacet"}'
+    )
   })
 })
