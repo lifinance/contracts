@@ -92,6 +92,42 @@ describe('SlackNotifier run-link', () => {
   })
 })
 
+describe('SlackNotifier batch summary — networks that were never checked', () => {
+  it('refuses to call a run successful when networks went unchecked', async () => {
+    // Every processed network succeeded, so a summary built only from `results`
+    // reads "completed successfully" — on a run that exits non-zero because a
+    // ready operation elsewhere would have been missed.
+    const getPayload = mockFetchCapturing()
+    await new SlackNotifier(WEBHOOK).notifyBatchSummary(
+      [{ network: 'mode', success: true, operationsProcessed: 0 }],
+      3
+    )
+
+    const payload = getPayload()
+    const blocks = (payload.blocks ?? []) as unknown as ICapturedBlock[]
+    expect(payload.text).toContain('completed with some failures')
+    expect(
+      blocks.some((b) =>
+        b.text?.text?.includes('*🚨 Never checked:*\n3 network')
+      )
+    ).toBe(true)
+  })
+
+  it('stays silent about unchecked networks when every network was reached', async () => {
+    const getPayload = mockFetchCapturing()
+    await new SlackNotifier(WEBHOOK).notifyBatchSummary([
+      { network: 'mode', success: true, operationsProcessed: 1 },
+    ])
+
+    const payload = getPayload()
+    const blocks = (payload.blocks ?? []) as unknown as ICapturedBlock[]
+    expect(payload.text).toContain('completed successfully')
+    expect(blocks.some((b) => b.text?.text?.includes('Never checked'))).toBe(
+      false
+    )
+  })
+})
+
 describe('SlackNotifier payload safety', () => {
   it('clamps an oversized error message below the Slack 3000-char block limit', async () => {
     const getPayload = mockFetchCapturing()

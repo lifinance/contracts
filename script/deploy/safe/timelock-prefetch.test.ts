@@ -318,12 +318,18 @@ describe('classifyPrefetchResults', () => {
   it('still runs the blocked re-check when another network failed to fetch', () => {
     // mustExitWithError must weigh blocked work too, or a blocked-only network
     // is abandoned the moment any other network is unreachable.
+    //
+    // The run therefore reaches the batch-summary gate carrying work AND
+    // unreachable networks at the same time, which is the state that gate has to
+    // report on: a summary built only from processed networks would call it a
+    // success.
     const outcome = classifyPrefetchResults([
       result('mode', { blockedInMongoCount: 1 }),
       result('mainnet', { fetchError: new Error('querySrv ETIMEOUT') }),
     ])
 
     expect(outcome.mustExitWithError).toBe(false)
+    expect(outcome.toProcess.map((r) => r.network.name)).toEqual(['mode'])
     expect(outcome.failed.map((r) => r.network.name)).toEqual(['mainnet'])
   })
 })

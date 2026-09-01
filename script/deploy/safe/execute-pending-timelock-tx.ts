@@ -301,13 +301,19 @@ const cmd = defineCommand({
       // operations, op-level failures, or any network-level failures (e.g. a
       // network erroring before reaching the per-op loop, which leaves
       // operationsFailed=0 but failedNetworks>0).
+      //
+      // Unreachable networks count as well. They are absent from `results`, so
+      // without this the run that fails *only* because networks went unchecked
+      // is the one run that reports nothing to Slack — and the count is passed
+      // on so the summary cannot call such a run successful.
       const hasWork =
         totalOperationsProcessed > 0 ||
         totalOperationsFailed > 0 ||
-        failedNetworks > 0
+        failedNetworks > 0 ||
+        prefetchFailures > 0
       if (slackNotifier && hasWork)
         try {
-          await slackNotifier.notifyBatchSummary(results)
+          await slackNotifier.notifyBatchSummary(results, prefetchFailures)
         } catch (error) {
           consola.warn('Failed to send batch summary notification:', error)
         }

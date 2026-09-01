@@ -398,9 +398,19 @@ export class SlackNotifier {
   }
 
   /**
-   * Notify batch execution summary
+   * Notify batch execution summary.
+   *
+   * @param results - One result per network the run actually processed.
+   * @param neverCheckedCount - Networks the fleet pre-check could not reach, so
+   * they are absent from `results` entirely. Reported separately because a
+   * summary built only from `results` would call such a run successful while it
+   * exits non-zero — the network was never looked at, not looked at and found
+   * idle.
    */
-  public async notifyBatchSummary(results: INetworkResult[]): Promise<void> {
+  public async notifyBatchSummary(
+    results: INetworkResult[],
+    neverCheckedCount = 0
+  ): Promise<void> {
     const endTime = new Date()
     const duration = Math.floor(
       (endTime.getTime() - this.startTime.getTime()) / 1000
@@ -414,11 +424,11 @@ export class SlackNotifier {
       0
     )
 
-    const statusEmoji = failedNetworks.length > 0 ? '⚠️' : '✅'
-    const statusText =
-      failedNetworks.length > 0
-        ? 'completed with some failures'
-        : 'completed successfully'
+    const degraded = failedNetworks.length > 0 || neverCheckedCount > 0
+    const statusEmoji = degraded ? '⚠️' : '✅'
+    const statusText = degraded
+      ? 'completed with some failures'
+      : 'completed successfully'
 
     const message: ISlackMessage = {
       text: `📊 Timelock batch execution ${statusText}`,
@@ -472,6 +482,17 @@ export class SlackNotifier {
         },
       ],
     }
+
+    if (neverCheckedCount > 0 && message.blocks)
+      message.blocks.push({
+        type: 'section',
+        text: {
+          type: 'mrkdwn',
+          text:
+            `*🚨 Never checked:*\n${neverCheckedCount} network(s) could not be read from the ` +
+            `queue, so a ready operation on any of them would not have been executed by this run.`,
+        },
+      })
 
     // Add details about successful networks with operations
     const networksWithOps = successfulNetworks.filter(
