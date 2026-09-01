@@ -20,7 +20,7 @@ import type {
 } from '../../../common/types'
 import { buildExplorerTxUrl } from '../../../utils/viemScriptHelpers'
 
-import { getGasWithFallback } from './gas-with-fallback'
+import { getGasWithFallback, resolveGas } from './gas-with-fallback'
 
 export class EvmChainCaller implements IChainCaller {
   public readonly senderAddress: Address
@@ -37,31 +37,46 @@ export class EvmChainCaller implements IChainCaller {
   public async simulate(
     params: IChainCallParams
   ): Promise<IChainSimulateResult> {
-    // Mirror the multiplier+fallback logic used in `call()` so the dry-run
-    // value reflects the gas limit that would actually be applied on-chain.
-    const estimatedGas = await getGasWithFallback(() =>
-      this.publicClient.estimateGas({
-        account: this.senderAddress,
-        to: params.to,
-        data: params.data,
-        value: params.value ?? 0n,
-      })
+    // Mirrors the multiplier `call()` applies so the dry-run figure reflects the
+    // limit that would actually be used. Unlike `call()` this reports rather than
+    // broadcasts, so a failed estimate falls back instead of refusing — a
+    // simulation that throws tells the operator less than one that says "unknown,
+    // assuming the fixed limit".
+    const { gas, estimateFailed } = await resolveGas(
+      () =>
+        this.publicClient.estimateGas({
+          account: this.senderAddress,
+          to: params.to,
+          data: params.data,
+          value: params.value ?? 0n,
+        }),
+      {
+        onEstimateFailure: 'fallback',
+        networkName: this.networkName,
+        operation: 'simulation',
+      }
     )
 
-    return { estimatedResource: estimatedGas, resourceLabel: 'gas' }
+    return { estimatedResource: gas, resourceLabel: 'gas', estimateFailed }
   }
 
   public async call(params: IChainCallParams): Promise<IChainCallResult> {
-    // eth_estimateGas can revert outright on some chains (e.g. Jovay) even when
-    // the call succeeds, and viem's default ~20% buffer can under-count post-
-    // call overhead — apply GAS_ESTIMATE_MULTIPLIER with fallback.
-    const gas = await getGasWithFallback(() =>
-      this.publicClient.estimateGas({
-        account: this.senderAddress,
-        to: params.to,
-        data: params.data,
-        value: params.value ?? 0n,
-      })
+    // viem's default ~20% buffer can under-count post-call overhead — apply
+    // GAS_ESTIMATE_MULTIPLIER. A failed estimate refuses rather than guessing,
+    // because this path broadcasts.
+    const gas = await getGasWithFallback(
+      () =>
+        this.publicClient.estimateGas({
+          account: this.senderAddress,
+          to: params.to,
+          data: params.data,
+          value: params.value ?? 0n,
+        }),
+      {
+        onEstimateFailure: 'refuse',
+        networkName: this.networkName,
+        operation: 'contract call',
+      }
     )
 
     const txHash = await this.walletClient.sendTransaction({

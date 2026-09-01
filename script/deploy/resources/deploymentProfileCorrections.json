@@ -1,0 +1,235 @@
+{
+  "$schema": "deployment-profile-corrections/v1",
+  "generatedAt": "2026-08-31T07:18:05.652Z",
+  "method": "Rebuilt each record's own commit at the compiler its deployed bytecode declares; kept the commit, corrected only the contradicted fields.",
+  "excluded": [
+    "tron/SymbiosisFacet@2.0.0"
+  ],
+  "count": 14,
+  "corrections": [
+    {
+      "network": "opbnb",
+      "address": "0xC9E66aa9b08EB667e450e072E96F7086AD9f2c91",
+      "contractName": "Executor",
+      "version": "2.1.0",
+      "expect": {
+        "solcVersion": "0.8.29",
+        "evmVersion": "cancun",
+        "gitCommitHash": "c0cc000e82e5d904f0774df9de6920b24063c20b"
+      },
+      "set": {
+        "solcVersion": "0.8.17",
+        "evmVersion": "london"
+      },
+      "evidence": "rebuilt recorded commit c0cc000e8 at 0.8.17/london — matches deployed runtime; bytecode metadata trailer declares solc 0.8.17"
+    },
+    {
+      "network": "optimism",
+      "address": "0xC9E66aa9b08EB667e450e072E96F7086AD9f2c91",
+      "contractName": "Executor",
+      "version": "2.1.0",
+      "expect": {
+        "solcVersion": "0.8.29",
+        "evmVersion": "cancun",
+        "gitCommitHash": "c0cc000e82e5d904f0774df9de6920b24063c20b"
+      },
+      "set": {
+        "solcVersion": "0.8.17",
+        "evmVersion": "london"
+      },
+      "evidence": "rebuilt recorded commit c0cc000e8 at 0.8.17/london — matches deployed runtime; bytecode metadata trailer declares solc 0.8.17"
+    },
+    {
+      "network": "arbitrum",
+      "address": "0x124Aa9169E6c0851a4A54D0ebb9158f2313d9Dd8",
+      "contractName": "MayanFacet",
+      "version": "2.0.0",
+      "expect": {
+        "solcVersion": "0.8.29",
+        "evmVersion": "cancun",
+        "gitCommitHash": "2da582742085bdfaf21170b4868e8e1a02403137"
+      },
+      "set": {
+        "solcVersion": "0.8.17",
+        "evmVersion": "london"
+      },
+      "evidence": "rebuilt recorded commit 2da582742 at 0.8.17/london — matches deployed runtime; bytecode metadata trailer declares solc 0.8.17"
+    },
+    {
+      "network": "avalanche",
+      "address": "0x124Aa9169E6c0851a4A54D0ebb9158f2313d9Dd8",
+      "contractName": "MayanFacet",
+      "version": "2.0.0",
+      "expect": {
+        "solcVersion": "0.8.29",
+        "evmVersion": "cancun",
+        "gitCommitHash": "2da582742085bdfaf21170b4868e8e1a02403137"
+      },
+      "set": {
+        "solcVersion": "0.8.17",
+        "evmVersion": "london"
+      },
+      "evidence": "rebuilt recorded commit 2da582742 at 0.8.17/london — matches deployed runtime; bytecode metadata trailer declares solc 0.8.17"
+    },
+    {
+      "network": "base",
+      "address": "0x124Aa9169E6c0851a4A54D0ebb9158f2313d9Dd8",
+      "contractName": "MayanFacet",
+      "version": "2.0.0",
+      "expect": {
+        "solcVersion": "0.8.29",
+        "evmVersion": "cancun",
+        "gitCommitHash": "2da582742085bdfaf21170b4868e8e1a02403137"
+      },
+      "set": {
+        "solcVersion": "0.8.17",
+        "evmVersion": "london"
+      },
+      "evidence": "rebuilt recorded commit 2da582742 at 0.8.17/london — matches deployed runtime; bytecode metadata trailer declares solc 0.8.17"
+    },
+    {
+      "network": "bsc",
+      "address": "0x124Aa9169E6c0851a4A54D0ebb9158f2313d9Dd8",
+      "contractName": "MayanFacet",
+      "version": "2.0.0",
+      "expect": {
+        "solcVersion": "0.8.29",
+        "evmVersion": "cancun",
+        "gitCommitHash": "2da582742085bdfaf21170b4868e8e1a02403137"
+      },
+      "set": {
+        "solcVersion": "0.8.17",
+        "evmVersion": "london"
+      },
+      "evidence": "rebuilt recorded commit 2da582742 at 0.8.17/london — matches deployed runtime; bytecode metadata trailer declares solc 0.8.17"
+    },
+    {
+      "network": "linea",
+      "address": "0x27abe9B161B37c79dF9d2DB96Da4Ca8640318E19",
+      "contractName": "MayanFacet",
+      "version": "2.0.0",
+      "expect": {
+        "solcVersion": "0.8.29",
+        "evmVersion": "cancun",
+        "gitCommitHash": "2da582742085bdfaf21170b4868e8e1a02403137"
+      },
+      "set": {
+        "solcVersion": "0.8.17",
+        "evmVersion": "london"
+      },
+      "evidence": "rebuilt recorded commit 2da582742 at 0.8.17/london — matches deployed runtime; bytecode metadata trailer declares solc 0.8.17"
+    },
+    {
+      "network": "mainnet",
+      "address": "0x124Aa9169E6c0851a4A54D0ebb9158f2313d9Dd8",
+      "contractName": "MayanFacet",
+      "version": "2.0.0",
+      "expect": {
+        "solcVersion": "0.8.29",
+        "evmVersion": "cancun",
+        "gitCommitHash": "2da582742085bdfaf21170b4868e8e1a02403137"
+      },
+      "set": {
+        "solcVersion": "0.8.17",
+        "evmVersion": "london"
+      },
+      "evidence": "rebuilt recorded commit 2da582742 at 0.8.17/london — matches deployed runtime; bytecode metadata trailer declares solc 0.8.17"
+    },
+    {
+      "network": "optimism",
+      "address": "0x124Aa9169E6c0851a4A54D0ebb9158f2313d9Dd8",
+      "contractName": "MayanFacet",
+      "version": "2.0.0",
+      "expect": {
+        "solcVersion": "0.8.29",
+        "evmVersion": "cancun",
+        "gitCommitHash": "2da582742085bdfaf21170b4868e8e1a02403137"
+      },
+      "set": {
+        "solcVersion": "0.8.17",
+        "evmVersion": "london"
+      },
+      "evidence": "rebuilt recorded commit 2da582742 at 0.8.17/london — matches deployed runtime; bytecode metadata trailer declares solc 0.8.17"
+    },
+    {
+      "network": "polygon",
+      "address": "0x124Aa9169E6c0851a4A54D0ebb9158f2313d9Dd8",
+      "contractName": "MayanFacet",
+      "version": "2.0.0",
+      "expect": {
+        "solcVersion": "0.8.29",
+        "evmVersion": "cancun",
+        "gitCommitHash": "2da582742085bdfaf21170b4868e8e1a02403137"
+      },
+      "set": {
+        "solcVersion": "0.8.17",
+        "evmVersion": "london"
+      },
+      "evidence": "rebuilt recorded commit 2da582742 at 0.8.17/london — matches deployed runtime; bytecode metadata trailer declares solc 0.8.17"
+    },
+    {
+      "network": "optimism",
+      "address": "0xe417AD5eb9e919567620A48B3757cc182cCdf9e4",
+      "contractName": "ReceiverAcrossV4",
+      "version": "1.0.0",
+      "expect": {
+        "solcVersion": "0.8.29",
+        "evmVersion": "cancun",
+        "gitCommitHash": "c0cc000e82e5d904f0774df9de6920b24063c20b"
+      },
+      "set": {
+        "solcVersion": "0.8.17",
+        "evmVersion": "london"
+      },
+      "evidence": "rebuilt recorded commit c0cc000e8 at 0.8.17/london — matches deployed runtime; bytecode metadata trailer declares solc 0.8.17"
+    },
+    {
+      "network": "optimism",
+      "address": "0x556701899905f2f83AcA2977D3202Ee3a80f37b7",
+      "contractName": "ReceiverStargateV2",
+      "version": "1.1.0",
+      "expect": {
+        "solcVersion": "0.8.29",
+        "evmVersion": "cancun",
+        "gitCommitHash": "c0cc000e82e5d904f0774df9de6920b24063c20b"
+      },
+      "set": {
+        "solcVersion": "0.8.17",
+        "evmVersion": "london"
+      },
+      "evidence": "rebuilt recorded commit c0cc000e8 at 0.8.17/london — matches deployed runtime; bytecode metadata trailer declares solc 0.8.17"
+    },
+    {
+      "network": "base",
+      "address": "0xd04034AE565062D105D55C2de41C48A8838316FA",
+      "contractName": "SymbiosisFacet",
+      "version": "2.0.0",
+      "expect": {
+        "solcVersion": "0.8.29",
+        "evmVersion": "cancun",
+        "gitCommitHash": "46b08840271da9283a210cbab35461aa2988fcbe"
+      },
+      "set": {
+        "solcVersion": "0.8.17",
+        "evmVersion": "london"
+      },
+      "evidence": "rebuilt recorded commit 46b088402 at 0.8.17/london — matches deployed runtime; bytecode metadata trailer declares solc 0.8.17"
+    },
+    {
+      "network": "cronos",
+      "address": "0xd04034AE565062D105D55C2de41C48A8838316FA",
+      "contractName": "SymbiosisFacet",
+      "version": "2.0.0",
+      "expect": {
+        "solcVersion": "0.8.29",
+        "evmVersion": "cancun",
+        "gitCommitHash": "46b08840271da9283a210cbab35461aa2988fcbe"
+      },
+      "set": {
+        "solcVersion": "0.8.17",
+        "evmVersion": "london"
+      },
+      "evidence": "rebuilt recorded commit 46b088402 at 0.8.17/london — matches deployed runtime; bytecode metadata trailer declares solc 0.8.17"
+    }
+  ]
+}

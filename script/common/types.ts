@@ -256,6 +256,16 @@ export interface IChainSimulateResult {
   estimatedResource: bigint
   /** Label for the resource unit (for display). */
   resourceLabel: string
+  /**
+   * True when estimation failed and `estimatedResource` is a fixed fallback
+   * rather than a real estimate. A dry run must not report success on this: the
+   * same failure makes the executing path refuse to broadcast, so reporting a
+   * green simulation would contradict the run that follows it.
+   *
+   * Required, not optional: an implementation that omits it would silently
+   * reintroduce the green-on-failure dry run the flag exists to prevent.
+   */
+  estimateFailed: boolean
 }
 
 /** Options for proposing a Safe transaction (EVM). */
