@@ -37,23 +37,29 @@ const ATTESTED: IAttestedBuild[] = [
   },
 ]
 
+/** The network's legitimate toolchains are fully enumerated in ATTESTED. */
+const CLOSED = { isClosedSet: true }
+/** They are not — e.g. a zkEVM network, whose trailer this repo cannot yet read. */
+const OPEN = { isClosedSet: false }
+
 describe('compareToAttestedSet', () => {
   it('accepts a build from any attested lineage, not one privileged profile', () => {
     // E1: a record claiming 0.8.29 must not turn an honest london build red.
-    // Both lineages are legitimate builds of main, so both are GREEN.
     for (const [hash, version, lineage] of [
       [CANCUN_HASH, '0.8.29', 'upstream cancun'],
       [LONDON_HASH, '0.8.17', 'upstream london'],
-    ] as const) {
-      const result = compareToAttestedSet(
-        { maskedHash: hash, solcVersion: version },
-        ATTESTED
-      )
+    ] as const)
+      for (const scope of [CLOSED, OPEN]) {
+        const result = compareToAttestedSet(
+          { maskedHash: hash, solcVersion: version },
+          ATTESTED,
+          scope
+        )
 
-      expect(result.verdict).toBe('MATCH')
-      expect(result.matchedLineages).toEqual([lineage])
-      expect(result.blocksSigning).toBe(false)
-    }
+        expect(result.verdict).toBe('MATCH')
+        expect(result.matchedLineages).toEqual([lineage])
+        expect(result.blocksSigning).toBe(false)
+      }
   })
 
   it('does not depend on the order the attested builds are listed in', () => {
@@ -63,82 +69,22 @@ describe('compareToAttestedSet', () => {
     expect(
       compareToAttestedSet(
         { maskedHash: LONDON_HASH, solcVersion: '0.8.17' },
-        reversed
+        reversed,
+        CLOSED
       ).verdict
     ).toBe('MATCH')
     expect(
       compareToAttestedSet(
         { maskedHash: CANCUN_HASH, solcVersion: '0.8.29' },
-        reversed
+        reversed,
+        CLOSED
       ).verdict
     ).toBe('MATCH')
   })
 
-  it('calls a foreign hash from an attested lineage a MISMATCH', () => {
-    // We built this exact lineage, so a disagreement is a real finding.
-    const result = compareToAttestedSet(
-      { maskedHash: FOREIGN_HASH, solcVersion: '0.8.29' },
-      ATTESTED
-    )
-
-    expect(result.verdict).toBe('MISMATCH')
-    expect(result.blocksSigning).toBe(true)
-    expect(result.reason).toContain('0.8.29')
-  })
-
-  it('calls a foreign hash from an UNBUILT lineage UNVERIFIABLE, not a MISMATCH', () => {
-    // Nothing was ever built at 0.8.31, so a non-match is ignorance, not
-    // evidence. Reporting it as RED would train signers to wave through red.
-    const result = compareToAttestedSet(
-      { maskedHash: FOREIGN_HASH, solcVersion: '0.8.31' },
-      ATTESTED
-    )
-
-    expect(result.verdict).toBe('UNVERIFIABLE')
-    expect(result.blocksSigning).toBe(true)
-    expect(result.reason).toContain('0.8.31')
-  })
-
-  it('is UNVERIFIABLE when the deployed code carries no compiler version', () => {
-    // No trailer means the lineage cannot be established, so neither a match
-    // nor a mismatch can be claimed.
-    const result = compareToAttestedSet({ maskedHash: FOREIGN_HASH }, ATTESTED)
-
-    expect(result.verdict).toBe('UNVERIFIABLE')
-    expect(result.blocksSigning).toBe(true)
-    expect(result.reason).toMatch(/no readable compiler version/i)
-  })
-
-  it('is UNVERIFIABLE with an empty attested set rather than vacuously RED', () => {
-    const result = compareToAttestedSet(
-      { maskedHash: CANCUN_HASH, solcVersion: '0.8.29' },
-      []
-    )
-
-    expect(result.verdict).toBe('UNVERIFIABLE')
-    expect(result.blocksSigning).toBe(true)
-    // The verdict alone does not distinguish this from an unbuilt lineage, so
-    // assert the message: without its own branch the signer is told the code
-    // came from a compiler "no attested build used ()" — an empty list.
-    expect(result.reason).toContain('no attested build of main is available')
-  })
-
-  it('keeps GREY distinct from RED while blocking on both', () => {
-    const grey = compareToAttestedSet({ maskedHash: FOREIGN_HASH }, ATTESTED)
-    const red = compareToAttestedSet(
-      { maskedHash: FOREIGN_HASH, solcVersion: '0.8.29' },
-      ATTESTED
-    )
-
-    // Fail closed: both block. Visibly distinct: the verdicts differ, and the
-    // renderer downstream keys off the verdict, never off `blocksSigning`.
-    expect([grey.blocksSigning, red.blocksSigning]).toEqual([true, true])
-    expect(grey.verdict).not.toBe(red.verdict)
-  })
-
   it('matches a hash reached by two lineages without preferring either', () => {
-    // Two compilers can emit identical code once the trailer is off; the
-    // masked hash carries no version, so both lineages are named.
+    // Two compilers can emit identical code once the trailer is off; the masked
+    // hash carries no version, so both lineages are named.
     const twins: IAttestedBuild[] = [
       {
         lineage: 'upstream cancun',
@@ -149,7 +95,8 @@ describe('compareToAttestedSet', () => {
     ]
     const result = compareToAttestedSet(
       { maskedHash: CANCUN_HASH, solcVersion: '0.8.29' },
-      twins
+      twins,
+      CLOSED
     )
 
     expect(result.verdict).toBe('MATCH')
@@ -159,9 +106,137 @@ describe('compareToAttestedSet', () => {
   it('ignores case and 0x-prefix differences between hashes', () => {
     const result = compareToAttestedSet(
       { maskedHash: CANCUN_HASH.slice(2).toUpperCase(), solcVersion: '0.8.29' },
-      ATTESTED
+      ATTESTED,
+      CLOSED
     )
 
     expect(result.verdict).toBe('MATCH')
+  })
+
+  it('is UNVERIFIABLE with an empty attested set, under either scope', () => {
+    for (const scope of [CLOSED, OPEN]) {
+      const result = compareToAttestedSet(
+        { maskedHash: CANCUN_HASH, solcVersion: '0.8.29' },
+        [],
+        scope
+      )
+
+      expect(result.verdict).toBe('UNVERIFIABLE')
+      expect(result.blocksSigning).toBe(true)
+      // The verdict alone does not distinguish this from an unbuilt lineage, so
+      // assert the message: without its own branch a signer is told the code
+      // came from a compiler "no attested build used ()" — an empty list.
+      expect(result.reason).toContain('no attested build of main is available')
+    }
+  })
+})
+
+describe('with a closed set of legitimate builds', () => {
+  it.each([
+    ['a version we did build', '0.8.29'],
+    // The downgrade attempt: three bytes inside the metadata trailer, no
+    // executable code touched. The trailer is part of the deployed code, so the
+    // proposer writes it — it must not be able to soften the verdict.
+    ['a version we never built', '0.8.99'],
+    ['a nonsensical version', '237.234.219'],
+  ])(
+    'calls foreign code a MISMATCH though it reports %s',
+    (_label, version) => {
+      const result = compareToAttestedSet(
+        { maskedHash: FOREIGN_HASH, solcVersion: version },
+        ATTESTED,
+        CLOSED
+      )
+
+      expect(result.verdict).toBe('MISMATCH')
+      expect(result.blocksSigning).toBe(true)
+      expect(result.reason).toContain('not a build of main')
+    }
+  )
+
+  it('calls foreign code a MISMATCH when it reports no version at all', () => {
+    // Stripping the trailer, or compiling with `bytecodeHash: "none"`, is the
+    // cheapest way to report nothing. It must not buy a softer verdict either.
+    const result = compareToAttestedSet(
+      { maskedHash: FOREIGN_HASH },
+      ATTESTED,
+      CLOSED
+    )
+
+    expect(result.verdict).toBe('MISMATCH')
+  })
+
+  it('reaches the same verdict for every trailer a tamperer could write', () => {
+    // One fact — this hash is in none of the attested builds — must produce one
+    // verdict, no matter what the code says about itself.
+    const verdicts = new Set(
+      [
+        { maskedHash: FOREIGN_HASH, solcVersion: '0.8.29' },
+        { maskedHash: FOREIGN_HASH, solcVersion: '0.8.17' },
+        { maskedHash: FOREIGN_HASH, solcVersion: '0.8.99' },
+        { maskedHash: FOREIGN_HASH },
+      ].map(
+        (observed) => compareToAttestedSet(observed, ATTESTED, CLOSED).verdict
+      )
+    )
+
+    expect([...verdicts]).toEqual(['MISMATCH'])
+  })
+})
+
+describe('with an open set of legitimate builds', () => {
+  it('calls a foreign hash from an attested lineage a MISMATCH', () => {
+    const result = compareToAttestedSet(
+      { maskedHash: FOREIGN_HASH, solcVersion: '0.8.29' },
+      ATTESTED,
+      OPEN
+    )
+
+    expect(result.verdict).toBe('MISMATCH')
+    expect(result.reason).toContain('0.8.29')
+  })
+
+  it('calls a foreign hash from an unbuilt lineage UNVERIFIABLE', () => {
+    // With the set open we may simply never have built this toolchain, so a
+    // non-match is ignorance rather than evidence. This is the branch the
+    // closed-set tests above prove cannot be reached by a tamperer.
+    const result = compareToAttestedSet(
+      { maskedHash: FOREIGN_HASH, solcVersion: '0.8.31' },
+      ATTESTED,
+      OPEN
+    )
+
+    expect(result.verdict).toBe('UNVERIFIABLE')
+    expect(result.blocksSigning).toBe(true)
+    expect(result.reason).toContain('0.8.31')
+  })
+
+  it('is UNVERIFIABLE when the deployed code carries no compiler version', () => {
+    const result = compareToAttestedSet(
+      { maskedHash: FOREIGN_HASH },
+      ATTESTED,
+      OPEN
+    )
+
+    expect(result.verdict).toBe('UNVERIFIABLE')
+    expect(result.reason).toMatch(/no readable compiler version/i)
+  })
+
+  it('keeps GREY distinct from RED while blocking on both', () => {
+    const grey = compareToAttestedSet(
+      { maskedHash: FOREIGN_HASH, solcVersion: '0.8.31' },
+      ATTESTED,
+      OPEN
+    )
+    const red = compareToAttestedSet(
+      { maskedHash: FOREIGN_HASH, solcVersion: '0.8.29' },
+      ATTESTED,
+      OPEN
+    )
+
+    // Fail closed: both block. Visibly distinct: the verdicts differ, and the
+    // renderer downstream keys off the verdict, never off `blocksSigning`.
+    expect([grey.blocksSigning, red.blocksSigning]).toEqual([true, true])
+    expect(grey.verdict).not.toBe(red.verdict)
   })
 })

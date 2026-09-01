@@ -1,23 +1,9 @@
 /**
- * Layer 1 of the codehash primitive: does the deployed code hash to something
- * this repo is known to have built?
+ * Layer 1 of the codehash check: is the deployed code a hash this repo built?
  *
- * The comparison is SET MEMBERSHIP against every attested build of main for this
- * contract, never equality against one profile derived from the deployment
- * record or from the network. One source legitimately produces different
- * bytecode per build lineage — the repo's own `AccessManagerFacet` hashes
- * differently at solc 0.8.29 / cancun and at the 0.8.17 / london floor — so a
- * single expected value turns honest builds red, and a signer who has seen red
- * on an honest proposal will wave through the dishonest one.
- *
- * Three verdicts, because collapsing them is what makes a gate ignorable:
- *
- * - MATCH — the hash is one we built.
- * - MISMATCH — it is not, and we DID build the lineage the code claims, so the
- *   disagreement is evidence about the code.
- * - UNVERIFIABLE — we cannot tell: no lineage to compare within, or nothing
- *   attested. This blocks too (fail closed on unexplained), but it is a
- *   statement about our knowledge, not about the code.
+ * Import this after normalising code with `stripMetadataTrailer` and
+ * `maskImmutables`. The comparison is set membership against every attested
+ * build, never equality against one record- or network-derived profile.
  */
 
 /** A build of main this repo can vouch for, produced locally or in CI. */
@@ -34,10 +20,22 @@ export interface IAttestedBuild {
 export interface IObservedCode {
   maskedHash: string
   /**
-   * Decoded from the deployed code's own trailer. Absent when there is no
-   * readable trailer, which is itself a reason not to claim a verdict.
+   * Decoded from the deployed code's own trailer, so chosen by whoever deployed
+   * it. Absent when no version can be read.
    */
   solcVersion?: string
+}
+
+/** How completely the attested set describes what this contract may be. */
+export interface ILineageScope {
+  /**
+   * True when `attested` enumerates every toolchain the contract can
+   * legitimately have been built with, so code matching none of them is not a
+   * build of main. Derive it from repo configuration — the network's declared
+   * EVM version and whether it is zkEVM — and never from the deployed
+   * bytecode, which the proposer controls.
+   */
+  isClosedSet: boolean
 }
 
 export type CodehashVerdict = 'MATCH' | 'MISMATCH' | 'UNVERIFIABLE'
@@ -53,15 +51,40 @@ export interface ICodehashComparison {
 }
 
 const normalizeHash = (hash: string): string =>
-  (hash.startsWith('0x') ? hash.slice(2) : hash).toLowerCase()
+  (/^0x/i.test(hash) ? hash.slice(2) : hash).toLowerCase()
+
+const blocked = (
+  verdict: 'MISMATCH' | 'UNVERIFIABLE',
+  reason: string
+): ICodehashComparison => ({
+  verdict,
+  matchedLineages: [],
+  reason,
+  blocksSigning: true,
+})
 
 /**
+ * Grades deployed code against the builds this repo can vouch for.
+ *
+ * Three verdicts, because a gate whose red means "we could not tell" is one
+ * signers learn to click through. MISMATCH is a statement about the code;
+ * UNVERIFIABLE is a statement about our knowledge. Both block.
+ *
+ * Known limitation, and the reason `scope` exists: with an open set, the only
+ * thing distinguishing "we never built that toolchain" from "this is not our
+ * code" is the compiler version in the deployed trailer, which the proposer
+ * writes. An open-set MISMATCH can therefore be moved to UNVERIFIABLE by three
+ * bytes. A closed set does not consult the trailer at all.
+ *
  * @param observed - The code found on chain, already stripped and masked.
- * @param attested - Every build of main for this contract. Order is irrelevant.
+ * @param attested - Every attested build for this contract. Order is irrelevant.
+ * @param scope - Whether `attested` is the complete set of legitimate builds.
+ * @returns The verdict, the lineages that matched, and why.
  */
 export const compareToAttestedSet = (
   observed: IObservedCode,
-  attested: IAttestedBuild[]
+  attested: IAttestedBuild[],
+  scope: ILineageScope
 ): ICodehashComparison => {
   const target = normalizeHash(observed.maskedHash)
   const matchedLineages = attested
@@ -79,46 +102,42 @@ export const compareToAttestedSet = (
     }
 
   if (attested.length === 0)
-    return {
-      verdict: 'UNVERIFIABLE',
-      matchedLineages: [],
-      reason:
-        'no attested build of main is available for this contract, so nothing can be compared',
-      blocksSigning: true,
-    }
+    return blocked(
+      'UNVERIFIABLE',
+      'no attested build of main is available for this contract, so nothing can be compared'
+    )
+
+  // With the legitimate set complete, non-membership settles it on its own and
+  // nothing the deployed bytecode says about itself can soften the verdict.
+  if (scope.isClosedSet)
+    return blocked(
+      'MISMATCH',
+      `the deployed code matches none of the ${attested.length} builds this contract can legitimately have, so it is not a build of main`
+    )
 
   if (!observed.solcVersion)
-    return {
-      verdict: 'UNVERIFIABLE',
-      matchedLineages: [],
-      reason:
-        'the deployed code carries no readable compiler version, so its build lineage cannot be established',
-      blocksSigning: true,
-    }
+    return blocked(
+      'UNVERIFIABLE',
+      'the deployed code carries no readable compiler version, and the set of legitimate builds is open, so its lineage cannot be established'
+    )
 
-  // The distinction that keeps RED meaningful: a non-match only tells us about
-  // the code if we built the lineage the code says it came from.
   const builtVersions = new Set(attested.map((build) => build.solcVersion))
   if (!builtVersions.has(observed.solcVersion))
-    return {
-      verdict: 'UNVERIFIABLE',
-      matchedLineages: [],
-      reason: `the deployed code was built with solc ${
+    return blocked(
+      'UNVERIFIABLE',
+      `the deployed code reports solc ${
         observed.solcVersion
       }, which no attested build used (${[...builtVersions]
         .sort()
-        .join(', ')}), so a non-match proves nothing`,
-      blocksSigning: true,
-    }
+        .join(', ')}), and the set of legitimate builds is open`
+    )
 
-  return {
-    verdict: 'MISMATCH',
-    matchedLineages: [],
-    reason: `the deployed code does not match any attested build, including the ${
+  return blocked(
+    'MISMATCH',
+    `the deployed code does not match any attested build, including the ${
       observed.solcVersion
-    } one it claims to come from (${attested.length} build${
+    } one it reports (${attested.length} build${
       attested.length === 1 ? '' : 's'
-    } compared)`,
-    blocksSigning: true,
-  }
+    } compared)`
+  )
 }

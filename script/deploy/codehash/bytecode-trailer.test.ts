@@ -33,8 +33,8 @@ describe('readMetadataTrailer', () => {
     expect(trailer.byteLength).toBe(51)
     // The whole trailer plus its own 2-byte length word.
     expect(trailer.totalStrippedBytes).toBe(53)
-    // Constraint from the fleet sweep: read the toolchain from the trailer, not
-    // from the deployment record, which can disagree with what was deployed.
+    // Read the toolchain from the trailer, not from the deployment record,
+    // which can disagree with what was deployed.
     expect(trailer.solcVersion).toBe('0.8.29')
   })
 
@@ -54,7 +54,7 @@ describe('readMetadataTrailer', () => {
   })
 
   it('refuses bytes whose blob does not start with a CBOR map header', () => {
-    // 0x60 is PUSH1, not a CBOR map. Solc's trailer always opens 0xa1-0xbf.
+    // 0x60 is PUSH1, not a CBOR map. Solc opens its map 0xa1-0xaf.
     // Without this, any contract whose last two bytes happen to look like a
     // plausible length gets its tail amputated.
     const notCbor = `0x${'60'.repeat(20)}0004`
@@ -132,9 +132,10 @@ describe('stripMetadataTrailer', () => {
  * length word.
  *
  * - CANCUN_TAIL: `out/` at 67922f138, default profile, solc 0.8.29 / cancun.
- * - LONDON_TAIL: `out-floor/` at 67922f138, `FOUNDRY_PROFILE=solc_floor`, solc
- *   0.8.17 / london — the floor every `src/` file pins, built in CI by
- *   `solc-floor-build.yml`.
+ * - LONDON_TAIL: at 67922f138, `FOUNDRY_PROFILE=solc_floor forge build --out
+ *   out-floor --contracts src/Facets/AccessManagerFacet.sol` — solc 0.8.17 /
+ *   london, the floor every `src/` file pins, built in CI by
+ *   `solc-floor-build.yml`. The profile does not redirect `out` itself.
  *
  * The code differs because 0.8.29 emits PUSH0 (`5f`) where 0.8.17 has to spell
  * out `6000`; a lineage difference is not a cosmetic one.
@@ -180,12 +181,91 @@ describe('across build lineages', () => {
     expect(cancun.code.length).toBe(CANCUN_TAIL.length - 53 * 2)
     expect(london.code.length).toBe(LONDON_TAIL.length - 53 * 2)
 
-    // The measurement WP-2.1 exists to act on: stripping normalises a rebuild
-    // of ONE lineage, and leaves two lineages of one source as far apart as
-    // before. Whole artifacts: 1370 bytes hashing to 0x9b3646… on cancun
+    // Stripping normalises a rebuild of ONE lineage and leaves two lineages of
+    // one source as far apart as before. Whole artifacts: 1370 bytes hashing to 0x9b3646… on cancun
     // against 1387 and 0x632dab… on london. A sign-time gate therefore has to
     // compare against a SET of expected hashes, one per lineage a network can
     // legitimately have been built from — never a single expected value.
     expect(cancun.code).not.toBe(london.code)
+  })
+})
+
+describe('readMetadataTrailer, against a trailer chosen by the deployer', () => {
+  /** Assembles `code || cbor || lengthWord` from a CBOR blob's hex. */
+  const withTrailer = (cbor: string): string => {
+    const declared = (cbor.length / 2).toString(16).padStart(4, '0')
+    return `0x${'60'.repeat(8)}${cbor}${declared}`
+  }
+
+  it('reports no version when the solc key sits at an odd hex offset', () => {
+    // `indexOf` runs over hex characters, so this blob contains the key's
+    // characters spanning two bytes' nibbles. Reading it yields solc
+    // "237.234.219", which would be shown to a signer as fact.
+    const trailer = readMetadataTrailer(
+      withTrailer('a1164736f6c6343edeadbeef00')
+    )
+
+    expect(trailer.present).toBe(true)
+    if (trailer.present) expect(trailer.solcVersion).toBeUndefined()
+  })
+
+  it('reports no version when a second solc key makes the real one ambiguous', () => {
+    // A planted key ahead of the genuine one wins on first-match.
+    const trailer = readMetadataTrailer(
+      withTrailer('a264736f6c634300080a64736f6c634300081d')
+    )
+
+    expect(trailer.present).toBe(true)
+    if (trailer.present) expect(trailer.solcVersion).toBeUndefined()
+  })
+
+  it.each([
+    ['a major version solc has never released', 'a164736f6c6343ff0102'],
+    ['a minor beyond any release', 'a164736f6c634300ff02'],
+    ['a patch beyond any release', 'a164736f6c63430008ff'],
+  ])('reports no version for %s', (_label, cbor) => {
+    const trailer = readMetadataTrailer(withTrailer(cbor))
+
+    expect(trailer.present).toBe(true)
+    if (trailer.present) expect(trailer.solcVersion).toBeUndefined()
+  })
+
+  it('still reads a genuine key at an even offset', () => {
+    // The positive control: without it, every assertion above is satisfied by a
+    // reader that has simply stopped reading versions.
+    const trailer = readMetadataTrailer(withTrailer('a164736f6c634300081d'))
+
+    expect(trailer.present).toBe(true)
+    if (trailer.present) expect(trailer.solcVersion).toBe('0.8.29')
+  })
+
+  it.each([
+    ['b0', /CBOR map/],
+    ['b8', /CBOR map/],
+    ['bf', /CBOR map/],
+  ])(
+    'refuses a blob opening 0x%s, which solc does not emit',
+    (header, reason) => {
+      const trailer = readMetadataTrailer(
+        withTrailer(`${header}${'aa'.repeat(9)}`)
+      )
+
+      expect(trailer.present).toBe(false)
+      if (!trailer.present) expect(trailer.reason).toMatch(reason)
+    }
+  )
+
+  it('refuses a length word that would leave no code behind', () => {
+    // Stripping this returns `0x`, which hashes to a value that is nobody's
+    // contract — and would be compared as though it were the deployed code.
+    const cbor = `a1${'aa'.repeat(9)}`
+    const trailer = readMetadataTrailer(`0x${cbor}000a`)
+
+    expect(trailer.present).toBe(false)
+    if (!trailer.present) expect(trailer.reason).toMatch(/leave no code/)
+  })
+
+  it('accepts an uppercase 0X prefix', () => {
+    expect(readMetadataTrailer(`0X${REAL_TAIL.slice(2)}`).present).toBe(true)
   })
 })
