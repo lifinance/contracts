@@ -3,13 +3,11 @@
  * blocked ops.
  *
  * Lives outside `execute-pending-timelock-tx.ts` because that module calls
- * `runMain` at module scope and so cannot be imported by tests. The
- * `import.meta.main` guard some siblings in this directory use is deliberately
- * not applied there: the flag comes from tsx's entry-point detection, which
- * resolves to `undefined` when the entry path does not compare equal to the
- * module URL (a symlinked path is enough), and a false negative would leave the
- * scheduled executor exiting 0 having executed nothing. Extraction buys the same
- * testability without betting the cron on that comparison.
+ * `runMain` at module scope and so cannot be imported by tests. Guarding that
+ * call with `import.meta.main`, as some siblings in this directory do, would
+ * make it importable but is deliberately not done there: should the flag ever
+ * read falsy for that entry, the scheduled executor exits 0 having executed
+ * nothing, and no observer can tell that apart from a clean run.
  */
 
 import { existsSync } from 'fs'
@@ -42,8 +40,7 @@ export interface IPendingFetchResult {
   /**
    * Number of `blocked` timelock ops for this network. Never executed, but a
    * network with only blocked rows must still be processed so `alertBlockedOps`
-   * can re-check them on-chain — skipping it is what made a blocked op invisible
-   * (EXSC-816).
+   * can re-check them on-chain.
    */
   blockedInMongoCount: number
   /** Set when prefetch failed; callers must not treat as "no pending" without checking. */
@@ -290,8 +287,7 @@ export interface IPrefetchOutcome {
  * Classifies prefetch results into the buckets the CLI reports on.
  *
  * A network with only `blocked` rows has nothing to execute but still belongs in
- * `toProcess`, so `alertBlockedOps` can re-check those rows on-chain — the
- * omission that let a ready-but-blocked op go unreported (EXSC-816).
+ * `toProcess`, so `alertBlockedOps` can re-check those rows on-chain.
  *
  * @param results - One result per pre-checked network.
  * @returns The classified outcome.

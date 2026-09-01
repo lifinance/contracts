@@ -246,16 +246,16 @@ const cmd = defineCommand({
     if (executeAll || rejectAll) {
       consola.info('🚀 Checking all networks for pending operations...')
 
-      const { networks: networksWithPending, failedCount: prefetchFailures } =
+      const { networks: networksWithWork, failedCount: prefetchFailures } =
         await prefetchNetworksWithPendingOps(networksToProcess)
-      if (networksWithPending.length === 0) return
+      if (networksWithWork.length === 0) return
 
       consola.info(
-        'Processing networks with pending txs (fresh RPC per network).'
+        'Processing networks with queued or blocked ops (fresh RPC per network).'
       )
 
       const results = await Promise.all(
-        networksWithPending.map((network) =>
+        networksWithWork.map((network) =>
           processNetwork(
             network,
             isDryRun,
@@ -330,18 +330,18 @@ const cmd = defineCommand({
     } else {
       consola.info('🔄 Checking all networks for pending operations...')
 
-      const { networks: networksWithPending, failedCount: prefetchFailures } =
+      const { networks: networksWithWork, failedCount: prefetchFailures } =
         await prefetchNetworksWithPendingOps(networksToProcess)
-      if (networksWithPending.length === 0) return
+      if (networksWithWork.length === 0) return
 
       consola.info(
-        'Processing networks with pending txs sequentially (fresh RPC per network).'
+        'Processing networks with queued or blocked ops sequentially (fresh RPC per network).'
       )
 
       let totalFailed = 0
       let totalSucceeded = 0
 
-      for (const network of networksWithPending)
+      for (const network of networksWithWork)
         try {
           const result = await processNetwork(
             network,
@@ -478,7 +478,7 @@ async function fetchQueuedTimelockOps(
 
 /** Outcome of the fleet pre-check, as the run needs it. */
 interface IPrefetchedWork {
-  /** Networks with at least one queued op. */
+  /** Networks worth opening an RPC for: queued ops to execute, blocked ops to re-check, or both. */
   networks: INetworksObject[string][]
   /**
    * Networks the prefetch could not check. Non-zero must fail the run even when
@@ -723,7 +723,6 @@ async function alertBlockedOps(
  *
  * A network whose only rows are `blocked` is returned too: it has nothing to
  * execute, but {@link alertBlockedOps} must still re-check those rows on-chain.
- * Leaving it out is what let a ready-but-blocked op go unreported (EXSC-816).
  *
  * Exits non-zero immediately when there is no work but some networks could not
  * be checked: "0 pending" is only trustworthy if every network was actually
@@ -2041,9 +2040,9 @@ function formatTimeRemaining(seconds: bigint): string {
   return result
 }
 
-// Deliberately unguarded. `import.meta.main` is set by tsx's entry-point
-// detection, which resolves to `undefined` whenever the entry path does not
-// compare equal to the module URL; a false negative here would leave the
-// scheduled run exiting 0 having executed nothing. Logic that needs test
-// coverage goes into a sibling module instead (timelock-prefetch.ts).
+// Deliberately unguarded. An `import.meta.main` guard would make this module
+// importable, but should the flag ever read falsy for this entry the scheduled
+// run exits 0 having executed nothing, indistinguishable from a clean run.
+// Logic that needs test coverage goes into a sibling module instead
+// (timelock-prefetch.ts).
 runMain(cmd)

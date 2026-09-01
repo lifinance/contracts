@@ -78,19 +78,74 @@ describe('tallyOpsByNetwork', () => {
 })
 
 describe('countOpsByNetwork', () => {
+  /** Row as the driver returns it, `_id` included. */
+  const stored = (name: string, status: TimelockQueueStatus) => ({
+    _id: `${name}-${status}`,
+    network: name,
+    status,
+  })
+
+  type TStoredRow = ReturnType<typeof stored>
+  interface IFindFilter {
+    network: { $in: string[] }
+    status: { $in: string[] }
+  }
+
+  // The fake applies the filter and projection it is given rather than handing
+  // back whatever the tally wants. Ignoring them makes every row-shape
+  // assertion self-fulfilling: a query that stopped selecting `blocked` rows,
+  // or stopped projecting `status`, would zero every blocked count fleet-wide
+  // and still leave this suite green.
   const connectorReturning = (
-    rows: { network: string; status: TimelockQueueStatus }[],
+    rows: TStoredRow[],
     close: () => Promise<void>
   ): TQueueConnector =>
     (async () => ({
       client: { close },
-      timelockQueue: { find: () => ({ toArray: async () => rows }) },
+      timelockQueue: {
+        find: (
+          filter: IFindFilter,
+          options: { projection: Record<string, 1> }
+        ) => ({
+          toArray: async () =>
+            rows
+              .filter(
+                (row) =>
+                  filter.network.$in.includes(row.network.toLowerCase()) &&
+                  filter.status.$in.includes(row.status)
+              )
+              .map((row) =>
+                Object.fromEntries(
+                  Object.entries(row).filter(
+                    ([key]) => key === '_id' || options.projection[key] === 1
+                  )
+                )
+              ),
+        }),
+      },
     })) as unknown as TQueueConnector
+
+  it('selects and projects the fields the blocked tally depends on', async () => {
+    const counts = await countOpsByNetwork(
+      ['mode', 'base'],
+      connectorReturning(
+        [
+          stored('mode', 'blocked'),
+          stored('base', 'queued'),
+          stored('mode', 'executed'),
+        ],
+        async () => {}
+      )
+    )
+
+    expect(counts.get('mode')).toEqual({ queued: 0, blocked: 1 })
+    expect(counts.get('base')).toEqual({ queued: 1, blocked: 0 })
+  })
 
   it('keeps the tally when closing the connection rejects', async () => {
     const counts = await countOpsByNetwork(
       ['tron'],
-      connectorReturning([queued('tron')], () =>
+      connectorReturning([stored('tron', 'queued')], () =>
         Promise.reject(new Error('connection reset during close'))
       )
     )
@@ -274,10 +329,10 @@ describe('classifyPrefetchResults', () => {
 })
 
 describe('resolveTimelockSkipReason (real deployments/)', () => {
-  it('skips an active network that has no production deployments file', async () => {
-    // tronshasta is `status: active` in networks.json but was never brought up
-    // in production, so it has no deployments/tronshasta.json. Before this was
-    // a skip it surfaced as a prefetch error with a full stack trace.
+  it('skips a network that has no production deployments file', async () => {
+    // tronshasta was never brought up in production, so it has no
+    // deployments/tronshasta.json. Before this was a skip it surfaced as a
+    // prefetch error with a full stack trace.
     expect(await resolveTimelockSkipReason(network('tronshasta'))).toBe(
       'no-deployment-log'
     )
