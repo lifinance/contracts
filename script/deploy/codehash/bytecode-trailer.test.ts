@@ -67,7 +67,8 @@ describe('readMetadataTrailer', () => {
   it('reports no compiler rather than a wrong one when the key is absent', () => {
     // A trailer without the solc key is legitimate. Returning undefined lets the
     // caller decide; inventing a version would be compared against as fact.
-    const noSolc = '0xa1646970667358221220' + 'aa'.repeat(34) + '000b'
+    // One entry: text(4) 'ipfs' then bytes(34), so 42 bytes of map.
+    const noSolc = `0x${'60'.repeat(8)}a164697066735822${'aa'.repeat(34)}002a`
     const trailer = readMetadataTrailer(noSolc)
 
     expect(trailer.present).toBe(true)
@@ -197,26 +198,29 @@ describe('readMetadataTrailer, against a trailer chosen by the deployer', () => 
     return `0x${'60'.repeat(8)}${cbor}${declared}`
   }
 
-  it('reports no version when the solc key sits at an odd hex offset', () => {
-    // `indexOf` runs over hex characters, so this blob contains the key's
-    // characters spanning two bytes' nibbles. Reading it yields solc
-    // "237.234.219", which would be shown to a signer as fact.
+  it('refuses a blob carrying the solc key at an offset no map reaches', () => {
+    // Searching for the key's characters rather than decoding the map read solc
+    // "237.234.219" out of two bytes' nibbles here, and reported it to a signer
+    // as fact. Decoding refuses: the map's first key is not a text string.
     const trailer = readMetadataTrailer(
       withTrailer('a1164736f6c6343edeadbeef00')
     )
 
-    expect(trailer.present).toBe(true)
-    if (trailer.present) expect(trailer.solcVersion).toBeUndefined()
+    expect(trailer.present).toBe(false)
+    if (!trailer.present)
+      expect(trailer.reason).toMatch(/key is not a text string/)
   })
 
-  it('reports no version when a second solc key makes the real one ambiguous', () => {
-    // A planted key ahead of the genuine one wins on first-match.
+  it('refuses a map that repeats the solc key', () => {
+    // A planted key ahead of the genuine one won on first-match. Two entries
+    // under one key leave no way to say which the map means, so neither is read.
     const trailer = readMetadataTrailer(
       withTrailer('a264736f6c634300080a64736f6c634300081d')
     )
 
-    expect(trailer.present).toBe(true)
-    if (trailer.present) expect(trailer.solcVersion).toBeUndefined()
+    expect(trailer.present).toBe(false)
+    if (!trailer.present)
+      expect(trailer.reason).toMatch(/repeats the key 'solc'/)
   })
 
   it.each([
