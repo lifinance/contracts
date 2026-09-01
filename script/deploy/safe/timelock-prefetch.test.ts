@@ -110,8 +110,11 @@ describe('countOpsByNetwork', () => {
           toArray: async () =>
             rows
               .filter(
+                // Binary comparison, as `$in` does it — matching
+                // case-insensitively here would hide a query that stopped
+                // lowercasing the names it looks up.
                 (row) =>
-                  filter.network.$in.includes(row.network.toLowerCase()) &&
+                  filter.network.$in.includes(row.network) &&
                   filter.status.$in.includes(row.status)
               )
               .map((row) =>
@@ -140,6 +143,18 @@ describe('countOpsByNetwork', () => {
 
     expect(counts.get('mode')).toEqual({ queued: 0, blocked: 1 })
     expect(counts.get('base')).toEqual({ queued: 1, blocked: 0 })
+  })
+
+  it('lowercases the names it looks up, since rows are stored lowercase', async () => {
+    // Case-insensitivity has to live on the lookup side: `$in` compares
+    // binary, and matching rows case-insensitively would need an index the
+    // runtime role cannot create.
+    const counts = await countOpsByNetwork(
+      ['WorldChain'],
+      connectorReturning([stored('worldchain', 'blocked')], async () => {})
+    )
+
+    expect(counts.get('worldchain')).toEqual({ queued: 0, blocked: 1 })
   })
 
   it('keeps the tally when closing the connection rejects', async () => {

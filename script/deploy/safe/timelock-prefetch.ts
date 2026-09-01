@@ -91,7 +91,7 @@ export type TQueueConnector = typeof getTimelockQueueCollection
  * Counts queued and blocked timelock ops for many networks in one query over one
  * connection.
  *
- * @param networkNames - Network names to count for (matched case-insensitively).
+ * @param networkNames - Network names to count for, lowercased to match storage.
  * @param connect - Opens the queue collection; defaults to the real connection.
  * @returns Lowercased network name → queued and blocked op counts.
  */
@@ -101,6 +101,11 @@ export async function countOpsByNetwork(
 ): Promise<Map<string, IQueueTally>> {
   const { client, timelockQueue } = await connect()
   try {
+    // `$in` is a binary comparison, so lowercasing here matches stored rows only
+    // because `ITimelockQueueDoc.network` is lowercase by construction — every
+    // writer normalises before insert. Do not relax that to a collation: this
+    // query would need a matching case-insensitive index, and the runtime role
+    // cannot create one (see the index warnings in timelock-queue.ts).
     const rows = await timelockQueue
       .find(
         {
