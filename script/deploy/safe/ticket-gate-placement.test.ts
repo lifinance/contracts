@@ -60,6 +60,14 @@ const run = (
   // Both streams: consola writes errors to stderr, progress to stdout, and the
   // absence of progress is half of what these assert.
   const output = `${result.stdout.toString()}${result.stderr.toString()}`
+  // A timeout-killed child is not a result. Without this, an absence-assertion
+  // ("the refusal did not appear") passes on a run that was killed before it
+  // could appear.
+  if (result.signalCode !== null && result.signalCode !== undefined)
+    throw new Error(
+      `child was killed by ${result.signalCode} after ${TIMEOUT_MS}ms, so its output proves nothing`
+    )
+
   return { output, refused: output.includes(REFUSAL) }
 }
 

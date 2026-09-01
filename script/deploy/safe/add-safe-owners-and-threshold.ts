@@ -174,8 +174,15 @@ const main = defineCommand({
       return
     }
 
-    // After --check, which proposes nothing, and before the Ledger: the
-    // store-time refusal would collect a device confirmation per network first.
+    // Resolved here rather than after the Ledger, so both constraints hold at
+    // once: an empty selection proposes nothing and must not be refused, and the
+    // refusal must land before a device confirmation is collected per network.
+    const networks = resolveNetworks(args.network, args.allNetworks)
+    if (!networks.length) {
+      consola.warn('No networks selected — exiting')
+      return
+    }
+
     assertTicketPresent()
 
     const useLedger = args.ledger ?? true
@@ -203,11 +210,6 @@ const main = defineCommand({
       ledgerResult = await getLedgerAccount(ledgerOptions)
     }
 
-    const networks = resolveNetworks(args.network, args.allNetworks)
-    if (!networks.length) {
-      consola.warn('No networks selected — exiting')
-      return
-    }
     consola.info(
       `Processing ${networks.length} network(s): ${networks.join(', ')}`
     )
