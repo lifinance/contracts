@@ -1,3 +1,12 @@
+/**
+ * Tests for the card's proposal selection (EXSC-696).
+ *
+ * The properties that matter are the ones the shortfall warning rests on: the
+ * newest row per network wins, a network the run did not touch never reaches the
+ * card, every provenance field the card reads survives the mapping, and only a
+ * network with no row in any status counts as missing.
+ */
+
 import {
   describe,
   expect,

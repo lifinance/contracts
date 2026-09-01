@@ -133,9 +133,9 @@ proposer's wallet address, an `intentHash` dedup key, and a
 link (except drain `parkedTaskRefs`), git commit, or human identity**.
 `notifyProposalsCreatedToSlack` (`script/multiNetworkExecution.sh`) posts the
 signing-ask card rendered by `script/deploy/safe/render-proposal-card.ts` —
-reason, proposer, PR, commit and a per-network `bun confirm-safe-tx` command — to
-`#dev-sc-multisig-proposals`, falling back to a count + contract + network line
-only if the render fails.
+reason, proposer, PR, commit, working-tree state and a per-network
+`bun confirm-safe-tx` command — to `#dev-sc-multisig-proposals`, falling back to
+a count + contract + network line only if the render fails.
 
 ### 4.3 Confirm / sign
 

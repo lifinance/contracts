@@ -2378,7 +2378,6 @@ function executeNetworksByGroup() {
         fi
     }
 
-    # For proposal runs: post a single Slack summary (count + chains + sign-and-schedule reminder)
     # Called exactly once per run, before cleanupProgressTracking removes the progress file
     notifyProposalsCreatedToSlack
 

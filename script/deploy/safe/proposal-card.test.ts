@@ -1,3 +1,12 @@
+/**
+ * Tests for the Slack signing-ask card (EXSC-696).
+ *
+ * The properties that matter are the ones a signer relies on: no document value
+ * can forge the card's structure or borrow its authority, the card can never
+ * read cleaner than the working tree it describes or understate how many
+ * proposals are waiting, and the review commands survive every truncation path.
+ */
+
 import {
   describe,
   expect,
