@@ -13,7 +13,7 @@ import {
 } from 'bun:test'
 
 import { compareToAttestedSet } from './attested-set'
-import type { IAttestedBuild } from './attested-set'
+import type { IAttestedBuild, IObservedCode } from './attested-set'
 
 const CANCUN_HASH =
   // pre-commit-checker: not a secret — keccak of public runtime bytecode
@@ -26,18 +26,30 @@ const LONDON_BYTES = 1440
 /** Neither lineage produces this; it stands in for code that is not ours. */
 const FOREIGN_HASH = `0x${'ab'.repeat(32)}`
 
+/** Builds an observation; each test overrides only the field it is about. */
+const seen = (
+  over: Partial<IObservedCode> & { maskedHash: string }
+): IObservedCode => ({
+  rawByteLength: CANCUN_BYTES,
+  rawHash: `0x${'11'.repeat(32)}`,
+  maskedByteCount: 0,
+  ...over,
+})
+
 const ATTESTED: IAttestedBuild[] = [
   {
     lineage: 'upstream cancun',
     solcVersion: '0.8.29',
     maskedHash: CANCUN_HASH,
     rawByteLength: CANCUN_BYTES,
+    rawHash: undefined,
   },
   {
     lineage: 'upstream london',
     solcVersion: '0.8.17',
     maskedHash: LONDON_HASH,
     rawByteLength: LONDON_BYTES,
+    rawHash: undefined,
   },
 ]
 
@@ -55,7 +67,11 @@ describe('compareToAttestedSet', () => {
     ] as const)
       for (const scope of [CLOSED, OPEN]) {
         const result = compareToAttestedSet(
-          { maskedHash: hash, solcVersion: version, rawByteLength: bytes },
+          seen({
+            maskedHash: hash,
+            solcVersion: version,
+            rawByteLength: bytes,
+          }),
           ATTESTED,
           scope
         )
@@ -76,7 +92,11 @@ describe('compareToAttestedSet', () => {
     ] as const)
       expect(
         compareToAttestedSet(
-          { maskedHash: hash, solcVersion: version, rawByteLength: bytes },
+          seen({
+            maskedHash: hash,
+            solcVersion: version,
+            rawByteLength: bytes,
+          }),
           reversed,
           CLOSED
         ).verdict
@@ -92,20 +112,22 @@ describe('compareToAttestedSet', () => {
         solcVersion: '0.8.29',
         maskedHash: CANCUN_HASH,
         rawByteLength: CANCUN_BYTES,
+        rawHash: undefined,
       },
       {
         lineage: 'tron fork',
         solcVersion: '0.8.29',
         maskedHash: CANCUN_HASH,
         rawByteLength: CANCUN_BYTES,
+        rawHash: undefined,
       },
     ]
     const result = compareToAttestedSet(
-      {
+      seen({
         maskedHash: CANCUN_HASH,
         solcVersion: '0.8.29',
         rawByteLength: CANCUN_BYTES,
-      },
+      }),
       twins,
       CLOSED
     )
@@ -116,11 +138,11 @@ describe('compareToAttestedSet', () => {
 
   it('ignores case and 0x-prefix differences between hashes', () => {
     const result = compareToAttestedSet(
-      {
+      seen({
         maskedHash: CANCUN_HASH.slice(2).toUpperCase(),
         solcVersion: '0.8.29',
         rawByteLength: CANCUN_BYTES,
-      },
+      }),
       ATTESTED,
       CLOSED
     )
@@ -131,11 +153,11 @@ describe('compareToAttestedSet', () => {
   it('is UNVERIFIABLE with an empty attested set, under either scope', () => {
     for (const scope of [CLOSED, OPEN]) {
       const result = compareToAttestedSet(
-        {
+        seen({
           maskedHash: CANCUN_HASH,
           solcVersion: '0.8.29',
           rawByteLength: CANCUN_BYTES,
-        },
+        }),
         [],
         scope
       )
@@ -161,7 +183,7 @@ describe('when the normalised hash matches but the deployed length does not', ()
   ])('refuses code with %s', (_label, rawByteLength) => {
     for (const scope of [CLOSED, OPEN]) {
       const result = compareToAttestedSet(
-        { maskedHash: LONDON_HASH, solcVersion: '0.8.17', rawByteLength },
+        seen({ maskedHash: LONDON_HASH, solcVersion: '0.8.17', rawByteLength }),
         ATTESTED,
         scope
       )
@@ -174,11 +196,11 @@ describe('when the normalised hash matches but the deployed length does not', ()
 
   it('says how many bytes are unaccounted for, not merely that it differs', () => {
     const result = compareToAttestedSet(
-      {
+      seen({
         maskedHash: LONDON_HASH,
         solcVersion: '0.8.17',
         rawByteLength: LONDON_BYTES + 3002,
-      },
+      }),
       ATTESTED,
       CLOSED
     )
@@ -197,15 +219,17 @@ describe('when the normalised hash matches but the deployed length does not', ()
         lineage: 'london, metadata hash off',
         solcVersion: '0.8.17',
         maskedHash: LONDON_HASH,
-        rawByteLength: LONDON_BYTES - 44,
+        rawByteLength: LONDON_BYTES - 41,
+        rawHash: undefined,
       },
     ]
     const result = compareToAttestedSet(
-      {
+      seen({
         maskedHash: LONDON_HASH,
         solcVersion: '0.8.17',
-        rawByteLength: LONDON_BYTES - 44,
-      },
+        rawByteLength: LONDON_BYTES - 41,
+        rawHash: undefined,
+      }),
       both,
       CLOSED
     )
@@ -227,11 +251,7 @@ describe('with a closed set of legitimate builds', () => {
     'calls foreign code a MISMATCH though it reports %s',
     (_label, version) => {
       const result = compareToAttestedSet(
-        {
-          maskedHash: FOREIGN_HASH,
-          solcVersion: version,
-          rawByteLength: CANCUN_BYTES,
-        },
+        seen({ maskedHash: FOREIGN_HASH, solcVersion: version }),
         ATTESTED,
         CLOSED
       )
@@ -246,7 +266,7 @@ describe('with a closed set of legitimate builds', () => {
     // Stripping the trailer, or compiling with `bytecodeHash: "none"`, is the
     // cheapest way to report nothing. It must not buy a softer verdict either.
     const result = compareToAttestedSet(
-      { maskedHash: FOREIGN_HASH, rawByteLength: CANCUN_BYTES },
+      seen({ maskedHash: FOREIGN_HASH, rawByteLength: CANCUN_BYTES }),
       ATTESTED,
       CLOSED
     )
@@ -259,22 +279,14 @@ describe('with a closed set of legitimate builds', () => {
     // verdict, no matter what the code says about itself.
     const verdicts = new Set(
       [
-        {
-          maskedHash: FOREIGN_HASH,
-          solcVersion: '0.8.29',
-          rawByteLength: 1423,
-        },
-        {
-          maskedHash: FOREIGN_HASH,
-          solcVersion: '0.8.17',
-          rawByteLength: 1423,
-        },
-        {
+        seen({ maskedHash: FOREIGN_HASH, solcVersion: '0.8.29' }),
+        seen({ maskedHash: FOREIGN_HASH, solcVersion: '0.8.17' }),
+        seen({
           maskedHash: FOREIGN_HASH,
           solcVersion: '0.8.99',
           rawByteLength: 9999,
-        },
-        { maskedHash: FOREIGN_HASH, rawByteLength: 12 },
+        }),
+        seen({ maskedHash: FOREIGN_HASH, rawByteLength: 12 }),
       ].map(
         (observed) => compareToAttestedSet(observed, ATTESTED, CLOSED).verdict
       )
@@ -287,11 +299,11 @@ describe('with a closed set of legitimate builds', () => {
 describe('with an open set of legitimate builds', () => {
   it('calls a foreign hash from an attested lineage a MISMATCH', () => {
     const result = compareToAttestedSet(
-      {
+      seen({
         maskedHash: FOREIGN_HASH,
         solcVersion: '0.8.29',
         rawByteLength: CANCUN_BYTES,
-      },
+      }),
       ATTESTED,
       OPEN
     )
@@ -305,11 +317,11 @@ describe('with an open set of legitimate builds', () => {
     // non-match is ignorance rather than evidence. This is the branch the
     // closed-set tests above prove cannot be reached by a tamperer.
     const result = compareToAttestedSet(
-      {
+      seen({
         maskedHash: FOREIGN_HASH,
         solcVersion: '0.8.31',
         rawByteLength: CANCUN_BYTES,
-      },
+      }),
       ATTESTED,
       OPEN
     )
@@ -321,7 +333,7 @@ describe('with an open set of legitimate builds', () => {
 
   it('is UNVERIFIABLE when the deployed code carries no compiler version', () => {
     const result = compareToAttestedSet(
-      { maskedHash: FOREIGN_HASH, rawByteLength: CANCUN_BYTES },
+      seen({ maskedHash: FOREIGN_HASH, rawByteLength: CANCUN_BYTES }),
       ATTESTED,
       OPEN
     )
@@ -332,20 +344,20 @@ describe('with an open set of legitimate builds', () => {
 
   it('keeps GREY distinct from RED while blocking on both', () => {
     const grey = compareToAttestedSet(
-      {
+      seen({
         maskedHash: FOREIGN_HASH,
         solcVersion: '0.8.31',
         rawByteLength: CANCUN_BYTES,
-      },
+      }),
       ATTESTED,
       OPEN
     )
     const red = compareToAttestedSet(
-      {
+      seen({
         maskedHash: FOREIGN_HASH,
         solcVersion: '0.8.29',
         rawByteLength: CANCUN_BYTES,
-      },
+      }),
       ATTESTED,
       OPEN
     )
@@ -354,5 +366,100 @@ describe('with an open set of legitimate builds', () => {
     // renderer downstream keys off the verdict, never off `blocksSigning`.
     expect([grey.blocksSigning, red.blocksSigning]).toEqual([true, true])
     expect(grey.verdict).not.toBe(red.verdict)
+  })
+})
+
+describe('what a MATCH does not cover', () => {
+  it('says so when bytes were excluded as immutables', () => {
+    // Layer 1 hashes the code with immutables masked out, so a contract whose
+    // immutables hold attacker-chosen call targets matches an honest build.
+    // Filling ReceiverStargateV2's 15 occurrences is 480 such bytes.
+    const result = compareToAttestedSet(
+      seen({ maskedHash: CANCUN_HASH, maskedByteCount: 480 }),
+      ATTESTED,
+      CLOSED
+    )
+
+    expect(result.verdict).toBe('MATCH')
+    expect(result.excludedByteCount).toBe(480)
+    expect(result.reason).toContain('480 bytes')
+    expect(result.reason).toMatch(/still have to be checked/)
+  })
+
+  it('does not qualify a match for a contract with no immutables', () => {
+    // The control: the qualification has to be absent here, or it is noise on
+    // every verdict and stops being read.
+    const result = compareToAttestedSet(
+      seen({ maskedHash: CANCUN_HASH }),
+      ATTESTED,
+      CLOSED
+    )
+
+    expect(result.verdict).toBe('MATCH')
+    expect(result.excludedByteCount).toBe(0)
+    expect(result.reason).not.toMatch(/still have to be checked/)
+  })
+
+  it('carries the excluded count on a blocking verdict too', () => {
+    // A signer reading a MISMATCH should not have to guess whether the immutable
+    // values were part of what disagreed.
+    const result = compareToAttestedSet(
+      seen({ maskedHash: FOREIGN_HASH, maskedByteCount: 96 }),
+      ATTESTED,
+      CLOSED
+    )
+
+    expect(result.verdict).toBe('MISMATCH')
+    expect(result.excludedByteCount).toBe(96)
+  })
+})
+
+describe('when the attestation pins the exact deployed bytes', () => {
+  const RAW = `0x${'cd'.repeat(32)}`
+  const PINNED: IAttestedBuild[] = [
+    {
+      lineage: 'upstream london, exact bytes',
+      solcVersion: '0.8.17',
+      maskedHash: LONDON_HASH,
+      rawByteLength: LONDON_BYTES,
+      rawHash: RAW,
+    },
+  ]
+
+  it('matches when the deployed bytes are those bytes', () => {
+    const result = compareToAttestedSet(
+      seen({
+        maskedHash: LONDON_HASH,
+        rawByteLength: LONDON_BYTES,
+        rawHash: RAW,
+      }),
+      PINNED,
+      CLOSED
+    )
+
+    expect(result.verdict).toBe('MATCH')
+  })
+
+  it('refuses code identical outside the trailer, naming the trailer', () => {
+    // This is the 47-byte window: same length, same normalised hash, different
+    // metadata bytes. Tolerated when the attestation compares on the normalised
+    // form; refused when it pins exact bytes.
+    const observed = seen({
+      maskedHash: LONDON_HASH,
+      rawByteLength: LONDON_BYTES,
+      rawHash: `0x${'ef'.repeat(32)}`,
+    })
+
+    expect(compareToAttestedSet(observed, PINNED, CLOSED).verdict).toBe(
+      'MISMATCH'
+    )
+    expect(compareToAttestedSet(observed, PINNED, CLOSED).reason).toMatch(
+      /outside its metadata trailer/
+    )
+    // And the same observation against an attestation that does not pin bytes is
+    // a MATCH — otherwise this test would pass for a reader that ignores rawHash.
+    expect(compareToAttestedSet(observed, ATTESTED, CLOSED).verdict).toBe(
+      'MATCH'
+    )
   })
 })

@@ -16,6 +16,11 @@ export interface IAttestedBuild {
   maskedHash: string
   /** Length of the code as deployed, before anything was stripped or masked. */
   rawByteLength: number
+  /**
+   * keccak of the exact deployed bytes, or undefined to compare on the
+   * normalised form alone. Pass it when the attestation pins exact bytes.
+   */
+  rawHash: string | undefined
 }
 
 /** What was actually found at the address, normalised the same way. */
@@ -23,6 +28,14 @@ export interface IObservedCode {
   maskedHash: string
   /** Length of the code as deployed, before anything was stripped or masked. */
   rawByteLength: number
+  /** keccak of the exact deployed bytes. */
+  rawHash: string
+  /**
+   * How many bytes were excluded from `maskedHash` as immutables. A MATCH says
+   * nothing about them, so a caller that has not run layer 2 must not render an
+   * unqualified green.
+   */
+  maskedByteCount: number
   /**
    * Decoded from the deployed code's own trailer, so chosen by whoever deployed
    * it. Absent when no version can be read.
@@ -50,6 +63,11 @@ export interface ICodehashComparison {
   matchedLineages: string[]
   /** One line a signer can act on. */
   reason: string
+  /**
+   * Bytes the comparison did not look at, because they hold immutables. Nonzero
+   * means this verdict is incomplete until layer 2 has checked their values.
+   */
+  excludedByteCount: number
   /** True for everything but MATCH. Render the verdict, never this flag. */
   blocksSigning: boolean
 }
@@ -59,11 +77,13 @@ const normalizeHash = (hash: string): string =>
 
 const blocked = (
   verdict: 'MISMATCH' | 'UNVERIFIABLE',
-  reason: string
+  reason: string,
+  excludedByteCount: number
 ): ICodehashComparison => ({
   verdict,
   matchedLineages: [],
   reason,
+  excludedByteCount,
   blocksSigning: true,
 })
 
@@ -80,10 +100,17 @@ const blocked = (
  * normalises to whatever prefix the appender likes.
  *
  * What both together still allow, measured on a 1440-byte facet with a 53-byte
- * trailer: 45 bytes of arbitrary content inside the trailer region, where an
- * honest build carries a 34-byte digest. It sits past the code's terminating
- * INVALID and is not reachable, and removing this last latitude means comparing
- * raw bytes, which no rebuild reproduces. Stated rather than hidden.
+ * trailer: 47 bytes of arbitrary content inside the trailer region, where an
+ * honest build carries a 34-byte digest. It is unreachable because `src/` holds
+ * no internal function pointers, so no dynamic jump can be steered into it —
+ * NOT because it follows the code's terminating INVALID, which two artifacts in
+ * the fleet do not have (their code ends in EIP-712 type-string data).
+ *
+ * Pass `rawHash` to close that window: an attestation that pins the exact
+ * deployed bytes leaves nothing free. The cost is that metadata-level drift
+ * between the deployed source and the attested one — a comment, a file path —
+ * then reads as a MISMATCH, which is the reason stripping exists. The caller
+ * states which it wants; this module does not choose.
  *
  * Known limitation, and the reason `scope` exists: with an open set, the only
  * thing distinguishing "we never built that toolchain" from "this is not our
@@ -105,21 +132,43 @@ export const compareToAttestedSet = (
   const sameCode = attested.filter(
     (build) => normalizeHash(build.maskedHash) === target
   )
-  const sameCodeAndLength = sameCode.filter(
+  const sameLength = sameCode.filter(
     (build) => build.rawByteLength === observed.rawByteLength
   )
+  const exact = sameLength.filter(
+    (build) =>
+      build.rawHash === undefined ||
+      normalizeHash(build.rawHash) === normalizeHash(observed.rawHash)
+  )
 
-  if (sameCodeAndLength.length > 0) {
-    const matchedLineages = sameCodeAndLength.map((build) => build.lineage)
+  if (exact.length > 0) {
+    const matchedLineages = exact.map((build) => build.lineage)
     return {
       verdict: 'MATCH',
       matchedLineages,
-      reason: `code matches the attested build from ${matchedLineages.join(
-        ' and '
-      )}`,
+      reason:
+        observed.maskedByteCount === 0
+          ? `code matches the attested build from ${matchedLineages.join(
+              ' and '
+            )}`
+          : `code matches the attested build from ${matchedLineages.join(
+              ' and '
+            )} outside its immutables; the ${
+              observed.maskedByteCount
+            } bytes holding those were not compared and their values still have to be checked`,
+      excludedByteCount: observed.maskedByteCount,
       blocksSigning: false,
     }
   }
+
+  // Only reachable for an attestation that pins exact bytes: the code agrees
+  // everywhere the comparison looks, and the bytes it does not look at do not.
+  if (sameLength.length > 0)
+    return blocked(
+      'MISMATCH',
+      `the deployed code is identical to the attested build from ${sameLength[0]?.lineage} outside its metadata trailer, and that trailer's bytes differ from the attested ones`,
+      observed.maskedByteCount
+    )
 
   // Normalising to an attested build is not the same as being one. The trailer's
   // length word says how many bytes come off before hashing, and it is part of
@@ -135,14 +184,16 @@ export const compareToAttestedSet = (
         observed.rawByteLength
       } bytes where that build is ${attestedLength}, so ${Math.abs(
         observed.rawByteLength - attestedLength
-      )} bytes of it are not accounted for`
+      )} bytes of it are not accounted for`,
+      observed.maskedByteCount
     )
   }
 
   if (attested.length === 0)
     return blocked(
       'UNVERIFIABLE',
-      'no attested build of main is available for this contract, so nothing can be compared'
+      'no attested build of main is available for this contract, so nothing can be compared',
+      observed.maskedByteCount
     )
 
   // With the legitimate set complete, non-membership settles it on its own and
@@ -150,13 +201,15 @@ export const compareToAttestedSet = (
   if (scope.isClosedSet)
     return blocked(
       'MISMATCH',
-      `the deployed code matches none of the ${attested.length} builds this contract can legitimately have, so it is not a build of main`
+      `the deployed code matches none of the ${attested.length} builds this contract can legitimately have, so it is not a build of main`,
+      observed.maskedByteCount
     )
 
   if (!observed.solcVersion)
     return blocked(
       'UNVERIFIABLE',
-      'the deployed code carries no readable compiler version, and the set of legitimate builds is open, so its lineage cannot be established'
+      'the deployed code carries no readable compiler version, and the set of legitimate builds is open, so its lineage cannot be established',
+      observed.maskedByteCount
     )
 
   const builtVersions = new Set(attested.map((build) => build.solcVersion))
@@ -167,7 +220,8 @@ export const compareToAttestedSet = (
         observed.solcVersion
       }, which no attested build used (${[...builtVersions]
         .sort()
-        .join(', ')}), and the set of legitimate builds is open`
+        .join(', ')}), and the set of legitimate builds is open`,
+      observed.maskedByteCount
     )
 
   return blocked(
@@ -176,6 +230,7 @@ export const compareToAttestedSet = (
       observed.solcVersion
     } one it reports (${attested.length} build${
       attested.length === 1 ? '' : 's'
-    } compared)`
+    } compared)`,
+    observed.maskedByteCount
   )
 }
