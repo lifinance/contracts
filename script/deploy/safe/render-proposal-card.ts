@@ -18,7 +18,8 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import { MongoClient } from 'mongodb'
 
-import { renderProposalCard, type ICardProposal } from './proposal-card'
+import { renderProposalCard } from './proposal-card'
+import { selectProposals } from './proposal-selection'
 import type { SafeTxStatus } from './safe-utils'
 
 const DEFAULT_DB = 'sc_private'
@@ -109,55 +110,38 @@ const main = defineCommand({
         )
         .toArray()
 
-      const newestByNetwork = new Map<string, IRow>()
-      rows.forEach((row) => {
-        if (!newestByNetwork.has(row.network))
-          newestByNetwork.set(row.network, row)
-      })
-
-      // Ordered as the caller listed them, so the card reads in the same order
-      // as the run's own output.
-      const proposals: ICardProposal[] = networks
-        .map((network) => newestByNetwork.get(network))
-        .filter((row): row is IRow => row !== undefined)
-        .map((row) => ({
-          network: String(row.network),
-          safeTxHash: row.safeTxHash,
-          proposerHandle: row.provenance?.proposerHandle,
-          actor: row.provenance?.actor,
-          reason: row.provenance?.reason,
-          prUrl: row.provenance?.prUrl,
-          gitCommit: row.provenance?.gitCommit,
-          dirtyTreeScoped: row.provenance?.dirtyTreeScoped,
-          dirtyTreeTruncated: row.provenance?.dirtyTreeTruncated,
-          captureErrors: row.provenance?.captureErrors,
-        }))
-
-      if (proposals.length === 0)
-        throw new Error(
-          `No pending proposals found for: ${networks.join(', ')}`
-        )
-
+      // The classification lives in `proposal-selection.ts`, which is tested
+      // without a database; this function only fetches what that needs.
+      //
       // A network with no PENDING row is not necessarily a missing proposal. The
       // caller's list is every network ever marked successful for this action —
       // the progress file survives a partial run and later runs skip networks
       // already done — so on any resumed run it includes networks whose
-      // proposals were signed and executed long ago. Counting those as missing
-      // would fire the alarm on exactly the runs that needed a retry.
+      // proposals were signed and executed long ago. Absence of a row in ANY
+      // status is the real signal.
       //
-      // Absence of any row in any status is the real signal, so that is what is
-      // asked. `distinct` rather than `find`, so the result is bounded by the
-      // number of networks asked about rather than by how many rows they have
-      // between them.
-      const withoutPending = networks.filter((n) => !newestByNetwork.has(n))
-      const settled =
+      // `distinct` rather than `find`, so the result is bounded by the number of
+      // networks asked about rather than by how many rows they have between them.
+      const withoutPending = networks.filter(
+        (network) => !rows.some((row) => String(row.network) === network)
+      )
+      const networksWithAnyRow =
         withoutPending.length === 0
           ? []
           : await collection.distinct('network', {
               network: { $in: withoutPending },
             })
 
-      const unaccounted = withoutPending.filter((n) => !settled.includes(n))
+      const { proposals, settled, unaccounted } = selectProposals(
+        networks,
+        rows,
+        networksWithAnyRow.map(String)
+      )
+
+      if (proposals.length === 0)
+        throw new Error(
+          `No pending proposals found for: ${networks.join(', ')}`
+        )
 
       const contract = args.contract
       const card = renderProposalCard(proposals, {
