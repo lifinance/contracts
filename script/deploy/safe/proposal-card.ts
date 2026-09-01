@@ -266,8 +266,8 @@ export const renderProposalCard = (
   const nonHuman = [
     ...new Set(proposals.map((p) => escape(p.actor)).filter(Boolean)),
   ].filter((a) => a !== 'human')
-  // Bounded like any other field: a union grows with the row count, so without
-  // this the list is itself a value that can consume the card.
+  // Bounded like any other field: a union grows with the row count, so the list
+  // is itself a value that can consume the card.
   const actor =
     nonHuman.length > 0 ? ` (${summarise(nonHuman, NAMED_NETWORK_LIMIT)})` : ''
   lines.push(`*Proposed by:* ${handle || 'unknown'}${actor}`)
@@ -282,7 +282,7 @@ export const renderProposalCard = (
   //
   // Union across rows: a dirty tree on any network must never read as clean.
   // A row carrying anything at all in this field is a row that reported a dirty
-  // tree. Requiring an array let a value of the wrong shape render as clean.
+  // tree, whatever shape the value arrived in.
   const dirtyRows = proposals.filter(
     (p) => p.dirtyTreeScoped !== undefined && p.dirtyTreeScoped !== null
   )
