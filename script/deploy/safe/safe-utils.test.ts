@@ -135,10 +135,14 @@ const FIXED_PROVENANCE: IProposalProvenance = {
   capturedAt: '2026-01-01T00:00:00.000Z',
 }
 
+const TICKET = 'EXSC-694'
+const TICKET_URL = 'https://linear.app/lifi-linear/issue/EXSC-694'
+
 async function store(
   collection: Collection<ISafeTxDocument>,
   safeTx: ISafeTransaction,
-  provenance: IProposalProvenance = FIXED_PROVENANCE
+  provenance: IProposalProvenance = FIXED_PROVENANCE,
+  options: { ticket?: string | undefined } = { ticket: TICKET }
 ): Promise<InsertOneResult<ISafeTxDocument> | null> {
   return storeTransactionInMongoDB(
     collection,
@@ -149,7 +153,7 @@ async function store(
     ('0x' + 'ab'.repeat(32)) as Hex,
     PROPOSER,
     undefined,
-    { override: provenance }
+    { override: provenance, ticket: options.ticket }
   )
 }
 
@@ -321,6 +325,73 @@ describe('storeTransactionInMongoDB — duplicate-PENDING protection', () => {
  * here drives the `override` seam so no test spawns `git`; ambient capture
  * itself is covered in `script/deploy/shared/git-provenance.test.ts`.
  */
+describe('storeTransactionInMongoDB — the ticket link hard-blocks', () => {
+  const originalTicket = process.env.SAFE_PROPOSAL_TICKET
+
+  beforeEach(() => {
+    delete process.env.SAFE_PROPOSAL_TICKET
+  })
+
+  afterEach(() => {
+    if (originalTicket === undefined) delete process.env.SAFE_PROPOSAL_TICKET
+    else process.env.SAFE_PROPOSAL_TICKET = originalTicket
+  })
+
+  it('does not create a proposal when no ticket was supplied', async () => {
+    const collection = createFakeCollection()
+
+    expect(
+      store(collection, buildSafeTx(), FIXED_PROVENANCE, { ticket: undefined })
+    ).rejects.toThrow(/SAFE_PROPOSAL_TICKET/)
+
+    // "Not created" is the requirement, not "reported an error": a throw after
+    // the insert would leave an unlinked proposal occupying a nonce.
+    expect(collection.rows).toHaveLength(0)
+  })
+
+  it('refuses a malformed ticket rather than storing it as a link', async () => {
+    const collection = createFakeCollection()
+
+    expect(
+      store(collection, buildSafeTx(), FIXED_PROVENANCE, {
+        ticket: 'https://example.com/issue/EXSC-694',
+      })
+    ).rejects.toThrow(/not a Linear issue link/)
+    expect(collection.rows).toHaveLength(0)
+  })
+
+  it('records the ticket URL on the stored proposal', async () => {
+    const collection = createFakeCollection()
+
+    await store(collection, buildSafeTx())
+
+    expect(collection.rows[0]?.provenance?.ticketUrl).toBe(TICKET_URL)
+  })
+
+  it('accepts the ticket from the environment, so bash flows need no new argument', async () => {
+    process.env.SAFE_PROPOSAL_TICKET = 'EXSC-222'
+    const collection = createFakeCollection()
+
+    await store(collection, buildSafeTx(), FIXED_PROVENANCE, {
+      ticket: undefined,
+    })
+
+    expect(collection.rows[0]?.provenance?.ticketUrl).toBe(
+      'https://linear.app/lifi-linear/issue/EXSC-222'
+    )
+  })
+
+  it('creates the proposal with no reason — only the ticket blocks (OQ3)', async () => {
+    const collection = createFakeCollection()
+
+    const result = await store(collection, buildSafeTx())
+
+    expect(result).not.toBeNull()
+    expect(collection.rows[0]?.provenance?.reason).toBeUndefined()
+    expect(collection.rows[0]?.provenance?.ticketUrl).toBe(TICKET_URL)
+  })
+})
+
 describe('storeTransactionInMongoDB — provenance', () => {
   const originalReason = process.env.SAFE_PROPOSAL_REASON
 
@@ -338,7 +409,10 @@ describe('storeTransactionInMongoDB — provenance', () => {
 
     await store(collection, buildSafeTx())
 
-    expect(collection.rows[0]?.provenance).toEqual(FIXED_PROVENANCE)
+    expect(collection.rows[0]?.provenance).toEqual({
+      ...FIXED_PROVENANCE,
+      ticketUrl: TICKET_URL,
+    })
   })
 
   it('keeps provenance out of the intent hash', async () => {
@@ -397,7 +471,10 @@ describe('storeTransactionInMongoDB — provenance', () => {
     const result = await store(collection, tronSafeTx)
 
     expect(result).not.toBeNull()
-    expect(collection.rows[0]?.provenance).toEqual(FIXED_PROVENANCE)
+    expect(collection.rows[0]?.provenance).toEqual({
+      ...FIXED_PROVENANCE,
+      ticketUrl: TICKET_URL,
+    })
   })
 })
 

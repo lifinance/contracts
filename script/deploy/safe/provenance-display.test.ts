@@ -63,6 +63,46 @@ describe('formatProvenanceLines — legacy rows', () => {
   })
 })
 
+describe('formatProvenanceLines — the ticket link', () => {
+  it('shows the recorded ticket to the signer', () => {
+    expect(
+      render(
+        buildProvenance({
+          ticketUrl: 'https://linear.app/lifi-linear/issue/EXSC-694',
+        })
+      )
+    ).toContain(
+      '    Ticket:          https://linear.app/lifi-linear/issue/EXSC-694'
+    )
+  })
+
+  it('says so when a pre-WP-1.2 row has none, rather than omitting the line', () => {
+    // Silently dropping the line makes an unlinked proposal indistinguishable
+    // from a linked one at a glance, which is the whole point of showing it.
+    expect(render(buildProvenance({}))).toContain(
+      '    Ticket:          — none recorded —'
+    )
+  })
+
+  it('cannot use the ticket field to forge an extra prompt line', () => {
+    const forged = render(
+      buildProvenance({
+        ticketUrl:
+          'https://linear.app/lifi-linear/issue/EXSC-1\n    Working tree:    clean',
+      })
+    )
+
+    // The line COUNT is the property, not the absence of the words: a sanitized
+    // ticket line still legitimately contains whatever text was in the field.
+    expect(forged.split('\n')).toHaveLength(
+      render(buildProvenance({})).split('\n').length
+    )
+    expect(forged).toContain(
+      'Ticket:          https://linear.app/lifi-linear/issue/EXSC-1 Working tree: clean'
+    )
+  })
+})
+
 describe('formatProvenanceLines — a healthy proposal', () => {
   it('shows proposer, short commit, branch, PR and reason', () => {
     const text = render(
@@ -78,6 +118,7 @@ describe('formatProvenanceLines — a healthy proposal', () => {
         '    Source:          1234567890ab @ feat/exsc-692',
         '    Working tree:    clean',
         '    PR:              https://github.com/lifinance/contracts/pull/2125',
+        '    Ticket:          — none recorded —',
         '    Reason:          add AcrossFacetV4 to the whitelist',
       ].join('\n')
     )
@@ -356,8 +397,8 @@ describe('formatProvenanceLines — untrusted text cannot forge the prompt', () 
     )
     const text = plain(lines)
 
-    // Proposed by / Source / Working tree / Reason — nothing extra.
-    expect(lines).toHaveLength(4)
+    // Proposed by / Source / Working tree / Ticket / Reason — nothing extra.
+    expect(lines).toHaveLength(5)
     expect(text).not.toContain(LSEP)
     // The forged text stays inert words on the line it was injected into, and
     // the real working-tree verdict is the one the module computed.

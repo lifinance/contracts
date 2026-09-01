@@ -161,6 +161,17 @@ export function formatProvenanceLines(
     const prUrl = sanitize(provenance.prUrl)
     if (prUrl) lines.push(detailLine('PR', color(CYAN, prUrl)))
 
+    // Always shown, present or not. A proposal stored after WP-1.2 cannot lack
+    // one, so an absent link means a pre-WP-1.2 row or a hand-edited document —
+    // both things a signer should see rather than have quietly omitted.
+    const ticketUrl = sanitize(provenance.ticketUrl)
+    lines.push(
+      detailLine(
+        'Ticket',
+        ticketUrl ? color(CYAN, ticketUrl) : color(YELLOW, '— none recorded —')
+      )
+    )
+
     // A rationale of nothing but control characters sanitizes to empty, which
     // must read as "none given" rather than as a blank but present reason.
     // Recapped here so a hand-edited Mongo row cannot scroll the prompt away.

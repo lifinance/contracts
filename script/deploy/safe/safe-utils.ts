@@ -62,6 +62,12 @@ import {
   getDeployedFacetVersionFromLog,
   getTargetStateFacetVersion,
 } from './facet-version-utils'
+import {
+  MAX_PROPOSAL_REASON_LENGTH,
+  formatReasonWarning,
+  normalizeProposalReason,
+  resolveProposalIntent,
+} from './proposal-intent'
 import { buildReadOnlyClient } from './read-only-safe-client'
 import {
   getLocalSelectorInfo,
@@ -118,6 +124,10 @@ export interface ISafeSignature {
  *                 consumed — a top-level revert rolls back the `nonce++`, so
  *                 the slot can be re-proposed; flagged for manual review.
  */
+// Re-exported: these moved to `proposal-intent.ts` when the ticket link joined
+// the reason, and importers of this module should not have to care.
+export { MAX_PROPOSAL_REASON_LENGTH, normalizeProposalReason }
+
 export type SafeTxStatus = 'pending' | 'submitted' | 'executed' | 'reverted'
 
 /**
@@ -143,6 +153,12 @@ export interface IParkedTaskRef {
 export interface IProposalProvenance extends IGitProvenance {
   /** One-line rationale, when the proposer supplied one. */
   reason?: string
+  /**
+   * Canonical Linear issue URL. Always present on a proposal stored after
+   * WP-1.2 — {@link storeTransactionInMongoDB} refuses to create one without it.
+   * Optional on the type because rows written before that still exist.
+   */
+  ticketUrl?: string
 }
 
 /** Trailing options of {@link storeTransactionInMongoDB}. */
@@ -153,6 +169,16 @@ export interface IProposalProvenanceOptions {
    */
   reason?: string
   /**
+   * Linear issue link or bare id; falls back to `SAFE_PROPOSAL_TICKET`. A
+   * proposal is not created without one.
+   */
+  ticket?: string
+  /**
+   * The already-validated URL. Set by {@link storeTransactionInMongoDB} after it
+   * resolves `ticket`; callers pass `ticket`, not this.
+   */
+  ticketUrl?: string
+  /**
    * Test seam: use this block instead of probing git, so suites that exercise
    * the storage funnel stay deterministic and spawn no subprocesses.
    * Copied and sanitized before storage — never aliased, never stored raw.
@@ -160,9 +186,6 @@ export interface IProposalProvenanceOptions {
    */
   override?: IProposalProvenance
 }
-
-/** Longest rationale kept; the field is a one-liner for a signer, not a log. */
-export const MAX_PROPOSAL_REASON_LENGTH = 200
 
 export interface ISafeTxDocument {
   safeAddress: string
@@ -1461,20 +1484,6 @@ export function computeProposalIntentHash(
   return keccak256(encoded)
 }
 
-/**
- * Normalizes a free-text proposal rationale into a single tidy line.
- * @param raw - Rationale as supplied by a caller or the environment.
- * @returns The collapsed, length-capped line, or `undefined` when empty.
- */
-export function normalizeProposalReason(
-  raw: string | undefined
-): string | undefined {
-  const collapsed = sanitizeProvenanceText(raw)
-  if (collapsed.length === 0) return undefined
-  // Capped by code point, so the cut cannot leave a lone surrogate half behind.
-  return [...collapsed].slice(0, MAX_PROPOSAL_REASON_LENGTH).join('')
-}
-
 function sanitizeOverride(
   override: IProposalProvenance,
   fallbackReason: string | undefined
@@ -1520,6 +1529,25 @@ function sanitizeOverride(
   }
 }
 
+let reasonWarningEmitted = false
+
+/**
+ * Warns once per process that a proposal carried no stated reason.
+ *
+ * Once, not per proposal: a fleet sweep proposes on 40+ networks in one run, and
+ * repeating the same line 40 times trains operators to scroll past it. The
+ * per-proposal record is the absent `provenance.reason` field, which is what
+ * `report-reason-adoption.ts` counts for OQ3's flip trigger — so suppressing the
+ * repeat loses no information.
+ *
+ * @param ticketUrl - Identifies the first proposal that triggered the warning.
+ */
+function warnMissingReasonOnce(ticketUrl: string): void {
+  if (reasonWarningEmitted) return
+  reasonWarningEmitted = true
+  consola.warn(formatReasonWarning(ticketUrl))
+}
+
 /**
  * Assembles the provenance block stored with a proposal.
  *
@@ -1539,15 +1567,22 @@ export function buildProposalProvenance(
     options?.reason ?? process.env.SAFE_PROPOSAL_REASON
   )
 
+  // Recorded, not validated, here: this function must never block a proposal,
+  // so the refusal lives in storeTransactionInMongoDB, which has already
+  // resolved the link by the time it calls this.
+  const ticket = options?.ticketUrl ? { ticketUrl: options.ticketUrl } : {}
+
   // Copied and sanitized, never returned by reference: the caller keeps
   // ownership of the object it passed in, and a future production caller of
   // the seam cannot store raw control characters either.
-  if (options?.override) return sanitizeOverride(options.override, reason)
+  if (options?.override)
+    return { ...sanitizeOverride(options.override, reason), ...ticket }
 
   try {
     return {
       ...captureGitProvenance(),
       ...(reason ? { reason } : {}),
+      ...ticket,
     }
   } catch (error) {
     // Backstop only — capture is fail-soft internally and should not reach here.
@@ -1560,6 +1595,7 @@ export function buildProposalProvenance(
       dirtyTreeScoped: [],
       captureErrors: [`provenance capture failed: ${error}`],
       ...(reason ? { reason } : {}),
+      ...ticket,
     }
   }
 }
@@ -1664,9 +1700,25 @@ export async function storeTransactionInMongoDB(
     safeTx.data.operation
   )
 
+  // Before anything is written. Every proposal funnel reaches this function, so
+  // this is the one place a link can be required without each caller opting in —
+  // and a refusal after the insert would leave an unlinked proposal holding a
+  // nonce (WP-1.2 scope B, Daniel 2026-08-31: blocking from day one).
+  const intent = resolveProposalIntent({
+    ticket: provenanceOptions?.ticket,
+    envTicket: process.env.SAFE_PROPOSAL_TICKET,
+    reason: provenanceOptions?.reason,
+    envReason: process.env.SAFE_PROPOSAL_REASON,
+  })
+
+  if (intent.reasonMissing) warnMissingReasonOnce(intent.ticketUrl)
+
   // Never derived from `safeTx`: the Tron route hands in a cast-together object
   // whose shape does not match the type.
-  const provenance = buildProposalProvenance(provenanceOptions)
+  const provenance = buildProposalProvenance({
+    ...provenanceOptions,
+    ticketUrl: intent.ticketUrl,
+  })
 
   const txDoc = {
     safeAddress,

@@ -85,7 +85,11 @@ merge; the deploy scripts never commit.
 ### 4.2 Propose
 
 All EVM funnels end in `storeTransactionInMongoDB`
-(`script/deploy/safe/safe-utils.ts`). Entry points:
+(`script/deploy/safe/safe-utils.ts`), which is where the Linear ticket link is
+required and the missing-reason warning is emitted — placing them there rather
+than per entry point means no funnel can be added that skips them. A run with no
+ticket fails before anything is written, naming both `--ticket` and
+`SAFE_PROPOSAL_TICKET`. Entry points:
 
 - **`script/deploy/safe/propose-to-safe.ts`** (`runPropose`) — the main
   funnel, invoked by the bash `sendOrPropose` chokepoint in
@@ -207,6 +211,8 @@ parked tasks are reconciled weekly by `reconcileParkedTasks.yml`.
 | Propose | Proposer must be a current Safe owner (on-chain `getOwners()`) | Block | `propose-to-safe.ts` (`runPropose`) |
 | Propose | Nonce safety: override collision checks, auto-nonce clamped to on-chain | Block / auto-correct | `propose-to-safe.ts`, `getNextNonce` in `safe-utils.ts` |
 | Propose | Duplicate-intent dedup (partial unique index on pending rows) | Block insert | `computeProposalIntentHash` + index in `safe-utils.ts` |
+| Propose | Every proposal carries a Linear issue link, from `--ticket` or `SAFE_PROPOSAL_TICKET`. The shape is validated, so a non-Linear or malformed URL is refused rather than recorded as "a link". Checked before the insert, so a refused proposal is never created and claims no nonce | Block insert | `resolveProposalIntent` in `proposal-intent.ts`, called from `storeTransactionInMongoDB` |
+| Propose | One-line reason (`--reason` / `SAFE_PROPOSAL_REASON`). Optional, warned once per process — OQ3 flips it to mandatory once the warning has fired zero times across 30 consecutive proposals | Warn | `proposal-intent.ts`; read the trigger with `report-reason-adoption.ts` (read-only) |
 | Propose | In-flight nonce uniqueness per Safe: concurrent proposers may still derive the same nonce, but only one insert survives (partial unique index over `pending` + `submitted`, compared case-insensitively so the Tron and EVM spellings of one Safe collide). The guarantee is **absent** if the index could not be built — in-flight rows already sharing a nonce, or a role without `createIndex` — and the build warns in both cases. Nothing is ever dropped, so a pre-`_ci` index from an earlier build stays as a weaker, redundant constraint | Block insert, re-run required | `unique_inflight_safe_nonce_ci` index in `safe-utils.ts`; diagnose with `report-nonce-collisions.ts` (read-only) |
 | Propose | Removal safety: protected-facet allowlist, live-selector hold-back, fail-closed diffs | Block + alert | `diamondRemovalDiff.ts`, `drain-parked-tasks.ts` |
 | Propose | Production `deployUpgradesToSAFE` from a feature branch: selected facet sources must match `origin/main`, else open PR + audit-log commit freeze; `main` and staging are not gated | Block (prod, that entry point only) | `script/deploy/github/verify-approvals.ts` via `deployUpgradesToSAFE.sh` (PR #2128) |
