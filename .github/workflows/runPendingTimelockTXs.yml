@@ -10,6 +10,22 @@
 #       unintended execution.
 #     * Runs script/deploy/safe/execute-pending-timelock-tx.ts, captures log, posts Slack fallback on failure
 #     * Uploads execution.log as an artifact (7-day retention)
+#     * Re-checks `blocked` queue rows every run: reconciles them to `executed` or
+#       `cancelled` once the controller says so, and otherwise re-alerts (throttled, see
+#       BLOCKED_ALERT_INTERVAL_MS) while they stay executable on-chain. A blocked row is a
+#       standing operator task, not a failure of this run, so it does not fail the job —
+#       the recurring Slack alert is the signal. Clear the cause, then re-drive with
+#       script/deploy/safe/requeue-timelock-op.ts.
+#     * An operation whose executeBatch reverts on-chain is retried a bounded number of times
+#       (REVERT_BLOCK_THRESHOLD) in case the cause is transient, then blocked and escalated to
+#       the CI notifications channel — it is no longer retried every 10 minutes forever.
+#     * Slack delivery is best-effort: SlackNotifier retries, then logs and returns. A webhook
+#       outage therefore does NOT fail this workflow, and this run does not replay the failed
+#       delivery. The situation is not lost, though: the row is now `blocked`, so the
+#       blocked-operation check re-raises it on later runs once the throttle interval has
+#       elapsed, and execution.log plus the queue row (status and reason) are the durable record.
+#       A MISSING webhook secret is different: that fails the run outright, rather than letting a
+#       run that had an escalation to deliver finish green.
 # - Required repo configuration:
 #     * vars.ENABLE_TIMELOCK_AUTO_EXECUTION ("true" to enable scheduled runs)
 #     * secrets.TIMELOCK_EXECUTOR_PRIVATE_KEY (EOA private key used to sign and submit the
@@ -18,6 +34,9 @@
 #         protocol authority — it only pays gas.)
 #     * secrets.TIMELOCK_SLACK_WEBHOOK_URL (incoming webhook URL used both by the executor script's
 #         SlackNotifier and by this workflow's fallback failure notification step)
+#     * secrets.SLACK_WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS (escalation channel; receives the
+#         "this operation keeps reverting on-chain" alert once a batch has burned its retry
+#         budget. The script throws if it has that alert to send and this is unset.)
 #     * secrets.MONGODB_URI (non-sensitive MongoDB connection string; the script reads queued
 #         timelock ops from the timelock-operations.queue collection. Rows are written by
 #         confirm-safe-tx.ts when a Safe tx scheduling a timelock op is mined.)
@@ -97,6 +116,10 @@ jobs:
         env:
           PRIVATE_KEY_PRODUCTION: ${{ secrets.TIMELOCK_EXECUTOR_PRIVATE_KEY }}
           SLACK_WEBHOOK_URL: ${{ secrets.TIMELOCK_SLACK_WEBHOOK_URL }}
+          # Escalation channel for an op that keeps reverting on-chain. Required:
+          # the script throws on an unattended run that has such an alert to
+          # deliver and no webhook, rather than dropping it.
+          WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS: ${{ secrets.SLACK_WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS }}
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
           GH_TOKEN: ${{ github.token }} # required by `gh api` to resolve the job's html_url
           # The devkit default of 50 TRX caps a Tron tx at 500k energy, which a multi-call

@@ -12,6 +12,7 @@ import 'dotenv/config'
 import { isTronNetworkKey } from '@lifi/tron-devkit'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
+import type { Collection, UpdateFilter } from 'mongodb'
 import type { Address, Hex, PublicClient } from 'viem'
 import { encodeFunctionData, formatEther, parseAbi } from 'viem'
 
@@ -27,6 +28,7 @@ import { sleep } from '../../utils/delay'
 import { getDeployments } from '../../utils/deploymentHelpers'
 import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
 import {
+  isUnattendedRun,
   SlackNotifier,
   type INetworkResult,
   type IProcessingStats,
@@ -35,6 +37,7 @@ import {
 import { confirmTimelockExecution } from './confirm-timelock-execution'
 import {
   buildRemovalSnapshotFromPayloads,
+  describeStaleRemovals,
   mapLoupeResult,
   revalidateRemovalsOnChain,
 } from './diamondRemovalDiff'
@@ -50,9 +53,18 @@ import {
 } from './timelock-prefetch'
 import {
   byOperationId,
+  classifyBlockedRow,
   computeOperationIdBatch,
   deserializeScheduleParams,
   getTimelockQueueCollection,
+  markTimelockOpBlocked,
+  markTimelockOpFailedInQueue,
+  recordTimelockOpRevert,
+  REVERT_BLOCK_THRESHOLD,
+  selectBlockedNeedingAlert,
+  shouldBlockAfterRevert,
+  staleStatusMetadataUnset,
+  type IBlockedOpCandidate,
   type ITimelockQueueDoc,
 } from './timelock-queue'
 
@@ -234,16 +246,16 @@ const cmd = defineCommand({
     if (executeAll || rejectAll) {
       consola.info('🚀 Checking all networks for pending operations...')
 
-      const { networks: networksWithPending, failedCount: prefetchFailures } =
+      const { networks: networksWithWork, failedCount: prefetchFailures } =
         await prefetchNetworksWithPendingOps(networksToProcess)
-      if (networksWithPending.length === 0) return
+      if (networksWithWork.length === 0) return
 
       consola.info(
-        'Processing networks with pending txs (fresh RPC per network).'
+        'Processing networks with queued or blocked ops (fresh RPC per network).'
       )
 
       const results = await Promise.all(
-        networksWithPending.map((network) =>
+        networksWithWork.map((network) =>
           processNetwork(
             network,
             isDryRun,
@@ -289,13 +301,19 @@ const cmd = defineCommand({
       // operations, op-level failures, or any network-level failures (e.g. a
       // network erroring before reaching the per-op loop, which leaves
       // operationsFailed=0 but failedNetworks>0).
+      //
+      // Unreachable networks count as well. They are absent from `results`, so
+      // without this the run that fails *only* because networks went unchecked
+      // is the one run that reports nothing to Slack — and the count is passed
+      // on so the summary cannot call such a run successful.
       const hasWork =
         totalOperationsProcessed > 0 ||
         totalOperationsFailed > 0 ||
-        failedNetworks > 0
+        failedNetworks > 0 ||
+        prefetchFailures > 0
       if (slackNotifier && hasWork)
         try {
-          await slackNotifier.notifyBatchSummary(results)
+          await slackNotifier.notifyBatchSummary(results, prefetchFailures)
         } catch (error) {
           consola.warn('Failed to send batch summary notification:', error)
         }
@@ -318,18 +336,18 @@ const cmd = defineCommand({
     } else {
       consola.info('🔄 Checking all networks for pending operations...')
 
-      const { networks: networksWithPending, failedCount: prefetchFailures } =
+      const { networks: networksWithWork, failedCount: prefetchFailures } =
         await prefetchNetworksWithPendingOps(networksToProcess)
-      if (networksWithPending.length === 0) return
+      if (networksWithWork.length === 0) return
 
       consola.info(
-        'Processing networks with pending txs sequentially (fresh RPC per network).'
+        'Processing networks with queued or blocked ops sequentially (fresh RPC per network).'
       )
 
       let totalFailed = 0
       let totalSucceeded = 0
 
-      for (const network of networksWithPending)
+      for (const network of networksWithWork)
         try {
           const result = await processNetwork(
             network,
@@ -466,7 +484,7 @@ async function fetchQueuedTimelockOps(
 
 /** Outcome of the fleet pre-check, as the run needs it. */
 interface IPrefetchedWork {
-  /** Networks with at least one queued op. */
+  /** Networks worth opening an RPC for: queued ops to execute, blocked ops to re-check, or both. */
   networks: INetworksObject[string][]
   /**
    * Networks the prefetch could not check. Non-zero must fail the run even when
@@ -476,10 +494,243 @@ interface IPrefetchedWork {
 }
 
 /**
- * Pre-checks the fleet, reports the outcome, and returns only the networks that
- * have queued ops.
+ * Fetches `blocked` timelock ops for a network — rows the pre-execute guard
+ * refused for a durable reason. Never executed by this runner; read only so
+ * {@link alertBlockedOps} can keep them visible for as long as they stay
+ * executable on-chain.
  *
- * Exits non-zero immediately when nothing is pending but some networks could not
+ * @param networkName - Lowercase network name to filter by.
+ * @returns Blocked rows for the network.
+ */
+async function fetchBlockedTimelockOps(
+  networkName: string
+): Promise<ITimelockQueueDoc[]> {
+  const { client, timelockQueue } = await getTimelockQueueCollection()
+  try {
+    return await timelockQueue
+      .find({
+        network: { $eq: networkName.toLowerCase() },
+        status: { $eq: 'blocked' },
+      })
+      .toArray()
+  } finally {
+    await client.close()
+  }
+}
+
+/**
+ * Applies a reconciliation write only while the row is still `blocked`.
+ *
+ * `alertBlockedOps` reads its rows up front, then does per-row RPC work before
+ * writing, so an operator running `requeue-timelock-op.ts` in that window could
+ * otherwise have their `queued` row overwritten by a decision made against the
+ * older state. Guarding on `status` makes each write a compare-and-swap; a
+ * no-match means the operator won, which is the correct outcome and only worth a
+ * debug line.
+ *
+ * @param timelockQueue - The queue collection.
+ * @param networkName - Network slug of the row.
+ * @param operationId - Operation id of the row.
+ * @param update - The Mongo update to apply if the row is still blocked.
+ */
+async function reconcileBlockedRow(
+  timelockQueue: Collection<ITimelockQueueDoc>,
+  networkName: string,
+  operationId: Hex,
+  update: UpdateFilter<ITimelockQueueDoc>
+): Promise<void> {
+  const result = await timelockQueue.updateOne(
+    { ...byOperationId(networkName, operationId), status: { $eq: 'blocked' } },
+    update
+  )
+  if (result.matchedCount === 0)
+    consola.debug(
+      `[${networkName}] Skipped reconciling ${operationId}: no longer blocked (concurrently requeued or reconciled).`
+    )
+}
+
+/**
+ * Re-checks every `blocked` row for this network against the chain and keeps it
+ * from going quiet.
+ *
+ * Three outcomes matter. A blocked op that turns out to be `isOperationDone`
+ * (executed by hand, or by another path) is reconciled to `executed`, and one the
+ * controller no longer knows about is reconciled to `cancelled` — both stop being
+ * reported. A blocked op that is still `isOperationReady` is a live, executable
+ * operation the runner is deliberately ignoring: it gets a Slack alert, throttled
+ * by `blockedAlertedAt` so a standing block re-raises every few hours instead of
+ * once (EXSC-816) or every ten minutes.
+ *
+ * Never executes anything and never fails the run: a standing block is an
+ * already-reported operator task, not a malfunction of this run.
+ */
+async function alertBlockedOps(
+  publicClient: PublicClient,
+  timelockAddress: Address,
+  networkName: string,
+  isDryRun: boolean,
+  slackNotifier?: SlackNotifier
+): Promise<void> {
+  let blockedRows: ITimelockQueueDoc[]
+  try {
+    blockedRows = await fetchBlockedTimelockOps(networkName)
+  } catch (error) {
+    consola.warn(
+      `[${networkName}] Could not read blocked timelock ops: ${error}`
+    )
+    return
+  }
+  if (blockedRows.length === 0) return
+
+  const candidates: IBlockedOpCandidate[] = []
+  const doneRows: ITimelockQueueDoc[] = []
+  const goneRows: ITimelockQueueDoc[] = []
+  for (const row of blockedRows)
+    try {
+      // Readiness is read from the canonical controller, never the address the
+      // row carries. Surface a divergence rather than letting it silence the
+      // alert — going quiet is the failure mode this pass exists to prevent.
+      if (row.timelockAddress.toLowerCase() !== timelockAddress.toLowerCase())
+        consola.warn(
+          `[${networkName}] Blocked op ${row.operationId} records timelock ${row.timelockAddress}, ` +
+            `but the deployment's controller is ${timelockAddress}; reading readiness from the canonical one.`
+        )
+      const { isDone, isPending, isReady } = await checkOperationStatus(
+        publicClient,
+        timelockAddress,
+        row.operationId,
+        networkName
+      )
+      // `isOperation` is only read when done/pending/ready cannot already settle
+      // the classification, keeping the common path at three reads.
+      const isOperation =
+        isDone || isPending || isReady
+          ? true
+          : ((await publicClient.readContract({
+              address: timelockAddress,
+              abi: TIMELOCK_ABI,
+              functionName: 'isOperation',
+              args: [row.operationId],
+            })) as boolean)
+
+      switch (classifyBlockedRow({ isDone, isPending, isReady, isOperation })) {
+        case 'done':
+          doneRows.push(row)
+          break
+        case 'gone':
+          goneRows.push(row)
+          break
+        default:
+          candidates.push({ doc: row, onChainReady: isReady })
+      }
+    } catch (error) {
+      consola.warn(
+        `[${networkName}] On-chain check failed for blocked op ${row.operationId}: ${error}`
+      )
+      candidates.push({ doc: row, onChainReady: null })
+    }
+
+  const stillExecutable = candidates.filter(
+    (c) => c.onChainReady === true
+  ).length
+  const now = new Date()
+  const toAlert = selectBlockedNeedingAlert(candidates, now)
+
+  if (doneRows.length > 0 || goneRows.length > 0 || toAlert.length > 0)
+    try {
+      const { client, timelockQueue } = await getTimelockQueueCollection()
+      try {
+        for (const row of goneRows) {
+          consola.info(
+            `[${networkName}] Blocked op ${row.operationId} no longer exists on the controller (cancelled); reconciling queue row to cancelled.`
+          )
+          if (!isDryRun)
+            await reconcileBlockedRow(
+              timelockQueue,
+              networkName,
+              row.operationId,
+              {
+                $set: {
+                  status: 'cancelled',
+                  cancelledAt: now,
+                  updatedAt: now,
+                },
+                $unset: staleStatusMetadataUnset('cancelled'),
+              }
+            )
+        }
+        for (const row of doneRows) {
+          consola.info(
+            `[${networkName}] Blocked op ${row.operationId} is done on-chain; reconciling queue row to executed.`
+          )
+          if (!isDryRun)
+            await reconcileBlockedRow(
+              timelockQueue,
+              networkName,
+              row.operationId,
+              {
+                $set: { status: 'executed', executedAt: now, updatedAt: now },
+                $unset: staleStatusMetadataUnset('executed'),
+              }
+            )
+        }
+        for (const row of toAlert) {
+          consola.error(
+            `[${networkName}] 🚨 Blocked timelock op ${row.operationId} is READY on-chain and will not be auto-executed. ` +
+              `Reason: ${row.blockedReason ?? 'unknown'}`
+          )
+          if (isDryRun) continue
+          if (slackNotifier)
+            try {
+              await slackNotifier.notifyBlockedOperation({
+                network: networkName,
+                operationId: row.operationId,
+                safeTxHash: row.safeTxHash,
+                reason: row.blockedReason ?? 'unknown',
+                blockedAt: row.blockedAt,
+              })
+            } catch (error) {
+              consola.warn(
+                `[${networkName}] Failed to send blocked-op notification:`,
+                error
+              )
+            }
+          // Stamped regardless of Slack success: the console/CI log already
+          // carries the alert, and a webhook outage must not turn the throttle
+          // into a per-run alert storm once Slack recovers.
+          await reconcileBlockedRow(
+            timelockQueue,
+            networkName,
+            row.operationId,
+            {
+              $set: { blockedAlertedAt: now, updatedAt: now },
+            }
+          )
+        }
+      } finally {
+        await client.close()
+      }
+    } catch (error) {
+      consola.warn(
+        `[${networkName}] Could not update blocked timelock rows: ${error}`
+      )
+    }
+
+  if (stillExecutable > 0)
+    consola.warn(
+      `[${networkName}] ⚠️ ${stillExecutable} blocked timelock op(s) still executable on-chain — ` +
+        `inspect with: bunx tsx ./script/deploy/safe/list-timelock-queue.ts --network ${networkName} --attention`
+    )
+}
+
+/**
+ * Pre-checks the fleet, reports the outcome, and returns the networks worth
+ * opening an RPC for.
+ *
+ * A network whose only rows are `blocked` is returned too: it has nothing to
+ * execute, but {@link alertBlockedOps} must still re-check those rows on-chain.
+ *
+ * Exits non-zero immediately when there is no work but some networks could not
  * be checked: "0 pending" is only trustworthy if every network was actually
  * reached. When there *is* work, the run proceeds so the reachable networks are
  * executed, and the caller fails the run afterwards via `failedCount`.
@@ -490,8 +741,14 @@ interface IPrefetchedWork {
 async function prefetchNetworksWithPendingOps(
   networksToProcess: INetworksObject[string][]
 ): Promise<IPrefetchedWork> {
-  const { withPending, skipped, failed, mustExitWithError } =
-    classifyPrefetchResults(await fetchPendingForNetworks(networksToProcess))
+  const {
+    withPending,
+    withBlocked,
+    toProcess,
+    skipped,
+    failed,
+    mustExitWithError,
+  } = classifyPrefetchResults(await fetchPendingForNetworks(networksToProcess))
 
   consola.info(
     `Checked ${networksToProcess.length - skipped.length - failed.length} of ${
@@ -504,6 +761,14 @@ async function prefetchNetworksWithPendingOps(
         : ''
     }`
   )
+  if (withBlocked.length > 0)
+    consola.warn(
+      `${
+        withBlocked.length
+      } network(s) have blocked timelock op(s) awaiting operator action: ${withBlocked
+        .map((r) => `${r.network.name} (${r.blockedInMongoCount})`)
+        .join(', ')}`
+    )
   if (skipped.length > 0)
     consola.info(
       `Skipped ${
@@ -525,11 +790,11 @@ async function prefetchNetworksWithPendingOps(
     )
     process.exit(1)
   }
-  if (withPending.length === 0)
+  if (toProcess.length === 0)
     consola.success('No networks with pending timelock transactions.')
 
   return {
-    networks: withPending.map((r) => r.network),
+    networks: toProcess.map((r) => r.network),
     failedCount: failed.length,
   }
 }
@@ -587,6 +852,16 @@ async function processNetwork(
       publicClient,
       privateKeyHex: process.env.PRIVATE_KEY_PRODUCTION,
     })
+
+    // Runs before the ready-operations check so a network whose only rows are
+    // blocked still gets its on-chain re-check and alert.
+    await alertBlockedOps(
+      publicClient,
+      timelockAddress,
+      network.name,
+      isDryRun,
+      slackNotifier
+    )
 
     const {
       readyOperations,
@@ -811,15 +1086,11 @@ async function getPendingOperations(
           consola.warn(
             `[${networkName}] Queue row ${row.operationId} has empty arrays; marking failed.`
           )
-          await timelockQueue.updateOne(
-            byOperationId(row.network, row.operationId),
-            {
-              $set: {
-                status: 'failed',
-                failureReason: 'empty schedule arrays',
-                updatedAt: new Date(),
-              },
-            }
+          await markTimelockOpFailedInQueue(
+            timelockQueue,
+            row.network,
+            row.operationId,
+            'empty schedule arrays'
           )
           continue
         }
@@ -830,15 +1101,11 @@ async function getPendingOperations(
           consola.warn(
             `[${networkName}] Queue row ${row.operationId} has inconsistent array lengths; marking failed.`
           )
-          await timelockQueue.updateOne(
-            byOperationId(row.network, row.operationId),
-            {
-              $set: {
-                status: 'failed',
-                failureReason: 'inconsistent schedule array lengths',
-                updatedAt: new Date(),
-              },
-            }
+          await markTimelockOpFailedInQueue(
+            timelockQueue,
+            row.network,
+            row.operationId,
+            'inconsistent schedule array lengths'
           )
           continue
         }
@@ -857,15 +1124,11 @@ async function getPendingOperations(
           consola.error(
             `[${networkName}] ❌ operationId mismatch on queue row (stored=${row.operationId}, derived=${opId}); marking failed.`
           )
-          await timelockQueue.updateOne(
-            byOperationId(row.network, row.operationId),
-            {
-              $set: {
-                status: 'failed',
-                failureReason: 'operationId mismatch — possible tampered row',
-                updatedAt: new Date(),
-              },
-            }
+          await markTimelockOpFailedInQueue(
+            timelockQueue,
+            row.network,
+            row.operationId,
+            'operationId mismatch — possible tampered row'
           )
           continue
         }
@@ -878,15 +1141,11 @@ async function getPendingOperations(
           consola.error(
             `[${networkName}] ❌ timelockAddress mismatch on queue row (stored=${row.timelockAddress}, canonical=${timelockAddress}); marking failed.`
           )
-          await timelockQueue.updateOne(
-            byOperationId(row.network, row.operationId),
-            {
-              $set: {
-                status: 'failed',
-                failureReason: 'timelockAddress mismatch with deployment',
-                updatedAt: new Date(),
-              },
-            }
+          await markTimelockOpFailedInQueue(
+            timelockQueue,
+            row.network,
+            row.operationId,
+            'timelockAddress mismatch with deployment'
           )
           continue
         }
@@ -1078,35 +1337,136 @@ async function getPendingOperations(
 }
 
 /**
- * Marks a timelock queue row `failed` so the cron does not retry a batch that
- * failed pre-execute re-validation (stale folded removals). Best-effort: a Mongo
- * error is logged and does not change the caller's abort decision.
+ * Records a reverted `executeBatch` and, once the row has burned its retry
+ * budget, blocks it and alerts the CI notifications channel.
+ *
+ * Reverting is the one execution failure that is usually about the payload
+ * rather than the environment, so retrying it forever burns gas and buries the
+ * signal under an alert every ten minutes. Past
+ * {@link REVERT_BLOCK_THRESHOLD} the row becomes `blocked`, which hands it to
+ * the machinery that already exists for operator-owned states: `--attention` in
+ * the lister, the recurring standing-block reminder, and
+ * `requeue-timelock-op.ts` once the cause is cleared.
+ *
+ * The escalation goes to `WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS` (same
+ * convention as `reconcile-parked-tasks.ts`). An unattended run that has this
+ * alert to deliver and no webhook configured throws rather than dropping it —
+ * a silently undelivered alert is the failure mode this whole change exists to
+ * remove.
+ *
+ * Best-effort on the bookkeeping: a Mongo error is logged and does not change
+ * the caller's decision, which is already "this run failed".
  */
-async function markTimelockOpFailed(
+async function handleRevertedExecution(
   networkName: string,
-  operationId: Hex,
-  failureReason: string,
+  operation: ITimelockOperation,
+  txHash: string,
   networkPrefix: string
 ): Promise<void> {
+  let revertCount: number
   try {
     const { client, timelockQueue } = await getTimelockQueueCollection()
     try {
-      await timelockQueue.updateOne(byOperationId(networkName, operationId), {
-        $set: {
-          status: 'failed',
-          failureReason,
-          updatedAt: new Date(),
-        },
-      })
-      consola.info(
-        `${networkPrefix} Marked queue row ${operationId} as failed (${failureReason})`
+      revertCount = await recordTimelockOpRevert(
+        timelockQueue,
+        networkName,
+        operation.id,
+        txHash
       )
     } finally {
       await client.close()
     }
   } catch (error) {
     consola.warn(
-      `${networkPrefix} Failed to mark timelock queue row failed: ${error}`
+      `${networkPrefix} Could not record the reverted attempt for ${operation.id}: ${error}`
+    )
+    return
+  }
+
+  if (!shouldBlockAfterRevert(revertCount)) {
+    consola.warn(
+      `${networkPrefix} Operation ${operation.id} has reverted ${revertCount}/${REVERT_BLOCK_THRESHOLD} time(s); ` +
+        'leaving it queued in case the cause is transient.'
+    )
+    return
+  }
+
+  await blockTimelockOp(
+    networkName,
+    operation.id,
+    `executeBatch reverted on-chain ${revertCount} time(s); last tx ${txHash}`,
+    networkPrefix
+  )
+
+  const webhookUrl = process.env.WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS
+  if (!webhookUrl) {
+    const message =
+      `${networkPrefix} Operation ${operation.id} was blocked after ${revertCount} on-chain reverts, ` +
+      'but WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS is unset so the alert cannot be delivered. ' +
+      'Set the SLACK_WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS repository secret.'
+    if (isUnattendedRun()) throw new Error(message)
+    consola.warn(`${message} (local run: logged only)`)
+    return
+  }
+
+  try {
+    await new SlackNotifier(
+      webhookUrl,
+      process.env.TIMELOCK_RUN_URL
+    ).notifyRepeatedRevert({
+      network: networkName,
+      operationId: operation.id,
+      safeTxHash: operation.safeTxHash ?? 'unknown',
+      revertCount,
+      lastRevertTxHash: txHash,
+    })
+    consola.info(
+      `${networkPrefix} Alerted the CI notifications channel about ${operation.id}`
+    )
+  } catch (error) {
+    consola.error(
+      `${networkPrefix} Failed to alert the CI notifications channel about ${operation.id}:`,
+      error
+    )
+  }
+}
+
+/**
+ * Marks a timelock queue row `blocked` so the cron stops retrying a batch that
+ * failed pre-execute re-validation, without burying it: blocked rows stay
+ * visible in `list-timelock-queue`, are re-alerted by {@link alertBlockedOps}
+ * while they remain executable on-chain, and can be re-driven with
+ * `requeue-timelock-op.ts` once the cause is cleared.
+ *
+ * Best-effort: a Mongo error is logged and does not change the caller's abort
+ * decision.
+ */
+async function blockTimelockOp(
+  networkName: string,
+  operationId: Hex,
+  reason: string,
+  networkPrefix: string
+): Promise<void> {
+  try {
+    const { client, timelockQueue } = await getTimelockQueueCollection()
+    try {
+      await markTimelockOpBlocked(
+        timelockQueue,
+        networkName,
+        operationId,
+        reason
+      )
+      consola.info(
+        `${networkPrefix} Marked queue row ${operationId} as blocked (${reason}). ` +
+          `Re-drive with: bunx tsx ./script/deploy/safe/requeue-timelock-op.ts ` +
+          `--network ${networkName} --operationId ${operationId}`
+      )
+    } finally {
+      await client.close()
+    }
+  } catch (error) {
+    consola.warn(
+      `${networkPrefix} Failed to mark timelock queue row blocked: ${error}`
     )
   }
 }
@@ -1115,6 +1475,19 @@ async function markTimelockOpFailed(
 const FACETS_LOUPE_ABI = parseAbi([
   'function facets() view returns ((address facetAddress, bytes4[] functionSelectors)[])',
 ])
+
+/**
+ * Verdict of the pre-execute removal guard. `retry` and `blocked` both refuse
+ * the current run; they differ in what they persist, and conflating them is what
+ * turned a recoverable abort into a dead end (EXSC-816):
+ *
+ * - `ok` — safe to execute.
+ * - `retry` — a transient outage (parked-tasks queue or loupe RPC unreachable).
+ *   The row stays `queued`, so the next cron tick tries again on its own.
+ * - `blocked` — a durable condition an operator must clear. The row is flipped
+ *   to `blocked`: still visible, still re-alerted, never auto-retried.
+ */
+type GuardOutcome = 'ok' | 'retry' | 'blocked'
 
 /**
  * Pre-execute guard for folded parked facet removals. Rebuilds the propose-time
@@ -1126,11 +1499,7 @@ const FACETS_LOUPE_ABI = parseAbi([
  * (covers unlink after a best-effort drain link failure, and legacy
  * `cleanUpProdDiamond` until those removals park too).
  *
- * Transient Mongo/RPC failures refuse the run but leave the queue row `queued`
- * for retry. Only durable snapshot/stale/unvalidated failures mark the row
- * `failed`.
- *
- * @returns `'ok'` to continue execution, `'failed'` when the op must not run.
+ * @returns See {@link GuardOutcome}.
  */
 async function revalidateFoldedRemovalsOrAbort(
   operation: ITimelockOperation,
@@ -1139,7 +1508,7 @@ async function revalidateFoldedRemovalsOrAbort(
   isDryRun: boolean,
   notifyFailure: (error: unknown) => Promise<void>,
   publicClient: PublicClient
-): Promise<'ok' | 'failed'> {
+): Promise<GuardOutcome> {
   if (!operation.safeTxHash) return 'ok'
 
   const alertFailure = async (error: unknown): Promise<void> => {
@@ -1163,13 +1532,13 @@ async function revalidateFoldedRemovalsOrAbort(
     const removeHint = buildRemovalSnapshotFromPayloads(operation.payloads, [])
     if (removeHint.kind === 'none') return 'ok'
     consola.warn(
-      `${networkPrefix} ⚠️ Could not open parked-tasks queue to revalidate Remove cut(s); refusing execute (left queued for retry):`,
+      `${networkPrefix} ⚠️ Could not open parked-tasks queue to revalidate Remove cut(s); refusing execute (row left queued, next run retries):`,
       error
     )
     await alertFailure(
       new Error('parked-tasks queue unreachable for Remove revalidation')
     )
-    return 'failed'
+    return 'retry'
   }
 
   const built = buildRemovalSnapshotFromPayloads(
@@ -1190,14 +1559,14 @@ async function revalidateFoldedRemovalsOrAbort(
     const reason = `Remove diamondCut(s) present (${built.removeCutCount}) but no parked tasks for safeTxHash ${operation.safeTxHash} — cannot revalidate; aborting whole batch`
     consola.error(`${networkPrefix} ❌ ${reason}`)
     if (!isDryRun)
-      await markTimelockOpFailed(
+      await blockTimelockOp(
         networkName,
         operation.id,
         'Remove cuts without parked-task snapshot — cannot revalidate',
         networkPrefix
       )
     await alertFailure(new Error(reason))
-    return 'failed'
+    return 'blocked'
   }
 
   if (built.kind === 'mismatch') {
@@ -1205,7 +1574,7 @@ async function revalidateFoldedRemovalsOrAbort(
       `${networkPrefix} ❌ Folded-removal snapshot mismatch — aborting whole batch: ${built.reason}`
     )
     if (!isDryRun)
-      await markTimelockOpFailed(
+      await blockTimelockOp(
         networkName,
         operation.id,
         `folded-removal snapshot mismatch: ${built.reason}`,
@@ -1214,7 +1583,7 @@ async function revalidateFoldedRemovalsOrAbort(
     await alertFailure(
       new Error(`folded-removal snapshot mismatch: ${built.reason}`)
     )
-    return 'failed'
+    return 'blocked'
   }
 
   const diamondAddress = parked[0]?.diamondAddress
@@ -1223,19 +1592,19 @@ async function revalidateFoldedRemovalsOrAbort(
       `${networkPrefix} ❌ Parked tasks missing diamondAddress — aborting whole batch`
     )
     if (!isDryRun)
-      await markTimelockOpFailed(
+      await blockTimelockOp(
         networkName,
         operation.id,
         'parked tasks missing diamondAddress',
         networkPrefix
       )
     await alertFailure(new Error('parked tasks missing diamondAddress'))
-    return 'failed'
+    return 'blocked'
   }
 
-  let stale: Awaited<ReturnType<typeof revalidateRemovalsOnChain>>['stale']
+  let revalidated: Awaited<ReturnType<typeof revalidateRemovalsOnChain>>
   try {
-    ;({ stale } = await revalidateRemovalsOnChain(
+    revalidated = await revalidateRemovalsOnChain(
       networkName,
       diamondAddress,
       built.snapshot,
@@ -1249,44 +1618,39 @@ async function revalidateFoldedRemovalsOrAbort(
           return mapLoupeResult(raw)
         },
       }
-    ))
+    )
   } catch (error) {
     // Loupe/RPC blip — refuse this run but leave queued for retry.
     consola.error(
-      `${networkPrefix} ❌ Pre-execute removal revalidation failed — refusing execute (left queued for retry):`,
+      `${networkPrefix} ❌ Pre-execute removal revalidation failed — refusing execute (row left queued, next run retries):`,
       error
     )
     await alertFailure(error)
-    return 'failed'
+    return 'retry'
   }
 
-  if (stale.length === 0) {
+  if (revalidated.stale.length === 0) {
     consola.info(
       `${networkPrefix} ✅ Pre-execute removal revalidation OK (${built.snapshot.length} folded facet(s))`
     )
     return 'ok'
   }
 
-  const detail = stale
-    .map(
-      (s) =>
-        `${s.facet}:${s.selector} (${s.reason}${
-          s.currentAddress ? `→${s.currentAddress}` : ''
-        })`
-    )
-    .join('; ')
+  const { fullyObsolete, detail, remediation } =
+    describeStaleRemovals(revalidated)
+  const headline = fullyObsolete
+    ? 'Stale folded removals, ALL obsolete — aborting whole batch (primary cut included)'
+    : 'Stale folded removals — aborting whole batch (primary cut included)'
   consola.error(
-    `${networkPrefix} ❌ Stale folded removals — aborting whole batch (primary cut included). Cancel the timelock op and re-propose after a fresh loupe drain. Stale: ${detail}`
+    `${networkPrefix} ❌ ${headline}. ${remediation} Stale: ${detail}`
   )
+  const reason = `${
+    fullyObsolete ? 'obsolete' : 'stale'
+  } folded removals: ${detail}`
   if (!isDryRun)
-    await markTimelockOpFailed(
-      networkName,
-      operation.id,
-      `stale folded removals: ${detail}`,
-      networkPrefix
-    )
-  await alertFailure(new Error(`stale folded removals: ${detail}`))
-  return 'failed'
+    await blockTimelockOp(networkName, operation.id, reason, networkPrefix)
+  await alertFailure(new Error(`${reason}. ${remediation}`))
+  return 'blocked'
 }
 
 async function executeOperation(
@@ -1391,7 +1755,7 @@ async function executeOperation(
       notifyFailure,
       publicClient
     )
-    if (guard === 'failed') return 'failed'
+    if (guard !== 'ok') return 'failed'
   }
 
   try {
@@ -1492,6 +1856,13 @@ async function executeOperation(
         await notifyFailure(
           new Error(`executeBatch tx ${result.hash} reverted on-chain`)
         )
+        if (!isDryRun && networkName)
+          await handleRevertedExecution(
+            networkName,
+            operation,
+            result.hash,
+            networkPrefix
+          )
         return 'failed'
       }
 
@@ -1549,6 +1920,7 @@ async function executeOperation(
                 executionTxHash: hash,
                 updatedAt: now,
               },
+              $unset: staleStatusMetadataUnset('executed'),
             }
           )
           consola.info(
@@ -1699,4 +2071,9 @@ function formatTimeRemaining(seconds: bigint): string {
   return result
 }
 
+// Deliberately unguarded. An `import.meta.main` guard would make this module
+// importable, but should the flag ever read falsy for this entry the scheduled
+// run exits 0 having executed nothing, indistinguishable from a clean run.
+// Logic that needs test coverage goes into a sibling module instead
+// (timelock-prefetch.ts).
 runMain(cmd)
