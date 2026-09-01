@@ -1347,18 +1347,28 @@ describe('resolveSafeSigningOptions', () => {
     ).toThrow(/derivationPath.*ledgerLive|ledgerLive.*derivationPath/)
   })
 
-  it('ignores ledger sub-options when the ledger is not selected, rather than half-applying them', () => {
-    const resolved = resolveSafeSigningOptions({
-      envPrivateKey: 'abc123',
-      ledgerLive: true,
-      accountIndex: 5,
-    })
+  it.each([
+    ['ledgerLive', { ledgerLive: true }],
+    ['derivationPath', { derivationPath: "m/44'/60'/1'/0/0" }],
+  ])(
+    'refuses %s without --ledger rather than silently ignoring it',
+    (_label, ledgerOption) => {
+      // An operator who typed the sub-flag and forgot --ledger believes they
+      // signed from a hardware account. Ignoring the flag hides that; only the
+      // refusal tells them.
+      expect(() =>
+        resolveSafeSigningOptions({ envPrivateKey: 'abc123', ...ledgerOption })
+      ).toThrow(/without '--ledger'/)
+    }
+  )
+
+  it('reports no ledger options at all on the key path', () => {
+    const resolved = resolveSafeSigningOptions({ envPrivateKey: 'abc123' })
 
     expect(resolved.useLedger).toBe(false)
     expect(resolved.privateKey).toBe('abc123')
-    // The sub-options must not leak through: reporting a derivation path or a
-    // Ledger Live index for a key-signed proposal describes signing that did not
-    // happen.
+    // Reporting a derivation path or a Ledger Live index for a key-signed
+    // proposal describes signing that did not happen.
     expect(resolved.ledgerOptions).toEqual({
       ledgerLive: false,
       accountIndex: 0,

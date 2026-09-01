@@ -2099,9 +2099,17 @@ export const resolveSafeSigningOptions = (
 ): IResolvedSafeSigning => {
   const useLedger = options.ledger === true
 
-  if (useLedger && options.derivationPath && options.ledgerLive)
+  if (options.derivationPath && options.ledgerLive)
     throw new Error(
       "Cannot use both 'derivationPath' and 'ledgerLive' — they specify different derivation paths"
+    )
+
+  // Refused rather than ignored: silently dropping a derivation path the
+  // operator typed is how someone believes they signed from one account and
+  // signed from another.
+  if (!useLedger && (options.derivationPath || options.ledgerLive))
+    throw new Error(
+      "Ledger options were given without '--ledger', so nothing would use them. Add --ledger, or drop the Ledger options."
     )
 
   if (!useLedger && !options.envPrivateKey)

@@ -227,14 +227,42 @@ const command = defineCommand({
     const diamondName = 'LiFiDiamond'
 
     // A multi-word arg lands on whichever of the two spellings the caller typed,
-    // so both keys have to be read. `--ledger-live=true` arrives as the string
-    // 'true' rather than a boolean even on a `type: 'boolean'` arg, hence asFlag.
+    // so both keys have to be read.
     const raw = args as Record<string, unknown>
-    const asFlag = (value: unknown): boolean =>
-      value === true || value === 'true'
+
+    /**
+     * Reads a boolean flag, refusing any value it cannot interpret.
+     *
+     * The parsed value alone is not enough: citty coerces `--ledgerLive=no` to
+     * boolean `true`, indistinguishable from a bare `--ledgerLive`, so an
+     * operator turning the flag OFF turns it on and derives from a different
+     * account. The kebab spelling instead passes the raw string through
+     * (`--ledger-live=1` arrives as `'1'`). argv is therefore consulted for the
+     * `=` form before the parse is trusted — the same cross-check
+     * `propose-to-safe.ts` uses to catch citty dropping repeated flags.
+     */
+    const asFlag = (camel: string, kebab: string): boolean => {
+      const assigned = process.argv.find(
+        (a) => a.startsWith(`--${camel}=`) || a.startsWith(`--${kebab}=`)
+      )
+      const value =
+        assigned === undefined
+          ? raw[kebab] ?? raw[camel]
+          : assigned.slice(assigned.indexOf('=') + 1)
+
+      if (value === undefined || value === false || value === 'false')
+        return false
+      if (value === true || value === 'true') return true
+      throw new Error(
+        `--${camel} accepts no value, 'true' or 'false'; got '${String(
+          value
+        )}'. Pass --${camel} on its own to enable it.`
+      )
+    }
+
     const signing: SigningFlags = {
-      ledger: asFlag(raw.ledger),
-      ledgerLive: asFlag(raw['ledger-live'] ?? raw.ledgerLive),
+      ledger: asFlag('ledger', 'ledger'),
+      ledgerLive: asFlag('ledgerLive', 'ledger-live'),
       // Forwarded unconverted: `Number('')` is 0, so coercing here would turn
       // `--accountIndex "$UNSET_VAR"` into account 0 before the validation in
       // resolveSafeSigningOptions can refuse it.
@@ -265,6 +293,18 @@ const command = defineCommand({
     if (facetAddresses && allNetworks) {
       consola.error(
         '--facet-addresses targets one diamond and cannot be combined with --all-networks'
+      )
+      process.exit(1)
+    }
+
+    // A fleet sweep opens one Safe client per network and `initializeSafeClient`
+    // discards the Ledger's HID transport, so `closeLedgerConnection` can never
+    // reach it: 40+ networks means 40+ leaked transports and one device
+    // confirmation each. Refused rather than left to hang halfway through a
+    // sweep, which would leave some networks proposed and some not.
+    if (allNetworks && signing.ledger) {
+      consola.error(
+        '--ledger cannot be combined with --all-networks: each network opens its own Ledger connection and asks for its own confirmation. Run the networks individually with --network.'
       )
       process.exit(1)
     }
