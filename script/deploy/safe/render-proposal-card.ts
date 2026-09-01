@@ -58,6 +58,10 @@ const main = defineCommand({
       type: 'string',
       description: 'File to write the card to (default: stdout)',
     },
+    contract: {
+      type: 'string',
+      description: 'Contract the run touched, named in the headline',
+    },
   },
   async run({ args }) {
     if (!process.env.SC_MONGODB_URI)
@@ -120,7 +124,13 @@ const main = defineCommand({
           `No pending proposals found for: ${networks.join(', ')}`
         )
 
-      const card = renderProposalCard(proposals)
+      // The caller's network list is the run's own record of what succeeded, so
+      // it is the count to check against — a row missing here is a proposal
+      // that still needs signing.
+      const card = renderProposalCard(proposals, {
+        expectedCount: networks.length,
+        ...(args.contract ? { contract: args.contract } : {}),
+      })
       if (args.out) writeFileSync(args.out, `${card}\n`)
       else consola.log(card)
 

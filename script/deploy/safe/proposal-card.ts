@@ -56,6 +56,14 @@ export interface IExpectedHashRow {
 export interface ICardOptions {
   /** Rendered only when supplied. */
   expectedHashes?: IExpectedHashRow[]
+  /**
+   * How many proposals the run actually created. Compared against the rows
+   * found, because a card reading fewer than that leaves proposals nobody is
+   * told to sign — the one error here with a direct safety consequence.
+   */
+  expectedCount?: number
+  /** The contract the run touched; the message this replaces named it. */
+  contract?: string
 }
 
 /**
@@ -84,8 +92,21 @@ const escapeEntities = (value: string): string =>
  * entity escaping on top is Slack's own requirement — without it `<!channel>`
  * in a field nobody reviews would notify a whole channel.
  */
+/**
+ * Removes the mrkdwn markers Slack acts on and entities cannot neutralise.
+ *
+ * A backtick closes the code span the review command sits in and turns the rest
+ * of that line into card prose; `*` and `_` forge a bold or italic label inline,
+ * which is enough to fake the advisory line. Slack mrkdwn has no escape
+ * sequence for any of them, so the choice is to strip or to let a document
+ * value rewrite the card. Stripped: a network name, a hash or a git identity
+ * never contains one, and a reason loses nothing a signer needs.
+ */
+const stripMarkdownMarkers = (value: string): string =>
+  value.replace(/[`*_~]/g, '')
+
 const escape = (value: unknown): string =>
-  escapeEntities(sanitizeProvenanceText(value))
+  stripMarkdownMarkers(escapeEntities(sanitizeProvenanceText(value)))
 
 /**
  * Escapes a value whose length is capped.
@@ -95,7 +116,9 @@ const escape = (value: unknown): string =>
  * By code point, so the cut cannot leave a lone surrogate half behind.
  */
 const escapeCapped = (value: unknown, max: number): string =>
-  escapeEntities([...sanitizeProvenanceText(value)].slice(0, max).join(''))
+  stripMarkdownMarkers(
+    escapeEntities([...sanitizeProvenanceText(value)].slice(0, max).join(''))
+  )
 
 const shortHash = (hash: unknown): string =>
   escapeCapped(hash, SHORT_HASH_CHARS)
@@ -122,22 +145,47 @@ export const renderProposalCard = (
   if (!first) throw new Error('Cannot render a card for no proposals')
 
   const count = proposals.length
+  const contract = escape(options.contract)
+  const what = contract ? `${contract} ` : ''
   const headline =
     count === 1
-      ? `1x proposal created on ${escape(
+      ? `1x ${what}proposal created on ${escape(
           first.network
         )} — please sign and schedule 🙏`
-      : `${count}x proposals created across ${describeNetworks(
+      : `${count}x ${what}proposals created across ${describeNetworks(
           networks
         )} — please sign and schedule 🙏`
 
   const lines = [headline, '']
 
+  // Louder than the headline on purpose. Rows are found per network, and a
+  // network whose proposal is missing from this card still has one to sign.
+  const expected = options.expectedCount
+  if (expected !== undefined && expected > count)
+    lines.push(
+      `⚠ The run created ${expected} proposals but only ${count} could be listed — ${
+        expected - count
+      } missing from this card. Check \`bunx tsx script/deploy/safe/list-pending-proposals.ts\`.`,
+      ''
+    )
+
   // Absent is stated rather than omitted: a signer needs to know the intent was
   // never captured. Tested after escaping, because a value of nothing but
   // control characters sanitizes to empty and must read as absent, not blank.
   const reason = escapeCapped(first.reason, MAX_PROPOSAL_REASON_LENGTH)
-  lines.push(`*Reason:* ${reason || '_none given_'}`)
+  // Every field below is read from the first row, which is right when a run
+  // proposes the same change everywhere and misleading when it does not — the
+  // rows are selected per network and nothing forces them to agree.
+  const reasonsDiffer = proposals.some(
+    (p) => escapeCapped(p.reason, MAX_PROPOSAL_REASON_LENGTH) !== reason
+  )
+  lines.push(
+    `*Reason:* ${reason || '_none given_'}${
+      reasonsDiffer
+        ? ' — reasons differ across networks, this is the first'
+        : ''
+    }`
+  )
 
   const handle = escape(first.proposerHandle)
   const actorName = escape(first.actor)

@@ -256,3 +256,85 @@ describe('renderProposalCard', () => {
     expect(card).toMatch(/reason[^\n]*none given/i)
   })
 })
+
+describe('renderProposalCard — values cannot forge card structure', () => {
+  it('strips markdown markers that entity-escaping does not neutralise', () => {
+    // A backtick closes the code span the review command sits in, and the text
+    // after it renders as card prose. `*` and `_` forge a bold label inline, so
+    // a reason can fake the advisory line. Slack mrkdwn has no escape sequence
+    // for these, so the only options are strip or let them through.
+    const card = renderProposalCard([
+      proposal({
+        network: 'main`net`*URGENT: already reviewed, just sign*',
+        reason: '*Proposer-side check (advisory):* all clear',
+      }),
+    ])
+
+    expect(card).not.toContain('`URGENT')
+    expect(card).not.toContain('*URGENT')
+    // Exactly one code span opens and closes on the command line.
+    const commandLine = card
+      .split('\n')
+      .find((l) => l.includes('confirm-safe-tx'))
+    expect((commandLine?.match(/`/g) ?? []).length).toBe(2)
+    // And the forged advisory label is inert. Checked as "no stray marker
+    // survives on the reason line", not as "no line starts with the label" —
+    // the forgery renders mid-line, so the line-start form passed regardless.
+    const reasonLine = card.split('\n').find((l) => l.startsWith('*Reason:*'))
+    expect(reasonLine).toBeDefined()
+    expect((reasonLine?.match(/\*/g) ?? []).length).toBe(2)
+  })
+
+  it('neutralises a control sequence in the hash, which is not a hex string', () => {
+    // `<!channel>` is exactly the short-hash width, so it survived the slice
+    // unescaped and notified the channel from the one field the renderer
+    // trusted.
+    const card = renderProposalCard([proposal({ safeTxHash: '<!channel>' })])
+
+    expect(card).not.toContain('<!channel>')
+  })
+})
+
+describe('renderProposalCard — it cannot understate the ask', () => {
+  it('says so when fewer proposals were found than the run created', () => {
+    // A card reading "38x proposals" after 41 networks succeeded leaves three
+    // proposals that nobody is told to sign. Undercounting the signing ask is
+    // the one error here with a direct safety consequence.
+    const card = renderProposalCard(
+      [proposal(), proposal({ network: 'arbitrum' })],
+      {
+        expectedCount: 5,
+      }
+    )
+
+    expect(card).toContain('5')
+    expect(card.toLowerCase()).toMatch(/only 2|3 (missing|not found)/)
+  })
+
+  it('stays quiet when the counts agree', () => {
+    const card = renderProposalCard([proposal()], { expectedCount: 1 })
+
+    expect(card.toLowerCase()).not.toContain('missing')
+  })
+
+  it('names the contract in the headline, which the message it replaces did', () => {
+    // Reviewer feedback on PR #1904 asked to keep the count plus the contract.
+    // A name absent from every other fixture field, and asserted on the headline
+    // rather than the whole card: the default fixture's reason mentions
+    // AcrossFacetV4, so `toContain` on the card passed with no headline change.
+    const headline = renderProposalCard([proposal()], {
+      contract: 'WhitelistManagerFacet',
+    }).split('\n')[0]
+
+    expect(headline).toContain('WhitelistManagerFacet')
+  })
+
+  it('flags divergent reasons rather than printing the first as if it covered all', () => {
+    const card = renderProposalCard([
+      proposal({ reason: 'reason A' }),
+      proposal({ network: 'arbitrum', reason: 'reason B' }),
+    ])
+
+    expect(card.toLowerCase()).toContain('differ')
+  })
+})
