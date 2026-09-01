@@ -15,7 +15,6 @@ import {
   hasApiCredentials,
   hostOf,
   lowestPriorityFor,
-  prioritiesFor,
   repairOrder,
   selectEndpoints,
   type IRpcEndpoint,
@@ -299,28 +298,6 @@ describe('repairOrder', () => {
   })
 })
 
-describe('prioritiesFor', () => {
-  it('assigns strictly descending priorities with no ties', () => {
-    expect(prioritiesFor(3)).toEqual([3, 2, 1])
-  })
-
-  it('reproduces the repaired order when fed back through selectEndpoints', () => {
-    const repaired = repairOrder([
-      { url: KEYLESS_PROVIDER, priority: 4 },
-      { url: KEYED_DRPC, priority: 1 },
-    ])
-    const priorities = prioritiesFor(repaired.length)
-    const written = repaired.map((endpoint, index) => ({
-      ...endpoint,
-      priority: priorities[index] as number,
-    }))
-    expect(selectEndpoints(written, 'production').map((r) => r.url)).toEqual([
-      KEYED_DRPC,
-      KEYLESS_PROVIDER,
-    ])
-  })
-})
-
 describe('repairOrder with a reachability probe', () => {
   const DEAD_KEYED = 'https://dead.example.invalid/aaaaaaaaaaaaaaaaaaaaaaaa'
   const LIVE_KEYLESS = 'https://mainnet.example.invalid'
@@ -373,6 +350,34 @@ describe('repairOrder with a reachability probe', () => {
       DEAD_KEYED,
       other,
     ])
+  })
+
+  it('does not promote on credentials when every endpoint is down', () => {
+    // The keyless endpoint leads and both are down: a total outage carries no evidence about
+    // which should lead, so credentials must not move the primary.
+    const ordered: IRpcEndpoint[] = [
+      { url: LIVE_KEYLESS, priority: 2 },
+      { url: DEAD_KEYED, priority: 1 },
+    ]
+    expect(repairOrder(ordered, () => false).map((r) => r.url)).toEqual([
+      LIVE_KEYLESS,
+      DEAD_KEYED,
+    ])
+  })
+
+  it('still reorders when at least one endpoint is reachable', () => {
+    const ordered: IRpcEndpoint[] = [
+      { url: LIVE_KEYLESS, priority: 2 },
+      { url: LIVE_KEYED, priority: 1 },
+    ]
+    expect(repairOrder(ordered, reachable).map((r) => r.url)).toEqual([
+      LIVE_KEYED,
+      LIVE_KEYLESS,
+    ])
+  })
+
+  it('returns an empty list unchanged', () => {
+    expect(repairOrder([], () => false)).toEqual([])
   })
 
   it('defaults to credentials-only ordering when no probe was run', () => {

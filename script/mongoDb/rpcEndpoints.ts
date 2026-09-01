@@ -118,6 +118,10 @@ export function repairOrder(
   ordered: IRpcEndpoint[],
   isReachable: (url: string) => boolean = () => true
 ): IRpcEndpoint[] {
+  // A chain in total outage carries no signal about which endpoint should lead, so ranking one
+  // on credentials alone would move the primary on evidence we do not have.
+  if (ordered.length && !ordered.some((e) => isReachable(e.url))) return ordered
+
   const rank = (endpoint: IRpcEndpoint) =>
     (isReachable(endpoint.url) ? 0 : 2) +
     (hasApiCredentials(endpoint.url) ? 0 : 1)
@@ -126,11 +130,6 @@ export function repairOrder(
     .map((endpoint, index) => ({ endpoint, index }))
     .sort((a, b) => rank(a.endpoint) - rank(b.endpoint) || a.index - b.index)
     .map(({ endpoint }) => endpoint)
-}
-
-/** Descending priorities for a repaired order, highest first, leaving no ties. */
-export function prioritiesFor(count: number): number[] {
-  return Array.from({ length: count }, (_, index) => count - index)
 }
 
 /** Suffix carrying the lower-priority endpoints, consumed by the viem fallback transport. */

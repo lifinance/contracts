@@ -21,7 +21,6 @@ import { probeEndpoint } from './probeEndpoint'
 import {
   hasApiCredentials,
   hostOf,
-  prioritiesFor,
   repairOrder,
   selectEndpoints,
   type IRpcEndpoint,
@@ -213,16 +212,22 @@ const main = defineCommand({
       }
 
       for (const audit of broken) {
-        const priorities = prioritiesFor(audit.repaired.length)
-        // Keyed by position in the stored array, not by URL: a chain can list the same URL twice
-        // (two keys on one host), and a URL-keyed map collapses those into one entry, leaving the
-        // duplicates tied and the repair unable to converge.
-        const update: Record<string, unknown> = { lastUpdated: new Date() }
-        audit.repaired.forEach((endpoint, rank) => {
-          const storedIndex = audit.rpcs.indexOf(endpoint)
-          if (storedIndex !== -1)
-            update[`rpcs.${storedIndex}.priority`] = priorities[rank] as number
-        })
+        // Lift the correct primary above the rest and touch nothing else. Writing the whole
+        // repaired ranking would persist probe-derived fallback order over the operator's, on a
+        // signal too momentary to justify it.
+        //
+        // Addressed by position in the stored array rather than by URL: a chain can list the same
+        // URL twice under different keys, and a URL-keyed write hits both.
+        const newPrimary = audit.repaired[0]
+        const storedIndex = newPrimary ? audit.rpcs.indexOf(newPrimary) : -1
+        if (storedIndex === -1) continue
+        const highestPriority = Math.max(
+          ...audit.rpcs.map((endpoint) => endpoint.priority ?? 0)
+        )
+        const update: Record<string, unknown> = {
+          lastUpdated: new Date(),
+          [`rpcs.${storedIndex}.priority`]: highestPriority + 1,
+        }
         await collection.updateOne(
           { chainName: mongoEq(audit.chainName) },
           { $set: update }
