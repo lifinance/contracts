@@ -180,6 +180,34 @@ export interface IProposalIntent {
 }
 
 /**
+ * Picks the first value that carries something, treating blank as absent.
+ *
+ * `??` is not enough: citty hands back `''` for a valueless `--ticket`, which is
+ * not nullish, so a bare flag consumed the slot and the environment fallback was
+ * never consulted. The ticket half then refused with a message naming the
+ * variable the operator had exported, and the reason half failed open — it
+ * discarded `SAFE_PROPOSAL_REASON`, stored a reasonless proposal, and fed a
+ * false data point into the adoption counter the flip trigger reads.
+ *
+ * @param values - Candidates in precedence order, flag before environment.
+ * @returns The first one with non-blank content, or undefined.
+ */
+const firstSupplied = (
+  ...values: (string | undefined)[]
+): string | undefined => {
+  // citty hands back an ARRAY for a repeated flag, and reaching `.trim()` on one
+  // crashed with a TypeError from inside this helper. Which of two tickets a
+  // proposal is filed under is not a choice to make quietly either way.
+  for (const value of values)
+    if (Array.isArray(value))
+      throw new Error(
+        `A flag was given more than once (${value.length}×). Pass it once.`
+      )
+
+  return values.find((value) => (value ?? '').trim() !== '')
+}
+
+/**
  * Resolves the human intent that travels with a proposal.
  *
  * The ticket blocks and the reason does not: the ticket is the durable anchor
@@ -193,10 +221,12 @@ export interface IProposalIntent {
 export const resolveProposalIntent = (
   input: IProposalIntentInput
 ): IProposalIntent => {
-  const ticket = parseTicketLink(input.ticket ?? input.envTicket)
+  const ticket = parseTicketLink(firstSupplied(input.ticket, input.envTicket))
   if (!ticket.ok) throw new Error(ticket.message)
 
-  const reason = normalizeProposalReason(input.reason ?? input.envReason)
+  const reason = normalizeProposalReason(
+    firstSupplied(input.reason, input.envReason)
+  )
 
   return {
     ticketUrl: ticket.url,

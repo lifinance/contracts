@@ -384,3 +384,81 @@ describe('parseTicketLink — https only, and bounded', () => {
     if (!result.ok) expect(result.message).toContain('not a parseable URL')
   })
 })
+
+describe('resolveProposalIntent — a valueless flag must not defeat its own fallback', () => {
+  it.each([
+    ['empty string', ''],
+    ['whitespace', '   '],
+  ])(
+    'falls back to the environment when --ticket carries %s',
+    (_label, ticket) => {
+      // citty returns '' for a bare `--ticket`, and `??` only falls back on
+      // nullish — so a bare flag threw "no ticket supplied" while the variable
+      // was exported, a message contradicting the operator's own environment.
+      expect(
+        resolveProposalIntent({ ticket, envTicket: 'EXSC-694' }).ticketUrl
+      ).toBe('https://linear.app/lifi-linear/issue/EXSC-694')
+    }
+  )
+
+  it.each([
+    ['empty string', ''],
+    ['whitespace', '   '],
+  ])(
+    'falls back to the environment when --reason carries %s',
+    (_label, reason) => {
+      // This half failed OPEN: the empty flag silently discarded
+      // SAFE_PROPOSAL_REASON, stored a reasonless proposal, and fed a false
+      // data point into the OQ3 adoption counter.
+      expect(
+        resolveProposalIntent({
+          ticket: 'EXSC-1',
+          reason,
+          envReason: 'rotate the pauser key',
+        }).reason
+      ).toBe('rotate the pauser key')
+    }
+  )
+
+  it('still refuses when neither the flag nor the environment has a ticket', () => {
+    expect(() => resolveProposalIntent({ ticket: '' })).toThrow(
+      /SAFE_PROPOSAL_TICKET/
+    )
+  })
+
+  it('still reports a missing reason when both are empty', () => {
+    expect(
+      resolveProposalIntent({ ticket: 'EXSC-1', reason: '', envReason: '' })
+        .reasonMissing
+    ).toBe(true)
+  })
+})
+
+describe('resolveProposalIntent — a repeated flag is refused, not crashed on', () => {
+  it('refuses a repeated --ticket rather than picking one', () => {
+    // citty hands back an ARRAY for a repeated flag. Which of two tickets a
+    // proposal is filed under is not something to decide quietly, and the
+    // previous code crashed with a TypeError from deep inside a helper.
+    expect(() =>
+      resolveProposalIntent({
+        ticket: ['EXSC-2', 'EXSC-3'] as unknown as string,
+      })
+    ).toThrow(/more than once/)
+  })
+
+  it('refuses a repeated --reason too', () => {
+    expect(() =>
+      resolveProposalIntent({
+        ticket: 'EXSC-1',
+        reason: ['a', 'b'] as unknown as string,
+      })
+    ).toThrow(/more than once/)
+  })
+
+  it('still accepts a single value of each', () => {
+    const intent = resolveProposalIntent({ ticket: 'EXSC-1', reason: 'why' })
+
+    expect(intent.ticketUrl).toContain('EXSC-1')
+    expect(intent.reason).toBe('why')
+  })
+})
