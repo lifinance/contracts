@@ -1565,7 +1565,7 @@ export function buildProposalProvenance(
 }
 
 const INTENT_INDEX_NAME = 'unique_pending_intent_hash'
-const IN_FLIGHT_NONCE_INDEX_NAME = 'unique_inflight_safe_nonce'
+const IN_FLIGHT_NONCE_INDEX_NAME = 'unique_inflight_safe_nonce_ci'
 const NONCE_KEY_PATH = 'safeTx.data.nonce'
 
 /**
@@ -1574,7 +1574,8 @@ const NONCE_KEY_PATH = 'safeTx.data.nonce'
  *
  * `propose-to-safe-tron.ts` stores a Safe address as lowercase hex
  * (`tronBase58ToEvm20Hex`) while the `initializeSafeClient` path stores the
- * checksummed form, so one Safe has two spellings in this collection.
+ * checksummed form, so one Safe has two spellings in this collection. Comparing
+ * raw makes a nonce collision on Tron deterministic rather than merely possible.
  */
 const ADDRESS_COLLATION = { locale: 'en', strength: 2 } as const
 
@@ -1767,74 +1768,6 @@ async function ensurePendingProposalIndex(
   }
 }
 
-/** The index definition {@link ensureInFlightNonceIndex} creates. */
-const IN_FLIGHT_NONCE_INDEX_KEY_FIELDS = [
-  'safeAddress',
-  'network',
-  'chainId',
-  NONCE_KEY_PATH,
-] as const
-
-/**
- * Whether an existing index of our name is the one we rely on.
- *
- * Every property is compared, not just uniqueness. An index that is unique over
- * the wrong fields, or over the right fields without the collation, still reads
- * as "an index exists" while enforcing something other than what the caller is
- * about to depend on — and a partial guarantee reported as a whole one is worse
- * than none.
- *
- * Key order is not compared: uniqueness over a tuple does not depend on it.
- *
- * @param existing - one entry from `collection.indexes()`, or undefined when absent.
- * @returns true only when the index enforces in-flight nonce uniqueness case-insensitively.
- */
-export const inFlightNonceIndexMatchesSpec = (
-  existing:
-    | {
-        key?: Record<string, unknown>
-        unique?: boolean
-        partialFilterExpression?: unknown
-        collation?: unknown
-      }
-    | undefined
-): boolean => {
-  if (!existing?.unique) return false
-
-  const keyFields = Object.keys(existing.key ?? {})
-  if (
-    keyFields.length !== IN_FLIGHT_NONCE_INDEX_KEY_FIELDS.length ||
-    !IN_FLIGHT_NONCE_INDEX_KEY_FIELDS.every((field) =>
-      keyFields.includes(field)
-    )
-  )
-    return false
-
-  // A case-sensitive index cannot see two spellings of one Safe address, which
-  // is the whole reason ADDRESS_COLLATION exists.
-  const collation = existing.collation as
-    | { locale?: string; strength?: number }
-    | undefined
-  if (collation?.strength !== ADDRESS_COLLATION.strength) return false
-
-  const filter = existing.partialFilterExpression as
-    | { status?: unknown }
-    | undefined
-
-  // An unfiltered index constrains `executed` and `reverted` rows too, and
-  // history legitimately holds many rows per nonce — so it would reject valid
-  // writes. Replaced rather than accepted, so every environment converges on one
-  // definition.
-  if (filter?.status === undefined) return false
-
-  const statuses =
-    typeof filter.status === 'object' && filter.status !== null
-      ? (filter.status as { $in?: unknown[] }).$in ?? []
-      : [filter.status]
-
-  return statuses.includes('pending') && statuses.includes('submitted')
-}
-
 /**
  * Creates the index, in exactly one place so a replacement cannot drift from the
  * definition the first attempt used.
@@ -1875,6 +1808,12 @@ const createInFlightNonceIndex = async (
  *
  * Compares under {@link ADDRESS_COLLATION}, as does `getNextNonce`, so the index
  * and the read that feeds it cannot disagree about which rows exist.
+ *
+ * The `_ci` suffix is load-bearing: it ties the name to the definition, so an
+ * index built to any other definition carries a different name and needs neither
+ * detection nor replacement. A pre-`_ci` index left behind by an earlier build is
+ * strictly weaker than this one and constrains a subset of the same writes, so it
+ * is redundant rather than harmful.
  * @param pendingTransactions - MongoDB collection
  */
 async function ensureInFlightNonceIndex(
@@ -1883,7 +1822,7 @@ async function ensureInFlightNonceIndex(
   try {
     await createInFlightNonceIndex(pendingTransactions)
   } catch (error: unknown) {
-    let code =
+    const code =
       error instanceof Error && 'code' in error
         ? (error as { code: number }).code
         : undefined
@@ -1891,40 +1830,11 @@ async function ensureInFlightNonceIndex(
     // 85 = exists with same options.
     if (code === 85) return
 
-    // 86 = an index of this name exists with a different definition. Replaced
-    // rather than refused: throwing here propagates out of
-    // `getSafeMongoCollection`, which every Safe script calls, so a drifted index
-    // would also stop confirming and executing proposals already pending.
-    if (code === 86) {
-      const existing = (await pendingTransactions.indexes()).find(
-        (index) => index.name === IN_FLIGHT_NONCE_INDEX_NAME
-      )
-
-      if (inFlightNonceIndexMatchesSpec(existing)) return
-
-      consola.warn(
-        `${IN_FLIGHT_NONCE_INDEX_NAME} exists with a definition that does not enforce case-insensitive ` +
-          `in-flight nonce uniqueness; replacing it.`
-      )
-
-      try {
-        await pendingTransactions.dropIndex(IN_FLIGHT_NONCE_INDEX_NAME)
-        await createInFlightNonceIndex(pendingTransactions)
-        return
-      } catch (replaceError: unknown) {
-        const replaceCode =
-          replaceError instanceof Error && 'code' in replaceError
-            ? (replaceError as { code: number }).code
-            : undefined
-
-        // Falls through to the shared handling below so a permission or
-        // colliding-data failure during replacement reads the same as one during
-        // the first attempt — the outcome is identical: no usable index.
-        if (replaceCode !== 13 && replaceCode !== 11000) throw replaceError
-
-        code = replaceCode
-      }
-    }
+    // 86 (same name, different definition) is deliberately not handled: the name
+    // encodes the definition, so an index that differs has a different name and
+    // is simply another index. Nothing is ever dropped — dropping to rebuild can
+    // leave the collection with no constraint at all when the rebuild then fails
+    // on colliding data.
 
     if (code === 13) {
       consola.warn(

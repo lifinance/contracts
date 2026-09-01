@@ -10,7 +10,8 @@
  * this must not mutate the schema whose creation it is asked to explain.
  *
  * Grouping matches the index's collation, so a group listed here is a pair the
- * index build will reject.
+ * index build will reject. Rows whose `safeAddress` or `network` is not a string
+ * are reported separately and are outside that guarantee.
  */
 
 import 'dotenv/config'
@@ -55,32 +56,21 @@ const main = defineCommand({
 
       const groups = (await collection
         .aggregate([
-          { $match: { status: { $in: ['pending', 'submitted'] } } },
+          {
+            $match: {
+              status: { $in: ['pending', 'submitted'] },
+              // Non-string addresses are counted separately: coercing them to a
+              // shared placeholder would group unrelated Safes into one row and
+              // report collisions that the index does not see.
+              safeAddress: { $type: 'string' },
+              network: { $type: 'string' },
+            },
+          },
           {
             $group: {
               _id: {
-                // `$convert` with onError, not `$toString`: one malformed row
-                // would otherwise abort the whole diagnostic.
-                safeAddress: {
-                  $toLower: {
-                    $convert: {
-                      input: '$safeAddress',
-                      to: 'string',
-                      onError: '(unconvertible)',
-                      onNull: '(none)',
-                    },
-                  },
-                },
-                network: {
-                  $toLower: {
-                    $convert: {
-                      input: '$network',
-                      to: 'string',
-                      onError: '(unconvertible)',
-                      onNull: '(none)',
-                    },
-                  },
-                },
+                safeAddress: { $toLower: '$safeAddress' },
+                network: { $toLower: '$network' },
                 chainId: '$chainId',
                 nonce: '$safeTx.data.nonce',
               },
@@ -98,6 +88,20 @@ const main = defineCommand({
           { $sort: { count: -1 } },
         ])
         .toArray()) as ICollisionGroup[]
+
+      const malformed = await collection.countDocuments({
+        status: { $in: ['pending', 'submitted'] },
+        $or: [
+          { safeAddress: { $not: { $type: 'string' } } },
+          { network: { $not: { $type: 'string' } } },
+        ],
+      })
+
+      if (malformed > 0)
+        consola.warn(
+          `${malformed} in-flight row(s) have a non-string safeAddress or network and were not ` +
+            `grouped. They are outside the index's guarantee — inspect them directly.`
+        )
 
       if (groups.length === 0) {
         consola.success(
@@ -130,7 +134,7 @@ const main = defineCommand({
         )
       }
 
-      // Not `process.exit`: that skips the finally below, leaving the client open.
+      // `process.exit` here would skip the finally below and leave the client open.
       process.exitCode = 1
     } finally {
       await client.close()
