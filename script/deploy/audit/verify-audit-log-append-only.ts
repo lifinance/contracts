@@ -33,7 +33,18 @@ const readLogAt = (
   const contents = createGitSourceReader(treeish, cwd).readFile(path)
   if (contents === undefined) return undefined
 
-  return JSON.parse(contents) as IAuditLogFile
+  try {
+    return JSON.parse(contents) as IAuditLogFile
+  } catch (error: unknown) {
+    // Not returned as undefined: that means "absent", and an absent log at base
+    // is a pass. Malformed is the opposite — the guard cannot tell what was
+    // recorded, so it must not report the file as untouched.
+    throw new Error(
+      `${path} at ${treeish} is not valid JSON, so the audit log cannot be compared: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    )
+  }
 }
 
 const main = defineCommand({

@@ -303,12 +303,28 @@ describe('computeSourceClosureHash', () => {
     )
   })
 
-  it('binds content to path — swapping two files contents changes the hash', () => {
-    const swapped = {
-      'src/Foo.sol': 'import { A } from "./A.sol";',
-      'src/A.sol': 'import { A } from "./A.sol";',
+  it("binds content to path — exchanging two leaves' contents changes the hash", () => {
+    // Same path set and the same multiset of contents in both versions, with the
+    // two leaves' bodies exchanged. A hash over concatenated contents alone
+    // would be identical here, so this fails unless path is part of the preimage.
+    const entry = 'import { A } from "./A.sol";\nimport { B } from "./B.sol";'
+    const before = {
+      'src/Foo.sol': entry,
+      'src/A.sol': 'contract A { uint256 x; }',
+      'src/B.sol': 'contract B { uint256 y; }',
     }
-    expect(hashOf(base)).not.toBe(hashOf(swapped))
+    const exchanged = {
+      'src/Foo.sol': entry,
+      'src/A.sol': 'contract B { uint256 y; }',
+      'src/B.sol': 'contract A { uint256 x; }',
+    }
+
+    // Asserted, not just claimed: if these multisets ever diverge the test would
+    // pass for the wrong reason, which is what it replaced.
+    expect(Object.values(before).sort()).toEqual(
+      Object.values(exchanged).sort()
+    )
+    expect(hashOf(before)).not.toBe(hashOf(exchanged))
   })
 })
 

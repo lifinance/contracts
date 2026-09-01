@@ -99,10 +99,21 @@ const main = defineCommand({
       process.exit(EXIT_ERROR)
     }
 
-    const raw =
-      source.kind === 'provided'
-        ? source.raw
-        : readFileSync(source.path, 'utf8')
+    let raw: string
+    try {
+      raw =
+        source.kind === 'provided'
+          ? source.raw
+          : readFileSync(source.path, 'utf8')
+    } catch (error: unknown) {
+      consola.error(
+        `Could not read the contract list at ${
+          source.kind === 'file' ? source.path : '(inline)'
+        }: ${error instanceof Error ? error.message : String(error)}`
+      )
+      process.exit(EXIT_ERROR)
+    }
+
     const paths = parseContractList(raw)
 
     if (paths.length === 0) {
@@ -111,9 +122,21 @@ const main = defineCommand({
     }
 
     const cwd = process.cwd()
-    const log = JSON.parse(
-      readFileSync(args.auditLog ?? DEFAULT_AUDIT_LOG, 'utf8')
-    ) as IAuditLogFile
+    const auditLogPath = args.auditLog ?? DEFAULT_AUDIT_LOG
+    let log: IAuditLogFile
+    try {
+      log = JSON.parse(readFileSync(auditLogPath, 'utf8')) as IAuditLogFile
+    } catch (error: unknown) {
+      // ERROR, not FAIL: an unreadable or malformed log means the gate has no
+      // expectation to compare against, which per T3 blocks without an
+      // acknowledgement path rather than reading as an unaudited contract.
+      consola.error(
+        `Could not read the audit log at ${auditLogPath}: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      )
+      process.exit(EXIT_ERROR)
+    }
 
     if (args.prTitle)
       consola.info(
