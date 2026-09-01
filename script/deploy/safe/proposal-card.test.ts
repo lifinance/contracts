@@ -564,3 +564,99 @@ describe('renderProposalCard — a rejected link is not echoed', () => {
     expect(card).toContain('not a link')
   })
 })
+
+describe('renderProposalCard — an unreadable dirty-tree field is not clean', () => {
+  it.each([
+    ['a string', 'src/Facets/Foo.sol'],
+    ['an object', { a: 1 }],
+    ['a number', 7],
+  ])(
+    'warns when dirtyTreeScoped is %s, rather than reading as clean',
+    (_label, dirtyTreeScoped) => {
+      // A row carrying SOMETHING in this field is a row that said the tree was
+      // dirty. Requiring an array meant a legacy or hand-edited row of the wrong
+      // shape rendered no warning at all — the same "reads as clean" failure as
+      // taking the field from row zero, arriving by a different route.
+      const card = renderProposalCard([
+        proposal(),
+        proposal({ network: 'arbitrum', dirtyTreeScoped }),
+      ])
+
+      const line = card.split('\n').find((l) => l.startsWith('*Working tree:*'))
+      expect(line).toBeDefined()
+      expect(line).toContain('arbitrum')
+      expect(line).toMatch(/could not be read/)
+    }
+  )
+
+  it('stays clean when the field is absent or an empty array', () => {
+    const absent = renderProposalCard([
+      proposal(),
+      proposal({ network: 'base' }),
+    ])
+    const empty = renderProposalCard([
+      proposal({ dirtyTreeScoped: [] }),
+      proposal({ network: 'base', dirtyTreeScoped: [] }),
+    ])
+
+    expect(absent).not.toContain('*Working tree:*')
+    expect(empty).not.toContain('*Working tree:*')
+  })
+})
+
+describe('renderProposalCard — the unions cannot become the overflow', () => {
+  /** Same shape at two very different row counts; the line must not grow. */
+  const lineAt = (
+    rows: number,
+    label: string,
+    build: (i: number) => ICardProposal
+  ): number => {
+    const line = renderProposalCard([
+      proposal({ network: 'clean-one' }),
+      ...Array.from({ length: rows }, (_, i) => build(i)),
+    ])
+      .split('\n')
+      .find((l) => l.startsWith(label))
+
+    // Throws rather than defaulting to 0. A `?? 0` here let an ABSENT line
+    // satisfy the delta assertion below — unbounded growth truncated the line
+    // off the card entirely, and the test passed on its absence.
+    if (line === undefined)
+      throw new Error(`no line starting "${label}" at ${rows} rows`)
+    return line.length
+  }
+
+  // Asserted as "does not scale with the row count" rather than against a
+  // character threshold. A threshold is a guess that has to be retuned whenever
+  // a cap moves; not scaling is the property that makes a union safe to add.
+  it('bounds the network list on the working-tree line', () => {
+    const build = (i: number): ICardProposal =>
+      proposal({
+        network: `chain${'n'.repeat(300)}${i}`,
+        dirtyTreeScoped: ['src/Facets/Foo.sol'],
+      })
+
+    const small = lineAt(5, '*Working tree:*', build)
+    const large = lineAt(400, '*Working tree:*', build)
+
+    expect(small).toBeGreaterThan(0)
+    // 80× the rows may add only the digits of the "…and N more" count. Growth
+    // proportional to the row count is the defect: unbounded, this line measured
+    // 7,556 characters.
+    expect(large - small).toBeLessThan(10)
+  })
+
+  it('bounds the actor list', () => {
+    const build = (i: number): ICardProposal =>
+      // Index FIRST: with it last, every actor truncates to the same 200
+      // characters at the field cap, dedupes to one, and the fixture measures a
+      // bound that was already there.
+      proposal({ network: `chain${i}`, actor: `bot-${i}-${'a'.repeat(200)}` })
+
+    const small = lineAt(5, '*Proposed by:*', build)
+    const large = lineAt(400, '*Proposed by:*', build)
+
+    expect(small).toBeGreaterThan(0)
+    expect(large - small).toBeLessThan(10)
+  })
+})

@@ -159,6 +159,18 @@ const renderLink = (value: unknown): string => {
   return '— recorded value is not a link, withheld'
 }
 
+/**
+ * Joins a list, naming the first few and counting the rest.
+ *
+ * @param items - Already-escaped values.
+ * @param limit - How many to name.
+ * @returns The rendered fragment.
+ */
+const summarise = (items: string[], limit: number): string =>
+  items.length <= limit
+    ? items.join(', ')
+    : `${items.slice(0, limit).join(', ')}, …and ${items.length - limit} more`
+
 const shortHash = (hash: unknown): string =>
   escapeCapped(hash, SHORT_HASH_CHARS)
 
@@ -254,7 +266,10 @@ export const renderProposalCard = (
   const nonHuman = [
     ...new Set(proposals.map((p) => escape(p.actor)).filter(Boolean)),
   ].filter((a) => a !== 'human')
-  const actor = nonHuman.length > 0 ? ` (${nonHuman.join(', ')})` : ''
+  // Bounded like any other field: a union grows with the row count, so without
+  // this the list is itself a value that can consume the card.
+  const actor =
+    nonHuman.length > 0 ? ` (${summarise(nonHuman, NAMED_NETWORK_LIMIT)})` : ''
   lines.push(`*Proposed by:* ${handle || 'unknown'}${actor}`)
 
   const gitCommit = escapeCapped(first.gitCommit, SHORT_COMMIT_CHARS)
@@ -266,28 +281,39 @@ export const renderProposalCard = (
   // Capped at the same limit capture uses.
   //
   // Union across rows: a dirty tree on any network must never read as clean.
+  // A row carrying anything at all in this field is a row that reported a dirty
+  // tree. Requiring an array let a value of the wrong shape render as clean.
   const dirtyRows = proposals.filter(
+    (p) => p.dirtyTreeScoped !== undefined && p.dirtyTreeScoped !== null
+  )
+  const usable = dirtyRows.filter(
     (p) => Array.isArray(p.dirtyTreeScoped) && p.dirtyTreeScoped.length > 0
   )
-  if (dirtyRows.length > 0) {
+  const unreadable = dirtyRows.filter((p) => !Array.isArray(p.dirtyTreeScoped))
+
+  if (usable.length > 0 || unreadable.length > 0) {
     const paths = [
       ...new Set(
-        dirtyRows.flatMap((p) => (p.dirtyTreeScoped as unknown[]).map(escape))
+        usable.flatMap((p) => (p.dirtyTreeScoped as unknown[]).map(escape))
       ),
     ].filter(Boolean)
-    const more =
-      paths.length > MAX_DIRTY_PATHS
-        ? `, …and ${paths.length - MAX_DIRTY_PATHS} more`
-        : ''
+    const reported = [...usable, ...unreadable]
     const where =
-      dirtyRows.length === proposals.length
+      reported.length === proposals.length
         ? ''
-        : ` (on ${dirtyRows.map((p) => escape(p.network)).join(', ')})`
-    lines.push(
-      `*Working tree:* dirty${where} — ${paths
-        .slice(0, MAX_DIRTY_PATHS)
-        .join(', ')}${more}`
-    )
+        : ` (on ${summarise(
+            reported.map((p) => escape(p.network)),
+            NAMED_NETWORK_LIMIT
+          )})`
+    const detail =
+      paths.length > 0
+        ? summarise(paths, MAX_DIRTY_PATHS)
+        : 'paths could not be read'
+    const shapeNote =
+      unreadable.length > 0 && paths.length > 0
+        ? '; some paths could not be read'
+        : ''
+    lines.push(`*Working tree:* dirty${where} — ${detail}${shapeNote}`)
   }
 
   const checkSummary = escape(first.checkSummary)
