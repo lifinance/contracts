@@ -1,17 +1,9 @@
 /**
- * Reads CLI flags straight from `argv` for the cases where the parser's output
- * cannot be trusted.
- *
- * citty's parse is lossy in ways that matter on a signing path. For a
- * `type: 'boolean'` argument it coerces any value that is not `false` to
- * boolean `true`, so `--ledgerLive=no` is indistinguishable from a bare
- * `--ledgerLive`; a space-separated value is discarded entirely; and a repeated
- * flag keeps one occurrence with no indication that there were two.
- *
- * No predicate over the parsed value can recover any of this — the information
- * is gone before the command body runs. So these readers work on `argv`, accept
- * exactly the forms an operator can be told about, and refuse everything else
- * rather than picking a meaning.
+ * Reads CLI flags straight from `argv`, refusing any form whose meaning is not
+ * unambiguous. Import it in a citty command that reads a signing flag: citty
+ * cannot distinguish `--ledgerLive=no` from a bare `--ledgerLive`, discards a
+ * space-separated value, and keeps one occurrence of a repeated flag, and none
+ * of that is recoverable once the command body runs.
  */
 
 export interface IFlagName {
@@ -21,7 +13,6 @@ export interface IFlagName {
   kebab: string
 }
 
-/** Where a flag was found, and what followed it. */
 interface IOccurrence {
   /** The `=value`, or undefined for a bare flag. */
   assigned?: string

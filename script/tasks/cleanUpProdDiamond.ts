@@ -229,9 +229,7 @@ const command = defineCommand({
     let { network, environment } = args
     const diamondName = 'LiFiDiamond'
 
-    // Read from argv, not from the parsed args: citty's output cannot represent
-    // the difference between `--ledgerLive` and `--ledgerLive=no`, and drops a
-    // space-separated value entirely. See `cli-flags.ts`.
+    // Read from argv, not from `args` — see `cli-flags.ts`.
     const signing: SigningFlags = {
       ledger: readBooleanFlag(process.argv, {
         camel: 'ledger',
@@ -257,8 +255,7 @@ const command = defineCommand({
      * `initializeSafeClient` keeps the Ledger account and discards its HID
      * transport, so `closeLedgerConnection` can never reach it: each proposal in
      * a run opens another transport that is never closed, and asks for its own
-     * device confirmation. Failing up front beats stalling partway through, which
-     * would leave some targets proposed and some not.
+     * device confirmation.
      *
      * @param count - How many proposals the chosen mode will create.
      * @param what - Named in the error so the operator knows which flag to split.
@@ -695,10 +692,7 @@ function assertGovernedProductionRemoval(
   }
 }
 
-/**
- * How the operator chose to sign, forwarded unchanged from the CLI down to
- * {@link sendOrPropose}.
- */
+/** Forwarded unchanged from the CLI down to {@link sendOrPropose}. */
 type SigningFlags = Omit<
   ISafeSigningOptions,
   'envPrivateKey' | 'envPrivateKeyName'

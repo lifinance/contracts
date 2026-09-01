@@ -36,8 +36,6 @@ describe('readBooleanFlag', () => {
   })
 
   it.each([
-    // Each of these previously resolved to a boolean silently, and for the ones
-    // that resolved the wrong way the operator signed from a different account.
     ['=no', ['--ledgerLive=no']],
     ['=yes', ['--ledgerLive=yes']],
     ['=1', ['--ledger-live=1']],
@@ -54,8 +52,6 @@ describe('readBooleanFlag', () => {
   })
 
   it('refuses the flag twice, rather than silently taking one of them', () => {
-    // `--ledger=false --ledger` read as false and key-signed while printing
-    // nothing. Which one wins is not a decision code should make quietly.
     expect(() => read('--ledgerLive=false', '--ledgerLive')).toThrow(
       /given more than once/
     )

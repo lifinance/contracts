@@ -2054,15 +2054,13 @@ export async function getPendingTransactionsByNetwork(
 }
 
 export interface ISafeSigningOptions {
-  /** Sign with a Ledger instead of a key from the environment. */
   ledger?: boolean
   /** Use Ledger Live's derivation path for `accountIndex`. */
   ledgerLive?: boolean
   /** Accepted as a string so a CLI value reaches the validation below unaltered. */
   accountIndex?: number | string
-  /** Explicit derivation path; mutually exclusive with `ledgerLive`. */
+  /** Mutually exclusive with `ledgerLive`. */
   derivationPath?: string
-  /** The key to fall back on when no Ledger is requested. */
   envPrivateKey?: string
   /** Named in the no-key error so it points at the variable the caller read. */
   envPrivateKeyName?: string
@@ -2112,12 +2110,8 @@ export const parseAccountIndex = (raw: number | string | undefined): number => {
 /**
  * Decides how a Safe proposal gets signed.
  *
- * `derivationPath` and `ledgerLive` are refused together because they name
- * different paths for the same account, so accepting both would silently pick
- * one and sign with an address the operator did not choose. A non-integer
- * `accountIndex` is refused for the same reason: the Ledger SDK's BIP32 path
- * parser drops a `NaN` path segment and truncates a fractional one, both of
- * which derive a different, valid-looking address without erroring.
+ * Every combination it refuses would otherwise have signed from an address the
+ * operator did not choose, with no error at any layer.
  *
  * @param options - the CLI/caller flags plus the environment key to fall back on.
  * @returns what to hand `initializeSafeClient`.
@@ -2152,8 +2146,7 @@ export const resolveSafeSigningOptions = (
       } in environment. Set it, or pass --ledger to sign with a hardware wallet.`
     )
 
-  // Validated before the pairing checks below: a malformed value is the more
-  // specific complaint, and reporting the pairing first would hide it.
+  // Ahead of the two checks below, which read the parsed value.
   const accountIndex = parseAccountIndex(options.accountIndex)
 
   // Refused rather than ignored: `getLedgerAccount` reads `accountIndex` only on

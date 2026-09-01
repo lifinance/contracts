@@ -110,7 +110,7 @@ the source prompt or inferred, **not** confirmed.
    (`../tron/propose-to-safe-tron`, `:66`) — **never touching `main`**. This is the
    agentic case a deprecation-driven drain must ride (a deploy-and-register facet cut
    is `proposeDiamondCut → runPropose`, no CLI). A *separate* helper
-   `sendOrPropose({calldata, network, environment, diamondAddress})` —
+   `sendOrPropose({calldata, network, environment, diamondAddress, signing})` —
    `script/safe/safeScriptHelpers.ts:29` — does its own `getSafeMongoCollection →
    getNextNonce → createTransaction → sign → storeTransactionInMongoDB` and **does not
    call `runPropose`**; it backs whitelist-sync and `cleanUpProdDiamond` removals

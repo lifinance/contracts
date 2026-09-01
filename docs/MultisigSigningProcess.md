@@ -112,8 +112,10 @@ All EVM funnels end in `storeTransactionInMongoDB`
   once — `--all-networks`, or a `--periphery` selection naming several
   contracts, since each proposal opens its own unclosed Ledger connection and
   asks for its own device confirmation. The signer is checked against the Safe's
-  owners before the proposal is stored. The direct-send path is unchanged and
-  remains key-only; it warns and ignores `--ledger`.
+  owners before the proposal is stored. The direct-send path still signs with the
+  environment key and warns that `--ledger` is ignored, but the flag-format and
+  multi-proposal refusals run before the route is chosen, so a malformed signing
+  flag also fails a staging or testnet run.
 - **Deferred-cleanup drain** (`script/deploy/safe/drain-parked-tasks.ts`) —
   gated on `DRAIN_PARKED_TASKS`, hooked at the tail of `runPropose`
   ([DeferredDiamondCleanupQueue.md](./DeferredDiamondCleanupQueue.md)).
@@ -218,6 +220,7 @@ parked tasks are reconciled weekly by `reconcileParkedTasks.yml`.
 |---|---|---|---|
 | Propose | CLI input validation: `--to`/`--calldata` pairing, address/hex validity, multi-call requires `--timelock` | Block | `script/deploy/safe/propose-calls.ts`, `timelock-abi.ts` |
 | Propose | Proposer must be a current Safe owner (on-chain `getOwners()`) | Block | `propose-to-safe.ts` (`runPropose`), `safeScriptHelpers.ts` (`sendOrPropose`) |
+| Propose | Ledger signing flags: unambiguous value, no repeat, no unusable combination, no multi-proposal run (see the `sendOrPropose` bullet in §3) | Block | `script/deploy/safe/cli-flags.ts`, `resolveSafeSigningOptions` in `safe-utils.ts`, `cleanUpProdDiamond.ts` |
 | Propose | Nonce safety: override collision checks, auto-nonce clamped to on-chain | Block / auto-correct | `propose-to-safe.ts`, `getNextNonce` in `safe-utils.ts` |
 | Propose | Duplicate-intent dedup (partial unique index on pending rows) | Block insert | `computeProposalIntentHash` + index in `safe-utils.ts` |
 | Propose | In-flight nonce uniqueness per Safe: concurrent proposers may still derive the same nonce, but only one insert survives (partial unique index over `pending` + `submitted`, compared case-insensitively so the Tron and EVM spellings of one Safe collide). The guarantee is **absent** if the index could not be built — in-flight rows already sharing a nonce, or a role without `createIndex` — and the build warns in both cases. Nothing is ever dropped, so a pre-`_ci` index from an earlier build stays as a weaker, redundant constraint | Block insert, re-run required | `unique_inflight_safe_nonce_ci` index in `safe-utils.ts`; diagnose with `report-nonce-collisions.ts` (read-only) |
