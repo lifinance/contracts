@@ -603,7 +603,10 @@ describe('renderProposalCard — an unreadable dirty-tree field is not clean', (
       // satisfied by the "paths not captured" fragment, which leaves the word
       // that says whether the tree is clean unasserted.
       expect(line).toMatch(/^\*Working tree:\* not captured\b/)
-      expect(line).not.toMatch(/\bclean\b/i)
+      // Anchored on the STATE position, not on the word anywhere in the line:
+      // the honest wording for an ambiguous capture failure contains "a clean
+      // reading is unconfirmed", and a substring check would forbid saying that.
+      expect(line).not.toMatch(/^\*Working tree:\* clean\b/i)
     }
   )
 })
@@ -734,7 +737,10 @@ describe('renderProposalCard — a failed capture is the loudest case, not the q
 
     const line = card.split('\n').find((l) => l.startsWith('*Working tree:*'))
     expect(line).toBeDefined()
-    expect(line).not.toMatch(/\bclean\b/i)
+    // Anchored on the STATE position, not on the word anywhere in the line:
+    // the honest wording for an ambiguous capture failure contains "a clean
+    // reading is unconfirmed", and a substring check would forbid saying that.
+    expect(line).not.toMatch(/^\*Working tree:\* clean\b/i)
     expect(line).toMatch(/capture incomplete/i)
   })
 
@@ -798,5 +804,39 @@ describe('renderProposalCard — a truncated list is never vaguer than an exact 
     expect(lineOf(exact)).toMatch(/20 more/)
     expect(lineOf(truncated)).toMatch(/20 more/)
     expect(lineOf(truncated)).toMatch(/stopped counting/)
+  })
+})
+
+describe('renderProposalCard — a dirty row with capture errors reports both facts', () => {
+  it('does not let the dirty state swallow the capture failure', () => {
+    // The signing prompt shows both. Reporting only "dirty" loses the fact that
+    // the path list may be incomplete, which is the more alarming half.
+    const card = renderProposalCard([
+      proposal({
+        dirtyTreeScoped: ['src/A.sol'],
+        captureErrors: ['git status --porcelain failed: timed out'],
+      }),
+    ])
+
+    const line = card.split('\n').find((l) => l.startsWith('*Working tree:*'))
+    expect(line).toContain('src/A.sol')
+    expect(line).toMatch(/capture/i)
+  })
+
+  it('says a clean reading is unconfirmed rather than implying the tree is dirty', () => {
+    // captureErrors is one collector shared by every git probe, so an empty path
+    // list plus an error is ambiguous: the status probe may have failed, or
+    // something unrelated did. Warning is the fail-safe direction, but the
+    // wording must not assert more than is known.
+    const card = renderProposalCard([
+      proposal({
+        dirtyTreeScoped: [],
+        captureErrors: ['git log failed: boom'],
+      }),
+    ])
+
+    const line = card.split('\n').find((l) => l.startsWith('*Working tree:*'))
+    expect(line).toMatch(/unconfirmed/i)
+    expect(line).not.toMatch(/\bdirty\b/)
   })
 })

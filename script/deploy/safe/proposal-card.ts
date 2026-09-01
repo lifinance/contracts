@@ -298,12 +298,17 @@ export const renderProposalCard = (
   // list alone does not mean the tree was measured. The likeliest probe
   // failures — the timeout and the buffer cap — correlate with a very dirty
   // tree, so treating this as clean read clean exactly when it was dirtiest.
+  const hasCaptureErrors = (p: ICardProposal): boolean =>
+    Array.isArray(p.captureErrors) && p.captureErrors.length > 0
+  // An empty list plus an error is ambiguous: `captureErrors` is one collector
+  // shared by every git probe, so the status probe may have failed or something
+  // unrelated may have. Warning is the fail-safe direction; the wording says
+  // only what is known.
   const incomplete = proposals.filter(
     (p) =>
       Array.isArray(p.dirtyTreeScoped) &&
       p.dirtyTreeScoped.length === 0 &&
-      Array.isArray(p.captureErrors) &&
-      p.captureErrors.length > 0
+      hasCaptureErrors(p)
   )
   const unreadable = proposals.filter((p) => !Array.isArray(p.dirtyTreeScoped))
 
@@ -332,13 +337,25 @@ export const renderProposalCard = (
       const stopped = dirty.some((p) => p.dirtyTreeTruncated === true)
         ? ', and capture stopped counting before the end'
         : ''
+      // Both facts, as the signing prompt shows them: reporting only "dirty"
+      // loses that the path list may be incomplete, which is the more alarming
+      // half of the two.
+      const alsoFailed = dirty.some(hasCaptureErrors)
+        ? ', and capture reported errors so the list may be incomplete'
+        : ''
       parts.push(
-        `dirty${on(dirty)} — ${summarise(paths, MAX_DIRTY_PATHS)}${stopped}`
+        `dirty${on(dirty)} — ${summarise(
+          paths,
+          MAX_DIRTY_PATHS
+        )}${stopped}${alsoFailed}`
       )
     } else if (dirty.length > 0)
       parts.push(`dirty${on(dirty)} — paths unusable`)
 
-    if (incomplete.length > 0) parts.push(`capture incomplete${on(incomplete)}`)
+    if (incomplete.length > 0)
+      parts.push(
+        `capture incomplete${on(incomplete)} — a clean reading is unconfirmed`
+      )
     if (unreadable.length > 0) parts.push(`not captured${on(unreadable)}`)
 
     lines.push(`*Working tree:* ${parts.join('; ')}`)
