@@ -62,22 +62,39 @@ const uniqueOccurrence = (
   return found[0]
 }
 
+export interface IBooleanFlagOptions {
+  /** What absence means. Some flags default ON, e.g. `--ledger` when signing. */
+  whenAbsent?: boolean
+}
+
 /**
  * Reads a boolean flag, refusing any form that is not unambiguous.
  *
  * @param argv - Raw arguments, normally `process.argv`.
  * @param name - Both spellings of the flag.
+ * @param options - What absence means, when it is not `false`.
  * @returns Whether the flag is on.
  * @throws If the flag appears more than once, or carries a value other than
  * `true` or `false`.
  */
-export const readBooleanFlag = (argv: string[], name: IFlagName): boolean => {
+export const readBooleanFlag = (
+  argv: string[],
+  name: IFlagName,
+  options: IBooleanFlagOptions = {}
+): boolean => {
   const occurrence = uniqueOccurrence(argv, name)
-  if (!occurrence) return false
+  if (!occurrence) return options.whenAbsent ?? false
 
   const value = occurrence.assigned ?? occurrence.following
-  if (value === undefined) return !occurrence.negated
 
+  // `--no-flag=false` is a double negative with no obvious reading, and it
+  // resolved to ON. Refused rather than resolved either way.
+  if (occurrence.negated && value !== undefined)
+    throw new Error(
+      `--no-${name.camel} takes no value; got '${value}'. Pass --no-${name.camel} on its own, or --${name.camel}=${value}.`
+    )
+
+  if (value === undefined) return !occurrence.negated
   if (value === 'true') return !occurrence.negated
   if (value === 'false') return occurrence.negated
 

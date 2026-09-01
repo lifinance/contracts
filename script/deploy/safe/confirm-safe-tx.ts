@@ -22,6 +22,7 @@ import { createDefaultCache } from '../shared/deployment-cache'
 import { sanitizeProvenanceText } from '../shared/git-provenance'
 import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
 
+import { readBooleanFlag, readValueFlag } from './cli-flags'
 import {
   buildAcknowledgementKey,
   buildProposalKey,
@@ -51,6 +52,7 @@ import {
   getTargetName,
 } from './safe-decode-utils'
 import {
+  parseAccountIndex,
   canExecuteWithNonceStatus,
   getNetworksWithActionableTransactions,
   getNetworksWithPendingTransactions,
@@ -852,10 +854,26 @@ const main = defineCommand({
     // Set up signing options
     let privateKey: string | undefined
     let keyType = PrivateKeyTypeEnum.DEPLOYER // default value
-    const useLedger = args.ledger ?? true
+    // Read from argv, not from the parsed args: citty cannot represent the
+    // difference between `--ledgerLive` and `--ledgerLive=no`. A Ledger is the
+    // default signer here, so a misread flag derives a different address on the
+    // path that actually signs.
+    const useLedger = readBooleanFlag(
+      process.argv,
+      { camel: 'ledger', kebab: 'ledger' },
+      { whenAbsent: true }
+    )
     const ledgerOptions = {
-      ledgerLive: args.ledgerLive || false,
-      accountIndex: args.accountIndex ? Number(args.accountIndex) : 0,
+      ledgerLive: readBooleanFlag(process.argv, {
+        camel: 'ledgerLive',
+        kebab: 'ledger-live',
+      }),
+      accountIndex: parseAccountIndex(
+        readValueFlag(process.argv, {
+          camel: 'accountIndex',
+          kebab: 'account-index',
+        })
+      ),
       derivationPath: args.derivationPath,
     }
 

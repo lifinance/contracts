@@ -126,3 +126,47 @@ describe('readValueFlag', () => {
     expect(read('--accountIndex=-1')).toBe('-1')
   })
 })
+
+describe('readBooleanFlag — flags that default on', () => {
+  const LEDGER = { camel: 'ledger', kebab: 'ledger' } as const
+  const read = (...argv: string[]) =>
+    readBooleanFlag(argv, LEDGER, { whenAbsent: true })
+
+  it('is on when absent', () => {
+    // confirm-safe-tx signs with a Ledger unless told otherwise, so absence
+    // must not read as off.
+    expect(read()).toBe(true)
+  })
+
+  it('is off when explicitly negated or assigned false', () => {
+    expect(read('--no-ledger')).toBe(false)
+    expect(read('--ledger=false')).toBe(false)
+    expect(read('--ledger', 'false')).toBe(false)
+  })
+
+  it('is on when passed bare or assigned true', () => {
+    expect(read('--ledger')).toBe(true)
+    expect(read('--ledger=true')).toBe(true)
+  })
+
+  it('still refuses a value it cannot read', () => {
+    expect(() => read('--ledger=yes')).toThrow(/accepts no value/)
+  })
+})
+
+describe('readBooleanFlag — the negated spelling takes no value', () => {
+  const LEDGER_LIVE = { camel: 'ledgerLive', kebab: 'ledger-live' } as const
+
+  it.each([
+    ['--no-ledgerLive=false', ['--no-ledgerLive=false']],
+    ['--no-ledgerLive=true', ['--no-ledgerLive=true']],
+    ['--no-ledger-live false', ['--no-ledger-live', 'false']],
+  ])(
+    'refuses %s, a double negative with no obvious reading',
+    (_label, argv) => {
+      // `--no-ledgerLive=false` resolved to ON, which is the opposite of what
+      // either half of it says.
+      expect(() => readBooleanFlag(argv, LEDGER_LIVE)).toThrow(/takes no value/)
+    }
+  )
+})

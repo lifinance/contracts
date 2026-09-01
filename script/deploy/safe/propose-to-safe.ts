@@ -39,7 +39,7 @@ import { getAddress, type Address, type Hex } from 'viem'
 
 import type { IProposeToSafeOptions } from '../../common/types'
 
-import { readValueFlag } from './cli-flags'
+import { readBooleanFlag, readValueFlag } from './cli-flags'
 import { proposeWithDrain, type ITimelockCall } from './drain-parked-tasks'
 import { normalizeProposeCalls } from './propose-calls'
 import {
@@ -419,8 +419,14 @@ const main = defineCommand({
       timelock: args.timelock,
       privateKey: args.privateKey,
       rpcUrl: args.rpcUrl,
-      ledger: args.ledger,
-      ledgerLive: args.ledgerLive,
+      ledger: readBooleanFlag(process.argv, {
+        camel: 'ledger',
+        kebab: 'ledger',
+      }),
+      ledgerLive: readBooleanFlag(process.argv, {
+        camel: 'ledgerLive',
+        kebab: 'ledger-live',
+      }),
       accountIndex: readValueFlag(process.argv, {
         camel: 'accountIndex',
         kebab: 'account-index',
