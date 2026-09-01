@@ -1,5 +1,6 @@
 /**
- * Production deploy gate for `script/tasks/diamondUpdateFacet.sh`.
+ * Production deploy gate for `script/tasks/diamondUpdateFacet.sh` and for
+ * `proposeDiamondCut` (`script/deploy/shared/propose-diamond-cut.ts`).
  *
  * Staging is always allowed. A production deploy may proceed only when each selected
  * facet matches `main`, or — if it does not — when the branch has an open PR and the
