@@ -15,7 +15,7 @@ import { encodeFunctionData, type Address, type Hex } from 'viem'
 import { EnvironmentEnum } from '../../common/types'
 import { getEnvironment, getFacetSelectors } from '../../utils/utils'
 import { isTestnetNetwork } from '../../utils/viemScriptHelpers'
-import { createDefaultDeps, verifyDeployGate } from '../github/verify-approvals'
+import { verifyDeployGateForRepo } from '../github/verify-approvals'
 import type { TronTvmNetworkName } from '../tron/types'
 
 import { DIAMOND_CUT_ABI, ZERO_ADDRESS } from './constants'
@@ -127,9 +127,9 @@ const assertDeployGatePasses = async (
     encoding: 'utf8',
   }).trim()
 
-  const failures = await verifyDeployGate(
+  const failures = await verifyDeployGateForRepo(
     { environment, branch, facets: [facetName] },
-    createDefaultDeps(process.cwd())
+    process.cwd()
   )
 
   if (failures.length > 0)

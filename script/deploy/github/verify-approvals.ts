@@ -26,6 +26,8 @@ import { consola } from 'consola'
 import { EnvironmentEnum } from '../../common/types'
 import { getContractVersion } from '../shared/getContractVersion'
 
+import { withVerdictCache } from './deploy-gate-cache'
+
 const OWNER = 'lifinance'
 const REPO = 'contracts'
 const PR_LIST_LIMIT = 100 // well above the number of open PRs a single branch can have
@@ -621,6 +623,30 @@ export const verifyDeployGate = async (
   })
 }
 
+/**
+ * Runs the gate against a real checkout, reusing a pass already recorded for this
+ * working tree instead of recomputing the same verdict once per network.
+ *
+ * The verdict depends on the tree and the facet set, never on the network, so a fleet
+ * rollout would otherwise pay the same `ls-remote` for every one of its networks (plus a
+ * `gh pr list` each time a facet diverges). {@link withVerdictCache} caches passes only, and treats anything unexpected
+ * as a miss, so it can never turn a failing gate into a passing one.
+ * @param input - environment, branch, and facet names about to be proposed
+ * @param repoRoot - repository root (working tree that will be compiled)
+ * @returns one message per violation; empty when the deploy may proceed
+ */
+export const verifyDeployGateForRepo = async (
+  input: {
+    environment: string
+    branch: string
+    facets: string[]
+  },
+  repoRoot: string
+): Promise<string[]> =>
+  withVerdictCache(repoRoot, input, () =>
+    verifyDeployGate(input, createDefaultDeps(repoRoot))
+  )
+
 /** The process surface `reportApprovalResult` terminates and prints through. */
 export interface IReportTarget {
   stdout: { write: (text: string) => unknown }
@@ -676,13 +702,13 @@ const main = defineCommand({
     },
   },
   async run({ args }) {
-    const failures = await verifyDeployGate(
+    const failures = await verifyDeployGateForRepo(
       {
         environment: args.environment,
         branch: args.branch,
         facets: parseFacetList(args.facets),
       },
-      createDefaultDeps(process.cwd())
+      process.cwd()
     )
 
     reportApprovalResult(failures)

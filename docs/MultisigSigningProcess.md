@@ -133,6 +133,30 @@ the gate instead of hanging the rollout. Staging is not gated, and neither are
 testnets — deploying an unmerged facet to a testnet is how it is validated before
 the audit, and no Safe is involved there.
 
+The gate runs once per *(network, facet)*, but its verdict depends only on the working
+tree and the facet set, so a fleet rollout would otherwise recompute the same answer for
+every network — 71 `ls-remote` round trips and 71 chances for a flaky remote to abort the
+rollout fail-closed, with the concurrent workers of `proposeContractToNetworks.sh` racing
+each other's `git fetch` on `refs/remotes/origin/main.lock`. A **pass is therefore
+recorded once per run** and reused while the tree stays put
+(`script/deploy/github/deploy-gate-cache.ts`, PR #2286): keyed on `HEAD` plus the content
+of the diff against it — not merely the `git status` file names, which do not change when
+an already-modified file is edited again — plus the branch, the facet set, and the
+environment. The record lives in the checkout's git directory rather than a
+world-writable temp directory, and the full key is re-compared on read, so a planted
+entry cannot stand in for a different tree. Only a **pass** is ever recorded: a failing
+gate aborts the rollout, so there is nothing to save, and a cached failure could outlive
+the PR that was opened to satisfy it. Anything unexpected — an unreadable, unparsable, or
+expired record, or a git command that fails while the key is built — is a miss, never a
+pass, and the check runs for real. What the cache does trade away is freshness within a
+run: for up to 30 minutes the rollout is judged against `origin/main`, and against the
+open-PR lookup, as they stood at its first invocation — so `main` moving, or the anchoring
+PR being closed, does not stop the remaining networks. Both are benign for a single
+operator action on an unchanged tree, and `DEPLOY_GATE_SKIP_VERDICT_CACHE=true` forces a
+fresh verdict. Concurrent invocations
+take a single-flight lock, so exactly one of a rollout's workers does the network work and
+the rest reuse its verdict.
+
 Note what this gate does and does not assert. It enforces **main-equivalence**,
 with an audited-freeze exception for unmerged code; it does not verify that what
 reaches production was audited, because code that matches `main` passes without
@@ -244,7 +268,7 @@ parked tasks are reconciled weekly by `reconcileParkedTasks.yml`.
 | Propose | Nonce safety: override collision checks, auto-nonce clamped to on-chain | Block / auto-correct | `propose-to-safe.ts`, `getNextNonce` in `safe-utils.ts` |
 | Propose | Duplicate-intent dedup (partial unique index on pending rows) | Block insert | `computeProposalIntentHash` + index in `safe-utils.ts` |
 | Propose | Removal safety: protected-facet allowlist, live-selector hold-back, fail-closed diffs | Block + alert | `diamondRemovalDiff.ts`, `drain-parked-tasks.ts` |
-| Propose | Production `diamondUpdateFacet`: each selected facet's `src/` import closure must match `origin/main`, else open PR + audit-log commit freeze (audit log read from `main`); judged on the working tree, so a checkout on `main` is not exempt; staging and testnets are not gated | Block (prod non-testnet facet **additions** via `diamondUpdateFacet` and `proposeDiamondCut` only — not periphery, emergency pause, removals, or the generic `sendOrPropose` chokepoint) | `script/deploy/github/verify-approvals.ts` via `diamondUpdateFacet.sh` and `propose-diamond-cut.ts` (PR #2128, #2286) |
+| Propose | Production `diamondUpdateFacet`: each selected facet's `src/` import closure must match `origin/main`, else open PR + audit-log commit freeze (audit log read from `main`); judged on the working tree, so a checkout on `main` is not exempt; staging and testnets are not gated | Block (prod non-testnet facet **additions** via `diamondUpdateFacet` and `proposeDiamondCut` only — not periphery, emergency pause, removals, or the generic `sendOrPropose` chokepoint) | `script/deploy/github/verify-approvals.ts` via `diamondUpdateFacet.sh` and `propose-diamond-cut.ts`; verdict cached per run by `deploy-gate-cache.ts`, passes only (PR #2128, #2286) |
 | Confirm | Signer must be an owner; network must be active; threshold and nonce read on-chain per Safe | Block / skip | `confirm-safe-tx.ts`, `safe-utils.ts` |
 | Confirm | Ledger blind-signing enabled, fail-fast before any review | Block | `checkBlindSigningEnabled` in `ledger.ts` |
 | Confirm | Full calldata decode: diamond cut, scheduleBatch, whitelist, periphery, roles; per-selector name resolution | Display / warn only | `safe-decode-utils.ts` (`formatDecodedTxDataForDisplay`) |
