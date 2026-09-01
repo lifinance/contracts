@@ -1113,7 +1113,7 @@ class FakeNonceDuplicateKeyError extends Error {
   }
   public constructor() {
     super(
-      'E11000 duplicate key error collection: sc_private.pendingTransactions index: unique_inflight_safe_nonce dup key: { safeAddress: "0x11", network: "mainnet", chainId: 1, safeTx.data.nonce: 5 }'
+      'E11000 duplicate key error collection: sc_private.pendingTransactions index: unique_inflight_safe_nonce_ci dup key: { safeAddress: "0x11", network: "mainnet", chainId: 1, safeTx.data.nonce: 5 }'
     )
   }
 }
@@ -1148,6 +1148,28 @@ describe('classifyDuplicateKeyError', () => {
     expect(classifyDuplicateKeyError(new FakeDuplicateKeyError())).toBe(
       'intent'
     )
+  })
+
+  it('recognises the nonce index from the message alone', () => {
+    const error = Object.assign(
+      new Error(
+        'E11000 duplicate key error collection: sc_private.pendingTransactions index: unique_inflight_safe_nonce_ci'
+      ),
+      { code: 11000 }
+    )
+
+    expect(classifyDuplicateKeyError(error)).toBe('in-flight-nonce')
+  })
+
+  it('recognises the pre-collation index, which is never dropped and can still fire', () => {
+    const error = Object.assign(
+      new Error(
+        'E11000 duplicate key error collection: sc_private.pendingTransactions index: unique_inflight_safe_nonce'
+      ),
+      { code: 11000 }
+    )
+
+    expect(classifyDuplicateKeyError(error)).toBe('in-flight-nonce')
   })
 
   it('is other for an 11000 on some unrelated index', () => {

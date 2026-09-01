@@ -1566,6 +1566,11 @@ export function buildProposalProvenance(
 
 const INTENT_INDEX_NAME = 'unique_pending_intent_hash'
 const IN_FLIGHT_NONCE_INDEX_NAME = 'unique_inflight_safe_nonce_ci'
+/**
+ * The pre-`_ci` name. A build from before the collation left this index in place
+ * and it is not dropped, so it can still be the one that rejects an insert.
+ */
+const LEGACY_IN_FLIGHT_NONCE_INDEX_NAME = 'unique_inflight_safe_nonce'
 const NONCE_KEY_PATH = 'safeTx.data.nonce'
 
 /**
@@ -1613,7 +1618,10 @@ export const classifyDuplicateKeyError = (error: unknown): DuplicateKeyKind => {
     return 'other'
   }
 
-  if (error.message.includes(IN_FLIGHT_NONCE_INDEX_NAME))
+  if (
+    error.message.includes(IN_FLIGHT_NONCE_INDEX_NAME) ||
+    error.message.includes(LEGACY_IN_FLIGHT_NONCE_INDEX_NAME)
+  )
     return 'in-flight-nonce'
   if (error.message.includes(INTENT_INDEX_NAME)) return 'intent'
 
