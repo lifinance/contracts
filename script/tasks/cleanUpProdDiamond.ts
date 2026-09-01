@@ -176,23 +176,25 @@ const command = defineCommand({
     ledger: {
       type: 'boolean',
       description:
-        'Sign the Safe proposal with a Ledger instead of PRIVATE_KEY_PRODUCTION',
+        'Sign the Safe proposal with a Ledger instead of PRIVATE_KEY_PRODUCTION; not combinable with --all-networks',
     },
     // No `default` on these: citty applies a default to the registered
     // camelCase key even when the caller typed the kebab spelling, so a default
     // would shadow a kebab-typed value for anything reading the camelCase key.
     ledgerLive: {
       type: 'boolean',
-      description: 'Use the Ledger Live derivation path for --accountIndex',
+      description:
+        'Use the Ledger Live derivation path for --accountIndex; requires --ledger',
     },
     accountIndex: {
       type: 'string',
-      description: 'Ledger Live account index (default 0)',
+      description:
+        'Ledger Live account index (default 0); only read together with --ledgerLive',
     },
     derivationPath: {
       type: 'string',
       description:
-        'Explicit Ledger derivation path; not combinable with --ledgerLive',
+        'Explicit Ledger derivation path; requires --ledger, not combinable with --ledgerLive',
     },
     facetAddresses: {
       type: 'string',
@@ -231,15 +233,16 @@ const command = defineCommand({
     const raw = args as Record<string, unknown>
 
     /**
-     * Reads a boolean flag, refusing any value it cannot interpret.
+     * Reads a boolean flag, refusing any `--flag=value` it cannot interpret.
      *
      * The parsed value alone is not enough: citty coerces `--ledgerLive=no` to
      * boolean `true`, indistinguishable from a bare `--ledgerLive`, so an
      * operator turning the flag OFF turns it on and derives from a different
-     * account. The kebab spelling instead passes the raw string through
-     * (`--ledger-live=1` arrives as `'1'`). argv is therefore consulted for the
-     * `=` form before the parse is trusted — the same cross-check
-     * `propose-to-safe.ts` uses to catch citty dropping repeated flags.
+     * account. The kebab spelling instead passes the raw value through
+     * (`--ledger-live=1` arrives as the number `1`). argv is therefore
+     * consulted for the `=` form before the parse is trusted. A
+     * space-separated value is not covered: citty discards it and
+     * `--ledgerLive no` still reads as `true`.
      */
     const asFlag = (camel: string, kebab: string): boolean => {
       const assigned = process.argv.find(

@@ -2085,14 +2085,15 @@ export interface IResolvedSafeSigning {
  * `derivationPath` and `ledgerLive` are refused together because they name
  * different paths for the same account, so accepting both would silently pick
  * one and sign with an address the operator did not choose. A non-integer
- * `accountIndex` is refused for the same reason: the vendored BIP32 parser drops
- * a `NaN` path segment and truncates a fractional one, both of which derive a
- * different, valid-looking address without erroring.
+ * `accountIndex` is refused for the same reason: the Ledger SDK's BIP32 path
+ * parser drops a `NaN` path segment and truncates a fractional one, both of
+ * which derive a different, valid-looking address without erroring.
  *
  * @param options - the CLI/caller flags plus the environment key to fall back on.
  * @returns what to hand `initializeSafeClient`.
- * @throws If both path options are given, if `accountIndex` is not a non-negative
- * integer, or if neither a Ledger nor a key is available.
+ * @throws If both path options are given, if a Ledger sub-option is given
+ * without `ledger`, if `accountIndex` is not a non-negative integer, or if
+ * neither a Ledger nor a key is available.
  */
 export const resolveSafeSigningOptions = (
   options: ISafeSigningOptions
@@ -2137,8 +2138,9 @@ export const resolveSafeSigningOptions = (
       )}'`
     )
 
-  // Sub-options are read only when the Ledger is actually selected: applying
-  // them otherwise would report a derivation path for a key-signed proposal.
+  // Only `accountIndex` can still reach here on the key path — the other
+  // sub-options are refused above — and it is zeroed so the result cannot
+  // describe a derivation that never happened.
   const ledgerOptions = useLedger
     ? {
         ledgerLive: options.ledgerLive === true,

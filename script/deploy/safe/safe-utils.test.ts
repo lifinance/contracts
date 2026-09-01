@@ -1363,7 +1363,13 @@ describe('resolveSafeSigningOptions', () => {
   )
 
   it('reports no ledger options at all on the key path', () => {
-    const resolved = resolveSafeSigningOptions({ envPrivateKey: 'abc123' })
+    // accountIndex is passed on purpose: it is the only sub-option the key path
+    // still accepts, so it is the only one whose non-leak an assertion can
+    // still catch.
+    const resolved = resolveSafeSigningOptions({
+      envPrivateKey: 'abc123',
+      accountIndex: 5,
+    })
 
     expect(resolved.useLedger).toBe(false)
     expect(resolved.privateKey).toBe('abc123')
@@ -1385,7 +1391,7 @@ describe('resolveSafeSigningOptions', () => {
     ).toBe(4)
   })
 
-  // The vendored BIP32 parser does not reject these — measured against
+  // The Ledger SDK's BIP32 path parser does not reject these — measured against
   // @ledgerhq/hw-app-eth's splitPath, "NaN" DROPS the whole path segment
   // (m/44'/60'/0/0, one element short and non-hardened), 3.7 truncates to 3 and
   // -1 wraps to 2147483647. Each derives a different, valid-looking address with

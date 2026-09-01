@@ -102,12 +102,14 @@ All EVM funnels end in `storeTransactionInMongoDB`
 - **TS `sendOrPropose`** (`script/safe/safeScriptHelpers.ts`) — used by
   `script/tasks/cleanUpProdDiamond.ts`. Signs the Safe proposal with
   `PRIVATE_KEY_PRODUCTION` by default, or with a Ledger via `--ledger`
-  (`--ledgerLive` + `--accountIndex <n>`, or `--derivationPath <path>`; the
-  two path options are refused together, and a non-integer `--accountIndex` is
-  refused rather than silently deriving a different address). The signer is
-  checked against the Safe's owners before the proposal is stored. The
-  direct-send path is unchanged and remains key-only; it warns and ignores
-  `--ledger`.
+  (`--ledgerLive` + `--accountIndex <n>`, or `--derivationPath <path>`).
+  Refused rather than silently accepted: the two path options together, a
+  non-integer `--accountIndex`, a Ledger sub-option without `--ledger`,
+  `--ledger` together with `--all-networks` (one device confirmation and one
+  unclosed connection per network), and any value other than `true`/`false` on
+  `--ledger` / `--ledgerLive`. The signer is checked against the Safe's owners
+  before the proposal is stored. The direct-send path is unchanged and remains
+  key-only; it warns and ignores `--ledger`.
 - **Deferred-cleanup drain** (`script/deploy/safe/drain-parked-tasks.ts`) —
   gated on `DRAIN_PARKED_TASKS`, hooked at the tail of `runPropose`
   ([DeferredDiamondCleanupQueue.md](./DeferredDiamondCleanupQueue.md)).
@@ -211,7 +213,7 @@ parked tasks are reconciled weekly by `reconcileParkedTasks.yml`.
 | Stage | Check category | Behavior | Enforced by |
 |---|---|---|---|
 | Propose | CLI input validation: `--to`/`--calldata` pairing, address/hex validity, multi-call requires `--timelock` | Block | `script/deploy/safe/propose-calls.ts`, `timelock-abi.ts` |
-| Propose | Proposer must be a current Safe owner (on-chain `getOwners()`) | Block | `propose-to-safe.ts` (`runPropose`) |
+| Propose | Proposer must be a current Safe owner (on-chain `getOwners()`) | Block | `propose-to-safe.ts` (`runPropose`), `safeScriptHelpers.ts` (`sendOrPropose`) |
 | Propose | Nonce safety: override collision checks, auto-nonce clamped to on-chain | Block / auto-correct | `propose-to-safe.ts`, `getNextNonce` in `safe-utils.ts` |
 | Propose | Duplicate-intent dedup (partial unique index on pending rows) | Block insert | `computeProposalIntentHash` + index in `safe-utils.ts` |
 | Propose | In-flight nonce uniqueness per Safe: concurrent proposers may still derive the same nonce, but only one insert survives (partial unique index over `pending` + `submitted`, compared case-insensitively so the Tron and EVM spellings of one Safe collide). The guarantee is **absent** if the index could not be built — in-flight rows already sharing a nonce, or a role without `createIndex` — and the build warns in both cases. Nothing is ever dropped, so a pre-`_ci` index from an earlier build stays as a weaker, redundant constraint | Block insert, re-run required | `unique_inflight_safe_nonce_ci` index in `safe-utils.ts`; diagnose with `report-nonce-collisions.ts` (read-only) |
