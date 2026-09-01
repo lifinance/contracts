@@ -85,8 +85,9 @@ export function validateCallPairs(
  * @param values - Value per inner call; defaults to all-zero. Pass the same array
  *        given to `pickTimelockSalt`, or the id probed is not the id scheduled
  * @returns The encoded `scheduleBatch` calldata
- * @throws If `targets` is empty, `targets` and `payloads` differ in length, a
- *         target is not a valid address, or a payload is not well-formed hex
+ * @throws If `targets` is empty, `targets` and `payloads` or `targets` and
+ *         `values` differ in length, a target is not a valid address, or a
+ *         payload is not well-formed hex
  */
 export function encodeTimelockScheduleBatch(
   targets: Address[],
@@ -106,9 +107,8 @@ export function encodeTimelockScheduleBatch(
       `encodeTimelockScheduleBatch: targets (${targets.length}) and values (${values.length}) must have the same length`
     )
 
-  // Defensive re-validation at the encoding boundary: today's only caller
-  // (normalizeProposeCalls) validates already, but this module is the shared
-  // encoder for any future caller (e.g. Tron batch proposals)
+  // Defensive re-validation at the encoding boundary: callers validate already,
+  // but this module is the shared encoder and a future caller may not
   validateCallPairs(
     targets,
     payloads,

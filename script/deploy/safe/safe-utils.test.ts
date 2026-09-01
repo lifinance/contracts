@@ -25,13 +25,20 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 import { type Collection, type InsertOneResult, type ObjectId } from 'mongodb'
-import { keccak256, encodeAbiParameters, type Address, type Hex } from 'viem'
+import {
+  decodeFunctionData,
+  keccak256,
+  encodeAbiParameters,
+  type Address,
+  type Hex,
+} from 'viem'
 
 import {
   buildProposalProvenance,
   canExecuteWithNonceStatus,
   classifyDuplicateKeyError,
   pickTimelockSalt,
+  wrapWithTimelockSchedule,
   classifyIndexEnsureFailure,
   computeProposalIntentHash,
   getSelector,
@@ -50,7 +57,12 @@ import {
   type NonceExecutionDecision,
   type SafeNonceStatus,
 } from './safe-utils'
-import { TIMELOCK_ZERO_PREDECESSOR, deriveTimelockSalt } from './timelock-abi'
+import {
+  TIMELOCK_OPERATION_STATE_ABI,
+  TIMELOCK_SCHEDULE_BATCH_ABI,
+  TIMELOCK_ZERO_PREDECESSOR,
+  deriveTimelockSalt,
+} from './timelock-abi'
 
 const SAFE_ADDR = '0x1111111111111111111111111111111111111111' as Address
 const TARGET = '0x2222222222222222222222222222222222222222' as Address
@@ -1328,9 +1340,8 @@ describe('pickTimelockSalt', () => {
       '0x4444444444444444444444444444444444444444',
     ] as Address[],
     originalCalldatas: ['0xdeadbeef', '0xfeedface'] as Hex[],
-    // Deliberately not all-zero: an all-zero fixture is byte-identical to the
-    // hardcoded array this parameter replaced, so the fix would pass with the fix
-    // deleted.
+    // Not all-zero: an all-zero fixture cannot observe the `values` parameter, so
+    // every pass-through and ordering bug in it becomes a no-op.
     values: [0n, 7n],
   }
 
@@ -1364,7 +1375,7 @@ describe('pickTimelockSalt', () => {
     ).toBe(saltFor(0))
   })
 
-  it('probes the operation it is about to schedule — same targets, payloads, zero values, zero predecessor', async () => {
+  it('probes the operation it is about to schedule — same targets, payloads and values, zero predecessor', async () => {
     const { client, hashArgs } = fakeTimelockClient({}, action.timelockAddress)
 
     const salt = await pickTimelockSalt({ ...action, client: client as never })
@@ -1377,6 +1388,24 @@ describe('pickTimelockSalt', () => {
       TIMELOCK_ZERO_PREDECESSOR,
       salt,
     ])
+  })
+
+  it('forwards chainId and the timelock into the salt, so one chain cannot predict another', async () => {
+    const other = '0x9999999999999999999999999999999999999999' as Address
+    const pick = async (over: Partial<typeof action>): Promise<Hex> =>
+      pickTimelockSalt({
+        ...action,
+        ...over,
+        client: fakeTimelockClient(
+          {},
+          over.timelockAddress ?? action.timelockAddress
+        ).client as never,
+      })
+
+    const base = await pick({})
+
+    expect(await pick({ chainId: 10 })).not.toBe(base)
+    expect(await pick({ timelockAddress: other })).not.toBe(base)
   })
 
   it('probes the id it derived, not the salt', async () => {
@@ -1448,8 +1477,7 @@ describe('pickTimelockSalt', () => {
 
   it('refuses on a pending operation found after an executed one', async () => {
     // The normal state once a legitimate repeat has been scheduled, and the case
-    // `attempt` exists for. A refusal that only fires on the first attempt lets
-    // the scan mint a second operation for a batch already scheduled.
+    // `attempt` exists for.
     const { client } = fakeTimelockClient(
       { [idFor(0)]: 1n, [idFor(1)]: 1_800_000_000n },
       action.timelockAddress
@@ -1487,19 +1515,118 @@ describe('pickTimelockSalt', () => {
   it('refuses rather than guessing when every attempt is taken', async () => {
     const taken: Record<string, bigint> = {}
     for (let attempt = 0; attempt < 16; attempt++) taken[idFor(attempt)] = 1n
+    const exhausted = fakeTimelockClient(taken, action.timelockAddress)
+    const { probedIds } = exhausted
 
     let thrown: unknown
     try {
-      await pickTimelockSalt({
-        ...action,
-        client: fakeTimelockClient(taken, action.timelockAddress)
-          .client as never,
-      })
+      await pickTimelockSalt({ ...action, client: exhausted.client as never })
     } catch (error) {
       thrown = error
     }
 
     expect(thrown).toBeInstanceOf(Error)
     expect((thrown as Error).message).toMatch(/refusing to schedule/i)
+    expect(probedIds).toHaveLength(16)
+  })
+})
+
+/**
+ * Drives `wrapWithTimelockSchedule` against a local JSON-RPC stub.
+ *
+ * The function builds its own client from `rpcUrl`, so pointing that at a stub
+ * exercises the whole path without a chain — which is the only way to assert the
+ * property the salt design rests on: the operation id probed is the operation the
+ * emitted calldata actually schedules.
+ */
+describe('wrapWithTimelockSchedule', () => {
+  const TIMELOCK = '0x1111111111111111111111111111111111111111' as Address
+  const TARGETS = [
+    '0x2222222222222222222222222222222222222222',
+    '0x4444444444444444444444444444444444444444',
+  ] as Address[]
+  const PAYLOADS = ['0xdeadbeef', '0xfeedface'] as Hex[]
+
+  const ZERO32 = `0x${'00'.repeat(32)}` as Hex
+
+  interface IStub {
+    url: string
+    stop: () => void
+    hashCalls: Hex[]
+    getTimestampCalls: Hex[]
+  }
+
+  const startStub = async (): Promise<IStub> => {
+    const hashCalls: Hex[] = []
+    const getTimestampCalls: Hex[] = []
+    // hashOperationBatch/getTimestamp/getMinDelay selectors, matched on the
+    // 4-byte prefix so the stub does not need an ABI decoder.
+    const server = Bun.serve({
+      port: 0,
+      fetch: async (request) => {
+        const body = (await request.json()) as {
+          id: number
+          method: string
+          params?: { data?: Hex }[]
+        }
+        const data = body.params?.[0]?.data ?? '0x'
+        const selector = data.slice(0, 10)
+        let result: Hex = ZERO32
+
+        if (selector === '0xf27a0c92')
+          result = `0x${(3600).toString(16).padStart(64, '0')}` as Hex
+        else if (selector === '0xb1c5f427') {
+          hashCalls.push(data)
+          result = `0x${'11'.repeat(32)}` as Hex
+        } else if (selector === '0xd45c4435') {
+          getTimestampCalls.push(data)
+          result = ZERO32
+        }
+
+        return Response.json({ jsonrpc: '2.0', id: body.id, result })
+      },
+    })
+    return {
+      url: `http://127.0.0.1:${server.port}`,
+      stop: () => {
+        void server.stop(true)
+      },
+      hashCalls,
+      getTimestampCalls,
+    }
+  }
+
+  it('schedules the operation it probed, with one values array for both', async () => {
+    const stub = await startStub()
+    try {
+      const { calldata, targetAddress } = await wrapWithTimelockSchedule(
+        'mainnet',
+        stub.url,
+        TIMELOCK,
+        TARGETS,
+        PAYLOADS
+      )
+
+      expect(targetAddress).toBe(TIMELOCK)
+      expect(stub.hashCalls).toHaveLength(1)
+
+      const probed = decodeFunctionData({
+        abi: TIMELOCK_OPERATION_STATE_ABI,
+        data: stub.hashCalls[0] as Hex,
+      })
+      const scheduled = decodeFunctionData({
+        abi: TIMELOCK_SCHEDULE_BATCH_ABI,
+        data: calldata,
+      })
+
+      // targets, values, payloads and salt must match between the two, or the
+      // state that was checked belongs to a different operation.
+      expect(probed.args?.[0]).toEqual(scheduled.args?.[0])
+      expect(probed.args?.[1]).toEqual(scheduled.args?.[1])
+      expect(probed.args?.[2]).toEqual(scheduled.args?.[2])
+      expect(probed.args?.[4]).toEqual(scheduled.args?.[4])
+    } finally {
+      stub.stop()
+    }
   })
 })

@@ -119,6 +119,71 @@ describe('encodeTimelockScheduleBatch', () => {
   })
 })
 
+describe('encodeTimelockScheduleBatch — the values parameter', () => {
+  const TWO_TARGETS = [DIAMOND, OTHER_TARGET]
+  const TWO_PAYLOADS = ['0xaabb', '0xccdd'] as Hex[]
+  const SALT = `0x${'ab'.repeat(32)}` as Hex
+
+  it('encodes the values it is given, not an assumed zero array', () => {
+    expect(
+      encodeTimelockScheduleBatch(TWO_TARGETS, TWO_PAYLOADS, SALT, 3600n, [
+        0n,
+        7n,
+      ])
+    ).not.toBe(
+      encodeTimelockScheduleBatch(TWO_TARGETS, TWO_PAYLOADS, SALT, 3600n)
+    )
+  })
+
+  it('round-trips the values it was given', () => {
+    const encoded = encodeTimelockScheduleBatch(
+      TWO_TARGETS,
+      TWO_PAYLOADS,
+      SALT,
+      3600n,
+      [0n, 7n]
+    )
+
+    const { args } = decodeFunctionData({
+      abi: TIMELOCK_SCHEDULE_BATCH_ABI,
+      data: encoded,
+    })
+
+    expect(args?.[1]).toEqual([0n, 7n])
+  })
+
+  it('preserves the order of the values it was given', () => {
+    expect(
+      encodeTimelockScheduleBatch(TWO_TARGETS, TWO_PAYLOADS, SALT, 3600n, [
+        0n,
+        7n,
+      ])
+    ).not.toBe(
+      encodeTimelockScheduleBatch(TWO_TARGETS, TWO_PAYLOADS, SALT, 3600n, [
+        7n,
+        0n,
+      ])
+    )
+  })
+
+  it('defaults to all-zero, so a four-argument call is unchanged', () => {
+    expect(
+      encodeTimelockScheduleBatch(TWO_TARGETS, TWO_PAYLOADS, SALT, 3600n)
+    ).toBe(
+      encodeTimelockScheduleBatch(TWO_TARGETS, TWO_PAYLOADS, SALT, 3600n, [
+        0n,
+        0n,
+      ])
+    )
+  })
+
+  it('rejects a values array whose length does not match the targets', () => {
+    expect(() =>
+      encodeTimelockScheduleBatch(TWO_TARGETS, TWO_PAYLOADS, SALT, 3600n, [0n])
+    ).toThrow(/values/)
+  })
+})
+
 describe('deriveTimelockSalt', () => {
   const action = {
     chainId: 1,
@@ -182,15 +247,24 @@ describe('deriveTimelockSalt', () => {
     // on its own. Pinned because the property matters and nothing else asserts
     // it: if the preimage field type ever became `bytes` or `string`, a malformed
     // address would reach `scheduleBatch` and revert after signing instead.
-    for (const bad of ['0xnot-an-address', '0x1234', 'deadbeef', ''])
+    for (const bad of ['0xnot-an-address', '0x1234', 'deadbeef', '']) {
       expect(() =>
         deriveTimelockSalt({ ...action, targets: [bad as Address], attempt: 0 })
       ).toThrow()
+      expect(() =>
+        deriveTimelockSalt({
+          ...action,
+          timelockAddress: bad as Address,
+          attempt: 0,
+        })
+      ).toThrow()
+    }
   })
 
   it('throws on an address whose EIP-55 checksum is wrong', () => {
-    // Upper-cased: mixed case makes viem verify the checksum, and this fails it.
-    // An all-lowercase address is accepted, since there is no checksum to check.
+    // Anything that is not all-lowercase gets its EIP-55 checksum verified, and
+    // this one fails it. An all-lowercase address is accepted, since there is no
+    // checksum to check.
     expect(() =>
       deriveTimelockSalt({
         ...action,

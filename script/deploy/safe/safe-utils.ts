@@ -3029,6 +3029,10 @@ export const pickTimelockSalt = async (
 
   // A mismatched length probes an id `scheduleBatch` can never create, so a taken
   // id reads as free and the revert lands after signatures and the full delay.
+  if (originalCalldatas.length !== targetAddresses.length)
+    throw new Error(
+      `pickTimelockSalt: originalCalldatas (${originalCalldatas.length}) and targetAddresses (${targetAddresses.length}) must have the same length`
+    )
   if (values.length !== targetAddresses.length)
     throw new Error(
       `pickTimelockSalt: values (${values.length}) and targetAddresses (${targetAddresses.length}) must have the same length`
