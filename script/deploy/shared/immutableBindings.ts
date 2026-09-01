@@ -75,20 +75,6 @@ export function isZeroAddressValue(value: string): boolean {
 }
 
 /**
- * Strip URLs from a message before it is logged.
- *
- * @remarks Tooling failures often echo the invocation that failed, and on Tron that invocation
- *   carries the RPC URL — which frequently embeds an API key. CI masks those, local runs do not.
- * @param message - raw error or diagnostic text
- * @returns the message with every URL replaced by a placeholder
- */
-export function redactUrls(message: string): string {
-  // No \b anchor: a scheme glued to a word character (`log_https://…`) has no word
-  // boundary at its start, and the whole match would fail — leaking the URL it exists to hide.
-  return message.replace(/[a-z][a-z0-9+.-]*:\/\/\S*/gi, '<redacted-url>')
-}
-
-/**
  * Substitute the `<NETWORK>` / `<ENVIRONMENT>` placeholders in a registry config key.
  *
  * @param keyInConfigFile - dot path as written in the registry

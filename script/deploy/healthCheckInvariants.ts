@@ -34,6 +34,7 @@ import {
   type IWhitelistConfig,
   type TargetState,
 } from '../common/types'
+import { redactUrls } from '../utils/redactUrls'
 import { normalizeSelector } from '../utils/utils'
 
 import {
@@ -57,7 +58,6 @@ import {
   collectImmutableBindingChecks,
   isFacetContract,
   isZeroAddressValue,
-  redactUrls,
   TRON_ZERO_ADDRESS_BASE58,
   type IImmutableBindingCheck,
 } from './shared/immutableBindings'

@@ -13,7 +13,6 @@ import {
   isValidConfigFileName,
   isZeroAddressValue,
   loadConfigFileFromDisk,
-  redactUrls,
   resolveConfigValue,
   substituteConfigKeyPlaceholders,
   TRON_ZERO_ADDRESS_BASE58,
@@ -355,22 +354,6 @@ describe('deployRequirements.json getter annotations', () => {
   })
 })
 
-describe('redactUrls', () => {
-  it('strips a URL that tooling echoed back with the failing command', () => {
-    // troncast failures echo their own invocation, and the RPC URL in it can embed an API key.
-    const message =
-      '$ bun run script/troncast/index.ts call "TXYZ" "PORTAL() returns (address)" --rpc-url https://rpc.example.invalid/jsonrpc?apikey=not-a-real-key'
-    const redacted = redactUrls(message)
-    expect(redacted).not.toContain('not-a-real-key')
-    expect(redacted).not.toContain('example.invalid')
-    expect(redacted).toContain('<redacted-url>')
-  })
-
-  it('leaves a message without a URL untouched', () => {
-    expect(redactUrls('execution reverted')).toBe('execution reverted')
-  })
-})
-
 describe('substituteConfigKeyPlaceholders', () => {
   it('substitutes both placeholders', () => {
     expect(
@@ -386,21 +369,5 @@ describe('substituteConfigKeyPlaceholders', () => {
     expect(
       substituteConfigKeyPlaceholders('.refundWallet', 'mainnet', 'production')
     ).toBe('.refundWallet')
-  })
-})
-
-describe('redactUrls — adversarial inputs', () => {
-  it('redacts a URL glued to a preceding word character', () => {
-    // A \b anchor fails here, so the whole match would fail and the URL would survive intact.
-    for (const prefix of ['log_', '1', 'word', '[', 'msg:']) {
-      const out = redactUrls(`${prefix}https://host/path?apikey=not-a-real-key`)
-      expect(out).not.toContain('not-a-real-key')
-    }
-  })
-
-  it('redacts non-http schemes too', () => {
-    expect(redactUrls('ws://host/?k=not-a-real-key')).not.toContain(
-      'not-a-real-key'
-    )
   })
 })
