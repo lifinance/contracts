@@ -1,10 +1,11 @@
 /**
  * Production deploy gate for `script/tasks/diamondUpdateFacet.sh`.
  *
- * Staging is always allowed. Production from `main` is always allowed. Production
- * from any other branch may proceed only when each selected facet matches `main`,
- * or — if it does not — when that branch has an open PR and the facet is frozen
- * at the commit recorded in `audit/auditLog.json`.
+ * Staging is always allowed. A production deploy may proceed only when each selected
+ * facet matches `main`, or — if it does not — when the branch has an open PR and the
+ * facet is frozen at the commit recorded in `audit/auditLog.json`. What is compared is
+ * the working tree, never the branch name: a checkout sitting on `main` earns nothing,
+ * because uncommitted or stale content there is exactly what this gate exists to stop.
  *
  * A facet is compared through its transitive `src/` import closure, not just its own
  * file, because an edited library or helper changes the deployed bytecode while the
@@ -26,6 +27,7 @@ const REPO = 'contracts'
 const PR_LIST_LIMIT = 100 // well above the number of open PRs a single branch can have
 const AUDIT_COMMIT_RE = /^[0-9a-f]{40}$/i
 const AUDIT_LOG_PATH = 'audit/auditLog.json'
+const MAIN_BRANCH = 'main'
 const SOURCE_ROOT = 'src/'
 const SOURCE_REMAPPING = 'lifi/' // remappings.txt maps this onto SOURCE_ROOT
 const IMPORT_RE = /import\s+(?:[^'"]*?\bfrom\s+)?['"]([^'"]+)['"]/g
@@ -139,8 +141,9 @@ export const collectSourceClosure = (
 }
 
 /**
- * Collects every reason a production deploy from a feature branch is not allowed.
- * Staging and `main` always pass. Pure, so the policy can be exercised without git or GitHub.
+ * Collects every reason a production deploy is not allowed. Staging always passes;
+ * everything else is judged on what the working tree contains, never on the branch
+ * name. Pure, so the policy can be exercised without git or GitHub.
  * @param input - environment, branch, and per-facet comparison results
  * @returns one message per violation; an empty array means the deploy may proceed
  */
@@ -152,14 +155,19 @@ export const collectDeployGateFailures = (
     return [
       `Unknown environment "${input.environment}" (expected ${EnvironmentEnum.production} or ${EnvironmentEnum.staging})`,
     ]
-  if (input.branch === 'main') return []
   if (input.facets.length === 0) return ['No facets were passed to the check']
 
   const diverged = input.facets.filter((facet) => !facet.matchesMain)
   if (diverged.length === 0) return []
 
   const failures: string[] = []
-  if (!input.hasOpenPr)
+  // no pull request can have `main` as its head, so the open-PR exception cannot
+  // apply here: on main, divergence means uncommitted or stale local content
+  if (input.branch === MAIN_BRANCH)
+    failures.push(
+      `Deploying from "${MAIN_BRANCH}", but the working tree does not match it. Merge the change and pull, or reset the tree, before deploying`
+    )
+  else if (!input.hasOpenPr)
     failures.push(`No open PR found for branch "${input.branch}"`)
 
   for (const facet of diverged) {
@@ -395,7 +403,6 @@ export const verifyDeployGate = async (
   if (input.environment === EnvironmentEnum.staging) return []
   if (input.environment !== EnvironmentEnum.production)
     return collectDeployGateFailures({ ...input, facets: [], hasOpenPr: false })
-  if (input.branch === 'main') return []
 
   const checks: IFacetDeployCheck[] = []
   for (const name of input.facets) {
@@ -434,9 +441,10 @@ export const verifyDeployGate = async (
   }
 
   const diverged = checks.some((check) => !check.matchesMain)
-  const hasOpenPr = diverged
-    ? (await deps.getOpenPrCount(input.branch)) > 0
-    : false
+  const hasOpenPr =
+    diverged && input.branch !== MAIN_BRANCH
+      ? (await deps.getOpenPrCount(input.branch)) > 0
+      : false
 
   return collectDeployGateFailures({
     environment: input.environment,

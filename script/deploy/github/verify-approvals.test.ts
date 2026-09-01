@@ -98,15 +98,53 @@ describe('collectDeployGateFailures', () => {
     ).toEqual([])
   })
 
-  it('allows production deploys from main even when the working tree diverges', () => {
+  it('allows a production deploy from main when the working tree matches it', () => {
     expect(
       collectDeployGateFailures({
         environment: EnvironmentEnum.production,
         branch: 'main',
         hasOpenPr: false,
-        facets: [{ name: 'AcrossFacet', matchesMain: false }],
+        facets: [{ name: 'AcrossFacet', matchesMain: true }],
       })
     ).toEqual([])
+  })
+
+  // being on main is not evidence of anything: uncommitted edits and a stale checkout
+  // both present as a diverged working tree, and no PR can have main as its head
+  it('blocks a production deploy from main when the working tree diverges', () => {
+    const failures = collectDeployGateFailures({
+      environment: EnvironmentEnum.production,
+      branch: 'main',
+      hasOpenPr: false,
+      facets: [{ name: 'AcrossFacet', matchesMain: false }],
+    })
+
+    expect(failures).toHaveLength(2)
+    expect(failures[0]).toContain('does not match it')
+    expect(failures[0]).not.toContain('No open PR')
+    expect(failures[1]).toContain('AcrossFacet')
+  })
+
+  it('does not let an audit freeze excuse a diverged working tree on main', () => {
+    expect(
+      collectDeployGateFailures({
+        environment: EnvironmentEnum.production,
+        branch: 'main',
+        hasOpenPr: false,
+        facets: [
+          {
+            name: 'AcrossFacet',
+            matchesMain: false,
+            version: '1.0.0',
+            auditCommitHash: 'aa'.repeat(20),
+            auditCommitAvailable: true,
+            matchesAuditedCommit: true,
+          },
+        ],
+      })
+    ).toEqual([
+      'Deploying from "main", but the working tree does not match it. Merge the change and pull, or reset the tree, before deploying',
+    ])
   })
 
   it('allows a production feature-branch deploy when every selected facet matches main', () => {
@@ -368,6 +406,55 @@ describe('verifyDeployGate', () => {
     expect(auditLookups).toBe(0)
   })
 
+  // the gate used to return [] on the branch name alone, so a dirty or stale checkout
+  // sitting on main proposed to the production Safe without any comparison at all
+  it('compares the working tree on main instead of trusting the branch name', async () => {
+    let openPrLookups = 0
+
+    const failures = await verifyDeployGate(
+      {
+        environment: EnvironmentEnum.production,
+        branch: 'main',
+        facets: ['AcrossFacet'],
+      },
+      stubDeps({
+        fileMatchesRef: () => false,
+        resolveAuditCommitHash: () => undefined,
+        getOpenPrCount: async () => {
+          openPrLookups += 1
+          return 0
+        },
+      })
+    )
+
+    expect(failures).toHaveLength(2)
+    expect(failures[0]).toContain('does not match it')
+    // no PR can have main as its head, so asking GitHub is wasted and misleading
+    expect(openPrLookups).toBe(0)
+  })
+
+  it('allows a clean checkout on main without contacting GitHub', async () => {
+    let openPrLookups = 0
+
+    const failures = await verifyDeployGate(
+      {
+        environment: EnvironmentEnum.production,
+        branch: 'main',
+        facets: ['AcrossFacet'],
+      },
+      stubDeps({
+        fileMatchesRef: () => true,
+        getOpenPrCount: async () => {
+          openPrLookups += 1
+          return 0
+        },
+      })
+    )
+
+    expect(failures).toEqual([])
+    expect(openPrLookups).toBe(0)
+  })
+
   it('looks up the open PR and audit freeze only for facets that differ from main', async () => {
     const failures = await verifyDeployGate(
       {
@@ -478,19 +565,16 @@ describe('verify-approvals CLI', () => {
   const script = join(import.meta.dir, 'verify-approvals.ts')
 
   // cwd is a temp dir, so any git or gh lookup would fail: reaching exit 0 proves
-  // these two paths short-circuit before touching the repo or GitHub.
-  it.each([
-    ['staging', 'feature/some-branch'],
-    ['production', 'main'],
-  ])('allows %s on %s without contacting GitHub', (environment, branch) => {
+  // staging short-circuits before touching the repo or GitHub.
+  it('allows staging without contacting the repo or GitHub', () => {
     const result = spawnSync(
       process.execPath,
       [
         script,
         '--environment',
-        environment,
+        'staging',
         '--branch',
-        branch,
+        'feature/some-branch',
         '--facets',
         'AcrossFacet',
       ],
@@ -500,6 +584,30 @@ describe('verify-approvals CLI', () => {
     expect(result.status).toBe(0)
     expect(result.stdout).toContain('OK')
   })
+
+  // production has no short-circuit left, so the same temp cwd must now fail closed
+  // rather than pass: there is no repo to compare the facet against
+  it.each(['main', 'feature/some-branch'])(
+    'fails closed on production from %p when the repo cannot be read',
+    (branch) => {
+      const result = spawnSync(
+        process.execPath,
+        [
+          script,
+          '--environment',
+          'production',
+          '--branch',
+          branch,
+          '--facets',
+          'AcrossFacet',
+        ],
+        { cwd: tmpdir(), encoding: 'utf8' }
+      )
+
+      expect(result.status).not.toBe(0)
+      expect(result.stdout).not.toContain('OK')
+    }
+  )
 })
 
 describe('getContractVersion under the tsx runtime', () => {
