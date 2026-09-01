@@ -100,9 +100,8 @@ Outcomes per network: `OK` (new proposal), `SKIP` (already registered on the dia
 - [ ] Make sure the diamond contract is owned by the SAFE wallet you will use for the upgrade
 - [ ] Ensure that you have granted access to a secondary wallet to whitelist contracts and selectors
 - [ ] Make sure the facet you wish to upgrade is deployed but not added to the diamond yet
-- [ ] Run this script `./scripts/scriptMaster.sh`, select `1) Deploy one specific contract to one network` (production, non-testnet networks propose the diamondCut to the Safe automatically)
+- [ ] Run this script `./scripts/scriptMaster.sh`, select `1) Deploy one specific contract to one network`
 - [ ] Choose the network you want to run the upgrade on
-- [ ] Choose the facet(s) you want to upgrade (you can select multiple using the spacebar)
-- [ ] Hit enter and select the SAFE wallet you want to use
-- [ ] Hit enter again and wait for the script to finish
+- [ ] Choose the facet you want to upgrade
+- [ ] Wait for the script to finish. On production, non-testnet networks the diamondCut is proposed to the network's Safe (from `config/networks.json`) automatically, wrapped in a timelock `scheduleBatch`
 - [ ] Go to the Gnosis SAFE app and confirm the transaction

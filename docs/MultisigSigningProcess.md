@@ -91,14 +91,9 @@ All EVM funnels end in `storeTransactionInMongoDB`
   funnel, invoked by the bash `sendOrPropose` chokepoint in
   `script/helperFunctions.sh`, by `script/tasks/diamondUpdateFacet.sh`,
   `diamondUpdatePeriphery.sh`, and `diamondEMERGENCYPause.sh` (all with
-  `--timelock`), by `script/deploy/deployUpgradesToSAFE.sh` (**without**
-  `--timelock` — a legacy Safe-direct `diamondCut`; it still goes through the
-  Safe with full threshold/quorum, it merely omits the timelock wrap, and it
-  refuses to run on testnets. On mainnet the diamond is owned by the timelock,
-  not the Safe, so the resulting proposal reverts on execution — this path is
-  effectively dead for production diamond cuts), programmatically by
-  `proposeDiamondCut` (`script/deploy/shared/propose-diamond-cut.ts`), and
-  manually via `bun propose-safe-tx`.
+  `--timelock`), programmatically by `proposeDiamondCut`
+  (`script/deploy/shared/propose-diamond-cut.ts`), and manually via
+  `bun propose-safe-tx`.
 - **TS `sendOrPropose`** (`script/safe/safeScriptHelpers.ts`) — used by
   `script/tasks/cleanUpProdDiamond.ts`; env private key only, no Ledger.
 - **Deferred-cleanup drain** (`script/deploy/safe/drain-parked-tasks.ts`) —
@@ -112,15 +107,17 @@ All EVM funnels end in `storeTransactionInMongoDB`
   single chokepoint**.
 - **Tron** is a parallel flow (`script/deploy/tron/propose-to-safe-tron.ts`).
 
-`deployUpgradesToSAFE.sh` additionally runs `verify-approvals.ts` before
+`diamondUpdateFacet.sh` additionally runs `verify-approvals.ts` before
 proposing (PR #2128 / EXSC-687). Production: `main` is allowed; a feature
-branch is allowed when each selected `src/Facets/<Name>.sol` matches
-`origin/main` (the usual rollout — branch off main, deploy already-merged
-code, do not change that Solidity); if a selected facet diverges, the
-branch needs an open PR and the working-tree file must equal the
-`audit/auditLog.json` commit for the current `@custom:version`. Staging is
-not gated. This is **not** a GitHub SC+auditor review check, and it does
-not wrap the other `propose-to-safe` entry points.
+branch is allowed when each selected facet's transitive `src/` import closure
+matches `origin/main` (the usual rollout — branch off main, deploy
+already-merged code, do not change that Solidity); if a facet's closure
+diverges, the branch needs an open PR and the working-tree files must equal the
+`audit/auditLog.json` commit for the current `@custom:version`, with that audit
+log read from `main` rather than the working tree so a deploy cannot certify
+itself. Staging is not gated. This is **not** a GitHub SC+auditor review check,
+and it does not wrap the other `propose-to-safe` entry points — including
+`diamondUpdatePeriphery.sh` and `diamondEMERGENCYPause.sh`.
 
 `runPropose` owner-gates the proposer on-chain; with `--timelock` it wraps all
 calls into one `scheduleBatch` via `wrapWithTimelockSchedule` (`safe-utils.ts`;
@@ -208,7 +205,7 @@ parked tasks are reconciled weekly by `reconcileParkedTasks.yml`.
 | Propose | Nonce safety: override collision checks, auto-nonce clamped to on-chain | Block / auto-correct | `propose-to-safe.ts`, `getNextNonce` in `safe-utils.ts` |
 | Propose | Duplicate-intent dedup (partial unique index on pending rows) | Block insert | `computeProposalIntentHash` + index in `safe-utils.ts` |
 | Propose | Removal safety: protected-facet allowlist, live-selector hold-back, fail-closed diffs | Block + alert | `diamondRemovalDiff.ts`, `drain-parked-tasks.ts` |
-| Propose | Production `deployUpgradesToSAFE` from a feature branch: selected facet sources must match `origin/main`, else open PR + audit-log commit freeze; `main` and staging are not gated | Block (prod, that entry point only) | `script/deploy/github/verify-approvals.ts` via `deployUpgradesToSAFE.sh` (PR #2128) |
+| Propose | Production `diamondUpdateFacet` from a feature branch: each selected facet's `src/` import closure must match `origin/main`, else open PR + audit-log commit freeze (audit log read from `main`); `main` and staging are not gated | Block (prod, facet cuts only — not periphery or emergency pause) | `script/deploy/github/verify-approvals.ts` via `diamondUpdateFacet.sh` (PR #2128) |
 | Confirm | Signer must be an owner; network must be active; threshold and nonce read on-chain per Safe | Block / skip | `confirm-safe-tx.ts`, `safe-utils.ts` |
 | Confirm | Ledger blind-signing enabled, fail-fast before any review | Block | `checkBlindSigningEnabled` in `ledger.ts` |
 | Confirm | Full calldata decode: diamond cut, scheduleBatch, whitelist, periphery, roles; per-selector name resolution | Display / warn only | `safe-decode-utils.ts` (`formatDecodedTxDataForDisplay`) |
@@ -299,6 +296,6 @@ Design themes under discussion. Nothing below exists in the repo today:
 - **Bytecode ↔ audit attestation** — verify the deployed bytecode/commit
   against the audited commit in `audit/auditLog.json` at signing time,
   instead of inferring "audited" from the version string. (Propose-time
-  source-file freeze on `deployUpgradesToSAFE` is a different check already
+  source-file freeze on `diamondUpdateFacet` is a different check already
   described in §4.2 / §5 — it is not bytecode attestation and does not
   cover the other propose entry points.)
