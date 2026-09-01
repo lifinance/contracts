@@ -181,6 +181,57 @@ export function resolveConfigValue(
 }
 
 /**
+ * Resolve a binding's expected address, preferring a network-scoped override of the registry key
+ * over the key as written.
+ *
+ * @remarks Registry keys that already carry a `<NETWORK>` placeholder address one network each,
+ *   but a key without one is a fleet-wide default that a config file may still override per
+ *   network — `lifiintentescrow.json` holds the EVM `OIFOutputSettlerSimple` at the top level and
+ *   Tron's under `.tron`. Comparing a Tron deployment against the top-level EVM value reports a
+ *   correctly bound contract as drift, so a `.<network>`-prefixed form of the same key wins
+ *   whenever the config file defines it.
+ * @param config - parsed config file contents, or null when it could not be loaded
+ * @param keyInConfigFile - dot path as written in the registry
+ * @param network - network key as in `config/networks.json`
+ * @param environment - `production` or `staging`
+ * @returns the key that answered (for human-readable output) and the value it resolved to, or a
+ *   null value when config has nothing for this network
+ */
+export function resolveExpectedAddress(
+  config: unknown,
+  keyInConfigFile: string,
+  network: string,
+  environment: string
+): { keyUsed: string; expectedAddress: string | null } {
+  if (config === null)
+    return { keyUsed: keyInConfigFile, expectedAddress: null }
+
+  if (!/<NETWORK>|<ENVIRONMENT>/.test(keyInConfigFile)) {
+    const scopedKey = `.${network}${
+      keyInConfigFile.startsWith('.') ? '' : '.'
+    }${keyInConfigFile}`
+    const scopedValue = resolveConfigValue(
+      config,
+      scopedKey,
+      network,
+      environment
+    )
+    if (scopedValue !== null)
+      return { keyUsed: scopedKey, expectedAddress: scopedValue }
+  }
+
+  return {
+    keyUsed: keyInConfigFile,
+    expectedAddress: resolveConfigValue(
+      config,
+      keyInConfigFile,
+      network,
+      environment
+    ),
+  }
+}
+
+/**
  * Collect every checkable immutable binding for one network: all registry entries whose
  * `configData` carries a `getter`, with the expected address resolved from the referenced config
  * file. Pure given the injected loader — the caller performs the on-chain read and comparison.
@@ -209,15 +260,12 @@ export function collectImmutableBindingChecks(
       if (!configData.getter) continue
 
       const config = loadConfigFile(configData.configFileName)
-      const expectedAddress =
-        config === null
-          ? null
-          : resolveConfigValue(
-              config,
-              configData.keyInConfigFile,
-              network,
-              environment
-            )
+      const { keyUsed, expectedAddress } = resolveExpectedAddress(
+        config,
+        configData.keyInConfigFile,
+        network,
+        environment
+      )
 
       checks.push({
         contractName,
@@ -227,7 +275,7 @@ export function collectImmutableBindingChecks(
         configFileName: configData.configFileName,
         keyInConfigFile: configData.keyInConfigFile,
         resolvedKeyInConfigFile: substituteConfigKeyPlaceholders(
-          configData.keyInConfigFile,
+          keyUsed,
           network,
           environment
         ),

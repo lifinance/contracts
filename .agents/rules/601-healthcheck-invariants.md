@@ -43,7 +43,11 @@ invariant must be added, adjusted, or removed. Use this checklist:
   against config on every chain. Nest the key **inside** the arg object: the deploy-time
   consumer iterates `configData | keys[]`, so a sibling key there breaks deploys. Add
   `legacyGetters` when the fleet still runs builds from before the getter was renamed —
-  without it, the binding silently reports as unverified on every older chain.
+  without it, the binding silently reports as unverified on every older chain. A
+  `keyInConfigFile` with no `<NETWORK>` placeholder is a fleet-wide default: the check
+  prefers a `.<network>`-prefixed form of the same key wherever the config file defines one,
+  so a chain whose counterparty lives under its own block (Tron's under `.tron`) is compared
+  against that value rather than the EVM default.
 - **Struct, authorization, or owner semantics changed** → adjust the affected invariant so
   its assertion still matches on-chain reality (e.g. a changed expected owner, a new
   authorized selector, a renamed getter). Renaming a public getter that a

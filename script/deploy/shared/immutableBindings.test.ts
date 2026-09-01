@@ -14,6 +14,7 @@ import {
   isZeroAddressValue,
   loadConfigFileFromDisk,
   resolveConfigValue,
+  resolveExpectedAddress,
   substituteConfigKeyPlaceholders,
   TRON_ZERO_ADDRESS_BASE58,
   type IDeployRequirementEntry,
@@ -369,5 +370,70 @@ describe('substituteConfigKeyPlaceholders', () => {
     expect(
       substituteConfigKeyPlaceholders('.refundWallet', 'mainnet', 'production')
     ).toBe('.refundWallet')
+  })
+})
+
+describe('resolveExpectedAddress network-scoped override', () => {
+  const intentEscrow = loadConfigFileFromDisk('lifiintentescrow.json')
+
+  it('prefers the .tron override over the fleet-wide key (real config)', () => {
+    const flat = resolveConfigValue(
+      intentEscrow,
+      '.OIFOutputSettlerSimple',
+      'tron',
+      'production'
+    )
+    const resolved = resolveExpectedAddress(
+      intentEscrow,
+      '.OIFOutputSettlerSimple',
+      'tron',
+      'production'
+    )
+
+    expect(resolved.keyUsed).toBe('.tron.OIFOutputSettlerSimple')
+    expect(resolved.expectedAddress).toMatch(/^T[1-9A-HJ-NP-Za-km-z]{33}$/)
+    // Without the override the Tron binding would be compared against the EVM address, so an
+    // correctly bound contract would be reported as drift by an error-severity invariant.
+    expect(resolved.expectedAddress).not.toBe(flat)
+  })
+
+  it('falls back to the fleet-wide key on a network without an override', () => {
+    expect(
+      resolveExpectedAddress(
+        intentEscrow,
+        '.OIFOutputSettlerSimple',
+        'mainnet',
+        'production'
+      )
+    ).toEqual({
+      keyUsed: '.OIFOutputSettlerSimple',
+      expectedAddress: resolveConfigValue(
+        intentEscrow,
+        '.OIFOutputSettlerSimple',
+        'mainnet',
+        'production'
+      ),
+    })
+  })
+
+  it('leaves a key that already targets one network alone', () => {
+    const config = {
+      tron: { mainnet: { x: '0xdead' } },
+      mainnet: { x: '0xbeef' },
+    }
+    expect(
+      resolveExpectedAddress(config, '.<NETWORK>.x', 'mainnet', 'production')
+    ).toEqual({ keyUsed: '.<NETWORK>.x', expectedAddress: '0xbeef' })
+  })
+
+  it('reports no value when config could not be loaded', () => {
+    expect(
+      resolveExpectedAddress(
+        null,
+        '.OIFOutputSettlerSimple',
+        'tron',
+        'production'
+      )
+    ).toEqual({ keyUsed: '.OIFOutputSettlerSimple', expectedAddress: null })
   })
 })
