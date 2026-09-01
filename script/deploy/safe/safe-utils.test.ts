@@ -1494,6 +1494,24 @@ describe('pickTimelockSalt', () => {
     expect((thrown as Error).message).toMatch(/already scheduled/i)
   })
 
+  it('rejects a payloads array whose length does not match the targets', async () => {
+    const { client } = fakeTimelockClient({}, action.timelockAddress)
+
+    let thrown: unknown
+    try {
+      await pickTimelockSalt({
+        ...action,
+        originalCalldatas: ['0xdeadbeef'],
+        client: client as never,
+      })
+    } catch (error) {
+      thrown = error
+    }
+
+    expect(thrown).toBeInstanceOf(Error)
+    expect((thrown as Error).message).toMatch(/originalCalldatas/i)
+  })
+
   it('rejects a values array whose length does not match the targets', async () => {
     const { client } = fakeTimelockClient({}, action.timelockAddress)
 
@@ -1625,6 +1643,10 @@ describe('wrapWithTimelockSchedule', () => {
       expect(probed.args?.[1]).toEqual(scheduled.args?.[1])
       expect(probed.args?.[2]).toEqual(scheduled.args?.[2])
       expect(probed.args?.[4]).toEqual(scheduled.args?.[4])
+
+      // From the stub's getMinDelay, not the config-file or 1-hour fallback: a
+      // delay below the timelock's real minDelay reverts after signing.
+      expect(scheduled.args?.[5]).toBe(3600n)
     } finally {
       stub.stop()
     }
