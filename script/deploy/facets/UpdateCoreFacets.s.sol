@@ -15,6 +15,8 @@ contract DeployScript is UpdateScriptBase {
         public
         returns (address[] memory facets, bytes memory cutData)
     {
+        _rejectVerificationMode();
+
         // Read core facets dynamically from global.json config
         string memory globalConfigPath = string.concat(
             vm.projectRoot(),
