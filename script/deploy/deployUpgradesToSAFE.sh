@@ -33,40 +33,39 @@ deployUpgradesToSAFE() {
   fi
 
   GIT_BRANCH=$(git branch --show-current)
-  if [[ $GIT_BRANCH == "main" ]]; then
-    # We can assume code in the main branch has been pre-approved and audited
-    VERIFIED="OK"
-  else
-    VERIFIED=$(bun --silent script/deploy/github/verify-approvals.ts --branch "$GIT_BRANCH" --token "$GH_TOKEN" --facets "$SCRIPTS")
+  # anything that is not exactly "staging" reaches the production private key via
+  # getPrivateKey's else branch, so the gate has to run for those values too
+  if [[ "$ENVIRONMENT" != "staging" ]]; then
+    if ! bunx tsx ./script/deploy/github/verify-approvals.ts --environment "$ENVIRONMENT" --branch "$GIT_BRANCH" --facets "$SCRIPTS"; then
+      error "Production deploy gate failed for branch '$GIT_BRANCH' - aborting before anything is proposed to the Safe"
+      return 1
+    fi
+    echo "Production deploy gate passed. Continuing..."
   fi
 
-  if [[ $VERIFIED == "OK" ]]; then
-    echo "PR has been approved. Continuing..."
-    # Loop through each script and call "forge script" to get the cut calldata
-    declare -a CUTS
-    for script in $SCRIPTS; do
-      UPDATE_SCRIPT=$(echo "$DEPLOY_SCRIPT_DIRECTORY"Update"$script".s.sol)
-      PRIVATE_KEY=$(getPrivateKey $NETWORK $ENVIRONMENT)
-      echo "Calculating facet cuts for $script..."
-      
-      # Execute, parse, and check return code
-      if ! executeAndParse \
-        "NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script \"$UPDATE_SCRIPT\" --fork-url $NETWORK --json --skip-simulation --legacy" \
-        "true" \
-        "forge script failed for $script on network $NETWORK" \
-        "continue"; then
-        continue
-      fi
-      
-      CLEAN_RETURN_DATA=$(echo "${RAW_RETURN_DATA:-}" | sed 's/^.*{\"logs/{\"logs/')
-      FACET_CUT=$(echo $CLEAN_RETURN_DATA | jq -r '.returns.cutData.value')
-      if [ "$FACET_CUT" != "0x" ]; then
-        echo "Proposing facet cut for $script..."
-        DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
-        RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
-        bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$SAFE_SIGNER_PRIVATE_KEY"
-      fi
-    done
-    exit 0
-  fi
+  # read from fd 3 so commands inside the loop (forge, bun) keep their own stdin
+  while IFS= read -r -u3 SCRIPT; do
+    [[ -z "$SCRIPT" ]] && continue
+    UPDATE_SCRIPT=$(echo "$DEPLOY_SCRIPT_DIRECTORY"Update"$SCRIPT".s.sol)
+    PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT")
+    echo "Calculating facet cuts for $SCRIPT..."
+
+    if ! executeAndParse \
+      "NO_BROADCAST=true NETWORK=$NETWORK FILE_SUFFIX=$FILE_SUFFIX USE_DEF_DIAMOND=$USE_MUTABLE_DIAMOND PRIVATE_KEY=$PRIVATE_KEY forge script \"$UPDATE_SCRIPT\" --fork-url $NETWORK --json --skip-simulation --legacy" \
+      "true" \
+      "forge script failed for $SCRIPT on network $NETWORK" \
+      "continue"; then
+      continue
+    fi
+
+    CLEAN_RETURN_DATA=$(echo "${RAW_RETURN_DATA:-}" | sed 's/^.*{\"logs/{\"logs/')
+    FACET_CUT=$(jq -r '.returns.cutData.value' <<< "${CLEAN_RETURN_DATA:-}")
+    if [ "$FACET_CUT" != "0x" ]; then
+      echo "Proposing facet cut for $SCRIPT..."
+      DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME")
+      RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
+      bun script/deploy/safe/propose-to-safe.ts --to "$DIAMOND_ADDRESS" --calldata "$FACET_CUT" --network "$NETWORK" --rpcUrl "$RPC_URL" --privateKey "$SAFE_SIGNER_PRIVATE_KEY"
+    fi
+  done 3<<<"$SCRIPTS"
+  exit 0
 }
