@@ -1,4 +1,5 @@
 import {
+  afterEach,
   describe,
   expect,
   it,
@@ -7,6 +8,7 @@ import {
 
 import {
   MISSING_TICKET_MESSAGE,
+  assertTicketPresent,
   formatReasonWarning,
   parseTicketLink,
   resolveProposalIntent,
@@ -274,5 +276,42 @@ describe('summarizeReasonAdoption', () => {
 
     expect(summary.examined).toBe(0)
     expect(summary.flipReady).toBe(false)
+  })
+})
+
+describe('assertTicketPresent', () => {
+  const originalTicket = process.env.SAFE_PROPOSAL_TICKET
+
+  afterEach(() => {
+    if (originalTicket === undefined) delete process.env.SAFE_PROPOSAL_TICKET
+    else process.env.SAFE_PROPOSAL_TICKET = originalTicket
+  })
+
+  it('refuses with no ticket in the environment', () => {
+    delete process.env.SAFE_PROPOSAL_TICKET
+
+    expect(() => assertTicketPresent()).toThrow(/SAFE_PROPOSAL_TICKET/)
+  })
+
+  it('refuses a malformed ticket', () => {
+    process.env.SAFE_PROPOSAL_TICKET = 'https://example.com/issue/EXSC-1'
+
+    expect(() => assertTicketPresent()).toThrow(/not a Linear issue link/)
+  })
+
+  it('returns the canonical URL when one is set', () => {
+    process.env.SAFE_PROPOSAL_TICKET = 'EXSC-694'
+
+    expect(assertTicketPresent()).toBe(
+      'https://linear.app/lifi-linear/issue/EXSC-694'
+    )
+  })
+
+  it('prefers an explicit ticket over the environment', () => {
+    process.env.SAFE_PROPOSAL_TICKET = 'EXSC-222'
+
+    expect(assertTicketPresent('EXSC-111')).toBe(
+      'https://linear.app/lifi-linear/issue/EXSC-111'
+    )
   })
 })

@@ -28,6 +28,7 @@ import networksData from '../../../config/networks.json'
 import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 
 import type { ILedgerAccountResult } from './ledger'
+import { assertTicketPresent } from './proposal-intent'
 import {
   getNextNonce,
   getPrivateKey,
@@ -134,6 +135,10 @@ const main = defineCommand({
     },
   },
   async run({ args }) {
+    // Up front: this asks for a device confirmation per network, and the
+    // store-time refusal would collect them all before failing.
+    assertTicketPresent()
+
     if (!args.network && !args.allNetworks)
       throw new Error('Provide either --network <name> or --all-networks')
     if (args.network && args.allNetworks)

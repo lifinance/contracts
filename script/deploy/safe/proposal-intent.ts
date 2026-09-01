@@ -42,8 +42,11 @@ export interface ITicketLinkRejected {
 
 export type TicketLinkResult = ITicketLinkAccepted | ITicketLinkRejected
 
+// Leads with the environment variable because every proposal path reads it,
+// while only some offer a --ticket flag — and this is the line an operator reads
+// mid-incident.
 export const MISSING_TICKET_MESSAGE =
-  'No Linear ticket supplied. Every Safe proposal must carry one: pass --ticket <url|TEAM-123>, or export SAFE_PROPOSAL_TICKET before running the deploy script.'
+  'No Linear ticket supplied. Every Safe proposal must carry one: export SAFE_PROPOSAL_TICKET=<url|TEAM-123>, or pass --ticket where the script offers it.'
 
 /**
  * Accepts a Linear issue link, or a bare issue id expanded into one.
@@ -211,4 +214,22 @@ export const summarizeReasonAdoption = (
     consecutiveWithReason,
     flipReady: consecutiveWithReason >= REASON_FLIP_WINDOW,
   }
+}
+
+/**
+ * Refuses a run with no valid ticket, before it does anything.
+ *
+ * `storeTransactionInMongoDB` is the unbypassable check, but it runs after the
+ * transaction has been signed — a Ledger tap already spent, and on a fleet
+ * script once per network. Calling this at a script's entry turns that into one
+ * message before any signing starts.
+ *
+ * @param ticket - An explicit flag value, when the script has one.
+ * @returns The canonical ticket URL.
+ * @throws If no ticket is available, or it is not a Linear issue link.
+ */
+export const assertTicketPresent = (ticket?: string): string => {
+  const result = parseTicketLink(ticket ?? process.env.SAFE_PROPOSAL_TICKET)
+  if (!result.ok) throw new Error(result.message)
+  return result.url
 }

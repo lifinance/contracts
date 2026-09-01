@@ -13,6 +13,7 @@ import {
 import { privateKeyToAccount } from 'viem/accounts'
 
 import { EnvironmentEnum, type SupportedChain } from '../common/types'
+import { assertTicketPresent } from '../deploy/safe/proposal-intent'
 import {
   getNextNonce,
   getPrivateKey,
@@ -87,6 +88,11 @@ const main = defineCommand({
     },
   },
   async run({ args }) {
+    // Up front, not at the store: this script signs on every production mainnet
+    // in turn, and the store-time refusal would spend a signature per network
+    // before failing.
+    assertTicketPresent()
+
     const blacklist = args.blacklist
     const environment = castEnv(args.environment ?? 'production')
     let activeNetworks = getAllActiveNetworks()

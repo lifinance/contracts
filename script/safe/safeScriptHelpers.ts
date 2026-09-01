@@ -9,6 +9,7 @@ import {
 import { privateKeyToAccount } from 'viem/accounts'
 
 import { EnvironmentEnum } from '../common/types'
+import { assertTicketPresent } from '../deploy/safe/proposal-intent'
 import {
   getNextNonce,
   getSafeMongoCollection,
@@ -93,6 +94,10 @@ export async function sendOrPropose({
   }
 
   // ───────────── SAFE PROPOSAL FLOW ───────────── //
+  // Before the Safe client and any signing. The authoritative refusal is still
+  // the one in storeTransactionInMongoDB, which no funnel can skip.
+  assertTicketPresent()
+
   const pk = process.env.PRIVATE_KEY_PRODUCTION
   if (!pk) throw new Error('Missing PRIVATE_KEY_PRODUCTION in environment')
 
