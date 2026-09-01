@@ -28,6 +28,7 @@ import { type Collection, type InsertOneResult, type ObjectId } from 'mongodb'
 import { type Address, type Hex } from 'viem'
 
 import {
+  OperationTypeEnum,
   buildProposalProvenance,
   canExecuteWithNonceStatus,
   classifyDuplicateKeyError,
@@ -38,11 +39,11 @@ import {
   isFutureNonceExecutionAllowed,
   mongoSafeTxRowFilter,
   normalizeProposalReason,
+  resolveSafeSigningOptions,
   safeTxStatusConsumedNonce,
   serializeSafeTxForMongo,
   storeTransactionInMongoDB,
   summarizeProposalDoc,
-  OperationTypeEnum,
   type IProposalProvenance,
   type ISafeTransaction,
   type ISafeTxDocument,
@@ -1247,5 +1248,98 @@ describe('classifyIndexEnsureFailure', () => {
     expect(classifyIndexEnsureFailure(undefined)).toBe('fatal')
     expect(classifyIndexEnsureFailure(6)).toBe('fatal')
     expect(classifyIndexEnsureFailure(27)).toBe('fatal')
+  })
+})
+
+describe('resolveSafeSigningOptions', () => {
+  it('defaults to the env private key when no ledger flag is given', () => {
+    expect(resolveSafeSigningOptions({ envPrivateKey: 'abc123' })).toEqual({
+      useLedger: false,
+      privateKey: 'abc123',
+      ledgerOptions: { ledgerLive: false, accountIndex: 0 },
+    })
+  })
+
+  it('refuses when neither a ledger nor a private key is available', () => {
+    expect(() => resolveSafeSigningOptions({})).toThrow(
+      /PRIVATE_KEY_PRODUCTION/
+    )
+  })
+
+  it('does not require a private key when signing with a ledger', () => {
+    expect(resolveSafeSigningOptions({ ledger: true }).useLedger).toBe(true)
+  })
+
+  it('withholds the env key when signing with a ledger, even when one is set', () => {
+    // The env key must be present in the fixture: with it absent, "privateKey is
+    // undefined" holds whether or not the code withholds it.
+    const resolved = resolveSafeSigningOptions({
+      ledger: true,
+      envPrivateKey: 'abc123',
+    })
+
+    expect(resolved.useLedger).toBe(true)
+    expect(resolved.privateKey).toBeUndefined()
+  })
+
+  it('passes the ledger-live account index through', () => {
+    expect(
+      resolveSafeSigningOptions({
+        ledger: true,
+        ledgerLive: true,
+        accountIndex: 3,
+      }).ledgerOptions
+    ).toEqual({ ledgerLive: true, accountIndex: 3 })
+  })
+
+  it('passes a custom derivation path through', () => {
+    expect(
+      resolveSafeSigningOptions({
+        ledger: true,
+        derivationPath: "m/44'/60'/1'/0/0",
+      }).ledgerOptions
+    ).toEqual({
+      ledgerLive: false,
+      accountIndex: 0,
+      derivationPath: "m/44'/60'/1'/0/0",
+    })
+  })
+
+  it('rejects derivationPath together with ledgerLive, which mean different paths', () => {
+    expect(() =>
+      resolveSafeSigningOptions({
+        ledger: true,
+        ledgerLive: true,
+        derivationPath: "m/44'/60'/1'/0/0",
+      })
+    ).toThrow(/derivationPath.*ledgerLive|ledgerLive.*derivationPath/)
+  })
+
+  it('ignores ledger sub-options when the ledger is not selected, rather than half-applying them', () => {
+    const resolved = resolveSafeSigningOptions({
+      envPrivateKey: 'abc123',
+      ledgerLive: true,
+      accountIndex: 5,
+    })
+
+    expect(resolved.useLedger).toBe(false)
+    expect(resolved.privateKey).toBe('abc123')
+    // The sub-options must not leak through: reporting a derivation path or a
+    // Ledger Live index for a key-signed proposal describes signing that did not
+    // happen.
+    expect(resolved.ledgerOptions).toEqual({
+      ledgerLive: false,
+      accountIndex: 0,
+    })
+  })
+
+  it('coerces a string accountIndex, since citty hands CLI values through as strings', () => {
+    expect(
+      resolveSafeSigningOptions({
+        ledger: true,
+        ledgerLive: true,
+        accountIndex: '4' as unknown as number,
+      }).ledgerOptions.accountIndex
+    ).toBe(4)
   })
 })

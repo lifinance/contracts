@@ -170,6 +170,26 @@ const command = defineCommand({
       type: 'string',
       description: 'JSON array of facet names (e.g. ["FacetA","FacetB"])',
     },
+    ledger: {
+      type: 'boolean',
+      description:
+        'Sign the Safe proposal with a Ledger instead of PRIVATE_KEY_PRODUCTION',
+    },
+    // No `default` on these: citty resolves a multi-word arg's camelCase key to
+    // its default and discards the passed value.
+    ledgerLive: {
+      type: 'string',
+      description: 'Use the Ledger Live derivation path for --accountIndex',
+    },
+    accountIndex: {
+      type: 'string',
+      description: 'Ledger Live account index (default 0)',
+    },
+    derivationPath: {
+      type: 'string',
+      description:
+        'Explicit Ledger derivation path; not combinable with --ledgerLive',
+    },
     facetAddresses: {
       type: 'string',
       description:
@@ -201,6 +221,18 @@ const command = defineCommand({
     const { facets, facetAddresses, periphery, auto, allNetworks, yes } = args
     let { network, environment } = args
     const diamondName = 'LiFiDiamond'
+
+    // Read via the kebab keys: citty populates those with what was passed, while
+    // a multi-word camelCase key can resolve to the arg's default instead.
+    const raw = args as Record<string, unknown>
+    const signing = {
+      ledger: args.ledger === true,
+      ledgerLive: (raw['ledger-live'] ?? raw.ledgerLive) === 'true',
+      accountIndex: Number(raw['account-index'] ?? raw.accountIndex ?? 0),
+      derivationPath: (raw['derivation-path'] ?? raw.derivationPath) as
+        | string
+        | undefined,
+    }
     let calldata: `0x${string}`
 
     // --auto (target-state diff), --facets (explicit names) and --facet-addresses
@@ -339,6 +371,7 @@ const command = defineCommand({
           network,
           environment: typedEnv,
           diamondAddress: targetAddress,
+          signing,
         })
       }
       return
@@ -433,6 +466,7 @@ const command = defineCommand({
           network,
           environment: typedEnv,
           diamondAddress: targetAddress,
+          signing,
         })
       else {
         consola.info('Aborted.')

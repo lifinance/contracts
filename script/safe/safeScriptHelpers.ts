@@ -10,11 +10,13 @@ import { privateKeyToAccount } from 'viem/accounts'
 
 import { EnvironmentEnum } from '../common/types'
 import {
+  OperationTypeEnum,
   getNextNonce,
   getSafeMongoCollection,
   initializeSafeClient,
-  OperationTypeEnum,
+  resolveSafeSigningOptions,
   storeTransactionInMongoDB,
+  type ISafeSigningOptions,
 } from '../deploy/safe/safe-utils'
 import {
   getViemChainForNetworkName,
@@ -31,11 +33,14 @@ export async function sendOrPropose({
   network,
   environment,
   diamondAddress,
+  signing = {},
 }: {
   calldata: `0x${string}`
   network: string
   environment: EnvironmentEnum
   diamondAddress: string
+  /** Ledger flags for the Safe-proposal path; ignored on the direct-send path. */
+  signing?: Omit<ISafeSigningOptions, 'envPrivateKey'>
 }) {
   const isProd = environment === EnvironmentEnum.production
   const isTestnet = isTestnetNetwork(network)
@@ -93,10 +98,20 @@ export async function sendOrPropose({
   }
 
   // ───────────── SAFE PROPOSAL FLOW ───────────── //
-  const pk = process.env.PRIVATE_KEY_PRODUCTION
-  if (!pk) throw new Error('Missing PRIVATE_KEY_PRODUCTION in environment')
+  const { useLedger, privateKey, ledgerOptions } = resolveSafeSigningOptions({
+    ...signing,
+    envPrivateKey: process.env.PRIVATE_KEY_PRODUCTION,
+  })
 
-  const { safe, chain, safeAddress } = await initializeSafeClient(network, pk)
+  if (useLedger) consola.info('Using Ledger hardware wallet for signing')
+
+  const { safe, chain, safeAddress } = await initializeSafeClient(
+    network,
+    privateKey,
+    undefined,
+    useLedger,
+    ledgerOptions
+  )
   consola.info(`🔐 Proposing transaction to Safe ${safeAddress}`)
 
   const { client: mongoClient, pendingTransactions } =

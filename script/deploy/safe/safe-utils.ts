@@ -2053,6 +2053,78 @@ export async function getPendingTransactionsByNetwork(
   return txsByNetwork
 }
 
+export interface ISafeSigningOptions {
+  /** Sign with a Ledger instead of a key from the environment. */
+  ledger?: boolean
+  /** Use Ledger Live's derivation path for `accountIndex`. */
+  ledgerLive?: boolean
+  accountIndex?: number
+  /** Explicit derivation path; mutually exclusive with `ledgerLive`. */
+  derivationPath?: string
+  /** The key to fall back on when no Ledger is requested. */
+  envPrivateKey?: string
+}
+
+export interface IResolvedSafeSigning {
+  useLedger: boolean
+  /** Undefined when signing with a Ledger — there is no key to hold. */
+  privateKey?: string
+  ledgerOptions: {
+    ledgerLive: boolean
+    accountIndex: number
+    derivationPath?: string
+  }
+}
+
+/**
+ * Decides how a Safe proposal gets signed.
+ *
+ * Shared rather than reimplemented per funnel: `propose-to-safe.ts` already
+ * offers a Ledger, and a second funnel resolving these flags differently is how
+ * one path ends up quietly key-only.
+ *
+ * `derivationPath` and `ledgerLive` are refused together because they name
+ * different paths for the same account, so accepting both would silently pick
+ * one and sign with an address the operator did not choose.
+ *
+ * @param options - the CLI/caller flags plus the environment key to fall back on.
+ * @returns what to hand `initializeSafeClient`.
+ * @throws If both path options are given, or if neither a Ledger nor a key is available.
+ */
+export const resolveSafeSigningOptions = (
+  options: ISafeSigningOptions
+): IResolvedSafeSigning => {
+  const useLedger = options.ledger === true
+
+  if (useLedger && options.derivationPath && options.ledgerLive)
+    throw new Error(
+      "Cannot use both 'derivationPath' and 'ledgerLive' — they specify different derivation paths"
+    )
+
+  if (!useLedger && !options.envPrivateKey)
+    throw new Error(
+      'Missing PRIVATE_KEY_PRODUCTION in environment. Set it, or pass --ledger to sign with a hardware wallet.'
+    )
+
+  // Sub-options are read only when the Ledger is actually selected: applying
+  // them otherwise would report a derivation path for a key-signed proposal.
+  const ledgerOptions = useLedger
+    ? {
+        ledgerLive: options.ledgerLive === true,
+        accountIndex: Number(options.accountIndex ?? 0),
+        ...(options.derivationPath
+          ? { derivationPath: options.derivationPath }
+          : {}),
+      }
+    : { ledgerLive: false, accountIndex: 0 }
+
+  return {
+    useLedger,
+    ...(useLedger ? {} : { privateKey: options.envPrivateKey }),
+    ledgerOptions,
+  }
+}
+
 /**
  * Initializes a Safe client for a specific network
  * @param network - Network name
