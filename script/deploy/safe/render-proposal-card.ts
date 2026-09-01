@@ -1,0 +1,131 @@
+/**
+ * Renders the signing-ask card for the proposals a run just created.
+ *
+ * Split from the posting step so `send-slack-webhook-message.ts` stays the only
+ * thing that talks to Slack: this writes text, that posts it.
+ *
+ * Opens its own client. `getSafeMongoCollection` creates indexes on connect, and
+ * a read-only renderer must not alter the schema it reads.
+ */
+
+import 'dotenv/config'
+
+import { writeFileSync } from 'fs'
+
+import { defineCommand, runMain } from 'citty'
+import { consola } from 'consola'
+import { MongoClient } from 'mongodb'
+
+import { renderProposalCard, type ICardProposal } from './proposal-card'
+
+const DEFAULT_DB = 'sc_private'
+const DEFAULT_COLLECTION = 'pendingTransactions'
+
+interface IRow {
+  network: string
+  safeTxHash: string
+  timestamp?: Date
+  provenance?: {
+    proposerHandle?: string
+    actor?: string
+    reason?: string
+    prUrl?: string
+    gitCommit?: string
+    dirtyTreeScoped?: string[]
+  }
+}
+
+const main = defineCommand({
+  meta: {
+    name: 'render-proposal-card',
+    description:
+      'Renders the Slack signing-ask card for the newest pending proposal on each given network',
+  },
+  args: {
+    networks: {
+      type: 'string',
+      description: 'Comma-separated network names',
+      required: true,
+    },
+    out: {
+      type: 'string',
+      description: 'File to write the card to (default: stdout)',
+    },
+  },
+  async run({ args }) {
+    if (!process.env.SC_MONGODB_URI)
+      throw new Error('SC_MONGODB_URI environment variable is required')
+
+    const networks = args.networks
+      .split(',')
+      .map((n) => n.trim().toLowerCase())
+      .filter(Boolean)
+    if (networks.length === 0) throw new Error('--networks matched no names')
+
+    const client = new MongoClient(process.env.SC_MONGODB_URI, {
+      serverSelectionTimeoutMS: 10_000,
+    })
+
+    try {
+      await client.connect()
+      const collection = client
+        .db(DEFAULT_DB)
+        .collection<IRow>(DEFAULT_COLLECTION)
+
+      // Newest pending row per network. A network can carry an older unsigned
+      // proposal, and the card is about the run that just finished — so this
+      // takes the most recent rather than trying to match the run itself, which
+      // nothing in the document identifies.
+      const rows = await collection
+        .find(
+          { network: { $in: networks }, status: 'pending' },
+          { sort: { timestamp: -1 } }
+        )
+        .toArray()
+
+      const newestByNetwork = new Map<string, IRow>()
+      rows.forEach((row) => {
+        if (!newestByNetwork.has(row.network))
+          newestByNetwork.set(row.network, row)
+      })
+
+      // Ordered as the caller listed them, so the card reads in the same order
+      // as the run's own output.
+      const proposals: ICardProposal[] = networks
+        .map((network) => newestByNetwork.get(network))
+        .filter((row): row is IRow => row !== undefined)
+        .map((row) => ({
+          network: row.network,
+          safeTxHash: row.safeTxHash,
+          proposerHandle: row.provenance?.proposerHandle,
+          actor: row.provenance?.actor,
+          reason: row.provenance?.reason,
+          prUrl: row.provenance?.prUrl,
+          gitCommit: row.provenance?.gitCommit,
+          dirtyTreeScoped: row.provenance?.dirtyTreeScoped,
+        }))
+
+      if (proposals.length === 0)
+        throw new Error(
+          `No pending proposals found for: ${networks.join(', ')}`
+        )
+
+      const card = renderProposalCard(proposals)
+      if (args.out) writeFileSync(args.out, `${card}\n`)
+      else consola.log(card)
+
+      // Named so a partial card is explainable rather than looking complete.
+      const missing = networks.filter((n) => !newestByNetwork.has(n))
+      if (missing.length > 0)
+        consola.warn(
+          `No pending proposal found on: ${missing.join(
+            ', '
+          )} — the card omits them.`
+        )
+    } finally {
+      await client.close()
+    }
+  },
+})
+
+runMain(main)
