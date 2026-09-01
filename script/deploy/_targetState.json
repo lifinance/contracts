@@ -946,7 +946,10 @@
         "SquidFacet": "1.0.0",
         "StargateFacetV2": "1.0.1",
         "ReceiverStargateV2": "1.1.0",
-        "SymbiosisFacet": "2.0.0"
+        "SymbiosisFacet": "2.0.0",
+        "GlacisFacet": "1.2.0",
+        "LiFiIntentEscrowFacetV2": "1.0.0",
+        "RelayDepositoryFacet": "1.0.0"
       }
     }
   },
