@@ -1941,8 +1941,7 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
           ? resolveLiveFacets(
               ctx.onChainFacets,
               ctx.deployedContracts as Record<string, string>,
-              facetCandidates,
-              ctx.compiledFacetSelectors ?? loadCompiledFacetSelectors()
+              facetCandidates
             )
           : []
       )
