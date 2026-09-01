@@ -22,6 +22,19 @@ import { createDefaultCache } from '../shared/deployment-cache'
 import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
 
 import {
+  buildAcknowledgementKey,
+  buildProposalKey,
+  computeChangeFingerprint,
+  createAcknowledgementLedger,
+  evaluateProposalIntegrity,
+  isChangeAcknowledged,
+  recordAcknowledgement,
+  renderChangeRollup,
+  rollUpByChange,
+  shouldPromptForAcknowledgement,
+  type INetworkOutcome,
+} from './confirm-safe-tx-ack'
+import {
   ConfirmSafeTxPrefetchQueue,
   type IConfirmSafeTxNetworkContext,
 } from './confirm-safe-tx-prefetch'
@@ -61,7 +74,16 @@ import { enqueueTimelockOpIfApplicable } from './timelock-queue'
 
 dotenv.config()
 
-const storedResponses: Record<string, string> = {}
+// Acknowledgements roll up across networks so a fleet-wide rollout is reviewed
+// once; the operator's chosen action is never remembered.
+const acknowledgementLedger = createAcknowledgementLedger()
+const networkOutcomes: INetworkOutcome[] = []
+
+// Networks the run tried to process. A network can be attempted and still
+// contribute no outcome (not an owner, ownership read failed, nothing
+// actionable), and a per-change N/N must never be read as fleet coverage when
+// that happened.
+const networksAttempted = new Set<string>()
 
 // Global arrays to record execution failures and timeouts
 const globalFailedExecutions: Array<{
@@ -418,9 +440,37 @@ const processTxs = async (
         consola.debug(`Ledger Flex filmstrip skipped: ${error}`)
       }
 
-    const storedResponse = tx.safeTx.data.data
-      ? storedResponses[tx.safeTx.data.data]
-      : undefined
+    const integrity = evaluateProposalIntegrity({ nonceStatus })
+    // Read from the normalised transaction, not the stored document: this is the
+    // struct that gets hashed and signed, so the key describes what the operator
+    // is about to approve.
+    const signedData = tx.safeTransaction.data
+    const fingerprint = computeChangeFingerprint(
+      signedData.data as Hex | undefined
+    )
+    const proposalKey = buildProposalKey({
+      to: signedData.to,
+      chainId: chain.id,
+      nonce: signedData.nonce,
+    })
+    const acknowledgementKey = buildAcknowledgementKey({
+      to: signedData.to,
+      value: signedData.value,
+      operation: signedData.operation ?? 0,
+      fingerprint,
+    })
+
+    // Recorded before the prompts so a proposal skipped, aborted or refused
+    // still counts towards the run's N/N; a later push for the same proposal
+    // key supersedes this one.
+    networkOutcomes.push({
+      network,
+      proposalKey,
+      acknowledgementKey,
+      fingerprint,
+      nonceCurrent: integrity.ok,
+      acknowledged: false,
+    })
 
     // Determine available actions based on signature status
     // Execute options are shown regardless of nonce status — GS026 risk is explained at execution time
@@ -446,12 +496,10 @@ const processTxs = async (
         options.push('Execute with Deployer')
       }
 
-      action =
-        storedResponse ||
-        (await consola.prompt('Select action:', {
-          type: 'select',
-          options,
-        }))
+      action = await consola.prompt('Select action:', {
+        type: 'select',
+        options,
+      })
     } else {
       const options = ['Do Nothing']
       if (!tx.hasSignedAlready) {
@@ -475,12 +523,10 @@ const processTxs = async (
         options.push('Execute with Deployer')
       }
 
-      action =
-        storedResponse ||
-        (await consola.prompt('Select action:', {
-          type: 'select',
-          options,
-        }))
+      action = await consola.prompt('Select action:', {
+        type: 'select',
+        options,
+      })
     }
 
     if (action === 'Do Nothing') continue
@@ -565,8 +611,55 @@ const processTxs = async (
       }
     }
 
-    // eslint-disable-next-line require-atomic-updates
-    storedResponses[tx.safeTx.data.data] = action
+    if (
+      shouldPromptForAcknowledgement({
+        alreadyAcknowledged: isChangeAcknowledged(
+          acknowledgementLedger,
+          acknowledgementKey
+        ),
+        integrityOk: integrity.ok,
+      })
+    ) {
+      if (!integrity.ok)
+        consola.warn(
+          `Nonce check failed on this proposal (${integrity.failures.join(
+            ', '
+          )}) — an earlier acknowledgement of the same change does not carry over.`
+        )
+
+      const acknowledgement = await consola.prompt(
+        `Confirm you reviewed this change (payload ${fingerprint.slice(
+          0,
+          10
+        )}) — asked once per target + value + operation + payload, not once per network:`,
+        {
+          type: 'select',
+          options: ['No — stop and inspect', 'Yes — I reviewed this change'],
+        }
+      )
+
+      if (acknowledgement.startsWith('No')) {
+        consola.info('Aborted — change not acknowledged')
+        continue
+      }
+    }
+
+    // The ledger refuses to store an acknowledgement for a proposal whose nonce
+    // check failed, so the summary must report what the ledger accepted rather
+    // than that the operator answered.
+    const acknowledged = recordAcknowledgement(acknowledgementLedger, {
+      acknowledgementKey,
+      proposalKey,
+      integrityOk: integrity.ok,
+    })
+    networkOutcomes.push({
+      network,
+      proposalKey,
+      acknowledgementKey,
+      fingerprint,
+      nonceCurrent: integrity.ok,
+      acknowledged,
+    })
 
     if (action === 'Sign')
       try {
@@ -947,6 +1040,8 @@ const main = defineCommand({
         const networkTxs = txsByNetwork[network.toLowerCase()]
         if (!networkTxs || networkTxs.length === 0) continue
 
+        networksAttempted.add(network)
+
         const nextNetwork = networks[i + 1]
         if (nextNetwork) {
           const nextTxs = txsByNetwork[nextNetwork.toLowerCase()]
@@ -1005,11 +1100,39 @@ const main = defineCommand({
 
       // Close MongoDB connection
       await mongoClient.close(true)
-      // Print summary of any failed or timed out executions
-      if (
-        globalFailedExecutions.length > 0 ||
-        globalTimeoutExecutions.length > 0
-      ) {
+    } finally {
+      await releaseAllPooledSafeClients().catch(() => undefined)
+      // Always close ledger connection if it was created
+      if (ledgerResult) {
+        const { closeLedgerConnection } = await import('./ledger')
+        await closeLedgerConnection(ledgerResult.transport)
+      }
+
+      // Both summaries print here, together and last. In `finally` because an
+      // aborted run is where they matter most, and after the transport close so
+      // a write failure here cannot leave the Ledger open. Together because a
+      // review summary shown without the execution failures beside it reads as
+      // if the run succeeded.
+      const executionsFailed =
+        globalFailedExecutions.length > 0 || globalTimeoutExecutions.length > 0
+
+      if (networkOutcomes.length > 0) {
+        consola.info('=== Change Review Summary ===')
+        const covered = new Set(networkOutcomes.map((o) => o.network)).size
+        if (covered < networksAttempted.size)
+          consola.warn(
+            `Covers ${covered} of ${networksAttempted.size} networks attempted — the rest produced no reviewable proposal (not an owner, ownership read failed, or nothing actionable). Per-change counts below are out of the covered networks, not the fleet.`
+          )
+        renderChangeRollup(rollUpByChange(networkOutcomes)).forEach((line) =>
+          consola.info(line)
+        )
+        if (executionsFailed)
+          consola.warn(
+            'Counts above cover review and nonce state only — executions failed this run, see below.'
+          )
+      }
+
+      if (executionsFailed) {
         consola.info('=== Execution Summary ===')
         if (globalFailedExecutions.length > 0) {
           consola.info('Failed Executions:')
@@ -1027,13 +1150,6 @@ const main = defineCommand({
             )
           })
         }
-      }
-    } finally {
-      await releaseAllPooledSafeClients().catch(() => undefined)
-      // Always close ledger connection if it was created
-      if (ledgerResult) {
-        const { closeLedgerConnection } = await import('./ledger')
-        await closeLedgerConnection(ledgerResult.transport)
       }
     }
   },
