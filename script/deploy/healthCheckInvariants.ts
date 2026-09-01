@@ -2020,11 +2020,17 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
           )
         )
 
-        for (const periphery of contractsToCheck) {
+        // `addresses` is index-aligned with `contractsToCheck`, and the registry binds one
+        // address per name, so only the entry at this name's index answers whether this
+        // name is registered.
+        for (const [index, periphery] of contractsToCheck.entries()) {
           const peripheryAddress = ctx.deployedContracts[periphery]
           if (!peripheryAddress)
             ctx.logError(`Periphery contract ${periphery} not deployed `)
-          else if (!addresses.includes(getAddress(peripheryAddress))) {
+          else if (
+            addresses[index]?.toLowerCase() !==
+            getAddress(peripheryAddress).toLowerCase()
+          ) {
             if (periphery === 'LiFiTimelockController') continue
             await reportUnregistered(
               periphery,

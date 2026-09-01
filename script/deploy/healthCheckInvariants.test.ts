@@ -4,7 +4,7 @@ import {
   it,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
-import { type Address, type Hex } from 'viem'
+import { getAddress, type Address, type Hex } from 'viem'
 
 import globalConfig from '../../config/global.json'
 import networksConfig from '../../config/networks.json'
@@ -2297,6 +2297,35 @@ describe('periphery-registered scheduled-registration coverage', () => {
     await invariant('periphery-registered').run(ctx)
     expect(ctx.errors).toHaveLength(1)
     expect(ctx.errors[0]).toContain('Executor')
+  })
+
+  // Both names resolve, so every address the registry returns is one the diamond expects —
+  // only the name each is bound to is wrong. Both contracts are misregistered.
+  it('errors on both when two periphery contracts are registered under each others names', async () => {
+    const FEE_FORWARDER = '0xFFEE000000000000000000000000000000000022'
+    const ctx = makePeripheryCtx(new Map(), {
+      deployedContracts: { Executor: EXECUTOR, FeeForwarder: FEE_FORWARDER },
+      targetState: {
+        testnet1: {
+          production: {
+            LiFiDiamond: { Executor: '1.0.0', FeeForwarder: '1.0.0' },
+          },
+        },
+      },
+      publicClient: {
+        // Checksummed, as a real `readContract` returns them: a raw-case literal would
+        // make the comparison differ on casing alone, so the test would pass without
+        // exercising the name binding at all.
+        readContract: async ({ args }: { args: string[] }) =>
+          args[0] === 'Executor'
+            ? getAddress(FEE_FORWARDER)
+            : getAddress(EXECUTOR),
+      },
+    } as unknown as Partial<IHealthCheckContext>)
+    await invariant('periphery-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(2)
+    expect(ctx.errors.join('\n')).toContain('Executor')
+    expect(ctx.errors.join('\n')).toContain('FeeForwarder')
   })
 
   it('keeps the error and warns about reduced coverage when the queue is unreachable', async () => {
