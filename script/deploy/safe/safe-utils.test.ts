@@ -30,6 +30,8 @@ import { type Address, type Hex } from 'viem'
 import {
   buildProposalProvenance,
   canExecuteWithNonceStatus,
+  classifyDuplicateKeyError,
+  classifyIndexEnsureFailure,
   computeProposalIntentHash,
   getSelector,
   getSigners,
@@ -1093,5 +1095,157 @@ describe('SafeClient.signTransaction chain id source', () => {
     await client.signTransaction(buildSafeTx())
     expect(rpcChainIdCalls()).toBe(1)
     expect(domains[0]?.chainId).toBe(999)
+  })
+})
+
+/**
+ * Real MongoDB 8.2 supplies `keyPattern` and names the index in the message; an
+ * older driver or a mongos in the path may only supply the message. Both shapes
+ * are covered because the classifier decides whether a collision is swallowed as
+ * an idempotent re-propose or surfaced as a lost nonce race.
+ */
+class FakeNonceDuplicateKeyError extends Error {
+  public code = 11000
+  public keyPattern = {
+    safeAddress: 1,
+    network: 1,
+    chainId: 1,
+    'safeTx.data.nonce': 1,
+  }
+  public constructor() {
+    super(
+      'E11000 duplicate key error collection: sc_private.pendingTransactions index: unique_inflight_safe_nonce_ci dup key: { safeAddress: "0x11", network: "mainnet", chainId: 1, safeTx.data.nonce: 5 }'
+    )
+  }
+}
+
+describe('classifyDuplicateKeyError', () => {
+  it('is not-duplicate for a non-11000 error', () => {
+    expect(classifyDuplicateKeyError(new Error('connection reset'))).toBe(
+      'not-duplicate'
+    )
+  })
+
+  it('is not-duplicate for a non-Error value', () => {
+    expect(classifyDuplicateKeyError('nope')).toBe('not-duplicate')
+  })
+
+  it('recognises the intent index from keyPattern', () => {
+    const error = Object.assign(new Error('E11000'), {
+      code: 11000,
+      keyPattern: { intentHash: 1 },
+    })
+
+    expect(classifyDuplicateKeyError(error)).toBe('intent')
+  })
+
+  it('recognises the in-flight nonce index from keyPattern', () => {
+    expect(classifyDuplicateKeyError(new FakeNonceDuplicateKeyError())).toBe(
+      'in-flight-nonce'
+    )
+  })
+
+  it('falls back to the index name when keyPattern is absent', () => {
+    expect(classifyDuplicateKeyError(new FakeDuplicateKeyError())).toBe(
+      'intent'
+    )
+  })
+
+  it('recognises the nonce index from the message alone', () => {
+    const error = Object.assign(
+      new Error(
+        'E11000 duplicate key error collection: sc_private.pendingTransactions index: unique_inflight_safe_nonce_ci'
+      ),
+      { code: 11000 }
+    )
+
+    expect(classifyDuplicateKeyError(error)).toBe('in-flight-nonce')
+  })
+
+  it('recognises the pre-collation index, which is never dropped and can still fire', () => {
+    const error = Object.assign(
+      new Error(
+        'E11000 duplicate key error collection: sc_private.pendingTransactions index: unique_inflight_safe_nonce'
+      ),
+      { code: 11000 }
+    )
+
+    expect(classifyDuplicateKeyError(error)).toBe('in-flight-nonce')
+  })
+
+  it('is other for an 11000 on some unrelated index', () => {
+    const error = Object.assign(
+      new Error(
+        'E11000 duplicate key error collection: sc_private.pendingTransactions index: _id_'
+      ),
+      { code: 11000, keyPattern: { _id: 1 } }
+    )
+
+    expect(classifyDuplicateKeyError(error)).toBe('other')
+  })
+})
+
+describe('storeTransactionInMongoDB — nonce collision is not an idempotent duplicate', () => {
+  it('throws instead of returning null when the in-flight nonce index fires', async () => {
+    const collection = createFakeCollection([], {
+      insertError: new FakeNonceDuplicateKeyError(),
+    })
+
+    let thrown: unknown
+    try {
+      await store(collection, buildSafeTx())
+    } catch (error) {
+      thrown = error
+    }
+
+    expect(thrown).toBeInstanceOf(Error)
+    expect((thrown as Error).message).toMatch(/nonce/i)
+    expect(collection.rows).toHaveLength(0)
+  })
+
+  it('still returns null for a duplicate intent, so re-proposing stays idempotent', async () => {
+    const collection = createFakeCollection([], {
+      insertError: new FakeDuplicateKeyError(),
+    })
+
+    expect(await store(collection, buildSafeTx())).toBeNull()
+  })
+
+  it('propagates an unrelated 11000 rather than guessing', async () => {
+    const error = Object.assign(new Error('E11000 index: _id_'), {
+      code: 11000,
+      keyPattern: { _id: 1 },
+    })
+    const collection = createFakeCollection([], { insertError: error })
+
+    let thrown: unknown
+    try {
+      await store(collection, buildSafeTx())
+    } catch (caught) {
+      thrown = caught
+    }
+
+    expect(thrown).toBe(error)
+  })
+})
+
+describe('classifyIndexEnsureFailure', () => {
+  it('treats a drifted definition as drifted, not fatal — either conflict code', () => {
+    expect(classifyIndexEnsureFailure(85)).toBe('drifted')
+    expect(classifyIndexEnsureFailure(86)).toBe('drifted')
+  })
+
+  it('treats a permission failure as its own outcome', () => {
+    expect(classifyIndexEnsureFailure(13)).toBe('unauthorized')
+  })
+
+  it('treats colliding data as its own outcome', () => {
+    expect(classifyIndexEnsureFailure(11000)).toBe('colliding-data')
+  })
+
+  it('treats anything else as fatal, so a real connection fault still propagates', () => {
+    expect(classifyIndexEnsureFailure(undefined)).toBe('fatal')
+    expect(classifyIndexEnsureFailure(6)).toBe('fatal')
+    expect(classifyIndexEnsureFailure(27)).toBe('fatal')
   })
 })
