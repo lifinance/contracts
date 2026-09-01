@@ -123,6 +123,14 @@ export const readValueFlag = (
   const occurrence = uniqueOccurrence(argv, name)
   if (!occurrence) return undefined
 
+  // Refused for the same reason the boolean reader refuses it: `--no-x=3` has no
+  // coherent reading, and the two readers ruling opposite ways on one flag shape
+  // is how a value gets read where it should have been rejected.
+  if (occurrence.negated)
+    throw new Error(
+      `--no-${name.camel} is not a form of --${name.camel}; pass --${name.camel} <value>.`
+    )
+
   const value = occurrence.assigned ?? occurrence.following
   if (value === undefined)
     throw new Error(

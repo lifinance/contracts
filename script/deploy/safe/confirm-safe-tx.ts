@@ -861,11 +861,16 @@ const main = defineCommand({
       { camel: 'ledger', kebab: 'ledger' },
       { whenAbsent: true }
     )
+    // Resolved once and read everywhere below. Two sources disagreed: citty
+    // parses `--ledger-live=false` to the string 'false', which is truthy, so
+    // the console announced a Ledger Live derivation while the client derived
+    // from the default path.
+    const useLedgerLive = readBooleanFlag(process.argv, {
+      camel: 'ledgerLive',
+      kebab: 'ledger-live',
+    })
     const ledgerOptions = {
-      ledgerLive: readBooleanFlag(process.argv, {
-        camel: 'ledgerLive',
-        kebab: 'ledger-live',
-      }),
+      ledgerLive: useLedgerLive,
       accountIndex: parseAccountIndex(
         readValueFlag(process.argv, {
           camel: 'accountIndex',
@@ -876,7 +881,7 @@ const main = defineCommand({
     }
 
     // Validate that incompatible Ledger options aren't provided together
-    if (args.derivationPath && args.ledgerLive)
+    if (args.derivationPath && useLedgerLive)
       throw new Error(
         "Cannot use both 'derivationPath' and 'ledgerLive' options together"
       )
@@ -884,7 +889,7 @@ const main = defineCommand({
     // If using ledger, we don't need a private key
     if (useLedger) {
       consola.info('Using Ledger hardware wallet for signing')
-      if (args.ledgerLive)
+      if (useLedgerLive)
         consola.info(
           `Using Ledger Live derivation path with account index ${ledgerOptions.accountIndex}`
         )

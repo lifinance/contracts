@@ -166,3 +166,17 @@ describe('readBooleanFlag — the negated spelling takes no value', () => {
     }
   )
 })
+
+describe('readValueFlag — the negated spelling is not a form of the flag', () => {
+  const ACCOUNT = { camel: 'accountIndex', kebab: 'account-index' } as const
+
+  it.each([
+    ['--no-accountIndex=3', ['--no-accountIndex=3']],
+    ['--no-account-index 3', ['--no-account-index', '3']],
+  ])('refuses %s', (_label, argv) => {
+    // The boolean reader refuses this shape; the value reader used to accept it
+    // and return '3'. Two readers in one module ruling opposite ways on the same
+    // spelling is how a value gets read where it should have been rejected.
+    expect(() => readValueFlag(argv, ACCOUNT)).toThrow(/not a form of/)
+  })
+})
