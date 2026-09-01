@@ -144,6 +144,19 @@ Consolidated from the per-contract docs; each links to its full treatment.
   Sources that charge deposit/exit fees or credit fewer shares than assets are
   unsupported and require a dedicated adapter — see
   [ERC4626Adapter assumptions](./ERC4626Adapter.md#assumptions).
+- **Yield sources are trusted to report price per share honestly.** The wrapper
+  takes the source's `totalAssets` at face value, so a source that misreports its
+  price per share — a broken or manipulable oracle, not necessarily malice — for
+  even a single block distorts the performance fee in both directions: a spike
+  charges a fee on a gain that never existed (permanently diluting holders), and
+  because the high-water mark ratchets up-only to the spiked price, genuine later
+  gains then accrue no performance fee until they exceed the spike. Accrual runs on
+  deposit/withdraw and on the permissionless `distributeFees`, so an attacker who can
+  move the source's price for one block can pick the moment. The root cause always
+  lies in the underlying, and the control is curation: only a governance-allowlisted
+  underlying reached through an approved adapter can ever be wrapped. Onboarding a
+  source whose price per share is cheaply manipulable is therefore a governance
+  decision, not something the wrapper can defend against.
 - **No enforced minimum share supply.** Inflation/donation defense is the
   virtual-share decimals offset (floored at 6) plus a `ZeroSharesMinted` revert.
   Accepted bounds: [donation griefing](./LiFiVaultWrapper.md#donation-griefing--accepted-bounds).
