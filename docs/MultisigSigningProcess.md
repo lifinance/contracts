@@ -128,9 +128,14 @@ live `getMinDelay()` with `config/timelockController.json` fallback, timestamp
 salt), resolves the nonce (`getNextNonce`), **signs immediately** (EIP-712),
 computes the `safeTxHash` via the Safe's on-chain `getTransactionHash`, and
 stores. The document (`ISafeTxDocument`) carries the raw Safe tx fields, the
-proposer's wallet address, an `intentHash` dedup key, and a
-`pending → submitted → executed / reverted` status — but **no description, PR
-link (except drain `parkedTaskRefs`), git commit, or human identity**.
+proposer's wallet address, an `intentHash` dedup key, a
+`pending → submitted → executed / reverted` status, the origin-PR
+`parkedTaskRefs` on a drained facet removal, and a `provenance` block
+(`IProposalProvenance`) holding the rationale, proposer identity and actor, git
+commit and branch, scoped working-tree dirtiness, the branch's PR link and any
+capture errors. **Rows stored before that block existed carry none of it**,
+which is why both the signing prompt and the Slack card state each absence
+explicitly instead of dropping the line.
 `notifyProposalsCreatedToSlack` (`script/multiNetworkExecution.sh`) posts the
 signing-ask card rendered by `script/deploy/safe/render-proposal-card.ts` —
 reason, proposer, PR, commit, working-tree state and a per-network
