@@ -51,7 +51,7 @@ const main = defineCommand({
       transport: http(chain.rpcUrls.default.http[0]),
     })
 
-    consola.info(`Connected to ${network} via ${chain.rpcUrls.default.http}`)
+    consola.info(`Connected to ${network} via ${chain.rpcUrls.default.http[0]}`)
     const block = await publicClient.getBlock()
 
     consola.info(`Latest block: ${block.number}`)
