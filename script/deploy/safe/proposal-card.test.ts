@@ -394,7 +394,9 @@ describe('renderProposalCard — it cannot understate the ask', () => {
       }
     )
 
-    expect(card).toContain('5')
+    // Not `toContain('5')`: the fixture commit is `1234567890ab`, so that
+    // matched with no shortfall line rendered at all.
+    expect(card).toContain('created 5 proposals')
     expect(card.toLowerCase()).toMatch(/only 2|3 (missing|not found)/)
   })
 
@@ -439,8 +441,14 @@ describe('renderProposalCard — the PR link is a link, or it is not shown', () 
     // credibility, and Slack auto-links a bare URL.
     const card = renderProposalCard([proposal({ prUrl })])
 
-    expect(card).toContain('not a link, withheld')
-    expect(card).not.toMatch(/\*PR:\* \S+$/m)
+    // Exact equality on the whole line, so non-echo is asserted for every value
+    // in the table rather than for `javascript:` alone. The earlier
+    // `not.toMatch(/\*PR:\* \S+$/m)` form was satisfied by a renderer that
+    // echoed the value ahead of its own trailing prose, so it observed nothing —
+    // and a substring check cannot see an echo that escaping has altered.
+    expect(card.split('\n').find((l) => l.startsWith('*PR:*'))).toBe(
+      '*PR:* — recorded value is not a link, withheld'
+    )
   })
 
   it('keeps a real https PR link', () => {
@@ -470,9 +478,8 @@ describe('renderProposalCard — the PR link is a link, or it is not shown', () 
 
 describe('renderProposalCard — a warning about one network is not a claim about all', () => {
   it('reports a dirty tree when ANY network had one, naming which', () => {
-    // Read from the first row, the card said nothing at all here — so a run
-    // where one network was proposed from a dirty tree looked clean. These
-    // warnings must be the union across the card, not a property of row zero.
+    // The union across the card, not a property of row zero: one network's
+    // dirty tree must not read as clean because another network's is.
     const card = renderProposalCard([
       proposal({ network: 'mainnet' }),
       proposal({
@@ -481,9 +488,15 @@ describe('renderProposalCard — a warning about one network is not a claim abou
       }),
     ])
 
-    expect(card).toContain('*Working tree:*')
-    expect(card).toContain('src/Facets/Foo.sol')
-    expect(card).toContain('arbitrum')
+    // Asserted on the working-tree line, which is `undefined` when the line is
+    // absent. A whole-card `toContain('arbitrum')` matched the per-network
+    // review command, so it passed with no qualifier rendered at all.
+    const workingTree = card
+      .split('\n')
+      .find((l) => l.startsWith('*Working tree:*'))
+
+    expect(workingTree).toContain('src/Facets/Foo.sol')
+    expect(workingTree).toContain('(on arbitrum)')
   })
 
   it('does not claim a clean tree when the first row happens to be clean', () => {
@@ -496,8 +509,8 @@ describe('renderProposalCard — a warning about one network is not a claim abou
   })
 
   it('marks a bot when ANY network was proposed by one', () => {
-    // Who proposed changes how a signer reads the whole card, and reading it
-    // from row zero let a bot-proposed network hide behind a human one.
+    // A bot-proposed network must not hide behind a human-proposed one; who
+    // proposed changes how a signer reads the whole card.
     const card = renderProposalCard([
       proposal({ actor: 'human' }),
       proposal({ network: 'arbitrum', actor: 'bot' }),
@@ -526,13 +539,18 @@ describe('renderProposalCard — a rejected link is not echoed', () => {
     ['mixed-case scheme', 'HtTpS://evil.example/pull/1'],
   ])('accepts %s, since the scheme is case-insensitive', (_label, prUrl) => {
     // RFC 3986 makes the scheme case-insensitive, and Slack auto-links what it
-    // recognises. Asserted as "the link is rendered", not as "the word 'ignored'
-    // is absent" — that word was removed from the code, so the absence form
-    // passed no matter what the scheme check did.
-    const card = renderProposalCard([proposal({ prUrl })])
+    // recognises.
+    //
+    // Exact equality on the whole line. A case-SENSITIVE renderer that echoed
+    // the rejected value emitted `*PR:* HTTPS://… — not a link, ignored`, which
+    // satisfies both `toContain('*PR:* HTTPS://…')` and
+    // `not.toContain('withheld')` — so the substring pair passed against the
+    // very renderer this test exists to rule out.
+    const prLine = renderProposalCard([proposal({ prUrl })])
+      .split('\n')
+      .find((l) => l.startsWith('*PR:*'))
 
-    expect(card).toContain(`*PR:* ${prUrl}`)
-    expect(card).not.toContain('withheld')
+    expect(prLine).toBe(`*PR:* ${prUrl}`)
   })
 
   it('does not reproduce a rejected value', () => {

@@ -153,13 +153,9 @@ const escape = (value: unknown): string => escapeCapped(value, MAX_FIELD_CHARS)
 const renderLink = (value: unknown): string => {
   const text = escape(value)
   if (!text) return ''
-  // Case-insensitive per RFC 3986. Treating `HTTPS://` as invalid was worse than
-  // useless: the value was printed verbatim beside "ignored", and Slack
-  // auto-links what it recognises — an assertion that it was ignored, sitting
-  // next to a live link to it.
+  // Case-insensitive per RFC 3986.
   if (/^https:\/\//i.test(text)) return text
-  // Never reproduced: echoing it puts the string on the card and lets Slack link
-  // it, which is what the check exists to prevent.
+  // Withheld, not echoed: Slack would auto-link the value this check rejected.
   return '— recorded value is not a link, withheld'
 }
 
@@ -253,8 +249,8 @@ export const renderProposalCard = (
     )
 
   const handle = escape(first.proposerHandle)
-  // Any non-human actor on the card, not just row zero's: read from the first
-  // row, a bot-proposed network hid behind a human-proposed one.
+  // Union across rows: a non-human actor on any network must not hide behind a
+  // human one on another.
   const nonHuman = [
     ...new Set(proposals.map((p) => escape(p.actor)).filter(Boolean)),
   ].filter((a) => a !== 'human')
@@ -267,11 +263,9 @@ export const renderProposalCard = (
   if (prUrl) lines.push(`*PR:* ${prUrl}`)
 
   // A dirty tree means the commit above does not describe what was proposed.
-  // Capped at the same limit capture uses, so a hand-edited row cannot push the
-  // review commands off the bottom of the card.
-  // Collected across EVERY row, not read from the first. Read from row zero, a
-  // run where one network was proposed from a dirty tree rendered no
-  // working-tree line at all, so the card affirmatively looked clean.
+  // Capped at the same limit capture uses.
+  //
+  // Union across rows: a dirty tree on any network must never read as clean.
   const dirtyRows = proposals.filter(
     (p) => Array.isArray(p.dirtyTreeScoped) && p.dirtyTreeScoped.length > 0
   )
