@@ -151,10 +151,12 @@ the source prompt or inferred, **not** confirmed.
    `wrapWithTimelockSchedule` derives the salt from the action and checks the resulting
    operation id against the timelock (`deriveTimelockSalt` / `pickTimelockSalt`), and always
    encodes a single `scheduleBatch` (N inner calls; length-1 for one).
-   ⇒ Two wraps of the **same** removal cut now produce the **same** calldata and the same
-   `intentHash`, so the Mongo dedup (Fact 8) does apply to a wrapped re-proposal — with one
-   caveat: `minDelay` is also a `scheduleBatch` argument, so an `updateDelay` or a fallback
-   on the `getMinDelay` read changes the calldata and dedup does not apply across it.
+   ⇒ Two wraps of the **same** removal cut produce the **same** calldata and the same
+   `intentHash` *while the first candidate salt is still free*, so the Mongo dedup (Fact 8) does
+   apply to a wrapped re-proposal. Two states break that equality by design: a **pending**
+   operation makes the wrap refuse outright, and an **executed** one advances to the next
+   deterministic salt, which is a different `intentHash`. `minDelay` is also a `scheduleBatch`
+   argument, so an `updateDelay` or a fallback on the `getMinDelay` read changes the calldata too.
    **The queue-layer flip (Fact 15, §7) remains the guarantee that does not depend on any of
    this**, which is why it is not redundant. The Tron proposal path still uses a clock salt.
 10. `[code]` `/deprecate-contract` step 6 today builds the removal proposals eagerly

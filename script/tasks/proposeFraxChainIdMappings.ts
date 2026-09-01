@@ -29,7 +29,6 @@ import { consola } from 'consola'
 import {
   createPublicClient,
   decodeErrorResult,
-  encodeFunctionData,
   getAddress,
   http,
   parseAbi,
@@ -48,6 +47,7 @@ import {
   pickTimelockSalt,
   storeTransactionInMongoDB,
 } from '../deploy/safe/safe-utils'
+import { encodeTimelockScheduleBatch } from '../deploy/safe/timelock-abi'
 import {
   getAllActiveNetworks,
   getViemChainForNetworkName,
@@ -61,9 +61,6 @@ import {
   loadFraxMappings,
   type IFraxChainIdMapping,
 } from './fraxChainIdMappings'
-
-const ZERO_BYTES32 =
-  '0x0000000000000000000000000000000000000000000000000000000000000000' as Hex // pre-commit-checker: not a secret
 
 function castEnv(environment?: string): EnvironmentEnum {
   if (!environment) return EnvironmentEnum.production
@@ -212,10 +209,6 @@ async function buildTimelockScheduleBatchCalldata(params: {
     functionName: 'getMinDelay',
   })
 
-  const scheduleBatchAbi = parseAbi([
-    'function scheduleBatch(address[] targets, uint256[] values, bytes[] payloads, bytes32 predecessor, bytes32 salt, uint256 delay)',
-  ])
-
   const salt = await pickTimelockSalt({
     client,
     chainId: chain.id,
@@ -225,11 +218,7 @@ async function buildTimelockScheduleBatchCalldata(params: {
     values,
   })
 
-  return encodeFunctionData({
-    abi: scheduleBatchAbi,
-    functionName: 'scheduleBatch',
-    args: [targets, values, payloads, ZERO_BYTES32, salt, minDelay],
-  })
+  return encodeTimelockScheduleBatch(targets, payloads, salt, minDelay, values)
 }
 
 async function proposeToSafe(params: {

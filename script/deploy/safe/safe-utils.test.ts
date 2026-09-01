@@ -33,6 +33,8 @@ import {
   type Hex,
 } from 'viem'
 
+import { getRPCEnvVarName } from '../../utils/utils'
+
 import {
   buildProposalProvenance,
   canExecuteWithNonceStatus,
@@ -1616,6 +1618,13 @@ describe('wrapWithTimelockSchedule', () => {
 
   it('schedules the operation it probed, with one values array for both', async () => {
     const stub = await startStub()
+    // `getViemChainForNetworkName` reads the network's RPC env var and throws
+    // without it, so the test supplies its own stub URL rather than depending on
+    // a populated .env — CI has none.
+    const envKey = getRPCEnvVarName('mainnet')
+    const previousRpc = process.env[envKey]
+    process.env[envKey] = stub.url
+
     try {
       const { calldata, targetAddress } = await wrapWithTimelockSchedule(
         'mainnet',
@@ -1648,6 +1657,8 @@ describe('wrapWithTimelockSchedule', () => {
       // delay below the timelock's real minDelay reverts after signing.
       expect(scheduled.args?.[5]).toBe(3600n)
     } finally {
+      if (previousRpc === undefined) delete process.env[envKey]
+      else process.env[envKey] = previousRpc
       stub.stop()
     }
   })
