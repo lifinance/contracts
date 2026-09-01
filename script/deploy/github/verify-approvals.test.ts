@@ -120,7 +120,7 @@ describe('collectDeployGateFailures', () => {
     })
 
     expect(failures).toHaveLength(2)
-    expect(failures[0]).toContain('does not match it')
+    expect(failures[0]).toContain('does not match origin/main')
     expect(failures[0]).not.toContain('No open PR')
     expect(failures[1]).toContain('AcrossFacet')
   })
@@ -139,11 +139,13 @@ describe('collectDeployGateFailures', () => {
             auditCommitHash: 'aa'.repeat(20),
             auditCommitAvailable: true,
             matchesAuditedCommit: true,
+            divergedFromMain: ['src/Facets/AcrossFacet.sol'],
           },
         ],
       })
     ).toEqual([
-      'Deploying from "main", but the working tree does not match it. Merge the change and pull, or reset the tree, before deploying',
+      'Deploying from "main", but the working tree does not match origin/main. Move the change onto a branch and open a PR, or discard it (git checkout / git clean) and pull, before deploying',
+      'AcrossFacet diverges from origin/main (src/Facets/AcrossFacet.sol)',
     ])
   })
 
@@ -428,7 +430,7 @@ describe('verifyDeployGate', () => {
     )
 
     expect(failures).toHaveLength(2)
-    expect(failures[0]).toContain('does not match it')
+    expect(failures[0]).toContain('does not match origin/main')
     // no PR can have main as its head, so asking GitHub is wasted and misleading
     expect(openPrLookups).toBe(0)
   })
@@ -709,6 +711,8 @@ describe('audit log source', () => {
     writeFileSync(join(repoRoot, 'audit/auditLog.json'), auditLog(MERGED_HASH))
     run('add', '.')
     run('commit', '-m', 'audit log', '--no-gpg-sign')
+    // the gate resolves origin/main only, so model a real clone rather than a bare init
+    run('update-ref', 'refs/remotes/origin/main', 'HEAD')
 
     // the self-certification attempt: an unmerged, uncommitted audit entry
     writeFileSync(
@@ -719,6 +723,43 @@ describe('audit log source', () => {
     expect(
       createDefaultDeps(repoRoot).resolveAuditCommitHash('AcrossFacet', '1.0.0')
     ).toBe(MERGED_HASH)
+  })
+})
+
+describe('main ref resolution', () => {
+  // local main is whatever the operator last committed, so accepting it as the
+  // comparison ref would let a local commit stand in for a merged one
+  it('refuses a checkout that has local main but no origin/main', () => {
+    const repoRoot = mkdtempSync(join(tmpdir(), 'gate-ref-'))
+    const run = (...args: string[]) =>
+      spawnSync('git', args, { cwd: repoRoot, encoding: 'utf8' })
+
+    run('init', '-b', 'main')
+    run('config', 'user.email', 'gate@example.com')
+    run('config', 'user.name', 'gate')
+    writeFileSync(join(repoRoot, 'README.md'), 'local only\n')
+    run('add', '.')
+    run('commit', '-m', 'local commit', '--no-gpg-sign')
+
+    expect(() => createDefaultDeps(repoRoot).mainRef).toThrow(
+      'Cannot resolve origin/main'
+    )
+  })
+
+  it('uses origin/main when it is present', () => {
+    const repoRoot = mkdtempSync(join(tmpdir(), 'gate-ref-ok-'))
+    const run = (...args: string[]) =>
+      spawnSync('git', args, { cwd: repoRoot, encoding: 'utf8' })
+
+    run('init', '-b', 'main')
+    run('config', 'user.email', 'gate@example.com')
+    run('config', 'user.name', 'gate')
+    writeFileSync(join(repoRoot, 'README.md'), 'merged\n')
+    run('add', '.')
+    run('commit', '-m', 'merged commit', '--no-gpg-sign')
+    run('update-ref', 'refs/remotes/origin/main', 'HEAD')
+
+    expect(createDefaultDeps(repoRoot).mainRef).toBe('origin/main')
   })
 })
 

@@ -28,6 +28,7 @@ const PR_LIST_LIMIT = 100 // well above the number of open PRs a single branch c
 const AUDIT_COMMIT_RE = /^[0-9a-f]{40}$/i
 const AUDIT_LOG_PATH = 'audit/auditLog.json'
 const MAIN_BRANCH = 'main'
+const MAIN_REF = 'origin/main'
 const SOURCE_ROOT = 'src/'
 const SOURCE_REMAPPING = 'lifi/' // remappings.txt maps this onto SOURCE_ROOT
 const IMPORT_RE = /import\s+(?:[^'"]*?\bfrom\s+)?['"]([^'"]+)['"]/g
@@ -84,7 +85,9 @@ const describePaths = (paths: string[] | undefined): string => {
  * @param fromPath - repo-relative path of the file holding the import
  * @param spec - the quoted import specifier
  * @returns the imported repo-relative path, or `undefined` when it lands outside
- * `src/` (submodules under `lib/` are pinned by their submodule commit)
+ * `src/`. Dependencies under `lib/` are therefore outside the closure: the gate does
+ * not compare submodule content or check that a submodule sits at main's gitlink, so
+ * an edited `lib/` checkout changes the bytecode without the gate noticing.
  */
 export const resolveSolidityImport = (
   fromPath: string,
@@ -160,14 +163,22 @@ export const collectDeployGateFailures = (
   const diverged = input.facets.filter((facet) => !facet.matchesMain)
   if (diverged.length === 0) return []
 
-  const failures: string[] = []
-  // no pull request can have `main` as its head, so the open-PR exception cannot
-  // apply here: on main, divergence means uncommitted or stale local content
+  // no pull request can have `main` as its head, so neither the open-PR exception nor
+  // the audit freeze behind it can apply: report the divergence and stop, rather than
+  // sending the operator after an audit-log problem that does not exist
   if (input.branch === MAIN_BRANCH)
-    failures.push(
-      `Deploying from "${MAIN_BRANCH}", but the working tree does not match it. Merge the change and pull, or reset the tree, before deploying`
-    )
-  else if (!input.hasOpenPr)
+    return [
+      `Deploying from "${MAIN_BRANCH}", but the working tree does not match ${MAIN_REF}. Move the change onto a branch and open a PR, or discard it (git checkout / git clean) and pull, before deploying`,
+      ...diverged.map(
+        (facet) =>
+          `${facet.name} diverges from ${MAIN_REF} (${describePaths(
+            facet.divergedFromMain
+          )})`
+      ),
+    ]
+
+  const failures: string[] = []
+  if (!input.hasOpenPr)
     failures.push(`No open PR found for branch "${input.branch}"`)
 
   for (const facet of diverged) {
@@ -236,14 +247,21 @@ const git = (
   }
 }
 
+/**
+ * Resolves the remote-tracking ref every comparison is made against.
+ * Only `origin/main` qualifies: local `main` is whatever the operator last committed,
+ * so accepting it would let a local commit satisfy the gate that exists to require a
+ * merged one.
+ * @param repoRoot - repository root
+ * @returns the remote-tracking ref for main
+ * @throws If `origin/main` is not present in this checkout
+ */
 const resolveMainRef = (repoRoot: string): string => {
-  if (git(['rev-parse', '--verify', 'origin/main'], repoRoot).status === 0)
-    return 'origin/main'
-  if (git(['rev-parse', '--verify', 'main'], repoRoot).status === 0)
-    return 'main'
+  if (git(['rev-parse', '--verify', MAIN_REF], repoRoot).status === 0)
+    return MAIN_REF
 
   throw new Error(
-    'Cannot resolve main (tried origin/main and main). Fetch origin/main before deploying.'
+    `Cannot resolve ${MAIN_REF} in this checkout. Fetch it before deploying.`
   )
 }
 
