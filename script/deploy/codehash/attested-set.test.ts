@@ -463,3 +463,90 @@ describe('when the attestation pins the exact deployed bytes', () => {
     )
   })
 })
+
+describe('what a pinned rawHash covers, and what a pinned mismatch may be', () => {
+  const RAW = `0x${'cd'.repeat(32)}`
+  const PINNED: IAttestedBuild[] = [
+    {
+      lineage: 'upstream london, exact bytes',
+      solcVersion: '0.8.17',
+      maskedHash: LONDON_HASH,
+      rawByteLength: LONDON_BYTES,
+      rawHash: RAW,
+    },
+  ]
+
+  it('excludes nothing when the match came from a byte-for-byte comparison', () => {
+    // A pinned rawHash covers every deployed byte, immutables included. Saying
+    // 480 bytes went unchecked would send a signer to run a layer-2 check that
+    // this verdict already subsumes.
+    const result = compareToAttestedSet(
+      seen({
+        maskedHash: LONDON_HASH,
+        rawByteLength: LONDON_BYTES,
+        rawHash: RAW,
+        maskedByteCount: 480,
+      }),
+      PINNED,
+      CLOSED
+    )
+
+    expect(result.verdict).toBe('MATCH')
+    expect(result.excludedByteCount).toBe(0)
+    expect(result.reason).not.toMatch(/still have to be checked/)
+  })
+
+  it('still excludes the immutables when the match came from the normalised form', () => {
+    // The contrast that makes the assertion above mean something: same
+    // observation, an attestation that does not pin bytes.
+    const result = compareToAttestedSet(
+      seen({
+        maskedHash: LONDON_HASH,
+        rawByteLength: LONDON_BYTES,
+        rawHash: RAW,
+        maskedByteCount: 480,
+      }),
+      ATTESTED,
+      CLOSED
+    )
+
+    expect(result.verdict).toBe('MATCH')
+    expect(result.excludedByteCount).toBe(480)
+    expect(result.reason).toMatch(/still have to be checked/)
+  })
+
+  it('does not blame the trailer for a difference that may be in the immutables', () => {
+    // Both the trailer and the masked immutables are outside the normalised
+    // comparison, so a pinned mismatch here cannot be attributed to the trailer
+    // alone — and the immutables are the half that changes behaviour.
+    const result = compareToAttestedSet(
+      seen({
+        maskedHash: LONDON_HASH,
+        rawByteLength: LONDON_BYTES,
+        rawHash: `0x${'ef'.repeat(32)}`,
+        maskedByteCount: 480,
+      }),
+      PINNED,
+      CLOSED
+    )
+
+    expect(result.verdict).toBe('MISMATCH')
+    expect(result.reason).toContain('480 bytes holding immutables')
+  })
+
+  it('does name the trailer alone when the contract has no immutables', () => {
+    const result = compareToAttestedSet(
+      seen({
+        maskedHash: LONDON_HASH,
+        rawByteLength: LONDON_BYTES,
+        rawHash: `0x${'ef'.repeat(32)}`,
+      }),
+      PINNED,
+      CLOSED
+    )
+
+    expect(result.verdict).toBe('MISMATCH')
+    expect(result.reason).toMatch(/outside its metadata trailer/)
+    expect(result.reason).not.toContain('holding immutables')
+  })
+})

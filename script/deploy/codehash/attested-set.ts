@@ -143,30 +143,38 @@ export const compareToAttestedSet = (
 
   if (exact.length > 0) {
     const matchedLineages = exact.map((build) => build.lineage)
+    // A build that pins exact bytes was compared byte for byte, immutables
+    // included, so nothing was excluded on that path however many bytes are
+    // masked.
+    const excludedByteCount = exact.some((build) => build.rawHash !== undefined)
+      ? 0
+      : observed.maskedByteCount
     return {
       verdict: 'MATCH',
       matchedLineages,
       reason:
-        observed.maskedByteCount === 0
+        excludedByteCount === 0
           ? `code matches the attested build from ${matchedLineages.join(
               ' and '
             )}`
           : `code matches the attested build from ${matchedLineages.join(
               ' and '
-            )} outside its immutables; the ${
-              observed.maskedByteCount
-            } bytes holding those were not compared and their values still have to be checked`,
-      excludedByteCount: observed.maskedByteCount,
+            )} outside its immutables; the ${excludedByteCount} bytes holding those were not compared and their values still have to be checked`,
+      excludedByteCount,
       blocksSigning: false,
     }
   }
 
   // Only reachable for an attestation that pins exact bytes: the code agrees
-  // everywhere the comparison looks, and the bytes it does not look at do not.
+  // everywhere the normalised comparison looks, and the bytes it does not look
+  // at do not. Those are the metadata trailer AND any masked immutables, so
+  // naming only the trailer would point a signer at the harmless half.
   if (sameLength.length > 0)
     return blocked(
       'MISMATCH',
-      `the deployed code is identical to the attested build from ${sameLength[0]?.lineage} outside its metadata trailer, and that trailer's bytes differ from the attested ones`,
+      observed.maskedByteCount === 0
+        ? `the deployed code is identical to the attested build from ${sameLength[0]?.lineage} outside its metadata trailer, and that trailer's bytes differ from the attested ones`
+        : `the deployed code is identical to the attested build from ${sameLength[0]?.lineage} where the normalised comparison looks, but its exact bytes differ: the difference is in the metadata trailer, in the ${observed.maskedByteCount} bytes holding immutables, or in both`,
       observed.maskedByteCount
     )
 
