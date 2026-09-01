@@ -1564,6 +1564,53 @@ export function buildProposalProvenance(
   }
 }
 
+const INTENT_INDEX_NAME = 'unique_pending_intent_hash'
+const IN_FLIGHT_NONCE_INDEX_NAME = 'unique_inflight_safe_nonce'
+const NONCE_KEY_PATH = 'safeTx.data.nonce'
+
+/** Which unique index rejected an insert, when one did. */
+export type DuplicateKeyKind =
+  | 'intent'
+  | 'in-flight-nonce'
+  | 'other'
+  | 'not-duplicate'
+
+/**
+ * Identifies the unique index behind a MongoDB duplicate-key error.
+ *
+ * Two unique indexes now guard this collection and they mean opposite things: an
+ * intent collision is the same proposal arriving twice and is safely idempotent,
+ * while a nonce collision is a *different* proposal that won the race for that
+ * nonce. Treating the second as the first would report success for a proposal
+ * that was never stored, so the two must be told apart rather than both matching
+ * on code 11000.
+ *
+ * `keyPattern` is what a current driver supplies; the index name in the message
+ * is the fallback for an older driver or a mongos that omits it.
+ *
+ * @param error - the value thrown by an insert.
+ * @returns which index rejected the write, or that this was not a duplicate-key error.
+ */
+export const classifyDuplicateKeyError = (error: unknown): DuplicateKeyKind => {
+  if (!(error instanceof Error) || !('code' in error)) return 'not-duplicate'
+  if ((error as { code?: unknown }).code !== 11000) return 'not-duplicate'
+
+  const keyPattern = (error as { keyPattern?: Record<string, unknown> })
+    .keyPattern
+  if (keyPattern) {
+    if ('intentHash' in keyPattern) return 'intent'
+    if (NONCE_KEY_PATH in keyPattern) return 'in-flight-nonce'
+
+    return 'other'
+  }
+
+  if (error.message.includes(IN_FLIGHT_NONCE_INDEX_NAME))
+    return 'in-flight-nonce'
+  if (error.message.includes(INTENT_INDEX_NAME)) return 'intent'
+
+  return 'other'
+}
+
 /**
  * Stores a Safe transaction in MongoDB
  * Skips storage if a pending proposal with the same intent already exists
@@ -1623,18 +1670,27 @@ export async function storeTransactionInMongoDB(
       const insertResult = await pendingTransactions.insertOne(txDoc)
       return insertResult
     } catch (error: unknown) {
-      // E11000 = MongoDB duplicate key error (from partial unique index on intentHash + pending status)
-      if (
-        error instanceof Error &&
-        'code' in error &&
-        (error as { code: number }).code === 11000
-      ) {
+      const duplicate = classifyDuplicateKeyError(error)
+
+      if (duplicate === 'intent') {
         consola.warn(
           `Duplicate pending proposal detected - skipping storage.\n` +
             `  Intent hash: ${intentHash}`
         )
         return null
       }
+
+      // Deliberately not `return null`: null means "already proposed, nothing to
+      // do", and here a *different* proposal holds this nonce. The nonce is
+      // covered by safeTxHash, so it cannot be bumped without re-signing —
+      // the proposal has to be rebuilt, which only the caller can do.
+      if (duplicate === 'in-flight-nonce')
+        throw new Error(
+          `Nonce ${safeTx.data.nonce} is already taken by another in-flight proposal on ${network} ` +
+            `(Safe ${safeAddress}). Another proposer won the race for it. Re-run the proposal so a ` +
+            `fresh nonce is derived; nothing was stored.`
+        )
+
       throw error
     }
   })
@@ -1657,7 +1713,7 @@ async function ensurePendingProposalIndex(
           status: 'pending',
           intentHash: { $exists: true },
         },
-        name: 'unique_pending_intent_hash',
+        name: INTENT_INDEX_NAME,
       }
     )
   } catch (error: unknown) {
@@ -1688,6 +1744,84 @@ async function ensurePendingProposalIndex(
     // Anything else (network failure, timeout) is a real connection problem —
     // rethrow so the caller closes the client instead of proceeding without the
     // database-level duplicate-prevention guarantee.
+    throw error
+  }
+}
+
+/**
+ * Ensures the in-flight nonce is unique per Safe at the database level.
+ *
+ * `getNextNonce` reads the highest in-flight nonce and the caller then inserts,
+ * so two proposers running concurrently read the same maximum and mint the same
+ * nonce. The existing intent index does not catch it: the two proposals differ,
+ * so both inserts satisfy it. Only one of them can ever execute, and the other
+ * sits pending as a proposal that will always revert.
+ *
+ * `executed` and `reverted` rows are deliberately outside the filter — history
+ * legitimately holds many rows per nonce, and constraining it would make the
+ * index unbuildable.
+ *
+ * Correctness depends on `safeAddress` and `network` being stored in one
+ * canonical form, since this indexes the raw fields rather than a hash of them.
+ * Both come through `initializeSafeClient`, which normalizes via
+ * `normalizeAddressForNetwork` and lowercases the network.
+ * @param pendingTransactions - MongoDB collection
+ */
+async function ensureInFlightNonceIndex(
+  pendingTransactions: Collection<ISafeTxDocument>
+): Promise<void> {
+  try {
+    await pendingTransactions.createIndex(
+      {
+        safeAddress: 1,
+        network: 1,
+        chainId: 1,
+        'safeTx.data.nonce': 1,
+      },
+      {
+        unique: true,
+        partialFilterExpression: { status: { $in: ['pending', 'submitted'] } },
+        name: IN_FLIGHT_NONCE_INDEX_NAME,
+      }
+    )
+  } catch (error: unknown) {
+    const code =
+      error instanceof Error && 'code' in error
+        ? (error as { code: number }).code
+        : undefined
+
+    // 85 = exists with same options; 86 = exists with a drifted definition.
+    if (code === 85 || code === 86) {
+      if (code === 86)
+        consola.warn(
+          'The in-flight nonce index exists with a different definition; relying on the existing index:',
+          error
+        )
+      return
+    }
+
+    if (code === 13) {
+      consola.warn(
+        'Cannot verify the in-flight nonce index (role lacks createIndex); nonce collisions stay detectable at confirm time only:',
+        error
+      )
+      return
+    }
+
+    // A collision already in the data makes the build fail. Blocking every Safe
+    // script fleet-wide over pre-existing rows would be worse than the race this
+    // index prevents, so it warns — but it must say the guarantee is absent,
+    // because "index ensured" and "index absent" are not interchangeable here.
+    if (code === 11000) {
+      consola.warn(
+        `Could not build ${IN_FLIGHT_NONCE_INDEX_NAME}: the collection already holds two in-flight ` +
+          `proposals sharing a nonce. Nonce uniqueness is NOT enforced until those rows are resolved. ` +
+          `List them with 'bunx tsx script/deploy/safe/report-nonce-collisions.ts'.`,
+        error
+      )
+      return
+    }
+
     throw error
   }
 }
@@ -1738,6 +1872,7 @@ export async function getSafeMongoCollection(): Promise<{
   // orphaned client is unreachable to the caller and keeps the process alive.
   try {
     await ensurePendingProposalIndex(pendingTransactions)
+    await ensureInFlightNonceIndex(pendingTransactions)
   } catch (error) {
     await client.close().catch(() => undefined)
     throw error
