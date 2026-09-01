@@ -57,6 +57,17 @@
       ]
     }
   ],
+  "arc": [
+    {
+      "address": "0xbfE34dF90A81113b7D3f943E9925DD1B44e96644",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    }
+  ],
   "avalanche": [
     {
       "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",

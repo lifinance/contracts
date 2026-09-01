@@ -100,9 +100,11 @@ export class TronChainCaller implements IChainCaller {
         `Tron simulation failed: ${JSON.stringify(result.result ?? result)}`
       )
 
+    // Every failure path above throws, so reaching here means a real estimate.
     return {
       estimatedResource: BigInt(result.energy_used),
       resourceLabel: 'energy',
+      estimateFailed: false,
     }
   }
 
