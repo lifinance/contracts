@@ -48,6 +48,14 @@ invariant must be added, adjusted, or removed. Use this checklist:
   prefers a `.<network>`-prefixed form of the same key wherever the config file defines one,
   so a chain whose counterparty lives under its own block (Tron's under `.tron`) is compared
   against that value rather than the EVM default.
+  Forgetting the annotation is not silent: `script/deploy/shared/immutableGetterCoverage.test.ts`
+  scans `src/Facets` and `src/Periphery` for public immutable address getters and fails on any
+  that is neither annotated nor listed in `UNANNOTATED_IMMUTABLE_GETTERS` with a reason.
+  Annotating is the expected fix — exempt a getter only when no config file holds a value to
+  compare it against (a LI.FI-deployed contract read from the deploy log, or an operated wallet).
+  The list may only shrink: the same suite fails on an exemption that has since been annotated
+  or whose getter no longer exists. The gate sees only getters that exist, so it cannot force a
+  binding to become readable — `101-solidity-contracts.md` carries that requirement.
 - **Struct, authorization, or owner semantics changed** → adjust the affected invariant so
   its assertion still matches on-chain reality (e.g. a changed expected owner, a new
   authorized selector, a renamed getter). Renaming a public getter that a

@@ -30,5 +30,5 @@ This will create all the required files to add a new bridge integration. The str
 ```
 
 4. Implement the bridge logic as required, add any tests and configuration
-5. Note any contract-specific deployment requirements and add them to `script/deploy/resources/deployRequirements.json`
+5. Note any contract-specific deployment requirements and add them to `script/deploy/resources/deployRequirements.json`. Hold each external protocol address in a `public immutable` and annotate its arg with `getter`, so the health check verifies the bound address against config on every chain
 6. Submit a PR to this repository
