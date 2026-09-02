@@ -1,5 +1,5 @@
 /**
- * Fixtures are the view the validator sees: `configData` as
+ * Fixtures are the view the validator sees, with real values throughout: `configData` as
  * `deployRequirements.json` writes it (keyed by free-form label) joined with the
  * `immutables` entries from `immutableRegistry.json` (keyed by the immutable's
  * own name). The CLI merges the two files; the validator only ever sees this.
@@ -20,7 +20,20 @@ const declared = (
   file = 'src/Facets/AcrossFacet.sol'
 ): IImmutableDeclaration => ({ file, line: 20, type: 'address', name })
 
-const CONFIG_DATA = { _spokePool: {}, _wrappedNativeAddress: {} }
+/** AcrossFacet's real entries, with the `getter` #2213 added on the one that has it. */
+const CONFIG_DATA = {
+  _spokePool: {
+    configFileName: 'across.json',
+    keyInConfigFile: '.<NETWORK>.acrossSpokePool',
+    allowToDeployWithZeroAddress: 'false',
+    getter: 'SPOKE_POOL',
+  },
+  _wrappedNativeAddress: {
+    configFileName: 'networks.json',
+    keyInConfigFile: '.<NETWORK>.wrappedNativeAddress',
+    allowToDeployWithZeroAddress: 'false',
+  },
+}
 
 describe('validateImmutableRegistry', () => {
   it('accepts a config-sourced immutable linked to an existing label', () => {

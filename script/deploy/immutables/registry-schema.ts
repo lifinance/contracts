@@ -11,6 +11,8 @@
  * is an error whatever the mode.
  */
 
+import type { IDeployRequirementEntry } from '../shared/immutableBindings'
+
 import type { IImmutableDeclaration } from './immutable-declarations'
 
 /**
@@ -39,8 +41,13 @@ export interface IImmutableEntry {
   authorityBearing?: unknown
 }
 
-export interface IContractRequirements {
-  configData?: Record<string, unknown>
+/**
+ * A `deployRequirements.json` entry as this gate reads it: #2213's shape plus the
+ * registry section. Extending `IDeployRequirementEntry` rather than restating it
+ * means the `getter` and `legacyGetters` fields that decide whether a binding is
+ * checkable on chain stay in one place.
+ */
+export interface IContractRequirements extends IDeployRequirementEntry {
   immutables?: Record<string, IImmutableEntry>
 }
 
