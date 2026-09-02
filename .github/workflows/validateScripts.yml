@@ -61,6 +61,10 @@ jobs:
           filters: |
             scripts:
               - 'script/**/*.ts'
+              # The registry gate below reads these two and fails on what they
+              # get wrong, so an edit to either has to be able to run it.
+              - 'script/deploy/resources/immutableRegistry.json'
+              - 'script/deploy/resources/deployRequirements.json'
               - 'package.json'
               - 'bun.lock'
               - 'tsconfig.json'
@@ -132,13 +136,12 @@ jobs:
           ##### exemption with no reason — and for any declaration the enumerator
           ##### could not read, since an immutable it cannot see is one the registry
           ##### is never asked to account for.
-          ##### KNOWN GAP: this job's paths-filter fires on script/**/*.ts and the
-          ##### manifests, NOT on src/**. So a PR adding a facet with an undeclared
-          ##### immutable does not run this step today. Harmless while the check is
-          ##### warn-only; closing it is a PREREQUISITE of the --strict flip, and it
-          ##### is a trade-off rather than an oversight — adding src/** to this
-          ##### filter also runs the forge build and TypeChain generation above it
-          ##### on every Solidity PR.
+          ##### KNOWN GAP: this job's paths-filter does not fire on src/**, so a PR
+          ##### adding a facet with an undeclared immutable does not run this step
+          ##### today. Harmless while the check is warn-only; closing it is a
+          ##### PREREQUISITE of the --strict flip, and it is a trade-off rather than
+          ##### an oversight — adding src/** to this filter also runs the forge
+          ##### build and TypeChain generation above it on every Solidity PR.
           ##### Flip to --strict once every immutable is authored (EXSC-869 part ii).
           bunx tsx ./script/deploy/immutables/verify-immutable-registry.ts
 

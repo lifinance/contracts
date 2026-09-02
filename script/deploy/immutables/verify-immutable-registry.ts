@@ -61,7 +61,7 @@ const mergeRequirements = (
 const main = (): void => {
   const strict = process.argv.includes('--strict')
 
-  const files = execFileSync('git', ['ls-files', 'src/**/*.sol'], {
+  const files = execFileSync('git', ['ls-files', 'src/*.sol'], {
     encoding: 'utf8',
   })
     .trim()

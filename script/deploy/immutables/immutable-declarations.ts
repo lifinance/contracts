@@ -27,10 +27,88 @@ export interface IImmutableDeclaration {
 }
 
 /**
+ * Replaces every comment and string literal with spaces, keeping all other
+ * characters and every newline where they are, so line numbers still line up.
+ *
+ * Everything downstream reads the masked text, because the two cheap ways of
+ * approximating this both hid a real immutable. Pairing quotes with a regex let
+ * an escaped quote inside a string swallow the declaration that followed it, and
+ * skipping any line whose first characters open a comment hid a declaration that
+ * merely had a block comment in front of it. Both compile, and both were
+ * invisible to the gate rather than reported by it.
+ *
+ * @param source - The file's contents.
+ * @returns The same length of text with comments and string bodies blanked.
+ */
+const maskCommentsAndStrings = (source: string): string => {
+  const out = source.split('')
+  let state: 'code' | 'lineComment' | 'blockComment' | 'string' = 'code'
+  let quote = ''
+
+  for (let i = 0; i < source.length; i++) {
+    const char = source[i] as string
+    const next = source[i + 1]
+
+    if (state === 'code') {
+      // Both delimiter characters are consumed here so that `/*/` opens a
+      // comment without also closing it.
+      if (char === '/' && next === '/') {
+        out[i] = ' '
+        out[i + 1] = ' '
+        i++
+        state = 'lineComment'
+      } else if (char === '/' && next === '*') {
+        out[i] = ' '
+        out[i + 1] = ' '
+        i++
+        state = 'blockComment'
+      } else if (char === '"' || char === "'") {
+        out[i] = ' '
+        quote = char
+        state = 'string'
+      }
+      continue
+    }
+
+    if (state === 'lineComment') {
+      if (char === '\n') state = 'code'
+      else out[i] = ' '
+      continue
+    }
+
+    if (state === 'blockComment') {
+      if (char === '*' && next === '/') {
+        out[i] = ' '
+        out[i + 1] = ' '
+        i++
+        state = 'code'
+      } else if (char !== '\n') out[i] = ' '
+      continue
+    }
+
+    if (char === '\\') {
+      out[i] = ' '
+      if (next !== undefined && next !== '\n') {
+        out[i + 1] = ' '
+        i++
+      }
+      continue
+    }
+    if (char === quote) {
+      out[i] = ' '
+      state = 'code'
+      continue
+    }
+    if (char !== '\n') out[i] = ' '
+  }
+
+  return out.join('')
+}
+
+/**
  * `<type> [visibility] immutable <name>` with `immutable` as a whole word, so
  * `immutableOwner` and prose mentioning the word do not match. Anchored at the
- * start of the line's content, which keeps it out of strings and trailing
- * comments — a declaration is always the first thing on its line in this repo.
+ * start of a statement; the caller splits a line into statements first.
  *
  * The optional `payable` is not decoration: `address payable public immutable
  * POLYMER_FEE_RECEIVER` is a real declaration in `src/`, and a single-token type
@@ -38,10 +116,18 @@ export interface IImmutableDeclaration {
  * asked to account for.
  */
 const DECLARATION_RE =
-  /^\s*([A-Za-z_$][\w$.]*(?:\[\d*\])*(?:\s+payable)?)\s+(?:(public|private|internal)\s+)?immutable\s+([A-Za-z_$][\w$]*)\s*(?:=|;)/u
+  /^\s*([A-Za-z_$][\w$.]*(?:\[\d*\])*(?:\s+payable)?)\s+(?:(public|private|internal)\s+)?immutable\s+([A-Za-z_$][\w$]*)\s*(?:=|$)/u
 
-const isCommentLine = (line: string): boolean =>
-  /^\s*(\/\/|\/\*|\*)/u.test(line)
+/**
+ * Splits one masked line into the statements a declaration could start.
+ *
+ * Solidity permits two declarations on one line and permits one to sit directly
+ * after `{`. Splitting on statement and block boundaries lets the anchored
+ * pattern see each declaration as the start of its own statement, so a second
+ * declaration is parsed rather than left for the reporter to flag.
+ */
+const statementsOf = (maskedLine: string): string[] =>
+  maskedLine.split(/[;{}]/u)
 
 /**
  * Parses one file's immutable declarations.
@@ -56,24 +142,27 @@ export const parseImmutableDeclarations = (
 ): IImmutableDeclaration[] => {
   const found: IImmutableDeclaration[] = []
 
-  source.split('\n').forEach((text, index) => {
-    if (isCommentLine(text)) return
-    const match = DECLARATION_RE.exec(text)
-    if (!match) return
+  maskCommentsAndStrings(source)
+    .split('\n')
+    .forEach((maskedLine, index) => {
+      for (const statement of statementsOf(maskedLine)) {
+        const match = DECLARATION_RE.exec(statement)
+        if (!match) continue
 
-    const [, type, visibility, name] = match
-    if (!type || !name) return
+        const [, type, visibility, name] = match
+        if (!type || !name) continue
 
-    found.push({
-      file,
-      line: index + 1,
-      type,
-      ...(visibility
-        ? { visibility: visibility as IImmutableDeclaration['visibility'] }
-        : {}),
-      name,
+        found.push({
+          file,
+          line: index + 1,
+          type,
+          ...(visibility
+            ? { visibility: visibility as IImmutableDeclaration['visibility'] }
+            : {}),
+          name,
+        })
+      }
     })
-  })
 
   return found
 }
@@ -87,9 +176,14 @@ export const parseImmutableDeclarations = (
  * asked to account for. Fixing it means either teaching the parser the shape or
  * rewriting the declaration onto one line.
  *
+ * Counts rather than a line-level "did this line parse?" test, so that the
+ * second declaration on a line is reported instead of reading as covered by the
+ * first.
+ *
  * @param source - The file's contents.
  * @param file - Repo-relative path, carried onto each result.
- * @returns One entry per unreadable line, in source order.
+ * @returns One entry per unreadable line, in source order, carrying the line as
+ * written so the operator sees the shape rather than the masked text.
  */
 export const findUnreadableImmutableLines = (
   source: string,
@@ -102,17 +196,14 @@ export const findUnreadableImmutableLines = (
       (parsedPerLine.get(declaration.line) ?? 0) + 1
     )
 
-  return source
+  const asWritten = source.split('\n')
+
+  return maskCommentsAndStrings(source)
     .split('\n')
-    .map((text, index) => ({ file, line: index + 1, text: text.trim() }))
-    .filter(({ text, line }) => {
-      if (isCommentLine(text)) return false
-      // Solidity allows two declarations on one line, and a line-level "did this
-      // line parse?" test reads the second one as covered by the first. Compare
-      // counts, so the extra declaration is reported rather than invisible.
-      const mentions = (
-        text.replace(/"[^"]*"|'[^']*'/gu, '').match(/\bimmutable\b/gu) ?? []
-      ).length
-      return mentions > (parsedPerLine.get(line) ?? 0)
+    .flatMap((maskedLine, index) => {
+      const line = index + 1
+      const mentions = (maskedLine.match(/\bimmutable\b/gu) ?? []).length
+      if (mentions <= (parsedPerLine.get(line) ?? 0)) return []
+      return [{ file, line, text: (asWritten[index] ?? '').trim() }]
     })
 }

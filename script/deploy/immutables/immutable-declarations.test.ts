@@ -172,7 +172,10 @@ describe('findUnreadableImmutableLines', () => {
   it.each([
     ['a line comment', '    // set once, immutable thereafter'],
     ['a natspec tag', '    /// @notice immutable after construction'],
-    ['a block-comment body', '     * the immutable value'],
+    // Carries its own `/**` opener: the body is only a comment because the
+    // opener precedes it, and that is what the masking pass reads. A bare `*`
+    // line with no opener is code, and code mentioning the word is reported.
+    ['a block-comment body', '    /**\n     * the immutable value\n     */'],
     ['a mid-line natspec tag', '    /** @dev immutable */'],
   ])('does not report %s', (_label, line) => {
     expect(
@@ -192,46 +195,123 @@ describe('findUnreadableImmutableLines', () => {
   })
 })
 
-describe('two declarations on one line', () => {
-  it('reports the second, which a line-level check reads as covered', () => {
+describe('comments and string literals are masked before anything reads a line', () => {
+  it('parses both declarations on one line, rather than reporting the second', () => {
     // Valid Solidity, and nothing in CI reformats it — no workflow runs prettier
-    // or solhint. A line-granular "did this line parse?" test sees the first
-    // declaration, marks the line read, and the second becomes invisible: not
-    // declared, not warned, not reported.
+    // or solhint. The parser was anchored to the start of the line, so it could
+    // only ever read the first, and the second was reported as unreadable.
     const source =
-      'contract A {\n    address public immutable A_ONE; address public immutable HIDDEN;\n}'
+      'contract A {\n    address public immutable A_ONE; address public immutable A_TWO;\n}'
 
     expect(
       parseImmutableDeclarations(source, 'src/A.sol').map((d) => d.name)
-    ).toEqual(['A_ONE'])
-    expect(findUnreadableImmutableLines(source, 'src/A.sol')).toHaveLength(1)
+    ).toEqual(['A_ONE', 'A_TWO'])
+    expect(findUnreadableImmutableLines(source, 'src/A.sol')).toEqual([])
   })
 
-  it('stays silent when both declarations on a line are read', () => {
-    // The control. If the parser ever learns both, the reporter must go quiet
-    // rather than keep flagging the line forever.
-    const source = 'contract A {\n    address public immutable ONE;\n}'
+  it('parses three on one line, so the count comparison cannot pass by luck', () => {
+    // The control the suite previously lacked: its fixture carried one
+    // declaration, and the assertion could not fail, because a line-anchored
+    // parser caps the parsed-per-line count at 1 by construction.
+    const source =
+      'contract A {\n    uint256 public immutable A_ONE; uint256 public immutable A_TWO; uint256 public immutable A_THREE;\n}'
 
+    expect(
+      parseImmutableDeclarations(source, 'src/A.sol').map((d) => d.name)
+    ).toEqual(['A_ONE', 'A_TWO', 'A_THREE'])
+    expect(findUnreadableImmutableLines(source, 'src/A.sol')).toEqual([])
+  })
+
+  it.each([
+    [
+      'a line comment',
+      'address public immutable OWNER; // the immutable owner',
+    ],
+    [
+      'a natspec line',
+      'uint256 public immutable FEE; /// @notice immutable fee',
+    ],
+    ['a natspec block', 'uint256 public immutable FEE; /** @dev immutable */'],
+  ])('stays quiet when %s mentions the word', (_label, line) => {
+    // A mention in a trailing comment is not a second declaration. Counting raw
+    // occurrences turned each of these into a failing gate on correct code, and
+    // the error told the author to put on one line a declaration that was
+    // already on one line. This comment style appears on 152 other statements in
+    // `src/`, so it is a shape the repo actually writes.
+    const source = `contract A {\n    ${line}\n}`
+
+    expect(parseImmutableDeclarations(source, 'src/A.sol')).toHaveLength(1)
     expect(findUnreadableImmutableLines(source, 'src/A.sol')).toEqual([])
   })
 
   it('does not flag the word inside a string literal', () => {
-    // `string public constant NOTE = "immutable thing";` is not a declaration and
-    // failing the gate on it would be a false red on correct code.
     const source =
       'contract A {\n    string public constant NOTE = "immutable thing";\n}'
 
     expect(findUnreadableImmutableLines(source, 'src/A.sol')).toEqual([])
   })
 
-  it('flags a declaration disguised by an inline comment', () => {
-    // The natspec-tag exclusion used to swallow this: the inline comment blocks
-    // the parser's `;` anchor, so it parses as nothing, and the old `@dev` filter
-    // then suppressed the report too.
+  it('sees a declaration that an escaped quote used to swallow', () => {
+    // Masking was a regex over quote pairs, which does not know about `\"`. The
+    // odd quote count made the following pair span the declaration and delete
+    // the keyword, so the immutable was neither parsed nor reported. It compiles
+    // — solc reads the escaped quote as string content — so this was a real
+    // immutable that was invisible, the one failure this module exists to stop.
+    const source =
+      'contract A {\n    string constant Q = "\\"";  address public immutable HIDDEN;\n}'
+
+    expect(
+      parseImmutableDeclarations(source, 'src/A.sol').map((d) => d.name)
+    ).toEqual(['HIDDEN'])
+  })
+
+  it('sees a declaration behind a leading block comment', () => {
+    // A "does this line open with a comment?" test skipped the line in the
+    // parser and excluded it from the reporter, so putting an inline block
+    // comment in front of any declaration hid it in both directions at once.
+    const source =
+      'contract A {\n    /* set at construction */ address public immutable OWNER;\n}'
+
+    expect(
+      parseImmutableDeclarations(source, 'src/A.sol').map((d) => d.name)
+    ).toEqual(['OWNER'])
+  })
+
+  it('reads a declaration whose value an inline comment separates', () => {
     const source =
       'contract A {\n    address public immutable OWNER /* @dev owner */ = address(0);\n}'
 
+    expect(
+      parseImmutableDeclarations(source, 'src/A.sol').map((d) => d.name)
+    ).toEqual(['OWNER'])
+    expect(findUnreadableImmutableLines(source, 'src/A.sol')).toEqual([])
+  })
+
+  it('reads a declaration sitting directly after an opening brace', () => {
+    const source = 'contract A { address public immutable OWNER; }'
+
+    expect(
+      parseImmutableDeclarations(source, 'src/A.sol').map((d) => d.name)
+    ).toEqual(['OWNER'])
+    expect(findUnreadableImmutableLines(source, 'src/A.sol')).toEqual([])
+  })
+
+  it('still reports a declaration wrapped across two lines', () => {
+    // Masking must not buy its silence by making the genuinely unreadable shape
+    // silent too.
+    const source =
+      'contract A {\n    address public\n        immutable WRAPPED;\n}'
+
     expect(parseImmutableDeclarations(source, 'src/A.sol')).toEqual([])
     expect(findUnreadableImmutableLines(source, 'src/A.sol')).toHaveLength(1)
+  })
+
+  it('reports the line as written rather than as masked', () => {
+    // Whoever has to fix it needs to see the shape they wrote.
+    const source =
+      'contract A {\n    address public /* why */ immutable\n        WRAPPED;\n}'
+    const [first] = findUnreadableImmutableLines(source, 'src/A.sol')
+
+    expect(first?.text).toBe('address public /* why */ immutable')
   })
 })
