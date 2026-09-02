@@ -10,7 +10,7 @@ import {
   sanitizeProvenanceText,
 } from '../shared/git-provenance'
 
-import { MAX_PROPOSAL_REASON_LENGTH } from './safe-utils'
+import { MAX_PROPOSAL_REASON_LENGTH } from './proposal-intent'
 
 /** How many networks are named individually before the card switches to a count. */
 const NAMED_NETWORK_LIMIT = 4
