@@ -17,11 +17,6 @@ import { IYieldAdapter } from "./interfaces/IYieldAdapter.sol";
 import { FeeConfig, FeeType, FeeReceiver, FEE_TYPE_COUNT } from "./LiFiVaultWrapperTypes.sol";
 import { LibVaultWrapperMath } from "./libraries/LibVaultWrapperMath.sol";
 
-// One over solhint's 15-state default: the 16th declaration is the write-once
-// `shareDecimalsOffset` (inflation protection), which packs into the `accessGate`
-// slot rather than widening the storage layout.
-// solhint-disable max-states-count
-
 /// @title LiFiVaultWrapper
 /// @author LI.FI (https://li.fi)
 /// @notice Per-integrator-product ERC-4626 vault that wraps an underlying yield source. Shares
@@ -1357,11 +1352,11 @@ contract LiFiVaultWrapper is
         address _token,
         uint256 _integratorTotal
     ) private returns (uint256 retained) {
-        FeeReceiver[] memory receivers = integratorFeeReceivers;
-        uint256 count = receivers.length;
+        uint256 count = integratorFeeReceivers.length;
         uint256 distributed;
 
         for (uint256 i; i < count; ++i) {
+            FeeReceiver memory receiver = integratorFeeReceivers[i];
             uint256 share;
             if (i + 1 == count) {
                 // last receiver gets the whole remainder to avoid rounding dust
@@ -1369,14 +1364,14 @@ contract LiFiVaultWrapper is
             } else {
                 // other receivers get their bps share, rounded down
                 share = _integratorTotal.mulDiv(
-                    receivers[i].bps,
+                    receiver.bps,
                     LibVaultWrapperMath.BASIS_POINT_SCALE
                 );
             }
             distributed += share;
             if (share == 0) continue;
 
-            address wallet = receivers[i].wallet;
+            address wallet = receiver.wallet;
             // we use trySafeTransfer here so a failed transfer doesn't block the distribution
             if (SafeERC20.trySafeTransfer(IERC20(_token), wallet, share)) {
                 continue;
