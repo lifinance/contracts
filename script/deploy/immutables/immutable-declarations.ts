@@ -122,12 +122,22 @@ const maskCommentsAndStrings = (source: string): string => {
  * phantom declaration makes the parsed count match the mention count, so the
  * reporter falls silent and the real immutable on the next line is accounted
  * for nowhere.
+ *
+ * The keyword is rejected only when the whole identifier is the keyword, and
+ * that test cannot be a word boundary: `$` is legal in a Solidity identifier
+ * but is not a regex word character, so `\b` reads `public$FEE` as the bare
+ * keyword and turns the gate red on code that compiles.
+ *
+ * `constant`, `immutable` and `transient` cannot actually reach this position —
+ * solc rejects all three as a repeated or conflicting mutability — so they are
+ * defensive entries, unlike `public`, `private`, `internal` and `override`,
+ * which all compile there.
  */
 const RESERVED_AFTER_IMMUTABLE =
   'public|private|internal|override|constant|immutable|transient'
 
 const DECLARATION_RE = new RegExp(
-  String.raw`^\s*([A-Za-z_$][\w$.]*(?:\[\d*\])*(?:\s+payable)?)\s+(?:(public|private|internal)\s+)?immutable\s+(?!(?:${RESERVED_AFTER_IMMUTABLE})\b)([A-Za-z_$][\w$]*)\s*(?:=|$)`,
+  String.raw`^\s*([A-Za-z_$][\w$.]*(?:\[\d*\])*(?:\s+payable)?)\s+(?:(public|private|internal)\s+)?immutable\s+(?!(?:${RESERVED_AFTER_IMMUTABLE})(?![\w$]))([A-Za-z_$][\w$]*)\s*(?:=|$)`,
   'u'
 )
 
@@ -215,7 +225,13 @@ export const findUnreadableImmutableLines = (
     .split('\n')
     .flatMap((maskedLine, index) => {
       const line = index + 1
-      const mentions = (maskedLine.match(/\bimmutable\b/gu) ?? []).length
+      // Same identifier rule the name capture uses, and for the same reason: a
+      // word boundary treats the `immutable` inside a name like `immutable$I`
+      // as a second mention, so one declaration would be counted twice and the
+      // line reported as hiding something.
+      const mentions = (
+        maskedLine.match(/(?<![\w$])immutable(?![\w$])/gu) ?? []
+      ).length
       if (mentions <= (parsedPerLine.get(line) ?? 0)) return []
       return [{ file, line, text: (asWritten[index] ?? '').trim() }]
     })

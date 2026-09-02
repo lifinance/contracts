@@ -319,6 +319,8 @@ describe('comments and string literals are masked before anything reads a line',
 describe('a modifier keyword is never captured as the name', () => {
   it.each([
     ['immutable before the visibility', 'uint256 immutable public'],
+    ['immutable before private', 'uint256 immutable private'],
+    ['immutable before internal', 'uint256 immutable internal'],
     [
       'an override on a public state variable',
       'uint256 public immutable override',
@@ -381,4 +383,53 @@ describe('the masking pass, on the shapes that would silence a whole file', () =
 
     expect(first?.line).toBe(5)
   })
+})
+
+describe('a name that merely begins with a modifier keyword is still a name', () => {
+  it.each([
+    'publicKey',
+    'privateKeyHash',
+    'internalRouter',
+    'overrideAddress',
+    'constantProduct',
+    'immutableOwner',
+    'transientStore',
+    'public_KEY',
+    'public0',
+  ])('parses %s', (name) => {
+    // The keyword exclusion must reject only the bare keyword. Without a
+    // boundary on it, every one of these legal names stops parsing and the gate
+    // goes red on correct code — and `immutableOwner` is the name the module's
+    // own docstring uses as its example.
+    const source = `contract A {\n    address public immutable ${name};\n}`
+
+    expect(
+      parseImmutableDeclarations(source, 'src/A.sol').map((d) => d.name)
+    ).toEqual([name])
+    expect(findUnreadableImmutableLines(source, 'src/A.sol')).toEqual([])
+  })
+
+  it.each(['public$FEE', 'override$X', 'internal$R', 'immutable$I'])(
+    'parses %s, where a word boundary would not have',
+    (name) => {
+      // `$` is legal in a Solidity identifier but is not a regex word
+      // character, so a `\b` boundary reads these as the bare keyword and
+      // fails the gate on code that compiles.
+      const source = `contract A {\n    uint256 public immutable ${name} = 1;\n}`
+
+      expect(
+        parseImmutableDeclarations(source, 'src/A.sol').map((d) => d.name)
+      ).toEqual([name])
+      expect(findUnreadableImmutableLines(source, 'src/A.sol')).toEqual([])
+    }
+  )
+
+  it.each(['public', 'private', 'internal', 'override'])(
+    'still refuses the bare keyword %p as a name',
+    (keyword) => {
+      const source = `contract A {\n    uint256 immutable ${keyword}\n        FEE = 1;\n}`
+
+      expect(parseImmutableDeclarations(source, 'src/A.sol')).toEqual([])
+    }
+  )
 })

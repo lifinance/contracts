@@ -98,7 +98,7 @@ const main = (): void => {
 
   for (const { file, line, text } of unreadable)
     consola.error(
-      `${file}:${line} mentions immutable but could not be read as a declaration: ${text}. Teach the parser this shape or put the declaration on one line — an immutable the gate cannot see is one the registry is never asked to account for.`
+      `${file}:${line} mentions immutable but could not be read as a declaration: ${text}. Teach the parser this shape, or write it as '<type> [visibility] immutable <NAME>;' — an immutable the gate cannot see is one the registry is never asked to account for.`
     )
   for (const error of errors) consola.error(error)
   for (const warning of warnings) consola.warn(warning)
