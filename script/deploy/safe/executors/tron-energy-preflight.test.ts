@@ -17,6 +17,7 @@ import {
 
 import type { IChainSimulateResult } from '../../../common/types'
 
+import type { ITronEnergyCost } from './tron-energy-estimate'
 import { assertTronBroadcastAffordable } from './tron-energy-preflight'
 
 /** 50 TRX, the devkit default this repo runs with. */
@@ -32,8 +33,10 @@ const estimateOf =
     estimateFailed: false,
   })
 
-const costInSun = async (energy: bigint): Promise<bigint> =>
-  energy * SUN_PER_ENERGY
+const costInSun = async (energy: bigint): Promise<ITronEnergyCost> => ({
+  costSun: energy * SUN_PER_ENERGY,
+  priceConfirmed: true,
+})
 
 const options = {
   networkName: 'tron',
@@ -171,5 +174,58 @@ describe('the escape hatch is the same one the EVM paths use', () => {
     )
 
     expect(result.estimatedEnergy).toBe(600_000n)
+  })
+})
+
+describe('an unconfirmed energy price is labelled as such', () => {
+  it('says so in the refusal instead of quoting the figure as fact', async () => {
+    // `getCurrentPrices` swallows its own failure and substitutes a constant
+    // above the live mainnet rate, so the guard can refuse honest traffic while
+    // telling the operator to raise the limit to an inflated number. It has to
+    // be able to say the price was never read.
+    const error = await assertTronBroadcastAffordable(estimateOf(600_000n), {
+      ...options,
+      costInSun: async (energy) => ({
+        costSun: energy * 210n,
+        priceConfirmed: false,
+      }),
+    }).then(
+      () => undefined,
+      (e: unknown) => e as Error
+    )
+
+    expect(error?.message).toMatch(/could not be read/)
+    expect(error?.message).toMatch(/unconfirmed upper bound/)
+  })
+
+  it('does not add that caveat when the price was read', async () => {
+    const error = await assertTronBroadcastAffordable(
+      estimateOf(600_000n),
+      options
+    ).then(
+      () => undefined,
+      (e: unknown) => e as Error
+    )
+
+    expect(error?.message).not.toMatch(/unconfirmed upper bound/)
+  })
+
+  it('refuses, redacted, when pricing itself throws', async () => {
+    // Pricing sits inside the redaction boundary because the endpoint is
+    // embedded in these errors and credentials ride in its query string.
+    const error = await assertTronBroadcastAffordable(estimateOf(400_000n), {
+      ...options,
+      costInSun: async () => {
+        throw new Error(
+          'failed for https://api.example.com/x?apikey=SHOULDNOTAPPEAR'
+        )
+      },
+    }).then(
+      () => undefined,
+      (e: unknown) => e as Error
+    )
+
+    expect(error?.message).toMatch(/refusing to broadcast/)
+    expect(error?.message).not.toContain('SHOULDNOTAPPEAR')
   })
 })

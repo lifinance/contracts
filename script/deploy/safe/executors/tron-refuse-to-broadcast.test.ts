@@ -18,6 +18,7 @@ import type { Address, Hex } from 'viem'
 import type { IChainExecutionParams } from '../../../common/types'
 
 import { TronChainCaller } from './tron-caller'
+import type { ITronEnergyCost } from './tron-energy-estimate'
 import { TronChainExecutor } from './tron-executor'
 
 /** Obviously fake, and built rather than written so it is not a key-shaped literal. */
@@ -28,7 +29,10 @@ const SAFE = '0x2222222222222222222222222222222222222222' as Address
 const DATA = '0xdeadbeef' as Hex
 
 /** 100 SUN per energy, so 500_000 energy is exactly the 50 TRX default limit. */
-const costInSun = async (energy: bigint): Promise<bigint> => energy * 100n
+const costInSun = async (energy: bigint): Promise<ITronEnergyCost> => ({
+  costSun: energy * 100n,
+  priceConfirmed: true,
+})
 
 const failingEstimate = async (): Promise<bigint> => {
   throw new Error('triggerconstantcontract failed: 503 Service Unavailable')
@@ -206,5 +210,36 @@ describe('TronChainExecutor.executeTransaction', () => {
     expect(seen).not.toBe(DATA)
     // execTransaction(address,uint256,bytes,uint8,uint256,uint256,uint256,address,address,bytes)
     expect(seen?.startsWith('0x6a761202')).toBe(true)
+  })
+})
+
+describe('the executor still executes when the estimate fits', () => {
+  it('broadcasts, so a guard that refused everything would fail here', async () => {
+    // Without this, an executor that refuses every transaction passes the whole
+    // suite: `spy.executions` was only ever asserted to be 0. That is the
+    // direction that would block production execution on every Tron network,
+    // so it is the one most worth pinning.
+    const client = {
+      executeSafeExecTransaction: async () => {
+        spy.executions += 1
+        return { txId: 'deadbeef', hash: '0xdeadbeef' as Hex }
+      },
+      getTronWeb: () => ({
+        trx: {
+          getTransactionInfo: async () => ({
+            id: 'deadbeef',
+            receipt: { result: 'SUCCESS' },
+          }),
+        },
+      }),
+    } as unknown as TronWalletClient
+
+    const result = await new TronChainExecutor(client, 'tron', {
+      estimateEnergy: async () => 400_000n,
+      costInSun,
+    }).executeTransaction(execution)
+
+    expect(spy.executions).toBe(1)
+    expect(result.status).toBe('success')
   })
 })

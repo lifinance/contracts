@@ -26,6 +26,7 @@ import {
   configuredTronFeeLimitSun,
   estimateTronEnergy,
   tronEnergyCostInSun,
+  type ITronEnergyCost,
 } from './tron-energy-estimate'
 import { assertTronBroadcastAffordable } from './tron-energy-preflight'
 
@@ -70,7 +71,7 @@ export interface ITronExecutorDeps {
     calldata: Hex,
     params: IChainExecutionParams
   ) => Promise<bigint>
-  costInSun?: (energy: bigint) => Promise<bigint>
+  costInSun?: (energy: bigint) => Promise<ITronEnergyCost>
 }
 
 /**
@@ -200,7 +201,7 @@ export class TronChainExecutor implements IChainExecutor {
     })
   }
 
-  private async costInSunOnChain(energy: bigint): Promise<bigint> {
+  private async costInSunOnChain(energy: bigint): Promise<ITronEnergyCost> {
     return tronEnergyCostInSun(
       this.tronWalletClient.getTronWeb(this.networkKey),
       energy

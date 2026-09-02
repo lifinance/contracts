@@ -21,6 +21,7 @@ import type { IChainSimulateResult } from '../../../common/types'
 import { redactErrorReason } from '../../../utils/redactUrls'
 
 import { fallbackExplicitlyAllowed } from './gas-with-fallback'
+import type { ITronEnergyCost } from './tron-energy-estimate'
 
 /** The env var the devkit reads for its cap, named in refusals so it can be raised. */
 export const TRON_FEE_LIMIT_ENV = 'TRON_SAFE_EXEC_FEE_LIMIT_SUN'
@@ -32,8 +33,8 @@ export interface ITronEnergyPreflightOptions {
   operation: string
   /** SUN the devkit will cap this transaction at. */
   feeLimitSun: number
-  /** Cost of that much energy, in SUN, at current chain prices. */
-  costInSun: (energy: bigint) => Promise<bigint>
+  /** Cost of that much energy at current chain prices, and whether the price was read. */
+  costInSun: (energy: bigint) => Promise<ITronEnergyCost>
 }
 
 export interface ITronEnergyPreflightResult {
@@ -53,7 +54,10 @@ const escapeHatchNote = (networkName: string): string =>
  * Estimate first, then decide whether broadcasting is allowed.
  *
  * @param estimate - Runs the energy estimate. Throwing and returning
- * `estimateFailed: true` are treated alike: neither is an estimate.
+ * `estimateFailed: true` are treated alike: neither is an estimate. No Tron
+ * estimator returns the latter today — `TronChainCaller.simulate` throws
+ * instead — so that arm exists so a future estimator that reports a fallback
+ * figure cannot make this guard read it as a real one.
  * @param options - Network and operation labels, the configured fee limit, and
  * the energy-to-SUN conversion.
  * @returns The estimate and its cost.
@@ -105,7 +109,29 @@ export const assertTronBroadcastAffordable = async (
   }
 
   const estimatedEnergy = simulated.estimatedResource
-  const costSun = await options.costInSun(estimatedEnergy)
+
+  let cost: ITronEnergyCost
+  try {
+    cost = await options.costInSun(estimatedEnergy)
+  } catch (error) {
+    // Inside the redaction boundary for the same reason as the estimate above:
+    // the endpoint is embedded in these errors and provider credentials ride in
+    // its query string.
+    throw new Error(
+      `Could not price ${estimatedEnergy} energy ${where} ${what} — refusing to broadcast.\n` +
+        `  Underlying error: ${redactErrorReason(
+          error instanceof Error ? error.message : String(error)
+        )}\n` +
+        `  Without a price there is no way to tell whether the fee limit covers this call. ` +
+        `${escapeHatchNote(networkName)}`
+    )
+  }
+
+  const { costSun, priceConfirmed } = cost
+  const priceNote = priceConfirmed
+    ? ''
+    : `\n  The chain's energy price could not be read, so this cost is an unconfirmed upper ` +
+      `bound computed from the devkit's fallback rate, which is above the usual mainnet price.`
 
   if (costSun > BigInt(feeLimitSun)) {
     if (!fallbackExplicitlyAllowed(networkName))
@@ -116,7 +142,7 @@ export const assertTronBroadcastAffordable = async (
           `  Broadcasting would not fail cleanly: the call runs until the limit is spent ` +
           `and aborts part-way, leaving the operation neither applied nor abandoned while ` +
           `the energy is still charged.\n` +
-          `  Raise ${TRON_FEE_LIMIT_ENV} to at least ${costSun}, or split the batch. ` +
+          `  Raise ${TRON_FEE_LIMIT_ENV} to at least ${costSun}, or split the batch.${priceNote} ` +
           `${escapeHatchNote(networkName)}`
       )
 
