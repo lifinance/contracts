@@ -6,11 +6,10 @@
  * reads source rather than build output so the CI gate needs no compile, and it
  * is deliberately narrow, recognising the forms this repo uses.
  *
- * That narrowness is the danger. A declaration it cannot read produces NOTHING,
- * so the immutable is never asked for and never shows as unanswered — the worst
- * failure available to a registry gate. `address payable public immutable` was
- * one such shape, and a declaration wrapped across lines is another. So the gate
- * must also ask what this parser failed to read.
+ * That narrowness is the danger: a declaration this parser cannot read produces
+ * NOTHING, so the immutable is never asked for and never shows as unanswered —
+ * the worst failure available to a registry gate. So the gate must also ask
+ * what this parser failed to read.
  */
 
 /** One `<type> [visibility] immutable <name>;` in a contract. */
@@ -30,12 +29,9 @@ export interface IImmutableDeclaration {
  * Replaces every comment and string literal with spaces, keeping all other
  * characters and every newline where they are, so line numbers still line up.
  *
- * Everything downstream reads the masked text, because the two cheap ways of
- * approximating this both hid a real immutable. Pairing quotes with a regex let
- * an escaped quote inside a string swallow the declaration that followed it, and
- * skipping any line whose first characters open a comment hid a declaration that
- * merely had a block comment in front of it. Both compile, and both were
- * invisible to the gate rather than reported by it.
+ * Everything downstream reads the masked text: an unmasked string or comment
+ * can itself contain the declaration syntax this file looks for, which would
+ * either swallow a real declaration or match a fake one.
  *
  * @param source - The file's contents.
  * @returns The same length of text with comments and string bodies blanked.
