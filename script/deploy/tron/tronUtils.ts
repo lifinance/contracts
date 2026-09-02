@@ -47,6 +47,7 @@ import {
   assertRecordedArgsMatchAbi,
   constructorInputTypes,
   encodeConstructorArgs as encodeWithTypes,
+  type AbiParamEncoder,
 } from './constructor-args'
 import type { IDiamondRegistrationResult } from './types'
 
@@ -229,6 +230,15 @@ export async function deployContractWithLogging(
 /**
  * Encode constructor arguments to hex
  */
+/** TronWeb's ABI encoder for one network; it accepts base58 addresses, viem's does not. */
+const tronAbiEncoder =
+  (network: SupportedChain): AbiParamEncoder =>
+  (types, values) =>
+    getTronWebCodecOnlyForNetwork(network).utils.abi.encodeParams(
+      types,
+      values as any[]
+    )
+
 /**
  * Encodes constructor arguments using the types the contract's ABI declares.
  *
@@ -240,15 +250,14 @@ export async function deployContractWithLogging(
  * @throws When the ABI is unreadable, the arity disagrees, or encoding fails —
  * a record holding the wrong arguments is worse than a deploy that stops.
  */
-export async function encodeConstructorArgs(
+export function encodeConstructorArgs(
   args: readonly unknown[],
   abi: unknown,
   contractName: string,
-  network: SupportedChain = 'tron'
-): Promise<string> {
-  const tronWeb = getTronWebCodecOnlyForNetwork(network)
+  network: SupportedChain
+): string {
   return encodeWithTypes(
-    (types, values) => tronWeb.utils.abi.encodeParams(types, values as any[]),
+    tronAbiEncoder(network),
     args,
     constructorInputTypes(abi, contractName),
     contractName
@@ -277,12 +286,14 @@ export async function recordTronDeployment(params: {
   verified: boolean
 }): Promise<void> {
   const { contractName, network, address, version, artifact } = params
+  // Parsed once: an encode and an assert reading the ABI separately could
+  // disagree about what the contract takes.
   const types = constructorInputTypes(artifact?.abi, contractName)
-  const encoded = await encodeConstructorArgs(
+  const encoded = encodeWithTypes(
+    tronAbiEncoder(network),
     params.constructorArgs,
-    artifact?.abi,
-    contractName,
-    network
+    types,
+    contractName
   )
   assertRecordedArgsMatchAbi(contractName, encoded, types)
 
