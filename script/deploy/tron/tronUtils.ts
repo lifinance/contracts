@@ -192,6 +192,13 @@ export async function deployContractWithLogging(
     if (constructorArgs.length > 0)
       consola.info(`Constructor arguments:`, constructorArgs)
 
+    assertTronDeploymentRecordable(
+      artifact,
+      constructorArgs,
+      contractName,
+      network
+    )
+
     const result = await deployer.deployContract(artifact, constructorArgs)
 
     consola.success(`${contractName} deployed to: ${result.contractAddress}`)
@@ -240,6 +247,37 @@ const tronAbiEncoder =
       types,
       values as any[]
     )
+
+/**
+ * Checks that a deployment will be recordable, before anything is broadcast.
+ *
+ * Call this immediately before deploying. Everything it checks is pure — the
+ * artifact's ABI and the values — so failing here costs nothing, while the same
+ * failure after `deployer.deployContract` leaves a contract on chain that
+ * cannot be recorded, and TRX already spent.
+ *
+ * @param artifact - The Forge artifact about to be deployed.
+ * @param constructorArgs - Exactly the values the constructor will receive.
+ * @param contractName - Named in every message.
+ * @param network - Network whose codec will encode the values.
+ * @throws When the ABI is unreadable, the arity disagrees, or the values cannot
+ * be encoded.
+ */
+export function assertTronDeploymentRecordable(
+  artifact: { abi?: unknown },
+  constructorArgs: readonly unknown[],
+  contractName: string,
+  network: SupportedChain
+): void {
+  const types = constructorInputTypes(artifact?.abi, contractName)
+  const encoded = encodeWithTypes(
+    tronAbiEncoder(network),
+    constructorArgs,
+    types,
+    contractName
+  )
+  assertRecordedArgsMatchAbi(contractName, encoded, types)
+}
 
 /**
  * Records a Tron deployment with its constructor arguments encoded from the ABI.

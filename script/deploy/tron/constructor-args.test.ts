@@ -316,3 +316,35 @@ describe('a record that is neither empty nor usable', () => {
     ).not.toThrow()
   })
 })
+
+describe('an encoded value has to be whole bytes', () => {
+  it.each(['0x0', '0x123', `0x${'11'.repeat(31)}1`])(
+    'refuses %p as an encoder result',
+    (odd) => {
+      // Half a byte is not a value a constructor received, and the record is
+      // read as bytes downstream.
+      expect(() =>
+        encodeConstructorArgs(() => odd, ['0x00'], ['address'], 'ERC20Proxy')
+      ).toThrow(/did not return hex/i)
+    }
+  )
+
+  it('refuses an odd-length record for a contract that takes arguments', () => {
+    expect(() =>
+      assertRecordedArgsMatchAbi('ERC20Proxy', '0x123', ['address'])
+    ).toThrow(/not hex/i)
+  })
+
+  it('still accepts a whole-byte encoder result', () => {
+    // The control: without it, a stricter isHex that rejected everything would
+    // satisfy every assertion above.
+    expect(
+      encodeConstructorArgs(
+        () => `0x${'11'.repeat(32)}`,
+        ['0x00'],
+        ['address'],
+        'ERC20Proxy'
+      )
+    ).toBe(`0x${'11'.repeat(32)}`)
+  })
+})

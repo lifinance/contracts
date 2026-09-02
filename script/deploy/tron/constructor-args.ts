@@ -13,7 +13,12 @@ const NO_ARGS = '0x'
 const isEmptyRecord = (recorded: string): boolean =>
   recorded.trim() === '' || /^0x$/i.test(recorded.trim())
 
-const isHex = (value: string): boolean => /^0x[0-9a-f]*$/i.test(value.trim())
+const isHex = (value: string): boolean => {
+  const normalized = value.trim()
+  // Whole bytes only: '0x0' is a nibble, and half a byte of a record is not a
+  // value the constructor could have received.
+  return /^0x[0-9a-f]*$/iu.test(normalized) && (normalized.length - 2) % 2 === 0
+}
 
 interface IAbiParameter {
   type: string

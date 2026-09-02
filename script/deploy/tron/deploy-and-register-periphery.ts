@@ -40,7 +40,11 @@ import { getContractVersion } from '../shared/getContractVersion'
 import { retryWithRateLimit } from '../shared/rateLimit.js'
 
 import { getTronCorePeriphery } from './helpers/tronContractLists.js'
-import { getTronWallet, recordTronDeployment } from './tronUtils.js'
+import {
+  assertTronDeploymentRecordable,
+  getTronWallet,
+  recordTronDeployment,
+} from './tronUtils.js'
 
 const ERC20_PROXY_ABI = [
   {
@@ -397,6 +401,16 @@ async function deployAndRegisterPeripheryImpl(options: {
             )
             consola.info(`Version: ${version}`)
 
+            assertTronDeploymentRecordable(
+              artifact,
+
+              constructorArgs,
+
+              'ERC20Proxy',
+
+              network
+            )
+
             const result = await deployer.deployContract(
               artifact,
               constructorArgs
@@ -497,6 +511,16 @@ async function deployAndRegisterPeripheryImpl(options: {
             consola.info(`Using ERC20Proxy: ${erc20ProxyAddress}`)
             consola.info(`Using refundWallet: ${refundWalletHex}`)
             consola.info(`Version: ${version}`)
+
+            assertTronDeploymentRecordable(
+              artifact,
+
+              constructorArgs,
+
+              'Executor',
+
+              network
+            )
 
             const result = await deployer.deployContract(
               artifact,
@@ -612,6 +636,16 @@ async function deployAndRegisterPeripheryImpl(options: {
             consola.info(`Using feeCollectorOwner: ${feeCollectorOwnerHex}`)
             consola.info(`Version: ${version}`)
 
+            assertTronDeploymentRecordable(
+              artifact,
+
+              constructorArgs,
+
+              'FeeCollector',
+
+              network
+            )
+
             const result = await deployer.deployContract(
               artifact,
               constructorArgs
@@ -708,6 +742,16 @@ async function deployAndRegisterPeripheryImpl(options: {
               `Using withdrawWallet as contract owner: ${withdrawWallet}`
             )
             consola.info(`Version: ${version}`)
+
+            assertTronDeploymentRecordable(
+              artifact,
+
+              constructorArgs,
+
+              'FeeForwarder',
+
+              network
+            )
 
             const result = await deployer.deployContract(
               artifact,
@@ -871,6 +915,16 @@ async function deployAndRegisterPeripheryImpl(options: {
               consola.info(`Using refundWallet: ${refundWalletHex}`)
               consola.info(`Version: ${version}`)
 
+              assertTronDeploymentRecordable(
+                artifact,
+
+                constructorArgs,
+
+                'TokenWrapper',
+
+                network
+              )
+
               const result = await deployer.deployContract(
                 artifact,
                 constructorArgs
@@ -963,6 +1017,16 @@ async function deployAndRegisterPeripheryImpl(options: {
               ` Using owner: ${networkInfo.address} (hex: ${ownerHex})`
             )
             consola.info(`Version: ${version}`)
+
+            assertTronDeploymentRecordable(
+              artifact,
+
+              constructorArgs,
+
+              'OutputValidator',
+
+              network
+            )
 
             const result = await deployer.deployContract(
               artifact,
@@ -1093,6 +1157,16 @@ async function deployAndRegisterPeripheryImpl(options: {
               `Using OIF output settler: ${outputSettlerTron} (hex: ${outputSettlerHex})`
             )
             consola.info(`Version: ${version}`)
+
+            assertTronDeploymentRecordable(
+              artifact,
+
+              constructorArgs,
+
+              'ReceiverOIF',
+
+              network
+            )
 
             const result = await deployer.deployContract(
               artifact,
@@ -1226,6 +1300,12 @@ async function deployAndRegisterPeripheryImpl(options: {
                   )
                   const version = await getContractVersion(
                     'LiFiTimelockController'
+                  )
+                  assertTronDeploymentRecordable(
+                    artifact,
+                    constructorArgs,
+                    'LiFiTimelockController',
+                    network
                   )
                   const result = await deployer.deployContract(
                     artifact,
