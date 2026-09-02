@@ -1,7 +1,9 @@
 /**
- * Fixtures use the real shapes: immutable names as `src/` declares them and
- * `configData` keys as `deployRequirements.json` writes them (constructor
- * parameter names, leading underscore).
+ * Fixtures use the real shapes: immutable names as `src/` declares them, and
+ * `configData` keys as `deployRequirements.json` writes them. Those keys look
+ * like constructor parameters but are free-form labels — `AcrossFacet` files
+ * `_wrappedNativeAddress` for a parameter called `_wrappedNative` — which is why
+ * the matcher below is a suggester and not a gate.
  */
 
 import {
@@ -62,8 +64,8 @@ describe('assessRegistryCoverage', () => {
   })
 
   it('reports an immutable with no registry entry', () => {
-    // The authoring gap part (ii) closes. Warn-only until then, but it has to be
-    // visible per contract and per name, not as a count.
+    // The authoring gap part (ii) closes. It has to be visible per contract and
+    // per name, not as a count.
     const result = assessRegistryCoverage(
       [declared('SPOKE_POOL'), declared('SOMETHING_NEW')],
       { AcrossFacet: ['_spokePool'] }
@@ -74,9 +76,10 @@ describe('assessRegistryCoverage', () => {
   })
 
   it('reports a registry entry with no immutable, which is the worse direction', () => {
-    // An orphaned entry means the registry describes something that no longer
-    // exists — a renamed or deleted immutable whose expectation silently stopped
-    // being checked. Nothing else would surface that.
+    // An unmatched entry is either a renamed immutable whose expectation
+    // silently stopped being checked, or just a differently-spelled label. The
+    // suggester cannot tell them apart, which is the whole reason it reports
+    // rather than fails.
     const result = assessRegistryCoverage([declared('SPOKE_POOL')], {
       AcrossFacet: ['_spokePool', '_removedThing'],
     })
