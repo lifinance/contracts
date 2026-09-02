@@ -39,6 +39,7 @@ import { getAddress, type Address, type Hex } from 'viem'
 
 import type { IProposeToSafeOptions } from '../../common/types'
 
+import { readBooleanFlag, readValueFlag } from './cli-flags'
 import { proposeWithDrain, type ITimelockCall } from './drain-parked-tasks'
 import { normalizeProposeCalls } from './propose-calls'
 import {
@@ -48,6 +49,7 @@ import {
   getSafeMongoCollection,
   initializeSafeClient,
   isAddressASafeOwner,
+  parseAccountIndex,
   storeTransactionInMongoDB,
   wrapWithTimelockSchedule,
   type IParkedTaskRef,
@@ -122,9 +124,9 @@ export async function _runPropose(
     consola.info('Using Ledger hardware wallet for signing')
     if (options.ledgerLive)
       consola.info(
-        `Using Ledger Live derivation path with account index ${
-          options.accountIndex || 0
-        }`
+        `Using Ledger Live derivation path with account index ${parseAccountIndex(
+          options.accountIndex
+        )}`
       )
     else if (options.derivationPath)
       consola.info(`Using custom derivation path: ${options.derivationPath}`)
@@ -136,7 +138,7 @@ export async function _runPropose(
 
   const ledgerOptions = {
     ledgerLive: options.ledgerLive || false,
-    accountIndex: options.accountIndex ? Number(options.accountIndex) : 0,
+    accountIndex: parseAccountIndex(options.accountIndex),
     derivationPath: options.derivationPath,
   }
 
@@ -417,9 +419,18 @@ const main = defineCommand({
       timelock: args.timelock,
       privateKey: args.privateKey,
       rpcUrl: args.rpcUrl,
-      ledger: args.ledger,
-      ledgerLive: args.ledgerLive,
-      accountIndex: args.accountIndex ? Number(args.accountIndex) : undefined,
+      ledger: readBooleanFlag(process.argv, {
+        camel: 'ledger',
+        kebab: 'ledger',
+      }),
+      ledgerLive: readBooleanFlag(process.argv, {
+        camel: 'ledgerLive',
+        kebab: 'ledger-live',
+      }),
+      accountIndex: readValueFlag(process.argv, {
+        camel: 'accountIndex',
+        kebab: 'account-index',
+      }),
       derivationPath: args.derivationPath,
       safeAddress: args.safeAddress,
       nonce: args.nonce !== undefined ? BigInt(args.nonce) : undefined,

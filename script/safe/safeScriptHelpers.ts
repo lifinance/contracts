@@ -10,11 +10,14 @@ import { privateKeyToAccount } from 'viem/accounts'
 
 import { EnvironmentEnum } from '../common/types'
 import {
+  OperationTypeEnum,
   getNextNonce,
   getSafeMongoCollection,
   initializeSafeClient,
-  OperationTypeEnum,
+  isAddressASafeOwner,
+  resolveSafeSigningOptions,
   storeTransactionInMongoDB,
+  type ISafeSigningOptions,
 } from '../deploy/safe/safe-utils'
 import {
   getViemChainForNetworkName,
@@ -31,12 +34,18 @@ export async function sendOrPropose({
   network,
   environment,
   diamondAddress,
+  signing,
 }: {
   calldata: `0x${string}`
   network: string
   environment: EnvironmentEnum
   diamondAddress: string
-}) {
+  /**
+   * Ledger flags for the Safe-proposal path; the direct-send path broadcasts
+   * with the environment key and warns if a Ledger was asked for.
+   */
+  signing: Omit<ISafeSigningOptions, 'envPrivateKey' | 'envPrivateKeyName'>
+}): Promise<void> {
   const isProd = environment === EnvironmentEnum.production
   const isTestnet = isTestnetNetwork(network)
   const sendDirectly =
@@ -47,6 +56,11 @@ export async function sendOrPropose({
   // ───────────── DIRECT TX FLOW ───────────── //
   if (sendDirectly) {
     consola.info('📤 Sending transaction directly to the Diamond...')
+
+    if (signing.ledger)
+      consola.warn(
+        'Ignoring --ledger: this route broadcasts directly to the Diamond and signs with the environment key, not via the Safe.'
+      )
 
     const pkVar = isProd ? 'PRIVATE_KEY_PRODUCTION' : 'PRIVATE_KEY'
     const pk = process.env[pkVar]
@@ -93,10 +107,31 @@ export async function sendOrPropose({
   }
 
   // ───────────── SAFE PROPOSAL FLOW ───────────── //
-  const pk = process.env.PRIVATE_KEY_PRODUCTION
-  if (!pk) throw new Error('Missing PRIVATE_KEY_PRODUCTION in environment')
+  const { useLedger, privateKey, ledgerOptions } = resolveSafeSigningOptions({
+    ...signing,
+    envPrivateKey: process.env.PRIVATE_KEY_PRODUCTION,
+    envPrivateKeyName: 'PRIVATE_KEY_PRODUCTION',
+  })
 
-  const { safe, chain, safeAddress } = await initializeSafeClient(network, pk)
+  if (useLedger) consola.info('Using Ledger hardware wallet for signing')
+
+  const { safe, chain, safeAddress } = await initializeSafeClient(
+    network,
+    privateKey,
+    undefined,
+    useLedger,
+    ledgerOptions
+  )
+
+  // A proposal signed by a non-owner is still stored and still occupies a Safe
+  // nonce, failing only at execution time, so check ownership before storing.
+  const signerAddress = safe.account.address
+  const owners = await safe.getOwners()
+  if (!isAddressASafeOwner(owners, signerAddress))
+    throw new Error(
+      `Cannot propose transactions: signer ${signerAddress} is not an owner of Safe ${safeAddress}`
+    )
+
   consola.info(`🔐 Proposing transaction to Safe ${safeAddress}`)
 
   const { client: mongoClient, pendingTransactions } =
