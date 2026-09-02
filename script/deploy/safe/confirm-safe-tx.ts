@@ -22,6 +22,7 @@ import { createDefaultCache } from '../shared/deployment-cache'
 import { sanitizeProvenanceText } from '../shared/git-provenance'
 import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
 
+import { readBooleanFlag, readValueFlag } from './cli-flags'
 import {
   buildAcknowledgementKey,
   buildProposalKey,
@@ -51,6 +52,7 @@ import {
   getTargetName,
 } from './safe-decode-utils'
 import {
+  parseAccountIndex,
   canExecuteWithNonceStatus,
   getNetworksWithActionableTransactions,
   getNetworksWithPendingTransactions,
@@ -852,15 +854,34 @@ const main = defineCommand({
     // Set up signing options
     let privateKey: string | undefined
     let keyType = PrivateKeyTypeEnum.DEPLOYER // default value
-    const useLedger = args.ledger ?? true
+    // Read from argv, not from `args` — see `cli-flags.ts`. A Ledger is the
+    // default signer here, so a misread flag signs from a different address.
+    const useLedger = readBooleanFlag(
+      process.argv,
+      { camel: 'ledger', kebab: 'ledger' },
+      { whenAbsent: true }
+    )
+    // Resolved once and read everywhere below. Two sources disagreed: citty
+    // parses `--ledger-live=false` to the string 'false', which is truthy, so
+    // the console announced a Ledger Live derivation while the client derived
+    // from the default path.
+    const useLedgerLive = readBooleanFlag(process.argv, {
+      camel: 'ledgerLive',
+      kebab: 'ledger-live',
+    })
     const ledgerOptions = {
-      ledgerLive: args.ledgerLive || false,
-      accountIndex: args.accountIndex ? Number(args.accountIndex) : 0,
+      ledgerLive: useLedgerLive,
+      accountIndex: parseAccountIndex(
+        readValueFlag(process.argv, {
+          camel: 'accountIndex',
+          kebab: 'account-index',
+        })
+      ),
       derivationPath: args.derivationPath,
     }
 
     // Validate that incompatible Ledger options aren't provided together
-    if (args.derivationPath && args.ledgerLive)
+    if (args.derivationPath && useLedgerLive)
       throw new Error(
         "Cannot use both 'derivationPath' and 'ledgerLive' options together"
       )
@@ -868,7 +889,7 @@ const main = defineCommand({
     // If using ledger, we don't need a private key
     if (useLedger) {
       consola.info('Using Ledger hardware wallet for signing')
-      if (args.ledgerLive)
+      if (useLedgerLive)
         consola.info(
           `Using Ledger Live derivation path with account index ${ledgerOptions.accountIndex}`
         )

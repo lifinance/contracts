@@ -85,7 +85,21 @@ merge; the deploy scripts never commit.
 ### 4.2 Propose
 
 All EVM funnels end in `storeTransactionInMongoDB`
-(`script/deploy/safe/safe-utils.ts`). Entry points:
+(`script/deploy/safe/safe-utils.ts`), which is where the Linear ticket link is
+required and the missing-reason warning is emitted — placing them there rather
+than per entry point means no funnel can be added that skips them. The refusal
+happens before the proposal document is inserted, so a refused proposal is never
+created and claims no nonce, and it names both `--ticket` and
+`SAFE_PROPOSAL_TICKET`.
+
+That check is the backstop, not the first line: the entry points whose late
+failure costs most — `unpauseAllDiamonds.ts`, `add-safe-owners-and-threshold.ts`,
+the Tron route, and the TS `sendOrPropose` — also call `assertTicketPresent`
+before they sign, and `propose-to-safe.ts` resolves the same intent up front in
+`runPropose`, so an unset ticket costs one message
+rather than a signature or a device confirmation per network. Those pre-checks
+run only on the branches that actually propose; a staging or testnet-only run, a
+`--check` audit and a `--dryRun` need no ticket. Entry points:
 
 - **`script/deploy/safe/propose-to-safe.ts`** (`runPropose`) — the main
   funnel, invoked by the bash `sendOrPropose` chokepoint in
@@ -100,7 +114,22 @@ All EVM funnels end in `storeTransactionInMongoDB`
   `proposeDiamondCut` (`script/deploy/shared/propose-diamond-cut.ts`), and
   manually via `bun propose-safe-tx`.
 - **TS `sendOrPropose`** (`script/safe/safeScriptHelpers.ts`) — used by
-  `script/tasks/cleanUpProdDiamond.ts`; env private key only, no Ledger.
+  `script/tasks/cleanUpProdDiamond.ts`. Signs the Safe proposal with
+  `PRIVATE_KEY_PRODUCTION` by default, or with a Ledger via `--ledger`
+  (`--ledgerLive` + `--accountIndex <n>`, or `--derivationPath <path>`).
+  Refused rather than silently accepted: the two path options together, a
+  non-integer `--accountIndex`, a non-zero `--accountIndex` without
+  `--ledgerLive` (the Ledger Live path is the only one that reads it), a blank
+  `--derivationPath`, `--ledgerLive` or `--derivationPath` without `--ledger`,
+  any value other than `true`/`false` on `--ledger` / `--ledgerLive`, any of the
+  four flags passed twice, and `--ledger` on a run that would propose more than
+  once — `--all-networks`, or a `--periphery` selection naming several
+  contracts, since each proposal opens its own unclosed Ledger connection and
+  asks for its own device confirmation. The signer is checked against the Safe's
+  owners before the proposal is stored. The direct-send path still signs with the
+  environment key and warns that `--ledger` is ignored, but the flag-format and
+  multi-proposal refusals run before the route is chosen, so a malformed signing
+  flag also fails a staging or testnet run.
 - **Deferred-cleanup drain** (`script/deploy/safe/drain-parked-tasks.ts`) —
   gated on `DRAIN_PARKED_TASKS`, hooked at the tail of `runPropose`
   ([DeferredDiamondCleanupQueue.md](./DeferredDiamondCleanupQueue.md)).
@@ -128,12 +157,19 @@ live `getMinDelay()` with `config/timelockController.json` fallback, timestamp
 salt), resolves the nonce (`getNextNonce`), **signs immediately** (EIP-712),
 computes the `safeTxHash` via the Safe's on-chain `getTransactionHash`, and
 stores. The document (`ISafeTxDocument`) carries the raw Safe tx fields, the
-proposer's wallet address, an `intentHash` dedup key, and a
-`pending → submitted → executed / reverted` status — but **no description, PR
-link (except drain `parkedTaskRefs`), git commit, or human identity**.
-`notifyProposalsCreatedToSlack` (`script/multiNetworkExecution.sh`) posts
-count + contract + network to `#dev-sc-multisig-proposals`; the rich
-signing-ask thread is a manual step per `.agents/commands/multisig-rollout.md`.
+proposer's wallet address, an `intentHash` dedup key, a
+`pending → submitted → executed / reverted` status, the origin-PR
+`parkedTaskRefs` on a drained facet removal, and a `provenance` block
+(`IProposalProvenance`) holding the rationale, proposer identity and actor, git
+commit and branch, scoped working-tree dirtiness, the branch's PR link and any
+capture errors. **Rows stored before that block existed carry none of it**,
+which is why both the signing prompt and the Slack card state each absence
+explicitly instead of dropping the line.
+`notifyProposalsCreatedToSlack` (`script/multiNetworkExecution.sh`) posts the
+signing-ask card rendered by `script/deploy/safe/render-proposal-card.ts` —
+reason, proposer, PR, commit, working-tree state and a per-network
+`bun confirm-safe-tx` command — to `#dev-sc-multisig-proposals`, falling back to
+a count + contract + network line only if the render fails.
 
 ### 4.3 Confirm / sign
 
@@ -204,10 +240,13 @@ parked tasks are reconciled weekly by `reconcileParkedTasks.yml`.
 | Stage | Check category | Behavior | Enforced by |
 |---|---|---|---|
 | Propose | CLI input validation: `--to`/`--calldata` pairing, address/hex validity, multi-call requires `--timelock` | Block | `script/deploy/safe/propose-calls.ts`, `timelock-abi.ts` |
-| Propose | Proposer must be a current Safe owner (on-chain `getOwners()`) | Block | `propose-to-safe.ts` (`runPropose`) |
+| Propose | Proposer must be a current Safe owner (on-chain `getOwners()`) | Block | `propose-to-safe.ts` (`runPropose`), `safeScriptHelpers.ts` (`sendOrPropose`) |
+| Propose | Ledger signing flags: unambiguous value, no repeat, no unusable combination, no multi-proposal run (see the `sendOrPropose` bullet in §3) | Block | `script/deploy/safe/cli-flags.ts`, `resolveSafeSigningOptions` in `safe-utils.ts`, `cleanUpProdDiamond.ts` |
 | Propose | Nonce safety: override collision checks, auto-nonce clamped to on-chain | Block / auto-correct | `propose-to-safe.ts`, `getNextNonce` in `safe-utils.ts` |
 | Propose | Duplicate-intent dedup (partial unique index on pending rows) | Block insert | `computeProposalIntentHash` + index in `safe-utils.ts` |
 | Propose | Timelock-wrapped proposals dedup on every EVM path: the `scheduleBatch` salt is derived from the action (chain, timelock, targets, payloads, attempt) instead of the clock, so re-proposing the same wrapped work yields the same salt while that candidate is still free. The timelock is asked whether that operation id exists — **pending blocks** (the proposal duplicates work already scheduled and not executed), **executed** advances to the next deterministic salt so a legitimate repeat does not revert after signing, and 16 taken attempts refuse. Same salt is not the same calldata: `minDelay` is also a `scheduleBatch` argument, so **Safe intent dedup** (`computeProposalIntentHash`) does not apply across an `updateDelay`, nor across `wrapWithTimelockSchedule`'s `getMinDelay` fallback (the task scripts have no fallback — a failed read throws). The **timelock** check is unaffected: `hashOperationBatch` hashes targets, values, payloads, predecessor and salt only, so the pending/executed states still hold across a delay change. **The Tron proposal path still uses a clock salt** and is not covered | Block (pending) / auto-advance (executed) / refuse after 16 | `pickTimelockSalt` in `safe-utils.ts` + `deriveTimelockSalt` in `timelock-abi.ts`; reached via `wrapWithTimelockSchedule` (from `propose-to-safe.ts` and `cleanUpProdDiamond.ts`) and directly from the five `script/tasks/propose{AllBridge,PolymerCCTP,Frax,DeBridgeDln,MegaETHBridge}*.ts` batch builders |
+| Propose | Every proposal carries a Linear issue link, from `--ticket` or `SAFE_PROPOSAL_TICKET`. The shape is validated, so a non-Linear or malformed URL is refused rather than recorded as "a link". Checked before the insert, so a refused proposal is never created and claims no nonce | Block insert | `resolveProposalIntent` in `proposal-intent.ts`, called from `storeTransactionInMongoDB` |
+| Propose | One-line reason (`--reason` / `SAFE_PROPOSAL_REASON`). Optional, warned once per process — OQ3 flips it to mandatory once the warning has fired zero times across 30 consecutive proposals | Warn | `proposal-intent.ts`; read the trigger with `report-reason-adoption.ts` (read-only) |
 | Propose | In-flight nonce uniqueness per Safe: concurrent proposers may still derive the same nonce, but only one insert survives (partial unique index over `pending` + `submitted`, compared case-insensitively so the Tron and EVM spellings of one Safe collide). The guarantee is **absent** if the index could not be built — in-flight rows already sharing a nonce, or a role without `createIndex` — and the build warns in both cases. Nothing is ever dropped, so a pre-`_ci` index from an earlier build stays as a weaker, redundant constraint | Block insert, re-run required | `unique_inflight_safe_nonce_ci` index in `safe-utils.ts`; diagnose with `report-nonce-collisions.ts` (read-only) |
 | Propose | Removal safety: protected-facet allowlist, live-selector hold-back, fail-closed diffs | Block + alert | `diamondRemovalDiff.ts`, `drain-parked-tasks.ts` |
 | Propose | Production `deployUpgradesToSAFE` from a feature branch: selected facet sources must match `origin/main`, else open PR + audit-log commit freeze; `main` and staging are not gated | Block (prod, that entry point only) | `script/deploy/github/verify-approvals.ts` via `deployUpgradesToSAFE.sh` (PR #2128) |
@@ -248,6 +287,17 @@ This is the one **break-glass** path, and it is deliberately asymmetric: the
 fast, non-Safe leg can only *reduce* the diamond's capabilities, never grant
 or change any. Restoring capability always requires the Safe.
 
+**A Linear ticket is required here too — there is no break-glass exemption.**
+Both unpause routes are ordinary Safe proposals, so the mandatory ticket link
+applies unchanged: `export SAFE_PROPOSAL_TICKET=<url|TEAM-123>` before running
+`unpauseAllDiamonds.ts` or `diamondEMERGENCYPause.sh`, or pass `--ticket` where
+the script offers it. An incident is when the record matters most, and the cost
+is one `export` before anything is signed. The check runs at each script's
+entry rather than only in `storeTransactionInMongoDB`, because the funnel check
+alone spends a signature per network before refusing — and on
+`unpauseAllDiamonds.ts` the per-network `catch` then swallows the refusal, so a
+fleet-wide run ends with zero mainnets unpaused and no obvious cause.
+
 - **Pause** sits outside the Safe flow for speed:
   `EmergencyPauseFacet.pauseDiamond` is callable by the registered pauser
   wallet (or the owner). `.github/workflows/diamondEmergencyPause.yml` pauses
@@ -281,7 +331,7 @@ or change any. Restoring capability always requires the Safe.
 | `script/deploy/safe/timelock-queue.ts` / `execute-pending-timelock-tx.ts` / `confirm-timelock-execution.ts` / `backfill-timelock-queue.ts` | Timelock queue + executor (`bun execute-timelock`) |
 | `script/deploy/safe/parked-tasks.ts` / `drain-parked-tasks.ts` | Deferred diamond-cleanup queue + drain |
 | `script/deploy/safe/list-pending-proposals.ts` / `list-timelock-queue.ts` / `list-parked-tasks.ts` / `delete-pending-proposals.ts` | Inspection and guarded deletion |
-| `script/safe/safeScriptHelpers.ts` | TS `sendOrPropose` (env-key funnel) |
+| `script/safe/safeScriptHelpers.ts` | TS `sendOrPropose` (env key or `--ledger`) |
 | `script/helperFunctions.sh` | bash `sendOrPropose` chokepoint + deploy logging |
 | `.github/workflows/runPendingTimelockTXs.yml` | "Timelock Auto Execution" 10-min cron |
 | `.github/workflows/reconcileParkedTasks.yml` | Weekly parked-task reconcile + TTL alert |
