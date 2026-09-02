@@ -507,12 +507,14 @@
       "_endpointV2": {
         "configFileName": "stargateV2.json",
         "keyInConfigFile": ".endpointV2.<NETWORK>",
-        "allowToDeployWithZeroAddress": "false"
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "endpointV2"
       },
       "_tokenMessaging": {
         "configFileName": "stargateV2.json",
         "keyInConfigFile": ".tokenMessaging.<NETWORK>",
-        "allowToDeployWithZeroAddress": "false"
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "tokenMessaging"
       }
     },
     "contractAddresses": {
@@ -550,7 +552,8 @@
       "_spokepool": {
         "configFileName": "across.json",
         "keyInConfigFile": ".<NETWORK>.acrossSpokePool",
-        "allowToDeployWithZeroAddress": "false"
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "SPOKEPOOL"
       }
     },
     "contractAddresses": {
@@ -678,7 +681,8 @@
       "_chainflipVault": {
         "configFileName": "chainflip.json",
         "keyInConfigFile": ".chainflipVault.<NETWORK>",
-        "allowToDeployWithZeroAddress": "false"
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "chainflipVault"
       }
     },
     "contractAddresses": {
@@ -757,12 +761,65 @@
       "_outputSettler": {
         "configFileName": "lifiintentescrow.json",
         "keyInConfigFile": ".OIFOutputSettlerSimple",
-        "allowToDeployWithZeroAddress": "false"
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "OUTPUT_SETTLER"
       }
     },
     "contractAddresses": {
       "Executor": {
         "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "DeBridgeDlnFacet": {
+    "configData": {
+      "_dlnSource": {
+        "configFileName": "debridgedln.json",
+        "keyInConfigFile": ".networks.<NETWORK>.dlnSource",
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "DLN_SOURCE",
+        "legacyGetters": ["dlnSource"]
+      }
+    }
+  },
+  "EcoFacet": {
+    "configData": {
+      "_portal": {
+        "configFileName": "eco.json",
+        "keyInConfigFile": ".<NETWORK>.portal",
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "PORTAL"
+      }
+    }
+  },
+  "LidoWrapper": {
+    "configData": {
+      "_stETHAddress": {
+        "configFileName": "lidowrapper.json",
+        "keyInConfigFile": ".<NETWORK>.stETH",
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "ST_ETH"
+      },
+      "_wstETHAddress": {
+        "configFileName": "lidowrapper.json",
+        "keyInConfigFile": ".<NETWORK>.wstETH",
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "WST_ETH_ADDRESS"
+      },
+      "_owner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".refundWallet",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "MayanFacet": {
+    "configData": {
+      "_mayan": {
+        "configFileName": "mayan.json",
+        "keyInConfigFile": ".bridges.<NETWORK>.bridge",
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "MAYAN"
       }
     }
   }

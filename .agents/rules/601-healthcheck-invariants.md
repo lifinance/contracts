@@ -35,9 +35,24 @@ invariant must be added, adjusted, or removed. Use this checklist:
   the `RECEIVER_EXECUTOR_GETTERS` list) and assert it points at the deployed counterpart.
 - **Contract removed / deprecated** → remove its registry entry and any hardcoded name
   lists that reference it (e.g. drop the contract from `RECEIVER_EXECUTOR_GETTERS`).
+- **Contract added that binds an EXTERNAL protocol address immutably at construction** (a
+  spoke pool, vault, router, portal — anything read from a `config/*.json` file) → no new
+  invariant is needed. Annotate the constructor arg's entry in
+  `script/deploy/resources/deployRequirements.json` with `getter`, the name of the public
+  getter that exposes the bound value, and `immutable-bindings-match-config` will compare it
+  against config on every chain. Nest the key **inside** the arg object: the deploy-time
+  consumer iterates `configData | keys[]`, so a sibling key there breaks deploys. Add
+  `legacyGetters` when the fleet still runs builds from before the getter was renamed —
+  without it, the binding silently reports as unverified on every older chain. A
+  `keyInConfigFile` with no `<NETWORK>` placeholder is a fleet-wide default: the check
+  prefers a `.<network>`-prefixed form of the same key wherever the config file defines one,
+  so a chain whose counterparty lives under its own block (Tron's under `.tron`) is compared
+  against that value rather than the EVM default.
 - **Struct, authorization, or owner semantics changed** → adjust the affected invariant so
   its assertion still matches on-chain reality (e.g. a changed expected owner, a new
-  authorized selector, a renamed getter).
+  authorized selector, a renamed getter). Renaming a public getter that a
+  `deployRequirements.json` entry annotates also means moving the old name into
+  `legacyGetters`, or coverage drops to the chains already redeployed.
 
 If none of the above applies, no registry change is needed — but the review itself is not
 optional. Edits to `healthCheckInvariants.ts` follow `200-typescript.md` (module header,
