@@ -786,7 +786,18 @@ function collectSelectorsBuildingIfNeeded(
     return io.getActiveSelectors(names)
   } catch (error) {
     if (!io.ensureArtifacts?.()) throw error
-    return io.getActiveSelectors(names)
+    try {
+      return io.getActiveSelectors(names)
+    } catch (afterBuild) {
+      // The inner error still prescribes `forge build`, which just ran — restate
+      // it so a caller that surfaces this message does not send the operator
+      // after a build that already happened.
+      throw new Error(
+        `Selector union still unavailable after \`forge build\`: ${
+          afterBuild instanceof Error ? afterBuild.message : String(afterBuild)
+        }`
+      )
+    }
   }
 }
 

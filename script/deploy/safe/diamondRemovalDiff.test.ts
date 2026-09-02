@@ -29,6 +29,7 @@ import {
   resolveAddressToName,
   resolveDiamondAddress,
   revalidateRemovalsOnChain,
+  type IAddressRemovalResult,
   type IFacetRemoval,
   type IOnChainFacet,
   type IRemovalDiffIO,
@@ -880,27 +881,57 @@ describe('computeFacetRemovalsByAddress', () => {
     expect(r.unverifiable).toEqual([addr(9)])
   })
 
-  it('removes an address that was unverifiable only because nothing was compiled', async () => {
-    let built = false
-    const r = await computeFacetRemovalsByAddress('net', PROD, [addr(9)], {
+  /**
+   * The EXSC-912 shape: a superseded facet co-registered alongside its successor
+   * (EXSC-750), so the deploy log names only the successor and the doomed address
+   * resolves by selector alone — against a union no artifact was there to build.
+   *
+   * @param rebuiltSelectors - The union once the build has run.
+   */
+  const uncompiledIncident = async (
+    rebuiltSelectors: Set<`0x${string}`>
+  ): Promise<{ result: IAddressRemovalResult; builds: number }> => {
+    let builds = 0
+    const result = await computeFacetRemovalsByAddress('net', PROD, [addr(9)], {
       getDiamondAddress: async () => addr(0xd),
-      getOnChainFacets: async () => [{ address: addr(9), selectors: [sel(9)] }],
-      getAddressToName: async () => ({}),
-      getExpectedNames: () => new Set(['LiveFacet']),
-      getFacetNames: () => new Set(['LiveFacet']),
-      getActiveSelectors: () => {
-        if (!built) throw new Error('Contract JSON not found')
-        return new Set([sel(0xc)])
+      getOnChainFacets: async () => [
+        { address: addr(9), selectors: [sel(9)] },
+        { address: addr(0x42), selectors: [sel(0xc)] },
+      ],
+      getAddressToName: async () => ({ [addr(0x42)]: 'SymbiosisFacet' }),
+      getExpectedNames: () => new Set(['SymbiosisFacet']),
+      getFacetNames: () => new Set(['SymbiosisFacet']),
+      getActiveSelectors: (names) => {
+        // The protected union reads no artifact here (no protected name is a
+        // facet in this fixture), so only the target-state union hits the gap.
+        if (names.length === 0) return new Set<string>()
+        if (builds === 0) throw new Error('Contract JSON not found')
+        return rebuiltSelectors
       },
       ensureArtifacts: () => {
-        built = true
+        builds++
         return true
       },
     })
-    expect(r.unverifiable).toHaveLength(0)
-    expect(r.removals).toEqual([
+    return { result, builds }
+  }
+
+  it('removes the superseded address once the build supplies the union', async () => {
+    const { result, builds } = await uncompiledIncident(new Set([sel(0xc)]))
+    expect(builds).toBe(1)
+    expect(result.unverifiable).toHaveLength(0)
+    expect(result.removals).toEqual([
       { name: undefined, address: addr(9), selectors: [sel(9)] },
     ])
+  })
+
+  it('holds the same address back when the rebuilt union claims its selector', async () => {
+    // The build's own output decides the verdict — not merely whether one exists.
+    const { result } = await uncompiledIncident(new Set([sel(9)]))
+    expect(result.removals).toHaveLength(0)
+    expect(result.unverifiable).toHaveLength(0)
+    expect(result.stillExpected).toHaveLength(1)
+    expect(result.stillExpected[0]?.address).toBe(addr(9))
   })
 })
 

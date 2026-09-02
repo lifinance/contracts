@@ -311,7 +311,7 @@ export async function prepareDrainNetwork(
       } else if (unverifiableAddresses.has(address)) {
         outcome.unverifiable.push(name)
         deps.alert(
-          `[${network}] ${name} (${task.facetAddress}): cannot verify removability — the network has no target-state entry, or the selector unions are unavailable (\`forge build\` was attempted and did not produce them) — leaving it queued. Origin PR: ${task.prUrl}`
+          `[${network}] ${name} (${task.facetAddress}): cannot verify removability — the network has no target-state entry, or the selector unions could not be built from \`out/\` — leaving it queued. Origin PR: ${task.prUrl}`
         )
       }
     }
