@@ -193,4 +193,37 @@ describe('pricing that cannot be done at all', () => {
     expect(error?.message).toMatch(/refusing to broadcast/)
     expect(error?.message).not.toContain('SHOULDNOTAPPEAR')
   })
+
+  it('tells the operator to use the escape hatch, and the escape hatch works', async () => {
+    // Every refusal in this module ends with escapeHatchNote(), telling the
+    // operator to re-run with ALLOW_GAS_ESTIMATE_FALLBACK=<network>. This is
+    // the one branch that used to print that instruction and then ignore it —
+    // ALLOW_GAS_ESTIMATE_FALLBACK=tron still threw, unconditionally. An
+    // operator doing exactly what the message says would hit a dead end.
+    process.env.ALLOW_GAS_ESTIMATE_FALLBACK = 'tron'
+
+    const result = await assertTronBroadcastAffordable(estimateOf(400_000n), {
+      ...options,
+      costInSun: async () => {
+        throw new Error('pricing endpoint unavailable')
+      },
+    })
+
+    expect(result.estimateFailed).toBe(true)
+    expect(result.estimatedEnergy).toBe(400_000n)
+    expect(result.costSun).toBe(0n)
+  })
+
+  it('does not let another network scope through a pricing failure', async () => {
+    process.env.ALLOW_GAS_ESTIMATE_FALLBACK = 'polygon'
+
+    expect(
+      assertTronBroadcastAffordable(estimateOf(400_000n), {
+        ...options,
+        costInSun: async () => {
+          throw new Error('pricing endpoint unavailable')
+        },
+      })
+    ).rejects.toThrow(/refusing to broadcast/)
+  })
 })

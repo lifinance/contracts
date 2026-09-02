@@ -90,15 +90,14 @@ export const latestEnergyPriceSun = (priceString: string): number => {
     .sort((a, b) => b.timestamp - a.timestamp)
 
   const applicable = entries.find(({ timestamp }) => timestamp <= now)
-  const price = applicable?.price ?? entries[entries.length - 1]?.price
 
-  if (price === undefined)
+  if (applicable === undefined)
     throw new Error(
       `No usable energy price in '${priceString}'. Refusing to price a broadcast ` +
         `against a guessed rate.`
     )
 
-  return price
+  return applicable.price
 }
 
 /**
@@ -145,13 +144,32 @@ export const configuredTronFeeLimitSun = (): number => {
 export const applyTronSafetyMargin = (rawEnergyUsed: number): bigint =>
   BigInt(Math.ceil(rawEnergyUsed * DEFAULT_SAFETY_MARGIN))
 
+/**
+ * Above this, `Number(callValue)` would round rather than convert: the guard
+ * would then be pricing a call the node never actually simulated.
+ */
+const MAX_SAFE_CALL_VALUE_SUN = BigInt(Number.MAX_SAFE_INTEGER)
+
 /** One `triggerconstantcontract` round trip. Throws on anything unusable. */
 const requestEnergyUsed = async (
   params: ITronEnergyEstimateParams
 ): Promise<number> => {
+  if (params.callValue > MAX_SAFE_CALL_VALUE_SUN)
+    throw new TronEstimateError(
+      `callValue ${params.callValue} SUN exceeds Number.MAX_SAFE_INTEGER; ` +
+        `estimating it would silently simulate a different, rounded value.`,
+      false
+    )
+
   const { rpcUrl } = getTronRPCConfig(params.networkKey)
   const fullHost = resolveTronWebRpcUrlToFullHost(rpcUrl, params.networkKey)
   const apiUrl = fullHost.replace(/\/$/, '') + '/wallet/triggerconstantcontract'
+
+  if (!apiUrl.startsWith('https://'))
+    throw new TronEstimateError(
+      `Refusing to estimate energy over a non-HTTPS endpoint: ${apiUrl}`,
+      false
+    )
 
   const res = await fetchWithTimeout(
     apiUrl,

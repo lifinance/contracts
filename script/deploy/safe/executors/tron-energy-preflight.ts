@@ -115,14 +115,25 @@ export const assertTronBroadcastAffordable = async (
     // Inside the redaction boundary for the same reason as the estimate above:
     // the endpoint is embedded in these errors and provider credentials ride in
     // its query string.
-    throw new Error(
-      `Could not price ${estimatedEnergy} energy ${where} ${what} — refusing to broadcast.\n` +
-        `  Underlying error: ${redactErrorReason(
-          error instanceof Error ? error.message : String(error)
-        )}\n` +
-        `  Without a price there is no way to tell whether the fee limit covers this call. ` +
-        `${escapeHatchNote(networkName)}`
+    const pricingFailure = redactErrorReason(
+      error instanceof Error ? error.message : String(error)
     )
+
+    if (!fallbackExplicitlyAllowed(networkName))
+      throw new Error(
+        `Could not price ${estimatedEnergy} energy ${where} ${what} — refusing to broadcast.\n` +
+          `  Underlying error: ${pricingFailure}\n` +
+          `  Without a price there is no way to tell whether the fee limit covers this call. ` +
+          `${escapeHatchNote(networkName)}`
+      )
+
+    consola.warn(
+      `Could not price ${estimatedEnergy} energy ${where} ${what}; ` +
+        `ALLOW_GAS_ESTIMATE_FALLBACK is set, so broadcasting on the fee limit of ` +
+        `${feeLimitSun} SUN without knowing whether it covers this call. ` +
+        `Underlying error: ${pricingFailure}`
+    )
+    return { estimatedEnergy, costSun: 0n, estimateFailed: true }
   }
 
   if (costSun > BigInt(feeLimitSun)) {

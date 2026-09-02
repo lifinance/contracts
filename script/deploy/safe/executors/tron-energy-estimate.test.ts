@@ -59,10 +59,31 @@ describe('latestEnergyPriceSun', () => {
     expect(latestEnergyPriceSun(`0:140,${future}:999`)).toBe(140)
   })
 
-  it('falls back to the last entry when every price is future-dated', () => {
+  it('throws when every price is future-dated, rather than guessing one', () => {
+    // A future-only price is not "no usable price" in the same way an empty
+    // string is, so it needs its own case: the earlier fix only closed the
+    // `applicable ?? entries[entries.length - 1]` fallback for this, and a
+    // lower future price silently clearing a guard that priced the real,
+    // current rate would defeat the whole check.
     const future = Date.now() + HOUR
 
-    expect(latestEnergyPriceSun(`${future}:777`)).toBe(777)
+    expect(() => latestEnergyPriceSun(`${future}:777`)).toThrow(
+      /no usable energy price/i
+    )
+  })
+
+  it('picks the newest still-applicable entry, not the oldest future one', () => {
+    // Two future entries at different prices: the fallback this closes could
+    // have picked either, and picking the "oldest" (smallest) timestamp of an
+    // all-future set is not the same as picking the lowest price — both are
+    // wrong for a different reason, so this only proves the whole set is
+    // rejected outright.
+    const soon = Date.now() + HOUR
+    const later = Date.now() + 2 * HOUR
+
+    expect(() => latestEnergyPriceSun(`${later}:100,${soon}:999`)).toThrow(
+      /no usable energy price/i
+    )
   })
 
   it.each(['', '   ', 'garbage', '0:0', 'abc:def', ':', '0:'])(
@@ -193,6 +214,55 @@ describe('estimateTronEnergy transport', () => {
     )
 
     expect(error?.message).toMatch(/no contract call costs/)
+    expect(calls()).toBe(1)
+  })
+
+  it('refuses a non-HTTPS RPC endpoint before ever sending the request', async () => {
+    // An on-path attacker who can answer plaintext HTTP can forge
+    // `energy_used` and steer the preflight past the real fee limit — refuse
+    // before the request is sent, not after reading its (untrustworthy) body.
+    const calls = respondWith([{ energy_used: 500_000 }])
+    const original = process.env.RPC_URL_TRON
+    process.env.RPC_URL_TRON = 'http://insecure.example.com'
+
+    try {
+      const error = await estimateTronEnergy(params).then(
+        () => undefined,
+        (e: unknown) => e as Error
+      )
+
+      expect(error?.message).toMatch(/non-HTTPS/i)
+      expect(calls()).toBe(0)
+    } finally {
+      if (original === undefined) delete process.env.RPC_URL_TRON
+      else process.env.RPC_URL_TRON = original
+    }
+  })
+
+  it('refuses a callValue too large to convert to Number losslessly', async () => {
+    const calls = respondWith([{ energy_used: 500_000 }])
+
+    const error = await estimateTronEnergy({
+      ...params,
+      callValue: BigInt(Number.MAX_SAFE_INTEGER) + 1n,
+    }).then(
+      () => undefined,
+      (e: unknown) => e as Error
+    )
+
+    expect(error?.message).toMatch(/MAX_SAFE_INTEGER/)
+    // Never reaches the network with a silently-rounded value.
+    expect(calls()).toBe(0)
+  })
+
+  it('accepts a callValue exactly at Number.MAX_SAFE_INTEGER', async () => {
+    const calls = respondWith([{ energy_used: 500_000 }])
+
+    await estimateTronEnergy({
+      ...params,
+      callValue: BigInt(Number.MAX_SAFE_INTEGER),
+    })
+
     expect(calls()).toBe(1)
   })
 })
