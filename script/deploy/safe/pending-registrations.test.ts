@@ -149,6 +149,24 @@ describe('extractRegistrations', () => {
     ])
   })
 
+  // The live queue's batches repeat one contract under up to seven selectors, so the
+  // per-pair records must not collapse to one entry per address.
+  it('keeps one record per selector when a batch repeats a contract', () => {
+    const data = encodeFunctionData({
+      abi: ABI_BATCH_SET_WHITELIST,
+      args: [
+        [DEX, DEX, DEX],
+        [SELECTOR, OTHER_SELECTOR, '0x12345678' as Hex],
+        true,
+      ],
+    })
+    expect(extractRegistrations(data).map((r) => r.selector)).toEqual([
+      SELECTOR,
+      OTHER_SELECTOR,
+      '0x12345678',
+    ])
+  })
+
   it('ignores a whitelist batch that revokes its pairs', () => {
     const data = encodeFunctionData({
       abi: ABI_BATCH_SET_WHITELIST,

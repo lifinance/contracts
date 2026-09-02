@@ -95,7 +95,8 @@ invariant:
 - A rollout proposed **without** `--timelock` writes no row at all, and so is never downgraded.
 - Only whitelist **additions** are covered. A pair the diamond holds and config no longer
   declares (`Pair Array has N stale pairs`) reports as a hard error even while its removal
-  is queued — the removal side reads parked tasks, which carry no whitelist payloads.
+  is queued: that branch consults no intent source at all, and the parked-task queue the
+  other removal gate reads carries no whitelist payloads to consult.
 - **Tron** rolls out through `contracts-tron` and has no EVM queue row; it is skipped by branch.
 - A row is honoured only while it is plausibly still waiting. A never-scheduled or
   directly-cancelled operation is reported and skipped by the execution runner *without* a
@@ -111,10 +112,10 @@ Two boundaries are not negotiable:
   compensating write. Deploy logs stay a pure function of the loupe
   ([docs/DeploymentLogs.md](../../docs/DeploymentLogs.md)).
 - **An unreachable queue must never suppress a finding.** What decides the degradation is
-  what the check is *for*, not its severity — all three are error-severity.
+  what the check is *for*, not its severity — all four are error-severity.
   `no-stale-registered-facets` exists _only_ to police queue coverage, so without the queue
   every finding it could make is noise: it skips and reports the reduced coverage.
-  `facets-registered` and `periphery-registered` stand on an independent on-chain signal, so
-  they keep every error and add a warning naming the degraded coverage — a MongoDB blip
-  turning genuinely missing registrations green is far worse than a false alert during a
-  rollout.
+  `facets-registered`, `periphery-registered` and `whitelist-integrity` stand on an
+  independent on-chain signal, so they keep every error and add a warning naming the
+  degraded coverage — a MongoDB blip turning genuinely missing registrations green is far
+  worse than a false alert during a rollout.

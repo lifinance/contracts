@@ -876,7 +876,9 @@ describe('splitByPendingWhitelist', () => {
     expect(splitByPendingWhitelist([PAIR], new Map()).uncovered).toEqual([PAIR])
   })
 
-  // A cut or a registry entry for the same address whitelists nothing.
+  // A cut or a registry entry for the same address whitelists nothing. The record carries
+  // the matching selector on purpose: without it the selector comparison alone would
+  // reject the record and the `kind` guard would never be exercised.
   it('ignores queued records of another kind for the same address', () => {
     const split = splitByPendingWhitelist(
       [PAIR],
@@ -884,12 +886,27 @@ describe('splitByPendingWhitelist', () => {
         {
           kind: 'facet-cut',
           address: DEX.toLowerCase(),
+          selector: SELECTOR,
           operationId: OPERATION_ID,
           target: DIAMOND,
         },
       ])
     )
     expect(split.uncovered).toEqual([PAIR])
+  })
+
+  // Real batches repeat one contract under several selectors, so the matcher has to pick
+  // the right record out of many for the same address rather than trust the first.
+  it('finds the matching selector among several records for one contract', () => {
+    const records = ['0x11111111', '0x22222222', SELECTOR, '0x33333333'].map(
+      (selector) => whitelistRecord(selector as Hex)
+    )
+    expect(splitByPendingWhitelist([PAIR], coverage(records)).pending).toEqual([
+      PAIR,
+    ])
+    expect(
+      splitByPendingWhitelist([PAIR], coverage(records.slice(0, 2))).uncovered
+    ).toEqual([PAIR])
   })
 
   it('matches case-insensitively on the contract and selector', () => {
@@ -1011,6 +1028,31 @@ describe('checkWhitelistIntegrity expected-pending downgrade', () => {
     expect(reads).toBe(0)
     expect(errors).toEqual([])
     expect(warnings).toEqual([])
+  })
+
+  // Every chain with a multicall3 deployment takes the batched path, so the downgrade has
+  // to hold there and not only in the sequential fallback.
+  it('downgrades on the multicall path too', async () => {
+    const client = {
+      readContract: async () => [[], []],
+      multicall: async ({ contracts }: { contracts: unknown[] }) =>
+        contracts.map(() => ({ status: 'success', result: false })),
+      chain: { contracts: { multicall3: { address: DIAMOND } } },
+    } as unknown as PublicClient
+    const { errors, warnings } = await run(client, async () => queued(SELECTOR))
+    expect(errors).toEqual([])
+    expect(warnings).toEqual([])
+  })
+
+  it('errors on the multicall path when nothing is queued', async () => {
+    const client = {
+      readContract: async () => [[], []],
+      multicall: async ({ contracts }: { contracts: unknown[] }) =>
+        contracts.map(() => ({ status: 'success', result: false })),
+      chain: { contracts: { multicall3: { address: DIAMOND } } },
+    } as unknown as PublicClient
+    const { errors } = await run(client, async () => new Map())
+    expect(errors.some((e) => e.includes('Source of Truth FAILED'))).toBe(true)
   })
 
   it('resolves the queue once even though both steps consult it', async () => {
@@ -2889,6 +2931,35 @@ describe('periphery-registered scheduled-registration coverage', () => {
     await invariant('periphery-registered').run(ctx)
     expect(ctx.errors).toEqual([])
     expect(ctx.warnings).toEqual([])
+  })
+
+  // Locks the `kind` guard itself: this record carries the matching registry name, so the
+  // name comparison alone would accept it and only the kind check rejects it.
+  it('still errors when a record of another kind carries the matching name', async () => {
+    const ctx = makePeripheryCtx(
+      new Map([
+        [
+          'testnet1',
+          new Map([
+            [
+              EXECUTOR.toLowerCase(),
+              [
+                {
+                  kind: 'facet-cut' as const,
+                  address: EXECUTOR.toLowerCase(),
+                  peripheryName: 'Executor',
+                  operationId: OPERATION_ID,
+                  target: DIAMOND.toLowerCase(),
+                },
+              ],
+            ],
+          ]),
+        ],
+      ])
+    )
+    await invariant('periphery-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('Executor')
   })
 
   // The registry is keyed by name: registering this address under a different name

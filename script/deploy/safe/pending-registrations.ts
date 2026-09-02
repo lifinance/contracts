@@ -328,7 +328,9 @@ export function groupRegistrationsByNetwork(
  *
  * Only `queued` rows count: `executed` has already landed on-chain (the loupe shows
  * it), and `cancelled`/`failed` are terminal — a `failed` row in particular is not a
- * promise of anything, so treating it as intent would suppress a real alert forever.
+ * promise of anything, so treating it as intent would suppress a real alert forever. A
+ * `blocked` row is the one live status left out: it is still executable once an operator
+ * clears the cause, but nothing bounds how long that takes, so it reports as a finding.
  *
  * Known sharp edge, deliberately left erring toward over-alerting: a row marked
  * `failed` can still be a live, executable on-chain operation when what failed was a

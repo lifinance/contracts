@@ -745,8 +745,15 @@ export interface IWhitelistPair {
  * granting another selector on the same contract leaves this pair unset — the same reason
  * the periphery caller has to match the registry name rather than the address alone.
  *
+ * Two preconditions the caller owns, because neither is checked here: `coverage` must
+ * already be scoped to this network's own diamond (`resolvePendingRegistrations` filters by
+ * `target`), and its keys are lowercased EVM addresses — a Tron base58 contract would be
+ * corrupted by the lookup's `toLowerCase()`, which is harmless only because Tron is gated
+ * out of the queue upstream and so always arrives with empty coverage.
+ *
  * @param missing - Pairs config expects that the diamond does not have.
- * @param coverage - Registered-address → queued registrations aimed at this diamond.
+ * @param coverage - Lowercased registered address → queued registrations aimed at this
+ * diamond.
  * @returns The missing pairs split by whether the queue covers them.
  */
 export function splitByPendingWhitelist(
@@ -771,6 +778,17 @@ export function splitByPendingWhitelist(
 
 /**
  * Check whitelist integrity by comparing config against on-chain state.
+ *
+ * Reports through `logError` rather than throwing, so one unsynced network never aborts a
+ * fleet sweep.
+ *
+ * @param network - Network id, used only in the remediation hint.
+ * @param environment - Deployment environment, used only in the remediation hint.
+ * @param expectedPairs - Pairs the whitelist config declares for this network.
+ * @param logError - Sink for findings; every call fails the invariant.
+ * @param diamondAddress - Diamond whose whitelist is read.
+ * @param context - On-chain clients plus the optional intent hooks; see the field comments.
+ * @returns Nothing — findings are reported through `logError`.
  */
 export async function checkWhitelistIntegrity(
   network: string,
