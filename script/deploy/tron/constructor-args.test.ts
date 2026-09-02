@@ -243,3 +243,76 @@ describe('encodeConstructorArgs', () => {
     ).toThrow(/did not return hex/i)
   })
 })
+
+describe('cases mutation testing found uncovered', () => {
+  it('keeps a tuple array suffix, which changes the encoding', () => {
+    // `(a,b)` and `(a,b)[]` encode differently; dropping the suffix produces hex
+    // that still looks plausible.
+    const abi = [
+      {
+        type: 'constructor',
+        inputs: [
+          {
+            type: 'tuple[2][]',
+            components: [
+              { name: 'token', type: 'address' },
+              { name: 'amount', type: 'uint128' },
+            ],
+          },
+        ],
+      },
+    ]
+
+    expect(constructorInputTypes(abi)).toEqual(['(address,uint128)[2][]'])
+  })
+
+  it('refuses a tuple with no components rather than emitting the word tuple', () => {
+    expect(() =>
+      constructorInputTypes([
+        { type: 'constructor', inputs: [{ name: '_c', type: 'tuple' }] },
+      ])
+    ).toThrow(/components/i)
+  })
+
+  it('refuses an encoder result that is prefixed but not hex', () => {
+    // `startsWith('0x')` accepts this; the digits still have to be hex.
+    const bogus = () => '0xZZZZ'
+
+    expect(() =>
+      encodeConstructorArgs(bogus, ['0x00'], ['address'], 'ERC20Proxy')
+    ).toThrow(/did not return hex/i)
+  })
+
+  it('treats a padded record as empty, since a record is read not parsed', () => {
+    expect(() =>
+      assertRecordedArgsMatchAbi('ERC20Proxy', '  0x  ', ['address'])
+    ).toThrow(/takes 1 constructor arguments/)
+  })
+})
+
+describe('a record that is neither empty nor usable', () => {
+  it('refuses arguments that are not hex', () => {
+    expect(() =>
+      assertRecordedArgsMatchAbi('ERC20Proxy', 'not-hex', ['address'])
+    ).toThrow(/not hex/i)
+  })
+
+  it('refuses a record holding fewer words than the constructor takes', () => {
+    // Half an address word: enough to look like data, not enough to be it.
+    expect(() =>
+      assertRecordedArgsMatchAbi('ERC20Proxy', `0x${'11'.repeat(16)}`, [
+        'address',
+        'address',
+      ])
+    ).toThrow(/only 0 words/)
+  })
+
+  it('accepts a record with one word per static argument', () => {
+    expect(() =>
+      assertRecordedArgsMatchAbi('ERC20Proxy', `0x${'11'.repeat(64)}`, [
+        'address',
+        'address',
+      ])
+    ).not.toThrow()
+  })
+})

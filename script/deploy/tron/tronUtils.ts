@@ -200,6 +200,10 @@ export async function deployContractWithLogging(
 
     // Log deployment (skip in dry run)
     if (!dryRun) {
+      // The address is saved first: the contract is already on chain, and a
+      // recording failure that loses its address costs a duplicate deployment.
+      await saveContractAddress(network, contractName, result.contractAddress)
+
       await recordTronDeployment({
         contractName,
         network,
@@ -209,8 +213,6 @@ export async function deployContractWithLogging(
         constructorArgs,
         verified: false,
       })
-
-      await saveContractAddress(network, contractName, result.contractAddress)
     }
 
     return {
@@ -240,41 +242,17 @@ const tronAbiEncoder =
     )
 
 /**
- * Encodes constructor arguments using the types the contract's ABI declares.
- *
- * @param args - Values passed to the constructor, in declaration order.
- * @param abi - The `abi` array from the contract's Forge artifact.
- * @param contractName - Named in every error message.
- * @param network - Network whose TronWeb codec encodes the values.
- * @returns Hex-encoded arguments, or `0x` when the contract takes none.
- * @throws When the ABI is unreadable, the arity disagrees, or encoding fails —
- * a record holding the wrong arguments is worse than a deploy that stops.
- */
-export function encodeConstructorArgs(
-  args: readonly unknown[],
-  abi: unknown,
-  contractName: string,
-  network: SupportedChain
-): string {
-  return encodeWithTypes(
-    tronAbiEncoder(network),
-    args,
-    constructorInputTypes(abi, contractName),
-    contractName
-  )
-}
-
-/**
  * Records a Tron deployment with its constructor arguments encoded from the ABI.
  *
  * Use this rather than calling `logDeployment` directly: it is the only place
  * that decides what the `constructorArgs` field holds, so a call site cannot
- * record `'0x'` for a contract that was deployed with arguments — which is what
- * seven periphery contracts did, leaving records a verifier cannot rebuild
- * creation code from.
+ * hand the log a string of its own.
  *
  * @param params.artifact - The Forge artifact the contract was deployed from.
  * @param params.constructorArgs - Exactly the values passed to the constructor.
+ * @throws When the arguments cannot be encoded from the ABI. Callers must save
+ * the deployed address BEFORE calling this: the contract is already on chain by
+ * then, and losing its address costs a duplicate deployment.
  */
 export async function recordTronDeployment(params: {
   contractName: string

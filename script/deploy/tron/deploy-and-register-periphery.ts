@@ -418,6 +418,11 @@ async function deployAndRegisterPeripheryImpl(options: {
             consola.info(`Cost: ${result.actualCost.trxCost} TRX`)
 
             if (!dryRun) {
+              await saveContractAddress(
+                network,
+                'ERC20Proxy',
+                result.contractAddress
+              )
               await recordTronDeployment({
                 contractName: 'ERC20Proxy',
                 network,
@@ -427,11 +432,6 @@ async function deployAndRegisterPeripheryImpl(options: {
                 constructorArgs,
                 verified: false,
               })
-              await saveContractAddress(
-                network,
-                'ERC20Proxy',
-                result.contractAddress
-              )
             }
           }
 
@@ -517,6 +517,11 @@ async function deployAndRegisterPeripheryImpl(options: {
             consola.info(`Cost: ${result.actualCost.trxCost} TRX`)
 
             if (!dryRun) {
+              await saveContractAddress(
+                network,
+                'Executor',
+                result.contractAddress
+              )
               await recordTronDeployment({
                 contractName: 'Executor',
                 network,
@@ -526,11 +531,6 @@ async function deployAndRegisterPeripheryImpl(options: {
                 constructorArgs,
                 verified: false,
               })
-              await saveContractAddress(
-                network,
-                'Executor',
-                result.contractAddress
-              )
             }
           }
 
@@ -633,6 +633,11 @@ async function deployAndRegisterPeripheryImpl(options: {
             consola.info(`Cost: ${result.actualCost.trxCost} TRX`)
 
             if (!dryRun) {
+              await saveContractAddress(
+                network,
+                'FeeCollector',
+                result.contractAddress
+              )
               await recordTronDeployment({
                 contractName: 'FeeCollector',
                 network,
@@ -642,11 +647,6 @@ async function deployAndRegisterPeripheryImpl(options: {
                 constructorArgs,
                 verified: false,
               })
-              await saveContractAddress(
-                network,
-                'FeeCollector',
-                result.contractAddress
-              )
             }
           }
 
@@ -730,6 +730,11 @@ async function deployAndRegisterPeripheryImpl(options: {
             consola.info(`Cost: ${result.actualCost.trxCost} TRX`)
 
             if (!dryRun) {
+              await saveContractAddress(
+                network,
+                'FeeForwarder',
+                result.contractAddress
+              )
               await recordTronDeployment({
                 contractName: 'FeeForwarder',
                 network,
@@ -739,11 +744,6 @@ async function deployAndRegisterPeripheryImpl(options: {
                 constructorArgs,
                 verified: false,
               })
-              await saveContractAddress(
-                network,
-                'FeeForwarder',
-                result.contractAddress
-              )
             }
           }
 
@@ -892,6 +892,11 @@ async function deployAndRegisterPeripheryImpl(options: {
               consola.info(`Cost: ${result.actualCost.trxCost} TRX`)
 
               if (!dryRun) {
+                await saveContractAddress(
+                  network,
+                  'TokenWrapper',
+                  result.contractAddress
+                )
                 await recordTronDeployment({
                   contractName: 'TokenWrapper',
                   network,
@@ -901,11 +906,6 @@ async function deployAndRegisterPeripheryImpl(options: {
                   constructorArgs,
                   verified: false,
                 })
-                await saveContractAddress(
-                  network,
-                  'TokenWrapper',
-                  result.contractAddress
-                )
               }
             }
 
@@ -985,6 +985,11 @@ async function deployAndRegisterPeripheryImpl(options: {
             consola.info(`Cost: ${result.actualCost.trxCost} TRX`)
 
             if (!dryRun) {
+              await saveContractAddress(
+                network,
+                'OutputValidator',
+                result.contractAddress
+              )
               await recordTronDeployment({
                 contractName: 'OutputValidator',
                 network,
@@ -994,11 +999,6 @@ async function deployAndRegisterPeripheryImpl(options: {
                 constructorArgs,
                 verified: false,
               })
-              await saveContractAddress(
-                network,
-                'OutputValidator',
-                result.contractAddress
-              )
             }
           }
 
@@ -1115,6 +1115,11 @@ async function deployAndRegisterPeripheryImpl(options: {
             consola.info(`Cost: ${result.actualCost.trxCost} TRX`)
 
             if (!dryRun) {
+              await saveContractAddress(
+                network,
+                'ReceiverOIF',
+                result.contractAddress
+              )
               await recordTronDeployment({
                 contractName: 'ReceiverOIF',
                 network,
@@ -1124,11 +1129,6 @@ async function deployAndRegisterPeripheryImpl(options: {
                 constructorArgs,
                 verified: false,
               })
-              await saveContractAddress(
-                network,
-                'ReceiverOIF',
-                result.contractAddress
-              )
             }
           }
 
@@ -1244,6 +1244,11 @@ async function deployAndRegisterPeripheryImpl(options: {
                     ` LiFiTimelockController deployed: ${result.contractAddress}`
                   )
                   if (!dryRun) {
+                    await saveContractAddress(
+                      network,
+                      'LiFiTimelockController',
+                      result.contractAddress
+                    )
                     await recordTronDeployment({
                       contractName: 'LiFiTimelockController',
                       network,
@@ -1253,11 +1258,6 @@ async function deployAndRegisterPeripheryImpl(options: {
                       constructorArgs,
                       verified: false,
                     })
-                    await saveContractAddress(
-                      network,
-                      'LiFiTimelockController',
-                      result.contractAddress
-                    )
                   }
                 }
               }

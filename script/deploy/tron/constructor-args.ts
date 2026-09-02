@@ -69,6 +69,7 @@ const canonicalType = (input: unknown, contractName: string): string => {
  * @param contractName - Named in every message; the caller always knows it.
  * @returns Canonical type strings in declaration order, empty when the contract
  * declares no constructor.
+ * @throws When the ABI, a constructor input, or a tuple components list cannot be read.
  */
 export const constructorInputTypes = (
   abi: unknown,
@@ -120,6 +121,19 @@ export const assertRecordedArgsMatchAbi = (
       } constructor arguments (${types.join(
         ', '
       )}) but the record says it has none. A verifier rebuilding creation code from this record would compute a different deployment.`
+    )
+
+  if (types.length > 0 && !isHex(recorded))
+    throw new Error(
+      `${contractName}'s recorded constructor arguments are not hex, so they are not what the constructor received.`
+    )
+
+  // Each static parameter occupies one 32-byte word, and a dynamic one occupies
+  // at least an offset word, so anything shorter is truncated.
+  const words = (recorded.trim().replace(/^0x/iu, '').length / 64) | 0
+  if (types.length > 0 && words < types.length)
+    throw new Error(
+      `${contractName} takes ${types.length} constructor arguments but the record holds only ${words} words of them.`
     )
 
   if (types.length === 0 && !empty)
