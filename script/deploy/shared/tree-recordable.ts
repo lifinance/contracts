@@ -45,6 +45,14 @@ export interface ITreeState {
   head: string
   /** `git branch -r --contains HEAD` output; empty when no remote has it. */
   remoteRefsContainingHead: string
+  /**
+   * `git rev-parse --is-shallow-repository`. In a shallow clone
+   * `--contains` cannot see the history it needs, so an unpushed commit and a
+   * pushed one are indistinguishable and the check has to say so rather than
+   * guess. Deploys are human-run from full clones today, so this is here to
+   * fail loudly if that ever changes.
+   */
+  isShallow: boolean
 }
 
 /**
@@ -99,7 +107,13 @@ export const assertTreeRecordable = (state: ITreeState): void => {
         `script/ are ignored here — they do not affect the bytecode.`
     )
 
-  if (state.remoteRefsContainingHead.trim() === '')
+  if (state.isShallow)
+    problems.push(
+      `This is a shallow clone, so whether ${state.head} exists on a remote cannot ` +
+        `be determined — 'git branch -r --contains' has no history to search. Deploy ` +
+        `from a full clone, or fetch with depth 0.`
+    )
+  else if (state.remoteRefsContainingHead.trim() === '')
     problems.push(
       `Commit ${state.head} has not been pushed — no remote branch contains it. ` +
         `The record would point at a commit a verifier cannot fetch, so the rebuild ` +

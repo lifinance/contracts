@@ -28,6 +28,7 @@ const clean: ITreeState = {
   statusZ: '',
   head: 'a'.repeat(40),
   remoteRefsContainingHead: '  origin/main\n',
+  isShallow: false,
 }
 
 describe('buildAffectingDirtyPaths', () => {
@@ -157,6 +158,28 @@ describe('assertTreeRecordable', () => {
     expect(error?.message).toMatch(/UNKNOWN/)
   })
 
+  it('refuses a shallow clone rather than guessing about the remote', () => {
+    // In a shallow clone `--contains` has no history to search, so a pushed and
+    // an unpushed commit look identical. Saying so beats either answer.
+    const error = (() => {
+      try {
+        assertTreeRecordable({
+          ...clean,
+          isShallow: true,
+          remoteRefsContainingHead: '',
+        })
+        return undefined
+      } catch (e) {
+        return e as Error
+      }
+    })()
+
+    expect(error?.message).toMatch(/shallow clone/)
+    // Not also the unpushed message: it cannot know that, and saying both would
+    // send the operator to push a commit that may already be pushed.
+    expect(error?.message).not.toMatch(/has not been pushed/)
+  })
+
   it('reports both problems at once rather than one per run', () => {
     // An operator fixing these one refusal at a time would need two deploy
     // attempts to learn about two problems.
@@ -166,6 +189,7 @@ describe('assertTreeRecordable', () => {
           statusZ: z(' M src/A.sol'),
           head: 'b'.repeat(40),
           remoteRefsContainingHead: '',
+          isShallow: false,
         })
         return undefined
       } catch (e) {
