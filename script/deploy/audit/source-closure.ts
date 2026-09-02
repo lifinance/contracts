@@ -15,6 +15,8 @@
 
 import { keccak256, toHex, type Hex } from 'viem'
 
+import { normaliseAuditRelevantSource } from './audit-relevant-source'
+
 export interface ISourceReader {
   /** Repo-relative path, or undefined when absent at this tree-ish. */
   readFile: (path: string) => string | undefined
@@ -310,6 +312,14 @@ export const collectSourceClosure = (
  * Path is bound to content, so moving code between files changes the hash. The
  * input is canonically ordered, so traversal order cannot alter the result.
  *
+ * Content is normalised first: comments, pragma and blank lines are dropped, per
+ * the definition `versionControlAndAuditCheck.yml` already applies when it
+ * decides whether a change needs a version bump. Hashing raw bytes made a
+ * repo-wide licence-header normalisation invalidate content-equality against
+ * every prior audit, which is not something an audit has an opinion about. The
+ * envelope carries `version: 2` because the same closure now hashes differently
+ * than it did over raw bytes.
+ *
  * @param closure - from {@link collectSourceClosure}.
  * @param reader - the same reader the closure was collected with.
  * @returns keccak256 over the canonical closure description.
@@ -320,11 +330,11 @@ export const computeSourceClosureHash = (
 ): Hex => {
   const files = closure.files.map((path) => [
     path,
-    keccak256(toHex(reader.readFile(path) ?? '')),
+    keccak256(toHex(normaliseAuditRelevantSource(reader.readFile(path) ?? ''))),
   ])
   const dependencies = Object.keys(closure.dependencies)
     .sort()
     .map((dir) => [dir, closure.dependencies[dir]])
 
-  return keccak256(toHex(JSON.stringify({ version: 1, files, dependencies })))
+  return keccak256(toHex(JSON.stringify({ version: 2, files, dependencies })))
 }
