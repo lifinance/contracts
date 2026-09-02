@@ -1,11 +1,16 @@
 /**
  * Finds the immutables a Solidity file declares.
  *
- * Import this to enumerate what the per-immutable registry has to account for.
- * It reads source rather than build output so the CI gate needs no compile, and
- * it is deliberately narrow: it recognises the declaration forms this repo
- * actually uses and reports nothing for anything else, so a shape it cannot read
- * shows up as a missing entry rather than as a silent pass.
+ * Import this to enumerate what the per-immutable registry has to account for,
+ * together with {@link findUnreadableImmutableLines} — which is not optional. It
+ * reads source rather than build output so the CI gate needs no compile, and it
+ * is deliberately narrow, recognising the forms this repo uses.
+ *
+ * That narrowness is the danger. A declaration it cannot read produces NOTHING,
+ * so the immutable is never asked for and never shows as unanswered — the worst
+ * failure available to a registry gate. `address payable public immutable` was
+ * one such shape, and a declaration wrapped across lines is another. So the gate
+ * must also ask what this parser failed to read.
  */
 
 /** One `<type> [visibility] immutable <name>;` in a contract. */
@@ -71,4 +76,39 @@ export const parseImmutableDeclarations = (
   })
 
   return found
+}
+
+/**
+ * Lines that mention `immutable` but that {@link parseImmutableDeclarations}
+ * could not read as a declaration.
+ *
+ * The gate treats these as errors rather than ignoring them: whatever the shape
+ * is, an immutable the enumerator cannot see is one the registry will never be
+ * asked to account for. Fixing it means either teaching the parser the shape or
+ * rewriting the declaration onto one line.
+ *
+ * @param source - The file's contents.
+ * @param file - Repo-relative path, carried onto each result.
+ * @returns One entry per unreadable line, in source order.
+ */
+export const findUnreadableImmutableLines = (
+  source: string,
+  file: string
+): { file: string; line: number; text: string }[] => {
+  const read = new Set(
+    parseImmutableDeclarations(source, file).map((d) => d.line)
+  )
+
+  return source
+    .split('\n')
+    .map((text, index) => ({ file, line: index + 1, text: text.trim() }))
+    .filter(
+      ({ text, line }) =>
+        /\bimmutable\b/u.test(text) &&
+        !isCommentLine(text) &&
+        !read.has(line) &&
+        // A doc line inside a block comment starts with `*`, which
+        // `isCommentLine` covers, but a natspec tag can also sit mid-line.
+        !/@(notice|dev|param|return|custom)/u.test(text)
+    )
 }

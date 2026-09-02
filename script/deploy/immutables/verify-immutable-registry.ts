@@ -12,7 +12,10 @@ import { readFileSync } from 'fs'
 
 import { consola } from 'consola'
 
-import { parseImmutableDeclarations } from './immutable-declarations'
+import {
+  findUnreadableImmutableLines,
+  parseImmutableDeclarations,
+} from './immutable-declarations'
 import {
   validateImmutableRegistry,
   type DeployRequirements,
@@ -65,8 +68,16 @@ const main = (): void => {
     .split('\n')
     .filter(Boolean)
 
-  const declarations = files.flatMap((file) =>
-    parseImmutableDeclarations(readFileSync(file, 'utf8'), file)
+  const sources = files.map(
+    (file) => [file, readFileSync(file, 'utf8')] as const
+  )
+  const declarations = sources.flatMap(([file, source]) =>
+    parseImmutableDeclarations(source, file)
+  )
+  // Asked before anything else: an immutable the enumerator cannot read is never
+  // asked for, so it would never appear as a missing entry.
+  const unreadable = sources.flatMap(([file, source]) =>
+    findUnreadableImmutableLines(source, file)
   )
 
   const { errors, warnings, authorityBearing } = validateImmutableRegistry(
@@ -85,12 +96,16 @@ const main = (): void => {
     } flagged authority-bearing`
   )
 
+  for (const { file, line, text } of unreadable)
+    consola.error(
+      `${file}:${line} mentions immutable but could not be read as a declaration: ${text}. Teach the parser this shape or put the declaration on one line — an immutable the gate cannot see is one the registry is never asked to account for.`
+    )
   for (const error of errors) consola.error(error)
   for (const warning of warnings) consola.warn(warning)
 
-  if (errors.length > 0) {
+  if (unreadable.length + errors.length > 0) {
     consola.error(
-      `${errors.length} registry error(s). These are assertions the registry gets wrong, not missing documentation, so they fail in either mode.`
+      `${errors.length} registry error(s) and ${unreadable.length} unreadable declaration(s). Neither is missing documentation, so both fail in either mode.`
     )
     process.exit(1)
   }

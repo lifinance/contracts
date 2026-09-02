@@ -10,7 +10,10 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
-import { parseImmutableDeclarations } from './immutable-declarations'
+import {
+  findUnreadableImmutableLines,
+  parseImmutableDeclarations,
+} from './immutable-declarations'
 
 const parse = (source: string) =>
   parseImmutableDeclarations(source, 'src/Facets/Example.sol')
@@ -137,5 +140,54 @@ describe('parseImmutableDeclarations', () => {
     )
 
     expect(found[0]).toMatchObject({ name: 'OWNER', type: 'address' })
+  })
+})
+
+describe('findUnreadableImmutableLines', () => {
+  it('reports a declaration wrapped across lines', () => {
+    // The shape CodeRabbit found. It parses as nothing, so without this the
+    // immutable is never asked for — invisible rather than unanswered.
+    const source = [
+      'contract A {',
+      '    IVeryLongInterfaceName',
+      '        public',
+      '        immutable',
+      '        SOME_TARGET;',
+      '}',
+    ].join('\n')
+
+    const unreadable = findUnreadableImmutableLines(source, 'src/A.sol')
+
+    expect(unreadable).toHaveLength(1)
+    expect(unreadable[0]).toMatchObject({ line: 4, file: 'src/A.sol' })
+    expect(parseImmutableDeclarations(source, 'src/A.sol')).toEqual([])
+  })
+
+  it('says nothing about a declaration it can read', () => {
+    const source = 'contract A {\n    address public immutable OWNER;\n}'
+
+    expect(findUnreadableImmutableLines(source, 'src/A.sol')).toEqual([])
+  })
+
+  it.each([
+    ['a line comment', '    // set once, immutable thereafter'],
+    ['a natspec tag', '    /// @notice immutable after construction'],
+    ['a block-comment body', '     * the immutable value'],
+    ['a mid-line natspec tag', '    /** @dev immutable */'],
+  ])('does not report %s', (_label, line) => {
+    expect(
+      findUnreadableImmutableLines(`contract A {\n${line}\n}`, 'src/A.sol')
+    ).toEqual([])
+  })
+
+  it('reports the payable form if the parser ever loses it again', () => {
+    // Guards the regression directly: this line parses today, so it must not be
+    // reported — and if the type pattern narrows again, it becomes an error
+    // rather than silence.
+    const source =
+      'contract A {\n    address payable public immutable FEE_RECEIVER;\n}'
+
+    expect(findUnreadableImmutableLines(source, 'src/A.sol')).toEqual([])
+    expect(parseImmutableDeclarations(source, 'src/A.sol')).toHaveLength(1)
   })
 })

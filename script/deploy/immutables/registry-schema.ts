@@ -118,7 +118,19 @@ export const validateImmutableRegistry = (
         continue
       }
 
-      if (entry.authorityBearing === true) authorityBearing.push(where)
+      // A JSON `"true"` is not true. Silently dropping it would leave an
+      // authority-bearing immutable unflagged in the drift report.
+      if (entry.authorityBearing !== undefined) {
+        if (typeof entry.authorityBearing !== 'boolean') {
+          errors.push(
+            `${where} has authorityBearing '${String(
+              entry.authorityBearing
+            )}', which is not a boolean. A quoted value would be read as unflagged.`
+          )
+          continue
+        }
+        if (entry.authorityBearing) authorityBearing.push(where)
+      }
 
       const source = entry.source
       if (!KNOWN_SOURCES.includes(source as ImmutableSource)) {
@@ -138,7 +150,14 @@ export const validateImmutableRegistry = (
           errors.push(`${where} is config-sourced but names no configData key.`)
           continue
         }
-        if (!((label as string) in (contractRequirements.configData ?? {})))
+        // `in` walks the prototype, so a label of 'toString' would pass against
+        // any object at all and the link would read as valid.
+        if (
+          !Object.prototype.hasOwnProperty.call(
+            contractRequirements.configData ?? {},
+            label as string
+          )
+        )
           errors.push(
             `${where} points at configData key '${String(
               label

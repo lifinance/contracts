@@ -197,3 +197,65 @@ describe('validateImmutableRegistry', () => {
     expect(result.warnings[0]).toContain('BrandNewFacet')
   })
 })
+
+describe('values that look right in JSON but are not', () => {
+  it('errors on a quoted authority marker instead of reading it as unflagged', () => {
+    // JSON has no way to warn you: `"true"` is a string, and the previous check
+    // (`=== true`) silently dropped it — leaving an authority-bearing immutable
+    // unflagged in the drift report, which is the one place it must appear.
+    const result = validateImmutableRegistry([declared('spokePool')], {
+      AcrossFacet: {
+        configData: CONFIG_DATA,
+        immutables: {
+          spokePool: {
+            source: 'config',
+            configData: '_spokePool',
+            authorityBearing: 'true',
+          },
+        },
+      },
+    })
+
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]).toMatch(/not a boolean/)
+    expect(result.authorityBearing).toEqual([])
+  })
+
+  it('still accepts an honestly false marker', () => {
+    const result = validateImmutableRegistry([declared('spokePool')], {
+      AcrossFacet: {
+        configData: CONFIG_DATA,
+        immutables: {
+          spokePool: {
+            source: 'config',
+            configData: '_spokePool',
+            authorityBearing: false,
+          },
+        },
+      },
+    })
+
+    expect(result.errors).toEqual([])
+    expect(result.authorityBearing).toEqual([])
+  })
+
+  it.each(['toString', 'constructor', 'hasOwnProperty'])(
+    'errors when the config link is the inherited property %p',
+    (inherited) => {
+      // `in` walks the prototype chain, so these passed against any object at
+      // all and the registry accepted a link to a config key that does not
+      // exist. Same bug this repo hit in the CBOR decoder the same day.
+      const result = validateImmutableRegistry([declared('spokePool')], {
+        AcrossFacet: {
+          configData: CONFIG_DATA,
+          immutables: {
+            spokePool: { source: 'config', configData: inherited },
+          },
+        },
+      })
+
+      expect(result.errors).toHaveLength(1)
+      expect(result.errors[0]).toContain(inherited)
+    }
+  )
+})

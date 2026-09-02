@@ -33,7 +33,9 @@ jobs:
         run: |
 
           ##### get all files modified by this PR
-          FILES="$(git diff --name-only origin/main HEAD)"
+          ##### --no-renames so a rename reports BOTH paths: renaming a protected file
+          ##### away would otherwise show only the new, unprotected name
+          FILES="$(git diff --name-only --no-renames origin/main HEAD)"
 
           ##### make sure that there are modified files
           if [[ -z $FILES ]]; then
@@ -47,11 +49,10 @@ jobs:
 
           ##### go through all modified file names/paths and identify contracts with path '.github/'
           while IFS= read -r FILE; do
-            # Validate file exists
-            if [[ ! -f "$FILE" ]]; then
-              echo "Warning: File $FILE not found"
-              continue
-            fi
+            ##### deliberately NO existence check: a deleted path does not exist in the
+            ##### working tree, and skipping it let a protected file be REMOVED without
+            ##### the approval that guards changing it. The matcher below is pure string
+            ##### matching, so a path that no longer exists is still safe to test.
             ##### check for github actions, pre-commit checker, emergency-pause break-glass paths,
             ##### and the per-immutable expectation registry plus the gate that reads it — editing
             ##### either is equivalent to editing the expectation itself (EXSC-869, D20)
