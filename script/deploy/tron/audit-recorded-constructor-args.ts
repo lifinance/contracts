@@ -3,19 +3,17 @@
 /**
  * Read-only audit of the constructor arguments recorded for Tron deployments.
  *
- * A record's constructor arguments are what a verifier appends to creation code
- * when it rebuilds a deployment, so a record understating them describes a
- * deployment that never happened.
+ * Run it before trusting the deploy log to reconstruct a Tron deployment: a
+ * record's constructor arguments are what a verifier appends to creation code,
+ * so a record understating them describes a deployment that never happened.
  *
- * This runs `assertRecordedArgsMatchAbi` over records that already exist rather
- * than over an encoder's fresh output, which is the only place its emptiness and
- * arity checks can actually fire. It never writes: correcting a record changes
- * what a verifier reconstructs, so each finding is a human's call.
- *
- * Needs `forge build` output and a `lifi-connect prod smart-contracts` tunnel.
+ * Needs `forge build` output, the deployment-log database, and the repo root as
+ * the working directory.
  */
 
-import { existsSync } from 'fs'
+import { existsSync, readdirSync } from 'fs'
+import { dirname, resolve } from 'path'
+import { fileURLToPath } from 'url'
 
 import { loadForgeArtifact } from '@lifi/tron-devkit'
 import { defineCommand, runMain } from 'citty'
@@ -41,7 +39,15 @@ const TRON_NETWORKS = ['tron', 'tronshasta'] as const
 /** Keeps operator-shaped strings out of the `$in` filter; every key in `config/networks.json` matches. */
 const NETWORK_KEY_RE = /^[a-zA-Z0-9-]+$/
 
+/** Record fields reach a filesystem path, so they get the same guard `getContractVersion` applies. */
+const CONTRACT_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/
+
+/** `<version>-tron[-rN]` marks a contract the fork overlays, i.e. built from source this repo does not hold. */
+const FORK_VERSION_RE = /-tron(-r\d+)?$/
+
 const DATABASE_NAME = 'contract-deployments'
+
+const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../../..')
 
 /** The fields of a deployment record this audit reads. */
 export interface IAuditableRecord {
@@ -52,26 +58,42 @@ export interface IAuditableRecord {
   timestamp: Date
   /** Absent on records written before the field existed. */
   constructorArgs: string | undefined
+  /** Present since EXSC-330; the commit whose source settles a drifted record. */
+  gitCommitHash: string | undefined
 }
 
 /**
- * How far the ABI behind a verdict is from the one the record was written
- * against. Artifacts only exist for the working tree, so a record for an older
- * version is judged against a constructor that may since have changed.
+ * Where the ABI behind a record's assessment came from.
+ *
+ * Artifacts exist only for the working tree, so only `same-version` puts the
+ * record's own ABI in hand. A plain version means the fork's source is
+ * identical to this repo's — the fork-delta guard rejects an undeclared
+ * divergence — so a Tron record at a plain version is still judged against the
+ * source it was built from.
  */
 export type AbiProvenance =
   | 'same-version'
+  | 'fork-overlay'
   | 'version-drift'
   | 'unknown-source-version'
 
-export interface IConstructorArgsFinding {
+/** A record judged against its own ABI. The mismatch is a fact. */
+export interface IConclusiveFinding {
   record: IAuditableRecord
-  /** Constructor types read from the artifact, in declaration order. */
   declaredTypes: string[]
-  /** What `assertRecordedArgsMatchAbi` said is wrong with this record. */
   message: string
+}
+
+/**
+ * A record whose ABI is not in the working tree. `workingTreeWouldSay` is what
+ * the assertion produces against the ABI that IS here — a lead to chase, never
+ * a verdict, because the deployed version's constructor may have differed.
+ */
+export interface IUnverifiedRecord {
+  record: IAuditableRecord
+  workingTreeTypes: string[]
+  workingTreeWouldSay: string | null
   provenance: AbiProvenance
-  /** `@custom:version` in the working tree, or null when it cannot be read. */
   sourceVersion: string | null
 }
 
@@ -83,7 +105,8 @@ export interface IUnauditableRecord {
 export interface IAuditReport {
   examined: number
   consistent: number
-  findings: IConstructorArgsFinding[]
+  findings: IConclusiveFinding[]
+  unverified: IUnverifiedRecord[]
   unauditable: IUnauditableRecord[]
 }
 
@@ -105,6 +128,12 @@ const resolveContract = async (
   contractName: string,
   deps: IAuditDependencies
 ): Promise<ContractLookup> => {
+  if (!CONTRACT_NAME_RE.test(contractName))
+    return {
+      available: false,
+      reason: `'${contractName}' is not a Solidity identifier, so no artifact can be resolved for it`,
+    }
+
   let abi: unknown
   try {
     abi = await deps.loadAbi(contractName)
@@ -129,23 +158,43 @@ const resolveContract = async (
   try {
     sourceVersion = await deps.loadSourceVersion(contractName)
   } catch {
-    // A contract whose source has since been deprecated can still have an
-    // artifact, so the verdict stands - only its provenance is weaker.
+    // Leaves the record unverified rather than judged, which is the safe side.
   }
 
   return { available: true, types, sourceVersion }
 }
 
-const provenanceOf = (
+export const provenanceOf = (
   recordedVersion: string,
   sourceVersion: string | null
 ): AbiProvenance => {
+  if (FORK_VERSION_RE.test(recordedVersion)) return 'fork-overlay'
   if (sourceVersion === null) return 'unknown-source-version'
   return sourceVersion === recordedVersion ? 'same-version' : 'version-drift'
 }
 
+/** Runs the assertion, returning its complaint or null when the record passes. */
+const assertionResult = (
+  contractName: string,
+  recorded: string,
+  types: readonly string[]
+): string | null => {
+  try {
+    assertRecordedArgsMatchAbi(contractName, recorded, types)
+    return null
+  } catch (error) {
+    return describeError(error)
+  }
+}
+
 /**
  * Checks each record's recorded constructor arguments against its contract's ABI.
+ *
+ * A record is only given a verdict when the working tree holds the version it
+ * names. Judging a drifted record would state the wrong arity as fact — the
+ * constructor may have taken a different number of arguments then — and acting
+ * on that would corrupt a correct record, so those go to `unverified` with what
+ * the working tree's ABI would have said attached as a lead.
  *
  * Lookups are memoised per contract, so a contract deployed on both Tron
  * networks is read once.
@@ -153,8 +202,8 @@ const provenanceOf = (
  * @param records - Deployment records to audit, in the order to report them.
  * @param deps - Artifact and source-version lookups, injected so the audit is
  * testable without a build.
- * @returns Counts plus every record that failed the assertion and every record
- * that could not be judged.
+ * @returns Conclusive findings, records needing the deployed version's ABI, and
+ * records no ABI could be resolved for.
  */
 export const auditRecords = async (
   records: readonly IAuditableRecord[],
@@ -165,6 +214,7 @@ export const auditRecords = async (
     examined: records.length,
     consistent: 0,
     findings: [],
+    unverified: [],
     unauditable: [],
   }
 
@@ -180,28 +230,43 @@ export const auditRecords = async (
       continue
     }
 
-    try {
-      assertRecordedArgsMatchAbi(
-        record.contractName,
-        record.constructorArgs ?? '',
-        lookup.types
-      )
-      report.consistent++
-    } catch (error) {
+    const complaint = assertionResult(
+      record.contractName,
+      record.constructorArgs ?? '',
+      lookup.types
+    )
+    const provenance = provenanceOf(record.version, lookup.sourceVersion)
+
+    if (provenance !== 'same-version') {
+      report.unverified.push({
+        record,
+        workingTreeTypes: lookup.types,
+        workingTreeWouldSay: complaint,
+        provenance,
+        sourceVersion: lookup.sourceVersion,
+      })
+      continue
+    }
+
+    if (complaint === null) report.consistent++
+    else
       report.findings.push({
         record,
         declaredTypes: lookup.types,
-        message: describeError(error),
-        provenance: provenanceOf(record.version, lookup.sourceVersion),
-        sourceVersion: lookup.sourceVersion,
+        message: complaint,
       })
-    }
   }
 
   return report
 }
 
-/** Parses `--networks`, rejecting entries not shaped like a network key. */
+/**
+ * Parses `--networks` into network keys.
+ *
+ * @param value - Comma-separated list from the CLI.
+ * @returns The trimmed, non-empty entries.
+ * @throws When the list is empty or an entry is not shaped like a network key.
+ */
 export const parseNetworks = (value: string): string[] => {
   const networks = value
     .split(',')
@@ -220,7 +285,16 @@ export const parseNetworks = (value: string): string[] => {
   return networks
 }
 
-const parseEnvironments = (value: string): (keyof typeof EnvironmentEnum)[] => {
+/**
+ * Parses `--env` into the collections to read.
+ *
+ * @param value - `'production'`, `'staging'` or `'all'`.
+ * @returns The collection names to audit.
+ * @throws When the value names no known environment.
+ */
+export const parseEnvironments = (
+  value: string
+): (keyof typeof EnvironmentEnum)[] => {
   if (value === 'all') return ['production', 'staging']
   if (value === 'production' || value === 'staging') return [value]
   throw new Error(
@@ -228,19 +302,15 @@ const parseEnvironments = (value: string): (keyof typeof EnvironmentEnum)[] => {
   )
 }
 
-/** Renders a record as one line, tagged with the provenance of its verdict. */
-const formatRecord = (
-  record: IAuditableRecord,
-  provenance?: AbiProvenance
-): string =>
+/** Renders a record as one line of the report. */
+export const formatRecord = (record: IAuditableRecord): string =>
   [
     record.network.padEnd(11),
-    `v${record.version}`.padEnd(10),
+    `v${record.version}`.padEnd(14),
     record.address.padEnd(36),
     record.timestamp instanceof Date && !isNaN(record.timestamp.getTime())
       ? record.timestamp.toISOString().slice(0, 10)
       : 'unknown-date',
-    ...(provenance ? [`[${provenance}]`.padEnd(24)] : []),
     `recorded: ${
       record.constructorArgs === undefined
         ? '(field absent)'
@@ -249,85 +319,149 @@ const formatRecord = (
   ].join('  ')
 
 const PROVENANCE_LEGEND: Record<AbiProvenance, string> = {
-  'same-version':
-    'the working tree holds this exact version, so the ABI is the one the record was written against',
-  'version-drift':
-    'the working tree holds a different version - confirm the constructor of the deployed version before acting',
-  'unknown-source-version':
-    'the working tree version could not be read - confirm the constructor of the deployed version before acting',
+  'same-version': 'the working tree holds this version',
+  'fork-overlay':
+    'a `-tron` version is built from the fork’s own source, which this repo does not hold',
+  'version-drift': 'the working tree holds a different version',
+  'unknown-source-version': 'the working tree version could not be read',
 }
 
-const groupByContract = (
-  findings: readonly IConstructorArgsFinding[]
-): Map<string, IConstructorArgsFinding[]> => {
-  const grouped = new Map<string, IConstructorArgsFinding[]>()
-  for (const finding of findings) {
-    const group = grouped.get(finding.record.contractName) ?? []
-    group.push(finding)
-    grouped.set(finding.record.contractName, group)
+const groupBy = <T>(
+  items: readonly T[],
+  key: (item: T) => string
+): Map<string, T[]> => {
+  const grouped = new Map<string, T[]>()
+  for (const item of items) {
+    const group = grouped.get(key(item)) ?? []
+    group.push(item)
+    grouped.set(key(item), group)
   }
   return grouped
 }
 
-const printReport = (
+/** How to settle a record whose ABI is not in the working tree. */
+const settleHint = (record: IAuditableRecord): string =>
+  record.gitCommitHash
+    ? `read the constructor at the recorded commit: git show ${record.gitCommitHash}:src/**/${record.contractName}.sol`
+    : `no commit recorded; find the source at v${record.version} to settle this`
+
+/**
+ * Builds the report's lines, grouped by severity.
+ *
+ * Separate from printing so the wording is testable without capturing a logger.
+ *
+ * @param environment - Collection the report is for.
+ * @param networks - Network keys the records were read from.
+ * @param report - Result of {@link auditRecords}.
+ * @returns One entry per block, tagged with the level it should be logged at.
+ */
+export const renderReport = (
   environment: string,
   networks: readonly string[],
   report: IAuditReport
-): void => {
-  consola.info(
-    `${environment}: examined ${report.examined} record(s) on ${networks.join(
-      ', '
-    )}`
-  )
+): { level: 'info' | 'warn' | 'error' | 'box'; text: string }[] => {
+  const blocks: { level: 'info' | 'warn' | 'error' | 'box'; text: string }[] = [
+    {
+      level: 'info',
+      text: `${environment}: examined ${
+        report.examined
+      } record(s) on ${networks.join(', ')}`,
+    },
+  ]
 
-  for (const [contractName, findings] of groupByContract(report.findings)) {
+  for (const [contractName, findings] of groupBy(
+    report.findings,
+    (finding) => finding.record.contractName
+  )) {
     const [first] = findings
     if (!first) continue
-    consola.error(
-      [
-        `${contractName} - ${findings.length} record(s) disagree with the ABI`,
+    blocks.push({
+      level: 'error',
+      text: [
+        `${contractName} - ${findings.length} record(s) disagree with the ABI they were built from`,
         `  constructor: (${first.declaredTypes.join(', ') || 'no arguments'})`,
-        // Per record rather than per group: records under one contract fail for
-        // different reasons (recorded nothing vs recorded too few words).
+        // Per record: records under one contract fail for different reasons
+        // (recorded nothing vs recorded too few words).
         ...findings.flatMap((finding) => [
-          `  ${formatRecord(finding.record, finding.provenance)}`,
+          `  ${formatRecord(finding.record)}`,
           `    ${finding.message}`,
         ]),
-      ].join('\n')
-    )
+      ].join('\n'),
+    })
   }
 
+  if (report.unverified.length > 0)
+    blocks.push({
+      level: 'warn',
+      text: [
+        `${report.unverified.length} record(s) could not be verified - the working tree does not hold the version they name.`,
+        'The lines below are leads, NOT verdicts: the deployed version may have taken a different number of arguments.',
+        ...report.unverified.flatMap((entry) => [
+          `  ${entry.record.contractName} ${formatRecord(entry.record)}`,
+          `    ${entry.provenance} (${PROVENANCE_LEGEND[entry.provenance]}${
+            entry.sourceVersion
+              ? `, working tree at v${entry.sourceVersion}`
+              : ''
+          })`,
+          entry.workingTreeWouldSay
+            ? `    against the working tree's ABI this would read: ${entry.workingTreeWouldSay}`
+            : `    against the working tree's ABI this record is consistent`,
+          `    ${settleHint(entry.record)}`,
+        ]),
+      ].join('\n'),
+    })
+
   if (report.unauditable.length > 0)
-    consola.warn(
-      [
-        `${report.unauditable.length} record(s) could not be judged - this is not a clean result:`,
+    blocks.push({
+      level: 'warn',
+      text: [
+        `${report.unauditable.length} record(s) could not be judged at all - this is not a clean result:`,
         ...report.unauditable.flatMap(({ record, reason }) => [
           `  ${record.contractName} ${formatRecord(record)}`,
           `    ${reason}`,
         ]),
-      ].join('\n')
-    )
+      ].join('\n'),
+    })
 
-  const provenances = new Set(report.findings.map((f) => f.provenance))
-  if (provenances.size > 0)
-    consola.info(
-      ['ABI provenance of the verdicts above:']
-        .concat(
-          [...provenances].map(
-            (provenance) => `  ${provenance}: ${PROVENANCE_LEGEND[provenance]}`
-          )
-        )
-        .join('\n')
-    )
-
-  consola.box(
-    [
+  blocks.push({
+    level: 'box',
+    text: [
       `environment  : ${environment}`,
       `examined     : ${report.examined}`,
       `consistent   : ${report.consistent}`,
       `findings     : ${report.findings.length}`,
+      `unverified   : ${report.unverified.length}`,
       `unauditable  : ${report.unauditable.length}`,
-    ].join('\n')
+    ].join('\n'),
+  })
+
+  return blocks
+}
+
+/** True when the run should exit non-zero. */
+export const shouldFail = (
+  reports: Record<string, IAuditReport>,
+  strict: boolean
+): boolean => {
+  const all = Object.values(reports)
+  const sum = (pick: (report: IAuditReport) => number): number =>
+    all.reduce((total, report) => total + pick(report), 0)
+
+  if (sum((report) => report.findings.length) > 0) return true
+
+  // Every record unauditable is a broken build reading as "nothing found",
+  // which is the one silent failure this audit exists to rule out.
+  if (
+    all.some(
+      (report) =>
+        report.examined > 0 && report.unauditable.length === report.examined
+    )
+  )
+    return true
+
+  return (
+    strict &&
+    sum((report) => report.unverified.length + report.unauditable.length) > 0
   )
 }
 
@@ -343,6 +477,31 @@ const loadAbiQuietly = async (contractName: string): Promise<unknown> => {
   } finally {
     consola.level = level
   }
+}
+
+/**
+ * Fails before any record is read when the environment cannot answer for one.
+ *
+ * A directory check alone is not enough: a tree built under a profile that
+ * writes to `out/<profile>` leaves `out/` present and empty of the artifacts
+ * this reads, which would turn every record into "unauditable" - a report with
+ * no findings.
+ */
+const assertEnvironmentCanAnswer = (): void => {
+  const artifacts = existsSync(OUT_ROOT)
+    ? readdirSync(OUT_ROOT).filter((entry) => entry.endsWith('.sol'))
+    : []
+  if (artifacts.length === 0)
+    throw new Error(
+      `No Foundry artifacts under ${OUT_ROOT}. Run 'forge build' with the default profile before auditing - without them every record is unauditable.`
+    )
+
+  // getContractVersion resolves `src/` against the working directory, so from
+  // anywhere else every record silently loses its version provenance.
+  if (resolve(process.cwd()) !== REPO_ROOT)
+    throw new Error(
+      `Run this from the repo root (${REPO_ROOT}); the contract source lookup resolves against the working directory.`
+    )
 }
 
 const main = defineCommand({
@@ -369,7 +528,8 @@ const main = defineCommand({
     },
     strict: {
       type: 'boolean',
-      description: 'Also exit non-zero when records could not be judged',
+      description:
+        'Also exit non-zero when records could not be verified or judged',
       default: false,
     },
   },
@@ -377,12 +537,7 @@ const main = defineCommand({
     const networks = parseNetworks(String(args.networks))
     const environments = parseEnvironments(String(args.env))
 
-    // Without a build every contract reads as "no artifact", which a reader
-    // takes for an audit that found nothing wrong.
-    if (!existsSync(OUT_ROOT))
-      throw new Error(
-        `No Foundry artifacts at ${OUT_ROOT}. Run 'forge build' before auditing - without them every record is unauditable.`
-      )
+    assertEnvironmentCanAnswer()
 
     const config: IConfig = {
       mongoUri: getEnvVar('MONGODB_URI'),
@@ -418,7 +573,9 @@ const main = defineCommand({
             version: record.version,
             address: record.address,
             timestamp: record.timestamp,
-            constructorArgs: record.constructorArgs,
+            // `?? undefined` so a null field renders as absent, not as the string "null".
+            constructorArgs: record.constructorArgs ?? undefined,
+            gitCommitHash: record.gitCommitHash ?? undefined,
           })),
           deps
         )
@@ -428,20 +585,20 @@ const main = defineCommand({
     }
 
     if (args.json) console.log(JSON.stringify(reports, null, 2))
-    else
+    else {
       for (const [environment, report] of Object.entries(reports))
-        printReport(environment, networks, report)
+        for (const block of renderReport(environment, networks, report))
+          if (block.level === 'error') consola.error(block.text)
+          else if (block.level === 'warn') consola.warn(block.text)
+          else if (block.level === 'box') consola.box(block.text)
+          else consola.info(block.text)
 
-    const all = Object.values(reports)
-    const findings = all.reduce((sum, r) => sum + r.findings.length, 0)
-    const unauditable = all.reduce((sum, r) => sum + r.unauditable.length, 0)
-
-    if (!args.json && findings > 0)
       consola.info(
-        'Nothing was written. A record drives what a verifier reconstructs, so each correction needs a decision before it is applied.'
+        'Nothing was written. This audits recorded arguments only - a contract deployed but never recorded is outside it.'
       )
+    }
 
-    if (findings > 0 || (args.strict && unauditable > 0)) process.exit(1)
+    if (shouldFail(reports, Boolean(args.strict))) process.exit(1)
   },
 })
 

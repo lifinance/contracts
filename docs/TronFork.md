@@ -365,31 +365,6 @@ single source of truth for deploy logs on every chain, Tron included.
    the next deploy) — usually a direct push to the fork's `main`, or via a
    `sync/upstream-*` PR if gates fail.
 
-### Auditing the constructor arguments a record claims
-
-A deployment record's `constructorArgs` is what a verifier appends to creation
-code, so a record that understates them describes a deployment that never
-happened. To check the records that already exist against each contract's ABI,
-from this repo:
-
-```bash
-forge build
-bun mongo-logs:audit-tron-constructor-args
-```
-
-It reads the MongoDB deploy log (needs a `lifi-connect prod smart-contracts`
-tunnel), reports every Tron record whose `constructorArgs` disagrees with the
-compiled constructor, and exits non-zero when it finds any. It never writes —
-correcting a record changes what a verifier reconstructs, so each correction is
-a decision, not a sweep.
-
-Artifacts only exist for the working tree, so each verdict is tagged with how
-far that ABI is from the deployed version: `same-version` verdicts are
-conclusive, `version-drift` and `unknown-source-version` ones need the deployed
-version's constructor checked first. Contracts with no artifact at all
-(deprecated ones, e.g. `DexManagerFacet`) are reported as unauditable rather
-than counted clean.
-
 ### Why Tron needs custom deploy scripts
 
 Tron requires custom deployment scripts because Foundry doesn't support it
