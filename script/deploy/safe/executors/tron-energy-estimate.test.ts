@@ -79,6 +79,37 @@ describe('configuredTronFeeLimitSun', () => {
 })
 
 describe('tronEnergyCostInSun', () => {
+  // Order matters in this block, and it is not incidental. The devkit caches a
+  // successful price read for its TTL, so the unread-price case has to run
+  // before anything warms that cache — afterwards every call is served from it
+  // and the fallback branch is unreachable.
+  it('reports an unread price as unconfirmed', async () => {
+    // `getCurrentPrices` catches its own failure and returns a constant of
+    // 210 SUN/energy against a live mainnet rate of 100, so a transient RPC
+    // failure would otherwise make the guard refuse honest traffic while
+    // quoting a cost over twice the truth as though it were measured.
+    const tronWeb = {
+      trx: {
+        getEnergyPrices: async () => {
+          throw new Error('getEnergyPrices unavailable')
+        },
+        getBandwidthPrices: async () => {
+          throw new Error('getBandwidthPrices unavailable')
+        },
+      },
+    } as unknown as Parameters<typeof tronEnergyCostInSun>[0]
+
+    const { costSun, priceConfirmed } = await tronEnergyCostInSun(
+      tronWeb,
+      500_000n
+    )
+
+    expect(priceConfirmed).toBe(false)
+    // 500k at the fallback 210 SUN/energy — the inflated figure, correctly
+    // labelled rather than suppressed.
+    expect(costSun).toBe(105_000_000n)
+  })
+
   it('converts TRX pricing to SUN', async () => {
     // The devkit reports energyPrice in TRX (it divides the chain's SUN figure
     // by 1e6), so the cost has to be multiplied back up. Dropping or inverting
