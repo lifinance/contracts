@@ -405,6 +405,29 @@ describe('computeFacetRemovalDiff', () => {
     )
   })
 
+  it('restates the failure when the build ran and the union is still missing', async () => {
+    let builds = 0
+    const io: Partial<IRemovalDiffIO> = {
+      getDiamondAddress: async () => addr(0xd),
+      getOnChainFacets: async () => [{ address: addr(1), selectors: [sel(1)] }],
+      getAddressToName: async () => ({ [addr(1)]: 'SomeFacet' }),
+      getExpectedNames: () => new Set(['GasZipFacet']),
+      getFacetNames: () => new Set(['GasZipFacet']),
+      getActiveSelectors: () => {
+        throw new Error('Cannot read selectors for active facet "GasZipFacet"')
+      },
+      ensureArtifacts: () => {
+        builds++
+        return true
+      },
+    }
+    await expectRejects(
+      computeFacetRemovalDiff('mainnet', PROD, io),
+      /still unavailable after `forge build`.*GasZipFacet/
+    )
+    expect(builds).toBe(1)
+  })
+
   it('scopes active-selectors to real facets — periphery names never hold back selectors', async () => {
     let activeNamesSeen: string[] = []
     const io: Partial<IRemovalDiffIO> = {

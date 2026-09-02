@@ -795,7 +795,8 @@ function collectSelectorsBuildingIfNeeded(
       throw new Error(
         `Selector union still unavailable after \`forge build\`: ${
           afterBuild instanceof Error ? afterBuild.message : String(afterBuild)
-        }`
+        }`,
+        { cause: afterBuild }
       )
     }
   }
@@ -823,7 +824,15 @@ export function tryCollectFacetSelectorUnion(
       [...names].filter((name) => facetNames.has(name)),
       io
     )
-  } catch {
+  } catch (error) {
+    // Callers turn `undefined` into a per-facet "cannot verify" alert that cannot
+    // say WHICH artifact was missing — the only place that knows is here, so log
+    // it rather than let the diagnosis die with the swallowed error.
+    consola.warn(
+      `Selector union unavailable: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    )
     return undefined
   }
 }
