@@ -37,6 +37,7 @@ import { getRPCEnvVarName } from '../../utils/utils'
 
 import { normalizeProposalReason } from './proposal-intent'
 import {
+  OperationTypeEnum,
   buildProposalProvenance,
   canExecuteWithNonceStatus,
   classifyDuplicateKeyError,
@@ -46,14 +47,16 @@ import {
   computeProposalIntentHash,
   getSelector,
   getSigners,
+  isAddressASafeOwner,
   isFutureNonceExecutionAllowed,
   mongoSafeTxRowFilter,
+  resolveSafeSigningOptions,
   safeTxStatusConsumedNonce,
   serializeSafeTxForMongo,
   storeTransactionInMongoDB,
   summarizeProposalDoc,
-  OperationTypeEnum,
   type IProposalProvenance,
+  type ISafeSigningOptions,
   type ISafeTransaction,
   type ISafeTxDocument,
   type NonceExecutionDecision,
@@ -1398,6 +1401,210 @@ describe('classifyIndexEnsureFailure', () => {
     expect(classifyIndexEnsureFailure(undefined)).toBe('fatal')
     expect(classifyIndexEnsureFailure(6)).toBe('fatal')
     expect(classifyIndexEnsureFailure(27)).toBe('fatal')
+  })
+})
+
+describe('isAddressASafeOwner', () => {
+  const OWNER = '0x1234567890AbcdEF1234567890aBcdef12345678' as Address
+
+  it('matches an owner regardless of the casing on either side', () => {
+    // The Safe returns checksummed owners while a signer address can arrive in
+    // any casing, so a case-sensitive compare would reject a real owner and
+    // block the proposal.
+    expect(isAddressASafeOwner([OWNER], OWNER.toLowerCase() as Address)).toBe(
+      true
+    )
+    expect(isAddressASafeOwner([OWNER.toLowerCase() as Address], OWNER)).toBe(
+      true
+    )
+  })
+
+  it('rejects an address that is not an owner', () => {
+    expect(
+      isAddressASafeOwner(
+        [OWNER],
+        '0x000000000000000000000000000000000000dEaD' as Address
+      )
+    ).toBe(false)
+    expect(isAddressASafeOwner([], OWNER)).toBe(false)
+  })
+})
+
+describe('resolveSafeSigningOptions', () => {
+  it('defaults to the env private key when no ledger flag is given', () => {
+    expect(resolveSafeSigningOptions({ envPrivateKey: 'abc123' })).toEqual({
+      useLedger: false,
+      privateKey: 'abc123',
+      ledgerOptions: { ledgerLive: false, accountIndex: 0 },
+    })
+  })
+
+  it('refuses when neither a ledger nor a private key is available', () => {
+    expect(() => resolveSafeSigningOptions({})).toThrow(/Missing private key/)
+  })
+
+  it("names the caller's env variable in the no-key error", () => {
+    expect(() =>
+      resolveSafeSigningOptions({ envPrivateKeyName: 'PRIVATE_KEY_SOMETHING' })
+    ).toThrow(/PRIVATE_KEY_SOMETHING/)
+  })
+
+  it('does not require a private key when signing with a ledger', () => {
+    expect(resolveSafeSigningOptions({ ledger: true }).useLedger).toBe(true)
+  })
+
+  it('withholds the env key when signing with a ledger, even when one is set', () => {
+    // The env key must be present in the fixture: with it absent, "privateKey is
+    // undefined" holds whether or not the code withholds it.
+    const resolved = resolveSafeSigningOptions({
+      ledger: true,
+      envPrivateKey: 'abc123',
+    })
+
+    expect(resolved.useLedger).toBe(true)
+    expect(resolved.privateKey).toBeUndefined()
+  })
+
+  it('passes the ledger-live account index through', () => {
+    expect(
+      resolveSafeSigningOptions({
+        ledger: true,
+        ledgerLive: true,
+        accountIndex: 3,
+      }).ledgerOptions
+    ).toEqual({ ledgerLive: true, accountIndex: 3 })
+  })
+
+  it('passes a custom derivation path through', () => {
+    expect(
+      resolveSafeSigningOptions({
+        ledger: true,
+        derivationPath: "m/44'/60'/1'/0/0",
+      }).ledgerOptions
+    ).toEqual({
+      ledgerLive: false,
+      accountIndex: 0,
+      derivationPath: "m/44'/60'/1'/0/0",
+    })
+  })
+
+  it('rejects derivationPath together with ledgerLive, which mean different paths', () => {
+    expect(() =>
+      resolveSafeSigningOptions({
+        ledger: true,
+        ledgerLive: true,
+        derivationPath: "m/44'/60'/1'/0/0",
+      })
+    ).toThrow(/derivationPath.*ledgerLive|ledgerLive.*derivationPath/)
+  })
+
+  it.each([
+    ['ledgerLive', { ledgerLive: true }],
+    ['derivationPath', { derivationPath: "m/44'/60'/1'/0/0" }],
+  ])(
+    'refuses %s without --ledger rather than silently ignoring it',
+    (_label, ledgerOption) => {
+      // An operator who typed the sub-flag and forgot --ledger believes they
+      // signed from a hardware account. Ignoring the flag hides that; only the
+      // refusal tells them.
+      expect(() =>
+        resolveSafeSigningOptions({ envPrivateKey: 'abc123', ...ledgerOption })
+      ).toThrow(/without '--ledger'/)
+    }
+  )
+
+  it('reports no ledger options at all on the key path', () => {
+    // accountIndex is passed on purpose: it is the only sub-option the key path
+    // still accepts, so it is the only one whose non-leak an assertion can
+    // still catch.
+    const resolved = resolveSafeSigningOptions({
+      envPrivateKey: 'abc123',
+      accountIndex: 5,
+    })
+
+    expect(resolved.useLedger).toBe(false)
+    expect(resolved.privateKey).toBe('abc123')
+    // Reporting a derivation path or a Ledger Live index for a key-signed
+    // proposal describes signing that did not happen.
+    expect(resolved.ledgerOptions).toEqual({
+      ledgerLive: false,
+      accountIndex: 0,
+    })
+  })
+
+  it('coerces a string accountIndex, since citty hands CLI values through as strings', () => {
+    expect(
+      resolveSafeSigningOptions({
+        ledger: true,
+        ledgerLive: true,
+        accountIndex: '4' as unknown as number,
+      }).ledgerOptions.accountIndex
+    ).toBe(4)
+  })
+
+  // The Ledger SDK's BIP32 path parser does not reject these — measured against
+  // @ledgerhq/hw-app-eth's splitPath, "NaN" DROPS the whole path segment
+  // (m/44'/60'/0/0, one element short and non-hardened), 3.7 truncates to 3 and
+  // -1 wraps to 2147483647. Each derives a different, valid-looking address with
+  // no error anywhere, so the refusal has to happen here.
+  //
+  // The string cases are what citty hands back for `--accountIndex abc` and
+  // `--accountIndex ""`; the boolean guards a programmatic caller, since no CLI
+  // spelling produces it.
+  it.each([
+    ['non-numeric', 'abc'],
+    ['fractional', '3.7'],
+    ['negative', '-1'],
+    ['empty', ''],
+    ['whitespace-only', '  '],
+    ['boolean', true],
+  ])(
+    'refuses a %s accountIndex rather than deriving a different address',
+    (_label, value) => {
+      expect(() =>
+        resolveSafeSigningOptions({
+          ledger: true,
+          ledgerLive: true,
+          accountIndex: value as ISafeSigningOptions['accountIndex'],
+        })
+      ).toThrow(/accountIndex must be a non-negative integer/)
+    }
+  )
+
+  it('refuses an accountIndex that the Ledger path would ignore', () => {
+    expect(() =>
+      resolveSafeSigningOptions({ ledger: true, accountIndex: 3 })
+    ).toThrow(/only selects an account on the Ledger Live path/)
+  })
+
+  it('allows an explicit account 0 without ledgerLive, which is what it would use anyway', () => {
+    expect(
+      resolveSafeSigningOptions({ ledger: true, accountIndex: 0 }).ledgerOptions
+        .accountIndex
+    ).toBe(0)
+  })
+
+  it('refuses a derivationPath that is present but blank', () => {
+    expect(() =>
+      resolveSafeSigningOptions({ ledger: true, derivationPath: '   ' })
+    ).toThrow(/given but is empty/)
+  })
+
+  it('reports the value the operator passed, not a coerced one', () => {
+    expect(() =>
+      resolveSafeSigningOptions({ ledger: true, accountIndex: 'abc' })
+    ).toThrow(/got 'abc'/)
+  })
+
+  it('still refuses a bad accountIndex when no ledger was selected', () => {
+    // The sub-options are unused on the key path, but accepting a malformed one
+    // silently teaches the operator the flag was understood.
+    expect(() =>
+      resolveSafeSigningOptions({
+        envPrivateKey: 'abc123',
+        accountIndex: 'abc',
+      })
+    ).toThrow(/accountIndex must be a non-negative integer/)
   })
 })
 

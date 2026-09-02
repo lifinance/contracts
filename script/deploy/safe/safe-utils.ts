@@ -2109,6 +2109,138 @@ export async function getPendingTransactionsByNetwork(
   return txsByNetwork
 }
 
+export interface ISafeSigningOptions {
+  ledger?: boolean
+  /** Use Ledger Live's derivation path for `accountIndex`. */
+  ledgerLive?: boolean
+  /** Accepted as a string so a CLI value reaches the validation below unaltered. */
+  accountIndex?: number | string
+  /** Mutually exclusive with `ledgerLive`. */
+  derivationPath?: string
+  envPrivateKey?: string
+  /** Named in the no-key error so it points at the variable the caller read. */
+  envPrivateKeyName?: string
+}
+
+export interface IResolvedSafeSigning {
+  useLedger: boolean
+  /** Undefined when signing with a Ledger — there is no key to hold. */
+  privateKey?: string
+  ledgerOptions: {
+    ledgerLive: boolean
+    accountIndex: number
+    derivationPath?: string
+  }
+}
+
+/**
+ * Reads a Ledger account index, refusing anything that is not one.
+ *
+ * `Number('')` is 0, so a CLI that delivers an empty string
+ * (`--accountIndex "$UNSET_VAR"`) yields account 0. Anything else `Number()`
+ * produces is taken by the BIP32 parser as given — a `NaN` segment is dropped
+ * from the path entirely, a fraction is truncated and a negative wraps — so
+ * each derives a different, valid-looking address with no error at any layer.
+ *
+ * @param raw - The value as the caller received it, unconverted.
+ * @returns The index.
+ * @throws If it is not a non-negative integer.
+ */
+export const parseAccountIndex = (raw: number | string | undefined): number => {
+  const value = raw ?? 0
+  const parsed =
+    typeof value === 'number'
+      ? value
+      : typeof value === 'string' && value.trim() !== ''
+      ? Number(value)
+      : NaN
+
+  if (!Number.isInteger(parsed) || parsed < 0)
+    throw new Error(
+      `accountIndex must be a non-negative integer, got '${String(raw)}'`
+    )
+
+  return parsed
+}
+
+/**
+ * Decides how a Safe proposal gets signed.
+ *
+ * Every combination it refuses would otherwise have signed from an address the
+ * operator did not choose, with no error at any layer.
+ *
+ * @param options - the CLI/caller flags plus the environment key to fall back on.
+ * @returns what to hand `initializeSafeClient`.
+ * @throws If both path options are given, if `derivationPath` or `ledgerLive`
+ * is given without `ledger`, if `accountIndex` is not a non-negative integer,
+ * if a non-zero `accountIndex` is given without `ledgerLive`, if
+ * `derivationPath` is given but blank, or if neither a Ledger nor a key is
+ * available.
+ */
+export const resolveSafeSigningOptions = (
+  options: ISafeSigningOptions
+): IResolvedSafeSigning => {
+  const useLedger = options.ledger === true
+
+  if (options.derivationPath && options.ledgerLive)
+    throw new Error(
+      "Cannot use both 'derivationPath' and 'ledgerLive' — they specify different derivation paths"
+    )
+
+  // Refused rather than ignored: silently dropping a derivation path the
+  // operator typed is how someone believes they signed from one account and
+  // signed from another.
+  if (!useLedger && (options.derivationPath || options.ledgerLive))
+    throw new Error(
+      "Ledger options were given without '--ledger', so nothing would use them. Add --ledger, or drop the Ledger options."
+    )
+
+  if (!useLedger && !options.envPrivateKey)
+    throw new Error(
+      `Missing ${
+        options.envPrivateKeyName ?? 'private key'
+      } in environment. Set it, or pass --ledger to sign with a hardware wallet.`
+    )
+
+  // Ahead of the two checks below, which read the parsed value.
+  const accountIndex = parseAccountIndex(options.accountIndex)
+
+  // Refused rather than ignored: `getLedgerAccount` reads `accountIndex` only on
+  // the Ledger Live path, so without it an operator who asked for account 3
+  // signs from account 0 and is told nothing.
+  if (useLedger && accountIndex !== 0 && !options.ledgerLive)
+    throw new Error(
+      "'accountIndex' only selects an account on the Ledger Live path. Add --ledgerLive, or drop --accountIndex."
+    )
+
+  // An empty string is a value the operator typed, not an absence: treating it
+  // as unset would send `--derivationPath ""` down the default-path branch.
+  if (
+    options.derivationPath !== undefined &&
+    options.derivationPath.trim() === ''
+  )
+    throw new Error("'derivationPath' was given but is empty.")
+
+  // Only `accountIndex` can still reach here on the key path — the other
+  // sub-options are refused above — and it is zeroed so the result cannot
+  // describe a derivation that never happened.
+  const ledgerOptions = useLedger
+    ? {
+        ledgerLive: options.ledgerLive === true,
+        accountIndex,
+        ...(options.derivationPath
+          ? { derivationPath: options.derivationPath }
+          : {}),
+      }
+    : { ledgerLive: false, accountIndex: 0 }
+
+  return {
+    useLedger,
+    ...(useLedger ? {} : { privateKey: options.envPrivateKey }),
+    ledgerOptions,
+  }
+}
+
 /**
  * Initializes a Safe client for a specific network
  * @param network - Network name

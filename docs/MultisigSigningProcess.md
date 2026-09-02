@@ -114,7 +114,22 @@ run only on the branches that actually propose; a staging or testnet-only run, a
   `proposeDiamondCut` (`script/deploy/shared/propose-diamond-cut.ts`), and
   manually via `bun propose-safe-tx`.
 - **TS `sendOrPropose`** (`script/safe/safeScriptHelpers.ts`) — used by
-  `script/tasks/cleanUpProdDiamond.ts`; env private key only, no Ledger.
+  `script/tasks/cleanUpProdDiamond.ts`. Signs the Safe proposal with
+  `PRIVATE_KEY_PRODUCTION` by default, or with a Ledger via `--ledger`
+  (`--ledgerLive` + `--accountIndex <n>`, or `--derivationPath <path>`).
+  Refused rather than silently accepted: the two path options together, a
+  non-integer `--accountIndex`, a non-zero `--accountIndex` without
+  `--ledgerLive` (the Ledger Live path is the only one that reads it), a blank
+  `--derivationPath`, `--ledgerLive` or `--derivationPath` without `--ledger`,
+  any value other than `true`/`false` on `--ledger` / `--ledgerLive`, any of the
+  four flags passed twice, and `--ledger` on a run that would propose more than
+  once — `--all-networks`, or a `--periphery` selection naming several
+  contracts, since each proposal opens its own unclosed Ledger connection and
+  asks for its own device confirmation. The signer is checked against the Safe's
+  owners before the proposal is stored. The direct-send path still signs with the
+  environment key and warns that `--ledger` is ignored, but the flag-format and
+  multi-proposal refusals run before the route is chosen, so a malformed signing
+  flag also fails a staging or testnet run.
 - **Deferred-cleanup drain** (`script/deploy/safe/drain-parked-tasks.ts`) —
   gated on `DRAIN_PARKED_TASKS`, hooked at the tail of `runPropose`
   ([DeferredDiamondCleanupQueue.md](./DeferredDiamondCleanupQueue.md)).
@@ -218,7 +233,8 @@ parked tasks are reconciled weekly by `reconcileParkedTasks.yml`.
 | Stage | Check category | Behavior | Enforced by |
 |---|---|---|---|
 | Propose | CLI input validation: `--to`/`--calldata` pairing, address/hex validity, multi-call requires `--timelock` | Block | `script/deploy/safe/propose-calls.ts`, `timelock-abi.ts` |
-| Propose | Proposer must be a current Safe owner (on-chain `getOwners()`) | Block | `propose-to-safe.ts` (`runPropose`) |
+| Propose | Proposer must be a current Safe owner (on-chain `getOwners()`) | Block | `propose-to-safe.ts` (`runPropose`), `safeScriptHelpers.ts` (`sendOrPropose`) |
+| Propose | Ledger signing flags: unambiguous value, no repeat, no unusable combination, no multi-proposal run (see the `sendOrPropose` bullet in §3) | Block | `script/deploy/safe/cli-flags.ts`, `resolveSafeSigningOptions` in `safe-utils.ts`, `cleanUpProdDiamond.ts` |
 | Propose | Nonce safety: override collision checks, auto-nonce clamped to on-chain | Block / auto-correct | `propose-to-safe.ts`, `getNextNonce` in `safe-utils.ts` |
 | Propose | Duplicate-intent dedup (partial unique index on pending rows) | Block insert | `computeProposalIntentHash` + index in `safe-utils.ts` |
 | Propose | Timelock-wrapped proposals dedup on every EVM path: the `scheduleBatch` salt is derived from the action (chain, timelock, targets, payloads, attempt) instead of the clock, so re-proposing the same wrapped work yields the same salt while that candidate is still free. The timelock is asked whether that operation id exists — **pending blocks** (the proposal duplicates work already scheduled and not executed), **executed** advances to the next deterministic salt so a legitimate repeat does not revert after signing, and 16 taken attempts refuse. Same salt is not the same calldata: `minDelay` is also a `scheduleBatch` argument, so **Safe intent dedup** (`computeProposalIntentHash`) does not apply across an `updateDelay`, nor across `wrapWithTimelockSchedule`'s `getMinDelay` fallback (the task scripts have no fallback — a failed read throws). The **timelock** check is unaffected: `hashOperationBatch` hashes targets, values, payloads, predecessor and salt only, so the pending/executed states still hold across a delay change. **The Tron proposal path still uses a clock salt** and is not covered | Block (pending) / auto-advance (executed) / refuse after 16 | `pickTimelockSalt` in `safe-utils.ts` + `deriveTimelockSalt` in `timelock-abi.ts`; reached via `wrapWithTimelockSchedule` (from `propose-to-safe.ts` and `cleanUpProdDiamond.ts`) and directly from the five `script/tasks/propose{AllBridge,PolymerCCTP,Frax,DeBridgeDln,MegaETHBridge}*.ts` batch builders |
@@ -308,7 +324,7 @@ fleet-wide run ends with zero mainnets unpaused and no obvious cause.
 | `script/deploy/safe/timelock-queue.ts` / `execute-pending-timelock-tx.ts` / `confirm-timelock-execution.ts` / `backfill-timelock-queue.ts` | Timelock queue + executor (`bun execute-timelock`) |
 | `script/deploy/safe/parked-tasks.ts` / `drain-parked-tasks.ts` | Deferred diamond-cleanup queue + drain |
 | `script/deploy/safe/list-pending-proposals.ts` / `list-timelock-queue.ts` / `list-parked-tasks.ts` / `delete-pending-proposals.ts` | Inspection and guarded deletion |
-| `script/safe/safeScriptHelpers.ts` | TS `sendOrPropose` (env-key funnel) |
+| `script/safe/safeScriptHelpers.ts` | TS `sendOrPropose` (env key or `--ledger`) |
 | `script/helperFunctions.sh` | bash `sendOrPropose` chokepoint + deploy logging |
 | `.github/workflows/runPendingTimelockTXs.yml` | "Timelock Auto Execution" 10-min cron |
 | `.github/workflows/reconcileParkedTasks.yml` | Weekly parked-task reconcile + TTL alert |
