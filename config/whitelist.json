@@ -4773,6 +4773,14 @@
               "0xf8989325": ""
             }
           }
+        ],
+        "robinhood": [
+          {
+            "address": "0xCC89feed31b3e59F8e345Feb15c3b58956A88599",
+            "functions": {
+              "0xf8989325": ""
+            }
+          }
         ]
       }
     },
@@ -5318,6 +5326,16 @@
           {
             "selector": "0x5d865df2",
             "signature": "validateNativeOutput(uint256,address)"
+          }
+        ]
+      },
+      {
+        "name": "Composer",
+        "address": "0xbfE34dF90A81113b7D3f943E9925DD1B44e96644",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
           }
         ]
       }

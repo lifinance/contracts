@@ -4,7 +4,7 @@ import {
   it,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
-import { type Hex } from 'viem'
+import { getAddress, type Address, type Hex } from 'viem'
 
 import globalConfig from '../../config/global.json'
 import networksConfig from '../../config/networks.json'
@@ -20,6 +20,11 @@ import {
   RECEIVER_EXECUTOR_GETTERS,
   findDeprecatedLiveFacets,
   splitByParkedCoverage,
+  isStalledParkedClaim,
+  collapseOpenParkedTasks,
+  STALE_PARKED_CLAIM_DAYS,
+  type IOpenParkedCoverage,
+  type OpenParkedByNetwork,
   findDuplicateSelectors,
   getExemptCoreFacets,
   getExemptCorePeriphery,
@@ -33,7 +38,10 @@ import {
   type ICorePeripheryExemption,
   type IInvariantExclusion,
 } from './healthCheckInvariants'
+import { type IPendingRegistration } from './safe/pending-registrations'
+import { DAY_MS } from './shared/constants'
 import { getFacetPeripheryCouplings } from './shared/facetPeripheryCouplings'
+import { collectImmutableBindingChecks } from './shared/immutableBindings'
 
 /** Minimal in-scope context for driving the runner without any RPC. */
 function makeCtx(): IHealthCheckContext {
@@ -163,50 +171,269 @@ describe('findDuplicateSelectors', () => {
   })
 })
 
+describe('isStalledParkedClaim', () => {
+  const NOW = new Date('2026-08-28T00:00:00.000Z')
+  const ago = (days: number) => new Date(NOW.getTime() - days * DAY_MS)
+
+  // Fixtures and the staleness bound both divide by DAY_MS, so a wrong DAY_MS
+  // cancels out and every age assertion below still passes. Pin it literally.
+  it('measures ages in whole days', () => {
+    expect(DAY_MS).toBe(86_400_000)
+  })
+  const task = (over: Partial<IOpenParkedCoverage>): IOpenParkedCoverage => ({
+    prUrl: 'https://github.com/lifinance/contracts/pull/1',
+    status: 'proposed',
+    createdAt: ago(30),
+    ...over,
+  })
+
+  it('flags a claim with no linked proposal once it passes the bound', () => {
+    expect(
+      isStalledParkedClaim(
+        task({ proposedAt: ago(STALE_PARKED_CLAIM_DAYS) }),
+        NOW
+      )
+    ).toBe(true)
+  })
+
+  it('does not flag a claim one day inside the bound', () => {
+    expect(
+      isStalledParkedClaim(
+        task({ proposedAt: ago(STALE_PARKED_CLAIM_DAYS - 1) }),
+        NOW
+      )
+    ).toBe(false)
+  })
+
+  it('never flags a task that carries a linked Safe proposal', () => {
+    expect(
+      isStalledParkedClaim(
+        task({ proposedAt: ago(90), safeTxHash: '0xabc' }),
+        NOW
+      )
+    ).toBe(false)
+  })
+
+  it('never flags a queued task, whatever its age', () => {
+    expect(
+      isStalledParkedClaim(task({ status: 'queued', createdAt: ago(400) }), NOW)
+    ).toBe(false)
+  })
+
+  it('measures from createdAt when proposedAt is missing', () => {
+    expect(
+      isStalledParkedClaim(
+        task({ createdAt: ago(STALE_PARKED_CLAIM_DAYS + 1) }),
+        NOW
+      )
+    ).toBe(true)
+  })
+})
+
+describe('collapseOpenParkedTasks', () => {
+  const ADDR: Address = '0x00000000000000000000000000000000000000A1'
+  const NOW = new Date('2026-08-28T00:00:00.000Z')
+  const ago = (days: number) => new Date(NOW.getTime() - days * DAY_MS)
+
+  // A legacy name-keyed row and an address-keyed row do NOT collide on the open-status
+  // unique index, so both can be open for one address at once.
+  const stalledClaim = {
+    network: 'mantle',
+    facetAddress: ADDR,
+    prUrl: 'https://github.com/lifinance/contracts/pull/2046',
+    status: 'proposed' as const,
+    createdAt: ago(29),
+    proposedAt: ago(STALE_PARKED_CLAIM_DAYS + 3),
+  }
+  const freshQueued = {
+    network: 'mantle',
+    facetAddress: ADDR,
+    prUrl: 'https://github.com/lifinance/contracts/pull/9999',
+    status: 'queued' as const,
+    createdAt: ago(1),
+  }
+
+  it('keeps the stalled claim when a livelier task for the same address follows it', () => {
+    const got = collapseOpenParkedTasks([stalledClaim, freshQueued], NOW)
+    expect(got.get('mantle')?.get(ADDR.toLowerCase())?.status).toBe('proposed')
+  })
+
+  it('keeps the stalled claim when it arrives second', () => {
+    // Order-independence is the whole point: the queue's sort must not decide coverage.
+    const got = collapseOpenParkedTasks([freshQueued, stalledClaim], NOW)
+    expect(got.get('mantle')?.get(ADDR.toLowerCase())?.status).toBe('proposed')
+  })
+
+  it('keeps a single live task when nothing is stalled', () => {
+    const got = collapseOpenParkedTasks([freshQueued], NOW)
+    expect(got.get('mantle')?.get(ADDR.toLowerCase())?.status).toBe('queued')
+  })
+
+  it('keys tasks under their own network', () => {
+    const got = collapseOpenParkedTasks(
+      [freshQueued, { ...freshQueued, network: 'base' }],
+      NOW
+    )
+    expect(got.get('mantle')?.size).toBe(1)
+    expect(got.get('base')?.size).toBe(1)
+  })
+})
+
 describe('splitByParkedCoverage', () => {
   const V1 = '0x00000000000000000000000000000000000000A1'
   const V2 = '0x00000000000000000000000000000000000000a2'
+  const NOW = new Date('2026-08-28T00:00:00.000Z')
   const facet = (name: string, address: string) => ({
     name,
     address: address as Hex,
     selectors: ['0xdeadbeef'] as Hex[],
   })
+  const daysBefore = (days: number) => new Date(NOW.getTime() - days * DAY_MS)
+  /** A live queued task (the common case): no claim, next drain picks it up. */
+  const queued = (createdAt = daysBefore(1)): IOpenParkedCoverage => ({
+    prUrl: 'https://github.com/lifinance/contracts/pull/1',
+    status: 'queued',
+    createdAt,
+  })
+  const coverage = (
+    entries: [string, IOpenParkedCoverage][]
+  ): Map<string, IOpenParkedCoverage> =>
+    new Map(entries.map(([a, t]) => [a.toLowerCase(), t]))
 
   it('counts a facet as covered when an open task carries its exact address', () => {
-    const { parked, unparked } = splitByParkedCoverage(
+    const { live, stalled, unparked } = splitByParkedCoverage(
       [facet('SymbiosisFacet', V1)],
-      new Set([V1.toLowerCase()])
+      coverage([[V1, queued()]]),
+      NOW
     )
-    expect(parked.map((f) => f.address)).toEqual([V1])
+    expect(live.map((f) => f.address)).toEqual([V1])
+    expect(stalled).toHaveLength(0)
     expect(unparked).toHaveLength(0)
   })
 
   it('does NOT count a same-NAME task on a different address as coverage', () => {
     // Both SymbiosisFacet versions routed (EXSC-750) with a task for v1 only: keying
     // on the name would classify v2 as expected-pending and never warn about it.
-    const { parked, unparked } = splitByParkedCoverage(
+    const { live, unparked } = splitByParkedCoverage(
       [facet('SymbiosisFacet', V1), facet('SymbiosisFacet', V2)],
-      new Set([V1.toLowerCase()])
+      coverage([[V1, queued()]]),
+      NOW
     )
-    expect(parked.map((f) => f.address)).toEqual([V1])
+    expect(live.map((f) => f.address)).toEqual([V1])
     expect(unparked.map((f) => f.address)).toEqual([V2])
   })
 
   it('matches addresses case-insensitively', () => {
-    const { parked } = splitByParkedCoverage(
+    const { live } = splitByParkedCoverage(
       [facet('SymbiosisFacet', V1)],
-      new Set([V1.toUpperCase().replace('0X', '0x').toLowerCase()])
+      coverage([[V1.toUpperCase().replace('0X', '0x'), queued()]]),
+      NOW
     )
-    expect(parked).toHaveLength(1)
+    expect(live).toHaveLength(1)
   })
 
   it('reports everything as uncovered when the queue holds no open task', () => {
-    const { parked, unparked } = splitByParkedCoverage(
+    const { live, unparked } = splitByParkedCoverage(
       [facet('SymbiosisFacet', V1)],
-      new Set()
+      coverage([]),
+      NOW
     )
-    expect(parked).toHaveLength(0)
+    expect(live).toHaveLength(0)
     expect(unparked).toHaveLength(1)
+  })
+
+  it('classifies a long-claimed task with no Safe proposal as stalled, not covered', () => {
+    // The mantle GenericSwapFacet failure mode: the drain flipped queued→proposed and
+    // died before linking a proposal, so nothing unattended can ever move it again.
+    const { live, stalled, unparked } = splitByParkedCoverage(
+      [facet('GenericSwapFacet', V1)],
+      coverage([
+        [
+          V1,
+          {
+            prUrl: 'https://github.com/lifinance/contracts/pull/2046',
+            status: 'proposed',
+            createdAt: daysBefore(29),
+            proposedAt: daysBefore(STALE_PARKED_CLAIM_DAYS + 3),
+          },
+        ],
+      ]),
+      NOW
+    )
+    expect(stalled.map((f) => f.address)).toEqual([V1])
+    expect(live).toHaveLength(0)
+    expect(unparked).toHaveLength(0)
+  })
+
+  it('still counts a freshly claimed task as live (a drain holds it briefly)', () => {
+    const { live, stalled } = splitByParkedCoverage(
+      [facet('GenericSwapFacet', V1)],
+      coverage([
+        [
+          V1,
+          {
+            prUrl: 'https://github.com/lifinance/contracts/pull/2046',
+            status: 'proposed',
+            createdAt: daysBefore(29),
+            proposedAt: daysBefore(STALE_PARKED_CLAIM_DAYS - 1),
+          },
+        ],
+      ]),
+      NOW
+    )
+    expect(live.map((f) => f.address)).toEqual([V1])
+    expect(stalled).toHaveLength(0)
+  })
+
+  it('counts an old claim WITH a linked Safe proposal as live (reconcile resolves it)', () => {
+    const { live, stalled } = splitByParkedCoverage(
+      [facet('SymbiosisFacet', V1)],
+      coverage([
+        [
+          V1,
+          {
+            prUrl: 'https://github.com/lifinance/contracts/pull/2108',
+            status: 'proposed',
+            createdAt: daysBefore(60),
+            proposedAt: daysBefore(45),
+            safeTxHash: '0xabc',
+          },
+        ],
+      ]),
+      NOW
+    )
+    expect(live).toHaveLength(1)
+    expect(stalled).toHaveLength(0)
+  })
+
+  it('falls back to createdAt when a proposed task has no proposedAt stamp', () => {
+    const { stalled } = splitByParkedCoverage(
+      [facet('GenericSwapFacet', V1)],
+      coverage([
+        [
+          V1,
+          {
+            prUrl: 'https://github.com/lifinance/contracts/pull/2046',
+            status: 'proposed',
+            createdAt: daysBefore(STALE_PARKED_CLAIM_DAYS + 1),
+          },
+        ],
+      ]),
+      NOW
+    )
+    expect(stalled).toHaveLength(1)
+  })
+
+  it('never treats a queued task as stalled, however old', () => {
+    // `queued` is always reachable: the next drain claims it. Age alone is backlog,
+    // not breakage, and flagging it would red every chain with a slow rollout.
+    const { live, stalled } = splitByParkedCoverage(
+      [facet('SymbiosisFacet', V1)],
+      coverage([[V1, queued(daysBefore(120))]]),
+      NOW
+    )
+    expect(live).toHaveLength(1)
+    expect(stalled).toHaveLength(0)
   })
 })
 
@@ -373,15 +600,96 @@ describe('HEALTH_CHECK_INVARIANTS registry', () => {
     expect(names).toContain('receiver-executor-binding')
   })
 
-  it('includes the queue-aware stale-facet invariant as a production warning', () => {
+  it('includes the queue-aware stale-facet invariant as a production error', () => {
     const inv = HEALTH_CHECK_INVARIANTS.find(
       (i) => i.name === 'no-stale-registered-facets'
     )
     expect(inv).toBeDefined()
-    expect(inv?.severity).toBe('warning')
+    expect(inv?.severity).toBe('error')
     expect(inv?.scope.environments).toEqual(['production'])
     expect(inv?.scope.skipTestnet).toBe(true)
     expect(inv?.readsOnChainFacets).toBe(true)
+  })
+})
+
+describe('no-stale-registered-facets claim liveness', () => {
+  // mantle, because the invariant resolves expected facets from the real
+  // _targetState.json and a synthetic network has no entry (it would early-return).
+  const DEPRECATED = '0x2b7D2C78bd801Cc06DDCF91DeE2e8fAE22814f7e'
+  const PR_URL = 'https://github.com/lifinance/contracts/pull/2046'
+
+  function makeStaleCtx(
+    openParkedRemovals: IHealthCheckContext['openParkedRemovals']
+  ): IHealthCheckContext {
+    const ctx = makeCtx()
+    Object.assign(ctx, {
+      networkLower: 'mantle',
+      // GenericSwapFacet: absent from mantle target state and no src/ source left,
+      // which is exactly the deprecated-but-routed shape this invariant detects.
+      onChainFacets: [{ address: DEPRECATED, selectors: ['0x4630a0d8'] }],
+      deployedContracts: { GenericSwapFacet: DEPRECATED },
+      openParkedRemovals,
+    })
+    return ctx
+  }
+
+  const at = (daysAgo: number) => new Date(Date.now() - daysAgo * DAY_MS)
+
+  const withTask = (task: IOpenParkedCoverage): OpenParkedByNetwork =>
+    new Map([['mantle', new Map([[DEPRECATED.toLowerCase(), task]])]])
+
+  it('fails the run when the covering task is a stalled claim', async () => {
+    const ctx = makeStaleCtx(
+      withTask({
+        prUrl: PR_URL,
+        status: 'proposed',
+        createdAt: at(29),
+        proposedAt: at(STALE_PARKED_CLAIM_DAYS + 3),
+      })
+    )
+    await invariant('no-stale-registered-facets').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('STALLED')
+    expect(ctx.errors[0]).toContain(DEPRECATED)
+    expect(ctx.errors[0]).toContain(PR_URL)
+  })
+
+  it('fails the run when nothing covers the deprecated facet', async () => {
+    const ctx = makeStaleCtx(new Map())
+    await invariant('no-stale-registered-facets').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('NO open parked-removal task')
+  })
+
+  it('stays green while a live queued task covers it', async () => {
+    const ctx = makeStaleCtx(
+      withTask({ prUrl: PR_URL, status: 'queued', createdAt: at(120) })
+    )
+    await invariant('no-stale-registered-facets').run(ctx)
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toEqual([])
+  })
+
+  it('stays green while a claimed task carries a real Safe proposal', async () => {
+    const ctx = makeStaleCtx(
+      withTask({
+        prUrl: PR_URL,
+        status: 'proposed',
+        createdAt: at(60),
+        proposedAt: at(45),
+        safeTxHash: '0xabc',
+      })
+    )
+    await invariant('no-stale-registered-facets').run(ctx)
+    expect(ctx.errors).toEqual([])
+  })
+
+  it('warns without failing when the queue is unreachable', async () => {
+    const ctx = makeStaleCtx({ unreachable: 'connect ECONNREFUSED' })
+    await invariant('no-stale-registered-facets').run(ctx)
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('unreachable')
   })
 })
 
@@ -847,6 +1155,383 @@ describe('runHealthCheckInvariants (runner)', () => {
       ),
     ])
     expect(ran).toBe(false)
+  })
+})
+
+describe('immutable-bindings-match-config invariant', () => {
+  const RECEIVER = '0x2222222222222222222222222222222222222222'
+  const FACET = '0x7777777777777777777777777777777777777777'
+  const OTHER = '0x5555555555555555555555555555555555555555'
+  const DIAMOND = '0x3333333333333333333333333333333333333333'
+  const ZERO = '0x0000000000000000000000000000000000000000'
+
+  const invariant = HEALTH_CHECK_INVARIANTS.find(
+    (i) => i.name === 'immutable-bindings-match-config'
+  ) as IHealthCheckInvariant
+
+  // Taken through the same collector the invariant uses, so the test asserts the wiring rather
+  // than a copy of the config value.
+  const expectedSpokepool = collectImmutableBindingChecks(
+    'mainnet',
+    'production'
+  ).find((c) => c.contractName === 'ReceiverAcrossV4')?.expectedAddress
+
+  /** Only ReceiverAcrossV4 present (via deploy log); its SPOKEPOOL() returns `spokepool`. */
+  function makeBindingsCtx(spokepool: string): IHealthCheckContext {
+    return Object.assign(makeCtx(), {
+      networkLower: 'mainnet',
+      diamondAddress: DIAMOND,
+      deployedContracts: { ReceiverAcrossV4: RECEIVER },
+      coreFacetsToCheck: [],
+      nonCoreFacets: [],
+      // Non-empty so the missing-facet-list guard does not skip the run.
+      onChainFacets: [{ address: FACET, selectors: ['0xffffffff'] }],
+      publicClient: {
+        readContract: async ({ functionName }: { functionName: string }) => {
+          if (functionName === 'getPeripheryContract') return ZERO
+          return spokepool
+        },
+      },
+    } as unknown as IHealthCheckContext)
+  }
+
+  it('is registered as an error-severity check that runs in the on-chain-facets phase', () => {
+    expect(invariant).toBeTruthy()
+    expect(invariant.severity).toBe('error')
+    expect(invariant.readsOnChainFacets).toBe(true)
+  })
+
+  it('mainnet has an across.json spokepool entry (test precondition)', () => {
+    expect(expectedSpokepool).toBeTruthy()
+  })
+
+  it('passes when the on-chain binding matches config', async () => {
+    const ctx = makeBindingsCtx(expectedSpokepool as string)
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+  })
+
+  it('errors when the on-chain binding differs from config', async () => {
+    const ctx = makeBindingsCtx(OTHER)
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('ReceiverAcrossV4.SPOKEPOOL()')
+    expect(ctx.errors[0]).toContain('across.json')
+    expect(ctx.errors[0]).toContain(expectedSpokepool as string)
+  })
+
+  it('errors when the binding is the zero address', async () => {
+    const ctx = makeBindingsCtx(ZERO)
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('zero address')
+  })
+
+  it('warns (not errors) when config has no value for the network', async () => {
+    const ctx = makeBindingsCtx(OTHER)
+    Object.assign(ctx, { networkLower: 'nonexistentchain' })
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings.some((w) => w.includes('cannot verify'))).toBe(true)
+  })
+
+  /** Registry mock that resolves ONLY `name`, so sibling annotations stay out of the way. */
+  function makeSingleContractCtx(
+    name: string,
+    address: string,
+    getterValues: Record<string, string>,
+    extra: Record<string, unknown> = {}
+  ): { ctx: IHealthCheckContext; getterReads: string[] } {
+    const getterReads: string[] = []
+    const ctx = Object.assign(makeCtx(), {
+      networkLower: 'mainnet',
+      diamondAddress: DIAMOND,
+      deployedContracts: {},
+      coreFacetsToCheck: [],
+      nonCoreFacets: [],
+      onChainFacets: [{ address: FACET, selectors: ['0xffffffff'] }],
+      publicClient: {
+        readContract: async ({
+          address: readAddress,
+          functionName,
+          args,
+        }: {
+          address: string
+          functionName: string
+          args?: [string]
+        }) => {
+          if (functionName === 'getPeripheryContract')
+            return args?.[0] === name ? address : ZERO
+          getterReads.push(`${functionName}@${readAddress}`)
+          return getterValues[functionName] ?? OTHER
+        },
+      },
+      ...extra,
+    } as unknown as IHealthCheckContext)
+    return { ctx, getterReads }
+  }
+
+  it('prefers the PeripheryRegistry address over the deploy log for periphery', async () => {
+    // ReceiverOIF is live on some chains with no deploy-log entry, so a log-only lookup would
+    // silently exempt it from this check.
+    const { ctx, getterReads } = makeSingleContractCtx(
+      'ReceiverAcrossV4',
+      OTHER,
+      { SPOKEPOOL: expectedSpokepool as string },
+      { deployedContracts: { ReceiverAcrossV4: RECEIVER } }
+    )
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+    expect(getterReads).toEqual([`SPOKEPOOL@${getAddress(OTHER)}`])
+  })
+
+  it('does not verify a facet whose deploy-log address is not registered in the diamond', async () => {
+    // The deploy->diamondCut window: the log names a freshly deployed facet built against the
+    // NEW config while the diamond still serves the old one. Reading the log address would
+    // report the stale live binding as healthy.
+    const { ctx, getterReads } = makeSingleContractCtx(
+      'MayanFacet',
+      ZERO,
+      {},
+      {
+        deployedContracts: { MayanFacet: OTHER },
+        nonCoreFacets: ['MayanFacet'],
+      }
+    )
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+    expect(
+      ctx.warnings.some(
+        (w) => w.includes('MayanFacet') && w.includes('not registered')
+      )
+    ).toBe(true)
+    expect(getterReads).toEqual([])
+  })
+
+  it('verifies a facet at the address the diamond actually serves', async () => {
+    const expectedMayan = collectImmutableBindingChecks(
+      'mainnet',
+      'production'
+    ).find((c) => c.contractName === 'MayanFacet')?.expectedAddress
+    expect(expectedMayan).toBeTruthy()
+
+    const registryQueries: string[] = []
+    const ctx = Object.assign(makeCtx(), {
+      networkLower: 'mainnet',
+      diamondAddress: DIAMOND,
+      deployedContracts: { MayanFacet: FACET },
+      coreFacetsToCheck: [],
+      nonCoreFacets: ['MayanFacet'],
+      onChainFacets: [{ address: FACET, selectors: ['0xffffffff'] }],
+      publicClient: {
+        readContract: async ({
+          address,
+          functionName,
+          args,
+        }: {
+          address: string
+          functionName: string
+          args?: [string]
+        }) => {
+          if (functionName === 'getPeripheryContract') {
+            registryQueries.push(args?.[0] as string)
+            return ZERO
+          }
+          return address === getAddress(FACET) ? expectedMayan : OTHER
+        },
+      },
+    } as unknown as IHealthCheckContext)
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors.filter((e) => e.includes('MayanFacet'))).toEqual([])
+    // A facet is not periphery: querying the registry for it would be a wasted read whose
+    // deploy-log fallback is exactly the false pass this branch exists to avoid.
+    expect(registryQueries).not.toContain('MayanFacet')
+  })
+
+  it('skips facet entries with a warning when the facet list is unavailable', async () => {
+    const { ctx, getterReads } = makeSingleContractCtx(
+      'MayanFacet',
+      ZERO,
+      {},
+      {
+        deployedContracts: { MayanFacet: FACET },
+        nonCoreFacets: ['MayanFacet'],
+        onChainFacets: [],
+      }
+    )
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings.some((w) => w.includes('facet list unavailable'))).toBe(
+      true
+    )
+    expect(getterReads).toEqual([])
+  })
+})
+
+describe('immutable-bindings-match-config legacy getter fallback', () => {
+  const FACET = '0x7777777777777777777777777777777777777777'
+  const ZERO = '0x0000000000000000000000000000000000000000'
+
+  const invariant = HEALTH_CHECK_INVARIANTS.find(
+    (i) => i.name === 'immutable-bindings-match-config'
+  ) as IHealthCheckInvariant
+
+  const expectedDlnSource = collectImmutableBindingChecks(
+    'mainnet',
+    'production'
+  ).find((c) => c.contractName === 'DeBridgeDlnFacet')?.expectedAddress
+
+  /** DeBridgeDlnFacet live at FACET; `failWith` is thrown for the current getter name. */
+  function makeCtx2(failWith: string): {
+    ctx: IHealthCheckContext
+    calls: string[]
+  } {
+    const calls: string[] = []
+    const ctx = Object.assign(makeCtx(), {
+      networkLower: 'mainnet',
+      diamondAddress: FACET,
+      deployedContracts: { DeBridgeDlnFacet: FACET },
+      coreFacetsToCheck: [],
+      nonCoreFacets: ['DeBridgeDlnFacet'],
+      onChainFacets: [{ address: FACET, selectors: ['0xffffffff'] }],
+      publicClient: {
+        readContract: async ({ functionName }: { functionName: string }) => {
+          if (functionName === 'getPeripheryContract') return ZERO
+          calls.push(functionName)
+          if (functionName === 'DLN_SOURCE') throw new Error(failWith)
+          return expectedDlnSource
+        },
+      },
+    } as unknown as IHealthCheckContext)
+    return { ctx, calls }
+  }
+
+  it('has a precondition: the annotation carries a legacy name', () => {
+    expect(expectedDlnSource).toBeTruthy()
+  })
+
+  it('falls back to the pre-rename getter when the current one reverts', () => {
+    const { ctx, calls } = makeCtx2(
+      'The contract function "DLN_SOURCE" reverted.'
+    )
+
+    return invariant.run(ctx).then(() => {
+      expect(ctx.errors).toEqual([])
+      expect(ctx.warnings).toEqual([])
+      expect(calls).toEqual(['DLN_SOURCE', 'dlnSource'])
+    })
+  })
+
+  it('does not try legacy getters when the RPC itself is unreachable', async () => {
+    // An unreachable node says nothing about which getters exist; retrying would just multiply
+    // reads during an outage, and the binding is honestly unverified either way.
+    const { ctx, calls } = makeCtx2('HTTP request failed.')
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings.some((w) => w.includes('left unverified'))).toBe(true)
+    expect(calls).toEqual(['DLN_SOURCE'])
+  })
+})
+
+describe('immutable-bindings-match-config Tron client guard', () => {
+  const invariant = HEALTH_CHECK_INVARIANTS.find(
+    (i) => i.name === 'immutable-bindings-match-config'
+  ) as IHealthCheckInvariant
+
+  it('skips with a warning rather than comparing base58 against checksummed hex', async () => {
+    // Tron config values are base58. Without TronWeb the expected side cannot be normalized, so
+    // every comparison would fail on encoding and look like fleet-wide drift.
+    const reads: string[] = []
+    const ctx = Object.assign(makeCtx(), {
+      networkLower: 'tron',
+      isTron: true,
+      tronWeb: undefined,
+      tronRpcUrl: undefined,
+      deployedContracts: { EcoFacet: 'TVQY5uYUJHqPJ3kmpKcQmiRcaEbGvJYVfR' },
+      coreFacetsToCheck: [],
+      nonCoreFacets: ['EcoFacet'],
+      onChainFacets: [
+        {
+          address: 'TVQY5uYUJHqPJ3kmpKcQmiRcaEbGvJYVfR',
+          selectors: ['0xffffffff'],
+        },
+      ],
+      publicClient: {
+        readContract: async ({ functionName }: { functionName: string }) => {
+          reads.push(functionName)
+          return '0x0000000000000000000000000000000000000000'
+        },
+      },
+    } as unknown as IHealthCheckContext)
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+    expect(
+      ctx.warnings.some((w) => w.includes('Tron client unavailable'))
+    ).toBe(true)
+    expect(reads).toEqual([])
+  })
+})
+
+describe('immutable-bindings-match-config zero-data fallback', () => {
+  const FACET = '0x7777777777777777777777777777777777777777'
+  const ZERO = '0x0000000000000000000000000000000000000000'
+
+  const invariant = HEALTH_CHECK_INVARIANTS.find(
+    (i) => i.name === 'immutable-bindings-match-config'
+  ) as IHealthCheckInvariant
+
+  it('tries a legacy getter when the call returns no data instead of reverting', async () => {
+    // viem raises this instead of a revert when a call yields "0x" — a getter-shaped absence
+    // just like a revert, so the fallback has to treat both the same.
+    const expected = collectImmutableBindingChecks(
+      'mainnet',
+      'production'
+    ).find((c) => c.contractName === 'DeBridgeDlnFacet')?.expectedAddress
+    const calls: string[] = []
+    const ctx = Object.assign(makeCtx(), {
+      networkLower: 'mainnet',
+      diamondAddress: FACET,
+      deployedContracts: { DeBridgeDlnFacet: FACET },
+      coreFacetsToCheck: [],
+      nonCoreFacets: ['DeBridgeDlnFacet'],
+      onChainFacets: [{ address: FACET, selectors: ['0xffffffff'] }],
+      publicClient: {
+        readContract: async ({ functionName }: { functionName: string }) => {
+          if (functionName === 'getPeripheryContract') return ZERO
+          calls.push(functionName)
+          if (functionName === 'DLN_SOURCE')
+            throw new Error(
+              'The contract function "DLN_SOURCE" returned no data ("0x").'
+            )
+          return expected
+        },
+      },
+    } as unknown as IHealthCheckContext)
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+    expect(calls).toEqual(['DLN_SOURCE', 'dlnSource'])
   })
 })
 
@@ -1481,8 +2166,15 @@ describe('no-unexpected-facets parked-removal coverage', () => {
     return ctx
   }
 
-  const covering = (): Map<string, Map<string, string>> =>
-    new Map([['testnet1', new Map([[PRUNED.toLowerCase(), PR_URL]])]])
+  /** A live queued task — this invariant only reads `prUrl`, but the shape must match. */
+  const task = (): IOpenParkedCoverage => ({
+    prUrl: PR_URL,
+    status: 'queued',
+    createdAt: new Date('2026-08-27T00:00:00.000Z'),
+  })
+
+  const covering = (): OpenParkedByNetwork =>
+    new Map([['testnet1', new Map([[PRUNED.toLowerCase(), task()]])]])
 
   it('downgrades a routed-but-pruned facet to expected-pending when a parked removal covers it', async () => {
     const ctx = makePrunedCtx(covering())
@@ -1495,7 +2187,7 @@ describe('no-unexpected-facets parked-removal coverage', () => {
       new Map([
         [
           'testnet1',
-          new Map([['0xdddd000000000000000000000000000000000004', PR_URL]]),
+          new Map([['0xdddd000000000000000000000000000000000004', task()]]),
         ],
       ])
     )
@@ -1505,7 +2197,7 @@ describe('no-unexpected-facets parked-removal coverage', () => {
 
   it('keys coverage by network, not fleet-wide', async () => {
     const ctx = makePrunedCtx(
-      new Map([['othernet', new Map([[PRUNED.toLowerCase(), PR_URL]])]])
+      new Map([['othernet', new Map([[PRUNED.toLowerCase(), task()]])]])
     )
     await invariant('no-unexpected-facets').run(ctx)
     expect(ctx.warnings).toHaveLength(1)
@@ -1528,6 +2220,34 @@ describe('no-unexpected-facets parked-removal coverage', () => {
     const ctx = makePrunedCtx(covering(), { isTestnet: true })
     await invariant('no-unexpected-facets').run(ctx)
     expect(ctx.warnings).toHaveLength(1)
+  })
+
+  it('does NOT downgrade when the covering task is a stalled claim', async () => {
+    // The prune was licensed by an open task; once that claim dies this invariant is the
+    // only one left watching the address, since the other resolves names via the log.
+    const ctx = makePrunedCtx(
+      new Map([
+        [
+          'testnet1',
+          new Map([
+            [
+              PRUNED.toLowerCase(),
+              {
+                prUrl: PR_URL,
+                status: 'proposed' as const,
+                createdAt: new Date(Date.now() - 40 * DAY_MS),
+                proposedAt: new Date(
+                  Date.now() - (STALE_PARKED_CLAIM_DAYS + 2) * DAY_MS
+                ),
+              },
+            ],
+          ]),
+        ],
+      ])
+    )
+    await invariant('no-unexpected-facets').run(ctx)
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('no longer progressing')
   })
 
   it('warns on the uncovered facet while downgrading the covered one', async () => {
@@ -1679,5 +2399,325 @@ describe('receiver read failures separate broken contracts from flaky RPCs', () 
     await invariant('receiver-executor-binding').run(ctx)
     expect(ctx.errors).toEqual([])
     expect(ctx.warnings.some((w) => w.includes('ReceiverOIF'))).toBe(true)
+  })
+})
+
+describe('facets-registered scheduled-registration coverage', () => {
+  const EXPECTED_FACET = 'FraxFacet'
+  const FACET_ADDRESS = '0xAAAA000000000000000000000000000000000011'
+  const DIAMOND = '0xD1A0000000000000000000000000000000000001'
+  const ROUTED = '0xBBBB000000000000000000000000000000000012'
+  const OPERATION_ID = `0x${'cd'.repeat(32)}` as Hex
+
+  /** A network whose diamond routes one facet while the target state expects two. */
+  function makeMissingCtx(
+    pendingRegistrations: IHealthCheckContext['pendingRegistrations'],
+    extra: Partial<IHealthCheckContext> = {}
+  ): IHealthCheckContext {
+    const ctx = makeCtx()
+    Object.assign(ctx, {
+      diamondAddress: DIAMOND,
+      coreFacetsToCheck: ['DiamondCutFacet'],
+      nonCoreFacets: [EXPECTED_FACET],
+      deployedContracts: {
+        DiamondCutFacet: ROUTED,
+        [EXPECTED_FACET]: FACET_ADDRESS,
+      },
+      publicClient: {
+        // Only the already-routed facet comes back from the loupe.
+        readContract: async () => [
+          { facetAddress: ROUTED, functionSelectors: ['0x11111111'] },
+        ],
+      },
+      pendingRegistrations,
+      ...extra,
+    })
+    return ctx
+  }
+
+  const covering = (
+    target = DIAMOND
+  ): Map<string, Map<string, IPendingRegistration[]>> =>
+    new Map([
+      [
+        'testnet1',
+        new Map([
+          [
+            FACET_ADDRESS.toLowerCase(),
+            [
+              {
+                address: FACET_ADDRESS.toLowerCase(),
+                operationId: OPERATION_ID,
+                target: target.toLowerCase(),
+              },
+            ],
+          ],
+        ]),
+      ],
+    ])
+
+  it('errors on the unregistered facet when nothing is scheduled', async () => {
+    const ctx = makeMissingCtx(new Map())
+    await invariant('facets-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain(EXPECTED_FACET)
+  })
+
+  it('downgrades to expected-pending when a queued operation registers it', async () => {
+    const ctx = makeMissingCtx(covering())
+    await invariant('facets-registered').run(ctx)
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toEqual([])
+  })
+
+  it('still errors when the queued operation targets another contract', async () => {
+    const ctx = makeMissingCtx(covering(ROUTED))
+    await invariant('facets-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+  })
+
+  it('still errors when the queued operation registers a different address', async () => {
+    const ctx = makeMissingCtx(
+      new Map([
+        [
+          'testnet1',
+          new Map([
+            [
+              '0xffff000000000000000000000000000000000099',
+              [
+                {
+                  address: '0xffff000000000000000000000000000000000099',
+                  operationId: OPERATION_ID,
+                  target: DIAMOND.toLowerCase(),
+                },
+              ],
+            ],
+          ]),
+        ],
+      ])
+    )
+    await invariant('facets-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+  })
+
+  // A registry entry routes no selectors, so it cannot stand in for the missing cut.
+  it('still errors when the only queued record is a periphery registration', async () => {
+    const ctx = makeMissingCtx(
+      new Map([
+        [
+          'testnet1',
+          new Map([
+            [
+              FACET_ADDRESS.toLowerCase(),
+              [
+                {
+                  address: FACET_ADDRESS.toLowerCase(),
+                  peripheryName: 'SomeName',
+                  operationId: OPERATION_ID,
+                  target: DIAMOND.toLowerCase(),
+                },
+              ],
+            ],
+          ]),
+        ],
+      ])
+    )
+    await invariant('facets-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain(EXPECTED_FACET)
+  })
+
+  it('keys coverage by network, not fleet-wide', async () => {
+    const ctx = makeMissingCtx(
+      new Map([
+        [
+          'othernet',
+          new Map([
+            [
+              FACET_ADDRESS.toLowerCase(),
+              [
+                {
+                  address: FACET_ADDRESS.toLowerCase(),
+                  operationId: OPERATION_ID,
+                  target: DIAMOND.toLowerCase(),
+                },
+              ],
+            ],
+          ]),
+        ],
+      ])
+    )
+    await invariant('facets-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+  })
+
+  it('keeps the error and warns about reduced coverage when the queue is unreachable', async () => {
+    const ctx = makeMissingCtx({ unreachable: 'connect ECONNREFUSED' })
+    await invariant('facets-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('Timelock queue unreachable')
+  })
+
+  it('does not consult the queue on staging', async () => {
+    const ctx = makeMissingCtx(covering(), { environment: 'staging' })
+    await invariant('facets-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+  })
+
+  it('does not consult the queue on testnets', async () => {
+    const ctx = makeMissingCtx(covering(), { isTestnet: true })
+    await invariant('facets-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+  })
+
+  // Tron rolls out through contracts-tron, not the EVM timelock queue, so a row that
+  // happens to carry a matching address must never downgrade a Tron network.
+  it('does not consult the queue on Tron', async () => {
+    const ctx = makeMissingCtx(covering(), { isTron: true })
+    await invariant('facets-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+  })
+
+  it('does not touch the queue when every expected facet is routed', async () => {
+    let consulted = false
+    const ctx = makeMissingCtx(new Map(), { nonCoreFacets: [] })
+    // Defined after the context is built: Object.assign would read the getter while
+    // copying, tripping the flag before the invariant ever runs.
+    Object.defineProperty(ctx, 'pendingRegistrations', {
+      get() {
+        consulted = true
+        return new Map()
+      },
+    })
+    await invariant('facets-registered').run(ctx)
+    expect(ctx.errors).toEqual([])
+    expect(consulted).toBe(false)
+  })
+})
+
+describe('periphery-registered scheduled-registration coverage', () => {
+  const DIAMOND = '0xD1A0000000000000000000000000000000000002'
+  const OTHER_TARGET = '0xD1A0000000000000000000000000000000000003'
+  const EXECUTOR = '0xEEEE000000000000000000000000000000000021'
+  const OPERATION_ID = `0x${'ef'.repeat(32)}` as Hex
+
+  function makePeripheryCtx(
+    pendingRegistrations: IHealthCheckContext['pendingRegistrations'],
+    extra: Partial<IHealthCheckContext> = {}
+  ): IHealthCheckContext {
+    const ctx = makeCtx()
+    Object.assign(ctx, {
+      diamondAddress: DIAMOND,
+      deployedContracts: { Executor: EXECUTOR },
+      targetState: {
+        testnet1: { production: { LiFiDiamond: { Executor: '1.0.0' } } },
+      },
+      globalConfig: { ...globalConfig, whitelistPeripheryFunctions: {} },
+      publicClient: {
+        // The registry resolves nothing — Executor is not registered yet.
+        readContract: async () => '0x0000000000000000000000000000000000000000',
+      },
+      pendingRegistrations,
+      ...extra,
+    })
+    return ctx
+  }
+
+  const covering = (
+    peripheryName = 'Executor',
+    target = DIAMOND
+  ): Map<string, Map<string, IPendingRegistration[]>> =>
+    new Map([
+      [
+        'testnet1',
+        new Map([
+          [
+            EXECUTOR.toLowerCase(),
+            [
+              {
+                address: EXECUTOR.toLowerCase(),
+                peripheryName,
+                operationId: OPERATION_ID,
+                target: target.toLowerCase(),
+              },
+            ],
+          ],
+        ]),
+      ],
+    ])
+
+  it('errors when nothing is scheduled', async () => {
+    const ctx = makePeripheryCtx(new Map())
+    await invariant('periphery-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('Executor')
+  })
+
+  it('downgrades to expected-pending when a queued operation registers it', async () => {
+    const ctx = makePeripheryCtx(covering())
+    await invariant('periphery-registered').run(ctx)
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toEqual([])
+  })
+
+  // The registry is keyed by name: registering this address under a different name
+  // leaves getPeripheryContract('Executor') unset, so it must not downgrade.
+  it('still errors when the queued operation registers the address under another name', async () => {
+    const ctx = makePeripheryCtx(covering('Other'))
+    await invariant('periphery-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('Executor')
+  })
+
+  it('still errors when the queued operation targets another contract', async () => {
+    const ctx = makePeripheryCtx(covering('Executor', OTHER_TARGET))
+    await invariant('periphery-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('Executor')
+  })
+
+  // Both names resolve, so every address the registry returns is one the diamond expects —
+  // only the name each is bound to is wrong. Both contracts are misregistered.
+  it('errors on both when two periphery contracts are registered under each others names', async () => {
+    const FEE_FORWARDER = '0xFFEE000000000000000000000000000000000022'
+    const ctx = makePeripheryCtx(new Map(), {
+      deployedContracts: { Executor: EXECUTOR, FeeForwarder: FEE_FORWARDER },
+      targetState: {
+        testnet1: {
+          production: {
+            LiFiDiamond: { Executor: '1.0.0', FeeForwarder: '1.0.0' },
+          },
+        },
+      },
+      publicClient: {
+        // Checksummed, as a real `readContract` returns them: a raw-case literal would
+        // make the comparison differ on casing alone, so the test would pass without
+        // exercising the name binding at all.
+        readContract: async ({ args }: { args: string[] }) =>
+          args[0] === 'Executor'
+            ? getAddress(FEE_FORWARDER)
+            : getAddress(EXECUTOR),
+      },
+    } as unknown as Partial<IHealthCheckContext>)
+    await invariant('periphery-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(2)
+    expect(ctx.errors.join('\n')).toContain('Executor')
+    expect(ctx.errors.join('\n')).toContain('FeeForwarder')
+  })
+
+  it('keeps the error and warns about reduced coverage when the queue is unreachable', async () => {
+    const ctx = makePeripheryCtx({ unreachable: 'connect ECONNREFUSED' })
+    await invariant('periphery-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('Timelock queue unreachable')
+  })
+
+  // Tron rolls out through contracts-tron, which writes no EVM timelock queue row.
+  it('does not consult the queue on Tron', async () => {
+    const ctx = makePeripheryCtx(covering(), { isTron: true })
+    await invariant('periphery-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
   })
 })

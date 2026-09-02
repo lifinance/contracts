@@ -36,7 +36,7 @@ Two structural gaps make this worse than "just run the script 71 times":
   already know the list and type it in.
 
 The routine per-facet upgrade flow does not help either. `UpdateScriptBase.sol`
-(`buildDiamondCut`, lines 139–210) only reconciles add/replace/remove of
+(`buildDiamondCut`) only reconciles add/replace/remove of
 selectors **within the single named facet being updated**; it never removes a
 facet that was dropped from target state, because no update script names a
 deleted facet.
