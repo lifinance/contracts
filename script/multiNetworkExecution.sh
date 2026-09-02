@@ -1242,8 +1242,8 @@ function getProgressSummary() {
 }
 
 # notifyProposalsCreatedToSlack: Posts ONE Slack message after a proposal-creation run,
-# summarizing how many proposals were created (naming the network when there is exactly one,
-# otherwise just counting the networks), with a reminder to sign and schedule.
+# rendering a card from the proposal documents (reason, proposer, PR, per-network review
+# command), falling back to a count-only summary line if the render fails.
 # Reads the progress tracking file; no-ops unless the run's actionType is "proposal" and at
 # least one network succeeded. Posts to #dev-sc-multisig-proposals via
 # script/utils/send-slack-webhook-message.ts (requires WEBHOOK_DEV_SC_MULTISIG_PROPOSALS in .env;
@@ -1276,19 +1276,22 @@ function notifyProposalsCreatedToSlack() {
 
     local PROPOSAL_CONTRACT=$(jq -r '.contract // "unknown"' "$PROGRESS_TRACKING_FILE" 2>/dev/null || echo "unknown")
 
-    # message format follows the #dev-sc-multisig-proposals house style: "<N>x <what> ..."
-    # one network: name it; multiple: count them instead of listing (keeps the message short)
-    local MESSAGE
-    if [[ "$PROPOSAL_COUNT" -eq 1 ]]; then
-        MESSAGE="1x proposal created: $PROPOSAL_CONTRACT on ${SUCCESSFUL_NETWORKS[0]} — please sign and schedule 🙏"
-    else
-        MESSAGE="${PROPOSAL_COUNT}x proposals created: $PROPOSAL_CONTRACT across $PROPOSAL_COUNT networks — please sign and schedule 🙏"
-    fi
-
     logWithTimestamp "Posting proposal-creation summary to Slack (#dev-sc-multisig-proposals)..."
     local MESSAGE_FILE
     MESSAGE_FILE=$(mktemp)
-    printf '%s\n' "$MESSAGE" >"$MESSAGE_FILE"
+
+    # A worse message is acceptable; a missing signing ask is not.
+    local NETWORK_LIST
+    NETWORK_LIST=$(IFS=,; printf '%s' "${SUCCESSFUL_NETWORKS[*]}")
+    if ! bunx tsx script/deploy/safe/render-proposal-card.ts --networks "$NETWORK_LIST" --contract "$PROPOSAL_CONTRACT" --out "$MESSAGE_FILE"; then
+        logWithTimestamp "Warning: could not render the proposal card - falling back to the summary line"
+        if [[ "$PROPOSAL_COUNT" -eq 1 ]]; then
+            printf '%s\n' "1x proposal created: $PROPOSAL_CONTRACT on ${SUCCESSFUL_NETWORKS[0]} — please sign and schedule 🙏" >"$MESSAGE_FILE"
+        else
+            printf '%s\n' "${PROPOSAL_COUNT}x proposals created: $PROPOSAL_CONTRACT across $PROPOSAL_COUNT networks — please sign and schedule 🙏" >"$MESSAGE_FILE"
+        fi
+    fi
+
     bunx tsx script/utils/send-slack-webhook-message.ts --channel dev-sc-multisig-proposals --message-file "$MESSAGE_FILE" || logWithTimestamp "Warning: Failed to send proposal-creation Slack notification"
     rm -f "$MESSAGE_FILE"
 
@@ -2375,7 +2378,6 @@ function executeNetworksByGroup() {
         fi
     }
 
-    # For proposal runs: post a single Slack summary (count + chains + sign-and-schedule reminder)
     # Called exactly once per run, before cleanupProgressTracking removes the progress file
     notifyProposalsCreatedToSlack
 
