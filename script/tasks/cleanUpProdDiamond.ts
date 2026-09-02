@@ -946,7 +946,7 @@ function printAddressRemoval(result: IAddressRemovalResult): void {
 
   if (result.unverifiable.length > 0)
     consola.error(
-      `🛑 REFUSED (cannot verify removability — the network has no target-state entry, or the selector unions are unavailable; run "forge build" and retry): ${result.unverifiable.join(
+      `🛑 REFUSED (cannot verify removability — the network has no target-state entry, or the selector unions could not be built from out/): ${result.unverifiable.join(
         ', '
       )}`
     )
