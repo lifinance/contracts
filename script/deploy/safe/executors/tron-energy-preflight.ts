@@ -21,8 +21,6 @@ import type { IChainSimulateResult } from '../../../common/types'
 import { redactErrorReason } from '../../../utils/redactUrls'
 
 import { fallbackExplicitlyAllowed } from './gas-with-fallback'
-import type { ITronEnergyCost } from './tron-energy-estimate'
-
 /** The env var the devkit reads for its cap, named in refusals so it can be raised. */
 export const TRON_FEE_LIMIT_ENV = 'TRON_SAFE_EXEC_FEE_LIMIT_SUN'
 
@@ -33,8 +31,8 @@ export interface ITronEnergyPreflightOptions {
   operation: string
   /** SUN the devkit will cap this transaction at. */
   feeLimitSun: number
-  /** Cost of that much energy at current chain prices, and whether the price was read. */
-  costInSun: (energy: bigint) => Promise<ITronEnergyCost>
+  /** Cost of that much energy at the chain's current rate. Throws if unreadable. */
+  costInSun: (energy: bigint) => Promise<bigint>
 }
 
 export interface ITronEnergyPreflightResult {
@@ -110,9 +108,9 @@ export const assertTronBroadcastAffordable = async (
 
   const estimatedEnergy = simulated.estimatedResource
 
-  let cost: ITronEnergyCost
+  let costSun: bigint
   try {
-    cost = await options.costInSun(estimatedEnergy)
+    costSun = await options.costInSun(estimatedEnergy)
   } catch (error) {
     // Inside the redaction boundary for the same reason as the estimate above:
     // the endpoint is embedded in these errors and provider credentials ride in
@@ -127,12 +125,6 @@ export const assertTronBroadcastAffordable = async (
     )
   }
 
-  const { costSun, priceConfirmed } = cost
-  const priceNote = priceConfirmed
-    ? ''
-    : `\n  The chain's energy price could not be read, so this cost is an unconfirmed upper ` +
-      `bound computed from the devkit's fallback rate, which is above the usual mainnet price.`
-
   if (costSun > BigInt(feeLimitSun)) {
     if (!fallbackExplicitlyAllowed(networkName))
       throw new Error(
@@ -142,7 +134,7 @@ export const assertTronBroadcastAffordable = async (
           `  Broadcasting would not fail cleanly: the call runs until the limit is spent ` +
           `and aborts part-way, leaving the operation neither applied nor abandoned while ` +
           `the energy is still charged.\n` +
-          `  Raise ${TRON_FEE_LIMIT_ENV} to at least ${costSun}, or split the batch.${priceNote} ` +
+          `  Raise ${TRON_FEE_LIMIT_ENV} to at least ${costSun}, or split the batch. ` +
           `${escapeHatchNote(networkName)}`
       )
 

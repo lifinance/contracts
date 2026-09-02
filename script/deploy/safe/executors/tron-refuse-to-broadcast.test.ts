@@ -18,7 +18,6 @@ import type { Address, Hex } from 'viem'
 import type { IChainExecutionParams } from '../../../common/types'
 
 import { TronChainCaller } from './tron-caller'
-import type { ITronEnergyCost } from './tron-energy-estimate'
 import { TronChainExecutor } from './tron-executor'
 
 /** Obviously fake, and built rather than written so it is not a key-shaped literal. */
@@ -29,10 +28,7 @@ const SAFE = '0x2222222222222222222222222222222222222222' as Address
 const DATA = '0xdeadbeef' as Hex
 
 /** 100 SUN per energy, so 500_000 energy is exactly the 50 TRX default limit. */
-const costInSun = async (energy: bigint): Promise<ITronEnergyCost> => ({
-  costSun: energy * 100n,
-  priceConfirmed: true,
-})
+const costInSun = async (energy: bigint): Promise<bigint> => energy * 100n
 
 const failingEstimate = async (): Promise<bigint> => {
   throw new Error('triggerconstantcontract failed: 503 Service Unavailable')

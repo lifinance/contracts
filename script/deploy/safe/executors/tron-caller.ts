@@ -27,7 +27,6 @@ import {
   configuredTronFeeLimitSun,
   estimateTronEnergy,
   tronEnergyCostInSun,
-  type ITronEnergyCost,
 } from './tron-energy-estimate'
 import { assertTronBroadcastAffordable } from './tron-energy-preflight'
 
@@ -38,7 +37,7 @@ import { assertTronBroadcastAffordable } from './tron-energy-preflight'
 export interface ITronCallerDeps {
   broadcast?: typeof broadcastTronContractCall
   estimateEnergy?: (params: IChainCallParams) => Promise<bigint>
-  costInSun?: (energy: bigint) => Promise<ITronEnergyCost>
+  costInSun?: (energy: bigint) => Promise<bigint>
 }
 
 export class TronChainCaller implements IChainCaller {
@@ -46,7 +45,7 @@ export class TronChainCaller implements IChainCaller {
 
   private readonly broadcast: typeof broadcastTronContractCall
   private readonly estimateEnergy: (params: IChainCallParams) => Promise<bigint>
-  private readonly costInSun: (energy: bigint) => Promise<ITronEnergyCost>
+  private readonly costInSun: (energy: bigint) => Promise<bigint>
 
   public constructor(
     private readonly networkKey: TronTvmNetworkName,
@@ -129,7 +128,7 @@ export class TronChainCaller implements IChainCaller {
     })
   }
 
-  private async costInSunOnChain(energy: bigint): Promise<ITronEnergyCost> {
+  private async costInSunOnChain(energy: bigint): Promise<bigint> {
     return tronEnergyCostInSun(this.tronWeb(), energy)
   }
 }

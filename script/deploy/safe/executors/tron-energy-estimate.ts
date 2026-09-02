@@ -15,13 +15,11 @@
 
 import {
   DEFAULT_SAFETY_MARGIN,
-  FALLBACK_ENERGY_PRICE_TRX,
   MAX_RETRIES,
   RETRY_DELAY,
   TRON_TRIGGER_ESTIMATE_FEE_LIMIT_SUN,
   TRON_WALLET_API_FETCH_TIMEOUT_MS,
   buildTronWalletJsonPostHeaders,
-  getCurrentPrices,
   getTronRPCConfig,
   resolveTronWebRpcUrlToFullHost,
   type TronTvmNetworkName,
@@ -38,8 +36,6 @@ const TRON_DEFAULT_FEE_LIMIT_SUN = 50_000_000
 /** The env var the devkit reads for that cap. */
 export const TRON_FEE_LIMIT_SUN_ENV = 'TRON_SAFE_EXEC_FEE_LIMIT_SUN'
 
-const SUN_PER_TRX = 1_000_000
-
 export interface ITronEnergyEstimateParams {
   networkKey: TronTvmNetworkName
   /** Base58 address the call is made from. */
@@ -54,17 +50,56 @@ export interface ITronEnergyEstimateParams {
   sleep?: (ms: number) => Promise<void>
 }
 
-export interface ITronEnergyCost {
-  costSun: bigint
-  /**
-   * False when the chain's energy price could not be read and the devkit
-   * substituted its constant, so `costSun` is an unconfirmed upper bound.
-   */
-  priceConfirmed: boolean
-}
-
 const realSleep = (ms: number): Promise<void> =>
   new Promise((resolve) => setTimeout(resolve, ms))
+
+/**
+ * An estimate failure, tagged with whether trying again could change it.
+ *
+ * A transport failure might; a node answering "this call would revert" will
+ * not, and retrying it only spends the operator's time before the same refusal.
+ */
+class TronEstimateError extends Error {
+  public constructor(message: string, public readonly retryable: boolean) {
+    super(message)
+    this.name = 'TronEstimateError'
+  }
+}
+
+/**
+ * Newest energy price at or before now, in SUN, from Tron's
+ * `getEnergyPrices` history string (`<ms>:<sunPerEnergy>,...`).
+ *
+ * @param priceString - The history as the node returns it.
+ * @returns Price in SUN per energy.
+ * @throws When the string carries no usable price.
+ */
+export const latestEnergyPriceSun = (priceString: string): number => {
+  const now = Date.now()
+  const entries = priceString
+    .split(',')
+    .map((entry) => entry.split(':'))
+    .map(([timestamp, price]) => ({
+      timestamp: Number(timestamp),
+      price: Number(price),
+    }))
+    .filter(
+      ({ timestamp, price }) =>
+        Number.isFinite(timestamp) && Number.isFinite(price) && price > 0
+    )
+    .sort((a, b) => b.timestamp - a.timestamp)
+
+  const applicable = entries.find(({ timestamp }) => timestamp <= now)
+  const price = applicable?.price ?? entries[entries.length - 1]?.price
+
+  if (price === undefined)
+    throw new Error(
+      `No usable energy price in '${priceString}'. Refusing to price a broadcast ` +
+        `against a guessed rate.`
+    )
+
+  return price
+}
 
 /**
  * Reads the fee limit the devkit will apply to the next broadcast.
@@ -91,6 +126,15 @@ export const configuredTronFeeLimitSun = (): number => {
 
 /**
  * Applies the devkit's safety margin to a raw `energy_used` figure.
+ *
+ * The justification is parity, not measurement. The deploy scripts price calls
+ * through the devkit's own `estimateContractEnergy`, which applies this same
+ * constant, so without it the deploy path and this guard would disagree about
+ * what a call costs. The one measurement this repo has of a real batch
+ * (EXSC-842: 501,386 simulated against roughly 501,348 charged) shows
+ * `triggerconstantcontract` was accurate to well under a percent and slightly
+ * *over*, so the margin should not be described as correcting an under-report.
+ * It buys headroom for the state drift between simulating and sending.
  *
  * Separated out so it can be tested: the request around it needs a live
  * endpoint, and this is the arithmetic that decides whether a batch is refused.
@@ -129,7 +173,10 @@ const requestEnergyUsed = async (
 
   if (!res.ok) {
     const text = await res.text()
-    throw new Error(`triggerconstantcontract failed: ${res.status} ${text}`)
+    throw new TronEstimateError(
+      `triggerconstantcontract failed: ${res.status} ${text}`,
+      true
+    )
   }
 
   const result = (await res.json()) as {
@@ -142,8 +189,21 @@ const requestEnergyUsed = async (
     result.energy_used === undefined ||
     result.energy_used === null
   )
-    throw new Error(
-      `Tron simulation failed: ${JSON.stringify(result.result ?? result)}`
+    // Deterministic: this is what a call that would revert looks like here, and
+    // asking again returns the same answer.
+    throw new TronEstimateError(
+      `Tron simulation failed: ${JSON.stringify(result.result ?? result)}`,
+      false
+    )
+
+  // A contract call always burns energy, so a zero is a node answering without
+  // having simulated. Priced, it would cost nothing and clear any fee limit —
+  // the guard would be a no-op on exactly the batches it exists to stop.
+  if (!(result.energy_used > 0))
+    throw new TronEstimateError(
+      `triggerconstantcontract reported ${result.energy_used} energy, which no ` +
+        `contract call costs. Refusing to treat it as an estimate.`,
+      false
     )
 
   return result.energy_used
@@ -153,13 +213,9 @@ const requestEnergyUsed = async (
  * Estimates the energy a contract call would consume, with the devkit's safety
  * margin applied.
  *
- * The margin is not padding. `triggerconstantcontract` under-reports what the
- * broadcast is charged — the dynamic-energy penalty is not applied to constant
- * calls, and state moves between the estimate and the send — so a batch whose
- * true cost sits just above the raw figure would clear the guard and still
- * abort part-way, which is the failure this pre-flight exists to prevent. The
- * devkit's own estimator applies the same constant, so the deploy scripts and
- * this guard agree on what a call costs.
+ * The margin exists for parity with the devkit's own estimator, which the
+ * deploy scripts price through — see {@link applyTronSafetyMargin} for why it
+ * is not described as correcting an under-report.
  *
  * Retried on a failed request, because the estimate is now mandatory before any
  * Safe or timelock send and `runPendingTimelockTXs.yml` reaches TronGrid with no
@@ -182,6 +238,9 @@ export const estimateTronEnergy = async (
       return applyTronSafetyMargin(await requestEnergyUsed(params))
     } catch (error) {
       lastError = error
+      const retryable =
+        error instanceof TronEstimateError ? error.retryable : true
+      if (!retryable) break
       if (attempt < MAX_RETRIES) await sleep(RETRY_DELAY)
     }
   }
@@ -190,29 +249,30 @@ export const estimateTronEnergy = async (
 }
 
 /**
- * Prices energy at the network's current rates.
+ * Prices energy at the network's current rate.
  *
- * Rounded up, because the figure decides whether a broadcast is refused and the
- * conservative direction for that is to refuse slightly early rather than
- * broadcast a call that cannot finish.
+ * Reads `getEnergyPrices` directly rather than through the devkit's
+ * `getCurrentPrices`, which catches its own failure and substitutes a constant.
+ * Two things made that unusable for a guard. A node that resolves with an empty
+ * price string never reaches the catch at all, so the price came back as `0`,
+ * the cost as `0`, and any batch cleared any fee limit. And the substituted
+ * constant, 210 SUN/energy, is a real Tron price — mainnet's actual rate for
+ * roughly eleven months — so no comparison against its value can tell a
+ * fallback from a correct read.
  *
- * Reports whether the price was actually read. `getCurrentPrices` swallows its
- * own failure and substitutes a constant more than twice the live mainnet rate,
- * which would refuse honest traffic while quoting an inflated figure to raise
- * the limit to. The caller needs to be able to say the number is unconfirmed.
+ * Rounded up: the figure decides whether a broadcast is refused, and the
+ * conservative direction is to refuse slightly early rather than send a call
+ * that cannot finish.
  *
  * @param tronWeb - Client used to read the chain's energy price.
  * @param energy - Energy to price.
- * @returns Cost in SUN, and whether the price behind it was confirmed.
+ * @returns Cost in SUN.
+ * @throws When the price cannot be read, or carries no usable value.
  */
 export const tronEnergyCostInSun = async (
-  tronWeb: Parameters<typeof getCurrentPrices>[0],
+  tronWeb: { trx: { getEnergyPrices: () => Promise<string> } },
   energy: bigint
-): Promise<ITronEnergyCost> => {
-  const { energyPrice } = await getCurrentPrices(tronWeb)
-
-  return {
-    costSun: BigInt(Math.ceil(Number(energy) * energyPrice * SUN_PER_TRX)),
-    priceConfirmed: energyPrice !== FALLBACK_ENERGY_PRICE_TRX,
-  }
+): Promise<bigint> => {
+  const priceSun = latestEnergyPriceSun(await tronWeb.trx.getEnergyPrices())
+  return BigInt(Math.ceil(Number(energy) * priceSun))
 }
