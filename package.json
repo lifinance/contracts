@@ -55,10 +55,10 @@
     "axios": "1.18.1",
     "smol-toml": "1.7.1",
     "validator": "13.15.26",
-    "fast-uri": "3.1.5",
     "lodash": "4.17.23",
     "katex": "0.18.2",
-    "ws": "8.21.1"
+    "ws": "8.21.1",
+    "fast-uri": "3.1.6"
   },
   "scripts": {
     "abi:generate": "forge clean && forge build --skip script --skip test --skip Base --skip Test --skip '*.t.sol' && bun tasks/generateDiamondABI.ts",
@@ -104,6 +104,7 @@
     "prepare": "bun prepare:husky",
     "prepare:husky": "husky install",
     "propose-safe-tx": "bash script/deploy/safe/with-safe-tunnel.sh && bunx tsx ./script/deploy/safe/propose-to-safe.ts",
+    "report-reason-adoption": "bash script/deploy/safe/with-safe-tunnel.sh && bunx tsx ./script/deploy/safe/report-reason-adoption.ts",
     "postinstall": "patch-package && node script/troncast/postinstall-tronweb-fix.mjs && (node script/claude/install.mjs || true)",
     "claude:install": "node script/claude/install.mjs",
     "remove-from-diamond": "bun script/tasks/cleanUpProdDiamond.ts",

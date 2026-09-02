@@ -13,6 +13,7 @@ import {
 import { privateKeyToAccount } from 'viem/accounts'
 
 import { EnvironmentEnum, type SupportedChain } from '../common/types'
+import { assertTicketPresent } from '../deploy/safe/proposal-intent'
 import {
   getNextNonce,
   getPrivateKey,
@@ -35,6 +36,34 @@ import {
 const unpauseDiamondABI = parseAbi([
   'function unpauseDiamond(address[] calldata _blacklist) external',
 ])
+
+/**
+ * Exits non-zero when any network was skipped.
+ *
+ * A network that threw got no unpause at all, so an operator running an
+ * emergency unpause must not be told every diamond is covered.
+ *
+ * @param failures - networks that failed, with the reason.
+ * @param attempted - how many networks were attempted across both passes.
+ */
+const reportOutcome = (
+  failures: { network: string; error: string }[],
+  attempted: number
+): never => {
+  if (failures.length > 0) {
+    consola.error(
+      `${failures.length} of ${attempted} network(s) got NO unpause:`
+    )
+    for (const failure of failures)
+      consola.error(`  ${failure.network}: ${failure.error}`)
+
+    process.exit(1)
+  }
+
+  consola.success(`All ${attempted} network(s) processed successfully.`)
+
+  process.exit(0)
+}
 
 const main = defineCommand({
   meta: {
@@ -95,7 +124,16 @@ const main = defineCommand({
       : activeNetworks.filter((n) => !isTestnetNetwork(n.id))
     const directSendNetworks = isStaging ? activeNetworks : testnets
 
+    // Only Pass 2 proposes, so only Pass 2 needs a ticket — a staging or
+    // testnet-only run creates no proposal and must not be refused for lacking
+    // one. Checked here rather than at the store because Pass 2 signs on every
+    // production mainnet in turn, and the store-time refusal would spend a
+    // signature per network before failing.
+    if (mainnets.length > 0) assertTicketPresent()
+
     // Pass 1: direct-send networks (testnets always; all networks when staging).
+    const failures: { network: string; error: string }[] = []
+
     await Promise.all(
       directSendNetworks.map(async (network) => {
         try {
@@ -130,13 +168,17 @@ const main = defineCommand({
             `[${network.name}] Error sending direct unpause:`,
             error
           )
+          failures.push({
+            network: network.name,
+            error: error instanceof Error ? error.message : String(error),
+          })
         }
       })
     )
 
     if (mainnets.length === 0) {
-      consola.success('All networks processed successfully.')
-      process.exit(0)
+      reportOutcome(failures, directSendNetworks.length)
+      return
     }
 
     // Pass 2: production mainnets — propose to Safe. Initialize Safe / Mongo only now.
@@ -244,14 +286,17 @@ const main = defineCommand({
             `[${network.name}] Error proposing unpause transaction:`,
             error
           )
+          failures.push({
+            network: network.name,
+            error: error instanceof Error ? error.message : String(error),
+          })
         }
       })
     )
 
     await mongoClient.close()
-    consola.success('All networks processed successfully.')
 
-    process.exit(0)
+    reportOutcome(failures, directSendNetworks.length + mainnets.length)
   },
 })
 

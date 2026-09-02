@@ -256,6 +256,16 @@ export interface IChainSimulateResult {
   estimatedResource: bigint
   /** Label for the resource unit (for display). */
   resourceLabel: string
+  /**
+   * True when estimation failed and `estimatedResource` is a fixed fallback
+   * rather than a real estimate. A dry run must not report success on this: the
+   * same failure makes the executing path refuse to broadcast, so reporting a
+   * green simulation would contradict the run that follows it.
+   *
+   * Required, not optional: an implementation that omits it would silently
+   * reintroduce the green-on-failure dry run the flag exists to prevent.
+   */
+  estimateFailed: boolean
 }
 
 /** Options for proposing a Safe transaction (EVM). */
@@ -271,11 +281,16 @@ export interface IProposeToSafeOptions {
   rpcUrl?: string
   ledger?: boolean
   ledgerLive?: boolean
-  accountIndex?: number
+  /** Unconverted, so a malformed value reaches `parseAccountIndex` intact. */
+  accountIndex?: number | string
   derivationPath?: string
   safeAddress?: string
   calldataFile?: string
   nonce?: bigint
+  /** One-line rationale shown to the signer; `SAFE_PROPOSAL_REASON` is the fallback. */
+  reason?: string
+  /** Linear issue link or bare id; `SAFE_PROPOSAL_TICKET` is the fallback. Required. */
+  ticket?: string
 }
 
 /** Strategy interface for chain-specific generic contract call broadcasting. */

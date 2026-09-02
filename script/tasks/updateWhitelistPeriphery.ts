@@ -599,7 +599,7 @@ const main = defineCommand({
         )
         fs.writeFileSync(
           tempProductionPath,
-          JSON.stringify(whitelistData, null, 2)
+          `${JSON.stringify(whitelistData, null, 2)}\n`
         )
 
         // Validate the temporary production file
@@ -644,7 +644,7 @@ const main = defineCommand({
         )
         fs.writeFileSync(
           tempStagingPath,
-          JSON.stringify(whitelistStagingData, null, 2)
+          `${JSON.stringify(whitelistStagingData, null, 2)}\n`
         )
 
         // Validate the temporary staging file

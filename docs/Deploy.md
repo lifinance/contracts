@@ -94,6 +94,11 @@ When bytecode is already in `deployments/<network>.json` (deferred diamond cuts,
 
 Outcomes per network: `OK` (new proposal), `SKIP` (already registered on the diamond, or identical pending proposal blocked by Mongo `intentHash`), `FAIL`. Diamond-called periphery also syncs the allowlist on OK networks. For the full signing/Slack lifecycle, use `/multisig-rollout --propose-only <Contract> …`.
 
+### Recomputing the calldata of a pending proposal
+
+To rebuild a proposal's `diamondCut` calldata from config on `main` and compare it byte-for-byte,
+see [DiamondCutRecomputation.md](./DiamondCutRecomputation.md).
+
 ## <a name="upgrade-using-safe"></a>Upgrade using SAFE wallet
 
 - [ ] Make sure you have deployed a new diamond contract (see above)
