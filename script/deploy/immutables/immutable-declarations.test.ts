@@ -236,8 +236,8 @@ describe('comments and string literals are masked before anything reads a line',
     // A mention in a trailing comment is not a second declaration. Counting raw
     // occurrences turned each of these into a failing gate on correct code, and
     // the error told the author to put on one line a declaration that was
-    // already on one line. This comment style appears on 152 other statements in
-    // `src/`, so it is a shape the repo actually writes.
+    // already on one line. Over 150 statements in `src/` carry a trailing
+    // comment, so it is a shape the repo actually writes.
     const source = `contract A {\n    ${line}\n}`
 
     expect(parseImmutableDeclarations(source, 'src/A.sol')).toHaveLength(1)
@@ -313,5 +313,72 @@ describe('comments and string literals are masked before anything reads a line',
     const [first] = findUnreadableImmutableLines(source, 'src/A.sol')
 
     expect(first?.text).toBe('address public /* why */ immutable')
+  })
+})
+
+describe('a modifier keyword is never captured as the name', () => {
+  it.each([
+    ['immutable before the visibility', 'uint256 immutable public'],
+    [
+      'an override on a public state variable',
+      'uint256 public immutable override',
+    ],
+    ['payable with immutable first', 'address payable immutable public'],
+  ])('reports, rather than inventing a declaration, for %s', (_label, head) => {
+    // Each of these is legal Solidity that wraps after a keyword. Accepting
+    // end-of-statement as a terminator let the pattern capture the keyword as
+    // the name, which is worse than not parsing: the phantom made the parsed
+    // count equal the mention count, so the reporter fell silent and the real
+    // immutable on the next line was accounted for nowhere.
+    const source = `contract A {\n    ${head}\n        FEE = 1;\n}`
+
+    const parsed = parseImmutableDeclarations(source, 'src/A.sol')
+
+    expect(parsed).toEqual([])
+    expect(findUnreadableImmutableLines(source, 'src/A.sol')).toHaveLength(1)
+  })
+})
+
+describe('the masking pass, on the shapes that would silence a whole file', () => {
+  it.each([
+    ['an apostrophe in a line comment', "    // don't touch this"],
+    ['an unbalanced quote in a line comment', '    // a " quote'],
+    ['an apostrophe in a block comment', "    /* don't */"],
+  ])('keeps reading declarations after %s', (_label, comment) => {
+    // If a comment could open a string state, everything after it would be
+    // masked until the next matching quote — deleting declarations silently and
+    // file-wide. An apostrophe in a comment is the commonest way an unbalanced
+    // quote enters real Solidity, so this is the highest-frequency route to the
+    // failure the module exists to prevent.
+    const source = `contract A {\n${comment}\n    address public immutable OWNER;\n}`
+
+    expect(
+      parseImmutableDeclarations(source, 'src/A.sol').map((d) => d.name)
+    ).toEqual(['OWNER'])
+    expect(findUnreadableImmutableLines(source, 'src/A.sol')).toEqual([])
+  })
+
+  it('treats /*/ as opening a comment without also closing it', () => {
+    // solc reads `/*/` as an opener only; if the masker closed on the same
+    // slash, the commented-out declaration would be read as live code and the
+    // real one after it would be masked instead.
+    const source =
+      'contract A {\n    /*/ address public immutable HIDDEN = address(0); */\n    uint256 public immutable X = 1;\n}'
+
+    expect(
+      parseImmutableDeclarations(source, 'src/A.sol').map((d) => d.name)
+    ).toEqual(['X'])
+    expect(findUnreadableImmutableLines(source, 'src/A.sol')).toEqual([])
+  })
+
+  it('keeps line numbers correct when a block comment spans lines', () => {
+    // The masker replaces comment bodies in place and preserves newlines; if it
+    // collapsed them, every reported line number after a block comment would be
+    // wrong and the operator would be sent to the wrong place.
+    const source =
+      'contract A {\n    /* one\n       two */\n    address public\n        immutable WRAPPED;\n}'
+    const [first] = findUnreadableImmutableLines(source, 'src/A.sol')
+
+    expect(first?.line).toBe(5)
   })
 })

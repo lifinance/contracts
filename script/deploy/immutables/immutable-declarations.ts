@@ -114,9 +114,22 @@ const maskCommentsAndStrings = (source: string): string => {
  * POLYMER_FEE_RECEIVER` is a real declaration in `src/`, and a single-token type
  * pattern reads straight past it — an immutable the registry would never be
  * asked to account for.
+ *
+ * The name must not be a modifier keyword. Solidity accepts `immutable` before
+ * the visibility, and accepts `override` on a public state variable, so on a
+ * declaration that wraps after such a keyword the pattern would otherwise
+ * capture the keyword as the name. That is worse than failing to parse: the
+ * phantom declaration makes the parsed count match the mention count, so the
+ * reporter falls silent and the real immutable on the next line is accounted
+ * for nowhere.
  */
-const DECLARATION_RE =
-  /^\s*([A-Za-z_$][\w$.]*(?:\[\d*\])*(?:\s+payable)?)\s+(?:(public|private|internal)\s+)?immutable\s+([A-Za-z_$][\w$]*)\s*(?:=|$)/u
+const RESERVED_AFTER_IMMUTABLE =
+  'public|private|internal|override|constant|immutable|transient'
+
+const DECLARATION_RE = new RegExp(
+  String.raw`^\s*([A-Za-z_$][\w$.]*(?:\[\d*\])*(?:\s+payable)?)\s+(?:(public|private|internal)\s+)?immutable\s+(?!(?:${RESERVED_AFTER_IMMUTABLE})\b)([A-Za-z_$][\w$]*)\s*(?:=|$)`,
+  'u'
+)
 
 /**
  * Splits one masked line into the statements a declaration could start.
