@@ -25,30 +25,49 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 import { type Collection, type InsertOneResult, type ObjectId } from 'mongodb'
-import { type Address, type Hex } from 'viem'
-
 import {
+  decodeFunctionData,
+  keccak256,
+  encodeAbiParameters,
+  type Address,
+  type Hex,
+} from 'viem'
+
+import { getRPCEnvVarName } from '../../utils/utils'
+
+import { normalizeProposalReason } from './proposal-intent'
+import {
+  OperationTypeEnum,
   buildProposalProvenance,
   canExecuteWithNonceStatus,
   classifyDuplicateKeyError,
+  pickTimelockSalt,
+  wrapWithTimelockSchedule,
   classifyIndexEnsureFailure,
   computeProposalIntentHash,
   getSelector,
   getSigners,
+  isAddressASafeOwner,
   isFutureNonceExecutionAllowed,
   mongoSafeTxRowFilter,
-  normalizeProposalReason,
+  resolveSafeSigningOptions,
   safeTxStatusConsumedNonce,
   serializeSafeTxForMongo,
   storeTransactionInMongoDB,
   summarizeProposalDoc,
-  OperationTypeEnum,
   type IProposalProvenance,
+  type ISafeSigningOptions,
   type ISafeTransaction,
   type ISafeTxDocument,
   type NonceExecutionDecision,
   type SafeNonceStatus,
 } from './safe-utils'
+import {
+  TIMELOCK_OPERATION_STATE_ABI,
+  TIMELOCK_SCHEDULE_BATCH_ABI,
+  TIMELOCK_ZERO_PREDECESSOR,
+  deriveTimelockSalt,
+} from './timelock-abi'
 
 const SAFE_ADDR = '0x1111111111111111111111111111111111111111' as Address
 const TARGET = '0x2222222222222222222222222222222222222222' as Address
@@ -135,10 +154,16 @@ const FIXED_PROVENANCE: IProposalProvenance = {
   capturedAt: '2026-01-01T00:00:00.000Z',
 }
 
+const TICKET = 'EXSC-694'
+const TICKET_URL = 'https://linear.app/lifi-linear/issue/EXSC-694'
+
 async function store(
   collection: Collection<ISafeTxDocument>,
   safeTx: ISafeTransaction,
-  provenance: IProposalProvenance = FIXED_PROVENANCE
+  provenance: IProposalProvenance = FIXED_PROVENANCE,
+  options: { ticket?: string | undefined; reason?: string | undefined } = {
+    ticket: TICKET,
+  }
 ): Promise<InsertOneResult<ISafeTxDocument> | null> {
   return storeTransactionInMongoDB(
     collection,
@@ -149,8 +174,30 @@ async function store(
     ('0x' + 'ab'.repeat(32)) as Hex,
     PROPOSER,
     undefined,
-    { override: provenance }
+    { override: provenance, ticket: options.ticket, reason: options.reason }
   )
+}
+
+/**
+ * Awaiting bun's `.rejects` matcher trips `@typescript-eslint/await-thenable`
+ * because it is not a real Promise, and leaving it un-awaited lets the test
+ * finish before the assertion settles.
+ *
+ * @param promise - The call expected to reject.
+ * @param match - Pattern the error message must contain.
+ */
+async function expectRejects(
+  promise: Promise<unknown>,
+  match: RegExp
+): Promise<void> {
+  let error: Error | undefined
+  try {
+    await promise
+  } catch (caught) {
+    error = caught as Error
+  }
+  expect(error).toBeInstanceOf(Error)
+  expect(error?.message).toMatch(match)
 }
 
 describe('computeProposalIntentHash', () => {
@@ -321,6 +368,75 @@ describe('storeTransactionInMongoDB — duplicate-PENDING protection', () => {
  * here drives the `override` seam so no test spawns `git`; ambient capture
  * itself is covered in `script/deploy/shared/git-provenance.test.ts`.
  */
+describe('storeTransactionInMongoDB — the ticket link hard-blocks', () => {
+  const originalTicket = process.env.SAFE_PROPOSAL_TICKET
+
+  beforeEach(() => {
+    delete process.env.SAFE_PROPOSAL_TICKET
+  })
+
+  afterEach(() => {
+    if (originalTicket === undefined) delete process.env.SAFE_PROPOSAL_TICKET
+    else process.env.SAFE_PROPOSAL_TICKET = originalTicket
+  })
+
+  it('does not create a proposal when no ticket was supplied', async () => {
+    const collection = createFakeCollection()
+
+    await expectRejects(
+      store(collection, buildSafeTx(), FIXED_PROVENANCE, { ticket: undefined }),
+      /SAFE_PROPOSAL_TICKET/
+    )
+
+    // "Not created" is the requirement, not "reported an error": a throw after
+    // the insert would leave an unlinked proposal occupying a nonce.
+    expect(collection.rows).toHaveLength(0)
+  })
+
+  it('refuses a malformed ticket rather than storing it as a link', async () => {
+    const collection = createFakeCollection()
+
+    await expectRejects(
+      store(collection, buildSafeTx(), FIXED_PROVENANCE, {
+        ticket: 'https://example.com/issue/EXSC-694',
+      }),
+      /not a Linear issue link/
+    )
+    expect(collection.rows).toHaveLength(0)
+  })
+
+  it('records the ticket URL on the stored proposal', async () => {
+    const collection = createFakeCollection()
+
+    await store(collection, buildSafeTx())
+
+    expect(collection.rows[0]?.provenance?.ticketUrl).toBe(TICKET_URL)
+  })
+
+  it('accepts the ticket from the environment, so bash flows need no new argument', async () => {
+    process.env.SAFE_PROPOSAL_TICKET = 'EXSC-222'
+    const collection = createFakeCollection()
+
+    await store(collection, buildSafeTx(), FIXED_PROVENANCE, {
+      ticket: undefined,
+    })
+
+    expect(collection.rows[0]?.provenance?.ticketUrl).toBe(
+      'https://linear.app/lifi-linear/issue/EXSC-222'
+    )
+  })
+
+  it('creates the proposal with no reason — only the ticket blocks (OQ3)', async () => {
+    const collection = createFakeCollection()
+
+    const result = await store(collection, buildSafeTx())
+
+    expect(result).not.toBeNull()
+    expect(collection.rows[0]?.provenance?.reason).toBeUndefined()
+    expect(collection.rows[0]?.provenance?.ticketUrl).toBe(TICKET_URL)
+  })
+})
+
 describe('storeTransactionInMongoDB — provenance', () => {
   const originalReason = process.env.SAFE_PROPOSAL_REASON
 
@@ -338,7 +454,25 @@ describe('storeTransactionInMongoDB — provenance', () => {
 
     await store(collection, buildSafeTx())
 
-    expect(collection.rows[0]?.provenance).toEqual(FIXED_PROVENANCE)
+    expect(collection.rows[0]?.provenance).toEqual({
+      ...FIXED_PROVENANCE,
+      ticketUrl: TICKET_URL,
+    })
+  })
+
+  it('stores the reason the resolver settled on, not the raw flag', async () => {
+    // The funnel resolves the reason once to decide whether to warn. Storing a
+    // separately-derived value lets a proposal be recorded reasonless while the
+    // operator saw no warning, and the adoption counter reads the stored field.
+    process.env.SAFE_PROPOSAL_REASON = 'rotate the pauser key'
+    const collection = createFakeCollection()
+
+    await store(collection, buildSafeTx(), FIXED_PROVENANCE, {
+      ticket: TICKET,
+      reason: '',
+    })
+
+    expect(collection.rows[0]?.provenance?.reason).toBe('rotate the pauser key')
   })
 
   it('keeps provenance out of the intent hash', async () => {
@@ -397,7 +531,10 @@ describe('storeTransactionInMongoDB — provenance', () => {
     const result = await store(collection, tronSafeTx)
 
     expect(result).not.toBeNull()
-    expect(collection.rows[0]?.provenance).toEqual(FIXED_PROVENANCE)
+    expect(collection.rows[0]?.provenance).toEqual({
+      ...FIXED_PROVENANCE,
+      ticketUrl: TICKET_URL,
+    })
   })
 })
 
@@ -446,6 +583,23 @@ describe('buildProposalProvenance', () => {
       }).reason
     ).toBe('from caller')
   })
+
+  it.each([
+    ['empty string', ''],
+    ['whitespace', '   '],
+  ])(
+    'falls back to the environment when the caller passes %s',
+    (_label, reason) => {
+      // A bare `--reason` arrives as '', which `??` treats as supplied. The
+      // resolver applies the same rule, and the two must not disagree about
+      // whether a reason was given — one drives the warning, this one the field.
+      process.env.SAFE_PROPOSAL_REASON = 'rotate the pauser key'
+
+      expect(
+        buildProposalProvenance({ override: FIXED_PROVENANCE, reason }).reason
+      ).toBe('rotate the pauser key')
+    }
+  )
 
   it('never overwrites a reason the block already carries', () => {
     expect(
@@ -1247,5 +1401,607 @@ describe('classifyIndexEnsureFailure', () => {
     expect(classifyIndexEnsureFailure(undefined)).toBe('fatal')
     expect(classifyIndexEnsureFailure(6)).toBe('fatal')
     expect(classifyIndexEnsureFailure(27)).toBe('fatal')
+  })
+})
+
+describe('isAddressASafeOwner', () => {
+  const OWNER = '0x1234567890AbcdEF1234567890aBcdef12345678' as Address
+
+  it('matches an owner regardless of the casing on either side', () => {
+    // The Safe returns checksummed owners while a signer address can arrive in
+    // any casing, so a case-sensitive compare would reject a real owner and
+    // block the proposal.
+    expect(isAddressASafeOwner([OWNER], OWNER.toLowerCase() as Address)).toBe(
+      true
+    )
+    expect(isAddressASafeOwner([OWNER.toLowerCase() as Address], OWNER)).toBe(
+      true
+    )
+  })
+
+  it('rejects an address that is not an owner', () => {
+    expect(
+      isAddressASafeOwner(
+        [OWNER],
+        '0x000000000000000000000000000000000000dEaD' as Address
+      )
+    ).toBe(false)
+    expect(isAddressASafeOwner([], OWNER)).toBe(false)
+  })
+})
+
+describe('resolveSafeSigningOptions', () => {
+  it('defaults to the env private key when no ledger flag is given', () => {
+    expect(resolveSafeSigningOptions({ envPrivateKey: 'abc123' })).toEqual({
+      useLedger: false,
+      privateKey: 'abc123',
+      ledgerOptions: { ledgerLive: false, accountIndex: 0 },
+    })
+  })
+
+  it('refuses when neither a ledger nor a private key is available', () => {
+    expect(() => resolveSafeSigningOptions({})).toThrow(/Missing private key/)
+  })
+
+  it("names the caller's env variable in the no-key error", () => {
+    expect(() =>
+      resolveSafeSigningOptions({ envPrivateKeyName: 'PRIVATE_KEY_SOMETHING' })
+    ).toThrow(/PRIVATE_KEY_SOMETHING/)
+  })
+
+  it('does not require a private key when signing with a ledger', () => {
+    expect(resolveSafeSigningOptions({ ledger: true }).useLedger).toBe(true)
+  })
+
+  it('withholds the env key when signing with a ledger, even when one is set', () => {
+    // The env key must be present in the fixture: with it absent, "privateKey is
+    // undefined" holds whether or not the code withholds it.
+    const resolved = resolveSafeSigningOptions({
+      ledger: true,
+      envPrivateKey: 'abc123',
+    })
+
+    expect(resolved.useLedger).toBe(true)
+    expect(resolved.privateKey).toBeUndefined()
+  })
+
+  it('passes the ledger-live account index through', () => {
+    expect(
+      resolveSafeSigningOptions({
+        ledger: true,
+        ledgerLive: true,
+        accountIndex: 3,
+      }).ledgerOptions
+    ).toEqual({ ledgerLive: true, accountIndex: 3 })
+  })
+
+  it('passes a custom derivation path through', () => {
+    expect(
+      resolveSafeSigningOptions({
+        ledger: true,
+        derivationPath: "m/44'/60'/1'/0/0",
+      }).ledgerOptions
+    ).toEqual({
+      ledgerLive: false,
+      accountIndex: 0,
+      derivationPath: "m/44'/60'/1'/0/0",
+    })
+  })
+
+  it('rejects derivationPath together with ledgerLive, which mean different paths', () => {
+    expect(() =>
+      resolveSafeSigningOptions({
+        ledger: true,
+        ledgerLive: true,
+        derivationPath: "m/44'/60'/1'/0/0",
+      })
+    ).toThrow(/derivationPath.*ledgerLive|ledgerLive.*derivationPath/)
+  })
+
+  it.each([
+    ['ledgerLive', { ledgerLive: true }],
+    ['derivationPath', { derivationPath: "m/44'/60'/1'/0/0" }],
+  ])(
+    'refuses %s without --ledger rather than silently ignoring it',
+    (_label, ledgerOption) => {
+      // An operator who typed the sub-flag and forgot --ledger believes they
+      // signed from a hardware account. Ignoring the flag hides that; only the
+      // refusal tells them.
+      expect(() =>
+        resolveSafeSigningOptions({ envPrivateKey: 'abc123', ...ledgerOption })
+      ).toThrow(/without '--ledger'/)
+    }
+  )
+
+  it('reports no ledger options at all on the key path', () => {
+    // accountIndex is passed on purpose: it is the only sub-option the key path
+    // still accepts, so it is the only one whose non-leak an assertion can
+    // still catch.
+    const resolved = resolveSafeSigningOptions({
+      envPrivateKey: 'abc123',
+      accountIndex: 5,
+    })
+
+    expect(resolved.useLedger).toBe(false)
+    expect(resolved.privateKey).toBe('abc123')
+    // Reporting a derivation path or a Ledger Live index for a key-signed
+    // proposal describes signing that did not happen.
+    expect(resolved.ledgerOptions).toEqual({
+      ledgerLive: false,
+      accountIndex: 0,
+    })
+  })
+
+  it('coerces a string accountIndex, since citty hands CLI values through as strings', () => {
+    expect(
+      resolveSafeSigningOptions({
+        ledger: true,
+        ledgerLive: true,
+        accountIndex: '4' as unknown as number,
+      }).ledgerOptions.accountIndex
+    ).toBe(4)
+  })
+
+  // The Ledger SDK's BIP32 path parser does not reject these — measured against
+  // @ledgerhq/hw-app-eth's splitPath, "NaN" DROPS the whole path segment
+  // (m/44'/60'/0/0, one element short and non-hardened), 3.7 truncates to 3 and
+  // -1 wraps to 2147483647. Each derives a different, valid-looking address with
+  // no error anywhere, so the refusal has to happen here.
+  //
+  // The string cases are what citty hands back for `--accountIndex abc` and
+  // `--accountIndex ""`; the boolean guards a programmatic caller, since no CLI
+  // spelling produces it.
+  it.each([
+    ['non-numeric', 'abc'],
+    ['fractional', '3.7'],
+    ['negative', '-1'],
+    ['empty', ''],
+    ['whitespace-only', '  '],
+    ['boolean', true],
+  ])(
+    'refuses a %s accountIndex rather than deriving a different address',
+    (_label, value) => {
+      expect(() =>
+        resolveSafeSigningOptions({
+          ledger: true,
+          ledgerLive: true,
+          accountIndex: value as ISafeSigningOptions['accountIndex'],
+        })
+      ).toThrow(/accountIndex must be a non-negative integer/)
+    }
+  )
+
+  it('refuses an accountIndex that the Ledger path would ignore', () => {
+    expect(() =>
+      resolveSafeSigningOptions({ ledger: true, accountIndex: 3 })
+    ).toThrow(/only selects an account on the Ledger Live path/)
+  })
+
+  it('allows an explicit account 0 without ledgerLive, which is what it would use anyway', () => {
+    expect(
+      resolveSafeSigningOptions({ ledger: true, accountIndex: 0 }).ledgerOptions
+        .accountIndex
+    ).toBe(0)
+  })
+
+  it('refuses a derivationPath that is present but blank', () => {
+    expect(() =>
+      resolveSafeSigningOptions({ ledger: true, derivationPath: '   ' })
+    ).toThrow(/given but is empty/)
+  })
+
+  it('reports the value the operator passed, not a coerced one', () => {
+    expect(() =>
+      resolveSafeSigningOptions({ ledger: true, accountIndex: 'abc' })
+    ).toThrow(/got 'abc'/)
+  })
+
+  it('still refuses a bad accountIndex when no ledger was selected', () => {
+    // The sub-options are unused on the key path, but accepting a malformed one
+    // silently teaches the operator the flag was understood.
+    expect(() =>
+      resolveSafeSigningOptions({
+        envPrivateKey: 'abc123',
+        accountIndex: 'abc',
+      })
+    ).toThrow(/accountIndex must be a non-negative integer/)
+  })
+})
+
+/**
+ * Fake timelock whose operation id is a function of every field the real contract
+ * hashes, and which refuses any read it was not expecting.
+ *
+ * A loose fake cannot see the address it was called at or which function was
+ * asked for — and `getMinDelay`'s non-zero return classifies as `pending`, which
+ * would refuse every timelock proposal on every path.
+ */
+const ozOperationId = (args: readonly unknown[]): Hex =>
+  keccak256(
+    encodeAbiParameters(
+      [
+        { type: 'address[]' },
+        { type: 'uint256[]' },
+        { type: 'bytes[]' },
+        { type: 'bytes32' },
+        { type: 'bytes32' },
+      ],
+      args as never
+    )
+  )
+
+interface IFakeTimelock {
+  client: unknown
+  /** Operation ids `getTimestamp` was called with, in order. */
+  probedIds: string[]
+  /** Argument tuples `hashOperationBatch` was called with, in order. */
+  hashArgs: unknown[][]
+}
+
+const fakeTimelockClient = (
+  timestampsByOperationId: Record<string, bigint>,
+  expectedAddress: Address
+): IFakeTimelock => {
+  const probedIds: string[] = []
+  const hashArgs: unknown[][] = []
+  const client = {
+    readContract: async (args: {
+      address: Address
+      functionName: string
+      args: readonly unknown[]
+    }): Promise<unknown> => {
+      if (args.address !== expectedAddress)
+        throw new Error(
+          `read at ${args.address}, expected the timelock ${expectedAddress}`
+        )
+
+      if (args.functionName === 'hashOperationBatch') {
+        hashArgs.push([...args.args])
+        return ozOperationId(args.args)
+      }
+
+      if (args.functionName === 'getTimestamp') {
+        const id = args.args[0] as string
+        probedIds.push(id)
+        return timestampsByOperationId[id] ?? 0n
+      }
+
+      throw new Error(`unexpected read: ${args.functionName}`)
+    },
+  }
+  return { client, probedIds, hashArgs }
+}
+
+describe('pickTimelockSalt', () => {
+  const action = {
+    chainId: 1,
+    timelockAddress: '0x1111111111111111111111111111111111111111' as Address,
+    // Two distinct calls on purpose: a single-element fixture makes every
+    // array-ordering bug a no-op, and two of the converted call sites build
+    // multi-element batches.
+    targetAddresses: [
+      '0x2222222222222222222222222222222222222222',
+      '0x4444444444444444444444444444444444444444',
+    ] as Address[],
+    originalCalldatas: ['0xdeadbeef', '0xfeedface'] as Hex[],
+    // Not all-zero: an all-zero fixture cannot observe the `values` parameter, so
+    // every pass-through and ordering bug in it becomes a no-op.
+    values: [0n, 7n],
+  }
+
+  const saltFor = (attempt: number): Hex =>
+    deriveTimelockSalt({
+      chainId: action.chainId,
+      timelockAddress: action.timelockAddress,
+      targets: action.targetAddresses,
+      payloads: action.originalCalldatas,
+      attempt,
+    })
+
+  /** The id the real timelock would report for a given attempt's salt. */
+  const idFor = (attempt: number): Hex =>
+    ozOperationId([
+      action.targetAddresses,
+      action.values,
+      action.originalCalldatas,
+      TIMELOCK_ZERO_PREDECESSOR,
+      saltFor(attempt),
+    ])
+
+  it('uses the first attempt when the timelock knows nothing about it', async () => {
+    const { client } = fakeTimelockClient({}, action.timelockAddress)
+
+    expect(
+      await pickTimelockSalt({
+        ...action,
+        client: client as never,
+      })
+    ).toBe(saltFor(0))
+  })
+
+  it('probes the operation it is about to schedule — same targets, payloads and values, zero predecessor', async () => {
+    const { client, hashArgs } = fakeTimelockClient({}, action.timelockAddress)
+
+    const salt = await pickTimelockSalt({ ...action, client: client as never })
+
+    expect(hashArgs).toHaveLength(1)
+    expect(hashArgs[0]).toEqual([
+      action.targetAddresses,
+      action.values,
+      action.originalCalldatas,
+      TIMELOCK_ZERO_PREDECESSOR,
+      salt,
+    ])
+  })
+
+  it('forwards chainId and the timelock into the salt, so one chain cannot predict another', async () => {
+    const other = '0x9999999999999999999999999999999999999999' as Address
+    const pick = async (over: Partial<typeof action>): Promise<Hex> =>
+      pickTimelockSalt({
+        ...action,
+        ...over,
+        client: fakeTimelockClient(
+          {},
+          over.timelockAddress ?? action.timelockAddress
+        ).client as never,
+      })
+
+    const base = await pick({})
+
+    expect(await pick({ chainId: 10 })).not.toBe(base)
+    expect(await pick({ timelockAddress: other })).not.toBe(base)
+  })
+
+  it('probes the id it derived, not the salt', async () => {
+    const { client, probedIds } = fakeTimelockClient({}, action.timelockAddress)
+
+    await pickTimelockSalt({ ...action, client: client as never })
+
+    expect(probedIds).toEqual([idFor(0)])
+    expect(probedIds[0]).not.toBe(saltFor(0))
+  })
+
+  it('is deterministic — two proposers of the same action get the same salt', async () => {
+    const first = await pickTimelockSalt({
+      ...action,
+      client: fakeTimelockClient({}, action.timelockAddress).client as never,
+    })
+    const second = await pickTimelockSalt({
+      ...action,
+      client: fakeTimelockClient({}, action.timelockAddress).client as never,
+    })
+
+    expect(first).toBe(second)
+  })
+
+  it('skips an executed operation and takes the next attempt', async () => {
+    const { client } = fakeTimelockClient(
+      { [idFor(0)]: 1n },
+      action.timelockAddress
+    )
+
+    expect(await pickTimelockSalt({ ...action, client: client as never })).toBe(
+      saltFor(1)
+    )
+  })
+
+  it('skips several executed operations in order', async () => {
+    const { client, probedIds } = fakeTimelockClient(
+      {
+        [idFor(0)]: 1n,
+        [idFor(1)]: 1n,
+        [idFor(2)]: 1n,
+      },
+      action.timelockAddress
+    )
+
+    expect(await pickTimelockSalt({ ...action, client: client as never })).toBe(
+      saltFor(3)
+    )
+    expect(probedIds).toEqual([idFor(0), idFor(1), idFor(2), idFor(3)])
+  })
+
+  it('refuses on a PENDING operation rather than scheduling the batch twice', async () => {
+    const { client } = fakeTimelockClient(
+      { [idFor(0)]: 1_800_000_000n },
+      action.timelockAddress
+    )
+
+    let thrown: unknown
+    try {
+      await pickTimelockSalt({ ...action, client: client as never })
+    } catch (error) {
+      thrown = error
+    }
+
+    expect(thrown).toBeInstanceOf(Error)
+    expect((thrown as Error).message).toMatch(/already scheduled/i)
+    expect((thrown as Error).message).toMatch(/nothing was proposed/i)
+  })
+
+  it('refuses on a pending operation found after an executed one', async () => {
+    // The normal state once a legitimate repeat has been scheduled, and the case
+    // `attempt` exists for.
+    const { client } = fakeTimelockClient(
+      { [idFor(0)]: 1n, [idFor(1)]: 1_800_000_000n },
+      action.timelockAddress
+    )
+
+    let thrown: unknown
+    try {
+      await pickTimelockSalt({ ...action, client: client as never })
+    } catch (error) {
+      thrown = error
+    }
+
+    expect(thrown).toBeInstanceOf(Error)
+    expect((thrown as Error).message).toMatch(/already scheduled/i)
+  })
+
+  it('rejects a payloads array whose length does not match the targets', async () => {
+    const { client } = fakeTimelockClient({}, action.timelockAddress)
+
+    let thrown: unknown
+    try {
+      await pickTimelockSalt({
+        ...action,
+        originalCalldatas: ['0xdeadbeef'],
+        client: client as never,
+      })
+    } catch (error) {
+      thrown = error
+    }
+
+    expect(thrown).toBeInstanceOf(Error)
+    expect((thrown as Error).message).toMatch(/originalCalldatas/i)
+  })
+
+  it('rejects a values array whose length does not match the targets', async () => {
+    const { client } = fakeTimelockClient({}, action.timelockAddress)
+
+    let thrown: unknown
+    try {
+      await pickTimelockSalt({
+        ...action,
+        values: [0n],
+        client: client as never,
+      })
+    } catch (error) {
+      thrown = error
+    }
+
+    expect(thrown).toBeInstanceOf(Error)
+    expect((thrown as Error).message).toMatch(/values/i)
+  })
+
+  it('refuses rather than guessing when every attempt is taken', async () => {
+    const taken: Record<string, bigint> = {}
+    for (let attempt = 0; attempt < 16; attempt++) taken[idFor(attempt)] = 1n
+    const exhausted = fakeTimelockClient(taken, action.timelockAddress)
+    const { probedIds } = exhausted
+
+    let thrown: unknown
+    try {
+      await pickTimelockSalt({ ...action, client: exhausted.client as never })
+    } catch (error) {
+      thrown = error
+    }
+
+    expect(thrown).toBeInstanceOf(Error)
+    expect((thrown as Error).message).toMatch(/refusing to schedule/i)
+    expect(probedIds).toHaveLength(16)
+  })
+})
+
+/**
+ * Drives `wrapWithTimelockSchedule` against a local JSON-RPC stub.
+ *
+ * The function builds its own client from `rpcUrl`, so pointing that at a stub
+ * exercises the whole path without a chain — which is the only way to assert the
+ * property the salt design rests on: the operation id probed is the operation the
+ * emitted calldata actually schedules.
+ */
+describe('wrapWithTimelockSchedule', () => {
+  const TIMELOCK = '0x1111111111111111111111111111111111111111' as Address
+  const TARGETS = [
+    '0x2222222222222222222222222222222222222222',
+    '0x4444444444444444444444444444444444444444',
+  ] as Address[]
+  const PAYLOADS = ['0xdeadbeef', '0xfeedface'] as Hex[]
+
+  const ZERO32 = `0x${'00'.repeat(32)}` as Hex
+
+  interface IStub {
+    url: string
+    stop: () => void
+    hashCalls: Hex[]
+    getTimestampCalls: Hex[]
+  }
+
+  const startStub = async (): Promise<IStub> => {
+    const hashCalls: Hex[] = []
+    const getTimestampCalls: Hex[] = []
+    // hashOperationBatch/getTimestamp/getMinDelay selectors, matched on the
+    // 4-byte prefix so the stub does not need an ABI decoder.
+    const server = Bun.serve({
+      port: 0,
+      fetch: async (request) => {
+        const body = (await request.json()) as {
+          id: number
+          method: string
+          params?: { data?: Hex }[]
+        }
+        const data = body.params?.[0]?.data ?? '0x'
+        const selector = data.slice(0, 10)
+        let result: Hex = ZERO32
+
+        if (selector === '0xf27a0c92')
+          result = `0x${(3600).toString(16).padStart(64, '0')}` as Hex
+        else if (selector === '0xb1c5f427') {
+          hashCalls.push(data)
+          result = `0x${'11'.repeat(32)}` as Hex
+        } else if (selector === '0xd45c4435') {
+          getTimestampCalls.push(data)
+          result = ZERO32
+        }
+
+        return Response.json({ jsonrpc: '2.0', id: body.id, result })
+      },
+    })
+    return {
+      url: `http://127.0.0.1:${server.port}`,
+      stop: () => {
+        void server.stop(true)
+      },
+      hashCalls,
+      getTimestampCalls,
+    }
+  }
+
+  it('schedules the operation it probed, with one values array for both', async () => {
+    const stub = await startStub()
+    // `getViemChainForNetworkName` reads the network's RPC env var and throws
+    // without it, so the test supplies its own stub URL rather than depending on
+    // a populated .env — CI has none.
+    const envKey = getRPCEnvVarName('mainnet')
+    const previousRpc = process.env[envKey]
+    process.env[envKey] = stub.url
+
+    try {
+      const { calldata, targetAddress } = await wrapWithTimelockSchedule(
+        'mainnet',
+        stub.url,
+        TIMELOCK,
+        TARGETS,
+        PAYLOADS
+      )
+
+      expect(targetAddress).toBe(TIMELOCK)
+      expect(stub.hashCalls).toHaveLength(1)
+
+      const probed = decodeFunctionData({
+        abi: TIMELOCK_OPERATION_STATE_ABI,
+        data: stub.hashCalls[0] as Hex,
+      })
+      const scheduled = decodeFunctionData({
+        abi: TIMELOCK_SCHEDULE_BATCH_ABI,
+        data: calldata,
+      })
+
+      // targets, values, payloads and salt must match between the two, or the
+      // state that was checked belongs to a different operation.
+      expect(probed.args?.[0]).toEqual(scheduled.args?.[0])
+      expect(probed.args?.[1]).toEqual(scheduled.args?.[1])
+      expect(probed.args?.[2]).toEqual(scheduled.args?.[2])
+      expect(probed.args?.[4]).toEqual(scheduled.args?.[4])
+
+      // From the stub's getMinDelay, not the config-file or 1-hour fallback: a
+      // delay below the timelock's real minDelay reverts after signing.
+      expect(scheduled.args?.[5]).toBe(3600n)
+    } finally {
+      if (previousRpc === undefined) delete process.env[envKey]
+      else process.env[envKey] = previousRpc
+      stub.stop()
+    }
   })
 })
