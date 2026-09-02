@@ -9,30 +9,62 @@
  * partial-unique-index semantics: duplicate PENDING rejected (E11000 -> null,
  * no throw), re-create after EXECUTED/REVERTED allowed, and non-duplicate
  * errors propagated.
+ *
+ * Also covers the nonce-execution gate (EXSC-690): `canExecuteWithNonceStatus`
+ * decides whether a pending proposal may be broadcast given where its nonce sits
+ * relative to the Safe's expected nonce, and `isFutureNonceExecutionAllowed`
+ * reads the operator escape hatch that the gate consults for the future case.
  */
 
 import {
+  afterEach,
+  beforeEach,
   describe,
   expect,
   it,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 import { type Collection, type InsertOneResult, type ObjectId } from 'mongodb'
-import { type Address, type Hex } from 'viem'
+import {
+  decodeFunctionData,
+  keccak256,
+  encodeAbiParameters,
+  type Address,
+  type Hex,
+} from 'viem'
+
+import { getRPCEnvVarName } from '../../utils/utils'
 
 import {
+  buildProposalProvenance,
+  canExecuteWithNonceStatus,
+  classifyDuplicateKeyError,
+  pickTimelockSalt,
+  wrapWithTimelockSchedule,
+  classifyIndexEnsureFailure,
   computeProposalIntentHash,
   getSelector,
   getSigners,
+  isFutureNonceExecutionAllowed,
   mongoSafeTxRowFilter,
+  normalizeProposalReason,
   safeTxStatusConsumedNonce,
   serializeSafeTxForMongo,
   storeTransactionInMongoDB,
   summarizeProposalDoc,
   OperationTypeEnum,
+  type IProposalProvenance,
   type ISafeTransaction,
   type ISafeTxDocument,
+  type NonceExecutionDecision,
+  type SafeNonceStatus,
 } from './safe-utils'
+import {
+  TIMELOCK_OPERATION_STATE_ABI,
+  TIMELOCK_SCHEDULE_BATCH_ABI,
+  TIMELOCK_ZERO_PREDECESSOR,
+  deriveTimelockSalt,
+} from './timelock-abi'
 
 const SAFE_ADDR = '0x1111111111111111111111111111111111111111' as Address
 const TARGET = '0x2222222222222222222222222222222222222222' as Address
@@ -105,9 +137,24 @@ function createFakeCollection(
   }
 }
 
+/**
+ * Frozen provenance handed to every `store()` call. Without an override the
+ * storage funnel captures ambient git state, which would make this suite spawn
+ * subprocesses and assert against whatever checkout it happens to run in.
+ */
+const FIXED_PROVENANCE: IProposalProvenance = {
+  actor: 'human',
+  proposerHandle: 'Test User <test@example.com>',
+  gitCommit: 'a'.repeat(40),
+  gitBranch: 'test-branch',
+  dirtyTreeScoped: [],
+  capturedAt: '2026-01-01T00:00:00.000Z',
+}
+
 async function store(
   collection: Collection<ISafeTxDocument>,
-  safeTx: ISafeTransaction
+  safeTx: ISafeTransaction,
+  provenance: IProposalProvenance = FIXED_PROVENANCE
 ): Promise<InsertOneResult<ISafeTxDocument> | null> {
   return storeTransactionInMongoDB(
     collection,
@@ -116,7 +163,9 @@ async function store(
     CHAIN_ID,
     safeTx,
     ('0x' + 'ab'.repeat(32)) as Hex,
-    PROPOSER
+    PROPOSER,
+    undefined,
+    { override: provenance }
   )
 }
 
@@ -280,6 +329,236 @@ describe('storeTransactionInMongoDB — duplicate-PENDING protection', () => {
     expect(thrown).toBeInstanceOf(Error)
     expect((thrown as Error).message).toEqual('connection reset')
     expect(collection.rows).toHaveLength(0)
+  })
+})
+
+/**
+ * Tests for provenance capture at the storage funnel (EXSC-692). Everything
+ * here drives the `override` seam so no test spawns `git`; ambient capture
+ * itself is covered in `script/deploy/shared/git-provenance.test.ts`.
+ */
+describe('storeTransactionInMongoDB — provenance', () => {
+  const originalReason = process.env.SAFE_PROPOSAL_REASON
+
+  beforeEach(() => {
+    delete process.env.SAFE_PROPOSAL_REASON
+  })
+
+  afterEach(() => {
+    if (originalReason === undefined) delete process.env.SAFE_PROPOSAL_REASON
+    else process.env.SAFE_PROPOSAL_REASON = originalReason
+  })
+
+  it('writes the provenance block onto the stored row', async () => {
+    const collection = createFakeCollection()
+
+    await store(collection, buildSafeTx())
+
+    expect(collection.rows[0]?.provenance).toEqual(FIXED_PROVENANCE)
+  })
+
+  it('keeps provenance out of the intent hash', async () => {
+    const collection = createFakeCollection()
+
+    const first = await store(collection, buildSafeTx())
+    const second = await store(collection, buildSafeTx(), {
+      ...FIXED_PROVENANCE,
+      gitCommit: 'b'.repeat(40),
+      gitBranch: 'another-branch',
+    })
+
+    // Same transaction, different provenance: still one pending proposal.
+    expect(first).not.toBeNull()
+    expect(second).toBeNull()
+    expect(collection.rows).toHaveLength(1)
+  })
+
+  it('captures once for a retried insert rather than per attempt', async () => {
+    let attempts = 0
+    const rows: ISafeTxDocument[] = []
+    const flaky = {
+      async insertOne(doc: ISafeTxDocument): Promise<InsertOneResult> {
+        attempts++
+        if (attempts < 3) throw new Error('connection reset')
+        rows.push({ ...doc })
+        return {
+          acknowledged: true,
+          insertedId: rows.length,
+        } as unknown as InsertOneResult
+      },
+    } as unknown as Collection<ISafeTxDocument>
+
+    await store(flaky, buildSafeTx())
+
+    expect(attempts).toBe(3)
+    expect(rows).toHaveLength(1)
+    expect(rows[0]?.provenance?.capturedAt).toBe(FIXED_PROVENANCE.capturedAt)
+  })
+
+  it('stores a Tron-shaped document, which has a hand-built safeTx', async () => {
+    const collection = createFakeCollection()
+    // The Tron route casts a plain object into ISafeTransaction; capture must
+    // not read safeTx, so this must still store cleanly.
+    const tronSafeTx = {
+      data: {
+        to: TARGET,
+        value: 0n,
+        data: '0xdeadbeef' as Hex,
+        operation: OperationTypeEnum.Call,
+        nonce: 3n,
+      },
+      signatures: {},
+    } as unknown as ISafeTransaction
+
+    const result = await store(collection, tronSafeTx)
+
+    expect(result).not.toBeNull()
+    expect(collection.rows[0]?.provenance).toEqual(FIXED_PROVENANCE)
+  })
+})
+
+describe('buildProposalProvenance', () => {
+  const originalReason = process.env.SAFE_PROPOSAL_REASON
+
+  beforeEach(() => {
+    delete process.env.SAFE_PROPOSAL_REASON
+  })
+
+  afterEach(() => {
+    if (originalReason === undefined) delete process.env.SAFE_PROPOSAL_REASON
+    else process.env.SAFE_PROPOSAL_REASON = originalReason
+  })
+
+  it('returns the override untouched when no reason is supplied', () => {
+    expect(buildProposalProvenance({ override: FIXED_PROVENANCE })).toEqual(
+      FIXED_PROVENANCE
+    )
+  })
+
+  it('folds an explicit reason onto a block that has none', () => {
+    expect(
+      buildProposalProvenance({
+        override: FIXED_PROVENANCE,
+        reason: '  sync   whitelist  ',
+      }).reason
+    ).toBe('sync whitelist')
+  })
+
+  it('falls back to SAFE_PROPOSAL_REASON when no reason is passed', () => {
+    process.env.SAFE_PROPOSAL_REASON = 'whitelist sync stage 4c'
+
+    expect(buildProposalProvenance({ override: FIXED_PROVENANCE }).reason).toBe(
+      'whitelist sync stage 4c'
+    )
+  })
+
+  it('prefers an explicit reason over the environment', () => {
+    process.env.SAFE_PROPOSAL_REASON = 'from env'
+
+    expect(
+      buildProposalProvenance({
+        override: FIXED_PROVENANCE,
+        reason: 'from caller',
+      }).reason
+    ).toBe('from caller')
+  })
+
+  it('never overwrites a reason the block already carries', () => {
+    expect(
+      buildProposalProvenance({
+        override: { ...FIXED_PROVENANCE, reason: 'already recorded' },
+        reason: 'late arrival',
+      }).reason
+    ).toBe('already recorded')
+  })
+
+  it('omits the reason key entirely when there is nothing to record', () => {
+    process.env.SAFE_PROPOSAL_REASON = '   '
+
+    const provenance = buildProposalProvenance({ override: FIXED_PROVENANCE })
+
+    expect('reason' in provenance).toBe(false)
+  })
+
+  it('returns a copy so the caller cannot mutate the stored arrays', () => {
+    const override: IProposalProvenance = {
+      ...FIXED_PROVENANCE,
+      dirtyTreeScoped: ['src/Facets/Foo.sol'],
+    }
+
+    const stored = buildProposalProvenance({ override })
+    stored.dirtyTreeScoped.push('injected')
+
+    expect(override.dirtyTreeScoped).toEqual(['src/Facets/Foo.sol'])
+  })
+
+  it('sanitizes override fields so the seam cannot store raw controls', () => {
+    const esc = String.fromCharCode(27)
+    const stored = buildProposalProvenance({
+      override: {
+        ...FIXED_PROVENANCE,
+        proposerHandle: `Mallory${esc}[2J`,
+        gitBranch: `feat/x${esc}`,
+      },
+    })
+
+    expect(stored.proposerHandle).toBe('Mallory[2J')
+    expect(stored.gitBranch).toBe('feat/x')
+    expect(stored.proposerHandle).not.toContain(esc)
+  })
+})
+
+describe('normalizeProposalReason', () => {
+  it('collapses whitespace and trims', () => {
+    expect(normalizeProposalReason('  add \n  AcrossFacetV4  ')).toBe(
+      'add AcrossFacetV4'
+    )
+  })
+
+  it('treats empty and whitespace-only input as absent', () => {
+    expect(normalizeProposalReason(undefined)).toBeUndefined()
+    expect(normalizeProposalReason('')).toBeUndefined()
+    expect(normalizeProposalReason('   \t ')).toBeUndefined()
+  })
+
+  it('caps an over-long rationale', () => {
+    const normalized = normalizeProposalReason('x'.repeat(500))
+    expect(normalized).toHaveLength(200)
+  })
+
+  // A rationale is proposer-supplied and is rendered into the signing prompt a
+  // human reads before approving, so terminal control characters must never
+  // survive normalization: they can repaint or erase the prompt around them.
+  it('strips control characters a proposer could use to repaint the prompt', () => {
+    const esc = String.fromCharCode(27)
+    const normalized = normalizeProposalReason(
+      `add Facet${esc}[2K${esc}[1;32m VERIFIED${esc}[0m`
+    )
+
+    expect(normalized).toBe('add Facet[2K[1;32m VERIFIED[0m')
+    expect(normalized).not.toContain(esc)
+  })
+
+  // The reason is also the field most likely to be read straight off a Mongo
+  // dump, so the same three capabilities denied in the display path — repaint,
+  // reverse, forge a line — have to be denied here at write time too.
+  it('strips bidi overrides and line separators, not only Cc controls', () => {
+    const RLO = '\u202e'
+    const LSEP = '\u2028'
+
+    const normalized = normalizeProposalReason(
+      `whitelist${RLO} update${LSEP}    Working tree:    clean`
+    )
+
+    expect(normalized).not.toContain(RLO)
+    expect(normalized).not.toContain(LSEP)
+    expect(normalized).toBe('whitelist update Working tree: clean')
+  })
+
+  it('keeps legitimate non-ASCII text intact', () => {
+    expect(normalizeProposalReason('déployer 日本語 — naïve 👨‍👩‍👧')).toBe(
+      'déployer 日本語 — naïve 👨‍👩‍👧'
+    )
   })
 })
 
@@ -540,6 +819,47 @@ describe('safeTxStatusConsumedNonce', () => {
   })
 })
 
+describe('canExecuteWithNonceStatus', () => {
+  it.each([
+    ['stale', false, { canExecute: false, reason: 'stale-nonce' }],
+    ['stale', true, { canExecute: false, reason: 'stale-nonce' }],
+    ['future', false, { canExecute: false, reason: 'future-nonce' }],
+    ['future', true, { canExecute: true, reason: 'future-nonce-override' }],
+    ['current', false, { canExecute: true, reason: 'nonce-current' }],
+    ['current', true, { canExecute: true, reason: 'nonce-current' }],
+  ] as [SafeNonceStatus, boolean, NonceExecutionDecision][])(
+    '%s nonce with allowFutureNonce=%j => %j',
+    (status, allowFutureNonce, expected) => {
+      expect(canExecuteWithNonceStatus(status, { allowFutureNonce })).toEqual(
+        expected
+      )
+    }
+  )
+})
+
+describe('isFutureNonceExecutionAllowed', () => {
+  const original = process.env.ALLOW_FUTURE_NONCE_EXECUTION
+  afterEach(() => {
+    if (original === undefined) delete process.env.ALLOW_FUTURE_NONCE_EXECUTION
+    else process.env.ALLOW_FUTURE_NONCE_EXECUTION = original
+  })
+
+  it('is true only when ALLOW_FUTURE_NONCE_EXECUTION === "true"', () => {
+    process.env.ALLOW_FUTURE_NONCE_EXECUTION = 'true'
+    expect(isFutureNonceExecutionAllowed()).toBe(true)
+  })
+
+  it('is false when unset', () => {
+    delete process.env.ALLOW_FUTURE_NONCE_EXECUTION
+    expect(isFutureNonceExecutionAllowed()).toBe(false)
+  })
+
+  it('is false for any other value', () => {
+    process.env.ALLOW_FUTURE_NONCE_EXECUTION = '1'
+    expect(isFutureNonceExecutionAllowed()).toBe(false)
+  })
+})
+
 describe('decodeDiamondCut selector resolution', () => {
   it('resolves all unknown selectors in a single batched 4byte request', async () => {
     const { decodeDiamondCut } = await import('./safe-utils')
@@ -791,5 +1111,555 @@ describe('SafeClient.signTransaction chain id source', () => {
     await client.signTransaction(buildSafeTx())
     expect(rpcChainIdCalls()).toBe(1)
     expect(domains[0]?.chainId).toBe(999)
+  })
+})
+
+/**
+ * Real MongoDB 8.2 supplies `keyPattern` and names the index in the message; an
+ * older driver or a mongos in the path may only supply the message. Both shapes
+ * are covered because the classifier decides whether a collision is swallowed as
+ * an idempotent re-propose or surfaced as a lost nonce race.
+ */
+class FakeNonceDuplicateKeyError extends Error {
+  public code = 11000
+  public keyPattern = {
+    safeAddress: 1,
+    network: 1,
+    chainId: 1,
+    'safeTx.data.nonce': 1,
+  }
+  public constructor() {
+    super(
+      'E11000 duplicate key error collection: sc_private.pendingTransactions index: unique_inflight_safe_nonce_ci dup key: { safeAddress: "0x11", network: "mainnet", chainId: 1, safeTx.data.nonce: 5 }'
+    )
+  }
+}
+
+describe('classifyDuplicateKeyError', () => {
+  it('is not-duplicate for a non-11000 error', () => {
+    expect(classifyDuplicateKeyError(new Error('connection reset'))).toBe(
+      'not-duplicate'
+    )
+  })
+
+  it('is not-duplicate for a non-Error value', () => {
+    expect(classifyDuplicateKeyError('nope')).toBe('not-duplicate')
+  })
+
+  it('recognises the intent index from keyPattern', () => {
+    const error = Object.assign(new Error('E11000'), {
+      code: 11000,
+      keyPattern: { intentHash: 1 },
+    })
+
+    expect(classifyDuplicateKeyError(error)).toBe('intent')
+  })
+
+  it('recognises the in-flight nonce index from keyPattern', () => {
+    expect(classifyDuplicateKeyError(new FakeNonceDuplicateKeyError())).toBe(
+      'in-flight-nonce'
+    )
+  })
+
+  it('falls back to the index name when keyPattern is absent', () => {
+    expect(classifyDuplicateKeyError(new FakeDuplicateKeyError())).toBe(
+      'intent'
+    )
+  })
+
+  it('recognises the nonce index from the message alone', () => {
+    const error = Object.assign(
+      new Error(
+        'E11000 duplicate key error collection: sc_private.pendingTransactions index: unique_inflight_safe_nonce_ci'
+      ),
+      { code: 11000 }
+    )
+
+    expect(classifyDuplicateKeyError(error)).toBe('in-flight-nonce')
+  })
+
+  it('recognises the pre-collation index, which is never dropped and can still fire', () => {
+    const error = Object.assign(
+      new Error(
+        'E11000 duplicate key error collection: sc_private.pendingTransactions index: unique_inflight_safe_nonce'
+      ),
+      { code: 11000 }
+    )
+
+    expect(classifyDuplicateKeyError(error)).toBe('in-flight-nonce')
+  })
+
+  it('is other for an 11000 on some unrelated index', () => {
+    const error = Object.assign(
+      new Error(
+        'E11000 duplicate key error collection: sc_private.pendingTransactions index: _id_'
+      ),
+      { code: 11000, keyPattern: { _id: 1 } }
+    )
+
+    expect(classifyDuplicateKeyError(error)).toBe('other')
+  })
+})
+
+describe('storeTransactionInMongoDB — nonce collision is not an idempotent duplicate', () => {
+  it('throws instead of returning null when the in-flight nonce index fires', async () => {
+    const collection = createFakeCollection([], {
+      insertError: new FakeNonceDuplicateKeyError(),
+    })
+
+    let thrown: unknown
+    try {
+      await store(collection, buildSafeTx())
+    } catch (error) {
+      thrown = error
+    }
+
+    expect(thrown).toBeInstanceOf(Error)
+    expect((thrown as Error).message).toMatch(/nonce/i)
+    expect(collection.rows).toHaveLength(0)
+  })
+
+  it('still returns null for a duplicate intent, so re-proposing stays idempotent', async () => {
+    const collection = createFakeCollection([], {
+      insertError: new FakeDuplicateKeyError(),
+    })
+
+    expect(await store(collection, buildSafeTx())).toBeNull()
+  })
+
+  it('propagates an unrelated 11000 rather than guessing', async () => {
+    const error = Object.assign(new Error('E11000 index: _id_'), {
+      code: 11000,
+      keyPattern: { _id: 1 },
+    })
+    const collection = createFakeCollection([], { insertError: error })
+
+    let thrown: unknown
+    try {
+      await store(collection, buildSafeTx())
+    } catch (caught) {
+      thrown = caught
+    }
+
+    expect(thrown).toBe(error)
+  })
+})
+
+describe('classifyIndexEnsureFailure', () => {
+  it('treats a drifted definition as drifted, not fatal — either conflict code', () => {
+    expect(classifyIndexEnsureFailure(85)).toBe('drifted')
+    expect(classifyIndexEnsureFailure(86)).toBe('drifted')
+  })
+
+  it('treats a permission failure as its own outcome', () => {
+    expect(classifyIndexEnsureFailure(13)).toBe('unauthorized')
+  })
+
+  it('treats colliding data as its own outcome', () => {
+    expect(classifyIndexEnsureFailure(11000)).toBe('colliding-data')
+  })
+
+  it('treats anything else as fatal, so a real connection fault still propagates', () => {
+    expect(classifyIndexEnsureFailure(undefined)).toBe('fatal')
+    expect(classifyIndexEnsureFailure(6)).toBe('fatal')
+    expect(classifyIndexEnsureFailure(27)).toBe('fatal')
+  })
+})
+
+/**
+ * Fake timelock whose operation id is a function of every field the real contract
+ * hashes, and which refuses any read it was not expecting.
+ *
+ * A loose fake cannot see the address it was called at or which function was
+ * asked for — and `getMinDelay`'s non-zero return classifies as `pending`, which
+ * would refuse every timelock proposal on every path.
+ */
+const ozOperationId = (args: readonly unknown[]): Hex =>
+  keccak256(
+    encodeAbiParameters(
+      [
+        { type: 'address[]' },
+        { type: 'uint256[]' },
+        { type: 'bytes[]' },
+        { type: 'bytes32' },
+        { type: 'bytes32' },
+      ],
+      args as never
+    )
+  )
+
+interface IFakeTimelock {
+  client: unknown
+  /** Operation ids `getTimestamp` was called with, in order. */
+  probedIds: string[]
+  /** Argument tuples `hashOperationBatch` was called with, in order. */
+  hashArgs: unknown[][]
+}
+
+const fakeTimelockClient = (
+  timestampsByOperationId: Record<string, bigint>,
+  expectedAddress: Address
+): IFakeTimelock => {
+  const probedIds: string[] = []
+  const hashArgs: unknown[][] = []
+  const client = {
+    readContract: async (args: {
+      address: Address
+      functionName: string
+      args: readonly unknown[]
+    }): Promise<unknown> => {
+      if (args.address !== expectedAddress)
+        throw new Error(
+          `read at ${args.address}, expected the timelock ${expectedAddress}`
+        )
+
+      if (args.functionName === 'hashOperationBatch') {
+        hashArgs.push([...args.args])
+        return ozOperationId(args.args)
+      }
+
+      if (args.functionName === 'getTimestamp') {
+        const id = args.args[0] as string
+        probedIds.push(id)
+        return timestampsByOperationId[id] ?? 0n
+      }
+
+      throw new Error(`unexpected read: ${args.functionName}`)
+    },
+  }
+  return { client, probedIds, hashArgs }
+}
+
+describe('pickTimelockSalt', () => {
+  const action = {
+    chainId: 1,
+    timelockAddress: '0x1111111111111111111111111111111111111111' as Address,
+    // Two distinct calls on purpose: a single-element fixture makes every
+    // array-ordering bug a no-op, and two of the converted call sites build
+    // multi-element batches.
+    targetAddresses: [
+      '0x2222222222222222222222222222222222222222',
+      '0x4444444444444444444444444444444444444444',
+    ] as Address[],
+    originalCalldatas: ['0xdeadbeef', '0xfeedface'] as Hex[],
+    // Not all-zero: an all-zero fixture cannot observe the `values` parameter, so
+    // every pass-through and ordering bug in it becomes a no-op.
+    values: [0n, 7n],
+  }
+
+  const saltFor = (attempt: number): Hex =>
+    deriveTimelockSalt({
+      chainId: action.chainId,
+      timelockAddress: action.timelockAddress,
+      targets: action.targetAddresses,
+      payloads: action.originalCalldatas,
+      attempt,
+    })
+
+  /** The id the real timelock would report for a given attempt's salt. */
+  const idFor = (attempt: number): Hex =>
+    ozOperationId([
+      action.targetAddresses,
+      action.values,
+      action.originalCalldatas,
+      TIMELOCK_ZERO_PREDECESSOR,
+      saltFor(attempt),
+    ])
+
+  it('uses the first attempt when the timelock knows nothing about it', async () => {
+    const { client } = fakeTimelockClient({}, action.timelockAddress)
+
+    expect(
+      await pickTimelockSalt({
+        ...action,
+        client: client as never,
+      })
+    ).toBe(saltFor(0))
+  })
+
+  it('probes the operation it is about to schedule — same targets, payloads and values, zero predecessor', async () => {
+    const { client, hashArgs } = fakeTimelockClient({}, action.timelockAddress)
+
+    const salt = await pickTimelockSalt({ ...action, client: client as never })
+
+    expect(hashArgs).toHaveLength(1)
+    expect(hashArgs[0]).toEqual([
+      action.targetAddresses,
+      action.values,
+      action.originalCalldatas,
+      TIMELOCK_ZERO_PREDECESSOR,
+      salt,
+    ])
+  })
+
+  it('forwards chainId and the timelock into the salt, so one chain cannot predict another', async () => {
+    const other = '0x9999999999999999999999999999999999999999' as Address
+    const pick = async (over: Partial<typeof action>): Promise<Hex> =>
+      pickTimelockSalt({
+        ...action,
+        ...over,
+        client: fakeTimelockClient(
+          {},
+          over.timelockAddress ?? action.timelockAddress
+        ).client as never,
+      })
+
+    const base = await pick({})
+
+    expect(await pick({ chainId: 10 })).not.toBe(base)
+    expect(await pick({ timelockAddress: other })).not.toBe(base)
+  })
+
+  it('probes the id it derived, not the salt', async () => {
+    const { client, probedIds } = fakeTimelockClient({}, action.timelockAddress)
+
+    await pickTimelockSalt({ ...action, client: client as never })
+
+    expect(probedIds).toEqual([idFor(0)])
+    expect(probedIds[0]).not.toBe(saltFor(0))
+  })
+
+  it('is deterministic — two proposers of the same action get the same salt', async () => {
+    const first = await pickTimelockSalt({
+      ...action,
+      client: fakeTimelockClient({}, action.timelockAddress).client as never,
+    })
+    const second = await pickTimelockSalt({
+      ...action,
+      client: fakeTimelockClient({}, action.timelockAddress).client as never,
+    })
+
+    expect(first).toBe(second)
+  })
+
+  it('skips an executed operation and takes the next attempt', async () => {
+    const { client } = fakeTimelockClient(
+      { [idFor(0)]: 1n },
+      action.timelockAddress
+    )
+
+    expect(await pickTimelockSalt({ ...action, client: client as never })).toBe(
+      saltFor(1)
+    )
+  })
+
+  it('skips several executed operations in order', async () => {
+    const { client, probedIds } = fakeTimelockClient(
+      {
+        [idFor(0)]: 1n,
+        [idFor(1)]: 1n,
+        [idFor(2)]: 1n,
+      },
+      action.timelockAddress
+    )
+
+    expect(await pickTimelockSalt({ ...action, client: client as never })).toBe(
+      saltFor(3)
+    )
+    expect(probedIds).toEqual([idFor(0), idFor(1), idFor(2), idFor(3)])
+  })
+
+  it('refuses on a PENDING operation rather than scheduling the batch twice', async () => {
+    const { client } = fakeTimelockClient(
+      { [idFor(0)]: 1_800_000_000n },
+      action.timelockAddress
+    )
+
+    let thrown: unknown
+    try {
+      await pickTimelockSalt({ ...action, client: client as never })
+    } catch (error) {
+      thrown = error
+    }
+
+    expect(thrown).toBeInstanceOf(Error)
+    expect((thrown as Error).message).toMatch(/already scheduled/i)
+    expect((thrown as Error).message).toMatch(/nothing was proposed/i)
+  })
+
+  it('refuses on a pending operation found after an executed one', async () => {
+    // The normal state once a legitimate repeat has been scheduled, and the case
+    // `attempt` exists for.
+    const { client } = fakeTimelockClient(
+      { [idFor(0)]: 1n, [idFor(1)]: 1_800_000_000n },
+      action.timelockAddress
+    )
+
+    let thrown: unknown
+    try {
+      await pickTimelockSalt({ ...action, client: client as never })
+    } catch (error) {
+      thrown = error
+    }
+
+    expect(thrown).toBeInstanceOf(Error)
+    expect((thrown as Error).message).toMatch(/already scheduled/i)
+  })
+
+  it('rejects a payloads array whose length does not match the targets', async () => {
+    const { client } = fakeTimelockClient({}, action.timelockAddress)
+
+    let thrown: unknown
+    try {
+      await pickTimelockSalt({
+        ...action,
+        originalCalldatas: ['0xdeadbeef'],
+        client: client as never,
+      })
+    } catch (error) {
+      thrown = error
+    }
+
+    expect(thrown).toBeInstanceOf(Error)
+    expect((thrown as Error).message).toMatch(/originalCalldatas/i)
+  })
+
+  it('rejects a values array whose length does not match the targets', async () => {
+    const { client } = fakeTimelockClient({}, action.timelockAddress)
+
+    let thrown: unknown
+    try {
+      await pickTimelockSalt({
+        ...action,
+        values: [0n],
+        client: client as never,
+      })
+    } catch (error) {
+      thrown = error
+    }
+
+    expect(thrown).toBeInstanceOf(Error)
+    expect((thrown as Error).message).toMatch(/values/i)
+  })
+
+  it('refuses rather than guessing when every attempt is taken', async () => {
+    const taken: Record<string, bigint> = {}
+    for (let attempt = 0; attempt < 16; attempt++) taken[idFor(attempt)] = 1n
+    const exhausted = fakeTimelockClient(taken, action.timelockAddress)
+    const { probedIds } = exhausted
+
+    let thrown: unknown
+    try {
+      await pickTimelockSalt({ ...action, client: exhausted.client as never })
+    } catch (error) {
+      thrown = error
+    }
+
+    expect(thrown).toBeInstanceOf(Error)
+    expect((thrown as Error).message).toMatch(/refusing to schedule/i)
+    expect(probedIds).toHaveLength(16)
+  })
+})
+
+/**
+ * Drives `wrapWithTimelockSchedule` against a local JSON-RPC stub.
+ *
+ * The function builds its own client from `rpcUrl`, so pointing that at a stub
+ * exercises the whole path without a chain — which is the only way to assert the
+ * property the salt design rests on: the operation id probed is the operation the
+ * emitted calldata actually schedules.
+ */
+describe('wrapWithTimelockSchedule', () => {
+  const TIMELOCK = '0x1111111111111111111111111111111111111111' as Address
+  const TARGETS = [
+    '0x2222222222222222222222222222222222222222',
+    '0x4444444444444444444444444444444444444444',
+  ] as Address[]
+  const PAYLOADS = ['0xdeadbeef', '0xfeedface'] as Hex[]
+
+  const ZERO32 = `0x${'00'.repeat(32)}` as Hex
+
+  interface IStub {
+    url: string
+    stop: () => void
+    hashCalls: Hex[]
+    getTimestampCalls: Hex[]
+  }
+
+  const startStub = async (): Promise<IStub> => {
+    const hashCalls: Hex[] = []
+    const getTimestampCalls: Hex[] = []
+    // hashOperationBatch/getTimestamp/getMinDelay selectors, matched on the
+    // 4-byte prefix so the stub does not need an ABI decoder.
+    const server = Bun.serve({
+      port: 0,
+      fetch: async (request) => {
+        const body = (await request.json()) as {
+          id: number
+          method: string
+          params?: { data?: Hex }[]
+        }
+        const data = body.params?.[0]?.data ?? '0x'
+        const selector = data.slice(0, 10)
+        let result: Hex = ZERO32
+
+        if (selector === '0xf27a0c92')
+          result = `0x${(3600).toString(16).padStart(64, '0')}` as Hex
+        else if (selector === '0xb1c5f427') {
+          hashCalls.push(data)
+          result = `0x${'11'.repeat(32)}` as Hex
+        } else if (selector === '0xd45c4435') {
+          getTimestampCalls.push(data)
+          result = ZERO32
+        }
+
+        return Response.json({ jsonrpc: '2.0', id: body.id, result })
+      },
+    })
+    return {
+      url: `http://127.0.0.1:${server.port}`,
+      stop: () => {
+        void server.stop(true)
+      },
+      hashCalls,
+      getTimestampCalls,
+    }
+  }
+
+  it('schedules the operation it probed, with one values array for both', async () => {
+    const stub = await startStub()
+    // `getViemChainForNetworkName` reads the network's RPC env var and throws
+    // without it, so the test supplies its own stub URL rather than depending on
+    // a populated .env — CI has none.
+    const envKey = getRPCEnvVarName('mainnet')
+    const previousRpc = process.env[envKey]
+    process.env[envKey] = stub.url
+
+    try {
+      const { calldata, targetAddress } = await wrapWithTimelockSchedule(
+        'mainnet',
+        stub.url,
+        TIMELOCK,
+        TARGETS,
+        PAYLOADS
+      )
+
+      expect(targetAddress).toBe(TIMELOCK)
+      expect(stub.hashCalls).toHaveLength(1)
+
+      const probed = decodeFunctionData({
+        abi: TIMELOCK_OPERATION_STATE_ABI,
+        data: stub.hashCalls[0] as Hex,
+      })
+      const scheduled = decodeFunctionData({
+        abi: TIMELOCK_SCHEDULE_BATCH_ABI,
+        data: calldata,
+      })
+
+      // targets, values, payloads and salt must match between the two, or the
+      // state that was checked belongs to a different operation.
+      expect(probed.args?.[0]).toEqual(scheduled.args?.[0])
+      expect(probed.args?.[1]).toEqual(scheduled.args?.[1])
+      expect(probed.args?.[2]).toEqual(scheduled.args?.[2])
+      expect(probed.args?.[4]).toEqual(scheduled.args?.[4])
+
+      // From the stub's getMinDelay, not the config-file or 1-hour fallback: a
+      // delay below the timelock's real minDelay reverts after signing.
+      expect(scheduled.args?.[5]).toBe(3600n)
+    } finally {
+      if (previousRpc === undefined) delete process.env[envKey]
+      else process.env[envKey] = previousRpc
+      stub.stop()
+    }
   })
 })

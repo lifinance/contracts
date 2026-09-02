@@ -1034,6 +1034,65 @@ export function filterRePointedRemovals(
   return { stillRemovable, stale }
 }
 
+/** Operator-facing reading of a stale-removal abort. */
+export interface IStaleRemovalDiagnosis {
+  /**
+   * True when no snapshotted selector survives — every one has moved on, so the
+   * folded `Remove` would delete nothing it was aimed at.
+   */
+  fullyObsolete: boolean
+  /** `facet:selector (reason→currentAddress)` for each stale selector. */
+  detail: string
+  /** What the operator should actually do. */
+  remediation: string
+}
+
+/**
+ * Turns a stale-removal result into a diagnosis an operator can act on.
+ *
+ * The distinction that matters: when *every* snapshotted selector is stale the
+ * folded `Remove` has become a pure no-op (the doomed facet was replaced or
+ * already unlinked), and the only real casualty of the abort is the unrelated
+ * primary cut riding in the same batch. When only some are stale the removal is
+ * still partly live and the batch needs a genuine re-draft.
+ *
+ * Neither case is fixable by re-pointing the removal at the selectors' current
+ * address: those selectors now route to a *live* facet, and a `Remove` sets
+ * `facetAddress = address(0)` regardless of who owns them, so re-pointing would
+ * delete live selectors (EXSC-816).
+ *
+ * @param revalidated - Output of {@link filterRePointedRemovals}.
+ * @returns Detail string plus the correct remediation for this shape of failure.
+ */
+export function describeStaleRemovals(
+  revalidated: IRevalidatedRemovals
+): IStaleRemovalDiagnosis {
+  const detail = revalidated.stale
+    .map(
+      (s) =>
+        `${s.facet}:${s.selector} (${s.reason}${
+          s.currentAddress ? `→${s.currentAddress}` : ''
+        })`
+    )
+    .join('; ')
+
+  // Nothing stale means the caller has no abort to explain. Returning one of the
+  // two remediation texts here would assert staleness that does not exist.
+  if (revalidated.stale.length === 0)
+    return {
+      fullyObsolete: false,
+      detail: '',
+      remediation: 'No stale folded removal selectors were detected.',
+    }
+
+  const fullyObsolete = revalidated.stillRemovable.length === 0
+  const remediation = fullyObsolete
+    ? 'Every folded removal selector has already left its doomed facet, so the Remove cut is now a no-op. A scheduled timelock batch is immutable, so it cannot be dropped in place: cancel this op and re-propose the primary cut(s) alone. The parked task needs no repair — reconcileParkedTasks matches the loupe by address and will resolve it to `superseded`. Do NOT re-point the removal at the current address: those selectors route to a live facet and Remove would delete them.'
+    : 'Some folded removal selectors still route to their doomed facet and some do not, so the batch needs a genuine re-draft: cancel this op and re-propose after a fresh loupe drain so only still-removable selectors are folded in. Do NOT re-point the stale selectors at their current address — that would delete live selectors.'
+
+  return { fullyObsolete, detail, remediation }
+}
+
 /**
  * Re-reads the diamond's on-chain loupe and re-validates a removal snapshot via
  * {@link filterRePointedRemovals}. Called by `execute-pending-timelock-tx`

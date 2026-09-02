@@ -126,15 +126,17 @@ the source prompt or inferred, **not** confirmed.
    `getTimelockQueueCollection()` (`script/deploy/safe/timelock-queue.ts:37,40,115-122`).
    The parked-tasks store mirrors **this queue sibling** — not the signing store — so it
    needs no tunnel (§5).
-6. `[code]` `ISafeTxDocument` (`safe-utils.ts:112-124`) is **purely structural**:
-   `safeAddress, network, chainId, safeTx, safeTxHash, proposer, timestamp, status,
-   executionHash?, submittedAt?, intentHash?`. **No** description / label / note /
-   URL field. The signer's view is built from it: `confirm-safe-tx.ts` shows an
+6. `[code]` `ISafeTxDocument` (`safe-utils.ts:112-124`) is **almost entirely
+   structural**: `safeAddress, network, chainId, safeTx, safeTxHash, proposer,
+   timestamp, status, executionHash?, submittedAt?, intentHash?, parkedTaskRefs?,
+   provenance?`. The only free text is the optional `provenance.reason` (plus the
+   `prUrl` links on `provenance` and `parkedTaskRefs`); there is still **no** general
+   description / label / note field. The signer's view is built from it: `confirm-safe-tx.ts` shows an
    ABI-decode block (via `formatDecodedTxDataForDisplay`, mandated single entry point
    — `.agents/rules/201-safe-decode-scripts.md:12`) plus a plain-string
    `detailLines` "Safe Transaction Details" block (`confirm-safe-tx.ts:497-512`).
    `list-pending-proposals.ts` prints `IProposalSummary` (`safe-utils.ts:139-153`).
-   None carry free text today.
+   Apart from the provenance rationale, none carry free text.
 7. `[code]` Proposal `status` is a 4-state machine `pending | submitted | executed |
    reverted` (`safe-utils.ts:110`, lifecycle doc `:97-109`). Inserted as `pending`
    (`:1291`); transitioned by `confirm-safe-tx.ts:239-253` and the reconcile sweeps
@@ -145,12 +147,21 @@ the source prompt or inferred, **not** confirmed.
    (`safe-utils.ts:1322-1349`); `intentHash = keccak256(network, chainId,
    safeAddress, to, value, data, operation)` (`:1218-1249`). Duplicate insert → E11000
    → returns `null` (`:1296-1309`).
-9. `[code]` **Timelock-wrap salt is time-derived and non-deterministic:**
-   `wrapWithTimelockSchedule` builds `salt = 0x{Date.now()…}` (`safe-utils.ts:2392`)
-   and always encodes a single `scheduleBatch` (N inner calls; length-1 for one).
-   ⇒ Two wraps of the **same** removal cut produce **different** calldata → different
-   `intentHash`. **The Mongo `intentHash` dedup (Fact 8) cannot prevent a duplicate
-   removal re-proposal.** Dedup must be enforced at the queue layer.
+9. `[code]` **Timelock-wrap salt is action-derived (was time-derived; fixed by EXSC-874 D4):**
+   `wrapWithTimelockSchedule` derives the salt from the action and checks the resulting
+   operation id against the timelock (`deriveTimelockSalt` / `pickTimelockSalt`), and always
+   encodes a single `scheduleBatch` (N inner calls; length-1 for one).
+   ⇒ Two wraps of the **same** removal cut produce the **same** calldata and the same
+   `intentHash` *while the first candidate salt is still free*, so the Mongo dedup (Fact 8) does
+   apply to a wrapped re-proposal. Two states break that equality by design: a **pending**
+   operation makes the wrap refuse outright, and an **executed** one advances to the next
+   deterministic salt, which is a different `intentHash`. `minDelay` is also a `scheduleBatch`
+   argument, so an `updateDelay` or a `getMinDelay` fallback changes the calldata and therefore the
+   `intentHash` — but **not** the timelock operation id, which hashes targets, values, payloads,
+   predecessor and salt only. So a delay change defeats the Mongo intent dedup while the timelock's
+   own pending/executed refusal keeps working.
+   **The queue-layer flip (Fact 15, §7) remains the guarantee that does not depend on any of
+   this**, which is why it is not redundant. The Tron proposal path still uses a clock salt.
 10. `[code]` `/deprecate-contract` step 6 today builds the removal proposals eagerly
     (`--facets '[…]' --all-networks --environment production --yes`) and already
     warns not to delete `deployments/*.json` facet→address entries until the removal
@@ -313,7 +324,7 @@ store.** Shipped in #2051 (Fact 15). Three options were compared:
 | Durability | ✅ Mongo, cross-session | ✅ | ✅ (repo) |
 | Mutable cross-session state (`queued → claimed → done`) | ✅ a live-updatable record, the natural fit | ✅ | ❌ every status flip is a commit; a git file models a snapshot, not a mutating queue |
 | Concurrency / atomic dedup | ✅ partial unique index + atomic `claimForProposal` flip (Fact 15) | ✅ (same collection) | ⚠️ parallel sessions → JSON merge conflicts (same failure model as `_targetState.json`) |
-| Dedup vs re-propose (Fact 9) | ✅ solved by the atomic status flip, independent of the salt-nondeterministic `intentHash` | ✅ | ⚠️ needs a **commit** to record `proposed`, else next drain re-proposes |
+| Dedup vs re-propose (Fact 9) | ✅ solved by the atomic status flip, which does not depend on the proposal `intentHash` at all | ✅ | ⚠️ needs a **commit** to record `proposed`, else next drain re-proposes |
 | Lifecycle vs on-chain truth | ✅ reconcilable (loupe + linked proposal status) | ✅ | ❌ a git file can't observe execution; needs an out-of-band reconcile anyway |
 | Blast radius on audited signing code | ✅ none (separate collection, separate cluster) | ❌ **high** — a `parked` row has no real `safeTx`/nonce/signatures; every consumer (`confirm-safe-tx`, `reconcile`, `getNextNonce`, `list-pending`) must learn to skip it | ✅ none |
 | Cluster / tunnel dependency | ✅ **non-sensitive `MONGODB_URI`, no tunnel** — CI, reconcile/TTL jobs, and agent-driven `/deprecate-contract` all reach it without `lifi-connect` | ❌ inherits `sc_private` + tunnel gate | ✅ none (in-repo) |
@@ -334,7 +345,7 @@ whichever session next touches the network. A git file models a *snapshot* revie
 merge, not a record that flips status out-of-band; recording each `proposed`/`executed`
 flip as a commit is friction, and concurrent drains would collide on JSON merges. Mongo
 also wins the two places the git file is weakest: **atomic dedup** (the
-salt-nondeterministic `intentHash`, Fact 9, cannot provide it — `claimForProposal` does,
+proposal `intentHash` does not provide it unconditionally per Fact 9 — `claimForProposal` does,
 §7) and **on-chain-truth reconciliation**.
 
 The git file's one real virtue — the parked set being a peer-reviewed diff — is
@@ -491,7 +502,7 @@ a deliberate future option, not part of v1.
    `findOneAndUpdate({taskKey, status:'queued'}, …)`. This is the dedup gate (§7): a
    concurrent drain finds no `queued` record, gets `null`, and skips it — so two parallel
    sessions draining the same network **cannot double-propose the same removal**,
-   independent of the salt-nondeterministic `intentHash` (Fact 9).
+   without depending on the proposal `intentHash` (Fact 9).
 4. Build **one `diamondCut` Remove call per claimed facet** →
    `buildDiamondCutRemoveCalldata([{name, selectors}])` — and hand those calls to
    `_runPropose` as `extraTimelockCalls`, which appends them to the primary proposal's
@@ -529,11 +540,27 @@ the primary cut with it. Two failure modes in the delay window: (1) selector alr
 gone → on-chain `FunctionDoesNotExist` revert of the whole batch; (2) selector
 **re-pointed** to a live facet → the Remove (`facetAddress = 0`) would *succeed* and
 silently delete the live selector. The pre-execute guard in `execute-pending-timelock-tx`
-(§4) refuses both before `executeBatch`, marking the queue row `failed` so the cron does
-not retry. The prepare-time partition still shrinks the window; the schedule remains
-immutable once queued. Exposure is low in practice (parked removals target already-
-deprecated facets), but larger than the old separate-proposal design. Mitigations if the
-guard ever false-positives a rollout: cancel the op, or gate `DRAIN_PARKED_TASKS` off.
+(§4) refuses both before `executeBatch`, marking the queue row `blocked` so the cron does
+not retry it blindly. `blocked` — not `failed` — because the timelock op stays live and
+executable on-chain: the runner keeps re-checking it, re-alerts to Slack while it remains
+`isOperationReady`, and `requeue-timelock-op.ts` re-drives it once the cause is cleared.
+`failed` is reserved for rows that can never run as stored (tampered row, on-chain revert).
+Marking a still-executable op `failed` made it invisible to every consumer and stalled a
+production rollout for hours (EXSC-816). The prepare-time partition still shrinks the
+window; the schedule remains immutable once queued. Exposure is low in practice (parked
+removals target already-deprecated facets), but larger than the old separate-proposal
+design. Mitigation if the guard ever false-positives a rollout: cancel the op, then
+re-propose with `DRAIN_PARKED_TASKS` unset — gating the flag off on its own changes nothing
+about an already-scheduled batch, which is immutable once queued.
+
+**When the guard fires, the removal is usually obsolete rather than wrong.** If *every*
+snapshotted selector is stale, the doomed facet has already been replaced or unlinked, so
+the folded `Remove` removes nothing and the only real casualty is the primary cut riding
+in the same immutable batch — cancel and re-propose the primary cut alone; the parked task
+resolves itself to `superseded` because `reconcileDecision` matches the loupe by address.
+Re-pointing the removal at the selectors' *current* address is never the fix: `Remove`
+zeroes a selector regardless of which facet owns it, so that would delete live selectors.
+`describeStaleRemovals` encodes this distinction and emits the matching remediation.
 A rare false abort can also come from same-ms `proposedAt` ties mis-ordering the
 trailing-N Remove zip (fail-safe, not silent delete) — accepted until claim-time
 append indexing ships. Flagged for governance review; the default-off flag remains
@@ -547,8 +574,9 @@ removal" problem just moves up one level (the signer now sees a mystery `diamond
 instead of a mystery deprecation). So the drain both `consola`-logs each removal it adds
 (facet + origin PR) at mint time, and threads the PR link onto the minted proposal.
 
-`ISafeTxDocument` has no free-text field (Fact 6), so the drain-minted proposal is
-extended with **one optional field** and surfaced at the three places the reviewer looks
+`ISafeTxDocument` carried no field for a cleanup origin link before this spec (Fact 6 now
+lists the `parkedTaskRefs?` it adds), so the drain-minted proposal is extended with **one
+optional field** and surfaced at the three places the reviewer looks
 — none of which touch the rule-201 decode formatter (the field-vs-side-car choice itself
 is §14 Q3):
 
@@ -614,7 +642,7 @@ All six transitions ship as helpers in `parked-tasks.ts` (#2051, Fact 15):
 
 - **queued → proposed**: the drain, via the atomic `claimForProposal(parkedTasks,
   taskKey)` (`:324`) filtered on `status:'queued'` (§6 step 3). This is the dedup gate
-  that replaces the unusable `intentHash` dedup (Fact 9): only one drain can win the
+  that stands independently of the `intentHash` dedup (Fact 9): only one drain can win the
   flip, so **no double proposal**; a concurrent drain gets `null` and a re-run finds
   nothing `queued`.
 - **proposed → executed**: `markExecuted` (`:342`), driven by **on-chain truth**, not
@@ -862,7 +890,7 @@ only the PR-link surfacing (§6) and drops the manual `--auto` invocation.
 |---|---|
 | No new governance path / no bypass | Queue lives on the **non-sensitive `MONGODB_URI` cluster** (off the signing store), **mirroring** the existing `timelock-operations/queue` (Fact 5, 15). Removals still go loupe → `buildDiamondCutRemoveCalldata` → `wrapWithTimelockSchedule` → Safe → timelock → quorum, **unchanged** (Facts 2, 4, 9). Timelock/Safe never weakened (`002:29`, `105:15`). |
 | PR link mandatory + reviewer-visible | `enqueueParkedTask` throws on a blank `prUrl` (Fact 15); drain **logs each removal loudly** and copies the link to `parkedTaskRefs` on the proposal; shown in `confirm-safe-tx` detailLines, `list-pending-proposals`, and Slack (§6). |
-| No double-enqueue / no double-propose | Partial unique index `unique_open_task_key` on `taskKey`; the atomic `claimForProposal` flip — independent of the salt-nondeterministic `intentHash` (Facts 8, 9, 15; §7). |
+| No double-enqueue / no double-propose | Partial unique index `unique_open_task_key` on `taskKey`; the atomic `claimForProposal` flip — which does not depend on the proposal `intentHash` (Facts 8, 9, 15; §7). |
 | Never park/remove a protected facet | Enqueue and drain both call `getProtectedNames()` (`diamondRemovalDiff.ts`); a queued protected facet is `cancelled` + alerted (§6). The address path checks protection twice, the second side independent of the deploy log: an address the log cannot name (the normal case for a superseded version) is matched by **selector** against the union owned by the protected facets, and refused on a hit — or reported `unverifiable` when that union cannot be built from artifacts — never removed, and deliberately NOT reported as protected, since the drain *cancels* a protected task (terminal, "parked in error") while a missing artifact must leave it queued for the next run. Inherits every #2047 guardrail (drift gate is N/A — named path). |
 | Deferred ≠ orphaned | Cold-network backstops: `--auto --all-networks` sweep + TTL Slack alert + observability CLI (§8). No silent truncation — the TTL alert names what's still queued. |
 | Deploy-log longevity | Presence is resolved by the parked **address**, matching the drain (EXSC-775); a pruned log entry therefore cannot false-`superseded` a live facet, and the strengthened `/deprecate-contract` warning (§8) keeps the label resolvable. A snapshot address can still be flat wrong, so address-gone + **name still routed** on a task **no proposal ever claimed** resolves nothing: both the drain and the reconcile refuse the transition and alert instead (EXSC-774). A claimed task is exempt — the drain resolves selectors off the diamond's own loupe before claiming, so a linked `safeTxHash` proves the address was routed there and its absence is that removal landing, which is exactly the co-registered shape (EXSC-750); without the exemption every such removal would sit unresolved and re-alert forever. |

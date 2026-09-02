@@ -127,15 +127,21 @@ jobs:
           fi
 
       # Build and post a Slack message ONLY when the run surfaces something actionable: a failed
-      # network or a runner error (outcome=failure), or a network that passed WITH warnings
-      # (warned_count != 0). A fully-green run — and the staging-only no-op push that resolves zero
-      # production networks (success, warned_count=0) — stays silent to keep the channel signal-only.
+      # network (outcome=failure), a network that passed WITH warnings (warned_count != 0), or any
+      # earlier step dying before the health check could run (failure()). A fully-green run — and the
+      # staging-only no-op push that resolves zero production networks (success, warned_count=0) —
+      # stays silent to keep the channel signal-only.
+      # failure() is load-bearing and cannot be folded into the two step-output checks: when an
+      # earlier step fails, `steps.healthcheck` never runs and both operands are unset. GitHub
+      # coerces operands to numbers on a type mismatch, and unset coerces to 0 — the same as the
+      # string '0' — so `warned_count != '0'` is FALSE, not true, and the runner-error branch below
+      # would never be reached.
       # Trade-off: there is no longer a positive green heartbeat, so a silently-broken cron (never
       # fired, or died before this step) no longer self-announces as a MISSING message; track cron
       # liveness separately if that dead-man's-switch is needed.
       - name: Compose health-check status message
         id: status_msg
-        if: ${{ !cancelled() && (steps.healthcheck.outcome == 'failure' || steps.healthcheck.outputs.warned_count != '0') }}
+        if: ${{ !cancelled() && (failure() || steps.healthcheck.outcome == 'failure' || steps.healthcheck.outputs.warned_count != '0') }}
         env:
           GH_TOKEN: ${{ github.token }}
           OUTCOME: ${{ steps.healthcheck.outcome }}
@@ -200,12 +206,12 @@ jobs:
           } >> "$GITHUB_OUTPUT"
 
       - name: Notify Slack with health-check status
-        if: ${{ !cancelled() && (steps.healthcheck.outcome == 'failure' || steps.healthcheck.outputs.warned_count != '0') }}
+        if: ${{ !cancelled() && (failure() || steps.healthcheck.outcome == 'failure' || steps.healthcheck.outputs.warned_count != '0') }}
         uses: slackapi/slack-github-action@485a9d42d3a73031f12ec201c457e2162c45d02d # v2.0.0
         with:
           webhook: ${{ secrets.SLACK_WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS }}
           webhook-type: incoming-webhook
           payload: |
             {
-              "text": ${{ toJSON(steps.status_msg.outputs.text) }}
+              "text": ${{ toJSON(steps.status_msg.outputs.text || format(':rotating_light: *Diamond health check — ACTION NEEDED* — unknown (runner error): the status composer produced no message. <{0}/{1}/actions/runs/{2}|View workflow run>', github.server_url, github.repository, github.run_id)) }}
             }

@@ -4,7 +4,7 @@ import {
   it,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
-import { type Address, type Hex } from 'viem'
+import { getAddress, type Address, type Hex } from 'viem'
 
 import globalConfig from '../../config/global.json'
 import networksConfig from '../../config/networks.json'
@@ -38,8 +38,10 @@ import {
   type ICorePeripheryExemption,
   type IInvariantExclusion,
 } from './healthCheckInvariants'
+import { type IPendingRegistration } from './safe/pending-registrations'
 import { DAY_MS } from './shared/constants'
 import { getFacetPeripheryCouplings } from './shared/facetPeripheryCouplings'
+import { collectImmutableBindingChecks } from './shared/immutableBindings'
 
 /** Minimal in-scope context for driving the runner without any RPC. */
 function makeCtx(): IHealthCheckContext {
@@ -1156,6 +1158,383 @@ describe('runHealthCheckInvariants (runner)', () => {
   })
 })
 
+describe('immutable-bindings-match-config invariant', () => {
+  const RECEIVER = '0x2222222222222222222222222222222222222222'
+  const FACET = '0x7777777777777777777777777777777777777777'
+  const OTHER = '0x5555555555555555555555555555555555555555'
+  const DIAMOND = '0x3333333333333333333333333333333333333333'
+  const ZERO = '0x0000000000000000000000000000000000000000'
+
+  const invariant = HEALTH_CHECK_INVARIANTS.find(
+    (i) => i.name === 'immutable-bindings-match-config'
+  ) as IHealthCheckInvariant
+
+  // Taken through the same collector the invariant uses, so the test asserts the wiring rather
+  // than a copy of the config value.
+  const expectedSpokepool = collectImmutableBindingChecks(
+    'mainnet',
+    'production'
+  ).find((c) => c.contractName === 'ReceiverAcrossV4')?.expectedAddress
+
+  /** Only ReceiverAcrossV4 present (via deploy log); its SPOKEPOOL() returns `spokepool`. */
+  function makeBindingsCtx(spokepool: string): IHealthCheckContext {
+    return Object.assign(makeCtx(), {
+      networkLower: 'mainnet',
+      diamondAddress: DIAMOND,
+      deployedContracts: { ReceiverAcrossV4: RECEIVER },
+      coreFacetsToCheck: [],
+      nonCoreFacets: [],
+      // Non-empty so the missing-facet-list guard does not skip the run.
+      onChainFacets: [{ address: FACET, selectors: ['0xffffffff'] }],
+      publicClient: {
+        readContract: async ({ functionName }: { functionName: string }) => {
+          if (functionName === 'getPeripheryContract') return ZERO
+          return spokepool
+        },
+      },
+    } as unknown as IHealthCheckContext)
+  }
+
+  it('is registered as an error-severity check that runs in the on-chain-facets phase', () => {
+    expect(invariant).toBeTruthy()
+    expect(invariant.severity).toBe('error')
+    expect(invariant.readsOnChainFacets).toBe(true)
+  })
+
+  it('mainnet has an across.json spokepool entry (test precondition)', () => {
+    expect(expectedSpokepool).toBeTruthy()
+  })
+
+  it('passes when the on-chain binding matches config', async () => {
+    const ctx = makeBindingsCtx(expectedSpokepool as string)
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+  })
+
+  it('errors when the on-chain binding differs from config', async () => {
+    const ctx = makeBindingsCtx(OTHER)
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('ReceiverAcrossV4.SPOKEPOOL()')
+    expect(ctx.errors[0]).toContain('across.json')
+    expect(ctx.errors[0]).toContain(expectedSpokepool as string)
+  })
+
+  it('errors when the binding is the zero address', async () => {
+    const ctx = makeBindingsCtx(ZERO)
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('zero address')
+  })
+
+  it('warns (not errors) when config has no value for the network', async () => {
+    const ctx = makeBindingsCtx(OTHER)
+    Object.assign(ctx, { networkLower: 'nonexistentchain' })
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings.some((w) => w.includes('cannot verify'))).toBe(true)
+  })
+
+  /** Registry mock that resolves ONLY `name`, so sibling annotations stay out of the way. */
+  function makeSingleContractCtx(
+    name: string,
+    address: string,
+    getterValues: Record<string, string>,
+    extra: Record<string, unknown> = {}
+  ): { ctx: IHealthCheckContext; getterReads: string[] } {
+    const getterReads: string[] = []
+    const ctx = Object.assign(makeCtx(), {
+      networkLower: 'mainnet',
+      diamondAddress: DIAMOND,
+      deployedContracts: {},
+      coreFacetsToCheck: [],
+      nonCoreFacets: [],
+      onChainFacets: [{ address: FACET, selectors: ['0xffffffff'] }],
+      publicClient: {
+        readContract: async ({
+          address: readAddress,
+          functionName,
+          args,
+        }: {
+          address: string
+          functionName: string
+          args?: [string]
+        }) => {
+          if (functionName === 'getPeripheryContract')
+            return args?.[0] === name ? address : ZERO
+          getterReads.push(`${functionName}@${readAddress}`)
+          return getterValues[functionName] ?? OTHER
+        },
+      },
+      ...extra,
+    } as unknown as IHealthCheckContext)
+    return { ctx, getterReads }
+  }
+
+  it('prefers the PeripheryRegistry address over the deploy log for periphery', async () => {
+    // ReceiverOIF is live on some chains with no deploy-log entry, so a log-only lookup would
+    // silently exempt it from this check.
+    const { ctx, getterReads } = makeSingleContractCtx(
+      'ReceiverAcrossV4',
+      OTHER,
+      { SPOKEPOOL: expectedSpokepool as string },
+      { deployedContracts: { ReceiverAcrossV4: RECEIVER } }
+    )
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+    expect(getterReads).toEqual([`SPOKEPOOL@${getAddress(OTHER)}`])
+  })
+
+  it('does not verify a facet whose deploy-log address is not registered in the diamond', async () => {
+    // The deploy->diamondCut window: the log names a freshly deployed facet built against the
+    // NEW config while the diamond still serves the old one. Reading the log address would
+    // report the stale live binding as healthy.
+    const { ctx, getterReads } = makeSingleContractCtx(
+      'MayanFacet',
+      ZERO,
+      {},
+      {
+        deployedContracts: { MayanFacet: OTHER },
+        nonCoreFacets: ['MayanFacet'],
+      }
+    )
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+    expect(
+      ctx.warnings.some(
+        (w) => w.includes('MayanFacet') && w.includes('not registered')
+      )
+    ).toBe(true)
+    expect(getterReads).toEqual([])
+  })
+
+  it('verifies a facet at the address the diamond actually serves', async () => {
+    const expectedMayan = collectImmutableBindingChecks(
+      'mainnet',
+      'production'
+    ).find((c) => c.contractName === 'MayanFacet')?.expectedAddress
+    expect(expectedMayan).toBeTruthy()
+
+    const registryQueries: string[] = []
+    const ctx = Object.assign(makeCtx(), {
+      networkLower: 'mainnet',
+      diamondAddress: DIAMOND,
+      deployedContracts: { MayanFacet: FACET },
+      coreFacetsToCheck: [],
+      nonCoreFacets: ['MayanFacet'],
+      onChainFacets: [{ address: FACET, selectors: ['0xffffffff'] }],
+      publicClient: {
+        readContract: async ({
+          address,
+          functionName,
+          args,
+        }: {
+          address: string
+          functionName: string
+          args?: [string]
+        }) => {
+          if (functionName === 'getPeripheryContract') {
+            registryQueries.push(args?.[0] as string)
+            return ZERO
+          }
+          return address === getAddress(FACET) ? expectedMayan : OTHER
+        },
+      },
+    } as unknown as IHealthCheckContext)
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors.filter((e) => e.includes('MayanFacet'))).toEqual([])
+    // A facet is not periphery: querying the registry for it would be a wasted read whose
+    // deploy-log fallback is exactly the false pass this branch exists to avoid.
+    expect(registryQueries).not.toContain('MayanFacet')
+  })
+
+  it('skips facet entries with a warning when the facet list is unavailable', async () => {
+    const { ctx, getterReads } = makeSingleContractCtx(
+      'MayanFacet',
+      ZERO,
+      {},
+      {
+        deployedContracts: { MayanFacet: FACET },
+        nonCoreFacets: ['MayanFacet'],
+        onChainFacets: [],
+      }
+    )
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings.some((w) => w.includes('facet list unavailable'))).toBe(
+      true
+    )
+    expect(getterReads).toEqual([])
+  })
+})
+
+describe('immutable-bindings-match-config legacy getter fallback', () => {
+  const FACET = '0x7777777777777777777777777777777777777777'
+  const ZERO = '0x0000000000000000000000000000000000000000'
+
+  const invariant = HEALTH_CHECK_INVARIANTS.find(
+    (i) => i.name === 'immutable-bindings-match-config'
+  ) as IHealthCheckInvariant
+
+  const expectedDlnSource = collectImmutableBindingChecks(
+    'mainnet',
+    'production'
+  ).find((c) => c.contractName === 'DeBridgeDlnFacet')?.expectedAddress
+
+  /** DeBridgeDlnFacet live at FACET; `failWith` is thrown for the current getter name. */
+  function makeCtx2(failWith: string): {
+    ctx: IHealthCheckContext
+    calls: string[]
+  } {
+    const calls: string[] = []
+    const ctx = Object.assign(makeCtx(), {
+      networkLower: 'mainnet',
+      diamondAddress: FACET,
+      deployedContracts: { DeBridgeDlnFacet: FACET },
+      coreFacetsToCheck: [],
+      nonCoreFacets: ['DeBridgeDlnFacet'],
+      onChainFacets: [{ address: FACET, selectors: ['0xffffffff'] }],
+      publicClient: {
+        readContract: async ({ functionName }: { functionName: string }) => {
+          if (functionName === 'getPeripheryContract') return ZERO
+          calls.push(functionName)
+          if (functionName === 'DLN_SOURCE') throw new Error(failWith)
+          return expectedDlnSource
+        },
+      },
+    } as unknown as IHealthCheckContext)
+    return { ctx, calls }
+  }
+
+  it('has a precondition: the annotation carries a legacy name', () => {
+    expect(expectedDlnSource).toBeTruthy()
+  })
+
+  it('falls back to the pre-rename getter when the current one reverts', () => {
+    const { ctx, calls } = makeCtx2(
+      'The contract function "DLN_SOURCE" reverted.'
+    )
+
+    return invariant.run(ctx).then(() => {
+      expect(ctx.errors).toEqual([])
+      expect(ctx.warnings).toEqual([])
+      expect(calls).toEqual(['DLN_SOURCE', 'dlnSource'])
+    })
+  })
+
+  it('does not try legacy getters when the RPC itself is unreachable', async () => {
+    // An unreachable node says nothing about which getters exist; retrying would just multiply
+    // reads during an outage, and the binding is honestly unverified either way.
+    const { ctx, calls } = makeCtx2('HTTP request failed.')
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings.some((w) => w.includes('left unverified'))).toBe(true)
+    expect(calls).toEqual(['DLN_SOURCE'])
+  })
+})
+
+describe('immutable-bindings-match-config Tron client guard', () => {
+  const invariant = HEALTH_CHECK_INVARIANTS.find(
+    (i) => i.name === 'immutable-bindings-match-config'
+  ) as IHealthCheckInvariant
+
+  it('skips with a warning rather than comparing base58 against checksummed hex', async () => {
+    // Tron config values are base58. Without TronWeb the expected side cannot be normalized, so
+    // every comparison would fail on encoding and look like fleet-wide drift.
+    const reads: string[] = []
+    const ctx = Object.assign(makeCtx(), {
+      networkLower: 'tron',
+      isTron: true,
+      tronWeb: undefined,
+      tronRpcUrl: undefined,
+      deployedContracts: { EcoFacet: 'TVQY5uYUJHqPJ3kmpKcQmiRcaEbGvJYVfR' },
+      coreFacetsToCheck: [],
+      nonCoreFacets: ['EcoFacet'],
+      onChainFacets: [
+        {
+          address: 'TVQY5uYUJHqPJ3kmpKcQmiRcaEbGvJYVfR',
+          selectors: ['0xffffffff'],
+        },
+      ],
+      publicClient: {
+        readContract: async ({ functionName }: { functionName: string }) => {
+          reads.push(functionName)
+          return '0x0000000000000000000000000000000000000000'
+        },
+      },
+    } as unknown as IHealthCheckContext)
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+    expect(
+      ctx.warnings.some((w) => w.includes('Tron client unavailable'))
+    ).toBe(true)
+    expect(reads).toEqual([])
+  })
+})
+
+describe('immutable-bindings-match-config zero-data fallback', () => {
+  const FACET = '0x7777777777777777777777777777777777777777'
+  const ZERO = '0x0000000000000000000000000000000000000000'
+
+  const invariant = HEALTH_CHECK_INVARIANTS.find(
+    (i) => i.name === 'immutable-bindings-match-config'
+  ) as IHealthCheckInvariant
+
+  it('tries a legacy getter when the call returns no data instead of reverting', async () => {
+    // viem raises this instead of a revert when a call yields "0x" — a getter-shaped absence
+    // just like a revert, so the fallback has to treat both the same.
+    const expected = collectImmutableBindingChecks(
+      'mainnet',
+      'production'
+    ).find((c) => c.contractName === 'DeBridgeDlnFacet')?.expectedAddress
+    const calls: string[] = []
+    const ctx = Object.assign(makeCtx(), {
+      networkLower: 'mainnet',
+      diamondAddress: FACET,
+      deployedContracts: { DeBridgeDlnFacet: FACET },
+      coreFacetsToCheck: [],
+      nonCoreFacets: ['DeBridgeDlnFacet'],
+      onChainFacets: [{ address: FACET, selectors: ['0xffffffff'] }],
+      publicClient: {
+        readContract: async ({ functionName }: { functionName: string }) => {
+          if (functionName === 'getPeripheryContract') return ZERO
+          calls.push(functionName)
+          if (functionName === 'DLN_SOURCE')
+            throw new Error(
+              'The contract function "DLN_SOURCE" returned no data ("0x").'
+            )
+          return expected
+        },
+      },
+    } as unknown as IHealthCheckContext)
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+    expect(calls).toEqual(['DLN_SOURCE', 'dlnSource'])
+  })
+})
+
 const EXECUTOR = '0x1111111111111111111111111111111111111111'
 const OIF_ON_CHAIN = '0x2222222222222222222222222222222222222222'
 const STARGATE_ON_CHAIN = '0x3333333333333333333333333333333333333333'
@@ -2020,5 +2399,325 @@ describe('receiver read failures separate broken contracts from flaky RPCs', () 
     await invariant('receiver-executor-binding').run(ctx)
     expect(ctx.errors).toEqual([])
     expect(ctx.warnings.some((w) => w.includes('ReceiverOIF'))).toBe(true)
+  })
+})
+
+describe('facets-registered scheduled-registration coverage', () => {
+  const EXPECTED_FACET = 'FraxFacet'
+  const FACET_ADDRESS = '0xAAAA000000000000000000000000000000000011'
+  const DIAMOND = '0xD1A0000000000000000000000000000000000001'
+  const ROUTED = '0xBBBB000000000000000000000000000000000012'
+  const OPERATION_ID = `0x${'cd'.repeat(32)}` as Hex
+
+  /** A network whose diamond routes one facet while the target state expects two. */
+  function makeMissingCtx(
+    pendingRegistrations: IHealthCheckContext['pendingRegistrations'],
+    extra: Partial<IHealthCheckContext> = {}
+  ): IHealthCheckContext {
+    const ctx = makeCtx()
+    Object.assign(ctx, {
+      diamondAddress: DIAMOND,
+      coreFacetsToCheck: ['DiamondCutFacet'],
+      nonCoreFacets: [EXPECTED_FACET],
+      deployedContracts: {
+        DiamondCutFacet: ROUTED,
+        [EXPECTED_FACET]: FACET_ADDRESS,
+      },
+      publicClient: {
+        // Only the already-routed facet comes back from the loupe.
+        readContract: async () => [
+          { facetAddress: ROUTED, functionSelectors: ['0x11111111'] },
+        ],
+      },
+      pendingRegistrations,
+      ...extra,
+    })
+    return ctx
+  }
+
+  const covering = (
+    target = DIAMOND
+  ): Map<string, Map<string, IPendingRegistration[]>> =>
+    new Map([
+      [
+        'testnet1',
+        new Map([
+          [
+            FACET_ADDRESS.toLowerCase(),
+            [
+              {
+                address: FACET_ADDRESS.toLowerCase(),
+                operationId: OPERATION_ID,
+                target: target.toLowerCase(),
+              },
+            ],
+          ],
+        ]),
+      ],
+    ])
+
+  it('errors on the unregistered facet when nothing is scheduled', async () => {
+    const ctx = makeMissingCtx(new Map())
+    await invariant('facets-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain(EXPECTED_FACET)
+  })
+
+  it('downgrades to expected-pending when a queued operation registers it', async () => {
+    const ctx = makeMissingCtx(covering())
+    await invariant('facets-registered').run(ctx)
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toEqual([])
+  })
+
+  it('still errors when the queued operation targets another contract', async () => {
+    const ctx = makeMissingCtx(covering(ROUTED))
+    await invariant('facets-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+  })
+
+  it('still errors when the queued operation registers a different address', async () => {
+    const ctx = makeMissingCtx(
+      new Map([
+        [
+          'testnet1',
+          new Map([
+            [
+              '0xffff000000000000000000000000000000000099',
+              [
+                {
+                  address: '0xffff000000000000000000000000000000000099',
+                  operationId: OPERATION_ID,
+                  target: DIAMOND.toLowerCase(),
+                },
+              ],
+            ],
+          ]),
+        ],
+      ])
+    )
+    await invariant('facets-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+  })
+
+  // A registry entry routes no selectors, so it cannot stand in for the missing cut.
+  it('still errors when the only queued record is a periphery registration', async () => {
+    const ctx = makeMissingCtx(
+      new Map([
+        [
+          'testnet1',
+          new Map([
+            [
+              FACET_ADDRESS.toLowerCase(),
+              [
+                {
+                  address: FACET_ADDRESS.toLowerCase(),
+                  peripheryName: 'SomeName',
+                  operationId: OPERATION_ID,
+                  target: DIAMOND.toLowerCase(),
+                },
+              ],
+            ],
+          ]),
+        ],
+      ])
+    )
+    await invariant('facets-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain(EXPECTED_FACET)
+  })
+
+  it('keys coverage by network, not fleet-wide', async () => {
+    const ctx = makeMissingCtx(
+      new Map([
+        [
+          'othernet',
+          new Map([
+            [
+              FACET_ADDRESS.toLowerCase(),
+              [
+                {
+                  address: FACET_ADDRESS.toLowerCase(),
+                  operationId: OPERATION_ID,
+                  target: DIAMOND.toLowerCase(),
+                },
+              ],
+            ],
+          ]),
+        ],
+      ])
+    )
+    await invariant('facets-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+  })
+
+  it('keeps the error and warns about reduced coverage when the queue is unreachable', async () => {
+    const ctx = makeMissingCtx({ unreachable: 'connect ECONNREFUSED' })
+    await invariant('facets-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('Timelock queue unreachable')
+  })
+
+  it('does not consult the queue on staging', async () => {
+    const ctx = makeMissingCtx(covering(), { environment: 'staging' })
+    await invariant('facets-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+  })
+
+  it('does not consult the queue on testnets', async () => {
+    const ctx = makeMissingCtx(covering(), { isTestnet: true })
+    await invariant('facets-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+  })
+
+  // Tron rolls out through contracts-tron, not the EVM timelock queue, so a row that
+  // happens to carry a matching address must never downgrade a Tron network.
+  it('does not consult the queue on Tron', async () => {
+    const ctx = makeMissingCtx(covering(), { isTron: true })
+    await invariant('facets-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+  })
+
+  it('does not touch the queue when every expected facet is routed', async () => {
+    let consulted = false
+    const ctx = makeMissingCtx(new Map(), { nonCoreFacets: [] })
+    // Defined after the context is built: Object.assign would read the getter while
+    // copying, tripping the flag before the invariant ever runs.
+    Object.defineProperty(ctx, 'pendingRegistrations', {
+      get() {
+        consulted = true
+        return new Map()
+      },
+    })
+    await invariant('facets-registered').run(ctx)
+    expect(ctx.errors).toEqual([])
+    expect(consulted).toBe(false)
+  })
+})
+
+describe('periphery-registered scheduled-registration coverage', () => {
+  const DIAMOND = '0xD1A0000000000000000000000000000000000002'
+  const OTHER_TARGET = '0xD1A0000000000000000000000000000000000003'
+  const EXECUTOR = '0xEEEE000000000000000000000000000000000021'
+  const OPERATION_ID = `0x${'ef'.repeat(32)}` as Hex
+
+  function makePeripheryCtx(
+    pendingRegistrations: IHealthCheckContext['pendingRegistrations'],
+    extra: Partial<IHealthCheckContext> = {}
+  ): IHealthCheckContext {
+    const ctx = makeCtx()
+    Object.assign(ctx, {
+      diamondAddress: DIAMOND,
+      deployedContracts: { Executor: EXECUTOR },
+      targetState: {
+        testnet1: { production: { LiFiDiamond: { Executor: '1.0.0' } } },
+      },
+      globalConfig: { ...globalConfig, whitelistPeripheryFunctions: {} },
+      publicClient: {
+        // The registry resolves nothing — Executor is not registered yet.
+        readContract: async () => '0x0000000000000000000000000000000000000000',
+      },
+      pendingRegistrations,
+      ...extra,
+    })
+    return ctx
+  }
+
+  const covering = (
+    peripheryName = 'Executor',
+    target = DIAMOND
+  ): Map<string, Map<string, IPendingRegistration[]>> =>
+    new Map([
+      [
+        'testnet1',
+        new Map([
+          [
+            EXECUTOR.toLowerCase(),
+            [
+              {
+                address: EXECUTOR.toLowerCase(),
+                peripheryName,
+                operationId: OPERATION_ID,
+                target: target.toLowerCase(),
+              },
+            ],
+          ],
+        ]),
+      ],
+    ])
+
+  it('errors when nothing is scheduled', async () => {
+    const ctx = makePeripheryCtx(new Map())
+    await invariant('periphery-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('Executor')
+  })
+
+  it('downgrades to expected-pending when a queued operation registers it', async () => {
+    const ctx = makePeripheryCtx(covering())
+    await invariant('periphery-registered').run(ctx)
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toEqual([])
+  })
+
+  // The registry is keyed by name: registering this address under a different name
+  // leaves getPeripheryContract('Executor') unset, so it must not downgrade.
+  it('still errors when the queued operation registers the address under another name', async () => {
+    const ctx = makePeripheryCtx(covering('Other'))
+    await invariant('periphery-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('Executor')
+  })
+
+  it('still errors when the queued operation targets another contract', async () => {
+    const ctx = makePeripheryCtx(covering('Executor', OTHER_TARGET))
+    await invariant('periphery-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('Executor')
+  })
+
+  // Both names resolve, so every address the registry returns is one the diamond expects —
+  // only the name each is bound to is wrong. Both contracts are misregistered.
+  it('errors on both when two periphery contracts are registered under each others names', async () => {
+    const FEE_FORWARDER = '0xFFEE000000000000000000000000000000000022'
+    const ctx = makePeripheryCtx(new Map(), {
+      deployedContracts: { Executor: EXECUTOR, FeeForwarder: FEE_FORWARDER },
+      targetState: {
+        testnet1: {
+          production: {
+            LiFiDiamond: { Executor: '1.0.0', FeeForwarder: '1.0.0' },
+          },
+        },
+      },
+      publicClient: {
+        // Checksummed, as a real `readContract` returns them: a raw-case literal would
+        // make the comparison differ on casing alone, so the test would pass without
+        // exercising the name binding at all.
+        readContract: async ({ args }: { args: string[] }) =>
+          args[0] === 'Executor'
+            ? getAddress(FEE_FORWARDER)
+            : getAddress(EXECUTOR),
+      },
+    } as unknown as Partial<IHealthCheckContext>)
+    await invariant('periphery-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(2)
+    expect(ctx.errors.join('\n')).toContain('Executor')
+    expect(ctx.errors.join('\n')).toContain('FeeForwarder')
+  })
+
+  it('keeps the error and warns about reduced coverage when the queue is unreachable', async () => {
+    const ctx = makePeripheryCtx({ unreachable: 'connect ECONNREFUSED' })
+    await invariant('periphery-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('Timelock queue unreachable')
+  })
+
+  // Tron rolls out through contracts-tron, which writes no EVM timelock queue row.
+  it('does not consult the queue on Tron', async () => {
+    const ctx = makePeripheryCtx(covering(), { isTron: true })
+    await invariant('periphery-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
   })
 })

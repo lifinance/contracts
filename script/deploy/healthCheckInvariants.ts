@@ -34,6 +34,7 @@ import {
   type IWhitelistConfig,
   type TargetState,
 } from '../common/types'
+import { redactUrls } from '../utils/redactUrls'
 import { normalizeSelector } from '../utils/utils'
 
 import {
@@ -44,6 +45,7 @@ import {
   type IFacetRemoval,
 } from './safe/diamondRemovalDiff'
 import type { IParkedTask } from './safe/parked-tasks'
+import { type IPendingRegistration } from './safe/pending-registrations'
 import { DAY_MS, SAFE_THRESHOLD } from './shared/constants'
 import {
   evaluateFacetPeripheryCouplings,
@@ -53,6 +55,13 @@ import {
   resolveLiveFacets,
 } from './shared/facetPeripheryCouplings'
 import { getCorePeriphery } from './shared/globalContractLists'
+import {
+  collectImmutableBindingChecks,
+  isFacetContract,
+  isZeroAddressValue,
+  TRON_ZERO_ADDRESS_BASE58,
+  type IImmutableBindingCheck,
+} from './shared/immutableBindings'
 import { isRateLimitError } from './shared/rateLimit'
 import { parseTroncastFacetsOutput } from './tron/helpers/parseTroncastFacetsOutput'
 import { getTronCorePeriphery } from './tron/helpers/tronContractLists'
@@ -171,6 +180,15 @@ export interface IHealthCheckContext {
    * are testable without a MongoDB connection.
    */
   openParkedRemovals?: OpenParkedByNetwork | { unreachable: string }
+  /**
+   * Scheduled-but-unexecuted registration coverage (network → lowercased registered
+   * address → the timelock operation registering it). Undefined = fetch from the
+   * timelock queue (the default); injectable so the registration invariants are
+   * testable without a MongoDB connection.
+   */
+  pendingRegistrations?:
+    | Map<string, Map<string, IPendingRegistration[]>>
+    | { unreachable: string }
   errors: string[]
   warnings: string[]
   logError: (msg: string) => void
@@ -1007,9 +1025,6 @@ export const RECEIVER_EXECUTOR_GETTERS: Array<{
   { name: 'ReceiverStargateV2', getter: 'executor' },
 ]
 
-/** getPeripheryContract on an unregistered name returns address(0); on Tron that encodes to this. */
-const TRON_ZERO_ADDRESS = 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb'
-
 /**
  * Read one periphery contract's address from the diamond's on-chain PeripheryRegistry.
  *
@@ -1037,7 +1052,7 @@ async function readPeripheryRegistryUncached(
     )
     if (!parsed.startsWith('T') || parsed.length !== 34)
       throw new Error(`malformed Tron address for ${name}: ${parsed}`)
-    return parsed === TRON_ZERO_ADDRESS ? null : parsed
+    return parsed === TRON_ZERO_ADDRESS_BASE58 ? null : parsed
   }
 
   if (!ctx.publicClient) throw new Error('no EVM client configured')
@@ -1421,6 +1436,213 @@ function fetchOpenParkedAddressesByNetwork(): Promise<
 }
 
 /**
+/**
+ * Read one address-typed getter on a deployed contract, on either chain family.
+ *
+ * @throws when no client is configured for the network or the call fails, so callers can tell
+ *   "could not read" apart from "read a wrong value"
+ */
+async function readAddressGetter(
+  address: string,
+  getter: string,
+  ctx: IHealthCheckContext
+): Promise<string> {
+  if (ctx.isTron) {
+    if (!ctx.tronRpcUrl) throw new Error('no Tron RPC URL configured')
+    const parsed = parseTronAddressOutput(
+      await callTronContract(
+        address,
+        `${getter}()`,
+        [],
+        'address',
+        ctx.tronRpcUrl
+      )
+    )
+    // parseTronAddressOutput returns the last non-diagnostic line, so unexpected tooling output
+    // that still exits 0 would arrive here as a "value". Throwing keeps that an unverified
+    // warning instead of an error-severity mismatch against a line of prose.
+    // A zero address in any encoding is a real answer the caller must report as an error, so
+    // it passes the shape check; anything else non-base58 is unusable output.
+    if (
+      !isZeroAddressValue(parsed) &&
+      (!parsed.startsWith('T') || parsed.length !== 34)
+    )
+      throw new Error(`malformed Tron address for ${getter}(): ${parsed}`)
+    return parsed
+  }
+  if (!ctx.publicClient) throw new Error('no EVM client configured')
+  const value = await ctx.publicClient.readContract({
+    address: getAddress(address as Address),
+    abi: parseAbi([`function ${getter}() external view returns (address)`]),
+    functionName: getter,
+  })
+  return getAddress(value as Address)
+}
+
+/**
+ * Read a binding's value, falling back to earlier names of the same getter when the current one
+ * is absent from the live build.
+ *
+ * @remarks Only a revert triggers the fallback: an unreachable RPC says nothing about which
+ *   getters the contract exposes, and retrying it would just multiply reads during an outage.
+ * @returns the value and the getter name that actually answered
+ * @throws the original error when neither the current nor any legacy getter can be read
+ */
+async function readBindingValue(
+  address: string,
+  check: IImmutableBindingCheck,
+  ctx: IHealthCheckContext
+): Promise<{ value: string; getterUsed: string }> {
+  try {
+    return {
+      value: await readAddressGetter(address, check.getter, ctx),
+      getterUsed: check.getter,
+    }
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error)
+    // Two error shapes mean "this build has no such function": a revert, and viem's zero-data
+    // error when the call returns "0x". Matching only reverts skips the fallback for the second,
+    // leaving the binding unverified. An unreachable RPC matches neither and must not retry.
+    if (
+      !/revert|returned no data/i.test(message) ||
+      check.legacyGetters.length === 0
+    )
+      throw error
+
+    for (const legacyGetter of check.legacyGetters)
+      try {
+        return {
+          value: await readAddressGetter(address, legacyGetter, ctx),
+          getterUsed: legacyGetter,
+        }
+      } catch {
+        continue
+      }
+    throw error
+  }
+}
+
+/**
+ * Resolve the address whose immutable bindings should be checked, or undefined when the contract
+ * is not in use on this network.
+ *
+ * @remarks A facet is only checked at the address the diamond actually serves. Between a facet's
+ *   deploy and its diamondCut the deploy log names a contract that is not live yet, and verifying
+ *   that one would report a stale on-chain binding as healthy.
+ */
+async function resolveBindingTargetAddress(
+  contractName: string,
+  ctx: IHealthCheckContext,
+  targetStateFacets: string[],
+  liveFacets: Set<string>
+): Promise<string | undefined> {
+  if (isFacetContract(contractName)) {
+    // Liveness decides, not the target state: several facets are registered in a diamond
+    // without being listed for that network, and a stale binding hurts just as much there.
+    if (liveFacets.has(contractName))
+      return String(ctx.deployedContracts[contractName])
+    if (targetStateFacets.includes(contractName))
+      ctx.logWarn(
+        `${contractName} is in the target state but its deploy-log address is not registered in the diamond — immutable bindings not verified`
+      )
+    return undefined
+  }
+
+  // Periphery: the registry is authoritative, but the deploy log is the only source for
+  // contracts the diamond never registers (e.g. LidoWrapper).
+  try {
+    const registered = await readPeripheryRegistry(contractName, ctx)
+    if (registered) return registered
+  } catch (error: unknown) {
+    const errorMessage = redactUrls(
+      (error instanceof Error ? error.message : String(error)).split('\n')[0] ??
+        'unknown error'
+    )
+    ctx.logWarn(
+      `Could not read PeripheryRegistry for ${contractName} (falling back to deploy log): ${errorMessage}`
+    )
+  }
+  const logged = ctx.deployedContracts[contractName]
+  return logged ? String(logged) : undefined
+}
+
+/**
+ * Scheduled-but-unexecuted registrations fleet-wide, fetched once per process and
+ * grouped by network. Same shape, sharing and failure handling as
+ * {@link fetchOpenParkedAddressesByNetwork}: one read serves every network in the
+ * sweep, a failure clears the cache so the next network retries, and in-flight
+ * callers share the failing promise so an outage costs at most one attempt per
+ * network.
+ */
+let pendingRegistrationsPromise:
+  | Promise<
+      Map<string, Map<string, IPendingRegistration[]>> | { unreachable: string }
+    >
+  | undefined
+function fetchPendingRegistrationsByNetwork(): Promise<
+  Map<string, Map<string, IPendingRegistration[]>> | { unreachable: string }
+> {
+  return (pendingRegistrationsPromise ??= (async () => {
+    try {
+      const { listPendingRegistrationsByNetwork } = await import(
+        './safe/pending-registrations'
+      )
+      return await listPendingRegistrationsByNetwork()
+    } catch (error: unknown) {
+      pendingRegistrationsPromise = undefined
+      return {
+        unreachable: error instanceof Error ? error.message : String(error),
+      }
+    }
+  })())
+}
+
+/**
+ * Resolves the scheduled registrations that apply to one network's diamond.
+ *
+ * The queue is an EVM production-mainnet construct, so three cases never consult it and
+ * report no coverage: staging and testnet diamonds are EOA-owned and cut directly, and
+ * Tron rolls out through the separate contracts-tron path. Skipping those by branch
+ * rather than letting the address match fail keeps a Tron-only or testnet-only sweep
+ * from needing MongoDB at all.
+ *
+ * Registrations are filtered to inner calls aimed at *this* diamond: an operation
+ * targeting another contract on the same network proves nothing about this diamond's
+ * missing facet.
+ *
+ * The records are returned whole rather than flattened to a set of addresses, because an
+ * address alone does not say what it was registered *as*: a periphery address bound to
+ * one registry name leaves every other name unset, so the periphery caller has to match
+ * the name too.
+ *
+ * @param ctx - The network being evaluated.
+ * @returns Lowercased address → the registrations aimed at this diamond, or
+ *   `unreachable` with the reason when the queue could not be read (never an empty map —
+ *   the caller must be able to tell "nothing scheduled" apart from "could not look").
+ */
+async function resolvePendingRegistrations(
+  ctx: IHealthCheckContext
+): Promise<Map<string, IPendingRegistration[]> | { unreachable: string }> {
+  const empty = new Map<string, IPendingRegistration[]>()
+  if (ctx.environment !== 'production' || ctx.isTestnet || ctx.isTron)
+    return empty
+
+  const pending =
+    ctx.pendingRegistrations ?? (await fetchPendingRegistrationsByNetwork())
+  if ('unreachable' in pending) return pending
+
+  const diamond = ctx.diamondAddress?.toLowerCase()
+  const forNetwork = pending.get(ctx.networkLower)
+  if (!forNetwork || !diamond) return empty
+  const forDiamond = new Map<string, IPendingRegistration[]>()
+  for (const [address, records] of forNetwork) {
+    const matching = records.filter((record) => record.target === diamond)
+    if (matching.length > 0) forDiamond.set(address, matching)
+  }
+  return forDiamond
+}
+
+/**
  * Ordered registry of every health-check invariant. The order matches historical log
  * output; earlier invariants may populate mutable context fields (e.g. `onChainFacets`)
  * that later ones reuse.
@@ -1545,12 +1767,60 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       }
 
       if (!facetCheckSkipped) {
-        for (const facet of [...ctx.coreFacetsToCheck, ...ctx.nonCoreFacets])
-          if (!registeredFacets.includes(facet))
-            ctx.logError(
-              `Facet ${facet} not registered in Diamond or possibly unverified`
+        const expected = [...ctx.coreFacetsToCheck, ...ctx.nonCoreFacets]
+        // The expected set comes from _targetState.json, which a rollout PR merges
+        // before the cut executes — so a facet can be legitimately expected and not
+        // yet routed. A queued timelock operation adding exactly this deploy-log
+        // address is that window, and its remediation is "wait", not "fix". Resolved
+        // once, and only when something is actually missing, so a healthy network
+        // never touches the queue.
+        const anyMissing = expected.some(
+          (facet) => !registeredFacets.includes(facet)
+        )
+        const scheduled = anyMissing
+          ? await resolvePendingRegistrations(ctx)
+          : null
+        let downgraded = 0
+
+        for (const facet of expected) {
+          if (registeredFacets.includes(facet)) {
+            consola.success(`Facet ${facet} registered in Diamond`)
+            continue
+          }
+          const address = ctx.deployedContracts[facet]
+          // A facet routes by selector, so only a `diamondCut` record covers it. A
+          // `registerPeripheryContract` naming the same address binds a registry entry
+          // and routes nothing, so it must not stand in for the missing cut.
+          if (
+            address &&
+            scheduled instanceof Map &&
+            scheduled
+              .get(String(address).toLowerCase())
+              ?.some((record) => record.peripheryName === undefined)
+          ) {
+            downgraded++
+            consola.info(
+              `Facet ${facet} (${address}) is expected but not yet routed — expected-pending: a queued timelock operation registers it`
             )
-          else consola.success(`Facet ${facet} registered in Diamond`)
+            continue
+          }
+          ctx.logError(
+            `Facet ${facet} not registered in Diamond or possibly unverified`
+          )
+        }
+        // Unlike a check whose only subject is queue coverage, an unreachable queue
+        // must not suppress anything here: this is the fleet's primary registration gate,
+        // and a Mongo blip turning genuinely missing facets green is far worse than
+        // a false alert during a rollout. Report the reduced coverage as a warning so
+        // the network lands in the sweep's `warned` list instead of looking clean.
+        if (scheduled && !(scheduled instanceof Map))
+          ctx.logWarn(
+            `Timelock queue unreachable — expected-pending downgrade skipped, unregistered facets reported as errors: ${scheduled.unreachable}`
+          )
+        else if (downgraded > 0)
+          consola.info(
+            `${downgraded} expected facet(s) awaiting their queued timelock registration (expected-pending)`
+          )
       }
     },
   },
@@ -1754,6 +2024,141 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
     },
   },
   {
+    name: 'immutable-bindings-match-config',
+    description:
+      'Getter-annotated immutable constructor bindings still match the config they were deployed from',
+    severity: 'error',
+    scope: { environments: ['production'] },
+    readsOnChainFacets: true,
+    remediation:
+      'The live contract binds a stale address: redeploy it against the current config value and re-register it, or update the config entry if this chain genuinely still uses the old address.',
+    run: async (ctx) => {
+      // A contract like ReceiverAcrossV4 binds its counterparty immutably at construction, so a
+      // migrated integration cannot be fixed by editing config. Presence, executor-binding and
+      // owner checks all stay green while destination calls fail against a dead counterparty —
+      // only comparing the live binding against config surfaces it.
+      const checks = collectImmutableBindingChecks(
+        ctx.networkLower,
+        ctx.environment
+      )
+      if (checks.length === 0) return
+
+      // Config stores Tron counterparties in base58, so without TronWeb the expected value cannot
+      // be normalized and every comparison would fail on encoding rather than on drift.
+      const tronWeb = ctx.tronWeb
+      if (ctx.isTron && (!tronWeb || !ctx.tronRpcUrl)) {
+        ctx.logWarn(
+          'Tron client unavailable — immutable bindings not verified on this network'
+        )
+        return
+      }
+
+      const targetStateFacets = [...ctx.coreFacetsToCheck, ...ctx.nonCoreFacets]
+      const facetListAvailable = ctx.onChainFacets.length > 0
+      // Without the diamond's facet list every facet-typed entry would look un-live and warn;
+      // facets-registered already reported whatever left this list empty.
+      if (!facetListAvailable)
+        ctx.logWarn(
+          'On-chain facet list unavailable — immutable bindings of facet-typed entries not verified'
+        )
+      // Candidates must include every annotated facet, not just the target-state ones, or a
+      // facet registered on a chain that does not list it resolves as "not live" and is skipped.
+      const facetCandidates = [
+        ...new Set([
+          ...targetStateFacets,
+          ...checks
+            .map((check) => check.contractName)
+            .filter((name) => isFacetContract(name)),
+        ]),
+      ]
+      const liveFacets = new Set<string>(
+        facetListAvailable
+          ? resolveLiveFacets(
+              ctx.onChainFacets,
+              ctx.deployedContracts as Record<string, string>,
+              facetCandidates
+            )
+          : []
+      )
+
+      for (const check of checks) {
+        if (!facetListAvailable && isFacetContract(check.contractName)) continue
+
+        const address = await resolveBindingTargetAddress(
+          check.contractName,
+          ctx,
+          targetStateFacets,
+          liveFacets
+        )
+        // Not present on this chain — nothing to compare.
+        if (!address) continue
+
+        if (!check.expectedAddress) {
+          ctx.logWarn(
+            `${check.contractName} is deployed but ${check.configFileName} has no ${check.resolvedKeyInConfigFile} value for this network — cannot verify ${check.getter}()`
+          )
+          continue
+        }
+
+        // Normalize the config side before the read, and outside its try: config values are
+        // only known to be non-empty strings, so a malformed one throws here — folding that
+        // into the read's catch would report a broken config entry as an unverified binding
+        // and let this error-severity check pass on exactly the drift it exists to catch.
+        let expectedValue: string
+        try {
+          expectedValue =
+            ctx.isTron && tronWeb
+              ? ensureTronAddress(check.expectedAddress, tronWeb)
+              : getAddress(check.expectedAddress as Address)
+        } catch {
+          ctx.logError(
+            `${check.configFileName} ${check.resolvedKeyInConfigFile} is not a valid address (${check.expectedAddress}), so ${check.contractName}.${check.getter}() cannot be verified`
+          )
+          continue
+        }
+
+        try {
+          const { value: onChainValue, getterUsed } = await readBindingValue(
+            address,
+            check,
+            ctx
+          )
+
+          // Name the getter that answered, not the annotated one: on a chain running an older
+          // build they differ, and the reader needs to know which contract version was read.
+          const readLabel = `${check.contractName}.${getterUsed}()`
+
+          if (isZeroAddressValue(onChainValue))
+            ctx.logError(
+              `${readLabel} is the zero address, expected ${expectedValue} from ${check.configFileName} ${check.resolvedKeyInConfigFile}`
+            )
+          else if (onChainValue !== expectedValue)
+            ctx.logError(
+              `${readLabel} is ${onChainValue} but ${check.configFileName} ${check.resolvedKeyInConfigFile} expects ${expectedValue}`
+            )
+          else
+            consola.success(
+              `${readLabel} matches ${check.configFileName}${
+                getterUsed === check.getter ? '' : ' (pre-rename build)'
+              }`
+            )
+        } catch (error: unknown) {
+          // A revert here usually means the live build predates a rename of the getter, so the
+          // binding stays unverified rather than wrong — say so, because a bare read failure
+          // reads like a transient RPC blip instead of a hole in this check's coverage.
+          const errorMessage = redactUrls(
+            (error instanceof Error ? error.message : String(error)).split(
+              '\n'
+            )[0] ?? 'unknown error'
+          )
+          ctx.logWarn(
+            `${check.contractName}.${check.getter}() left unverified — read failed: ${errorMessage}`
+          )
+        }
+      }
+    },
+  },
+  {
     name: 'periphery-registered',
     description: 'Periphery contracts are registered in the PeripheryRegistry',
     severity: 'error',
@@ -1780,6 +2185,44 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       )
 
       if (contractsToCheck.length === 0) return
+
+      // Same rollout window as facets-registered: the target-state entry merges
+      // before the registration executes. Resolved lazily and memoised, so only a
+      // network that actually has an unregistered contract touches the queue, and
+      // one missing several costs a single lookup. On Tron this always falls through
+      // to the error — resolvePendingRegistrations gates Tron out before any lookup —
+      // so routing the Tron branch through here buys uniformity, not coverage.
+      let coverage:
+        | Map<string, IPendingRegistration[]>
+        | { unreachable: string }
+        | undefined
+      let unreachableReason: string | undefined
+      let downgraded = 0
+      const reportUnregistered = async (
+        periphery: string,
+        address: string,
+        message: string
+      ): Promise<void> => {
+        coverage ??= await resolvePendingRegistrations(ctx)
+        if (coverage instanceof Map) {
+          // The registry is keyed by name, so the address is not enough: a queued
+          // `registerPeripheryContract('Other', addr)` leaves `getPeripheryContract` for
+          // *this* name unset, and downgrading on the address alone would report a
+          // registration that is never coming.
+          if (
+            coverage
+              .get(address.toLowerCase())
+              ?.some((record) => record.peripheryName === periphery)
+          ) {
+            downgraded++
+            consola.info(
+              `Periphery contract ${periphery} (${address}) is expected but not yet registered — expected-pending: a queued timelock operation registers it`
+            )
+            return
+          }
+        } else unreachableReason = coverage.unreachable
+        ctx.logError(message)
+      }
 
       if (ctx.isTron && ctx.tronWeb && ctx.tronRpcUrl) {
         for (const periphery of contractsToCheck) {
@@ -1814,7 +2257,9 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
               !registeredAddress ||
               registeredAddress.toLowerCase() !== expectedAddress
             )
-              ctx.logError(
+              await reportUnregistered(
+                periphery,
+                String(peripheryAddress),
                 `Periphery contract ${periphery} not registered in Diamond (expected: ${peripheryAddress}, got: ${
                   registeredAddress || 'null'
                 })`
@@ -1846,13 +2291,21 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
           )
         )
 
-        for (const periphery of contractsToCheck) {
+        // `addresses` is index-aligned with `contractsToCheck`, and the registry binds one
+        // address per name, so only the entry at this name's index answers whether this
+        // name is registered.
+        for (const [index, periphery] of contractsToCheck.entries()) {
           const peripheryAddress = ctx.deployedContracts[periphery]
           if (!peripheryAddress)
             ctx.logError(`Periphery contract ${periphery} not deployed `)
-          else if (!addresses.includes(getAddress(peripheryAddress))) {
+          else if (
+            addresses[index]?.toLowerCase() !==
+            getAddress(peripheryAddress).toLowerCase()
+          ) {
             if (periphery === 'LiFiTimelockController') continue
-            ctx.logError(
+            await reportUnregistered(
+              periphery,
+              String(peripheryAddress),
               `Periphery contract ${periphery} not registered in Diamond`
             )
           } else
@@ -1861,6 +2314,18 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
             )
         }
       }
+
+      // Same reasoning as facets-registered: this is an error gate, so an unreachable
+      // queue keeps every error and announces the reduced coverage instead of
+      // silently downgrading nothing.
+      if (unreachableReason)
+        ctx.logWarn(
+          `Timelock queue unreachable — expected-pending downgrade skipped, unregistered periphery reported as errors: ${unreachableReason}`
+        )
+      else if (downgraded > 0)
+        consola.info(
+          `${downgraded} expected periphery contract(s) awaiting their queued timelock registration (expected-pending)`
+        )
     },
   },
   {

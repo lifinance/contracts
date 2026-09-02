@@ -19,13 +19,15 @@ import { getDeploymentsFilePath } from '../../utils/deploymentHelpers'
 import {
   assemblePrefetchResults,
   classifyPrefetchResults,
-  countQueuedOpsByNetwork,
+  countOpsByNetwork,
   resolveTimelockSkipReason,
-  tallyQueuedOpsByNetwork,
+  tallyOpsByNetwork,
   type IPendingFetchResult,
+  type IQueueTally,
   type TQueueConnector,
   type TTimelockSkipReason,
 } from './timelock-prefetch'
+import { type TimelockQueueStatus } from './timelock-queue'
 
 const networksConfig = networks as INetworksObject
 
@@ -36,50 +38,139 @@ const network = (name: string): INetworksObject[string] => {
   return entry
 }
 
-describe('tallyQueuedOpsByNetwork', () => {
+const queued = (name: string) => ({
+  network: name,
+  status: 'queued' as TimelockQueueStatus,
+})
+const blocked = (name: string) => ({
+  network: name,
+  status: 'blocked' as TimelockQueueStatus,
+})
+
+describe('tallyOpsByNetwork', () => {
   it('counts rows per network, case-insensitively', () => {
-    const counts = tallyQueuedOpsByNetwork([
-      { network: 'worldchain' },
-      { network: 'tron' },
-      { network: 'WorldChain' },
+    const counts = tallyOpsByNetwork([
+      queued('worldchain'),
+      queued('tron'),
+      queued('WorldChain'),
     ])
 
-    expect(counts.get('worldchain')).toBe(2)
-    expect(counts.get('tron')).toBe(1)
+    expect(counts.get('worldchain')?.queued).toBe(2)
+    expect(counts.get('tron')?.queued).toBe(1)
   })
 
-  it('omits networks with no queued rows rather than storing zero', () => {
-    const counts = tallyQueuedOpsByNetwork([{ network: 'tron' }])
+  it('counts blocked rows separately from queued ones', () => {
+    const counts = tallyOpsByNetwork([
+      queued('mode'),
+      blocked('mode'),
+      blocked('worldchain'),
+    ])
+
+    expect(counts.get('mode')).toEqual({ queued: 1, blocked: 1 })
+    expect(counts.get('worldchain')).toEqual({ queued: 0, blocked: 1 })
+  })
+
+  it('omits networks with no tallied rows rather than storing zero', () => {
+    const counts = tallyOpsByNetwork([queued('tron')])
 
     expect(counts.has('worldchain')).toBe(false)
-    expect(counts.get('worldchain') ?? 0).toBe(0)
   })
 })
 
-describe('countQueuedOpsByNetwork', () => {
+describe('countOpsByNetwork', () => {
+  /** Row as the driver returns it, `_id` included. */
+  const stored = (name: string, status: TimelockQueueStatus) => ({
+    _id: `${name}-${status}`,
+    network: name,
+    status,
+  })
+
+  type TStoredRow = ReturnType<typeof stored>
+  interface IFindFilter {
+    network: { $in: string[] }
+    status: { $in: string[] }
+  }
+
+  // The fake applies the filter and projection it is given rather than handing
+  // back whatever the tally wants. Ignoring them makes every row-shape
+  // assertion self-fulfilling: a query that stopped selecting `blocked` rows,
+  // or stopped projecting `status`, would zero every blocked count fleet-wide
+  // and still leave this suite green.
   const connectorReturning = (
-    rows: { network: string }[],
+    rows: TStoredRow[],
     close: () => Promise<void>
   ): TQueueConnector =>
     (async () => ({
       client: { close },
-      timelockQueue: { find: () => ({ toArray: async () => rows }) },
+      timelockQueue: {
+        find: (
+          filter: IFindFilter,
+          options: { projection: Record<string, 1> }
+        ) => ({
+          toArray: async () =>
+            rows
+              .filter(
+                // Binary comparison, as `$in` does it — matching
+                // case-insensitively here would hide a query that stopped
+                // lowercasing the names it looks up.
+                (row) =>
+                  filter.network.$in.includes(row.network) &&
+                  filter.status.$in.includes(row.status)
+              )
+              .map((row) =>
+                Object.fromEntries(
+                  Object.entries(row).filter(
+                    ([key]) => key === '_id' || options.projection[key] === 1
+                  )
+                )
+              ),
+        }),
+      },
     })) as unknown as TQueueConnector
 
+  it('selects and projects the fields the blocked tally depends on', async () => {
+    const counts = await countOpsByNetwork(
+      ['mode', 'base'],
+      connectorReturning(
+        [
+          stored('mode', 'blocked'),
+          stored('base', 'queued'),
+          stored('mode', 'executed'),
+        ],
+        async () => {}
+      )
+    )
+
+    expect(counts.get('mode')).toEqual({ queued: 0, blocked: 1 })
+    expect(counts.get('base')).toEqual({ queued: 1, blocked: 0 })
+  })
+
+  it('lowercases the names it looks up, since rows are stored lowercase', async () => {
+    // Case-insensitivity has to live on the lookup side: `$in` compares
+    // binary, and matching rows case-insensitively would need an index the
+    // runtime role cannot create.
+    const counts = await countOpsByNetwork(
+      ['WorldChain'],
+      connectorReturning([stored('worldchain', 'blocked')], async () => {})
+    )
+
+    expect(counts.get('worldchain')).toEqual({ queued: 0, blocked: 1 })
+  })
+
   it('keeps the tally when closing the connection rejects', async () => {
-    const counts = await countQueuedOpsByNetwork(
+    const counts = await countOpsByNetwork(
       ['tron'],
-      connectorReturning([{ network: 'tron' }], () =>
+      connectorReturning([stored('tron', 'queued')], () =>
         Promise.reject(new Error('connection reset during close'))
       )
     )
 
-    expect(counts.get('tron')).toBe(1)
+    expect(counts.get('tron')?.queued).toBe(1)
   })
 
   it('closes the connection once the tally is done', async () => {
     let closed = 0
-    await countQueuedOpsByNetwork(
+    await countOpsByNetwork(
       ['tron'],
       connectorReturning([], async () => {
         closed++
@@ -100,7 +191,7 @@ describe('assemblePrefetchResults', () => {
     const results = assemblePrefetchResults(
       inputs,
       skips,
-      new Map([['base', 2]])
+      new Map<string, IQueueTally>([['base', { queued: 2, blocked: 0 }]])
     )
 
     expect(results.map((r) => r.network.name)).toEqual([
@@ -142,7 +233,7 @@ describe('assemblePrefetchResults', () => {
     const results = assemblePrefetchResults(
       inputs,
       new Map(),
-      new Map([['base', 3]]),
+      new Map<string, IQueueTally>([['base', { queued: 3, blocked: 0 }]]),
       new Map<string, unknown>([['mainnet', err]])
     )
 
@@ -171,6 +262,7 @@ describe('classifyPrefetchResults', () => {
   ): IPendingFetchResult => ({
     network: network(name),
     pendingInMongoCount: 0,
+    blockedInMongoCount: 0,
     ...overrides,
   })
 
@@ -221,15 +313,47 @@ describe('classifyPrefetchResults', () => {
     ])
 
     expect(outcome.withPending.map((r) => r.network.name)).toEqual(['mainnet'])
+    expect(outcome.toProcess.map((r) => r.network.name)).toEqual(['mainnet'])
     expect(outcome.mustExitWithError).toBe(false)
+  })
+
+  it('processes a network whose only rows are blocked (EXSC-816)', () => {
+    // The regression that made a ready-but-blocked op invisible: this network
+    // has nothing to execute, so it was dropped before alertBlockedOps ran.
+    const outcome = classifyPrefetchResults([
+      result('mode', { blockedInMongoCount: 1 }),
+      result('base'),
+    ])
+
+    expect(outcome.withPending).toHaveLength(0)
+    expect(outcome.withBlocked.map((r) => r.network.name)).toEqual(['mode'])
+    expect(outcome.toProcess.map((r) => r.network.name)).toEqual(['mode'])
+  })
+
+  it('still runs the blocked re-check when another network failed to fetch', () => {
+    // mustExitWithError must weigh blocked work too, or a blocked-only network
+    // is abandoned the moment any other network is unreachable.
+    //
+    // The run therefore reaches the batch-summary gate carrying work AND
+    // unreachable networks at the same time, which is the state that gate has to
+    // report on: a summary built only from processed networks would call it a
+    // success.
+    const outcome = classifyPrefetchResults([
+      result('mode', { blockedInMongoCount: 1 }),
+      result('mainnet', { fetchError: new Error('querySrv ETIMEOUT') }),
+    ])
+
+    expect(outcome.mustExitWithError).toBe(false)
+    expect(outcome.toProcess.map((r) => r.network.name)).toEqual(['mode'])
+    expect(outcome.failed.map((r) => r.network.name)).toEqual(['mainnet'])
   })
 })
 
 describe('resolveTimelockSkipReason (real deployments/)', () => {
-  it('skips an active network that has no production deployments file', async () => {
-    // tronshasta is `status: active` in networks.json but was never brought up
-    // in production, so it has no deployments/tronshasta.json. Before this was
-    // a skip it surfaced as a prefetch error with a full stack trace.
+  it('skips a network that has no production deployments file', async () => {
+    // tronshasta was never brought up in production, so it has no
+    // deployments/tronshasta.json. Before this was a skip it surfaced as a
+    // prefetch error with a full stack trace.
     expect(await resolveTimelockSkipReason(network('tronshasta'))).toBe(
       'no-deployment-log'
     )

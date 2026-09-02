@@ -1,11 +1,13 @@
 /**
- * Fleet pre-check for the timelock executor: which networks have queued ops.
+ * Fleet pre-check for the timelock executor: which networks have queued or
+ * blocked ops.
  *
  * Lives outside `execute-pending-timelock-tx.ts` because that module calls
- * `runMain` at module scope and so cannot be imported by tests. Guarding it with
- * `import.meta.main`, as some siblings in this directory do, is not an option:
- * the CLI runs under `bunx tsx`, where `import.meta.main` is `undefined`, so the
- * guard would silently turn the whole command into a no-op.
+ * `runMain` at module scope and so cannot be imported by tests. Guarding that
+ * call with `import.meta.main`, as some siblings in this directory do, would
+ * make it importable but is deliberately not done there: should the flag ever
+ * read falsy for that entry, the scheduled executor exits 0 having executed
+ * nothing, and no observer can tell that apart from a clean run.
  */
 
 import { existsSync } from 'fs'
@@ -22,7 +24,10 @@ import {
   getDeploymentsFilePath,
 } from '../../utils/deploymentHelpers'
 
-import { getTimelockQueueCollection } from './timelock-queue'
+import {
+  getTimelockQueueCollection,
+  type TimelockQueueStatus,
+} from './timelock-queue'
 
 /** Why a network carries no production timelock and is skipped during prefetch. */
 export type TTimelockSkipReason = 'no-deployment-log' | 'no-timelock-deployed'
@@ -32,30 +37,49 @@ export interface IPendingFetchResult {
   network: INetworksObject[string]
   /** Number of queued timelock ops for this network (on-chain ready count unknown until processNetwork runs). */
   pendingInMongoCount: number
+  /**
+   * Number of `blocked` timelock ops for this network. Never executed, but a
+   * network with only blocked rows must still be processed so `alertBlockedOps`
+   * can re-check them on-chain.
+   */
+  blockedInMongoCount: number
   /** Set when prefetch failed; callers must not treat as "no pending" without checking. */
   fetchError?: unknown
   /** Set when the network has no production timelock to check — an expected skip, not a failure. */
   skipReason?: TTimelockSkipReason
 }
 
+/** Statuses the prefetch tallies; every other status is settled and needs no run. */
+const TALLIED_STATUSES = ['queued', 'blocked'] as const
+
 /** Row shape the tally needs; the query projects away everything else. */
-interface IQueuedNetworkRow {
+interface INetworkStatusRow {
   network: string
+  status: TimelockQueueStatus
+}
+
+/** Per-network counts of the statuses that make a network worth processing. */
+export interface IQueueTally {
+  queued: number
+  blocked: number
 }
 
 /**
- * Tallies queued ops per network, case-insensitively.
+ * Tallies queued and blocked ops per network, case-insensitively.
  *
- * @param rows - Queued rows, each carrying its network name.
- * @returns Lowercased network name → count. Networks with no rows are absent.
+ * @param rows - Rows in a tallied status, each carrying its network name.
+ * @returns Lowercased network name → tally. Networks with no rows are absent.
  */
-export function tallyQueuedOpsByNetwork(
-  rows: IQueuedNetworkRow[]
-): Map<string, number> {
-  const counts = new Map<string, number>()
+export function tallyOpsByNetwork(
+  rows: INetworkStatusRow[]
+): Map<string, IQueueTally> {
+  const counts = new Map<string, IQueueTally>()
   for (const row of rows) {
     const key = row.network.toLowerCase()
-    counts.set(key, (counts.get(key) ?? 0) + 1)
+    const tally = counts.get(key) ?? { queued: 0, blocked: 0 }
+    if (row.status === 'blocked') tally.blocked++
+    else tally.queued++
+    counts.set(key, tally)
   }
   return counts
 }
@@ -64,28 +88,34 @@ export function tallyQueuedOpsByNetwork(
 export type TQueueConnector = typeof getTimelockQueueCollection
 
 /**
- * Counts queued timelock ops for many networks in one query over one connection.
+ * Counts queued and blocked timelock ops for many networks in one query over one
+ * connection.
  *
- * @param networkNames - Network names to count for (matched case-insensitively).
+ * @param networkNames - Network names to count for, lowercased to match storage.
  * @param connect - Opens the queue collection; defaults to the real connection.
- * @returns Lowercased network name → queued op count.
+ * @returns Lowercased network name → queued and blocked op counts.
  */
-export async function countQueuedOpsByNetwork(
+export async function countOpsByNetwork(
   networkNames: string[],
   connect: TQueueConnector = getTimelockQueueCollection
-): Promise<Map<string, number>> {
+): Promise<Map<string, IQueueTally>> {
   const { client, timelockQueue } = await connect()
   try {
+    // `$in` is a binary comparison, so lowercasing here matches stored rows only
+    // because `ITimelockQueueDoc.network` is lowercase by construction — every
+    // writer normalises before insert. Do not relax that to a collation: this
+    // query would need a matching case-insensitive index, and the runtime role
+    // cannot create one (see the index warnings in timelock-queue.ts).
     const rows = await timelockQueue
       .find(
         {
           network: { $in: networkNames.map((name) => name.toLowerCase()) },
-          status: 'queued',
+          status: { $in: [...TALLIED_STATUSES] },
         },
-        { projection: { network: 1 } }
+        { projection: { network: 1, status: 1 } }
       )
       .toArray()
-    return tallyQueuedOpsByNetwork(rows)
+    return tallyOpsByNetwork(rows)
   } finally {
     // A rejecting close would otherwise replace an already-computed tally with a
     // throw, and since this is now the fleet's only connection that turns a
@@ -137,27 +167,34 @@ export async function resolveTimelockSkipReason(
  *
  * @param networks - Networks in the order results should be returned.
  * @param skipReasons - Network name → skip reason for networks with no timelock.
- * @param countsByNetwork - Lowercased network name → queued op count.
+ * @param countsByNetwork - Lowercased network name → queued and blocked op counts.
  * @param errorsByNetwork - Network name → the error that stopped it being checked.
  * @returns One result per input network, in input order.
  */
 export function assemblePrefetchResults(
   networks: INetworksObject[string][],
   skipReasons: Map<string, TTimelockSkipReason>,
-  countsByNetwork: Map<string, number>,
+  countsByNetwork: Map<string, IQueueTally>,
   errorsByNetwork: Map<string, unknown> = new Map()
 ): IPendingFetchResult[] {
   return networks.map((network) => {
+    const empty = {
+      network,
+      pendingInMongoCount: 0,
+      blockedInMongoCount: 0,
+    }
+
     const skipReason = skipReasons.get(network.name)
-    if (skipReason) return { network, pendingInMongoCount: 0, skipReason }
+    if (skipReason) return { ...empty, skipReason }
 
     const fetchError = errorsByNetwork.get(network.name)
-    if (fetchError !== undefined)
-      return { network, pendingInMongoCount: 0, fetchError }
+    if (fetchError !== undefined) return { ...empty, fetchError }
 
+    const tally = countsByNetwork.get(network.name.toLowerCase())
     return {
       network,
-      pendingInMongoCount: countsByNetwork.get(network.name.toLowerCase()) ?? 0,
+      pendingInMongoCount: tally?.queued ?? 0,
+      blockedInMongoCount: tally?.blocked ?? 0,
     }
   })
 }
@@ -211,9 +248,7 @@ export async function fetchPendingForNetworks(
     )
 
   try {
-    const countsByNetwork = await countQueuedOpsByNetwork(
-      toCheck.map((n) => n.name)
-    )
+    const countsByNetwork = await countOpsByNetwork(toCheck.map((n) => n.name))
     return assemblePrefetchResults(
       networks,
       skipReasons,
@@ -238,6 +273,12 @@ export async function fetchPendingForNetworks(
 /** How a completed prefetch should be reported and whether the run may continue. */
 export interface IPrefetchOutcome {
   withPending: IPendingFetchResult[]
+  withBlocked: IPendingFetchResult[]
+  /**
+   * Networks worth opening an RPC for: queued ops to execute, blocked ops to
+   * re-check, or both.
+   */
+  toProcess: IPendingFetchResult[]
   skipped: IPendingFetchResult[]
   failed: IPendingFetchResult[]
   /**
@@ -250,6 +291,9 @@ export interface IPrefetchOutcome {
 /**
  * Classifies prefetch results into the buckets the CLI reports on.
  *
+ * A network with only `blocked` rows has nothing to execute but still belongs in
+ * `toProcess`, so `alertBlockedOps` can re-check those rows on-chain.
+ *
  * @param results - One result per pre-checked network.
  * @returns The classified outcome.
  */
@@ -257,13 +301,19 @@ export function classifyPrefetchResults(
   results: IPendingFetchResult[]
 ): IPrefetchOutcome {
   const withPending = results.filter((r) => r.pendingInMongoCount > 0)
+  const withBlocked = results.filter((r) => r.blockedInMongoCount > 0)
+  const toProcess = results.filter(
+    (r) => r.pendingInMongoCount > 0 || r.blockedInMongoCount > 0
+  )
   // Must match how assemblePrefetchResults records a failure: a falsy thrown
   // value would otherwise make the network read as checked-with-0-pending.
   const failed = results.filter((r) => r.fetchError !== undefined)
   return {
     withPending,
+    withBlocked,
+    toProcess,
     skipped: results.filter((r) => r.skipReason),
     failed,
-    mustExitWithError: withPending.length === 0 && failed.length > 0,
+    mustExitWithError: toProcess.length === 0 && failed.length > 0,
   }
 }
