@@ -413,6 +413,30 @@ describe('shouldFail', () => {
     expect(shouldFail(reports, false)).toBe(true)
   })
 
+  it('does not fail when only one collection is entirely unauditable', () => {
+    const reports = {
+      production: emptyReport({ examined: 3, consistent: 3 }),
+      staging: emptyReport({
+        examined: 1,
+        unauditable: [{ record: record(), reason: 'no compiled ABI' }],
+      }),
+    }
+
+    expect(shouldFail(reports, false)).toBe(false)
+  })
+
+  it('fails when no examined record anywhere could be judged', () => {
+    const reports = {
+      production: emptyReport({
+        examined: 1,
+        unauditable: [{ record: record(), reason: 'no compiled ABI' }],
+      }),
+      staging: emptyReport(),
+    }
+
+    expect(shouldFail(reports, false)).toBe(true)
+  })
+
   it('passes on unverified records unless --strict', () => {
     const reports = {
       production: emptyReport({

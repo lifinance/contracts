@@ -450,12 +450,14 @@ export const shouldFail = (
   if (sum((report) => report.findings.length) > 0) return true
 
   // Every record unauditable is a broken build reading as "nothing found",
-  // which is the one silent failure this audit exists to rule out.
+  // which is the one silent failure this audit exists to rule out. Counted
+  // across environments, not per environment: one out/ serves them all, so a
+  // build that cannot answer leaves none of them auditable, while a single
+  // collection holding only deprecated contracts is not a broken build.
   if (
-    all.some(
-      (report) =>
-        report.examined > 0 && report.unauditable.length === report.examined
-    )
+    sum((report) => report.examined) > 0 &&
+    sum((report) => report.unauditable.length) ===
+      sum((report) => report.examined)
   )
     return true
 
