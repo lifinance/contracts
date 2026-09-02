@@ -31,14 +31,15 @@ const NON_ADDRESS_VALUE_TYPE = /^(u?int\d*|bool|bytes\d*)$/
 /**
  * Matches a `<type> public immutable <NAME>;` declaration.
  *
- * @remarks Solidity accepts the two specifiers in either order, and the whole declaration may be
- *   wrapped across lines, so neither is assumed — a form this pattern could not read would be a
- *   getter the gate never sees, which is the one failure mode it must not have. `address payable`
- *   is spelled out as the one two-word type in use; `public immutable` appears only in state
- *   variable declarations, so no line anchor is needed to avoid matching inside a function body.
+ * @remarks Solidity accepts the two specifiers in either order, allows an inline initializer in
+ *   place of constructor assignment, and lets the declaration wrap across lines, so none of those
+ *   is assumed — a form this pattern could not read would be a getter the gate never sees, which
+ *   is the one failure mode it must not have. `address payable` is spelled out as the one
+ *   two-word type in use; `public immutable` appears only in state variable declarations, so no
+ *   line anchor is needed to avoid matching inside a function body.
  */
 const PUBLIC_IMMUTABLE_DECLARATION =
-  /(address\s+payable|[A-Za-z_][A-Za-z0-9_]*)\s+(?:public\s+immutable|immutable\s+public)\s+([A-Za-z_][A-Za-z0-9_]*)\s*;/g
+  /(address\s+payable|[A-Za-z_][A-Za-z0-9_]*)\s+(?:public\s+immutable|immutable\s+public)\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?:=[^;]*)?;/g
 
 /** One public immutable whose value is an address, and thus readable on chain by name. */
 export interface IPublicImmutableGetter {

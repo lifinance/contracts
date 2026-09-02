@@ -55,6 +55,15 @@ describe('parsePublicImmutableGetters', () => {
     ).toEqual([{ getter: 'WRAPPED', solidityType: 'IWrapped' }])
   })
 
+  it('extracts a declaration carrying an inline initializer', () => {
+    // Solidity allows assigning at the declaration, which still generates the same getter.
+    expect(
+      parsePublicImmutableGetters(
+        '    address public immutable ROUTER = SOME_CONSTANT;'
+      )
+    ).toEqual([{ getter: 'ROUTER', solidityType: 'address' }])
+  })
+
   it('skips value-typed immutables, which cannot hold a counterparty address', () => {
     expect(
       parsePublicImmutableGetters(`
