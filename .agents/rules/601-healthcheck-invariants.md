@@ -61,10 +61,10 @@ JSDoc on exports, `bunx eslint` + `bunx tsc-files --noEmit`).
 ## Intent-aware invariants, chain-only generators ([CONV:HEALTHCHECK-INTENT])
 
 Several invariants compare on-chain reality against a _desired_ state that a merged PR
-already records — `_targetState.json` for `facets-registered` and `periphery-registered`, a
-deleted source file for `no-stale-registered-facets`. Between that merge and the multisig
-operation acting on it the two legitimately disagree, and the remediation is "wait", not
-"fix".
+already records — `_targetState.json` for `facets-registered` and `periphery-registered`,
+`config/whitelist.json` for the whitelist pair checks, a deleted source file for
+`no-stale-registered-facets`. Between that merge and the multisig operation acting on it the
+two legitimately disagree, and the remediation is "wait", not "fix".
 
 Invariants may consult operator intent to resolve that window and report the finding as
 **expected-pending** instead of a failure:
@@ -76,8 +76,12 @@ Invariants may consult operator intent to resolve that window and report the fin
   sufficient: a facet needs a `diamondCut` record, because a registry entry routes no
   selectors, and a periphery contract needs a `registerPeripheryContract` record carrying
   **its own** registry name, because binding an address under one name leaves every other
-  name unset. Every record decoded for an address is kept, so a second call for the same
-  address cannot erase the first.
+  name unset. A whitelist pair needs a `setContractSelectorWhitelist` /
+  `batchSetContractSelectorWhitelist` record carrying **its own** selector, because
+  whitelisting is per contract *and* selector. Every record decoded for an address is kept,
+  so a second call for the same address cannot erase the first, and each consumer matches
+  the record's `kind` — a check keyed on the absence of a field silently widens the next
+  time a kind is added.
 - Removals read the parked-task queue (`script/deploy/safe/parked-tasks.ts`), and only while
   the task is **live** — a claim held with no Safe proposal past `STALE_PARKED_CLAIM_DAYS` is
   breakage, not progress, and covers nothing.
@@ -89,6 +93,9 @@ invariant:
   so the multisig **signing** window before it stays red. Only the timelock delay itself
   (plus execution lag) is covered.
 - A rollout proposed **without** `--timelock` writes no row at all, and so is never downgraded.
+- Only whitelist **additions** are covered. A pair the diamond holds and config no longer
+  declares (`Pair Array has N stale pairs`) reports as a hard error even while its removal
+  is queued — the removal side reads parked tasks, which carry no whitelist payloads.
 - **Tron** rolls out through `contracts-tron` and has no EVM queue row; it is skipped by branch.
 - A row is honoured only while it is plausibly still waiting. A never-scheduled or
   directly-cancelled operation is reported and skipped by the execution runner *without* a

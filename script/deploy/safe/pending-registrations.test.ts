@@ -26,6 +26,17 @@ const ABI_REGISTER_PERIPHERY = parseAbi([
   'function registerPeripheryContract(string,address)',
 ])
 const ABI_UNRELATED = parseAbi(['function grantRole(bytes32,address)'])
+const ABI_SET_WHITELIST = parseAbi([
+  'function setContractSelectorWhitelist(address,bytes4,bool)',
+])
+const ABI_BATCH_SET_WHITELIST = parseAbi([
+  'function batchSetContractSelectorWhitelist(address[],bytes4[],bool)',
+])
+
+const DEX = '0x5555555555555555555555555555555555555555'
+const OTHER_DEX = '0x6666666666666666666666666666666666666666'
+const SELECTOR = '0xf8989325' as Hex
+const OTHER_SELECTOR = '0x2646478b' as Hex
 
 /** Encodes a `diamondCut` with one cut per `(address, action)` pair. */
 function diamondCut(cuts: Array<[string, number]>): Hex {
@@ -46,13 +57,13 @@ function diamondCut(cuts: Array<[string, number]>): Hex {
 describe('extractRegistrations', () => {
   it('returns the facet address for an Add cut', () => {
     expect(extractRegistrations(diamondCut([[FACET, 0]]))).toEqual([
-      { address: FACET.toLowerCase() },
+      { kind: 'facet-cut', address: FACET.toLowerCase() },
     ])
   })
 
   it('returns the facet address for a Replace cut', () => {
     expect(extractRegistrations(diamondCut([[FACET, 1]]))).toEqual([
-      { address: FACET.toLowerCase() },
+      { kind: 'facet-cut', address: FACET.toLowerCase() },
     ])
   })
 
@@ -68,7 +79,7 @@ describe('extractRegistrations', () => {
           [OTHER_FACET, 2],
         ])
       )
-    ).toEqual([{ address: FACET.toLowerCase() }])
+    ).toEqual([{ kind: 'facet-cut', address: FACET.toLowerCase() }])
   })
 
   it('returns the periphery address and the name it is bound to', () => {
@@ -77,7 +88,11 @@ describe('extractRegistrations', () => {
       args: ['Executor', PERIPHERY],
     })
     expect(extractRegistrations(data)).toEqual([
-      { address: PERIPHERY.toLowerCase(), peripheryName: 'Executor' },
+      {
+        kind: 'periphery',
+        address: PERIPHERY.toLowerCase(),
+        peripheryName: 'Executor',
+      },
     ])
   })
 
@@ -100,6 +115,63 @@ describe('extractRegistrations', () => {
   it('returns nothing for a non-string payload', () => {
     expect(extractRegistrations(undefined as unknown as Hex)).toEqual([])
   })
+
+  it('returns the pair a single whitelist setter grants', () => {
+    const data = encodeFunctionData({
+      abi: ABI_SET_WHITELIST,
+      args: [DEX, SELECTOR, true],
+    })
+    expect(extractRegistrations(data)).toEqual([
+      { kind: 'whitelist', address: DEX.toLowerCase(), selector: SELECTOR },
+    ])
+  })
+
+  it('ignores a whitelist setter that revokes the pair', () => {
+    const data = encodeFunctionData({
+      abi: ABI_SET_WHITELIST,
+      args: [DEX, SELECTOR, false],
+    })
+    expect(extractRegistrations(data)).toEqual([])
+  })
+
+  it('pairs a whitelist batch positionally', () => {
+    const data = encodeFunctionData({
+      abi: ABI_BATCH_SET_WHITELIST,
+      args: [[DEX, OTHER_DEX], [SELECTOR, OTHER_SELECTOR], true],
+    })
+    expect(extractRegistrations(data)).toEqual([
+      { kind: 'whitelist', address: DEX.toLowerCase(), selector: SELECTOR },
+      {
+        kind: 'whitelist',
+        address: OTHER_DEX.toLowerCase(),
+        selector: OTHER_SELECTOR,
+      },
+    ])
+  })
+
+  it('ignores a whitelist batch that revokes its pairs', () => {
+    const data = encodeFunctionData({
+      abi: ABI_BATCH_SET_WHITELIST,
+      args: [[DEX], [SELECTOR], false],
+    })
+    expect(extractRegistrations(data)).toEqual([])
+  })
+
+  it('ignores a length-mismatched batch — the facet reverts, so nothing lands', () => {
+    const data = encodeFunctionData({
+      abi: ABI_BATCH_SET_WHITELIST,
+      args: [[DEX, OTHER_DEX], [SELECTOR], true],
+    })
+    expect(extractRegistrations(data)).toEqual([])
+  })
+
+  it('lowercases the selector so a mixed-case payload still matches config', () => {
+    const data = encodeFunctionData({
+      abi: ABI_SET_WHITELIST,
+      args: [DEX, '0xF8989325' as Hex, true],
+    })
+    expect(extractRegistrations(data)[0]?.selector).toBe(SELECTOR)
+  })
 })
 
 describe('registrationsFromQueueDoc', () => {
@@ -117,6 +189,7 @@ describe('registrationsFromQueueDoc', () => {
     })
     expect(registrations.get(FACET.toLowerCase())).toEqual([
       {
+        kind: 'facet-cut',
         address: FACET.toLowerCase(),
         operationId: OPERATION_ID,
         target: DIAMOND.toLowerCase(),
@@ -264,7 +337,9 @@ describe('real-payload shapes the live queue actually carries', () => {
       ],
     })
     const registrations = extractRegistrations(data)
-    expect(registrations).toEqual([{ address: FACET.toLowerCase() }])
+    expect(registrations).toEqual([
+      { kind: 'facet-cut', address: FACET.toLowerCase() },
+    ])
     expect(registrations.map((r) => r.address)).not.toContain(
       INIT.toLowerCase()
     )
@@ -294,6 +369,7 @@ describe('real-payload shapes the live queue actually carries', () => {
     })
     expect(registrations.get(PERIPHERY.toLowerCase())).toEqual([
       {
+        kind: 'periphery',
         address: PERIPHERY.toLowerCase(),
         peripheryName: 'Other',
         operationId: OPERATION_ID,
