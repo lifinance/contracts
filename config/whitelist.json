@@ -4773,6 +4773,14 @@
               "0xf8989325": ""
             }
           }
+        ],
+        "robinhood": [
+          {
+            "address": "0xCC89feed31b3e59F8e345Feb15c3b58956A88599",
+            "functions": {
+              "0xf8989325": ""
+            }
+          }
         ]
       }
     },
