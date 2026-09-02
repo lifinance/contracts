@@ -52,6 +52,12 @@ export interface IDeploySelfCheckResult {
   requiresExplicitContinue: boolean
   /** True for REFUSE: no proposal may be created. */
   blocksProposal: boolean
+  /**
+   * Bytes excluded from the comparison as immutables. Nonzero means a PASS says
+   * nothing about their values, and a caller that has not run layer 2 must not
+   * render it as an unqualified green.
+   */
+  excludedByteCount: number
 }
 
 /**
@@ -86,6 +92,7 @@ export const evaluateDeploySelfCheck = (
       attestedVerdict: 'NOT_EVALUATED',
       requiresExplicitContinue: false,
       blocksProposal: true,
+      excludedByteCount: observed.maskedByteCount,
     }
 
   if (normalizeHash(observed.maskedHash) !== normalizeHash(builtMaskedHash))
@@ -95,6 +102,20 @@ export const evaluateDeploySelfCheck = (
       attestedVerdict: 'NOT_EVALUATED',
       requiresExplicitContinue: false,
       blocksProposal: true,
+      excludedByteCount: observed.maskedByteCount,
+    }
+
+  // An address with no code — a failed deploy, a wrong address, a CREATE2 miss —
+  // reports 0, and so does an artifact read that yielded empty bytes. Equality
+  // would call that agreement.
+  if (builtRawByteLength <= 0 || observed.rawByteLength <= 0)
+    return {
+      outcome: 'REFUSE',
+      reason: `${contractName}: there is no code to compare — the address holds ${observed.rawByteLength} bytes and the artifact ${builtRawByteLength}`,
+      attestedVerdict: 'NOT_EVALUATED',
+      requiresExplicitContinue: false,
+      blocksProposal: true,
+      excludedByteCount: observed.maskedByteCount,
     }
 
   if (builtRawByteLength !== observed.rawByteLength)
@@ -104,6 +125,7 @@ export const evaluateDeploySelfCheck = (
       attestedVerdict: 'NOT_EVALUATED',
       requiresExplicitContinue: false,
       blocksProposal: true,
+      excludedByteCount: observed.maskedByteCount,
     }
 
   const attestedComparison = compareToAttestedSet(observed, attested, scope)
@@ -115,14 +137,18 @@ export const evaluateDeploySelfCheck = (
       attestedVerdict: 'MATCH',
       requiresExplicitContinue: false,
       blocksProposal: false,
+      excludedByteCount: observed.maskedByteCount,
     }
 
-  // The remedy is not the same for the two: a MISMATCH is resolved by merging
-  // the code, an UNVERIFIABLE by there being something to compare against.
+  // Discriminating on the verdict is wrong: two of the three UNVERIFIABLE
+  // returns require an attested build to exist to be reached at all, and they
+  // are what a feature-branch deploy hits on an open lineage set — where
+  // merging IS the remedy. What actually decides is whether anything is
+  // attested.
   const remedy =
-    attestedComparison.verdict === 'MISMATCH'
-      ? 'This will fail at sign time until the branch is merged and the facet version audited'
-      : 'This will fail at sign time until an attested build of main exists for this contract — merging alone will not resolve it'
+    attested.length === 0
+      ? 'This will fail at sign time until an attested build of main exists for this contract — merging alone will not resolve it'
+      : 'This will fail at sign time until the branch is merged and the facet version audited'
 
   return {
     outcome: 'CONFIRM',
@@ -130,5 +156,6 @@ export const evaluateDeploySelfCheck = (
     attestedVerdict: attestedComparison.verdict,
     requiresExplicitContinue: true,
     blocksProposal: false,
+    excludedByteCount: observed.maskedByteCount,
   }
 }

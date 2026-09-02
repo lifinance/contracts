@@ -301,3 +301,128 @@ describe('the remedy has to match the verdict', () => {
     expect(result.reason).not.toMatch(/until the branch is merged/)
   })
 })
+
+describe('the remedy on an open lineage set', () => {
+  const OPEN = { isClosedSet: false }
+
+  it.each([
+    ['an unattested compiler version', { solcVersion: '0.8.29' }],
+    ['no readable compiler version', { solcVersion: undefined }],
+  ])(
+    'tells a feature branch to merge even though the verdict is UNVERIFIABLE (%s)',
+    (_label, over) => {
+      // Both of these UNVERIFIABLE returns require an attested build to exist to
+      // be reached at all, so "until an attested build exists" is false for them
+      // — and the message would name the attested build in the same sentence.
+      // The same deploy gets the right remedy on a closed set, so discriminating
+      // on the verdict let three proposer-written bytes choose the advice.
+      const result = evaluateDeploySelfCheck({
+        contractName: 'AccessManagerFacet',
+        observed: onChain({ maskedHash: BRANCH_HASH, ...over }),
+        builtMaskedHash: BRANCH_HASH,
+        builtRawByteLength: MAIN_BYTES,
+        attested: ATTESTED,
+        scope: OPEN,
+      })
+
+      expect(result.outcome).toBe('CONFIRM')
+      expect(result.attestedVerdict).toBe('UNVERIFIABLE')
+      expect(result.reason).toMatch(/until the branch is merged/)
+      expect(result.reason).not.toMatch(
+        /until an attested build of main exists/
+      )
+    }
+  )
+
+  it('still points at attestation when nothing is attested, on either scope', () => {
+    for (const scope of [CLOSED, OPEN]) {
+      const result = evaluateDeploySelfCheck({
+        contractName: 'AccessManagerFacet',
+        observed: onChain(),
+        builtMaskedHash: MAIN_HASH,
+        builtRawByteLength: MAIN_BYTES,
+        attested: [],
+        scope,
+      })
+
+      expect(result.reason).toMatch(/until an attested build of main exists/)
+      expect(result.reason).not.toMatch(/until the branch is merged/)
+    }
+  })
+})
+
+describe('nothing compared to nothing is not agreement', () => {
+  it.each([
+    ['no code at the address', { observed: 0, built: MAIN_BYTES }],
+    ['an artifact that read as empty', { observed: MAIN_BYTES, built: 0 }],
+    ['both empty', { observed: 0, built: 0 }],
+  ])('refuses %s', (_label, { observed, built }) => {
+    // A failed deploy, a wrong address or a CREATE2 miss reports 0, and so does
+    // an artifact read that yielded empty bytes. Equality alone calls that a
+    // match, and the outcome was a waveable CONFIRM.
+    const result = evaluateDeploySelfCheck({
+      contractName: 'AccessManagerFacet',
+      observed: onChain({ maskedHash: MAIN_HASH, rawByteLength: observed }),
+      builtMaskedHash: MAIN_HASH,
+      builtRawByteLength: built,
+      attested: [],
+      scope: CLOSED,
+    })
+
+    expect(result.outcome).toBe('REFUSE')
+    expect(result.blocksProposal).toBe(true)
+    expect(result.reason).toMatch(/no code to compare/)
+  })
+})
+
+describe('which refusal an operator is shown', () => {
+  it('names the hash, not the length, when both differ', () => {
+    // With the length check first, a stale `out/` that also differs in length is
+    // told the code "normalises to the artifact this run built" — which it does
+    // not. Nothing pinned this ordering before.
+    const result = evaluateDeploySelfCheck({
+      contractName: 'AccessManagerFacet',
+      observed: onChain({ maskedHash: BRANCH_HASH, rawByteLength: 9999 }),
+      builtMaskedHash: MAIN_HASH,
+      builtRawByteLength: MAIN_BYTES,
+      attested: ATTESTED,
+      scope: CLOSED,
+    })
+
+    expect(result.outcome).toBe('REFUSE')
+    expect(result.reason).toMatch(/not the artifact this run built/)
+    expect(result.reason).not.toMatch(/normalises to the artifact/)
+  })
+})
+
+describe('what a PASS did not look at', () => {
+  it('carries the excluded immutable byte count through', () => {
+    // `IObservedCode.maskedByteCount` says a caller that has not run layer 2
+    // must not render an unqualified green. The result now gives it a field to
+    // key on rather than free text.
+    const result = evaluateDeploySelfCheck({
+      contractName: 'ReceiverStargateV2',
+      observed: onChain({ maskedByteCount: 480 }),
+      builtMaskedHash: MAIN_HASH,
+      builtRawByteLength: MAIN_BYTES,
+      attested: ATTESTED,
+      scope: CLOSED,
+    })
+
+    expect(result.outcome).toBe('PASS')
+    expect(result.excludedByteCount).toBe(480)
+  })
+
+  it('reports zero for a contract with no immutables', () => {
+    const result = evaluateDeploySelfCheck({
+      contractName: 'AccessManagerFacet',
+      observed: onChain(),
+      builtMaskedHash: MAIN_HASH,
+      builtRawByteLength: MAIN_BYTES,
+      attested: ATTESTED,
+      scope: CLOSED,
+    })
+
+    expect(result.excludedByteCount).toBe(0)
+  })
+})
