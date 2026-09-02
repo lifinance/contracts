@@ -45,6 +45,29 @@ describe('redactUrls', () => {
   })
 })
 
+describe('redactUrls — adversarial inputs', () => {
+  it('redacts an endpoint glued to a preceding word character', () => {
+    // A \b anchor matches nothing here, so the whole endpoint would survive into the alert.
+    for (const prefix of ['log_', '1', 'word', '[', 'msg:']) {
+      const redacted = redactUrls(
+        `${prefix}https://host/path?apikey=DUMMY-TEST-VALUE`
+      )
+      expect(redacted).not.toContain('DUMMY-TEST-VALUE')
+      expect(redacted).not.toContain('host')
+    }
+  })
+
+  it('redacts an endpoint a tool echoed back inside its own invocation', () => {
+    // troncast failures echo their own invocation, and the RPC URL in it can embed an API key.
+    const redacted = redactUrls(
+      '$ bun run script/troncast/index.ts call "TXYZ" "PORTAL() returns (address)" --rpc-url https://rpc.example.invalid/jsonrpc?apikey=DUMMY-TEST-VALUE'
+    )
+    expect(redacted).not.toContain('DUMMY-TEST-VALUE')
+    expect(redacted).not.toContain('example.invalid')
+    expect(redacted).toContain('[redacted-url]')
+  })
+})
+
 describe('redactErrorReason', () => {
   it('redacts, collapses to one line, and keeps the useful part', () => {
     const reason = redactErrorReason(
