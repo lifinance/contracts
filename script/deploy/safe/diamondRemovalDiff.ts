@@ -51,45 +51,84 @@ const SRC_ROOT = path.resolve(MODULE_DIR, '../../../src')
 const FACETS_ROOT = path.resolve(SRC_ROOT, 'Facets')
 /** Repo root, so the build below runs against this checkout regardless of cwd. */
 const REPO_ROOT = path.resolve(MODULE_DIR, '../../..')
-/** Generous enough for a cold build of the whole source tree. */
-const FORGE_BUILD_TIMEOUT_MS = 15 * 60 * 1000
-/** A warning-heavy build overruns the 1 MB default, which surfaces as a build failure. */
-const FORGE_BUILD_MAX_BUFFER = 64 * 1024 * 1024
+const FORGE_BUILD_TIMEOUT_MS = 10 * 60 * 1000 // 10 minutes
+const FORGE_BUILD_MAX_BUFFER = 64 * 1024 * 1024 // 64 MB — a warning-heavy build overruns the 1 MB default, which would surface as a build failure
 
-let artifactsAvailable: boolean | undefined
 /**
- * Compiles the contracts when a selector union came back unavailable, so a
- * checkout that was simply never built does not read as "removability cannot be
- * verified". Some propose paths that drain the parked queue — a whitelist sync,
- * a periphery-only rollout — never compile on their own, and per-session
- * worktrees start without `out/`.
- *
- * Attempted at most once per process; a failed build keeps the fail-closed
- * behaviour rather than turning a build problem into a removal.
+ * The argument set `reconcileParkedTasks.yml` already uses to produce these very
+ * selector-union artifacts: only facet ABIs matter here, and skipping tests and
+ * scripts is the difference between a build that fits inside a scheduled job and
+ * one that times it out.
  */
-function buildArtifactsOnce(): boolean {
-  if (artifactsAvailable !== undefined) return artifactsAvailable
-  consola.info(
-    'Compiled artifacts unavailable — running `forge build` so facet removability can be verified'
-  )
-  try {
-    execFileSync('forge', ['build'], {
-      cwd: REPO_ROOT,
-      stdio: 'pipe',
-      timeout: FORGE_BUILD_TIMEOUT_MS,
-      maxBuffer: FORGE_BUILD_MAX_BUFFER,
-    })
-    artifactsAvailable = true
-  } catch (error) {
-    consola.warn(
-      `\`forge build\` failed — facet removability stays unverifiable: ${
-        error instanceof Error ? error.message : String(error)
-      }`
-    )
-    artifactsAvailable = false
-  }
-  return artifactsAvailable
+const FORGE_BUILD_ARGS = [
+  'build',
+  '--skip',
+  'script',
+  '--skip',
+  'test',
+  '--skip',
+  'Base',
+  '--skip',
+  'Test',
+  '--skip',
+  '*.t.sol',
+]
+
+function runForgeBuild(): void {
+  execFileSync('forge', FORGE_BUILD_ARGS, {
+    cwd: REPO_ROOT,
+    stdio: 'pipe',
+    timeout: FORGE_BUILD_TIMEOUT_MS,
+    maxBuffer: FORGE_BUILD_MAX_BUFFER,
+    // Artifacts are read from `<repo>/out`, but forge writes to `out/<profile>`
+    // under a non-default FOUNDRY_PROFILE — and `helperFunctions.sh` exports
+    // `zksync` without unsetting it, so a propose script can inherit one.
+    env: { ...process.env, FOUNDRY_PROFILE: 'default' },
+  })
 }
+
+/**
+ * Builds an `ensureArtifacts` implementation: compiles when a selector union came
+ * back unavailable, so a checkout that was simply never built does not read as
+ * "removability cannot be verified". Some propose paths that drain the parked
+ * queue — a whitelist sync, a periphery-only rollout — never compile on their
+ * own, and per-session worktrees start without `out/`.
+ *
+ * The returned function attempts the build at most once; a failed build keeps the
+ * fail-closed behaviour rather than turning a build problem into a removal.
+ *
+ * @param run - Runs the build; defaults to `forge build` in this checkout.
+ * @returns Whether artifacts are available, memoized per instance.
+ */
+export function createArtifactBuilder(
+  run: () => void = runForgeBuild
+): () => boolean {
+  let available: boolean | undefined
+  return () => {
+    if (available !== undefined) return available
+    consola.info(
+      'Compiled artifacts unavailable — running `forge build` so facet removability can be verified'
+    )
+    try {
+      run()
+      // The selector memo assumes `out/` never moves under it; a build that just
+      // rewrote it makes every earlier hit stale, and a stale union can hold back
+      // the wrong selectors.
+      selectorsByContractCache.clear()
+      available = true
+    } catch (error) {
+      consola.warn(
+        `\`forge build\` failed — facet removability stays unverifiable: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      )
+      available = false
+    }
+    return available
+  }
+}
+
+const buildArtifactsOnce = createArtifactBuilder()
 
 /**
  * Diamond-machinery facets that permanently brick the diamond if removed. They
@@ -1041,7 +1080,12 @@ export async function computeFacetRemovalsByAddress(
     addressToName,
     protectedNames,
     expectedNames,
-    protectedSelectors: tryCollectFacetSelectorUnion(protectedNames, resolved),
+    // Both unions are skipped without target state: every address is unverifiable
+    // either way, and collecting them would spend a full build on an outcome that
+    // is already fixed — which most networks' staging environment would hit.
+    protectedSelectors: expectedNames
+      ? tryCollectFacetSelectorUnion(protectedNames, resolved)
+      : undefined,
     activeSelectors: expectedNames
       ? tryCollectFacetSelectorUnion(expectedNames, resolved)
       : undefined,

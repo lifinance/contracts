@@ -22,6 +22,7 @@ import {
   getFacetSourceNames,
   getProtectedNames,
   getSourceContractNames,
+  createArtifactBuilder,
   tryCollectFacetSelectorUnion,
   HARDCODED_PROTECTED_FACETS,
   mapLoupeResult,
@@ -136,6 +137,29 @@ describe('collectActiveSelectors', () => {
 
   it('returns empty for no names', () => {
     expect(collectActiveSelectors([], () => []).size).toBe(0)
+  })
+})
+
+describe('createArtifactBuilder', () => {
+  it('reports availability after a successful build and does not build twice', () => {
+    let runs = 0
+    const ensure = createArtifactBuilder(() => {
+      runs++
+    })
+    expect(ensure()).toBe(true)
+    expect(ensure()).toBe(true)
+    expect(runs).toBe(1)
+  })
+
+  it('reports unavailable when the build throws, and does not retry it', () => {
+    let runs = 0
+    const ensure = createArtifactBuilder(() => {
+      runs++
+      throw new Error('forge: command not found')
+    })
+    expect(ensure()).toBe(false)
+    expect(ensure()).toBe(false)
+    expect(runs).toBe(1)
   })
 })
 
