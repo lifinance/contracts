@@ -175,6 +175,8 @@ const requestEnergyUsed = async (
     apiUrl,
     {
       method: 'POST',
+      // A redirect to a non-HTTPS target would silently defeat the check above.
+      redirect: 'error',
       headers: buildTronWalletJsonPostHeaders(fullHost),
       body: JSON.stringify({
         owner_address: params.ownerBase58,

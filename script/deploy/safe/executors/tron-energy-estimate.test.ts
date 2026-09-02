@@ -72,7 +72,7 @@ describe('latestEnergyPriceSun', () => {
     )
   })
 
-  it('picks the newest still-applicable entry, not the oldest future one', () => {
+  it('rejects a set of all-future entries outright, not just the oldest one', () => {
     // Two future entries at different prices: the fallback this closes could
     // have picked either, and picking the "oldest" (smallest) timestamp of an
     // all-future set is not the same as picking the lowest price — both are
