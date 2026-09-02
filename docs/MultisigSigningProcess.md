@@ -105,14 +105,9 @@ run only on the branches that actually propose; a staging or testnet-only run, a
   funnel, invoked by the bash `sendOrPropose` chokepoint in
   `script/helperFunctions.sh`, by `script/tasks/diamondUpdateFacet.sh`,
   `diamondUpdatePeriphery.sh`, and `diamondEMERGENCYPause.sh` (all with
-  `--timelock`), by `script/deploy/deployUpgradesToSAFE.sh` (**without**
-  `--timelock` — a legacy Safe-direct `diamondCut`; it still goes through the
-  Safe with full threshold/quorum, it merely omits the timelock wrap, and it
-  refuses to run on testnets. On mainnet the diamond is owned by the timelock,
-  not the Safe, so the resulting proposal reverts on execution — this path is
-  effectively dead for production diamond cuts), programmatically by
-  `proposeDiamondCut` (`script/deploy/shared/propose-diamond-cut.ts`), and
-  manually via `bun propose-safe-tx`.
+  `--timelock`), programmatically by `proposeDiamondCut`
+  (`script/deploy/shared/propose-diamond-cut.ts`), and manually via
+  `bun propose-safe-tx`.
 - **TS `sendOrPropose`** (`script/safe/safeScriptHelpers.ts`) — used by
   `script/tasks/cleanUpProdDiamond.ts`. Signs the Safe proposal with
   `PRIVATE_KEY_PRODUCTION` by default, or with a Ledger via `--ledger`
@@ -141,15 +136,81 @@ run only on the branches that actually propose; a staging or testnet-only run, a
   single chokepoint**.
 - **Tron** is a parallel flow (`script/deploy/tron/propose-to-safe-tron.ts`).
 
-`deployUpgradesToSAFE.sh` additionally runs `verify-approvals.ts` before
-proposing (PR #2128 / EXSC-687). Production: `main` is allowed; a feature
-branch is allowed when each selected `src/Facets/<Name>.sol` matches
-`origin/main` (the usual rollout — branch off main, deploy already-merged
-code, do not change that Solidity); if a selected facet diverges, the
-branch needs an open PR and the working-tree file must equal the
-`audit/auditLog.json` commit for the current `@custom:version`. Staging is
-not gated. This is **not** a GitHub SC+auditor review check, and it does
-not wrap the other `propose-to-safe` entry points.
+`diamondUpdateFacet.sh` additionally runs `verify-approvals.ts` before
+proposing (PR #2128 / EXSC-687). A production deploy is allowed when each
+selected facet's transitive `src/` import closure matches `origin/main` — the
+usual rollout, branch off main and deploy already-merged code without touching
+that Solidity. If a closure diverges, the branch needs an open PR **and** the
+working-tree files must equal the `audit/auditLog.json` commit for the current
+`@custom:version`, with that audit log read from `main` rather than the working
+tree so a deploy cannot certify itself. What is compared is always the working
+tree, never the branch name: a checkout sitting on `main` earns no exemption, so
+uncommitted edits and a stale local `main` both block (and no PR can have `main`
+as its head, so the open-PR exception cannot apply there). `origin/main` itself is
+refreshed first — the remote tip is read with `ls-remote` and fetched only when it
+differs — so a never-fetched checkout cannot pass by comparing against a stale main,
+and an unreachable remote fails the gate rather than falling back to the local copy.
+Dependencies under `lib/` are compiled into every facet but their content is not in
+this repo's tree, so they are compared by **submodule gitlink** instead
+(`git diff --ignore-submodules=untracked`, which catches both a submodule checked out
+off its recorded commit and one with modified tracked files, while ignoring stray
+untracked files that change no bytecode — most of these submodules do not gitignore
+`.DS_Store`, so the stricter `none` would block every deploy from a Mac); a divergence
+there is not excused by an open PR or an audit freeze. The remote calls run with
+prompts disabled and a 30 s timeout, so a stalled or credential-prompting remote fails
+the gate instead of hanging the rollout. Staging is not gated, and neither are
+testnets — deploying an unmerged facet to a testnet is how it is validated before
+the audit, and no Safe is involved there.
+
+The gate runs once per *(network, facet)*, but, for a fixed branch and environment, its
+verdict depends only on the working tree and the facet set, so a fleet rollout would
+otherwise recompute the same answer for
+every network — 71 `ls-remote` round trips and 71 chances for a flaky remote to abort the
+rollout fail-closed, with the concurrent workers of `proposeContractToNetworks.sh` racing
+each other's `git fetch` on `refs/remotes/origin/main.lock`. A **pass is therefore
+recorded once per run** and reused while the tree stays put
+(`script/deploy/github/deploy-gate-cache.ts`, PR #2286): keyed on `HEAD` plus the content
+of the diff against it — not merely the `git status` file names, which do not change when
+an already-modified file is edited again — plus the branch, the facet set, and the
+environment. The record lives in the checkout's git directory rather than a
+world-writable temp directory, and the full key is re-compared on read, so a planted
+entry cannot stand in for a different tree. Only a **pass** is ever recorded: a failing
+gate aborts the rollout, so there is nothing to save, and a cached failure could outlive
+the PR that was opened to satisfy it. Anything unexpected — an unreadable, unparsable, or
+expired record, or a git command that fails while the key is built — is a miss, never a
+pass, and the check runs for real. What the cache does trade away is freshness within a
+run: for up to 30 minutes the rollout is judged against `origin/main`, and against the
+open-PR lookup, as they stood at its first invocation — so `main` moving, or the anchoring
+PR being closed, does not stop the remaining networks. Both are benign for a single
+operator action on an unchanged tree, and `DEPLOY_GATE_SKIP_VERDICT_CACHE=true` forces a
+fresh verdict. Concurrent invocations
+take a single-flight lock, so exactly one of a rollout's workers does the network work and
+the rest reuse its verdict.
+
+Note what this gate does and does not assert. It enforces **main-equivalence**,
+with an audited-freeze exception for unmerged code; it does not verify that what
+reaches production was audited, because code that matches `main` passes without
+any audit lookup at all. True audit enforcement is the separate bytecode ↔ audit
+attestation item in §9. The check is further **not** a GitHub SC+auditor
+review check, and it does not wrap the other `propose-to-safe` entry points:
+`diamondUpdatePeriphery.sh` and `diamondEMERGENCYPause.sh` are ungated.
+
+The same gate is applied a second time in `proposeDiamondCut`
+(`script/deploy/shared/propose-diamond-cut.ts`), the funnel the six Tron
+`deploy-and-register-*-facet.ts` scripts route through (note
+`deploy-and-register-periphery.ts` does **not** — it calls `runPropose`
+directly). Gating the funnel rather than each script means a future caller is
+covered without anyone remembering to add it; the exemptions match the bash path
+(staging, and any network whose `config/networks.json` type is `testnet`, which
+is how `tronshasta` stays open).
+
+Facet **removals** are deliberately outside both gates: `cleanUpProdDiamond.ts`
+and the deferred-cleanup drain (`drain-parked-tasks.ts`, which folds extra
+removal calls into whatever proposal `runPropose` is already building) propose
+real diamond cuts, but a removal installs no new bytecode, so a
+main-equivalence check has nothing to compare. Their safety comes from the
+removal-specific controls in the table below. The generic bash `sendOrPropose`
+chokepoint can likewise propose arbitrary calldata and is not gated.
 
 `runPropose` owner-gates the proposer on-chain; with `--timelock` it wraps all
 calls into one `scheduleBatch` via `wrapWithTimelockSchedule` (`safe-utils.ts`;
@@ -249,7 +310,7 @@ parked tasks are reconciled weekly by `reconcileParkedTasks.yml`.
 | Propose | One-line reason (`--reason` / `SAFE_PROPOSAL_REASON`). Optional, warned once per process — OQ3 flips it to mandatory once the warning has fired zero times across 30 consecutive proposals | Warn | `proposal-intent.ts`; read the trigger with `report-reason-adoption.ts` (read-only) |
 | Propose | In-flight nonce uniqueness per Safe: concurrent proposers may still derive the same nonce, but only one insert survives (partial unique index over `pending` + `submitted`, compared case-insensitively so the Tron and EVM spellings of one Safe collide). The guarantee is **absent** if the index could not be built — in-flight rows already sharing a nonce, or a role without `createIndex` — and the build warns in both cases. Nothing is ever dropped, so a pre-`_ci` index from an earlier build stays as a weaker, redundant constraint | Block insert, re-run required | `unique_inflight_safe_nonce_ci` index in `safe-utils.ts`; diagnose with `report-nonce-collisions.ts` (read-only) |
 | Propose | Removal safety: protected-facet allowlist, live-selector hold-back, fail-closed diffs | Block + alert | `diamondRemovalDiff.ts`, `drain-parked-tasks.ts` |
-| Propose | Production `deployUpgradesToSAFE` from a feature branch: selected facet sources must match `origin/main`, else open PR + audit-log commit freeze; `main` and staging are not gated | Block (prod, that entry point only) | `script/deploy/github/verify-approvals.ts` via `deployUpgradesToSAFE.sh` (PR #2128) |
+| Propose | Production `diamondUpdateFacet`: each selected facet's `src/` import closure must match `origin/main`, else open PR + audit-log commit freeze (audit log read from `main`); judged on the working tree, so a checkout on `main` is not exempt; staging and testnets are not gated | Block (prod non-testnet facet **additions** via `diamondUpdateFacet` and `proposeDiamondCut` only — not periphery, emergency pause, removals, or the generic `sendOrPropose` chokepoint) | `script/deploy/github/verify-approvals.ts` via `diamondUpdateFacet.sh` and `propose-diamond-cut.ts`; verdict cached per run by `deploy-gate-cache.ts`, passes only (PR #2128, #2286) |
 | Confirm | Signer must be an owner; network must be active; threshold and nonce read on-chain per Safe | Block / skip | `confirm-safe-tx.ts`, `safe-utils.ts` |
 | Confirm | Ledger blind-signing enabled, fail-fast before any review | Block | `checkBlindSigningEnabled` in `ledger.ts` |
 | Confirm | Full calldata decode: diamond cut, scheduleBatch, whitelist, periphery, roles; per-selector name resolution | Display / warn only | `safe-decode-utils.ts` (`formatDecodedTxDataForDisplay`) |
@@ -351,6 +412,6 @@ Design themes under discussion. Nothing below exists in the repo today:
 - **Bytecode ↔ audit attestation** — verify the deployed bytecode/commit
   against the audited commit in `audit/auditLog.json` at signing time,
   instead of inferring "audited" from the version string. (Propose-time
-  source-file freeze on `deployUpgradesToSAFE` is a different check already
+  source-file freeze on `diamondUpdateFacet` is a different check already
   described in §4.2 / §5 — it is not bytecode attestation and does not
   cover the other propose entry points.)

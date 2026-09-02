@@ -19,6 +19,7 @@ import {
   collectDeployGateFailures,
   collectSourceClosure,
   createDefaultDeps,
+  divergedSubmodules,
   parseFacetList,
   reportApprovalResult,
   resolveAuditCommitHash,
@@ -65,6 +66,7 @@ function stubDeps(overrides: Partial<IDeployGateDeps> = {}): IDeployGateDeps {
     fileMatchesRef: () => true,
     refExists: () => true,
     sourceClosure: (path) => [path],
+    divergedSubmodules: () => [],
     getContractVersion: async () => '1.0.0',
     resolveAuditCommitHash: () => 'aa'.repeat(20),
     getOpenPrCount: async () => 1,
@@ -98,15 +100,104 @@ describe('collectDeployGateFailures', () => {
     ).toEqual([])
   })
 
-  it('allows production deploys from main even when the working tree diverges', () => {
+  it('allows a production deploy from main when the working tree matches it', () => {
     expect(
       collectDeployGateFailures({
         environment: EnvironmentEnum.production,
         branch: 'main',
         hasOpenPr: false,
-        facets: [{ name: 'AcrossFacet', matchesMain: false }],
+        facets: [{ name: 'AcrossFacet', matchesMain: true }],
       })
     ).toEqual([])
+  })
+
+  // being on main is not evidence of anything: uncommitted edits and a stale checkout
+  // both present as a diverged working tree, and no PR can have main as its head
+  it('blocks a production deploy from main when the working tree diverges', () => {
+    const failures = collectDeployGateFailures({
+      environment: EnvironmentEnum.production,
+      branch: 'main',
+      hasOpenPr: false,
+      facets: [{ name: 'AcrossFacet', matchesMain: false }],
+    })
+
+    expect(failures).toHaveLength(2)
+    expect(failures[0]).toContain('does not match origin/main')
+    expect(failures[0]).not.toContain('No open PR')
+    expect(failures[1]).toContain('AcrossFacet')
+  })
+
+  it('does not let an audit freeze excuse a diverged working tree on main', () => {
+    expect(
+      collectDeployGateFailures({
+        environment: EnvironmentEnum.production,
+        branch: 'main',
+        hasOpenPr: false,
+        facets: [
+          {
+            name: 'AcrossFacet',
+            matchesMain: false,
+            version: '1.0.0',
+            auditCommitHash: 'aa'.repeat(20),
+            auditCommitAvailable: true,
+            matchesAuditedCommit: true,
+            divergedFromMain: ['src/Facets/AcrossFacet.sol'],
+          },
+        ],
+      })
+    ).toEqual([
+      'Deploying from "main", but the working tree does not match origin/main. Move the change onto a branch and open a PR, or discard it (git checkout / git clean) and pull, before deploying',
+      'AcrossFacet diverges from origin/main (src/Facets/AcrossFacet.sol)',
+    ])
+  })
+
+  // a dependency edit changes the deployed bytecode with every src/ file intact, so
+  // this must block even when nothing under src/ diverged at all
+  it('blocks when a lib/ submodule diverges even though every facet matches main', () => {
+    expect(
+      collectDeployGateFailures({
+        ...PROD_BRANCH,
+        facets: [MATCHING_FACET],
+        divergedSubmodules: ['lib/solady'],
+      })
+    ).toEqual([
+      'Dependencies under lib/ differ from origin/main (lib/solady). They are compiled into the facet, so restore them with git submodule update --init --recursive (or drop local edits inside them) before deploying',
+    ])
+  })
+
+  // the open-PR + audit-freeze exception covers facet sources, not dependencies
+  it('does not let an open PR and an audit freeze excuse a diverged submodule', () => {
+    const failures = collectDeployGateFailures({
+      ...PROD_BRANCH,
+      facets: [
+        {
+          name: 'AmarokFacet',
+          matchesMain: false,
+          version: '1.0.0',
+          auditCommitHash: 'cc'.repeat(20),
+          matchesAuditedCommit: true,
+        },
+      ],
+      divergedSubmodules: ['lib/openzeppelin-contracts'],
+    })
+
+    expect(failures).toEqual([
+      'Dependencies under lib/ differ from origin/main (lib/openzeppelin-contracts). They are compiled into the facet, so restore them with git submodule update --init --recursive (or drop local edits inside them) before deploying',
+    ])
+  })
+
+  it('reports a diverged submodule alongside a diverged tree on main', () => {
+    const failures = collectDeployGateFailures({
+      environment: EnvironmentEnum.production,
+      branch: 'main',
+      hasOpenPr: false,
+      facets: [{ name: 'AcrossFacet', matchesMain: false }],
+      divergedSubmodules: ['lib/solady'],
+    })
+
+    expect(failures).toHaveLength(3)
+    expect(failures[0]).toContain('Dependencies under lib/')
+    expect(failures[1]).toContain('does not match origin/main')
   })
 
   it('allows a production feature-branch deploy when every selected facet matches main', () => {
@@ -368,6 +459,72 @@ describe('verifyDeployGate', () => {
     expect(auditLookups).toBe(0)
   })
 
+  // the gate used to return [] on the branch name alone, so a dirty or stale checkout
+  // sitting on main proposed to the production Safe without any comparison at all
+  it('compares the working tree on main instead of trusting the branch name', async () => {
+    let openPrLookups = 0
+
+    const failures = await verifyDeployGate(
+      {
+        environment: EnvironmentEnum.production,
+        branch: 'main',
+        facets: ['AcrossFacet'],
+      },
+      stubDeps({
+        fileMatchesRef: () => false,
+        resolveAuditCommitHash: () => undefined,
+        getOpenPrCount: async () => {
+          openPrLookups += 1
+          return 0
+        },
+      })
+    )
+
+    expect(failures).toHaveLength(2)
+    expect(failures[0]).toContain('does not match origin/main')
+    // no PR can have main as its head, so asking GitHub is wasted and misleading
+    expect(openPrLookups).toBe(0)
+  })
+
+  it('allows a clean checkout on main without contacting GitHub', async () => {
+    let openPrLookups = 0
+
+    const failures = await verifyDeployGate(
+      {
+        environment: EnvironmentEnum.production,
+        branch: 'main',
+        facets: ['AcrossFacet'],
+      },
+      stubDeps({
+        fileMatchesRef: () => true,
+        getOpenPrCount: async () => {
+          openPrLookups += 1
+          return 0
+        },
+      })
+    )
+
+    expect(failures).toEqual([])
+    expect(openPrLookups).toBe(0)
+  })
+
+  it('surfaces a diverged submodule reported by the deps', async () => {
+    const failures = await verifyDeployGate(
+      {
+        environment: EnvironmentEnum.production,
+        branch: 'deploy/across',
+        facets: ['AcrossFacet'],
+      },
+      stubDeps({
+        fileMatchesRef: () => true,
+        divergedSubmodules: () => ['lib/solady'],
+      })
+    )
+
+    expect(failures).toHaveLength(1)
+    expect(failures[0]).toContain('lib/solady')
+  })
+
   it('looks up the open PR and audit freeze only for facets that differ from main', async () => {
     const failures = await verifyDeployGate(
       {
@@ -478,19 +635,16 @@ describe('verify-approvals CLI', () => {
   const script = join(import.meta.dir, 'verify-approvals.ts')
 
   // cwd is a temp dir, so any git or gh lookup would fail: reaching exit 0 proves
-  // these two paths short-circuit before touching the repo or GitHub.
-  it.each([
-    ['staging', 'feature/some-branch'],
-    ['production', 'main'],
-  ])('allows %s on %s without contacting GitHub', (environment, branch) => {
+  // staging short-circuits before touching the repo or GitHub.
+  it('allows staging without contacting the repo or GitHub', () => {
     const result = spawnSync(
       process.execPath,
       [
         script,
         '--environment',
-        environment,
+        'staging',
         '--branch',
-        branch,
+        'feature/some-branch',
         '--facets',
         'AcrossFacet',
       ],
@@ -500,6 +654,30 @@ describe('verify-approvals CLI', () => {
     expect(result.status).toBe(0)
     expect(result.stdout).toContain('OK')
   })
+
+  // production has no short-circuit left, so the same temp cwd must now fail closed
+  // rather than pass: there is no repo to compare the facet against
+  it.each(['main', 'feature/some-branch'])(
+    'fails closed on production from %p when the repo cannot be read',
+    (branch) => {
+      const result = spawnSync(
+        process.execPath,
+        [
+          script,
+          '--environment',
+          'production',
+          '--branch',
+          branch,
+          '--facets',
+          'AcrossFacet',
+        ],
+        { cwd: tmpdir(), encoding: 'utf8' }
+      )
+
+      expect(result.status).not.toBe(0)
+      expect(result.stdout).not.toContain('OK')
+    }
+  )
 })
 
 describe('getContractVersion under the tsx runtime', () => {
@@ -526,14 +704,21 @@ describe('getContractVersion under the tsx runtime', () => {
   })
 })
 
-describe('deployUpgradesToSAFE gate condition', () => {
-  // getPrivateKey only treats *staging* as staging, so any other value - including a
-  // typo like "prod" - reaches the production key. The gate must run for those too.
-  const condition = readFileSync(
-    join(import.meta.dir, '..', 'deployUpgradesToSAFE.sh'),
+describe('diamondUpdateFacet gate condition', () => {
+  // getPrivateKey hands out the production key for every value that does not contain
+  // "staging", so a typo like "prod" reaches it. The gate must run for those too.
+  // Anchored on the gate's own invocation and walked backwards, because the host
+  // script carries other `$ENVIRONMENT` conditions that a first-match scan picks up.
+  const lines = readFileSync(
+    join(import.meta.dir, '..', '..', 'tasks', 'diamondUpdateFacet.sh'),
     'utf8'
+  ).split('\n')
+  const gateIndex = lines.findIndex((line) =>
+    line.includes('verify-approvals.ts')
   )
-    .split('\n')
+  const condition = lines
+    .slice(0, gateIndex)
+    .reverse()
     .find((line) => line.includes('$ENVIRONMENT') && line.includes('if [['))
 
   it('extracts the gate condition from the shell script', () => {
@@ -541,18 +726,25 @@ describe('deployUpgradesToSAFE gate condition', () => {
   })
 
   it.each([
-    ['production', 'RUNS'],
-    ['prod', 'RUNS'],
-    ['', 'RUNS'],
-    ['staging', 'SKIPPED'],
-  ])('runs the gate for environment %p', (environment, expected) => {
+    ['production', 'MAINNET', 'RUNS'],
+    ['prod', 'MAINNET', 'RUNS'],
+    ['', 'MAINNET', 'RUNS'],
+    ['staging', 'MAINNET', 'SKIPPED'],
+    // testnets carry production target state but no Safe, and an unmerged facet is
+    // deployed there before it is audited - gating them would block that rollout
+    ['production', 'TESTNET', 'SKIPPED'],
+    ['staging', 'TESTNET', 'SKIPPED'],
+  ])('decides %p on a %s network as %s', (environment, network, expected) => {
     const result = spawnSync(
       'bash',
       [
         '-c',
-        `ENVIRONMENT=$1; ${condition} echo RUNS; else echo SKIPPED; fi`,
+        // isTestnetNetwork is stubbed on the marker rather than reimplemented, so
+        // this asserts the condition consults it, not how helperFunctions decides
+        `isTestnetNetwork() { [[ "$1" == "TESTNET" ]]; }; ENVIRONMENT=$1; NETWORK=$2; ${condition} echo RUNS; else echo SKIPPED; fi`,
         'bash',
         environment,
+        network,
       ],
       { encoding: 'utf8' }
     )
@@ -577,13 +769,18 @@ describe('audit log source', () => {
     const run = (...args: string[]) =>
       spawnSync('git', args, { cwd: repoRoot, encoding: 'utf8' })
 
+    // a real bare origin, because the gate refreshes origin/main before reading it
+    const remote = mkdtempSync(join(tmpdir(), 'gate-audit-remote-'))
+    spawnSync('git', ['init', '--bare', '-b', 'main', remote])
     run('init', '-b', 'main')
     run('config', 'user.email', 'gate@example.com')
     run('config', 'user.name', 'gate')
+    run('remote', 'add', 'origin', remote)
     mkdirSync(join(repoRoot, 'audit'))
     writeFileSync(join(repoRoot, 'audit/auditLog.json'), auditLog(MERGED_HASH))
     run('add', '.')
     run('commit', '-m', 'audit log', '--no-gpg-sign')
+    run('push', '-q', 'origin', 'main')
 
     // the self-certification attempt: an unmerged, uncommitted audit entry
     writeFileSync(
@@ -594,6 +791,281 @@ describe('audit log source', () => {
     expect(
       createDefaultDeps(repoRoot).resolveAuditCommitHash('AcrossFacet', '1.0.0')
     ).toBe(MERGED_HASH)
+  })
+})
+
+describe('main ref resolution', () => {
+  /**
+   * Builds a repo wired to a local bare "origin" so `ls-remote` works offline.
+   * @param repoRoot - directory to initialise
+   * @returns a `git` runner bound to that repo
+   */
+  const initWithRemote = (repoRoot: string) => {
+    const remote = mkdtempSync(join(tmpdir(), 'gate-remote-'))
+    const run = (...args: string[]) =>
+      spawnSync('git', args, { cwd: repoRoot, encoding: 'utf8' })
+
+    spawnSync('git', ['init', '--bare', '-b', 'main', remote])
+    run('init', '-b', 'main')
+    run('config', 'user.email', 'gate@example.com')
+    run('config', 'user.name', 'gate')
+    run('remote', 'add', 'origin', remote)
+    writeFileSync(join(repoRoot, 'README.md'), 'merged\n')
+    run('add', '.')
+    run('commit', '-m', 'merged commit', '--no-gpg-sign')
+    run('push', '-q', 'origin', 'main')
+
+    return run
+  }
+
+  // local main is whatever the operator last committed, so accepting it as the
+  // comparison ref would let a local commit stand in for a merged one
+  it('refuses a checkout that has local main but no origin/main', () => {
+    const repoRoot = mkdtempSync(join(tmpdir(), 'gate-ref-'))
+    const run = (...args: string[]) =>
+      spawnSync('git', args, { cwd: repoRoot, encoding: 'utf8' })
+
+    run('init', '-b', 'main')
+    run('config', 'user.email', 'gate@example.com')
+    run('config', 'user.name', 'gate')
+    writeFileSync(join(repoRoot, 'README.md'), 'local only\n')
+    run('add', '.')
+    run('commit', '-m', 'local commit', '--no-gpg-sign')
+
+    expect(() => createDefaultDeps(repoRoot).mainRef).toThrow(
+      'Cannot resolve origin/main'
+    )
+  })
+
+  it('uses origin/main when it is already current', () => {
+    const repoRoot = mkdtempSync(join(tmpdir(), 'gate-ref-ok-'))
+    initWithRemote(repoRoot)
+
+    expect(createDefaultDeps(repoRoot).mainRef).toBe('origin/main')
+  })
+
+  // without this, "matches main" silently means "matches main as of the last fetch"
+  it('fetches when the remote has moved ahead of the local origin/main', () => {
+    const repoRoot = mkdtempSync(join(tmpdir(), 'gate-ref-stale-'))
+    const run = initWithRemote(repoRoot)
+    const stale = run('rev-parse', 'origin/main').stdout.trim()
+
+    // a second clone advances main, leaving the first checkout's origin/main behind
+    const other = mkdtempSync(join(tmpdir(), 'gate-other-'))
+    const remote = run('remote', 'get-url', 'origin').stdout.trim()
+    spawnSync('git', ['clone', '-q', remote, other])
+    const runOther = (...args: string[]) =>
+      spawnSync('git', args, { cwd: other, encoding: 'utf8' })
+    runOther('config', 'user.email', 'gate@example.com')
+    runOther('config', 'user.name', 'gate')
+    writeFileSync(join(other, 'README.md'), 'moved on\n')
+    runOther('commit', '-qam', 'advance main', '--no-gpg-sign')
+    runOther('push', '-q', 'origin', 'main')
+
+    expect(createDefaultDeps(repoRoot).mainRef).toBe('origin/main')
+    expect(run('rev-parse', 'origin/main').stdout.trim()).not.toBe(stale)
+  })
+
+  // `git ls-remote <remote> main` matches every ref ending in /main, so picking the
+  // first line would compare against whichever one happens to sort first
+  it('picks refs/heads/main rather than the first ref ls-remote returns', () => {
+    const repoRoot = mkdtempSync(join(tmpdir(), 'gate-ref-multi-'))
+    const run = initWithRemote(repoRoot)
+    const remote = run('remote', 'get-url', 'origin').stdout.trim()
+    const head = run('rev-parse', 'origin/main').stdout.trim()
+
+    // an unrelated commit parked under a ref that sorts before refs/heads/main
+    const scratch = mkdtempSync(join(tmpdir(), 'gate-scratch-'))
+    const runScratch = (...args: string[]) =>
+      spawnSync('git', args, { cwd: scratch, encoding: 'utf8' })
+    runScratch('init', '-b', 'main')
+    runScratch('config', 'user.email', 'gate@example.com')
+    runScratch('config', 'user.name', 'gate')
+    writeFileSync(join(scratch, 'other.md'), 'unrelated\n')
+    runScratch('add', '.')
+    runScratch('commit', '-m', 'unrelated', '--no-gpg-sign')
+    runScratch('push', '-q', remote, 'HEAD:refs/backup/main')
+
+    expect(createDefaultDeps(repoRoot).mainRef).toBe('origin/main')
+    expect(run('rev-parse', 'origin/main').stdout.trim()).toBe(head)
+  })
+
+  // `git fetch <remote> <branch>` moves the remote-tracking ref only through the
+  // configured refspec, so under a narrow one it exits 0 having updated nothing but
+  // FETCH_HEAD - the gate would then compare against the very ref it just refused
+  it('fails closed when a fetch leaves origin/main pointing at the old commit', () => {
+    const repoRoot = mkdtempSync(join(tmpdir(), 'gate-ref-refspec-'))
+    const run = initWithRemote(repoRoot)
+    const remote = run('remote', 'get-url', 'origin').stdout.trim()
+    const stale = run('rev-parse', 'origin/main').stdout.trim()
+
+    // advance the remote so a fetch is genuinely required
+    const other = mkdtempSync(join(tmpdir(), 'gate-other-refspec-'))
+    spawnSync('git', ['clone', '-q', remote, other])
+    const runOther = (...args: string[]) =>
+      spawnSync('git', args, { cwd: other, encoding: 'utf8' })
+    runOther('config', 'user.email', 'gate@example.com')
+    runOther('config', 'user.name', 'gate')
+    writeFileSync(join(other, 'README.md'), 'moved on\n')
+    runOther('commit', '-qam', 'advance main', '--no-gpg-sign')
+    runOther('push', '-q', 'origin', 'main')
+
+    // a refspec that does not cover main: the fetch succeeds and updates nothing
+    run(
+      'config',
+      'remote.origin.fetch',
+      '+refs/heads/other:refs/remotes/origin/other'
+    )
+
+    expect(() => createDefaultDeps(repoRoot).mainRef).toThrow(
+      'still does not point at'
+    )
+    expect(run('rev-parse', 'origin/main').stdout.trim()).toBe(stale)
+  })
+
+  it('fails closed when the remote cannot be reached', () => {
+    const repoRoot = mkdtempSync(join(tmpdir(), 'gate-ref-offline-'))
+    const run = initWithRemote(repoRoot)
+    run('remote', 'set-url', 'origin', join(tmpdir(), 'gate-no-such-remote'))
+
+    expect(() => createDefaultDeps(repoRoot).mainRef).toThrow(
+      'Cannot reach origin'
+    )
+  })
+})
+
+describe('git read memoization', () => {
+  // the gate asks about the same path twice - once against main, once against the
+  // audited commit - so a cache keyed on the path alone would answer the audit
+  // question with the main answer and certify a facet that changed since its audit
+  it('keeps answers for the same path under different refs apart', () => {
+    const repoRoot = mkdtempSync(join(tmpdir(), 'gate-memo-'))
+    const remote = mkdtempSync(join(tmpdir(), 'gate-memo-remote-'))
+    const run = (...args: string[]) =>
+      spawnSync('git', args, { cwd: repoRoot, encoding: 'utf8' })
+
+    spawnSync('git', ['init', '--bare', '-b', 'main', remote])
+    run('init', '-b', 'main')
+    run('config', 'user.email', 'gate@example.com')
+    run('config', 'user.name', 'gate')
+    run('remote', 'add', 'origin', remote)
+    mkdirSync(join(repoRoot, 'src/Facets'), { recursive: true })
+    writeFileSync(join(repoRoot, 'src/Facets/A.sol'), 'contract A { }\n')
+    run('add', '.')
+    run('commit', '-m', 'audited state', '--no-gpg-sign')
+    const audited = run('rev-parse', 'HEAD').stdout.trim()
+
+    writeFileSync(
+      join(repoRoot, 'src/Facets/A.sol'),
+      'contract A { uint256 x; }\n'
+    )
+    run('commit', '-qam', 'later state', '--no-gpg-sign')
+    run('push', '-q', 'origin', 'main')
+
+    const deps = createDefaultDeps(repoRoot)
+
+    expect(deps.fileMatchesRef('origin/main', 'src/Facets/A.sol')).toBe(true)
+    expect(deps.fileMatchesRef(audited, 'src/Facets/A.sol')).toBe(false)
+    // and again, to prove the second answer is not the first one served from cache
+    expect(deps.fileMatchesRef('origin/main', 'src/Facets/A.sol')).toBe(true)
+    expect(deps.fileMatchesRef(audited, 'src/Facets/A.sol')).toBe(false)
+  })
+})
+
+describe('lib/ submodule divergence', () => {
+  /**
+   * Builds a superproject pinning a submodule at its first commit.
+   * @returns the superproject root, the submodule path, and its later commit
+   */
+  const makeSuperproject = () => {
+    const dep = mkdtempSync(join(tmpdir(), 'gate-dep-'))
+    const runDep = (...args: string[]) =>
+      spawnSync('git', args, { cwd: dep, encoding: 'utf8' })
+    runDep('init', '-b', 'main')
+    runDep('config', 'user.email', 'gate@example.com')
+    runDep('config', 'user.name', 'gate')
+    writeFileSync(join(dep, 'Lib.sol'), 'contract Lib { }\n')
+    runDep('add', '.')
+    runDep('commit', '-m', 'v1', '--no-gpg-sign')
+    const pinned = runDep('rev-parse', 'HEAD').stdout.trim()
+    writeFileSync(join(dep, 'Lib.sol'), 'contract Lib { uint256 public x; }\n')
+    runDep('commit', '-qam', 'v2', '--no-gpg-sign')
+
+    const repoRoot = mkdtempSync(join(tmpdir(), 'gate-super-'))
+    const run = (...args: string[]) =>
+      spawnSync('git', args, { cwd: repoRoot, encoding: 'utf8' })
+    run('init', '-b', 'main')
+    run('config', 'user.email', 'gate@example.com')
+    run('config', 'user.name', 'gate')
+    run(
+      '-c',
+      'protocol.file.allow=always',
+      'submodule',
+      'add',
+      '-q',
+      dep,
+      'lib/dep'
+    )
+    const subPath = join(repoRoot, 'lib/dep')
+    spawnSync('git', ['checkout', '-q', pinned], { cwd: subPath })
+    mkdirSync(join(repoRoot, 'src/Facets'), { recursive: true })
+    writeFileSync(join(repoRoot, 'src/Facets/A.sol'), 'contract A { }\n')
+    run('add', '-A')
+    run('commit', '-m', 'pin dep', '--no-gpg-sign')
+    run('update-ref', 'refs/remotes/origin/main', 'HEAD')
+
+    return { repoRoot, subPath, run }
+  }
+
+  // called directly rather than through createDefaultDeps so these exercise the
+  // comparison itself, not the remote refresh that resolving the ref would trigger
+  it('reports a submodule whose checkout has moved off the recorded commit', () => {
+    const { repoRoot, subPath } = makeSuperproject()
+
+    expect(divergedSubmodules(repoRoot, 'origin/main')).toEqual([])
+
+    spawnSync('git', ['checkout', '-q', 'main'], { cwd: subPath })
+
+    expect(divergedSubmodules(repoRoot, 'origin/main')).toEqual(['lib/dep'])
+  })
+
+  // this is the case --ignore-submodules=dirty would miss, and it is the one that
+  // actually changes the compiled bytecode
+  it('reports a submodule with a modified tracked file', () => {
+    const { repoRoot, subPath } = makeSuperproject()
+    writeFileSync(join(subPath, 'Lib.sol'), 'contract Lib { bool tampered; }\n')
+
+    expect(divergedSubmodules(repoRoot, 'origin/main')).toEqual(['lib/dep'])
+  })
+
+  // ...but an untracked stray changes no bytecode, and most of these submodules do
+  // not gitignore .DS_Store, so blocking on it would stop every deploy from a Mac
+  it('ignores an untracked stray file inside a submodule', () => {
+    const { repoRoot, subPath } = makeSuperproject()
+    writeFileSync(join(subPath, '.DS_Store'), 'finder junk\n')
+
+    expect(divergedSubmodules(repoRoot, 'origin/main')).toEqual([])
+  })
+
+  // the flag is passed explicitly precisely so this cannot happen
+  it('is not weakened by a repo-level diff.ignoreSubmodules setting', () => {
+    const { repoRoot, subPath, run } = makeSuperproject()
+    run('config', 'diff.ignoreSubmodules', 'all')
+    writeFileSync(join(subPath, 'Lib.sol'), 'contract Lib { bool tampered; }\n')
+
+    expect(divergedSubmodules(repoRoot, 'origin/main')).toEqual(['lib/dep'])
+  })
+
+  // the pathspec is what keeps this check about dependencies; without it every
+  // ordinary feature-branch edit under src/ would read as a lib/ divergence
+  it('is scoped to lib/ and ignores a diverged file under src/', () => {
+    const { repoRoot } = makeSuperproject()
+    writeFileSync(
+      join(repoRoot, 'src/Facets/A.sol'),
+      'contract A { uint256 y; }\n'
+    )
+
+    expect(divergedSubmodules(repoRoot, 'origin/main')).toEqual([])
   })
 })
 
