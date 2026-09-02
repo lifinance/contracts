@@ -20,13 +20,16 @@ const declared = (
   file = 'src/Facets/AcrossFacet.sol'
 ): IImmutableDeclaration => ({ file, line: 20, type: 'address', name })
 
-/** AcrossFacet's real entries, with the `getter` #2213 added on the one that has it. */
+/**
+ * AcrossFacet's real entries, verbatim. Neither carries #2213's `getter` — that
+ * field appears on 10 contracts and AcrossFacet is not one of them, and it could
+ * not be: `spokePool` is `private`, so no on-chain getter exists to name.
+ */
 const CONFIG_DATA = {
   _spokePool: {
     configFileName: 'across.json',
     keyInConfigFile: '.<NETWORK>.acrossSpokePool',
     allowToDeployWithZeroAddress: 'false',
-    getter: 'SPOKE_POOL',
   },
   _wrappedNativeAddress: {
     configFileName: 'networks.json',

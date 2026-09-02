@@ -35,10 +35,13 @@ jobs:
           ##### get all files modified by this PR
           ##### --no-renames so a rename reports BOTH paths: renaming a protected file
           ##### away would otherwise show only the new, unprotected name
-          FILES="$(git diff --name-only --no-renames origin/main HEAD)"
+          ##### -z so paths are emitted raw. Without it git C-quotes any path holding a
+          ##### non-ASCII or control byte, and the leading quote breaks every ^-anchored
+          ##### pattern below — adding '.github/workflows/pwné.yml' read as unprotected
+          mapfile -t -d '' FILES < <(git diff -z --name-only --no-renames origin/main HEAD)
 
           ##### make sure that there are modified files
-          if [[ -z $FILES ]]; then
+          if [[ ${#FILES[@]} -eq 0 ]]; then
             echo -e "\033[31mNo files found. This should not happen. Please check the code of the Github action. Aborting now.\033[0m"
             echo "CONTINUE=false" >> $GITHUB_ENV
             exit 1
@@ -48,7 +51,7 @@ jobs:
           PROTECTED_FILES=""
 
           ##### go through all modified file names/paths and identify contracts with path '.github/'
-          while IFS= read -r FILE; do
+          for FILE in "${FILES[@]}"; do
             ##### deliberately NO existence check: a deleted path does not exist in the
             ##### working tree, and skipping it let a protected file be REMOVED without
             ##### the approval that guards changing it. The matcher below is pure string
@@ -60,7 +63,7 @@ jobs:
               ##### modified git action found
               PROTECTED_FILES="${PROTECTED_FILES}${FILE}"$'\n'
             fi
-          done <<< "$FILES"
+          done
 
           ##### if none found, exit here as there is nothing to do
           if [[ -z "$PROTECTED_FILES" ]]; then

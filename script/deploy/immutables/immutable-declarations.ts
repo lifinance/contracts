@@ -95,20 +95,24 @@ export const findUnreadableImmutableLines = (
   source: string,
   file: string
 ): { file: string; line: number; text: string }[] => {
-  const read = new Set(
-    parseImmutableDeclarations(source, file).map((d) => d.line)
-  )
+  const parsedPerLine = new Map<number, number>()
+  for (const declaration of parseImmutableDeclarations(source, file))
+    parsedPerLine.set(
+      declaration.line,
+      (parsedPerLine.get(declaration.line) ?? 0) + 1
+    )
 
   return source
     .split('\n')
     .map((text, index) => ({ file, line: index + 1, text: text.trim() }))
-    .filter(
-      ({ text, line }) =>
-        /\bimmutable\b/u.test(text) &&
-        !isCommentLine(text) &&
-        !read.has(line) &&
-        // A doc line inside a block comment starts with `*`, which
-        // `isCommentLine` covers, but a natspec tag can also sit mid-line.
-        !/@(notice|dev|param|return|custom)/u.test(text)
-    )
+    .filter(({ text, line }) => {
+      if (isCommentLine(text)) return false
+      // Solidity allows two declarations on one line, and a line-level "did this
+      // line parse?" test reads the second one as covered by the first. Compare
+      // counts, so the extra declaration is reported rather than invisible.
+      const mentions = (
+        text.replace(/"[^"]*"|'[^']*'/gu, '').match(/\bimmutable\b/gu) ?? []
+      ).length
+      return mentions > (parsedPerLine.get(line) ?? 0)
+    })
 }

@@ -191,3 +191,47 @@ describe('findUnreadableImmutableLines', () => {
     expect(parseImmutableDeclarations(source, 'src/A.sol')).toHaveLength(1)
   })
 })
+
+describe('two declarations on one line', () => {
+  it('reports the second, which a line-level check reads as covered', () => {
+    // Valid Solidity, and nothing in CI reformats it — no workflow runs prettier
+    // or solhint. A line-granular "did this line parse?" test sees the first
+    // declaration, marks the line read, and the second becomes invisible: not
+    // declared, not warned, not reported.
+    const source =
+      'contract A {\n    address public immutable A_ONE; address public immutable HIDDEN;\n}'
+
+    expect(
+      parseImmutableDeclarations(source, 'src/A.sol').map((d) => d.name)
+    ).toEqual(['A_ONE'])
+    expect(findUnreadableImmutableLines(source, 'src/A.sol')).toHaveLength(1)
+  })
+
+  it('stays silent when both declarations on a line are read', () => {
+    // The control. If the parser ever learns both, the reporter must go quiet
+    // rather than keep flagging the line forever.
+    const source = 'contract A {\n    address public immutable ONE;\n}'
+
+    expect(findUnreadableImmutableLines(source, 'src/A.sol')).toEqual([])
+  })
+
+  it('does not flag the word inside a string literal', () => {
+    // `string public constant NOTE = "immutable thing";` is not a declaration and
+    // failing the gate on it would be a false red on correct code.
+    const source =
+      'contract A {\n    string public constant NOTE = "immutable thing";\n}'
+
+    expect(findUnreadableImmutableLines(source, 'src/A.sol')).toEqual([])
+  })
+
+  it('flags a declaration disguised by an inline comment', () => {
+    // The natspec-tag exclusion used to swallow this: the inline comment blocks
+    // the parser's `;` anchor, so it parses as nothing, and the old `@dev` filter
+    // then suppressed the report too.
+    const source =
+      'contract A {\n    address public immutable OWNER /* @dev owner */ = address(0);\n}'
+
+    expect(parseImmutableDeclarations(source, 'src/A.sol')).toEqual([])
+    expect(findUnreadableImmutableLines(source, 'src/A.sol')).toHaveLength(1)
+  })
+})

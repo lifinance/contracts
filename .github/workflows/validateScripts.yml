@@ -122,6 +122,26 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
 
+      - name: Verify immutable registry
+        shell: bash
+        run: |
+          ##### Warn-only while WP-2.3's authoring pass runs: an immutable with no
+          ##### registry entry is a warning, not a failure. It still exits non-zero
+          ##### for anything the registry gets WRONG — a link to a config key that
+          ##### does not exist, an entry for an immutable no contract declares, an
+          ##### exemption with no reason — and for any declaration the enumerator
+          ##### could not read, since an immutable it cannot see is one the registry
+          ##### is never asked to account for.
+          ##### KNOWN GAP: this job's paths-filter fires on script/**/*.ts and the
+          ##### manifests, NOT on src/**. So a PR adding a facet with an undeclared
+          ##### immutable does not run this step today. Harmless while the check is
+          ##### warn-only; closing it is a PREREQUISITE of the --strict flip, and it
+          ##### is a trade-off rather than an oversight — adding src/** to this
+          ##### filter also runs the forge build and TypeChain generation above it
+          ##### on every Solidity PR.
+          ##### Flip to --strict once every immutable is authored (EXSC-869 part ii).
+          bunx tsx ./script/deploy/immutables/verify-immutable-registry.ts
+
   validate-scripts-required:
     # Aggregator job for branch protection. Reports green when the heavy job
     # either succeeded or was skipped because no relevant files changed.
