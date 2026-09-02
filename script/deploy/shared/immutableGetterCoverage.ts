@@ -5,8 +5,8 @@
  * `script/deploy/resources/deployRequirements.json`, so a contract added without the annotation
  * reopens the bug class the invariant exists to close — a counterparty bound immutably at
  * construction, pointing at a migrated or dead address, invisible to presence and owner checks.
- * This module finds every public immutable address getter declared under `src/Facets` and
- * `src/Periphery` so a test can require each one to be either annotated or explicitly exempted.
+ * This module finds every public immutable address getter declared in the deployed source trees
+ * so a test can require each one to be either annotated or explicitly exempted.
  *
  * Import it from `immutableGetterCoverage.test.ts`. It reads Solidity sources rather than `out/`
  * artifacts on purpose: the only CI job that runs the TypeScript suite is Foundry-free, so an
@@ -20,7 +20,7 @@ import deployRequirementsJson from '../resources/deployRequirements.json'
 import type { IDeployRequirementEntry } from './immutableBindings'
 
 /** Directories whose contracts are deployed and therefore worth gating. */
-const GATED_SOURCE_DIRECTORIES = ['src/Facets', 'src/Periphery']
+const GATED_SOURCE_DIRECTORIES = ['src/Facets', 'src/Periphery', 'src/Security']
 
 /**
  * Solidity restricts `immutable` to value types, so a declaration is address-valued unless its
@@ -29,11 +29,16 @@ const GATED_SOURCE_DIRECTORIES = ['src/Facets', 'src/Periphery']
 const NON_ADDRESS_VALUE_TYPE = /^(u?int\d*|bool|bytes\d*)$/
 
 /**
- * Matches a single-line `<type> public immutable <NAME>;` declaration. `address payable` is
- * spelled out because it is the one two-word type in use.
+ * Matches a `<type> public immutable <NAME>;` declaration.
+ *
+ * @remarks Solidity accepts the two specifiers in either order, and the whole declaration may be
+ *   wrapped across lines, so neither is assumed — a form this pattern could not read would be a
+ *   getter the gate never sees, which is the one failure mode it must not have. `address payable`
+ *   is spelled out as the one two-word type in use; `public immutable` appears only in state
+ *   variable declarations, so no line anchor is needed to avoid matching inside a function body.
  */
 const PUBLIC_IMMUTABLE_DECLARATION =
-  /^[ \t]*(address[ \t]+payable|[A-Za-z_][A-Za-z0-9_]*)[ \t]+public[ \t]+immutable[ \t]+([A-Za-z_][A-Za-z0-9_]*)[ \t]*;/gm
+  /(address\s+payable|[A-Za-z_][A-Za-z0-9_]*)\s+(?:public\s+immutable|immutable\s+public)\s+([A-Za-z_][A-Za-z0-9_]*)\s*;/g
 
 /** One public immutable whose value is an address, and thus readable on chain by name. */
 export interface IPublicImmutableGetter {
@@ -141,7 +146,7 @@ export function parsePublicImmutableGetters(
     PUBLIC_IMMUTABLE_DECLARATION
   )) {
     if (!rawType || !getter) continue
-    const solidityType = rawType.replace(/[ \t]+/g, ' ')
+    const solidityType = rawType.replace(/\s+/g, ' ')
     if (NON_ADDRESS_VALUE_TYPE.test(solidityType)) continue
     found.push({ getter, solidityType })
   }

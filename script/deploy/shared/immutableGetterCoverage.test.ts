@@ -40,6 +40,21 @@ describe('parsePublicImmutableGetters', () => {
     ])
   })
 
+  it('extracts a declaration with the specifiers in either order', () => {
+    // Solidity accepts both orders, so a getter written the second way must not slip past.
+    expect(
+      parsePublicImmutableGetters('    address immutable public LATE_PUBLIC;')
+    ).toEqual([{ getter: 'LATE_PUBLIC', solidityType: 'address' }])
+  })
+
+  it('extracts a declaration wrapped across lines', () => {
+    expect(
+      parsePublicImmutableGetters(
+        '    IWrapped\n        public\n        immutable\n        WRAPPED;'
+      )
+    ).toEqual([{ getter: 'WRAPPED', solidityType: 'IWrapped' }])
+  })
+
   it('skips value-typed immutables, which cannot hold a counterparty address', () => {
     expect(
       parsePublicImmutableGetters(`

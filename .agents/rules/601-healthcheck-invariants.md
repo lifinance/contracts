@@ -49,7 +49,8 @@ invariant must be added, adjusted, or removed. Use this checklist:
   so a chain whose counterparty lives under its own block (Tron's under `.tron`) is compared
   against that value rather than the EVM default.
   Forgetting the annotation is not silent: `script/deploy/shared/immutableGetterCoverage.test.ts`
-  scans `src/Facets` and `src/Periphery` for public immutable address getters and fails on any
+  scans the deployed source trees (`src/Facets`, `src/Periphery`, `src/Security`) for public
+  immutable address getters and fails on any
   that is neither annotated nor listed in `UNANNOTATED_IMMUTABLE_GETTERS` with a reason.
   Annotating is the expected fix — exempt a getter only when no config file holds a value to
   compare it against (a LI.FI-deployed contract read from the deploy log, or an operated wallet).
