@@ -3,10 +3,9 @@
 /**
  * Read-only audit of the constructor arguments recorded for Tron deployments.
  *
- * Every Tron deployment site recorded a hardcoded `0x` until EXSC-907, so the
- * log claims contracts that take arguments were deployed with none. A record is
- * what a verifier rebuilds creation code from, so those entries describe
- * deployments that never happened.
+ * A record's constructor arguments are what a verifier appends to creation code
+ * when it rebuilds a deployment, so a record understating them describes a
+ * deployment that never happened.
  *
  * This runs `assertRecordedArgsMatchAbi` over records that already exist rather
  * than over an encoder's fresh output, which is the only place its emptiness and
@@ -39,7 +38,7 @@ import {
 /** Networks whose records this audit covers unless `--networks` says otherwise. */
 const TRON_NETWORKS = ['tron', 'tronshasta'] as const
 
-/** Network keys in `config/networks.json` are alphanumeric; anything else is a typo. */
+/** Keeps operator-shaped strings out of the `$in` filter; every key in `config/networks.json` matches. */
 const NETWORK_KEY_RE = /^[a-zA-Z0-9-]+$/
 
 const DATABASE_NAME = 'contract-deployments'
@@ -202,7 +201,7 @@ export const auditRecords = async (
   return report
 }
 
-/** Parses `--networks`, rejecting anything that is not a network key. */
+/** Parses `--networks`, rejecting entries not shaped like a network key. */
 export const parseNetworks = (value: string): string[] => {
   const networks = value
     .split(',')
