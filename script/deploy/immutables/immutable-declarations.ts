@@ -128,13 +128,18 @@ const maskCommentsAndStrings = (source: string): string => {
  * but is not a regex word character, so `\b` reads `public$FEE` as the bare
  * keyword and turns the gate red on code that compiles.
  *
- * `constant`, `immutable` and `transient` cannot actually reach this position —
- * solc rejects all three as a repeated or conflicting mutability — so they are
- * defensive entries, unlike `public`, `private`, `internal` and `override`,
- * which all compile there.
+ * `constant` and `immutable` cannot reach this position — solc rejects either as
+ * a repeated mutability — so they are defensive entries, unlike `public`,
+ * `private`, `internal` and `override`, which all compile there.
+ *
+ * `transient` is deliberately not excluded. Solc rejects it as a data location
+ * on an immutable, so it can never be the modifier this exclusion guards
+ * against, while `uint256 public immutable transient` compiles. Excluding it
+ * would only make a legal declaration unreadable, which fails the gate in both
+ * modes.
  */
 const RESERVED_AFTER_IMMUTABLE =
-  'public|private|internal|override|constant|immutable|transient'
+  'public|private|internal|override|constant|immutable'
 
 const DECLARATION_RE = new RegExp(
   String.raw`^\s*([A-Za-z_$][\w$.]*(?:\[\d*\])*(?:\s+payable)?)\s+(?:(public|private|internal)\s+)?immutable\s+(?!(?:${RESERVED_AFTER_IMMUTABLE})(?![\w$]))([A-Za-z_$][\w$]*)\s*(?:=|$)`,

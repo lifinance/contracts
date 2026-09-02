@@ -1,6 +1,7 @@
 /**
  * Fixtures are the real declaration shapes found across `src/`: every visibility,
- * interface and value types, arrays, and the comment forms that sit next to them.
+ * interface and value types, and the comment forms that sit next to them. No
+ * array fixture exists because solc rejects a non-value type as immutable.
  */
 
 import {
@@ -327,11 +328,12 @@ describe('a modifier keyword is never captured as the name', () => {
     ],
     ['payable with immutable first', 'address payable immutable public'],
   ])('reports, rather than inventing a declaration, for %s', (_label, head) => {
-    // Each of these is legal Solidity that wraps after a keyword. Accepting
-    // end-of-statement as a terminator let the pattern capture the keyword as
-    // the name, which is worse than not parsing: the phantom made the parsed
-    // count equal the mention count, so the reporter fell silent and the real
-    // immutable on the next line was accounted for nowhere.
+    // Each keyword order here is one solc accepts; the heads are abbreviated,
+    // so a compilable form needs a base to override or a typed initialiser.
+    // Accepting end-of-statement as a terminator let the pattern capture the
+    // keyword as the name, which is worse than not parsing: the phantom made
+    // the parsed count equal the mention count, so the reporter fell silent and
+    // the real immutable on the next line was accounted for nowhere.
     const source = `contract A {\n    ${head}\n        FEE = 1;\n}`
 
     const parsed = parseImmutableDeclarations(source, 'src/A.sol')
@@ -430,6 +432,21 @@ describe('a name that merely begins with a modifier keyword is still a name', ()
       const source = `contract A {\n    uint256 immutable ${keyword}\n        FEE = 1;\n}`
 
       expect(parseImmutableDeclarations(source, 'src/A.sol')).toEqual([])
+      // Refusing to parse is only half the property: a refusal nothing reports
+      // is the invisible immutable the reporter exists to prevent.
+      expect(findUnreadableImmutableLines(source, 'src/A.sol')).toHaveLength(1)
     }
   )
+
+  it('parses an immutable named transient, which solc accepts', () => {
+    // `transient` cannot be the modifier the exclusion guards against — solc
+    // rejects it as a data location on an immutable — so excluding it would
+    // only make this legal declaration unreadable and fail the gate.
+    const source = 'contract A {\n    uint256 public immutable transient;\n}'
+
+    expect(
+      parseImmutableDeclarations(source, 'src/A.sol').map((d) => d.name)
+    ).toEqual(['transient'])
+    expect(findUnreadableImmutableLines(source, 'src/A.sol')).toEqual([])
+  })
 })

@@ -43,9 +43,9 @@ export interface IImmutableEntry {
 
 /**
  * A `deployRequirements.json` entry as this gate reads it: #2213's shape plus the
- * registry section. Extending `IDeployRequirementEntry` rather than restating it
- * means the `getter` and `legacyGetters` fields that decide whether a binding is
- * checkable on chain stay in one place.
+ * registry section. It extends `IDeployRequirementEntry` so the two gates cannot
+ * drift on what that file's entries hold, even though this validator reads only
+ * `configData` of them.
  */
 export interface IContractRequirements extends IDeployRequirementEntry {
   immutables?: Record<string, IImmutableEntry>
@@ -77,6 +77,42 @@ const contractOf = (file: string): string =>
 
 const nonEmptyString = (value: unknown): boolean =>
   typeof value === 'string' && value.trim() !== ''
+
+const plainObject = (value: unknown): boolean =>
+  typeof value === 'object' && value !== null && !Array.isArray(value)
+
+/**
+ * Checks the registry file's own shape before anything reads it.
+ *
+ * A section that is not an object of entries reads to the validator as a
+ * contract with no entries, which is indistinguishable from one nobody has
+ * authored yet. A truncated or half-edited registry would therefore report its
+ * immutables as an authoring gap — warnings today, and nothing at all once
+ * `--strict` makes the authored set the thing being enforced.
+ *
+ * @param registry - The parsed registry file.
+ * @returns One error per malformed section or entry.
+ */
+export const validateRegistryShape = (registry: unknown): string[] => {
+  if (!plainObject(registry))
+    return ['The registry must be a JSON object keyed by contract name.']
+
+  return Object.entries(registry as Record<string, unknown>).flatMap(
+    ([contract, section]) => {
+      if (!plainObject(section))
+        return [
+          `${contract} is not an object of immutable entries, so none of its entries can be read.`,
+        ]
+
+      return Object.entries(section as Record<string, unknown>)
+        .filter(([, entry]) => !plainObject(entry))
+        .map(
+          (nameAndEntry) =>
+            `${contract}.${nameAndEntry[0]} is not an object, so its source cannot be read.`
+        )
+    }
+  )
+}
 
 /**
  * Checks the registry against what `src/` actually declares.

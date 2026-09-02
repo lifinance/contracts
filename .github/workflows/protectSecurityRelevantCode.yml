@@ -5,6 +5,10 @@ name: Protect security-critical code/system
 # - protects any git actions in the folder .github/workflows/*
 # - protects the pre-commit checker script stored in .husky/pre-commit
 # - protects the frozen emergency-pause break-glass logic in script/emergency/*
+# - protects the per-immutable expectation registry
+#   (script/deploy/resources/immutableRegistry.json) and the gate that reads it
+#   (script/deploy/immutables/*), since editing the checker is equivalent to
+#   editing the expectation
 
 on:
   pull_request_review:

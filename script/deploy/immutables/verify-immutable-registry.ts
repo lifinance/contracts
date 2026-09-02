@@ -18,6 +18,7 @@ import {
 } from './immutable-declarations'
 import {
   validateImmutableRegistry,
+  validateRegistryShape,
   type DeployRequirements,
   type IImmutableEntry,
 } from './registry-schema'
@@ -80,12 +81,19 @@ const main = (): void => {
     findUnreadableImmutableLines(source, file)
   )
 
+  const registry = readJson<Registry>(REGISTRY_PATH)
+  const shapeErrors = validateRegistryShape(registry)
+  if (shapeErrors.length > 0) {
+    for (const error of shapeErrors) consola.error(error)
+    consola.error(
+      `${REGISTRY_PATH} is malformed. Every entry it cannot read would otherwise report as an authoring gap.`
+    )
+    process.exit(1)
+  }
+
   const { errors, warnings, authorityBearing } = validateImmutableRegistry(
     declarations,
-    mergeRequirements(
-      readJson<DeployRequirements>(REQUIREMENTS_PATH),
-      readJson<Registry>(REGISTRY_PATH)
-    )
+    mergeRequirements(readJson<DeployRequirements>(REQUIREMENTS_PATH), registry)
   )
 
   consola.info(

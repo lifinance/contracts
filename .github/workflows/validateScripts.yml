@@ -16,6 +16,10 @@
 # - Local counterpart: the .husky/pre-push hook runs the same validator for
 #   fast feedback; this workflow is the enforcement backstop since git hooks
 #   can be bypassed with --no-verify
+# - Immutable registry: verify-immutable-registry.ts checks
+#   script/deploy/resources/immutableRegistry.json against the immutables
+#   declared in src/. Warn-only on the authoring gap until --strict flips on;
+#   see the step's own comment for what it does and does not run on
 
 name: Validate Scripts
 on:
@@ -136,12 +140,16 @@ jobs:
           ##### exemption with no reason — and for any declaration the enumerator
           ##### could not read, since an immutable it cannot see is one the registry
           ##### is never asked to account for.
-          ##### KNOWN GAP: this job's paths-filter does not fire on src/**, so a PR
-          ##### adding a facet with an undeclared immutable does not run this step
-          ##### today. Harmless while the check is warn-only; closing it is a
-          ##### PREREQUISITE of the --strict flip, and it is a trade-off rather than
-          ##### an oversight — adding src/** to this filter also runs the forge
-          ##### build and TypeChain generation above it on every Solidity PR.
+          ##### KNOWN GAP, and it is wider than the authoring gap: this job's
+          ##### paths-filter does not fire on src/**, the job is skipped on draft
+          ##### PRs, and the workflow has no push trigger. So a PR that only
+          ##### touches src/** runs neither the warn-only check NOR the
+          ##### unreadable-declaration check, and the latter is a hard failure in
+          ##### both modes — an immutable nothing can read is exactly the
+          ##### invisible expectation this gate exists to prevent.
+          ##### Closing it is a PREREQUISITE of the --strict flip; adding src/**
+          ##### here also runs the forge build and TypeChain generation above on
+          ##### every Solidity PR, which is the cost to weigh.
           ##### Flip to --strict once every immutable is authored (EXSC-869 part ii).
           bunx tsx ./script/deploy/immutables/verify-immutable-registry.ts
 

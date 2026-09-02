@@ -13,7 +13,10 @@ import {
 } from 'bun:test'
 
 import type { IImmutableDeclaration } from './immutable-declarations'
-import { validateImmutableRegistry } from './registry-schema'
+import {
+  validateImmutableRegistry,
+  validateRegistryShape,
+} from './registry-schema'
 
 const declared = (
   name: string,
@@ -22,7 +25,7 @@ const declared = (
 
 /**
  * AcrossFacet's real entries, verbatim. Neither carries #2213's `getter` — that
- * field appears on 10 contracts and AcrossFacet is not one of them, and it could
+ * field appears on 8 contracts and AcrossFacet is not one of them, and it could
  * not be: `spokePool` is `private`, so no on-chain getter exists to name.
  */
 const CONFIG_DATA = {
@@ -51,6 +54,24 @@ describe('validateImmutableRegistry', () => {
 
     expect(result.errors).toEqual([])
     expect(result.warnings).toEqual([])
+  })
+
+  it.each([
+    ['no configData key at all', {}],
+    ['an empty configData key', { configData: '   ' }],
+  ])('errors on a config-sourced immutable with %s', (_label, entry) => {
+    // A config-sourced entry naming nothing asserts a link it does not have.
+    // Left unchecked it reads as authored while pointing at no expectation.
+    const result = validateImmutableRegistry([declared('spokePool')], {
+      AcrossFacet: {
+        configData: CONFIG_DATA,
+        immutables: { spokePool: { source: 'config', ...entry } },
+      },
+    })
+
+    expect(result.errors).toEqual([
+      'AcrossFacet.spokePool is config-sourced but names no configData key.',
+    ])
   })
 
   it('errors when the link points at a label that does not exist', () => {
@@ -274,4 +295,53 @@ describe('values that look right in JSON but are not', () => {
       expect(result.errors[0]).toContain(inherited)
     }
   )
+})
+
+describe('validateRegistryShape', () => {
+  it('accepts the shape the registry file is written in', () => {
+    expect(
+      validateRegistryShape({
+        AcrossFacet: {
+          spokePool: { source: 'config', configData: '_spokePool' },
+        },
+      })
+    ).toEqual([])
+  })
+
+  it('accepts an empty registry, which is the state before the authoring pass', () => {
+    expect(validateRegistryShape({})).toEqual([])
+  })
+
+  it.each([
+    ['null', null],
+    ['an array', []],
+    ['a string', '{}'],
+  ])('rejects a registry that is %s', (_label, registry) => {
+    expect(validateRegistryShape(registry)).toEqual([
+      'The registry must be a JSON object keyed by contract name.',
+    ])
+  })
+
+  it.each([
+    ['null', null],
+    ['an array', []],
+    ['a number', 5],
+  ])('rejects a contract section that is %s', (_label, section) => {
+    // Without this the validator reads the section as absent, so every
+    // immutable the contract declares reports as merely unauthored.
+    const errors = validateRegistryShape({ AcrossFacet: section })
+
+    expect(errors).toHaveLength(1)
+    expect(errors[0]).toContain('AcrossFacet is not an object')
+  })
+
+  it('rejects an entry that is not an object', () => {
+    const errors = validateRegistryShape({
+      AcrossFacet: { spokePool: 'config' },
+    })
+
+    expect(errors).toEqual([
+      'AcrossFacet.spokePool is not an object, so its source cannot be read.',
+    ])
+  })
 })

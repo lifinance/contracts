@@ -1,9 +1,13 @@
 /**
- * Fixtures use the real shapes: immutable names as `src/` declares them, and
- * `configData` keys as `deployRequirements.json` writes them. Those keys look
- * like constructor parameters but are free-form labels — `AcrossFacet` files
- * `_wrappedNativeAddress` for a parameter called `_wrappedNative` — which is why
- * the matcher below is a suggester and not a gate.
+ * `configData` keys are written as `deployRequirements.json` writes them. They
+ * look like constructor parameters but are free-form labels — `AcrossFacet`
+ * files `_wrappedNativeAddress` for a parameter called `_wrappedNative` — which
+ * is why the matcher below is a suggester and not a gate.
+ *
+ * Declaration names are the naming conventions the heuristic has to bridge, not
+ * a transcript of `src/`; the AcrossFacet case below is the one fixture that
+ * carries that contract's real names, and it is deliberately the case where the
+ * heuristic only half-succeeds.
  */
 
 import {
@@ -61,6 +65,23 @@ describe('assessRegistryCoverage', () => {
     expect(result.undeclared).toEqual([])
     expect(result.orphanedEntries).toEqual([])
     expect(result.covered).toHaveLength(2)
+  })
+
+  it('half-matches AcrossFacet, the case the registry exists for', () => {
+    // The names this contract really declares. `wrappedNative` and the label
+    // `_wrappedNativeAddress` differ by a word, so the heuristic cannot link
+    // them and reports the immutable and the label separately. A gate reading
+    // this as a verdict would call a correctly configured contract broken.
+    const result = assessRegistryCoverage(
+      [declared('spokePool'), declared('wrappedNative')],
+      { AcrossFacet: ['_spokePool', '_wrappedNativeAddress'] }
+    )
+
+    expect(result.covered.map((d) => d.name)).toEqual(['spokePool'])
+    expect(result.undeclared.map((d) => d.name)).toEqual(['wrappedNative'])
+    expect(result.orphanedEntries).toEqual([
+      { contract: 'AcrossFacet', entry: '_wrappedNativeAddress' },
+    ])
   })
 
   it('reports an immutable with no registry entry', () => {

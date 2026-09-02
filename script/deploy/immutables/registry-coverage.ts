@@ -10,7 +10,7 @@
  * it stores `wrappedNative`, and the registry files the requirement under
  * `_wrappedNativeAddress` — three spellings, one binding.
  *
- * A gate built on this heuristic would report 48 orphaned entries on today's
+ * A gate built on this heuristic would report 50 orphaned entries on today's
  * repo, almost all of them label drift rather than a missing expectation. That is
  * how a check becomes noise. The registry therefore needs each entry to name the
  * immutable it governs explicitly, and this module's job is to propose those
