@@ -30,6 +30,13 @@ export interface IDeploySelfCheck {
    * own build output.
    */
   builtMaskedHash: string | undefined
+  /**
+   * Byte length of the artifact's runtime code. The normalised hash is taken
+   * after the trailer comes off, and the trailer's own length word says how much
+   * that is, so equal hashes do not mean equal code — the length has to be
+   * compared too.
+   */
+  builtRawByteLength: number | undefined
   /** Every attested build of main for this contract. */
   attested: IAttestedBuild[]
   scope: ILineageScope
@@ -63,9 +70,16 @@ export interface IDeploySelfCheckResult {
 export const evaluateDeploySelfCheck = (
   input: IDeploySelfCheck
 ): IDeploySelfCheckResult => {
-  const { contractName, observed, builtMaskedHash, attested, scope } = input
+  const {
+    contractName,
+    observed,
+    builtMaskedHash,
+    builtRawByteLength,
+    attested,
+    scope,
+  } = input
 
-  if (builtMaskedHash === undefined)
+  if (builtMaskedHash === undefined || builtRawByteLength === undefined)
     return {
       outcome: 'REFUSE',
       reason: `${contractName}: the artifact this deploy used could not be read, so there is nothing to compare the deployed code against`,
@@ -83,6 +97,15 @@ export const evaluateDeploySelfCheck = (
       blocksProposal: true,
     }
 
+  if (builtRawByteLength !== observed.rawByteLength)
+    return {
+      outcome: 'REFUSE',
+      reason: `${contractName}: the deployed code normalises to the artifact this run built but is ${observed.rawByteLength} bytes where the artifact is ${builtRawByteLength}. The normalised hash is taken with the metadata trailer removed, and the trailer says how much to remove, so appended bytes survive it`,
+      attestedVerdict: 'NOT_EVALUATED',
+      requiresExplicitContinue: false,
+      blocksProposal: true,
+    }
+
   const attestedComparison = compareToAttestedSet(observed, attested, scope)
 
   if (attestedComparison.verdict === 'MATCH')
@@ -94,9 +117,16 @@ export const evaluateDeploySelfCheck = (
       blocksProposal: false,
     }
 
+  // The remedy is not the same for the two: a MISMATCH is resolved by merging
+  // the code, an UNVERIFIABLE by there being something to compare against.
+  const remedy =
+    attestedComparison.verdict === 'MISMATCH'
+      ? 'This will fail at sign time until the branch is merged and the facet version audited'
+      : 'This will fail at sign time until an attested build of main exists for this contract — merging alone will not resolve it'
+
   return {
     outcome: 'CONFIRM',
-    reason: `${contractName}: deployed code is the artifact this run built, but it matches no attested build of main — ${attestedComparison.reason}. This will fail at sign time until the branch is merged and the facet version audited`,
+    reason: `${contractName}: deployed code is the artifact this run built, but it matches no attested build of main — ${attestedComparison.reason}. ${remedy}`,
     attestedVerdict: attestedComparison.verdict,
     requiresExplicitContinue: true,
     blocksProposal: false,

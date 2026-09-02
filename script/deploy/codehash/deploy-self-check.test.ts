@@ -50,6 +50,7 @@ describe('evaluateDeploySelfCheck', () => {
       contractName: 'AccessManagerFacet',
       observed: onChain(),
       builtMaskedHash: MAIN_HASH,
+      builtRawByteLength: MAIN_BYTES,
       attested: ATTESTED,
       scope: CLOSED,
     })
@@ -68,6 +69,7 @@ describe('evaluateDeploySelfCheck', () => {
       contractName: 'AccessManagerFacet',
       observed: onChain({ maskedHash: BRANCH_HASH }),
       builtMaskedHash: MAIN_HASH,
+      builtRawByteLength: MAIN_BYTES,
       attested: ATTESTED,
       scope: CLOSED,
     })
@@ -88,6 +90,7 @@ describe('evaluateDeploySelfCheck', () => {
       contractName: 'AccessManagerFacet',
       observed: onChain({ maskedHash: BRANCH_HASH }),
       builtMaskedHash: BRANCH_HASH,
+      builtRawByteLength: MAIN_BYTES,
       attested: ATTESTED,
       scope: CLOSED,
     })
@@ -108,6 +111,7 @@ describe('evaluateDeploySelfCheck', () => {
       contractName: 'AccessManagerFacet',
       observed: onChain(),
       builtMaskedHash: undefined,
+      builtRawByteLength: undefined,
       attested: ATTESTED,
       scope: CLOSED,
     })
@@ -122,6 +126,7 @@ describe('evaluateDeploySelfCheck', () => {
       contractName: 'AccessManagerFacet',
       observed: onChain({ maskedHash: MAIN_HASH.slice(2).toUpperCase() }),
       builtMaskedHash: MAIN_HASH,
+      builtRawByteLength: MAIN_BYTES,
       attested: ATTESTED,
       scope: CLOSED,
     })
@@ -137,6 +142,7 @@ describe('evaluateDeploySelfCheck', () => {
       contractName: 'AccessManagerFacet',
       observed: onChain(),
       builtMaskedHash: MAIN_HASH,
+      builtRawByteLength: MAIN_BYTES,
       attested: [],
       scope: CLOSED,
     })
@@ -154,6 +160,7 @@ describe('evaluateDeploySelfCheck', () => {
       contractName: 'AccessManagerFacet',
       observed: onChain({ maskedHash: `0x${'cd'.repeat(32)}` }),
       builtMaskedHash: BRANCH_HASH,
+      builtRawByteLength: MAIN_BYTES,
       attested: ATTESTED,
       scope: CLOSED,
     })
@@ -166,9 +173,21 @@ describe('evaluateDeploySelfCheck', () => {
     // The self-check runs per contract inside a fleet rollout, so a message
     // without a name is unusable in the scrollback.
     const outcomes = [
-      { builtMaskedHash: MAIN_HASH, attested: ATTESTED },
-      { builtMaskedHash: BRANCH_HASH, attested: ATTESTED },
-      { builtMaskedHash: undefined, attested: ATTESTED },
+      {
+        builtMaskedHash: MAIN_HASH,
+        builtRawByteLength: MAIN_BYTES,
+        attested: ATTESTED,
+      },
+      {
+        builtMaskedHash: BRANCH_HASH,
+        builtRawByteLength: MAIN_BYTES,
+        attested: ATTESTED,
+      },
+      {
+        builtMaskedHash: undefined,
+        builtRawByteLength: undefined,
+        attested: ATTESTED,
+      },
     ].map(
       (over) =>
         evaluateDeploySelfCheck({
@@ -181,5 +200,104 @@ describe('evaluateDeploySelfCheck', () => {
 
     for (const reason of outcomes)
       expect(reason).toContain('ReceiverStargateV2')
+  })
+})
+
+describe('what the normalised hash does not pin', () => {
+  it('refuses code that normalises to the artifact but is longer', () => {
+    // The same defect this repo fixed one layer down in `compareToAttestedSet`:
+    // the normalised hash is taken with the trailer removed, and the trailer's
+    // own length word says how much to remove, so appended bytes survive it.
+    // Reaching CONFIRM here would let an operator wave through a payload.
+    const result = evaluateDeploySelfCheck({
+      contractName: 'AccessManagerFacet',
+      observed: onChain({ rawByteLength: MAIN_BYTES + 3002 }),
+      builtMaskedHash: MAIN_HASH,
+      builtRawByteLength: MAIN_BYTES,
+      attested: ATTESTED,
+      scope: CLOSED,
+    })
+
+    expect(result.outcome).toBe('REFUSE')
+    expect(result.blocksProposal).toBe(true)
+    expect(result.requiresExplicitContinue).toBe(false)
+    expect(result.reason).toContain('4442 bytes where the artifact is 1440')
+  })
+
+  it('refuses when bytes are missing as well as when they are added', () => {
+    const result = evaluateDeploySelfCheck({
+      contractName: 'AccessManagerFacet',
+      observed: onChain({ rawByteLength: MAIN_BYTES - 8 }),
+      builtMaskedHash: MAIN_HASH,
+      builtRawByteLength: MAIN_BYTES,
+      attested: ATTESTED,
+      scope: CLOSED,
+    })
+
+    expect(result.outcome).toBe('REFUSE')
+  })
+
+  it('refuses when the artifact length could not be read', () => {
+    const result = evaluateDeploySelfCheck({
+      contractName: 'AccessManagerFacet',
+      observed: onChain(),
+      builtMaskedHash: MAIN_HASH,
+      builtRawByteLength: undefined,
+      attested: ATTESTED,
+      scope: CLOSED,
+    })
+
+    expect(result.outcome).toBe('REFUSE')
+    expect(result.reason).toMatch(/could not be read/)
+  })
+
+  it('still passes when hash and length both agree', () => {
+    // The control: a length check that refused everything would satisfy the
+    // three assertions above just as well.
+    const result = evaluateDeploySelfCheck({
+      contractName: 'AccessManagerFacet',
+      observed: onChain(),
+      builtMaskedHash: MAIN_HASH,
+      builtRawByteLength: MAIN_BYTES,
+      attested: ATTESTED,
+      scope: CLOSED,
+    })
+
+    expect(result.outcome).toBe('PASS')
+  })
+})
+
+describe('the remedy has to match the verdict', () => {
+  it('tells a feature branch to merge and get the version audited', () => {
+    const result = evaluateDeploySelfCheck({
+      contractName: 'AccessManagerFacet',
+      observed: onChain({ maskedHash: BRANCH_HASH }),
+      builtMaskedHash: BRANCH_HASH,
+      builtRawByteLength: MAIN_BYTES,
+      attested: ATTESTED,
+      scope: CLOSED,
+    })
+
+    expect(result.attestedVerdict).toBe('MISMATCH')
+    expect(result.reason).toMatch(/until the branch is merged/)
+  })
+
+  it('does not tell an unverifiable deploy to merge, because merging will not fix it', () => {
+    // An empty attested set stays unverifiable after a merge; what it needs is
+    // something to compare against. Offering the wrong remedy is worse than
+    // offering none — the operator does it, nothing changes, and the warning
+    // stops meaning anything.
+    const result = evaluateDeploySelfCheck({
+      contractName: 'AccessManagerFacet',
+      observed: onChain(),
+      builtMaskedHash: MAIN_HASH,
+      builtRawByteLength: MAIN_BYTES,
+      attested: [],
+      scope: CLOSED,
+    })
+
+    expect(result.attestedVerdict).toBe('UNVERIFIABLE')
+    expect(result.reason).toMatch(/until an attested build of main exists/)
+    expect(result.reason).not.toMatch(/until the branch is merged/)
   })
 })
