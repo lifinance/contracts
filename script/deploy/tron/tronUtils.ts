@@ -43,6 +43,11 @@ import { getContractVersion } from '../shared/getContractVersion'
 import { isRateLimitError } from '../shared/rateLimit'
 
 import { DIAMOND_CUT_ENERGY_MULTIPLIER } from './constants'
+import {
+  assertRecordedArgsMatchAbi,
+  constructorInputTypes,
+  encodeConstructorArgs as encodeWithTypes,
+} from './constructor-args'
 import type { IDiamondRegistrationResult } from './types'
 
 /**
@@ -194,20 +199,15 @@ export async function deployContractWithLogging(
 
     // Log deployment (skip in dry run)
     if (!dryRun) {
-      // Encode constructor args
-      const constructorArgsHex =
-        constructorArgs.length > 0
-          ? await encodeConstructorArgs(constructorArgs)
-          : '0x'
-
-      await logDeployment(
+      await recordTronDeployment({
         contractName,
         network,
-        result.contractAddress,
+        address: result.contractAddress,
         version,
-        constructorArgsHex,
-        false
-      )
+        artifact,
+        constructorArgs,
+        verified: false,
+      })
 
       await saveContractAddress(network, contractName, result.contractAddress)
     }
@@ -229,49 +229,71 @@ export async function deployContractWithLogging(
 /**
  * Encode constructor arguments to hex
  */
-export async function encodeConstructorArgs(args: any[]): Promise<string> {
-  // Return empty hex for no arguments
-  if (args.length === 0) return '0x'
+/**
+ * Encodes constructor arguments using the types the contract's ABI declares.
+ *
+ * @param args - Values passed to the constructor, in declaration order.
+ * @param abi - The `abi` array from the contract's Forge artifact.
+ * @param contractName - Named in every error message.
+ * @param network - Network whose TronWeb codec encodes the values.
+ * @returns Hex-encoded arguments, or `0x` when the contract takes none.
+ * @throws When the ABI is unreadable, the arity disagrees, or encoding fails —
+ * a record holding the wrong arguments is worse than a deploy that stops.
+ */
+export async function encodeConstructorArgs(
+  args: readonly unknown[],
+  abi: unknown,
+  contractName: string,
+  network: SupportedChain = 'tron'
+): Promise<string> {
+  const tronWeb = getTronWebCodecOnlyForNetwork(network)
+  return encodeWithTypes(
+    (types, values) => tronWeb.utils.abi.encodeParams(types, values as any[]),
+    args,
+    constructorInputTypes(abi, contractName),
+    contractName
+  )
+}
 
-  try {
-    const tronWeb = getTronWebCodecOnlyForNetwork('tron')
+/**
+ * Records a Tron deployment with its constructor arguments encoded from the ABI.
+ *
+ * Use this rather than calling `logDeployment` directly: it is the only place
+ * that decides what the `constructorArgs` field holds, so a call site cannot
+ * record `'0x'` for a contract that was deployed with arguments — which is what
+ * seven periphery contracts did, leaving records a verifier cannot rebuild
+ * creation code from.
+ *
+ * @param params.artifact - The Forge artifact the contract was deployed from.
+ * @param params.constructorArgs - Exactly the values passed to the constructor.
+ */
+export async function recordTronDeployment(params: {
+  contractName: string
+  network: SupportedChain
+  address: string
+  version: string
+  artifact: { abi?: unknown }
+  constructorArgs: readonly unknown[]
+  verified: boolean
+}): Promise<void> {
+  const { contractName, network, address, version, artifact } = params
+  const types = constructorInputTypes(artifact?.abi, contractName)
+  const encoded = await encodeConstructorArgs(
+    params.constructorArgs,
+    artifact?.abi,
+    contractName,
+    network
+  )
+  assertRecordedArgsMatchAbi(contractName, encoded, types)
 
-    // Determine types based on argument values
-    const types: string[] = args.map((arg) => {
-      if (typeof arg === 'string') {
-        // Check if it's an address (starts with T or 0x)
-        if (arg.startsWith('T') || arg.startsWith('0x')) return 'address'
-
-        return 'string'
-      } else if (typeof arg === 'number' || typeof arg === 'bigint')
-        return 'uint256'
-      else if (typeof arg === 'boolean') return 'bool'
-      else if (Array.isArray(arg)) {
-        // For arrays, try to determine the element type
-        if (arg.length > 0 && typeof arg[0] === 'string') return 'string[]'
-
-        return 'uint256[]'
-      }
-      return 'bytes'
-    })
-
-    // Use TronWeb's ABI encoder
-    return tronWeb.utils.abi.encodeParams(types, args)
-  } catch (error) {
-    consola.warn('Failed to encode constructor args, using fallback:', error)
-    // Fallback to simple hex encoding
-    return (
-      '0x' +
-      args
-        .map((arg) => {
-          if (typeof arg === 'string' && arg.startsWith('0x'))
-            return arg.slice(2)
-
-          return Buffer.from(String(arg)).toString('hex')
-        })
-        .join('')
-    )
-  }
+  await logDeployment(
+    contractName,
+    network,
+    address,
+    version,
+    encoded,
+    params.verified
+  )
 }
 
 /**

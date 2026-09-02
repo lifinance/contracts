@@ -31,7 +31,6 @@ import {
   getContractAddress,
   getEnvironment,
   getNetworkConfig,
-  logDeployment,
   readJsonFile,
   saveContractAddress,
   updateDiamondJsonPeriphery,
@@ -41,7 +40,7 @@ import { getContractVersion } from '../shared/getContractVersion'
 import { retryWithRateLimit } from '../shared/rateLimit.js'
 
 import { getTronCorePeriphery } from './helpers/tronContractLists.js'
-import { encodeConstructorArgs, getTronWallet } from './tronUtils.js'
+import { getTronWallet, recordTronDeployment } from './tronUtils.js'
 
 const ERC20_PROXY_ABI = [
   {
@@ -419,14 +418,15 @@ async function deployAndRegisterPeripheryImpl(options: {
             consola.info(`Cost: ${result.actualCost.trxCost} TRX`)
 
             if (!dryRun) {
-              await logDeployment(
-                'ERC20Proxy',
+              await recordTronDeployment({
+                contractName: 'ERC20Proxy',
                 network,
-                result.contractAddress,
+                address: result.contractAddress,
                 version,
-                '0x',
-                false
-              )
+                artifact,
+                constructorArgs,
+                verified: false,
+              })
               await saveContractAddress(
                 network,
                 'ERC20Proxy',
@@ -517,14 +517,15 @@ async function deployAndRegisterPeripheryImpl(options: {
             consola.info(`Cost: ${result.actualCost.trxCost} TRX`)
 
             if (!dryRun) {
-              await logDeployment(
-                'Executor',
+              await recordTronDeployment({
+                contractName: 'Executor',
                 network,
-                result.contractAddress,
+                address: result.contractAddress,
                 version,
-                '0x',
-                false
-              )
+                artifact,
+                constructorArgs,
+                verified: false,
+              })
               await saveContractAddress(
                 network,
                 'Executor',
@@ -632,14 +633,15 @@ async function deployAndRegisterPeripheryImpl(options: {
             consola.info(`Cost: ${result.actualCost.trxCost} TRX`)
 
             if (!dryRun) {
-              await logDeployment(
-                'FeeCollector',
+              await recordTronDeployment({
+                contractName: 'FeeCollector',
                 network,
-                result.contractAddress,
+                address: result.contractAddress,
                 version,
-                '0x',
-                false
-              )
+                artifact,
+                constructorArgs,
+                verified: false,
+              })
               await saveContractAddress(
                 network,
                 'FeeCollector',
@@ -728,14 +730,15 @@ async function deployAndRegisterPeripheryImpl(options: {
             consola.info(`Cost: ${result.actualCost.trxCost} TRX`)
 
             if (!dryRun) {
-              await logDeployment(
-                'FeeForwarder',
+              await recordTronDeployment({
+                contractName: 'FeeForwarder',
                 network,
-                result.contractAddress,
+                address: result.contractAddress,
                 version,
-                '0x',
-                false
-              )
+                artifact,
+                constructorArgs,
+                verified: false,
+              })
               await saveContractAddress(
                 network,
                 'FeeForwarder',
@@ -889,14 +892,15 @@ async function deployAndRegisterPeripheryImpl(options: {
               consola.info(`Cost: ${result.actualCost.trxCost} TRX`)
 
               if (!dryRun) {
-                await logDeployment(
-                  'TokenWrapper',
+                await recordTronDeployment({
+                  contractName: 'TokenWrapper',
                   network,
-                  result.contractAddress,
+                  address: result.contractAddress,
                   version,
-                  '0x',
-                  false
-                )
+                  artifact,
+                  constructorArgs,
+                  verified: false,
+                })
                 await saveContractAddress(
                   network,
                   'TokenWrapper',
@@ -981,14 +985,15 @@ async function deployAndRegisterPeripheryImpl(options: {
             consola.info(`Cost: ${result.actualCost.trxCost} TRX`)
 
             if (!dryRun) {
-              await logDeployment(
-                'OutputValidator',
+              await recordTronDeployment({
+                contractName: 'OutputValidator',
                 network,
-                result.contractAddress,
+                address: result.contractAddress,
                 version,
-                '0x',
-                false
-              )
+                artifact,
+                constructorArgs,
+                verified: false,
+              })
               await saveContractAddress(
                 network,
                 'OutputValidator',
@@ -1110,14 +1115,15 @@ async function deployAndRegisterPeripheryImpl(options: {
             consola.info(`Cost: ${result.actualCost.trxCost} TRX`)
 
             if (!dryRun) {
-              await logDeployment(
-                'ReceiverOIF',
+              await recordTronDeployment({
+                contractName: 'ReceiverOIF',
                 network,
-                result.contractAddress,
+                address: result.contractAddress,
                 version,
-                await encodeConstructorArgs(constructorArgs),
-                false
-              )
+                artifact,
+                constructorArgs,
+                verified: false,
+              })
               await saveContractAddress(
                 network,
                 'ReceiverOIF',
@@ -1238,14 +1244,15 @@ async function deployAndRegisterPeripheryImpl(options: {
                     ` LiFiTimelockController deployed: ${result.contractAddress}`
                   )
                   if (!dryRun) {
-                    await logDeployment(
-                      'LiFiTimelockController',
+                    await recordTronDeployment({
+                      contractName: 'LiFiTimelockController',
                       network,
-                      result.contractAddress,
+                      address: result.contractAddress,
                       version,
-                      '0x',
-                      false
-                    )
+                      artifact,
+                      constructorArgs,
+                      verified: false,
+                    })
                     await saveContractAddress(
                       network,
                       'LiFiTimelockController',
