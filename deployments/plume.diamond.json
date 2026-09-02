@@ -60,6 +60,10 @@
       "0x136928f3d4251840FbF44ce42ffe9D5928a812AF": {
         "Name": "RelayDepositoryFacet",
         "Version": "1.0.0"
+      },
+      "0xB675a1f4991DA417e08f82b754c97D92d88c579a": {
+        "Name": "FraxFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {

@@ -4241,6 +4241,38 @@
               "0x46ec278a": "swapWithBackendSignature(bytes)"
             }
           }
+        ],
+        "injective": [
+          {
+            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "functions": {
+              "0x46ec278a": "swapWithBackendSignature(bytes)"
+            }
+          }
+        ],
+        "sepolia": [
+          {
+            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "functions": {
+              "0x46ec278a": "swapWithBackendSignature(bytes)"
+            }
+          }
+        ],
+        "basesepolia": [
+          {
+            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "functions": {
+              "0x46ec278a": "swapWithBackendSignature(bytes)"
+            }
+          }
+        ],
+        "arbitrumsepolia": [
+          {
+            "address": "0x20f6ee51340adeed01a59b0e65cb3703f3dc860c",
+            "functions": {
+              "0x46ec278a": "swapWithBackendSignature(bytes)"
+            }
+          }
         ]
       }
     },
@@ -4737,6 +4769,14 @@
           },
           {
             "address": "0xdc7a4c55e9573eaa9399124b92019ff68874044c",
+            "functions": {
+              "0xf8989325": ""
+            }
+          }
+        ],
+        "robinhood": [
+          {
+            "address": "0xCC89feed31b3e59F8e345Feb15c3b58956A88599",
             "functions": {
               "0xf8989325": ""
             }
@@ -5288,6 +5328,16 @@
             "signature": "validateNativeOutput(uint256,address)"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0xbfE34dF90A81113b7D3f943E9925DD1B44e96644",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "arctestnet": [
@@ -5770,6 +5820,16 @@
           {
             "selector": "0xd0e30db0",
             "signature": "deposit()"
+          }
+        ]
+      },
+      {
+        "name": "LiFiDEXAggregator",
+        "address": "0x3FC68470A35072c3A49AC28187C2CC0D4aD1bc57",
+        "selectors": [
+          {
+            "selector": "0x2646478b",
+            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
           }
         ]
       },
@@ -7106,6 +7166,16 @@
         ]
       },
       {
+        "name": "LiFiDEXAggregator",
+        "address": "0x642eeb39B287bB7809043aaE89bcfac2F409737D",
+        "selectors": [
+          {
+            "selector": "0x2646478b",
+            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
+          }
+        ]
+      },
+      {
         "name": "OutputValidator",
         "address": "0xA0f9473fF593a2cbC8dB331F4832E5aD99dfC6A9",
         "selectors": [
@@ -7248,6 +7318,16 @@
           {
             "selector": "0xd0e30db0",
             "signature": "deposit()"
+          }
+        ]
+      },
+      {
+        "name": "LiFiDEXAggregator",
+        "address": "0x7347996d9c81035E3EA667Bf4240bB134a969B56",
+        "selectors": [
+          {
+            "selector": "0x2646478b",
+            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
           }
         ]
       },
@@ -7832,6 +7912,16 @@
           {
             "selector": "0xd0e30db0",
             "signature": "deposit()"
+          }
+        ]
+      },
+      {
+        "name": "LiFiDEXAggregator",
+        "address": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
+        "selectors": [
+          {
+            "selector": "0x2646478b",
+            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
           }
         ]
       },
@@ -8640,6 +8730,50 @@
         ]
       }
     ],
+    "sepolia": [
+      {
+        "name": "FeeForwarder",
+        "address": "0xB0c62E0952A6388dA4f591B9b832B4234672A0Af",
+        "selectors": [
+          {
+            "selector": "0x0e8ae67f",
+            "signature": "forwardNativeFees((address,uint256)[])"
+          },
+          {
+            "selector": "0x332d746b",
+            "signature": "forwardERC20Fees(address,(address,uint256)[])"
+          }
+        ]
+      },
+      {
+        "name": "TokenWrapper",
+        "address": "0x9ff5671f13E4E437d9223662e9fc22A8E3Ccca48",
+        "selectors": [
+          {
+            "selector": "0x3ccfd60b",
+            "signature": "withdraw()"
+          },
+          {
+            "selector": "0xd0e30db0",
+            "signature": "deposit()"
+          }
+        ]
+      },
+      {
+        "name": "OutputValidator",
+        "address": "0x2192054e073b78E52b27C5441C477516f94638b5",
+        "selectors": [
+          {
+            "selector": "0x27444dab",
+            "signature": "validateERC20Output(address,uint256,address)"
+          },
+          {
+            "selector": "0x5d865df2",
+            "signature": "validateNativeOutput(uint256,address)"
+          }
+        ]
+      }
+    ],
     "somnia": [
       {
         "name": "FeeForwarder",
@@ -9037,7 +9171,7 @@
     "tron": [
       {
         "name": "FeeForwarder",
-        "address": "TBiwoFZpHoSG1NkdpTvgSi7bDm1W8DdAF8",
+        "address": "TNZ3fznhvEssLeovS9Uc7zCLgYjKdNjX9P",
         "selectors": [
           {
             "selector": "0x0e8ae67f",
@@ -9224,6 +9358,16 @@
         ]
       },
       {
+        "name": "LiFiDEXAggregator",
+        "address": "0x84963B51A16B49E09E827614D07A7aa4b477b936",
+        "selectors": [
+          {
+            "selector": "0x2646478b",
+            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
+          }
+        ]
+      },
+      {
         "name": "OutputValidator",
         "address": "0x7637A106fCcEBffc462D29161A386cFeE6f792FB",
         "selectors": [
@@ -9282,6 +9426,16 @@
         ]
       },
       {
+        "name": "LiFiDEXAggregator",
+        "address": "0x84963B51A16B49E09E827614D07A7aa4b477b936",
+        "selectors": [
+          {
+            "selector": "0x2646478b",
+            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
+          }
+        ]
+      },
+      {
         "name": "OutputValidator",
         "address": "0x7637A106fCcEBffc462D29161A386cFeE6f792FB",
         "selectors": [
@@ -9336,6 +9490,16 @@
           {
             "selector": "0xd0e30db0",
             "signature": "deposit()"
+          }
+        ]
+      },
+      {
+        "name": "LiFiDEXAggregator",
+        "address": "0x2321F1a63A683a1F3634Dbe1CbA0d657D5F56d54",
+        "selectors": [
+          {
+            "selector": "0x2646478b",
+            "signature": "processRoute(address,uint256,address,uint256,address,bytes)"
           }
         ]
       },

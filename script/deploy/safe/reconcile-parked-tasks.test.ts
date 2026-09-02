@@ -24,6 +24,7 @@ import {
 import { type Address } from 'viem'
 
 import { EnvironmentEnum } from '../../common/types'
+import { redactErrorReason } from '../../utils/redactUrls'
 
 import { type IParkedTask } from './parked-tasks'
 import {
@@ -37,7 +38,6 @@ import {
   formatTtlAlertMessage,
   partitionByNetworkStatus,
   parseTtlDays,
-  redactErrorReason,
   reconcileExitError,
   reconcileDecision,
   isSuspectAddressSnapshot,
@@ -872,7 +872,7 @@ describe('redactErrorReason', () => {
     const reason = redactErrorReason(VIEM_HTTP_ERROR)
     expect(reason).not.toContain('SECRET-KEY-VALUE')
     expect(reason).not.toContain('drpc.org')
-    expect(reason).toContain('<redacted-url>')
+    expect(reason).toContain('[redacted-url]')
     expect(reason).toContain('HTTP request failed.')
   })
 
@@ -881,7 +881,7 @@ describe('redactErrorReason', () => {
       'connect ECONNREFUSED mongodb+srv://user:pw@cluster.example.net/db'
     )
     expect(reason).not.toContain('pw@')
-    expect(reason).toContain('<redacted-url>')
+    expect(reason).toContain('[redacted-url]')
   })
 
   it('collapses the message to one line so the alert layout survives', () => {

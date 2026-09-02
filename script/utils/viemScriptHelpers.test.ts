@@ -6,13 +6,21 @@
  * below pin behavior against real entries in those files.
  * If the network list changes, update the fixtures used here accordingly.
  */
+import { tmpdir } from 'os'
+
 // eslint-disable-next-line import/no-unresolved
 import { describe, expect, it } from 'bun:test'
 
 import networksConfig from '../../config/networks.json'
 import { EnvironmentEnum } from '../common/types'
 
-import { getDeployLogFile, isTestnetNetwork } from './viemScriptHelpers'
+import { OUT_ROOT } from './utils'
+import {
+  buildExplorerContractPageUrl,
+  getDeployLogFile,
+  getFunctionSelectors,
+  isTestnetNetwork,
+} from './viemScriptHelpers'
 
 describe('isTestnetNetwork', () => {
   it('returns true for a network with type "testnet"', () => {
@@ -48,6 +56,28 @@ describe('isTestnetNetwork', () => {
   })
 })
 
+describe('buildExplorerContractPageUrl', () => {
+  const ADDR = '0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE'
+
+  it('uses ?tab=contract on Blockscout v2 explorers', () => {
+    expect(buildExplorerContractPageUrl('scroll', ADDR)).toBe(
+      `https://scrollscan.com/address/${ADDR}?tab=contract`
+    )
+    expect(buildExplorerContractPageUrl('ronin', ADDR)).toBe(
+      `https://explorer.roninchain.com/address/${ADDR}?tab=contract`
+    )
+    expect(buildExplorerContractPageUrl('vana', ADDR)).toBe(
+      `https://vanascan.io/address/${ADDR}?tab=contract`
+    )
+  })
+
+  it('keeps #code on older Blockscout explorers', () => {
+    expect(buildExplorerContractPageUrl('lisk', ADDR)).toBe(
+      `https://blockscout.lisk.com/address/${ADDR}#code`
+    )
+  })
+})
+
 describe('getDeployLogFile path guard', () => {
   it('throws on a network name with parent-directory traversal', () => {
     expect(() =>
@@ -73,5 +103,22 @@ describe('getDeployLogFile path guard', () => {
   it('reads a real production deploy log', () => {
     const log = getDeployLogFile('mainnet', EnvironmentEnum.production)
     expect(log.LiFiDiamond).toMatch(/^0x[0-9a-fA-F]{40}$/)
+  })
+})
+
+describe('getFunctionSelectors', () => {
+  it('looks the artifact up in the repo, not under the caller cwd', () => {
+    const originalCwd = process.cwd()
+    let message = ''
+    try {
+      process.chdir(tmpdir())
+      getFunctionSelectors('ThisContractDoesNotExist')
+    } catch (error) {
+      message = (error as Error).message
+    } finally {
+      process.chdir(originalCwd)
+    }
+    expect(message).toContain(OUT_ROOT)
+    expect(message).not.toContain(tmpdir())
   })
 })
