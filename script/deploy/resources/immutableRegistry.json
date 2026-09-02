@@ -1,0 +1,13 @@
+{
+  "AcrossFacet": {
+    "spokePool": {
+      "source": "config",
+      "configData": "_spokePool",
+      "authorityBearing": true
+    },
+    "wrappedNative": {
+      "source": "config",
+      "configData": "_wrappedNativeAddress"
+    }
+  }
+}

@@ -52,8 +52,10 @@ jobs:
               echo "Warning: File $FILE not found"
               continue
             fi
-            ##### check for github actions, pre-commit checker, and emergency-pause break-glass paths
-            if echo "$FILE" | grep -iE '^\.github/|^\.husky/pre-commit|^script/emergency/'; then
+            ##### check for github actions, pre-commit checker, emergency-pause break-glass paths,
+            ##### and the per-immutable expectation registry plus the gate that reads it — editing
+            ##### either is equivalent to editing the expectation itself (EXSC-869, D20)
+            if echo "$FILE" | grep -iE '^\.github/|^\.husky/pre-commit|^script/emergency/|^script/deploy/resources/immutableRegistry\.json$|^script/deploy/immutables/'; then
               ##### modified git action found
               PROTECTED_FILES="${PROTECTED_FILES}${FILE}"$'\n'
             fi
