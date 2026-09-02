@@ -62,6 +62,12 @@ import {
   getDeployedFacetVersionFromLog,
   getTargetStateFacetVersion,
 } from './facet-version-utils'
+import {
+  firstSupplied,
+  formatReasonWarning,
+  normalizeProposalReason,
+  resolveProposalIntent,
+} from './proposal-intent'
 import { buildReadOnlyClient } from './read-only-safe-client'
 import {
   getLocalSelectorInfo,
@@ -149,6 +155,12 @@ export interface IParkedTaskRef {
 export interface IProposalProvenance extends IGitProvenance {
   /** One-line rationale, when the proposer supplied one. */
   reason?: string
+  /**
+   * Canonical Linear issue URL. {@link storeTransactionInMongoDB} refuses to
+   * create a proposal without one, so it is optional on the type only because
+   * rows predating the requirement still exist.
+   */
+  ticketUrl?: string
 }
 
 /** Trailing options of {@link storeTransactionInMongoDB}. */
@@ -159,6 +171,16 @@ export interface IProposalProvenanceOptions {
    */
   reason?: string
   /**
+   * Linear issue link or bare id; falls back to `SAFE_PROPOSAL_TICKET`. A
+   * proposal is not created without one.
+   */
+  ticket?: string
+  /**
+   * The already-validated URL. Set by {@link storeTransactionInMongoDB} after it
+   * resolves `ticket`; callers pass `ticket`, not this.
+   */
+  ticketUrl?: string
+  /**
    * Test seam: use this block instead of probing git, so suites that exercise
    * the storage funnel stay deterministic and spawn no subprocesses.
    * Copied and sanitized before storage — never aliased, never stored raw.
@@ -166,9 +188,6 @@ export interface IProposalProvenanceOptions {
    */
   override?: IProposalProvenance
 }
-
-/** Longest rationale kept; the field is a one-liner for a signer, not a log. */
-export const MAX_PROPOSAL_REASON_LENGTH = 200
 
 export interface ISafeTxDocument {
   safeAddress: string
@@ -1467,20 +1486,6 @@ export function computeProposalIntentHash(
   return keccak256(encoded)
 }
 
-/**
- * Normalizes a free-text proposal rationale into a single tidy line.
- * @param raw - Rationale as supplied by a caller or the environment.
- * @returns The collapsed, length-capped line, or `undefined` when empty.
- */
-export function normalizeProposalReason(
-  raw: string | undefined
-): string | undefined {
-  const collapsed = sanitizeProvenanceText(raw)
-  if (collapsed.length === 0) return undefined
-  // Capped by code point, so the cut cannot leave a lone surrogate half behind.
-  return [...collapsed].slice(0, MAX_PROPOSAL_REASON_LENGTH).join('')
-}
-
 function sanitizeOverride(
   override: IProposalProvenance,
   fallbackReason: string | undefined
@@ -1526,6 +1531,24 @@ function sanitizeOverride(
   }
 }
 
+let reasonWarningEmitted = false
+
+/**
+ * Warns once per process that a proposal carried no stated reason.
+ *
+ * Once, not per proposal: a fleet sweep proposes on 40+ networks in one run, and
+ * repeating the same line 40 times trains operators to scroll past it. The
+ * per-proposal record is the absent `provenance.reason` field, which is what
+ * the adoption report counts — so suppressing the repeat loses no information.
+ *
+ * @param ticketUrl - Identifies the first proposal that triggered the warning.
+ */
+function warnMissingReasonOnce(ticketUrl: string): void {
+  if (reasonWarningEmitted) return
+  reasonWarningEmitted = true
+  consola.warn(formatReasonWarning(ticketUrl))
+}
+
 /**
  * Assembles the provenance block stored with a proposal.
  *
@@ -1542,18 +1565,25 @@ export function buildProposalProvenance(
   // The environment is the only channel the bash deploy chain can supply a
   // rationale through without touching any script signature.
   const reason = normalizeProposalReason(
-    options?.reason ?? process.env.SAFE_PROPOSAL_REASON
+    firstSupplied('--reason', options?.reason, process.env.SAFE_PROPOSAL_REASON)
   )
+
+  // Recorded, not validated, here: this function must never block a proposal,
+  // so the refusal lives in storeTransactionInMongoDB, which has already
+  // resolved the link by the time it calls this.
+  const ticket = options?.ticketUrl ? { ticketUrl: options.ticketUrl } : {}
 
   // Copied and sanitized, never returned by reference: the caller keeps
   // ownership of the object it passed in, and a future production caller of
   // the seam cannot store raw control characters either.
-  if (options?.override) return sanitizeOverride(options.override, reason)
+  if (options?.override)
+    return { ...sanitizeOverride(options.override, reason), ...ticket }
 
   try {
     return {
       ...captureGitProvenance(),
       ...(reason ? { reason } : {}),
+      ...ticket,
     }
   } catch (error) {
     // Backstop only — capture is fail-soft internally and should not reach here.
@@ -1566,6 +1596,7 @@ export function buildProposalProvenance(
       dirtyTreeScoped: [],
       captureErrors: [`provenance capture failed: ${error}`],
       ...(reason ? { reason } : {}),
+      ...ticket,
     }
   }
 }
@@ -1670,9 +1701,28 @@ export async function storeTransactionInMongoDB(
     safeTx.data.operation
   )
 
+  // Before anything is written. Every proposal funnel reaches this function, so
+  // this is the one place a link can be required without each caller opting in —
+  // and a refusal after the insert would leave an unlinked proposal holding a
+  // nonce.
+  const intent = resolveProposalIntent({
+    ticket: provenanceOptions?.ticket,
+    envTicket: process.env.SAFE_PROPOSAL_TICKET,
+    reason: provenanceOptions?.reason,
+    envReason: process.env.SAFE_PROPOSAL_REASON,
+  })
+
+  if (intent.reasonMissing) warnMissingReasonOnce(intent.ticketUrl)
+
   // Never derived from `safeTx`: the Tron route hands in a cast-together object
   // whose shape does not match the type.
-  const provenance = buildProposalProvenance(provenanceOptions)
+  // The resolved reason, not the raw one: re-deriving it here would let the
+  // stored field disagree with the warning above about whether one was given.
+  const provenance = buildProposalProvenance({
+    ...provenanceOptions,
+    reason: intent.reason,
+    ticketUrl: intent.ticketUrl,
+  })
 
   const txDoc = {
     safeAddress,
@@ -2057,6 +2107,138 @@ export async function getPendingTransactionsByNetwork(
   }
 
   return txsByNetwork
+}
+
+export interface ISafeSigningOptions {
+  ledger?: boolean
+  /** Use Ledger Live's derivation path for `accountIndex`. */
+  ledgerLive?: boolean
+  /** Accepted as a string so a CLI value reaches the validation below unaltered. */
+  accountIndex?: number | string
+  /** Mutually exclusive with `ledgerLive`. */
+  derivationPath?: string
+  envPrivateKey?: string
+  /** Named in the no-key error so it points at the variable the caller read. */
+  envPrivateKeyName?: string
+}
+
+export interface IResolvedSafeSigning {
+  useLedger: boolean
+  /** Undefined when signing with a Ledger — there is no key to hold. */
+  privateKey?: string
+  ledgerOptions: {
+    ledgerLive: boolean
+    accountIndex: number
+    derivationPath?: string
+  }
+}
+
+/**
+ * Reads a Ledger account index, refusing anything that is not one.
+ *
+ * `Number('')` is 0, so a CLI that delivers an empty string
+ * (`--accountIndex "$UNSET_VAR"`) yields account 0. Anything else `Number()`
+ * produces is taken by the BIP32 parser as given — a `NaN` segment is dropped
+ * from the path entirely, a fraction is truncated and a negative wraps — so
+ * each derives a different, valid-looking address with no error at any layer.
+ *
+ * @param raw - The value as the caller received it, unconverted.
+ * @returns The index.
+ * @throws If it is not a non-negative integer.
+ */
+export const parseAccountIndex = (raw: number | string | undefined): number => {
+  const value = raw ?? 0
+  const parsed =
+    typeof value === 'number'
+      ? value
+      : typeof value === 'string' && value.trim() !== ''
+      ? Number(value)
+      : NaN
+
+  if (!Number.isInteger(parsed) || parsed < 0)
+    throw new Error(
+      `accountIndex must be a non-negative integer, got '${String(raw)}'`
+    )
+
+  return parsed
+}
+
+/**
+ * Decides how a Safe proposal gets signed.
+ *
+ * Every combination it refuses would otherwise have signed from an address the
+ * operator did not choose, with no error at any layer.
+ *
+ * @param options - the CLI/caller flags plus the environment key to fall back on.
+ * @returns what to hand `initializeSafeClient`.
+ * @throws If both path options are given, if `derivationPath` or `ledgerLive`
+ * is given without `ledger`, if `accountIndex` is not a non-negative integer,
+ * if a non-zero `accountIndex` is given without `ledgerLive`, if
+ * `derivationPath` is given but blank, or if neither a Ledger nor a key is
+ * available.
+ */
+export const resolveSafeSigningOptions = (
+  options: ISafeSigningOptions
+): IResolvedSafeSigning => {
+  const useLedger = options.ledger === true
+
+  if (options.derivationPath && options.ledgerLive)
+    throw new Error(
+      "Cannot use both 'derivationPath' and 'ledgerLive' — they specify different derivation paths"
+    )
+
+  // Refused rather than ignored: silently dropping a derivation path the
+  // operator typed is how someone believes they signed from one account and
+  // signed from another.
+  if (!useLedger && (options.derivationPath || options.ledgerLive))
+    throw new Error(
+      "Ledger options were given without '--ledger', so nothing would use them. Add --ledger, or drop the Ledger options."
+    )
+
+  if (!useLedger && !options.envPrivateKey)
+    throw new Error(
+      `Missing ${
+        options.envPrivateKeyName ?? 'private key'
+      } in environment. Set it, or pass --ledger to sign with a hardware wallet.`
+    )
+
+  // Ahead of the two checks below, which read the parsed value.
+  const accountIndex = parseAccountIndex(options.accountIndex)
+
+  // Refused rather than ignored: `getLedgerAccount` reads `accountIndex` only on
+  // the Ledger Live path, so without it an operator who asked for account 3
+  // signs from account 0 and is told nothing.
+  if (useLedger && accountIndex !== 0 && !options.ledgerLive)
+    throw new Error(
+      "'accountIndex' only selects an account on the Ledger Live path. Add --ledgerLive, or drop --accountIndex."
+    )
+
+  // An empty string is a value the operator typed, not an absence: treating it
+  // as unset would send `--derivationPath ""` down the default-path branch.
+  if (
+    options.derivationPath !== undefined &&
+    options.derivationPath.trim() === ''
+  )
+    throw new Error("'derivationPath' was given but is empty.")
+
+  // Only `accountIndex` can still reach here on the key path — the other
+  // sub-options are refused above — and it is zeroed so the result cannot
+  // describe a derivation that never happened.
+  const ledgerOptions = useLedger
+    ? {
+        ledgerLive: options.ledgerLive === true,
+        accountIndex,
+        ...(options.derivationPath
+          ? { derivationPath: options.derivationPath }
+          : {}),
+      }
+    : { ledgerLive: false, accountIndex: 0 }
+
+  return {
+    useLedger,
+    ...(useLedger ? {} : { privateKey: options.envPrivateKey }),
+    ledgerOptions,
+  }
 }
 
 /**

@@ -15,10 +15,12 @@
  * injectable via the `io` parameter.
  */
 
+import { execFileSync } from 'child_process'
 import * as fs from 'fs'
 import * as path from 'path'
 import { fileURLToPath } from 'url'
 
+import { consola } from 'consola'
 import {
   createPublicClient,
   decodeFunctionData,
@@ -47,6 +49,86 @@ const MODULE_DIR = path.dirname(fileURLToPath(import.meta.url))
 const SRC_ROOT = path.resolve(MODULE_DIR, '../../../src')
 /** Repo `src/Facets/` root — where every active facet's source lives. */
 const FACETS_ROOT = path.resolve(SRC_ROOT, 'Facets')
+/** Repo root, so the build below runs against this checkout regardless of cwd. */
+const REPO_ROOT = path.resolve(MODULE_DIR, '../../..')
+const FORGE_BUILD_TIMEOUT_MS = 10 * 60 * 1000 // 10 minutes
+const FORGE_BUILD_MAX_BUFFER = 64 * 1024 * 1024 // 64 MB — a warning-heavy build overruns the 1 MB default, which would surface as a build failure
+
+/**
+ * The argument set `reconcileParkedTasks.yml` already uses to produce these very
+ * selector-union artifacts: only facet ABIs matter here, and skipping tests and
+ * scripts is the difference between a build that fits inside a scheduled job and
+ * one that times it out.
+ */
+const FORGE_BUILD_ARGS = [
+  'build',
+  '--skip',
+  'script',
+  '--skip',
+  'test',
+  '--skip',
+  'Base',
+  '--skip',
+  'Test',
+  '--skip',
+  '*.t.sol',
+]
+
+function runForgeBuild(): void {
+  execFileSync('forge', FORGE_BUILD_ARGS, {
+    cwd: REPO_ROOT,
+    stdio: 'pipe',
+    timeout: FORGE_BUILD_TIMEOUT_MS,
+    maxBuffer: FORGE_BUILD_MAX_BUFFER,
+    // Artifacts are read from `<repo>/out`, but forge writes to `out/<profile>`
+    // under a non-default FOUNDRY_PROFILE — and `helperFunctions.sh` exports
+    // `zksync` without unsetting it, so a propose script can inherit one.
+    env: { ...process.env, FOUNDRY_PROFILE: 'default' },
+  })
+}
+
+/**
+ * Builds an `ensureArtifacts` implementation: compiles when a selector union came
+ * back unavailable, so a checkout that was simply never built does not read as
+ * "removability cannot be verified". Some propose paths that drain the parked
+ * queue — a whitelist sync, a periphery-only rollout — never compile on their
+ * own, and per-session worktrees start without `out/`.
+ *
+ * The returned function attempts the build at most once; a failed build keeps the
+ * fail-closed behaviour rather than turning a build problem into a removal.
+ *
+ * @param run - Runs the build; defaults to `forge build` in this checkout.
+ * @returns Whether artifacts are available, memoized per instance.
+ */
+export function createArtifactBuilder(
+  run: () => void = runForgeBuild
+): () => boolean {
+  let available: boolean | undefined
+  return () => {
+    if (available !== undefined) return available
+    consola.info(
+      'Compiled artifacts unavailable — running `forge build` so facet removability can be verified'
+    )
+    try {
+      run()
+      // The selector memo assumes `out/` never moves under it; a build that just
+      // rewrote it makes every earlier hit stale, and a stale union can hold back
+      // the wrong selectors.
+      selectorsByContractCache.clear()
+      available = true
+    } catch (error) {
+      consola.warn(
+        `\`forge build\` failed — facet removability stays unverifiable: ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      )
+      available = false
+    }
+    return available
+  }
+}
+
+const buildArtifactsOnce = createArtifactBuilder()
 
 /**
  * Diamond-machinery facets that permanently brick the diamond if removed. They
@@ -137,6 +219,12 @@ export interface IRemovalDiffIO {
   getSourceNames: () => Set<string>
   /** Set of contract names whose `.sol` source lives under `src/Facets/` (real facets only). */
   getFacetNames: () => Set<string>
+  /**
+   * Compiles the contracts so the artifact-backed selector unions can be built.
+   * Returns whether artifacts are available afterwards; called at most once per
+   * process, and only when a union came back unavailable.
+   */
+  ensureArtifacts: () => boolean
 }
 
 const lower = (s: string): string => s.toLowerCase()
@@ -453,6 +541,7 @@ const defaultIO: IRemovalDiffIO = {
   getActiveSelectors: collectActiveSelectors,
   getSourceNames: cachedSourceContractNames,
   getFacetNames: cachedFacetSourceNames,
+  ensureArtifacts: buildArtifactsOnce,
 }
 
 /**
@@ -515,7 +604,10 @@ export async function computeFacetRemovalDiff(
   // selectors to be wrongly held back instead of removed.
   const facetNames = resolved.getFacetNames()
   const activeFacetNames = [...expectedNames].filter((n) => facetNames.has(n))
-  const activeSelectors = resolved.getActiveSelectors(activeFacetNames)
+  const activeSelectors = collectSelectorsBuildingIfNeeded(
+    activeFacetNames,
+    resolved
+  )
   const sourceNames = resolved.getSourceNames()
 
   return diffFacets({
@@ -669,12 +761,54 @@ export function diffNamedFacets(params: {
   return result
 }
 
+/** I/O subset every selector-union collector needs. */
+type ISelectorUnionIO = Pick<
+  IRemovalDiffIO,
+  'getActiveSelectors' | 'getFacetNames'
+> &
+  Partial<Pick<IRemovalDiffIO, 'ensureArtifacts'>>
+
+/**
+ * `getActiveSelectors`, retried once after compiling. A missing artifact is
+ * ambiguous — a deprecated contract, or a checkout nobody built — and only the
+ * second reading is an answer about removability, so build before concluding.
+ * Rethrows when the build is unavailable or fails, preserving the fail-closed
+ * contract of every caller.
+ *
+ * @param names - Facet names to collect selectors for.
+ * @param io - I/O providing selector collection and the build escape hatch.
+ */
+function collectSelectorsBuildingIfNeeded(
+  names: string[],
+  io: ISelectorUnionIO
+): Set<string> {
+  try {
+    return io.getActiveSelectors(names)
+  } catch (error) {
+    if (!io.ensureArtifacts?.()) throw error
+    try {
+      return io.getActiveSelectors(names)
+    } catch (afterBuild) {
+      // The inner error still prescribes `forge build`, which just ran — restate
+      // it so a caller that surfaces this message does not send the operator
+      // after a build that already happened.
+      throw new Error(
+        `Selector union still unavailable after \`forge build\`: ${
+          afterBuild instanceof Error ? afterBuild.message : String(afterBuild)
+        }`,
+        { cause: afterBuild }
+      )
+    }
+  }
+}
+
 /**
  * Selector union owned by the given contract names, scoped to real facets (a
  * target-state `LiFiDiamond` block also lists periphery, whose ABIs are not
  * diamond-routed and would cause false selector matches). Returns `undefined`
- * when the union cannot be built (a missing artifact), which every caller must
- * treat as "cannot verify" — never as "nothing matched".
+ * when the union cannot be built (a missing artifact that a build did not
+ * produce), which every caller must treat as "cannot verify" — never as
+ * "nothing matched".
  *
  * @param names - Contract names to collect selectors for (non-facets are filtered out).
  * @param io - I/O providing facet names + selector collection; defaults hit real files.
@@ -682,14 +816,23 @@ export function diffNamedFacets(params: {
  */
 export function tryCollectFacetSelectorUnion(
   names: Iterable<string>,
-  io: Pick<IRemovalDiffIO, 'getActiveSelectors' | 'getFacetNames'> = defaultIO
+  io: ISelectorUnionIO = defaultIO
 ): Set<string> | undefined {
   try {
     const facetNames = io.getFacetNames()
-    return io.getActiveSelectors(
-      [...names].filter((name) => facetNames.has(name))
+    return collectSelectorsBuildingIfNeeded(
+      [...names].filter((name) => facetNames.has(name)),
+      io
     )
-  } catch {
+  } catch (error) {
+    // Callers turn `undefined` into a per-facet "cannot verify" alert that cannot
+    // say WHICH artifact was missing — the only place that knows is here, so log
+    // it rather than let the diagnosis die with the swallowed error.
+    consola.warn(
+      `Selector union unavailable: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    )
     return undefined
   }
 }
@@ -957,7 +1100,12 @@ export async function computeFacetRemovalsByAddress(
     addressToName,
     protectedNames,
     expectedNames,
-    protectedSelectors: tryCollectFacetSelectorUnion(protectedNames, resolved),
+    // Both unions are skipped without target state: every address is unverifiable
+    // either way, and collecting them would spend a full build on an outcome that
+    // is already fixed — which most networks' staging environment would hit.
+    protectedSelectors: expectedNames
+      ? tryCollectFacetSelectorUnion(protectedNames, resolved)
+      : undefined,
     activeSelectors: expectedNames
       ? tryCollectFacetSelectorUnion(expectedNames, resolved)
       : undefined,

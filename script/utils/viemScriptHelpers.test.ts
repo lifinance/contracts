@@ -6,16 +6,20 @@
  * below pin behavior against real entries in those files.
  * If the network list changes, update the fixtures used here accordingly.
  */
+import { tmpdir } from 'os'
+
 // eslint-disable-next-line import/no-unresolved
 import { describe, expect, it } from 'bun:test'
 
 import networksConfig from '../../config/networks.json'
 import { EnvironmentEnum } from '../common/types'
 
+import { OUT_ROOT } from './utils'
 import {
   buildExplorerContractPageUrl,
   getTransportConfigFromRpcUrl,
   getDeployLogFile,
+  getFunctionSelectors,
   isTestnetNetwork,
 } from './viemScriptHelpers'
 
@@ -140,5 +144,22 @@ describe('getTransportConfigFromRpcUrl', () => {
     expect(
       getTransportConfigFromRpcUrl('http://node.example.invalid:8545').url
     ).toBe('http://node.example.invalid:8545')
+  })
+})
+
+describe('getFunctionSelectors', () => {
+  it('looks the artifact up in the repo, not under the caller cwd', () => {
+    const originalCwd = process.cwd()
+    let message = ''
+    try {
+      process.chdir(tmpdir())
+      getFunctionSelectors('ThisContractDoesNotExist')
+    } catch (error) {
+      message = (error as Error).message
+    } finally {
+      process.chdir(originalCwd)
+    }
+    expect(message).toContain(OUT_ROOT)
+    expect(message).not.toContain(tmpdir())
   })
 })

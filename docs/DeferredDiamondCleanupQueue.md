@@ -110,7 +110,7 @@ the source prompt or inferred, **not** confirmed.
    (`../tron/propose-to-safe-tron`, `:66`) — **never touching `main`**. This is the
    agentic case a deprecation-driven drain must ride (a deploy-and-register facet cut
    is `proposeDiamondCut → runPropose`, no CLI). A *separate* helper
-   `sendOrPropose({calldata, network, environment, diamondAddress})` —
+   `sendOrPropose({calldata, network, environment, diamondAddress, signing})` —
    `script/safe/safeScriptHelpers.ts:29` — does its own `getSafeMongoCollection →
    getNextNonce → createTransaction → sign → storeTransactionInMongoDB` and **does not
    call `runPropose`**; it backs whitelist-sync and `cleanUpProdDiamond` removals
@@ -492,7 +492,13 @@ a deliberate future option, not part of v1.
    - `stillExpected` → keep queued + alert (the address points at a facet target
      state still expects — a wrong snapshot must never remove a live facet).
    - `unverifiable` → keep queued + alert (no target-state entry, or the selector
-     unions are unavailable — run `forge build`).
+     unions could not be built from `out/`). **Superseding #2157's "tell a human to
+     run `forge build`" remedy (EXSC-912):** the engine now compiles once itself and
+     re-reads before it concludes, because the propose paths that drain — whitelist
+     sync, propose-only rollout — never compile on their own and a per-session
+     worktree starts without `out/`, so the remedy was being handed to an operator
+     for a condition no operator had caused. The build is skipped when there is no
+     target-state entry, since every address is `unverifiable` either way.
    - `removals` → proceed, but refuse (`nameMismatch`, keep queued + alert) any
      removal whose engine-resolved deploy-log name disagrees with the task's
      `facetName`, and skip (`duplicateAddresses`) any address already carried by
@@ -740,8 +746,10 @@ All six transitions ship as helpers in `parked-tasks.ts` (#2051, Fact 15):
 - **No contradiction is removed.** The drain refuses (keeps queued + alerts) a task
   whose loupe-resolved deploy-log name disagrees with its parked `facetName`, one
   whose address target state still expects (`stillExpected`), one whose removability
-  cannot be verified (`unverifiable` — the remedy there is `forge build`, not a
-  cancellation), and a legacy row whose stored address is not a valid EVM address.
+  cannot be verified (`unverifiable` — a build gap, not a cancellation: the engine
+  compiles once and re-reads before concluding, and a build that still does not
+  produce the artifacts leaves the task queued), and a legacy row whose stored
+  address is not a valid EVM address.
   The wrong-snapshot alerts name the `cancel-parked-task.ts` command that retires
   the task.
 

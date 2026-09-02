@@ -83,6 +83,17 @@ const FOUNDRY_TOML_PATH = resolve(
   '../../foundry.toml'
 )
 
+/**
+ * Foundry's build output, resolved from this module rather than `process.cwd()`.
+ * A cwd-relative lookup makes every artifact reader report "not built" whenever
+ * the caller was launched from outside the repo root, which reads as a missing
+ * contract rather than a missing build.
+ */
+export const OUT_ROOT = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  '../../out'
+)
+
 function readFoundryProfileDefaultConfig(): IFoundryProfileDefaultConfig {
   const content = readFileSync(FOUNDRY_TOML_PATH, 'utf8')
 
@@ -482,7 +493,7 @@ export async function getFacetSelectors(
   facetName: string,
   excludeSelectors: string[] = []
 ): Promise<string[]> {
-  const base = resolve(process.cwd(), 'out')
+  const base = OUT_ROOT
   const artifactPath = resolve(base, `${facetName}.sol`, `${facetName}.json`)
   const relativePath = relative(base, artifactPath)
   if (relativePath.startsWith('..') || isAbsolute(relativePath))
