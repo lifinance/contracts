@@ -162,8 +162,9 @@ the gate instead of hanging the rollout. Staging is not gated, and neither are
 testnets — deploying an unmerged facet to a testnet is how it is validated before
 the audit, and no Safe is involved there.
 
-The gate runs once per *(network, facet)*, but its verdict depends only on the working
-tree and the facet set, so a fleet rollout would otherwise recompute the same answer for
+The gate runs once per *(network, facet)*, but, for a fixed branch and environment, its
+verdict depends only on the working tree and the facet set, so a fleet rollout would
+otherwise recompute the same answer for
 every network — 71 `ls-remote` round trips and 71 chances for a flaky remote to abort the
 rollout fail-closed, with the concurrent workers of `proposeContractToNetworks.sh` racing
 each other's `git fetch` on `refs/remotes/origin/main.lock`. A **pass is therefore

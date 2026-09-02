@@ -1,8 +1,9 @@
 /**
  * Per-run verdict cache for the production deploy gate in `verify-approvals.ts`.
  *
- * The gate is invoked once per *(network, facet)*, but its verdict depends only on the
- * working tree and the facet set — never on the network. Uncached, a 71-network rollout
+ * The gate is invoked once per *(network, facet)*, but, for a fixed branch and
+ * environment, its verdict depends only on the working tree and the facet set — never on
+ * the network. Uncached, a 71-network rollout
  * recomputes the identical answer 71 times, each paying an `ls-remote` (and a
  * `gh pr list` whenever a facet diverges) and giving a flaky remote 71 chances to abort
  * the rollout fail-closed; worse, the concurrent workers of
@@ -27,12 +28,11 @@
  * `DEPLOY_GATE_SKIP_VERDICT_CACHE=true` to force a fresh verdict.
  */
 import { spawnSync } from 'node:child_process'
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import {
   mkdirSync,
   readFileSync,
   renameSync,
-  rmdirSync,
   rmSync,
   statSync,
   writeFileSync,
@@ -218,17 +218,35 @@ type TLockAttempt = 'acquired' | 'held' | 'unavailable'
 const isAlreadyExists = (error: unknown): boolean =>
   (error as { code?: string })?.code === 'EEXIST'
 
+const OWNER_FILE = 'owner'
+
+/**
+ * Claims the lock directory for `owner` by writing its token inside. Not atomic with
+ * the `mkdirSync` that created the directory, but that is fine: the directory's mere
+ * existence is what `EEXIST` guards, and the owner file only matters at release time.
+ */
+const claimLock = (lockDir: string, owner: string): void => {
+  writeFileSync(join(lockDir, OWNER_FILE), owner)
+}
+
 /**
  * Takes the single-flight lock, so that concurrent rollout workers do not all run the
  * check — and, more to the point, do not all `git fetch` the same ref at once and race
  * on `refs/remotes/origin/main.lock`.
  * @param lockDir - lock directory to create
+ * @param owner - this caller's token, written into the lock so a later, unrelated
+ * holder cannot be released by someone who no longer holds it (see {@link releaseLock})
  * @param now - current epoch milliseconds
  * @returns whether the lock was taken, is held elsewhere, or cannot be taken at all
  */
-const acquireLock = (lockDir: string, now: number): TLockAttempt => {
+const acquireLock = (
+  lockDir: string,
+  owner: string,
+  now: number
+): TLockAttempt => {
   try {
     mkdirSync(lockDir)
+    claimLock(lockDir, owner)
     return 'acquired'
   } catch (error) {
     if (!isAlreadyExists(error)) return 'unavailable'
@@ -250,6 +268,7 @@ const acquireLock = (lockDir: string, now: number): TLockAttempt => {
 
   try {
     mkdirSync(lockDir)
+    claimLock(lockDir, owner)
     return 'acquired'
   } catch (error) {
     // someone acquired it between the takeover and here; they hold it, not us
@@ -257,9 +276,20 @@ const acquireLock = (lockDir: string, now: number): TLockAttempt => {
   }
 }
 
-const releaseLock = (lockDir: string): void => {
+/**
+ * Releases the lock, but only if `owner` is still the one recorded inside it.
+ *
+ * A holder that outlives {@link LOCK_STALE_MS} (a slow `compute`, a suspended process)
+ * can wake up after a waiter has already claimed the lock as stale and reacquired it for
+ * itself. Without this check, the slow holder's own `finally` block would then remove
+ * the successor's live lock out from under it. Checking the owner token first means a
+ * holder that lost the lock to a takeover finds someone else's name inside and leaves it
+ * alone.
+ */
+const releaseLock = (lockDir: string, owner: string): void => {
   try {
-    rmdirSync(lockDir)
+    if (readFileSync(join(lockDir, OWNER_FILE), 'utf8') !== owner) return
+    rmSync(lockDir, { recursive: true, force: true })
   } catch {
     // a lock that cannot be removed ages out as stale
   }
@@ -314,8 +344,9 @@ export const withVerdictCache = async (
   // waiting rather than computing alongside the holder is the point: it is what keeps
   // the rollout's workers from fetching the same ref concurrently. A holder that
   // releases without recording a pass did not pass, so the next waiter takes its turn.
+  const owner = randomUUID()
   const deadline = now() + LOCK_WAIT_MS
-  let attempt = acquireLock(lockDir, now())
+  let attempt = acquireLock(lockDir, owner, now())
   while (attempt !== 'acquired') {
     if (attempt === 'unavailable') return compute()
 
@@ -324,7 +355,7 @@ export const withVerdictCache = async (
     if (now() >= deadline) return compute()
 
     await sleep(LOCK_POLL_MS)
-    attempt = acquireLock(lockDir, now())
+    attempt = acquireLock(lockDir, owner, now())
   }
 
   try {
@@ -343,6 +374,6 @@ export const withVerdictCache = async (
 
     return failures
   } finally {
-    releaseLock(lockDir)
+    releaseLock(lockDir, owner)
   }
 }

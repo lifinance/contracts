@@ -482,6 +482,60 @@ describe('withVerdictCache', () => {
     expect(calls.count).toBe(1)
   })
 
+  // a holder that outlives a stale-lock takeover must not remove the successor's live
+  // lock in its own `finally` — that would let a third caller compute alongside the
+  // successor and race `git fetch` on refs/remotes/origin/main.lock, defeating the point
+  it('does not let a stale holder tear down the lock a takeover already claimed', async () => {
+    const repoRoot = initRepo('cache-lock-ownership-')
+    await withVerdictCache(repoRoot, PROD_INPUT, counting().compute)
+
+    const dir = cacheDirOf(repoRoot)
+    const entry = onlyEntry(dir)
+    unlinkSync(entry)
+    const lockDir = `${entry}.lock`
+
+    // caller A takes the lock and then stalls inside `compute`
+    let releaseA: () => void = () => undefined
+    const aGate = new Promise<void>((resolve) => {
+      releaseA = resolve
+    })
+    const aPromise = withVerdictCache(repoRoot, PROD_INPUT, async () => {
+      await aGate
+      return []
+    })
+    expect(existsSync(lockDir)).toBe(true)
+
+    // age A's lock so a second caller sees it as abandoned and takes it over
+    const longAgo = new Date(Date.now() - 10 * 60 * 1000)
+    utimesSync(lockDir, longAgo, longAgo)
+    const { calls: bCalls, compute: computeB } = counting()
+    expect(await withVerdictCache(repoRoot, PROD_INPUT, computeB)).toEqual([])
+    expect(bCalls.count).toBe(1)
+    expect(existsSync(lockDir)).toBe(false)
+
+    // a third caller now occupies the same lock path and stalls too, standing in for a
+    // live holder that happens to reuse the path A originally claimed
+    unlinkSync(onlyEntry(dir))
+    let releaseC: () => void = () => undefined
+    const cGate = new Promise<void>((resolve) => {
+      releaseC = resolve
+    })
+    const cPromise = withVerdictCache(repoRoot, PROD_INPUT, async () => {
+      await cGate
+      return []
+    })
+    expect(existsSync(lockDir)).toBe(true)
+
+    // A finally wakes up and releases — it must find someone else's name in the lock
+    // and leave it alone rather than deleting C's live lock
+    releaseA()
+    await aPromise
+    expect(existsSync(lockDir)).toBe(true)
+
+    releaseC()
+    expect(await cPromise).toEqual([])
+  })
+
   // a lock that cannot be created is not a lock someone holds: waiting out the full
   // two-minute window for it would stall every invocation of the rollout
   it('checks immediately when the lock cannot be created at all', async () => {
