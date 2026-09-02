@@ -72,7 +72,9 @@ export function getTransportConfigFromRpcUrl(rpcUrl: string): {
     url = undefined
   }
 
-  if (!url?.username) base = { url: rpcUrl }
+  // A password with no username still makes the URL credential-bearing, and viem refuses to
+  // construct a Request from one, so it has to be caught here rather than reaching the transport.
+  if (!url?.username && !url?.password) base = { url: rpcUrl }
   else {
     // Embedded credentials become an Authorization header; over cleartext http that header
     // crosses the wire in the clear, so refuse rather than downgrade silently.

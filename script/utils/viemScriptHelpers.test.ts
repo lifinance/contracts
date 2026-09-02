@@ -120,6 +120,22 @@ describe('getTransportConfigFromRpcUrl', () => {
     ).toThrow(/credentials over http/)
   })
 
+  it('turns a password-only https url into a basic auth header', () => {
+    const config = getTransportConfigFromRpcUrl(
+      'https://:secret@rpc.example.invalid/'
+    )
+    expect(config.url).toBe('https://rpc.example.invalid/')
+    expect(config.fetchOptions?.headers?.Authorization).toBe(
+      `Basic ${Buffer.from(':secret', 'utf8').toString('base64')}`
+    )
+  })
+
+  it('refuses a password-only url over cleartext http', () => {
+    expect(() =>
+      getTransportConfigFromRpcUrl('http://:secret@rpc.example.invalid/')
+    ).toThrow(/credentials over http/)
+  })
+
   it('leaves a credential-free http url alone', () => {
     expect(
       getTransportConfigFromRpcUrl('http://node.example.invalid:8545').url
