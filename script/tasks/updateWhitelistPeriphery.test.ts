@@ -87,6 +87,28 @@ describe('updateWhitelistPeriphery network scoping', () => {
     }
   }, 180_000)
 
+  it('writes whitelist.json with exactly one trailing newline', () => {
+    const committed = readFileSync(WHITELIST_PATH, 'utf8')
+    try {
+      execFileSync(
+        'bunx',
+        ['tsx', 'script/tasks/updateWhitelistPeriphery.ts'],
+        {
+          cwd: REPO_ROOT,
+          encoding: 'utf8',
+          stdio: 'pipe',
+        }
+      )
+      const generated = readFileSync(WHITELIST_PATH, 'utf8')
+      // prettier owns config/ and always ends a file with one newline; a generator that
+      // disagrees makes the file flip-flop between every sync run and every format run
+      expect(generated.endsWith('\n')).toBe(true)
+      expect(generated.endsWith('\n\n')).toBe(false)
+    } finally {
+      writeFileSync(WHITELIST_PATH, committed)
+    }
+  }, 180_000)
+
   it('leaves unscoped contracts on every network they are deployed to', () => {
     const generated = networksPerContract()
     const eligible = Object.keys(
