@@ -22,6 +22,7 @@ import {
   getFacetSourceNames,
   getProtectedNames,
   getSourceContractNames,
+  tryCollectFacetSelectorUnion,
   HARDCODED_PROTECTED_FACETS,
   mapLoupeResult,
   resolveAddressToName,
@@ -135,6 +136,55 @@ describe('collectActiveSelectors', () => {
 
   it('returns empty for no names', () => {
     expect(collectActiveSelectors([], () => []).size).toBe(0)
+  })
+})
+
+describe('tryCollectFacetSelectorUnion', () => {
+  it('compiles and re-reads when an artifact is missing', () => {
+    let built = false
+    let reads = 0
+    const union = tryCollectFacetSelectorUnion(['A'], {
+      getFacetNames: () => new Set(['A']),
+      getActiveSelectors: () => {
+        reads++
+        if (!built) throw new Error('Contract JSON not found')
+        return new Set([sel(0xaa)])
+      },
+      ensureArtifacts: () => {
+        built = true
+        return true
+      },
+    })
+    expect(reads).toBe(2)
+    expect(union).toEqual(new Set([sel(0xaa)]))
+  })
+
+  it('stays unavailable when the build cannot produce the artifact', () => {
+    let reads = 0
+    const union = tryCollectFacetSelectorUnion(['A'], {
+      getFacetNames: () => new Set(['A']),
+      getActiveSelectors: () => {
+        reads++
+        throw new Error('Contract JSON not found')
+      },
+      ensureArtifacts: () => false,
+    })
+    expect(union).toBeUndefined()
+    expect(reads).toBe(1)
+  })
+
+  it('does not compile when the union reads on the first try', () => {
+    let builds = 0
+    const union = tryCollectFacetSelectorUnion(['A'], {
+      getFacetNames: () => new Set(['A']),
+      getActiveSelectors: () => new Set([sel(0xaa)]),
+      ensureArtifacts: () => {
+        builds++
+        return true
+      },
+    })
+    expect(union).toEqual(new Set([sel(0xaa)]))
+    expect(builds).toBe(0)
   })
 })
 
@@ -804,6 +854,29 @@ describe('computeFacetRemovalsByAddress', () => {
     })
     expect(r.removals).toHaveLength(0)
     expect(r.unverifiable).toEqual([addr(9)])
+  })
+
+  it('removes an address that was unverifiable only because nothing was compiled', async () => {
+    let built = false
+    const r = await computeFacetRemovalsByAddress('net', PROD, [addr(9)], {
+      getDiamondAddress: async () => addr(0xd),
+      getOnChainFacets: async () => [{ address: addr(9), selectors: [sel(9)] }],
+      getAddressToName: async () => ({}),
+      getExpectedNames: () => new Set(['LiveFacet']),
+      getFacetNames: () => new Set(['LiveFacet']),
+      getActiveSelectors: () => {
+        if (!built) throw new Error('Contract JSON not found')
+        return new Set([sel(0xc)])
+      },
+      ensureArtifacts: () => {
+        built = true
+        return true
+      },
+    })
+    expect(r.unverifiable).toHaveLength(0)
+    expect(r.removals).toEqual([
+      { name: undefined, address: addr(9), selectors: [sel(9)] },
+    ])
   })
 })
 
