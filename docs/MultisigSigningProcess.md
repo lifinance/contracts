@@ -263,6 +263,17 @@ This is the one **break-glass** path, and it is deliberately asymmetric: the
 fast, non-Safe leg can only *reduce* the diamond's capabilities, never grant
 or change any. Restoring capability always requires the Safe.
 
+**A Linear ticket is required here too — there is no break-glass exemption.**
+Both unpause routes are ordinary Safe proposals, so the mandatory ticket link
+applies unchanged: `export SAFE_PROPOSAL_TICKET=<url|TEAM-123>` before running
+`unpauseAllDiamonds.ts` or `diamondEMERGENCYPause.sh`, or pass `--ticket` where
+the script offers it. An incident is when the record matters most, and the cost
+is one `export` before anything is signed. The check runs at each script's
+entry rather than only in `storeTransactionInMongoDB`, because the funnel check
+alone spends a signature per network before refusing — and on
+`unpauseAllDiamonds.ts` the per-network `catch` then swallows the refusal, so a
+fleet-wide run ends with zero mainnets unpaused and no obvious cause.
+
 - **Pause** sits outside the Safe flow for speed:
   `EmergencyPauseFacet.pauseDiamond` is callable by the registered pauser
   wallet (or the owner). `.github/workflows/diamondEmergencyPause.yml` pauses
