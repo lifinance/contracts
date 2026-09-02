@@ -2,8 +2,8 @@
  * Scheduled-but-not-yet-executed diamond registrations and whitelist entries, read from
  * the timelock execution queue.
  *
- * Import it from the health-check registration invariants to tell a rollout still
- * waiting on its timelock delay apart from a genuinely missing registration; intent
+ * Import it from the health-check invariants to tell a rollout still waiting on its
+ * timelock delay apart from a genuinely missing registration; intent
  * is for alerting only and must never reach a generator ([CONV:HEALTHCHECK-INTENT]
  * in `.agents/rules/601-healthcheck-invariants.md`).
  *
@@ -42,11 +42,11 @@ const ABI_REGISTER_PERIPHERY_CONTRACT = parseAbi([
   'function registerPeripheryContract(string,address)',
 ])
 
-const ABI_SET_WHITELIST = parseAbi([
+const ABI_SET_CONTRACT_SELECTOR_WHITELIST = parseAbi([
   'function setContractSelectorWhitelist(address,bytes4,bool)',
 ])
 
-const ABI_BATCH_SET_WHITELIST = parseAbi([
+const ABI_BATCH_SET_CONTRACT_SELECTOR_WHITELIST = parseAbi([
   'function batchSetContractSelectorWhitelist(address[],bytes4[],bool)',
 ])
 
@@ -57,7 +57,7 @@ const ABI_BATCH_SET_WHITELIST = parseAbi([
  */
 export type RegistrationKind = 'facet-cut' | 'periphery' | 'whitelist'
 
-/** One address an inner call would leave registered, and what it registers it as. */
+/** One address an inner call would leave in place, and what it leaves it as. */
 export interface IDecodedRegistration {
   /** Which of the tracked calls this record came from. */
   kind: RegistrationKind
@@ -179,7 +179,10 @@ export function extractRegistrations(
   }
 
   try {
-    const { args } = decodeFunctionData({ abi: ABI_SET_WHITELIST, data })
+    const { args } = decodeFunctionData({
+      abi: ABI_SET_CONTRACT_SELECTOR_WHITELIST,
+      data,
+    })
     const [contract, selector, whitelisted] = args ?? []
     return whitelisted === true
       ? toWhitelistRegistrations([contract], [selector])
@@ -189,7 +192,10 @@ export function extractRegistrations(
   }
 
   try {
-    const { args } = decodeFunctionData({ abi: ABI_BATCH_SET_WHITELIST, data })
+    const { args } = decodeFunctionData({
+      abi: ABI_BATCH_SET_CONTRACT_SELECTOR_WHITELIST,
+      data,
+    })
     const [contracts, selectors, whitelisted] = args ?? []
     if (whitelisted !== true) return []
     // The facet reverts on a length mismatch (`InvalidConfig`), so such a batch
