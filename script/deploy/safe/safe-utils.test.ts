@@ -35,6 +35,7 @@ import {
 
 import { getRPCEnvVarName } from '../../utils/utils'
 
+import { normalizeProposalReason } from './proposal-intent'
 import {
   OperationTypeEnum,
   buildProposalProvenance,
@@ -49,7 +50,6 @@ import {
   isAddressASafeOwner,
   isFutureNonceExecutionAllowed,
   mongoSafeTxRowFilter,
-  normalizeProposalReason,
   resolveSafeSigningOptions,
   safeTxStatusConsumedNonce,
   serializeSafeTxForMongo,
@@ -154,10 +154,16 @@ const FIXED_PROVENANCE: IProposalProvenance = {
   capturedAt: '2026-01-01T00:00:00.000Z',
 }
 
+const TICKET = 'EXSC-694'
+const TICKET_URL = 'https://linear.app/lifi-linear/issue/EXSC-694'
+
 async function store(
   collection: Collection<ISafeTxDocument>,
   safeTx: ISafeTransaction,
-  provenance: IProposalProvenance = FIXED_PROVENANCE
+  provenance: IProposalProvenance = FIXED_PROVENANCE,
+  options: { ticket?: string | undefined; reason?: string | undefined } = {
+    ticket: TICKET,
+  }
 ): Promise<InsertOneResult<ISafeTxDocument> | null> {
   return storeTransactionInMongoDB(
     collection,
@@ -168,8 +174,30 @@ async function store(
     ('0x' + 'ab'.repeat(32)) as Hex,
     PROPOSER,
     undefined,
-    { override: provenance }
+    { override: provenance, ticket: options.ticket, reason: options.reason }
   )
+}
+
+/**
+ * Awaiting bun's `.rejects` matcher trips `@typescript-eslint/await-thenable`
+ * because it is not a real Promise, and leaving it un-awaited lets the test
+ * finish before the assertion settles.
+ *
+ * @param promise - The call expected to reject.
+ * @param match - Pattern the error message must contain.
+ */
+async function expectRejects(
+  promise: Promise<unknown>,
+  match: RegExp
+): Promise<void> {
+  let error: Error | undefined
+  try {
+    await promise
+  } catch (caught) {
+    error = caught as Error
+  }
+  expect(error).toBeInstanceOf(Error)
+  expect(error?.message).toMatch(match)
 }
 
 describe('computeProposalIntentHash', () => {
@@ -340,6 +368,75 @@ describe('storeTransactionInMongoDB — duplicate-PENDING protection', () => {
  * here drives the `override` seam so no test spawns `git`; ambient capture
  * itself is covered in `script/deploy/shared/git-provenance.test.ts`.
  */
+describe('storeTransactionInMongoDB — the ticket link hard-blocks', () => {
+  const originalTicket = process.env.SAFE_PROPOSAL_TICKET
+
+  beforeEach(() => {
+    delete process.env.SAFE_PROPOSAL_TICKET
+  })
+
+  afterEach(() => {
+    if (originalTicket === undefined) delete process.env.SAFE_PROPOSAL_TICKET
+    else process.env.SAFE_PROPOSAL_TICKET = originalTicket
+  })
+
+  it('does not create a proposal when no ticket was supplied', async () => {
+    const collection = createFakeCollection()
+
+    await expectRejects(
+      store(collection, buildSafeTx(), FIXED_PROVENANCE, { ticket: undefined }),
+      /SAFE_PROPOSAL_TICKET/
+    )
+
+    // "Not created" is the requirement, not "reported an error": a throw after
+    // the insert would leave an unlinked proposal occupying a nonce.
+    expect(collection.rows).toHaveLength(0)
+  })
+
+  it('refuses a malformed ticket rather than storing it as a link', async () => {
+    const collection = createFakeCollection()
+
+    await expectRejects(
+      store(collection, buildSafeTx(), FIXED_PROVENANCE, {
+        ticket: 'https://example.com/issue/EXSC-694',
+      }),
+      /not a Linear issue link/
+    )
+    expect(collection.rows).toHaveLength(0)
+  })
+
+  it('records the ticket URL on the stored proposal', async () => {
+    const collection = createFakeCollection()
+
+    await store(collection, buildSafeTx())
+
+    expect(collection.rows[0]?.provenance?.ticketUrl).toBe(TICKET_URL)
+  })
+
+  it('accepts the ticket from the environment, so bash flows need no new argument', async () => {
+    process.env.SAFE_PROPOSAL_TICKET = 'EXSC-222'
+    const collection = createFakeCollection()
+
+    await store(collection, buildSafeTx(), FIXED_PROVENANCE, {
+      ticket: undefined,
+    })
+
+    expect(collection.rows[0]?.provenance?.ticketUrl).toBe(
+      'https://linear.app/lifi-linear/issue/EXSC-222'
+    )
+  })
+
+  it('creates the proposal with no reason — only the ticket blocks (OQ3)', async () => {
+    const collection = createFakeCollection()
+
+    const result = await store(collection, buildSafeTx())
+
+    expect(result).not.toBeNull()
+    expect(collection.rows[0]?.provenance?.reason).toBeUndefined()
+    expect(collection.rows[0]?.provenance?.ticketUrl).toBe(TICKET_URL)
+  })
+})
+
 describe('storeTransactionInMongoDB — provenance', () => {
   const originalReason = process.env.SAFE_PROPOSAL_REASON
 
@@ -357,7 +454,25 @@ describe('storeTransactionInMongoDB — provenance', () => {
 
     await store(collection, buildSafeTx())
 
-    expect(collection.rows[0]?.provenance).toEqual(FIXED_PROVENANCE)
+    expect(collection.rows[0]?.provenance).toEqual({
+      ...FIXED_PROVENANCE,
+      ticketUrl: TICKET_URL,
+    })
+  })
+
+  it('stores the reason the resolver settled on, not the raw flag', async () => {
+    // The funnel resolves the reason once to decide whether to warn. Storing a
+    // separately-derived value lets a proposal be recorded reasonless while the
+    // operator saw no warning, and the adoption counter reads the stored field.
+    process.env.SAFE_PROPOSAL_REASON = 'rotate the pauser key'
+    const collection = createFakeCollection()
+
+    await store(collection, buildSafeTx(), FIXED_PROVENANCE, {
+      ticket: TICKET,
+      reason: '',
+    })
+
+    expect(collection.rows[0]?.provenance?.reason).toBe('rotate the pauser key')
   })
 
   it('keeps provenance out of the intent hash', async () => {
@@ -416,7 +531,10 @@ describe('storeTransactionInMongoDB — provenance', () => {
     const result = await store(collection, tronSafeTx)
 
     expect(result).not.toBeNull()
-    expect(collection.rows[0]?.provenance).toEqual(FIXED_PROVENANCE)
+    expect(collection.rows[0]?.provenance).toEqual({
+      ...FIXED_PROVENANCE,
+      ticketUrl: TICKET_URL,
+    })
   })
 })
 
@@ -465,6 +583,23 @@ describe('buildProposalProvenance', () => {
       }).reason
     ).toBe('from caller')
   })
+
+  it.each([
+    ['empty string', ''],
+    ['whitespace', '   '],
+  ])(
+    'falls back to the environment when the caller passes %s',
+    (_label, reason) => {
+      // A bare `--reason` arrives as '', which `??` treats as supplied. The
+      // resolver applies the same rule, and the two must not disagree about
+      // whether a reason was given — one drives the warning, this one the field.
+      process.env.SAFE_PROPOSAL_REASON = 'rotate the pauser key'
+
+      expect(
+        buildProposalProvenance({ override: FIXED_PROVENANCE, reason }).reason
+      ).toBe('rotate the pauser key')
+    }
+  )
 
   it('never overwrites a reason the block already carries', () => {
     expect(

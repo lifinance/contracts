@@ -85,7 +85,21 @@ merge; the deploy scripts never commit.
 ### 4.2 Propose
 
 All EVM funnels end in `storeTransactionInMongoDB`
-(`script/deploy/safe/safe-utils.ts`). Entry points:
+(`script/deploy/safe/safe-utils.ts`), which is where the Linear ticket link is
+required and the missing-reason warning is emitted — placing them there rather
+than per entry point means no funnel can be added that skips them. The refusal
+happens before the proposal document is inserted, so a refused proposal is never
+created and claims no nonce, and it names both `--ticket` and
+`SAFE_PROPOSAL_TICKET`.
+
+That check is the backstop, not the first line: the entry points whose late
+failure costs most — `unpauseAllDiamonds.ts`, `add-safe-owners-and-threshold.ts`,
+the Tron route, and the TS `sendOrPropose` — also call `assertTicketPresent`
+before they sign, and `propose-to-safe.ts` resolves the same intent up front in
+`runPropose`, so an unset ticket costs one message
+rather than a signature or a device confirmation per network. Those pre-checks
+run only on the branches that actually propose; a staging or testnet-only run, a
+`--check` audit and a `--dryRun` need no ticket. Entry points:
 
 - **`script/deploy/safe/propose-to-safe.ts`** (`runPropose`) — the main
   funnel, invoked by the bash `sendOrPropose` chokepoint in
@@ -224,6 +238,8 @@ parked tasks are reconciled weekly by `reconcileParkedTasks.yml`.
 | Propose | Nonce safety: override collision checks, auto-nonce clamped to on-chain | Block / auto-correct | `propose-to-safe.ts`, `getNextNonce` in `safe-utils.ts` |
 | Propose | Duplicate-intent dedup (partial unique index on pending rows) | Block insert | `computeProposalIntentHash` + index in `safe-utils.ts` |
 | Propose | Timelock-wrapped proposals dedup on every EVM path: the `scheduleBatch` salt is derived from the action (chain, timelock, targets, payloads, attempt) instead of the clock, so re-proposing the same wrapped work yields the same salt while that candidate is still free. The timelock is asked whether that operation id exists — **pending blocks** (the proposal duplicates work already scheduled and not executed), **executed** advances to the next deterministic salt so a legitimate repeat does not revert after signing, and 16 taken attempts refuse. Same salt is not the same calldata: `minDelay` is also a `scheduleBatch` argument, so **Safe intent dedup** (`computeProposalIntentHash`) does not apply across an `updateDelay`, nor across `wrapWithTimelockSchedule`'s `getMinDelay` fallback (the task scripts have no fallback — a failed read throws). The **timelock** check is unaffected: `hashOperationBatch` hashes targets, values, payloads, predecessor and salt only, so the pending/executed states still hold across a delay change. **The Tron proposal path still uses a clock salt** and is not covered | Block (pending) / auto-advance (executed) / refuse after 16 | `pickTimelockSalt` in `safe-utils.ts` + `deriveTimelockSalt` in `timelock-abi.ts`; reached via `wrapWithTimelockSchedule` (from `propose-to-safe.ts` and `cleanUpProdDiamond.ts`) and directly from the five `script/tasks/propose{AllBridge,PolymerCCTP,Frax,DeBridgeDln,MegaETHBridge}*.ts` batch builders |
+| Propose | Every proposal carries a Linear issue link, from `--ticket` or `SAFE_PROPOSAL_TICKET`. The shape is validated, so a non-Linear or malformed URL is refused rather than recorded as "a link". Checked before the insert, so a refused proposal is never created and claims no nonce | Block insert | `resolveProposalIntent` in `proposal-intent.ts`, called from `storeTransactionInMongoDB` |
+| Propose | One-line reason (`--reason` / `SAFE_PROPOSAL_REASON`). Optional, warned once per process — OQ3 flips it to mandatory once the warning has fired zero times across 30 consecutive proposals | Warn | `proposal-intent.ts`; read the trigger with `report-reason-adoption.ts` (read-only) |
 | Propose | In-flight nonce uniqueness per Safe: concurrent proposers may still derive the same nonce, but only one insert survives (partial unique index over `pending` + `submitted`, compared case-insensitively so the Tron and EVM spellings of one Safe collide). The guarantee is **absent** if the index could not be built — in-flight rows already sharing a nonce, or a role without `createIndex` — and the build warns in both cases. Nothing is ever dropped, so a pre-`_ci` index from an earlier build stays as a weaker, redundant constraint | Block insert, re-run required | `unique_inflight_safe_nonce_ci` index in `safe-utils.ts`; diagnose with `report-nonce-collisions.ts` (read-only) |
 | Propose | Removal safety: protected-facet allowlist, live-selector hold-back, fail-closed diffs | Block + alert | `diamondRemovalDiff.ts`, `drain-parked-tasks.ts` |
 | Propose | Production `deployUpgradesToSAFE` from a feature branch: selected facet sources must match `origin/main`, else open PR + audit-log commit freeze; `main` and staging are not gated | Block (prod, that entry point only) | `script/deploy/github/verify-approvals.ts` via `deployUpgradesToSAFE.sh` (PR #2128) |
@@ -263,6 +279,17 @@ Honest list — the tooling displays these, but does **not** machine-assert them
 This is the one **break-glass** path, and it is deliberately asymmetric: the
 fast, non-Safe leg can only *reduce* the diamond's capabilities, never grant
 or change any. Restoring capability always requires the Safe.
+
+**A Linear ticket is required here too — there is no break-glass exemption.**
+Both unpause routes are ordinary Safe proposals, so the mandatory ticket link
+applies unchanged: `export SAFE_PROPOSAL_TICKET=<url|TEAM-123>` before running
+`unpauseAllDiamonds.ts` or `diamondEMERGENCYPause.sh`, or pass `--ticket` where
+the script offers it. An incident is when the record matters most, and the cost
+is one `export` before anything is signed. The check runs at each script's
+entry rather than only in `storeTransactionInMongoDB`, because the funnel check
+alone spends a signature per network before refusing — and on
+`unpauseAllDiamonds.ts` the per-network `catch` then swallows the refusal, so a
+fleet-wide run ends with zero mainnets unpaused and no obvious cause.
 
 - **Pause** sits outside the Safe flow for speed:
   `EmergencyPauseFacet.pauseDiamond` is callable by the registered pauser
