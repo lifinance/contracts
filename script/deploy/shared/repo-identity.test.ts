@@ -245,19 +245,21 @@ describe('readRepoIdentity', () => {
   })
 
   it('drives the production runner against real git', () => {
-    // The one case that exercises the real subprocess rather than the injected
-    // seam. Deterministic in a checkout with no origin and in a mirror whose
-    // remote is not ours: the contract asserted is the shape of the answer, not
-    // which repository this happens to be.
-    const hasOrigin =
-      spawnSync('git', ['remote', 'get-url', 'origin'], {
-        encoding: 'utf8',
-      }).status === 0
-    const identity = getCurrentRepo()
+    // The only case that spawns the real subprocess rather than using the seam,
+    // so what it can assert is that the runner reaches git and plumbs the answer
+    // through the same normalization — not which repository this checkout is.
+    // Asserting a recognised identity would fail wherever `origin` is a local
+    // path or an unsupported URL, both of which git reports happily and this
+    // module correctly calls unknown.
+    const probed = spawnSync('git', ['remote', 'get-url', 'origin'], {
+      encoding: 'utf8',
+    })
+    const throughTheSeam = readRepoIdentity(() =>
+      probed.status === 0 ? probed.stdout : undefined
+    )
 
-    expect(isStorableIdentity(identity)).toBe(true)
-    if (hasOrigin) expect(identity).not.toBe(REPO_UNKNOWN)
-    else expect(identity).toBe(REPO_UNKNOWN)
+    expect(getCurrentRepo()).toBe(throughTheSeam)
+    expect(isStorableIdentity(getCurrentRepo())).toBe(true)
   })
 })
 
