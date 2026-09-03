@@ -13,6 +13,8 @@ import {
 import type { EnvironmentEnum } from '../../common/types'
 import { sleep } from '../../utils/delay'
 
+import { REPO_UNKNOWN, readRepoIdentity } from './repo-identity'
+
 /**
  * Represents a deployment record stored in MongoDB
  * @interface IDeploymentRecord
@@ -46,6 +48,12 @@ export interface IDeploymentRecord {
   zkSolcVersion: string
   /** Git commit hash of the local codebase at the time this record was logged */
   gitCommitHash: string
+  /**
+   * Repository the commit was logged from, as `host/owner/repo`. Absent on
+   * records written before this field existed; `'UNKNOWN'` when the capture ran
+   * and could not identify a remote.
+   */
+  repo?: string
   /** When this record was created in the database */
   createdAt: Date
   /** When this record was last updated in the database */
@@ -98,6 +106,56 @@ export function getCurrentGitCommitHash(): string {
   }
 }
 
+/**
+ * Captures the repository the local codebase was cloned from, as
+ * `host/owner/repo`. Returns 'UNKNOWN' (with a warning) when there is no
+ * `origin` remote or its URL names no host and path — the same sentinel, and
+ * the same reason, as the commit hash above: a failed capture has to stay
+ * visible on later audits rather than blending in as legacy data.
+ */
+export function getCurrentRepo(): string {
+  const identity = readRepoIdentity()
+  if (identity === REPO_UNKNOWN)
+    consola.warn('Could not identify a repository from the origin remote')
+  return identity
+}
+
+/** The provenance halves of an upsert: what to set, and what only to set on insert. */
+export interface IProvenanceUpdate {
+  set: Partial<Pick<IDeploymentRecord, 'gitCommitHash' | 'repo'>>
+  setOnInsert: Partial<Pick<IDeploymentRecord, 'gitCommitHash' | 'repo'>>
+}
+
+/**
+ * Splits a record's provenance fields across `$set` and `$setOnInsert`.
+ *
+ * The add CLI writes these to Mongo only, so a JSON-sourced record carries
+ * neither and an unconditional `$set` would erase what Mongo already holds.
+ * `REPO_UNKNOWN` is handled the same way for the opposite reason: it is a real
+ * answer on a fresh insert, and a downgrade on an existing one, so it goes in
+ * only where there is nothing to lose.
+ *
+ * @param record - The record about to be written.
+ * @returns The two update fragments, either of which may be empty.
+ */
+export function provenanceUpdate(
+  record: Pick<IDeploymentRecord, 'gitCommitHash' | 'repo'>
+): IProvenanceUpdate {
+  return {
+    set: {
+      ...(record.gitCommitHash ? { gitCommitHash: record.gitCommitHash } : {}),
+      ...(record.repo && record.repo !== REPO_UNKNOWN
+        ? { repo: record.repo }
+        : {}),
+    },
+    setOnInsert: {
+      // '' = "predates EXSC-330"
+      ...(record.gitCommitHash ? {} : { gitCommitHash: '' }),
+      ...(record.repo === REPO_UNKNOWN ? { repo: REPO_UNKNOWN } : {}),
+    },
+  }
+}
+
 const DEPLOYMENT_QUERY_EQ_KEYS = [
   'contractName',
   'network',
@@ -110,6 +168,7 @@ const DEPLOYMENT_QUERY_EQ_KEYS = [
   'evmVersion',
   'zkSolcVersion',
   'gitCommitHash',
+  'repo',
   'contractNetworkKey',
   'contractVersionKey',
   'timestamp',
