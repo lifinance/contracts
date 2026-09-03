@@ -2779,7 +2779,7 @@ function removeFacetFromDiamond() {
   if [ $ATTEMPTS -gt "$MAX_ATTEMPTS_PER_SCRIPT_EXECUTION" ]; then
     error "failed to remove $FACET_NAME from $DIAMOND_ADDRESS on network $NETWORK"
     # end this script according to flag
-    if [[ -z "$EXIT_ON_ERROR" ]]; then
+    if [[ -z "$EXIT_ON_ERROR" || "$EXIT_ON_ERROR" == "false" ]]; then
       return 1
     else
       exit 1

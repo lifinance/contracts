@@ -202,3 +202,33 @@ describe('deployToNetworkWorker result file', () => {
     expect(runHarness(harness, { DEPLOY_RC: '0' })).toBe('rc=0 result=OK')
   })
 })
+
+describe('deploySingleContract missing deploy script', () => {
+  // Runs the call inside a command substitution so the two outcomes are distinguishable:
+  // a `return` lets the trailing echo run, an `exit` tears the subshell down and swallows
+  // it. Callers pass the literal string "false" expecting the soft return, so the guard
+  // must treat "false" like an unset flag.
+  const harness = (exitOnError: string) => `
+    source "$REPO_ROOT/script/deploy/deploySingleContract.sh"
+    ${STUB_PRELUDE}
+    bunx() { :; }
+    isZkEvmNetwork() { return 1; }
+    checkIfFileExists() { return 1; }
+    DEPLOY_SCRIPT_DIRECTORY="script/deploy/facets/"
+    CONTRACT_REMINDERS="$REPO_ROOT/script/deploy/resources/contractSpecificReminders.sh"
+    RESULT=$(deploySingleContract TestContract testnet production "" "${exitOnError}" >/dev/null 2>&1; echo "returned rc=$?")
+    echo "\${RESULT:-killed-the-calling-shell}"
+  `
+
+  it('returns instead of killing the shell when EXIT_ON_ERROR is "false"', () => {
+    expect(runHarness(harness('false'))).toBe('returned rc=1')
+  })
+
+  it('returns when EXIT_ON_ERROR is empty', () => {
+    expect(runHarness(harness(''))).toBe('returned rc=1')
+  })
+
+  it('still exits when EXIT_ON_ERROR is "true"', () => {
+    expect(runHarness(harness('true'))).toBe('killed-the-calling-shell')
+  })
+})

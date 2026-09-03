@@ -130,7 +130,7 @@ deploySingleContract() {
   # check if deploy script exists
   if ! checkIfFileExists "$FULL_SCRIPT_PATH" >/dev/null; then
     error "could not find deploy script for $CONTRACT in this path: $FULL_SCRIPT_PATH". Aborting deployment.
-    if [[ -z "$EXIT_ON_ERROR" ]]; then
+    if [[ -z "$EXIT_ON_ERROR" || "$EXIT_ON_ERROR" == "false" ]]; then
       return 1
     else
       exit 1
