@@ -1,15 +1,15 @@
 /**
  * Tron TVM chain caller — broadcasts arbitrary contract calls via TronWeb native protocol.
+ *
+ * Every broadcast is pre-flighted for energy first. The devkit sends under a
+ * fixed `fee_limit` from the environment, so without a pre-flight a call that
+ * needs more energy than the limit buys is not rejected — it runs until the
+ * limit is spent and aborts part-way.
  */
 
 import {
-  TRON_TRIGGER_ESTIMATE_FEE_LIMIT_SUN,
-  TRON_WALLET_API_FETCH_TIMEOUT_MS,
-  buildTronWalletJsonPostHeaders,
   createTronWebForTvmNetworkKey,
   evmHexToTronBase58,
-  getTronRPCConfig,
-  resolveTronWebRpcUrlToFullHost,
   type TronTvmNetworkName,
 } from '@lifi/tron-devkit'
 import { broadcastTronContractCall } from '@lifi/tron-devkit/safe'
@@ -22,15 +22,41 @@ import type {
   IChainCaller,
   IChainSimulateResult,
 } from '../../../common/types'
-import { fetchWithTimeout } from '../../../utils/fetchWithTimeout'
+
+import {
+  configuredTronFeeLimitSun,
+  estimateTronEnergy,
+  tronEnergyCostInSun,
+} from './tron-energy-estimate'
+import { assertTronBroadcastAffordable } from './tron-energy-preflight'
+
+/**
+ * Seams for the tests that prove a refusal never reaches the network. Nothing
+ * in production overrides these; the defaults are the real implementations.
+ */
+export interface ITronCallerDeps {
+  broadcast?: typeof broadcastTronContractCall
+  estimateEnergy?: (params: IChainCallParams) => Promise<bigint>
+  costInSun?: (energy: bigint) => Promise<bigint>
+}
 
 export class TronChainCaller implements IChainCaller {
   public readonly senderAddress: Address
 
+  private readonly broadcast: typeof broadcastTronContractCall
+  private readonly estimateEnergy: (params: IChainCallParams) => Promise<bigint>
+  private readonly costInSun: (energy: bigint) => Promise<bigint>
+
   public constructor(
     private readonly networkKey: TronTvmNetworkName,
-    private readonly privateKeyHex: string
+    private readonly privateKeyHex: string,
+    deps: ITronCallerDeps = {}
   ) {
+    this.broadcast = deps.broadcast ?? broadcastTronContractCall
+    this.estimateEnergy =
+      deps.estimateEnergy ?? ((params) => this.estimateEnergyOnChain(params))
+    this.costInSun =
+      deps.costInSun ?? ((energy) => this.costInSunOnChain(energy))
     const normalized = privateKeyHex.startsWith('0x')
       ? privateKeyHex
       : `0x${privateKeyHex}`
@@ -39,77 +65,34 @@ export class TronChainCaller implements IChainCaller {
     ).address
   }
 
+  /**
+   * Estimates without broadcasting.
+   *
+   * Throws when there is no estimate rather than returning a fallback figure:
+   * there is no meaningful fixed energy number to report, and a dry run must
+   * not read as green when the executing path would refuse on the same
+   * failure. {@link assertTronBroadcastAffordable} treats the throw as the
+   * absence of an estimate.
+   */
   public async simulate(
     params: IChainCallParams
   ): Promise<IChainSimulateResult> {
-    const tronWeb = createTronWebForTvmNetworkKey({
-      networkKey: this.networkKey,
-      privateKey: this.privateKeyHex,
-    })
-
-    const ownerBase58 = tronWeb.defaultAddress.base58 as string
-    if (!ownerBase58?.startsWith('T'))
-      throw new Error('TronWeb defaultAddress.base58 missing after init')
-
-    const contractBase58 = evmHexToTronBase58(tronWeb, params.to)
-
-    const { rpcUrl } = getTronRPCConfig(this.networkKey)
-    const fullHost = resolveTronWebRpcUrlToFullHost(rpcUrl, this.networkKey)
-    const apiUrl =
-      fullHost.replace(/\/$/, '') + '/wallet/triggerconstantcontract'
-
-    const dataHexNo0x = params.data.slice(2)
-    const callValue =
-      params.value && params.value > 0n ? Number(params.value) : 0
-
-    const payload = {
-      owner_address: ownerBase58,
-      contract_address: contractBase58,
-      data: dataHexNo0x,
-      fee_limit: TRON_TRIGGER_ESTIMATE_FEE_LIMIT_SUN,
-      call_value: callValue,
-      visible: true,
-    }
-
-    const res = await fetchWithTimeout(
-      apiUrl,
-      {
-        method: 'POST',
-        headers: buildTronWalletJsonPostHeaders(fullHost),
-        body: JSON.stringify(payload),
-      },
-      TRON_WALLET_API_FETCH_TIMEOUT_MS
-    )
-
-    if (!res.ok) {
-      const text = await res.text()
-      throw new Error(`triggerconstantcontract failed: ${res.status} ${text}`)
-    }
-
-    const result = (await res.json()) as {
-      energy_used?: number
-      result?: { result?: boolean; message?: string }
-    }
-
-    if (
-      result.result?.result === false ||
-      result.energy_used === undefined ||
-      result.energy_used === null
-    )
-      throw new Error(
-        `Tron simulation failed: ${JSON.stringify(result.result ?? result)}`
-      )
-
-    // Every failure path above throws, so reaching here means a real estimate.
     return {
-      estimatedResource: BigInt(result.energy_used),
+      estimatedResource: await this.estimateEnergy(params),
       resourceLabel: 'energy',
       estimateFailed: false,
     }
   }
 
   public async call(params: IChainCallParams): Promise<IChainCallResult> {
-    const { hash } = await broadcastTronContractCall({
+    await assertTronBroadcastAffordable(() => this.simulate(params), {
+      networkName: this.networkKey,
+      operation: `contract call to ${params.to}`,
+      feeLimitSun: configuredTronFeeLimitSun(),
+      costInSun: this.costInSun,
+    })
+
+    const { hash } = await this.broadcast({
       networkKey: this.networkKey,
       privateKeyHex: this.privateKeyHex,
       contractAddress: params.to,
@@ -118,5 +101,34 @@ export class TronChainCaller implements IChainCaller {
     })
 
     return { hash }
+  }
+
+  private tronWeb(): ReturnType<typeof createTronWebForTvmNetworkKey> {
+    return createTronWebForTvmNetworkKey({
+      networkKey: this.networkKey,
+      privateKey: this.privateKeyHex,
+    })
+  }
+
+  private async estimateEnergyOnChain(
+    params: IChainCallParams
+  ): Promise<bigint> {
+    const tronWeb = this.tronWeb()
+
+    const ownerBase58 = tronWeb.defaultAddress.base58 as string
+    if (!ownerBase58?.startsWith('T'))
+      throw new Error('TronWeb defaultAddress.base58 missing after init')
+
+    return estimateTronEnergy({
+      networkKey: this.networkKey,
+      ownerBase58,
+      contractBase58: evmHexToTronBase58(tronWeb, params.to),
+      data: params.data,
+      callValue: params.value ?? 0n,
+    })
+  }
+
+  private async costInSunOnChain(energy: bigint): Promise<bigint> {
+    return tronEnergyCostInSun(this.tronWeb(), energy)
   }
 }
