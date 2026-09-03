@@ -4,12 +4,15 @@
  * are split across an upsert.
  */
 
+import { spawnSync } from 'node:child_process'
+
 import {
   describe,
   expect,
   it,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
+
 
 import { getCurrentRepo, provenanceUpdate } from './mongo-log-utils'
 import {
@@ -155,6 +158,15 @@ describe('normalizeRepoUrl', () => {
       'path traversal onto our identity',
       'https://github.com/attacker/../lifinance/contracts',
     ],
+    [
+      'percent-encoded path traversal',
+      'https://github.com/attacker/%2e%2e/lifinance/contracts',
+    ],
+    [
+      'upper-case percent-encoded traversal',
+      'https://github.com/attacker/%2E%2E/lifinance/contracts',
+    ],
+    ['a single-dot segment', 'https://github.com/lifinance/./contracts'],
     ['a javascript scheme', 'javascript://alert(1)@evil.com/a/b'],
     [
       'a data scheme carrying a payload',
@@ -233,15 +245,20 @@ describe('readRepoIdentity', () => {
     )
   })
 
-  it('identifies this checkout through the real subprocess', () => {
-    // The one case that exercises the production runner against real git,
-    // rather than the injected seam.
+  it('drives the production runner against real git', () => {
+    // The one case that exercises the real subprocess rather than the injected
+    // seam. Deterministic in a checkout with no origin and in a mirror whose
+    // remote is not ours: the contract asserted is the shape of the answer, not
+    // which repository this happens to be.
+    const hasOrigin =
+      spawnSync('git', ['remote', 'get-url', 'origin'], {
+        encoding: 'utf8',
+      }).status === 0
     const identity = getCurrentRepo()
 
     expect(isStorableIdentity(identity)).toBe(true)
-    expect(identity).not.toBe(REPO_UNKNOWN)
-    expect(identity.split('/')).toHaveLength(3)
-    expect(identity.endsWith('/contracts')).toBe(true)
+    if (hasOrigin) expect(identity).not.toBe(REPO_UNKNOWN)
+    else expect(identity).toBe(REPO_UNKNOWN)
   })
 })
 

@@ -127,9 +127,18 @@ const parseWithScheme = (
  */
 export const normalizeRepoUrl = (remoteUrl: string): string => {
   const trimmed = remoteUrl.trim()
-  // `URL` resolves `..` away, which would map a remote at another path onto the
-  // canonical identity.
-  if (/(^|\/)\.\.(\/|$)/.test(trimmed)) return REPO_UNKNOWN
+  // `URL` decodes percent-escapes and then resolves `..` away, so this has to
+  // see what it will see: `%2e%2e` reaches it as `..` and would otherwise map a
+  // remote at another path onto this one. An identity this module accepts never
+  // needs an escape, so decoding first costs nothing.
+  const decoded = ((): string => {
+    try {
+      return decodeURIComponent(trimmed)
+    } catch {
+      return trimmed
+    }
+  })()
+  if (/(^|[/:])\.\.?(\/|$)/.test(decoded)) return REPO_UNKNOWN
 
   const parsed = trimmed.includes('://')
     ? parseWithScheme(trimmed)
