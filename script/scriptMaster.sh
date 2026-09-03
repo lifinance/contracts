@@ -39,7 +39,6 @@ scriptMaster() {
   source script/helperFunctions.sh
   source script/deploy/deployFacetAndAddToDiamond.sh
   source script/deploy/deployPeripheryContracts.sh
-  source script/deploy/deployUpgradesToSAFE.sh
   for script in script/tasks/*.sh; do [ -f "$script" ] && source "$script"; done # sources all script in folder script/tasks/
 
   # make sure that all compiled artifacts are current
@@ -117,8 +116,7 @@ scriptMaster() {
       "9) Review deploy status (vs. target state)" \
       "10) Create updated target state from Google Docs (STAGING or PRODUCTION)" \
       "11) Update diamond log(s)" \
-      "12) Propose upgrade TX to Gnosis SAFE" \
-      "13) Remove facets or periphery from diamond"
+      "12) Remove facets or periphery from diamond"
   )
 
   #---------------------------------------------------------------------------------------------------------------------
@@ -556,12 +554,8 @@ scriptMaster() {
       updateDiamondLogs "$ENVIRONMENT" "$NETWORK"
     fi
   #---------------------------------------------------------------------------------------------------------------------
-  # use case 12: Propose upgrade TX to Gnosis SAFE
+  # use case 12: Remove facets or periphery from diamond
   elif [[ "$SELECTION" == "12)"* ]]; then
-    deployUpgradesToSAFE $ENVIRONMENT
-  #---------------------------------------------------------------------------------------------------------------------
-  # use case 13: Remove facets or periphery from diamond
-  elif [[ "$SELECTION" == "13)"* ]]; then
     bunx tsx script/tasks/cleanUpProdDiamond.ts
 
   else
