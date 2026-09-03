@@ -29,7 +29,7 @@ If you only want to deploy a new diamond contract and use existing deployed face
 
 4. Commit and push before deploying to production
 
-A production deploy is refused unless the working tree matches the commit it will be recorded at and that commit exists on a remote branch, because a deployment record only claims anything if someone can rebuild at its commit. Only build-affecting paths count - `src/`, `lib/`, `foundry.toml`, `remappings.txt` and `foundry.lock`; changes under `deployments/`, `broadcast/` and `script/` are ignored. Staging deploys warn instead of refusing. To see the verdict without deploying:
+A production deploy is refused unless the working tree matches the commit it will be recorded at and that commit exists on an origin branch, because a deployment record only claims anything if someone can rebuild at its commit. Only build-affecting paths count - `src/`, `lib/`, `foundry.toml`, `remappings.txt` and `foundry.lock`; changes under `deployments/`, `broadcast/` and `script/` are ignored. Staging deploys warn instead of refusing. To see the verdict without deploying:
 
 ```bash
 bunx tsx script/deploy/shared/assert-tree-recordable.ts

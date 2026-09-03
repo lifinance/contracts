@@ -162,7 +162,9 @@ export const assertTreeRecordable = (state: ITreeState): void => {
       problems.push(
         `Commit ${state.head} is on no origin branch. The record would point at a ` +
           `commit a verifier cannot fetch from this repository, so the rebuild it ` +
-          `promises could never be performed. Push the branch first.`
+          `promises could never be performed. Push the branch first, or run ` +
+          `'git fetch origin' if it was pushed from another clone — this check ` +
+          `never fetches, and a commit carried only by a tag does not count.`
       )
   }
 

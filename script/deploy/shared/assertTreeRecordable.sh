@@ -8,7 +8,7 @@
 #   ENVIRONMENT - Deployment environment, e.g. "production" or "staging"
 #
 # Routing/Behavior:
-#   - Tree is recordable: silent, returns 0
+#   - Tree is recordable: prints a success line, returns 0
 #   - Not recordable, ENVIRONMENT is exactly "staging": warns, returns 0
 #   - Not recordable, anything else: prints an error, returns 1
 #

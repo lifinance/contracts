@@ -98,11 +98,11 @@ describe('buildAffectingDirtyPaths', () => {
     ['an untracked src itself', '?? src/', ['src/']],
     ['an untracked broadcast directory', '?? broadcast/', []],
     ['an untracked script directory', '?? script/', []],
-  ])('handles %s, the collapsed form git actually emits', (_l, entry, want) => {
-    // Verified against real `git status --porcelain=v1 -z --no-renames`: git
-    // reports a wholly-untracked directory as one entry with a trailing slash
-    // rather than listing its files, so the prefix test has to match that shape
-    // too. Hand-written fixtures did not have it.
+  ])('handles %s, the collapsed directory form', (_l, entry, want) => {
+    // Git collapses a wholly-untracked directory into one trailing-slash entry
+    // only at its default `-unormal`. The CLI passes `--untracked-files=all`, so
+    // it never receives this shape — these cases keep the prefix test correct if
+    // that flag ever changes, they do not describe current input.
     expect(buildAffectingDirtyPaths(z(entry))).toEqual(want)
   })
 })
@@ -146,6 +146,53 @@ describe('assertTreeRecordable', () => {
 
     expect(error?.message).toMatch(/on no origin branch/i)
     expect(error?.message).toContain(clean.head)
+  })
+
+  it('refuses when the working tree could not be read at all', () => {
+    // The one input that must never collapse into "clean": reading nothing and
+    // finding nothing are different answers.
+    const error = (() => {
+      try {
+        assertTreeRecordable({ ...clean, statusZ: undefined })
+        return undefined
+      } catch (e) {
+        return e as Error
+      }
+    })()
+
+    expect(error?.message).toMatch(/'git status' failed/i)
+    expect(error?.message).toContain(clean.head)
+  })
+
+  it('refuses when the index could not be read at all', () => {
+    const error = (() => {
+      try {
+        assertTreeRecordable({ ...clean, absentSubmodulePaths: undefined })
+        return undefined
+      } catch (e) {
+        return e as Error
+      }
+    })()
+
+    expect(error?.message).toMatch(/'git ls-files' failed/i)
+  })
+
+  it('refuses when a submodule is not checked out, naming it', () => {
+    const error = (() => {
+      try {
+        assertTreeRecordable({
+          ...clean,
+          absentSubmodulePaths: ['lib/openzeppelin-contracts', 'lib/solmate'],
+        })
+        return undefined
+      } catch (e) {
+        return e as Error
+      }
+    })()
+
+    expect(error?.message).toContain('2 submodule(s) are not checked out')
+    expect(error?.message).toContain('lib/openzeppelin-contracts')
+    expect(error?.message).toContain('lib/solmate')
   })
 
   it('refuses when the commit hash could not be determined at all', () => {

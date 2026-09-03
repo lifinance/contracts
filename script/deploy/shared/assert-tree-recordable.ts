@@ -16,9 +16,18 @@ import {
   type ITreeState,
 } from './tree-recordable'
 
+// 8 MB: `status --porcelain` on a very dirty tree, well above any realistic run.
+// Node's 1 MB default makes an oversized read fail, which this helper cannot tell
+// apart from git itself failing — a dirty tree would refuse citing an unreadable
+// status instead of listing the paths.
+const MAX_BUFFER_BYTES = 8 * 1024 * 1024
+
 const git = <T>(args: string[], fallback: T): string | T => {
   try {
-    return execFileSync('git', args, { encoding: 'utf8' })
+    return execFileSync('git', args, {
+      encoding: 'utf8',
+      maxBuffer: MAX_BUFFER_BYTES,
+    })
   } catch {
     return fallback
   }
