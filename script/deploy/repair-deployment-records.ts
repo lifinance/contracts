@@ -228,14 +228,30 @@ const attest = defineCommand({
           continue
         }
         const existing = field(doc, 'reproducibility') as
-          | { attestedCommit?: string }
+          | {
+              attestedCommit?: string
+              attestedProfile?: {
+                solcVersion?: string
+                evmVersion?: string
+                optimizerRuns?: string
+              }
+            }
           | undefined
         let refreshing = false
         if (existing) {
           // A re-selected payload can name a better commit than an earlier run did — the
           // earliest reproducing commit rather than an arbitrary descendant of it. That is
           // an improvement worth writing, but only on request, and only when it differs.
-          if (!args.refresh || existing.attestedCommit === a.commit) {
+          //
+          // The profile is part of "differs": a correction can keep the commit and change
+          // only the build settings, and comparing the commit alone would silently skip it.
+          const p = existing.attestedProfile ?? {}
+          const same =
+            existing.attestedCommit === a.commit &&
+            p.solcVersion === a.solcVersion &&
+            p.evmVersion === a.evmVersion &&
+            p.optimizerRuns === a.optimizerRuns
+          if (!args.refresh || same) {
             alreadyAttested++
             continue
           }
