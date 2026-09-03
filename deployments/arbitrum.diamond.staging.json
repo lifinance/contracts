@@ -225,6 +225,10 @@
         "Name": "LiFiIntentEscrowFacetV2",
         "Version": "1.0.0"
       },
+      "0x4024f93ac23e00EfC85371fe0a69922C82EbdF88": {
+        "Name": "EcoFacet",
+        "Version": "2.0.0"
+      },
       "0x401Aaf6A650A17677821E665838367EBD5bE77BD": {
         "Name": "FraxFacet",
         "Version": "1.0.0"
