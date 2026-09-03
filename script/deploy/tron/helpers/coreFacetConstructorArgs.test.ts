@@ -82,9 +82,6 @@ describe('getConstructorArgs', () => {
     )
   })
 
-  // Regression: the facet joined `coreFacets` after this switch was written, so
-  // it fell through to the empty default and the core-facet path could not
-  // deploy it at all.
   it('supplies the configured input settler to LiFiIntentEscrowFacetV2', async () => {
     const escrowConfig = await Bun.file('config/lifiintentescrow.json').json()
     const args = await getConstructorArgs(
@@ -139,8 +136,6 @@ describe('resolveCoreFacetConstructorArgs', () => {
     ])
   })
 
-  // The defect this guard exists for: a facet reaches `coreFacets` with a
-  // constructor no branch supplies, and the empty default deploys it anyway.
   it('throws when a facet has a constructor but no branch supplying it', async () => {
     await expectRejects(
       resolveCoreFacetConstructorArgs(

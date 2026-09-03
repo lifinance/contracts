@@ -122,14 +122,10 @@ export async function resolveCoreFacetConstructorArgs(
 
   for (const facet of coreFacets) {
     const args = await getConstructorArgs(facet, network, networksConfig)
+    const artifact = await loadArtifact(facet)
 
     try {
-      assertTronDeploymentRecordable(
-        await loadArtifact(facet),
-        args,
-        facet,
-        network
-      )
+      assertTronDeploymentRecordable(artifact, args, facet, network)
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error)
       throw new Error(
