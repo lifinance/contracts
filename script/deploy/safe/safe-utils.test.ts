@@ -2096,7 +2096,15 @@ describe('toSafeEthSignSignature', () => {
 
   it.each([
     ['too short', `0x${'11'.repeat(64)}`],
-    ['no prefix', `${'11'.repeat(65)}`],
+    // Both carry a valid recovery id at the v position on purpose: an input
+    // that fails the recovery-id check instead would pass this test whatever
+    // the length and prefix checks did.
+    ['too long behind a valid v', `0x${'11'.repeat(32)}${'22'.repeat(32)}1bff`],
+    [
+      'the right length without the prefix',
+      `aa${'11'.repeat(32)}${'22'.repeat(32)}1b`,
+    ],
+    ['not hex at all', 'not-a-signature'],
   ])('refuses a signature that is %s', (_label, value) => {
     expect(() => toSafeEthSignSignature(value as Hex)).toThrow()
   })
@@ -2139,9 +2147,14 @@ describe('SafeClient.signTransaction default path', () => {
     const { SafeClient } = await import('./safe-utils')
     const account = privateKeyToAccount(generatePrivateKey())
     const calls: string[] = []
+    const hashArgs: unknown[][] = []
     const publicClient = {
-      readContract: async ({ functionName }: { functionName: string }) => {
-        calls.push(functionName)
+      readContract: async (params: {
+        functionName: string
+        args: unknown[]
+      }) => {
+        calls.push(params.functionName)
+        hashArgs.push(params.args)
         return SAFE_TX_HASH
       },
       getChainId: async () => {
@@ -2167,7 +2180,7 @@ describe('SafeClient.signTransaction default path', () => {
       undefined,
       42161
     )
-    return { client, account, calls }
+    return { client, account, calls, hashArgs }
   }
 
   it('signs the Safe transaction hash, not typed data', async () => {
@@ -2181,6 +2194,29 @@ describe('SafeClient.signTransaction default path', () => {
     expect(signed.signatures.get(account.address.toLowerCase())).toBeDefined()
   })
 
+  it('asks the Safe to hash the transaction it is about to sign', async () => {
+    // Hash signing makes this argument list the only thing that decides what
+    // gets signed — the typed-data path used to build the digest separately, so
+    // a wrong field showed up as a mismatch. Now nothing else would notice.
+    const { client, hashArgs } = await makeClient()
+    const safeTx = buildSafeTx({ nonce: 7n, value: 123n })
+
+    await client.signTransaction(safeTx)
+
+    expect(hashArgs).toHaveLength(1)
+    expect(hashArgs[0]).toEqual([
+      safeTx.data.to,
+      safeTx.data.value,
+      safeTx.data.data,
+      safeTx.data.operation,
+      0n,
+      0n,
+      0n,
+      '0x0000000000000000000000000000000000000000',
+      '0x0000000000000000000000000000000000000000',
+      safeTx.data.nonce,
+    ])
+  })
   it('marks the signature so the Safe takes its eth_sign path', async () => {
     const { client, account } = await makeClient()
 
@@ -2200,15 +2236,18 @@ describe('SafeClient.signTransaction default path', () => {
     ).toBe(account.address)
   })
 
-  it('does not silently switch modes when signing fails', async () => {
-    // The fallback WP-3.4 removes: an EIP-712 failure used to re-prompt the
-    // device in a different rendering mid-flow, so a signer comparing what the
-    // screen showed against what they approved saw two different things.
-    const { client } = await makeClient()
+  it('does not fall back to hash signing when typed data fails', async () => {
+    // The fallback WP-3.4 removes ran in the other direction: EIP-712 failed and
+    // the device was re-prompted in a different rendering mid-flow, so a signer
+    // who had read one screen approved another. Asserting from the hash side
+    // would have passed on origin/main too — this has to opt into typed data,
+    // break it, and prove the hash path is never reached.
+    process.env.ENABLE_SAFE_EIP712_SIGNING = 'true'
+    const { client, calls } = await makeClient()
     const failing = client as unknown as {
-      signHash: () => Promise<never>
+      walletClient: { signTypedData: () => Promise<never> }
     }
-    failing.signHash = async () => {
+    failing.walletClient.signTypedData = async () => {
       throw new Error('device refused')
     }
 
@@ -2220,5 +2259,7 @@ describe('SafeClient.signTransaction default path', () => {
     }
 
     expect(threw).toBe(true)
+    expect(calls.filter((call) => call.startsWith('signMessage'))).toEqual([])
+    expect(calls).not.toContain('getTransactionHash')
   })
 })
