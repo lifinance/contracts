@@ -574,3 +574,28 @@ describe('which remote counts as pushed', () => {
     ).toBe(1)
   })
 })
+
+describe('git configuration that hides a dirty tree', () => {
+  it('sees an untracked source file despite status.showUntrackedFiles=no', () => {
+    // A local or global setting, not something the deploy controls. Without an
+    // explicit --untracked-files=all it silently removes untracked entries from
+    // porcelain output, and a new src/ file stops being visible to the check.
+    const clone = makePushedClone()
+    execFileSync('git', ['config', 'status.showUntrackedFiles', 'no'], {
+      cwd: clone,
+      stdio: 'pipe',
+    })
+    writeFileSync(join(clone, 'src/Sneaky.sol'), 'new\n')
+
+    expect(
+      execFileSync('git', ['status', '--porcelain=v1'], {
+        cwd: clone,
+        encoding: 'utf8',
+      })
+    ).toBe('')
+    expect(
+      spawnSync(process.execPath, [CLI], { cwd: clone, encoding: 'utf8' })
+        .status
+    ).toBe(1)
+  })
+})
