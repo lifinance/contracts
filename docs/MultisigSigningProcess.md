@@ -215,7 +215,7 @@ chokepoint can likewise propose arbitrary calldata and is not gated.
 `runPropose` owner-gates the proposer on-chain; with `--timelock` it wraps all
 calls into one `scheduleBatch` via `wrapWithTimelockSchedule` (`safe-utils.ts`;
 live `getMinDelay()` with `config/timelockController.json` fallback, timestamp
-salt), resolves the nonce (`getNextNonce`), **signs immediately** (EIP-712),
+salt), resolves the nonce (`getNextNonce`), **signs immediately** (`eth_sign` over the `safeTxHash`),
 computes the `safeTxHash` via the Safe's on-chain `getTransactionHash`, and
 stores. The document (`ISafeTxDocument`) carries the raw Safe tx fields, the
 proposer's wallet address, an `intentHash` dedup key, a
@@ -257,8 +257,14 @@ signer sees:
    deployer variants are the usual choice — see §2 on why the deployer
    wallet broadcasts.
 
-Signing is EIP-712 over the `SafeTx` struct, reconstructed from the row's raw
-fields — what is displayed and on the Ledger is what is signed. Each owner
+Signing is `eth_sign` over the `safeTxHash`, read from the Safe's own
+on-chain `getTransactionHash` so the digest is correct for that Safe's version.
+The device shows one value, which is the value the signer compares against the
+out-of-band message — rather than a typed-data payload hardware wallets render
+inconsistently and reject outright once it grows large. EIP-712 typed data
+remains available behind `ENABLE_SAFE_EIP712_SIGNING=true`; there is no
+automatic switch between the two, because a mode change mid-flow re-prompts the
+device in a different rendering than the one the signer was reading. Each owner
 runs the tool independently until the Safe's threshold is met — read
 on-chain per Safe at confirm time, never assumed; a new proposal already
 carries the proposer's signature.
