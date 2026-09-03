@@ -74,3 +74,18 @@ jobs:
             exit 1
           fi
           echo -e "\033[32m✓ proposal is current\033[0m"
+
+      - name: Verify every display.formats entry has renderable fields
+        # A format with no `fields` renders only a title in the wallet (no amount,
+        # receiver or destination), which the ERC-7730 registry rejects. Guard the
+        # source of truth so we never author one; the sync generator additionally
+        # drops any empty-fields entry inherited from the registry file.
+        run: |
+          empty=$(jq -r '.formats | to_entries[] | select((.value.fields // []) | length == 0) | .key' config/clearSigningProposal.json)
+          if [ -n "$empty" ]; then
+            echo -e "\n\033[31m❌ These display.formats entries have no fields:\033[0m"
+            echo "$empty"
+            echo -e "\033[33mEvery format must render at least one field. Fix its template in tasks/buildClearSigningProposal.ts or exclude the function.\033[0m"
+            exit 1
+          fi
+          echo -e "\033[32m✓ all display.formats entries have fields\033[0m"

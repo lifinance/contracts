@@ -76,6 +76,16 @@ function writePrettyJson(filePath: string, data: unknown): void {
   fs.writeFileSync(filePath, `${JSON.stringify(data, null, 2)}\n`)
 }
 
+// An ERC-7730 format with no fields renders only a title (no amount, receiver,
+// or destination). The registry rejects these, and the Packed/Min variants that
+// take no ABI parameters cannot be described at all. They originate as preserved
+// registry-only entries — our proposal (tasks/buildClearSigningProposal.ts)
+// excludes Packed/Min — so they are dropped during the merge below.
+function hasRenderableFields(entry: Json): boolean {
+  const fields = (entry as { fields?: unknown }).fields
+  return Array.isArray(fields) && fields.length > 0
+}
+
 // Merges `display.formats` entries from the local proposal into the registry's
 // existing display block.
 //
@@ -126,8 +136,16 @@ function mergeDisplayFormats(
     (k) => !(k in proposal.formats)
   ).length
 
+  const droppedEmpty: string[] = []
+  for (const [sig, entry] of Object.entries(nextFormats)) {
+    if (!hasRenderableFields(entry)) {
+      delete nextFormats[sig]
+      droppedEmpty.push(sig)
+    }
+  }
+
   console.log(
-    `display.formats merge: +${added} added, ~${replaced} replaced, =${preserved} preserved (unowned)`
+    `display.formats merge: +${added} added, ~${replaced} replaced, =${preserved} preserved (unowned), -${droppedEmpty.length} dropped (no fields)`
   )
   next.formats = nextFormats
   return next

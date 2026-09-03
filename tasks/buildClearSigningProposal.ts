@@ -482,20 +482,6 @@ function extraReceiverFields(fn: IAbiFn): IField[] {
   ]
 }
 
-function variantTag(fnName: string): string | null {
-  // Packed/Min disambiguator for the intent string.
-  const native = /Native(Packed|Min)$/u.test(fnName)
-  const erc20 = /ERC20(Packed|Min)$/u.test(fnName)
-  const packed = /Packed$/u.test(fnName)
-  const min = /Min$/u.test(fnName)
-  const bits: string[] = []
-  if (native) bits.push('native')
-  else if (erc20) bits.push('ERC-20')
-  if (packed) bits.push('packed')
-  else if (min) bits.push('min')
-  return bits.length ? bits.join(', ') : null
-}
-
 function buildStartFormat(fn: IAbiFn): IFormatEntry {
   const facet = bridgeFacetName(fn.name)
   return {
@@ -912,17 +898,15 @@ function main() {
       }
       out[sig] = tpl
     } else if (/(Packed|Min)$/u.test(fn.name)) {
-      // Packed/Min variants encode args differently and are typically only
-      // signed by relayer infrastructure, not end users. Emit a static intent
-      // only; full interpolation would require per-facet calldata decoders
-      // (each packed variant has its own bespoke layout). Deferred until we
-      // see wallet demand for full decoding here.
-      const facet = bridgeFacetName(fn.name)
-      const tag = variantTag(fn.name)
-      out[sig] = {
-        intent: `Bridge via ${facet}${tag ? ` (${tag})` : ''}`,
-        fields: [],
-      }
+      // Packed/Min variants are signed by relayer infrastructure, not end users.
+      // Packed encodes its args in a bespoke layout with no ABI parameters, so
+      // ERC-7730 cannot describe it at all; Min carries a packed tuple we do not
+      // decode. A title-only entry (intent, empty fields) renders nothing useful
+      // and the registry rejects it, so emit no entry — these functions fall back
+      // to blind-signing until there is wallet demand for full decoding. Keeping
+      // the branch (rather than deleting it) stops them from hitting the
+      // unrecognized-prefix failure below. (EXSC-926)
+      continue
     } else if (fn.name.startsWith('swapAndStartBridgeTokensVia')) {
       const err = validateSwapAndStartFn(fn)
       if (err) {
