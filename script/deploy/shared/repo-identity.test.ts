@@ -129,6 +129,16 @@ describe('normalizeRepoUrl', () => {
       'token in a query string',
       'https://github.com/lifinance/contracts.git?token=ghp_QUERYTOKEN',
     ],
+    // scp-style is the only shape the hand-written parser ever sees, so the
+    // userinfo cases above never reach it.
+    [
+      'at sign in scp-style userinfo',
+      'user:p@ssword@github.com:lifinance/contracts.git',
+    ],
+    [
+      'token in scp-style userinfo',
+      'git:ghp_SCPTOKEN@github.com:lifinance/contracts.git',
+    ],
   ] as const
 
   it.each(CREDENTIAL_BEARING)('drops %s', (_label, url) => {
