@@ -19,12 +19,29 @@ import {
   type GitRunner,
 } from './repo-identity'
 
+/**
+ * The guarantee a record depends on, written as properties rather than as the
+ * production regex, so a loosened regex does not loosen its own test.
+ *
+ * @param identity - Anything `normalizeRepoUrl` returned.
+ * @returns Whether it is safe to store.
+ */
+const isStorableIdentity = (identity: string): boolean => {
+  if (identity === REPO_UNKNOWN) return true
+
+  const segments = identity.split('/')
+  return (
+    segments.length >= 2 &&
+    segments.every((segment) => segment !== '') &&
+    ![...identity].some((character) => !/[a-z0-9._-]|\//.test(character))
+  )
+}
+
 describe('REPO_UNKNOWN', () => {
   it('is the uppercase sentinel the deployment log already standardised on', () => {
     // Asserted as a literal on purpose: every other test compares against the
     // imported constant, so changing its value would otherwise pass them all
-    // while collapsing the "ran and failed" and "predates the field" states
-    // that the rest of this module exists to keep apart.
+    // while collapsing the "ran and failed" and "predates the field" states.
     expect(REPO_UNKNOWN).toBe('UNKNOWN')
   })
 })
@@ -42,26 +59,29 @@ describe('normalizeRepoUrl', () => {
     ['a query string', 'https://github.com/lifinance/contracts.git?ref=x'],
     ['a fragment', 'https://github.com/lifinance/contracts.git#frag'],
     ['scp-style with no user', 'github.com:lifinance/contracts.git'],
+    ['a trailing dot on the host', 'https://github.com./lifinance/contracts'],
+    [
+      'userinfo with a token',
+      'https://x-access-token:ghp_T@github.com/lifinance/contracts.git',
+    ],
   ])('reduces %s to one identity', (_label, url) => {
     expect(normalizeRepoUrl(url)).toBe('github.com/lifinance/contracts')
   })
 
   it.each([
     [
-      'github over port 443',
       'ssh://git@ssh.github.com:443/lifinance/contracts.git',
+      'github.com/lifinance/contracts',
     ],
     [
-      'gitlab over port 443',
       'ssh://git@altssh.gitlab.com:443/lifinance/contracts.git',
+      'gitlab.com/lifinance/contracts',
     ],
-  ])('folds %s onto its canonical host', (_label, url) => {
-    // Both are published SSH endpoints for networks that block port 22. Left
-    // alone, one developer behind a corporate firewall records an identity that
-    // compares unequal to everyone else's for the same repository.
-    expect(normalizeRepoUrl(url)).toMatch(
-      /^(github|gitlab)\.com\/lifinance\/contracts$/
-    )
+  ])('folds %s onto exactly one canonical host', (url, expected) => {
+    // Asserted per row against the exact host. A shared regex accepting either
+    // github or gitlab cannot tell an alias pointing at the wrong host from a
+    // correct one, which is the distinction this field exists to make.
+    expect(normalizeRepoUrl(url)).toBe(expected)
   })
 
   it('lower-cases, because the host and GitHub owner names are case-insensitive', () => {
@@ -91,23 +111,22 @@ describe('normalizeRepoUrl', () => {
   })
 
   /**
-   * Every one of these reached the output of an earlier revision of this
-   * parser, which tried an scp-style match on strings that already had a
-   * scheme and anchored the userinfo to the FIRST `@` rather than the last.
-   * A token with a `/` or an `@` in it therefore survived into the record.
+   * Shapes that reached the output of one of the two earlier revisions of this
+   * parser. Each carries something a record must never hold, or maps a remote
+   * onto an identity that is not its own.
    */
-  const CREDENTIAL_BEARING = [
+  const MUST_NOT_PASS = [
     [
-      'slash in the password',
+      'slash in an https password',
       'https://user:pa/ss@github.com/lifinance/contracts',
     ],
     [
-      'at sign in the password',
-      'https://user:p@ssword@github.com/lifinance/contracts',
+      'slash in an scp password',
+      'user:pa/ss@github.com:lifinance/contracts.git',
     ],
     [
-      'github token after an at',
-      'https://x-access-token:gh@p_SECRET@github.com/lifinance/contracts.git',
+      'slash in an internal scp password',
+      'deploy:s3cr3t/token@git.internal:team/repo.git',
     ],
     [
       'base64 token with a slash',
@@ -115,66 +134,62 @@ describe('normalizeRepoUrl', () => {
     ],
     [
       'aws codecommit style',
-      'https://danb-at-1234:ab9/xq+token3d@git-codecommit.eu-central-1.amazonaws.com/v1/repos/contracts',
+      'https://danb:ab9/xq+token3d@git-codecommit.eu-central-1.amazonaws.com/v1/repos/contracts',
     ],
+    ['an at sign left in the path', 'git@github.com:lifinance/con@tracts.git'],
+    ['a prototype key as the host', '__proto__:a/b'],
     [
-      'plain userinfo',
-      'https://x-access-token:ghp_PLAINTOKEN@github.com/lifinance/contracts.git',
+      'path traversal onto our identity',
+      'https://github.com/attacker/../lifinance/contracts',
     ],
+    ['a javascript scheme', 'javascript://alert(1)@evil.com/a/b'],
     [
-      'user and password',
-      'https://user:hunter2@github.com/lifinance/contracts.git',
+      'a data scheme carrying a payload',
+      'data://text/plain;base64,SECRETPAYLOAD@x/y',
     ],
-    [
-      'token in a query string',
-      'https://github.com/lifinance/contracts.git?token=ghp_QUERYTOKEN',
-    ],
-    // scp-style is the only shape the hand-written parser ever sees, so the
-    // userinfo cases above never reach it.
-    [
-      'at sign in scp-style userinfo',
-      'user:p@ssword@github.com:lifinance/contracts.git',
-    ],
-    [
-      'token in scp-style userinfo',
-      'git:ghp_SCPTOKEN@github.com:lifinance/contracts.git',
-    ],
-  ] as const
-
-  it.each(CREDENTIAL_BEARING)('drops %s', (_label, url) => {
-    const identity = normalizeRepoUrl(url)
-
-    expect(identity).not.toContain('@')
-    expect(identity.toLowerCase()).not.toMatch(
-      /ghp_|glpat|hunter2|secret|token3d|zk3n|abc\+def/
-    )
-  })
-
-  it('emits nothing but the sentinel or a host and path, for every input tried', () => {
-    // The guarantee the record depends on, asserted over the whole corpus at
-    // once rather than input by input: anything that is not a clean identity
-    // must be the sentinel, never a partially-parsed string.
-    for (const [, url] of CREDENTIAL_BEARING) {
-      const identity = normalizeRepoUrl(url)
-
-      expect(
-        identity === REPO_UNKNOWN ||
-          /^[a-z0-9.-]+(\/[^/@:\s]+)+$/.test(identity)
-      ).toBe(true)
-    }
-  })
-
-  it.each([
-    ['empty', ''],
-    ['whitespace only', '   \n'],
+    ['an ipv6 host', 'ssh://git@[::1]:22/a/b'],
+    ['an empty path segment', 'https://github.com//lifinance//contracts'],
+    ['a space in the path', 'https://github.com/lifi nance/contracts'],
     ['a local path', '/Users/someone/Documents/GitHub/contracts'],
     ['a relative path', '../contracts.git'],
     ['a bare word', 'origin'],
     ['a file url', 'file:///Users/dev/contracts'],
     ['a windows path', 'C:/Users/dev/contracts'],
+    ['a windows path with an at', 'C:Users/dev@host:a/b'],
     ['a host with no path', 'https://github.com/'],
-  ])('reports %p as unknown rather than echoing it back', (_label, url) => {
+    ['empty', ''],
+    ['whitespace only', '   \n'],
+  ] as const
+
+  it.each(MUST_NOT_PASS)('refuses %s', (_label, url) => {
     expect(normalizeRepoUrl(url)).toBe(REPO_UNKNOWN)
+  })
+
+  it('emits a storable identity or the sentinel, for every shape tried here', () => {
+    // The invariant, over every input this file names rather than over a list
+    // of token substrings: a credential this test has never seen still cannot
+    // reach a record, because nothing outside the identity alphabet can.
+    const everyUrl = [
+      ...MUST_NOT_PASS.map(([, url]) => url),
+      'git@github.com:lifinance/contracts.git',
+      'https://AKIAIOSFODNN7EXAMPLE:wJalrXUtnFEMI@github.com/a/b',
+      'https://x:eyJhbGciOiJIUzI1NiJ9.payload.sig@github.com/a/b',
+      'https://constructor/a/b',
+      'toString:a/b',
+      'git+ssh://git@github.com/lifinance/contracts.git',
+      'HTTPS://GitHub.com/LiFinance/Contracts.git',
+      '://',
+      'ssh://git@github.com:22/lifinance/contracts.git',
+    ]
+
+    for (const url of everyUrl) {
+      const identity = normalizeRepoUrl(url)
+
+      expect({ url, storable: isStorableIdentity(identity) }).toEqual({
+        url,
+        storable: true,
+      })
+    }
   })
 })
 
@@ -210,8 +225,8 @@ describe('readRepoIdentity', () => {
     // rather than the injected seam.
     const identity = getCurrentRepo()
 
+    expect(isStorableIdentity(identity)).toBe(true)
     expect(identity).not.toBe(REPO_UNKNOWN)
-    expect(identity).not.toContain('@')
     expect(identity.split('/')).toHaveLength(3)
     expect(identity.endsWith('/contracts')).toBe(true)
   })
@@ -219,24 +234,22 @@ describe('readRepoIdentity', () => {
 
 describe('provenanceUpdate', () => {
   const hash = 'a'.repeat(40)
+  const repo = 'github.com/lifinance/contracts'
 
-  it.each([['a real repository', 'github.com/lifinance/contracts']])(
-    'sets %s on both new and existing records',
-    (_label, repo) => {
-      expect(provenanceUpdate({ gitCommitHash: hash, repo }).set).toEqual({
-        gitCommitHash: hash,
-        repo,
-      })
-    }
-  )
+  it('sets both fields on a record that has them', () => {
+    expect(provenanceUpdate({ gitCommitHash: hash, repo }).set).toEqual({
+      gitCommitHash: hash,
+      repo,
+    })
+  })
 
   it.each([
     ['absent', undefined],
     ['empty', ''],
-  ])('leaves a %s repository alone rather than blanking Mongo', (_l, repo) => {
+  ])('leaves a %s repository alone rather than blanking Mongo', (_l, value) => {
     // The JSON sync path carries neither field, and the add CLI writes them to
     // Mongo only, so setting them from a JSON record erases what is there.
-    const update = provenanceUpdate({ gitCommitHash: '', repo })
+    const update = provenanceUpdate({ gitCommitHash: '', repo: value })
 
     expect(update.set).not.toHaveProperty('repo')
     expect(update.setOnInsert).not.toHaveProperty('repo')
@@ -252,17 +265,22 @@ describe('provenanceUpdate', () => {
     expect(update.setOnInsert).toHaveProperty('repo', REPO_UNKNOWN)
   })
 
-  it('keeps the commit hash behaviour it inherited', () => {
-    expect(provenanceUpdate({ gitCommitHash: hash }).set).toHaveProperty(
-      'gitCommitHash',
-      hash
-    )
-    expect(provenanceUpdate({ gitCommitHash: '' }).setOnInsert).toHaveProperty(
-      'gitCommitHash',
-      ''
-    )
-    expect(
-      provenanceUpdate({ gitCommitHash: hash }).setOnInsert
-    ).not.toHaveProperty('gitCommitHash')
+  it.each([
+    ['absent', undefined],
+    ['empty', ''],
+  ])('never blanks a %s commit hash either', (_l, value) => {
+    // The rule this function inherited, and the only record of it now that the
+    // call sites delegate: a JSON-sourced record must not erase a real hash.
+    const update = provenanceUpdate({ gitCommitHash: value as string, repo })
+
+    expect(update.set).not.toHaveProperty('gitCommitHash')
+    expect(update.setOnInsert).toHaveProperty('gitCommitHash', '')
+  })
+
+  it('sets a real commit hash and claims nothing on insert', () => {
+    const update = provenanceUpdate({ gitCommitHash: hash })
+
+    expect(update.set).toHaveProperty('gitCommitHash', hash)
+    expect(update.setOnInsert).not.toHaveProperty('gitCommitHash')
   })
 })
