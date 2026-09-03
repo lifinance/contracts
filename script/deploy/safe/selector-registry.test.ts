@@ -35,13 +35,23 @@ describe('getLocalSelectorInfo', () => {
     expect(info?.signature).toBe('transfer(address,uint256)')
   })
 
-  it('resolves a diamond function published in clearSigningProposal.json', () => {
-    // Key taken from config/clearSigningProposal.json formats
-    const selector = toFunctionSelector(
-      'function startBridgeTokensViaAcrossV4ERC20Packed()'
+  it('resolves every diamond function published in clearSigningProposal.json', () => {
+    const proposalPath = path.join(
+      process.cwd(),
+      'config/clearSigningProposal.json'
     )
-    const info = getLocalSelectorInfo(selector)
-    expect(info?.name).toBe('startBridgeTokensViaAcrossV4ERC20Packed')
+    const proposal = JSON.parse(fs.readFileSync(proposalPath, 'utf8')) as {
+      formats: Record<string, unknown>
+    }
+    const signatures = Object.keys(proposal.formats)
+    expect(signatures.length).toBeGreaterThan(0)
+    for (const signature of signatures) {
+      const name = signature.slice(0, signature.indexOf('('))
+      const info = getLocalSelectorInfo(
+        toFunctionSelector(`function ${signature}`)
+      )
+      expect(info?.name).toBe(name)
+    }
   })
 
   it('is case-insensitive on the selector', () => {

@@ -81,8 +81,9 @@ function writePrettyJson(filePath: string, data: unknown): void {
 // take no ABI parameters cannot be described at all. They originate as preserved
 // registry-only entries — our proposal (tasks/buildClearSigningProposal.ts)
 // excludes Packed/Min — so they are dropped during the merge below.
-function hasRenderableFields(entry: Json): boolean {
-  const fields = (entry as { fields?: unknown }).fields
+function hasRenderableFields(entry: unknown): boolean {
+  if (!isObject(entry)) return false
+  const fields = entry.fields
   return Array.isArray(fields) && fields.length > 0
 }
 
