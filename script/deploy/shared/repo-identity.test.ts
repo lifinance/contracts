@@ -13,7 +13,6 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
-
 import { getCurrentRepo, provenanceUpdate } from './mongo-log-utils'
 import {
   REPO_UNKNOWN,
