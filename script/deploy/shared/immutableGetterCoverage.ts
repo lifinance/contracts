@@ -10,7 +10,10 @@
  *
  * Import it from `immutableGetterCoverage.test.ts`. It reads Solidity sources rather than `out/`
  * artifacts on purpose: the only CI job that runs the TypeScript suite is Foundry-free, so an
- * artifact-based gate would skip there and enforce nothing.
+ * artifact-based gate would skip there and enforce nothing. Moving the gate to the Foundry job to
+ * read the AST instead trades that for a worse gap — `forge-unit-tests.yml` filters on `src/**`
+ * but not `script/**`, so it does not run for a PR that only drops a `getter` annotation, which is
+ * half of what this gate exists to catch.
  */
 import { readdirSync, readFileSync, statSync } from 'fs'
 import { basename, join } from 'path'
@@ -23,10 +26,27 @@ import type { IDeployRequirementEntry } from './immutableBindings'
 const GATED_SOURCE_DIRECTORIES = ['src/Facets', 'src/Periphery', 'src/Security']
 
 /**
+ * Where to look for the type declarations that tell an enum apart from a contract. Wider than the
+ * gated trees on purpose: a gated contract can bind an immutable to a type declared in
+ * `src/Interfaces` or `src/Libraries`.
+ */
+const TYPE_DECLARATION_SOURCE_DIRECTORIES = ['src']
+
+/**
  * Solidity restricts `immutable` to value types, so a declaration is address-valued unless its
  * type is one of these. Contract and interface types are address-valued and pass through.
  */
 const NON_ADDRESS_VALUE_TYPE = /^(u?int\d*|bool|bytes\d*)$/
+
+/**
+ * Matches an `enum X {` or `type X is <elementary>;` declaration — the two ways a source can name
+ * a value type that this module would otherwise read as a contract, and so as address-valued.
+ *
+ * @remarks A `type X is address` is address-valued and deliberately not matched, so an immutable
+ *   of that type stays inside the gate.
+ */
+const NON_ADDRESS_TYPE_DECLARATION =
+  /\benum\s+([A-Za-z_][A-Za-z0-9_]*)\s*\{|\btype\s+([A-Za-z_][A-Za-z0-9_]*)\s+is\s+(?:u?int\d*|bool|bytes\d*)\s*;/g
 
 /**
  * Matches a `<type> public immutable <NAME>;` declaration.
@@ -36,7 +56,8 @@ const NON_ADDRESS_VALUE_TYPE = /^(u?int\d*|bool|bytes\d*)$/
  *   is assumed — a form this pattern could not read would be a getter the gate never sees, which
  *   is the one failure mode it must not have. `address payable` is spelled out as the one
  *   two-word type in use; `public immutable` appears only in state variable declarations, so no
- *   line anchor is needed to avoid matching inside a function body.
+ *   line anchor is needed to avoid matching inside a function body. Callers strip comments first,
+ *   so the pattern itself need not tell a declaration from prose describing one.
  */
 const PUBLIC_IMMUTABLE_DECLARATION =
   /(address\s+payable|[A-Za-z_][A-Za-z0-9_]*)\s+(?:public\s+immutable|immutable\s+public)\s+([A-Za-z_][A-Za-z0-9_]*)\s*(?:=[^;]*)?;/g
@@ -129,26 +150,70 @@ export const UNANNOTATED_IMMUTABLE_GETTERS: Record<string, string> = {
 }
 
 /**
+ * Remove comments from a Solidity source, so prose describing a declaration is not read as one.
+ *
+ * @remarks String literals are copied through untouched. A `//` or `/*` inside one does not open a
+ *   comment, and treating it as if it did would drop the rest of the file along with any getter
+ *   declared below it — the failure this gate cannot have. Newlines inside a block comment are
+ *   kept so nothing on the closing line joins the line above.
+ * @param source - contents of a `.sol` file
+ * @returns the source with comment bodies removed
+ */
+function stripComments(source: string): string {
+  let stripped = ''
+  let index = 0
+
+  while (index < source.length)
+    if (source[index] === '/' && source[index + 1] === '/')
+      while (index < source.length && source[index] !== '\n') index++
+    else if (source[index] === '/' && source[index + 1] === '*') {
+      index += 2
+      while (
+        index < source.length &&
+        !(source[index] === '*' && source[index + 1] === '/')
+      ) {
+        if (source[index] === '\n') stripped += '\n'
+        index++
+      }
+      index += 2
+    } else if (source[index] === '"' || source[index] === "'") {
+      const quote = source[index]
+      stripped += source[index++]
+      while (index < source.length && source[index] !== quote) {
+        if (source[index] === '\\') stripped += source[index++]
+        stripped += source[index++]
+      }
+      stripped += source[index++]
+    } else stripped += source[index++]
+
+  return stripped
+}
+
+/**
  * Extract the address-valued public immutables declared in one Solidity source.
  *
  * @remarks A public immutable's compiler-generated getter carries the variable's own name, so the
  *   name found here is exactly the `getter` value a `deployRequirements.json` annotation needs.
  *   Value-typed and non-public immutables are skipped: the former cannot hold a counterparty, the
- *   latter expose nothing to read.
+ *   latter generate no getter to read.
  * @param source - contents of a `.sol` file
+ * @param nonAddressTypes - names of enums and user-defined value types, which look like contract
+ *   types here but cannot hold an address; from `collectNonAddressDeclaredTypes`
  * @returns one entry per address-valued public immutable, in declaration order
  */
 export function parsePublicImmutableGetters(
-  source: string
+  source: string,
+  nonAddressTypes: ReadonlySet<string> = new Set()
 ): IPublicImmutableGetter[] {
   const found: IPublicImmutableGetter[] = []
 
-  for (const [, rawType, getter] of source.matchAll(
+  for (const [, rawType, getter] of stripComments(source).matchAll(
     PUBLIC_IMMUTABLE_DECLARATION
   )) {
     if (!rawType || !getter) continue
     const solidityType = rawType.replace(/\s+/g, ' ')
     if (NON_ADDRESS_VALUE_TYPE.test(solidityType)) continue
+    if (nonAddressTypes.has(solidityType)) continue
     found.push({ getter, solidityType })
   }
 
@@ -179,13 +244,42 @@ function listSolidityFiles(directory: string): string[] {
 }
 
 /**
+ * Collect the names of enums and user-defined value types the sources declare.
+ *
+ * @remarks `NON_ADDRESS_VALUE_TYPE` recognises only the elementary types, so an immutable of an
+ *   enum or user-defined value type reads as a contract type and would be demanded an annotation
+ *   that no config value could ever satisfy.
+ * @param directories - source roots to scan
+ * @returns every declared type name that cannot hold an address
+ */
+export function collectNonAddressDeclaredTypes(
+  directories: string[] = TYPE_DECLARATION_SOURCE_DIRECTORIES
+): Set<string> {
+  const names = new Set<string>()
+
+  for (const directory of directories)
+    for (const sourceFile of listSolidityFiles(directory))
+      for (const [, enumName, valueTypeName] of stripComments(
+        readFileSync(sourceFile, 'utf8')
+      ).matchAll(NON_ADDRESS_TYPE_DECLARATION)) {
+        const name = enumName ?? valueTypeName
+        if (name) names.add(name)
+      }
+
+  return names
+}
+
+/**
  * Collect the address-valued public immutable getters declared by every deployed contract.
  *
  * @param directories - source roots to scan; defaults to the facet and periphery trees
+ * @param nonAddressTypes - type names to treat as non-address; defaults to the enums and
+ *   user-defined value types declared under `src`
  * @returns one entry per getter, sorted by contract then getter for stable output
  */
 export function collectPublicImmutableGetters(
-  directories: string[] = GATED_SOURCE_DIRECTORIES
+  directories: string[] = GATED_SOURCE_DIRECTORIES,
+  nonAddressTypes: ReadonlySet<string> = collectNonAddressDeclaredTypes()
 ): IDeclaredImmutableGetter[] {
   const declared: IDeclaredImmutableGetter[] = []
 
@@ -193,7 +287,8 @@ export function collectPublicImmutableGetters(
     for (const sourceFile of listSolidityFiles(directory)) {
       const contractName = basename(sourceFile, '.sol')
       for (const getter of parsePublicImmutableGetters(
-        readFileSync(sourceFile, 'utf8')
+        readFileSync(sourceFile, 'utf8'),
+        nonAddressTypes
       ))
         declared.push({ ...getter, contractName, sourceFile })
     }

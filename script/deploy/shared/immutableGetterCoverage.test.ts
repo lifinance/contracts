@@ -11,6 +11,7 @@ import {
 
 import {
   collectAnnotatedGetterKeys,
+  collectNonAddressDeclaredTypes,
   collectPublicImmutableGetters,
   parsePublicImmutableGetters,
   UNANNOTATED_IMMUTABLE_GETTERS,
@@ -91,6 +92,76 @@ describe('parsePublicImmutableGetters', () => {
         address public owner;
       `)
     ).toEqual([])
+  })
+
+  it('skips a declaration that appears only inside a comment', () => {
+    // A NatSpec example or a commented-out field is prose, not a getter. Reading one would fail
+    // the gate on a contract that declares nothing, demanding an annotation for a getter that
+    // does not exist on chain.
+    expect(
+      parsePublicImmutableGetters(`
+        /// @dev bind it as: address public immutable ROUTER;
+        // IStale public immutable OLD_ROUTER;
+        /* IGone public immutable GONE; */
+      `)
+    ).toEqual([])
+  })
+
+  it('reads a declaration that follows a string holding comment markers', () => {
+    // Comment stripping must respect string literals: treating the `//` or `/*` inside one as
+    // opening a comment would swallow the rest of the file and hide every getter below it.
+    expect(
+      parsePublicImmutableGetters(`
+        string internal constant DOCS = "https://li.fi";
+        string internal constant GLOB = "src/*";
+        IRouter public immutable ROUTER;
+      `)
+    ).toEqual([{ getter: 'ROUTER', solidityType: 'IRouter' }])
+  })
+
+  it('skips immutables typed as an enum or user-defined value type', () => {
+    // Both read as contract types here, but neither can hold a counterparty address.
+    expect(
+      parsePublicImmutableGetters(
+        `
+        SwapApiTarget public immutable TARGET;
+        Fee public immutable FEE;
+        IRouter public immutable ROUTER;
+      `,
+        new Set(['SwapApiTarget', 'Fee'])
+      )
+    ).toEqual([{ getter: 'ROUTER', solidityType: 'IRouter' }])
+  })
+})
+
+describe('collectNonAddressDeclaredTypes', () => {
+  const names = collectNonAddressDeclaredTypes()
+
+  it('finds enums declared outside the gated trees', () => {
+    expect(names).toContain('RouteType')
+    expect(names).toContain('SwapApiTarget')
+  })
+
+  it('does not treat a contract or interface as a non-address type', () => {
+    // Over-collecting is the dangerous direction: a name landing in this set removes every
+    // immutable of that type from the gate.
+    expect(names).not.toContain('IDlnSource')
+    expect(names).not.toContain('Executor')
+  })
+
+  it('keeps an address-backed user-defined value type inside the gate', () => {
+    const root = mkdtempSync(join(realpathSync(tmpdir()), 'immutable-types-'))
+    try {
+      writeFileSync(
+        join(root, 'Types.sol'),
+        'type Wallet is address;\ntype Fee is uint256;\n'
+      )
+      const declared = collectNonAddressDeclaredTypes([root])
+      expect(declared.has('Fee')).toBe(true)
+      expect(declared.has('Wallet')).toBe(false)
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
   })
 })
 
