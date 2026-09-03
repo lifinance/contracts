@@ -13,7 +13,7 @@ import {
 import type { EnvironmentEnum } from '../../common/types'
 import { sleep } from '../../utils/delay'
 
-import { REPO_UNKNOWN, normalizeRepoUrl } from './repo-identity'
+import { REPO_UNKNOWN, readRepoIdentity } from './repo-identity'
 
 /**
  * Represents a deployment record stored in MongoDB
@@ -114,16 +114,45 @@ export function getCurrentGitCommitHash(): string {
  * visible on later audits rather than blending in as legacy data.
  */
 export function getCurrentRepo(): string {
-  try {
-    const identity = normalizeRepoUrl(
-      execSync('git remote get-url origin', { encoding: 'utf8' })
-    )
-    if (identity === REPO_UNKNOWN)
-      consola.warn('Could not identify a repository from the origin remote')
-    return identity
-  } catch (error) {
-    consola.warn(`Failed to determine the origin remote: ${error}`)
-    return REPO_UNKNOWN
+  const identity = readRepoIdentity()
+  if (identity === REPO_UNKNOWN)
+    consola.warn('Could not identify a repository from the origin remote')
+  return identity
+}
+
+/** The provenance halves of an upsert: what to set, and what only to set on insert. */
+export interface IProvenanceUpdate {
+  set: Partial<Pick<IDeploymentRecord, 'gitCommitHash' | 'repo'>>
+  setOnInsert: Partial<Pick<IDeploymentRecord, 'gitCommitHash' | 'repo'>>
+}
+
+/**
+ * Splits a record's provenance fields across `$set` and `$setOnInsert`.
+ *
+ * The add CLI writes these to Mongo only, so a JSON-sourced record carries
+ * neither and an unconditional `$set` would erase what Mongo already holds.
+ * `REPO_UNKNOWN` is handled the same way for the opposite reason: it is a real
+ * answer on a fresh insert, and a downgrade on an existing one, so it goes in
+ * only where there is nothing to lose.
+ *
+ * @param record - The record about to be written.
+ * @returns The two update fragments, either of which may be empty.
+ */
+export function provenanceUpdate(
+  record: Pick<IDeploymentRecord, 'gitCommitHash' | 'repo'>
+): IProvenanceUpdate {
+  return {
+    set: {
+      ...(record.gitCommitHash ? { gitCommitHash: record.gitCommitHash } : {}),
+      ...(record.repo && record.repo !== REPO_UNKNOWN
+        ? { repo: record.repo }
+        : {}),
+    },
+    setOnInsert: {
+      // '' = "predates EXSC-330"
+      ...(record.gitCommitHash ? {} : { gitCommitHash: '' }),
+      ...(record.repo === REPO_UNKNOWN ? { repo: REPO_UNKNOWN } : {}),
+    },
   }
 }
 
