@@ -10,6 +10,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   writeFileSync,
 } from 'node:fs'
@@ -641,5 +642,67 @@ describe('submodule states the index and the disk disagree about', () => {
     expect(`${result.stdout}${result.stderr}`).toContain(
       'index could not be read'
     )
+  })
+})
+
+describe('a submodule directory that is not a checked-out repository', () => {
+  const deinit = (clone: string): void => {
+    execFileSync('git', ['submodule', 'deinit', '-f', 'lib/dep'], {
+      cwd: clone,
+      stdio: 'pipe',
+    })
+  }
+
+  it.each([
+    ['an ignored dotfile', '.DS_Store', 'junk\n'],
+    ['a scratch file', 'notes.txt', 'junk\n'],
+  ])('refuses a deinitialised submodule holding only %s', (_l, name, body) => {
+    // Counting directory entries is not enough. `--ignore-submodules=untracked`
+    // makes porcelain silent about untracked-only submodule content, so this
+    // one file would otherwise satisfy both checks at once and the whole
+    // dependency set could be absent with the guard green.
+    const { clone } = makeSuperWithSubmodule()
+    deinit(clone)
+    writeFileSync(join(clone, 'lib/dep', name), body)
+
+    expect(runCli(clone)).toBe(1)
+  })
+
+  it('refuses a deinitialised submodule holding only an empty directory', () => {
+    const { clone } = makeSuperWithSubmodule()
+    deinit(clone)
+    mkdirSync(join(clone, 'lib/dep/src'), { recursive: true })
+
+    expect(runCli(clone)).toBe(1)
+  })
+
+  it('refuses when the submodule path is unreadable', () => {
+    // Fail closed: an unreadable directory is not evidence that its source is
+    // present. Skipped when running as a user that ignores the mode bits.
+    const { clone } = makeSuperWithSubmodule()
+    const path = join(clone, 'lib/dep')
+    chmodSync(path, 0o000)
+    const readable = (() => {
+      try {
+        readdirSync(path)
+        return true
+      } catch {
+        return false
+      }
+    })()
+    const status = readable ? 1 : runCli(clone)
+    chmodSync(path, 0o755)
+
+    expect(status).toBe(1)
+  })
+
+  it('reports the whole repository from a subdirectory', () => {
+    // `git ls-files` is scoped to the cwd subtree, unlike every other read the
+    // CLI makes, so a run from anywhere but the root would see no gitlinks.
+    const { clone } = makeSuperWithSubmodule()
+    deinit(clone)
+    mkdirSync(join(clone, 'script'), { recursive: true })
+
+    expect(runCli(join(clone, 'script'))).toBe(1)
   })
 })

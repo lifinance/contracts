@@ -18,6 +18,7 @@ import {
 import {
   assertTreeRecordable,
   buildAffectingDirtyPaths,
+  submodulePathsInIndex,
   type ITreeState,
 } from './tree-recordable'
 
@@ -28,7 +29,7 @@ const clean: ITreeState = {
   statusZ: '',
   head: 'a'.repeat(40),
   remoteRefsContainingHead: '  origin/main\n',
-  emptySubmodulePaths: [],
+  absentSubmodulePaths: [],
   isShallow: false,
 }
 
@@ -212,5 +213,51 @@ describe('assertTreeRecordable', () => {
 
     expect(error?.message).toContain('src/A.sol')
     expect(error?.message).toMatch(/on no origin branch/i)
+  })
+})
+
+describe('submodulePathsInIndex', () => {
+  const s = (...entries: string[]): string =>
+    entries.map((entry) => `${entry}\0`).join('')
+
+  it('is empty for an index with no submodules', () => {
+    expect(submodulePathsInIndex(s('100644 abc 0\tsrc/Facet.sol'))).toEqual([])
+  })
+
+  it('is empty for empty input', () => {
+    expect(submodulePathsInIndex('')).toEqual([])
+  })
+
+  it('reads only gitlinks, not regular files or symlinks', () => {
+    expect(
+      submodulePathsInIndex(
+        s(
+          '100644 aaa 0\tfoundry.toml',
+          '160000 bbb 0\tlib/solady',
+          '120000 ccc 0\ttypechain',
+          '160000 ddd 0\tlib/forge-std'
+        )
+      )
+    ).toEqual(['lib/solady', 'lib/forge-std'])
+  })
+
+  it('does not match a mode that merely starts with the gitlink digits', () => {
+    // The trailing space is load-bearing: without it `1600000` would match.
+    expect(submodulePathsInIndex(s('1600000 aaa 0\tlib/x'))).toEqual([])
+  })
+
+  it.each([
+    ['a space', 'lib/with space/dep'],
+    ['a tab', 'lib/tab\tdir/dep'],
+    ['non-ASCII', 'lib/ünïcode/dep'],
+  ])('keeps a path containing %s whole', (_label, path) => {
+    // `-z` suppresses the quoting git otherwise applies to these, and the
+    // separator tab always precedes the path — so the FIRST tab ends the
+    // header, even when the path contains one of its own.
+    expect(submodulePathsInIndex(s(`160000 aaa 0\t${path}`))).toEqual([path])
+  })
+
+  it('drops a trailing empty entry rather than reporting it as a path', () => {
+    expect(submodulePathsInIndex(s('160000 aaa 0\t'))).toEqual([])
   })
 })

@@ -49,7 +49,7 @@ export interface ITreeState {
    * absent from .git/config — true of a fully populated `lib/ds-test` in the
    * primary deploy clone, whose source a rebuild resolves fine.
    */
-  emptySubmodulePaths: string[] | undefined
+  absentSubmodulePaths: string[] | undefined
   /**
    * `git rev-parse --is-shallow-repository`. A shallow clone's commit graph is
    * truncated, so it can confirm that a remote branch contains HEAD but cannot
@@ -137,18 +137,18 @@ export const assertTreeRecordable = (state: ITreeState): void => {
       )
   }
 
-  if (state.emptySubmodulePaths === undefined)
+  if (state.absentSubmodulePaths === undefined)
     problems.push(
       `The index could not be read ('git ls-files' failed), so whether every ` +
         `submodule is checked out is unknown. Treated as a refusal rather than as ` +
         `a complete tree.`
     )
-  else if (state.emptySubmodulePaths.length > 0)
+  else if (state.absentSubmodulePaths.length > 0)
     problems.push(
-      `${state.emptySubmodulePaths.length} submodule(s) hold no files, so the source ` +
+      `${state.absentSubmodulePaths.length} submodule(s) are not checked out, so the source ` +
         `a rebuild would compile is not present:\n` +
-        state.emptySubmodulePaths.map((path) => `    ${path}`).join('\n') +
-        `\n  Run 'git submodule update --init'.`
+        state.absentSubmodulePaths.map((path) => `    ${path}`).join('\n') +
+        `\n  Run 'git submodule update --init --recursive'.`
     )
 
   if (state.remoteRefsContainingHead.trim() === '') {
