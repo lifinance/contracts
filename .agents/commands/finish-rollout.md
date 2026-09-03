@@ -120,6 +120,19 @@ The diff MUST show the new contract/version in each impacted `<net>.diamond.json
 second, independent execution proof. If it doesn't, that contradicts Phase 2: stop, flag,
 investigate; commit nothing. Otherwise commit the diamond-log diff to the PR branch and push.
 
+**Removals in the same cut.** `updateDiamondLogs` rebuilds `Facets` from the loupe, so a facet
+the cut removed (a drained deferred-cleanup task rides along as extra `scheduleBatch` elements)
+disappears from `<net>.diamond.json` on its own — but the flat `deployments/<net>.json` is
+append-only. Delete each removed facet's entry there by hand in the same commit; both logs track
+current on-chain registration, not history
+([docs/DeploymentLogs.md](../../docs/DeploymentLogs.md)). Keep the entry when the facet is still
+routed by the loupe and no open parked task covers it (removal not executed, or the parked task
+retired as cancelled — cancellation proves nothing about routing). An entry already pruned at
+park time stays pruned while its task is still `queued`/`proposed` — the queue-aware
+invariants track the still-routed facet as expected-pending. Restore it if the task retired as
+cancelled and the loupe still routes the facet. `superseded` is loupe-verified gone, so
+delete that entry with the rest of the cut.
+
 ## Phase 5 — PR finish (deploy mode only)
 
 1. `/pr-ready` (mandatory local review gate — resolve findings first).
@@ -138,6 +151,14 @@ same networks).
 
 - `list-timelock-queue.ts` exit `2` → `MONGODB_URI` missing or cluster unreachable — relay,
   stop.
+- A correlated row is `status: "blocked"` → the pre-execute guard refused the batch and the
+  timelock op is still un-executed. The gate fails; do not treat it as done. **Report and
+  stop** — clearing a block is outside the finisher's authority (Hard rails: the workflow
+  dispatch is the only allowed nudge). Re-run the lister with `--attention`, relay
+  `statusReason` and whether the op is still executable on-chain, and hand it to an approved
+  operator: they clear the cause and run `requeue-timelock-op.ts` themselves, or — for a
+  fully-obsolete folded removal — cancel the op and re-propose the primary cut alone (see
+  `docs/DeferredDiamondCleanupQueue.md`).
 - Thread doesn't parse (format drift, missing PR link) → show what was extracted, ask.
 - PR already merged/closed in deploy mode → nothing to finish there; report and continue with
   the Slack closure only if the gate passed.

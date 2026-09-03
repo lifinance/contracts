@@ -44,23 +44,42 @@ import { privateKeyToAccount } from 'viem/accounts'
 import data from '../../../config/networks.json'
 import type { IChainExecutionResult, IChainExecutor } from '../../common/types'
 import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
+import { redactErrorReason } from '../../utils/redactUrls'
 import {
   buildExplorerContractPageUrl,
   getTransportConfigFromRpcUrl,
   getViemChainForNetworkName,
 } from '../../utils/viemScriptHelpers'
+import {
+  captureGitProvenance,
+  PROVENANCE_UNKNOWN,
+  sanitizeProvenanceText,
+  type IGitProvenance,
+} from '../shared/git-provenance'
 
 import { SAFE_SINGLETON_ABI } from './config'
 import {
   getDeployedFacetVersionFromLog,
   getTargetStateFacetVersion,
 } from './facet-version-utils'
+import {
+  firstSupplied,
+  formatReasonWarning,
+  normalizeProposalReason,
+  resolveProposalIntent,
+} from './proposal-intent'
 import { buildReadOnlyClient } from './read-only-safe-client'
 import {
   getLocalSelectorInfo,
   resolveSelectorsViaFourByte,
 } from './selector-registry'
-import { encodeTimelockScheduleBatch } from './timelock-abi'
+import {
+  TIMELOCK_OPERATION_STATE_ABI,
+  TIMELOCK_ZERO_PREDECESSOR,
+  classifyTimelockOperation,
+  deriveTimelockSalt,
+  encodeTimelockScheduleBatch,
+} from './timelock-abi'
 
 config()
 
@@ -123,6 +142,53 @@ export interface IParkedTaskRef {
   prUrl: string
 }
 
+/**
+ * Who created a proposal, from what code, and why — captured from ambient git
+ * state when the proposal is stored, and shown to the signer at signing time so
+ * "what is this?" is answerable without asking around.
+ *
+ * This is self-reported context, not a security control: it makes honest
+ * mistakes (unpushed commit, dirty whitelist, no stated reason) visible and
+ * gives later checks something to verify against. It is not a defence against a
+ * proposer who is deliberately lying.
+ */
+export interface IProposalProvenance extends IGitProvenance {
+  /** One-line rationale, when the proposer supplied one. */
+  reason?: string
+  /**
+   * Canonical Linear issue URL. {@link storeTransactionInMongoDB} refuses to
+   * create a proposal without one, so it is optional on the type only because
+   * rows predating the requirement still exist.
+   */
+  ticketUrl?: string
+}
+
+/** Trailing options of {@link storeTransactionInMongoDB}. */
+export interface IProposalProvenanceOptions {
+  /**
+   * One-line rationale; falls back to the deploy chain's reason variable when
+   * unset.
+   */
+  reason?: string
+  /**
+   * Linear issue link or bare id; falls back to `SAFE_PROPOSAL_TICKET`. A
+   * proposal is not created without one.
+   */
+  ticket?: string
+  /**
+   * The already-validated URL. Set by {@link storeTransactionInMongoDB} after it
+   * resolves `ticket`; callers pass `ticket`, not this.
+   */
+  ticketUrl?: string
+  /**
+   * Test seam: use this block instead of probing git, so suites that exercise
+   * the storage funnel stay deterministic and spawn no subprocesses.
+   * Copied and sanitized before storage — never aliased, never stored raw.
+   * Production code never sets it.
+   */
+  override?: IProposalProvenance
+}
+
 export interface ISafeTxDocument {
   safeAddress: string
   network: string
@@ -141,6 +207,12 @@ export interface ISafeTxDocument {
    * only present on proposals the deferred-cleanup drain folded removals into.
    */
   parkedTaskRefs?: IParkedTaskRef[]
+  /**
+   * Provenance of this proposal. Optional: rows stored before capture existed
+   * have none, so every consumer must treat `undefined` as "legacy row" rather
+   * than as a clean, authorless proposal.
+   */
+  provenance?: IProposalProvenance
 }
 
 /** MongoDB row shape — includes the document `_id` returned by `find()`. */
@@ -864,10 +936,19 @@ export class SafeClient {
       return executionResult
     } catch (error: unknown) {
       const errorMsg = error instanceof Error ? error.message : String(error)
-      if (errorMsg.includes('execution reverted'))
-        throw new Error(`Safe execution reverted: ${errorMsg}`)
+      // Matched before the revert case: a pre-broadcast refusal quotes the
+      // underlying estimation error, which itself contains "execution reverted".
+      // Relabelling it would tell the operator a nonce was consumed when nothing
+      // was ever sent.
+      if (errorMsg.includes('refusing to broadcast')) throw error
 
-      throw new Error(`Error executing transaction: ${errorMsg}`)
+      // Redacted: viem embeds the endpoint, credentials and all, in error.message,
+      // and SlackNotifier publishes it outside the workflow log's masking.
+      const safeMsg = redactErrorReason(errorMsg)
+      if (errorMsg.includes('execution reverted'))
+        throw new Error(`Safe execution reverted: ${safeMsg}`)
+
+      throw new Error(`Error executing transaction: ${safeMsg}`)
     }
   }
 
@@ -934,6 +1015,74 @@ export const NONCE_CONSUMING_STATUSES: readonly SafeTxStatus[] = ['executed']
  */
 export function safeTxStatusConsumedNonce(status: SafeTxStatus): boolean {
   return NONCE_CONSUMING_STATUSES.includes(status)
+}
+
+/**
+ * Where a pending proposal's nonce sits relative to the Safe's next expected
+ * nonce: `stale` was already consumed on-chain, `future` is only reachable once
+ * a lower-nonce proposal has executed, `current` is executable now.
+ */
+export type SafeNonceStatus = 'current' | 'stale' | 'future'
+
+/** Options for {@link canExecuteWithNonceStatus}. */
+export interface INonceExecutionOptions {
+  /** Result of {@link isFutureNonceExecutionAllowed} (the operator escape hatch). */
+  allowFutureNonce: boolean
+}
+
+/**
+ * Result of {@link canExecuteWithNonceStatus}, discriminated on `canExecute`.
+ * `reason` identifies the case so the caller can render the matching message
+ * without re-deriving the decision.
+ */
+export type NonceExecutionDecision =
+  | { canExecute: true; reason: 'nonce-current' | 'future-nonce-override' }
+  | { canExecute: false; reason: 'stale-nonce' | 'future-nonce' }
+
+/**
+ * Whether the operator escape hatch for broadcasting a future-nonce proposal is
+ * enabled. Default OFF — it exists only for the case where the configured RPC
+ * reports an out-of-date on-chain nonce, which makes an executable proposal look
+ * like a future one.
+ *
+ * @returns true only when the escape-hatch env flag is set to the string `true`.
+ */
+export function isFutureNonceExecutionAllowed(): boolean {
+  return process.env.ALLOW_FUTURE_NONCE_EXECUTION === 'true'
+}
+
+/**
+ * Whether a proposal may be broadcast given where its nonce sits relative to the
+ * Safe's expected nonce.
+ *
+ * Both mismatch cases are guaranteed on-chain reverts, so both are refused by
+ * default: a stale nonce fails the Safe's nonce check outright, and a future
+ * nonce fails with GS026. Only the future case has a legitimate false-positive
+ * (a lagging RPC under-reporting the on-chain nonce), so only that one can be
+ * overridden — see {@link isFutureNonceExecutionAllowed}. A stale reading would
+ * require an RPC reporting a nonce ahead of consensus, which cannot happen, so
+ * no override is offered there.
+ *
+ * Signing is out of scope: this gates broadcasting only, and callers must keep
+ * sign-only actions available for future-nonce proposals so signatures can be
+ * collected while the blocking proposal is still pending.
+ *
+ * @param status - Nonce position of the proposal relative to the Safe.
+ * @param options - Whether the future-nonce escape hatch is enabled.
+ * @returns A discriminated decision carrying the reason for the outcome.
+ */
+export function canExecuteWithNonceStatus(
+  status: SafeNonceStatus,
+  options: INonceExecutionOptions
+): NonceExecutionDecision {
+  if (status === 'stale') return { canExecute: false, reason: 'stale-nonce' }
+
+  if (status === 'future')
+    return options.allowFutureNonce
+      ? { canExecute: true, reason: 'future-nonce-override' }
+      : { canExecute: false, reason: 'future-nonce' }
+
+  return { canExecute: true, reason: 'nonce-current' }
 }
 
 /**
@@ -1337,6 +1486,185 @@ export function computeProposalIntentHash(
   return keccak256(encoded)
 }
 
+function sanitizeOverride(
+  override: IProposalProvenance,
+  fallbackReason: string | undefined
+): IProposalProvenance {
+  const actorRaw = sanitizeProvenanceText(override.actor)
+  const actor: IProposalProvenance['actor'] =
+    actorRaw === 'human' || actorRaw === 'bot' || actorRaw === 'ci'
+      ? actorRaw
+      : PROVENANCE_UNKNOWN
+
+  const overrideReason = normalizeProposalReason(override.reason)
+
+  return {
+    capturedAt:
+      sanitizeProvenanceText(override.capturedAt) || new Date().toISOString(),
+    actor,
+    proposerHandle:
+      sanitizeProvenanceText(override.proposerHandle) || PROVENANCE_UNKNOWN,
+    gitCommit: sanitizeProvenanceText(override.gitCommit) || PROVENANCE_UNKNOWN,
+    gitBranch: sanitizeProvenanceText(override.gitBranch) || PROVENANCE_UNKNOWN,
+    dirtyTreeScoped: Array.isArray(override.dirtyTreeScoped)
+      ? override.dirtyTreeScoped.map(sanitizeProvenanceText).filter(Boolean)
+      : [],
+    ...(override.dirtyTreeTruncated === true
+      ? { dirtyTreeTruncated: true }
+      : {}),
+    ...(typeof override.commitOnRemote === 'boolean'
+      ? { commitOnRemote: override.commitOnRemote }
+      : {}),
+    ...(override.prUrl !== undefined
+      ? { prUrl: sanitizeProvenanceText(override.prUrl) }
+      : {}),
+    ...(Array.isArray(override.captureErrors)
+      ? {
+          captureErrors: override.captureErrors.map(sanitizeProvenanceText),
+        }
+      : {}),
+    ...(overrideReason
+      ? { reason: overrideReason }
+      : fallbackReason
+      ? { reason: fallbackReason }
+      : {}),
+  }
+}
+
+let reasonWarningEmitted = false
+
+/**
+ * Warns once per process that a proposal carried no stated reason.
+ *
+ * Once, not per proposal: a fleet sweep proposes on 40+ networks in one run, and
+ * repeating the same line 40 times trains operators to scroll past it. The
+ * per-proposal record is the absent `provenance.reason` field, which is what
+ * the adoption report counts — so suppressing the repeat loses no information.
+ *
+ * @param ticketUrl - Identifies the first proposal that triggered the warning.
+ */
+function warnMissingReasonOnce(ticketUrl: string): void {
+  if (reasonWarningEmitted) return
+  reasonWarningEmitted = true
+  consola.warn(formatReasonWarning(ticketUrl))
+}
+
+/**
+ * Assembles the provenance block stored with a proposal.
+ *
+ * Never throws and never blocks a proposal: the storage funnel it feeds already
+ * aborts a deployment when it fails, so a git probe must not be able to take a
+ * production deploy down. Total failure yields sentinel values with the cause
+ * in `captureErrors`, which is strictly more useful than an absent field.
+ * @param options - Rationale and the test override seam.
+ * @returns A provenance block, populated as far as capture succeeded.
+ */
+export function buildProposalProvenance(
+  options?: IProposalProvenanceOptions
+): IProposalProvenance {
+  // The environment is the only channel the bash deploy chain can supply a
+  // rationale through without touching any script signature.
+  const reason = normalizeProposalReason(
+    firstSupplied('--reason', options?.reason, process.env.SAFE_PROPOSAL_REASON)
+  )
+
+  // Recorded, not validated, here: this function must never block a proposal,
+  // so the refusal lives in storeTransactionInMongoDB, which has already
+  // resolved the link by the time it calls this.
+  const ticket = options?.ticketUrl ? { ticketUrl: options.ticketUrl } : {}
+
+  // Copied and sanitized, never returned by reference: the caller keeps
+  // ownership of the object it passed in, and a future production caller of
+  // the seam cannot store raw control characters either.
+  if (options?.override)
+    return { ...sanitizeOverride(options.override, reason), ...ticket }
+
+  try {
+    return {
+      ...captureGitProvenance(),
+      ...(reason ? { reason } : {}),
+      ...ticket,
+    }
+  } catch (error) {
+    // Backstop only — capture is fail-soft internally and should not reach here.
+    return {
+      capturedAt: new Date().toISOString(),
+      actor: PROVENANCE_UNKNOWN,
+      proposerHandle: PROVENANCE_UNKNOWN,
+      gitCommit: PROVENANCE_UNKNOWN,
+      gitBranch: PROVENANCE_UNKNOWN,
+      dirtyTreeScoped: [],
+      captureErrors: [`provenance capture failed: ${error}`],
+      ...(reason ? { reason } : {}),
+      ...ticket,
+    }
+  }
+}
+
+const INTENT_INDEX_NAME = 'unique_pending_intent_hash'
+const IN_FLIGHT_NONCE_INDEX_NAME = 'unique_inflight_safe_nonce_ci'
+/**
+ * The pre-`_ci` name. A build from before the collation left this index in place
+ * and it is not dropped, so it can still be the one that rejects an insert.
+ */
+const LEGACY_IN_FLIGHT_NONCE_INDEX_NAME = 'unique_inflight_safe_nonce'
+const NONCE_KEY_PATH = 'safeTx.data.nonce'
+
+/**
+ * Case-insensitive comparison for the in-flight nonce index and every query that
+ * has to agree with it.
+ *
+ * `propose-to-safe-tron.ts` stores a Safe address as lowercase hex
+ * (`tronBase58ToEvm20Hex`) while the `initializeSafeClient` path stores the
+ * checksummed form, so one Safe has two spellings in this collection. Comparing
+ * raw makes a nonce collision on Tron deterministic rather than merely possible.
+ */
+const ADDRESS_COLLATION = { locale: 'en', strength: 2 } as const
+
+/** Which unique index rejected an insert, when one did. */
+export type DuplicateKeyKind =
+  | 'intent'
+  | 'in-flight-nonce'
+  | 'other'
+  | 'not-duplicate'
+
+/**
+ * Identifies the unique index behind a MongoDB duplicate-key error.
+ *
+ * An intent collision is the same proposal arriving twice and is safely
+ * idempotent; a nonce collision is a *different* proposal that won the race for
+ * that nonce. Treating the second as the first would report success for a
+ * proposal that was never stored.
+ *
+ * `keyPattern` is what a current driver supplies; the index name in the message
+ * is the fallback for an older driver or a mongos that omits it.
+ *
+ * @param error - the value thrown by an insert.
+ * @returns which index rejected the write, or that this was not a duplicate-key error.
+ */
+export const classifyDuplicateKeyError = (error: unknown): DuplicateKeyKind => {
+  if (!(error instanceof Error) || !('code' in error)) return 'not-duplicate'
+  if ((error as { code?: unknown }).code !== 11000) return 'not-duplicate'
+
+  const keyPattern = (error as { keyPattern?: Record<string, unknown> })
+    .keyPattern
+  if (keyPattern) {
+    if ('intentHash' in keyPattern) return 'intent'
+    if (NONCE_KEY_PATH in keyPattern) return 'in-flight-nonce'
+
+    return 'other'
+  }
+
+  if (
+    error.message.includes(IN_FLIGHT_NONCE_INDEX_NAME) ||
+    error.message.includes(LEGACY_IN_FLIGHT_NONCE_INDEX_NAME)
+  )
+    return 'in-flight-nonce'
+  if (error.message.includes(INTENT_INDEX_NAME)) return 'intent'
+
+  return 'other'
+}
+
 /**
  * Stores a Safe transaction in MongoDB
  * Skips storage if a pending proposal with the same intent already exists
@@ -1347,6 +1675,8 @@ export function computeProposalIntentHash(
  * @param safeTx - The transaction to store
  * @param safeTxHash - Hash of the transaction
  * @param proposer - Address of the proposer
+ * @param parkedTaskRefs - Origin-PR links when this is a drained facet removal
+ * @param provenanceOptions - Rationale and the provenance test override seam
  * @returns Result of the MongoDB insert operation, or null if duplicate exists
  */
 export async function storeTransactionInMongoDB(
@@ -1357,7 +1687,8 @@ export async function storeTransactionInMongoDB(
   safeTx: ISafeTransaction,
   safeTxHash: Hex,
   proposer: Address,
-  parkedTaskRefs?: IParkedTaskRef[]
+  parkedTaskRefs?: IParkedTaskRef[],
+  provenanceOptions?: IProposalProvenanceOptions
 ): Promise<InsertOneResult<ISafeTxDocument> | null> {
   // Compute intent hash for duplicate detection
   const intentHash = computeProposalIntentHash(
@@ -1370,6 +1701,29 @@ export async function storeTransactionInMongoDB(
     safeTx.data.operation
   )
 
+  // Before anything is written. Every proposal funnel reaches this function, so
+  // this is the one place a link can be required without each caller opting in —
+  // and a refusal after the insert would leave an unlinked proposal holding a
+  // nonce.
+  const intent = resolveProposalIntent({
+    ticket: provenanceOptions?.ticket,
+    envTicket: process.env.SAFE_PROPOSAL_TICKET,
+    reason: provenanceOptions?.reason,
+    envReason: process.env.SAFE_PROPOSAL_REASON,
+  })
+
+  if (intent.reasonMissing) warnMissingReasonOnce(intent.ticketUrl)
+
+  // Never derived from `safeTx`: the Tron route hands in a cast-together object
+  // whose shape does not match the type.
+  // The resolved reason, not the raw one: re-deriving it here would let the
+  // stored field disagree with the warning above about whether one was given.
+  const provenance = buildProposalProvenance({
+    ...provenanceOptions,
+    reason: intent.reason,
+    ticketUrl: intent.ticketUrl,
+  })
+
   const txDoc = {
     safeAddress,
     network: network.toLowerCase(),
@@ -1380,29 +1734,50 @@ export async function storeTransactionInMongoDB(
     timestamp: new Date(),
     status: 'pending' as const,
     intentHash,
+    provenance,
     ...(parkedTaskRefs && parkedTaskRefs.length > 0 ? { parkedTaskRefs } : {}),
   } satisfies ISafeTxDocument
 
-  return retry(async () => {
-    try {
-      const insertResult = await pendingTransactions.insertOne(txDoc)
-      return insertResult
-    } catch (error: unknown) {
-      // E11000 = MongoDB duplicate key error (from partial unique index on intentHash + pending status)
-      if (
-        error instanceof Error &&
-        'code' in error &&
-        (error as { code: number }).code === 11000
-      ) {
-        consola.warn(
-          `Duplicate pending proposal detected - skipping storage.\n` +
-            `  Intent hash: ${intentHash}`
-        )
-        return null
+  // The nonce-collision verdict is carried out of `retry` rather than thrown
+  // inside it: retrying is what `retry` exists for, and re-inserting a document
+  // whose nonce is already taken can only fail again.
+  const outcome = await retry(
+    async (): Promise<
+      InsertOneResult<ISafeTxDocument> | null | 'in-flight-nonce-taken'
+    > => {
+      try {
+        const insertResult = await pendingTransactions.insertOne(txDoc)
+        return insertResult
+      } catch (error: unknown) {
+        const duplicate = classifyDuplicateKeyError(error)
+
+        if (duplicate === 'intent') {
+          consola.warn(
+            `Duplicate pending proposal detected - skipping storage.\n` +
+              `  Intent hash: ${intentHash}`
+          )
+          return null
+        }
+
+        if (duplicate === 'in-flight-nonce') return 'in-flight-nonce-taken'
+
+        throw error
       }
-      throw error
     }
-  })
+  )
+
+  // Deliberately not `null`: null means "already proposed, nothing to do", and
+  // here a *different* proposal holds this nonce. The nonce is covered by
+  // safeTxHash, so it cannot be bumped without re-signing — the proposal has to
+  // be rebuilt, which only the caller can do.
+  if (outcome === 'in-flight-nonce-taken')
+    throw new Error(
+      `Nonce ${safeTx.data.nonce} is already taken by another in-flight proposal on ${network} ` +
+        `(Safe ${safeAddress}). Another proposer won the race for it. Re-run the proposal so a ` +
+        `fresh nonce is derived; nothing was stored.`
+    )
+
+  return outcome
 }
 
 /**
@@ -1422,20 +1797,167 @@ async function ensurePendingProposalIndex(
           status: 'pending',
           intentHash: { $exists: true },
         },
-        name: 'unique_pending_intent_hash',
+        name: INTENT_INDEX_NAME,
       }
     )
   } catch (error: unknown) {
-    // Index already exists with same options - this is fine
-    if (
-      error instanceof Error &&
-      'code' in error &&
-      (error as { code: number }).code === 85
-    ) {
+    const code =
+      error instanceof Error && 'code' in error
+        ? (error as { code: number }).code
+        : undefined
+    // 85 = exists with same options; 86 = exists with a drifted definition —
+    // definition drift must not hard-fail every Safe script fleet-wide.
+    if (code === 85 || code === 86) {
+      if (code === 86)
+        consola.warn(
+          'The pending-proposal dedup index exists with a different definition; relying on the existing index:',
+          error
+        )
       return
     }
-    // For other errors, log but don't fail - the application-level check still works
-    consola.warn('Failed to create pending proposal index:', error)
+    // Unauthorized (code 13): a permission-limited role cannot create indexes,
+    // which must not block proposing — the application-level dedup check still
+    // works and the index exists in every long-lived environment.
+    if (code === 13) {
+      consola.warn(
+        'Cannot verify the pending-proposal dedup index (role lacks createIndex); relying on the application-level duplicate check:',
+        error
+      )
+      return
+    }
+    // Anything else (network failure, timeout) is a real connection problem —
+    // rethrow so the caller closes the client instead of proceeding without the
+    // database-level duplicate-prevention guarantee.
+    throw error
+  }
+}
+
+/** Why `createIndex` failed, in terms of what the caller should do about it. */
+export type IndexEnsureFailure =
+  | 'drifted'
+  | 'unauthorized'
+  | 'colliding-data'
+  | 'fatal'
+
+/**
+ * Maps a `createIndex` error code to an outcome.
+ *
+ * 85 and 86 share an outcome deliberately. MongoDB 8.2 answers every mismatch —
+ * options or key — with 86, and an identical request with no error at all, so 85
+ * is unreachable here; but the documented split puts option conflicts (collation
+ * among them) under 85, and a server that did return it must not take a
+ * different path. Neither is fatal: this index's name encodes its definition, so
+ * a conflict means the definition was changed without renaming, and refusing
+ * would throw out of `getSafeMongoCollection` — which every Safe script calls,
+ * including the ones that confirm and execute proposals already pending.
+ *
+ * @param code - the `code` property of the thrown error, if it had one.
+ * @returns what the caller should do about it.
+ */
+export const classifyIndexEnsureFailure = (
+  code: number | undefined
+): IndexEnsureFailure => {
+  if (code === 85 || code === 86) return 'drifted'
+  if (code === 13) return 'unauthorized'
+  if (code === 11000) return 'colliding-data'
+
+  return 'fatal'
+}
+
+/**
+ * Creates the index, in exactly one place so a replacement cannot drift from the
+ * definition the first attempt used.
+ *
+ * @param pendingTransactions - MongoDB collection.
+ */
+const createInFlightNonceIndex = async (
+  pendingTransactions: Collection<ISafeTxDocument>
+): Promise<void> => {
+  await pendingTransactions.createIndex(
+    {
+      safeAddress: 1,
+      network: 1,
+      chainId: 1,
+      'safeTx.data.nonce': 1,
+    },
+    {
+      unique: true,
+      partialFilterExpression: { status: { $in: ['pending', 'submitted'] } },
+      name: IN_FLIGHT_NONCE_INDEX_NAME,
+      collation: ADDRESS_COLLATION,
+    }
+  )
+}
+
+/**
+ * Ensures the in-flight nonce is unique per Safe at the database level.
+ *
+ * `getNextNonce` reads the highest in-flight nonce and the caller then inserts,
+ * so two proposers running concurrently read the same maximum and mint the same
+ * nonce. The existing intent index does not catch it: the two proposals differ,
+ * so both inserts satisfy it. Only one of them can ever execute, and the other
+ * sits pending as a proposal that will always revert.
+ *
+ * `executed` and `reverted` rows are deliberately outside the filter — history
+ * legitimately holds many rows per nonce, and constraining it would make the
+ * index unbuildable.
+ *
+ * Compares under {@link ADDRESS_COLLATION}, as does `getNextNonce`, so the index
+ * and the read that feeds it cannot disagree about which rows exist.
+ *
+ * The `_ci` suffix is load-bearing: it ties the name to the definition, so an
+ * index built to any other definition carries a different name and needs neither
+ * detection nor replacement. A pre-`_ci` index left behind by an earlier build is
+ * strictly weaker than this one and constrains a subset of the same writes, so it
+ * is redundant rather than harmful.
+ * @param pendingTransactions - MongoDB collection
+ */
+async function ensureInFlightNonceIndex(
+  pendingTransactions: Collection<ISafeTxDocument>
+): Promise<void> {
+  try {
+    await createInFlightNonceIndex(pendingTransactions)
+  } catch (error: unknown) {
+    const code =
+      error instanceof Error && 'code' in error
+        ? (error as { code: number }).code
+        : undefined
+
+    // Every branch below warns and returns rather than throwing. Nothing is ever
+    // dropped either: replacing an index can leave the collection with no
+    // constraint at all when the rebuild fails on colliding data.
+    switch (classifyIndexEnsureFailure(code)) {
+      case 'drifted':
+        consola.warn(
+          `${IN_FLIGHT_NONCE_INDEX_NAME} exists with a definition this build did not ask for. Its name ` +
+            `is meant to encode its definition, so the definition was changed without renaming it. ` +
+            `Case-insensitive in-flight nonce uniqueness may NOT be enforced — inspect the index.`,
+          error
+        )
+        return
+
+      case 'unauthorized':
+        consola.warn(
+          'Cannot verify the in-flight nonce index (role lacks createIndex); a nonce collision would not be prevented at insert time:',
+          error
+        )
+        return
+
+      case 'colliding-data':
+        consola.warn(
+          `Could not build ${IN_FLIGHT_NONCE_INDEX_NAME}: the collection already holds two in-flight ` +
+            `proposals sharing a nonce. Nonce uniqueness is NOT enforced until those rows are resolved. ` +
+            `List them with 'bunx tsx script/deploy/safe/report-nonce-collisions.ts'.`,
+          error
+        )
+        return
+
+      // 'fatal' — a real connection fault. Rethrown so the caller closes the
+      // client. Default rather than a named case so an outcome added to the
+      // union later is treated as fatal until it is handled explicitly.
+      default:
+        throw error
+    }
   }
 }
 
@@ -1480,8 +2002,16 @@ export async function getSafeMongoCollection(): Promise<{
     'pendingTransactions'
   )
 
-  // Ensure the partial unique index exists for duplicate prevention
-  await ensurePendingProposalIndex(pendingTransactions)
+  // Ensure the partial unique index exists for duplicate prevention. The client is
+  // already connected here, so a failure must close it before rethrowing — an
+  // orphaned client is unreachable to the caller and keeps the process alive.
+  try {
+    await ensurePendingProposalIndex(pendingTransactions)
+    await ensureInFlightNonceIndex(pendingTransactions)
+  } catch (error) {
+    await client.close().catch(() => undefined)
+    throw error
+  }
 
   return { client, pendingTransactions }
 }
@@ -1504,6 +2034,9 @@ export async function getNextNonce(
 ): Promise<bigint> {
   // Include 'submitted' rows: a tx broadcast but not yet confirmed still has
   // its Safe nonce in flight, so a new proposal must not collide with it.
+  // Collated to match the unique index: an uncollated read is blind to a row
+  // spelling the same Safe differently, and would keep handing back a nonce the
+  // index rejects.
   const latestTx = await pendingTransactions
     .find({
       safeAddress,
@@ -1511,6 +2044,7 @@ export async function getNextNonce(
       chainId,
       status: { $in: ['pending', 'submitted'] },
     })
+    .collation(ADDRESS_COLLATION)
     .sort({ 'safeTx.data.nonce': -1 })
     .limit(1)
     .toArray()
@@ -1573,6 +2107,138 @@ export async function getPendingTransactionsByNetwork(
   }
 
   return txsByNetwork
+}
+
+export interface ISafeSigningOptions {
+  ledger?: boolean
+  /** Use Ledger Live's derivation path for `accountIndex`. */
+  ledgerLive?: boolean
+  /** Accepted as a string so a CLI value reaches the validation below unaltered. */
+  accountIndex?: number | string
+  /** Mutually exclusive with `ledgerLive`. */
+  derivationPath?: string
+  envPrivateKey?: string
+  /** Named in the no-key error so it points at the variable the caller read. */
+  envPrivateKeyName?: string
+}
+
+export interface IResolvedSafeSigning {
+  useLedger: boolean
+  /** Undefined when signing with a Ledger — there is no key to hold. */
+  privateKey?: string
+  ledgerOptions: {
+    ledgerLive: boolean
+    accountIndex: number
+    derivationPath?: string
+  }
+}
+
+/**
+ * Reads a Ledger account index, refusing anything that is not one.
+ *
+ * `Number('')` is 0, so a CLI that delivers an empty string
+ * (`--accountIndex "$UNSET_VAR"`) yields account 0. Anything else `Number()`
+ * produces is taken by the BIP32 parser as given — a `NaN` segment is dropped
+ * from the path entirely, a fraction is truncated and a negative wraps — so
+ * each derives a different, valid-looking address with no error at any layer.
+ *
+ * @param raw - The value as the caller received it, unconverted.
+ * @returns The index.
+ * @throws If it is not a non-negative integer.
+ */
+export const parseAccountIndex = (raw: number | string | undefined): number => {
+  const value = raw ?? 0
+  const parsed =
+    typeof value === 'number'
+      ? value
+      : typeof value === 'string' && value.trim() !== ''
+      ? Number(value)
+      : NaN
+
+  if (!Number.isInteger(parsed) || parsed < 0)
+    throw new Error(
+      `accountIndex must be a non-negative integer, got '${String(raw)}'`
+    )
+
+  return parsed
+}
+
+/**
+ * Decides how a Safe proposal gets signed.
+ *
+ * Every combination it refuses would otherwise have signed from an address the
+ * operator did not choose, with no error at any layer.
+ *
+ * @param options - the CLI/caller flags plus the environment key to fall back on.
+ * @returns what to hand `initializeSafeClient`.
+ * @throws If both path options are given, if `derivationPath` or `ledgerLive`
+ * is given without `ledger`, if `accountIndex` is not a non-negative integer,
+ * if a non-zero `accountIndex` is given without `ledgerLive`, if
+ * `derivationPath` is given but blank, or if neither a Ledger nor a key is
+ * available.
+ */
+export const resolveSafeSigningOptions = (
+  options: ISafeSigningOptions
+): IResolvedSafeSigning => {
+  const useLedger = options.ledger === true
+
+  if (options.derivationPath && options.ledgerLive)
+    throw new Error(
+      "Cannot use both 'derivationPath' and 'ledgerLive' — they specify different derivation paths"
+    )
+
+  // Refused rather than ignored: silently dropping a derivation path the
+  // operator typed is how someone believes they signed from one account and
+  // signed from another.
+  if (!useLedger && (options.derivationPath || options.ledgerLive))
+    throw new Error(
+      "Ledger options were given without '--ledger', so nothing would use them. Add --ledger, or drop the Ledger options."
+    )
+
+  if (!useLedger && !options.envPrivateKey)
+    throw new Error(
+      `Missing ${
+        options.envPrivateKeyName ?? 'private key'
+      } in environment. Set it, or pass --ledger to sign with a hardware wallet.`
+    )
+
+  // Ahead of the two checks below, which read the parsed value.
+  const accountIndex = parseAccountIndex(options.accountIndex)
+
+  // Refused rather than ignored: `getLedgerAccount` reads `accountIndex` only on
+  // the Ledger Live path, so without it an operator who asked for account 3
+  // signs from account 0 and is told nothing.
+  if (useLedger && accountIndex !== 0 && !options.ledgerLive)
+    throw new Error(
+      "'accountIndex' only selects an account on the Ledger Live path. Add --ledgerLive, or drop --accountIndex."
+    )
+
+  // An empty string is a value the operator typed, not an absence: treating it
+  // as unset would send `--derivationPath ""` down the default-path branch.
+  if (
+    options.derivationPath !== undefined &&
+    options.derivationPath.trim() === ''
+  )
+    throw new Error("'derivationPath' was given but is empty.")
+
+  // Only `accountIndex` can still reach here on the key path — the other
+  // sub-options are refused above — and it is zeroed so the result cannot
+  // describe a derivation that never happened.
+  const ledgerOptions = useLedger
+    ? {
+        ledgerLive: options.ledgerLive === true,
+        accountIndex,
+        ...(options.derivationPath
+          ? { derivationPath: options.derivationPath }
+          : {}),
+      }
+    : { ledgerLive: false, accountIndex: 0 }
+
+  return {
+    useLedger,
+    ...(useLedger ? {} : { privateKey: options.envPrivateKey }),
+    ledgerOptions,
+  }
 }
 
 /**
@@ -2300,10 +2966,12 @@ export async function decodeDiamondCut(
   indent?: string
 ) {
   const pre = indent ?? ''
+  // Green / yellow / red by escalating impact, so a Remove stands out in a cut
+  // that mixes actions.
   const actionMap: Record<number, string> = {
-    0: 'Add',
-    1: 'Replace',
-    2: 'Remove',
+    0: '\u001b[32mAdd\u001b[0m',
+    1: '\u001b[33mReplace\u001b[0m',
+    2: '\u001b[31mRemove\u001b[0m',
   }
 
   // Create selector map for efficient lookup
@@ -2492,6 +3160,118 @@ export const getSafeInfo = async (safeAddress: string, network: string) => {
   return safeInfo
 }
 
+/** How many salts to try before giving up on finding an unused operation id. */
+const MAX_SALT_ATTEMPTS = 16
+
+export interface IPickTimelockSaltInput {
+  client: PublicClient
+  chainId: number
+  timelockAddress: Address
+  targetAddresses: Address[]
+  originalCalldatas: Hex[]
+  /**
+   * The values the caller will schedule. Probing an assumed all-zero array would
+   * ask about a different operation than the one being created, so a taken id
+   * could read as free.
+   */
+  values: bigint[]
+}
+
+/**
+ * Picks the first action-derived salt whose operation the timelock does not
+ * already know.
+ *
+ * OZ's `_schedule` rejects any id it already has a timestamp for, and it keeps
+ * one after execute, so the action's first candidate salt is unusable for an
+ * action that has run before — scheduling it would revert only after signatures
+ * had been collected and the delay had elapsed.
+ *
+ * A pending hit refuses. Advancing past one would schedule the same batch twice
+ * under two operation ids, and the second proposal's intentHash would differ, so
+ * neither the timelock nor the duplicate index would stop a double execution.
+ *
+ * The scan is deterministic given chain state, so two proposers racing on the
+ * same repeat converge on the same salt and stay deduplicated.
+ *
+ * @param input - the action, its chain, and a client to read the timelock with.
+ * @returns the salt to schedule under.
+ * @throws If the timelock cannot be read, or every attempt is already taken.
+ */
+export const pickTimelockSalt = async (
+  input: IPickTimelockSaltInput
+): Promise<Hex> => {
+  const {
+    client,
+    chainId,
+    timelockAddress,
+    targetAddresses,
+    originalCalldatas,
+    values,
+  } = input
+
+  // A mismatched length probes an id `scheduleBatch` can never create, so a taken
+  // id reads as free and the revert lands after signatures and the full delay.
+  if (originalCalldatas.length !== targetAddresses.length)
+    throw new Error(
+      `pickTimelockSalt: originalCalldatas (${originalCalldatas.length}) and targetAddresses (${targetAddresses.length}) must have the same length`
+    )
+  if (values.length !== targetAddresses.length)
+    throw new Error(
+      `pickTimelockSalt: values (${values.length}) and targetAddresses (${targetAddresses.length}) must have the same length`
+    )
+
+  for (let attempt = 0; attempt < MAX_SALT_ATTEMPTS; attempt++) {
+    const salt = deriveTimelockSalt({
+      chainId,
+      timelockAddress,
+      targets: targetAddresses,
+      payloads: originalCalldatas,
+      attempt,
+    })
+
+    const operationId = await client.readContract({
+      address: timelockAddress,
+      abi: TIMELOCK_OPERATION_STATE_ABI,
+      functionName: 'hashOperationBatch',
+      args: [
+        targetAddresses,
+        values,
+        originalCalldatas,
+        TIMELOCK_ZERO_PREDECESSOR,
+        salt,
+      ],
+    })
+
+    const state = classifyTimelockOperation(
+      await client.readContract({
+        address: timelockAddress,
+        abi: TIMELOCK_OPERATION_STATE_ABI,
+        functionName: 'getTimestamp',
+        args: [operationId],
+      })
+    )
+
+    if (state === 'unknown') return salt
+
+    if (state === 'pending')
+      throw new Error(
+        `Timelock operation ${operationId} for this exact batch is already scheduled on ${timelockAddress} ` +
+          `and has not executed. This proposal duplicates work already in flight — execute or cancel the ` +
+          `existing operation instead of scheduling a second one. Nothing was proposed.`
+      )
+
+    consola.info(
+      `Timelock operation ${operationId} for this batch has already executed; deriving the next salt.`
+    )
+  }
+
+  throw new Error(
+    `Could not find an unused timelock operation id for this batch after ${MAX_SALT_ATTEMPTS} attempts ` +
+      `on ${timelockAddress}. That means this exact batch has been scheduled ${MAX_SALT_ATTEMPTS} times ` +
+      `already — refusing to schedule rather than guess.`
+  )
+}
+
 /**
  * Wraps one or more calls in a single timelock `scheduleBatch` call.
  * Inner calls are scheduled (and later executed) in array order, so callers
@@ -2502,7 +3282,9 @@ export const getSafeInfo = async (safeAddress: string, network: string) => {
  * @param targetAddresses - Target contract address per inner call (parallel to `originalCalldatas`)
  * @param originalCalldatas - Calldata per inner call (parallel to `targetAddresses`)
  * @returns The `scheduleBatch` calldata and the timelock as the new target
- * @throws If the call arrays are empty or differ in length
+ * @throws If the call arrays are empty or differ in length, if the timelock
+ *         cannot be read, or if every candidate salt maps to an operation id the
+ *         timelock already knows (see {@link pickTimelockSalt})
  */
 export async function wrapWithTimelockSchedule(
   network: string,
@@ -2571,14 +3353,23 @@ export async function wrapWithTimelockSchedule(
     }
   }
 
-  // Create a unique salt based on the current timestamp
-  const salt = `0x${Date.now().toString(16).padStart(64, '0')}` as Hex
+  const values = targetAddresses.map(() => 0n)
+
+  const salt = await pickTimelockSalt({
+    client,
+    chainId: chain.id,
+    timelockAddress,
+    targetAddresses,
+    originalCalldatas,
+    values,
+  })
 
   const scheduleBatchCalldata = encodeTimelockScheduleBatch(
     targetAddresses,
     originalCalldatas,
     salt,
-    minDelay
+    minDelay,
+    values
   )
 
   consola.info(

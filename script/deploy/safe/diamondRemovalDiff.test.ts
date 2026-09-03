@@ -9,21 +9,27 @@ import {
   buildRemovalSnapshotFromPayloads,
   collectActiveSelectors,
   computeFacetRemovalDiff,
+  computeFacetRemovalsByAddress,
   computeNamedFacetRemovals,
   diffFacets,
+  diffFacetsByAddress,
   diffNamedFacets,
   extractRemoveFacetCuts,
   fetchOnChainFacets,
+  describeStaleRemovals,
   filterRePointedRemovals,
   getExpectedFacetNames,
   getFacetSourceNames,
   getProtectedNames,
   getSourceContractNames,
+  createArtifactBuilder,
+  tryCollectFacetSelectorUnion,
   HARDCODED_PROTECTED_FACETS,
   mapLoupeResult,
   resolveAddressToName,
   resolveDiamondAddress,
   revalidateRemovalsOnChain,
+  type IAddressRemovalResult,
   type IFacetRemoval,
   type IOnChainFacet,
   type IRemovalDiffIO,
@@ -132,6 +138,78 @@ describe('collectActiveSelectors', () => {
 
   it('returns empty for no names', () => {
     expect(collectActiveSelectors([], () => []).size).toBe(0)
+  })
+})
+
+describe('createArtifactBuilder', () => {
+  it('reports availability after a successful build and does not build twice', () => {
+    let runs = 0
+    const ensure = createArtifactBuilder(() => {
+      runs++
+    })
+    expect(ensure()).toBe(true)
+    expect(ensure()).toBe(true)
+    expect(runs).toBe(1)
+  })
+
+  it('reports unavailable when the build throws, and does not retry it', () => {
+    let runs = 0
+    const ensure = createArtifactBuilder(() => {
+      runs++
+      throw new Error('forge: command not found')
+    })
+    expect(ensure()).toBe(false)
+    expect(ensure()).toBe(false)
+    expect(runs).toBe(1)
+  })
+})
+
+describe('tryCollectFacetSelectorUnion', () => {
+  it('compiles and re-reads when an artifact is missing', () => {
+    let built = false
+    let reads = 0
+    const union = tryCollectFacetSelectorUnion(['A'], {
+      getFacetNames: () => new Set(['A']),
+      getActiveSelectors: () => {
+        reads++
+        if (!built) throw new Error('Contract JSON not found')
+        return new Set([sel(0xaa)])
+      },
+      ensureArtifacts: () => {
+        built = true
+        return true
+      },
+    })
+    expect(reads).toBe(2)
+    expect(union).toEqual(new Set([sel(0xaa)]))
+  })
+
+  it('stays unavailable when the build cannot produce the artifact', () => {
+    let reads = 0
+    const union = tryCollectFacetSelectorUnion(['A'], {
+      getFacetNames: () => new Set(['A']),
+      getActiveSelectors: () => {
+        reads++
+        throw new Error('Contract JSON not found')
+      },
+      ensureArtifacts: () => false,
+    })
+    expect(union).toBeUndefined()
+    expect(reads).toBe(1)
+  })
+
+  it('does not compile when the union reads on the first try', () => {
+    let builds = 0
+    const union = tryCollectFacetSelectorUnion(['A'], {
+      getFacetNames: () => new Set(['A']),
+      getActiveSelectors: () => new Set([sel(0xaa)]),
+      ensureArtifacts: () => {
+        builds++
+        return true
+      },
+    })
+    expect(union).toEqual(new Set([sel(0xaa)]))
+    expect(builds).toBe(0)
   })
 })
 
@@ -327,6 +405,29 @@ describe('computeFacetRemovalDiff', () => {
     )
   })
 
+  it('restates the failure when the build ran and the union is still missing', async () => {
+    let builds = 0
+    const io: Partial<IRemovalDiffIO> = {
+      getDiamondAddress: async () => addr(0xd),
+      getOnChainFacets: async () => [{ address: addr(1), selectors: [sel(1)] }],
+      getAddressToName: async () => ({ [addr(1)]: 'SomeFacet' }),
+      getExpectedNames: () => new Set(['GasZipFacet']),
+      getFacetNames: () => new Set(['GasZipFacet']),
+      getActiveSelectors: () => {
+        throw new Error('Cannot read selectors for active facet "GasZipFacet"')
+      },
+      ensureArtifacts: () => {
+        builds++
+        return true
+      },
+    }
+    await expectRejects(
+      computeFacetRemovalDiff('mainnet', PROD, io),
+      /still unavailable after `forge build`.*GasZipFacet/
+    )
+    expect(builds).toBe(1)
+  })
+
   it('scopes active-selectors to real facets — periphery names never hold back selectors', async () => {
     let activeNamesSeen: string[] = []
     const io: Partial<IRemovalDiffIO> = {
@@ -411,6 +512,326 @@ describe('diffNamedFacets', () => {
     expect(r.notFoundOnChain).toEqual(['OldFacet'])
     expect(r.removals).toHaveLength(0)
   })
+
+  it('cannot distinguish two co-registered versions — the reason the queue is address-keyed', () => {
+    const r = diffNamedFacets({
+      ...base,
+      requestedNames: new Set(['SymbiosisFacet']),
+      onChainFacets: [
+        { address: addr(1), selectors: [sel(1)] }, // v2.0.0, live, owns the log name
+        { address: addr(9), selectors: [sel(9)] }, // v1.0.0, superseded, unlogged
+      ],
+      addressToName: { [addr(1)]: 'SymbiosisFacet' },
+      protectedNames: new Set(),
+    })
+    // The LIVE facet is what a name resolves to; the stale one is merely surfaced.
+    expect(r.removals).toEqual([
+      { name: 'SymbiosisFacet', address: addr(1), selectors: [sel(1)] },
+    ])
+    expect(r.unresolved).toEqual([addr(9)])
+  })
+})
+
+describe('diffFacetsByAddress', () => {
+  const base = {
+    network: 'net',
+    environment: PROD,
+    diamondAddress: addr(0xd),
+    // Explicit "nothing is protected/expected"; the unavailable case is undefined, tested below.
+    protectedSelectors: new Set<string>(),
+    expectedNames: new Set<string>(),
+    activeSelectors: new Set<string>(),
+  }
+
+  it('removes exactly the requested address, using its live loupe selectors', () => {
+    const r = diffFacetsByAddress({
+      ...base,
+      requestedAddresses: new Set([addr(1)]),
+      onChainFacets: [
+        { address: addr(1), selectors: [sel(1), sel(2)] },
+        { address: addr(2), selectors: [sel(3)] },
+      ],
+      addressToName: { [addr(1)]: 'OldFacet' },
+      protectedNames: new Set(),
+    })
+    expect(r.removals).toEqual([
+      { name: 'OldFacet', address: addr(1), selectors: [sel(1), sel(2)] },
+    ])
+    expect(r.notFoundOnChain).toHaveLength(0)
+  })
+
+  it('removes a superseded version while leaving its live successor registered under the same name', () => {
+    const r = diffFacetsByAddress({
+      ...base,
+      requestedAddresses: new Set([addr(9)]), // SymbiosisFacet v1.0.0
+      onChainFacets: [
+        { address: addr(1), selectors: [sel(1)] }, // v2.0.0 — live, owns the log name
+        { address: addr(9), selectors: [sel(9)] }, // v1.0.0 — superseded, unlogged
+      ],
+      addressToName: { [addr(1)]: 'SymbiosisFacet' },
+      protectedNames: new Set(),
+    })
+    expect(r.removals).toEqual([
+      { name: undefined, address: addr(9), selectors: [sel(9)] },
+    ])
+    expect(r.removals.map((x) => x.address)).not.toContain(addr(1))
+  })
+
+  it('removes an address the deploy log never listed (no name to resolve)', () => {
+    const r = diffFacetsByAddress({
+      ...base,
+      requestedAddresses: new Set([addr(9)]),
+      onChainFacets: [{ address: addr(9), selectors: [sel(1)] }],
+      addressToName: {},
+      protectedNames: new Set(),
+    })
+    expect(r.removals).toEqual([
+      { name: undefined, address: addr(9), selectors: [sel(1)] },
+    ])
+  })
+
+  it('matches the loupe case-insensitively', () => {
+    const r = diffFacetsByAddress({
+      ...base,
+      requestedAddresses: new Set([
+        addr(1).toUpperCase().replace('0X', '0x') as `0x${string}`,
+      ]),
+      onChainFacets: [{ address: addr(1), selectors: [sel(1)] }],
+      addressToName: {},
+      protectedNames: new Set(),
+    })
+    expect(r.removals).toHaveLength(1)
+    expect(r.notFoundOnChain).toHaveLength(0)
+  })
+
+  it('refuses an address the log maps to a never-remove facet', () => {
+    const r = diffFacetsByAddress({
+      ...base,
+      requestedAddresses: new Set([addr(1)]),
+      onChainFacets: [{ address: addr(1), selectors: [sel(1)] }],
+      addressToName: { [addr(1)]: 'DiamondCutFacet' },
+      protectedNames: new Set(['DiamondCutFacet']),
+    })
+    expect(r.protectedSkipped).toEqual([
+      { name: 'DiamondCutFacet', address: addr(1) },
+    ])
+    expect(r.removals).toHaveLength(0)
+  })
+
+  it('reports requested addresses that are not registered on this diamond', () => {
+    const r = diffFacetsByAddress({
+      ...base,
+      requestedAddresses: new Set([addr(9)]),
+      onChainFacets: [{ address: addr(1), selectors: [sel(1)] }],
+      addressToName: {},
+      protectedNames: new Set(),
+    })
+    expect(r.notFoundOnChain).toEqual([addr(9)])
+    expect(r.removals).toHaveLength(0)
+  })
+
+  it('refuses an UNLOGGED address that holds a protected facet selector', () => {
+    const r = diffFacetsByAddress({
+      ...base,
+      requestedAddresses: new Set([addr(9)]),
+      onChainFacets: [{ address: addr(9), selectors: [sel(0xc), sel(1)] }],
+      addressToName: {}, // the log cannot name it, so the name check cannot fire
+      protectedNames: new Set(['DiamondCutFacet']),
+      protectedSelectors: new Set([sel(0xc)]),
+    })
+    expect(r.removals).toHaveLength(0)
+    expect(r.protectedSkipped).toEqual([
+      {
+        name: `unknown (address not in deploy log, holds protected selector ${sel(
+          0xc
+        )})`,
+        address: addr(9),
+      },
+    ])
+  })
+
+  it('reports an UNLOGGED address as unverifiable when the protected union is unavailable', () => {
+    const r = diffFacetsByAddress({
+      ...base,
+      requestedAddresses: new Set([addr(9)]),
+      onChainFacets: [{ address: addr(9), selectors: [sel(1)] }],
+      addressToName: {},
+      protectedNames: new Set(['DiamondCutFacet']),
+      protectedSelectors: undefined, // e.g. a missing artifact — cannot verify
+    })
+    expect(r.removals).toHaveLength(0)
+    // NOT protectedSkipped: the drain cancels that set (terminal, "parked in
+    // error"), which would retire a legitimate task over a missing artifact.
+    expect(r.protectedSkipped).toHaveLength(0)
+    expect(r.unverifiable).toEqual([addr(9)])
+  })
+
+  it('still removes an unlogged address whose selectors are not protected', () => {
+    const r = diffFacetsByAddress({
+      ...base,
+      requestedAddresses: new Set([addr(9)]),
+      onChainFacets: [{ address: addr(9), selectors: [sel(9)] }],
+      addressToName: {},
+      protectedNames: new Set(['DiamondCutFacet']),
+      protectedSelectors: new Set([sel(0xc)]),
+    })
+    expect(r.removals).toEqual([
+      { name: undefined, address: addr(9), selectors: [sel(9)] },
+    ])
+  })
+
+  it('reports the deploy-log names the loupe routes, for the suspect-snapshot check', () => {
+    const r = diffFacetsByAddress({
+      ...base,
+      requestedAddresses: new Set([addr(9)]),
+      onChainFacets: [
+        { address: addr(1), selectors: [sel(1)] },
+        { address: addr(2), selectors: [sel(2)] },
+      ],
+      addressToName: { [addr(1)]: 'AcrossFacetV3' },
+      protectedNames: new Set(),
+    })
+    expect(r.routedNames).toEqual(new Set(['AcrossFacetV3']))
+    expect(r.notFoundOnChain).toEqual([addr(9)])
+  })
+
+  it('leaves unrequested on-chain facets untouched', () => {
+    const r = diffFacetsByAddress({
+      ...base,
+      requestedAddresses: new Set([addr(1)]),
+      onChainFacets: [
+        { address: addr(1), selectors: [sel(1)] },
+        { address: addr(2), selectors: [sel(2)] },
+      ],
+      addressToName: {},
+      protectedNames: new Set(),
+    })
+    expect(r.removals).toHaveLength(1)
+    expect(r.removals[0]?.address).toBe(addr(1))
+  })
+
+  it('refuses an address the deploy log names as a facet target state still expects', () => {
+    // The wrong-snapshot shape: the parked address points at the LIVE facet.
+    const r = diffFacetsByAddress({
+      ...base,
+      requestedAddresses: new Set([addr(1)]),
+      onChainFacets: [{ address: addr(1), selectors: [sel(1)] }],
+      addressToName: { [addr(1)]: 'GenericSwapFacetV3' },
+      protectedNames: new Set(),
+      expectedNames: new Set(['GenericSwapFacetV3']),
+    })
+    expect(r.removals).toHaveLength(0)
+    expect(r.stillExpected).toHaveLength(1)
+    expect(r.stillExpected[0]?.name).toBe('GenericSwapFacetV3')
+  })
+
+  it('refuses an UNLOGGED address that routes a selector an expected facet owns', () => {
+    const r = diffFacetsByAddress({
+      ...base,
+      requestedAddresses: new Set([addr(9)]),
+      onChainFacets: [{ address: addr(9), selectors: [sel(5)] }],
+      addressToName: {},
+      protectedNames: new Set(),
+      activeSelectors: new Set([sel(5)]),
+    })
+    expect(r.removals).toHaveLength(0)
+    expect(r.stillExpected).toHaveLength(1)
+    expect(r.stillExpected[0]?.address).toBe(addr(9))
+  })
+
+  it('reports a LOGGED non-protected address as unverifiable without a target-state entry', () => {
+    const r = diffFacetsByAddress({
+      ...base,
+      requestedAddresses: new Set([addr(1)]),
+      onChainFacets: [{ address: addr(1), selectors: [sel(1)] }],
+      addressToName: { [addr(1)]: 'OldFacet' },
+      protectedNames: new Set(),
+      expectedNames: undefined,
+    })
+    expect(r.removals).toHaveLength(0)
+    expect(r.unverifiable).toEqual([addr(1)])
+  })
+
+  it('reports an UNLOGGED address as unverifiable when the active union is unavailable', () => {
+    const r = diffFacetsByAddress({
+      ...base,
+      requestedAddresses: new Set([addr(9)]),
+      onChainFacets: [{ address: addr(9), selectors: [sel(1)] }],
+      addressToName: {},
+      protectedNames: new Set(),
+      activeSelectors: undefined,
+    })
+    expect(r.removals).toHaveLength(0)
+    expect(r.unverifiable).toEqual([addr(9)])
+  })
+
+  it('refuses a LOGGED deprecated facet that still routes a selector an expected facet owns', () => {
+    // Same held-back rule as diffFacets: the replacement's Add has not landed yet,
+    // so sweeping the shared selector out would break it until the cut ships.
+    const r = diffFacetsByAddress({
+      ...base,
+      requestedAddresses: new Set([addr(1)]),
+      onChainFacets: [{ address: addr(1), selectors: [sel(1), sel(5)] }],
+      addressToName: { [addr(1)]: 'OldFacet' },
+      protectedNames: new Set(),
+      expectedNames: new Set(['ReplacementFacet']),
+      activeSelectors: new Set([sel(5)]),
+    })
+    expect(r.removals).toHaveLength(0)
+    expect(r.stillExpected).toHaveLength(1)
+    expect(r.stillExpected[0]?.name).toBe('OldFacet')
+  })
+
+  it('resolves the real co-registered SymbiosisFacet shape (EXSC-750 mainnet data)', () => {
+    // Live v2.0.0 is logged and owns 0xe23b7a08/0xc46059b2; superseded v1.0.0 is
+    // unlogged and routes 0xb70fb9a5/0x6e067161 — the queue's core use case.
+    const LIVE = '0xa0353221443ca4e2e6a040f30a57b47f5a6d479d' as `0x${string}`
+    const STALE = '0x23Fc1b73Ff1B0f9C1e4A0B8dD5B0d0c0A0e0F000' as `0x${string}`
+    const params = {
+      ...base,
+      onChainFacets: [
+        {
+          address: LIVE,
+          selectors: ['0xe23b7a08', '0xc46059b2'] as `0x${string}`[],
+        },
+        {
+          address: STALE,
+          selectors: ['0xb70fb9a5', '0x6e067161'] as `0x${string}`[],
+        },
+      ],
+      addressToName: { [LIVE]: 'SymbiosisFacet' },
+      protectedNames: new Set(['DiamondCutFacet']),
+      expectedNames: new Set(['SymbiosisFacet']),
+      protectedSelectors: new Set<string>(),
+      activeSelectors: new Set(['0xe23b7a08', '0xc46059b2']),
+    }
+    // The stale version is removable; the live one is refused as stillExpected.
+    const stale = diffFacetsByAddress({
+      ...params,
+      requestedAddresses: new Set([STALE]),
+    })
+    expect(stale.removals.map((r) => r.address)).toEqual([STALE])
+    const live = diffFacetsByAddress({
+      ...params,
+      requestedAddresses: new Set([LIVE]),
+    })
+    expect(live.removals).toHaveLength(0)
+    expect(live.stillExpected[0]?.name).toBe('SymbiosisFacet')
+  })
+
+  it('exposes the loupe addresses so callers need no second read', () => {
+    const r = diffFacetsByAddress({
+      ...base,
+      requestedAddresses: new Set<`0x${string}`>(),
+      onChainFacets: [
+        { address: addr(1), selectors: [sel(1)] },
+        { address: addr(2), selectors: [sel(2)] },
+      ],
+      addressToName: {},
+      protectedNames: new Set(),
+    })
+    expect(r.routedAddresses).toEqual(new Set([addr(1), addr(2)]))
+  })
 })
 
 describe('computeNamedFacetRemovals', () => {
@@ -434,6 +855,106 @@ describe('computeNamedFacetRemovals', () => {
     expect(r.removals).toEqual([
       { name: 'OldFacet', address: addr(1), selectors: [sel(1), sel(2)] },
     ])
+  })
+})
+
+describe('computeFacetRemovalsByAddress', () => {
+  it('flags an unresolvable diamond instead of reporting the addresses absent', async () => {
+    const r = await computeFacetRemovalsByAddress(
+      'net',
+      PROD,
+      [addr(1), addr(2)],
+      { getDiamondAddress: async () => undefined }
+    )
+    // No chain read happened, so nothing may be reported as gone — the drain
+    // supersedes on notFoundOnChain and would retire the whole queue.
+    expect(r.diamondUnresolved).toBe(true)
+    expect(r.notFoundOnChain).toEqual([])
+    expect(r.removals).toHaveLength(0)
+  })
+
+  it('resolves address removals against the loupe', async () => {
+    const r = await computeFacetRemovalsByAddress('net', PROD, [addr(9)], {
+      getDiamondAddress: async () => addr(0xd),
+      getOnChainFacets: async () => [
+        { address: addr(1), selectors: [sel(1)] },
+        { address: addr(9), selectors: [sel(9)] },
+      ],
+      getAddressToName: async () => ({ [addr(1)]: 'SymbiosisFacet' }),
+      getExpectedNames: () => new Set(['SymbiosisFacet']),
+      getFacetNames: () => new Set(['DiamondCutFacet']),
+      getActiveSelectors: () => new Set([sel(0xc)]),
+    })
+    expect(r.diamondAddress).toBe(addr(0xd))
+    expect(r.removals).toEqual([
+      { name: undefined, address: addr(9), selectors: [sel(9)] },
+    ])
+  })
+
+  it('lands every address in unverifiable when the network has no target-state entry', async () => {
+    const r = await computeFacetRemovalsByAddress('net', PROD, [addr(9)], {
+      getDiamondAddress: async () => addr(0xd),
+      getOnChainFacets: async () => [{ address: addr(9), selectors: [sel(9)] }],
+      getAddressToName: async () => ({}),
+      getExpectedNames: () => undefined,
+      getFacetNames: () => new Set(['DiamondCutFacet']),
+      getActiveSelectors: () => new Set([sel(0xc)]),
+    })
+    expect(r.removals).toHaveLength(0)
+    expect(r.unverifiable).toEqual([addr(9)])
+  })
+
+  /**
+   * The EXSC-912 shape: a superseded facet co-registered alongside its successor
+   * (EXSC-750), so the deploy log names only the successor and the doomed address
+   * resolves by selector alone — against a union no artifact was there to build.
+   *
+   * @param rebuiltSelectors - The union once the build has run.
+   */
+  const uncompiledIncident = async (
+    rebuiltSelectors: Set<`0x${string}`>
+  ): Promise<{ result: IAddressRemovalResult; builds: number }> => {
+    let builds = 0
+    const result = await computeFacetRemovalsByAddress('net', PROD, [addr(9)], {
+      getDiamondAddress: async () => addr(0xd),
+      getOnChainFacets: async () => [
+        { address: addr(9), selectors: [sel(9)] },
+        { address: addr(0x42), selectors: [sel(0xc)] },
+      ],
+      getAddressToName: async () => ({ [addr(0x42)]: 'SymbiosisFacet' }),
+      getExpectedNames: () => new Set(['SymbiosisFacet']),
+      getFacetNames: () => new Set(['SymbiosisFacet']),
+      getActiveSelectors: (names) => {
+        // The protected union reads no artifact here (no protected name is a
+        // facet in this fixture), so only the target-state union hits the gap.
+        if (names.length === 0) return new Set<string>()
+        if (builds === 0) throw new Error('Contract JSON not found')
+        return rebuiltSelectors
+      },
+      ensureArtifacts: () => {
+        builds++
+        return true
+      },
+    })
+    return { result, builds }
+  }
+
+  it('removes the superseded address once the build supplies the union', async () => {
+    const { result, builds } = await uncompiledIncident(new Set([sel(0xc)]))
+    expect(builds).toBe(1)
+    expect(result.unverifiable).toHaveLength(0)
+    expect(result.removals).toEqual([
+      { name: undefined, address: addr(9), selectors: [sel(9)] },
+    ])
+  })
+
+  it('holds the same address back when the rebuilt union claims its selector', async () => {
+    // The build's own output decides the verdict — not merely whether one exists.
+    const { result } = await uncompiledIncident(new Set([sel(9)]))
+    expect(result.removals).toHaveLength(0)
+    expect(result.unverifiable).toHaveLength(0)
+    expect(result.stillExpected).toHaveLength(1)
+    expect(result.stillExpected[0]?.address).toBe(addr(9))
   })
 })
 
@@ -526,6 +1047,83 @@ describe('filterRePointedRemovals', () => {
     ])
     expect(r.stillRemovable).toHaveLength(0)
     expect(r.stale).toHaveLength(3)
+  })
+})
+
+describe('describeStaleRemovals', () => {
+  const snapshot: IFacetRemoval[] = [
+    { name: 'AcrossFacetV3', address: addr(2), selectors: [sel(1), sel(2)] },
+  ]
+
+  // The EXSC-816 shape: an old AcrossFacetV3 was replaced, so every snapshotted
+  // selector now routes to the live successor and the Remove removes nothing.
+  it('flags a removal whose every selector has moved on as fully obsolete', () => {
+    const revalidated = filterRePointedRemovals(snapshot, [
+      { address: addr(7), selectors: [sel(1), sel(2)] },
+    ])
+    const d = describeStaleRemovals(revalidated)
+    expect(d.fullyObsolete).toBe(true)
+    expect(d.detail).toContain('AcrossFacetV3')
+    expect(d.detail).toContain('re-pointed')
+    expect(d.remediation).toContain('no-op')
+    expect(d.remediation).toContain('re-propose the primary cut(s) alone')
+  })
+
+  it('flags a partially stale removal as needing a re-draft, not obsolete', () => {
+    const revalidated = filterRePointedRemovals(snapshot, [
+      { address: addr(2), selectors: [sel(1)] },
+      { address: addr(7), selectors: [sel(2)] },
+    ])
+    const d = describeStaleRemovals(revalidated)
+    expect(d.fullyObsolete).toBe(false)
+    expect(d.remediation).toContain('fresh loupe drain')
+  })
+
+  // Re-pointing was the intuitive-but-wrong remediation: those selectors route
+  // to a live facet, and Remove zeroes them regardless of owner.
+  it('warns against re-pointing in both shapes', () => {
+    const obsolete = describeStaleRemovals(
+      filterRePointedRemovals(snapshot, [
+        { address: addr(7), selectors: [sel(1), sel(2)] },
+      ])
+    )
+    const partial = describeStaleRemovals(
+      filterRePointedRemovals(snapshot, [
+        { address: addr(2), selectors: [sel(1)] },
+        { address: addr(7), selectors: [sel(2)] },
+      ])
+    )
+    for (const d of [obsolete, partial])
+      expect(d.remediation).toMatch(/Do NOT re-point/)
+  })
+
+  it('renders already-gone selectors without a current address', () => {
+    const revalidated = filterRePointedRemovals(snapshot, [
+      { address: addr(2), selectors: [sel(1)] },
+    ])
+    const d = describeStaleRemovals(revalidated)
+    expect(d.fullyObsolete).toBe(false)
+    expect(d.detail).toBe(`AcrossFacetV3:${sel(2)} (already-gone)`)
+  })
+
+  // Guards against emitting one of the two staleness remediations for an input
+  // that has no stale selectors at all.
+  it('reports no staleness without claiming any selector is stale', () => {
+    const d = describeStaleRemovals({ stillRemovable: snapshot, stale: [] })
+    expect(d.fullyObsolete).toBe(false)
+    expect(d.detail).toBe('')
+    expect(d.remediation).toBe(
+      'No stale folded removal selectors were detected.'
+    )
+    expect(d.remediation).not.toMatch(/cancel this op/)
+  })
+
+  // An empty snapshot has nothing removable, which must not be mistaken for
+  // "every selector moved on".
+  it('does not call an empty snapshot fully obsolete', () => {
+    const d = describeStaleRemovals({ stillRemovable: [], stale: [] })
+    expect(d.fullyObsolete).toBe(false)
+    expect(d.remediation).not.toMatch(/no-op/)
   })
 })
 

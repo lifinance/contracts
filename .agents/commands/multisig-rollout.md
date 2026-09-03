@@ -1,6 +1,6 @@
 ---
 name: multisig-rollout
-description: Orchestrates a PRODUCTION multisig rollout end-to-end — deploy (via `deploy-contract`), propose-only for already-deployed bytecode, or whitelist sync across chains — then captures Safe proposals, drafts a PR when needed, hands hardware-wallet signing to the user, verifies signatures in MongoDB, and posts the #dev-sc-multisig-proposals Slack thread. Use for "roll out <Facet> vX.Y.Z", "create the diamond cut proposals", "propose cuts for already-deployed X", "re-propose after deleting Safe txs", "sync the whitelist for PR <N>", or Polymer CCTP domain propagation. Staging/test deploy without the proposal lifecycle → `deploy-contract`. Requires lifi-connect (MongoDB), gh, and Slack MCP.
+description: Orchestrates a PRODUCTION multisig rollout end-to-end — deploy (via `deploy-contract`), propose-only for already-deployed bytecode, or whitelist sync across chains — then captures Safe proposals, drafts a PR when needed, hands hardware-wallet signing to the user, verifies signatures in MongoDB, and posts the #dev-sc-multisig-proposals Slack thread. Use for "roll out <Facet> vX.Y.Z", "create the diamond cut proposals", "propose cuts for already-deployed X", "re-propose after deleting Safe txs", "sync the whitelist for PR <N>", or Polymer CCTP domain propagation. Also triggers on a bare "deploy <Contract> to <network>" or "the receiver is missing on <chain>" when the target is a mainnet/production diamond — production deploys ALWAYS enter here, never `deploy-contract` directly, because registration needs Safe proposals shepherded to signing. Staging/test deploy without the proposal lifecycle → `deploy-contract`. Requires lifi-connect (MongoDB), gh, and Slack MCP.
 usage: /multisig-rollout <ContractName> | /multisig-rollout --propose-only <ContractName> [networks…] | /multisig-rollout --whitelist-pr <PR number or URL>
 ---
 
@@ -10,11 +10,11 @@ Drives the production rollout lifecycle in three modes:
 
 - **deploy mode** — get a facet/periphery contract (version currently in the repo) on-chain across production networks and proposed to each Safe. The deploy itself (preflight, target resolution, the deploy, diamond-called-periphery allowlist sync, explorer verification) is delegated to the **`deploy-contract`** skill; this skill owns the proposal lifecycle around it.
 - **propose-only mode** — bytecode already in `deployments/<net>.json` (deferred cuts, recreate-after-delete). Runs `proposeContractToNetworks.sh` — no CREATE3. Same signing/Slack tail as deploy.
-- **whitelist mode** — given a merged whitelist PR, sync `config/whitelist.json` onto the affected chains' diamonds, proposing the changes to each chain's Safe.
+- **whitelist mode** — given a whitelist PR (merged by default, or still open when the user explicitly confirms rolling out ahead of merge), sync `config/whitelist.json` onto the affected chains' diamonds, proposing the changes to each chain's Safe.
 
 All modes converge on the same tail: capture proposals → (deploy mode only, or propose-only when whitelist files dirty) draft PR → hand off hardware-wallet signing → verify signatures in MongoDB → post the `#dev-sc-multisig-proposals` Slack thread.
 
-**PolymerCCTP add-on**: a `PolymerCCTPFacet` rollout that adds a chain or CCTP corridor also has to propagate its chainId→CCTP-domain mapping to every already-live chain — extra Safe proposals that ride through the same tail. See Phase 3b.
+**Per-diamond chainId-mapping add-on**: a `PolymerCCTPFacet` or `FraxFacet` rollout that adds a chain also has to propagate its chainId mapping to every already-live chain — extra Safe proposals that ride through the same tail. See Phase 3b.
 
 **Signing model** (Safe threshold is 3): a freshly created proposal already carries one signature. The user running this skill adds a second via `confirm-safe-tx.ts`. The Slack thread then recruits the remaining signer(s) to reach the threshold, the last of whom executes. So the verification gate before posting is "the runner has signed" — `signatureCount >= 2` — deliberately short of the threshold; recruiting the rest is the whole point of the Slack ask.
 
@@ -35,6 +35,23 @@ See also: the wallet-rotation orchestrators `rotate-deployer-wallet` and `offboa
 Run from the repo root. Check and report (don't fix silently) the lifecycle prerequisites:
 
 - `.env` exists, `PRODUCTION=true`, `SEND_PROPOSALS_DIRECTLY_TO_DIAMOND` not `true`, `MAX_CONCURRENT_JOBS` set.
+- `SAFE_PROPOSAL_TICKET` exported with the Linear issue this rollout belongs to,
+  e.g. `export SAFE_PROPOSAL_TICKET="EXSC-812"` (a full issue URL works too).
+  **Mandatory** — no proposal is created without it, so an unset value fails every
+  network in Phase 2. Export it **before Phase 2**; only `propose-to-safe.ts` has a
+  `--ticket` flag, every other funnel reads this variable.
+- `SAFE_PROPOSAL_REASON` exported with a one-line rationale for this rollout, e.g.
+  `export SAFE_PROPOSAL_REASON="roll out AcrossFacetV4 v1.2.0 (EXSC-812)"`. Every
+  proposal stored during the run records it, and `confirm-safe-tx` shows it to the
+  signer beside the proposer, source commit and working-tree state. Leaving it
+  unset is not an error, but the signing prompt then reads
+  `Reason: — none given —`, which is the "what is this?" the field exists to
+  prevent. Export it **before Phase 2** — it is read as each proposal is stored,
+  not at signing time.
+- `ALLOW_FUTURE_NONCE_EXECUTION` **not** set. It is the escape hatch for an RPC
+  that under-reports the on-chain Safe nonce; with it on, `confirm-safe-tx`
+  broadcasts a future-nonce proposal after a warning instead of refusing. Never
+  leave it in `.env` — set it inline for the one run that needs it.
 - `gh auth status` OK; Slack MCP connected (needed in Phase 8 — warn early if missing, posting falls to the user).
 - Working tree clean enough to branch later (deploy mode creates a PR from deployment-log changes).
 - lifi-connect tunnel: verified implicitly later — `list-pending-proposals.ts` exits `2` with a clear message when the tunnel is down; relay that to the user when it happens.
@@ -63,6 +80,8 @@ Repo version: `grep -m1 "@custom:version" src/Facets/<Contract>.sol` (or `src/Pe
 jq -e --arg N "<Contract>" '.whitelistPeripheryFunctions | has($N)' config/global.json
 ```
 
+Also resolve any **required companion periphery** before confirming the plan — a facet with a `facetPeripheryCouplings` entry in `config/global.json` needs its companion deployed *and* registered on every target chain, or destination calls stay disabled there. `deploy-contract` Phase 1 carries the detection recipes; run them here too, since propose-only and whitelist modes never call that skill.
+
 ### propose-only mode — resolve targets
 
 Triggered by `--propose-only <Contract>` (or natural language: “create the cuts”, “propose already-deployed”, “re-propose after delete”). **Do not deploy.**
@@ -75,15 +94,22 @@ Triggered by `--propose-only <Contract>` (or natural language: “create the cut
 
 If the user didn't supply a whitelist PR (number or URL), ask for it — don't guess from recent merges or the working tree. The PR defines exactly which whitelist change is being rolled out and is the link the Slack post references.
 
-The input PR must be **merged to main** (whitelist changes are main-only by policy; the sync reads the local file). If it's open, stop and point the user at the merge first. Then, on up-to-date main, derive affected networks from the PR's whitelist diff (verified recipe):
+Whitelist changes are main-only by policy, so the PR's rollout defaults to a PR **merged to main** — the safe path. But merging is a formality: the sync reads the local `config/whitelist.json`, not GitHub, so proposals can be created against a **still-open** PR to run the rollout in parallel with review. Take the open-PR path **only when the user explicitly confirms** it's OK to propose ahead of merge; otherwise, if the PR is open, stop and point the user at the merge first.
+
+Read the affected networks off the PR's diff — the `config/whitelist.json` network keys whose entries changed (works for merged or open PRs; a whitelist rollout PR touches only that file):
 
 ```bash
-MERGE=$(gh pr view <N> --repo lifinance/contracts --json mergeCommit --jq '.mergeCommit.oid')
-PROG='[ (.DEXS[]? | .contracts | to_entries[] | {k: .key, v: .value}), (.PERIPHERY | to_entries[]? | {k: .key, v: .value}) ] | group_by(.k) | map({key: .[0].k, value: (map(.v) | tojson)}) | from_entries'
-git show "${MERGE}~1:config/whitelist.json" | jq -S "$PROG" > /tmp/wl-base.json
-git show "${MERGE}:config/whitelist.json"  | jq -S "$PROG" > /tmp/wl-head.json
-jq -rn --slurpfile A /tmp/wl-base.json --slurpfile B /tmp/wl-head.json \
-  '[($A[0] + $B[0]) | keys[]] | unique | map(select($A[0][.] != $B[0][.])) | .[]'
+gh pr diff <N> --repo lifinance/contracts
+```
+
+**Merged PR (default)** — on up-to-date main the local file already holds the change; nothing more to set up.
+
+**Open PR (only after explicit user confirmation)** — the sync reads the local `config/whitelist.json`, not GitHub, so check out the PR branch first and confirm the local file matches the PR head (a stale checkout would propose the wrong config):
+
+```bash
+gh pr checkout <N> --repo lifinance/contracts
+git diff --quiet "$(gh pr view <N> --repo lifinance/contracts --json headRefOid --jq '.headRefOid')" -- config/whitelist.json \
+  || { echo "local config/whitelist.json differs from PR head — check out the PR branch first"; exit 1; }
 ```
 
 The sync itself is on-chain-diff-driven, so a too-wide network list is harmless (extra networks no-op) — but keep the list tight so the run stays fast and the Slack post stays truthful.
@@ -165,9 +191,9 @@ proposal you already sign. No `cleanUpProdDiamond --auto` step is needed (design
   without `--yes`; use it only for a deliberate cold-network sweep. See
   [docs/FacetRemovalReconciliation.md](../../docs/FacetRemovalReconciliation.md).
 
-## Phase 3b — Propagate CCTP chainId→domain mappings (PolymerCCTP only)
+## Phase 3b — Propagate per-diamond chainId mappings (PolymerCCTP, Frax)
 
-Applies to a **`PolymerCCTPFacet`** rollout that adds a chain or CCTP corridor. The facet stores a chainId→CCTP-domain mapping per diamond, read from `config/polymercctp.json`. The *newly deployed* chain is seeded by the deploy's `initPolymerCCTP` init call, so it can route to every chain already in config the moment its cut executes — but every **already-live** chain still can't route *to* the new chain until the new chain's entry is added to their storage. `PolymerCCTPFacet` is the only facet with cross-chain chainId→domain storage today; a future one would follow the same shape.
+Applies to a **`PolymerCCTPFacet`** rollout that adds a chain or CCTP corridor. The facet stores a chainId→CCTP-domain mapping per diamond, read from `config/polymercctp.json`. The *newly deployed* chain is seeded by the deploy's `initPolymerCCTP` init call, so it can route to every chain already in config the moment its cut executes — but every **already-live** chain still can't route *to* the new chain until the new chain's entry is added to their storage. `FraxFacet` has the same shape (chainId→LayerZero-EID, `config/frax.json`, `script/tasks/proposeFraxChainIdMappings.ts`) and is propagated the same way.
 
 Two triggers:
 
@@ -180,9 +206,15 @@ Propagate (diff-driven — proposes only where the on-chain mapping is unset or 
 bunx tsx script/tasks/proposePolymerCCTPChainIdMappings.ts --environment production
 ```
 
-Variants: `--network <name>` (one chain), `--excludeNetworks '["megaeth"]'` (JSON array). Each proposal is a `LiFiTimelockController.scheduleBatch` wrapping `setChainIdToDomainId`, created carrying one signature — same lifecycle as every other proposal here.
+The `FraxFacet` equivalent (`config/frax.json` `mappings`, chainId→LayerZero EID) is:
 
-**Scope impact on the tail:** these proposals land on chains *beyond* the deploy target — potentially every live PolymerCCTP chain. Fold them into the rest of the run — capture them in Phase 4, add their networks + nonces to the PR table in Phase 5 (and stage the `config/polymercctp.json` diff — it targets `main`), verify them in Phase 7, list their networks in the Phase 8 Slack post. The runner signs them alongside the deploy proposals in Phase 6.
+```bash
+bunx tsx script/tasks/proposeFraxChainIdMappings.ts --environment production
+```
+
+Variants (both scripts): `--network <name>` (one chain), `--excludeNetworks '["megaeth"]'` (JSON array); the Frax script also takes `--dryRun` to print the per-network diff without proposing. Each proposal is a `LiFiTimelockController.scheduleBatch` wrapping the facet's setter (`setChainIdToDomainId` / `setFraxChainIdToEid`), created carrying one signature — same lifecycle as every other proposal here.
+
+**Scope impact on the tail:** these proposals land on chains *beyond* the deploy target — potentially every live PolymerCCTP or FraxFacet chain. Fold them into the rest of the run — capture them in Phase 4, add their networks + nonces to the PR table in Phase 5 (and stage the config diff — `config/polymercctp.json` or `config/frax.json` — it targets `main`), verify them in Phase 7, list their networks in the Phase 8 Slack post. The runner signs them alongside the deploy proposals in Phase 6.
 
 ## Phase 4 — Capture proposals
 
@@ -249,7 +281,7 @@ Safe proposals live on:
 …
 ```
 
-(whitelist mode: label the link `Whitelist PR:` instead.)
+(whitelist mode: label the link `Whitelist PR:` instead — or `Whitelist PR (open, rolling out ahead of merge):` when proposing against a not-yet-merged PR, so signers know the config isn't on main yet.)
 
 ## Phase 9 — Report
 

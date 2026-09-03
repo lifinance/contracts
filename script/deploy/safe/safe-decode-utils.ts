@@ -276,11 +276,20 @@ async function getPeripheryDeploymentCheckSuffix(
   return ` \u001b[31m(❌ mismatch: expected ${expectedDisplay})\u001b[0m`
 }
 
-function formatBatchSetContractSelectorWhitelist(
+/**
+ * Renders the contract/selector pairs of a `batchSetContractSelectorWhitelist`
+ * call. Signatures are resolved per pair from `config/whitelist.json` first —
+ * the only source that ties a signature to this contract on this network, and
+ * so the only one that earns the ✓ — then from the shared selector registry,
+ * then from the batched 4byte lookup. Without the latter two, a pair missing
+ * from this network's whitelist entry leaves the signer eyeballing a raw
+ * selector.
+ */
+export async function formatBatchSetContractSelectorWhitelist(
   args: readonly unknown[],
   network?: string,
   indent?: string
-): void {
+): Promise<void> {
   const pre = indent ?? ''
   if (!args || args.length < 3) {
     consola.warn('Invalid arguments for batchSetContractSelectorWhitelist')
@@ -295,24 +304,55 @@ function formatBatchSetContractSelectorWhitelist(
     )
     return
   }
+  // Case folding is only safe for hex addresses. Base58 is case-sensitive, so
+  // folding a Tron address risks merging two distinct contracts into one group
+  // and attributing the merged selectors to whichever address came first.
+  const groupingKey = (address: string): string =>
+    address.startsWith('0x') || address.startsWith('0X')
+      ? address.toLowerCase()
+      : address
   const contractToSelectors = new Map<string, string[]>()
   for (let i = 0; i < contracts.length; i++) {
-    const contract = contracts[i]?.toLowerCase()
+    const contract = contracts[i]
     const selector = selectors[i]
     if (!contract || !selector) continue
-    if (!contractToSelectors.has(contract))
-      contractToSelectors.set(contract, [])
-    const selectorList = contractToSelectors.get(contract)
+    const key = groupingKey(contract)
+    if (!contractToSelectors.has(key)) contractToSelectors.set(key, [])
+    const selectorList = contractToSelectors.get(key)
     if (selectorList) selectorList.push(selector)
   }
+
+  // Every lookup and the rendering use the address as supplied, not the key.
+  const rows = [...contractToSelectors.entries()].map(
+    ([key, selectorList]) => ({
+      contract: contracts.find((c) => groupingKey(c) === key) || key,
+      selectorList,
+    })
+  )
+
+  // One batched lookup for everything neither whitelist.json nor the local
+  // registry can answer, so rendering below stays synchronous per selector.
+  const fourByteSignatures = network
+    ? await resolveSelectorsViaFourByte(
+        rows.flatMap(({ contract, selectorList }) =>
+          selectorList.filter(
+            (selector) =>
+              !lookupWhitelistMetaForContractSelector(
+                network,
+                contract,
+                selector
+              ).signature?.trim() && !getLocalSelectorInfo(selector)
+          )
+        )
+      )
+    : new Map<string, string>()
+
   const actionText = whitelisted ? 'Adding pairs' : 'Removing pairs'
   const actionColor = whitelisted ? '\u001b[32m' : '\u001b[33m'
   consola.info(`${pre}Action: ${actionColor}${actionText}\u001b[0m`)
   consola.info(`${pre}Total pairs: ${contracts.length}`)
   consola.info(`${pre}Pairs:`)
-  contractToSelectors.forEach((selectorList, contract) => {
-    const originalContract =
-      contracts.find((c) => c.toLowerCase() === contract) || contract
+  rows.forEach(({ contract: originalContract, selectorList }) => {
     let contractLabel = ''
     if (network) {
       const meta = lookupWhitelistMetaForContractSelector(
@@ -344,18 +384,32 @@ function formatBatchSetContractSelectorWhitelist(
         selector
       )
       const signature = meta.signature?.trim()
-      if (!signature) {
+      if (signature) {
+        const expected = computeSelectorFromSignature(signature)
+        const ok = expected.toLowerCase() === selector.toLowerCase()
+        const status = ok ? '\u001b[32m✓\u001b[0m' : '\u001b[31m✗\u001b[0m'
+        const mismatch = ok ? '' : ` \u001b[31m(expected ${expected})\u001b[0m`
         consola.info(
-          `${pre}      - \u001b[33m${selector}\u001b[0m \u001b[90m(signature unknown in whitelist)\u001b[0m`
+          `${pre}      - \u001b[33m${selector}\u001b[0m \u001b[36m${signature}\u001b[0m ${status}${mismatch}`
         )
         return
       }
-      const expected = computeSelectorFromSignature(signature)
-      const ok = expected.toLowerCase() === selector.toLowerCase()
-      const status = ok ? '\u001b[32m✓\u001b[0m' : '\u001b[31m✗\u001b[0m'
-      const mismatch = ok ? '' : ` \u001b[31m(expected ${expected})\u001b[0m`
+
+      const local = getLocalSelectorInfo(selector)
+      const fallbackSignature =
+        local?.signature ?? fourByteSignatures.get(selector.toLowerCase())
+      if (!fallbackSignature) {
+        consola.info(
+          `${pre}      - \u001b[33m${selector}\u001b[0m \u001b[90m(signature unknown)\u001b[0m`
+        )
+        return
+      }
+      // Sourced outside this network's whitelist entry, so the signature is
+      // not evidence that this contract exposes it — label the origin rather
+      // than showing the ✓ the whitelist path earns.
+      const source = local?.source ?? '4byte.sourcify.dev'
       consola.info(
-        `${pre}      - \u001b[33m${selector}\u001b[0m \u001b[36m${signature}\u001b[0m ${status}${mismatch}`
+        `${pre}      - \u001b[33m${selector}\u001b[0m \u001b[36m${fallbackSignature}\u001b[0m \u001b[90m(via ${source})\u001b[0m`
       )
     })
   })
@@ -396,10 +450,27 @@ function getDiamondAbiItemForSelector(selector: string): Abi[number] | null {
   return null
 }
 
-function formatDecodedArg(arg: unknown, network?: string): string {
+/**
+ * Renders one decoded ABI argument for display.
+ *
+ * @param arg - Decoded argument value (may be a bigint, tuple, or array).
+ * @param network - When set, addresses are rendered in the network's format.
+ * @returns Display string for the argument.
+ */
+export function formatDecodedArg(arg: unknown, network?: string): string {
   if (arg === undefined || arg === null) return String(arg)
   if (typeof arg === 'bigint') return arg.toString()
-  if (typeof arg === 'object') return JSON.stringify(arg)
+  // Tuple and array args (e.g. initFrax's (chainId, eid) pairs) carry nested
+  // bigints, which plain JSON.stringify throws on — losing the whole decode and
+  // leaving the operator approving a payload they were never shown. Nested
+  // strings recurse so an address inside a tuple gets the same per-network
+  // rendering as a top-level one instead of staying raw hex.
+  if (typeof arg === 'object')
+    return JSON.stringify(arg, (_key, value: unknown) => {
+      if (typeof value === 'bigint') return value.toString()
+      if (typeof value === 'string') return formatDecodedArg(value, network)
+      return value
+    })
   const s = String(arg)
   if (
     network !== undefined &&
@@ -777,7 +848,7 @@ export async function formatDecodedTxDataForDisplay(
       decoded?.functionName === 'batchSetContractSelectorWhitelist' &&
       decoded.args
     ) {
-      formatBatchSetContractSelectorWhitelist(decoded.args, network, pre)
+      await formatBatchSetContractSelectorWhitelist(decoded.args, network, pre)
       return
     }
 

@@ -75,6 +75,17 @@ const FOUNDRY_TOML_PATH = resolve(
   '../../foundry.toml'
 )
 
+/**
+ * Foundry's build output, resolved from this module rather than `process.cwd()`.
+ * A cwd-relative lookup makes every artifact reader report "not built" whenever
+ * the caller was launched from outside the repo root, which reads as a missing
+ * contract rather than a missing build.
+ */
+export const OUT_ROOT = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  '../../out'
+)
+
 function readFoundryProfileDefaultConfig(): IFoundryProfileDefaultConfig {
   const content = readFileSync(FOUNDRY_TOML_PATH, 'utf8')
 
@@ -382,7 +393,7 @@ export async function saveContractAddress(
 
   deployments[contract] = address
 
-  await Bun.write(deploymentFile, JSON.stringify(deployments, null, 2))
+  await Bun.write(deploymentFile, JSON.stringify(deployments, null, 2) + '\n')
 }
 
 /**
@@ -474,7 +485,7 @@ export async function getFacetSelectors(
   facetName: string,
   excludeSelectors: string[] = []
 ): Promise<string[]> {
-  const base = resolve(process.cwd(), 'out')
+  const base = OUT_ROOT
   const artifactPath = resolve(base, `${facetName}.sol`, `${facetName}.json`)
   const relativePath = relative(base, artifactPath)
   if (relativePath.startsWith('..') || isAbsolute(relativePath))
@@ -903,7 +914,8 @@ export function printDeploymentSummary(
     summaryContent += 'Successful deployments:\n'
     successful.forEach((r) => {
       summaryContent += `  ${r.contract}: ${r.address}\n`
-      if (r.cost > 0) summaryContent += `    Cost: ${r.cost.toFixed(4)}\n`
+      if (r.cost > 0)
+        summaryContent += `    Cost: ${Number(r.cost).toFixed(4)}\n`
     })
   }
 

@@ -109,14 +109,6 @@ export interface INetwork {
    */
   gasPrice?: number
   /**
-   * When true, the deployment healthcheck (script/deploy/healthCheck.ts) exits successfully without running checks.
-   * Use only on an exceptional basis when the healthcheck cannot pass otherwise (e.g. core periphery contracts
-   * such as GasZipPeriphery or TokenWrapper are intentionally not deployed on that network).
-   * Before merging: still run the healthcheck manually for that network and verify all addresses and configuration
-   * are correct; this flag only allows CI to pass.
-   */
-  skipHealthcheck?: boolean
-  /**
    * Chains with no native currency (`nativeCurrency: "N/A"`, e.g. tempo): the ERC20 token gas is
    * paid in by default (tempo: the pathUSD TIP-20 predeploy). Funding audits read this token's
    * balance instead of eth_getBalance, which returns a meaningless sentinel on such chains.
@@ -264,6 +256,16 @@ export interface IChainSimulateResult {
   estimatedResource: bigint
   /** Label for the resource unit (for display). */
   resourceLabel: string
+  /**
+   * True when estimation failed and `estimatedResource` is a fixed fallback
+   * rather than a real estimate. A dry run must not report success on this: the
+   * same failure makes the executing path refuse to broadcast, so reporting a
+   * green simulation would contradict the run that follows it.
+   *
+   * Required, not optional: an implementation that omits it would silently
+   * reintroduce the green-on-failure dry run the flag exists to prevent.
+   */
+  estimateFailed: boolean
 }
 
 /** Options for proposing a Safe transaction (EVM). */
@@ -279,11 +281,16 @@ export interface IProposeToSafeOptions {
   rpcUrl?: string
   ledger?: boolean
   ledgerLive?: boolean
-  accountIndex?: number
+  /** Unconverted, so a malformed value reaches `parseAccountIndex` intact. */
+  accountIndex?: number | string
   derivationPath?: string
   safeAddress?: string
   calldataFile?: string
   nonce?: bigint
+  /** One-line rationale shown to the signer; `SAFE_PROPOSAL_REASON` is the fallback. */
+  reason?: string
+  /** Linear issue link or bare id; `SAFE_PROPOSAL_TICKET` is the fallback. Required. */
+  ticket?: string
 }
 
 /** Strategy interface for chain-specific generic contract call broadcasting. */

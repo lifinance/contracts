@@ -27,6 +27,14 @@ If you only want to deploy a new diamond contract and use existing deployed face
 
 3. Merge your branch with latest master to make sure you have all the latest addresses stored in your deployments folder
 
+4. Commit and push before deploying to production
+
+A production deploy is refused unless the working tree matches the commit it will be recorded at and that commit exists on an origin branch, because a deployment record only claims anything if someone can rebuild at its commit. Only build-affecting paths count - `src/`, `lib/`, `foundry.toml`, `remappings.txt` and `foundry.lock`; changes under `deployments/`, `broadcast/` and `script/` are ignored. Staging deploys warn instead of refusing. To see the verdict without deploying:
+
+```bash
+bunx tsx script/deploy/shared/assert-tree-recordable.ts
+```
+
 ## Network Configuration
 
 1. **CREATE3Factory**
@@ -94,15 +102,19 @@ When bytecode is already in `deployments/<network>.json` (deferred diamond cuts,
 
 Outcomes per network: `OK` (new proposal), `SKIP` (already registered on the diamond, or identical pending proposal blocked by Mongo `intentHash`), `FAIL`. Diamond-called periphery also syncs the allowlist on OK networks. For the full signing/Slack lifecycle, use `/multisig-rollout --propose-only <Contract> …`.
 
+### Recomputing the calldata of a pending proposal
+
+To rebuild a proposal's `diamondCut` calldata from config on `main` and compare it byte-for-byte,
+see [DiamondCutRecomputation.md](./DiamondCutRecomputation.md).
+
 ## <a name="upgrade-using-safe"></a>Upgrade using SAFE wallet
 
 - [ ] Make sure you have deployed a new diamond contract (see above)
-- [ ] Make sure the diamond contract is owned by the SAFE wallet you will use for the upgrade
+- [ ] Make sure the diamond contract is owned by the network's `LiFiTimelockController`, with the SAFE wallet as that timelock's proposer (on testnets the deployer owns the diamond directly)
 - [ ] Ensure that you have granted access to a secondary wallet to whitelist contracts and selectors
-- [ ] Make sure the facet you wish to upgrade is deployed but not added to the diamond yet
-- [ ] Run this script `./scripts/scriptMaster.sh`, select `11) Propose upgrade TX to Gnosis SAFE`
+- [ ] Run this script `./script/scriptMaster.sh`, select `1) Deploy one specific contract to one network`
 - [ ] Choose the network you want to run the upgrade on
-- [ ] Choose the facet(s) you want to upgrade (you can select multiple using the spacebar)
-- [ ] Hit enter and select the SAFE wallet you want to use
-- [ ] Hit enter again and wait for the script to finish
-- [ ] Go to the Gnosis SAFE app and confirm the transaction
+- [ ] Choose the facet you want to upgrade — the script deploys it and cuts it into the diamond in one run
+- [ ] When asked whether to add the contract to a diamond, select `yes - to LiFiDiamond` (or `yes - to LiFiDiamondImmutable`). A `no` answer deploys the facet only and performs no diamondCut
+- [ ] Wait for the script to finish. On production, non-testnet networks the diamondCut is proposed to the network's Safe (from `config/networks.json`) automatically, wrapped in a timelock `scheduleBatch`
+- [ ] Run `bun confirm-safe-tx` to review, sign and — once the threshold is met — execute the transaction. There is no Safe{Wallet} UI in this flow; proposals live in our own MongoDB store

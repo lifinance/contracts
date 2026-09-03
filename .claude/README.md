@@ -77,7 +77,7 @@ If you don't use Claude Code, you can ignore this directory entirely — none of
 
 ### Why bundle them
 
-Several of the bundled skills (`post-pr-for-review`, `sc-design-review`, `start-linear-ticket`, etc.) call out to external services via MCP. Without the right servers configured, the skills fail with cryptic errors. Bundling them via project-level `.mcp.json` means anyone who clones this repo gets a one-click setup instead of hunting through docs.
+Several of the bundled skills (`sc-design-review`, `start-linear-ticket`, etc.) call out to external services via MCP. Without the right servers configured, the skills fail with cryptic errors. Bundling them via project-level `.mcp.json` means anyone who clones this repo gets a one-click setup instead of hunting through docs.
 
 ### Security model
 
@@ -90,15 +90,20 @@ Several of the bundled skills (`post-pr-for-review`, `sc-design-review`, `start-
 | Server | Endpoint | Used by | Auth |
 |---|---|---|---|
 | `linear` | `https://mcp.linear.app/mcp` | `start-linear-ticket` | OAuth (linear.app) — browser flow on first call |
-| `slack` | `https://mcp.slack.com/mcp` | `post-pr-for-review` | OAuth (LI.FI Slack workspace) — sign in once, your messages post as you |
 | `notion` | `https://mcp.notion.com/mcp` | `sc-design-review` (PRD ingestion) | OAuth (notion.so) — grant access to the LI.FI Notion workspace |
 | `blockscout` | `https://mcp.blockscout.com/mcp` | Ad-hoc onchain inspection of deployed contracts (no specific skill yet) | No login — public read-only endpoint |
+
+### Slack is not in `.mcp.json`
+
+`post-pr-for-review`, `finish-rollout`, `multisig-rollout`, `offboard-sc-dev`, `check-open-prs`, `request-audit` and `resolve-audit-issues` all call Slack, but Slack cannot be declared here: its OAuth server does not support dynamic client registration, so Claude Code cannot register itself as a client and every auth attempt fails with `Incompatible auth server`. Slack requires a pre-registered OAuth app.
+
+Add it as a **claude.ai connector** instead (claude.ai → Settings → Connectors → Slack), which uses Anthropic's registered Slack app. It then appears in Claude Code alongside the servers above, and the Slack-dependent skills work as documented.
 
 ### First-time setup
 
 1. `cd` into this repo and run `claude` (or open Claude Code in this directory).
 2. Claude Code detects `.mcp.json` and prompts: **"This workspace declares N MCP servers. Approve?"** Accept (or decline individual servers you don't need).
-3. The first time you invoke a skill that uses one of these servers (e.g. `start ticket EXSC-XXX` → Linear), Claude Code triggers an OAuth flow in your browser. Sign in with your **LI.FI Google account** (Linear, Notion) or **LI.FI Slack identity** (Slack). Blockscout requires no auth.
+3. The first time you invoke a skill that uses one of these servers (e.g. `start ticket EXSC-XXX` → Linear), Claude Code triggers an OAuth flow in your browser. Sign in with your **LI.FI Google account** (Linear, Notion). Blockscout requires no auth.
 4. The token is stored locally by Claude Code (per-user); subsequent calls reuse it without prompting.
 
 > **Tip:** you don't have to authenticate everything upfront. Each server only triggers its OAuth flow the first time a skill actually calls it. If you only use `start-linear-ticket`, you'll only see the Linear prompt.
@@ -113,3 +118,5 @@ Several of the bundled skills (`post-pr-for-review`, `sc-design-review`, `start-
 ### Adding a new MCP server
 
 If you're adding a skill that depends on a new MCP server, also add the server to `.mcp.json` and document it in the table above. Keep the criterion strict: only servers that something *in this repo* actively calls. Personal productivity MCPs (Gmail, Calendar, etc.) belong in your user-level Claude Code config, not here.
+
+One exception: a server whose OAuth provider doesn't support dynamic client registration cannot be declared in `.mcp.json` at all — Claude Code has no client ID to register with and the entry fails permanently. Route those through a claude.ai connector and document them like Slack above, rather than adding a block that can never authenticate.

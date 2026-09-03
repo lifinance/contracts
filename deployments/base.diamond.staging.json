@@ -2,11 +2,11 @@
   "LiFiDiamond": {
     "Facets": {
       "0x953ad37E0c1883c5A8b6ee5527Eb392Da18d2e64": {
-        "Name": "",
+        "Name": "DiamondCutFacet",
         "Version": ""
       },
       "0x8b169B668f4a34647D03D79b571a56c419Fc6C7E": {
-        "Name": "",
+        "Name": "DiamondLoupeFacet",
         "Version": ""
       },
       "0x898994244A182565F4167A8085bB1d9181fdA5F2": {
@@ -53,17 +53,9 @@
         "Name": "LiFiIntentEscrowFacet",
         "Version": "1.1.1"
       },
-      "0xD9C95865a8a25614B4bbb77b1b55fa0bF207D7c2": {
-        "Name": "",
-        "Version": ""
-      },
       "0xA5b0446EFECBfee560a985139e232692C5AC44a1": {
         "Name": "GardenFacet",
         "Version": "1.0.0"
-      },
-      "0xe19F7d8062B053D75aCAa36503c209315eec4045": {
-        "Name": "PolymerCCTPFacet",
-        "Version": "2.0.1"
       },
       "0x5Fe3dA44896a5F576188a5A2d61594047D8C3a59": {
         "Name": "WhitelistRecoveryFacet",
@@ -80,14 +72,6 @@
       "0x54AEC552Acc3218b0B3991FD61cA12b3A4fD222D": {
         "Name": "SupersetFacet",
         "Version": "1.0.0"
-      },
-      "0x747AcfB82E9D59E6f196Ffb473f3521c3B057362": {
-        "Name": "PolymerCCTPFacet",
-        "Version": "3.0.0"
-      },
-      "0xf3a8610d57edA7Dca0670e9d7a1AcAF4CbE2C579": {
-        "Name": "PolymerCCTPFacet",
-        "Version": "3.0.0"
       },
       "0x83E642C64B8D08b3b62EDacF773A9456841b3601": {
         "Name": "PolymerCCTPFacet",

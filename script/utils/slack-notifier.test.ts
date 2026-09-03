@@ -12,7 +12,7 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
-import { SlackNotifier } from './slack-notifier'
+import { isUnattendedRun, SlackNotifier } from './slack-notifier'
 import type { ISlackMessage } from './slack-notifier'
 
 const WEBHOOK = 'https://hooks.slack.com/services/T000/B000/xxx'
@@ -92,6 +92,42 @@ describe('SlackNotifier run-link', () => {
   })
 })
 
+describe('SlackNotifier batch summary — networks that were never checked', () => {
+  it('refuses to call a run successful when networks went unchecked', async () => {
+    // Every processed network succeeded, so a summary built only from `results`
+    // reads "completed successfully" — on a run that exits non-zero because a
+    // ready operation elsewhere would have been missed.
+    const getPayload = mockFetchCapturing()
+    await new SlackNotifier(WEBHOOK).notifyBatchSummary(
+      [{ network: 'mode', success: true, operationsProcessed: 0 }],
+      3
+    )
+
+    const payload = getPayload()
+    const blocks = (payload.blocks ?? []) as unknown as ICapturedBlock[]
+    expect(payload.text).toContain('completed with some failures')
+    expect(
+      blocks.some((b) =>
+        b.text?.text?.includes('*🚨 Never checked:*\n3 network')
+      )
+    ).toBe(true)
+  })
+
+  it('stays silent about unchecked networks when every network was reached', async () => {
+    const getPayload = mockFetchCapturing()
+    await new SlackNotifier(WEBHOOK).notifyBatchSummary([
+      { network: 'mode', success: true, operationsProcessed: 1 },
+    ])
+
+    const payload = getPayload()
+    const blocks = (payload.blocks ?? []) as unknown as ICapturedBlock[]
+    expect(payload.text).toContain('completed successfully')
+    expect(blocks.some((b) => b.text?.text?.includes('Never checked'))).toBe(
+      false
+    )
+  })
+})
+
 describe('SlackNotifier payload safety', () => {
   it('clamps an oversized error message below the Slack 3000-char block limit', async () => {
     const getPayload = mockFetchCapturing()
@@ -162,5 +198,83 @@ describe('SlackNotifier retry failure signaling', () => {
       caught = err
     }
     expect(String(caught)).toContain('Slack API error: 500')
+  })
+})
+
+describe('isUnattendedRun', () => {
+  const original = process.env.CI
+
+  afterEach(() => {
+    if (original === undefined) delete process.env.CI
+    else process.env.CI = original
+  })
+
+  it('is true under a GitHub Actions run, scheduled or dispatched', () => {
+    process.env.CI = 'true'
+    expect(isUnattendedRun()).toBe(true)
+  })
+
+  it('is false in a developer shell, so local runs stay off the channel', () => {
+    delete process.env.CI
+    expect(isUnattendedRun()).toBe(false)
+  })
+
+  it('is false for an empty CI value', () => {
+    process.env.CI = ''
+    expect(isUnattendedRun()).toBe(false)
+  })
+
+  it.each(['false', 'FALSE', '0', 'no'])(
+    'treats CI=%s as an opt-out, not as CI',
+    (value) => {
+      process.env.CI = value
+      expect(isUnattendedRun()).toBe(false)
+    }
+  )
+
+  it('is true for any other non-empty value', () => {
+    process.env.CI = '1'
+    expect(isUnattendedRun()).toBe(true)
+  })
+})
+
+describe('SlackNotifier.notifyRepeatedRevert', () => {
+  it('states the problem and the required action in a deliverable payload', async () => {
+    const getPayload = mockFetchCapturing()
+    await new SlackNotifier(WEBHOOK).notifyRepeatedRevert({
+      network: 'mode',
+      operationId: `0x${'c4'.repeat(32)}`,
+      safeTxHash: `0x${'b4'.repeat(32)}`,
+      revertCount: 3,
+      lastRevertTxHash: `0x${'37'.repeat(32)}`,
+    })
+
+    const payload = getPayload()
+    // The fallback text is what surfaces in the notification list, so it has to
+    // carry the meaning on its own.
+    expect(payload.text).toContain('keeps failing on-chain')
+    expect(payload.text).toContain('mode')
+
+    const blocks = (payload.blocks ?? []) as unknown as ICapturedBlock[]
+    const flat = JSON.stringify(blocks)
+    expect(flat).toContain('Action Required')
+    expect(flat).toContain('requeue-timelock-op.ts')
+    expect(flat).toContain('3')
+
+    // Every block must sit under Slack's per-element cap or the whole post is
+    // rejected with invalid_blocks and the alert is silently lost.
+    for (const block of blocks)
+      expect(block.text?.text?.length ?? 0).toBeLessThanOrEqual(3000)
+  })
+
+  it('renders without a last-revert hash', async () => {
+    const getPayload = mockFetchCapturing()
+    await new SlackNotifier(WEBHOOK).notifyRepeatedRevert({
+      network: 'mode',
+      operationId: `0x${'c4'.repeat(32)}`,
+      safeTxHash: 'unknown',
+      revertCount: 5,
+    })
+    expect(JSON.stringify(getPayload().blocks)).toContain('unknown')
   })
 })

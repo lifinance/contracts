@@ -28,6 +28,7 @@ jobs:
   static-analysis:
     name: Static Analysis Security Check
     runs-on: ubuntu-latest
+    timeout-minutes: 15
 
     steps:
       - name: Checkout Repository

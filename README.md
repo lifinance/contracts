@@ -93,16 +93,16 @@ For more information on EIP-2535 you can view the entire EIP [here](https://eips
 
 ### Contract Flow<a name="contract-flow"></a>
 
-A basic example would be a user bridging from one chain to another using Hop Protocol. The user would interact with the LI.FIDiamond contract which would pass the Hop specific call to the HopFacet which then passes required calls + parameters to Hop Protocol's contracts.
+A basic example would be a user bridging from one chain to another using Across Protocol. The user would interact with the LI.FIDiamond contract which would pass the Across-specific call to the AcrossFacetV4 which then passes required calls + parameters to Across Protocol's contracts.
 
 The basic flow is illustrated below.
 
 ```mermaid
 graph TD;
-    D{LiFiDiamond}-- DELEGATECALL -->HopFacet;
-    D{LiFiDiamond}-- DELEGATECALL -->AnyswapFacet;
-    D{LiFiDiamond}-- DELEGATECALL -->HyphenFacet;
-    D{LiFiDiamond}-- DELEGATECALL -->StargateFacet;
+    D{LiFiDiamond}-- DELEGATECALL -->AcrossFacetV4;
+    D{LiFiDiamond}-- DELEGATECALL -->StargateFacetV2;
+    D{LiFiDiamond}-- DELEGATECALL -->MayanFacet;
+    D{LiFiDiamond}-- DELEGATECALL -->SquidFacet;
 ```
 
 ### Diamond Helper Contracts<a name="diamond-helper-contracts"></a>
@@ -174,7 +174,7 @@ proposal MongoDB and deploy infrastructure via the `lifi-connect` tunnel — see
 
 2. **Code Quality**
 
-   - Follow our [coding conventions](./conventions.md)
+   - Follow our [coding conventions](./.agents/rules/)
    - Write comprehensive tests for new features
    - Ensure all tests pass before submitting PRs
 
@@ -193,7 +193,7 @@ proposal MongoDB and deploy infrastructure via the `lifi-connect` tunnel — see
 
 ## Code Quality & Standards<a name="code-quality"></a>
 
-Our codebase follows strict quality standards defined in [conventions.md](./conventions.md). Key aspects include:
+Our codebase follows strict quality standards defined in the rule files under [.agents/rules](./.agents/rules/). Key aspects include:
 
 1. **Code Organization**
 
@@ -219,7 +219,7 @@ Our codebase follows strict quality standards defined in [conventions.md](./conv
    - Memory usage optimization
    - Batch operations where possible
 
-For detailed guidelines and requirements, please refer to [conventions.md](./conventions.md).
+For detailed guidelines and requirements, please refer to the rule files under [.agents/rules](./.agents/rules/).
 
 ## More Information<a name="more-information"></a>
 
@@ -229,7 +229,7 @@ For detailed guidelines and requirements, please refer to [conventions.md](./con
 - [SDK Documentation](https://docs.li.fi/products/integrate-li.fi-js-sdk/install-li.fi-sdk)
 - [Transfer UI](https://transferto.xyz/)
 - [Internal Documentation](./docs/README.md)
-- [Coding Conventions](./conventions.md)
+- [Coding Conventions](./.agents/rules/)
 - [Deployment Guide](./docs/Deploy.md)
 - [Tron Fork — why it exists, sync process, and how to deploy to Tron](./docs/TronFork.md)
 

@@ -116,6 +116,10 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
             address(feeForwarder),
             feeForwarder.forwardERC20Fees.selector
         );
+        genericSwapFacetV3.addAllowedContractSelector(
+            address(feeForwarder),
+            feeForwarder.forwardNativeFees.selector
+        );
 
         // set facet address in TestBase
         setFacetAddressInTestBase(
@@ -1523,6 +1527,126 @@ contract GenericSwapFacetV3Test is TestBase, TestHelpers {
 
         uint256 gasUsed = gasLeftBef - gasleft();
         emit log_named_uint("gas used V2: ", gasUsed);
+    }
+
+    // MULTISWAP FORWARD NATIVE FEE (FeeForwarder) THEN SWAP TO ERC20
+
+    /// @dev The native fee step is funded with the full swap amount, so FeeForwarder must
+    ///      refund the unspent part to the diamond for the next step to have anything to
+    ///      swap. This is the production call shape for forwardNativeFees and the case the
+    ///      FeeForwarder docs warn about: a refund that fails to come back would strand
+    ///      user funds in the diamond.
+    function _produceSwapDataMultiswapNativeFeeViaFeeForwarderAndSwapToERC20()
+        private
+        view
+        returns (
+            LibSwap.SwapData[] memory swapData,
+            uint256 amountIn,
+            uint256 integratorFee,
+            uint256 minAmountOut
+        )
+    {
+        amountIn = 1 ether;
+        integratorFee = 0.1 ether;
+
+        // Swap1: forward a native fee, the rest comes back to the diamond
+        FeeForwarder.FeeDistribution[]
+            memory distributions = new FeeForwarder.FeeDistribution[](1);
+        distributions[0] = FeeForwarder.FeeDistribution(
+            INTEGRATOR_WALLET,
+            integratorFee
+        );
+
+        swapData = new LibSwap.SwapData[](2);
+        swapData[0] = LibSwap.SwapData(
+            address(feeForwarder),
+            address(feeForwarder),
+            address(0),
+            address(0),
+            amountIn,
+            abi.encodeWithSelector(
+                feeForwarder.forwardNativeFees.selector,
+                distributions
+            ),
+            true
+        );
+
+        uint256 amountAfterFee = amountIn - integratorFee;
+
+        // Swap2: native to USDC
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_WRAPPED_NATIVE;
+        path[1] = ADDRESS_USDC;
+
+        uint256[] memory amounts = uniswap.getAmountsOut(amountAfterFee, path);
+        minAmountOut = amounts[1];
+
+        swapData[1] = LibSwap.SwapData(
+            address(uniswap),
+            address(uniswap),
+            address(0),
+            ADDRESS_USDC,
+            amountAfterFee,
+            abi.encodeWithSelector(
+                uniswap.swapExactETHForTokens.selector,
+                minAmountOut,
+                path,
+                address(genericSwapFacetV3),
+                block.timestamp + 20 minutes
+            ),
+            false
+        );
+    }
+
+    function test_CanForwardNativeFeeViaFeeForwarderThenSwapToERC20() public {
+        (
+            LibSwap.SwapData[] memory swapData,
+            uint256 amountIn,
+            uint256 integratorFee,
+            uint256 minAmountOut
+        ) = _produceSwapDataMultiswapNativeFeeViaFeeForwarderAndSwapToERC20();
+
+        uint256 integratorBalanceBefore = INTEGRATOR_WALLET.balance;
+        uint256 receiverBalanceBefore = usdc.balanceOf(SOME_WALLET);
+
+        vm.expectEmit(true, true, true, true, address(diamond));
+        emit LiFiGenericSwapCompleted(
+            0x0000000000000000000000000000000000000000000000000000000000000000, // transactionId,
+            "integrator", // integrator,
+            "referrer", // referrer,
+            SOME_WALLET, // receiver,
+            address(0), // fromAssetId,
+            ADDRESS_USDC, // toAssetId,
+            amountIn, // fromAmount,
+            minAmountOut // toAmount (with liquidity in that selected block)
+        );
+
+        genericSwapFacetV3.swapTokensMultipleV3NativeToERC20{
+            value: amountIn
+        }(
+            "",
+            "integrator",
+            "referrer",
+            payable(SOME_WALLET),
+            minAmountOut,
+            swapData
+        );
+
+        // the integrator got exactly its fee
+        assertEq(
+            INTEGRATOR_WALLET.balance,
+            integratorBalanceBefore + integratorFee
+        );
+
+        // the refund reached the diamond and was swapped onward: the receiver got the
+        // full output for (amountIn - fee), and nothing was left stranded anywhere
+        assertEq(
+            usdc.balanceOf(SOME_WALLET),
+            receiverBalanceBefore + minAmountOut
+        );
+        assertEq(address(diamond).balance, 0);
+        assertEq(address(genericSwapFacetV3).balance, 0);
+        assertEq(address(feeForwarder).balance, 0);
     }
 
     // MULTISWAP COLLECT ERC20 FEE AND SWAP TO NATIVE
