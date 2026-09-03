@@ -84,6 +84,19 @@ describe('normalizeRepoUrl', () => {
     expect(normalizeRepoUrl(url)).toBe(expected)
   })
 
+  it.each([
+    ['constructor', 'https://constructor/a/b', 'constructor/a/b'],
+    ['toString', 'https://tostring/a/b', 'tostring/a/b'],
+  ])(
+    'treats a host named %s as a host, not a prototype member',
+    (_l, url, expected) => {
+      // The alias table is a Map for this: on an object literal these resolve to
+      // inherited members, and `?? host` does not fire for them, so the host
+      // became a function's source text. The output check would refuse that, but
+      // the correct answer is the host itself.
+      expect(normalizeRepoUrl(url)).toBe(expected)
+    }
+  )
   it('lower-cases, because the host and GitHub owner names are case-insensitive', () => {
     expect(normalizeRepoUrl('git@GitHub.com:LiFinance/Contracts.git')).toBe(
       'github.com/lifinance/contracts'
