@@ -233,7 +233,7 @@ deploySingleContract() {
 
     # do not continue if data required for deployment is missing
     if [ $? -ne 0 ]; then
-      if [[ -z "$EXIT_ON_ERROR" || $EXIT_ON_ERROR == "false" ]]; then
+      if [[ -z "$EXIT_ON_ERROR" || "$EXIT_ON_ERROR" == "false" ]]; then
         return 1
       else
         exit 1
