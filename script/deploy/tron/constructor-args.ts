@@ -106,6 +106,14 @@ export const constructorInputTypes = (
 /**
  * Checks a record's constructor arguments against what the contract can take.
  *
+ * Both current call sites feed this the string {@link encodeConstructorArgs}
+ * just produced from the same `types`, which already guarantees hex output and
+ * matching arity — so of the checks below, only the word-count one can still
+ * fire there, and only if the underlying ABI encoder itself returns fewer
+ * words than the types call for. The empty-vs-non-empty checks earn their keep
+ * against a `recorded` that did NOT come from a fresh encode, e.g. an existing
+ * deployment record being audited independently.
+ *
  * @param contractName - Contract the record is for.
  * @param recorded - The string about to be written to the record.
  * @param types - Declared constructor types, from {@link constructorInputTypes}.
