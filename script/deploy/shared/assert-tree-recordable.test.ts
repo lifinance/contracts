@@ -677,8 +677,9 @@ describe('a submodule directory that is not a checked-out repository', () => {
   })
 
   it('refuses when the submodule path is unreadable', () => {
-    // Fail closed: an unreadable directory is not evidence that its source is
-    // present. Skipped when running as a user that ignores the mode bits.
+    // Fail closed. The refusal comes from git being unable to resolve the path
+    // as a repository root, not from the directory listing — so it holds
+    // whether or not the running user is subject to the mode bits.
     const { clone } = makeSuperWithSubmodule()
     const path = join(clone, 'lib/dep')
     chmodSync(path, 0o000)

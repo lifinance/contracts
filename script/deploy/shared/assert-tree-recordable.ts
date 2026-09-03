@@ -42,6 +42,9 @@ const isCheckedOutRepository = (path: string): boolean => {
   if (top === undefined) return false
 
   try {
+    // realpath because a temp directory reaches git as /private/tmp and the
+    // caller as /tmp. This catch is defensive only — it needs the path to stop
+    // existing between the two calls above, so no test reaches it.
     return realpathSync(top.trim()) === realpathSync(path)
   } catch {
     return false
