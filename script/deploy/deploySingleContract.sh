@@ -7,6 +7,7 @@ deploySingleContract() {
   # load helper functions
   source script/helperFunctions.sh
   source script/deploy/resources/contractSpecificReminders.sh # pre-commit-checker: not a secret
+  source script/deploy/shared/assertTreeRecordable.sh
 
   # read function arguments into variables
   local CONTRACT="$1"
@@ -44,6 +45,18 @@ deploySingleContract() {
       ENVIRONMENT="production"
     else
       ENVIRONMENT="staging"
+    fi
+  fi
+
+  # A deployment record claims that rebuilding at its commit reproduces the deployed
+  # bytecode. Checked here rather than beside the record write: the deployment logger
+  # runs after the deploy, so a refusal there would lose a deployment instead of
+  # preventing one.
+  if ! assertTreeRecordableOrFail "$ENVIRONMENT"; then
+    if [[ -z "$EXIT_ON_ERROR" ]]; then
+      return 1
+    else
+      exit 1
     fi
   fi
 

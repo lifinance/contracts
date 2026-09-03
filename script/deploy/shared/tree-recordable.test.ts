@@ -124,7 +124,10 @@ describe('assertTreeRecordable', () => {
     })()
 
     expect(error?.message).toContain('src/Facets/AcrossFacet.sol')
-    expect(error?.message).toMatch(/refusing to deploy/i)
+    expect(error?.message).toMatch(/could not be verified later/i)
+    // The verdict belongs to the caller: the same facts hard-block a production
+    // deploy and only warn on staging.
+    expect(error?.message).not.toMatch(/refusing/i)
   })
 
   it('refuses a commit no remote branch contains', () => {

@@ -80,6 +80,9 @@ export const buildAffectingDirtyPaths = (statusZ: string): string[] =>
 /**
  * Refuses unless the tree is recordable.
  *
+ * States the problem without a verdict: the same facts hard-block a production
+ * deploy and only warn on staging, so the caller supplies the word.
+ *
  * Reports every problem it finds rather than the first, so an operator does not
  * learn about the second one on the next deploy attempt.
  *
@@ -122,7 +125,7 @@ export const assertTreeRecordable = (state: ITreeState): void => {
 
   if (problems.length > 0)
     throw new Error(
-      `Refusing to deploy: this deployment could not be verified later.\n` +
+      `This deployment could not be verified later.\n` +
         problems.map((problem) => `  - ${problem}`).join('\n')
     )
 }
