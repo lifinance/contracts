@@ -537,3 +537,40 @@ describe('the deploy script’s refusal branch', () => {
     expect(output).not.toContain('REACHED THE BROADCAST')
   })
 })
+
+describe('which remote counts as pushed', () => {
+  it('refuses a commit pushed only to a remote that is not origin', () => {
+    // `git branch -r --contains` answers for every remote the clone knows. This
+    // repo has two (origin and tron), and a contributor can add a fork — none of
+    // which makes the commit fetchable from the repository the record names.
+    const clone = makePushedClone()
+    const fork = mkdtempSync(join(tmpdir(), 'tree-recordable-fork-'))
+    execFileSync('git', ['init', '--bare', '-b', 'main', join(fork, 'f.git')], {
+      stdio: 'pipe',
+    })
+    execFileSync('git', ['remote', 'add', 'fork', join(fork, 'f.git')], {
+      cwd: clone,
+      stdio: 'pipe',
+    })
+    writeFileSync(join(clone, 'src/Facet.sol'), 'fork only\n')
+    execFileSync('git', ['commit', '-am', 'fork only'], {
+      cwd: clone,
+      stdio: 'pipe',
+    })
+    execFileSync('git', ['push', 'fork', 'HEAD:refs/heads/feature'], {
+      cwd: clone,
+      stdio: 'pipe',
+    })
+
+    expect(
+      execFileSync('git', ['branch', '-r', '--contains', 'HEAD'], {
+        cwd: clone,
+        encoding: 'utf8',
+      })
+    ).toContain('fork/feature')
+    expect(
+      spawnSync(process.execPath, [CLI], { cwd: clone, encoding: 'utf8' })
+        .status
+    ).toBe(1)
+  })
+})
