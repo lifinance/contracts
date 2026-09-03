@@ -1342,9 +1342,10 @@ contract LiFiVaultWrapper is
 
     /// @dev Fans `_integratorTotal` of `_token` across the integrator wallets by their bps, the
     ///      last wallet absorbing the integer-division remainder so the portion zeroes exactly.
-    ///      Each payout uses OZ's non-reverting `trySafeTransfer`; a failed transfer (e.g. a
-    ///      blacklisted wallet) has its share returned as `retained` and left in the wrapper,
-    ///      so one hostile wallet can never block the distribution.
+    ///      That last wallet is paid after the loop rather than branched on inside it, so the
+    ///      loop body has a single path. Each payout uses OZ's non-reverting `trySafeTransfer`;
+    ///      a failed transfer (e.g. a blacklisted wallet) has its share returned as `retained`
+    ///      and left in the wrapper, so one hostile wallet can never block the distribution.
     /// @param _token The fee-pool token to distribute.
     /// @param _integratorTotal The integrator's portion of the fee pool.
     /// @return retained The sum of shares whose transfer failed (left in the wrapper).
@@ -1352,22 +1353,18 @@ contract LiFiVaultWrapper is
         address _token,
         uint256 _integratorTotal
     ) private returns (uint256 retained) {
-        uint256 count = integratorFeeReceivers.length;
+        // `_setIntegratorFeeReceivers` is the sole writer and rejects an empty set, and
+        // `initialize` always runs it, so the count is never zero and this cannot underflow
+        uint256 lastIndex = integratorFeeReceivers.length - 1;
         uint256 distributed;
 
-        for (uint256 i; i < count; ++i) {
+        // every receiver but the last gets its bps share, rounded down
+        for (uint256 i; i < lastIndex; ++i) {
             FeeReceiver memory receiver = integratorFeeReceivers[i];
-            uint256 share;
-            if (i + 1 == count) {
-                // last receiver gets the whole remainder to avoid rounding dust
-                share = _integratorTotal - distributed;
-            } else {
-                // other receivers get their bps share, rounded down
-                share = _integratorTotal.mulDiv(
-                    receiver.bps,
-                    LibVaultWrapperMath.BASIS_POINT_SCALE
-                );
-            }
+            uint256 share = _integratorTotal.mulDiv(
+                receiver.bps,
+                LibVaultWrapperMath.BASIS_POINT_SCALE
+            );
             distributed += share;
             if (share == 0) continue;
 
@@ -1381,5 +1378,17 @@ contract LiFiVaultWrapper is
             retained += share;
             emit IntegratorPayoutRetained(wallet, _token, share);
         }
+
+        // the last receiver takes the whole remainder to avoid rounding dust
+        uint256 lastShare = _integratorTotal - distributed;
+        if (lastShare == 0) return retained;
+
+        address lastWallet = integratorFeeReceivers[lastIndex].wallet;
+        if (SafeERC20.trySafeTransfer(IERC20(_token), lastWallet, lastShare)) {
+            return retained;
+        }
+
+        retained += lastShare;
+        emit IntegratorPayoutRetained(lastWallet, _token, lastShare);
     }
 }
