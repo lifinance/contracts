@@ -1,9 +1,9 @@
 /**
- * Scheduled-but-not-yet-executed diamond registrations, read from the timelock
- * execution queue.
+ * Scheduled-but-not-yet-executed diamond registrations and whitelist entries, read from
+ * the timelock execution queue.
  *
- * Import it from the health-check registration invariants to tell a rollout still
- * waiting on its timelock delay apart from a genuinely missing registration; intent
+ * Import it from the health-check invariants to tell a rollout still waiting on its
+ * timelock delay apart from a genuinely missing registration; intent
  * is for alerting only and must never reach a generator ([CONV:HEALTHCHECK-INTENT]
  * in `.agents/rules/601-healthcheck-invariants.md`).
  *
@@ -42,16 +42,38 @@ const ABI_REGISTER_PERIPHERY_CONTRACT = parseAbi([
   'function registerPeripheryContract(string,address)',
 ])
 
-/** One address an inner call would leave registered, and what it registers it as. */
+const ABI_SET_CONTRACT_SELECTOR_WHITELIST = parseAbi([
+  'function setContractSelectorWhitelist(address,bytes4,bool)',
+])
+
+const ABI_BATCH_SET_CONTRACT_SELECTOR_WHITELIST = parseAbi([
+  'function batchSetContractSelectorWhitelist(address[],bytes4[],bool)',
+])
+
+/**
+ * What an inner call would leave in place. Consumers must match on this rather than on
+ * which optional fields happen to be set: each kind covers something the others do not,
+ * and a check keyed on the absence of a field silently widens every time a kind is added.
+ */
+export type RegistrationKind = 'facet-cut' | 'periphery' | 'whitelist'
+
+/** One address an inner call would leave in place, and what it leaves it as. */
 export interface IDecodedRegistration {
-  /** Lowercased address the call registers. */
+  /** Which of the tracked calls this record came from. */
+  kind: RegistrationKind
+  /** Lowercased address the call registers, or whitelists for `whitelist`. */
   address: string
   /**
-   * Registry name the address is bound to. Absent for facet cuts, which route by
-   * selector and have no name. A periphery address registered under one name says
-   * nothing about any other name, so the caller must match this, not just the address.
+   * Registry name the address is bound to; `periphery` only. A periphery address
+   * registered under one name says nothing about any other name, so the caller must
+   * match this, not just the address.
    */
   peripheryName?: string
+  /**
+   * Lowercased selector whitelisted for `address`; `whitelist` only. Whitelisting is
+   * per contract *and* selector, so the caller must match this too.
+   */
+  selector?: Hex
 }
 
 /** One scheduled registration, traceable back to the timelock operation carrying it. */
@@ -63,12 +85,42 @@ export interface IPendingRegistration extends IDecodedRegistration {
 }
 
 /**
+ * Pairs positionally, dropping any entry that is not a usable address/selector pair.
+ *
+ * @param contracts - Contract addresses from the decoded call.
+ * @param selectors - Selectors from the decoded call, index-aligned with `contracts`.
+ * @returns One `whitelist` record per usable pair.
+ */
+function toWhitelistRegistrations(
+  contracts: readonly unknown[],
+  selectors: readonly unknown[]
+): IDecodedRegistration[] {
+  const registrations: IDecodedRegistration[] = []
+  contracts.forEach((contract, index) => {
+    const selector = selectors[index]
+    if (
+      typeof contract === 'string' &&
+      isAddress(contract) &&
+      typeof selector === 'string'
+    )
+      registrations.push({
+        kind: 'whitelist',
+        address: contract.toLowerCase(),
+        selector: selector.toLowerCase() as Hex,
+      })
+  })
+  return registrations
+}
+
+/**
  * Addresses a single queued inner call would leave registered on its target diamond.
  *
- * Recognises the two calls that register something: `diamondCut` (facet addresses
- * under an `Add`/`Replace` action — a `Remove` leaves nothing routed) and
- * `registerPeripheryContract` (the periphery address). Anything else — a role
- * change, a whitelist batch, an unknown selector — contributes nothing rather than
+ * Recognises the calls that leave something in place: `diamondCut` (facet addresses
+ * under an `Add`/`Replace` action — a `Remove` leaves nothing routed),
+ * `registerPeripheryContract` (the periphery address), and the whitelist setters
+ * `setContractSelectorWhitelist` / `batchSetContractSelectorWhitelist` with
+ * `_whitelisted` true — passing false un-whitelists, the counterpart of a `Remove`.
+ * Anything else — a role change, an unknown selector — contributes nothing rather than
  * throwing, because the queue legitimately carries operations this check has no
  * opinion about.
  *
@@ -90,7 +142,10 @@ export function extractRegistrations(
       const [facetAddress, action] = cut as [unknown, unknown, unknown]
       if (!ROUTING_CUT_ACTIONS.has(Number(action))) continue
       if (typeof facetAddress === 'string' && isAddress(facetAddress))
-        registrations.push({ address: facetAddress.toLowerCase() })
+        registrations.push({
+          kind: 'facet-cut',
+          address: facetAddress.toLowerCase(),
+        })
     }
     return registrations
   } catch {
@@ -112,9 +167,48 @@ export function extractRegistrations(
       isAddress(peripheryAddress) &&
       BigInt(peripheryAddress) !== 0n
     )
-      return [{ address: peripheryAddress.toLowerCase(), peripheryName }]
+      return [
+        {
+          kind: 'periphery',
+          address: peripheryAddress.toLowerCase(),
+          peripheryName,
+        },
+      ]
   } catch {
-    // Neither shape — the operation registers nothing this check tracks.
+    // Not a periphery registration; fall through to the whitelist shapes.
+  }
+
+  try {
+    const { args } = decodeFunctionData({
+      abi: ABI_SET_CONTRACT_SELECTOR_WHITELIST,
+      data,
+    })
+    const [contract, selector, whitelisted] = args ?? []
+    return whitelisted === true
+      ? toWhitelistRegistrations([contract], [selector])
+      : []
+  } catch {
+    // Not the single-pair setter; fall through to the batch shape.
+  }
+
+  try {
+    const { args } = decodeFunctionData({
+      abi: ABI_BATCH_SET_CONTRACT_SELECTOR_WHITELIST,
+      data,
+    })
+    const [contracts, selectors, whitelisted] = args ?? []
+    if (whitelisted !== true) return []
+    // The facet reverts on a length mismatch (`InvalidConfig`), so such a batch
+    // whitelists nothing at all rather than the pairs it could have paired up.
+    if (
+      !Array.isArray(contracts) ||
+      !Array.isArray(selectors) ||
+      contracts.length !== selectors.length
+    )
+      return []
+    return toWhitelistRegistrations(contracts, selectors)
+  } catch {
+    // None of the shapes — the operation registers nothing this check tracks.
   }
 
   return []
@@ -234,7 +328,9 @@ export function groupRegistrationsByNetwork(
  *
  * Only `queued` rows count: `executed` has already landed on-chain (the loupe shows
  * it), and `cancelled`/`failed` are terminal — a `failed` row in particular is not a
- * promise of anything, so treating it as intent would suppress a real alert forever.
+ * promise of anything, so treating it as intent would suppress a real alert forever. A
+ * `blocked` row is the one live status left out: it is still executable once an operator
+ * clears the cause, but nothing bounds how long that takes, so it reports as a finding.
  *
  * Known sharp edge, deliberately left erring toward over-alerting: a row marked
  * `failed` can still be a live, executable on-chain operation when what failed was a

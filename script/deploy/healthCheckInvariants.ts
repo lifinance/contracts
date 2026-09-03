@@ -34,6 +34,7 @@ import {
   type IWhitelistConfig,
   type TargetState,
 } from '../common/types'
+import { redactUrls } from '../utils/redactUrls'
 import { normalizeSelector } from '../utils/utils'
 
 import {
@@ -54,6 +55,13 @@ import {
   resolveLiveFacets,
 } from './shared/facetPeripheryCouplings'
 import { getCorePeriphery } from './shared/globalContractLists'
+import {
+  collectImmutableBindingChecks,
+  isFacetContract,
+  isZeroAddressValue,
+  TRON_ZERO_ADDRESS_BASE58,
+  type IImmutableBindingCheck,
+} from './shared/immutableBindings'
 import { isRateLimitError } from './shared/rateLimit'
 import { parseTroncastFacetsOutput } from './tron/helpers/parseTroncastFacetsOutput'
 import { getTronCorePeriphery } from './tron/helpers/tronContractLists'
@@ -719,18 +727,87 @@ export const getExpectedPairs = async (
   }
 }
 
+/** One contract/selector pair the whitelist config declares for a network. */
+export interface IWhitelistPair {
+  contract: string
+  selector: Hex
+}
+
+/**
+ * Splits config-declared pairs the diamond does not hold into the ones a queued timelock
+ * operation would whitelist and the ones genuinely missing. Pure.
+ *
+ * `config/whitelist.json` is merged before the Safe proposal syncing it executes, so
+ * between those two events config and chain legitimately disagree and the remediation is
+ * "wait", not "fix" ([CONV:HEALTHCHECK-INTENT]).
+ *
+ * Matching is exact on contract AND selector: whitelisting is per pair, so an operation
+ * granting another selector on the same contract leaves this pair unset — the same reason
+ * the periphery caller has to match the registry name rather than the address alone.
+ *
+ * Two preconditions the caller owns, because neither is checked here: `coverage` must
+ * already be scoped to this network's own diamond (`resolvePendingRegistrations` filters by
+ * `target`), and its keys are lowercased EVM addresses — a Tron base58 contract would be
+ * corrupted by the lookup's `toLowerCase()`, which is harmless only because Tron is gated
+ * out of the queue upstream and so always arrives with empty coverage.
+ *
+ * @param missing - Pairs config expects that the diamond does not have.
+ * @param coverage - Lowercased registered address → queued registrations aimed at this
+ * diamond.
+ * @returns The missing pairs split by whether the queue covers them.
+ */
+export function splitByPendingWhitelist(
+  missing: IWhitelistPair[],
+  coverage: Map<string, IPendingRegistration[]>
+): { pending: IWhitelistPair[]; uncovered: IWhitelistPair[] } {
+  const pending: IWhitelistPair[] = []
+  const uncovered: IWhitelistPair[] = []
+  for (const pair of missing) {
+    const covered = coverage
+      .get(pair.contract.toLowerCase())
+      ?.some(
+        (record) =>
+          record.kind === 'whitelist' &&
+          record.selector === pair.selector.toLowerCase()
+      )
+    if (covered) pending.push(pair)
+    else uncovered.push(pair)
+  }
+  return { pending, uncovered }
+}
+
 /**
  * Check whitelist integrity by comparing config against on-chain state.
+ *
+ * Reports through `logError` rather than throwing, so one unsynced network never aborts a
+ * fleet sweep.
+ *
+ * @param network - Network id, used only in the remediation hint.
+ * @param environment - Deployment environment, used only in the remediation hint.
+ * @param expectedPairs - Pairs the whitelist config declares for this network.
+ * @param logError - Sink for findings; every call fails the invariant.
+ * @param diamondAddress - Diamond whose whitelist is read.
+ * @param context - On-chain clients plus the optional intent hooks; see the field comments.
+ * @returns Nothing — findings are reported through `logError`.
  */
-async function checkWhitelistIntegrity(
+export async function checkWhitelistIntegrity(
   network: string,
   environment: string,
-  expectedPairs: Array<{ contract: string; selector: Hex }>,
+  expectedPairs: IWhitelistPair[],
   logError: (msg: string) => void,
   diamondAddress: string,
   context: {
     tronContext?: { tronRpcUrl: string; tronWeb: TronWeb }
     evmContext?: { publicClient: PublicClient }
+    /** Reports coverage lost when the queue cannot be read. */
+    logWarn?: (msg: string) => void
+    /**
+     * Queued whitelist intent for this diamond. Called at most once, and only when a
+     * pair is actually missing, so a synced network never touches the queue.
+     */
+    resolvePendingWhitelist?: () => Promise<
+      Map<string, IPendingRegistration[]> | { unreachable: string }
+    >
   }
 ): Promise<void> {
   const tronRpcUrl = context.tronContext?.tronRpcUrl
@@ -821,9 +898,35 @@ async function checkWhitelistIntegrity(
 
   consola.info(`On-chain has ${onChainPairSet.size} total pairs.`)
 
+  // Resolved lazily and at most once: a synced network must not pay a queue read, and
+  // both steps below grade the same missing pairs against the same answer.
+  let coverage:
+    | Map<string, IPendingRegistration[]>
+    | { unreachable: string }
+    | undefined
+  let unreachableReason: string | undefined
+  const pendingKeys = new Set<string>()
+  const splitPending = async (
+    missing: IWhitelistPair[]
+  ): Promise<{ pending: IWhitelistPair[]; uncovered: IWhitelistPair[] }> => {
+    if (missing.length === 0) return { pending: [], uncovered: [] }
+    coverage ??= (await context.resolvePendingWhitelist?.()) ?? new Map()
+    if (!(coverage instanceof Map)) {
+      unreachableReason = coverage.unreachable
+      return { pending: [], uncovered: missing }
+    }
+    const split = splitByPendingWhitelist(missing, coverage)
+    for (const pair of split.pending)
+      pendingKeys.add(
+        `${pair.contract.toLowerCase()}:${pair.selector.toLowerCase()}`
+      )
+    return split
+  }
+
   try {
     consola.start('Step 1/2: Checking Config vs. On-Chain Functions...')
     let granularFails = 0
+    const notWhitelisted: IWhitelistPair[] = []
 
     if (hasTronContext) {
       for (const expectedPair of expectedPairs) {
@@ -838,12 +941,7 @@ async function checkWhitelistIntegrity(
             ],
             'function isContractSelectorWhitelisted(address,bytes4) external view returns (bool)'
           )
-          if (!isWhitelisted) {
-            logError(
-              `Source of Truth FAILED: ${expectedPair.contract} / ${expectedPair.selector} is 'false'.`
-            )
-            granularFails++
-          }
+          if (!isWhitelisted) notWhitelisted.push(expectedPair)
         } catch (error: unknown) {
           const errorMessage =
             error instanceof Error ? error.message : String(error)
@@ -880,12 +978,7 @@ async function checkWhitelistIntegrity(
               }`
             )
             granularFails++
-          } else if (!result.result) {
-            logError(
-              `Source of Truth FAILED: ${pair.contract} / ${pair.selector} is 'false'.`
-            )
-            granularFails++
-          }
+          } else if (!result.result) notWhitelisted.push(pair)
         })
       } else {
         // No multicall3 on this chain: fire the reads concurrently (still one round-trip each,
@@ -903,12 +996,7 @@ async function checkWhitelistIntegrity(
                   pair.contract as Address,
                   pair.selector,
                 ])
-              if (!isWhitelisted) {
-                logError(
-                  `Source of Truth FAILED: ${pair.contract} / ${pair.selector} is 'false'.`
-                )
-                granularFails++
-              }
+              if (!isWhitelisted) notWhitelisted.push(pair)
             } catch (error: unknown) {
               const errorMessage =
                 error instanceof Error ? error.message : String(error)
@@ -922,9 +1010,25 @@ async function checkWhitelistIntegrity(
       }
     }
 
+    const sourceOfTruth = await splitPending(notWhitelisted)
+    for (const pair of sourceOfTruth.pending)
+      consola.info(
+        `Whitelist pair ${pair.contract} / ${pair.selector} is expected but not yet whitelisted — expected-pending: a queued timelock operation whitelists it`
+      )
+    for (const pair of sourceOfTruth.uncovered) {
+      logError(
+        `Source of Truth FAILED: ${pair.contract} / ${pair.selector} is 'false'.`
+      )
+      granularFails++
+    }
+
     if (granularFails === 0) {
+      // Naming the pending pairs matters: "synced" on its own would claim the diamond
+      // already holds what only a queued operation will put there.
       consola.success(
-        'Source of Truth (isContractSelectorWhitelisted) is synced.'
+        sourceOfTruth.pending.length === 0
+          ? 'Source of Truth (isContractSelectorWhitelisted) is synced.'
+          : `Source of Truth (isContractSelectorWhitelisted) is synced apart from ${sourceOfTruth.pending.length} expected-pending pair(s).`
       )
     }
 
@@ -937,13 +1041,15 @@ async function checkWhitelistIntegrity(
       )
     }
 
-    const missingPairsList: string[] = []
+    const missingFromArray: IWhitelistPair[] = []
     for (const expectedPair of expectedPairs) {
       const key = `${expectedPair.contract.toLowerCase()}:${expectedPair.selector.toLowerCase()}`
       if (!onChainPairSet.has(key)) {
-        missingPairsList.push(key)
+        missingFromArray.push(expectedPair)
       }
     }
+    const pairArray = await splitPending(missingFromArray)
+    const missingPairsList = pairArray.uncovered
 
     const stalePairsList: string[] = []
     for (const onChainPair of onChainPairSet) {
@@ -954,7 +1060,11 @@ async function checkWhitelistIntegrity(
 
     if (missingPairsList.length === 0 && stalePairsList.length === 0) {
       consola.success(
-        `Pair Array (getAllContractSelectorPairs) is synced. (${onChainPairSet.size} pairs)`
+        `Pair Array (getAllContractSelectorPairs) is synced${
+          pairArray.pending.length === 0
+            ? ''
+            : ` apart from ${pairArray.pending.length} expected-pending pair(s)`
+        }. (${onChainPairSet.size} pairs)`
       )
     } else {
       // Use the executed wrapper, not `source diamondSyncWhitelist.sh && …`: the latter runs
@@ -969,8 +1079,7 @@ async function checkWhitelistIntegrity(
           `Pair Array is missing ${missingPairsList.length} pairs from config:`
         )
         missingPairsList.slice(0, 10).forEach((pair) => {
-          const [contract, selector] = pair.split(':')
-          logError(`  Missing: ${contract} / ${selector}`)
+          logError(`  Missing: ${pair.contract} / ${pair.selector}`)
         })
         if (missingPairsList.length > 10) {
           logError(`  ... and ${missingPairsList.length - 10} more`)
@@ -991,6 +1100,19 @@ async function checkWhitelistIntegrity(
         consola.warn(`\n💡 To fix stale pairs, run: ${syncCmd}`)
       }
     }
+
+    // The pair comparison stands on an independent on-chain signal, so an unreachable
+    // queue keeps every error and only reports the coverage it cost: a Mongo blip that
+    // turned a genuinely unsynced whitelist green would be far worse than a false alert
+    // during a rollout ([CONV:HEALTHCHECK-INTENT]).
+    if (unreachableReason)
+      context.logWarn?.(
+        `Timelock queue unreachable — expected-pending downgrade skipped, missing whitelist pairs reported as errors: ${unreachableReason}`
+      )
+    else if (pendingKeys.size > 0)
+      consola.info(
+        `${pendingKeys.size} expected whitelist pair(s) awaiting their queued timelock sync (expected-pending)`
+      )
   } catch (error: unknown) {
     const errorMessage = error instanceof Error ? error.message : String(error)
     logError(`Failed during whitelist integrity checks: ${errorMessage}`)
@@ -1016,9 +1138,6 @@ export const RECEIVER_EXECUTOR_GETTERS: Array<{
   { name: 'ReceiverOIF', getter: 'EXECUTOR' },
   { name: 'ReceiverStargateV2', getter: 'executor' },
 ]
-
-/** getPeripheryContract on an unregistered name returns address(0); on Tron that encodes to this. */
-const TRON_ZERO_ADDRESS = 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb'
 
 /**
  * Read one periphery contract's address from the diamond's on-chain PeripheryRegistry.
@@ -1047,7 +1166,7 @@ async function readPeripheryRegistryUncached(
     )
     if (!parsed.startsWith('T') || parsed.length !== 34)
       throw new Error(`malformed Tron address for ${name}: ${parsed}`)
-    return parsed === TRON_ZERO_ADDRESS ? null : parsed
+    return parsed === TRON_ZERO_ADDRESS_BASE58 ? null : parsed
   }
 
   if (!ctx.publicClient) throw new Error('no EVM client configured')
@@ -1431,6 +1550,137 @@ function fetchOpenParkedAddressesByNetwork(): Promise<
 }
 
 /**
+/**
+ * Read one address-typed getter on a deployed contract, on either chain family.
+ *
+ * @throws when no client is configured for the network or the call fails, so callers can tell
+ *   "could not read" apart from "read a wrong value"
+ */
+async function readAddressGetter(
+  address: string,
+  getter: string,
+  ctx: IHealthCheckContext
+): Promise<string> {
+  if (ctx.isTron) {
+    if (!ctx.tronRpcUrl) throw new Error('no Tron RPC URL configured')
+    const parsed = parseTronAddressOutput(
+      await callTronContract(
+        address,
+        `${getter}()`,
+        [],
+        'address',
+        ctx.tronRpcUrl
+      )
+    )
+    // parseTronAddressOutput returns the last non-diagnostic line, so unexpected tooling output
+    // that still exits 0 would arrive here as a "value". Throwing keeps that an unverified
+    // warning instead of an error-severity mismatch against a line of prose.
+    // A zero address in any encoding is a real answer the caller must report as an error, so
+    // it passes the shape check; anything else non-base58 is unusable output.
+    if (
+      !isZeroAddressValue(parsed) &&
+      (!parsed.startsWith('T') || parsed.length !== 34)
+    )
+      throw new Error(`malformed Tron address for ${getter}(): ${parsed}`)
+    return parsed
+  }
+  if (!ctx.publicClient) throw new Error('no EVM client configured')
+  const value = await ctx.publicClient.readContract({
+    address: getAddress(address as Address),
+    abi: parseAbi([`function ${getter}() external view returns (address)`]),
+    functionName: getter,
+  })
+  return getAddress(value as Address)
+}
+
+/**
+ * Read a binding's value, falling back to earlier names of the same getter when the current one
+ * is absent from the live build.
+ *
+ * @remarks Only a revert triggers the fallback: an unreachable RPC says nothing about which
+ *   getters the contract exposes, and retrying it would just multiply reads during an outage.
+ * @returns the value and the getter name that actually answered
+ * @throws the original error when neither the current nor any legacy getter can be read
+ */
+async function readBindingValue(
+  address: string,
+  check: IImmutableBindingCheck,
+  ctx: IHealthCheckContext
+): Promise<{ value: string; getterUsed: string }> {
+  try {
+    return {
+      value: await readAddressGetter(address, check.getter, ctx),
+      getterUsed: check.getter,
+    }
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error)
+    // Two error shapes mean "this build has no such function": a revert, and viem's zero-data
+    // error when the call returns "0x". Matching only reverts skips the fallback for the second,
+    // leaving the binding unverified. An unreachable RPC matches neither and must not retry.
+    if (
+      !/revert|returned no data/i.test(message) ||
+      check.legacyGetters.length === 0
+    )
+      throw error
+
+    for (const legacyGetter of check.legacyGetters)
+      try {
+        return {
+          value: await readAddressGetter(address, legacyGetter, ctx),
+          getterUsed: legacyGetter,
+        }
+      } catch {
+        continue
+      }
+    throw error
+  }
+}
+
+/**
+ * Resolve the address whose immutable bindings should be checked, or undefined when the contract
+ * is not in use on this network.
+ *
+ * @remarks A facet is only checked at the address the diamond actually serves. Between a facet's
+ *   deploy and its diamondCut the deploy log names a contract that is not live yet, and verifying
+ *   that one would report a stale on-chain binding as healthy.
+ */
+async function resolveBindingTargetAddress(
+  contractName: string,
+  ctx: IHealthCheckContext,
+  targetStateFacets: string[],
+  liveFacets: Set<string>
+): Promise<string | undefined> {
+  if (isFacetContract(contractName)) {
+    // Liveness decides, not the target state: several facets are registered in a diamond
+    // without being listed for that network, and a stale binding hurts just as much there.
+    if (liveFacets.has(contractName))
+      return String(ctx.deployedContracts[contractName])
+    if (targetStateFacets.includes(contractName))
+      ctx.logWarn(
+        `${contractName} is in the target state but its deploy-log address is not registered in the diamond — immutable bindings not verified`
+      )
+    return undefined
+  }
+
+  // Periphery: the registry is authoritative, but the deploy log is the only source for
+  // contracts the diamond never registers (e.g. LidoWrapper).
+  try {
+    const registered = await readPeripheryRegistry(contractName, ctx)
+    if (registered) return registered
+  } catch (error: unknown) {
+    const errorMessage = redactUrls(
+      (error instanceof Error ? error.message : String(error)).split('\n')[0] ??
+        'unknown error'
+    )
+    ctx.logWarn(
+      `Could not read PeripheryRegistry for ${contractName} (falling back to deploy log): ${errorMessage}`
+    )
+  }
+  const logged = ctx.deployedContracts[contractName]
+  return logged ? String(logged) : undefined
+}
+
+/**
  * Scheduled-but-unexecuted registrations fleet-wide, fetched once per process and
  * grouped by network. Same shape, sharing and failure handling as
  * {@link fetchOpenParkedAddressesByNetwork}: one read serves every network in the
@@ -1653,14 +1903,14 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
           }
           const address = ctx.deployedContracts[facet]
           // A facet routes by selector, so only a `diamondCut` record covers it. A
-          // `registerPeripheryContract` naming the same address binds a registry entry
-          // and routes nothing, so it must not stand in for the missing cut.
+          // `registerPeripheryContract` or a whitelist entry naming the same address
+          // routes nothing, so neither may stand in for the missing cut.
           if (
             address &&
             scheduled instanceof Map &&
             scheduled
               .get(String(address).toLowerCase())
-              ?.some((record) => record.peripheryName === undefined)
+              ?.some((record) => record.kind === 'facet-cut')
           ) {
             downgraded++
             consola.info(
@@ -1888,6 +2138,141 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
     },
   },
   {
+    name: 'immutable-bindings-match-config',
+    description:
+      'Getter-annotated immutable constructor bindings still match the config they were deployed from',
+    severity: 'error',
+    scope: { environments: ['production'] },
+    readsOnChainFacets: true,
+    remediation:
+      'The live contract binds a stale address: redeploy it against the current config value and re-register it, or update the config entry if this chain genuinely still uses the old address.',
+    run: async (ctx) => {
+      // A contract like ReceiverAcrossV4 binds its counterparty immutably at construction, so a
+      // migrated integration cannot be fixed by editing config. Presence, executor-binding and
+      // owner checks all stay green while destination calls fail against a dead counterparty —
+      // only comparing the live binding against config surfaces it.
+      const checks = collectImmutableBindingChecks(
+        ctx.networkLower,
+        ctx.environment
+      )
+      if (checks.length === 0) return
+
+      // Config stores Tron counterparties in base58, so without TronWeb the expected value cannot
+      // be normalized and every comparison would fail on encoding rather than on drift.
+      const tronWeb = ctx.tronWeb
+      if (ctx.isTron && (!tronWeb || !ctx.tronRpcUrl)) {
+        ctx.logWarn(
+          'Tron client unavailable — immutable bindings not verified on this network'
+        )
+        return
+      }
+
+      const targetStateFacets = [...ctx.coreFacetsToCheck, ...ctx.nonCoreFacets]
+      const facetListAvailable = ctx.onChainFacets.length > 0
+      // Without the diamond's facet list every facet-typed entry would look un-live and warn;
+      // facets-registered already reported whatever left this list empty.
+      if (!facetListAvailable)
+        ctx.logWarn(
+          'On-chain facet list unavailable — immutable bindings of facet-typed entries not verified'
+        )
+      // Candidates must include every annotated facet, not just the target-state ones, or a
+      // facet registered on a chain that does not list it resolves as "not live" and is skipped.
+      const facetCandidates = [
+        ...new Set([
+          ...targetStateFacets,
+          ...checks
+            .map((check) => check.contractName)
+            .filter((name) => isFacetContract(name)),
+        ]),
+      ]
+      const liveFacets = new Set<string>(
+        facetListAvailable
+          ? resolveLiveFacets(
+              ctx.onChainFacets,
+              ctx.deployedContracts as Record<string, string>,
+              facetCandidates
+            )
+          : []
+      )
+
+      for (const check of checks) {
+        if (!facetListAvailable && isFacetContract(check.contractName)) continue
+
+        const address = await resolveBindingTargetAddress(
+          check.contractName,
+          ctx,
+          targetStateFacets,
+          liveFacets
+        )
+        // Not present on this chain — nothing to compare.
+        if (!address) continue
+
+        if (!check.expectedAddress) {
+          ctx.logWarn(
+            `${check.contractName} is deployed but ${check.configFileName} has no ${check.resolvedKeyInConfigFile} value for this network — cannot verify ${check.getter}()`
+          )
+          continue
+        }
+
+        // Normalize the config side before the read, and outside its try: config values are
+        // only known to be non-empty strings, so a malformed one throws here — folding that
+        // into the read's catch would report a broken config entry as an unverified binding
+        // and let this error-severity check pass on exactly the drift it exists to catch.
+        let expectedValue: string
+        try {
+          expectedValue =
+            ctx.isTron && tronWeb
+              ? ensureTronAddress(check.expectedAddress, tronWeb)
+              : getAddress(check.expectedAddress as Address)
+        } catch {
+          ctx.logError(
+            `${check.configFileName} ${check.resolvedKeyInConfigFile} is not a valid address (${check.expectedAddress}), so ${check.contractName}.${check.getter}() cannot be verified`
+          )
+          continue
+        }
+
+        try {
+          const { value: onChainValue, getterUsed } = await readBindingValue(
+            address,
+            check,
+            ctx
+          )
+
+          // Name the getter that answered, not the annotated one: on a chain running an older
+          // build they differ, and the reader needs to know which contract version was read.
+          const readLabel = `${check.contractName}.${getterUsed}()`
+
+          if (isZeroAddressValue(onChainValue))
+            ctx.logError(
+              `${readLabel} is the zero address, expected ${expectedValue} from ${check.configFileName} ${check.resolvedKeyInConfigFile}`
+            )
+          else if (onChainValue !== expectedValue)
+            ctx.logError(
+              `${readLabel} is ${onChainValue} but ${check.configFileName} ${check.resolvedKeyInConfigFile} expects ${expectedValue}`
+            )
+          else
+            consola.success(
+              `${readLabel} matches ${check.configFileName}${
+                getterUsed === check.getter ? '' : ' (pre-rename build)'
+              }`
+            )
+        } catch (error: unknown) {
+          // A revert here usually means the live build predates a rename of the getter, so the
+          // binding stays unverified rather than wrong — say so, because a bare read failure
+          // reads like a transient RPC blip instead of a hole in this check's coverage.
+          const errorMessage = redactUrls(
+            (error instanceof Error ? error.message : String(error)).split(
+              '\n'
+            )[0] ?? 'unknown error'
+          )
+          ctx.logWarn(
+            `${check.contractName}.${check.getter}() left unverified — read failed: ${errorMessage}`
+          )
+        }
+      }
+    },
+  },
+  {
     name: 'periphery-registered',
     description: 'Periphery contracts are registered in the PeripheryRegistry',
     severity: 'error',
@@ -1941,7 +2326,11 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
           if (
             coverage
               .get(address.toLowerCase())
-              ?.some((record) => record.peripheryName === periphery)
+              ?.some(
+                (record) =>
+                  record.kind === 'periphery' &&
+                  record.peripheryName === periphery
+              )
           ) {
             downgraded++
             consola.info(
@@ -2372,6 +2761,8 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
               evmContext: ctx.publicClient
                 ? { publicClient: ctx.publicClient }
                 : undefined,
+              logWarn: ctx.logWarn,
+              resolvePendingWhitelist: () => resolvePendingRegistrations(ctx),
             }
           )
         } else {

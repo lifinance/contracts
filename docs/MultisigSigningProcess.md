@@ -85,22 +85,46 @@ merge; the deploy scripts never commit.
 ### 4.2 Propose
 
 All EVM funnels end in `storeTransactionInMongoDB`
-(`script/deploy/safe/safe-utils.ts`). Entry points:
+(`script/deploy/safe/safe-utils.ts`), which is where the Linear ticket link is
+required and the missing-reason warning is emitted — placing them there rather
+than per entry point means no funnel can be added that skips them. The refusal
+happens before the proposal document is inserted, so a refused proposal is never
+created and claims no nonce, and it names both `--ticket` and
+`SAFE_PROPOSAL_TICKET`.
+
+That check is the backstop, not the first line: the entry points whose late
+failure costs most — `unpauseAllDiamonds.ts`, `add-safe-owners-and-threshold.ts`,
+the Tron route, and the TS `sendOrPropose` — also call `assertTicketPresent`
+before they sign, and `propose-to-safe.ts` resolves the same intent up front in
+`runPropose`, so an unset ticket costs one message
+rather than a signature or a device confirmation per network. Those pre-checks
+run only on the branches that actually propose; a staging or testnet-only run, a
+`--check` audit and a `--dryRun` need no ticket. Entry points:
 
 - **`script/deploy/safe/propose-to-safe.ts`** (`runPropose`) — the main
   funnel, invoked by the bash `sendOrPropose` chokepoint in
   `script/helperFunctions.sh`, by `script/tasks/diamondUpdateFacet.sh`,
   `diamondUpdatePeriphery.sh`, and `diamondEMERGENCYPause.sh` (all with
-  `--timelock`), by `script/deploy/deployUpgradesToSAFE.sh` (**without**
-  `--timelock` — a legacy Safe-direct `diamondCut`; it still goes through the
-  Safe with full threshold/quorum, it merely omits the timelock wrap, and it
-  refuses to run on testnets. On mainnet the diamond is owned by the timelock,
-  not the Safe, so the resulting proposal reverts on execution — this path is
-  effectively dead for production diamond cuts), programmatically by
-  `proposeDiamondCut` (`script/deploy/shared/propose-diamond-cut.ts`), and
-  manually via `bun propose-safe-tx`.
+  `--timelock`), programmatically by `proposeDiamondCut`
+  (`script/deploy/shared/propose-diamond-cut.ts`), and manually via
+  `bun propose-safe-tx`.
 - **TS `sendOrPropose`** (`script/safe/safeScriptHelpers.ts`) — used by
-  `script/tasks/cleanUpProdDiamond.ts`; env private key only, no Ledger.
+  `script/tasks/cleanUpProdDiamond.ts`. Signs the Safe proposal with
+  `PRIVATE_KEY_PRODUCTION` by default, or with a Ledger via `--ledger`
+  (`--ledgerLive` + `--accountIndex <n>`, or `--derivationPath <path>`).
+  Refused rather than silently accepted: the two path options together, a
+  non-integer `--accountIndex`, a non-zero `--accountIndex` without
+  `--ledgerLive` (the Ledger Live path is the only one that reads it), a blank
+  `--derivationPath`, `--ledgerLive` or `--derivationPath` without `--ledger`,
+  any value other than `true`/`false` on `--ledger` / `--ledgerLive`, any of the
+  four flags passed twice, and `--ledger` on a run that would propose more than
+  once — `--all-networks`, or a `--periphery` selection naming several
+  contracts, since each proposal opens its own unclosed Ledger connection and
+  asks for its own device confirmation. The signer is checked against the Safe's
+  owners before the proposal is stored. The direct-send path still signs with the
+  environment key and warns that `--ledger` is ignored, but the flag-format and
+  multi-proposal refusals run before the route is chosen, so a malformed signing
+  flag also fails a staging or testnet run.
 - **Deferred-cleanup drain** (`script/deploy/safe/drain-parked-tasks.ts`) —
   gated on `DRAIN_PARKED_TASKS`, hooked at the tail of `runPropose`
   ([DeferredDiamondCleanupQueue.md](./DeferredDiamondCleanupQueue.md)).
@@ -112,15 +136,81 @@ All EVM funnels end in `storeTransactionInMongoDB`
   single chokepoint**.
 - **Tron** is a parallel flow (`script/deploy/tron/propose-to-safe-tron.ts`).
 
-`deployUpgradesToSAFE.sh` additionally runs `verify-approvals.ts` before
-proposing (PR #2128 / EXSC-687). Production: `main` is allowed; a feature
-branch is allowed when each selected `src/Facets/<Name>.sol` matches
-`origin/main` (the usual rollout — branch off main, deploy already-merged
-code, do not change that Solidity); if a selected facet diverges, the
-branch needs an open PR and the working-tree file must equal the
-`audit/auditLog.json` commit for the current `@custom:version`. Staging is
-not gated. This is **not** a GitHub SC+auditor review check, and it does
-not wrap the other `propose-to-safe` entry points.
+`diamondUpdateFacet.sh` additionally runs `verify-approvals.ts` before
+proposing (PR #2128 / EXSC-687). A production deploy is allowed when each
+selected facet's transitive `src/` import closure matches `origin/main` — the
+usual rollout, branch off main and deploy already-merged code without touching
+that Solidity. If a closure diverges, the branch needs an open PR **and** the
+working-tree files must equal the `audit/auditLog.json` commit for the current
+`@custom:version`, with that audit log read from `main` rather than the working
+tree so a deploy cannot certify itself. What is compared is always the working
+tree, never the branch name: a checkout sitting on `main` earns no exemption, so
+uncommitted edits and a stale local `main` both block (and no PR can have `main`
+as its head, so the open-PR exception cannot apply there). `origin/main` itself is
+refreshed first — the remote tip is read with `ls-remote` and fetched only when it
+differs — so a never-fetched checkout cannot pass by comparing against a stale main,
+and an unreachable remote fails the gate rather than falling back to the local copy.
+Dependencies under `lib/` are compiled into every facet but their content is not in
+this repo's tree, so they are compared by **submodule gitlink** instead
+(`git diff --ignore-submodules=untracked`, which catches both a submodule checked out
+off its recorded commit and one with modified tracked files, while ignoring stray
+untracked files that change no bytecode — most of these submodules do not gitignore
+`.DS_Store`, so the stricter `none` would block every deploy from a Mac); a divergence
+there is not excused by an open PR or an audit freeze. The remote calls run with
+prompts disabled and a 30 s timeout, so a stalled or credential-prompting remote fails
+the gate instead of hanging the rollout. Staging is not gated, and neither are
+testnets — deploying an unmerged facet to a testnet is how it is validated before
+the audit, and no Safe is involved there.
+
+The gate runs once per *(network, facet)*, but, for a fixed branch and environment, its
+verdict depends only on the working tree and the facet set, so a fleet rollout would
+otherwise recompute the same answer for
+every network — 71 `ls-remote` round trips and 71 chances for a flaky remote to abort the
+rollout fail-closed, with the concurrent workers of `proposeContractToNetworks.sh` racing
+each other's `git fetch` on `refs/remotes/origin/main.lock`. A **pass is therefore
+recorded once per run** and reused while the tree stays put
+(`script/deploy/github/deploy-gate-cache.ts`, PR #2286): keyed on `HEAD` plus the content
+of the diff against it — not merely the `git status` file names, which do not change when
+an already-modified file is edited again — plus the branch, the facet set, and the
+environment. The record lives in the checkout's git directory rather than a
+world-writable temp directory, and the full key is re-compared on read, so a planted
+entry cannot stand in for a different tree. Only a **pass** is ever recorded: a failing
+gate aborts the rollout, so there is nothing to save, and a cached failure could outlive
+the PR that was opened to satisfy it. Anything unexpected — an unreadable, unparsable, or
+expired record, or a git command that fails while the key is built — is a miss, never a
+pass, and the check runs for real. What the cache does trade away is freshness within a
+run: for up to 30 minutes the rollout is judged against `origin/main`, and against the
+open-PR lookup, as they stood at its first invocation — so `main` moving, or the anchoring
+PR being closed, does not stop the remaining networks. Both are benign for a single
+operator action on an unchanged tree, and `DEPLOY_GATE_SKIP_VERDICT_CACHE=true` forces a
+fresh verdict. Concurrent invocations
+take a single-flight lock, so exactly one of a rollout's workers does the network work and
+the rest reuse its verdict.
+
+Note what this gate does and does not assert. It enforces **main-equivalence**,
+with an audited-freeze exception for unmerged code; it does not verify that what
+reaches production was audited, because code that matches `main` passes without
+any audit lookup at all. True audit enforcement is the separate bytecode ↔ audit
+attestation item in §9. The check is further **not** a GitHub SC+auditor
+review check, and it does not wrap the other `propose-to-safe` entry points:
+`diamondUpdatePeriphery.sh` and `diamondEMERGENCYPause.sh` are ungated.
+
+The same gate is applied a second time in `proposeDiamondCut`
+(`script/deploy/shared/propose-diamond-cut.ts`), the funnel the six Tron
+`deploy-and-register-*-facet.ts` scripts route through (note
+`deploy-and-register-periphery.ts` does **not** — it calls `runPropose`
+directly). Gating the funnel rather than each script means a future caller is
+covered without anyone remembering to add it; the exemptions match the bash path
+(staging, and any network whose `config/networks.json` type is `testnet`, which
+is how `tronshasta` stays open).
+
+Facet **removals** are deliberately outside both gates: `cleanUpProdDiamond.ts`
+and the deferred-cleanup drain (`drain-parked-tasks.ts`, which folds extra
+removal calls into whatever proposal `runPropose` is already building) propose
+real diamond cuts, but a removal installs no new bytecode, so a
+main-equivalence check has nothing to compare. Their safety comes from the
+removal-specific controls in the table below. The generic bash `sendOrPropose`
+chokepoint can likewise propose arbitrary calldata and is not gated.
 
 `runPropose` owner-gates the proposer on-chain; with `--timelock` it wraps all
 calls into one `scheduleBatch` via `wrapWithTimelockSchedule` (`safe-utils.ts`;
@@ -128,12 +218,19 @@ live `getMinDelay()` with `config/timelockController.json` fallback, timestamp
 salt), resolves the nonce (`getNextNonce`), **signs immediately** (EIP-712),
 computes the `safeTxHash` via the Safe's on-chain `getTransactionHash`, and
 stores. The document (`ISafeTxDocument`) carries the raw Safe tx fields, the
-proposer's wallet address, an `intentHash` dedup key, and a
-`pending → submitted → executed / reverted` status — but **no description, PR
-link (except drain `parkedTaskRefs`), git commit, or human identity**.
-`notifyProposalsCreatedToSlack` (`script/multiNetworkExecution.sh`) posts
-count + contract + network to `#dev-sc-multisig-proposals`; the rich
-signing-ask thread is a manual step per `.agents/commands/multisig-rollout.md`.
+proposer's wallet address, an `intentHash` dedup key, a
+`pending → submitted → executed / reverted` status, the origin-PR
+`parkedTaskRefs` on a drained facet removal, and a `provenance` block
+(`IProposalProvenance`) holding the rationale, proposer identity and actor, git
+commit and branch, scoped working-tree dirtiness, the branch's PR link and any
+capture errors. **Rows stored before that block existed carry none of it**,
+which is why both the signing prompt and the Slack card state each absence
+explicitly instead of dropping the line.
+`notifyProposalsCreatedToSlack` (`script/multiNetworkExecution.sh`) posts the
+signing-ask card rendered by `script/deploy/safe/render-proposal-card.ts` —
+reason, proposer, PR, commit, working-tree state and a per-network
+`bun confirm-safe-tx` command — to `#dev-sc-multisig-proposals`, falling back to
+a count + contract + network line only if the render fails.
 
 ### 4.3 Confirm / sign
 
@@ -204,12 +301,16 @@ parked tasks are reconciled weekly by `reconcileParkedTasks.yml`.
 | Stage | Check category | Behavior | Enforced by |
 |---|---|---|---|
 | Propose | CLI input validation: `--to`/`--calldata` pairing, address/hex validity, multi-call requires `--timelock` | Block | `script/deploy/safe/propose-calls.ts`, `timelock-abi.ts` |
-| Propose | Proposer must be a current Safe owner (on-chain `getOwners()`) | Block | `propose-to-safe.ts` (`runPropose`) |
+| Propose | Proposer must be a current Safe owner (on-chain `getOwners()`) | Block | `propose-to-safe.ts` (`runPropose`), `safeScriptHelpers.ts` (`sendOrPropose`) |
+| Propose | Ledger signing flags: unambiguous value, no repeat, no unusable combination, no multi-proposal run (see the `sendOrPropose` bullet in §3) | Block | `script/deploy/safe/cli-flags.ts`, `resolveSafeSigningOptions` in `safe-utils.ts`, `cleanUpProdDiamond.ts` |
 | Propose | Nonce safety: override collision checks, auto-nonce clamped to on-chain | Block / auto-correct | `propose-to-safe.ts`, `getNextNonce` in `safe-utils.ts` |
 | Propose | Duplicate-intent dedup (partial unique index on pending rows) | Block insert | `computeProposalIntentHash` + index in `safe-utils.ts` |
+| Propose | Timelock-wrapped proposals dedup on every EVM path: the `scheduleBatch` salt is derived from the action (chain, timelock, targets, payloads, attempt) instead of the clock, so re-proposing the same wrapped work yields the same salt while that candidate is still free. The timelock is asked whether that operation id exists — **pending blocks** (the proposal duplicates work already scheduled and not executed), **executed** advances to the next deterministic salt so a legitimate repeat does not revert after signing, and 16 taken attempts refuse. Same salt is not the same calldata: `minDelay` is also a `scheduleBatch` argument, so **Safe intent dedup** (`computeProposalIntentHash`) does not apply across an `updateDelay`, nor across `wrapWithTimelockSchedule`'s `getMinDelay` fallback (the task scripts have no fallback — a failed read throws). The **timelock** check is unaffected: `hashOperationBatch` hashes targets, values, payloads, predecessor and salt only, so the pending/executed states still hold across a delay change. **The Tron proposal path still uses a clock salt** and is not covered | Block (pending) / auto-advance (executed) / refuse after 16 | `pickTimelockSalt` in `safe-utils.ts` + `deriveTimelockSalt` in `timelock-abi.ts`; reached via `wrapWithTimelockSchedule` (from `propose-to-safe.ts` and `cleanUpProdDiamond.ts`) and directly from the five `script/tasks/propose{AllBridge,PolymerCCTP,Frax,DeBridgeDln,MegaETHBridge}*.ts` batch builders |
+| Propose | Every proposal carries a Linear issue link, from `--ticket` or `SAFE_PROPOSAL_TICKET`. The shape is validated, so a non-Linear or malformed URL is refused rather than recorded as "a link". Checked before the insert, so a refused proposal is never created and claims no nonce | Block insert | `resolveProposalIntent` in `proposal-intent.ts`, called from `storeTransactionInMongoDB` |
+| Propose | One-line reason (`--reason` / `SAFE_PROPOSAL_REASON`). Optional, warned once per process — OQ3 flips it to mandatory once the warning has fired zero times across 30 consecutive proposals | Warn | `proposal-intent.ts`; read the trigger with `report-reason-adoption.ts` (read-only) |
 | Propose | In-flight nonce uniqueness per Safe: concurrent proposers may still derive the same nonce, but only one insert survives (partial unique index over `pending` + `submitted`, compared case-insensitively so the Tron and EVM spellings of one Safe collide). The guarantee is **absent** if the index could not be built — in-flight rows already sharing a nonce, or a role without `createIndex` — and the build warns in both cases. Nothing is ever dropped, so a pre-`_ci` index from an earlier build stays as a weaker, redundant constraint | Block insert, re-run required | `unique_inflight_safe_nonce_ci` index in `safe-utils.ts`; diagnose with `report-nonce-collisions.ts` (read-only) |
 | Propose | Removal safety: protected-facet allowlist, live-selector hold-back, fail-closed diffs | Block + alert | `diamondRemovalDiff.ts`, `drain-parked-tasks.ts` |
-| Propose | Production `deployUpgradesToSAFE` from a feature branch: selected facet sources must match `origin/main`, else open PR + audit-log commit freeze; `main` and staging are not gated | Block (prod, that entry point only) | `script/deploy/github/verify-approvals.ts` via `deployUpgradesToSAFE.sh` (PR #2128) |
+| Propose | Production `diamondUpdateFacet`: each selected facet's `src/` import closure must match `origin/main`, else open PR + audit-log commit freeze (audit log read from `main`); judged on the working tree, so a checkout on `main` is not exempt; staging and testnets are not gated | Block (prod non-testnet facet **additions** via `diamondUpdateFacet` and `proposeDiamondCut` only — not periphery, emergency pause, removals, or the generic `sendOrPropose` chokepoint) | `script/deploy/github/verify-approvals.ts` via `diamondUpdateFacet.sh` and `propose-diamond-cut.ts`; verdict cached per run by `deploy-gate-cache.ts`, passes only (PR #2128, #2286) |
 | Confirm | Signer must be an owner; network must be active; threshold and nonce read on-chain per Safe | Block / skip | `confirm-safe-tx.ts`, `safe-utils.ts` |
 | Confirm | Ledger blind-signing enabled, fail-fast before any review | Block | `checkBlindSigningEnabled` in `ledger.ts` |
 | Confirm | Full calldata decode: diamond cut, scheduleBatch, whitelist, periphery, roles; per-selector name resolution | Display / warn only | `safe-decode-utils.ts` (`formatDecodedTxDataForDisplay`) |
@@ -247,6 +348,17 @@ This is the one **break-glass** path, and it is deliberately asymmetric: the
 fast, non-Safe leg can only *reduce* the diamond's capabilities, never grant
 or change any. Restoring capability always requires the Safe.
 
+**A Linear ticket is required here too — there is no break-glass exemption.**
+Both unpause routes are ordinary Safe proposals, so the mandatory ticket link
+applies unchanged: `export SAFE_PROPOSAL_TICKET=<url|TEAM-123>` before running
+`unpauseAllDiamonds.ts` or `diamondEMERGENCYPause.sh`, or pass `--ticket` where
+the script offers it. An incident is when the record matters most, and the cost
+is one `export` before anything is signed. The check runs at each script's
+entry rather than only in `storeTransactionInMongoDB`, because the funnel check
+alone spends a signature per network before refusing — and on
+`unpauseAllDiamonds.ts` the per-network `catch` then swallows the refusal, so a
+fleet-wide run ends with zero mainnets unpaused and no obvious cause.
+
 - **Pause** sits outside the Safe flow for speed:
   `EmergencyPauseFacet.pauseDiamond` is callable by the registered pauser
   wallet (or the owner). `.github/workflows/diamondEmergencyPause.yml` pauses
@@ -280,7 +392,7 @@ or change any. Restoring capability always requires the Safe.
 | `script/deploy/safe/timelock-queue.ts` / `execute-pending-timelock-tx.ts` / `confirm-timelock-execution.ts` / `backfill-timelock-queue.ts` | Timelock queue + executor (`bun execute-timelock`) |
 | `script/deploy/safe/parked-tasks.ts` / `drain-parked-tasks.ts` | Deferred diamond-cleanup queue + drain |
 | `script/deploy/safe/list-pending-proposals.ts` / `list-timelock-queue.ts` / `list-parked-tasks.ts` / `delete-pending-proposals.ts` | Inspection and guarded deletion |
-| `script/safe/safeScriptHelpers.ts` | TS `sendOrPropose` (env-key funnel) |
+| `script/safe/safeScriptHelpers.ts` | TS `sendOrPropose` (env key or `--ledger`) |
 | `script/helperFunctions.sh` | bash `sendOrPropose` chokepoint + deploy logging |
 | `.github/workflows/runPendingTimelockTXs.yml` | "Timelock Auto Execution" 10-min cron |
 | `.github/workflows/reconcileParkedTasks.yml` | Weekly parked-task reconcile + TTL alert |
@@ -300,6 +412,6 @@ Design themes under discussion. Nothing below exists in the repo today:
 - **Bytecode ↔ audit attestation** — verify the deployed bytecode/commit
   against the audited commit in `audit/auditLog.json` at signing time,
   instead of inferring "audited" from the version string. (Propose-time
-  source-file freeze on `deployUpgradesToSAFE` is a different check already
+  source-file freeze on `diamondUpdateFacet` is a different check already
   described in §4.2 / §5 — it is not bytecode attestation and does not
   cover the other propose entry points.)
