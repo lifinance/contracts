@@ -180,6 +180,12 @@ const attest = defineCommand({
       description: 'Attestation payload',
       default: 'script/deploy/resources/reproducibilityAttestations.json',
     },
+    refresh: {
+      type: 'boolean',
+      description:
+        'Replace an existing attestation when the payload names a different commit. Without it, already-attested records are left alone',
+      default: false,
+    },
   },
   async run({ args }) {
     const payload = JSON.parse(readFileSync(resolve(args.file), 'utf8'))
@@ -192,6 +198,7 @@ const attest = defineCommand({
     await withCollection(args.collection, async (col) => {
       const index = await buildIndex(col)
       let wouldWrite = 0
+      let wouldRefresh = 0
       let missing = 0
       let ambiguous = 0
       let alreadyHasCommit = 0
@@ -220,15 +227,26 @@ const attest = defineCommand({
           alreadyHasCommit++
           continue
         }
-        if (field(doc, 'reproducibility')) {
-          alreadyAttested++
-          continue
+        const existing = field(doc, 'reproducibility') as
+          | { attestedCommit?: string }
+          | undefined
+        let refreshing = false
+        if (existing) {
+          // A re-selected payload can name a better commit than an earlier run did — the
+          // earliest reproducing commit rather than an arbitrary descendant of it. That is
+          // an improvement worth writing, but only on request, and only when it differs.
+          if (!args.refresh || existing.attestedCommit === a.commit) {
+            alreadyAttested++
+            continue
+          }
+          refreshing = true
         }
         if (!snapshot.has(key(a))) {
           notInBackup++
           continue
         }
-        wouldWrite++
+        if (refreshing) wouldRefresh++
+        else wouldWrite++
         if (args.apply)
           await col.updateOne(
             { _id: doc._id },
@@ -255,7 +273,12 @@ const attest = defineCommand({
 
       consola.box(
         [
-          `${args.apply ? 'WROTE' : 'would write'}: ${wouldWrite}`,
+          `${
+            args.apply ? 'WROTE (new)' : 'would write (new)'
+          }:     ${wouldWrite}`,
+          `${args.apply ? 'WROTE (refreshed)' : 'would refresh'}:${
+            args.apply ? '  ' : '        '
+          }${wouldRefresh}`,
           `skipped — no matching record:        ${missing}`,
           `skipped — ambiguous match:           ${ambiguous}`,
           `skipped — already has a real commit: ${alreadyHasCommit}`,
