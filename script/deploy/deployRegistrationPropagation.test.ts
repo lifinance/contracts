@@ -204,10 +204,8 @@ describe('deployToNetworkWorker result file', () => {
 })
 
 describe('deploySingleContract missing deploy script', () => {
-  // Runs the call inside a command substitution so the two outcomes are distinguishable:
-  // a `return` lets the trailing echo run, an `exit` tears the subshell down and swallows
-  // it. Callers pass the literal string "false" expecting the soft return, so the guard
-  // must treat "false" like an unset flag.
+  // Runs the call inside a command substitution so the two outcomes are distinguishable: a
+  // `return` lets the trailing echo run, an `exit` tears the subshell down and swallows it.
   const harness = (exitOnError: string) => `
     source "$REPO_ROOT/script/deploy/deploySingleContract.sh"
     ${STUB_PRELUDE}
@@ -217,7 +215,7 @@ describe('deploySingleContract missing deploy script', () => {
     DEPLOY_SCRIPT_DIRECTORY="script/deploy/facets/"
     CONTRACT_REMINDERS="$REPO_ROOT/script/deploy/resources/contractSpecificReminders.sh"
     RESULT=$(deploySingleContract TestContract testnet production "" "${exitOnError}" >/dev/null 2>&1; echo "returned rc=$?")
-    echo "\${RESULT:-killed-the-calling-shell}"
+    echo "\${RESULT:-exited-instead-of-returning}"
   `
 
   it('returns instead of killing the shell when EXIT_ON_ERROR is "false"', () => {
@@ -229,6 +227,6 @@ describe('deploySingleContract missing deploy script', () => {
   })
 
   it('still exits when EXIT_ON_ERROR is "true"', () => {
-    expect(runHarness(harness('true'))).toBe('killed-the-calling-shell')
+    expect(runHarness(harness('true'))).toBe('exited-instead-of-returning')
   })
 })
