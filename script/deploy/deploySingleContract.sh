@@ -53,7 +53,7 @@ deploySingleContract() {
   # runs after the deploy, so a refusal there would lose a deployment instead of
   # preventing one.
   if ! assertTreeRecordableOrFail "$ENVIRONMENT"; then
-    if [[ -z "$EXIT_ON_ERROR" ]]; then
+    if [[ -z "$EXIT_ON_ERROR" || "$EXIT_ON_ERROR" == "false" ]]; then
       return 1
     else
       exit 1

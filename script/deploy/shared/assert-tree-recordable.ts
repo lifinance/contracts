@@ -1,22 +1,16 @@
 /**
- * CI/deploy entry point for the recordability pre-flight.
- *
- * Run it from the repo root before anything broadcasts. Exits 0 when the
- * deployment about to happen could be verified afterwards, and 1 with the
- * reasons when it could not.
- *
- * It reads git and decides nothing itself — the rules live in
- * `tree-recordable.ts` so they can be tested without a repo in a given state.
+ * CLI entry point for the recordability pre-flight, for a deploy script to run
+ * from the repo root before anything broadcasts. Exits 0 when the deployment
+ * about to happen could be verified afterwards, 1 with the reasons when not.
  */
 
-import { execFileSync } from 'child_process'
+import { execFileSync } from 'node:child_process'
 
 import { consola } from 'consola'
 
 import { assertTreeRecordable, type ITreeState } from './tree-recordable'
 
-/** `UNKNOWN` matches the sentinel `getCurrentGitCommitHash` records. */
-const git = (args: string[], fallback: string): string => {
+const git = <T>(args: string[], fallback: T): string | T => {
   try {
     return execFileSync('git', args, { encoding: 'utf8' })
   } catch {
@@ -25,14 +19,31 @@ const git = (args: string[], fallback: string): string => {
 }
 
 const readTreeState = (): ITreeState => ({
-  // `--no-renames` keeps every record to one path; `-z` keeps a path containing
-  // a space in one piece.
-  statusZ: git(['status', '--porcelain=v1', '-z', '--no-renames'], ''),
+  // `--untracked-files=all` overrides a local status.showUntrackedFiles=no,
+  // which would otherwise hide a new source file. `--ignore-submodules=untracked`
+  // drops the one state porcelain cannot distinguish from a real change: a
+  // submodule holding only untracked content (a .DS_Store, a stray forge cache)
+  // reports the same ` M lib/x` as one left at a different commit, and no
+  // remedy the refusal could name would clear it.
+  statusZ: git(
+    [
+      'status',
+      '--porcelain=v1',
+      '-z',
+      '--no-renames',
+      '--untracked-files=all',
+      '--ignore-submodules=untracked',
+    ],
+    undefined
+  ),
   head: git(['rev-parse', 'HEAD'], 'UNKNOWN').trim(),
   // Deliberately not preceded by a fetch: a guard on the deploy path should not
-  // depend on the network, and a local `git push` updates this ref itself. The
-  // refusal says what to do if the commit was pushed from another clone.
-  remoteRefsContainingHead: git(['branch', '-r', '--contains', 'HEAD'], ''),
+  // depend on the network, and a local `git push` updates this ref itself.
+  remoteRefsContainingHead: git(
+    ['branch', '-r', '--contains', 'HEAD', '--list', 'origin/*'],
+    ''
+  ),
+  submoduleStatus: git(['submodule', 'status'], ''),
   isShallow:
     git(['rev-parse', '--is-shallow-repository'], 'true').trim() === 'true',
 })

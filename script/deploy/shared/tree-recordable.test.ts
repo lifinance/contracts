@@ -28,6 +28,7 @@ const clean: ITreeState = {
   statusZ: '',
   head: 'a'.repeat(40),
   remoteRefsContainingHead: '  origin/main\n',
+  submoduleStatus: ' e282159 lib/forge-std (v1.9.4)\n',
   isShallow: false,
 }
 
@@ -142,7 +143,7 @@ describe('assertTreeRecordable', () => {
       }
     })()
 
-    expect(error?.message).toMatch(/not been pushed|no remote/i)
+    expect(error?.message).toMatch(/on no origin branch/i)
     expect(error?.message).toContain(clean.head)
   })
 
@@ -161,9 +162,9 @@ describe('assertTreeRecordable', () => {
     expect(error?.message).toMatch(/UNKNOWN/)
   })
 
-  it('refuses a shallow clone rather than guessing about the remote', () => {
-    // In a shallow clone `--contains` has no history to search, so a pushed and
-    // an unpushed commit look identical. Saying so beats either answer.
+  it('refuses a shallow clone whose HEAD no remote branch contains', () => {
+    // A truncated commit graph cannot be trusted when `--contains` reports that
+    // no remote branch has the commit; it can be when it reports that one does.
     const error = (() => {
       try {
         assertTreeRecordable({
@@ -180,7 +181,16 @@ describe('assertTreeRecordable', () => {
     expect(error?.message).toMatch(/shallow clone/)
     // Not also the unpushed message: it cannot know that, and saying both would
     // send the operator to push a commit that may already be pushed.
-    expect(error?.message).not.toMatch(/has not been pushed/)
+    expect(error?.message).not.toMatch(/is on no origin branch/)
+  })
+
+  it('does not refuse a shallow clone whose HEAD a remote branch contains', () => {
+    // The shape of every CI checkout. A blanket shallow refusal was a false
+    // refusal here: a ref that contains the commit is a trustworthy answer
+    // however truncated the history behind it is.
+    expect(() =>
+      assertTreeRecordable({ ...clean, isShallow: true })
+    ).not.toThrow()
   })
 
   it('reports both problems at once rather than one per run', () => {
@@ -189,10 +199,10 @@ describe('assertTreeRecordable', () => {
     const error = (() => {
       try {
         assertTreeRecordable({
+          ...clean,
           statusZ: z(' M src/A.sol'),
           head: 'b'.repeat(40),
           remoteRefsContainingHead: '',
-          isShallow: false,
         })
         return undefined
       } catch (e) {
@@ -201,6 +211,6 @@ describe('assertTreeRecordable', () => {
     })()
 
     expect(error?.message).toContain('src/A.sol')
-    expect(error?.message).toMatch(/not been pushed|no remote/i)
+    expect(error?.message).toMatch(/on no origin branch/i)
   })
 })

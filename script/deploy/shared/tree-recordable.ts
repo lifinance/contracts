@@ -1,32 +1,20 @@
 /**
- * Refuses a deploy whose record could not be verified later.
+ * Decides whether a deploy about to happen could be verified afterwards.
  *
- * A deployment record's whole value is the claim that rebuilding at its commit,
- * with its recorded profile, reproduces the deployed bytecode. Two things make
- * that claim false before anything is broadcast, and neither is visible
- * afterwards: the working tree did not match the commit, or the commit is not
- * anywhere a verifier can fetch it.
- *
- * This has to run at the deploy entry, before the broadcast. The obvious home —
- * beside `getCurrentGitCommitHash` in the deployment logger — is the wrong one:
- * the logger runs after the deploy in order to record it, so a refusal there
- * converts a bad record into a lost deployment.
+ * A deployment record's whole value is the claim that rebuilding at its commit
+ * reproduces the deployed bytecode. Import this from a deploy entry point,
+ * before anything broadcasts.
  */
 
 /**
  * Paths whose contents change the bytecode a rebuild produces.
  *
- * Deliberately an allowlist rather than F22's exclusion list. F22 specifies
- * `deployments/` and `broadcast/` as the exclusions for the provenance *flag* on
- * a proposal, where over-reporting is cosmetic. A refusal needs the narrower
- * trigger: taken as a deny-everything-else rule it also fires on the untracked
- * `typechain` symlink that every worktree created by `contracts-wt-add.sh`
- * carries, which would refuse every deploy from a worktree, and on any scratch
- * file in the checkout. Neither affects a rebuild.
- *
- * `script/` is deliberately absent. Dirty deploy scripting changes how a deploy
- * was performed, which is worth knowing, but not what a rebuild at this commit
- * produces — and that is the claim the record makes.
+ * An allowlist, because a deny-everything-else rule also fires on the untracked
+ * `typechain` symlink every worktree carries and on any scratch file in the
+ * checkout, neither of which affects a rebuild. `script/` is absent for the
+ * same reason: dirty deploy scripting changes how a deploy was performed, not
+ * what a rebuild at this commit produces, and the record stores the constructor
+ * arguments and salt a script chose explicitly.
  */
 const BUILD_AFFECTING_PREFIXES = ['src/', 'lib/'] as const
 const BUILD_AFFECTING_FILES = [
@@ -39,18 +27,27 @@ const BUILD_AFFECTING_FILES = [
 const UNKNOWN_COMMIT = 'UNKNOWN'
 
 export interface ITreeState {
-  /** `git status --porcelain=v1 -z --no-renames` output, verbatim. */
-  statusZ: string
+  /**
+   * `git status --porcelain=v1 -z --no-renames --untracked-files=all
+   * --ignore-submodules=untracked` output, or `undefined` when it could not be
+   * read at all. Distinguished from `''` because an unreadable status is the
+   * one input that must never be mistaken for a clean tree.
+   */
+  statusZ: string | undefined
   /** `git rev-parse HEAD`, or the `UNKNOWN` sentinel. */
   head: string
-  /** `git branch -r --contains HEAD` output; empty when no remote has it. */
-  remoteRefsContainingHead: string
   /**
-   * `git rev-parse --is-shallow-repository`. In a shallow clone
-   * `--contains` cannot see the history it needs, so an unpushed commit and a
-   * pushed one are indistinguishable and the check has to say so rather than
-   * guess. Deploys are human-run from full clones today, so this is here to
-   * fail loudly if that ever changes.
+   * `git branch -r --contains HEAD --list 'origin/*'` output. Restricted to
+   * `origin` because a commit pushed only to a fork, or to the `tron` remote,
+   * is not fetchable from the repository the record names.
+   */
+  remoteRefsContainingHead: string
+  /** `git submodule status` output; a leading `-` marks an uninitialized one. */
+  submoduleStatus: string
+  /**
+   * `git rev-parse --is-shallow-repository`. A shallow clone's commit graph is
+   * truncated, so it can confirm that a remote branch contains HEAD but cannot
+   * be trusted when it reports that none does.
    */
   isShallow: boolean
 }
@@ -58,9 +55,10 @@ export interface ITreeState {
 /**
  * Build-affecting paths that differ from the commit.
  *
- * @param statusZ - `git status --porcelain=v1 -z --no-renames` output. NUL
- * separated, so a path containing a space stays one entry; `--no-renames` keeps
- * every record to a single path.
+ * @param statusZ - Porcelain v1 output, NUL separated. `-z` is load-bearing:
+ * without it git quotes and escapes paths containing spaces or non-ASCII, and
+ * `--no-renames` keeps every record to a single path — a rename otherwise emits
+ * the destination first and the source as a bare second entry.
  * @returns The offending paths, in the order git reported them.
  */
 export const buildAffectingDirtyPaths = (statusZ: string): string[] =>
@@ -78,17 +76,30 @@ export const buildAffectingDirtyPaths = (statusZ: string): string[] =>
     )
 
 /**
+ * Submodule paths git has not checked out.
+ *
+ * @param submoduleStatus - `git submodule status` output.
+ * @returns The uninitialized paths. Every worktree starts in this state, and a
+ * plain `git status` reports nothing about it.
+ */
+export const uninitializedSubmodules = (submoduleStatus: string): string[] =>
+  submoduleStatus
+    .split('\n')
+    .filter((line) => line.startsWith('-'))
+    .map((line) => line.trim().split(/\s+/)[1])
+    .filter((path): path is string => path !== undefined)
+
+/**
  * Refuses unless the tree is recordable.
  *
  * States the problem without a verdict: the same facts hard-block a production
- * deploy and only warn on staging, so the caller supplies the word.
+ * deploy and only warn on staging, so the caller supplies the word. Reports
+ * every problem it finds rather than the first, so an operator does not learn
+ * about the second one on the next deploy attempt.
  *
- * Reports every problem it finds rather than the first, so an operator does not
- * learn about the second one on the next deploy attempt.
- *
- * @param state - The three git facts, read by the caller.
- * @throws When the tree has build-affecting changes, when the commit is on no
- * remote branch, or when the commit could not be determined.
+ * @param state - The git facts, read by the caller.
+ * @throws When any of them says a rebuild at `state.head` would not reproduce
+ * what is about to be deployed, or that no verifier could fetch that commit.
  */
 export const assertTreeRecordable = (state: ITreeState): void => {
   const problems: string[] = []
@@ -100,28 +111,49 @@ export const assertTreeRecordable = (state: ITreeState): void => {
         `could verify this deployment afterwards.`
     )
 
-  const dirty = buildAffectingDirtyPaths(state.statusZ)
-  if (dirty.length > 0)
+  if (state.statusZ === undefined)
     problems.push(
-      `${dirty.length} build-affecting path(s) differ from the commit, so a rebuild ` +
-        `at ${state.head} would not reproduce what is about to be deployed:\n` +
-        dirty.map((path) => `    ${path}`).join('\n') +
-        `\n  Commit or stash them first. Changes under deployments/, broadcast/ and ` +
-        `script/ are ignored here — they do not affect the bytecode.`
+      `The working tree could not be read ('git status' failed), so whether it ` +
+        `matches ${state.head} is unknown. Treated as a refusal rather than as a ` +
+        `clean tree, because reading nothing and finding nothing are not the same.`
+    )
+  else {
+    const dirty = buildAffectingDirtyPaths(state.statusZ)
+    if (dirty.length > 0)
+      problems.push(
+        `${dirty.length} build-affecting path(s) differ from the commit, so a rebuild ` +
+          `at ${state.head} would not reproduce what is about to be deployed:\n` +
+          dirty.map((path) => `    ${path}`).join('\n') +
+          `\n  Commit or stash them first. A path under lib/ is a submodule left at a ` +
+          `different commit — 'git submodule update --init <path>' restores it, and ` +
+          `'git stash' will not. Changes under deployments/, broadcast/ and script/ ` +
+          `are ignored here; so is untracked content inside a submodule.`
+      )
+  }
+
+  const uninitialized = uninitializedSubmodules(state.submoduleStatus)
+  if (uninitialized.length > 0)
+    problems.push(
+      `${uninitialized.length} submodule(s) are not checked out, so the source a ` +
+        `rebuild would compile is not present:\n` +
+        uninitialized.map((path) => `    ${path}`).join('\n') +
+        `\n  Run 'git submodule update --init --recursive'.`
     )
 
-  if (state.isShallow)
-    problems.push(
-      `This is a shallow clone, so whether ${state.head} exists on a remote cannot ` +
-        `be determined — 'git branch -r --contains' has no history to search. Deploy ` +
-        `from a full clone, or fetch with depth 0.`
-    )
-  else if (state.remoteRefsContainingHead.trim() === '')
-    problems.push(
-      `Commit ${state.head} has not been pushed — no remote branch contains it. ` +
-        `The record would point at a commit a verifier cannot fetch, so the rebuild ` +
-        `it promises could never be performed. Push the branch first.`
-    )
+  if (state.remoteRefsContainingHead.trim() === '') {
+    if (state.isShallow)
+      problems.push(
+        `This is a shallow clone, so 'git branch -r --contains' reporting no remote ` +
+          `branch for ${state.head} cannot be trusted — the commit graph is truncated. ` +
+          `Deploy from a full clone, or fetch with depth 0.`
+      )
+    else
+      problems.push(
+        `Commit ${state.head} is on no origin branch. The record would point at a ` +
+          `commit a verifier cannot fetch from this repository, so the rebuild it ` +
+          `promises could never be performed. Push the branch first.`
+      )
+  }
 
   if (problems.length > 0)
     throw new Error(
