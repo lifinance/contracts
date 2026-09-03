@@ -28,7 +28,7 @@ const clean: ITreeState = {
   statusZ: '',
   head: 'a'.repeat(40),
   remoteRefsContainingHead: '  origin/main\n',
-  submoduleStatus: ' e282159 lib/forge-std (v1.9.4)\n',
+  emptySubmodulePaths: [],
   isShallow: false,
 }
 

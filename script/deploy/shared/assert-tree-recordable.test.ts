@@ -1,8 +1,7 @@
 /**
- * The recordability pre-flight is only worth anything where it is wired in.
- * A green decision suite has twice let a guard ship into the wrong place, so
- * these run the real bash seam, drive the real CLI against real git state, and
- * read the real deploy scripts, rather than asserting about `tree-recordable.ts`.
+ * Covers where the pre-flight is wired in, not what it decides. Every case here
+ * drives the real bash seam, the real CLI against real git state, or the real
+ * deploy scripts; the decision itself is covered next to the module.
  */
 
 import { execFileSync, spawnSync } from 'node:child_process'
@@ -126,10 +125,9 @@ describe('assertTreeRecordableOrFail — the bash seam', () => {
     (environment) => {
       // getPrivateKey hands out the production signing key for every ENVIRONMENT
       // that does not contain "staging", so matching the exact string keeps this
-      // at least as broad as the key it protects — the same form as the
-      // production gate in script/tasks/diamondUpdateFacet.sh. Only "production"
-      // and "staging" are ever passed in practice, so the two forms differ only
-      // on a typo, and refusing is the safe direction for one.
+      // at least as broad as the key it protects. Only "production" and
+      // "staging" are ever passed in practice, so a looser substring test would
+      // differ only on a typo, where refusing is the safe direction.
       expect(runSeam(environment, 1)).toContain('SEAM_RC=1')
     }
   )
@@ -230,17 +228,35 @@ const makePushedClone = (): string => {
   git(clone, ['push', 'origin', 'main'])
   return clone
 }
-describe('the CLI against real git state', () => {
-  /**
-   * Runs the real CLI in the given directory.
-   *
-   * @param cwd - Directory the CLI reads git from.
-   * @returns The CLI's own exit status. Never taken after a pipe, where `$?`
-   * would be the last filter's status instead.
-   */
-  const runCli = (cwd: string): number | null =>
-    spawnSync(process.execPath, [CLI], { cwd, encoding: 'utf8' }).status
+/**
+ * Runs the real CLI in the given directory.
+ *
+ * @param cwd - Directory the CLI reads git from.
+ * @returns The CLI's own exit status. Never taken after a pipe, where `$?`
+ * would be the last filter's status instead.
+ */
+const runCli = (cwd: string): number | null =>
+  spawnSync(process.execPath, [CLI], { cwd, encoding: 'utf8' }).status
+/**
+ * Puts a `git` on PATH that fails for one subcommand.
+ *
+ * @param subcommand - Matched at the subcommand position only. Scanning every
+ * argument would also break unrelated calls that happen to take it as a flag
+ * value.
+ * @returns The stub directory to prepend to PATH.
+ */
+const gitFailingFor = (subcommand: string): string => {
+  const stubDir = mkdtempSync(join(tmpdir(), 'tree-recordable-git-'))
+  const real = execFileSync('which', ['git'], { encoding: 'utf8' }).trim()
+  writeFileSync(
+    join(stubDir, 'git'),
+    `#!/bin/bash\n[ "$1" = "${subcommand}" ] && exit 128\nexec ${real} "$@"\n`
+  )
+  chmodSync(join(stubDir, 'git'), 0o755)
+  return stubDir
+}
 
+describe('the CLI against real git state', () => {
   const withEdit = (relativePath: string): number | null => {
     const clone = makePushedClone()
     writeFileSync(join(clone, relativePath), 'edited\n')
@@ -337,72 +353,68 @@ describe('the CLI against real git state', () => {
     expect(runCli(target)).toBe(1)
   })
 })
-
-describe('the CLI against real submodules', () => {
-  /**
-   * Builds a pushed superproject with one real submodule under `lib/`.
-   *
-   * Real `lib/` in this repo is nine gitlinks and zero regular files, and
-   * porcelain v1 reports a gitlink with nothing but untracked content inside it
-   * identically to one left at a different commit — so a plain-file fixture
-   * cannot reach either case.
-   *
-   * @returns The superproject clone and the two submodule commits.
-   */
-  const makeSuperWithSubmodule = (): {
-    clone: string
-    pinned: string
-    newer: string
-  } => {
-    const root = mkdtempSync(join(tmpdir(), 'tree-recordable-sub-'))
-    const g = (cwd: string, args: string[]): string =>
-      execFileSync('git', ['-c', 'protocol.file.allow=always', ...args], {
-        cwd,
-        encoding: 'utf8',
-        stdio: 'pipe',
-      })
-    const identify = (cwd: string): void => {
-      g(cwd, ['config', 'user.email', 'test@example.com'])
-      g(cwd, ['config', 'user.name', 'test'])
-      g(cwd, ['config', 'commit.gpgsign', 'false'])
-    }
-
-    const subOrigin = join(root, 'sub.git')
-    const subWork = join(root, 'subwork')
-    execFileSync('git', ['init', '--bare', '-b', 'main', subOrigin], {
+/**
+ * Builds a pushed superproject with one real submodule under `lib/`.
+ *
+ * Real `lib/` in this repo is nine gitlinks and zero regular files, and
+ * porcelain v1 reports a gitlink with nothing but untracked content inside it
+ * identically to one left at a different commit — so a plain-file fixture
+ * cannot reach either case.
+ *
+ * @returns The superproject clone and the two submodule commits.
+ */
+const makeSuperWithSubmodule = (): {
+  clone: string
+  pinned: string
+  newer: string
+} => {
+  const root = mkdtempSync(join(tmpdir(), 'tree-recordable-sub-'))
+  const g = (cwd: string, args: string[]): string =>
+    execFileSync('git', ['-c', 'protocol.file.allow=always', ...args], {
+      cwd,
+      encoding: 'utf8',
       stdio: 'pipe',
     })
-    execFileSync('git', ['clone', subOrigin, subWork], { stdio: 'pipe' })
-    identify(subWork)
-    writeFileSync(join(subWork, 'Dep.sol'), 'v1\n')
-    g(subWork, ['add', '-A'])
-    g(subWork, ['commit', '-m', 'v1'])
-    writeFileSync(join(subWork, 'Dep.sol'), 'v2\n')
-    g(subWork, ['commit', '-am', 'v2'])
-    g(subWork, ['push', 'origin', 'main'])
-    const newer = g(subWork, ['rev-parse', 'HEAD']).trim()
-    const pinned = g(subWork, ['rev-parse', 'HEAD~1']).trim()
-
-    const superOrigin = join(root, 'super.git')
-    const clone = join(root, 'super')
-    execFileSync('git', ['init', '--bare', '-b', 'main', superOrigin], {
-      stdio: 'pipe',
-    })
-    execFileSync('git', ['clone', superOrigin, clone], { stdio: 'pipe' })
-    identify(clone)
-    g(clone, ['submodule', 'add', subOrigin, 'lib/dep'])
-    g(join(clone, 'lib/dep'), ['checkout', pinned])
-    g(clone, ['add', '-A'])
-    g(clone, ['commit', '-m', 'pin dep'])
-    g(clone, ['push', 'origin', 'main'])
-    return { clone, pinned, newer }
+  const identify = (cwd: string): void => {
+    g(cwd, ['config', 'user.email', 'test@example.com'])
+    g(cwd, ['config', 'user.name', 'test'])
+    g(cwd, ['config', 'commit.gpgsign', 'false'])
   }
 
-  const runCliIn = (cwd: string): number | null =>
-    spawnSync(process.execPath, [CLI], { cwd, encoding: 'utf8' }).status
+  const subOrigin = join(root, 'sub.git')
+  const subWork = join(root, 'subwork')
+  execFileSync('git', ['init', '--bare', '-b', 'main', subOrigin], {
+    stdio: 'pipe',
+  })
+  execFileSync('git', ['clone', subOrigin, subWork], { stdio: 'pipe' })
+  identify(subWork)
+  writeFileSync(join(subWork, 'Dep.sol'), 'v1\n')
+  g(subWork, ['add', '-A'])
+  g(subWork, ['commit', '-m', 'v1'])
+  writeFileSync(join(subWork, 'Dep.sol'), 'v2\n')
+  g(subWork, ['commit', '-am', 'v2'])
+  g(subWork, ['push', 'origin', 'main'])
+  const newer = g(subWork, ['rev-parse', 'HEAD']).trim()
+  const pinned = g(subWork, ['rev-parse', 'HEAD~1']).trim()
 
+  const superOrigin = join(root, 'super.git')
+  const clone = join(root, 'super')
+  execFileSync('git', ['init', '--bare', '-b', 'main', superOrigin], {
+    stdio: 'pipe',
+  })
+  execFileSync('git', ['clone', superOrigin, clone], { stdio: 'pipe' })
+  identify(clone)
+  g(clone, ['submodule', 'add', subOrigin, 'lib/dep'])
+  g(join(clone, 'lib/dep'), ['checkout', pinned])
+  g(clone, ['add', '-A'])
+  g(clone, ['commit', '-m', 'pin dep'])
+  g(clone, ['push', 'origin', 'main'])
+  return { clone, pinned, newer }
+}
+
+describe('the CLI against real submodules', () => {
   it('accepts a submodule sitting at the pinned commit', () => {
-    expect(runCliIn(makeSuperWithSubmodule().clone)).toBe(0)
+    expect(runCli(makeSuperWithSubmodule().clone)).toBe(0)
   })
 
   it('refuses a submodule left at a different commit', () => {
@@ -411,7 +423,7 @@ describe('the CLI against real submodules', () => {
       cwd: join(clone, 'lib/dep'),
       stdio: 'pipe',
     })
-    expect(runCliIn(clone)).toBe(1)
+    expect(runCli(clone)).toBe(1)
   })
 
   it('ignores untracked content inside a submodule', () => {
@@ -421,7 +433,7 @@ describe('the CLI against real submodules', () => {
     // with no remedy the message could name.
     const { clone } = makeSuperWithSubmodule()
     writeFileSync(join(clone, 'lib/dep/.DS_Store'), 'junk\n')
-    expect(runCliIn(clone)).toBe(0)
+    expect(runCli(clone)).toBe(0)
   })
 
   it('refuses when a submodule is not checked out at all', () => {
@@ -433,32 +445,14 @@ describe('the CLI against real submodules', () => {
       cwd: clone,
       stdio: 'pipe',
     })
-    expect(runCliIn(clone)).toBe(1)
+    expect(runCli(clone)).toBe(1)
   })
 })
 
 describe('the CLI when git itself cannot answer', () => {
-  /**
-   * Puts a `git` on PATH that fails only for the named subcommand.
-   *
-   * @param subcommand - The one to break; everything else reaches real git.
-   * @returns The stub directory to prepend to PATH.
-   */
-  const gitFailingFor = (subcommand: string): string => {
-    const stubDir = mkdtempSync(join(tmpdir(), 'tree-recordable-git-'))
-    const real = execFileSync('which', ['git'], { encoding: 'utf8' }).trim()
-    writeFileSync(
-      join(stubDir, 'git'),
-      `#!/bin/bash\nfor a in "$@"; do [ "$a" = "${subcommand}" ] && exit 128; done\nexec ${real} "$@"\n`
-    )
-    chmodSync(join(stubDir, 'git'), 0o755)
-    return stubDir
-  }
-
   it('refuses when git status cannot be read, rather than reading it as clean', () => {
-    // The one input the guard's headline claim rests on. An unreadable status
-    // used to fall back to '', which parses as "no dirty paths" — so a genuinely
-    // dirty tree reported "matches a pushed commit" and exited 0.
+    // The one input the guard's headline claim rests on, and the only one whose
+    // failure value could be mistaken for a clean tree.
     const clone = makePushedClone()
     writeFileSync(join(clone, 'src/Facet.sol'), 'tampered\n')
     const result = spawnSync(process.execPath, [CLI], {
@@ -597,5 +591,55 @@ describe('git configuration that hides a dirty tree', () => {
       spawnSync(process.execPath, [CLI], { cwd: clone, encoding: 'utf8' })
         .status
     ).toBe(1)
+  })
+})
+
+describe('submodule states the index and the disk disagree about', () => {
+  it('refuses modified tracked content inside a submodule', () => {
+    // `--ignore-submodules` has to be exactly `untracked`. At `dirty` this case
+    // goes silent, and tampered source inside a lib reaches production with the
+    // guard green — the one mutation the rest of the suite does not kill.
+    const { clone } = makeSuperWithSubmodule()
+    writeFileSync(join(clone, 'lib/dep/Dep.sol'), 'TAMPERED\n')
+
+    expect(runCli(clone)).toBe(1)
+  })
+
+  it('accepts a populated submodule whose URL is absent from .git/config', () => {
+    // What `git submodule status` calls uninitialized. The primary deploy clone
+    // is in exactly this state for lib/ds-test: nine files on disk, resolved by
+    // remappings, and a rebuild reproduces — so refusing it would block an
+    // honest production deploy from the operator's own clean checkout.
+    const { clone } = makeSuperWithSubmodule()
+    for (const key of ['submodule.lib/dep.url', 'submodule.lib/dep.active'])
+      execFileSync('git', ['config', '--unset', key], {
+        cwd: clone,
+        stdio: 'pipe',
+      })
+
+    expect(
+      execFileSync('git', ['submodule', 'status'], {
+        cwd: clone,
+        encoding: 'utf8',
+      })
+    ).toMatch(/^-/)
+    expect(runCli(clone)).toBe(0)
+  })
+
+  it('refuses when the index cannot be read at all', () => {
+    const clone = makePushedClone()
+    const result = spawnSync(process.execPath, [CLI], {
+      cwd: clone,
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        PATH: `${gitFailingFor('ls-files')}:${process.env.PATH}`,
+      },
+    })
+
+    expect(result.status).toBe(1)
+    expect(`${result.stdout}${result.stderr}`).toContain(
+      'index could not be read'
+    )
   })
 })

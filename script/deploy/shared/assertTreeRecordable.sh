@@ -7,14 +7,14 @@
 # Usage: assertTreeRecordableOrFail ENVIRONMENT
 #   ENVIRONMENT - Deployment environment, e.g. "production" or "staging"
 #
-# Behavior:
+# Routing/Behavior:
 #   - Tree is recordable: silent, returns 0
 #   - Not recordable, ENVIRONMENT is exactly "staging": warns, returns 0
 #   - Not recordable, anything else: prints an error, returns 1
 #
 # Returns: 0 to continue the deploy, 1 to refuse it. Never exits.
 # Example: assertTreeRecordableOrFail "$ENVIRONMENT" || return 1
-assertTreeRecordableOrFail() {
+function assertTreeRecordableOrFail() {
   local ENVIRONMENT="$1"
 
   if bunx tsx script/deploy/shared/assert-tree-recordable.ts; then
@@ -23,8 +23,7 @@ assertTreeRecordableOrFail() {
 
   # getPrivateKey hands out the production signing key for every ENVIRONMENT that
   # does not contain "staging", so matching on the exact string keeps the gate at
-  # least as broad as the key it protects. Same form as the production gate in
-  # script/tasks/diamondUpdateFacet.sh.
+  # least as broad as the key it protects.
   if [[ "$ENVIRONMENT" != "staging" ]]; then
     error "Refusing to deploy. Nothing has been broadcast."
     return 1

@@ -42,8 +42,14 @@ export interface ITreeState {
    * is not fetchable from the repository the record names.
    */
   remoteRefsContainingHead: string
-  /** `git submodule status` output; a leading `-` marks an uninitialized one. */
-  submoduleStatus: string
+  /**
+   * Submodule paths recorded in the index whose working tree holds no files, or
+   * `undefined` when the index could not be read. Presence on disk rather than
+   * `git submodule status`, which reports `-` whenever a submodule's URL is
+   * absent from .git/config — true of a fully populated `lib/ds-test` in the
+   * primary deploy clone, whose source a rebuild resolves fine.
+   */
+  emptySubmodulePaths: string[] | undefined
   /**
    * `git rev-parse --is-shallow-repository`. A shallow clone's commit graph is
    * truncated, so it can confirm that a remote branch contains HEAD but cannot
@@ -76,18 +82,18 @@ export const buildAffectingDirtyPaths = (statusZ: string): string[] =>
     )
 
 /**
- * Submodule paths git has not checked out.
+ * Submodule paths recorded in the index.
  *
- * @param submoduleStatus - `git submodule status` output.
- * @returns The uninitialized paths. Every worktree starts in this state, and a
- * plain `git status` reports nothing about it.
+ * @param lsFilesStageZ - `git ls-files --stage -z` output. Mode 160000 is a
+ * gitlink; `-z` keeps a path containing a space in one piece.
+ * @returns Every submodule path, in index order.
  */
-export const uninitializedSubmodules = (submoduleStatus: string): string[] =>
-  submoduleStatus
-    .split('\n')
-    .filter((line) => line.startsWith('-'))
-    .map((line) => line.trim().split(/\s+/)[1])
-    .filter((path): path is string => path !== undefined)
+export const submodulePathsInIndex = (lsFilesStageZ: string): string[] =>
+  lsFilesStageZ
+    .split('\0')
+    .filter((entry) => entry.startsWith('160000 '))
+    .map((entry) => entry.slice(entry.indexOf('\t') + 1))
+    .filter((path) => path !== '')
 
 /**
  * Refuses unless the tree is recordable.
@@ -131,13 +137,18 @@ export const assertTreeRecordable = (state: ITreeState): void => {
       )
   }
 
-  const uninitialized = uninitializedSubmodules(state.submoduleStatus)
-  if (uninitialized.length > 0)
+  if (state.emptySubmodulePaths === undefined)
     problems.push(
-      `${uninitialized.length} submodule(s) are not checked out, so the source a ` +
-        `rebuild would compile is not present:\n` +
-        uninitialized.map((path) => `    ${path}`).join('\n') +
-        `\n  Run 'git submodule update --init --recursive'.`
+      `The index could not be read ('git ls-files' failed), so whether every ` +
+        `submodule is checked out is unknown. Treated as a refusal rather than as ` +
+        `a complete tree.`
+    )
+  else if (state.emptySubmodulePaths.length > 0)
+    problems.push(
+      `${state.emptySubmodulePaths.length} submodule(s) hold no files, so the source ` +
+        `a rebuild would compile is not present:\n` +
+        state.emptySubmodulePaths.map((path) => `    ${path}`).join('\n') +
+        `\n  Run 'git submodule update --init'.`
     )
 
   if (state.remoteRefsContainingHead.trim() === '') {

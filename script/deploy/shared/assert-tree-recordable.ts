@@ -5,10 +5,15 @@
  */
 
 import { execFileSync } from 'node:child_process'
+import { readdirSync } from 'node:fs'
 
 import { consola } from 'consola'
 
-import { assertTreeRecordable, type ITreeState } from './tree-recordable'
+import {
+  assertTreeRecordable,
+  submodulePathsInIndex,
+  type ITreeState,
+} from './tree-recordable'
 
 const git = <T>(args: string[], fallback: T): string | T => {
   try {
@@ -16,6 +21,29 @@ const git = <T>(args: string[], fallback: T): string | T => {
   } catch {
     return fallback
   }
+}
+
+/**
+ * Submodule paths whose working tree holds no files.
+ *
+ * Presence on disk rather than registration. `git submodule status` marks a
+ * submodule uninitialized whenever its URL is absent from .git/config, which is
+ * true of every fully populated submodule in the primary deploy clone — a
+ * rebuild there resolves their source fine.
+ *
+ * @returns The empty paths, or `undefined` when the index could not be read.
+ */
+const readEmptySubmodulePaths = (): string[] | undefined => {
+  const staged = git(['ls-files', '--stage', '-z'], undefined)
+  if (staged === undefined) return undefined
+
+  return submodulePathsInIndex(staged).filter((path) => {
+    try {
+      return readdirSync(path).length === 0
+    } catch {
+      return true
+    }
+  })
 }
 
 const readTreeState = (): ITreeState => ({
@@ -43,7 +71,7 @@ const readTreeState = (): ITreeState => ({
     ['branch', '-r', '--contains', 'HEAD', '--list', 'origin/*'],
     ''
   ),
-  submoduleStatus: git(['submodule', 'status'], ''),
+  emptySubmodulePaths: readEmptySubmodulePaths(),
   isShallow:
     git(['rev-parse', '--is-shallow-repository'], 'true').trim() === 'true',
 })
