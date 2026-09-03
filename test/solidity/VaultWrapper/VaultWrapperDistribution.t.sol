@@ -244,17 +244,18 @@ contract VaultWrapperDistributionTest is Test {
     }
 
     function test_DistributeFeesSkipsZeroShareReceiver() public {
-        // Two receivers: a 1-bps wallet and a 9999-bps wallet. With a tiny fee pool the
-        // 1-bps wallet's proportional share rounds down to 0 and is skipped; the last
-        // wallet absorbs the whole integrator total, so nothing is stranded.
-        address dust = makeAddr("dust"); // 1 bps
+        // Two receivers: a 9999-bps wallet and a 1-bps wallet. With a tiny fee pool the
+        // 1-bps wallet's proportional share rounds down to 0 and is skipped; the first
+        // wallet absorbs the whole integrator total, so nothing is stranded. The dust wallet
+        // is listed second so it falls inside the loop, where the zero-share skip lives.
         address bulk = makeAddr("bulk"); // 9999 bps
+        address dust = makeAddr("dust"); // 1 bps
         address[] memory wallets = new address[](2);
-        wallets[0] = dust;
-        wallets[1] = bulk;
+        wallets[0] = bulk;
+        wallets[1] = dust;
         uint16[] memory bps = new uint16[](2);
-        bps[0] = 1;
-        bps[1] = 9999;
+        bps[0] = 9999;
+        bps[1] = 1;
         wrapper = _deploy(_assetFees(), SPLIT, wallets, bps);
 
         // Small floor-clearing deposit (~1.09e6 shares minted) whose integrator fee
@@ -268,7 +269,7 @@ contract VaultWrapperDistributionTest is Test {
         wrapper.distributeFees();
 
         assertEq(asset.balanceOf(dust), 0); // zero-share receiver skipped
-        assertEq(asset.balanceOf(bulk), integratorPart); // last absorbs it all
+        assertEq(asset.balanceOf(bulk), integratorPart); // first absorbs it all
     }
 
     /// Fee distribution — split correctness ///
@@ -320,16 +321,18 @@ contract VaultWrapperDistributionTest is Test {
         assertEq(wrapper.balanceOf(makeAddr("r")), integratorPart);
     }
 
-    function test_DistributeFeesFansAcrossWalletsWithRemainderToLast() public {
+    function test_DistributeFeesFansAcrossWalletsWithRemainderToFirst()
+        public
+    {
         address[] memory wallets = _wallets3();
         wrapper = _deploy(_assetFees(), SPLIT, wallets, _bps3());
         _deposit(alice, DEPOSIT);
 
         uint256 integratorPart = wrapper.integratorFeeAssets();
         assertGt(integratorPart, 0);
-        uint256 w0 = (integratorPart * 5000) / 10_000;
         uint256 w1 = (integratorPart * 3000) / 10_000;
-        uint256 w2 = integratorPart - w0 - w1; // last absorbs remainder
+        uint256 w2 = (integratorPart * 2000) / 10_000;
+        uint256 w0 = integratorPart - w1 - w2; // first absorbs remainder
 
         wrapper.distributeFees();
 
@@ -427,9 +430,9 @@ contract VaultWrapperDistributionTest is Test {
 
         uint256 lifiPart = wrapper.lifiFeeAssets();
         uint256 integratorPart = wrapper.integratorFeeAssets();
-        uint256 share0 = (integratorPart * 5000) / 10_000;
         uint256 share1 = (integratorPart * 3000) / 10_000;
-        uint256 share2 = integratorPart - share0 - share1; // last absorbs remainder
+        uint256 share2 = (integratorPart * 2000) / 10_000;
+        uint256 share0 = integratorPart - share1 - share2; // first absorbs remainder
 
         // Block only the middle wallet.
         BlacklistERC20(address(asset)).setBlocked(wallets[1], true);

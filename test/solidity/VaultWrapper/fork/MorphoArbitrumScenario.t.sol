@@ -215,7 +215,7 @@ contract MorphoArbitrumScenarioTest is VaultWrapperForkTestBase {
     }
 
     /// @dev Asserts one reservoir token's payout: LI.FI gets its whole booked part, the two
-    ///      integrator wallets split the integrator part 60/40 with the second wallet
+    ///      integrator wallets split the integrator part 60/40 with the first wallet
     ///      absorbing the flooring remainder.
     function _assertFanOut(
         uint256 _lifiBal,
@@ -224,13 +224,13 @@ contract MorphoArbitrumScenarioTest is VaultWrapperForkTestBase {
         uint256 _lifiPart,
         uint256 _integratorPart
     ) internal pure {
-        uint256 wallet1 = (_integratorPart * RECEIVER_1_BPS) / 10_000;
+        uint256 wallet2 = (_integratorPart * RECEIVER_2_BPS) / 10_000;
         assertEq(_lifiBal, _lifiPart, "lifi payout mismatch");
-        assertEq(_wallet1Bal, wallet1, "wallet1 payout mismatch");
+        assertEq(_wallet2Bal, wallet2, "wallet2 payout mismatch");
         assertEq(
-            _wallet2Bal,
-            _integratorPart - wallet1,
-            "wallet2 payout mismatch"
+            _wallet1Bal,
+            _integratorPart - wallet2,
+            "wallet1 payout mismatch"
         );
     }
 
