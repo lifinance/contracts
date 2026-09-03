@@ -112,10 +112,6 @@ export function getCurrentGitCommitHash(): string {
  * `origin` remote or its URL names no host and path — the same sentinel, and
  * the same reason, as the commit hash above: a failed capture has to stay
  * visible on later audits rather than blending in as legacy data.
- *
- * A commit hash alone does not say where to rebuild from. The same hash can
- * exist in a fork, so a record that names only the hash asks a verifier to
- * resolve it anywhere.
  */
 export function getCurrentRepo(): string {
   try {
