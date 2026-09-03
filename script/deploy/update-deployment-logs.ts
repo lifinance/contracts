@@ -29,6 +29,7 @@ import { createDefaultCache } from './shared/deployment-cache'
 import {
   deploymentRecordEqFilter,
   getCurrentGitCommitHash,
+  getCurrentRepo,
   type IDeploymentRecord,
   type IUpdateConfig,
   mongoEq,
@@ -214,6 +215,7 @@ class DeploymentLogManager {
         ...(record.gitCommitHash
           ? { gitCommitHash: record.gitCommitHash }
           : {}),
+        ...(record.repo ? { repo: record.repo } : {}),
         contractNetworkKey: record.contractNetworkKey,
         contractVersionKey: record.contractVersionKey,
         updatedAt: new Date(),
@@ -264,6 +266,7 @@ class DeploymentLogManager {
             ...(record.gitCommitHash
               ? { gitCommitHash: record.gitCommitHash }
               : {}),
+            ...(record.repo ? { repo: record.repo } : {}),
             contractNetworkKey: record.contractNetworkKey,
             contractVersionKey: record.contractVersionKey,
             updatedAt: new Date(),
@@ -748,6 +751,7 @@ const addCommand = defineCommand({
           ? args['zk-solc-version']
           : '',
       gitCommitHash: getCurrentGitCommitHash(),
+      repo: getCurrentRepo(),
       createdAt: new Date(),
       updatedAt: new Date(),
       contractNetworkKey: `${args.contract}-${args.network}`,

@@ -13,6 +13,8 @@ import {
 import type { EnvironmentEnum } from '../../common/types'
 import { sleep } from '../../utils/delay'
 
+import { REPO_UNKNOWN, normalizeRepoUrl } from './repo-identity'
+
 /**
  * Represents a deployment record stored in MongoDB
  * @interface IDeploymentRecord
@@ -46,6 +48,12 @@ export interface IDeploymentRecord {
   zkSolcVersion: string
   /** Git commit hash of the local codebase at the time this record was logged */
   gitCommitHash: string
+  /**
+   * Repository the commit was logged from, as `host/owner/repo`. Absent on
+   * records written before this field existed; `'UNKNOWN'` when the capture ran
+   * and could not identify a remote.
+   */
+  repo?: string
   /** When this record was created in the database */
   createdAt: Date
   /** When this record was last updated in the database */
@@ -98,6 +106,31 @@ export function getCurrentGitCommitHash(): string {
   }
 }
 
+/**
+ * Captures the repository the local codebase was cloned from, as
+ * `host/owner/repo`. Returns 'UNKNOWN' (with a warning) when there is no
+ * `origin` remote or its URL names no host and path — the same sentinel, and
+ * the same reason, as the commit hash above: a failed capture has to stay
+ * visible on later audits rather than blending in as legacy data.
+ *
+ * A commit hash alone does not say where to rebuild from. The same hash can
+ * exist in a fork, so a record that names only the hash asks a verifier to
+ * resolve it anywhere.
+ */
+export function getCurrentRepo(): string {
+  try {
+    const identity = normalizeRepoUrl(
+      execSync('git remote get-url origin', { encoding: 'utf8' })
+    )
+    if (identity === REPO_UNKNOWN)
+      consola.warn('Could not identify a repository from the origin remote')
+    return identity
+  } catch (error) {
+    consola.warn(`Failed to determine the origin remote: ${error}`)
+    return REPO_UNKNOWN
+  }
+}
+
 const DEPLOYMENT_QUERY_EQ_KEYS = [
   'contractName',
   'network',
@@ -110,6 +143,7 @@ const DEPLOYMENT_QUERY_EQ_KEYS = [
   'evmVersion',
   'zkSolcVersion',
   'gitCommitHash',
+  'repo',
   'contractNetworkKey',
   'contractVersionKey',
   'timestamp',
