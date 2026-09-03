@@ -62,6 +62,7 @@ import {
   getOrInitializeSafeClient,
   hasEnoughSignatures,
   isFutureNonceExecutionAllowed,
+  resolveSafeSigningMode,
   isSignedByProductionWallet,
   mongoSafeTxRowFilter,
   PrivateKeyTypeEnum,
@@ -435,7 +436,12 @@ const processTxs = async (
     // signer steps through so values can be compared screen-by-screen. EVM
     // only — the Flex EIP-712 blind-signing flow does not apply to Tron.
     // A display error must never block signing.
+    //
+    // Only for the typed-data flow. Hash signing shows one message screen, so
+    // printing these would tell the signer to compare against screens their
+    // device never displays.
     if (
+      resolveSafeSigningMode(process.env) === 'eip712' &&
       !isTronNetworkKey(network) &&
       tx.safeTx.data.data &&
       tx.safeTx.data.data !== '0x'
@@ -458,6 +464,14 @@ const processTxs = async (
       } catch (error) {
         consola.debug(`Ledger Flex filmstrip skipped: ${error}`)
       }
+    else if (!isTronNetworkKey(network))
+      consola.info(
+        [
+          'Ledger — the device shows one message screen holding the Safe transaction hash.',
+          `Compare it character by character against: ${tx.safeTxHash}`,
+          'At least 16 characters, 8 from each end. Four-and-four is grindable.',
+        ].join('\n')
+      )
 
     const integrity = evaluateProposalIntegrity({ nonceStatus })
     // Read from the normalised transaction, not the stored document: this is the
@@ -930,8 +944,11 @@ const main = defineCommand({
         throw error
       }
 
-      // Signing a Safe EIP-712 payload on a Ledger Flex needs blind signing on.
-      // Fail fast with enable instructions rather than dying mid-sign.
+      // Fail fast with enable instructions rather than dying mid-sign. The
+      // requirement is documented for the EIP-712 payload; whether a Flex also
+      // needs it for the single message screen hash signing shows has not been
+      // checked on a device, so the gate stays for both rather than being
+      // narrowed on an assumption.
       const { checkBlindSigningEnabled, closeLedgerConnection } = await import(
         './ledger'
       )
