@@ -4,9 +4,8 @@ import {
   MIN_BALANCE_WARNING,
   TronContractDeployer,
   createTronWeb,
-  evmHexToTronBase58,
   getTronRPCConfig,
-  getTronWebCodecOnlyForNetwork,
+  tronAddressToHex,
   type ITronDeploymentConfig,
   type TronTvmNetworkName,
 } from '@lifi/tron-devkit'
@@ -30,59 +29,16 @@ import { getContractVersion } from '../shared/getContractVersion'
 import { getCoreFacets } from '../shared/globalContractLists'
 
 import {
+  assertDiamondConstructorShape,
+  resolveCoreFacetConstructorArgs,
+  DIAMOND_CONSTRUCTOR_PARAMS,
+  type DiamondConstructorArgs,
+} from './helpers/coreFacetConstructorArgs'
+import {
   deployContractWithLogging,
   validateBalance,
   waitBetweenDeployments,
 } from './tronUtils.js'
-
-/**
- * Get constructor arguments for a facet
- * This function prepares constructor arguments without requiring a private key
- */
-async function getConstructorArgs(
-  facetName: string,
-  network: string,
-  networksConfig: any
-): Promise<any[]> {
-  if (facetName === 'EmergencyPauseFacet') {
-    // EmergencyPauseFacet requires pauserWallet address
-    const globalConfig = await Bun.file('config/global.json').json()
-    const pauserWallet = globalConfig.pauserWallet // EVM 0x address
-    const pauserWalletTron = globalConfig.tronWallets?.pauserWallet // Tron base58 address
-
-    if (!pauserWallet)
-      throw new Error('pauserWallet not found in config/global.json')
-
-    // Use original hex format (0x...) for constructor args
-    // The ABI encoder needs this format for proper encoding
-    const displayAddr =
-      pauserWalletTron ||
-      evmHexToTronBase58(getTronWebCodecOnlyForNetwork(network), pauserWallet)
-    consola.info(`Using pauserWallet: ${displayAddr} (hex: ${pauserWallet})`)
-    return [pauserWallet]
-  } else if (facetName === 'GenericSwapFacetV3') {
-    // GenericSwapFacetV3 requires native token address
-    const nativeAddress = networksConfig[network]?.nativeAddress
-
-    if (!nativeAddress)
-      throw new Error(
-        'nativeAddress not found for tron in config/networks.json'
-      )
-
-    // Convert to base58 for display purposes only
-    const tronBase58 = evmHexToTronBase58(
-      getTronWebCodecOnlyForNetwork(network),
-      nativeAddress
-    )
-
-    consola.info(
-      `Using native token address: ${tronBase58} (hex: ${nativeAddress})`
-    )
-    return [nativeAddress]
-  }
-
-  return []
-}
 
 /**
  * Deploy core facets implementation
@@ -190,7 +146,11 @@ async function deployCoreFacetsImpl(options: {
     consola.info(`  ${i + 1}. ${facet}`)
   })
 
-  const existingDeployments = []
+  const existingDeployments: {
+    exists: boolean
+    address: string | null
+    shouldRedeploy: boolean
+  }[] = []
   for (const facet of coreFacets) {
     const deployment = await checkExistingDeployment(
       network,
@@ -207,6 +167,39 @@ async function deployCoreFacetsImpl(options: {
       if (d.exists) consola.info(`  ✓ ${coreFacets[index]}: ${d.address}`)
     })
   }
+  // Resolved before the first deployment, and only for facets that will be
+  // deployed: a facet whose arguments cannot be built stops the run while
+  // nothing has been spent
+  const constructorArgsByFacet = await resolveCoreFacetConstructorArgs(
+    coreFacets.filter((_, index) => {
+      const existing = existingDeployments[index]
+      return !(existing?.exists && existing.address && !existing.shouldRedeploy)
+    }),
+    network,
+    networksConfig
+  )
+
+  const diamondName = 'LiFiDiamond'
+  const existingDiamond = await checkExistingDeployment(
+    network,
+    diamondName,
+    options.dryRun
+  )
+  const deployedDiamondAddress =
+    existingDiamond.exists &&
+    existingDiamond.address &&
+    !existingDiamond.shouldRedeploy
+      ? existingDiamond.address
+      : null
+  // The diamond is deployed after every facet, so a mismatch in its constructor
+  // surfaces only once they have all been paid for.
+  if (deployedDiamondAddress === null)
+    await assertDiamondConstructorShape(
+      diamondName,
+      network,
+      DIAMOND_CONSTRUCTOR_PARAMS.length
+    )
+
   // Deploy facets
   const deploymentResults: IDeploymentResult[] = []
   const facetAddresses: Record<string, { address: string; version: string }> =
@@ -239,12 +232,9 @@ async function deployCoreFacetsImpl(options: {
     consola.info(`\n📦 Deploying ${facet}...`)
 
     try {
-      // Get constructor arguments
-      const constructorArgs = await getConstructorArgs(
-        facet,
-        network,
-        networksConfig
-      )
+      const constructorArgs = constructorArgsByFacet.get(facet)
+      if (!constructorArgs)
+        throw new Error(`No constructor arguments resolved for ${facet}`)
 
       // Deploy the facet
       const result = await deployContractWithLogging(
@@ -285,24 +275,14 @@ async function deployCoreFacetsImpl(options: {
   }
 
   // Deploy LiFiDiamond
-  const diamondName = 'LiFiDiamond'
   consola.info(`\n💎 Deploying ${diamondName}...`)
 
-  const existingDiamond = await checkExistingDeployment(
-    network,
-    diamondName,
-    options.dryRun
-  )
-  if (
-    existingDiamond.exists &&
-    existingDiamond.address &&
-    !existingDiamond.shouldRedeploy
-  ) {
+  if (deployedDiamondAddress !== null) {
     consola.info(`⏭️  Skipping ${diamondName} (already deployed)`)
     const version = await getContractVersion(diamondName)
     deploymentResults.push({
       contract: diamondName,
-      address: existingDiamond.address,
+      address: deployedDiamondAddress,
       version,
       txId: '',
       cost: 0,
@@ -312,20 +292,36 @@ async function deployCoreFacetsImpl(options: {
     try {
       // Get owner address (deployer address)
       const ownerAddress = networkInfo.address
+      const ownerHex = tronAddressToHex(tronWeb, ownerAddress)
 
-      // Convert to hex format for constructor
-      const ownerHexRaw = tronWeb.address.toHex(ownerAddress)
-      const ownerHex = ownerHexRaw.startsWith('0x')
-        ? ownerHexRaw
-        : `0x${ownerHexRaw}`
+      const diamondCutFacet = facetAddresses['DiamondCutFacet']
+      if (!diamondCutFacet)
+        throw new Error(
+          `${diamondName} takes the DiamondCutFacet address, but DiamondCutFacet has no address in this run — its deployment failed. The diamond cannot be assembled without it.`
+        )
+
+      const diamondCutFacetHex = tronAddressToHex(
+        tronWeb,
+        diamondCutFacet.address
+      )
 
       consola.info(`Using owner address: ${ownerAddress} (hex: ${ownerHex})`)
+      consola.info(
+        `Using DiamondCutFacet: ${diamondCutFacet.address} (hex: ${diamondCutFacetHex})`
+      )
+
+      // Keyed by the same const the pre-flight probe counts, so adding a
+      // parameter there fails to compile until it is supplied here too.
+      const diamondArgs: DiamondConstructorArgs = {
+        owner: ownerHex,
+        diamondCutFacet: diamondCutFacetHex,
+      }
 
       // Deploy the Diamond
       const result = await deployContractWithLogging(
         deployer,
         diamondName,
-        [ownerHex], // Pass owner address as constructor argument
+        DIAMOND_CONSTRUCTOR_PARAMS.map((param) => diamondArgs[param]),
         options.dryRun,
         network
       )
