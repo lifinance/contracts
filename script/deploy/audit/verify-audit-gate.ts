@@ -85,6 +85,13 @@ const main = defineCommand({
       type: 'string',
       description: 'PR title — logged only; the gate has no title exemption',
     },
+    // Same reason as `auditLog` above: no `default`, so the camelCase key cannot
+    // shadow what the caller passed. Absent reads as false.
+    failOnDrift: {
+      type: 'boolean',
+      description:
+        'Exit non-zero on closure drift. For the separate non-required drift check, not the blocking gate',
+    },
   },
   run({ args }) {
     const source = resolveContractSource(args)
@@ -172,6 +179,12 @@ const main = defineCommand({
       const drifted = report.results.filter(
         (result) => result.verdict === 'closure-drift'
       )
+      if (args.failOnDrift) {
+        consola.error(
+          `${drifted.length} contract(s) are byte-identical to their audit, but code they import has moved since. This check is not required to merge — it exists so the drift is visible rather than silent.`
+        )
+        process.exit(EXIT_FAIL)
+      }
       consola.warn(
         `Audit gate passed with closure drift: ${drifted.length} contract(s) are byte-identical to their audit, but code they import has moved since. Reported, not blocking.`
       )

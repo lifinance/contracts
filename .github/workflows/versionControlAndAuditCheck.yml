@@ -708,3 +708,51 @@ jobs:
           github_token: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }} # we use the token of the lifi-action-bot so the label protection check will pass
           labels: 'AuditCompleted'
           number: ${{ env.PR_NUMBER }}
+
+  # Reports closure drift on its own status, per D14. Deliberately a separate job:
+  # a status check is per-job, so folding this into `audit-verification` would make
+  # drift indistinguishable from the blocking verdict. Register this one as
+  # NON-REQUIRED on `main` — it goes red to make drift visible, not to stop a merge.
+  #
+  # It re-runs the same gate with --fail-on-drift rather than reading a step output,
+  # so it cannot report green because an upstream step failed to set a variable.
+  audit-closure-drift:
+    if: ${{ github.event.pull_request.draft == false && github.event.pull_request.base.ref == 'main' }}
+    needs: version-control
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      AUDIT_LOG_PATH: 'audit/auditLog.json'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+
+      - name: Install dev dependencies
+        run: bun install
+
+      - name: Download list of audit-relevant contracts from previous version control step
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: contracts_for_audit
+
+      - name: Report closure drift
+        run: |
+          ##### An empty list means no contract in this PR needs an audit, so there is
+          ##### nothing whose closure could have drifted. The blocking gate refuses an
+          ##### absent list; here an empty one is simply nothing to report.
+          if [[ ! -s contracts_for_audit.txt ]]; then
+            echo "No audit-relevant contracts in this PR — no closure to compare."
+            exit 0
+          fi
+
+          bunx tsx script/deploy/audit/verify-audit-gate.ts \
+            --contracts-file contracts_for_audit.txt \
+            --audit-log "$AUDIT_LOG_PATH" \
+            --head HEAD \
+            --fail-on-drift

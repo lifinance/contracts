@@ -300,3 +300,124 @@ describe('closure-incomplete', () => {
     expect(result.matchedAuditId).toBe('audit2')
   })
 })
+
+describe('verifyAuditContent closure-drift split', () => {
+  const PATH = 'src/Periphery/ERC20Proxy.sol'
+  const LIB = 'src/Libraries/LibBytes.sol'
+  const OWN_A = `0x${'1'.repeat(64)}` as Hex
+  const OWN_B = `0x${'2'.repeat(64)}` as Hex
+  const LIB_A = `0x${'3'.repeat(64)}` as Hex
+  const LIB_B = `0x${'4'.repeat(64)}` as Hex
+
+  const detail = (
+    combinedHash: Hex,
+    own: Hex,
+    lib: Hex,
+    dependencies: Record<string, string> = {}
+  ): IClosureDetail => ({
+    combined: combinedHash,
+    files: { [PATH]: own, [LIB]: lib },
+    dependencies,
+  })
+
+  const run = (head: IClosureDetail, audited: IClosureDetail) =>
+    verifyAuditContent({
+      contract: 'ERC20Proxy',
+      version: '1.2.0',
+      headClosureHash: head.combined,
+      headClosureDetail: head,
+      contractPath: PATH,
+      entries: [withCommit({ closureAtAuditCommit: audited })],
+    })
+
+  it('does not block when only an imported file moved', () => {
+    const result = run(detail(HEAD, OWN_A, LIB_B), detail(OTHER, OWN_A, LIB_A))
+
+    expect(result.verdict).toBe('closure-drift')
+    expect(result.driftingDependencies).toEqual([LIB])
+  })
+
+  it('blocks when the contract own source moved, even if imports did not', () => {
+    const result = run(detail(HEAD, OWN_B, LIB_A), detail(OTHER, OWN_A, LIB_A))
+
+    expect(result.verdict).toBe('fail')
+  })
+
+  it('blocks when the own source moved alongside its imports', () => {
+    const result = run(detail(HEAD, OWN_B, LIB_B), detail(OTHER, OWN_A, LIB_A))
+
+    expect(result.verdict).toBe('fail')
+  })
+
+  it('counts a moved submodule as drift, which per-file hashes cannot see', () => {
+    const result = run(
+      detail(HEAD, OWN_A, LIB_A, { 'lib/solmate': 'aaa' }),
+      detail(OTHER, OWN_A, LIB_A, { 'lib/solmate': 'bbb' })
+    )
+
+    expect(result.verdict).toBe('closure-drift')
+    expect(result.driftingDependencies).toEqual(['lib/solmate'])
+  })
+
+  it('counts an import that appeared since the audit as drift', () => {
+    const head: IClosureDetail = {
+      combined: HEAD,
+      files: { [PATH]: OWN_A, [LIB]: LIB_A },
+      dependencies: {},
+    }
+    const audited: IClosureDetail = {
+      combined: OTHER,
+      files: { [PATH]: OWN_A },
+      dependencies: {},
+    }
+
+    expect(run(head, audited).verdict).toBe('closure-drift')
+  })
+
+  it('falls back to blocking when no per-file detail is available', () => {
+    // A caller that cannot supply detail must not get the softer verdict by
+    // default — absence of evidence is not evidence the contract is unchanged.
+    const result = verifyAuditContent({
+      contract: 'ERC20Proxy',
+      version: '1.2.0',
+      headClosureHash: HEAD,
+      contractPath: PATH,
+      entries: [withCommit({ closureAtAuditCommit: combined(OTHER) })],
+    })
+
+    expect(result.verdict).toBe('fail')
+  })
+
+  it('blocks when the contract own file is absent from the audited closure', () => {
+    const head = detail(HEAD, OWN_A, LIB_A)
+    const audited: IClosureDetail = {
+      combined: OTHER,
+      files: { [LIB]: LIB_A },
+      dependencies: {},
+    }
+
+    expect(run(head, audited).verdict).toBe('fail')
+  })
+
+  it('does not soften a real mismatch reported by another audit', () => {
+    const result = verifyAuditContent({
+      contract: 'ERC20Proxy',
+      version: '1.2.0',
+      headClosureHash: HEAD,
+      headClosureDetail: detail(HEAD, OWN_A, LIB_B),
+      contractPath: PATH,
+      entries: [
+        withCommit({
+          auditId: 'drifted',
+          closureAtAuditCommit: detail(OTHER, OWN_A, LIB_A),
+        }),
+        withCommit({
+          auditId: 'changed',
+          closureAtAuditCommit: detail(OTHER, OWN_B, LIB_A),
+        }),
+      ],
+    })
+
+    expect(result.verdict).toBe('fail')
+  })
+})
