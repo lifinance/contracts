@@ -2137,8 +2137,8 @@ describe('SafeClient.signTransaction default path', () => {
     delete process.env.ENABLE_SAFE_EIP712_SIGNING
   })
   afterEach(() => {
-    if (previous !== undefined)
-      process.env.ENABLE_SAFE_EIP712_SIGNING = previous
+    if (previous === undefined) delete process.env.ENABLE_SAFE_EIP712_SIGNING
+    else process.env.ENABLE_SAFE_EIP712_SIGNING = previous
   })
 
   const SAFE_TX_HASH = keccak256('0xfeed')
