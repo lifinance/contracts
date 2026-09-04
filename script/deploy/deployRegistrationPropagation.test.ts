@@ -212,8 +212,13 @@ describe('deploySingleContract missing deploy script', () => {
     bunx() { :; }
     isZkEvmNetwork() { return 1; }
     checkIfFileExists() { return 1; }
+    # Without this the undefined function fails the earlier recordability guard, and the
+    # missing-script guard under test is never reached.
+    assertTreeRecordableOrFail() { return 0; }
     DEPLOY_SCRIPT_DIRECTORY="script/deploy/facets/"
-    CONTRACT_REMINDERS="$REPO_ROOT/script/deploy/resources/contractSpecificReminders.sh"
+    # An empty file keeps the reminder lookup off the real resource, so the case under
+    # test does not change when a contract is added there.
+    CONTRACT_REMINDERS="$(mktemp)"
     RESULT=$(deploySingleContract TestContract testnet production "" "${exitOnError}" >/dev/null 2>&1; echo "returned rc=$?")
     echo "\${RESULT:-exited-instead-of-returning}"
   `
