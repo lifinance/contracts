@@ -165,6 +165,19 @@ const main = defineCommand({
       return
     }
 
+    // Reported, not blocked. Every contract's own source matched its audit; what
+    // moved is code they import, which is a different claim and carries
+    // different authority. The drift check reports this on its own status.
+    if (report.verdict === 'closure-drift') {
+      const drifted = report.results.filter(
+        (result) => result.verdict === 'closure-drift'
+      )
+      consola.warn(
+        `Audit gate passed with closure drift: ${drifted.length} contract(s) are byte-identical to their audit, but code they import has moved since. Reported, not blocking.`
+      )
+      return
+    }
+
     consola.error(
       report.verdict === 'error'
         ? 'Audit gate could not reach a verdict. This blocks — it is not an acknowledgeable warning.'

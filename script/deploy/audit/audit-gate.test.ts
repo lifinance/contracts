@@ -16,6 +16,7 @@ import {
   extractContractVersion,
   resolveContractSource,
   runAuditGate,
+  type ClosureAtResult,
   type IAuditGateDeps,
 } from './audit-gate'
 import type { AuditLogEntry, IAuditLogFile } from './audit-log-guard'
@@ -44,11 +45,22 @@ const entry = (over: Partial<AuditLogEntry> = {}): AuditLogEntry => ({
 const singleAuditLog = (over: Partial<AuditLogEntry> = {}): IAuditLogFile =>
   logWith({ audit1: entry(over) }, { FooFacet: { '1.0.0': ['audit1'] } })
 
+/**
+ * A closure detail carrying only a combined hash, so these cases exercise the
+ * combined comparison. With no per-file hashes the verdict cannot be split.
+ */
+const asClosure = (
+  value: Hex | 'unfetchable' | 'contract-absent' | undefined
+): ClosureAtResult =>
+  value === undefined || value === 'unfetchable' || value === 'contract-absent'
+    ? value ?? 'unfetchable'
+    : { combined: value, files: {}, dependencies: {} }
+
 /** Injected git: a map of `${treeish}:${path}` to whatever git would yield. */
 const depsFrom = (
   table: Record<string, Hex | 'unfetchable' | 'contract-absent'>
 ): IAuditGateDeps => ({
-  closureAt: (treeish, path) => table[`${treeish}:${path}`] ?? 'unfetchable',
+  closureAt: (treeish, path) => asClosure(table[`${treeish}:${path}`]),
 })
 
 describe('contractNameFromPath', () => {
@@ -298,7 +310,7 @@ describe('runAuditGate', () => {
       deps: {
         closureAt: (treeish, path) => {
           calls.push(`${treeish}:${path}`)
-          return table[`${treeish}:${path}`] ?? 'unfetchable'
+          return asClosure(table[`${treeish}:${path}`])
         },
       },
     })

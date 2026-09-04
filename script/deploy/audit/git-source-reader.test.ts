@@ -79,15 +79,27 @@ describe('createGitSourceReader', () => {
 
 describe('createClosureReader', () => {
   it('hashes the closure at the head tree-ish', () => {
-    const hash = createClosureReader(CWD, 'HEAD')('HEAD', KNOWN_CONTRACT)
+    const detail = createClosureReader(CWD, 'HEAD')('HEAD', KNOWN_CONTRACT)
 
-    expect(hash).toMatch(/^0x[0-9a-f]{64}$/)
+    if (typeof detail === 'string') throw new Error(`unresolved: ${detail}`)
+    expect(detail.combined).toMatch(/^0x[0-9a-f]{64}$/)
+  })
+
+  it('hashes the contract file itself, not only the closure as a whole', () => {
+    // Without a per-file hash for the contract's own source, own-source drift
+    // cannot be told from a library moving, and the split collapses to the
+    // combined comparison.
+    const detail = createClosureReader(CWD, 'HEAD')('HEAD', KNOWN_CONTRACT)
+
+    if (typeof detail === 'string') throw new Error(`unresolved: ${detail}`)
+    expect(detail.files[KNOWN_CONTRACT]).toMatch(/^0x[0-9a-f]{64}$/)
+    expect(Object.keys(detail.files).length).toBeGreaterThan(1)
   })
 
   it('is deterministic for the same tree-ish and contract', () => {
     const read = createClosureReader(CWD, 'HEAD')
 
-    expect(read('HEAD', KNOWN_CONTRACT)).toBe(read('HEAD', KNOWN_CONTRACT))
+    expect(read('HEAD', KNOWN_CONTRACT)).toEqual(read('HEAD', KNOWN_CONTRACT))
   })
 
   // Generous timeout on purpose: giving up on an unfetchable commit costs three

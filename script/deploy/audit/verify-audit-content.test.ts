@@ -8,6 +8,7 @@
 import { describe, expect, it } from 'bun:test'
 import type { Hex } from 'viem'
 
+import type { IClosureDetail } from './source-closure'
 import {
   classifyAuditEntry,
   verifyAuditContent,
@@ -17,6 +18,17 @@ import {
 const HEAD = `0x${'a'.repeat(64)}` as Hex
 const OTHER = `0x${'b'.repeat(64)}` as Hex
 const SHA = 'c'.repeat(40)
+
+/**
+ * A closure detail carrying only a combined hash. With no per-file hashes and no
+ * contract path, the caller cannot split the verdict, so these cases exercise
+ * the combined comparison exactly as before.
+ */
+const combined = (hash: Hex): IClosureDetail => ({
+  combined: hash,
+  files: {},
+  dependencies: {},
+})
 
 const withCommit = (
   over: Partial<IAuditEntryInput> = {}
@@ -76,7 +88,7 @@ describe('verifyAuditContent — passes', () => {
         contract: 'FooFacet',
         version: '1.0.0',
         headClosureHash: HEAD,
-        entries: [withCommit({ closureAtAuditCommit: HEAD })],
+        entries: [withCommit({ closureAtAuditCommit: combined(HEAD) })],
       }).verdict
     ).toBe('pass')
   })
@@ -87,8 +99,8 @@ describe('verifyAuditContent — passes', () => {
       version: '1.0.0',
       headClosureHash: HEAD,
       entries: [
-        withCommit({ auditId: 'a1', closureAtAuditCommit: OTHER }),
-        withCommit({ auditId: 'a2', closureAtAuditCommit: HEAD }),
+        withCommit({ auditId: 'a1', closureAtAuditCommit: combined(OTHER) }),
+        withCommit({ auditId: 'a2', closureAtAuditCommit: combined(HEAD) }),
       ],
     })
 
@@ -120,7 +132,7 @@ describe('verifyAuditContent — passes', () => {
         contract: 'FooFacet',
         version: '1.0.0',
         headClosureHash: HEAD,
-        entries: [withCommit({ closureAtAuditCommit: HEAD })],
+        entries: [withCommit({ closureAtAuditCommit: combined(HEAD) })],
         prTitle: 'Revert "feat: something"',
       }).verdict
     ).toBe('pass')
@@ -147,7 +159,7 @@ describe('verifyAuditContent — fails', () => {
         contract: 'FooFacet',
         version: '1.0.0',
         headClosureHash: HEAD,
-        entries: [withCommit({ closureAtAuditCommit: OTHER })],
+        entries: [withCommit({ closureAtAuditCommit: combined(OTHER) })],
       }).verdict
     ).toBe('fail')
   })
@@ -158,7 +170,7 @@ describe('verifyAuditContent — fails', () => {
         contract: 'FooFacet',
         version: '1.0.0',
         headClosureHash: HEAD,
-        entries: [withCommit({ closureAtAuditCommit: OTHER })],
+        entries: [withCommit({ closureAtAuditCommit: combined(OTHER) })],
         prTitle: 'Revert "feat: unrelated code rides along"',
       }).verdict
     ).toBe('fail')
@@ -252,7 +264,7 @@ describe('verifyAuditContent — errors (T3: blocks like fail, no ack path)', ()
         version: '1.0.0',
         headClosureHash: HEAD,
         entries: [
-          withCommit({ auditId: 'a1', closureAtAuditCommit: OTHER }),
+          withCommit({ auditId: 'a1', closureAtAuditCommit: combined(OTHER) }),
           withCommit({ auditId: 'a2', closureAtAuditCommit: 'unfetchable' }),
         ],
       }).verdict
@@ -280,7 +292,7 @@ describe('closure-incomplete', () => {
       headClosureHash: HEAD,
       entries: [
         withCommit({ closureAtAuditCommit: 'closure-incomplete' }),
-        withCommit({ auditId: 'audit2', closureAtAuditCommit: HEAD }),
+        withCommit({ auditId: 'audit2', closureAtAuditCommit: combined(HEAD) }),
       ],
     })
 

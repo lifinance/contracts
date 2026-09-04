@@ -327,14 +327,55 @@ export const collectSourceClosure = (
 export const computeSourceClosureHash = (
   closure: ISourceClosure,
   reader: ISourceReader
-): Hex => {
-  const files = closure.files.map((path) => [
-    path,
-    keccak256(toHex(normaliseAuditRelevantSource(reader.readFile(path) ?? ''))),
-  ])
+): Hex => computeClosureDetail(closure, reader).combined
+
+/** A closure hashed both as a whole and file by file. */
+export interface IClosureDetail {
+  /** Hash over the whole closure. Identical to {@link computeSourceClosureHash}. */
+  combined: Hex
+  /** Audit-relevant hash of each repo-owned file in the closure. */
+  files: Record<string, Hex>
+  /** Submodule dir to gitlink SHA, carried so drift in one is attributable. */
+  dependencies: Record<string, string>
+}
+
+/**
+ * Hashes a closure as a whole and per file.
+ *
+ * The combined hash is what a recorded `sourceClosureHash` compares against, so
+ * it is computed exactly as before. The per-file hashes are what lets a caller
+ * separate "this contract changed" from "a library it imports changed" — a
+ * combined hash alone cannot tell those apart, and they carry different
+ * authority.
+ *
+ * @param closure - from {@link collectSourceClosure}.
+ * @param reader - the same reader the closure was collected with.
+ * @returns the combined hash, the per-file hashes, and the dependency pins.
+ */
+export const computeClosureDetail = (
+  closure: ISourceClosure,
+  reader: ISourceReader
+): IClosureDetail => {
+  const files = closure.files.map(
+    (path) =>
+      [
+        path,
+        keccak256(
+          toHex(normaliseAuditRelevantSource(reader.readFile(path) ?? ''))
+        ),
+      ] as const
+  )
   const dependencies = Object.keys(closure.dependencies)
     .sort()
     .map((dir) => [dir, closure.dependencies[dir]])
 
-  return keccak256(toHex(JSON.stringify({ version: 2, files, dependencies })))
+  return {
+    combined: keccak256(
+      toHex(JSON.stringify({ version: 2, files, dependencies }))
+    ),
+    files: Object.fromEntries(files),
+    dependencies: Object.fromEntries(
+      dependencies as [string, string][]
+    ) as Record<string, string>,
+  }
 }

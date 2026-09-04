@@ -12,6 +12,7 @@
 import type { Hex } from 'viem'
 
 import type { AuditLogEntry, IAuditLogFile } from './audit-log-guard'
+import type { IClosureDetail } from './source-closure'
 import {
   verifyAuditContent,
   type AuditVerdict,
@@ -20,8 +21,8 @@ import {
   type IAuditEntryInput,
 } from './verify-audit-content'
 
-/** A closure hash at a tree-ish, or why one could not be taken. */
-export type ClosureAtResult = Hex | ClosureResolutionFailure
+/** A closure at a tree-ish, hashed whole and per file, or why one could not be taken. */
+export type ClosureAtResult = IClosureDetail | ClosureResolutionFailure
 
 export interface IAuditGateDeps {
   /**
@@ -47,7 +48,10 @@ export interface IAuditGateReport {
   results: IContractGateResult[]
   /** ERROR outranks FAIL outranks PASS, per T3. */
   verdict: AuditVerdict
-  /** True for anything other than PASS. Not-knowing blocks like a mismatch. */
+  /**
+   * Whether the merge is stopped. True for ERROR and FAIL — not-knowing blocks
+   * like a mismatch. `closure-drift` is reported and does not block.
+   */
   blocked: boolean
 }
 
@@ -137,7 +141,8 @@ export const resolveContractSource = (args: {
 
 const HEX = /^0x[0-9a-f]{64}$/i
 
-const isClosureHash = (value: ClosureAtResult): value is Hex => HEX.test(value)
+const isClosureDetail = (value: ClosureAtResult): value is IClosureDetail =>
+  typeof value === 'object' && value !== null && 'combined' in value
 
 const asHex = (value: string | undefined): Hex | undefined =>
   value !== undefined && HEX.test(value.trim())
@@ -187,6 +192,9 @@ export const collectEntriesForContract = (
 const worst = (verdicts: AuditVerdict[]): AuditVerdict => {
   if (verdicts.includes('error')) return 'error'
   if (verdicts.includes('fail')) return 'fail'
+  // Ranked above pass so one drifting contract is still reported when the rest
+  // of the PR is clean, and below fail so it never softens a real mismatch.
+  if (verdicts.includes('closure-drift')) return 'closure-drift'
 
   return 'pass'
 }
@@ -225,7 +233,7 @@ export const runAuditGate = (input: IAuditGateInput): IAuditGateReport => {
 
     // Not knowing what is being merged is an ERROR, never a pass: the gate has
     // nothing to compare, and per T3 that blocks without an acknowledgement path.
-    if (!isClosureHash(head))
+    if (!isClosureDetail(head))
       return {
         contract: name,
         version: contract.version,
@@ -248,7 +256,9 @@ export const runAuditGate = (input: IAuditGateInput): IAuditGateReport => {
       ...verifyAuditContent({
         contract: name,
         version: contract.version,
-        headClosureHash: head,
+        headClosureHash: head.combined,
+        headClosureDetail: head,
+        contractPath: contract.path,
         entries,
         prTitle: input.prTitle,
       }),
@@ -257,5 +267,11 @@ export const runAuditGate = (input: IAuditGateInput): IAuditGateReport => {
 
   const verdict = worst(results.map((result) => result.verdict))
 
-  return { results, verdict, blocked: verdict !== 'pass' }
+  // `closure-drift` reports without blocking, per D14 — it is the one non-pass
+  // verdict that does not stop a merge.
+  return {
+    results,
+    verdict,
+    blocked: verdict === 'error' || verdict === 'fail',
+  }
 }

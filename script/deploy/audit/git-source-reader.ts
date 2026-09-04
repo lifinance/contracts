@@ -13,7 +13,7 @@ import { consola } from 'consola'
 import type { ClosureAtResult } from './audit-gate'
 import {
   collectSourceClosure,
-  computeSourceClosureHash,
+  computeClosureDetail,
   parseRemappings,
   type ISourceReader,
 } from './source-closure'
@@ -141,5 +141,5 @@ export const createClosureReader =
       return 'closure-incomplete'
     }
 
-    return computeSourceClosureHash(closure, reader)
+    return computeClosureDetail(closure, reader)
   }
