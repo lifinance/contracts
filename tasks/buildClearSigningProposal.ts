@@ -855,6 +855,14 @@ const NON_USER_FACING_NAMES = new Set([
 
 const PACKED_OR_MIN_SUFFIX = /(Packed|Min)$/u
 
+// The exclusion below is a silent escape from a strict-by-default generator, so
+// it is keyed on the bridge prefix as well as the suffix. A future user-facing
+// function that merely ends in `Min` (say `executeIntentMin`) must not inherit
+// the exemption — it falls through to the unrecognized-prefix failure instead,
+// which is what forces someone to classify it.
+const PACKED_OR_MIN_BRIDGE_VARIANT =
+  /^(startBridgeTokensVia|swapAndStartBridgeTokensVia).*(Packed|Min)$/u
+
 function isKnownNonUserFacing(fn: IAbiFn): boolean {
   const name = fn.name
   // Zero-input functions are usually Solidity-generated getters for `public`
@@ -898,7 +906,7 @@ function main() {
     // before signature() for the same reason as the check above, and ahead of
     // the prefix dispatch so they never reach the unrecognized-prefix failure.
     // (EXSC-926)
-    if (PACKED_OR_MIN_SUFFIX.test(fn.name)) continue
+    if (PACKED_OR_MIN_BRIDGE_VARIANT.test(fn.name)) continue
     const sig = signature(fn)
     if (fn.name.startsWith('swapTokens')) {
       const tpl = SWAP_TEMPLATES[fn.name]

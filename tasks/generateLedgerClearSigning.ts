@@ -78,10 +78,11 @@ function writePrettyJson(filePath: string, data: unknown): void {
 
 // An ERC-7730 format with an explicitly empty `fields` renders only a title (no
 // amount, receiver, or destination) and the registry rejects it. Earlier syncs
-// pushed such entries for the `*Packed` / `*Min` bridge entry-points, which take
-// no ABI parameters and cannot be described at all; the proposal no longer emits
-// them (tasks/buildClearSigningProposal.ts), so the merge below would preserve
-// that residue forever.
+// pushed such entries for the `*Packed` / `*Min` bridge entry-points: `*Packed`
+// declares no ABI parameters at all, `*Min` a packed tuple the templates do not
+// decode, so neither can carry a useful field. The proposal no longer emits them
+// (tasks/buildClearSigningProposal.ts), so the merge below would otherwise
+// preserve that residue forever.
 //
 // The test is deliberately narrow on both axes. Only `*Packed` / `*Min` keys
 // qualify: every other key is either ours (replaced from the proposal) or

@@ -55,16 +55,26 @@ describe('getLocalSelectorInfo', () => {
   })
 
   it('resolves the AcrossV4 packed/min entry-points the proposal omits', () => {
-    // These carry no ERC-7730 entry, so only the well-known list covers them.
-    // Selectors cross-checked against out/AcrossFacetPackedV4.sol artifacts.
+    // These carry no ERC-7730 entry, so the well-known list is what covers them.
+    // Selectors and signatures cross-checked against the Foundry artifact at
+    // out/AcrossFacetPackedV4.sol. The signature is asserted too: a typo in the
+    // well-known entry would change the selector it registers under, so both
+    // sides of the mapping are pinned. `source` is deliberately not asserted —
+    // diamond.json takes precedence when present, and it is generated, so
+    // pinning the source would fail on any checkout that has run `abi:generate`.
     const expected: Record<string, string> = {
-      '0x36b92404': 'startBridgeTokensViaAcrossV4ERC20Packed',
-      '0xc5d60e97': 'startBridgeTokensViaAcrossV4NativePacked',
-      '0x7260352d': 'startBridgeTokensViaAcrossV4ERC20Min',
-      '0x72dd147e': 'startBridgeTokensViaAcrossV4NativeMin',
+      '0x36b92404': 'startBridgeTokensViaAcrossV4ERC20Packed()',
+      '0xc5d60e97': 'startBridgeTokensViaAcrossV4NativePacked()',
+      '0x7260352d':
+        'startBridgeTokensViaAcrossV4ERC20Min((bytes8,bytes32,bytes32,uint64,bytes32,uint256,bytes32,uint32,uint32,uint32,bytes),bytes32,uint256)',
+      '0x72dd147e':
+        'startBridgeTokensViaAcrossV4NativeMin((bytes8,bytes32,bytes32,uint64,bytes32,uint256,bytes32,uint32,uint32,uint32,bytes))',
     }
-    for (const [selector, name] of Object.entries(expected))
-      expect(getLocalSelectorInfo(selector)?.name).toBe(name)
+    for (const [selector, signature] of Object.entries(expected)) {
+      const info = getLocalSelectorInfo(selector)
+      expect(info?.name).toBe(signature.slice(0, signature.indexOf('(')))
+      expect(info?.signature).toBe(signature)
+    }
   })
 
   it('is case-insensitive on the selector', () => {

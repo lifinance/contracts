@@ -72,10 +72,10 @@ const WELL_KNOWN_SIGNATURES: readonly string[] = [
   'acceptOwnership()',
   'renounceOwnership()',
   // AcrossFacetPackedV4 relayer entry-points. Every other diamond selector is
-  // covered by config/clearSigningProposal.json, but these carry no ERC-7730
-  // entry (they take no ABI parameters to describe), so a diamondCut adding the
-  // facet would show them as unknown whenever diamond.json is absent — which it
-  // is on a fresh checkout, being generated and gitignored.
+  // covered by config/clearSigningProposal.json, but the Packed/Min variants are
+  // deliberately excluded from it (docs/ClearSigningProposal.md), so a diamondCut
+  // adding the facet would show them as unknown whenever diamond.json is absent
+  // — which it is on a fresh checkout, being generated and gitignored.
   'startBridgeTokensViaAcrossV4ERC20Packed()',
   'startBridgeTokensViaAcrossV4NativePacked()',
   'startBridgeTokensViaAcrossV4ERC20Min((bytes8,bytes32,bytes32,uint64,bytes32,uint256,bytes32,uint32,uint32,uint32,bytes),bytes32,uint256)',
