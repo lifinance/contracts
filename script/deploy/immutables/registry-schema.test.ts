@@ -140,7 +140,7 @@ describe('validateImmutableRegistry', () => {
     ],
     [
       'unverifiable',
-      { source: 'unverifiable', reason: 'written to a mapping' },
+      { source: 'unverifiable', reason: 'no getter exposes it' },
     ],
   ])('accepts a %s immutable without a config link', (_label, entry) => {
     const result = validateImmutableRegistry([declared('spokePool')], {

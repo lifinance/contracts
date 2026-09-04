@@ -38,7 +38,7 @@ const readJson = <T>(path: string): T =>
   JSON.parse(readFileSync(path, 'utf8')) as T
 
 /** Joins the two files into the view the validator checks. */
-const mergeRequirements = (
+export const mergeRequirements = (
   requirements: DeployRequirements,
   registry: Registry
 ): DeployRequirements => {
@@ -57,6 +57,47 @@ const mergeRequirements = (
       },
     ])
   )
+}
+
+/** What the run reported, in the terms the exit code is decided on. */
+export interface IVerificationCounts {
+  /** Lines mentioning an immutable that the enumerator could not parse. */
+  unreadable: number
+  /** Things the registry gets wrong. */
+  errors: number
+  /** Immutables with no registry entry yet. */
+  warnings: number
+}
+
+/**
+ * Decides the process exit code.
+ *
+ * Split out because the authoring gap is the only category `--strict` changes:
+ * an unreadable declaration and a wrong entry are not missing documentation, so
+ * they fail in either mode. Keeping that in the CLI body left the routing
+ * reachable only by running the process.
+ *
+ * @param counts - What the run found.
+ * @param strict - Whether `--strict` was passed.
+ * @returns The exit code, and the reason to print when it is non-zero.
+ */
+export const decideExit = (
+  counts: IVerificationCounts,
+  strict: boolean
+): { code: 0 | 1; reason: string | null } => {
+  if (counts.unreadable + counts.errors > 0)
+    return {
+      code: 1,
+      reason: `${counts.errors} registry error(s) and ${counts.unreadable} unreadable declaration(s). Neither is missing documentation, so both fail in either mode.`,
+    }
+
+  if (counts.warnings > 0 && strict)
+    return {
+      code: 1,
+      reason: `${counts.warnings} immutable(s) have no registry entry, and --strict was passed.`,
+    }
+
+  return { code: 0, reason: null }
 }
 
 const main = (): void => {
@@ -111,17 +152,16 @@ const main = (): void => {
   for (const error of errors) consola.error(error)
   for (const warning of warnings) consola.warn(warning)
 
-  if (unreadable.length + errors.length > 0) {
-    consola.error(
-      `${errors.length} registry error(s) and ${unreadable.length} unreadable declaration(s). Neither is missing documentation, so both fail in either mode.`
-    )
-    process.exit(1)
-  }
-
-  if (warnings.length > 0 && strict) {
-    consola.error(
-      `${warnings.length} immutable(s) have no registry entry, and --strict was passed.`
-    )
+  const decision = decideExit(
+    {
+      unreadable: unreadable.length,
+      errors: errors.length,
+      warnings: warnings.length,
+    },
+    strict
+  )
+  if (decision.code === 1) {
+    if (decision.reason) consola.error(decision.reason)
     process.exit(1)
   }
 
@@ -132,4 +172,4 @@ const main = (): void => {
   else consola.success('every immutable in src/ has a registry entry')
 }
 
-main()
+if (import.meta.main) main()
