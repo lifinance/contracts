@@ -54,6 +54,19 @@ describe('getLocalSelectorInfo', () => {
     }
   })
 
+  it('resolves the AcrossV4 packed/min entry-points the proposal omits', () => {
+    // These carry no ERC-7730 entry, so only the well-known list covers them.
+    // Selectors cross-checked against out/AcrossFacetPackedV4.sol artifacts.
+    const expected: Record<string, string> = {
+      '0x36b92404': 'startBridgeTokensViaAcrossV4ERC20Packed',
+      '0xc5d60e97': 'startBridgeTokensViaAcrossV4NativePacked',
+      '0x7260352d': 'startBridgeTokensViaAcrossV4ERC20Min',
+      '0x72dd147e': 'startBridgeTokensViaAcrossV4NativeMin',
+    }
+    for (const [selector, name] of Object.entries(expected))
+      expect(getLocalSelectorInfo(selector)?.name).toBe(name)
+  })
+
   it('is case-insensitive on the selector', () => {
     const info = getLocalSelectorInfo(TRANSFER_SELECTOR.toUpperCase())
     expect(info?.name).toBe('transfer')

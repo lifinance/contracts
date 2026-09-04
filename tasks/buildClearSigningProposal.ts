@@ -853,6 +853,8 @@ const NON_USER_FACING_NAMES = new Set([
   'executeCallAndWithdraw', // operator-only utility
 ])
 
+const PACKED_OR_MIN_SUFFIX = /(Packed|Min)$/u
+
 function isKnownNonUserFacing(fn: IAbiFn): boolean {
   const name = fn.name
   // Zero-input functions are usually Solidity-generated getters for `public`
@@ -860,7 +862,7 @@ function isKnownNonUserFacing(fn: IAbiFn): boolean {
   // `pendingOwner()`) — skip those. The exception is `*Packed` / `*Min` bridge
   // variants: they declare no ABI params but read `msg.data` manually, so they
   // are user-facing entry-points despite having `inputs.length === 0`.
-  if (fn.inputs.length === 0 && !/(Packed|Min)$/u.test(name)) return true
+  if (fn.inputs.length === 0 && !PACKED_OR_MIN_SUFFIX.test(name)) return true
   if (NON_USER_FACING_NAMES.has(name)) return true
   for (const prefix of NON_USER_FACING_PREFIXES)
     if (name.startsWith(prefix)) return true
@@ -887,6 +889,16 @@ function main() {
     // either the templates or the skip list still fall through to the failure
     // branch below.
     if (isKnownNonUserFacing(fn)) continue
+    // Packed/Min variants are signed by relayer infrastructure, not end users.
+    // Packed encodes its args in a bespoke layout with no ABI parameters, so
+    // ERC-7730 cannot describe it at all; Min carries a packed tuple we do not
+    // decode. A title-only entry (intent, empty fields) renders nothing useful
+    // and the registry rejects it, so emit no entry — these functions fall back
+    // to blind-signing until there is wallet demand for full decoding. Skipped
+    // before signature() for the same reason as the check above, and ahead of
+    // the prefix dispatch so they never reach the unrecognized-prefix failure.
+    // (EXSC-926)
+    if (PACKED_OR_MIN_SUFFIX.test(fn.name)) continue
     const sig = signature(fn)
     if (fn.name.startsWith('swapTokens')) {
       const tpl = SWAP_TEMPLATES[fn.name]
@@ -897,16 +909,6 @@ function main() {
         continue
       }
       out[sig] = tpl
-    } else if (/(Packed|Min)$/u.test(fn.name)) {
-      // Packed/Min variants are signed by relayer infrastructure, not end users.
-      // Packed encodes its args in a bespoke layout with no ABI parameters, so
-      // ERC-7730 cannot describe it at all; Min carries a packed tuple we do not
-      // decode. A title-only entry (intent, empty fields) renders nothing useful
-      // and the registry rejects it, so emit no entry — these functions fall back
-      // to blind-signing until there is wallet demand for full decoding. Keeping
-      // the branch (rather than deleting it) stops them from hitting the
-      // unrecognized-prefix failure below. (EXSC-926)
-      continue
     } else if (fn.name.startsWith('swapAndStartBridgeTokensVia')) {
       const err = validateSwapAndStartFn(fn)
       if (err) {

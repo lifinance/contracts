@@ -1,6 +1,6 @@
 # Sync Clear Signing (ERC-7730) Registry
 # - Purpose: Keep `registry/lifi/calldata-LIFIDiamond.json` in the Ethereum Foundation-hosted ERC-7730 registry up to date with this repo's Diamond deployments AND the `display.formats` proposal at `config/clearSigningProposal.json`. The deprecated `context.contract.abi` block is stripped on every sync (the v2 registry infers the ABI from the format keys).
-# - Triggers: push-to-main on ABI/deployment/proposal-relevant paths (fast path), a monthly cron safety net, and manual workflow_dispatch (with optional dry_run).
+# - Triggers: push-to-main on deployment/proposal-relevant paths (fast path), a monthly cron safety net, and manual workflow_dispatch (with optional dry_run). Facet changes are covered transitively: `verifyClearSigning.yml` forces `config/clearSigningProposal.json` to be regenerated in the same PR, so a facet change that alters any format shows up as a change to that file.
 # - Key behaviors: clones our fork (`lifinance/clear-signing-erc7730-registry`, originally forked from LedgerHQ, now tracking the EF-hosted registry), regenerates the JSON with merged `display.formats`, normalizes it with the registry's own `erc7730 format` so the diff carries only real changes (not formatting churn), pushes a branch to the fork, creates/updates a PR upstream, and posts the PR link to Slack.
 # - Trust model: this workflow assumes `config/clearSigningProposal.json` is current against the on-chain diamond, which is enforced at PR-merge time by `verifyClearSigning.yml`. If that gate is bypassed, the proposal may be stale.
 # - Note: The ERC-7730 registry moved from `LedgerHQ/clear-signing-erc7730-registry` to `ethereum/clear-signing-erc7730-registry` (Ethereum Foundation now hosts it). The fork retains its original name; only the upstream remote target changed.
@@ -24,8 +24,6 @@ on:
     branches:
       - main # only sync on what's actually been merged
     paths:
-      - 'src/Facets/**' # new/changed facets -> new/changed selectors
-      - 'src/Libraries/**' # struct definitions used by facets
       - 'deployments/**' # new deployment addresses
       - 'config/networks.json' # chain metadata used by deployments resolver
       - 'config/clearSigningProposal.json' # the display.formats source of truth
@@ -54,10 +52,12 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
-      - name: Checkout repository (with submodules)
+      - name: Checkout repository
+        # No submodules: the sync reads only `deployments/`, `config/` and the
+        # proposal JSON. It never compiles Solidity, so the Foundry deps in `lib/`
+        # would be a multi-minute clone for nothing.
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
-          submodules: recursive
           persist-credentials: false # do not leave repo auth on the runner for later steps; sync uses LEDGER_SYNC_TOKEN explicitly
 
       - name: Set up Bun
@@ -180,8 +180,8 @@ jobs:
             # `sed -n '1,200p'` (not `head -200`) consumes the whole stream:
             # under `set -euo pipefail`, `head` closes its stdin after 200
             # lines, which sends SIGPIPE to `git diff` and fails the step.
-            # First-run dry-runs have a multi-thousand-line diff (101
-            # display.formats entries), so this matters in practice.
+            # First-run dry-runs have a multi-thousand-line diff (one block per
+            # display.formats entry), so this matters in practice.
             git --no-pager diff -- "${LEDGER_FILE_PATH}" | sed -n '1,200p'
             echo ""
             echo -e "\033[33m[dry-run] Skipping commit/push/PR-create/Slack. Done.\033[0m"

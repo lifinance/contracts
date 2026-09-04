@@ -76,15 +76,26 @@ function writePrettyJson(filePath: string, data: unknown): void {
   fs.writeFileSync(filePath, `${JSON.stringify(data, null, 2)}\n`)
 }
 
-// An ERC-7730 format with no fields renders only a title (no amount, receiver,
-// or destination). The registry rejects these, and the Packed/Min variants that
-// take no ABI parameters cannot be described at all. They originate as preserved
-// registry-only entries — our proposal (tasks/buildClearSigningProposal.ts)
-// excludes Packed/Min — so they are dropped during the merge below.
-function hasRenderableFields(entry: unknown): boolean {
+// An ERC-7730 format with an explicitly empty `fields` renders only a title (no
+// amount, receiver, or destination) and the registry rejects it. Earlier syncs
+// pushed such entries for the `*Packed` / `*Min` bridge entry-points, which take
+// no ABI parameters and cannot be described at all; the proposal no longer emits
+// them (tasks/buildClearSigningProposal.ts), so the merge below would preserve
+// that residue forever.
+//
+// The test is deliberately narrow on both axes. Only `*Packed` / `*Min` keys
+// qualify: every other key is either ours (replaced from the proposal) or
+// authored by the EF working group, and deleting the latter would silently
+// propose removing their work. And `fields` must be present and empty: an entry
+// that omits `fields` may legally inherit them from a file the registry pulls in
+// via the top-level `includes` key, so it renders fine and is not ours to drop.
+function isResidualTitleOnlyEntry(formatKey: string, entry: unknown): boolean {
+  const parenIndex = formatKey.indexOf('(')
+  const functionName =
+    parenIndex === -1 ? formatKey : formatKey.slice(0, parenIndex)
+  if (!/(Packed|Min)$/u.test(functionName)) return false
   if (!isObject(entry)) return false
-  const fields = entry.fields
-  return Array.isArray(fields) && fields.length > 0
+  return Array.isArray(entry.fields) && entry.fields.length === 0
 }
 
 // Merges `display.formats` entries from the local proposal into the registry's
@@ -96,6 +107,8 @@ function hasRenderableFields(entry: unknown): boolean {
 //  - Selectors present in the registry but not in the proposal: PRESERVE.
 //    These may be registry-only entries the EF working group adds, or stale
 //    entries for selectors we deprecated but older deployments still expose.
+//    The one exception is our own title-only `*Packed` / `*Min` residue — see
+//    `isResidualTitleOnlyEntry`.
 //  - Other `display.*` keys (definitions, screens, etc.): PRESERVE verbatim.
 //
 // Returns the next `display` object. Pass `proposalFilePath = null` to skip
@@ -133,21 +146,21 @@ function mergeDisplayFormats(
     else added++
     nextFormats[sig] = entry as Json
   }
-  const preserved = Object.keys(existingFormats).filter(
+  const dropped: string[] = []
+  for (const [sig, entry] of Object.entries(nextFormats))
+    if (isResidualTitleOnlyEntry(sig, entry)) {
+      delete nextFormats[sig]
+      dropped.push(sig)
+    }
+
+  const preserved = Object.keys(nextFormats).filter(
     (k) => !(k in proposal.formats)
   ).length
 
-  const droppedEmpty: string[] = []
-  for (const [sig, entry] of Object.entries(nextFormats)) {
-    if (!hasRenderableFields(entry)) {
-      delete nextFormats[sig]
-      droppedEmpty.push(sig)
-    }
-  }
-
   console.log(
-    `display.formats merge: +${added} added, ~${replaced} replaced, =${preserved} preserved (unowned), -${droppedEmpty.length} dropped (no fields)`
+    `display.formats merge: +${added} added, ~${replaced} replaced, =${preserved} preserved (unowned), -${dropped.length} dropped (title-only Packed/Min residue)`
   )
+  for (const sig of dropped) console.log(`  dropped: ${sig}`)
   next.formats = nextFormats
   return next
 }
@@ -414,7 +427,8 @@ const main = defineCommand({
     //  - selectors removed from our diamond (in registry but not in proposal):
     //    preserve. Some older deployments may still expose them; dropping the
     //    entry would break clear-signing for those signers. Dead entries are
-    //    a cheap cost.
+    //    a cheap cost. The exception is title-only `*Packed` / `*Min` residue we
+    //    pushed ourselves, which the registry rejects (`isResidualTitleOnlyEntry`).
     //
     // Other `display.*` keys (definitions, screens, etc.) are preserved verbatim.
     const nextDisplay = mergeDisplayFormats(
