@@ -15,6 +15,9 @@ import { ETHTransferFailed, InvalidCallData, InvalidConfig, NativeAssetNotSuppor
 /// Mirrors the verified deployment at 0x82a6C7753380f98c093B27c53f86ef6b09C40f49.
 interface ICentrifugeTokenBridgeExtended {
     error InvalidChainId();
+    /// @dev Declared by ITokenBridge, but actually raised by the Spoke's shareTokenDetails
+    ///      when the token is not a registered Centrifuge share.
+    error ShareTokenDoesNotExist();
 
     function localCentrifugeId() external view returns (uint16);
 
@@ -586,7 +589,9 @@ abstract contract CentrifugeFacetTestBase is TestBaseFacet {
         vm.startPrank(USER_SENDER);
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
-        vm.expectRevert();
+        vm.expectRevert(
+            ICentrifugeTokenBridgeExtended.ShareTokenDoesNotExist.selector
+        );
 
         initiateBridgeTxWithFacet(false);
         vm.stopPrank();
