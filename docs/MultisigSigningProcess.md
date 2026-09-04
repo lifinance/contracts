@@ -249,9 +249,12 @@ signer sees:
 2. **Safe transaction details** — nonce (current/stale/future coloring), `to`
    + resolved name, raw data, proposer, stored `safeTxHash`, signature count
    vs threshold, drain origin-PR links where present.
-3. A **Ledger Flex "filmstrip"** (`renderLedgerFlexFlow`,
-   `ledger-flex-preview.ts`) — ASCII replica of the device screens for the
-   exact to-be-signed values.
+3. The value to verify on the device, which depends on the signing mode. In
+   the default hash mode: the `safeTxHash` to compare character by character
+   against the single message screen. Under `ENABLE_SAFE_EIP712_SIGNING=true`
+   and only when the transaction carries calldata: a **Ledger Flex
+   "filmstrip"** (`renderLedgerFlexFlow`, `ledger-flex-preview.ts`), an ASCII
+   replica of the device screens for the exact to-be-signed values.
 4. The action prompt: `Do Nothing` / `Sign` / `Sign & Execute` /
    `Sign and Execute With Deployer` / `Execute with Deployer`. The two
    deployer variants are the usual choice — see §2 on why the deployer

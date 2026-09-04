@@ -63,6 +63,7 @@ import {
   hasEnoughSignatures,
   isFutureNonceExecutionAllowed,
   resolveSafeSigningMode,
+  resolveSignerVerificationDisplay,
   isSignedByProductionWallet,
   mongoSafeTxRowFilter,
   PrivateKeyTypeEnum,
@@ -432,20 +433,13 @@ const processTxs = async (
 
     consola.info(detailLines.join('\n'))
 
-    // Ledger Flex signing filmstrip: reproduce the on-device screens the
-    // signer steps through so values can be compared screen-by-screen. EVM
-    // only — the Flex EIP-712 blind-signing flow does not apply to Tron.
     // A display error must never block signing.
-    //
-    // Only for the typed-data flow. Hash signing shows one message screen, so
-    // printing these would tell the signer to compare against screens their
-    // device never displays.
-    if (
-      resolveSafeSigningMode(process.env) === 'eip712' &&
-      !isTronNetworkKey(network) &&
-      tx.safeTx.data.data &&
-      tx.safeTx.data.data !== '0x'
+    const verificationDisplay = resolveSignerVerificationDisplay(
+      resolveSafeSigningMode(process.env),
+      isTronNetworkKey(network),
+      tx.safeTx.data.data
     )
+    if (verificationDisplay === 'filmstrip')
       try {
         const filmstrip = renderLedgerFlexFlow({
           chainId: chain.id,
@@ -464,11 +458,14 @@ const processTxs = async (
       } catch (error) {
         consola.debug(`Ledger Flex filmstrip skipped: ${error}`)
       }
-    else if (!isTronNetworkKey(network))
+    else if (verificationDisplay === 'hash-compare')
       consola.info(
         [
           'Ledger — the device shows one message screen holding the Safe transaction hash.',
-          `Compare it character by character against: ${tx.safeTxHash}`,
+          'Compare that screen against the hash in the out-of-band message from the',
+          'proposer. The hash stored with this proposal is not the authority here: the',
+          'proposer controls it as well as the calldata, so checking one against the',
+          'other confirms nothing.',
           'At least 16 characters, 8 from each end. Four-and-four is grindable.',
         ].join('\n')
       )

@@ -44,6 +44,7 @@ import {
   buildProposalProvenance,
   canExecuteWithNonceStatus,
   resolveSafeSigningMode,
+  resolveSignerVerificationDisplay,
   toSafeEthSignSignature,
   classifyDuplicateKeyError,
   pickTimelockSalt,
@@ -1206,8 +1207,8 @@ describe('releaseAllPooledSafeClients', () => {
 })
 
 describe('SafeClient.signTransaction chain id source', () => {
-  // These cover the typed-data path, which WP-3.4 made opt-in. Without the
-  // flag `signTransaction` signs the hash and never builds an EIP-712 domain.
+  // The flag is required: without it `signTransaction` signs the hash and
+  // never builds an EIP-712 domain, so these cases would not be reached.
   const previous = process.env.ENABLE_SAFE_EIP712_SIGNING
   beforeEach(() => {
     process.env.ENABLE_SAFE_EIP712_SIGNING = 'true'
@@ -2024,17 +2025,16 @@ describe('wrapWithTimelockSchedule', () => {
 
 describe('resolveSafeSigningMode', () => {
   it('signs the transaction hash by default', () => {
-    // WP-3.4 / T4-A3. The device shows one value the signer can compare against
-    // the out-of-band DM, instead of five fields it renders inconsistently.
+    // The device shows one value the signer can compare against the
+    // out-of-band DM, instead of five fields it renders inconsistently.
     expect(resolveSafeSigningMode({})).toBe('hash')
   })
 
   it.each([['true'], ['TRUE'], ['1'], ['yes'], ['false'], ['']])(
     'still signs the hash when the retired hash flag is set to %p',
     (value) => {
-      // ENABLE_SAFE_TX_HASH_SIGNING selected this mode when it was optional.
-      // It now describes the default, so honouring it either way would let a
-      // stale `=false` silently opt an operator back into typed data.
+      // Honouring this flag either way would let a stale `=false` silently
+      // opt an operator back into typed data.
       expect(
         resolveSafeSigningMode({ ENABLE_SAFE_TX_HASH_SIGNING: value })
       ).toBe('hash')
@@ -2131,6 +2131,59 @@ describe('toSafeEthSignSignature', () => {
   })
 })
 
+describe('toSafeEthSignSignature input validation', () => {
+  it.each([
+    ['non-hex r and s', `0x${'z'.repeat(128)}1b`],
+    ['a space in v', `0x${'ab'.repeat(64)} 1`],
+    ['a sign in v', `0x${'ab'.repeat(64)}+1`],
+  ])('refuses %s', (_label, signature) => {
+    // parseInt would read " 1" and "+1" as 1, so the shape has to be checked
+    // before v is parsed out of it.
+    expect(() => toSafeEthSignSignature(signature as `0x${string}`)).toThrow()
+  })
+})
+
+describe('resolveSignerVerificationDisplay', () => {
+  it('points a hash-mode signer at the hash screen, with or without calldata', () => {
+    expect(resolveSignerVerificationDisplay('hash', false, '0xdeadbeef')).toBe(
+      'hash-compare'
+    )
+    expect(resolveSignerVerificationDisplay('hash', false, '0x')).toBe(
+      'hash-compare'
+    )
+    expect(resolveSignerVerificationDisplay('hash', false, undefined)).toBe(
+      'hash-compare'
+    )
+  })
+
+  it('shows the filmstrip for typed data with calldata', () => {
+    expect(
+      resolveSignerVerificationDisplay('eip712', false, '0xdeadbeef')
+    ).toBe('filmstrip')
+  })
+
+  it.each([['0x'], [''], [undefined]])(
+    'shows nothing for typed data whose calldata is %p',
+    (callData) => {
+      // The device renders typed-data screens here, so naming the single hash
+      // screen would send the signer to compare against a screen this mode
+      // never shows.
+      expect(resolveSignerVerificationDisplay('eip712', false, callData)).toBe(
+        'none'
+      )
+    }
+  )
+
+  it.each([['hash'], ['eip712']] as const)(
+    'shows nothing on Tron in %s mode',
+    (mode) => {
+      expect(resolveSignerVerificationDisplay(mode, true, '0xdeadbeef')).toBe(
+        'none'
+      )
+    }
+  )
+})
+
 describe('SafeClient.signTransaction default path', () => {
   const previous = process.env.ENABLE_SAFE_EIP712_SIGNING
   beforeEach(() => {
@@ -2195,9 +2248,8 @@ describe('SafeClient.signTransaction default path', () => {
   })
 
   it('asks the Safe to hash the transaction it is about to sign', async () => {
-    // Hash signing makes this argument list the only thing that decides what
-    // gets signed — the typed-data path used to build the digest separately, so
-    // a wrong field showed up as a mismatch. Now nothing else would notice.
+    // This argument list is the only thing that decides what gets signed, so
+    // nothing downstream would notice a wrong field.
     const { client, hashArgs } = await makeClient()
     const safeTx = buildSafeTx({ nonce: 7n, value: 123n })
 
@@ -2237,11 +2289,10 @@ describe('SafeClient.signTransaction default path', () => {
   })
 
   it('does not fall back to hash signing when typed data fails', async () => {
-    // The fallback WP-3.4 removes ran in the other direction: EIP-712 failed and
-    // the device was re-prompted in a different rendering mid-flow, so a signer
-    // who had read one screen approved another. Asserting from the hash side
-    // would have passed on origin/main too — this has to opt into typed data,
-    // break it, and prove the hash path is never reached.
+    // Must opt into typed data and break it: asserting from the hash side
+    // would pass whether or not a fallback exists. A mid-flow switch would
+    // re-prompt the device in a different rendering, so a signer who had read
+    // one screen would approve another.
     process.env.ENABLE_SAFE_EIP712_SIGNING = 'true'
     const { client, calls } = await makeClient()
     const failing = client as unknown as {
