@@ -250,8 +250,10 @@ signer sees:
    + resolved name, raw data, proposer, stored `safeTxHash`, signature count
    vs threshold, drain origin-PR links where present.
 3. The value to verify on the device, which depends on the signing mode. In
-   the default hash mode: the `safeTxHash` to compare character by character
-   against the single message screen. Under `ENABLE_SAFE_EIP712_SIGNING=true`
+   the default hash mode: the single message screen, compared character by
+   character against the hash in the out-of-band message from the proposer —
+   not against the hash stored with the proposal, which the proposer controls
+   alongside the calldata. Under `ENABLE_SAFE_EIP712_SIGNING=true`
    and only when the transaction carries calldata: a **Ledger Flex
    "filmstrip"** (`renderLedgerFlexFlow`, `ledger-flex-preview.ts`), an ASCII
    replica of the device screens for the exact to-be-signed values.

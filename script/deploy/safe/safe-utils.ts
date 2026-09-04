@@ -308,6 +308,10 @@ export type SignerVerificationDisplay = 'filmstrip' | 'hash-compare' | 'none'
  * with no calldata has no screens to reproduce, and naming the single hash
  * screen there would describe a mode the device is not in.
  *
+ * Signing does not branch on the network — `signTransaction` dispatches on the
+ * mode alone — so a Tron signer compares the same hash on the same device. Only
+ * the Flex typed-data filmstrip is EVM-specific.
+ *
  * @param mode - The resolved signing mode.
  * @param isTron - Whether the network is Tron, where the Flex flow does not apply.
  * @param callData - The Safe transaction's calldata, if any.
@@ -318,8 +322,8 @@ export function resolveSignerVerificationDisplay(
   isTron: boolean,
   callData: string | undefined
 ): SignerVerificationDisplay {
-  if (isTron) return 'none'
   if (mode === 'hash') return 'hash-compare'
+  if (isTron) return 'none'
   return callData && callData !== '0x' ? 'filmstrip' : 'none'
 }
 
@@ -348,7 +352,9 @@ const RECOVERY_IDS = new Map([
 export function toSafeEthSignSignature(signature: Hex): Hex {
   if (!/^0x[0-9a-fA-F]{130}$/.test(signature))
     throw new Error(
-      `Expected a 65-byte signature as 0x + 130 hex characters, got ${signature.length} characters`
+      signature.length === 132
+        ? `Expected a 65-byte signature as 0x + 130 hex characters, got 132 characters that are not all hex: ${signature}`
+        : `Expected a 65-byte signature as 0x + 130 hex characters, got ${signature.length} characters`
     )
 
   const recoveryId = RECOVERY_IDS.get(parseInt(signature.slice(130, 132), 16))

@@ -2138,8 +2138,15 @@ describe('toSafeEthSignSignature input validation', () => {
     ['a sign in v', `0x${'ab'.repeat(64)}+1`],
   ])('refuses %s', (_label, signature) => {
     // parseInt would read " 1" and "+1" as 1, so the shape has to be checked
-    // before v is parsed out of it.
-    expect(() => toSafeEthSignSignature(signature as `0x${string}`)).toThrow()
+    // before v is parsed out of it. The message must not report the length as
+    // the problem when the length is correct.
+    expect(() => toSafeEthSignSignature(signature as `0x${string}`)).toThrow(
+      /not all hex/u
+    )
+  })
+
+  it('reports the length when the length is what is wrong', () => {
+    expect(() => toSafeEthSignSignature('0xabcd')).toThrow(/got 6 characters/u)
   })
 })
 
@@ -2174,14 +2181,19 @@ describe('resolveSignerVerificationDisplay', () => {
     }
   )
 
-  it.each([['hash'], ['eip712']] as const)(
-    'shows nothing on Tron in %s mode',
-    (mode) => {
-      expect(resolveSignerVerificationDisplay(mode, true, '0xdeadbeef')).toBe(
-        'none'
-      )
-    }
-  )
+  it('still points a Tron hash-mode signer at the hash screen', () => {
+    // Signing does not branch on the network, so a Tron signer compares the
+    // same value on the same device. Only the Flex filmstrip is EVM-specific.
+    expect(resolveSignerVerificationDisplay('hash', true, '0xdeadbeef')).toBe(
+      'hash-compare'
+    )
+  })
+
+  it('shows no filmstrip on Tron in typed-data mode', () => {
+    expect(resolveSignerVerificationDisplay('eip712', true, '0xdeadbeef')).toBe(
+      'none'
+    )
+  })
 })
 
 describe('SafeClient.signTransaction default path', () => {
