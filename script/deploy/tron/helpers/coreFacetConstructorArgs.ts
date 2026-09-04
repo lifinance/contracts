@@ -147,18 +147,41 @@ export async function resolveCoreFacetConstructorArgs(
 const ARITY_PROBE_ADDRESS = '0x0000000000000000000000000000000000000001'
 
 /**
+ * The diamond's constructor parameters, in the order the deploy supplies them.
+ *
+ * The probe and the deploy call have to agree on this list. If they drift, the
+ * pre-flight proves a shape the deploy does not use and the mismatch lands back
+ * inside the deploy call — after every facet has been paid for, which is the
+ * failure the probe exists to prevent. Deriving both from this const makes the
+ * disagreement a compile error: adding a parameter here leaves the deploy site's
+ * argument object missing a property.
+ */
+export const DIAMOND_CONSTRUCTOR_PARAMS = ['owner', 'diamondCutFacet'] as const
+
+/** The values the deploy supplies, one per declared parameter. */
+export type DiamondConstructorArgs = Record<
+  (typeof DIAMOND_CONSTRUCTOR_PARAMS)[number],
+  string
+>
+
+/**
  * Checks the diamond's constructor shape before any facet is deployed.
  *
  * The diamond is deployed last, after every facet has been paid for, and its
  * real arguments do not exist until the DiamondCutFacet has an address. Probing
- * with placeholders proves the arity and the ABI this early, which is what
- * catches a constructor change while nothing has been spent.
+ * with placeholders proves the arity while nothing has been spent. It does not
+ * prove the parameter types: the placeholders are addresses, so a constructor
+ * that kept its arity but changed a parameter to another word-sized type still
+ * passes, and one that took an array or tuple would fail here for a reason that
+ * is not arity.
  *
  * @param diamondName - Contract name of the diamond.
  * @param network - Network the diamond is being deployed to.
- * @param argCount - How many arguments the deploy call will pass.
+ * @param argCount - How many arguments the deploy call will pass, normally
+ * `DIAMOND_CONSTRUCTOR_PARAMS.length`.
  * @param loadArtifact - Artifact loader; defaults to reading Forge's `out/`.
- * @throws When the diamond's ABI does not declare exactly `argCount` arguments.
+ * @throws When the ABI does not declare exactly `argCount` arguments, cannot be
+ * read, or does not accept address-shaped placeholders.
  */
 export async function assertDiamondConstructorShape(
   diamondName: string,

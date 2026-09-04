@@ -31,6 +31,8 @@ import { getCoreFacets } from '../shared/globalContractLists'
 import {
   assertDiamondConstructorShape,
   resolveCoreFacetConstructorArgs,
+  DIAMOND_CONSTRUCTOR_PARAMS,
+  type DiamondConstructorArgs,
 } from './helpers/coreFacetConstructorArgs'
 import {
   deployContractWithLogging,
@@ -192,7 +194,11 @@ async function deployCoreFacetsImpl(options: {
   // The diamond is deployed after every facet, so a mismatch in its constructor
   // surfaces only once they have all been paid for.
   if (deployedDiamondAddress === null)
-    await assertDiamondConstructorShape(diamondName, network, 2)
+    await assertDiamondConstructorShape(
+      diamondName,
+      network,
+      DIAMOND_CONSTRUCTOR_PARAMS.length
+    )
 
   // Deploy facets
   const deploymentResults: IDeploymentResult[] = []
@@ -304,11 +310,18 @@ async function deployCoreFacetsImpl(options: {
         `Using DiamondCutFacet: ${diamondCutFacet.address} (hex: ${diamondCutFacetHex})`
       )
 
+      // Keyed by the same const the pre-flight probe counts, so adding a
+      // parameter there fails to compile until it is supplied here too.
+      const diamondArgs: DiamondConstructorArgs = {
+        owner: ownerHex,
+        diamondCutFacet: diamondCutFacetHex,
+      }
+
       // Deploy the Diamond
       const result = await deployContractWithLogging(
         deployer,
         diamondName,
-        [ownerHex, diamondCutFacetHex],
+        DIAMOND_CONSTRUCTOR_PARAMS.map((param) => diamondArgs[param]),
         options.dryRun,
         network
       )
