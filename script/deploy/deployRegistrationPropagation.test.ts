@@ -202,3 +202,36 @@ describe('deployToNetworkWorker result file', () => {
     expect(runHarness(harness, { DEPLOY_RC: '0' })).toBe('rc=0 result=OK')
   })
 })
+
+describe('deploySingleContract missing deploy script', () => {
+  // Runs the call inside a command substitution so the two outcomes are distinguishable: a
+  // `return` lets the trailing echo run, an `exit` tears the subshell down and swallows it.
+  const harness = (exitOnError: string) => `
+    source "$REPO_ROOT/script/deploy/deploySingleContract.sh"
+    ${STUB_PRELUDE}
+    bunx() { :; }
+    isZkEvmNetwork() { return 1; }
+    checkIfFileExists() { return 1; }
+    # Without this the undefined function fails the earlier recordability guard, and the
+    # missing-script guard under test is never reached.
+    assertTreeRecordableOrFail() { return 0; }
+    DEPLOY_SCRIPT_DIRECTORY="script/deploy/facets/"
+    # An empty file keeps the reminder lookup off the real resource, so the case under
+    # test does not change when a contract is added there.
+    CONTRACT_REMINDERS="$(mktemp)"
+    RESULT=$(deploySingleContract TestContract testnet production "" "${exitOnError}" >/dev/null 2>&1; echo "returned rc=$?")
+    echo "\${RESULT:-exited-instead-of-returning}"
+  `
+
+  it('returns instead of killing the shell when EXIT_ON_ERROR is "false"', () => {
+    expect(runHarness(harness('false'))).toBe('returned rc=1')
+  })
+
+  it('returns when EXIT_ON_ERROR is empty', () => {
+    expect(runHarness(harness(''))).toBe('returned rc=1')
+  })
+
+  it('still exits when EXIT_ON_ERROR is "true"', () => {
+    expect(runHarness(harness('true'))).toBe('exited-instead-of-returning')
+  })
+})
