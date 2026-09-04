@@ -12,13 +12,13 @@
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import type { TronWeb } from 'tronweb'
-import { createPublicClient, getAddress, http, type PublicClient } from 'viem'
+import { createPublicClient, getAddress, type PublicClient } from 'viem'
 
 import type { TargetState } from '../common/types'
 import { initTronWeb } from '../troncast/utils/tronweb'
 import { getNetworkConfig, getRPCEnvVarName } from '../utils/utils'
 import {
-  getTransportConfigFromRpcUrl,
+  getFallbackTransportForChain,
   getViemChainForNetworkName,
   isTestnetNetwork,
 } from '../utils/viemScriptHelpers'
@@ -171,30 +171,13 @@ export async function runHealthCheckForNetwork(
       )
     else {
       const chain = getViemChainForNetworkName(networkLower)
-      const rpcUrl = chain.rpcUrls.default.http[0]
-      if (!rpcUrl)
-        throw new Error(`No default RPC URL configured for ${networkLower}`)
-
-      const {
-        url: transportUrl,
-        fetchOptions,
-        retryCount,
-        retryDelay,
-      } = getTransportConfigFromRpcUrl(rpcUrl)
-      const mergedFetchOptions = {
-        ...(fetchOptions ?? {}),
-        ...(signal ? { signal } : {}),
-      }
       publicClient = createPublicClient({
         batch: { multicall: true },
         chain,
-        transport: http(transportUrl, {
-          ...(Object.keys(mergedFetchOptions).length
-            ? { fetchOptions: mergedFetchOptions }
-            : {}),
-          ...(retryCount !== undefined ? { retryCount } : {}),
-          ...(retryDelay !== undefined ? { retryDelay } : {}),
-        }),
+        transport: getFallbackTransportForChain(
+          chain,
+          signal ? { signal } : undefined
+        ),
       })
     }
 

@@ -1,21 +1,22 @@
 import fs from 'fs'
 
+import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import { config } from 'dotenv'
 import { MongoClient } from 'mongodb'
 
 import { getRPCEnvVarName } from '../utils/utils'
 
+import {
+  buildEnvLines,
+  findUncredentialedPrimaries,
+  selectEndpoints,
+  type IRpcEndpoint,
+} from './rpcEndpoints'
+
 config()
 
-interface IRpcEndpoint {
-  url: string
-  priority: number
-  isActive: boolean
-  network: string
-}
-
-async function fetchRpcEndpoints(): Promise<{
+async function fetchRpcEndpoints(environment: string): Promise<{
   [network: string]: IRpcEndpoint[]
 }> {
   const MONGODB_URI = process.env.MONGODB_URI
@@ -34,14 +35,10 @@ async function fetchRpcEndpoints(): Promise<{
 
     await cursor.forEach((doc) => {
       if (doc?.chainName && Array.isArray(doc?.rpcs)) {
-        const validEndpoints: IRpcEndpoint[] = doc.rpcs.filter(
-          (r: any) => !!r.url
-        )
-        // Sort endpoints in descending order so that the endpoint with the highest priority comes first
-        validEndpoints.sort((a, b) => b.priority - a.priority)
-        if (validEndpoints.length > 0) {
+        const usableEndpoints = selectEndpoints(doc.rpcs, environment)
+        if (usableEndpoints.length > 0) {
           const envVar = getRPCEnvVarName(doc.chainName)
-          endpoints[envVar] = validEndpoints
+          endpoints[envVar] = usableEndpoints
         }
       }
     })
@@ -55,13 +52,43 @@ async function fetchRpcEndpoints(): Promise<{
   }
 }
 
-async function mergeEndpointsIntoEnv() {
+/**
+ * Surface chains whose primary endpoint carries no provider credentials.
+ *
+ * A shared public endpoint answers a handful of calls and then rate-limits, which reads
+ * downstream as chain drift rather than as throttling — so promoting one to primary has to be
+ * visible when the env file is written, not once a fleet sweep goes red.
+ */
+function reportUncredentialedPrimaries(endpointsByEnvVar: {
+  [network: string]: IRpcEndpoint[]
+}) {
+  const flagged = findUncredentialedPrimaries(endpointsByEnvVar)
+  if (!flagged.length) return
+
+  consola.warn(
+    `${flagged.length} network(s) resolve to a primary RPC with no API credentials:`
+  )
+  for (const { network, host } of flagged)
+    consola.warn(`  ${network.replace('ETH_NODE_URI_', '')} -> ${host}`)
+  consola.warn(
+    'Promote a credentialed endpoint with: bun run add-network-rpc --network <name> --rpcUrl <url> --priority <n>'
+  )
+}
+
+async function mergeEndpointsIntoEnv(environment: string) {
   try {
     // Try to fetch from MongoDB first
     let newEndpoints: { [network: string]: IRpcEndpoint[] } = {}
     try {
-      newEndpoints = await fetchRpcEndpoints()
+      newEndpoints = await fetchRpcEndpoints(environment)
     } catch (error) {
+      // networks.json holds a single public URL per network with no environment split, so it can
+      // only stand in for production. Answering a staging request with production endpoints would
+      // be a silent wrong-environment success.
+      if (environment !== 'production')
+        throw new Error(
+          `MongoDB is unavailable and the networks.json fallback only covers production, not '${environment}'`
+        )
       consola.warn(
         'Failed to fetch from MongoDB, falling back to networks.json:',
         error
@@ -85,60 +112,7 @@ async function mergeEndpointsIntoEnv() {
       )
     }
 
-    // Group endpoints by first letter after "ETH_NODE_URI_"
-    const groupedEndpoints = Object.entries(newEndpoints).reduce(
-      (
-        acc: { [key: string]: [string, IRpcEndpoint[]][] },
-        [key, endpoints]
-      ) => {
-        const networkName = key.replace('ETH_NODE_URI_', '')
-        const firstLetter = networkName.charAt(0)
-        if (!acc[firstLetter]) acc[firstLetter] = []
-        acc[firstLetter].push([key, endpoints])
-        return acc
-      },
-      {}
-    )
-
-    // Sort the groups by letter and sort entries within each group
-    const sortedGroups = Object.keys(groupedEndpoints)
-      .sort()
-      .map((letter) => {
-        if (!groupedEndpoints[letter])
-          throw new Error(`Missing group for letter ${letter}`)
-        const group = groupedEndpoints[letter].sort(([keyA], [keyB]) => {
-          const nameA = keyA.replace('ETH_NODE_URI_', '')
-          const nameB = keyB.replace('ETH_NODE_URI_', '')
-          return nameA.localeCompare(nameB)
-        })
-
-        // Process each chain's endpoints separately and add spacing between chains
-        const processedEntries = group.map(([key, endpoints]) => {
-          const chainEntries = endpoints.map((endpoint, index) =>
-            index === 0
-              ? `${key}="${endpoint.url}"`
-              : `# ${key}="${endpoint.url}"`
-          )
-          // Add a blank line after each chain's entries
-          return [...chainEntries, '']
-        })
-
-        return {
-          letter,
-          // Flatten all chains' entries
-          entries: processedEntries.flat(),
-        }
-      })
-
-    // Flatten groups with headers and spacing
-    const newLines = sortedGroups.flatMap((group, index) => [
-      // Add a blank line before each group except the first one
-      ...(index === 0 ? [] : ['']),
-      // Add the letter header
-      `# ====================== ${group.letter} ======================`,
-      // Add the group entries (which now include spacing between chains)
-      ...group.entries,
-    ])
+    const newLines = buildEnvLines(newEndpoints)
 
     let envContent = ''
     try {
@@ -172,10 +146,31 @@ async function mergeEndpointsIntoEnv() {
 
     fs.writeFileSync('.env', mergedContent)
     consola.success('RPC endpoints fetched successfully into .env')
+
+    reportUncredentialedPrimaries(newEndpoints)
   } catch (error) {
     consola.error('Failed to fetch RPC endpoints into .env:', error)
     process.exit(1)
   }
 }
 
-mergeEndpointsIntoEnv()
+const main = defineCommand({
+  meta: {
+    name: 'fetch-rpcs',
+    description:
+      'Fetch prioritized RPC endpoints from MongoDB into the env file',
+  },
+  args: {
+    environment: {
+      type: 'string',
+      description: 'Environment to fetch endpoints for (default is production)',
+      required: false,
+      default: 'production',
+    },
+  },
+  async run({ args }) {
+    await mergeEndpointsIntoEnv(args.environment)
+  },
+})
+
+runMain(main)

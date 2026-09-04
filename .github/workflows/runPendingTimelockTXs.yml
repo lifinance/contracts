@@ -91,26 +91,9 @@ jobs:
         run: bun typechain
 
       - name: Fetch RPC endpoints from MongoDB
-        run: |
-          bun fetch-rpcs
-          while IFS= read -r line || [[ -n "$line" ]]; do
-            [[ "$line" =~ ^ETH_NODE_URI_ ]] || continue
-            key="${line%%=*}"
-            value="${line#*=}"
-            # Strip trailing CR (in case .env was written with CRLF) and any
-            # surrounding double quotes; viem rejects URLs containing either.
-            value="${value%$'\r'}"
-            value="${value#\"}"
-            value="${value%\"}"
-            if [[ -z "$value" ]]; then
-              echo "::warning::skipping $key (empty value)"
-              continue
-            fi
-            echo "::add-mask::$value"
-            echo "$key=$value" >> "$GITHUB_ENV"
-          done < ".env"
-        env:
-          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+        uses: ./.github/actions/fetch-rpcs
+        with:
+          mongodb-uri: ${{ secrets.MONGODB_URI }}
 
       - name: Execute timelock transactions
         env:

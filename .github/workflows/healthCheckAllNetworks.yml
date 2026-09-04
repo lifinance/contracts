@@ -25,8 +25,9 @@
 #   carries only issues, not routine confirmations.
 #   Trade-off: no green message means no positive heartbeat, so a silently-broken cron no longer
 #   shows up as a MISSING message — add a separate cron-liveness monitor if that signal is needed.
-# - Known limitations: needs RPCs (MongoDB) + deploy logs; transient RPC errors are absorbed by viem
-#   transport retries and a one-shot re-verify of each fatal invariant before a network is marked failed.
+# - Known limitations: needs RPCs (MongoDB) + deploy logs; transient RPC errors are absorbed by a
+#   viem fallback transport across the chain's configured endpoints, that transport's retries, and a
+#   one-shot re-verify of each fatal invariant before a network is marked failed.
 
 name: Diamond Health Check (all networks)
 
@@ -79,23 +80,9 @@ jobs:
         run: bun run typechain
 
       - name: Fetch RPC endpoints from MongoDB
-        run: |
-          # Fetch prioritized RPCs (with auth where required) so the health check uses the same URLs as local.
-          bun run fetch-rpcs
-          # Inject only RPC endpoint variables into the job environment (strip surrounding quotes so URL is valid).
-          # Mask the URL (which may carry an API key) before forwarding so it is redacted from all subsequent logs.
-          while IFS= read -r line || [[ -n "$line" ]]; do
-            if [[ "$line" =~ ^ETH_NODE_URI_ ]]; then
-              key="${line%%=*}"
-              value="${line#*=}"
-              if [[ "$value" == \"*\" ]]; then value="${value:1:-1}"; fi
-              if [[ "$value" == \'*\' ]]; then value="${value:1:-1}"; fi
-              echo "::add-mask::$value"
-              echo "${key}=${value}" >> "$GITHUB_ENV"
-            fi
-          done < ".env"
-        env:
-          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+        uses: ./.github/actions/fetch-rpcs
+        with:
+          mongodb-uri: ${{ secrets.MONGODB_URI }}
 
       # continue-on-error so the Slack step below always reports; the "Fail if any network failed"
       # step restores the red check. The runner writes total / passed_count / failed_count /

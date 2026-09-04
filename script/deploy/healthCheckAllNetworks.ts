@@ -106,6 +106,11 @@ export interface ICauseGroup {
 const EVM_ADDRESS_PATTERN = /0x[a-fA-F0-9]{40}/g
 const TRON_ADDRESS_PATTERN = /\b[Tt][1-9A-HJ-NP-Za-km-z]{33}\b/g
 
+// An HTTP status is the one token that separates "throttled" (429) from "endpoint gone" (404)
+// from "credentials rejected" (401), and it is the first thing a responder needs. Keeping it
+// also splits those into separate cause groups, which is correct — they are separate causes.
+const HTTP_STATUS_PREFIX_PATTERN = /Status:\s*$/
+
 // Slack parses <...> as a link element, so the masks must avoid angle brackets or they would be
 // mangled in the very message they exist to clarify.
 const ADDRESS_MASK = '[address]'
@@ -158,7 +163,11 @@ export function normalizeFailureCause(
     redactUrls(withoutNetwork)
       .replace(EVM_ADDRESS_PATTERN, ADDRESS_MASK)
       .replace(TRON_ADDRESS_PATTERN, ADDRESS_MASK)
-      .replace(/\b\d+\b/g, COUNT_MASK)
+      .replace(/\b\d+\b/g, (match, offset: number, whole: string) =>
+        HTTP_STATUS_PREFIX_PATTERN.test(whole.slice(0, offset))
+          ? match
+          : COUNT_MASK
+      )
   )
 }
 

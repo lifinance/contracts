@@ -69,22 +69,9 @@ jobs:
         run: forge build --skip script --skip test --skip Base --skip Test --skip '*.t.sol'
 
       - name: Fetch RPC endpoints from MongoDB
-        run: |
-          # Populate .env with prioritized RPCs (falls back to public RPCs from networks.json).
-          bun fetch-rpcs
-          # Forward only ETH_NODE_URI_* into the job env, masking each URL (may carry an API key)
-          # so it is redacted from all subsequent log output.
-          while IFS= read -r line || [[ -n "$line" ]]; do
-            if [[ "$line" =~ ^ETH_NODE_URI_ ]]; then
-              value="${line#*=}"
-              if [[ "$value" == \"*\" ]]; then value="${value:1:-1}"; fi
-              if [[ "$value" == \'*\' ]]; then value="${value:1:-1}"; fi
-              echo "::add-mask::$value"
-              echo "${line%%=*}=$value" >> "$GITHUB_ENV"
-            fi
-          done < ".env"
-        env:
-          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+        uses: ./.github/actions/fetch-rpcs
+        with:
+          mongodb-uri: ${{ secrets.MONGODB_URI }}
 
       - name: Reconcile parked tasks + TTL alert
         run: bunx tsx script/deploy/safe/reconcile-parked-tasks.ts --yes
