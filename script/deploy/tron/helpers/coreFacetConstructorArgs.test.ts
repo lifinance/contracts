@@ -10,6 +10,7 @@ import {
 } from 'bun:test'
 
 import {
+  assertDiamondConstructorShape,
   getConstructorArgs,
   resolveCoreFacetConstructorArgs,
   type ArtifactLoader,
@@ -19,6 +20,17 @@ const ONE_ADDRESS_ABI = [
   {
     type: 'constructor',
     inputs: [{ name: '_a', type: 'address', internalType: 'address' }],
+    stateMutability: 'nonpayable',
+  },
+]
+
+const TWO_ADDRESS_ABI = [
+  {
+    type: 'constructor',
+    inputs: [
+      { name: '_contractOwner', type: 'address', internalType: 'address' },
+      { name: '_diamondCutFacet', type: 'address', internalType: 'address' },
+    ],
     stateMutability: 'nonpayable',
   },
 ]
@@ -169,6 +181,59 @@ describe('resolveCoreFacetConstructorArgs', () => {
         loaderFor({})
       ),
       /no readable ABI/u
+    )
+  })
+
+  it('surfaces the loader failure when the artifact cannot be read', async () => {
+    // The real loader rejects on a missing `out/` rather than resolving to an
+    // artifact without an ABI, so that message has to survive unwrapped.
+    await expectRejects(
+      resolveCoreFacetConstructorArgs(
+        ['DiamondCutFacet'],
+        'tron',
+        NETWORKS_FIXTURE,
+        async () => {
+          throw new Error(
+            'Failed to load DiamondCutFacet artifact: ENOENT: no such file or directory'
+          )
+        }
+      ),
+      /Failed to load DiamondCutFacet artifact: ENOENT/u
+    )
+  })
+})
+
+describe('assertDiamondConstructorShape', () => {
+  it('passes when the ABI declares exactly the arguments the deploy will pass', async () => {
+    await assertDiamondConstructorShape(
+      'LiFiDiamond',
+      'tron',
+      2,
+      loaderFor({ LiFiDiamond: TWO_ADDRESS_ABI })
+    )
+  })
+
+  it('throws when the diamond declares more arguments than the deploy passes', async () => {
+    await expectRejects(
+      assertDiamondConstructorShape(
+        'LiFiDiamond',
+        'tron',
+        1,
+        loaderFor({ LiFiDiamond: TWO_ADDRESS_ABI })
+      ),
+      /LiFiDiamond expects 2 constructor arguments, got 1.*deploy-core-facets\.ts/su
+    )
+  })
+
+  it('throws when the diamond declares fewer arguments than the deploy passes', async () => {
+    await expectRejects(
+      assertDiamondConstructorShape(
+        'LiFiDiamond',
+        'tron',
+        2,
+        loaderFor({ LiFiDiamond: ONE_ADDRESS_ABI })
+      ),
+      /expects 1 constructor arguments, got 2/u
     )
   })
 })

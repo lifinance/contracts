@@ -28,7 +28,10 @@ import {
 import { getContractVersion } from '../shared/getContractVersion'
 import { getCoreFacets } from '../shared/globalContractLists'
 
-import { resolveCoreFacetConstructorArgs } from './helpers/coreFacetConstructorArgs'
+import {
+  assertDiamondConstructorShape,
+  resolveCoreFacetConstructorArgs,
+} from './helpers/coreFacetConstructorArgs'
 import {
   deployContractWithLogging,
   validateBalance,
@@ -174,6 +177,23 @@ async function deployCoreFacetsImpl(options: {
     networksConfig
   )
 
+  const diamondName = 'LiFiDiamond'
+  const existingDiamond = await checkExistingDeployment(
+    network,
+    diamondName,
+    options.dryRun
+  )
+  const deployedDiamondAddress =
+    existingDiamond.exists &&
+    existingDiamond.address &&
+    !existingDiamond.shouldRedeploy
+      ? existingDiamond.address
+      : null
+  // The diamond is deployed after every facet, so a mismatch in its constructor
+  // surfaces only once they have all been paid for.
+  if (deployedDiamondAddress === null)
+    await assertDiamondConstructorShape(diamondName, network, 2)
+
   // Deploy facets
   const deploymentResults: IDeploymentResult[] = []
   const facetAddresses: Record<string, { address: string; version: string }> =
@@ -249,24 +269,14 @@ async function deployCoreFacetsImpl(options: {
   }
 
   // Deploy LiFiDiamond
-  const diamondName = 'LiFiDiamond'
   consola.info(`\n💎 Deploying ${diamondName}...`)
 
-  const existingDiamond = await checkExistingDeployment(
-    network,
-    diamondName,
-    options.dryRun
-  )
-  if (
-    existingDiamond.exists &&
-    existingDiamond.address &&
-    !existingDiamond.shouldRedeploy
-  ) {
+  if (deployedDiamondAddress !== null) {
     consola.info(`⏭️  Skipping ${diamondName} (already deployed)`)
     const version = await getContractVersion(diamondName)
     deploymentResults.push({
       contract: diamondName,
-      address: existingDiamond.address,
+      address: deployedDiamondAddress,
       version,
       txId: '',
       cost: 0,

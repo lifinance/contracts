@@ -2,10 +2,12 @@
  * Builds the constructor arguments for the core facets deployed to Tron, and
  * checks them against each facet's compiled ABI.
  *
- * Import this from any script that deploys the core facet set. The core facet
- * list is read from config, so a facet can be added to it with a constructor no
- * script has a branch for; the check here turns that into a failure before
- * anything is broadcast, rather than a facet deployed with no arguments.
+ * The core facet list is read from config, so a facet can be added to it with a
+ * constructor no script has a branch for; the check here turns that into a
+ * failure before anything is broadcast, rather than a facet deployed with no
+ * arguments. Pass the set actually being deployed: `GasZipFacet` is in
+ * `coreFacets` and has a constructor with no branch here, so an unfiltered list
+ * fails on it.
  */
 
 import {
@@ -129,7 +131,7 @@ export async function resolveCoreFacetConstructorArgs(
     } catch (error: unknown) {
       const message = error instanceof Error ? error.message : String(error)
       throw new Error(
-        `${message} They are built by getConstructorArgs in script/deploy/tron/helpers/coreFacetConstructorArgs.ts.`
+        `${message} Core facet constructor arguments are built by getConstructorArgs in script/deploy/tron/helpers/coreFacetConstructorArgs.ts.`
       )
     }
 
@@ -137,4 +139,42 @@ export async function resolveCoreFacetConstructorArgs(
   }
 
   return argsByFacet
+}
+
+/**
+ * A well-formed address, used only to prove the diamond's constructor shape.
+ */
+const ARITY_PROBE_ADDRESS = '0x0000000000000000000000000000000000000001'
+
+/**
+ * Checks the diamond's constructor shape before any facet is deployed.
+ *
+ * The diamond is deployed last, after every facet has been paid for, and its
+ * real arguments do not exist until the DiamondCutFacet has an address. Probing
+ * with placeholders proves the arity and the ABI this early, which is what
+ * catches a constructor change while nothing has been spent.
+ *
+ * @param diamondName - Contract name of the diamond.
+ * @param network - Network the diamond is being deployed to.
+ * @param argCount - How many arguments the deploy call will pass.
+ * @param loadArtifact - Artifact loader; defaults to reading Forge's `out/`.
+ * @throws When the diamond's ABI does not declare exactly `argCount` arguments.
+ */
+export async function assertDiamondConstructorShape(
+  diamondName: string,
+  network: SupportedChain,
+  argCount: number,
+  loadArtifact: ArtifactLoader = loadForgeArtifact
+): Promise<void> {
+  const artifact = await loadArtifact(diamondName)
+  const probe = Array.from({ length: argCount }, () => ARITY_PROBE_ADDRESS)
+
+  try {
+    assertTronDeploymentRecordable(artifact, probe, diamondName, network)
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : String(error)
+    throw new Error(
+      `${message} The diamond is deployed with [owner, diamondCutFacet] in script/deploy/tron/deploy-core-facets.ts.`
+    )
+  }
 }
