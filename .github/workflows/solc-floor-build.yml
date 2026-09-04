@@ -9,6 +9,9 @@
 #   job is skipped (see `.agents/rules/500-github-actions.md`).
 # - The profile skips test/script (they trip the legacy pipeline's "stack too deep", a
 #   codegen limit unrelated to floor-feature detection) and matches production codegen.
+# - The Earn Vault Wrapper (src/VaultWrapper/**) is on OpenZeppelin v5 and pins `^0.8.29`,
+#   matching the default compile version, so the ordinary build already floor-checks it;
+#   it is skipped by the `solc_floor` profile (which can only compile the 0.8.17 floor).
 
 name: Verify Floor-Compiler Build
 on:
