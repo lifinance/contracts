@@ -16,6 +16,10 @@
 # - Local counterpart: the .husky/pre-push hook runs the same validator for
 #   fast feedback; this workflow is the enforcement backstop since git hooks
 #   can be bypassed with --no-verify
+# - Immutable registry: verify-immutable-registry.ts checks
+#   script/deploy/resources/immutableRegistry.json against the immutables
+#   declared in src/. Warn-only on the authoring gap until --strict flips on;
+#   see the step's own comment for what it does and does not run on
 
 name: Validate Scripts
 on:
@@ -49,6 +53,7 @@ jobs:
     timeout-minutes: 10
     outputs:
       scripts: ${{ steps.filter.outputs.scripts }}
+      immutables: ${{ steps.filter.outputs.immutables }}
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
@@ -67,6 +72,17 @@ jobs:
               - '.github/workflows/validateScripts.yml'
               - '.github/actions/setup-foundry/**'
               - '.foundry-version'
+            # The registry accounts for immutables declared in src/, so a PR
+            # adding a facet has to be able to run the gate without also
+            # touching script tooling.
+            immutables:
+              - 'src/**/*.sol'
+              - 'script/deploy/immutables/**/*.ts'
+              - 'script/deploy/resources/immutableRegistry.json'
+              - 'script/deploy/resources/deployRequirements.json'
+              - 'package.json'
+              - 'bun.lock'
+              - '.github/workflows/validateScripts.yml'
 
   validate-scripts:
     # Runs on PRs (once out of draft) and on workflow_dispatch.
@@ -122,11 +138,48 @@ jobs:
         env:
           BASE_REF: ${{ github.base_ref }}
 
+  verify-immutable-registry:
+    # Separate from `validate-scripts` because the gate reads Solidity SOURCE and
+    # two JSON files — it needs neither the forge build nor TypeChain, so gating
+    # it on src/** costs a bun install rather than a full compile.
+    needs: detect-changes
+    if: >-
+      ${{
+        needs.detect-changes.outputs.immutables == 'true' &&
+        (github.event_name != 'pull_request' ||
+         github.event.pull_request.draft == false)
+      }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          persist-credentials: false
+      - uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2.0.1
+        with:
+          bun-version: latest
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+      - name: Verify immutable registry
+        shell: bash
+        run: |
+          ##### Warn-only while WP-2.3's authoring pass runs: an immutable with no
+          ##### registry entry is a warning, not a failure. It still exits non-zero
+          ##### for anything the registry gets WRONG — a link to a config key that
+          ##### does not exist, an entry for an immutable no contract declares, an
+          ##### exemption with no reason — and for any declaration the enumerator
+          ##### could not read, since an immutable it cannot see is one the registry
+          ##### is never asked to account for.
+          ##### Still skipped on draft PRs, and the workflow has no push trigger;
+          ##### the ready_for_review trigger re-runs it against final HEAD.
+          ##### Flip to --strict once every immutable is authored (EXSC-869 part ii).
+          bunx tsx ./script/deploy/immutables/verify-immutable-registry.ts
+
   validate-scripts-required:
     # Aggregator job for branch protection. Reports green when the heavy job
     # either succeeded or was skipped because no relevant files changed.
     # Register THIS job (not `validate-scripts`) as the required status check on `main`.
-    needs: [detect-changes, validate-scripts]
+    needs: [detect-changes, validate-scripts, verify-immutable-registry]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
@@ -139,13 +192,20 @@ jobs:
           set -euo pipefail
           detect_result="${{ needs.detect-changes.result }}"
           validate_result="${{ needs.validate-scripts.result }}"
+          registry_result="${{ needs.verify-immutable-registry.result }}"
           if [[ "$detect_result" != "success" ]]; then
             echo -e "\033[31mvalidate-scripts-required FAILED (detect-changes=$detect_result)\033[0m" >&2
             exit 1
           fi
-          if [[ "$validate_result" == "success" || "$validate_result" == "skipped" ]]; then
-            echo -e "\033[32mvalidate-scripts-required OK (validate-scripts=$validate_result)\033[0m"
-            exit 0
-          fi
-          echo -e "\033[31mvalidate-scripts-required FAILED (validate-scripts=$validate_result)\033[0m" >&2
-          exit 1
+          ##### Every gated job has to be named here. One left out is reported green
+          ##### by this aggregator no matter what it did, which is the failure mode
+          ##### the aggregator exists to prevent.
+          for job in "validate-scripts=$validate_result" "verify-immutable-registry=$registry_result"; do
+            result="${job#*=}"
+            if [[ "$result" != "success" && "$result" != "skipped" ]]; then
+              echo -e "\033[31mvalidate-scripts-required FAILED ($job)\033[0m" >&2
+              exit 1
+            fi
+          done
+          echo -e "\033[32mvalidate-scripts-required OK (validate-scripts=$validate_result, verify-immutable-registry=$registry_result)\033[0m"
+          exit 0
