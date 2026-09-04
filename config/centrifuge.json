@@ -1,0 +1,7 @@
+{
+  "_comment": "Centrifuge TokenBridge (source-chain) addresses, verified 2026-07-21 (EXSC-828). Deployed at the same address on both supported chains. send() pulls the share token from msg.sender (an allowance is required) and forwards msg.value to the Centrifuge Gateway to pay for the cross-chain message; there is no on-chain fee quote. Only chains present in the bridge's chainIdToCentrifugeId map are valid destinations - as of the integration that is Ethereum (centrifugeId 1) and Base (centrifugeId 2).",
+  "tokenBridge": {
+    "mainnet": "0x82a6C7753380f98c093B27c53f86ef6b09C40f49",
+    "base": "0x82a6C7753380f98c093B27c53f86ef6b09C40f49"
+  }
+}

@@ -158,6 +158,16 @@
       }
     }
   },
+  "CentrifugeFacet": {
+    "configData": {
+      "_tokenBridge": {
+        "configFileName": "centrifuge.json",
+        "keyInConfigFile": ".tokenBridge.<NETWORK>",
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "TOKEN_BRIDGE"
+      }
+    }
+  },
   "CircleBridgeFacet": {
     "configData": {
       "_tokenMessenger": {
