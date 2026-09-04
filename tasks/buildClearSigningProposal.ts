@@ -294,6 +294,23 @@ const CHAIN_FIELD: IField = {
   visible: 'always',
 }
 
+// LI.FI calldata carries the chain's native currency in `address` asset-id
+// fields via two sentinels, so neither resolves to ERC-20 metadata. Without
+// this, `tokenAmount` has no decimals or ticker to format with and wallets fall
+// back to the raw integer — a bare `7538051138939978` on the signing screen
+// where `0.007538051138939978 ETH` belongs.
+const NATIVE_CURRENCY_ADDRESSES = [
+  '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+  '0x0000000000000000000000000000000000000000',
+]
+
+// Every `tokenAmount` field goes through this: any asset-id path in this
+// diamond can hold a native sentinel, so opting in per-site would only leave
+// room to forget one.
+function tokenAmountParams(tokenPath: string): Record<string, unknown> {
+  return { tokenPath, nativeCurrencyAddress: NATIVE_CURRENCY_ADDRESSES }
+}
+
 function bridgeFacetName(fnName: string): string {
   // startBridgeTokensViaXxx | swapAndStartBridgeTokensViaXxx
   // Strip Packed/Min/ERC20/Native suffixes; keep the bridge identity + version.
@@ -497,7 +514,7 @@ function buildStartFormat(fn: IAbiFn): IFormatEntry {
         path: '_bridgeData.minAmount',
         label: 'Amount to Bridge',
         format: 'tokenAmount',
-        params: { tokenPath: '_bridgeData.sendingAssetId' },
+        params: tokenAmountParams('_bridgeData.sendingAssetId'),
         visible: 'always',
       },
       CHAIN_FIELD,
@@ -520,14 +537,14 @@ function buildSwapAndStartFormat(fn: IAbiFn): IFormatEntry {
         path: '_swapData.[0].fromAmount',
         label: 'Amount to Swap',
         format: 'tokenAmount',
-        params: { tokenPath: '_swapData.[0].sendingAssetId' },
+        params: tokenAmountParams('_swapData.[0].sendingAssetId'),
         visible: 'always',
       },
       {
         path: '_bridgeData.minAmount',
         label: 'Minimum to Bridge',
         format: 'tokenAmount',
-        params: { tokenPath: '_bridgeData.sendingAssetId' },
+        params: tokenAmountParams('_bridgeData.sendingAssetId'),
         visible: 'always',
       },
       CHAIN_FIELD,
@@ -570,14 +587,14 @@ const SWAP_TEMPLATES: Record<string, IFormatEntry> = {
         path: '_swapData.fromAmount',
         label: 'Amount to Send',
         format: 'tokenAmount',
-        params: { tokenPath: '_swapData.sendingAssetId' },
+        params: tokenAmountParams('_swapData.sendingAssetId'),
         visible: 'always',
       },
       {
         path: '_minAmountOut',
         label: 'Minimum to Receive',
         format: 'tokenAmount',
-        params: { tokenPath: '_swapData.receivingAssetId' },
+        params: tokenAmountParams('_swapData.receivingAssetId'),
         visible: 'always',
       },
       {
@@ -629,7 +646,7 @@ SWAP_TEMPLATES.swapTokensSingleV3NativeToERC20 = {
       path: '_minAmountOut',
       label: 'Minimum to Receive',
       format: 'tokenAmount',
-      params: { tokenPath: '_swapData.receivingAssetId' },
+      params: tokenAmountParams('_swapData.receivingAssetId'),
       visible: 'always',
     },
     {
@@ -669,14 +686,14 @@ SWAP_TEMPLATES.swapTokensMultipleV3ERC20ToERC20 = {
       path: '_swapData.[0].fromAmount',
       label: 'Amount to Send',
       format: 'tokenAmount',
-      params: { tokenPath: '_swapData.[0].sendingAssetId' },
+      params: tokenAmountParams('_swapData.[0].sendingAssetId'),
       visible: 'always',
     },
     {
       path: '_minAmountOut',
       label: 'Minimum to Receive',
       format: 'tokenAmount',
-      params: { tokenPath: '_swapData.[-1].receivingAssetId' },
+      params: tokenAmountParams('_swapData.[-1].receivingAssetId'),
       visible: 'always',
     },
     {
@@ -725,7 +742,7 @@ SWAP_TEMPLATES.swapTokensMultipleV3NativeToERC20 = {
       path: '_minAmountOut',
       label: 'Minimum to Receive',
       format: 'tokenAmount',
-      params: { tokenPath: '_swapData.[-1].receivingAssetId' },
+      params: tokenAmountParams('_swapData.[-1].receivingAssetId'),
       visible: 'always',
     },
     {
@@ -770,14 +787,14 @@ SWAP_TEMPLATES.swapTokensGeneric = {
       path: '_swapData.[0].fromAmount',
       label: 'Amount to Send',
       format: 'tokenAmount',
-      params: { tokenPath: '_swapData.[0].sendingAssetId' },
+      params: tokenAmountParams('_swapData.[0].sendingAssetId'),
       visible: 'always',
     },
     {
       path: '_minAmount',
       label: 'Minimum to Receive',
       format: 'tokenAmount',
-      params: { tokenPath: '_swapData.[-1].receivingAssetId' },
+      params: tokenAmountParams('_swapData.[-1].receivingAssetId'),
       visible: 'always',
     },
     {
