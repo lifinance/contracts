@@ -529,6 +529,44 @@ describe('createAttestationSource — the per-run cache', () => {
     expect(attempts).toBe(2)
   })
 
+  it('does not serve one network’s build for another at the same address', async () => {
+    // The record is read per (address, network) and it is the record that names
+    // the contract compiled, so the network is part of what determines the
+    // artifact. Omitting it from the cache key let one network's bytecode answer
+    // for another's and report a MATCH naming the wrong contract.
+    //
+    // Address→name is globally unique across all 71 deployment logs today, which
+    // makes this latent rather than live — but that is a property of how we
+    // deploy, not one this cache may assume.
+    const { source, requests } = sourceWith({
+      readRecord: async (_address: string, network: string) => ({
+        ...RECORD,
+        contractName: network === 'mainnet' ? 'AmarokFacet' : 'StargateFacet',
+      }),
+    })
+
+    await source.resolve(ADDRESS, 'mainnet')
+    await source.resolve(ADDRESS, 'arbitrum')
+
+    expect(requests).toHaveLength(2)
+    expect(requests.map((r) => r.contractName)).toEqual([
+      'AmarokFacet',
+      'StargateFacet',
+    ])
+  })
+
+  it('still reuses the compile for a second address of one contract on one network', async () => {
+    // The paired positive: the cache must still do its job, or the rule above
+    // could be "never cache", which passes its own test while making a cut over
+    // several addresses of one contract minutes slower for nothing.
+    const { source, requests } = sourceWith()
+
+    await source.resolve(ADDRESS, 'mainnet')
+    await source.resolve(ADDRESS, 'mainnet')
+
+    expect(requests).toHaveLength(1)
+  })
+
   it('does not serve one profile’s build for another', async () => {
     const { source, requests } = sourceWith({
       toolchainScope: () => ({

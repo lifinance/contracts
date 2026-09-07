@@ -100,6 +100,22 @@ export const parseBuildProfiles = (
         : {}),
     }
   }
+
+  // The zksolc pin sits outside every profile table, because vanilla forge warns
+  // on an unknown `zksync` key — so attaching it to a profile can only be done
+  // by name, and nothing else in the file identifies the zk profile.
+  //
+  // That makes a rename dangerous rather than merely inconvenient: the pin
+  // silently detaches, the renamed profile then looks like a plain cancun
+  // lineage, and it is admitted to every non-zk cancun network while the zk
+  // networks lose theirs. Refusing here turns that into one loud failure
+  // wherever the map is built, instead of a quiet widening in one direction and
+  // a quiet break in the other.
+  if (zksolcVersion !== undefined && found[ZK_PROFILE] === undefined)
+    throw new Error(
+      `foundry.toml pins zksolc ${zksolcVersion} but has no "[profile.${ZK_PROFILE}]" to attach it to. The pin can only be attached by name, so a renamed zk profile would detach it — the renamed profile would then be offered to non-zk networks as an ordinary lineage, and zkEVM networks would have none. Rename it back, or update ZK_PROFILE in lineage-scope.ts to match.`
+    )
+
   return found
 }
 
@@ -154,8 +170,12 @@ export const deriveToolchainScope = (
   //
   // A zksolc pin disqualifies a profile here however its evm_version reads: the
   // zk profile also declares cancun, and a non-zk network compiled by solc must
-  // never be judged against a zksolc build. Keyed on the pin rather than on the
-  // profile's name, so renaming the profile cannot re-admit it.
+  // never be judged against a zksolc build.
+  //
+  // The pin is what is tested, but it is ATTACHED by name in parseBuildProfiles,
+  // so this filter alone does not survive a rename — a renamed profile carries
+  // no pin and would pass. `parseBuildProfiles` refuses to build such a map at
+  // all, which is what actually closes that path.
   const matching = Object.values(deps.profiles)
     .filter(
       (p) =>

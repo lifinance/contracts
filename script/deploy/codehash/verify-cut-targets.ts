@@ -144,6 +144,28 @@ const judge = async (
   }
 
   const comparison = compareToAttestedSet(code, attested, scope)
+
+  // `attested-set` states this as a rendering instruction — a MATCH says nothing
+  // about masked bytes, so a caller that has not run layer 2 "must not render an
+  // unqualified green". Rendering is not a gate, and two fail-opens rode on the
+  // difference: masking refs come from compiling the record's commit, D3 has the
+  // verifier assert commit presence rather than ancestry, and `findFault` bounds
+  // each range without bounding the masked fraction — so refs from a referenced
+  // commit can exclude the whole body and a comparison that compared nothing
+  // reported MATCH.
+  //
+  // No threshold is invented, because any excluded byte is an uncompared byte.
+  // This grades grey rather than red: nothing was found wrong, it was not looked
+  // at. Layer 2 supplies the missing check and lifts this.
+  if (comparison.verdict === 'MATCH' && comparison.excludedByteCount > 0)
+    return {
+      address,
+      verdict: 'UNVERIFIABLE',
+      reason: `${address}: the code outside its immutables matches an attested build, but ${comparison.excludedByteCount} bytes holding immutables were not compared and no immutable check has run, so this is not yet a match of the deployed code.`,
+      matchedLineages: comparison.matchedLineages,
+      excludedByteCount: comparison.excludedByteCount,
+    }
+
   return {
     address,
     verdict: comparison.verdict,

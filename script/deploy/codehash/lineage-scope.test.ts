@@ -68,6 +68,36 @@ describe('parseBuildProfiles — read from the real foundry.toml, not a fixture'
   })
 })
 
+describe('a renamed zk profile fails loudly instead of leaking', () => {
+  // My own comment claimed the pin, not the profile name, is what disqualifies a
+  // zksolc profile from a non-zk network — "so renaming the profile cannot
+  // re-admit it". That was false: the pin is ATTACHED by name, so a rename drops
+  // it and the renamed profile was re-admitted to every cancun network.
+  //
+  // There is no marker in foundry.toml identifying the zk profile other than its
+  // name, so the honest fix is not to key on something else — it is to make the
+  // rename a loud failure everywhere rather than a silent widening.
+  const renamed = readFileSync(join(REPO_ROOT, 'foundry.toml'), 'utf8').replace(
+    '[profile.zksync]',
+    '[profile.zkevm]'
+  )
+
+  it('refuses to build a profile map that pins zksolc with no zk profile to attach it to', () => {
+    expect(() => parseBuildProfiles(renamed)).toThrow(/zksolc/i)
+  })
+
+  it('still builds the map when the zk profile is present', () => {
+    // The paired positive: without it the rule above could be "always throw".
+    expect(
+      Object.keys(
+        parseBuildProfiles(
+          readFileSync(join(REPO_ROOT, 'foundry.toml'), 'utf8')
+        )
+      ).sort()
+    ).toEqual(['default', 'solc_floor', ZK_PROFILE].sort())
+  })
+})
+
 describe('deriveToolchainScope', () => {
   const scopeOf = (network: string) =>
     deriveToolchainScope(network, { networks, profiles })

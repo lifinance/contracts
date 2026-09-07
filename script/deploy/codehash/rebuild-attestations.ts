@@ -321,9 +321,11 @@ export interface IAttestationSource {
  * same contract, so an identical compile is not repeated. The cache cannot turn
  * a failing verdict into a passing one, by construction:
  *
- * - it is keyed on everything that determines the artifact — the address, the
- *   record's commit and the profile — so a hit can only ever substitute the
- *   compile it would have run;
+ * - it is keyed on everything that determines the artifact — the network, the
+ *   address, the record's commit and the profile — so a hit can only ever
+ *   substitute the compile it would have run. The network is load-bearing: the
+ *   record is read per (address, network) and names the contract that gets
+ *   compiled, so omitting it lets one network's artifact answer for another's;
  * - it holds artifacts, never verdicts. The deployed side is re-read and
  *   re-compared on every call, so a hit cannot widen the attested set or soften
  *   a comparison;
@@ -403,7 +405,18 @@ export const createAttestationSource = (
 
     const builds: IAttestedBuild[] = []
     for (const profile of scope.profiles) {
-      const key = `${address.toLowerCase()}|${commit}|${profile.profile}`
+      // The network is part of the key because the RECORD is read per
+      // (address, network), and it is the record that names the contract this
+      // rebuild compiles. Without it, one address holding different contracts on
+      // two networks shares a cache entry, and the second network gets the
+      // first's bytecode reported as a MATCH — naming the wrong contract in the
+      // verdict a signer reads. Address→name happens to be globally unique
+      // across all 71 deployment logs today, which makes that latent rather than
+      // live; deterministic deployment is a property of how we deploy, not an
+      // invariant this cache may assume.
+      const key = `${network}|${address.toLowerCase()}|${commit}|${
+        profile.profile
+      }`
       const cached = cache.get(key)
       if (cached) {
         builds.push(cached)

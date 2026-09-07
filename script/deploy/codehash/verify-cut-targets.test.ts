@@ -239,13 +239,48 @@ describe('verifyCutTargets', () => {
     expect(asked).toEqual(['abstract'])
   })
 
-  it('reports the excluded immutable byte count, so a MATCH is not over-read', async () => {
-    // compareToAttestedSet's own docstring: a MATCH says nothing about masked
-    // immutables, so a caller that has not run layer 2 must not render an
-    // unqualified green.
-    // The attestation must NOT pin exact bytes here: a rawHash-pinned build is
-    // compared byte for byte, so it correctly reports zero excluded bytes. This
-    // case is about the normalised-comparison path, where the masking is real.
+  it('will not report MATCH while bytes were excluded and layer 2 has not run', async () => {
+    // `attested-set.ts` states this as a rendering instruction: "a caller that
+    // has not run layer 2 must not render an unqualified green". Rendering is
+    // not a gate. Two executable fail-opens rode on that gap — refs supplied
+    // from the record's own commit can mask the entire body, and a comparison
+    // that compared nothing reported blocksSigning: false.
+    //
+    // So while no layer-2 check is wired, masked bytes make the verdict grey.
+    // No threshold is invented: any excluded byte is uncompared.
+    const report = await verifyCutTargets(
+      { cuts: [add(A)], init: ZERO, network: 'mainnet' },
+      deps({
+        observe: async () => ({ ...observed(HASH), maskedByteCount: 96 }),
+        attestationsFor: async () => [
+          { ...attested(HASH), rawHash: undefined },
+        ],
+      })
+    )
+
+    expect(report.targets[0]?.verdict).toBe('UNVERIFIABLE')
+    expect(report.blocksSigning).toBe(true)
+    expect(report.targets[0]?.reason).toMatch(/96 bytes/)
+    expect(report.targets[0]?.reason).toMatch(/were not compared/)
+  })
+
+  it('still reports MATCH when nothing was excluded, so the downgrade is not blanket', async () => {
+    // The paired positive. Without it the rule above could be "always grey",
+    // which would pass its own test while making the gate useless.
+    const report = await verifyCutTargets(
+      { cuts: [add(A)], init: ZERO, network: 'mainnet' },
+      deps()
+    )
+
+    expect(report.targets[0]?.verdict).toBe('MATCH')
+    expect(report.blocksSigning).toBe(false)
+  })
+
+  it('carries the excluded byte count through to the summary a signer reads', async () => {
+    // The reporting half of the rule above. The attestation must NOT pin exact
+    // bytes: a rawHash-pinned build is compared byte for byte and correctly
+    // reports zero excluded bytes, so it cannot exercise the masking path at
+    // all — that fixture was wrong in exactly the dimension under test.
     const report = await verifyCutTargets(
       { cuts: [add(A)], init: ZERO, network: 'mainnet' },
       deps({
@@ -256,8 +291,8 @@ describe('verifyCutTargets', () => {
       })
     )
 
-    expect(report.targets[0]?.verdict).toBe('MATCH')
-    expect(report.targets[0]?.excludedByteCount).toBeGreaterThan(0)
+    expect(report.targets[0]?.excludedByteCount).toBe(64)
     expect(report.summary).toMatch(/immutable/i)
+    expect(report.summary).toContain('64')
   })
 })
