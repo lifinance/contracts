@@ -102,10 +102,22 @@ export function normalizeRpcUrlForNetwork(
   rpcUrl: string
 ): string {
   if (!isTronNetworkKey(networkName)) return rpcUrl
-  const withoutTrailingSlashes = rpcUrl.replace(/\/+$/, '')
-  return withoutTrailingSlashes.endsWith('/jsonrpc')
-    ? rpcUrl
-    : `${withoutTrailingSlashes}/jsonrpc`
+
+  let parsed: URL
+  try {
+    parsed = new URL(rpcUrl)
+  } catch {
+    return rpcUrl
+  }
+
+  // The route belongs on the path: appending it to the raw string would push it behind a query
+  // string or fragment, leaving the request pointed at the root — and a keyed TronGrid URL
+  // carries its key in the query.
+  const path = parsed.pathname.replace(/\/+$/, '')
+  if (path.endsWith('/jsonrpc')) return rpcUrl
+
+  parsed.pathname = `${path}/jsonrpc`
+  return parsed.toString()
 }
 
 /** Networks whose primary endpoint carries no provider credentials, with that endpoint's host. */

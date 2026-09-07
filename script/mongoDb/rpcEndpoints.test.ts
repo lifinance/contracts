@@ -456,4 +456,25 @@ describe('normalizeRpcUrlForNetwork', () => {
       KEYLESS_PUBLIC
     )
   })
+
+  it('keeps a credential query parameter behind the route', () => {
+    expect(
+      normalizeRpcUrlForNetwork('tron', `${TRONGRID_ROOT}?apikey=secret-value`)
+    ).toBe(`${TRONGRID_ROOT}/jsonrpc?apikey=secret-value`)
+  })
+
+  it('keeps a fragment behind the route', () => {
+    expect(normalizeRpcUrlForNetwork('tron', `${TRONGRID_ROOT}#note`)).toBe(
+      `${TRONGRID_ROOT}/jsonrpc#note`
+    )
+  })
+
+  it('leaves a keyed endpoint already carrying the route untouched', () => {
+    const withRoute = `${TRONGRID_ROOT}/jsonrpc?apikey=secret-value`
+    expect(normalizeRpcUrlForNetwork('tron', withRoute)).toBe(withRoute)
+  })
+
+  it('returns an unparsable url unchanged rather than throwing', () => {
+    expect(normalizeRpcUrlForNetwork('tron', 'not a url')).toBe('not a url')
+  })
 })

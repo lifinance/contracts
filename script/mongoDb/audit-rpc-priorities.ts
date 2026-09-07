@@ -36,21 +36,32 @@ interface IChainAudit {
   needsRepair: boolean
 }
 
-/** Endpoints that answered the probe. An empty set means no probe was run. */
-type ReachableUrls = Set<string> | undefined
+/** Endpoints that answered the probe, keyed by {@link reachabilityKey}. */
+type ReachableEndpoints = Set<string> | undefined
 
 const PROBE_CONCURRENCY = 6
+
+/**
+ * A stored URL alone does not identify what was probed: the URL a chain's JSON-RPC traffic goes to
+ * is network-dependent, so two chains sharing a stored URL can have different probe results. The
+ * chain name keeps one chain's verdict from being read as another's.
+ */
+function reachabilityKey(chainName: string, storedUrl: string): string {
+  return `${chainName}\u0000${storedUrl}`
+}
 
 function auditChain(
   chainName: string,
   rpcs: IRpcEndpoint[],
   environment: string,
-  reachable: ReachableUrls
+  reachable: ReachableEndpoints
 ): IChainAudit {
   const ordered = selectEndpoints(rpcs, environment)
   const repaired = repairOrder(
     ordered,
-    reachable ? (url) => reachable.has(url) : undefined
+    reachable
+      ? (url) => reachable.has(reachabilityKey(chainName, url))
+      : undefined
   )
   return {
     chainName,
@@ -67,6 +78,7 @@ function auditChain(
 
 /** A stored endpoint together with the URL its network's JSON-RPC traffic actually goes to. */
 interface IProbeTarget {
+  chainName: string
   storedUrl: string
   probeUrl: string
 }
@@ -76,17 +88,17 @@ interface IProbeTarget {
  *
  * Probing the stored URL is not the same as probing the endpoint: Tron stores the TronGrid root,
  * which answers JSON-RPC only under `/jsonrpc`. Reachability is decided on the URL callers will
- * really use, and reported back under the stored URL the rest of the audit keys on.
+ * really use, and reported back under the chain and stored URL the rest of the audit keys on.
  */
 async function probeAll(targets: IProbeTarget[]): Promise<Set<string>> {
-  const storedByProbeUrl = new Map<string, string[]>()
-  for (const { storedUrl, probeUrl } of targets) {
-    const stored = storedByProbeUrl.get(probeUrl)
-    if (stored) stored.push(storedUrl)
-    else storedByProbeUrl.set(probeUrl, [storedUrl])
+  const keysByProbeUrl = new Map<string, string[]>()
+  for (const { chainName, storedUrl, probeUrl } of targets) {
+    const keys = keysByProbeUrl.get(probeUrl)
+    if (keys) keys.push(reachabilityKey(chainName, storedUrl))
+    else keysByProbeUrl.set(probeUrl, [reachabilityKey(chainName, storedUrl)])
   }
 
-  const distinct = [...storedByProbeUrl.keys()]
+  const distinct = [...keysByProbeUrl.keys()]
   consola.info(`Probing ${distinct.length} distinct endpoint(s)...`)
   const results = await mapWithConcurrency(
     distinct,
@@ -96,11 +108,11 @@ async function probeAll(targets: IProbeTarget[]): Promise<Set<string>> {
   return new Set(
     results
       .filter((result) => result.ok)
-      .flatMap((result) => storedByProbeUrl.get(result.probeUrl) ?? [])
+      .flatMap((result) => keysByProbeUrl.get(result.probeUrl) ?? [])
   )
 }
 
-function printChain(audit: IChainAudit, reachable: ReachableUrls) {
+function printChain(audit: IChainAudit, reachable: ReachableEndpoints) {
   const { chainName, ordered, repaired, needsRepair } = audit
   const marker = needsRepair ? '✗' : '✓'
   consola.log(`${marker} ${chainName}`)
@@ -109,7 +121,7 @@ function printChain(audit: IChainAudit, reachable: ReachableUrls) {
     const keyed = hasApiCredentials(endpoint.url) ? 'keyed ' : 'NO KEY'
     const health = !reachable
       ? ''
-      : reachable.has(endpoint.url)
+      : reachable.has(reachabilityKey(chainName, endpoint.url))
       ? ' up  '
       : ' DOWN'
     consola.log(
@@ -189,6 +201,7 @@ const main = defineCommand({
                   doc.rpcs as IRpcEndpoint[],
                   args.environment
                 ).map((endpoint) => ({
+                  chainName: doc.chainName as string,
                   storedUrl: endpoint.url,
                   probeUrl: normalizeRpcUrlForNetwork(
                     doc.chainName as string,
@@ -221,7 +234,9 @@ const main = defineCommand({
         const stranded = audits.filter(
           (audit) =>
             audit.repaired.length > 0 &&
-            !audit.repaired.some((endpoint) => reachable.has(endpoint.url))
+            !audit.repaired.some((endpoint) =>
+              reachable.has(reachabilityKey(audit.chainName, endpoint.url))
+            )
         )
         if (stranded.length)
           consola.warn(
