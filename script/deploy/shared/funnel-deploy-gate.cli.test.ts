@@ -155,7 +155,8 @@ const assertChildIsUsable = (
 
 /**
  * Runs a real propose CLI in a throwaway repo.
- * @param options - which CLI, its arguments, and the repo to run it in
+ * @param options - which CLI, its arguments, the repo to run it in, and the
+ * `ENVIRONMENT` to set (deleted from the child's environment when omitted)
  * @returns the child's combined output and exit status
  */
 const spawnCli = (options: {
@@ -195,6 +196,9 @@ const spawnCli = (options: {
     encoding: 'utf8',
     env,
     timeout: TIMEOUT_MS,
+    // Truncated output would hide a store breach from the tripwire below, and
+    // report it as ENOBUFS instead, whatever order the checks run in.
+    maxBuffer: Infinity,
     stdio: ['ignore', 'pipe', 'pipe'],
   })
 

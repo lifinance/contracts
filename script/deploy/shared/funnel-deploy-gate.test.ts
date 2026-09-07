@@ -419,7 +419,7 @@ describe('assertFunnelDeployGate', () => {
   })
 })
 
-describe('gate condition, retargeted from diamondUpdateFacet.sh (#2128)', () => {
+describe('gate condition: the funnel has no environment predicate', () => {
   // This funnel has no environment predicate: what these pin is that no value of
   // that name can turn it off, and that testnets stay exempt. The predicate class
   // is NOT gone from the repo — the direct-broadcast route has no calldata to
