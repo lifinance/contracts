@@ -40,8 +40,9 @@ only the quick-start; this is the full guide.
    drifted compiler produces bytecode that cannot be reproduced from the
    recorded commit. The pre-commit hook runs the same check but only warns, so a
    drifted local `forge` can still commit. To bump the pin, change
-   `.foundry-version` in a PR — every workflow and dev environment picks it up
-   automatically.
+   `.foundry-version` in a PR — every workflow picks it up automatically, but
+   your machine does not: rerun `foundryup --install "$(cat .foundry-version)"`
+   after the pin changes, or deploys will refuse.
 
 4. Set up environment variables:
 

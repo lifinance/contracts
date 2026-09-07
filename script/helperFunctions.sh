@@ -5197,8 +5197,8 @@ function parseExecuteCommandResult() {
 #   $4 - ON_ERROR_ACTION: Optional action on error: "return" (default), "continue", or "exit"
 # Routing/Behavior:
 #   - Local foundry does not match .foundry-version: refuses before running COMMAND,
-#     sets RETURN_CODE to 1 and clears RAW_RETURN_DATA, returns 1 whatever
-#     ON_ERROR_ACTION says
+#     sets RETURN_CODE to 1, clears RAW_RETURN_DATA, puts the refusal in
+#     STDERR_CONTENT, and returns 1 whatever ON_ERROR_ACTION says
 #   - Otherwise: runs COMMAND and parses the result as described below
 # Returns:
 #   Sets global variables RAW_RETURN_DATA, STDERR_CONTENT, RETURN_CODE (always contain last execution output)
@@ -5220,10 +5220,11 @@ function executeAndParse() {
 
   # Every deploy-path `forge script` is a COMMAND passed to this function, which is why a
   # toolchain check lives in a generic executor. Direct `forge build` call sites do not
-  # pass through here and are gated at their own entry point. The result globals are reset
-  # because callers that ignore the status read the verdict out of them via
-  # handleForgeScriptError, where a previous call's success payload would read as a
-  # completed forge run.
+  # pass through here: the EXSC-932 deploy entry points gate their own, but
+  # scriptMaster.sh's startup build and deployGroupingHelpers.sh's per-group builds are
+  # still ungated. The result globals are reset because callers that ignore the status read
+  # the verdict out of them via handleForgeScriptError, where a previous call's success
+  # payload would read as a completed forge run.
   if ! assertFoundryVersionOrFail; then
     RAW_RETURN_DATA=""
     STDERR_CONTENT="refused: could not confirm the local foundry matches .foundry-version"
