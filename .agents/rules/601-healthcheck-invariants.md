@@ -48,10 +48,10 @@ invariant must be added, adjusted, or removed. Use this checklist:
   prefers a `.<network>`-prefixed form of the same key wherever the config file defines one,
   so a chain whose counterparty lives under its own block (Tron's under `.tron`) is compared
   against that value rather than the EVM default.
-  Forgetting the annotation is not silent: `script/deploy/shared/immutableGetterCoverage.test.ts`
-  scans the deployed source trees (`src/Facets`, `src/Periphery`, `src/Security`) for public
-  immutable address getters and fails on any
-  that is neither annotated nor listed in `UNANNOTATED_IMMUTABLE_GETTERS` with a reason.
+  Forgetting the annotation is not silent: the `verify-immutable-registry` CI job reads the
+  compiler AST for the deployed source trees (`src/Facets`, `src/Periphery`, `src/Security`)
+  and fails on any public immutable address getter that is neither annotated nor listed in
+  `script/deploy/immutables/getter-exemptions.json` with a reason.
   Annotating is the expected fix — exempt a getter only when no config file holds a value to
   compare it against (a LI.FI-deployed contract read from the deploy log, or an operated wallet).
   The list may only shrink: the same suite fails on an exemption that has since been annotated
