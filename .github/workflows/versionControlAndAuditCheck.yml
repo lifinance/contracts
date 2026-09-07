@@ -70,7 +70,10 @@ jobs:
 
           ##### get all files modified by this PR
           # --diff-filter=AM argument to only include files that were added or modified not deleted
-          FILES="$(git diff --name-only --diff-filter=AM "origin/${BASE_REF}" HEAD)"
+          # three-dot so the diff is against the merge base. Two-dot also lists the commits the
+          # base branch gained since the branch point, which flags contracts this PR never
+          # touched as needing a version bump and an audit
+          FILES="$(git diff --name-only --diff-filter=AM "origin/${BASE_REF}...HEAD")"
 
           ##### if no files were modified, this is valid (e.g., just moving files around)
           if [[ -z "$FILES" ]]; then
@@ -117,6 +120,14 @@ jobs:
           ##### Read tmp file into variable
           CONTRACTS=$(cat modified_contracts.txt)
 
+          ##### every comparison below is against the commit this branch forked from, not the
+          ##### moving base-branch tip
+          MERGE_BASE=$(git merge-base "origin/$BASE_REF" HEAD)
+          if [[ -z "$MERGE_BASE" ]]; then
+            echo -e "\033[31mCould not determine the merge base with origin/$BASE_REF. Aborting now.\033[0m"
+            exit 1
+          fi
+
           ##### Initialize variables
           MISSING_VERSION_TAG=()
           MISSING_VERSION_UPDATE=()
@@ -144,7 +155,7 @@ jobs:
               echo -e "\033[32mFile contains a custom:version tag\033[0m"
 
               ##### Filter relevant code changes (exclude comments, pragma, license, empty lines)
-              DIFF_OUTPUT=$(git diff "origin/$BASE_REF" HEAD -- "$FILE_PATH")
+              DIFF_OUTPUT=$(git diff "$MERGE_BASE" HEAD -- "$FILE_PATH")
               RELEVANT_CHANGES=$(echo "$DIFF_OUTPUT" | grep -E '^[\+\-]' \
                 | grep -vE "^[\+\-][[:space:]]*(//|/\*|pragma)" \
                 | grep -vE '^(\+\+\+|---)' \
@@ -159,7 +170,7 @@ jobs:
                   echo "--------------------"
                   echo "Checking if version was updated..."
 
-                  OLD_FILE_CONTENT=$(git show "origin/$BASE_REF:${FILE_PATH}" 2>/dev/null || echo "")
+                  OLD_FILE_CONTENT=$(git show "$MERGE_BASE:${FILE_PATH}" 2>/dev/null || echo "")
                   OLD_VERSION=$(echo "$OLD_FILE_CONTENT" | grep -E '^/// @custom:version' | sed -E 's/^\/\/\/ @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*$/\1/')
 
                   # If there was no old version line in the diff, it's a new file.
