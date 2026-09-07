@@ -361,7 +361,7 @@ const runEntryPoint = (
   sourcePath: string,
   invocation: string,
   forgeVersion: string
-): { refused: boolean; forgeArgv: string[] } => {
+): { refused: boolean; forgeArgv: string[]; touchedRecords: string } => {
   const stubDir = mkdtempSync(join(tmpdir(), 'foundry-version-entry-'))
   const argvLog = join(stubDir, 'argv.log')
   writeFileSync(argvLog, '')
@@ -404,6 +404,12 @@ const runEntryPoint = (
         // itself reads neither.
         `getPrivateKey() { echo "not-a-key"; }`,
         `cast() { echo "0x0000000000000000000000000000000000000001"; }`,
+        // diamondUpdateFacet.sh reaches saveDiamondFacets even on its failure
+        // path, which rewrites a tracked deployment log. Deployment records are
+        // read-only for this project, and the assertion below catches any writer
+        // these stubs miss.
+        `saveDiamondFacets() { :; }`,
+        `saveDiamondPeriphery() { :; }`,
         `source ${sourcePath} >/dev/null 2>&1`,
         invocation,
       ].join('\n'),
@@ -418,6 +424,12 @@ const runEntryPoint = (
     forgeArgv: readFileSync(argvLog, 'utf8')
       .split('\n')
       .filter((argv) => argv !== ''),
+    // Driving real deploy scripts must not rewrite the repo's own records.
+    touchedRecords: execFileSync(
+      'git',
+      ['status', '--porcelain', 'deployments', 'config'],
+      { cwd: REPO_ROOT, encoding: 'utf8' }
+    ).trim(),
   }
 }
 
@@ -519,12 +531,13 @@ describe('every drivable entry point, driven for real', () => {
   it.each(DRIVABLE_ENTRY_POINTS)(
     '%s refuses a drifted forge and starts no other forge',
     (_name, sourcePath, invocation) => {
-      const { refused, forgeArgv } = runEntryPoint(
+      const { refused, forgeArgv, touchedRecords } = runEntryPoint(
         sourcePath,
         invocation,
         '9.9.9'
       )
 
+      expect(touchedRecords).toBe('')
       expect(refused).toBe(true)
       // Non-empty proves the run actually reached the gate rather than
       // returning early, which would satisfy the next assertion for free.
