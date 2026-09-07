@@ -4,7 +4,7 @@
  * config says is legitimate.
  *
  * Import this to build the `attestationsFor` dependency of
- * {@link verifyCutTargets}. WP-5.2 turns the same answer into a lookup later; it
+ * `verifyCutTargets`. WP-5.2 turns the same answer into a lookup later; it
  * is not a prerequisite, because a rebuild answers the question today.
  *
  * Three shapes of the problem decide the design.
@@ -12,7 +12,7 @@
  * **The record supplies the commit, never the toolchain.** Fourteen production
  * slots record `0.8.29` for code the compiler stamped `0.8.17`, so a profile
  * taken from the record would grade honest deploys rogue. The legitimate pairs
- * come from {@link deriveToolchainScope}, and every one of them is rebuilt, so
+ * come from `deriveToolchainScope`, and every one of them is rebuilt, so
  * the gate downstream does set membership rather than equality against one
  * record-derived profile.
  *
@@ -32,7 +32,11 @@
 import { keccak256, type Hex } from 'viem'
 
 import type { IAttestedBuild } from './attested-set'
-import { readMetadataTrailer, stripMetadataTrailer } from './bytecode-trailer'
+import {
+  readMetadataTrailer,
+  stripMetadataTrailer,
+  type MetadataTrailer,
+} from './bytecode-trailer'
 import {
   ensureCommitAvailable,
   type ICommitAvailabilityDeps,
@@ -181,8 +185,9 @@ export const normalizeRuntimeCode = (
   const fault = frameFault(runtimeHex, 'bytecode')
   if (fault) return { ok: false, reason: fault }
 
-  const exact = `0x${strip0x(runtimeHex)}` as Hex
-  const rawByteLength = strip0x(exact).length / 2
+  const body = strip0x(runtimeHex)
+  const exact = `0x${body}` as Hex
+  const rawByteLength = body.length / 2
   const rawHash = keccak256(exact)
   const { code } = stripMetadataTrailer(exact)
 
@@ -222,13 +227,13 @@ const isZkProfile = (profile: IBuildProfile): boolean =>
  * @param record - the deployment record's contract identity
  * @param commit - the commit rebuilt at
  * @param profile - the compiler pair used
- * @param runtimeHex - what the rebuild produced, for its own trailer
+ * @param trailer - the rebuild's own metadata trailer
  */
 const describeLineage = (
   record: IDeploymentRecordRef,
   commit: string,
   profile: IBuildProfile,
-  runtimeHex: string
+  trailer: MetadataTrailer
 ): string => {
   const identity = `${record.contractName}@${
     record.version
@@ -236,7 +241,6 @@ const describeLineage = (
   if (!isZkProfile(profile))
     return `${identity} (${profile.profile}: solc ${profile.solcVersion}, ${profile.evmVersion})`
 
-  const trailer = readMetadataTrailer(runtimeHex)
   const toolchain = trailer.present ? trailer.toolchain : undefined
   // The LLVM fork is the one axis nothing in the record pins, and a fork bump is
   // exactly what a pinned comparison exists to catch, so it is named.
@@ -288,7 +292,7 @@ const attestationFrom = (
   return {
     ok: true,
     build: {
-      lineage: describeLineage(record, commit, profile, artifact.runtimeHex),
+      lineage: describeLineage(record, commit, profile, trailer),
       solcVersion,
       maskedHash: normalized.maskedHash,
       rawByteLength: normalized.rawByteLength,

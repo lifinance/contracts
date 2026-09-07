@@ -240,9 +240,9 @@ describe('createAttestationSource — the four outcomes stay four', () => {
   })
 
   it('reports a record with no commit as unattestable, not as an error', async () => {
-    // 748 fleet slots predate `gitCommitHash`, and `getCurrentGitCommitHash()`
-    // still writes the literal 'UNKNOWN' on failure. Grading those ERROR would
-    // page on history rather than on a defect.
+    // 748 fleet slots are ones whose commit the record never stored, and
+    // `getCurrentGitCommitHash()` still writes the literal 'UNKNOWN' on
+    // failure. Grading those ERROR would page on history, not on a defect.
     for (const gitCommitHash of ['', 'UNKNOWN']) {
       const { source } = sourceWith({
         readRecord: async () => ({ ...RECORD, gitCommitHash }),
