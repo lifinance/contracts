@@ -131,12 +131,17 @@ describe('sendGuardedDiamondCut', () => {
   /** 100 SUN per energy: the 5000 TRX limit buys 50,000,000 energy. */
   const SUN_PER_ENERGY = 100
   /**
-   * `estimateDiamondCutEnergy` multiplies by `DIAMOND_CUT_ENERGY_MULTIPLIER`
-   * (10), so 20,000 raw becomes 200,000 energy — 20,000,000 SUN, well inside
-   * the limit. 6,000,000 raw becomes 60,000,000 energy, which is not.
+   * Figures are derived from the price, not from the code's behaviour. At 100
+   * SUN per energy the 5000 TRX limit buys 50,000,000 energy, so with the
+   * devkit's 1.2 margin the break-even raw estimate is ~41,666,667.
+   *
+   * 6,000,000 raw costs 720 TRX with the margin applied — comfortably inside a
+   * 5000 TRX limit, and it must NOT be refused. An earlier revision multiplied
+   * the comparison figure by 10 and refused exactly this cut, which is a routine
+   * multi-facet size.
    */
-  const AFFORDABLE_ENERGY_USED = 20_000
-  const UNAFFORDABLE_ENERGY_USED = 6_000_000
+  const AFFORDABLE_ENERGY_USED = 6_000_000
+  const UNAFFORDABLE_ENERGY_USED = 60_000_000
 
   let sends: unknown[]
   let energyUsed: number | null

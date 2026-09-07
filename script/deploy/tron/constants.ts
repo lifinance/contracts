@@ -107,9 +107,6 @@ export const TRON_SAFE_GET_TX_HASH_ABI = [
   },
 ] as const
 
-// Diamond operations require significantly more energy than regular transactions
-export const DIAMOND_CUT_ENERGY_MULTIPLIER = 10
-
 // Safety multiplier for Safe createProxyWithNonce + setup (proxy creation) energy estimate
 export const CREATE_PROXY_SAFETY_MARGIN = 1.2
 

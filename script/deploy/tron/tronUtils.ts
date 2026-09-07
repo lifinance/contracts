@@ -7,6 +7,7 @@
 import {
   DEFAULT_FEE_LIMIT_TRX,
   MIN_BALANCE_REGISTRATION,
+  DEFAULT_SAFETY_MARGIN,
   MIN_BALANCE_WARNING,
   TRON_ZERO_ADDRESS,
   createTronWebReadOnly,
@@ -41,7 +42,6 @@ import {
 import { getContractVersion } from '../shared/getContractVersion'
 import { isRateLimitError } from '../shared/rateLimit'
 
-import { DIAMOND_CUT_ENERGY_MULTIPLIER } from './constants'
 import {
   assertRecordedArgsMatchAbi,
   constructorInputTypes,
@@ -348,7 +348,11 @@ export async function estimateDiamondCutEnergy(
     contractAddressBase58: diamondAddress,
     functionSelector: 'diamondCut((address,uint8,bytes4[])[],address,bytes)',
     parameterHex: encodedParams,
-    safetyMargin: DIAMOND_CUT_ENERGY_MULTIPLIER,
+    // The margin belongs on the figure the guard compares; the headroom belongs
+    // in DIAMOND_CUT_FEE_LIMIT_SUN. Putting a 10x multiplier here too made the
+    // guard refuse at a tenth of the true threshold — a 6,000,000-energy cut
+    // costs 720 TRX against a 5000 TRX limit and was refused.
+    safetyMargin: DEFAULT_SAFETY_MARGIN,
   })
 }
 
