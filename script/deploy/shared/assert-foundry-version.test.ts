@@ -302,6 +302,17 @@ describe('diamondUpdateFacet.sh, which #2324 owns', () => {
   })
 })
 
+/**
+ * Working-tree state of the paths a deploy script could rewrite.
+ *
+ * @returns Porcelain status for `deployments` and `config`.
+ */
+const recordStatus = (): string =>
+  execFileSync('git', ['status', '--porcelain', 'deployments', 'config'], {
+    cwd: REPO_ROOT,
+    encoding: 'utf8',
+  }).trim()
+
 const SCRIPT_DIRECTORIES = {
   DEPLOY_SCRIPT_DIRECTORY: 'script/deploy/facets/',
   TASKS_SCRIPT_DIRECTORY: 'script/tasks/',
@@ -309,22 +320,22 @@ const SCRIPT_DIRECTORIES = {
 } as const
 
 /**
- * Every entry point EXSC-932 names, with the call that reaches its forge step.
- * `acceptOwnershipTransferPeriphery` is absent: it returns before its forge call
- * for reasons unrelated to this gate, so a case there would assert on a run that
- * never reached it. Its only forge invocation is the `executeAndParse` argument
- * at line 59, so the seam covers it — proven separately, not here.
+ * Entry points that reach their forge step with no `.env` and no signing key,
+ * which is how CI runs this suite.
+ *
+ * `deployAndStoreCREATE3Factory` and `acceptOwnershipTransferPeriphery` are
+ * absent: both stop on a missing private key before their forge call, so a case
+ * for either would assert on a run that never reached the gate. Their forge
+ * invocations are `executeAndParse` arguments, so the seam covers them, and the
+ * seam's own refusal is proven executably above. Supplying a key to reach them
+ * is deliberately not done — it would put a real key in `cast`'s argv on any
+ * machine that has one.
  */
 const DRIVABLE_ENTRY_POINTS = [
   [
     'deploySingleContract',
     'script/deploy/deploySingleContract.sh',
     'deploySingleContract Executor arbitrum staging 1.0.0 false',
-  ],
-  [
-    'deployAndStoreCREATE3Factory',
-    'script/deploy/deployAndStoreCREATE3Factory.sh',
-    'deployAndStoreCREATE3Factory arbitrum staging',
   ],
   [
     'diamondUpdateFacet',
@@ -349,8 +360,11 @@ const DRIVABLE_ENTRY_POINTS = [
  * rather than by classifying shell text. Four line-scanning attempts at the same
  * question each missed a different real shape.
  *
- * Scope: the stub is found through PATH, so it records the pinned `forge` only.
- * `./foundry-zksync/forge` is invoked by relative path and is not intercepted.
+ * Scope: the stub is found through PATH, so it records the pinned `forge` only —
+ * which is the binary `.foundry-version` governs. `./foundry-zksync/forge` is
+ * invoked by relative path and is NOT intercepted, so the zk pre-build that
+ * motivates deploySingleContract's own entry-point gate has no executable
+ * backing here; its ordering rests on `gateCallLineIndex` instead.
  *
  * @param sourcePath - Entry-point script to source.
  * @param invocation - The call to make, with arguments.
@@ -361,7 +375,7 @@ const runEntryPoint = (
   sourcePath: string,
   invocation: string,
   forgeVersion: string
-): { refused: boolean; forgeArgv: string[]; touchedRecords: string } => {
+): { refused: boolean; forgeArgv: string[]; recordsChanged: boolean } => {
   const stubDir = mkdtempSync(join(tmpdir(), 'foundry-version-entry-'))
   const argvLog = join(stubDir, 'argv.log')
   writeFileSync(argvLog, '')
@@ -378,6 +392,8 @@ const runEntryPoint = (
     `#!/bin/bash\nif [ "$1" = "choose" ]; then\n  echo "2) One specific network (selection in next screen)"\nelse\n  echo "arbitrum"\nfi\n`
   )
   chmodSync(join(stubDir, 'gum'), 0o755)
+
+  const recordsBefore = recordStatus()
 
   const result = spawnSync(
     'bash',
@@ -399,17 +415,10 @@ const runEntryPoint = (
         ...Object.entries(SCRIPT_DIRECTORIES).map(
           ([name, value]) => `export ${name}="${value}"`
         ),
-        // Credential lookups, stubbed so the run reaches the gate on a machine
-        // with no keys. Nothing downstream of the gate executes, and the gate
-        // itself reads neither.
-        `getPrivateKey() { echo "not-a-key"; }`,
-        `cast() { echo "0x0000000000000000000000000000000000000001"; }`,
-        // diamondUpdateFacet.sh reaches saveDiamondFacets even on its failure
-        // path, which rewrites a tracked deployment log. Deployment records are
-        // read-only for this project, and the assertion below catches any writer
-        // these stubs miss.
-        `saveDiamondFacets() { :; }`,
-        `saveDiamondPeriphery() { :; }`,
+        // No function stubs here on purpose: four of these scripts re-source
+        // helperFunctions.sh inside their own body, so anything defined at this
+        // point is redefined before it can take effect. The record-safety claim
+        // is carried by the assertion on the return value instead.
         `source ${sourcePath} >/dev/null 2>&1`,
         invocation,
       ].join('\n'),
@@ -425,11 +434,10 @@ const runEntryPoint = (
       .split('\n')
       .filter((argv) => argv !== ''),
     // Driving real deploy scripts must not rewrite the repo's own records.
-    touchedRecords: execFileSync(
-      'git',
-      ['status', '--porcelain', 'deployments', 'config'],
-      { cwd: REPO_ROOT, encoding: 'utf8' }
-    ).trim(),
+    // Compared against a baseline rather than against "clean": an unrelated
+    // uncommitted change under those paths would otherwise fail every case and
+    // point the blame at the deploy script.
+    recordsChanged: recordStatus() !== recordsBefore,
   }
 }
 
@@ -531,13 +539,13 @@ describe('every drivable entry point, driven for real', () => {
   it.each(DRIVABLE_ENTRY_POINTS)(
     '%s refuses a drifted forge and starts no other forge',
     (_name, sourcePath, invocation) => {
-      const { refused, forgeArgv, touchedRecords } = runEntryPoint(
+      const { refused, forgeArgv, recordsChanged } = runEntryPoint(
         sourcePath,
         invocation,
         '9.9.9'
       )
 
-      expect(touchedRecords).toBe('')
+      expect(recordsChanged).toBe(false)
       expect(refused).toBe(true)
       // Non-empty proves the run actually reached the gate rather than
       // returning early, which would satisfy the next assertion for free.

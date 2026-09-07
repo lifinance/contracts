@@ -5220,11 +5220,11 @@ function executeAndParse() {
 
   # Every deploy-path `forge script` is a COMMAND passed to this function, which is why a
   # toolchain check lives in a generic executor. Direct `forge build` call sites do not
-  # pass through here: the EXSC-932 deploy entry points gate their own, but
-  # scriptMaster.sh's startup build and deployGroupingHelpers.sh's per-group builds are
-  # still ungated. The result globals are reset because callers that ignore the status read
-  # the verdict out of them via handleForgeScriptError, where a previous call's success
-  # payload would read as a completed forge run.
+  # pass through here; the EXSC-932 deploy entry points gate their own, and several others
+  # (scriptMaster.sh, deployGroupingHelpers.sh, deployContractToNetworks.sh,
+  # proposeContractToNetworks.sh) remain ungated. The result globals are reset because
+  # callers that ignore the status read the verdict out of them via handleForgeScriptError,
+  # where a previous call's success payload would read as a completed forge run.
   if ! assertFoundryVersionOrFail; then
     RAW_RETURN_DATA=""
     STDERR_CONTENT="refused: could not confirm the local foundry matches .foundry-version"
