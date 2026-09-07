@@ -15,7 +15,7 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
-import type { IChainSimulateResult } from '../../../common/types'
+import type { IChainSimulateResult } from '../../common/types'
 
 import { assertTronBroadcastAffordable } from './tron-energy-preflight'
 
@@ -97,6 +97,52 @@ describe('a failed estimate refuses rather than guessing', () => {
     expect(assertTronBroadcastAffordable(fellBack, options)).rejects.toThrow(
       /refusing to broadcast/
     )
+  })
+
+  it('treats a zero-energy estimate as no estimate', async () => {
+    // A node can answer without simulating. Priced, zero clears any fee limit,
+    // so this guard would pass exactly the calls it exists to stop.
+    const error = await assertTronBroadcastAffordable(
+      estimateOf(0n),
+      options
+    ).then(
+      () => undefined,
+      (e: unknown) => e as Error
+    )
+
+    expect(error?.message).toContain('refusing to broadcast')
+    expect(error?.message).toContain('no contract call costs')
+  })
+})
+
+describe('the refusal names the control that raises the limit', () => {
+  it('names the env var by default', async () => {
+    const error = await assertTronBroadcastAffordable(
+      estimateOf(600_000n),
+      options
+    ).then(
+      () => undefined,
+      (e: unknown) => e as Error
+    )
+
+    expect(error?.message).toContain('TRON_SAFE_EXEC_FEE_LIMIT_SUN')
+  })
+
+  it('names a caller-supplied control instead when the path has one', async () => {
+    // The operator tools are capped by a flag, not by the env var; a refusal
+    // pointing at the env var would send the operator to a setting that
+    // changes nothing on that path.
+    const error = await assertTronBroadcastAffordable(estimateOf(600_000n), {
+      ...options,
+      raiseFeeLimitHint: (requiredSun) =>
+        `Re-run with --feeLimit ${requiredSun}.`,
+    }).then(
+      () => undefined,
+      (e: unknown) => e as Error
+    )
+
+    expect(error?.message).toContain('Re-run with --feeLimit 60000000.')
+    expect(error?.message).not.toContain('TRON_SAFE_EXEC_FEE_LIMIT_SUN')
   })
 })
 

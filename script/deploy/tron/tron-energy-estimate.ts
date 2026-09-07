@@ -25,7 +25,7 @@ import {
   type TronTvmNetworkName,
 } from '@lifi/tron-devkit'
 
-import { fetchWithTimeout } from '../../../utils/fetchWithTimeout'
+import { fetchWithTimeout } from '../../utils/fetchWithTimeout'
 
 /**
  * The devkit's default cap, mirrored so a refusal can name the figure the
@@ -46,6 +46,13 @@ export interface ITronEnergyEstimateParams {
   data: `0x${string}`
   /** TRX carried by the call, in SUN. */
   callValue: bigint
+  /**
+   * Endpoint to estimate against. Defaults to the one
+   * {@link getTronRPCConfig} resolves for `networkKey`; pass it when the caller
+   * broadcasts somewhere else, such as `troncast --rpcUrl`. Estimating against
+   * a different node than the send would check a different chain's state.
+   */
+  rpcUrl?: string
   /** Injected in tests so retries do not sleep. */
   sleep?: (ms: number) => Promise<void>
 }
@@ -161,7 +168,7 @@ const requestEnergyUsed = async (
       false
     )
 
-  const { rpcUrl } = getTronRPCConfig(params.networkKey)
+  const rpcUrl = params.rpcUrl ?? getTronRPCConfig(params.networkKey).rpcUrl
   const fullHost = resolveTronWebRpcUrlToFullHost(rpcUrl, params.networkKey)
   const apiUrl = fullHost.replace(/\/$/, '') + '/wallet/triggerconstantcontract'
 

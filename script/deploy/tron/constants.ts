@@ -113,6 +113,9 @@ export const DIAMOND_CUT_ENERGY_MULTIPLIER = 10
 // Safety multiplier for Safe createProxyWithNonce + setup (proxy creation) energy estimate
 export const CREATE_PROXY_SAFETY_MARGIN = 1.2
 
+/** Fee limit (SUN) the direct-EOA `transferOwnership` send runs under: 10 TRX. */
+export const TRANSFER_OWNERSHIP_FEE_LIMIT_SUN = 10_000_000
+
 /** Min/max fee limit (SUN) for registerPeripheryContract prompts and bounds checks. */
 export const REGISTER_PERIPHERY_FEE_LIMIT_MIN_SUN = 1_000_000 // 1 TRX
 export const REGISTER_PERIPHERY_FEE_LIMIT_MAX_SUN =

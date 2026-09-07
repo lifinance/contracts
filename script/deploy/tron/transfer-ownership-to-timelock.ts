@@ -15,9 +15,68 @@ import { EnvironmentEnum } from '../../common/types'
 import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
 import { getEnvVar, getEnvironment } from '../../utils/utils'
 
-import { TRON_DIAMOND_CONFIRM_OWNERSHIP_SELECTOR } from './constants.js'
+import {
+  TRANSFER_OWNERSHIP_FEE_LIMIT_SUN,
+  TRON_DIAMOND_CONFIRM_OWNERSHIP_SELECTOR,
+} from './constants.js'
 import { runPropose } from './propose-to-safe-tron.js'
+import { tronEnergyCostInSun } from './tron-energy-estimate.js'
+import {
+  estimateTronEnergyBySelector,
+  sendGuardedTronContractCall,
+  type ITronConstantContractCaller,
+} from './tron-guarded-send.js'
 import { waitBetweenDeployments } from './tronUtils.js'
+
+/**
+ * TronWeb's contract wrapper resolves methods dynamically, so its own type
+ * carries none of them and a call site has to name the one it uses.
+ */
+export interface ITronOwnershipDiamond {
+  transferOwnership: (to: string) => {
+    send: (options: Record<string, unknown>) => Promise<string>
+  }
+}
+
+/**
+ * The only `.send()` on this path, so there is one place the pre-flight can
+ * sit and no order for a later caller to get wrong.
+ *
+ * @param params - Clients, the diamond wrapper, and the addresses involved.
+ * @returns The transaction id.
+ * @throws Before broadcasting, when the fee limit cannot be shown to cover the
+ * call.
+ */
+export const sendTransferOwnership = async (params: {
+  tronWeb: ITronConstantContractCaller & {
+    trx: { getEnergyPrices: () => Promise<string> }
+  }
+  diamond: ITronOwnershipDiamond
+  networkName: string
+  diamondAddress: string
+  timelockBase58: string
+}): Promise<string> =>
+  sendGuardedTronContractCall({
+    networkName: params.networkName,
+    operation: `transferOwnership(${params.timelockBase58}) on ${params.diamondAddress}`,
+    feeLimitSun: TRANSFER_OWNERSHIP_FEE_LIMIT_SUN,
+    estimateEnergy: () =>
+      estimateTronEnergyBySelector({
+        tronWeb: params.tronWeb,
+        contractAddress: params.diamondAddress,
+        functionSelector: 'transferOwnership(address)',
+        parameters: [{ type: 'address', value: params.timelockBase58 }],
+      }),
+    costInSun: (energy) => tronEnergyCostInSun(params.tronWeb, energy),
+    raiseFeeLimitHint: (requiredSun) =>
+      `Raise TRANSFER_OWNERSHIP_FEE_LIMIT_SUN in script/deploy/tron/constants.ts ` +
+      `to at least ${requiredSun}.`,
+    broadcast: () =>
+      params.diamond.transferOwnership(params.timelockBase58).send({
+        feeLimit: TRANSFER_OWNERSHIP_FEE_LIMIT_SUN,
+        shouldPollResponse: true,
+      }),
+  })
 
 /**
  * Transfer LiFi Diamond ownership to `LiFiTimelockController` from the Tron deployments file.
@@ -171,9 +230,12 @@ async function transferOwnershipToTimelock(options: {
     )
 
     try {
-      const tx = await diamond.transferOwnership(timelockBase58).send({
-        feeLimit: 10_000_000,
-        shouldPollResponse: true,
+      const tx = await sendTransferOwnership({
+        tronWeb,
+        diamond: diamond as unknown as ITronOwnershipDiamond,
+        networkName,
+        diamondAddress,
+        timelockBase58,
       })
       consola.success('   ✅ Ownership transfer initiated.')
       consola.info(`   Transaction: ${tx}`)

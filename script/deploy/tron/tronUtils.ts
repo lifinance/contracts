@@ -12,7 +12,6 @@ import {
   createTronWebReadOnly,
   estimateContractCallEnergy,
   evmHexToTronBase58,
-  getCurrentPrices,
   getTronWebCodecFullHostForNetwork,
   getTronWebCodecOnlyForNetwork,
   loadForgeArtifact,
@@ -49,6 +48,8 @@ import {
   encodeConstructorArgs as encodeWithTypes,
   type AbiParamEncoder,
 } from './constructor-args'
+import { tronEnergyCostInSun } from './tron-energy-estimate'
+import { sendGuardedTronContractCall } from './tron-guarded-send'
 import type { IDiamondRegistrationResult } from './types'
 
 /**
@@ -352,6 +353,65 @@ export async function estimateDiamondCutEnergy(
 }
 
 /**
+ * The only `.send()` on the facet-registration path, so there is one place the
+ * energy pre-flight can sit and no order for a later caller to get wrong.
+ *
+ * Prices through {@link tronEnergyCostInSun} rather than the devkit's
+ * `getCurrentPrices`, which substitutes a constant when the read fails and
+ * returns 0 for an empty price string — either would clear any fee limit.
+ *
+ * @param params - Clients, the diamond wrapper, the cuts and the labels used
+ * in a refusal.
+ * @returns The transaction id.
+ * @throws Before broadcasting, when the fee limit cannot be shown to cover the
+ * cut.
+ */
+export async function sendGuardedDiamondCut(params: {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  tronWeb: any
+  diamond: {
+    diamondCut: (
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      facetCuts: any[],
+      init: string,
+      calldata: string
+    ) => { send: (options: Record<string, unknown>) => Promise<string> }
+  }
+  network: string
+  facetName: string
+  diamondAddress: string
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  facetCuts: any[]
+  fullHost: string
+}): Promise<string> {
+  const feeLimitSun = DEFAULT_FEE_LIMIT_TRX * 1_000_000
+
+  return sendGuardedTronContractCall({
+    networkName: params.network,
+    operation: `diamondCut registering ${params.facetName}`,
+    feeLimitSun,
+    estimateEnergy: async () =>
+      BigInt(
+        await estimateDiamondCutEnergy(
+          params.tronWeb,
+          params.diamondAddress,
+          params.facetCuts,
+          params.fullHost
+        )
+      ),
+    costInSun: (energy) => tronEnergyCostInSun(params.tronWeb, energy),
+    raiseFeeLimitHint: (requiredSun) =>
+      `Split the batch, or raise the devkit's DEFAULT_FEE_LIMIT_TRX above ` +
+      `${requiredSun} SUN.`,
+    broadcast: () =>
+      params.diamond.diamondCut(params.facetCuts, ZERO_ADDRESS, '0x').send({
+        feeLimit: feeLimitSun,
+        shouldPollResponse: true,
+      }),
+  })
+}
+
+/**
  * Register a facet to the diamond
  */
 export async function registerFacetToDiamond(
@@ -471,18 +531,6 @@ export async function registerFacetToDiamond(
       return { success: true }
     }
 
-    // Estimate energy
-    const estimatedEnergy = await estimateDiamondCutEnergy(
-      tronWeb,
-      diamondAddress,
-      facetCuts,
-      fullHost
-    )
-    // Get current energy price from the network
-    const { energyPrice } = await getCurrentPrices(tronWeb)
-    const estimatedCost = estimatedEnergy * energyPrice
-    consola.info(`Estimated registration cost: ${estimatedCost.toFixed(4)} TRX`)
-
     // Check balance
     const balance = await tronWeb.trx.getBalance(tronWeb.defaultAddress.base58)
     const balanceTRX = balance / 1000000
@@ -493,11 +541,15 @@ export async function registerFacetToDiamond(
 
     // Execute diamondCut
     consola.info(`Executing diamondCut...`)
-    const feeLimitInSun = DEFAULT_FEE_LIMIT_TRX * 1000000 // Convert to SUN
 
-    const tx = await diamond.diamondCut(facetCuts, ZERO_ADDRESS, '0x').send({
-      feeLimit: feeLimitInSun,
-      shouldPollResponse: true,
+    const tx = await sendGuardedDiamondCut({
+      tronWeb,
+      diamond,
+      network,
+      facetName,
+      diamondAddress,
+      facetCuts,
+      fullHost,
     })
 
     consola.success(`Registration transaction successful: ${tx}`)
