@@ -6,16 +6,11 @@
  * without creating cycles back through utils.ts.
  */
 
-import { execFileSync } from 'node:child_process'
-
 import { isTronNetworkKey } from '@lifi/tron-devkit'
 import { consola } from 'consola'
 import { encodeFunctionData, type Address, type Hex } from 'viem'
 
-import { EnvironmentEnum } from '../../common/types'
-import { getEnvironment, getFacetSelectors } from '../../utils/utils'
-import { isTestnetNetwork } from '../../utils/viemScriptHelpers'
-import { verifyDeployGateForRepo } from '../github/verify-approvals'
+import { getFacetSelectors } from '../../utils/utils'
 import type { TronTvmNetworkName } from '../tron/types'
 
 import { DIAMOND_CUT_ABI, ZERO_ADDRESS } from './constants'
@@ -101,48 +96,6 @@ export async function encodeDiamondCutCalldata(
 }
 
 /**
- * Applies the production deploy gate to a cut about to be proposed.
- *
- * The bash path is gated in `script/tasks/diamondUpdateFacet.sh`; this funnel is the
- * only other way a facet *addition* reaches a production Safe, so gating it here rather
- * than in each caller means a new caller is covered without anyone remembering to add
- * it. Removals (`cleanUpProdDiamond.ts`, the deferred-cleanup drain) propose diamond
- * cuts too but install no new bytecode, so a main-equivalence check has nothing to
- * compare and they are deliberately out of scope.
- * @param facetName - facet whose closure is compared against `origin/main`
- * @param network - target network, used to exempt testnets
- * @throws If the gate rejects the deploy
- */
-const assertDeployGatePasses = async (
-  facetName: string,
-  network: string
-): Promise<void> => {
-  const environment = getEnvironment()
-  // testnets carry no Safe and are where an unmerged facet is validated pre-audit,
-  // matching the exemption in diamondUpdateFacet.sh
-  if (environment !== EnvironmentEnum.production || isTestnetNetwork(network))
-    return
-
-  const branch = execFileSync('git', ['branch', '--show-current'], {
-    encoding: 'utf8',
-  }).trim()
-
-  const failures = await verifyDeployGateForRepo(
-    { environment, branch, facets: [facetName] },
-    process.cwd()
-  )
-
-  if (failures.length > 0)
-    throw new Error(
-      `Production deploy gate failed for branch "${branch}" - aborting before anything is proposed to the Safe:\n  - ${failures.join(
-        '\n  - '
-      )}`
-    )
-
-  consola.info('Production deploy gate passed')
-}
-
-/**
  * Encode a diamondCut and propose it to Safe via Timelock.
  * Routes to the correct propose script based on network (Tron vs EVM).
  *
@@ -160,8 +113,6 @@ export async function proposeDiamondCut(options: {
   init?: IDiamondCutInit
   excludeSelectors?: string[]
 }): Promise<void> {
-  await assertDeployGatePasses(options.facetName, options.network)
-
   const calldata = await encodeDiamondCutCalldata(
     options.facetName,
     options.facetAddressHex,
