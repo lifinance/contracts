@@ -2,10 +2,12 @@
 # Build and Output Directories
 # -----------------------------------------------------------------------------
 cache/
+cache-immutables/
 zkcache/
 artifacts/
 artifacts-zk/
 out/
+out-immutables/
 zkout/
 broadcast/
 foundry-zksync/*.tar.gz

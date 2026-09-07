@@ -4,7 +4,7 @@ import {
   it,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
-import { getAddress, type Address, type Hex } from 'viem'
+import { getAddress, type Address, type Hex, type PublicClient } from 'viem'
 
 import globalConfig from '../../config/global.json'
 import networksConfig from '../../config/networks.json'
@@ -28,8 +28,11 @@ import {
   findDuplicateSelectors,
   getExemptCoreFacets,
   getExemptCorePeriphery,
+  checkWhitelistIntegrity,
   getExpectedPairs,
   getInvariantExclusion,
+  splitByPendingWhitelist,
+  type IWhitelistPair,
   isInvariantApplicable,
   runHealthCheckInvariants,
   type IHealthCheckContext,
@@ -824,6 +827,241 @@ describe('getExpectedPairs — periphery address resolution', () => {
     expect(pairs).toEqual([])
     expect(warns).toHaveLength(1)
     expect(warns[0]).toContain('reduced coverage')
+  })
+})
+
+describe('splitByPendingWhitelist', () => {
+  const DEX = '0x5555555555555555555555555555555555555555'
+  const DIAMOND = '0xd1a0000000000000000000000000000000000001'
+  const SELECTOR = '0xf8989325' as Hex
+  const OTHER_SELECTOR = '0x2646478b' as Hex
+  const OPERATION_ID = `0x${'ef'.repeat(32)}` as Hex
+  const PAIR: IWhitelistPair = { contract: DEX, selector: SELECTOR }
+
+  const coverage = (
+    records: IPendingRegistration[]
+  ): Map<string, IPendingRegistration[]> =>
+    new Map([[DEX.toLowerCase(), records]])
+
+  const whitelistRecord = (selector: Hex): IPendingRegistration => ({
+    kind: 'whitelist',
+    address: DEX.toLowerCase(),
+    selector,
+    operationId: OPERATION_ID,
+    target: DIAMOND,
+  })
+
+  it('treats a pair as pending when a queued operation whitelists exactly it', () => {
+    const split = splitByPendingWhitelist(
+      [PAIR],
+      coverage([whitelistRecord(SELECTOR)])
+    )
+    expect(split.pending).toEqual([PAIR])
+    expect(split.uncovered).toEqual([])
+  })
+
+  // Whitelisting is per contract AND selector, so another selector on the same contract
+  // leaves this pair unset — downgrading on the address alone would report a sync that
+  // is never coming.
+  it('keeps a pair uncovered when the queued operation grants another selector', () => {
+    const split = splitByPendingWhitelist(
+      [PAIR],
+      coverage([whitelistRecord(OTHER_SELECTOR)])
+    )
+    expect(split.pending).toEqual([])
+    expect(split.uncovered).toEqual([PAIR])
+  })
+
+  it('keeps a pair uncovered when nothing is queued for the contract', () => {
+    expect(splitByPendingWhitelist([PAIR], new Map()).uncovered).toEqual([PAIR])
+  })
+
+  // A cut or a registry entry for the same address whitelists nothing. The record carries
+  // the matching selector on purpose: without it the selector comparison alone would
+  // reject the record and the `kind` guard would never be exercised.
+  it('ignores queued records of another kind for the same address', () => {
+    const split = splitByPendingWhitelist(
+      [PAIR],
+      coverage([
+        {
+          kind: 'facet-cut',
+          address: DEX.toLowerCase(),
+          selector: SELECTOR,
+          operationId: OPERATION_ID,
+          target: DIAMOND,
+        },
+      ])
+    )
+    expect(split.uncovered).toEqual([PAIR])
+  })
+
+  // Real batches repeat one contract under several selectors, so the matcher has to pick
+  // the right record out of many for the same address rather than trust the first.
+  it('finds the matching selector among several records for one contract', () => {
+    const records = ['0x11111111', '0x22222222', SELECTOR, '0x33333333'].map(
+      (selector) => whitelistRecord(selector as Hex)
+    )
+    expect(splitByPendingWhitelist([PAIR], coverage(records)).pending).toEqual([
+      PAIR,
+    ])
+    expect(
+      splitByPendingWhitelist([PAIR], coverage(records.slice(0, 2))).uncovered
+    ).toEqual([PAIR])
+  })
+
+  it('matches case-insensitively on the contract and selector', () => {
+    const split = splitByPendingWhitelist(
+      [{ contract: getAddress(DEX), selector: '0xF8989325' as Hex }],
+      coverage([whitelistRecord(SELECTOR)])
+    )
+    expect(split.pending).toHaveLength(1)
+  })
+
+  it('splits a mixed set, keeping each pair on its own evidence', () => {
+    const bare: IWhitelistPair = {
+      contract: '0x6666666666666666666666666666666666666666',
+      selector: SELECTOR,
+    }
+    const split = splitByPendingWhitelist(
+      [PAIR, bare],
+      coverage([whitelistRecord(SELECTOR)])
+    )
+    expect(split.pending).toEqual([PAIR])
+    expect(split.uncovered).toEqual([bare])
+  })
+})
+
+describe('checkWhitelistIntegrity expected-pending downgrade', () => {
+  const DEX = '0x5555555555555555555555555555555555555555'
+  const DIAMOND = '0xd1a0000000000000000000000000000000000001'
+  const SELECTOR = '0xf8989325' as Hex
+  const OPERATION_ID = `0x${'ef'.repeat(32)}` as Hex
+  const PAIR: IWhitelistPair = { contract: DEX, selector: SELECTOR }
+
+  /** A diamond that whitelists nothing: both the getter array and the per-pair read are empty. */
+  const emptyDiamond = () =>
+    ({
+      readContract: async ({ functionName }: { functionName: string }) =>
+        functionName === 'getAllContractSelectorPairs' ? [[], []] : false,
+    } as unknown as PublicClient)
+
+  /** A diamond that already holds `PAIR`. */
+  const syncedDiamond = () =>
+    ({
+      readContract: async ({ functionName }: { functionName: string }) =>
+        functionName === 'getAllContractSelectorPairs'
+          ? [[DEX], [[SELECTOR]]]
+          : true,
+    } as unknown as PublicClient)
+
+  const queued = (selector: Hex): Map<string, IPendingRegistration[]> =>
+    new Map([
+      [
+        DEX.toLowerCase(),
+        [
+          {
+            kind: 'whitelist' as const,
+            address: DEX.toLowerCase(),
+            selector,
+            operationId: OPERATION_ID,
+            target: DIAMOND,
+          },
+        ],
+      ],
+    ])
+
+  async function run(
+    publicClient: PublicClient,
+    resolvePendingWhitelist?: () => Promise<
+      Map<string, IPendingRegistration[]> | { unreachable: string }
+    >
+  ): Promise<{ errors: string[]; warnings: string[] }> {
+    const errors: string[] = []
+    const warnings: string[] = []
+    await checkWhitelistIntegrity(
+      'testnet1',
+      'production',
+      [PAIR],
+      (msg) => errors.push(msg),
+      DIAMOND,
+      {
+        evmContext: { publicClient },
+        logWarn: (msg) => warnings.push(msg),
+        resolvePendingWhitelist,
+      }
+    )
+    return { errors, warnings }
+  }
+
+  it('errors on both checks when nothing is queued', async () => {
+    const { errors } = await run(emptyDiamond(), async () => new Map())
+    expect(errors.some((e) => e.includes('Source of Truth FAILED'))).toBe(true)
+    expect(errors.some((e) => e.includes('Pair Array is missing'))).toBe(true)
+  })
+
+  it('reports nothing when a queued operation whitelists the missing pair', async () => {
+    const { errors, warnings } = await run(emptyDiamond(), async () =>
+      queued(SELECTOR)
+    )
+    expect(errors).toEqual([])
+    expect(warnings).toEqual([])
+  })
+
+  // The pair comparison stands on its own on-chain signal, so a queue it cannot read
+  // must cost coverage, never a finding.
+  it('keeps both errors and warns about coverage when the queue is unreachable', async () => {
+    const { errors, warnings } = await run(emptyDiamond(), async () => ({
+      unreachable: 'connect ECONNREFUSED',
+    }))
+    expect(errors.some((e) => e.includes('Source of Truth FAILED'))).toBe(true)
+    expect(errors.some((e) => e.includes('Pair Array is missing'))).toBe(true)
+    expect(warnings).toHaveLength(1)
+    expect(warnings[0]).toContain('Timelock queue unreachable')
+  })
+
+  it('never reads the queue for a synced network', async () => {
+    let reads = 0
+    const { errors, warnings } = await run(syncedDiamond(), async () => {
+      reads++
+      return new Map()
+    })
+    expect(reads).toBe(0)
+    expect(errors).toEqual([])
+    expect(warnings).toEqual([])
+  })
+
+  // Every chain with a multicall3 deployment takes the batched path, so the downgrade has
+  // to hold there and not only in the sequential fallback.
+  it('downgrades on the multicall path too', async () => {
+    const client = {
+      readContract: async () => [[], []],
+      multicall: async ({ contracts }: { contracts: unknown[] }) =>
+        contracts.map(() => ({ status: 'success', result: false })),
+      chain: { contracts: { multicall3: { address: DIAMOND } } },
+    } as unknown as PublicClient
+    const { errors, warnings } = await run(client, async () => queued(SELECTOR))
+    expect(errors).toEqual([])
+    expect(warnings).toEqual([])
+  })
+
+  it('errors on the multicall path when nothing is queued', async () => {
+    const client = {
+      readContract: async () => [[], []],
+      multicall: async ({ contracts }: { contracts: unknown[] }) =>
+        contracts.map(() => ({ status: 'success', result: false })),
+      chain: { contracts: { multicall3: { address: DIAMOND } } },
+    } as unknown as PublicClient
+    const { errors } = await run(client, async () => new Map())
+    expect(errors.some((e) => e.includes('Source of Truth FAILED'))).toBe(true)
+  })
+
+  it('resolves the queue once even though both steps consult it', async () => {
+    let reads = 0
+    await run(emptyDiamond(), async () => {
+      reads++
+      return queued(SELECTOR)
+    })
+    expect(reads).toBe(1)
   })
 })
 
@@ -2446,6 +2684,7 @@ describe('facets-registered scheduled-registration coverage', () => {
             FACET_ADDRESS.toLowerCase(),
             [
               {
+                kind: 'facet-cut',
                 address: FACET_ADDRESS.toLowerCase(),
                 operationId: OPERATION_ID,
                 target: target.toLowerCase(),
@@ -2486,6 +2725,7 @@ describe('facets-registered scheduled-registration coverage', () => {
               '0xffff000000000000000000000000000000000099',
               [
                 {
+                  kind: 'facet-cut',
                   address: '0xffff000000000000000000000000000000000099',
                   operationId: OPERATION_ID,
                   target: DIAMOND.toLowerCase(),
@@ -2511,8 +2751,38 @@ describe('facets-registered scheduled-registration coverage', () => {
               FACET_ADDRESS.toLowerCase(),
               [
                 {
+                  kind: 'periphery',
                   address: FACET_ADDRESS.toLowerCase(),
                   peripheryName: 'SomeName',
+                  operationId: OPERATION_ID,
+                  target: DIAMOND.toLowerCase(),
+                },
+              ],
+            ],
+          ]),
+        ],
+      ])
+    )
+    await invariant('facets-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain(EXPECTED_FACET)
+  })
+
+  // A whitelist entry grants a DEX call permission and routes no selectors, so it is no
+  // more evidence of a cut than a registry entry is.
+  it('still errors when the only queued record is a whitelist entry', async () => {
+    const ctx = makeMissingCtx(
+      new Map([
+        [
+          'testnet1',
+          new Map([
+            [
+              FACET_ADDRESS.toLowerCase(),
+              [
+                {
+                  kind: 'whitelist' as const,
+                  address: FACET_ADDRESS.toLowerCase(),
+                  selector: '0xf8989325' as Hex,
                   operationId: OPERATION_ID,
                   target: DIAMOND.toLowerCase(),
                 },
@@ -2537,6 +2807,7 @@ describe('facets-registered scheduled-registration coverage', () => {
               FACET_ADDRESS.toLowerCase(),
               [
                 {
+                  kind: 'facet-cut',
                   address: FACET_ADDRESS.toLowerCase(),
                   operationId: OPERATION_ID,
                   target: DIAMOND.toLowerCase(),
@@ -2636,6 +2907,7 @@ describe('periphery-registered scheduled-registration coverage', () => {
             EXECUTOR.toLowerCase(),
             [
               {
+                kind: 'periphery',
                 address: EXECUTOR.toLowerCase(),
                 peripheryName,
                 operationId: OPERATION_ID,
@@ -2659,6 +2931,35 @@ describe('periphery-registered scheduled-registration coverage', () => {
     await invariant('periphery-registered').run(ctx)
     expect(ctx.errors).toEqual([])
     expect(ctx.warnings).toEqual([])
+  })
+
+  // Locks the `kind` guard itself: this record carries the matching registry name, so the
+  // name comparison alone would accept it and only the kind check rejects it.
+  it('still errors when a record of another kind carries the matching name', async () => {
+    const ctx = makePeripheryCtx(
+      new Map([
+        [
+          'testnet1',
+          new Map([
+            [
+              EXECUTOR.toLowerCase(),
+              [
+                {
+                  kind: 'facet-cut' as const,
+                  address: EXECUTOR.toLowerCase(),
+                  peripheryName: 'Executor',
+                  operationId: OPERATION_ID,
+                  target: DIAMOND.toLowerCase(),
+                },
+              ],
+            ],
+          ]),
+        ],
+      ])
+    )
+    await invariant('periphery-registered').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('Executor')
   })
 
   // The registry is keyed by name: registering this address under a different name

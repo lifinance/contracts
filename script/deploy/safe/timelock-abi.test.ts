@@ -9,6 +9,8 @@ import { decodeFunctionData, type Address, type Hex } from 'viem'
 import {
   TIMELOCK_SCHEDULE_BATCH_ABI,
   TIMELOCK_SCHEDULE_BATCH_SELECTOR,
+  classifyTimelockOperation,
+  deriveTimelockSalt,
   encodeTimelockScheduleBatch,
 } from './timelock-abi'
 
@@ -114,5 +116,197 @@ describe('encodeTimelockScheduleBatch', () => {
         3600n
       )
     ).toThrow('not a valid address')
+  })
+})
+
+describe('encodeTimelockScheduleBatch — the values parameter', () => {
+  const TWO_TARGETS = [DIAMOND, OTHER_TARGET]
+  const TWO_PAYLOADS = ['0xaabb', '0xccdd'] as Hex[]
+  const SALT = `0x${'ab'.repeat(32)}` as Hex
+
+  it('encodes the values it is given, not an assumed zero array', () => {
+    expect(
+      encodeTimelockScheduleBatch(TWO_TARGETS, TWO_PAYLOADS, SALT, 3600n, [
+        0n,
+        7n,
+      ])
+    ).not.toBe(
+      encodeTimelockScheduleBatch(TWO_TARGETS, TWO_PAYLOADS, SALT, 3600n)
+    )
+  })
+
+  it('round-trips the values it was given', () => {
+    const encoded = encodeTimelockScheduleBatch(
+      TWO_TARGETS,
+      TWO_PAYLOADS,
+      SALT,
+      3600n,
+      [0n, 7n]
+    )
+
+    const { args } = decodeFunctionData({
+      abi: TIMELOCK_SCHEDULE_BATCH_ABI,
+      data: encoded,
+    })
+
+    expect(args?.[1]).toEqual([0n, 7n])
+  })
+
+  it('preserves the order of the values it was given', () => {
+    expect(
+      encodeTimelockScheduleBatch(TWO_TARGETS, TWO_PAYLOADS, SALT, 3600n, [
+        0n,
+        7n,
+      ])
+    ).not.toBe(
+      encodeTimelockScheduleBatch(TWO_TARGETS, TWO_PAYLOADS, SALT, 3600n, [
+        7n,
+        0n,
+      ])
+    )
+  })
+
+  it('defaults to all-zero, so a four-argument call is unchanged', () => {
+    expect(
+      encodeTimelockScheduleBatch(TWO_TARGETS, TWO_PAYLOADS, SALT, 3600n)
+    ).toBe(
+      encodeTimelockScheduleBatch(TWO_TARGETS, TWO_PAYLOADS, SALT, 3600n, [
+        0n,
+        0n,
+      ])
+    )
+  })
+
+  it('rejects a values array whose length does not match the targets', () => {
+    expect(() =>
+      encodeTimelockScheduleBatch(TWO_TARGETS, TWO_PAYLOADS, SALT, 3600n, [0n])
+    ).toThrow(/values/)
+  })
+})
+
+describe('deriveTimelockSalt', () => {
+  const action = {
+    chainId: 1,
+    timelockAddress: '0x1111111111111111111111111111111111111111' as Address,
+    targets: ['0x2222222222222222222222222222222222222222'] as Address[],
+    payloads: ['0xdeadbeef'] as Hex[],
+  }
+
+  it('is a bytes32 hex value', () => {
+    expect(deriveTimelockSalt({ ...action, attempt: 0 })).toMatch(
+      /^0x[0-9a-f]{64}$/
+    )
+  })
+
+  it('is deterministic — the same action gives the same salt', () => {
+    expect(deriveTimelockSalt({ ...action, attempt: 0 })).toBe(
+      deriveTimelockSalt({ ...action, attempt: 0 })
+    )
+  })
+
+  it('differs per attempt, so a legitimate repeat can get a fresh operation id', () => {
+    expect(deriveTimelockSalt({ ...action, attempt: 0 })).not.toBe(
+      deriveTimelockSalt({ ...action, attempt: 1 })
+    )
+  })
+
+  it("differs across chains, so one chain cannot predict another's operation id", () => {
+    expect(deriveTimelockSalt({ ...action, attempt: 0 })).not.toBe(
+      deriveTimelockSalt({ ...action, chainId: 10, attempt: 0 })
+    )
+  })
+
+  it('differs across timelocks', () => {
+    expect(deriveTimelockSalt({ ...action, attempt: 0 })).not.toBe(
+      deriveTimelockSalt({
+        ...action,
+        timelockAddress: '0x3333333333333333333333333333333333333333',
+        attempt: 0,
+      })
+    )
+  })
+
+  it('differs when a payload changes', () => {
+    expect(deriveTimelockSalt({ ...action, attempt: 0 })).not.toBe(
+      deriveTimelockSalt({ ...action, payloads: ['0xdeadbeee'], attempt: 0 })
+    )
+  })
+
+  it('differs when a target changes', () => {
+    expect(deriveTimelockSalt({ ...action, attempt: 0 })).not.toBe(
+      deriveTimelockSalt({
+        ...action,
+        targets: ['0x4444444444444444444444444444444444444444'],
+        attempt: 0,
+      })
+    )
+  })
+
+  it('throws on a malformed address, so the failure lands before any signature', () => {
+    // Not a claim about `getAddress` — viem's `address` encoder is strict EIP-55
+    // on its own. Pinned because the property matters and nothing else asserts
+    // it: if the preimage field type ever became `bytes` or `string`, a malformed
+    // address would reach `scheduleBatch` and revert after signing instead.
+    for (const bad of ['0xnot-an-address', '0x1234', 'deadbeef', '']) {
+      expect(() =>
+        deriveTimelockSalt({ ...action, targets: [bad as Address], attempt: 0 })
+      ).toThrow()
+      expect(() =>
+        deriveTimelockSalt({
+          ...action,
+          timelockAddress: bad as Address,
+          attempt: 0,
+        })
+      ).toThrow()
+    }
+  })
+
+  it('throws on an address whose EIP-55 checksum is wrong', () => {
+    // Anything that is not all-lowercase gets its EIP-55 checksum verified, and
+    // this one fails it. An all-lowercase address is accepted, since there is no
+    // checksum to check.
+    expect(() =>
+      deriveTimelockSalt({
+        ...action,
+        targets: ['0x1231DEB6F5749EF6CE6943A275A1D3E7486F4EAE' as Address],
+        attempt: 0,
+      })
+    ).toThrow()
+  })
+
+  it('does not collide when call order changes — inner calls execute in array order', () => {
+    const first = '0x2222222222222222222222222222222222222222' as Address
+    const second = '0x4444444444444444444444444444444444444444' as Address
+
+    expect(
+      deriveTimelockSalt({
+        ...action,
+        targets: [first, second],
+        payloads: ['0xaa', '0xbb'],
+        attempt: 0,
+      })
+    ).not.toBe(
+      deriveTimelockSalt({
+        ...action,
+        targets: [second, first],
+        payloads: ['0xbb', '0xaa'],
+        attempt: 0,
+      })
+    )
+  })
+})
+
+describe('classifyTimelockOperation', () => {
+  it('reads 0 as unknown — nothing scheduled', () => {
+    expect(classifyTimelockOperation(0n)).toBe('unknown')
+  })
+
+  it('reads 1 as done — OZ writes _DONE_TIMESTAMP on execute', () => {
+    expect(classifyTimelockOperation(1n)).toBe('done')
+  })
+
+  it('reads anything above 1 as pending', () => {
+    expect(classifyTimelockOperation(2n)).toBe('pending')
+    expect(classifyTimelockOperation(1_800_000_000n)).toBe('pending')
   })
 })

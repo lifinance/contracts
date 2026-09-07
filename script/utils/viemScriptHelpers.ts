@@ -26,7 +26,7 @@ import {
 
 import { getDeployments } from './deploymentHelpers'
 import { normalizeAddressForNetwork } from './normalizeAddressStringForViem'
-import { getRPCEnvVarName } from './utils'
+import { getRPCEnvVarName, OUT_ROOT } from './utils'
 
 dotenv.config()
 
@@ -365,7 +365,7 @@ export function getFunctionSelectors(
   excludes: string[] = []
 ): `0x${string}`[] {
   // Build the file path to the contract's compiled JSON file
-  const base = path.resolve('out')
+  const base = OUT_ROOT
   const filePath = path.resolve(
     base,
     `${contractName}.sol`,

@@ -25,6 +25,7 @@ import { consola } from 'consola'
 import { createPublicClient, getAddress, http, parseAbi, type Abi } from 'viem'
 
 import { EnvironmentEnum, type SupportedChain } from '../common/types'
+import { readBooleanFlag, readValueFlag } from '../deploy/safe/cli-flags'
 import {
   computeFacetRemovalDiff,
   computeFacetRemovalsByAddress,
@@ -34,7 +35,11 @@ import {
   type INamedRemovalResult,
   type IRemovalDiff,
 } from '../deploy/safe/diamondRemovalDiff'
-import { wrapWithTimelockSchedule } from '../deploy/safe/safe-utils'
+import { assertLedgerProposesOnce as assertProposesOnce } from '../deploy/safe/ledger-guards'
+import {
+  wrapWithTimelockSchedule,
+  type ISafeSigningOptions,
+} from '../deploy/safe/safe-utils'
 import { sendOrPropose } from '../safe/safeScriptHelpers'
 import {
   buildDiamondCutRemoveCalldata,
@@ -170,6 +175,29 @@ const command = defineCommand({
       type: 'string',
       description: 'JSON array of facet names (e.g. ["FacetA","FacetB"])',
     },
+    ledger: {
+      type: 'boolean',
+      description:
+        'Sign the Safe proposal with a Ledger instead of PRIVATE_KEY_PRODUCTION; only for a run that makes a single proposal',
+    },
+    // No `default` on these: citty applies a default to the registered
+    // camelCase key even when the caller typed the kebab spelling, so a default
+    // would shadow a kebab-typed value for anything reading the camelCase key.
+    ledgerLive: {
+      type: 'boolean',
+      description:
+        'Use the Ledger Live derivation path for --accountIndex; requires --ledger',
+    },
+    accountIndex: {
+      type: 'string',
+      description:
+        'Ledger Live account index (default 0); requires --ledgerLive',
+    },
+    derivationPath: {
+      type: 'string',
+      description:
+        'Explicit Ledger derivation path; requires --ledger, not combinable with --ledgerLive',
+    },
     facetAddresses: {
       type: 'string',
       description:
@@ -201,6 +229,30 @@ const command = defineCommand({
     const { facets, facetAddresses, periphery, auto, allNetworks, yes } = args
     let { network, environment } = args
     const diamondName = 'LiFiDiamond'
+
+    // Read from argv, not from `args` — see `cli-flags.ts`.
+    const signing: SigningFlags = {
+      ledger: readBooleanFlag(process.argv, {
+        camel: 'ledger',
+        kebab: 'ledger',
+      }),
+      ledgerLive: readBooleanFlag(process.argv, {
+        camel: 'ledgerLive',
+        kebab: 'ledger-live',
+      }),
+      accountIndex: readValueFlag(process.argv, {
+        camel: 'accountIndex',
+        kebab: 'account-index',
+      }),
+      derivationPath: readValueFlag(process.argv, {
+        camel: 'derivationPath',
+        kebab: 'derivation-path',
+      }),
+    }
+
+    const assertLedgerProposesOnce = (count: number, what: string): void =>
+      assertProposesOnce(count, signing.ledger === true, what)
+
     let calldata: `0x${string}`
 
     // --auto (target-state diff), --facets (explicit names) and --facet-addresses
@@ -224,6 +276,16 @@ const command = defineCommand({
       process.exit(1)
     }
 
+    if (allNetworks)
+      // The count is what the sweep will actually propose, which is none without
+      // --yes: `runAutoRemoval` gets 'dry-run', `proposeRemovals` returns before
+      // `sendOrPropose`, and no transport opens. Passing 0 rather than skipping
+      // the call keeps the guard's parameter meaning one thing.
+      assertLedgerProposesOnce(
+        yes ? getAllActiveNetworks().length : 0,
+        '--all-networks'
+      )
+
     // ---------------- FLEET removals across all networks ----------------
     if (allNetworks) {
       if (!environment)
@@ -234,10 +296,15 @@ const command = defineCommand({
       const env = castEnv(environment)
       if (facets)
         // Named-facet fleet removal (the deprecation-driven path).
-        await runNamedFleetRemoval(env, parseFacetNames(facets), Boolean(yes))
+        await runNamedFleetRemoval(
+          env,
+          parseFacetNames(facets),
+          Boolean(yes),
+          signing
+        )
       // No names → target-state-diff sweep (--all-networks implies --auto):
       // the backstop for orphans nobody named.
-      else await runFleetRemoval(env, Boolean(yes))
+      else await runFleetRemoval(env, Boolean(yes), signing)
       return
     }
 
@@ -263,7 +330,7 @@ const command = defineCommand({
     // Dry-run unless --yes, matching the fleet sweep and the --yes help text
     // (auto modes never submit without an explicit --yes).
     if (auto) {
-      await runAutoRemoval(network, typedEnv, yes ? 'yes' : 'dry-run')
+      await runAutoRemoval(network, typedEnv, yes ? 'yes' : 'dry-run', signing)
       return
     }
 
@@ -288,7 +355,8 @@ const command = defineCommand({
         network,
         typedEnv,
         parseFacetNames(facets),
-        yes ? 'yes' : 'prompt'
+        yes ? 'yes' : 'prompt',
+        signing
       )
       return
     }
@@ -300,7 +368,8 @@ const command = defineCommand({
         network,
         typedEnv,
         parseFacetAddresses(facetAddresses),
-        yes ? 'yes' : 'prompt'
+        yes ? 'yes' : 'prompt',
+        signing
       )
       return
     }
@@ -310,6 +379,7 @@ const command = defineCommand({
       consola.box('Running headless periphery removal')
       // parse periphery names into string array
       const names: string[] = JSON.parse(periphery)
+      assertLedgerProposesOnce(names.length, '--periphery with several names')
 
       // for each periphery contract, build and send the calldata to remove it from the diamond
       for (const name of names) {
@@ -339,6 +409,7 @@ const command = defineCommand({
           network,
           environment: typedEnv,
           diamondAddress: targetAddress,
+          signing,
         })
       }
       return
@@ -433,6 +504,7 @@ const command = defineCommand({
           network,
           environment: typedEnv,
           diamondAddress: targetAddress,
+          signing,
         })
       else {
         consola.info('Aborted.')
@@ -454,6 +526,11 @@ const command = defineCommand({
       const selected = await multiselectWithSearch(
         'Select periphery contracts',
         names
+      )
+
+      assertLedgerProposesOnce(
+        selected.length,
+        'more than one periphery contract'
       )
 
       // go through each contract, build the calldata and send/propose it
@@ -482,6 +559,7 @@ const command = defineCommand({
             network,
             environment: typedEnv,
             diamondAddress: targetAddress,
+            signing,
           })
       }
       return
@@ -607,6 +685,12 @@ function assertGovernedProductionRemoval(
   }
 }
 
+/** Forwarded unchanged from the CLI down to {@link sendOrPropose}. */
+type SigningFlags = Omit<
+  ISafeSigningOptions,
+  'envPrivateKey' | 'envPrivateKeyName'
+>
+
 /**
  * Builds the removal cut, wraps it for the timelock and proposes/sends it,
  * reusing the existing plumbing. Shared by the auto (diff) and named
@@ -620,7 +704,8 @@ async function proposeRemovals(
   environment: EnvironmentEnum,
   diamondAddress: string,
   removals: IFacetRemoval[],
-  confirmMode: 'yes' | 'prompt' | 'dry-run'
+  confirmMode: 'yes' | 'prompt' | 'dry-run',
+  signing: SigningFlags
 ): Promise<void> {
   if (removals.length === 0) return
 
@@ -676,6 +761,7 @@ async function proposeRemovals(
     network,
     environment,
     diamondAddress: targetAddress,
+    signing,
   })
   consola.success(`[${network}] removal proposal submitted`)
 }
@@ -687,7 +773,8 @@ async function proposeRemovals(
 async function runAutoRemoval(
   network: string,
   environment: EnvironmentEnum,
-  confirmMode: 'yes' | 'prompt' | 'dry-run'
+  confirmMode: 'yes' | 'prompt' | 'dry-run',
+  signing: SigningFlags
 ): Promise<void> {
   const diff = await computeFacetRemovalDiff(network, environment)
 
@@ -704,7 +791,8 @@ async function runAutoRemoval(
     environment,
     diff.diamondAddress,
     diff.removals,
-    confirmMode
+    confirmMode,
+    signing
   )
 }
 
@@ -732,7 +820,8 @@ function exitOnFleetFailures(failed: string[]): void {
  */
 async function runFleetRemoval(
   environment: EnvironmentEnum,
-  yes: boolean
+  yes: boolean,
+  signing: SigningFlags
 ): Promise<void> {
   const networkIds = getAllActiveNetworks().map((n) => n.id)
   consola.box(
@@ -744,7 +833,12 @@ async function runFleetRemoval(
   const failed: string[] = []
   for (const network of networkIds)
     try {
-      await runAutoRemoval(network, environment, yes ? 'yes' : 'dry-run')
+      await runAutoRemoval(
+        network,
+        environment,
+        yes ? 'yes' : 'dry-run',
+        signing
+      )
     } catch (err) {
       failed.push(network)
       consola.error(
@@ -852,7 +946,7 @@ function printAddressRemoval(result: IAddressRemovalResult): void {
 
   if (result.unverifiable.length > 0)
     consola.error(
-      `🛑 REFUSED (cannot verify removability — the network has no target-state entry, or the selector unions are unavailable; run "forge build" and retry): ${result.unverifiable.join(
+      `🛑 REFUSED (cannot verify removability — the network has no target-state entry, or the selector unions could not be built from out/): ${result.unverifiable.join(
         ', '
       )}`
     )
@@ -875,7 +969,8 @@ async function runAddressRemoval(
   network: string,
   environment: EnvironmentEnum,
   addresses: `0x${string}`[],
-  confirmMode: 'yes' | 'prompt' | 'dry-run'
+  confirmMode: 'yes' | 'prompt' | 'dry-run',
+  signing: SigningFlags
 ): Promise<void> {
   const result = await computeFacetRemovalsByAddress(
     network,
@@ -894,7 +989,8 @@ async function runAddressRemoval(
       ...r,
       name: r.name ?? `unnamed facet ${r.address}`,
     })),
-    confirmMode
+    confirmMode,
+    signing
   )
 }
 
@@ -907,7 +1003,8 @@ async function runNamedRemoval(
   network: string,
   environment: EnvironmentEnum,
   facetNames: string[],
-  confirmMode: 'yes' | 'prompt' | 'dry-run'
+  confirmMode: 'yes' | 'prompt' | 'dry-run',
+  signing: SigningFlags
 ): Promise<void> {
   const result = await computeNamedFacetRemovals(
     network,
@@ -923,7 +1020,8 @@ async function runNamedRemoval(
     environment,
     result.diamondAddress,
     result.removals,
-    confirmMode
+    confirmMode,
+    signing
   )
 }
 
@@ -937,7 +1035,8 @@ async function runNamedRemoval(
 async function runNamedFleetRemoval(
   environment: EnvironmentEnum,
   facetNames: string[],
-  yes: boolean
+  yes: boolean,
+  signing: SigningFlags
 ): Promise<void> {
   const networkIds = getAllActiveNetworks().map((n) => n.id)
   consola.box(
@@ -953,7 +1052,8 @@ async function runNamedFleetRemoval(
         network,
         environment,
         facetNames,
-        yes ? 'yes' : 'dry-run'
+        yes ? 'yes' : 'dry-run',
+        signing
       )
     } catch (err) {
       failed.push(network)

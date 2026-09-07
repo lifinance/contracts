@@ -281,11 +281,16 @@ export interface IProposeToSafeOptions {
   rpcUrl?: string
   ledger?: boolean
   ledgerLive?: boolean
-  accountIndex?: number
+  /** Unconverted, so a malformed value reaches `parseAccountIndex` intact. */
+  accountIndex?: number | string
   derivationPath?: string
   safeAddress?: string
   calldataFile?: string
   nonce?: bigint
+  /** One-line rationale shown to the signer; `SAFE_PROPOSAL_REASON` is the fallback. */
+  reason?: string
+  /** Linear issue link or bare id; `SAFE_PROPOSAL_TICKET` is the fallback. Required. */
+  ticket?: string
 }
 
 /** Strategy interface for chain-specific generic contract call broadcasting. */

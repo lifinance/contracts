@@ -39,7 +39,9 @@ import { getAddress, type Address, type Hex } from 'viem'
 
 import type { IProposeToSafeOptions } from '../../common/types'
 
+import { readBooleanFlag, readValueFlag } from './cli-flags'
 import { proposeWithDrain, type ITimelockCall } from './drain-parked-tasks'
+import { resolveProposalIntent } from './proposal-intent'
 import { normalizeProposeCalls } from './propose-calls'
 import {
   OperationTypeEnum,
@@ -48,6 +50,7 @@ import {
   getSafeMongoCollection,
   initializeSafeClient,
   isAddressASafeOwner,
+  parseAccountIndex,
   storeTransactionInMongoDB,
   wrapWithTimelockSchedule,
   type IParkedTaskRef,
@@ -65,6 +68,18 @@ import {
  * @param options - Options including network, rpcUrl, privateKey, to address, and calldata
  */
 export async function runPropose(options: IProposeToSafeOptions) {
+  // Fails here before any RPC, Ledger or Mongo work, so a missing ticket costs
+  // the operator a second rather than a Safe init and a tunnel. The
+  // authoritative refusal is still the one inside storeTransactionInMongoDB,
+  // which every funnel reaches and this one cannot bypass; both call the same
+  // pure resolver, so they cannot disagree.
+  resolveProposalIntent({
+    ticket: options.ticket,
+    envTicket: process.env.SAFE_PROPOSAL_TICKET,
+    reason: options.reason,
+    envReason: process.env.SAFE_PROPOSAL_REASON,
+  })
+
   await proposeWithDrain(options, (extraTimelockCalls, parkedTaskRefs) =>
     _runPropose(options, extraTimelockCalls, parkedTaskRefs)
   )
@@ -122,9 +137,9 @@ export async function _runPropose(
     consola.info('Using Ledger hardware wallet for signing')
     if (options.ledgerLive)
       consola.info(
-        `Using Ledger Live derivation path with account index ${
-          options.accountIndex || 0
-        }`
+        `Using Ledger Live derivation path with account index ${parseAccountIndex(
+          options.accountIndex
+        )}`
       )
     else if (options.derivationPath)
       consola.info(`Using custom derivation path: ${options.derivationPath}`)
@@ -136,7 +151,7 @@ export async function _runPropose(
 
   const ledgerOptions = {
     ledgerLive: options.ledgerLive || false,
-    accountIndex: options.accountIndex ? Number(options.accountIndex) : 0,
+    accountIndex: parseAccountIndex(options.accountIndex),
     derivationPath: options.derivationPath,
   }
 
@@ -283,7 +298,8 @@ export async function _runPropose(
       signedTx,
       safeTxHash,
       senderAddress,
-      parkedTaskRefs
+      parkedTaskRefs,
+      { ticket: options.ticket, reason: options.reason }
     )
 
     if (result === null) {
@@ -384,6 +400,21 @@ const main = defineCommand({
         'Override the Safe nonce (default: auto-derived). Use to fill a gap that blocks higher-nonce proposals. Rejected if below the on-chain nonce or already occupied by a pending/submitted proposal.',
       required: false,
     },
+    // Not `required: true`: SAFE_PROPOSAL_TICKET is an equally valid channel and
+    // citty would refuse the run before the fallback is consulted. The refusal
+    // happens in the storage funnel, which sees both.
+    ticket: {
+      type: 'string',
+      description:
+        'Linear issue link or id (e.g. EXSC-123). Required — a proposal is not created without one. Falls back to SAFE_PROPOSAL_TICKET.',
+      required: false,
+    },
+    reason: {
+      type: 'string',
+      description:
+        'One-line rationale shown to the signer. Falls back to SAFE_PROPOSAL_REASON.',
+      required: false,
+    },
   },
   async run({ args }) {
     if (!args.calldata && !args.calldataFile)
@@ -417,12 +448,23 @@ const main = defineCommand({
       timelock: args.timelock,
       privateKey: args.privateKey,
       rpcUrl: args.rpcUrl,
-      ledger: args.ledger,
-      ledgerLive: args.ledgerLive,
-      accountIndex: args.accountIndex ? Number(args.accountIndex) : undefined,
+      ledger: readBooleanFlag(process.argv, {
+        camel: 'ledger',
+        kebab: 'ledger',
+      }),
+      ledgerLive: readBooleanFlag(process.argv, {
+        camel: 'ledgerLive',
+        kebab: 'ledger-live',
+      }),
+      accountIndex: readValueFlag(process.argv, {
+        camel: 'accountIndex',
+        kebab: 'account-index',
+      }),
       derivationPath: args.derivationPath,
       safeAddress: args.safeAddress,
       nonce: args.nonce !== undefined ? BigInt(args.nonce) : undefined,
+      ticket: args.ticket,
+      reason: args.reason,
     })
   },
 })

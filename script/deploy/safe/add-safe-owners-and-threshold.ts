@@ -28,6 +28,7 @@ import networksData from '../../../config/networks.json'
 import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 
 import type { ILedgerAccountResult } from './ledger'
+import { assertTicketPresent } from './proposal-intent'
 import {
   getNextNonce,
   getPrivateKey,
@@ -173,6 +174,17 @@ const main = defineCommand({
       return
     }
 
+    // Resolved here rather than after the Ledger, so both constraints hold at
+    // once: an empty selection proposes nothing and must not be refused, and the
+    // refusal must land before a device confirmation is collected per network.
+    const networks = resolveNetworks(args.network, args.allNetworks)
+    if (!networks.length) {
+      consola.warn('No networks selected — exiting')
+      return
+    }
+
+    assertTicketPresent()
+
     const useLedger = args.ledger ?? true
     const ledgerOptions: ILedgerOptions | undefined = useLedger
       ? {
@@ -198,11 +210,6 @@ const main = defineCommand({
       ledgerResult = await getLedgerAccount(ledgerOptions)
     }
 
-    const networks = resolveNetworks(args.network, args.allNetworks)
-    if (!networks.length) {
-      consola.warn('No networks selected — exiting')
-      return
-    }
     consola.info(
       `Processing ${networks.length} network(s): ${networks.join(', ')}`
     )

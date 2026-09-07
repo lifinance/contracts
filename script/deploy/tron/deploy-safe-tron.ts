@@ -648,7 +648,7 @@ async function run(options: {
   delete networkEntry.safeProxyFactoryAddress
   fs.writeFileSync(
     networksPath,
-    JSON.stringify(networksContent, null, 2),
+    `${JSON.stringify(networksContent, null, 2)}\n`,
     'utf8'
   )
   consola.success(

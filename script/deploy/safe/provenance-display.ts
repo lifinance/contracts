@@ -12,10 +12,8 @@ import {
   sanitizeProvenanceText,
 } from '../shared/git-provenance'
 
-import {
-  MAX_PROPOSAL_REASON_LENGTH,
-  type IProposalProvenance,
-} from './safe-utils'
+import { MAX_PROPOSAL_REASON_LENGTH } from './proposal-intent'
+import { type IProposalProvenance } from './safe-utils'
 
 /** Dirty paths named inline before the list is elided. */
 const DIRTY_PATHS_SHOWN = 3
@@ -160,6 +158,17 @@ export function formatProvenanceLines(
 
     const prUrl = sanitize(provenance.prUrl)
     if (prUrl) lines.push(detailLine('PR', color(CYAN, prUrl)))
+
+    // Always shown, present or not: an absent link means a row predating the
+    // requirement or a hand-edited document — both things a signer should see
+    // rather than have quietly omitted.
+    const ticketUrl = sanitize(provenance.ticketUrl)
+    lines.push(
+      detailLine(
+        'Ticket',
+        ticketUrl ? color(CYAN, ticketUrl) : color(YELLOW, '— none recorded —')
+      )
+    )
 
     // A rationale of nothing but control characters sanitizes to empty, which
     // must read as "none given" rather than as a blank but present reason.

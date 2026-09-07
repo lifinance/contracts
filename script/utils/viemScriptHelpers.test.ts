@@ -6,15 +6,19 @@
  * below pin behavior against real entries in those files.
  * If the network list changes, update the fixtures used here accordingly.
  */
+import { tmpdir } from 'os'
+
 // eslint-disable-next-line import/no-unresolved
 import { describe, expect, it } from 'bun:test'
 
 import networksConfig from '../../config/networks.json'
 import { EnvironmentEnum } from '../common/types'
 
+import { OUT_ROOT } from './utils'
 import {
   buildExplorerContractPageUrl,
   getDeployLogFile,
+  getFunctionSelectors,
   isTestnetNetwork,
 } from './viemScriptHelpers'
 
@@ -99,5 +103,22 @@ describe('getDeployLogFile path guard', () => {
   it('reads a real production deploy log', () => {
     const log = getDeployLogFile('mainnet', EnvironmentEnum.production)
     expect(log.LiFiDiamond).toMatch(/^0x[0-9a-fA-F]{40}$/)
+  })
+})
+
+describe('getFunctionSelectors', () => {
+  it('looks the artifact up in the repo, not under the caller cwd', () => {
+    const originalCwd = process.cwd()
+    let message = ''
+    try {
+      process.chdir(tmpdir())
+      getFunctionSelectors('ThisContractDoesNotExist')
+    } catch (error) {
+      message = (error as Error).message
+    } finally {
+      process.chdir(originalCwd)
+    }
+    expect(message).toContain(OUT_ROOT)
+    expect(message).not.toContain(tmpdir())
   })
 })

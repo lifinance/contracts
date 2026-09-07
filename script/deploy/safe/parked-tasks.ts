@@ -21,9 +21,8 @@
  * Dedup is enforced at the queue layer via a partial unique index on `taskKey`
  * filtered to the *open* statuses {queued, proposed} — mirroring
  * `unique_pending_intent_hash` — and the atomic `queued → proposed` flip in
- * {@link claimForProposal}. The time-derived timelock salt makes the proposal
- * `intentHash` non-deterministic, so it cannot dedup a re-proposed removal
- * (spec Fact 9); the queue-layer flip is the guarantee instead.
+ * {@link claimForProposal}. The queue-layer flip is the guarantee that does not
+ * depend on the proposal's `intentHash` being stable.
  *
  * The drain (out of scope here) sets `safeTxHash` on a claimed record via
  * {@link setSafeTxHash} to link it to the primary `pendingTransactions` proposal
@@ -479,8 +478,8 @@ async function transition(
 /**
  * Atomically claims a `queued` task for proposal (`queued → proposed`, stamping
  * `proposedAt`). The `status: 'queued'` filter is the dedup gate: a concurrent
- * drain finds nothing queued and gets `null`, so a removal is never double-proposed
- * despite the non-deterministic timelock salt (spec Fact 9, §7).
+ * drain finds nothing queued and gets `null`, so a removal is never
+ * double-proposed (spec §7).
  *
  * @param parkedTasks - The queue collection.
  * @param taskKey - The task to claim.

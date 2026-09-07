@@ -33,6 +33,7 @@ import { type Address, type Hex } from 'viem'
 import { signMessage } from 'viem/accounts'
 
 import { getEnvVar } from '../../utils/utils'
+import { assertTicketPresent } from '../safe/proposal-intent'
 import {
   getNextNonce,
   getSafeMongoCollection,
@@ -223,6 +224,11 @@ async function runPropose(options: IProposeToSafeTronOptions) {
     consola.info('  data: ' + dryRunDescription)
     return
   }
+
+  // After the dry run, which proposes nothing, and before the Mongo client is
+  // opened: the store-time refusal throws past this function's only
+  // `mongoClient.close()`, leaving the connection open and the process hanging.
+  assertTicketPresent()
 
   // 2) Get current Safe nonce on chain
   const safeAbiNonce = [

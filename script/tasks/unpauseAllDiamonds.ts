@@ -13,6 +13,7 @@ import {
 import { privateKeyToAccount } from 'viem/accounts'
 
 import { EnvironmentEnum, type SupportedChain } from '../common/types'
+import { assertTicketPresent } from '../deploy/safe/proposal-intent'
 import {
   getNextNonce,
   getPrivateKey,
@@ -122,6 +123,13 @@ const main = defineCommand({
       ? []
       : activeNetworks.filter((n) => !isTestnetNetwork(n.id))
     const directSendNetworks = isStaging ? activeNetworks : testnets
+
+    // Only Pass 2 proposes, so only Pass 2 needs a ticket — a staging or
+    // testnet-only run creates no proposal and must not be refused for lacking
+    // one. Checked here rather than at the store because Pass 2 signs on every
+    // production mainnet in turn, and the store-time refusal would spend a
+    // signature per network before failing.
+    if (mainnets.length > 0) assertTicketPresent()
 
     // Pass 1: direct-send networks (testnets always; all networks when staging).
     const failures: { network: string; error: string }[] = []

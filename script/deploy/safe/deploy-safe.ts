@@ -576,7 +576,7 @@ const main = defineCommand({
         }
         writeFileSync(
           join(__dirname, '../../../config/networks.json'),
-          JSON.stringify(networks, null, 2),
+          `${JSON.stringify(networks, null, 2)}\n`,
           'utf8'
         )
         consola.success(`✔ networks.json updated with Safe @ ${safeAddress}`)

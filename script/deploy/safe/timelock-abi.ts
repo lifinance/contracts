@@ -1,7 +1,9 @@
 import {
+  encodeAbiParameters,
   encodeFunctionData,
   isAddress,
   isHex,
+  keccak256,
   parseAbi,
   toFunctionSelector,
   type Address,
@@ -22,7 +24,22 @@ export const TIMELOCK_SCHEDULE_BATCH_SELECTOR = toFunctionSelector(
   'scheduleBatch(address[],uint256[],bytes[],bytes32,bytes32,uint256)'
 )
 
-const ZERO_PREDECESSOR =
+/**
+ * Reads used to pick a salt that will not collide with an existing operation.
+ *
+ * `hashOperationBatch` is read from the contract so the id cannot drift from the
+ * timelock's own definition of it.
+ */
+export const TIMELOCK_OPERATION_STATE_ABI = parseAbi([
+  'function hashOperationBatch(address[] targets, uint256[] values, bytes[] payloads, bytes32 predecessor, bytes32 salt) view returns (bytes32)',
+  'function getTimestamp(bytes32 id) view returns (uint256)',
+])
+
+/**
+ * Shared by the operation-id read and the encoder: a different predecessor in
+ * either would hash to a different operation than the one scheduled.
+ */
+export const TIMELOCK_ZERO_PREDECESSOR =
   // pre-commit-checker: not a secret — zero bytes32 means "no predecessor"
   '0x0000000000000000000000000000000000000000000000000000000000000000' as Hex
 
@@ -65,15 +82,19 @@ export function validateCallPairs(
  * @param payloads - Calldata per inner call (parallel to `targets`)
  * @param salt - Unique salt for the timelock operation id
  * @param minDelay - Timelock delay in seconds
+ * @param values - Value per inner call; defaults to all-zero. Pass the same array
+ *        given to `pickTimelockSalt`, or the id probed is not the id scheduled
  * @returns The encoded `scheduleBatch` calldata
- * @throws If `targets` is empty, `targets` and `payloads` differ in length, a
- *         target is not a valid address, or a payload is not well-formed hex
+ * @throws If `targets` is empty, `targets` and `payloads` or `targets` and
+ *         `values` differ in length, a target is not a valid address, or a
+ *         payload is not well-formed hex
  */
 export function encodeTimelockScheduleBatch(
   targets: Address[],
   payloads: Hex[],
   salt: Hex,
-  minDelay: bigint
+  minDelay: bigint,
+  values: bigint[] = targets.map(() => 0n)
 ): Hex {
   if (targets.length === 0)
     throw new Error('encodeTimelockScheduleBatch requires at least one call')
@@ -81,10 +102,13 @@ export function encodeTimelockScheduleBatch(
     throw new Error(
       `encodeTimelockScheduleBatch: targets (${targets.length}) and payloads (${payloads.length}) must have the same length`
     )
+  if (targets.length !== values.length)
+    throw new Error(
+      `encodeTimelockScheduleBatch: targets (${targets.length}) and values (${values.length}) must have the same length`
+    )
 
-  // Defensive re-validation at the encoding boundary: today's only caller
-  // (normalizeProposeCalls) validates already, but this module is the shared
-  // encoder for any future caller (e.g. Tron batch proposals)
+  // Defensive re-validation at the encoding boundary: callers validate already,
+  // but this module is the shared encoder and a future caller may not
   validateCallPairs(
     targets,
     payloads,
@@ -97,11 +121,76 @@ export function encodeTimelockScheduleBatch(
     functionName: 'scheduleBatch',
     args: [
       targets,
-      targets.map(() => 0n), // values
+      values,
       payloads,
-      ZERO_PREDECESSOR,
+      TIMELOCK_ZERO_PREDECESSOR,
       salt,
       minDelay,
     ],
   })
 }
+
+/** Whether the timelock already knows an operation id, and in what state. */
+export type TimelockOperationState = 'unknown' | 'pending' | 'done'
+
+/**
+ * Reads OZ's `_timestamps` value for an operation id.
+ *
+ * The encoding is OZ's: 0 means never scheduled, and `_DONE_TIMESTAMP` (1) is
+ * written on execute, so presence alone cannot distinguish a done operation from
+ * a scheduled one. `_schedule` rejects both, but the caller must treat them
+ * differently.
+ *
+ * @param timestamp - the value `getTimestamp(id)` returned.
+ * @returns whether the operation is unknown, pending, or already executed.
+ */
+export const classifyTimelockOperation = (
+  timestamp: bigint
+): TimelockOperationState => {
+  if (timestamp === 0n) return 'unknown'
+  if (timestamp === 1n) return 'done'
+
+  return 'pending'
+}
+
+export interface ITimelockSaltInput {
+  chainId: number
+  timelockAddress: Address
+  targets: Address[]
+  payloads: Hex[]
+  /** Bumped only to escape an operation id the timelock already knows. */
+  attempt: number
+}
+
+/**
+ * Derives the timelock salt from the action, so the same action yields the same
+ * `scheduleBatch` calldata and a re-proposal is visible to the duplicate-proposal
+ * index.
+ *
+ * `attempt` is in the preimage because a purely action-derived salt can be
+ * scheduled only once ever — OZ keeps `_timestamps[id]` non-zero after execute —
+ * so a legitimate repeat needs a way to move to a fresh id without reintroducing
+ * a clock.
+ *
+ * @param input - the action, plus which attempt this is.
+ * @returns a bytes32 salt.
+ */
+export const deriveTimelockSalt = (input: ITimelockSaltInput): Hex =>
+  keccak256(
+    encodeAbiParameters(
+      [
+        { name: 'chainId', type: 'uint256' },
+        { name: 'timelock', type: 'address' },
+        { name: 'targets', type: 'address[]' },
+        { name: 'payloads', type: 'bytes[]' },
+        { name: 'attempt', type: 'uint256' },
+      ],
+      [
+        BigInt(input.chainId),
+        input.timelockAddress,
+        input.targets,
+        input.payloads,
+        BigInt(input.attempt),
+      ]
+    )
+  )
