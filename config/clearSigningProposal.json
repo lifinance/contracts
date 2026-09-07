@@ -12,10 +12,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -83,10 +80,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -160,10 +154,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -231,10 +222,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -308,10 +296,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -379,10 +364,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -450,10 +432,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -527,10 +506,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -604,10 +580,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -681,10 +654,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -758,10 +728,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -829,10 +796,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -906,10 +870,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -983,10 +944,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -1054,10 +1012,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -1131,10 +1086,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -1208,10 +1160,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -1285,10 +1234,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -1356,10 +1302,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -1433,10 +1376,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -1504,10 +1444,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -1575,10 +1512,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -1646,10 +1580,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -1717,10 +1648,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -1794,10 +1722,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -1865,10 +1790,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -1936,10 +1858,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -2007,10 +1926,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -2078,10 +1994,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -2149,10 +2062,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -2220,10 +2130,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -2291,10 +2198,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[0].sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -2304,10 +2208,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -2395,10 +2296,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[0].sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -2408,10 +2306,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -2505,10 +2400,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[0].sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -2518,10 +2410,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -2609,10 +2498,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[0].sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -2622,10 +2508,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -2719,10 +2602,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[0].sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -2732,10 +2612,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -2823,10 +2700,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[0].sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -2836,10 +2710,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -2927,10 +2798,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[0].sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -2940,10 +2808,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -3037,10 +2902,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[0].sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -3050,10 +2912,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -3147,10 +3006,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[0].sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -3160,10 +3016,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -3257,10 +3110,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[0].sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -3270,10 +3120,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -3367,10 +3214,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[0].sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -3380,10 +3224,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -3471,10 +3312,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[0].sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -3484,10 +3322,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -3581,10 +3416,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[0].sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -3594,10 +3426,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -3691,10 +3520,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[0].sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -3704,10 +3530,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -3795,10 +3618,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[0].sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -3808,10 +3628,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -3905,10 +3722,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[0].sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -3918,10 +3732,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -4015,10 +3826,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[0].sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -4028,10 +3836,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -4125,10 +3930,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[0].sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -4138,10 +3940,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -4229,10 +4028,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[0].sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -4242,10 +4038,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -4339,10 +4132,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[0].sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -4352,10 +4142,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -4443,10 +4230,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[0].sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -4456,10 +4240,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -4547,10 +4328,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[0].sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -4560,10 +4338,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -4651,10 +4426,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[0].sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -4664,10 +4436,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -4755,10 +4524,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[0].sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -4768,10 +4534,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -4865,10 +4628,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[0].sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -4878,10 +4638,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -4969,10 +4726,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[0].sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -4982,10 +4736,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -5073,10 +4824,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[0].sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -5086,10 +4834,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -5177,10 +4922,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[0].sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -5190,10 +4932,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -5281,10 +5020,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[0].sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -5294,10 +5030,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -5385,10 +5118,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[0].sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -5398,10 +5128,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -5489,10 +5216,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[0].sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -5502,10 +5226,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_bridgeData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -5593,10 +5314,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[0].sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -5606,10 +5324,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[-1].receivingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -5676,24 +5391,14 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[0].sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
         {
           "path": "_minAmountOut",
           "label": "Minimum to Receive",
-          "format": "tokenAmount",
-          "params": {
-            "tokenPath": "_swapData.[-1].receivingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
-          },
+          "format": "amount",
           "visible": "always"
         },
         {
@@ -5764,10 +5469,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.[-1].receivingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -5834,10 +5536,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -5847,10 +5546,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.receivingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -5907,24 +5603,14 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.sendingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
         {
           "path": "_minAmountOut",
           "label": "Minimum to Receive",
-          "format": "tokenAmount",
-          "params": {
-            "tokenPath": "_swapData.receivingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
-          },
+          "format": "amount",
           "visible": "always"
         },
         {
@@ -5985,10 +5671,7 @@
           "format": "tokenAmount",
           "params": {
             "tokenPath": "_swapData.receivingAssetId",
-            "nativeCurrencyAddress": [
-              "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE",
-              "0x0000000000000000000000000000000000000000"
-            ]
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
