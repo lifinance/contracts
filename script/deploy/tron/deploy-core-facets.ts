@@ -426,7 +426,7 @@ const deployCommand = defineCommand({
             delaySeconds = parsed
           } else {
             consola.warn(
-              `Invalid delaySeconds value: ${args.delaySeconds}, using default: 5`
+              `Invalid delaySeconds value: "${args.delaySeconds}", using default: 5`
             )
           }
         }

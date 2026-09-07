@@ -11,12 +11,16 @@ import {
   createSourceFile,
   forEachChild,
   isCallExpression,
+  isAsExpression,
   isIdentifier,
   isObjectLiteralExpression,
+  isParenthesizedExpression,
   isPropertyAssignment,
+  isSatisfiesExpression,
   isSpreadAssignment,
-  isVariableDeclaration,
+  isVariableStatement,
   ScriptTarget,
+  SyntaxKind,
 } from 'typescript'
 import type { Node, ObjectLiteralExpression, SourceFile } from 'typescript'
 
@@ -51,45 +55,66 @@ const findProperty = (
   name: string,
   source: SourceFile
 ): Node | undefined =>
-  literal.properties.find((property) => propertyName(property, source) === name)
+  properties(literal, source).find(
+    (property) => propertyName(property, source) === name
+  )
+
+/** Unwraps `as const`, `satisfies T` and parentheses around an expression. */
+const unwrap = (node: Node): Node => {
+  let current = node
+  while (
+    isAsExpression(current) ||
+    isSatisfiesExpression(current) ||
+    isParenthesizedExpression(current)
+  )
+    current = current.expression
+  return current
+}
 
 /**
- * Resolves an identifier to a same-file `const` initialised with an object
+ * Resolves an identifier to a module-scope variable initialised with an object
  * literal. An `args` block is routinely assembled from a shared const, by name
  * or by spread, and a shared block is exactly where the next flag gets added.
+ *
+ * Deliberately module scope only. A same-named binding inside a function is a
+ * different variable, and resolving to it would report a line the command never
+ * reads — a false failure on a gate that blocks every push.
  */
 const resolveObjectLiteral = (
   node: Node,
   source: SourceFile
 ): ObjectLiteralExpression | undefined => {
-  if (isObjectLiteralExpression(node)) return node
-  if (!isIdentifier(node)) return undefined
+  const target = unwrap(node)
+  if (isObjectLiteralExpression(target)) return target
+  if (!isIdentifier(target)) return undefined
 
-  const name = node.text
-  let found: ObjectLiteralExpression | undefined
-  const visit = (candidate: Node): void => {
-    if (
-      isVariableDeclaration(candidate) &&
-      isIdentifier(candidate.name) &&
-      candidate.name.text === name &&
-      candidate.initializer
-    ) {
-      const initializer = isObjectLiteralExpression(candidate.initializer)
-        ? candidate.initializer
-        : undefined
-      if (initializer) found = initializer
+  const name = target.text
+  for (const statement of source.statements) {
+    if (!isVariableStatement(statement)) continue
+    for (const declaration of statement.declarationList.declarations) {
+      if (
+        !isIdentifier(declaration.name) ||
+        declaration.name.text !== name ||
+        !declaration.initializer
+      )
+        continue
+      const initializer = unwrap(declaration.initializer)
+      if (isObjectLiteralExpression(initializer)) return initializer
     }
-    forEachChild(candidate, visit)
   }
-  visit(source)
-  return found
+  return undefined
 }
 
-/** Every argument declaration in an `args` block, following spreads. */
-const argumentDeclarations = (
+/**
+ * Every property of an object literal, following spreads into the literals they
+ * name. The `seen` set is load-bearing, not defensive: mutually spread consts
+ * (`const a = { ...b }`, `const b = { ...a }`) otherwise recurse until the stack
+ * overflows and the whole check crashes.
+ */
+const properties = (
   literal: ObjectLiteralExpression,
   source: SourceFile,
-  seen: Set<ObjectLiteralExpression>
+  seen: Set<ObjectLiteralExpression> = new Set()
 ): Node[] => {
   if (seen.has(literal)) return []
   seen.add(literal)
@@ -98,7 +123,7 @@ const argumentDeclarations = (
     if (isPropertyAssignment(property)) return [property]
     if (isSpreadAssignment(property)) {
       const spread = resolveObjectLiteral(property.expression, source)
-      return spread ? argumentDeclarations(spread, source, seen) : []
+      return spread ? properties(spread, source, seen) : []
     }
     return []
   })
@@ -109,7 +134,8 @@ const argumentDeclarations = (
  *
  * @param file - Path reported back in the findings.
  * @param source - The file's TypeScript source.
- * @returns One finding per offending argument, in source order.
+ * @returns One finding per offending argument. Declaration order, which is
+ * source order unless a spread pulls arguments in from elsewhere.
  *
  * @remarks
  * `args.<name>` goes through a citty proxy that falls back from the key asked
@@ -143,7 +169,7 @@ export const findMultiWordArgDefaults = (
           : undefined
 
       for (const declaration of literal
-        ? argumentDeclarations(literal, sourceFile, new Set())
+        ? properties(literal, sourceFile)
         : []) {
         if (
           !isPropertyAssignment(declaration) ||
@@ -175,10 +201,10 @@ export const findMultiWordArgDefaults = (
         if (!declaredDefault || !isPropertyAssignment(declaredDefault)) continue
         // citty installs a parser default only for a value that is not
         // `undefined`, so those leave the key absent and the fallback intact.
+        const value = unwrap(declaredDefault.initializer)
         if (
-          ['undefined', 'void 0'].includes(
-            declaredDefault.initializer.getText(sourceFile).trim()
-          )
+          value.kind === SyntaxKind.VoidExpression ||
+          (isIdentifier(value) && value.text === 'undefined')
         )
           continue
 

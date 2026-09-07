@@ -338,7 +338,7 @@ const main = defineCommand({
     const existing = networks[networkName]?.safeAddress
     if (existing && existing !== zeroAddress && !allowOverride)
       throw new Error(
-        `Safe already deployed on ${networkName} @ ${existing}. Overwriting is allowed by default; drop --no-allowOverride to redeploy over it.`
+        `Safe already deployed on ${networkName} @ ${existing}. Overwriting is allowed by default; drop the --allowOverride negation to redeploy over it.`
       )
 
     // parse & validate threshold + owners
@@ -585,7 +585,7 @@ const main = defineCommand({
         )
         consola.success(`✔ networks.json updated with Safe @ ${safeAddress}`)
       } else
-        consola.info(`ℹ Skipping networks.json update (--allowOverride=false)`)
+        consola.info('ℹ Skipping networks.json update (--allowOverride is off)')
     } catch (error) {
       consola.error('❌ Failed to update networks.json:', error)
       consola.error(

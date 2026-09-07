@@ -74,10 +74,12 @@ export interface IBooleanFlagOptions {
  * Prefer {@link readBooleanFlag} where the command can reach `argv`. This is for
  * a command whose body only sees `args`, and it exists because a `type:
  * 'boolean'` argument does not always arrive as a boolean: `--flag=true` arrives
- * as `'true'`, `--flag <token>` swallows the token as the value (numeric-looking
- * ones as a `number`), and a repeated flag arrives as an array. Anything present
- * that is not an explicit `false` therefore counts as on — for a `--dry-run` the
- * alternative is broadcasting a run the operator asked to simulate.
+ * as `'true'` and `--flag <token>` swallows the token as the value, numeric-looking
+ * ones as a `number`. Anything present that is not an explicit `false` therefore
+ * counts as on — for a `--dry-run` the alternative is broadcasting a run the
+ * operator asked to simulate. A repeated flag arrives as an array and is refused
+ * rather than reduced, because which occurrence wins decides the safe direction
+ * and that differs per flag: for `--dry-run` it is on, for `--allowOverride` off.
  *
  * Declare such an argument with **no** citty `default`: for a multi-word
  * argument citty resolves the spelling the caller did not type to the default,
@@ -87,6 +89,7 @@ export interface IBooleanFlagOptions {
  * @param value - The argument as citty resolved it.
  * @param options - What absence means, when it is not `false`.
  * @returns Whether the flag is on.
+ * @throws If the flag was passed more than once.
  */
 export const flagIsOn = (
   value: unknown,
@@ -94,10 +97,22 @@ export const flagIsOn = (
 ): boolean => {
   if (value === undefined) return options.whenAbsent ?? false
 
+  // citty concatenates repeats, so an array means the flag was passed twice.
+  // Reducing it would have to pick a winner, and the safe winner depends on the
+  // flag: `--dry-run --dry-run=false` wants on, `--allowOverride=false` twice
+  // wants off. Refuse instead, as `readBooleanFlag` does.
+  if (Array.isArray(value))
+    throw new Error(
+      `A boolean flag was given more than once (parsed as ${JSON.stringify(
+        value
+      )}). Which occurrence wins is not something this script should decide quietly — pass it once.`
+    )
+
   // Stated as what is off rather than what is on, because the set of shapes
-  // citty can hand this is open: `--dry-run 5` arrives as the number 5 and
-  // `--dry-run --dry-run` as `[true, true]`, and testing for on would read both
-  // as off and broadcast.
+  // citty can hand this is open: `--dry-run 5` arrives as the number 5, and
+  // testing for on would read that as off and broadcast. `''` cannot arise for
+  // a `type: 'boolean'` argument; it is here for a value argument read through
+  // this function.
   return value !== false && value !== 'false' && value !== ''
 }
 

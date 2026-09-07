@@ -236,13 +236,39 @@ describe('flagIsOn, against citty as it actually resolves flags', () => {
     expect(flagIsOn(await resolve({}, '--dry-run', '0'))).toBe(true)
   })
 
-  it('is on when the flag was passed twice, so arrived as an array', async () => {
-    // citty collapses repeats into an array. `readBooleanFlag` refuses this
-    // outright; `flagIsOn` cannot refuse, so it has to read it as on rather
-    // than let a doubled --dry-run broadcast.
+  it('refuses a flag passed twice rather than picking a winner', async () => {
+    // citty collapses repeats into an array. Reducing one would have to choose,
+    // and the safe choice flips per flag: on for --dry-run, off for
+    // --allowOverride. Both directions are refused, so neither can be wrong.
     expect(await resolve({}, '--dry-run', '--dry-run')).toEqual([true, true])
-    expect(flagIsOn(await resolve({}, '--dry-run', '--dry-run'))).toBe(true)
-    expect(flagIsOn(await resolve({}, '--dryRun', '--dry-run'))).toBe(true)
+    expect(() => flagIsOn([true, true])).toThrow(/given more than once/)
+    expect(await resolve({}, '--dry-run=false', '--dry-run=false')).toEqual([
+      'false',
+      'false',
+    ])
+    expect(() => flagIsOn(['false', 'false'])).toThrow(/given more than once/)
+    expect(() => flagIsOn(['true', 'false'])).toThrow(/given more than once/)
+  })
+
+  it('is unaffected when the two spellings are mixed, which citty does not collapse', async () => {
+    // Different keys, so no array and nothing ambiguous to refuse.
+    expect(await resolve({}, '--dryRun', '--dry-run')).toBe(true)
+  })
+
+  it('is off for a repeated negation, which citty collapses to a plain false', async () => {
+    // The `--no-` branch assigns rather than concatenating, so this never
+    // becomes an array and needs no refusal.
+    expect(await resolve({}, '--no-dry-run', '--no-dry-run')).toBe(false)
+    expect(flagIsOn(await resolve({}, '--no-dry-run', '--no-dry-run'))).toBe(
+      false
+    )
+  })
+
+  it("reads '' as off, for a value argument passed through this reader", () => {
+    // Unreachable for a `type: 'boolean'` argument; asserted directly so the
+    // clause is not left as untested code.
+    expect(flagIsOn('')).toBe(false)
+    expect(flagIsOn('', { whenAbsent: true })).toBe(false)
   })
 
   it('cannot rescue a declaration that carries a default', async () => {
@@ -302,10 +328,19 @@ describe('flagIsOn whenAbsent, against citty as it actually resolves flags', () 
     expect(await on('--useCache')).toBe(true)
   })
 
-  it('stays on for a repeated flag and for a swallowed numeric token', async () => {
-    expect(await on('--use-cache', '--use-cache')).toBe(true)
+  it('stays on for a swallowed numeric token', async () => {
     expect(await on('--use-cache', '5')).toBe(true)
     expect(await on('--use-cache', '0')).toBe(true)
+  })
+
+  it('refuses a repeat here too, where ON is the unsafe direction', async () => {
+    // `--allowOverride=false` twice used to read as on, i.e. permit the write.
+    expect(await resolve({}, '--use-cache=false', '--use-cache=false')).toEqual(
+      ['false', 'false']
+    )
+    expect(() => flagIsOn(['false', 'false'], { whenAbsent: true })).toThrow(
+      /given more than once/
+    )
   })
 
   it('cannot be switched off at all once the declaration carries the default', async () => {
