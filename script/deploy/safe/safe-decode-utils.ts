@@ -27,6 +27,10 @@ import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { getDeployments } from '../../utils/deploymentHelpers'
 import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
 import { buildExplorerContractPageUrl } from '../../utils/viemScriptHelpers'
+import type {
+  FacetCutActionEnum,
+  IFacetCutEntry,
+} from '../codehash/cut-classification'
 import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
 
 import { decodeDiamondCut } from './safe-utils'
@@ -611,6 +615,9 @@ export const ABI_DIAMOND_CUT = parseAbi([
 const ABI_SCHEDULE_BATCH = parseAbi([
   'function scheduleBatch(address[],uint256[],bytes[],bytes32,bytes32,uint256)',
 ])
+const ABI_SCHEDULE_SINGLE = parseAbi([
+  'function schedule(address,uint256,bytes,bytes32,bytes32,uint256)',
+])
 const ABI_BATCH_SET_CONTRACT_SELECTOR_WHITELIST = parseAbi([
   'function batchSetContractSelectorWhitelist(address[],bytes4[],bool)',
 ])
@@ -934,4 +941,184 @@ export async function formatDecodedTxDataForDisplay(
     const preview = data.length > 66 ? `${data.slice(0, 66)}…` : data
     log(`Data (raw): \u001b[90m${preview}\u001b[0m`)
   }
+}
+
+/** One `diamondCut` call recovered from a proposal's calldata. */
+export interface IDiamondCutCall {
+  cuts: IFacetCutEntry[]
+  /** Checksummed `_init` target; the zero address when the cut sets none. */
+  init: string
+}
+
+export interface ICollectedDiamondCuts {
+  /** Every `diamondCut` found, in the order the calldata carries them. */
+  calls: IDiamondCutCall[]
+  /**
+   * Reasons the calldata must not be signed whatever any codehash result says.
+   * Populated when a cut is present in bytes this module cannot decode.
+   */
+  refusals: string[]
+}
+
+const selectorOf = (abi: Abi): string =>
+  toFunctionSelector(
+    abi.find((item) => item.type === 'function') as Parameters<
+      typeof toFunctionSelector
+    >[0]
+  )
+
+const DIAMOND_CUT_SELECTOR = selectorOf(ABI_DIAMOND_CUT)
+const SCHEDULE_BATCH_SELECTOR = selectorOf(ABI_SCHEDULE_BATCH)
+const SCHEDULE_SINGLE_SELECTOR = selectorOf(ABI_SCHEDULE_SINGLE)
+
+/**
+ * Selectors this module can decode on its own. Membership is what separates
+ * "a call whose arguments happen to contain four bytes" from "an envelope we
+ * cannot see inside".
+ */
+const DECODABLE_SELECTORS = new Set(
+  (
+    [
+      ...ABI_DIAMOND_CUT,
+      ...ABI_SCHEDULE_BATCH,
+      ...ABI_SCHEDULE_SINGLE,
+      ...ABI_BATCH_SET_CONTRACT_SELECTOR_WHITELIST,
+      ...ABI_REGISTER_PERIPHERY_CONTRACT,
+      ...ABI_ACCESS_CONTROL_ROLE,
+    ] as Abi
+  )
+    .filter((item) => item.type === 'function')
+    .map((item) =>
+      toFunctionSelector(
+        item as Parameters<typeof toFunctionSelector>[0]
+      ).toLowerCase()
+    )
+)
+
+const asHex = (value: unknown): Hex =>
+  typeof value === 'string'
+    ? (value as Hex)
+    : value instanceof Uint8Array
+    ? bytesToHex(value)
+    : ('0x' as Hex)
+
+/**
+ * @param entry - one decoded `FacetCut` tuple, as viem returns it
+ */
+const readCutEntry = (entry: unknown): IFacetCutEntry | undefined => {
+  const tuple = Array.isArray(entry)
+    ? entry
+    : isRecord(entry)
+    ? [entry.facetAddress, entry.action]
+    : undefined
+  if (!tuple) return undefined
+  const [facetAddress, action] = tuple
+  if (typeof facetAddress !== 'string') return undefined
+  const numeric = typeof action === 'bigint' ? Number(action) : action
+  if (typeof numeric !== 'number' || !Number.isInteger(numeric))
+    return undefined
+  let checksummed: string
+  try {
+    checksummed = getAddress(facetAddress)
+  } catch {
+    return undefined
+  }
+  // Cast rather than validated: `classifyCut` refuses an action outside the
+  // enum, and swallowing it here would hand it a shorter list instead.
+  return { facetAddress: checksummed, action: numeric as FacetCutActionEnum }
+}
+
+/**
+ * Recovers every `diamondCut` a proposal's calldata would perform.
+ *
+ * The cut is decoded with {@link ABI_DIAMOND_CUT}, the same ABI the display path
+ * renders from, so the structure vouched for and the structure shown are one
+ * decode of one value. Pass the in-memory calldata the signer was shown — never
+ * a re-read of its source.
+ *
+ * The timelock envelope is unwrapped because every production proposal is
+ * `scheduleBatch`-wrapped, and the singular `schedule` is unwrapped too: the
+ * wrapper list is a snapshot, so a cut sitting in bytes nothing here decodes is
+ * refused rather than passed over.
+ *
+ * @param data - the proposal's calldata, `0x`-prefixed
+ * @returns The cuts found, and any reason the calldata must not be signed
+ */
+export const collectDiamondCutTargets = (
+  data: Hex | undefined
+): ICollectedDiamondCuts => {
+  const calls: IDiamondCutCall[] = []
+  if (!data || data === '0x') return { calls, refusals: [] }
+
+  const topSelector = data.slice(0, 10).toLowerCase()
+
+  const walk = (payload: Hex, depth: number): void => {
+    if (depth > 4 || !payload || payload.length < 10) return
+    const selector = payload.slice(0, 10).toLowerCase()
+
+    if (selector === DIAMOND_CUT_SELECTOR.toLowerCase()) {
+      let decoded
+      try {
+        decoded = decodeFunctionData({ abi: ABI_DIAMOND_CUT, data: payload })
+      } catch {
+        return
+      }
+      const entries = Array.isArray(decoded.args?.[0]) ? decoded.args[0] : []
+      const cuts = entries
+        .map(readCutEntry)
+        .filter((entry): entry is IFacetCutEntry => entry !== undefined)
+      const initRaw = decoded.args?.[1]
+      let init: string
+      try {
+        init = getAddress(String(initRaw) as `0x${string}`)
+      } catch {
+        return
+      }
+      calls.push({ cuts, init })
+      return
+    }
+
+    if (selector === SCHEDULE_BATCH_SELECTOR.toLowerCase()) {
+      let decoded
+      try {
+        decoded = decodeFunctionData({ abi: ABI_SCHEDULE_BATCH, data: payload })
+      } catch {
+        return
+      }
+      const payloads = Array.isArray(decoded.args?.[2]) ? decoded.args[2] : []
+      for (const nested of payloads) walk(asHex(nested), depth + 1)
+      return
+    }
+
+    if (selector === SCHEDULE_SINGLE_SELECTOR.toLowerCase()) {
+      let decoded
+      try {
+        decoded = decodeFunctionData({
+          abi: ABI_SCHEDULE_SINGLE,
+          data: payload,
+        })
+      } catch {
+        return
+      }
+      walk(asHex(decoded.args?.[2]), depth + 1)
+    }
+  }
+
+  walk(data, 0)
+
+  // A cut in bytes nothing above decoded is the failure mode a wrapper list
+  // cannot cover, so it stops the signature instead of going unmentioned. Only
+  // reached for an unrecognised outer selector: a decodable call whose
+  // arguments carry these four bytes — a whitelist entry for `diamondCut`
+  // itself — is not a hidden cut.
+  const refusals =
+    calls.length === 0 &&
+    !DECODABLE_SELECTORS.has(topSelector) &&
+    data.toLowerCase().includes(DIAMOND_CUT_SELECTOR.slice(2).toLowerCase())
+      ? [
+          `This proposal's calldata carries the diamondCut selector ${DIAMOND_CUT_SELECTOR} inside ${topSelector}, which this decoder cannot open, so the cut cannot be shown or checked. Signing is refused rather than treating an unreadable envelope as carrying no cut.`,
+        ]
+      : []
+
+  return { calls, refusals }
 }
