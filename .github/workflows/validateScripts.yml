@@ -7,10 +7,6 @@
 #   every bare import in script TS files must resolve to a package declared
 #   in package.json (catches "dependency removed while still imported"
 #   even when no .ts file was touched)
-# - citty argument defaults: no multi-word `defineCommand` argument under
-#   script/ may declare a `default` — citty then resolves the spelling the caller
-#   did not type to it, so the other spelling is a silent no-op (a `--dry-run`
-#   that broadcasts). Swept over all script files, on script and manifest changes
 # - Path-gated: the heavy job runs only when scripts or dependency manifests
 #   change. A `validate-scripts-required` aggregator job always reports a
 #   final status so this workflow can be registered as a required check on
