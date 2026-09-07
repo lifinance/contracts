@@ -10,7 +10,6 @@ import readline from 'readline'
 import {
   applyTronGridViemTransportExtras,
   formatAddressForNetworkCliDisplay,
-  isTronNetworkKey,
 } from '@lifi/tron-devkit'
 import { consola } from 'consola'
 import * as dotenv from 'dotenv'
@@ -31,6 +30,7 @@ import {
   type INetworksObject,
   type SupportedChain,
 } from '../common/types'
+import { normalizeRpcUrlForNetwork } from '../mongoDb/rpcEndpoints'
 
 import { getDeployments } from './deploymentHelpers'
 import { normalizeAddressForNetwork } from './normalizeAddressStringForViem'
@@ -102,18 +102,6 @@ export function getTransportConfigFromRpcUrl(rpcUrl: string): {
   return applyTronGridViemTransportExtras(base)
 }
 
-/** TronGrid's full-node root serves Tron's native HTTP API; viem needs the `/jsonrpc` route. */
-function normalizeRpcUrlForNetwork(
-  networkName: string,
-  rpcUrl: string
-): string {
-  if (!isTronNetworkKey(networkName)) return rpcUrl
-  const withoutTrailingSlashes = rpcUrl.replace(/\/+$/, '')
-  return withoutTrailingSlashes.endsWith('/jsonrpc')
-    ? rpcUrl
-    : `${withoutTrailingSlashes}/jsonrpc`
-}
-
 /**
  * Lower-priority RPC URLs for a network, in the order `fetch-rpcs` wrote them.
  * Empty when the network has only one usable endpoint.
@@ -135,28 +123,55 @@ export function getFallbackTransportForChain(
   chain: Chain,
   options?: { signal?: AbortSignal }
 ): Transport {
-  const transports = chain.rpcUrls.default.http.map((rpcUrl) => {
+  const transports: Transport[] = []
+  const rejections: string[] = []
+
+  for (const rpcUrl of chain.rpcUrls.default.http) {
+    let config: ReturnType<typeof getTransportConfigFromRpcUrl>
+    try {
+      config = getTransportConfigFromRpcUrl(rpcUrl)
+    } catch (error) {
+      // Skipped rather than rethrown: an endpoint this chain cannot use is exactly what the
+      // remaining endpoints are here to cover, and letting one of them abort the whole chain
+      // takes down a network whose primary is healthy.
+      rejections.push(error instanceof Error ? error.message : String(error))
+      continue
+    }
     const {
       url,
       fetchOptions: authFetchOptions,
       retryCount,
       retryDelay,
-    } = getTransportConfigFromRpcUrl(rpcUrl)
+    } = config
     const mergedFetchOptions = {
       ...(authFetchOptions ?? {}),
       ...(options?.signal ? { signal: options.signal } : {}),
     }
-    return http(url, {
-      ...(Object.keys(mergedFetchOptions).length
-        ? { fetchOptions: mergedFetchOptions }
-        : {}),
-      ...(retryCount !== undefined ? { retryCount } : {}),
-      ...(retryDelay !== undefined ? { retryDelay } : {}),
-    })
-  })
+    transports.push(
+      http(url, {
+        ...(Object.keys(mergedFetchOptions).length
+          ? { fetchOptions: mergedFetchOptions }
+          : {}),
+        ...(retryCount !== undefined ? { retryCount } : {}),
+        ...(retryDelay !== undefined ? { retryDelay } : {}),
+      })
+    )
+  }
+
+  if (rejections.length)
+    consola.warn(
+      `${chain.name}: ignoring ${
+        rejections.length
+      } unusable RPC endpoint(s) — ${rejections.join('; ')}`
+    )
 
   const [only] = transports
-  if (!only) throw new Error(`No RPC URL configured for chain ${chain.name}`)
+  if (!only)
+    throw new Error(
+      rejections.length
+        ? `No usable RPC URL for chain ${chain.name} — ${rejections.join('; ')}`
+        : `No RPC URL configured for chain ${chain.name}`
+    )
   return transports.length === 1 ? only : fallback(transports)
 }
 

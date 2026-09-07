@@ -15,6 +15,7 @@ import {
   hasApiCredentials,
   hostOf,
   lowestPriorityFor,
+  normalizeRpcUrlForNetwork,
   repairOrder,
   selectEndpoints,
   type IRpcEndpoint,
@@ -419,5 +420,40 @@ describe('findEndpointIndex', () => {
 
   it('returns -1 for a url the chain does not have', () => {
     expect(findEndpointIndex([], URL_A, 'production')).toBe(-1)
+  })
+})
+
+describe('normalizeRpcUrlForNetwork', () => {
+  // The stored value: config/networks.json holds the TronGrid root, and only the JSON-RPC route
+  // answers a JSON-RPC body — probing the root reports every Tron chain as unreachable.
+  const TRONGRID_ROOT = 'https://api.example-trongrid.invalid'
+
+  it('routes a Tron endpoint to its JSON-RPC path', () => {
+    expect(normalizeRpcUrlForNetwork('tron', TRONGRID_ROOT)).toBe(
+      `${TRONGRID_ROOT}/jsonrpc`
+    )
+  })
+
+  it('routes a Tron testnet endpoint the same way', () => {
+    expect(normalizeRpcUrlForNetwork('tronshasta', TRONGRID_ROOT)).toBe(
+      `${TRONGRID_ROOT}/jsonrpc`
+    )
+  })
+
+  it('tolerates a trailing slash on the stored root', () => {
+    expect(normalizeRpcUrlForNetwork('tron', `${TRONGRID_ROOT}/`)).toBe(
+      `${TRONGRID_ROOT}/jsonrpc`
+    )
+  })
+
+  it('leaves an endpoint already carrying the route untouched', () => {
+    const withRoute = `${TRONGRID_ROOT}/jsonrpc`
+    expect(normalizeRpcUrlForNetwork('tron', withRoute)).toBe(withRoute)
+  })
+
+  it('leaves an EVM endpoint untouched', () => {
+    expect(normalizeRpcUrlForNetwork('arbitrum', KEYLESS_PUBLIC)).toBe(
+      KEYLESS_PUBLIC
+    )
   })
 })

@@ -21,6 +21,7 @@ import { probeEndpoint } from './probeEndpoint'
 import {
   hasApiCredentials,
   hostOf,
+  normalizeRpcUrlForNetwork,
   repairOrder,
   selectEndpoints,
   type IRpcEndpoint,
@@ -64,16 +65,39 @@ function auditChain(
   }
 }
 
-/** Probe every distinct endpoint once, regardless of how many chains list it. */
-async function probeAll(urls: string[]): Promise<Set<string>> {
-  const distinct = [...new Set(urls)]
+/** A stored endpoint together with the URL its network's JSON-RPC traffic actually goes to. */
+interface IProbeTarget {
+  storedUrl: string
+  probeUrl: string
+}
+
+/**
+ * Probe every distinct endpoint once, regardless of how many chains list it.
+ *
+ * Probing the stored URL is not the same as probing the endpoint: Tron stores the TronGrid root,
+ * which answers JSON-RPC only under `/jsonrpc`. Reachability is decided on the URL callers will
+ * really use, and reported back under the stored URL the rest of the audit keys on.
+ */
+async function probeAll(targets: IProbeTarget[]): Promise<Set<string>> {
+  const storedByProbeUrl = new Map<string, string[]>()
+  for (const { storedUrl, probeUrl } of targets) {
+    const stored = storedByProbeUrl.get(probeUrl)
+    if (stored) stored.push(storedUrl)
+    else storedByProbeUrl.set(probeUrl, [storedUrl])
+  }
+
+  const distinct = [...storedByProbeUrl.keys()]
   consola.info(`Probing ${distinct.length} distinct endpoint(s)...`)
   const results = await mapWithConcurrency(
     distinct,
     PROBE_CONCURRENCY,
-    async (url) => ({ url, ok: await probeEndpoint(url) })
+    async (probeUrl) => ({ probeUrl, ok: await probeEndpoint(probeUrl) })
   )
-  return new Set(results.filter((r) => r.ok).map((r) => r.url))
+  return new Set(
+    results
+      .filter((result) => result.ok)
+      .flatMap((result) => storedByProbeUrl.get(result.probeUrl) ?? [])
+  )
 }
 
 function printChain(audit: IChainAudit, reachable: ReachableUrls) {
@@ -164,7 +188,13 @@ const main = defineCommand({
                 selectEndpoints(
                   doc.rpcs as IRpcEndpoint[],
                   args.environment
-                ).map((endpoint) => endpoint.url)
+                ).map((endpoint) => ({
+                  storedUrl: endpoint.url,
+                  probeUrl: normalizeRpcUrlForNetwork(
+                    doc.chainName as string,
+                    endpoint.url
+                  ),
+                }))
               )
             )
           : undefined

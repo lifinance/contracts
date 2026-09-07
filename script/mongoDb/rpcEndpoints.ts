@@ -3,6 +3,8 @@
  * or filesystem dependency so it can be unit tested without a database connection.
  */
 
+import { isTronNetworkKey } from '@lifi/tron-devkit'
+
 export interface IRpcEndpoint {
   url: string
   priority: number
@@ -86,6 +88,24 @@ export function hostOf(url: string): string {
   } catch {
     return '<unparsable url>'
   }
+}
+
+/**
+ * The URL a network's JSON-RPC traffic actually goes to.
+ *
+ * TronGrid's stored root serves Tron's native HTTP API and answers JSON-RPC only under
+ * `/jsonrpc`, so anything that speaks JSON-RPC — the viem transport and the reachability probe
+ * alike — has to ask for the same URL, or the probe reports a healthy chain as unreachable.
+ */
+export function normalizeRpcUrlForNetwork(
+  networkName: string,
+  rpcUrl: string
+): string {
+  if (!isTronNetworkKey(networkName)) return rpcUrl
+  const withoutTrailingSlashes = rpcUrl.replace(/\/+$/, '')
+  return withoutTrailingSlashes.endsWith('/jsonrpc')
+    ? rpcUrl
+    : `${withoutTrailingSlashes}/jsonrpc`
 }
 
 /** Networks whose primary endpoint carries no provider credentials, with that endpoint's host. */
