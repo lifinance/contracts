@@ -15,6 +15,7 @@ set +a
 NETWORKS_JSON_FILE_PATH="config/networks.json"
 GLOBAL_FILE_PATH="config/global.json"
 source script/universalCast.sh
+source script/deploy/shared/assertFoundryVersion.sh
 
 ZERO_ADDRESS=0x0000000000000000000000000000000000000000
 TRON_ZERO_ADDRESS_BASE58=T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb
@@ -5194,6 +5195,11 @@ function parseExecuteCommandResult() {
 #   $2 - EXTRACT_JSON: If set to "true", will extract JSON from stdout (default: "false")
 #   $3 - ERROR_MESSAGE: Optional error message for return code check (if provided, will check return code)
 #   $4 - ON_ERROR_ACTION: Optional action on error: "return" (default), "continue", or "exit"
+# Routing/Behavior:
+#   - Local foundry does not match .foundry-version: refuses before running COMMAND,
+#     sets RETURN_CODE to 1, clears RAW_RETURN_DATA, puts the refusal in
+#     STDERR_CONTENT, and returns 1 whatever ON_ERROR_ACTION says
+#   - Otherwise: runs COMMAND and parses the result as described below
 # Returns:
 #   Sets global variables RAW_RETURN_DATA, STDERR_CONTENT, RETURN_CODE (always contain last execution output)
 #   Returns 0 if RETURN_CODE is 0 (or if no error check requested), 1 otherwise
@@ -5211,6 +5217,20 @@ function executeAndParse() {
   local EXTRACT_JSON="${2:-false}"
   local ERROR_MESSAGE="${3:-}"
   local ON_ERROR_ACTION="${4:-return}"
+
+  # Every deploy-path `forge script` is a COMMAND passed to this function, which is why a
+  # toolchain check lives in a generic executor. Direct `forge build` call sites do not
+  # pass through here; the EXSC-932 deploy entry points gate their own, and several others
+  # (scriptMaster.sh, deployGroupingHelpers.sh, deployContractToNetworks.sh,
+  # proposeContractToNetworks.sh) remain ungated. The result globals are reset because
+  # callers that ignore the status read the verdict out of them via handleForgeScriptError,
+  # where a previous call's success payload would read as a completed forge run.
+  if ! assertFoundryVersionOrFail; then
+    RAW_RETURN_DATA=""
+    STDERR_CONTENT="refused: could not confirm the local foundry matches .foundry-version"
+    RETURN_CODE=1
+    return 1
+  fi
 
   # Execute command and capture output
   local RESULT
