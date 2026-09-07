@@ -192,6 +192,23 @@ describe('collectInstalledFacetAddresses', () => {
     expect(result.undecodable).toEqual([0])
   })
 
+  it('refuses an unreadable envelope even when a readable cut sits beside it', () => {
+    // the sibling case: the decodable half must not vouch for the other half
+    const batch = scheduleBatch(
+      [DIAMOND, TIMELOCK],
+      [cut(FACET_A, 0), unknownWrapper(cut(FACET_B, 0))]
+    )
+    const result = collectInstalledFacetAddresses([batch])
+
+    expect(result.addresses).toEqual([FACET_A])
+    expect(result.undecodable).toEqual([0])
+  })
+
+  it('refuses a nested unreadable envelope, not just a top-level one', () => {
+    const batch = scheduleBatch([TIMELOCK], [unknownWrapper(cut(FACET_B, 0))])
+    expect(collectInstalledFacetAddresses([batch]).undecodable).toEqual([0])
+  })
+
   it('leaves a call with no cut selector in it alone', () => {
     const result = collectInstalledFacetAddresses([
       unknownWrapper('0xdeadbeef' as Hex),
@@ -313,7 +330,7 @@ describe('assertFunnelDeployGate', () => {
     const truncated = (cut(FACET_A, 0).slice(0, 30) + 'ff') as Hex
     await expectRefusal(
       assertFunnelDeployGate({ network: 'mainnet', calldatas: [truncated] }, d),
-      /could not read to the bottom/
+      /no cut could be read out of it/
     )
     expect(gateCalls).toEqual([])
   })

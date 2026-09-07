@@ -40,8 +40,7 @@ const DIAMOND_CUT_SELECTOR = toFunctionSelector(
 /**
  * `LiFiTimelockController` inherits OpenZeppelin's `TimelockController`, so the
  * singular `schedule` is callable by the Safe even though this repo's tooling
- * only ever emits `scheduleBatch`. Left undecoded it was a way to hand the
- * funnel a cut it could not see.
+ * only ever emits `scheduleBatch`.
  */
 const TIMELOCK_SCHEDULE_ABI = parseAbi([
   'function schedule(address target, uint256 value, bytes payload, bytes32 predecessor, bytes32 salt, uint256 delay)',
@@ -179,19 +178,17 @@ export const collectInstalledFacetAddresses = (
       return sawCut
     }
 
+    // An envelope this cannot open. Only the wrappers above are unwrapped, so
+    // any other — `multiSend`, a bespoke batcher — hides whatever it carries. A
+    // call is refused on its own bytes, never on its siblings': a batch pairing
+    // one readable cut with one unreadable envelope must not pass because the
+    // readable half decoded.
+    if (data.toLowerCase().includes(DIAMOND_CUT_SELECTOR.slice(2)))
+      undecodable.add(index)
     return false
   }
 
-  calldatas.forEach((data, index) => {
-    const sawCut = walk(data, index, 0)
-    // Backstop against an envelope this does not know. Only the wrappers above
-    // are unwrapped, so any other one — OZ `multiSend`, a bespoke batcher —
-    // would otherwise yield an empty facet set and skip the gate silently, which
-    // is the bypass the unwrapping exists to prevent. If the cut selector is in
-    // the bytes and no cut came out, the call is unreadable, not innocent.
-    if (!sawCut && data.toLowerCase().includes(DIAMOND_CUT_SELECTOR.slice(2)))
-      undecodable.add(index)
-  })
+  calldatas.forEach((data, index) => walk(data, index, 0))
 
   return {
     addresses: [...seen.values()],
@@ -227,16 +224,13 @@ export const assertFunnelDeployGate = async (
   input: { network: string; calldatas: readonly Hex[] },
   deps: IFunnelGateDeps
 ): Promise<void> => {
-  // There is deliberately no environment predicate here. Reaching this funnel
-  // means a Safe proposal, and every path that reaches it for a non-testnet
-  // network is proposing to a production Safe and signs with the production
-  // signer key — a staging deploy sends straight to the diamond instead. An
-  // `ENVIRONMENT` check would therefore add nothing except an ambient
-  // off-switch: no production caller exports that name, so its value would come
-  // from whatever happens to be in the operator's shell.
+  // Every non-testnet call here proposes to a production Safe and signs with the
+  // production signer key; a staging deploy sends straight to the diamond
+  // instead of proposing. So the network is the only exemption worth reading,
+  // and it is read from repo config rather than the environment.
   //
-  // Testnets stay exempt: they carry no production Safe, and deploying an
-  // unmerged facet there is how it is validated before its audit.
+  // Testnets carry no production Safe, and deploying an unmerged facet there is
+  // how it is validated before its audit.
   if (deps.isTestnet(input.network)) {
     consola.info(
       `Production deploy gate skipped: ${input.network} is a testnet`
@@ -252,13 +246,13 @@ export const assertFunnelDeployGate = async (
     throw new Error(
       `Production deploy gate: call ${undecodable.join(
         ', '
-      )} carries a diamondCut or timelock scheduleBatch selector this could not read to the bottom — the arguments did not decode, or the batch is nested more than ${MAX_UNWRAP_DEPTH} deep — so the facets it installs cannot be checked. Re-encode the call as a plain diamondCut and let the funnel wrap it.`
+      )} carries the diamondCut selector but no cut could be read out of it, so the facets it would install cannot be checked. Either it is wrapped in an envelope this does not decode (re-encode it as a plain diamondCut and let the funnel do the timelock wrapping), its arguments do not decode, it nests more than ${MAX_UNWRAP_DEPTH} timelock layers — or those four bytes are a coincidence in an argument that is not a cut at all, in which case say so on the PR rather than working around this.`
     )
 
   // Nothing installs facet code (ownership transfers, whitelist updates, facet
   // removals), so there is nothing to compare and an empty facet list would make
-  // the gate itself fail closed. Announced rather than silent: a skip an
-  // operator cannot see is indistinguishable from a gate that is not wired.
+  // the gate itself fail closed. Logged, so a skip an operator cannot see is not
+  // mistaken for a gate that was never wired.
   if (addresses.length === 0) {
     consola.info(
       'Production deploy gate skipped: no call in this proposal installs facet code'

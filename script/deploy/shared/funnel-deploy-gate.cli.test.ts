@@ -332,6 +332,7 @@ describe('propose-to-safe funnel deploy gate', () => {
         diverge: true,
         network: 'mainnet',
         calldata: ADD_CUT,
+        environment: 'production',
       })
 
       expect(result.output).toMatch(GATE_REFUSAL)
