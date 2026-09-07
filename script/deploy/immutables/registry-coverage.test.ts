@@ -25,9 +25,11 @@ import {
 
 const declared = (
   name: string,
-  file = 'src/Facets/AcrossFacet.sol'
+  contract = 'AcrossFacet',
+  file = `src/Facets/${contract}.sol`
 ): IImmutableDeclaration => ({
   file,
+  contract,
   line: 20,
   type: 'address',
   visibility: 'public',
@@ -112,7 +114,7 @@ describe('assessRegistryCoverage', () => {
 
   it('treats a contract absent from the registry as fully undeclared', () => {
     const result = assessRegistryCoverage(
-      [declared('POOL_MANAGER', 'src/Facets/BrandNewFacet.sol')],
+      [declared('POOL_MANAGER', 'BrandNewFacet')],
       { AcrossFacet: ['_spokePool'] }
     )
 
@@ -122,13 +124,52 @@ describe('assessRegistryCoverage', () => {
     ])
   })
 
-  it('keys on the contract name taken from the file, not the whole path', () => {
+  it('keys on the contract name, wherever in the tree the file sits', () => {
     const result = assessRegistryCoverage(
-      [declared('SPOKE_POOL', 'src/Periphery/Nested/AcrossFacet.sol')],
+      [
+        declared(
+          'SPOKE_POOL',
+          'AcrossFacet',
+          'src/Periphery/Nested/AcrossFacet.sol'
+        ),
+      ],
       { AcrossFacet: ['_spokePool'] }
     )
 
     expect(result.undeclared).toEqual([])
+  })
+
+  it('does not let a helper contract be covered by entries filed under its file', () => {
+    // Both contracts live in AcrossFacet.sol, so a basename key would file the
+    // helper's immutable under AcrossFacet and count it as covered.
+    const result = assessRegistryCoverage(
+      [declared('SPOKE_POOL', 'AcrossHelper', 'src/Facets/AcrossFacet.sol')],
+      { AcrossFacet: ['_spokePool'] }
+    )
+
+    expect(result.undeclared.map((d) => d.name)).toEqual(['SPOKE_POOL'])
+    expect(result.orphanedEntries).toEqual([
+      { contract: 'AcrossFacet', entry: '_spokePool' },
+    ])
+  })
+
+  it('keeps two files of the same basename apart', () => {
+    // Both contracts carry an entry of their own, so a basename key would spend
+    // AcrossFacet's on the V4 declaration and leave V4's entry orphaned.
+    const result = assessRegistryCoverage(
+      [
+        declared('SPOKE_POOL', 'AcrossFacet', 'src/Facets/AcrossFacet.sol'),
+        declared('SPOKE_POOL', 'AcrossFacetV4', 'src/V4/AcrossFacet.sol'),
+      ],
+      { AcrossFacet: ['_spokePool'], AcrossFacetV4: ['_spokePool'] }
+    )
+
+    expect(result.covered.map((d) => d.contract)).toEqual([
+      'AcrossFacet',
+      'AcrossFacetV4',
+    ])
+    expect(result.undeclared).toEqual([])
+    expect(result.orphanedEntries).toEqual([])
   })
 
   it('counts nothing as covered when there is nothing declared', () => {
@@ -144,7 +185,7 @@ describe('assessRegistryCoverage', () => {
     // Two facets can take a parameter of the same name; an entry only covers the
     // contract it is filed under.
     const result = assessRegistryCoverage(
-      [declared('SPOKE_POOL', 'src/Facets/OtherFacet.sol')],
+      [declared('SPOKE_POOL', 'OtherFacet')],
       { AcrossFacet: ['_spokePool'] }
     )
 

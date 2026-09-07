@@ -69,12 +69,6 @@ const KNOWN_SOURCES: readonly ImmutableSource[] = [
   'unverifiable',
 ]
 
-const contractOf = (file: string): string =>
-  file
-    .split('/')
-    .pop()
-    ?.replace(/\.sol$/u, '') ?? file
-
 const nonEmptyString = (value: unknown): boolean =>
   typeof value === 'string' && value.trim() !== ''
 
@@ -131,18 +125,18 @@ export const validateImmutableRegistry = (
 
   const declaredByContract = new Map<string, Set<string>>()
   for (const declaration of declarations) {
-    const contract = contractOf(declaration.file)
-    const names = declaredByContract.get(contract) ?? new Set<string>()
+    const names =
+      declaredByContract.get(declaration.contract) ?? new Set<string>()
     names.add(declaration.name)
-    declaredByContract.set(contract, names)
+    declaredByContract.set(declaration.contract, names)
   }
 
   for (const declaration of declarations) {
-    const contract = contractOf(declaration.file)
-    const entry = requirements[contract]?.immutables?.[declaration.name]
+    const entry =
+      requirements[declaration.contract]?.immutables?.[declaration.name]
     if (!entry)
       warnings.push(
-        `${contract}.${declaration.name} has no registry entry (${declaration.file}:${declaration.line}). Declare it as config, derived, unchecked or unverifiable.`
+        `${declaration.contract}.${declaration.name} has no registry entry (${declaration.file}:${declaration.line}). Declare it as config, derived, unchecked or unverifiable.`
       )
   }
 

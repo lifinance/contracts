@@ -6,11 +6,12 @@
  * is observable from the pure functions alone.
  */
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
 import {
+  afterEach,
   describe,
   expect,
   it,
@@ -144,9 +145,17 @@ const artifactFor = (sourcePath: string, contract: string): string =>
     },
   })
 
+const temporaryRepositories: string[] = []
+
+afterEach(() => {
+  for (const root of temporaryRepositories.splice(0))
+    rmSync(root, { recursive: true, force: true })
+})
+
 /** Builds a throwaway repo the CLI can run against, and returns its path. */
 function makeRepo(files: Record<string, string>): string {
   const root = mkdtempSync(join(tmpdir(), 'immutable-registry-'))
+  temporaryRepositories.push(root)
   for (const [path, content] of Object.entries(files)) {
     const full = join(root, path)
     mkdirSync(join(full, '..'), { recursive: true })
