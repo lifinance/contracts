@@ -70,42 +70,45 @@ describe('mergeRequirements', () => {
 describe('decideExit', () => {
   it('exits 0 when nothing was found', () => {
     expect(
-      decideExit({ unreadable: 0, errors: 0, warnings: 0 }, false).code
+      decideExit({ unenumerated: 0, errors: 0, warnings: 0 }, false).code
     ).toBe(0)
   })
 
   it('exits 1 on a registry error in either mode', () => {
     expect(
-      decideExit({ unreadable: 0, errors: 1, warnings: 0 }, false).code
+      decideExit({ unenumerated: 0, errors: 1, warnings: 0 }, false).code
     ).toBe(1)
     expect(
-      decideExit({ unreadable: 0, errors: 1, warnings: 0 }, true).code
+      decideExit({ unenumerated: 0, errors: 1, warnings: 0 }, true).code
     ).toBe(1)
   })
 
-  it('exits 1 on an unreadable declaration in either mode', () => {
+  it('exits 1 on an unenumerated source file in either mode', () => {
     expect(
-      decideExit({ unreadable: 1, errors: 0, warnings: 0 }, false).code
+      decideExit({ unenumerated: 1, errors: 0, warnings: 0 }, false).code
     ).toBe(1)
     expect(
-      decideExit({ unreadable: 1, errors: 0, warnings: 0 }, true).code
+      decideExit({ unenumerated: 1, errors: 0, warnings: 0 }, true).code
     ).toBe(1)
   })
 
   it('exits 0 on warnings alone without --strict', () => {
     expect(
-      decideExit({ unreadable: 0, errors: 0, warnings: 3 }, false).code
+      decideExit({ unenumerated: 0, errors: 0, warnings: 3 }, false).code
     ).toBe(0)
   })
 
   it('exits 1 on warnings alone with --strict', () => {
     expect(
-      decideExit({ unreadable: 0, errors: 0, warnings: 3 }, true).code
+      decideExit({ unenumerated: 0, errors: 0, warnings: 3 }, true).code
     ).toBe(1)
   })
 
   it('reports the error category, not the authoring gap, when both are present', () => {
-    const decision = decideExit({ unreadable: 0, errors: 1, warnings: 5 }, true)
+    const decision = decideExit(
+      { unenumerated: 0, errors: 1, warnings: 5 },
+      true
+    )
     expect(decision.reason).toMatch(/fail in either mode/u)
   })
 })

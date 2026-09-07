@@ -17,7 +17,7 @@
  * links for a human to confirm.
  */
 
-import type { IImmutableDeclaration } from './immutable-declarations'
+import type { IImmutableDeclaration } from './immutable-ast'
 
 /** Contract name to the `configData` keys filed under it. */
 export type RegistryEntries = Record<string, readonly string[]>

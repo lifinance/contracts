@@ -12,7 +12,7 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
-import type { IImmutableDeclaration } from './immutable-declarations'
+import type { IImmutableDeclaration } from './immutable-ast'
 import {
   validateImmutableRegistry,
   validateRegistryShape,

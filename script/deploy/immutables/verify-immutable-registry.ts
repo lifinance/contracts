@@ -13,9 +13,10 @@ import { readFileSync } from 'fs'
 import { consola } from 'consola'
 
 import {
-  findUnreadableImmutableLines,
-  parseImmutableDeclarations,
-} from './immutable-declarations'
+  buildAst,
+  findSourcesWithoutAst,
+  readImmutableDeclarations,
+} from './immutable-ast'
 import {
   validateImmutableRegistry,
   validateRegistryShape,
@@ -61,8 +62,8 @@ export const mergeRequirements = (
 
 /** What the run reported, in the terms the exit code is decided on. */
 export interface IVerificationCounts {
-  /** Lines mentioning an immutable that the enumerator could not parse. */
-  unreadable: number
+  /** Source files the compiler emitted no AST for, and so were never enumerated. */
+  unenumerated: number
   /** Things the registry gets wrong. */
   errors: number
   /** Immutables with no registry entry yet. */
@@ -73,7 +74,7 @@ export interface IVerificationCounts {
  * Decides the process exit code.
  *
  * Split out because the authoring gap is the only category `--strict` changes:
- * an unreadable declaration and a wrong entry are not missing documentation, so
+ * an unenumerated source file and a wrong entry are not missing documentation, so
  * they fail in either mode. Keeping that in the CLI body left the routing
  * reachable only by running the process.
  *
@@ -85,10 +86,10 @@ export const decideExit = (
   counts: IVerificationCounts,
   strict: boolean
 ): { code: 0 | 1; reason: string | null } => {
-  if (counts.unreadable + counts.errors > 0)
+  if (counts.unenumerated + counts.errors > 0)
     return {
       code: 1,
-      reason: `${counts.errors} registry error(s) and ${counts.unreadable} unreadable declaration(s). Neither is missing documentation, so both fail in either mode.`,
+      reason: `${counts.errors} registry error(s) and ${counts.unenumerated} unenumerated source file(s). Neither is missing documentation, so both fail in either mode.`,
     }
 
   if (counts.warnings > 0 && strict)
@@ -110,17 +111,11 @@ const main = (): void => {
     .split('\n')
     .filter(Boolean)
 
-  const sources = files.map(
-    (file) => [file, readFileSync(file, 'utf8')] as const
-  )
-  const declarations = sources.flatMap(([file, source]) =>
-    parseImmutableDeclarations(source, file)
-  )
-  // Asked before anything else: an immutable the enumerator cannot read is never
+  const outDir = buildAst()
+  const { declarations, sourceFiles } = readImmutableDeclarations(outDir)
+  // Asked before anything else: an immutable in a file the compiler emitted no AST for is never
   // asked for, so it would never appear as a missing entry.
-  const unreadable = sources.flatMap(([file, source]) =>
-    findUnreadableImmutableLines(source, file)
-  )
+  const unenumerated = findSourcesWithoutAst(files, sourceFiles)
 
   const registry = readJson<Registry>(REGISTRY_PATH)
   const shapeErrors = validateRegistryShape(registry)
@@ -145,16 +140,16 @@ const main = (): void => {
     } flagged authority-bearing`
   )
 
-  for (const { file, line, text } of unreadable)
+  for (const file of unenumerated)
     consola.error(
-      `${file}:${line} mentions immutable but could not be read as a declaration: ${text}. Teach the parser this shape, or write it as '<type> [visibility] immutable <NAME>;' — an immutable the gate cannot see is one the registry is never asked to account for.`
+      `${file} is tracked under src/ but the compiler emitted no AST for it, so any immutable it declares was never enumerated. Check that it compiles and is not excluded from the build.`
     )
   for (const error of errors) consola.error(error)
   for (const warning of warnings) consola.warn(warning)
 
   const decision = decideExit(
     {
-      unreadable: unreadable.length,
+      unenumerated: unenumerated.length,
       errors: errors.length,
       warnings: warnings.length,
     },

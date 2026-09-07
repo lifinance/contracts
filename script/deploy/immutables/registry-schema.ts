@@ -13,7 +13,7 @@
 
 import type { IDeployRequirementEntry } from '../shared/immutableBindings'
 
-import type { IImmutableDeclaration } from './immutable-declarations'
+import type { IImmutableDeclaration } from './immutable-ast'
 
 /**
  * How an immutable's expected value is established.

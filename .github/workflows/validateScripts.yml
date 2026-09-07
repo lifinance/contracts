@@ -139,9 +139,8 @@ jobs:
           BASE_REF: ${{ github.base_ref }}
 
   verify-immutable-registry:
-    # Separate from `validate-scripts` because the gate reads Solidity SOURCE and
-    # two JSON files — it needs neither the forge build nor TypeChain, so gating
-    # it on src/** costs a bun install rather than a full compile.
+    # Separate from `validate-scripts` because the gate needs no TypeChain and no
+    # merge-base history — it compiles src/ for the AST and reads two JSON files.
     needs: detect-changes
     if: >-
       ${{
@@ -150,16 +149,25 @@ jobs:
          github.event.pull_request.draft == false)
       }}
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
         with:
+          # Submodules are the compiler's import path; without them the AST build
+          # fails and the gate has nothing to enumerate.
+          submodules: recursive
           persist-credentials: false
       - uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2.0.1
         with:
           bun-version: latest
       - name: Install dependencies
         run: bun install --frozen-lockfile
+      - name: Install Foundry
+        uses: ./.github/actions/setup-foundry
+        with:
+          # The gate compiles into its own out/ dir, so it must not share the
+          # forge-build cache key with jobs that populate the default one.
+          cache-key-suffix: immutable-ast
       - name: Verify immutable registry
         shell: bash
         run: |
@@ -167,9 +175,9 @@ jobs:
           ##### registry entry is a warning, not a failure. It still exits non-zero
           ##### for anything the registry gets WRONG — a link to a config key that
           ##### does not exist, an entry for an immutable no contract declares, an
-          ##### exemption with no reason — and for any declaration the enumerator
-          ##### could not read, since an immutable it cannot see is one the registry
-          ##### is never asked to account for.
+          ##### exemption with no reason — and for any src/ file the compiler
+          ##### emitted no AST for, since an immutable it cannot see is one the
+          ##### registry is never asked to account for.
           ##### Still skipped on draft PRs, and the workflow has no push trigger;
           ##### the ready_for_review trigger re-runs it against final HEAD.
           ##### Flip to --strict once every immutable is authored (EXSC-869 part ii).
