@@ -1,11 +1,16 @@
 /**
  * Production deploy gate, evaluated in the Safe proposal funnel.
  *
- * Every Safe proposal passes through `propose-to-safe.ts` (EVM) or
- * `propose-to-safe-tron.ts` (Tron), so gating there covers a new caller without
- * anyone remembering to add it — which the previous homes, one shell task and one
- * TS proposer, could not. The price is that the funnel is handed calldata rather
- * than facet names, so the facet set has to be recovered from the cut itself.
+ * Every deploy path proposes through `propose-to-safe.ts` (EVM) or
+ * `propose-to-safe-tron.ts` (Tron), the generic `sendOrPropose` chokepoint
+ * included, so gating there covers a new caller without anyone remembering to
+ * add it — which the previous homes, one shell task and one TS proposer, could
+ * not. The bespoke task scripts listed in `docs/MultisigSigningProcess.md` reach
+ * `storeTransactionInMongoDB` directly and are outside this gate; none of them
+ * encodes a `diamondCut`, so none installs facet code today.
+ *
+ * The price of the move is that the funnel is handed calldata rather than facet
+ * names, so the facet set has to be recovered from the cut itself.
  */
 
 import { execFileSync } from 'node:child_process'
@@ -30,7 +35,7 @@ import {
   TIMELOCK_SCHEDULE_BATCH_SELECTOR,
 } from '../safe/timelock-abi'
 
-import { DIAMOND_CUT_ABI } from './constants'
+import { DIAMOND_CUT_ABI, ZERO_ADDRESS } from './constants'
 
 const DIAMOND_CUT_SELECTOR = toFunctionSelector(
   'diamondCut((address,uint8,bytes4[])[],address,bytes)'
@@ -52,21 +57,31 @@ const MAX_UNWRAP_DEPTH = 4
 
 /** What a proposal's calls turned out to contain. */
 export interface IInstalledFacets {
-  /** Checksummed facet addresses the cut installs, in first-seen order. */
+  /**
+   * Checksummed addresses whose code the cut would run, in first-seen order:
+   * the facets it installs, plus a non-zero `_init` delegatecall target.
+   */
   addresses: Address[]
   /**
-   * Indices of calls that carry a gated selector but could not be decoded.
-   * Reported rather than skipped: an undecodable cut is a cut we cannot vouch
-   * for, and calldata is written by the proposer.
+   * Indices of calls carrying a gated selector this cannot see all the way
+   * through — arguments that do not decode, or `scheduleBatch` nested past
+   * {@link MAX_UNWRAP_DEPTH}. Reported rather than skipped: a cut we cannot read
+   * is a cut we cannot vouch for, and calldata is written by the proposer.
    */
   undecodable: number[]
 }
 
 const decodeCut = (
   data: Hex
-): readonly { facetAddress: Address; action: number }[] => {
+): {
+  cuts: readonly { facetAddress: Address; action: number }[]
+  init: Address
+} => {
   const { args } = decodeFunctionData({ abi: DIAMOND_CUT_ABI, data })
-  return args[0] as readonly { facetAddress: Address; action: number }[]
+  return {
+    cuts: args[0] as readonly { facetAddress: Address; action: number }[],
+    init: args[1] as Address,
+  }
 }
 
 const decodeScheduleBatch = (data: Hex): readonly Hex[] => {
@@ -78,11 +93,12 @@ const decodeScheduleBatch = (data: Hex): readonly Hex[] => {
 }
 
 /**
- * Recovers the facet addresses a proposal's calls would install, unwrapping any
- * timelock `scheduleBatch` on the way down.
+ * Recovers the addresses a proposal's calls would run code from — installed
+ * facets and any non-zero `_init` delegatecall target — unwrapping a timelock
+ * `scheduleBatch` on the way down.
  * @param calldatas - the proposal's calls, in the order they were passed
- * @returns installing facet addresses, plus the indices of calls that carry a
- * gated selector but did not decode
+ * @returns those addresses, plus the indices of calls this could not read
+ * through
  */
 export const collectInstalledFacetAddresses = (
   calldatas: readonly Hex[]
@@ -90,23 +106,34 @@ export const collectInstalledFacetAddresses = (
   const seen = new Map<string, Address>()
   const undecodable: number[] = []
 
+  const remember = (value: Address): void => {
+    const address = getAddress(value)
+    if (!seen.has(address.toLowerCase()))
+      seen.set(address.toLowerCase(), address)
+  }
+
   const walk = (data: Hex, index: number, depth: number): void => {
     const selector = data.slice(0, 10).toLowerCase()
 
     if (selector === DIAMOND_CUT_SELECTOR.toLowerCase()) {
-      let cuts
+      let decoded
       try {
-        cuts = decodeCut(data)
+        decoded = decodeCut(data)
       } catch {
         undecodable.push(index)
         return
       }
-      for (const entry of cuts) {
+      for (const entry of decoded.cuts) {
         if (!INSTALLING_ACTIONS.has(Number(entry.action))) continue
-        const address = getAddress(entry.facetAddress)
-        if (!seen.has(address.toLowerCase()))
-          seen.set(address.toLowerCase(), address)
+        remember(entry.facetAddress)
       }
+      // `_init` is delegatecalled in the diamond's context by the same
+      // transaction, so its code runs against the diamond's storage exactly as a
+      // facet's would. Every real cut sets it to the facet being added
+      // (`UpdateScriptBase.update` passes `_resolveFacetAddress(name)`), so
+      // attributing it costs nothing and an `_init` pointing somewhere else no
+      // longer slips through unexamined.
+      if (decoded.init !== ZERO_ADDRESS) remember(decoded.init)
       return
     }
 
@@ -194,7 +221,7 @@ export const assertFunnelDeployGate = async (
     throw new Error(
       `Production deploy gate: call ${undecodable.join(
         ', '
-      )} carries a diamondCut or timelock scheduleBatch selector whose arguments could not be decoded, so the facets it installs cannot be checked. Re-encode the call, or propose it from a checkout whose facet sources match origin/main.`
+      )} carries a diamondCut or timelock scheduleBatch selector this could not read to the bottom — the arguments did not decode, or the batch is nested more than ${MAX_UNWRAP_DEPTH} deep — so the facets it installs cannot be checked. Re-encode the call as a plain diamondCut and let the funnel wrap it.`
     )
 
   // Nothing installs facet code (ownership transfers, whitelist updates, facet

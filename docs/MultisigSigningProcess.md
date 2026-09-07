@@ -133,14 +133,16 @@ run only on the branches that actually propose; a staging or testnet-only run, a
   `proposeDeBridgeDlnChainIdMappings.ts`,
   `proposePolymerCCTPChainIdMappings.ts`, `unpauseAllDiamonds.ts`,
   `script/deploy/safe/add-safe-owners-and-threshold.ts` — there is **no
-  single chokepoint** for *what* is proposed, though every one of them signs
-  through `propose-to-safe.ts`, which is where the deploy gate lives.
+  single chokepoint**. These five reach `storeTransactionInMongoDB` directly
+  rather than through `propose-to-safe.ts`, so the deploy gate below does not see
+  them; none of them encodes a `diamondCut`, so none installs facet code.
 - **Tron** is a parallel flow (`script/deploy/tron/propose-to-safe-tron.ts`).
 
 The proposal funnel additionally runs the production deploy gate before it signs
 anything (PR #2128 / EXSC-687, re-homed by EXSC-704). It sits in
-`propose-to-safe.ts` and `propose-to-safe-tron.ts` rather than in each caller,
-so a proposal reaches it by construction. The funnel is handed calldata, not
+`propose-to-safe.ts` and `propose-to-safe-tron.ts` rather than in each caller, so
+every deploy path reaches it by construction — including the generic
+`sendOrPropose` chokepoint, which the previous homes did not cover. The funnel is handed calldata, not
 facet names, so `funnel-deploy-gate.ts` recovers the facet set from the cut:
 `diamondCut` Add and Replace entries, unwrapping a timelock `scheduleBatch` so a
 pre-wrapped payload cannot slip past, then attributed to a contract name through

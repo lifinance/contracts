@@ -33,15 +33,21 @@ const SELECTORS = ['0xaabbccdd', '0x11223344'] as Hex[]
 const cut = (
   facetAddress: Address,
   action: number,
-  selectors: Hex[] = SELECTORS
+  options: { selectors?: Hex[]; init?: Address } = {}
 ): Hex =>
   encodeFunctionData({
     abi: DIAMOND_CUT_ABI,
     functionName: 'diamondCut',
     args: [
-      [{ facetAddress, action, functionSelectors: selectors }],
-      ZERO_ADDRESS as Address,
-      '0x' as Hex,
+      [
+        {
+          facetAddress,
+          action,
+          functionSelectors: options.selectors ?? SELECTORS,
+        },
+      ],
+      options.init ?? (ZERO_ADDRESS as Address),
+      options.init ? ('0xdeadbeef' as Hex) : ('0x' as Hex),
     ],
   })
 
@@ -125,6 +131,26 @@ describe('collectInstalledFacetAddresses', () => {
       cut(FACET_B, 0),
     ])
     expect(result.addresses).toEqual([FACET_A, FACET_B])
+  })
+
+  it('attributes a non-zero _init delegatecall target as well', () => {
+    const result = collectInstalledFacetAddresses([
+      cut(FACET_A, 0, { init: FACET_B }),
+    ])
+    expect(result.addresses).toEqual([FACET_A, FACET_B])
+  })
+
+  it('does not double-count an _init that is the facet being added', () => {
+    const result = collectInstalledFacetAddresses([
+      cut(FACET_A, 0, { init: FACET_A }),
+    ])
+    expect(result.addresses).toEqual([FACET_A])
+  })
+
+  it('ignores a zero _init, which the diamond never delegatecalls', () => {
+    expect(
+      collectInstalledFacetAddresses([cut(FACET_A, 0)]).addresses
+    ).not.toContain(ZERO_ADDRESS)
   })
 
   it('reports a diamondCut selector whose body cannot be decoded', () => {
@@ -255,6 +281,18 @@ describe('assertFunnelDeployGate', () => {
     expect(gateCalls).toEqual([])
   })
 
+  it('refuses an _init pointing at something that is not a facet', async () => {
+    const { deps: d, gateCalls } = deps()
+    await expectRefusal(
+      assertFunnelDeployGate(
+        { network: 'mainnet', calldatas: [cut(FACET_A, 0, { init: DIAMOND })] },
+        d
+      ),
+      new RegExp(DIAMOND, 'i')
+    )
+    expect(gateCalls).toEqual([])
+  })
+
   it('refuses an address that resolves to a name with no facet source', async () => {
     const { deps: d } = deps()
     await expectRefusal(
@@ -271,7 +309,7 @@ describe('assertFunnelDeployGate', () => {
     const truncated = (cut(FACET_A, 0).slice(0, 30) + 'ff') as Hex
     await expectRefusal(
       assertFunnelDeployGate({ network: 'mainnet', calldatas: [truncated] }, d),
-      /could not be decoded/
+      /could not read to the bottom/
     )
     expect(gateCalls).toEqual([])
   })
