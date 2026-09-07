@@ -187,6 +187,15 @@ const runCli = (options: {
 
 const GATE_REFUSAL = /Production deploy gate failed/
 
+/**
+ * The first thing each funnel prints once it is past the gate — the EVM one
+ * reads the signing key, the Tron one gets as far as the ticket check in the
+ * storage funnel. Both are reached only because every signing credential is
+ * withheld, and each is asserted absent in the refusal cases.
+ */
+const NEXT_STOP_EVM = 'Private key is missing'
+const NEXT_STOP_TRON = 'No Linear ticket supplied'
+
 const TRON_FACET = 'CalldataVerificationFacet'
 
 /**
@@ -269,9 +278,10 @@ describe('propose-to-safe-tron funnel deploy gate', () => {
     expect(result.output).toMatch(GATE_REFUSAL)
     expect(result.output).toContain(TRON_FACET)
     expect(result.status).not.toBe(0)
-    // the Timelock read is the funnel's first RPC; the refusal precedes it
-    expect(result.output).not.toContain('getMinDelay')
-    expect(result.output).not.toContain('Safe tx hash')
+    // NEXT_STOP is what this run prints once it is past the gate, verified by
+    // deleting the gate call: its absence is what makes "the refusal came first"
+    // mean anything, and it is a real marker rather than an invented one
+    expect(result.output).not.toContain(NEXT_STOP_TRON)
   })
 
   it('lets an unchanged facet addition past the gate', () => {
@@ -293,9 +303,11 @@ describe('propose-to-safe funnel deploy gate', () => {
     expect(result.output).toMatch(GATE_REFUSAL)
     expect(result.output).toContain(FACET)
     expect(result.status).not.toBe(0)
-    // the refusal has to land before anything is signed or stored
-    expect(result.output).not.toContain('Signer Address')
-    expect(result.output).not.toContain('Using timelock controller')
+    // the refusal has to land before the key is read, which is the first step
+    // towards a signature. Verified by deleting the gate call: this marker then
+    // appears, so its absence is not a vacuous assertion about text that never
+    // shows up at all
+    expect(result.output).not.toContain(NEXT_STOP_EVM)
   })
 
   it('lets an unchanged facet addition past the gate', () => {
