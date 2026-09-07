@@ -237,6 +237,10 @@ describe('pricing that cannot be done at all', () => {
     )
 
     expect(error?.message).toMatch(/refusing to broadcast/)
+    // The redaction marker, asserted present: without it the absence of the
+    // credential below would also hold if the underlying error never reached
+    // the message at all.
+    expect(error?.message).toContain('failed for [redacted-url]')
     expect(error?.message).not.toContain('SHOULDNOTAPPEAR')
   })
 

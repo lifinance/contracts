@@ -56,6 +56,24 @@ function resolveFeeLimitSun(
   return sun
 }
 
+/**
+ * `parseValue` yields a SUN amount as a string. Converted without going through
+ * `Number` first, so a value above `Number.MAX_SAFE_INTEGER` still reaches the
+ * estimate's own rounding guard instead of being rounded before it can fire,
+ * and a malformed `--value` refuses here rather than as a `BigInt` RangeError.
+ */
+function parseCallValueSun(callValue: unknown): bigint {
+  if (callValue === undefined) return 0n
+
+  const raw = String(callValue)
+  if (!/^\d+$/.test(raw))
+    throw new Error(
+      `Invalid --value: "${raw}" SUN (must be a whole, non-negative SUN amount)`
+    )
+
+  return BigInt(raw)
+}
+
 /** Names the control this path is actually capped by, in refusals. */
 const raiseFeeLimitHint = (requiredSun: bigint): string =>
   `Re-run with --feeLimit ${
@@ -381,7 +399,10 @@ export const sendCommand = defineCommand({
             estimateTronEnergy({
               networkKey,
               ownerBase58: callerAddress,
-              contractBase58: args.address,
+              // The estimate posts `visible: true`, so it needs base58 —
+              // `isValidAddress` also accepts `0x…` and `41…`, which the
+              // broadcast normalises but the estimate would reject.
+              contractBase58: tronWeb.address.fromHex(contractAddressHex),
               data: args.calldata as `0x${string}`,
               callValue: 0n,
               // The endpoint this run broadcasts to, which `--rpcUrl` may have
@@ -627,9 +648,7 @@ export const sendCommand = defineCommand({
       // Execute transaction
       consola.info('Sending transaction...')
 
-      const callValueSun = options.callValue
-        ? BigInt(Math.round(Number(options.callValue)))
-        : 0n
+      const callValueSun = parseCallValueSun(options.callValue)
 
       const txId = await sendGuardedTronContractCall({
         networkName: networkKey,

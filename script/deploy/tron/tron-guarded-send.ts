@@ -1,17 +1,11 @@
 /**
- * The seam a direct-EOA Tron broadcast is meant to go through.
+ * The seam a direct-EOA Tron broadcast goes through: estimate, price, compare
+ * with the fee limit, and only then broadcast. Import it instead of calling
+ * `.send()` on a contract wrapper.
  *
- * The Safe and timelock paths pre-flight energy before they broadcast; the
- * operator and deploy tools did not. Their fee limits are larger (1000 and 5000
- * TRX against the Safe path's 50), which lowers the probability but not the
- * failure mode: a call needing more energy than the limit buys does not fail
- * cleanly, it runs until the limit is spent and aborts part-way with the energy
- * still charged. One of these paths is the emergency pause, where a
- * part-applied transaction lands in the middle of an incident.
- *
- * Shaped so the broadcast is a callback rather than a statement the guard sits
- * in front of: a call site holds no bare `.send()` to reorder, so the "guard
- * wired in after the send" mistake is not expressible here.
+ * The broadcast is a callback rather than a statement the guard sits in front
+ * of, so a call site holds no bare `.send()` to reorder and the guard cannot be
+ * wired in on the wrong side of it.
  */
 
 import { consola } from 'consola'

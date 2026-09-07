@@ -1,8 +1,6 @@
 /**
- * The A0.6 bar on the direct-EOA `transferOwnership` send: with energy
- * estimation unusable, the send is provably never reached. Spied on the
- * broadcast rather than only on the thrown error, and paired with a positive
- * case — a guard that refuses everything passes every negative assertion.
+ * The direct-EOA `transferOwnership` send. Every case is a spy over the
+ * broadcast, since a thrown error alone does not show the send was skipped.
  */
 
 import {

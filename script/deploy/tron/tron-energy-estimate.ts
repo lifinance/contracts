@@ -1,17 +1,14 @@
 /**
- * Energy estimation and pricing for Tron, shared by every path that broadcasts:
- * the chain caller, the Safe executor and the direct-EOA operator tools.
- *
- * Each of them sends `wallet/triggersmartcontract` under a fixed `fee_limit`.
- * None had a pre-flight, so this exists to give them all the same one: estimate
- * the call with `triggerconstantcontract`, price the energy, and compare it with
- * the limit the send is going to apply.
+ * Energy estimation and pricing for Tron, for any path that broadcasts: the
+ * chain caller, the Safe executor and the direct-EOA operator tools. Import it
+ * to estimate a call from encoded calldata and to price the result in SUN.
  *
  * The estimate posts raw calldata rather than the devkit's own
  * `estimateContractCallEnergy`, which takes a human-readable function selector
- * and hardcodes `call_value: 0`. Neither is available to a caller holding
- * encoded calldata and no ABI, and a Safe execution can carry value.
- * `estimateTronEnergyBySelector` covers callers that do hold decoded arguments.
+ * and hardcodes `call_value: 0`: neither is available to a caller holding
+ * encoded calldata and no ABI, and a Safe execution can carry value. A caller
+ * that does hold decoded arguments wants `estimateTronEnergyBySelector` in
+ * `tron-guarded-send.ts`.
  */
 
 import {

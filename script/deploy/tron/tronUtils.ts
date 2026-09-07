@@ -353,12 +353,8 @@ export async function estimateDiamondCutEnergy(
 }
 
 /**
- * The only `.send()` in {@link registerFacetToDiamond}, so there is one place
- * the energy pre-flight can sit and no order for a later caller to get wrong.
- *
- * Prices through {@link tronEnergyCostInSun} rather than the devkit's
- * `getCurrentPrices`, which substitutes a constant when the read fails and
- * returns 0 for an empty price string — either would clear any fee limit.
+ * Pre-flights the fee limit, then broadcasts the diamondCut that registers a
+ * facet. The only `.send()` in {@link registerFacetToDiamond}.
  *
  * @param params - Clients, the diamond wrapper, the cuts and the labels used
  * in a refusal.
@@ -367,12 +363,16 @@ export async function estimateDiamondCutEnergy(
  * cut.
  */
 export async function sendGuardedDiamondCut(params: {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  tronWeb: any
+  tronWeb: {
+    trx: { getEnergyPrices: () => Promise<string> }
+    utils: {
+      abi: { encodeParams: (types: string[], values: unknown[]) => string }
+    }
+    defaultAddress: { base58: string }
+  }
   diamond: {
     diamondCut: (
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      facetCuts: any[],
+      facetCuts: unknown[],
       init: string,
       calldata: string
     ) => { send: (options: Record<string, unknown>) => Promise<string> }
@@ -380,8 +380,7 @@ export async function sendGuardedDiamondCut(params: {
   network: string
   facetName: string
   diamondAddress: string
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  facetCuts: any[]
+  facetCuts: unknown[]
   fullHost: string
 }): Promise<string> {
   const feeLimitSun = DEFAULT_FEE_LIMIT_TRX * 1_000_000

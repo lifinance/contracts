@@ -1,12 +1,9 @@
 /**
- * The A0.6 bar on `troncast send`: with energy estimation unusable, the
- * broadcast is provably never reached. Asserted on a spy over
- * `sendRawTransaction` / `.send()` rather than only on the thrown error, and
- * paired with a positive case per path — a guard that refuses everything also
- * makes every negative assertion pass.
- *
- * Runs the command's real `run` body against a fake TronWeb, so what is under
- * test is where the guard sits in the live path, not a copy of the decision.
+ * `troncast send`, run through its real `run` body against a fake TronWeb, so
+ * what is under test is where the guard sits in the live path rather than a
+ * copy of the decision. Every case is a spy over `sendRawTransaction` /
+ * `.send()`, since a thrown error alone does not show the broadcast was
+ * skipped.
  */
 
 import {
@@ -32,6 +29,8 @@ import * as troncastTronWeb from '../utils/tronweb'
 const FAKE_KEY = 'ab'.repeat(32)
 const SENDER = 'TVQY5uYUJHqPJ3kmpKcQmiRcaEbGvJYVfR'
 const CONTRACT = 'TAuErcuAtU6BPt6YwL51JZ4RpDCPQASCU2'
+/** The same contract in the `41…` form `isValidAddress` also accepts. */
+const CONTRACT_HEX = `41${'9'.repeat(40)}`
 /** `.invalid` never resolves, so a stray request cannot reach a real node. */
 const RPC_URL = 'https://tron.invalid'
 
@@ -41,6 +40,8 @@ const ENERGY_PRICES = `1:${SUN_PER_ENERGY}`
 
 /** Every node interaction the command performs, in order. */
 let hits: string[] = []
+/** `contract_address` as the calldata estimate posted it. */
+let estimatedContract: string | undefined
 /** `null` makes the node answer as it does for a call that would revert. */
 let energyUsed: number | null = 20_000
 let energyPrices = ENERGY_PRICES
@@ -68,7 +69,10 @@ class FakeTronWeb {
 
   public address = {
     fromPrivateKey: (): string => SENDER,
-    toHex: (value: string): string => `41${value}`,
+    toHex: (value: string): string =>
+      value === CONTRACT_HEX ? CONTRACT_HEX : `41${value}`,
+    fromHex: (value: string): string =>
+      value === CONTRACT_HEX ? CONTRACT : value.replace(/^41/, ''),
   }
 
   public transactionBuilder = {
@@ -110,12 +114,18 @@ mock.module('../utils/tronweb', () => ({
 const { sendCommand } = await import('./send')
 
 /** Answers the raw-calldata estimate; every other URL is a test bug. */
-const fakeFetch = async (url: string | URL | Request): Promise<Response> => {
+const fakeFetch = async (
+  url: string | URL | Request,
+  init?: RequestInit
+): Promise<Response> => {
   const target = String(url)
   if (!target.includes('/wallet/triggerconstantcontract'))
     throw new Error(`unexpected fetch to ${target}`)
 
   hits.push('estimate-calldata')
+  estimatedContract = (
+    JSON.parse(String(init?.body ?? '{}')) as { contract_address?: string }
+  ).contract_address
   return new Response(
     JSON.stringify(
       energyUsed === null
@@ -205,6 +215,7 @@ let originalAllow: string | undefined
 
 beforeEach(() => {
   hits = []
+  estimatedContract = undefined
   energyUsed = 20_000
   energyPrices = ENERGY_PRICES
   originalAllow = process.env.ALLOW_GAS_ESTIMATE_FALLBACK
@@ -265,6 +276,26 @@ describe('the raw-calldata path', () => {
     expect(errors.join('\n')).toContain('Could not price')
   })
 
+  it('estimates against the base58 form of a 41-prefixed address', async () => {
+    // The estimate posts `visible: true`, so it needs base58; `isValidAddress`
+    // also accepts this form and the broadcast normalises it.
+    const { exitCode } = await run({
+      address: CONTRACT_HEX,
+      calldata: '0xdeadbeef',
+    })
+
+    expect(exitCode).toBeUndefined()
+    expect(estimatedContract).toBe(CONTRACT)
+    expect(hits).toContain('broadcast')
+  })
+
+  it('estimates a base58 address unchanged', async () => {
+    const { exitCode } = await run({ calldata: '0xdeadbeef' })
+
+    expect(exitCode).toBeUndefined()
+    expect(estimatedContract).toBe(CONTRACT)
+  })
+
   it('broadcasts on a failed estimate when the escape hatch names the network', async () => {
     energyUsed = null
     process.env.ALLOW_GAS_ESTIMATE_FALLBACK = 'tron'
@@ -306,6 +337,25 @@ describe('the function-signature path', () => {
     expect(exitCode).toBe(1)
     expect(hits).not.toContain('broadcast')
     expect(errors.join('\n')).toContain('exceeds the fee limit')
+  })
+
+  it('refuses a --value that is not a whole SUN amount', async () => {
+    const { exitCode, errors } = await run({
+      signature: 'pause()',
+      value: 'abc',
+    })
+
+    expect(exitCode).toBe(1)
+    expect(hits).not.toContain('broadcast')
+    expect(errors.join('\n')).toContain('Invalid --value')
+  })
+
+  it('estimates a --value the node can simulate', async () => {
+    const { exitCode } = await run({ signature: 'pause()', value: '1tron' })
+
+    expect(exitCode).toBeUndefined()
+    expect(hits).toContain('estimate-selector')
+    expect(hits).toContain('broadcast')
   })
 })
 

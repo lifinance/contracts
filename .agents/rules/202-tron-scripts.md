@@ -43,7 +43,7 @@ paths:
 
 ### Before any broadcast ([CONV:TRON-ENERGY-PREFLIGHT])
 
-- Any send you add or touch must go through `sendGuardedTronContractCall()` from `script/deploy/tron/tron-guarded-send.ts`, which refuses when the fee limit cannot be shown to cover the call. A fee limit that cannot pay for a call does not make it fail cleanly — it runs until the limit is spent and aborts part-way, with the energy still charged. Not every pre-existing send is migrated yet; do not read an unguarded one as permission.
+- Any send you add or touch must go through `sendGuardedTronContractCall()` from `script/deploy/tron/tron-guarded-send.ts`, which refuses when the fee limit cannot be shown to cover the call. A fee limit that cannot pay for a call does not make it fail cleanly — it runs until the limit is spent and aborts part-way, with the energy still charged.
 - Pass the broadcast as the `broadcast` callback rather than guarding a bare `.send()`: a call site that holds no raw send has no ordering to get wrong.
 - The estimate must be taken against the endpoint the broadcast uses, and priced from the same fee limit the send runs under — a guard that recomputes either is checking a different number.
 - `ALLOW_GAS_ESTIMATE_FALLBACK=<network>` is the only escape hatch. Do not add a second one.

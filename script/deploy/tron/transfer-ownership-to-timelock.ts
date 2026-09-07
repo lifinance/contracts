@@ -39,8 +39,8 @@ export interface ITronOwnershipDiamond {
 }
 
 /**
- * The only `.send()` on this path, so there is one place the pre-flight can
- * sit and no order for a later caller to get wrong.
+ * Pre-flights the fee limit, then broadcasts the ownership transfer. The only
+ * `.send()` on this path.
  *
  * @param params - Clients, the diamond wrapper, and the addresses involved.
  * @returns The transaction id.
@@ -189,7 +189,7 @@ async function transferOwnershipToTimelock(options: {
         )
       if (!options.dryRun) {
         const shouldContinue = await consola.prompt(
-          'Continue anyway? (will fail if you are not the owner)',
+          'Continue anyway? (the energy pre-flight will refuse it: the owner check reverts for this signer)',
           { type: 'confirm', default: false }
         )
         if (!shouldContinue) {

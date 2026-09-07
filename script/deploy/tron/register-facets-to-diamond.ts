@@ -18,10 +18,66 @@ import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptH
 import { getEnvironment, updateDiamondJsonBatch } from '../../utils/utils'
 
 import { TRON_DIAMOND_FACET_GROUPS } from './constants.js'
+import { tronEnergyCostInSun } from './tron-energy-estimate.js'
+import { sendGuardedTronContractCall } from './tron-guarded-send.js'
 import {
   estimateDiamondCutEnergy,
   waitBetweenDeployments,
 } from './tronUtils.js'
+
+/** Fee limit the batched facet registration runs under. */
+const DIAMOND_CUT_FEE_LIMIT_SUN = 5_000_000_000 // 5000 TRX
+
+/**
+ * Pre-flights the fee limit, then broadcasts the batched diamondCut. The only
+ * `.send()` in this script.
+ *
+ * @param params - Clients, the diamond wrapper, the cuts, the energy already
+ * estimated for them, and the cap the send runs under.
+ * @returns The transaction id.
+ * @throws Before broadcasting, when the fee limit cannot be shown to cover the
+ * cut.
+ */
+export async function sendGuardedFacetRegistration(params: {
+  tronWeb: { trx: { getEnergyPrices: () => Promise<string> } }
+  diamond: {
+    diamondCut: (
+      facetCuts: unknown[],
+      init: string,
+      calldata: string
+    ) => { send: (options: Record<string, unknown>) => Promise<string> }
+  }
+  network: string
+  facetCuts: unknown[]
+  /** Energy already estimated for these cuts, safety margin included. */
+  estimatedEnergy: number
+  feeLimitSun: number
+}): Promise<string> {
+  return sendGuardedTronContractCall({
+    networkName: params.network,
+    operation: `diamondCut registering ${params.facetCuts.length} facets`,
+    feeLimitSun: params.feeLimitSun,
+    estimateEnergy: async () => BigInt(params.estimatedEnergy),
+    // Not the devkit's getCurrentPrices, which the printed estimate above uses:
+    // it substitutes a constant when the read fails and returns 0 for an empty
+    // price string, and a cost of zero clears any fee limit.
+    costInSun: (energy) => tronEnergyCostInSun(params.tronWeb, energy),
+    raiseFeeLimitHint: (requiredSun) =>
+      `Register fewer facets at a time, or raise DIAMOND_CUT_FEE_LIMIT_SUN in ` +
+      `script/deploy/tron/register-facets-to-diamond.ts to at least ${requiredSun}.`,
+    broadcast: () =>
+      params.diamond
+        .diamondCut(
+          params.facetCuts,
+          '0x0000000000000000000000000000000000000000',
+          '0x'
+        )
+        .send({
+          feeLimit: params.feeLimitSun,
+          shouldPollResponse: true,
+        }),
+  })
+}
 
 /**
  * Extract function selectors from compiled artifact
@@ -229,20 +285,18 @@ async function registerFacetsBatch(
       consola.warn(' Could not verify diamondCut function')
     }
 
-    // TronWeb contract calls - facetCuts is already formatted as arrays
-    // Use a higher fee limit - the actual transaction needs more energy than estimated
-    // Based on failed tx, it needs at least 3.41763 TRX worth of energy
-    // Setting to 5 TRX (5,000,000,000 SUN) to be safe
-    const feeLimitInSun = 5_000_000_000 // 5 TRX in SUN
+    consola.info(
+      `💸 Using fee limit: ${DIAMOND_CUT_FEE_LIMIT_SUN / 1_000_000} TRX`
+    )
 
-    consola.info(`💸 Using fee limit: ${feeLimitInSun / 1_000_000} TRX`)
-
-    const tx = await diamond
-      .diamondCut(facetCuts, '0x0000000000000000000000000000000000000000', '0x')
-      .send({
-        feeLimit: feeLimitInSun,
-        shouldPollResponse: true,
-      })
+    const tx = await sendGuardedFacetRegistration({
+      tronWeb,
+      diamond,
+      network,
+      facetCuts,
+      estimatedEnergy,
+      feeLimitSun: DIAMOND_CUT_FEE_LIMIT_SUN,
+    })
 
     consola.success(` Transaction successful: ${tx}`)
 

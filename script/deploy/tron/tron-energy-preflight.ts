@@ -1,19 +1,15 @@
 /**
- * Pre-flight for anything that broadcasts on Tron.
+ * The refusal policy every Tron broadcast is gated on. Import it to decide
+ * whether a send may go ahead; `tron-guarded-send.ts` wraps it for call sites
+ * that also hold the broadcast.
  *
- * The EVM Safe and timelock paths refuse to broadcast when gas estimation fails
- * (`gas-with-fallback.ts`). Tron had no pre-flight at all: every send caps the
- * transaction at a fixed `fee_limit` — from the environment on the Safe paths,
- * from a flag or a constant on the operator ones — then signs and sends.
- *
- * So Tron needs the EVM rule and one more. A fee limit that cannot pay for the
- * transaction does not make it fail cleanly — it runs until the energy is spent
- * and aborts part-way through, which for a multi-call timelock batch means an
- * operation that is neither applied nor abandoned, and a workflow that retries
- * it forever. That is worth refusing before the send, not diagnosing after it.
- *
- * The escape hatch is deliberately the same `ALLOW_GAS_ESTIMATE_FALLBACK` the
- * EVM paths read, so an operator has one switch to learn and one to audit.
+ * It carries the EVM rule (`gas-with-fallback.ts`: no estimate, no broadcast)
+ * and one more Tron needs. A fee limit that cannot pay for the transaction does
+ * not make it fail cleanly — it runs until the energy is spent and aborts
+ * part-way, so a multi-call batch is left neither applied nor abandoned and the
+ * workflow retries it forever. The escape hatch is the same
+ * `ALLOW_GAS_ESTIMATE_FALLBACK` the EVM paths read, so an operator has one
+ * switch to learn and one to audit.
  */
 
 import { consola } from 'consola'
