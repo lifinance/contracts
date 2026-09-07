@@ -119,6 +119,41 @@ const makeRepo = (diverge: boolean): string => {
 }
 
 /**
+ * Rejects a child whose result cannot be reasoned about, and — first — one that
+ * reached a real proposal store.
+ *
+ * The order is the whole point and it is not obvious. `spawnSync`'s `timeout`
+ * reports ETIMEDOUT in `error` **and** SIGTERM in `signal` while still returning
+ * whatever the child had already printed, and the Tron funnel is documented to
+ * leave its Mongo connection open and hang after a successful insert. So a probe
+ * that DID write is exactly the probe that looks like a timeout, and checking
+ * either `error` or `signal` first would report "this proves nothing" and throw
+ * the evidence away.
+ * @param result - what `spawnSync` returned
+ * @param output - the child's combined stdout and stderr
+ */
+const assertChildIsUsable = (
+  result: { error?: Error; signal: NodeJS.Signals | null },
+  output: string
+): void => {
+  // Matched loosely because each funnel words it differently: "Proposal stored
+  // in MongoDB" (Tron), "Transaction successfully stored in MongoDB" (EVM),
+  // "proposed and stored in MongoDB" (sendOrPropose).
+  if (/stored in mongodb/i.test(output))
+    throw new Error(
+      'a probe reached a real proposal store — the child environment is not isolated'
+    )
+
+  // Without these, every absence assertion would pass on a run that was killed,
+  // or never started, before it could print what the assertion looks for.
+  if (result.error) throw result.error
+  if (result.signal)
+    throw new Error(
+      `child was killed by ${result.signal} after ${TIMEOUT_MS}ms, so its output proves nothing`
+    )
+}
+
+/**
  * Runs a real propose CLI in a throwaway repo.
  * @param options - which CLI, its arguments, and the repo to run it in
  * @returns the child's combined output and exit status
@@ -163,32 +198,8 @@ const spawnCli = (options: {
     stdio: ['ignore', 'pipe', 'pipe'],
   })
 
-  // A spawn that never ran leaves status and signal both null, so neither check
-  // below fires and every absence assertion would pass on no output at all.
-  if (result.error) throw result.error
-
   const output = `${result.stdout}${result.stderr}`
-
-  // Checked before the signal check below, and that order is the whole point:
-  // the Tron funnel is documented to leave its Mongo connection open and hang
-  // after a successful insert, so a probe that DID write is exactly the probe
-  // that gets killed by the timeout. Reporting it as "no result" first would
-  // mask the one outcome this exists to catch.
-  //
-  // The phrase is matched loosely because each funnel words it differently:
-  // "Proposal stored in MongoDB" (Tron), "Transaction successfully stored in
-  // MongoDB" (EVM), "proposed and stored in MongoDB" (sendOrPropose).
-  if (/stored in mongodb/i.test(output))
-    throw new Error(
-      'a probe reached a real proposal store — the child environment is not isolated'
-    )
-
-  // A timeout-killed child is not a result: without this, every absence
-  // assertion below would pass on a run that was killed before printing.
-  if (result.signal)
-    throw new Error(
-      `child was killed by ${result.signal} after ${TIMEOUT_MS}ms, so its output proves nothing`
-    )
+  assertChildIsUsable(result, output)
 
   return { output, status: result.status }
 }
@@ -287,6 +298,46 @@ const makeTronRepo = (
 
   return { repoRoot, facetAddressHex }
 }
+
+describe('assertChildIsUsable ordering', () => {
+  // Measured, not assumed: `spawnSync` with a `timeout` returns status=null,
+  // signal=SIGTERM, error=ETIMEDOUT, and the stdout the child had already
+  // written. That is the write-then-hang shape, so the store check has to
+  // precede both.
+  const timedOutAfterWriting = {
+    error: Object.assign(new Error('spawnSync bun ETIMEDOUT'), {
+      code: 'ETIMEDOUT',
+    }),
+    signal: 'SIGTERM' as NodeJS.Signals,
+  }
+
+  it('reports the store violation, not the timeout, when a probe wrote and then hung', () => {
+    expect(() =>
+      assertChildIsUsable(
+        timedOutAfterWriting,
+        '\u2139 Network: tron\n\u2714 Proposal stored in MongoDB.\n'
+      )
+    ).toThrow(/reached a real proposal store/)
+  })
+
+  it('reports the spawn error when nothing was written', () => {
+    expect(() =>
+      assertChildIsUsable(timedOutAfterWriting, '\u2139 Network: tron')
+    ).toThrow(/ETIMEDOUT/)
+  })
+
+  it('reports a kill with no spawn error as proving nothing', () => {
+    expect(() =>
+      assertChildIsUsable({ signal: 'SIGKILL' as NodeJS.Signals }, 'partial')
+    ).toThrow(/proves nothing/)
+  })
+
+  it('accepts a child that ran to completion without storing anything', () => {
+    expect(() =>
+      assertChildIsUsable({ signal: null }, 'Production deploy gate failed')
+    ).not.toThrow()
+  })
+})
 
 describe('propose-to-safe-tron funnel deploy gate', () => {
   const runTron = (diverge: boolean) => {
