@@ -358,6 +358,19 @@ describe('the function-signature path', () => {
     expect(hits).toContain('broadcast')
   })
 
+  it('never reaches the broadcast for a --value finer than one SUN', async () => {
+    // 0.4 SUN. Rounding it to zero would broadcast a zero-value call for a
+    // nonzero --value.
+    const { exitCode, errors } = await run({
+      signature: 'pause()',
+      value: '0.0000004tron',
+    })
+
+    expect(exitCode).toBe(1)
+    expect(hits).not.toContain('broadcast')
+    expect(errors.join('\n')).toContain('finer than one SUN')
+  })
+
   it('estimates a decimal TRX --value that multiplies untidily', async () => {
     // 4.1 * 1e6 is 4099999.9999999995 in floating point. Left unrounded it is
     // not a SUN amount, and TronWeb's own integer validator refuses it at the
