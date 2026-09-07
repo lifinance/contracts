@@ -222,6 +222,12 @@ function updateFoundryTomlForGroup() {
         return 1
     fi
 
+    # Ahead of the sed below, so a refusal cannot leave foundry.toml rewritten for a group
+    # whose build never ran.
+    if ! assertFoundryVersionOrFail; then
+        return 1
+    fi
+
     case "$group" in
         "$GROUP_LONDON")
             # Update solc version and EVM version in profile.default section only
