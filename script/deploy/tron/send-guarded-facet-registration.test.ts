@@ -13,7 +13,7 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
-import { sendGuardedFacetRegistration } from './register-facets-to-diamond'
+import { sendGuardedFacetRegistration } from './send-guarded-facet-registration'
 
 const FACET = 'TVQY5uYUJHqPJ3kmpKcQmiRcaEbGvJYVfR'
 /** 100 SUN per energy: the 5000 TRX fee limit buys 50,000,000 energy. */

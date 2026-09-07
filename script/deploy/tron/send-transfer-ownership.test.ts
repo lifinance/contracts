@@ -12,7 +12,7 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
-import { sendTransferOwnership } from './transfer-ownership-to-timelock'
+import { sendTransferOwnership } from './send-transfer-ownership'
 
 const DIAMOND = 'TAuErcuAtU6BPt6YwL51JZ4RpDCPQASCU2'
 const TIMELOCK = 'TVQY5uYUJHqPJ3kmpKcQmiRcaEbGvJYVfR'
