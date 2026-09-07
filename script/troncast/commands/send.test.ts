@@ -263,7 +263,7 @@ describe('the raw-calldata path', () => {
     expect(exitCode).toBe(1)
     expect(hits).not.toContain('broadcast')
     expect(errors.join('\n')).toContain('exceeds the fee limit')
-    expect(errors.join('\n')).toContain('--feeLimit')
+    expect(errors.join('\n')).toContain('--fee-limit')
   })
 
   it('never reaches the broadcast when the energy price is unreadable', async () => {
@@ -412,7 +412,7 @@ describe('the fee limit as citty resolves it', () => {
 
     expect(exitCode).toBe(1)
     expect(hits).not.toContain('broadcast')
-    expect(errors.join('\n')).toContain('Invalid --feeLimit')
+    expect(errors.join('\n')).toContain('Invalid --fee-limit')
   })
 
   it('honours --dry-run, so a simulated run does not broadcast', async () => {

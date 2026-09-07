@@ -50,7 +50,7 @@ function resolveFeeLimitSun(
   const sun = Number(tronWeb.toSun(trx))
   if (!Number.isInteger(sun) || sun <= 0)
     throw new Error(
-      `Invalid --feeLimit: "${feeLimit}" (must be a positive TRX amount)`
+      `Invalid --fee-limit: "${feeLimit}" (must be a positive TRX amount)`
     )
 
   return sun
@@ -76,7 +76,7 @@ function parseCallValueSun(callValue: unknown): bigint {
 
 /** Names the control this path is actually capped by, in refusals. */
 const raiseFeeLimitHint = (requiredSun: bigint): string =>
-  `Re-run with --feeLimit ${
+  `Re-run with --fee-limit ${
     (requiredSun + 999_999n) / 1_000_000n
   } (TRX) or higher.`
 

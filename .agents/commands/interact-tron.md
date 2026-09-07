@@ -79,7 +79,7 @@ Key flags: `--value` (`0.1tron` / `100000sun` / raw sun), `--fee-limit` (TRX cap
 
 Tron pays for execution in Energy (≈ gas), not just bandwidth. `--fee-limit` is a TRX ceiling on what the transaction may consume if it must buy Energy — set it deliberately for anything beyond a cheap call rather than trusting the 1000 TRX default.
 
-`troncast send` pre-flights that ceiling on every contract call: it estimates the Energy, prices it, and **refuses before broadcasting** when the estimate costs more than `--fee-limit` covers, or when the estimate cannot be obtained at all. So an out-of-energy problem now surfaces as a refusal naming the required `--feeLimit`, not as a half-applied transaction. A failed _estimate_ usually means the call would revert — investigate that before reaching for a bigger limit. `ALLOW_GAS_ESTIMATE_FALLBACK=<network>` broadcasts anyway; scope it to the network, because `true` disables the guard for every network in the run. Native TRX transfers are exempt — they run no VM code.
+`troncast send` pre-flights that ceiling on every contract call: it estimates the Energy, prices it, and **refuses before broadcasting** when the estimate costs more than `--fee-limit` covers, or when the estimate cannot be obtained at all. So an out-of-energy problem now surfaces as a refusal naming the required `--fee-limit`, not as a half-applied transaction. A failed _estimate_ usually means the call would revert — investigate that before reaching for a bigger limit. `ALLOW_GAS_ESTIMATE_FALLBACK=<network>` broadcasts anyway; scope it to the network, because `true` disables the guard for every network in the run. Native TRX transfers are exempt — they run no VM code.
 
 Ongoing higher-volume Tron operations (the Timelock's `scheduleBatch`/`executeBatch`) run off **delegated** Energy from staked TRX on `deployerWallet`/`devWallet` rather than burning TRX per call — that delegation is a separate, human-arranged concern (ping Max) and out of scope for a one-off `troncast` interaction.
 
@@ -91,7 +91,7 @@ No ABI auto-fetch, no contract verification, no wallet management, limited gas e
 
 - `cast` used against a Tron network → will fail on RPC methods Tron doesn't support; switch to `troncast`.
 - Function call reverts with no clear reason → dry-run first (`--dry-run`), then check the target address is in the form `troncast` expects (base58 or 0x-hex, not a malformed hybrid).
-- `troncast send` refuses with `exceeds the fee limit` → re-run with the `--feeLimit` the message names; the call was never broadcast.
+- `troncast send` refuses with `exceeds the fee limit` → re-run with the `--fee-limit` the message names; the call was never broadcast.
 - `troncast send` refuses with `Energy estimation failed` → the call would most likely revert; diagnose that rather than raising the limit.
 - Request turns out to need Safe/Timelock sequencing (multi-step, quorum, or anything touching production governance) → stop and hand off; this skill is for direct one-off calls only.
 - Command fails with `proto is not defined` → known TronWeb/Bun compatibility hiccup; retry the same command once before investigating further.
