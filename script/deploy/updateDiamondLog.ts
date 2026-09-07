@@ -50,7 +50,8 @@ const main = defineCommand({
     },
     isProduction: {
       type: 'boolean',
-      description: 'Is production network',
+      description:
+        'Is production network (default: true; pass --no-is-production to write the staging log)',
     },
   },
   async run({ args }) {

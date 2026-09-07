@@ -91,7 +91,7 @@ const main = defineCommand({
     'repo-root': {
       type: 'string',
       description:
-        'Checkout to flatten sources from (point at the contracts-tron fork)',
+        'Checkout to flatten sources from (point at the contracts-tron fork; default: the current directory)',
     },
     'flattened-dir': {
       type: 'string',
@@ -109,6 +109,7 @@ const main = defineCommand({
     compiler: { type: 'string', default: DEFAULT_COMPILER },
     'optimizer-runs': {
       type: 'string',
+      description: `Optimizer runs the sources were compiled with (default: ${DEFAULT_OPTIMIZER_RUNS})`,
     },
     'via-ir': { type: 'boolean' },
     license: { type: 'string', default: String(DEFAULT_LICENSE) },

@@ -261,7 +261,7 @@ const main = defineCommand({
   meta: {
     name: 'validateScripts',
     description:
-      'Static validation (type check + import resolution + citty argument defaults) of changed TS files under script/',
+      'Static validation of TS files under script/: type check of the changed ones, import resolution and citty argument defaults across all of them',
   },
   args: {
     base: {

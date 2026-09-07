@@ -205,7 +205,8 @@ const main = defineCommand({
     },
     ledgerLive: {
       type: 'boolean',
-      description: 'Use Ledger Live derivation path',
+      description:
+        'Use Ledger Live derivation path (default: true; pass --no-ledger-live for the legacy path)',
       required: false,
     },
     accountIndex: {
