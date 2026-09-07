@@ -82,6 +82,33 @@ export const blockingUnevaluatedGate = (): ICodehashSignGate => ({
 })
 
 /**
+ * The only shape this gate accepts a proposal in.
+ *
+ * It names `safeTransaction` and nothing else on purpose. That is the struct
+ * Safe hashes and signs, and the row it was built from also carries a
+ * `safeTx` copy of the same fields — so a call site free to pick either can
+ * vouch for bytes the signature does not cover. Naming one field makes the
+ * other unreachable rather than merely discouraged.
+ */
+export interface ISignableProposal {
+  safeTransaction: { data: { data?: string } }
+}
+
+/**
+ * Builds this gate's input from the proposal about to be signed.
+ * @param proposal - the row, read through {@link ISignableProposal}
+ * @param networkKey - `config/networks.json` key, any casing
+ * @returns The calldata the signature will cover, and the network
+ */
+export const gateInputFor = (
+  proposal: ISignableProposal,
+  networkKey: string
+): { data: Hex | undefined; network: string } => ({
+  data: (proposal.safeTransaction.data.data as Hex | undefined) || undefined,
+  network: networkKey,
+})
+
+/**
  * Judges the cut a proposal would perform, before it is signed.
  *
  * Pass `data` by value off the struct that will be signed, not a re-read of
@@ -91,12 +118,15 @@ export const blockingUnevaluatedGate = (): ICodehashSignGate => ({
  * @param input.data - calldata of the transaction that gets signed
  * @param input.network - a `config/networks.json` key in any casing; it is
  *   lowercased here, because every lookup it reaches throws on other spellings
- * @param deps - scope, chain read and attestation lookup
+ * @param deps - a thunk, not the dependencies: building them reads
+ *   `foundry.toml` and creates a checkout root, and the caller turns a throw
+ *   into a refusal, so they must not exist for a proposal carrying no cut.
+ *   Thunk-only rather than either/or, so the eager form cannot compile.
  * @returns The gate a caller displays and then refuses on
  */
 export const evaluateCodehashSignGate = async (
   input: { data: Hex | undefined; network: string },
-  deps: IVerifyCutDeps | (() => IVerifyCutDeps)
+  deps: () => IVerifyCutDeps
 ): Promise<ICodehashSignGate> => {
   if (!input.data || input.data === '0x') return unevaluatedCodehashSignGate()
 
@@ -112,7 +142,7 @@ export const evaluateCodehashSignGate = async (
   // `foundry.toml` and creates a checkout root, either of which can throw, and
   // the caller's catch turns a throw into a refusal — so an eagerly-built
   // dependency refuses proposals this gate makes no claim about at all.
-  const resolveDeps = typeof deps === 'function' ? deps : () => deps
+  const resolveDeps = deps
 
   const refusals: string[] = [...collected.refusals]
   const targets: ITargetVerdict[] = []

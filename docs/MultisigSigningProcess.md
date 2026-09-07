@@ -329,23 +329,26 @@ signer sees:
    `script/deploy/codehash/`). Where the calldata decodes to a `diamondCut` —
    timelock-wrapped and batched frames included — every address the cut would
    install is compared against a local rebuild at the commit that address's
-   production deployment record names — **not** against `main`: D3 has the
-   verifier assert that the commit is present and fetchable, never that it is an
-   ancestor of `main`. The verdict **blocks the signature**. `MATCH`, `MISMATCH` and `UNVERIFIABLE` stay three
-   separate buckets: both of the latter stop a signature but they are different
-   facts, and collapsing them is what teaches a signer to click through grey. A
-   removal installs nothing and is not gated; a removal-only cut carrying
-   `_init` is refused outright, because `_init` is delegatecalled in the
-   diamond's own storage context whatever the entries describe. Two limits are
-   put on screen rather than hidden: a hash match with bytes excluded as
-   immutables renders grey rather than green until the per-immutable check
-   (WP-2.3) can price those bytes, and calldata this decoder cannot open makes
-   **no claim** — it names the frames it could not read instead of reporting a
-   pass. A proposal that performs decodable calldata with no cut is outside its
-   scope and says so on screen; one with empty calldata prints no gate line at
-   all, since there is nothing to judge.
-   The gate reads the normalised transaction, the same struct that gets hashed
-   and signed, so what it vouches for cannot drift from what the device shows.
+   production deployment record names. **Not** against `main`: per D3 the
+   verifier asserts that the commit is present and fetchable, never that it is
+   an ancestor of `main`. The verdict **blocks the signature**, and `MATCH`,
+   `MISMATCH` and `UNVERIFIABLE` stay three separate buckets — both of the
+   latter stop a signature but they are different facts, and collapsing them is
+   what teaches a signer to click through grey. A removal installs nothing and
+   is not gated; a removal-only cut carrying `_init` is refused outright,
+   because `_init` is delegatecalled in the diamond's own storage context
+   whatever the entries describe. It judges the normalised transaction, the same
+   struct that gets hashed and signed, so what it vouches for cannot drift from
+   what the device shows.
+
+   Three limits are put on screen rather than hidden. A hash match with bytes
+   excluded as immutables renders grey rather than green, until the
+   per-immutable check (WP-2.3) can price those bytes. Calldata this decoder
+   cannot open makes **no claim** — it names the frames it could not read
+   instead of reporting a pass. And calldata that decodes to no cut at all is
+   outside its scope and says so; a proposal with empty calldata prints no gate
+   line, because there is nothing to judge.
+
 5. The action prompt: `Do Nothing` / `Sign` / `Sign & Execute` /
    `Sign and Execute With Deployer` / `Execute with Deployer`. The two
    deployer variants are the usual choice — see §2 on why the deployer

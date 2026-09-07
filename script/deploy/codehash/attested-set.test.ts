@@ -258,7 +258,7 @@ describe('with a closed set of legitimate builds', () => {
 
       expect(result.verdict).toBe('MISMATCH')
       expect(result.blocksSigning).toBe(true)
-      expect(result.reason).toContain('not a build of main')
+      expect(result.reason).toContain('matches none of the')
     }
   )
 

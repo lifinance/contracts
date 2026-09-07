@@ -35,7 +35,7 @@ export interface IToolchainScope {
   /**
    * True when `profiles` enumerates every toolchain this network's code can
    * legitimately have been built with, so code matching none of them is not a
-   * build of `main`.
+   * build.
    */
   isClosedSet: boolean
   /** The legitimate pairs, in the order they should be tried. */

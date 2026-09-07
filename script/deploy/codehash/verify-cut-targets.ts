@@ -53,7 +53,7 @@ export interface IVerifyCutDeps {
   scope: (network: string) => ILineageScope
   /** Reads and normalises what is actually deployed at an address. */
   observe: (address: string, network: string) => Promise<IObservedCode>
-  /** Every attested build of `main` for whatever is meant to be at an address. */
+  /** Every attested build for whatever is meant to be at an address. */
   attestationsFor: (
     address: string,
     network: string
@@ -125,7 +125,7 @@ const judge = async (
     // an infrastructure failure that could be hiding either answer.
     return unreadable(
       address,
-      `its attested builds could not be read, so whether it matches main is unknown: ${message(
+      `its attested builds could not be read, so whether it matches one is unknown: ${message(
         error
       )}`
     )

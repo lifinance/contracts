@@ -25,6 +25,7 @@ import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
 import { readBooleanFlag, readValueFlag } from './cli-flags'
 import {
   assertCodehashSignGateAllowsSigning,
+  gateInputFor,
   blockingUnevaluatedGate,
   createGatedSigner,
   evaluateCodehashSignGate,
@@ -536,10 +537,7 @@ const processTxs = async (
     // runs after the choice.
     try {
       codehashGate = await evaluateCodehashSignGate(
-        {
-          data: tx.safeTransaction.data.data as Hex | undefined,
-          network: networkKey,
-        },
+        gateInputFor(tx, networkKey),
         getCodehashDeps
       )
     } catch (error) {

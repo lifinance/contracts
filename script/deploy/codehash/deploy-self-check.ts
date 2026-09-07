@@ -37,7 +37,7 @@ export interface IDeploySelfCheck {
    * compared too.
    */
   builtRawByteLength: number | undefined
-  /** Every attested build of main for this contract. */
+  /** Every attested build for this contract. */
   attested: IAttestedBuild[]
   scope: ILineageScope
 }
@@ -147,12 +147,12 @@ export const evaluateDeploySelfCheck = (
   // attested.
   const remedy =
     attested.length === 0
-      ? 'This will fail at sign time until an attested build of main exists for this contract — merging alone will not resolve it'
+      ? 'This will fail at sign time until an attested build exists for this contract — merging alone will not resolve it'
       : 'This will fail at sign time until the branch is merged and the facet version audited'
 
   return {
     outcome: 'CONFIRM',
-    reason: `${contractName}: deployed code is the artifact this run built, but it matches no attested build of main — ${attestedComparison.reason}. ${remedy}`,
+    reason: `${contractName}: deployed code is the artifact this run built, but it matches no attested build — ${attestedComparison.reason}. ${remedy}`,
     attestedVerdict: attestedComparison.verdict,
     requiresExplicitContinue: true,
     blocksProposal: false,

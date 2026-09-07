@@ -1043,8 +1043,9 @@ const readCutEntry = (entry: unknown): IFacetCutEntry | undefined => {
  *
  * The cut is decoded with {@link ABI_DIAMOND_CUT}, the same ABI the display path
  * renders from, so the structure vouched for and the structure shown are one
- * decode of one value. Pass the in-memory calldata the signer was shown — never
- * a re-read of its source.
+ * decode of one value. Pass one in-memory value and never a re-read of its
+ * source: the calldata of the transaction that gets signed, which is the same
+ * bytes the display decoded.
  *
  * Two properties keep it from reporting "no cut" about calldata that has one.
  *

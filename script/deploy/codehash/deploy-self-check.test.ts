@@ -85,7 +85,7 @@ describe('evaluateDeploySelfCheck', () => {
 
   it('asks for an explicit continue on a feature branch, and does not block', () => {
     // The deploy is internally consistent — the chain holds what was built — but
-    // no attested build of main matches, so a signer cannot verify it yet.
+    // no attested build matches, so a signer cannot verify it yet.
     const result = evaluateDeploySelfCheck({
       contractName: 'AccessManagerFacet',
       observed: onChain({ maskedHash: BRANCH_HASH }),
@@ -297,7 +297,7 @@ describe('the remedy has to match the verdict', () => {
     })
 
     expect(result.attestedVerdict).toBe('UNVERIFIABLE')
-    expect(result.reason).toMatch(/until an attested build of main exists/)
+    expect(result.reason).toMatch(/until an attested build exists/g)
     expect(result.reason).not.toMatch(/until the branch is merged/)
   })
 })
@@ -328,9 +328,7 @@ describe('the remedy on an open lineage set', () => {
       expect(result.outcome).toBe('CONFIRM')
       expect(result.attestedVerdict).toBe('UNVERIFIABLE')
       expect(result.reason).toMatch(/until the branch is merged/)
-      expect(result.reason).not.toMatch(
-        /until an attested build of main exists/
-      )
+      expect(result.reason).not.toMatch(/until an attested build exists/g)
     }
   )
 
@@ -345,7 +343,7 @@ describe('the remedy on an open lineage set', () => {
         scope,
       })
 
-      expect(result.reason).toMatch(/until an attested build of main exists/)
+      expect(result.reason).toMatch(/until an attested build exists/g)
       expect(result.reason).not.toMatch(/until the branch is merged/)
     }
   })

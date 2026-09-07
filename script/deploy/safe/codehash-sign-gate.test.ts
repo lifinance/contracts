@@ -22,6 +22,7 @@ import type { IVerifyCutDeps } from '../codehash/verify-cut-targets'
 
 import {
   assertCodehashSignGateAllowsSigning,
+  gateInputFor,
   blockingUnevaluatedGate,
   createGatedSigner,
   evaluateCodehashSignGate,
@@ -112,6 +113,47 @@ const rejection = async (promise: Promise<unknown>): Promise<string> => {
   }
 }
 
+describe('gateInputFor', () => {
+  // Which bytes the gate judges used to be asserted by grepping the call site's
+  // source. Three separate evasions defeated that, and the last one also made
+  // a correct refactor fail. `ISignableProposal` names `safeTransaction` and
+  // nothing else, so the stored `safeTx` copy is unreachable rather than merely
+  // discouraged — and the choice becomes something a test can drive.
+  it('reads the calldata of the struct that gets signed', () => {
+    const input = gateInputFor(
+      {
+        safeTransaction: { data: { data: '0xaabb' } },
+        // A row carries this too, and it is what the display path decodes.
+        safeTx: { data: { data: '0xdead' } },
+      } as never,
+      'mainnet'
+    )
+
+    expect(input.data).toBe('0xaabb')
+    expect(input.data).not.toBe('0xdead')
+  })
+
+  it('passes the network key straight through', () => {
+    expect(
+      gateInputFor(
+        { safeTransaction: { data: { data: '0xaabb' } } },
+        'Abstract'
+      ).network
+    ).toBe('Abstract')
+  })
+
+  it('reports absent calldata as undefined, not as an empty string', () => {
+    // `evaluateCodehashSignGate` keys its "nothing to judge" branch off a
+    // falsy `data`; an empty string would reach the decoder instead.
+    expect(
+      gateInputFor({ safeTransaction: { data: {} } }, 'mainnet').data
+    ).toBeUndefined()
+    expect(
+      gateInputFor({ safeTransaction: { data: { data: '' } } }, 'mainnet').data
+    ).toBeUndefined()
+  })
+})
+
 describe('evaluateCodehashSignGate', () => {
   it('does not build its dependencies for a proposal carrying no cut', () => {
     // Building them reads `foundry.toml` and creates a checkout root, and the
@@ -141,12 +183,13 @@ describe('evaluateCodehashSignGate', () => {
     const asked: string[] = []
     await evaluateCodehashSignGate(
       { data: cutCalldata(), network: 'Mainnet' },
-      deps({
-        scope: (network: string) => {
-          asked.push(network)
-          return { isClosedSet: true }
-        },
-      })
+      () =>
+        deps({
+          scope: (network: string) => {
+            asked.push(network)
+            return { isClosedSet: true }
+          },
+        })
     )
 
     expect(asked).toEqual(['mainnet'])
@@ -171,7 +214,7 @@ describe('evaluateCodehashSignGate', () => {
   it('does not block a proposal that carries no diamondCut', async () => {
     const gate = await evaluateCodehashSignGate(
       { data: '0x', network: NETWORK },
-      deps()
+      () => deps()
     )
 
     expect(gate.blocksSigning).toBe(false)
@@ -182,7 +225,7 @@ describe('evaluateCodehashSignGate', () => {
   it('passes a cut whose target matches an attested build', async () => {
     const gate = await evaluateCodehashSignGate(
       { data: wrapped([cutCalldata()]), network: NETWORK },
-      deps()
+      () => deps()
     )
 
     expect(gate.evaluated).toBe(true)
@@ -194,11 +237,12 @@ describe('evaluateCodehashSignGate', () => {
   it('blocks a cut whose target matches nothing attested', async () => {
     const gate = await evaluateCodehashSignGate(
       { data: wrapped([cutCalldata()]), network: NETWORK },
-      deps({
-        attestationsFor: async () => [
-          attested({ maskedHash: `0x${'99'.repeat(32)}` }),
-        ],
-      })
+      () =>
+        deps({
+          attestationsFor: async () => [
+            attested({ maskedHash: `0x${'99'.repeat(32)}` }),
+          ],
+        })
     )
 
     expect(gate.blocksSigning).toBe(true)
@@ -208,11 +252,12 @@ describe('evaluateCodehashSignGate', () => {
   it('blocks with UNVERIFIABLE when the attestation lookup fails', async () => {
     const gate = await evaluateCodehashSignGate(
       { data: wrapped([cutCalldata()]), network: NETWORK },
-      deps({
-        attestationsFor: async () => {
-          throw new Error('the deployment record could not be read')
-        },
-      })
+      () =>
+        deps({
+          attestationsFor: async () => {
+            throw new Error('the deployment record could not be read')
+          },
+        })
     )
 
     expect(gate.blocksSigning).toBe(true)
@@ -222,11 +267,12 @@ describe('evaluateCodehashSignGate', () => {
   it('blocks when the scope itself cannot be established', async () => {
     const gate = await evaluateCodehashSignGate(
       { data: wrapped([cutCalldata()]), network: 'notanetwork' },
-      deps({
-        scope: () => {
-          throw new Error('not in config/networks.json')
-        },
-      })
+      () =>
+        deps({
+          scope: () => {
+            throw new Error('not in config/networks.json')
+          },
+        })
     )
 
     expect(gate.blocksSigning).toBe(true)
@@ -238,7 +284,7 @@ describe('evaluateCodehashSignGate', () => {
 
     const gate = await evaluateCodehashSignGate(
       { data: hidden, network: NETWORK },
-      deps()
+      () => deps()
     )
 
     expect(gate.blocksSigning).toBe(true)
@@ -253,12 +299,13 @@ describe('evaluateCodehashSignGate', () => {
         data: wrapped([cutCalldata(), cutCalldata(other)]),
         network: NETWORK,
       },
-      deps({
-        observe: async (address) =>
-          address.toLowerCase() === other.toLowerCase()
-            ? observed({ maskedHash: `0x${'77'.repeat(32)}` })
-            : observed(),
-      })
+      () =>
+        deps({
+          observe: async (address) =>
+            address.toLowerCase() === other.toLowerCase()
+              ? observed({ maskedHash: `0x${'77'.repeat(32)}` })
+              : observed(),
+        })
     )
 
     expect(gate.targets.map((t) => [t.address, t.verdict])).toEqual([
@@ -280,11 +327,11 @@ describe('evaluateCodehashSignGate', () => {
 
     const first = await evaluateCodehashSignGate(
       { data, network: NETWORK },
-      recording
+      () => recording
     )
     const second = await evaluateCodehashSignGate(
       { data, network: NETWORK },
-      recording
+      () => recording
     )
 
     expect(second).toEqual(first)
@@ -293,7 +340,7 @@ describe('evaluateCodehashSignGate', () => {
     // equality above is a property of the input rather than of a cached answer.
     await evaluateCodehashSignGate(
       { data: wrapped([cutCalldata(OTHER)]), network: NETWORK },
-      recording
+      () => recording
     )
     expect(seen[2]).toBe(getAddress(OTHER))
   })
@@ -304,7 +351,7 @@ describe('evaluateCodehashSignGate', () => {
     // for the display to be able to say what was not compared.
     const gate = await evaluateCodehashSignGate(
       { data: wrapped([cutCalldata()]), network: NETWORK },
-      deps({ observe: async () => observed({ maskedByteCount: 128 }) })
+      () => deps({ observe: async () => observed({ maskedByteCount: 128 }) })
     )
 
     expect(gate.targets[0]?.verdict).toBe('UNVERIFIABLE')
@@ -318,7 +365,7 @@ describe('renderCodehashSignGate', () => {
     renderCodehashSignGate(
       await evaluateCodehashSignGate(
         { data: wrapped([cutCalldata()]), network: NETWORK },
-        deps(over)
+        () => deps(over)
       )
     ).join('\n')
 
@@ -459,7 +506,7 @@ describe('the render distinguishes every bucket, including the two that are not 
     // pass. It must now name what it could not read.
     const gate = await evaluateCodehashSignGate(
       { data: '0xdeadbeef00000000', network: NETWORK },
-      deps()
+      () => deps()
     )
 
     expect(gate.summary).toContain('0xdeadbeef')
@@ -472,7 +519,7 @@ describe('the render distinguishes every bucket, including the two that are not 
     // unopened, or the message above becomes noise on every proposal.
     const gate = await evaluateCodehashSignGate(
       { data: wrapped([cutCalldata()]), network: NETWORK },
-      deps()
+      () => deps()
     )
 
     expect(gate.summary).not.toMatch(/could not open/)
@@ -531,11 +578,12 @@ describe('assertCodehashSignGateAllowsSigning', () => {
   it('names the refusals and the per-address verdicts it refused on', async () => {
     const gate = await evaluateCodehashSignGate(
       { data: wrapped([cutCalldata()]), network: NETWORK },
-      deps({
-        attestationsFor: async () => [
-          attested({ maskedHash: `0x${'99'.repeat(32)}` }),
-        ],
-      })
+      () =>
+        deps({
+          attestationsFor: async () => [
+            attested({ maskedHash: `0x${'99'.repeat(32)}` }),
+          ],
+        })
     )
 
     let thrown = ''
@@ -552,7 +600,7 @@ describe('assertCodehashSignGateAllowsSigning', () => {
   it('returns quietly for a gate that did not block', async () => {
     const gate = await evaluateCodehashSignGate(
       { data: wrapped([cutCalldata()]), network: NETWORK },
-      deps()
+      () => deps()
     )
 
     expect(() => assertCodehashSignGateAllowsSigning(gate)).not.toThrow()

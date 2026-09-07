@@ -63,16 +63,23 @@ const FUNNEL_CALLS = /(?<![.\w])signTransaction\(/g
 const matches = (pattern: RegExp): string[] =>
   [...SOURCE.matchAll(pattern)].map((match) => match[0])
 
-/** Source with `//` and block comments removed — see the call-site test. */
-const withoutComments = (text: string): string =>
-  text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
-
-/** The gate call site's arguments, comment-free. */
-const callSite = (): string => {
-  const bare = withoutComments(SOURCE)
-  const at = bare.indexOf('evaluateCodehashSignGate(')
-  return bare.slice(at, at + 400)
-}
+/**
+ * Source with every string literal and comment removed.
+ *
+ * Strings go first, and that ordering is the point: a reviewer defeated an
+ * earlier version by putting `'/*'` in a string above the call and `'*\/'`
+ * below it, so the comment stripper ate the real call site and anchored on a
+ * decoy. Stripping literals first means neither a fake comment marker nor a
+ * string reciting the right spelling survives to be matched. It can only
+ * remove text, never invent it, so every assertion below fails safe.
+ */
+const executableOnly = (text: string): string =>
+  text
+    .replace(/`(?:[^`\\]|\\[\s\S])*`/g, "''")
+    .replace(/'(?:[^'\\\n]|\\.)*'/g, "''")
+    .replace(/"(?:[^"\\\n]|\\.)*"/g, "''")
+    .replace(/\/\*[\s\S]*?\*\//g, '')
+    .replace(/\/\/[^\n]*/g, '')
 
 describe('the codehash refusal is in the one funnel every sign path uses', () => {
   it('builds the signer with createGatedSigner', () => {
@@ -145,28 +152,31 @@ describe('the codehash refusal is in the one funnel every sign path uses', () =>
     expect(evaluation).toBeGreaterThan(reset)
   })
 
-  it('judges the struct that gets signed, not the stored document', () => {
-    // These are the same bytes today: `initializeSafeTransaction` copies `data`
-    // across verbatim and transforms only `to`, `value` and `nonce`. So this is
-    // not a live divergence — it is the one that cannot open. The gate reads
-    // what `sign` and `executeTransaction` are handed, which is the convention
-    // this file already states where it computes the fingerprint.
+  it('delegates the choice of bytes to the type-policed selector', () => {
+    // Which bytes the gate judges is no longer asserted on this file's text.
+    // Three source-scanning attempts were all defeated — by a comment reciting
+    // the correct spelling, by a string literal doing the same, and by an alias
+    // (`const signed = tx.safeTransaction.data`) that read the right field and
+    // failed the test anyway. A pin on spelling cannot tell those apart.
     //
-    // Asserted on a COMMENT-FREE slice of the call site, because this file's
-    // house style is long code-quoting comments: a reviewer proved that a
-    // comment reciting the correct spelling let both fixes be reverted with the
-    // whole suite green. Text a compiler ignores cannot be the evidence.
-    expect(callSite()).toContain('data: tx.safeTransaction.data.data')
-    expect(callSite()).not.toContain('tx.safeTx.data.data')
+    // `gateInputFor` takes `ISignableProposal`, which names `safeTransaction`
+    // and nothing else, so handing over the stored `safeTx` document does not
+    // compile. The behaviour is driven for real in codehash-sign-gate.test.ts.
+    // What is left here is placement: this file must not build that input
+    // itself.
+    // No negative on the stored document's spelling: `tx.safeTx.data.data` is
+    // read legitimately elsewhere in this file, by the Ledger filmstrip. What
+    // matters is that the gate's input is not built here at all.
+    expect(executableOnly(SOURCE)).toContain('gateInputFor(tx, networkKey)')
   })
 
-  it('has exactly one gate call site, so the slice above covers all of them', () => {
-    // The slice anchors on the first occurrence. A second call added later
-    // would be unchecked, and an unchecked second decode is the whole failure
-    // mode these modules are built against.
-    expect(
-      withoutComments(SOURCE).split('evaluateCodehashSignGate(').length - 1
-    ).toBe(1)
+  it('has exactly one gate call site, so nothing bypasses that selector', () => {
+    // A second call site is D23's shape again: a route the assertions above
+    // never look at. Counted on executable text only, for the reason
+    // `executableOnly` documents.
+    const bare = executableOnly(SOURCE)
+    expect(bare.split('evaluateCodehashSignGate(').length - 1).toBe(1)
+    expect(bare.split('gateInputFor(').length - 1).toBe(1)
   })
 
   it('evaluates and displays the verdict before the action prompt', () => {
