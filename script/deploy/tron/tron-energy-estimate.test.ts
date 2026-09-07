@@ -147,9 +147,14 @@ describe('estimateTronEnergy transport', () => {
     sleep: async () => undefined,
   }
 
+  /** Every endpoint the estimate actually posted to, in order. */
+  let requested: string[] = []
+
   const respondWith = (bodies: unknown[]): (() => number) => {
     let calls = 0
-    globalThis.fetch = (async () => {
+    requested = []
+    globalThis.fetch = (async (url: string | URL | Request) => {
+      requested.push(String(url))
       const body = bodies[Math.min(calls, bodies.length - 1)]
       calls += 1
       if (body instanceof Error) throw body
@@ -237,6 +242,54 @@ describe('estimateTronEnergy transport', () => {
       if (original === undefined) delete process.env.RPC_URL_TRON
       else process.env.RPC_URL_TRON = original
     }
+  })
+
+  /**
+   * The restriction is about forgery, not privacy, so it does not apply where
+   * there is no network segment to forge on. Refusing loopback also made the
+   * two branches of one `troncast send` invocation disagree: the signature path
+   * estimates through TronWeb's own provider, which never had this check.
+   */
+  it.each([
+    'http://localhost:8090',
+    'http://127.0.0.1:8090',
+    'http://[::1]:8090',
+  ])('estimates against the plaintext loopback node %s', async (rpcUrl) => {
+    const calls = respondWith([{ energy_used: 500_000 }])
+
+    expect(await estimateTronEnergy({ ...params, rpcUrl })).toBe(600_000n)
+    expect(calls()).toBe(1)
+    expect(requested[0]).toBe(`${rpcUrl}/wallet/triggerconstantcontract`)
+  })
+
+  it.each([
+    'http://insecure.example.com',
+    // Prefix-matching "localhost" would read this as loopback; it resolves
+    // wherever its owner points it.
+    'http://localhost.an-attacker.example',
+  ])('refuses plaintext HTTP to the non-loopback host %s', async (rpcUrl) => {
+    const calls = respondWith([{ energy_used: 500_000 }])
+
+    const error = await estimateTronEnergy({ ...params, rpcUrl }).then(
+      () => undefined,
+      (e: unknown) => e as Error
+    )
+
+    expect(error?.message).toMatch(/non-HTTPS/i)
+    // Names the rule it applied and the way past it, so the refusal is actionable.
+    expect(error?.message).toMatch(/except loopback/i)
+    expect(error?.message).toContain('ALLOW_GAS_ESTIMATE_FALLBACK')
+    expect(calls()).toBe(0)
+    expect(requested).toEqual([])
+  })
+
+  it('estimates against an HTTPS non-loopback host, which the rule still allows', async () => {
+    const calls = respondWith([{ energy_used: 500_000 }])
+
+    expect(
+      await estimateTronEnergy({ ...params, rpcUrl: 'https://tron.invalid' })
+    ).toBe(600_000n)
+    expect(calls()).toBe(1)
   })
 
   it('refuses a callValue too large to convert to Number losslessly', async () => {

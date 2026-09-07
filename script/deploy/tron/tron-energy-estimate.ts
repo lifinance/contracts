@@ -150,6 +150,45 @@ export const applyTronSafetyMargin = (rawEnergyUsed: number): bigint =>
   BigInt(Math.ceil(rawEnergyUsed * DEFAULT_SAFETY_MARGIN))
 
 /**
+ * Hostnames that reach the machine the estimate runs on. `new URL()` reports an
+ * IPv6 host bracketed, so both spellings are listed.
+ */
+const LOOPBACK_HOSTNAMES = ['localhost', '127.0.0.1', '[::1]', '::1']
+
+/**
+ * Whether an `energy_used` figure read from this endpoint can be trusted to
+ * decide a broadcast.
+ *
+ * The restriction is about forgery, not privacy: an on-path attacker who can
+ * answer plaintext HTTP picks the energy figure, and so picks whether the
+ * pre-flight lets a send past the fee limit. Loopback has no on-path attacker,
+ * and a local full node is the realistic development case — refusing it would
+ * make the calldata branch of `troncast send` disagree with the signature
+ * branch on the same `--rpcUrl`.
+ *
+ * Matched on the parsed hostname rather than a prefix, so `http://localhost.an-attacker.example`
+ * is not read as loopback.
+ *
+ * @param apiUrl - The endpoint the estimate would post to.
+ * @returns True when the transport is HTTPS, or plaintext HTTP to loopback.
+ */
+const estimateTransportIsTrusted = (apiUrl: string): boolean => {
+  let parsed: URL
+  try {
+    parsed = new URL(apiUrl)
+  } catch {
+    return false
+  }
+
+  if (parsed.protocol === 'https:') return true
+
+  return (
+    parsed.protocol === 'http:' &&
+    LOOPBACK_HOSTNAMES.includes(parsed.hostname.toLowerCase())
+  )
+}
+
+/**
  * Above this, `Number(callValue)` would round rather than convert: the guard
  * would then be pricing a call the node never actually simulated.
  */
@@ -170,9 +209,15 @@ const requestEnergyUsed = async (
   const fullHost = resolveTronWebRpcUrlToFullHost(rpcUrl, params.networkKey)
   const apiUrl = fullHost.replace(/\/$/, '') + '/wallet/triggerconstantcontract'
 
-  if (!apiUrl.startsWith('https://'))
+  if (!estimateTransportIsTrusted(apiUrl))
     throw new TronEstimateError(
-      `Refusing to estimate energy over a non-HTTPS endpoint: ${apiUrl}`,
+      `Refusing to estimate energy over a non-HTTPS endpoint: ${apiUrl}. ` +
+        `HTTPS is required for every host except loopback ` +
+        `(${LOOPBACK_HOSTNAMES.join(
+          ', '
+        )}), which has no network segment for an ` +
+        `on-path attacker to forge the energy figure on. To broadcast without an ` +
+        `estimate, set ALLOW_GAS_ESTIMATE_FALLBACK to this network's name.`,
       false
     )
 

@@ -18,6 +18,7 @@ import {
 } from '../../deploy/tron/tron-guarded-send'
 import { getEnvironment, getPrivateKey } from '../../utils/utils'
 import type { Environment, ITransactionReceipt } from '../types'
+import { resolveBroadcastCall } from '../utils/abi'
 import { formatGasUsage, formatReceipt } from '../utils/formatter'
 import {
   isValidAddress,
@@ -650,6 +651,20 @@ export const sendCommand = defineCommand({
 
       const callValueSun = parseCallValueSun(options.callValue)
 
+      // Read off the ABI entry `contract[funcSig.name]` is bound to rather than
+      // from the signature as typed. `parseFunctionSignature` returns the
+      // spelling it was given, so a valid non-canonical one — `transfer(address,uint)` —
+      // would have the pre-flight price a selector the contract does not have:
+      // the simulation reverts and the guard refuses a send that used to work.
+      // Placed after the dry-run return and before the guarded send, so an
+      // unresolvable call is refused outright instead of arriving as a failed
+      // estimate the escape hatch could wave through.
+      const broadcastCall = resolveBroadcastCall(
+        contract,
+        funcSig.name,
+        funcSig.inputs.map((input) => input.type)
+      )
+
       const txId = await sendGuardedTronContractCall({
         networkName: networkKey,
         operation: `${args.signature} on ${args.address}`,
@@ -658,13 +673,12 @@ export const sendCommand = defineCommand({
           estimateTronEnergyBySelector({
             tronWeb,
             contractAddress: args.address,
-            functionSelector: `${funcSig.name}(${funcSig.inputs
-              .map((input) => input.type)
-              .join(',')})`,
-            // The same decoded arguments the broadcast below is given, so the
-            // estimate prices the call that will actually be sent.
-            parameters: funcSig.inputs.map((input, i) => ({
-              type: input.type,
+            functionSelector: broadcastCall.functionSelector,
+            // The same decoded arguments the broadcast below is given, typed by
+            // the same ABI entry, so the estimate prices the call that will
+            // actually be sent.
+            parameters: broadcastCall.inputTypes.map((type, i) => ({
+              type,
               value: parsedParams[i],
             })),
             callValueSun,
