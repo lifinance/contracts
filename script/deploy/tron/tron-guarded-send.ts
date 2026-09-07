@@ -1,5 +1,5 @@
 /**
- * The seam every direct-EOA Tron broadcast in `script/` goes through.
+ * The seam a direct-EOA Tron broadcast is meant to go through.
  *
  * The Safe and timelock paths pre-flight energy before they broadcast; the
  * operator and deploy tools did not. Their fee limits are larger (1000 and 5000

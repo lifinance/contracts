@@ -353,8 +353,8 @@ export async function estimateDiamondCutEnergy(
 }
 
 /**
- * The only `.send()` on the facet-registration path, so there is one place the
- * energy pre-flight can sit and no order for a later caller to get wrong.
+ * The only `.send()` in {@link registerFacetToDiamond}, so there is one place
+ * the energy pre-flight can sit and no order for a later caller to get wrong.
  *
  * Prices through {@link tronEnergyCostInSun} rather than the devkit's
  * `getCurrentPrices`, which substitutes a constant when the read fails and
@@ -401,8 +401,10 @@ export async function sendGuardedDiamondCut(params: {
       ),
     costInSun: (energy) => tronEnergyCostInSun(params.tronWeb, energy),
     raiseFeeLimitHint: (requiredSun) =>
-      `Split the batch, or raise the devkit's DEFAULT_FEE_LIMIT_TRX above ` +
-      `${requiredSun} SUN.`,
+      `Register fewer selectors at a time, or raise the devkit's ` +
+      `DEFAULT_FEE_LIMIT_TRX to at least ${Math.ceil(
+        Number(requiredSun) / 1_000_000
+      )} TRX.`,
     broadcast: () =>
       params.diamond.diamondCut(params.facetCuts, ZERO_ADDRESS, '0x').send({
         feeLimit: feeLimitSun,

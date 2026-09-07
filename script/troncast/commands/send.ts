@@ -26,18 +26,18 @@ import {
 import { initTronWeb, parseValue, waitForConfirmation } from '../utils/tronweb'
 
 /** What `--feeLimit` falls back to when it is not supplied: 1000 TRX in SUN. */
-const DEFAULT_FEE_LIMIT_SUN = 1_000_000_000
+const TRONCAST_DEFAULT_FEE_LIMIT_SUN = 1_000_000_000
 
 /**
  * The cap the broadcast will run under.
  *
- * Read once and passed to both the node payload and the pre-flight: a guard
- * that recomputed it could compare against a different number than the send
- * uses. Rejects a non-integer rather than letting `NaN` reach the comparison,
- * where it surfaces as a `BigInt` conversion error instead of a usable message.
+ * Read once and passed to both the send and the pre-flight: a guard that
+ * recomputed it could compare against a different number than the send uses.
+ * Rejects a non-integer rather than letting `NaN` reach the comparison, where
+ * it surfaces as a `BigInt` conversion error instead of a usable message.
  */
 function resolveFeeLimitSun(tronWeb: TronWeb, feeLimit?: string): number {
-  if (!feeLimit) return DEFAULT_FEE_LIMIT_SUN
+  if (!feeLimit) return TRONCAST_DEFAULT_FEE_LIMIT_SUN
 
   const sun = Number(tronWeb.toSun(parseFloat(feeLimit)))
   if (!Number.isInteger(sun) || sun <= 0)
@@ -367,7 +367,8 @@ export const sendCommand = defineCommand({
               data: args.calldata as `0x${string}`,
               callValue: 0n,
               // The endpoint this run broadcasts to, which `--rpcUrl` may have
-              // overridden; the env-var default would be a different chain.
+              // overridden; resolving it from the env var again could estimate
+              // against a different node than the send uses.
               rpcUrl: tronWeb.fullNode.host,
             }),
           costInSun: (energy) => tronEnergyCostInSun(tronWeb, energy),

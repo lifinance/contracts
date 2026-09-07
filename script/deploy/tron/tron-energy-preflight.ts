@@ -2,8 +2,9 @@
  * Pre-flight for anything that broadcasts on Tron.
  *
  * The EVM Safe and timelock paths refuse to broadcast when gas estimation fails
- * (`gas-with-fallback.ts`). Tron had no pre-flight at all: the devkit caps every
- * transaction at a fixed `fee_limit` read from the environment, signs, and sends.
+ * (`gas-with-fallback.ts`). Tron had no pre-flight at all: every send caps the
+ * transaction at a fixed `fee_limit` — from the environment on the Safe paths,
+ * from a flag or a constant on the operator ones — then signs and sends.
  *
  * So Tron needs the EVM rule and one more. A fee limit that cannot pay for the
  * transaction does not make it fail cleanly — it runs until the energy is spent
@@ -20,7 +21,11 @@ import { consola } from 'consola'
 import type { IChainSimulateResult } from '../../common/types'
 import { redactErrorReason } from '../../utils/redactUrls'
 import { fallbackExplicitlyAllowed } from '../safe/executors/gas-with-fallback'
-/** The env var the devkit reads for its cap, named in refusals so it can be raised. */
+/**
+ * The env var the devkit reads for its cap. Named in the default refusal so it
+ * can be raised; a path capped by something else passes
+ * {@link ITronEnergyPreflightOptions.raiseFeeLimitHint} instead.
+ */
 export const TRON_FEE_LIMIT_ENV = 'TRON_SAFE_EXEC_FEE_LIMIT_SUN'
 
 export interface ITronEnergyPreflightOptions {
@@ -28,7 +33,7 @@ export interface ITronEnergyPreflightOptions {
   networkName: string
   /** Named in the refusal so the operator knows which action was stopped. */
   operation: string
-  /** SUN the devkit will cap this transaction at. */
+  /** SUN this transaction will be capped at. */
   feeLimitSun: number
   /** Cost of that much energy at the chain's current rate. Throws if unreadable. */
   costInSun: (energy: bigint) => Promise<bigint>
