@@ -601,6 +601,12 @@ describe('the placement at every deploy entry point', () => {
  * it is absent, so an executable case there would assert on a run that never
  * reached the gate. They keep the static assertions above.
  */
+const SCRIPT_DIRECTORIES = {
+  DEPLOY_SCRIPT_DIRECTORY: 'script/deploy/facets/',
+  TASKS_SCRIPT_DIRECTORY: 'script/tasks/',
+  CONFIG_SCRIPT_DIRECTORY: 'script/tasks/solidity/',
+} as const
+
 const DRIVABLE_ENTRY_POINTS = [
   [
     'deploySingleContract',
@@ -671,6 +677,12 @@ const runEntryPoint = (
         `export MAX_ATTEMPTS_PER_SCRIPT_EXECUTION=1`,
         `export MAX_ATTEMPTS_PER_CONTRACT_DEPLOYMENT=1`,
         `export PRODUCTION=false`,
+        // Normally supplied by .env. Without them these scripts cannot resolve
+        // their .s.sol path and return before the gate, which made this suite
+        // pass locally and fail in CI, where there is no .env.
+        ...Object.entries(SCRIPT_DIRECTORIES).map(
+          ([name, value]) => `export ${name}="${value}"`
+        ),
         `source ${sourcePath} >/dev/null 2>&1`,
         invocation,
       ].join('\n'),
@@ -773,6 +785,16 @@ describe('executeAndParse — the shared forge seam', () => {
 })
 
 describe('every drivable entry point, driven for real', () => {
+  it.each(Object.entries(SCRIPT_DIRECTORIES))(
+    'stands in for %s exactly as .env.example defines it',
+    (name, value) => {
+      // These are hardcoded so the harness works without a .env. If the
+      // template moves a directory, the harness must move with it rather than
+      // silently stop reaching the gate.
+      expect(readScript('.env.example')).toContain(`${name}="${value}"`)
+    }
+  )
+
   it.each(DRIVABLE_ENTRY_POINTS)(
     '%s refuses a drifted forge and starts no other forge',
     (_name, sourcePath, invocation) => {
