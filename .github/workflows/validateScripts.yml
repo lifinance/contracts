@@ -83,6 +83,10 @@ jobs:
               - 'package.json'
               - 'bun.lock'
               - '.github/workflows/validateScripts.yml'
+              # The enumeration is the compiler's own AST, so the Forge version
+              # and its setup decide what the gate can see at all.
+              - '.foundry-version'
+              - '.github/actions/setup-foundry/**'
 
   validate-scripts:
     # Runs on PRs (once out of draft) and on workflow_dispatch.

@@ -23,6 +23,12 @@ import { join } from 'path'
 export interface IImmutableDeclaration {
   /** Repo-relative path, as the compiler recorded it. */
   file: string
+  /**
+   * The enclosing contract, as the AST names it. Registry entries are keyed by
+   * contract, and the file's basename is not that key: a second contract in the
+   * same file, or two files sharing a basename, would be filed under one name.
+   */
+  contract: string
   /** 1-indexed line the declaration sits on. */
   line: number
   /** The declared type, e.g. `address`, `uint256`, `contract IGasZip`. */
@@ -117,6 +123,7 @@ interface IAstVariable {
 
 interface IAstNode {
   nodeType?: string
+  name?: string
   nodes?: IAstVariable[]
 }
 
@@ -170,6 +177,7 @@ export const readImmutableDeclarations = (
         const byteOffset = Number(member.src.split(':')[0])
         byPosition.set(`${file}:${member.src}`, {
           file,
+          contract: node.name ?? '',
           line: Number.isFinite(byteOffset) ? lineAt(starts, byteOffset) : 0,
           type: member.typeDescriptions?.typeString ?? 'unknown',
           name: member.name,

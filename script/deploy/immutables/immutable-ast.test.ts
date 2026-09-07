@@ -78,10 +78,45 @@ describe('readImmutableDeclarations', () => {
     expect(declarations).toHaveLength(1)
     expect(declarations[0]).toMatchObject({
       file: 'src/Facets/Sample.sol',
+      contract: 'Sample',
       name: 'SPOKEPOOL',
       type: 'contract ISpokePool',
       visibility: 'public',
     })
+  })
+
+  it('attributes each declaration to its own contract, not to the file', () => {
+    // Registry entries are keyed by contract, so two contracts in one file must
+    // not collapse onto the file's basename.
+    const outDir = artifactDirWith([
+      {
+        path: 'Sample.sol/Sample.json',
+        ast: {
+          absolutePath: 'src/Facets/Sample.sol',
+          nodes: [
+            {
+              nodeType: 'ContractDefinition',
+              name: 'Sample',
+              nodes: [variable('OWNER')],
+            },
+            {
+              nodeType: 'ContractDefinition',
+              name: 'SampleHelper',
+              nodes: [variable('HELPER_OWNER', { src: '200:40:0' })],
+            },
+          ],
+        },
+      },
+    ])
+
+    const { declarations } = readImmutableDeclarations(outDir)
+
+    expect(
+      declarations.map(({ contract, name }) => [contract, name]).sort()
+    ).toEqual([
+      ['Sample', 'OWNER'],
+      ['SampleHelper', 'HELPER_OWNER'],
+    ])
   })
 
   it('reports the declaring source file for every artifact it read', () => {

@@ -20,8 +20,15 @@ import {
 
 const declared = (
   name: string,
-  file = 'src/Facets/AcrossFacet.sol'
-): IImmutableDeclaration => ({ file, line: 20, type: 'address', name })
+  contract = 'AcrossFacet',
+  file = `src/Facets/${contract}.sol`
+): IImmutableDeclaration => ({
+  file,
+  contract,
+  line: 20,
+  type: 'address',
+  name,
+})
 
 /**
  * AcrossFacet's real entries, verbatim. Neither carries #2213's `getter` — that
@@ -226,12 +233,55 @@ describe('validateImmutableRegistry', () => {
 
   it('warns for a contract absent from the requirements file entirely', () => {
     const result = validateImmutableRegistry(
-      [declared('POOL_MANAGER', 'src/Facets/BrandNewFacet.sol')],
+      [declared('POOL_MANAGER', 'BrandNewFacet')],
       {}
     )
 
     expect(result.errors).toEqual([])
     expect(result.warnings[0]).toContain('BrandNewFacet')
+  })
+
+  it('does not let a helper contract satisfy the entry of the contract it shares a file with', () => {
+    // Both contracts sit in AcrossFacet.sol. Keyed by basename, the helper's
+    // immutable would answer AcrossFacet's entry: no warning for the helper and
+    // no error for the entry, so the real immutable goes undocumented silently.
+    const result = validateImmutableRegistry(
+      [declared('spokePool', 'AcrossHelper', 'src/Facets/AcrossFacet.sol')],
+      {
+        AcrossFacet: {
+          configData: CONFIG_DATA,
+          immutables: {
+            spokePool: { source: 'config', configData: '_spokePool' },
+          },
+        },
+      }
+    )
+
+    expect(result.warnings[0]).toContain('AcrossHelper.spokePool')
+    expect(result.errors[0]).toContain(
+      'AcrossFacet does not declare that immutable'
+    )
+  })
+
+  it('keeps two files of the same basename apart', () => {
+    const result = validateImmutableRegistry(
+      [
+        declared('spokePool', 'AcrossFacet', 'src/Facets/AcrossFacet.sol'),
+        declared('spokePool', 'AcrossFacetV4', 'src/V4/AcrossFacet.sol'),
+      ],
+      {
+        AcrossFacet: {
+          configData: CONFIG_DATA,
+          immutables: {
+            spokePool: { source: 'config', configData: '_spokePool' },
+          },
+        },
+      }
+    )
+
+    expect(result.errors).toEqual([])
+    expect(result.warnings).toHaveLength(1)
+    expect(result.warnings[0]).toContain('AcrossFacetV4.spokePool')
   })
 })
 

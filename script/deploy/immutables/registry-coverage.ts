@@ -54,13 +54,6 @@ export interface IRegistryCoverage {
 export const normaliseBindingName = (name: string): string =>
   name.replace(/_/gu, '').toLowerCase()
 
-/** Contract name as `deployRequirements.json` keys it: the file's basename. */
-const contractOf = (file: string): string =>
-  file
-    .split('/')
-    .pop()
-    ?.replace(/\.sol$/u, '') ?? file
-
 /**
  * Proposes links in both directions.
  *
@@ -91,9 +84,8 @@ export const assessRegistryCoverage = (
   )
 
   for (const declaration of declarations) {
-    const contract = contractOf(declaration.file)
     const wanted = normaliseBindingName(declaration.name)
-    const pool = unmatched.get(contract)
+    const pool = unmatched.get(declaration.contract)
 
     if (pool?.has(wanted)) {
       pool.delete(wanted)
