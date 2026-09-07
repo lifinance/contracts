@@ -84,12 +84,16 @@ jobs:
               - 'package.json'
               - 'bun.lock'
               - '.github/workflows/validateScripts.yml'
-              # The enumeration is the compiler's own AST, so the Forge version
-              # and its setup decide what the gate can see at all.
-              - 'foundry.toml'
-              - 'remappings.txt'
+              # The enumeration is the compiler's own AST, so every input that
+              # decides what gets compiled decides what the gate can see at
+              # all. This is the list setup-foundry already keys its build
+              # cache on, minus the scopes this job does not build.
               - '.foundry-version'
               - '.github/actions/setup-foundry/**'
+              - 'foundry.toml'
+              - 'remappings.txt'
+              - 'lib/**'
+              - '.gitmodules'
 
   validate-scripts:
     # Runs on PRs (once out of draft) and on workflow_dispatch.

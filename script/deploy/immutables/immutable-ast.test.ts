@@ -88,25 +88,25 @@ describe('readImmutableDeclarations', () => {
   it('attributes each declaration to its own contract, not to the file', () => {
     // Registry entries are keyed by contract, so two contracts in one file must
     // not collapse onto the file's basename.
-    const outDir = artifactDirWith([
-      {
-        path: 'Sample.sol/Sample.json',
-        ast: {
-          absolutePath: 'src/Facets/Sample.sol',
-          nodes: [
-            {
-              nodeType: 'ContractDefinition',
-              name: 'Sample',
-              nodes: [variable('OWNER')],
-            },
-            {
-              nodeType: 'ContractDefinition',
-              name: 'SampleHelper',
-              nodes: [variable('HELPER_OWNER', { src: '200:40:0' })],
-            },
-          ],
+    // As forge emits it: one artifact per contract, both carrying the same source-unit AST.
+    const ast = {
+      absolutePath: 'src/Facets/Sample.sol',
+      nodes: [
+        {
+          nodeType: 'ContractDefinition',
+          name: 'Sample',
+          nodes: [variable('OWNER')],
         },
-      },
+        {
+          nodeType: 'ContractDefinition',
+          name: 'SampleHelper',
+          nodes: [variable('HELPER_OWNER', { src: '200:40:0' })],
+        },
+      ],
+    }
+    const outDir = artifactDirWith([
+      { path: 'Sample.sol/Sample.json', ast },
+      { path: 'Sample.sol/SampleHelper.json', ast },
     ])
 
     const { declarations } = readImmutableDeclarations(outDir)

@@ -16,7 +16,7 @@
  */
 
 import { execFileSync } from 'child_process'
-import { readdirSync, readFileSync, statSync } from 'fs'
+import { readdirSync, readFileSync, rmSync, statSync } from 'fs'
 import { join } from 'path'
 
 /** One `<type> [visibility] immutable <name>;` in a contract. */
@@ -24,9 +24,9 @@ export interface IImmutableDeclaration {
   /** Repo-relative path, as the compiler recorded it. */
   file: string
   /**
-   * The enclosing contract, as the AST names it. Registry entries are keyed by
-   * contract, and the file's basename is not that key: a second contract in the
-   * same file, or two files sharing a basename, would be filed under one name.
+   * The enclosing contract, as the AST names it. This is the registry's key,
+   * and it is not a function of {@link file}: one file can declare several
+   * contracts, and two files can share a basename.
    */
   contract: string
   /** 1-indexed line the declaration sits on. */
@@ -50,6 +50,9 @@ const AST_CACHE_DIR = 'cache-immutables'
  * @returns The directory the artifacts were written to.
  */
 export const buildAst = (outDir: string = AST_OUT_DIR): string => {
+  // forge leaves the artifact of a contract that no longer exists in place, and the enumeration
+  // reads every artifact it finds — so a deleted contract would keep contributing immutables.
+  rmSync(outDir, { recursive: true, force: true })
   execFileSync('forge', ['build', 'src', '--ast'], {
     stdio: ['ignore', 'ignore', 'inherit'],
     env: {
