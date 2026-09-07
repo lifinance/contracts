@@ -38,7 +38,7 @@ jobs:
   sync-ledger:
     concurrency:
       # Collapse the two production triggers (schedule + push) into one group so
-      # they never force-push sync/lifi-erc7730 or update the upstream PR
+      # they never force-push sync/lifi-clear-signing or update the upstream PR
       # concurrently — a second concurrent run would break the
       # `--force-with-lease` push or send a duplicate Slack ping.
       # cancel-in-progress lets a newer production run supersede an in-flight
@@ -106,7 +106,7 @@ jobs:
           LEDGER_FORK: ${{ secrets.LEDGER_FORK || 'lifinance/clear-signing-erc7730-registry' }} # optional override
           LEDGER_UPSTREAM: ethereum/clear-signing-erc7730-registry # Ethereum Foundation-hosted (migrated from LedgerHQ in 2026)
           LEDGER_FILE_PATH: registry/lifi/calldata-LIFIDiamond.json
-          SYNC_BRANCH: sync/lifi-erc7730
+          SYNC_BRANCH: sync/lifi-clear-signing
           PR_TITLE: 'lifi: sync calldata-LIFIDiamond.json (deployments + display.formats)'
           # Dry-run only applies on workflow_dispatch. Cron + push triggers always
           # run for real (DRY_RUN evaluates to '' in those contexts, falling
