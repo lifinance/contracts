@@ -168,6 +168,15 @@ jobs:
           # The gate compiles into its own out/ dir, so it must not share the
           # forge-build cache key with jobs that populate the default one.
           cache-key-suffix: immutable-ast
+      - name: Compile src/ with the AST attached
+        # Its own out/ dir, so AST-carrying artifacts never land in the one other
+        # workflows cache. Built here rather than inside the gate so a compile
+        # failure reads as a compile failure.
+        run: forge build src --ast
+        env:
+          FOUNDRY_OUT: out-immutables
+          FOUNDRY_CACHE_PATH: cache-immutables
+
       - name: Verify immutable registry
         shell: bash
         run: |
@@ -181,7 +190,8 @@ jobs:
           ##### Still skipped on draft PRs, and the workflow has no push trigger;
           ##### the ready_for_review trigger re-runs it against final HEAD.
           ##### Flip to --strict once every immutable is authored (EXSC-869 part ii).
-          bunx tsx ./script/deploy/immutables/verify-immutable-registry.ts
+          bunx tsx ./script/deploy/immutables/verify-immutable-registry.ts \
+            --out-dir out-immutables
 
   validate-scripts-required:
     # Aggregator job for branch protection. Reports green when the heavy job

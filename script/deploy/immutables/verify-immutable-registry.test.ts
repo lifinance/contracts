@@ -113,6 +113,37 @@ describe('decideExit', () => {
   })
 })
 
+const OUT_DIR = 'out-immutables'
+
+/**
+ * An artifact as `forge build --ast` writes it, carrying one public immutable.
+ *
+ * Written by hand rather than compiled: the TypeScript suite runs on a Foundry-free runner, so
+ * a case that shelled out to `forge` would pass locally and fail only in CI.
+ */
+const artifactFor = (sourcePath: string, contract: string): string =>
+  JSON.stringify({
+    ast: {
+      absolutePath: sourcePath,
+      nodes: [
+        {
+          nodeType: 'ContractDefinition',
+          name: contract,
+          nodes: [
+            {
+              nodeType: 'VariableDeclaration',
+              mutability: 'immutable',
+              name: 'OWNER',
+              visibility: 'public',
+              src: '80:31:0',
+              typeDescriptions: { typeString: 'address' },
+            },
+          ],
+        },
+      ],
+    },
+  })
+
 /** Builds a throwaway repo the CLI can run against, and returns its path. */
 function makeRepo(files: Record<string, string>): string {
   const root = mkdtempSync(join(tmpdir(), 'immutable-registry-'))
@@ -135,10 +166,11 @@ contract Clean {
 `
 
 const runGate = (root: string, args: string[] = []) =>
-  spawnSync('bunx', ['tsx', join(process.cwd(), SCRIPT), ...args], {
-    cwd: root,
-    encoding: 'utf8',
-  })
+  spawnSync(
+    'bunx',
+    ['tsx', join(process.cwd(), SCRIPT), '--out-dir', OUT_DIR, ...args],
+    { cwd: root, encoding: 'utf8' }
+  )
 
 describe('verify-immutable-registry CLI', () => {
   it('scans exactly the src/*.sol files git tracks', () => {
@@ -147,12 +179,25 @@ describe('verify-immutable-registry CLI', () => {
       // Neither of these is under src/, so neither may be counted.
       'test/Other.sol': CLEAN_CONTRACT,
       'script/Helper.sol': CLEAN_CONTRACT,
+      // Artifacts exist for all three, so what keeps the other two out is the src/ scope
+      // rather than the fixture simply omitting them.
+      [`${OUT_DIR}/Clean.sol/Clean.json`]: artifactFor(
+        'src/Clean.sol',
+        'Clean'
+      ),
+      [`${OUT_DIR}/Other.sol/Other.json`]: artifactFor(
+        'test/Other.sol',
+        'Other'
+      ),
+      [`${OUT_DIR}/Helper.sol/Helper.json`]: artifactFor(
+        'script/Helper.sol',
+        'Helper'
+      ),
       [REGISTRY_PATH]: JSON.stringify({}),
       [REQUIREMENTS_PATH]: JSON.stringify({}),
     })
     const output = (({ stdout, stderr }) => stdout + stderr)(runGate(root))
-    // The identical contract sits in all three paths, so the gate naming only
-    // the src/ one is what proves the glob did not leak.
+
     expect(output).toMatch(/src\/Clean\.sol/u)
     expect(output).not.toMatch(/test\/Other\.sol/u)
     expect(output).not.toMatch(/script\/Helper\.sol/u)
@@ -162,6 +207,10 @@ describe('verify-immutable-registry CLI', () => {
   it('exits 0 when an immutable has no entry and --strict is absent', () => {
     const root = makeRepo({
       'src/Clean.sol': CLEAN_CONTRACT,
+      [`${OUT_DIR}/Clean.sol/Clean.json`]: artifactFor(
+        'src/Clean.sol',
+        'Clean'
+      ),
       [REGISTRY_PATH]: JSON.stringify({}),
       [REQUIREMENTS_PATH]: JSON.stringify({}),
     })
@@ -171,6 +220,10 @@ describe('verify-immutable-registry CLI', () => {
   it('exits 1 for the same input with --strict', () => {
     const root = makeRepo({
       'src/Clean.sol': CLEAN_CONTRACT,
+      [`${OUT_DIR}/Clean.sol/Clean.json`]: artifactFor(
+        'src/Clean.sol',
+        'Clean'
+      ),
       [REGISTRY_PATH]: JSON.stringify({}),
       [REQUIREMENTS_PATH]: JSON.stringify({}),
     })
@@ -180,6 +233,10 @@ describe('verify-immutable-registry CLI', () => {
   it('exits 1 on a malformed registry in either mode', () => {
     const root = makeRepo({
       'src/Clean.sol': CLEAN_CONTRACT,
+      [`${OUT_DIR}/Clean.sol/Clean.json`]: artifactFor(
+        'src/Clean.sol',
+        'Clean'
+      ),
       [REGISTRY_PATH]: JSON.stringify({
         Clean: { OWNER: { source: 'nonsense' } },
       }),
@@ -188,18 +245,40 @@ describe('verify-immutable-registry CLI', () => {
     expect(runGate(root).status).toBe(1)
   })
 
-  it('exits 1 on a declaration it cannot read, without --strict', () => {
+  it('exits 1 when a tracked src file has no AST, without --strict', () => {
+    // The failure the deleted parser's unreadable-line check existed to catch: a source the
+    // enumeration never saw contributes nothing, so its immutables are never asked for.
     const root = makeRepo({
-      'src/Weird.sol': `// SPDX-License-Identifier: MIT
-pragma solidity ^0.8.17;
-
-contract Weird {
-    address public immutable;
-}
-`,
+      'src/Clean.sol': CLEAN_CONTRACT,
+      'src/Invisible.sol': CLEAN_CONTRACT,
+      [`${OUT_DIR}/Clean.sol/Clean.json`]: artifactFor(
+        'src/Clean.sol',
+        'Clean'
+      ),
       [REGISTRY_PATH]: JSON.stringify({}),
       [REQUIREMENTS_PATH]: JSON.stringify({}),
     })
-    expect(runGate(root).status).toBe(1)
+    const result = runGate(root)
+
+    expect(result.status).toBe(1)
+    expect(result.stdout + result.stderr).toMatch(/src\/Invisible\.sol/u)
+  })
+
+  it('refuses --out-dir with no directory rather than silently building', () => {
+    const root = makeRepo({
+      'src/Clean.sol': CLEAN_CONTRACT,
+      [REGISTRY_PATH]: JSON.stringify({}),
+      [REQUIREMENTS_PATH]: JSON.stringify({}),
+    })
+    const result = spawnSync(
+      'bunx',
+      ['tsx', join(process.cwd(), SCRIPT), '--out-dir'],
+      { cwd: root, encoding: 'utf8' }
+    )
+
+    expect(result.status).toBe(1)
+    expect(result.stdout + result.stderr).toMatch(
+      /--out-dir needs a directory/u
+    )
   })
 })

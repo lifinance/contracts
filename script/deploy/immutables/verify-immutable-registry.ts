@@ -111,7 +111,18 @@ const main = (): void => {
     .split('\n')
     .filter(Boolean)
 
-  const outDir = buildAst()
+  // `--out-dir` hands the build to the caller: CI can compile in its own step, and this CLI's
+  // own tests can run against fixture artifacts on a runner that has no Foundry. Without it the
+  // gate compiles for itself, which is what a developer running it by hand wants.
+  const outDirFlag = process.argv.indexOf('--out-dir')
+  const providedOutDir =
+    outDirFlag === -1 ? undefined : process.argv[outDirFlag + 1]
+  if (outDirFlag !== -1 && !providedOutDir) {
+    consola.error('--out-dir needs a directory')
+    process.exit(1)
+  }
+
+  const outDir = providedOutDir ?? buildAst()
   const { declarations, sourceFiles } = readImmutableDeclarations(outDir)
   // Asked before anything else: an immutable in a file the compiler emitted no AST for is never
   // asked for, so it would never appear as a missing entry.
