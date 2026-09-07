@@ -17,7 +17,7 @@ import { sendTransferOwnership } from './transfer-ownership-to-timelock'
 const DIAMOND = 'TAuErcuAtU6BPt6YwL51JZ4RpDCPQASCU2'
 const TIMELOCK = 'TVQY5uYUJHqPJ3kmpKcQmiRcaEbGvJYVfR'
 
-/** 100 SUN per energy: the 10 TRX fee limit buys 100,000 energy. */
+/** 100 SUN per energy: the 20 TRX fee limit buys 200,000 energy. */
 const SUN_PER_ENERGY = 100
 
 let sends: string[]
@@ -95,7 +95,7 @@ describe('transferOwnership on Tron', () => {
 
   it('never reaches the send when the estimate exceeds the fee limit', async () => {
     // 20,000 raw becomes 24,000 energy after the 1.2 margin — 2,400,000 SUN,
-    // inside the 10 TRX limit. 200,000 raw is not.
+    // inside the 20 TRX limit. 200,000 raw is not.
     energyUsed = 200_000
 
     const error = await refusal()
