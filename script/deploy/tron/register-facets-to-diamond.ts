@@ -16,6 +16,7 @@ import { consola } from 'consola'
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
 import { getEnvironment, updateDiamondJsonBatch } from '../../utils/utils'
+import { flagIsOn } from '../safe/cli-flags'
 
 import { TRON_DIAMOND_FACET_GROUPS } from './constants.js'
 import { tronEnergyCostInSun } from './tron-energy-estimate.js'
@@ -660,10 +661,12 @@ const main = defineCommand({
     description: 'Register facets to the Tron Diamond contract',
   },
   args: {
+    // No citty `default`: for a multi-word argument citty resolves the
+    // spelling the caller did NOT type to the default, so `--dry-run` left
+    // `args.dryRun` at `false` and registered facets for real.
     dryRun: {
       type: 'boolean',
       description: 'Run in dry-run mode without sending transactions',
-      default: false,
     },
     split: {
       type: 'boolean',
@@ -672,12 +675,13 @@ const main = defineCommand({
     },
   },
   async run({ args }) {
+    const dryRun = flagIsOn(args.dryRun)
     const options = {
-      dryRun: args.dryRun,
+      dryRun,
       splitMode: args.split,
     }
 
-    if (args.dryRun)
+    if (dryRun)
       consola.info(' Running in DRY RUN mode - no transactions will be sent')
 
     if (args.split)

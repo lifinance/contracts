@@ -63,6 +63,28 @@ const uniqueOccurrence = (
   return found[0]
 }
 
+/**
+ * Reads a boolean citty argument that a command has already had parsed for it.
+ *
+ * Prefer {@link readBooleanFlag} where the command can reach `argv`. This is for
+ * a command whose body only sees `args`, and it exists because a `type:
+ * 'boolean'` argument does not always arrive as a boolean: `--flag=true` arrives
+ * as `'true'`, and `--flag <token>` swallows the token as the value. Anything
+ * present that is not an explicit `false` therefore counts as on — for a
+ * `--dry-run` the alternative is broadcasting a run the operator asked to
+ * simulate.
+ *
+ * Declare such an argument with **no** citty `default`: for a multi-word
+ * argument citty resolves the spelling the caller did not type to the default,
+ * so a `default: false` makes `--dry-run` unreachable.
+ *
+ * @param value - The argument as citty resolved it.
+ * @returns Whether the flag is on.
+ */
+export const flagIsOn = (value: unknown): boolean =>
+  value === true ||
+  (typeof value === 'string' && value !== '' && value !== 'false')
+
 export interface IBooleanFlagOptions {
   /** Some flags default ON, e.g. `--ledger` when signing. */
   whenAbsent?: boolean

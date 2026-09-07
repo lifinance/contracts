@@ -357,6 +357,16 @@ describe('the function-signature path', () => {
     expect(hits).toContain('estimate-selector')
     expect(hits).toContain('broadcast')
   })
+
+  it('estimates a decimal TRX --value that multiplies untidily', async () => {
+    // 4.1 * 1e6 is 4099999.9999999995 in floating point. Left unrounded it is
+    // not a SUN amount, and TronWeb's own integer validator refuses it at the
+    // broadcast — so the guard would have passed a call that could not be sent.
+    const { exitCode } = await run({ signature: 'pause()', value: '4.1tron' })
+
+    expect(exitCode).toBeUndefined()
+    expect(hits).toContain('broadcast')
+  })
 })
 
 describe('a native TRX transfer', () => {
@@ -413,6 +423,32 @@ describe('the fee limit as citty resolves it', () => {
     expect(exitCode).toBe(1)
     expect(hits).not.toContain('broadcast')
     expect(errors.join('\n')).toContain('Invalid --fee-limit')
+  })
+
+  it('refuses a valueless --feeLimit, which citty resolves to an empty string', async () => {
+    const { exitCode, errors } = await runViaCitty([
+      '--calldata',
+      '0xdeadbeef',
+      '--feeLimit',
+    ])
+
+    expect(exitCode).toBe(1)
+    expect(hits).not.toContain('broadcast')
+    expect(errors.join('\n')).toContain('Invalid --fee-limit')
+  })
+
+  it('honours a --dry-run that swallowed the next token as its value', async () => {
+    // citty hands the following argv entry to a kebab boolean. Reading that as
+    // "off" would broadcast a run the operator asked to simulate.
+    const { exitCode } = await runViaCitty([
+      '--calldata',
+      '0xdeadbeef',
+      '--dry-run',
+      'false-ish',
+    ])
+
+    expect(exitCode).toBeUndefined()
+    expect(hits).not.toContain('broadcast')
   })
 
   it('honours --dry-run, so a simulated run does not broadcast', async () => {

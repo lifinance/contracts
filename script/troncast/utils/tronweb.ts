@@ -91,7 +91,10 @@ export function parseValue(value: string): string {
   // Handle formats like "0.1tron", "100sun", "1000000"
   if (value.endsWith('tron')) {
     const amount = parseFloat(value.replace('tron', ''))
-    return (amount * 1_000_000).toString() // Convert to SUN
+    // Rounded, because the TRX→SUN multiplication leaves float artefacts on
+    // ordinary amounts: 4.1 * 1e6 stringifies as 4099999.9999999995, which is
+    // not a SUN amount and which TronWeb's own integer validator rejects.
+    return Math.round(amount * 1_000_000).toString()
   } else if (value.endsWith('sun')) return value.replace('sun', '')
 
   return value // Assume it's already in SUN

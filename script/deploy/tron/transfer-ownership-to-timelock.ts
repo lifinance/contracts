@@ -14,6 +14,7 @@ import { consola } from 'consola'
 import { EnvironmentEnum } from '../../common/types'
 import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
 import { getEnvVar, getEnvironment } from '../../utils/utils'
+import { flagIsOn } from '../safe/cli-flags'
 
 import {
   TRANSFER_OWNERSHIP_FEE_LIMIT_SUN,
@@ -189,7 +190,7 @@ async function transferOwnershipToTimelock(options: {
         )
       if (!options.dryRun) {
         const shouldContinue = await consola.prompt(
-          'Continue anyway? (the energy pre-flight will refuse it: the owner check reverts for this signer)',
+          'Continue anyway? (the owner check reverts for this signer, so the energy pre-flight refuses it unless ALLOW_GAS_ESTIMATE_FALLBACK names this network)',
           { type: 'confirm', default: false }
         )
         if (!shouldContinue) {
@@ -297,16 +298,18 @@ const main = defineCommand({
         'Run only step 1 (transferOwnership to Timelock) or step 2 (Safe proposal for confirmOwnershipTransfer). Omit step 1 only; add --confirm to also run step 2 in one invocation.',
       default: undefined,
     },
+    // No citty `default` on the multi-word flags below. For a multi-word
+    // argument citty resolves the spelling the caller did NOT type to the
+    // default, so `--dry-run` left `args.dryRun` at `false` and transferred
+    // ownership for real. The fallbacks are applied in the body instead.
     noPropose: {
       type: 'boolean',
       description:
         'With --step 2: skip MongoDB Safe proposal; print calldata / manual instructions only.',
-      default: false,
     },
     dryRun: {
       type: 'boolean',
       description: 'Run in dry-run mode without sending transactions',
-      default: false,
     },
     confirm: {
       type: 'boolean',
@@ -324,7 +327,6 @@ const main = defineCommand({
       type: 'string',
       description:
         'Number of seconds to wait between transactions (default: 5)',
-      default: '5',
     },
     verbose: {
       type: 'boolean',
@@ -333,6 +335,8 @@ const main = defineCommand({
     },
   },
   async run({ args }) {
+    const dryRun = flagIsOn(args.dryRun)
+    const noPropose = flagIsOn(args.noPropose)
     const stepNum =
       args.step !== undefined
         ? args.step === '1'
@@ -356,8 +360,8 @@ const main = defineCommand({
       verbose?: boolean
     } = {
       step: stepNum,
-      noPropose: args.noPropose,
-      dryRun: args.dryRun,
+      noPropose,
+      dryRun,
       confirm: args.confirm,
       currentOwnerPrivateKey: args.currentOwnerPrivateKey,
       delaySeconds: 5,
@@ -365,7 +369,7 @@ const main = defineCommand({
     }
 
     if (args.delaySeconds) {
-      const parsed = parseInt(args.delaySeconds, 10)
+      const parsed = parseInt(String(args.delaySeconds), 10)
       if (!isNaN(parsed) && parsed >= 0) {
         options.delaySeconds = parsed
       } else {
@@ -375,10 +379,10 @@ const main = defineCommand({
       }
     }
 
-    if (args.dryRun)
+    if (dryRun)
       consola.info(' Running in DRY RUN mode - no transactions will be sent')
 
-    if (stepNum === 2 && !args.noPropose) {
+    if (stepNum === 2 && !noPropose) {
       consola.info(
         '--step 2: creating Safe proposal in MongoDB by default (use --noPropose for instructions only).'
       )

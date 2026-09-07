@@ -7,6 +7,7 @@ import { consola } from 'consola'
 import type { TronWeb } from 'tronweb'
 
 import { EnvironmentEnum } from '../../common/types'
+import { flagIsOn } from '../../deploy/safe/cli-flags'
 import {
   estimateTronEnergy,
   tronEnergyCostInSun,
@@ -40,13 +41,17 @@ function resolveFeeLimitSun(
   tronWeb: TronWeb,
   feeLimit?: string | number | boolean
 ): number {
-  if (feeLimit === undefined || feeLimit === '')
-    return TRONCAST_DEFAULT_FEE_LIMIT_SUN
+  if (feeLimit === undefined) return TRONCAST_DEFAULT_FEE_LIMIT_SUN
 
-  // citty passes a digits-only value through as a number and a valueless
-  // `--fee-limit` through as `true`. The latter is not a TRX amount, and
-  // `Number(true)` would quietly cap the send at 1 TRX.
-  const trx = typeof feeLimit === 'boolean' ? Number.NaN : Number(feeLimit)
+  // citty passes a digits-only value through as a number, and a valueless flag
+  // through as `true` for the kebab spelling and `''` for the camel one.
+  // Neither is a TRX amount: `Number(true)` would cap the send at 1 TRX and
+  // `Number('')` at 0, and silently falling back to the default would apply a
+  // cap the operator was trying to change.
+  const trx =
+    typeof feeLimit === 'boolean' || feeLimit === ''
+      ? Number.NaN
+      : Number(feeLimit)
   const sun = Number(tronWeb.toSun(trx))
   if (!Number.isInteger(sun) || sun <= 0)
     throw new Error(
@@ -248,12 +253,7 @@ export const sendCommand = defineCommand({
       const networkKey: TronTvmNetworkName =
         env === 'mainnet' ? 'tron' : 'tronshasta'
 
-      // `--dry-run=true` arrives as the string `'true'` while `--dryRun`
-      // arrives as a boolean, so a `=== true` test drops one of the two
-      // spellings — here that would broadcast a run the operator asked to
-      // simulate.
-      const rawDryRun: unknown = args.dryRun
-      const dryRun = rawDryRun === true || rawDryRun === 'true'
+      const dryRun = flagIsOn(args.dryRun)
 
       // Native TRX transfer: `troncast send <recipient> --value <amount>` with no
       // signature/calldata, mirroring `cast send <to> --value`. TronWeb has no function

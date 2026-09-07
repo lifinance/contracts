@@ -114,10 +114,10 @@ export const DIAMOND_CUT_ENERGY_MULTIPLIER = 10
 export const CREATE_PROXY_SAFETY_MARGIN = 1.2
 
 /**
- * Fee limit the direct-EOA `transferOwnership` send runs under. Twice the 10 TRX
- * this path used before it was pre-flighted: at mainnet's 210 SUN/energy, 10 TRX
- * buys 47,619 energy, and the estimate's 1.2 safety margin would have consumed
- * the whole headroom a working send was relying on.
+ * Fee limit the direct-EOA `transferOwnership` send runs under. Sized so the
+ * estimate's 1.2 safety margin still leaves headroom: at mainnet's 210
+ * SUN/energy this buys 95,238 energy, and the pre-flight refuses above 79,365
+ * raw.
  */
 export const TRANSFER_OWNERSHIP_FEE_LIMIT_SUN = 20_000_000 // 20 TRX
 

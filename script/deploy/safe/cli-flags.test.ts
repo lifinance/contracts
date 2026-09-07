@@ -4,8 +4,9 @@ import {
   it,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
+import { defineCommand, runCommand } from 'citty'
 
-import { readBooleanFlag, readValueFlag } from './cli-flags'
+import { flagIsOn, readBooleanFlag, readValueFlag } from './cli-flags'
 
 const LEDGER_LIVE = { camel: 'ledgerLive', kebab: 'ledger-live' } as const
 
@@ -178,5 +179,59 @@ describe('readValueFlag — the negated spelling is not a form of the flag', () 
     // and return '3'. Two readers in one module ruling opposite ways on the same
     // spelling is how a value gets read where it should have been rejected.
     expect(() => readValueFlag(argv, ACCOUNT)).toThrow(/not a form of/)
+  })
+})
+
+/**
+ * `flagIsOn` exists for a command body that only sees `args`. These run the
+ * real parser over the two argument shapes that matter, because the failure it
+ * guards against — a `--dry-run` that resolves to `false` and broadcasts — is
+ * invisible to a test that builds `args` by hand.
+ */
+describe('flagIsOn, against citty as it actually resolves flags', () => {
+  /** Resolves `dryRun` the way a command body would see it. */
+  const resolve = async (
+    declaration: Record<string, unknown>,
+    ...argv: string[]
+  ): Promise<unknown> => {
+    let seen: unknown
+    await runCommand(
+      defineCommand({
+        args: { dryRun: { type: 'boolean', ...declaration } },
+        run: ({ args }) => {
+          seen = args.dryRun
+        },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      }) as any,
+      { rawArgs: argv }
+    )
+    return seen
+  }
+
+  it('is on for both spellings when the argument declares no default', async () => {
+    expect(flagIsOn(await resolve({}, '--dryRun'))).toBe(true)
+    expect(flagIsOn(await resolve({}, '--dry-run'))).toBe(true)
+    expect(flagIsOn(await resolve({}, '--dry-run=true'))).toBe(true)
+  })
+
+  it('is off when the argument is absent, or explicitly false', async () => {
+    expect(flagIsOn(await resolve({}))).toBe(false)
+    expect(flagIsOn(await resolve({}, '--dry-run=false'))).toBe(false)
+    expect(flagIsOn(await resolve({}, '--dryRun=false'))).toBe(false)
+  })
+
+  it('is on when a bare kebab flag swallowed the next token as its value', async () => {
+    // citty hands the following argv entry to a kebab boolean. Reading that as
+    // "off" would broadcast a run the operator asked to simulate.
+    expect(flagIsOn(await resolve({}, '--dry-run', 'extra'))).toBe(true)
+  })
+
+  it('cannot rescue a declaration that carries a default', async () => {
+    // This is why the declaration must omit `default`: citty resolves the
+    // spelling the caller did not type to it, and `args.dryRun` never sees the
+    // kebab value at all.
+    expect(await resolve({ default: false }, '--dry-run')).toBe(false)
+    expect(flagIsOn(await resolve({ default: false }, '--dry-run'))).toBe(false)
+    expect(flagIsOn(await resolve({ default: false }, '--dryRun'))).toBe(true)
   })
 })
