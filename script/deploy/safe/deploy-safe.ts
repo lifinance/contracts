@@ -88,7 +88,7 @@ import { sleep } from '../../utils/delay'
 import { getFoundryDefaultEvmVersion } from '../../utils/utils'
 import { EVM_VERSIONS } from '../shared/constants'
 
-import { flagIsOn } from './cli-flags'
+import { flagIsOn, readBooleanFlag } from './cli-flags'
 
 // ES module equivalent of __dirname
 const __filename = fileURLToPath(import.meta.url)
@@ -331,7 +331,13 @@ const main = defineCommand({
     // )) as unknown as EnvironmentEnum
     // we currently use SAFEs only in production but will keep this code just in case
     const environment: EnvironmentEnum = EnvironmentEnum.production
-    const allowOverride = flagIsOn(args.allowOverride, { whenAbsent: true })
+    // Strict: on overwrites an existing safeAddress in networks.json, so an
+    // unreadable value must be refused rather than resolved to on.
+    const allowOverride = readBooleanFlag(
+      process.argv,
+      { camel: 'allowOverride', kebab: 'allow-override' },
+      { whenAbsent: true }
+    )
 
     // validate network & existing
     const networkName = args.network as SupportedChain

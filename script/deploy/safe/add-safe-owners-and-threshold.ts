@@ -27,7 +27,7 @@ import globalConfig from '../../../config/global.json'
 import networksData from '../../../config/networks.json'
 import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 
-import { flagIsOn } from './cli-flags'
+import { readBooleanFlag } from './cli-flags'
 import type { ILedgerAccountResult } from './ledger'
 import { assertTicketPresent } from './proposal-intent'
 import {
@@ -135,7 +135,12 @@ const main = defineCommand({
     },
   },
   async run({ args }) {
-    const allNetworks = flagIsOn(args.allNetworks)
+    // Strict: on fans the run out to every active network, so `--all-networks 0`
+    // has to be refused, not resolved to on.
+    const allNetworks = readBooleanFlag(process.argv, {
+      camel: 'allNetworks',
+      kebab: 'all-networks',
+    })
     if (!args.network && !allNetworks)
       throw new Error('Provide either --network <name> or --all-networks')
     if (args.network && allNetworks)

@@ -264,6 +264,17 @@ describe('flagIsOn, against citty as it actually resolves flags', () => {
     )
   })
 
+  it('resolves an unreadable value to on, which is why on must be the safe direction', () => {
+    // Deliberate, not an oversight: for --dry-run, on is the fail-safe answer.
+    // The same reading is fail-dangerous for a flag that widens the run's
+    // reach, and those go through readBooleanFlag instead — see the tests above
+    // and the callers in add-safe-owners-and-threshold / deploy-safe /
+    // execute-pending-timelock-tx / deploy-and-register-periphery.
+    expect(flagIsOn(0)).toBe(true)
+    expect(flagIsOn(5)).toBe(true)
+    expect(flagIsOn('no')).toBe(true)
+  })
+
   it("reads '' as off, for a value argument passed through this reader", () => {
     // Unreachable for a `type: 'boolean'` argument; asserted directly so the
     // clause is not left as untested code.

@@ -35,7 +35,7 @@ import {
   saveContractAddress,
   updateDiamondJsonPeriphery,
 } from '../../utils/utils'
-import { flagIsOn } from '../safe/cli-flags'
+import { flagIsOn, readBooleanFlag } from '../safe/cli-flags'
 import { ZERO_ADDRESS } from '../shared/constants.js'
 import { getContractVersion } from '../shared/getContractVersion'
 import { retryWithRateLimit } from '../shared/rateLimit.js'
@@ -1553,7 +1553,12 @@ const deployCommand = defineCommand({
       await deployAndRegisterPeripheryImpl({
         dryRun,
         verbose,
-        skipConfirmation: flagIsOn(args.skipConfirmation),
+        // Strict: on skips the prompt that is the last check before a
+        // production deploy, so an unreadable value must be refused.
+        skipConfirmation: readBooleanFlag(process.argv, {
+          camel: 'skipConfirmation',
+          kebab: 'skip-confirmation',
+        }),
         onlyContracts,
         registerOnly: flagIsOn(args.registerOnly),
       })

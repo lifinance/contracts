@@ -248,6 +248,38 @@ describe('findMultiWordArgDefaults', () => {
     expect(findMultiWordArgDefaults('a.ts', positional)).toEqual([])
   })
 
+  it.each([
+    [
+      'a spread then overridden to boolean, so it must be reported',
+      'positional',
+      'boolean',
+      'dryRun',
+      true,
+    ],
+    [
+      'a spread then overridden to positional, so it must be exempt',
+      'boolean',
+      'positional',
+      'repoRoot',
+      false,
+    ],
+  ])(
+    'applies last-write-wins across %s',
+    (_label, spreadType, ownType, name, reported) => {
+      // Object literals are last-write-wins, so the property nearest the end is
+      // the one citty sees. Reading the first match exempted a real offender.
+      const source = `
+        const base = { type: '${spreadType}' }
+        defineCommand({
+          args: { ${name}: { ...base, type: '${ownType}', default: false } },
+        })
+      `
+      expect(findMultiWordArgDefaults('a.ts', source)).toEqual(
+        reported ? [{ file: 'a.ts', line: 4, argument: name }] : []
+      )
+    }
+  )
+
   it('terminates on mutually spread consts instead of overflowing the stack', () => {
     // Without the cycle guard this throws RangeError and takes the whole check
     // down, which no other assertion here would notice.

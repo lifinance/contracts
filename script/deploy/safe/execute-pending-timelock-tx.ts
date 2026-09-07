@@ -34,7 +34,7 @@ import {
   type IProcessingStats,
 } from '../../utils/slack-notifier'
 
-import { flagIsOn } from './cli-flags'
+import { flagIsOn, readBooleanFlag } from './cli-flags'
 import { confirmTimelockExecution } from './confirm-timelock-execution'
 import {
   buildRemovalSnapshotFromPayloads,
@@ -154,8 +154,16 @@ const cmd = defineCommand({
     // setupEnvironment handles private key management internally based on environment
     const isDryRun = flagIsOn(args?.dryRun)
     const specificOperationId = args?.operationId as Hex | undefined
-    const executeAll = flagIsOn(args?.executeAll)
-    const rejectAll = flagIsOn(args?.rejectAll)
+    // Strict: either one enters bulk mode and stops asking per operation, so an
+    // unreadable value must be refused rather than resolved to on.
+    const executeAll = readBooleanFlag(process.argv, {
+      camel: 'executeAll',
+      kebab: 'execute-all',
+    })
+    const rejectAll = readBooleanFlag(process.argv, {
+      camel: 'rejectAll',
+      kebab: 'reject-all',
+    })
     const rpcUrlOverride = args?.rpcUrl
     const notifyWebhook = args?.notify
 

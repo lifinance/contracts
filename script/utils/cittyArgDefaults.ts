@@ -50,14 +50,20 @@ const literalText = (node: Node, source: SourceFile): string =>
 const propertyName = (property: Node, source: SourceFile): string =>
   isPropertyAssignment(property) ? literalText(property.name, source) : ''
 
+/**
+ * The property that wins, which is the LAST one assigning that name — object
+ * literals are last-write-wins, so `{ ...base, type: 'boolean' }` is a boolean
+ * however `base` typed it. Taking the first match instead read the stale type
+ * from a spread and exempted an argument citty does not exempt.
+ */
 const findProperty = (
   literal: ObjectLiteralExpression,
   name: string,
   source: SourceFile
 ): Node | undefined =>
-  properties(literal, source).find(
-    (property) => propertyName(property, source) === name
-  )
+  properties(literal, source)
+    .filter((property) => propertyName(property, source) === name)
+    .at(-1)
 
 /** Unwraps `as const`, `satisfies T` and parentheses around an expression. */
 const unwrap = (node: Node): Node => {

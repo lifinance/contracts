@@ -86,6 +86,13 @@ export interface IBooleanFlagOptions {
  * so a `default: false` makes `--dry-run` unreachable. A flag that is on unless
  * switched off keeps its fallback here, via `whenAbsent`, for the same reason.
  *
+ * Only for a flag where **on is the safe direction**. Resolving an unreadable
+ * value to on is fail-safe for `--dry-run` and fail-dangerous for anything that
+ * widens what the run touches: `--all-networks 0` would fan out to every
+ * network, `--skip-confirmation 0` would skip the last prompt before a
+ * production deploy. Read those with {@link readBooleanFlag}, which refuses a
+ * value it cannot read instead of choosing.
+ *
  * @param value - The argument as citty resolved it.
  * @param options - What absence means, when it is not `false`.
  * @returns Whether the flag is on.
