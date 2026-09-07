@@ -164,9 +164,9 @@ export interface IProvenanceUpdate {
 /**
  * Captures every provenance field for a record about to be logged.
  *
- * Shares one {@link captureGitProvenance} pass with the Safe proposal document,
- * so a deployment and the proposal that installs it cannot disagree about the
- * branch or the dirty tree they came from.
+ * Reads {@link captureGitProvenance}, the same capture the Safe proposal
+ * document is built from, so a deployment and the proposal that installs it
+ * cannot disagree about the branch or the dirty tree they came from.
  *
  * @returns The provenance fields, each degraded to a sentinel on failure, plus
  * any non-fatal capture problems so a sentinel stays explainable.
@@ -175,12 +175,22 @@ export function captureRecordProvenance(): IRecordProvenance & {
   captureErrors?: string[]
 } {
   const captured = captureGitProvenance({ resolvePrUrl: false })
+  // An empty dirty list is only claimed when nothing went wrong: the capture
+  // returns one both for a clean tree and for a status probe it could not run,
+  // and a failed probe recorded as "clean" would hide exactly the dirty deploy
+  // this field exists to surface. Paths that WERE found are recorded either way.
+  const dirtyTreeKnown =
+    captured.dirtyTreeScoped.length > 0 || !captured.captureErrors?.length
   return {
     gitCommitHash: getCurrentGitCommitHash(),
     repo: getCurrentRepo(),
     gitBranch: captured.gitBranch,
-    dirtyTreeScoped: captured.dirtyTreeScoped,
-    dirtyTreeTruncated: captured.dirtyTreeTruncated ?? false,
+    ...(dirtyTreeKnown
+      ? {
+          dirtyTreeScoped: captured.dirtyTreeScoped,
+          dirtyTreeTruncated: captured.dirtyTreeTruncated ?? false,
+        }
+      : {}),
     actor: captured.actor,
     ...(captured.captureErrors
       ? { captureErrors: captured.captureErrors }

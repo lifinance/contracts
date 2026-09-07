@@ -273,8 +273,22 @@ describe('update-deployment-logs add — provenance capture', () => {
       expect(upsert.update.$set).not.toHaveProperty('gitBranch')
       expect(upsert.update.$setOnInsert).toMatchObject({
         gitBranch: 'UNKNOWN',
+        repo: 'UNKNOWN',
       })
+      // The actor survives: `git config user.name` answers from the global
+      // config outside a checkout, so who ran it is still known.
+      expect(upsert.update.$set).toHaveProperty('actor', 'human')
+      // The dirty list must be absent, not empty: the capture returns an empty
+      // list for an unreadable tree as well as a clean one, and only the
+      // recorded errors separate them.
+      expect(upsert.update.$set).not.toHaveProperty('dirtyTreeScoped')
+      expect(upsert.update.$set).not.toHaveProperty('dirtyTreeTruncated')
+      // Paired positives, so the two absences above cannot pass on a run that
+      // printed no upsert fields at all.
+      expect(upsert.update.$set).toHaveProperty('contractName', CONTRACT)
       expect(output).toContain('branch UNKNOWN')
+      expect(output).toContain('dirty unknown')
+      expect(output).toContain('Provenance capture:')
     },
     CASE_TIMEOUT_MS
   )

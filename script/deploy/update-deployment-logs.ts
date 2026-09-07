@@ -686,8 +686,8 @@ const addCommand = defineCommand({
       description: 'EVM version',
       required: false,
     },
-    // Single word: citty drops a passed value for a multi-word flag that
-    // carries a default (see `fix/citty-multiword-default-flags`).
+    // Single word: citty discards a passed value for a multi-word flag that
+    // carries a default.
     dryRun: {
       type: 'boolean',
       description:

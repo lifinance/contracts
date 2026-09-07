@@ -83,8 +83,9 @@ the `repo` it was cloned from, the `gitBranch` checked out, the `actor`
 (`human`, `bot`, `ci`), and `dirtyTreeScoped` — the working-tree paths that
 differed from that commit, with the artefacts the deploy pipeline rewrites
 during its own run excluded. An **empty `dirtyTreeScoped` means the capture
-ran and the tree was clean; an absent one means no capture ran**, which is
-what every record written before the field existed looks like. Branch, tree
+ran and the tree was clean; an absent one means no capture ran, or ran and
+could not read the tree** — the same shape every record written before the
+field existed has. Branch, tree
 and actor come from the same `captureGitProvenance` pass the Safe proposal
 document uses, so a deployment and the proposal that installs it cannot
 disagree about where they came from. The capture is self-reported context, not
