@@ -225,15 +225,15 @@ describe('assertFoundryVersionOrFail — the bash seam', () => {
 })
 
 /**
- * True when the line invokes a pinned-`forge` binary at command position,
- * rather than mentioning one inside a string that is handed to the seam.
+ * Reduces a line to what bash would run, dropping comments, leading keywords and
+ * leading environment assignments.
  *
  * @param line - A single line of a shell script.
- * @returns Whether a `forge` process would be started by this line.
+ * @returns The command-position remainder, or an empty string for a comment.
  */
-const invokesForgeDirectly = (line: string): boolean => {
+const commandPositionOf = (line: string): string => {
   let rest = line.trim()
-  if (rest.startsWith('#')) return false
+  if (rest.startsWith('#')) return ''
 
   let changed = true
   while (changed) {
@@ -251,8 +251,47 @@ const invokesForgeDirectly = (line: string): boolean => {
     }
   }
 
-  return /^(?:\.\/foundry-zksync\/)?forge\s/.test(rest)
+  return rest
 }
+
+/**
+ * True when the line starts a forge process — either the PATH `forge` the pin
+ * governs, or the separately pinned `./foundry-zksync/forge` fork — rather than
+ * mentioning one inside a string that is handed to the seam.
+ *
+ * @param line - A single line of a shell script.
+ * @returns Whether a forge process would be started by this line.
+ */
+const invokesForgeDirectly = (line: string): boolean =>
+  /^(?:\.\/foundry-zksync\/)?forge\s/.test(commandPositionOf(line))
+
+/**
+ * Index of the first line that actually *calls* the gate — the seam function
+ * itself, or `executeAndParse`, which calls it. A mention inside a comment does
+ * not count: the placement assertions were vacuous while it did, and passed with
+ * the gate deleted and the comment left behind.
+ *
+ * @param lines - Lines of a shell script.
+ * @returns The line index, or -1 when the file never calls the gate.
+ */
+const firstGateCallIndex = (lines: string[]): number =>
+  lines.findIndex((line) =>
+    /^(?:assertFoundryVersionOrFail|executeAndParse)\b/.test(
+      commandPositionOf(line)
+    )
+  )
+
+/**
+ * Index of the first line that calls the seam function itself, ignoring
+ * comments that merely name it.
+ *
+ * @param lines - Lines of a shell script.
+ * @returns The line index, or -1 when the file never calls it.
+ */
+const firstSeamCallIndex = (lines: string[]): number =>
+  lines.findIndex((line) =>
+    new RegExp(`^${CALL}\\b`).test(commandPositionOf(line))
+  )
 
 describe('invokesForgeDirectly', () => {
   it.each([
@@ -276,6 +315,25 @@ describe('invokesForgeDirectly', () => {
   })
 })
 
+describe('firstGateCallIndex', () => {
+  it.each([
+    [['  if ! assertFoundryVersionOrFail; then']],
+    [['  assertFoundryVersionOrFail || return 1']],
+    [['  executeAndParse \\']],
+    [['      if ! executeAndParse \\']],
+  ])('finds the call in %p', (lines) => {
+    expect(firstGateCallIndex(lines)).toBe(0)
+  })
+
+  it.each([
+    [['  # Also checked at the shared executeAndParse seam, but the zk path']],
+    [['  # if ! assertFoundryVersionOrFail; then']],
+    [['  echo "executeAndParse runs the command"']],
+  ])('does not count %p as a call', (lines) => {
+    expect(firstGateCallIndex(lines)).toBe(-1)
+  })
+})
+
 describe('the wiring in helperFunctions.sh', () => {
   const lines = readScript('script/helperFunctions.sh').split('\n')
   const indexOf = (needle: string): number =>
@@ -287,16 +345,14 @@ describe('the wiring in helperFunctions.sh', () => {
 
   it('gates executeAndParse before it reaches executeAndCapture', () => {
     const functionIndex = indexOf('function executeAndParse()')
-    const callIndex = lines.findIndex(
-      (line, index) => index > functionIndex && line.includes(CALL)
-    )
-    const captureIndex = lines.findIndex(
-      (line, index) =>
-        index > functionIndex && line.includes('RESULT=$(executeAndCapture')
-    )
+    const callIndex = firstSeamCallIndex(lines.slice(functionIndex))
+    const captureIndex = lines
+      .slice(functionIndex)
+      .findIndex((line) => line.includes('RESULT=$(executeAndCapture'))
 
     expect(functionIndex).toBeGreaterThan(-1)
-    expect(callIndex).toBeGreaterThan(functionIndex)
+    expect(callIndex).toBeGreaterThan(-1)
+    expect(captureIndex).toBeGreaterThan(-1)
     expect(callIndex).toBeLessThan(captureIndex)
   })
 
@@ -313,18 +369,31 @@ describe('the wiring in helperFunctions.sh', () => {
 })
 
 describe('the placement at every deploy entry point', () => {
+  it.each(ENTRY_POINTS)('%s still drives forge at all', (relativePath) => {
+    // Guards the two assertions below against the case where they hold because
+    // the file stopped being a forge entry point.
+    const source = readScript(relativePath)
+    expect(/forge (?:script|build)/.test(source)).toBe(true)
+  })
+
+  it.each(ENTRY_POINTS)('%s calls the gate', (relativePath) => {
+    const lines = readScript(relativePath).split('\n')
+    expect(firstGateCallIndex(lines)).toBeGreaterThan(-1)
+  })
+
   it.each(ENTRY_POINTS)(
     '%s cannot start a forge before the gate has run',
     (relativePath) => {
       const lines = readScript(relativePath).split('\n')
-      const gateIndex = lines.findIndex(
-        (line) => line.includes(CALL) || line.includes('executeAndParse')
-      )
       const directForgeIndex = lines.findIndex(invokesForgeDirectly)
 
-      expect(gateIndex).toBeGreaterThan(-1)
-      if (directForgeIndex > -1)
-        expect(gateIndex).toBeLessThan(directForgeIndex)
+      // Infinity rather than a conditional assertion: a file with no
+      // command-position forge has nothing to order against, but the comparison
+      // must still fail when the gate call is missing entirely (index -1).
+      expect(firstGateCallIndex(lines)).toBeLessThan(
+        directForgeIndex === -1 ? Number.POSITIVE_INFINITY : directForgeIndex
+      )
+      expect(firstGateCallIndex(lines)).toBeGreaterThan(-1)
     }
   )
 
@@ -344,11 +413,11 @@ describe('the placement at every deploy entry point', () => {
     const lines = readScript('script/deploy/deploySingleContract.sh').split(
       '\n'
     )
-    const callIndex = lines.findIndex((line) => line.includes(CALL))
+    const callIndex = firstSeamCallIndex(lines)
     const buildIndex = lines.findIndex(
       (line) =>
         invokesForgeDirectly(line) ||
-        line.includes('ensureStandardArtifactForSalt')
+        commandPositionOf(line).startsWith('ensureStandardArtifactForSalt')
     )
 
     expect(callIndex).toBeGreaterThan(-1)
@@ -360,12 +429,14 @@ describe('the placement at every deploy entry point', () => {
     const lines = readScript('script/deploy/deploySingleContract.sh').split(
       '\n'
     )
-    const callIndex = lines.findIndex((line) => line.includes(CALL))
+    const callIndex = firstSeamCallIndex(lines)
     const retryLoopIndex = lines.findIndex((line) =>
       line.includes('while [ $attempts -le')
     )
 
     expect(retryLoopIndex).toBeGreaterThan(-1)
+    // Without this the comparison held for a missing call too, at index -1.
+    expect(callIndex).toBeGreaterThan(-1)
     expect(callIndex).toBeLessThan(retryLoopIndex)
   })
 })
@@ -466,7 +537,7 @@ describe('the deploy script’s refusal branch', () => {
     const lines = readScript('script/deploy/deploySingleContract.sh').split(
       '\n'
     )
-    const guard = lines.slice(lines.findIndex((line) => line.includes(CALL)))
+    const guard = lines.slice(firstSeamCallIndex(lines))
     const block = guard.slice(0, guard.indexOf('  fi') + 1).join('\n')
 
     return spawnSync(

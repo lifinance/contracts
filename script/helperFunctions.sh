@@ -5195,6 +5195,11 @@ function parseExecuteCommandResult() {
 #   $2 - EXTRACT_JSON: If set to "true", will extract JSON from stdout (default: "false")
 #   $3 - ERROR_MESSAGE: Optional error message for return code check (if provided, will check return code)
 #   $4 - ON_ERROR_ACTION: Optional action on error: "return" (default), "continue", or "exit"
+# Routing/Behavior:
+#   - Local foundry does not match .foundry-version: refuses before running COMMAND,
+#     sets RETURN_CODE to 1 and clears RAW_RETURN_DATA, returns 1 whatever
+#     ON_ERROR_ACTION says
+#   - Otherwise: runs COMMAND and parses the result as described below
 # Returns:
 #   Sets global variables RAW_RETURN_DATA, STDERR_CONTENT, RETURN_CODE (always contain last execution output)
 #   Returns 0 if RETURN_CODE is 0 (or if no error check requested), 1 otherwise
@@ -5213,9 +5218,10 @@ function executeAndParse() {
   local ERROR_MESSAGE="${3:-}"
   local ON_ERROR_ACTION="${4:-return}"
 
-  # Every deploy-path forge invocation is a COMMAND passed to this function, which is why
-  # a toolchain check lives in a generic executor. The result globals are reset because
-  # callers that ignore the status read the verdict out of them via
+  # Every deploy-path `forge script` is a COMMAND passed to this function, which is why a
+  # toolchain check lives in a generic executor. Direct `forge build` call sites do not
+  # pass through here and are gated at their own entry point. The result globals are reset
+  # because callers that ignore the status read the verdict out of them via
   # handleForgeScriptError, where a previous call's success payload would read as a
   # completed forge run.
   if ! assertFoundryVersionOrFail; then
