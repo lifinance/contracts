@@ -52,8 +52,8 @@ const runHarness = (body: string, env: Record<string, string> = {}): string => {
 }
 
 describe('assertDirectBroadcastDeployGate', () => {
-  // Loads only the gate helper, so the decision is exercised without the
-  // hundreds of lines of forge plumbing that surround its call site.
+  // The task file is function definitions only, so sourcing it loads the gate
+  // without running any of the forge plumbing that surrounds its call site.
   const decide = (
     network: string,
     environment: string,
@@ -62,7 +62,7 @@ describe('assertDirectBroadcastDeployGate', () => {
   ) =>
     runHarness(
       `
-      eval "$(sed -n '/^assertDirectBroadcastDeployGate()/,/^}/p' "$TASK")"
+      source "$TASK"
       isTestnetNetwork() { [[ "$1" == "sepolia" ]]; }
       error() { echo "[error] $*"; }
       bunx() { echo "GATE_RAN $*"; return ${gateRc}; }
