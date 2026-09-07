@@ -40,6 +40,12 @@ export interface ICodehashSignGate {
   targets: ITargetVerdict[]
   /** The whole outcome as a signer should read it. */
   summary: string
+  /**
+   * True when the gate reached no verdict about anything — no cut was found and
+   * nothing was refused. It is NOT a pass: an envelope this decoder cannot open
+   * lands here, and rendering it green claimed the bytes had been read.
+   */
+  madeNoClaim?: boolean
 }
 
 /**
@@ -130,8 +136,13 @@ export const evaluateCodehashSignGate = async (
       evaluated: true,
       refusals: [],
       targets: [],
+      madeNoClaim: true,
       summary:
-        'This proposal performs no diamondCut, so there is no facet bytecode to vouch for.',
+        collected.unopened.length > 0
+          ? `No diamondCut was decoded, but this decoder could not open ${collected.unopened.join(
+              ', '
+            )} — so it cannot state whether a cut is present. Nothing here has been verified.`
+          : 'No diamondCut was decoded from this calldata, so there is no facet bytecode to vouch for. This gate makes no claim about the rest of the proposal.',
     }
 
   return {
@@ -170,11 +181,14 @@ export const renderCodehashSignGate = (gate: ICodehashSignGate): string[] => {
 
   const lines = ['    Codehash gate:']
 
+  // A different glyph from MISMATCH's, or the rule this file states — that no
+  // two buckets differ by only one of word, glyph and colour — is broken by its
+  // own renderer. Both are blocking red, so this is legibility, not safety.
   if (!gate.evaluated)
-    lines.push(`        \u001b[31m✗ REFUSED\u001b[0m ${gate.summary}`)
+    lines.push(`        \u001b[31m⛔ REFUSED\u001b[0m ${gate.summary}`)
 
   for (const refusal of gate.refusals)
-    lines.push(`        \u001b[31m✗ REFUSED\u001b[0m ${refusal}`)
+    lines.push(`        \u001b[31m⛔ REFUSED\u001b[0m ${refusal}`)
 
   for (const target of gate.targets) {
     const bucket = BUCKETS[target.verdict]
@@ -188,8 +202,12 @@ export const renderCodehashSignGate = (gate: ICodehashSignGate): string[] => {
       )
   }
 
+  // Deliberately neither green nor MATCH. "We found no cut" and "we checked the
+  // cut and it is clean" are different facts, and a signer skimming glyphs
+  // cannot tell them apart if both are a green tick — which is how an envelope
+  // this decoder could not open was rendered as an affirmative pass.
   if (gate.evaluated && gate.targets.length === 0 && gate.refusals.length === 0)
-    lines.push(`        \u001b[32m✓ MATCH\u001b[0m ${gate.summary}`)
+    lines.push(`        \u001b[36m· NO CLAIM\u001b[0m ${gate.summary}`)
 
   return lines
 }

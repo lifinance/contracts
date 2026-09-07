@@ -143,10 +143,37 @@ describe('collectDiamondCutTargets', () => {
   })
 
   it('returns nothing for empty calldata', () => {
+    // Whole-object, so a new field cannot be added without a test noticing —
+    // which is how `unopened` was caught being discarded rather than surfaced.
     expect(collectDiamondCutTargets('0x')).toEqual({
       calls: [],
       refusals: [],
+      unopened: [],
     })
+  })
+
+  it('reports a frame it could not open even when no cut selector is present', () => {
+    // The fail-open this closes: `unopened` was discarded unless the calldata
+    // happened to carry the cut selector, so an envelope that builds the cut
+    // on-chain produced calls:[] refusals:[] — and the gate rendered that as an
+    // affirmative "performs no diamondCut" green, then signed.
+    const collected = collectDiamondCutTargets('0xdeadbeef00000000')
+
+    expect(collected.calls).toEqual([])
+    expect(collected.refusals).toEqual([])
+    expect(collected.unopened).toEqual(['0xdeadbeef'])
+  })
+
+  it('reports nothing unopened for an ordinary call it decodes', () => {
+    // The paired positive. Without it the rule above could report every
+    // proposal as unopened, which would pass its own test while making the
+    // distinction meaningless.
+    const collected = collectDiamondCutTargets(
+      cutCalldata([[FACET_A, 0, [SELECTOR_A]]], ZERO)
+    )
+
+    expect(collected.calls).toHaveLength(1)
+    expect(collected.unopened).toEqual([])
   })
 
   it('refuses calldata that hides a cut inside an envelope it cannot decode', () => {

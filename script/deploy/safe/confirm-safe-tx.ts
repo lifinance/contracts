@@ -24,6 +24,7 @@ import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
 
 import { readBooleanFlag, readValueFlag } from './cli-flags'
 import {
+  assertCodehashSignGateAllowsSigning,
   blockingUnevaluatedGate,
   createGatedSigner,
   evaluateCodehashSignGate,
@@ -249,6 +250,18 @@ const processTxs = async (
     txDoc: ISafeTxMongoDocument,
     safeClient: SafeClient = safe
   ): Promise<boolean> {
+    // Execution is the irreversible step, and it needs no signature of ours: a
+    // proposal already at threshold is broadcast from here with other people's
+    // signatures, so the sign funnel is never consulted and the gate's verdict
+    // sat on screen in red while nothing refused.
+    //
+    // Two route-disjoint gates is D23's ruling. WP-1.4 read D9's "the gate is
+    // never in two places" as forbidding a second gate anywhere and left the
+    // direct-broadcast route open; the same reading would leave this one open.
+    // Every execute branch calls this helper, so asserting here covers all of
+    // them by construction, and the sign-then-execute paths simply assert twice.
+    assertCodehashSignGateAllowsSigning(codehashGate)
+
     consola.info('Preparing to execute Safe transaction...')
     let safeTxHash = ''
     try {

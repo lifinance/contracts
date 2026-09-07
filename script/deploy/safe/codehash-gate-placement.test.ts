@@ -51,6 +51,12 @@ const SOURCE = readFileSync(join(import.meta.dir, 'confirm-safe-tx.ts'), 'utf8')
 const CLIENT_SIGN_CALLS =
   /\w+\.(?:signTransaction|signTransactionWithHash|signHash|signTypedData|signMessage)\(/g
 
+/**
+ * The one call that broadcasts. Execution needs no signature of ours, so it
+ * cannot be covered by the sign funnel.
+ */
+const EXECUTE_CALLS = /safeClient\.executeTransaction\(/g
+
 /** Calls to the funnel itself, which is a bare identifier. */
 const FUNNEL_CALLS = /(?<![.\w])signTransaction\(/g
 
@@ -85,6 +91,33 @@ describe('the codehash refusal is in the one funnel every sign path uses', () =>
     // directly, which is a fourth sign path the gate would not have covered.
     expect(matches(FUNNEL_CALLS).length).toBeGreaterThanOrEqual(4)
     expect(SOURCE).toContain('await signTransaction(signedTx, deployerSafe)')
+  })
+
+  it('routes every execute path through one funnel that asserts the gate', () => {
+    // A proposal already at threshold is broadcast by this operator without any
+    // signature of theirs, so the sign funnel is never consulted — the gate was
+    // on screen in red and nothing refused. That is D23's shape: WP-1.4 read
+    // D9's "never in two places" as forbidding a second gate and left the
+    // direct-broadcast route open. The ruling was two route-disjoint gates.
+    const executing = matches(EXECUTE_CALLS)
+
+    // Paired positive: the marker exists, or "no ungated execute" passes on a
+    // file with no execute call in it.
+    expect(executing.length).toBeGreaterThan(0)
+    expect(executing).toEqual(['safeClient.executeTransaction('])
+
+    // …and it lives inside the one local helper every execute branch calls.
+    const funnelBody = SOURCE.slice(
+      SOURCE.indexOf('async function executeTransaction('),
+      SOURCE.indexOf('async function executeTransaction(') + 1600
+    )
+    expect(funnelBody).toContain('safeClient.executeTransaction(')
+    expect(funnelBody).toContain('assertCodehashSignGateAllowsSigning')
+
+    // The assert must precede the broadcast inside that helper.
+    expect(
+      funnelBody.indexOf('assertCodehashSignGateAllowsSigning')
+    ).toBeLessThan(funnelBody.indexOf('safeClient.executeTransaction('))
   })
 
   it('starts each proposal in the blocking state rather than the last verdict', () => {

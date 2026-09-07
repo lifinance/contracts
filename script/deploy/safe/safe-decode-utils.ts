@@ -958,6 +958,13 @@ export interface ICollectedDiamondCuts {
    * Populated when a cut is present in bytes this module cannot decode.
    */
   refusals: string[]
+  /**
+   * Selectors of frames this decoder could not open, whether or not they carried
+   * the cut selector. Surfaced rather than discarded because "we did not read
+   * these bytes" and "these bytes hold no cut" are different facts, and only the
+   * second may be rendered as an affirmative pass.
+   */
+  unopened: string[]
 }
 
 const selectorOf = (abi: Abi): string =>
@@ -1059,12 +1066,13 @@ export const collectDiamondCutTargets = (
   data: Hex | undefined
 ): ICollectedDiamondCuts => {
   const calls: IDiamondCutCall[] = []
-  if (!data || data === '0x') return { calls, refusals: [] }
+  if (!data || data === '0x') return { calls, refusals: [], unopened: [] }
 
   const hex = data.toLowerCase()
   if (!/^0x([0-9a-f]{2})*$/.test(hex))
     return {
       calls: [],
+      unopened: [],
       refusals: [
         `This proposal's calldata is not well-formed hex (${
           data.length
@@ -1173,7 +1181,7 @@ export const collectDiamondCutTargets = (
         ]
       : []
 
-  return { calls, refusals }
+  return { calls, refusals, unopened }
 }
 
 /**

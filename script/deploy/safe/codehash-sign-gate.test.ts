@@ -311,6 +311,120 @@ describe('renderCodehashSignGate', () => {
   })
 })
 
+describe('the render distinguishes every bucket, including the two that are not verdicts', () => {
+  /**
+   * Strips everything but the colour code and the glyph. Built from
+   * `String.fromCharCode` rather than an escape in a literal regex, because a
+   * control character inside one trips `no-control-regex`.
+   */
+  const ESC = String.fromCharCode(27)
+  const marks = (lines: string[]): string[] =>
+    lines
+      .map((line) => new RegExp(`${ESC}\\[(\\d+)m(\\S+)`).exec(line))
+      .filter((m): m is RegExpExecArray => m !== null)
+      .map((m) => `${m[1]}|${m[2]}`)
+
+  it('never renders "no cut found" as a green tick', () => {
+    // The fail-open this closes: an envelope the decoder could not open produced
+    // no cut and no refusal, and that was printed as `✓ MATCH` — an affirmative
+    // claim about bytes nobody read. "We found no cut" and "we checked the cut
+    // and it is clean" must not look the same to someone skimming glyphs.
+    const lines = renderCodehashSignGate({
+      blocksSigning: false,
+      evaluated: true,
+      refusals: [],
+      targets: [],
+      madeNoClaim: true,
+      summary: 'No diamondCut was decoded from this calldata',
+    })
+
+    expect(lines.join('\n')).not.toContain('MATCH')
+    expect(marks(lines)).not.toContain('32|✓')
+    expect(lines.join('\n')).toContain('NO CLAIM')
+  })
+
+  it('still renders a verified match as a green tick, so the rule is not blanket', () => {
+    // The paired positive. Without it "never green" could be satisfied by never
+    // rendering green at all, which would pass while making MATCH unreadable.
+    const lines = renderCodehashSignGate({
+      blocksSigning: false,
+      evaluated: true,
+      refusals: [],
+      targets: [
+        {
+          address: FACET,
+          verdict: 'MATCH',
+          reason: 'matches an attested build',
+          matchedLineages: ['main@abc1234'],
+          excludedByteCount: 0,
+        },
+      ],
+      summary: 'ok',
+    })
+
+    expect(marks(lines)).toContain('32|✓')
+  })
+
+  it('gives REFUSED a different glyph from MISMATCH, both being red', () => {
+    // The file states the rule itself: no two buckets may be distinguishable by
+    // only one of word, glyph and colour. Its own renderer broke it.
+    const refused = renderCodehashSignGate({
+      blocksSigning: true,
+      evaluated: true,
+      refusals: ['a removal-only cut carries an _init'],
+      targets: [],
+      summary: 'refused',
+    })
+    const mismatched = renderCodehashSignGate({
+      blocksSigning: true,
+      evaluated: true,
+      refusals: [],
+      targets: [
+        {
+          address: FACET,
+          verdict: 'MISMATCH',
+          reason: 'does not match',
+          matchedLineages: [],
+          excludedByteCount: 0,
+        },
+      ],
+      summary: 'mismatch',
+    })
+
+    const refusedMark = marks(refused)[0]
+    const mismatchMark = marks(mismatched)[0]
+    expect(refusedMark).toBeDefined()
+    expect(mismatchMark).toBeDefined()
+    expect(refusedMark).not.toBe(mismatchMark)
+  })
+
+  it('names the frames it could not open, rather than only saying no cut', async () => {
+    // An envelope whose calldata does not happen to carry the cut selector: the
+    // decoder cannot open it, finds no cut, and previously said so as a green
+    // pass. It must now name what it could not read.
+    const gate = await evaluateCodehashSignGate(
+      { data: '0xdeadbeef00000000', network: NETWORK },
+      deps()
+    )
+
+    expect(gate.summary).toContain('0xdeadbeef')
+    expect(gate.summary).toMatch(/could not open/)
+    expect(gate.madeNoClaim).toBe(true)
+  })
+
+  it('does not claim an unopened frame for an ordinary decodable cut', async () => {
+    // Paired positive: a proposal it fully read must not be described as
+    // unopened, or the message above becomes noise on every proposal.
+    const gate = await evaluateCodehashSignGate(
+      { data: wrapped([cutCalldata()]), network: NETWORK },
+      deps()
+    )
+
+    expect(gate.summary).not.toMatch(/could not open/)
+    expect(gate.madeNoClaim).toBeUndefined()
+  })
+})
+
 describe('the sign funnel', () => {
   const blockingGate = blockingUnevaluatedGate()
   const passingGate = { ...blockingGate, blocksSigning: false }
