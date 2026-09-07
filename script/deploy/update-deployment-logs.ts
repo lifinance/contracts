@@ -27,9 +27,9 @@ import { getEnvVar } from '../utils/utils'
 
 import { createDefaultCache } from './shared/deployment-cache'
 import {
+  buildDeploymentUpsert,
+  captureRecordProvenance,
   deploymentRecordEqFilter,
-  getCurrentGitCommitHash,
-  getCurrentRepo,
   provenanceUpdate,
   type IDeploymentRecord,
   type IUpdateConfig,
@@ -53,6 +53,15 @@ const config: IUpdateConfig = {
   ),
   batchSize: 100,
   databaseName: 'contract-deployments',
+}
+
+/** Renders the scoped dirty tree for the one-line provenance summary. */
+function describeDirtyTree(record: IDeploymentRecord): string {
+  const paths = record.dirtyTreeScoped
+  // Absent means no capture ran, which must not read as a clean tree.
+  if (paths === undefined) return 'unknown'
+  if (paths.length === 0) return 'no'
+  return `${paths.length}${record.dirtyTreeTruncated ? '+' : ''} path(s)`
 }
 
 /** Invalidate deployment cache for an environment after writing to MongoDB */
@@ -190,37 +199,7 @@ class DeploymentLogManager {
   public async upsertDeployment(record: IDeploymentRecord): Promise<void> {
     if (!this.collection) throw new Error('Collection not initialized')
 
-    const filter = {
-      contractName: mongoEq(record.contractName),
-      network: mongoEq(record.network),
-      version: mongoEq(record.version),
-      address: mongoEq(record.address),
-    }
-
-    const update = {
-      $set: {
-        contractName: record.contractName,
-        network: record.network,
-        version: record.version,
-        address: record.address,
-        optimizerRuns: record.optimizerRuns,
-        timestamp: record.timestamp,
-        constructorArgs: record.constructorArgs,
-        salt: record.salt,
-        verified: record.verified,
-        solcVersion: record.solcVersion,
-        evmVersion: record.evmVersion,
-        zkSolcVersion: record.zkSolcVersion,
-        ...provenanceUpdate(record).set,
-        contractNetworkKey: record.contractNetworkKey,
-        contractVersionKey: record.contractVersionKey,
-        updatedAt: new Date(),
-      },
-      $setOnInsert: {
-        createdAt: new Date(),
-        ...provenanceUpdate(record).setOnInsert,
-      },
-    }
+    const { filter, update } = buildDeploymentUpsert(record)
 
     await this.collection.updateOne(filter, update, { upsert: true })
   }
@@ -707,6 +686,14 @@ const addCommand = defineCommand({
       description: 'EVM version',
       required: false,
     },
+    // Single word: citty drops a passed value for a multi-word flag that
+    // carries a default (see `fix/citty-multiword-default-flags`).
+    dryRun: {
+      type: 'boolean',
+      description:
+        'Print the record and the upsert it would apply, without connecting to MongoDB',
+      default: false,
+    },
   },
   async run({ args }) {
     // Validate environment
@@ -720,6 +707,10 @@ const addCommand = defineCommand({
       consola.error('Verified must be either "true" or "false"')
       process.exit(1)
     }
+
+    const { captureErrors, ...provenanceFields } = captureRecordProvenance()
+    for (const problem of captureErrors ?? [])
+      consola.warn(`Provenance capture: ${problem}`)
 
     // Create deployment record
     const record: IDeploymentRecord = {
@@ -739,12 +730,33 @@ const addCommand = defineCommand({
         typeof args['zk-solc-version'] === 'string'
           ? args['zk-solc-version']
           : '',
-      gitCommitHash: getCurrentGitCommitHash(),
-      repo: getCurrentRepo(),
+      ...provenanceFields,
       createdAt: new Date(),
       updatedAt: new Date(),
       contractNetworkKey: `${args.contract}-${args.network}`,
       contractVersionKey: `${args.contract}-${args.version}`,
+    }
+
+    consola.info(
+      `Deployment provenance: branch ${record.gitBranch}, actor ${
+        record.actor
+      }, dirty ${describeDirtyTree(record)}`
+    )
+    if (record.dirtyTreeScoped?.length)
+      consola.warn(
+        `Deployed from a dirty tree: ${record.dirtyTreeScoped.join(', ')}${
+          record.dirtyTreeTruncated ? ', …' : ''
+        }`
+      )
+
+    if (args.dryRun) {
+      consola.info('Dry run: nothing was written to MongoDB')
+      // The upsert, not just the record, because that is what a reviewer needs
+      // to see: which provenance fields reach `$set` and which only `$setOnInsert`.
+      process.stdout.write(
+        `${JSON.stringify(buildDeploymentUpsert(record), null, 2)}\n`
+      )
+      return
     }
 
     const manager = new DeploymentLogManager(

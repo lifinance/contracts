@@ -78,9 +78,22 @@ verification, and calls `logContractDeploymentInfo` →
 time, from the dev's machine**. The record (`IDeploymentRecord` in
 `script/deploy/shared/mongo-log-utils.ts`) carries name, network, version,
 address, constructor args, salt, a self-reported `verified` boolean, and the
-deployer's HEAD `gitCommitHash` — no branch, dirty-tree flag, or human
-identity. File logs (`deployments/{network}.json`) only land in git at PR
-merge; the deploy scripts never commit.
+provenance of the run that produced it: the deployer's HEAD `gitCommitHash`,
+the `repo` it was cloned from, the `gitBranch` checked out, the `actor`
+(`human`, `bot`, `ci`), and `dirtyTreeScoped` — the working-tree paths that
+differed from that commit, with the artefacts the deploy pipeline rewrites
+during its own run excluded. An **empty `dirtyTreeScoped` means the capture
+ran and the tree was clean; an absent one means no capture ran**, which is
+what every record written before the field existed looks like. Branch, tree
+and actor come from the same `captureGitProvenance` pass the Safe proposal
+document uses, so a deployment and the proposal that installs it cannot
+disagree about where they came from. The capture is self-reported context, not
+a control: it makes an honest mistake such as a deploy from an uncommitted
+edit visible, while `assertTreeRecordable` — not this record — is what refuses
+such a deploy, on the narrower set of build-affecting paths. Add `--dryRun` to
+the `add` command to print the record and the upsert without writing. File
+logs (`deployments/{network}.json`) only land in git at PR merge; the deploy
+scripts never commit.
 
 ### 4.2 Propose
 
