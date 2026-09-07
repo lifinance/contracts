@@ -11,7 +11,8 @@
           "label": "Amount to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -78,7 +79,8 @@
           "label": "Amount to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -151,7 +153,8 @@
           "label": "Amount to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -218,7 +221,8 @@
           "label": "Amount to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -291,7 +295,8 @@
           "label": "Amount to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -358,7 +363,8 @@
           "label": "Amount to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -425,7 +431,8 @@
           "label": "Amount to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -498,7 +505,8 @@
           "label": "Amount to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -571,7 +579,8 @@
           "label": "Amount to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -644,7 +653,8 @@
           "label": "Amount to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -717,7 +727,8 @@
           "label": "Amount to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -784,7 +795,8 @@
           "label": "Amount to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -857,7 +869,8 @@
           "label": "Amount to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -930,7 +943,8 @@
           "label": "Amount to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -997,7 +1011,8 @@
           "label": "Amount to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -1070,7 +1085,8 @@
           "label": "Amount to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -1143,7 +1159,8 @@
           "label": "Amount to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -1216,7 +1233,8 @@
           "label": "Amount to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -1283,7 +1301,8 @@
           "label": "Amount to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -1356,7 +1375,8 @@
           "label": "Amount to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -1423,7 +1443,8 @@
           "label": "Amount to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -1490,7 +1511,8 @@
           "label": "Amount to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -1557,7 +1579,8 @@
           "label": "Amount to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -1624,7 +1647,8 @@
           "label": "Amount to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -1697,7 +1721,8 @@
           "label": "Amount to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -1764,7 +1789,8 @@
           "label": "Amount to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -1831,7 +1857,8 @@
           "label": "Amount to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -1898,7 +1925,8 @@
           "label": "Amount to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -1965,7 +1993,8 @@
           "label": "Amount to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -2032,7 +2061,8 @@
           "label": "Amount to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -2099,7 +2129,8 @@
           "label": "Amount to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -2166,7 +2197,8 @@
           "label": "Amount to Swap",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_swapData.[0].sendingAssetId"
+            "tokenPath": "_swapData.[0].sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -2175,7 +2207,8 @@
           "label": "Minimum to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -2262,7 +2295,8 @@
           "label": "Amount to Swap",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_swapData.[0].sendingAssetId"
+            "tokenPath": "_swapData.[0].sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -2271,7 +2305,8 @@
           "label": "Minimum to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -2364,7 +2399,8 @@
           "label": "Amount to Swap",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_swapData.[0].sendingAssetId"
+            "tokenPath": "_swapData.[0].sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -2373,7 +2409,8 @@
           "label": "Minimum to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -2460,7 +2497,8 @@
           "label": "Amount to Swap",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_swapData.[0].sendingAssetId"
+            "tokenPath": "_swapData.[0].sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -2469,7 +2507,8 @@
           "label": "Minimum to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -2562,7 +2601,8 @@
           "label": "Amount to Swap",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_swapData.[0].sendingAssetId"
+            "tokenPath": "_swapData.[0].sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -2571,7 +2611,8 @@
           "label": "Minimum to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -2658,7 +2699,8 @@
           "label": "Amount to Swap",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_swapData.[0].sendingAssetId"
+            "tokenPath": "_swapData.[0].sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -2667,7 +2709,8 @@
           "label": "Minimum to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -2754,7 +2797,8 @@
           "label": "Amount to Swap",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_swapData.[0].sendingAssetId"
+            "tokenPath": "_swapData.[0].sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -2763,7 +2807,8 @@
           "label": "Minimum to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -2856,7 +2901,8 @@
           "label": "Amount to Swap",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_swapData.[0].sendingAssetId"
+            "tokenPath": "_swapData.[0].sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -2865,7 +2911,8 @@
           "label": "Minimum to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -2958,7 +3005,8 @@
           "label": "Amount to Swap",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_swapData.[0].sendingAssetId"
+            "tokenPath": "_swapData.[0].sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -2967,7 +3015,8 @@
           "label": "Minimum to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -3060,7 +3109,8 @@
           "label": "Amount to Swap",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_swapData.[0].sendingAssetId"
+            "tokenPath": "_swapData.[0].sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -3069,7 +3119,8 @@
           "label": "Minimum to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -3162,7 +3213,8 @@
           "label": "Amount to Swap",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_swapData.[0].sendingAssetId"
+            "tokenPath": "_swapData.[0].sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -3171,7 +3223,8 @@
           "label": "Minimum to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -3258,7 +3311,8 @@
           "label": "Amount to Swap",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_swapData.[0].sendingAssetId"
+            "tokenPath": "_swapData.[0].sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -3267,7 +3321,8 @@
           "label": "Minimum to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -3360,7 +3415,8 @@
           "label": "Amount to Swap",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_swapData.[0].sendingAssetId"
+            "tokenPath": "_swapData.[0].sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -3369,7 +3425,8 @@
           "label": "Minimum to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -3462,7 +3519,8 @@
           "label": "Amount to Swap",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_swapData.[0].sendingAssetId"
+            "tokenPath": "_swapData.[0].sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -3471,7 +3529,8 @@
           "label": "Minimum to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -3558,7 +3617,8 @@
           "label": "Amount to Swap",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_swapData.[0].sendingAssetId"
+            "tokenPath": "_swapData.[0].sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -3567,7 +3627,8 @@
           "label": "Minimum to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -3660,7 +3721,8 @@
           "label": "Amount to Swap",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_swapData.[0].sendingAssetId"
+            "tokenPath": "_swapData.[0].sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -3669,7 +3731,8 @@
           "label": "Minimum to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -3762,7 +3825,8 @@
           "label": "Amount to Swap",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_swapData.[0].sendingAssetId"
+            "tokenPath": "_swapData.[0].sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -3771,7 +3835,8 @@
           "label": "Minimum to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -3864,7 +3929,8 @@
           "label": "Amount to Swap",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_swapData.[0].sendingAssetId"
+            "tokenPath": "_swapData.[0].sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -3873,7 +3939,8 @@
           "label": "Minimum to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -3960,7 +4027,8 @@
           "label": "Amount to Swap",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_swapData.[0].sendingAssetId"
+            "tokenPath": "_swapData.[0].sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -3969,7 +4037,8 @@
           "label": "Minimum to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -4062,7 +4131,8 @@
           "label": "Amount to Swap",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_swapData.[0].sendingAssetId"
+            "tokenPath": "_swapData.[0].sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -4071,7 +4141,8 @@
           "label": "Minimum to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -4158,7 +4229,8 @@
           "label": "Amount to Swap",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_swapData.[0].sendingAssetId"
+            "tokenPath": "_swapData.[0].sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -4167,7 +4239,8 @@
           "label": "Minimum to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -4254,7 +4327,8 @@
           "label": "Amount to Swap",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_swapData.[0].sendingAssetId"
+            "tokenPath": "_swapData.[0].sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -4263,7 +4337,8 @@
           "label": "Minimum to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -4350,7 +4425,8 @@
           "label": "Amount to Swap",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_swapData.[0].sendingAssetId"
+            "tokenPath": "_swapData.[0].sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -4359,7 +4435,8 @@
           "label": "Minimum to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -4446,7 +4523,8 @@
           "label": "Amount to Swap",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_swapData.[0].sendingAssetId"
+            "tokenPath": "_swapData.[0].sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -4455,7 +4533,8 @@
           "label": "Minimum to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -4548,7 +4627,8 @@
           "label": "Amount to Swap",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_swapData.[0].sendingAssetId"
+            "tokenPath": "_swapData.[0].sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -4557,7 +4637,8 @@
           "label": "Minimum to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -4644,7 +4725,8 @@
           "label": "Amount to Swap",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_swapData.[0].sendingAssetId"
+            "tokenPath": "_swapData.[0].sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -4653,7 +4735,8 @@
           "label": "Minimum to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -4740,7 +4823,8 @@
           "label": "Amount to Swap",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_swapData.[0].sendingAssetId"
+            "tokenPath": "_swapData.[0].sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -4749,7 +4833,8 @@
           "label": "Minimum to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -4836,7 +4921,8 @@
           "label": "Amount to Swap",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_swapData.[0].sendingAssetId"
+            "tokenPath": "_swapData.[0].sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -4845,7 +4931,8 @@
           "label": "Minimum to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -4932,7 +5019,8 @@
           "label": "Amount to Swap",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_swapData.[0].sendingAssetId"
+            "tokenPath": "_swapData.[0].sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -4941,7 +5029,8 @@
           "label": "Minimum to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -5028,7 +5117,8 @@
           "label": "Amount to Swap",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_swapData.[0].sendingAssetId"
+            "tokenPath": "_swapData.[0].sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -5037,7 +5127,8 @@
           "label": "Minimum to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -5124,7 +5215,8 @@
           "label": "Amount to Swap",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_swapData.[0].sendingAssetId"
+            "tokenPath": "_swapData.[0].sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -5133,7 +5225,8 @@
           "label": "Minimum to Bridge",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_bridgeData.sendingAssetId"
+            "tokenPath": "_bridgeData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -5220,7 +5313,8 @@
           "label": "Amount to Send",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_swapData.[0].sendingAssetId"
+            "tokenPath": "_swapData.[0].sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -5229,7 +5323,8 @@
           "label": "Minimum to Receive",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_swapData.[-1].receivingAssetId"
+            "tokenPath": "_swapData.[-1].receivingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -5295,17 +5390,15 @@
           "label": "Amount to Send",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_swapData.[0].sendingAssetId"
+            "tokenPath": "_swapData.[0].sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
         {
           "path": "_minAmountOut",
           "label": "Minimum to Receive",
-          "format": "tokenAmount",
-          "params": {
-            "tokenPath": "_swapData.[-1].receivingAssetId"
-          },
+          "format": "amount",
           "visible": "always"
         },
         {
@@ -5375,7 +5468,8 @@
           "label": "Minimum to Receive",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_swapData.[-1].receivingAssetId"
+            "tokenPath": "_swapData.[-1].receivingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -5441,7 +5535,8 @@
           "label": "Amount to Send",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_swapData.sendingAssetId"
+            "tokenPath": "_swapData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -5450,7 +5545,8 @@
           "label": "Minimum to Receive",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_swapData.receivingAssetId"
+            "tokenPath": "_swapData.receivingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
@@ -5506,17 +5602,15 @@
           "label": "Amount to Send",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_swapData.sendingAssetId"
+            "tokenPath": "_swapData.sendingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },
         {
           "path": "_minAmountOut",
           "label": "Minimum to Receive",
-          "format": "tokenAmount",
-          "params": {
-            "tokenPath": "_swapData.receivingAssetId"
-          },
+          "format": "amount",
           "visible": "always"
         },
         {
@@ -5576,7 +5670,8 @@
           "label": "Minimum to Receive",
           "format": "tokenAmount",
           "params": {
-            "tokenPath": "_swapData.receivingAssetId"
+            "tokenPath": "_swapData.receivingAssetId",
+            "nativeCurrencyAddress": "0x0000000000000000000000000000000000000000"
           },
           "visible": "always"
         },

@@ -5,6 +5,10 @@ name: Protect security-critical code/system
 # - protects any git actions in the folder .github/workflows/*
 # - protects the pre-commit checker script stored in .husky/pre-commit
 # - protects the frozen emergency-pause break-glass logic in script/emergency/*
+# - protects the per-immutable expectation registry
+#   (script/deploy/resources/immutableRegistry.json) and the gate that reads it
+#   (script/deploy/immutables/*), since editing the checker is equivalent to
+#   editing the expectation
 
 on:
   pull_request_review:
@@ -33,10 +37,15 @@ jobs:
         run: |
 
           ##### get all files modified by this PR
-          FILES="$(git diff --name-only origin/main HEAD)"
+          ##### --no-renames so a rename reports BOTH paths: renaming a protected file
+          ##### away would otherwise show only the new, unprotected name
+          ##### -z so paths are emitted raw. Without it git C-quotes any path holding a
+          ##### non-ASCII or control byte, and the leading quote breaks every ^-anchored
+          ##### pattern below — adding '.github/workflows/pwné.yml' read as unprotected
+          mapfile -t -d '' FILES < <(git diff -z --name-only --no-renames origin/main HEAD)
 
           ##### make sure that there are modified files
-          if [[ -z $FILES ]]; then
+          if [[ ${#FILES[@]} -eq 0 ]]; then
             echo -e "\033[31mNo files found. This should not happen. Please check the code of the Github action. Aborting now.\033[0m"
             echo "CONTINUE=false" >> $GITHUB_ENV
             exit 1
@@ -46,18 +55,19 @@ jobs:
           PROTECTED_FILES=""
 
           ##### go through all modified file names/paths and identify contracts with path '.github/'
-          while IFS= read -r FILE; do
-            # Validate file exists
-            if [[ ! -f "$FILE" ]]; then
-              echo "Warning: File $FILE not found"
-              continue
-            fi
-            ##### check for github actions, pre-commit checker, and emergency-pause break-glass paths
-            if echo "$FILE" | grep -iE '^\.github/|^\.husky/pre-commit|^script/emergency/'; then
+          for FILE in "${FILES[@]}"; do
+            ##### deliberately NO existence check: a deleted path does not exist in the
+            ##### working tree, and skipping it let a protected file be REMOVED without
+            ##### the approval that guards changing it. The matcher below is pure string
+            ##### matching, so a path that no longer exists is still safe to test.
+            ##### check for github actions, pre-commit checker, emergency-pause break-glass paths,
+            ##### and the per-immutable expectation registry plus the gate that reads it — editing
+            ##### either is equivalent to editing the expectation itself (EXSC-869, D20)
+            if echo "$FILE" | grep -iE '^\.github/|^\.husky/pre-commit|^script/emergency/|^script/deploy/resources/immutableRegistry\.json$|^script/deploy/immutables/'; then
               ##### modified git action found
               PROTECTED_FILES="${PROTECTED_FILES}${FILE}"$'\n'
             fi
-          done <<< "$FILES"
+          done
 
           ##### if none found, exit here as there is nothing to do
           if [[ -z "$PROTECTED_FILES" ]]; then
