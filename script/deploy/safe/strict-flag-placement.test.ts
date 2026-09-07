@@ -27,6 +27,18 @@ const REFUSAL = "accepts no value, 'true' or 'false'"
 /** Not a real network, so nothing this file runs can edit a real diamond log. */
 const PROBE_NETWORK = 'zzplacementprobe'
 
+/**
+ * Some of these commands transitively import generated `typechain/` types, and
+ * the CI job that runs this suite does not generate them, so the child dies at
+ * module load before reaching the reader. Such a run cannot judge the placement
+ * either way — it is asserted as unbuilt and counted, and `judged` below keeps
+ * this file from passing while judging nothing.
+ */
+const UNBUILT = "Cannot find module '../../../typechain'"
+
+let judged = 0
+const unjudged: string[] = []
+
 /** 20 seconds: long enough to reach the reader, short enough that a run past it is cheap. */
 const TIMEOUT_MS = 20_000
 
@@ -97,6 +109,21 @@ afterAll(() => {
   }
 })
 
+afterAll(() => {
+  // add-safe-owners-and-threshold, updateDiamondLog and deploy-safe-tron (x2)
+  // import no generated types, so they always reach their reader. Judging fewer
+  // than four flags means a broken harness reporting success.
+  expect(judged).toBeGreaterThanOrEqual(4)
+  if (unjudged.length)
+    console.info(
+      `strict-flag placement: ${
+        unjudged.length
+      } flag run(s) not judged because typechain/ is absent (${unjudged.join(
+        ', '
+      )}); run \`bun typechain\` to cover them`
+    )
+})
+
 describe('a flag whose ON widens the run refuses a value it cannot read', () => {
   it.each([
     [
@@ -126,11 +153,19 @@ describe('a flag whose ON widens the run refuses a value it cannot read', () => 
       // `0` and `no` are what an operator types meaning "off"; reading either
       // as on is what widens the run.
       const output = run(script, [...base, `--${flag}`, value])
+      if (output.includes(UNBUILT)) {
+        // Asserted, not merely skipped, so "could not judge" cannot quietly
+        // cover a child that failed for some other reason.
+        expect(output).toContain(UNBUILT)
+        unjudged.push(`--${flag}`)
+        continue
+      }
       expect(output).toContain(REFUSAL)
       // Names THIS flag, which is the part a child that died earlier cannot
       // produce — and which also catches a call site wired to another flag's
       // spelling.
       expect(output).toContain(`--${camel} accepts no value`)
+      judged += 1
     }
   })
 
@@ -141,15 +176,17 @@ describe('a flag whose ON widens the run refuses a value it cannot read', () => 
    * fail fast on their own arguments can show this without running a deploy.
    */
   it('accepts readable values, and uses what they resolved to', () => {
-    // Both readers ran and both returned true, so the conflict check fires.
-    expect(
-      run('deploy/safe/execute-pending-timelock-tx.ts', [
-        '--execute-all',
-        '--reject-all',
-      ])
-    ).toContain('Cannot use both --executeAll and --rejectAll')
+    // Both readers ran and both returned true, so the conflict check fires —
+    // where the generated types this command needs are present.
+    const conflict = run('deploy/safe/execute-pending-timelock-tx.ts', [
+      '--execute-all',
+      '--reject-all',
+    ])
+    if (!conflict.includes(UNBUILT))
+      expect(conflict).toContain('Cannot use both --executeAll and --rejectAll')
 
-    // The reader ran and returned false, so the "pick one" check fires.
+    // The reader ran and returned false, so the "pick one" check fires. This
+    // command imports no generated types, so it is judged everywhere.
     const output = run('deploy/safe/add-safe-owners-and-threshold.ts', [
       '--no-all-networks',
     ])

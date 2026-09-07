@@ -113,23 +113,26 @@ const resolveObjectLiteral = (
 
 /**
  * Every property of an object literal, following spreads into the literals they
- * name. The `seen` set is load-bearing, not defensive: mutually spread consts
- * (`const a = { ...b }`, `const b = { ...a }`) otherwise recurse until the stack
- * overflows and the whole check crashes.
+ * name, in the order JS would apply them.
+ *
+ * `open` is a recursion stack, not a visited set, and it is load-bearing rather
+ * than defensive: mutually spread consts (`const a = { ...b }`, `const b =
+ * { ...a }`) otherwise recurse until the stack overflows and the whole check
+ * crashes. A visited set would also drop a second, legitimate spread of the
+ * same literal, losing the last word on a property.
  */
 const properties = (
   literal: ObjectLiteralExpression,
   source: SourceFile,
-  seen: Set<ObjectLiteralExpression> = new Set()
+  open: ObjectLiteralExpression[] = []
 ): Node[] => {
-  if (seen.has(literal)) return []
-  seen.add(literal)
+  if (open.includes(literal)) return []
 
   return literal.properties.flatMap((property) => {
     if (isPropertyAssignment(property)) return [property]
     if (isSpreadAssignment(property)) {
       const spread = resolveObjectLiteral(property.expression, source)
-      return spread ? properties(spread, source, seen) : []
+      return spread ? properties(spread, source, [...open, literal]) : []
     }
     return []
   })

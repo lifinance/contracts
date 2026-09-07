@@ -280,6 +280,38 @@ describe('findMultiWordArgDefaults', () => {
     }
   )
 
+  it('applies last-write-wins to the default too, not only the type', () => {
+    // Same shared lookup, different property: an own `default: undefined` has
+    // to win over a spread that set one, and vice versa.
+    const clearedByOwn = `
+      const base = { type: 'boolean', default: false }
+      defineCommand({ args: { dryRun: { ...base, default: undefined } } })
+    `
+    expect(findMultiWordArgDefaults('a.ts', clearedByOwn)).toEqual([])
+
+    const setByOwn = `
+      const base = { type: 'boolean', default: undefined }
+      defineCommand({ args: { dryRun: { ...base, default: false } } })
+    `
+    expect(findMultiWordArgDefaults('a.ts', setByOwn)).toEqual([
+      { file: 'a.ts', line: 3, argument: 'dryRun' },
+    ])
+  })
+
+  it('keeps the last word when the same literal is spread twice', () => {
+    // A visited set would drop the second spread and read `type: 'boolean'`,
+    // reporting an argument citty exempts.
+    const source = `
+      const positionalBase = { type: 'positional' }
+      defineCommand({
+        args: {
+          repoRoot: { ...positionalBase, type: 'boolean', ...positionalBase, default: '.' },
+        },
+      })
+    `
+    expect(findMultiWordArgDefaults('a.ts', source)).toEqual([])
+  })
+
   it('terminates on mutually spread consts instead of overflowing the stack', () => {
     // Without the cycle guard this throws RangeError and takes the whole check
     // down, which no other assertion here would notice.

@@ -264,15 +264,23 @@ describe('flagIsOn, against citty as it actually resolves flags', () => {
     )
   })
 
-  it('resolves an unreadable value to on, which is why on must be the safe direction', () => {
+  it('resolves an unreadable value to on, which is why on must be the safe direction', async () => {
     // Deliberate, not an oversight: for --dry-run, on is the fail-safe answer.
     // The same reading is fail-dangerous for a flag that widens the run's
-    // reach, and those go through readBooleanFlag instead — see the tests above
-    // and the callers in add-safe-owners-and-threshold / deploy-safe /
-    // execute-pending-timelock-tx / deploy-and-register-periphery.
-    expect(flagIsOn(0)).toBe(true)
-    expect(flagIsOn(5)).toBe(true)
-    expect(flagIsOn('no')).toBe(true)
+    // reach, and those go through readBooleanFlag instead — see
+    // strict-flag-placement.test.ts.
+    //
+    // Driven through the parser rather than asserted on literals: `0` only ever
+    // reaches this function via the kebab spelling, because mri coerces the
+    // declared spelling's value to a boolean. A literal would assert a shape
+    // whose reachability it does not show.
+    expect(await resolve({}, '--dry-run', '0')).toBe(0)
+    expect(flagIsOn(await resolve({}, '--dry-run', '0'))).toBe(true)
+    expect(await resolve({}, '--dry-run', 'no')).toBe('no')
+    expect(flagIsOn(await resolve({}, '--dry-run', 'no'))).toBe(true)
+    // The declared spelling never produces it, which is why the kebab one is
+    // the case that matters:
+    expect(await resolve({}, '--dryRun', '0')).toBe(true)
   })
 
   it("reads '' as off, for a value argument passed through this reader", () => {
