@@ -420,11 +420,13 @@ describe('assertFunnelDeployGate', () => {
 })
 
 describe('gate condition, retargeted from diamondUpdateFacet.sh (#2128)', () => {
-  // The shell gate read `ENVIRONMENT`, and a typo like "prod" had to keep the
-  // gate on because the production key is handed out for anything not
-  // containing "staging". This funnel has no environment predicate at all, so
-  // the whole class is gone: what is left to pin is that no value of that name
-  // can turn the gate off, and that testnets still exempt.
+  // This funnel has no environment predicate: what these pin is that no value of
+  // that name can turn it off, and that testnets stay exempt. The predicate class
+  // is NOT gone from the repo — the direct-broadcast route has no calldata to
+  // judge, so it still reads `ENVIRONMENT` and still has to keep the gate on for
+  // a typo like "prod", because the production key is handed out for anything not
+  // containing "staging". That condition is pinned in
+  // `script/tasks/diamondUpdateFacet.gate.test.ts`.
   it.each([
     ['production', 'RUNS'],
     ['prod', 'RUNS'],

@@ -119,11 +119,6 @@ const makeRepo = (diverge: boolean): string => {
 }
 
 /**
- * Runs the real propose CLI against a throwaway repo.
- * @param options - repo divergence, target network, and the calldata to propose
- * @returns the CLI's combined output and exit status
- */
-/**
  * Runs a real propose CLI in a throwaway repo.
  * @param options - which CLI, its arguments, and the repo to run it in
  * @returns the child's combined output and exit status
@@ -167,6 +162,10 @@ const spawnCli = (options: {
     timeout: TIMEOUT_MS,
     stdio: ['ignore', 'pipe', 'pipe'],
   })
+
+  // A spawn that never ran leaves status and signal both null, so neither check
+  // below fires and every absence assertion would pass on no output at all.
+  if (result.error) throw result.error
 
   const output = `${result.stdout}${result.stderr}`
 
@@ -228,11 +227,16 @@ const GATE_REFUSAL = /Production deploy gate failed/
  * make the absence assertion prove nothing.
  */
 const NEXT_STOP_EVM = 'Private key is missing'
+// Owned by `mongodb-connection-string-url`, not this repo: if a bump rewords it,
+// the paired pass-case assertion goes red first, so the suite reports it rather
+// than quietly letting the refusal case go vacuous.
 const NEXT_STOP_TRON = 'expected connection string to start with'
-// `sendOrPropose` resolves its key through a different helper than the funnel,
-// so it words the same failure differently and needs its own marker
-const NEXT_STOP_SEND_OR_PROPOSE =
-  'Missing PRIVATE_KEY_PRODUCTION in environment'
+// `sendOrPropose` resolves its key through a different helper than the funnel, so
+// it words the same failure differently. The `--ledger` clause is load-bearing:
+// the bare "Missing <VAR> in environment" prefix is thrown on the direct-tx
+// branch too, which returns before the gate, so a marker without it would be
+// satisfied by a run that never reached the gate at all.
+const NEXT_STOP_SEND_OR_PROPOSE = 'in environment. Set it, or pass --ledger'
 
 const TRON_FACET = 'CalldataVerificationFacet'
 

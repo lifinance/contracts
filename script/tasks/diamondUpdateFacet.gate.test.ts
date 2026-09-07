@@ -79,11 +79,15 @@ describe('assertDirectBroadcastDeployGate', () => {
     expect(out).toContain('rc=0')
   })
 
-  it('runs for an unrecognised environment, which still gets the production key', () => {
-    // `getPrivateKey` hands out the production key for every ENVIRONMENT that
-    // does not contain "staging", so the gate has to be at least as broad.
-    expect(decide('mainnet', 'prod')).toContain('GATE_RAN')
-  })
+  it.each([['prod'], [''], ['staging2'], ['PRODUCTION']])(
+    'runs for ENVIRONMENT=%p, which still gets the production key',
+    (environment) => {
+      // `getPrivateKey` matches *"staging"* as a substring, so it hands out the
+      // production key for every one of these. The gate matches the exact string
+      // instead, which keeps it strictly broader than the key it protects.
+      expect(decide('mainnet', environment)).toContain('GATE_RAN')
+    }
+  )
 
   it('does not run on staging', () => {
     const out = decide('mainnet', 'staging')
