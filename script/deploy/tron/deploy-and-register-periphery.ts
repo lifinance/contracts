@@ -1560,7 +1560,12 @@ const deployCommand = defineCommand({
           kebab: 'skip-confirmation',
         }),
         onlyContracts,
-        registerOnly: flagIsOn(args.registerOnly),
+        // Strict for the same reason as skipConfirmation: this is the other
+        // flag the production confirmation prompt gates on.
+        registerOnly: readBooleanFlag(process.argv, {
+          camel: 'registerOnly',
+          kebab: 'register-only',
+        }),
       })
     } catch (error: unknown) {
       const errorMessage =

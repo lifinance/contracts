@@ -39,7 +39,7 @@ import globalConfig from '../../../config/global.json'
 import networks from '../../../config/networks.json'
 import { sleep } from '../../utils/delay'
 import { getEnvVar } from '../../utils/utils'
-import { flagIsOn } from '../safe/cli-flags'
+import { flagIsOn, readBooleanFlag } from '../safe/cli-flags'
 import { retryWithRateLimit } from '../shared/rateLimit.js'
 
 import {
@@ -723,9 +723,20 @@ const main = defineCommand({
       await run({
         threshold,
         dryRun: flagIsOn(args.dryRun),
-        allowOverride: flagIsOn(args.allowOverride),
+        // Strict, as in the EVM twin: on overwrites tron.safeAddress in
+        // networks.json. Absence is off here, so an unreadable value would flip
+        // it from the safe direction to the dangerous one.
+        allowOverride: readBooleanFlag(process.argv, {
+          camel: 'allowOverride',
+          kebab: 'allow-override',
+        }),
         safetyMargin,
-        setupOnly: flagIsOn(args.setupOnly),
+        // Strict: on calls setup() on the live Safe at tron.safeAddress and
+        // takes a branch that never reaches the override guard.
+        setupOnly: readBooleanFlag(process.argv, {
+          camel: 'setupOnly',
+          kebab: 'setup-only',
+        }),
         safeSingletonAddress: args.safeSingletonAddress || undefined,
         safeProxyFactoryAddress: args.safeProxyFactoryAddress || undefined,
       })
