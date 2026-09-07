@@ -19,6 +19,9 @@ contract {{properCase name}}Facet is ILiFi, ReentrancyGuard, SwapperV2, Validata
     /// @dev Example of an immutable contract address set at deploy time.
     ///      Anything that cannot be set as immutable should be set
     ///      in an init function called during a diamondCut().
+    ///      Keep it `public` if it holds an external protocol address, and
+    ///      annotate its deployRequirements.json arg with `getter` — that is what
+    ///      lets the health check verify it against config on every chain.
     address public immutable EXAMPLE;
 
     /// @dev OPTIONAL — delete if this facet only needs immutable config.
