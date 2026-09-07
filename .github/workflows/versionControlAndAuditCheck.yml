@@ -122,11 +122,11 @@ jobs:
 
           ##### every comparison below is against the commit this branch forked from, not the
           ##### moving base-branch tip
-          MERGE_BASE=$(git merge-base "origin/$BASE_REF" HEAD)
-          if [[ -z "$MERGE_BASE" ]]; then
+          ##### `set -e` would abort on the failing substitution before any message is printed
+          MERGE_BASE=$(git merge-base "origin/$BASE_REF" HEAD) || {
             echo -e "\033[31mCould not determine the merge base with origin/$BASE_REF. Aborting now.\033[0m"
             exit 1
-          fi
+          }
 
           ##### Initialize variables
           MISSING_VERSION_TAG=()

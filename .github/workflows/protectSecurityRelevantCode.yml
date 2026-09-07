@@ -49,7 +49,7 @@ jobs:
 
           ##### make sure that there are modified files
           if [[ ${#FILES[@]} -eq 0 ]]; then
-            echo -e "\033[31mNo files found. This should not happen. Please check the code of the Github action. Aborting now.\033[0m"
+            echo -e "\033[31mNo files differ from the merge base. Either this PR has no net change (e.g. a change and its revert) or origin/main could not be resolved. Aborting now.\033[0m"
             echo "CONTINUE=false" >> $GITHUB_ENV
             exit 1
           fi
