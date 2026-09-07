@@ -525,14 +525,15 @@ const processTxs = async (
     } catch (error) {
       // Blocking, not skipped: "the gate could not run" and "the gate passed"
       // are the two things it exists to keep apart.
+      const why = `the codehash gate could not be evaluated — ${
+        error instanceof Error ? error.message : String(error)
+      }`
       codehashGate = {
         ...blockingUnevaluatedGate(),
         evaluated: true,
-        summary: `the codehash gate could not be evaluated — ${
-          error instanceof Error ? error.message : String(error)
-        }`,
+        refusals: [why],
+        summary: why,
       }
-      codehashGate.refusals = [codehashGate.summary]
     }
     renderCodehashSignGate(codehashGate).forEach((line) => consola.info(line))
 

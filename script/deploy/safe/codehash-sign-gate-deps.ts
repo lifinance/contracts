@@ -17,6 +17,7 @@
 
 import { spawnSync } from 'child_process'
 import { existsSync, mkdirSync, readFileSync, rmSync } from 'fs'
+import { tmpdir } from 'os'
 import { join } from 'path'
 
 import { MongoClient } from 'mongodb'
@@ -45,6 +46,9 @@ import {
   type IRebuiltArtifact,
 } from '../codehash/rebuild-attestations'
 import type { IVerifyCutDeps } from '../codehash/verify-cut-targets'
+
+/** What the record writer stores when it could not read a commit. */
+const UNKNOWN_COMMIT = 'UNKNOWN'
 
 /** Repo root, resolved from this module so a caller's cwd cannot change it. */
 const REPO_ROOT = join(import.meta.dir, '..', '..', '..')
@@ -224,6 +228,51 @@ export const createRecordReader = (
   }
 }
 
+/**
+ * Resolves the immutable offsets the observed side must mask with.
+ *
+ * They come from a rebuild of whatever the record says belongs at the address,
+ * so the observed and attested sides remove the same bytes. No offsets is a
+ * legitimate answer — a contract with no immutables, an address the record is
+ * silent about, or a record carrying no commit — and it makes the comparison
+ * report what is actually missing rather than an unreadable-code error.
+ *
+ * @param deps.readRecord - what the record says is meant to be at the address
+ * @param deps.scopeFor - the network's legitimate toolchains
+ * @param deps.build - the rebuild runner
+ * @returns The `refsFor` dependency of the observer
+ */
+export const createImmutableReferencesResolver = (deps: {
+  readRecord: (
+    address: string,
+    network: string
+  ) => Promise<IDeploymentRecordRef | undefined>
+  scopeFor: (network: string) => IToolchainScope
+  build: (request: IRebuildRequest) => IRebuiltArtifact
+}): ((
+  address: string,
+  network: string
+) => Promise<ImmutableReferences | undefined>) => {
+  return async (
+    address: string,
+    network: string
+  ): Promise<ImmutableReferences | undefined> => {
+    const record = await deps.readRecord(address, network)
+    if (!record) return undefined
+    const commit = record.gitCommitHash.trim()
+    // `UNKNOWN` is what the record writer stores when it could not read a
+    // commit, so it is an absent value rather than one to hand to a fetch.
+    if (commit === '' || commit === UNKNOWN_COMMIT) return undefined
+    const profile = deps.scopeFor(network).profiles[0]
+    if (!profile) return undefined
+    return deps.build({
+      contractName: record.contractName,
+      commit,
+      profile,
+    }).immutableReferences
+  }
+}
+
 export interface IForgeRebuildDeps {
   repoRoot: string
   /** Where the per-commit checkouts go. */
@@ -381,8 +430,13 @@ export const createSignTimeCodehashDeps = (overrides?: {
   checkoutRoot?: string
 }): ISignTimeCodehashDeps => {
   const scopeFor = createToolchainScopeResolver(readToolchainConfig())
+  // Outside the repo: a `git worktree` under the checkout would show up as an
+  // untracked path in the tree the deploy flow refuses to record from.
+  // Per process: `close()` removes this tree, and a shared path would let one
+  // run's teardown delete a concurrent run's checkouts.
   const checkoutRoot =
-    overrides?.checkoutRoot ?? join(REPO_ROOT, '.codehash-rebuilds')
+    overrides?.checkoutRoot ??
+    join(tmpdir(), `lifi-codehash-rebuilds-${process.pid}`)
   mkdirSync(checkoutRoot, { recursive: true })
 
   const git = (args: string[]): string => {
@@ -433,18 +487,11 @@ export const createSignTimeCodehashDeps = (overrides?: {
     // The offsets come from the rebuild of what the record says belongs here,
     // through the same cache the attestations were built from, so both sides
     // mask identical bytes and the compile happens once.
-    refsFor: async (address, network) => {
-      const record = await readRecord(address, network)
-      if (!record) return undefined
-      const scope = scopeFor(network)
-      const profile = scope.profiles[0]
-      if (!profile) return undefined
-      return rebuild.build({
-        contractName: record.contractName,
-        commit: record.gitCommitHash.trim(),
-        profile,
-      }).immutableReferences
-    },
+    refsFor: createImmutableReferencesResolver({
+      readRecord,
+      scopeFor,
+      build: rebuild.build,
+    }),
     readDeployedCode: async (address, network) => {
       const chain = getViemChainForNetworkName(network)
       const client = createPublicClient({

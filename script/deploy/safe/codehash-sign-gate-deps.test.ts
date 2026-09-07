@@ -27,6 +27,7 @@ import { normalizeRuntimeCode } from '../codehash/rebuild-attestations'
 
 import {
   createForgeRebuildRunner,
+  createImmutableReferencesResolver,
   createRecordReader,
   createRuntimeCodeObserver,
   createToolchainScopeResolver,
@@ -522,5 +523,67 @@ describe('createForgeRebuildRunner', () => {
     expect(
       gitCalls.some((args) => args[0] === 'worktree' && args[1] === 'remove')
     ).toBe(true)
+  })
+})
+
+describe('createImmutableReferencesResolver', () => {
+  const PROFILE = {
+    profile: 'default',
+    solcVersion: '0.8.29',
+    evmVersion: 'cancun',
+  }
+
+  const resolver = (
+    record:
+      | { contractName: string; version: string; gitCommitHash: string }
+      | undefined,
+    builds: string[]
+  ) =>
+    createImmutableReferencesResolver({
+      readRecord: async () => record,
+      scopeFor: () => ({ isClosedSet: true, profiles: [PROFILE] }),
+      build: (request) => {
+        builds.push(request.commit)
+        return { runtimeHex: DEPLOYED, immutableReferences: REFS }
+      },
+    })
+
+  it('rebuilds at the record commit and returns its offsets', async () => {
+    const builds: string[] = []
+    const refs = await resolver(
+      {
+        contractName: 'AccessManagerFacet',
+        version: '1.0.0',
+        gitCommitHash: `  ${'a'.repeat(40)}  `,
+      },
+      builds
+    )(ADDRESS, 'mainnet')
+
+    expect(refs).toEqual(REFS)
+    expect(builds).toEqual(['a'.repeat(40)])
+  })
+
+  it.each([
+    ['an empty commit', ''],
+    ['the UNKNOWN placeholder', 'UNKNOWN'],
+  ])('does not attempt a rebuild for %s', async (_label, gitCommitHash) => {
+    const builds: string[] = []
+    const refs = await resolver(
+      { contractName: 'AccessManagerFacet', version: '1.0.0', gitCommitHash },
+      builds
+    )(ADDRESS, 'mainnet')
+
+    // Paired with the positive above, where the same spy records one build.
+    expect(builds).toEqual([])
+    expect(refs).toBeUndefined()
+  })
+
+  it('returns no offsets when the record is silent about the address', async () => {
+    const builds: string[] = []
+
+    expect(
+      await resolver(undefined, builds)(ADDRESS, 'mainnet')
+    ).toBeUndefined()
+    expect(builds).toEqual([])
   })
 })
