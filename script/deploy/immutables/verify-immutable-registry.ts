@@ -13,6 +13,11 @@ import { readFileSync } from 'fs'
 import { consola } from 'consola'
 
 import {
+  collectAnnotatedGetterKeys,
+  readGetterExemptions,
+  verifyGetterCoverage,
+} from './getter-coverage'
+import {
   buildAst,
   findSourcesWithoutAst,
   readImmutableDeclarations,
@@ -138,9 +143,21 @@ const main = (): void => {
     process.exit(1)
   }
 
+  const requirements = readJson<DeployRequirements>(REQUIREMENTS_PATH)
   const { errors, warnings, authorityBearing } = validateImmutableRegistry(
     declarations,
-    mergeRequirements(readJson<DeployRequirements>(REQUIREMENTS_PATH), registry)
+    mergeRequirements(requirements, registry)
+  )
+
+  // Same enumeration, a second question: is every public immutable address getter either
+  // checked by `immutable-bindings-match-config` or recorded as exempt? Run here rather than in
+  // its own job because it needs exactly the AST this one already built.
+  const coverageErrors = verifyGetterCoverage(
+    declarations,
+    readGetterExemptions(),
+    collectAnnotatedGetterKeys(
+      requirements as Parameters<typeof collectAnnotatedGetterKeys>[0]
+    )
   )
 
   consola.info(
@@ -155,13 +172,13 @@ const main = (): void => {
     consola.error(
       `${file} is tracked under src/ but the compiler emitted no AST for it, so any immutable it declares was never enumerated. Check that it compiles and is not excluded from the build.`
     )
-  for (const error of errors) consola.error(error)
+  for (const error of [...errors, ...coverageErrors]) consola.error(error)
   for (const warning of warnings) consola.warn(warning)
 
   const decision = decideExit(
     {
       unenumerated: unenumerated.length,
-      errors: errors.length,
+      errors: errors.length + coverageErrors.length,
       warnings: warnings.length,
     },
     strict

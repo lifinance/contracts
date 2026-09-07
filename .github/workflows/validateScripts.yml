@@ -74,10 +74,11 @@ jobs:
               - '.foundry-version'
             # The registry accounts for immutables declared in src/, so a PR
             # adding a facet has to be able to run the gate without also
-            # touching script tooling.
+            # touching script tooling. Every file under script/deploy/immutables/
+            # is an input to the gate, the exemption list included.
             immutables:
               - 'src/**/*.sol'
-              - 'script/deploy/immutables/**/*.ts'
+              - 'script/deploy/immutables/**'
               - 'script/deploy/resources/immutableRegistry.json'
               - 'script/deploy/resources/deployRequirements.json'
               - 'package.json'
