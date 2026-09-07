@@ -84,18 +84,6 @@ export async function runPropose(options: IProposeToSafeOptions) {
     envReason: process.env.SAFE_PROPOSAL_REASON,
   })
 
-  // The production deploy gate lives here rather than in each caller: every Safe
-  // proposal reaches this funnel, so a new caller is covered without anyone
-  // remembering to add it. Runs before the Safe client and the signature, and
-  // ahead of the drain, whose parked calls are facet removals and install no code.
-  await assertFunnelDeployGate(
-    {
-      network: options.network,
-      calldatas: normalizeProposeCalls(options).calldatas,
-    },
-    createFunnelGateDeps()
-  )
-
   await proposeWithDrain(options, (extraTimelockCalls, parkedTaskRefs) =>
     _runPropose(options, extraTimelockCalls, parkedTaskRefs)
   )
@@ -127,6 +115,18 @@ export async function _runPropose(
   // when they are already arrays, so pushing here would corrupt the caller's input.
   const targets = [...normalized.targets]
   const calldatas = [...normalized.calldatas]
+
+  // The production deploy gate lives in this funnel rather than in each caller:
+  // every Safe proposal reaches it, so a new caller is covered without anyone
+  // remembering to add it. It reads the very array that gets signed — parsing the
+  // calldata a second time of its own would let it vouch for bytes other than the
+  // ones proposed. Runs before the Ledger, the Safe client, Mongo and the
+  // signature; `extraTimelockCalls` are excluded deliberately, being facet
+  // removals that install no code.
+  await assertFunnelDeployGate(
+    { network: options.network, calldatas },
+    createFunnelGateDeps()
+  )
 
   if (extraTimelockCalls.length > 0) {
     if (!options.timelock)

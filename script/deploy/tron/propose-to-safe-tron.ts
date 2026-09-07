@@ -140,21 +140,21 @@ async function runPropose(options: IProposeToSafeTronOptions) {
     consola.info('Mode: ownership (confirmOwnershipTransfer via Timelock)')
   }
 
+  // Parsed once, here, and reused below: the deploy gate has to read the very
+  // calls that get signed — a second parse of its own would let it vouch for
+  // bytes other than the ones proposed.
+  const genericCalls = genericMode
+    ? normalizeTronProposeCalls(options.to, options.calldata, !useDirect)
+    : undefined
+
   // Same production deploy gate the EVM funnel runs, before the first RPC and
   // long before anything is signed. Ownership mode proposes a single
   // `confirmOwnershipTransfer` selector and installs no code, so only generic
   // mode carries calls worth decoding. `deployments/<network>.json` stores
   // base58 here while a cut's calldata carries 20-byte hex, hence the reader.
-  if (genericMode)
+  if (genericCalls)
     await assertFunnelDeployGate(
-      {
-        network: networkName,
-        calldatas: normalizeTronProposeCalls(
-          options.to,
-          options.calldata,
-          !useDirect
-        ).calldatas,
-      },
+      { network: networkName, calldatas: genericCalls.calldatas },
       createFunnelGateDeps({
         toEvmHex: (value) => {
           try {
@@ -203,7 +203,9 @@ async function runPropose(options: IProposeToSafeTronOptions) {
   let hashToBase58: string
   let dryRunDescription: string
 
-  if (!genericMode) {
+  // branching on the parsed calls rather than the flag lets the compiler see
+  // that generic mode has them; the two are set together and cannot disagree
+  if (!genericCalls) {
     safeTxDataHex = encodeTimelockScheduleBatch(
       [diamondAddressEvm] as Address[],
       [TRON_DIAMOND_CONFIRM_OWNERSHIP_SELECTOR],
@@ -215,11 +217,7 @@ async function runPropose(options: IProposeToSafeTronOptions) {
     dryRunDescription =
       'scheduleBatch(Diamond, confirmOwnershipTransfer selector)'
   } else {
-    const { targets, calldatas } = normalizeTronProposeCalls(
-      options.to,
-      options.calldata,
-      !useDirect
-    )
+    const { targets, calldatas } = genericCalls
 
     if (!useDirect) {
       // Combine one or more inner calls into a single scheduleBatch proposal;
