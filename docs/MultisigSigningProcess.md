@@ -133,11 +133,21 @@ run only on the branches that actually propose; a staging or testnet-only run, a
   `proposeDeBridgeDlnChainIdMappings.ts`,
   `proposePolymerCCTPChainIdMappings.ts`, `unpauseAllDiamonds.ts`,
   `script/deploy/safe/add-safe-owners-and-threshold.ts` — there is **no
-  single chokepoint**.
+  single chokepoint** for *what* is proposed, though every one of them signs
+  through `propose-to-safe.ts`, which is where the deploy gate lives.
 - **Tron** is a parallel flow (`script/deploy/tron/propose-to-safe-tron.ts`).
 
-`diamondUpdateFacet.sh` additionally runs `verify-approvals.ts` before
-proposing (PR #2128 / EXSC-687). A production deploy is allowed when each
+The proposal funnel additionally runs the production deploy gate before it signs
+anything (PR #2128 / EXSC-687, re-homed by EXSC-704). It sits in
+`propose-to-safe.ts` and `propose-to-safe-tron.ts` rather than in each caller,
+so a proposal reaches it by construction. The funnel is handed calldata, not
+facet names, so `funnel-deploy-gate.ts` recovers the facet set from the cut:
+`diamondCut` Add and Replace entries, unwrapping a timelock `scheduleBatch` so a
+pre-wrapped payload cannot slip past, then attributed to a contract name through
+the network's production deployment log. A `Remove` entry installs no code and is
+out of scope; an address the log cannot attribute, and a `diamondCut` selector
+whose arguments do not decode, are both refused rather than treated as "not a
+cut". A production deploy is allowed when each
 selected facet's transitive `src/` import closure matches `origin/main` — the
 usual rollout, branch off main and deploy already-merged code without touching
 that Solidity. If a closure diverges, the branch needs an open PR **and** the
@@ -162,7 +172,9 @@ the gate instead of hanging the rollout. Staging is not gated, and neither are
 testnets — deploying an unmerged facet to a testnet is how it is validated before
 the audit, and no Safe is involved there.
 
-The gate runs once per *(network, facet)*, but, for a fixed branch and environment, its
+The gate runs once per proposal — a cut adding three facets is one evaluation, where
+the retired `diamondUpdateFacet.sh` call site was one per *(network, facet)*. For a
+fixed branch and environment its
 verdict depends only on the working tree and the facet set, so a fleet rollout would
 otherwise recompute the same answer for
 every network — 71 `ls-remote` round trips and 71 chances for a flaky remote to abort the
@@ -321,7 +333,7 @@ parked tasks are reconciled weekly by `reconcileParkedTasks.yml`.
 | Propose | One-line reason (`--reason` / `SAFE_PROPOSAL_REASON`). Optional, warned once per process — OQ3 flips it to mandatory once the warning has fired zero times across 30 consecutive proposals | Warn | `proposal-intent.ts`; read the trigger with `report-reason-adoption.ts` (read-only) |
 | Propose | In-flight nonce uniqueness per Safe: concurrent proposers may still derive the same nonce, but only one insert survives (partial unique index over `pending` + `submitted`, compared case-insensitively so the Tron and EVM spellings of one Safe collide). The guarantee is **absent** if the index could not be built — in-flight rows already sharing a nonce, or a role without `createIndex` — and the build warns in both cases. Nothing is ever dropped, so a pre-`_ci` index from an earlier build stays as a weaker, redundant constraint | Block insert, re-run required | `unique_inflight_safe_nonce_ci` index in `safe-utils.ts`; diagnose with `report-nonce-collisions.ts` (read-only) |
 | Propose | Removal safety: protected-facet allowlist, live-selector hold-back, fail-closed diffs | Block + alert | `diamondRemovalDiff.ts`, `drain-parked-tasks.ts` |
-| Propose | Production `diamondUpdateFacet`: each selected facet's `src/` import closure must match `origin/main`, else open PR + audit-log commit freeze (audit log read from `main`); judged on the working tree, so a checkout on `main` is not exempt; staging and testnets are not gated | Block (prod non-testnet facet **additions** via `diamondUpdateFacet` and `proposeDiamondCut` only — not periphery, emergency pause, removals, or the generic `sendOrPropose` chokepoint) | `script/deploy/github/verify-approvals.ts` via `diamondUpdateFacet.sh` and `propose-diamond-cut.ts`; verdict cached per run by `deploy-gate-cache.ts`, passes only (PR #2128, #2286) |
+| Propose | Production: each facet the cut installs must have its `src/` import closure match `origin/main`, else open PR + audit-log commit freeze (audit log read from `main`); judged on the working tree, so a checkout on `main` is not exempt; staging and testnets are not gated | Block (prod non-testnet facet **additions and replacements**, on every path that reaches the funnel, `sendOrPropose` included — periphery registration, emergency pause and removals install no facet code and are out of scope) | `funnel-deploy-gate.ts` in `propose-to-safe.ts` / `propose-to-safe-tron.ts`, deciding through `script/deploy/github/verify-approvals.ts`; verdict cached per run by `deploy-gate-cache.ts`, passes only (PR #2128, #2286, EXSC-704) |
 | Confirm | Signer must be an owner; network must be active; threshold and nonce read on-chain per Safe | Block / skip | `confirm-safe-tx.ts`, `safe-utils.ts` |
 | Confirm | Ledger blind-signing enabled, fail-fast before any review | Block | `checkBlindSigningEnabled` in `ledger.ts` |
 | Confirm | Full calldata decode: diamond cut, scheduleBatch, whitelist, periphery, roles; per-selector name resolution | Display / warn only | `safe-decode-utils.ts` (`formatDecodedTxDataForDisplay`) |
