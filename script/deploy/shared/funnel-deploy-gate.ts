@@ -1,16 +1,11 @@
 /**
- * Production deploy gate, evaluated in the Safe proposal funnel.
+ * Production deploy gate for Safe proposals: recovers the facets a proposal's
+ * calldata would install and refuses the ones this checkout cannot vouch for.
  *
- * Every deploy path proposes through `propose-to-safe.ts` (EVM) or
- * `propose-to-safe-tron.ts` (Tron), the generic `sendOrPropose` chokepoint
- * included, so gating there covers a new caller without anyone remembering to
- * add it — which the previous homes, one shell task and one TS proposer, could
- * not. The bespoke task scripts listed in `docs/MultisigSigningProcess.md` reach
- * `storeTransactionInMongoDB` directly and are outside this gate; none of them
- * encodes a `diamondCut`, so none installs facet code today.
- *
- * The price of the move is that the funnel is handed calldata rather than facet
- * names, so the facet set has to be recovered from the cut itself.
+ * Imported by the proposal funnels — `propose-to-safe.ts` and
+ * `propose-to-safe-tron.ts` — and by the TypeScript `sendOrPropose`
+ * (`script/safe/safeScriptHelpers.ts`), which signs without either funnel.
+ * `docs/MultisigSigningProcess.md` §4.2 records which propose paths reach it.
  */
 
 import { execFileSync } from 'node:child_process'
@@ -21,6 +16,7 @@ import { consola } from 'consola'
 import {
   decodeFunctionData,
   getAddress,
+  parseAbi,
   toFunctionSelector,
   type Address,
   type Hex,
@@ -39,6 +35,20 @@ import { DIAMOND_CUT_ABI, ZERO_ADDRESS } from './constants'
 
 const DIAMOND_CUT_SELECTOR = toFunctionSelector(
   'diamondCut((address,uint8,bytes4[])[],address,bytes)'
+).toLowerCase() as Hex
+
+/**
+ * `LiFiTimelockController` inherits OpenZeppelin's `TimelockController`, so the
+ * singular `schedule` is callable by the Safe even though this repo's tooling
+ * only ever emits `scheduleBatch`. Left undecoded it was a way to hand the
+ * funnel a cut it could not see.
+ */
+const TIMELOCK_SCHEDULE_ABI = parseAbi([
+  'function schedule(address target, uint256 value, bytes payload, bytes32 predecessor, bytes32 salt, uint256 delay)',
+])
+
+const TIMELOCK_SCHEDULE_SELECTOR = toFunctionSelector(
+  'schedule(address,uint256,bytes,bytes32,bytes32,uint256)'
 )
 
 /**
@@ -92,6 +102,11 @@ const decodeScheduleBatch = (data: Hex): readonly Hex[] => {
   return args[2] as readonly Hex[]
 }
 
+const decodeSchedule = (data: Hex): readonly Hex[] => {
+  const { args } = decodeFunctionData({ abi: TIMELOCK_SCHEDULE_ABI, data })
+  return [args[2] as Hex]
+}
+
 /**
  * Recovers the addresses a proposal's calls would run code from — installed
  * facets and any non-zero `_init` delegatecall target — unwrapping a timelock
@@ -104,7 +119,7 @@ export const collectInstalledFacetAddresses = (
   calldatas: readonly Hex[]
 ): IInstalledFacets => {
   const seen = new Map<string, Address>()
-  const undecodable: number[] = []
+  const undecodable = new Set<number>()
 
   const remember = (value: Address): void => {
     const address = getAddress(value)
@@ -112,16 +127,17 @@ export const collectInstalledFacetAddresses = (
       seen.set(address.toLowerCase(), address)
   }
 
-  const walk = (data: Hex, index: number, depth: number): void => {
+  /** @returns whether a `diamondCut` was decoded anywhere under `data` */
+  const walk = (data: Hex, index: number, depth: number): boolean => {
     const selector = data.slice(0, 10).toLowerCase()
 
-    if (selector === DIAMOND_CUT_SELECTOR.toLowerCase()) {
+    if (selector === DIAMOND_CUT_SELECTOR) {
       let decoded
       try {
         decoded = decodeCut(data)
       } catch {
-        undecodable.push(index)
-        return
+        undecodable.add(index)
+        return false
       }
       for (const entry of decoded.cuts) {
         if (!INSTALLING_ACTIONS.has(Number(entry.action))) continue
@@ -129,59 +145,62 @@ export const collectInstalledFacetAddresses = (
       }
       // `_init` is delegatecalled in the diamond's context by the same
       // transaction, so its code runs against the diamond's storage exactly as a
-      // facet's would. Every real cut sets it to the facet being added
-      // (`UpdateScriptBase.update` passes `_resolveFacetAddress(name)`), so
-      // attributing it costs nothing and an `_init` pointing somewhere else no
-      // longer slips through unexamined.
+      // facet's would. It is non-zero only when the update carries init
+      // calldata, and in every current caller it is then the facet's own
+      // address (`UpdateScriptBase.update` passes `_resolveFacetAddress(name)`),
+      // so attributing it costs nothing legitimate. A cut whose init target is
+      // some other contract is refused rather than delegatecalled unexamined.
       if (decoded.init !== ZERO_ADDRESS) remember(decoded.init)
-      return
+      return true
     }
 
-    if (selector === TIMELOCK_SCHEDULE_BATCH_SELECTOR.toLowerCase()) {
+    const unwrap =
+      selector === TIMELOCK_SCHEDULE_BATCH_SELECTOR.toLowerCase()
+        ? decodeScheduleBatch
+        : selector === TIMELOCK_SCHEDULE_SELECTOR.toLowerCase()
+        ? decodeSchedule
+        : undefined
+
+    if (unwrap) {
       if (depth >= MAX_UNWRAP_DEPTH) {
-        undecodable.push(index)
-        return
+        undecodable.add(index)
+        return false
       }
       let payloads
       try {
-        payloads = decodeScheduleBatch(data)
+        payloads = unwrap(data)
       } catch {
-        undecodable.push(index)
-        return
+        undecodable.add(index)
+        return false
       }
-      for (const payload of payloads) walk(payload, index, depth + 1)
+      let sawCut = false
+      for (const payload of payloads)
+        if (walk(payload, index, depth + 1)) sawCut = true
+      return sawCut
     }
+
+    return false
   }
 
-  calldatas.forEach((data, index) => walk(data, index, 0))
+  calldatas.forEach((data, index) => {
+    const sawCut = walk(data, index, 0)
+    // Backstop against an envelope this does not know. Only the wrappers above
+    // are unwrapped, so any other one — OZ `multiSend`, a bespoke batcher —
+    // would otherwise yield an empty facet set and skip the gate silently, which
+    // is the bypass the unwrapping exists to prevent. If the cut selector is in
+    // the bytes and no cut came out, the call is unreadable, not innocent.
+    if (!sawCut && data.toLowerCase().includes(DIAMOND_CUT_SELECTOR.slice(2)))
+      undecodable.add(index)
+  })
 
   return {
     addresses: [...seen.values()],
-    undecodable: [...new Set(undecodable)],
+    undecodable: [...undecodable],
   }
 }
 
-/**
- * Decides whether the funnel is proposing for production.
- *
- * Deliberately not `getEnvironment()`, which reads only `PRODUCTION` and would
- * skip the gate for `multiNetworkExecution.sh`, whose exported
- * `ENVIRONMENT=production` is the only signal it sets. The shell gate this
- * replaces matched `ENVIRONMENT != "staging"`, so an unset environment has to
- * mean production here too — and does anyway, because the funnel signs with
- * `PRIVATE_KEY_PRODUCTION` whatever the environment says.
- * @param env - process environment to read
- */
-export const resolveGateEnvironment = (
-  env: Record<string, string | undefined>
-): EnvironmentEnum =>
-  env.ENVIRONMENT === EnvironmentEnum.staging
-    ? EnvironmentEnum.staging
-    : EnvironmentEnum.production
-
 /** Lookups the funnel gate needs, injectable so the policy is testable. */
 export interface IFunnelGateDeps {
-  environment: () => EnvironmentEnum
   isTestnet: (network: string) => boolean
   currentBranch: () => string
   /** lowercase address → deployed contract name, for the network's production log */
@@ -208,10 +227,22 @@ export const assertFunnelDeployGate = async (
   input: { network: string; calldatas: readonly Hex[] },
   deps: IFunnelGateDeps
 ): Promise<void> => {
-  if (deps.environment() !== EnvironmentEnum.production) return
-  // testnets carry no production Safe and are where an unmerged facet is
-  // validated before its audit, matching the exemption the shell gate had
-  if (deps.isTestnet(input.network)) return
+  // There is deliberately no environment predicate here. Reaching this funnel
+  // means a Safe proposal, and every path that reaches it for a non-testnet
+  // network is proposing to a production Safe and signs with the production
+  // signer key — a staging deploy sends straight to the diamond instead. An
+  // `ENVIRONMENT` check would therefore add nothing except an ambient
+  // off-switch: no production caller exports that name, so its value would come
+  // from whatever happens to be in the operator's shell.
+  //
+  // Testnets stay exempt: they carry no production Safe, and deploying an
+  // unmerged facet there is how it is validated before its audit.
+  if (deps.isTestnet(input.network)) {
+    consola.info(
+      `Production deploy gate skipped: ${input.network} is a testnet`
+    )
+    return
+  }
 
   const { addresses, undecodable } = collectInstalledFacetAddresses(
     input.calldatas
@@ -226,10 +257,27 @@ export const assertFunnelDeployGate = async (
 
   // Nothing installs facet code (ownership transfers, whitelist updates, facet
   // removals), so there is nothing to compare and an empty facet list would make
-  // the gate itself fail closed.
-  if (addresses.length === 0) return
+  // the gate itself fail closed. Announced rather than silent: a skip an
+  // operator cannot see is indistinguishable from a gate that is not wired.
+  if (addresses.length === 0) {
+    consola.info(
+      'Production deploy gate skipped: no call in this proposal installs facet code'
+    )
+    return
+  }
 
-  const deployed = await deps.deployedNames(input.network)
+  let deployed
+  try {
+    deployed = await deps.deployedNames(input.network)
+  } catch (error) {
+    throw new Error(
+      `Production deploy gate: could not read the production deployments for ${
+        input.network
+      }, so the cut's facet addresses cannot be attributed: ${
+        error instanceof Error ? error.message : String(error)
+      }`
+    )
+  }
 
   const facets: string[] = []
   const unattributable: string[] = []
@@ -324,7 +372,6 @@ export const createFunnelGateDeps = (
 ): IFunnelGateDeps => {
   const repoRoot = options.repoRoot ?? process.cwd()
   return {
-    environment: () => resolveGateEnvironment(process.env),
     isTestnet: isTestnetNetwork,
     currentBranch: () =>
       execFileSync('git', ['branch', '--show-current'], {

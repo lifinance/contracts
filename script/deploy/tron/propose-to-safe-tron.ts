@@ -147,25 +147,6 @@ async function runPropose(options: IProposeToSafeTronOptions) {
     ? normalizeTronProposeCalls(options.to, options.calldata, !useDirect)
     : undefined
 
-  // Same production deploy gate the EVM funnel runs, before the first RPC and
-  // long before anything is signed. Ownership mode proposes a single
-  // `confirmOwnershipTransfer` selector and installs no code, so only generic
-  // mode carries calls worth decoding. `deployments/<network>.json` stores
-  // base58 here while a cut's calldata carries 20-byte hex, hence the reader.
-  if (genericCalls)
-    await assertFunnelDeployGate(
-      { network: networkName, calldatas: genericCalls.calldatas },
-      createFunnelGateDeps({
-        toEvmHex: (value) => {
-          try {
-            return tronBase58ToEvm20Hex(tronWeb, value).toLowerCase()
-          } catch {
-            return undefined
-          }
-        },
-      })
-    )
-
   // 1) Get min delay from Timelock (needed for scheduleBatch). Skipped in
   // direct mode, which doesn't touch the Timelock.
   let minDelayBigInt = 0n
@@ -257,6 +238,27 @@ async function runPropose(options: IProposeToSafeTronOptions) {
   // opened: the store-time refusal throws past this function's only
   // `mongoClient.close()`, leaving the connection open and the process hanging.
   assertTicketPresent()
+
+  // Beside the ticket check for the same two reasons: a dry run proposes
+  // nothing, so gating its preview would refuse a command that cannot install
+  // anything; and both must precede the signature, which they do. Ownership
+  // mode proposes a single `confirmOwnershipTransfer` selector and installs no
+  // code, so only generic mode carries calls worth decoding.
+  // `deployments/<network>.json` stores base58 here while a cut's calldata
+  // carries 20-byte hex, hence the reader.
+  if (genericCalls)
+    await assertFunnelDeployGate(
+      { network: networkName, calldatas: genericCalls.calldatas },
+      createFunnelGateDeps({
+        toEvmHex: (value) => {
+          try {
+            return tronBase58ToEvm20Hex(tronWeb, value).toLowerCase()
+          } catch {
+            return undefined
+          }
+        },
+      })
+    )
 
   // 2) Get current Safe nonce on chain
   const safeAbiNonce = [

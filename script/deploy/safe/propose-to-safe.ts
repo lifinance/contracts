@@ -116,13 +116,13 @@ export async function _runPropose(
   const targets = [...normalized.targets]
   const calldatas = [...normalized.calldatas]
 
-  // The production deploy gate lives in this funnel rather than in each caller:
-  // every Safe proposal reaches it, so a new caller is covered without anyone
-  // remembering to add it. It reads the very array that gets signed — parsing the
-  // calldata a second time of its own would let it vouch for bytes other than the
-  // ones proposed. Runs before the Ledger, the Safe client, Mongo and the
-  // signature; `extraTimelockCalls` are excluded deliberately, being facet
-  // removals that install no code.
+  // Reads the very array that gets signed: parsing the calldata a second time
+  // of its own would let the gate vouch for bytes other than the ones proposed.
+  // Ordered before the Ledger, the Safe client and the signature — though not
+  // before all Mongo work, since an enabled drain claims parked tasks in
+  // `proposeWithDrain` before this runs, and reverts them on the throw.
+  // `extraTimelockCalls` are excluded deliberately — they are facet removals,
+  // which install no code.
   await assertFunnelDeployGate(
     { network: options.network, calldatas },
     createFunnelGateDeps()

@@ -7,9 +7,8 @@ import {
   it,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
-import { encodeFunctionData, type Address, type Hex } from 'viem'
+import { encodeFunctionData, parseAbi, type Address, type Hex } from 'viem'
 
-import { EnvironmentEnum } from '../../common/types'
 import {
   TIMELOCK_SCHEDULE_BATCH_ABI,
   TIMELOCK_ZERO_PREDECESSOR,
@@ -19,7 +18,8 @@ import { DIAMOND_CUT_ABI, ZERO_ADDRESS } from './constants'
 import {
   assertFunnelDeployGate,
   collectInstalledFacetAddresses,
-  resolveGateEnvironment,
+  evmHexAddress,
+  indexDeploymentsByAddress,
   type IFunnelGateDeps,
 } from './funnel-deploy-gate'
 
@@ -49,6 +49,30 @@ const cut = (
       options.init ?? (ZERO_ADDRESS as Address),
       options.init ? ('0xdeadbeef' as Hex) : ('0x' as Hex),
     ],
+  })
+
+const schedule = (target: Address, payload: Hex): Hex =>
+  encodeFunctionData({
+    abi: parseAbi([
+      'function schedule(address target, uint256 value, bytes payload, bytes32 predecessor, bytes32 salt, uint256 delay)',
+    ]),
+    functionName: 'schedule',
+    args: [
+      target,
+      0n,
+      payload,
+      TIMELOCK_ZERO_PREDECESSOR,
+      TIMELOCK_ZERO_PREDECESSOR,
+      86400n,
+    ],
+  })
+
+/** An envelope this module does not know, carrying a cut inside it. */
+const unknownWrapper = (payload: Hex): Hex =>
+  encodeFunctionData({
+    abi: parseAbi(['function multiSend(bytes transactions)']),
+    functionName: 'multiSend',
+    args: [payload],
   })
 
 const scheduleBatch = (targets: Address[], payloads: Hex[]): Hex =>
@@ -153,42 +177,34 @@ describe('collectInstalledFacetAddresses', () => {
     ).not.toContain(ZERO_ADDRESS)
   })
 
+  it('unwraps the singular timelock schedule, which OZ exposes and our tooling never emits', () => {
+    const wrapped = schedule(DIAMOND, cut(FACET_A, 0))
+    expect(collectInstalledFacetAddresses([wrapped]).addresses).toEqual([
+      FACET_A,
+    ])
+  })
+
+  it('refuses an envelope it does not know that carries a cut inside it', () => {
+    const wrapped = unknownWrapper(cut(FACET_A, 0))
+    const result = collectInstalledFacetAddresses([wrapped])
+    // the point: NOT an empty, innocent-looking result that skips the gate
+    expect(result.addresses).toEqual([])
+    expect(result.undecodable).toEqual([0])
+  })
+
+  it('leaves a call with no cut selector in it alone', () => {
+    const result = collectInstalledFacetAddresses([
+      unknownWrapper('0xdeadbeef' as Hex),
+    ])
+    expect(result.addresses).toEqual([])
+    expect(result.undecodable).toEqual([])
+  })
+
   it('reports a diamondCut selector whose body cannot be decoded', () => {
     const truncated = (cut(FACET_A, 0).slice(0, 30) + 'ff') as Hex
     const result = collectInstalledFacetAddresses([truncated])
     expect(result.addresses).toEqual([])
     expect(result.undecodable).toHaveLength(1)
-  })
-})
-
-describe('resolveGateEnvironment', () => {
-  it('is staging only when ENVIRONMENT says exactly staging', () => {
-    expect(resolveGateEnvironment({ ENVIRONMENT: 'staging' })).toBe(
-      EnvironmentEnum.staging
-    )
-  })
-
-  it('treats every other explicit ENVIRONMENT as production', () => {
-    for (const value of [
-      'production',
-      'prod',
-      'PRODUCTION',
-      'Staging',
-      ' staging',
-    ])
-      expect(resolveGateEnvironment({ ENVIRONMENT: value })).toBe(
-        EnvironmentEnum.production
-      )
-  })
-
-  it('gates when ENVIRONMENT is unset, whatever PRODUCTION says', () => {
-    expect(resolveGateEnvironment({})).toBe(EnvironmentEnum.production)
-    expect(resolveGateEnvironment({ PRODUCTION: 'false' })).toBe(
-      EnvironmentEnum.production
-    )
-    expect(resolveGateEnvironment({ ENVIRONMENT: '' })).toBe(
-      EnvironmentEnum.production
-    )
   })
 })
 
@@ -199,7 +215,6 @@ const deps = (
   return {
     gateCalls,
     deps: {
-      environment: () => EnvironmentEnum.production,
       isTestnet: () => false,
       currentBranch: () => 'deploy/across',
       deployedNames: async () =>
@@ -238,17 +253,6 @@ describe('assertFunnelDeployGate', () => {
       ),
       /diverges from origin\/main/
     )
-  })
-
-  it('skips staging entirely', async () => {
-    const { deps: d, gateCalls } = deps({
-      environment: () => EnvironmentEnum.staging,
-    })
-    await assertFunnelDeployGate(
-      { network: 'mainnet', calldatas: [cut(FACET_A, 0)] },
-      d
-    )
-    expect(gateCalls).toEqual([])
   })
 
   it('skips testnets', async () => {
@@ -331,34 +335,105 @@ describe('assertFunnelDeployGate', () => {
 })
 
 describe('gate condition, retargeted from diamondUpdateFacet.sh (#2128)', () => {
-  // getPrivateKey hands out the production key for every value that does not
-  // contain "staging", so a typo like "prod" reaches it. The gate must run for
-  // those too, and the shell gate it replaces matched ENVIRONMENT != "staging".
+  // The shell gate read `ENVIRONMENT`, and a typo like "prod" had to keep the
+  // gate on because the production key is handed out for anything not
+  // containing "staging". This funnel has no environment predicate at all, so
+  // the whole class is gone: what is left to pin is that no value of that name
+  // can turn the gate off, and that testnets still exempt.
   it.each([
-    ['production', false, 'RUNS'],
-    ['prod', false, 'RUNS'],
-    ['', false, 'RUNS'],
-    [undefined, false, 'RUNS'],
-    ['staging', false, 'SKIPPED'],
-    // testnets carry production target state but no Safe, and an unmerged facet
-    // is deployed there before it is audited - gating them would block that
-    ['production', true, 'SKIPPED'],
-    ['staging', true, 'SKIPPED'],
-  ] as [string | undefined, boolean, string][])(
-    'decides ENVIRONMENT=%p on isTestnet=%p as %s',
-    async (environment, isTestnet, expected) => {
-      const { deps: d, gateCalls } = deps({
-        environment: () =>
-          resolveGateEnvironment(
-            environment === undefined ? {} : { ENVIRONMENT: environment }
-          ),
-        isTestnet: () => isTestnet,
-      })
-      await assertFunnelDeployGate(
-        { network: 'mainnet', calldatas: [cut(FACET_A, 0)] },
-        d
-      )
-      expect(gateCalls.length > 0 ? 'RUNS' : 'SKIPPED').toBe(expected)
+    ['production', 'RUNS'],
+    ['prod', 'RUNS'],
+    ['staging', 'RUNS'],
+    ['', 'RUNS'],
+    [undefined, 'RUNS'],
+  ] as [string | undefined, string][])(
+    'runs on a mainnet network with ENVIRONMENT=%p (%s)',
+    async (environment) => {
+      const previous = process.env.ENVIRONMENT
+      if (environment === undefined) delete process.env.ENVIRONMENT
+      else process.env.ENVIRONMENT = environment
+      try {
+        const { deps: d, gateCalls } = deps()
+        await assertFunnelDeployGate(
+          { network: 'mainnet', calldatas: [cut(FACET_A, 0)] },
+          d
+        )
+        expect(gateCalls.length > 0 ? 'RUNS' : 'SKIPPED').toBe('RUNS')
+      } finally {
+        if (previous === undefined) delete process.env.ENVIRONMENT
+        else process.env.ENVIRONMENT = previous
+      }
     }
   )
+
+  it('skips a testnet, whatever ENVIRONMENT says', async () => {
+    const { deps: d, gateCalls } = deps({ isTestnet: () => true })
+    await assertFunnelDeployGate(
+      { network: 'sepolia', calldatas: [cut(FACET_A, 0)] },
+      d
+    )
+    expect(gateCalls).toEqual([])
+  })
+})
+
+describe('indexDeploymentsByAddress', () => {
+  it('inverts a deployment log into lowercase address → name', () => {
+    const map = indexDeploymentsByAddress({
+      AcrossFacet: FACET_A,
+      LiFiDiamond: DIAMOND,
+    })
+    expect(map.get(FACET_A.toLowerCase())).toBe('AcrossFacet')
+    expect(map.get(DIAMOND.toLowerCase())).toBe('LiFiDiamond')
+  })
+
+  it('skips the JSON module default key rather than indexing it as a contract', () => {
+    const map = indexDeploymentsByAddress({
+      default: FACET_A,
+      AcrossFacet: FACET_A,
+    })
+    expect([...map.values()]).toEqual(['AcrossFacet'])
+  })
+
+  it('skips values that are not addresses, so a version string cannot be attributed', () => {
+    const map = indexDeploymentsByAddress({
+      AcrossFacet: FACET_A,
+      SomeVersion: '1.2.0',
+      Nested: { a: 1 } as unknown as string,
+    })
+    expect([...map.values()]).toEqual(['AcrossFacet'])
+  })
+
+  it('lets the first entry win, so a later alias cannot rename the contract it points at', () => {
+    const map = indexDeploymentsByAddress({
+      AcrossFacet: FACET_A,
+      AcrossFacetAlias: FACET_A,
+    })
+    expect(map.get(FACET_A.toLowerCase())).toBe('AcrossFacet')
+  })
+
+  it('uses the injected reader, which is how Tron base58 logs are attributed', () => {
+    const map = indexDeploymentsByAddress(
+      { SymbiosisFacet: 'TMY1N6base58like' },
+      (value) => (value.startsWith('T') ? FACET_B.toLowerCase() : undefined)
+    )
+    expect(map.get(FACET_B.toLowerCase())).toBe('SymbiosisFacet')
+  })
+})
+
+describe('evmHexAddress', () => {
+  it('accepts a 20-byte hex address, lowercased', () => {
+    expect(evmHexAddress(FACET_A)).toBe(FACET_A.toLowerCase())
+  })
+
+  it('rejects anything that is not one', () => {
+    for (const value of [
+      '1.2.0',
+      '0x',
+      '0xnothex',
+      FACET_A.slice(0, 20),
+      `${FACET_A}00`,
+      'TMY1N6base58like',
+    ])
+      expect(evmHexAddress(value)).toBeUndefined()
+  })
 })

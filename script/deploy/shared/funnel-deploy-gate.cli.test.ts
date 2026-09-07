@@ -44,6 +44,9 @@ const TRON_CLI = join(REPO_ROOT, 'script/deploy/tron/propose-to-safe-tron.ts')
 /** Long enough to reach the gate, short enough that a run past it stays cheap. */
 const TIMEOUT_MS = 60_000
 
+/** Per-case budget: these spawn a real CLI, well past bun's 5 s default. */
+const CASE_TIMEOUT_MS = 90_000
+
 const deployments = JSON.parse(
   readFileSync(join(REPO_ROOT, 'deployments/mainnet.json'), 'utf8')
 ) as Record<string, string>
@@ -136,13 +139,26 @@ const spawnCli = (options: {
   }
   // `bun test` sets NODE_ENV=test; these children are exercised as CLIs
   delete env.NODE_ENV
-  // Bun auto-loads the repo env file into this process, so the child would
-  // inherit a developer's own values. Withheld so no run can reach a signature,
-  // a real Safe or a real Mongo — every case below stops at or before the gate.
+  // Bun auto-loads the repo env file into THIS process, so the child inherits a
+  // real production environment unless every name is neutralised here. Deleting
+  // is not sufficient on its own: `config()` inside safe-utils re-reads the env
+  // file for any name that is unset, so the proposal store is pointed at an
+  // unroutable host rather than removed. An earlier version of this probe
+  // inherited the real store and queued a proposal on a production Safe, which
+  // takes a real nonce and blocks the queue behind it.
   delete env.PRIVATE_KEY
   delete env.PRIVATE_KEY_PRODUCTION
-  delete env.MONGODB_URI
-  env.ENVIRONMENT = options.environment ?? 'production'
+  // Deliberately malformed rather than merely unroutable: the driver spends its
+  // 30 s server-selection budget on an unreachable host, where a URI it cannot
+  // parse throws on construction, so a probe that gets past the gate dies at
+  // once instead of hanging the suite.
+  env.SC_MONGODB_URI = 'blocked-in-tests://no-store'
+  env.MONGODB_URI = env.SC_MONGODB_URI
+  if (options.environment === undefined) delete env.ENVIRONMENT
+  else env.ENVIRONMENT = options.environment
+  // the Tron funnel checks the ticket before the gate, so a probe without one
+  // would never reach the gate at all
+  env.SAFE_PROPOSAL_TICKET = 'EXSC-929'
 
   const result = spawnSync('bun', [options.cli, ...options.args], {
     cwd: options.repoRoot,
@@ -159,7 +175,15 @@ const spawnCli = (options: {
       `child was killed by ${result.signal} after ${TIMEOUT_MS}ms, so its output proves nothing`
     )
 
-  return { output: `${result.stdout}${result.stderr}`, status: result.status }
+  const output = `${result.stdout}${result.stderr}`
+  // Load-bearing, not belt-and-braces: no case here may reach a real proposal
+  // store, whichever side of the gate it lands on.
+  if (output.includes('Proposal stored'))
+    throw new Error(
+      'a probe reached a real proposal store — the child environment is not isolated'
+    )
+
+  return { output, status: result.status }
 }
 
 const runCli = (options: {
@@ -272,85 +296,129 @@ describe('propose-to-safe-tron funnel deploy gate', () => {
     })
   }
 
-  it('refuses a diverged facet addition before the Timelock is read', () => {
-    const result = runTron(true)
+  it(
+    'refuses a diverged facet addition before the Timelock is read',
+    () => {
+      const result = runTron(true)
 
-    expect(result.output).toMatch(GATE_REFUSAL)
-    expect(result.output).toContain(TRON_FACET)
-    expect(result.status).not.toBe(0)
-    // NEXT_STOP is what this run prints once it is past the gate, verified by
-    // deleting the gate call: its absence is what makes "the refusal came first"
-    // mean anything, and it is a real marker rather than an invented one
-    expect(result.output).not.toContain(NEXT_STOP_TRON)
-  })
+      expect(result.output).toMatch(GATE_REFUSAL)
+      expect(result.output).toContain(TRON_FACET)
+      expect(result.status).not.toBe(0)
+      // NEXT_STOP is what this run prints once it is past the gate, verified by
+      // deleting the gate call: its absence is what makes "the refusal came first"
+      // mean anything, and it is a real marker rather than an invented one
+      expect(result.output).not.toContain(NEXT_STOP_TRON)
+    },
+    CASE_TIMEOUT_MS
+  )
 
-  it('lets an unchanged facet addition past the gate', () => {
-    const result = runTron(false)
+  it(
+    'lets an unchanged facet addition past the gate',
+    () => {
+      const result = runTron(false)
 
-    expect(result.output).not.toMatch(GATE_REFUSAL)
-    expect(result.output).toContain('Production deploy gate passed')
-  })
+      expect(result.output).not.toMatch(GATE_REFUSAL)
+      expect(result.output).toContain('Production deploy gate passed')
+    },
+    CASE_TIMEOUT_MS
+  )
 })
 
 describe('propose-to-safe funnel deploy gate', () => {
-  it('refuses a diverged facet addition before the Safe client is initialised', () => {
-    const result = runCli({
-      diverge: true,
-      network: 'mainnet',
-      calldata: ADD_CUT,
-    })
+  it(
+    'refuses a diverged facet addition before the Safe client is initialised',
+    () => {
+      const result = runCli({
+        diverge: true,
+        network: 'mainnet',
+        calldata: ADD_CUT,
+      })
 
-    expect(result.output).toMatch(GATE_REFUSAL)
-    expect(result.output).toContain(FACET)
-    expect(result.status).not.toBe(0)
-    // the refusal has to land before the key is read, which is the first step
-    // towards a signature. Verified by deleting the gate call: this marker then
-    // appears, so its absence is not a vacuous assertion about text that never
-    // shows up at all
-    expect(result.output).not.toContain(NEXT_STOP_EVM)
-  })
+      expect(result.output).toMatch(GATE_REFUSAL)
+      expect(result.output).toContain(FACET)
+      expect(result.status).not.toBe(0)
+      // the refusal has to land before the key is read, which is the first step
+      // towards a signature. Verified by deleting the gate call: this marker then
+      // appears, so its absence is not a vacuous assertion about text that never
+      // shows up at all
+      expect(result.output).not.toContain(NEXT_STOP_EVM)
+    },
+    CASE_TIMEOUT_MS
+  )
 
-  it('lets an unchanged facet addition past the gate', () => {
-    const result = runCli({
-      diverge: false,
-      network: 'mainnet',
-      calldata: ADD_CUT,
-    })
+  it(
+    'lets an unchanged facet addition past the gate',
+    () => {
+      const result = runCli({
+        diverge: false,
+        network: 'mainnet',
+        calldata: ADD_CUT,
+      })
 
-    expect(result.output).not.toMatch(GATE_REFUSAL)
-    expect(result.output).toContain('Production deploy gate passed')
-  })
+      expect(result.output).not.toMatch(GATE_REFUSAL)
+      expect(result.output).toContain('Production deploy gate passed')
+    },
+    CASE_TIMEOUT_MS
+  )
 
-  it('skips the gate on a testnet even with a diverged facet', () => {
-    const result = runCli({
-      diverge: true,
-      network: 'sepolia',
-      calldata: ADD_CUT,
-    })
+  it(
+    'skips the gate on a testnet even with a diverged facet',
+    () => {
+      const result = runCli({
+        diverge: true,
+        network: 'sepolia',
+        calldata: ADD_CUT,
+      })
 
-    expect(result.output).not.toMatch(GATE_REFUSAL)
-    expect(result.output).not.toContain('Production deploy gate passed')
-  })
+      expect(result.output).not.toMatch(GATE_REFUSAL)
+      expect(result.output).not.toContain('Production deploy gate passed')
+    },
+    CASE_TIMEOUT_MS
+  )
 
-  it('skips the gate for staging even with a diverged facet', () => {
-    const result = runCli({
-      diverge: true,
-      network: 'mainnet',
-      calldata: ADD_CUT,
-      environment: 'staging',
-    })
+  it(
+    'cannot be switched off by an ambient ENVIRONMENT=staging',
+    () => {
+      const result = runCli({
+        diverge: true,
+        network: 'mainnet',
+        calldata: ADD_CUT,
+        environment: 'staging',
+      })
 
-    expect(result.output).not.toMatch(GATE_REFUSAL)
-  })
+      expect(result.output).toMatch(GATE_REFUSAL)
+      expect(result.output).not.toContain(NEXT_STOP_EVM)
+    },
+    CASE_TIMEOUT_MS
+  )
 
-  it('does not gate a proposal that installs no facet code', () => {
-    const result = runCli({
-      diverge: true,
-      network: 'mainnet',
-      calldata: '0xdeadbeef' as Hex,
-    })
+  it(
+    'refuses with ENVIRONMENT unset, so an unset environment is not an off-switch either',
+    () => {
+      const result = runCli({
+        diverge: true,
+        network: 'mainnet',
+        calldata: ADD_CUT,
+      })
 
-    expect(result.output).not.toMatch(GATE_REFUSAL)
-    expect(result.output).not.toContain('Production deploy gate passed')
-  })
+      expect(result.output).toMatch(GATE_REFUSAL)
+      expect(result.output).not.toContain(NEXT_STOP_EVM)
+    },
+    CASE_TIMEOUT_MS
+  )
+
+  it(
+    'does not gate a proposal that installs no facet code',
+    () => {
+      const result = runCli({
+        diverge: true,
+        network: 'mainnet',
+        calldata: '0xdeadbeef' as Hex,
+      })
+
+      expect(result.output).not.toMatch(GATE_REFUSAL)
+      expect(result.output).not.toContain('Production deploy gate passed')
+    },
+    CASE_TIMEOUT_MS
+  )
 })

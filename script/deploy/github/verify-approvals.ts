@@ -1,6 +1,7 @@
 /**
- * Production deploy gate for `script/tasks/diamondUpdateFacet.sh` and for
- * `proposeDiamondCut` (`script/deploy/shared/propose-diamond-cut.ts`).
+ * Production deploy gate: the policy and the git/audit-log/GitHub lookups behind
+ * it. Callers reach it through `funnel-deploy-gate.ts`, which decides which
+ * facets to ask about; the CLI here is a manual entry point, on no deploy path.
  *
  * Staging is always allowed. A production deploy may proceed only when each selected
  * facet matches `main`, or — if it does not — when the branch has an open PR and the
