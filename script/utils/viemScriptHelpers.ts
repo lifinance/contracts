@@ -293,7 +293,7 @@ export const buildExplorerTxUrl = (
 
 /**
  * Builds a viem `Chain` object for the given network name using `config/networks.json`.
- * Appends `/jsonrpc` to TronGrid RPC URLs so viem's JSON-RPC transport works correctly.
+ * Routes TronGrid RPC URLs to their `/jsonrpc` path so viem's JSON-RPC transport works correctly.
  * Includes `multicall3` contract address when configured for the network.
  *
  * @param networkName - Key from `config/networks.json` (e.g. `'arbitrum'`, `'tron'`).

@@ -114,9 +114,7 @@ export function normalizeRpcUrlForNetwork(
   // string or fragment, leaving the request pointed at the root — and a keyed TronGrid URL
   // carries its key in the query.
   const path = parsed.pathname.replace(/\/+$/, '')
-  if (path.endsWith('/jsonrpc')) return rpcUrl
-
-  parsed.pathname = `${path}/jsonrpc`
+  parsed.pathname = path.endsWith('/jsonrpc') ? path : `${path}/jsonrpc`
   return parsed.toString()
 }
 
