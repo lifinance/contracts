@@ -36,10 +36,18 @@ const TRONCAST_DEFAULT_FEE_LIMIT_SUN = 1_000_000_000
  * Rejects a non-integer rather than letting `NaN` reach the comparison, where
  * it surfaces as a `BigInt` conversion error instead of a usable message.
  */
-function resolveFeeLimitSun(tronWeb: TronWeb, feeLimit?: string): number {
-  if (!feeLimit) return TRONCAST_DEFAULT_FEE_LIMIT_SUN
+function resolveFeeLimitSun(
+  tronWeb: TronWeb,
+  feeLimit?: string | number | boolean
+): number {
+  if (feeLimit === undefined || feeLimit === '')
+    return TRONCAST_DEFAULT_FEE_LIMIT_SUN
 
-  const sun = Number(tronWeb.toSun(parseFloat(feeLimit)))
+  // citty passes a digits-only value through as a number and a valueless
+  // `--fee-limit` through as `true`. The latter is not a TRX amount, and
+  // `Number(true)` would quietly cap the send at 1 TRX.
+  const trx = typeof feeLimit === 'boolean' ? Number.NaN : Number(feeLimit)
+  const sun = Number(tronWeb.toSun(trx))
   if (!Number.isInteger(sun) || sun <= 0)
     throw new Error(
       `Invalid --feeLimit: "${feeLimit}" (must be a positive TRX amount)`
@@ -152,10 +160,14 @@ export const sendCommand = defineCommand({
       description:
         'TRX value to send (e.g., "0.1tron", "100000sun"). With no signature/calldata, sends a native TRX transfer to the address.',
     },
+    // No citty `default` on either of the next two: for a multi-word argument
+    // citty resolves the spelling the caller did NOT type to the default, so
+    // `--fee-limit 5000` would leave `args.feeLimit` at the default and the
+    // guard would compare against a cap the send does not run under. The
+    // fallbacks live in the body instead.
     feeLimit: {
       type: 'string',
-      description: 'Maximum fee in TRX',
-      default: '1000',
+      description: 'Maximum fee in TRX (default: 1000)',
     },
     energyLimit: {
       type: 'string',
@@ -169,7 +181,6 @@ export const sendCommand = defineCommand({
     dryRun: {
       type: 'boolean',
       description: 'Simulate without sending',
-      default: false,
     },
     json: {
       type: 'boolean',
@@ -219,6 +230,13 @@ export const sendCommand = defineCommand({
       const networkKey: TronTvmNetworkName =
         env === 'mainnet' ? 'tron' : 'tronshasta'
 
+      // `--dry-run=true` arrives as the string `'true'` while `--dryRun`
+      // arrives as a boolean, so a `=== true` test drops one of the two
+      // spellings — here that would broadcast a run the operator asked to
+      // simulate.
+      const rawDryRun: unknown = args.dryRun
+      const dryRun = rawDryRun === true || rawDryRun === 'true'
+
       // Native TRX transfer: `troncast send <recipient> --value <amount>` with no
       // signature/calldata, mirroring `cast send <to> --value`. TronWeb has no function
       // to call for a plain EOA→EOA transfer, so build a sendTrx transaction directly.
@@ -259,7 +277,7 @@ export const sendCommand = defineCommand({
           senderHex
         )
 
-        if (args.dryRun) {
+        if (dryRun) {
           consola.info('Dry run mode - transaction will not be sent')
           consola.log(
             'Transaction prepared:',
@@ -309,7 +327,7 @@ export const sendCommand = defineCommand({
 
         const feeLimitSun = resolveFeeLimitSun(
           tronWeb,
-          args.feeLimit as string | undefined
+          args.feeLimit as string | number | boolean | undefined
         )
 
         // Use TronWeb's RPC API directly to trigger smart contract with raw data
@@ -346,7 +364,7 @@ export const sendCommand = defineCommand({
           throw new Error('No transaction in trigger result')
         }
 
-        if (args.dryRun) {
+        if (dryRun) {
           consola.info('Dry run mode - transaction will not be sent')
           consola.log(
             'Transaction prepared:',
@@ -467,7 +485,7 @@ export const sendCommand = defineCommand({
       // Build transaction options
       const feeLimitSun = resolveFeeLimitSun(
         tronWeb,
-        args.feeLimit as string | undefined
+        args.feeLimit as string | number | boolean | undefined
       )
       const options: Record<string, unknown> = { feeLimit: feeLimitSun }
 
@@ -585,7 +603,7 @@ export const sendCommand = defineCommand({
         contract = await tronWeb.contract().at(args.address)
       }
 
-      if (args.dryRun) {
+      if (dryRun) {
         consola.info('Dry run mode - transaction will not be sent')
 
         // Estimate costs

@@ -19,12 +19,17 @@ import {
   spyOn,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
+import { runCommand } from 'citty'
 import { consola } from 'consola'
 
 import * as troncastTronWeb from '../utils/tronweb'
 
-/** Obviously fake, and built rather than written so it is not a key-shaped literal. */
-const FAKE_KEY = '11'.repeat(32)
+/**
+ * Obviously fake, and built rather than written so it is not a key-shaped
+ * literal. Not all digits: citty coerces a digits-only value to a number, and
+ * the command's own key handling expects a string.
+ */
+const FAKE_KEY = 'ab'.repeat(32)
 const SENDER = 'TVQY5uYUJHqPJ3kmpKcQmiRcaEbGvJYVfR'
 const CONTRACT = 'TAuErcuAtU6BPt6YwL51JZ4RpDCPQASCU2'
 /** `.invalid` never resolves, so a stray request cannot reach a real node. */
@@ -137,8 +142,8 @@ interface IRun {
   errors: string[]
 }
 
-/** Runs the command and collects what an operator would see. */
-const run = async (args: Record<string, unknown>): Promise<IRun> => {
+/** Runs an invocation and collects what an operator would see. */
+const collect = async (invoke: () => Promise<unknown>): Promise<IRun> => {
   const errors: string[] = []
   let exitCode: number | undefined
 
@@ -155,13 +160,7 @@ const run = async (args: Record<string, unknown>): Promise<IRun> => {
   }) as unknown as typeof consola.error)
 
   try {
-    // citty's own arg defaults are bypassed on purpose: the object here is the
-    // full arg set, so nothing under test depends on a default being applied.
-    await sendCommand.run?.({
-      args: { ...baseArgs, ...args },
-      rawArgs: [],
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    } as any)
+    await invoke()
   } finally {
     exit.mockRestore()
     error.mockRestore()
@@ -169,6 +168,37 @@ const run = async (args: Record<string, unknown>): Promise<IRun> => {
 
   return { exitCode, errors }
 }
+
+/** Runs the command body against an already-resolved arg set. */
+const run = (args: Record<string, unknown>): Promise<IRun> =>
+  collect(() =>
+    Promise.resolve(
+      // citty's own arg defaults are bypassed here on purpose: the object is
+      // the full arg set, so nothing under test depends on a default being
+      // applied. The suite below covers citty's own resolution separately.
+      sendCommand.run?.({
+        args: { ...baseArgs, ...args },
+        rawArgs: [],
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      } as any)
+    )
+  )
+
+/** Runs the command through citty, so flag resolution is under test too. */
+const runViaCitty = (rawArgs: string[]): Promise<IRun> =>
+  collect(() =>
+    runCommand(sendCommand, {
+      rawArgs: [
+        CONTRACT,
+        '--private-key',
+        FAKE_KEY,
+        '--rpc-url',
+        RPC_URL,
+        '--no-confirm',
+        ...rawArgs,
+      ],
+    })
+  )
 
 let originalFetch: typeof globalThis.fetch
 let originalAllow: string | undefined
@@ -287,5 +317,86 @@ describe('a native TRX transfer', () => {
     expect(hits).toContain('broadcast')
     expect(hits).not.toContain('estimate-calldata')
     expect(hits).not.toContain('estimate-selector')
+  })
+})
+
+/**
+ * The refusal tells the operator to re-run with a higher `--feeLimit`, so the
+ * flag has to reach the guard whichever spelling they type. citty resolves the
+ * spelling a caller did not type to the argument's `default`, which would make
+ * that advice do nothing on the kebab form — on the break-glass path, an
+ * operator looping on a refusal during an incident.
+ */
+describe('the fee limit as citty resolves it', () => {
+  it('honours --fee-limit on the way up, so the refusal hint works', async () => {
+    const { exitCode } = await runViaCitty([
+      '--calldata',
+      '0xdeadbeef',
+      '--fee-limit',
+      '1000',
+    ])
+
+    expect(exitCode).toBeUndefined()
+    expect(hits).toContain('broadcast')
+  })
+
+  it('honours --fee-limit on the way down, so the guard sees the real cap', async () => {
+    const { exitCode, errors } = await runViaCitty([
+      '--calldata',
+      '0xdeadbeef',
+      '--fee-limit',
+      '1',
+    ])
+
+    expect(exitCode).toBe(1)
+    expect(hits).not.toContain('broadcast')
+    expect(errors.join('\n')).toContain('exceeds the fee limit')
+  })
+
+  it('rejects a valueless --fee-limit rather than capping at 1 TRX', async () => {
+    const { exitCode, errors } = await runViaCitty([
+      '--calldata',
+      '0xdeadbeef',
+      '--fee-limit',
+    ])
+
+    expect(exitCode).toBe(1)
+    expect(hits).not.toContain('broadcast')
+    expect(errors.join('\n')).toContain('Invalid --feeLimit')
+  })
+
+  it('honours --dry-run, so a simulated run does not broadcast', async () => {
+    const { exitCode } = await runViaCitty([
+      '--calldata',
+      '0xdeadbeef',
+      '--dry-run',
+    ])
+
+    expect(exitCode).toBeUndefined()
+    expect(hits).not.toContain('broadcast')
+    expect(hits).not.toContain('estimate-calldata')
+  })
+})
+
+/**
+ * The pre-flight is wired in after each path's dry-run return, not in front of
+ * it. Run rather than read, because a guard placed one statement too early
+ * swallows the return it was meant to sit behind, and the suite stays green.
+ */
+describe('the dry-run return still precedes the pre-flight', () => {
+  it('neither estimates nor broadcasts on the raw-calldata path', async () => {
+    const { exitCode } = await run({ calldata: '0xdeadbeef', dryRun: true })
+
+    expect(exitCode).toBeUndefined()
+    expect(hits).not.toContain('estimate-calldata')
+    expect(hits).not.toContain('broadcast')
+  })
+
+  it('neither estimates nor broadcasts on the function-signature path', async () => {
+    const { exitCode } = await run({ signature: 'pause()', dryRun: true })
+
+    expect(exitCode).toBeUndefined()
+    expect(hits).not.toContain('estimate-selector')
+    expect(hits).not.toContain('broadcast')
   })
 })
