@@ -349,6 +349,73 @@ describe('verifyAuditContent closure-drift split', () => {
     expect(result.verdict).toBe('fail')
   })
 
+  it('applies the split to a recorded entry too, not only a commit one', () => {
+    // gvladika's case on #2291: the same inputs and the same drift classified differently
+    // depending only on whether the entry had gained a sourceClosureHash. Invisible while no
+    // entry carries the field — and a hard block on every contract sharing a drifted library
+    // the moment EXSC-706 starts writing it.
+    const head = detail(HEAD, OWN_A, LIB_B)
+    const audited = detail(OTHER, OWN_A, LIB_A)
+
+    const commitOnly = run(head, audited)
+    const alsoRecorded = verifyAuditContent({
+      contract: 'ERC20Proxy',
+      version: '1.2.0',
+      headClosureHash: head.combined,
+      headClosureDetail: head,
+      contractPath: PATH,
+      entries: [
+        withCommit({
+          sourceClosureHash: OTHER,
+          closureAtAuditCommit: audited,
+        }),
+      ],
+    })
+
+    expect(commitOnly.verdict).toBe('closure-drift')
+    expect(alsoRecorded.verdict).toBe('closure-drift')
+    expect(alsoRecorded.driftingDependencies).toEqual([LIB])
+  })
+
+  it('still blocks a recorded entry whose own source moved', () => {
+    const result = verifyAuditContent({
+      contract: 'ERC20Proxy',
+      version: '1.2.0',
+      headClosureHash: HEAD,
+      headClosureDetail: detail(HEAD, OWN_B, LIB_A),
+      contractPath: PATH,
+      entries: [
+        withCommit({
+          sourceClosureHash: OTHER,
+          closureAtAuditCommit: detail(OTHER, OWN_A, LIB_A),
+        }),
+      ],
+    })
+
+    expect(result.verdict).toBe('fail')
+  })
+
+  it('keeps a recorded mismatch a definite failure when the commit is unreachable', () => {
+    // Not softened into 'error': a recorded hash that differs is knowledge that the closure
+    // changed, and the unfetchable commit adds nothing that could take that back.
+    const result = verifyAuditContent({
+      contract: 'ERC20Proxy',
+      version: '1.2.0',
+      headClosureHash: HEAD,
+      headClosureDetail: detail(HEAD, OWN_A, LIB_A),
+      contractPath: PATH,
+      entries: [
+        withCommit({
+          sourceClosureHash: OTHER,
+          closureAtAuditCommit: 'unfetchable',
+        }),
+      ],
+    })
+
+    expect(result.verdict).toBe('fail')
+    expect(result.reason).toContain('recorded sourceClosureHash')
+  })
+
   it('counts a moved submodule as drift, which per-file hashes cannot see', () => {
     const result = run(
       detail(HEAD, OWN_A, LIB_A, { 'lib/solmate': 'aaa' }),

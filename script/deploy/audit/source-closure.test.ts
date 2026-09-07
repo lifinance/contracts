@@ -457,3 +457,67 @@ describe('parseImports — comment stripping is string-aware', () => {
     expect(parseImports(source)).toEqual(['./E2.sol'])
   })
 })
+
+describe('npm-sourced imports', () => {
+  // remappings.txt really does carry `@uniswap/=node_modules/@uniswap/`, so this is one
+  // import away from live. Treating node_modules as a submodule sent it to `missing` and
+  // left the contract permanently `closure-incomplete` — the EcoFacet failure again.
+  const NPM_REMAPPINGS = parseRemappings(
+    ['@uniswap/=node_modules/@uniswap/', 'lifi/=src/', ''].join('\n')
+  )
+  const MANIFEST = JSON.stringify({
+    dependencies: { '@uniswap/permit2-sdk': '^1.3.0' },
+    devDependencies: { 'eth-gas-reporter': '0.2.27' },
+  })
+
+  it('marks a node_modules import as external, keyed by its package', () => {
+    const resolved = resolveImport(
+      'src/Facets/Foo.sol',
+      '@uniswap/permit2-sdk/contracts/IAllowanceTransfer.sol',
+      NPM_REMAPPINGS
+    )
+
+    expect(resolved).toMatchObject({
+      external: true,
+      npmPackage: '@uniswap/permit2-sdk',
+    })
+    expect(resolved?.submoduleDir).toBeUndefined()
+  })
+
+  it('pins the package by its declared version instead of a gitlink', () => {
+    const reader = makeReader({
+      'package.json': MANIFEST,
+      'src/Foo.sol':
+        "import '@uniswap/permit2-sdk/contracts/IAllowanceTransfer.sol';",
+    })
+
+    const closure = collectSourceClosure('src/Foo.sol', reader, NPM_REMAPPINGS)
+
+    expect(closure.dependencies).toEqual({
+      'node_modules/@uniswap/permit2-sdk': '^1.3.0',
+    })
+    expect(closure.missing).toEqual([])
+  })
+
+  it('resolves an unscoped package too', () => {
+    const reader = makeReader({
+      'package.json': MANIFEST,
+      'src/Foo.sol': "import 'node_modules/eth-gas-reporter/Thing.sol';",
+    })
+
+    expect(
+      collectSourceClosure('src/Foo.sol', reader, NPM_REMAPPINGS).dependencies
+    ).toEqual({ 'node_modules/eth-gas-reporter': '0.2.27' })
+  })
+
+  it('names the package when nothing declares it, rather than blaming node_modules', () => {
+    const reader = makeReader({
+      'package.json': MANIFEST,
+      'src/Foo.sol': "import 'node_modules/@other/pkg/Thing.sol';",
+    })
+
+    expect(
+      collectSourceClosure('src/Foo.sol', reader, NPM_REMAPPINGS).missing
+    ).toEqual(['node_modules/@other/pkg'])
+  })
+})

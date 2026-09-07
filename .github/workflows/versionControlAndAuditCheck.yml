@@ -350,16 +350,21 @@ jobs:
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
 
       - name: Install dev dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
 
       # Runs unconditionally, not under AUDIT_REQUIRED: rewriting the log is precisely
       # the move that would otherwise arrive in a PR touching no contract at all.
+      #
+      # Compared against HEAD^1, not base.sha. This workflow runs only on pull_request,
+      # where HEAD is the merge commit, so HEAD^1 IS the base tip that HEAD merged, while
+      # base.sha is the base as it stood when the PR was opened. An entry that lands on
+      # main after that point and is then deleted on the branch after a merge from main
+      # is absent from both sides of a base.sha comparison — zero violations reported,
+      # and recorded history quietly loses an entry.
       - name: Verify the audit log is append-only
-        env:
-          BASE_SHA: ${{ github.event.pull_request.base.sha }} # via env, never inline, matching the PR_TITLE handling below
         run: |
           bunx tsx script/deploy/audit/verify-audit-log-append-only.ts \
-            --base "$BASE_SHA" \
+            --base HEAD^1 \
             --head HEAD
 
       - name: Download list of audit-relevant contracts from previous version control step
@@ -734,7 +739,7 @@ jobs:
         uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
 
       - name: Install dev dependencies
-        run: bun install
+        run: bun install --frozen-lockfile
 
       - name: Download list of audit-relevant contracts from previous version control step
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8

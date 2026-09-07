@@ -34,6 +34,12 @@ export interface IResolvedImport {
   external: boolean
   /** Set when `external`: the submodule dir whose pointer identifies this file. */
   submoduleDir?: string
+  /**
+   * Set when `external` and the file comes from npm: the package whose `package.json`
+   * entry identifies it. `node_modules/` is gitignored, so there is no gitlink to point
+   * at and the dependency has to be pinned by its declared version instead.
+   */
+  npmPackage?: string
 }
 
 export interface ISourceClosure {
@@ -192,6 +198,51 @@ const normalise = (path: string): string => {
 
 const SUBMODULE_DIR_RE = /^(lib\/[^/]+)\//
 
+/** `node_modules/@scope/name/…` and `node_modules/name/…`, capturing the package. */
+const NPM_PACKAGE_RE = /^node_modules\/(@[^/]+\/[^/]+|[^/@][^/]*)\//
+
+/**
+ * The npm package a `node_modules/` path belongs to, or undefined for any other path.
+ *
+ * @param path - repo-relative path of a resolved import.
+ * @returns the package name, scope included.
+ */
+const npmPackageOf = (path: string): string | undefined =>
+  NPM_PACKAGE_RE.exec(path)?.[1]
+
+/**
+ * The version `package.json` declares for a package at this tree-ish.
+ *
+ * A declared range rather than a resolved version: it is what the repo pinned at that
+ * commit, so a bump shows as drift and is attributable to the package. It does not catch
+ * a lockfile-only change, which is why an npm-sourced import stays a dependency pointer
+ * rather than hashed content.
+ *
+ * @param reader - reads at the tree-ish being hashed.
+ * @param packageName - as returned by {@link npmPackageOf}.
+ * @returns the declared version spec, or undefined when the package is not declared.
+ */
+const readDeclaredNpmVersion = (
+  reader: ISourceReader,
+  packageName: string
+): string | undefined => {
+  const manifest = reader.readFile('package.json')
+  if (manifest === undefined) return undefined
+
+  try {
+    const parsed = JSON.parse(manifest) as {
+      dependencies?: Record<string, string>
+      devDependencies?: Record<string, string>
+    }
+    return (
+      parsed.dependencies?.[packageName] ??
+      parsed.devDependencies?.[packageName]
+    )
+  } catch {
+    return undefined
+  }
+}
+
 /**
  * Roots foundry resolves a non-relative, non-remapped specifier against
  * (`foundry.toml`: `libs = ["node_modules", "lib"]`), plus the repo's own source
@@ -238,11 +289,12 @@ export const resolveImport = (
   const submoduleDir = SUBMODULE_DIR_RE.exec(path)?.[1]
   if (submoduleDir) return { path, external: true, submoduleDir }
 
-  // Not readable from git at any tree-ish, so it cannot be hashed or pointed at.
-  // Reported as external so the closure walk records it rather than silently
-  // dropping it; the caller still sees it as a dependency it could not pin.
-  if (path.startsWith('node_modules/'))
-    return { path, external: true, submoduleDir: 'node_modules' }
+  // `node_modules/` is gitignored, so it has no gitlink and `git ls-tree` on it answers
+  // nothing. Pointing at it as if it were a submodule sent every such import into
+  // `missing` and made the contract permanently `closure-incomplete` with nothing the
+  // author could do — so it is pinned by the package's declared version instead.
+  const npmPackage = npmPackageOf(path)
+  if (npmPackage) return { path, external: true, npmPackage }
 
   return { path, external: false }
 }
@@ -292,6 +344,17 @@ export const collectSourceClosure = (
         const pointer = reader.readSubmodulePointer(resolved.submoduleDir)
         if (pointer === undefined) missing.add(resolved.submoduleDir)
         else dependencies[resolved.submoduleDir] = pointer
+        continue
+      }
+
+      if (resolved.external && resolved.npmPackage) {
+        const key = `node_modules/${resolved.npmPackage}`
+        const version = readDeclaredNpmVersion(reader, resolved.npmPackage)
+        // Undeclared means there is genuinely nothing to pin it by, which is a closure
+        // the gate cannot describe — and it now says which package, rather than
+        // reporting `node_modules` as an absent submodule.
+        if (version === undefined) missing.add(key)
+        else dependencies[key] = version
         continue
       }
 

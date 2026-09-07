@@ -145,6 +145,17 @@ export interface IVerifyAuditContentInput {
 }
 
 /**
+ * Named on every hard failure, because the commonest way to reach one is not tampering.
+ *
+ * The lifecycle audits at one commit and then resolves the findings, and `/add-audit` takes
+ * `auditCommitHash` from the report, which names the pre-remediation commit. So the first
+ * failure an author sees after a real audit is this one, and without the way out it reads as
+ * the gate being broken.
+ */
+const REMEDIATION_HINT =
+  'If this follows audit remediation, the recorded commit predates the fixes: add a NEW audit entry naming the post-remediation commit (the same report can be referenced). The append-only guard means an existing entry cannot be corrected in place.'
+
+/**
  * Decides whether the audited source still matches PR head.
  *
  * Precedence is deliberate: any single passing audit settles the question.
@@ -185,6 +196,35 @@ export const verifyAuditContent = (
           reason: `${subject}: source closure matches the hash recorded on audit '${entry.auditId}'`,
           matchedAuditId: entry.auditId,
         }
+
+      // A recorded hash is combined and carries no per-file detail, so on its own it cannot tell
+      // the contract's own source changing from a dependency drifting. Without this, an entry
+      // gaining a sourceClosureHash would start hard-blocking the very case the commit path
+      // reports as drift, and the regression would look like the gate breaking for no reason.
+      // The resolved closure at the same entry's commit supplies that detail when there is one;
+      // when there is not, the recorded mismatch stands as the definite failure it is, rather
+      // than being softened into the gate not knowing.
+      const resolvedForSplit = entry.closureAtAuditCommit
+      const recordedComparison =
+        resolvedForSplit && typeof resolvedForSplit !== 'string'
+          ? compareClosures(
+              input.headClosureDetail,
+              resolvedForSplit,
+              input.contractPath
+            )
+          : undefined
+
+      if (recordedComparison) {
+        const classified = classifyContentVerdict(subject, recordedComparison)
+        if (classified.verdict === 'closure-drift') {
+          drifts.push({
+            reason: `${classified.reason} (audit '${entry.auditId}', recorded hash ${entry.sourceClosureHash})`,
+            auditId: entry.auditId,
+            driftingDependencies: recordedComparison.driftingDependencies,
+          })
+          continue
+        }
+      }
 
       failures.push(
         `audit '${entry.auditId}': recorded sourceClosureHash ${entry.sourceClosureHash} does not match PR head ${headClosureHash}`
@@ -303,6 +343,6 @@ export const verifyAuditContent = (
     verdict: 'fail',
     reason: `${subject}: no audit covers the source at PR head:\n  ${failures.join(
       '\n  '
-    )}`,
+    )}\n  ${REMEDIATION_HINT}`,
   }
 }

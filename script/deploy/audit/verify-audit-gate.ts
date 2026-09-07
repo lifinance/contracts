@@ -43,11 +43,15 @@ const readContracts = (
 
     // Refused here rather than allowed through: with no version the gate cannot
     // look up coverage, and the resulting "no audit found" would read as an
-    // unaudited contract instead of a malformed one.
-    if (!version)
-      throw new Error(
+    // unaudited contract instead of a malformed one. Exited rather than thrown —
+    // `runMain` turns a throw into exit 1, which delivers the gate-doesn't-know
+    // condition as a mismatch, the exact collapse these codes exist to prevent.
+    if (!version) {
+      consola.error(
         `could not read a @custom:version from ${path} at ${headTreeish}`
       )
+      process.exit(EXIT_ERROR)
+    }
 
     return { path, version }
   })
@@ -187,6 +191,16 @@ const main = defineCommand({
       }
       consola.warn(
         `Audit gate passed with closure drift: ${drifted.length} contract(s) are byte-identical to their audit, but code they import has moved since. Reported, not blocking.`
+      )
+      return
+    }
+
+    // `--fail-on-drift` runs as a separate, non-required check whose whole purpose is to isolate
+    // drift as its own signal. Failing it for a mismatch or an unreachable commit would make it
+    // red whenever the required check is red, on a check that is supposed to mean one thing.
+    if (args.failOnDrift) {
+      consola.info(
+        `Audit gate reported '${report.verdict}', which the required audit-verification check owns. No drift to report here.`
       )
       return
     }

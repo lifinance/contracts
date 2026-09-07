@@ -38,12 +38,15 @@ const readLogAt = (
   } catch (error: unknown) {
     // Not returned as undefined: that means "absent", and an absent log at base
     // is a pass. Malformed is the opposite — the guard cannot tell what was
-    // recorded, so it must not report the file as untouched.
-    throw new Error(
+    // recorded, so it must not report the file as untouched. Exited rather than
+    // thrown, because `runMain` turns a throw into exit 1, delivering the
+    // guard-doesn't-know case as the tampering case these codes separate.
+    consola.error(
       `${path} at ${treeish} is not valid JSON, so the audit log cannot be compared: ${
         error instanceof Error ? error.message : String(error)
       }`
     )
+    process.exit(EXIT_ERROR)
   }
 }
 
