@@ -32,7 +32,7 @@
  *   --paymentToken   ERC20 token address for payment (default: zero = ETH)
  *   --payment        payment amount in wei (default: 0)
  *   --paymentReceiver address to receive payment (default: zero)
- *   --allowOverride  whether to allow overriding existing Safe address in networks.json (default: false)
+ *   --allowOverride  whether to allow overriding existing Safe address in networks.json (default: true; pass --no-allowOverride to refuse)
  *   --rpcUrl         custom RPC URL (uses network default if not provided)
  *   --evmVersion     EVM version to use (london or cancun). Defaults to network setting from networks.json
  *   --receiptConfirmations  blocks to wait after inclusion (default: 1; use 5 on chains where reorg risk matters)
@@ -173,7 +173,7 @@ const SAFE_READ_ABI = [
 
 /** Default max wait per deployment tx when --receiptTimeoutMs is omitted (matches viem; slow chains can pass a higher value). */
 const DEFAULT_RECEIPT_TIMEOUT_MS = 180_000 // 3 minutes
-const DEFAULT_RECEIPT_CONFIRMATIONS = 1
+const DEFAULT_RECEIPT_CONFIRMATIONS = 1 // 1 block
 
 /** Wait for receipt; on timeout optionally use latest receipt if tx already succeeded (RPC / confirmation quirks). */
 async function waitForDeployTransactionReceipt(
@@ -281,7 +281,7 @@ const main = defineCommand({
     allowOverride: {
       type: 'boolean',
       description:
-        'Whether to allow overriding existing Safe address in networks.json (default: true)',
+        'Whether to allow overriding existing Safe address in networks.json (default: true; pass --no-allowOverride to refuse)',
       required: false,
     },
     rpcUrl: {
@@ -338,7 +338,7 @@ const main = defineCommand({
     const existing = networks[networkName]?.safeAddress
     if (existing && existing !== zeroAddress && !allowOverride)
       throw new Error(
-        `Safe already deployed on ${networkName} @ ${existing}. Use --allowOverride flag to force redeployment.`
+        `Safe already deployed on ${networkName} @ ${existing}. Overwriting is allowed by default; drop --no-allowOverride to redeploy over it.`
       )
 
     // parse & validate threshold + owners

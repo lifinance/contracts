@@ -53,6 +53,8 @@ import {
 } from './constants.js'
 import type { ITronSafeTemp } from './types.js'
 
+// 1.2x the energy estimate: enough headroom that a tight estimate still lands,
+// without reserving TRX the deploy will not spend.
 const DEFAULT_SAFETY_MARGIN = 1.2
 
 function readTronSafeTemp(): ITronSafeTemp | null {

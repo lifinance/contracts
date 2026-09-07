@@ -420,7 +420,7 @@ const deployCommand = defineCommand({
       let delaySeconds = 5 // default
       try {
         // First try command line argument
-        if (args.delaySeconds) {
+        if (args.delaySeconds !== undefined) {
           const parsed = parseInt(String(args.delaySeconds), 10)
           if (!isNaN(parsed) && parsed >= 0) {
             delaySeconds = parsed

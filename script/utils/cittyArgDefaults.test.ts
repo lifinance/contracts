@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from 'fs'
+import { readdirSync, readFileSync, unlinkSync, writeFileSync } from 'fs'
 import { join } from 'path'
 
 import {
@@ -131,11 +131,93 @@ describe('findMultiWordArgDefaults', () => {
     ).toBe(false)
   })
 
-  it('leaves a positional alone, because it is matched by place and not by spelling', async () => {
+  it.each([
+    ['underscore', 'dry_run'],
+    ['dot', 'dry.run'],
+    ['slash', 'dry/run'],
+  ])(
+    'reports a name separated by a %s, which citty splits like a capital does',
+    async (_label, name) => {
+      const source = `
+        defineCommand({ args: { '${name}': { type: 'boolean', default: false } } })
+      `
+      expect(findMultiWordArgDefaults('a.ts', source)).toEqual([
+        { file: 'a.ts', line: 2, argument: name },
+      ])
+      // Flagged on evidence: citty splits on `-`, `_`, `/` and `.` alike, so the
+      // default occupies the declared key and `--dry-run` cannot reach the body.
+      expect(
+        await resolve(name, { type: 'boolean', default: false }, '--dry-run')
+      ).toBe(false)
+      expect(await resolve(name, { type: 'boolean' }, '--dry-run')).toBe(true)
+    }
+  )
+
+  it('follows an args block assembled from a same-file const', () => {
+    // The shape a shared args block takes in this repo, and the place the next
+    // multi-word flag gets added.
+    const spread = `
+      const sharedArgs = { dryRun: { type: 'boolean', default: false } }
+      defineCommand({ args: { ...sharedArgs, file: { type: 'string' } } })
+    `
+    expect(findMultiWordArgDefaults('a.ts', spread)).toEqual([
+      { file: 'a.ts', line: 2, argument: 'dryRun' },
+    ])
+
+    const byName = `
+      const sharedArgs = { dryRun: { type: 'boolean', default: false } }
+      defineCommand({ args: sharedArgs })
+    `
+    expect(findMultiWordArgDefaults('a.ts', byName)).toEqual([
+      { file: 'a.ts', line: 2, argument: 'dryRun' },
+    ])
+  })
+
+  it('sees through an `as const` when reading the type', () => {
+    // `as const` on an args block is idiomatic here (see
+    // script/deploy/repair-deployment-records.ts), and a type read literally as
+    // `positional' as const` matches nothing, which would report a positional
+    // the check means to exempt.
+    const source = `
+      defineCommand({
+        args: { repoRoot: { type: 'positional' as const, default: '.' } },
+      })
+    `
+    expect(findMultiWordArgDefaults('a.ts', source)).toEqual([])
+  })
+
+  it('leaves `default: void 0` alone, the other spelling of no default', async () => {
+    const source = `
+      defineCommand({ args: { dryRun: { type: 'boolean', default: void 0 } } })
+    `
+    expect(findMultiWordArgDefaults('a.ts', source)).toEqual([])
+    expect(
+      await resolve('dryRun', { type: 'boolean', default: void 0 }, '--dry-run')
+    ).toBe(true)
+  })
+
+  it('leaves a positional alone, because dropping its default would make it required', async () => {
     const source = `
       defineCommand({ args: { repoRoot: { type: 'positional', default: '.' } } })
     `
     expect(findMultiWordArgDefaults('a.ts', source)).toEqual([])
+
+    // Exempt because the remedy differs, NOT because the shape is harmless. A
+    // flag-shaped argument still loses its value:
+    expect(
+      await resolve(
+        'repoRoot',
+        { type: 'positional', default: '.' },
+        '--repo-root',
+        '/x'
+      )
+    ).toBe('.')
+    // and dropping the default is not the fix — citty then demands it:
+    expect(
+      resolve('repoRoot', { type: 'positional' }, '--repo-root', '/x')
+    ).rejects.toThrow(/Missing required positional/)
+
+    // What it does do correctly, which is why no repo positional is affected:
     expect(
       await resolve('repoRoot', { type: 'positional', default: '.' })
     ).toBe('.')
@@ -187,5 +269,23 @@ describe('every citty command under script/', () => {
     ).toBeGreaterThan(50)
 
     expect(scanFilesForMultiWordArgDefaults(REPO_ROOT, files)).toEqual([])
+  })
+
+  it('would still report one if it were there', () => {
+    // Positive control through the same entry point: without it, a scanner
+    // blinded outright (reading `meta` instead of `args`, say) leaves the sweep
+    // above green.
+    const planted = join('script', 'utils', '__citty-arg-defaults-control.ts')
+    writeFileSync(
+      join(REPO_ROOT, planted),
+      "defineCommand({ args: { dryRun: { type: 'boolean', default: false } } })\n"
+    )
+    try {
+      expect(scanFilesForMultiWordArgDefaults(REPO_ROOT, [planted])).toEqual([
+        { file: planted, line: 1, argument: 'dryRun' },
+      ])
+    } finally {
+      unlinkSync(join(REPO_ROOT, planted))
+    }
   })
 })

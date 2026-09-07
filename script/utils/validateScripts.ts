@@ -21,7 +21,9 @@
  *    type to that default instead of falling back to the one they did, so
  *    `--dry-run` against a `dryRun: { default: false }` reads as off and the
  *    run broadcasts. Swept over ALL script files, since the shape is a defect
- *    wherever it sits, not only in the diff.
+ *    wherever it sits, not only in the diff. Runs on manifest changes too: a
+ *    citty bump is manifest-only and is the change most likely to re-shape the
+ *    defect.
  *
  * Used by the `.husky/pre-push` hook (fast local feedback) and the
  * `validateScripts.yml` CI workflow (enforcement backstop).
@@ -303,7 +305,7 @@ const main = defineCommand({
     // an unrelated manifest edit next trips the sweep.
     if (manifestsChanged || changedScriptFiles.length > 0)
       passed = runImportResolutionCheck(repoRoot) && passed
-    if (changedScriptFiles.length > 0)
+    if (manifestsChanged || changedScriptFiles.length > 0)
       passed = runCittyArgDefaultCheck(repoRoot) && passed
 
     if (!passed) {

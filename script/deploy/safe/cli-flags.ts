@@ -3,7 +3,7 @@
  * unambiguous. Import it in a citty command that reads a signing flag: citty
  * cannot distinguish `--ledgerLive=no` from a bare `--ledgerLive`, passes the raw
  * value through for the kebab spelling, drops a `-`-prefixed value (`--accountIndex
- * -1` parses to `''`), and keeps one occurrence of a repeated flag, and none of
+ * -1` parses to `''`), and collapses a repeated flag into an array, and none of
  * that is recoverable once the command body runs.
  */
 
@@ -74,10 +74,10 @@ export interface IBooleanFlagOptions {
  * Prefer {@link readBooleanFlag} where the command can reach `argv`. This is for
  * a command whose body only sees `args`, and it exists because a `type:
  * 'boolean'` argument does not always arrive as a boolean: `--flag=true` arrives
- * as `'true'`, and `--flag <token>` swallows the token as the value. Anything
- * present that is not an explicit `false` therefore counts as on — for a
- * `--dry-run` the alternative is broadcasting a run the operator asked to
- * simulate.
+ * as `'true'`, `--flag <token>` swallows the token as the value (numeric-looking
+ * ones as a `number`), and a repeated flag arrives as an array. Anything present
+ * that is not an explicit `false` therefore counts as on — for a `--dry-run` the
+ * alternative is broadcasting a run the operator asked to simulate.
  *
  * Declare such an argument with **no** citty `default`: for a multi-word
  * argument citty resolves the spelling the caller did not type to the default,
@@ -94,10 +94,11 @@ export const flagIsOn = (
 ): boolean => {
   if (value === undefined) return options.whenAbsent ?? false
 
-  return (
-    value === true ||
-    (typeof value === 'string' && value !== '' && value !== 'false')
-  )
+  // Stated as what is off rather than what is on, because the set of shapes
+  // citty can hand this is open: `--dry-run 5` arrives as the number 5 and
+  // `--dry-run --dry-run` as `[true, true]`, and testing for on would read both
+  // as off and broadcast.
+  return value !== false && value !== 'false' && value !== ''
 }
 
 /**

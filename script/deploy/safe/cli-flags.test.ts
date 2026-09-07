@@ -226,6 +226,25 @@ describe('flagIsOn, against citty as it actually resolves flags', () => {
     expect(flagIsOn(await resolve({}, '--dry-run', 'extra'))).toBe(true)
   })
 
+  it('is on when the swallowed token was numeric, so arrived as a number', async () => {
+    // The token is numeric-parsed rather than kept as a string, so a reader
+    // that tests for `typeof === 'string'` calls this off and broadcasts.
+    expect(await resolve({}, '--dry-run', '5')).toBe(5)
+    expect(flagIsOn(await resolve({}, '--dry-run', '5'))).toBe(true)
+    // 0 is the case a truthiness test also gets wrong.
+    expect(await resolve({}, '--dry-run', '0')).toBe(0)
+    expect(flagIsOn(await resolve({}, '--dry-run', '0'))).toBe(true)
+  })
+
+  it('is on when the flag was passed twice, so arrived as an array', async () => {
+    // citty collapses repeats into an array. `readBooleanFlag` refuses this
+    // outright; `flagIsOn` cannot refuse, so it has to read it as on rather
+    // than let a doubled --dry-run broadcast.
+    expect(await resolve({}, '--dry-run', '--dry-run')).toEqual([true, true])
+    expect(flagIsOn(await resolve({}, '--dry-run', '--dry-run'))).toBe(true)
+    expect(flagIsOn(await resolve({}, '--dryRun', '--dry-run'))).toBe(true)
+  })
+
   it('cannot rescue a declaration that carries a default', async () => {
     // This is why the declaration must omit `default`: citty resolves the
     // spelling the caller did not type to it, and `args.dryRun` never sees the
@@ -281,6 +300,12 @@ describe('flagIsOn whenAbsent, against citty as it actually resolves flags', () 
   it('is on when passed bare, in either spelling', async () => {
     expect(await on('--use-cache')).toBe(true)
     expect(await on('--useCache')).toBe(true)
+  })
+
+  it('stays on for a repeated flag and for a swallowed numeric token', async () => {
+    expect(await on('--use-cache', '--use-cache')).toBe(true)
+    expect(await on('--use-cache', '5')).toBe(true)
+    expect(await on('--use-cache', '0')).toBe(true)
   })
 
   it('cannot be switched off at all once the declaration carries the default', async () => {
@@ -340,6 +365,13 @@ describe('a value argument, against citty as it actually resolves flags', () => 
   it('is discarded for the kebab spelling once the declaration carries a default', async () => {
     expect(await resolve({ default: '5' }, '--delay-seconds', '99')).toBe('5')
     expect(await resolve({ default: '5' }, '--delaySeconds', '99')).toBe('99')
+  })
+
+  it('arrives as a falsy 0, so a body must test presence and not truthiness', async () => {
+    // `if (args.delaySeconds)` would drop an explicit `--delay-seconds 0` and
+    // fall back to the default; the fallback has to be keyed on `undefined`.
+    expect(await resolve({}, '--delay-seconds', '0')).toBe(0)
+    expect(await resolve({}, '--delaySeconds', '0')).toBe('0')
   })
 
   it('keeps a non-numeric value a string under either spelling', async () => {
