@@ -209,6 +209,19 @@ describe('collectInstalledFacetAddresses', () => {
     expect(collectInstalledFacetAddresses([batch]).undecodable).toEqual([0])
   })
 
+  it.each([
+    ['no 0x prefix', '1f931c1c'],
+    ['an odd number of nibbles', '0x1f931c1c0'],
+    ['not hex at all', '0xnotcalldata'],
+    ['empty', ''],
+  ])('refuses input that is not well-formed calldata (%s)', (_label, data) => {
+    // Selectors and offsets are read positionally off the `0x`, so malformed
+    // input would otherwise be skipped — and a skip is a pass.
+    expect(collectInstalledFacetAddresses([data as Hex]).undecodable).toEqual([
+      0,
+    ])
+  })
+
   it('ignores the selector bytes at an odd nibble offset, which is an address not a selector', () => {
     // the real shape: a whitelist batch whose DEX address merely contains them
     const data = encodeFunctionData({
@@ -227,6 +240,25 @@ describe('collectInstalledFacetAddresses', () => {
     })
     expect(data.toLowerCase()).toContain('1f931c1c')
     expect(collectInstalledFacetAddresses([data]).undecodable).toEqual([])
+  })
+
+  it('still refuses an address carrying the bytes at an even offset, so the limit is recorded', () => {
+    // Alignment cannot tell a selector from an argument. This is the residual
+    // false refusal the byte-boundary check does NOT remove, pinned so the
+    // docstring and the behaviour cannot drift apart.
+    const data = encodeFunctionData({
+      abi: parseAbi([
+        'function batchSetContractSelectorWhitelist(address[] contracts, bytes4[] selectors, bool approved)',
+      ]),
+      functionName: 'batchSetContractSelectorWhitelist',
+      args: [
+        [('0xa11f931c1c' + 'b'.repeat(30)) as Address],
+        [SELECTORS[0] as Hex],
+        true,
+      ],
+    })
+    expect(data.toLowerCase()).toContain('1f931c1c')
+    expect(collectInstalledFacetAddresses([data]).undecodable).toEqual([0])
   })
 
   it('still refuses the selector at a byte boundary inside an envelope', () => {
@@ -361,7 +393,7 @@ describe('assertFunnelDeployGate', () => {
     const truncated = (cut(FACET_A, 0).slice(0, 30) + 'ff') as Hex
     await expectRefusal(
       assertFunnelDeployGate({ network: 'mainnet', calldatas: [truncated] }, d),
-      /no cut could be read out of it/
+      /no cut readable out of it/
     )
     expect(gateCalls).toEqual([])
   })

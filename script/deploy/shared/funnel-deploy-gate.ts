@@ -16,6 +16,7 @@ import { consola } from 'consola'
 import {
   decodeFunctionData,
   getAddress,
+  isHex,
   parseAbi,
   toFunctionSelector,
   type Address,
@@ -51,12 +52,12 @@ const TIMELOCK_SCHEDULE_SELECTOR = toFunctionSelector(
 )
 
 /**
- * Whether the cut selector appears in `data` **on a byte boundary**.
+ * Whether the cut selector appears in `data` on a byte boundary.
  *
- * Alignment is the whole point: a plain substring search also matches at an odd
- * nibble offset, so a `bytes4[]`/`address[]` whitelist batch carrying a DEX
- * address like `0xa1f931c1ca…` was refused for four bytes that were never a
- * selector. Only an even offset can be one.
+ * Alignment is necessary but not sufficient: only an even offset can be a
+ * selector, yet an address or other argument can carry the same four bytes at
+ * one. So this narrows the false-refusal class rather than closing it, which is
+ * why the refusal message names a coincidence as a possible cause.
  * @param data - calldata to search
  */
 const carriesCutSelectorAligned = (data: Hex): boolean => {
@@ -147,8 +148,7 @@ export const collectInstalledFacetAddresses = (
       seen.set(address.toLowerCase(), address)
   }
 
-  /** @returns whether a `diamondCut` was decoded anywhere under `data` */
-  const walk = (data: Hex, index: number, depth: number): boolean => {
+  const walk = (data: Hex, index: number, depth: number): void => {
     const selector = data.slice(0, 10).toLowerCase()
 
     if (selector === DIAMOND_CUT_SELECTOR) {
@@ -157,7 +157,7 @@ export const collectInstalledFacetAddresses = (
         decoded = decodeCut(data)
       } catch {
         undecodable.add(index)
-        return false
+        return
       }
       for (const entry of decoded.cuts) {
         if (!INSTALLING_ACTIONS.has(Number(entry.action))) continue
@@ -171,7 +171,7 @@ export const collectInstalledFacetAddresses = (
       // so attributing it costs nothing legitimate. A cut whose init target is
       // some other contract is refused rather than delegatecalled unexamined.
       if (decoded.init !== ZERO_ADDRESS) remember(decoded.init)
-      return true
+      return
     }
 
     const unwrap =
@@ -184,19 +184,17 @@ export const collectInstalledFacetAddresses = (
     if (unwrap) {
       if (depth >= MAX_UNWRAP_DEPTH) {
         undecodable.add(index)
-        return false
+        return
       }
       let payloads
       try {
         payloads = unwrap(data)
       } catch {
         undecodable.add(index)
-        return false
+        return
       }
-      let sawCut = false
-      for (const payload of payloads)
-        if (walk(payload, index, depth + 1)) sawCut = true
-      return sawCut
+      for (const payload of payloads) walk(payload, index, depth + 1)
+      return
     }
 
     // An envelope this cannot open. Only the wrappers above are unwrapped, so
@@ -210,10 +208,17 @@ export const collectInstalledFacetAddresses = (
     // on chain, a payload rebuilt from a perturbed copy — is not caught, and
     // needs a bespoke batcher the Safe would have to be pointed at.
     if (carriesCutSelectorAligned(data)) undecodable.add(index)
-    return false
   }
 
-  calldatas.forEach((data, index) => walk(data, index, 0))
+  calldatas.forEach((data, index) => {
+    // Every selector and offset below is read positionally off a `0x` prefix, so
+    // input that is not well-formed calldata would be silently skipped rather
+    // than examined. The funnels validate before calling, but `sendOrPropose`
+    // does not, and a skip here is a pass.
+    if (!isHex(data, { strict: true }) || data.length % 2 !== 0)
+      undecodable.add(index)
+    else walk(data, index, 0)
+  })
 
   return {
     addresses: [...seen.values()],
@@ -271,7 +276,7 @@ export const assertFunnelDeployGate = async (
     throw new Error(
       `Production deploy gate: call ${undecodable.join(
         ', '
-      )} carries the diamondCut selector on a byte boundary but no cut could be read out of it, so anything it would install cannot be checked. Three causes, in order of likelihood: it is wrapped in an envelope this does not decode — re-encode it as a plain diamondCut and let the funnel do the timelock wrapping; its arguments do not decode, or it nests more than ${MAX_UNWRAP_DEPTH} timelock layers; or this is not a cut at all and those four bytes are a selector or address that merely happens to contain them, which is a false refusal worth reporting rather than working around.`
+      )} is not well-formed calldata, or carries the diamondCut selector on a byte boundary with no cut readable out of it, so anything it would install cannot be checked. Causes, in order of likelihood: it is wrapped in an envelope this does not decode — re-encode it as a plain diamondCut and let the funnel do the timelock wrapping; its arguments do not decode, or it nests more than ${MAX_UNWRAP_DEPTH} timelock layers; or this is not a cut at all and those four bytes are a selector or address that merely happens to contain them, which is a false refusal worth reporting rather than working around.`
     )
 
   // Nothing installs facet code (ownership transfers, whitelist updates, facet
@@ -402,8 +407,8 @@ export const createFunnelGateDeps = (
         network as SupportedChain,
         EnvironmentEnum.production
       )
-      // A JSON module's object hangs off `default`; the fallback covers a plain
-      // object reaching here from a caller that already unwrapped it
+      // `getDeployments` returns a JSON module namespace under both loaders in
+      // use, so the fallback is a shape guard rather than a live branch
       return indexDeploymentsByAddress(
         deployments.default ?? deployments,
         options.toEvmHex

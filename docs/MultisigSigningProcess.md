@@ -145,18 +145,37 @@ run only on the branches that actually propose; a staging or testnet-only run, a
 The proposal funnel additionally runs the production deploy gate before it signs
 anything (PR #2128 / EXSC-687, re-homed by EXSC-704). It sits in
 `propose-to-safe.ts` and `propose-to-safe-tron.ts` rather than in each caller, so
-every deploy path reaches it by construction — including the bash
-`sendOrPropose` chokepoint in `script/helperFunctions.sh`, which the previous
-homes did not cover. (The identically-named TypeScript `sendOrPropose` in
+every path that *proposes* reaches it once per proposal — including the bash
+`sendOrPropose` chokepoint in `script/helperFunctions.sh` on its propose route.
+(The identically-named TypeScript `sendOrPropose` in
 `script/safe/safeScriptHelpers.ts` proposes without either funnel and carries
-the gate call inline instead; §4.2 says why.) The funnel is handed calldata, not
+the gate call inline instead; §4.2 says why.)
+
+**A proposal is not the only way a cut reaches a production diamond, and the
+funnel gate only sees proposals.** `SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true`
+broadcasts the cut straight from the deployer key, reaching neither funnel, so
+`script/tasks/diamondUpdateFacet.sh` gates that route itself through
+`assertDirectBroadcastDeployGate` — keyed on facet names, since there is no
+proposal calldata to read. The two gates are disjoint: a cut is gated by the
+funnel or by the shell, never both, and never neither. The bash `sendOrPropose`
+direct route (`script/helperFunctions.sh`, the `universalCast sendRaw` branch)
+is **not** gated today; it never was, and closing it is tracked separately.
+
+The funnel is handed calldata, not
 facet names, so `funnel-deploy-gate.ts` recovers the facet set from the cut:
 `diamondCut` Add and Replace entries, unwrapping a timelock `scheduleBatch` so a
 pre-wrapped payload cannot slip past, then attributed to a contract name through
 the network's production deployment log. A `Remove` entry installs no code and is
 out of scope; an address the log cannot attribute, and a `diamondCut` selector
 whose arguments do not decode, are both refused rather than treated as "not a
-cut". A production deploy is allowed when each
+cut" — as is a call that is not well-formed `0x`-prefixed calldata, because every
+selector and offset is read positionally and a skip would be a pass. One refusal
+has no self-service route: a few production logs record a name whose source has
+since been superseded (`GenericSwapFacet` → `GenericSwapFacetV3`,
+`LiFiIntentEscrowFacet` → `LiFiIntentEscrowFacetV2`), so a `Replace` cut pointing
+back at one of those addresses is refused for having no `src/Facets/<name>.sol`.
+That is the gate working — the checkout genuinely cannot vouch for that code —
+but it needs a human decision, not a workaround. A production deploy is allowed when each
 selected facet's transitive `src/` import closure matches `origin/main` — the
 usual rollout, branch off main and deploy already-merged code without touching
 that Solidity. If a closure diverges, the branch needs an open PR **and** the
@@ -231,7 +250,10 @@ exempted by name. **The only exemption is the network**: any chain whose
 There is deliberately no environment exemption — reaching a funnel for a
 non-testnet network means proposing to a production Safe and signing with the
 production key, since a staging deploy sends straight to the diamond rather than
-proposing.
+proposing. The shell gate on the direct-broadcast route reads the environment
+because it has no calldata to judge instead, and it matches `!= staging` rather
+than `== production` so it stays at least as broad as the key `getPrivateKey`
+hands out.
 
 Facet **removals** are outside it for the same reason rather than by exemption:
 `cleanUpProdDiamond.ts` and the deferred-cleanup drain (`drain-parked-tasks.ts`,

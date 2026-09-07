@@ -168,22 +168,27 @@ const spawnCli = (options: {
     stdio: ['ignore', 'pipe', 'pipe'],
   })
 
+  const output = `${result.stdout}${result.stderr}`
+
+  // Checked before the signal check below, and that order is the whole point:
+  // the Tron funnel is documented to leave its Mongo connection open and hang
+  // after a successful insert, so a probe that DID write is exactly the probe
+  // that gets killed by the timeout. Reporting it as "no result" first would
+  // mask the one outcome this exists to catch.
+  //
+  // The phrase is matched loosely because each funnel words it differently:
+  // "Proposal stored in MongoDB" (Tron), "Transaction successfully stored in
+  // MongoDB" (EVM), "proposed and stored in MongoDB" (sendOrPropose).
+  if (/stored in mongodb/i.test(output))
+    throw new Error(
+      'a probe reached a real proposal store — the child environment is not isolated'
+    )
+
   // A timeout-killed child is not a result: without this, every absence
   // assertion below would pass on a run that was killed before printing.
   if (result.signal)
     throw new Error(
       `child was killed by ${result.signal} after ${TIMEOUT_MS}ms, so its output proves nothing`
-    )
-
-  const output = `${result.stdout}${result.stderr}`
-  // Load-bearing, not belt-and-braces: no case here may reach a real proposal
-  // store, whichever side of the gate it lands on. All three funnels word their
-  // success differently — "Proposal stored in MongoDB" (Tron), "Transaction
-  // successfully stored in MongoDB" (EVM), "proposed and stored in MongoDB"
-  // (sendOrPropose) — so matching one of them protects one third of the cases.
-  if (/stored in mongodb/i.test(output))
-    throw new Error(
-      'a probe reached a real proposal store — the child environment is not isolated'
     )
 
   return { output, status: result.status }
@@ -215,13 +220,19 @@ const runCli = (options: {
 const GATE_REFUSAL = /Production deploy gate failed/
 
 /**
- * The first thing each funnel prints once it is past the gate — the EVM one
- * reads the signing key, the Tron one gets as far as the ticket check in the
- * storage funnel. Both are reached only because every signing credential is
- * withheld, and each is asserted absent in the refusal cases.
+ * What each funnel prints once it is past the gate, measured from a passing run
+ * rather than assumed: the EVM one reads a signing key the harness withheld, and
+ * the Tron one reaches the proposal store, whose URI the harness made
+ * unparseable. Every absence assertion on these is paired with a positive
+ * assertion in the corresponding pass case — a marker that never appears would
+ * make the absence assertion prove nothing.
  */
 const NEXT_STOP_EVM = 'Private key is missing'
-const NEXT_STOP_TRON = 'No Linear ticket supplied'
+const NEXT_STOP_TRON = 'expected connection string to start with'
+// `sendOrPropose` resolves its key through a different helper than the funnel,
+// so it words the same failure differently and needs its own marker
+const NEXT_STOP_SEND_OR_PROPOSE =
+  'Missing PRIVATE_KEY_PRODUCTION in environment'
 
 const TRON_FACET = 'CalldataVerificationFacet'
 
@@ -307,9 +318,8 @@ describe('propose-to-safe-tron funnel deploy gate', () => {
       expect(result.output).toMatch(GATE_REFUSAL)
       expect(result.output).toContain(TRON_FACET)
       expect(result.status).not.toBe(0)
-      // NEXT_STOP is what this run prints once it is past the gate, verified by
-      // deleting the gate call: its absence is what makes "the refusal came first"
-      // mean anything, and it is a real marker rather than an invented one
+      // The store is the last step before a production write, so its absence is
+      // what makes "the refusal came first" mean anything here
       expect(result.output).not.toContain(NEXT_STOP_TRON)
     },
     CASE_TIMEOUT_MS
@@ -322,6 +332,8 @@ describe('propose-to-safe-tron funnel deploy gate', () => {
 
       expect(result.output).not.toMatch(GATE_REFUSAL)
       expect(result.output).toContain('Production deploy gate passed')
+      // what makes the refusal case's absence assertion mean anything
+      expect(result.output).toContain(NEXT_STOP_TRON)
     },
     CASE_TIMEOUT_MS
   )
@@ -361,6 +373,8 @@ describe('propose-to-safe funnel deploy gate', () => {
 
       expect(result.output).not.toMatch(GATE_REFUSAL)
       expect(result.output).toContain('Production deploy gate passed')
+      // what makes every absence assertion on this marker mean anything
+      expect(result.output).toContain(NEXT_STOP_EVM)
     },
     CASE_TIMEOUT_MS
   )
@@ -376,6 +390,9 @@ describe('propose-to-safe funnel deploy gate', () => {
 
       expect(result.output).not.toMatch(GATE_REFUSAL)
       expect(result.output).not.toContain('Production deploy gate passed')
+      // a skip has to let the run continue. Without this the two absence
+      // assertions above would also pass on a run that died before the gate
+      expect(result.output).toContain(NEXT_STOP_EVM)
     },
     CASE_TIMEOUT_MS
   )
@@ -422,6 +439,8 @@ describe('propose-to-safe funnel deploy gate', () => {
 
       expect(result.output).not.toMatch(GATE_REFUSAL)
       expect(result.output).not.toContain('Production deploy gate passed')
+      // the skip has to let the run continue rather than end it quietly
+      expect(result.output).toContain(NEXT_STOP_EVM)
     },
     CASE_TIMEOUT_MS
   )
@@ -473,7 +492,7 @@ try {
       expect(output).toContain(FACET)
       expect(output).not.toContain('GATE_NOT_REACHED')
       // this is what it prints once past the gate, so its absence has teeth
-      expect(output).not.toContain(NEXT_STOP_EVM)
+      expect(output).not.toContain(NEXT_STOP_SEND_OR_PROPOSE)
     },
     CASE_TIMEOUT_MS
   )
@@ -485,6 +504,8 @@ try {
 
       expect(output).not.toMatch(GATE_REFUSAL)
       expect(output).toContain('Production deploy gate passed')
+      // pairs the refusal case's absence assertion with the marker appearing
+      expect(output).toContain(NEXT_STOP_SEND_OR_PROPOSE)
     },
     CASE_TIMEOUT_MS
   )
