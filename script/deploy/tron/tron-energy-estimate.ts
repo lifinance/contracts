@@ -150,10 +150,11 @@ export const applyTronSafetyMargin = (rawEnergyUsed: number): bigint =>
   BigInt(Math.ceil(rawEnergyUsed * DEFAULT_SAFETY_MARGIN))
 
 /**
- * Hostnames that reach the machine the estimate runs on. `new URL()` reports an
- * IPv6 host bracketed, so both spellings are listed.
+ * Hostnames that reach the machine the estimate runs on, spelled as
+ * `URL.hostname` reports them: lowercased, and an IPv6 host bracketed and
+ * collapsed (`[0:0:0:0:0:0:0:1]` arrives here as `[::1]`).
  */
-const LOOPBACK_HOSTNAMES = ['localhost', '127.0.0.1', '[::1]', '::1']
+const LOOPBACK_HOSTNAMES = ['localhost', '127.0.0.1', '[::1]']
 
 /**
  * Whether an `energy_used` figure read from this endpoint can be trusted to
@@ -177,14 +178,15 @@ const estimateTransportIsTrusted = (apiUrl: string): boolean => {
   try {
     parsed = new URL(apiUrl)
   } catch {
+    // Not a URL at all, so there is no host to judge: the endpoint is
+    // unusable either way, and the request would fail after the check.
     return false
   }
 
   if (parsed.protocol === 'https:') return true
 
   return (
-    parsed.protocol === 'http:' &&
-    LOOPBACK_HOSTNAMES.includes(parsed.hostname.toLowerCase())
+    parsed.protocol === 'http:' && LOOPBACK_HOSTNAMES.includes(parsed.hostname)
   )
 }
 

@@ -254,6 +254,9 @@ describe('estimateTronEnergy transport', () => {
     'http://localhost:8090',
     'http://127.0.0.1:8090',
     'http://[::1]:8090',
+    // `URL.hostname` collapses this to `[::1]`, which is the form the constant
+    // lists; a prefix or literal match would miss it.
+    'http://[0:0:0:0:0:0:0:1]:8090',
   ])('estimates against the plaintext loopback node %s', async (rpcUrl) => {
     const calls = respondWith([{ energy_used: 500_000 }])
 
@@ -281,6 +284,21 @@ describe('estimateTronEnergy transport', () => {
     expect(error?.message).toContain('ALLOW_GAS_ESTIMATE_FALLBACK')
     expect(calls()).toBe(0)
     expect(requested).toEqual([])
+  })
+
+  it('refuses an endpoint that is not a URL, rather than posting to it', async () => {
+    const calls = respondWith([{ energy_used: 500_000 }])
+
+    const error = await estimateTronEnergy({
+      ...params,
+      rpcUrl: 'not a url',
+    }).then(
+      () => undefined,
+      (e: unknown) => e as Error
+    )
+
+    expect(error?.message).toMatch(/Refusing to estimate energy/)
+    expect(calls()).toBe(0)
   })
 
   it('estimates against an HTTPS non-loopback host, which the rule still allows', async () => {
