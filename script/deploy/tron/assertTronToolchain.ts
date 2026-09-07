@@ -7,6 +7,12 @@
  * gated the Tron path, so a drifted forge could put bytecode on chain that no later rebuild
  * reproduces.
  *
+ * This checks the forge that is about to run, not the one that built the artifacts on
+ * disk, and those can differ: build with a drifted forge, `foundryup` back to the pin, and
+ * the deploy passes over bytecode no rebuild reproduces. Closing that needs the compiler
+ * version read out of the artifact's own metadata; until then the guarantee is "the
+ * toolchain here is the pinned one", not "these artifacts were built with it".
+ *
  * The comparison is delegated to the same `script/utils/verify-foundry-version.sh` the CI
  * foundry setup and the bash deploy seam run, so there is one verdict rather than a second
  * implementation of it. The checker is resolved relative to the working directory rather
@@ -51,11 +57,13 @@ export const spawnFoundryVersionChecker: TCheckerRunner = (checkerPath) => {
 }
 
 /** Set once the checker has passed in this process, so N deployments cost one spawn. */
-let toolchainConfirmed = false
+// Keyed by the repo root it was confirmed for, not a bare flag: a pass for one checkout
+// must not authorise another, and the flag was read before the root was even resolved.
+const confirmedRoots = new Set<string>()
 
 /** Clears the per-process pass so the next call re-runs the checker. */
 export const resetTronToolchainCache = (): void => {
-  toolchainConfirmed = false
+  confirmedRoots.clear()
 }
 
 /**
@@ -76,9 +84,9 @@ export function assertTronToolchainOrThrow(options?: {
   run?: TCheckerRunner
   exists?: (path: string) => boolean
 }): void {
-  if (toolchainConfirmed) return
-
   const repoRoot = options?.repoRoot ?? process.cwd()
+  if (confirmedRoots.has(repoRoot)) return
+
   const run = options?.run ?? spawnFoundryVersionChecker
   const exists = options?.exists ?? existsSync
   const checkerPath = join(repoRoot, FOUNDRY_VERSION_CHECKER)
@@ -100,5 +108,5 @@ export function assertTronToolchainOrThrow(options?: {
       }`
     )
 
-  toolchainConfirmed = true
+  confirmedRoots.add(repoRoot)
 }

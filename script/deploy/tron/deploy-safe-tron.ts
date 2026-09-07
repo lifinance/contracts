@@ -50,6 +50,7 @@ import {
   TRON_SAFE_PROXY_FACTORY_ABI,
   TRON_SAFE_SETUP_ABI,
 } from './constants.js'
+import { assertTronDeploymentRecordable } from './tronUtils.js'
 import type { ITronSafeTemp } from './types.js'
 
 function readTronSafeTemp(): ITronSafeTemp | null {
@@ -486,6 +487,12 @@ async function run(options: {
     // 1) Deploy Safe implementation (no constructor)
     if (!existingSingleton) {
       consola.info('Deploying Safe implementation...')
+      assertTronDeploymentRecordable(
+        safeArtifact,
+        [],
+        'SafeSingleton',
+        TRON_DEPLOY_NETWORK
+      )
       const safeResult = await deployer.deployContract(safeArtifact, [])
       singletonAddress = safeResult.contractAddress
       consola.success(`Safe implementation: ${singletonAddress}`)
@@ -502,6 +509,12 @@ async function run(options: {
     // 2) Deploy SafeProxyFactory(singleton)
     if (!existingFactory) {
       consola.info('Deploying SafeProxyFactory...')
+      assertTronDeploymentRecordable(
+        factoryArtifact,
+        [singletonAddress],
+        'SafeProxyFactory',
+        TRON_DEPLOY_NETWORK
+      )
       const factoryResult = await deployer.deployContract(factoryArtifact, [
         singletonAddress,
       ])

@@ -337,28 +337,43 @@ describe('the placement at the deploy chokepoint', () => {
 })
 
 describe('the gate is on the Tron seams a deployment cannot avoid', () => {
-  it('guards every deploy site, because each one asserts recordability first', () => {
-    // A counting invariant, paired with the executable proof above that the recordability
-    // assert refuses: if a new site called deployContract without it, the counts diverge.
-    const sources = [
-      'script/deploy/tron',
-      'script/deploy/tron/helpers',
-    ].flatMap((directory) =>
-      readdirSync(join(REPO_ROOT, directory))
-        .filter((entry) => entry.endsWith('.ts') && !entry.endsWith('.test.ts'))
-        .map((entry) => readFileSync(join(REPO_ROOT, directory, entry), 'utf8'))
+  it('guards every deploy site, per file', () => {
+    // Per file, not across all of them. The aggregate form — total asserts >= total
+    // deploys — passed at 12 >= 11 while `deploy-safe-tron.ts` broadcast two contracts
+    // with no gate at all: the definition in tronUtils.ts and an import elsewhere made
+    // up the difference. An invariant a file with zero guards cannot fail is an
+    // acceptance criterion that encodes the regression it exists to catch.
+    const files = ['script/deploy/tron', 'script/deploy/tron/helpers'].flatMap(
+      (directory) =>
+        readdirSync(join(REPO_ROOT, directory))
+          .filter(
+            (entry) => entry.endsWith('.ts') && !entry.endsWith('.test.ts')
+          )
+          .map((entry) => ({
+            path: `${directory}/${entry}`,
+            source: readFileSync(join(REPO_ROOT, directory, entry), 'utf8'),
+          }))
     )
 
-    const count = (needle: string): number =>
-      sources.reduce(
-        (total, source) => total + source.split(needle).length - 1,
+    const occurrences = (source: string, needle: string): number =>
+      source.split(needle).length - 1
+
+    const ungated = files
+      .map((file) => ({
+        path: file.path,
+        deploys: occurrences(file.source, 'deployer.deployContract('),
+        asserts: occurrences(file.source, 'assertTronDeploymentRecordable('),
+      }))
+      .filter((file) => file.deploys > file.asserts)
+
+    expect(ungated).toEqual([])
+    // Paired positive: if nothing deployed anywhere, the check above is vacuous.
+    expect(
+      files.reduce(
+        (n, f) => n + occurrences(f.source, 'deployer.deployContract('),
         0
       )
-
-    expect(count('deployer.deployContract(')).toBeGreaterThan(0)
-    expect(count('assertTronDeploymentRecordable(')).toBeGreaterThanOrEqual(
-      count('deployer.deployContract(')
-    )
+    ).toBeGreaterThan(0)
   })
 
   it('works from the contracts-tron checkout, which carries the same checker', () => {

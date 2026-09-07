@@ -223,8 +223,11 @@ function updateFoundryTomlForGroup() {
     fi
 
     # Ahead of the sed below, so a refusal cannot leave foundry.toml rewritten for a group
-    # whose build never ran.
-    if ! assertFoundryVersionOrFail; then
+    # whose build never ran — but only under STRICT. The tolerant mode swallows build
+    # failures for the playground runner and its two callers in multiNetworkExecution.sh
+    # rely on that, so refusing there would abort a whole multi-network group on a
+    # mismatch the per-network gate in deploySingleContract already refuses.
+    if [[ "$STRICT" == "true" ]] && ! assertFoundryVersionOrFail; then
         return 1
     fi
 

@@ -10,6 +10,15 @@
 # zksolc cannot be pinned through a foundry profile, so the only thing that pins it is the
 # FOUNDRY_ZKSYNC env var script/helperFunctions.sh exports. An unset var therefore means
 # zksolc falls back to whatever the binary defaults to, which is why that case fails here.
+#
+# What the two legs prove is not the same thing. The foundry-zksync leg is an observation:
+# it runs the installed binary and reads its version. The zksolc leg is not — it checks the
+# request, because FOUNDRY_ZKSYNC is built from this same foundry.toml line by
+# helperFunctions.sh, so on the deploy path it compares the pin against itself. It catches a
+# hand-set or unset value in a shell a human drives (docs/DiamondCutRecomputation.md tells
+# the reader to run ./foundry-zksync/forge directly), and it cannot catch foundry-zksync
+# resolving the pinned zksolc to something else. Reading the compiler out of zkout/ metadata
+# after the build is what would make that leg an observation too.
 set -euo pipefail
 
 GIT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
@@ -73,7 +82,10 @@ if [ -z "${FOUNDRY_ZKSYNC:-}" ]; then
   exit 1
 fi
 
-if [[ "${FOUNDRY_ZKSYNC}" != *"$ZKSOLC_PIN"* ]]; then
+# Anchored on the closing quote of the value helperFunctions.sh exports
+# (`{ zksolc = "X.Y.Z" }`). A bare substring test passes pin 1.5.15 against a 1.5.155
+# toolchain — a false green in the one check that decides the compiler is the pinned one.
+if [[ "${FOUNDRY_ZKSYNC}" != *"\"$ZKSOLC_PIN\""* ]]; then
   printf '\033[31m✗ FOUNDRY_ZKSYNC does not name the pinned zksolc\033[0m\n' >&2
   printf '   pinned:   %s\n' "$ZKSOLC_PIN" >&2
   printf '   actual:   %s\n' "${FOUNDRY_ZKSYNC}" >&2
@@ -105,5 +117,8 @@ if [ "$ZK_FOUNDRY_ACTUAL" != "$ZK_FOUNDRY_PIN" ]; then
 fi
 
 if [ "$QUIET" != "true" ]; then
-  printf '\033[32m✓ foundry-zksync %s, zksolc %s\033[0m\n' "$ZK_FOUNDRY_ACTUAL" "$ZKSOLC_PIN"
+  # foundry-zksync is what the binary reported; zksolc is what was requested of it. The
+  # labels are the difference between the two legs, so the line cannot be read as having
+  # observed a compiler nothing here runs.
+  printf '\033[32m✓ foundry-zksync %s observed, zksolc %s requested\033[0m\n' "$ZK_FOUNDRY_ACTUAL" "$ZKSOLC_PIN"
 fi

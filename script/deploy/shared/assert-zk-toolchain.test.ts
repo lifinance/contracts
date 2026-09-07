@@ -20,6 +20,7 @@ import {
   existsSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   symlinkSync,
   writeFileSync,
@@ -321,6 +322,36 @@ describe('verify-zk-toolchain.sh — the checker', () => {
     expect(output).toContain(ZKSOLC_PIN)
   })
 
+  it('refuses a zksolc whose version merely starts with the pin', () => {
+    // The comparison was a bare substring test, so pin 1.5.15 accepted a 1.5.155
+    // toolchain — a false green in the one check that decides the compiler is the
+    // pinned one. Anchored on the value's closing quote now.
+    const farm = makeFarm({ zkForgeVersion: ZK_FOUNDRY_PIN })
+
+    const output = runSeam(
+      farm,
+      { FOUNDRY_ZKSYNC: `{ zksolc = "${ZKSOLC_PIN}5" }` },
+      false
+    )
+
+    expect(output).toContain('SEAM_RC=1')
+    expect(output).toContain('does not name the pinned zksolc')
+  })
+
+  it('still accepts the exact pin, so the anchoring is not blanket', () => {
+    // The paired positive: an anchor that refused everything would satisfy the case
+    // above while disabling the gate.
+    const farm = makeFarm({ zkForgeVersion: ZK_FOUNDRY_PIN })
+
+    const output = runSeam(
+      farm,
+      { FOUNDRY_ZKSYNC: `{ zksolc = "${ZKSOLC_PIN}" }` },
+      false
+    )
+
+    expect(output).toContain('SEAM_RC=0')
+  })
+
   it('refuses when FOUNDRY_ZKSYNC is not exported, because zksolc is then unpinned', () => {
     // The only mechanism pinning zksolc is that env var, so an unset value means the
     // toolchain picks its own default - which is what a lost pin silently produced.
@@ -511,31 +542,40 @@ describe('the placement, driven through the real deploy CLI', () => {
 })
 
 describe('install_foundry_zksync is the chokepoint every zk build passes', () => {
-  const ZK_FORGE_SITES = [
-    'script/deploy/deploySingleContract.sh',
-    'script/deploy/deployContractToNetworks.sh',
-    'script/tasks/proposeContractToNetworks.sh',
-    'script/tasks/diamondUpdateFacet.sh',
-    'script/scriptMaster.sh',
-    'script/helperFunctions.sh',
-  ] as const
+  /**
+   * Every shell script under `script/`, found rather than listed.
+   * @param relative - directory to walk, relative to the repo root
+   * @returns Repo-relative paths of every `.sh` file beneath it
+   */
+  const shellScripts = (relative = 'script'): string[] =>
+    readdirSync(join(REPO_ROOT, relative), { withFileTypes: true }).flatMap(
+      (entry) =>
+        entry.isDirectory()
+          ? shellScripts(`${relative}/${entry.name}`)
+          : entry.name.endsWith('.sh')
+          ? [`${relative}/${entry.name}`]
+          : []
+    )
 
   it('is called by every script that reaches for the zk forge', () => {
-    // A list, so a new zk build site added without an install call is a failing test rather
-    // than a silent gap; the ordering itself is proven by the CLI drive above.
-    const reachingForZkForge = ZK_FORGE_SITES.filter((path) =>
-      readFileSync(join(REPO_ROOT, path), 'utf8').includes(
-        'foundry-zksync/forge'
-      )
+    // Discovered, not enumerated. A hardcoded list only catches a new call site added to
+    // one of the files already on it — a brand-new script reaching for the zk forge was
+    // invisible to it, which is the gap the list was supposed to close.
+    const scripts = shellScripts().map((path) => ({
+      path,
+      source: readFileSync(join(REPO_ROOT, path), 'utf8'),
+    }))
+
+    const reachingForZkForge = scripts.filter((file) =>
+      file.source.includes('foundry-zksync/forge')
     )
-    const gated = reachingForZkForge.filter((path) =>
-      readFileSync(join(REPO_ROOT, path), 'utf8').includes(
-        'install_foundry_zksync'
-      )
+    const ungated = reachingForZkForge.filter(
+      (file) => !file.source.includes('install_foundry_zksync')
     )
 
+    // Paired: without this, a walk that found nothing would pass while checking nothing.
     expect(reachingForZkForge.length).toBeGreaterThan(0)
-    expect(gated).toEqual(reachingForZkForge)
+    expect(ungated.map((file) => file.path)).toEqual([])
   })
 
   it('refuses every caller, because the check is inside it rather than beside it', () => {
@@ -640,6 +680,30 @@ describe('the ungated forge build sites', () => {
       true
     )
     expect(farm.foundryToml()).not.toBe(before)
+  })
+
+  it('leaves the tolerant group path tolerant, as #2325 decided', () => {
+    // updateFoundryTomlForGroup's default mode swallows build failures for the
+    // playground runner, and multiNetworkExecution.sh's two callers rely on that
+    // return contract. Refusing here would abort a whole multi-network group on a
+    // mismatch the per-network gate in deploySingleContract refuses anyway, which is
+    // the behaviour change #2325 examined and declined to make.
+    const farm = makeFarm({ zkForgeVersion: ZK_FOUNDRY_PIN })
+    writeStub(
+      join(farm.root, 'bin', 'forge'),
+      'forge',
+      join(farm.root, 'argv.log'),
+      'forge Version: 0.0.1'
+    )
+
+    const output = runInFarm(farm, [
+      `source script/helperFunctions.sh >/dev/null 2>&1`,
+      `source script/deploy/resources/deployGroupingHelpers.sh`,
+      `updateFoundryTomlForGroup "$GROUP_LONDON"`,
+      `echo "GROUP_RC=$?"`,
+    ])
+
+    expect(output).toContain('GROUP_RC=0')
   })
 
   it('refuses the deploy-salt build before it starts a forge', () => {
