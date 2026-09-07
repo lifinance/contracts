@@ -524,27 +524,23 @@ const processTxs = async (
         ].join('\n')
       )
 
-    // Judged on the same in-memory calldata the display above decoded — the
-    // same variable, not a re-read of its source, so the bytes vouched for and
-    // the bytes signed cannot come apart. Displayed here and refused inside
+    // Judged on one in-memory value, passed by value rather than re-read from
+    // its source: two pure decodes of an immutable value cannot disagree, two
+    // reads of a mutable source can, and that is how the bytes vouched for and
+    // the bytes signed come apart. The value is the one that gets signed —
+    // `initializeSafeTransaction` copies `data` across verbatim, so it is the
+    // same bytes the display decoded, and it stays the right anchor if that
+    // ever stops being true. Displayed here and refused inside
     // `signTransaction`: removing the Sign option instead would hide why a
     // specific proposal is unsignable, which is the same reason the nonce gate
     // runs after the choice.
     try {
       codehashGate = await evaluateCodehashSignGate(
-        // The normalised transaction, not the stored document: this is the
-        // struct that gets hashed and signed, and a gate that vouches for the
-        // document's bytes while a different struct is signed is the exact way
-        // the bytes checked and the bytes approved come apart.
-        //
-        // Lower-cased because `config/networks.json` is keyed lowercase and the
-        // scope lookup throws on an unknown key — `--network Mainnet` would
-        // refuse an honest signature rather than judge it.
         {
           data: tx.safeTransaction.data.data as Hex | undefined,
-          network: network.toLowerCase(),
+          network: networkKey,
         },
-        getCodehashDeps()
+        getCodehashDeps
       )
     } catch (error) {
       // Blocking, not skipped: "the gate could not run" and "the gate passed"

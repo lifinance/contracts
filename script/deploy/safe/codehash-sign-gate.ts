@@ -3,11 +3,14 @@
  *
  * Three things are settled here and must stay settled.
  *
- * **One decode of one value.** The cut is recovered from the same in-memory
- * calldata the display path was handed, through the same `ABI_DIAMOND_CUT`. Two
- * pure decodes of one immutable value cannot disagree; two reads of a mutable
- * source can, which is how the bytes vouched for and the bytes signed come
- * apart.
+ * **One decode of one value.** The cut is recovered from the calldata of the
+ * transaction that gets hashed and signed, through the same `ABI_DIAMOND_CUT`
+ * the display path uses. Two pure decodes of one immutable value cannot
+ * disagree; two reads of a mutable source can, which is how the bytes vouched
+ * for and the bytes signed come apart. The display decodes the same bytes,
+ * because the normalised transaction copies them across verbatim — but the
+ * signed struct is the anchor, so a later normalisation cannot silently make
+ * the checked bytes and the approved bytes two different things.
  *
  * **The verdict is computed before the prompt and refused inside the signer.**
  * The action list stays whatever it was, because removing an option hides the
@@ -81,28 +84,41 @@ export const blockingUnevaluatedGate = (): ICodehashSignGate => ({
 /**
  * Judges the cut a proposal would perform, before it is signed.
  *
- * Pass `data` by value from the transaction being displayed — the same variable,
- * not a re-read of whatever produced it.
+ * Pass `data` by value off the struct that will be signed, not a re-read of
+ * whatever produced it: the caller's job is to hand this function the bytes the
+ * signature will cover.
  *
- * @param input.data - the proposal's calldata as the signer was shown it
- * @param input.network - which network the proposal is for
+ * @param input.data - calldata of the transaction that gets signed
+ * @param input.network - a `config/networks.json` key in any casing; it is
+ *   lowercased here, because every lookup it reaches throws on other spellings
  * @param deps - scope, chain read and attestation lookup
  * @returns The gate a caller displays and then refuses on
  */
 export const evaluateCodehashSignGate = async (
   input: { data: Hex | undefined; network: string },
-  deps: IVerifyCutDeps
+  deps: IVerifyCutDeps | (() => IVerifyCutDeps)
 ): Promise<ICodehashSignGate> => {
   if (!input.data || input.data === '0x') return unevaluatedCodehashSignGate()
 
   const collected = collectDiamondCutTargets(input.data)
 
+  // Normalised here rather than trusted from the caller. `config/networks.json`
+  // is keyed lowercase and every lookup below throws on any other spelling, so
+  // a caller passing what an operator typed would be refused instead of judged.
+  // Lowercasing cannot refuse honest work; rejecting the spelling could.
+  const network = input.network.toLowerCase()
+
+  // Resolved only once a cut is actually present. Building these reads
+  // `foundry.toml` and creates a checkout root, either of which can throw, and
+  // the caller's catch turns a throw into a refusal — so an eagerly-built
+  // dependency refuses proposals this gate makes no claim about at all.
+  const resolveDeps = typeof deps === 'function' ? deps : () => deps
+
   const refusals: string[] = [...collected.refusals]
   const targets: ITargetVerdict[] = []
   const summaries: string[] = []
-  // Each report's own verdict, rather than a second reading of its targets:
-  // whether a cut blocks is `verifyCutTargets`' decision to make, and the two
-  // derivations agreeing today is not a reason to keep both.
+  // Whether a cut blocks is `verifyCutTargets`' decision, carried up rather than
+  // re-derived.
   let anyCutBlocks = false
 
   // Every cut is judged even when a frame was already refused: a batch pairing
@@ -111,8 +127,8 @@ export const evaluateCodehashSignGate = async (
   for (const call of collected.calls)
     try {
       const report = await verifyCutTargets(
-        { cuts: call.cuts, init: call.init, network: input.network },
-        deps
+        { cuts: call.cuts, init: call.init, network },
+        resolveDeps()
       )
       refusals.push(...report.refusals)
       targets.push(...report.targets)
@@ -151,7 +167,16 @@ export const evaluateCodehashSignGate = async (
     }
 
   return {
-    blocksSigning: refusals.length > 0 || anyCutBlocks,
+    // The target scan is not a second derivation of the line above; it is this
+    // layer's own invariant, that nothing rendered as non-MATCH is ever
+    // signable. Keeping both means a regression in either place still blocks,
+    // and the module's promise that nothing fails open does not rest on one
+    // expression. Unreachable today, so deliberately untested — there is no
+    // input that makes a report block while all its targets match.
+    blocksSigning:
+      refusals.length > 0 ||
+      anyCutBlocks ||
+      targets.some((t) => t.verdict !== 'MATCH'),
     evaluated: true,
     refusals,
     targets,

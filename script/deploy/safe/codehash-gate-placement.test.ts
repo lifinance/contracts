@@ -63,6 +63,17 @@ const FUNNEL_CALLS = /(?<![.\w])signTransaction\(/g
 const matches = (pattern: RegExp): string[] =>
   [...SOURCE.matchAll(pattern)].map((match) => match[0])
 
+/** Source with `//` and block comments removed — see the call-site test. */
+const withoutComments = (text: string): string =>
+  text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/[^\n]*/g, '')
+
+/** The gate call site's arguments, comment-free. */
+const callSite = (): string => {
+  const bare = withoutComments(SOURCE)
+  const at = bare.indexOf('evaluateCodehashSignGate(')
+  return bare.slice(at, at + 400)
+}
+
 describe('the codehash refusal is in the one funnel every sign path uses', () => {
   it('builds the signer with createGatedSigner', () => {
     expect(SOURCE).toContain('createGatedSigner<')
@@ -135,35 +146,27 @@ describe('the codehash refusal is in the one funnel every sign path uses', () =>
   })
 
   it('judges the struct that gets signed, not the stored document', () => {
-    // These are the same bytes today: `initializeSafeTransaction` copies
-    // `data` across verbatim and transforms only `to`, `value` and `nonce`. So
-    // this is not a live divergence — it is the one that cannot open. The gate
-    // reads what `sign` and `executeTransaction` are handed, which is the
-    // convention this file already states where it computes the fingerprint,
-    // and a later normalisation of `data` therefore cannot split the bytes
-    // vouched for from the bytes approved without also failing here.
-    expect(SOURCE).toContain('data: tx.safeTransaction.data.data as Hex')
-    expect(SOURCE).not.toContain(
-      '{ data: tx.safeTx.data.data as Hex | undefined, network }'
-    )
-    // The paired positive: the display path still decodes those same bytes, so
-    // the assertion above cannot be satisfied by a gate that judges calldata
-    // nobody was shown.
-    expect(SOURCE).toContain(
-      'await formatDecodedTxDataForDisplay(tx.safeTx.data.data as Hex'
-    )
+    // These are the same bytes today: `initializeSafeTransaction` copies `data`
+    // across verbatim and transforms only `to`, `value` and `nonce`. So this is
+    // not a live divergence — it is the one that cannot open. The gate reads
+    // what `sign` and `executeTransaction` are handed, which is the convention
+    // this file already states where it computes the fingerprint.
+    //
+    // Asserted on a COMMENT-FREE slice of the call site, because this file's
+    // house style is long code-quoting comments: a reviewer proved that a
+    // comment reciting the correct spelling let both fixes be reverted with the
+    // whole suite green. Text a compiler ignores cannot be the evidence.
+    expect(callSite()).toContain('data: tx.safeTransaction.data.data')
+    expect(callSite()).not.toContain('tx.safeTx.data.data')
   })
 
-  it('hands the scope lookup a lowercase network key', () => {
-    // `config/networks.json` is keyed lowercase and `deriveToolchainScope`
-    // throws on an unknown key, so the raw `--network Mainnet` refused an
-    // honest signature instead of judging it: a false red, which is the
-    // failure that lands on a colleague rather than on an attacker.
-    const call = SOURCE.slice(
-      SOURCE.indexOf('await evaluateCodehashSignGate('),
-      SOURCE.indexOf('await evaluateCodehashSignGate(') + 700
-    )
-    expect(call).toContain('network: network.toLowerCase()')
+  it('has exactly one gate call site, so the slice above covers all of them', () => {
+    // The slice anchors on the first occurrence. A second call added later
+    // would be unchecked, and an unchecked second decode is the whole failure
+    // mode these modules are built against.
+    expect(
+      withoutComments(SOURCE).split('evaluateCodehashSignGate(').length - 1
+    ).toBe(1)
   })
 
   it('evaluates and displays the verdict before the action prompt', () => {

@@ -211,7 +211,10 @@ const summarise = (
       masked > 0
         ? ` ${masked} bytes were excluded as immutables and are not covered by this result — their values still need checking.`
         : ''
-    return `Every address this cut installs matches an attested build of main.${caveat}`
+    // Not "matches main": the rebuild is at the commit each deployment record
+    // names, and D3 has the verifier assert that commit's presence rather than
+    // its ancestry. Saying main would promise the signer a check nobody runs.
+    return `Every address this cut installs matches a rebuild at the commit its deployment record names. Whether that commit is on main is not checked.${caveat}`
   }
 
   // The verdict word is carried per address rather than summed, so a MISMATCH

@@ -113,6 +113,61 @@ const rejection = async (promise: Promise<unknown>): Promise<string> => {
 }
 
 describe('evaluateCodehashSignGate', () => {
+  it('does not build its dependencies for a proposal carrying no cut', () => {
+    // Building them reads `foundry.toml` and creates a checkout root, and the
+    // caller turns a throw into a refusal — so an eager build refuses a fee
+    // change or a role grant on a broken toolchain config, which this gate
+    // makes no claim about. The thunk is the seam that keeps that impossible.
+    let built = 0
+    const gate = evaluateCodehashSignGate(
+      { data: '0xdeadbeef', network: NETWORK },
+      () => {
+        built += 1
+        return deps()
+      }
+    )
+
+    return gate.then((result) => {
+      expect(built).toBe(0)
+      expect(result.blocksSigning).toBe(false)
+    })
+  })
+
+  it('lowercases the network before any lookup sees it', async () => {
+    // `config/networks.json` is keyed lowercase and every lookup this reaches
+    // throws on another spelling, so a caller handing over what an operator
+    // typed was refused rather than judged. Normalising here rather than at the
+    // call site is what stops the next caller repeating it.
+    const asked: string[] = []
+    await evaluateCodehashSignGate(
+      { data: cutCalldata(), network: 'Mainnet' },
+      deps({
+        scope: (network: string) => {
+          asked.push(network)
+          return { isClosedSet: true }
+        },
+      })
+    )
+
+    expect(asked).toEqual(['mainnet'])
+  })
+
+  it('does build them once a cut is present, so the seam is not just dead', async () => {
+    // The paired positive. Without it, a thunk that is never invoked at all
+    // would satisfy the assertion above while disabling the gate entirely.
+    let built = 0
+    const gate = await evaluateCodehashSignGate(
+      { data: cutCalldata(), network: NETWORK },
+      () => {
+        built += 1
+        return deps({ observe: async () => observed({ maskedHash: OTHER }) })
+      }
+    )
+
+    expect(built).toBe(1)
+    expect(gate.blocksSigning).toBe(true)
+  })
+
   it('does not block a proposal that carries no diamondCut', async () => {
     const gate = await evaluateCodehashSignGate(
       { data: '0x', network: NETWORK },

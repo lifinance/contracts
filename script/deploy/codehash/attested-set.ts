@@ -200,7 +200,7 @@ export const compareToAttestedSet = (
   if (attested.length === 0)
     return blocked(
       'UNVERIFIABLE',
-      'no attested build of main is available for this contract, so nothing can be compared',
+      'no attested build is available for this contract, so nothing can be compared',
       observed.maskedByteCount
     )
 

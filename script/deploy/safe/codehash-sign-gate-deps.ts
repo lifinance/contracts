@@ -621,7 +621,10 @@ const createMongoRecordSource = (): IRecordSource => ({
     // The decoded cut supplies checksummed addresses (`classifyCut` returns
     // `getAddress`), and records were written in either case over the years, so
     // the exact match above can miss on case alone. Do not "simplify" this by
-    // lowercasing one side: the stored case is not ours to assume.
+    // lowercasing one side: the stored case is not ours to assume. `network` is
+    // matched exactly on purpose — the deploy path writes it from the config
+    // key, so it is lowercase by construction, unlike an address that a human
+    // or an older script may have written either way.
     return collection.findOne(
       {
         network: { $eq: network },
