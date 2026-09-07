@@ -1,14 +1,25 @@
 /**
  * Placement proof for the funnel deploy gate: it has to refuse inside
- * `propose-to-safe.ts` itself, not merely be importable and correct.
+ * `propose-to-safe.ts` and `propose-to-safe-tron.ts` themselves, not merely be
+ * importable and correct. `funnel-deploy-gate.test.ts` covers what it decides.
  *
  * Each case runs the real CLI in a throwaway git repo, so the gate reads a tree
  * it can actually diverge. `getDeployments` resolves its path from the module
  * rather than the cwd, so address attribution still comes from this repo's real
  * production log — which is why the facet address is read out of it here.
+ *
+ * Every absence-assertion is paired with a positive marker, and a child killed
+ * by a timeout is treated as no result at all: without that, "the refusal did
+ * not appear" passes on a run that never got far enough to print it.
  */
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+  copyFileSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -18,7 +29,9 @@ import {
   it,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
+import { TronWeb } from 'tronweb'
 import { encodeFunctionData, type Address, type Hex } from 'viem'
+import { generatePrivateKey } from 'viem/accounts'
 
 import { DIAMOND_CUT_ABI, ZERO_ADDRESS } from './constants'
 
@@ -26,6 +39,10 @@ const FACET = 'AllBridgeFacet'
 const FACET_PATH = `src/Facets/${FACET}.sol`
 const REPO_ROOT = join(import.meta.dir, '..', '..', '..')
 const PROPOSE_CLI = join(REPO_ROOT, 'script/deploy/safe/propose-to-safe.ts')
+const TRON_CLI = join(REPO_ROOT, 'script/deploy/tron/propose-to-safe-tron.ts')
+
+/** Long enough to reach the gate, short enough that a run past it stays cheap. */
+const TIMEOUT_MS = 60_000
 
 const deployments = JSON.parse(
   readFileSync(join(REPO_ROOT, 'deployments/mainnet.json'), 'utf8')
@@ -33,21 +50,28 @@ const deployments = JSON.parse(
 const FACET_ADDRESS = deployments[FACET] as Address
 const DIAMOND_ADDRESS = deployments.LiFiDiamond as Address
 
-const ADD_CUT = encodeFunctionData({
-  abi: DIAMOND_CUT_ABI,
-  functionName: 'diamondCut',
-  args: [
-    [
-      {
-        facetAddress: FACET_ADDRESS,
-        action: 0,
-        functionSelectors: ['0xaabbccdd'] as Hex[],
-      },
+/**
+ * Encodes a one-entry `diamondCut` that adds a facet.
+ * @param facetAddress - facet the cut installs
+ */
+const addCut = (facetAddress: Address): Hex =>
+  encodeFunctionData({
+    abi: DIAMOND_CUT_ABI,
+    functionName: 'diamondCut',
+    args: [
+      [
+        {
+          facetAddress,
+          action: 0,
+          functionSelectors: ['0xaabbccdd'] as Hex[],
+        },
+      ],
+      ZERO_ADDRESS as Address,
+      '0x' as Hex,
     ],
-    ZERO_ADDRESS as Address,
-    '0x' as Hex,
-  ],
-})
+  })
+
+const ADD_CUT = addCut(FACET_ADDRESS)
 
 /**
  * Builds a repo whose tree matches `origin/main`, then optionally diverges the facet.
@@ -96,17 +120,59 @@ const makeRepo = (diverge: boolean): string => {
  * @param options - repo divergence, target network, and the calldata to propose
  * @returns the CLI's combined output and exit status
  */
+/**
+ * Runs a real propose CLI in a throwaway repo.
+ * @param options - which CLI, its arguments, and the repo to run it in
+ * @returns the child's combined output and exit status
+ */
+const spawnCli = (options: {
+  cli: string
+  args: string[]
+  repoRoot: string
+  environment?: string
+}): { output: string; status: number | null } => {
+  const env: Record<string, string> = {
+    ...(process.env as Record<string, string>),
+  }
+  // `bun test` sets NODE_ENV=test; these children are exercised as CLIs
+  delete env.NODE_ENV
+  // Bun auto-loads the repo env file into this process, so the child would
+  // inherit a developer's own values. Withheld so no run can reach a signature,
+  // a real Safe or a real Mongo — every case below stops at or before the gate.
+  delete env.PRIVATE_KEY
+  delete env.PRIVATE_KEY_PRODUCTION
+  delete env.MONGODB_URI
+  env.ENVIRONMENT = options.environment ?? 'production'
+
+  const result = spawnSync('bun', [options.cli, ...options.args], {
+    cwd: options.repoRoot,
+    encoding: 'utf8',
+    env,
+    timeout: TIMEOUT_MS,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
+
+  // A timeout-killed child is not a result: without this, every absence
+  // assertion below would pass on a run that was killed before printing.
+  if (result.signal)
+    throw new Error(
+      `child was killed by ${result.signal} after ${TIMEOUT_MS}ms, so its output proves nothing`
+    )
+
+  return { output: `${result.stdout}${result.stderr}`, status: result.status }
+}
+
 const runCli = (options: {
   diverge: boolean
   network: string
   calldata: Hex
-  env?: Record<string, string>
-}): { output: string; status: number | null } => {
-  const repoRoot = makeRepo(options.diverge)
-  const result = spawnSync(
-    'bun',
-    [
-      PROPOSE_CLI,
+  environment?: string
+}): { output: string; status: number | null } =>
+  spawnCli({
+    cli: PROPOSE_CLI,
+    repoRoot: makeRepo(options.diverge),
+    environment: options.environment,
+    args: [
       '--network',
       options.network,
       '--to',
@@ -117,26 +183,104 @@ const runCli = (options: {
       '--ticket',
       'EXSC-704',
     ],
-    {
-      cwd: repoRoot,
-      encoding: 'utf8',
-      env: {
-        ...process.env,
-        ENVIRONMENT: options.env?.ENVIRONMENT ?? 'production',
-        // never reach a real Safe, a real RPC or a real Mongo from a test
-        PRIVATE_KEY_PRODUCTION: '',
-        MONGODB_URI: '',
-        ...options.env,
-      },
-    }
-  )
-  return {
-    output: `${result.stdout}${result.stderr}`,
-    status: result.status,
-  }
-}
+  })
 
 const GATE_REFUSAL = /Production deploy gate failed/
+
+const TRON_FACET = 'CalldataVerificationFacet'
+
+/**
+ * Builds a Tron-shaped repo: the funnel reads `deployments/<network>.json` and
+ * `config/networks.json` from the cwd, while the gate's address attribution
+ * comes from the real log through `getDeployments`. Copying the real files keeps
+ * the two in agreement.
+ * @param diverge - append an unmerged edit to the facet source
+ * @returns the repository root and the facet's EVM-hex address
+ */
+const makeTronRepo = (
+  diverge: boolean
+): { repoRoot: string; facetAddressHex: Address } => {
+  const repoRoot = makeRepo(false)
+  mkdirSync(join(repoRoot, 'deployments'), { recursive: true })
+  mkdirSync(join(repoRoot, 'config'), { recursive: true })
+  for (const file of ['deployments/tron.json', 'config/networks.json'])
+    copyFileSync(join(REPO_ROOT, file), join(repoRoot, file))
+
+  const tronLog = JSON.parse(
+    readFileSync(join(REPO_ROOT, 'deployments/tron.json'), 'utf8')
+  ) as Record<string, string>
+
+  // TronWeb's own converter, statically: a Tron address is a 0x41-prefixed
+  // payload, and the cut carries the 20 bytes after that prefix
+  const facetAddressHex = `0x${TronWeb.address
+    .toHex(tronLog[TRON_FACET] as string)
+    .slice(2)}` as Address
+
+  const facetPath = join(repoRoot, `src/Facets/${TRON_FACET}.sol`)
+  writeFileSync(
+    facetPath,
+    `// SPDX-License-Identifier: LGPL-3.0-only\n/// @custom:version 1.0.0\ncontract ${TRON_FACET} {}\n`
+  )
+  const git = (...a: string[]) =>
+    spawnSync('git', a, { cwd: repoRoot, encoding: 'utf8' })
+  git('add', '.')
+  git('commit', '-m', 'tron facet', '--no-gpg-sign')
+  git('push', '-q', 'origin', 'HEAD:main')
+  git('fetch', '-q', 'origin')
+
+  if (diverge)
+    writeFileSync(
+      facetPath,
+      `// SPDX-License-Identifier: LGPL-3.0-only\n/// @custom:version 1.0.0\ncontract ${TRON_FACET} { uint256 public unreviewed; }\n`
+    )
+
+  return { repoRoot, facetAddressHex }
+}
+
+describe('propose-to-safe-tron funnel deploy gate', () => {
+  const runTron = (diverge: boolean) => {
+    const { repoRoot, facetAddressHex } = makeTronRepo(diverge)
+    const tronLog = JSON.parse(
+      readFileSync(join(repoRoot, 'deployments/tron.json'), 'utf8')
+    ) as Record<string, string>
+
+    return spawnCli({
+      cli: TRON_CLI,
+      repoRoot,
+      args: [
+        '--network',
+        'tron',
+        '--to',
+        tronLog.LiFiDiamond as string,
+        '--calldata',
+        addCut(facetAddressHex),
+        '--timelock',
+        // a key generated per run, so nothing signable is written down; it never
+        // signs anything either, the gate refuses first
+        '--privateKey',
+        generatePrivateKey(),
+      ],
+    })
+  }
+
+  it('refuses a diverged facet addition before the Timelock is read', () => {
+    const result = runTron(true)
+
+    expect(result.output).toMatch(GATE_REFUSAL)
+    expect(result.output).toContain(TRON_FACET)
+    expect(result.status).not.toBe(0)
+    // the Timelock read is the funnel's first RPC; the refusal precedes it
+    expect(result.output).not.toContain('getMinDelay')
+    expect(result.output).not.toContain('Safe tx hash')
+  })
+
+  it('lets an unchanged facet addition past the gate', () => {
+    const result = runTron(false)
+
+    expect(result.output).not.toMatch(GATE_REFUSAL)
+    expect(result.output).toContain('Production deploy gate passed')
+  })
+})
 
 describe('propose-to-safe funnel deploy gate', () => {
   it('refuses a diverged facet addition before the Safe client is initialised', () => {
@@ -181,7 +325,7 @@ describe('propose-to-safe funnel deploy gate', () => {
       diverge: true,
       network: 'mainnet',
       calldata: ADD_CUT,
-      env: { ENVIRONMENT: 'staging' },
+      environment: 'staging',
     })
 
     expect(result.output).not.toMatch(GATE_REFUSAL)
