@@ -35,19 +35,6 @@ const readScript = (relativePath: string): string =>
   readFileSync(join(REPO_ROOT, relativePath), 'utf8')
 
 /**
- * Every deploy entry point named in EXSC-932. `diamondUpdateFacet.sh` is in the
- * list and is deliberately not edited by this change.
- */
-const ENTRY_POINTS = [
-  ['script/deploy/deploySingleContract.sh'],
-  ['script/deploy/deployAndStoreCREATE3Factory.sh'],
-  ['script/tasks/diamondUpdateFacet.sh'],
-  ['script/tasks/updateFacetConfig.sh'],
-  ['script/tasks/acceptOwnershipTransferPeriphery.sh'],
-  ['script/tasks/checkExecutorAndReceiver.sh'],
-] as const
-
-/**
  * Puts a `forge` of a chosen version on PATH.
  *
  * @param version - Version the stub reports, in the newer `forge --version`
@@ -224,267 +211,6 @@ describe('assertFoundryVersionOrFail — the bash seam', () => {
   )
 })
 
-/**
- * Splits a script into lines, replacing every line that bash would not execute
- * — comments, and lines sitting inside a multi-line double-quoted string — with
- * null.
- *
- * The string tracking matters: a heredoc-ish `NOTE="\n...\n"` block let a line
- * that merely *names* the gate count as a call to it, which is the same vacuity
- * the comment exclusion was added to close.
- *
- * @param source - Whole file contents.
- * @returns One entry per line, null where nothing executes.
- */
-const executableLines = (source: string): (string | null)[] => {
-  let insideString = false
-
-  return source.split('\n').map((line) => {
-    const startedInsideString = insideString
-    const quotes = line.match(/(?<!\\)"/g)
-    if (quotes !== null && quotes.length % 2 === 1) insideString = !insideString
-
-    if (startedInsideString) return null
-    return line.trimStart().startsWith('#') ? null : line
-  })
-}
-
-/**
- * Command-position fragments of one line: what bash would run first, plus every
- * position a separator opens a fresh command in.
- *
- * Position 0 alone was not enough — `cd x; forge build`, `a && forge build` and
- * `eval "forge build"` all start a forge and all hid from a position-0 match.
- *
- * @param line - A single executable line of a shell script.
- * @returns Every fragment that begins at a command position.
- */
-const FUNCTION_DEFINITION =
-  /^\s*(?:function\s+)?[A-Za-z_][A-Za-z0-9_]*\s*\(\)\s*\{?\s*$/
-
-const commandPositionsOf = (line: string): string[] => {
-  if (FUNCTION_DEFINITION.test(line)) return []
-
-  // `eval "cmd"` runs cmd, so unwrap it before anything else. Doing it by
-  // stripping a leading quote per fragment instead would also unwrap the quoted
-  // COMMAND strings that are handed to the seam, which are not invocations.
-  let rest = line
-    .replace(/\beval\s+"([^"]*)"/g, ' $1 ')
-    .replace(/'[^']*'/g, "''")
-
-  // Command substitutions run their contents, so they are their own command
-  // positions; a placeholder then keeps `VAR=$(…) cmd` parseable as one
-  // assignment rather than splitting mid-expression.
-  const substitutions: string[] = []
-  const SUBSTITUTION = /\$\(([^()]*)\)|`([^`]*)`/
-  for (let match = SUBSTITUTION.exec(rest); match !== null; ) {
-    substitutions.push(match[1] ?? match[2] ?? '')
-    rest = rest.replace(SUBSTITUTION, 'SUBSTITUTION')
-    match = SUBSTITUTION.exec(rest)
-  }
-
-  const fragments = rest
-    .split(/;|&&|\|\||\||\bdo\b|\bthen\b|\{|\(|\)/)
-    .map((fragment) => {
-      let candidate = fragment.trim()
-
-      let changed = true
-      while (changed) {
-        changed = false
-        for (const prefix of [
-          'if ',
-          'elif ',
-          'while ',
-          'until ',
-          '! ',
-          'command ',
-          'env ',
-          'nohup ',
-          'time ',
-        ]) {
-          if (candidate.startsWith(prefix)) {
-            candidate = candidate.slice(prefix.length).trimStart()
-            changed = true
-          }
-        }
-        // The unquoted alternative deliberately excludes quotes: letting it
-        // consume a half-open `VAR="word` turned the rest of a quoted COMMAND
-        // string into an apparent command position.
-        const assignment = /^[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|''|[^\s"']*)\s+/
-        if (assignment.test(candidate)) {
-          candidate = candidate.replace(assignment, '')
-          changed = true
-        }
-      }
-
-      return candidate
-    })
-
-  return [...fragments, ...substitutions.flatMap(commandPositionsOf)].filter(
-    (fragment) => fragment !== ''
-  )
-}
-
-/**
- * Reduces a line to what bash would run first.
- *
- * @param line - A single line of a shell script.
- * @returns The command-position remainder, or an empty string for a comment.
- */
-const commandPositionOf = (line: string): string =>
-  line.trimStart().startsWith('#') ? '' : commandPositionsOf(line)[0] ?? ''
-
-/**
- * True when the line starts a forge process — either the PATH `forge` the pin
- * governs, or the separately pinned `./foundry-zksync/forge` fork — rather than
- * mentioning one inside a string that is handed to the seam.
- *
- * @param line - A single line of a shell script.
- * @returns Whether a forge process would be started by this line.
- */
-const invokesForgeDirectly = (line: string): boolean =>
-  line.trimStart().startsWith('#')
-    ? false
-    : commandPositionsOf(line).some((fragment) =>
-        /^(?:\.\/foundry-zksync\/)?forge\s/.test(fragment)
-      )
-
-/**
- * Index of the first line that actually *calls* the gate — the seam function
- * itself, or `executeAndParse`, which calls it. A mention inside a comment does
- * not count: the placement assertions were vacuous while it did, and passed with
- * the gate deleted and the comment left behind.
- *
- * @param lines - Lines of a shell script.
- * @returns The line index, or -1 when the file never calls the gate.
- */
-const callsAtCommandPosition = (
-  line: string | null,
-  names: string[]
-): boolean =>
-  line === null
-    ? false
-    : commandPositionsOf(line).some((fragment) =>
-        names.some((name) =>
-          // `name(` is a function definition, not a call to it.
-          new RegExp(`^${name}(?:\\s|$)`).test(fragment)
-        )
-      )
-
-const firstGateCallIndex = (source: string): number =>
-  executableLines(source).findIndex((line) =>
-    callsAtCommandPosition(line, [CALL, 'executeAndParse'])
-  )
-
-/**
- * Index of the first line that calls the seam function itself, ignoring
- * comments and string bodies that merely name it.
- *
- * @param source - Whole file contents.
- * @returns The line index, or -1 when the file never calls it.
- */
-const firstSeamCallIndex = (source: string): number =>
-  executableLines(source).findIndex((line) =>
-    callsAtCommandPosition(line, [CALL])
-  )
-
-/**
- * Index of the first line that starts a forge process.
- *
- * @param source - Whole file contents.
- * @returns The line index, or -1 when the file starts none.
- */
-const firstDirectForgeIndex = (source: string): number =>
-  executableLines(source).findIndex(
-    (line) => line !== null && invokesForgeDirectly(line)
-  )
-
-describe('invokesForgeDirectly', () => {
-  it.each([
-    ['forge build'],
-    ['  forge build --skip test'],
-    ['if ! forge build --contracts x --silent; then'],
-    ['FOUNDRY_PROFILE=zksync ./foundry-zksync/forge build --zksync'],
-    ['PRIVATE_KEY="$KEY" forge script X.s.sol'],
-    // Every shape below started a forge while hiding from a position-0 match,
-    // and four of them kept the placement suite green with the gate removed.
-    ['cd "$(pwd)"; forge build --skip test'],
-    ['[ -d out ] || forge build --skip test'],
-    ['make deps && forge build'],
-    ['eval "FOUNDRY_PROFILE=zksync ./foundry-zksync/forge build --zksync"'],
-    ['PRIVATE_KEY=$(getPrivateKey "$NETWORK" "$ENVIRONMENT") forge script X'],
-    ['{ forge build; }'],
-    ['(forge build)'],
-    ['do forge build'],
-    ['command forge build'],
-    ['time forge build'],
-    ['if [[ -z x ]]; then forge build; fi'],
-    ['OUT=$(forge build)'],
-  ])('detects %p', (line) => {
-    expect(invokesForgeDirectly(line)).toBe(true)
-  })
-
-  it.each([
-    ['# forge build'],
-    ['COMMAND="NETWORK=$NETWORK forge script $SCRIPT_PATH"'],
-    ['"NETWORK=$NETWORK forge script X.s.sol --broadcast" \\'],
-    ['echo "run forge build first"'],
-    ['executeAndParse \\'],
-  ])('does not flag %p', (line) => {
-    expect(invokesForgeDirectly(line)).toBe(false)
-  })
-})
-
-describe('firstGateCallIndex', () => {
-  it.each([
-    ['  if ! assertFoundryVersionOrFail; then'],
-    ['  assertFoundryVersionOrFail || return 1'],
-    ['  executeAndParse \\'],
-    ['      if ! executeAndParse \\'],
-    ['  RESULT=$(executeAndParse "cmd")'],
-    ['  { executeAndParse \\'],
-  ])('finds the call in %p', (source) => {
-    expect(firstGateCallIndex(source)).toBe(0)
-  })
-
-  it.each([
-    ['  # Also checked at the shared executeAndParse seam, but the zk path'],
-    ['  # if ! assertFoundryVersionOrFail; then'],
-    ['  echo "executeAndParse runs the command"'],
-    // The function definition is not a call to it.
-    ['function executeAndParse() {'],
-    ['executeAndParse() {'],
-  ])('does not count %p as a call', (source) => {
-    expect(firstGateCallIndex(source)).toBe(-1)
-  })
-
-  it('does not count a line inside a multi-line string', () => {
-    // This exact shape removed the gate from an entry point and kept the whole
-    // placement suite green.
-    const source = [
-      'NOTE="',
-      'executeAndParse used to run this, see history',
-      '"',
-      '    executeAndCapture \\',
-    ].join('\n')
-
-    expect(firstGateCallIndex(source)).toBe(-1)
-  })
-
-  it('still finds a real call after a multi-line string closes', () => {
-    // The counterpart: without it, a helper that called every line "inside a
-    // string" would pass the case above.
-    const source = [
-      'NOTE="',
-      'executeAndParse used to run this, see history',
-      '"',
-      '    executeAndParse \\',
-    ].join('\n')
-
-    expect(firstGateCallIndex(source)).toBe(3)
-  })
-})
-
 describe('the wiring in helperFunctions.sh', () => {
   const lines = readScript('script/helperFunctions.sh').split('\n')
   const indexOf = (needle: string): number =>
@@ -496,10 +222,13 @@ describe('the wiring in helperFunctions.sh', () => {
 
   it('gates executeAndParse before it reaches executeAndCapture', () => {
     const functionIndex = indexOf('function executeAndParse()')
-    const callIndex = firstSeamCallIndex(lines.slice(functionIndex).join('\n'))
-    const captureIndex = lines
-      .slice(functionIndex)
-      .findIndex((line) => line.includes('RESULT=$(executeAndCapture'))
+    const body = lines.slice(functionIndex)
+    const callIndex = body.findIndex(
+      (line) => line.trim() === `if ! ${CALL}; then`
+    )
+    const captureIndex = body.findIndex((line) =>
+      line.includes('RESULT=$(executeAndCapture')
+    )
 
     expect(functionIndex).toBeGreaterThan(-1)
     expect(callIndex).toBeGreaterThan(-1)
@@ -519,99 +248,83 @@ describe('the wiring in helperFunctions.sh', () => {
   })
 })
 
-describe('the placement at every deploy entry point', () => {
-  it.each(ENTRY_POINTS)('%s still drives forge at all', (relativePath) => {
-    // Guards the assertions below against the case where they hold because the
-    // file stopped being a forge entry point. Error-message strings such as
-    // "forge script failed for …" appear in most of these files, so a bare
-    // regex over the whole source would have satisfied this on a file that no
-    // longer invokes forge at all.
-    const drives = executableLines(readScript(relativePath)).some(
-      (line) => line !== null && /forge\s+(?:script|build)\b/.test(line)
+/**
+ * Index of the exact gate-call line, matched whole so a comment or a string
+ * body that merely names the function cannot stand in for it.
+ *
+ * Earlier revisions of this file classified shell lines to answer the same
+ * question and were wrong four times in a row — a comment, a multi-line
+ * double-quoted string, a heredoc body, and a forge started after `;`/`&&`/
+ * `else`/`exec`. The placement claim now rests on running the scripts
+ * (`every deploy entry point, driven for real`); this is a whole-line match
+ * used only where a line number is genuinely needed.
+ *
+ * @param source - Whole file contents.
+ * @returns The line index, or -1 when the exact call line is absent.
+ */
+const gateCallLineIndex = (source: string): number =>
+  source.split('\n').findIndex((line) => line.trim() === `if ! ${CALL}; then`)
+
+describe('the placement in deploySingleContract', () => {
+  const SOURCE = readScript('script/deploy/deploySingleContract.sh')
+
+  it('gates before its own build steps', () => {
+    // Its zk path builds, and `ensureStandardArtifactForSalt` derives the
+    // CREATE2 salt through a plain `forge build`; both start a forge before the
+    // first executeAndParse, so the seam alone would fire too late here.
+    const buildIndex = SOURCE.split('\n').findIndex((line) =>
+      /ensureStandardArtifactForSalt|forge build/.test(line)
     )
 
-    expect(drives).toBe(true)
-  })
-
-  it.each(ENTRY_POINTS)('%s calls the gate', (relativePath) => {
-    expect(firstGateCallIndex(readScript(relativePath))).toBeGreaterThan(-1)
-  })
-
-  it.each(ENTRY_POINTS)(
-    '%s cannot start a forge before the gate has run',
-    (relativePath) => {
-      const source = readScript(relativePath)
-      const directForgeIndex = firstDirectForgeIndex(source)
-
-      // Infinity rather than a conditional assertion: a file with no
-      // command-position forge has nothing to order against, but the comparison
-      // must still fail when the gate call is missing entirely (index -1).
-      expect(firstGateCallIndex(source)).toBeLessThan(
-        directForgeIndex === -1 ? Number.POSITIVE_INFINITY : directForgeIndex
-      )
-      expect(firstGateCallIndex(source)).toBeGreaterThan(-1)
-    }
-  )
-
-  it('leaves diamondUpdateFacet.sh unedited, covered through the seam', () => {
-    // lifinance/contracts#2324 is open against this file. It reaches the gate
-    // because its forge invocations are strings handed to executeAndParse.
-    const source = readScript('script/tasks/diamondUpdateFacet.sh')
-    expect(source).not.toContain(CALL)
-    expect(firstGateCallIndex(source)).toBeGreaterThan(-1)
-    expect(firstDirectForgeIndex(source)).toBe(-1)
-  })
-
-  it('gates deploySingleContract before its own build steps', () => {
-    // Its zk path builds and derives the CREATE2 salt through
-    // `ensureStandardArtifactForSalt`, both of which start a forge before the
-    // first executeAndParse. The seam alone would fire too late here.
-    const source = readScript('script/deploy/deploySingleContract.sh')
-    const lines = source.split('\n')
-    const callIndex = firstSeamCallIndex(source)
-    const buildIndex = lines.findIndex(
-      (line) =>
-        invokesForgeDirectly(line) ||
-        commandPositionOf(line).startsWith('ensureStandardArtifactForSalt')
-    )
-
-    expect(callIndex).toBeGreaterThan(-1)
+    expect(gateCallLineIndex(SOURCE)).toBeGreaterThan(-1)
     expect(buildIndex).toBeGreaterThan(-1)
-    expect(callIndex).toBeLessThan(buildIndex)
+    expect(gateCallLineIndex(SOURCE)).toBeLessThan(buildIndex)
   })
 
-  it('gates deploySingleContract outside its retry loop', () => {
-    const source = readScript('script/deploy/deploySingleContract.sh')
-    const callIndex = firstSeamCallIndex(source)
-    const retryLoopIndex = source
-      .split('\n')
-      .findIndex((line) => line.includes('while [ $attempts -le'))
+  it('gates outside the retry loop', () => {
+    const retryLoopIndex = SOURCE.split('\n').findIndex((line) =>
+      line.includes('while [ $attempts -le')
+    )
 
     expect(retryLoopIndex).toBeGreaterThan(-1)
     // Without this the comparison held for a missing call too, at index -1.
-    expect(callIndex).toBeGreaterThan(-1)
-    expect(callIndex).toBeLessThan(retryLoopIndex)
+    expect(gateCallLineIndex(SOURCE)).toBeGreaterThan(-1)
+    expect(gateCallLineIndex(SOURCE)).toBeLessThan(retryLoopIndex)
   })
 })
 
-/**
- * Every entry point that can be driven to its gate without a real signing key.
- * `deployAndStoreCREATE3Factory` and `acceptOwnershipTransferPeriphery` cannot:
- * both read a private key out of `.env` and return before their forge call when
- * it is absent, so an executable case there would assert on a run that never
- * reached the gate. They keep the static assertions above.
- */
+describe('diamondUpdateFacet.sh, which #2324 owns', () => {
+  it('is not edited by this change and still routes through the seam', () => {
+    const source = readScript('script/tasks/diamondUpdateFacet.sh')
+
+    expect(source).not.toContain(CALL)
+    expect(source).toContain('executeAndParse')
+  })
+})
+
 const SCRIPT_DIRECTORIES = {
   DEPLOY_SCRIPT_DIRECTORY: 'script/deploy/facets/',
   TASKS_SCRIPT_DIRECTORY: 'script/tasks/',
   CONFIG_SCRIPT_DIRECTORY: 'script/tasks/solidity/',
 } as const
 
+/**
+ * Every entry point EXSC-932 names, with the call that reaches its forge step.
+ * `acceptOwnershipTransferPeriphery` is absent: it returns before its forge call
+ * for reasons unrelated to this gate, so a case there would assert on a run that
+ * never reached it. Its only forge invocation is the `executeAndParse` argument
+ * at line 59, so the seam covers it — proven separately, not here.
+ */
 const DRIVABLE_ENTRY_POINTS = [
   [
     'deploySingleContract',
     'script/deploy/deploySingleContract.sh',
     'deploySingleContract Executor arbitrum staging 1.0.0 false',
+  ],
+  [
+    'deployAndStoreCREATE3Factory',
+    'script/deploy/deployAndStoreCREATE3Factory.sh',
+    'deployAndStoreCREATE3Factory arbitrum staging',
   ],
   [
     'diamondUpdateFacet',
@@ -633,8 +346,11 @@ const DRIVABLE_ENTRY_POINTS = [
 /**
  * Runs a real entry-point function with a `forge` stub that records every argv
  * it is called with, so "did a forge start before the gate?" is answered by bash
- * rather than by a line scanner. The line scanners above missed `cd x; forge`,
- * `a && forge` and `eval "forge …"`; this cannot.
+ * rather than by classifying shell text. Four line-scanning attempts at the same
+ * question each missed a different real shape.
+ *
+ * Scope: the stub is found through PATH, so it records the pinned `forge` only.
+ * `./foundry-zksync/forge` is invoked by relative path and is not intercepted.
  *
  * @param sourcePath - Entry-point script to source.
  * @param invocation - The call to make, with arguments.
@@ -683,6 +399,11 @@ const runEntryPoint = (
         ...Object.entries(SCRIPT_DIRECTORIES).map(
           ([name, value]) => `export ${name}="${value}"`
         ),
+        // Credential lookups, stubbed so the run reaches the gate on a machine
+        // with no keys. Nothing downstream of the gate executes, and the gate
+        // itself reads neither.
+        `getPrivateKey() { echo "not-a-key"; }`,
+        `cast() { echo "0x0000000000000000000000000000000000000001"; }`,
         `source ${sourcePath} >/dev/null 2>&1`,
         invocation,
       ].join('\n'),
@@ -837,7 +558,7 @@ describe('the deploy script’s refusal branch', () => {
    */
   const runGuardBranch = (exitOnError: string): string => {
     const source = readScript('script/deploy/deploySingleContract.sh')
-    const guard = source.split('\n').slice(firstSeamCallIndex(source))
+    const guard = source.split('\n').slice(gateCallLineIndex(source))
     const block = guard.slice(0, guard.indexOf('  fi') + 1).join('\n')
 
     return spawnSync(
