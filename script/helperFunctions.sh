@@ -15,6 +15,7 @@ set +a
 NETWORKS_JSON_FILE_PATH="config/networks.json"
 GLOBAL_FILE_PATH="config/global.json"
 source script/universalCast.sh
+source script/deploy/shared/assertFoundryVersion.sh
 
 ZERO_ADDRESS=0x0000000000000000000000000000000000000000
 TRON_ZERO_ADDRESS_BASE58=T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb
@@ -5211,6 +5212,18 @@ function executeAndParse() {
   local EXTRACT_JSON="${2:-false}"
   local ERROR_MESSAGE="${3:-}"
   local ON_ERROR_ACTION="${4:-return}"
+
+  # Every deploy-path forge invocation is a COMMAND passed to this function, which is why
+  # a toolchain check lives in a generic executor. The result globals are reset because
+  # callers that ignore the status read the verdict out of them via
+  # handleForgeScriptError, where a previous call's success payload would read as a
+  # completed forge run.
+  if ! assertFoundryVersionOrFail; then
+    RAW_RETURN_DATA=""
+    STDERR_CONTENT="refused: could not confirm the local foundry matches .foundry-version"
+    RETURN_CODE=1
+    return 1
+  fi
 
   # Execute command and capture output
   local RESULT

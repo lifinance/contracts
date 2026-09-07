@@ -35,10 +35,11 @@ only the quick-start; this is the full guide.
    foundryup --install "$(cat .foundry-version)"
    ```
 
-   The pre-commit hook and CI verify that your installed `forge` matches
-   `.foundry-version` and refuse to run on mismatch. To bump the pin, change
-   `.foundry-version` in a PR — every workflow and dev environment picks it up
-   automatically.
+   The pre-commit hook, CI and the deploy scripts verify that your installed
+   `forge` matches `.foundry-version` and refuse to run on mismatch — a deploy
+   built with a drifted compiler produces bytecode that cannot be reproduced
+   from the recorded commit. To bump the pin, change `.foundry-version` in a
+   PR — every workflow and dev environment picks it up automatically.
 
 4. Set up environment variables:
 
