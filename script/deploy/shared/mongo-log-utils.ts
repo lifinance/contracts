@@ -15,7 +15,9 @@ import { sleep } from '../../utils/delay'
 
 import {
   captureGitProvenance,
+  getScopedDirtyTree,
   PROVENANCE_UNKNOWN,
+  type ICaptureProvenanceOptions,
   type ProvenanceActor,
 } from './git-provenance'
 import { REPO_UNKNOWN, readRepoIdentity } from './repo-identity'
@@ -69,14 +71,19 @@ export interface IDeploymentRecord {
    * Working-tree paths that differed from `gitCommitHash` at log time, with the
    * artefacts the deploy pipeline rewrites during its own run excluded. An
    * empty array means the capture ran and found a clean tree; absent means no
-   * capture ran. Broader on purpose than the build-affecting set
-   * `assertTreeRecordable` refuses a deploy on: this one is a reviewer's view of
-   * the whole tree, not the subset that changes what a rebuild produces.
+   * capture ran, or ran and could not read the tree. Broader on purpose than
+   * the build-affecting paths `assertTreeRecordable` refuses a deploy on: this
+   * one is a reviewer's view of the whole tree, not the subset that changes
+   * what a rebuild produces.
    */
   dirtyTreeScoped?: string[]
   /** True when more dirty paths existed than `dirtyTreeScoped` records. */
   dirtyTreeTruncated?: boolean
-  /** Execution context the deploy ran in: a human, an unattended bot, or CI. */
+  /**
+   * Execution context the deploy ran in: `'human'`, `'bot'` (an unattended job
+   * that set `SAFE_PROPOSAL_ACTOR=bot`), `'ci'`, or `'UNKNOWN'` when nothing
+   * identified the caller.
+   */
   actor?: ProvenanceActor
   /** When this record was created in the database */
   createdAt: Date
@@ -168,33 +175,39 @@ export interface IProvenanceUpdate {
  * document is built from, so a deployment and the proposal that installs it
  * cannot disagree about the branch or the dirty tree they came from.
  *
+ * @param options - Overrides forwarded to the capture; production passes none.
  * @returns The provenance fields, each degraded to a sentinel on failure, plus
  * any non-fatal capture problems so a sentinel stays explainable.
  */
-export function captureRecordProvenance(): IRecordProvenance & {
+export function captureRecordProvenance(
+  options?: ICaptureProvenanceOptions
+): IRecordProvenance & {
   captureErrors?: string[]
 } {
-  const captured = captureGitProvenance({ resolvePrUrl: false })
-  // An empty dirty list is only claimed when nothing went wrong: the capture
-  // returns one both for a clean tree and for a status probe it could not run,
-  // and a failed probe recorded as "clean" would hide exactly the dirty deploy
-  // this field exists to surface. Paths that WERE found are recorded either way.
-  const dirtyTreeKnown =
-    captured.dirtyTreeScoped.length > 0 || !captured.captureErrors?.length
+  const captured = captureGitProvenance({ resolvePrUrl: false, ...options })
+  // The dirty tree is read again through its own error collector, because an
+  // empty list is only safe to record once its own probe is known to have run:
+  // the shared capture returns one both for a clean tree and for a `git status`
+  // it could not execute, and its collector is shared with every other probe,
+  // so neither an empty list nor an empty collector separates the two. A failed
+  // probe recorded as "clean" would hide exactly the dirty deploy this field
+  // exists to surface.
+  const dirtyErrors: string[] = []
+  const dirtyTree = getScopedDirtyTree({ ...options, errors: dirtyErrors })
+  const dirtyTreeRead = dirtyErrors.length === 0
+  const captureErrors = [...(captured.captureErrors ?? []), ...dirtyErrors]
   return {
     gitCommitHash: getCurrentGitCommitHash(),
     repo: getCurrentRepo(),
     gitBranch: captured.gitBranch,
-    ...(dirtyTreeKnown
+    ...(dirtyTreeRead
       ? {
-          dirtyTreeScoped: captured.dirtyTreeScoped,
-          dirtyTreeTruncated: captured.dirtyTreeTruncated ?? false,
+          dirtyTreeScoped: dirtyTree.paths,
+          dirtyTreeTruncated: dirtyTree.truncated,
         }
       : {}),
     actor: captured.actor,
-    ...(captured.captureErrors
-      ? { captureErrors: captured.captureErrors }
-      : {}),
+    ...(captureErrors.length > 0 ? { captureErrors } : {}),
   }
 }
 
@@ -203,9 +216,11 @@ export function captureRecordProvenance(): IRecordProvenance & {
  *
  * The add CLI writes these to Mongo only, so a JSON-sourced record carries
  * none of them and an unconditional `$set` would erase what Mongo already
- * holds. The `UNKNOWN` sentinels are handled the same way for the opposite
- * reason: each is a real answer on a fresh insert, and a downgrade on an
- * existing one, so it goes in only where there is nothing to lose.
+ * holds. The `UNKNOWN` sentinels of `repo`, `gitBranch` and `actor` are handled
+ * the same way for the opposite reason: each is a real answer on a fresh
+ * insert, and a downgrade on an existing one, so it goes in only where there is
+ * nothing to lose. `gitCommitHash` is the exception, unchanged here: its
+ * sentinel is a plain truthy string and still reaches `$set`.
  *
  * The dirty list is the exception that has to be written unconditionally once a
  * capture ran: an empty list is the meaningful answer "this tree was clean", and
@@ -248,6 +263,22 @@ export function provenanceUpdate(record: IRecordProvenance): IProvenanceUpdate {
         : {}),
     },
   }
+}
+
+/**
+ * Renders a record's scoped dirty tree for a one-line human summary.
+ *
+ * @param record - The record whose dirty tree to describe.
+ * @returns `'unknown'` when no readable capture happened — which must never
+ * read as a clean tree — `'no'` for a clean one, else the path count.
+ */
+export function describeDirtyTree(
+  record: Pick<IDeploymentRecord, 'dirtyTreeScoped' | 'dirtyTreeTruncated'>
+): string {
+  const paths = record.dirtyTreeScoped
+  if (paths === undefined) return 'unknown'
+  if (paths.length === 0) return 'no'
+  return `${paths.length}${record.dirtyTreeTruncated ? '+' : ''} path(s)`
 }
 
 /** A single-record upsert: the identity it matches on, and the update it applies. */

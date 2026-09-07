@@ -1,4 +1,6 @@
 import {
+  afterEach,
+  beforeEach,
   describe,
   expect,
   it,
@@ -6,15 +8,17 @@ import {
 } from 'bun:test'
 
 import {
-  getGitBranch,
-  getScopedDirtyTree,
   PROVENANCE_UNKNOWN,
+  resetGitProvenanceCache,
+  type CommandRunner,
+  type ICommandResult,
   type ProvenanceActor,
 } from './git-provenance'
 import {
   buildDeploymentUpsert,
   captureRecordProvenance,
   deploymentRecordEqFilter,
+  describeDirtyTree,
   mongoEq,
   provenanceUpdate,
   type IDeploymentRecord,
@@ -245,21 +249,166 @@ describe('buildDeploymentUpsert', () => {
   })
 })
 
-describe('captureRecordProvenance', () => {
-  /**
-   * Runs against this checkout, so it asserts that the shared capture is
-   * actually reached and mapped onto record fields — not which branch a
-   * reviewer happens to be on.
-   */
-  it('maps the shared git capture onto record fields', () => {
-    const provenance = captureRecordProvenance()
+describe('describeDirtyTree', () => {
+  it.each([
+    ['unknown', { dirtyTreeScoped: undefined }, 'unknown'],
+    ['no', { dirtyTreeScoped: [] }, 'no'],
+    [
+      '1 path(s)',
+      { dirtyTreeScoped: ['src/Facets/AcrossFacetV4.sol'] },
+      '1 path(s)',
+    ],
+    [
+      '2+ path(s)',
+      {
+        dirtyTreeScoped: ['a.sol', 'b.sol'],
+        dirtyTreeTruncated: true,
+      },
+      '2+ path(s)',
+    ],
+  ])('renders %s', (_label, record, expected) => {
+    expect(describeDirtyTree(record)).toBe(expected)
+  })
 
-    expect(provenance.gitBranch).toBeTruthy()
-    expect(provenance.gitBranch).toBe(getGitBranch())
-    expect(provenance.dirtyTreeScoped).toEqual(getScopedDirtyTree().paths)
-    expect(['human', 'bot', 'ci', PROVENANCE_UNKNOWN]).toContain(
-      provenance.actor
+  /**
+   * The one rendering that must never be wrong: no readable capture has to look
+   * different from a clean tree, or the summary a deployer reads invents a
+   * clean bill of health.
+   */
+  it('never renders an absent capture the way it renders a clean tree', () => {
+    expect(describeDirtyTree({ dirtyTreeScoped: undefined })).not.toBe(
+      describeDirtyTree({ dirtyTreeScoped: [] })
     )
-    expect(typeof provenance.dirtyTreeTruncated).toBe('boolean')
+  })
+})
+
+describe('captureRecordProvenance', () => {
+  /** Canned git answers, keyed by the subcommand the capture asks for. */
+  const gitRunner =
+    (answers: Record<string, ICommandResult>): CommandRunner =>
+    (command, args) => {
+      const key = `${command} ${args.join(' ')}`
+      return (
+        answers[key] ?? {
+          status: 128,
+          stdout: '',
+          stderr: `no stub for ${key}`,
+        }
+      )
+    }
+
+  const ok = (stdout: string): ICommandResult => ({
+    status: 0,
+    stdout,
+    stderr: '',
+  })
+  const failed: ICommandResult = {
+    status: 128,
+    stdout: '',
+    stderr: 'fatal: not a git repository',
+  }
+
+  const REPO = '/repo'
+  const HEAD = 'c'.repeat(40)
+  const baseAnswers: Record<string, ICommandResult> = {
+    'git rev-parse --show-toplevel': ok(`${REPO}\n`),
+    'git rev-parse HEAD': ok(`${HEAD}\n`),
+    'git rev-parse --abbrev-ref HEAD': ok('feature/exsc-695\n'),
+    'git status --porcelain --untracked-files=normal': ok(
+      ' M src/Facets/AcrossFacetV4.sol\n'
+    ),
+    [`git branch --remotes --contains ${HEAD}`]: ok('  origin/main\n'),
+    'git config user.name': ok('Provenance Tester\n'),
+    'git config user.email': ok('provenance@example.com\n'),
+  }
+
+  const capture = (answers: Record<string, ICommandResult>) =>
+    captureRecordProvenance({
+      cwd: REPO,
+      env: {},
+      run: gitRunner(answers),
+    })
+
+  beforeEach(() => {
+    // The capture memoises a success for the process lifetime, and `bun test`
+    // runs every file in one process.
+    resetGitProvenanceCache()
+  })
+  afterEach(() => {
+    resetGitProvenanceCache()
+  })
+
+  it('maps branch, dirty paths and actor off the git answers it was given', () => {
+    const provenance = capture(baseAnswers)
+
+    expect(provenance.gitBranch).toBe('feature/exsc-695')
+    expect(provenance.dirtyTreeScoped).toEqual(['src/Facets/AcrossFacetV4.sol'])
+    expect(provenance.dirtyTreeTruncated).toBe(false)
+    expect(provenance.actor).toBe('human')
+    expect(provenance.captureErrors).toBeUndefined()
+  })
+
+  it('records a clean tree as an empty list', () => {
+    const provenance = capture({
+      ...baseAnswers,
+      'git status --porcelain --untracked-files=normal': ok(''),
+    })
+
+    expect(provenance.dirtyTreeScoped).toEqual([])
+    expect(provenance.dirtyTreeTruncated).toBe(false)
+  })
+
+  /**
+   * The fix this pairs with: the shared capture collects every probe's failure
+   * in one bag, so keying the dirty list on that bag let an unrelated failure —
+   * here the remote-containment probe on a tree `git status` read fine — delete
+   * a list that was actually known, and with it the clearing of a stale one.
+   */
+  it.each([
+    ['clean', '', []],
+    [
+      'dirty',
+      ' M src/Facets/AcrossFacetV4.sol\n',
+      ['src/Facets/AcrossFacetV4.sol'],
+    ],
+  ])(
+    'still records a %s tree when an unrelated probe failed',
+    (_label, porcelain, expected) => {
+      // The clean row is the one that discriminates: a non-empty list is
+      // evidence in itself and survives either rule, so only an empty one
+      // forces the question of whether the tree probe actually ran.
+      const provenance = capture({
+        ...baseAnswers,
+        'git status --porcelain --untracked-files=normal': ok(
+          porcelain as string
+        ),
+        [`git branch --remotes --contains ${HEAD}`]: failed,
+      })
+
+      expect(provenance.dirtyTreeScoped).toEqual(expected)
+      expect(provenance.dirtyTreeTruncated).toBe(false)
+      expect(provenance.captureErrors?.length).toBeGreaterThan(0)
+    }
+  )
+
+  it('omits the dirty list when the tree itself could not be read', () => {
+    const provenance = capture({
+      ...baseAnswers,
+      'git status --porcelain --untracked-files=normal': failed,
+    })
+
+    expect(provenance).not.toHaveProperty('dirtyTreeScoped')
+    expect(provenance).not.toHaveProperty('dirtyTreeTruncated')
+    // Paired positive: the capture still ran and answered everything else, so
+    // the two absences above are the tree probe's, not an empty result.
+    expect(provenance.gitBranch).toBe('feature/exsc-695')
+    expect(provenance.captureErrors?.join(' ')).toContain('git status')
+  })
+
+  it('reports the sentinel branch when git answers nothing', () => {
+    const provenance = capture({})
+
+    expect(provenance.gitBranch).toBe(PROVENANCE_UNKNOWN)
+    expect(provenance).not.toHaveProperty('dirtyTreeScoped')
   })
 })

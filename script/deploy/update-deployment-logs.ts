@@ -30,6 +30,7 @@ import {
   buildDeploymentUpsert,
   captureRecordProvenance,
   deploymentRecordEqFilter,
+  describeDirtyTree,
   provenanceUpdate,
   type IDeploymentRecord,
   type IUpdateConfig,
@@ -53,15 +54,6 @@ const config: IUpdateConfig = {
   ),
   batchSize: 100,
   databaseName: 'contract-deployments',
-}
-
-/** Renders the scoped dirty tree for the one-line provenance summary. */
-function describeDirtyTree(record: IDeploymentRecord): string {
-  const paths = record.dirtyTreeScoped
-  // Absent means no capture ran, which must not read as a clean tree.
-  if (paths === undefined) return 'unknown'
-  if (paths.length === 0) return 'no'
-  return `${paths.length}${record.dirtyTreeTruncated ? '+' : ''} path(s)`
 }
 
 /** Invalidate deployment cache for an environment after writing to MongoDB */
@@ -686,13 +678,16 @@ const addCommand = defineCommand({
       description: 'EVM version',
       required: false,
     },
-    // Single word: citty discards a passed value for a multi-word flag that
-    // carries a default.
     dryRun: {
       type: 'boolean',
+      // Every sibling flag here is kebab-cased, so `--dry-run` is the spelling a
+      // caller reaches for. Both the alias and the absent `default` are needed:
+      // citty resolves a kebab spelling through its own fallback only for an arg
+      // that carries no default, and a `--dry-run` silently read as `false`
+      // would make a dry run a real write.
+      alias: 'dry-run',
       description:
-        'Print the record and the upsert it would apply, without connecting to MongoDB',
-      default: false,
+        'Print the upsert that would be applied, without connecting to MongoDB',
     },
   },
   async run({ args }) {
@@ -709,8 +704,11 @@ const addCommand = defineCommand({
     }
 
     const { captureErrors, ...provenanceFields } = captureRecordProvenance()
+    // Info, not warn: `logContractDeploymentInfo` runs this command with
+    // stderr discarded unless DEBUG is set, and consola sends warnings there —
+    // so a warning about the tree a deploy came from would never be seen.
     for (const problem of captureErrors ?? [])
-      consola.warn(`Provenance capture: ${problem}`)
+      consola.info(`Provenance capture problem: ${problem}`)
 
     // Create deployment record
     const record: IDeploymentRecord = {
@@ -743,7 +741,7 @@ const addCommand = defineCommand({
       }, dirty ${describeDirtyTree(record)}`
     )
     if (record.dirtyTreeScoped?.length)
-      consola.warn(
+      consola.info(
         `Deployed from a dirty tree: ${record.dirtyTreeScoped.join(', ')}${
           record.dirtyTreeTruncated ? ', …' : ''
         }`

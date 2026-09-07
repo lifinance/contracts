@@ -105,12 +105,29 @@ const assertChildIsUsable = (
 const runAdd = (options: {
   repoRoot: string
   extraArgs?: string[]
+  ci?: Record<string, string>
+  flag?: string
 }): { output: string; status: number | null; upsert: IUpsertShape } => {
   const env: Record<string, string> = {
     ...(process.env as Record<string, string>),
   }
   // `bun test` sets NODE_ENV=test; this child is exercised as a CLI.
   delete env.NODE_ENV
+  // The capture reads the workflow environment in preference to git, so on an
+  // Actions runner every case below would observe the runner's own branch and
+  // actor instead of the throwaway repo it just built — and the suite would
+  // pass locally and fail in CI. Cleared here, then set explicitly by the one
+  // case that is about the CI branch.
+  for (const name of [
+    'CI',
+    'GITHUB_ACTIONS',
+    'GITHUB_ACTOR',
+    'GITHUB_HEAD_REF',
+    'GITHUB_REF_NAME',
+    'GITHUB_SHA',
+  ])
+    delete env[name]
+  Object.assign(env, options.ci ?? {})
   // Bun auto-loads the repo env file into THIS process, so the child inherits a
   // real production environment unless every store name is neutralised here.
   // Deliberately malformed rather than unroutable: a driver spends 30 s of
@@ -142,7 +159,7 @@ const runAdd = (options: {
       '0x',
       '--verified',
       'false',
-      '--dryRun',
+      options.flag ?? '--dryRun',
       ...(options.extraArgs ?? []),
     ],
     {
@@ -220,25 +237,61 @@ describe('update-deployment-logs add — provenance capture', () => {
       })
       expect(detach.status).toBe(0)
 
-      const previous = {
-        actions: process.env.GITHUB_ACTIONS,
-        ref: process.env.GITHUB_REF_NAME,
-      }
-      process.env.GITHUB_ACTIONS = 'true'
-      process.env.GITHUB_REF_NAME = 'refs/pull/2331/merge'
-      try {
-        const { upsert } = runAdd({ repoRoot })
+      const { upsert } = runAdd({
+        repoRoot,
+        // The values a real `pull_request` run sets, and the precedence that
+        // matters: HEAD_REF is the source branch and wins over REF_NAME, which
+        // on that event names the synthetic merge ref.
+        ci: {
+          GITHUB_ACTIONS: 'true',
+          GITHUB_HEAD_REF: 'feature/exsc-695',
+          GITHUB_REF_NAME: '2331/merge',
+        },
+      })
 
-        expect(upsert.update.$set).toMatchObject({
-          actor: 'ci',
-          gitBranch: 'refs/pull/2331/merge',
-        })
-      } finally {
-        if (previous.actions === undefined) delete process.env.GITHUB_ACTIONS
-        else process.env.GITHUB_ACTIONS = previous.actions
-        if (previous.ref === undefined) delete process.env.GITHUB_REF_NAME
-        else process.env.GITHUB_REF_NAME = previous.ref
-      }
+      expect(upsert.update.$set).toMatchObject({
+        actor: 'ci',
+        gitBranch: 'feature/exsc-695',
+      })
+    },
+    CASE_TIMEOUT_MS
+  )
+
+  /**
+   * Every sibling flag on this command is kebab-cased, so `--dry-run` is the
+   * spelling a caller types. Read as `false` it would not be a no-op: the CLI
+   * would fall through to a real upsert.
+   */
+  it(
+    'honours the kebab spelling of the dry-run flag',
+    () => {
+      const { output, upsert } = runAdd({
+        repoRoot: makeRepo({ branch: 'main', dirty: false }),
+        flag: '--dry-run',
+      })
+
+      expect(output).toContain('Dry run: nothing was written to MongoDB')
+      expect(upsert.update.$set).toHaveProperty('gitBranch', 'main')
+    },
+    CASE_TIMEOUT_MS
+  )
+
+  it(
+    'caps the recorded dirty list and says so',
+    () => {
+      const repoRoot = makeRepo({ branch: 'main', dirty: false })
+      // One more than MAX_DIRTY_PATHS, so the cap is crossed rather than met.
+      for (let index = 0; index <= 20; index++)
+        writeFileSync(
+          join(repoRoot, `src/Facets/Extra${index}.sol`),
+          `contract Extra${index} {}\n`
+        )
+
+      const { output, upsert } = runAdd({ repoRoot })
+
+      expect(upsert.update.$set.dirtyTreeScoped).toHaveLength(20)
+      expect(upsert.update.$set).toHaveProperty('dirtyTreeTruncated', true)
+      expect(output).toContain('dirty 20+ path(s)')
     },
     CASE_TIMEOUT_MS
   )
@@ -288,7 +341,7 @@ describe('update-deployment-logs add — provenance capture', () => {
       expect(upsert.update.$set).toHaveProperty('contractName', CONTRACT)
       expect(output).toContain('branch UNKNOWN')
       expect(output).toContain('dirty unknown')
-      expect(output).toContain('Provenance capture:')
+      expect(output).toContain('Provenance capture problem:')
     },
     CASE_TIMEOUT_MS
   )
