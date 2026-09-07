@@ -35,6 +35,7 @@ import {
   saveContractAddress,
   updateDiamondJsonPeriphery,
 } from '../../utils/utils'
+import { flagIsOn } from '../safe/cli-flags'
 import { ZERO_ADDRESS } from '../shared/constants.js'
 import { getContractVersion } from '../shared/getContractVersion'
 import { retryWithRateLimit } from '../shared/rateLimit.js'
@@ -1494,7 +1495,6 @@ const deployCommand = defineCommand({
     dryRun: {
       type: 'boolean',
       description: 'Simulate deployment without executing',
-      default: false,
     },
     verbose: {
       type: 'boolean',
@@ -1504,7 +1504,6 @@ const deployCommand = defineCommand({
     skipConfirmation: {
       type: 'boolean',
       description: 'Skip confirmation prompts',
-      default: false,
     },
     only: {
       type: 'string',
@@ -1516,13 +1515,12 @@ const deployCommand = defineCommand({
       type: 'boolean',
       description:
         'Skip deployment; only register contract(s) from deployments file with the Diamond. Use with --only to register a single contract (e.g. after a failed registration).',
-      default: false,
     },
   },
   async run({ args }) {
     try {
       // Also check environment variables for backward compatibility
-      let dryRun = args.dryRun
+      let dryRun = flagIsOn(args.dryRun)
       let verbose = args.verbose
 
       try {
@@ -1555,9 +1553,9 @@ const deployCommand = defineCommand({
       await deployAndRegisterPeripheryImpl({
         dryRun,
         verbose,
-        skipConfirmation: args.skipConfirmation,
+        skipConfirmation: flagIsOn(args.skipConfirmation),
         onlyContracts,
-        registerOnly: args.registerOnly,
+        registerOnly: flagIsOn(args.registerOnly),
       })
     } catch (error: unknown) {
       const errorMessage =

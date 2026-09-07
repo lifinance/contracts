@@ -16,6 +16,12 @@
  *    running it on manifest changes catches "dependency removed from
  *    package.json while a script still imports it" even when no .ts file was
  *    touched.
+ * 3. citty argument defaults: no multi-word `defineCommand` argument may
+ *    declare a `default`. citty then resolves the spelling the caller did not
+ *    type to that default instead of falling back to the one they did, so
+ *    `--dry-run` against a `dryRun: { default: false }` reads as off and the
+ *    run broadcasts. Swept over ALL script files, since the shape is a defect
+ *    wherever it sits, not only in the diff.
  *
  * Used by the `.husky/pre-push` hook (fast local feedback) and the
  * `validateScripts.yml` CI workflow (enforcement backstop).
@@ -49,6 +55,8 @@ import {
   SyntaxKind,
 } from 'typescript'
 import type { Expression, Node } from 'typescript'
+
+import { scanFilesForMultiWordArgDefaults } from './cittyArgDefaults'
 
 const SCRIPT_FILE_PATTERN = /^script\/.*\.ts$/u
 const DEPENDENCY_MANIFESTS = ['package.json', 'bun.lock', 'tsconfig.json']
@@ -230,11 +238,30 @@ const runImportResolutionCheck = (repoRoot: string): boolean => {
   return true
 }
 
+const runCittyArgDefaultCheck = (repoRoot: string): boolean => {
+  const allScriptFiles = listScriptFiles(repoRoot)
+  consola.info(
+    `Checking citty argument declarations in ${allScriptFiles.length} script file(s)`
+  )
+  const findings = scanFilesForMultiWordArgDefaults(repoRoot, allScriptFiles)
+  if (findings.length === 0) return true
+
+  consola.error(
+    'Multi-word citty arguments declaring a `default` (citty resolves the spelling the caller did NOT type to it, so the other spelling is a silent no-op):'
+  )
+  for (const finding of findings)
+    consola.error(`  ${finding.file}:${finding.line} — \`${finding.argument}\``)
+  consola.error(
+    'Drop the `default` and apply the fallback in the command body: `flagIsOn(args.x)` for a boolean (see script/deploy/safe/cli-flags.ts), `args.x ?? DEFAULT` for a value.'
+  )
+  return false
+}
+
 const main = defineCommand({
   meta: {
     name: 'validateScripts',
     description:
-      'Static validation (type check + import resolution) of changed TS files under script/',
+      'Static validation (type check + import resolution + citty argument defaults) of changed TS files under script/',
   },
   args: {
     base: {
@@ -276,6 +303,8 @@ const main = defineCommand({
     // an unrelated manifest edit next trips the sweep.
     if (manifestsChanged || changedScriptFiles.length > 0)
       passed = runImportResolutionCheck(repoRoot) && passed
+    if (changedScriptFiles.length > 0)
+      passed = runCittyArgDefaultCheck(repoRoot) && passed
 
     if (!passed) {
       consola.error('Script validation failed')

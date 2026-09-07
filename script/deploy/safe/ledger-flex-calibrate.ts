@@ -25,6 +25,7 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import { getAddress, type Account, type Hex } from 'viem'
 
+import { readBooleanFlag } from './cli-flags'
 import { closeLedgerConnection, getLedgerAccount } from './ledger'
 
 interface ICalibrationTarget {
@@ -206,7 +207,6 @@ const main = defineCommand({
       type: 'boolean',
       description: 'Use Ledger Live derivation path',
       required: false,
-      default: true,
     },
     accountIndex: {
       type: 'string',
@@ -237,7 +237,11 @@ const main = defineCommand({
     printTargets()
 
     const { account, transport } = await getLedgerAccount({
-      ledgerLive: args.ledgerLive,
+      ledgerLive: readBooleanFlag(
+        process.argv,
+        { camel: 'ledgerLive', kebab: 'ledger-live' },
+        { whenAbsent: true }
+      ),
       accountIndex: args.accountIndex ? Number(args.accountIndex) : 0,
     })
     consola.success(`Connected: ${account.address}`)

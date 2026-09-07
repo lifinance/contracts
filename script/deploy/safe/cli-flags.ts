@@ -63,6 +63,11 @@ const uniqueOccurrence = (
   return found[0]
 }
 
+export interface IBooleanFlagOptions {
+  /** Some flags default ON, e.g. `--ledger` when signing. */
+  whenAbsent?: boolean
+}
+
 /**
  * Reads a boolean citty argument that a command has already had parsed for it.
  *
@@ -76,18 +81,23 @@ const uniqueOccurrence = (
  *
  * Declare such an argument with **no** citty `default`: for a multi-word
  * argument citty resolves the spelling the caller did not type to the default,
- * so a `default: false` makes `--dry-run` unreachable.
+ * so a `default: false` makes `--dry-run` unreachable. A flag that is on unless
+ * switched off keeps its fallback here, via `whenAbsent`, for the same reason.
  *
  * @param value - The argument as citty resolved it.
+ * @param options - What absence means, when it is not `false`.
  * @returns Whether the flag is on.
  */
-export const flagIsOn = (value: unknown): boolean =>
-  value === true ||
-  (typeof value === 'string' && value !== '' && value !== 'false')
+export const flagIsOn = (
+  value: unknown,
+  options: IBooleanFlagOptions = {}
+): boolean => {
+  if (value === undefined) return options.whenAbsent ?? false
 
-export interface IBooleanFlagOptions {
-  /** Some flags default ON, e.g. `--ledger` when signing. */
-  whenAbsent?: boolean
+  return (
+    value === true ||
+    (typeof value === 'string' && value !== '' && value !== 'false')
+  )
 }
 
 /**

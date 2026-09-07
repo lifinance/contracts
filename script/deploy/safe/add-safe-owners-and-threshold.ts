@@ -27,6 +27,7 @@ import globalConfig from '../../../config/global.json'
 import networksData from '../../../config/networks.json'
 import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 
+import { flagIsOn } from './cli-flags'
 import type { ILedgerAccountResult } from './ledger'
 import { assertTicketPresent } from './proposal-intent'
 import {
@@ -100,7 +101,6 @@ const main = defineCommand({
       description:
         'Run on every active EVM network in networks.json with type mainnet (excludes testnets)',
       alias: 'all-networks',
-      default: false,
     },
     privateKey: {
       type: 'string',
@@ -135,15 +135,16 @@ const main = defineCommand({
     },
   },
   async run({ args }) {
-    if (!args.network && !args.allNetworks)
+    const allNetworks = flagIsOn(args.allNetworks)
+    if (!args.network && !allNetworks)
       throw new Error('Provide either --network <name> or --all-networks')
-    if (args.network && args.allNetworks)
+    if (args.network && allNetworks)
       throw new Error('--network and --all-networks are mutually exclusive')
 
     const cliOwners = parseCliOwners(args.owners)
 
     if (args.check) {
-      const networks = resolveNetworks(args.network, args.allNetworks)
+      const networks = resolveNetworks(args.network, allNetworks)
       if (!networks.length) {
         consola.warn('No networks selected — exiting')
         return
@@ -177,7 +178,7 @@ const main = defineCommand({
     // Resolved here rather than after the Ledger, so both constraints hold at
     // once: an empty selection proposes nothing and must not be refused, and the
     // refusal must land before a device confirmation is collected per network.
-    const networks = resolveNetworks(args.network, args.allNetworks)
+    const networks = resolveNetworks(args.network, allNetworks)
     if (!networks.length) {
       consola.warn('No networks selected — exiting')
       return

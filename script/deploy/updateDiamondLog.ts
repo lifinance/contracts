@@ -3,6 +3,8 @@ import path from 'path'
 
 import { defineCommand, runMain } from 'citty'
 
+import { flagIsOn } from './safe/cli-flags'
+
 export interface IDiamondFile {
   [diamond: string]: {
     Facets: {
@@ -49,11 +51,11 @@ const main = defineCommand({
     isProduction: {
       type: 'boolean',
       description: 'Is production network',
-      default: true,
     },
   },
   async run({ args }) {
-    const { network, name, address, periphery, version, isProduction } = args
+    const { network, name, address, periphery, version } = args
+    const isProduction = flagIsOn(args.isProduction, { whenAbsent: true })
     updateDiamond(name, network, address, isProduction, {
       isPeriphery: periphery,
       version: version,

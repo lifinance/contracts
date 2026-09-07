@@ -33,6 +33,7 @@ import { type Address, type Hex } from 'viem'
 import { signMessage } from 'viem/accounts'
 
 import { getEnvVar } from '../../utils/utils'
+import { flagIsOn } from '../safe/cli-flags'
 import { assertTicketPresent } from '../safe/proposal-intent'
 import {
   getNextNonce,
@@ -377,7 +378,6 @@ const main = defineCommand({
     dryRun: {
       type: 'boolean',
       description: 'Do not write to MongoDB',
-      default: false,
     },
     to: {
       type: 'string',
@@ -451,7 +451,7 @@ const main = defineCommand({
       }
 
       await runPropose({
-        dryRun: args.dryRun,
+        dryRun: flagIsOn(args.dryRun),
         // citty returns a string for a single flag and an array when repeated
         to: args.to as unknown as string | string[] | undefined,
         calldata: args.calldata as unknown as Hex | Hex[] | undefined,
