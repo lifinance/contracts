@@ -209,6 +209,37 @@ describe('collectInstalledFacetAddresses', () => {
     expect(collectInstalledFacetAddresses([batch]).undecodable).toEqual([0])
   })
 
+  it('ignores the selector bytes at an odd nibble offset, which is an address not a selector', () => {
+    // the real shape: a whitelist batch whose DEX address merely contains them
+    const data = encodeFunctionData({
+      abi: parseAbi([
+        'function batchSetContractSelectorWhitelist(address[] contracts, bytes4[] selectors, bool approved)',
+      ]),
+      functionName: 'batchSetContractSelectorWhitelist',
+      args: [
+        // lowercase: mixed case would have to be a valid checksum. The four
+        // bytes land at an odd nibble offset because the address itself starts
+        // on a boundary and they begin one nibble into it.
+        [('0xa1f931c1ca' + 'b'.repeat(30)) as Address],
+        [SELECTORS[0] as Hex],
+        true,
+      ],
+    })
+    expect(data.toLowerCase()).toContain('1f931c1c')
+    expect(collectInstalledFacetAddresses([data]).undecodable).toEqual([])
+  })
+
+  it('still refuses the selector at a byte boundary inside an envelope', () => {
+    const data = encodeFunctionData({
+      abi: parseAbi([
+        'function batchSetContractSelectorWhitelist(address[] contracts, bytes4[] selectors, bool approved)',
+      ]),
+      functionName: 'batchSetContractSelectorWhitelist',
+      args: [[DIAMOND], ['0x1f931c1c' as Hex], true],
+    })
+    expect(collectInstalledFacetAddresses([data]).undecodable).toEqual([0])
+  })
+
   it('leaves a call with no cut selector in it alone', () => {
     const result = collectInstalledFacetAddresses([
       unknownWrapper('0xdeadbeef' as Hex),

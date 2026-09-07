@@ -177,8 +177,11 @@ const spawnCli = (options: {
 
   const output = `${result.stdout}${result.stderr}`
   // Load-bearing, not belt-and-braces: no case here may reach a real proposal
-  // store, whichever side of the gate it lands on.
-  if (output.includes('Proposal stored'))
+  // store, whichever side of the gate it lands on. All three funnels word their
+  // success differently — "Proposal stored in MongoDB" (Tron), "Transaction
+  // successfully stored in MongoDB" (EVM), "proposed and stored in MongoDB"
+  // (sendOrPropose) — so matching one of them protects one third of the cases.
+  if (/stored in mongodb/i.test(output))
     throw new Error(
       'a probe reached a real proposal store — the child environment is not isolated'
     )

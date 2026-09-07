@@ -51,6 +51,27 @@ const TIMELOCK_SCHEDULE_SELECTOR = toFunctionSelector(
 )
 
 /**
+ * Whether the cut selector appears in `data` **on a byte boundary**.
+ *
+ * Alignment is the whole point: a plain substring search also matches at an odd
+ * nibble offset, so a `bytes4[]`/`address[]` whitelist batch carrying a DEX
+ * address like `0xa1f931c1ca…` was refused for four bytes that were never a
+ * selector. Only an even offset can be one.
+ * @param data - calldata to search
+ */
+const carriesCutSelectorAligned = (data: Hex): boolean => {
+  const body = data.slice(2).toLowerCase()
+  const needle = DIAMOND_CUT_SELECTOR.slice(2)
+  for (
+    let at = body.indexOf(needle);
+    at !== -1;
+    at = body.indexOf(needle, at + 1)
+  )
+    if (at % 2 === 0) return true
+  return false
+}
+
+/**
  * `LibDiamond.FacetCutAction`: Add=0, Replace=1, Remove=2. Only the first two
  * point the diamond at new code, so only they have something to compare against
  * `main`; a Remove cut carries the zero address and is deliberately out of scope.
@@ -183,8 +204,12 @@ export const collectInstalledFacetAddresses = (
     // call is refused on its own bytes, never on its siblings': a batch pairing
     // one readable cut with one unreadable envelope must not pass because the
     // readable half decoded.
-    if (data.toLowerCase().includes(DIAMOND_CUT_SELECTOR.slice(2)))
-      undecodable.add(index)
+    //
+    // The reach of this is exactly "the selector, verbatim and byte-aligned".
+    // An envelope that splits or transforms it — two `bytes2` halves reassembled
+    // on chain, a payload rebuilt from a perturbed copy — is not caught, and
+    // needs a bespoke batcher the Safe would have to be pointed at.
+    if (carriesCutSelectorAligned(data)) undecodable.add(index)
     return false
   }
 
@@ -246,7 +271,7 @@ export const assertFunnelDeployGate = async (
     throw new Error(
       `Production deploy gate: call ${undecodable.join(
         ', '
-      )} carries the diamondCut selector but no cut could be read out of it, so the facets it would install cannot be checked. Either it is wrapped in an envelope this does not decode (re-encode it as a plain diamondCut and let the funnel do the timelock wrapping), its arguments do not decode, it nests more than ${MAX_UNWRAP_DEPTH} timelock layers — or those four bytes are a coincidence in an argument that is not a cut at all, in which case say so on the PR rather than working around this.`
+      )} carries the diamondCut selector on a byte boundary but no cut could be read out of it, so anything it would install cannot be checked. Three causes, in order of likelihood: it is wrapped in an envelope this does not decode — re-encode it as a plain diamondCut and let the funnel do the timelock wrapping; its arguments do not decode, or it nests more than ${MAX_UNWRAP_DEPTH} timelock layers; or this is not a cut at all and those four bytes are a selector or address that merely happens to contain them, which is a false refusal worth reporting rather than working around.`
     )
 
   // Nothing installs facet code (ownership transfers, whitelist updates, facet
@@ -377,8 +402,8 @@ export const createFunnelGateDeps = (
         network as SupportedChain,
         EnvironmentEnum.production
       )
-      // JSON modules expose the log under `default` in Node ESM and inline it in
-      // Bun; reading both keeps the map populated under either loader
+      // A JSON module's object hangs off `default`; the fallback covers a plain
+      // object reaching here from a caller that already unwrapped it
       return indexDeploymentsByAddress(
         deployments.default ?? deployments,
         options.toEvmHex

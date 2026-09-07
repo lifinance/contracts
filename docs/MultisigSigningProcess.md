@@ -215,7 +215,9 @@ any audit lookup at all. True audit enforcement is the separate bytecode ↔ aud
 attestation item in §9. The check is further **not** a GitHub SC+auditor
 review check.
 
-There is exactly **one** gate call site. `diamondUpdatePeriphery.sh`,
+There are **three** gate call sites, all calling the same module:
+`propose-to-safe.ts`, `propose-to-safe-tron.ts`, and the TypeScript
+`sendOrPropose` described at the end of this section. `diamondUpdatePeriphery.sh`,
 `diamondEMERGENCYPause.sh`, `proposeDiamondCut`
 (`script/deploy/shared/propose-diamond-cut.ts`, the funnel the six Tron
 `deploy-and-register-*-facet.ts` scripts route through) and the bash
@@ -224,9 +226,12 @@ propose through `propose-to-safe.ts` or `propose-to-safe-tron.ts`. What decides
 whether the gate does anything is the **calldata**, not which script called: a
 proposal whose calls encode no facet-installing `diamondCut` is skipped. So
 periphery registration and emergency pause pass through untouched without being
-exempted by name. The environment and network exemptions are unchanged (staging,
-and any network whose `config/networks.json` type is `testnet`, which is how
-`tronshasta` stays open).
+exempted by name. **The only exemption is the network**: any chain whose
+`config/networks.json` type is `testnet`, which is how `tronshasta` stays open.
+There is deliberately no environment exemption — reaching a funnel for a
+non-testnet network means proposing to a production Safe and signing with the
+production key, since a staging deploy sends straight to the diamond rather than
+proposing.
 
 Facet **removals** are outside it for the same reason rather than by exemption:
 `cleanUpProdDiamond.ts` and the deferred-cleanup drain (`drain-parked-tasks.ts`,
@@ -236,14 +241,22 @@ address and installs no bytecode, so a main-equivalence check has nothing to
 compare. Their safety comes from the removal-specific controls in the table
 below.
 
-**One propose path is genuinely outside the gate**, and it is not the bash
+**One propose path does not go through either funnel**, and it is not the bash
 `sendOrPropose`: the identically-named **TypeScript** `sendOrPropose`
-(`script/safe/safeScriptHelpers.ts`) signs and stores a proposal itself instead
-of going through either funnel. It carries the same gate call inline so the two
-cannot diverge, but a third proposer written against
-`storeTransactionInMongoDB` directly would not — see the bespoke task scripts
-listed in §4.1, and the `sendOrPropose` gap recorded in
+(`script/safe/safeScriptHelpers.ts`) signs and stores a proposal itself. It is the
+third call site, carrying the same gate call inline so the two cannot diverge. A
+*fourth* proposer written against `storeTransactionInMongoDB` directly would not
+be covered — see the bespoke task scripts listed in §4.1, and the `sendOrPropose`
+gap recorded in
 [DeferredDiamondCleanupQueue.md](./DeferredDiamondCleanupQueue.md) §6.
+
+Two limits of the gate worth stating plainly. Its unknown-envelope backstop reaches
+exactly "the `diamondCut` selector, verbatim and byte-aligned": an envelope that
+splits or transforms those bytes and reassembles them on chain is not caught, and
+would need a bespoke batcher the Safe was pointed at. And parked-task removals
+folded in by the drain (`drain-parked-tasks.ts`) are appended *after* the gate runs,
+which is safe only because that path builds Remove cuts in process and never
+replays stored calldata.
 
 `runPropose` owner-gates the proposer on-chain; with `--timelock` it wraps all
 calls into one `scheduleBatch` via `wrapWithTimelockSchedule` (`safe-utils.ts`;
@@ -354,7 +367,7 @@ parked tasks are reconciled weekly by `reconcileParkedTasks.yml`.
 | Propose | One-line reason (`--reason` / `SAFE_PROPOSAL_REASON`). Optional, warned once per process — OQ3 flips it to mandatory once the warning has fired zero times across 30 consecutive proposals | Warn | `proposal-intent.ts`; read the trigger with `report-reason-adoption.ts` (read-only) |
 | Propose | In-flight nonce uniqueness per Safe: concurrent proposers may still derive the same nonce, but only one insert survives (partial unique index over `pending` + `submitted`, compared case-insensitively so the Tron and EVM spellings of one Safe collide). The guarantee is **absent** if the index could not be built — in-flight rows already sharing a nonce, or a role without `createIndex` — and the build warns in both cases. Nothing is ever dropped, so a pre-`_ci` index from an earlier build stays as a weaker, redundant constraint | Block insert, re-run required | `unique_inflight_safe_nonce_ci` index in `safe-utils.ts`; diagnose with `report-nonce-collisions.ts` (read-only) |
 | Propose | Removal safety: protected-facet allowlist, live-selector hold-back, fail-closed diffs | Block + alert | `diamondRemovalDiff.ts`, `drain-parked-tasks.ts` |
-| Propose | Production: each facet the cut installs must have its `src/` import closure match `origin/main`, else open PR + audit-log commit freeze (audit log read from `main`); judged on the working tree, so a checkout on `main` is not exempt; staging and testnets are not gated | Block (prod non-testnet facet **additions and replacements**, on every path that reaches either funnel, the bash `sendOrPropose` included, plus the TypeScript `sendOrPropose` which carries the same call inline — periphery registration, emergency pause and removals install no facet code and are out of scope) | `funnel-deploy-gate.ts` in `propose-to-safe.ts` / `propose-to-safe-tron.ts`, deciding through `script/deploy/github/verify-approvals.ts`; verdict cached per run by `deploy-gate-cache.ts`, passes only (PR #2128, #2286, EXSC-929). **Caveat on Tron:** cut proposals are run from a `contracts-tron` checkout ([TronFork.md](./TronFork.md)), and the gate compares whatever working tree it is run in against *that* checkout's `origin/main` and audit log — not `lifinance/contracts` main |
+| Propose | Production: each facet the cut installs must have its `src/` import closure match `origin/main`, else open PR + audit-log commit freeze (audit log read from `main`); judged on the working tree, so a checkout on `main` is not exempt; testnets are not gated, and there is no environment exemption | Block (prod non-testnet facet **additions and replacements**, on every path that reaches either funnel, the bash `sendOrPropose` included, plus the TypeScript `sendOrPropose` which carries the same call inline — periphery registration, emergency pause and removals install no facet code and are out of scope) | `funnel-deploy-gate.ts` in `propose-to-safe.ts` / `propose-to-safe-tron.ts`, deciding through `script/deploy/github/verify-approvals.ts`; verdict cached per run by `deploy-gate-cache.ts`, passes only (PR #2128, #2286, EXSC-929). **Caveat on Tron:** cut proposals are run from a `contracts-tron` checkout ([TronFork.md](./TronFork.md)), and the gate compares whatever working tree it is run in against *that* checkout's `origin/main` and audit log — not `lifinance/contracts` main |
 | Confirm | Signer must be an owner; network must be active; threshold and nonce read on-chain per Safe | Block / skip | `confirm-safe-tx.ts`, `safe-utils.ts` |
 | Confirm | Ledger blind-signing enabled, fail-fast before any review | Block | `checkBlindSigningEnabled` in `ledger.ts` |
 | Confirm | Full calldata decode: diamond cut, scheduleBatch, whitelist, periphery, roles; per-selector name resolution | Display / warn only | `safe-decode-utils.ts` (`formatDecodedTxDataForDisplay`) |
