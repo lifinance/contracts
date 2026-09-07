@@ -234,14 +234,18 @@ describe('evaluateCodehashSignGate', () => {
     expect(seen).toEqual([getAddress(FACET), getAddress(FACET)])
   })
 
-  it('surfaces the excluded immutable bytes a MATCH did not cover', async () => {
+  it('carries the excluded immutable bytes through, and they block', async () => {
+    // `verifyCutTargets` grades a hash match with masked bytes UNVERIFIABLE
+    // until layer 2 checks their values, so the count has to survive the wiring
+    // for the display to be able to say what was not compared.
     const gate = await evaluateCodehashSignGate(
       { data: wrapped([cutCalldata()]), network: NETWORK },
       deps({ observe: async () => observed({ maskedByteCount: 128 }) })
     )
 
-    expect(gate.blocksSigning).toBe(false)
+    expect(gate.targets[0]?.verdict).toBe('UNVERIFIABLE')
     expect(gate.targets[0]?.excludedByteCount).toBe(128)
+    expect(gate.blocksSigning).toBe(true)
   })
 })
 
@@ -284,7 +288,7 @@ describe('renderCodehashSignGate', () => {
     expect(renderCodehashSignGate(unevaluatedCodehashSignGate())).toEqual([])
   })
 
-  it('names the excluded immutable bytes on a MATCH', async () => {
+  it('names the excluded immutable bytes that were not compared', async () => {
     const rendered = await render({
       observe: async () => observed({ maskedByteCount: 96 }),
     })
@@ -293,7 +297,7 @@ describe('renderCodehashSignGate', () => {
     expect(rendered.toLowerCase()).toContain('immutable')
   })
 
-  it('does not claim excluded bytes when none were excluded', async () => {
+  it('does not claim excluded bytes on a match that compared every byte', async () => {
     expect((await render({})).toLowerCase()).not.toContain('immutable')
   })
 })
