@@ -450,6 +450,46 @@ describe('createAttestationSource — the set it returns', () => {
   })
 })
 
+describe('the real fleet decides which lineage masks and which pins', () => {
+  const active = Object.keys(networks).filter(
+    (network) =>
+      (networks[network] as { status?: string } | undefined)?.status ===
+      'active'
+  )
+
+  /**
+   * @param network - a network key from the real config
+   */
+  const buildFor = async (network: string): Promise<IAttestedBuild> => {
+    const { source } = sourceWith({
+      toolchainScope: () =>
+        deriveToolchainScope(network, { networks, profiles }),
+    })
+    const [build] = await source.attestationsFor(ADDRESS, network)
+    if (!build) throw new Error(`${network} produced no attested build`)
+    return build
+  }
+
+  it('pins the exact bytes on exactly the zkEVM networks', async () => {
+    // The zk discriminator is the profile's zksolc pin, so this asserts the
+    // branch that decides masking against every active network in the real
+    // config rather than against the two the fixtures name.
+    expect(active.length).toBeGreaterThan(60)
+    const zk = active.filter((n) => networks[n]?.isZkEVM)
+    // Paired with the assertion below: with no zk network in the config, an
+    // implementation that never pinned would satisfy it vacuously.
+    expect(zk.length).toBeGreaterThan(0)
+
+    const pinned: string[] = []
+    for (const network of active) {
+      const build = await buildFor(network)
+      if (build.rawHash !== undefined) pinned.push(network)
+    }
+
+    expect(pinned.sort()).toEqual(zk.sort())
+  })
+})
+
 describe('createAttestationSource — the per-run cache', () => {
   it('rebuilds once per address, commit and profile', async () => {
     const { source, requests } = sourceWith()
