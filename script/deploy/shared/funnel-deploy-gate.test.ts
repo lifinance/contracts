@@ -318,19 +318,24 @@ describe('assertFunnelDeployGate', () => {
     expect(gateCalls).toEqual([])
   })
 
-  it('refuses when the deployments file for the network cannot be read', async () => {
+  it('refuses when the deployments file for the network cannot be read, and says the gate refused', async () => {
     const { deps: d } = deps({
       deployedNames: async () => {
         throw new Error('Deployments file not found for mainnet')
       },
     })
-    await expectRefusal(
-      assertFunnelDeployGate(
-        { network: 'mainnet', calldatas: [cut(FACET_A, 0)] },
-        d
-      ),
-      /Deployments file not found/
+    const caught = await assertFunnelDeployGate(
+      { network: 'mainnet', calldatas: [cut(FACET_A, 0)] },
+      d
+    ).then(
+      () => undefined,
+      (error: unknown) => error as Error
     )
+    expect(caught).toBeInstanceOf(Error)
+    // the cause has to survive, AND the message has to name the gate: a bare
+    // file error tells the operator nothing about why the deploy stopped
+    expect(caught?.message).toMatch(/Production deploy gate/)
+    expect(caught?.message).toMatch(/Deployments file not found/)
   })
 })
 

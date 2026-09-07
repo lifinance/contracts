@@ -422,3 +422,66 @@ describe('propose-to-safe funnel deploy gate', () => {
     CASE_TIMEOUT_MS
   )
 })
+
+describe('sendOrPropose (TypeScript) funnel deploy gate', () => {
+  // The third proposer. It signs and stores without either propose-to-safe
+  // funnel, so its gate call is inline and nothing else proves it is there —
+  // removing it only breaks the type checker, which is not a test.
+  const PROBE = `
+import { sendOrPropose } from ${JSON.stringify(
+    join(REPO_ROOT, 'script/safe/safeScriptHelpers')
+  )}
+import { EnvironmentEnum } from ${JSON.stringify(
+    join(REPO_ROOT, 'script/common/types')
+  )}
+try {
+  await sendOrPropose({
+    calldata: process.argv[2],
+    network: 'mainnet',
+    environment: EnvironmentEnum.production,
+    diamondAddress: ${JSON.stringify(DIAMOND_ADDRESS)},
+    signing: {},
+  })
+  console.log('GATE_NOT_REACHED')
+} catch (error) {
+  console.log((error as Error).message)
+}
+`
+
+  const runProbe = (diverge: boolean): string => {
+    const repoRoot = makeRepo(diverge)
+    const probe = join(repoRoot, 'probe.ts')
+    writeFileSync(probe, PROBE)
+    return spawnCli({
+      cli: probe,
+      args: [ADD_CUT],
+      repoRoot,
+      environment: 'production',
+    }).output
+  }
+
+  it(
+    'refuses a diverged facet addition before the Safe client is initialised',
+    () => {
+      const output = runProbe(true)
+
+      expect(output).toMatch(GATE_REFUSAL)
+      expect(output).toContain(FACET)
+      expect(output).not.toContain('GATE_NOT_REACHED')
+      // this is what it prints once past the gate, so its absence has teeth
+      expect(output).not.toContain(NEXT_STOP_EVM)
+    },
+    CASE_TIMEOUT_MS
+  )
+
+  it(
+    'lets an unchanged facet addition past the gate',
+    () => {
+      const output = runProbe(false)
+
+      expect(output).not.toMatch(GATE_REFUSAL)
+      expect(output).toContain('Production deploy gate passed')
+    },
+    CASE_TIMEOUT_MS
+  )
+})
