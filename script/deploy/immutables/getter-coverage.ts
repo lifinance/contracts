@@ -83,10 +83,6 @@ export const readGetterExemptions = (
   }
 }
 
-/** Contract name as `deployRequirements.json` keys it: the file's basename. */
-const contractOf = (file: string): string =>
-  (file.split('/').pop() ?? file).replace(/\.sol$/, '')
-
 /**
  * The public immutable address getters declared by every deployed contract.
  *
@@ -107,7 +103,7 @@ export const collectPublicImmutableGetters = (
       directories.some((directory) => declaration.file.startsWith(directory))
     )
     .map((declaration) => ({
-      contractName: contractOf(declaration.file),
+      contractName: declaration.contract,
       getter: declaration.name,
       solidityType: declaration.type,
       sourceFile: declaration.file,

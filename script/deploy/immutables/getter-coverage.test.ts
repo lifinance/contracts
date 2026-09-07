@@ -21,6 +21,7 @@ const declaration = (
   over: Partial<IImmutableDeclaration> = {}
 ): IImmutableDeclaration => ({
   file: 'src/Facets/SampleFacet.sol',
+  contract: 'SampleFacet',
   line: 20,
   type: 'address',
   visibility: 'public',
@@ -38,6 +39,17 @@ describe('collectPublicImmutableGetters', () => {
         sourceFile: 'src/Facets/SampleFacet.sol',
       },
     ])
+  })
+
+  it('keys on the contract the AST names, not the file basename', () => {
+    const [getter] = collectPublicImmutableGetters([
+      declaration({
+        file: 'src/Facets/Bundle.sol',
+        contract: 'SecondFacetInTheSameFile',
+      }),
+    ])
+
+    expect(getter?.contractName).toBe('SecondFacetInTheSameFile')
   })
 
   it.each([['contract ISpokePool'], ['address payable']])(

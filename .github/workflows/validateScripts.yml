@@ -75,23 +75,19 @@ jobs:
             # The registry accounts for immutables declared in src/, so a PR
             # adding a facet has to be able to run the gate without also
             # touching script tooling. Every file under script/deploy/immutables/
-            # is an input to the gate, the exemption list included. The gate
-            # enumerates immutables from `forge build src --ast`, so the compile
-            # inputs are triggers too.
+            # is an input to the gate, the exemption list included.
             immutables:
               - 'src/**/*.sol'
               - 'script/deploy/immutables/**'
               - 'script/deploy/resources/immutableRegistry.json'
               - 'script/deploy/resources/deployRequirements.json'
-              - 'foundry.toml'
-              - 'remappings.txt'
-              - '.foundry-version'
-              - '.github/actions/setup-foundry/**'
               - 'package.json'
               - 'bun.lock'
               - '.github/workflows/validateScripts.yml'
               # The enumeration is the compiler's own AST, so the Forge version
               # and its setup decide what the gate can see at all.
+              - 'foundry.toml'
+              - 'remappings.txt'
               - '.foundry-version'
               - '.github/actions/setup-foundry/**'
 
