@@ -432,17 +432,6 @@ export const createForgeRebuildRunner = (
 }
 
 /**
- * Where the per-commit rebuild checkouts go.
- *
- * Outside the repo, because a `git worktree` under the checkout shows up as an
- * untracked path in the tree the deploy flow refuses to record from. Per
- * process, because `close()` removes this tree and a shared path would let one
- * run's teardown delete a concurrent run's checkouts.
- *
- * @param pid - process to scope the path to; this one by default
- * @returns An absolute path outside the repository
- */
-/**
  * Answers each (address, network) once for the life of the run.
  * @param read - the reader to wrap
  * @returns The same reader, called at most once per target
@@ -464,6 +453,17 @@ const memoisePerTarget = <T>(
   }
 }
 
+/**
+ * Where the per-commit rebuild checkouts go.
+ *
+ * Outside the repo, because a `git worktree` under the checkout shows up as an
+ * untracked path in the tree the deploy flow refuses to record from. Per
+ * process, because `close()` removes this tree and a shared path would let one
+ * run's teardown delete a concurrent run's checkouts.
+ *
+ * @param pid - process to scope the path to; this one by default
+ * @returns An absolute path outside the repository
+ */
 export const defaultCheckoutRoot = (pid = process.pid): string =>
   join(tmpdir(), `lifi-codehash-rebuilds-${pid}`)
 
@@ -618,7 +618,10 @@ const createMongoRecordSource = (): IRecordSource => ({
     )
     if (exact) return exact
 
-    // The decoded cut supplies lowercase addresses; Mongo may hold checksummed.
+    // The decoded cut supplies checksummed addresses (`classifyCut` returns
+    // `getAddress`), and records were written in either case over the years, so
+    // the exact match above can miss on case alone. Do not "simplify" this by
+    // lowercasing one side: the stored case is not ours to assume.
     return collection.findOne(
       {
         network: { $eq: network },

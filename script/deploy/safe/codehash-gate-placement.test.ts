@@ -134,13 +134,36 @@ describe('the codehash refusal is in the one funnel every sign path uses', () =>
     expect(evaluation).toBeGreaterThan(reset)
   })
 
-  it('judges the same variable the display path was given', () => {
+  it('judges the struct that gets signed, not the stored document', () => {
+    // These are the same bytes today: `initializeSafeTransaction` copies
+    // `data` across verbatim and transforms only `to`, `value` and `nonce`. So
+    // this is not a live divergence — it is the one that cannot open. The gate
+    // reads what `sign` and `executeTransaction` are handed, which is the
+    // convention this file already states where it computes the fingerprint,
+    // and a later normalisation of `data` therefore cannot split the bytes
+    // vouched for from the bytes approved without also failing here.
+    expect(SOURCE).toContain('data: tx.safeTransaction.data.data as Hex')
+    expect(SOURCE).not.toContain(
+      '{ data: tx.safeTx.data.data as Hex | undefined, network }'
+    )
+    // The paired positive: the display path still decodes those same bytes, so
+    // the assertion above cannot be satisfied by a gate that judges calldata
+    // nobody was shown.
     expect(SOURCE).toContain(
       'await formatDecodedTxDataForDisplay(tx.safeTx.data.data as Hex'
     )
-    expect(SOURCE).toContain(
-      '{ data: tx.safeTx.data.data as Hex | undefined, network }'
+  })
+
+  it('hands the scope lookup a lowercase network key', () => {
+    // `config/networks.json` is keyed lowercase and `deriveToolchainScope`
+    // throws on an unknown key, so the raw `--network Mainnet` refused an
+    // honest signature instead of judging it: a false red, which is the
+    // failure that lands on a colleague rather than on an attacker.
+    const call = SOURCE.slice(
+      SOURCE.indexOf('await evaluateCodehashSignGate('),
+      SOURCE.indexOf('await evaluateCodehashSignGate(') + 700
     )
+    expect(call).toContain('network: network.toLowerCase()')
   })
 
   it('evaluates and displays the verdict before the action prompt', () => {

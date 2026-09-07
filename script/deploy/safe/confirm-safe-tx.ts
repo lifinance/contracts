@@ -532,7 +532,18 @@ const processTxs = async (
     // runs after the choice.
     try {
       codehashGate = await evaluateCodehashSignGate(
-        { data: tx.safeTx.data.data as Hex | undefined, network },
+        // The normalised transaction, not the stored document: this is the
+        // struct that gets hashed and signed, and a gate that vouches for the
+        // document's bytes while a different struct is signed is the exact way
+        // the bytes checked and the bytes approved come apart.
+        //
+        // Lower-cased because `config/networks.json` is keyed lowercase and the
+        // scope lookup throws on an unknown key — `--network Mainnet` would
+        // refuse an honest signature rather than judge it.
+        {
+          data: tx.safeTransaction.data.data as Hex | undefined,
+          network: network.toLowerCase(),
+        },
         getCodehashDeps()
       )
     } catch (error) {

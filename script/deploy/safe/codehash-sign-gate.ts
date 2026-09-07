@@ -100,6 +100,10 @@ export const evaluateCodehashSignGate = async (
   const refusals: string[] = [...collected.refusals]
   const targets: ITargetVerdict[] = []
   const summaries: string[] = []
+  // Each report's own verdict, rather than a second reading of its targets:
+  // whether a cut blocks is `verifyCutTargets`' decision to make, and the two
+  // derivations agreeing today is not a reason to keep both.
+  let anyCutBlocks = false
 
   // Every cut is judged even when a frame was already refused: a batch pairing
   // one readable cut with one unreadable frame must show both, or the readable
@@ -113,6 +117,7 @@ export const evaluateCodehashSignGate = async (
       refusals.push(...report.refusals)
       targets.push(...report.targets)
       summaries.push(report.summary)
+      anyCutBlocks = anyCutBlocks || report.blocksSigning
     } catch (error) {
       // Reached when a dependency throws outside the per-address try/catch the
       // gate does its own catching in — a network whose toolchain scope cannot
@@ -146,8 +151,7 @@ export const evaluateCodehashSignGate = async (
     }
 
   return {
-    blocksSigning:
-      refusals.length > 0 || targets.some((t) => t.verdict !== 'MATCH'),
+    blocksSigning: refusals.length > 0 || anyCutBlocks,
     evaluated: true,
     refusals,
     targets,

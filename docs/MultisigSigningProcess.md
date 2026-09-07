@@ -325,7 +325,24 @@ signer sees:
    and only when the transaction carries calldata: a **Ledger Flex
    "filmstrip"** (`renderLedgerFlexFlow`, `ledger-flex-preview.ts`), an ASCII
    replica of the device screens for the exact to-be-signed values.
-4. The action prompt: `Do Nothing` / `Sign` / `Sign & Execute` /
+4. **The sign-time codehash gate** (`codehash-sign-gate.ts`, deciding through
+   `script/deploy/codehash/`). Where the calldata decodes to a `diamondCut` —
+   timelock-wrapped and batched frames included — every address the cut would
+   install is compared against attested rebuilds of `main`, and the verdict
+   **blocks the signature**. `MATCH`, `MISMATCH` and `UNVERIFIABLE` stay three
+   separate buckets: both of the latter stop a signature but they are different
+   facts, and collapsing them is what teaches a signer to click through grey. A
+   removal installs nothing and is not gated; a removal-only cut carrying
+   `_init` is refused outright, because `_init` is delegatecalled in the
+   diamond's own storage context whatever the entries describe. Two limits are
+   put on screen rather than hidden: a hash match with bytes excluded as
+   immutables renders grey rather than green until the per-immutable check
+   (WP-2.3) can price those bytes, and calldata this decoder cannot open makes
+   **no claim** — it names the frames it could not read instead of reporting a
+   pass. A proposal that performs no cut is outside its scope and it says so.
+   The gate reads the normalised transaction, the same struct that gets hashed
+   and signed, so what it vouches for cannot drift from what the device shows.
+5. The action prompt: `Do Nothing` / `Sign` / `Sign & Execute` /
    `Sign and Execute With Deployer` / `Execute with Deployer`. The two
    deployer variants are the usual choice — see §2 on why the deployer
    wallet broadcasts.
@@ -392,6 +409,7 @@ parked tasks are reconciled weekly by `reconcileParkedTasks.yml`.
 | Propose | Production: each facet the cut installs must have its `src/` import closure match `origin/main`, else open PR + audit-log commit freeze (audit log read from `main`); judged on the working tree, so a checkout on `main` is not exempt; testnets are not gated, and there is no environment exemption | Block (prod non-testnet facet **additions and replacements**, on every path that reaches either funnel, the bash `sendOrPropose` included, plus the TypeScript `sendOrPropose` which carries the same call inline — periphery registration, emergency pause and removals install no facet code and are out of scope) | `funnel-deploy-gate.ts` in `propose-to-safe.ts` / `propose-to-safe-tron.ts`, deciding through `script/deploy/github/verify-approvals.ts`; verdict cached per run by `deploy-gate-cache.ts`, passes only (PR #2128, #2286, EXSC-929). **Caveat on Tron:** cut proposals are run from a `contracts-tron` checkout ([TronFork.md](./TronFork.md)), and the gate compares whatever working tree it is run in against *that* checkout's `origin/main` and audit log — not `lifinance/contracts` main |
 | Confirm | Signer must be an owner; network must be active; threshold and nonce read on-chain per Safe | Block / skip | `confirm-safe-tx.ts`, `safe-utils.ts` |
 | Confirm | Ledger blind-signing enabled, fail-fast before any review | Block | `checkBlindSigningEnabled` in `ledger.ts` |
+| Confirm | Sign-time codehash gate: every address a decoded `diamondCut` installs — `Add`/`Replace` targets plus a non-zero `_init` — must match an attested rebuild of `main` under the toolchain that network's `foundry.toml` profile pins. MATCH passes; MISMATCH and UNVERIFIABLE both block and stay distinct. A removal-only cut carrying `_init` is refused rather than gated. A MATCH with bytes excluded as immutables is downgraded to UNVERIFIABLE until WP-2.3 checks their values, and calldata the decoder cannot open makes **no claim** rather than reporting a pass. Asserted on both the sign and the execute route, not only at signature time — a proposal already at threshold is broadcast through a different funnel | Block | `codehash-sign-gate.ts` + `codehash-sign-gate-deps.ts` in `confirm-safe-tx.ts`, deciding through `script/deploy/codehash/` (EXSC-906) |
 | Confirm | Full calldata decode: diamond cut, scheduleBatch, whitelist, periphery, roles; per-selector name resolution | Display / warn only | `safe-decode-utils.ts` (`formatDecodedTxDataForDisplay`) |
 | Confirm | Deployed-version vs target-state mismatch highlight | **Warn only** | `facet-version-utils.ts`, `safe-utils.ts` |
 | Confirm | Stale nonce blocks Execute; future nonce prompts | Block / prompt | `confirm-safe-tx.ts` |
@@ -420,6 +438,12 @@ Honest list — the tooling displays these, but does **not** machine-assert them
   the external `api.4byte.sourcify.dev` database, displayed as-is.
 - **Execution outcome.** No simulation at review or sign time; the first
   signal is the broadcast itself.
+- **Bytecode of anything a cut does not install.** The sign-time codehash gate
+  (§4.3) machine-asserts the facet addresses and `_init` target of a decoded
+  `diamondCut` and nothing else — a fee change, a role grant or an ordinary
+  call is displayed and not vouched for. It also makes no claim about calldata
+  it cannot decode. Both are stated on screen, so the absence is not left for
+  the signer to infer, but neither is checked.
 
 ## 7. Emergency path
 
