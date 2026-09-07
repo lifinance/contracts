@@ -38,6 +38,10 @@ import { consola } from 'consola'
 import { getAddress, type Address, type Hex } from 'viem'
 
 import type { IProposeToSafeOptions } from '../../common/types'
+import {
+  assertFunnelDeployGate,
+  createFunnelGateDeps,
+} from '../shared/funnel-deploy-gate'
 
 import { readBooleanFlag, readValueFlag } from './cli-flags'
 import { proposeWithDrain, type ITimelockCall } from './drain-parked-tasks'
@@ -79,6 +83,18 @@ export async function runPropose(options: IProposeToSafeOptions) {
     reason: options.reason,
     envReason: process.env.SAFE_PROPOSAL_REASON,
   })
+
+  // The production deploy gate lives here rather than in each caller: every Safe
+  // proposal reaches this funnel, so a new caller is covered without anyone
+  // remembering to add it. Runs before the Safe client and the signature, and
+  // ahead of the drain, whose parked calls are facet removals and install no code.
+  await assertFunnelDeployGate(
+    {
+      network: options.network,
+      calldatas: normalizeProposeCalls(options).calldatas,
+    },
+    createFunnelGateDeps()
+  )
 
   await proposeWithDrain(options, (extraTimelockCalls, parkedTaskRefs) =>
     _runPropose(options, extraTimelockCalls, parkedTaskRefs)

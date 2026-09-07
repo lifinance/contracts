@@ -43,6 +43,10 @@ import {
   storeTransactionInMongoDB,
 } from '../safe/safe-utils'
 import { encodeTimelockScheduleBatch } from '../safe/timelock-abi'
+import {
+  assertFunnelDeployGate,
+  createFunnelGateDeps,
+} from '../shared/funnel-deploy-gate'
 
 import {
   TRON_DIAMOND_CONFIRM_OWNERSHIP_SELECTOR,
@@ -135,6 +139,32 @@ async function runPropose(options: IProposeToSafeTronOptions) {
   } else {
     consola.info('Mode: ownership (confirmOwnershipTransfer via Timelock)')
   }
+
+  // Same production deploy gate the EVM funnel runs, before the first RPC and
+  // long before anything is signed. Ownership mode proposes a single
+  // `confirmOwnershipTransfer` selector and installs no code, so only generic
+  // mode carries calls worth decoding. `deployments/<network>.json` stores
+  // base58 here while a cut's calldata carries 20-byte hex, hence the reader.
+  if (genericMode)
+    await assertFunnelDeployGate(
+      {
+        network: networkName,
+        calldatas: normalizeTronProposeCalls(
+          options.to,
+          options.calldata,
+          !useDirect
+        ).calldatas,
+      },
+      createFunnelGateDeps({
+        toEvmHex: (value) => {
+          try {
+            return tronBase58ToEvm20Hex(tronWeb, value).toLowerCase()
+          } catch {
+            return undefined
+          }
+        },
+      })
+    )
 
   // 1) Get min delay from Timelock (needed for scheduleBatch). Skipped in
   // direct mode, which doesn't touch the Timelock.
