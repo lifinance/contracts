@@ -196,13 +196,144 @@ describe('collectDiamondCutTargets', () => {
     expect(collected.refusals).toEqual([])
   })
 
-  it('is a pure read: two decodes of one value give the same answer', () => {
-    const data = scheduleBatch([
-      cutCalldata([[FACET_A, FacetCutActionEnum.Add, [SELECTOR_A]]], INIT),
-    ])
-
-    expect(collectDiamondCutTargets(data)).toEqual(
-      collectDiamondCutTargets(data)
+  it('unwraps the singular timelock schedule, not only the batch', () => {
+    const inner = cutCalldata(
+      [[FACET_A, FacetCutActionEnum.Replace, [SELECTOR_A]]],
+      ZERO
     )
+    const single = encodeFunctionData({
+      abi: [
+        {
+          type: 'function',
+          name: 'schedule',
+          inputs: [
+            { type: 'address', name: 'target' },
+            { type: 'uint256', name: 'value' },
+            { type: 'bytes', name: 'data' },
+            { type: 'bytes32', name: 'predecessor' },
+            { type: 'bytes32', name: 'salt' },
+            { type: 'uint256', name: 'delay' },
+          ],
+          outputs: [],
+          stateMutability: 'nonpayable',
+        },
+      ],
+      functionName: 'schedule',
+      args: [
+        DIAMOND as `0x${string}`,
+        0n,
+        inner,
+        `0x${'00'.repeat(32)}` as Hex,
+        `0x${'11'.repeat(32)}` as Hex,
+        86_400n,
+      ],
+    })
+
+    const collected = collectDiamondCutTargets(single)
+
+    expect(collected.refusals).toEqual([])
+    expect(collected.calls).toHaveLength(1)
+    expect(collected.calls[0]?.cuts[0]?.facetAddress).toBe(getAddress(FACET_A))
+  })
+
+  it('decodes a case-shifted proposal exactly as the lowercase one', () => {
+    // Upper-casing the nibbles changes no byte, so the EIP-712 hash and the
+    // executed cut are identical — but viem's selector match is
+    // case-sensitive, so this decoded to nothing before the hex was folded.
+    const lower = scheduleBatch([
+      cutCalldata([[FACET_A, FacetCutActionEnum.Add, [SELECTOR_A]]], ZERO),
+    ])
+    const shifted = `0x${lower.slice(2).toUpperCase()}` as Hex
+
+    expect(collectDiamondCutTargets(shifted)).toEqual(
+      collectDiamondCutTargets(lower)
+    )
+    expect(collectDiamondCutTargets(shifted).calls).toHaveLength(1)
+  })
+
+  it('refuses calldata that is not well-formed hex', () => {
+    const collected = collectDiamondCutTargets('0xzz1f931c1c' as Hex)
+
+    expect(collected.calls).toEqual([])
+    expect(collected.refusals[0]).toContain('not well-formed hex')
+  })
+
+  it('refuses odd-length calldata rather than reading it as no cut', () => {
+    expect(
+      collectDiamondCutTargets('0x1f931c1c0' as Hex).refusals
+    ).toHaveLength(1)
+  })
+
+  it('refuses a cut hidden one level below a known envelope', () => {
+    // The shape an outer-selector test cannot see: the top frame is
+    // scheduleBatch, which this decoder does open, and the cut sits inside a
+    // payload it does not.
+    const inner = cutCalldata(
+      [[FACET_A, FacetCutActionEnum.Add, [SELECTOR_A]]],
+      ZERO
+    )
+    const collected = collectDiamondCutTargets(
+      scheduleBatch([`0xdeadc0de${inner.slice(2)}` as Hex])
+    )
+
+    expect(collected.calls).toEqual([])
+    expect(collected.refusals[0]).toContain('0xdeadc0de')
+  })
+
+  it('refuses a batch that pairs a readable cut with an unreadable frame', () => {
+    const hidden = `0xdeadc0de${cutCalldata(
+      [[FACET_B, FacetCutActionEnum.Add, [SELECTOR_B]]],
+      ZERO
+    ).slice(2)}` as Hex
+    const collected = collectDiamondCutTargets(
+      scheduleBatch([
+        cutCalldata([[FACET_A, FacetCutActionEnum.Add, [SELECTOR_A]]], ZERO),
+        hidden,
+      ])
+    )
+
+    // The readable half is still reported, so the signer sees both facts.
+    expect(collected.calls).toHaveLength(1)
+    expect(collected.refusals).toHaveLength(1)
+  })
+
+  it('refuses a diamondCut whose own body will not decode', () => {
+    const truncated = cutCalldata(
+      [[FACET_A, FacetCutActionEnum.Add, [SELECTOR_A]]],
+      ZERO
+    ).slice(0, 60) as Hex
+
+    const collected = collectDiamondCutTargets(truncated)
+
+    expect(collected.calls).toEqual([])
+    expect(collected.refusals).toHaveLength(1)
+  })
+
+  it('refuses envelopes nested deeper than it will walk', () => {
+    let payload = cutCalldata(
+      [[FACET_A, FacetCutActionEnum.Add, [SELECTOR_A]]],
+      ZERO
+    )
+    for (let i = 0; i < 6; i += 1) payload = scheduleBatch([payload])
+
+    const collected = collectDiamondCutTargets(payload)
+
+    expect(collected.calls).toEqual([])
+    expect(collected.refusals[0]).toContain('deep')
+  })
+
+  it('does not refuse an empty payload inside a batch', () => {
+    // A value-only entry is a legitimate batch member, not a frame that
+    // failed to open — paired with the refusals above so "no refusal" is not
+    // the answer to everything.
+    const collected = collectDiamondCutTargets(
+      scheduleBatch([
+        '0x',
+        cutCalldata([[FACET_A, FacetCutActionEnum.Add, [SELECTOR_A]]], ZERO),
+      ])
+    )
+
+    expect(collected.refusals).toEqual([])
+    expect(collected.calls).toHaveLength(1)
   })
 })

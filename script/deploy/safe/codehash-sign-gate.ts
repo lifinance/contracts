@@ -87,25 +87,17 @@ export const evaluateCodehashSignGate = async (
   input: { data: Hex | undefined; network: string },
   deps: IVerifyCutDeps
 ): Promise<ICodehashSignGate> => {
+  if (!input.data || input.data === '0x') return unevaluatedCodehashSignGate()
+
   const collected = collectDiamondCutTargets(input.data)
 
-  if (collected.refusals.length > 0)
-    return {
-      blocksSigning: true,
-      evaluated: true,
-      refusals: collected.refusals,
-      targets: [],
-      summary: `This proposal will not be signed: ${collected.refusals.join(
-        ' '
-      )}`,
-    }
-
-  if (collected.calls.length === 0) return unevaluatedCodehashSignGate()
-
-  const refusals: string[] = []
+  const refusals: string[] = [...collected.refusals]
   const targets: ITargetVerdict[] = []
   const summaries: string[] = []
 
+  // Every cut is judged even when a frame was already refused: a batch pairing
+  // one readable cut with one unreadable frame must show both, or the readable
+  // half renders green beside a hole.
   for (const call of collected.calls)
     try {
       const report = await verifyCutTargets(
@@ -132,13 +124,23 @@ export const evaluateCodehashSignGate = async (
       )
     }
 
+  if (collected.calls.length === 0 && refusals.length === 0)
+    return {
+      blocksSigning: false,
+      evaluated: true,
+      refusals: [],
+      targets: [],
+      summary:
+        'This proposal performs no diamondCut, so there is no facet bytecode to vouch for.',
+    }
+
   return {
     blocksSigning:
       refusals.length > 0 || targets.some((t) => t.verdict !== 'MATCH'),
     evaluated: true,
     refusals,
     targets,
-    summary: summaries.join(' '),
+    summary: summaries.length > 0 ? summaries.join(' ') : refusals.join(' '),
   }
 }
 
@@ -161,9 +163,15 @@ const BUCKETS = {
  * @returns Lines to print, or none when there was no cut to judge
  */
 export const renderCodehashSignGate = (gate: ICodehashSignGate): string[] => {
-  if (!gate.evaluated) return []
+  // Silence is reserved for "there was nothing to judge". A gate that blocks
+  // must say so even when it never got as far as a per-address verdict, or the
+  // refusal a signer then hits has no explanation on screen.
+  if (!gate.evaluated && !gate.blocksSigning) return []
 
   const lines = ['    Codehash gate:']
+
+  if (!gate.evaluated)
+    lines.push(`        \u001b[31m✗ REFUSED\u001b[0m ${gate.summary}`)
 
   for (const refusal of gate.refusals)
     lines.push(`        \u001b[31m✗ REFUSED\u001b[0m ${refusal}`)
@@ -180,10 +188,8 @@ export const renderCodehashSignGate = (gate: ICodehashSignGate): string[] => {
       )
   }
 
-  if (gate.targets.length === 0 && gate.refusals.length === 0)
-    lines.push(
-      '        \u001b[32m✓ MATCH\u001b[0m nothing installed — this cut points the diamond at no new code.'
-    )
+  if (gate.evaluated && gate.targets.length === 0 && gate.refusals.length === 0)
+    lines.push(`        \u001b[32m✓ MATCH\u001b[0m ${gate.summary}`)
 
   return lines
 }

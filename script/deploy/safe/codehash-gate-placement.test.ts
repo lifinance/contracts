@@ -43,8 +43,13 @@ import {
 
 const SOURCE = readFileSync(join(import.meta.dir, 'confirm-safe-tx.ts'), 'utf8')
 
-/** Any `<something>.signTransaction(` — the calls that actually sign. */
-const CLIENT_SIGN_CALLS = /\w+\.signTransaction\(/g
+/**
+ * Every spelling of "produce a signature" the Safe client and Ledger seam
+ * expose. Narrowing this to `signTransaction` would let a future
+ * `safe.signTransactionWithHash(tx)` satisfy the assertion below.
+ */
+const CLIENT_SIGN_CALLS =
+  /\w+\.(?:signTransaction|signTransactionWithHash|signHash|signTypedData|signMessage)\(/g
 
 /** Calls to the funnel itself, which is a bare identifier. */
 const FUNNEL_CALLS = /(?<![.\w])signTransaction\(/g
@@ -83,11 +88,17 @@ describe('the codehash refusal is in the one funnel every sign path uses', () =>
   })
 
   it('starts each proposal in the blocking state rather than the last verdict', () => {
-    const loopStart = SOURCE.indexOf('codehashGate = blockingUnevaluatedGate()')
+    const loopHeader = SOURCE.indexOf('for (const tx of initialTxs')
+    const reset = SOURCE.indexOf('codehashGate = blockingUnevaluatedGate()')
     const evaluation = SOURCE.indexOf('await evaluateCodehashSignGate(')
 
-    expect(loopStart).toBeGreaterThan(-1)
-    expect(evaluation).toBeGreaterThan(loopStart)
+    expect(loopHeader).toBeGreaterThan(-1)
+    // Inside the per-proposal loop, not hoisted above it: hoisted, the reset
+    // runs once and the second proposal is judged on the first one's verdict,
+    // while an assertion that only ordered reset before evaluation would still
+    // pass.
+    expect(reset).toBeGreaterThan(loopHeader)
+    expect(evaluation).toBeGreaterThan(reset)
   })
 
   it('judges the same variable the display path was given', () => {

@@ -14,6 +14,8 @@
  * masking path at all.
  */
 
+import { join } from 'path'
+
 import {
   describe,
   expect,
@@ -31,6 +33,7 @@ import {
   createRecordReader,
   createRuntimeCodeObserver,
   createToolchainScopeResolver,
+  defaultCheckoutRoot,
   readToolchainConfig,
 } from './codehash-sign-gate-deps'
 
@@ -326,6 +329,10 @@ describe('createForgeRebuildRunner', () => {
       'add',
       '--detach',
     ])
+    // The path is the dimension this test is about, so it is the one asserted:
+    // under the checkout root, never under the repo the signer is running from.
+    expect(harness.gitCalls[0]?.[3]).toBe(`/tmp/rebuilds/${request.commit}`)
+    expect(harness.gitCalls[0]?.[3]?.startsWith('/repo')).toBe(false)
     expect(harness.gitCalls[0]?.[4]).toBe(request.commit)
   })
 
@@ -584,6 +591,84 @@ describe('createImmutableReferencesResolver', () => {
     expect(
       await resolver(undefined, builds)(ADDRESS, 'mainnet')
     ).toBeUndefined()
+    expect(builds).toEqual([])
+  })
+})
+
+describe('defaultCheckoutRoot', () => {
+  it('sits outside the repository and is scoped to the process', () => {
+    const root = defaultCheckoutRoot(4242)
+
+    expect(root).toContain('4242')
+    expect(root.startsWith(join(import.meta.dir, '..', '..', '..'))).toBe(false)
+    // Paired: a different process gets a different tree, so one run's teardown
+    // cannot delete a concurrent run's checkouts.
+    expect(defaultCheckoutRoot(4243)).not.toBe(root)
+  })
+})
+
+describe('createForgeRebuildRunner refuses a commit it cannot trust', () => {
+  it.each([
+    ['a path traversal', '../../etc'],
+    ['a git option', '--upload-pack=touch'],
+    ['a short prefix', 'a'.repeat(7)],
+    ['an uppercase SHA', 'A'.repeat(40)],
+  ])('refuses %s before touching the filesystem', (_label, commit) => {
+    const gitCalls: string[][] = []
+    const runner = createForgeRebuildRunner({
+      repoRoot: '/repo',
+      checkoutRoot: '/tmp/rebuilds',
+      git: (args) => {
+        gitCalls.push(args)
+        return ''
+      },
+      run: () => ({ ok: true, output: '' }),
+      exists: () => false,
+      readFile: () => '{}',
+    })
+
+    expect(() =>
+      runner.build({
+        contractName: 'AccessManagerFacet',
+        commit,
+        profile: {
+          profile: 'default',
+          solcVersion: '0.8.29',
+          evmVersion: 'cancun',
+        },
+      })
+    ).toThrow(/40-character/)
+    // Paired with the accepted-commit cases above, where the same spy records a
+    // worktree add: nothing ran for a commit that was refused.
+    expect(gitCalls).toEqual([])
+  })
+})
+
+describe('createImmutableReferencesResolver refuses several lineages', () => {
+  it('does not pick one profile when the network has two', async () => {
+    const builds: string[] = []
+    const resolve = createImmutableReferencesResolver({
+      readRecord: async () => ({
+        contractName: 'AccessManagerFacet',
+        version: '1.0.0',
+        gitCommitHash: 'a'.repeat(40),
+      }),
+      scopeFor: () => ({
+        isClosedSet: true,
+        profiles: [
+          { profile: 'default', solcVersion: '0.8.29', evmVersion: 'cancun' },
+          { profile: 'other', solcVersion: '0.8.29', evmVersion: 'cancun' },
+        ],
+      }),
+      build: (request) => {
+        builds.push(request.commit)
+        return { runtimeHex: DEPLOYED, immutableReferences: REFS }
+      },
+    })
+
+    expect(await rejection(resolve(ADDRESS, 'mainnet'))).toContain(
+      'per lineage'
+    )
     expect(builds).toEqual([])
   })
 })

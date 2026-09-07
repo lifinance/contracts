@@ -47,6 +47,9 @@ import {
 } from '../codehash/rebuild-attestations'
 import type { IVerifyCutDeps } from '../codehash/verify-cut-targets'
 
+/** A full commit SHA and nothing else: this value reaches a path and git argv. */
+const FULL_SHA = /^[0-9a-f]{40}$/
+
 /** What the record writer stores when it could not read a commit. */
 const UNKNOWN_COMMIT = 'UNKNOWN'
 
@@ -263,7 +266,15 @@ export const createImmutableReferencesResolver = (deps: {
     // `UNKNOWN` is what the record writer stores when it could not read a
     // commit, so it is an absent value rather than one to hand to a fetch.
     if (commit === '' || commit === UNKNOWN_COMMIT) return undefined
-    const profile = deps.scopeFor(network).profiles[0]
+    const profiles = deps.scopeFor(network).profiles
+    // Mirrors the observer's refusal rather than relying on it running first:
+    // offsets are per lineage, so picking one of several would mask bytes the
+    // attested side did not.
+    if (profiles.length !== 1)
+      throw new Error(
+        `${network} resolves to ${profiles.length} build profiles, and immutable offsets are per lineage, so there is no single set to mask the deployed code with.`
+      )
+    const profile = profiles[0]
     if (!profile) return undefined
     return deps.build({
       contractName: record.contractName,
@@ -312,6 +323,13 @@ export const createForgeRebuildRunner = (
   const created = new Set<string>()
 
   const build = (request: IRebuildRequest): IRebuiltArtifact => {
+    // The commit comes from a Mongo row and reaches both a path join and git's
+    // argv. `ensureCommitAvailable` checks the same shape, but it runs in a
+    // different module on a different call, so this does not rely on ordering.
+    if (!FULL_SHA.test(request.commit))
+      throw new Error(
+        `refusing to rebuild at "${request.commit}": a commit must be a full 40-character lowercase SHA before it reaches a path or a git argument.`
+      )
     const checkout = join(deps.checkoutRoot, request.commit)
     if (!deps.exists(checkout)) {
       deps.git(['worktree', 'add', '--detach', checkout, request.commit])
@@ -413,6 +431,42 @@ export const createForgeRebuildRunner = (
   }
 }
 
+/**
+ * Where the per-commit rebuild checkouts go.
+ *
+ * Outside the repo, because a `git worktree` under the checkout shows up as an
+ * untracked path in the tree the deploy flow refuses to record from. Per
+ * process, because `close()` removes this tree and a shared path would let one
+ * run's teardown delete a concurrent run's checkouts.
+ *
+ * @param pid - process to scope the path to; this one by default
+ * @returns An absolute path outside the repository
+ */
+/**
+ * Answers each (address, network) once for the life of the run.
+ * @param read - the reader to wrap
+ * @returns The same reader, called at most once per target
+ */
+const memoisePerTarget = <T>(
+  read: (address: string, network: string) => Promise<T>
+): ((address: string, network: string) => Promise<T>) => {
+  const cache = new Map<string, Promise<T>>()
+  return (address: string, network: string): Promise<T> => {
+    const key = `${network}|${address.toLowerCase()}`
+    const hit = cache.get(key)
+    if (hit) return hit
+    const pending = read(address, network)
+    cache.set(key, pending)
+    // A failed read is not remembered: an outage must be retried, never cached
+    // as an answer.
+    pending.catch(() => cache.delete(key))
+    return pending
+  }
+}
+
+export const defaultCheckoutRoot = (pid = process.pid): string =>
+  join(tmpdir(), `lifi-codehash-rebuilds-${pid}`)
+
 export interface ISignTimeCodehashDeps extends IVerifyCutDeps {
   /** Releases the record store and removes the rebuild checkouts. */
   close: () => Promise<void>
@@ -432,11 +486,7 @@ export const createSignTimeCodehashDeps = (overrides?: {
   const scopeFor = createToolchainScopeResolver(readToolchainConfig())
   // Outside the repo: a `git worktree` under the checkout would show up as an
   // untracked path in the tree the deploy flow refuses to record from.
-  // Per process: `close()` removes this tree, and a shared path would let one
-  // run's teardown delete a concurrent run's checkouts.
-  const checkoutRoot =
-    overrides?.checkoutRoot ??
-    join(tmpdir(), `lifi-codehash-rebuilds-${process.pid}`)
+  const checkoutRoot = overrides?.checkoutRoot ?? defaultCheckoutRoot()
   mkdirSync(checkoutRoot, { recursive: true })
 
   const git = (args: string[]): string => {
@@ -473,7 +523,10 @@ export const createSignTimeCodehashDeps = (overrides?: {
   })
 
   const recordSource = overrides?.recordSource ?? createMongoRecordSource()
-  const readRecord = createRecordReader(recordSource)
+  // One read per (address, network), shared by the attestation side and the
+  // offsets side: two reads of a mutable source is the failure this design
+  // exists to prevent, even where the worst outcome is a mask asymmetry.
+  const readRecord = memoisePerTarget(createRecordReader(recordSource))
 
   const attestations = createAttestationSource({
     readRecord,

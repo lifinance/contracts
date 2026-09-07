@@ -22,6 +22,7 @@ import type { IVerifyCutDeps } from '../codehash/verify-cut-targets'
 
 import {
   assertCodehashSignGateAllowsSigning,
+  blockingUnevaluatedGate,
   createGatedSigner,
   evaluateCodehashSignGate,
   renderCodehashSignGate,
@@ -33,6 +34,7 @@ import { TIMELOCK_SCHEDULE_BATCH_ABI } from './timelock-abi'
 const FACET = '0x1111111111111111111111111111111111111111'
 const DIAMOND = '0x4444444444444444444444444444444444444444'
 const ZERO = '0x0000000000000000000000000000000000000000'
+const OTHER = '0x2222222222222222222222222222222222222222'
 const NETWORK = 'mainnet'
 
 const MASKED = `0x${'ab'.repeat(32)}`
@@ -186,11 +188,11 @@ describe('evaluateCodehashSignGate', () => {
 
     expect(gate.blocksSigning).toBe(true)
     expect(gate.evaluated).toBe(true)
-    expect(gate.refusals[0]).toContain('cannot open')
+    expect(gate.refusals[0]).toContain('could not open')
   })
 
   it('judges every cut in a batch, not only the first', async () => {
-    const other = '0x2222222222222222222222222222222222222222'
+    const other = OTHER
     const gate = await evaluateCodehashSignGate(
       {
         data: wrapped([cutCalldata(), cutCalldata(other)]),
@@ -232,6 +234,13 @@ describe('evaluateCodehashSignGate', () => {
 
     expect(second).toEqual(first)
     expect(seen).toEqual([getAddress(FACET), getAddress(FACET)])
+    // Non-vacuous: a different value must reach a different address, so the
+    // equality above is a property of the input rather than of a cached answer.
+    await evaluateCodehashSignGate(
+      { data: wrapped([cutCalldata(OTHER)]), network: NETWORK },
+      recording
+    )
+    expect(seen[2]).toBe(getAddress(OTHER))
   })
 
   it('carries the excluded immutable bytes through, and they block', async () => {
@@ -303,13 +312,7 @@ describe('renderCodehashSignGate', () => {
 })
 
 describe('the sign funnel', () => {
-  const blockingGate = {
-    blocksSigning: true,
-    evaluated: true,
-    refusals: [],
-    targets: [],
-    summary: 'This cut will not be signed.',
-  }
+  const blockingGate = blockingUnevaluatedGate()
   const passingGate = { ...blockingGate, blocksSigning: false }
 
   it('never reaches the signature when the gate blocks', async () => {
@@ -386,13 +389,24 @@ describe('assertCodehashSignGateAllowsSigning', () => {
     expect(() => assertCodehashSignGateAllowsSigning(gate)).not.toThrow()
   })
 
-  it('refuses a gate that was never evaluated', () => {
+  it('refuses the state a proposal starts in', () => {
+    // The real default, not a hand-built stand-in: flip its `blocksSigning` to
+    // false and this is the assertion that catches it.
+    expect(blockingUnevaluatedGate().blocksSigning).toBe(true)
     expect(() =>
-      assertCodehashSignGateAllowsSigning({
-        ...unevaluatedCodehashSignGate(),
-        blocksSigning: true,
-        summary: 'the codehash gate did not run for this proposal',
-      })
+      assertCodehashSignGateAllowsSigning(blockingUnevaluatedGate())
     ).toThrow(/did not run/)
+  })
+
+  it('says why on screen rather than refusing silently', () => {
+    const rendered = renderCodehashSignGate(blockingUnevaluatedGate()).join(
+      '\n'
+    )
+
+    // Paired with the no-cut case below, which renders nothing at all: a
+    // blocking gate that printed nothing would leave the refusal unexplained.
+    expect(rendered).toContain('REFUSED')
+    expect(rendered).toContain('did not run')
+    expect(renderCodehashSignGate(unevaluatedCodehashSignGate())).toEqual([])
   })
 })
