@@ -24,7 +24,18 @@ import {
 
 const REFUSAL = "accepts no value, 'true' or 'false'"
 
-/** Not a real network, so nothing this file runs can edit a real diamond log. */
+/**
+ * Not a real network. Every command here is spawned for real, and one of them
+ * deploys: pointed at a live network, a run that gets PAST the reader — which
+ * is exactly what happens when someone mutation-tests these call sites — will
+ * deploy a Safe and rewrite that network's `safeAddress`. A name with no
+ * `ETH_NODE_URI_*` behind it stops in `setupEnvironment` before any of that,
+ * and a refused run never gets there at all.
+ *
+ * Do not put a real network name here, even one that "obviously" cannot reach a
+ * key: the spawned child re-reads the repo env file itself, so unsetting the
+ * keys in this process does not take them away from it.
+ */
 const PROBE_NETWORK = 'zzplacementprobe'
 
 /**
@@ -89,7 +100,7 @@ const REACHABLE: Record<string, string[]> = {
     '--version',
     '1.0.0',
   ],
-  'deploy/safe/deploy-safe.ts': ['--network', 'mainnet'],
+  'deploy/safe/deploy-safe.ts': ['--network', PROBE_NETWORK],
   'deploy/tron/deploy-safe-tron.ts': ['--threshold', '3'],
 }
 
