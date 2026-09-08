@@ -134,20 +134,24 @@ describe('the codehash refusal is in the one funnel every sign path uses', () =>
     expect(evaluation).toBeGreaterThan(reset)
   })
 
-  // Which bytes the gate judges is NOT asserted here any more, and neither is the
-  // number of call sites. Four versions tried: a spelling pin, a comment-stripped
-  // pin, a call-site count, and an interface naming the right field. Each was
-  // defeated — by a comment, by a string literal, by an alias that read the
-  // correct field and failed the test anyway, and finally by the fact that
-  // `safeTx` and `safeTransaction` are the same type, so `{ safeTransaction:
-  // row.safeTx }` type-checked and judged the document.
+  // Which bytes the gate judges is not asserted here, and neither is the number
+  // of call sites. Six attempts, five of them defeated by a reviewer: a pin on
+  // the call site's spelling (satisfied by a comment reciting it), the same pin
+  // on comment-stripped text (satisfied by a string literal, and by a `'/*'`
+  // inside a string that deleted the real call site), an interface naming the
+  // right field (defeated cast-free — `safeTx` and `safeTransaction` are the
+  // same type), a type-level brand (defeated by a spread, which keeps the brand
+  // and swaps the bytes), and a runtime identity check on a value the selector
+  // then discarded (defeated by mutating or spreading the detached bytes it
+  // returned, and by grading one pending proposal while signing another).
   //
-  // `gateInputFor` now requires `ISignedSafeTransaction`, branded in
-  // `initializeSafeTransaction`. The guarantee lives in the compiler, and its
-  // falsification is the `@ts-expect-error` case in codehash-sign-gate.test.ts:
-  // weaken the type and `tsc` fails on the unused directive. A second call site
-  // is no longer a bug either, because it would have to pass the same branded
-  // struct. What is left in this file is ordering, which types cannot express.
+  // What holds now lives in codehash-sign-gate.test.ts, under `bun test`: the
+  // input carries the struct by reference so the gate reads the calldata itself
+  // at judge time, and the verdict is compared against the bytes actually being
+  // signed, so a pass on other calldata refuses. A second call site is caught by
+  // `tsc-files` on a changed production file, which CI runs. Nothing about this
+  // is asserted by reading this file's own source, because four versions of that
+  // idea were each defeated and each also failed a correct refactor.
 
   it('evaluates and displays the verdict before the action prompt', () => {
     const evaluation = SOURCE.indexOf('await evaluateCodehashSignGate(')

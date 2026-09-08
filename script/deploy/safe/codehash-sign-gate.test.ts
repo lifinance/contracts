@@ -170,7 +170,7 @@ describe('gateInputFor', () => {
   it('reads the calldata of the struct that gets signed', async () => {
     expect(
       gateInputFor({ safeTransaction: await signedStruct('0xaabb') }, 'mainnet')
-        .data
+        .struct.data.data
     ).toBe('0xaabb')
   })
 
@@ -185,7 +185,8 @@ describe('gateInputFor', () => {
 
   it('reports absent calldata as undefined', async () => {
     expect(
-      gateInputFor({ safeTransaction: await signedStruct() }, 'mainnet').data
+      gateInputFor({ safeTransaction: await signedStruct() }, 'mainnet').struct
+        .data.data
     ).toBeUndefined()
   })
 
@@ -618,6 +619,99 @@ describe('the render distinguishes every bucket, including the two that are not 
   })
 })
 
+describe('a verdict is about specific bytes', () => {
+  // The route that defeated attempt 5, twice over. `gateInputFor` used to return
+  // detached `{ data, network }`, so the bytes could be reassigned after the
+  // identity check or replaced in a spread. And identity alone answered "some
+  // struct a producer made", not "this proposal" — every pending row on the
+  // network carries a member struct, so grading proposal 0 authorised signing
+  // proposal N. Binding the verdict to the payload is what closes both.
+  it('refuses to authorise a signature over calldata it did not grade', async () => {
+    const graded = await evaluateCodehashSignGate(
+      await gateInput(cutCalldata()),
+      () => deps()
+    )
+
+    expect(graded.blocksSigning).toBe(false)
+    expect(() =>
+      assertCodehashSignGateAllowsSigning(graded, '0xdeadbeef')
+    ).toThrow(/verdict is about different calldata/)
+  })
+
+  it('authorises the calldata it did graded, so the check is not blanket', async () => {
+    const data = cutCalldata()
+    const graded = await evaluateCodehashSignGate(await gateInput(data), () =>
+      deps()
+    )
+
+    expect(() =>
+      assertCodehashSignGateAllowsSigning(graded, data)
+    ).not.toThrow()
+  })
+
+  it('stops the signer when the struct being signed is a different proposal', async () => {
+    // The whole point, driven through the funnel rather than the assert: a
+    // passing verdict on one proposal must not sign another. `sign` is a spy,
+    // so this asserts the signature was never reached, not merely that
+    // something threw.
+    const reached: string[] = []
+    const graded = await evaluateCodehashSignGate(
+      await gateInput(cutCalldata()),
+      () => deps()
+    )
+    const other = await signedStruct('0xdeadbeef')
+
+    const sign = createGatedSigner<[ISignedSafeTransaction], string>({
+      gate: () => graded,
+      payloadOf: (struct) => struct.data.data as Hex | undefined,
+      sign: async (struct) => {
+        reached.push(String(struct.data.data))
+        return 'signed'
+      },
+    })
+
+    expect(await rejection(sign(other))).toMatch(
+      /verdict is about different calldata/
+    )
+    expect(reached).toEqual([])
+  })
+
+  it('signs the proposal it graded, so the funnel is not simply broken', async () => {
+    const reached: string[] = []
+    const struct = await signedStruct(cutCalldata())
+    const graded = await evaluateCodehashSignGate(
+      gateInputFor({ safeTransaction: struct }, NETWORK),
+      () => deps()
+    )
+
+    const sign = createGatedSigner<[ISignedSafeTransaction], string>({
+      gate: () => graded,
+      payloadOf: (s) => s.data.data as Hex | undefined,
+      sign: async (s) => {
+        reached.push(String(s.data.data))
+        return 'signed'
+      },
+    })
+
+    expect(await sign(struct)).toBe('signed')
+    expect(reached).toHaveLength(1)
+  })
+
+  it('judges the struct as it stands when the gate runs, not a copy taken earlier', async () => {
+    // The holder carries the reference, so there is no earlier copy to diverge
+    // from: mutating the struct changes what is judged, which is the correct
+    // semantics — the bytes Safe would sign are the bytes graded.
+    const struct = await signedStruct(cutCalldata())
+    const input = gateInputFor({ safeTransaction: struct }, NETWORK)
+    struct.data.data = '0xdeadbeef'
+
+    const graded = await evaluateCodehashSignGate(input, () => deps())
+
+    expect(graded.gradedData).toBe('0xdeadbeef')
+    expect(graded.madeNoClaim).toBe(true)
+  })
+})
+
 describe('the sign funnel', () => {
   const blockingGate = blockingUnevaluatedGate()
   const passingGate = { ...blockingGate, blocksSigning: false }
@@ -626,6 +720,7 @@ describe('the sign funnel', () => {
     const calls: string[] = []
     const sign = createGatedSigner<[string], string>({
       gate: () => blockingGate,
+      payloadOf: () => undefined,
       sign: async (tx) => {
         calls.push(tx)
         return tx
@@ -640,6 +735,7 @@ describe('the sign funnel', () => {
     const calls: string[] = []
     const sign = createGatedSigner<[string], string>({
       gate: () => passingGate,
+      payloadOf: () => undefined,
       sign: async (tx) => {
         calls.push(tx)
         return `signed:${tx}`
@@ -654,6 +750,7 @@ describe('the sign funnel', () => {
     const calls: string[] = []
     const sign = createGatedSigner<[string], string>({
       gate: () => blockingGate,
+      payloadOf: () => undefined,
       sign: async () => {
         calls.push('reached')
         throw new Error('the device was not connected')

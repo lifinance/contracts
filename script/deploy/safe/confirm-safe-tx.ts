@@ -192,6 +192,10 @@ const processTxs = async (
     ISafeTransaction
   >({
     gate: () => codehashGate,
+    // The bytes this signature will cover, so the verdict is checked against
+    // them rather than merely being non-blocking.
+    payloadOf: (safeTransaction) =>
+      safeTransaction.data.data as Hex | undefined,
     sign: async (safeTransaction, client = safe) => {
       consola.info('Signing transaction')
       try {
@@ -261,7 +265,10 @@ const processTxs = async (
     // direct-broadcast route open; the same reading would leave this one open.
     // Every execute branch calls this helper, so asserting here covers all of
     // them by construction, and the sign-then-execute paths simply assert twice.
-    assertCodehashSignGateAllowsSigning(codehashGate)
+    assertCodehashSignGateAllowsSigning(
+      codehashGate,
+      safeTransaction.data.data as Hex | undefined
+    )
 
     consola.info('Preparing to execute Safe transaction...')
     let safeTxHash = ''

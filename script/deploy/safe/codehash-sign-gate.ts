@@ -34,6 +34,15 @@ import { collectDiamondCutTargets } from './safe-decode-utils'
 import { isSignedStruct, type ISignedSafeTransaction } from './safe-utils'
 
 export interface ICodehashSignGate {
+  /**
+   * The calldata this verdict is about.
+   *
+   * A verdict is only ever a statement about specific bytes. Without this, a
+   * gate evaluated for one pending proposal authorised the signature of any
+   * other — every row on the network carries a struct the identity check
+   * accepts, so grading proposal 0 and signing proposal N passed.
+   */
+  gradedData?: Hex
   /** True when a signature must be refused. Render the verdicts, never this. */
   blocksSigning: boolean
   /** True when the proposal carried `diamondCut` calldata that was judged. */
@@ -107,9 +116,20 @@ declare const gateInputBrand: unique symbol
  * entirely and judged the stored document with nothing to stop it.
  */
 export interface ICodehashGateInput {
-  data: Hex | undefined
-  network: string
   readonly [gateInputBrand]: true
+  /**
+   * The struct itself, by reference — never a copy of its calldata.
+   *
+   * Returning `{ data, network }` was how attempt 5 was defeated: the identity
+   * check ran, the struct was then discarded, and the detached bytes were both
+   * mutable (`input.data = row.safeTx.data.data`) and spreadable
+   * (`{ ...gateInputFor(tx, key), data: row.safeTx.data.data }`) — the same
+   * spread that beat attempt 4, one level further out. Holding the reference
+   * means swapping the bytes requires mutating the struct Safe will sign, which
+   * is the correct semantics rather than a bypass.
+   */
+  readonly struct: ISignedSafeTransaction
+  readonly network: string
 }
 
 export const gateInputFor = (
@@ -125,9 +145,9 @@ export const gateInputFor = (
     )
 
   return {
-    data: proposal.safeTransaction.data.data as Hex | undefined,
+    struct: proposal.safeTransaction,
     network: networkKey,
-  } as ICodehashGateInput
+  } as unknown as ICodehashGateInput
 }
 
 /**
@@ -137,7 +157,7 @@ export const gateInputFor = (
  * whatever produced it: the caller's job is to hand this function the bytes the
  * signature will cover.
  *
- * @param input.data - calldata of the transaction that gets signed
+ * @param input.struct - the struct whose signature this would authorise
  * @param input.network - a `config/networks.json` key in any casing; it is
  *   lowercased here, because every lookup it reaches throws on other spellings
  * @param deps - a thunk, not the dependencies: building them reads
@@ -150,9 +170,22 @@ export const evaluateCodehashSignGate = async (
   input: ICodehashGateInput,
   deps: () => IVerifyCutDeps
 ): Promise<ICodehashSignGate> => {
-  if (!input.data || input.data === '0x') return unevaluatedCodehashSignGate()
+  // Re-checked here rather than trusted from `gateInputFor`: this is the
+  // function that judges, and a caller that reached it another way has not
+  // passed anything.
+  if (!isSignedStruct(input.struct))
+    throw new Error(
+      'Refusing to judge this proposal: the struct handed to the codehash gate is not one Safe will hash and sign. Nothing has been signed.'
+    )
 
-  const collected = collectDiamondCutTargets(input.data)
+  // Read at judge time, off the struct, so nothing between here and the
+  // identity check can have substituted the bytes.
+  const data = input.struct.data.data as Hex | undefined
+
+  if (!data || data === '0x')
+    return { ...unevaluatedCodehashSignGate(), gradedData: data }
+
+  const collected = collectDiamondCutTargets(data)
 
   // Normalised here rather than trusted from the caller. `config/networks.json`
   // is keyed lowercase and every lookup below throws on any other spelling, so
@@ -209,6 +242,7 @@ export const evaluateCodehashSignGate = async (
 
   if (collected.calls.length === 0 && refusals.length === 0)
     return {
+      gradedData: data,
       blocksSigning: false,
       evaluated: true,
       refusals: [],
@@ -223,6 +257,7 @@ export const evaluateCodehashSignGate = async (
     }
 
   return {
+    gradedData: data,
     // The target scan is not a second derivation of the line above; it is this
     // layer's own invariant, that nothing rendered as non-MATCH is ever
     // signable. Keeping both means a regression in either place still blocks,
@@ -308,8 +343,19 @@ export const renderCodehashSignGate = (gate: ICodehashSignGate): string[] => {
  * @throws When the gate blocks signing
  */
 export const assertCodehashSignGateAllowsSigning = (
-  gate: ICodehashSignGate
+  gate: ICodehashSignGate,
+  payload?: Hex
 ): void => {
+  // The verdict has to be about the bytes being signed. Checked before the
+  // blocksSigning short-circuit, so a passing verdict on other calldata is a
+  // refusal rather than a pass.
+  if (payload !== undefined && gate.gradedData !== payload)
+    throw new Error(
+      `Codehash gate: this transaction will not be signed. The gate's verdict is about different calldata than the transaction now being signed — it graded ${
+        gate.gradedData ?? '(nothing)'
+      } and this carries ${payload}. A verdict is only ever a statement about specific bytes, so this one says nothing about these.`
+    )
+
   if (!gate.blocksSigning) return
 
   const detail = gate.targets
@@ -342,9 +388,15 @@ export const assertCodehashSignGateAllowsSigning = (
 export const createGatedSigner = <Args extends unknown[], T>(deps: {
   gate: () => ICodehashSignGate
   sign: (...args: Args) => Promise<T>
+  /**
+   * The calldata this signature will cover, from the same arguments `sign`
+   * receives. Required, not optional: the verdict is compared against it, and a
+   * signer that could omit it would be a signer with the old bug.
+   */
+  payloadOf: (...args: Args) => Hex | undefined
 }): ((...args: Args) => Promise<T>) => {
   return async (...args: Args): Promise<T> => {
-    assertCodehashSignGateAllowsSigning(deps.gate())
+    assertCodehashSignGateAllowsSigning(deps.gate(), deps.payloadOf(...args))
     return deps.sign(...args)
   }
 }
