@@ -35,6 +35,7 @@ import {
   findIgnoreMarker,
   isAlertable,
   newestScheduledRun,
+  scanForNewestScheduledRun,
 } from './cronLiveness'
 import type {
   ILivenessVerdict,
@@ -48,8 +49,11 @@ const WORKFLOW_DIR = '.github/workflows'
 const DEFAULT_OWNER = 'lifinance'
 const DEFAULT_REPO = 'contracts'
 const RUNS_PER_PAGE = 100
-/** How far back the unfiltered second opinion scans before giving up. */
-const CORROBORATION_MAX_PAGES = 3
+// The second opinion has to reach back past the cron's grace window, and a page of
+// this repo's busiest workflow has covered as little as 11h of runs — its schedule
+// competes with a push trigger on every branch. Five pages clears the widest grace
+// window in the fleet with room to spare, and only a stale verdict ever pays for them.
+const CORROBORATION_MAX_PAGES = 5
 
 /** The slice of GitHub's workflow object this job reads. */
 interface IRegisteredWorkflow {
@@ -243,23 +247,29 @@ const main = defineCommand({
       // the healthy path still costs one request per workflow.
       if (verdict.status === 'stale' && registration)
         try {
-          const corroborated = await latestScheduledRunFromRecentRuns(
-            owner,
-            repo,
-            registration.id,
-            token
+          const scan = await scanForNewestScheduledRun(
+            (page) => fetchRunPage(owner, repo, registration.id, page, token),
+            { maxPages: CORROBORATION_MAX_PAGES, pageSize: RUNS_PER_PAGE }
           )
+
+          if (scan.exhaustedPageBudget)
+            consola.warn(
+              `${workflow.path}: read ${
+                CORROBORATION_MAX_PAGES * RUNS_PER_PAGE
+              } runs without reaching a scheduled one, so the stale verdict below is uncorroborated — raise CORROBORATION_MAX_PAGES if this workflow's other triggers have outgrown the budget`
+            )
+
           if (
-            corroborated !== null &&
-            (lastScheduledRunAt === null || corroborated > lastScheduledRunAt)
+            scan.runAt !== null &&
+            (lastScheduledRunAt === null || scan.runAt > lastScheduledRunAt)
           ) {
             consola.warn(
               `${workflow.path}: event=schedule reported ${
                 lastScheduledRunAt?.toISOString() ?? 'no run at all'
-              }, but the unfiltered run list has ${corroborated.toISOString()} — trusting the newer one`
+              }, but the unfiltered run list has ${scan.runAt.toISOString()} — trusting the newer one`
             )
             verdict = evaluateLiveness(
-              { ...facts, lastScheduledRunAt: corroborated },
+              { ...facts, lastScheduledRunAt: scan.runAt },
               now
             )
           }
@@ -307,39 +317,22 @@ const main = defineCommand({
   },
 })
 
-/**
- * Newest scheduled run found by scanning the UNFILTERED run listing.
- *
- * Second opinion on `?event=schedule`, whose index has been observed serving a
- * snapshot 26 days stale for networkRpcsChecker.yml while this listing already had
- * the runs (run 34106671878 alerted on a cron that had fired nine hours earlier).
- *
- * Bounded on purpose. Scanning stops at the first page carrying a scheduled run, so
- * for a cron whose workflow has no other trigger the first page holds every run it
- * ever had; the page budget only matters for a workflow whose pushes bury its
- * schedule, and the busiest one in this repo still fits four days of runs — four
- * daily runs — into a single page.
- */
-async function latestScheduledRunFromRecentRuns(
+/** One page of a workflow's runs, unfiltered by event. */
+async function fetchRunPage(
   owner: string,
   repo: string,
   workflowId: number,
+  page: number,
   token: string
-): Promise<Date | null> {
-  for (let page = 1; page <= CORROBORATION_MAX_PAGES; page++) {
-    const { workflow_runs: runs } = await githubGet<{
-      workflow_runs: IWorkflowRunSummary[]
-    }>(
-      `/repos/${owner}/${repo}/actions/workflows/${workflowId}/runs?per_page=${RUNS_PER_PAGE}&page=${page}`,
-      token
-    )
+): Promise<IWorkflowRunSummary[]> {
+  const { workflow_runs: runs } = await githubGet<{
+    workflow_runs: IWorkflowRunSummary[]
+  }>(
+    `/repos/${owner}/${repo}/actions/workflows/${workflowId}/runs?per_page=${RUNS_PER_PAGE}&page=${page}`,
+    token
+  )
 
-    const newest = newestScheduledRun(runs)
-    if (newest !== null) return newest
-    if (runs.length < RUNS_PER_PAGE) return null
-  }
-
-  return null
+  return runs
 }
 
 /** Every workflow registered with Actions, following pagination to the last page. */

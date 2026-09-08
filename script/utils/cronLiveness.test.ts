@@ -30,6 +30,7 @@ import {
   graceWindowMs,
   isAlertable,
   newestScheduledRun,
+  scanForNewestScheduledRun,
 } from './cronLiveness'
 import type { ILivenessVerdict, IWorkflowFacts } from './cronLiveness'
 
@@ -284,6 +285,57 @@ describe('newestScheduledRun', () => {
     expect(
       newestScheduledRun([{ event: 'schedule', created_at: 'not a date' }])
     ).toBeNull()
+  })
+})
+
+describe('scanForNewestScheduledRun', () => {
+  const pageOptions = { maxPages: 3, pageSize: 2 }
+  const push = (created_at: string) => ({ event: 'push', created_at })
+  const scheduled = (created_at: string) => ({ event: 'schedule', created_at })
+
+  it('stops at the first page carrying a scheduled run', async () => {
+    const requested: number[] = []
+    const pages = [
+      [push('2026-09-08T02:00:00Z'), push('2026-09-08T01:00:00Z')],
+      [push('2026-09-08T00:30:00Z'), scheduled('2026-09-08T00:15:41Z')],
+      [scheduled('2026-09-07T00:16:59Z'), push('2026-09-06T23:00:00Z')],
+    ]
+
+    const scan = await scanForNewestScheduledRun(async (page) => {
+      requested.push(page)
+      return pages[page - 1] ?? []
+    }, pageOptions)
+
+    expect(scan).toEqual({
+      runAt: new Date('2026-09-08T00:15:41Z'),
+      exhaustedPageBudget: false,
+    })
+    expect(requested).toEqual([1, 2])
+  })
+
+  it('stops on a short page, which is the end of the listing', async () => {
+    const requested: number[] = []
+
+    const scan = await scanForNewestScheduledRun(async (page) => {
+      requested.push(page)
+      return [push('2026-09-08T02:00:00Z')]
+    }, pageOptions)
+
+    expect(scan).toEqual({ runAt: null, exhaustedPageBudget: false })
+    expect(requested).toEqual([1])
+  })
+
+  it('reports budget exhaustion rather than an absence it never proved', async () => {
+    // A workflow whose other triggers out-run its schedule can fill every page with
+    // pushes. Folding that into a plain null hands the caller a "this cron never runs"
+    // it has not established — the false positive this corroboration step exists to
+    // prevent, arriving through the corroboration step itself.
+    const scan = await scanForNewestScheduledRun(
+      async () => [push('2026-09-08T02:00:00Z'), push('2026-09-08T01:00:00Z')],
+      pageOptions
+    )
+
+    expect(scan).toEqual({ runAt: null, exhaustedPageBudget: true })
   })
 })
 
