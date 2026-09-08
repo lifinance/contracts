@@ -34,14 +34,22 @@ import {
   extractCronExpressions,
   findIgnoreMarker,
   isAlertable,
+  newestScheduledRun,
 } from './cronLiveness'
-import type { ILivenessVerdict, IWorkflowFacts } from './cronLiveness'
+import type {
+  ILivenessVerdict,
+  IWorkflowFacts,
+  IWorkflowRunSummary,
+} from './cronLiveness'
 import { fetchWithTimeout } from './fetchWithTimeout'
 
 const GITHUB_API = 'https://api.github.com'
 const WORKFLOW_DIR = '.github/workflows'
 const DEFAULT_OWNER = 'lifinance'
 const DEFAULT_REPO = 'contracts'
+const RUNS_PER_PAGE = 100
+/** How far back the unfiltered second opinion scans before giving up. */
+const CORROBORATION_MAX_PAGES = 3
 
 /** The slice of GitHub's workflow object this job reads. */
 interface IRegisteredWorkflow {
@@ -50,10 +58,6 @@ interface IRegisteredWorkflow {
   path: string
   /** `active`, `disabled_manually` or `disabled_inactivity`. */
   state: string
-}
-
-interface IWorkflowRun {
-  created_at: string
 }
 
 /**
@@ -202,13 +206,12 @@ const main = defineCommand({
         // exactly the failure this job looks for.
         try {
           const { workflow_runs: runs } = await githubGet<{
-            workflow_runs: IWorkflowRun[]
+            workflow_runs: IWorkflowRunSummary[]
           }>(
             `/repos/${owner}/${repo}/actions/workflows/${registration.id}/runs?event=schedule&per_page=1`,
             token
           )
-          const latest = runs[0]
-          lastScheduledRunAt = latest ? new Date(latest.created_at) : null
+          lastScheduledRunAt = newestScheduledRun(runs)
         } catch (error) {
           // Flagged rather than swallowed: leaving lastScheduledRunAt null here would
           // make a GitHub outage indistinguishable from a cron that stopped firing.
@@ -232,7 +235,45 @@ const main = defineCommand({
         runLookupFailed,
       }
 
-      verdicts.push(evaluateLiveness(facts, now))
+      let verdict = evaluateLiveness(facts, now)
+
+      // Never alert on the event-filtered index alone: it can serve a snapshot days
+      // to weeks behind the runs GitHub already lists unfiltered, which reads exactly
+      // like a dropped schedule. Only a stale verdict pays for the second opinion, so
+      // the healthy path still costs one request per workflow.
+      if (verdict.status === 'stale' && registration)
+        try {
+          const corroborated = await latestScheduledRunFromRecentRuns(
+            owner,
+            repo,
+            registration.id,
+            token
+          )
+          if (
+            corroborated !== null &&
+            (lastScheduledRunAt === null || corroborated > lastScheduledRunAt)
+          ) {
+            consola.warn(
+              `${workflow.path}: event=schedule reported ${
+                lastScheduledRunAt?.toISOString() ?? 'no run at all'
+              }, but the unfiltered run list has ${corroborated.toISOString()} — trusting the newer one`
+            )
+            verdict = evaluateLiveness(
+              { ...facts, lastScheduledRunAt: corroborated },
+              now
+            )
+          }
+        } catch (error) {
+          // The stale verdict stands. A second opinion we could not obtain is not
+          // evidence the workflow is alive.
+          consola.warn(
+            `Could not corroborate the stale verdict for ${workflow.path}: ${
+              error instanceof Error ? error.message : String(error)
+            }`
+          )
+        }
+
+      verdicts.push(verdict)
     }
 
     verdicts.sort((a, b) => a.name.localeCompare(b.name))
@@ -265,6 +306,41 @@ const main = defineCommand({
     if (alertCount > 0) process.exit(1)
   },
 })
+
+/**
+ * Newest scheduled run found by scanning the UNFILTERED run listing.
+ *
+ * Second opinion on `?event=schedule`, whose index has been observed serving a
+ * snapshot 26 days stale for networkRpcsChecker.yml while this listing already had
+ * the runs (run 34106671878 alerted on a cron that had fired nine hours earlier).
+ *
+ * Bounded on purpose. Scanning stops at the first page carrying a scheduled run, so
+ * for a cron whose workflow has no other trigger the first page holds every run it
+ * ever had; the page budget only matters for a workflow whose pushes bury its
+ * schedule, and the busiest one in this repo still fits four days of runs — four
+ * daily runs — into a single page.
+ */
+async function latestScheduledRunFromRecentRuns(
+  owner: string,
+  repo: string,
+  workflowId: number,
+  token: string
+): Promise<Date | null> {
+  for (let page = 1; page <= CORROBORATION_MAX_PAGES; page++) {
+    const { workflow_runs: runs } = await githubGet<{
+      workflow_runs: IWorkflowRunSummary[]
+    }>(
+      `/repos/${owner}/${repo}/actions/workflows/${workflowId}/runs?per_page=${RUNS_PER_PAGE}&page=${page}`,
+      token
+    )
+
+    const newest = newestScheduledRun(runs)
+    if (newest !== null) return newest
+    if (runs.length < RUNS_PER_PAGE) return null
+  }
+
+  return null
+}
 
 /** Every workflow registered with Actions, following pagination to the last page. */
 async function listRegisteredWorkflows(

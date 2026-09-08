@@ -255,6 +255,30 @@ export interface ILivenessVerdict {
   detail: string
 }
 
+/** The slice of GitHub's workflow-run object this watchdog reads. */
+export interface IWorkflowRunSummary {
+  event: string
+  created_at: string
+}
+
+/**
+ * Newest run in `runs` that GitHub attributes to the `schedule` event.
+ *
+ * Selecting the event here rather than through the API's `event=` filter is the
+ * point: that filter is served from an index which can hand back a snapshot weeks
+ * behind the runs the unfiltered listing already lists, and a stale answer there is
+ * indistinguishable from a schedule that stopped firing. Runs arrive newest-first
+ * but the maximum is taken explicitly so the caller does not depend on that.
+ */
+export function newestScheduledRun(runs: IWorkflowRunSummary[]): Date | null {
+  const timestamps = runs
+    .filter((run) => run.event === 'schedule')
+    .map((run) => new Date(run.created_at).getTime())
+    .filter((timestamp) => Number.isFinite(timestamp))
+
+  return timestamps.length === 0 ? null : new Date(Math.max(...timestamps))
+}
+
 /** Statuses that warrant a Slack alert; the rest are summary-only. */
 export function isAlertable(status: TLivenessStatus): boolean {
   return (

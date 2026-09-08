@@ -29,6 +29,7 @@ import {
   findIgnoreMarker,
   graceWindowMs,
   isAlertable,
+  newestScheduledRun,
 } from './cronLiveness'
 import type { ILivenessVerdict, IWorkflowFacts } from './cronLiveness'
 
@@ -244,6 +245,45 @@ describe('findIgnoreMarker', () => {
     expect(findIgnoreMarker('# watchdog:ignore\nname: Example')).toEqual({
       ignored: false,
     })
+  })
+})
+
+describe('newestScheduledRun', () => {
+  it('ignores runs from other events so a manual kick never reads as a schedule', () => {
+    expect(
+      newestScheduledRun([
+        { event: 'push', created_at: '2026-09-08T00:47:02Z' },
+        { event: 'workflow_dispatch', created_at: '2026-09-08T00:30:00Z' },
+        { event: 'schedule', created_at: '2026-09-08T00:15:41Z' },
+      ])
+    ).toEqual(new Date('2026-09-08T00:15:41Z'))
+  })
+
+  it('takes the newest scheduled run rather than the first listed', () => {
+    expect(
+      newestScheduledRun([
+        { event: 'schedule', created_at: '2026-09-06T00:17:23Z' },
+        { event: 'schedule', created_at: '2026-09-08T00:15:41Z' },
+        { event: 'schedule', created_at: '2026-09-07T00:16:59Z' },
+      ])
+    ).toEqual(new Date('2026-09-08T00:15:41Z'))
+  })
+
+  it('reports no run when the page holds none, so the caller keeps looking', () => {
+    expect(
+      newestScheduledRun([
+        { event: 'push', created_at: '2026-09-08T00:47:02Z' },
+      ])
+    ).toBeNull()
+    expect(newestScheduledRun([])).toBeNull()
+  })
+
+  it('drops an unparseable timestamp instead of returning an Invalid Date', () => {
+    // An Invalid Date propagates into the age arithmetic as NaN, which compares
+    // false against every grace window and would silently mark the workflow alive.
+    expect(
+      newestScheduledRun([{ event: 'schedule', created_at: 'not a date' }])
+    ).toBeNull()
   })
 })
 
