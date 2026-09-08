@@ -137,10 +137,14 @@ export interface ICalldataAddressInput {
   references: readonly IAddressReference[]
   /**
    * Identities keyed by address in any case, from an anchor the proposer does
-   * not control — the local selector registry, or `_targetState.json` read at
-   * `origin/main`. Never from the calldata being judged: an expectation derived
+   * not control. Never from the calldata being judged: an expectation derived
    * from the proposal cannot contradict it. A refusal-bearing reference with no
    * identity here errors, so this is required rather than an enrichment.
+   *
+   * No committed file supplies this yet — `_targetState.json` holds no addresses
+   * and the selector registry maps selectors to signatures — so the wiring
+   * package has to name an address-bearing anchor, and that choice is the one
+   * this check's whole verdict rests on.
    */
   expectations?: ReadonlyMap<string, IExpectedIdentity>
   /**
@@ -265,12 +269,14 @@ const describeIdentity = (identity: IExpectedIdentity): string =>
  * Re-keys the caller's expectations to lowercase, and reports the keys that
  * cannot be used.
  *
- * `_targetState.json` and the selector registry both key on the checksummed
- * form, which matches no reference address and grades every one of them
- * identity-unchecked — the name check the caller asked for, not performed. A
- * key that is not an address, and two keys that normalise together carrying
- * different identities, are reported rather than resolved: both leave an
- * identity the caller meant to pin unpinned.
+ * A caller assembles this map from whatever names an address, and the helpers
+ * that hand one back — `getAddress`, `checksumAddress` — return the checksummed
+ * form, while references arrive lowercased. A map keyed the checksummed way
+ * would match no reference at all and grade every one identity-unchecked: the
+ * name check the caller asked for, silently not performed. A key that is not an
+ * address, and two keys that normalise together carrying different identities,
+ * are reported rather than resolved, because both leave an identity the caller
+ * meant to pin unpinned.
  */
 const normalizeExpectations = (
   expectations?: ReadonlyMap<string, IExpectedIdentity>
@@ -291,11 +297,20 @@ const normalizeExpectations = (
 
     const normalized = key.trim().toLowerCase()
     const existing = identities.get(normalized)
+    // An absent `version` means any version, so a name-only expectation and a
+    // name-plus-version one for the same address agree — the second narrows the
+    // first rather than contradicting it. Only two *stated* versions can
+    // disagree, and merging a broad anchor with a specific one is exactly the
+    // shape a caller assembling this map produces.
+    const versionsDisagree =
+      existing?.version !== undefined &&
+      identity.version !== undefined &&
+      existing.version.trim() !== identity.version.trim()
     if (
       existing !== undefined &&
       (existing.contractName.trim().toLowerCase() !==
         identity.contractName.trim().toLowerCase() ||
-        existing.version?.trim() !== identity.version?.trim())
+        versionsDisagree)
     ) {
       errors.push(
         `The expectations map names ${normalized} twice, as ${describeIdentity(
@@ -307,7 +322,14 @@ const normalizeExpectations = (
       continue
     }
 
-    identities.set(normalized, identity)
+    // The narrower expectation wins: a stated version pins more than none, and
+    // the two have already been shown to agree.
+    identities.set(
+      normalized,
+      existing?.version !== undefined && identity.version === undefined
+        ? existing
+        : identity
+    )
   }
 
   return { identities, errors }
@@ -445,11 +467,17 @@ const gradeReference = (
 /**
  * Grades every address a proposal references against the deployment record.
  *
- * Errors — rather than passing — whenever the check could not be made for a
- * refusal-bearing reference: an unavailable store, a source that may not
- * decide, a call the extractor could not read through, an address nobody looked
- * up, an unusable expectations key, an identity no anchor named, or a role this
- * module has no policy for. An unanswerable question is not an answer of yes.
+ * Errors — rather than passing — whenever the check could not be made: an
+ * unavailable store, a source that may not decide, a call the extractor could
+ * not read through, an unusable expectations key, or a role this module has no
+ * policy for. An unanswerable question is not an answer of yes.
+ *
+ * Two of those are narrower, and only they turn on the role: an address nobody
+ * looked up, and an identity no anchor named, error for a refusal-bearing
+ * reference and warn for a removal target. The rest are defects in the check's
+ * own inputs, so they hold whatever the proposal asks for — the role-with-no-
+ * policy case necessarily so, since it fires exactly when the role is in
+ * neither set.
  * @param input - the network, the references, and the anchor-supplied identities
  * @param index - deployment entries and where they came from
  * @returns Whether to refuse, whether the check could decide, and a finding per reference

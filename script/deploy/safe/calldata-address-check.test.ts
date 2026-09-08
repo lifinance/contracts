@@ -286,12 +286,63 @@ describe('evaluateCalldataAddresses against the real deployment record', () => {
   })
 })
 
+describe('a broad expectation and a narrow one for the same address', () => {
+  it('agree, because an absent version means any version', () => {
+    // `version` is checked only when present, so a name-only anchor and a
+    // name-plus-version one narrow rather than contradict. Merging exactly
+    // those two is the shape a caller assembling this map produces.
+    const expectations = new Map([
+      [MAINNET_ONLY_FACET, { contractName: 'CBridgeFacet' }],
+      [
+        MAINNET_ONLY_FACET.toLowerCase(),
+        { contractName: 'CBridgeFacet', version: '1.0.0' },
+      ],
+    ])
+
+    const verdict = evaluateCalldataAddresses(
+      {
+        network: 'mainnet',
+        references: [facetAdd(MAINNET_ONLY_FACET)],
+        expectations,
+      },
+      recordIndex([MAINNET_ONLY_FACET])
+    )
+
+    expect(verdict.error).toBe(false)
+    expect(verdict.refuses).toBe(false)
+  })
+
+  it('still refuses when the two state different versions', () => {
+    // Paired presence: only two *stated* versions can disagree, and when they
+    // do the identity is genuinely undecided.
+    const expectations = new Map([
+      [MAINNET_ONLY_FACET, { contractName: 'CBridgeFacet', version: '1.0.0' }],
+      [
+        MAINNET_ONLY_FACET.toLowerCase(),
+        { contractName: 'CBridgeFacet', version: '2.0.0' },
+      ],
+    ])
+
+    const verdict = evaluateCalldataAddresses(
+      {
+        network: 'mainnet',
+        references: [facetAdd(MAINNET_ONLY_FACET)],
+        expectations,
+      },
+      recordIndex([MAINNET_ONLY_FACET])
+    )
+
+    expect(verdict.error).toBe(true)
+  })
+})
+
 describe('the expectations map is checked before it is trusted', () => {
   it('matches a checksummed key, so the name check the caller asked for happens', () => {
-    // `_targetState.json` and the selector registry both key on the checksummed
-    // form, which is what MAINNET_ONLY_FACET is written as here. A map keyed
-    // that way has to reach the name comparison; if it does not, this address
-    // grades identity-unchecked and the wrong name below goes unnoticed.
+    // The helpers that hand back an address return the checksummed form, which
+    // is what MAINNET_ONLY_FACET is written as here, while references arrive
+    // lowercased. A map keyed that way has to reach the name comparison; if it
+    // does not, this address grades identity-unchecked and the wrong name below
+    // goes unnoticed.
     expect(MAINNET_ONLY_FACET).not.toBe(MAINNET_ONLY_FACET.toLowerCase())
 
     const verdict = evaluateCalldataAddresses(
