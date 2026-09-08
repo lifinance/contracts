@@ -41,6 +41,7 @@ import { sleep } from '../../utils/delay'
 import { getEnvVar } from '../../utils/utils'
 import { retryWithRateLimit } from '../shared/rateLimit.js'
 
+import { assertTronToolchainOrThrow } from './assertTronToolchain.js'
 import {
   CREATE_PROXY_SAFETY_MARGIN,
   TRON_DEPLOY_NETWORK,
@@ -486,6 +487,14 @@ async function run(options: {
     // 1) Deploy Safe implementation (no constructor)
     if (!existingSingleton) {
       consola.info('Deploying Safe implementation...')
+      // The toolchain check, not `assertTronDeploymentRecordable`: these are
+      // third-party Safe artifacts built separately by `forge build -C
+      // safe/london` and never written to the deployment log, so recordability
+      // is not the applicable question — and that assert validates constructor
+      // args against the artifact ABI, which for the committed
+      // SafeProxyFactory build declares none while its source declares one. It
+      // refused every run, environment-independently.
+      assertTronToolchainOrThrow()
       const safeResult = await deployer.deployContract(safeArtifact, [])
       singletonAddress = safeResult.contractAddress
       consola.success(`Safe implementation: ${singletonAddress}`)
@@ -502,6 +511,7 @@ async function run(options: {
     // 2) Deploy SafeProxyFactory(singleton)
     if (!existingFactory) {
       consola.info('Deploying SafeProxyFactory...')
+      assertTronToolchainOrThrow()
       const factoryResult = await deployer.deployContract(factoryArtifact, [
         singletonAddress,
       ])

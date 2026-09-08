@@ -212,8 +212,9 @@ describe('deploySingleContract missing deploy script', () => {
     bunx() { :; }
     isZkEvmNetwork() { return 1; }
     checkIfFileExists() { return 1; }
-    # Without this the undefined function fails the earlier recordability guard, and the
-    # missing-script guard under test is never reached.
+    # Without these the undefined functions fail the earlier toolchain and recordability
+    # guards, and the missing-script guard under test is never reached.
+    assertFoundryVersionOrFail() { return 0; }
     assertTreeRecordableOrFail() { return 0; }
     DEPLOY_SCRIPT_DIRECTORY="script/deploy/facets/"
     # An empty file keeps the reminder lookup off the real resource, so the case under

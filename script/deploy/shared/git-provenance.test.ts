@@ -153,6 +153,7 @@ describe('captureGitProvenance — happy path', () => {
       gitCommit: SHA,
       gitBranch: BRANCH,
       dirtyTreeScoped: [],
+      dirtyTreeRead: true,
       commitOnRemote: true,
       prUrl: PR_URL,
     })
@@ -266,8 +267,10 @@ describe('captureGitProvenance — dirty tree scoping', () => {
 
     expect(provenance.dirtyTreeScoped).toEqual([
       'config/whitelist.json',
+      'script/deploy/_targetState.json',
       'src/Facets/Foo.sol',
     ])
+    expect(provenance.dirtyTreeRead).toBe(true)
     expect(provenance.dirtyTreeTruncated).toBeUndefined()
   })
 
@@ -275,6 +278,7 @@ describe('captureGitProvenance — dirty tree scoping', () => {
     const provenance = captureGitProvenance(contextWith(happyHandlers()))
 
     expect(provenance.dirtyTreeScoped).toEqual([])
+    expect(provenance.dirtyTreeRead).toBe(true)
     expect(provenance.captureErrors).toBeUndefined()
   })
 
@@ -285,6 +289,7 @@ describe('captureGitProvenance — dirty tree scoping', () => {
     const provenance = captureGitProvenance(contextWith(handlers))
 
     expect(provenance.dirtyTreeScoped).toEqual([])
+    expect(provenance.dirtyTreeRead).toBe(false)
     expect(
       provenance.captureErrors?.some((entry) => entry.includes('git status'))
     ).toBe(true)

@@ -1,9 +1,9 @@
 /**
  * Per-run verdict cache for the production deploy gate in `verify-approvals.ts`.
  *
- * The gate is invoked once per *(network, facet)*, but, for a fixed branch and
- * environment, its verdict depends only on the working tree and the facet set — never on
- * the network. Uncached, a 71-network rollout
+ * The gate is invoked once per proposal, and once per direct-broadcast cut, but
+ * for a fixed branch and environment its verdict depends only on the working tree
+ * and the facet set — never on the network. Uncached, a 71-network rollout
  * recomputes the identical answer 71 times, each paying an `ls-remote` (and a
  * `gh pr list` whenever a facet diverges) and giving a flaky remote 71 chances to abort
  * the rollout fail-closed; worse, the concurrent workers of

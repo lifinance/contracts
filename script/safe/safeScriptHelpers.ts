@@ -21,6 +21,10 @@ import {
   type ISafeSigningOptions,
 } from '../deploy/safe/safe-utils'
 import {
+  assertFunnelDeployGate,
+  createFunnelGateDeps,
+} from '../deploy/shared/funnel-deploy-gate'
+import {
   getViemChainForNetworkName,
   isTestnetNetwork,
 } from '../utils/viemScriptHelpers'
@@ -111,6 +115,16 @@ export async function sendOrPropose({
   // Before the Safe client and any signing. The authoritative refusal is still
   // the one in storeTransactionInMongoDB, which no funnel can skip.
   assertTicketPresent()
+
+  // This helper shares a name with the bash `sendOrPropose` but not its route:
+  // it signs and stores here rather than through propose-to-safe.ts, so the
+  // gate that funnel runs has to be called explicitly or a caller reaching for
+  // this one to install a facet would bypass it. Today's only caller proposes
+  // removals, which carry no installing entry and cost nothing here.
+  await assertFunnelDeployGate(
+    { network, calldatas: [calldata] },
+    createFunnelGateDeps()
+  )
 
   const { useLedger, privateKey, ledgerOptions } = resolveSafeSigningOptions({
     ...signing,

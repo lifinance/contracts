@@ -10,11 +10,18 @@ import readline from 'readline'
 import {
   applyTronGridViemTransportExtras,
   formatAddressForNetworkCliDisplay,
-  isTronNetworkKey,
 } from '@lifi/tron-devkit'
 import { consola } from 'consola'
 import * as dotenv from 'dotenv'
-import { defineChain, encodeFunctionData, parseAbi, type Chain } from 'viem'
+import {
+  defineChain,
+  encodeFunctionData,
+  fallback,
+  http,
+  parseAbi,
+  type Chain,
+  type Transport,
+} from 'viem'
 
 import networksConfig from '../../config/networks.json'
 import {
@@ -23,10 +30,11 @@ import {
   type INetworksObject,
   type SupportedChain,
 } from '../common/types'
+import { normalizeRpcUrlForNetwork } from '../mongoDb/rpcEndpoints'
 
 import { getDeployments } from './deploymentHelpers'
 import { normalizeAddressForNetwork } from './normalizeAddressStringForViem'
-import { getRPCEnvVarName, OUT_ROOT } from './utils'
+import { getRPCEnvVarName, getRPCFallbacksEnvVarName, OUT_ROOT } from './utils'
 
 dotenv.config()
 
@@ -55,29 +63,116 @@ export function getTransportConfigFromRpcUrl(rpcUrl: string): {
 } {
   let base: { url: string; fetchOptions?: { headers: Record<string, string> } }
 
+  // Only the parse is guarded: a catch around the whole block would swallow the credential
+  // check below and hand the raw URL back, which is the outcome that check exists to prevent.
+  let url: URL | undefined
   try {
-    const url = new URL(rpcUrl)
-    if (!url.username) base = { url: rpcUrl }
-    else {
-      const cleanUrl = `${url.protocol}//${url.hostname}${
-        url.port ? `:${url.port}` : ''
-      }${url.pathname}${url.search}`
-      const encoded = Buffer.from(
-        `${decodeURIComponent(url.username)}:${decodeURIComponent(
-          url.password || ''
-        )}`,
-        'utf8'
-      ).toString('base64')
-      base = {
-        url: cleanUrl,
-        fetchOptions: { headers: { Authorization: `Basic ${encoded}` } },
-      }
-    }
+    url = new URL(rpcUrl)
   } catch {
-    base = { url: rpcUrl }
+    url = undefined
+  }
+
+  // A password with no username still makes the URL credential-bearing, and viem refuses to
+  // construct a Request from one, so it has to be caught here rather than reaching the transport.
+  if (!url?.username && !url?.password) base = { url: rpcUrl }
+  else {
+    // Embedded credentials become an Authorization header; over cleartext http that header
+    // crosses the wire in the clear, so refuse rather than downgrade silently.
+    if (url.protocol !== 'https:')
+      throw new Error(
+        `RPC URL for ${
+          url.host
+        } carries credentials over ${url.protocol.replace(':', '')}; use https`
+      )
+    const cleanUrl = `${url.protocol}//${url.hostname}${
+      url.port ? `:${url.port}` : ''
+    }${url.pathname}${url.search}`
+    const encoded = Buffer.from(
+      `${decodeURIComponent(url.username)}:${decodeURIComponent(
+        url.password || ''
+      )}`,
+      'utf8'
+    ).toString('base64')
+    base = {
+      url: cleanUrl,
+      fetchOptions: { headers: { Authorization: `Basic ${encoded}` } },
+    }
   }
 
   return applyTronGridViemTransportExtras(base)
+}
+
+/**
+ * Lower-priority RPC URLs for a network, in the order `fetch-rpcs` wrote them.
+ * Empty when the network has only one usable endpoint.
+ */
+export function getRPCFallbackUrls(networkName: string): string[] {
+  return (process.env[getRPCFallbacksEnvVarName(networkName)] ?? '')
+    .split(/\s+/)
+    .filter(Boolean)
+}
+
+/**
+ * Builds a viem transport that tries a chain's endpoints in priority order.
+ *
+ * Without this, one throttled or method-restricted endpoint fails every read on the chain even
+ * when healthy endpoints are configured beside it. A chain with a single endpoint gets a plain
+ * `http` transport.
+ */
+export function getFallbackTransportForChain(
+  chain: Chain,
+  options?: { signal?: AbortSignal }
+): Transport {
+  const transports: Transport[] = []
+  const rejections: string[] = []
+
+  for (const rpcUrl of chain.rpcUrls.default.http) {
+    let config: ReturnType<typeof getTransportConfigFromRpcUrl>
+    try {
+      config = getTransportConfigFromRpcUrl(rpcUrl)
+    } catch (error) {
+      // Skipped rather than rethrown: an endpoint this chain cannot use is exactly what the
+      // remaining endpoints are here to cover, and letting one of them abort the whole chain
+      // takes down a network whose primary is healthy.
+      rejections.push(error instanceof Error ? error.message : String(error))
+      continue
+    }
+    const {
+      url,
+      fetchOptions: authFetchOptions,
+      retryCount,
+      retryDelay,
+    } = config
+    const mergedFetchOptions = {
+      ...(authFetchOptions ?? {}),
+      ...(options?.signal ? { signal: options.signal } : {}),
+    }
+    transports.push(
+      http(url, {
+        ...(Object.keys(mergedFetchOptions).length
+          ? { fetchOptions: mergedFetchOptions }
+          : {}),
+        ...(retryCount !== undefined ? { retryCount } : {}),
+        ...(retryDelay !== undefined ? { retryDelay } : {}),
+      })
+    )
+  }
+
+  if (rejections.length)
+    consola.warn(
+      `${chain.name}: ignoring ${
+        rejections.length
+      } unusable RPC endpoint(s) — ${rejections.join('; ')}`
+    )
+
+  const [only] = transports
+  if (!only)
+    throw new Error(
+      rejections.length
+        ? `No usable RPC URL for chain ${chain.name} — ${rejections.join('; ')}`
+        : `No RPC URL configured for chain ${chain.name}`
+    )
+  return transports.length === 1 ? only : fallback(transports)
 }
 
 /**
@@ -198,7 +293,7 @@ export const buildExplorerTxUrl = (
 
 /**
  * Builds a viem `Chain` object for the given network name using `config/networks.json`.
- * Appends `/jsonrpc` to TronGrid RPC URLs so viem's JSON-RPC transport works correctly.
+ * Routes TronGrid RPC URLs to their `/jsonrpc` path so viem's JSON-RPC transport works correctly.
  * Includes `multicall3` contract address when configured for the network.
  *
  * @param networkName - Key from `config/networks.json` (e.g. `'arbitrum'`, `'tron'`).
@@ -221,13 +316,10 @@ export const getViemChainForNetworkName = (networkName: string): Chain => {
       `Could not find RPC URL for network ${networkName}, please set ${envKey} in your environment`
     )
 
-  // TronGrid full-node root serves Tron's native HTTP API; viem needs /jsonrpc
-  let rpcUrl = rpcUrlRaw.trim()
-  if (
-    isTronNetworkKey(networkName) &&
-    !rpcUrl.replace(/\/+$/, '').endsWith('/jsonrpc')
-  )
-    rpcUrl = `${rpcUrl.replace(/\/+$/, '')}/jsonrpc`
+  const rpcUrls = [rpcUrlRaw, ...getRPCFallbackUrls(networkName)]
+    .map((url) => url.trim())
+    .filter(Boolean)
+    .map((url) => normalizeRpcUrlForNetwork(networkName, url))
 
   const chainConfig: Parameters<typeof defineChain>[0] = {
     id: network.chainId,
@@ -239,7 +331,9 @@ export const getViemChainForNetworkName = (networkName: string): Chain => {
     },
     rpcUrls: {
       default: {
-        http: [rpcUrl],
+        // Index 0 stays the primary every existing caller reads; the rest feed
+        // `getFallbackTransportForChain`.
+        http: rpcUrls as [string, ...string[]],
       },
     },
   }
