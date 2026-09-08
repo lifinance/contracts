@@ -714,9 +714,9 @@ describe('a superseded mismatch stays visible', () => {
 
 describe('the superseded mismatch survives more than one retry', () => {
   it('still names the disagreement after a second failed retry', () => {
-    // Deriving the note from the row it displaced meant the first error
-    // carried it and the second did not, because that one displaced an error.
-    // Two failed retries on a flaky endpoint is the ordinary case.
+    // The note is keyed on the network for the whole run, so it survives any
+    // number of failed retries. Two in a row on a flaky endpoint is the
+    // ordinary case, not a corner.
     const ledger = ledgerOf(['mainnet'], [TARGET_STATE])
     recordCheck(
       ledger,
