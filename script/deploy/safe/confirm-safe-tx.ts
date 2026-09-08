@@ -19,7 +19,6 @@ import { type Address, type Hex } from 'viem'
 import networksData from '../../../config/networks.json'
 import { buildExplorerAddressUrl } from '../../utils/viemScriptHelpers'
 import { createDefaultCache } from '../shared/deployment-cache'
-import { sanitizeProvenanceText } from '../shared/git-provenance'
 import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
 
 import { readBooleanFlag, readValueFlag } from './cli-flags'
@@ -50,12 +49,12 @@ import {
   LEDGER_FLEX_WRAP_NOTE,
   renderLedgerFlexFlow,
 } from './ledger-flex-preview'
-import { formatProvenanceLines } from './provenance-display'
 import { reconcileAllSubmittedSafeTxs } from './reconcile'
 import {
   formatDecodedTxDataForDisplay,
   getTargetName,
 } from './safe-decode-utils'
+import { buildSafeTxDetailLines } from './safe-tx-detail-display'
 import {
   parseAccountIndex,
   canExecuteWithNonceStatus,
@@ -399,48 +398,30 @@ const processTxs = async (
         ? ` \u001b[33m⚠ on-chain nonce is ${expectedNonce} — cannot execute yet\u001b[0m`
         : ''
 
-    const detailLines = [
-      'Safe Transaction Details:',
-      `    Nonce:           \u001b[${nonceColor}m${tx.safeTx.data.nonce}\u001b[0m${nonceWarning}`,
-      `    To:              \u001b[32m${toDisplay}${toExplorerSuffix}\u001b[0m`,
-      `    Value:           \u001b[32m${tx.safeTx.data.value}\u001b[0m`,
-      `    Operation:       \u001b[32m${
+    const detailLines = buildSafeTxDetailLines({
+      nonce: tx.safeTx.data.nonce,
+      nonceColor,
+      nonceWarning,
+      toDisplay,
+      toExplorerSuffix,
+      value: tx.safeTx.data.value,
+      operationLabel:
         tx.safeTransaction.data.operation === 0
           ? 'Call'
           : tx.safeTransaction.data.operation === 1
           ? 'DelegateCall'
           : `not Call (${describeOperationValue(
               tx.safeTransaction.data.operation
-            )})`
-      }\u001b[0m`,
-      `    Data:            \u001b[32m${tx.safeTx.data.data}\u001b[0m`,
-      `    Proposer:        \u001b[32m${proposerDisplay}\u001b[0m`,
-      `    Safe Tx Hash:    \u001b[36m${tx.safeTxHash}\u001b[0m`,
-      `    Signatures:      \u001b[32m${tx.safeTransaction.signatures.size}/${tx.threshold}\u001b[0m required`,
-      `    Execution Ready: \u001b[${tx.canExecute ? '32m✓' : '31m✗'}\u001b[0m`,
-    ]
-
-    // Deferred diamond-cleanup: if parked facet removals were folded into this
-    // proposal, show the originating deprecation PR(s) so the signer sees WHY each
-    // facet is being removed (DeferredDiamondCleanupQueue.md §6). Plain strings,
-    // outside the shared decode formatter (rule 201 untouched).
-    if (tx.parkedTaskRefs && tx.parkedTaskRefs.length > 0) {
-      detailLines.push('    Parked cleanup — origin PRs:')
-      for (const ref of tx.parkedTaskRefs)
-        detailLines.push(`        [32m${ref.facet}[0m → [36m${ref.prUrl}[0m`)
-    }
-
-    // Belt-and-braces around a total function: no shape of stored row may cost
-    // the operator the rest of the networks in this run.
-    try {
-      detailLines.push(...formatProvenanceLines(tx.provenance))
-    } catch (error) {
-      detailLines.push(
-        `    Provenance:      \u001b[33mUNKNOWN — could not be rendered: ${sanitizeProvenanceText(
-          error instanceof Error ? error.message : error
-        )}\u001b[0m`
-      )
-    }
+            )})`,
+      data: tx.safeTx.data.data,
+      proposer: proposerDisplay,
+      safeTxHash: tx.safeTxHash,
+      signatureCount: tx.safeTransaction.signatures.size,
+      threshold: tx.threshold,
+      canExecute: tx.canExecute,
+      parkedTaskRefs: tx.parkedTaskRefs,
+      provenance: tx.provenance,
+    })
 
     consola.info(detailLines.join('\n'))
 
