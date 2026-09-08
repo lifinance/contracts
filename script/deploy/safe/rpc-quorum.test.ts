@@ -14,6 +14,7 @@ import {
   groupProviders,
   MIN_INDEPENDENT_PROVIDERS,
   planQuorumRetry,
+  IP_LITERAL_IDENTITY,
   providerIdentityForUrl,
   renderQuorumCoverage,
   renderRpcQuorum,
@@ -66,13 +67,39 @@ describe('providerIdentityForUrl', () => {
     )
   })
 
-  it('keeps a bare IPv4 host whole rather than reducing it to two octets', () => {
-    expect(providerIdentityForUrl('http://10.0.0.1:8545')).toBe('10.0.0.1')
+  it('collapses every bare-IP host onto one identity, whatever the family', () => {
+    // Two concerns at once. Slicing the last two labels off an address would
+    // give `0.1`, which is not an identity — that is why an address is not
+    // treated as a hostname. And an address cannot be shown independent of a
+    // name that may resolve to it, so it must not be an identity of its own
+    // either: all of them share one, and several IP endpoints cannot inflate
+    // the provider count between themselves.
+    for (const url of [
+      'http://10.0.0.1:8545',
+      'http://203.0.113.7:8545',
+      'http://[2001:db8::1]:8545',
+      'https://198.51.100.4/',
+    ])
+      expect(providerIdentityForUrl(url), url).toBe(IP_LITERAL_IDENTITY)
   })
 
-  it('keeps a bracketed IPv6 host whole', () => {
-    expect(providerIdentityForUrl('http://[2001:db8::1]:8545')).toBe(
-      '[2001:db8::1]'
+  it('does not confuse a hostname that merely contains digits with an address', () => {
+    // Paired presence: collapsing addresses must not collapse real hosts.
+    expect(providerIdentityForUrl('https://rpc.10gen.example/')).toBe(
+      '10gen.example'
+    )
+  })
+
+  it('reads a trailing-dot host as the same provider as the rooted form', () => {
+    // A fully-qualified name may carry a root dot, and WHATWG URL preserves it.
+    // Without dropping the empty label the last two become ['com', ''], which
+    // matches no hostname identity — so the two forms of one provider would
+    // split, and a split is what invents a quorum.
+    expect(providerIdentityForUrl('https://rpc.example.com./')).toBe(
+      providerIdentityForUrl('https://rpc.example.com/')
+    )
+    expect(providerIdentityForUrl('https://rpc.example.com./')).toBe(
+      'example.com'
     )
   })
 
@@ -582,7 +609,7 @@ describe('evaluateQuorumCoverage', () => {
   }
 
   it('names every network that cannot reach quorum', () => {
-    const report = evaluateQuorumCoverage(endpoints)
+    const report = evaluateQuorumCoverage(endpoints, 'fixture')
 
     expect(report.below.map((entry) => entry.network)).toEqual([
       'arbitrum',
@@ -596,7 +623,7 @@ describe('evaluateQuorumCoverage', () => {
   })
 
   it('counts providers, not endpoints', () => {
-    const report = evaluateQuorumCoverage(endpoints)
+    const report = evaluateQuorumCoverage(endpoints, 'fixture')
     const arbitrum = report.networks.find(
       (entry) => entry.network === 'arbitrum'
     )
@@ -606,7 +633,9 @@ describe('evaluateQuorumCoverage', () => {
   })
 
   it('prints the count and the list, never the count alone', () => {
-    const lines = renderQuorumCoverage(evaluateQuorumCoverage(endpoints))
+    const lines = renderQuorumCoverage(
+      evaluateQuorumCoverage(endpoints, 'fixture')
+    )
     const text = lines.join('\n')
 
     expect(text).toContain('1/4')
@@ -617,10 +646,48 @@ describe('evaluateQuorumCoverage', () => {
 
   it('says so plainly when every network is covered', () => {
     const lines = renderQuorumCoverage(
-      evaluateQuorumCoverage({ mainnet: [ALCHEMY, INFURA] })
+      evaluateQuorumCoverage({ mainnet: [ALCHEMY, INFURA] }, 'fixture')
     )
 
     expect(lines).toHaveLength(1)
     expect(lines[0]).toContain('1/1')
+  })
+})
+
+describe('an IP alias cannot manufacture a quorum', () => {
+  it('refuses when an endpoint names its host as a bare IP address', () => {
+    // The attack a writable endpoint list makes cheap: an IP alias of a node
+    // you already control used to derive a second identity, so one upstream
+    // agreed with itself and the read went green.
+    const verdict = evaluateRpcQuorum([
+      ok('https://rpc.attacker-controlled.com/'),
+      ok('http://203.0.113.7:8545/'),
+    ])
+
+    expect(verdict.status).toBe('provider-identity-unverifiable')
+    expect(verdict.reachesQuorum).toBe(false)
+    expect(verdict.agreeingProviders).toBe(0)
+    expect(verdict.transient).toBe(false)
+    expect(() => assertRpcQuorum(verdict, 'codehash on mainnet')).toThrow()
+  })
+
+  it('still reaches a quorum on two hostname endpoints of different providers', () => {
+    // Paired presence: refusing an address must not refuse the ordinary case,
+    // or the control is a blanket refusal.
+    const verdict = evaluateRpcQuorum([ok(ALCHEMY), ok(INFURA)])
+
+    expect(verdict.status).toBe('agreed')
+    expect(verdict.reachesQuorum).toBe(true)
+    expect(verdict.agreeingProviders).toBe(2)
+  })
+
+  it('refuses an all-IP endpoint list rather than counting the addresses apart', () => {
+    const verdict = evaluateRpcQuorum([
+      ok('http://203.0.113.7:8545/'),
+      ok('http://198.51.100.4:8545/'),
+    ])
+
+    expect(verdict.status).toBe('provider-identity-unverifiable')
+    expect(verdict.reachesQuorum).toBe(false)
   })
 })

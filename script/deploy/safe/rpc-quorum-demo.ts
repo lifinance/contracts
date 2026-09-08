@@ -172,7 +172,8 @@ const main = defineCommand({
               network,
               [config.rpcUrl],
             ])
-          )
+          ),
+          'config/networks.json (one rpcUrl per network; RpcEndpoints is the operational inventory)'
         )
       )
     )

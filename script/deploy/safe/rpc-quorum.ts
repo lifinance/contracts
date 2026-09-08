@@ -58,6 +58,10 @@ export const DEFAULT_QUORUM_RETRY_POLICY: IQuorumRetryPolicy = {
  * - `no-responses` — nothing answered.
  * - `quorum-misconfigured` — a caller asked for a quorum below
  *   {@link MIN_INDEPENDENT_PROVIDERS}, which would switch the control off.
+ * - `provider-identity-unverifiable` — an endpoint names its host as a bare IP
+ *   address, which cannot be shown independent of any hostname endpoint because
+ *   a name may resolve to that very address. Never retried: another attempt
+ *   cannot make the identity knowable.
  */
 export type TQuorumStatus =
   | 'agreed'
@@ -68,6 +72,7 @@ export type TQuorumStatus =
   | 'insufficient-providers'
   | 'insufficient-responses'
   | 'no-responses'
+  | 'provider-identity-unverifiable'
   | 'quorum-misconfigured'
 
 /**
@@ -176,6 +181,16 @@ export interface INetworkQuorumCoverage {
 /** Fleet-wide quorum reachability. */
 export interface IQuorumCoverageReport {
   quorum: number
+  /**
+   * Where the endpoint lists came from, carried into the rendered line.
+   *
+   * Required, because a coverage figure is meaningless without it and gets
+   * quoted as a fleet fact once it is a bare number: `config/networks.json`
+   * stores `rpcUrl` as a single string, so a count taken from that file reports
+   * zero at any quorum above one however many endpoints the fleet really has.
+   * The operational inventory is the `RpcEndpoints` collection.
+   */
+  source: string
   networks: INetworkQuorumCoverage[]
   /** Networks that cannot reach quorum, sorted by name. */
   below: INetworkQuorumCoverage[]
@@ -201,6 +216,16 @@ const EMPTY_VALUE = /^(0x)?0*$/
  * @returns A host-derived identity, or a shared sentinel when the URL will not
  *   parse — which merges every unparsable endpoint into one provider
  */
+/**
+ * Identity every bare-IP endpoint collapses onto.
+ *
+ * Distinct from a hostname identity and shared by all of them: an address cannot
+ * be shown independent of a name that might resolve to it, so counting it as its
+ * own provider is the one direction that can invent a quorum. Collapsing them
+ * also stops several IP endpoints inflating the count between themselves.
+ */
+export const IP_LITERAL_IDENTITY = '<ip-literal host>'
+
 export const providerIdentityForUrl = (url: string): string => {
   const host = hostOf(url).toLowerCase()
   if (host === '<unparsable url>') return host
@@ -209,7 +234,7 @@ export const providerIdentityForUrl = (url: string): string => {
   const bare = host.startsWith('[')
     ? host.slice(0, host.indexOf(']') + 1)
     : host.replace(/:\d+$/, '')
-  if (bare.startsWith('[') || IPV4.test(bare)) return bare
+  if (bare.startsWith('[') || IPV4.test(bare)) return IP_LITERAL_IDENTITY
 
   const labels = bare.split('.').filter(Boolean)
   if (labels.length < 2) return bare
@@ -363,6 +388,21 @@ export const evaluateRpcQuorum = (
       reachesQuorum: false,
       transient: false,
       detail: `a quorum of ${quorum} is below the minimum of ${MIN_INDEPENDENT_PROVIDERS}: at that setting a single lying endpoint is the whole evidence base, so the read is refused rather than run`,
+    }
+
+  // Ahead of every other verdict, because an unknowable identity makes the
+  // provider count itself unsound and every branch below reads that count. A
+  // name may resolve to the address, so an IP endpoint alongside a hostname one
+  // cannot be shown to be a second provider — and the endpoint list comes out of
+  // a writable store, so adding an alias of a node you already control is the
+  // cheapest way to manufacture a quorum.
+  if (providers.includes(IP_LITERAL_IDENTITY))
+    return {
+      ...base,
+      status: 'provider-identity-unverifiable',
+      reachesQuorum: false,
+      transient: false,
+      detail: `an endpoint names its host as a bare IP address, which cannot be shown independent of a hostname endpoint that may resolve to it: give every endpoint a hostname, or declare a providerId so the endpoints are counted as one`,
     }
 
   if (usable.length === 0)
@@ -622,6 +662,7 @@ export const assertRpcQuorum = (
  */
 export const evaluateQuorumCoverage = (
   endpointsByNetwork: Record<string, readonly string[]>,
+  source: string,
   quorum: number = MIN_INDEPENDENT_PROVIDERS
 ): IQuorumCoverageReport => {
   const networks = Object.keys(endpointsByNetwork)
@@ -650,6 +691,7 @@ export const evaluateQuorumCoverage = (
 
   return {
     quorum,
+    source,
     networks,
     below: networks.filter((entry) => !entry.reachesQuorum),
   }
