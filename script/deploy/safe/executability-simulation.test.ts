@@ -417,9 +417,24 @@ describe('predicted from state read now', () => {
     ).toContain('already serves it')
   })
 
+  it('still sees that no-op Replace when the collected facet is checksummed', () => {
+    const verdict = evaluate(
+      cutCall([cut(FacetCutActionEnum.Replace, LOUPE, [FACETS_SELECTOR])]),
+      {
+        observations: observations({
+          selectorFacets: new Map([[FACETS_SELECTOR, LOUPE]]),
+        }),
+      }
+    )
+
+    expect(
+      findingFor(verdict, ExecutabilityFindingEnum.FunctionAlreadyExists).detail
+    ).toContain('already serves it')
+  })
+
   it('refuses a Replace or Remove of a selector defined on the diamond itself', () => {
     const immutable = observations({
-      selectorFacets: new Map([[FACETS_SELECTOR, DIAMOND.toLowerCase()]]),
+      selectorFacets: new Map([[FACETS_SELECTOR, DIAMOND]]),
     })
 
     for (const [action, facet] of [

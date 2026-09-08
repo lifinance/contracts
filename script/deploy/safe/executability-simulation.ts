@@ -136,7 +136,10 @@ export interface IChainObservations {
   available: boolean
   /** Set exactly when `available` is false. */
   unavailableReason?: string
-  /** Selector to the facet address serving it, {@link ZERO_ADDRESS} for none. */
+  /**
+   * Selector to the facet address serving it, {@link ZERO_ADDRESS} for none.
+   * Keys are lowercase; values are compared case-insensitively at the read.
+   */
   selectorFacets: ReadonlyMap<string, string>
   /** Address to whether `eth_getCode` returned any code. */
   hasCode: ReadonlyMap<string, boolean>
@@ -473,7 +476,9 @@ const gradeSelectors = (
       const selector = normalise(rawSelector)
       const at = `${cut.path}.selectors[${index}]`
       const moved = amended.get(selector)
-      const observed = observations.selectorFacets.get(selector)
+      const rawObserved = observations.selectorFacets.get(selector)
+      const observed =
+        rawObserved === undefined ? undefined : normalise(rawObserved)
       const current = moved === undefined ? observed : moved.facet
       // Proven only where the proposal itself put the selector where it is: the
       // diamond's own map is a read that another execution can invalidate.
