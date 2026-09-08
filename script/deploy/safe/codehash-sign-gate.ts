@@ -377,14 +377,18 @@ export const renderCodehashSignGate = (gate: ICodehashSignGate): string[] => {
  */
 export const assertCodehashSignGateAllowsSigning = (
   gate: ICodehashSignGate,
-  key?: string
+  key: string
 ): void => {
   // A verdict about a different transaction is not a pass, so this decides
   // independently of `blocksSigning`. It does not choose the *message* though:
   // a gate that never ran carries no key, and reporting only the mismatch sent
   // the reader after a substitution that never happened, instead of the broken
   // toolchain config that actually stopped it. Both facts, when both hold.
-  const mismatched = key !== undefined && gate.gradedKey !== key
+  // `key` is required, not optional. Optional, `key !== undefined` was an
+  // opt-out a future call site could take by simply not passing one — and a
+  // non-blocking gate that graded *nothing* has no business authorising a
+  // signature either, which is what the undefined case silently allowed.
+  const mismatched = gate.gradedKey !== key
   if (!mismatched && !gate.blocksSigning) return
 
   const detail = gate.targets
@@ -432,7 +436,7 @@ export const createGatedSigner = <Args extends unknown[], T>(deps: {
    * verdict is compared against it, and a signer that could omit it would be a
    * signer with the old bug.
    */
-  keyOf: (...args: Args) => string | undefined
+  keyOf: (...args: Args) => string
 }): ((...args: Args) => Promise<T>) => {
   return async (...args: Args): Promise<T> => {
     assertCodehashSignGateAllowsSigning(deps.gate(), deps.keyOf(...args))

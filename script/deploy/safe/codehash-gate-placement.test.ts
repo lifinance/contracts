@@ -54,8 +54,14 @@ const CLIENT_SIGN_CALLS =
 /**
  * The one call that broadcasts. Execution needs no signature of ours, so it
  * cannot be covered by the sign funnel.
+ *
+ * Any receiver, as `CLIENT_SIGN_CALLS` already does: bound to `safeClient.` it
+ * could not see a later `safe.executeTransaction(` or
+ * `deployerSafe.executeTransaction(` at all, so the assertion below stayed
+ * green over exactly the ungated route it exists to catch. Both those receivers
+ * are in scope in this file, so it was not a hypothetical.
  */
-const EXECUTE_CALLS = /safeClient\.executeTransaction\(/g
+const EXECUTE_CALLS = /\w+\.executeTransaction\(/g
 
 /** Calls to the funnel itself, which is a bare identifier. */
 const FUNNEL_CALLS = /(?<![.\w])signTransaction\(/g
@@ -104,6 +110,8 @@ describe('the codehash refusal is in the one funnel every sign path uses', () =>
     // Paired positive: the marker exists, or "no ungated execute" passes on a
     // file with no execute call in it.
     expect(executing.length).toBeGreaterThan(0)
+    // Exactly one, whatever the receiver is called. A second broadcast site is
+    // a second route, and the assert below only covers the funnel's.
     expect(executing).toEqual(['safeClient.executeTransaction('])
 
     // …and it lives inside the one local helper every execute branch calls.

@@ -655,7 +655,7 @@ describe('a verdict is about specific bytes', () => {
     )
 
     expect(() =>
-      assertCodehashSignGateAllowsSigning(graded, graded.gradedKey)
+      assertCodehashSignGateAllowsSigning(graded, String(graded.gradedKey))
     ).not.toThrow()
   })
 
@@ -772,14 +772,18 @@ describe('a verdict is about specific bytes', () => {
 })
 
 describe('the sign funnel', () => {
-  const blockingGate = blockingUnevaluatedGate()
+  // A matching key on both, so these cases isolate the blocking decision. The
+  // mismatch is asserted separately, and a gate with no key now refuses on its
+  // own — which would confound every case here.
+  const SAME_KEY = 'the-one-transaction'
+  const blockingGate = { ...blockingUnevaluatedGate(), gradedKey: SAME_KEY }
   const passingGate = { ...blockingGate, blocksSigning: false }
 
   it('never reaches the signature when the gate blocks', async () => {
     const calls: string[] = []
     const sign = createGatedSigner<[string], string>({
       gate: () => blockingGate,
-      keyOf: () => undefined,
+      keyOf: () => SAME_KEY,
       sign: async (tx) => {
         calls.push(tx)
         return tx
@@ -794,7 +798,7 @@ describe('the sign funnel', () => {
     const calls: string[] = []
     const sign = createGatedSigner<[string], string>({
       gate: () => passingGate,
-      keyOf: () => undefined,
+      keyOf: () => SAME_KEY,
       sign: async (tx) => {
         calls.push(tx)
         return `signed:${tx}`
@@ -809,7 +813,7 @@ describe('the sign funnel', () => {
     const calls: string[] = []
     const sign = createGatedSigner<[string], string>({
       gate: () => blockingGate,
-      keyOf: () => undefined,
+      keyOf: () => SAME_KEY,
       sign: async () => {
         calls.push('reached')
         throw new Error('the device was not connected')
@@ -835,7 +839,7 @@ describe('assertCodehashSignGateAllowsSigning', () => {
 
     let thrown = ''
     try {
-      assertCodehashSignGateAllowsSigning(gate)
+      assertCodehashSignGateAllowsSigning(gate, String(gate.gradedKey))
     } catch (error) {
       thrown = error instanceof Error ? error.message : String(error)
     }
@@ -850,15 +854,23 @@ describe('assertCodehashSignGateAllowsSigning', () => {
       () => deps()
     )
 
-    expect(() => assertCodehashSignGateAllowsSigning(gate)).not.toThrow()
+    expect(gate.gradedKey).toBeDefined()
+    expect(() =>
+      assertCodehashSignGateAllowsSigning(gate, String(gate.gradedKey))
+    ).not.toThrow()
   })
 
   it('refuses the state a proposal starts in', () => {
     // The real default, not a hand-built stand-in: flip its `blocksSigning` to
     // false and this is the assertion that catches it.
     expect(blockingUnevaluatedGate().blocksSigning).toBe(true)
+    // Any key: the starting state graded nothing, so it both blocks and has no
+    // verdict to match — the refusal names its own reason either way.
     expect(() =>
-      assertCodehashSignGateAllowsSigning(blockingUnevaluatedGate())
+      assertCodehashSignGateAllowsSigning(
+        blockingUnevaluatedGate(),
+        'any-transaction'
+      )
     ).toThrow(/did not run/)
   })
 
