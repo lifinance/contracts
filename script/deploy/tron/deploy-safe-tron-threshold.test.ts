@@ -7,9 +7,9 @@
  * `deploy-safe-tron.ts` supplies, and where in `run()` the refusal happens.
  *
  * The script is never executed here, not even to be refused: its default path
- * deploys a Safe with the production key, so the ordering claim is read off the
- * source and every anchor it matches is asserted unique — a rename breaks this
- * file rather than quietly satisfying it.
+ * deploys a Safe with the production key. So the ordering claim is read off the
+ * source, and every anchor is asserted to occur exactly once, so a rename
+ * fails this file loudly instead of silently satisfying it.
  */
 
 import { readFileSync } from 'fs'
@@ -117,7 +117,7 @@ describe('where the Tron floor check sits in run()', () => {
     )
   })
 
-  it('refuses before the setup-only path, which sets a threshold of its own', () => {
+  it('refuses before the setup-only path, which calls setup() with it', () => {
     expect(guard()).toBeLessThan(soleIndex('if (options.setupOnly) {'))
   })
 
