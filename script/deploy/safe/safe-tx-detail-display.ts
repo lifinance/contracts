@@ -9,11 +9,15 @@
  * erase or repaint the lines around it, and repaint a fabricated block showing
  * a benign target above the prompt that asks whether to sign.
  *
- * Nothing upstream can be relied on to have removed them first. The two checks
- * that look like they would — `BigInt()` on the nonce and value,
- * `normalizeAddressForNetwork` on the target — *skip* whitespace rather than
- * refusing it, so `\r`, `\n` and U+2028 survive both and reach a line they can
- * rewind.
+ * The two checks that look like they would remove such characters first —
+ * `BigInt()` on the nonce and value, `normalizeAddressForNetwork` on the target
+ * — *skip* whitespace rather than refusing it, so an `\r`, `\n` or U+2028 at
+ * either end of those fields survives both and reaches a line it can rewind.
+ * An escape in the *middle* of them does not: `getAddress` and `BigInt` throw
+ * on it in `initializeSafeTransaction`, before anything is displayed, so for
+ * those three fields that shape is a failed run rather than a spoofed prompt.
+ * `data`, `proposer`, `safeTxHash`, `provenance` and `parkedTaskRefs` have no
+ * such coercion anywhere and carry whatever the row holds.
  *
  * So the block takes every stored value unrendered and sanitises all of them
  * here, including the addresses it composes itself. A caller that cleaned one
