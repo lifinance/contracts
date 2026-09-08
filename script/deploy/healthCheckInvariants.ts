@@ -1758,16 +1758,25 @@ async function resolvePendingRegistrations(
 }
 
 /**
- * Renders a `safeOwners` entry that cannot be used, for an operator to read.
+ * Names a `safeOwners` entry that cannot be used, for an operator to read.
  *
- * Sanitised because the raw value reaches a terminal and a job log; the fallback
- * distinguishes an entry that rendered to nothing from one that was never there, which a
- * bare empty string in the middle of a comma-joined list cannot.
+ * Carries the position and the length rather than relying on the rendering being visible:
+ * sanitising strips most invisible characters but not all of them (a zero-width joiner and
+ * a Hangul filler both survive it and occupy no width), and a value that renders blank is
+ * indistinguishable from the next one inside a comma-joined list. Position and length
+ * identify the line to fix whatever the characters are.
  * @param entry - the unusable entry, whatever it held
- * @returns A control-character-free rendering, never empty
+ * @param index - its position in `safeOwners`, as an operator counts them
+ * @returns A control-character-free description that identifies the entry
  */
-const describeConfigEntry = (entry: unknown): string =>
-  sanitizeProvenanceText(String(entry)) || '(no printable characters)'
+const describeConfigEntry = (entry: unknown, index: number): string => {
+  const raw = String(entry)
+  const size = `${raw.length} char${raw.length === 1 ? '' : 's'}`
+  const rendered = sanitizeProvenanceText(raw)
+  return rendered === ''
+    ? `entry ${index} (nothing printable, ${size})`
+    : `entry ${index} "${rendered}" (${size})`
+}
 
 /**
  * Ordered registry of every health-check invariant. The order matches historical log
@@ -3335,13 +3344,13 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         const configured = new Set<string>()
         const unusable: string[] = []
         let duplicates = 0
-        for (const entry of safeOwners) {
+        for (const [index, entry] of safeOwners.entries()) {
           // A blank entry leaves the configured set incomplete by exactly the
           // argument that governs an unparseable one, so it takes the same
           // route: comparing against a partial set names a legitimate owner as
           // unexpected.
           if (!entry) {
-            unusable.push(describeConfigEntry(entry))
+            unusable.push(describeConfigEntry(entry, index))
             continue
           }
           try {
@@ -3349,7 +3358,7 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
             if (configured.has(normalised)) duplicates += 1
             configured.add(normalised)
           } catch {
-            unusable.push(describeConfigEntry(entry))
+            unusable.push(describeConfigEntry(entry, index))
           }
         }
 

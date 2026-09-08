@@ -3169,16 +3169,46 @@ describe('safe-config asserts the owner set both ways', () => {
     }
   })
 
-  it('renders an unusable entry that has no printable characters', async () => {
-    // Sanitising is lossy, so a whitespace-only entry would otherwise reach the
-    // operator as an invisible gap between two commas.
+  it('identifies an unusable entry that renders to nothing visible', async () => {
+    // Sanitising strips most invisible characters but not all: a zero-width
+    // joiner and a Hangul filler both survive it at zero width, so a rendering
+    // alone cannot name the line to fix. Position and length can.
+    const cases: Array<[string, string]> = [
+      ['whitespace', '   '],
+      ['zero-width space', '\u200b'],
+      ['zero-width joiner', '\u200d'],
+      ['Hangul filler', '\u3164'],
+    ]
+
+    for (const [name, value] of cases) {
+      const ctx = makeSafeCtx({
+        configured: [OWNER_A, value],
+        onChain: [getAddress(OWNER_A)],
+      })
+      await invariant('safe-config').run(ctx)
+      const joined = ctx.errors.join('\n')
+
+      expect(joined, name).toContain('entry 1')
+      expect(joined, name).toContain(
+        `${value.length} char${value.length === 1 ? '' : 's'}`
+      )
+    }
+  })
+
+  it('distinguishes two unusable entries that render identically', async () => {
+    // The whole point of carrying position and length: without them these two
+    // are the same text in the operator's terminal.
     const ctx = makeSafeCtx({
-      configured: [OWNER_A, '   '],
+      configured: ['\u200d', '\u200d\u200d', OWNER_A],
       onChain: [getAddress(OWNER_A)],
     })
     await invariant('safe-config').run(ctx)
+    const joined = ctx.errors.join('\n')
 
-    expect(ctx.errors.join('\n')).toContain('(no printable characters)')
+    expect(joined).toContain('entry 0')
+    expect(joined).toContain('entry 1')
+    expect(joined).toContain('1 char')
+    expect(joined).toContain('2 chars')
   })
 
   it('refuses a duplicated config entry, which set equality cannot see', async () => {
