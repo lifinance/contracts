@@ -112,6 +112,45 @@ describe('deployer key power — a widened config refuses', () => {
     )
   })
 
+  it('refuses every equivalent spelling of the same address', () => {
+    // The bound claims nothing outside the documented slots, so a spelling the
+    // walk fails to recognise is a slot it cannot claim anything about. The
+    // prefix and the digit case carry no meaning, and neither does the Tron
+    // `41` hex form of the same key.
+    const body = globalConfig.deployerWallet.slice(2)
+    const spellings = [
+      body,
+      body.toLowerCase(),
+      body.toUpperCase(),
+      `0X${body}`,
+      `0x${body.toUpperCase()}`,
+      `41${body}`,
+      `0x41${body}`,
+    ]
+
+    for (const spelling of spellings) {
+      const widened = clone(globalConfig)
+      widened.pauserWallet = spelling
+      const message = expectRefusal(
+        () => assertDeployerKeyPowerBounded(widened, networksConfig),
+        /undocumented grant: global\.json:pauserWallet/
+      )
+      // The refusal names the spelling it found, so an operator reading it can
+      // see which line of the config to open.
+      expect(message).toContain(spelling)
+    }
+  })
+
+  it('leaves an unrelated address alone, so recognition is not a blanket match', () => {
+    // Paired presence: broadening which spellings count as the deployer must
+    // not make every address count as the deployer.
+    const untouched = clone(globalConfig)
+    untouched.pauserWallet = `0x${'a'.repeat(40)}`
+    expect(() =>
+      assertDeployerKeyPowerBounded(untouched, networksConfig)
+    ).not.toThrow()
+  })
+
   it('refuses a duplicated owner entry, which the signature count is derived from', () => {
     const widened = clone(globalConfig)
     widened.safeOwners.push(globalConfig.deployerWallet)

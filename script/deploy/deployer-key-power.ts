@@ -192,8 +192,17 @@ interface IWalkTarget {
 const isPlainObject = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v)
 
+/**
+ * Whether a string is written as a hexadecimal address, with or without `0x`.
+ *
+ * Case-insensitive on the prefix as well as the body: `0X` is the same address, and a form
+ * this returns false for is compared verbatim instead, which is how an equivalent spelling
+ * escapes the walk entirely.
+ * @param id - the candidate string
+ * @returns Whether it is a 40- or 42-digit hexadecimal address in either form
+ */
 const isHexAddressForm = (id: string): boolean =>
-  /^(?:0x)?(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{42})$/.test(id)
+  /^(?:0x)?(?:[0-9a-f]{40}|[0-9a-f]{42})$/iu.test(id)
 
 /** Identity strings the deployer key answers to across the config files. */
 export const deployerIdentities = (globalConfig: {
@@ -214,10 +223,22 @@ export const deployerIdentities = (globalConfig: {
   return [...new Set([...declared, ...tronHexForms])]
 }
 
+/**
+ * Compares two hexadecimal address strings ignoring the `0x` and its case.
+ *
+ * The prefix is optional in the source data but carries no meaning, so a slot writing an
+ * identity without it would otherwise be a string the walk does not recognise — and an
+ * identity the walk cannot recognise is one the bound cannot claim anything about.
+ * @param value - a hexadecimal address in either form
+ * @returns The lowercase body, with no prefix
+ */
+const hexAddressBody = (value: string): string =>
+  value.replace(/^0x/iu, '').toLowerCase()
+
 const matches = (value: string, identities: string[]): boolean =>
   identities.some((id) =>
-    isHexAddressForm(id)
-      ? value.toLowerCase() === id.toLowerCase()
+    isHexAddressForm(id) && isHexAddressForm(value)
+      ? hexAddressBody(value) === hexAddressBody(id)
       : value === id
   )
 
