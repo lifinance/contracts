@@ -78,7 +78,10 @@ This is not bring-up-only. What bounds it is **detection**, not prevention: the
 directions, so an owner the config does not declare is reported (PR #2337,
 EXSC-943). The inventory carries the power in
 `ACKNOWLEDGED_PRODUCTION_INTEGRITY_POWERS`, and an integrity power that no
-disclosure names a detection for refuses.
+disclosure names a detection for refuses. An empty map is the target state:
+detection is weaker than removal, so each entry also names the work that retires
+it — here EXSC-944, which defaults `allowOverride` to `false` and refuses a
+production threshold below `SAFE_THRESHOLD`.
 
 Two further scoped exceptions are part of the inventory rather than hidden by it.
 On **testnets** the deployer owns the diamond outright, in every environment —

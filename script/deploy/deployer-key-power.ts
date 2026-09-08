@@ -151,6 +151,9 @@ export const DEPLOYER_KEY_POWERS: readonly IDeployerPower[] = [
  * that makes abuse observable. An unlisted id refuses, so a power promoted into this class cannot
  * reach main by editing its own row; and a disclosure with nothing watching it is not a
  * disclosure, which is why the value is required to be non-empty.
+ *
+ * Detection is weaker than removal, so each value names the work that retires the entry. An empty
+ * map is the target state: R7.1's bound is only fully held when this map is empty.
  */
 export const ACKNOWLEDGED_PRODUCTION_INTEGRITY_POWERS: ReadonlyMap<
   string,
@@ -158,7 +161,7 @@ export const ACKNOWLEDGED_PRODUCTION_INTEGRITY_POWERS: ReadonlyMap<
 > = new Map([
   [
     'safe-deployment',
-    "healthCheckInvariants.ts 'safe-config' asserts the Safe owner set in both directions, so an owner the config does not declare is reported (PR #2337, EXSC-943)",
+    "healthCheckInvariants.ts 'safe-config' asserts the Safe owner set in both directions, so an owner the config does not declare is reported (PR #2337, EXSC-943). Removal, not detection, is tracked as EXSC-944: defaulting allowOverride to false and refusing a production threshold below SAFE_THRESHOLD retires this entry.",
   ],
 ])
 
