@@ -1,23 +1,12 @@
 /**
  * R7.1 — the deployer key's power inventory, and the config assertion that bounds it.
  *
- * Two independent legs, both reported in one pass so neither can mask the other:
- *
- *  1. `findDeployerConfigSlots` walks `config/global.json` and `config/networks.json`
- *     for every slot holding one of the deployer wallet's identities, and
- *     `assertDeployerKeyPowerBounded` refuses any slot outside
- *     {@link DOCUMENTED_DEPLOYER_CONFIG_SLOTS}. The walk is generic rather than a scan of
- *     known field names, so a *newly added* config field pointing at the deployer is caught
- *     too — that is the widening R7.1 asks to alert on.
- *  2. The same assertion re-derives the inventory's central claim from config: the wallet's
- *     power is bounded to DoS/griefing and never an integrity break, because reaching the
- *     Safe threshold needs signatures it does not hold.
- *
- * Residual, deliberately not covered: the walk matches address *strings*, so it compares the
- * Tron identity as base58 and the EVM identity as hex. Both are the same key today
- * (`tronWallets.deployerWallet` decodes to `deployerWallet`), but a re-encoded form of one
- * pasted into a slot of the other kind would not match. Decoding needs a TronWeb instance,
- * which the dependency-light `bun test:ts` job deliberately does not carry.
+ * The walk compares address *strings*, so the Tron identity is matched as base58 and the EVM
+ * identity as hex — including the `41`-prefixed TronWeb hex form, which is a pure string
+ * transform of the EVM address. Both are the same key today (`tronWallets.deployerWallet`
+ * decodes to `deployerWallet`), but a base58 re-encoding of the EVM identity would not match:
+ * decoding needs a TronWeb instance, which the dependency-light `bun test:ts` job deliberately
+ * does not carry.
  */
 
 import { defineCommand, runMain } from 'citty'
@@ -36,7 +25,7 @@ export type TDeployerPowerClass =
   | 'dos'
   /** Produces a value a downstream gate must re-derive rather than trust. */
   | 'untrusted-input'
-  /** Can change which code executes without a Safe threshold. */
+  /** Can change which code executes, or who governs it, without a Safe threshold. */
   | 'integrity'
 
 /** Where the power applies. Only `production-mainnet` carries the R7.1 bound. */
@@ -57,10 +46,6 @@ export interface IDeployerPower {
   note: string
 }
 
-/**
- * The documented set. A power absent from this list is, by construction, undocumented — which
- * is why the config walk refuses an unlisted slot instead of describing it.
- */
 export const DEPLOYER_KEY_POWERS: readonly IDeployerPower[] = [
   {
     id: 'deploy',
@@ -129,6 +114,17 @@ export const DEPLOYER_KEY_POWERS: readonly IDeployerPower[] = [
     note: 'Granted only once the F7 executor restriction lands (WP-6.2 / EXSC-872). On main EXECUTOR_ROLE is still address(0) — execution is permissionless and the deployer holds no executor grant.',
   },
   {
+    id: 'safe-deployment',
+    power:
+      'Deploy the governance Safe with an owner set and threshold of its choosing, then repoint config at it',
+    surface:
+      'script/deploy/safe/deploy-safe.ts — --owners is unioned into globalConfig.safeOwners, --threshold accepts any value >= 1, allowOverride defaults to true so the "Safe already deployed" guard does not fire, and config/networks.json safeAddress is rewritten with the result; script/deploy/tron/deploy-safe-tron.ts is the Tron equivalent',
+    class: 'integrity',
+    scope: 'production-mainnet',
+    status: 'current',
+    note: 'The script\'s own on-chain verification compares getOwners() and getThreshold() against the same expanded owners array and threshold it was passed, so it confirms "deployed as asked", not "as configured". Abuse is observable, not prevented — see ACKNOWLEDGED_PRODUCTION_INTEGRITY_POWERS.',
+  },
+  {
     id: 'testnet-diamond-owner',
     power: 'Own the diamond outright (diamondCut without a Safe)',
     surface:
@@ -136,7 +132,7 @@ export const DEPLOYER_KEY_POWERS: readonly IDeployerPower[] = [
     class: 'integrity',
     scope: 'non-production',
     status: 'current',
-    note: 'Testnet and staging diamonds have no Safe or timelock by design, so the R7.1 bound is a production-mainnet claim and is scoped as such.',
+    note: 'Testnet diamonds have no Safe or timelock by design, so the R7.1 bound is a production-mainnet claim and is scoped as such. Staging on a mainnet network is a different key: helperFunctions.sh getPrivateKey returns PRIVATE_KEY there, and healthCheck.ts resolves ctx.deployerWallet to globalConfig.devWallet.',
   },
   {
     id: 'bring-up-diamond-owner',
@@ -149,6 +145,22 @@ export const DEPLOYER_KEY_POWERS: readonly IDeployerPower[] = [
     note: 'Closes when the Safe executes the confirmation. A network left in this state is reported unhealthy by the diamond-owner invariant.',
   },
 ] as const
+
+/**
+ * Production-mainnet integrity powers that are disclosed rather than refused, mapped to the check
+ * that makes abuse observable. An unlisted id refuses, so a power promoted into this class cannot
+ * reach main by editing its own row; and a disclosure with nothing watching it is not a
+ * disclosure, which is why the value is required to be non-empty.
+ */
+export const ACKNOWLEDGED_PRODUCTION_INTEGRITY_POWERS: ReadonlyMap<
+  string,
+  string
+> = new Map([
+  [
+    'safe-deployment',
+    "healthCheckInvariants.ts 'safe-config' asserts the Safe owner set in both directions, so an owner the config does not declare is reported (PR #2337, EXSC-943)",
+  ],
+])
 
 /**
  * Slots the deployer's identities may occupy, as `<file>:<json path>`. Anything else is a
@@ -177,48 +189,65 @@ interface IWalkTarget {
 const isPlainObject = (v: unknown): v is Record<string, unknown> =>
   typeof v === 'object' && v !== null && !Array.isArray(v)
 
+const isHexAddressForm = (id: string): boolean =>
+  /^(?:0x)?(?:[0-9a-fA-F]{40}|[0-9a-fA-F]{42})$/.test(id)
+
 /** Identity strings the deployer key answers to across the config files. */
 export const deployerIdentities = (globalConfig: {
   deployerWallet: string
   tronWallets?: Record<string, string>
 }): string[] => {
-  return [
+  const declared = [
     globalConfig.deployerWallet,
     globalConfig.tronWallets?.deployerWallet,
   ].filter((id): id is string => typeof id === 'string' && id.length > 0)
+
+  const evm = globalConfig.deployerWallet
+  const tronHexForms =
+    typeof evm === 'string' && /^0x[0-9a-fA-F]{40}$/.test(evm)
+      ? [`41${evm.slice(2)}`, `0x41${evm.slice(2)}`]
+      : []
+
+  return [...new Set([...declared, ...tronHexForms])]
 }
 
 const matches = (value: string, identities: string[]): boolean =>
   identities.some((id) =>
-    id.startsWith('0x')
+    isHexAddressForm(id)
       ? value.toLowerCase() === id.toLowerCase()
       : value === id
   )
 
-/**
- * Every slot in the given configs holding a deployer identity, found by walking the whole
- * document rather than a list of known field names.
- */
+/** Every slot in the given configs holding a deployer identity, as a value or as an object key. */
 export const findDeployerConfigSlots = (
   globalConfig: unknown,
   networksConfig: unknown
 ): IDeployerConfigSlot[] => {
   if (!isPlainObject(globalConfig))
     throw new Error('global config must be an object')
+  if (
+    !isPlainObject(networksConfig) ||
+    Object.keys(networksConfig).length === 0
+  )
+    throw new Error('networks config must be a non-empty object')
+
+  const declaredDeployer = (globalConfig as { deployerWallet?: unknown })
+    .deployerWallet
+  if (typeof declaredDeployer !== 'string' || declaredDeployer.length === 0)
+    throw new Error('config/global.json declares no deployerWallet')
 
   const identities = deployerIdentities(
     globalConfig as { deployerWallet: string }
   )
-  if (identities.length === 0)
-    throw new Error('config/global.json declares no deployerWallet')
 
   const found: IDeployerConfigSlot[] = []
+  const collapse = (path: string): string => path.replace(/\[\d+]/g, '[]')
 
   const walk = (file: string, node: unknown, path: string): void => {
     if (typeof node === 'string') {
       if (matches(node, identities))
         found.push({
-          slot: `${file}:${path.replace(/\[\d+]/g, '[]')}`,
+          slot: `${file}:${collapse(path)}`,
           path: `${file}:${path}`,
           value: node,
         })
@@ -229,8 +258,16 @@ export const findDeployerConfigSlots = (
       return
     }
     if (isPlainObject(node))
-      for (const [key, child] of Object.entries(node))
-        walk(file, child, path === '' ? key : `${path}.${key}`)
+      for (const [key, child] of Object.entries(node)) {
+        const childPath = path === '' ? key : `${path}.${key}`
+        if (matches(key, identities))
+          found.push({
+            slot: `${file}:${collapse(childPath)}`,
+            path: `${file}:${childPath}`,
+            value: key,
+          })
+        walk(file, child, childPath)
+      }
   }
 
   const targets: IWalkTarget[] = [
@@ -245,15 +282,15 @@ export const findDeployerConfigSlots = (
 export interface IDeployerPowerBoundOptions {
   /** Safe signature threshold the fleet is held to. Defaults to the repo constant. */
   safeThreshold?: number
-  /** Inventory to judge. Defaults to {@link DEPLOYER_KEY_POWERS}; injectable so the bound is testable. */
+  /** Inventory to judge. Defaults to {@link DEPLOYER_KEY_POWERS}. */
   powers?: readonly IDeployerPower[]
 }
 
 /**
- * Refuse if the deployer wallet occupies a config slot outside the documented set, if it does
- * not hold exactly the one Safe-owner slot the signature arithmetic assumes, if that slot could
- * by itself reach the signature threshold, or if the inventory itself claims an integrity power
- * in production steady state.
+ * Refuse if the deployer wallet occupies a config slot outside the documented set, if it occupies
+ * more than the one Safe-owner slot the signature arithmetic assumes, if that slot could by itself
+ * reach the signature threshold, or if the inventory claims an integrity power in production
+ * steady state that {@link ACKNOWLEDGED_PRODUCTION_INTEGRITY_POWERS} does not disclose.
  *
  * Every leg is collected before throwing, so one violation never hides another.
  */
@@ -276,9 +313,9 @@ export const assertDeployerKeyPowerBounded = (
   const ownerSlots = slots.filter(
     (s) => s.slot === 'global.json:safeOwners[]'
   ).length
-  if (ownerSlots !== 1)
+  if (ownerSlots > 1)
     violations.push(
-      `deployer occupies ${ownerSlots} safeOwners slots, expected exactly 1 — the human-signature count the process documents is derived from that`
+      `deployer occupies ${ownerSlots} safeOwners slots, expected at most 1 — the human-signature count the process documents is derived from that`
     )
   if (!Number.isInteger(threshold) || threshold < 1)
     violations.push(
@@ -294,10 +331,13 @@ export const assertDeployerKeyPowerBounded = (
       power.status === 'current' &&
       power.scope === 'production-mainnet' &&
       power.class === 'integrity'
-    )
-      violations.push(
-        `inventory claims an integrity power in production steady state: ${power.id} — R7.1's bound is falsified, not merely undocumented`
-      )
+    ) {
+      const detection = ACKNOWLEDGED_PRODUCTION_INTEGRITY_POWERS.get(power.id)
+      if (detection === undefined || detection.trim().length === 0)
+        violations.push(
+          `inventory claims an undisclosed integrity power in production steady state: ${power.id} — either it is not an integrity power, or R7.1's bound needs restating and ACKNOWLEDGED_PRODUCTION_INTEGRITY_POWERS must name the check that observes it`
+        )
+    }
 
   if (violations.length > 0)
     throw new Error(
@@ -326,6 +366,11 @@ export const renderDeployerKeyPowerInventory = (
       (p) =>
         `  [${p.status}] [${p.scope}] [${p.class}] ${p.id}: ${p.power}\n      surface: ${p.surface}\n      ${p.note}`
     ),
+    '',
+    'Disclosed production-mainnet integrity powers (observable, not prevented):',
+    ...[...ACKNOWLEDGED_PRODUCTION_INTEGRITY_POWERS].map(
+      ([id, detection]) => `  ${id}: ${detection}`
+    ),
   ]
   return lines.join('\n')
 }
@@ -347,7 +392,7 @@ const main = defineCommand({
       process.exit(1)
     }
     consola.success(
-      'Deployer key power is bounded to the documented set (config assertion passed)'
+      'Deployer key power on production mainnets is bounded to the documented set, apart from the disclosed integrity powers above (config assertion over config/global.json and config/networks.json passed)'
     )
   },
 })

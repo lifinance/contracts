@@ -48,24 +48,49 @@ Status: **current state**, verified against the repo. Author: Daniel B. (SC).
 The deployer wallet (`config/global.json` `deployerWallet`, key
 `PRIVATE_KEY_PRODUCTION`) is the only key that appears at every stage: it
 deploys, writes the deployment record, creates the proposal, holds one of the
-Safe owner slots, and holds `CANCELLER_ROLE` on every timelock. Its power is
-nevertheless bounded to **DoS and griefing** on production mainnets — it cannot
-schedule or push a bad operation, because both need the Safe threshold, and it
-holds one signature of `SAFE_THRESHOLD` (`script/deploy/shared/constants.ts`).
+Safe owner slots, and holds `CANCELLER_ROLE` on every timelock. Against an
+**already-deployed** governance Safe its power is bounded to **DoS and
+griefing** — it cannot schedule or push a bad operation, because both need the
+Safe threshold, and it holds one signature of `SAFE_THRESHOLD`
+(`script/deploy/shared/constants.ts`). Deploying the Safe itself is the one
+exception, below.
 
 `bun deployer-key-power` prints the full inventory and refuses if the config
 grants the wallet anything outside the documented set. The check walks the whole
 of `config/global.json` and `config/networks.json` rather than a list of known
-field names, so a newly added field pointing at the deployer is caught too, and
-it runs in `bun test:ts` (whose path filter includes `config/**`).
+field names — matching addresses used as values and as object keys, and the
+`41`-prefixed TronWeb hex form as well as the EVM hex form — so a newly added
+field pointing at the deployer is caught too, and it runs in `bun test:ts`
+(whose path filter includes `config/**`).
 
-Two scoped exceptions are part of the inventory rather than hidden by it. On
-**testnet and staging** the deployer owns the diamond outright — those networks
-have no Safe or timelock — so the bound above is a production-mainnet claim.
-And during **production bring-up** the deployer owns the diamond between
-`transferOwnership(timelock)` and the Safe-executed `confirmOwnershipTransfer()`;
-a network left in that state is reported unhealthy by the `diamond-owner`
-invariant.
+One production-mainnet **integrity** power is disclosed rather than bounded away:
+the deployer can deploy the governance Safe and choose its owner set and
+threshold. `script/deploy/safe/deploy-safe.ts` unions `--owners` into
+`globalConfig.safeOwners`, accepts any `--threshold` of 1 or more, defaults
+`allowOverride` to `true` so the "Safe already deployed on …" guard does not fire
+without a flag, signs with `PRIVATE_KEY_PRODUCTION`, and rewrites
+`config/networks.json` with the resulting `safeAddress`. Its own on-chain
+verification compares `getOwners()` and `getThreshold()` against the same
+expanded arguments it was handed, so it confirms "deployed as asked", not "as
+configured". `script/deploy/tron/deploy-safe-tron.ts` is the Tron equivalent.
+This is not bring-up-only. What bounds it is **detection**, not prevention: the
+`safe-config` health-check invariant asserts the Safe owner set in both
+directions, so an owner the config does not declare is reported (PR #2337,
+EXSC-943). The inventory carries the power in
+`ACKNOWLEDGED_PRODUCTION_INTEGRITY_POWERS`, and an integrity power that no
+disclosure names a detection for refuses.
+
+Two further scoped exceptions are part of the inventory rather than hidden by it.
+On **testnets** the deployer owns the diamond outright, in every environment —
+those networks have no Safe or timelock. Staging on a mainnet network is a
+different key, not a deployer power: `getPrivateKey` in
+`script/helperFunctions.sh` returns `PRIVATE_KEY` for a staging environment, and
+`script/deploy/healthCheck.ts` resolves `ctx.deployerWallet` to
+`globalConfig.devWallet` there; the `diamond-owner` invariant skips staging
+entirely. And during **production bring-up** the deployer owns the diamond
+between `transferOwnership(timelock)` and the Safe-executed
+`confirmOwnershipTransfer()`; a network left in that state is reported unhealthy
+by the `diamond-owner` invariant.
 
 Timelock execution is **not** a deployer power today: `EXECUTOR_ROLE` is granted
 to `address(0)`, so execution is permissionless. It becomes one when the F7
