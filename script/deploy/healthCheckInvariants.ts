@@ -54,6 +54,7 @@ import {
   loadCompiledFacetSelectors,
   resolveLiveFacets,
 } from './shared/facetPeripheryCouplings'
+import { sanitizeProvenanceText } from './shared/git-provenance'
 import { getCorePeriphery } from './shared/globalContractLists'
 import {
   collectImmutableBindingChecks,
@@ -1761,6 +1762,18 @@ async function resolvePendingRegistrations(
  * output; earlier invariants may populate mutable context fields (e.g. `onChainFacets`)
  * that later ones reuse.
  */
+/**
+ * Renders a `safeOwners` entry that cannot be used, for an operator to read.
+ *
+ * Sanitised because the raw value reaches a terminal and a job log; the fallback
+ * distinguishes an entry that rendered to nothing from one that was never there, which a
+ * bare empty string in the middle of a comma-joined list cannot.
+ * @param entry - the unusable entry, whatever it held
+ * @returns A control-character-free rendering, never empty
+ */
+const describeConfigEntry = (entry: unknown): string =>
+  sanitizeProvenanceText(String(entry)) || '(no printable characters)'
+
 export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
   {
     name: 'diamond-deployed',
@@ -3323,12 +3336,12 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         const unusable: string[] = []
         let duplicates = 0
         for (const entry of safeOwners) {
-          // A blank or absent entry is an incomplete configured set by exactly
-          // the argument that governs an unparseable one, so it takes the same
-          // route rather than being dropped: skipping it quietly leaves the
-          // comparison naming a legitimate owner as unexpected.
+          // A blank entry leaves the configured set incomplete by exactly the
+          // argument that governs an unparseable one, so it takes the same
+          // route: comparing against a partial set names a legitimate owner as
+          // unexpected.
           if (!entry) {
-            unusable.push(entry === '' ? '(empty string)' : String(entry))
+            unusable.push(describeConfigEntry(entry))
             continue
           }
           try {
@@ -3336,7 +3349,7 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
             if (configured.has(normalised)) duplicates += 1
             configured.add(normalised)
           } catch {
-            unusable.push(entry)
+            unusable.push(describeConfigEntry(entry))
           }
         }
 
@@ -3389,7 +3402,7 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
           report(
             `config/global.json safeOwners lists ${duplicates} duplicate entr${
               duplicates === 1 ? 'y' : 'ies'
-            }, so its owner count does not match ${safeAddress}`
+            }, so it names fewer distinct owners than it has entries`
           )
 
         if (mismatches === 0)

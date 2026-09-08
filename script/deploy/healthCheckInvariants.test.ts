@@ -3153,9 +3153,9 @@ describe('safe-config asserts the owner set both ways', () => {
   })
 
   it('treats a blank config entry as unusable, not as one to skip', async () => {
-    // A dropped entry is an incomplete configured set, so the comparison would
-    // name a legitimate signer as an unexpected owner of the Safe and send the
-    // responder to the Safe instead of to the blank config line.
+    // An incomplete configured set names a legitimate signer as an unexpected
+    // owner of the Safe, sending the responder to the Safe instead of to the
+    // blank config line.
     for (const blank of ['', null, undefined] as unknown as string[]) {
       const ctx = makeSafeCtx({
         configured: [OWNER_A, blank],
@@ -3169,6 +3169,18 @@ describe('safe-config asserts the owner set both ways', () => {
     }
   })
 
+  it('renders an unusable entry that has no printable characters', async () => {
+    // Sanitising is lossy, so a whitespace-only entry would otherwise reach the
+    // operator as an invisible gap between two commas.
+    const ctx = makeSafeCtx({
+      configured: [OWNER_A, '   '],
+      onChain: [getAddress(OWNER_A)],
+    })
+    await invariant('safe-config').run(ctx)
+
+    expect(ctx.errors.join('\n')).toContain('(no printable characters)')
+  })
+
   it('refuses a duplicated config entry, which set equality cannot see', async () => {
     // The two sets agree — config just claims one more owner than the Safe has.
     const ctx = makeSafeCtx({
@@ -3180,39 +3192,60 @@ describe('safe-config asserts the owner set both ways', () => {
     expect(ctx.errors[0]).toContain('duplicate')
   })
 
-  it('does not print the match line when the comparison could not run', async () => {
-    // The refusal and a "matches config" line together would read as a check
-    // that ran and agreed. Asserted on the rendered output because that is
+  it('does not print the match line on any route that could not compare', async () => {
+    // A refusal and a "matches config" line together read as a check that ran
+    // and agreed. Every refusal route has to suppress it, not just one, so this
+    // is driven over all three. Asserted on rendered output because that is
     // where the two can contradict each other.
-    const printed: string[] = []
-    const success = consola.success
-    consola.success = ((message: unknown) => {
-      printed.push(String(message))
-    }) as typeof consola.success
-    try {
-      await invariant('safe-config').run(
-        makeSafeCtx({ configured: [], onChain: [OWNER_A] })
-      )
-    } finally {
-      consola.success = success
+    const capture = async (ctx: IHealthCheckContext): Promise<string> => {
+      const printed: string[] = []
+      const success = consola.success
+      consola.success = ((message: unknown) => {
+        printed.push(String(message))
+      }) as typeof consola.success
+      try {
+        await invariant('safe-config').run(ctx)
+      } finally {
+        consola.success = success
+      }
+      return printed.join('\n')
     }
 
-    expect(printed.join('\n')).not.toContain('owner set matches')
+    const routes: Array<[string, IHealthCheckContext]> = [
+      [
+        'no configured owners',
+        makeSafeCtx({ configured: [], onChain: [OWNER_A] }),
+      ],
+      [
+        'an unusable entry',
+        makeSafeCtx({
+          configured: [OWNER_A, '0xnot-an-address'],
+          onChain: [getAddress(OWNER_A)],
+        }),
+      ],
+      [
+        'a duplicated entry',
+        makeSafeCtx({
+          configured: [OWNER_A, OWNER_A],
+          onChain: [getAddress(OWNER_A)],
+        }),
+      ],
+    ]
+
+    for (const [route, ctx] of routes) {
+      const printed = await capture(ctx)
+      expect(printed, route).not.toContain('owner set matches')
+      expect(ctx.errors.length, route).toBeGreaterThan(0)
+    }
+
     // Paired presence: the line does appear when the comparison does run, so
-    // this is not passing on a call that printed nothing at all.
-    const printedOnPass: string[] = []
-    consola.success = ((message: unknown) => {
-      printedOnPass.push(String(message))
-    }) as typeof consola.success
-    try {
-      await invariant('safe-config').run(
-        makeSafeCtx({ configured: [OWNER_A], onChain: [getAddress(OWNER_A)] })
-      )
-    } finally {
-      consola.success = success
-    }
-
-    expect(printedOnPass.join('\n')).toContain('owner set matches')
+    // none of the above passes on a call that printed nothing at all.
+    const clean = makeSafeCtx({
+      configured: [OWNER_A],
+      onChain: [getAddress(OWNER_A)],
+    })
+    expect(await capture(clean)).toContain('owner set matches')
+    expect(clean.errors).toEqual([])
   })
 
   it('reaches the run summary when no Safe address is configured', async () => {
