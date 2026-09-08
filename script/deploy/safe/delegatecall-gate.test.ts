@@ -76,9 +76,8 @@ describe('evaluateDelegateCallGate', () => {
   })
 
   it('never tells a signer a delegatecall-shaped value is not one', () => {
-    // `1n` and `'1'` fail the identity test and land in the catch-all branch.
-    // Describing them as "neither Call (0) nor DelegateCall (1)" would be a
-    // sentence contradicted by the value printed in the same breath.
+    // `1n` and `'1'` fail the identity test and land in the catch-all branch,
+    // whose text must stay true of the value printed inside it.
     for (const operation of ['1', BigInt(1)] as unknown as number[]) {
       const { refuses, reason } = evaluateDelegateCallGate({ operation })
 
@@ -99,23 +98,44 @@ describe('renderDelegateCallGate', () => {
     ).toEqual([])
   })
 
-  it('colours the whole refusal, not just the badge', () => {
-    // The first version closed the reset immediately after "REFUSED", so the
-    // sentence a signer actually has to read rendered in the default colour
-    // while the assertion — a `toContain` for the escape code — still passed on
-    // the badge alone. Assert the reset comes last instead.
+  it('carries exactly one colour and one reset, at the ends', () => {
+    // Counting escape sequences rather than hunting for a stray reset. The
+    // earlier form asserted "starts red, ends reset, no reset in between",
+    // which a value carrying a raw colour *switch* satisfies while visibly
+    // recolouring the sentence mid-line — and which a legitimate reason
+    // containing an escape would have failed. Two escapes, at the two ends, is
+    // the property actually wanted.
     const [line = ''] = renderDelegateCallGate(
       evaluateDelegateCallGate({ operation: OperationTypeEnum.DelegateCall })
     )
-    const reset = `${String.fromCharCode(27)}[0m`
+    const esc = String.fromCharCode(27)
 
     expect(line).toContain('REFUSED')
     expect(line).toMatch(/own storage/)
-    expect(line.startsWith(`${String.fromCharCode(27)}[31m`)).toBe(true)
-    expect(line.endsWith(reset)).toBe(true)
-    // Nothing resets in the middle, which is the only way the reason could be
-    // left uncoloured while the badge is red.
-    expect(line.slice(0, -reset.length)).not.toContain(reset)
+    expect(line.split(esc).length - 1).toBe(2)
+    expect(line.startsWith(`${esc}[31m`)).toBe(true)
+    expect(line.endsWith(`${esc}[0m`)).toBe(true)
+  })
+
+  it('strips escape codes out of a proposer-supplied value', () => {
+    // `operation` reaches the struct through a cast, so a row can carry a
+    // string — and interpolating one raw let a proposal paint ANSI into the
+    // signer's terminal, recolouring the refusal printed about it. The value is
+    // sanitised, so the rendered line still carries exactly its own two codes.
+    const injected = `${String.fromCharCode(27)}[33mYELLOW`
+    const [line = ''] = renderDelegateCallGate(
+      evaluateDelegateCallGate({
+        operation: injected as unknown as number,
+      })
+    )
+    const esc = String.fromCharCode(27)
+
+    expect(line.split(esc).length - 1).toBe(2)
+    expect(line).not.toContain(`${esc}[33m`)
+    // Paired presence: the value is still described, not silently dropped —
+    // stripping it entirely would hide what was refused.
+    expect(line).toContain('YELLOW')
+    expect(line).toContain('(string)')
   })
 })
 

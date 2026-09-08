@@ -14,6 +14,8 @@
  * not the queue.
  */
 
+import { sanitizeProvenanceText } from '../shared/git-provenance'
+
 import { OperationTypeEnum } from './safe-utils'
 
 export interface IDelegateCallVerdict {
@@ -43,15 +45,31 @@ export interface ISignedOperation {
 }
 
 /**
- * Renders a value with its type, so a refusal cannot describe `1n` or `'1'` as
- * "neither Call nor DelegateCall".
+ * Renders the field's value for an operator to read.
+ *
+ * Sanitised, because this value is proposer-controlled: it reaches the struct
+ * through a cast, so a row can carry a string, and interpolating one raw put
+ * ANSI escapes into the signer's terminal — a refusal whose own text could
+ * recolour the line it is printed on. The type is carried alongside so a
+ * refusal cannot describe `1n` or `'1'` in terms that only fit a number.
  * @param value - whatever the operation field held
- * @returns The value, and its type when that is the surprising part
+ * @returns A control-character-free rendering, with the type where it matters
  */
-const describe = (value: unknown): string =>
-  typeof value === 'number' || value === undefined
-    ? String(value)
-    : `${String(value)} (${typeof value})`
+const describe = (value: unknown): string => {
+  if (value === undefined) return 'absent'
+  if (typeof value === 'number') return String(value)
+
+  // `String()` throws on a value with no `toString` (`Object.create(null)`) or
+  // one that throws its own; a refusal must still render.
+  let rendered = ''
+  try {
+    rendered = sanitizeProvenanceText(value)
+  } catch {
+    rendered = ''
+  }
+
+  return `${rendered || 'unrenderable'} (${typeof value})`
+}
 
 /**
  * Judges a proposal's `operation` field.
@@ -76,12 +94,11 @@ export const evaluateDelegateCallGate = (
         "This proposal is a delegatecall (operation = 1). It runs the code at its target address against this Safe's own storage, whatever function the calldata appears to call — so the decoded calldata says nothing about what it will do. No proposal path in this repository builds one. Refusing on the operation field alone.",
     }
 
-  // Everything else, an absent field included. Not reachable through the
-  // mandated source, because `createTransaction` normalises absence to `Call`
-  // before the struct exists — so this is a floor, not a live catch, and is
-  // deliberately not described as catching a missing operation. The row losing
-  // the field is a real gap and is not covered here or anywhere: it happens one
-  // frame up and is invisible by the time a signature is offered.
+  // Everything else, an absent field included. Absence cannot arrive through the
+  // mandated source: `createTransaction` normalises it to `Call` before the
+  // struct exists, so this is a floor rather than a check on a reachable input.
+  // The row losing the field is invisible by the time a signature is offered,
+  // and closing that belongs one frame up.
   return {
     refuses: true,
     reason: `This proposal's operation field is ${describe(
