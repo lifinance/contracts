@@ -1,346 +1,335 @@
 /**
- * Demo: CentrifugeFacet end-to-end against the REAL Centrifuge TokenBridge on an
- * anvil mainnet fork (see EXSC-828).
+ * Demo: bridges a Centrifuge share token through `CentrifugeFacet` on the LI.FI Diamond,
+ * against the real Centrifuge `TokenBridge` (EXSC-828).
  *
- * Centrifuge share tokens cannot be bought on a DEX and their vaults are ERC-7540
- * asynchronous, so there is no way to acquire one on demand. The demo instead impersonates
- * an existing holder and transfers, which needs no real funds and no live Centrifuge API:
- *   1. spawn anvil forking mainnet (ETH_NODE_URI_MAINNET required)
- *   2. deploy CentrifugeFacet pointed at the real TokenBridge
- *   3. impersonate a deJAAA whale and transfer to the caller, then approve the facet
- *   4. call startBridgeTokensViaCentrifuge with a deliberate overpayment
- *   5. assert the real funds flow: shares left the caller, nothing is stranded in the
- *      facet, and the Gateway refunded the unused fee to refundRecipient
- *
- * In production `nativeFee` comes from the LI.FI API quote — Centrifuge exposes no
- * on-chain fee quote, so it cannot be read from the chain. Once the backend integration
- * (EXBE-531) is live, prefer driving this flow from a real `/quote` response.
+ * Prerequisites, all checked at runtime with an actionable error:
+ *   1. `CentrifugeFacet` is registered on the Diamond for `SRC_CHAIN` — the facet has to be
+ *      deployed and listed in `script/deploy/_targetState.json` first.
+ *   2. The signer holds `BRIDGE_AMOUNT` of the share token. These tokens have no DEX
+ *      liquidity and their vaults are ERC-7540 asynchronous, so the balance cannot be
+ *      acquired on demand — the wallet has to be funded by a transfer from an existing holder.
+ *   3. The signer holds native for the messaging fee and gas.
  *
  * Run:  bunx tsx script/demoScripts/demoCentrifuge.ts
  */
-import { spawn, type ChildProcess } from 'child_process'
-import fs from 'fs'
-import path from 'path'
-import { fileURLToPath } from 'url'
+import { randomBytes } from 'crypto'
 
 import { consola } from 'consola'
 import { config as dotenvConfig } from 'dotenv'
 import {
-  createPublicClient,
-  createTestClient,
-  createWalletClient,
-  erc20Abi,
-  http,
-  padHex,
+  formatEther,
+  formatUnits,
+  getAbiItem,
+  getAddress,
   parseAbi,
   parseEther,
   parseUnits,
+  toFunctionSelector,
+  zeroAddress,
   type Abi,
   type Address,
   type Hex,
 } from 'viem'
-import { privateKeyToAccount } from 'viem/accounts'
-import { anvil } from 'viem/chains'
+
+import centrifugeConfig from '../../config/centrifuge.json'
+import centrifugeFacetArtifact from '../../out/CentrifugeFacet.sol/CentrifugeFacet.json'
+import erc20Artifact from '../../out/ERC20/ERC20.sol/ERC20.json'
+import type { CentrifugeFacet, ILiFi } from '../../typechain'
+import type { SupportedChain } from '../common/types'
+import { getViemChainForNetworkName } from '../utils/viemScriptHelpers'
+
+import {
+  createContractObject,
+  ensureAllowance,
+  ensureBalance,
+  executeTransaction,
+  getConfigElement,
+  setupEnvironment,
+} from './utils/demoScriptHelpers'
 
 dotenvConfig()
 
-// Read the Forge artifact at runtime rather than statically importing it: the
-// validate-scripts CI job runs without a prior `forge build`, so a static
-// `import ... from '../../out/...json'` fails TS2307 there even though a full local
-// `forge build` produces the file.
-interface IForgeArtifact {
-  abi: Abi
-  bytecode: { object: Hex }
-}
-const __dirname = path.dirname(fileURLToPath(import.meta.url))
+const ERC20_ABI = erc20Artifact.abi as Abi
+const CENTRIFUGE_FACET_ABI = centrifugeFacetArtifact.abi as Abi
 
-function readIForgeArtifact(
-  contractFile: string,
-  contractName: string
-): IForgeArtifact {
-  const artifactPath = path.join(
-    __dirname,
-    '../../out',
-    contractFile,
-    `${contractName}.json`
-  )
-  return JSON.parse(fs.readFileSync(artifactPath, 'utf8')) as IForgeArtifact
-}
+const DIAMOND_LOUPE_ABI = parseAbi([
+  'function facetAddress(bytes4 functionSelector) view returns (address)',
+])
 
-const centrifugeFacetArtifact = readIForgeArtifact(
-  'CentrifugeFacet.sol',
-  'CentrifugeFacet'
-)
-
-// Well-known anvil account #0 (public test key — safe to hard-code for a local demo only).
-const ANVIL_PRIVATE_KEY: Hex =
-  '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80'
-const RPC_URL = 'http://127.0.0.1:8545'
-const ANVIL_PORT = 8545
-const ANVIL_CHAIN_ID = 31337
-
-// the real Centrifuge TokenBridge (same address on Ethereum and Base, verified 2026-07-21)
-const TOKEN_BRIDGE: Address = '0x82a6C7753380f98c093B27c53f86ef6b09C40f49'
-// deJAAA, a Centrifuge share token; its pool hub is on Ethereum (centrifugeId 1)
-const SHARE_TOKEN: Address = '0xAAA0008C8CF3A7Dca931adaF04336A5D808C82Cc'
-// Largest deJAAA holder at the time of writing (an EOA). The share token's transfer hook is
-// permissive, so impersonating a holder is enough to source funds - and it survives storage
-// layout changes, unlike writing the balances slot directly. If this address ever sells out
-// the demo fails loudly here; pick another holder from the token's holder list.
-const SHARE_TOKEN_WHALE: Address = '0x665Ec2cEb9996E7e130A095CA36956AaB8a71703'
-const BASE_CHAIN_ID = 8453n
-
-// Centrifuge has no fee quote, so the demo overpays and verifies the surplus comes back.
-const NATIVE_FEE = parseEther('0.01')
-
-const tokenBridgeAbi = parseAbi([
-  'function spoke() view returns (address)',
-  'function localCentrifugeId() view returns (uint16)',
-  'function relayer() view returns (address)',
+const TOKEN_BRIDGE_ABI = parseAbi([
   'function chainIdToCentrifugeId(uint256 evmChainId) view returns (uint16)',
 ])
 
-const shareTokenAbi = parseAbi(['function decimals() view returns (uint8)'])
+// The only two Centrifuge share tokens bridgeable through this facet today: they are the ones
+// registered on the Spoke of both supported chains AND holding a permissive (freeze-only)
+// transfer hook, so the Diamond is allowed to hold them mid-flight. Every other share token the
+// Spoke knows about is KYC-gated and reverts in its hook before Centrifuge is reached. Both are
+// deployed at the same address on Ethereum and Base.
+const SHARE_TOKENS = {
+  deJAAA: getAddress('0xAAA0008C8CF3A7Dca931adaF04336A5D808C82Cc'),
+  deJTRSY: getAddress('0xA6233014B9b7aaa74f38fa1977ffC7A89642dC72'),
+} as const
 
-const account = privateKeyToAccount(ANVIL_PRIVATE_KEY)
-const publicClient = createPublicClient({
-  chain: anvil,
-  transport: http(RPC_URL),
-})
-const walletClient = createWalletClient({
-  account,
-  chain: anvil,
-  transport: http(RPC_URL),
-})
-const testClient = createTestClient({
-  chain: anvil,
-  mode: 'anvil',
-  transport: http(RPC_URL),
-})
+// @DEV: switch the corridor and the asset here. Only Ethereum <-> Base is mapped by the bridge.
+const SRC_CHAIN: SupportedChain = 'mainnet'
+const DST_CHAIN: SupportedChain = 'base'
+const SHARE_TOKEN: Address = SHARE_TOKENS.deJAAA
+
+// Centrifuge share tokens are fund shares, so one unit already carries real value.
+const BRIDGE_AMOUNT_HUMAN = '1'
+
+// Fee discovery ladder. The first candidate is comfortably above the ~0.0003 ETH observed on
+// the Ethereum -> Base leg; the ceiling bounds what the script is willing to lock up before
+// the surplus comes back.
+const FEE_PROBE_START = parseEther('0.0001')
+const FEE_PROBE_CEILING = parseEther('0.05')
 
 /**
- * Waits for a transaction and throws if it reverted.
+ * Finds a native fee the Centrifuge Gateway accepts for this exact transfer.
  *
- * @param hash - transaction hash to await
- * @param label - what the transaction was doing, used in the error message
- * @throws when the transaction reverted, so a silent failure cannot be mistaken for success
+ * Centrifuge publishes no on-chain fee quote and an underpaid transfer reverts with the
+ * Gateway's `NotEnoughGas()`, so a guessed fee risks paying gas for a revert. Doubling an
+ * `eth_call` probe costs nothing and pins a sufficient fee at the current block; the Gateway
+ * refunds whatever it does not spend, so the fee only has to be enough, not exact. In
+ * production this number comes from the LI.FI API quote instead.
+ *
+ * @param probe - runs the bridge call under `eth_call` with the given fee, returning the error it reverted with
+ * @returns the smallest probed fee that simulated successfully
+ * @throws when even the ceiling reverts, surfacing that revert rather than a fee verdict
  */
-async function waitForSuccess(hash: Hex, label: string): Promise<void> {
-  const receipt = await publicClient.waitForTransactionReceipt({ hash })
-  if (receipt.status !== 'success')
-    throw new Error(`${label} reverted (tx ${hash})`)
-}
+async function discoverNativeFee(
+  probe: (fee: bigint) => Promise<unknown | null>
+): Promise<bigint> {
+  let lastError: unknown = null
 
-async function waitForAnvil(timeoutMs = 15_000): Promise<void> {
-  const start = Date.now()
-  while (Date.now() - start < timeoutMs) {
-    try {
-      await publicClient.getChainId()
-      return
-    } catch {
-      await new Promise((r) => setTimeout(r, 250))
+  for (let fee = FEE_PROBE_START; fee <= FEE_PROBE_CEILING; fee *= 2n) {
+    lastError = await probe(fee)
+    if (lastError === null) {
+      consola.info(`Native fee accepted at ${formatEther(fee)} ETH`)
+      return fee
     }
+    consola.debug(`fee ${formatEther(fee)} ETH rejected, doubling`)
   }
-  throw new Error('anvil did not become ready in time')
-}
 
-function startAnvil(): ChildProcess {
-  const forkUrl = process.env.ETH_NODE_URI_MAINNET
-  if (!forkUrl)
-    throw new Error(
-      'ETH_NODE_URI_MAINNET is required: the demo runs against the real TokenBridge on a mainnet fork'
-    )
-  consola.info('Starting anvil (forking mainnet)...')
-  const proc = spawn(
-    'anvil',
-    [
-      '--port',
-      String(ANVIL_PORT),
-      '--chain-id',
-      String(ANVIL_CHAIN_ID),
-      '--fork-url',
-      forkUrl,
-    ],
-    { stdio: 'ignore' }
+  throw new Error(
+    `The bridge call reverts even at the fee ceiling of ${formatEther(
+      FEE_PROBE_CEILING
+    )} ETH, so this is not an underpayment. Last revert: ${String(lastError)}`
   )
-  proc.on('error', (err) => {
-    consola.error(
-      'Failed to start anvil. Is foundry installed and on PATH?',
-      err
-    )
-    process.exit(1)
-  })
-  return proc
 }
 
-async function main(): Promise<void> {
-  const anvilProc = startAnvil()
-  try {
-    await waitForAnvil()
-    consola.success(`anvil ready at ${RPC_URL} (wallet: ${account.address})`)
+async function main() {
+  // === Set up environment ===
+  const { publicClient, walletClient, walletAccount, lifiDiamondAddress } =
+    await setupEnvironment(SRC_CHAIN, CENTRIFUGE_FACET_ABI)
+  const signerAddress = walletAccount.address
 
-    const facetAbi = centrifugeFacetArtifact.abi
+  if (!lifiDiamondAddress) throw new Error('LiFi Diamond address is required')
 
-    // 1) deploy CentrifugeFacet pointed at the real bridge
-    const deployHash = await walletClient.deployContract({
-      abi: facetAbi,
-      bytecode: centrifugeFacetArtifact.bytecode.object,
-      args: [TOKEN_BRIDGE],
-    })
-    const deployReceipt = await publicClient.waitForTransactionReceipt({
-      hash: deployHash,
-    })
-    const facet = deployReceipt.contractAddress
-    if (!facet) throw new Error('facet deployment produced no address')
-    consola.success(`deployed facet=${facet} (bridge=${TOKEN_BRIDGE})`)
+  const destinationChainId = getViemChainForNetworkName(DST_CHAIN).id
+  const tokenBridgeAddress = getAddress(
+    getConfigElement(centrifugeConfig.tokenBridge, SRC_CHAIN) as string
+  )
 
-    // the bridge validates the destination against its own map; fail early if unmapped
-    const destinationCentrifugeId = await publicClient.readContract({
-      address: TOKEN_BRIDGE,
-      abi: tokenBridgeAbi,
-      functionName: 'chainIdToCentrifugeId',
-      args: [BASE_CHAIN_ID],
-    })
-    if (destinationCentrifugeId === 0)
-      throw new Error(
-        `Base (${BASE_CHAIN_ID}) has no centrifugeId on the bridge (fork too old?)`
-      )
-    const relayer = await publicClient.readContract({
-      address: TOKEN_BRIDGE,
-      abi: tokenBridgeAbi,
-      functionName: 'relayer',
-    })
-    consola.info(
-      `destination centrifugeId=${destinationCentrifugeId}, relayer=${relayer}`
+  consola.info(`Connected wallet address: ${signerAddress}`)
+  consola.info(
+    `Diamond: ${lifiDiamondAddress}, Centrifuge TokenBridge: ${tokenBridgeAddress}`
+  )
+
+  // === Pre-flight: the facet has to be routed by the Diamond ===
+  const bridgeFunction = getAbiItem({
+    abi: CENTRIFUGE_FACET_ABI,
+    name: 'startBridgeTokensViaCentrifuge',
+  })
+  if (!bridgeFunction || bridgeFunction.type !== 'function')
+    throw new Error(
+      'startBridgeTokensViaCentrifuge is missing from the CentrifugeFacet artifact - run `forge build`'
     )
 
-    // 2) source the share token from a real holder
-    const decimals = await publicClient.readContract({
+  const routedFacet = await publicClient.readContract({
+    address: lifiDiamondAddress,
+    abi: DIAMOND_LOUPE_ABI,
+    functionName: 'facetAddress',
+    args: [toFunctionSelector(bridgeFunction)],
+  })
+  if (routedFacet === zeroAddress)
+    throw new Error(
+      `CentrifugeFacet is not registered on the ${SRC_CHAIN} Diamond (${lifiDiamondAddress}). Deploy the facet and add it to script/deploy/_targetState.json first.`
+    )
+  consola.info(`CentrifugeFacet routed at ${routedFacet}`)
+
+  // === Pre-flight: the bridge validates the destination against its own map ===
+  const destinationCentrifugeId = await publicClient.readContract({
+    address: tokenBridgeAddress,
+    abi: TOKEN_BRIDGE_ABI,
+    functionName: 'chainIdToCentrifugeId',
+    args: [BigInt(destinationChainId)],
+  })
+  if (destinationCentrifugeId === 0)
+    throw new Error(
+      `${DST_CHAIN} (chain id ${destinationChainId}) has no centrifugeId on the TokenBridge, so it is not a valid destination`
+    )
+  consola.info(
+    `Destination ${DST_CHAIN} maps to centrifugeId ${destinationCentrifugeId}`
+  )
+
+  // === Read token metadata ===
+  const shareTokenContract = createContractObject(
+    SHARE_TOKEN,
+    ERC20_ABI,
+    publicClient,
+    walletClient
+  )
+
+  const [shareTokenSymbol, shareTokenDecimals] = await Promise.all([
+    publicClient.readContract({
       address: SHARE_TOKEN,
-      abi: shareTokenAbi,
+      abi: ERC20_ABI,
+      functionName: 'symbol',
+    }) as Promise<string>,
+    publicClient.readContract({
+      address: SHARE_TOKEN,
+      abi: ERC20_ABI,
       functionName: 'decimals',
-    })
-    const bridgeAmount = parseUnits('10', decimals)
+    }) as Promise<number>,
+  ])
 
-    await testClient.impersonateAccount({ address: SHARE_TOKEN_WHALE })
-    await testClient.setBalance({
-      address: SHARE_TOKEN_WHALE,
-      value: parseEther('1'),
-    })
-    const whaleClient = createWalletClient({
-      account: SHARE_TOKEN_WHALE,
-      chain: anvil,
-      transport: http(RPC_URL),
-    })
-    await waitForSuccess(
-      await whaleClient.writeContract({
-        address: SHARE_TOKEN,
-        abi: erc20Abi,
-        functionName: 'transfer',
-        args: [account.address, bridgeAmount],
-      }),
-      'share token transfer from whale'
-    )
-    await testClient.stopImpersonatingAccount({ address: SHARE_TOKEN_WHALE })
+  const amount = parseUnits(BRIDGE_AMOUNT_HUMAN, Number(shareTokenDecimals))
 
-    const balanceOf = (holder: Address): Promise<bigint> =>
-      publicClient.readContract({
-        address: SHARE_TOKEN,
-        abi: erc20Abi,
-        functionName: 'balanceOf',
-        args: [holder],
-      })
-    const senderSharesBefore = await balanceOf(account.address)
-    if (senderSharesBefore < bridgeAmount)
-      throw new Error(
-        `share token funding failed: got ${senderSharesBefore}, expected >= ${bridgeAmount}. Has ${SHARE_TOKEN_WHALE} sold out?`
-      )
+  consola.info(
+    `Bridge ${BRIDGE_AMOUNT_HUMAN} ${shareTokenSymbol} (${SHARE_TOKEN}) from ${SRC_CHAIN} --> ${DST_CHAIN}`
+  )
 
-    // 3) approve the facet - the bridge pulls the shares from its caller (the facet)
-    await waitForSuccess(
-      await walletClient.writeContract({
-        address: SHARE_TOKEN,
-        abi: erc20Abi,
-        functionName: 'approve',
-        args: [facet, bridgeAmount],
-      }),
-      'share token approval'
-    )
-    consola.info(`funded + approved ${bridgeAmount} deJAAA to the facet`)
+  await ensureBalance(shareTokenContract, signerAddress, amount, publicClient)
 
-    // 4) execute the bridge with a deliberate overpayment
-    const refundRecipient: Address =
-      '0x000000000000000000000000000000000000bEEF'
-    const bridgeData = {
-      transactionId: padHex('0x11', { size: 32 }),
-      bridge: 'centrifuge',
-      integrator: 'demoScript',
-      referrer: '0x0000000000000000000000000000000000000000' as Address,
-      sendingAssetId: SHARE_TOKEN,
-      receiver: refundRecipient, // end user on Base
-      minAmount: bridgeAmount,
-      destinationChainId: BASE_CHAIN_ID,
-      hasSourceSwaps: false,
-      hasDestinationCall: false,
-    }
-    const centrifugeData = {
-      nativeFee: NATIVE_FEE,
-      refundRecipient, // receives excess native and the Gateway's fee surplus
-    }
+  await ensureAllowance(
+    shareTokenContract,
+    signerAddress,
+    lifiDiamondAddress,
+    amount,
+    publicClient
+  )
 
-    const refundBefore = await publicClient.getBalance({
-      address: refundRecipient,
-    })
-
-    const txHash = await walletClient.writeContract({
-      address: facet,
-      abi: facetAbi,
-      functionName: 'startBridgeTokensViaCentrifuge',
-      args: [bridgeData, centrifugeData],
-      value: NATIVE_FEE,
-    })
-    await waitForSuccess(txHash, 'bridge')
-    consola.success(`✅ bridge tx: ${txHash}`)
-
-    // 5) assert the real funds flow
-    const senderSharesAfter = await balanceOf(account.address)
-    const facetShares = await balanceOf(facet)
-    const facetNative = await publicClient.getBalance({ address: facet })
-    const refundAfter = await publicClient.getBalance({
-      address: refundRecipient,
-    })
-    const refunded = refundAfter - refundBefore
-    const consumedFee = NATIVE_FEE - refunded
-
-    consola.info(
-      `shares sent: ${
-        senderSharesBefore - senderSharesAfter
-      } (expected ${bridgeAmount})`
-    )
-    consola.info(
-      `messaging fee consumed: ${consumedFee} wei, refunded to refundRecipient: ${refunded} wei`
-    )
-    consola.info(
-      `facet residue - shares: ${facetShares}, native: ${facetNative}`
-    )
-
-    if (senderSharesBefore - senderSharesAfter !== bridgeAmount)
-      throw new Error('the bridged share amount did not leave the sender')
-    if (facetShares !== 0n || facetNative !== 0n)
-      throw new Error('the facet retained funds after bridging')
-    if (refunded <= 0n)
-      throw new Error(
-        'the Gateway did not refund the fee surplus to refundRecipient'
-      )
-    if (consumedFee <= 0n)
-      throw new Error('no messaging fee was consumed - was the message sent?')
-
-    consola.success(
-      'Centrifuge demo completed against the REAL TokenBridge: share-token pull, messaging-fee payment, surplus refund and zero facet residue verified on the mainnet fork ✔'
-    )
-  } finally {
-    anvilProc.kill()
+  // === Prepare bridge data ===
+  const bridgeData: ILiFi.BridgeDataStruct = {
+    transactionId: `0x${randomBytes(32).toString('hex')}`,
+    bridge: 'centrifuge',
+    integrator: 'ACME Devs',
+    referrer: zeroAddress,
+    sendingAssetId: SHARE_TOKEN,
+    receiver: signerAddress,
+    destinationChainId,
+    minAmount: amount,
+    hasSourceSwaps: false,
+    hasDestinationCall: false,
   }
+
+  // === Discover the messaging fee ===
+  const nativeFee = await discoverNativeFee(async (fee) => {
+    const centrifugeData: CentrifugeFacet.CentrifugeDataStruct = {
+      nativeFee: fee,
+      refundRecipient: signerAddress,
+    }
+    try {
+      await publicClient.simulateContract({
+        account: signerAddress,
+        address: lifiDiamondAddress,
+        abi: CENTRIFUGE_FACET_ABI,
+        functionName: 'startBridgeTokensViaCentrifuge',
+        args: [bridgeData, centrifugeData],
+        value: fee,
+      })
+      return null
+    } catch (error) {
+      return error
+    }
+  })
+
+  const centrifugeData: CentrifugeFacet.CentrifugeDataStruct = {
+    nativeFee,
+    // receives both the Diamond's excess `msg.value` and the Gateway's own fee surplus
+    refundRecipient: signerAddress,
+  }
+
+  // === Start bridging ===
+  const sharesBefore = (await shareTokenContract.read.balanceOf([
+    signerAddress,
+  ])) as bigint
+  const nativeBefore = await publicClient.getBalance({ address: signerAddress })
+  const diamondSharesBefore = (await shareTokenContract.read.balanceOf([
+    lifiDiamondAddress,
+  ])) as bigint
+  const diamondNativeBefore = await publicClient.getBalance({
+    address: lifiDiamondAddress,
+  })
+
+  const txHash = (await executeTransaction(
+    () =>
+      walletClient.writeContract({
+        address: lifiDiamondAddress,
+        abi: CENTRIFUGE_FACET_ABI,
+        functionName: 'startBridgeTokensViaCentrifuge',
+        args: [bridgeData, centrifugeData],
+        value: nativeFee,
+      }),
+    'Starting bridge tokens via Centrifuge',
+    publicClient,
+    true
+  )) as Hex
+
+  // === Report the money flow ===
+  const receipt = await publicClient.getTransactionReceipt({ hash: txHash })
+  const gasCost = receipt.gasUsed * receipt.effectiveGasPrice
+
+  const sharesAfter = (await shareTokenContract.read.balanceOf([
+    signerAddress,
+  ])) as bigint
+  const nativeAfter = await publicClient.getBalance({ address: signerAddress })
+  const diamondSharesAfter = (await shareTokenContract.read.balanceOf([
+    lifiDiamondAddress,
+  ])) as bigint
+  const diamondNativeAfter = await publicClient.getBalance({
+    address: lifiDiamondAddress,
+  })
+
+  // the refund lands back on the signer, so the fee actually spent is the native delta net of gas
+  const consumedFee = nativeBefore - nativeAfter - gasCost
+  const sharesSent = sharesBefore - sharesAfter
+
+  consola.info(
+    `Shares sent: ${formatUnits(
+      sharesSent,
+      Number(shareTokenDecimals)
+    )} ${shareTokenSymbol}`
+  )
+  consola.info(
+    `Messaging fee consumed: ${formatEther(consumedFee)} ETH of ${formatEther(
+      nativeFee
+    )} ETH paid (surplus refunded to ${centrifugeData.refundRecipient})`
+  )
+  consola.info(`Gas: ${formatEther(gasCost)} ETH`)
+  consola.info(
+    `Diamond residue - shares: ${
+      diamondSharesAfter - diamondSharesBefore
+    }, native: ${diamondNativeAfter - diamondNativeBefore}`
+  )
+
+  if (sharesSent !== amount)
+    throw new Error(
+      `the bridged amount did not leave the signer: sent ${sharesSent}, expected ${amount}`
+    )
+  if (diamondSharesAfter !== diamondSharesBefore)
+    throw new Error('the Diamond retained share tokens after bridging')
+  if (diamondNativeAfter !== diamondNativeBefore)
+    throw new Error('the Diamond retained native after bridging')
+  if (consumedFee <= 0n)
+    throw new Error('no messaging fee was consumed - was the message sent?')
+  if (consumedFee >= nativeFee)
+    throw new Error('the fee surplus was not refunded to refundRecipient')
+
+  consola.success(
+    `Bridged ${BRIDGE_AMOUNT_HUMAN} ${shareTokenSymbol} to ${signerAddress} on ${DST_CHAIN}: share-token pull, messaging-fee payment, surplus refund and zero Diamond residue verified`
+  )
 }
 
 main()
