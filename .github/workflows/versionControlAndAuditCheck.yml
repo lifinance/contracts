@@ -2,7 +2,7 @@
 # Version Control (runs on all branches):
 # - will check all modified or new contracts in src/*
 # - makes sure that all contracts that have changes in audit-relevant code require a contract version update
-# - relevant changes => anything except for single (//) or multi-line (/*) comments and changes in solidity pragma
+# - relevant changes => anything except wholly-comment, wholly-pragma, or blank lines (trailing code after pragma/; or /* */ is relevant)
 # - fails if contract version was not updated despite relevant changes
 # - fails if a new contract was added without a ///custom:version tag
 # - will update the PR title to contain contract names with version changes (incl. their new version)
@@ -145,12 +145,37 @@ jobs:
             else
               echo -e "\033[32mFile contains a custom:version tag\033[0m"
 
-              ##### Filter relevant code changes (exclude comments, pragma, license, empty lines)
+              ##### Filter relevant code changes. Same rule as
+              ##### isAuditNonRelevantLine in script/deploy/audit/audit-relevant-source.ts:
+              ##### drop a +/- line only when the remainder is wholly comment, wholly
+              ##### pragma, or blank. Trailing code after `pragma …;` or `/* … */` is
+              ##### relevant (otherwise `pragma …; function steal()` skips both gates).
               DIFF_OUTPUT=$(git diff "origin/$BASE_REF" HEAD -- "$FILE_PATH")
-              RELEVANT_CHANGES=$(echo "$DIFF_OUTPUT" | grep -E '^[\+\-]' \
-                | grep -vE "^[\+\-][[:space:]]*(//|/\*|pragma)" \
-                | grep -vE '^(\+\+\+|---)' \
-                | grep -vE '^([\+\-])[[:space:]]*$' || true)
+              RELEVANT_CHANGES=$(
+                echo "$DIFF_OUTPUT" | while IFS= read -r DIFF_LINE; do
+                  [[ "$DIFF_LINE" == +++* || "$DIFF_LINE" == ---* ]] && continue
+                  case "$DIFF_LINE" in
+                    +*|-* ) ;;
+                    *) continue ;;
+                  esac
+                  REST="${DIFF_LINE:1}"
+                  REST="${REST#"${REST%%[![:space:]]*}"}"
+                  [[ -z "$REST" ]] && continue
+                  [[ "$REST" == //* ]] && continue
+                  if [[ "$REST" == '/*'* ]]; then
+                    if [[ "$REST" != *'*/'* ]]; then
+                      continue
+                    fi
+                    AFTER_BLOCK="${REST#*'*/'}"
+                    [[ -z "${AFTER_BLOCK#"${AFTER_BLOCK%%[![:space:]]*}"}" ]] && continue
+                  fi
+                  if [[ "$REST" == pragma* && "$REST" == *';'* ]]; then
+                    AFTER_PRAGMA="${REST#*;}"
+                    [[ -z "${AFTER_PRAGMA#"${AFTER_PRAGMA%%[![:space:]]*}"}" ]] && continue
+                  fi
+                  printf '%s\n' "$DIFF_LINE"
+                done
+              )
 
               ##### Decide if audit/version update is needed
               if [[ -n "$RELEVANT_CHANGES" ]]; then

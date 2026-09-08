@@ -5,7 +5,10 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
-import { normaliseAuditRelevantSource } from './audit-relevant-source'
+import {
+  isAuditNonRelevantLine,
+  normaliseAuditRelevantSource,
+} from './audit-relevant-source'
 
 const lines = (source: string): string[] =>
   normaliseAuditRelevantSource(source).split('\n').filter(Boolean)
@@ -43,19 +46,34 @@ describe('normaliseAuditRelevantSource', () => {
     ['a block-comment body line', ' * @param a the thing'],
     ['a string containing slashes', 'string memory s = "//not a comment";'],
     ['an identifier beginning with pragma', 'uint256 pragmatic = 1;'],
-  ])(
-    'keeps %s, mirroring the workflow rather than improving on it',
-    (_label, line) => {
-      // The workflow's filter is line-based. A stricter normaliser here would
-      // make the content check and the version-bump check disagree about what an
-      // audit covers, which is worse than inheriting a known gap.
-      expect(lines(`contract A {\n${line}\n}`)).toEqual([
-        'contract A {',
-        line,
-        '}',
-      ])
-    }
-  )
+    [
+      'code after a pragma statement',
+      'pragma solidity ^0.8.17; function steal() public {}',
+    ],
+    ['code after a closed block comment', '/* SPDX */ uint256 slot;'],
+  ])('keeps %s', (_label, line) => {
+    expect(lines(`contract A {\n${line}\n}`)).toEqual([
+      'contract A {',
+      line,
+      '}',
+    ])
+  })
+
+  it('does not treat a pragma line with trailing code as the clean pragma', () => {
+    const audited = 'pragma solidity ^0.8.17;\ncontract A {}'
+    const smuggled =
+      'pragma solidity ^0.8.17; function steal() public {}\ncontract A {}'
+
+    expect(normaliseAuditRelevantSource(audited)).not.toBe(
+      normaliseAuditRelevantSource(smuggled)
+    )
+    expect(isAuditNonRelevantLine('pragma solidity ^0.8.17;')).toBe(true)
+    expect(
+      isAuditNonRelevantLine(
+        'pragma solidity ^0.8.17; function steal() public {}'
+      )
+    ).toBe(false)
+  })
 
   it('still sees a real code change', () => {
     // The property that keeps F24 closed: normalisation must not swallow code.

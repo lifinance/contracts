@@ -2,30 +2,38 @@
  * Reduces Solidity source to the lines the audit gate treats as relevant.
  *
  * Import this before hashing source for comparison against an audit entry. The
- * authority for what counts is `versionControlAndAuditCheck.yml`, which already
- * declares comments, pragma and blank lines non-audit-relevant when it decides
- * whether a change needs a version bump; this mirrors that declaration so the
- * two gates cannot disagree about the same word.
+ * same rule drives the version-bump filter in `versionControlAndAuditCheck.yml`:
+ * a line is ignored only when it is wholly comment, wholly pragma, or blank.
+ * Trailing code after a terminated pragma or a closed block comment is
+ * audit-relevant — otherwise a pragma line with extra statements matches a
+ * clean pragma (F24).
  */
 
 /**
- * The workflow's filter, line by line:
+ * True when a source line is ignored by both the version-bump check and the
+ * content hash.
  *
- * ```bash
- * grep -vE "^[\+\-][[:space:]]*(//|/\*|pragma)"   # comments, block openers, pragma
- * grep -vE '^([\+\-])[[:space:]]*$'               # blank
- * ```
- *
- * It is a line filter, not a comment parser, and mirroring it faithfully means
- * inheriting two gaps: a trailing comment on a code line stays, and the body
- * lines of a block comment stay, because neither begins with `//` or `/*`.
- * Deliberate — a second, stricter definition here would mean the version-bump
- * check and the content check disagree about what an audit covers, and the
- * workflow is the one signers' expectations are already built on.
+ * @param line - One Solidity source line, without a trailing newline.
+ * @returns True when the line is blank, a line comment, a wholly-closed
+ *   block comment, an unclosed block-comment opener, or a wholly-terminated
+ *   pragma.
  */
-const NON_RELEVANT_LINE_RE = /^\s*(\/\/|\/\*|pragma\b)/u
-
-const isBlank = (line: string): boolean => line.trim() === ''
+export const isAuditNonRelevantLine = (line: string): boolean => {
+  const trimmed = line.trim()
+  if (trimmed === '') return true
+  if (trimmed.startsWith('//')) return true
+  if (trimmed.startsWith('/*')) {
+    const close = trimmed.indexOf('*/')
+    if (close === -1) return true
+    return trimmed.slice(close + 2).trim() === ''
+  }
+  if (/^pragma\b/u.test(trimmed)) {
+    const semi = trimmed.indexOf(';')
+    if (semi === -1) return false
+    return trimmed.slice(semi + 1).trim() === ''
+  }
+  return false
+}
 
 /**
  * Drops the lines the version-bump check would ignore.
@@ -36,5 +44,5 @@ const isBlank = (line: string): boolean => line.trim() === ''
 export const normaliseAuditRelevantSource = (source: string): string =>
   source
     .split('\n')
-    .filter((line) => !isBlank(line) && !NON_RELEVANT_LINE_RE.test(line))
+    .filter((line) => !isAuditNonRelevantLine(line))
     .join('\n')

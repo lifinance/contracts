@@ -65,6 +65,12 @@ Each audit entry must contain:
 5. Verify `auditReportPath` matches actual file location
 6. Validate JSON syntax (no trailing commas, proper escaping)
 
+`auditCommitHash` is the commit whose source the gate will accept. After
+findings are fixed, that is the **post-remediation** commit — not the commit
+the auditor first reviewed. The auditor must have signed off on that commit
+(same report, addendum, or confirmation). Add a **new** log entry (the
+append-only guard rejects in-place edits); the same PDF path may be reused.
+
 ## Validation
 
 - All required fields present

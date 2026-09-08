@@ -79,6 +79,12 @@ This command processes a PDF audit report and automatically:
   - **ALWAYS** warn user to verify by clicking the URL
   - Display as clickable link in summary output
   - If commit hash is "n/a", skip URL generation
+- **Post-remediation**: the gate hashes source at this commit against PR head.
+  If the PDF names the commit the auditor first reviewed and findings were
+  fixed afterwards, **ask the user for the post-remediation commit** the
+  auditor signed off on (same report, addendum, or confirmation). Write that
+  hash. Always a **new** log entry — never edit the pre-remediation row. The
+  same PDF path may be reused.
 
 ## Execution Steps
 
