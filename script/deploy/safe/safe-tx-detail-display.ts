@@ -286,9 +286,21 @@ function toLine(input: ISafeTxDetailInput): string {
     : undefined
   const link = url === undefined ? '' : ` ${color(CYAN, url)}`
 
+  // Saying nothing here inverts the meaning. The deployment records did match,
+  // and a bare address reads to a signer as "not a contract this repo
+  // deployed" — the opposite of what the code concluded, which is that it
+  // declined to vouch for a name it could otherwise have printed.
+  const withheld =
+    !resolvable && input.toTargetName
+      ? color(
+          YELLOW,
+          ' ⚠ target name withheld — the stored value is not what is shown'
+        )
+      : ''
+
   return `${color(GREEN, `${shown}${name}${link}`)}${notice}${
     failed ? FRAGMENT_UNRENDERABLE : ''
-  }`
+  }${withheld}`
 }
 
 /**

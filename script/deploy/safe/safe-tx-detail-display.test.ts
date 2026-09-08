@@ -10,6 +10,20 @@ import {
   type ISafeTxDetailInput,
 } from './safe-tx-detail-display'
 
+/**
+ * Exact renderings for hostile input. The structural assertions below strip the
+ * module's own SGR codes before looking for control characters, which cannot
+ * distinguish a row-supplied `ESC[31m` from one this module wrote — so the
+ * property that no escape survives from the row is pinned here, byte for byte,
+ * where a sanitiser that started passing SGR through would fail.
+ */
+const HOSTILE_GOLDENS: Record<string, string> = {
+  'Data:':
+    '    Data:            \u001b[32m[2J[H[32mfake\u001b[0m\u001b[33m ⚠ sanitised for display — stored 16, printable 13\u001b[0m',
+  'Proposer:':
+    '    Proposer:        \u001b[32m[2J[H[32mfake\u001b[0m\u001b[33m ⚠ sanitised for display — stored 16, printable 13\u001b[0m',
+}
+
 /** Anything outside the colour codes this module writes itself. */
 const TERMINAL_DRIVING = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu
 // eslint-disable-next-line no-control-regex -- matching the escape sequences is the point
@@ -86,6 +100,15 @@ describe('no proposer-controlled field can drive the signer’s terminal', () =>
       // Paired present: the field is still rendered, not silently dropped.
       expect(line).toContain('fake line')
     })
+
+  it('lets no escape from the row survive, byte for byte', () => {
+    // An SGR payload specifically: the structural checks cannot see one.
+    const sgr = '\u001b[2J\u001b[H\u001b[32mfake'
+    for (const [label, expected] of Object.entries(HOSTILE_GOLDENS)) {
+      const field = label === 'Data:' ? 'data' : 'proposer'
+      expect(lineStartingWith(linesFor({ [field]: sgr }), label)).toBe(expected)
+    }
+  })
 
   it('strips them from a parked-cleanup facet and PR link', () => {
     const lines = linesFor({
@@ -209,6 +232,21 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
     expect(repaired).not.toContain('(LiFiDiamond)')
     expect(repaired).not.toContain('etherscan')
     expect(repaired).toContain('sanitised for display')
+    // And the omission is stated: a bare address otherwise reads as "not a
+    // known contract", which is the opposite of what happened.
+    expect(repaired).toContain('target name withheld')
+
+    // Nothing is claimed when there was no name to withhold.
+    expect(
+      lineStartingWith(
+        buildSafeTxDetailLines({
+          ...benign,
+          to: `${benign.to as string}\u200d`,
+          toTargetName: '',
+        }),
+        'To:'
+      )
+    ).not.toContain('withheld')
 
     // The same row without the zero-width space keeps both.
     const clean = lineStartingWith(
@@ -325,7 +363,7 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
     const line = lineStartingWith(
       buildSafeTxDetailLines({
         ...benign,
-        formatAddress: () => '0xP[2Jwiped',
+        formatAddress: () => '0xP\u001b[2Jwiped',
       }),
       'Proposer:'
     )
@@ -338,7 +376,7 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
     const line = lineStartingWith(
       buildSafeTxDetailLines({
         ...benign,
-        toTargetName: '(LiFiDiamond)[2J',
+        toTargetName: '(LiFiDiamond)\u001b[2J',
       }),
       'To:'
     )
