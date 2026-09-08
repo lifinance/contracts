@@ -226,6 +226,70 @@ describe('flagIsOn, against citty as it actually resolves flags', () => {
     expect(flagIsOn(await resolve({}, '--dry-run', 'extra'))).toBe(true)
   })
 
+  it('is on when the swallowed token was numeric, so arrived as a number', async () => {
+    // The token is numeric-parsed rather than kept as a string, so a reader
+    // that tests for `typeof === 'string'` calls this off and broadcasts.
+    expect(await resolve({}, '--dry-run', '5')).toBe(5)
+    expect(flagIsOn(await resolve({}, '--dry-run', '5'))).toBe(true)
+    // 0 is the case a truthiness test also gets wrong.
+    expect(await resolve({}, '--dry-run', '0')).toBe(0)
+    expect(flagIsOn(await resolve({}, '--dry-run', '0'))).toBe(true)
+  })
+
+  it('refuses a flag passed twice rather than picking a winner', async () => {
+    // citty collapses repeats into an array. Reducing one would have to choose,
+    // and the safe choice flips per flag: on for --dry-run, off for
+    // --allowOverride. Both directions are refused, so neither can be wrong.
+    expect(await resolve({}, '--dry-run', '--dry-run')).toEqual([true, true])
+    expect(() => flagIsOn([true, true])).toThrow(/given more than once/)
+    expect(await resolve({}, '--dry-run=false', '--dry-run=false')).toEqual([
+      'false',
+      'false',
+    ])
+    expect(() => flagIsOn(['false', 'false'])).toThrow(/given more than once/)
+    expect(() => flagIsOn(['true', 'false'])).toThrow(/given more than once/)
+  })
+
+  it('is unaffected when the two spellings are mixed, which citty does not collapse', async () => {
+    // Different keys, so no array and nothing ambiguous to refuse.
+    expect(await resolve({}, '--dryRun', '--dry-run')).toBe(true)
+  })
+
+  it('is off for a repeated negation, which citty collapses to a plain false', async () => {
+    // The `--no-` branch assigns rather than concatenating, so this never
+    // becomes an array and needs no refusal.
+    expect(await resolve({}, '--no-dry-run', '--no-dry-run')).toBe(false)
+    expect(flagIsOn(await resolve({}, '--no-dry-run', '--no-dry-run'))).toBe(
+      false
+    )
+  })
+
+  it('resolves an unreadable value to on, which is why on must be the safe direction', async () => {
+    // Deliberate, not an oversight: for --dry-run, on is the fail-safe answer.
+    // The same reading is fail-dangerous for a flag that widens the run's
+    // reach, and those go through readBooleanFlag instead — see
+    // strict-flag-placement.test.ts.
+    //
+    // Driven through the parser rather than asserted on literals: `0` only ever
+    // reaches this function via the kebab spelling, because mri coerces the
+    // declared spelling's value to a boolean. A literal would assert a shape
+    // whose reachability it does not show.
+    expect(await resolve({}, '--dry-run', '0')).toBe(0)
+    expect(flagIsOn(await resolve({}, '--dry-run', '0'))).toBe(true)
+    expect(await resolve({}, '--dry-run', 'no')).toBe('no')
+    expect(flagIsOn(await resolve({}, '--dry-run', 'no'))).toBe(true)
+    // The declared spelling never produces it, which is why the kebab one is
+    // the case that matters:
+    expect(await resolve({}, '--dryRun', '0')).toBe(true)
+  })
+
+  it("reads '' as off, for a value argument passed through this reader", () => {
+    // Unreachable for a `type: 'boolean'` argument; asserted directly so the
+    // clause is not left as untested code.
+    expect(flagIsOn('')).toBe(false)
+    expect(flagIsOn('', { whenAbsent: true })).toBe(false)
+  })
+
   it('cannot rescue a declaration that carries a default', async () => {
     // This is why the declaration must omit `default`: citty resolves the
     // spelling the caller did not type to it, and `args.dryRun` never sees the
@@ -233,5 +297,139 @@ describe('flagIsOn, against citty as it actually resolves flags', () => {
     expect(await resolve({ default: false }, '--dry-run')).toBe(false)
     expect(flagIsOn(await resolve({ default: false }, '--dry-run'))).toBe(false)
     expect(flagIsOn(await resolve({ default: false }, '--dryRun'))).toBe(true)
+  })
+})
+
+/**
+ * A flag that is on unless switched off cannot express its fallback as a citty
+ * `default` either, so `whenAbsent` carries it. `--no-use-cache` is the shape
+ * that was broken in practice: the declaration's `default: true` sat on the key
+ * the body read, and the negation the description told operators to type landed
+ * on the other one.
+ */
+describe('flagIsOn whenAbsent, against citty as it actually resolves flags', () => {
+  /** Resolves `useCache` the way a command body would see it. */
+  const resolve = async (
+    declaration: Record<string, unknown>,
+    ...argv: string[]
+  ): Promise<unknown> => {
+    let seen: unknown
+    await runCommand(
+      defineCommand({
+        args: { useCache: { type: 'boolean', ...declaration } },
+        run: ({ args }) => {
+          seen = args.useCache
+        },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      }) as any,
+      { rawArgs: argv }
+    )
+    return seen
+  }
+
+  const on = async (...argv: string[]) =>
+    flagIsOn(await resolve({}, ...argv), { whenAbsent: true })
+
+  it('is on when absent', async () => {
+    expect(await on()).toBe(true)
+    expect(await on('--network', 'mainnet')).toBe(true)
+  })
+
+  it('is off for either negated spelling', async () => {
+    expect(await on('--no-use-cache')).toBe(false)
+    expect(await on('--no-useCache')).toBe(false)
+    expect(await on('--use-cache=false')).toBe(false)
+    expect(await on('--useCache=false')).toBe(false)
+  })
+
+  it('is on when passed bare, in either spelling', async () => {
+    expect(await on('--use-cache')).toBe(true)
+    expect(await on('--useCache')).toBe(true)
+  })
+
+  it('stays on for a swallowed numeric token', async () => {
+    expect(await on('--use-cache', '5')).toBe(true)
+    expect(await on('--use-cache', '0')).toBe(true)
+  })
+
+  it('refuses a repeat here too, where ON is the unsafe direction', async () => {
+    // `--allowOverride=false` twice used to read as on, i.e. permit the write.
+    expect(await resolve({}, '--use-cache=false', '--use-cache=false')).toEqual(
+      ['false', 'false']
+    )
+    expect(() => flagIsOn(['false', 'false'], { whenAbsent: true })).toThrow(
+      /given more than once/
+    )
+  })
+
+  it('cannot be switched off at all once the declaration carries the default', async () => {
+    // The defect this replaces: `default: true` occupies `useCache`, so the
+    // kebab negation never reaches the body and the cache stays on.
+    const declared = { default: true }
+    expect(
+      flagIsOn(await resolve(declared, '--no-use-cache'), { whenAbsent: true })
+    ).toBe(true)
+    // Same operator intent, spelled the way the declaration happens to want:
+    expect(
+      flagIsOn(await resolve(declared, '--no-useCache'), { whenAbsent: true })
+    ).toBe(false)
+  })
+})
+
+/**
+ * Step 3 of the same pattern: a value argument's fallback also belongs in the
+ * body, for the same reason and with a worse failure — the value the operator
+ * passed is not merely ignored, it is replaced by the default.
+ */
+describe('a value argument, against citty as it actually resolves flags', () => {
+  /** Resolves `delaySeconds` the way a command body would see it. */
+  const resolve = async (
+    declaration: Record<string, unknown>,
+    ...argv: string[]
+  ): Promise<unknown> => {
+    let seen: unknown
+    await runCommand(
+      defineCommand({
+        args: { delaySeconds: { type: 'string', ...declaration } },
+        run: ({ args }) => {
+          seen = args.delaySeconds
+        },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      }) as any,
+      { rawArgs: argv }
+    )
+    return seen
+  }
+
+  it('reaches the body in either spelling when the declaration omits the default', async () => {
+    expect(await resolve({}, '--delaySeconds', '99')).toBe('99')
+    // Only the declared spelling is registered with the raw parser as a string,
+    // so a numeric-looking value arrives as a number under the other one. It is
+    // the same value, but a body that calls a string method on it throws —
+    // which is why these fallbacks are written `String(args.x ?? DEFAULT)`.
+    expect(await resolve({}, '--delay-seconds', '99')).toBe(99)
+    expect(await resolve({}, '--delay-seconds=99')).toBe(99)
+    expect(await resolve({}, '--delay-seconds', 'later')).toBe('later')
+  })
+
+  it('is undefined when absent, so the body applies `?? DEFAULT`', async () => {
+    expect(await resolve({})).toBeUndefined()
+  })
+
+  it('is discarded for the kebab spelling once the declaration carries a default', async () => {
+    expect(await resolve({ default: '5' }, '--delay-seconds', '99')).toBe('5')
+    expect(await resolve({ default: '5' }, '--delaySeconds', '99')).toBe('99')
+  })
+
+  it('arrives as a falsy 0, so a body must test presence and not truthiness', async () => {
+    // `if (args.delaySeconds)` would drop an explicit `--delay-seconds 0` and
+    // fall back to the default; the fallback has to be keyed on `undefined`.
+    expect(await resolve({}, '--delay-seconds', '0')).toBe(0)
+    expect(await resolve({}, '--delaySeconds', '0')).toBe('0')
+  })
+
+  it('keeps a non-numeric value a string under either spelling', async () => {
+    expect(await resolve({}, '--delay-seconds', 'later')).toBe('later')
+    expect(await resolve({}, '--delaySeconds', 'later')).toBe('later')
   })
 })

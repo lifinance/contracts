@@ -20,6 +20,7 @@ import { arbitrum } from 'viem/chains'
 import arbitrumStagingDeployments from '../../deployments/arbitrum.staging.json'
 import baseDeployments from '../../deployments/base.json'
 import baseStagingDeployments from '../../deployments/base.staging.json'
+import { flagIsOn } from '../deploy/safe/cli-flags'
 
 import {
   generateNeedle,
@@ -594,7 +595,6 @@ const main = defineCommand({
     dryRun: {
       type: 'boolean',
       description: 'Perform a dry run without executing transactions',
-      default: false,
     },
   },
   async run({ args }) {
@@ -606,7 +606,7 @@ const main = defineCommand({
     try {
       await executeCrossChainBridgeWithSwap({
         privateKey: args.privateKey,
-        dryRun: args.dryRun,
+        dryRun: flagIsOn(args.dryRun),
       })
     } catch (error) {
       consola.error('Demo failed:', error)
