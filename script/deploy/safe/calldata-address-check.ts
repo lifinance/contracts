@@ -194,9 +194,11 @@ const REFUSAL_BEARING_ROLES: ReadonlySet<AddressRoleEnum> = new Set([
  * Roles where the same failure is printed and nothing is blocked.
  *
  * T2: subtractive operations are never blocked by the unverifiability of what
- * they remove. A removal target therefore neither refuses nor errors however
- * little the record says about it, a never-queried one included: a narrower
- * query must not block the rollback path.
+ * they remove. So however little the record says about a removal target — a
+ * never-queried one included — that alone neither refuses nor errors, because a
+ * narrower query must not block the rollback path. A defect in the check's own
+ * inputs still errors under T3: not knowing the target is tolerated, not being
+ * able to read the record at all is not.
  */
 const WARN_ONLY_ROLES: ReadonlySet<AddressRoleEnum> = new Set([
   AddressRoleEnum.FacetRemove,
@@ -239,9 +241,8 @@ const SOURCE_REFUSALS: ReadonlyMap<DeploymentIndexSourceEnum, string> = new Map(
 /**
  * Why this source may not decide, or `undefined` for the one that may.
  *
- * Decided by naming the source that may, not by absence from
- * `SOURCE_REFUSALS`: a source added to `DeploymentIndexSourceEnum` later must
- * not become authoritative by being missing from a map nobody extended.
+ * Decided by naming the source that may: a source added to the enum later must
+ * not become authoritative by being absent from a map nobody extended.
  */
 const refuseSource = (
   source: DeploymentIndexSourceEnum
@@ -533,7 +534,7 @@ export const evaluateCalldataAddresses = (
     const { role } = finding.reference
 
     // A role neither set names has no answer to "does failing to resolve this
-    // refuse?", which is an unanswerable question rather than a warning.
+    // refuse?", and an unanswerable question is not an answer of no.
     if (!REFUSAL_BEARING_ROLES.has(role) && !WARN_ONLY_ROLES.has(role)) {
       errors.push(
         `${finding.reference.path} (${finding.reference.address}) is in role "${role}", which this check has no refusal policy for, so whether the record accounting for it is required was never decided.`
@@ -631,8 +632,7 @@ export const renderCalldataAddresses = (
  * Throws unless every address the calldata references is accounted for.
  *
  * Separate from the evaluation so that a call site cannot reduce the verdict to
- * a boolean and then forget to read it. Nothing calls it yet: the propose
- * funnel's call site arrives with the calldata extractor it needs.
+ * a boolean and then forget to read it.
  * @param verdict - what `evaluateCalldataAddresses` decided
  * @throws When an address contradicts the record, or the check could not decide
  */
