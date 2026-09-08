@@ -92,6 +92,6 @@ No ABI auto-fetch, no contract verification, no wallet management, limited gas e
 - `cast` used against a Tron network → will fail on RPC methods Tron doesn't support; switch to `troncast`.
 - Function call reverts with no clear reason → dry-run first (`--dry-run`), then check the target address is in the form `troncast` expects (base58 or 0x-hex, not a malformed hybrid).
 - `troncast send` refuses with `exceeds the fee limit` → re-run with the `--fee-limit` the message names; the call was never broadcast.
-- `troncast send` refuses with `Energy estimation failed` → the call would most likely revert; diagnose that rather than raising the limit.
+- `troncast send` refuses with `Energy estimation failed` → the call would most likely revert; diagnose that rather than raising the limit. The same message is used when TronGrid returns 429 / the RPC dies after the estimator's retries — wait and re-run, or set `ALLOW_GAS_ESTIMATE_FALLBACK=tron` if the send (including a break-glass pause) must proceed without a figure.
 - Request turns out to need Safe/Timelock sequencing (multi-step, quorum, or anything touching production governance) → stop and hand off; this skill is for direct one-off calls only.
 - Command fails with `proto is not defined` → known TronWeb/Bun compatibility hiccup; retry the same command once before investigating further.

@@ -7,7 +7,12 @@
  * and one more Tron needs. A fee limit that cannot pay for the transaction does
  * not make it fail cleanly — it runs until the energy is spent and aborts
  * part-way, so a multi-call batch is left neither applied nor abandoned and the
- * workflow retries it forever. The escape hatch is the same
+ * workflow retries it forever. A TronGrid 429 or dead HTTP after the
+ * estimator's retries is the same refusal: there is no figure, so there is
+ * no way to tell the fee limit covers the call. That includes
+ * `emergencyPauseBreakGlass` (it reaches `troncast send`). The EVM side of
+ * that script can fail open on a gas-price read because the failure mode
+ * is overpay, not a part-applied multi-call. The escape hatch is the same
  * `ALLOW_GAS_ESTIMATE_FALLBACK` the EVM paths read, so an operator has one
  * switch to learn and one to audit.
  */
