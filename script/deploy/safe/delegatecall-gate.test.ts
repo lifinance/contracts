@@ -1,14 +1,14 @@
 /**
- * The operation gate: refuse a `DelegateCall` proposal on the operation field
- * alone.
+ * The operation gate: refuse a proposal that is not a plain `Call`, on the
+ * operation field alone.
  *
  * Two properties matter more than the happy path. **A plain call is
- * unaffected** — a guard that refused everything would satisfy every refusal
- * case here while making the tool unusable, which is the failure a sibling PR's
- * executor shipped: it had no test that it ever broadcasts. And **absent is not
- * `Call`** — the field arrives from MongoDB through a cast, so it can be
- * missing at runtime however it is typed, and defaulting it is a fail-open on
- * exactly the question being asked.
+ * unaffected** — every other case here is a refusal, so a guard that refused
+ * everything would satisfy all of them while making the tool unusable. And
+ * **the reason a signer reads has to be true of the value in front of them**,
+ * because a refusal that describes `1n` as "neither Call nor DelegateCall"
+ * reads as a broken gate, which is what sends an operator looking for a way
+ * round it.
  */
 import {
   describe,
@@ -18,18 +18,16 @@ import {
 } from 'bun:test'
 
 import {
-  assertDelegateCallGateAllowsSigning,
+  assertProposalOperationPermitted,
   evaluateDelegateCallGate,
   renderDelegateCallGate,
-  SafeOperationEnum,
 } from './delegatecall-gate'
+import { OperationTypeEnum } from './safe-utils'
 
 describe('evaluateDelegateCallGate', () => {
   it('allows a plain call, so the gate is not "refuse everything"', () => {
-    // The paired positive, first because every case below is a refusal: if this
-    // ever fails, the others pass while the tool signs nothing at all.
     const verdict = evaluateDelegateCallGate({
-      operation: SafeOperationEnum.Call,
+      operation: OperationTypeEnum.Call,
     })
 
     expect(verdict.refuses).toBe(false)
@@ -38,56 +36,57 @@ describe('evaluateDelegateCallGate', () => {
 
   it('refuses a delegatecall', () => {
     const verdict = evaluateDelegateCallGate({
-      operation: SafeOperationEnum.DelegateCall,
+      operation: OperationTypeEnum.DelegateCall,
     })
 
     expect(verdict.refuses).toBe(true)
     expect(verdict.reason).toMatch(/delegatecall/i)
   })
 
-  it('names why the decoded calldata is not the answer', () => {
-    // Criterion 4: the render has to override the intuition it exists to
-    // correct. "The calldata looked harmless" is precisely what a delegatecall
-    // makes irrelevant, so the reason must say so rather than just state the
-    // field value.
+  it('says why the decoded calldata is not the answer', () => {
+    // The refusal has to override the intuition it exists to correct: a
+    // delegatecall makes "the calldata looked harmless" irrelevant, so stating
+    // the field value alone would not tell a signer anything they can act on.
     const verdict = evaluateDelegateCallGate({
-      operation: SafeOperationEnum.DelegateCall,
+      operation: OperationTypeEnum.DelegateCall,
     })
 
     expect(verdict.reason).toMatch(/own storage/)
     expect(verdict.reason).toMatch(/calldata/)
   })
 
-  it('refuses an absent operation rather than reading it as a call', () => {
-    // `?? 0` here would be a fail-open on the very check being made. The field
-    // is filled from a Mongo row through a cast in `initializeSafeTransaction`,
-    // so it is absent whenever a row never carried it.
-    const verdict = evaluateDelegateCallGate({})
+  it('refuses anything that is not exactly Call', () => {
+    // A floor, not a claim to catch a missing operation: the mandated source
+    // normalises absence to Call before the struct exists, so `undefined`
+    // arrives here only from a caller reading somewhere else.
+    for (const operation of [undefined, 2, -1]) {
+      const verdict = evaluateDelegateCallGate({ operation })
+      expect(verdict.refuses).toBe(true)
+    }
 
-    expect(verdict.refuses).toBe(true)
-    expect(verdict.reason).toMatch(/no operation field/)
-    // Distinct from the delegatecall reason: "we cannot tell" and "this is a
-    // delegatecall" are different facts and a signer should not be told the
-    // second when the first is true.
-    expect(verdict.reason).not.toMatch(/operation = 1/)
+    expect(evaluateDelegateCallGate(null).refuses).toBe(true)
+    expect(evaluateDelegateCallGate(undefined).refuses).toBe(true)
   })
 
-  it('refuses a value Safe does not define, rather than guessing', () => {
-    const verdict = evaluateDelegateCallGate({ operation: 2 })
-
-    expect(verdict.refuses).toBe(true)
-    expect(verdict.reason).toMatch(/neither Call \(0\) nor DelegateCall \(1\)/)
+  it('refuses a Call of the wrong type, because the type is not the value', () => {
+    // The field is cast, not validated, so these can reach it. `== 0` would
+    // accept both.
+    for (const operation of ['0', BigInt(0)] as unknown as number[])
+      expect(evaluateDelegateCallGate({ operation }).refuses).toBe(true)
   })
 
-  it('refuses a stringly-typed zero, because the type is not the value', () => {
-    // The field is cast, not validated, so `'0'` can reach this. `== 0` would
-    // accept it; `=== 0` does not. A row whose operation is a string is a row
-    // nothing in this repo wrote.
-    const verdict = evaluateDelegateCallGate({
-      operation: '0' as unknown as number,
-    })
+  it('never tells a signer a delegatecall-shaped value is not one', () => {
+    // `1n` and `'1'` fail the identity test and land in the catch-all branch.
+    // Describing them as "neither Call (0) nor DelegateCall (1)" would be a
+    // sentence contradicted by the value printed in the same breath.
+    for (const operation of ['1', BigInt(1)] as unknown as number[]) {
+      const { refuses, reason } = evaluateDelegateCallGate({ operation })
 
-    expect(verdict.refuses).toBe(true)
+      expect(refuses).toBe(true)
+      expect(reason).not.toMatch(/neither/)
+      // The type is what makes it refusable, so the type is what it names.
+      expect(reason).toMatch(/\(string\)|\(bigint\)/)
+    }
   })
 })
 
@@ -95,49 +94,56 @@ describe('renderDelegateCallGate', () => {
   it('says nothing for a plain call, so the line is never noise', () => {
     expect(
       renderDelegateCallGate(
-        evaluateDelegateCallGate({ operation: SafeOperationEnum.Call })
+        evaluateDelegateCallGate({ operation: OperationTypeEnum.Call })
       )
     ).toEqual([])
   })
 
-  it('renders the refusal in red with its reason', () => {
-    const lines = renderDelegateCallGate(
-      evaluateDelegateCallGate({
-        operation: SafeOperationEnum.DelegateCall,
-      })
+  it('colours the whole refusal, not just the badge', () => {
+    // The first version closed the reset immediately after "REFUSED", so the
+    // sentence a signer actually has to read rendered in the default colour
+    // while the assertion — a `toContain` for the escape code — still passed on
+    // the badge alone. Assert the reset comes last instead.
+    const [line = ''] = renderDelegateCallGate(
+      evaluateDelegateCallGate({ operation: OperationTypeEnum.DelegateCall })
     )
+    const reset = `${String.fromCharCode(27)}[0m`
 
-    expect(lines).toHaveLength(1)
-    expect(lines[0]).toContain('REFUSED')
-    expect(lines[0]).toMatch(/own storage/)
-    // The colour is part of the signal: a refusal that rendered in the same
-    // colour as a pass is what teaches an operator to click through.
-    expect(lines[0]).toContain(`${String.fromCharCode(27)}[31m`)
+    expect(line).toContain('REFUSED')
+    expect(line).toMatch(/own storage/)
+    expect(line.startsWith(`${String.fromCharCode(27)}[31m`)).toBe(true)
+    expect(line.endsWith(reset)).toBe(true)
+    // Nothing resets in the middle, which is the only way the reason could be
+    // left uncoloured while the badge is red.
+    expect(line.slice(0, -reset.length)).not.toContain(reset)
   })
 })
 
-describe('assertDelegateCallGateAllowsSigning', () => {
+describe('assertProposalOperationPermitted', () => {
   it('returns quietly for a plain call', () => {
     expect(() =>
-      assertDelegateCallGateAllowsSigning(
-        evaluateDelegateCallGate({ operation: SafeOperationEnum.Call })
+      assertProposalOperationPermitted(
+        evaluateDelegateCallGate({ operation: OperationTypeEnum.Call })
       )
     ).not.toThrow()
   })
 
-  it('throws for a delegatecall, and says nothing was signed', () => {
+  it('throws for a delegatecall, and names both irreversible routes', () => {
+    // "will not proceed" and "signed or executed", not "will not be signed":
+    // execution needs no signature of ours, and a message about signing invites
+    // wiring this into the sign funnel alone.
     expect(() =>
-      assertDelegateCallGateAllowsSigning(
+      assertProposalOperationPermitted(
         evaluateDelegateCallGate({
-          operation: SafeOperationEnum.DelegateCall,
+          operation: OperationTypeEnum.DelegateCall,
         })
       )
-    ).toThrow(/will not be signed[\s\S]*Nothing has been signed/)
+    ).toThrow(/will not proceed[\s\S]*Nothing has been signed or executed/)
   })
 
-  it('throws for an absent operation too', () => {
+  it('throws for a value that is not exactly Call', () => {
     expect(() =>
-      assertDelegateCallGateAllowsSigning(evaluateDelegateCallGate({}))
-    ).toThrow(/no operation field/)
+      assertProposalOperationPermitted(evaluateDelegateCallGate({}))
+    ).toThrow(/only the number 0/)
   })
 })

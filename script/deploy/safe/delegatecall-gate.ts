@@ -1,41 +1,23 @@
 /**
- * Refuses a Safe proposal whose `operation` is `DelegateCall`, on that basis
- * alone.
+ * Refuses a Safe proposal whose `operation` is not `Call`, on that field alone.
  *
- * A `DelegateCall` runs its target's code against the Safe's own storage
- * whatever selector the calldata carries. The sign-time codehash gate decides
- * what to vouch for by *decoding calldata* — `diamondCut` Add/Replace targets
- * and the cut's `_init` — so a `DelegateCall` carrying no `diamondCut` is
- * invisible to it by design, and is not therefore safe. This is the same class
- * as the `_init` rule that gate already implements, one level up: a purely
- * subtractive cut carrying init calldata is arbitrary code framed as a
- * deletion, and a `DelegateCall` proposal is arbitrary code framed as a call.
+ * A `DelegateCall` runs the code at its target against the Safe's own storage
+ * whatever selector the calldata carries, so reading the decoded calldata and
+ * finding it harmless says nothing about what it will do. The sign-time
+ * codehash gate decides what to vouch for by decoding calldata — `diamondCut`
+ * Add/Replace targets and the cut's `_init` — and therefore cannot see this
+ * shape at all.
  *
- * **Why refuse rather than verify the target.** Measured across the repo before
- * this was written: every proposal builder hardcodes `Call`
- * (`propose-to-safe.ts` and the six `script/tasks/propose*.ts` batch builders),
- * the Tron path sets no operation and defaults to `Call`, and no path anywhere
- * constructs `operation: 1`. Nothing legitimate produces this shape, so
- * verifying its target would build an address-verification path for traffic
- * that does not exist, and would give a proposer a value to be judged against.
- * Refusing costs one comparison and cannot be widened.
- *
- * **Why at sign time and not at propose time.** "Our builders only emit `Call`"
- * is a statement about our builders, not about the queue. `confirm-safe-tx.ts`
- * reads pending rows out of MongoDB, and a proposal can be created outside this
- * repo entirely — the Safe UI, a teammate's script, a proposer whose key is
- * compromised. Gating the propose path would prove nothing about what a signer
- * is being asked to approve.
+ * The check is sited at confirm time rather than at propose time because
+ * `confirm-safe-tx.ts` signs rows read out of MongoDB, which can be created
+ * outside this repository: what our own builders emit constrains our builders,
+ * not the queue.
  */
 
-/** `Enum.Operation` in Safe's own contracts. Only `Call` is permitted here. */
-export enum SafeOperationEnum {
-  Call = 0,
-  DelegateCall = 1,
-}
+import { OperationTypeEnum } from './safe-utils'
 
 export interface IDelegateCallVerdict {
-  /** True when this proposal must not be signed. */
+  /** True when this proposal must not be signed or executed. */
   refuses: boolean
   /** One line a signer can act on. Empty only when nothing is refused. */
   reason: string
@@ -43,65 +25,73 @@ export interface IDelegateCallVerdict {
 
 /**
  * The minimum shape this gate reads, and it must come off the struct that gets
- * signed.
+ * signed — `safeTransaction.data`, never the stored `safeTx` row.
  *
- * `operation` is part of the EIP-712 struct the signature covers, so reading it
- * from anywhere else — the stored MongoDB row, a re-fetch, a display copy —
- * judges a value the signature does not commit to. That is the defect WP-1.4
- * shipped and it recurred twice more on #2327 and #2329; the caller's contract
- * is to pass `safeTransaction.data`, never `safeTx.data`.
+ * `operation` is part of the EIP-712 struct the signature covers, so a verdict
+ * about any other copy of it is a verdict about a value the signature does not
+ * commit to. The two copies are not interchangeable here even in principle:
+ * `SafeClient.createTransaction` normalises an absent operation to `Call`, so
+ * for a row that never carried the field the row and the struct give
+ * **opposite** answers.
  *
- * Typed `number | undefined` rather than the enum on purpose: the field arrives
- * from Mongo through a cast in `initializeSafeTransaction`, so it can be absent
- * at runtime however it is declared, and a gate that could not represent that
- * would have to trust it.
+ * Typed `number | undefined` rather than the enum because the field reaches the
+ * struct through a cast, so it can hold anything at runtime whatever it is
+ * declared as.
  */
 export interface ISignedOperation {
   operation?: number
 }
 
 /**
+ * Renders a value with its type, so a refusal cannot describe `1n` or `'1'` as
+ * "neither Call nor DelegateCall".
+ * @param value - whatever the operation field held
+ * @returns The value, and its type when that is the surprising part
+ */
+const describe = (value: unknown): string =>
+  typeof value === 'number' || value === undefined
+    ? String(value)
+    : `${String(value)} (${typeof value})`
+
+/**
  * Judges a proposal's `operation` field.
  *
- * Anything that is not exactly `Call` refuses, including a missing value. A
- * `?? 0` here would be a fail-open on precisely the check being made — the
- * field is absent when a row never carried it, and "absent" is not evidence of
- * `Call`.
+ * Only the number `0` permits a signature. `==` would accept `'0'` and `0n`,
+ * values nothing in this repository writes, so identity is the test.
  * @param data - `data` off the struct that gets signed, never the stored row
  * @returns Whether to refuse, and the reason a signer reads
  */
 export const evaluateDelegateCallGate = (
-  data: ISignedOperation
+  data: ISignedOperation | null | undefined
 ): IDelegateCallVerdict => {
-  const { operation } = data
+  const operation = data?.operation
 
-  if (operation === SafeOperationEnum.Call)
+  if (operation === OperationTypeEnum.Call)
     return { refuses: false, reason: '' }
 
-  if (operation === undefined)
+  if (operation === OperationTypeEnum.DelegateCall)
     return {
       refuses: true,
       reason:
-        "This proposal carries no operation field, so whether it is a call or a delegatecall is unknown. A delegatecall runs its target against this Safe's own storage, so the difference is the whole question — and an absent value is not evidence of a plain call. Refusing rather than assuming.",
+        "This proposal is a delegatecall (operation = 1). It runs the code at its target address against this Safe's own storage, whatever function the calldata appears to call — so the decoded calldata says nothing about what it will do. No proposal path in this repository builds one. Refusing on the operation field alone.",
     }
 
-  if (operation === SafeOperationEnum.DelegateCall)
-    return {
-      refuses: true,
-      reason:
-        "This proposal is a delegatecall (operation = 1). It runs the code at its target address against this Safe's own storage, whatever function the calldata appears to call — so reading the decoded calldata and finding it harmless says nothing about what this will do. Nothing in this repository proposes a delegatecall; every proposal path builds a plain call. Refusing on the operation field alone.",
-    }
-
+  // Everything else, an absent field included. Not reachable through the
+  // mandated source, because `createTransaction` normalises absence to `Call`
+  // before the struct exists — so this is a floor, not a live catch, and is
+  // deliberately not described as catching a missing operation. The row losing
+  // the field is a real gap and is not covered here or anywhere: it happens one
+  // frame up and is invisible by the time a signature is offered.
   return {
     refuses: true,
-    reason: `This proposal's operation field is ${operation}, which is neither Call (0) nor DelegateCall (1). Safe defines no third operation, so this is a value nobody meant to write, and guessing which of the two it resembles is how a delegatecall gets treated as a call. Refusing.`,
+    reason: `This proposal's operation field is ${describe(
+      operation
+    )}, and only the number 0 (Call) may be signed. A delegatecall runs its target against this Safe's own storage, so a value that is not exactly Call cannot be assumed to be one — a 1 or a 0 of the wrong type included, which nothing in this repository writes. Refusing.`,
   }
 }
 
-/** Rendered ahead of the signer's prompt, in the same red as a refusal. */
-const REFUSED = `${String.fromCharCode(27)}[31m⛔ REFUSED${String.fromCharCode(
-  27
-)}[0m`
+const RED = `${String.fromCharCode(27)}[31m`
+const RESET = `${String.fromCharCode(27)}[0m`
 
 /**
  * The lines a signer sees. Empty for a plain call — silence is reserved for
@@ -111,23 +101,25 @@ const REFUSED = `${String.fromCharCode(27)}[31m⛔ REFUSED${String.fromCharCode(
  */
 export const renderDelegateCallGate = (
   verdict: IDelegateCallVerdict
-): string[] => (verdict.refuses ? [`${REFUSED} ${verdict.reason}`] : [])
+): string[] =>
+  verdict.refuses ? [`${RED}⛔ REFUSED ${verdict.reason}${RESET}`] : []
 
 /**
- * Throws unless the proposal may be signed.
+ * Throws unless the proposal may be signed **or executed**.
  *
- * Separate from the evaluation so the refusal can be asserted inside the one
- * funnel every signature passes through, rather than by a caller remembering to
- * read a boolean.
+ * Named for neither route deliberately. Execution needs no signature of ours —
+ * a row already carrying the threshold is broadcast without the signer being
+ * consulted — so a name mentioning signing invites wiring this into the sign
+ * funnel alone and leaving the execute-only routes open.
  * @param verdict - what `evaluateDelegateCallGate` decided
- * @throws When the proposal must not be signed
+ * @throws When the proposal must not proceed
  */
-export const assertDelegateCallGateAllowsSigning = (
+export const assertProposalOperationPermitted = (
   verdict: IDelegateCallVerdict
 ): void => {
   if (!verdict.refuses) return
 
   throw new Error(
-    `Operation gate: this transaction will not be signed. ${verdict.reason} Nothing has been signed.`
+    `Operation gate: this transaction will not proceed. ${verdict.reason} Nothing has been signed or executed.`
   )
 }
