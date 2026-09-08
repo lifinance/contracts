@@ -216,6 +216,17 @@ export const UNPARSABLE_IDENTITY = '<unparsable url>'
 const SENTINEL_IDENTITIES = new Set([IP_LITERAL_IDENTITY, UNPARSABLE_IDENTITY])
 
 /**
+ * Whether an identity may stand as a provider of its own.
+ *
+ * Named by what may be counted, not by the identities that may not: an
+ * unverifiable identity that is simply absent from a list of the known ones —
+ * an empty host derives one — would otherwise be counted as a provider, and
+ * could name a group whose only other member is a bare IP address.
+ */
+const isCountableIdentity = (identity: string): boolean =>
+  identity !== '' && !SENTINEL_IDENTITIES.has(identity)
+
+/**
  * Provider identity for an endpoint URL: the host's last two labels, lowercased
  * and without its port.
  *
@@ -242,6 +253,11 @@ export const providerIdentityForUrl = (url: string): string => {
   if (bare.startsWith('[') || IPV4.test(bare)) return IP_LITERAL_IDENTITY
 
   const labels = bare.split('.').filter(Boolean)
+  // A host with no labels at all — every scheme that carries its target in the
+  // path rather than an authority has one — is not a name anything can be shown
+  // independent of, so it must reach a sentinel rather than become an identity
+  // of its own.
+  if (labels.length === 0) return UNPARSABLE_IDENTITY
   // A single-label host is returned from its labels rather than verbatim, so a
   // root dot cannot split one host from itself: `rpc-node.` and `rpc-node` are
   // the same intranet node, and splitting is the direction that invents a
@@ -306,7 +322,7 @@ export const groupProviders = (
     const current = canonical.get(root)
     if (
       current === undefined ||
-      (SENTINEL_IDENTITIES.has(current) && !SENTINEL_IDENTITIES.has(candidate))
+      (!isCountableIdentity(current) && isCountableIdentity(candidate))
     )
       canonical.set(root, candidate)
   })
@@ -397,7 +413,19 @@ export const evaluateRpcQuorum = (
         : []
   )
 
-  const independentProviders = new Set(providers).size
+  // A group is asked about by membership, never by the name it ended up with: a
+  // name only reports which member won the slot, so a bare IP merged under any
+  // uncountable name would clear a refusal that is about the IP still being
+  // there. Asking each IP endpoint whether its own group reached a countable
+  // identity is also independent of the order the endpoints arrive in.
+  const unverifiableIpEndpoint = observations.some(
+    (observation, index) =>
+      providerIdentityForUrl(observation.endpointUrl) === IP_LITERAL_IDENTITY &&
+      !isCountableIdentity(providers[index] as string)
+  )
+
+  const independentProviders = new Set(providers.filter(isCountableIdentity))
+    .size
   const respondingProviders = countProviders(usable)
   const base = {
     quorum,
@@ -422,7 +450,7 @@ export const evaluateRpcQuorum = (
   // that an unknowable identity makes unsound: a name may resolve to the
   // address, so an IP endpoint alongside a hostname one cannot be shown to be a
   // second provider.
-  if (providers.includes(IP_LITERAL_IDENTITY))
+  if (unverifiableIpEndpoint)
     return {
       ...base,
       status: 'provider-identity-unverifiable',
@@ -705,9 +733,7 @@ export const evaluateQuorumCoverage = (
           )
         ),
       ].sort()
-      const verifiable = providers.filter(
-        (provider) => !SENTINEL_IDENTITIES.has(provider)
-      )
+      const verifiable = providers.filter(isCountableIdentity)
 
       return {
         network,

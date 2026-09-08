@@ -708,6 +708,50 @@ describe('an IP alias cannot manufacture a quorum', () => {
     expect(() => assertRpcQuorum(verdict, 'codehash on mainnet')).toThrow()
   })
 
+  it('gives a host with no labels a sentinel rather than an identity of its own', () => {
+    // Values, not the exported symbols: an assertion that moves with the
+    // constant it checks observes nothing.
+    expect(providerIdentityForUrl('file:///rpc')).toBe('<unparsable url>')
+    expect(providerIdentityForUrl('unix:/var/run/rpc.sock')).toBe(
+      '<unparsable url>'
+    )
+    expect(providerIdentityForUrl('http://rpc-node/')).toBe('rpc-node')
+  })
+
+  it('cannot be cleared by an endpoint whose URL carries no host', () => {
+    // A group takes its name from whichever member has a countable identity, so
+    // a scheme that keeps its target in the path — deriving no host at all —
+    // would supply that name and clear the refusal while the bare IP is still
+    // in the group. Both orders, because the laundering was order-dependent.
+    const honest = ok('https://rpc.honest-provider.com/')
+    const ip = ok('http://203.0.113.7:8545/', { providerId: 'p' })
+    const hostless = ok('file:///dev/null', { providerId: 'p' })
+
+    for (const order of [
+      [honest, ip, hostless],
+      [hostless, ip, honest],
+    ])
+      expect(evaluateRpcQuorum(order).status).toBe(
+        'provider-identity-unverifiable'
+      )
+  })
+
+  it('cannot be cleared by an unparsable endpoint declared to be the IP one', () => {
+    // Two sentinels racing for the group's name: whichever wins the slot, no
+    // member of that group has a host anything can be shown independent of.
+    const ip = ok('http://203.0.113.7:8545/', { providerId: 'p' })
+    const unparsable = ok('not a url', { providerId: 'p' })
+    const honest = ok('https://mainnet.infura.io/v3/KEY')
+
+    for (const order of [
+      [unparsable, ip, honest],
+      [ip, unparsable, honest],
+    ])
+      expect(evaluateRpcQuorum(order).status).toBe(
+        'provider-identity-unverifiable'
+      )
+  })
+
   it('agrees after a declared IP-and-hostname merge, whichever order they arrive in', () => {
     const ip = ok('http://203.0.113.7:8545/', { providerId: 'alchemy' })
     const named = ok(ALCHEMY, { providerId: 'alchemy' })
