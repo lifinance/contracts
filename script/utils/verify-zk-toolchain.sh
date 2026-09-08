@@ -82,13 +82,26 @@ if [ -z "${FOUNDRY_ZKSYNC:-}" ]; then
   exit 1
 fi
 
-# Anchored on the closing quote of the value helperFunctions.sh exports
-# (`{ zksolc = "X.Y.Z" }`). A bare substring test passes pin 1.5.15 against a 1.5.155
-# toolchain — a false green in the one check that decides the compiler is the pinned one.
-if [[ "${FOUNDRY_ZKSYNC}" != *"\"$ZKSOLC_PIN\""* ]]; then
+# Parsed, not searched. A substring test passed pin 1.5.15 against a 1.5.155 toolchain, and
+# anchoring on the value's quotes still accepted the pin appearing anywhere in the string —
+# `{ zksolc = "9.9.9", other = "1.5.15" }` read as pinned. This leg exists to catch a value a
+# human set by hand (docs/DiamondCutRecomputation.md tells the reader to drive the zk forge
+# directly), which is exactly where a decorated value comes from.
+ZKSOLC_KEYS="$(printf '%s' "${FOUNDRY_ZKSYNC}" | grep -o 'zksolc[[:space:]]*=' | wc -l | tr -d ' ')"
+if [ "$ZKSOLC_KEYS" != "1" ]; then
+  printf '\033[31m✗ FOUNDRY_ZKSYNC does not carry exactly one zksolc key\033[0m\n' >&2
+  printf '   found:    %s\n' "$ZKSOLC_KEYS" >&2
+  printf '   actual:   %s\n' "${FOUNDRY_ZKSYNC}" >&2
+  printf '   fix:      unset FOUNDRY_ZKSYNC and source script/helperFunctions.sh\n' >&2
+  exit 1
+fi
+
+ZKSOLC_ACTUAL="$(printf '%s' "${FOUNDRY_ZKSYNC}" | sed -n 's/.*zksolc[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p')"
+if [ "$ZKSOLC_ACTUAL" != "$ZKSOLC_PIN" ]; then
   printf '\033[31m✗ FOUNDRY_ZKSYNC does not name the pinned zksolc\033[0m\n' >&2
   printf '   pinned:   %s\n' "$ZKSOLC_PIN" >&2
-  printf '   actual:   %s\n' "${FOUNDRY_ZKSYNC}" >&2
+  printf '   actual:   %s\n' "${ZKSOLC_ACTUAL:-<unparseable>}" >&2
+  printf '   from:     %s\n' "${FOUNDRY_ZKSYNC}" >&2
   exit 1
 fi
 
@@ -120,5 +133,5 @@ if [ "$QUIET" != "true" ]; then
   # foundry-zksync is what the binary reported; zksolc is what was requested of it. The
   # labels are the difference between the two legs, so the line cannot be read as having
   # observed a compiler nothing here runs.
-  printf '\033[32m✓ foundry-zksync %s observed, zksolc %s requested\033[0m\n' "$ZK_FOUNDRY_ACTUAL" "$ZKSOLC_PIN"
+  printf '\033[32m✓ foundry-zksync %s observed, zksolc %s requested\033[0m\n' "$ZK_FOUNDRY_ACTUAL" "$ZKSOLC_ACTUAL"
 fi

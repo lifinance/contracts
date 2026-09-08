@@ -352,6 +352,38 @@ describe('verify-zk-toolchain.sh — the checker', () => {
     expect(output).toContain('SEAM_RC=0')
   })
 
+  it('refuses a zksolc pin that only appears elsewhere in the value', () => {
+    // Anchoring on the value's quotes was not enough: the pinned string appearing
+    // in any other field, or in a trailing comment, read as pinned while the
+    // zksolc key named something else. The key's value is parsed now.
+    const farm = makeFarm({ zkForgeVersion: ZK_FOUNDRY_PIN })
+
+    const output = runSeam(
+      farm,
+      { FOUNDRY_ZKSYNC: `{ zksolc = "9.9.9", other = "${ZKSOLC_PIN}" }` },
+      false
+    )
+
+    expect(output).toContain('SEAM_RC=1')
+    expect(output).toContain('does not name the pinned zksolc')
+    expect(output).toContain('9.9.9')
+  })
+
+  it('refuses a value carrying two zksolc keys rather than picking one', () => {
+    // Which one forge honours is not ours to guess, and guessing wrong is a
+    // false green.
+    const farm = makeFarm({ zkForgeVersion: ZK_FOUNDRY_PIN })
+
+    const output = runSeam(
+      farm,
+      { FOUNDRY_ZKSYNC: `{ zksolc = "${ZKSOLC_PIN}", zksolc = "9.9.9" }` },
+      false
+    )
+
+    expect(output).toContain('SEAM_RC=1')
+    expect(output).toContain('exactly one zksolc key')
+  })
+
   it('refuses when FOUNDRY_ZKSYNC is not exported, because zksolc is then unpinned', () => {
     // The only mechanism pinning zksolc is that env var, so an unset value means the
     // toolchain picks its own default - which is what a lost pin silently produced.
@@ -542,26 +574,38 @@ describe('the placement, driven through the real deploy CLI', () => {
 })
 
 describe('install_foundry_zksync is the chokepoint every zk build passes', () => {
+  /** The checker itself, which names the binary in prose rather than running it. */
+  const CHECKER = 'script/utils/verify-zk-toolchain.sh'
+
   /**
-   * Every shell script under `script/`, found rather than listed.
+   * Every build script under `script/`, found rather than listed.
    * @param relative - directory to walk, relative to the repo root
-   * @returns Repo-relative paths of every `.sh` file beneath it
+   * @returns Repo-relative paths of every non-test `.sh` or `.ts` beneath it
    */
-  const shellScripts = (relative = 'script'): string[] =>
+  const buildScripts = (relative = 'script'): string[] =>
     readdirSync(join(REPO_ROOT, relative), { withFileTypes: true }).flatMap(
-      (entry) =>
-        entry.isDirectory()
-          ? shellScripts(`${relative}/${entry.name}`)
-          : entry.name.endsWith('.sh')
-          ? [`${relative}/${entry.name}`]
+      (entry) => {
+        const path = `${relative}/${entry.name}`
+        if (entry.isDirectory()) return buildScripts(path)
+        if (path === CHECKER) return []
+        // `.ts` as well as `.sh`: a zk build started with spawn() from
+        // TypeScript would have been invisible to a shell-only walk, which is
+        // the same gap this test exists to close. Tests are excluded — they
+        // reference the binary by name on purpose.
+        return /\.(sh|ts)$/.test(entry.name) && !entry.name.endsWith('.test.ts')
+          ? [path]
           : []
+      }
     )
 
   it('is called by every script that reaches for the zk forge', () => {
     // Discovered, not enumerated. A hardcoded list only catches a new call site added to
     // one of the files already on it — a brand-new script reaching for the zk forge was
-    // invisible to it, which is the gap the list was supposed to close.
-    const scripts = shellScripts().map((path) => ({
+    // invisible to it, which is the gap the list was supposed to close. The checker is
+    // skipped by path: it mentions the binary in a comment and `install_foundry_zksync`
+    // in a fix hint, so it passed on two unrelated string matches and would have flipped
+    // to a false failure if either were reworded.
+    const scripts = buildScripts().map((path) => ({
       path,
       source: readFileSync(join(REPO_ROOT, path), 'utf8'),
     }))

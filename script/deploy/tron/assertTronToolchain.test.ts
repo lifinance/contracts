@@ -362,7 +362,17 @@ describe('the gate is on the Tron seams a deployment cannot avoid', () => {
       .map((file) => ({
         path: file.path,
         deploys: occurrences(file.source, 'deployer.deployContract('),
-        asserts: occurrences(file.source, 'assertTronDeploymentRecordable('),
+        // Either gate counts. `assertTronDeploymentRecordable` is the fuller
+        // check and is what a recorded LI.FI deployment needs; the Safe
+        // singleton and proxy factory in deploy-safe-tron.ts are third-party
+        // artifacts built by `forge build -C safe/london` and never written to
+        // the deployment log, so they take the toolchain check alone. Requiring
+        // the fuller one there refused every run: it validates constructor args
+        // against the artifact ABI, and that committed build declares none
+        // while its source declares one.
+        asserts:
+          occurrences(file.source, 'assertTronDeploymentRecordable(') +
+          occurrences(file.source, 'assertTronToolchainOrThrow('),
       }))
       .filter((file) => file.deploys > file.asserts)
 
