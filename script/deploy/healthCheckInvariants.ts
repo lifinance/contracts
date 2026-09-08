@@ -1758,11 +1758,6 @@ async function resolvePendingRegistrations(
 }
 
 /**
- * Ordered registry of every health-check invariant. The order matches historical log
- * output; earlier invariants may populate mutable context fields (e.g. `onChainFacets`)
- * that later ones reuse.
- */
-/**
  * Renders a `safeOwners` entry that cannot be used, for an operator to read.
  *
  * Sanitised because the raw value reaches a terminal and a job log; the fallback
@@ -1774,6 +1769,11 @@ async function resolvePendingRegistrations(
 const describeConfigEntry = (entry: unknown): string =>
   sanitizeProvenanceText(String(entry)) || '(no printable characters)'
 
+/**
+ * Ordered registry of every health-check invariant. The order matches historical log
+ * output; earlier invariants may populate mutable context fields (e.g. `onChainFacets`)
+ * that later ones reuse.
+ */
 export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
   {
     name: 'diamond-deployed',
@@ -3396,8 +3396,8 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
               )
 
         // Set equality pins the distinct owners, not the entry count, so a
-        // duplicated entry is outside it: the sets agree while config claims
-        // one more owner than the Safe has.
+        // duplicated entry is outside it: the sets agree while config names
+        // fewer distinct owners than it has entries.
         if (duplicates > 0)
           report(
             `config/global.json safeOwners lists ${duplicates} duplicate entr${
