@@ -369,6 +369,21 @@ describe('verify-zk-toolchain.sh — the checker', () => {
     expect(output).toContain('9.9.9')
   })
 
+  it('refuses a key that merely contains the zksolc substring', () => {
+    // grep/sed without a token boundary treat `notzksolc` as `zksolc`, so a value
+    // that never requested the compiler still passed when it carried the pin.
+    const farm = makeFarm({ zkForgeVersion: ZK_FOUNDRY_PIN })
+
+    const output = runSeam(
+      farm,
+      { FOUNDRY_ZKSYNC: `{ notzksolc = "${ZKSOLC_PIN}" }` },
+      false
+    )
+
+    expect(output).toContain('SEAM_RC=1')
+    expect(output).toContain('exactly one zksolc key')
+  })
+
   it('refuses a value carrying two zksolc keys rather than picking one', () => {
     // Which one forge honours is not ours to guess, and guessing wrong is a
     // false green.

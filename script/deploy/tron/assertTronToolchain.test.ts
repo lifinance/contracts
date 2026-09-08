@@ -42,6 +42,28 @@ const PINNED = readFileSync(join(REPO_ROOT, '.foundry-version'), 'utf8').trim()
 const REFUSAL = 'Cannot confirm the local foundry matches'
 
 /**
+ * Await a rejection without using Bun's `.rejects` matcher, which is not a thenable
+ * (`[CONV:TEST-ASSERT-REJECTS]`).
+ *
+ * @param promise - Call expected to reject.
+ * @param match - Substring or pattern of the error message.
+ */
+async function expectRejects(
+  promise: Promise<unknown>,
+  match: RegExp | string
+): Promise<void> {
+  let error: Error | undefined
+  try {
+    await promise
+  } catch (caught) {
+    error = caught as Error
+  }
+  expect(error).toBeInstanceOf(Error)
+  if (match instanceof RegExp) expect(error?.message).toMatch(match)
+  else expect(error?.message).toContain(match)
+}
+
+/**
  * Records every checker path it is handed, so the assertions are on a spy rather than only
  * on a thrown error.
  *
@@ -261,9 +283,10 @@ describe('the placement in deployContractWithLogging', () => {
     const { deployContractWithLogging } = await import('./tronUtils')
     const spy = deployerSpy()
 
-    expect(
-      deployContractWithLogging(spy.deployer, 'Executor', [], true)
-    ).rejects.toThrow(REFUSAL)
+    await expectRejects(
+      deployContractWithLogging(spy.deployer, 'Executor', [], true),
+      REFUSAL
+    )
     expect(spy.calls).toEqual([])
   })
 
@@ -274,14 +297,15 @@ describe('the placement in deployContractWithLogging', () => {
 
     // Still a rejection - there is no artifact for that name - but for the later reason,
     // which is what separates "the gate refused" from "the gate was not there".
-    expect(
+    await expectRejects(
       deployContractWithLogging(
         spy.deployer,
         'NoSuchContractOnTheTronPath',
         [],
         true
-      )
-    ).rejects.toThrow(/Failed to load NoSuchContractOnTheTronPath artifact/)
+      ),
+      /Failed to load NoSuchContractOnTheTronPath artifact/
+    )
     expect(spy.calls).toEqual([])
   })
 })

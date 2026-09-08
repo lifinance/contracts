@@ -84,10 +84,11 @@ fi
 
 # Parsed, not searched. A substring test passed pin 1.5.15 against a 1.5.155 toolchain, and
 # anchoring on the value's quotes still accepted the pin appearing anywhere in the string —
-# `{ zksolc = "9.9.9", other = "1.5.15" }` read as pinned. This leg exists to catch a value a
+# `{ zksolc = "9.9.9", other = "1.5.15" }` read as pinned. The key itself is token-bounded:
+# `{ notzksolc = "<pin>" }` is not a zksolc request. This leg exists to catch a value a
 # human set by hand (docs/DiamondCutRecomputation.md tells the reader to drive the zk forge
 # directly), which is exactly where a decorated value comes from.
-ZKSOLC_KEYS="$(printf '%s' "${FOUNDRY_ZKSYNC}" | grep -o 'zksolc[[:space:]]*=' | wc -l | tr -d ' ')"
+ZKSOLC_KEYS="$(printf '%s' "${FOUNDRY_ZKSYNC}" | grep -oE '(^|[^[:alnum:]_])zksolc[[:space:]]*=' | wc -l | tr -d ' ')" || true
 if [ "$ZKSOLC_KEYS" != "1" ]; then
   printf '\033[31m✗ FOUNDRY_ZKSYNC does not carry exactly one zksolc key\033[0m\n' >&2
   printf '   found:    %s\n' "$ZKSOLC_KEYS" >&2
@@ -96,7 +97,11 @@ if [ "$ZKSOLC_KEYS" != "1" ]; then
   exit 1
 fi
 
-ZKSOLC_ACTUAL="$(printf '%s' "${FOUNDRY_ZKSYNC}" | sed -n 's/.*zksolc[[:space:]]*=[[:space:]]*"\([^"]*\)".*/\1/p')"
+ZKSOLC_KEY_RE='(^|[^[:alnum:]_])zksolc[[:space:]]*=[[:space:]]*"([^"]*)"'
+ZKSOLC_ACTUAL=""
+if [[ "${FOUNDRY_ZKSYNC}" =~ $ZKSOLC_KEY_RE ]]; then
+  ZKSOLC_ACTUAL="${BASH_REMATCH[2]}"
+fi
 if [ "$ZKSOLC_ACTUAL" != "$ZKSOLC_PIN" ]; then
   printf '\033[31m✗ FOUNDRY_ZKSYNC does not name the pinned zksolc\033[0m\n' >&2
   printf '   pinned:   %s\n' "$ZKSOLC_PIN" >&2
