@@ -418,18 +418,33 @@ const gradeOwner = (
  * The sequential walk is what makes a batch answerable at all: a cut that
  * removes a selector and a later cut that adds it back are each wrong against
  * the diamond as it stands now and right against the state the batch produces.
- * A conflict the batch creates within itself is therefore proven, while one
+ * A conflict the proposal creates within itself is therefore proven, while one
  * against the diamond's own map is predicted.
+ *
+ * The walk spans the whole proposal, not one payload: a `multiSend` or a
+ * `scheduleBatch` can carry two `diamondCut` calls against the same diamond, and
+ * each is clean read alone while the second reverts once the first has run. The
+ * accumulator is keyed by diamond, because a selector moved on one diamond says
+ * nothing about another.
+ * @param payload - the `diamondCut` payload being graded
+ * @param observations - chain state read for this proposal
+ * @param unchecked - facts no read supplied, appended to
+ * @param amendedByDiamond - selectors earlier payloads in this proposal moved,
+ *   diamond to selector to the facet it now points at; mutated as this payload
+ *   is walked
+ * @returns Findings for this payload's selectors
  */
 const gradeSelectors = (
   payload: IDiamondCutPayload,
   observations: IChainObservations,
-  unchecked: string[]
+  unchecked: string[],
+  amendedByDiamond: Map<string, Map<string, string>>
 ): IExecutabilityFinding[] => {
   const findings: IExecutabilityFinding[] = []
   const diamond = normalise(payload.diamond)
-  /** Selectors this batch has already moved, and where they point now. */
-  const amended = new Map<string, string>()
+  const existing = amendedByDiamond.get(diamond)
+  const amended = existing ?? new Map<string, string>()
+  if (existing === undefined) amendedByDiamond.set(diamond, amended)
 
   for (const cut of payload.cuts) {
     if (!KNOWN_ACTIONS.has(cut.action)) continue
@@ -725,6 +740,9 @@ export const evaluateExecutability = (
   for (const result of input.staticCalls.results)
     byPath.set(result.path, result)
 
+  /** Selectors this proposal has already moved, per diamond, across payloads. */
+  const amendedByDiamond = new Map<string, Map<string, string>>()
+
   for (const payload of input.payloads) {
     const here: IExecutabilityFinding[] = []
 
@@ -733,7 +751,14 @@ export const evaluateExecutability = (
       here.push(...gradeInit(payload, input.observations, unchecked))
       here.push(...gradeOwner(payload, input.observations, unchecked))
       here.push(...gradeFacetCode(payload, input.observations, unchecked))
-      here.push(...gradeSelectors(payload, input.observations, unchecked))
+      here.push(
+        ...gradeSelectors(
+          payload,
+          input.observations,
+          unchecked,
+          amendedByDiamond
+        )
+      )
     } else {
       notSimulated.push(
         `${payload.path} calls ${payload.description} on ${payload.target}, whose revert conditions Tier-0 does not model; it is judged only on its target holding code and on its eth_call outcome.`

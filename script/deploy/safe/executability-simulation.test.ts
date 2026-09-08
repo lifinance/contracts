@@ -124,6 +124,30 @@ const evaluateReverting = (
     },
   })
 
+/**
+ * Two payloads in one proposal, each with its own succeeding `eth_call`.
+ *
+ * A node simulates each call against the state before the proposal runs, so both
+ * succeed individually even when the second cannot execute after the first — the
+ * composition is what no single `eth_call` observes.
+ */
+const evaluateBoth = (
+  payloads: readonly TSimulatedPayload[]
+): IExecutabilityVerdict =>
+  evaluateExecutability({
+    network: 'mainnet',
+    payloads,
+    observations: observations(),
+    staticCalls: {
+      attempted: true,
+      results: payloads.map((payload) => ({
+        path: payload.path,
+        outcome: 'succeeded' as const,
+        from: OWNER,
+      })),
+    },
+  })
+
 const codes = (verdict: IExecutabilityVerdict): ExecutabilityFindingEnum[] =>
   verdict.findings.map((finding) => finding.code)
 
@@ -998,5 +1022,102 @@ describe('the cancel-decision projection', () => {
     }
 
     expect(toCancelDecisionExecutability(verdict)).toBe('error')
+  })
+})
+
+describe('a conflict spanning two calls in one proposal', () => {
+  it('refuses two calls that each add the same selector to the same diamond', () => {
+    // Each call is clean against the diamond as it stands, and the second
+    // cannot execute once the first has run. Nothing simulates the pair, so
+    // before the accumulator spanned the proposal this printed the green line.
+    const first = cutCall([cut(0, LOUPE, [UNSERVED])], {
+      path: 'call[0].diamondCut',
+    })
+    const second = cutCall([cut(0, LOUPE, [UNSERVED])], {
+      path: 'call[1].diamondCut',
+    })
+
+    const verdict = evaluateBoth([first, second])
+
+    expect(verdict.refuses).toBe(true)
+    expect(codes(verdict)).toContain(
+      ExecutabilityFindingEnum.FunctionAlreadyExists
+    )
+    // Proven, not predicted: the proposal creates the conflict itself, so no
+    // reachable state makes it execute.
+    expect(
+      verdict.findings.some(
+        (finding) =>
+          finding.code === ExecutabilityFindingEnum.FunctionAlreadyExists &&
+          finding.certainty === RevertCertaintyEnum.Proven
+      )
+    ).toBe(true)
+  })
+
+  it('leaves the same selector on two different diamonds alone', () => {
+    // Paired presence: the accumulator is keyed by diamond, because a selector
+    // moved on one diamond says nothing about another. Without the key this
+    // would be a false red on a perfectly ordinary fleet rollout.
+    const first = cutCall([cut(0, LOUPE, [UNSERVED])], {
+      path: 'call[0].diamondCut',
+    })
+    const second = cutCall([cut(0, LOUPE, [UNSERVED])], {
+      path: 'call[1].diamondCut',
+      diamond: '0x00000000000000000000000000000000D1A11111',
+    })
+
+    const verdict = evaluateBoth([first, second])
+
+    // Asserted on the conflict finding, not on `error`: the second diamond has
+    // no observations here, so unread facts legitimately raise an error — which
+    // is the module working, and would mask what this test is about.
+    expect(codes(verdict)).not.toContain(
+      ExecutabilityFindingEnum.FunctionAlreadyExists
+    )
+  })
+
+  it('accepts a remove in one call and an add of the same selector in the next', () => {
+    // The sequential walk has to run forward across calls too, or this ordinary
+    // replace-by-two-steps becomes a false red.
+    const first = cutCall([cut(2, ZERO, [FACETS_SELECTOR])], {
+      path: 'call[0].diamondCut',
+    })
+    const second = cutCall([cut(0, CUT_FACET, [FACETS_SELECTOR])], {
+      path: 'call[1].diamondCut',
+    })
+
+    const verdict = evaluateBoth([first, second])
+
+    expect(codes(verdict)).not.toContain(
+      ExecutabilityFindingEnum.FunctionAlreadyExists
+    )
+  })
+})
+
+describe('the set of cut actions the walk recognises', () => {
+  it('is exactly Add, Replace and Remove', () => {
+    // Pinned as a set, not at one sample value: the guard was exercised only at
+    // 7, so widening the set to include 3 — the value an off-by-one enum change
+    // produces — left the suite green while an unexecutable cut passed.
+    for (const action of [3, 4, 255, -1]) {
+      const verdict = evaluateReverting(
+        cutCall([cut(action, LOUPE, [FACETS_SELECTOR])])
+      )
+
+      expect(codes(verdict), String(action)).toContain(
+        ExecutabilityFindingEnum.IncorrectFacetCutAction
+      )
+    }
+
+    // Paired presence: the three real actions are not reported as unknown.
+    for (const action of [0, 1, 2]) {
+      const verdict = evaluateReverting(
+        cutCall([cut(action, LOUPE, [FACETS_SELECTOR])])
+      )
+
+      expect(codes(verdict), String(action)).not.toContain(
+        ExecutabilityFindingEnum.IncorrectFacetCutAction
+      )
+    }
   })
 })
