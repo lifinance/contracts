@@ -312,9 +312,11 @@ describe('a broad expectation and a narrow one for the same address', () => {
     expect(verdict.refuses).toBe(false)
   })
 
-  it('still refuses when the two state different versions', () => {
+  it('cannot decide when the two state different versions, so it errors', () => {
     // Paired presence: only two *stated* versions can disagree, and when they
-    // do the identity is genuinely undecided.
+    // do the identity is genuinely undecided. That is `error`, not `refuses` —
+    // nothing here contradicts the record, the check just has no answer, and
+    // the two outcomes are the distinction this module is built on.
     const expectations = new Map([
       [MAINNET_ONLY_FACET, { contractName: 'CBridgeFacet', version: '1.0.0' }],
       [
@@ -333,6 +335,7 @@ describe('a broad expectation and a narrow one for the same address', () => {
     )
 
     expect(verdict.error).toBe(true)
+    expect(verdict.refuses).toBe(false)
   })
 })
 
