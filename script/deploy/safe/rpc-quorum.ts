@@ -218,10 +218,16 @@ const SENTINEL_IDENTITIES = new Set([IP_LITERAL_IDENTITY, UNPARSABLE_IDENTITY])
 /**
  * Whether an identity may stand as a provider of its own.
  *
- * Named by what may be counted, not by the identities that may not: an
- * unverifiable identity that is simply absent from a list of the known ones —
- * an empty host derives one — would otherwise be counted as a provider, and
- * could name a group whose only other member is a bare IP address.
+ * Named by what may be counted rather than by the identities that may not: an
+ * unverifiable identity absent from a list of the known ones gets counted, and
+ * can then name a group whose only other member is a bare IP address. An empty
+ * host reached exactly that way before it was made to derive a sentinel.
+ *
+ * The emptiness test is therefore unreachable through
+ * {@link providerIdentityForUrl} today, and no test can observe it. It stays as
+ * the second half of the pair: the deriver's contract — every identity it
+ * returns is a sentinel or a real host name — is what a test can hold, and this
+ * is what makes a break in that contract fail closed rather than count.
  */
 const isCountableIdentity = (identity: string): boolean =>
   identity !== '' && !SENTINEL_IDENTITIES.has(identity)

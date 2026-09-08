@@ -718,6 +718,30 @@ describe('an IP alias cannot manufacture a quorum', () => {
     expect(providerIdentityForUrl('http://rpc-node/')).toBe('rpc-node')
   })
 
+  it('never derives an identity that would be counted as a provider of its own', () => {
+    // The contract the refusal rests on: every identity this can return is
+    // either a sentinel or a real host name. A future sub-two-label path
+    // returning something empty would be counted, and could then name a group
+    // whose only other member is a bare IP address.
+    for (const url of [
+      'file:///rpc',
+      'unix:/var/run/rpc.sock',
+      'data:text/plain,rpc',
+      'mailto:rpc@example',
+      'not a url',
+      '',
+      'https://203.0.113.7/',
+      'http://[::1]:8545/',
+      'http://rpc-node./',
+    ]) {
+      const identity = providerIdentityForUrl(url)
+      if (identity === '<ip-literal host>' || identity === '<unparsable url>')
+        continue
+
+      expect(identity).toMatch(/^[a-z0-9-]+(?:\.[a-z0-9-]+)?$/u)
+    }
+  })
+
   it('cannot be cleared by an endpoint whose URL carries no host', () => {
     // A group takes its name from whichever member has a countable identity, so
     // a scheme that keeps its target in the path — deriving no host at all —
