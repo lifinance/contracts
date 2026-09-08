@@ -215,6 +215,15 @@ export interface IExecutabilityFinding {
   path: string
   /** The cut action this finding is about, when it is about one. */
   action?: number
+  /**
+   * True when the proof rests on what an *earlier payload* in this proposal
+   * does, rather than on this payload's own bytes.
+   *
+   * A node simulates each call against the state before the proposal runs, so a
+   * proof of this kind is invisible to that payload's own `eth_call` — a
+   * succeeding call is then the expected result rather than a contradiction.
+   */
+  composed?: boolean
   /** One line naming what will happen and what was read. */
   detail: string
   /**
@@ -411,6 +420,13 @@ const gradeOwner = (
   ]
 }
 
+/** A selector an earlier cut moved, and which payload moved it. */
+interface IAmendedSelector {
+  facet: string
+  /** `path` of the payload whose cut moved it. */
+  byPayload: string
+}
+
 /**
  * Grades every selector in a `diamondCut`, walking the cuts in order against a
  * selector map amended by the cuts before them.
@@ -438,12 +454,12 @@ const gradeSelectors = (
   payload: IDiamondCutPayload,
   observations: IChainObservations,
   unchecked: string[],
-  amendedByDiamond: Map<string, Map<string, string>>
+  amendedByDiamond: Map<string, Map<string, IAmendedSelector>>
 ): IExecutabilityFinding[] => {
   const findings: IExecutabilityFinding[] = []
   const diamond = normalise(payload.diamond)
   const existing = amendedByDiamond.get(diamond)
-  const amended = existing ?? new Map<string, string>()
+  const amended = existing ?? new Map<string, IAmendedSelector>()
   if (existing === undefined) amendedByDiamond.set(diamond, amended)
 
   for (const cut of payload.cuts) {
@@ -453,17 +469,26 @@ const gradeSelectors = (
     for (const [index, rawSelector] of cut.selectors.entries()) {
       const selector = normalise(rawSelector)
       const at = `${cut.path}.selectors[${index}]`
-      const touchedByBatch = amended.has(selector)
+      const moved = amended.get(selector)
       const observed = observations.selectorFacets.get(selector)
-      const current = touchedByBatch ? amended.get(selector) : observed
-      // Proven only where the batch itself put the selector where it is: the
+      const current = moved === undefined ? observed : moved.facet
+      // Proven only where the proposal itself put the selector where it is: the
       // diamond's own map is a read that another execution can invalidate.
-      const certainty = touchedByBatch
-        ? RevertCertaintyEnum.Proven
-        : RevertCertaintyEnum.Predicted
-      const source = touchedByBatch
-        ? 'by an earlier cut in this same batch'
-        : 'on chain'
+      const certainty =
+        moved === undefined
+          ? RevertCertaintyEnum.Predicted
+          : RevertCertaintyEnum.Proven
+      // An earlier payload's doing is invisible to this payload's own
+      // `eth_call`, which a node runs against the state before the proposal
+      // does anything. Within one payload the cuts run in a single call, so
+      // that conflict does show up there.
+      const composed = moved !== undefined && moved.byPayload !== payload.path
+      const source =
+        moved === undefined
+          ? 'on chain'
+          : composed
+          ? 'by an earlier call in this proposal'
+          : 'by an earlier cut in this same call'
 
       if (current === undefined) {
         unchecked.push(
@@ -481,12 +506,13 @@ const gradeSelectors = (
           findings.push({
             code: ExecutabilityFindingEnum.FunctionAlreadyExists,
             certainty,
+            composed,
             path: at,
             action: cut.action,
             detail: `${at} adds ${rawSelector}, which is already served by ${servedBy} ${source}`,
             blocking: mayBlock(cut.action, certainty),
           })
-        amended.set(selector, facet)
+        amended.set(selector, { facet, byPayload: payload.path })
         continue
       }
 
@@ -495,6 +521,7 @@ const gradeSelectors = (
           findings.push({
             code: ExecutabilityFindingEnum.FunctionDoesNotExist,
             certainty,
+            composed,
             path: at,
             action: cut.action,
             detail: `${at} replaces ${rawSelector}, which is served by nobody ${source}`,
@@ -504,6 +531,7 @@ const gradeSelectors = (
           findings.push({
             code: ExecutabilityFindingEnum.FunctionAlreadyExists,
             certainty,
+            composed,
             path: at,
             action: cut.action,
             detail: `${at} replaces ${rawSelector} with ${cut.facetAddress}, which already serves it ${source}, so the cut is a no-op LibDiamond rejects`,
@@ -513,12 +541,13 @@ const gradeSelectors = (
           findings.push({
             code: ExecutabilityFindingEnum.FunctionIsImmutable,
             certainty,
+            composed,
             path: at,
             action: cut.action,
             detail: `${at} replaces ${rawSelector}, which is defined on the diamond itself and cannot be moved`,
             blocking: mayBlock(cut.action, certainty),
           })
-        amended.set(selector, facet)
+        amended.set(selector, { facet, byPayload: payload.path })
         continue
       }
 
@@ -526,6 +555,7 @@ const gradeSelectors = (
         findings.push({
           code: ExecutabilityFindingEnum.FunctionDoesNotExist,
           certainty,
+          composed,
           path: at,
           action: cut.action,
           detail: `${at} removes ${rawSelector}, which is served by nobody ${source}`,
@@ -535,12 +565,16 @@ const gradeSelectors = (
         findings.push({
           code: ExecutabilityFindingEnum.FunctionIsImmutable,
           certainty,
+          composed,
           path: at,
           action: cut.action,
           detail: `${at} removes ${rawSelector}, which is defined on the diamond itself and cannot be removed`,
           blocking: mayBlock(cut.action, certainty),
         })
-      amended.set(selector, ZERO_ADDRESS)
+      amended.set(selector, {
+        facet: ZERO_ADDRESS,
+        byPayload: payload.path,
+      })
     }
   }
 
@@ -741,7 +775,7 @@ export const evaluateExecutability = (
     byPath.set(result.path, result)
 
   /** Selectors this proposal has already moved, per diamond, across payloads. */
-  const amendedByDiamond = new Map<string, Map<string, string>>()
+  const amendedByDiamond = new Map<string, Map<string, IAmendedSelector>>()
 
   for (const payload of input.payloads) {
     const here: IExecutabilityFinding[] = []
@@ -803,8 +837,14 @@ export const evaluateExecutability = (
     // and the node says it just did. One of the two is wrong about what was
     // simulated — the wrong target, the wrong caller, a payload that is not the
     // one being signed — and neither may be preferred over the other.
+    //
+    // A proof resting on an earlier payload is excluded: no `eth_call` of this
+    // payload can see what a previous call in the proposal did, so a succeeding
+    // call there agrees with the finding rather than contradicting it.
     const provenHere = here.filter(
-      (finding) => finding.certainty === RevertCertaintyEnum.Proven
+      (finding) =>
+        finding.certainty === RevertCertaintyEnum.Proven &&
+        finding.composed !== true
     )
     if (provenHere.length > 0)
       errors.push(

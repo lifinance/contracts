@@ -344,7 +344,7 @@ describe('proven from the calldata alone', () => {
       ExecutabilityFindingEnum.FunctionAlreadyExists
     )
     expect(finding.certainty).toBe(RevertCertaintyEnum.Proven)
-    expect(finding.detail).toContain('by an earlier cut in this same batch')
+    expect(finding.detail).toContain('by an earlier cut in this same call')
     expect(finding.path).toBe(`${PATH}.cuts[1].selectors[0]`)
   })
 
@@ -1096,9 +1096,9 @@ describe('a conflict spanning two calls in one proposal', () => {
 
 describe('the set of cut actions the walk recognises', () => {
   it('is exactly Add, Replace and Remove', () => {
-    // Pinned as a set, not at one sample value: the guard was exercised only at
-    // 7, so widening the set to include 3 — the value an off-by-one enum change
-    // produces — left the suite green while an unexecutable cut passed.
+    // Pinned as a set, not at one sample value: 3 is the action an off-by-one
+    // enum change produces, and a guard asserted at a single value cannot tell
+    // the set apart from a wider one.
     for (const action of [3, 4, 255, -1]) {
       const verdict = evaluateReverting(
         cutCall([cut(action, LOUPE, [FACETS_SELECTOR])])
