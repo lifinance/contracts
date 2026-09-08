@@ -1,7 +1,6 @@
 import path from 'path'
 import { fileURLToPath } from 'url'
 
-import { isTronNetworkKey } from '@lifi/tron-devkit'
 import { getAssociatedTokenAddressSync } from '@solana/spl-token'
 import { Keypair, PublicKey } from '@solana/web3.js'
 // @ts-expect-error - bs58 types not available
@@ -39,6 +38,7 @@ import type { ILiFi } from '../../../typechain'
 import { ERC20__factory } from '../../../typechain'
 import type { LibSwap } from '../../../typechain/AcrossFacetV4'
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
+import { normalizeRpcUrlForNetwork } from '../../mongoDb/rpcEndpoints'
 import { getEnvVar, getRPCEnvVarName, node_url } from '../../utils/utils'
 import {
   getTransportConfigFromRpcUrl,
@@ -725,20 +725,8 @@ const normalizePrivateKey = (pk: string): `0x${string}` => {
  * Return the correct RPC environment variable
  * (e.g. `ETH_NODE_URI_ARBITRUM` or `ETH_NODE_URI_MAINNET`)
  */
-const getRpcUrl = (chain: SupportedChain) => {
-  const envKey = getRPCEnvVarName(chain)
-  let rpcUrl = getEnvVar(envKey)
-
-  // TronGrid full-node root serves Tron's native HTTP API; viem needs /jsonrpc.
-  if (
-    isTronNetworkKey(chain) &&
-    !rpcUrl.replace(/\/+$/, '').endsWith('/jsonrpc')
-  ) {
-    rpcUrl = `${rpcUrl.replace(/\/+$/, '')}/jsonrpc`
-  }
-
-  return rpcUrl
-}
+const getRpcUrl = (chain: SupportedChain) =>
+  normalizeRpcUrlForNetwork(chain, getEnvVar(getRPCEnvVarName(chain)))
 
 /**
  * Utility function to dynamically import the deployments file for a chain.

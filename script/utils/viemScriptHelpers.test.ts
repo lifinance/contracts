@@ -10,6 +10,7 @@ import { tmpdir } from 'os'
 
 // eslint-disable-next-line import/no-unresolved
 import { describe, expect, it } from 'bun:test'
+import type { Chain } from 'viem'
 
 import networksConfig from '../../config/networks.json'
 import { EnvironmentEnum } from '../common/types'
@@ -17,6 +18,8 @@ import { EnvironmentEnum } from '../common/types'
 import { OUT_ROOT } from './utils'
 import {
   buildExplorerContractPageUrl,
+  getFallbackTransportForChain,
+  getTransportConfigFromRpcUrl,
   getDeployLogFile,
   getFunctionSelectors,
   isTestnetNetwork,
@@ -103,6 +106,101 @@ describe('getDeployLogFile path guard', () => {
   it('reads a real production deploy log', () => {
     const log = getDeployLogFile('mainnet', EnvironmentEnum.production)
     expect(log.LiFiDiamond).toMatch(/^0x[0-9a-fA-F]{40}$/)
+  })
+})
+
+describe('getTransportConfigFromRpcUrl', () => {
+  it('turns embedded https credentials into a basic auth header', () => {
+    const config = getTransportConfigFromRpcUrl(
+      'https://user:pass@rpc.example.invalid/'
+    )
+    expect(config.url).toBe('https://rpc.example.invalid/')
+    expect(config.fetchOptions?.headers?.Authorization).toBe(
+      `Basic ${Buffer.from('user:pass', 'utf8').toString('base64')}`
+    )
+  })
+
+  it('refuses to send credentials over cleartext http', () => {
+    expect(() =>
+      getTransportConfigFromRpcUrl('http://user:pass@rpc.example.invalid/')
+    ).toThrow(/credentials over http/)
+  })
+
+  it('turns a password-only https url into a basic auth header', () => {
+    const config = getTransportConfigFromRpcUrl(
+      'https://:secret@rpc.example.invalid/'
+    )
+    expect(config.url).toBe('https://rpc.example.invalid/')
+    expect(config.fetchOptions?.headers?.Authorization).toBe(
+      `Basic ${Buffer.from(':secret', 'utf8').toString('base64')}`
+    )
+  })
+
+  it('refuses a password-only url over cleartext http', () => {
+    expect(() =>
+      getTransportConfigFromRpcUrl('http://:secret@rpc.example.invalid/')
+    ).toThrow(/credentials over http/)
+  })
+
+  it('leaves a credential-free http url alone', () => {
+    expect(
+      getTransportConfigFromRpcUrl('http://node.example.invalid:8545').url
+    ).toBe('http://node.example.invalid:8545')
+  })
+})
+
+describe('getFallbackTransportForChain', () => {
+  const GOOD = 'https://good.example.invalid/rpc'
+  const ALSO_GOOD = 'https://spare.example.invalid/rpc'
+  const UNUSABLE = 'http://user:pass@bad.example.invalid/rpc'
+
+  const chainWith = (http: string[]) =>
+    ({
+      name: 'TestChain',
+      rpcUrls: { default: { http } },
+    } as unknown as Chain)
+
+  /**
+   * The endpoint URLs a transport would actually call, in order.
+   *
+   * `fallback` hands back its children already built, while a lone `http` transport is still a
+   * factory — so each node is only invoked when it is one.
+   */
+  const urlsOf = (node: unknown): string[] => {
+    const built = (typeof node === 'function' ? node({}) : node) as {
+      value?: { url?: string; transports?: unknown[] }
+    }
+    const nested = built?.value?.transports
+    if (nested) return nested.flatMap((inner) => urlsOf(inner))
+    return built?.value?.url ? [built.value.url] : []
+  }
+
+  it('drops an unusable fallback and keeps the healthy primary', () => {
+    const urls = urlsOf(
+      getFallbackTransportForChain(chainWith([GOOD, UNUSABLE]))
+    )
+
+    expect(urls).toEqual([GOOD])
+  })
+
+  it('drops an unusable primary and keeps the healthy fallbacks in order', () => {
+    const urls = urlsOf(
+      getFallbackTransportForChain(chainWith([UNUSABLE, GOOD, ALSO_GOOD]))
+    )
+
+    expect(urls).toEqual([GOOD, ALSO_GOOD])
+  })
+
+  it('throws only when every endpoint is unusable, naming the reason', () => {
+    expect(() => getFallbackTransportForChain(chainWith([UNUSABLE]))).toThrow(
+      /No usable RPC URL for chain TestChain.*credentials over http/
+    )
+  })
+
+  it('still reports a chain with no endpoints as unconfigured', () => {
+    expect(() => getFallbackTransportForChain(chainWith([]))).toThrow(
+      /No RPC URL configured for chain TestChain/
+    )
   })
 })
 
