@@ -48,6 +48,16 @@ deploySingleContract() {
     fi
   fi
 
+  # Also checked at the shared executeAndParse seam, but the zk path below builds and
+  # derives the CREATE2 salt through forge before reaching it.
+  if ! assertFoundryVersionOrFail; then
+    if [[ -z "$EXIT_ON_ERROR" || "$EXIT_ON_ERROR" == "false" ]]; then
+      return 1
+    else
+      exit 1
+    fi
+  fi
+
   # A deployment record claims that rebuilding at its commit reproduces the deployed
   # bytecode. Checked here rather than beside the record write: the deployment logger
   # runs after the deploy, so a refusal there would lose a deployment instead of

@@ -78,8 +78,25 @@ verification, and calls `logContractDeploymentInfo` →
 time, from the dev's machine**. The record (`IDeploymentRecord` in
 `script/deploy/shared/mongo-log-utils.ts`) carries name, network, version,
 address, constructor args, salt, a self-reported `verified` boolean, and the
-deployer's HEAD `gitCommitHash` — no branch, dirty-tree flag, or human
-identity. File logs (`deployments/{network}.json`) only land in git at PR
+provenance of the run that produced it: the deployer's HEAD `gitCommitHash`,
+the `repo` it was cloned from, the `gitBranch` checked out, the `actor`
+(`human`, `bot` for a job that set `SAFE_PROPOSAL_ACTOR=bot`, `ci`, or
+`UNKNOWN` when nothing identified the caller), and `dirtyTreeScoped` — the
+working-tree paths that differed from that commit, excluding the artefacts the
+deploy pipeline rewrites during its own run (`deployments/`). Governance
+inputs such as `script/deploy/_targetState.json` stay in the list. An **empty
+`dirtyTreeScoped` means the capture ran and the tree was clean; an absent one
+means no capture ran, or ran and could not read the tree** — the same shape
+every record written before the field existed has. A later clean re-log does
+not `$set` an empty list over a dirty one already stored. Branch, tree, actor
+and commit are read through the same `captureGitProvenance` helper the Safe
+proposal document is built from, so a deployment record and the proposal that
+installs it describe them by one definition rather than two. The capture is self-reported context, not a
+control: it makes an honest mistake such as a deploy from an uncommitted edit
+visible, while `assertTreeRecordable` — not this record — is what refuses such
+a deploy, on the narrower set of build-affecting paths. Add `--dryRun` (or
+`--dry-run`) to the `add` command to print the upsert it would apply without
+writing. File logs (`deployments/{network}.json`) only land in git at PR
 merge; the deploy scripts never commit.
 
 ### 4.2 Propose
@@ -132,12 +149,50 @@ run only on the branches that actually propose; a staging or testnet-only run, a
   `script/tasks/proposeMegaETHBridgeRegistrations.ts`,
   `proposeDeBridgeDlnChainIdMappings.ts`,
   `proposePolymerCCTPChainIdMappings.ts`, `unpauseAllDiamonds.ts`,
-  `script/deploy/safe/add-safe-owners-and-threshold.ts` — there is **no
-  single chokepoint**.
+  `script/deploy/safe/add-safe-owners-and-threshold.ts`, and two more chain-id
+  mapping tasks (`proposeAllBridgeChainIdMappings.ts`,
+  `proposeFraxChainIdMappings.ts`) — there is **no single chokepoint**. All of
+  them reach `storeTransactionInMongoDB` directly rather than through
+  `propose-to-safe.ts`, so the deploy gate below does not see them. None encodes
+  a `diamondCut` today, so none installs facet code; the list is what
+  `grep -rn storeTransactionInMongoDB script/` returns, not a fixed set, so
+  check it rather than trusting this sentence.
 - **Tron** is a parallel flow (`script/deploy/tron/propose-to-safe-tron.ts`).
 
-`diamondUpdateFacet.sh` additionally runs `verify-approvals.ts` before
-proposing (PR #2128 / EXSC-687). A production deploy is allowed when each
+The proposal funnel additionally runs the production deploy gate before it signs
+anything (PR #2128 / EXSC-687, re-homed by EXSC-704). It sits in
+`propose-to-safe.ts` and `propose-to-safe-tron.ts` rather than in each caller, so
+every path that *proposes* reaches it once per proposal — including the bash
+`sendOrPropose` chokepoint in `script/helperFunctions.sh` on its propose route.
+(The identically-named TypeScript `sendOrPropose` in
+`script/safe/safeScriptHelpers.ts` proposes without either funnel and carries
+the gate call inline instead; §4.2 says why.)
+
+**A proposal is not the only way a cut reaches a production diamond, and the
+funnel gate only sees proposals.** `SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true`
+broadcasts the cut straight from the deployer key, reaching neither funnel, so
+`script/tasks/diamondUpdateFacet.sh` gates that route itself through
+`assertDirectBroadcastDeployGate` — keyed on facet names, since there is no
+proposal calldata to read. The two gates are disjoint: a cut is gated by the
+funnel or by the shell, never both, and never neither. The bash `sendOrPropose`
+direct route (`script/helperFunctions.sh`, the `universalCast sendRaw` branch)
+is **not** gated today; it never was, and closing it is tracked separately.
+
+The funnel is handed calldata, not
+facet names, so `funnel-deploy-gate.ts` recovers the facet set from the cut:
+`diamondCut` Add and Replace entries, unwrapping a timelock `scheduleBatch` so a
+pre-wrapped payload cannot slip past, then attributed to a contract name through
+the network's production deployment log. A `Remove` entry installs no code and is
+out of scope; an address the log cannot attribute, and a `diamondCut` selector
+whose arguments do not decode, are both refused rather than treated as "not a
+cut" — as is a call that is not well-formed `0x`-prefixed calldata, because every
+selector and offset is read positionally and a skip would be a pass. One refusal
+has no self-service route: a few production logs record a name whose source has
+since been superseded (`GenericSwapFacet` → `GenericSwapFacetV3`,
+`LiFiIntentEscrowFacet` → `LiFiIntentEscrowFacetV2`), so a `Replace` cut pointing
+back at one of those addresses is refused for having no `src/Facets/<name>.sol`.
+That is the gate working — the checkout genuinely cannot vouch for that code —
+but it needs a human decision, not a workaround. A production deploy is allowed when each
 selected facet's transitive `src/` import closure matches `origin/main` — the
 usual rollout, branch off main and deploy already-merged code without touching
 that Solidity. If a closure diverges, the branch needs an open PR **and** the
@@ -162,7 +217,9 @@ the gate instead of hanging the rollout. Staging is not gated, and neither are
 testnets — deploying an unmerged facet to a testnet is how it is validated before
 the audit, and no Safe is involved there.
 
-The gate runs once per *(network, facet)*, but, for a fixed branch and environment, its
+The gate runs once per proposal — a cut adding three facets is one evaluation, where
+the retired `diamondUpdateFacet.sh` call site was one per *(network, facet)*. For a
+fixed branch and environment its
 verdict depends only on the working tree and the facet set, so a fleet rollout would
 otherwise recompute the same answer for
 every network — 71 `ls-remote` round trips and 71 chances for a flaky remote to abort the
@@ -192,25 +249,53 @@ with an audited-freeze exception for unmerged code; it does not verify that what
 reaches production was audited, because code that matches `main` passes without
 any audit lookup at all. True audit enforcement is the separate bytecode ↔ audit
 attestation item in §9. The check is further **not** a GitHub SC+auditor
-review check, and it does not wrap the other `propose-to-safe` entry points:
-`diamondUpdatePeriphery.sh` and `diamondEMERGENCYPause.sh` are ungated.
+review check.
 
-The same gate is applied a second time in `proposeDiamondCut`
-(`script/deploy/shared/propose-diamond-cut.ts`), the funnel the six Tron
-`deploy-and-register-*-facet.ts` scripts route through (note
-`deploy-and-register-periphery.ts` does **not** — it calls `runPropose`
-directly). Gating the funnel rather than each script means a future caller is
-covered without anyone remembering to add it; the exemptions match the bash path
-(staging, and any network whose `config/networks.json` type is `testnet`, which
-is how `tronshasta` stays open).
+There are **three** gate call sites, all calling the same module:
+`propose-to-safe.ts`, `propose-to-safe-tron.ts`, and the TypeScript
+`sendOrPropose` described at the end of this section. `diamondUpdatePeriphery.sh`,
+`diamondEMERGENCYPause.sh`, `proposeDiamondCut`
+(`script/deploy/shared/propose-diamond-cut.ts`, the funnel the six Tron
+`deploy-and-register-*-facet.ts` scripts route through) and the bash
+`sendOrPropose` in `script/helperFunctions.sh` all reach it, because all of them
+propose through `propose-to-safe.ts` or `propose-to-safe-tron.ts`. What decides
+whether the gate does anything is the **calldata**, not which script called: a
+proposal whose calls encode no facet-installing `diamondCut` is skipped. So
+periphery registration and emergency pause pass through untouched without being
+exempted by name. **The only exemption is the network**: any chain whose
+`config/networks.json` type is `testnet`, which is how `tronshasta` stays open.
+There is deliberately no environment exemption — reaching a funnel for a
+non-testnet network means proposing to a production Safe and signing with the
+production key, since a staging deploy sends straight to the diamond rather than
+proposing. The shell gate on the direct-broadcast route reads the environment
+because it has no calldata to judge instead, and it matches `!= staging` rather
+than `== production` so it stays at least as broad as the key `getPrivateKey`
+hands out.
 
-Facet **removals** are deliberately outside both gates: `cleanUpProdDiamond.ts`
-and the deferred-cleanup drain (`drain-parked-tasks.ts`, which folds extra
-removal calls into whatever proposal `runPropose` is already building) propose
-real diamond cuts, but a removal installs no new bytecode, so a
-main-equivalence check has nothing to compare. Their safety comes from the
-removal-specific controls in the table below. The generic bash `sendOrPropose`
-chokepoint can likewise propose arbitrary calldata and is not gated.
+Facet **removals** are outside it for the same reason rather than by exemption:
+`cleanUpProdDiamond.ts` and the deferred-cleanup drain (`drain-parked-tasks.ts`,
+which folds extra removal calls into whatever proposal `runPropose` is already
+building) propose real diamond cuts, but a `Remove` entry carries the zero
+address and installs no bytecode, so a main-equivalence check has nothing to
+compare. Their safety comes from the removal-specific controls in the table
+below.
+
+**One propose path does not go through either funnel**, and it is not the bash
+`sendOrPropose`: the identically-named **TypeScript** `sendOrPropose`
+(`script/safe/safeScriptHelpers.ts`) signs and stores a proposal itself. It is the
+third call site, carrying the same gate call inline so the two cannot diverge. A
+*fourth* proposer written against `storeTransactionInMongoDB` directly would not
+be covered — see the bespoke task scripts listed in §4.1, and the `sendOrPropose`
+gap recorded in
+[DeferredDiamondCleanupQueue.md](./DeferredDiamondCleanupQueue.md) §6.
+
+Two limits of the gate worth stating plainly. Its unknown-envelope backstop reaches
+exactly "the `diamondCut` selector, verbatim and byte-aligned": an envelope that
+splits or transforms those bytes and reassembles them on chain is not caught, and
+would need a bespoke batcher the Safe was pointed at. And parked-task removals
+folded in by the drain (`drain-parked-tasks.ts`) are appended *after* the gate runs,
+which is safe only because that path builds Remove cuts in process and never
+replays stored calldata.
 
 `runPropose` owner-gates the proposer on-chain; with `--timelock` it wraps all
 calls into one `scheduleBatch` via `wrapWithTimelockSchedule` (`safe-utils.ts`;
@@ -321,7 +406,7 @@ parked tasks are reconciled weekly by `reconcileParkedTasks.yml`.
 | Propose | One-line reason (`--reason` / `SAFE_PROPOSAL_REASON`). Optional, warned once per process — OQ3 flips it to mandatory once the warning has fired zero times across 30 consecutive proposals | Warn | `proposal-intent.ts`; read the trigger with `report-reason-adoption.ts` (read-only) |
 | Propose | In-flight nonce uniqueness per Safe: concurrent proposers may still derive the same nonce, but only one insert survives (partial unique index over `pending` + `submitted`, compared case-insensitively so the Tron and EVM spellings of one Safe collide). The guarantee is **absent** if the index could not be built — in-flight rows already sharing a nonce, or a role without `createIndex` — and the build warns in both cases. Nothing is ever dropped, so a pre-`_ci` index from an earlier build stays as a weaker, redundant constraint | Block insert, re-run required | `unique_inflight_safe_nonce_ci` index in `safe-utils.ts`; diagnose with `report-nonce-collisions.ts` (read-only) |
 | Propose | Removal safety: protected-facet allowlist, live-selector hold-back, fail-closed diffs | Block + alert | `diamondRemovalDiff.ts`, `drain-parked-tasks.ts` |
-| Propose | Production `diamondUpdateFacet`: each selected facet's `src/` import closure must match `origin/main`, else open PR + audit-log commit freeze (audit log read from `main`); judged on the working tree, so a checkout on `main` is not exempt; staging and testnets are not gated | Block (prod non-testnet facet **additions** via `diamondUpdateFacet` and `proposeDiamondCut` only — not periphery, emergency pause, removals, or the generic `sendOrPropose` chokepoint) | `script/deploy/github/verify-approvals.ts` via `diamondUpdateFacet.sh` and `propose-diamond-cut.ts`; verdict cached per run by `deploy-gate-cache.ts`, passes only (PR #2128, #2286) |
+| Propose | Production: each facet the cut installs must have its `src/` import closure match `origin/main`, else open PR + audit-log commit freeze (audit log read from `main`); judged on the working tree, so a checkout on `main` is not exempt; testnets are not gated, and there is no environment exemption | Block (prod non-testnet facet **additions and replacements**, on every path that reaches either funnel, the bash `sendOrPropose` included, plus the TypeScript `sendOrPropose` which carries the same call inline — periphery registration, emergency pause and removals install no facet code and are out of scope) | `funnel-deploy-gate.ts` in `propose-to-safe.ts` / `propose-to-safe-tron.ts`, deciding through `script/deploy/github/verify-approvals.ts`; verdict cached per run by `deploy-gate-cache.ts`, passes only (PR #2128, #2286, EXSC-929). **Caveat on Tron:** cut proposals are run from a `contracts-tron` checkout ([TronFork.md](./TronFork.md)), and the gate compares whatever working tree it is run in against *that* checkout's `origin/main` and audit log — not `lifinance/contracts` main |
 | Confirm | Signer must be an owner; network must be active; threshold and nonce read on-chain per Safe | Block / skip | `confirm-safe-tx.ts`, `safe-utils.ts` |
 | Confirm | Ledger blind-signing enabled, fail-fast before any review | Block | `checkBlindSigningEnabled` in `ledger.ts` |
 | Confirm | Full calldata decode: diamond cut, scheduleBatch, whitelist, periphery, roles; per-selector name resolution | Display / warn only | `safe-decode-utils.ts` (`formatDecodedTxDataForDisplay`) |
@@ -423,6 +508,6 @@ Design themes under discussion. Nothing below exists in the repo today:
 - **Bytecode ↔ audit attestation** — verify the deployed bytecode/commit
   against the audited commit in `audit/auditLog.json` at signing time,
   instead of inferring "audited" from the version string. (Propose-time
-  source-file freeze on `diamondUpdateFacet` is a different check already
-  described in §4.2 / §5 — it is not bytecode attestation and does not
-  cover the other propose entry points.)
+  source-file freeze in the proposal funnel is a different check already
+  described in §4.2 / §5 — it is not bytecode attestation, and it judges
+  source files rather than the deployed bytes.)

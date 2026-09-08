@@ -66,6 +66,7 @@
     "build:typechain-and-abi": "bun typechain:incremental && bun abi:generate:incremental",
     "abi:removeDuplicateEvents": "bunx tsx ./script/removeDuplicateEventsFromABI.ts",
     "add-network-rpc": "bunx tsx ./script/mongoDb/add-network-rpc.ts",
+    "audit-rpc-priorities": "bunx tsx ./script/mongoDb/audit-rpc-priorities.ts",
     "add-safe-owners-and-threshold": "bash script/deploy/safe/with-safe-tunnel.sh && bunx tsx ./script/deploy/safe/add-safe-owners-and-threshold.ts",
     "codegen": "plop",
     "compile": "forge build",
