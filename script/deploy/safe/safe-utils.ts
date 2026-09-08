@@ -59,6 +59,10 @@ import {
 
 import { SAFE_SINGLETON_ABI } from './config'
 import {
+  assertProposalOperationPermitted,
+  evaluateDelegateCallGate,
+} from './delegatecall-gate'
+import {
   getDeployedFacetVersionFromLog,
   getTargetStateFacetVersion,
 } from './facet-version-utils'
@@ -844,6 +848,7 @@ export class SafeClient {
   public async signTransaction(
     safeTx: ISafeTransaction
   ): Promise<ISafeTransaction> {
+    assertProposalOperationPermitted(evaluateDelegateCallGate(safeTx.data))
     if (resolveSafeSigningMode(process.env) === 'hash')
       return this.signTransactionWithHash(safeTx)
 
@@ -986,6 +991,7 @@ export class SafeClient {
   public async executeTransaction(
     safeTx: ISafeTransaction
   ): Promise<IChainExecutionResult> {
+    assertProposalOperationPermitted(evaluateDelegateCallGate(safeTx.data))
     try {
       const signatures = this.formatSignatures(safeTx.signatures)
       if (!this.chainExecutor)
@@ -1009,6 +1015,7 @@ export class SafeClient {
       // Relabelling it would tell the operator a nonce was consumed when nothing
       // was ever sent.
       if (errorMsg.includes('refusing to broadcast')) throw error
+      if (errorMsg.startsWith('Operation gate:')) throw error
 
       // Redacted: viem embeds the endpoint, credentials and all, in error.message,
       // and SlackNotifier publishes it outside the workflow log's masking.

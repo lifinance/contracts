@@ -40,6 +40,10 @@ import {
   ConfirmSafeTxPrefetchQueue,
   type IConfirmSafeTxNetworkContext,
 } from './confirm-safe-tx-prefetch'
+import {
+  evaluateDelegateCallGate,
+  renderDelegateCallGate,
+} from './delegatecall-gate'
 import type { ILedgerAccountResult } from './ledger'
 import {
   LEDGER_FLEX_WRAP_NOTE,
@@ -400,7 +404,11 @@ const processTxs = async (
       `    To:              \u001b[32m${toDisplay}${toExplorerSuffix}\u001b[0m`,
       `    Value:           \u001b[32m${tx.safeTx.data.value}\u001b[0m`,
       `    Operation:       \u001b[32m${
-        tx.safeTx.data.operation === 0 ? 'Call' : 'DelegateCall'
+        tx.safeTransaction.data.operation === 0
+          ? 'Call'
+          : tx.safeTransaction.data.operation === 1
+          ? 'DelegateCall'
+          : `not Call (${String(tx.safeTransaction.data.operation)})`
       }\u001b[0m`,
       `    Data:            \u001b[32m${tx.safeTx.data.data}\u001b[0m`,
       `    Proposer:        \u001b[32m${proposerDisplay}\u001b[0m`,
@@ -432,6 +440,12 @@ const processTxs = async (
     }
 
     consola.info(detailLines.join('\n'))
+
+    // The struct the signature covers, never the stored row: createTransaction
+    // normalises an absent operation to Call, so those two copies can disagree.
+    const operationVerdict = evaluateDelegateCallGate(tx.safeTransaction.data)
+    for (const line of renderDelegateCallGate(operationVerdict))
+      consola.info(line)
 
     // A display error must never block signing.
     const verificationDisplay = resolveSignerVerificationDisplay(
@@ -508,23 +522,25 @@ const processTxs = async (
     let action: string
     if (privKeyType === PrivateKeyTypeEnum.SAFE_SIGNER) {
       const options = ['Do Nothing']
-      if (!tx.hasSignedAlready) {
-        options.push('Sign')
+      if (!operationVerdict.refuses) {
+        if (!tx.hasSignedAlready) {
+          options.push('Sign')
 
-        // Check if signing with current user + deployer (if needed) would meet threshold
-        if (
-          shouldShowSignAndExecuteWithDeployer(
-            tx.safeTransaction,
-            tx.threshold,
-            signerAddress
+          // Check if signing with current user + deployer (if needed) would meet threshold
+          if (
+            shouldShowSignAndExecuteWithDeployer(
+              tx.safeTransaction,
+              tx.threshold,
+              signerAddress
+            )
           )
-        )
-          options.push('Sign and Execute With Deployer')
-      }
+            options.push('Sign and Execute With Deployer')
+        }
 
-      if (tx.canExecute) {
-        options.push('Execute')
-        options.push('Execute with Deployer')
+        if (tx.canExecute) {
+          options.push('Execute')
+          options.push('Execute with Deployer')
+        }
       }
 
       action = await consola.prompt('Select action:', {
@@ -533,25 +549,27 @@ const processTxs = async (
       })
     } else {
       const options = ['Do Nothing']
-      if (!tx.hasSignedAlready) {
-        options.push('Sign')
-        if (wouldMeetThreshold(tx.safeTransaction, tx.threshold))
-          options.push('Sign & Execute')
+      if (!operationVerdict.refuses) {
+        if (!tx.hasSignedAlready) {
+          options.push('Sign')
+          if (wouldMeetThreshold(tx.safeTransaction, tx.threshold))
+            options.push('Sign & Execute')
 
-        // Check if signing with current user + deployer (if needed) would meet threshold
-        if (
-          shouldShowSignAndExecuteWithDeployer(
-            tx.safeTransaction,
-            tx.threshold,
-            signerAddress
+          // Check if signing with current user + deployer (if needed) would meet threshold
+          if (
+            shouldShowSignAndExecuteWithDeployer(
+              tx.safeTransaction,
+              tx.threshold,
+              signerAddress
+            )
           )
-        )
-          options.push('Sign and Execute With Deployer')
-      }
+            options.push('Sign and Execute With Deployer')
+        }
 
-      if (hasEnoughSignatures(tx.safeTransaction, tx.threshold)) {
-        options.push('Execute')
-        options.push('Execute with Deployer')
+        if (hasEnoughSignatures(tx.safeTransaction, tx.threshold)) {
+          options.push('Execute')
+          options.push('Execute with Deployer')
+        }
       }
 
       action = await consola.prompt('Select action:', {

@@ -2325,4 +2325,47 @@ describe('SafeClient.signTransaction default path', () => {
     expect(calls.filter((call) => call.startsWith('signMessage'))).toEqual([])
     expect(calls).not.toContain('getTransactionHash')
   })
+
+  it('never reaches the signing client for a delegatecall', async () => {
+    const { client, calls } = await makeClient()
+
+    await expectRejects(
+      client.signTransaction(
+        buildSafeTx({ operation: OperationTypeEnum.DelegateCall })
+      ),
+      /Operation gate:[\s\S]*Nothing has been signed or executed/
+    )
+
+    expect(calls).toEqual([])
+  })
+})
+
+describe('SafeClient.executeTransaction operation gate', () => {
+  it('never reaches the chain executor for a delegatecall', async () => {
+    const { SafeClient } = await import('./safe-utils')
+    const account = privateKeyToAccount(generatePrivateKey())
+    const broadcasts: unknown[] = []
+    const client = new SafeClient(
+      {} as never,
+      {} as never,
+      SAFE_ADDR,
+      account,
+      {
+        executeTransaction: async (execution) => {
+          broadcasts.push(execution)
+          return { hash: '0x1' as Hex }
+        },
+      },
+      1
+    )
+
+    await expectRejects(
+      client.executeTransaction(
+        buildSafeTx({ operation: OperationTypeEnum.DelegateCall })
+      ),
+      /Operation gate:[\s\S]*Nothing has been signed or executed/
+    )
+
+    expect(broadcasts).toEqual([])
+  })
 })

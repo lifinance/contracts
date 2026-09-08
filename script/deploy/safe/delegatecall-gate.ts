@@ -16,7 +16,9 @@
 
 import { sanitizeProvenanceText } from '../shared/git-provenance'
 
-import { OperationTypeEnum } from './safe-utils'
+/** Safe `operation` values. Literals so this module does not import `safe-utils`. */
+const CALL = 0
+const DELEGATE_CALL = 1
 
 export interface IDelegateCallVerdict {
   /** True when this proposal must not be signed or executed. */
@@ -110,10 +112,9 @@ export const evaluateDelegateCallGate = (
 ): IDelegateCallVerdict => {
   const operation = data?.operation
 
-  if (operation === OperationTypeEnum.Call)
-    return { refuses: false, reason: '' }
+  if (operation === CALL) return { refuses: false, reason: '' }
 
-  if (operation === OperationTypeEnum.DelegateCall)
+  if (operation === DELEGATE_CALL)
     return {
       refuses: true,
       reason:
