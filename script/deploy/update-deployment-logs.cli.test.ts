@@ -113,6 +113,13 @@ const runAdd = (options: {
   }
   // `bun test` sets NODE_ENV=test; this child is exercised as a CLI.
   delete env.NODE_ENV
+  // Isolate git identity: `git config user.name` reads the global config when
+  // there is no checkout, so a runner with no identity and a laptop with one
+  // disagree on `actor`. Local repo config from `makeRepo` still applies.
+  const isolatedHome = mkdtempSync(join(tmpdir(), 'deploy-log-home-'))
+  env.HOME = isolatedHome
+  env.GIT_CONFIG_NOSYSTEM = '1'
+  env.GIT_CONFIG_GLOBAL = join(isolatedHome, '.gitconfig')
   // The capture reads the workflow environment in preference to git, so on an
   // Actions runner every case below would observe the runner's own branch and
   // actor instead of the throwaway repo it just built — and the suite would
@@ -328,10 +335,9 @@ describe('update-deployment-logs add — provenance capture', () => {
       expect(upsert.update.$setOnInsert).toMatchObject({
         gitBranch: 'UNKNOWN',
         repo: 'UNKNOWN',
+        actor: 'UNKNOWN',
       })
-      // The actor survives: `git config user.name` answers from the global
-      // config outside a checkout, so who ran it is still known.
-      expect(upsert.update.$set).toHaveProperty('actor', 'human')
+      expect(upsert.update.$set).not.toHaveProperty('actor')
       // The dirty list must be absent, not empty: the capture returns an empty
       // list for an unreadable tree as well as a clean one, and only the
       // recorded errors separate them.
