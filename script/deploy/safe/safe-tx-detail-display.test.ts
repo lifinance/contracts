@@ -62,8 +62,10 @@ const lineStartingWith = (lines: string[], label: string): string => {
 }
 
 describe('no proposer-controlled field can drive the signer’s terminal', () => {
+  // Named rather than `keyof ISafeTxDetailInput`: these are exactly the fields
+  // the block sanitises, and the wider type also admitted the two callbacks.
   const cases: {
-    field: keyof ISafeTxDetailInput
+    field: 'data' | 'safeTxHash' | 'proposer' | 'to' | 'nonce' | 'value'
     label: string
   }[] = [
     { field: 'data', label: 'Data:' },
@@ -136,12 +138,12 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
     // still not what it looks like.
     for (const hidden of ['0x1\u200d2', '0x1\u31642', '0x1\uffa02'])
       expect(lineStartingWith(linesFor({ data: hidden }), 'Data:')).toContain(
-        '1 invisible character in a value of 5'
+        '1 invisible character among 5 printable'
       )
 
     expect(
       lineStartingWith(linesFor({ data: '0x1\u200d\u31642' }), 'Data:')
-    ).toContain('2 invisible characters in a value of 6')
+    ).toContain('2 invisible characters among 6 printable')
   })
 
   it('still marks a hostile value after the network formatter runs', () => {
@@ -221,6 +223,130 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
     expect(clean).toContain('etherscan')
   })
 
+  it('keeps the name and link when only surrounding whitespace was lost', () => {
+    // Trimming the ends cannot change which address this is, and the name is
+    // the strongest confirmation the signer gets that the target is the
+    // contract they expect.
+    const line = lineStartingWith(
+      buildSafeTxDetailLines({
+        ...benign,
+        to: `  ${benign.to as string}  `,
+        toTargetName: '(LiFiDiamond)',
+        explorerUrlFor: () => 'https://etherscan.io/address/0x11',
+      }),
+      'To:'
+    )
+
+    expect(line).toContain('(LiFiDiamond)')
+    expect(line).toContain('etherscan')
+    // The repair is still disclosed.
+    expect(line).toContain('sanitised for display')
+  })
+
+  it('drops the name and link for an invisible character the sanitiser keeps', () => {
+    // The stripped case is covered above; this is the branch where stored and
+    // printable have the same length, so a change-detector would miss it.
+    const line = lineStartingWith(
+      buildSafeTxDetailLines({
+        ...benign,
+        to: `${benign.to as string}‍`,
+        toTargetName: '(LiFiDiamond)',
+        explorerUrlFor: () => 'https://etherscan.io/address/0x11',
+      }),
+      'To:'
+    )
+
+    expect(line).not.toContain('(LiFiDiamond)')
+    expect(line).not.toContain('etherscan')
+    expect(line).toContain('invisible character')
+  })
+
+  it('drops the name and link for a target that cannot be coerced', () => {
+    const line = lineStartingWith(
+      buildSafeTxDetailLines({
+        ...benign,
+        to: {
+          toString() {
+            throw new Error('nope')
+          },
+        },
+        toTargetName: '(LiFiDiamond)',
+        explorerUrlFor: () => 'https://etherscan.io/address/0x11',
+      }),
+      'To:'
+    )
+
+    expect(line).not.toContain('(LiFiDiamond)')
+    expect(line).not.toContain('etherscan')
+  })
+
+  it('resolves nothing for a target that was never a string', () => {
+    // `String(undefined)` is a word, not an address. Naming it would present a
+    // row with no target at all as a known contract.
+    for (const to of [undefined, 42, true])
+      expect(
+        lineStartingWith(
+          buildSafeTxDetailLines({
+            ...benign,
+            to,
+            toTargetName: '(LiFiDiamond)',
+            explorerUrlFor: () => 'https://etherscan.io/address/0x11',
+          }),
+          'To:'
+        )
+      ).not.toContain('(LiFiDiamond)')
+  })
+
+  it('shows no name or link beside an address that would not render', () => {
+    // A formatter that throws used to yield an empty fragment, leaving the
+    // name and the link describing nothing at all.
+    const line = lineStartingWith(
+      buildSafeTxDetailLines({
+        ...benign,
+        toTargetName: '(LiFiDiamond)',
+        explorerUrlFor: () => 'https://etherscan.io/address/0x11',
+        formatAddress: () => {
+          throw new Error('no codec for this network')
+        },
+      }),
+      'To:'
+    )
+
+    expect(line).not.toContain('(LiFiDiamond)')
+    expect(line).not.toContain('etherscan')
+    expect(line).toContain('could not be rendered for this network')
+    // The stored address is still shown, unformatted, rather than nothing.
+    expect(line).toContain(benign.to as string)
+  })
+
+  it('sanitises the proposer formatter’s return value, not only its input', () => {
+    // `formattedAddressField` has its own call into the formatter; covering
+    // only the target's would leave this one unobserved.
+    const line = lineStartingWith(
+      buildSafeTxDetailLines({
+        ...benign,
+        formatAddress: () => '0xP[2Jwiped',
+      }),
+      'Proposer:'
+    )
+
+    expect(stripOwnColours(line).match(TERMINAL_DRIVING)).toBeNull()
+    expect(line).toContain('wiped')
+  })
+
+  it('sanitises the target name, which is a string the caller composes', () => {
+    const line = lineStartingWith(
+      buildSafeTxDetailLines({
+        ...benign,
+        toTargetName: '(LiFiDiamond)[2J',
+      }),
+      'To:'
+    )
+
+    expect(stripOwnColours(line).match(TERMINAL_DRIVING)).toBeNull()
+    expect(line).toContain('(LiFiDiamond)')
+  })
+
   it('puts the notice outside the colour on the address lines too', () => {
     for (const [field, label] of [
       ['to', 'To:'],
@@ -271,6 +397,66 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
     )
 
     expect(line).toContain('no printable characters')
+  })
+
+  it('names a stored value that is not a string, whatever it renders as', () => {
+    // Says only what it knows: `[' ']` renders as nothing while holding an
+    // element, so "empty" would be a false claim about the container.
+    for (const [value, expected] of [
+      [[], 'stored as an array, not a string'],
+      [[' '], 'stored as an array, not a string'],
+      [{}, 'stored as an object, not a string'],
+      [new Date(0), 'stored as an object, not a string'],
+    ] as const)
+      expect(
+        lineStartingWith(linesFor({ data: value as never }), 'Data:')
+      ).toContain(expected)
+
+    // `typeof null` is 'object'; a stored null renders as "null" and is not a
+    // malformed container.
+    expect(lineStartingWith(linesFor({ data: null }), 'Data:')).not.toContain(
+      'not a string'
+    )
+    // A stored empty string is legitimate and stays unremarked.
+    expect(lineStartingWith(linesFor({ data: '' }), 'Data:')).not.toContain('⚠')
+  })
+
+  it('separates two remarks so neither reads as part of the other', () => {
+    const line = lineStartingWith(linesFor({ data: ['0x1‍'] }), 'Data:')
+
+    expect(line).toContain('; ')
+    expect(line).toContain('stored as an array, not a string')
+    expect(line).toContain('invisible character')
+  })
+
+  it('counts invisibles among the printable text, not the stored value', () => {
+    // U+200B is stripped, so reporting it as surviving would be a false alarm
+    // about a character the reader is not being shown.
+    expect(
+      lineStartingWith(linesFor({ data: '0x1​2' }), 'Data:')
+    ).not.toContain('invisible character')
+    // And in code points: two emoji plus a joiner is three characters.
+    expect(
+      lineStartingWith(linesFor({ data: '\u{1f600}\u{1f600}‍' }), 'Data:')
+    ).toContain('among 3 printable')
+  })
+
+  it('marks a value that cannot be coerced at all', () => {
+    const line = lineStartingWith(
+      linesFor({
+        data: {
+          toString() {
+            throw new Error('nope')
+          },
+        },
+      }),
+      'Data:'
+    )
+
+    expect(line).toContain('unrenderable')
+    // Without the notice this is indistinguishable from a row storing the
+    // literal string "unrenderable".
+    expect(line).toContain('value cannot be shown')
   })
 
   it('leaves a benign field unmarked', () => {

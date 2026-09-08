@@ -1,10 +1,16 @@
 /**
  * A smoke check on the shape of one call. It proves nothing about safety.
  *
- * Read that literally. Every assertion here is `toContain` over the file's
- * text, which a comment anywhere in the file satisfies and a duplicate object
- * key defeats — measured, not supposed. It catches an accidental rewrite and
- * an adversary walks past it.
+ * Read that literally. The positive assertions are `toContain` over the file's
+ * text, which a comment anywhere in the file satisfies and a spread override
+ * defeats — measured, not supposed. They catch an accidental rewrite and an
+ * adversary walks past them.
+ *
+ * The `not.toContain` pair is the half worth keeping: it fails conservatively,
+ * catching an inline `detailLines.push` or the raw nonce being interpolated
+ * again. Its cost is the mirror image — a comment or string literal elsewhere
+ * in `confirm-safe-tx.ts` that merely mentions either turns this suite red for
+ * no behavioural reason.
  *
  * The property that matters — no stored value reaches a printed line
  * unsanitised — is held by `buildSafeTxDetailLines`, which takes every stored

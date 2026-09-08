@@ -62,18 +62,26 @@ export interface IParkedTaskRef {
  * pre-rendered by the caller, because a caller that sanitises them itself
  * leaves this block unable to tell that it did — and so unable to say so.
  *
- * The remaining `string` fields and the two callbacks are treated as untrusted
- * text all the same: their contents are sanitised where they are interpolated,
- * because a caller that composed one out of the stored row would otherwise
- * route straight past everything above. The exceptions are `nonceWarning` and
- * `operationLabel`, which carry colour codes of their own and so cannot be
- * sanitised without stripping them — both are built from values that cannot
- * hold a stored string.
+ * `toTargetName` and both callbacks are treated as untrusted text all the
+ * same: their contents are sanitised where they are interpolated, because a
+ * caller that composed one out of the stored row would otherwise route
+ * straight past everything above.
+ *
+ * Two fields are not, and cannot be: `nonceWarning` and `operationLabel` carry
+ * colour codes of their own, which sanitising would strip. Both are built from
+ * values that cannot hold a stored string — a chain-read `bigint` and a
+ * value already sanitised by `describeOperationValue`. `nonceColor` is typed
+ * as a closed set instead, being the only field that lands inside an escape
+ * sequence rather than beside one.
  */
 export interface ISafeTxDetailInput {
   readonly nonce: unknown
-  /** SGR parameter for the nonce, chosen by the caller from nonce status. */
-  readonly nonceColor: string
+  /**
+   * SGR parameter for the nonce. A closed set rather than a string: this is
+   * the one field interpolated *inside* an escape sequence rather than beside
+   * one, so a free-form value here would be a control sequence, not text.
+   */
+  readonly nonceColor: '31' | '32' | '33'
   /** Pre-rendered warning appended after the nonce, or empty. */
   readonly nonceWarning: string
   /** The target as stored. */
@@ -101,8 +109,11 @@ export interface ISafeTxDetailInput {
 /** A stored value reduced to something safe to print. */
 interface IRenderedField {
   readonly text: string
-  /** True when the stored value is not what the line will show. */
-  readonly altered: boolean
+  /**
+   * True when the printable text still identifies whatever the stored value
+   * identified — only leading and trailing whitespace was lost.
+   */
+  readonly identityPreserved: boolean
   /** Appended after the field; empty unless there is something to report. */
   readonly notice: string
 }
@@ -120,7 +131,7 @@ const asPrintable = (value: unknown): IRenderedField => {
   } catch {
     return {
       text: 'unrenderable',
-      altered: true,
+      identityPreserved: false,
       notice: color(YELLOW, ' ⚠ sanitised for display — value cannot be shown'),
     }
   }
@@ -142,14 +153,15 @@ const asPrintable = (value: unknown): IRenderedField => {
           }`
     )
 
-  // Reported even when nothing was stripped: these survive the sanitiser, so
-  // two values differing only by them render identically with no other sign.
+  // Counted on the printable text, not the stored value: a character the
+  // sanitiser removed is reported by the remark above, and repeating it here
+  // would claim it survived.
   const hidden = (text.match(DEFAULT_IGNORABLE) ?? []).length
   if (hidden > 0)
     remarks.push(
-      `${hidden} invisible character${hidden === 1 ? '' : 's'} in a value of ${
+      `${hidden} invisible character${hidden === 1 ? '' : 's'} among ${
         [...text].length
-      }`
+      } printable`
     )
 
   // Says only what it knows. An earlier version called these "empty", which is
@@ -164,7 +176,16 @@ const asPrintable = (value: unknown): IRenderedField => {
 
   return {
     text,
-    altered: remarks.length > 0,
+    // Each condition rules out a different way the glyphs a reader sees can
+    // fail to determine the stored value. Anything that was not a string was
+    // never an address, absent included — `String(undefined)` is a word, not a
+    // target. Trimming the ends is the one repair that cannot change which
+    // address this is; an edit inside it can, since a zero-width space between
+    // two hex digits simply vanishes. And a surviving invisible character is
+    // that same problem without the repair: the sanitiser keeps it by design,
+    // so the text and the glyphs disagree.
+    identityPreserved:
+      typeof value === 'string' && stored.trim() === text && hidden === 0,
     notice: remarks.length > 0 ? color(YELLOW, ` ⚠ ${remarks.join('; ')}`) : '',
   }
 }
@@ -182,14 +203,27 @@ const storedField = (value: unknown, code: string): string => {
  * their return value, so a caller that ignored its argument and reached for the
  * stored row would render it raw. Sanitising the result costs nothing on a real
  * address and removes that route.
+ *
+ * A renderer that throws or returns nothing yields `undefined` rather than an
+ * empty string. Silently dropping it would leave the decorations that were
+ * meant to describe it — a target name, an explorer link — standing beside no
+ * address at all, which reads as a stronger claim than the row supports.
  */
-const printableFragment = (produce: () => string): string => {
+const printableFragment = (produce: () => string): string | undefined => {
+  let produced: string
   try {
-    return sanitizeProvenanceText(produce())
+    produced = produce()
   } catch {
-    return ''
+    return undefined
   }
+  return sanitizeProvenanceText(produced) || undefined
 }
+
+/** Names a fragment that could not be rendered, in the notice's voice. */
+const FRAGMENT_UNRENDERABLE = color(
+  YELLOW,
+  ' ⚠ the address could not be rendered for this network'
+)
 
 /** Renders a stored address through the network's own display form. */
 function formattedAddressField(
@@ -197,36 +231,44 @@ function formattedAddressField(
   formatAddress: (address: string) => string
 ): string {
   const { text, notice } = asPrintable(value)
-  return `${color(
-    GREEN,
-    printableFragment(() => formatAddress(text))
-  )}${notice}`
+  const rendered = printableFragment(() => formatAddress(text))
+  return rendered === undefined
+    ? `${color(GREEN, text)}${notice}${FRAGMENT_UNRENDERABLE}`
+    : `${color(GREEN, rendered)}${notice}`
 }
 
 /**
  * The target, with its name from the deployment records and its explorer link.
  *
- * Neither is resolved for an address that had to be repaired. Sanitising a
- * corrupt address can produce a *valid* one — a zero-width space inside the hex
- * simply disappears — and looking that up would present a corrupt row as a
- * named, known contract with a working link, which is a stronger claim than the
- * row supports and a more convincing one than it made before.
+ * Neither is resolved unless the printable text still identifies the address
+ * that was stored. Sanitising a corrupt address can produce a *valid* one — a
+ * zero-width space between two hex digits simply disappears — and naming that
+ * would present a corrupt row as a known contract with a working link, a
+ * stronger claim than the row supports and a more convincing one than the same
+ * row made before this block existed. Trimmed whitespace is exempt: it cannot
+ * change which address this is.
+ *
+ * Both are dropped too when the address itself will not render, so a name and
+ * a link can never stand beside nothing.
  */
 function toLine(input: ISafeTxDetailInput): string {
-  const { text, altered, notice } = asPrintable(input.to)
-  const name =
-    !altered && input.toTargetName
-      ? ` ${color(
-          YELLOW,
-          printableFragment(() => input.toTargetName)
-        )}`
-      : ''
-  const url = altered ? '' : printableFragment(() => input.explorerUrlFor(text))
-  const link = url ? ` ${color(CYAN, url)}` : ''
-  return `${color(
-    GREEN,
-    `${printableFragment(() => input.formatAddress(text))}${name}${link}`
-  )}${notice}`
+  const { text, identityPreserved, notice } = asPrintable(input.to)
+  const address = printableFragment(() => input.formatAddress(text))
+  const resolvable = identityPreserved && address !== undefined
+
+  const targetName = resolvable
+    ? printableFragment(() => input.toTargetName)
+    : undefined
+  const name = targetName === undefined ? '' : ` ${color(YELLOW, targetName)}`
+
+  const url = resolvable
+    ? printableFragment(() => input.explorerUrlFor(text))
+    : undefined
+  const link = url === undefined ? '' : ` ${color(CYAN, url)}`
+
+  return address === undefined
+    ? `${color(GREEN, text)}${notice}${FRAGMENT_UNRENDERABLE}`
+    : `${color(GREEN, `${address}${name}${link}`)}${notice}`
 }
 
 /**

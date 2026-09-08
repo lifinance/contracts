@@ -446,7 +446,7 @@ const processTxs = async (
           chainId: chain.id,
           verifyingContract: safeAddress,
           to: tx.safeTransaction.data.to,
-          value: String(tx.safeTx.data.value),
+          value: String(tx.safeTransaction.data.value),
           data: tx.safeTx.data.data as Hex,
         })
         consola.info(
