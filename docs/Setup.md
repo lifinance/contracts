@@ -44,6 +44,14 @@ only the quick-start; this is the full guide.
    your machine does not: rerun `foundryup --install "$(cat .foundry-version)"`
    after the pin changes, or deploys will refuse.
 
+   The zkEVM toolchain is pinned separately, in `foundry.toml`
+   `[external.zksync]` (`foundry_zksync` for the binary release, `zksolc` for
+   the compiler it drives). `install_foundry_zksync` installs that release and
+   then refuses unless both pins hold, so `FOUNDRY_ZKSYNC_VERSION` cannot be
+   used to build a deployment against a release the repository does not pin.
+   The Tron deploy scripts deploy pre-built Forge artifacts and check
+   `.foundry-version` before loading any of them.
+
 4. Set up environment variables:
 
    ```bash

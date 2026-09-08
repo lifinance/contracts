@@ -226,6 +226,7 @@ contract UpdateScriptBaseTest is Test, DiamondTest {
     bytes4 internal constant WITHDRAW = WithdrawFacet.withdraw.selector;
 
     uint256 internal constant MAINNET_CHAIN_ID = 1;
+    string internal constant ARTIFACTS_DIR = "./out";
     string internal constant BOGUS_ARTIFACTS_DIR =
         "./out/nonexistent-artifacts";
 
@@ -238,6 +239,22 @@ contract UpdateScriptBaseTest is Test, DiamondTest {
     address internal newOwnershipFacet;
     address internal attestedOwnershipFacet;
     address internal withdrawFacet;
+
+    /// @dev Every case that computes real cut calldata reaches `contract-selectors.sh` through
+    ///      `vm.ffi`, and that script reads the facet's `methodIdentifiers` off the build artifact
+    ///      in `out/`. `forge build` and `forge test` write that tree, but `forge coverage` compiles
+    ///      instrumented sources through a pipeline that never does, so under coverage the artifact
+    ///      is absent and the FFI can only fail. Skipping keeps the weekly coverage run reporting
+    ///      instead of red; the PR path still runs every case, because there `out/` is populated.
+    ///
+    ///      The guard deliberately lives here and not in `UpdateScriptBase.getSelectors`: on a real
+    ///      deploy a missing artifact must keep failing loudly, since an empty selector list would
+    ///      otherwise encode as a valid no-op diamond cut.
+    modifier whenSelectorArtifactExists(string memory _facetName) {
+        if (!vm.isFile(_artifactPath(_facetName))) vm.skip(true);
+
+        _;
+    }
 
     function setUp() public {
         vm.chainId(MAINNET_CHAIN_ID);
@@ -279,7 +296,10 @@ contract UpdateScriptBaseTest is Test, DiamondTest {
         vm.setEnv("DIAMOND_STATE_BLOCK", vm.toString(block.number));
     }
 
-    function test_EnvVarsDriveCutOptions() public {
+    function test_EnvVarsDriveCutOptions()
+        public
+        whenSelectorArtifactExists("OwnershipFacet")
+    {
         EnvDrivenHarness harness = new EnvDrivenHarness();
 
         (, bytes memory cutData) = harness.runUpdate("OwnershipFacet");
@@ -298,7 +318,10 @@ contract UpdateScriptBaseTest is Test, DiamondTest {
         );
     }
 
-    function testRevert_SelectorArtifactsDirFromEnv() public {
+    function testRevert_SelectorArtifactsDirFromEnv()
+        public
+        whenSelectorArtifactExists("OwnershipFacet")
+    {
         EnvDrivenHarness envHarness = new EnvDrivenHarness();
         UpdateScriptBaseHarness harness = new UpdateScriptBaseHarness();
 
@@ -319,7 +342,10 @@ contract UpdateScriptBaseTest is Test, DiamondTest {
         );
     }
 
-    function test_ReplaceCutMatchesGoldenCalldata() public {
+    function test_ReplaceCutMatchesGoldenCalldata()
+        public
+        whenSelectorArtifactExists("OwnershipFacet")
+    {
         DefaultCutOptionsHarness harness = new DefaultCutOptionsHarness();
 
         (, bytes memory cutData) = harness.runUpdate("OwnershipFacet");
@@ -334,7 +360,10 @@ contract UpdateScriptBaseTest is Test, DiamondTest {
         );
     }
 
-    function test_AddCutMatchesGoldenCalldata() public {
+    function test_AddCutMatchesGoldenCalldata()
+        public
+        whenSelectorArtifactExists("WithdrawFacet")
+    {
         DefaultCutOptionsHarness harness = new DefaultCutOptionsHarness();
 
         (, bytes memory cutData) = harness.runUpdate("WithdrawFacet");
@@ -353,7 +382,10 @@ contract UpdateScriptBaseTest is Test, DiamondTest {
         );
     }
 
-    function test_RemoveCutMatchesGoldenCalldata() public {
+    function test_RemoveCutMatchesGoldenCalldata()
+        public
+        whenSelectorArtifactExists("OwnershipFacet")
+    {
         _registerStaleSelectorsOnOwnershipFacet();
 
         DefaultCutOptionsHarness harness = new DefaultCutOptionsHarness();
@@ -381,7 +413,10 @@ contract UpdateScriptBaseTest is Test, DiamondTest {
         assertEq(cutData, _encodeCut(expectedCut));
     }
 
-    function test_ExplicitDefaultOptionsProduceIdenticalCalldata() public {
+    function test_ExplicitDefaultOptionsProduceIdenticalCalldata()
+        public
+        whenSelectorArtifactExists("OwnershipFacet")
+    {
         DefaultCutOptionsHarness baseline = new DefaultCutOptionsHarness();
         (, bytes memory baselineCutData) = baseline.runUpdate(
             "OwnershipFacet"
@@ -398,6 +433,7 @@ contract UpdateScriptBaseTest is Test, DiamondTest {
 
     function test_FacetAddressOverrideTakesPrecedenceOverDeploymentsFile()
         public
+        whenSelectorArtifactExists("OwnershipFacet")
     {
         FacetAddressOverrideHarness harness = new FacetAddressOverrideHarness();
 
@@ -419,7 +455,10 @@ contract UpdateScriptBaseTest is Test, DiamondTest {
         assertTrue(harness.isNoBroadcast());
     }
 
-    function test_CutVerificationModeAcceptsPinnedBlock() public {
+    function test_CutVerificationModeAcceptsPinnedBlock()
+        public
+        whenSelectorArtifactExists("OwnershipFacet")
+    {
         PinnedVerificationHarness harness = new PinnedVerificationHarness();
 
         (, bytes memory cutData) = harness.runUpdate("OwnershipFacet");
@@ -527,6 +566,21 @@ contract UpdateScriptBaseTest is Test, DiamondTest {
         vm.prank(diamondOwner);
 
         DiamondCutFacet(address(diamond)).diamondCut(staleCut, address(0), "");
+    }
+
+    /// @dev Mirrors the layout `contract-selectors.sh` resolves: `<dir>/<name>.sol/<name>.json`.
+    function _artifactPath(
+        string memory _facetName
+    ) internal pure returns (string memory) {
+        return
+            string.concat(
+                ARTIFACTS_DIR,
+                "/",
+                _facetName,
+                ".sol/",
+                _facetName,
+                ".json"
+            );
     }
 
     function _ownershipSelectors()
