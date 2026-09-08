@@ -24,6 +24,16 @@ interface ICentrifugeTokenBridgeExtended {
     function chainIdToCentrifugeId(
         uint256 evmChainId
     ) external view returns (uint16);
+
+    function spoke() external view returns (address);
+}
+
+/// Registry the TokenBridge resolves the asset through; used to pin the share token's
+/// registration at the forked block.
+interface ICentrifugeSpoke {
+    function shareTokenDetails(
+        address shareToken
+    ) external view returns (uint64 poolId, bytes16 scId);
 }
 
 /// Centrifuge Gateway error raised when the forwarded native value does not cover the
@@ -111,10 +121,14 @@ abstract contract CentrifugeFacetTestBase is TestBaseFacet {
     ICentrifugeTokenBridge internal constant TOKEN_BRIDGE =
         ICentrifugeTokenBridge(0x82a6C7753380f98c093B27c53f86ef6b09C40f49);
 
-    /// @dev deJAAA, a Centrifuge share token, also deployed at the same address on both chains.
-    ///      Its pool hub lives on centrifugeId 1 (Ethereum), so every Ethereum <-> Base transfer
-    ///      is a single-leg transfer.
-    address internal constant ADDRESS_SHARE_TOKEN =
+    /// @dev The share token under test, defaulting to deJAAA. Both deRWA tokens are deployed at
+    ///      the same address on Ethereum and Base, and both pool hubs live on centrifugeId 1
+    ///      (Ethereum), so every Ethereum <-> Base transfer is a single-leg transfer. A concrete
+    ///      suite overrides this before calling `super.setUp()` to run the whole battery against
+    ///      a different asset.
+    // matches how TestBase names its own re-pointable token addresses (ADDRESS_USDC et al)
+    // solhint-disable-next-line var-name-mixedcase
+    address internal ADDRESS_SHARE_TOKEN =
         0xAAA0008C8CF3A7Dca931adaF04336A5D808C82Cc;
 
     /// @dev A chain that the bridge has no centrifugeId mapping for, used to prove the
@@ -156,6 +170,14 @@ abstract contract CentrifugeFacetTestBase is TestBaseFacet {
                 .chainIdToCentrifugeId(UNSUPPORTED_DESTINATION_CHAIN_ID),
             0
         );
+
+        // the bridge resolves the asset through the Spoke, so a re-pin onto a block predating
+        // this token's registration must fail here rather than as a bare ShareTokenDoesNotExist
+        // deep inside a funds-flow assert
+        (uint64 poolId, ) = ICentrifugeSpoke(
+            ICentrifugeTokenBridgeExtended(address(TOKEN_BRIDGE)).spoke()
+        ).shareTokenDetails(ADDRESS_SHARE_TOKEN);
+        assertGt(uint256(poolId), 0);
 
         centrifugeFacet = new TestCentrifugeFacet(TOKEN_BRIDGE);
         bytes4[] memory functionSelectors = new bytes4[](4);
@@ -744,5 +766,31 @@ contract CentrifugeFacetBaseTest is CentrifugeFacetTestBase {
                 .localCentrifugeId(),
             2
         );
+    }
+}
+
+/// @dev deJTRSY is the second deRWA share token registered on both Ethereum and Base with a
+///      permissive (freeze-only) hook, so it is bridgeable through this facet today. Re-running
+///      the whole battery against it proves the facet is not accidentally specific to deJAAA.
+address constant ADDRESS_DEJTRSY = 0xA6233014B9b7aaa74f38fa1977ffC7A89642dC72;
+
+contract CentrifugeFacetMainnetDeJtrsyTest is CentrifugeFacetTestBase {
+    function setUp() public override {
+        customBlockNumberForForking = 25900000;
+        destinationChainId = 8453;
+        ADDRESS_SHARE_TOKEN = ADDRESS_DEJTRSY;
+
+        super.setUp();
+    }
+}
+
+contract CentrifugeFacetBaseDeJtrsyTest is CentrifugeFacetTestBase {
+    function setUp() public override {
+        customRpcUrlForForking = "ETH_NODE_URI_BASE";
+        customBlockNumberForForking = 50860000;
+        destinationChainId = 1;
+        ADDRESS_SHARE_TOKEN = ADDRESS_DEJTRSY;
+
+        super.setUp();
     }
 }
