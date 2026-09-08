@@ -5,9 +5,13 @@
  * Prerequisites, all checked at runtime with an actionable error:
  *   1. `CentrifugeFacet` is registered on the Diamond for `SRC_CHAIN` — the facet has to be
  *      deployed and listed in `script/deploy/_targetState.json` first.
- *   2. The signer holds `BRIDGE_AMOUNT` of the share token. These tokens have no DEX
- *      liquidity and their vaults are ERC-7540 asynchronous, so the balance cannot be
- *      acquired on demand — the wallet has to be funded by a transfer from an existing holder.
+ *   2. The signer holds `BRIDGE_AMOUNT` of the share token. There is no DEX liquidity for
+ *      these tokens, so the balance comes either from a transfer by an existing holder or
+ *      from depositing USDC into the token's ERC-7540 vault. That vault is asynchronous and
+ *      settles only when the pool operator closes an epoch, so plan for roughly a day:
+ *      across every deposit both vaults have ever fulfilled, the request-to-claimable wait
+ *      ran 1.4h to 72h with a ~27h median. Neither bridgeable token has a
+ *      synchronous-deposit vault, so this cannot be done inside one transaction.
  *   3. The signer holds native for the messaging fee and gas.
  *
  * Run:  bunx tsx script/demoScripts/demoCentrifuge.ts
