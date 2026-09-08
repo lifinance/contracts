@@ -11,7 +11,8 @@
  *      hook permits it; minting through the ERC-7540 vault instead would require the pool's
  *      memberlist and settle only on an epoch close. deJTRSY has no pool anywhere, so
  *      running this against deJTRSY means sourcing it from an existing holder.
- *   3. The signer holds native for the messaging fee and gas.
+ *   3. The signer holds native for the messaging fee and gas. The fee comes from Centrifuge's
+ *      bridge quote API, the same source the backend integration reads it from.
  *
  * Run:  bunx tsx script/demoScripts/demoCentrifuge.ts
  */
@@ -25,7 +26,6 @@ import {
   getAbiItem,
   getAddress,
   parseAbi,
-  parseEther,
   parseUnits,
   toFunctionSelector,
   zeroAddress,
@@ -39,6 +39,7 @@ import centrifugeFacetArtifact from '../../out/CentrifugeFacet.sol/CentrifugeFac
 import erc20Artifact from '../../out/ERC20/ERC20.sol/ERC20.json'
 import type { CentrifugeFacet, ILiFi } from '../../typechain'
 import type { SupportedChain } from '../common/types'
+import { fetchWithTimeout } from '../utils/fetchWithTimeout'
 import { getViemChainForNetworkName } from '../utils/viemScriptHelpers'
 
 import {
@@ -83,75 +84,99 @@ const SHARE_TOKEN: Address = SHARE_TOKENS.deJAAA
 // Centrifuge share tokens are fund shares, so one unit already carries real value.
 const BRIDGE_AMOUNT_HUMAN = '1'
 
-// Fee discovery ladder. It starts well below the ~0.0003 ETH measured on the Ethereum -> Base
-// leg and doubles, because the default Base -> Ethereum direction pays for execution on
-// Ethereum and should cost materially more. The ceiling bounds what the script is willing to
-// lock up before the surplus comes back.
-const FEE_PROBE_START = parseEther('0.0001')
-const FEE_PROBE_CEILING = parseEther('0.05')
+// Centrifuge's public quoting endpoint, the same one the backend integration reads the fee
+// from. Documented at https://docs.centrifuge.io/developer/centrifuge-api/#bridge-rest-api.
+const CENTRIFUGE_QUOTE_URL = 'https://api.centrifuge.io/bridge/quote'
 
-// Held back from the fee budget so a discovered fee cannot swallow the balance the broadcast
-// itself still has to pay for. Deliberately well above the ~300k the fork tests settle at,
-// because reserving headroom costs nothing while running out mid-run costs a failed send.
-const BRIDGE_GAS_ALLOWANCE = 1_000_000n
-
-// The ladder only proves a fee is sufficient, never that it exceeds what the Gateway charges.
-// Paying a deliberate margin over it guarantees there is a surplus to refund, which is what the
-// money-flow check at the end asserts; without it an exactly-sufficient fee would report a
-// failure on a bridge that succeeded.
+// The quote is a single number rather than a bracket, so the Gateway may charge exactly what is
+// sent. Paying a deliberate margin over it guarantees there is a surplus to refund, which is
+// what the money-flow check at the end asserts; without it an exact fee would report a failure
+// on a bridge that had succeeded and invite a retry of a completed transfer.
 const FEE_SURPLUS_PERCENT = 25n
 
+// The quote's gas estimate is for calling the TokenBridge directly. Routing through the Diamond
+// adds facet overhead on top, so the balance check reserves a multiple of it.
+const DIAMOND_GAS_OVERHEAD_FACTOR = 3n
+
+interface ICentrifugeQuote {
+  parameters?: {
+    contractAddress?: string
+    functionName?: string
+    value?: string
+  }
+  estimate?: {
+    gasEstimate?: number
+  }
+}
+
 /**
- * Finds a native fee the Centrifuge Gateway accepts for this exact transfer.
+ * Reads the messaging fee for this exact transfer from Centrifuge's bridge quote API.
  *
  * Centrifuge publishes no on-chain fee quote and an underpaid transfer reverts with the
- * Gateway's `NotEnoughGas()`, so a guessed fee risks paying gas for a revert. Doubling an
- * `eth_call` probe costs nothing and pins a sufficient fee at the current block; the Gateway
- * refunds whatever it does not spend, so the fee only has to be enough, not exact. In
- * production this number comes from the LI.FI API quote instead.
+ * Gateway's `NotEnoughGas()`, so the fee has to come from off-chain. This is the same source
+ * the backend integration uses, which is why the demo reads it here rather than probing.
  *
- * @param probe - runs the bridge call under `eth_call` with the given fee, returning the error it reverted with
- * @param feeBudget - the most the signer can put toward the fee, which caps the ladder because `eth_call` charges `value` against the balance
- * @returns the smallest probed fee that simulated successfully
- * @throws when the budget runs out first, or when even the ceiling reverts
+ * The quote is only meaningful if it describes the call this facet actually makes, so the
+ * contract and function it names are checked against the configured `TokenBridge` before the
+ * fee is trusted - the API also advertises routes (Arbitrum, Avalanche and others) that the
+ * deployed `TokenBridge` rejects with `InvalidChainId()`.
+ *
+ * @param params - the transfer to quote: source and destination chain ids, token, amount and receiver
+ * @param tokenBridgeAddress - the bridge this facet calls, which the quote has to agree with
+ * @returns the fee in wei and the API's gas estimate for the direct bridge call
+ * @throws when the API is unreachable, returns a malformed quote, or quotes a different contract
  */
-async function discoverNativeFee(
-  probe: (fee: bigint) => Promise<unknown | null>,
-  feeBudget: bigint
-): Promise<bigint> {
-  let lastError: unknown = null
+async function fetchCentrifugeQuote(
+  params: {
+    fromChainId: number
+    toChainId: number
+    token: Address
+    amount: bigint
+    receiver: Address
+  },
+  tokenBridgeAddress: Address
+): Promise<{ nativeFee: bigint; gasEstimate: bigint }> {
+  const query = new URLSearchParams({
+    fromChain: String(params.fromChainId),
+    toChain: String(params.toChainId),
+    fromToken: params.token,
+    fromAmount: params.amount.toString(),
+    toAddress: params.receiver,
+  })
 
-  for (let fee = FEE_PROBE_START; ; fee *= 2n) {
-    // the last rung is the ceiling itself, so a fee between the final doubling and the ceiling
-    // is never reported as the ceiling having failed
-    const probedFee = fee > FEE_PROBE_CEILING ? FEE_PROBE_CEILING : fee
+  const response = await fetchWithTimeout(`${CENTRIFUGE_QUOTE_URL}?${query}`)
+  if (!response.ok)
+    throw new Error(
+      `Centrifuge quote API returned ${response.status} ${
+        response.statusText
+      } for ${SRC_CHAIN} -> ${DST_CHAIN}: ${await response.text()}`
+    )
 
-    // eth_call debits `value` from the sender, so probing past what the wallet can cover would
-    // report "insufficient funds" and read as a fee verdict it is not
-    if (probedFee > feeBudget)
-      throw new Error(
-        `The next probe is ${formatEther(
-          probedFee
-        )} ETH but this wallet can put at most ${formatEther(
-          feeBudget
-        )} ETH toward the messaging fee (balance less the gas held back for the bridge call). Top it up and re-run - the Base -> Ethereum leg costs materially more than the reverse, since it pays for execution on Ethereum.`
-      )
+  const quote = (await response.json()) as ICentrifugeQuote
 
-    lastError = await probe(probedFee)
-    if (lastError === null) {
-      consola.info(`Native fee accepted at ${formatEther(probedFee)} ETH`)
-      return probedFee
-    }
-    consola.debug(`fee ${formatEther(probedFee)} ETH rejected, doubling`)
-
-    if (probedFee === FEE_PROBE_CEILING) break
-  }
-
-  throw new Error(
-    `The bridge call reverts even at the fee ceiling of ${formatEther(
-      FEE_PROBE_CEILING
-    )} ETH, so this is not an underpayment. Last revert: ${String(lastError)}`
+  const quotedContract = quote.parameters?.contractAddress
+  if (
+    !quotedContract ||
+    getAddress(quotedContract) !== getAddress(tokenBridgeAddress)
   )
+    throw new Error(
+      `The quote is for ${
+        quotedContract ?? 'no contract'
+      }, not the TokenBridge this facet calls (${tokenBridgeAddress}). Either config/centrifuge.json is stale or Centrifuge moved the route to a different contract - do not pay a fee quoted for a call we are not making.`
+    )
+  if (quote.parameters?.functionName !== 'send')
+    throw new Error(
+      `The quote describes '${quote.parameters?.functionName}', but this facet calls 'send'`
+    )
+
+  const value = quote.parameters?.value
+  if (!value || BigInt(value) <= 0n)
+    throw new Error(`The quote carried no messaging fee: value=${value}`)
+
+  return {
+    nativeFee: BigInt(value),
+    gasEstimate: BigInt(quote.estimate?.gasEstimate ?? 0),
+  }
 }
 
 async function main(): Promise<void> {
@@ -260,46 +285,38 @@ async function main(): Promise<void> {
     hasDestinationCall: false,
   }
 
-  // === Discover the messaging fee ===
+  // === Quote the messaging fee ===
+  const { nativeFee: quotedFee, gasEstimate } = await fetchCentrifugeQuote(
+    {
+      fromChainId: getViemChainForNetworkName(SRC_CHAIN).id,
+      toChainId: destinationChainId,
+      token: SHARE_TOKEN,
+      amount,
+      receiver: signerAddress,
+    },
+    tokenBridgeAddress
+  )
+  const nativeFee = (quotedFee * (100n + FEE_SURPLUS_PERCENT)) / 100n
+  consola.info(
+    `Centrifuge quotes ${formatEther(quotedFee)} ETH; paying ${formatEther(
+      nativeFee
+    )} ETH so there is a surplus to refund`
+  )
+
   const [nativeBalance, gasPrice] = await Promise.all([
     publicClient.getBalance({ address: signerAddress }),
     publicClient.getGasPrice(),
   ])
-  const gasReserve = gasPrice * BRIDGE_GAS_ALLOWANCE
-  const feeBudget = nativeBalance > gasReserve ? nativeBalance - gasReserve : 0n
-
-  const discoveredFee = await discoverNativeFee(async (fee) => {
-    const centrifugeData: CentrifugeFacet.CentrifugeDataStruct = {
-      nativeFee: fee,
-      refundRecipient: signerAddress,
-    }
-    try {
-      await publicClient.simulateContract({
-        account: signerAddress,
-        address: lifiDiamondAddress,
-        abi: CENTRIFUGE_FACET_ABI,
-        functionName: 'startBridgeTokensViaCentrifuge',
-        args: [bridgeData, centrifugeData],
-        value: fee,
-      })
-      return null
-    } catch (error) {
-      return error
-    }
-  }, feeBudget)
-
-  const nativeFee = (discoveredFee * (100n + FEE_SURPLUS_PERCENT)) / 100n
-  if (nativeFee > feeBudget)
+  const gasReserve = gasPrice * gasEstimate * DIAMOND_GAS_OVERHEAD_FACTOR
+  if (nativeFee + gasReserve > nativeBalance)
     throw new Error(
-      `The fee accepted at ${formatEther(
-        discoveredFee
-      )} ETH leaves no room for the ${FEE_SURPLUS_PERCENT}% surplus this demo pays to exercise the refund: that needs ${formatEther(
+      `This run needs ${formatEther(
         nativeFee
-      )} ETH against a budget of ${formatEther(
-        feeBudget
-      )} ETH (balance ${formatEther(
+      )} ETH for the fee plus about ${formatEther(
+        gasReserve
+      )} ETH of gas, and the wallet holds ${formatEther(
         nativeBalance
-      )} ETH, less the gas held back for the bridge call). Top it up and re-run.`
+      )} ETH. Top it up and re-run.`
     )
 
   const centrifugeData: CentrifugeFacet.CentrifugeDataStruct = {
