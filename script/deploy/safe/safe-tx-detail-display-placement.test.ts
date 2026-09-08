@@ -1,18 +1,24 @@
 /**
- * That the CLI still hands the block its stored values unrendered.
+ * A smoke check on the shape of one call. It proves nothing about safety.
  *
- * This is a tripwire, not the guarantee. The guarantee is that
- * `buildSafeTxDetailLines` sanitises every stored value it is given, which
- * `safe-tx-detail-display.test.ts` proves by executing it. What execution
- * cannot reach is `confirm-safe-tx.ts` itself — it is a CLI with `runMain` at
- * module scope — so the one thing asserted here is the shape of the call.
+ * Read that literally. Every assertion here is `toContain` over the file's
+ * text, which a comment anywhere in the file satisfies and a duplicate object
+ * key defeats — measured, not supposed. It catches an accidental rewrite and
+ * an adversary walks past it.
  *
- * Two earlier versions of this file tried to prove the property by scanning
- * the source for unsafe interpolations. Both were defeated by rewrites that
- * changed nothing about the behaviour: a `const d = tx.safeTx.data` alias, an
- * `include`-based exclusion that a trailing comment satisfied, bracket access,
- * optional chaining, string concatenation. A scanner cannot decide where a
- * value came from, so it is not asked to any more.
+ * The property that matters — no stored value reaches a printed line
+ * unsanitised — is held by `buildSafeTxDetailLines`, which takes every stored
+ * value unrendered and is exercised directly in
+ * `safe-tx-detail-display.test.ts`. That is the file to read and to extend.
+ * `confirm-safe-tx.ts` is a CLI with `runMain` at module scope and cannot be
+ * imported, which is why the composition was moved out of it rather than
+ * scanned inside it.
+ *
+ * Three versions of this file tried to prove the property by scanning, and all
+ * three were defeated by rewrites that changed no behaviour: a
+ * `const d = tx.safeTx.data` alias, an `includes` exclusion a trailing comment
+ * satisfied, bracket access, optional chaining, concatenation, a `}` inside a
+ * string literal. A scanner cannot decide where a value came from.
  */
 
 import { readFileSync } from 'fs'
@@ -30,8 +36,8 @@ const CONFIRM = readFileSync(
   'utf8'
 )
 
-describe('the CLI hands the detail block its stored values unrendered', () => {
-  it('passes the target and proposer straight off the row', () => {
+describe('smoke check: the shape of the call into the detail block', () => {
+  it('appears to pass the target and proposer straight off the row', () => {
     // Pre-sanitising either one here would not be safer, it would be worse:
     // the block compares what it was given against what it can print to decide
     // whether to warn, so a value cleaned on the way in is a value it reports

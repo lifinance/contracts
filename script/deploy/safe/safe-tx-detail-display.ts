@@ -13,9 +13,12 @@
  * that look like they would — `BigInt()` on the nonce and value,
  * `normalizeAddressForNetwork` on the target — *skip* whitespace rather than
  * refusing it, so `\r`, `\n` and U+2028 survive both and reach a line they can
- * rewind. Every stored value this block prints is therefore sanitised here,
- * and the two fragments the caller assembles itself — the target and the nonce
- * warning — are sanitised there for the same reason.
+ * rewind.
+ *
+ * So the block takes every stored value unrendered and sanitises all of them
+ * here, including the addresses it composes itself. A caller that cleaned one
+ * first would leave this code unable to tell that it had, and so unable to say
+ * so — which is the whole of the disclosure below.
  */
 
 import { sanitizeProvenanceText } from '../shared/git-provenance'
@@ -59,9 +62,13 @@ export interface IParkedTaskRef {
  * pre-rendered by the caller, because a caller that sanitises them itself
  * leaves this block unable to tell that it did — and so unable to say so.
  *
- * The remaining `string` fields carry colour codes of their own and so cannot
- * be sanitised without stripping those. Each is either a constant or derived
- * from repository configuration; none may carry a stored value.
+ * The remaining `string` fields and the two callbacks are treated as untrusted
+ * text all the same: their contents are sanitised where they are interpolated,
+ * because a caller that composed one out of the stored row would otherwise
+ * route straight past everything above. The exceptions are `nonceWarning` and
+ * `operationLabel`, which carry colour codes of their own and so cannot be
+ * sanitised without stripping them — both are built from values that cannot
+ * hold a stored string.
  */
 export interface ISafeTxDetailInput {
   readonly nonce: unknown
@@ -94,7 +101,9 @@ export interface ISafeTxDetailInput {
 /** A stored value reduced to something safe to print. */
 interface IRenderedField {
   readonly text: string
-  /** Appended after the field; empty unless the value had to be changed. */
+  /** True when the stored value is not what the line will show. */
+  readonly altered: boolean
+  /** Appended after the field; empty unless there is something to report. */
   readonly notice: string
 }
 
@@ -111,6 +120,7 @@ const asPrintable = (value: unknown): IRenderedField => {
   } catch {
     return {
       text: 'unrenderable',
+      altered: true,
       notice: color(YELLOW, ' ⚠ sanitised for display — value cannot be shown'),
     }
   }
@@ -119,13 +129,15 @@ const asPrintable = (value: unknown): IRenderedField => {
   const remarks: string[] = []
 
   if (text !== stored)
-    // Lengths in code points, the unit a reader counts. They can be equal — a
-    // newline collapses to a space one for one — so the fact that the value
-    // was changed at all is stated separately from the counts.
+    // Counts describe the stored value and what survived sanitising, not the
+    // finished line: a network formatter may replace what it is given with an
+    // entirely different rendering. They can also be equal, since a newline
+    // collapses to a space one for one, which is why the fact of the change is
+    // stated separately from the numbers.
     remarks.push(
       text === ''
         ? 'no printable characters'
-        : `sanitised for display — stored ${[...stored].length}, shown ${
+        : `sanitised for display — stored ${[...stored].length}, printable ${
             [...text].length
           }`
     )
@@ -140,14 +152,19 @@ const asPrintable = (value: unknown): IRenderedField => {
       }`
     )
 
-  // An empty string is a legitimate stored value; an array or an object that
-  // stringifies to nothing is a malformed row that would otherwise render as
-  // an ordinary blank field.
-  if (text === '' && typeof value !== 'string' && value !== undefined)
-    remarks.push(`empty ${Array.isArray(value) ? 'array' : typeof value}`)
+  // Says only what it knows. An earlier version called these "empty", which is
+  // a claim about the container: `[' ']` and `[null]` both render as nothing
+  // while holding an element.
+  if (typeof value === 'object' && value !== null)
+    remarks.push(
+      `stored as ${
+        Array.isArray(value) ? 'an array' : 'an object'
+      }, not a string`
+    )
 
   return {
     text,
+    altered: remarks.length > 0,
     notice: remarks.length > 0 ? color(YELLOW, ` ⚠ ${remarks.join('; ')}`) : '',
   }
 }
@@ -159,28 +176,56 @@ const storedField = (value: unknown, code: string): string => {
 }
 
 /**
- * Renders a stored address through the network's own display form.
+ * What a caller-supplied renderer returned, reduced to printable text.
  *
- * Sanitised before formatting, not after: the formatter is a pass-through on
- * every network but Tron, and Tron's trims, so neither removes anything.
+ * The callbacks are handed a sanitised address, but what reaches the line is
+ * their return value, so a caller that ignored its argument and reached for the
+ * stored row would render it raw. Sanitising the result costs nothing on a real
+ * address and removes that route.
  */
+const printableFragment = (produce: () => string): string => {
+  try {
+    return sanitizeProvenanceText(produce())
+  } catch {
+    return ''
+  }
+}
+
+/** Renders a stored address through the network's own display form. */
 function formattedAddressField(
   value: unknown,
   formatAddress: (address: string) => string
 ): string {
   const { text, notice } = asPrintable(value)
-  return `${color(GREEN, formatAddress(text))}${notice}`
+  return `${color(
+    GREEN,
+    printableFragment(() => formatAddress(text))
+  )}${notice}`
 }
 
-/** The target, its name from the deployment records, and its explorer link. */
+/**
+ * The target, with its name from the deployment records and its explorer link.
+ *
+ * Neither is resolved for an address that had to be repaired. Sanitising a
+ * corrupt address can produce a *valid* one — a zero-width space inside the hex
+ * simply disappears — and looking that up would present a corrupt row as a
+ * named, known contract with a working link, which is a stronger claim than the
+ * row supports and a more convincing one than it made before.
+ */
 function toLine(input: ISafeTxDetailInput): string {
-  const { text, notice } = asPrintable(input.to)
-  const name = input.toTargetName ? ` ${color(YELLOW, input.toTargetName)}` : ''
-  const url = input.explorerUrlFor(text)
+  const { text, altered, notice } = asPrintable(input.to)
+  const name =
+    !altered && input.toTargetName
+      ? ` ${color(
+          YELLOW,
+          printableFragment(() => input.toTargetName)
+        )}`
+      : ''
+  const url = altered ? '' : printableFragment(() => input.explorerUrlFor(text))
   const link = url ? ` ${color(CYAN, url)}` : ''
   return `${color(
     GREEN,
-    `${input.formatAddress(text)}${name}${link}`
+    `${printableFragment(() => input.formatAddress(text))}${name}${link}`
   )}${notice}`
 }
 

@@ -124,7 +124,7 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
     )
     const plain = lineStartingWith(linesFor({ data: '0x12' }), 'Data:')
 
-    expect(zeroWidth).toContain('stored 5, shown 4')
+    expect(zeroWidth).toContain('stored 5, printable 4')
     expect(plain).not.toContain('sanitised for display')
     // The visible renderings are identical; only the marker separates them.
     expect(stripOwnColours(plain).trimEnd()).toContain('0x12')
@@ -159,7 +159,7 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
         }),
         label
       )
-      expect(line).toContain('stored 5, shown 4')
+      expect(line).toContain('stored 5, printable 4')
       expect(line).toContain('(0x41…)')
     }
   })
@@ -173,13 +173,64 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
     expect(line).toContain('invisible character')
   })
 
-  it('names a value that stringifies to nothing but was not a string', () => {
-    // `String([])` is '', which would otherwise render as an ordinary blank
-    // field indistinguishable from a stored empty string.
-    expect(lineStartingWith(linesFor({ data: [] }), 'Data:')).toContain(
-      'empty array'
+  it('sanitises what a display callback returns, not only what it is given', () => {
+    // The callbacks receive a sanitised address, but what reaches the line is
+    // their return value, so one that reached for the stored row instead would
+    // render it raw.
+    const line = lineStartingWith(
+      buildSafeTxDetailLines({
+        ...benign,
+        formatAddress: () => '0xBAD\u001b[2J\u001b[Hfake',
+        explorerUrlFor: () => 'https://x/\u001b[2Jevil',
+      }),
+      'To:'
     )
-    expect(lineStartingWith(linesFor({ data: '' }), 'Data:')).not.toContain('⚠')
+
+    expect(stripOwnColours(line).match(TERMINAL_DRIVING)).toBeNull()
+    expect(line).toContain('fake')
+  })
+
+  it('resolves no name and no link for an address it had to repair', () => {
+    // Sanitising a corrupt address can yield a valid one — a zero-width space
+    // inside the hex just disappears — and naming that would present a corrupt
+    // row as a known contract with a working link.
+    const repaired = lineStartingWith(
+      buildSafeTxDetailLines({
+        ...benign,
+        to: '0x11f1022cA6AdEF6400e5677528a80\u200bd49a069C00c',
+        toTargetName: '(LiFiDiamond)',
+        explorerUrlFor: () => 'https://etherscan.io/address/0x11',
+      }),
+      'To:'
+    )
+
+    expect(repaired).not.toContain('(LiFiDiamond)')
+    expect(repaired).not.toContain('etherscan')
+    expect(repaired).toContain('sanitised for display')
+
+    // The same row without the zero-width space keeps both.
+    const clean = lineStartingWith(
+      buildSafeTxDetailLines({
+        ...benign,
+        toTargetName: '(LiFiDiamond)',
+        explorerUrlFor: () => 'https://etherscan.io/address/0x11',
+      }),
+      'To:'
+    )
+    expect(clean).toContain('(LiFiDiamond)')
+    expect(clean).toContain('etherscan')
+  })
+
+  it('puts the notice outside the colour on the address lines too', () => {
+    for (const [field, label] of [
+      ['to', 'To:'],
+      ['proposer', 'Proposer:'],
+    ] as const) {
+      const line = lineStartingWith(linesFor({ [field]: '0x1\u00072' }), label)
+      expect(line.indexOf('\u001b[0m')).toBeLessThan(
+        line.indexOf('sanitised for display')
+      )
+    }
   })
 
   it('keeps a missing field visibly missing', () => {
@@ -210,7 +261,7 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
       linesFor({ data: '\u{1f600}\u{1f600}\u0007' }),
       'Data:'
     )
-    expect(line).toContain('stored 3, shown 2')
+    expect(line).toContain('stored 3, printable 2')
   })
 
   it('says so when a field renders to nothing at all', () => {

@@ -381,7 +381,9 @@ const processTxs = async (
       buildExplorerAddressUrl(network.toLowerCase(), address as Address) ?? ''
 
     // Looked up on the sanitised address: the record keys are repository
-    // configuration, so a match names a contract this repo deployed.
+    // configuration, so a match names a contract this repo deployed. The block
+    // decides whether to show the name — it refuses for an address it had to
+    // repair, since sanitising a corrupt one can yield a valid one.
     const targetName = await getTargetName(
       sanitizeProvenanceText(tx.safeTx.data.to) as Address,
       network
@@ -443,7 +445,7 @@ const processTxs = async (
         const filmstrip = renderLedgerFlexFlow({
           chainId: chain.id,
           verifyingContract: safeAddress,
-          to: sanitizeProvenanceText(tx.safeTx.data.to) as Address,
+          to: tx.safeTransaction.data.to,
           value: String(tx.safeTx.data.value),
           data: tx.safeTx.data.data as Hex,
         })
