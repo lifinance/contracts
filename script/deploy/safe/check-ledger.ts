@@ -7,8 +7,9 @@
  * `N/N` counts and a single verdict. `render-check-ledger.ts` prints it.
  *
  * The distinction the module exists for: a check that *could not run* is not a
- * check that passed. It is recorded as `error`, counted as unverified, and
- * blocks — so flaky infrastructure can never render as a green line.
+ * check that passed. It is recorded as `error`, counted as unverified, and the
+ * verdict comes back blocked with no acknowledgement path — so flaky
+ * infrastructure cannot reach a green line.
  */
 
 import { keccak256, stringToHex, type Hex } from 'viem'
@@ -97,7 +98,17 @@ const normaliseNetwork = (network: string): string =>
  */
 const FIELD_SEPARATOR = '\u0000'
 
-const resultKey = (checkId: string, network: string): string =>
+/**
+ * Identifies one check's result on one network.
+ *
+ * Exported so a consumer can look a result up by identity rather than by object
+ * reference: a rollup is rebuilt on every call, and matching references across
+ * two calls would fail silently the day one of them copies a result.
+ * @param checkId - The check's id.
+ * @param network - The network, as normalised by the ledger.
+ * @returns A key unique to that pair.
+ */
+export const checkResultKey = (checkId: string, network: string): string =>
   `${checkId}${FIELD_SEPARATOR}${network}`
 
 /**
@@ -137,8 +148,8 @@ export const createCheckLedger = (init: {
  * would otherwise overstate what was verified.
  *
  * A `pass` whose anchor can only report is stored as `error`, and a `needs-ack`
- * on an integrity check is stored as `fail` — neither coercion can be undone by
- * a caller, which is the point: the rules live here rather than in each check.
+ * on an integrity check is stored as `fail`. Both rules live here rather than in
+ * each check, so no check can opt out of them by how it reports.
  * @param ledger - The run's ledger, mutated in place.
  * @param result - The check's outcome, its expected and actual values, and its anchor.
  * @returns The result as stored, which may differ in `status` from the one passed.
@@ -224,11 +235,11 @@ export interface ICheckRollup extends ICheckDefinition {
 export const rollUpChecks = (ledger: ICheckLedger): ICheckRollup[] => {
   const latest = new Map<string, ICheckResult>()
   for (const result of ledger.results)
-    latest.set(resultKey(result.checkId, result.network), result)
+    latest.set(checkResultKey(result.checkId, result.network), result)
 
   return [...ledger.checks.values()].map((definition) => {
     const results = ledger.expectedNetworks
-      .map((network) => latest.get(resultKey(definition.checkId, network)))
+      .map((network) => latest.get(checkResultKey(definition.checkId, network)))
       .filter((result): result is ICheckResult => result !== undefined)
 
     const countOf = (status: CheckStatus): number =>
@@ -238,7 +249,7 @@ export const rollUpChecks = (ledger: ICheckLedger): ICheckRollup[] => {
     const passed = countOf('pass')
     const errored = countOf('error')
     const missingNetworks = ledger.expectedNetworks.filter(
-      (network) => !latest.has(resultKey(definition.checkId, network))
+      (network) => !latest.has(checkResultKey(definition.checkId, network))
     )
 
     return {
@@ -309,7 +320,7 @@ export interface ILedgerVerdict {
   /** True when something blocks with no acknowledgement path available. */
   hardBlocked: boolean
   blocking: IBlockingResult[]
-  /** Semantic non-passes a human may acknowledge; the run stops until they do. */
+  /** Semantic non-passes a human may acknowledge; the caller must ask before proceeding. */
   requiresAcknowledgement: ICheckResult[]
   /** Acknowledgements `--triage` dropped, kept so the report can name them. */
   relaxed: ICheckResult[]
@@ -320,9 +331,10 @@ export interface ILedgerVerdict {
  * Reduces the ledger to the one decision a signer needs.
  *
  * `error` and a missing result block on either class: both mean the check was
- * not shown to have run, and T3 gives neither an acknowledgement path. An
- * integrity `fail` blocks for the same reason. Only a semantic non-pass is
- * acknowledgeable, and `--triage` can drop those on a subtractive op alone.
+ * not shown to have run, so there is nothing for a human to acknowledge. An
+ * integrity `fail` blocks too, because T3 gives the integrity class no
+ * acknowledgement path at all. Only a semantic non-pass is acknowledgeable, and
+ * `--triage` can drop those on a subtractive op alone.
  * @param ledger - The run's ledger.
  * @param options - `triageProfile` enables the T2-narrowed relaxation.
  * @returns The verdict, the blocking rows, what awaits acknowledgement, and the totals.
@@ -429,7 +441,13 @@ export interface IReviewAttestation {
   ledgerDigest: Hex
   reviewer: string
   reviewedAt: string
+  /** The profile triage ran under, or `none` when it did not run. */
+  triageProfile: OpProfile | 'none'
   hardBlocked: boolean
+  /** Results still awaiting a human acknowledgement when the record was written. */
+  awaitingAcknowledgement: number
+  /** Acknowledgements `--triage` dropped, so a triaged clear is never read as a clean one. */
+  relaxed: number
   totals: ILedgerTotals
   checks: IReviewAttestationCheck[]
 }
@@ -440,19 +458,26 @@ export interface IReviewAttestation {
  *
  * The digest covers the coverage denominator and every stored result, sorted, so
  * it is stable across the order a run happened to record them in and moves if
- * any value, status, anchor or network changes. It is a reconstruction record,
- * not an oracle: nothing may later read it back and treat a stored pass as
- * verification (T5).
+ * any value, status, anchor, network or recorded detail changes. It is a
+ * reconstruction record, not an oracle: nothing may later read it back and treat
+ * a stored pass as verification (T5).
+ *
+ * The triage profile is recorded alongside the verdict, so a review that only
+ * cleared because `--triage` dropped an acknowledgement cannot be read back as
+ * one that had nothing to acknowledge.
  * @param ledger - The run's ledger.
- * @param review - Who reviewed, and when, as an ISO timestamp.
+ * @param review - Who reviewed, when as an ISO timestamp, and the triage profile the run used.
  * @returns The attestation record.
  */
 export const buildReviewAttestation = (
   ledger: ICheckLedger,
-  review: { reviewer: string; reviewedAt: string }
+  review: { reviewer: string; reviewedAt: string; triageProfile?: OpProfile }
 ): IReviewAttestation => {
   const rollups = rollUpChecks(ledger)
-  const verdict = summariseLedger(ledger)
+  const verdict = summariseLedger(
+    ledger,
+    review.triageProfile ? { triageProfile: review.triageProfile } : {}
+  )
 
   const rows = rollups.flatMap((rollup) =>
     rollup.results.map((result) =>
@@ -463,6 +488,7 @@ export const buildReviewAttestation = (
         result.expected,
         result.actual,
         result.anchor,
+        result.detail ?? '',
       ].join(FIELD_SEPARATOR)
     )
   )
@@ -479,7 +505,10 @@ export const buildReviewAttestation = (
     ),
     reviewer: review.reviewer,
     reviewedAt: review.reviewedAt,
+    triageProfile: review.triageProfile ?? 'none',
     hardBlocked: verdict.hardBlocked,
+    awaitingAcknowledgement: verdict.requiresAcknowledgement.length,
+    relaxed: verdict.relaxed.length,
     totals: verdict.totals,
     checks: rollups.map((rollup) => ({
       checkId: rollup.checkId,

@@ -455,6 +455,7 @@ describe('buildReviewAttestation', () => {
 
     expect(attestation.reviewer).toBe('signer-1')
     expect(attestation.reviewedAt).toBe('2026-09-08T00:00:00.000Z')
+    expect(attestation.triageProfile).toBe('none')
     expect(attestation.hardBlocked).toBe(true)
     expect(attestation.checks).toEqual([
       {
@@ -466,6 +467,44 @@ describe('buildReviewAttestation', () => {
         anchors: ['A-CI'],
       },
     ])
+  })
+
+  it('records the triage profile a clearing review ran under', () => {
+    const ledger = ledgerOf(['mainnet'], [TARGET_STATE])
+    recordCheck(
+      ledger,
+      result({ checkId: 'target-state', status: 'fail', actual: '1.0.1' })
+    )
+
+    const triaged = buildReviewAttestation(ledger, {
+      reviewer: 'signer-1',
+      reviewedAt: '2026-09-08T00:00:00.000Z',
+      triageProfile: 'subtractive',
+    })
+
+    expect(triaged.triageProfile).toBe('subtractive')
+    expect(triaged.relaxed).toBe(1)
+    expect(triaged.awaitingAcknowledgement).toBe(0)
+
+    const untriaged = attest(ledger)
+    expect(untriaged.triageProfile).toBe('none')
+    expect(untriaged.relaxed).toBe(0)
+    expect(untriaged.awaitingAcknowledgement).toBe(1)
+  })
+
+  it('digests the recorded detail, not only the values', () => {
+    const withDetail = ledgerOf(['mainnet'], [CODEHASH])
+    recordCheck(
+      withDetail,
+      result({ status: 'fail', actual: '0xbbb', detail: 'rebuild pending' })
+    )
+
+    const withoutDetail = ledgerOf(['mainnet'], [CODEHASH])
+    recordCheck(withoutDetail, result({ status: 'fail', actual: '0xbbb' }))
+
+    expect(attest(withDetail).ledgerDigest).not.toBe(
+      attest(withoutDetail).ledgerDigest
+    )
   })
 
   it('digests the results, not the order they were recorded in', () => {

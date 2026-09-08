@@ -14,6 +14,7 @@
 import { sanitizeProvenanceText } from '../shared/git-provenance'
 
 import {
+  checkResultKey,
   rollUpChecks,
   summariseLedger,
   type ICheckLedger,
@@ -103,7 +104,7 @@ function rowKind(result: ICheckResult): RowKind {
 
 function renderCheck(
   rollup: ICheckRollup,
-  relaxed: ReadonlySet<ICheckResult>
+  relaxed: ReadonlySet<string>
 ): string[] {
   const counts = [
     `pass ${rollup.passed}/${rollup.expected}`,
@@ -135,7 +136,7 @@ function renderCheck(
           `anchor ${result.anchor}`,
         ],
         result.detail,
-        relaxed.has(result)
+        relaxed.has(checkResultKey(result.checkId, result.network))
       )
     )
   }
@@ -150,7 +151,7 @@ function renderSection(
   section: string,
   rollups: ICheckRollup[],
   verdict: ILedgerVerdict,
-  relaxed: ReadonlySet<ICheckResult>
+  relaxed: ReadonlySet<string>
 ): string[] {
   const greenChecks = rollups.filter((rollup) => rollup.green).length
   const passed = rollups.reduce((sum, rollup) => sum + rollup.passed, 0)
@@ -251,7 +252,11 @@ export function renderCheckLedger(
 ): string[] {
   const rollups = rollUpChecks(ledger)
   const verdict = summariseLedger(ledger, options)
-  const relaxed = new Set(verdict.relaxed)
+  const relaxed = new Set(
+    verdict.relaxed.map((result) =>
+      checkResultKey(result.checkId, result.network)
+    )
+  )
 
   const sections = new Map<string, ICheckRollup[]>()
   for (const rollup of rollups) {
