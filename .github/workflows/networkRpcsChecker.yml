@@ -2,7 +2,9 @@ name: Check Active Networks for Missing RPC Endpoints
 # - will read all "active" networks from config/networks.json
 # - will check if for all these networks a RPC endpoint variable (e.g. ETH_NODE_URI_{NETWORK}) exists
 # - If an RPC is missing, please run in the main folder of the repo:
-#   bun add-network-rpc --network {networkName} --rpcUrl {rpcUrl} - this will add rpc with highest priority
+#   bun add-network-rpc --network {networkName} --rpcUrl {rpcUrl}
+#   A network's first endpoint becomes its primary; on a network that already has endpoints the
+#   new one is added below them, so pass --priority to make it primary.
 
 on:
   push:
@@ -33,24 +35,9 @@ jobs:
         run: bun install
 
       - name: Fetch RPC endpoints from MongoDB
-        run: |
-          # Run the fetch-rpcs.ts script to update .env with RPC endpoint variables
-          # This will fetch prioritized RPCs from MongoDB, or fall back to public RPCs from networks.json if MongoDB is unavailable
-          bun fetch-rpcs
-          # Only inject RPC endpoint variables into the GitHub Actions environment.
-          # Mask the URL (which may carry an API key) before forwarding so it is
-          # redacted from all subsequent log output for the rest of the run.
-          while IFS= read -r line || [[ -n "$line" ]]; do
-            if [[ "$line" =~ ^ETH_NODE_URI_ ]]; then
-              value="${line#*=}"
-              if [[ "$value" == \"*\" ]]; then value="${value:1:-1}"; fi
-              if [[ "$value" == \'*\' ]]; then value="${value:1:-1}"; fi
-              echo "::add-mask::$value"
-              echo "$line" >> "$GITHUB_ENV"
-            fi
-          done < ".env"
-        env:
-          MONGODB_URI: ${{ secrets.MONGODB_URI }}
+        uses: ./.github/actions/fetch-rpcs
+        with:
+          mongodb-uri: ${{ secrets.MONGODB_URI }}
 
       - name: Read Networks Configuration
         id: read-networks
