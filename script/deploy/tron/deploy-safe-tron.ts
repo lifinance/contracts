@@ -718,7 +718,11 @@ const main = defineCommand({
     },
   },
   async run({ args }) {
-    const threshold = parseInt(args.threshold, 10)
+    // `Number`, not `parseInt`: `parseInt` truncates, so `--threshold 5.9`
+    // would reach the floor check as 5 and deploy a Safe weaker than the one
+    // the operator asked for, with nothing said. `Number` keeps the fraction so
+    // the whole-number refusal below can see it.
+    const threshold = Number(args.threshold)
     if (isNaN(threshold) || threshold < 1) {
       consola.error('Invalid --threshold; must be a positive integer.')
       process.exit(1)

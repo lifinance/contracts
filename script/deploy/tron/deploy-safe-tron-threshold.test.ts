@@ -102,6 +102,34 @@ describe('the floor applied to the Tron deploy target', () => {
   })
 })
 
+describe('what the CLI hands the floor check', () => {
+  // The refusal for a non-whole threshold is only reachable if the CLI stops
+  // truncating before the guard sees the value.
+  it('parses the threshold without truncating it', () => {
+    expect(source).toContain('const threshold = Number(args.threshold)')
+    expect(source).not.toContain('parseInt(args.threshold')
+  })
+
+  it('keeps a fraction the guard has to judge, rather than rounding it down', () => {
+    // `parseInt` turned 5.9 into 5 — a Safe weaker than the one asked for, with
+    // nothing said, since 5 clears the floor.
+    expect(Number('5.9')).toBe(5.9)
+    expect(Number.isInteger(Number('5.9'))).toBe(false)
+  })
+
+  it('refuses a value with trailing rubbish that truncation used to accept', () => {
+    // `parseInt('3abc', 10)` is 3, so the old parse accepted it silently.
+    expect(Number.isNaN(Number('3abc'))).toBe(true)
+  })
+
+  it('still refuses the forms the existing guard covers', () => {
+    for (const raw of ['', '-1', 'abc']) {
+      const parsed = Number(raw)
+      expect(Number.isNaN(parsed) || parsed < 1, raw).toBe(true)
+    }
+  })
+})
+
 describe('where the Tron floor check sits in run()', () => {
   const guard = () => soleIndex('assertSafeThresholdFloor({')
 
