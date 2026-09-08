@@ -162,32 +162,87 @@ describe('the selector-form estimate', () => {
     expect(error?.message).toMatch(/Tron simulation failed/)
   })
 
-  it('retries a transport failure, because the estimate is mandatory', async () => {
-    // A TronGrid 429 refuses the send outright now that the pre-flight is
-    // fail-closed, so a single blip must not stop a call the operator can pay
-    // for.
-    let attempts = 0
-    const energy = await estimateTronEnergyBySelector({
-      ...params,
-      tronWeb: {
-        transactionBuilder: {
-          triggerConstantContract: async () => {
-            attempts += 1
-            if (attempts === 1) throw new Error('429 Too Many Requests')
-            return { result: { result: true }, energy_used: 10_000 }
-          },
-        },
-      },
-      sleep: async () => undefined,
+  /**
+   * Errors shaped as the real path produces them. TronWeb reaches the node
+   * through axios and raises the node's own message as a plain `Error` before
+   * any result object gets back to the caller, so a fixture that *returns*
+   * `{ result: { result: false } }` for a revert is testing a shape the
+   * transport never hands over.
+   */
+  const axiosFailure = (status?: number): Error =>
+    Object.assign(new Error(`request failed${status ? `: ${status}` : ''}`), {
+      isAxiosError: true,
+      ...(status === undefined ? {} : { response: { status } }),
     })
 
-    expect(attempts).toBe(2)
-    expect(energy).toBe(12_000n)
+  const throwingCaller = (
+    error: Error,
+    countAttempt: () => number
+  ): ITronConstantContractCaller => ({
+    transactionBuilder: {
+      triggerConstantContract: async () => {
+        if (countAttempt() > 1)
+          return { result: { result: true }, energy_used: 10_000 }
+        throw error
+      },
+    },
   })
 
-  it('does not retry a simulated revert', async () => {
-    // Deterministic: a second ask returns the same refusal, and retrying it
-    // only spends the operator's time.
+  it.each([
+    ['a request that never got an answer', undefined],
+    ['a TronGrid 429', 429],
+    ['a node 502', 502],
+  ])(
+    'retries %s, because the estimate is mandatory',
+    async (_label, status) => {
+      // The pre-flight is fail-closed, so a blip refuses the send outright — a
+      // single one must not stop a call the operator can pay for.
+      let attempts = 0
+      const energy = await estimateTronEnergyBySelector({
+        ...params,
+        tronWeb: throwingCaller(axiosFailure(status), () => (attempts += 1)),
+        sleep: async () => undefined,
+      })
+
+      expect(attempts).toBe(2)
+      expect(energy).toBe(12_000n)
+    }
+  )
+
+  it('does not retry the revert TronWeb raises as a plain error', async () => {
+    // What a reverting call actually looks like from here. Deterministic: a
+    // second ask returns the same refusal, and retrying only spends the
+    // operator's time.
+    let attempts = 0
+    const error = await estimateRejection(() =>
+      estimateTronEnergyBySelector({
+        ...params,
+        tronWeb: throwingCaller(
+          new Error('REVERT opcode executed'),
+          () => (attempts += 1)
+        ),
+        sleep: async () => undefined,
+      })
+    )
+
+    expect(attempts).toBe(1)
+    expect(error?.message).toMatch(/REVERT opcode executed/)
+  })
+
+  it('does not retry a status the node chose deliberately', async () => {
+    let attempts = 0
+    await estimateRejection(() =>
+      estimateTronEnergyBySelector({
+        ...params,
+        tronWeb: throwingCaller(axiosFailure(400), () => (attempts += 1)),
+        sleep: async () => undefined,
+      })
+    )
+
+    expect(attempts).toBe(1)
+  })
+
+  it('does not retry a node that answers that the call would revert', async () => {
     let attempts = 0
     const error = await estimateRejection(() =>
       estimateTronEnergyBySelector({

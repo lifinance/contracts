@@ -179,16 +179,37 @@ export const readOptOutFlag = (
   argv: string[],
   positive: IFlagName
 ): boolean => {
+  // Spelled without a `-` after `no`, so mri leaves it alone and reads it as a
+  // name rather than as a negation of `positive`.
   const negative = `no${positive.camel
     .charAt(0)
     .toUpperCase()}${positive.camel.slice(1)}`
+  const negativeName = { camel: negative, kebab: negative }
 
-  return (
-    // Spelled without a `-` after `no`, so mri leaves it alone and it is a name
-    // rather than a negation.
-    readBooleanFlag(argv, { camel: negative, kebab: negative }) ||
-    !readBooleanFlag(argv, positive, { whenAbsent: true })
+  const given = (name: IFlagName, read: () => boolean): boolean | undefined =>
+    uniqueOccurrence(argv, name) === undefined ? undefined : read()
+
+  const fromNegative = given(negativeName, () =>
+    readBooleanFlag(argv, negativeName)
   )
+  const fromPositive = given(
+    positive,
+    () => !readBooleanFlag(argv, positive, { whenAbsent: true })
+  )
+
+  // The two spellings land on different parser keys, so a contradiction between
+  // them slips past the per-flag duplicate check that refuses `--propose
+  // --no-propose`. Refused here for the same reason that one is.
+  if (
+    fromNegative !== undefined &&
+    fromPositive !== undefined &&
+    fromNegative !== fromPositive
+  )
+    throw new Error(
+      `--${negative} and --${positive.camel} were both given and disagree. Which one wins is not something this script should decide quietly — pass one.`
+    )
+
+  return fromNegative ?? fromPositive ?? false
 }
 
 /**

@@ -492,5 +492,22 @@ describe('readOptOutFlag', () => {
     expect(() => optedOut('--noPropose', '--noPropose')).toThrow(
       /more than once/
     )
+    // `--propose --no-propose` is one flag twice as far as the parser is
+    // concerned, so the duplicate check already catches it.
+    expect(() => optedOut('--propose', '--no-propose')).toThrow(
+      /more than once/
+    )
+  })
+
+  it('refuses the two spellings contradicting each other', () => {
+    // They reach different parser keys, so the duplicate check above does not
+    // see this one — and resolving it quietly would drop the explicit
+    // `--propose`.
+    expect(() => optedOut('--propose', '--noPropose')).toThrow(/disagree/)
+    expect(() => optedOut('--noPropose=false', '--no-propose')).toThrow(
+      /disagree/
+    )
+    // Agreeing is redundant, not contradictory.
+    expect(optedOut('--noPropose', '--no-propose')).toBe(true)
   })
 })

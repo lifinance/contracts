@@ -62,6 +62,32 @@ export interface ITronGuardedSendOptions<T> {
 }
 
 /**
+ * Whether a throw out of `triggerConstantContract` could answer differently on
+ * another attempt.
+ *
+ * Classified on the error's shape rather than its text: TronWeb reaches the
+ * node through axios, so a request that never got an answer — or got a 429 or a
+ * server error — arrives as an `AxiosError`, while a revert reason and a
+ * refused argument arrive as a plain `Error` carrying the node's message. A
+ * status the node chose deliberately (a 4xx other than rate limiting) is a
+ * settled answer too.
+ *
+ * @param error - Whatever the call threw.
+ * @returns True when retrying could change the outcome.
+ */
+const isTransportFailure = (error: unknown): boolean => {
+  const axiosError = error as
+    | { isAxiosError?: boolean; response?: { status?: number } }
+    | undefined
+
+  if (axiosError?.isAxiosError !== true) return false
+
+  const status = axiosError.response?.status
+
+  return status === undefined || status === 429 || status >= 500
+}
+
+/**
  * Estimates energy for a call expressed as a selector plus arguments.
  *
  * Goes through the passed TronWeb rather than `estimateTronEnergy`, which posts
@@ -76,7 +102,7 @@ export interface ITronGuardedSendOptions<T> {
  * @param params - Contract, selector, arguments and call value.
  * @returns Estimated energy with the devkit's safety margin applied.
  * @throws When the node reports no energy figure, which is what a call that
- * would revert looks like here.
+ * would revert looks like here, or when every attempt fails.
  */
 export const estimateTronEnergyBySelector = async (
   params: ITronSelectorEstimateParams
@@ -89,13 +115,25 @@ export const estimateTronEnergyBySelector = async (
     )
 
   return retryTronEstimate(async () => {
-    const result =
-      await params.tronWeb.transactionBuilder.triggerConstantContract(
+    let result
+    try {
+      result = await params.tronWeb.transactionBuilder.triggerConstantContract(
         params.contractAddress,
         params.functionSelector,
         { callValue: Number(callValueSun) },
         params.parameters
       )
+    } catch (error) {
+      // TronWeb raises the node's own message — a revert reason, or a refused
+      // argument — as a plain Error before any result object reaches the check
+      // below, so the shape of the throw is what separates a settled answer
+      // from one worth asking again for.
+      throw new TronEstimateError(
+        `Tron simulation failed for ${params.functionSelector}: ` +
+          `${error instanceof Error ? error.message : String(error)}`,
+        isTransportFailure(error)
+      )
+    }
 
     if (
       result.result?.result === false ||

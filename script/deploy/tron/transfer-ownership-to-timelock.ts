@@ -252,9 +252,9 @@ const main = defineCommand({
       description:
         'With --step 2: skip MongoDB Safe proposal; print calldata / manual instructions only. Also spelled --no-propose.',
     },
-    // Declared so `--no-propose` shows up in --help as the flag it actually is.
-    // mri reads a `--no-` prefix as negating `propose`, so that spelling never
-    // reaches `args.noPropose` at all; both are resolved from argv below.
+    // mri reads a `--no-` prefix as negating `propose`, so `--no-propose` never
+    // reaches `args.noPropose` at all. Declared so --help names the argument
+    // that spelling actually sets; both are resolved from argv below.
     propose: {
       type: 'boolean',
       description:
@@ -289,9 +289,7 @@ const main = defineCommand({
   },
   async run({ args }) {
     const dryRun = flagIsOn(args.dryRun)
-    // Read from argv rather than from `args`: mri rewrites `--no-propose` to
-    // `{ propose: false }`, so `args.noPropose` stays undefined and the run
-    // would create the very Safe proposal the operator asked to skip.
+    // Not `args.noPropose`, which `--no-propose` never reaches.
     const noPropose = readOptOutFlag(process.argv, {
       camel: 'propose',
       kebab: 'propose',
