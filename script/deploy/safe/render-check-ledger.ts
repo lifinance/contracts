@@ -107,12 +107,16 @@ function renderRow(
 }
 
 function rowKind(result: ICheckResult): RowKind {
-  if (result.status === 'error') return 'error'
+  if (result.status === 'fail') return 'fail'
   if (result.status === 'needs-ack') return 'needs-ack'
 
-  // Anything the ledger's four statuses do not cover reaches the signer as a
-  // mismatch rather than as nothing, matching how the verdict grades it.
-  return 'fail'
+  // `error`, and anything the ledger's four statuses do not cover. The verdict
+  // grades an unrecognised status as unverified with no acknowledgement path,
+  // so rendering it as an acknowledgeable mismatch offered a route the verdict
+  // refuses — and told the signer a value disagreed when what happened is that
+  // nobody knows what the status meant. Passes never reach here; the caller
+  // filters them.
+  return 'error'
 }
 
 function renderCheck(
@@ -124,7 +128,7 @@ function renderCheck(
     rollup.failed > 0 ? `fail ${rollup.failed}` : '',
     rollup.needsAck > 0 ? `needs review ${rollup.needsAck}` : '',
     rollup.unverified > 0 ? `unverified ${rollup.unverified}` : '',
-    `anchors ${rollup.anchors.join(', ') || 'none'}`,
+    `anchors ${clean(rollup.anchors.join(', ')) || 'none'}`,
   ]
     .filter(Boolean)
     .join(' · ')
@@ -166,7 +170,6 @@ function renderCheck(
 function renderSection(
   section: string,
   rollups: ICheckRollup[],
-  verdict: ILedgerVerdict,
   relaxed: ReadonlySet<string>
 ): string[] {
   const greenChecks = rollups.filter((rollup) => rollup.green).length
@@ -174,13 +177,12 @@ function renderSection(
   const expected = rollups.reduce((sum, rollup) => sum + rollup.expected, 0)
   const unverified = rollups.reduce((sum, rollup) => sum + rollup.unverified, 0)
   const needsAck = rollups.reduce((sum, rollup) => sum + rollup.needsAck, 0)
-  // Mismatches only: an unverified row is already reported by its own term, and
-  // counting it in both made two problem rows read as four.
-  const mismatched = verdict.blocking.filter(
-    (entry) =>
-      entry.status === 'fail' &&
-      rollups.some((rollup) => rollup.checkId === entry.checkId)
-  ).length
+  // Every recorded mismatch, integrity and semantic alike. Reading it off
+  // `verdict.blocking` counted only integrity, because that is the only class
+  // pushed there as a `fail` — so a semantic value that genuinely disagreed
+  // appeared in no term on the line a signer skims. Unverified keeps its own
+  // term and is not counted here, so a single problem row still reads as one.
+  const mismatched = rollups.reduce((sum, rollup) => sum + rollup.failed, 0)
 
   const allGreen = greenChecks === rollups.length
   const summary = [
@@ -295,7 +297,7 @@ export function renderCheckLedger(
   ]
 
   for (const [section, sectionRollups] of sections)
-    lines.push(...renderSection(section, sectionRollups, verdict, relaxed))
+    lines.push(...renderSection(section, sectionRollups, relaxed))
 
   lines.push(renderVerdict(verdict, rollups))
 

@@ -468,3 +468,143 @@ describe('renderCheckLedger', () => {
     )
   })
 })
+
+describe('what the gate round found', () => {
+  it('does not let a milder result erase a recorded mismatch', () => {
+    // The supersession guard blocked only a later `pass`, so recording
+    // `needs-ack` after a `fail` on the same (check, network) erased the
+    // disagreement — and triage then relaxed it, which the triage rules forbid
+    // for a fail. Semantic only; integrity coerces needs-ack to fail.
+    const ledger = ledgerOf(['mainnet'], [TARGET_STATE])
+    recordCheck(
+      ledger,
+      result({
+        checkId: 'target-state',
+        status: 'fail',
+        expected: 'facet 0xaa',
+        actual: 'facet 0xdeadbeef',
+      })
+    )
+    recordCheck(
+      ledger,
+      result({ checkId: 'target-state', status: 'needs-ack' })
+    )
+
+    const lines = renderCheckLedger(ledger, { triageProfile: 'subtractive' })
+
+    expect(lines.at(-1)).not.toContain('NO BLOCKING RESULT')
+    expect(rowFor(lines, 'mainnet')).not.toContain('relaxed by triage')
+    // Paired presence: the mismatch is still reported, not merely un-relaxed.
+    expect(rowFor(lines, 'mainnet')).toContain('MISMATCH')
+  })
+
+  it('refuses to summarise a ledger that verified nothing', () => {
+    // `createCheckLedger` guards this, but every consumer takes a plain
+    // `ICheckLedger`, so a rehydrated document reached the verdict with
+    // `passed === expected` as `0 === 0` and rendered ALL CHECKS GREEN.
+    const empty = {
+      expectedNetworks: [],
+      checks: new Map([[CODEHASH.checkId, CODEHASH]]),
+      results: [],
+    } as unknown as ICheckLedger
+
+    expect(() => renderCheckLedger(empty)).toThrow(/verifies nothing/)
+  })
+
+  it('renders an unrecognised status as unverified, the way the verdict grades it', () => {
+    // It rendered as MISMATCH with an acknowledgement hint while the verdict
+    // called it unverified with no acknowledgement path — and it appeared in no
+    // numerator at all.
+    // `recordCheck` validates the status, so this is only reachable by
+    // bypassing it — a rehydrated document or a direct push, the same route
+    // that let an empty ledger render green.
+    const rehydrated = {
+      expectedNetworks: ['mainnet'],
+      checks: new Map([[CODEHASH.checkId, CODEHASH]]),
+      results: [
+        result({ status: 'verified' as unknown as ICheckResult['status'] }),
+      ],
+    } as unknown as ICheckLedger
+
+    const row = rowFor(renderCheckLedger(rehydrated), 'mainnet')
+
+    expect(row).toContain('UNVERIFIED')
+    expect(row).not.toContain('MISMATCH')
+    // It must say there is no acknowledgement path, not offer one. A bare
+    // `not.toContain('acknowledge')` fails the correct message, which has to
+    // use the word to deny it.
+    expect(row).toContain('no acknowledgement path')
+    expect(row).not.toMatch(/→ review the/)
+  })
+
+  it('names a semantic mismatch on the section line', () => {
+    // The term was read off `verdict.blocking`, which carries a `fail` only for
+    // integrity checks, so a semantic value that disagreed appeared in no term
+    // on the line a signer skims.
+    const ledger = ledgerOf(['mainnet'], [TARGET_STATE])
+    recordCheck(
+      ledger,
+      result({ checkId: 'target-state', status: 'fail', actual: '0xbbb' })
+    )
+
+    const section = renderCheckLedger(ledger).find((line) =>
+      line.includes('Intent')
+    )
+
+    expect(section).toContain('1 blocking mismatch')
+  })
+
+  it('sanitises the anchor on the check line, not only on the expanded row', () => {
+    // `recordCheck` validates the anchor against ANCHOR_IDS, so this needs the
+    // rehydration path — which is also why the original test named for the
+    // anchor never set one, and why dropping `clean()` from the check line went
+    // unobserved. The expanded row was already cleaned; the summary line was not.
+    const esc = String.fromCharCode(27)
+    const rehydrated = {
+      expectedNetworks: ['mainnet'],
+      checks: new Map([[CODEHASH.checkId, CODEHASH]]),
+      results: [
+        result({
+          status: 'fail',
+          actual: '0xbbb',
+          anchor: `A-CI${esc}[32mGREEN` as unknown as ICheckResult['anchor'],
+        }),
+      ],
+    } as unknown as ICheckLedger
+
+    const lines = renderCheckLedger(rehydrated)
+    const checkLine = lines.find((line) => line.includes('anchors'))
+
+    expect(checkLine).not.toContain(`${esc}[32m`)
+    // Paired presence: the anchor is still named, so a signer can still see
+    // which anchor the row came from.
+    expect(checkLine).toContain('A-CI')
+  })
+
+  it('sanitises every field a foreign value reaches the terminal through', () => {
+    // Four of these had no test: an escape in a network name, an anchor, a
+    // section or a detail repainted the line. `detail` is the likeliest, since
+    // it carries RPC and store error strings from outside this process.
+    const esc = String.fromCharCode(27)
+    const injected = `${esc}[32mGREEN`
+    const ledger = createCheckLedger({
+      expectedNetworks: [`mainnet${injected}`],
+      checks: [{ ...CODEHASH, section: `Integrity${injected}` }],
+    })
+    recordCheck(
+      ledger,
+      result({
+        network: `mainnet${injected}`,
+        status: 'error',
+        detail: `rpc down ${injected}`,
+      })
+    )
+
+    const lines = renderCheckLedger(ledger)
+
+    for (const line of lines) expect(line).not.toContain(`${esc}[32m`)
+    // Paired presence: the values still appear, so sanitising has not silently
+    // dropped what a signer needs to identify the row.
+    expect(lines.join('\n')).toContain('GREEN')
+  })
+})

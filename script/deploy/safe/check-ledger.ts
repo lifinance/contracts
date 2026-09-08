@@ -314,9 +314,12 @@ export const rollUpChecks = (ledger: ICheckLedger): ICheckRollup[] =>
 
       // A retry may turn an unverified result green — recording a retryable
       // failure exists for exactly that. A mismatch may not: the anchor and the
-      // observed value genuinely disagreed, and a later pass on the same pair
-      // would erase that with no trace.
-      if (result.status === 'pass' && mismatched.has(result.network)) continue
+      // observed value genuinely disagreed, and anything milder recorded after
+      // it would erase that with no trace. Guarding only `pass` left the
+      // erasure reachable by recording `needs-ack` instead, which then made the
+      // disagreement eligible for a triage relaxation that the triage rules
+      // themselves forbid for a fail.
+      if (result.status !== 'fail' && mismatched.has(result.network)) continue
 
       latest.set(result.network, result)
     }
@@ -344,7 +347,7 @@ export const rollUpChecks = (ledger: ICheckLedger): ICheckRollup[] =>
       needsAck: countOf('needs-ack'),
       missing: missingNetworks.length,
       unverified: errored + missingNetworks.length,
-      green: passed === expected,
+      green: expected > 0 && passed === expected,
       anchors: [...new Set(results.map((result) => result.anchor))].sort(),
       missingNetworks,
       results,
@@ -450,6 +453,16 @@ export const summariseLedger = (
   ledger: ICheckLedger,
   options: { triageProfile?: OpProfile } = {}
 ): ILedgerVerdict => {
+  // A ledger that verified nothing is not a clear result. `createCheckLedger`
+  // refuses to build one, but every consumer here takes a plain `ICheckLedger`
+  // — a rehydrated document or a direct push reaches this without passing the
+  // factory, and `passed === expected` is then `0 === 0`, which rendered as
+  // ALL CHECKS GREEN over zero verified results.
+  if (ledger.checks.size === 0 || ledger.expectedNetworks.length === 0)
+    throw new Error(
+      `Refusing to summarise a ledger that verifies nothing: ${ledger.checks.size} checks over ${ledger.expectedNetworks.length} networks. A verdict about no results is not a pass, and reporting one as green is the failure this ledger exists to prevent.`
+    )
+
   const blocking: IBlockingResult[] = []
   const requiresAcknowledgement: ICheckResult[] = []
   const relaxed: ICheckResult[] = []
@@ -602,21 +615,26 @@ export const buildReviewAttestation = (
   // Each row is an array rather than a joined string: JSON delimits the fields
   // itself, so a recorded value can never shift a field boundary and make two
   // different result sets digest identically.
-  const rows = rollups.flatMap((rollup) =>
-    rollup.results.map((result) => [
-      result.checkId,
-      result.network,
-      result.status,
-      result.expected,
-      result.actual,
-      result.anchor,
-      result.detail ?? '',
-    ])
-  )
+  // Every stored result, not the surviving rollup rows: supersession drops a
+  // superseded result from what is rendered, and digesting only the survivors
+  // made "one needs-ack" and "a mismatch, then a needs-ack" digest identically —
+  // so the record could not distinguish a run in which something disagreed.
+  const rows = ledger.results.map((result) => [
+    result.checkId,
+    result.network,
+    result.status,
+    result.expected,
+    result.actual,
+    result.anchor,
+    result.detail ?? '',
+  ])
   const checks = [...ledger.checks.values()].map((definition) => [
     definition.checkId,
     definition.checkClass,
     definition.section,
+    // The only text saying what is being checked, so relabelling a check must
+    // move the digest.
+    definition.title,
   ])
   const byJson = (left: string[], right: string[]): number =>
     JSON.stringify(left) < JSON.stringify(right) ? -1 : 1
