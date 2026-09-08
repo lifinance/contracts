@@ -142,6 +142,11 @@ describe('a flag whose ON widens the run refuses a value it cannot read', () => 
       'all-networks',
       'allNetworks',
     ],
+    [
+      'deploy/safe/add-safe-owners-and-threshold.ts',
+      'ledger-live',
+      'ledgerLive',
+    ],
     ['deploy/safe/execute-pending-timelock-tx.ts', 'execute-all', 'executeAll'],
     ['deploy/safe/execute-pending-timelock-tx.ts', 'reject-all', 'rejectAll'],
     ['deploy/safe/deploy-safe.ts', 'allow-override', 'allowOverride'],

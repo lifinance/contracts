@@ -141,6 +141,10 @@ const main = defineCommand({
       camel: 'allNetworks',
       kebab: 'all-networks',
     })
+    const useLedgerLive = readBooleanFlag(process.argv, {
+      camel: 'ledgerLive',
+      kebab: 'ledger-live',
+    })
     if (!args.network && !allNetworks)
       throw new Error('Provide either --network <name> or --all-networks')
     if (args.network && allNetworks)
@@ -194,13 +198,13 @@ const main = defineCommand({
     const useLedger = args.ledger ?? true
     const ledgerOptions: ILedgerOptions | undefined = useLedger
       ? {
-          ledgerLive: args.ledgerLive || false,
+          ledgerLive: useLedgerLive,
           accountIndex: args.accountIndex ? Number(args.accountIndex) : 0,
           derivationPath: args.derivationPath,
         }
       : undefined
 
-    if (useLedger && args.derivationPath && args.ledgerLive)
+    if (useLedger && args.derivationPath && useLedgerLive)
       throw new Error(
         "Cannot use both 'derivationPath' and 'ledgerLive' options together"
       )

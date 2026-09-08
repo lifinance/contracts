@@ -2,7 +2,7 @@
  * Finds citty `defineCommand` arguments that declare a `default` on a name
  * spanning more than one word, a shape that makes one of the argument's two
  * spellings a silent no-op. Imported by `validateScripts.ts`, which sweeps every
- * file under `script/`.
+ * file under `script/` and `tasks/`.
  */
 
 import { readFileSync } from 'fs'

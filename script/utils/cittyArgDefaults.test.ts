@@ -407,8 +407,8 @@ describe('findMultiWordArgDefaults', () => {
   })
 })
 
-describe('every citty command under script/', () => {
-  const scriptFiles = (): string[] => {
+describe('every citty command under script/ and tasks/', () => {
+  const cittyFiles = (): string[] => {
     const found: string[] = []
     const walk = (relativeDir: string): void => {
       for (const entry of readdirSync(join(REPO_ROOT, relativeDir), {
@@ -421,14 +421,16 @@ describe('every citty command under script/', () => {
       }
     }
     walk('script')
+    walk('tasks')
     return found
   }
 
   it('declares no `default` on a multi-word argument', () => {
-    const files = scriptFiles()
+    const files = cittyFiles()
     // Guards the sweep itself: an empty file list would make the assertion
     // below pass while looking at nothing.
     expect(files.length).toBeGreaterThan(100)
+    expect(files.some((file) => file.startsWith('tasks/'))).toBe(true)
     expect(
       files.filter((file) =>
         readFileSync(join(REPO_ROOT, file), 'utf8').includes('defineCommand')
