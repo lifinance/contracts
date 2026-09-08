@@ -42,11 +42,14 @@ jobs:
           ##### -z so paths are emitted raw. Without it git C-quotes any path holding a
           ##### non-ASCII or control byte, and the leading quote breaks every ^-anchored
           ##### pattern below — adding '.github/workflows/pwné.yml' read as unprotected
-          mapfile -t -d '' FILES < <(git diff -z --name-only --no-renames origin/main HEAD)
+          ##### three-dot so the diff is against the merge base. Two-dot also lists the
+          ##### commits main gained since the branch point, which demands approval here
+          ##### for protected files this PR never touched
+          mapfile -t -d '' FILES < <(git diff -z --name-only --no-renames origin/main...HEAD)
 
           ##### make sure that there are modified files
           if [[ ${#FILES[@]} -eq 0 ]]; then
-            echo -e "\033[31mNo files found. This should not happen. Please check the code of the Github action. Aborting now.\033[0m"
+            echo -e "\033[31mNo files differ from the merge base. Either this PR has no net change (e.g. a change and its revert) or origin/main could not be resolved. Aborting now.\033[0m"
             echo "CONTINUE=false" >> $GITHUB_ENV
             exit 1
           fi
