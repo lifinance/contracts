@@ -157,6 +157,7 @@ const FIXED_PROVENANCE: IProposalProvenance = {
   gitCommit: 'a'.repeat(40),
   gitBranch: 'test-branch',
   dirtyTreeScoped: [],
+  dirtyTreeRead: true,
   capturedAt: '2026-01-01T00:00:00.000Z',
 }
 

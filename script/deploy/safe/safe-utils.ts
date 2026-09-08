@@ -1592,6 +1592,10 @@ function sanitizeOverride(
     dirtyTreeScoped: Array.isArray(override.dirtyTreeScoped)
       ? override.dirtyTreeScoped.map(sanitizeProvenanceText).filter(Boolean)
       : [],
+    dirtyTreeRead:
+      typeof override.dirtyTreeRead === 'boolean'
+        ? override.dirtyTreeRead
+        : Array.isArray(override.dirtyTreeScoped),
     ...(override.dirtyTreeTruncated === true
       ? { dirtyTreeTruncated: true }
       : {}),
@@ -1677,6 +1681,7 @@ export function buildProposalProvenance(
       gitCommit: PROVENANCE_UNKNOWN,
       gitBranch: PROVENANCE_UNKNOWN,
       dirtyTreeScoped: [],
+      dirtyTreeRead: false,
       captureErrors: [`provenance capture failed: ${error}`],
       ...(reason ? { reason } : {}),
       ...ticket,
