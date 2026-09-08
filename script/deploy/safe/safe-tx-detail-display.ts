@@ -227,6 +227,25 @@ const printableFragment = (produce: () => string): string | undefined => {
   }
 }
 
+/**
+ * Describes a thrown value without being able to throw doing it.
+ *
+ * The last catch before `processTxs` cannot itself fail, and describing an
+ * error means coercing it: reading `.message` runs a getter, and the sanitiser
+ * coerces whatever it is given. A value whose `toString` throws something that
+ * is itself unstringifiable — a null-prototype object — defeats both, so the
+ * fallback is a constant rather than anything derived from the value.
+ */
+function describeThrown(error: unknown): string {
+  try {
+    return sanitizeProvenanceText(
+      error instanceof Error ? error.message : error
+    )
+  } catch {
+    return 'an error that cannot itself be described'
+  }
+}
+
 /** Names a fragment that could not be rendered, in the notice's voice. */
 const FRAGMENT_UNRENDERABLE = color(
   YELLOW,
@@ -376,9 +395,7 @@ export function buildSafeTxDetailLines(input: ISafeTxDetailInput): string[] {
         'Provenance',
         color(
           YELLOW,
-          `UNKNOWN — could not be rendered: ${sanitizeProvenanceText(
-            error instanceof Error ? error.message : error
-          )}`
+          `UNKNOWN — could not be rendered: ${describeThrown(error)}`
         )
       )
     )

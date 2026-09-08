@@ -715,6 +715,30 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
       expect(rendered).not.toContain('block could not be rendered')
     }
 
+    // And the nesting one level deeper: describing the thrown value is itself
+    // a coercion, so a value whose `toString` throws something unstringifiable
+    // defeats the describing too. The last catch before the network loop
+    // cannot be allowed to fail.
+    const nested = (): string[] =>
+      buildSafeTxDetailLines({
+        ...benign,
+        provenance: {
+          get proposerHandle(): string {
+            // A non-Error thrown value is the whole point: a row can produce one.
+            // eslint-disable-next-line no-throw-literal
+            throw {
+              toString() {
+                throw Object.create(null)
+              },
+            }
+          },
+        } as never,
+      })
+    expect(nested).not.toThrow()
+    expect(nested().join('\n')).toContain(
+      'an error that cannot itself be described'
+    )
+
     // The rest of the block survives a broken provenance row.
     expect(lines.some((line) => line.includes('Data:'))).toBe(true)
   })
