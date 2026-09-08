@@ -233,15 +233,23 @@ describe('evaluateCancelDecision — what the input can lie about', () => {
     }
   )
 
-  it('an unrecognised signal value blocks rather than falling through to execute', () => {
-    const decision = evaluateCancelDecision({
-      ...verified,
-      integrity: 'partially-verified',
-    } as unknown as ICancelDecisionInput)
+  it.each([
+    'integrity',
+    'opIdentity',
+    'deploymentRecord',
+    'executability',
+  ] as const)(
+    'an unrecognised %s value blocks rather than falling through to execute',
+    (field) => {
+      const decision = evaluateCancelDecision({
+        ...verified,
+        [field]: 'partially-verified',
+      } as unknown as ICancelDecisionInput)
 
-    expect(decision.action).toBe('block')
-    expect(decision.reason).toBe('unclassified-signals')
-  })
+      expect(decision.action).toBe('block')
+      expect(decision.reason).toBe('unclassified-signals')
+    }
+  )
 })
 
 describe('evaluateCancelDecision — the two records are not the same record', () => {
