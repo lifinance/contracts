@@ -314,7 +314,7 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
 
     expect(line).not.toContain('(LiFiDiamond)')
     expect(line).not.toContain('etherscan')
-    expect(line).toContain('could not be rendered for this network')
+    expect(line).toContain('shown unformatted')
     // The stored address is still shown, unformatted, rather than nothing.
     expect(line).toContain(benign.to as string)
   })
@@ -361,7 +361,7 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
       'Proposer:'
     )
 
-    expect(line).toContain('could not be rendered for this network')
+    expect(line).toContain('shown unformatted')
     // The stored address is still shown rather than blanked.
     expect(line).toContain(benign.proposer as string)
   })
@@ -375,7 +375,7 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
       ['proposer', 'Proposer:'],
     ] as const)
       expect(lineStartingWith(linesFor({ [field]: '' }), label)).not.toContain(
-        'could not be rendered'
+        'shown unformatted'
       )
   })
 
@@ -388,14 +388,84 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
       buildSafeTxDetailLines({
         ...benign,
         to: padded,
-        formatAddress: (address: string) => `len${address.length}`,
-        explorerUrlFor: (address: string) => `https://x/len${address.length}`,
+        formatAddress: (address: string) => `fmt${address.length}`,
+        explorerUrlFor: (address: string) => `https://x/url${address.length}`,
       }),
       'To:'
     )
 
-    expect(line).toContain(`len${(benign.to as string).length}`)
-    expect(line).not.toContain(`len${padded.length}`)
+    // Distinct markers, or the formatter's output alone satisfies both halves
+    // and nothing constrains what the explorer was handed.
+    expect(line).toContain(`fmt${(benign.to as string).length}`)
+    expect(line).toContain(`url${(benign.to as string).length}`)
+    expect(line).not.toContain(`fmt${padded.length}`)
+    expect(line).not.toContain(`url${padded.length}`)
+  })
+
+  it('hands the proposer formatter the sanitised text as well', () => {
+    // The target line's version of this is above; sharing one helper between
+    // the two call sites does not mean both are observed.
+    const padded = `  ${benign.proposer as string}  `
+    const line = lineStartingWith(
+      buildSafeTxDetailLines({
+        ...benign,
+        proposer: padded,
+        formatAddress: (address: string) => `fmt${address.length}`,
+      }),
+      'Proposer:'
+    )
+
+    expect(line).toContain(`fmt${(benign.proposer as string).length}`)
+    expect(line).not.toContain(`fmt${padded.length}`)
+  })
+
+  it('survives a callback whose return value throws on coercion', () => {
+    // The sanitiser coerces what the callback returns, so it can throw where
+    // the callback did not. Escaping here costs every remaining network in the
+    // run, because the caller has no per-network catch.
+    const throwing = {
+      toString() {
+        throw new Error('boom')
+      },
+    } as unknown as string
+
+    for (const overrides of [
+      { formatAddress: () => throwing },
+      { explorerUrlFor: () => throwing },
+      { toTargetName: throwing },
+    ])
+      expect(() =>
+        buildSafeTxDetailLines({ ...benign, ...overrides })
+      ).not.toThrow()
+  })
+
+  it('renders no explorer link for a target that sanitises to nothing', () => {
+    const line = lineStartingWith(
+      linesFor({
+        to: ' ',
+        explorerUrlFor: () => 'https://etherscan.io/address/',
+      }),
+      'To:'
+    )
+
+    expect(line).not.toContain('etherscan')
+  })
+
+  it('keeps the unformatted-address warning outside the value\u2019s colour', () => {
+    const line = lineStartingWith(
+      buildSafeTxDetailLines({
+        ...benign,
+        formatAddress: () => {
+          throw new Error('no codec')
+        },
+      }),
+      'To:'
+    )
+
+    expect(line).toContain('\u001b[33m \u26a0 shown unformatted')
+    expect(line.indexOf('\u001b[0m')).toBeLessThan(
+      line.indexOf('shown unformatted')
+    )
   })
 
   it('puts the notice outside the colour on the address lines too', () => {
@@ -611,6 +681,27 @@ describe('the block is total — no row shape costs the operator the run', () =>
     )
 
     expect(line).toContain('unrenderable')
+  })
+
+  it('renders a parked-refs field that is not an array', () => {
+    // A stored document with a `length` satisfies a length check and then
+    // throws on `for...of`, which would escape the builder entirely.
+    for (const parkedTaskRefs of [
+      { length: 2 } as never,
+      { length: 1, 0: {} } as never,
+      5 as never,
+      'abc' as never,
+    ])
+      expect(() =>
+        buildSafeTxDetailLines({ ...benign, parkedTaskRefs })
+      ).not.toThrow()
+
+    expect(
+      buildSafeTxDetailLines({
+        ...benign,
+        parkedTaskRefs: { length: 2 } as never,
+      }).some((line) => line.includes('Parked cleanup'))
+    ).toBe(false)
   })
 
   it('renders a parked ref that is not an object', () => {

@@ -226,15 +226,17 @@ const printableFragment = (produce: () => string): string | undefined => {
 /** Names a fragment that could not be rendered, in the notice's voice. */
 const FRAGMENT_UNRENDERABLE = color(
   YELLOW,
-  ' ⚠ the address could not be rendered for this network'
+  ' ⚠ shown unformatted — this network produced nothing printable for it'
 )
 
 /**
- * How an address renders, and whether the renderer is the reason it is blank.
+ * How an address renders, and whether the renderer produced nothing printable
+ * when there was something to render. On failure the sanitised text is shown
+ * unformatted rather than dropped, so the line is never blank.
  *
- * An empty stored value renders empty because it is empty; saying the network
- * could not render it would blame the wrong thing and add a line the original
- * display never had.
+ * An empty stored value is not a failure: it renders empty because it is empty,
+ * and saying the network could not render it would blame the wrong thing and
+ * add a line the original display never had.
  */
 function renderAddress(
   text: string,
@@ -337,7 +339,11 @@ export function buildSafeTxDetailLines(input: ISafeTxDetailInput): string[] {
     ),
   ]
 
-  if (input.parkedTaskRefs && input.parkedTaskRefs.length > 0)
+  // `Array.isArray`, not a length check: a stored document with a `length`
+  // property satisfies the latter and then throws on `for...of`, which escapes
+  // this function entirely — `processTxs` has no per-network catch, so it would
+  // cost the operator every network left in the run.
+  if (Array.isArray(input.parkedTaskRefs) && input.parkedTaskRefs.length > 0)
     lines.push(...parkedLines(input.parkedTaskRefs))
 
   // Belt-and-braces around a total function: no shape of stored row may cost
