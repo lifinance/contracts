@@ -3,12 +3,11 @@
  * anvil mainnet fork (see EXSC-828).
  *
  * Centrifuge share tokens cannot be bought on a DEX and their vaults are ERC-7540
- * asynchronous, so the demo mints the share token the way the protocol itself does: the
- * Spoke is an authorized ward on the token, so we impersonate it and mint. No live
- * Centrifuge API and no real funds are touched:
+ * asynchronous, so there is no way to acquire one on demand. The demo instead impersonates
+ * an existing holder and transfers, which needs no real funds and no live Centrifuge API:
  *   1. spawn anvil forking mainnet (ETH_NODE_URI_MAINNET required)
  *   2. deploy CentrifugeFacet pointed at the real TokenBridge
- *   3. impersonate the Spoke and mint deJAAA to the caller, then approve the facet
+ *   3. impersonate a deJAAA whale and transfer to the caller, then approve the facet
  *   4. call startBridgeTokensViaCentrifuge with a deliberate overpayment
  *   5. assert the real funds flow: shares left the caller, nothing is stranded in the
  *      facet, and the Gateway refunded the unused fee to refundRecipient
