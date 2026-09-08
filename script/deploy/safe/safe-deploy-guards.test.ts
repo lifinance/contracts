@@ -292,8 +292,12 @@ describe('the normalisers that decide what counts as no Safe', () => {
   })
 
   it('does not treat surrounding whitespace as an owner difference', () => {
+    // Both sides, because either one can carry the padding: the config side is
+    // hand-edited and the deployed side is whatever the node encodes.
     const owner = '0xE3C8121DF9b1c5A7d383Ab4923fF848a6510F357'
+
     expect(compareOwnerSets([owner], [`  ${owner}  `]).matchesConfig).toBe(true)
+    expect(compareOwnerSets([`  ${owner}  `], [owner]).matchesConfig).toBe(true)
   })
 })
 
