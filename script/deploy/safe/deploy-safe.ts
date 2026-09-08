@@ -355,7 +355,9 @@ const main = defineCommand({
       )
 
     // parse & validate threshold + owners
-    const isDefaultThreshold = !process.argv.includes('--threshold')
+    const isDefaultThreshold = !process.argv.some(
+      (arg) => arg === '--threshold' || arg.startsWith('--threshold=')
+    )
     const threshold = Number(args.threshold)
     if (isNaN(threshold) || threshold < 1)
       throw new Error('Threshold must be a positive integer')
@@ -565,6 +567,21 @@ const main = defineCommand({
       const expected = owners.map((o) => o.toLowerCase())
       const actual = (actualOwners as Address[]).map((o) => o.toLowerCase())
 
+      // Against config first, because the requested-vs-actual check below throws
+      // unless the two sets are equal — so anything read after it can only
+      // restate the arguments this run supplied. The Safe's address is not
+      // always one this run derived: the no-`ProxyCreation` fallback takes it
+      // from an operator's keyboard.
+      ownerDivergence = describeOwnerSetDivergence({
+        network: networkName,
+        safeAddress,
+        comparison: compareOwnerSets(ownersFromConfig, actual),
+      })
+      if (ownerDivergence.length) {
+        consola.warn('⚠ CONFIG DIVERGENCE')
+        for (const line of ownerDivergence) consola.warn(line)
+      } else consola.success('✔ Owners match config/global.json safeOwners')
+
       const missing = expected.filter((o) => !actual.includes(o))
       const extra = actual.filter((o) => !expected.includes(o))
 
@@ -581,16 +598,6 @@ const main = defineCommand({
         )
         throw new Error('Threshold verification failed')
       } else consola.success('✔ Threshold matches expected')
-
-      ownerDivergence = describeOwnerSetDivergence({
-        network: networkName,
-        safeAddress,
-        comparison: compareOwnerSets(ownersFromConfig, actual),
-      })
-      if (ownerDivergence.length) {
-        consola.warn('⚠ CONFIG DIVERGENCE')
-        for (const line of ownerDivergence) consola.warn(line)
-      } else consola.success('✔ Owners match config/global.json safeOwners')
     } catch (error) {
       consola.error('❌ Verification failed with error:', error)
       consola.error(`Safe address: ${safeAddress}`)

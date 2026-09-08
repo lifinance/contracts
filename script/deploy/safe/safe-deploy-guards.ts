@@ -2,9 +2,9 @@
  * Decides whether a Safe deployment may proceed and whether the Safe it
  * produced matches repo config.
  *
- * Imported by `deploy-safe.ts`. The three decisions are pure so each refusal
- * can be exercised against the committed `config/global.json` and
- * `config/networks.json` without running a deployment.
+ * Pure by necessity rather than by taste: the command these guard deploys a
+ * Safe with the production key, so a refusal that could only be exercised by
+ * running it could not be exercised at all.
  */
 
 import { SAFE_THRESHOLD } from '../shared/constants'
@@ -81,6 +81,16 @@ export const evaluateSafeThresholdFloor = (input: {
   isTestnet: boolean
 }): ISafeThresholdVerdict => {
   const floor = input.isTestnet ? 1 : SAFE_THRESHOLD
+
+  // `3.5` and `Infinity` both compare above 3 while being no threshold at all,
+  // and they get their own refusal: telling an operator who passed 1 that it is
+  // not a whole number describes a value that is not the one in front of them.
+  if (!Number.isInteger(input.threshold))
+    return {
+      allowed: false,
+      floor,
+      refusal: `--threshold ${input.threshold} is not a whole number of confirmations. A Safe's threshold is a count of signatures, so anything else is a typo rather than a weaker policy.`,
+    }
 
   if (input.threshold >= floor) return { allowed: true, floor }
 

@@ -1,10 +1,9 @@
 /**
- * Tests for the Safe deployment guards (safe-deploy-guards.ts).
+ * The Safe deployment guards.
  *
- * Every refusal is exercised twice: once against the committed
- * `config/global.json` / `config/networks.json` so it is shown to fire on the
- * data a real invocation reads, and once against the configuration the fleet
- * actually runs so none of them is a blanket refusal.
+ * Each refusal is paired with the configuration that must still pass, because a
+ * guard that refused every deployment would satisfy the refusals alone — and
+ * the command cannot be run to find out.
  */
 
 import {
@@ -219,6 +218,25 @@ describe('assertSafeThresholdFloor', () => {
         isTestnet: false,
       })
     ).toThrow(`below the ${SAFE_THRESHOLD} confirmations`)
+  })
+
+  it('refuses a threshold that is not a whole number, and says so', () => {
+    // These compare above the floor while being no count of signatures at all.
+    // The refusal names that, rather than telling the operator their value is
+    // below a floor it in fact exceeds.
+    // `1e100` is deliberately absent: it *is* a whole number, and an absurdly
+    // large one is refused downstream by `threshold > owners.length`.
+    for (const threshold of [3.5, 2.5, Infinity, -Infinity, NaN]) {
+      expect(
+        () =>
+          assertSafeThresholdFloor({
+            network: sampleNetwork,
+            threshold,
+            isTestnet: false,
+          }),
+        String(threshold)
+      ).toThrow('not a whole number')
+    }
   })
 
   it('returns the floor for the threshold the script defaults to', () => {
