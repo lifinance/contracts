@@ -47,9 +47,18 @@ const result = (over: Partial<ICheckResult> = {}): ICheckResult => ({
   ...over,
 })
 
-/** The one line naming a network, so an assertion cannot match a summary line. */
+/**
+ * The one expanded row for a network.
+ *
+ * Matches the network column exactly rather than by substring: eight real
+ * network names are substrings of others (`arbitrum` inside `arbitrumnova`,
+ * `base` inside `basecamp`), so a substring match would silently return the
+ * wrong row — or several — the moment a test uses real names.
+ */
 const rowFor = (lines: string[], network: string): string => {
-  const matches = lines.filter((line) => line.includes(network))
+  const matches = lines.filter((line) =>
+    new RegExp(`^\\u001b\\[\\d+m {6}${network}\\s`).test(line)
+  )
   expect(matches).toHaveLength(1)
   return matches[0] as string
 }
@@ -213,7 +222,27 @@ describe('renderCheckLedger', () => {
     expect(verdict).not.toContain('BLOCKED')
   })
 
-  it('names what --triage relaxed instead of dropping it silently', () => {
+  it('names what triage relaxed instead of dropping it silently', () => {
+    const ledger = ledgerOf(['mainnet'], [TARGET_STATE])
+    recordCheck(
+      ledger,
+      result({
+        checkId: 'target-state',
+        status: 'needs-ack',
+        actual: 'not targeted on this network',
+      })
+    )
+
+    const lines = renderCheckLedger(ledger, { triageProfile: 'subtractive' })
+    const row = rowFor(lines, 'mainnet')
+
+    expect(row).toContain('relaxed by triage')
+    expect(lines.at(-1)).toContain('NO BLOCKING RESULT')
+    expect(lines.at(-1)).toContain('1 relaxed by triage')
+    expect(lines.at(-1)).not.toContain('BLOCKED —')
+  })
+
+  it('keeps a semantic MISMATCH out of triage and off the do-not-sign line', () => {
     const ledger = ledgerOf(['mainnet'], [TARGET_STATE])
     recordCheck(
       ledger,
@@ -223,9 +252,22 @@ describe('renderCheckLedger', () => {
     const lines = renderCheckLedger(ledger, { triageProfile: 'subtractive' })
     const row = rowFor(lines, 'mainnet')
 
-    expect(row).toContain('relaxed by --triage')
-    expect(lines.at(-1)).toContain('1 relaxed by --triage')
-    expect(lines.at(-1)).not.toContain('BLOCKED')
+    expect(row).toContain('MISMATCH')
+    expect(row).not.toContain('relaxed by triage')
+    // The verdict below it says an acknowledgement is what is missing, so the
+    // row must not tell the signer the opposite.
+    expect(row).not.toContain('do not sign')
+    expect(row).toContain('→ review the disagreement')
+    expect(lines.at(-1)).toContain('ACKNOWLEDGEMENT REQUIRED')
+  })
+
+  it('tells the signer not to sign only on an integrity mismatch', () => {
+    const ledger = ledgerOf(['mainnet'], [CODEHASH])
+    recordCheck(ledger, result({ status: 'fail', actual: '0xbbb' }))
+
+    expect(rowFor(renderCheckLedger(ledger), 'mainnet')).toContain(
+      '→ do not sign'
+    )
   })
 
   it('marks a relaxed NEEDS REVIEW row as relaxed too, not as still pending', () => {
@@ -242,9 +284,9 @@ describe('renderCheckLedger', () => {
     const lines = renderCheckLedger(ledger, { triageProfile: 'subtractive' })
     const row = rowFor(lines, 'mainnet')
 
-    expect(row).toContain('NEEDS REVIEW · relaxed by --triage')
+    expect(row).toContain('NEEDS REVIEW · relaxed by triage')
     expect(row).not.toContain('→ review the change')
-    expect(lines.at(-1)).toContain('1 relaxed by --triage')
+    expect(lines.at(-1)).toContain('1 relaxed by triage')
   })
 
   it('keeps blocking an integrity FAIL under --triage', () => {
@@ -254,7 +296,7 @@ describe('renderCheckLedger', () => {
     const lines = renderCheckLedger(ledger, { triageProfile: 'subtractive' })
 
     expect(lines.at(-1)).toContain('BLOCKED')
-    expect(rowFor(lines, 'mainnet')).not.toContain('relaxed by --triage')
+    expect(rowFor(lines, 'mainnet')).not.toContain('relaxed by triage')
   })
 
   it('neutralises escape sequences carried by a recorded value', () => {
@@ -287,6 +329,133 @@ describe('renderCheckLedger', () => {
     expect(sections).toHaveLength(2)
     expect(sections[0]).toContain('Integrity')
     expect(sections[1]).toContain('Intent')
+  })
+
+  it('expands the right row when network names are substrings of each other', () => {
+    const ledger = ledgerOf(
+      ['arbitrum', 'arbitrumnova', 'arbitrumsepolia'],
+      [CODEHASH]
+    )
+    const codehash =
+      '0x9c0d3ba1b0e0d0a1c0f0e0d0c0b0a09080706050403020100ffeeddccbbaa9988'
+
+    recordCheck(
+      ledger,
+      result({ network: 'arbitrum', expected: codehash, actual: codehash })
+    )
+    recordCheck(
+      ledger,
+      result({ network: 'arbitrumnova', expected: codehash, actual: codehash })
+    )
+    recordCheck(
+      ledger,
+      result({
+        network: 'arbitrumsepolia',
+        status: 'fail',
+        expected: codehash,
+        actual: `${codehash.slice(0, 64)}0000`,
+      })
+    )
+
+    const lines = renderCheckLedger(ledger)
+    const row = rowFor(lines, 'arbitrumsepolia')
+
+    expect(row).toContain('MISMATCH')
+    expect(row).toContain(codehash)
+    // The two passing networks stay collapsed, including the one whose name is
+    // a prefix of the failing one.
+    expect(() => rowFor(lines, 'arbitrum')).toThrow()
+    expect(() => rowFor(lines, 'arbitrumnova')).toThrow()
+  })
+
+  it('sanitizes the check id, the title and the anchor, not only the values', () => {
+    const ledger = ledgerOf(
+      ['mainnet'],
+      [
+        {
+          ...CODEHASH,
+          checkId: '\u001b[32mcodehash',
+          title: '\u001b[32mall green',
+        },
+      ]
+    )
+    recordCheck(
+      ledger,
+      result({ checkId: '\u001b[32mcodehash', status: 'fail', actual: '0xbbb' })
+    )
+
+    const checkLine = renderCheckLedger(ledger).find((line) =>
+      line.includes('codehash')
+    ) as string
+
+    expect(checkLine).toContain('[32mcodehash')
+    expect(checkLine).not.toContain('\u001b[32mcodehash')
+    expect(checkLine).not.toContain('\u001b[32mall green')
+  })
+
+  it('names an outstanding acknowledgement on the section line', () => {
+    const ledger = ledgerOf(['mainnet'], [TARGET_STATE])
+    recordCheck(
+      ledger,
+      result({
+        checkId: 'target-state',
+        status: 'needs-ack',
+        actual: 'not targeted on this network',
+      })
+    )
+
+    const section = renderCheckLedger(ledger).find((line) =>
+      line.includes('Intent')
+    ) as string
+
+    expect(section).toContain('1 needs review')
+    expect(section).not.toContain('blocking')
+  })
+
+  it('counts an unverified row once on the section line, not twice', () => {
+    const ledger = ledgerOf(['mainnet', 'polygon'], [CODEHASH])
+    recordCheck(
+      ledger,
+      result({ status: 'error', anchor: 'A-UNRESOLVED', detail: 'RPC timeout' })
+    )
+
+    const section = renderCheckLedger(ledger).find((line) =>
+      line.includes('Integrity')
+    ) as string
+
+    // One errored network plus one that never reported: two problem rows.
+    expect(section).toContain('2 unverified')
+    expect(section).not.toContain('blocking mismatch')
+  })
+
+  it('reports mixed verdicts within one section', () => {
+    const ledger = createCheckLedger({
+      expectedNetworks: ['mainnet'],
+      checks: [
+        CODEHASH,
+        { ...CODEHASH, checkId: 'codehash-immutables', checkClass: 'semantic' },
+      ],
+    })
+
+    recordCheck(ledger, result())
+    recordCheck(
+      ledger,
+      result({
+        checkId: 'codehash-immutables',
+        status: 'fail',
+        actual: '0xbbb',
+      })
+    )
+
+    const lines = renderCheckLedger(ledger)
+    const section = lines.find((line) => line.includes('Integrity')) as string
+
+    expect(section).toContain('1/2 checks green')
+    expect(section).toContain('1/2 network results verified')
+    expect(
+      lines.filter((line) => line.includes('codehash-immutables'))
+    ).toHaveLength(1)
+    expect(lines.some((line) => line.includes('✗ codehash —'))).toBe(false)
   })
 
   it('opens with a header naming the coverage denominator', () => {

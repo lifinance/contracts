@@ -17,6 +17,7 @@ import {
   checkResultKey,
   rollUpChecks,
   summariseLedger,
+  type CheckClass,
   type ICheckLedger,
   type ICheckResult,
   type ICheckRollup,
@@ -56,8 +57,7 @@ const ROW_LABEL: Record<RowKind, string> = {
 
 const ROW_ACTION: Record<RowKind, string> = {
   fail: 'do not sign — the observed value disagrees with the anchor',
-  error:
-    'retry the check — an unverified check has no acknowledgement path (T3)',
+  error: 'retry the check — an unverified check has no acknowledgement path',
   'needs-ack': 'review the change and acknowledge it',
   missing: 're-run this check on this network before signing',
 }
@@ -69,9 +69,17 @@ const ROW_COLOR: Record<RowKind, string> = {
   missing: YELLOW,
 }
 
-const RELAXED_LABEL = 'relaxed by --triage'
+/**
+ * A semantic mismatch is acknowledgeable, so telling the signer not to sign
+ * would contradict the verdict printed below it. Only an integrity mismatch is
+ * the end of the road.
+ */
+const SEMANTIC_FAIL_ACTION =
+  'review the disagreement and acknowledge it, or stop'
+
+const RELAXED_LABEL = 'relaxed by triage'
 const RELAXED_ACTION =
-  'no action — a subtractive-op triage dropped the acknowledgement (T2)'
+  'no action — a subtractive-op triage dropped the acknowledgement'
 
 const plural = (count: number, noun: string): string =>
   `${count} ${noun}${count === 1 ? '' : 's'}`
@@ -80,17 +88,20 @@ function renderRow(
   network: string,
   kind: RowKind,
   facts: string[],
-  detail?: string,
-  relaxed = false
+  options: { detail?: string; relaxed?: boolean; checkClass?: CheckClass } = {}
 ): string {
-  const trailer = detail ? ` · ${clean(detail)}` : ''
+  const trailer = options.detail ? ` · ${clean(options.detail)}` : ''
+  const action =
+    kind === 'fail' && options.checkClass === 'semantic'
+      ? SEMANTIC_FAIL_ACTION
+      : ROW_ACTION[kind]
 
   return color(
-    relaxed ? YELLOW : ROW_COLOR[kind],
+    options.relaxed ? YELLOW : ROW_COLOR[kind],
     `      ${clean(network).padEnd(NETWORK_WIDTH)}${ROW_LABEL[kind]}${
-      relaxed ? ` · ${RELAXED_LABEL}` : ''
+      options.relaxed ? ` · ${RELAXED_LABEL}` : ''
     }  ${facts.filter(Boolean).join(' · ')}${trailer}  → ${
-      relaxed ? RELAXED_ACTION : ROW_ACTION[kind]
+      options.relaxed ? RELAXED_ACTION : action
     }`
   )
 }
@@ -99,6 +110,8 @@ function rowKind(result: ICheckResult): RowKind {
   if (result.status === 'error') return 'error'
   if (result.status === 'needs-ack') return 'needs-ack'
 
+  // Anything the ledger's four statuses do not cover reaches the signer as a
+  // mismatch rather than as nothing, matching how the verdict grades it.
   return 'fail'
 }
 
@@ -119,7 +132,7 @@ function renderCheck(
   const lines = [
     color(
       rollup.failed > 0 ? RED : YELLOW,
-      `  ✗ ${rollup.checkId} — ${rollup.title}  ${counts}`
+      `  ✗ ${clean(rollup.checkId)} — ${clean(rollup.title)}  ${counts}`
     ),
   ]
 
@@ -133,10 +146,13 @@ function renderCheck(
         [
           `expected ${clean(result.expected)}`,
           `actual ${clean(result.actual)}`,
-          `anchor ${result.anchor}`,
+          `anchor ${clean(result.anchor)}`,
         ],
-        result.detail,
-        relaxed.has(checkResultKey(result.checkId, result.network))
+        {
+          ...(result.detail === undefined ? {} : { detail: result.detail }),
+          relaxed: relaxed.has(checkResultKey(result.checkId, result.network)),
+          checkClass: rollup.checkClass,
+        }
       )
     )
   }
@@ -157,23 +173,29 @@ function renderSection(
   const passed = rollups.reduce((sum, rollup) => sum + rollup.passed, 0)
   const expected = rollups.reduce((sum, rollup) => sum + rollup.expected, 0)
   const unverified = rollups.reduce((sum, rollup) => sum + rollup.unverified, 0)
-  const blocking = verdict.blocking.filter((entry) =>
-    rollups.some((rollup) => rollup.checkId === entry.checkId)
+  const needsAck = rollups.reduce((sum, rollup) => sum + rollup.needsAck, 0)
+  // Mismatches only: an unverified row is already reported by its own term, and
+  // counting it in both made two problem rows read as four.
+  const mismatched = verdict.blocking.filter(
+    (entry) =>
+      entry.status === 'fail' &&
+      rollups.some((rollup) => rollup.checkId === entry.checkId)
   ).length
 
   const allGreen = greenChecks === rollups.length
   const summary = [
     `${greenChecks}/${rollups.length} checks green`,
     `${passed}/${expected} network results verified`,
-    blocking > 0 ? `${blocking} blocking` : '',
+    mismatched > 0 ? `${mismatched} blocking mismatch` : '',
     unverified > 0 ? `${unverified} unverified` : '',
+    needsAck > 0 ? `${needsAck} needs review` : '',
   ]
     .filter(Boolean)
     .join(' · ')
 
   const lines = [
     color(
-      allGreen ? GREEN : blocking > 0 ? RED : YELLOW,
+      allGreen ? GREEN : mismatched > 0 ? RED : YELLOW,
       `${allGreen ? '✓' : '✗'} ${clean(section).padEnd(
         SECTION_WIDTH
       )}${summary}`
@@ -194,7 +216,7 @@ function renderVerdict(
 ): string {
   const relaxedNote =
     verdict.relaxed.length > 0
-      ? ` · ${verdict.relaxed.length} relaxed by --triage`
+      ? ` · ${verdict.relaxed.length} ${RELAXED_LABEL}`
       : ''
 
   if (verdict.hardBlocked) {

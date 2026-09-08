@@ -324,45 +324,92 @@ describe('summariseLedger', () => {
 })
 
 describe('isTriageRelaxationAllowed', () => {
-  it('allows a semantic relaxation on a purely subtractive op', () => {
+  const ledger = ledgerOf(['mainnet'])
+
+  it('allows an outstanding acknowledgement on a purely subtractive op', () => {
     expect(
-      isTriageRelaxationAllowed({
+      isTriageRelaxationAllowed(ledger, {
+        checkId: 'target-state',
+        status: 'needs-ack',
         profile: 'subtractive',
-        checkClass: 'semantic',
       })
-    ).toEqual({ allowed: true, reason: 'subtractive op, semantic check' })
+    ).toEqual({
+      allowed: true,
+      reason: 'subtractive op, semantic check, acknowledgement outstanding',
+    })
   })
 
   it('refuses to relax an integrity check even on a subtractive op', () => {
-    const decision = isTriageRelaxationAllowed({
+    const decision = isTriageRelaxationAllowed(ledger, {
+      checkId: 'codehash',
+      status: 'needs-ack',
       profile: 'subtractive',
-      checkClass: 'integrity',
     })
 
     expect(decision.allowed).toBe(false)
     expect(decision.reason).toMatch(/integrity/)
   })
 
+  it('takes the check class from the ledger, not from the caller', () => {
+    // The codehash gate is registered as integrity; nothing a caller passes can
+    // describe it as semantic, so the gate cannot be relaxed by mislabelling it.
+    for (const status of ['needs-ack', 'fail'] as const)
+      expect(
+        isTriageRelaxationAllowed(ledger, {
+          checkId: 'codehash',
+          status,
+          profile: 'subtractive',
+        }).allowed
+      ).toBe(false)
+  })
+
+  it('refuses a check that is not registered on this ledger', () => {
+    const decision = isTriageRelaxationAllowed(ledger, {
+      checkId: 'invented',
+      status: 'needs-ack',
+      profile: 'subtractive',
+    })
+
+    expect(decision.allowed).toBe(false)
+    expect(decision.reason).toMatch(/not registered/)
+  })
+
   it('refuses every relaxation on an additive, mixed or unknown op', () => {
     for (const profile of ['additive', 'mixed', 'unknown'] as const) {
-      const decision = isTriageRelaxationAllowed({
+      const decision = isTriageRelaxationAllowed(ledger, {
+        checkId: 'target-state',
+        status: 'needs-ack',
         profile,
-        checkClass: 'semantic',
       })
 
       expect(decision.allowed).toBe(false)
       expect(decision.reason).toMatch(/subtractive/)
     }
   })
+
+  it('refuses a mismatch — triage drops an acknowledgement, not a disagreement', () => {
+    const decision = isTriageRelaxationAllowed(ledger, {
+      checkId: 'target-state',
+      status: 'fail',
+      profile: 'subtractive',
+    })
+
+    expect(decision.allowed).toBe(false)
+    expect(decision.reason).toMatch(/not a fail/)
+  })
 })
 
-describe('summariseLedger under --triage', () => {
-  it('drops a semantic acknowledgement on a subtractive op', () => {
+describe('summariseLedger under triage', () => {
+  it('drops an outstanding semantic acknowledgement on a subtractive op', () => {
     const ledger = ledgerOf(['mainnet'], [TARGET_STATE])
 
     recordCheck(
       ledger,
-      result({ checkId: 'target-state', status: 'fail', actual: '1.0.1' })
+      result({
+        checkId: 'target-state',
+        status: 'needs-ack',
+        actual: 'not targeted on this network',
+      })
     )
 
     const verdict = summariseLedger(ledger, { triageProfile: 'subtractive' })
@@ -377,13 +424,38 @@ describe('summariseLedger under --triage', () => {
 
     recordCheck(
       ledger,
-      result({ checkId: 'target-state', status: 'fail', actual: '1.0.1' })
+      result({
+        checkId: 'target-state',
+        status: 'needs-ack',
+        actual: 'not targeted on this network',
+      })
     )
 
     const verdict = summariseLedger(ledger, { triageProfile: 'additive' })
 
     expect(verdict.requiresAcknowledgement).toHaveLength(1)
     expect(verdict.relaxed).toEqual([])
+  })
+
+  it('never relaxes a semantic MISMATCH, on any profile', () => {
+    for (const triageProfile of [
+      'subtractive',
+      'additive',
+      'mixed',
+      'unknown',
+    ] as const) {
+      const ledger = ledgerOf(['mainnet'], [TARGET_STATE])
+
+      recordCheck(
+        ledger,
+        result({ checkId: 'target-state', status: 'fail', actual: '1.0.1' })
+      )
+
+      const verdict = summariseLedger(ledger, { triageProfile })
+
+      expect(verdict.relaxed).toEqual([])
+      expect(verdict.requiresAcknowledgement).toHaveLength(1)
+    }
   })
 
   it('never relaxes the codehash gate, on any profile', () => {
@@ -405,7 +477,12 @@ describe('summariseLedger under --triage', () => {
   })
 
   it('never relaxes an ERROR, on any profile', () => {
-    for (const triageProfile of ['subtractive', 'additive'] as const) {
+    for (const triageProfile of [
+      'subtractive',
+      'additive',
+      'mixed',
+      'unknown',
+    ] as const) {
       const ledger = ledgerOf(['mainnet'], [TARGET_STATE])
 
       recordCheck(
@@ -426,12 +503,19 @@ describe('summariseLedger under --triage', () => {
   })
 
   it('never relaxes a coverage gap, on any profile', () => {
-    const ledger = ledgerOf(['mainnet'], [TARGET_STATE])
+    for (const triageProfile of [
+      'subtractive',
+      'additive',
+      'mixed',
+      'unknown',
+    ] as const) {
+      const ledger = ledgerOf(['mainnet'], [TARGET_STATE])
 
-    const verdict = summariseLedger(ledger, { triageProfile: 'subtractive' })
+      const verdict = summariseLedger(ledger, { triageProfile })
 
-    expect(verdict.hardBlocked).toBe(true)
-    expect(verdict.relaxed).toEqual([])
+      expect(verdict.hardBlocked).toBe(true)
+      expect(verdict.relaxed).toEqual([])
+    }
   })
 })
 
@@ -460,8 +544,11 @@ describe('buildReviewAttestation', () => {
     expect(attestation.checks).toEqual([
       {
         checkId: 'codehash',
+        checkClass: 'integrity',
         expected: 2,
         passed: 1,
+        failed: 1,
+        needsAck: 0,
         unverified: 0,
         green: false,
         anchors: ['A-CI'],
@@ -469,11 +556,54 @@ describe('buildReviewAttestation', () => {
     ])
   })
 
+  it('changes the digest when a check is reclassified', () => {
+    const asIntegrity = ledgerOf(['mainnet'], [CODEHASH])
+    recordCheck(asIntegrity, result({ status: 'fail', actual: '0xbbb' }))
+
+    const asSemantic = ledgerOf(
+      ['mainnet'],
+      [{ ...CODEHASH, checkClass: 'semantic' }]
+    )
+    recordCheck(asSemantic, result({ status: 'fail', actual: '0xbbb' }))
+
+    // The class is what decides whether the mismatch blocks, so a digest blind
+    // to it would let the gate be demoted without moving the record.
+    expect(attest(asIntegrity).hardBlocked).toBe(true)
+    expect(attest(asSemantic).hardBlocked).toBe(false)
+    expect(attest(asSemantic).ledgerDigest).not.toBe(
+      attest(asIntegrity).ledgerDigest
+    )
+  })
+
+  it('changes the digest when triage is what cleared the review', () => {
+    const ledger = ledgerOf(['mainnet'], [TARGET_STATE])
+    recordCheck(
+      ledger,
+      result({
+        checkId: 'target-state',
+        status: 'needs-ack',
+        actual: 'not targeted on this network',
+      })
+    )
+
+    const triaged = buildReviewAttestation(ledger, {
+      reviewer: 'signer-1',
+      reviewedAt: '2026-09-08T00:00:00.000Z',
+      triageProfile: 'subtractive',
+    })
+
+    expect(triaged.ledgerDigest).not.toBe(attest(ledger).ledgerDigest)
+  })
+
   it('records the triage profile a clearing review ran under', () => {
     const ledger = ledgerOf(['mainnet'], [TARGET_STATE])
     recordCheck(
       ledger,
-      result({ checkId: 'target-state', status: 'fail', actual: '1.0.1' })
+      result({
+        checkId: 'target-state',
+        status: 'needs-ack',
+        actual: 'not targeted on this network',
+      })
     )
 
     const triaged = buildReviewAttestation(ledger, {
@@ -519,16 +649,27 @@ describe('buildReviewAttestation', () => {
     expect(attest(forward).ledgerDigest).toBe(attest(reverse).ledgerDigest)
   })
 
-  it('changes the digest when any recorded actual value changes', () => {
+  it('changes the digest when only the actual value differs', () => {
+    // Status held identical in both, so this observes `actual` alone.
     const original = ledgerOf(['mainnet'], [CODEHASH])
-    recordCheck(original, result())
+    recordCheck(original, result({ status: 'fail', actual: '0xaaa' }))
 
     const tampered = ledgerOf(['mainnet'], [CODEHASH])
-    recordCheck(tampered, result({ actual: '0xaab', status: 'fail' }))
+    recordCheck(tampered, result({ status: 'fail', actual: '0xaab' }))
 
     expect(attest(tampered).ledgerDigest).not.toBe(
       attest(original).ledgerDigest
     )
+  })
+
+  it('changes the digest when only the status differs', () => {
+    const passing = ledgerOf(['mainnet'], [CODEHASH])
+    recordCheck(passing, result({ status: 'pass', actual: '0xaaa' }))
+
+    const failing = ledgerOf(['mainnet'], [CODEHASH])
+    recordCheck(failing, result({ status: 'fail', actual: '0xaaa' }))
+
+    expect(attest(failing).ledgerDigest).not.toBe(attest(passing).ledgerDigest)
   })
 
   it('changes the digest when only the anchor differs', () => {
@@ -573,5 +714,182 @@ describe('createCheckLedger', () => {
 
     expect(ledger.expectedNetworks).toEqual(['mainnet'])
     expect(rollUpChecks(ledger)[0]?.expected).toBe(1)
+  })
+
+  it('refuses a blank network rather than quietly shrinking the denominator', () => {
+    expect(() => ledgerOf(['mainnet', '   ', 'polygon'], [CODEHASH])).toThrow(
+      /a declared network is blank/
+    )
+  })
+
+  it('refuses an id or a network that could forge a key boundary', () => {
+    const separator = String.fromCharCode(0)
+
+    expect(() =>
+      ledgerOf(['mainnet'], [{ ...CODEHASH, checkId: `code${separator}hash` }])
+    ).toThrow(/checkId contains the field separator/)
+    expect(() => ledgerOf([`main${separator}net`], [CODEHASH])).toThrow(
+      /network contains the field separator/
+    )
+  })
+
+  it('cannot be made to answer for a pair that never ran', () => {
+    // Without the separator check, `c` + sep + `x` + sep + `n` is ambiguous:
+    // one recorded result satisfies both (c, x·n) and (c·x, n), so the second
+    // pair reads as verified while nothing ran on it.
+    const separator = String.fromCharCode(0)
+
+    expect(() =>
+      createCheckLedger({
+        expectedNetworks: ['n', `x${separator}n`],
+        checks: [CODEHASH, { ...CODEHASH, checkId: `codehash${separator}x` }],
+      })
+    ).toThrow(/field separator/)
+  })
+})
+
+describe('a result that reached the log without recordCheck', () => {
+  it('cannot make a reporting-only anchor decide a pass', () => {
+    const ledger = ledgerOf(['mainnet'], [CODEHASH])
+
+    ledger.results.push({
+      checkId: 'codehash',
+      network: 'mainnet',
+      status: 'pass',
+      expected: '0xaaa',
+      actual: '0xaaa',
+      anchor: 'A-MONGO',
+    })
+
+    const [rollup] = rollUpChecks(ledger)
+    expect(rollup?.green).toBe(false)
+    expect(rollup?.errored).toBe(1)
+    expect(summariseLedger(ledger).hardBlocked).toBe(true)
+  })
+
+  it('cannot make an unrecognised anchor decide a pass', () => {
+    const ledger = ledgerOf(['mainnet'], [CODEHASH])
+
+    ledger.results.push({
+      ...result(),
+      anchor: 'a-mongo' as ICheckResult['anchor'],
+    })
+
+    expect(rollUpChecks(ledger)[0]?.green).toBe(false)
+    expect(summariseLedger(ledger).hardBlocked).toBe(true)
+  })
+
+  it('cannot give an integrity check an acknowledgement path', () => {
+    const ledger = ledgerOf(['mainnet'], [CODEHASH])
+
+    ledger.results.push({ ...result(), status: 'needs-ack' })
+
+    const verdict = summariseLedger(ledger)
+    expect(verdict.hardBlocked).toBe(true)
+    expect(verdict.requiresAcknowledgement).toEqual([])
+    expect(verdict.totals).toEqual({
+      pass: 0,
+      fail: 1,
+      error: 0,
+      needsAck: 0,
+      missing: 0,
+    })
+  })
+
+  it('blocks on a status this ledger does not recognise', () => {
+    const ledger = ledgerOf(['mainnet'], [TARGET_STATE])
+
+    ledger.results.push({
+      ...result({ checkId: 'target-state' }),
+      status: 'ok' as ICheckResult['status'],
+    })
+
+    const verdict = summariseLedger(ledger, { triageProfile: 'subtractive' })
+    expect(verdict.hardBlocked).toBe(true)
+    expect(verdict.blocking[0]?.reason).toMatch(
+      /not one this ledger recognises/
+    )
+    expect(verdict.relaxed).toEqual([])
+    expect(verdict.requiresAcknowledgement).toEqual([])
+  })
+})
+
+describe('recordCheck rejects a value that bypassed the type', () => {
+  it('refuses an unknown status', () => {
+    const ledger = ledgerOf(['mainnet'], [CODEHASH])
+
+    expect(() =>
+      recordCheck(ledger, {
+        ...result(),
+        status: 'ok' as ICheckResult['status'],
+      })
+    ).toThrow(/unknown status "ok"/)
+  })
+
+  it('refuses an unknown anchor', () => {
+    const ledger = ledgerOf(['mainnet'], [CODEHASH])
+
+    expect(() =>
+      recordCheck(ledger, {
+        ...result(),
+        anchor: 'A-CI ' as ICheckResult['anchor'],
+      })
+    ).toThrow(/unknown anchor/)
+  })
+})
+
+describe('supersession', () => {
+  it('lets a retry clear a result that could not run', () => {
+    const ledger = ledgerOf(['mainnet'], [CODEHASH])
+
+    recordCheck(
+      ledger,
+      result({ status: 'error', anchor: 'A-UNRESOLVED', detail: 'RPC timeout' })
+    )
+    recordCheck(ledger, result({ status: 'pass' }))
+
+    const [rollup] = rollUpChecks(ledger)
+    expect(rollup?.passed).toBe(1)
+    expect(rollup?.errored).toBe(0)
+    expect(rollup?.green).toBe(true)
+  })
+
+  it('never lets a later pass erase a recorded mismatch', () => {
+    const ledger = ledgerOf(['mainnet'], [CODEHASH])
+
+    recordCheck(ledger, result({ status: 'fail', actual: '0xbbb' }))
+    recordCheck(ledger, result({ status: 'pass' }))
+
+    const [rollup] = rollUpChecks(ledger)
+    expect(rollup?.failed).toBe(1)
+    expect(rollup?.passed).toBe(0)
+    expect(rollup?.green).toBe(false)
+    expect(rollup?.results[0]?.actual).toBe('0xbbb')
+    expect(summariseLedger(ledger).hardBlocked).toBe(true)
+  })
+
+  it('holds the mismatch even when other results land in between', () => {
+    const ledger = ledgerOf(['mainnet'], [CODEHASH])
+
+    recordCheck(ledger, result({ status: 'fail', actual: '0xbbb' }))
+    recordCheck(ledger, result({ status: 'error', anchor: 'A-UNRESOLVED' }))
+    recordCheck(ledger, result({ status: 'pass' }))
+
+    expect(rollUpChecks(ledger)[0]?.green).toBe(false)
+    expect(summariseLedger(ledger).hardBlocked).toBe(true)
+  })
+
+  it('keeps superseding scoped to one check on one network', () => {
+    const ledger = ledgerOf(['mainnet', 'polygon'])
+
+    recordCheck(ledger, result({ status: 'fail', actual: '0xbbb' }))
+    recordCheck(ledger, result({ network: 'polygon' }))
+    recordCheck(ledger, result({ checkId: 'target-state' }))
+    recordCheck(ledger, result({ checkId: 'target-state', network: 'polygon' }))
+
+    const [codehash, targetState] = rollUpChecks(ledger)
+    expect(codehash?.failed).toBe(1)
+    expect(codehash?.passed).toBe(1)
+    expect(targetState?.green).toBe(true)
   })
 })

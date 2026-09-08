@@ -4,12 +4,11 @@
  * Import this from any script that runs pre-signing checks. Every check records
  * one result per network carrying its expected value, its actual value and the
  * anchor the expectation came from; the run then rolls those up into per-check
- * `N/N` counts and a single verdict. `render-check-ledger.ts` prints it.
+ * `N/N` counts and a single verdict.
  *
- * The distinction the module exists for: a check that *could not run* is not a
- * check that passed. It is recorded as `error`, counted as unverified, and the
- * verdict comes back blocked with no acknowledgement path — so flaky
- * infrastructure cannot reach a green line.
+ * A check that could not run is not a check that passed: it is recorded as
+ * `error`, counted as unverified, and the verdict comes back blocked with no
+ * acknowledgement path.
  */
 
 import { keccak256, stringToHex, type Hex } from 'viem'
@@ -23,8 +22,8 @@ export type CheckStatus = 'pass' | 'fail' | 'error' | 'needs-ack'
 
 /**
  * `integrity` checks answer "is the code/authority what it claims to be" and
- * have no acknowledgement path at all (T3). `semantic` checks answer "is this
- * the change we meant", where a human acknowledgement is a legitimate answer.
+ * have no acknowledgement path at all. `semantic` checks answer "is this the
+ * change we meant", where a human acknowledgement is a legitimate answer.
  */
 export type CheckClass = 'integrity' | 'semantic'
 
@@ -48,10 +47,30 @@ export type AnchorId =
  *
  * The deployment record and the proposal document are both writable by the
  * proposer, so a value read back from either can only ever produce a red or an
- * unverified result — never a pass (N3). `A-UNRESOLVED` is the case where nothing
+ * unverified result — never a pass. `A-UNRESOLVED` is the case where nothing
  * answered at all.
  */
 const REPORTING_ONLY_ANCHORS: ReadonlySet<AnchorId> = new Set<AnchorId>([
+  'A-MONGO',
+  'A-PROPOSAL',
+  'A-UNRESOLVED',
+])
+
+/** Every status a result may carry, for validating a value that bypassed the type. */
+const CHECK_STATUSES: ReadonlySet<string> = new Set<CheckStatus>([
+  'pass',
+  'fail',
+  'error',
+  'needs-ack',
+])
+
+/** Every anchor a result may name, for validating a value that bypassed the type. */
+const ANCHOR_IDS: ReadonlySet<string> = new Set<AnchorId>([
+  'A-CI',
+  'A-LOCAL',
+  'A-MAIN',
+  'A-AUDIT',
+  'A-CHAIN',
   'A-MONGO',
   'A-PROPOSAL',
   'A-UNRESOLVED',
@@ -92,9 +111,9 @@ const normaliseNetwork = (network: string): string =>
  * Joins the parts of a composite key and of a digested row.
  *
  * A printable separator would let one field's value impersonate a boundary — a
- * check id containing the separator could collide with another check's row, and
- * two different result sets could digest identically. No check id, network name
- * or recorded value can contain U+0000.
+ * check id containing the separator could collide with another check's row.
+ * `createCheckLedger` refuses an id or a network that contains it, so the
+ * property the keys rest on is enforced rather than assumed.
  */
 const FIELD_SEPARATOR = '\u0000'
 
@@ -112,29 +131,56 @@ export const checkResultKey = (checkId: string, network: string): string =>
   `${checkId}${FIELD_SEPARATOR}${network}`
 
 /**
+ * Refuses a value that could forge a key boundary.
+ *
+ * `checkResultKey` concatenates a check id and a network around the separator,
+ * so a value containing it makes one recorded result answer for two different
+ * pairs — the second pair then reads as verified while nothing ran on it.
+ */
+function rejectSeparator(label: string, value: string): void {
+  if (value.includes(FIELD_SEPARATOR))
+    throw new Error(
+      `createCheckLedger: ${label} contains the field separator (U+0000)`
+    )
+}
+
+/**
  * Creates a ledger with its coverage denominator fixed up front.
  *
  * Both lists are required and must be non-empty: a ledger with no expected
- * networks or no registered checks reports `0/0` on everything, which renders
- * as a fully green run that verified nothing.
+ * networks or no registered checks reports `0/0` on everything, which renders as
+ * a fully green run that verified nothing. A blank network is refused rather
+ * than dropped, for the same reason — silently shrinking the denominator is the
+ * one thing this factory exists to prevent.
  * @param init - The networks every check is expected to answer for, and the checks that must answer.
  * @returns An empty ledger.
- * @throws If either list is empty, or two checks share a `checkId`.
+ * @throws If either list is empty, a network is blank, two checks share a `checkId`, or an id or network contains the field separator.
  */
 export const createCheckLedger = (init: {
   expectedNetworks: string[]
   checks: ICheckDefinition[]
 }): ICheckLedger => {
-  const expectedNetworks = [
-    ...new Set(init.expectedNetworks.map(normaliseNetwork).filter(Boolean)),
-  ]
-  if (expectedNetworks.length === 0)
+  if (init.expectedNetworks.length === 0)
     throw new Error('createCheckLedger: expectedNetworks is empty')
   if (init.checks.length === 0)
     throw new Error('createCheckLedger: no checks registered')
 
+  const expectedNetworks = [
+    ...new Set(
+      init.expectedNetworks.map((network) => {
+        const normalised = normaliseNetwork(network)
+        if (!normalised)
+          throw new Error('createCheckLedger: a declared network is blank')
+        rejectSeparator('network', normalised)
+
+        return normalised
+      })
+    ),
+  ]
+
   const checks = new Map<string, ICheckDefinition>()
   for (const check of init.checks) {
+    rejectSeparator('checkId', check.checkId)
     if (checks.has(check.checkId))
       throw new Error(`createCheckLedger: duplicate checkId "${check.checkId}"`)
     checks.set(check.checkId, check)
@@ -153,7 +199,7 @@ export const createCheckLedger = (init: {
  * @param ledger - The run's ledger, mutated in place.
  * @param result - The check's outcome, its expected and actual values, and its anchor.
  * @returns The result as stored, which may differ in `status` from the one passed.
- * @throws If the check was never registered, or the network is outside the declared denominator.
+ * @throws If the check was never registered, the network is outside the declared denominator, or the status or anchor is not one this module defines.
  */
 export const recordCheck = (
   ledger: ICheckLedger,
@@ -171,6 +217,14 @@ export const recordCheck = (
       `recordCheck: "${network}" is not among the expected networks of this ledger`
     )
 
+  // Both fields the verdict rests on, validated at the boundary: a value that
+  // arrived from JSON rather than from TypeScript would otherwise land in a
+  // fall-through branch and be graded by whatever that branch happens to do.
+  if (!CHECK_STATUSES.has(result.status))
+    throw new Error(`recordCheck: unknown status "${String(result.status)}"`)
+  if (!ANCHOR_IDS.has(result.anchor))
+    throw new Error(`recordCheck: unknown anchor "${String(result.anchor)}"`)
+
   const stored = coerceStatus({ ...result, network }, definition)
   ledger.results.push(stored)
 
@@ -185,12 +239,19 @@ function coerceStatus(
     return {
       ...result,
       status: 'fail',
-      detail: `integrity checks have no acknowledgement path (T3)${
+      detail: `integrity checks have no acknowledgement path${
         result.detail ? ` — ${result.detail}` : ''
       }`,
     }
 
-  if (result.status === 'pass' && REPORTING_ONLY_ANCHORS.has(result.anchor))
+  // An anchor nobody recognises is treated as one that may only report: an
+  // unknown name is what a value that never went through `recordCheck` looks
+  // like, and the safe reading is that nothing authoritative answered.
+  if (
+    result.status === 'pass' &&
+    (REPORTING_ONLY_ANCHORS.has(result.anchor) ||
+      !ANCHOR_IDS.has(result.anchor))
+  )
     return {
       ...result,
       status: 'error',
@@ -228,18 +289,40 @@ export interface ICheckRollup extends ICheckDefinition {
  * Every registered check appears, in registration order, whether or not it
  * reported — a check that ran nowhere is the most important row in the report
  * and must not be absent from it. Where a check reported twice for one network
- * the last entry wins, so a run may record a provisional result and supersede it.
+ * the last entry wins, so a run may record a provisional result and supersede
+ * it; the one exception is a mismatch, which no later pass may erase.
+ *
+ * The status coercions are re-applied here rather than trusted from write time,
+ * so a result that reached the log some other way — a rehydrated document, a
+ * direct push — is graded by the same rules, and every consumer of a rollup
+ * inherits them instead of re-deriving them.
  * @param ledger - The run's ledger.
  * @returns One rollup per registered check, in registration order.
  */
-export const rollUpChecks = (ledger: ICheckLedger): ICheckRollup[] => {
-  const latest = new Map<string, ICheckResult>()
-  for (const result of ledger.results)
-    latest.set(checkResultKey(result.checkId, result.network), result)
+export const rollUpChecks = (ledger: ICheckLedger): ICheckRollup[] =>
+  [...ledger.checks.values()].map((definition) => {
+    const latest = new Map<string, ICheckResult>()
+    const mismatched = new Set<string>()
 
-  return [...ledger.checks.values()].map((definition) => {
+    for (const raw of ledger.results) {
+      if (raw.checkId !== definition.checkId) continue
+
+      // Coerced before the supersession decision, so a status the rules would
+      // downgrade cannot be superseded as if it had been the milder one.
+      const result = coerceStatus(raw, definition)
+      if (result.status === 'fail') mismatched.add(result.network)
+
+      // A retry may turn an unverified result green — recording a retryable
+      // failure exists for exactly that. A mismatch may not: the anchor and the
+      // observed value genuinely disagreed, and a later pass on the same pair
+      // would erase that with no trace.
+      if (result.status === 'pass' && mismatched.has(result.network)) continue
+
+      latest.set(result.network, result)
+    }
+
     const results = ledger.expectedNetworks
-      .map((network) => latest.get(checkResultKey(definition.checkId, network)))
+      .map((network) => latest.get(network))
       .filter((result): result is ICheckResult => result !== undefined)
 
     const countOf = (status: CheckStatus): number =>
@@ -249,7 +332,7 @@ export const rollUpChecks = (ledger: ICheckLedger): ICheckRollup[] => {
     const passed = countOf('pass')
     const errored = countOf('error')
     const missingNetworks = ledger.expectedNetworks.filter(
-      (network) => !latest.has(checkResultKey(definition.checkId, network))
+      (network) => !latest.has(network)
     )
 
     return {
@@ -267,35 +350,54 @@ export const rollUpChecks = (ledger: ICheckLedger): ICheckRollup[] => {
       results,
     }
   })
-}
 
 export type OpProfile = 'subtractive' | 'additive' | 'mixed' | 'unknown'
 
 /**
- * Whether `--triage` may relax one check on one operation profile (T2).
+ * Whether triage may relax one of this ledger's checks on one operation profile.
  *
- * Two independent conditions, both necessary: the operation must be purely
- * subtractive, and the check must be semantic. An integrity check is refused on
- * every profile, so the codehash gate is never relaxed by triage.
- * @param request - The operation's profile and the class of the check being considered.
+ * Three independent conditions, all necessary: the operation must be purely
+ * subtractive, the check must be semantic, and the result must be an unanswered
+ * acknowledgement rather than a mismatch. An integrity check is refused on every
+ * profile, so the codehash gate is never relaxed by triage.
+ *
+ * The class is read from the ledger's own registration rather than taken from
+ * the caller — a caller that could name the class could relax the codehash gate
+ * by describing it as semantic.
+ * @param ledger - The run's ledger, which holds the authoritative check class.
+ * @param request - The check, the status of its result, and the operation's profile.
  * @returns Whether the relaxation is permitted, and the reason either way.
  */
-export const isTriageRelaxationAllowed = (request: {
-  profile: OpProfile
-  checkClass: CheckClass
-}): { allowed: boolean; reason: string } => {
-  if (request.checkClass === 'integrity')
+export const isTriageRelaxationAllowed = (
+  ledger: ICheckLedger,
+  request: { checkId: string; status: CheckStatus; profile: OpProfile }
+): { allowed: boolean; reason: string } => {
+  const definition = ledger.checks.get(request.checkId)
+  if (!definition)
     return {
       allowed: false,
-      reason: 'integrity checks are never relaxed (T3)',
+      reason: `check "${request.checkId}" is not registered on this ledger`,
+    }
+  if (definition.checkClass === 'integrity')
+    return {
+      allowed: false,
+      reason: 'integrity checks are never relaxed',
     }
   if (request.profile !== 'subtractive')
     return {
       allowed: false,
-      reason: `triage relaxes only a purely subtractive op, this one is ${request.profile} (T2)`,
+      reason: `triage relaxes only a purely subtractive op, this one is ${request.profile}`,
+    }
+  if (request.status !== 'needs-ack')
+    return {
+      allowed: false,
+      reason: `triage drops an unanswered acknowledgement, not a ${request.status}`,
     }
 
-  return { allowed: true, reason: 'subtractive op, semantic check' }
+  return {
+    allowed: true,
+    reason: 'subtractive op, semantic check, acknowledgement outstanding',
+  }
 }
 
 export interface IBlockingResult {
@@ -322,7 +424,7 @@ export interface ILedgerVerdict {
   blocking: IBlockingResult[]
   /** Semantic non-passes a human may acknowledge; the caller must ask before proceeding. */
   requiresAcknowledgement: ICheckResult[]
-  /** Acknowledgements `--triage` dropped, kept so the report can name them. */
+  /** Acknowledgements triage dropped, kept so the report can name them. */
   relaxed: ICheckResult[]
   totals: ILedgerTotals
 }
@@ -332,11 +434,16 @@ export interface ILedgerVerdict {
  *
  * `error` and a missing result block on either class: both mean the check was
  * not shown to have run, so there is nothing for a human to acknowledge. An
- * integrity `fail` blocks too, because T3 gives the integrity class no
+ * integrity `fail` blocks too, because the integrity class has no
  * acknowledgement path at all. Only a semantic non-pass is acknowledgeable, and
- * `--triage` can drop those on a subtractive op alone.
+ * triage can drop one on a subtractive op alone.
+ *
+ * A status outside the four is treated as unverified and blocks. `recordCheck`
+ * refuses one, so this is only reachable by a result that entered the log some
+ * other way — and the safe reading of a status nothing recognises is that
+ * nothing was verified.
  * @param ledger - The run's ledger.
- * @param options - `triageProfile` enables the T2-narrowed relaxation.
+ * @param options - `triageProfile` enables the narrowed relaxation.
  * @returns The verdict, the blocking rows, what awaits acknowledgement, and the totals.
  */
 export const summariseLedger = (
@@ -361,15 +468,21 @@ export const summariseLedger = (
         continue
       }
 
-      if (result.status === 'error') {
+      const unrecognised = !CHECK_STATUSES.has(result.status)
+
+      if (result.status === 'error' || unrecognised) {
         totals.error += 1
         blocking.push({
           checkId: result.checkId,
           network: result.network,
           status: 'error',
-          reason: `the check could not run — recorded unverified, and an unverified check has no acknowledgement path (T3)${
-            result.detail ? `: ${result.detail}` : ''
-          }`,
+          reason: unrecognised
+            ? `status "${String(
+                result.status
+              )}" is not one this ledger recognises — treated as unverified`
+            : `the check could not run — recorded unverified, and an unverified check has no acknowledgement path${
+                result.detail ? `: ${result.detail}` : ''
+              }`,
           expected: result.expected,
           actual: result.actual,
           anchor: result.anchor,
@@ -385,7 +498,7 @@ export const summariseLedger = (
           checkId: result.checkId,
           network: result.network,
           status: 'fail',
-          reason: `integrity mismatch — hard block, no acknowledgement path (T3)${
+          reason: `integrity mismatch — hard block, no acknowledgement path${
             result.detail ? `: ${result.detail}` : ''
           }`,
           expected: result.expected,
@@ -397,9 +510,10 @@ export const summariseLedger = (
 
       if (
         options.triageProfile &&
-        isTriageRelaxationAllowed({
+        isTriageRelaxationAllowed(ledger, {
+          checkId: result.checkId,
+          status: result.status,
           profile: options.triageProfile,
-          checkClass: rollup.checkClass,
         }).allowed
       )
         relaxed.push(result)
@@ -429,15 +543,18 @@ export const summariseLedger = (
 
 export interface IReviewAttestationCheck {
   checkId: string
+  checkClass: CheckClass
   expected: number
   passed: number
+  failed: number
+  needsAck: number
   unverified: number
   green: boolean
   anchors: AnchorId[]
 }
 
 export interface IReviewAttestation {
-  /** Binds the attestation to the exact results it was written over. */
+  /** Binds the attestation to the exact results and verdict it was written over. */
   ledgerDigest: Hex
   reviewer: string
   reviewedAt: string
@@ -446,7 +563,7 @@ export interface IReviewAttestation {
   hardBlocked: boolean
   /** Results still awaiting a human acknowledgement when the record was written. */
   awaitingAcknowledgement: number
-  /** Acknowledgements `--triage` dropped, so a triaged clear is never read as a clean one. */
+  /** Acknowledgements triage dropped, so a triaged clear is never read as a clean one. */
   relaxed: number
   totals: ILedgerTotals
   checks: IReviewAttestationCheck[]
@@ -456,15 +573,18 @@ export interface IReviewAttestation {
  * Builds the record of a completed review, for the caller to store on the
  * proposal document.
  *
- * The digest covers the coverage denominator and every stored result, sorted, so
- * it is stable across the order a run happened to record them in and moves if
- * any value, status, anchor, network or recorded detail changes. It is a
- * reconstruction record, not an oracle: nothing may later read it back and treat
- * a stored pass as verification (T5).
+ * The digest covers the coverage denominator, every registered check *including
+ * its class*, every stored result, and the verdict the record carries — sorted,
+ * so it is stable across the order a run happened to record them in and moves if
+ * any of it changes. The class is in there because it is the field that decides
+ * whether a mismatch blocks: without it, demoting the codehash gate to semantic
+ * and acknowledging it would leave the digest untouched. The triage profile is
+ * digested for the same reason — a review that only cleared because triage
+ * dropped an acknowledgement must not be editable into one that had nothing to
+ * acknowledge.
  *
- * The triage profile is recorded alongside the verdict, so a review that only
- * cleared because `--triage` dropped an acknowledgement cannot be read back as
- * one that had nothing to acknowledge.
+ * It is a reconstruction record, not an oracle: nothing may later read it back
+ * and treat a stored pass as verification.
  * @param ledger - The run's ledger.
  * @param review - Who reviewed, when as an ISO timestamp, and the triage profile the run used.
  * @returns The attestation record.
@@ -479,27 +599,41 @@ export const buildReviewAttestation = (
     review.triageProfile ? { triageProfile: review.triageProfile } : {}
   )
 
+  // Each row is an array rather than a joined string: JSON delimits the fields
+  // itself, so a recorded value can never shift a field boundary and make two
+  // different result sets digest identically.
   const rows = rollups.flatMap((rollup) =>
-    rollup.results.map((result) =>
-      [
-        result.checkId,
-        result.network,
-        result.status,
-        result.expected,
-        result.actual,
-        result.anchor,
-        result.detail ?? '',
-      ].join(FIELD_SEPARATOR)
-    )
+    rollup.results.map((result) => [
+      result.checkId,
+      result.network,
+      result.status,
+      result.expected,
+      result.actual,
+      result.anchor,
+      result.detail ?? '',
+    ])
   )
+  const checks = [...ledger.checks.values()].map((definition) => [
+    definition.checkId,
+    definition.checkClass,
+    definition.section,
+  ])
+  const byJson = (left: string[], right: string[]): number =>
+    JSON.stringify(left) < JSON.stringify(right) ? -1 : 1
 
   return {
     ledgerDigest: keccak256(
       stringToHex(
         JSON.stringify({
           networks: [...ledger.expectedNetworks].sort(),
-          checks: [...ledger.checks.keys()].sort(),
-          rows: rows.sort(),
+          checks: checks.sort(byJson),
+          rows: rows.sort(byJson),
+          verdict: {
+            triageProfile: review.triageProfile ?? 'none',
+            hardBlocked: verdict.hardBlocked,
+            awaitingAcknowledgement: verdict.requiresAcknowledgement.length,
+            relaxed: verdict.relaxed.length,
+          },
         })
       )
     ),
@@ -512,8 +646,11 @@ export const buildReviewAttestation = (
     totals: verdict.totals,
     checks: rollups.map((rollup) => ({
       checkId: rollup.checkId,
+      checkClass: rollup.checkClass,
       expected: rollup.expected,
       passed: rollup.passed,
+      failed: rollup.failed,
+      needsAck: rollup.needsAck,
       unverified: rollup.unverified,
       green: rollup.green,
       anchors: rollup.anchors,
