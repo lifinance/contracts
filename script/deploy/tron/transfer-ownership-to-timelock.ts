@@ -343,7 +343,7 @@ const main = defineCommand({
 
     if (stepNum === 2 && !noPropose) {
       consola.info(
-        '--step 2: creating Safe proposal in MongoDB by default (use --noPropose for instructions only).'
+        '--step 2: creating Safe proposal in MongoDB by default (use --no-propose for instructions only).'
       )
     }
 
