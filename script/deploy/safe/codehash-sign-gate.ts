@@ -31,7 +31,7 @@ import {
 } from '../codehash/verify-cut-targets'
 
 import { collectDiamondCutTargets } from './safe-decode-utils'
-import type { ISignedSafeTransaction } from './safe-utils'
+import { isSignedStruct, type ISignedSafeTransaction } from './safe-utils'
 
 export interface ICodehashSignGate {
   /** True when a signature must be refused. Render the verdicts, never this. */
@@ -85,32 +85,50 @@ export const blockingUnevaluatedGate = (): ICodehashSignGate => ({
 /**
  * The only shape this gate accepts a proposal in.
  *
- * The field is typed `ISignedSafeTransaction`, not `ISafeTransaction`, and that
- * is the whole point. The row this is read from also carries a `safeTx` copy of
- * the same fields, structurally identical, so a gate free to pick either can
- * vouch for bytes the signature does not cover. Only the brand — applied in
- * `initializeSafeTransaction`, the one function that produces the struct Safe
- * hashes — makes the two distinguishable to the compiler. Naming the field was
- * not enough: `{ safeTransaction: row.safeTx }` type-checked and judged the
- * stored document.
+ * The field is typed `ISignedSafeTransaction`, but the type is only the hint —
+ * `isSignedStruct` is the guarantee. A type-level brand cannot express object
+ * identity, and identity is the question: `{ ...tx, safeTransaction: { ...tx.
+ * safeTransaction, data: tx.safeTx.data } }` keeps the brand and swaps the
+ * bytes, cast-free, and compiles. So `gateInputFor` checks the object itself.
  */
 export interface ISignableProposal {
   safeTransaction: ISignedSafeTransaction
 }
 
+declare const gateInputBrand: unique symbol
+
 /**
- * Builds this gate's input from the proposal about to be signed.
- * @param proposal - the row, read through {@link ISignableProposal}
- * @param networkKey - `config/networks.json` key, any casing
- * @returns The calldata the signature will cover, and the network
+ * What `evaluateCodehashSignGate` accepts, constructible only by `gateInputFor`.
+ *
+ * The brand is an unexported `unique symbol`, so no other module can write the
+ * property and no literal satisfies the type. That is what makes the selector
+ * the only door: an earlier version guarded the selector and left the judging
+ * function taking a plain `{ data, network }`, so a second call site skipped it
+ * entirely and judged the stored document with nothing to stop it.
  */
+export interface ICodehashGateInput {
+  data: Hex | undefined
+  network: string
+  readonly [gateInputBrand]: true
+}
+
 export const gateInputFor = (
   proposal: ISignableProposal,
   networkKey: string
-): { data: Hex | undefined; network: string } => ({
-  data: proposal.safeTransaction.data.data as Hex | undefined,
-  network: networkKey,
-})
+): ICodehashGateInput => {
+  // The identity check, not the type check. Refuses rather than judges: a caller
+  // holding something other than the struct Safe will hash is not a proposal to
+  // grade, it is a mistake to stop.
+  if (!isSignedStruct(proposal.safeTransaction))
+    throw new Error(
+      'Refusing to judge this proposal: the struct handed to the codehash gate is not the one Safe will hash and sign. Only the value `initializeSafeTransaction` returned is, and a copy or a spread of it is a different object carrying possibly different calldata. Nothing has been signed.'
+    )
+
+  return {
+    data: proposal.safeTransaction.data.data as Hex | undefined,
+    network: networkKey,
+  } as ICodehashGateInput
+}
 
 /**
  * Judges the cut a proposal would perform, before it is signed.
@@ -129,7 +147,7 @@ export const gateInputFor = (
  * @returns The gate a caller displays and then refuses on
  */
 export const evaluateCodehashSignGate = async (
-  input: { data: Hex | undefined; network: string },
+  input: ICodehashGateInput,
   deps: () => IVerifyCutDeps
 ): Promise<ICodehashSignGate> => {
   if (!input.data || input.data === '0x') return unevaluatedCodehashSignGate()

@@ -23,6 +23,7 @@ import type { IVerifyCutDeps } from '../codehash/verify-cut-targets'
 import {
   assertCodehashSignGateAllowsSigning,
   gateInputFor,
+  type ICodehashGateInput,
   blockingUnevaluatedGate,
   createGatedSigner,
   evaluateCodehashSignGate,
@@ -30,7 +31,12 @@ import {
   unevaluatedCodehashSignGate,
 } from './codehash-sign-gate'
 import { ABI_DIAMOND_CUT } from './safe-decode-utils'
-import type { ISafeTransaction, ISignedSafeTransaction } from './safe-utils'
+import {
+  initializeSafeTransaction,
+  type ISafeTxDocument,
+  type ISignedSafeTransaction,
+  type SafeClient,
+} from './safe-utils'
 import { TIMELOCK_SCHEDULE_BATCH_ABI } from './timelock-abi'
 
 const FACET = '0x1111111111111111111111111111111111111111'
@@ -115,84 +121,133 @@ const rejection = async (promise: Promise<unknown>): Promise<string> => {
 }
 
 /**
- * A signed struct, branded the way `initializeSafeTransaction` brands it.
+ * A struct produced by the real `initializeSafeTransaction`, so it is in the
+ * WeakSet that `isSignedStruct` consults.
+ *
+ * There is deliberately no registrar to call instead: the only way to obtain a
+ * member is to go through the one function that makes them, which is what stops
+ * a forged struct being a one-line test helper away.
  * @param data - the calldata the signature would cover
- * @returns A value satisfying `ISignedSafeTransaction`
+ * @returns The struct Safe would hash and sign
  */
-const signedStruct = (data?: string): ISignedSafeTransaction =>
-  ({
-    data: {
-      to: DIAMOND,
-      value: '0',
-      data,
-      operation: 0,
-      nonce: 7,
-    },
-    signatures: new Map(),
-  } as unknown as ISignedSafeTransaction)
+const signedStruct = async (data?: string): Promise<ISignedSafeTransaction> =>
+  initializeSafeTransaction(
+    {
+      network: 'mainnet',
+      safeTx: {
+        data: { to: DIAMOND, value: '0', data, operation: 0, nonce: 7 },
+        signatures: new Map(),
+      },
+    } as unknown as ISafeTxDocument,
+    {
+      createTransaction: async (options: {
+        transactions: { to: string; value: string; data?: string }[]
+      }) => ({ data: options.transactions[0], signatures: new Map() }),
+    } as unknown as SafeClient
+  )
+
+/**
+ * The gate's input, built the only way it can be.
+ * @param data - calldata of the transaction that would be signed
+ * @param network - `config/networks.json` key
+ * @returns An `ICodehashGateInput`
+ */
+const gateInput = async (
+  data?: string,
+  network: string = NETWORK
+): Promise<ICodehashGateInput> =>
+  gateInputFor({ safeTransaction: await signedStruct(data) }, network)
 
 describe('gateInputFor', () => {
-  // Which bytes the gate judges is enforced by the type, not by inspecting this
-  // call site's source. Three source-scanning versions were each defeated — by a
-  // comment, by a string literal, and by an alias that read the correct field and
-  // failed the test anyway — and the interface that replaced them was defeated
-  // too, because `safeTx` and `safeTransaction` are the same type. Only the brand
-  // separates them, so the falsification for this lives in tsc: see the
-  // "rejects the stored document" case below.
-  it('reads the calldata of the struct that gets signed', () => {
+  // Which bytes the gate judges is enforced by object identity, checked at
+  // runtime. Four earlier versions were each defeated: a pin on the call site's
+  // spelling (by a comment reciting it), the same pin on comment-stripped text
+  // (by a string literal, and by a fake comment marker that deleted the real
+  // call site), an interface naming the right field (by `{ safeTransaction:
+  // row.safeTx }`, since the two are the same type), and a type-level brand (by
+  // a spread, which keeps the brand and swaps the bytes). A type cannot express
+  // "this exact object", which was the question all along.
+  it('reads the calldata of the struct that gets signed', async () => {
     expect(
-      gateInputFor({ safeTransaction: signedStruct('0xaabb') }, 'mainnet').data
+      gateInputFor({ safeTransaction: await signedStruct('0xaabb') }, 'mainnet')
+        .data
     ).toBe('0xaabb')
   })
 
-  it('passes the network key straight through', () => {
+  it('passes the network key straight through', async () => {
     expect(
-      gateInputFor({ safeTransaction: signedStruct('0xaabb') }, 'Abstract')
-        .network
+      gateInputFor(
+        { safeTransaction: await signedStruct('0xaabb') },
+        'Abstract'
+      ).network
     ).toBe('Abstract')
   })
 
-  it('reports absent calldata as undefined', () => {
-    // `evaluateCodehashSignGate` keys its "nothing to judge" branch off a falsy
-    // `data`, so undefined has to survive the selector rather than becoming a
-    // value the decoder then rejects.
+  it('reports absent calldata as undefined', async () => {
     expect(
-      gateInputFor({ safeTransaction: signedStruct() }, 'mainnet').data
+      gateInputFor({ safeTransaction: await signedStruct() }, 'mainnet').data
     ).toBeUndefined()
   })
 
-  it('rejects the stored document at compile time, which is the real assertion', () => {
-    // `ISafeTxDocument.safeTx` is an unbranded `ISafeTransaction`, so
-    // `gateInputFor({ safeTransaction: row.safeTx }, key)` does not type-check —
-    // the mutation that defeated every previous version of this guard. There is
-    // nothing to assert at runtime; this case exists to name where the guarantee
-    // lives, and `bunx tsc --noEmit` is what enforces it.
-    const unbranded: ISafeTransaction = signedStruct('0xaabb')
-    // @ts-expect-error an unbranded ISafeTransaction is not the signed struct
-    gateInputFor({ safeTransaction: unbranded }, 'mainnet')
-    expect(unbranded.data.data).toBe('0xaabb')
+  it('REFUSES a spread of the signed struct carrying the document bytes', async () => {
+    // The route that defeated the type-level brand, cast-free and green:
+    // `{ ...struct, data: row.safeTx.data }` satisfies every type involved and
+    // reads as an innocuous normalisation. It is a different object, so the
+    // identity check stops it.
+    const struct = await signedStruct('0xaabb')
+    const forged = { ...struct, data: { ...struct.data, data: '0xdead' } }
+
+    expect(() =>
+      gateInputFor(
+        { safeTransaction: forged as ISignedSafeTransaction },
+        'mainnet'
+      )
+    ).toThrow(/not the one Safe will hash and sign/)
+  })
+
+  it('REFUSES a hand-written brand', async () => {
+    // The other cast-free forge: writing `__signedStruct` by hand satisfied the
+    // type. It cannot put the object in the WeakSet.
+    const struct = await signedStruct('0xaabb')
+    const forged = {
+      data: struct.data,
+      signatures: struct.signatures,
+      __signedStruct: 'initializeSafeTransaction',
+    } as unknown as ISignedSafeTransaction
+
+    expect(() => gateInputFor({ safeTransaction: forged }, 'mainnet')).toThrow(
+      /Nothing has been signed/
+    )
+  })
+
+  it('accepts the real struct, so the refusals above are not blanket', async () => {
+    // Paired positive. Without it, a check that refused everything would satisfy
+    // both cases above while disabling the gate.
+    const struct = await signedStruct('0xaabb')
+
+    expect(() =>
+      gateInputFor({ safeTransaction: struct }, 'mainnet')
+    ).not.toThrow()
   })
 })
 
 describe('evaluateCodehashSignGate', () => {
-  it('does not build its dependencies for a proposal carrying no cut', () => {
+  it('does not build its dependencies for a proposal carrying no cut', async () => {
     // Building them reads `foundry.toml` and creates a checkout root, and the
     // caller turns a throw into a refusal — so an eager build refuses a fee
     // change or a role grant on a broken toolchain config, which this gate
     // makes no claim about. The thunk is the seam that keeps that impossible.
     let built = 0
-    const gate = evaluateCodehashSignGate(
-      { data: '0xdeadbeef', network: NETWORK },
+    const result = await evaluateCodehashSignGate(
+      await gateInput('0xdeadbeef', NETWORK),
       () => {
         built += 1
         return deps()
       }
     )
 
-    return gate.then((result) => {
-      expect(built).toBe(0)
-      expect(result.blocksSigning).toBe(false)
-    })
+    expect(built).toBe(0)
+    expect(result.blocksSigning).toBe(false)
   })
 
   it('builds its dependencies once per evaluation, not once per cut', async () => {
@@ -201,10 +256,10 @@ describe('evaluateCodehashSignGate', () => {
     // root and one connection per cut in a batch, against a single close().
     let built = 0
     await evaluateCodehashSignGate(
-      {
-        data: wrapped([cutCalldata(FACET), cutCalldata(OTHER)]),
-        network: NETWORK,
-      },
+      await gateInput(
+        wrapped([cutCalldata(FACET), cutCalldata(OTHER)]),
+        NETWORK
+      ),
       () => {
         built += 1
         return deps()
@@ -221,7 +276,7 @@ describe('evaluateCodehashSignGate', () => {
     // call site is what stops the next caller repeating it.
     const asked: string[] = []
     await evaluateCodehashSignGate(
-      { data: cutCalldata(), network: 'Mainnet' },
+      await gateInput(cutCalldata(), 'Mainnet'),
       () =>
         deps({
           scope: (network: string) => {
@@ -239,7 +294,7 @@ describe('evaluateCodehashSignGate', () => {
     // would satisfy the assertion above while disabling the gate entirely.
     let built = 0
     const gate = await evaluateCodehashSignGate(
-      { data: cutCalldata(), network: NETWORK },
+      await gateInput(cutCalldata(), NETWORK),
       () => {
         built += 1
         return deps({ observe: async () => observed({ maskedHash: OTHER }) })
@@ -252,7 +307,7 @@ describe('evaluateCodehashSignGate', () => {
 
   it('does not block a proposal that carries no diamondCut', async () => {
     const gate = await evaluateCodehashSignGate(
-      { data: '0x', network: NETWORK },
+      await gateInput('0x', NETWORK),
       () => deps()
     )
 
@@ -263,7 +318,7 @@ describe('evaluateCodehashSignGate', () => {
 
   it('passes a cut whose target matches an attested build', async () => {
     const gate = await evaluateCodehashSignGate(
-      { data: wrapped([cutCalldata()]), network: NETWORK },
+      await gateInput(wrapped([cutCalldata()]), NETWORK),
       () => deps()
     )
 
@@ -275,7 +330,7 @@ describe('evaluateCodehashSignGate', () => {
 
   it('blocks a cut whose target matches nothing attested', async () => {
     const gate = await evaluateCodehashSignGate(
-      { data: wrapped([cutCalldata()]), network: NETWORK },
+      await gateInput(wrapped([cutCalldata()]), NETWORK),
       () =>
         deps({
           attestationsFor: async () => [
@@ -290,7 +345,7 @@ describe('evaluateCodehashSignGate', () => {
 
   it('blocks with UNVERIFIABLE when the attestation lookup fails', async () => {
     const gate = await evaluateCodehashSignGate(
-      { data: wrapped([cutCalldata()]), network: NETWORK },
+      await gateInput(wrapped([cutCalldata()]), NETWORK),
       () =>
         deps({
           attestationsFor: async () => {
@@ -305,7 +360,7 @@ describe('evaluateCodehashSignGate', () => {
 
   it('blocks when the scope itself cannot be established', async () => {
     const gate = await evaluateCodehashSignGate(
-      { data: wrapped([cutCalldata()]), network: 'notanetwork' },
+      await gateInput(wrapped([cutCalldata()]), 'notanetwork'),
       () =>
         deps({
           scope: () => {
@@ -322,7 +377,7 @@ describe('evaluateCodehashSignGate', () => {
     const hidden = `0xdeadc0de${cutCalldata().slice(2)}` as Hex
 
     const gate = await evaluateCodehashSignGate(
-      { data: hidden, network: NETWORK },
+      await gateInput(hidden, NETWORK),
       () => deps()
     )
 
@@ -334,10 +389,7 @@ describe('evaluateCodehashSignGate', () => {
   it('judges every cut in a batch, not only the first', async () => {
     const other = OTHER
     const gate = await evaluateCodehashSignGate(
-      {
-        data: wrapped([cutCalldata(), cutCalldata(other)]),
-        network: NETWORK,
-      },
+      await gateInput(wrapped([cutCalldata(), cutCalldata(other)]), NETWORK),
       () =>
         deps({
           observe: async (address) =>
@@ -365,11 +417,11 @@ describe('evaluateCodehashSignGate', () => {
     })
 
     const first = await evaluateCodehashSignGate(
-      { data, network: NETWORK },
+      await gateInput(data, NETWORK),
       () => recording
     )
     const second = await evaluateCodehashSignGate(
-      { data, network: NETWORK },
+      await gateInput(data, NETWORK),
       () => recording
     )
 
@@ -378,7 +430,7 @@ describe('evaluateCodehashSignGate', () => {
     // Non-vacuous: a different value must reach a different address, so the
     // equality above is a property of the input rather than of a cached answer.
     await evaluateCodehashSignGate(
-      { data: wrapped([cutCalldata(OTHER)]), network: NETWORK },
+      await gateInput(wrapped([cutCalldata(OTHER)]), NETWORK),
       () => recording
     )
     expect(seen[2]).toBe(getAddress(OTHER))
@@ -389,7 +441,7 @@ describe('evaluateCodehashSignGate', () => {
     // until layer 2 checks their values, so the count has to survive the wiring
     // for the display to be able to say what was not compared.
     const gate = await evaluateCodehashSignGate(
-      { data: wrapped([cutCalldata()]), network: NETWORK },
+      await gateInput(wrapped([cutCalldata()]), NETWORK),
       () => deps({ observe: async () => observed({ maskedByteCount: 128 }) })
     )
 
@@ -403,7 +455,7 @@ describe('renderCodehashSignGate', () => {
   const render = async (over: Partial<IVerifyCutDeps>): Promise<string> =>
     renderCodehashSignGate(
       await evaluateCodehashSignGate(
-        { data: wrapped([cutCalldata()]), network: NETWORK },
+        await gateInput(wrapped([cutCalldata()]), NETWORK),
         () => deps(over)
       )
     ).join('\n')
@@ -544,7 +596,7 @@ describe('the render distinguishes every bucket, including the two that are not 
     // decoder cannot open it, finds no cut, and previously said so as a green
     // pass. It must now name what it could not read.
     const gate = await evaluateCodehashSignGate(
-      { data: '0xdeadbeef00000000', network: NETWORK },
+      await gateInput('0xdeadbeef00000000', NETWORK),
       () => deps()
     )
 
@@ -557,7 +609,7 @@ describe('the render distinguishes every bucket, including the two that are not 
     // Paired positive: a proposal it fully read must not be described as
     // unopened, or the message above becomes noise on every proposal.
     const gate = await evaluateCodehashSignGate(
-      { data: wrapped([cutCalldata()]), network: NETWORK },
+      await gateInput(wrapped([cutCalldata()]), NETWORK),
       () => deps()
     )
 
@@ -616,7 +668,7 @@ describe('the sign funnel', () => {
 describe('assertCodehashSignGateAllowsSigning', () => {
   it('names the refusals and the per-address verdicts it refused on', async () => {
     const gate = await evaluateCodehashSignGate(
-      { data: wrapped([cutCalldata()]), network: NETWORK },
+      await gateInput(wrapped([cutCalldata()]), NETWORK),
       () =>
         deps({
           attestationsFor: async () => [
@@ -638,7 +690,7 @@ describe('assertCodehashSignGateAllowsSigning', () => {
 
   it('returns quietly for a gate that did not block', async () => {
     const gate = await evaluateCodehashSignGate(
-      { data: wrapped([cutCalldata()]), network: NETWORK },
+      await gateInput(wrapped([cutCalldata()]), NETWORK),
       () => deps()
     )
 

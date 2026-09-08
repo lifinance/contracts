@@ -223,16 +223,32 @@ export interface ISafeTxMongoDocument extends ISafeTxDocument {
 /**
  * The struct Safe hashes and signs, as returned by `initializeSafeTransaction`.
  *
- * Branded rather than a plain `ISafeTransaction` because `ISafeTxDocument.safeTx`
- * is structurally identical: without a nominal marker, a gate meant to judge the
- * bytes a signature covers accepts the stored document's copy of them just as
- * happily, and nothing in the type system notices. Three attempts to enforce that
- * by inspecting the call site's source were all defeated; this is the difference
- * between the two values being visible to the compiler.
+ * The type is a hint. **`isSignedStruct` is the guarantee** — a type-level brand
+ * cannot express object identity, and identity is the actual question: a spread
+ * (`{ ...struct, data: row.safeTx.data }`) keeps the brand in the type while
+ * swapping the bytes, and compiles. So membership is recorded at runtime, on the
+ * object this function produced, and checked where it matters.
  */
 export type ISignedSafeTransaction = ISafeTransaction & {
   readonly __signedStruct: 'initializeSafeTransaction'
 }
+
+/**
+ * The structs `initializeSafeTransaction` produced, by identity.
+ *
+ * Deliberately not exported and deliberately without a registrar: nothing can
+ * add to this except the one function below, so there is no forging call to
+ * review for. A test that needs a member goes through that function.
+ */
+const signedStructs = new WeakSet<object>()
+
+/**
+ * Whether this exact object is one Safe would hash and sign.
+ * @param value - the struct a caller proposes to vouch for
+ * @returns True only for an object `initializeSafeTransaction` returned
+ */
+export const isSignedStruct = (value: object): boolean =>
+  signedStructs.has(value)
 
 export interface IAugmentedSafeTxDocument extends ISafeTxMongoDocument {
   safeTransaction: ISignedSafeTransaction
@@ -1256,8 +1272,10 @@ export const initializeSafeTransaction = async (
     safeTransaction.signatures = signatures
   }
 
-  // The one place the brand is applied: this function is what turns a stored row
-  // into the struct that gets hashed and signed.
+  // The one place identity is recorded: this function is what turns a stored row
+  // into the struct that gets hashed and signed. The cast is the type hint; the
+  // WeakSet entry is what a gate can actually rely on.
+  signedStructs.add(safeTransaction)
   return safeTransaction as ISignedSafeTransaction
 }
 
