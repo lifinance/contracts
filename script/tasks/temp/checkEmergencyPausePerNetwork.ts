@@ -38,6 +38,7 @@ import {
   type INetwork,
   type SupportedChain,
 } from '../../common/types'
+import { normalizeRpcUrlForNetwork } from '../../mongoDb/rpcEndpoints'
 import { sleep } from '../../utils/delay'
 import { getDeployments } from '../../utils/deploymentHelpers'
 import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
@@ -304,14 +305,8 @@ async function checkNetworkEmergencyPause(
     return result
   }
 
-  // TronGrid serves Tron's native HTTP API at the root; viem talks JSON-RPC
-  // through the `/jsonrpc` suffix. getTransportConfigFromRpcUrl also injects
-  // the TRONGRID_API_KEY header when present.
-  const effectiveRpcUrl =
-    isTronNetworkKey(networkName) &&
-    !rpcUrl.replace(/\/+$/, '').endsWith('/jsonrpc')
-      ? `${rpcUrl.replace(/\/+$/, '')}/jsonrpc`
-      : rpcUrl
+  // getTransportConfigFromRpcUrl also injects the TRONGRID_API_KEY header when present.
+  const effectiveRpcUrl = normalizeRpcUrlForNetwork(networkName, rpcUrl)
   const {
     url: transportUrl,
     fetchOptions,
