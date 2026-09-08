@@ -90,6 +90,23 @@ describe('providerIdentityForUrl', () => {
     )
   })
 
+  it('reads a single-label host as the same provider whatever the root dot', () => {
+    // An intranet node named without a domain: the last-two-labels rule cannot
+    // apply, and returning the host verbatim let `rpc-node.` split from
+    // `rpc-node` — one node counted as two providers.
+    for (const host of ['rpc-node', 'localhost', 'com'])
+      expect(providerIdentityForUrl(`http://${host}./`), host).toBe(
+        providerIdentityForUrl(`http://${host}/`)
+      )
+
+    // Paired presence: two different single-label hosts stay two providers.
+    // Collapsing them could only ever refuse, so it is the safe direction — but
+    // unasserted it would quietly stop two intranet nodes reaching a quorum.
+    expect(providerIdentityForUrl('http://rpc-node-a/')).not.toBe(
+      providerIdentityForUrl('http://rpc-node-b/')
+    )
+  })
+
   it('reads a trailing-dot host as the same provider as the rooted form', () => {
     // A fully-qualified name may carry a root dot, and WHATWG URL preserves it.
     // Without dropping the empty label the last two become ['com', ''], which

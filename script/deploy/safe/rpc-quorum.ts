@@ -237,7 +237,11 @@ export const providerIdentityForUrl = (url: string): string => {
   if (bare.startsWith('[') || IPV4.test(bare)) return IP_LITERAL_IDENTITY
 
   const labels = bare.split('.').filter(Boolean)
-  if (labels.length < 2) return bare
+  // A single-label host is returned from its labels rather than verbatim, so a
+  // root dot cannot split one host from itself: `rpc-node.` and `rpc-node` are
+  // the same intranet node, and splitting is the direction that invents a
+  // quorum.
+  if (labels.length < 2) return labels.join('.')
 
   return labels.slice(-2).join('.')
 }
