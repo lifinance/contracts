@@ -250,6 +250,53 @@ describe('assertSafeThresholdFloor', () => {
   })
 })
 
+describe('the normalisers that decide what counts as no Safe', () => {
+  // `config/networks.json` is hand-edited, so these forms are reachable by a
+  // typo rather than by an attack. Each one denotes *no Safe*, so reading it as
+  // occupied would refuse a legitimate first deployment.
+  it('reads an upper-case or padded zero address as no Safe', () => {
+    for (const existing of [
+      '0X0000000000000000000000000000000000000000',
+      '  0x0000000000000000000000000000000000000000  ',
+      '0x0000000000000000000000000000000000000000',
+    ]) {
+      const verdict = evaluateSafeAddressOverride({
+        network: sampleNetwork,
+        existing,
+        allowOverride: false,
+      })
+
+      expect(verdict.occupied, existing).toBe(false)
+      expect(verdict.allowed, existing).toBe(true)
+    }
+  })
+
+  it('still reads a real address as occupied, however it is spelled', () => {
+    // Paired presence: leniency about the zero address must not make a Safe
+    // that exists look absent.
+    for (const existing of [
+      '0xE3C8121DF9b1c5A7d383Ab4923fF848a6510F357',
+      '0xe3c8121df9b1c5a7d383ab4923ff848a6510f357',
+      '  0xE3C8121DF9b1c5A7d383Ab4923fF848a6510F357  ',
+      `0x${'0'.repeat(39)}1`,
+    ]) {
+      const verdict = evaluateSafeAddressOverride({
+        network: sampleNetwork,
+        existing,
+        allowOverride: false,
+      })
+
+      expect(verdict.occupied, existing).toBe(true)
+      expect(verdict.allowed, existing).toBe(false)
+    }
+  })
+
+  it('does not treat surrounding whitespace as an owner difference', () => {
+    const owner = '0xE3C8121DF9b1c5A7d383Ab4923fF848a6510F357'
+    expect(compareOwnerSets([owner], [`  ${owner}  `]).matchesConfig).toBe(true)
+  })
+})
+
 describe('compareOwnerSets', () => {
   it('matches the committed owner set against itself', () => {
     expect(compareOwnerSets(configOwners, configOwners)).toEqual({
