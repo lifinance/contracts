@@ -87,6 +87,7 @@ const BRIDGE_AMOUNT_HUMAN = '1'
 // Centrifuge's public quoting endpoint, the same one the backend integration reads the fee
 // from. Documented at https://docs.centrifuge.io/developer/centrifuge-api/#bridge-rest-api.
 const CENTRIFUGE_QUOTE_URL = 'https://api.centrifuge.io/bridge/quote'
+const CENTRIFUGE_STATUS_URL = 'https://api.centrifuge.io/bridge/status'
 
 // The quote is a single number rather than a bracket, so the Gateway may charge exactly what is
 // sent. Paying a deliberate margin over it guarantees there is a surplus to refund, which is
@@ -325,18 +326,32 @@ async function main(): Promise<void> {
     refundRecipient: signerAddress,
   }
 
-  // === Start bridging ===
-  const sharesBefore = (await shareTokenContract.read.balanceOf([
-    signerAddress,
-  ])) as bigint
-  const nativeBefore = await publicClient.getBalance({ address: signerAddress })
-  const diamondSharesBefore = (await shareTokenContract.read.balanceOf([
-    lifiDiamondAddress,
-  ])) as bigint
-  const diamondNativeBefore = await publicClient.getBalance({
-    address: lifiDiamondAddress,
+  // Both snapshots are pinned to a block number rather than read around the call: a `latest`
+  // read can be answered by a load-balanced node that has not applied the receipt's block yet,
+  // which reports every delta below as zero and fails the run on a bridge that worked.
+  const readShares = (holder: Address, blockNumber: bigint) =>
+    publicClient.readContract({
+      address: SHARE_TOKEN,
+      abi: ERC20_ABI,
+      functionName: 'balanceOf',
+      args: [holder],
+      blockNumber,
+    }) as Promise<bigint>
+
+  const readBalances = async (blockNumber: bigint) => ({
+    signerShares: await readShares(signerAddress, blockNumber),
+    signerNative: await publicClient.getBalance({
+      address: signerAddress,
+      blockNumber,
+    }),
+    diamondShares: await readShares(lifiDiamondAddress, blockNumber),
+    diamondNative: await publicClient.getBalance({
+      address: lifiDiamondAddress,
+      blockNumber,
+    }),
   })
 
+  // === Start bridging ===
   const txHash = (await executeTransaction(
     () =>
       walletClient.writeContract({
@@ -355,20 +370,12 @@ async function main(): Promise<void> {
   const receipt = await publicClient.getTransactionReceipt({ hash: txHash })
   const gasCost = receipt.gasUsed * receipt.effectiveGasPrice
 
-  const sharesAfter = (await shareTokenContract.read.balanceOf([
-    signerAddress,
-  ])) as bigint
-  const nativeAfter = await publicClient.getBalance({ address: signerAddress })
-  const diamondSharesAfter = (await shareTokenContract.read.balanceOf([
-    lifiDiamondAddress,
-  ])) as bigint
-  const diamondNativeAfter = await publicClient.getBalance({
-    address: lifiDiamondAddress,
-  })
+  const before = await readBalances(receipt.blockNumber - 1n)
+  const after = await readBalances(receipt.blockNumber)
 
   // the refund lands back on the signer, so the fee actually spent is the native delta net of gas
-  const consumedFee = nativeBefore - nativeAfter - gasCost
-  const sharesSent = sharesBefore - sharesAfter
+  const consumedFee = before.signerNative - after.signerNative - gasCost
+  const sharesSent = before.signerShares - after.signerShares
 
   consola.info(
     `Shares sent: ${formatUnits(
@@ -384,17 +391,17 @@ async function main(): Promise<void> {
   consola.info(`Gas: ${formatEther(gasCost)} ETH`)
   consola.info(
     `Diamond residue - shares: ${
-      diamondSharesAfter - diamondSharesBefore
-    }, native: ${diamondNativeAfter - diamondNativeBefore}`
+      after.diamondShares - before.diamondShares
+    }, native: ${after.diamondNative - before.diamondNative}`
   )
 
   if (sharesSent !== amount)
     throw new Error(
       `the bridged amount did not leave the signer: sent ${sharesSent}, expected ${amount}`
     )
-  if (diamondSharesAfter !== diamondSharesBefore)
+  if (after.diamondShares !== before.diamondShares)
     throw new Error('the Diamond retained share tokens after bridging')
-  if (diamondNativeAfter !== diamondNativeBefore)
+  if (after.diamondNative !== before.diamondNative)
     throw new Error('the Diamond retained native after bridging')
   if (consumedFee <= 0n)
     throw new Error('no messaging fee was consumed - was the message sent?')
@@ -402,7 +409,12 @@ async function main(): Promise<void> {
     throw new Error('the fee surplus was not refunded to refundRecipient')
 
   consola.success(
-    `Bridged ${BRIDGE_AMOUNT_HUMAN} ${shareTokenSymbol} to ${signerAddress} on ${DST_CHAIN}: share-token pull, messaging-fee payment, surplus refund and zero Diamond residue verified`
+    `Sent ${BRIDGE_AMOUNT_HUMAN} ${shareTokenSymbol} towards ${signerAddress} on ${DST_CHAIN}: share-token pull, messaging-fee payment, surplus refund and zero Diamond residue verified`
+  )
+  // The destination mint is settled by Centrifuge's own executor minutes later, so the source
+  // leg succeeding is not yet proof the shares arrived.
+  consola.info(
+    `Destination leg settles asynchronously - track it at ${CENTRIFUGE_STATUS_URL}?txHash=${txHash}`
   )
 }
 
