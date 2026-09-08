@@ -136,10 +136,7 @@ export interface IChainObservations {
   available: boolean
   /** Set exactly when `available` is false. */
   unavailableReason?: string
-  /**
-   * Selector to the facet address serving it, {@link ZERO_ADDRESS} for none.
-   * Keys are lowercase; values are compared case-insensitively at the read.
-   */
+  /** Selector to the facet address serving it, {@link ZERO_ADDRESS} for none. */
   selectorFacets: ReadonlyMap<string, string>
   /** Address to whether `eth_getCode` returned any code. */
   hasCode: ReadonlyMap<string, boolean>
@@ -273,8 +270,11 @@ const normalise = (value: string): string => value.trim().toLowerCase()
 
 const isZero = (value: string): boolean => normalise(value) === ZERO_ADDRESS
 
+// Case-insensitive on the prefix too: the only caller skips a cut this rejects
+// without recording anything, so a `0X` form would drop a facet out of the code
+// check silently rather than being reported as unchecked.
 const isEvmAddress = (value: string): boolean =>
-  /^0x[0-9a-fA-F]{40}$/.test(value.trim())
+  /^0x[0-9a-fA-F]{40}$/iu.test(value.trim())
 
 const describeAction = (action: number): string =>
   KNOWN_ACTIONS.has(action)

@@ -220,6 +220,22 @@ describe('a proposal that executes', () => {
     expect(verdict.refuses).toBe(false)
     expect(verdict.error).toBe(false)
   })
+
+  it('checks a facet address written with an uppercase hex prefix', () => {
+    // The one caller skips a cut the address test rejects without recording
+    // anything, so a `0X` form dropped the facet out of the code check with
+    // nothing to show for it — neither a finding nor an unchecked note.
+    const verdict = evaluate(
+      cutCall([
+        cut(FacetCutActionEnum.Add, `0X${CODELESS.slice(2)}`, [UNSERVED]),
+      ])
+    )
+
+    expect(
+      findingFor(verdict, ExecutabilityFindingEnum.FacetContainsNoCode).blocking
+    ).toBe(true)
+    expect(verdict.refuses).toBe(true)
+  })
 })
 
 describe('proven from the calldata alone', () => {
