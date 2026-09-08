@@ -119,12 +119,23 @@ describe('what the CLI hands the floor check', () => {
     // safe to make here; the durable fix is for the guard to hand back a
     // validated threshold that the deploy path must consume, so an unvalidated
     // number cannot reach it at all (EXSC-945).
+    // The assignment is matched WHOLE, not by substring: `| 0`, `>> 0` and
+    // `Math.trunc(...)` all truncate as a suffix, so a `toContain` on the
+    // prefix passes while the value is rounded down after it.
+    const assignments = (
+      source.match(/^\s*const threshold = .*$/gmu) ?? []
+    ).map((line) => line.trim())
+    // Both, and in order: `run()` takes the number it was handed, the CLI
+    // parses the argument. Asserting the whole set means a third assignment
+    // cannot appear unnoticed either.
+    expect(assignments).toEqual([
+      'const threshold = options.threshold',
+      'const threshold = Number(args.threshold)',
+    ])
+
+    // And nothing truncates it on the way to the guard either.
     expect(source).not.toMatch(/Math\.(?:trunc|floor|round)\s*\(\s*threshold/u)
-    expect(source).not.toMatch(/parseInt\s*\(\s*(?:args\.)?threshold/u)
-    expect(source).not.toMatch(/threshold\s*\|\s*0/u)
-    // Paired presence: the value that reaches the guard is the parsed one, so
-    // this is not passing on a file that never parses a threshold at all.
-    expect(source).toContain('const threshold = Number(args.threshold)')
+    expect(source).not.toMatch(/threshold(?:\s*\)?)*\s*(?:\||>>>?)\s*0/u)
   })
 })
 
