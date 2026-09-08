@@ -3022,3 +3022,156 @@ describe('periphery-registered scheduled-registration coverage', () => {
     expect(ctx.errors).toHaveLength(1)
   })
 })
+
+/**
+ * `safe-config` asserts the owner set in **both** directions.
+ *
+ * The one-directional version could only see a configured owner that had been
+ * removed on chain. An owner *added* to the Safe left every configured owner in
+ * place and the threshold at or above its floor, so the invariant named for the
+ * governance Safe's owners passed while the signer set had been widened — which
+ * is the failure these tests exist to keep closed. So the assertions come in
+ * pairs: each refusal is matched by the configuration that must still pass,
+ * because a check that refused every owner set would satisfy the refusals alone.
+ */
+const SAFE = '0x1111111111111111111111111111111111111111'
+const OWNER_A = '0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa'
+const OWNER_B = '0xBbBbBBBb00000000000000000000000000000001'
+const OWNER_C = '0xcCcCcCCc00000000000000000000000000000002'
+const INTRUDER = '0xdDdDddDd00000000000000000000000000000003'
+
+function makeSafeCtx(stub: {
+  configured: string[]
+  onChain: string[]
+  threshold?: bigint
+  safeAddress?: string | undefined
+}): IHealthCheckContext {
+  const ctx = makeCtx()
+  Object.assign(ctx, {
+    globalConfig: { safeOwners: stub.configured },
+    networkConfig: {
+      safeAddress: 'safeAddress' in stub ? stub.safeAddress : SAFE,
+    },
+    publicClient: {
+      readContract: async ({ functionName }: { functionName: string }) => {
+        if (functionName === 'getOwners') return stub.onChain
+        if (functionName === 'getThreshold') return stub.threshold ?? BigInt(3)
+        return BigInt(7)
+      },
+    },
+  })
+  return ctx
+}
+
+describe('safe-config asserts the owner set both ways', () => {
+  it('passes when the on-chain owners are exactly the configured ones', async () => {
+    const ctx = makeSafeCtx({
+      configured: [OWNER_A, OWNER_B, OWNER_C],
+      onChain: [OWNER_A, OWNER_B, OWNER_C],
+    })
+    await invariant('safe-config').run(ctx)
+    expect(ctx.errors).toEqual([])
+  })
+
+  it('fails on an owner added to the Safe but absent from config', async () => {
+    // The gap: every configured owner is still an owner and the threshold is
+    // untouched, so the one-directional check saw nothing.
+    const ctx = makeSafeCtx({
+      configured: [OWNER_A, OWNER_B, OWNER_C],
+      onChain: [OWNER_A, OWNER_B, OWNER_C, INTRUDER],
+    })
+    await invariant('safe-config').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain(getAddress(INTRUDER))
+    expect(ctx.errors[0]).toContain('NOT in config/global.json')
+  })
+
+  it('still fails on a configured owner removed from the Safe', async () => {
+    const ctx = makeSafeCtx({
+      configured: [OWNER_A, OWNER_B, OWNER_C],
+      onChain: [OWNER_A, OWNER_B],
+    })
+    await invariant('safe-config').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain(getAddress(OWNER_C))
+    expect(ctx.errors[0]).toContain('NOT an owner')
+  })
+
+  it('says which side each direction is missing from', async () => {
+    // Both messages name a set and a side. The pre-existing message read "not
+    // in SAFE configuration" for an owner that *was* configured and missing on
+    // chain, which points a responder at the wrong file.
+    const ctx = makeSafeCtx({
+      configured: [OWNER_A, OWNER_C],
+      onChain: [OWNER_A, INTRUDER],
+    })
+    await invariant('safe-config').run(ctx)
+    expect(ctx.errors).toHaveLength(2)
+    const configuredSideMissing = ctx.errors.find((e) =>
+      e.includes(getAddress(OWNER_C))
+    )
+    const chainSideExtra = ctx.errors.find((e) =>
+      e.includes(getAddress(INTRUDER))
+    )
+    expect(configuredSideMissing).toContain('is in config/global.json')
+    expect(configuredSideMissing).toContain('NOT an owner')
+    expect(chainSideExtra).toContain('on chain')
+    expect(chainSideExtra).toContain('NOT in config/global.json')
+  })
+
+  it('compares checksummed, so a lowercased config entry is not a mismatch', async () => {
+    const ctx = makeSafeCtx({
+      configured: [OWNER_A.toLowerCase(), OWNER_B.toLowerCase()],
+      onChain: [getAddress(OWNER_A), getAddress(OWNER_B)],
+    })
+    await invariant('safe-config').run(ctx)
+    expect(ctx.errors).toEqual([])
+  })
+
+  it('refuses rather than reports when config lists no owners', async () => {
+    // An empty expected set is a subset of every on-chain set there is, so both
+    // directions would pass while nothing had been compared.
+    const ctx = makeSafeCtx({ configured: [], onChain: [OWNER_A, INTRUDER] })
+    await invariant('safe-config').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('lists no safeOwners')
+  })
+
+  it('says the added-owner check could not run when a config entry is malformed', async () => {
+    // A typo in config would otherwise make every on-chain owner it fails to
+    // match look like an intruder. The check reports that it could not compare
+    // instead of naming an owner that may well be configured.
+    const ctx = makeSafeCtx({
+      configured: [OWNER_A, '0xnot-an-address'],
+      onChain: [getAddress(OWNER_A), getAddress(OWNER_B)],
+    })
+    await invariant('safe-config').run(ctx)
+    expect(ctx.errors.join('\n')).toContain('not a valid address')
+    expect(ctx.errors.join('\n')).toContain('0xnot-an-address')
+    // Never named as unexpected on the strength of an incomplete config set.
+    expect(ctx.errors.join('\n')).not.toContain(
+      `${getAddress(OWNER_B)} is an owner`
+    )
+  })
+
+  it('keeps failing a threshold below the floor', async () => {
+    const ctx = makeSafeCtx({
+      configured: [OWNER_A],
+      onChain: [OWNER_A],
+      threshold: BigInt(1),
+    })
+    await invariant('safe-config').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('threshold')
+  })
+
+  it('does not read the Safe when no address is configured', async () => {
+    const ctx = makeSafeCtx({
+      configured: [OWNER_A],
+      onChain: [INTRUDER],
+      safeAddress: undefined,
+    })
+    await invariant('safe-config').run(ctx)
+    expect(ctx.errors).toEqual([])
+  })
+})

@@ -3303,7 +3303,7 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
       }
       if (!ctx.publicClient) return
 
-      const safeOwners = ctx.globalConfig.safeOwners
+      const safeOwners = ctx.globalConfig.safeOwners ?? []
       const safeAddress = ctx.networkConfig.safeAddress
 
       try {
@@ -3313,18 +3313,72 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
           safeAddress as Address
         )
 
-        for (const o in safeOwners) {
-          const safeOwnerAddr = safeOwners[o]
-          if (!safeOwnerAddr) continue
-          const safeOwner = getAddress(safeOwnerAddr)
-          const isOwner = safeInfo.owners.some(
-            (owner) => getAddress(owner) === safeOwner
-          )
-          if (!isOwner)
-            ctx.logError(`SAFE owner ${safeOwner} not in SAFE configuration`)
-          else
-            consola.success(`SAFE owner ${safeOwner} is in SAFE configuration`)
+        // Checksummed on both sides, because the two sources disagree on case:
+        // `getOwners()` returns whatever the node encodes and the config file is
+        // hand-written.
+        const configured = new Set<string>()
+        const unparseable: string[] = []
+        for (const entry of safeOwners) {
+          if (!entry) continue
+          try {
+            configured.add(getAddress(entry))
+          } catch {
+            unparseable.push(entry)
+          }
         }
+
+        const onChain = new Set<string>()
+        for (const owner of safeInfo.owners) onChain.add(getAddress(owner))
+
+        let mismatches = 0
+        const report = (message: string): void => {
+          mismatches += 1
+          ctx.logError(message)
+        }
+
+        for (const safeOwner of configured)
+          if (!onChain.has(safeOwner))
+            report(
+              `SAFE owner ${safeOwner} is in config/global.json but is NOT an owner of ${safeAddress} on chain`
+            )
+
+        if (unparseable.length > 0)
+          // Reported instead of comparing, never alongside a verdict: with an
+          // entry that would not normalise, the configured set is incomplete,
+          // so an on-chain owner it omits would be named as unexpected when it
+          // may be configured and merely mistyped.
+          report(
+            `Cannot check ${safeAddress} for unexpected owners: ${
+              unparseable.length
+            } entr${
+              unparseable.length === 1 ? 'y' : 'ies'
+            } in config/global.json safeOwners ${
+              unparseable.length === 1 ? 'is' : 'are'
+            } not a valid address (${unparseable.join(
+              ', '
+            )}). Fix the config and re-run — an owner added to the Safe is invisible until this check can compare the full set.`
+          )
+        else if (configured.size === 0)
+          // An empty expected set agrees with every on-chain set there is.
+          report(
+            `Cannot check ${safeAddress} for unexpected owners: config/global.json lists no safeOwners`
+          )
+        // The direction the configured-owner loop cannot see. An added owner
+        // leaves every configured owner in place and the threshold at or above
+        // its floor, so without this the widening is silent — and three of
+        // seven signatures is a weaker Safe than three of six, with the added
+        // key among the seven.
+        else
+          for (const safeOwner of onChain)
+            if (!configured.has(safeOwner))
+              report(
+                `SAFE owner ${safeOwner} is an owner of ${safeAddress} on chain but is NOT in config/global.json`
+              )
+
+        if (mismatches === 0)
+          consola.success(
+            `SAFE owner set matches config/global.json (${onChain.size} owner(s))`
+          )
 
         if (safeInfo.threshold < BigInt(SAFE_THRESHOLD))
           ctx.logError(
