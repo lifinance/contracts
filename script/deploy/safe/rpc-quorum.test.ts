@@ -152,6 +152,14 @@ describe('groupProviders', () => {
 
     expect(new Set(grouped).size).toBe(1)
   })
+
+  it('names a declared merge after the hostname, whichever order the IP arrives in', () => {
+    const ip = ok('https://198.51.100.4/', { providerId: 'alchemy' })
+    const named = ok(ALCHEMY, { providerId: 'alchemy' })
+
+    expect(groupProviders([ip, named])).toEqual(['alchemy.com', 'alchemy.com'])
+    expect(groupProviders([named, ip])).toEqual(['alchemy.com', 'alchemy.com'])
+  })
 })
 
 describe('evaluateRpcQuorum — the green case', () => {
@@ -649,6 +657,18 @@ describe('evaluateQuorumCoverage', () => {
     expect(arbitrum?.independentProviders).toBe(1)
   })
 
+  it('does not count a bare-IP identity as a provider that can reach quorum', () => {
+    const report = evaluateQuorumCoverage(
+      { mainnet: [ALCHEMY, 'https://198.51.100.4/'] },
+      'fixture'
+    )
+    const mainnet = report.networks.find((entry) => entry.network === 'mainnet')
+
+    expect(mainnet?.providers).toContain(IP_LITERAL_IDENTITY)
+    expect(mainnet?.independentProviders).toBe(1)
+    expect(mainnet?.reachesQuorum).toBe(false)
+  })
+
   it('prints the count and the list, never the count alone', () => {
     const lines = renderQuorumCoverage(
       evaluateQuorumCoverage(endpoints, 'fixture')
@@ -686,6 +706,15 @@ describe('an IP alias cannot manufacture a quorum', () => {
     expect(verdict.agreeingProviders).toBe(0)
     expect(verdict.transient).toBe(false)
     expect(() => assertRpcQuorum(verdict, 'codehash on mainnet')).toThrow()
+  })
+
+  it('agrees after a declared IP-and-hostname merge, whichever order they arrive in', () => {
+    const ip = ok('http://203.0.113.7:8545/', { providerId: 'alchemy' })
+    const named = ok(ALCHEMY, { providerId: 'alchemy' })
+    const other = ok(INFURA)
+
+    expect(evaluateRpcQuorum([ip, named, other]).status).toBe('agreed')
+    expect(evaluateRpcQuorum([named, ip, other]).status).toBe('agreed')
   })
 
   it('still reaches a quorum on two hostname endpoints of different providers', () => {

@@ -210,6 +210,11 @@ const EMPTY_VALUE = /^(0x)?0*$/
  */
 export const IP_LITERAL_IDENTITY = '<ip-literal host>'
 
+/** Identity every endpoint whose URL will not parse collapses onto. */
+export const UNPARSABLE_IDENTITY = '<unparsable url>'
+
+const SENTINEL_IDENTITIES = new Set([IP_LITERAL_IDENTITY, UNPARSABLE_IDENTITY])
+
 /**
  * Provider identity for an endpoint URL: the host's last two labels, lowercased
  * and without its port.
@@ -228,7 +233,7 @@ export const IP_LITERAL_IDENTITY = '<ip-literal host>'
  */
 export const providerIdentityForUrl = (url: string): string => {
   const host = hostOf(url).toLowerCase()
-  if (host === '<unparsable url>') return host
+  if (host === UNPARSABLE_IDENTITY) return host
 
   // An IPv6 host arrives bracketed and its colons are not label separators.
   const bare = host.startsWith('[')
@@ -291,7 +296,22 @@ export const groupProviders = (
     else union(firstDeclared, index)
   })
 
-  return observations.map((_, index) => derived[find(index)] as string)
+  // Name each group after a host-derived identity whenever one of its members
+  // has one, so a declared providerId merges an IP-literal endpoint into the
+  // named provider whatever the input order.
+  const canonical = new Map<number, string>()
+  observations.forEach((_, index) => {
+    const root = find(index)
+    const candidate = derived[index] as string
+    const current = canonical.get(root)
+    if (
+      current === undefined ||
+      (SENTINEL_IDENTITIES.has(current) && !SENTINEL_IDENTITIES.has(candidate))
+    )
+      canonical.set(root, candidate)
+  })
+
+  return observations.map((_, index) => canonical.get(find(index)) as string)
 }
 
 const normalizeValue = (value: string): string => value.trim().toLowerCase()
@@ -685,13 +705,16 @@ export const evaluateQuorumCoverage = (
           )
         ),
       ].sort()
+      const verifiable = providers.filter(
+        (provider) => !SENTINEL_IDENTITIES.has(provider)
+      )
 
       return {
         network,
         endpoints: urls.length,
-        independentProviders: providers.length,
+        independentProviders: verifiable.length,
         providers,
-        reachesQuorum: providers.length >= quorum,
+        reachesQuorum: verifiable.length >= quorum,
       }
     })
 
