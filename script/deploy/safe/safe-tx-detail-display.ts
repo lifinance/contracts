@@ -346,8 +346,11 @@ export function buildSafeTxDetailLines(input: ISafeTxDetailInput): string[] {
   if (Array.isArray(input.parkedTaskRefs) && input.parkedTaskRefs.length > 0)
     lines.push(...parkedLines(input.parkedTaskRefs))
 
-  // Belt-and-braces around a total function: no shape of stored row may cost
-  // the operator the rest of the networks in this run.
+  // Belt-and-braces around a total function, and unobservable for that reason:
+  // `formatProvenanceLines` catches its own failures, so nothing reaches this
+  // catch and a mutation deleting it survives the suite. Kept because the
+  // totality it relies on lives in another module. No shape of stored row may
+  // cost the operator the rest of the networks in this run.
   try {
     lines.push(...formatProvenanceLines(input.provenance))
   } catch (error) {

@@ -437,6 +437,15 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
       expect(() =>
         buildSafeTxDetailLines({ ...benign, ...overrides })
       ).not.toThrow()
+
+    // And the block still renders — swallowing the line would pass the
+    // assertions above while losing the field the signer is checking.
+    expect(
+      lineStartingWith(
+        buildSafeTxDetailLines({ ...benign, formatAddress: () => throwing }),
+        'To:'
+      )
+    ).toContain(benign.to as string)
   })
 
   it('renders no explorer link for a target that sanitises to nothing', () => {
@@ -580,6 +589,63 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
     expect(line).toContain('value cannot be shown')
   })
 
+  it('keeps the unformatted-address warning outside the proposer colour too', () => {
+    // The target line's placement is asserted above; one shared constant does
+    // not mean both call sites emit it in the right place.
+    const line = lineStartingWith(
+      buildSafeTxDetailLines({
+        ...benign,
+        formatAddress: () => {
+          throw new Error('no codec')
+        },
+      }),
+      'Proposer:'
+    )
+
+    expect(line.indexOf('\u001b[0m')).toBeLessThan(
+      line.indexOf('shown unformatted')
+    )
+  })
+
+  it('renders the provenance it is given, not a fresh absence', () => {
+    // `formatProvenanceLines` has its own suite; what is unobserved here is the
+    // wiring. Dropping the argument would make every proposal read "not
+    // recorded" and hide the commit, branch and dirty-tree disclosure.
+    const lines = buildSafeTxDetailLines({
+      ...benign,
+      provenance: {
+        proposerHandle: 'dblaecker',
+        actor: 'human',
+        gitCommit: 'a1b2c3d4e5f6a7b8c9d0',
+        gitBranch: 'feat/thing',
+        dirtyTreeScoped: [],
+        captureErrors: [],
+        commitOnRemote: true,
+      } as never,
+    })
+
+    expect(lines.join('\n')).toContain('dblaecker')
+    expect(lines.join('\n')).not.toContain('not recorded')
+  })
+
+  it('degrades to a line for a half-migrated provenance row', () => {
+    // The degradation is `formatProvenanceLines`' own — it is total, which is
+    // why the builder's try around it cannot be observed and a mutation
+    // removing that try survives. What is asserted here is the visible
+    // property: a broken block costs one line, not the whole prompt.
+    const lines = buildSafeTxDetailLines({
+      ...benign,
+      provenance: {
+        get proposerHandle(): string {
+          throw new Error('half-migrated row')
+        },
+      } as never,
+    })
+
+    expect(lines.join('\n')).toContain('could not be rendered')
+    expect(lines.length).toBeGreaterThan(1)
+  })
+
   it('leaves a benign field unmarked', () => {
     for (const line of buildSafeTxDetailLines(benign))
       expect(line).not.toContain('sanitised for display')
@@ -652,6 +718,18 @@ describe('a normal proposal renders exactly as it does today', () => {
     expect(lines).toContain(
       '        \u001b[32mAcrossFacetV3\u001b[0m → \u001b[36mhttps://github.com/x/y/pull/1\u001b[0m'
     )
+
+    // Every ref, not just the first: dropping the tail would hide deprecation
+    // context for the facets after it.
+    const both = buildSafeTxDetailLines({
+      ...benign,
+      parkedTaskRefs: [
+        { facet: 'AcrossFacetV3', prUrl: 'https://github.com/x/y/pull/1' },
+        { facet: 'AmarokFacet', prUrl: 'https://github.com/x/y/pull/2' },
+      ],
+    })
+    expect(both.filter((line) => line.startsWith('        '))).toHaveLength(2)
+    expect(both.join('\n')).toContain('AmarokFacet')
   })
 })
 
@@ -691,17 +769,17 @@ describe('the block is total — no row shape costs the operator the run', () =>
       { length: 1, 0: {} } as never,
       5 as never,
       'abc' as never,
-    ])
-      expect(() =>
+    ]) {
+      const build = (): string[] =>
         buildSafeTxDetailLines({ ...benign, parkedTaskRefs })
-      ).not.toThrow()
-
-    expect(
-      buildSafeTxDetailLines({
-        ...benign,
-        parkedTaskRefs: { length: 2 } as never,
-      }).some((line) => line.includes('Parked cleanup'))
-    ).toBe(false)
+      expect(build).not.toThrow()
+      // Every shape, not just the first: a guard that accepted an iterable
+      // with a length would render `undefined → undefined` rows under a real
+      // header for a stored string.
+      expect(build().some((line) => line.includes('Parked cleanup'))).toBe(
+        false
+      )
+    }
   })
 
   it('renders a parked ref that is not an object', () => {
