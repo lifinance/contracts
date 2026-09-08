@@ -19,6 +19,7 @@ import { type Address, type Hex } from 'viem'
 import networksData from '../../../config/networks.json'
 import { buildExplorerAddressUrl } from '../../utils/viemScriptHelpers'
 import { createDefaultCache } from '../shared/deployment-cache'
+import { sanitizeProvenanceText } from '../shared/git-provenance'
 import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
 
 import { readBooleanFlag, readValueFlag } from './cli-flags'
@@ -369,24 +370,30 @@ const processTxs = async (
         network,
       })
 
+    // Sanitised before anything renders it: the checks upstream of here skip
+    // whitespace rather than refusing it, so a `\r` in the stored address
+    // reaches this line and rewinds it over the label.
+    const toAddress = sanitizeProvenanceText(tx.safeTx.data.to) as Address
+
     // Get target name for display
-    const targetName = await getTargetName(tx.safeTx.data.to, network)
+    const targetName = await getTargetName(toAddress, network)
     const toAddrDisplay = `${formatAddressForNetworkCliDisplay(
       network,
-      tx.safeTx.data.to
-    )}${tronHexSuffix(network, tx.safeTx.data.to)}`
+      toAddress
+    )}${tronHexSuffix(network, toAddress)}`
     const toDisplay = targetName
       ? `${toAddrDisplay} \u001b[33m${targetName}\u001b[0m`
       : toAddrDisplay
     const toExplorerUrl = buildExplorerAddressUrl(
       network.toLowerCase(),
-      tx.safeTx.data.to
+      toAddress
     )
     const toExplorerSuffix = toExplorerUrl ? ` [36m${toExplorerUrl}[0m` : ''
+    const proposerAddress = sanitizeProvenanceText(tx.proposer) as Address
     const proposerDisplay = `${formatAddressForNetworkCliDisplay(
       network,
-      tx.proposer
-    )}${tronHexSuffix(network, tx.proposer)}`
+      proposerAddress
+    )}${tronHexSuffix(network, proposerAddress)}`
 
     const nonceColor =
       nonceStatus === 'current' ? '32' : nonceStatus === 'stale' ? '31' : '33'
@@ -442,7 +449,7 @@ const processTxs = async (
         const filmstrip = renderLedgerFlexFlow({
           chainId: chain.id,
           verifyingContract: safeAddress,
-          to: tx.safeTx.data.to,
+          to: toAddress,
           value: String(tx.safeTx.data.value),
           data: tx.safeTx.data.data as Hex,
         })
@@ -587,10 +594,10 @@ const processTxs = async (
       consola.error('✗  STALE PROPOSAL — THIS TRANSACTION WILL REVERT')
       consola.error('='.repeat(80))
       consola.error(
-        `  This proposal has nonce \u001b[31m${tx.safeTx.data.nonce}\u001b[0m but the Safe's on-chain nonce is already \u001b[31m${expectedNonce}\u001b[0m.`
+        `  This proposal has nonce \u001b[31m${txNonce}\u001b[0m but the Safe's on-chain nonce is already \u001b[31m${expectedNonce}\u001b[0m.`
       )
       consola.error(
-        `  Nonce ${tx.safeTx.data.nonce} was already used — this proposal is stale and cannot be executed.`
+        `  Nonce ${txNonce} was already used — this proposal is stale and cannot be executed.`
       )
       consola.error(
         `  Likely cause: the RPC returned a stale nonce when the proposal was created.`
@@ -620,7 +627,7 @@ const processTxs = async (
         consola.warn('⚠  GS026 — THIS TRANSACTION WILL REVERT')
         consola.warn('='.repeat(80))
         consola.warn(
-          `  This transaction has nonce \u001b[33m${tx.safeTx.data.nonce}\u001b[0m but the Safe's current on-chain nonce is \u001b[33m${expectedNonce}\u001b[0m.`
+          `  This transaction has nonce \u001b[33m${txNonce}\u001b[0m but the Safe's current on-chain nonce is \u001b[33m${expectedNonce}\u001b[0m.`
         )
         consola.warn(
           `  The Safe requires nonce ${expectedNonce} to be executed first — executing this will revert with GS026.`
@@ -661,7 +668,7 @@ const processTxs = async (
       consola.warn('⚠  NONCE GAP — EXECUTING BY OPERATOR OVERRIDE')
       consola.warn('='.repeat(80))
       consola.warn(
-        `  This transaction has nonce \u001b[33m${tx.safeTx.data.nonce}\u001b[0m but the configured RPC reports on-chain nonce \u001b[33m${expectedNonce}\u001b[0m.`
+        `  This transaction has nonce \u001b[33m${txNonce}\u001b[0m but the configured RPC reports on-chain nonce \u001b[33m${expectedNonce}\u001b[0m.`
       )
       consola.warn(
         '  ALLOW_FUTURE_NONCE_EXECUTION=true — proceeding on the assumption that the RPC nonce is out of date.'

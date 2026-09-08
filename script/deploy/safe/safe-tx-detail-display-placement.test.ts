@@ -1,10 +1,13 @@
 /**
- * Where the detail block is built, not what it renders —
+ * Where the signing prompt's values come from, not what they render to —
  * `safe-tx-detail-display.test.ts` covers the rendering by executing it.
  *
  * `confirm-safe-tx.ts` cannot be imported as the CLI (`runMain` at module
- * scope), so placement is asserted on the source, shaped so a field added back
- * into a colour code raw fails the suite.
+ * scope), so this is asserted on the source. The rule is deliberately not
+ * "no stored field inside a colour code": a value that rewinds a line does so
+ * wherever it is printed, and the parked-cleanup fields are reached through
+ * `ref.` rather than `tx.`, so a colour-code rule keyed on one receiver would
+ * not see them.
  */
 
 import { readFileSync } from 'fs'
@@ -24,52 +27,100 @@ const CONFIRM = readFileSync(
   'utf8'
 )
 
+/** Receivers carrying a value read out of the stored proposal row. */
+const STORED_RECEIVER =
+  /\b(?:tx\.|ref\.|proposerDisplay|toDisplay|toAddrDisplay)/u
+
 /**
- * A stored field interpolated directly inside an SGR colour code — the shape
- * that lets a row's own content recolour or repaint the line printing it.
- *
- * Matches the escape as the source spells it and as a literal ESC byte, so
- * switching spelling does not slip past.
+ * Every `${...}` in the source, brace-counted rather than pattern-matched, so
+ * an expression containing a nested template literal is still seen whole.
  */
-// eslint-disable-next-line no-control-regex -- matching the escape sequences is the point
-const RAW_IN_COLOUR = /(?:\\u001b|\u001b)\[[^\]]{0,20}?m\$\{\s*(tx\.[^}]*)\}/gs
+function interpolations(source: string): string[] {
+  const found: string[] = []
+  for (let i = 0; i < source.length - 1; i++) {
+    if (source[i] !== '$' || source[i + 1] !== '{') continue
+    let depth = 1
+    let j = i + 2
+    for (; j < source.length && depth > 0; j++)
+      if (source[j] === '{') depth++
+      else if (source[j] === '}') depth--
+    if (depth === 0) found.push(source.slice(i + 2, j - 1))
+  }
+  return found
+}
 
-const storedFieldsInColour = (source: string): string[] =>
-  [...source.matchAll(RAW_IN_COLOUR)].map((match) => match[1] ?? '')
+const storedInterpolations = (source: string): string[] =>
+  interpolations(source)
+    .filter((expression) => STORED_RECEIVER.test(expression))
+    .map((expression) => expression.replace(/\s+/gu, ' ').trim())
 
-describe('the signing prompt builds its detail block through the sanitiser', () => {
-  it('prints the array the builder returns, and builds it nowhere else', () => {
+/**
+ * The only stored values allowed to reach a printed line without going through
+ * `buildSafeTxDetailLines`. Both are sanitised before they get here, and the
+ * assertions below pin that rather than take it on trust.
+ */
+const ALLOWED = [
+  'describeOperationValue( tx.safeTransaction.data.operation )',
+  'toAddrDisplay',
+]
+
+describe('the signing prompt prints no stored value it has not sanitised', () => {
+  it('interpolates only the stored expressions that are already safe', () => {
+    expect(storedInterpolations(CONFIRM).sort()).toEqual([...ALLOWED].sort())
+  })
+
+  it('sanitises the target and proposer addresses before rendering them', () => {
+    expect(CONFIRM).toContain(
+      'const toAddress = sanitizeProvenanceText(tx.safeTx.data.to) as Address'
+    )
+    expect(CONFIRM).toContain(
+      'const proposerAddress = sanitizeProvenanceText(tx.proposer) as Address'
+    )
+    // Every other read of those two fields would be a second, ungated route.
+    for (const raw of ['tx.safeTx.data.to', 'tx.proposer'])
+      expect(
+        CONFIRM.split('\n').filter(
+          (line) =>
+            line.includes(raw) && !line.includes('sanitizeProvenanceText')
+        )
+      ).toEqual([])
+  })
+
+  it('prints the parsed nonce, never the stored string', () => {
+    // `BigInt()` skips whitespace instead of refusing it — `BigInt('31\r')` is
+    // 31n — so having been parsed does not make the stored string safe.
+    expect(CONFIRM).not.toContain('${tx.safeTx.data.nonce}')
+    expect(CONFIRM).toContain('const txNonce = BigInt(tx.safeTx.data.nonce)')
+  })
+
+  it('builds the detail block in one place and prints what it returns', () => {
     expect(CONFIRM).toContain('const detailLines = buildSafeTxDetailLines({')
     expect(CONFIRM).toContain("consola.info(detailLines.join('\\n'))")
-    // An inline `detailLines.push` would put a line into the block without
-    // passing through the builder.
+    // An inline push would add a line without passing through the builder.
     expect(CONFIRM).not.toContain('detailLines.push')
   })
 
-  it('leaves no stored field but the nonce inside a colour code', () => {
-    // The nonce is the one exemption: `BigInt(tx.safeTx.data.nonce)` runs
-    // unwrapped earlier in the same loop, so a row whose nonce is not numeric
-    // throws before any of these lines is reached.
-    expect(CONFIRM).toContain('const txNonce = BigInt(tx.safeTx.data.nonce)')
-    expect(
-      CONFIRM.indexOf('const txNonce = BigInt(tx.safeTx.data.nonce)')
-    ).toBeLessThan(CONFIRM.lastIndexOf('${tx.safeTx.data.nonce}'))
-
-    for (const field of storedFieldsInColour(CONFIRM))
-      expect(field).toBe('tx.safeTx.data.nonce')
-  })
-
-  it('flags the shape it exists to catch', () => {
-    // Without this the rule above passes on a file that simply stopped using
-    // template literals, which is the same bug wearing a different syntax.
+  it('flags every shape it exists to catch', () => {
+    // Each of these passed the colour-code rule this replaced. Without them
+    // the suite cannot tell a rule that holds from one that matches nothing.
     const reintroduced = [
       '`    Data:            \\u001b[32m${tx.safeTx.data.data}\\u001b[0m`',
-      '`    Safe Tx Hash:    \\u001b[36m${tx.safeTxHash}\\u001b[0m`',
+      '`        ${GREEN}${ref.facet}${RESET} → ${CYAN}${ref.prUrl}${RESET}`',
+      '`  Nonce ${tx.safeTx.data.nonce} was already used`',
+      '`${nested ? `${tx.safeTxHash}` : ""}`',
+      '`    Proposer:        ${proposerDisplay}`',
     ].join('\n')
 
-    expect(storedFieldsInColour(reintroduced)).toEqual([
+    expect(storedInterpolations(reintroduced)).toEqual([
       'tx.safeTx.data.data',
+      'ref.facet',
+      'ref.prUrl',
+      'tx.safeTx.data.nonce',
+      'nested ? `${tx.safeTxHash}` : ""',
+      // The scanner reports the inner interpolation too, so nesting hides
+      // nothing from it.
       'tx.safeTxHash',
+      'proposerDisplay',
     ])
   })
 })

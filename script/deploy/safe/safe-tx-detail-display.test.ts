@@ -127,6 +127,51 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
     expect(stripOwnColours(plain).trimEnd()).toContain('0x12')
   })
 
+  it('marks a value hiding zero-width characters the sanitiser keeps', () => {
+    // U+200D is preserved by design and U+3164 is a printable letter, so
+    // neither is stripped and the stored/shown lengths agree — the value is
+    // still not what it looks like.
+    for (const hidden of ['0x1\u200d2', '0x1\u31642', '0x1\uffa02'])
+      expect(lineStartingWith(linesFor({ data: hidden }), 'Data:')).toContain(
+        '1 invisible character in a value of 5'
+      )
+
+    expect(
+      lineStartingWith(linesFor({ data: '0x1\u200d\u31642' }), 'Data:')
+    ).toContain('2 invisible characters in a value of 6')
+  })
+
+  it('keeps a missing field visibly missing', () => {
+    // Rendering it blank would make a row with no `data` — still cast to Hex
+    // and signed — read exactly like one carrying `0x`.
+    expect(lineStartingWith(linesFor({ data: undefined }), 'Data:')).toContain(
+      'undefined'
+    )
+    expect(lineStartingWith(linesFor({ data: null }), 'Data:')).toContain(
+      'null'
+    )
+  })
+
+  it('puts the notice outside the value\u2019s colour, never inside it', () => {
+    // Inside, a notice would render in the value's green and read as part of
+    // the value rather than as a warning about it.
+    const line = lineStartingWith(linesFor({ data: HOSTILE }), 'Data:')
+    expect(line.indexOf('\u001b[0m')).toBeLessThan(
+      line.indexOf('sanitised for display')
+    )
+    expect(line).toContain('\u001b[33m \u26a0')
+  })
+
+  it('counts length in code points, not UTF-16 units', () => {
+    // A two-emoji value is two characters to a reader and four units to
+    // `.length`; the number exists for the reader.
+    const line = lineStartingWith(
+      linesFor({ data: '\u{1f600}\u{1f600}\u0007' }),
+      'Data:'
+    )
+    expect(line).toContain('stored 3, shown 2')
+  })
+
   it('says so when a field renders to nothing at all', () => {
     const line = lineStartingWith(
       linesFor({ proposer: '\u001b\u0007\u009b' }),

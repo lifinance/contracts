@@ -9,12 +9,13 @@
  * erase or repaint the lines around it, and repaint a fabricated block showing
  * a benign target above the prompt that asks whether to sign.
  *
- * `value`, `nonce` and `to` reach the block already gated: they pass through
- * `BigInt()` and `normalizeAddressForNetwork` in `initializeSafeTransaction`,
- * which throw on a row that is not numeric or not an address. `data` goes
- * through the same function cast to `Hex` with nothing checking it. Sanitising
- * is applied to all of them anyway, because that gate is in another module and
- * a guarantee this block depends on but does not make is one it cannot keep.
+ * Nothing upstream can be relied on to have removed them first. The checks
+ * that look like they would — `BigInt()` on the nonce and value,
+ * `normalizeAddressForNetwork` on the target — both *skip* whitespace rather
+ * than refusing it, so `\r`, `\n` and U+2028 pass through every one of them
+ * and reach a line they can rewind. So every stored value this block prints is
+ * sanitised here, at the point of printing, and the caller passes the target
+ * address in raw rather than pre-rendered for that reason.
  */
 
 import { sanitizeProvenanceText } from '../shared/git-provenance'
@@ -27,6 +28,12 @@ const RED = '\u001b[31m'
 const YELLOW = '\u001b[33m'
 const CYAN = '\u001b[36m'
 const RESET = '\u001b[0m'
+
+/**
+ * Code points that render as zero width while counting as printable text —
+ * U+200D and the Hangul fillers among them.
+ */
+const DEFAULT_IGNORABLE = /\p{Default_Ignorable_Code_Point}/gu
 
 /** Width of the label column shared with the provenance lines. */
 const LABEL_WIDTH = 17
@@ -87,7 +94,10 @@ const asPrintable = (value: unknown): IRenderedField => {
   // it to decide.
   let stored: string
   try {
-    stored = String(value ?? '')
+    // Not `value ?? ''`: an absent field has to stay visibly absent. Blanking
+    // it makes a row with no `data` — which is still cast to `Hex` and signed —
+    // indistinguishable from one carrying `0x`.
+    stored = String(value)
   } catch {
     return {
       text: 'unrenderable',
@@ -96,20 +106,41 @@ const asPrintable = (value: unknown): IRenderedField => {
   }
 
   const text = sanitizeProvenanceText(stored)
-  if (text === stored) return { text, notice: '' }
 
-  // Lengths in code points, the unit a reader counts: two rows that render
-  // identically differ only in this number, which is the whole reason it is
-  // printed. Reporting UTF-16 units instead would call a two-emoji value four
-  // characters.
-  const storedLength = [...stored].length
-  const shownLength = [...text].length
-  const detail =
-    text === ''
-      ? 'no printable characters'
-      : `stored ${storedLength}, shown ${shownLength}`
+  if (text !== stored) {
+    // Lengths in code points, the unit a reader counts: two rows that render
+    // identically differ only in this number, which is the whole reason it is
+    // printed. Reporting UTF-16 units instead would call a two-emoji value
+    // four characters.
+    const detail =
+      text === ''
+        ? 'no printable characters'
+        : `stored ${[...stored].length}, shown ${[...text].length}`
+    return {
+      text,
+      notice: color(YELLOW, ` ⚠ sanitised for display — ${detail}`),
+    }
+  }
 
-  return { text, notice: color(YELLOW, ` ⚠ sanitised for display — ${detail}`) }
+  // Nothing needed stripping, and the value can still be hiding from the
+  // reader. These code points are printable letters and separators rather than
+  // control or formatting characters, so the sanitiser passes them through by
+  // design, yet they occupy no width — two rows carrying different values can
+  // print the same glyphs. Unicode names the class, so this is a defined set
+  // rather than a blocklist that has to be extended each time one is found.
+  const hidden = (text.match(DEFAULT_IGNORABLE) ?? []).length
+  if (hidden > 0)
+    return {
+      text,
+      notice: color(
+        YELLOW,
+        ` ⚠ ${hidden} invisible character${
+          hidden === 1 ? '' : 's'
+        } in a value of ${[...text].length}`
+      ),
+    }
+
+  return { text, notice: '' }
 }
 
 /** Renders a stored field inside `code`, with its notice outside the colour. */
