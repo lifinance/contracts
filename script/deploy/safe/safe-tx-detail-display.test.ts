@@ -624,15 +624,21 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
       } as never,
     })
 
-    expect(lines.join('\n')).toContain('dblaecker')
-    expect(lines.join('\n')).not.toContain('not recorded')
+    const block = lines.join('\n')
+    // Each element the commit message names as at risk, or a mutation keeping
+    // the first line and dropping the rest passes.
+    expect(block).toContain('dblaecker')
+    expect(block).toContain('a1b2c3d4e5f6')
+    expect(block).toContain('feat/thing')
+    expect(block).toContain('clean')
+    expect(block).not.toContain('not recorded')
   })
 
   it('degrades to a line for a half-migrated provenance row', () => {
-    // The degradation is `formatProvenanceLines`' own — it is total, which is
-    // why the builder's try around it cannot be observed and a mutation
-    // removing that try survives. What is asserted here is the visible
-    // property: a broken block costs one line, not the whole prompt.
+    // Two containment layers, and the messages name which one fired:
+    // `formatProvenanceLines` says "block could not be rendered", this module's
+    // own catch says "could not be rendered". A plain thrown Error is handled
+    // there; the shapes below are not.
     const lines = buildSafeTxDetailLines({
       ...benign,
       provenance: {
@@ -642,8 +648,37 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
       } as never,
     })
 
-    expect(lines.join('\n')).toContain('could not be rendered')
-    expect(lines.length).toBeGreaterThan(1)
+    // Handled by `formatProvenanceLines` itself.
+    expect(lines.join('\n')).toContain('block could not be rendered')
+
+    // And these are not: it stringifies what was thrown to build that message,
+    // so an unstringifiable value makes its handler throw again. Only this
+    // module's catch stops them, and a mutation deleting it lets them escape.
+    for (const thrown of [
+      () => Object.create(null) as unknown,
+      () => ({
+        toString() {
+          throw new Error('inner')
+        },
+      }),
+    ]) {
+      const build = (): string[] =>
+        buildSafeTxDetailLines({
+          ...benign,
+          provenance: {
+            get proposerHandle(): string {
+              throw thrown()
+            },
+          } as never,
+        })
+      expect(build).not.toThrow()
+      const rendered = build().join('\n')
+      expect(rendered).toContain('could not be rendered')
+      expect(rendered).not.toContain('block could not be rendered')
+    }
+
+    // The rest of the block survives a broken provenance row.
+    expect(lines.some((line) => line.includes('Data:'))).toBe(true)
   })
 
   it('leaves a benign field unmarked', () => {

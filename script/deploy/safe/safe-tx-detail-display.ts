@@ -346,11 +346,12 @@ export function buildSafeTxDetailLines(input: ISafeTxDetailInput): string[] {
   if (Array.isArray(input.parkedTaskRefs) && input.parkedTaskRefs.length > 0)
     lines.push(...parkedLines(input.parkedTaskRefs))
 
-  // Belt-and-braces around a total function, and unobservable for that reason:
-  // `formatProvenanceLines` catches its own failures, so nothing reaches this
-  // catch and a mutation deleting it survives the suite. Kept because the
-  // totality it relies on lives in another module. No shape of stored row may
-  // cost the operator the rest of the networks in this run.
+  // Load-bearing, not belt-and-braces. `formatProvenanceLines` handles its own
+  // failures by stringifying what was thrown, so a thrown value that cannot be
+  // stringified — a null-prototype object, one whose `toString` throws — makes
+  // its handler throw a second time and escape. This catch is the last thing
+  // before `processTxs`, which has no per-network catch, so an escape here
+  // costs the operator every network left in the run.
   try {
     lines.push(...formatProvenanceLines(input.provenance))
   } catch (error) {
