@@ -6,7 +6,12 @@ import {
 } from 'bun:test'
 import { defineCommand, runCommand } from 'citty'
 
-import { flagIsOn, readBooleanFlag, readValueFlag } from './cli-flags'
+import {
+  flagIsOn,
+  readBooleanFlag,
+  readOptOutFlag,
+  readValueFlag,
+} from './cli-flags'
 
 const LEDGER_LIVE = { camel: 'ledgerLive', kebab: 'ledger-live' } as const
 
@@ -431,5 +436,61 @@ describe('a value argument, against citty as it actually resolves flags', () => 
   it('keeps a non-numeric value a string under either spelling', async () => {
     expect(await resolve({}, '--delay-seconds', 'later')).toBe('later')
     expect(await resolve({}, '--delaySeconds', 'later')).toBe('later')
+  })
+})
+
+describe('readOptOutFlag', () => {
+  const PROPOSE = { camel: 'propose', kebab: 'propose' }
+
+  /** What a command declaring `noPropose` actually receives. */
+  const parsedArgs = async (
+    ...argv: string[]
+  ): Promise<Record<string, unknown>> => {
+    let seen: Record<string, unknown> = {}
+    await runCommand(
+      defineCommand({
+        args: { noPropose: { type: 'boolean' } },
+        run: ({ args }) => {
+          seen = args as Record<string, unknown>
+        },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      }) as any,
+      { rawArgs: argv }
+    )
+    return seen
+  }
+
+  const optedOut = (...argv: string[]): boolean => readOptOutFlag(argv, PROPOSE)
+
+  it('reads the kebab spelling mri rewrites into a negation', async () => {
+    // The shape that made this necessary: citty hands the command
+    // `{ propose: false }`, so an argument declared as `noPropose` never sees
+    // `--no-propose` and the run proposes anyway.
+    const parsed = await parsedArgs('--no-propose')
+
+    expect(parsed.noPropose).toBeUndefined()
+    expect(optedOut('--no-propose')).toBe(true)
+  })
+
+  it('reads the camel spelling, which mri leaves alone', () => {
+    expect(optedOut('--noPropose')).toBe(true)
+    expect(optedOut('--noPropose=true')).toBe(true)
+    expect(optedOut('--noPropose=false')).toBe(false)
+  })
+
+  it('is off when neither spelling is given', () => {
+    expect(optedOut()).toBe(false)
+    expect(optedOut('--step', '2')).toBe(false)
+  })
+
+  it('reads an explicit --propose=false as an opt-out', () => {
+    expect(optedOut('--propose=false')).toBe(true)
+    expect(optedOut('--propose')).toBe(false)
+  })
+
+  it('refuses a repeated flag rather than picking a winner', () => {
+    expect(() => optedOut('--noPropose', '--noPropose')).toThrow(
+      /more than once/
+    )
   })
 })

@@ -59,7 +59,8 @@ describe('resolveBroadcastCall', () => {
 
   it('agrees with the selector the broadcast is bound to', () => {
     // The one invariant that matters: whatever the operator typed, the estimate
-    // and `contract[name](...)` must price and send the same function.
+    // and `contract.methods[selector](...)` must price and send the same
+    // function.
     const abi = [fn('transfer', ['address', 'uint256'])]
     const wrapper = wrapperFor(abi)
 
@@ -73,6 +74,10 @@ describe('resolveBroadcastCall', () => {
     expect(resolved.functionSelector).toBe(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (wrapper.methodInstances as any)['transfer'].functionSelector
+    )
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect(typeof (wrapper.methods as any)[resolved.functionSelector]).toBe(
+      'function'
     )
   })
 
@@ -137,31 +142,58 @@ describe('resolveBroadcastCall', () => {
     )
   })
 
-  it('refuses an overload the bare name would not reach, naming the candidates', () => {
-    // TronWeb binds `contract[name]` to the last entry of that name, so asking
-    // for the first one cannot be honoured — and guessing would price one
-    // function and send another.
+  it('resolves each overload to its own selector', () => {
     const abi = [fn('withdraw', ['uint256']), fn('withdraw', ['address'])]
 
-    const attempt = (): unknown => resolve(abi, 'withdraw', ['uint256'])
-
-    expect(attempt).toThrow(/Refusing to guess/)
-    expect(attempt).toThrow(/withdraw\(uint256\), withdraw\(address\)/)
-  })
-
-  it('allows the overload the bare name does reach', () => {
-    // Paired with the refusal above, so that assertion is not passing on any
-    // overloaded ABI at all.
-    const abi = [fn('withdraw', ['uint256']), fn('withdraw', ['address'])]
-
+    expect(resolve(abi, 'withdraw', ['uint256']).functionSelector).toBe(
+      'withdraw(uint256)'
+    )
     expect(resolve(abi, 'withdraw', ['address']).functionSelector).toBe(
       'withdraw(address)'
     )
   })
 
-  it('refuses an overload the typed arity cannot pick apart', () => {
+  it('returns a selector that keys the method the estimate priced', () => {
+    // The invariant the overload handling exists for. TronWeb assigns
+    // `methodInstances[name]` unguarded (last entry wins) but `contract[name]`
+    // behind a `hasProperty` check (first entry wins), so a bare name prices
+    // one overload and broadcasts the other. Keying the broadcast by the
+    // resolved selector is what makes that inexpressible.
+    const abi = [fn('withdraw', ['uint256']), fn('withdraw', ['address'])]
+    const wrapper = wrapperFor(abi)
+
+    const resolved = resolveBroadcastCall(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      wrapper as any,
+      'withdraw',
+      ['uint256']
+    )
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const instances = wrapper.methodInstances as any
+    expect(instances[resolved.functionSelector].abi.inputs).toEqual([
+      { type: 'uint256' },
+    ])
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect(typeof (wrapper.methods as any)[resolved.functionSelector]).toBe(
+      'function'
+    )
+    // The bare name reaches a different entry than `methodInstances` does, so
+    // neither is safe to broadcast through.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    expect((wrapper as any).withdraw).not.toBe(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (wrapper.methods as any)['withdraw(address)']
+    )
+    expect(instances['withdraw'].functionSelector).toBe('withdraw(address)')
+  })
+
+  it('refuses an overload the typed types cannot pick apart', () => {
     const abi = [fn('set', ['uint256']), fn('set', ['address'])]
 
-    expect(() => resolve(abi, 'set', ['bytes32'])).toThrow(/Refusing to guess/)
+    const attempt = (): unknown => resolve(abi, 'set', ['bytes32'])
+
+    expect(attempt).toThrow(/Refusing to guess/)
+    expect(attempt).toThrow(/set\(uint256\), set\(address\)/)
   })
 })

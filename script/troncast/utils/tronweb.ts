@@ -106,13 +106,16 @@ export function parseValue(value: string): string {
       )
 
     const [whole, fraction = ''] = amount.split('.')
-    if (fraction.length > TRX_DECIMALS)
+    // Trailing zeros carry no value, so `1.5000000tron` is a plain 1500000 SUN
+    // rather than an amount finer than the unit.
+    const significant = fraction.replace(/0+$/, '')
+    if (significant.length > TRX_DECIMALS)
       throw new Error(
         `"${value}" is finer than one SUN (${TRX_DECIMALS} decimal places); TRX has no smaller unit.`
       )
 
     // Leading zeros stripped, but never the last digit: "0tron" is 0 SUN.
-    return `${whole}${fraction.padEnd(TRX_DECIMALS, '0')}`.replace(
+    return `${whole}${significant.padEnd(TRX_DECIMALS, '0')}`.replace(
       /^0+(?=\d)/,
       ''
     )

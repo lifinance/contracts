@@ -64,7 +64,7 @@ const realSleep = (ms: number): Promise<void> =>
  * A transport failure might; a node answering "this call would revert" will
  * not, and retrying it only spends the operator's time before the same refusal.
  */
-class TronEstimateError extends Error {
+export class TronEstimateError extends Error {
   public constructor(message: string, public readonly retryable: boolean) {
     super(message)
     this.name = 'TronEstimateError'
@@ -282,6 +282,40 @@ const requestEnergyUsed = async (
 }
 
 /**
+ * Runs an estimate, retrying only the failures another attempt could change.
+ *
+ * Every estimate is now mandatory before a direct-EOA Tron send, so a single
+ * transient 429 — `runPendingTimelockTXs.yml` reaches TronGrid with no API key
+ * — would otherwise refuse a production execution. A {@link TronEstimateError}
+ * marked non-retryable is a deterministic answer (a call that would revert, a
+ * refused transport) and is surfaced on the first attempt.
+ *
+ * @param attempt - One estimate round trip.
+ * @param sleep - Injected in tests so retries do not wait.
+ * @returns Whatever the first successful attempt returns.
+ * @throws The last error, once no attempt is left or the failure is settled.
+ */
+export const retryTronEstimate = async <T>(
+  attempt: () => Promise<T>,
+  sleep: (ms: number) => Promise<void> = realSleep
+): Promise<T> => {
+  let lastError: unknown
+
+  for (let n = 1; n <= MAX_RETRIES; n++)
+    try {
+      return await attempt()
+    } catch (error) {
+      lastError = error
+      const retryable =
+        error instanceof TronEstimateError ? error.retryable : true
+      if (!retryable) break
+      if (n < MAX_RETRIES) await sleep(RETRY_DELAY)
+    }
+
+  throw lastError instanceof Error ? lastError : new Error(String(lastError))
+}
+
+/**
  * Estimates the energy a contract call would consume, with the devkit's safety
  * margin applied.
  *
@@ -289,10 +323,7 @@ const requestEnergyUsed = async (
  * deploy scripts price through — see {@link applyTronSafetyMargin} for why it
  * is not described as correcting an under-report.
  *
- * Retried on a failed request, because the estimate is now mandatory before any
- * Safe or timelock send and `runPendingTimelockTXs.yml` reaches TronGrid with no
- * API key — a single transient 429 would otherwise refuse a production
- * execution.
+ * Retried through {@link retryTronEstimate}.
  *
  * @param params - Owner, contract, calldata and call value.
  * @returns Estimated energy including the safety margin.
@@ -301,24 +332,11 @@ const requestEnergyUsed = async (
  */
 export const estimateTronEnergy = async (
   params: ITronEnergyEstimateParams
-): Promise<bigint> => {
-  const sleep = params.sleep ?? realSleep
-  let lastError: unknown
-
-  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-    try {
-      return applyTronSafetyMargin(await requestEnergyUsed(params))
-    } catch (error) {
-      lastError = error
-      const retryable =
-        error instanceof TronEstimateError ? error.retryable : true
-      if (!retryable) break
-      if (attempt < MAX_RETRIES) await sleep(RETRY_DELAY)
-    }
-  }
-
-  throw lastError instanceof Error ? lastError : new Error(String(lastError))
-}
+): Promise<bigint> =>
+  retryTronEstimate(
+    async () => applyTronSafetyMargin(await requestEnergyUsed(params)),
+    params.sleep
+  )
 
 /**
  * Prices energy at the network's current rate.

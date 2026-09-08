@@ -159,6 +159,39 @@ export const readBooleanFlag = (
 }
 
 /**
+ * Reads an opt-out flag — one whose own name begins with `no`, such as
+ * `--noPropose` — as whether the operator asked to opt out.
+ *
+ * Needed because mri (under citty) reads a leading `--no-` as *negating* the
+ * rest of the name rather than as part of it: `--no-propose` never reaches the
+ * command as `noPropose` at all, it arrives as `{ propose: false }`. Declaring
+ * the argument as `noPropose` therefore leaves its kebab spelling silently
+ * inert, and the run does the very thing it was told to skip. Both spellings
+ * are resolved here, from argv, and a `--propose=false` with them.
+ *
+ * @param argv - Raw arguments, normally `process.argv`.
+ * @param positive - The flag being opted out of, e.g. `propose`.
+ * @returns Whether the opt-out is on.
+ * @throws If either spelling appears more than once, or carries a value other
+ * than `true` or `false`.
+ */
+export const readOptOutFlag = (
+  argv: string[],
+  positive: IFlagName
+): boolean => {
+  const negative = `no${positive.camel
+    .charAt(0)
+    .toUpperCase()}${positive.camel.slice(1)}`
+
+  return (
+    // Spelled without a `-` after `no`, so mri leaves it alone and it is a name
+    // rather than a negation.
+    readBooleanFlag(argv, { camel: negative, kebab: negative }) ||
+    !readBooleanFlag(argv, positive, { whenAbsent: true })
+  )
+}
+
+/**
  * Reads a flag that carries a value, as the raw string the operator typed.
  *
  * Deliberately does not convert: `Number('')` is 0, so coercing here would turn

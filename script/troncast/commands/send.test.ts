@@ -32,6 +32,8 @@ const SENDER = 'TVQY5uYUJHqPJ3kmpKcQmiRcaEbGvJYVfR'
 const CONTRACT = 'TAuErcuAtU6BPt6YwL51JZ4RpDCPQASCU2'
 /** The same contract in the `41…` form `isValidAddress` also accepts. */
 const CONTRACT_HEX = `41${'9'.repeat(40)}`
+/** And in the `0x…` form it accepts too, which `TronWeb.isAddress` rejects. */
+const CONTRACT_0X = `0x${'9'.repeat(40)}`
 /** `.invalid` never resolves, so a stray request cannot reach a real node. */
 const RPC_URL = 'https://tron.invalid'
 
@@ -45,6 +47,8 @@ let hits: string[] = []
 let estimatedContract: string | undefined
 /** The selector and arguments the signature-path estimate priced. */
 let estimatedSelector: string | undefined
+/** `contract_address` as the signature-path estimate was given it. */
+let estimatedSelectorContract: string | undefined
 let estimatedParameters: { type: string; value: unknown }[] | undefined
 /** The selector the broadcast is bound to, and the arguments it was handed. */
 let broadcastSelector: string | undefined
@@ -88,8 +92,7 @@ const fakeContract = (): unknown => {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   for (const entry of Object.values(wrapper.methodInstances) as any[]) {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    ;(wrapper as any)[entry.name] = (...args: unknown[]) => ({
+    const spy = (...args: unknown[]): unknown => ({
       send: async (): Promise<string> => {
         hits.push('broadcast')
         broadcastSelector = entry.functionSelector
@@ -97,6 +100,13 @@ const fakeContract = (): unknown => {
         return 'deadbeef'
       },
     })
+
+    // Both surfaces, so a broadcast that went through the bare name would still
+    // be observed here rather than reaching a node.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(wrapper as any)[entry.name] = spy
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    ;(wrapper.methods as any)[entry.functionSelector] = spy
   }
 
   return wrapper
@@ -126,7 +136,9 @@ class FakeTronWeb {
   public address = {
     fromPrivateKey: (): string => SENDER,
     toHex: (value: string): string =>
-      value === CONTRACT_HEX ? CONTRACT_HEX : `41${value}`,
+      value === CONTRACT_HEX || value === CONTRACT_0X
+        ? CONTRACT_HEX
+        : `41${value}`,
     fromHex: (value: string): string =>
       value === CONTRACT_HEX ? CONTRACT : value.replace(/^41/, ''),
   }
@@ -134,12 +146,13 @@ class FakeTronWeb {
   public transactionBuilder = {
     sendTrx: async (): Promise<unknown> => fakeTransaction,
     triggerConstantContract: async (
-      _contractAddress: string,
+      contractAddress: string,
       functionSelector: string,
       _options: Record<string, unknown>,
       parameters: { type: string; value: unknown }[]
     ): Promise<unknown> => {
       hits.push('estimate-selector')
+      estimatedSelectorContract = contractAddress
       estimatedSelector = functionSelector
       estimatedParameters = parameters
       return energyUsed === null
@@ -278,6 +291,7 @@ beforeEach(() => {
   hits = []
   estimatedContract = undefined
   estimatedSelector = undefined
+  estimatedSelectorContract = undefined
   estimatedParameters = undefined
   broadcastSelector = undefined
   broadcastArgs = undefined
@@ -548,15 +562,37 @@ describe('the function-signature path', () => {
       expect(errors.join('\n')).toContain('declares no function named "burn"')
     })
 
-    it('never reaches the estimate for an overload the bare name cannot reach', async () => {
+    it.each(['withdraw(uint256)', 'withdraw(address)'])(
+      'prices and broadcasts the same overload for %s',
+      async (signature) => {
+        // TronWeb binds the bare name to the *first* entry of that name while
+        // `methodInstances[name]` holds the last, so a bare-name broadcast
+        // sends a different function than the one the estimate cleared.
+        contractAbi = [
+          abiFunction('withdraw', ['uint256']),
+          abiFunction('withdraw', ['address']),
+        ]
+
+        const { exitCode } = await run({
+          signature,
+          params: signature.includes('address') ? RECIPIENT : '1000',
+        })
+
+        expect(exitCode).toBeUndefined()
+        expect(estimatedSelector).toBe(signature)
+        expect(broadcastSelector).toBe(signature)
+      }
+    )
+
+    it('never reaches the estimate when the typed types match no overload', async () => {
       contractAbi = [
         abiFunction('withdraw', ['uint256']),
         abiFunction('withdraw', ['address']),
       ]
 
       const { exitCode, errors } = await run({
-        signature: 'withdraw(uint256)',
-        params: '1000',
+        signature: 'withdraw(bytes32)',
+        params: `0x${'ab'.repeat(32)}`,
       })
 
       expect(exitCode).toBe(1)
@@ -567,6 +603,22 @@ describe('the function-signature path', () => {
         'withdraw(uint256), withdraw(address)'
       )
     })
+
+    it.each([CONTRACT_0X, CONTRACT_HEX])(
+      'estimates against the base58 form of %s',
+      async (address) => {
+        // `triggerConstantContract` validates with `TronWeb.isAddress`, which
+        // is false for `0x…` — unconverted, a break-glass `pause()` on a hex
+        // address is refused as a failed estimate.
+        contractAbi = [abiFunction('pause', [])]
+
+        const { exitCode } = await run({ address, signature: 'pause()' })
+
+        expect(exitCode).toBeUndefined()
+        expect(estimatedSelectorContract).toBe(CONTRACT)
+        expect(hits).toContain('broadcast')
+      }
+    )
   })
 
   it('estimates a decimal TRX --value that multiplies untidily', async () => {

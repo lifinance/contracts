@@ -162,6 +162,52 @@ describe('the selector-form estimate', () => {
     expect(error?.message).toMatch(/Tron simulation failed/)
   })
 
+  it('retries a transport failure, because the estimate is mandatory', async () => {
+    // A TronGrid 429 refuses the send outright now that the pre-flight is
+    // fail-closed, so a single blip must not stop a call the operator can pay
+    // for.
+    let attempts = 0
+    const energy = await estimateTronEnergyBySelector({
+      ...params,
+      tronWeb: {
+        transactionBuilder: {
+          triggerConstantContract: async () => {
+            attempts += 1
+            if (attempts === 1) throw new Error('429 Too Many Requests')
+            return { result: { result: true }, energy_used: 10_000 }
+          },
+        },
+      },
+      sleep: async () => undefined,
+    })
+
+    expect(attempts).toBe(2)
+    expect(energy).toBe(12_000n)
+  })
+
+  it('does not retry a simulated revert', async () => {
+    // Deterministic: a second ask returns the same refusal, and retrying it
+    // only spends the operator's time.
+    let attempts = 0
+    const error = await estimateRejection(() =>
+      estimateTronEnergyBySelector({
+        ...params,
+        tronWeb: {
+          transactionBuilder: {
+            triggerConstantContract: async () => {
+              attempts += 1
+              return { result: { result: false, message: 'REVERT' } }
+            },
+          },
+        },
+        sleep: async () => undefined,
+      })
+    )
+
+    expect(attempts).toBe(1)
+    expect(error?.message).toMatch(/Tron simulation failed/)
+  })
+
   it('refuses a call value that cannot be estimated without rounding', async () => {
     const error = await estimateRejection(() =>
       estimateTronEnergyBySelector({

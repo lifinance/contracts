@@ -50,20 +50,34 @@ export interface IAbiFunctionEntry {
   inputs?: { type: string; name?: string }[]
 }
 
+/** One entry of a TronWeb wrapper's `methodInstances` map. */
+export interface ITronMethodInstance {
+  /**
+   * Canonical `name(types)` sighash, formatted by TronWeb through ethers, so it
+   * carries the ABI's own type spellings canonicalised.
+   */
+  functionSelector?: string
+  /** The very ABI entry this method was built from, by reference. */
+  abi?: IAbiFunctionEntry
+}
+
 /**
  * The slice of a TronWeb contract wrapper the lookup reads.
  *
- * `methodInstances[name]` is the very object `contract[name](...)` is bound to,
- * so its `functionSelector` is the selector the broadcast will use — TronWeb
- * formats it through ethers, which canonicalises the ABI's own type spellings.
+ * TronWeb registers each method under three keys — the bare name, the canonical
+ * `name(types)` sighash, and the 4-byte hex — and only the last two are unique
+ * per overload.
  */
 export interface ITronContractMethods {
   abi?: readonly IAbiFunctionEntry[]
-  methodInstances?: Record<string, { functionSelector?: string } | undefined>
+  methodInstances?: Record<string, ITronMethodInstance | undefined>
 }
 
 export interface IBroadcastCall {
-  /** Canonical selector, taken from the broadcast's own method instance. */
+  /**
+   * Canonical selector of the resolved ABI entry, which is also the key the
+   * broadcast goes through, so estimate and send cannot diverge.
+   */
   functionSelector: string
   /** Input types of the same ABI entry, in order. */
   inputTypes: string[]
@@ -87,13 +101,19 @@ const formatEntry = (name: string, entry: IAbiFunctionEntry): string =>
  * canonicalising the string, so there is one source of truth rather than a
  * conversion table to drift from the ABI encoder.
  *
+ * The returned selector is also the key the broadcast goes through
+ * (`contract.methods[selector]`). Resolving a bare name would not do: TronWeb
+ * assigns `methodInstances[name]` unguarded but `contract[name]` behind a
+ * `hasProperty` check, so for an overloaded name the two point at opposite ABI
+ * entries — the estimate would price one function and the send broadcast
+ * another.
+ *
  * @param contract - The TronWeb contract wrapper the broadcast goes through.
  * @param name - Function name, as parsed from the typed signature.
  * @param typedInputTypes - Input types as typed; used only to pick an overload.
  * @returns The selector the broadcast will use and that entry's input types.
  * @throws When the ABI in use has no such function, when it takes a different
- * number of arguments, or when the name is overloaded and the broadcast — which
- * resolves a bare name to one entry — would not reach the one asked for.
+ * number of arguments, or when the typed types do not pick one overload out.
  */
 export function resolveBroadcastCall(
   contract: ITronContractMethods,
@@ -103,18 +123,13 @@ export function resolveBroadcastCall(
   const declared = (contract.abi ?? []).filter(
     (entry) => isFunctionEntry(entry) && entry.name === name
   )
-  const bound = contract.methodInstances?.[name]?.functionSelector
 
-  if (declared.length === 0 || bound === undefined || bound === '')
+  if (declared.length === 0)
     throw new Error(
       `The ABI in use declares no function named "${name}", so there is nothing ` +
         `to estimate or to send. Pass the call as --calldata when the contract ` +
         `does not publish an ABI carrying it.`
     )
-
-  // TronWeb binds `contract[name]` to the last ABI entry of that name, so that
-  // is the entry the broadcast uses whatever spelling the operator typed.
-  const boundEntry = declared[declared.length - 1] as IAbiFunctionEntry
 
   const sameArity = declared.filter(
     (entry) => (entry.inputs ?? []).length === typedInputTypes.length
@@ -140,21 +155,36 @@ export function resolveBroadcastCall(
       ? asTyped[0]
       : undefined
 
-  if (chosen === undefined || chosen !== boundEntry)
+  if (chosen === undefined)
     throw new Error(
       `Refusing to guess which "${name}" to send. The ABI in use declares ` +
         `${declared
           .map((entry) => formatEntry(name, entry))
-          .join(', ')}, and the broadcast resolves the bare name to ` +
-        `${formatEntry(
-          name,
-          boundEntry
-        )}. Pass the call as --calldata to name ` +
-        `the overload exactly.`
+          .join(', ')}, and the types given ` +
+        `(${typedInputTypes.join(
+          ', '
+        )}) match none of them exactly. Spell the ` +
+        `argument types as the ABI does, or pass the call as --calldata.`
+    )
+
+  // Matched by reference rather than by a re-derived signature string: the
+  // wrapper builds each method from the very entry `chosen` is, so identity is
+  // exact where any spelling of the key would re-introduce canonicalisation.
+  const functionSelector = Object.values(contract.methodInstances ?? {}).find(
+    (instance) => instance?.abi === chosen
+  )?.functionSelector
+
+  if (functionSelector === undefined || functionSelector === '')
+    throw new Error(
+      `The wrapper in use binds no method to ${formatEntry(
+        name,
+        chosen
+      )}, so ` +
+        `there is nothing to estimate or to send. Pass the call as --calldata.`
     )
 
   return {
-    functionSelector: bound,
-    inputTypes: (boundEntry.inputs ?? []).map((input) => input.type),
+    functionSelector,
+    inputTypes: (chosen.inputs ?? []).map((input) => input.type),
   }
 }

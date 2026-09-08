@@ -14,7 +14,7 @@ import { consola } from 'consola'
 import { EnvironmentEnum } from '../../common/types'
 import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
 import { getEnvVar, getEnvironment } from '../../utils/utils'
-import { flagIsOn } from '../safe/cli-flags'
+import { flagIsOn, readOptOutFlag } from '../safe/cli-flags'
 
 import { TRON_DIAMOND_CONFIRM_OWNERSHIP_SELECTOR } from './constants.js'
 import { runPropose } from './propose-to-safe-tron.js'
@@ -225,7 +225,7 @@ async function transferOwnershipToTimelock(options: {
       `   Calldata (no args): ${TRON_DIAMOND_CONFIRM_OWNERSHIP_SELECTOR} (verify: cast sig 'confirmOwnershipTransfer()')`
     )
     consola.info(
-      `   (--noPropose) Propose manually: schedule Timelock operation → target: Diamond, data: ${TRON_DIAMOND_CONFIRM_OWNERSHIP_SELECTOR}, then execute after delay.`
+      `   (--no-propose) Propose manually: schedule Timelock operation → target: Diamond, data: ${TRON_DIAMOND_CONFIRM_OWNERSHIP_SELECTOR}, then execute after delay.`
     )
   }
 }
@@ -250,7 +250,15 @@ const main = defineCommand({
     noPropose: {
       type: 'boolean',
       description:
-        'With --step 2: skip MongoDB Safe proposal; print calldata / manual instructions only.',
+        'With --step 2: skip MongoDB Safe proposal; print calldata / manual instructions only. Also spelled --no-propose.',
+    },
+    // Declared so `--no-propose` shows up in --help as the flag it actually is.
+    // mri reads a `--no-` prefix as negating `propose`, so that spelling never
+    // reaches `args.noPropose` at all; both are resolved from argv below.
+    propose: {
+      type: 'boolean',
+      description:
+        'With --step 2: create the MongoDB Safe proposal (on by default; --no-propose turns it off).',
     },
     dryRun: {
       type: 'boolean',
@@ -281,7 +289,13 @@ const main = defineCommand({
   },
   async run({ args }) {
     const dryRun = flagIsOn(args.dryRun)
-    const noPropose = flagIsOn(args.noPropose)
+    // Read from argv rather than from `args`: mri rewrites `--no-propose` to
+    // `{ propose: false }`, so `args.noPropose` stays undefined and the run
+    // would create the very Safe proposal the operator asked to skip.
+    const noPropose = readOptOutFlag(process.argv, {
+      camel: 'propose',
+      kebab: 'propose',
+    })
     const stepNum =
       args.step !== undefined
         ? args.step === '1'

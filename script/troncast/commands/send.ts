@@ -651,14 +651,14 @@ export const sendCommand = defineCommand({
 
       const callValueSun = parseCallValueSun(options.callValue)
 
-      // Read off the ABI entry `contract[funcSig.name]` is bound to rather than
-      // from the signature as typed. `parseFunctionSignature` returns the
-      // spelling it was given, so a valid non-canonical one — `transfer(address,uint)` —
-      // would have the pre-flight price a selector the contract does not have:
-      // the simulation reverts and the guard refuses a send that used to work.
-      // Placed after the dry-run return and before the guarded send, so an
-      // unresolvable call is refused outright instead of arriving as a failed
-      // estimate the escape hatch could wave through.
+      // Read off the ABI entry rather than from the signature as typed.
+      // `parseFunctionSignature` returns the spelling it was given, so a valid
+      // non-canonical one — `transfer(address,uint)` — would have the pre-flight
+      // price a selector the contract does not have: the simulation reverts and
+      // the guard refuses a send that used to work. Placed after the dry-run
+      // return and before the guarded send, so an unresolvable call is refused
+      // outright instead of arriving as a failed estimate the escape hatch
+      // could wave through.
       const broadcastCall = resolveBroadcastCall(
         contract,
         funcSig.name,
@@ -672,7 +672,13 @@ export const sendCommand = defineCommand({
         estimateEnergy: () =>
           estimateTronEnergyBySelector({
             tronWeb,
-            contractAddress: args.address,
+            // `triggerConstantContract` validates with `TronWeb.isAddress`,
+            // which rejects the `0x…` form `isValidAddress` accepts and the
+            // broadcast normalises — an unconverted one would refuse the send
+            // as a failed estimate.
+            contractAddress: tronWeb.address.fromHex(
+              tronWeb.address.toHex(args.address)
+            ),
             functionSelector: broadcastCall.functionSelector,
             // The same decoded arguments the broadcast below is given, typed by
             // the same ABI entry, so the estimate prices the call that will
@@ -685,10 +691,16 @@ export const sendCommand = defineCommand({
           }),
         costInSun: (energy) => tronEnergyCostInSun(tronWeb, energy),
         raiseFeeLimitHint,
+        // Keyed by the resolved selector rather than the bare name, which
+        // TronWeb binds to the *first* ABI entry of that name while
+        // `methodInstances[name]` holds the last: for an overload the two are
+        // different functions, and the estimate above priced this one.
         broadcast: (): Promise<string> =>
           parsedParams.length > 0
-            ? contract[funcSig.name](...parsedParams).send(options)
-            : contract[funcSig.name]().send(options),
+            ? contract.methods[broadcastCall.functionSelector](
+                ...parsedParams
+              ).send(options)
+            : contract.methods[broadcastCall.functionSelector]().send(options),
       })
 
       consola.success(`Transaction sent: ${txId}`)

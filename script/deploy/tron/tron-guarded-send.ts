@@ -10,7 +10,11 @@
 
 import { consola } from 'consola'
 
-import { applyTronSafetyMargin } from './tron-energy-estimate'
+import {
+  applyTronSafetyMargin,
+  retryTronEstimate,
+  TronEstimateError,
+} from './tron-energy-estimate'
 import { assertTronBroadcastAffordable } from './tron-energy-preflight'
 
 /** Just the slice of TronWeb the estimate needs, so tests can supply it. */
@@ -38,6 +42,8 @@ export interface ITronSelectorEstimateParams {
   parameters: { type: string; value: unknown }[]
   /** TRX carried by the call, in SUN. */
   callValueSun?: bigint
+  /** Injected in tests so retries do not sleep. */
+  sleep?: (ms: number) => Promise<void>
 }
 
 export interface ITronGuardedSendOptions<T> {
@@ -63,6 +69,10 @@ export interface ITronGuardedSendOptions<T> {
  * to the contract wrapper that broadcasts, so estimating from them is what
  * prices the call that will actually be sent.
  *
+ * A failed round trip is retried through {@link retryTronEstimate}: the estimate
+ * is mandatory before the send, so a transient node failure would otherwise
+ * refuse a call the operator can afford.
+ *
  * @param params - Contract, selector, arguments and call value.
  * @returns Estimated energy with the devkit's safety margin applied.
  * @throws When the node reports no energy figure, which is what a call that
@@ -78,25 +88,29 @@ export const estimateTronEnergyBySelector = async (
         `estimating it would silently simulate a different, rounded value.`
     )
 
-  const result =
-    await params.tronWeb.transactionBuilder.triggerConstantContract(
-      params.contractAddress,
-      params.functionSelector,
-      { callValue: Number(callValueSun) },
-      params.parameters
-    )
+  return retryTronEstimate(async () => {
+    const result =
+      await params.tronWeb.transactionBuilder.triggerConstantContract(
+        params.contractAddress,
+        params.functionSelector,
+        { callValue: Number(callValueSun) },
+        params.parameters
+      )
 
-  if (
-    result.result?.result === false ||
-    result.energy_used === undefined ||
-    result.energy_used === null
-  )
-    throw new Error(
-      `Tron simulation failed for ${params.functionSelector}: ` +
-        `${JSON.stringify(result.result ?? result)}`
+    if (
+      result.result?.result === false ||
+      result.energy_used === undefined ||
+      result.energy_used === null
     )
+      // Deterministic: asking a second time returns the same refusal.
+      throw new TronEstimateError(
+        `Tron simulation failed for ${params.functionSelector}: ` +
+          `${JSON.stringify(result.result ?? result)}`,
+        false
+      )
 
-  return applyTronSafetyMargin(result.energy_used)
+    return applyTronSafetyMargin(result.energy_used)
+  }, params.sleep)
 }
 
 /**
