@@ -293,6 +293,31 @@ describe('evaluateCancelDecision — what the input can lie about', () => {
     expect(decision.retry).toBe(true)
   })
 
+  it('does not hold a pending operation whose signals it never examined', () => {
+    // Every branch above refuses only the values it names, so a signal carrying
+    // anything else arrives at the pending branch examined by nothing. Holding
+    // it with `retry: true` would hand precisely that operation to the next
+    // unattended pass; the unrecognised-signals fallback is where it belongs.
+    for (const field of [
+      'integrity',
+      'opIdentity',
+      'deploymentRecord',
+      'executability',
+    ] as const) {
+      const decision = evaluateCancelDecision(
+        withInput({
+          operationState: 'pending',
+          [field]: 'not a value this matrix names' as never,
+        })
+      )
+
+      expect(decision.reason).toBe('unclassified-signals')
+      expect(decision.action).toBe('block')
+      expect(decision.alert).toBe('page')
+      expect(decision.retry).toBe(false)
+    }
+  })
+
   it('refuses to execute a pending operation, which the controller reverts on', () => {
     // Cancellable, per the case above — but never executable: the delay has not
     // elapsed, so `execute` would revert on chain.

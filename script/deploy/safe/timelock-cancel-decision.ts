@@ -333,7 +333,18 @@ export function evaluateCancelDecision(
   // unrecognised combination: `--rejectAll` routes pending operations through
   // here, so reporting them as unclassified would page a human for an ordinary
   // queue state and drop them from the retry that resolves it.
-  if (input.operationState === 'pending')
+  //
+  // The four signals are re-stated rather than inferred from the branches
+  // above, which refuse only the values they name: one carrying anything else
+  // reaches here having been examined by nothing, and `retry: true` would hand
+  // exactly that operation to the next unattended pass.
+  if (
+    input.integrity === 'match' &&
+    input.opIdentity === 'match' &&
+    input.deploymentRecord === 'present' &&
+    input.executability === 'ok' &&
+    input.operationState === 'pending'
+  )
     return decide({
       action: 'hold',
       reason: 'op-not-yet-matured',
