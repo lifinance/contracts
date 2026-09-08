@@ -184,11 +184,10 @@ export interface IQuorumCoverageReport {
   /**
    * Where the endpoint lists came from, carried into the rendered line.
    *
-   * Required, because a coverage figure is meaningless without it and gets
-   * quoted as a fleet fact once it is a bare number: `config/networks.json`
-   * stores `rpcUrl` as a single string, so a count taken from that file reports
-   * zero at any quorum above one however many endpoints the fleet really has.
-   * The operational inventory is the `RpcEndpoints` collection.
+   * Required, because a bare coverage number gets quoted as a fleet fact. A
+   * source that holds one endpoint per network can only ever report none
+   * reaching a quorum above one, however many the fleet really has, so the
+   * figure means nothing without the thing it counted.
    */
   source: string
   networks: INetworkQuorumCoverage[]
@@ -204,10 +203,10 @@ const EMPTY_VALUE = /^(0x)?0*$/
 /**
  * Identity every bare-IP endpoint collapses onto.
  *
- * Distinct from a hostname identity and shared by all of them: an address cannot
- * be shown independent of a name that might resolve to it, so counting it as its
- * own provider is the one direction that can invent a quorum. Collapsing them
- * also stops several IP endpoints inflating the count between themselves.
+ * An address cannot be shown independent of a name that might resolve to it, so
+ * counting one as a provider of its own is the single direction that can invent
+ * a quorum. Sharing one identity also stops several addresses inflating the
+ * count between themselves.
  */
 export const IP_LITERAL_IDENTITY = '<ip-literal host>'
 
@@ -395,12 +394,10 @@ export const evaluateRpcQuorum = (
       detail: `a quorum of ${quorum} is below the minimum of ${MIN_INDEPENDENT_PROVIDERS}: at that setting a single lying endpoint is the whole evidence base, so the read is refused rather than run`,
     }
 
-  // Ahead of every other verdict, because an unknowable identity makes the
-  // provider count itself unsound and every branch below reads that count. A
-  // name may resolve to the address, so an IP endpoint alongside a hostname one
-  // cannot be shown to be a second provider — and the endpoint list comes out of
-  // a writable store, so adding an alias of a node you already control is the
-  // cheapest way to manufacture a quorum.
+  // Ahead of every other verdict, because each of them reads a provider count
+  // that an unknowable identity makes unsound: a name may resolve to the
+  // address, so an IP endpoint alongside a hostname one cannot be shown to be a
+  // second provider.
   if (providers.includes(IP_LITERAL_IDENTITY))
     return {
       ...base,
