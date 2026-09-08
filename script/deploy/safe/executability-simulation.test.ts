@@ -1028,8 +1028,8 @@ describe('the cancel-decision projection', () => {
 describe('a conflict spanning two calls in one proposal', () => {
   it('refuses two calls that each add the same selector to the same diamond', () => {
     // Each call is clean against the diamond as it stands, and the second
-    // cannot execute once the first has run. Nothing simulates the pair, so
-    // before the accumulator spanned the proposal this printed the green line.
+    // cannot execute once the first has run. Nothing simulates the pair: a node
+    // runs each `eth_call` against the state before the proposal does anything.
     const first = cutCall([cut(0, LOUPE, [UNSERVED])], {
       path: 'call[0].diamondCut',
     })
@@ -1054,10 +1054,31 @@ describe('a conflict spanning two calls in one proposal', () => {
     ).toBe(true)
   })
 
+  it('treats one diamond named two ways as one diamond', () => {
+    // The accumulator is keyed by the normalised address. Un-normalising only
+    // that key leaves the immutability comparison working, so nothing else in
+    // the suite notices — and the conflict goes back to reading clean.
+    const first = cutCall([cut(0, LOUPE, [UNSERVED])], {
+      path: 'call[0].diamondCut',
+      diamond: DIAMOND.toLowerCase(),
+    })
+    const second = cutCall([cut(0, LOUPE, [UNSERVED])], {
+      path: 'call[1].diamondCut',
+      diamond: `  ${DIAMOND.toUpperCase().replace('0X', '0x')}  `,
+    })
+
+    const verdict = evaluateBoth([first, second])
+
+    expect(verdict.refuses).toBe(true)
+    expect(codes(verdict)).toContain(
+      ExecutabilityFindingEnum.FunctionAlreadyExists
+    )
+  })
+
   it('leaves the same selector on two different diamonds alone', () => {
     // Paired presence: the accumulator is keyed by diamond, because a selector
-    // moved on one diamond says nothing about another. Without the key this
-    // would be a false red on a perfectly ordinary fleet rollout.
+    // moved on one diamond says nothing about another — and the same cut across
+    // two diamonds is an ordinary fleet rollout.
     const first = cutCall([cut(0, LOUPE, [UNSERVED])], {
       path: 'call[0].diamondCut',
     })

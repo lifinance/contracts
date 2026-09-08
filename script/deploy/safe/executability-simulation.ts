@@ -185,6 +185,14 @@ export interface INonceObservation {
 export interface IExecutabilityInput {
   /** Network the proposal executes on, as `config/networks.json` names it. */
   network: string
+  /**
+   * The proposal's payloads **in execution order**.
+   *
+   * Load-bearing: a selector one payload moves is what the next one meets, so a
+   * caller that groups by target or sorts by path rather than preserving the
+   * order the proposal executes in gets a verdict about a proposal nobody will
+   * submit.
+   */
   payloads: readonly TSimulatedPayload[]
   observations: IChainObservations
   /**
@@ -442,13 +450,8 @@ interface IAmendedSelector {
  * each is clean read alone while the second reverts once the first has run. The
  * accumulator is keyed by diamond, because a selector moved on one diamond says
  * nothing about another.
- * @param payload - the `diamondCut` payload being graded
- * @param observations - chain state read for this proposal
- * @param unchecked - facts no read supplied, appended to
- * @param amendedByDiamond - selectors earlier payloads in this proposal moved,
- *   diamond to selector to the facet it now points at; mutated as this payload
- *   is walked
- * @returns Findings for this payload's selectors
+ * The accumulator is keyed by the normalised diamond and mutated as each payload
+ * is walked, so a selector one payload moves is what the next one meets.
  */
 const gradeSelectors = (
   payload: IDiamondCutPayload,
