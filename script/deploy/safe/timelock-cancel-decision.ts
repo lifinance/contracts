@@ -202,11 +202,18 @@ export function evaluateCancelDecision(
     notes,
   })
 
-  if (input.operationState === 'done' || input.operationState === 'unset')
+  // Named by what may proceed, not by what may not: a state this does not
+  // recognise — a controller returning something new, an absent field, a
+  // prototype property — must not reach any action. `pending` deliberately
+  // passes: an operation still inside its delay is exactly one worth cancelling,
+  // it just cannot be executed, which the execute branch enforces separately.
+  if (input.operationState !== 'ready' && input.operationState !== 'pending')
     return decide({
       action: 'block',
       reason: 'op-not-schedulable',
-      detail: `operation is ${input.operationState} on-chain: neither execute nor cancel applies`,
+      detail: `operation is ${String(
+        input.operationState
+      )} on-chain: neither execute nor cancel applies`,
       alert: 'notice',
       retry: false,
     })
@@ -307,7 +314,11 @@ export function evaluateCancelDecision(
     input.integrity === 'match' &&
     input.opIdentity === 'match' &&
     input.deploymentRecord === 'present' &&
-    input.executability === 'ok'
+    input.executability === 'ok' &&
+    // Restated here rather than relied on from the guard above: `execute` is the
+    // only irreversible action this function authorises, so every condition it
+    // needs is named at the point of authorisation.
+    input.operationState === 'ready'
   )
     return decide({
       action: 'execute',
@@ -469,17 +480,35 @@ export function assertDecisionPermitsExecution(
 /**
  * Read the executor posture from a timelock's `EXECUTOR_ROLE` holders.
  *
+ * `restricted` is the only posture under which the circuit breaker may withhold a
+ * cancel, so every doubt resolves away from it: a holder this cannot read as a
+ * named address yields `unknown`, and any holder that denotes nothing yields
+ * `open`. Reading a malformed list as `restricted` would let the breaker withhold
+ * cancels while the role really is open to everyone, which is the one outcome the
+ * coupling exists to prevent.
  * @param holders - addresses the timelock reports as holding `EXECUTOR_ROLE`
- * @returns `open` when the zero address holds it (anyone may execute),
- *   `restricted` when named addresses do, `unknown` when nothing holds it
+ * @returns `open` when anything denoting no address holds it, `restricted` only
+ *   when every holder is a well-formed non-zero address, `unknown` otherwise
  */
 export function evaluateExecutorPosture(
   holders: readonly string[]
 ): TExecutorPosture {
-  const normalized = holders.map((holder) => holder.trim().toLowerCase())
-  if (normalized.some((holder) => /^0x0{40}$/.test(holder))) return 'open'
+  const normalized = holders.map((holder) =>
+    typeof holder === 'string' ? holder.trim().toLowerCase() : ''
+  )
+  if (normalized.length === 0) return 'unknown'
 
-  return normalized.length > 0 ? 'restricted' : 'unknown'
+  // Any spelling of "nobody in particular" is the open posture: an unprefixed or
+  // short zero, and a zero padded to a bytes32 word, all denote no address.
+  const denotesNoAddress = (holder: string): boolean =>
+    /^(?:0x)?0+$/u.test(holder)
+  if (normalized.some(denotesNoAddress)) return 'open'
+
+  const isNamedAddress = (holder: string): boolean =>
+    /^0x[0-9a-f]{40}$/u.test(holder)
+  if (!normalized.every(isNamedAddress)) return 'unknown'
+
+  return 'restricted'
 }
 
 /**

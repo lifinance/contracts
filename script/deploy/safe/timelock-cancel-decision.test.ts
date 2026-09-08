@@ -212,6 +212,104 @@ describe('evaluateCancelDecision — what the input can lie about', () => {
     }
   )
 
+  it('never reads a malformed holder list as the restricted posture', () => {
+    // `restricted` is the only posture under which the breaker may withhold a
+    // cancel, so reading a malformed list as restricted would withhold cancels
+    // while the role is in fact open to everyone.
+    const notRestricted = [
+      ['0x0'],
+      ['0'],
+      ['0'.repeat(40)],
+      [`0x${'0'.repeat(64)}`],
+      [''],
+      ['not-an-address'],
+      [null as unknown as string],
+      [],
+      ['0xb05E63458A51731Aad26BdcD6E12246330E6095F', 'oops'],
+    ]
+
+    for (const holders of notRestricted)
+      expect(
+        evaluateExecutorPosture(holders),
+        JSON.stringify(holders)
+      ).not.toBe('restricted')
+  })
+
+  it('still reads a well-formed holder list as restricted', () => {
+    // Paired presence: failing away from `restricted` must not make it
+    // unreachable, or the breaker could never withhold at all.
+    expect(
+      evaluateExecutorPosture(['0xb05E63458A51731Aad26BdcD6E12246330E6095F'])
+    ).toBe('restricted')
+  })
+
+  it('treats any spelling of the zero address as the open posture', () => {
+    for (const holders of [
+      ['0x0000000000000000000000000000000000000000'],
+      ['0x0'],
+      [`0x${'0'.repeat(64)}`],
+      ['0xb05E63458A51731Aad26BdcD6E12246330E6095F', `0x${'0'.repeat(40)}`],
+    ])
+      expect(evaluateExecutorPosture(holders), JSON.stringify(holders)).toBe(
+        'open'
+      )
+  })
+
+  it('blocks an operation state it does not recognise', () => {
+    // Fail closed on the field that says whether the operation can act at all:
+    // an absent field, a prototype property and a value from a newer controller
+    // must not reach any action.
+    for (const operationState of [
+      undefined,
+      null,
+      'constructor',
+      'toString',
+      'partially-verified',
+      '',
+    ] as unknown as Array<'ready'>) {
+      const decision = evaluateCancelDecision(
+        withInput({ ...verified, operationState })
+      )
+
+      expect(decision.action, String(operationState)).toBe('block')
+      expect(decision.reason, String(operationState)).toBe('op-not-schedulable')
+      expect(() =>
+        assertDecisionPermitsExecution(decision, 'mainnet 0xop')
+      ).toThrow()
+    }
+  })
+
+  it('refuses to execute a pending operation, which the controller reverts on', () => {
+    // Cancellable, per the case above — but never executable: the delay has not
+    // elapsed, so `execute` would revert on chain.
+    const decision = evaluateCancelDecision(
+      withInput({ ...verified, operationState: 'pending' })
+    )
+
+    expect(decision.action).not.toBe('execute')
+    expect(() =>
+      assertDecisionPermitsExecution(decision, 'mainnet 0xop')
+    ).toThrow()
+  })
+
+  it('needs two agreeing providers, asserted as a number and not as the constant', () => {
+    // Written against the literal 2: every other quorum assertion here is
+    // expressed in terms of MIN_AGREEING_PROVIDERS_FOR_CANCEL, so it moves with
+    // a mutation of that constant and cannot detect one.
+    expect(MIN_AGREEING_PROVIDERS_FOR_CANCEL).toBe(2)
+
+    const oneProvider = evaluateCancelDecision(
+      withInput({ ...provenIntegrityDivergence, agreeingProviders: 1 })
+    )
+    expect(oneProvider.action).toBe('block')
+    expect(oneProvider.reason).toBe('divergence-not-proven')
+
+    const twoProviders = evaluateCancelDecision(
+      withInput({ ...provenIntegrityDivergence, agreeingProviders: 2 })
+    )
+    expect(twoProviders.action).toBe('cancel')
+  })
+
   it('a pending operation is still cancellable', () => {
     const decision = evaluateCancelDecision(
       withInput({ ...provenIntegrityDivergence, operationState: 'pending' })
