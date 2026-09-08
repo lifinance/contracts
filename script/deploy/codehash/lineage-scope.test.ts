@@ -160,6 +160,41 @@ describe('deriveToolchainScope', () => {
     ).toThrow(/contradict/)
   })
 
+  it('ERRORs when the zk profile exists but pins no zksolc', () => {
+    // Fails open rather than loudly, which is why it needs its own case: the
+    // scope comes back closed, `codehash-sign-gate-deps.ts` reads a missing
+    // `zksolcVersion` as "not zk", and zk bytecode is then normalised by EVM
+    // rules — a different trailer format and no immutable masking, so the
+    // comparison is unsound whichever way it lands. The sibling case (a zksolc
+    // pin with no profile to attach it to) is caught in parseBuildProfiles.
+    const zkNetwork = {
+      abstract: {
+        targetEvmVersion: 'n/a',
+        isZkEVM: true,
+        type: 'mainnet',
+        status: 'active',
+      },
+    }
+    const unpinned = {
+      ...profiles,
+      [ZK_PROFILE]: { ...profiles[ZK_PROFILE], zksolcVersion: undefined },
+    }
+
+    expect(() =>
+      deriveToolchainScope('abstract', {
+        networks: zkNetwork,
+        profiles: unpinned as typeof profiles,
+      })
+    ).toThrow(/pins no zksolc version/)
+
+    // Paired positive: the real profile, which does pin one, still resolves —
+    // so the refusal is about the missing pin and not about zk networks.
+    expect(
+      deriveToolchainScope('abstract', { networks: zkNetwork, profiles })
+        .isClosedSet
+    ).toBe(true)
+  })
+
   it('refuses an EVM version no profile pins, rather than assuming default', () => {
     // The hole this replaced: a hardcoded version-to-profile table mapped every
     // unrecognised hardfork onto `default`, reporting a CLOSED set against the

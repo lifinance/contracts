@@ -154,6 +154,16 @@ export const deriveToolchainScope = (
       throw new Error(
         `Toolchain scope: "${network}" is zkEVM, but foundry.toml pins no "${ZK_PROFILE}" profile. Either it was renamed or the network's config is stale.`
       )
+    // A profile that exists without a zksolc pin is the more dangerous shape of
+    // the same problem, and it fails open rather than loudly: the scope comes
+    // back closed, `codehash-sign-gate-deps.ts` reads `zksolcVersion === undefined`
+    // as "not zk", and zkEVM code is then normalised by EVM rules — a different
+    // trailer format and no immutable masking, so the comparison is unsound in
+    // whichever direction it lands.
+    if (zk.zksolcVersion === undefined)
+      throw new Error(
+        `Toolchain scope: "${network}" is zkEVM and foundry.toml has a "${ZK_PROFILE}" profile, but that profile pins no zksolc version. Nothing then says which compiler its code should have been built with, and treating it as an EVM lineage would compare zk bytecode under EVM normalisation.`
+      )
     return { isClosedSet: true, profiles: [zk] }
   }
 

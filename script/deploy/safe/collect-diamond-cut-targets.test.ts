@@ -164,6 +164,32 @@ describe('collectDiamondCutTargets', () => {
     expect(collected.unopened).toEqual(['0xdeadbeef'])
   })
 
+  it('reports a nested payload too short to carry a selector', () => {
+    // One of four abandonment paths a reviewer asked be covered: a payload
+    // under four bytes cannot name a function, so it is neither a cut nor a
+    // call this decoder can vouch for. Distinct from an empty payload, which is
+    // a legitimate value-only entry in a batch (asserted separately below).
+    const collected = collectDiamondCutTargets(scheduleBatch(['0x1234' as Hex]))
+
+    expect(collected.calls).toEqual([])
+    expect(collected.unopened).toEqual(['a 2-byte payload'])
+  })
+
+  it('refuses a truncated payload when the cut selector is present elsewhere', () => {
+    // The blocking half: an unopenable frame plus the selector anywhere in the
+    // bytes is a cut this decoder cannot show, so it refuses rather than
+    // reporting no cut.
+    const collected = collectDiamondCutTargets(
+      scheduleBatch([
+        '0x1234' as Hex,
+        cutCalldata([[FACET_A, 0, [SELECTOR_A]]], ZERO),
+      ])
+    )
+
+    expect(collected.refusals).toHaveLength(1)
+    expect(collected.refusals[0]).toMatch(/could not open/)
+  })
+
   it('reports nothing unopened for an ordinary call it decodes', () => {
     // The paired positive. Without it the rule above could report every
     // proposal as unopened, which would pass its own test while making the
