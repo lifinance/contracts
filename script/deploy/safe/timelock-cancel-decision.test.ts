@@ -279,6 +279,20 @@ describe('evaluateCancelDecision — what the input can lie about', () => {
     }
   })
 
+  it('holds a verified pending operation instead of calling it unclassified', () => {
+    // `--rejectAll` routes pending operations through the matrix, so reporting
+    // an ordinary not-yet-matured one as an unrecognised signal set would page a
+    // human and drop it from the retry that resolves it.
+    const decision = evaluateCancelDecision(
+      withInput({ ...verified, operationState: 'pending' })
+    )
+
+    expect(decision.action).toBe('hold')
+    expect(decision.reason).toBe('op-not-yet-matured')
+    expect(decision.alert).toBe('notice')
+    expect(decision.retry).toBe(true)
+  })
+
   it('refuses to execute a pending operation, which the controller reverts on', () => {
     // Cancellable, per the case above — but never executable: the delay has not
     // elapsed, so `execute` would revert on chain.
@@ -292,10 +306,9 @@ describe('evaluateCancelDecision — what the input can lie about', () => {
     ).toThrow()
   })
 
-  it('needs two agreeing providers, asserted as a number and not as the constant', () => {
-    // Written against the literal 2: every other quorum assertion here is
-    // expressed in terms of MIN_AGREEING_PROVIDERS_FOR_CANCEL, so it moves with
-    // a mutation of that constant and cannot detect one.
+  it('never lets a single agreeing provider force a cancel', () => {
+    // Against the literal 2, not the constant: an assertion written over the
+    // constant moves with it and cannot detect a change to the policy itself.
     expect(MIN_AGREEING_PROVIDERS_FOR_CANCEL).toBe(2)
 
     const oneProvider = evaluateCancelDecision(

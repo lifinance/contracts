@@ -32,6 +32,7 @@ a scheduled operation, and each of those has a named non-cancelling verdict belo
 | The operation would revert, below the revert threshold                | `hold`    | `would-revert`                    | notice | yes     |
 | The operation would revert, threshold reached                         | `block`   | `would-revert`                    | page   | no      |
 | The operation is already done, or unknown to the controller           | `block`   | `op-not-schedulable`              | notice | no      |
+| Every check passed and the timelock delay has not elapsed             | `hold`    | `op-not-yet-matured`              | notice | yes     |
 | Signals that form no recognised case                                  | `block`   | `unclassified-signals`            | page   | no      |
 
 Two records, two consequences. A missing **deployment record** for an address in the calldata blocks:

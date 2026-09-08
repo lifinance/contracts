@@ -23,6 +23,7 @@ export type TTimelockOpAction = 'execute' | 'cancel' | 'hold' | 'block'
 export type TCancelDecisionReason =
   | 'integrity-and-identity-verified'
   | 'op-not-schedulable'
+  | 'op-not-yet-matured'
   | 'proven-integrity-divergence'
   | 'proven-identity-divergence'
   | 'divergence-not-proven'
@@ -202,11 +203,11 @@ export function evaluateCancelDecision(
     notes,
   })
 
-  // Named by what may proceed, not by what may not: a state this does not
-  // recognise — a controller returning something new, an absent field, a
-  // prototype property — must not reach any action. `pending` deliberately
-  // passes: an operation still inside its delay is exactly one worth cancelling,
-  // it just cannot be executed, which the execute branch enforces separately.
+  // A state this does not recognise — a controller returning something new, an
+  // absent field, a prototype property — must not reach any action. `pending`
+  // passes deliberately: an operation still inside its delay is exactly one
+  // worth cancelling, it just cannot be executed, which the execute branch
+  // enforces separately.
   if (input.operationState !== 'ready' && input.operationState !== 'pending')
     return decide({
       action: 'block',
@@ -315,9 +316,8 @@ export function evaluateCancelDecision(
     input.opIdentity === 'match' &&
     input.deploymentRecord === 'present' &&
     input.executability === 'ok' &&
-    // Restated here rather than relied on from the guard above: `execute` is the
-    // only irreversible action this function authorises, so every condition it
-    // needs is named at the point of authorisation.
+    // `execute` is the only irreversible action this function authorises, so
+    // every condition it needs is named at the point of authorisation.
     input.operationState === 'ready'
   )
     return decide({
@@ -327,6 +327,20 @@ export function evaluateCancelDecision(
         'live code and operation id both match the re-derived build, and the operation simulates cleanly',
       alert: 'none',
       retry: false,
+    })
+
+  // Everything checks out and the delay has not elapsed. That is a wait, not an
+  // unrecognised combination: `--rejectAll` routes pending operations through
+  // here, so reporting them as unclassified would page a human for an ordinary
+  // queue state and drop them from the retry that resolves it.
+  if (input.operationState === 'pending')
+    return decide({
+      action: 'hold',
+      reason: 'op-not-yet-matured',
+      detail:
+        'every pre-execute check passed and the timelock delay has not elapsed, so the operation is neither executed nor cancelled yet',
+      alert: 'notice',
+      retry: true,
     })
 
   return decide({
@@ -480,15 +494,13 @@ export function assertDecisionPermitsExecution(
 /**
  * Read the executor posture from a timelock's `EXECUTOR_ROLE` holders.
  *
- * `restricted` is the only posture under which the circuit breaker may withhold a
- * cancel, so every doubt resolves away from it: a holder this cannot read as a
- * named address yields `unknown`, and any holder that denotes nothing yields
- * `open`. Reading a malformed list as `restricted` would let the breaker withhold
- * cancels while the role really is open to everyone, which is the one outcome the
- * coupling exists to prevent.
+ * Every doubt resolves away from `restricted`, because that is the only posture
+ * under which the circuit breaker may withhold a cancel.
+ *
  * @param holders - addresses the timelock reports as holding `EXECUTOR_ROLE`
- * @returns `open` when anything denoting no address holds it, `restricted` only
- *   when every holder is a well-formed non-zero address, `unknown` otherwise
+ * @returns `open` when a holder denotes no address, `restricted` only when every
+ *   holder is a well-formed non-zero address, `unknown` otherwise — including a
+ *   holder that is not readable as either
  */
 export function evaluateExecutorPosture(
   holders: readonly string[]
