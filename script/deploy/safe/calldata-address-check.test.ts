@@ -7,8 +7,9 @@
  * not a pass** — an unreadable store, a source that lags, a call the extractor
  * could not open, or an address nobody looked up all have to be distinguishable
  * from a clean resolution. And **the repo deployment files are not the record**:
- * two real addresses in this repository prove each file wrong in a different
- * direction, which is why the source of the entries is itself judged.
+ * one real facet, `SymbiosisFacet` on mainnet, is missing from the repo files in
+ * one version and from the deployment-log export in the other, which is why the
+ * source of the entries is itself judged.
  */
 import {
   describe,
@@ -35,18 +36,21 @@ import {
 } from './calldata-address-check'
 
 /**
- * A real mainnet facet the deployment record holds and **neither** repo
- * deployment file lists: the cut that replaced it removed its row. A
- * repo-file-sourced index therefore grades a recorded mainnet deployment as
- * unknown.
+ * `SymbiosisFacet@1.0.0` on mainnet: the only mainnet row the export carries
+ * for that facet, and in neither repo deployment file. The repo files are
+ * current-address maps, so they carry whatever version mainnet runs now and
+ * nothing else — which is what a repo file that has not caught up with an
+ * address looks like, and at sign time that is every address a proposal is
+ * about.
  */
 const RECORDED_NOT_IN_REPO_FILES = '0x23Fc1b73e66Cd13e988170CB94e252Cb7FF88185'
 
 /**
- * A real mainnet facet the repo files list and the deployment-log export does
- * not carry at all — the export lags, in the opposite direction.
+ * `SymbiosisFacet@2.0.0` on mainnet: the version currently installed there,
+ * carried by both repo deployment files and absent from the export entirely.
+ * The same facet as above, in the opposite direction.
  */
-const IN_REPO_FILES_NOT_IN_EXPORT = '0x8452788daad6af88fe88BC5dFc892974C11C32Ad'
+const IN_REPO_FILES_NOT_IN_EXPORT = '0xa0353221443CA4E2e6A040F30A57B47F5A6d479D'
 
 /** A real facet the record holds on mainnet only. */
 const MAINNET_ONLY_FACET = '0xC4E5F14dfE359653D66AE49B1f12177e6f99102b'
@@ -241,9 +245,36 @@ describe('evaluateCalldataAddresses against the real deployment record', () => {
     expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.VersionMismatch)
   })
 
-  it('reports rather than verifies an identity no anchor supplied', () => {
+  it('errors on an install whose identity no anchor supplied', () => {
     const verdict = evaluateCalldataAddresses(
       { network: 'mainnet', references: [facetAdd(FLEET_WIDE_FACET)] },
+      recordIndex([FLEET_WIDE_FACET])
+    )
+
+    expect(verdict.error).toBe(true)
+    expect(verdict.refuses).toBe(false)
+    expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.IdentityUnchecked)
+    expect(verdict.errors.join(' ')).toContain('reported and not verified')
+    expect(() => assertCalldataAddressesResolve(verdict)).toThrow(
+      /will not be signed/
+    )
+  })
+
+  it('reports rather than verifies the identity of a removal target', () => {
+    // The pair for the case above: the same missing expectation, in the one
+    // role T2 forbids blocking, has to stay a warning or the error would be a
+    // blanket refusal of every proposal that omits the map.
+    const verdict = evaluateCalldataAddresses(
+      {
+        network: 'mainnet',
+        references: [
+          {
+            address: FLEET_WIDE_FACET,
+            role: AddressRoleEnum.FacetRemove,
+            path: 'call[0].cuts[0]',
+          },
+        ],
+      },
       recordIndex([FLEET_WIDE_FACET])
     )
 
@@ -251,6 +282,96 @@ describe('evaluateCalldataAddresses against the real deployment record', () => {
     expect(verdict.error).toBe(false)
     expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.IdentityUnchecked)
     expect(verdict.warnings.join(' ')).toContain('reported and not verified')
+    expect(() => assertCalldataAddressesResolve(verdict)).not.toThrow()
+  })
+})
+
+describe('the expectations map is checked before it is trusted', () => {
+  it('matches a checksummed key, so the name check the caller asked for happens', () => {
+    // `_targetState.json` and the selector registry both key on the checksummed
+    // form, which is what MAINNET_ONLY_FACET is written as here. A map keyed
+    // that way has to reach the name comparison; if it does not, this address
+    // grades identity-unchecked and the wrong name below goes unnoticed.
+    expect(MAINNET_ONLY_FACET).not.toBe(MAINNET_ONLY_FACET.toLowerCase())
+
+    const verdict = evaluateCalldataAddresses(
+      {
+        network: 'mainnet',
+        references: [facetAdd(MAINNET_ONLY_FACET)],
+        expectations: new Map([
+          [MAINNET_ONLY_FACET, { contractName: 'OwnershipFacet' }],
+        ]),
+      },
+      recordIndex([MAINNET_ONLY_FACET])
+    )
+
+    expect(verdict.refuses).toBe(true)
+    expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.NameMismatch)
+    expect(verdict.reason).toContain('CBridgeFacet@1.0.0 on mainnet')
+  })
+
+  it('resolves a checksummed key that names the recorded contract', () => {
+    const verdict = evaluateCalldataAddresses(
+      {
+        network: 'mainnet',
+        references: [facetAdd(MAINNET_ONLY_FACET)],
+        expectations: new Map([
+          [
+            MAINNET_ONLY_FACET,
+            { contractName: 'CBridgeFacet', version: '1.0.0' },
+          ],
+        ]),
+      },
+      recordIndex([MAINNET_ONLY_FACET])
+    )
+
+    expect(verdict.refuses).toBe(false)
+    expect(verdict.error).toBe(false)
+    expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.Resolved)
+  })
+
+  it('errors on a key that is not an address instead of ignoring it', () => {
+    const verdict = evaluateCalldataAddresses(
+      {
+        network: 'mainnet',
+        references: [facetAdd(MAINNET_ONLY_FACET)],
+        expectations: new Map([
+          ['CBridgeFacet', { contractName: 'CBridgeFacet', version: '1.0.0' }],
+        ]),
+      },
+      recordIndex([MAINNET_ONLY_FACET])
+    )
+
+    expect(verdict.error).toBe(true)
+    expect(verdict.errors.join(' ')).toContain(
+      'keyed with "CBridgeFacet", which is not a 20-byte hex address'
+    )
+    expect(() => assertCalldataAddressesResolve(verdict)).toThrow(
+      /will not be signed/
+    )
+  })
+
+  it('errors when two keys for one address disagree about its identity', () => {
+    const verdict = evaluateCalldataAddresses(
+      {
+        network: 'mainnet',
+        references: [facetAdd(MAINNET_ONLY_FACET)],
+        expectations: new Map([
+          [
+            MAINNET_ONLY_FACET,
+            { contractName: 'CBridgeFacet', version: '1.0.0' },
+          ],
+          [
+            MAINNET_ONLY_FACET.toLowerCase(),
+            { contractName: 'CBridgeFacet', version: '2.0.0' },
+          ],
+        ]),
+      },
+      recordIndex([MAINNET_ONLY_FACET])
+    )
+
+    expect(verdict.error).toBe(true)
+    expect(verdict.errors.join(' ')).toContain('is not decided')
   })
 })
 
@@ -295,7 +416,60 @@ describe('the source of the entries is itself judged', () => {
     expect(verdict.errors.join(' ')).toContain('omits recent contracts')
   })
 
-  it('is not a theoretical concern: each file is wrong about a real address, in opposite directions', () => {
+  it('will not decide on a source it has no provenance argument for', () => {
+    // A source the module has no provenance argument for — an attested index, a
+    // cache, a Tron log added to the enum later — may not decide an address,
+    // even one that resolves cleanly against real entries.
+    const verdict = evaluateCalldataAddresses(
+      {
+        network: 'mainnet',
+        references: [facetAdd(MAINNET_ONLY_FACET)],
+        expectations: expectations([
+          MAINNET_ONLY_FACET,
+          { contractName: 'CBridgeFacet', version: '1.0.0' },
+        ]),
+      },
+      {
+        source: 'attested-build-index' as DeploymentIndexSourceEnum,
+        available: true,
+        queried: [MAINNET_ONLY_FACET.toLowerCase()],
+        entries: realProductionEntries,
+      }
+    )
+
+    expect(verdict.error).toBe(true)
+    expect(verdict.errors.join(' ')).toContain(
+      '"attested-build-index" is not a source this check has a provenance argument for'
+    )
+    expect(() => assertCalldataAddressesResolve(verdict)).toThrow(
+      /will not be signed/
+    )
+  })
+
+  it('decides on the deployment record, on the same input', () => {
+    const verdict = evaluateCalldataAddresses(
+      {
+        network: 'mainnet',
+        references: [facetAdd(MAINNET_ONLY_FACET)],
+        expectations: expectations([
+          MAINNET_ONLY_FACET,
+          { contractName: 'CBridgeFacet', version: '1.0.0' },
+        ]),
+      },
+      {
+        source: DeploymentIndexSourceEnum.DeploymentRecord,
+        available: true,
+        queried: [MAINNET_ONLY_FACET.toLowerCase()],
+        entries: realProductionEntries,
+      }
+    )
+
+    expect(verdict.error).toBe(false)
+    expect(verdict.refuses).toBe(false)
+    expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.Resolved)
+  })
+
+  it('is not a theoretical concern: one real facet is missing from each file, in opposite directions', () => {
     const inRepoFiles = new Set(
       repoFileEntries.map((entry) => entry.address.toLowerCase())
     )
@@ -303,15 +477,15 @@ describe('the source of the entries is itself judged', () => {
       realProductionEntries.map((entry) => entry.address.toLowerCase())
     )
 
-    // Recorded on mainnet, listed by neither repo file: wiring the check to the
-    // repo file would call this genuinely-deployed facet unknown.
+    // SymbiosisFacet@1.0.0: recorded on mainnet, in neither repo file, so a
+    // repo-file-sourced index calls a genuinely-deployed facet unknown.
     expect(inExport.has(RECORDED_NOT_IN_REPO_FILES.toLowerCase())).toBe(true)
     expect(inRepoFiles.has(RECORDED_NOT_IN_REPO_FILES.toLowerCase())).toBe(
       false
     )
 
-    // Listed by the repo files, absent from the export: the export cannot rule
-    // out an address either.
+    // SymbiosisFacet@2.0.0, the version mainnet runs: in the repo files and
+    // absent from the export, so the export cannot rule out an address either.
     expect(inRepoFiles.has(IN_REPO_FILES_NOT_IN_EXPORT.toLowerCase())).toBe(
       true
     )
@@ -525,6 +699,82 @@ describe('removals warn where installs refuse', () => {
     expect(verdict.refuses).toBe(true)
   })
 
+  it('does not error on a removal target nobody looked up', () => {
+    // A narrower query must not turn the warn-only removal policy into a block:
+    // T2 puts subtractive operations outside the gate however little is known
+    // about what they remove, and a rollback is the time-critical path.
+    const verdict = evaluateCalldataAddresses(
+      {
+        network: 'mainnet',
+        references: [
+          {
+            address: MAINNET_ONLY_FACET,
+            role: AddressRoleEnum.FacetRemove,
+            path: 'call[0].cuts[0]',
+          },
+        ],
+      },
+      recordIndex([])
+    )
+
+    expect(verdict.refuses).toBe(false)
+    expect(verdict.error).toBe(false)
+    expect(verdict.errors).toHaveLength(0)
+    expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.NotQueried)
+    expect(verdict.warnings.join(' ')).toContain('never looked up')
+    expect(() => assertCalldataAddressesResolve(verdict)).not.toThrow()
+  })
+
+  it('errors on a role it has no refusal policy for, rather than warning', () => {
+    // Neither role set names it, so whether failing to resolve it refuses has
+    // no answer — which is an unanswerable question, not a pass.
+    const typo = MAINNET_ONLY_FACET.replace(/b$/, 'c')
+    const verdict = evaluateCalldataAddresses(
+      {
+        network: 'mainnet',
+        references: [
+          {
+            address: typo,
+            role: 'timelock-admin-grant' as AddressRoleEnum,
+            path: 'call[0].grantRole',
+          },
+        ],
+      },
+      recordIndex([typo])
+    )
+
+    expect(verdict.error).toBe(true)
+    expect(verdict.warnings).toHaveLength(0)
+    expect(verdict.errors.join(' ')).toContain(
+      'is in role "timelock-admin-grant", which this check has no refusal policy for'
+    )
+    expect(() => assertCalldataAddressesResolve(verdict)).toThrow(
+      /will not be signed/
+    )
+  })
+
+  it('warns rather than errors on the removal role it does name', () => {
+    // The pair for the case above: the unrecognised-role error must not be a
+    // blanket refusal of every role outside the refusal-bearing set.
+    const typo = MAINNET_ONLY_FACET.replace(/b$/, 'c')
+    const verdict = evaluateCalldataAddresses(
+      {
+        network: 'mainnet',
+        references: [
+          {
+            address: typo,
+            role: AddressRoleEnum.FacetRemove,
+            path: 'call[0].cuts[0]',
+          },
+        ],
+      },
+      recordIndex([typo])
+    )
+
+    expect(verdict.error).toBe(false)
+    expect(verdict.warnings).toHaveLength(1)
+  })
+
   it('refuses an unrecorded init target, which runs against the diamond storage', () => {
     const typo = MAINNET_ONLY_FACET.replace(/b$/, 'c')
     const verdict = evaluateCalldataAddresses(
@@ -563,6 +813,20 @@ describe('renderCalldataAddresses', () => {
 
     expect(lines).toHaveLength(1)
     expect(lines[0]).toContain('1 of 1')
+  })
+
+  it('says nothing needed resolving rather than ticking zero of zero', () => {
+    const lines = renderCalldataAddresses(
+      evaluateCalldataAddresses(
+        { network: 'mainnet', references: [] },
+        recordIndex([])
+      )
+    )
+
+    expect(lines).toHaveLength(1)
+    expect(lines[0]).toMatch(
+      /^\S+ Calldata address check skipped: no call in this proposal references an address\.$/
+    )
   })
 
   it('names the refused address and the record it contradicts', () => {
