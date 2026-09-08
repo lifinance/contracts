@@ -11,6 +11,9 @@ fs_permissions = [
   { access = "read", path = "./config/" },
   { access = "read-write", path = "./test/logs/" },
   { access = "read", path = "./zkout/" },
+  # Lets a test check whether the build artifact the selector FFI reads is on disk. `forge coverage`
+  # never writes that tree, so the FFI-backed cases have to detect its absence and self-skip.
+  { access = "read", path = "./out/" },
 ]
 ffi = true
 libs = ["node_modules", "lib"]
