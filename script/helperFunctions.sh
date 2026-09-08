@@ -16,34 +16,11 @@ NETWORKS_JSON_FILE_PATH="config/networks.json"
 GLOBAL_FILE_PATH="config/global.json"
 source script/universalCast.sh
 source script/deploy/shared/assertFoundryVersion.sh
+source script/utils/zkToolchainPins.sh
+source script/deploy/shared/assertZkToolchain.sh
 
 ZERO_ADDRESS=0x0000000000000000000000000000000000000000
 TRON_ZERO_ADDRESS_BASE58=T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb
-
-# getZkToolchainPin: Reads a version pin from the [external.zksync] section of foundry.toml.
-# Vanilla forge ignores [external.*] sections without warning, so the pins can live in
-# foundry.toml even though only our scripts consume them.
-#
-# Usage: getZkToolchainPin KEY
-#   KEY - Pin name, e.g. "zksolc" or "foundry_zksync"
-#
-# Returns: The pinned version string (empty if not found)
-# Example: getZkToolchainPin "zksolc"
-function getZkToolchainPin() {
-  local KEY="$1"
-  # default covers .env files that don't define FOUNDRY_TOML_FILE_PATH
-  local FOUNDRY_TOML="${FOUNDRY_TOML_FILE_PATH:-foundry.toml}"
-
-  if [[ ! -f "$FOUNDRY_TOML" ]]; then
-    return 1
-  fi
-
-  awk -v key="$KEY" '
-    /^\[external\.zksync\]/ { IN_SECTION = 1; next }
-    /^\[/ { IN_SECTION = 0 }
-    IN_SECTION && $1 == key && $2 == "=" { gsub(/["'\'']/, "", $3); print $3; exit }
-  ' "$FOUNDRY_TOML"
-}
 
 # zksolc version pin for foundry-zksync, defined in foundry.toml [external.zksync].
 # Passed to foundry-zksync via env because a real `zksync` key in any profile makes
@@ -2132,6 +2109,10 @@ function ensureStandardArtifactForSalt() {
 
   if checkIfFileExists "$ARTIFACT_PATH" >/dev/null; then
     return 0
+  fi
+
+  if ! assertFoundryVersionOrFail; then
+    return 1
   fi
 
   echo "[info] standard artifact $ARTIFACT_PATH not found - running 'forge build --skip test' to derive the deploy salt"
@@ -5219,12 +5200,11 @@ function executeAndParse() {
   local ON_ERROR_ACTION="${4:-return}"
 
   # Every deploy-path `forge script` is a COMMAND passed to this function, which is why a
-  # toolchain check lives in a generic executor. Direct `forge build` call sites do not
-  # pass through here; the EXSC-932 deploy entry points gate their own, and several others
-  # (scriptMaster.sh, deployGroupingHelpers.sh, deployContractToNetworks.sh,
-  # proposeContractToNetworks.sh) remain ungated. The result globals are reset because
-  # callers that ignore the status read the verdict out of them via handleForgeScriptError,
-  # where a previous call's success payload would read as a completed forge run.
+  # toolchain check lives in a generic executor. Direct `forge build` call sites do not pass
+  # through here and carry their own; zkEVM builds are gated in install_foundry_zksync. The
+  # result globals are reset because callers that ignore the status read the verdict out of
+  # them via handleForgeScriptError, where a previous call's success payload would read as a
+  # completed forge run.
   if ! assertFoundryVersionOrFail; then
     RAW_RETURN_DATA=""
     STDERR_CONTENT="refused: could not confirm the local foundry matches .foundry-version"
@@ -5632,7 +5612,7 @@ function updateDiamondLogs() {
   fi
 }
 
-# Function: install_foundry_zksync
+# Function: installFoundryZksyncBinary
 # Description: Downloads and installs the zkSync version of foundry tools (forge and cast).
 # Idempotent: returns immediately if the installed binary already matches the expected
 # version; on mismatch the binaries are removed and re-downloaded.
@@ -5649,7 +5629,7 @@ function updateDiamondLogs() {
 # Returns:
 #   0 - Success
 #   1 - Failure (with error message)
-install_foundry_zksync() {
+installFoundryZksyncBinary() {
   # env override takes precedence over the pin in foundry.toml [external.zksync]
   local EXPECTED_VERSION="${FOUNDRY_ZKSYNC_VERSION:-$(getZkToolchainPin "foundry_zksync")}"
   # Allow custom installation directory or use default
@@ -5796,6 +5776,19 @@ install_foundry_zksync() {
   echo "Installation completed successfully"
   echo "Binaries are executable and ready to use"
   return 0
+}
+
+# install_foundry_zksync: Installs the pinned foundry-zksync, then refuses unless the
+# toolchain that will compile matches the pins in foundry.toml [external.zksync].
+#
+# Every zkEVM build and every zkEVM forge script installs through here first, so the pin
+# check cannot be missed by a future caller the way a per-call-site check could.
+#
+# Arguments and env overrides: see installFoundryZksyncBinary.
+# Returns: 0 when the toolchain is installed and pinned, 1 otherwise.
+install_foundry_zksync() {
+  installFoundryZksyncBinary "$@" || return 1
+  assertZkToolchainOrFail "${1:-./foundry-zksync}" || return 1
 }
 
 # Function: getContractDeploymentStatusSummary
