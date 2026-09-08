@@ -61,6 +61,9 @@ const MAX_RENDERED = 80
  */
 const describe = (value: unknown): string => {
   if (value === undefined) return 'absent'
+  // Distinct from a value whose characters were all stripped: nothing was ever
+  // there to strip.
+  if (value === null) return 'null'
   if (typeof value === 'number') return String(value)
 
   const kind =
@@ -82,9 +85,13 @@ const describe = (value: unknown): string => {
   // the wrong failure.
   if (rendered === '') return `no printable characters (${kind})`
 
+  // Sliced by code point, not by index: cutting mid-pair emits a lone surrogate,
+  // which is the same class of garbled terminal output the sanitising above
+  // exists to prevent.
+  const points = [...rendered]
   const clipped =
-    rendered.length > MAX_RENDERED
-      ? `${rendered.slice(0, MAX_RENDERED)}…`
+    points.length > MAX_RENDERED
+      ? `${points.slice(0, MAX_RENDERED).join('')}…`
       : rendered
 
   return `${clipped} (${kind})`

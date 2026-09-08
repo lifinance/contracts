@@ -127,6 +127,32 @@ describe('evaluateDelegateCallGate', () => {
     expect(reason).not.toContain('no printable characters')
   })
 
+  it('clips on a code-point boundary, never mid-surrogate', () => {
+    // `slice(0, n)` is index-based, so a pair straddling the boundary is cut in
+    // half and a lone surrogate reaches the terminal — the same garbled output
+    // the sanitising exists to prevent, arriving by a different route.
+    const straddling = `${'A'.repeat(79)}\u{1F600}${'B'.repeat(20)}`
+    const reason = evaluateDelegateCallGate({
+      operation: straddling as unknown as number,
+    }).reason
+
+    // No unpaired surrogate anywhere in what a signer would see.
+    expect(reason).not.toMatch(/[\uD800-\uDBFF](?![\uDC00-\uDFFF])/)
+    expect(reason).not.toMatch(/(?<![\uD800-\uDBFF])[\uDC00-\uDFFF]/)
+    // Paired presence: it did clip, so the assertion is not passing on an
+    // unclipped string.
+    expect(reason).toContain('…')
+  })
+
+  it('reports null as null, not as characters that were stripped', () => {
+    const reason = evaluateDelegateCallGate({
+      operation: null as unknown as number,
+    }).reason
+
+    expect(reason).toContain('null')
+    expect(reason).not.toContain('no printable characters')
+  })
+
   it('bounds a long value instead of flooding the terminal', () => {
     const long = 'A'.repeat(500)
     const reason = evaluateDelegateCallGate({
@@ -151,9 +177,8 @@ describe('renderDelegateCallGate', () => {
   })
 
   it('carries exactly one colour and one reset, at the ends', () => {
-    // Two escapes, at the two ends: a mid-line colour *switch* is what a
-    // "no reset in between" check cannot see, and a reason legitimately
-    // carrying an escape is what it would wrongly reject.
+    // Exactly two escapes, one at each end. The reason is sanitised, so it
+    // cannot contribute a third.
     const [line = ''] = renderDelegateCallGate(
       evaluateDelegateCallGate({ operation: OperationTypeEnum.DelegateCall })
     )
