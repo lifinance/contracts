@@ -24,6 +24,7 @@ import {
   assertCodehashSignGateAllowsSigning,
   gateInputFor,
   type ICodehashGateInput,
+  proposalKeyOf,
   blockingUnevaluatedGate,
   createGatedSigner,
   evaluateCodehashSignGate,
@@ -130,12 +131,21 @@ const rejection = async (promise: Promise<unknown>): Promise<string> => {
  * @param data - the calldata the signature would cover
  * @returns The struct Safe would hash and sign
  */
-const signedStruct = async (data?: string): Promise<ISignedSafeTransaction> =>
+const signedStruct = async (
+  data?: string,
+  over: { to?: string; nonce?: number; operation?: number } = {}
+): Promise<ISignedSafeTransaction> =>
   initializeSafeTransaction(
     {
       network: 'mainnet',
       safeTx: {
-        data: { to: DIAMOND, value: '0', data, operation: 0, nonce: 7 },
+        data: {
+          to: over.to ?? DIAMOND,
+          value: '0',
+          data,
+          operation: over.operation ?? 0,
+          nonce: over.nonce ?? 7,
+        },
         signatures: new Map(),
       },
     } as unknown as ISafeTxDocument,
@@ -634,18 +644,18 @@ describe('a verdict is about specific bytes', () => {
 
     expect(graded.blocksSigning).toBe(false)
     expect(() =>
-      assertCodehashSignGateAllowsSigning(graded, '0xdeadbeef')
-    ).toThrow(/verdict is about different calldata/)
+      assertCodehashSignGateAllowsSigning(graded, 'a-different-transaction')
+    ).toThrow(/verdict is about a different transaction/)
   })
 
-  it('authorises the calldata it did graded, so the check is not blanket', async () => {
+  it('authorises the transaction it did grade, so the check is not blanket', async () => {
     const data = cutCalldata()
     const graded = await evaluateCodehashSignGate(await gateInput(data), () =>
       deps()
     )
 
     expect(() =>
-      assertCodehashSignGateAllowsSigning(graded, data)
+      assertCodehashSignGateAllowsSigning(graded, graded.gradedKey)
     ).not.toThrow()
   })
 
@@ -663,7 +673,7 @@ describe('a verdict is about specific bytes', () => {
 
     const sign = createGatedSigner<[ISignedSafeTransaction], string>({
       gate: () => graded,
-      payloadOf: (struct) => struct.data.data as Hex | undefined,
+      keyOf: (struct: ISignedSafeTransaction) => proposalKeyOf(struct.data),
       sign: async (struct) => {
         reached.push(String(struct.data.data))
         return 'signed'
@@ -671,7 +681,7 @@ describe('a verdict is about specific bytes', () => {
     })
 
     expect(await rejection(sign(other))).toMatch(
-      /verdict is about different calldata/
+      /verdict is about a different transaction/
     )
     expect(reached).toEqual([])
   })
@@ -686,7 +696,7 @@ describe('a verdict is about specific bytes', () => {
 
     const sign = createGatedSigner<[ISignedSafeTransaction], string>({
       gate: () => graded,
-      payloadOf: (s) => s.data.data as Hex | undefined,
+      keyOf: (s: ISignedSafeTransaction) => proposalKeyOf(s.data),
       sign: async (s) => {
         reached.push(String(s.data.data))
         return 'signed'
@@ -695,6 +705,55 @@ describe('a verdict is about specific bytes', () => {
 
     expect(await sign(struct)).toBe('signed')
     expect(reached).toHaveLength(1)
+  })
+
+  it('does not let a verdict on one row authorise the same cut at another nonce', async () => {
+    // The binding is the whole signed tuple, not the calldata: two re-proposed
+    // rows can carry an identical cut at different nonces, and `data` alone
+    // cannot tell them apart. The verdict is only about the calldata, so binding
+    // wider costs nothing and closes the class instead of the instance.
+    const cut = cutCalldata()
+    const graded = await evaluateCodehashSignGate(
+      gateInputFor({ safeTransaction: await signedStruct(cut) }, NETWORK),
+      () => deps()
+    )
+    const reproposed = await signedStruct(cut, { nonce: 8 })
+
+    expect(graded.blocksSigning).toBe(false)
+    expect(() =>
+      assertCodehashSignGateAllowsSigning(
+        graded,
+        proposalKeyOf(reproposed.data)
+      )
+    ).toThrow(/different transaction/)
+  })
+
+  it("still names the gate's own reason when the key also fails to match", () => {
+    // The refusal used to report only the substitution, and a gate that never
+    // ran carries no key — so a broken toolchain config told the operator their
+    // calldata had been swapped, and sent the next reader after a substitution
+    // that never happened.
+    const couldNotRun = {
+      ...blockingUnevaluatedGate(),
+      evaluated: true,
+      // Distinct texts on purpose: with the same string in both, the assertion
+      // below passes off `summary` and observes nothing about whether
+      // `refusals` survived — which is how the first version of this test
+      // passed against the bug it was written for.
+      refusals: ['REFUSAL-TEXT foundry.toml is unreadable'],
+      summary: 'SUMMARY-TEXT the gate could not be evaluated',
+    }
+
+    let message = ''
+    try {
+      assertCodehashSignGateAllowsSigning(couldNotRun, 'some-transaction-key')
+    } catch (error) {
+      message = error instanceof Error ? error.message : String(error)
+    }
+
+    expect(message).toContain('REFUSAL-TEXT')
+    expect(message).toContain('SUMMARY-TEXT')
+    expect(message).toMatch(/reached no verdict for this transaction/)
   })
 
   it('judges the struct as it stands when the gate runs, not a copy taken earlier', async () => {
@@ -720,7 +779,7 @@ describe('the sign funnel', () => {
     const calls: string[] = []
     const sign = createGatedSigner<[string], string>({
       gate: () => blockingGate,
-      payloadOf: () => undefined,
+      keyOf: () => undefined,
       sign: async (tx) => {
         calls.push(tx)
         return tx
@@ -735,7 +794,7 @@ describe('the sign funnel', () => {
     const calls: string[] = []
     const sign = createGatedSigner<[string], string>({
       gate: () => passingGate,
-      payloadOf: () => undefined,
+      keyOf: () => undefined,
       sign: async (tx) => {
         calls.push(tx)
         return `signed:${tx}`
@@ -750,7 +809,7 @@ describe('the sign funnel', () => {
     const calls: string[] = []
     const sign = createGatedSigner<[string], string>({
       gate: () => blockingGate,
-      payloadOf: () => undefined,
+      keyOf: () => undefined,
       sign: async () => {
         calls.push('reached')
         throw new Error('the device was not connected')

@@ -26,6 +26,7 @@ import { readBooleanFlag, readValueFlag } from './cli-flags'
 import {
   assertCodehashSignGateAllowsSigning,
   gateInputFor,
+  proposalKeyOf,
   blockingUnevaluatedGate,
   createGatedSigner,
   evaluateCodehashSignGate,
@@ -192,10 +193,9 @@ const processTxs = async (
     ISafeTransaction
   >({
     gate: () => codehashGate,
-    // The bytes this signature will cover, so the verdict is checked against
-    // them rather than merely being non-blocking.
-    payloadOf: (safeTransaction) =>
-      safeTransaction.data.data as Hex | undefined,
+    // Which transaction this signature will cover, so the verdict is checked
+    // against it rather than merely being non-blocking.
+    keyOf: (safeTransaction) => proposalKeyOf(safeTransaction.data),
     sign: async (safeTransaction, client = safe) => {
       consola.info('Signing transaction')
       try {
@@ -267,7 +267,7 @@ const processTxs = async (
     // them by construction, and the sign-then-execute paths simply assert twice.
     assertCodehashSignGateAllowsSigning(
       codehashGate,
-      safeTransaction.data.data as Hex | undefined
+      proposalKeyOf(safeTransaction.data)
     )
 
     consola.info('Preparing to execute Safe transaction...')
@@ -532,13 +532,10 @@ const processTxs = async (
         ].join('\n')
       )
 
-    // Judged on one in-memory value, passed by value rather than re-read from
-    // its source: two pure decodes of an immutable value cannot disagree, two
-    // reads of a mutable source can, and that is how the bytes vouched for and
-    // the bytes signed come apart. The value is the one that gets signed —
-    // `initializeSafeTransaction` copies `data` across verbatim, so it is the
-    // same bytes the display decoded, and it stays the right anchor if that
-    // ever stops being true. Displayed here and refused inside
+    // The struct itself reaches the gate, which reads its calldata when it
+    // judges; the verdict is then bound to that transaction, so it cannot
+    // authorise the signature of another row or of a mutated one. Displayed
+    // here and refused inside
     // `signTransaction`: removing the Sign option instead would hide why a
     // specific proposal is unsignable, which is the same reason the nonce gate
     // runs after the choice.

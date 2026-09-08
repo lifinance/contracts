@@ -3,14 +3,14 @@
  *
  * Three things are settled here and must stay settled.
  *
- * **One decode of one value.** The cut is recovered from the calldata of the
- * transaction that gets hashed and signed, through the same `ABI_DIAMOND_CUT`
- * the display path uses. Two pure decodes of one immutable value cannot
- * disagree; two reads of a mutable source can, which is how the bytes vouched
- * for and the bytes signed come apart. The display decodes the same bytes,
- * because the normalised transaction copies them across verbatim — but the
- * signed struct is the anchor, so a later normalisation cannot silently make
- * the checked bytes and the approved bytes two different things.
+ * **One decode, of the transaction being signed.** The cut is recovered from
+ * `struct.data.data` — the struct Safe hashes — through the same
+ * `ABI_DIAMOND_CUT` the display path uses. Deliberately a read of a *mutable*
+ * source, which an earlier version of this file argued against: passing the
+ * bytes by value is what let them be substituted after the struct had been
+ * checked, so the reference is the thing worth holding. Mutating it changes
+ * what is judged, which is correct — those are the bytes that would be signed —
+ * and the verdict is bound to them, so a mutation after the fact refuses.
  *
  * **The verdict is computed before the prompt and refused inside the signer.**
  * The action list stays whatever it was, because removing an option hides the
@@ -35,13 +35,20 @@ import { isSignedStruct, type ISignedSafeTransaction } from './safe-utils'
 
 export interface ICodehashSignGate {
   /**
-   * The calldata this verdict is about.
+   * Which transaction this verdict is about, as `proposalKeyOf` renders it.
    *
-   * A verdict is only ever a statement about specific bytes. Without this, a
-   * gate evaluated for one pending proposal authorised the signature of any
-   * other — every row on the network carries a struct the identity check
+   * A verdict is only ever a statement about one specific transaction. Without
+   * this, a gate evaluated for one pending proposal authorised the signature of
+   * any other — every row on the network carries a struct the identity check
    * accepts, so grading proposal 0 and signing proposal N passed.
+   *
+   * The whole tuple, not just the calldata: two re-proposed rows can carry the
+   * same cut at different nonces, which `data` alone cannot tell apart. The
+   * verdict itself is only about the calldata, so binding wider costs nothing
+   * and closes the class rather than the instance.
    */
+  gradedKey?: string
+  /** The calldata graded, for the message a signer reads. */
   gradedData?: Hex
   /** True when a signature must be refused. Render the verdicts, never this. */
   blocksSigning: boolean
@@ -104,6 +111,26 @@ export interface ISignableProposal {
   safeTransaction: ISignedSafeTransaction
 }
 
+/**
+ * Identifies the transaction a signature would cover.
+ * @param data - the signed struct's `data`
+ * @returns A stable key over every field the signature commits to
+ */
+export const proposalKeyOf = (data: {
+  to: string
+  value: string | bigint
+  data?: string
+  operation?: number
+  nonce: number | bigint
+}): string =>
+  [
+    data.to.toLowerCase(),
+    String(data.value),
+    (data.data ?? '').toLowerCase(),
+    String(data.operation ?? 0),
+    String(data.nonce),
+  ].join('|')
+
 declare const gateInputBrand: unique symbol
 
 /**
@@ -153,9 +180,9 @@ export const gateInputFor = (
 /**
  * Judges the cut a proposal would perform, before it is signed.
  *
- * Pass `data` by value off the struct that will be signed, not a re-read of
- * whatever produced it: the caller's job is to hand this function the bytes the
- * signature will cover.
+ * Takes the struct by reference, via `gateInputFor`, and reads its calldata
+ * here. The caller's job is to hand over the transaction the signature will
+ * cover, not a copy of its bytes — a copy is substitutable, and was.
  *
  * @param input.struct - the struct whose signature this would authorise
  * @param input.network - a `config/networks.json` key in any casing; it is
@@ -183,7 +210,11 @@ export const evaluateCodehashSignGate = async (
   const data = input.struct.data.data as Hex | undefined
 
   if (!data || data === '0x')
-    return { ...unevaluatedCodehashSignGate(), gradedData: data }
+    return {
+      ...unevaluatedCodehashSignGate(),
+      gradedKey: proposalKeyOf(input.struct.data),
+      gradedData: data,
+    }
 
   const collected = collectDiamondCutTargets(data)
 
@@ -242,6 +273,7 @@ export const evaluateCodehashSignGate = async (
 
   if (collected.calls.length === 0 && refusals.length === 0)
     return {
+      gradedKey: proposalKeyOf(input.struct.data),
       gradedData: data,
       blocksSigning: false,
       evaluated: true,
@@ -257,6 +289,7 @@ export const evaluateCodehashSignGate = async (
     }
 
   return {
+    gradedKey: proposalKeyOf(input.struct.data),
     gradedData: data,
     // The target scan is not a second derivation of the line above; it is this
     // layer's own invariant, that nothing rendered as non-MATCH is ever
@@ -344,27 +377,32 @@ export const renderCodehashSignGate = (gate: ICodehashSignGate): string[] => {
  */
 export const assertCodehashSignGateAllowsSigning = (
   gate: ICodehashSignGate,
-  payload?: Hex
+  key?: string
 ): void => {
-  // The verdict has to be about the bytes being signed. Checked before the
-  // blocksSigning short-circuit, so a passing verdict on other calldata is a
-  // refusal rather than a pass.
-  if (payload !== undefined && gate.gradedData !== payload)
-    throw new Error(
-      `Codehash gate: this transaction will not be signed. The gate's verdict is about different calldata than the transaction now being signed — it graded ${
-        gate.gradedData ?? '(nothing)'
-      } and this carries ${payload}. A verdict is only ever a statement about specific bytes, so this one says nothing about these.`
-    )
-
-  if (!gate.blocksSigning) return
+  // A verdict about a different transaction is not a pass, so this decides
+  // independently of `blocksSigning`. It does not choose the *message* though:
+  // a gate that never ran carries no key, and reporting only the mismatch sent
+  // the reader after a substitution that never happened, instead of the broken
+  // toolchain config that actually stopped it. Both facts, when both hold.
+  const mismatched = key !== undefined && gate.gradedKey !== key
+  if (!mismatched && !gate.blocksSigning) return
 
   const detail = gate.targets
     .filter((target) => target.verdict !== 'MATCH')
     .map((target) => `${target.address} is ${target.verdict}: ${target.reason}`)
 
+  const substitution = mismatched
+    ? [
+        gate.gradedKey === undefined
+          ? 'The gate reached no verdict for this transaction at all, so there is nothing that permits signing it.'
+          : `The gate's verdict is about a different transaction than the one now being signed — it graded ${gate.gradedKey} and this is ${key}. A verdict is only ever a statement about one transaction, so this one says nothing about this.`,
+      ]
+    : []
+
   throw new Error(
     [
       'Codehash gate: this transaction will not be signed.',
+      ...substitution,
       ...gate.refusals,
       ...detail,
       gate.summary,
@@ -389,14 +427,15 @@ export const createGatedSigner = <Args extends unknown[], T>(deps: {
   gate: () => ICodehashSignGate
   sign: (...args: Args) => Promise<T>
   /**
-   * The calldata this signature will cover, from the same arguments `sign`
-   * receives. Required, not optional: the verdict is compared against it, and a
-   * signer that could omit it would be a signer with the old bug.
+   * Which transaction this signature will cover, from the same arguments `sign`
+   * receives — build it with `proposalKeyOf`. Required, not optional: the
+   * verdict is compared against it, and a signer that could omit it would be a
+   * signer with the old bug.
    */
-  payloadOf: (...args: Args) => Hex | undefined
+  keyOf: (...args: Args) => string | undefined
 }): ((...args: Args) => Promise<T>) => {
   return async (...args: Args): Promise<T> => {
-    assertCodehashSignGateAllowsSigning(deps.gate(), deps.payloadOf(...args))
+    assertCodehashSignGateAllowsSigning(deps.gate(), deps.keyOf(...args))
     return deps.sign(...args)
   }
 }
