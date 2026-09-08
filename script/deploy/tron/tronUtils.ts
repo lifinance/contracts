@@ -42,7 +42,14 @@ import {
 import { getContractVersion } from '../shared/getContractVersion'
 import { isRateLimitError } from '../shared/rateLimit'
 
+import { assertTronToolchainOrThrow } from './assertTronToolchain'
 import { DIAMOND_CUT_ENERGY_MULTIPLIER } from './constants'
+import {
+  assertRecordedArgsMatchAbi,
+  constructorInputTypes,
+  encodeConstructorArgs as encodeWithTypes,
+  type AbiParamEncoder,
+} from './constructor-args'
 import type { IDiamondRegistrationResult } from './types'
 
 /**
@@ -178,6 +185,11 @@ export async function deployContractWithLogging(
   network: SupportedChain = 'tron'
 ): Promise<IDeploymentResult> {
   try {
+    // Ahead of the artifact load so a drifted toolchain is reported as such, rather than as
+    // a stale or missing artifact. The same call also guards every deploy site from inside
+    // assertTronDeploymentRecordable; it runs the checker once per process either way.
+    assertTronToolchainOrThrow()
+
     const artifact = await loadForgeArtifact(contractName)
     const version = await getContractVersion(contractName)
 
@@ -185,6 +197,13 @@ export async function deployContractWithLogging(
 
     if (constructorArgs.length > 0)
       consola.info(`Constructor arguments:`, constructorArgs)
+
+    assertTronDeploymentRecordable(
+      artifact,
+      constructorArgs,
+      contractName,
+      network
+    )
 
     const result = await deployer.deployContract(artifact, constructorArgs)
 
@@ -194,22 +213,19 @@ export async function deployContractWithLogging(
 
     // Log deployment (skip in dry run)
     if (!dryRun) {
-      // Encode constructor args
-      const constructorArgsHex =
-        constructorArgs.length > 0
-          ? await encodeConstructorArgs(constructorArgs)
-          : '0x'
+      // The address is saved first: the contract is already on chain, and a
+      // recording failure that loses its address costs a duplicate deployment.
+      await saveContractAddress(network, contractName, result.contractAddress)
 
-      await logDeployment(
+      await recordTronDeployment({
         contractName,
         network,
-        result.contractAddress,
+        address: result.contractAddress,
         version,
-        constructorArgsHex,
-        false
-      )
-
-      await saveContractAddress(network, contractName, result.contractAddress)
+        artifact,
+        constructorArgs,
+        verified: false,
+      })
     }
 
     return {
@@ -229,49 +245,95 @@ export async function deployContractWithLogging(
 /**
  * Encode constructor arguments to hex
  */
-export async function encodeConstructorArgs(args: any[]): Promise<string> {
-  // Return empty hex for no arguments
-  if (args.length === 0) return '0x'
-
-  try {
-    const tronWeb = getTronWebCodecOnlyForNetwork('tron')
-
-    // Determine types based on argument values
-    const types: string[] = args.map((arg) => {
-      if (typeof arg === 'string') {
-        // Check if it's an address (starts with T or 0x)
-        if (arg.startsWith('T') || arg.startsWith('0x')) return 'address'
-
-        return 'string'
-      } else if (typeof arg === 'number' || typeof arg === 'bigint')
-        return 'uint256'
-      else if (typeof arg === 'boolean') return 'bool'
-      else if (Array.isArray(arg)) {
-        // For arrays, try to determine the element type
-        if (arg.length > 0 && typeof arg[0] === 'string') return 'string[]'
-
-        return 'uint256[]'
-      }
-      return 'bytes'
-    })
-
-    // Use TronWeb's ABI encoder
-    return tronWeb.utils.abi.encodeParams(types, args)
-  } catch (error) {
-    consola.warn('Failed to encode constructor args, using fallback:', error)
-    // Fallback to simple hex encoding
-    return (
-      '0x' +
-      args
-        .map((arg) => {
-          if (typeof arg === 'string' && arg.startsWith('0x'))
-            return arg.slice(2)
-
-          return Buffer.from(String(arg)).toString('hex')
-        })
-        .join('')
+/** TronWeb's ABI encoder for one network; it accepts base58 addresses, viem's does not. */
+const tronAbiEncoder =
+  (network: SupportedChain): AbiParamEncoder =>
+  (types, values) =>
+    getTronWebCodecOnlyForNetwork(network).utils.abi.encodeParams(
+      types,
+      values as any[]
     )
-  }
+
+/**
+ * Checks that a deployment will be recordable and that its artifact came from the pinned
+ * toolchain, before anything is broadcast.
+ *
+ * Call this immediately before deploying. Everything it checks is pure — the
+ * artifact's ABI and the values — so failing here costs nothing, while the same
+ * failure after `deployer.deployContract` leaves a contract on chain that
+ * cannot be recorded, and TRX already spent.
+ *
+ * The toolchain pre-flight lives here because every Tron deploy site calls this immediately
+ * before its `deployer.deployContract`, so a new deploy site cannot reach a chain without
+ * passing it. It costs one checker run per process, not one per contract.
+ *
+ * @param artifact - The Forge artifact about to be deployed.
+ * @param constructorArgs - Exactly the values the constructor will receive.
+ * @param contractName - Named in every message.
+ * @param network - Network whose codec will encode the values.
+ * @throws When the local forge does not match the pin, the ABI is unreadable, the arity
+ * disagrees, or the values cannot be encoded.
+ */
+export function assertTronDeploymentRecordable(
+  artifact: { abi?: unknown },
+  constructorArgs: readonly unknown[],
+  contractName: string,
+  network: SupportedChain
+): void {
+  assertTronToolchainOrThrow()
+
+  const types = constructorInputTypes(artifact?.abi, contractName)
+  const encoded = encodeWithTypes(
+    tronAbiEncoder(network),
+    constructorArgs,
+    types,
+    contractName
+  )
+  assertRecordedArgsMatchAbi(contractName, encoded, types)
+}
+
+/**
+ * Records a Tron deployment with its constructor arguments encoded from the ABI.
+ *
+ * Use this rather than calling `logDeployment` directly: it is the only place
+ * that decides what the `constructorArgs` field holds, so a call site cannot
+ * hand the log a string of its own.
+ *
+ * @param params.artifact - The Forge artifact the contract was deployed from.
+ * @param params.constructorArgs - Exactly the values passed to the constructor.
+ * @throws When the arguments cannot be encoded from the ABI. Callers must save
+ * the deployed address BEFORE calling this: the contract is already on chain by
+ * then, and losing its address costs a duplicate deployment.
+ */
+export async function recordTronDeployment(params: {
+  contractName: string
+  network: SupportedChain
+  address: string
+  version: string
+  artifact: { abi?: unknown }
+  constructorArgs: readonly unknown[]
+  verified: boolean
+}): Promise<void> {
+  const { contractName, network, address, version, artifact } = params
+  // Parsed once: an encode and an assert reading the ABI separately could
+  // disagree about what the contract takes.
+  const types = constructorInputTypes(artifact?.abi, contractName)
+  const encoded = encodeWithTypes(
+    tronAbiEncoder(network),
+    params.constructorArgs,
+    types,
+    contractName
+  )
+  assertRecordedArgsMatchAbi(contractName, encoded, types)
+
+  await logDeployment(
+    contractName,
+    network,
+    address,
+    version,
+    encoded,
+    params.verified
+  )
 }
 
 /**

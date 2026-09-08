@@ -5,6 +5,7 @@
 deployAndStoreCREATE3Factory() {
   # load helper functions
   source script/helperFunctions.sh
+  source script/deploy/shared/assertTreeRecordable.sh
 
   # make sure script was called with sufficient parameters
   if [ "$#" -lt 2 ]; then
@@ -34,6 +35,10 @@ deployAndStoreCREATE3Factory() {
   echoDebug "ENVIRONMENT=$ENVIRONMENT"
   echoDebug "FILE_SUFFIX=$FILE_SUFFIX"
   echo ""
+
+  # The factory is the singleton every deterministic address derives from, and it
+  # broadcasts on its own path rather than through deploySingleContract.
+  assertTreeRecordableOrFail "$ENVIRONMENT" || return 1
 
   # deploy CREATE3Factory
   echo "Trying to deploy CREATE3Factory now"

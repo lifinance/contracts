@@ -107,3 +107,41 @@ Two failure modes make a bulk sweep riskier than it looks:
 appears in both, so it cannot enforce this on its own: "in the flat log, absent from the diamond"
 is also the legitimate shape of a contract deployed ahead of its cut. Deciding between the two
 cases needs the loupe plus the pending-cut state, so pruning stays a reviewed manual step.
+
+## Auditing the constructor arguments a record claims
+
+The MongoDB deployment log carries a `constructorArgs` field per record. It is what a
+verifier appends to creation code to reproduce a deployment, so a record understating it
+describes a deployment that never happened. To check the Tron records against each
+contract's compiled constructor:
+
+```bash
+forge build
+bun run mongo-logs:audit-tron-constructor-args
+```
+
+Requires `MONGODB_URI` — the un-gated cluster, so no tunnel is involved. Flags:
+`--env production|staging|all`, `--networks <comma-separated>` (defaults to the Tron
+networks, but any network key works), `--json`, and `--strict`.
+
+The script never writes. Correcting a record changes which deployment the log describes, so
+each correction is a decision, not a sweep.
+
+**It only gives a verdict where it can prove one.** Artifacts exist for the working tree
+only, so a record is judged against its own ABI just when the tree still holds the version
+the record names — a plain version means the fork's source is identical to this repo's,
+since [the fork-delta guard](TronFork.md#the-fork-delta-guard) rejects an undeclared
+divergence. Everything else is reported as **unverified**: a `-tron` overlay version, a
+version the tree has moved past, or a version that cannot be read. Those lines carry what
+the working tree's ABI _would_ have said as a lead to chase, never as a verdict — the
+deployed version may have taken a different number of arguments, and acting on the
+working-tree arity would corrupt a correct record. Settle one by reading the constructor at
+the record's `gitCommitHash`.
+
+A contract with no artifact at all (a deprecated one, e.g. `DexManagerFacet`) is reported as
+**unauditable** rather than counted clean, and a run where every record is unauditable exits
+non-zero — a missing build must never read as an audit that found nothing.
+
+Exit codes: non-zero on any conclusive finding, or when every examined record was
+unauditable; `--strict` extends that to unverified and unauditable records. The audit covers
+recorded arguments only — a contract deployed but never recorded is outside it.

@@ -110,7 +110,7 @@ function diamondEMERGENCYPause {
 
   # end script according to return status
   if [ "$RETURN" == 1 ]; then
-    if [[ -z "$EXIT_ON_ERROR" ]]; then
+    if [[ -z "$EXIT_ON_ERROR" || "$EXIT_ON_ERROR" == "false" ]]; then
       return 1
     else
       exit 1

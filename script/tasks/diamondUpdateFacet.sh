@@ -1,5 +1,50 @@
 #!/bin/bash
 
+# Runs the production deploy gate for a cut that is broadcast straight to the
+# diamond instead of proposed to a Safe. The funnel gate in
+# `script/deploy/shared/funnel-deploy-gate.ts` is keyed on proposal calldata and
+# never sees this route, so without this a `SEND_PROPOSALS_DIRECTLY_TO_DIAMOND`
+# bring-up window installs unmerged code on a mainnet diamond unchecked.
+#
+# `getPrivateKey` hands out the production key for every ENVIRONMENT that does
+# not contain "staging", so matching the exact string keeps the gate at least as
+# broad as the key it protects.
+assertDirectBroadcastDeployGate() {
+  local NETWORK="$1"
+  local ENVIRONMENT="$2"
+  local CONTRACT_NAME="$3"
+
+  if [[ "$ENVIRONMENT" == "staging" ]]; then
+    return 0
+  fi
+  # Deploying an unmerged facet to a testnet is how it gets validated before its
+  # audit, and no mainnet Safe or production key is involved.
+  if isTestnetNetwork "$NETWORK"; then
+    return 0
+  fi
+
+  # The gate resolves each name to src/Facets/<name>.sol, so it needs facet
+  # names, not update-script names. UpdateCoreFacets cuts the whole coreFacets
+  # list rather than one facet of its own.
+  local GATE_FACETS
+  if [[ "$CONTRACT_NAME" == "UpdateCoreFacets" ]]; then
+    GATE_FACETS=$(jq -r '.coreFacets[]' config/global.json) || {
+      error "could not read coreFacets from config/global.json"
+      return 1
+    }
+  else
+    GATE_FACETS="${CONTRACT_NAME#Update}"
+  fi
+
+  local GIT_BRANCH
+  GIT_BRANCH=$(git branch --show-current)
+  if ! bunx tsx ./script/deploy/github/verify-approvals.ts --environment "$ENVIRONMENT" --branch "$GIT_BRANCH" --facets "$GATE_FACETS"; then
+    error "Production deploy gate failed for branch '$GIT_BRANCH' - aborting before the cut is broadcast"
+    return 1
+  fi
+  echo "[info] production deploy gate passed (direct broadcast)"
+}
+
 diamondUpdateFacet() {
   # load required resources
   # Note: .env is already sourced in the parent script, so we don't need to source it again
@@ -94,7 +139,10 @@ diamondUpdateFacet() {
   if isZkEvmNetwork "$NETWORK"; then
     SCRIPT_PATH="script/deploy/zksync/$SCRIPT.zksync.s.sol"
     # Check if the foundry-zksync binaries exist, if not fetch them
-    install_foundry_zksync
+    if ! install_foundry_zksync; then
+      error "failed to install or verify foundry-zksync"
+      return 1
+    fi
   else
     SCRIPT_PATH=$DEPLOY_SCRIPT_DIRECTORY"$SCRIPT.s.sol"
   fi
@@ -121,6 +169,13 @@ diamondUpdateFacet() {
   if [[ "$ENVIRONMENT" == "production" && "${SEND_PROPOSALS_DIRECTLY_TO_DIAMOND:-}" != "true" ]] \
      && ! isTestnetNetwork "$NETWORK"; then
     SHOULD_PROPOSE_TO_SAFE=true
+  fi
+
+  # Disjoint from the funnel gate by construction: a proposal is gated on its
+  # calldata inside propose-to-safe.ts, and only the route that never reaches it
+  # is gated here. Evaluated once rather than inside the retry loop below.
+  if [[ "$SHOULD_PROPOSE_TO_SAFE" != "true" ]]; then
+    assertDirectBroadcastDeployGate "$NETWORK" "$ENVIRONMENT" "$CONTRACT_NAME" || return 1
   fi
 
   # update diamond with new facet address (remove/replace of existing selectors happens in update script)

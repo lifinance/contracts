@@ -29,9 +29,12 @@ import {
   decodeFunctionData,
   keccak256,
   encodeAbiParameters,
+  hashMessage,
+  recoverAddress,
   type Address,
   type Hex,
 } from 'viem'
+import { generatePrivateKey, privateKeyToAccount } from 'viem/accounts'
 
 import { getRPCEnvVarName } from '../../utils/utils'
 
@@ -40,6 +43,9 @@ import {
   OperationTypeEnum,
   buildProposalProvenance,
   canExecuteWithNonceStatus,
+  resolveSafeSigningMode,
+  resolveSignerVerificationDisplay,
+  toSafeEthSignSignature,
   classifyDuplicateKeyError,
   pickTimelockSalt,
   wrapWithTimelockSchedule,
@@ -1201,6 +1207,17 @@ describe('releaseAllPooledSafeClients', () => {
 })
 
 describe('SafeClient.signTransaction chain id source', () => {
+  // The flag is required: without it `signTransaction` signs the hash and
+  // never builds an EIP-712 domain, so these cases would not be reached.
+  const previous = process.env.ENABLE_SAFE_EIP712_SIGNING
+  beforeEach(() => {
+    process.env.ENABLE_SAFE_EIP712_SIGNING = 'true'
+  })
+  afterEach(() => {
+    if (previous === undefined) delete process.env.ENABLE_SAFE_EIP712_SIGNING
+    else process.env.ENABLE_SAFE_EIP712_SIGNING = previous
+  })
+
   const makeClient = async (knownChainId?: number) => {
     const { SafeClient } = await import('./safe-utils')
     const { privateKeyToAccount } = await import('viem/accounts')
@@ -2003,5 +2020,309 @@ describe('wrapWithTimelockSchedule', () => {
       else process.env[envKey] = previousRpc
       stub.stop()
     }
+  })
+})
+
+describe('resolveSafeSigningMode', () => {
+  it('signs the transaction hash by default', () => {
+    // The device shows one value the signer can compare against the
+    // out-of-band DM, instead of five fields it renders inconsistently.
+    expect(resolveSafeSigningMode({})).toBe('hash')
+  })
+
+  it.each([['true'], ['TRUE'], ['1'], ['yes'], ['false'], ['']])(
+    'still signs the hash when the retired hash flag is set to %p',
+    (value) => {
+      // Honouring this flag either way would let a stale `=false` silently
+      // opt an operator back into typed data.
+      expect(
+        resolveSafeSigningMode({ ENABLE_SAFE_TX_HASH_SIGNING: value })
+      ).toBe('hash')
+    }
+  )
+
+  it('signs typed data only when explicitly asked', () => {
+    expect(resolveSafeSigningMode({ ENABLE_SAFE_EIP712_SIGNING: 'true' })).toBe(
+      'eip712'
+    )
+  })
+
+  it.each([['false'], ['TRUE'], ['1'], ['yes'], [''], [undefined]])(
+    'treats %p as not asking for typed data',
+    (value) => {
+      // Exact 'true' only, matching how every other escape hatch in this file
+      // reads its flag. Anything else is a typo, and a typo must not change the
+      // mode a hardware wallet renders.
+      expect(
+        resolveSafeSigningMode({ ENABLE_SAFE_EIP712_SIGNING: value })
+      ).toBe('hash')
+    }
+  )
+})
+
+describe('toSafeEthSignSignature', () => {
+  const R = `0x${'11'.repeat(32)}` as Hex
+  const S = '22'.repeat(32)
+
+  it.each([
+    ['1b', '1f'],
+    ['1c', '20'],
+  ])('marks v=%s as an eth_sign signature (%s)', (rawV, expectedV) => {
+    // Safe reads v > 30 as eth_sign and recovers over the EIP-191 digest with
+    // v - 4. 27 becomes 31, 28 becomes 32.
+    expect(toSafeEthSignSignature(`${R}${S}${rawV}` as Hex)).toBe(
+      `${R}${S}${expectedV}`
+    )
+  })
+
+  it.each([
+    ['00', '1f'],
+    ['01', '20'],
+  ])('normalises a v=%s wallet before marking it (%s)', (rawV, expectedV) => {
+    // A wallet returning 0/1 used to have 4 added blindly, giving v=4 or v=5 —
+    // which Safe reads as a contract signature and an approved hash, not as
+    // eth_sign at all.
+    expect(toSafeEthSignSignature(`${R}${S}${rawV}` as Hex)).toBe(
+      `${R}${S}${expectedV}`
+    )
+  })
+
+  it.each([['1f'], ['20'], ['02'], ['ff']])(
+    'refuses a v of %s rather than marking it twice',
+    (rawV) => {
+      expect(() => toSafeEthSignSignature(`${R}${S}${rawV}` as Hex)).toThrow()
+    }
+  )
+
+  it.each([
+    ['too short', `0x${'11'.repeat(64)}`],
+    // Both carry a valid recovery id at the v position on purpose: an input
+    // that fails the recovery-id check instead would pass this test whatever
+    // the length and prefix checks did.
+    ['too long behind a valid v', `0x${'11'.repeat(32)}${'22'.repeat(32)}1bff`],
+    [
+      'the right length without the prefix',
+      `aa${'11'.repeat(32)}${'22'.repeat(32)}1b`,
+    ],
+    ['not hex at all', 'not-a-signature'],
+  ])('refuses a signature that is %s', (_label, value) => {
+    expect(() => toSafeEthSignSignature(value as Hex)).toThrow()
+  })
+
+  it('produces a signature the Safe v>30 path recovers to the signer', async () => {
+    // The end-to-end claim, with an ephemeral key generated here: sign the Safe
+    // transaction hash the way this module frames it, then recover the way
+    // `checkNSignatures` does for v > 30 — EIP-191 digest, v - 4.
+    const account = privateKeyToAccount(generatePrivateKey())
+    const safeTxHash = keccak256('0xdeadbeef')
+    const raw = await account.signMessage({ message: { raw: safeTxHash } })
+    const framed = toSafeEthSignSignature(raw)
+
+    const v = parseInt(framed.slice(130, 132), 16)
+    expect(v).toBeGreaterThan(30)
+
+    const recovered = await recoverAddress({
+      hash: hashMessage({ raw: safeTxHash }),
+      signature: `${framed.slice(0, 130)}${(v - 4)
+        .toString(16)
+        .padStart(2, '0')}` as Hex,
+    })
+    expect(recovered).toBe(account.address)
+  })
+})
+
+describe('toSafeEthSignSignature input validation', () => {
+  it.each([
+    ['non-hex r and s', `0x${'z'.repeat(128)}1b`],
+    ['a space in v', `0x${'ab'.repeat(64)} 1`],
+    ['a sign in v', `0x${'ab'.repeat(64)}+1`],
+  ])('refuses %s', (_label, signature) => {
+    // parseInt would read " 1" and "+1" as 1, so the shape has to be checked
+    // before v is parsed out of it. The message must not report the length as
+    // the problem when the length is correct.
+    expect(() => toSafeEthSignSignature(signature as `0x${string}`)).toThrow(
+      /not all hex/u
+    )
+  })
+
+  it('reports the length when the length is what is wrong', () => {
+    expect(() => toSafeEthSignSignature('0xabcd')).toThrow(/got 6 characters/u)
+  })
+})
+
+describe('resolveSignerVerificationDisplay', () => {
+  it('points a hash-mode signer at the hash screen, with or without calldata', () => {
+    expect(resolveSignerVerificationDisplay('hash', false, '0xdeadbeef')).toBe(
+      'hash-compare'
+    )
+    expect(resolveSignerVerificationDisplay('hash', false, '0x')).toBe(
+      'hash-compare'
+    )
+    expect(resolveSignerVerificationDisplay('hash', false, undefined)).toBe(
+      'hash-compare'
+    )
+  })
+
+  it('shows the filmstrip for typed data with calldata', () => {
+    expect(
+      resolveSignerVerificationDisplay('eip712', false, '0xdeadbeef')
+    ).toBe('filmstrip')
+  })
+
+  it.each([['0x'], [''], [undefined]])(
+    'shows nothing for typed data whose calldata is %p',
+    (callData) => {
+      // The device renders typed-data screens here, so naming the single hash
+      // screen would send the signer to compare against a screen this mode
+      // never shows.
+      expect(resolveSignerVerificationDisplay('eip712', false, callData)).toBe(
+        'none'
+      )
+    }
+  )
+
+  it('still points a Tron hash-mode signer at the hash screen', () => {
+    // Signing does not branch on the network, so a Tron signer compares the
+    // same value on the same device. Only the Flex filmstrip is EVM-specific.
+    expect(resolveSignerVerificationDisplay('hash', true, '0xdeadbeef')).toBe(
+      'hash-compare'
+    )
+  })
+
+  it('shows no filmstrip on Tron in typed-data mode', () => {
+    expect(resolveSignerVerificationDisplay('eip712', true, '0xdeadbeef')).toBe(
+      'none'
+    )
+  })
+})
+
+describe('SafeClient.signTransaction default path', () => {
+  const previous = process.env.ENABLE_SAFE_EIP712_SIGNING
+  beforeEach(() => {
+    delete process.env.ENABLE_SAFE_EIP712_SIGNING
+  })
+  afterEach(() => {
+    if (previous === undefined) delete process.env.ENABLE_SAFE_EIP712_SIGNING
+    else process.env.ENABLE_SAFE_EIP712_SIGNING = previous
+  })
+
+  const SAFE_TX_HASH = keccak256('0xfeed')
+
+  const makeClient = async () => {
+    const { SafeClient } = await import('./safe-utils')
+    const account = privateKeyToAccount(generatePrivateKey())
+    const calls: string[] = []
+    const hashArgs: unknown[][] = []
+    const publicClient = {
+      readContract: async (params: {
+        functionName: string
+        args: unknown[]
+      }) => {
+        calls.push(params.functionName)
+        hashArgs.push(params.args)
+        return SAFE_TX_HASH
+      },
+      getChainId: async () => {
+        calls.push('getChainId')
+        return 999
+      },
+    }
+    const walletClient = {
+      signMessage: async ({ message }: { message: { raw: Hex } }) => {
+        calls.push(`signMessage:${message.raw}`)
+        return account.signMessage({ message: { raw: message.raw } })
+      },
+      signTypedData: async () => {
+        calls.push('signTypedData')
+        return `0x${'ab'.repeat(65)}`
+      },
+    }
+    const client = new SafeClient(
+      publicClient as never,
+      walletClient as never,
+      SAFE_ADDR,
+      account,
+      undefined,
+      42161
+    )
+    return { client, account, calls, hashArgs }
+  }
+
+  it('signs the Safe transaction hash, not typed data', async () => {
+    const { client, account, calls } = await makeClient()
+
+    const signed = await client.signTransaction(buildSafeTx())
+
+    expect(calls).toContain('getTransactionHash')
+    expect(calls).toContain(`signMessage:${SAFE_TX_HASH}`)
+    expect(calls).not.toContain('signTypedData')
+    expect(signed.signatures.get(account.address.toLowerCase())).toBeDefined()
+  })
+
+  it('asks the Safe to hash the transaction it is about to sign', async () => {
+    // This argument list is the only thing that decides what gets signed, so
+    // nothing downstream would notice a wrong field.
+    const { client, hashArgs } = await makeClient()
+    const safeTx = buildSafeTx({ nonce: 7n, value: 123n })
+
+    await client.signTransaction(safeTx)
+
+    expect(hashArgs).toHaveLength(1)
+    expect(hashArgs[0]).toEqual([
+      safeTx.data.to,
+      safeTx.data.value,
+      safeTx.data.data,
+      safeTx.data.operation,
+      0n,
+      0n,
+      0n,
+      '0x0000000000000000000000000000000000000000',
+      '0x0000000000000000000000000000000000000000',
+      safeTx.data.nonce,
+    ])
+  })
+  it('marks the signature so the Safe takes its eth_sign path', async () => {
+    const { client, account } = await makeClient()
+
+    const signed = await client.signTransaction(buildSafeTx())
+    const data =
+      signed.signatures.get(account.address.toLowerCase())?.data ?? ''
+    const v = parseInt(data.slice(130, 132), 16)
+
+    expect(v).toBeGreaterThan(30)
+    expect(
+      await recoverAddress({
+        hash: hashMessage({ raw: SAFE_TX_HASH }),
+        signature: `${data.slice(0, 130)}${(v - 4)
+          .toString(16)
+          .padStart(2, '0')}` as Hex,
+      })
+    ).toBe(account.address)
+  })
+
+  it('does not fall back to hash signing when typed data fails', async () => {
+    // Must opt into typed data and break it: asserting from the hash side
+    // would pass whether or not a fallback exists. A mid-flow switch would
+    // re-prompt the device in a different rendering, so a signer who had read
+    // one screen would approve another.
+    process.env.ENABLE_SAFE_EIP712_SIGNING = 'true'
+    const { client, calls } = await makeClient()
+    const failing = client as unknown as {
+      walletClient: { signTypedData: () => Promise<never> }
+    }
+    failing.walletClient.signTypedData = async () => {
+      throw new Error('device refused')
+    }
+
+    let threw = false
+    try {
+      await client.signTransaction(buildSafeTx())
+    } catch {
+      threw = true
+    }
+
+    expect(threw).toBe(true)
+    expect(calls.filter((call) => call.startsWith('signMessage'))).toEqual([])
+    expect(calls).not.toContain('getTransactionHash')
   })
 })

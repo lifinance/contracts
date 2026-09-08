@@ -275,6 +275,99 @@ export const retry = async <T>(
  * plus optional {@link TronWalletClient} for Tron TVM broadcast (`wallet/triggersmartcontract`).
  * The same private key backs both paths when initialized from `privateKey`.
  */
+
+/** How a Safe transaction is presented to the signing device. */
+export type SafeSigningMode = 'hash' | 'eip712'
+
+/**
+ * Which signing mode to use.
+ *
+ * Hash signing is the default: the device shows the one `safeTxHash` a signer
+ * compares against the out-of-band message, rather than a typed-data payload
+ * that hardware wallets render inconsistently and reject outright when it grows
+ * large.
+ *
+ * @param env - Environment to read, normally `process.env`.
+ * @returns The mode. `ENABLE_SAFE_TX_HASH_SIGNING` is deliberately not read, so
+ * that a stale `=false` cannot opt an operator back into typed data.
+ */
+export function resolveSafeSigningMode(
+  env: Record<string, string | undefined>
+): SafeSigningMode {
+  return env['ENABLE_SAFE_EIP712_SIGNING'] === 'true' ? 'eip712' : 'hash'
+}
+
+/** Which on-device verification aid to show the signer. */
+export type SignerVerificationDisplay = 'filmstrip' | 'hash-compare' | 'none'
+
+/**
+ * Chooses the verification aid for a pending transaction.
+ *
+ * The signer must be pointed at a screen the device actually renders, so this
+ * follows the signing mode rather than the shape of the transaction. Typed data
+ * with no calldata has no screens to reproduce, and naming the single hash
+ * screen there would describe a mode the device is not in.
+ *
+ * Signing does not branch on the network — `signTransaction` dispatches on the
+ * mode alone — so a Tron signer compares the same hash on the same device. Only
+ * the Flex typed-data filmstrip is EVM-specific.
+ *
+ * @param mode - The resolved signing mode.
+ * @param isTron - Whether the network is Tron, where the Flex flow does not apply.
+ * @param callData - The Safe transaction's calldata, if any.
+ * @returns The aid to display.
+ */
+export function resolveSignerVerificationDisplay(
+  mode: SafeSigningMode,
+  isTron: boolean,
+  callData: string | undefined
+): SignerVerificationDisplay {
+  if (mode === 'hash') return 'hash-compare'
+  if (isTron) return 'none'
+  return callData && callData !== '0x' ? 'filmstrip' : 'none'
+}
+
+/** `v` values a wallet may return, and what each means before framing. */
+const RECOVERY_IDS = new Map([
+  [0, 27],
+  [1, 28],
+  [27, 27],
+  [28, 28],
+])
+
+/**
+ * Marks a signature as `eth_sign` for a Safe.
+ *
+ * `checkNSignatures` treats `v > 30` as eth_sign and recovers over the EIP-191
+ * digest with `v - 4`, so 27 and 28 become 31 and 32.
+ *
+ * @param signature - A 65-byte signature as returned by the wallet.
+ * @returns The same r and s with the marked `v`.
+ * @throws When the signature is not 65 hex-encoded bytes, or carries a `v` that
+ * is not a recovery id. `v` must be normalised rather than incremented: Safe
+ * reads a `v` below 27 as a contract signature or an approved hash, so a wallet
+ * answering `v=0` would otherwise be marked as `v=4`, and an already-marked
+ * signature would be marked a second time.
+ */
+export function toSafeEthSignSignature(signature: Hex): Hex {
+  if (!/^0x[0-9a-fA-F]{130}$/.test(signature))
+    throw new Error(
+      signature.length === 132
+        ? `Expected a 65-byte signature as 0x + 130 hex characters, got 132 characters that are not all hex: ${signature}`
+        : `Expected a 65-byte signature as 0x + 130 hex characters, got ${signature.length} characters`
+    )
+
+  const recoveryId = RECOVERY_IDS.get(parseInt(signature.slice(130, 132), 16))
+  if (recoveryId === undefined)
+    throw new Error(
+      `Signature carries v=0x${signature.slice(
+        130,
+        132
+      )}, which is not a recovery id. Safe reads v below 27 as a contract signature or an approved hash, and v above 30 as already marked for eth_sign.`
+    )
+
+  return `${signature.slice(0, 130)}${(recoveryId + 4).toString(16)}` as Hex
+}
 export class SafeClient {
   /**
    * Public client for read operations
@@ -702,21 +795,7 @@ export class SafeClient {
           `Invalid signature format from wallet. Expected 0x + 130 hex chars but got: ${ethSignSignature}`
         )
 
-      // Extract r, s, v components from the signature
-      const r = ethSignSignature.slice(0, 66)
-      const s = ethSignSignature.slice(66, 130)
-
-      // Get v value from the signature and adjust for eth_sign
-      const vByte = ethSignSignature.slice(130, 132)
-      const vValue = parseInt(vByte, 16)
-
-      // For eth_sign signatures in Safe contracts, we need to add +4 to v
-      // This identifies it as an eth_sign signature (type 1)
-      const safeV = (vValue + 4).toString(16).padStart(2, '0')
-
-      // Format for Safe contract: r + s + v
-      // Safe expects signatures in format: r (32 bytes) + s (32 bytes) + v (1 byte)
-      const safeSignature = `0x${r.slice(2)}${s}${safeV}` as Hex
+      const safeSignature = toSafeEthSignSignature(ethSignSignature)
 
       console.log('Safe signature:', safeSignature)
 
@@ -732,12 +811,12 @@ export class SafeClient {
   }
 
   /**
-   * Alternative signing path: sign the Safe transaction hash via eth_sign
-   * instead of EIP-712 typed data.
+   * Signs the Safe transaction hash via eth_sign. This is the default path;
+   * EIP-712 typed data is the opt-in.
    *
-   * This is useful for hardware wallets (e.g. Ledger) that may reject very
-   * large EIP-712 payloads (status 0x6a80). The Safe contracts fully support
-   * eth_sign signatures over the Safe transaction hash.
+   * Hardware wallets (e.g. Ledger) reject very large EIP-712 payloads (status
+   * 0x6a80). The Safe contracts fully support eth_sign signatures over the Safe
+   * transaction hash.
    */
   public async signTransactionWithHash(
     safeTx: ISafeTransaction
@@ -765,18 +844,13 @@ export class SafeClient {
   public async signTransaction(
     safeTx: ISafeTransaction
   ): Promise<ISafeTransaction> {
-    // Optional flag to force tx-hash signing from the start instead of EIP-712
-    // typed data. Read directly from process.env so an unset flag does not
-    // throw — tx-hash signing also runs automatically as a fallback whenever
-    // the EIP-712 path fails.
-    if (process.env.ENABLE_SAFE_TX_HASH_SIGNING === 'true') {
+    if (resolveSafeSigningMode(process.env) === 'hash')
       return this.signTransactionWithHash(safeTx)
-    }
 
-    try {
-      // Get chain ID for domain — prefer the config-resolved id so the hot
-      // path between the operator's "Sign" selection and the Ledger prompt
-      // makes no RPC call (a cold connection here delays the device display)
+    {
+      // Prefer the config-resolved id so this path makes no RPC call between
+      // the operator's "Sign" selection and the Ledger prompt (a cold
+      // connection here delays the device display)
       const chainId =
         this.knownChainId ?? (await this.publicClient.getChainId())
 
@@ -834,12 +908,6 @@ export class SafeClient {
       safeTx.signatures.set(signature.signer.toLowerCase(), signature)
 
       return safeTx
-    } catch (error: unknown) {
-      const errorMsg = error instanceof Error ? error.message : String(error)
-      consola.warn(
-        `[safe-utils] EIP-712 signing failed, falling back to tx-hash signing. Caught error: ${errorMsg}`
-      )
-      return this.signTransactionWithHash(safeTx)
     }
   }
 

@@ -7,6 +7,7 @@ deploySingleContract() {
   # load helper functions
   source script/helperFunctions.sh
   source script/deploy/resources/contractSpecificReminders.sh # pre-commit-checker: not a secret
+  source script/deploy/shared/assertTreeRecordable.sh
 
   # read function arguments into variables
   local CONTRACT="$1"
@@ -44,6 +45,28 @@ deploySingleContract() {
       ENVIRONMENT="production"
     else
       ENVIRONMENT="staging"
+    fi
+  fi
+
+  # Also checked at the shared executeAndParse seam, but the zk path below builds and
+  # derives the CREATE2 salt through forge before reaching it.
+  if ! assertFoundryVersionOrFail; then
+    if [[ -z "$EXIT_ON_ERROR" || "$EXIT_ON_ERROR" == "false" ]]; then
+      return 1
+    else
+      exit 1
+    fi
+  fi
+
+  # A deployment record claims that rebuilding at its commit reproduces the deployed
+  # bytecode. Checked here rather than beside the record write: the deployment logger
+  # runs after the deploy, so a refusal there would lose a deployment instead of
+  # preventing one.
+  if ! assertTreeRecordableOrFail "$ENVIRONMENT"; then
+    if [[ -z "$EXIT_ON_ERROR" || "$EXIT_ON_ERROR" == "false" ]]; then
+      return 1
+    else
+      exit 1
     fi
   fi
 
@@ -130,7 +153,7 @@ deploySingleContract() {
   # check if deploy script exists
   if ! checkIfFileExists "$FULL_SCRIPT_PATH" >/dev/null; then
     error "could not find deploy script for $CONTRACT in this path: $FULL_SCRIPT_PATH". Aborting deployment.
-    if [[ -z "$EXIT_ON_ERROR" ]]; then
+    if [[ -z "$EXIT_ON_ERROR" || "$EXIT_ON_ERROR" == "false" ]]; then
       return 1
     else
       exit 1
@@ -233,7 +256,7 @@ deploySingleContract() {
 
     # do not continue if data required for deployment is missing
     if [ $? -ne 0 ]; then
-      if [[ -z "$EXIT_ON_ERROR" || $EXIT_ON_ERROR == "false" ]]; then
+      if [[ -z "$EXIT_ON_ERROR" || "$EXIT_ON_ERROR" == "false" ]]; then
         return 1
       else
         exit 1
