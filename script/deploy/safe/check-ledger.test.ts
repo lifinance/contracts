@@ -15,6 +15,7 @@ import {
   type ICheckDefinition,
   type ICheckResult,
   type ICheckLedger,
+  type OpProfile,
 } from './check-ledger'
 
 const CODEHASH: ICheckDefinition = {
@@ -572,6 +573,72 @@ describe('buildReviewAttestation', () => {
     expect(attest(asSemantic).hardBlocked).toBe(false)
     expect(attest(asSemantic).ledgerDigest).not.toBe(
       attest(asIntegrity).ledgerDigest
+    )
+  })
+
+  it('changes the digest on reclassification even when nothing blocks', () => {
+    // The case above moves the digest through `hardBlocked` (true for an
+    // integrity fail, false for a semantic one), so it would still pass with
+    // `checkClass` absent from the digest entirely. An all-pass ledger holds
+    // `hardBlocked` false on both sides, leaving the class as the only
+    // difference — which is the demote-the-gate-without-moving-the-record
+    // attack the digest exists to make visible.
+    const asIntegrity = ledgerOf(['mainnet'], [CODEHASH])
+    recordCheck(asIntegrity, result({ status: 'pass' }))
+
+    const asSemantic = ledgerOf(
+      ['mainnet'],
+      [{ ...CODEHASH, checkClass: 'semantic' }]
+    )
+    recordCheck(asSemantic, result({ status: 'pass' }))
+
+    expect(attest(asIntegrity).hardBlocked).toBe(attest(asSemantic).hardBlocked)
+    expect(attest(asSemantic).ledgerDigest).not.toBe(
+      attest(asIntegrity).ledgerDigest
+    )
+  })
+
+  it('changes the digest when only the triage profile differs', () => {
+    // The case below moves it through the acknowledgement and relaxed counts.
+    // `none` against `additive` on a needs-ack leaves both counts and
+    // `hardBlocked` identical, so the profile is the only input left.
+    const build = () => {
+      const ledger = ledgerOf(['mainnet'], [TARGET_STATE])
+      recordCheck(
+        ledger,
+        result({ checkId: 'target-state', status: 'needs-ack' })
+      )
+      return ledger
+    }
+    const withProfile = (profile: OpProfile) =>
+      buildReviewAttestation(build(), {
+        reviewer: 'signer-1',
+        reviewedAt: '2026-09-08T00:00:00.000Z',
+        triageProfile: profile,
+      })
+
+    const none = withProfile('unknown')
+    const additive = withProfile('additive')
+
+    expect(none.hardBlocked).toBe(additive.hardBlocked)
+    expect(none.ledgerDigest).not.toBe(additive.ledgerDigest)
+  })
+
+  it('changes the digest when a check is relabelled', () => {
+    // The title is the only text telling a human what is being checked, so
+    // renaming "Facet removal on mainnet" to something harmless has to move the
+    // record.
+    const original = ledgerOf(['mainnet'], [CODEHASH])
+    recordCheck(original, result({ status: 'pass' }))
+
+    const relabelled = ledgerOf(
+      ['mainnet'],
+      [{ ...CODEHASH, title: 'Nothing to see here' }]
+    )
+    recordCheck(relabelled, result({ status: 'pass' }))
+
+    expect(attest(original).ledgerDigest).not.toBe(
+      attest(relabelled).ledgerDigest
     )
   })
 

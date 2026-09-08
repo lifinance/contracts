@@ -608,3 +608,60 @@ describe('what the gate round found', () => {
     expect(lines.join('\n')).toContain('GREEN')
   })
 })
+
+describe('the closing line always carries the coverage figure', () => {
+  it('reports N/N when blocked, not only when green', () => {
+    // A verdict line that shows the denominator only on success hides it in
+    // exactly the case that matters — the run that verified 56 of 57.
+    const ledger = ledgerOf(['mainnet', 'polygon'], [CODEHASH])
+    recordCheck(ledger, result({ network: 'mainnet' }))
+    recordCheck(
+      ledger,
+      result({ network: 'polygon', status: 'fail', actual: '0xbbb' })
+    )
+
+    const verdict = renderCheckLedger(ledger).at(-1) ?? ''
+
+    expect(verdict).toContain('BLOCKED')
+    expect(verdict).toContain('1/2 network results verified')
+    // The internal ruling id told a signer nothing.
+    expect(verdict).not.toContain('(T3)')
+  })
+
+  it('reports N/N when a review is awaited', () => {
+    const ledger = ledgerOf(['mainnet', 'polygon'], [TARGET_STATE])
+    recordCheck(ledger, result({ checkId: 'target-state', network: 'mainnet' }))
+    recordCheck(
+      ledger,
+      result({
+        checkId: 'target-state',
+        network: 'polygon',
+        status: 'needs-ack',
+      })
+    )
+
+    const verdict = renderCheckLedger(ledger).at(-1) ?? ''
+
+    expect(verdict).toContain('ACKNOWLEDGEMENT REQUIRED')
+    expect(verdict).toContain('1/2 network results verified')
+  })
+
+  it('reports N/N when triage cleared the only review', () => {
+    const ledger = ledgerOf(['mainnet', 'polygon'], [TARGET_STATE])
+    recordCheck(ledger, result({ checkId: 'target-state', network: 'mainnet' }))
+    recordCheck(
+      ledger,
+      result({
+        checkId: 'target-state',
+        network: 'polygon',
+        status: 'needs-ack',
+      })
+    )
+
+    const verdict =
+      renderCheckLedger(ledger, { triageProfile: 'subtractive' }).at(-1) ?? ''
+
+    expect(verdict).toContain('NO BLOCKING RESULT')
+    expect(verdict).toContain('1/2 network results verified')
+  })
+})

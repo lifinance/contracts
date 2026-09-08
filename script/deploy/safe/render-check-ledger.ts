@@ -216,6 +216,14 @@ function renderVerdict(
   verdict: ILedgerVerdict,
   rollups: ICheckRollup[]
 ): string {
+  const passed = rollups.reduce((sum, rollup) => sum + rollup.passed, 0)
+  const expected = rollups.reduce((sum, rollup) => sum + rollup.expected, 0)
+  // On every verdict, not only the green one. A closing line carrying the
+  // coverage figure only when everything passed is the shape this package
+  // exists to remove: the run that verified 56 of 57 is precisely the one whose
+  // denominator has to be visible.
+  const coverage = `${passed}/${expected} network results verified`
+
   const relaxedNote =
     verdict.relaxed.length > 0
       ? ` · ${verdict.relaxed.length} ${RELAXED_LABEL}`
@@ -233,7 +241,7 @@ function renderVerdict(
         'blocking result'
       )} (${unverified} unverified, ${
         verdict.blocking.length - unverified
-      } integrity mismatch) · no acknowledgement path (T3)${relaxedNote}`
+      } integrity mismatch) · no acknowledgement path${relaxedNote} · ${coverage}`
     )
   }
 
@@ -243,17 +251,17 @@ function renderVerdict(
       `VERDICT: ACKNOWLEDGEMENT REQUIRED — ${plural(
         verdict.requiresAcknowledgement.length,
         'result'
-      )} awaiting review${relaxedNote}`
+      )} awaiting review${relaxedNote} · ${coverage}`
     )
 
   if (verdict.relaxed.length > 0)
     return color(
       YELLOW,
-      `VERDICT: NO BLOCKING RESULT —${relaxedNote.replace(' · ', ' ')}`
+      `VERDICT: NO BLOCKING RESULT —${relaxedNote.replace(
+        ' · ',
+        ' '
+      )} · ${coverage}`
     )
-
-  const passed = rollups.reduce((sum, rollup) => sum + rollup.passed, 0)
-  const expected = rollups.reduce((sum, rollup) => sum + rollup.expected, 0)
 
   return color(
     GREEN,
