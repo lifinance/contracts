@@ -30,8 +30,10 @@ const CYAN = '\u001b[36m'
 const RESET = '\u001b[0m'
 
 /**
- * Code points that render as zero width while counting as printable text —
- * U+200D and the Hangul fillers among them.
+ * Code points a renderer is meant to pass over rather than draw — U+200D and
+ * the Hangul fillers among them. The sanitiser keeps them because they are
+ * printable letters and separators, not control or formatting characters, so
+ * a value can differ from another only by these and print identically.
  */
 const DEFAULT_IGNORABLE = /\p{Default_Ignorable_Code_Point}/gu
 
@@ -52,10 +54,14 @@ export interface IParkedTaskRef {
 /**
  * What the block renders.
  *
- * The `unknown` fields are read straight off the stored row and are sanitised
- * here. The `string` fields already carry colour codes, so they cannot be
- * sanitised without stripping those, and are interpolated as-is: a stored value
- * may only reach one of them already sanitised by the caller.
+ * Every field carrying a value off the stored row is typed `unknown` and is
+ * sanitised here. The addresses are taken raw and composed here rather than
+ * pre-rendered by the caller, because a caller that sanitises them itself
+ * leaves this block unable to tell that it did — and so unable to say so.
+ *
+ * The remaining `string` fields carry colour codes of their own and so cannot
+ * be sanitised without stripping those. Each is either a constant or derived
+ * from repository configuration; none may carry a stored value.
  */
 export interface ISafeTxDetailInput {
   readonly nonce: unknown
@@ -63,15 +69,19 @@ export interface ISafeTxDetailInput {
   readonly nonceColor: string
   /** Pre-rendered warning appended after the nonce, or empty. */
   readonly nonceWarning: string
-  /** Pre-rendered target: address, optional Tron suffix, optional name. */
-  readonly toDisplay: string
-  /** Pre-rendered explorer link appended inside the target's colour. */
-  readonly toExplorerSuffix: string
+  /** The target as stored. */
+  readonly to: unknown
+  /** Name for the target from the repository's deployment records, or empty. */
+  readonly toTargetName: string
+  /** Renders an address the way this network displays it. */
+  readonly formatAddress: (address: string) => string
+  /** Explorer link for the sanitised target, or empty when there is none. */
+  readonly explorerUrlFor: (address: string) => string
   readonly value: unknown
   /** Pre-rendered operation, already sanitised by `describeOperationValue`. */
   readonly operationLabel: string
   readonly data: unknown
-  /** The proposer address as the caller formats it for this network. */
+  /** The proposer as stored. */
   readonly proposer: unknown
   readonly safeTxHash: unknown
   readonly signatureCount: number
@@ -106,47 +116,72 @@ const asPrintable = (value: unknown): IRenderedField => {
   }
 
   const text = sanitizeProvenanceText(stored)
+  const remarks: string[] = []
 
-  if (text !== stored) {
-    // Lengths in code points, the unit a reader counts: two rows that render
-    // identically differ only in this number, which is the whole reason it is
-    // printed. Reporting UTF-16 units instead would call a two-emoji value
-    // four characters.
-    const detail =
+  if (text !== stored)
+    // Lengths in code points, the unit a reader counts. They can be equal — a
+    // newline collapses to a space one for one — so the fact that the value
+    // was changed at all is stated separately from the counts.
+    remarks.push(
       text === ''
         ? 'no printable characters'
-        : `stored ${[...stored].length}, shown ${[...text].length}`
-    return {
-      text,
-      notice: color(YELLOW, ` ⚠ sanitised for display — ${detail}`),
-    }
-  }
+        : `sanitised for display — stored ${[...stored].length}, shown ${
+            [...text].length
+          }`
+    )
 
-  // Nothing needed stripping, and the value can still be hiding from the
-  // reader. These code points are printable letters and separators rather than
-  // control or formatting characters, so the sanitiser passes them through by
-  // design, yet they occupy no width — two rows carrying different values can
-  // print the same glyphs. Unicode names the class, so this is a defined set
-  // rather than a blocklist that has to be extended each time one is found.
+  // Reported even when nothing was stripped: these survive the sanitiser, so
+  // two values differing only by them render identically with no other sign.
   const hidden = (text.match(DEFAULT_IGNORABLE) ?? []).length
   if (hidden > 0)
-    return {
-      text,
-      notice: color(
-        YELLOW,
-        ` ⚠ ${hidden} invisible character${
-          hidden === 1 ? '' : 's'
-        } in a value of ${[...text].length}`
-      ),
-    }
+    remarks.push(
+      `${hidden} invisible character${hidden === 1 ? '' : 's'} in a value of ${
+        [...text].length
+      }`
+    )
 
-  return { text, notice: '' }
+  // An empty string is a legitimate stored value; an array or an object that
+  // stringifies to nothing is a malformed row that would otherwise render as
+  // an ordinary blank field.
+  if (text === '' && typeof value !== 'string' && value !== undefined)
+    remarks.push(`empty ${Array.isArray(value) ? 'array' : typeof value}`)
+
+  return {
+    text,
+    notice: remarks.length > 0 ? color(YELLOW, ` ⚠ ${remarks.join('; ')}`) : '',
+  }
 }
 
 /** Renders a stored field inside `code`, with its notice outside the colour. */
 const storedField = (value: unknown, code: string): string => {
   const { text, notice } = asPrintable(value)
   return `${color(code, text)}${notice}`
+}
+
+/**
+ * Renders a stored address through the network's own display form.
+ *
+ * Sanitised before formatting, not after: the formatter is a pass-through on
+ * every network but Tron, and Tron's trims, so neither removes anything.
+ */
+function formattedAddressField(
+  value: unknown,
+  formatAddress: (address: string) => string
+): string {
+  const { text, notice } = asPrintable(value)
+  return `${color(GREEN, formatAddress(text))}${notice}`
+}
+
+/** The target, its name from the deployment records, and its explorer link. */
+function toLine(input: ISafeTxDetailInput): string {
+  const { text, notice } = asPrintable(input.to)
+  const name = input.toTargetName ? ` ${color(YELLOW, input.toTargetName)}` : ''
+  const url = input.explorerUrlFor(text)
+  const link = url ? ` ${color(CYAN, url)}` : ''
+  return `${color(
+    GREEN,
+    `${input.formatAddress(text)}${name}${link}`
+  )}${notice}`
 }
 
 /**
@@ -178,14 +213,14 @@ export function buildSafeTxDetailLines(input: ISafeTxDetailInput): string[] {
       'Nonce',
       storedField(input.nonce, `\u001b[${input.nonceColor}m`)
     )}${input.nonceWarning}`,
-    detailLine(
-      'To',
-      color(GREEN, `${input.toDisplay}${input.toExplorerSuffix}`)
-    ),
+    detailLine('To', toLine(input)),
     detailLine('Value', storedField(input.value, GREEN)),
     detailLine('Operation', color(GREEN, input.operationLabel)),
     detailLine('Data', storedField(input.data, GREEN)),
-    detailLine('Proposer', storedField(input.proposer, GREEN)),
+    detailLine(
+      'Proposer',
+      formattedAddressField(input.proposer, input.formatAddress)
+    ),
     detailLine('Safe Tx Hash', storedField(input.safeTxHash, CYAN)),
     detailLine(
       'Signatures',

@@ -29,8 +29,10 @@ const benign: ISafeTxDetailInput = {
   nonce: '31',
   nonceColor: '32',
   nonceWarning: '',
-  toDisplay: '0x11f1022cA6AdEF6400e5677528a80d49a069C00c',
-  toExplorerSuffix: '',
+  to: '0x11f1022cA6AdEF6400e5677528a80d49a069C00c',
+  toTargetName: '',
+  formatAddress: (address: string) => address,
+  explorerUrlFor: () => '',
   value: '0',
   operationLabel: 'Call',
   data: '0xdeadbeef',
@@ -67,6 +69,7 @@ describe('no proposer-controlled field can drive the signer’s terminal', () =>
     { field: 'data', label: 'Data:' },
     { field: 'safeTxHash', label: 'Safe Tx Hash:' },
     { field: 'proposer', label: 'Proposer:' },
+    { field: 'to', label: 'To:' },
     { field: 'nonce', label: 'Nonce:' },
     { field: 'value', label: 'Value:' },
   ]
@@ -141,6 +144,44 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
     ).toContain('2 invisible characters in a value of 6')
   })
 
+  it('still marks a hostile value after the network formatter runs', () => {
+    // The formatter is applied to the sanitised text, so a value that needed
+    // sanitising must still say so on the address lines.
+    for (const [field, label] of [
+      ['to', 'To:'],
+      ['proposer', 'Proposer:'],
+    ] as const) {
+      const line = lineStartingWith(
+        buildSafeTxDetailLines({
+          ...benign,
+          [field]: '0x1\u200b2',
+          formatAddress: (address: string) => `${address} (0x41…)`,
+        }),
+        label
+      )
+      expect(line).toContain('stored 5, shown 4')
+      expect(line).toContain('(0x41…)')
+    }
+  })
+
+  it('reports a stripped character and a surviving invisible one together', () => {
+    // Either alone is disclosed; a value carrying both must not have the
+    // second silenced by the first.
+    const line = lineStartingWith(linesFor({ data: '0x1\r\u200d2' }), 'Data:')
+
+    expect(line).toContain('sanitised for display')
+    expect(line).toContain('invisible character')
+  })
+
+  it('names a value that stringifies to nothing but was not a string', () => {
+    // `String([])` is '', which would otherwise render as an ordinary blank
+    // field indistinguishable from a stored empty string.
+    expect(lineStartingWith(linesFor({ data: [] }), 'Data:')).toContain(
+      'empty array'
+    )
+    expect(lineStartingWith(linesFor({ data: '' }), 'Data:')).not.toContain('⚠')
+  })
+
   it('keeps a missing field visibly missing', () => {
     // Rendering it blank would make a row with no `data` — still cast to Hex
     // and signed — read exactly like one carrying `0x`.
@@ -211,7 +252,7 @@ describe('a normal proposal renders exactly as it does today', () => {
       ...benign,
       nonceColor: '31',
       nonceWarning: ' \u001b[31m✗ STALE\u001b[0m',
-      toExplorerSuffix: ' \u001b[36mhttps://etherscan.io/address/0x11\u001b[0m',
+      explorerUrlFor: () => 'https://etherscan.io/address/0x11',
       canExecute: true,
     })
 
@@ -223,6 +264,21 @@ describe('a normal proposal renders exactly as it does today', () => {
     )
     expect(lineStartingWith(lines, 'Execution Ready:')).toBe(
       '    Execution Ready: \u001b[32m✓\u001b[0m'
+    )
+  })
+
+  it('places the target name and explorer link inside the target colour', () => {
+    expect(
+      lineStartingWith(
+        buildSafeTxDetailLines({
+          ...benign,
+          toTargetName: '(LiFiDiamond)',
+          explorerUrlFor: () => 'https://etherscan.io/address/0x11',
+        }),
+        'To:'
+      )
+    ).toBe(
+      '    To:              \u001b[32m0x11f1022cA6AdEF6400e5677528a80d49a069C00c \u001b[33m(LiFiDiamond)\u001b[0m \u001b[36mhttps://etherscan.io/address/0x11\u001b[0m\u001b[0m'
     )
   })
 

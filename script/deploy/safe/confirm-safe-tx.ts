@@ -370,30 +370,22 @@ const processTxs = async (
         network,
       })
 
-    // Sanitised before anything renders it: the checks upstream of here skip
-    // whitespace rather than refusing it, so a `\r` in the stored address
-    // reaches this line and rewinds it over the label.
-    const toAddress = sanitizeProvenanceText(tx.safeTx.data.to) as Address
+    // The block sanitises the stored addresses itself, so it can report a row
+    // that needed it. These only decide how a clean address is displayed.
+    const formatAddress = (address: string): string =>
+      `${formatAddressForNetworkCliDisplay(
+        network,
+        address as Address
+      )}${tronHexSuffix(network, address as Address)}`
+    const explorerUrlFor = (address: string): string =>
+      buildExplorerAddressUrl(network.toLowerCase(), address as Address) ?? ''
 
-    // Get target name for display
-    const targetName = await getTargetName(toAddress, network)
-    const toAddrDisplay = `${formatAddressForNetworkCliDisplay(
-      network,
-      toAddress
-    )}${tronHexSuffix(network, toAddress)}`
-    const toDisplay = targetName
-      ? `${toAddrDisplay} \u001b[33m${targetName}\u001b[0m`
-      : toAddrDisplay
-    const toExplorerUrl = buildExplorerAddressUrl(
-      network.toLowerCase(),
-      toAddress
+    // Looked up on the sanitised address: the record keys are repository
+    // configuration, so a match names a contract this repo deployed.
+    const targetName = await getTargetName(
+      sanitizeProvenanceText(tx.safeTx.data.to) as Address,
+      network
     )
-    const toExplorerSuffix = toExplorerUrl ? ` [36m${toExplorerUrl}[0m` : ''
-    const proposerAddress = sanitizeProvenanceText(tx.proposer) as Address
-    const proposerDisplay = `${formatAddressForNetworkCliDisplay(
-      network,
-      proposerAddress
-    )}${tronHexSuffix(network, proposerAddress)}`
 
     const nonceColor =
       nonceStatus === 'current' ? '32' : nonceStatus === 'stale' ? '31' : '33'
@@ -409,8 +401,10 @@ const processTxs = async (
       nonce: tx.safeTx.data.nonce,
       nonceColor,
       nonceWarning,
-      toDisplay,
-      toExplorerSuffix,
+      to: tx.safeTx.data.to,
+      toTargetName: targetName,
+      formatAddress,
+      explorerUrlFor,
       value: tx.safeTx.data.value,
       operationLabel:
         tx.safeTransaction.data.operation === 0
@@ -421,7 +415,7 @@ const processTxs = async (
               tx.safeTransaction.data.operation
             )})`,
       data: tx.safeTx.data.data,
-      proposer: proposerDisplay,
+      proposer: tx.proposer,
       safeTxHash: tx.safeTxHash,
       signatureCount: tx.safeTransaction.signatures.size,
       threshold: tx.threshold,
@@ -449,7 +443,7 @@ const processTxs = async (
         const filmstrip = renderLedgerFlexFlow({
           chainId: chain.id,
           verifyingContract: safeAddress,
-          to: toAddress,
+          to: sanitizeProvenanceText(tx.safeTx.data.to) as Address,
           value: String(tx.safeTx.data.value),
           data: tx.safeTx.data.data as Hex,
         })
