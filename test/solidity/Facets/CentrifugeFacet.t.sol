@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: LGPL-3.0-only
 pragma solidity ^0.8.17;
 
+import { Vm } from "forge-std/Vm.sol";
 import { ERC20 } from "solmate/tokens/ERC20.sol";
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
-import { LibBytes } from "lifi/Libraries/LibBytes.sol";
 import { CentrifugeFacet } from "lifi/Facets/CentrifugeFacet.sol";
 import { ICentrifugeTokenBridge } from "lifi/Interfaces/ICentrifugeTokenBridge.sol";
 import { ETHTransferFailed, InvalidCallData, InvalidConfig, NativeAssetNotSupported, ReentrancyError, TransferFromFailed } from "lifi/Errors/GenericErrors.sol";
@@ -531,7 +531,7 @@ abstract contract CentrifugeFacetTestBase is TestBaseFacet {
             ADDRESS_SHARE_TOKEN,
             address(diamond),
             destinationChainId,
-            LibBytes.toBytes32(USER_RECEIVER),
+            bytes32(bytes20(USER_RECEIVER)),
             defaultShareAmount,
             USER_REFUND
         );
@@ -549,6 +549,49 @@ abstract contract CentrifugeFacetTestBase is TestBaseFacet {
         assertLt(USER_SENDER.balance, senderNativeBefore);
         // receiver is the end user, never the Diamond
         assertTrue(bridgeData.receiver != address(diamond));
+    }
+
+    function test_ReceiverIsEncodedTheWayTheDestinationDecodesIt() public {
+        // Nothing on the source chain validates the receiver encoding: the TokenBridge forwards
+        // the bytes32 verbatim and only Centrifuge's spoke decodes it, with CastLib.toAddress -
+        // high 20 bytes, and a PrefixNotZero() revert unless the low 12 are clear. A left-padded
+        // receiver therefore bridges "successfully" and then strands the shares on arrival, so
+        // assert the destination's rule here rather than just that a send happened.
+        vm.recordLogs();
+
+        vm.startPrank(USER_SENDER);
+        shareToken.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+
+        Vm.Log[] memory logs = vm.getRecordedLogs();
+        bytes32 sendTopic = keccak256(
+            "Send(address,address,uint256,bytes32,uint256,address)"
+        );
+
+        bool found;
+        for (uint256 i; i < logs.length; ++i) {
+            if (
+                logs[i].emitter != address(TOKEN_BRIDGE) ||
+                logs[i].topics[0] != sendTopic
+            ) continue;
+
+            (, bytes32 receiver, , ) = abi.decode(
+                logs[i].data,
+                (uint256, bytes32, uint256, address)
+            );
+
+            assertEq(
+                uint96(uint256(receiver)),
+                0,
+                "low 12 bytes must be zero"
+            );
+            assertEq(address(bytes20(receiver)), USER_RECEIVER);
+            found = true;
+        }
+
+        assertTrue(found, "no Send event emitted by the TokenBridge");
     }
 
     function test_NativeFeeSurplusIsReturnedToRefundRecipient() public {
@@ -633,7 +676,7 @@ abstract contract CentrifugeFacetTestBase is TestBaseFacet {
             ADDRESS_SHARE_TOKEN,
             address(diamond),
             destinationChainId,
-            LibBytes.toBytes32(USER_RECEIVER),
+            bytes32(bytes20(USER_RECEIVER)),
             defaultShareAmount,
             USER_REFUND
         );

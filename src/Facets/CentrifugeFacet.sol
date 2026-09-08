@@ -4,7 +4,6 @@ pragma solidity ^0.8.17;
 import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { ICentrifugeTokenBridge } from "../Interfaces/ICentrifugeTokenBridge.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
-import { LibBytes } from "../Libraries/LibBytes.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
@@ -163,11 +162,21 @@ contract CentrifugeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         TOKEN_BRIDGE.send{ value: _centrifugeData.nativeFee }({
             token: _bridgeData.sendingAssetId,
             amount: _bridgeData.minAmount,
-            receiver: LibBytes.toBytes32(_bridgeData.receiver),
+            receiver: _toRightPaddedBytes32(_bridgeData.receiver),
             destinationChainId: _bridgeData.destinationChainId,
             refundAddress: _centrifugeData.refundRecipient
         });
 
         emit LiFiTransferStarted(_bridgeData);
+    }
+
+    /// @dev Centrifuge's spoke decodes the receiver with CastLib.toAddress, which reads the HIGH
+    ///      20 bytes and reverts PrefixNotZero() unless the low 12 are clear. Nothing on the
+    ///      source chain checks this, so left-padding (LibBytes.toBytes32, the usual LI.FI
+    ///      convention) bridges "successfully" and then strands the shares on arrival.
+    function _toRightPaddedBytes32(
+        address _addr
+    ) private pure returns (bytes32) {
+        return bytes32(bytes20(_addr));
     }
 }

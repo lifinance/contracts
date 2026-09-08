@@ -15,7 +15,10 @@ interface ICentrifugeTokenBridge {
     ///      Centrifuge Gateway, which reverts if it is short and refunds the remainder if it is not.
     /// @param token The share token to send across chains
     /// @param amount The amount of the token to send across chains
-    /// @param receiver The address that should receive the funds on the destination chain, as bytes32
+    /// @param receiver The address that should receive the funds on the destination chain, as a
+    ///        RIGHT-padded bytes32 (`bytes32(bytes20(addr))`). Centrifuge's spoke decodes it with
+    ///        `CastLib.toAddress`, which reads the high 20 bytes and reverts `PrefixNotZero()`
+    ///        unless the low 12 are clear. Nothing on the source chain checks this.
     /// @param destinationChainId The EVM chain id of the destination chain
     /// @param refundAddress The address that receives any excess native funds, given that they are not
     ///        routed to the bridge's configured relayer
