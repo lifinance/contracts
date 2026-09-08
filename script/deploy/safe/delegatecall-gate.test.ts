@@ -84,8 +84,60 @@ describe('evaluateDelegateCallGate', () => {
       expect(refuses).toBe(true)
       expect(reason).not.toMatch(/neither/)
       // The type is what makes it refusable, so the type is what it names.
-      expect(reason).toMatch(/\(string\)|\(bigint\)/)
+      expect(reason).toMatch(/\(string, 1 char\)|\(bigint\)/)
     }
+  })
+
+  it('keeps two values distinguishable that sanitise to the same text', () => {
+    // Sanitising is lossy: a zero-width space is stripped, so `0\u200b1` and
+    // `01` print identically. Without the length a signer reading the refusal
+    // cannot tell which malformed row produced it.
+    const plain = evaluateDelegateCallGate({
+      operation: '01' as unknown as number,
+    }).reason
+    const zeroWidth = evaluateDelegateCallGate({
+      operation: '0\u200b1' as unknown as number,
+    }).reason
+
+    expect(plain).toContain('01 (string, 2 chars)')
+    expect(zeroWidth).toContain('01 (string, 3 chars)')
+    expect(plain).not.toBe(zeroWidth)
+  })
+
+  it('says a value rendered to nothing, not that it could not be rendered', () => {
+    // A row made entirely of stripped characters did render — to nothing.
+    // Calling that "unrenderable" describes a different failure, the one where
+    // `String()` itself throws.
+    const allStripped = evaluateDelegateCallGate({
+      operation: `${String.fromCharCode(27)}${String.fromCharCode(
+        7
+      )}` as unknown as number,
+    }).reason
+
+    expect(allStripped).toContain('no printable characters')
+    expect(allStripped).not.toContain('unrenderable')
+  })
+
+  it('still says unrenderable when the value cannot be stringified', () => {
+    // The paired case, so the two labels cannot collapse into one.
+    const noToString = Object.create(null) as unknown as number
+    const reason = evaluateDelegateCallGate({ operation: noToString }).reason
+
+    expect(reason).toContain('unrenderable')
+    expect(reason).not.toContain('no printable characters')
+  })
+
+  it('bounds a long value instead of flooding the terminal', () => {
+    const long = 'A'.repeat(500)
+    const reason = evaluateDelegateCallGate({
+      operation: long as unknown as number,
+    }).reason
+
+    expect(reason).toContain('…')
+    expect(reason).not.toContain('A'.repeat(200))
+    // The type and true length survive the clip — otherwise bounding the value
+    // would also hide what it was.
+    expect(reason).toContain('(string, 500 chars)')
   })
 })
 
@@ -99,12 +151,9 @@ describe('renderDelegateCallGate', () => {
   })
 
   it('carries exactly one colour and one reset, at the ends', () => {
-    // Counting escape sequences rather than hunting for a stray reset. The
-    // earlier form asserted "starts red, ends reset, no reset in between",
-    // which a value carrying a raw colour *switch* satisfies while visibly
-    // recolouring the sentence mid-line — and which a legitimate reason
-    // containing an escape would have failed. Two escapes, at the two ends, is
-    // the property actually wanted.
+    // Two escapes, at the two ends: a mid-line colour *switch* is what a
+    // "no reset in between" check cannot see, and a reason legitimately
+    // carrying an escape is what it would wrongly reject.
     const [line = ''] = renderDelegateCallGate(
       evaluateDelegateCallGate({ operation: OperationTypeEnum.DelegateCall })
     )
@@ -135,7 +184,7 @@ describe('renderDelegateCallGate', () => {
     // Paired presence: the value is still described, not silently dropped —
     // stripping it entirely would hide what was refused.
     expect(line).toContain('YELLOW')
-    expect(line).toContain('(string)')
+    expect(line).toMatch(/\(string, \d+ chars\)/)
   })
 })
 

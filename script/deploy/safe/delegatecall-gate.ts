@@ -44,31 +44,50 @@ export interface ISignedOperation {
   operation?: number
 }
 
+/** Beyond this the value is a terminal flood, not information. */
+const MAX_RENDERED = 80
+
 /**
  * Renders the field's value for an operator to read.
  *
  * Sanitised, because this value is proposer-controlled: it reaches the struct
  * through a cast, so a row can carry a string, and interpolating one raw put
  * ANSI escapes into the signer's terminal — a refusal whose own text could
- * recolour the line it is printed on. The type is carried alongside so a
- * refusal cannot describe `1n` or `'1'` in terms that only fit a number.
+ * recolour the line it is printed on. Length is carried for strings because
+ * sanitising is lossy: `01` and `0\u200b1` both print as `01`, and without it
+ * two different malformed rows are indistinguishable from the printed line.
  * @param value - whatever the operation field held
- * @returns A control-character-free rendering, with the type where it matters
+ * @returns A control-character-free rendering, bounded, with the type
  */
 const describe = (value: unknown): string => {
   if (value === undefined) return 'absent'
   if (typeof value === 'number') return String(value)
 
+  const kind =
+    typeof value === 'string'
+      ? `string, ${value.length} char${value.length === 1 ? '' : 's'}`
+      : typeof value
+
   // `String()` throws on a value with no `toString` (`Object.create(null)`) or
   // one that throws its own; a refusal must still render.
-  let rendered = ''
+  let rendered: string | undefined
   try {
     rendered = sanitizeProvenanceText(value)
   } catch {
-    rendered = ''
+    return `unrenderable (${kind})`
   }
 
-  return `${rendered || 'unrenderable'} (${typeof value})`
+  // Distinct from a throw: this value did render, to nothing. Saying
+  // "unrenderable" of a row made entirely of stripped characters would describe
+  // the wrong failure.
+  if (rendered === '') return `no printable characters (${kind})`
+
+  const clipped =
+    rendered.length > MAX_RENDERED
+      ? `${rendered.slice(0, MAX_RENDERED)}…`
+      : rendered
+
+  return `${clipped} (${kind})`
 }
 
 /**
