@@ -313,14 +313,30 @@ export const rollUpChecks = (ledger: ICheckLedger): ICheckRollup[] =>
   [...ledger.checks.values()].map((definition) => {
     const latest = new Map<string, ICheckResult>()
     const mismatched = new Set<string>()
+    // What each network's last disagreement was, kept for the whole run: the
+    // note belongs to the network, not to whichever row happens to be displaced,
+    // so it survives any number of failed retries.
+    const lastMismatch = new Map<string, string>()
 
     for (const raw of ledger.results) {
       if (raw.checkId !== definition.checkId) continue
 
       // Coerced before the supersession decision, so a status the rules would
       // downgrade cannot be superseded as if it had been the milder one.
-      const result = coerceStatus(raw, definition)
-      if (result.status === 'fail') mismatched.add(result.network)
+      // Stripped, never trusted: this field is a claim about the ledger's own
+      // history, so accepting an incoming one lets a rehydrated document assert
+      // a disagreement the log never recorded — and the digest names seven
+      // fields, not this one, so it could not be seen there either. Derived
+      // below or absent.
+      const { supersededMismatch: _incoming, ...clean } = raw
+      const result = coerceStatus(clean as ICheckResult, definition)
+      if (result.status === 'fail') {
+        mismatched.add(result.network)
+        lastMismatch.set(
+          result.network,
+          `an earlier attempt disagreed: expected ${result.expected}, observed ${result.actual} (anchor ${result.anchor})`
+        )
+      }
 
       // A retry may turn an unverified result green — recording a retryable
       // failure exists for exactly that. A mismatch may not: the anchor and the
@@ -328,9 +344,9 @@ export const rollUpChecks = (ledger: ICheckLedger): ICheckRollup[] =>
       // it would erase that with no trace.
       //
       // `error` is not milder: it blocks with no acknowledgement path, so
-      // letting it supersede keeps the run hard-blocked. Refusing it instead
-      // left the mismatch standing with nothing counted as unverified, which a
-      // signer could acknowledge and sign.
+      // letting it supersede keeps the run hard-blocked. Refusing it would leave
+      // the mismatch standing with nothing counted as unverified, which is
+      // acknowledgeable.
       if (
         result.status !== 'fail' &&
         result.status !== 'error' &&
@@ -338,18 +354,15 @@ export const rollUpChecks = (ledger: ICheckLedger): ICheckRollup[] =>
       )
         continue
 
-      // One row per network is what the verdict needs, but it cannot hold both
-      // "it disagreed" and "the retry could not run" — and dropping the first
-      // told the operator to retry a network that had already disagreed, which
-      // is different guidance. The surviving row carries the fact.
-      const superseded = latest.get(result.network)
+      // One row per network is what the verdict needs, and it cannot hold both
+      // "it disagreed" and "the retry could not run". The surviving row carries
+      // the disagreement it replaced so neither fact is lost.
+      const carriedNote =
+        result.status === 'fail' ? undefined : lastMismatch.get(result.network)
       const carried =
-        superseded?.status === 'fail' && result.status === 'error'
-          ? {
-              ...result,
-              supersededMismatch: `an earlier attempt disagreed: expected ${superseded.expected}, observed ${superseded.actual} (anchor ${superseded.anchor})`,
-            }
-          : result
+        carriedNote === undefined
+          ? result
+          : { ...result, supersededMismatch: carriedNote }
 
       latest.set(result.network, carried)
     }
@@ -364,8 +377,8 @@ export const rollUpChecks = (ledger: ICheckLedger): ICheckRollup[] =>
     const expected = ledger.expectedNetworks.length
     const passed = countOf('pass')
     // Anything outside the four statuses counts here, because that is how the
-    // verdict grades it. Counting only the literal 'error' left an unrecognised
-    // status in the denominator and in no numerator at all.
+    // verdict grades it — otherwise such a status sits in the denominator and in
+    // no numerator.
     const errored = results.filter(
       (result) =>
         result.status === 'error' || !CHECK_STATUSES.has(result.status)

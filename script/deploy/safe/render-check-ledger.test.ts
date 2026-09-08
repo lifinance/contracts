@@ -512,9 +512,8 @@ describe('what the ledger must never soften or hide', () => {
   })
 
   it('renders an unrecognised status as unverified, the way the verdict grades it', () => {
-    // It rendered as MISMATCH with an acknowledgement hint while the verdict
-    // called it unverified with no acknowledgement path — and it appeared in no
-    // numerator at all.
+    // The row and the verdict have to grade it the same way: unverified, with
+    // no acknowledgement path offered.
     // `recordCheck` validates the status, so this is only reachable by
     // bypassing it — a rehydrated document or a direct push, the same route
     // that let an empty ledger render green.
@@ -582,9 +581,8 @@ describe('what the ledger must never soften or hide', () => {
   })
 
   it('sanitises every field a foreign value reaches the terminal through', () => {
-    // Four of these had no test: an escape in a network name, an anchor, a
-    // section or a detail repainted the line. `detail` is the likeliest, since
-    // it carries RPC and store error strings from outside this process.
+    // Every field a foreign value arrives through. `detail` is the likeliest,
+    // since it carries RPC and store error strings from outside this process.
     const esc = String.fromCharCode(27)
     const injected = `${esc}[32mGREEN`
     const ledger = createCheckLedger({
@@ -624,7 +622,7 @@ describe('the closing line always carries the coverage figure', () => {
 
     expect(verdict).toContain('BLOCKED')
     expect(verdict).toContain('1/2 network results verified')
-    // The internal ruling id told a signer nothing.
+    // A signer cannot resolve an internal ruling id.
     expect(verdict).not.toContain('(T3)')
   })
 
@@ -709,6 +707,67 @@ describe('a superseded mismatch stays visible', () => {
     )
 
     expect(rowFor(renderCheckLedger(ledger), 'mainnet')).not.toContain(
+      'an earlier attempt disagreed'
+    )
+  })
+})
+
+describe('the superseded mismatch survives more than one retry', () => {
+  it('still names the disagreement after a second failed retry', () => {
+    // Deriving the note from the row it displaced meant the first error
+    // carried it and the second did not, because that one displaced an error.
+    // Two failed retries on a flaky endpoint is the ordinary case.
+    const ledger = ledgerOf(['mainnet'], [TARGET_STATE])
+    recordCheck(
+      ledger,
+      result({
+        checkId: 'target-state',
+        status: 'fail',
+        expected: 'facet 0xaaa',
+        actual: 'facet 0xdeadbeef',
+      })
+    )
+    recordCheck(
+      ledger,
+      result({ checkId: 'target-state', status: 'error', detail: 'rpc down' })
+    )
+    recordCheck(
+      ledger,
+      result({
+        checkId: 'target-state',
+        status: 'error',
+        detail: 'rpc down again',
+      })
+    )
+
+    const row = rowFor(renderCheckLedger(ledger), 'mainnet')
+
+    expect(row).toContain('an earlier attempt disagreed')
+    expect(row).toContain('facet 0xdeadbeef')
+    expect(row).toContain('rpc down again')
+  })
+
+  it('will not repeat a disagreement a rehydrated row merely claims', () => {
+    // The note asserts something about the ledger's own history, so an incoming
+    // one is stripped rather than trusted — the digest names seven fields and
+    // not this one, so a forged claim would be invisible to the attestation.
+    const forged = {
+      expectedNetworks: ['mainnet'],
+      checks: new Map([[TARGET_STATE.checkId, TARGET_STATE]]),
+      results: [
+        {
+          ...result({
+            checkId: 'target-state',
+            status: 'error',
+            detail: 'rpc down',
+          }),
+          supersededMismatch:
+            'an earlier attempt disagreed: expected X, observed X (anchor A-CI)',
+        },
+      ],
+    } as unknown as ICheckLedger
+
+    expect(rowFor(renderCheckLedger(forged), 'mainnet')).not.toContain(
       'an earlier attempt disagreed'
     )
   })
