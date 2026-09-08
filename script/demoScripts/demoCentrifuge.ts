@@ -15,6 +15,13 @@
  *      bridge quote API, the same source the backend integration reads it from.
  *
  * Run:  bunx tsx script/demoScripts/demoCentrifuge.ts
+ *
+ * Verified on base staging (2026-09-08): bridged 1 deJAAA base -> mainnet via CentrifugeFacet
+ * 0xF41125385bfeA3c8567f9185b697c8B845bB12d0 on the staging diamond
+ * 0x947330863B5BA5E134fE8b73e0E1c7Eed90446C7. tx (status success, diamond retained 0 deJAAA /
+ * 0 ETH; quoted 0.001914871804286418 ETH, consumed 0.001914759423642938, surplus refunded):
+ *   0xbddf3c89322bd2ec9ac062ab59958bbc9caa6d1bc8a4e9a763ac7c6081a0a08e
+ *   Centrifuge delivery: https://centrifugescan.io/tx/0x3f8be4682d0aaef03505ddd06400a9048bbe0f21b61d3f1f056caad6bfe71456
  */
 import { randomBytes } from 'crypto'
 
