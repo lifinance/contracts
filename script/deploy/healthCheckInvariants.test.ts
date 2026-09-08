@@ -4,6 +4,7 @@ import {
   it,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
+import { consola } from 'consola'
 import { getAddress, type Address, type Hex, type PublicClient } from 'viem'
 
 import globalConfig from '../../config/global.json'
@@ -3026,13 +3027,11 @@ describe('periphery-registered scheduled-registration coverage', () => {
 /**
  * `safe-config` asserts the owner set in **both** directions.
  *
- * The one-directional version could only see a configured owner that had been
- * removed on chain. An owner *added* to the Safe left every configured owner in
- * place and the threshold at or above its floor, so the invariant named for the
- * governance Safe's owners passed while the signer set had been widened — which
- * is the failure these tests exist to keep closed. So the assertions come in
- * pairs: each refusal is matched by the configuration that must still pass,
- * because a check that refused every owner set would satisfy the refusals alone.
+ * An owner added to the Safe leaves every configured owner in place and the
+ * threshold at or above its floor, so only the on-chain direction can see it.
+ * The assertions come in pairs: each refusal is matched by the configuration
+ * that must still pass, because a check that refused every owner set would
+ * satisfy the refusals alone.
  */
 const SAFE = '0x1111111111111111111111111111111111111111'
 const OWNER_A = '0xaAaAaAaaAaAaAaaAaAAAAAAAAaaaAaAaAaaAaaAa'
@@ -3074,8 +3073,8 @@ describe('safe-config asserts the owner set both ways', () => {
   })
 
   it('fails on an owner added to the Safe but absent from config', async () => {
-    // The gap: every configured owner is still an owner and the threshold is
-    // untouched, so the one-directional check saw nothing.
+    // Every configured owner is still an owner and the threshold is untouched,
+    // so nothing but the on-chain direction can reach this.
     const ctx = makeSafeCtx({
       configured: [OWNER_A, OWNER_B, OWNER_C],
       onChain: [OWNER_A, OWNER_B, OWNER_C, INTRUDER],
@@ -3098,9 +3097,8 @@ describe('safe-config asserts the owner set both ways', () => {
   })
 
   it('says which side each direction is missing from', async () => {
-    // Both messages name a set and a side. The pre-existing message read "not
-    // in SAFE configuration" for an owner that *was* configured and missing on
-    // chain, which points a responder at the wrong file.
+    // Both messages name a set and a side, so a responder knows which file to
+    // open.
     const ctx = makeSafeCtx({
       configured: [OWNER_A, OWNER_C],
       onChain: [OWNER_A, INTRUDER],
@@ -3129,8 +3127,8 @@ describe('safe-config asserts the owner set both ways', () => {
   })
 
   it('refuses rather than reports when config lists no owners', async () => {
-    // An empty expected set is a subset of every on-chain set there is, so both
-    // directions would pass while nothing had been compared.
+    // An empty expected set is a subset of every on-chain set there is, so a
+    // comparison against it agrees with anything.
     const ctx = makeSafeCtx({ configured: [], onChain: [OWNER_A, INTRUDER] })
     await invariant('safe-config').run(ctx)
     expect(ctx.errors).toHaveLength(1)
@@ -3138,9 +3136,9 @@ describe('safe-config asserts the owner set both ways', () => {
   })
 
   it('says the added-owner check could not run when a config entry is malformed', async () => {
-    // A typo in config would otherwise make every on-chain owner it fails to
-    // match look like an intruder. The check reports that it could not compare
-    // instead of naming an owner that may well be configured.
+    // An incomplete configured set would make an on-chain owner it cannot match
+    // look like an intruder, so the check reports that it could not compare
+    // rather than naming an owner that may well be configured.
     const ctx = makeSafeCtx({
       configured: [OWNER_A, '0xnot-an-address'],
       onChain: [getAddress(OWNER_A), getAddress(OWNER_B)],
@@ -3154,6 +3152,84 @@ describe('safe-config asserts the owner set both ways', () => {
     )
   })
 
+  it('treats a blank config entry as unusable, not as one to skip', async () => {
+    // A dropped entry is an incomplete configured set, so the comparison would
+    // name a legitimate signer as an unexpected owner of the Safe and send the
+    // responder to the Safe instead of to the blank config line.
+    for (const blank of ['', null, undefined] as unknown as string[]) {
+      const ctx = makeSafeCtx({
+        configured: [OWNER_A, blank],
+        onChain: [getAddress(OWNER_A), getAddress(OWNER_B)],
+      })
+      await invariant('safe-config').run(ctx)
+      const joined = ctx.errors.join('\n')
+
+      expect(joined).toContain('not a valid address')
+      expect(joined).not.toContain(`${getAddress(OWNER_B)} is an owner`)
+    }
+  })
+
+  it('refuses a duplicated config entry, which set equality cannot see', async () => {
+    // The two sets agree — config just claims one more owner than the Safe has.
+    const ctx = makeSafeCtx({
+      configured: [OWNER_A, OWNER_A, OWNER_B],
+      onChain: [getAddress(OWNER_A), getAddress(OWNER_B)],
+    })
+    await invariant('safe-config').run(ctx)
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('duplicate')
+  })
+
+  it('does not print the match line when the comparison could not run', async () => {
+    // The refusal and a "matches config" line together would read as a check
+    // that ran and agreed. Asserted on the rendered output because that is
+    // where the two can contradict each other.
+    const printed: string[] = []
+    const success = consola.success
+    consola.success = ((message: unknown) => {
+      printed.push(String(message))
+    }) as typeof consola.success
+    try {
+      await invariant('safe-config').run(
+        makeSafeCtx({ configured: [], onChain: [OWNER_A] })
+      )
+    } finally {
+      consola.success = success
+    }
+
+    expect(printed.join('\n')).not.toContain('owner set matches')
+    // Paired presence: the line does appear when the comparison does run, so
+    // this is not passing on a call that printed nothing at all.
+    const printedOnPass: string[] = []
+    consola.success = ((message: unknown) => {
+      printedOnPass.push(String(message))
+    }) as typeof consola.success
+    try {
+      await invariant('safe-config').run(
+        makeSafeCtx({ configured: [OWNER_A], onChain: [getAddress(OWNER_A)] })
+      )
+    } finally {
+      consola.success = success
+    }
+
+    expect(printedOnPass.join('\n')).toContain('owner set matches')
+  })
+
+  it('reaches the run summary when no Safe address is configured', async () => {
+    // A skipped check must not read like a passing one: the summary counts what
+    // the context collected, so a raw `consola.warn` would be invisible there.
+    const ctx = makeSafeCtx({
+      configured: [OWNER_A],
+      onChain: [INTRUDER],
+      safeAddress: undefined,
+    })
+    await invariant('safe-config').run(ctx)
+
+    expect(ctx.errors).toEqual([])
+    expect(ctx.warnings).toHaveLength(1)
+    expect(ctx.warnings[0]).toContain('No SAFE address configured')
+  })
+
   it('keeps failing a threshold below the floor', async () => {
     const ctx = makeSafeCtx({
       configured: [OWNER_A],
@@ -3163,15 +3239,5 @@ describe('safe-config asserts the owner set both ways', () => {
     await invariant('safe-config').run(ctx)
     expect(ctx.errors).toHaveLength(1)
     expect(ctx.errors[0]).toContain('threshold')
-  })
-
-  it('does not read the Safe when no address is configured', async () => {
-    const ctx = makeSafeCtx({
-      configured: [OWNER_A],
-      onChain: [INTRUDER],
-      safeAddress: undefined,
-    })
-    await invariant('safe-config').run(ctx)
-    expect(ctx.errors).toEqual([])
   })
 })

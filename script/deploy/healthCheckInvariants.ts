@@ -3298,7 +3298,10 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
     },
     run: async (ctx) => {
       if (!ctx.networkConfig.safeAddress) {
-        consola.warn('SAFE address not configured')
+        // `ctx.logWarn`, not `consola`: the run summary counts only what the
+        // context collected, so a raw warn makes a network that skipped this
+        // check read as one that passed it.
+        ctx.logWarn(`No SAFE address configured, cannot check the owner set`)
         return
       }
       if (!ctx.publicClient) return
@@ -3317,13 +3320,23 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         // `getOwners()` returns whatever the node encodes and the config file is
         // hand-written.
         const configured = new Set<string>()
-        const unparseable: string[] = []
+        const unusable: string[] = []
+        let duplicates = 0
         for (const entry of safeOwners) {
-          if (!entry) continue
+          // A blank or absent entry is an incomplete configured set by exactly
+          // the argument that governs an unparseable one, so it takes the same
+          // route rather than being dropped: skipping it quietly leaves the
+          // comparison naming a legitimate owner as unexpected.
+          if (!entry) {
+            unusable.push(entry === '' ? '(empty string)' : String(entry))
+            continue
+          }
           try {
-            configured.add(getAddress(entry))
+            const normalised = getAddress(entry)
+            if (configured.has(normalised)) duplicates += 1
+            configured.add(normalised)
           } catch {
-            unparseable.push(entry)
+            unusable.push(entry)
           }
         }
 
@@ -3342,38 +3355,42 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
               `SAFE owner ${safeOwner} is in config/global.json but is NOT an owner of ${safeAddress} on chain`
             )
 
-        if (unparseable.length > 0)
-          // Reported instead of comparing, never alongside a verdict: with an
-          // entry that would not normalise, the configured set is incomplete,
-          // so an on-chain owner it omits would be named as unexpected when it
-          // may be configured and merely mistyped.
+        if (unusable.length > 0)
+          // Reported instead of compared: an incomplete configured set would
+          // name an on-chain owner as unexpected when it may be configured and
+          // merely mistyped.
           report(
             `Cannot check ${safeAddress} for unexpected owners: ${
-              unparseable.length
+              unusable.length
             } entr${
-              unparseable.length === 1 ? 'y' : 'ies'
+              unusable.length === 1 ? 'y' : 'ies'
             } in config/global.json safeOwners ${
-              unparseable.length === 1 ? 'is' : 'are'
-            } not a valid address (${unparseable.join(
+              unusable.length === 1 ? 'is' : 'are'
+            } not a valid address (${unusable.join(
               ', '
-            )}). Fix the config and re-run — an owner added to the Safe is invisible until this check can compare the full set.`
+            )}). An owner added to the Safe stays invisible until the full set can be compared.`
           )
         else if (configured.size === 0)
           // An empty expected set agrees with every on-chain set there is.
           report(
             `Cannot check ${safeAddress} for unexpected owners: config/global.json lists no safeOwners`
           )
-        // The direction the configured-owner loop cannot see. An added owner
-        // leaves every configured owner in place and the threshold at or above
-        // its floor, so without this the widening is silent — and three of
-        // seven signatures is a weaker Safe than three of six, with the added
-        // key among the seven.
         else
           for (const safeOwner of onChain)
             if (!configured.has(safeOwner))
               report(
                 `SAFE owner ${safeOwner} is an owner of ${safeAddress} on chain but is NOT in config/global.json`
               )
+
+        // Set equality pins the distinct owners, not the entry count, so a
+        // duplicated entry is outside it: the sets agree while config claims
+        // one more owner than the Safe has.
+        if (duplicates > 0)
+          report(
+            `config/global.json safeOwners lists ${duplicates} duplicate entr${
+              duplicates === 1 ? 'y' : 'ies'
+            }, so its owner count does not match ${safeAddress}`
+          )
 
         if (mismatches === 0)
           consola.success(
