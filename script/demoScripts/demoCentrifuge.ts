@@ -112,9 +112,9 @@ interface ICentrifugeQuote {
 /**
  * Reads the messaging fee for this exact transfer from Centrifuge's bridge quote API.
  *
- * Centrifuge publishes no on-chain fee quote and an underpaid transfer reverts with the
- * Gateway's `NotEnoughGas()`, so the fee has to come from off-chain. This is the same source
- * the backend integration uses, which is why the demo reads it here rather than probing.
+ * The fee has to be known before the call, since it is paid as `msg.value`, and an underpaid
+ * transfer reverts with the Gateway's `NotEnoughGas()`. This API is where the backend
+ * integration reads it, which is why the demo reads it here rather than probing for it.
  *
  * The quote is only meaningful if it describes the call this facet actually makes, so the
  * contract and function it names are checked against the configured `TokenBridge` before the

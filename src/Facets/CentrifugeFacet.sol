@@ -29,9 +29,9 @@ contract CentrifugeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Types ///
 
     /// @param nativeFee The native amount forwarded to the TokenBridge to pay for the cross-chain
-    ///        message. Centrifuge exposes no on-chain quote, so this value is supplied by the
-    ///        LI.FI backend. Underpaying makes the Centrifuge Gateway revert; overpaying is
-    ///        refunded to `refundRecipient` by the bridge itself.
+    ///        message. Quote it per transfer from Centrifuge's bridge API before building the
+    ///        call. Underpaying makes the Centrifuge Gateway revert; overpaying is refunded to
+    ///        `refundRecipient` by the bridge itself.
     /// @param refundRecipient Address that receives swap leftovers and positive slippage from
     ///        pre-bridge swaps, any excess source-side native, and the messaging-fee overage that
     ///        the Centrifuge Gateway refunds. Must accept plain native transfers: a refundRecipient
@@ -132,9 +132,8 @@ contract CentrifugeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             revert InvalidCallData();
         }
 
-        // Centrifuge has no on-chain fee quote, so a zero fee cannot be distinguished from a
-        // missing one. Every cross-chain message costs something, so a zero fee is always a
-        // malformed request - reject it here rather than letting the Gateway decide.
+        // Every cross-chain message costs something, so a zero fee is always malformed. Fail
+        // fast here instead of paying gas to reach the Gateway's own revert.
         if (_centrifugeData.nativeFee == 0) {
             revert InvalidCallData();
         }
@@ -161,13 +160,13 @@ contract CentrifugeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         // already guarantees it is non-zero. This makes the facet EVM-only: a non-EVM receiver
         // would need a dedicated field and a version bump.
         // solhint-disable-next-line check-send-result
-        TOKEN_BRIDGE.send{ value: _centrifugeData.nativeFee }(
-            _bridgeData.sendingAssetId,
-            _bridgeData.minAmount,
-            LibBytes.toBytes32(_bridgeData.receiver),
-            _bridgeData.destinationChainId,
-            _centrifugeData.refundRecipient
-        );
+        TOKEN_BRIDGE.send{ value: _centrifugeData.nativeFee }({
+            token: _bridgeData.sendingAssetId,
+            amount: _bridgeData.minAmount,
+            receiver: LibBytes.toBytes32(_bridgeData.receiver),
+            destinationChainId: _bridgeData.destinationChainId,
+            refundAddress: _centrifugeData.refundRecipient
+        });
 
         emit LiFiTransferStarted(_bridgeData);
     }

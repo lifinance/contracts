@@ -10,9 +10,9 @@ pragma solidity ^0.8.17;
 ///      is the only function our facet calls.
 interface ICentrifugeTokenBridge {
     /// @notice Sends a share token to the destination chain after approving this contract with the token
-    /// @dev The bridge pulls `amount` from `msg.sender`, so the caller must approve it first. There is no
-    ///      on-chain fee quote: the native amount required to pay for the cross-chain message is supplied
-    ///      by the caller as `msg.value` and forwarded to the Centrifuge Gateway.
+    /// @dev The bridge pulls `amount` from `msg.sender`, so the caller must approve it first. The native
+    ///      amount paying for the cross-chain message is taken from `msg.value` and forwarded to the
+    ///      Centrifuge Gateway, which reverts if it is short and refunds the remainder if it is not.
     /// @param token The share token to send across chains
     /// @param amount The amount of the token to send across chains
     /// @param receiver The address that should receive the funds on the destination chain, as bytes32
