@@ -2196,7 +2196,7 @@ describe('resolveSignerVerificationDisplay', () => {
   })
 })
 
-describe('SafeClient.signTransaction default path', () => {
+describe('SafeClient sign-path operation gate and default path', () => {
   const previous = process.env.ENABLE_SAFE_EIP712_SIGNING
   beforeEach(() => {
     delete process.env.ENABLE_SAFE_EIP712_SIGNING
@@ -2340,8 +2340,9 @@ describe('SafeClient.signTransaction default path', () => {
   })
 
   it('refuses on the hash route reached without the funnel', async () => {
-    // `signTransactionWithHash` is public. Asserting only through
-    // `signTransaction` would pass with this route ungated.
+    // Reached directly, not through `signTransaction`: that method is the only
+    // in-repo caller today, so asserting through it would pass with this
+    // public entry point ungated.
     const { client, calls } = await makeClient()
 
     // Matched on the gate's own wording: the method's catch relabels failures
@@ -2352,6 +2353,22 @@ describe('SafeClient.signTransaction default path', () => {
         buildSafeTx({ operation: OperationTypeEnum.DelegateCall })
       ),
       /Operation gate:[\s\S]*Nothing has been signed or executed/
+    )
+
+    expect(calls).toEqual([])
+  })
+
+  it('refuses a string operation, the shape a stored row can carry', async () => {
+    // `createTransaction` normalises the field with `||`, so a truthy string
+    // survives to the struct untouched — the enum value the case above uses is
+    // not the shape that actually arrives off an unvalidated row.
+    const { client, calls } = await makeClient()
+
+    await expectRejects(
+      client.signTransactionWithHash(
+        buildSafeTx({ operation: '0' as unknown as OperationTypeEnum })
+      ),
+      /Operation gate:[\s\S]*only the number 0/
     )
 
     expect(calls).toEqual([])

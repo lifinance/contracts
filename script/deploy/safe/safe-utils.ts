@@ -821,12 +821,13 @@ export class SafeClient {
    * Hardware wallets (e.g. Ledger) reject very large EIP-712 payloads (status
    * 0x6a80). The Safe contracts fully support eth_sign signatures over the Safe
    * transaction hash.
+   * @throws When the proposal's operation field is not exactly Call
    */
   public async signTransactionWithHash(
     safeTx: ISafeTransaction
   ): Promise<ISafeTransaction> {
-    // Repeated from `signTransaction` because this method is public: the gate
-    // has to hold for a caller that reaches the hash route directly.
+    // Redundant when `signTransaction` funnels here, but this entry point is
+    // public: a caller reaching the hash route directly must still be gated.
     assertProposalOperationPermitted(evaluateDelegateCallGate(safeTx.data))
     try {
       // 1) Compute the Safe transaction hash on-chain (via viem client)

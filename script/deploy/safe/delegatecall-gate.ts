@@ -8,10 +8,10 @@
  * Add/Replace targets and the cut's `_init` — and therefore cannot see this
  * shape at all.
  *
- * The check is sited at confirm time rather than at propose time because
- * `confirm-safe-tx.ts` signs rows read out of MongoDB, which can be created
- * outside this repository: what our own builders emit constrains our builders,
- * not the queue.
+ * The check sits on the signing and execution funnel rather than in the
+ * proposal builders, because `confirm-safe-tx.ts` signs rows read out of
+ * MongoDB, which can be created outside this repository: what our own builders
+ * emit constrains our builders, not the queue.
  */
 
 import { sanitizeProvenanceText } from '../shared/git-provenance'
@@ -22,9 +22,9 @@ const DELEGATE_CALL = 1
 
 export interface IDelegateCallVerdict {
   /** True when this proposal must not be signed or executed. */
-  refuses: boolean
+  readonly refuses: boolean
   /** One line a signer can act on. Empty only when nothing is refused. */
-  reason: string
+  readonly reason: string
 }
 
 /**
@@ -54,8 +54,9 @@ const MAX_RENDERED = 80
  *
  * Sanitised, because this value is proposer-controlled: it reaches the struct
  * through a cast, so a row can carry a string, and interpolating one raw put
- * ANSI escapes into the signer's terminal — a refusal whose own text could
- * recolour the line it is printed on. Length is carried for strings because
+ * ANSI escapes into the signer's terminal — any line printing it, the refusal
+ * or the operation field itself, could be recoloured by its own content.
+ * Length is carried for strings because
  * sanitising is lossy: `01` and `0\u200b1` both print as `01`, and without it
  * two different malformed rows are indistinguishable from the printed line.
  * @param value - whatever the operation field held
@@ -70,7 +71,10 @@ export const describeOperationValue = (value: unknown): string => {
 
   const kind =
     typeof value === 'string'
-      ? `string, ${value.length} char${value.length === 1 ? '' : 's'}`
+      ? // Code points, the unit the clip below uses: reporting UTF-16 units
+        // instead would call a 100-emoji value 200 chars and clip none of it,
+        // which is the disambiguation this length exists to provide.
+        `string, ${[...value].length} char${[...value].length === 1 ? '' : 's'}`
       : typeof value
 
   // `String()` throws on a value with no `toString` (`Object.create(null)`) or
@@ -87,9 +91,9 @@ export const describeOperationValue = (value: unknown): string => {
   // the wrong failure.
   if (rendered === '') return `no printable characters (${kind})`
 
-  // Sliced by code point, not by index: cutting mid-pair emits a lone surrogate,
-  // which is the same class of garbled terminal output the sanitising above
-  // exists to prevent.
+  // Sliced by code point, not by index: cutting mid-pair emits a lone
+  // surrogate, and the sanitising above does not strip those — they are not
+  // control or formatting characters — so nothing downstream would repair it.
   const points = [...rendered]
   const clipped =
     points.length > MAX_RENDERED

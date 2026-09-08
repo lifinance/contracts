@@ -8,7 +8,8 @@
  * **the reason a signer reads has to be true of the value in front of them**,
  * because a refusal that describes `1n` as "neither Call nor DelegateCall"
  * reads as a broken gate, which is what sends an operator looking for a way
- * round it.
+ * round it. A third property arrives with the rendering: nothing the value
+ * carries may reach the terminal as a live sequence.
  */
 import {
   describe,
@@ -271,10 +272,13 @@ describe('describeOperationValue', () => {
   })
 
   it('leaves no control character in any rendering', () => {
+    // C1 included: U+009B and U+009D are single-character CSI and OSC, so a
+    // sanitiser narrowed to the C0 range would leave those driving the
+    // terminal with every other assertion here still green.
     // The point of the assertion is that these characters do not survive, so
     // the rule barring them from a pattern is what has to give way here.
     // eslint-disable-next-line no-control-regex
-    const anyControlCharacter = /[\u0000-\u001f\u007f]/u
+    const anyControlCharacter = /[\u0000-\u001f\u007f-\u009f\u2028\u2029]/u
 
     for (const value of [
       `${ESC}[2J` as unknown as number,
@@ -282,7 +286,20 @@ describe('describeOperationValue', () => {
       `${String.fromCharCode(8)}${String.fromCharCode(
         8
       )}Call` as unknown as number,
+      `${String.fromCharCode(0x9b)}2K` as unknown as number,
+      `${String.fromCharCode(
+        0x9d
+      )}8;;https://example.invalid` as unknown as number,
+      `Call\u2028Operation: Call` as unknown as number,
     ])
       expect(describeOperationValue(value)).not.toMatch(anyControlCharacter)
+  })
+
+  it('counts the reported length in the unit the clip uses', () => {
+    // A UTF-16 count would call this 200 and clip nothing, while the value it
+    // is meant to disambiguate is 100 code points long.
+    expect(
+      describeOperationValue('\u{1F600}'.repeat(100) as unknown as number)
+    ).toContain('(string, 100 chars)')
   })
 })

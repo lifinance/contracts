@@ -1,8 +1,9 @@
 /**
- * Where the operation refusal sits and how the field is rendered, not what the
- * gate decides. `delegatecall-gate.test.ts` covers the decision and the
- * sanitising; `safe-utils.test.ts` proves the signing client and the chain
- * executor are never reached.
+ * Where the operation refusal sits, and that the printed field goes through
+ * the sanitiser — not what the gate decides or how it renders.
+ * `delegatecall-gate.test.ts` covers the decision and the sanitising;
+ * `safe-utils.test.ts` proves the signing client and the chain executor are
+ * never reached.
  *
  * `confirm-safe-tx.ts` and `SafeClient` cannot be imported as the CLI
  * (`runMain` at module scope). Placement is asserted on the source, shaped
@@ -38,7 +39,7 @@ const EXECUTE_METHOD = CLIENT.slice(
   CLIENT.indexOf('public async cleanup()')
 )
 
-describe('the operation refusal sits in the client every sign and execute path uses', () => {
+describe('the operation refusal sits on every operation-bearing route of the client', () => {
   it('asserts the gate before either signing path', () => {
     expect(SIGN_METHOD).toContain('assertProposalOperationPermitted')
     expect(SIGN_METHOD).toContain('evaluateDelegateCallGate(safeTx.data)')
@@ -83,16 +84,24 @@ describe('the operation refusal sits in the client every sign and execute path u
   })
 
   it('renders the refused operation through the sanitiser, never raw', () => {
-    // The detail block prints this inside its own colour codes, so a raw value
-    // off the row would reach the terminal as a live escape sequence.
     // Whitespace-insensitive: the call spans lines, and how prettier wraps it
     // is not what this asserts.
-    expect(CONFIRM.replace(/\s+/gu, '')).toContain(
+    const packed = CONFIRM.replace(/\s+/gu, '')
+
+    expect(packed).toContain(
       'describeOperationValue(tx.safeTransaction.data.operation)'
     )
-    expect(CONFIRM.replace(/\s+/gu, '')).not.toContain(
-      'String(tx.safeTransaction.data.operation)'
+
+    // Counted rather than matched against one spelling: barring only
+    // `String(...)` would pass on the more natural way the bug comes back,
+    // interpolating the field directly. Every read of it must be a comparison
+    // against a literal or the sanitiser call.
+    const reads = packed.match(/tx\.safeTransaction\.data\.operation/gu) ?? []
+    const permitted = packed.match(
+      /tx\.safeTransaction\.data\.operation===\d|describeOperationValue\(tx\.safeTransaction\.data\.operation\)/gu
     )
+    expect(reads.length).toBeGreaterThan(0)
+    expect(permitted?.length).toBe(reads.length)
   })
 
   it('does not offer a sign or execute action once the gate has refused', () => {
