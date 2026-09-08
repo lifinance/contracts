@@ -220,8 +220,22 @@ export interface ISafeTxMongoDocument extends ISafeTxDocument {
   _id?: ObjectId
 }
 
+/**
+ * The struct Safe hashes and signs, as returned by `initializeSafeTransaction`.
+ *
+ * Branded rather than a plain `ISafeTransaction` because `ISafeTxDocument.safeTx`
+ * is structurally identical: without a nominal marker, a gate meant to judge the
+ * bytes a signature covers accepts the stored document's copy of them just as
+ * happily, and nothing in the type system notices. Three attempts to enforce that
+ * by inspecting the call site's source were all defeated; this is the difference
+ * between the two values being visible to the compiler.
+ */
+export type ISignedSafeTransaction = ISafeTransaction & {
+  readonly __signedStruct: 'initializeSafeTransaction'
+}
+
 export interface IAugmentedSafeTxDocument extends ISafeTxMongoDocument {
-  safeTransaction: ISafeTransaction
+  safeTransaction: ISignedSafeTransaction
   hasSignedAlready: boolean
   canExecute: boolean
   threshold: number
@@ -1201,7 +1215,7 @@ export function mongoSafeTxRowFilter(
 export const initializeSafeTransaction = async (
   txFromMongo: ISafeTxDocument,
   safe: SafeClient
-): Promise<ISafeTransaction> => {
+): Promise<ISignedSafeTransaction> => {
   // Create a new transaction using our viem-based Safe implementation
   const safeTransaction = await safe.createTransaction({
     transactions: [
@@ -1242,7 +1256,9 @@ export const initializeSafeTransaction = async (
     safeTransaction.signatures = signatures
   }
 
-  return safeTransaction
+  // The one place the brand is applied: this function is what turns a stored row
+  // into the struct that gets hashed and signed.
+  return safeTransaction as ISignedSafeTransaction
 }
 
 /**

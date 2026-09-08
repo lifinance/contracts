@@ -31,6 +31,7 @@ import {
 } from '../codehash/verify-cut-targets'
 
 import { collectDiamondCutTargets } from './safe-decode-utils'
+import type { ISignedSafeTransaction } from './safe-utils'
 
 export interface ICodehashSignGate {
   /** True when a signature must be refused. Render the verdicts, never this. */
@@ -84,14 +85,17 @@ export const blockingUnevaluatedGate = (): ICodehashSignGate => ({
 /**
  * The only shape this gate accepts a proposal in.
  *
- * It names `safeTransaction` and nothing else on purpose. That is the struct
- * Safe hashes and signs, and the row it was built from also carries a
- * `safeTx` copy of the same fields — so a call site free to pick either can
- * vouch for bytes the signature does not cover. Naming one field makes the
- * other unreachable rather than merely discouraged.
+ * The field is typed `ISignedSafeTransaction`, not `ISafeTransaction`, and that
+ * is the whole point. The row this is read from also carries a `safeTx` copy of
+ * the same fields, structurally identical, so a gate free to pick either can
+ * vouch for bytes the signature does not cover. Only the brand — applied in
+ * `initializeSafeTransaction`, the one function that produces the struct Safe
+ * hashes — makes the two distinguishable to the compiler. Naming the field was
+ * not enough: `{ safeTransaction: row.safeTx }` type-checked and judged the
+ * stored document.
  */
 export interface ISignableProposal {
-  safeTransaction: { data: { data?: string } }
+  safeTransaction: ISignedSafeTransaction
 }
 
 /**
@@ -104,7 +108,7 @@ export const gateInputFor = (
   proposal: ISignableProposal,
   networkKey: string
 ): { data: Hex | undefined; network: string } => ({
-  data: (proposal.safeTransaction.data.data as Hex | undefined) || undefined,
+  data: proposal.safeTransaction.data.data as Hex | undefined,
   network: networkKey,
 })
 
@@ -142,7 +146,11 @@ export const evaluateCodehashSignGate = async (
   // `foundry.toml` and creates a checkout root, either of which can throw, and
   // the caller's catch turns a throw into a refusal — so an eagerly-built
   // dependency refuses proposals this gate makes no claim about at all.
-  const resolveDeps = deps
+  // Memoised: `resolveDeps` is called per cut, and a caller whose thunk is not
+  // itself memoised would otherwise get one checkout root and one connection per
+  // cut in a batch, against a single `close()`.
+  let resolved: IVerifyCutDeps | undefined
+  const resolveDeps = (): IVerifyCutDeps => (resolved ??= deps())
 
   const refusals: string[] = [...collected.refusals]
   const targets: ITargetVerdict[] = []

@@ -63,24 +63,6 @@ const FUNNEL_CALLS = /(?<![.\w])signTransaction\(/g
 const matches = (pattern: RegExp): string[] =>
   [...SOURCE.matchAll(pattern)].map((match) => match[0])
 
-/**
- * Source with every string literal and comment removed.
- *
- * Strings go first, and that ordering is the point: a reviewer defeated an
- * earlier version by putting `'/*'` in a string above the call and `'*\/'`
- * below it, so the comment stripper ate the real call site and anchored on a
- * decoy. Stripping literals first means neither a fake comment marker nor a
- * string reciting the right spelling survives to be matched. It can only
- * remove text, never invent it, so every assertion below fails safe.
- */
-const executableOnly = (text: string): string =>
-  text
-    .replace(/`(?:[^`\\]|\\[\s\S])*`/g, "''")
-    .replace(/'(?:[^'\\\n]|\\.)*'/g, "''")
-    .replace(/"(?:[^"\\\n]|\\.)*"/g, "''")
-    .replace(/\/\*[\s\S]*?\*\//g, '')
-    .replace(/\/\/[^\n]*/g, '')
-
 describe('the codehash refusal is in the one funnel every sign path uses', () => {
   it('builds the signer with createGatedSigner', () => {
     expect(SOURCE).toContain('createGatedSigner<')
@@ -152,32 +134,20 @@ describe('the codehash refusal is in the one funnel every sign path uses', () =>
     expect(evaluation).toBeGreaterThan(reset)
   })
 
-  it('delegates the choice of bytes to the type-policed selector', () => {
-    // Which bytes the gate judges is no longer asserted on this file's text.
-    // Three source-scanning attempts were all defeated — by a comment reciting
-    // the correct spelling, by a string literal doing the same, and by an alias
-    // (`const signed = tx.safeTransaction.data`) that read the right field and
-    // failed the test anyway. A pin on spelling cannot tell those apart.
-    //
-    // `gateInputFor` takes `ISignableProposal`, which names `safeTransaction`
-    // and nothing else, so handing over the stored `safeTx` document does not
-    // compile. The behaviour is driven for real in codehash-sign-gate.test.ts.
-    // What is left here is placement: this file must not build that input
-    // itself.
-    // No negative on the stored document's spelling: `tx.safeTx.data.data` is
-    // read legitimately elsewhere in this file, by the Ledger filmstrip. What
-    // matters is that the gate's input is not built here at all.
-    expect(executableOnly(SOURCE)).toContain('gateInputFor(tx, networkKey)')
-  })
-
-  it('has exactly one gate call site, so nothing bypasses that selector', () => {
-    // A second call site is D23's shape again: a route the assertions above
-    // never look at. Counted on executable text only, for the reason
-    // `executableOnly` documents.
-    const bare = executableOnly(SOURCE)
-    expect(bare.split('evaluateCodehashSignGate(').length - 1).toBe(1)
-    expect(bare.split('gateInputFor(').length - 1).toBe(1)
-  })
+  // Which bytes the gate judges is NOT asserted here any more, and neither is the
+  // number of call sites. Four versions tried: a spelling pin, a comment-stripped
+  // pin, a call-site count, and an interface naming the right field. Each was
+  // defeated — by a comment, by a string literal, by an alias that read the
+  // correct field and failed the test anyway, and finally by the fact that
+  // `safeTx` and `safeTransaction` are the same type, so `{ safeTransaction:
+  // row.safeTx }` type-checked and judged the document.
+  //
+  // `gateInputFor` now requires `ISignedSafeTransaction`, branded in
+  // `initializeSafeTransaction`. The guarantee lives in the compiler, and its
+  // falsification is the `@ts-expect-error` case in codehash-sign-gate.test.ts:
+  // weaken the type and `tsc` fails on the unused directive. A second call site
+  // is no longer a bug either, because it would have to pass the same branded
+  // struct. What is left in this file is ordering, which types cannot express.
 
   it('evaluates and displays the verdict before the action prompt', () => {
     const evaluation = SOURCE.indexOf('await evaluateCodehashSignGate(')

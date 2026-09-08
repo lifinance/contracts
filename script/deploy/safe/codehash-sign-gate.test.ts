@@ -30,6 +30,7 @@ import {
   unevaluatedCodehashSignGate,
 } from './codehash-sign-gate'
 import { ABI_DIAMOND_CUT } from './safe-decode-utils'
+import type { ISafeTransaction, ISignedSafeTransaction } from './safe-utils'
 import { TIMELOCK_SCHEDULE_BATCH_ABI } from './timelock-abi'
 
 const FACET = '0x1111111111111111111111111111111111111111'
@@ -113,44 +114,63 @@ const rejection = async (promise: Promise<unknown>): Promise<string> => {
   }
 }
 
-describe('gateInputFor', () => {
-  // Which bytes the gate judges used to be asserted by grepping the call site's
-  // source. Three separate evasions defeated that, and the last one also made
-  // a correct refactor fail. `ISignableProposal` names `safeTransaction` and
-  // nothing else, so the stored `safeTx` copy is unreachable rather than merely
-  // discouraged — and the choice becomes something a test can drive.
-  it('reads the calldata of the struct that gets signed', () => {
-    const input = gateInputFor(
-      {
-        safeTransaction: { data: { data: '0xaabb' } },
-        // A row carries this too, and it is what the display path decodes.
-        safeTx: { data: { data: '0xdead' } },
-      } as never,
-      'mainnet'
-    )
+/**
+ * A signed struct, branded the way `initializeSafeTransaction` brands it.
+ * @param data - the calldata the signature would cover
+ * @returns A value satisfying `ISignedSafeTransaction`
+ */
+const signedStruct = (data?: string): ISignedSafeTransaction =>
+  ({
+    data: {
+      to: DIAMOND,
+      value: '0',
+      data,
+      operation: 0,
+      nonce: 7,
+    },
+    signatures: new Map(),
+  } as unknown as ISignedSafeTransaction)
 
-    expect(input.data).toBe('0xaabb')
-    expect(input.data).not.toBe('0xdead')
+describe('gateInputFor', () => {
+  // Which bytes the gate judges is enforced by the type, not by inspecting this
+  // call site's source. Three source-scanning versions were each defeated — by a
+  // comment, by a string literal, and by an alias that read the correct field and
+  // failed the test anyway — and the interface that replaced them was defeated
+  // too, because `safeTx` and `safeTransaction` are the same type. Only the brand
+  // separates them, so the falsification for this lives in tsc: see the
+  // "rejects the stored document" case below.
+  it('reads the calldata of the struct that gets signed', () => {
+    expect(
+      gateInputFor({ safeTransaction: signedStruct('0xaabb') }, 'mainnet').data
+    ).toBe('0xaabb')
   })
 
   it('passes the network key straight through', () => {
     expect(
-      gateInputFor(
-        { safeTransaction: { data: { data: '0xaabb' } } },
-        'Abstract'
-      ).network
+      gateInputFor({ safeTransaction: signedStruct('0xaabb') }, 'Abstract')
+        .network
     ).toBe('Abstract')
   })
 
-  it('reports absent calldata as undefined, not as an empty string', () => {
-    // `evaluateCodehashSignGate` keys its "nothing to judge" branch off a
-    // falsy `data`; an empty string would reach the decoder instead.
+  it('reports absent calldata as undefined', () => {
+    // `evaluateCodehashSignGate` keys its "nothing to judge" branch off a falsy
+    // `data`, so undefined has to survive the selector rather than becoming a
+    // value the decoder then rejects.
     expect(
-      gateInputFor({ safeTransaction: { data: {} } }, 'mainnet').data
+      gateInputFor({ safeTransaction: signedStruct() }, 'mainnet').data
     ).toBeUndefined()
-    expect(
-      gateInputFor({ safeTransaction: { data: { data: '' } } }, 'mainnet').data
-    ).toBeUndefined()
+  })
+
+  it('rejects the stored document at compile time, which is the real assertion', () => {
+    // `ISafeTxDocument.safeTx` is an unbranded `ISafeTransaction`, so
+    // `gateInputFor({ safeTransaction: row.safeTx }, key)` does not type-check —
+    // the mutation that defeated every previous version of this guard. There is
+    // nothing to assert at runtime; this case exists to name where the guarantee
+    // lives, and `bunx tsc --noEmit` is what enforces it.
+    const unbranded: ISafeTransaction = signedStruct('0xaabb')
+    // @ts-expect-error an unbranded ISafeTransaction is not the signed struct
+    gateInputFor({ safeTransaction: unbranded }, 'mainnet')
+    expect(unbranded.data.data).toBe('0xaabb')
   })
 })
 
@@ -173,6 +193,25 @@ describe('evaluateCodehashSignGate', () => {
       expect(built).toBe(0)
       expect(result.blocksSigning).toBe(false)
     })
+  })
+
+  it('builds its dependencies once per evaluation, not once per cut', async () => {
+    // Nothing in the type pins this, and the only reason it held was that the
+    // caller memoises. A thunk that constructs would otherwise get one checkout
+    // root and one connection per cut in a batch, against a single close().
+    let built = 0
+    await evaluateCodehashSignGate(
+      {
+        data: wrapped([cutCalldata(FACET), cutCalldata(OTHER)]),
+        network: NETWORK,
+      },
+      () => {
+        built += 1
+        return deps()
+      }
+    )
+
+    expect(built).toBe(1)
   })
 
   it('lowercases the network before any lookup sees it', async () => {

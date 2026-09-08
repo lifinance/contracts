@@ -297,7 +297,7 @@ describe('the remedy has to match the verdict', () => {
     })
 
     expect(result.attestedVerdict).toBe('UNVERIFIABLE')
-    expect(result.reason).toMatch(/until an attested build exists/g)
+    expect(result.reason).toMatch(/until an attested build exists/)
     expect(result.reason).not.toMatch(/until the branch is merged/)
   })
 })
@@ -328,7 +328,7 @@ describe('the remedy on an open lineage set', () => {
       expect(result.outcome).toBe('CONFIRM')
       expect(result.attestedVerdict).toBe('UNVERIFIABLE')
       expect(result.reason).toMatch(/until the branch is merged/)
-      expect(result.reason).not.toMatch(/until an attested build exists/g)
+      expect(result.reason).not.toMatch(/until an attested build exists/)
     }
   )
 
@@ -343,7 +343,7 @@ describe('the remedy on an open lineage set', () => {
         scope,
       })
 
-      expect(result.reason).toMatch(/until an attested build exists/g)
+      expect(result.reason).toMatch(/until an attested build exists/)
       expect(result.reason).not.toMatch(/until the branch is merged/)
     }
   })
