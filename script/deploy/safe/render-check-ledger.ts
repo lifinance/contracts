@@ -110,11 +110,9 @@ function rowKind(result: ICheckResult): RowKind {
   if (result.status === 'fail') return 'fail'
   if (result.status === 'needs-ack') return 'needs-ack'
 
-  // `error`, and anything the ledger's four statuses do not cover. The verdict
+  // `error`, and anything the ledger's four statuses do not cover: the verdict
   // grades an unrecognised status as unverified with no acknowledgement path,
-  // so rendering it as an acknowledgeable mismatch offered a route the verdict
-  // refuses — and told the signer a value disagreed when what happened is that
-  // nobody knows what the status meant. Passes never reach here; the caller
+  // and the row has to say the same. Passes never reach here; the caller
   // filters them.
   return 'error'
 }
@@ -177,18 +175,18 @@ function renderSection(
   const expected = rollups.reduce((sum, rollup) => sum + rollup.expected, 0)
   const unverified = rollups.reduce((sum, rollup) => sum + rollup.unverified, 0)
   const needsAck = rollups.reduce((sum, rollup) => sum + rollup.needsAck, 0)
-  // Every recorded mismatch, integrity and semantic alike. Reading it off
-  // `verdict.blocking` counted only integrity, because that is the only class
-  // pushed there as a `fail` — so a semantic value that genuinely disagreed
-  // appeared in no term on the line a signer skims. Unverified keeps its own
-  // term and is not counted here, so a single problem row still reads as one.
+  // Every recorded mismatch, integrity and semantic alike — `verdict.blocking`
+  // carries a `fail` only for integrity. Deliberately not called "blocking"
+  // here: a semantic mismatch is acknowledgeable, and a section line
+  // contradicting the verdict below it is worse than a vaguer word. Unverified
+  // keeps its own term, so one problem row still reads as one.
   const mismatched = rollups.reduce((sum, rollup) => sum + rollup.failed, 0)
 
   const allGreen = greenChecks === rollups.length
   const summary = [
     `${greenChecks}/${rollups.length} checks green`,
     `${passed}/${expected} network results verified`,
-    mismatched > 0 ? `${mismatched} blocking mismatch` : '',
+    mismatched > 0 ? `${mismatched} mismatch` : '',
     unverified > 0 ? `${unverified} unverified` : '',
     needsAck > 0 ? `${needsAck} needs review` : '',
   ]
@@ -218,9 +216,7 @@ function renderVerdict(
 ): string {
   const passed = rollups.reduce((sum, rollup) => sum + rollup.passed, 0)
   const expected = rollups.reduce((sum, rollup) => sum + rollup.expected, 0)
-  // On every verdict, not only the green one. A closing line carrying the
-  // coverage figure only when everything passed is the shape this package
-  // exists to remove: the run that verified 56 of 57 is precisely the one whose
+  // Carried by every verdict: the run that verified 56 of 57 is the one whose
   // denominator has to be visible.
   const coverage = `${passed}/${expected} network results verified`
 

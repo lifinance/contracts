@@ -290,7 +290,9 @@ export interface ICheckRollup extends ICheckDefinition {
  * reported — a check that ran nowhere is the most important row in the report
  * and must not be absent from it. Where a check reported twice for one network
  * the last entry wins, so a run may record a provisional result and supersede
- * it; the one exception is a mismatch, which no later pass may erase.
+ * it; the one exception is a mismatch, which nothing that would soften the
+ * verdict may erase — only another mismatch, or an `error`, which blocks the
+ * same way.
  *
  * The status coercions are re-applied here rather than trusted from write time,
  * so a result that reached the log some other way — a rehydrated document, a
@@ -314,12 +316,19 @@ export const rollUpChecks = (ledger: ICheckLedger): ICheckRollup[] =>
 
       // A retry may turn an unverified result green — recording a retryable
       // failure exists for exactly that. A mismatch may not: the anchor and the
-      // observed value genuinely disagreed, and anything milder recorded after
-      // it would erase that with no trace. Guarding only `pass` left the
-      // erasure reachable by recording `needs-ack` instead, which then made the
-      // disagreement eligible for a triage relaxation that the triage rules
-      // themselves forbid for a fail.
-      if (result.status !== 'fail' && mismatched.has(result.network)) continue
+      // observed value genuinely disagreed, and a milder result recorded after
+      // it would erase that with no trace.
+      //
+      // `error` is not milder. It blocks with no acknowledgement path, so
+      // letting it supersede keeps the run hard-blocked, while refusing it left
+      // the mismatch standing with nothing counted as unverified — a state a
+      // signer could acknowledge and sign, worse than either input.
+      if (
+        result.status !== 'fail' &&
+        result.status !== 'error' &&
+        mismatched.has(result.network)
+      )
+        continue
 
       latest.set(result.network, result)
     }
@@ -333,7 +342,13 @@ export const rollUpChecks = (ledger: ICheckLedger): ICheckRollup[] =>
 
     const expected = ledger.expectedNetworks.length
     const passed = countOf('pass')
-    const errored = countOf('error')
+    // Anything outside the four statuses counts here, because that is how the
+    // verdict grades it. Counting only the literal 'error' left an unrecognised
+    // status in the denominator and in no numerator at all.
+    const errored = results.filter(
+      (result) =>
+        result.status === 'error' || !CHECK_STATUSES.has(result.status)
+    ).length
     const missingNetworks = ledger.expectedNetworks.filter(
       (network) => !latest.has(network)
     )
@@ -453,11 +468,10 @@ export const summariseLedger = (
   ledger: ICheckLedger,
   options: { triageProfile?: OpProfile } = {}
 ): ILedgerVerdict => {
-  // A ledger that verified nothing is not a clear result. `createCheckLedger`
-  // refuses to build one, but every consumer here takes a plain `ICheckLedger`
-  // — a rehydrated document or a direct push reaches this without passing the
-  // factory, and `passed === expected` is then `0 === 0`, which rendered as
-  // ALL CHECKS GREEN over zero verified results.
+  // A ledger that verified nothing is not a clear result, and `passed ===
+  // expected` is `0 === 0`. The factory refuses to build one, but every
+  // consumer here takes a plain `ICheckLedger`, which a rehydrated document or
+  // a direct push reaches without passing the factory.
   if (ledger.checks.size === 0 || ledger.expectedNetworks.length === 0)
     throw new Error(
       `Refusing to summarise a ledger that verifies nothing: ${ledger.checks.size} checks over ${ledger.expectedNetworks.length} networks. A verdict about no results is not a pass, and reporting one as green is the failure this ledger exists to prevent.`
@@ -615,10 +629,10 @@ export const buildReviewAttestation = (
   // Each row is an array rather than a joined string: JSON delimits the fields
   // itself, so a recorded value can never shift a field boundary and make two
   // different result sets digest identically.
-  // Every stored result, not the surviving rollup rows: supersession drops a
-  // superseded result from what is rendered, and digesting only the survivors
-  // made "one needs-ack" and "a mismatch, then a needs-ack" digest identically —
-  // so the record could not distinguish a run in which something disagreed.
+  // Every stored result, not the surviving rollup rows. Supersession drops a
+  // result from what is rendered, so digesting only the survivors leaves a run
+  // in which something disagreed indistinguishable from one in which nothing
+  // did.
   const rows = ledger.results.map((result) => [
     result.checkId,
     result.network,

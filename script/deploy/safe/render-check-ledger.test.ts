@@ -469,7 +469,7 @@ describe('renderCheckLedger', () => {
   })
 })
 
-describe('what the gate round found', () => {
+describe('what the ledger must never soften or hide', () => {
   it('does not let a milder result erase a recorded mismatch', () => {
     // The supersession guard blocked only a later `pass`, so recording
     // `needs-ack` after a `fail` on the same (check, network) erased the
@@ -551,14 +551,15 @@ describe('what the gate round found', () => {
       line.includes('Intent')
     )
 
-    expect(section).toContain('1 blocking mismatch')
+    expect(section).toContain('1 mismatch')
+    // Not "blocking": this one is acknowledgeable, and the verdict below says
+    // so.
+    expect(section).not.toContain('blocking')
   })
 
   it('sanitises the anchor on the check line, not only on the expanded row', () => {
-    // `recordCheck` validates the anchor against ANCHOR_IDS, so this needs the
-    // rehydration path — which is also why the original test named for the
-    // anchor never set one, and why dropping `clean()` from the check line went
-    // unobserved. The expanded row was already cleaned; the summary line was not.
+    // `recordCheck` validates the anchor against ANCHOR_IDS, so an injected one
+    // is only reachable through the rehydration path.
     const esc = String.fromCharCode(27)
     const rehydrated = {
       expectedNetworks: ['mainnet'],

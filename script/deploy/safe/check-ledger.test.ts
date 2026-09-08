@@ -577,12 +577,10 @@ describe('buildReviewAttestation', () => {
   })
 
   it('changes the digest on reclassification even when nothing blocks', () => {
-    // The case above moves the digest through `hardBlocked` (true for an
-    // integrity fail, false for a semantic one), so it would still pass with
-    // `checkClass` absent from the digest entirely. An all-pass ledger holds
-    // `hardBlocked` false on both sides, leaving the class as the only
-    // difference — which is the demote-the-gate-without-moving-the-record
-    // attack the digest exists to make visible.
+    // An all-pass ledger holds `hardBlocked` false on both sides, leaving the
+    // class as the only difference — the demote-the-gate-without-moving-the-
+    // record attack the digest exists to make visible. A case built on a `fail`
+    // cannot show it, because the class moves `hardBlocked` too.
     const asIntegrity = ledgerOf(['mainnet'], [CODEHASH])
     recordCheck(asIntegrity, result({ status: 'pass' }))
 
@@ -599,9 +597,9 @@ describe('buildReviewAttestation', () => {
   })
 
   it('changes the digest when only the triage profile differs', () => {
-    // The case below moves it through the acknowledgement and relaxed counts.
-    // `none` against `additive` on a needs-ack leaves both counts and
-    // `hardBlocked` identical, so the profile is the only input left.
+    // Two profiles that both leave the needs-ack unrelaxed, so the
+    // acknowledgement and relaxed counts and `hardBlocked` are all identical
+    // and the profile is the only remaining input.
     const build = () => {
       const ledger = ledgerOf(['mainnet'], [TARGET_STATE])
       recordCheck(
@@ -617,17 +615,16 @@ describe('buildReviewAttestation', () => {
         triageProfile: profile,
       })
 
-    const none = withProfile('unknown')
+    const unknown = withProfile('unknown')
     const additive = withProfile('additive')
 
-    expect(none.hardBlocked).toBe(additive.hardBlocked)
-    expect(none.ledgerDigest).not.toBe(additive.ledgerDigest)
+    expect(unknown.hardBlocked).toBe(additive.hardBlocked)
+    expect(unknown.ledgerDigest).not.toBe(additive.ledgerDigest)
   })
 
   it('changes the digest when a check is relabelled', () => {
     // The title is the only text telling a human what is being checked, so
-    // renaming "Facet removal on mainnet" to something harmless has to move the
-    // record.
+    // renaming it to something harmless has to move the record.
     const original = ledgerOf(['mainnet'], [CODEHASH])
     recordCheck(original, result({ status: 'pass' }))
 
@@ -958,5 +955,90 @@ describe('supersession', () => {
     expect(codehash?.failed).toBe(1)
     expect(codehash?.passed).toBe(1)
     expect(targetState?.green).toBe(true)
+  })
+})
+
+describe('nothing that would soften the verdict may erase a mismatch', () => {
+  const attest = (ledger: ICheckLedger) =>
+    buildReviewAttestation(ledger, {
+      reviewer: 'signer-1',
+      reviewedAt: '2026-09-08T00:00:00.000Z',
+    })
+
+  it('keeps the run hard-blocked when a retry of a mismatch could not run', () => {
+    // Refusing the `error` left the mismatch standing with nothing counted as
+    // unverified, so the verdict came back ACKNOWLEDGEMENT REQUIRED — a state a
+    // signer could acknowledge and sign, strictly worse than either input.
+    const ledger = ledgerOf(['mainnet'], [TARGET_STATE])
+    recordCheck(
+      ledger,
+      result({ checkId: 'target-state', status: 'fail', actual: '0xbbb' })
+    )
+    recordCheck(
+      ledger,
+      result({
+        checkId: 'target-state',
+        status: 'error',
+        detail: 'rpc unreachable',
+      })
+    )
+
+    const verdict = summariseLedger(ledger)
+
+    expect(verdict.hardBlocked).toBe(true)
+    // Paired with the standalone case, so this cannot pass by blocking
+    // everything: an error with no prior mismatch blocks the same way.
+    const alone = ledgerOf(['mainnet'], [TARGET_STATE])
+    recordCheck(
+      alone,
+      result({ checkId: 'target-state', status: 'error', detail: 'rpc down' })
+    )
+    expect(summariseLedger(alone).hardBlocked).toBe(true)
+  })
+
+  it('still lets a retry clear an unverified result', () => {
+    // The paired positive for the guard: recording a retryable failure exists
+    // so a retry can turn it green, and only a mismatch is protected.
+    const ledger = ledgerOf(['mainnet'], [TARGET_STATE])
+    recordCheck(
+      ledger,
+      result({ checkId: 'target-state', status: 'error', detail: 'rpc down' })
+    )
+    recordCheck(ledger, result({ checkId: 'target-state', status: 'pass' }))
+
+    expect(summariseLedger(ledger).hardBlocked).toBe(false)
+  })
+
+  it('digests a superseded result, so the record shows what happened', () => {
+    // The digest read the surviving rollup rows, so a run whose first attempt
+    // errored hashed the same as one that passed first time. Two states with
+    // the same survivor must not share a record.
+    const straight = ledgerOf(['mainnet'], [CODEHASH])
+    recordCheck(straight, result({ status: 'pass' }))
+
+    const retried = ledgerOf(['mainnet'], [CODEHASH])
+    recordCheck(retried, result({ status: 'error', detail: 'rpc down' }))
+    recordCheck(retried, result({ status: 'pass' }))
+
+    // Same surviving result, same verdict — only the history differs.
+    expect(attest(retried).hardBlocked).toBe(attest(straight).hardBlocked)
+    expect(attest(retried).ledgerDigest).not.toBe(attest(straight).ledgerDigest)
+  })
+
+  it('counts an unrecognised status as unverified, not as nothing', () => {
+    // It was in the denominator and in no numerator, so a check line read
+    // `pass 0/1` with no term saying why.
+    const rehydrated = {
+      expectedNetworks: ['mainnet'],
+      checks: new Map([[CODEHASH.checkId, CODEHASH]]),
+      results: [
+        result({ status: 'verified' as unknown as ICheckResult['status'] }),
+      ],
+    } as unknown as ICheckLedger
+
+    const [rollup] = rollUpChecks(rehydrated)
+
+    expect(rollup?.errored).toBe(1)
+    expect(rollup?.unverified).toBe(1)
   })
 })
