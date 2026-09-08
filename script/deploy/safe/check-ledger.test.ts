@@ -966,9 +966,8 @@ describe('nothing that would soften the verdict may erase a mismatch', () => {
     })
 
   it('keeps the run hard-blocked when a retry of a mismatch could not run', () => {
-    // Refusing the `error` left the mismatch standing with nothing counted as
-    // unverified, so the verdict came back ACKNOWLEDGEMENT REQUIRED — a state a
-    // signer could acknowledge and sign, strictly worse than either input.
+    // A mismatch whose retry could not run is not acknowledgeable: `error`
+    // blocks with no acknowledgement path, so the run must stay hard-blocked.
     const ledger = ledgerOf(['mainnet'], [TARGET_STATE])
     recordCheck(
       ledger,
@@ -1010,9 +1009,8 @@ describe('nothing that would soften the verdict may erase a mismatch', () => {
   })
 
   it('digests a superseded result, so the record shows what happened', () => {
-    // The digest read the surviving rollup rows, so a run whose first attempt
-    // errored hashed the same as one that passed first time. Two states with
-    // the same survivor must not share a record.
+    // Two runs with the same surviving result and the same verdict, differing
+    // only in history, must not share a record.
     const straight = ledgerOf(['mainnet'], [CODEHASH])
     recordCheck(straight, result({ status: 'pass' }))
 
@@ -1026,8 +1024,8 @@ describe('nothing that would soften the verdict may erase a mismatch', () => {
   })
 
   it('counts an unrecognised status as unverified, not as nothing', () => {
-    // It was in the denominator and in no numerator, so a check line read
-    // `pass 0/1` with no term saying why.
+    // A status the verdict grades as unverified has to land in a numerator, or
+    // the check line reads `pass 0/1` with no term saying why.
     const rehydrated = {
       expectedNetworks: ['mainnet'],
       checks: new Map([[CODEHASH.checkId, CODEHASH]]),

@@ -471,10 +471,10 @@ describe('renderCheckLedger', () => {
 
 describe('what the ledger must never soften or hide', () => {
   it('does not let a milder result erase a recorded mismatch', () => {
-    // The supersession guard blocked only a later `pass`, so recording
-    // `needs-ack` after a `fail` on the same (check, network) erased the
-    // disagreement — and triage then relaxed it, which the triage rules forbid
-    // for a fail. Semantic only; integrity coerces needs-ack to fail.
+    // A mismatch may not be erased by a milder result on the same
+    // (check, network): erased, it becomes eligible for a triage relaxation the
+    // rules forbid for a fail. Semantic only; integrity coerces needs-ack to
+    // fail.
     const ledger = ledgerOf(['mainnet'], [TARGET_STATE])
     recordCheck(
       ledger,
@@ -538,9 +538,8 @@ describe('what the ledger must never soften or hide', () => {
   })
 
   it('names a semantic mismatch on the section line', () => {
-    // The term was read off `verdict.blocking`, which carries a `fail` only for
-    // integrity checks, so a semantic value that disagreed appeared in no term
-    // on the line a signer skims.
+    // A semantic value that disagreed has to appear in a term on the line a
+    // signer skims, not only in the expanded row.
     const ledger = ledgerOf(['mainnet'], [TARGET_STATE])
     recordCheck(
       ledger,
@@ -664,5 +663,53 @@ describe('the closing line always carries the coverage figure', () => {
 
     expect(verdict).toContain('NO BLOCKING RESULT')
     expect(verdict).toContain('1/2 network results verified')
+  })
+})
+
+describe('a superseded mismatch stays visible', () => {
+  it('names the earlier disagreement on the row that replaced it', () => {
+    // One row per network is what the verdict needs, and it cannot hold both
+    // "it disagreed" and "the retry could not run". The verdict blocks either
+    // way; what changes is the guidance — "retry this" reads differently for a
+    // network that has already disagreed once.
+    const ledger = ledgerOf(['mainnet'], [TARGET_STATE])
+    recordCheck(
+      ledger,
+      result({
+        checkId: 'target-state',
+        status: 'fail',
+        expected: 'facet 0xaaa',
+        actual: 'facet 0xdeadbeef',
+      })
+    )
+    recordCheck(
+      ledger,
+      result({
+        checkId: 'target-state',
+        status: 'error',
+        detail: 'rpc unreachable on retry',
+      })
+    )
+
+    const row = rowFor(renderCheckLedger(ledger), 'mainnet')
+
+    expect(row).toContain('UNVERIFIED')
+    expect(row).toContain('an earlier attempt disagreed')
+    expect(row).toContain('facet 0xdeadbeef')
+    expect(row).toContain('rpc unreachable on retry')
+  })
+
+  it('says nothing about a supersession that did not happen', () => {
+    // Paired absence: an error with no prior mismatch must not claim one, or
+    // the note would appear on every retried network.
+    const ledger = ledgerOf(['mainnet'], [TARGET_STATE])
+    recordCheck(
+      ledger,
+      result({ checkId: 'target-state', status: 'error', detail: 'rpc down' })
+    )
+
+    expect(rowFor(renderCheckLedger(ledger), 'mainnet')).not.toContain(
+      'an earlier attempt disagreed'
+    )
   })
 })

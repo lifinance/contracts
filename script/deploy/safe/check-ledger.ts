@@ -85,6 +85,14 @@ export interface ICheckDefinition {
 }
 
 export interface ICheckResult {
+  /**
+   * Set when this result superseded a mismatch on the same network.
+   *
+   * The verdict needs one row per network, so the disagreement it replaced has
+   * nowhere else to be reported — and "retry this" reads differently when the
+   * network in question has already disagreed once.
+   */
+  supersededMismatch?: string
   checkId: string
   network: string
   status: CheckStatus
@@ -319,10 +327,10 @@ export const rollUpChecks = (ledger: ICheckLedger): ICheckRollup[] =>
       // observed value genuinely disagreed, and a milder result recorded after
       // it would erase that with no trace.
       //
-      // `error` is not milder. It blocks with no acknowledgement path, so
-      // letting it supersede keeps the run hard-blocked, while refusing it left
-      // the mismatch standing with nothing counted as unverified — a state a
-      // signer could acknowledge and sign, worse than either input.
+      // `error` is not milder: it blocks with no acknowledgement path, so
+      // letting it supersede keeps the run hard-blocked. Refusing it instead
+      // left the mismatch standing with nothing counted as unverified, which a
+      // signer could acknowledge and sign.
       if (
         result.status !== 'fail' &&
         result.status !== 'error' &&
@@ -330,7 +338,20 @@ export const rollUpChecks = (ledger: ICheckLedger): ICheckRollup[] =>
       )
         continue
 
-      latest.set(result.network, result)
+      // One row per network is what the verdict needs, but it cannot hold both
+      // "it disagreed" and "the retry could not run" — and dropping the first
+      // told the operator to retry a network that had already disagreed, which
+      // is different guidance. The surviving row carries the fact.
+      const superseded = latest.get(result.network)
+      const carried =
+        superseded?.status === 'fail' && result.status === 'error'
+          ? {
+              ...result,
+              supersededMismatch: `an earlier attempt disagreed: expected ${superseded.expected}, observed ${superseded.actual} (anchor ${superseded.anchor})`,
+            }
+          : result
+
+      latest.set(result.network, carried)
     }
 
     const results = ledger.expectedNetworks

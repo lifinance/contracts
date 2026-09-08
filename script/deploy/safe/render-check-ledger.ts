@@ -149,6 +149,12 @@ function renderCheck(
           `expected ${clean(result.expected)}`,
           `actual ${clean(result.actual)}`,
           `anchor ${clean(result.anchor)}`,
+          // The disagreement this row replaced, when it replaced one. Without
+          // it the row reads as a plain retry of a network that has already
+          // disagreed once.
+          ...(result.supersededMismatch === undefined
+            ? []
+            : [clean(result.supersededMismatch)]),
         ],
         {
           ...(result.detail === undefined ? {} : { detail: result.detail }),
