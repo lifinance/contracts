@@ -5,13 +5,12 @@
  * Prerequisites, all checked at runtime with an actionable error:
  *   1. `CentrifugeFacet` is registered on the Diamond for `SRC_CHAIN` — the facet has to be
  *      deployed and listed in `script/deploy/_targetState.json` first.
- *   2. The signer holds `BRIDGE_AMOUNT` of the share token. There is no DEX liquidity for
- *      these tokens, so the balance comes either from a transfer by an existing holder or
- *      from depositing USDC into the token's ERC-7540 vault. That vault is asynchronous and
- *      settles only when the pool operator closes an epoch, so plan for roughly a day:
- *      across every deposit both vaults have ever fulfilled, the request-to-claimable wait
- *      ran 1.4h to 72h with a ~27h median. Neither bridgeable token has a
- *      synchronous-deposit vault, so this cannot be done inside one transaction.
+ *   2. The signer holds `BRIDGE_AMOUNT_HUMAN` of the share token. deJAAA can simply be bought
+ *      for USDC on Base (Aerodrome Slipstream), which is the cheapest way to fund a run and
+ *      why this demo defaults to the Base leg. Buying is a plain transfer, so the token's
+ *      hook permits it; minting through the ERC-7540 vault instead would require the pool's
+ *      memberlist and settle only on an epoch close. deJTRSY has no pool anywhere, so
+ *      running this against deJTRSY means sourcing it from an existing holder.
  *   3. The signer holds native for the messaging fee and gas.
  *
  * Run:  bunx tsx script/demoScripts/demoCentrifuge.ts
@@ -64,27 +63,30 @@ const TOKEN_BRIDGE_ABI = parseAbi([
   'function chainIdToCentrifugeId(uint256 evmChainId) view returns (uint16)',
 ])
 
-// The only two Centrifuge share tokens bridgeable through this facet today: they are the ones
-// registered on the Spoke of both supported chains AND holding a permissive (freeze-only)
-// transfer hook, so the Diamond is allowed to hold them mid-flight. Every other share token the
-// Spoke knows about is KYC-gated and reverts in its hook before Centrifuge is reached. Both are
+// The only two Centrifuge share tokens bridgeable through this facet today: the ones registered
+// on the Spoke of both supported chains whose hook is `FreelyTransferable`, which gates issuance
+// and redemption on the pool's memberlist but leaves plain transfers open - so the Diamond may
+// hold them mid-flight without being whitelisted. Every other share token the Spoke knows about
+// restricts transfers too and would revert in its hook before Centrifuge is reached. Both are
 // deployed at the same address on Ethereum and Base.
 const SHARE_TOKENS = {
   deJAAA: getAddress('0xAAA0008C8CF3A7Dca931adaF04336A5D808C82Cc'),
   deJTRSY: getAddress('0xA6233014B9b7aaa74f38fa1977ffC7A89642dC72'),
 } as const
 
-// @DEV: switch the corridor and the asset here. Only Ethereum <-> Base is mapped by the bridge.
-const SRC_CHAIN: SupportedChain = 'mainnet'
-const DST_CHAIN: SupportedChain = 'base'
+// @DEV: switch the corridor and the asset here. Only Ethereum <-> Base is mapped by the bridge,
+// and both directions are single-leg because the pool hub for these tokens sits on Ethereum.
+const SRC_CHAIN: SupportedChain = 'base'
+const DST_CHAIN: SupportedChain = 'mainnet'
 const SHARE_TOKEN: Address = SHARE_TOKENS.deJAAA
 
 // Centrifuge share tokens are fund shares, so one unit already carries real value.
 const BRIDGE_AMOUNT_HUMAN = '1'
 
-// Fee discovery ladder. The first candidate is comfortably above the ~0.0003 ETH observed on
-// the Ethereum -> Base leg; the ceiling bounds what the script is willing to lock up before
-// the surplus comes back.
+// Fee discovery ladder. It starts well below the ~0.0003 ETH measured on the Ethereum -> Base
+// leg and doubles, because the default Base -> Ethereum direction pays for execution on
+// Ethereum and should cost materially more. The ceiling bounds what the script is willing to
+// lock up before the surplus comes back.
 const FEE_PROBE_START = parseEther('0.0001')
 const FEE_PROBE_CEILING = parseEther('0.05')
 
@@ -98,15 +100,28 @@ const FEE_PROBE_CEILING = parseEther('0.05')
  * production this number comes from the LI.FI API quote instead.
  *
  * @param probe - runs the bridge call under `eth_call` with the given fee, returning the error it reverted with
+ * @param nativeBalance - the signer's balance, which caps the ladder because `eth_call` charges `value` against it
  * @returns the smallest probed fee that simulated successfully
- * @throws when even the ceiling reverts, surfacing that revert rather than a fee verdict
+ * @throws when the balance runs out first, or when even the ceiling reverts
  */
 async function discoverNativeFee(
-  probe: (fee: bigint) => Promise<unknown | null>
+  probe: (fee: bigint) => Promise<unknown | null>,
+  nativeBalance: bigint
 ): Promise<bigint> {
   let lastError: unknown = null
 
   for (let fee = FEE_PROBE_START; fee <= FEE_PROBE_CEILING; fee *= 2n) {
+    // eth_call debits `value` from the sender, so probing past the balance would report
+    // "insufficient funds" and read as a fee verdict it is not
+    if (fee > nativeBalance)
+      throw new Error(
+        `The Gateway rejected every fee up to ${formatEther(
+          fee / 2n
+        )} ETH, which is all this wallet can cover (balance ${formatEther(
+          nativeBalance
+        )} ETH). Top it up and re-run - the Base -> Ethereum leg costs materially more than the reverse, since it pays for execution on Ethereum.`
+      )
+
     lastError = await probe(fee)
     if (lastError === null) {
       consola.info(`Native fee accepted at ${formatEther(fee)} ETH`)
@@ -229,6 +244,9 @@ async function main() {
   }
 
   // === Discover the messaging fee ===
+  const nativeBalance = await publicClient.getBalance({
+    address: signerAddress,
+  })
   const nativeFee = await discoverNativeFee(async (fee) => {
     const centrifugeData: CentrifugeFacet.CentrifugeDataStruct = {
       nativeFee: fee,
@@ -247,7 +265,7 @@ async function main() {
     } catch (error) {
       return error
     }
-  })
+  }, nativeBalance)
 
   const centrifugeData: CentrifugeFacet.CentrifugeDataStruct = {
     nativeFee,
