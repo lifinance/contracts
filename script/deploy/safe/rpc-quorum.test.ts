@@ -657,8 +657,8 @@ describe('evaluateQuorumCoverage', () => {
 describe('an IP alias cannot manufacture a quorum', () => {
   it('refuses when an endpoint names its host as a bare IP address', () => {
     // The attack a writable endpoint list makes cheap: an IP alias of a node
-    // you already control used to derive a second identity, so one upstream
-    // agreed with itself and the read went green.
+    // the proposer already controls, which no URL can distinguish from a second
+    // provider.
     const verdict = evaluateRpcQuorum([
       ok('https://rpc.attacker-controlled.com/'),
       ok('http://203.0.113.7:8545/'),
@@ -685,6 +685,93 @@ describe('an IP alias cannot manufacture a quorum', () => {
     const verdict = evaluateRpcQuorum([
       ok('http://203.0.113.7:8545/'),
       ok('http://198.51.100.4:8545/'),
+    ])
+
+    expect(verdict.status).toBe('provider-identity-unverifiable')
+    expect(verdict.reachesQuorum).toBe(false)
+  })
+})
+
+describe('a coverage figure never travels without its source', () => {
+  it('renders the source it measured, so a bare number cannot be quoted as a fleet fact', () => {
+    // The field existed, was required, and was assigned — and nothing rendered
+    // it, which is the whole reason it exists.
+    const lines = renderQuorumCoverage(
+      evaluateQuorumCoverage({ mainnet: [ALCHEMY, INFURA] }, 'MY-SOURCE')
+    )
+
+    expect(lines.join('\n')).toContain('MY-SOURCE')
+  })
+
+  it('renders it on the refusing line too, not only the green one', () => {
+    const lines = renderQuorumCoverage(
+      evaluateQuorumCoverage({ mainnet: [ALCHEMY] }, 'MY-SOURCE')
+    )
+
+    expect(lines.join('\n')).toContain('MY-SOURCE')
+  })
+})
+
+describe('where the identity refusal sits among the other verdicts', () => {
+  const forked = (url: string) =>
+    ok(url, { blockHash: '0xaaaa', value: '0xcode' })
+
+  it('is settled before a fork, because a fork verdict rests on the provider count', () => {
+    // Not an arbitrary order: every verdict below this one reads a provider
+    // count, and an identity nobody can establish makes that count unsound
+    // rather than merely thin.
+    const verdict = evaluateRpcQuorum([
+      forked(ALCHEMY),
+      ok(INFURA, { blockHash: '0xbbbb', value: '0xcode' }),
+      ok('http://203.0.113.7:8545/'),
+    ])
+
+    expect(verdict.status).toBe('provider-identity-unverifiable')
+  })
+
+  it('is settled before a disagreement, for the same reason', () => {
+    const verdict = evaluateRpcQuorum([
+      ok(ALCHEMY, { value: '0xcode' }),
+      ok(INFURA, { value: '0xOTHER' }),
+      ok('http://203.0.113.7:8545/'),
+    ])
+
+    expect(verdict.status).toBe('provider-identity-unverifiable')
+  })
+
+  it('is settled after a misconfigured quorum, which is the caller-bug case', () => {
+    // Paired presence: a below-minimum quorum is a caller defect that must
+    // surface whatever the endpoint list looks like, so it stays first.
+    const verdict = evaluateRpcQuorum(
+      [ok(ALCHEMY), ok('http://203.0.113.7:8545/')],
+      1
+    )
+
+    expect(verdict.status).toBe('quorum-misconfigured')
+  })
+
+  it('is settled before an outage, because a retry cannot make an identity knowable', () => {
+    // Everything errored and one endpoint is an address. Reported as an outage
+    // this is transient and retried; reported as an unknowable identity it is
+    // not, which is the truth — another attempt returns the same endpoint list.
+    const verdict = evaluateRpcQuorum([
+      failed(ALCHEMY),
+      failed('http://203.0.113.7:8545/'),
+    ])
+
+    expect(verdict.status).toBe('provider-identity-unverifiable')
+    expect(verdict.transient).toBe(false)
+    expect(planQuorumRetry(verdict, 1).retry).toBe(false)
+  })
+
+  it('refuses on a consulted IP endpoint even when it did not answer', () => {
+    // Deliberately keyed on every endpoint consulted, not only the answering
+    // ones: a check that fires only when the bad endpoint happens to respond
+    // would refuse one read and green the next on an identical configuration.
+    const verdict = evaluateRpcQuorum([
+      ok(ALCHEMY),
+      ok(INFURA),
+      failed('http://203.0.113.7:8545/', 'connection reset'),
     ])
 
     expect(verdict.status).toBe('provider-identity-unverifiable')

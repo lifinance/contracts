@@ -202,6 +202,16 @@ const IPV4 = /^\d{1,3}(\.\d{1,3}){3}$/
 const EMPTY_VALUE = /^(0x)?0*$/
 
 /**
+ * Identity every bare-IP endpoint collapses onto.
+ *
+ * Distinct from a hostname identity and shared by all of them: an address cannot
+ * be shown independent of a name that might resolve to it, so counting it as its
+ * own provider is the one direction that can invent a quorum. Collapsing them
+ * also stops several IP endpoints inflating the count between themselves.
+ */
+export const IP_LITERAL_IDENTITY = '<ip-literal host>'
+
+/**
  * Provider identity for an endpoint URL: the host's last two labels, lowercased
  * and without its port.
  *
@@ -213,19 +223,10 @@ const EMPTY_VALUE = /^(0x)?0*$/
  * closes those with {@link IProviderObservation.providerId}.
  *
  * @param url - endpoint URL, never rendered by this module
- * @returns A host-derived identity, or a shared sentinel when the URL will not
- *   parse — which merges every unparsable endpoint into one provider
+ * @returns A host-derived identity, or one of two shared sentinels: every
+ *   bare-IP host collapses onto one, and every URL that will not parse onto
+ *   another, so neither can be counted as a provider of its own
  */
-/**
- * Identity every bare-IP endpoint collapses onto.
- *
- * Distinct from a hostname identity and shared by all of them: an address cannot
- * be shown independent of a name that might resolve to it, so counting it as its
- * own provider is the one direction that can invent a quorum. Collapsing them
- * also stops several IP endpoints inflating the count between themselves.
- */
-export const IP_LITERAL_IDENTITY = '<ip-literal host>'
-
 export const providerIdentityForUrl = (url: string): string => {
   const host = hostOf(url).toLowerCase()
   if (host === '<unparsable url>') return host
@@ -330,8 +331,12 @@ const countProviders = (
  * where there is lag. Provider shortfall is settled after divergence, so a
  * thinly-configured chain still surfaces a real disagreement, and before any
  * counting of agreement, so a chain with one provider can never read as
- * consensus. The green branch is last and requires every condition
- * affirmatively, so an unforeseen combination refuses.
+ * consensus. An identity that cannot be established is the exception, settled
+ * ahead of divergence: every later verdict reads a provider count, and an
+ * unknowable identity makes that count unsound rather than merely thin — so a
+ * fork or a disagreement reported alongside it would rest on a denominator
+ * this module cannot vouch for. The green branch is last and requires every
+ * condition affirmatively, so an unforeseen combination refuses.
  *
  * @param observations - one entry per endpoint consulted, in any order
  * @param quorum - independent providers that must agree; defaults to
@@ -710,7 +715,7 @@ export const renderQuorumCoverage = (
   report: IQuorumCoverageReport
 ): string[] => {
   const covered = report.networks.length - report.below.length
-  const head = `RPC quorum coverage: ${covered}/${report.networks.length} network(s) reach ${report.quorum} independent providers`
+  const head = `RPC quorum coverage in ${report.source}: ${covered}/${report.networks.length} network(s) reach ${report.quorum} independent providers`
 
   if (report.below.length === 0) return [`${GREEN}✓ ${head}${RESET}`]
 
