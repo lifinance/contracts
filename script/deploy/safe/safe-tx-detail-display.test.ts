@@ -347,6 +347,57 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
     expect(line).toContain('(LiFiDiamond)')
   })
 
+  it('says so when the proposer address will not render either', () => {
+    // The same branch as the target's, one call site over — the gap that let
+    // the silent-blank behaviour survive on this line after it was fixed on
+    // the other.
+    const line = lineStartingWith(
+      buildSafeTxDetailLines({
+        ...benign,
+        formatAddress: () => {
+          throw new Error('no codec for this network')
+        },
+      }),
+      'Proposer:'
+    )
+
+    expect(line).toContain('could not be rendered for this network')
+    // The stored address is still shown rather than blanked.
+    expect(line).toContain(benign.proposer as string)
+  })
+
+  it('blames nothing for a field that is blank because it is empty', () => {
+    // An empty stored value renders empty because it is empty; a renderer
+    // notice there would name the wrong cause and add a line the display
+    // never had.
+    for (const [field, label] of [
+      ['to', 'To:'],
+      ['proposer', 'Proposer:'],
+    ] as const)
+      expect(lineStartingWith(linesFor({ [field]: '' }), label)).not.toContain(
+        'could not be rendered'
+      )
+  })
+
+  it('hands the formatter and the explorer the sanitised text, not the row', () => {
+    // Both are given `text`. Passing the stored value instead would put the
+    // unsanitised string on the line as the address, under a notice still
+    // claiming it had been sanitised.
+    const padded = `  ${benign.to as string}  `
+    const line = lineStartingWith(
+      buildSafeTxDetailLines({
+        ...benign,
+        to: padded,
+        formatAddress: (address: string) => `len${address.length}`,
+        explorerUrlFor: (address: string) => `https://x/len${address.length}`,
+      }),
+      'To:'
+    )
+
+    expect(line).toContain(`len${(benign.to as string).length}`)
+    expect(line).not.toContain(`len${padded.length}`)
+  })
+
   it('puts the notice outside the colour on the address lines too', () => {
     for (const [field, label] of [
       ['to', 'To:'],

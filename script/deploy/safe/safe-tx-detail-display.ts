@@ -176,8 +176,10 @@ const asPrintable = (value: unknown): IRenderedField => {
 
   return {
     text,
-    // Each condition rules out a different way the glyphs a reader sees can
-    // fail to determine the stored value. Anything that was not a string was
+    // A byte-level property, not a glyph-level one: it says the printable text
+    // is the stored text modulo trimming, which is what `getTargetName` and the
+    // explorer link are resolved from. Confusables and combining marks are not
+    // in scope here and are not claimed to be. Anything that was not a string was
     // never an address, absent included — `String(undefined)` is a word, not a
     // target. Trimming the ends is the one repair that cannot change which
     // address this is; an edit inside it can, since a zero-width space between
@@ -210,13 +212,15 @@ const storedField = (value: unknown, code: string): string => {
  * address at all, which reads as a stronger claim than the row supports.
  */
 const printableFragment = (produce: () => string): string | undefined => {
-  let produced: string
   try {
-    produced = produce()
+    // The coercion inside the sanitiser is as able to throw as the callback
+    // is — a returned object with a throwing `toString` reaches it — so both
+    // stay under the same guard. `processTxs` has no per-network catch, so an
+    // escape here costs the operator every remaining network in the run.
+    return sanitizeProvenanceText(produce()) || undefined
   } catch {
     return undefined
   }
-  return sanitizeProvenanceText(produced) || undefined
 }
 
 /** Names a fragment that could not be rendered, in the notice's voice. */
@@ -225,16 +229,30 @@ const FRAGMENT_UNRENDERABLE = color(
   ' ⚠ the address could not be rendered for this network'
 )
 
+/**
+ * How an address renders, and whether the renderer is the reason it is blank.
+ *
+ * An empty stored value renders empty because it is empty; saying the network
+ * could not render it would blame the wrong thing and add a line the original
+ * display never had.
+ */
+function renderAddress(
+  text: string,
+  formatAddress: (address: string) => string
+): { readonly shown: string; readonly failed: boolean } {
+  const rendered = printableFragment(() => formatAddress(text))
+  if (rendered !== undefined) return { shown: rendered, failed: false }
+  return { shown: text, failed: text !== '' }
+}
+
 /** Renders a stored address through the network's own display form. */
 function formattedAddressField(
   value: unknown,
   formatAddress: (address: string) => string
 ): string {
   const { text, notice } = asPrintable(value)
-  const rendered = printableFragment(() => formatAddress(text))
-  return rendered === undefined
-    ? `${color(GREEN, text)}${notice}${FRAGMENT_UNRENDERABLE}`
-    : `${color(GREEN, rendered)}${notice}`
+  const { shown, failed } = renderAddress(text, formatAddress)
+  return `${color(GREEN, shown)}${notice}${failed ? FRAGMENT_UNRENDERABLE : ''}`
 }
 
 /**
@@ -253,8 +271,8 @@ function formattedAddressField(
  */
 function toLine(input: ISafeTxDetailInput): string {
   const { text, identityPreserved, notice } = asPrintable(input.to)
-  const address = printableFragment(() => input.formatAddress(text))
-  const resolvable = identityPreserved && address !== undefined
+  const { shown, failed } = renderAddress(text, input.formatAddress)
+  const resolvable = identityPreserved && !failed && shown !== ''
 
   const targetName = resolvable
     ? printableFragment(() => input.toTargetName)
@@ -266,9 +284,9 @@ function toLine(input: ISafeTxDetailInput): string {
     : undefined
   const link = url === undefined ? '' : ` ${color(CYAN, url)}`
 
-  return address === undefined
-    ? `${color(GREEN, text)}${notice}${FRAGMENT_UNRENDERABLE}`
-    : `${color(GREEN, `${address}${name}${link}`)}${notice}`
+  return `${color(GREEN, `${shown}${name}${link}`)}${notice}${
+    failed ? FRAGMENT_UNRENDERABLE : ''
+  }`
 }
 
 /**
