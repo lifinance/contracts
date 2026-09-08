@@ -9,13 +9,13 @@
  * erase or repaint the lines around it, and repaint a fabricated block showing
  * a benign target above the prompt that asks whether to sign.
  *
- * Nothing upstream can be relied on to have removed them first. The checks
+ * Nothing upstream can be relied on to have removed them first. The two checks
  * that look like they would — `BigInt()` on the nonce and value,
- * `normalizeAddressForNetwork` on the target — both *skip* whitespace rather
- * than refusing it, so `\r`, `\n` and U+2028 pass through every one of them
- * and reach a line they can rewind. So every stored value this block prints is
- * sanitised here, at the point of printing, and the caller passes the target
- * address in raw rather than pre-rendered for that reason.
+ * `normalizeAddressForNetwork` on the target — *skip* whitespace rather than
+ * refusing it, so `\r`, `\n` and U+2028 survive both and reach a line they can
+ * rewind. Every stored value this block prints is therefore sanitised here,
+ * and the two fragments the caller assembles itself — the target and the nonce
+ * warning — are sanitised there for the same reason.
  */
 
 import { sanitizeProvenanceText } from '../shared/git-provenance'
@@ -53,9 +53,9 @@ export interface IParkedTaskRef {
  * What the block renders.
  *
  * The `unknown` fields are read straight off the stored row and are sanitised
- * here. The `string` fields are fragments the caller has already rendered,
- * including this module's own colour codes, so they are interpolated as-is —
- * never pass a stored value through one of those.
+ * here. The `string` fields already carry colour codes, so they cannot be
+ * sanitised without stripping those, and are interpolated as-is: a stored value
+ * may only reach one of them already sanitised by the caller.
  */
 export interface ISafeTxDetailInput {
   readonly nonce: unknown
