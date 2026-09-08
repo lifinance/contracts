@@ -90,6 +90,17 @@ const BRIDGE_AMOUNT_HUMAN = '1'
 const FEE_PROBE_START = parseEther('0.0001')
 const FEE_PROBE_CEILING = parseEther('0.05')
 
+// Held back from the fee budget so a discovered fee cannot swallow the balance the broadcast
+// itself still has to pay for. Deliberately well above the ~300k the fork tests settle at,
+// because reserving headroom costs nothing while running out mid-run costs a failed send.
+const BRIDGE_GAS_ALLOWANCE = 1_000_000n
+
+// The ladder only proves a fee is sufficient, never that it exceeds what the Gateway charges.
+// Paying a deliberate margin over it guarantees there is a surplus to refund, which is what the
+// money-flow check at the end asserts; without it an exactly-sufficient fee would report a
+// failure on a bridge that succeeded.
+const FEE_SURPLUS_PERCENT = 25n
+
 /**
  * Finds a native fee the Centrifuge Gateway accepts for this exact transfer.
  *
@@ -100,34 +111,40 @@ const FEE_PROBE_CEILING = parseEther('0.05')
  * production this number comes from the LI.FI API quote instead.
  *
  * @param probe - runs the bridge call under `eth_call` with the given fee, returning the error it reverted with
- * @param nativeBalance - the signer's balance, which caps the ladder because `eth_call` charges `value` against it
+ * @param feeBudget - the most the signer can put toward the fee, which caps the ladder because `eth_call` charges `value` against the balance
  * @returns the smallest probed fee that simulated successfully
- * @throws when the balance runs out first, or when even the ceiling reverts
+ * @throws when the budget runs out first, or when even the ceiling reverts
  */
 async function discoverNativeFee(
   probe: (fee: bigint) => Promise<unknown | null>,
-  nativeBalance: bigint
+  feeBudget: bigint
 ): Promise<bigint> {
   let lastError: unknown = null
 
-  for (let fee = FEE_PROBE_START; fee <= FEE_PROBE_CEILING; fee *= 2n) {
-    // eth_call debits `value` from the sender, so probing past the balance would report
-    // "insufficient funds" and read as a fee verdict it is not
-    if (fee > nativeBalance)
+  for (let fee = FEE_PROBE_START; ; fee *= 2n) {
+    // the last rung is the ceiling itself, so a fee between the final doubling and the ceiling
+    // is never reported as the ceiling having failed
+    const probedFee = fee > FEE_PROBE_CEILING ? FEE_PROBE_CEILING : fee
+
+    // eth_call debits `value` from the sender, so probing past what the wallet can cover would
+    // report "insufficient funds" and read as a fee verdict it is not
+    if (probedFee > feeBudget)
       throw new Error(
-        `The Gateway rejected every fee up to ${formatEther(
-          fee / 2n
-        )} ETH, which is all this wallet can cover (balance ${formatEther(
-          nativeBalance
-        )} ETH). Top it up and re-run - the Base -> Ethereum leg costs materially more than the reverse, since it pays for execution on Ethereum.`
+        `The next probe is ${formatEther(
+          probedFee
+        )} ETH but this wallet can put at most ${formatEther(
+          feeBudget
+        )} ETH toward the messaging fee (balance less the gas held back for the bridge call). Top it up and re-run - the Base -> Ethereum leg costs materially more than the reverse, since it pays for execution on Ethereum.`
       )
 
-    lastError = await probe(fee)
+    lastError = await probe(probedFee)
     if (lastError === null) {
-      consola.info(`Native fee accepted at ${formatEther(fee)} ETH`)
-      return fee
+      consola.info(`Native fee accepted at ${formatEther(probedFee)} ETH`)
+      return probedFee
     }
-    consola.debug(`fee ${formatEther(fee)} ETH rejected, doubling`)
+    consola.debug(`fee ${formatEther(probedFee)} ETH rejected, doubling`)
+
+    if (probedFee === FEE_PROBE_CEILING) break
   }
 
   throw new Error(
@@ -137,7 +154,7 @@ async function discoverNativeFee(
   )
 }
 
-async function main() {
+async function main(): Promise<void> {
   // === Set up environment ===
   const { publicClient, walletClient, walletAccount, lifiDiamondAddress } =
     await setupEnvironment(SRC_CHAIN, CENTRIFUGE_FACET_ABI)
@@ -244,10 +261,14 @@ async function main() {
   }
 
   // === Discover the messaging fee ===
-  const nativeBalance = await publicClient.getBalance({
-    address: signerAddress,
-  })
-  const nativeFee = await discoverNativeFee(async (fee) => {
+  const [nativeBalance, gasPrice] = await Promise.all([
+    publicClient.getBalance({ address: signerAddress }),
+    publicClient.getGasPrice(),
+  ])
+  const gasReserve = gasPrice * BRIDGE_GAS_ALLOWANCE
+  const feeBudget = nativeBalance > gasReserve ? nativeBalance - gasReserve : 0n
+
+  const discoveredFee = await discoverNativeFee(async (fee) => {
     const centrifugeData: CentrifugeFacet.CentrifugeDataStruct = {
       nativeFee: fee,
       refundRecipient: signerAddress,
@@ -265,7 +286,21 @@ async function main() {
     } catch (error) {
       return error
     }
-  }, nativeBalance)
+  }, feeBudget)
+
+  const nativeFee = (discoveredFee * (100n + FEE_SURPLUS_PERCENT)) / 100n
+  if (nativeFee > feeBudget)
+    throw new Error(
+      `The fee accepted at ${formatEther(
+        discoveredFee
+      )} ETH leaves no room for the ${FEE_SURPLUS_PERCENT}% surplus this demo pays to exercise the refund: that needs ${formatEther(
+        nativeFee
+      )} ETH against a budget of ${formatEther(
+        feeBudget
+      )} ETH (balance ${formatEther(
+        nativeBalance
+      )} ETH, less the gas held back for the bridge call). Top it up and re-run.`
+    )
 
   const centrifugeData: CentrifugeFacet.CentrifugeDataStruct = {
     nativeFee,
