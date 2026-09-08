@@ -3195,6 +3195,22 @@ describe('safe-config asserts the owner set both ways', () => {
     }
   })
 
+  it('strips control characters out of an unusable entry', async () => {
+    // The description reaches an operator's terminal and a job log, so an entry
+    // carrying an escape sequence must not be interpolated raw.
+    const esc = String.fromCharCode(27)
+    const ctx = makeSafeCtx({
+      configured: [OWNER_A, `${esc}[31mRED`],
+      onChain: [getAddress(OWNER_A)],
+    })
+    await invariant('safe-config').run(ctx)
+    const joined = ctx.errors.join('\n')
+
+    expect(joined).not.toContain(esc)
+    // Paired presence: the entry is still described, not silently dropped.
+    expect(joined).toContain('RED')
+  })
+
   it('distinguishes two unusable entries that render identically', async () => {
     // The whole point of carrying position and length: without them these two
     // are the same text in the operator's terminal.
