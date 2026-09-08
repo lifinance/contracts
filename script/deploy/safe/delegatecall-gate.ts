@@ -61,7 +61,7 @@ const MAX_RENDERED = 80
  * @param value - whatever the operation field held
  * @returns A control-character-free rendering, bounded, with the type
  */
-const describe = (value: unknown): string => {
+export const describeOperationValue = (value: unknown): string => {
   if (value === undefined) return 'absent'
   // Distinct from a value whose characters were all stripped: nothing was ever
   // there to strip.
@@ -128,7 +128,7 @@ export const evaluateDelegateCallGate = (
   // and closing that belongs one frame up.
   return {
     refuses: true,
-    reason: `This proposal's operation field is ${describe(
+    reason: `This proposal's operation field is ${describeOperationValue(
       operation
     )}, and only the number 0 (Call) may be signed. A delegatecall runs its target against this Safe's own storage, so a value that is not exactly Call cannot be assumed to be one — a 1 or a 0 of the wrong type included, which nothing in this repository writes. Refusing.`,
   }

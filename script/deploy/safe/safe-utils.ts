@@ -825,6 +825,9 @@ export class SafeClient {
   public async signTransactionWithHash(
     safeTx: ISafeTransaction
   ): Promise<ISafeTransaction> {
+    // Repeated from `signTransaction` because this method is public: the gate
+    // has to hold for a caller that reaches the hash route directly.
+    assertProposalOperationPermitted(evaluateDelegateCallGate(safeTx.data))
     try {
       // 1) Compute the Safe transaction hash on-chain (via viem client)
       const hash = await this.getTransactionHash(safeTx)

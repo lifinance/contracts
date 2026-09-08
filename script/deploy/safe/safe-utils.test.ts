@@ -2338,6 +2338,24 @@ describe('SafeClient.signTransaction default path', () => {
 
     expect(calls).toEqual([])
   })
+
+  it('refuses on the hash route reached without the funnel', async () => {
+    // `signTransactionWithHash` is public. Asserting only through
+    // `signTransaction` would pass with this route ungated.
+    const { client, calls } = await makeClient()
+
+    // Matched on the gate's own wording: the method's catch relabels failures
+    // as "Failed to sign transaction hash", so a refusal raised inside the try
+    // would pass a laxer assertion while hiding what refused.
+    await expectRejects(
+      client.signTransactionWithHash(
+        buildSafeTx({ operation: OperationTypeEnum.DelegateCall })
+      ),
+      /Operation gate:[\s\S]*Nothing has been signed or executed/
+    )
+
+    expect(calls).toEqual([])
+  })
 })
 
 describe('SafeClient.executeTransaction operation gate', () => {

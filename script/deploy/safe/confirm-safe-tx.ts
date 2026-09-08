@@ -41,6 +41,7 @@ import {
   type IConfirmSafeTxNetworkContext,
 } from './confirm-safe-tx-prefetch'
 import {
+  describeOperationValue,
   evaluateDelegateCallGate,
   renderDelegateCallGate,
 } from './delegatecall-gate'
@@ -408,7 +409,9 @@ const processTxs = async (
           ? 'Call'
           : tx.safeTransaction.data.operation === 1
           ? 'DelegateCall'
-          : `not Call (${String(tx.safeTransaction.data.operation)})`
+          : `not Call (${describeOperationValue(
+              tx.safeTransaction.data.operation
+            )})`
       }\u001b[0m`,
       `    Data:            \u001b[32m${tx.safeTx.data.data}\u001b[0m`,
       `    Proposer:        \u001b[32m${proposerDisplay}\u001b[0m`,

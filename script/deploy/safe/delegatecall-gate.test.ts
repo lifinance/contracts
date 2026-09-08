@@ -19,6 +19,7 @@ import {
 
 import {
   assertProposalOperationPermitted,
+  describeOperationValue,
   evaluateDelegateCallGate,
   renderDelegateCallGate,
 } from './delegatecall-gate'
@@ -239,5 +240,49 @@ describe('assertProposalOperationPermitted', () => {
     expect(() =>
       assertProposalOperationPermitted(evaluateDelegateCallGate({}))
     ).toThrow(/only the number 0/)
+  })
+})
+
+describe('describeOperationValue', () => {
+  const ESC = String.fromCharCode(27)
+  const BEL = String.fromCharCode(7)
+
+  // The detail block in `confirm-safe-tx.ts` prints this value inside its own
+  // colour codes, so anything the value carries lands in the signer's terminal
+  // as a live sequence rather than as text.
+  it('strips a CSI colour sequence instead of emitting it', () => {
+    const rendered = describeOperationValue(
+      `${ESC}[31mDelegateCall${ESC}[0m` as unknown as number
+    )
+
+    expect(rendered).not.toContain(ESC)
+    expect(rendered).toContain('[31mDelegateCall[0m')
+  })
+
+  it('strips an OSC sequence, terminator included', () => {
+    // OSC 8 is a hyperlink: left raw, a refused operation renders as a link to
+    // wherever the proposer chose.
+    const rendered = describeOperationValue(
+      `${ESC}]8;;https://example.invalid${BEL}Call${ESC}]8;;${BEL}` as unknown as number
+    )
+
+    expect(rendered).not.toContain(ESC)
+    expect(rendered).not.toContain(BEL)
+  })
+
+  it('leaves no control character in any rendering', () => {
+    // The point of the assertion is that these characters do not survive, so
+    // the rule barring them from a pattern is what has to give way here.
+    // eslint-disable-next-line no-control-regex
+    const anyControlCharacter = /[\u0000-\u001f\u007f]/u
+
+    for (const value of [
+      `${ESC}[2J` as unknown as number,
+      `\r\nOperation: Call` as unknown as number,
+      `${String.fromCharCode(8)}${String.fromCharCode(
+        8
+      )}Call` as unknown as number,
+    ])
+      expect(describeOperationValue(value)).not.toMatch(anyControlCharacter)
   })
 })

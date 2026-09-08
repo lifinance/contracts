@@ -1,7 +1,8 @@
 /**
- * Where the operation refusal sits, not what it decides.
- * `delegatecall-gate.test.ts` covers the decision; `safe-utils.test.ts`
- * proves the signing client and the chain executor are never reached.
+ * Where the operation refusal sits and how the field is rendered, not what the
+ * gate decides. `delegatecall-gate.test.ts` covers the decision and the
+ * sanitising; `safe-utils.test.ts` proves the signing client and the chain
+ * executor are never reached.
  *
  * `confirm-safe-tx.ts` and `SafeClient` cannot be imported as the CLI
  * (`runMain` at module scope). Placement is asserted on the source, shaped
@@ -28,6 +29,10 @@ const SIGN_METHOD = CLIENT.slice(
   CLIENT.indexOf('public async signTransaction('),
   CLIENT.indexOf('private validateSignature(')
 )
+const HASH_SIGN_METHOD = CLIENT.slice(
+  CLIENT.indexOf('public async signTransactionWithHash('),
+  CLIENT.indexOf('public async signTransaction(')
+)
 const EXECUTE_METHOD = CLIENT.slice(
   CLIENT.indexOf('public async executeTransaction('),
   CLIENT.indexOf('public async cleanup()')
@@ -43,6 +48,16 @@ describe('the operation refusal sits in the client every sign and execute path u
     expect(
       SIGN_METHOD.indexOf('assertProposalOperationPermitted')
     ).toBeLessThan(SIGN_METHOD.indexOf('signTypedData'))
+  })
+
+  it('asserts the gate on the public hash route reached directly', () => {
+    // `signTransaction` delegates here, but the method is public, so a caller
+    // that skips the funnel must not skip the gate with it.
+    expect(HASH_SIGN_METHOD).toContain('assertProposalOperationPermitted')
+    expect(HASH_SIGN_METHOD).toContain('evaluateDelegateCallGate(safeTx.data)')
+    expect(
+      HASH_SIGN_METHOD.indexOf('assertProposalOperationPermitted')
+    ).toBeLessThan(HASH_SIGN_METHOD.indexOf('getTransactionHash'))
   })
 
   it('asserts the gate before the chain executor broadcasts', () => {
@@ -65,6 +80,19 @@ describe('the operation refusal sits in the client every sign and execute path u
     )
     expect(evaluation).toBeGreaterThan(-1)
     expect(evaluation).toBeLessThan(prompt)
+  })
+
+  it('renders the refused operation through the sanitiser, never raw', () => {
+    // The detail block prints this inside its own colour codes, so a raw value
+    // off the row would reach the terminal as a live escape sequence.
+    // Whitespace-insensitive: the call spans lines, and how prettier wraps it
+    // is not what this asserts.
+    expect(CONFIRM.replace(/\s+/gu, '')).toContain(
+      'describeOperationValue(tx.safeTransaction.data.operation)'
+    )
+    expect(CONFIRM.replace(/\s+/gu, '')).not.toContain(
+      'String(tx.safeTransaction.data.operation)'
+    )
   })
 
   it('does not offer a sign or execute action once the gate has refused', () => {
