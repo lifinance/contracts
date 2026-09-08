@@ -61,6 +61,14 @@ describe('the operation refusal sits on every operation-bearing route of the cli
     ).toBeLessThan(HASH_SIGN_METHOD.indexOf('getTransactionHash'))
   })
 
+  it('keeps the bare-hash signer off the public surface', () => {
+    // The gate reads an operation field, and `signHash` takes only a hash, so
+    // it cannot be gated. Public, it is a route to a valid signature over a
+    // delegatecall — the one bypass the assertions above cannot close.
+    expect(CLIENT).toContain('private async signHash(')
+    expect(CLIENT).not.toContain('public async signHash(')
+  })
+
   it('asserts the gate before the chain executor broadcasts', () => {
     expect(EXECUTE_METHOD).toContain('assertProposalOperationPermitted')
     expect(EXECUTE_METHOD).toContain('evaluateDelegateCallGate(safeTx.data)')

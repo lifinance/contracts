@@ -781,7 +781,11 @@ export class SafeClient {
 
   // Sign a transaction hash using eth_sign (most compatible with all Safe versions)
   // Error GS026 indicates an invalid signature issue
-  public async signHash(hash: Hex): Promise<ISafeSignature> {
+  //
+  // Private because it signs a bare hash: there is no operation field in scope
+  // for the gate to read, so a caller reaching this directly would obtain a
+  // valid signature over a delegatecall with the gate never consulted.
+  private async signHash(hash: Hex): Promise<ISafeSignature> {
     try {
       console.log('Signing hash:', hash)
 
