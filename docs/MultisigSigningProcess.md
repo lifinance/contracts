@@ -83,14 +83,15 @@ the `repo` it was cloned from, the `gitBranch` checked out, the `actor`
 (`human`, `bot` for a job that set `SAFE_PROPOSAL_ACTOR=bot`, `ci`, or
 `UNKNOWN` when nothing identified the caller), and `dirtyTreeScoped` — the
 working-tree paths that differed from that commit, excluding the artefacts the
-deploy pipeline rewrites during its own run (`deployments/` and
-`script/deploy/_targetState.json`). An **empty `dirtyTreeScoped` means the
-capture ran and the tree was clean; an absent one means no capture ran, or ran
-and could not read the tree** — the same shape every record written before the
-field existed has. Branch, tree and actor are read through the same
-`captureGitProvenance` helper the Safe proposal document is built from, so a
-deployment record and the proposal that installs it describe them by one
-definition rather than two. The capture is self-reported context, not a
+deploy pipeline rewrites during its own run (`deployments/`). Governance
+inputs such as `script/deploy/_targetState.json` stay in the list. An **empty
+`dirtyTreeScoped` means the capture ran and the tree was clean; an absent one
+means no capture ran, or ran and could not read the tree** — the same shape
+every record written before the field existed has. A later clean re-log does
+not `$set` an empty list over a dirty one already stored. Branch, tree, actor
+and commit are read through the same `captureGitProvenance` helper the Safe
+proposal document is built from, so a deployment record and the proposal that
+installs it describe them by one definition rather than two. The capture is self-reported context, not a
 control: it makes an honest mistake such as a deploy from an uncommitted edit
 visible, while `assertTreeRecordable` — not this record — is what refuses such
 a deploy, on the narrower set of build-affecting paths. Add `--dryRun` (or

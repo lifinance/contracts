@@ -15,7 +15,6 @@ import { sleep } from '../../utils/delay'
 
 import {
   captureGitProvenance,
-  getScopedDirtyTree,
   PROVENANCE_UNKNOWN,
   type ICaptureProvenanceOptions,
   type ProvenanceActor,
@@ -185,29 +184,20 @@ export function captureRecordProvenance(
   captureErrors?: string[]
 } {
   const captured = captureGitProvenance({ resolvePrUrl: false, ...options })
-  // The dirty tree is read again through its own error collector, because an
-  // empty list is only safe to record once its own probe is known to have run:
-  // the shared capture returns one both for a clean tree and for a `git status`
-  // it could not execute, and its collector is shared with every other probe,
-  // so neither an empty list nor an empty collector separates the two. A failed
-  // probe recorded as "clean" would hide exactly the dirty deploy this field
-  // exists to surface.
-  const dirtyErrors: string[] = []
-  const dirtyTree = getScopedDirtyTree({ ...options, errors: dirtyErrors })
-  const dirtyTreeRead = dirtyErrors.length === 0
-  const captureErrors = [...(captured.captureErrors ?? []), ...dirtyErrors]
   return {
-    gitCommitHash: getCurrentGitCommitHash(),
+    gitCommitHash: captured.gitCommit,
     repo: getCurrentRepo(),
     gitBranch: captured.gitBranch,
-    ...(dirtyTreeRead
+    ...(captured.dirtyTreeRead
       ? {
-          dirtyTreeScoped: dirtyTree.paths,
-          dirtyTreeTruncated: dirtyTree.truncated,
+          dirtyTreeScoped: captured.dirtyTreeScoped,
+          dirtyTreeTruncated: captured.dirtyTreeTruncated === true,
         }
       : {}),
     actor: captured.actor,
-    ...(captureErrors.length > 0 ? { captureErrors } : {}),
+    ...(captured.captureErrors?.length
+      ? { captureErrors: captured.captureErrors }
+      : {}),
   }
 }
 
@@ -222,16 +212,21 @@ export function captureRecordProvenance(
  * nothing to lose. `gitCommitHash` is the exception, unchanged here: its
  * sentinel is a plain truthy string and still reaches `$set`.
  *
- * The dirty list is the exception that has to be written unconditionally once a
- * capture ran: an empty list is the meaningful answer "this tree was clean", and
- * a re-run from a tree that has since been cleaned must clear the paths — and
- * the truncation flag with them — rather than leave the earlier run's showing.
+ * A later clean capture must not `$set` an empty dirty list over a dirty one:
+ * that is the tell-tale of the deploy this field exists to surface, and the
+ * person who produced it is the one who would re-log from a cleaned tree.
+ * An empty list is therefore a real answer on insert only, same as the
+ * `UNKNOWN` sentinels. A new non-empty list still `$set`s — that is more
+ * evidence, not less.
  *
  * @param record - The record about to be written.
  * @returns The two update fragments, either of which may be empty.
  */
 export function provenanceUpdate(record: IRecordProvenance): IProvenanceUpdate {
   const capturedDirtyTree = record.dirtyTreeScoped !== undefined
+  const dirtyPaths = record.dirtyTreeScoped ?? []
+  const dirtyEvidence =
+    dirtyPaths.length > 0 || record.dirtyTreeTruncated === true
   return {
     set: {
       ...(record.gitCommitHash ? { gitCommitHash: record.gitCommitHash } : {}),
@@ -244,7 +239,7 @@ export function provenanceUpdate(record: IRecordProvenance): IProvenanceUpdate {
       ...(record.actor && record.actor !== PROVENANCE_UNKNOWN
         ? { actor: record.actor }
         : {}),
-      ...(capturedDirtyTree
+      ...(dirtyEvidence
         ? {
             dirtyTreeScoped: record.dirtyTreeScoped,
             dirtyTreeTruncated: record.dirtyTreeTruncated === true,
@@ -260,6 +255,12 @@ export function provenanceUpdate(record: IRecordProvenance): IProvenanceUpdate {
         : {}),
       ...(record.actor === PROVENANCE_UNKNOWN
         ? { actor: PROVENANCE_UNKNOWN }
+        : {}),
+      ...(capturedDirtyTree && !dirtyEvidence
+        ? {
+            dirtyTreeScoped: [],
+            dirtyTreeTruncated: false,
+          }
         : {}),
     },
   }

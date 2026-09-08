@@ -154,15 +154,17 @@ describe('provenanceUpdate — twin provenance fields', () => {
   )
 
   /**
-   * An empty list is the answer "this tree was clean", not a missing capture —
-   * and it has to be written, or a record logged from a dirty tree keeps its
-   * paths forever once the tree is cleaned and the deploy is re-run.
+   * An empty list is the answer "this tree was clean" on a first insert.
+   * Writing it through `$set` would let a later clean re-log erase the dirty
+   * list that is the tell-tale of the deploy this field exists to surface.
    */
-  it('writes a clean tree as an empty list rather than omitting it', () => {
+  it('records a clean tree on insert only, never over an existing dirty list', () => {
     const update = provenanceUpdate({ ...captured, dirtyTreeScoped: [] })
 
-    expect(update.set).toHaveProperty('dirtyTreeScoped', [])
-    expect(update.set).toHaveProperty('dirtyTreeTruncated', false)
+    expect(update.set).not.toHaveProperty('dirtyTreeScoped')
+    expect(update.set).not.toHaveProperty('dirtyTreeTruncated')
+    expect(update.setOnInsert).toHaveProperty('dirtyTreeScoped', [])
+    expect(update.setOnInsert).toHaveProperty('dirtyTreeTruncated', false)
   })
 
   it('carries the truncation flag when the dirty list was capped', () => {
@@ -341,11 +343,23 @@ describe('captureRecordProvenance', () => {
   it('maps branch, dirty paths and actor off the git answers it was given', () => {
     const provenance = capture(baseAnswers)
 
+    expect(provenance.gitCommitHash).toBe(HEAD)
     expect(provenance.gitBranch).toBe('feature/exsc-695')
     expect(provenance.dirtyTreeScoped).toEqual(['src/Facets/AcrossFacetV4.sol'])
     expect(provenance.dirtyTreeTruncated).toBe(false)
     expect(provenance.actor).toBe('human')
     expect(provenance.captureErrors).toBeUndefined()
+  })
+
+  it('takes the commit from the shared capture, including the CI SHA', () => {
+    const sha = 'd'.repeat(40)
+    const provenance = captureRecordProvenance({
+      cwd: REPO,
+      env: { GITHUB_ACTIONS: 'true', GITHUB_SHA: sha },
+      run: gitRunner(baseAnswers),
+    })
+
+    expect(provenance.gitCommitHash).toBe(sha)
   })
 
   it('records a clean tree as an empty list', () => {

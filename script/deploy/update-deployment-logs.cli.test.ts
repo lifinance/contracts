@@ -216,8 +216,9 @@ describe('update-deployment-logs add — provenance capture', () => {
         repoRoot: makeRepo({ branch: 'main', dirty: false }),
       })
 
-      expect(upsert.update.$set).toMatchObject({
-        gitBranch: 'main',
+      expect(upsert.update.$set).toHaveProperty('gitBranch', 'main')
+      expect(upsert.update.$set).not.toHaveProperty('dirtyTreeScoped')
+      expect(upsert.update.$setOnInsert).toMatchObject({
         dirtyTreeScoped: [],
         dirtyTreeTruncated: false,
       })
