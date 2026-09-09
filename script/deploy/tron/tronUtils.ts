@@ -1,18 +1,15 @@
 /**
- * Tron-specific deployment utilities: diamond JSON management,
+ * Tron-specific deployment utilities: deployment recording,
  * health-check helpers (ownership, facet/whitelist verification), and on-chain cost helpers.
  * Generic deployment utilities (file I/O, environment, selectors) live in `../../utils/utils.ts`.
  */
 
 import {
-  DEFAULT_FEE_LIMIT_TRX,
-  MIN_BALANCE_REGISTRATION,
+  DEFAULT_SAFETY_MARGIN,
   MIN_BALANCE_WARNING,
-  TRON_ZERO_ADDRESS,
   createTronWebReadOnly,
   estimateContractCallEnergy,
   evmHexToTronBase58,
-  getCurrentPrices,
   getTronWebCodecFullHostForNetwork,
   getTronWebCodecOnlyForNetwork,
   loadForgeArtifact,
@@ -26,13 +23,7 @@ import { decodeFunctionResult, parseAbi, type Abi, type Hex } from 'viem'
 import type { IDeploymentResult, SupportedChain } from '../../common/types'
 import { sleep } from '../../utils/delay'
 import { spawnAndCapture } from '../../utils/spawnAndCapture'
-import {
-  getContractAddress,
-  getFacetSelectors,
-  logDeployment,
-  saveContractAddress,
-  updateDiamondJson,
-} from '../../utils/utils'
+import { logDeployment, saveContractAddress } from '../../utils/utils'
 import {
   INITIAL_CALL_DELAY,
   MAX_RETRIES,
@@ -43,14 +34,12 @@ import { getContractVersion } from '../shared/getContractVersion'
 import { isRateLimitError } from '../shared/rateLimit'
 
 import { assertTronToolchainOrThrow } from './assertTronToolchain'
-import { DIAMOND_CUT_ENERGY_MULTIPLIER } from './constants'
 import {
   assertRecordedArgsMatchAbi,
   constructorInputTypes,
   encodeConstructorArgs as encodeWithTypes,
   type AbiParamEncoder,
 } from './constructor-args'
-import type { IDiamondRegistrationResult } from './types'
 
 /**
  * Check if a contract is deployed on Tron
@@ -360,181 +349,12 @@ export async function estimateDiamondCutEnergy(
     contractAddressBase58: diamondAddress,
     functionSelector: 'diamondCut((address,uint8,bytes4[])[],address,bytes)',
     parameterHex: encodedParams,
-    safetyMargin: DIAMOND_CUT_ENERGY_MULTIPLIER,
+    // The margin belongs on the figure the guard compares; the headroom belongs
+    // in DIAMOND_CUT_FEE_LIMIT_SUN. Putting a 10x multiplier here too made the
+    // guard refuse at a tenth of the true threshold — a 6,000,000-energy cut
+    // costs 720 TRX against a 5000 TRX limit and was refused.
+    safetyMargin: DEFAULT_SAFETY_MARGIN,
   })
-}
-
-/**
- * Register a facet to the diamond
- */
-export async function registerFacetToDiamond(
-  facetName: string,
-  facetAddress: string,
-  tronWeb: any,
-  fullHost: string,
-  dryRun = false,
-  networkOrDiamondAddress: SupportedChain | string = 'tron'
-): Promise<IDiamondRegistrationResult> {
-  try {
-    // Determine if we received a network name or a diamond address
-    let diamondAddress: string
-    let network: SupportedChain
-
-    // Check if it's a Tron address (starts with T) or hex address
-    if (
-      networkOrDiamondAddress.startsWith('T') ||
-      networkOrDiamondAddress.startsWith('0x')
-    ) {
-      diamondAddress = networkOrDiamondAddress
-      // Default to 'tron' for network when diamond address is provided directly
-      network = 'tron'
-    } else {
-      // It's a network name
-      network = networkOrDiamondAddress as SupportedChain
-      const loadedAddress = await getContractAddress(network, 'LiFiDiamond')
-      if (!loadedAddress)
-        throw new Error(`LiFiDiamond not found in deployments for ${network}`)
-      diamondAddress = loadedAddress
-    }
-
-    consola.info(`Registering ${facetName} to LiFiDiamond: ${diamondAddress}`)
-
-    // Load ABIs
-    const diamondCutABI = await loadForgeArtifact('DiamondCutFacet')
-    const diamondLoupeABI = await loadForgeArtifact('DiamondLoupeFacet')
-    const combinedABI = [...diamondCutABI.abi, ...diamondLoupeABI.abi]
-    const diamond = tronWeb.contract(combinedABI, diamondAddress)
-
-    // Get function selectors
-    const selectors = await getFacetSelectors(facetName)
-    consola.info(`Found ${selectors.length} function selectors`)
-
-    if (dryRun) {
-      consola.info('Dry run mode - not executing registration')
-      return { success: true }
-    }
-
-    const facetAddressHex = tronAddressToHex(tronWeb, facetAddress)
-
-    // Check each selector and group by action needed
-    const selectorsToAdd = []
-    const selectorsToReplace = []
-    let alreadyRegisteredCount = 0
-
-    for (const selector of selectors)
-      try {
-        const currentFacetAddressRaw = await diamond
-          .facetAddress(selector)
-          .call()
-        const currentFacetAddress = String(currentFacetAddressRaw)
-
-        const isZeroAddress =
-          !currentFacetAddress ||
-          currentFacetAddress === 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb' ||
-          currentFacetAddress ===
-            '0x0000000000000000000000000000000000000000' ||
-          currentFacetAddress === TRON_ZERO_ADDRESS ||
-          currentFacetAddress === ZERO_ADDRESS
-
-        if (isZeroAddress) selectorsToAdd.push(selector)
-        else {
-          const currentHex = tronWeb.address
-            .toHex(currentFacetAddress)
-            .toLowerCase()
-          const targetHex = tronWeb.address.toHex(facetAddress).toLowerCase()
-
-          if (currentHex === targetHex) alreadyRegisteredCount++
-          else {
-            selectorsToReplace.push(selector)
-            consola.debug(
-              `Selector ${selector} currently on ${currentFacetAddress}, will replace with ${facetAddress}`
-            )
-          }
-        }
-      } catch (error) {
-        consola.debug(
-          `Could not check selector ${selector}, assuming ADD needed`
-        )
-        selectorsToAdd.push(selector)
-      }
-
-    // Build facetCuts array based on what's needed
-    const facetCuts = []
-
-    if (selectorsToAdd.length > 0) {
-      facetCuts.push([facetAddressHex, 0, selectorsToAdd]) // 0 = Add
-      consola.info(`Will ADD ${selectorsToAdd.length} new selectors`)
-    }
-
-    if (selectorsToReplace.length > 0) {
-      facetCuts.push([facetAddressHex, 1, selectorsToReplace]) // 1 = Replace
-      consola.info(
-        `Will REPLACE ${selectorsToReplace.length} existing selectors`
-      )
-    }
-
-    if (alreadyRegisteredCount > 0)
-      consola.info(
-        `${alreadyRegisteredCount} selectors already registered to this facet`
-      )
-
-    // If nothing to do, exit early
-    if (facetCuts.length === 0) {
-      consola.success(`${facetName} is already fully registered!`)
-      return { success: true }
-    }
-
-    // Estimate energy
-    const estimatedEnergy = await estimateDiamondCutEnergy(
-      tronWeb,
-      diamondAddress,
-      facetCuts,
-      fullHost
-    )
-    // Get current energy price from the network
-    const { energyPrice } = await getCurrentPrices(tronWeb)
-    const estimatedCost = estimatedEnergy * energyPrice
-    consola.info(`Estimated registration cost: ${estimatedCost.toFixed(4)} TRX`)
-
-    // Check balance
-    const balance = await tronWeb.trx.getBalance(tronWeb.defaultAddress.base58)
-    const balanceTRX = balance / 1000000
-    if (balanceTRX < MIN_BALANCE_REGISTRATION)
-      throw new Error(
-        `Insufficient balance. Have: ${balanceTRX} TRX, Need: at least ${MIN_BALANCE_REGISTRATION} TRX`
-      )
-
-    // Execute diamondCut
-    consola.info(`Executing diamondCut...`)
-    const feeLimitInSun = DEFAULT_FEE_LIMIT_TRX * 1000000 // Convert to SUN
-
-    const tx = await diamond.diamondCut(facetCuts, ZERO_ADDRESS, '0x').send({
-      feeLimit: feeLimitInSun,
-      shouldPollResponse: true,
-    })
-
-    consola.success(`Registration transaction successful: ${tx}`)
-
-    // Verify registration
-    const verified = await verifyFacetRegistration(
-      diamond,
-      facetAddress,
-      facetName,
-      tronWeb
-    )
-    if (!verified)
-      throw new Error(
-        `${facetName} not found in registered facets after registration`
-      )
-
-    // Update diamond.json
-    await updateDiamondJson(facetAddress, facetName, undefined, network)
-
-    return { success: true, transactionId: tx }
-  } catch (error: any) {
-    consola.error(`Registration failed:`, error.message)
-    return { success: false, error: error.message }
-  }
 }
 
 /**

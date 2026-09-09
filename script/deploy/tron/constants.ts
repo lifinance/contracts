@@ -107,11 +107,16 @@ export const TRON_SAFE_GET_TX_HASH_ABI = [
   },
 ] as const
 
-// Diamond operations require significantly more energy than regular transactions
-export const DIAMOND_CUT_ENERGY_MULTIPLIER = 10
-
 // Safety multiplier for Safe createProxyWithNonce + setup (proxy creation) energy estimate
 export const CREATE_PROXY_SAFETY_MARGIN = 1.2
+
+/**
+ * Fee limit the direct-EOA `transferOwnership` send runs under. Sized so the
+ * estimate's 1.2 safety margin still leaves headroom: at mainnet's 210
+ * SUN/energy this buys 95,238 energy, and the pre-flight refuses above 79,365
+ * raw.
+ */
+export const TRANSFER_OWNERSHIP_FEE_LIMIT_SUN = 20_000_000 // 20 TRX
 
 /** Min/max fee limit (SUN) for registerPeripheryContract prompts and bounds checks. */
 export const REGISTER_PERIPHERY_FEE_LIMIT_MIN_SUN = 1_000_000 // 1 TRX

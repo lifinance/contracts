@@ -21,13 +21,12 @@ import type {
   IChainExecutor,
 } from '../../../common/types'
 import { waitForConfirmation } from '../../../troncast/utils/tronweb'
-
 import {
   configuredTronFeeLimitSun,
   estimateTronEnergy,
   tronEnergyCostInSun,
-} from './tron-energy-estimate'
-import { assertTronBroadcastAffordable } from './tron-energy-preflight'
+} from '../../tron/tron-energy-estimate'
+import { assertTronBroadcastAffordable } from '../../tron/tron-energy-preflight'
 
 /**
  * Safe v1.4.1 `execTransaction`, and the zeroed gas parameters the devkit sends

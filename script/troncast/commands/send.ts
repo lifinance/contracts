@@ -1,14 +1,24 @@
 import { readFileSync } from 'fs'
 import { resolve } from 'path'
 
-import { loadForgeArtifact } from '@lifi/tron-devkit'
+import { loadForgeArtifact, type TronTvmNetworkName } from '@lifi/tron-devkit'
 import { defineCommand } from 'citty'
 import { consola } from 'consola'
 import type { TronWeb } from 'tronweb'
 
 import { EnvironmentEnum } from '../../common/types'
+import { flagIsOn } from '../../deploy/safe/cli-flags'
+import {
+  estimateTronEnergy,
+  tronEnergyCostInSun,
+} from '../../deploy/tron/tron-energy-estimate'
+import {
+  estimateTronEnergyBySelector,
+  sendGuardedTronContractCall,
+} from '../../deploy/tron/tron-guarded-send'
 import { getEnvironment, getPrivateKey } from '../../utils/utils'
 import type { Environment, ITransactionReceipt } from '../types'
+import { resolveBroadcastCall } from '../utils/abi'
 import { formatGasUsage, formatReceipt } from '../utils/formatter'
 import {
   isValidAddress,
@@ -16,6 +26,65 @@ import {
   parseFunctionSignature,
 } from '../utils/parser'
 import { initTronWeb, parseValue, waitForConfirmation } from '../utils/tronweb'
+
+/** What `--feeLimit` falls back to when it is not supplied: 1000 TRX in SUN. */
+const TRONCAST_DEFAULT_FEE_LIMIT_SUN = 1_000_000_000
+
+/**
+ * The cap the broadcast will run under.
+ *
+ * Read once and passed to both the send and the pre-flight: a guard that
+ * recomputed it could compare against a different number than the send uses.
+ * Rejects a non-integer rather than letting `NaN` reach the comparison, where
+ * it surfaces as a `BigInt` conversion error instead of a usable message.
+ */
+function resolveFeeLimitSun(
+  tronWeb: TronWeb,
+  feeLimit?: string | number | boolean
+): number {
+  if (feeLimit === undefined) return TRONCAST_DEFAULT_FEE_LIMIT_SUN
+
+  // citty passes a digits-only value through as a number, and a valueless flag
+  // through as `true` for the kebab spelling and `''` for the camel one.
+  // Neither is a TRX amount: `Number(true)` would cap the send at 1 TRX and
+  // `Number('')` at 0, and silently falling back to the default would apply a
+  // cap the operator was trying to change.
+  const trx =
+    typeof feeLimit === 'boolean' || feeLimit === ''
+      ? Number.NaN
+      : Number(feeLimit)
+  const sun = Number(tronWeb.toSun(trx))
+  if (!Number.isInteger(sun) || sun <= 0)
+    throw new Error(
+      `Invalid --fee-limit: "${feeLimit}" (must be a positive TRX amount)`
+    )
+
+  return sun
+}
+
+/**
+ * `parseValue` yields a SUN amount as a string. Converted without going through
+ * `Number` first, so a value above `Number.MAX_SAFE_INTEGER` still reaches the
+ * estimate's own rounding guard instead of being rounded before it can fire,
+ * and a malformed `--value` refuses here rather than as a `BigInt` RangeError.
+ */
+function parseCallValueSun(callValue: unknown): bigint {
+  if (callValue === undefined) return 0n
+
+  const raw = String(callValue)
+  if (!/^\d+$/.test(raw))
+    throw new Error(
+      `Invalid --value: "${raw}" SUN (must be a whole, non-negative SUN amount)`
+    )
+
+  return BigInt(raw)
+}
+
+/** Names the control this path is actually capped by, in refusals. */
+const raiseFeeLimitHint = (requiredSun: bigint): string =>
+  `Re-run with --fee-limit ${
+    (requiredSun + 999_999n) / 1_000_000n
+  } (TRX) or higher.`
 
 /**
  * Signs a prepared transaction, broadcasts it, and returns the resulting tx id.
@@ -115,10 +184,14 @@ export const sendCommand = defineCommand({
       description:
         'TRX value to send (e.g., "0.1tron", "100000sun"). With no signature/calldata, sends a native TRX transfer to the address.',
     },
+    // No citty `default` on either of the next two: for a multi-word argument
+    // citty resolves the spelling the caller did NOT type to the default, so
+    // `--fee-limit 5000` would leave `args.feeLimit` at the default and the
+    // guard would compare against a cap the send does not run under. The
+    // fallbacks live in the body instead.
     feeLimit: {
       type: 'string',
-      description: 'Maximum fee in TRX',
-      default: '1000',
+      description: 'Maximum fee in TRX (default: 1000)',
     },
     energyLimit: {
       type: 'string',
@@ -132,7 +205,6 @@ export const sendCommand = defineCommand({
     dryRun: {
       type: 'boolean',
       description: 'Simulate without sending',
-      default: false,
     },
     json: {
       type: 'boolean',
@@ -179,10 +251,18 @@ export const sendCommand = defineCommand({
 
       // Initialize TronWeb with private key and optional custom RPC URL
       const tronWeb = initTronWeb(env, privateKey, args.rpcUrl)
+      const networkKey: TronTvmNetworkName =
+        env === 'mainnet' ? 'tron' : 'tronshasta'
+
+      const dryRun = flagIsOn(args.dryRun)
 
       // Native TRX transfer: `troncast send <recipient> --value <amount>` with no
       // signature/calldata, mirroring `cast send <to> --value`. TronWeb has no function
       // to call for a plain EOA→EOA transfer, so build a sendTrx transaction directly.
+      //
+      // No energy pre-flight here, unlike the contract-call paths below: a
+      // transfer runs no VM code, so it consumes bandwidth only and the fee
+      // limit caps nothing it can exceed.
       if (!args.signature && !args.calldata) {
         if (!args.value)
           throw new Error(
@@ -216,7 +296,7 @@ export const sendCommand = defineCommand({
           senderHex
         )
 
-        if (args.dryRun) {
+        if (dryRun) {
           consola.info('Dry run mode - transaction will not be sent')
           consola.log(
             'Transaction prepared:',
@@ -264,6 +344,11 @@ export const sendCommand = defineCommand({
         const contractAddressHex = tronWeb.address.toHex(args.address)
         const ownerAddressHex = tronWeb.address.toHex(callerAddress)
 
+        const feeLimitSun = resolveFeeLimitSun(
+          tronWeb,
+          args.feeLimit as string | number | boolean | undefined
+        )
+
         // Use TronWeb's RPC API directly to trigger smart contract with raw data
         const triggerResult = (await tronWeb.fullNode.request(
           'wallet/triggersmartcontract',
@@ -271,11 +356,7 @@ export const sendCommand = defineCommand({
             owner_address: ownerAddressHex,
             contract_address: contractAddressHex,
             data: data, // Raw calldata (hex without 0x)
-            fee_limit: args.feeLimit
-              ? parseInt(
-                  tronWeb.toSun(parseFloat(args.feeLimit as string)) as string
-                )
-              : 1000000000,
+            fee_limit: feeLimitSun,
             call_value: 0,
           },
           'post'
@@ -302,7 +383,7 @@ export const sendCommand = defineCommand({
           throw new Error('No transaction in trigger result')
         }
 
-        if (args.dryRun) {
+        if (dryRun) {
           consola.info('Dry run mode - transaction will not be sent')
           consola.log(
             'Transaction prepared:',
@@ -311,13 +392,37 @@ export const sendCommand = defineCommand({
           return
         }
 
-        const txId = await signBroadcast(tronWeb, transaction, privateKey)
-        await confirmAndReport(
-          tronWeb,
-          txId,
-          args.confirm as boolean,
-          args.json as boolean
-        )
+        await sendGuardedTronContractCall({
+          networkName: networkKey,
+          operation: `raw calldata call to ${args.address}`,
+          feeLimitSun,
+          estimateEnergy: () =>
+            estimateTronEnergy({
+              networkKey,
+              ownerBase58: callerAddress,
+              // The estimate posts `visible: true`, so it needs base58 —
+              // `isValidAddress` also accepts `0x…` and `41…`, which the
+              // broadcast normalises but the estimate would reject.
+              contractBase58: tronWeb.address.fromHex(contractAddressHex),
+              data: args.calldata as `0x${string}`,
+              callValue: 0n,
+              // The endpoint this run broadcasts to, which `--rpcUrl` may have
+              // overridden; resolving it from the env var again could estimate
+              // against a different node than the send uses.
+              rpcUrl: tronWeb.fullNode.host,
+            }),
+          costInSun: (energy) => tronEnergyCostInSun(tronWeb, energy),
+          raiseFeeLimitHint,
+          broadcast: async () => {
+            const txId = await signBroadcast(tronWeb, transaction, privateKey)
+            await confirmAndReport(
+              tronWeb,
+              txId,
+              args.confirm as boolean,
+              args.json as boolean
+            )
+          },
+        })
 
         return
       }
@@ -400,13 +505,11 @@ export const sendCommand = defineCommand({
       )
 
       // Build transaction options
-      const feeLimitInSun = tronWeb.toSun(parseFloat(args.feeLimit as string))
-      const options: Record<string, unknown> = {
-        feeLimit:
-          typeof feeLimitInSun === 'string'
-            ? parseInt(feeLimitInSun)
-            : Number(feeLimitInSun),
-      }
+      const feeLimitSun = resolveFeeLimitSun(
+        tronWeb,
+        args.feeLimit as string | number | boolean | undefined
+      )
+      const options: Record<string, unknown> = { feeLimit: feeLimitSun }
 
       if (args.value) {
         options.callValue = parseValue(args.value as string)
@@ -522,7 +625,7 @@ export const sendCommand = defineCommand({
         contract = await tronWeb.contract().at(args.address)
       }
 
-      if (args.dryRun) {
+      if (dryRun) {
         consola.info('Dry run mode - transaction will not be sent')
 
         // Estimate costs
@@ -546,10 +649,59 @@ export const sendCommand = defineCommand({
       // Execute transaction
       consola.info('Sending transaction...')
 
-      let txId
-      if (parsedParams.length > 0)
-        txId = await contract[funcSig.name](...parsedParams).send(options)
-      else txId = await contract[funcSig.name]().send(options)
+      const callValueSun = parseCallValueSun(options.callValue)
+
+      // Read off the ABI entry rather than from the signature as typed.
+      // `parseFunctionSignature` returns the spelling it was given, so a valid
+      // non-canonical one — `transfer(address,uint)` — would have the pre-flight
+      // price a selector the contract does not have: the simulation reverts and
+      // the guard refuses a send that used to work. Placed after the dry-run
+      // return and before the guarded send, so an unresolvable call is refused
+      // outright instead of arriving as a failed estimate the escape hatch
+      // could wave through.
+      const broadcastCall = resolveBroadcastCall(
+        contract,
+        funcSig.name,
+        funcSig.inputs.map((input) => input.type)
+      )
+
+      const txId = await sendGuardedTronContractCall({
+        networkName: networkKey,
+        operation: `${args.signature} on ${args.address}`,
+        feeLimitSun,
+        estimateEnergy: () =>
+          estimateTronEnergyBySelector({
+            tronWeb,
+            // `triggerConstantContract` validates with `TronWeb.isAddress`,
+            // which rejects the `0x…` form `isValidAddress` accepts and the
+            // broadcast normalises — an unconverted one would refuse the send
+            // as a failed estimate.
+            contractAddress: tronWeb.address.fromHex(
+              tronWeb.address.toHex(args.address)
+            ),
+            functionSelector: broadcastCall.functionSelector,
+            // The same decoded arguments the broadcast below is given, typed by
+            // the same ABI entry, so the estimate prices the call that will
+            // actually be sent.
+            parameters: broadcastCall.inputTypes.map((type, i) => ({
+              type,
+              value: parsedParams[i],
+            })),
+            callValueSun,
+          }),
+        costInSun: (energy) => tronEnergyCostInSun(tronWeb, energy),
+        raiseFeeLimitHint,
+        // Keyed by the resolved selector rather than the bare name, which
+        // TronWeb binds to the *first* ABI entry of that name while
+        // `methodInstances[name]` holds the last: for an overload the two are
+        // different functions, and the estimate above priced this one.
+        broadcast: (): Promise<string> =>
+          parsedParams.length > 0
+            ? contract.methods[broadcastCall.functionSelector](
+                ...parsedParams
+              ).send(options)
+            : contract.methods[broadcastCall.functionSelector]().send(options),
+      })
 
       consola.success(`Transaction sent: ${txId}`)
 
