@@ -32,7 +32,7 @@
  *   --paymentToken   ERC20 token address for payment (default: zero = ETH)
  *   --payment        payment amount in wei (default: 0)
  *   --paymentReceiver address to receive payment (default: zero)
- *   --allowOverride  whether to allow overriding existing Safe address in networks.json (default: false)
+ *   --allowOverride  whether to allow overriding existing Safe address in networks.json (default: true; pass --no-allowOverride to refuse)
  *   --rpcUrl         custom RPC URL (uses network default if not provided)
  *   --evmVersion     EVM version to use (london or cancun). Defaults to network setting from networks.json
  *   --receiptConfirmations  blocks to wait after inclusion (default: 1; use 5 on chains where reorg risk matters)
@@ -89,6 +89,7 @@ import { getFoundryDefaultEvmVersion } from '../../utils/utils'
 import { isTestnetNetwork } from '../../utils/viemScriptHelpers'
 import { EVM_VERSIONS } from '../shared/constants'
 
+import { flagIsOn, readBooleanFlag } from './cli-flags'
 import {
   assertSafeAddressOverrideAllowed,
   assertSafeThresholdFloor,
@@ -179,6 +180,7 @@ const SAFE_READ_ABI = [
 
 /** Default max wait per deployment tx when --receiptTimeoutMs is omitted (matches viem; slow chains can pass a higher value). */
 const DEFAULT_RECEIPT_TIMEOUT_MS = 180_000 // 3 minutes
+const DEFAULT_RECEIPT_CONFIRMATIONS = 1 // 1 block
 
 /** Wait for receipt; on timeout optionally use latest receipt if tx already succeeded (RPC / confirmation quirks). */
 async function waitForDeployTransactionReceipt(
@@ -288,7 +290,6 @@ const main = defineCommand({
       description:
         'Whether to allow overriding existing Safe address in networks.json (default: false)',
       required: false,
-      default: false,
     },
     rpcUrl: {
       type: 'string',
@@ -307,20 +308,17 @@ const main = defineCommand({
       description:
         'Block confirmations to wait per deployment tx (default: 1). Increase on reorg-sensitive chains.',
       required: false,
-      default: '1',
     },
     receiptTimeoutMs: {
       type: 'string',
       description: `Max ms to wait per deployment tx (default: ${DEFAULT_RECEIPT_TIMEOUT_MS})`,
       required: false,
-      default: String(DEFAULT_RECEIPT_TIMEOUT_MS),
     },
     strictReceiptWait: {
       type: 'boolean',
       description:
         'If true, fail on receipt wait timeout instead of falling back to getTransactionReceipt',
       required: false,
-      default: false,
     },
   },
   async run({ args }) {
@@ -340,6 +338,13 @@ const main = defineCommand({
     // )) as unknown as EnvironmentEnum
     // we currently use SAFEs only in production but will keep this code just in case
     const environment: EnvironmentEnum = EnvironmentEnum.production
+    // Strict: on overwrites an existing safeAddress in networks.json, so an
+    // unreadable value must be refused rather than resolved to on.
+    const allowOverride = readBooleanFlag(
+      process.argv,
+      { camel: 'allowOverride', kebab: 'allow-override' },
+      { whenAbsent: false }
+    )
 
     // validate network & existing
     const networkName = args.network as SupportedChain
@@ -347,7 +352,7 @@ const main = defineCommand({
     const override = assertSafeAddressOverrideAllowed({
       network: networkName,
       existing,
-      allowOverride: args.allowOverride,
+      allowOverride,
     })
     if (override.occupied)
       consola.warn(
@@ -430,18 +435,22 @@ const main = defineCommand({
 
     consola.info(`Using EVM version: ${evmVersion}`)
 
-    const receiptConfirmations = Number(args.receiptConfirmations)
+    const receiptConfirmations = Number(
+      args.receiptConfirmations ?? DEFAULT_RECEIPT_CONFIRMATIONS
+    )
     if (!Number.isFinite(receiptConfirmations) || receiptConfirmations < 1)
       throw new Error('--receiptConfirmations must be a number >= 1')
 
-    const receiptTimeoutMs = Number(args.receiptTimeoutMs)
+    const receiptTimeoutMs = Number(
+      args.receiptTimeoutMs ?? DEFAULT_RECEIPT_TIMEOUT_MS
+    )
     if (!Number.isFinite(receiptTimeoutMs) || receiptTimeoutMs < 5_000)
       throw new Error('--receiptTimeoutMs must be a number >= 5000')
 
     const receiptWait = {
       confirmations: receiptConfirmations,
       timeoutMs: receiptTimeoutMs,
-      acceptOnTimeout: !args.strictReceiptWait,
+      acceptOnTimeout: !flagIsOn(args.strictReceiptWait),
     }
     consola.info(
       `Receipt wait: confirmations=${receiptConfirmations}, timeoutMs=${receiptTimeoutMs}, fallbackOnTimeout=${receiptWait.acceptOnTimeout}`

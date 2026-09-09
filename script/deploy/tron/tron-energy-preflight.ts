@@ -1,27 +1,32 @@
 /**
- * Pre-flight for anything that broadcasts on Tron.
+ * The refusal policy every Tron broadcast is gated on. Import it to decide
+ * whether a send may go ahead; `tron-guarded-send.ts` wraps it for call sites
+ * that also hold the broadcast.
  *
- * The EVM Safe and timelock paths refuse to broadcast when gas estimation fails
- * (`gas-with-fallback.ts`). Tron had no pre-flight at all: the devkit caps every
- * transaction at a fixed `fee_limit` read from the environment, signs, and sends.
- *
- * So Tron needs the EVM rule and one more. A fee limit that cannot pay for the
- * transaction does not make it fail cleanly — it runs until the energy is spent
- * and aborts part-way through, which for a multi-call timelock batch means an
- * operation that is neither applied nor abandoned, and a workflow that retries
- * it forever. That is worth refusing before the send, not diagnosing after it.
- *
- * The escape hatch is deliberately the same `ALLOW_GAS_ESTIMATE_FALLBACK` the
- * EVM paths read, so an operator has one switch to learn and one to audit.
+ * It carries the EVM rule (`gas-with-fallback.ts`: no estimate, no broadcast)
+ * and one more Tron needs. A fee limit that cannot pay for the transaction does
+ * not make it fail cleanly — it runs until the energy is spent and aborts
+ * part-way, so a multi-call batch is left neither applied nor abandoned and the
+ * workflow retries it forever. A TronGrid 429 or dead HTTP after the
+ * estimator's retries is the same refusal: there is no figure, so there is
+ * no way to tell the fee limit covers the call. That includes
+ * `emergencyPauseBreakGlass` (it reaches `troncast send`). The EVM side of
+ * that script can fail open on a gas-price read because the failure mode
+ * is overpay, not a part-applied multi-call. The escape hatch is the same
+ * `ALLOW_GAS_ESTIMATE_FALLBACK` the EVM paths read, so an operator has one
+ * switch to learn and one to audit.
  */
 
 import { consola } from 'consola'
 
-import type { IChainSimulateResult } from '../../../common/types'
-import { redactErrorReason } from '../../../utils/redactUrls'
-
-import { fallbackExplicitlyAllowed } from './gas-with-fallback'
-/** The env var the devkit reads for its cap, named in refusals so it can be raised. */
+import type { IChainSimulateResult } from '../../common/types'
+import { redactErrorReason } from '../../utils/redactUrls'
+import { fallbackExplicitlyAllowed } from '../safe/executors/gas-with-fallback'
+/**
+ * The env var the devkit reads for its cap. Named in the default refusal so it
+ * can be raised; a path capped by something else passes
+ * {@link ITronEnergyPreflightOptions.raiseFeeLimitHint} instead.
+ */
 export const TRON_FEE_LIMIT_ENV = 'TRON_SAFE_EXEC_FEE_LIMIT_SUN'
 
 export interface ITronEnergyPreflightOptions {
@@ -29,10 +34,17 @@ export interface ITronEnergyPreflightOptions {
   networkName: string
   /** Named in the refusal so the operator knows which action was stopped. */
   operation: string
-  /** SUN the devkit will cap this transaction at. */
+  /** SUN this transaction will be capped at. */
   feeLimitSun: number
   /** Cost of that much energy at the chain's current rate. Throws if unreadable. */
   costInSun: (energy: bigint) => Promise<bigint>
+  /**
+   * How to raise the cap on this path. Not every caller is capped by
+   * {@link TRON_FEE_LIMIT_ENV} — the operator tools take a flag and the deploy
+   * helpers hold a constant — and a refusal that names the wrong control sends
+   * the operator to a setting that changes nothing.
+   */
+  raiseFeeLimitHint?: (requiredSun: bigint) => string
 }
 
 export interface ITronEnergyPreflightResult {
@@ -68,6 +80,10 @@ export const assertTronBroadcastAffordable = async (
   options: ITronEnergyPreflightOptions
 ): Promise<ITronEnergyPreflightResult> => {
   const { networkName, operation, feeLimitSun } = options
+  const raiseFeeLimitHint =
+    options.raiseFeeLimitHint ??
+    ((requiredSun: bigint): string =>
+      `Raise ${TRON_FEE_LIMIT_ENV} to at least ${requiredSun}, or split the batch.`)
   const where = `on ${networkName}`
   const what = `for ${operation}`
 
@@ -78,6 +94,15 @@ export const assertTronBroadcastAffordable = async (
     const result = await estimate()
     if (result.estimateFailed)
       failure = 'the estimate returned a fixed fallback rather than a figure'
+    // A contract call always burns energy, so a non-positive figure is a node
+    // answering without having simulated. Priced, it costs nothing and clears
+    // any fee limit — this guard would be a no-op on exactly the calls it
+    // exists to stop. `estimateTronEnergy` already refuses one; checked here
+    // too because callers reach this with other estimators.
+    else if (result.estimatedResource <= 0n)
+      failure =
+        `the estimate came back as ${result.estimatedResource} energy, ` +
+        `which no contract call costs`
     else simulated = result
   } catch (error) {
     // Redacted before it reaches a terminal, a CI log or Slack: the endpoint is
@@ -145,8 +170,7 @@ export const assertTronBroadcastAffordable = async (
           `  Broadcasting would not fail cleanly: the call runs until the limit is spent ` +
           `and aborts part-way, leaving the operation neither applied nor abandoned while ` +
           `the energy is still charged.\n` +
-          `  Raise ${TRON_FEE_LIMIT_ENV} to at least ${costSun}, or split the batch. ` +
-          `${escapeHatchNote(networkName)}`
+          `  ${raiseFeeLimitHint(costSun)} ${escapeHatchNote(networkName)}`
       )
 
     consola.warn(
