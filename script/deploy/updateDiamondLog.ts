@@ -3,6 +3,8 @@ import path from 'path'
 
 import { defineCommand, runMain } from 'citty'
 
+import { readBooleanFlag } from './safe/cli-flags'
+
 export interface IDiamondFile {
   [diamond: string]: {
     Facets: {
@@ -48,12 +50,19 @@ const main = defineCommand({
     },
     isProduction: {
       type: 'boolean',
-      description: 'Is production network',
-      default: true,
+      description:
+        'Is production network (default: true; pass --no-is-production to write the staging log)',
     },
   },
   async run({ args }) {
-    const { network, name, address, periphery, version, isProduction } = args
+    const { network, name, address, periphery, version } = args
+    // Strict: this picks the production diamond log over the staging one, so
+    // `--is-production 0` must be refused rather than resolved to on.
+    const isProduction = readBooleanFlag(
+      process.argv,
+      { camel: 'isProduction', kebab: 'is-production' },
+      { whenAbsent: true }
+    )
     updateDiamond(name, network, address, isProduction, {
       isPeriphery: periphery,
       version: version,
