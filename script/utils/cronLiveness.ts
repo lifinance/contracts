@@ -255,6 +255,65 @@ export interface ILivenessVerdict {
   detail: string
 }
 
+/** The slice of GitHub's workflow-run object this watchdog reads. */
+export interface IWorkflowRunSummary {
+  event: string
+  created_at: string
+}
+
+/**
+ * Newest run in `runs` that GitHub attributes to the `schedule` event.
+ *
+ * Selecting the event here rather than through the API's `event=` filter is the
+ * point: that filter is served from an index which can hand back a snapshot weeks
+ * behind the runs the unfiltered listing already lists, and a stale answer there is
+ * indistinguishable from a schedule that stopped firing. Runs arrive newest-first
+ * but the maximum is taken explicitly so the caller does not depend on that.
+ */
+export function newestScheduledRun(runs: IWorkflowRunSummary[]): Date | null {
+  const timestamps = runs
+    .filter((run) => run.event === 'schedule')
+    .map((run) => new Date(run.created_at).getTime())
+    .filter((timestamp) => Number.isFinite(timestamp))
+
+  return timestamps.length === 0 ? null : new Date(Math.max(...timestamps))
+}
+
+export interface IScheduledRunScan {
+  runAt: Date | null
+  /** The scan ran out of pages, so `runAt` being null means "did not reach one". */
+  exhaustedPageBudget: boolean
+}
+
+/**
+ * Newest scheduled run across up to `maxPages` pages of the unfiltered run listing.
+ *
+ * `fetchPage` is injected so the paging rules stay testable without the API.
+ *
+ * The budget matters because a workflow's other triggers can bury its schedule: this
+ * repo's push-triggered daily cron has fitted as little as 11h of runs into one
+ * 100-run page, so a single page can end before the schedule's grace window does.
+ * Exhausting the budget is therefore reported rather than folded into `runAt: null`
+ * — "we did not look far enough" and "this cron never runs" must not read alike.
+ */
+export async function scanForNewestScheduledRun(
+  fetchPage: (page: number) => Promise<IWorkflowRunSummary[]>,
+  { maxPages, pageSize }: { maxPages: number; pageSize: number }
+): Promise<IScheduledRunScan> {
+  for (let page = 1; page <= maxPages; page++) {
+    const runs = await fetchPage(page)
+
+    const newest = newestScheduledRun(runs)
+    if (newest !== null) return { runAt: newest, exhaustedPageBudget: false }
+
+    // A short page is the end of the listing, so there is nothing left to miss.
+    if (runs.length < pageSize)
+      return { runAt: null, exhaustedPageBudget: false }
+  }
+
+  return { runAt: null, exhaustedPageBudget: true }
+}
+
 /** Statuses that warrant a Slack alert; the rest are summary-only. */
 export function isAlertable(status: TLivenessStatus): boolean {
   return (
