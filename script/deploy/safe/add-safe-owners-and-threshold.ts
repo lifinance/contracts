@@ -132,6 +132,11 @@ const main = defineCommand({
         'Read-only audit: compare on-chain owners + threshold against config',
       default: false,
     },
+    ticket: {
+      type: 'string',
+      description:
+        'Linear issue link or id (e.g. EXSC-123). Required — nothing is proposed without one. Falls back to SAFE_PROPOSAL_TICKET.',
+    },
   },
   async run({ args }) {
     // Strict: on fans the run out to every active network, so `--all-networks 0`
@@ -188,7 +193,7 @@ const main = defineCommand({
       return
     }
 
-    assertTicketPresent()
+    assertTicketPresent(args.ticket)
 
     const useLedger = args.ledger ?? true
     const ledgerOptions: ILedgerOptions | undefined = useLedger

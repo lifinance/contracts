@@ -238,7 +238,7 @@ async function runPropose(options: IProposeToSafeTronOptions) {
   // After the dry run, which proposes nothing, and before the Mongo client is
   // opened: the store-time refusal throws past this function's only
   // `mongoClient.close()`, leaving the connection open and the process hanging.
-  assertTicketPresent()
+  assertTicketPresent(options.ticket)
 
   // Beside the ticket check for the same two reasons: a dry run proposes
   // nothing, so gating its preview would refuse a command that cannot install
@@ -439,6 +439,11 @@ const main = defineCommand({
         'Override signer key (default: PRIVATE_KEY_PRODUCTION from .env)',
       required: false,
     },
+    ticket: {
+      type: 'string',
+      description:
+        'Linear issue link or id (e.g. EXSC-123). Required — a proposal is not created without one. Falls back to SAFE_PROPOSAL_TICKET.',
+    },
   },
   async run({ args }) {
     try {
@@ -488,6 +493,7 @@ const main = defineCommand({
         timelock: timelockWrap,
         direct,
         privateKey: args.privateKey,
+        ticket: args.ticket,
       })
       process.exit(0)
     } catch (e) {
