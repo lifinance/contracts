@@ -57,9 +57,9 @@ export interface IDeclaredImmutableGetter {
  * `script/deploy/immutables/` already covers it: recording a binding as exempt is a decision
  * about what goes unverified, and needs the same approval as changing the checker.
  *
- * The list may only shrink. The gate fails on an entry that has since been annotated or whose
- * getter no longer exists, so it cannot quietly accumulate and misrepresent how much of the
- * fleet is verified. Annotating the binding is always the preferred fix; add an entry here only
+ * The gate fails on an entry with no reason, one that has since been annotated, and one whose
+ * getter no longer exists, so the list cannot quietly accumulate and misrepresent how much of
+ * the fleet is verified. Annotating the binding is always the preferred fix; add an entry here only
  * when no config file holds a value to compare against.
  */
 export const EXEMPTIONS_PATH = 'script/deploy/immutables/getter-exemptions.json'

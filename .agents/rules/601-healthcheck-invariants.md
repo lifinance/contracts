@@ -54,8 +54,9 @@ invariant must be added, adjusted, or removed. Use this checklist:
   `script/deploy/immutables/getter-exemptions.json` with a reason.
   Annotating is the expected fix — exempt a getter only when no config file holds a value to
   compare it against (a LI.FI-deployed contract read from the deploy log, or an operated wallet).
-  The list may only shrink: the same suite fails on an exemption that has since been annotated
-  or whose getter no longer exists. The gate sees only getters that exist, so it cannot force a
+  Adding an exemption is allowed when no config value exists to compare against; the same suite
+  rejects an exemption that carries no reason, one whose getter has since been annotated, and one
+  whose getter no longer exists. The gate sees only getters that exist, so it cannot force a
   binding to become readable — `101-solidity-contracts.md` carries that requirement.
 - **Struct, authorization, or owner semantics changed** → adjust the affected invariant so
   its assertion still matches on-chain reality (e.g. a changed expected owner, a new
