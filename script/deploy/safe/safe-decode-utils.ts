@@ -29,6 +29,13 @@ import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringFo
 import { buildExplorerContractPageUrl } from '../../utils/viemScriptHelpers'
 import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
 
+import {
+  asPrintable,
+  fieldNotice,
+  MAX_FIELD_CHARS,
+  printableField,
+  UNBOUNDED,
+} from './printable-field'
 import { decodeDiamondCut } from './safe-utils'
 import {
   getLocalSelectorInfo,
@@ -244,7 +251,8 @@ async function getTargetSuffix(
 
 async function getPeripheryDeploymentCheckSuffix(
   network: string,
-  peripheryName: string,
+  storedName: string,
+  printableName: string,
   peripheryAddress: string
 ): Promise<string> {
   let providedNormalized: Address
@@ -258,14 +266,14 @@ async function getPeripheryDeploymentCheckSuffix(
   }
   const deployments = await getDeploymentsRecord(network)
   if (!deployments) return ` \u001b[90m(deployments unavailable)\u001b[0m`
-  const expectedRaw = deployments[peripheryName]
+  const expectedRaw = deployments[storedName]
   if (typeof expectedRaw !== 'string' || !expectedRaw)
-    return ` \u001b[90m(no deployments entry for '${peripheryName}')\u001b[0m`
+    return ` \u001b[90m(no deployments entry for '${printableName}')\u001b[0m`
   let expectedNormalized: Address
   try {
     expectedNormalized = normalizeAddressForNetwork(network, expectedRaw.trim())
   } catch {
-    return ` \u001b[31m(❌ invalid deployments address for '${peripheryName}')\u001b[0m`
+    return ` \u001b[31m(❌ invalid deployments address for '${printableName}')\u001b[0m`
   }
   if (expectedNormalized.toLowerCase() === providedNormalized.toLowerCase())
     return ` \u001b[32m(✅ matches deployments)\u001b[0m`
@@ -409,7 +417,9 @@ export async function formatBatchSetContractSelectorWhitelist(
       // than showing the ✓ the whitelist path earns.
       const source = local?.source ?? '4byte.sourcify.dev'
       consola.info(
-        `${pre}      - \u001b[33m${selector}\u001b[0m \u001b[36m${fallbackSignature}\u001b[0m \u001b[90m(via ${source})\u001b[0m`
+        `${pre}      - \u001b[33m${selector}\u001b[0m \u001b[36m${printableField(
+          fallbackSignature
+        )}\u001b[0m \u001b[90m(via ${source})\u001b[0m`
       )
     })
   })
@@ -451,8 +461,52 @@ function getDiamondAbiItemForSelector(selector: string): Abi[number] | null {
 }
 
 /**
+ * One decoded scalar as printable text, with no notice attached.
+ *
+ * A `string` ABI argument of a legitimately encoded call is arbitrary text the
+ * proposer chose — `registerPeripheryContract(string,address)` decodes cleanly
+ * with an ESC in its name — so it cannot reach the operator's terminal raw.
+ * @param value - The decoded scalar
+ * @param network - When set, an address is rendered in the network's format
+ * @returns Printable text
+ */
+/** The shape a decoded argument has when it is a payload rather than a label. */
+const HEX_PAYLOAD = /^0x[0-9a-fA-F]*$/u
+
+/**
+ * How long a decoded argument may be before it is clipped.
+ *
+ * A hex payload is what the signature covers, so its length is its own
+ * disclosure and clipping it would hide the thing being approved — the same
+ * reason the calldata field is unbounded. Anything else is a name or a label,
+ * where a value past the bound is a terminal flood rather than information: a
+ * 500,000-character periphery name pushed the target address and the
+ * matches-deployments verdict off the screen entirely.
+ * @param value - The decoded scalar, already stringified
+ * @returns The code-point bound to render it under
+ */
+const scalarBound = (value: string): number =>
+  HEX_PAYLOAD.test(value) ? UNBOUNDED : MAX_FIELD_CHARS
+
+function renderScalarArg(value: string, network?: string): string {
+  if (
+    network !== undefined &&
+    value.startsWith('0x') &&
+    /^0x[a-fA-F0-9]{40}$/.test(value)
+  )
+    return `${formatAddressForNetworkCliDisplay(network, value)}${tronHexSuffix(
+      network,
+      value
+    )}`
+  return asPrintable(value, scalarBound(value)).text
+}
+
+/**
  * Renders one decoded ABI argument for display.
  *
+ * The notice is appended at the top level only. Inside the JSON branch it would
+ * land in a JSON string, where `JSON.stringify` escapes its colour codes into
+ * visible text and the disclosure reads as part of the value.
  * @param arg - Decoded argument value (may be a bigint, tuple, or array).
  * @param network - When set, addresses are rendered in the network's format.
  * @returns Display string for the argument.
@@ -468,21 +522,15 @@ export function formatDecodedArg(arg: unknown, network?: string): string {
   if (typeof arg === 'object')
     return JSON.stringify(arg, (_key, value: unknown) => {
       if (typeof value === 'bigint') return value.toString()
-      if (typeof value === 'string') return formatDecodedArg(value, network)
+      if (typeof value === 'string') return renderScalarArg(value, network)
       return value
     })
   const s = String(arg)
-  if (
-    network !== undefined &&
-    s.startsWith('0x') &&
-    /^0x[a-fA-F0-9]{40}$/.test(s)
-  ) {
-    return `${formatAddressForNetworkCliDisplay(network, s)}${tronHexSuffix(
-      network,
-      s
-    )}`
-  }
-  return s
+  // Same bound as the text above, so the notice reports the clip it actually
+  // made rather than one measured against a different limit.
+  return `${renderScalarArg(s, network)}${
+    asPrintable(s, scalarBound(s)).notice
+  }`
 }
 
 /**
@@ -559,9 +607,11 @@ export async function formatTimelockScheduleBatch(
   consola.info('Timelock ScheduleBatch Details:')
   consola.info('-'.repeat(80))
   consola.info(`Operations:  \u001b[32m${n}\u001b[0m${mismatch}`)
-  consola.info(`Predecessor: \u001b[32m${String(predecessor)}\u001b[0m`)
-  consola.info(`Salt:        \u001b[32m${String(salt)}\u001b[0m`)
-  consola.info(`Delay:       \u001b[32m${String(delay)}\u001b[0m seconds`)
+  consola.info(`Predecessor: \u001b[32m${printableField(predecessor)}\u001b[0m`)
+  consola.info(`Salt:        \u001b[32m${printableField(salt)}\u001b[0m`)
+  consola.info(
+    `Delay:       \u001b[32m${printableField(delay)}\u001b[0m seconds`
+  )
   consola.info('-'.repeat(80))
   for (let i = 0; i < n; i++) {
     const target = targets[i]
@@ -569,12 +619,35 @@ export async function formatTimelockScheduleBatch(
     const payload = payloads[i]
     const idx = String(i).padStart(2, '0')
     const targetRaw = String(target ?? '')
-    const targetDisplay = formatAddressForNetworkCliDisplay(network, targetRaw)
+    // A target is either a valid address for this network or it is not. A valid
+    // one cannot carry an escape, so it is formatted and keeps its name and
+    // explorer link. An invalid one must not be sanitised into a different
+    // address that still looks like one — the same mistake as keying a
+    // deployments lookup on repaired text — so it is shown as stored, with a
+    // notice and without a name or link: there is nothing left to vouch for,
+    // and a link built from a non-address is worse than no link.
+    let targetDisplay: string
     let targetNameSuffix = ''
-    if (typeof target === 'string')
-      targetNameSuffix = await getTargetSuffix(network, target)
+    try {
+      const normalisedTarget = normalizeAddressForNetwork(
+        network,
+        targetRaw.trim()
+      )
+      targetDisplay = formatAddressForNetworkCliDisplay(
+        network,
+        normalisedTarget
+      )
+      targetNameSuffix = await getTargetSuffix(network, normalisedTarget)
+    } catch {
+      targetDisplay = printableField(targetRaw)
+      targetNameSuffix = fieldNotice(
+        `not a valid address for ${network} — shown as stored, and no explorer link`
+      )
+    }
     const valueStr =
-      typeof value === 'bigint' ? value.toString() : String(value ?? '0')
+      typeof value === 'bigint'
+        ? value.toString()
+        : printableField(value ?? '0')
     const payloadStr =
       typeof payload === 'string' ? (payload as Hex) : ('0x' as Hex)
     const selector =
@@ -583,7 +656,7 @@ export async function formatTimelockScheduleBatch(
       `[${idx}] target=\u001b[32m${targetDisplay}\u001b[0m${targetNameSuffix}`
     )
     consola.info(`     value=\u001b[32m${valueStr}\u001b[0m`)
-    consola.info(`     selector=\u001b[36m${selector}\u001b[0m`)
+    consola.info(`     selector=\u001b[36m${printableField(selector)}\u001b[0m`)
     if (context && payloadStr && payloadStr !== '0x') {
       consola.info('     Decoded call:')
       const nestedContext: IFormatDecodedTxContext = {
@@ -595,9 +668,12 @@ export async function formatTimelockScheduleBatch(
       const pretty = tryFormatDiamondPayload(payloadStr, network)
       if (pretty) consola.info(`     call=\u001b[34m${pretty}\u001b[0m`)
       else {
-        const preview =
-          payloadStr.length > 96 ? `${payloadStr.slice(0, 96)}…` : payloadStr
-        consola.info(`     payload=\u001b[90m${preview}\u001b[0m`)
+        consola.info(
+          `     payload=\u001b[90m${printableField(
+            payloadStr,
+            RAW_PAYLOAD_PREVIEW_CHARS
+          )}\u001b[0m`
+        )
       }
     }
   }
@@ -709,7 +785,7 @@ export async function decodeTransactionData(
       }
     return {}
   } catch (error) {
-    consola.warn(`Error decoding transaction data: ${error}`)
+    consola.warn(`Error decoding transaction data: ${printableField(error)}`)
     return {}
   }
 }
@@ -749,13 +825,37 @@ export async function formatRoleChange(
     typeof account === 'string' ? account : String(account ?? '')
   const roleName = getRoleName(roleStr)
   const roleLabel = roleName ? ` \u001b[33m(${roleName})\u001b[0m` : ''
-  consola.info(`${pre}Function: \u001b[34m${functionName}\u001b[0m`)
-  consola.info(`${pre}  Role:   \u001b[32m${roleStr}\u001b[0m${roleLabel}`)
+  consola.info(
+    `${pre}Function: \u001b[34m${printableField(functionName)}\u001b[0m`
+  )
+  consola.info(
+    `${pre}  Role:   \u001b[32m${printableField(roleStr)}\u001b[0m${roleLabel}`
+  )
   const accountDisplay = formatAddressForNetworkCliDisplay(network, accountStr)
   const accountSuffix = await getTargetSuffix(network, accountStr)
   consola.info(
     `${pre}  Account: \u001b[32m${accountDisplay}\u001b[0m${accountSuffix}`
   )
+}
+
+/** Code points of a nested raw payload shown when nothing decoded it. */
+const RAW_PAYLOAD_PREVIEW_CHARS = 96
+/** Code points of the raw `data` shown when nothing decoded it. */
+const RAW_DATA_PREVIEW_CHARS = 66
+
+/**
+ * The stored calldata as a bounded, printable preview.
+ *
+ * `data` is typed `Hex` but reaches every caller through a cast off the stored
+ * row, so it holds whatever the row holds — and this preview prints one screen
+ * above the sanitised detail block, closer to the sign prompt than anything the
+ * signer is told to check.
+ * @param data - The calldata as stored
+ * @returns The coloured preview, with any notice outside the colour
+ */
+const rawDataPreview = (data: unknown): string => {
+  const { text, notice } = asPrintable(data, RAW_DATA_PREVIEW_CHARS)
+  return `\u001b[90m${text}\u001b[0m${notice}`
 }
 
 /**
@@ -857,12 +957,35 @@ export async function formatDecodedTxDataForDisplay(
       decoded.args &&
       decoded.args.length >= 2
     ) {
-      log(`Function: \u001b[34m${decoded.functionName}\u001b[0m`)
-      const peripheryName = String(decoded.args[0] ?? '')
+      log(
+        `Function: \u001b[34m${printableField(decoded.functionName)}\u001b[0m`
+      )
+      // The name is a `string` ABI argument, so a call that decodes cleanly
+      // and is encoded exactly as this repository would encode it still
+      // carries whatever text the proposer chose. Disclosed here rather than
+      // cleaned by the caller, so the line that prints it is the line that
+      // reports it.
+      const storedPeripheryName = String(decoded.args[0] ?? '')
+      // Bounded: a contract name is a label, and one long enough to scroll the
+      // target address and the deployments verdict off the screen is a flood
+      // rather than information. The lookup below still keys on the whole
+      // stored value, so clipping the display cannot change the verdict.
+      const { text: peripheryName, notice: peripheryNotice } = asPrintable(
+        storedPeripheryName,
+        MAX_FIELD_CHARS
+      )
       const peripheryAddress = String(decoded.args[1] ?? '')
-      log(`Periphery Name: \u001b[33m${peripheryName}\u001b[0m`)
+      log(
+        `Periphery Name: \u001b[33m${peripheryName}\u001b[0m${peripheryNotice}`
+      )
+      // Keyed on the stored name, never the printable one. Sanitising can turn
+      // a name the record does not hold into one it does — a zero-width space
+      // inside it is simply removed — and the check would then print a ✅ about
+      // a value the calldata does not contain. What is shown and what is
+      // decided come off the same argument, but not off the same string.
       const deploymentSuffix = await getPeripheryDeploymentCheckSuffix(
         network,
+        storedPeripheryName,
         peripheryName,
         peripheryAddress
       )
@@ -888,7 +1011,9 @@ export async function formatDecodedTxDataForDisplay(
     }
 
     if (decoded?.functionName) {
-      log(`Function: \u001b[34m${decoded.functionName}\u001b[0m`)
+      log(
+        `Function: \u001b[34m${printableField(decoded.functionName)}\u001b[0m`
+      )
       const args = decoded.args
       if (args && args.length > 0) {
         const abiItem = getDiamondAbiItemForSelector(data.slice(0, 10))
@@ -922,16 +1047,19 @@ export async function formatDecodedTxDataForDisplay(
         log(`Call: \u001b[34m${pretty}\u001b[0m`)
         return
       }
-      log(`Function: \u001b[34m${functionName}\u001b[0m`)
+      log(`Function: \u001b[34m${printableField(functionName)}\u001b[0m`)
       return
     }
 
-    const preview = data.length > 66 ? `${data.slice(0, 66)}…` : data
-    log(`Data (raw): \u001b[90m${preview}\u001b[0m`)
+    log(`Data (raw): ${rawDataPreview(data)}`)
   } catch (error) {
-    const msg = error instanceof Error ? error.message : String(error)
-    log(`Failed to decode data: ${msg}`)
-    const preview = data.length > 66 ? `${data.slice(0, 66)}…` : data
-    log(`Data (raw): \u001b[90m${preview}\u001b[0m`)
+    // viem quotes its input back in the message, so the row's own bytes reach
+    // this line even when nothing above printed them.
+    log(
+      `Failed to decode data: ${printableField(
+        error instanceof Error ? error.message : error
+      )}`
+    )
+    log(`Data (raw): ${rawDataPreview(data)}`)
   }
 }

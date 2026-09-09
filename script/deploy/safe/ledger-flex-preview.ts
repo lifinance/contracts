@@ -16,6 +16,8 @@
 
 import { getAddress, type Hex } from 'viem'
 
+import { asPrintable, UNBOUNDED } from './printable-field'
+
 const INNER = 20 // interior width of each screen box (between the borders)
 const PANEL_GAP = 2 // spaces between panels in the row
 // On-device the `data` preview shows ~6 proportional-font rows before the "…".
@@ -95,8 +97,12 @@ export interface ILedgerFlexFlowParams {
   to: string
   /** SafeTx `value`, decimal string. */
   value: string
-  /** SafeTx `data` calldata, `0x`-prefixed. */
-  data: Hex
+  /**
+   * SafeTx `data` as the row stores it. Deliberately `unknown`: it reaches the
+   * signed struct through a cast, so it can hold anything at runtime, and a
+   * caller that pre-rendered it would leave this module unable to say so.
+   */
+  data: unknown
 }
 
 /**
@@ -151,13 +157,35 @@ const wrapWords = (text: string, width: number): string[] => {
   return out
 }
 
+/** The shape a calldata field has when it is calldata. */
+const HEX_CALLDATA = /^0x[0-9a-f]*$/iu
+
 /**
  * Rows for the Ledger `data` field: uppercased hex with a lowercase `0x`
  * prefix, wrapped by on-device glyph width, truncated with a trailing "…" past
  * the device's ~6-row preview budget.
+ *
+ * The field arrives as the row stored it, not as `Hex`: nothing coerces it on
+ * the way here, and the panel neither strips nor even measures a control
+ * character — `frameLine` clips at 20 characters and `ESC[2J` is four, so an
+ * escape passes through inside a row that still looks the right width. This
+ * filmstrip is the artefact the signer is told to compare against the physical
+ * device, so text injected into it attacks the verification step itself.
+ *
+ * A value that is not `0x`-prefixed hex is reported rather than repaired: which
+ * bytes the row holds is the whole question here, so nothing may quietly change
+ * them.
  */
-const dataRows = (data: Hex): { rows: string[]; truncated: boolean } => {
-  const display = `0x${data.replace(/^0x/i, '').toUpperCase()}`
+const dataRows = (
+  data: unknown
+): { rows: string[]; truncated: boolean; notice: string } => {
+  const { text, notice } = asPrintable(data, UNBOUNDED)
+  const remarks = notice ? [notice] : []
+  if (!HEX_CALLDATA.test(text))
+    remarks.push(
+      `${RED} ⚠ the stored calldata is not 0x-prefixed hex — your device will not show this${RESET}`
+    )
+  const display = `0x${text.replace(/^0x/i, '').toUpperCase()}`
   const all = pixelWrap(display)
   const truncated = all.length > DATA_PREVIEW_ROWS
   const rows = truncated ? all.slice(0, DATA_PREVIEW_ROWS) : all
@@ -170,7 +198,7 @@ const dataRows = (data: Hex): { rows: string[]; truncated: boolean } => {
         ? lastRow.slice(0, MAX_ROW_CHARS - 1)
         : lastRow) + '…'
   }
-  return { rows, truncated }
+  return { rows, truncated, notice: remarks.join('') }
 }
 
 // Address fields render EIP-55 checksummed (mixed case), unlike the uppercased
@@ -186,8 +214,10 @@ const navFooter = (page: number): string => {
   return `${left}${' '.repeat(gap)}${right}`
 }
 
-const buildScreens = (p: ILedgerFlexFlowParams): IFlexScreen[] => {
-  const { rows, truncated } = dataRows(p.data)
+const buildScreens = (
+  p: ILedgerFlexFlowParams
+): { screens: IFlexScreen[]; notice: string } => {
+  const { rows, truncated, notice } = dataRows(p.data)
 
   const warning: IFlexScreen = {
     header: '',
@@ -271,7 +301,10 @@ const buildScreens = (p: ILedgerFlexFlowParams): IFlexScreen[] => {
     footer: navFooter(4),
   }
 
-  return [warning, typedMessage, domain, safeTx, dataScreen]
+  return {
+    screens: [warning, typedMessage, domain, safeTx, dataScreen],
+    notice,
+  }
 }
 
 /** One interior row, clipped/padded to `INNER` with a 1-space side margin. */
@@ -289,6 +322,13 @@ const frameLine = ({ text, align, style }: IFlexLine): string => {
   }
   // Style only the text run so the padding (and thus the visible width) is
   // untouched — keeps the box borders and neighbouring panels aligned.
+  //
+  // `t` lands in the replacement operand, where `$&`, `` $` `` and `$'` are
+  // substitutions rather than literals, so a styled row carrying text off the
+  // proposal could rewrite the frame around itself. What keeps that unreachable
+  // is that every styled row is a hardcoded label and all row-derived content is
+  // pushed with no `style` — so a new screen must not style text it read from
+  // the row.
   if (style && t) body = body.replace(t, `${style}${t}${RESET}`)
   return `│${body}│`
 }
@@ -346,7 +386,7 @@ export const joinPanelsHorizontally = (
 export const renderLedgerFlexFlow = (
   params: ILedgerFlexFlowParams
 ): string[] => {
-  const screens = buildScreens(params)
+  const { screens, notice } = buildScreens(params)
   const contentHeight = Math.max(...screens.map((s) => s.content.length))
   const panels = screens.map((s) => framePanel(s, contentHeight))
 
@@ -360,5 +400,9 @@ export const renderLedgerFlexFlow = (
   const withArrows = panels.flatMap((panel, i) =>
     i === 0 ? [panel] : [connector, panel]
   )
-  return joinPanelsHorizontally(withArrows, 1)
+  const panelLines = joinPanelsHorizontally(withArrows, 1)
+  // Below the panels, never inside one: the boxes are exactly `INNER` wide and
+  // a notice threaded through them would break the geometry the comparison
+  // depends on.
+  return notice ? [...panelLines, notice] : panelLines
 }
