@@ -16,7 +16,7 @@
  * clean at zero. `import.meta.main` (fires on Node 22.23+/24, silently no-ops
  * below) and `Bun.*` (throws at the call site) still have live uses that are not
  * bugs on a current runtime, so asserting them here would only encode a
- * baseline; they are tracked separately.
+ * baseline; they are tracked in EXSC-971.
  */
 
 import { execFileSync } from 'child_process'
