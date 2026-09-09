@@ -1,0 +1,166 @@
+/**
+ * The local EVM `verifyByConstructorReplay` runs a constructor on: a throwaway
+ * `anvil`, deployed to and read back over JSON-RPC.
+ *
+ * Import this only to build the `replay` dependency. A local chain is enough
+ * because the deployment is reconstructed rather than re-observed — the args
+ * come from `config/`, and the runtime bytes a constructor returns do not
+ * depend on the chain it ran on. So there is no archive RPC to reach, no
+ * creation block to fork, and no explorer in the path.
+ */
+import { spawn } from 'child_process'
+
+import { createPublicClient, http } from 'viem'
+import type { PublicClient } from 'viem'
+import { foundry } from 'viem/chains'
+
+import type { IReplayRequest, ReplayOutcome } from './constructor-replay'
+import { strip0x } from './hex'
+
+/**
+ * Enough for the largest artifact in `src/` with room to spare, and below the
+ * 30M block limit anvil rejects a transaction above.
+ */
+const REPLAY_GAS = 30_000_000n
+
+const STARTUP_PROBES = 100
+const STARTUP_PROBE_INTERVAL_MS = 100
+
+export interface ILocalEvmOptions {
+  /** Port for the throwaway node. Give each concurrent caller its own. */
+  port?: number
+  /** `anvil` binary, for a caller whose PATH does not carry it. */
+  binary?: string
+}
+
+export interface ILocalEvm {
+  replay: (request: IReplayRequest) => Promise<ReplayOutcome>
+  stop: () => void
+}
+
+/**
+ * Concatenates creation code and the ABI-encoded constructor tail.
+ *
+ * @param request - Creation code from our own build, and the derived args.
+ * @returns The deploy calldata, or why the inputs cannot form any.
+ */
+export const composeCreationCode = (
+  request: IReplayRequest
+): { ok: true; data: string } | { ok: false; reason: string } => {
+  const code = strip0x(request.creationCode)
+  if (code.length === 0) return { ok: false, reason: 'creation code is empty' }
+  if (code.length % 2 !== 0)
+    return { ok: false, reason: 'creation code is not whole bytes' }
+  if (!/^[0-9a-fA-F]*$/.test(code))
+    return { ok: false, reason: 'creation code is not hex' }
+
+  const args = strip0x(request.encodedArgs)
+  if (args.length % 64 !== 0)
+    return {
+      ok: false,
+      reason: 'encoded constructor args are not whole 32-byte words',
+    }
+  if (!/^[0-9a-fA-F]*$/.test(args))
+    return { ok: false, reason: 'encoded constructor args are not hex' }
+
+  return { ok: true, data: `0x${(code + args).toLowerCase()}` }
+}
+
+const awaitStartup = async (client: PublicClient): Promise<boolean> => {
+  for (let attempt = 0; attempt < STARTUP_PROBES; attempt++) {
+    try {
+      await client.getBlockNumber()
+      return true
+    } catch {
+      await new Promise((resolve) =>
+        setTimeout(resolve, STARTUP_PROBE_INTERVAL_MS)
+      )
+    }
+  }
+  return false
+}
+
+/**
+ * Starts a throwaway `anvil` and returns the `replay` dependency plus its stop.
+ *
+ * The caller owns the lifetime: call `stop` in a `finally`, or the node outlives
+ * the process that asked for it.
+ *
+ * @param options - Port and binary overrides.
+ * @returns The replay port and the handle that shuts the node down.
+ */
+export const createLocalEvmReplay = (
+  options: ILocalEvmOptions = {}
+): ILocalEvm => {
+  const port = options.port ?? 8599
+  const child = spawn(
+    options.binary ?? 'anvil',
+    ['--silent', '--port', String(port)],
+    {
+      stdio: 'ignore',
+    }
+  )
+
+  const client = createPublicClient({
+    chain: foundry,
+    transport: http(`http://127.0.0.1:${port}`),
+  }) as PublicClient
+
+  let started: Promise<boolean> | undefined
+
+  const replay = async (request: IReplayRequest): Promise<ReplayOutcome> => {
+    const composed = composeCreationCode(request)
+    if (!composed.ok) return composed
+
+    started ??= awaitStartup(client)
+    if (!(await started))
+      return { ok: false, reason: `anvil did not come up on port ${port}` }
+
+    try {
+      const accounts = (await client.request({
+        method: 'eth_accounts' as never,
+        params: [] as never,
+      })) as string[]
+      const from = accounts[0]
+      if (!from)
+        return { ok: false, reason: 'anvil offered no unlocked account' }
+
+      const hash = (await client.request({
+        method: 'eth_sendTransaction' as never,
+        params: [
+          { from, data: composed.data, gas: `0x${REPLAY_GAS.toString(16)}` },
+        ] as never,
+      })) as `0x${string}`
+
+      const receipt = await client.waitForTransactionReceipt({ hash })
+      if (receipt.status !== 'success')
+        return {
+          ok: false,
+          reason: 'the constructor reverted on the local EVM',
+        }
+
+      const address = receipt.contractAddress
+      if (!address)
+        return {
+          ok: false,
+          reason: 'the local EVM reported no created contract',
+        }
+
+      const runtimeCode = await client.getCode({ address })
+      if (!runtimeCode || strip0x(runtimeCode).length === 0)
+        return {
+          ok: false,
+          reason: 'the constructor returned no runtime code on the local EVM',
+        }
+
+      return { ok: true, runtimeCode }
+    } catch (error) {
+      return {
+        ok: false,
+        reason: error instanceof Error ? error.message : String(error),
+      }
+    }
+  }
+
+  return { replay, stop: () => child.kill() }
+}
