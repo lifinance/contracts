@@ -166,6 +166,26 @@ describe('normalizeFailureCause', () => {
       'LiFiIntentEscrowFacetV2'
     )
   })
+
+  it('keeps the HTTP status, the token that says whether we were throttled', () => {
+    expect(
+      normalizeFailureCause(
+        '[diamond-deployed] threw: HTTP request failed.\n\nStatus: 429\nURL: https://42793.rpc.thirdweb.com/'
+      )
+    ).toContain('Status: 429')
+  })
+
+  it('groups different HTTP statuses separately — they are different causes', () => {
+    expect(normalizeFailureCause('HTTP request failed. Status: 429')).not.toBe(
+      normalizeFailureCause('HTTP request failed. Status: 401')
+    )
+  })
+
+  it('still masks counts in a detail that also carries a status', () => {
+    expect(normalizeFailureCause('Status: 429 after 3 attempts')).toBe(
+      normalizeFailureCause('Status: 429 after 7 attempts')
+    )
+  })
 })
 
 describe('groupFailuresByCause', () => {

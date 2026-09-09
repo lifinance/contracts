@@ -39,8 +39,11 @@ import globalConfig from '../../../config/global.json'
 import networks from '../../../config/networks.json'
 import { sleep } from '../../utils/delay'
 import { getEnvVar } from '../../utils/utils'
+import { isTestnetNetwork } from '../../utils/viemScriptHelpers'
+import { assertSafeThresholdFloor } from '../safe/safe-deploy-guards'
 import { retryWithRateLimit } from '../shared/rateLimit.js'
 
+import { assertTronToolchainOrThrow } from './assertTronToolchain.js'
 import {
   CREATE_PROXY_SAFETY_MARGIN,
   TRON_DEPLOY_NETWORK,
@@ -363,6 +366,15 @@ async function run(options: {
     )
   }
 
+  const thresholdFloor = assertSafeThresholdFloor({
+    network: TRON_DEPLOY_NETWORK,
+    threshold,
+    isTestnet: isTestnetNetwork(TRON_DEPLOY_NETWORK),
+  })
+  consola.info(
+    `Threshold ${threshold} clears the ${thresholdFloor.floor}-confirmation floor for ${TRON_DEPLOY_NETWORK}`
+  )
+
   const privateKey = getEnvVar('PRIVATE_KEY_PRODUCTION')
   const tvmKey = TRON_DEPLOY_NETWORK as TronTvmNetworkName
   const { rpcUrl, headers } = getTronRPCConfig(tvmKey, false)
@@ -486,6 +498,14 @@ async function run(options: {
     // 1) Deploy Safe implementation (no constructor)
     if (!existingSingleton) {
       consola.info('Deploying Safe implementation...')
+      // The toolchain check, not `assertTronDeploymentRecordable`: these are
+      // third-party Safe artifacts built separately by `forge build -C
+      // safe/london` and never written to the deployment log, so recordability
+      // is not the applicable question — and that assert validates constructor
+      // args against the artifact ABI, which for the committed
+      // SafeProxyFactory build declares none while its source declares one. It
+      // refused every run, environment-independently.
+      assertTronToolchainOrThrow()
       const safeResult = await deployer.deployContract(safeArtifact, [])
       singletonAddress = safeResult.contractAddress
       consola.success(`Safe implementation: ${singletonAddress}`)
@@ -502,6 +522,7 @@ async function run(options: {
     // 2) Deploy SafeProxyFactory(singleton)
     if (!existingFactory) {
       consola.info('Deploying SafeProxyFactory...')
+      assertTronToolchainOrThrow()
       const factoryResult = await deployer.deployContract(factoryArtifact, [
         singletonAddress,
       ])
@@ -707,7 +728,7 @@ const main = defineCommand({
     },
   },
   async run({ args }) {
-    const threshold = parseInt(args.threshold, 10)
+    const threshold = Number(args.threshold)
     if (isNaN(threshold) || threshold < 1) {
       consola.error('Invalid --threshold; must be a positive integer.')
       process.exit(1)

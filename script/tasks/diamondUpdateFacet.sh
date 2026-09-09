@@ -139,7 +139,10 @@ diamondUpdateFacet() {
   if isZkEvmNetwork "$NETWORK"; then
     SCRIPT_PATH="script/deploy/zksync/$SCRIPT.zksync.s.sol"
     # Check if the foundry-zksync binaries exist, if not fetch them
-    install_foundry_zksync
+    if ! install_foundry_zksync; then
+      error "failed to install or verify foundry-zksync"
+      return 1
+    fi
   else
     SCRIPT_PATH=$DEPLOY_SCRIPT_DIRECTORY"$SCRIPT.s.sol"
   fi
