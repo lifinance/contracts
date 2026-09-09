@@ -107,6 +107,13 @@ const LOAD_HELPERS = `
 `
 
 describe('assertDirectBroadcastCalldataGate', () => {
+  /**
+   * Asks the real gate for a verdict with the CLI stubbed, so what is asserted
+   * is whether it delegates at all, not what the CLI would decide.
+   * @param network - network handed to the gate
+   * @param environment - ENVIRONMENT handed to the gate
+   * @param gateRc - exit status the stubbed CLI reports
+   */
   const decide = (network: string, environment: string, gateRc = '0') =>
     runHarness(`
       ${LOAD_HELPERS}
@@ -268,6 +275,12 @@ describe('placement inside sendOrPropose', () => {
 })
 
 describe('assert-direct-broadcast-gate CLI against real repo data', () => {
+  /**
+   * Spawns the real CLI in the real checkout, so the deployment log and network
+   * config it reads are the ones a deploy would read.
+   * @param network - network to gate against
+   * @param calldata - calldata the gate has to read a cut out of
+   */
   const run = (network: string, calldata: string) =>
     spawnSync(
       'bunx',
