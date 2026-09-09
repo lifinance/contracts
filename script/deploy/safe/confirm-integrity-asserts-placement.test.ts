@@ -149,9 +149,16 @@ describe('the run cannot survive into the next proposal', () => {
       'integrityRun = await runIntegrityAsserts('
     )
     expect(evaluation).toBeGreaterThan(-1)
-    const catchBlock = SOURCE.slice(evaluation, evaluation + 2000)
-    expect(catchBlock).toContain('} catch (error) {')
-    expect(catchBlock).toContain('integrityRun = undefined')
+
+    // Bounded by the catch's own delimiters rather than by a character count:
+    // a fixed window stops covering the block the first time a comment is
+    // added above it, and then reports the reset as missing rather than as
+    // misplaced. It also has to be the *handler*, not the whole try — the
+    // assignment inside the try is what this exists to distinguish from.
+    const opens = SOURCE.indexOf('} catch (error) {', evaluation)
+    expect(opens).toBeGreaterThan(evaluation)
+    const handler = SOURCE.slice(opens, SOURCE.indexOf('\n    }\n', opens))
+    expect(handler).toContain('integrityRun = undefined')
   })
 })
 
@@ -237,6 +244,12 @@ describe('the evaluation is placed where it swallows nothing', () => {
       'signedNonce: Number(tx.safeTransaction.data.nonce)',
     ])
       expect(call).toContain(field)
+
+    // The payload is handed over unchanged. A `?? '0x'` here invents a payload
+    // the struct does not carry, and the graded key then disagrees with the
+    // funnels' — which refuses every proposal with no calldata.
+    expect(call).toContain('data: tx.safeTransaction.data.data,')
+    expect(call).not.toContain("tx.safeTransaction.data.data ?? '0x'")
 
     // …and the stored row reaches it only as the thing being compared.
     expect(call).toContain('storedTxData: (tx.safeTx.data ?? {})')

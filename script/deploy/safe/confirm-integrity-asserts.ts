@@ -78,15 +78,22 @@ const UNEVALUATED_REASON =
  * reads as a red teaches a signer to click through both. `error` is deliberately
  * not a softer red than `fail` — both block, and the ledger grades them the
  * same way.
+ *
+ * A `Map` rather than an object, because the lookup falls back on a miss and a
+ * plain object's bracket access walks the prototype: a rehydrated result
+ * carrying `constructor` or `toString` as its status would resolve to an
+ * inherited member instead of missing, and print as whatever that stringifies
+ * to rather than as unverified.
  */
-const STATUS_BUCKETS: Readonly<
-  Record<CheckStatus, { word: string; glyph: string; colour: string }>
-> = {
-  pass: { word: 'PASS', glyph: '✓', colour: '32' },
-  fail: { word: 'MISMATCH', glyph: '⛔', colour: '31' },
-  error: { word: 'UNVERIFIED', glyph: '✗', colour: '31' },
-  'needs-ack': { word: 'NEEDS REVIEW', glyph: '⚠', colour: '33' },
-}
+const STATUS_BUCKETS: ReadonlyMap<
+  CheckStatus,
+  { word: string; glyph: string; colour: string }
+> = new Map([
+  ['pass', { word: 'PASS', glyph: '✓', colour: '32' }],
+  ['fail', { word: 'MISMATCH', glyph: '⛔', colour: '31' }],
+  ['error', { word: 'UNVERIFIED', glyph: '✗', colour: '31' }],
+  ['needs-ack', { word: 'NEEDS REVIEW', glyph: '⚠', colour: '33' }],
+])
 
 /** A status no bucket names is unverified, which is the reading that blocks. */
 const UNKNOWN_STATUS_BUCKET = {
@@ -1167,7 +1174,7 @@ export const renderIntegrityAsserts = (
     }
 
     for (const result of results) {
-      const bucket = STATUS_BUCKETS[result.status] ?? UNKNOWN_STATUS_BUCKET
+      const bucket = STATUS_BUCKETS.get(result.status) ?? UNKNOWN_STATUS_BUCKET
       lines.push(
         `        \u001b[${bucket.colour}m${bucket.glyph} ${bucket.word}\u001b[0m ${check.title} [${check.checkId}] (${result.anchor})`
       )

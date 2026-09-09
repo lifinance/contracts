@@ -622,8 +622,15 @@ const processTxs = async (
           // The signed struct throughout, never the stored row: the row is what
           // is displayed, and a check that keys on it verifies the description
           // rather than the transaction.
+          // Handed over unchanged — no `?? '0x'` on the payload. The graded key
+          // is derived from these fields and compared against
+          // `proposalKeyOf(safeTransaction.data)` in the funnels, which reads
+          // an absent payload as the empty string; substituting `'0x'` here
+          // would make the two disagree and refuse every proposal that carries
+          // no calldata. An unusable payload is refused by the assertions
+          // themselves rather than repaired into a usable one.
           to: tx.safeTransaction.data.to,
-          data: (tx.safeTransaction.data.data ?? '0x') as Hex,
+          data: tx.safeTransaction.data.data,
           signedValue: String(tx.safeTransaction.data.value),
           signedOperation: tx.safeTransaction.data.operation ?? 0,
           signedNonce: Number(tx.safeTransaction.data.nonce),

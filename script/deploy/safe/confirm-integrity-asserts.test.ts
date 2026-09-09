@@ -804,6 +804,60 @@ describe('the refusal the funnels call', () => {
     ).not.toThrow()
   })
 
+  it('grades the key the funnels compute from the same struct', async () => {
+    // The funnels present `proposalKeyOf(safeTransaction.data)`. If this module
+    // normalised any of those fields on its way to the key, the two would
+    // disagree and every proposal would be refused as "a different
+    // transaction" — a false red that no assertion of its own would explain.
+    const struct = {
+      to: DIAMOND,
+      value: 0n,
+      data: PLAIN_PAYLOAD,
+      operation: 0,
+      nonce: BigInt(NONCE),
+    }
+    const run = await runIntegrityAsserts(
+      makeInput({
+        to: struct.to,
+        data: struct.data,
+        signedValue: String(struct.value),
+        signedOperation: struct.operation,
+        signedNonce: Number(struct.nonce),
+      }),
+      makeDeps()
+    )
+    expect(run.gradedKey).toBe(proposalKeyOf(struct))
+  })
+
+  it('agrees with the funnels on a proposal that carries no payload', async () => {
+    // An absent payload is the one field the two spellings could diverge on:
+    // `proposalKeyOf` reads it as the empty string, so a `?? '0x'` anywhere on
+    // the way in would produce a key nothing matches.
+    const struct = {
+      to: DIAMOND,
+      value: 0n,
+      operation: 0,
+      nonce: BigInt(NONCE),
+    }
+    const run = await runIntegrityAsserts(
+      makeInput({
+        to: struct.to,
+        // Deliberately absent, which the declared type forbids and a Mongo row
+        // can still be missing.
+        data: undefined as unknown as Hex,
+        signedValue: '0',
+        signedOperation: 0,
+        signedNonce: NONCE,
+      }),
+      makeDeps()
+    )
+    expect(run.gradedKey).toBe(proposalKeyOf(struct))
+    // …and an unreadable payload is refused rather than repaired: the delay
+    // check registers and cannot conclude.
+    expect(run.registered).toContain(CHECK_TIMELOCK_DELAY)
+    expect(run.verdict.hardBlocked).toBe(true)
+  })
+
   it('blocks a tampered stored hash', async () => {
     const input = makeInput({ documentSafeTxHash: TAMPERED_HASH })
     const run = await runIntegrityAsserts(input, makeDeps())
@@ -902,5 +956,32 @@ describe('what the signer sees before the prompt', () => {
     const lines = renderIntegrityAsserts(undefined).join('\n')
     expect(lines).toContain('REFUSED')
     expect(lines).toContain('no verdict for this transaction at all')
+  })
+
+  it('prints a status it does not recognise as unverified, never as a pass', async () => {
+    // `recordCheck` refuses a status outside the four, so this state cannot be
+    // reached through the module's own path — only by a rehydrated document or
+    // a direct push into the results log, which is exactly what is built here.
+    // Left untested, the renderer's fallback would be code nothing had ever
+    // exercised, sitting on the one path where being wrong prints green.
+    const run = await runIntegrityAsserts(makeInput(), makeDeps())
+    const result = run.ledger.results.find(
+      (entry) => entry.checkId === CHECK_TARGET
+    )
+    if (!result) throw new Error('no target result to rewrite')
+    const forged = {
+      ...run,
+      ledger: {
+        ...run.ledger,
+        results: [{ ...result, status: 'constructor' as never }],
+      },
+    }
+
+    const lines = renderIntegrityAsserts(forged).join('\n')
+    expect(lines).toContain('UNVERIFIED')
+    // The paired absence: it must not have borrowed a bucket from the
+    // prototype chain, and must not read as a pass.
+    expect(lines).not.toContain('PASS')
+    expect(lines).not.toContain('Object')
   })
 })
