@@ -16,14 +16,16 @@
  *
  * Run:  bunx tsx script/demoScripts/demoCentrifuge.ts
  *
- * First base staging run (2026-09-08) sent 1 deJAAA base -> mainnet via CentrifugeFacet
- * 0xF41125385bfeA3c8567f9185b697c8B845bB12d0 on the staging diamond
- * 0x947330863B5BA5E134fE8b73e0E1c7Eed90446C7. The source leg was clean (diamond retained
- * 0 deJAAA / 0 ETH; quoted 0.001914871804286418 ETH, consumed 0.001914759423642938, surplus
- * refunded) but the destination rejected it with PrefixNotZero() - the receiver-encoding bug
- * fixed in the facet since. Record a verified run here once the fixed facet is deployed.
- *   0xbddf3c89322bd2ec9ac062ab59958bbc9caa6d1bc8a4e9a763ac7c6081a0a08e
- *   Centrifuge message: https://centrifugescan.io/tx/0x3f8be4682d0aaef03505ddd06400a9048bbe0f21b61d3f1f056caad6bfe71456
+ * Verified base staging run (2026-09-09): 1 deJAAA base -> mainnet via CentrifugeFacet
+ * 0x27a7dA998e8d508B5ff6c70EA734dC2305a810ec on the staging diamond
+ * 0x947330863B5BA5E134fE8b73e0E1c7Eed90446C7. Diamond retained 0 deJAAA / 0 ETH, messaging-fee
+ * surplus refunded, delivered on mainnet ~48 min later.
+ *   src:  https://basescan.org/tx/0x3c1af4d8f82bd070917d96433609343374e5ac97a3ad38e97e9e5377d4d33b91
+ *   dst:  https://etherscan.io/tx/0xebc3d06a8572df35b15318b9e66258ab3255f63dcab40b8c8cd3d06f237e74af
+ *   msg:  https://centrifugescan.io/tx/0x763680baf555b59e99116775531ad18738e32efba0b42c237823aee23bfedf52
+ *
+ * An earlier run left-padded the receiver and was rejected on arrival with PrefixNotZero();
+ * see CentrifugeFacet._toRightPaddedBytes32.
  */
 import { randomBytes } from 'crypto'
 
@@ -48,6 +50,7 @@ import centrifugeFacetArtifact from '../../out/CentrifugeFacet.sol/CentrifugeFac
 import erc20Artifact from '../../out/ERC20/ERC20.sol/ERC20.json'
 import type { CentrifugeFacet, ILiFi } from '../../typechain'
 import type { SupportedChain } from '../common/types'
+import { sleep } from '../utils/delay'
 import { fetchWithTimeout } from '../utils/fetchWithTimeout'
 import { getViemChainForNetworkName } from '../utils/viemScriptHelpers'
 
@@ -97,6 +100,8 @@ const BRIDGE_AMOUNT_HUMAN = '1'
 // from. Documented at https://docs.centrifuge.io/developer/centrifuge-api/#bridge-rest-api.
 const CENTRIFUGE_QUOTE_URL = 'https://api.centrifuge.io/bridge/quote'
 const CENTRIFUGE_STATUS_URL = 'https://api.centrifuge.io/bridge/status'
+const RPC_LAG_ATTEMPTS = 10
+const RPC_LAG_DELAY_MS = 2000 // one Base block
 
 // The quote is a single number rather than a bracket, so the Gateway may charge exactly what is
 // sent. Paying a deliberate margin over it guarantees there is a surplus to refund, which is
@@ -273,6 +278,30 @@ async function main(): Promise<void> {
 
   await ensureBalance(shareTokenContract, signerAddress, amount, publicClient)
 
+  // The approval and the bridge call are a second apart and the RPC is load balanced, so the
+  // bridge simulation can be answered by a node that has not applied the approval's block yet -
+  // it sees no allowance and reverts TransferFromFailed on a run that is perfectly fine. Wait
+  // until the approval is actually visible before building the transfer.
+  const waitForAllowance = async () => {
+    for (let attempt = 0; attempt < RPC_LAG_ATTEMPTS; attempt++) {
+      const allowance = (await publicClient.readContract({
+        address: SHARE_TOKEN,
+        abi: ERC20_ABI,
+        functionName: 'allowance',
+        args: [signerAddress, lifiDiamondAddress],
+      })) as bigint
+      if (allowance >= amount) return
+
+      await sleep(RPC_LAG_DELAY_MS)
+    }
+
+    throw new Error(
+      `the approval of ${amount} ${shareTokenSymbol} to the Diamond is still not visible after ${
+        (RPC_LAG_ATTEMPTS * RPC_LAG_DELAY_MS) / 1000
+      }s - the RPC is lagging badly enough that this run cannot be trusted.`
+    )
+  }
+
   await ensureAllowance(
     shareTokenContract,
     signerAddress,
@@ -280,6 +309,7 @@ async function main(): Promise<void> {
     amount,
     publicClient
   )
+  await waitForAllowance()
 
   // === Prepare bridge data ===
   const bridgeData: ILiFi.BridgeDataStruct = {
@@ -360,6 +390,20 @@ async function main(): Promise<void> {
     }),
   })
 
+  // Pinning the reads to a block trades a silently wrong answer for a loud one: a node that has
+  // not applied the block yet rejects the request as an unknown block instead of quietly serving
+  // the parent's state. Retry until it catches up, so the report is neither wrong nor lost.
+  const readBalancesWhenAvailable = async (blockNumber: bigint) => {
+    for (let attempt = 1; ; attempt++)
+      try {
+        return await readBalances(blockNumber)
+      } catch (error) {
+        if (attempt >= RPC_LAG_ATTEMPTS) throw error
+
+        await sleep(RPC_LAG_DELAY_MS)
+      }
+  }
+
   // === Start bridging ===
   const txHash = (await executeTransaction(
     () =>
@@ -379,8 +423,8 @@ async function main(): Promise<void> {
   const receipt = await publicClient.getTransactionReceipt({ hash: txHash })
   const gasCost = receipt.gasUsed * receipt.effectiveGasPrice
 
-  const before = await readBalances(receipt.blockNumber - 1n)
-  const after = await readBalances(receipt.blockNumber)
+  const before = await readBalancesWhenAvailable(receipt.blockNumber - 1n)
+  const after = await readBalancesWhenAvailable(receipt.blockNumber)
 
   // the refund lands back on the signer, so the fee actually spent is the native delta net of gas
   const consumedFee = before.signerNative - after.signerNative - gasCost
