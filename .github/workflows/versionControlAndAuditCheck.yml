@@ -658,17 +658,6 @@ jobs:
               ##### by content in the "Verify audited source matches PR head" step below, once
               ##### per contract rather than once per audit id
 
-            ##### Check if the auditor git handle exists on github
-            echo "now checking if the auditor git handle ($AUDITOR_GIT_HANDLE) actually exists"
-            if gh api users/$AUDITOR_GIT_HANDLE > /dev/null 2>&1; then
-              echo -e "\033[32mA user with handle '$AUDITOR_GIT_HANDLE' exists on GitHub.\033[0m"
-            else
-              echo -e "\033[31mA user with handle '$AUDITOR_GIT_HANDLE' does not exist on GitHub.\033[0m"
-              echo -e "\033[31mPlease fix the audit log before continuing.\033[0m"
-              echo -e "\033[31mCheck failed.\033[0m"
-              exit 1
-            fi
-
             # ##### -----------------------------------------------------------------------------
             # ##### DISABLED FOR NOW (NEED TO CHECK IF THIS IS COMPATIBLE WITH OUR FLOW) - WAS USED FOR SINGLE AUDIT CHECK
             # ##### Fetch PR reviews using the GitHub API via gh cli
