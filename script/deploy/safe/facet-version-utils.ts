@@ -111,9 +111,14 @@ export function getDeployedFacetVersionFromLog(
 }
 
 /** What the deployment record says a proposed address is. */
-export interface IDeployedContractIdentity {
-  contractName: string | null
-  version: string | null
+export type DeployedContractLookup =
+  | { kind: 'resolved'; contractName: string | null; version: string | null }
+  | { kind: 'ambiguous'; contractNames: string[]; versions: string[] }
+  | { kind: 'unrecorded' }
+
+const nonBlank = (value: string | undefined): string | null => {
+  const trimmed = value?.trim()
+  return trimmed ? trimmed : null
 }
 
 /**
@@ -123,39 +128,67 @@ export interface IDeployedContractIdentity {
  * The cache mirrors the MongoDB deployment record, which the deploy script writes
  * *before* proposing — unlike `deployments/<network>.json`, which merges only
  * after execution and so lags every new deployment.
+ *
+ * A `(network, address)` pair is not unique in that cache — the live production
+ * mirror carries six such pairs, two of them at genuinely different versions —
+ * so contradicting records are reported rather than resolved to whichever the
+ * unsorted scan reached first. A record carrying no version cannot contradict
+ * one that does, which keeps the three blank-sibling pairs resolvable.
  * @param network - Network name (e.g. optimism)
  * @param addressCandidates - Address forms to match; compared case-insensitively
  * @param rootDir - Project root containing `.cache/`; defaults to cwd
- * @returns The recorded identity, or null when no record on that network matches
+ * @returns The recorded identity, the contradiction, or that nothing matched
  */
 export function resolveDeployedContractByAddress(
   network: string,
   addressCandidates: string[],
   rootDir: string = process.cwd()
-): IDeployedContractIdentity | null {
+): DeployedContractLookup {
   try {
     const records = loadProductionDeploymentRecords(rootDir)
-    if (!records) return null
+    if (!records) return { kind: 'unrecorded' }
 
     const normalizedCandidates = addressCandidates
       .filter((a) => typeof a === 'string' && a.length > 0)
       .map((a) => a.toLowerCase())
-    if (normalizedCandidates.length === 0) return null
+    if (normalizedCandidates.length === 0) return { kind: 'unrecorded' }
 
     const networkLower = network.toLowerCase()
-    const found = records.find(
+    const matches = records.filter(
       (r) =>
         r.network?.toLowerCase() === networkLower &&
         typeof r.address === 'string' &&
         normalizedCandidates.includes(r.address.toLowerCase())
     )
-    if (!found) return null
+    if (matches.length === 0) return { kind: 'unrecorded' }
+
+    const versioned = matches.filter((r) => nonBlank(r.version))
+    const candidates = versioned.length > 0 ? versioned : matches
+
+    const versions = [
+      ...new Set(
+        candidates
+          .map((r) => nonBlank(r.version))
+          .filter((v): v is string => v !== null)
+      ),
+    ]
+    const contractNames = [
+      ...new Set(
+        candidates
+          .map((r) => nonBlank(r.contractName))
+          .filter((n): n is string => n !== null)
+      ),
+    ]
+
+    if (versions.length > 1 || contractNames.length > 1)
+      return { kind: 'ambiguous', contractNames, versions }
 
     return {
-      contractName: found.contractName ?? null,
-      version: found.version ?? null,
+      kind: 'resolved',
+      contractName: contractNames[0] ?? null,
+      version: versions[0] ?? null,
     }
   } catch {
-    return null
+    return { kind: 'unrecorded' }
   }
 }

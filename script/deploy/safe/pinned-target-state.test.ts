@@ -23,7 +23,7 @@ import { encodeFunctionData, parseAbi, type Address, type Hex } from 'viem'
 
 import { DIAMOND_CUT_ABI, ZERO_ADDRESS } from '../shared/constants'
 
-import type { IDeployedContractIdentity } from './facet-version-utils'
+import type { DeployedContractLookup } from './facet-version-utils'
 import {
   blockedByEvaluationError,
   compareSemanticVersions,
@@ -76,7 +76,8 @@ const STATE: PinnedTargetState = {
 }
 
 const deps = (options: {
-  deployed?: IDeployedContractIdentity | null
+  deployed?: { contractName: string | null; version: string | null } | null
+  lookup?: DeployedContractLookup
   pinned?: PinnedTargetStateRead
   onRead?: () => void
 }): ITargetStateDeps => ({
@@ -84,7 +85,11 @@ const deps = (options: {
     options.onRead?.()
     return options.pinned ?? { ok: true, state: STATE }
   },
-  resolveDeployed: () => options.deployed ?? null,
+  resolveDeployed: () =>
+    options.lookup ??
+    (options.deployed
+      ? { kind: 'resolved', ...options.deployed }
+      : { kind: 'unrecorded' }),
 })
 
 describe('compareSemanticVersions', () => {
@@ -219,6 +224,23 @@ describe('evaluateTargetStateIntent — first-time add', () => {
     expect(verdict.findings[0]?.crossFleetCount).toBeNull()
   })
 
+  it('refuses an install whose deployment record contradicts itself', () => {
+    const verdict = evaluateTargetStateIntent(
+      [cut([{ facetAddress: FACET, action: 1 }])],
+      'tron',
+      deps({
+        lookup: {
+          kind: 'ambiguous',
+          contractNames: ['AllBridgeFacet'],
+          versions: ['2.1.1', '2.1.2'],
+        },
+      })
+    )
+    expect(verdict.cleared).toBe(false)
+    expect(verdict.findings[0]?.status).toBe('deployment-record-ambiguous')
+    expect(verdict.findings[0]?.detail).toContain('2.1.1 / 2.1.2')
+  })
+
   it('refuses an install whose address no deployment record names', () => {
     const verdict = evaluateTargetStateIntent(
       [cut([{ facetAddress: FACET, action: 0 }])],
@@ -301,14 +323,14 @@ describe('evaluateTargetStateIntent — the anchor itself', () => {
   })
 
   it('refuses the whole proposal when one element of a batch refuses', () => {
-    const versions = new Map<string, IDeployedContractIdentity>([
+    const versions = new Map<string, DeployedContractLookup>([
       [
         FACET.toLowerCase(),
-        { contractName: 'AcrossFacetV3', version: '1.1.0' },
+        { kind: 'resolved', contractName: 'AcrossFacetV3', version: '1.1.0' },
       ],
       [
         OTHER_FACET.toLowerCase(),
-        { contractName: 'NewFacet', version: '2.0.0' },
+        { kind: 'resolved', contractName: 'NewFacet', version: '2.0.0' },
       ],
     ])
     const verdict = evaluateTargetStateIntent(
@@ -322,7 +344,7 @@ describe('evaluateTargetStateIntent — the anchor itself', () => {
       {
         readPinnedState: () => ({ ok: true, state: STATE }),
         resolveDeployed: (facetAddress) =>
-          versions.get(facetAddress.toLowerCase()) ?? null,
+          versions.get(facetAddress.toLowerCase()) ?? { kind: 'unrecorded' },
       }
     )
     expect(verdict.cleared).toBe(false)
@@ -532,7 +554,11 @@ describe('createTargetStateDeps', () => {
       readPinnedState: () => ({ ok: true, state: STATE }),
       cacheRootDir,
     }).resolveDeployed(FACET)
-    expect(resolved).toEqual({ contractName: 'TronFacet', version: '1.4.0' })
+    expect(resolved).toEqual({
+      kind: 'resolved',
+      contractName: 'TronFacet',
+      version: '1.4.0',
+    })
   })
 
   it('does not find that Tron record under the hex address', () => {
@@ -550,6 +576,10 @@ describe('createTargetStateDeps', () => {
         readPinnedState: () => ({ ok: true, state: STATE }),
         cacheRootDir,
       }).resolveDeployed(FACET)
-    ).toEqual({ contractName: 'AcrossFacetV3', version: '1.4.0' })
+    ).toEqual({
+      kind: 'resolved',
+      contractName: 'AcrossFacetV3',
+      version: '1.4.0',
+    })
   })
 })

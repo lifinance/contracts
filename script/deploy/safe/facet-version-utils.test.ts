@@ -13,6 +13,24 @@ import {
 const FACET_ADDRESS = '0xC21a00A346d5b29955449CA912343a3aB4C5552f'
 const OTHER_ADDRESS = '0x0000000000000000000000000000000000000001'
 
+/**
+ * Writes a throwaway project root holding just a deployment cache.
+ * @param label - suffix for the temp directory name
+ * @param records - cache contents, in the flat shape the real file uses
+ * @returns The root directory, for the caller to remove
+ */
+const writeCache = (label: string, records: unknown[]): string => {
+  const root = fs.mkdtempSync(
+    path.join(os.tmpdir(), `facet-version-utils-${label}-`)
+  )
+  fs.mkdirSync(path.join(root, '.cache'), { recursive: true })
+  fs.writeFileSync(
+    path.join(root, '.cache', 'deployments_production.json'),
+    JSON.stringify(records)
+  )
+  return root
+}
+
 describe('facet-version-utils', () => {
   let rootDir: string
 
@@ -279,10 +297,34 @@ describe('facet-version-utils', () => {
   })
 
   describe('resolveDeployedContractByAddress', () => {
+    // The suite-wide fixture deliberately records two different contract names
+    // at FACET_ADDRESS, which this resolver reports as a contradiction, so the
+    // plain-resolution cases get a root of their own.
+    let soleRoot: string
+
+    beforeAll(() => {
+      soleRoot = writeCache('sole', [
+        {
+          contractName: 'AcrossFacetV3',
+          network: 'optimism',
+          version: '1.1.0',
+          address: FACET_ADDRESS,
+        },
+      ])
+    })
+
+    afterAll(() => {
+      fs.rmSync(soleRoot, { recursive: true, force: true })
+    })
+
     it('resolves name and version from the deployment record', () => {
       expect(
-        resolveDeployedContractByAddress('optimism', [FACET_ADDRESS], rootDir)
-      ).toEqual({ contractName: 'AcrossFacetV3', version: '1.1.0' })
+        resolveDeployedContractByAddress('optimism', [FACET_ADDRESS], soleRoot)
+      ).toEqual({
+        kind: 'resolved',
+        contractName: 'AcrossFacetV3',
+        version: '1.1.0',
+      })
     })
 
     it('matches case-insensitively', () => {
@@ -290,92 +332,214 @@ describe('facet-version-utils', () => {
         resolveDeployedContractByAddress(
           'Optimism',
           [FACET_ADDRESS.toLowerCase()],
-          rootDir
+          soleRoot
         )
-      ).toEqual({ contractName: 'AcrossFacetV3', version: '1.1.0' })
+      ).toEqual({
+        kind: 'resolved',
+        contractName: 'AcrossFacetV3',
+        version: '1.1.0',
+      })
     })
 
-    it('returns null for an address on another network', () => {
+    it('reports the suite fixture two names at one address as a contradiction', () => {
+      expect(
+        resolveDeployedContractByAddress('optimism', [FACET_ADDRESS], rootDir)
+      ).toEqual({
+        kind: 'ambiguous',
+        contractNames: ['AcrossFacetV3', 'BrokenEntriesFacet'],
+        versions: ['1.1.0'],
+      })
+    })
+
+    it('reports nothing recorded for an address on another network', () => {
       expect(
         resolveDeployedContractByAddress('base', [FACET_ADDRESS], rootDir)
-      ).toBeNull()
+      ).toEqual({ kind: 'unrecorded' })
     })
 
-    it('returns null for an unrecorded address', () => {
+    it('reports nothing recorded for an unrecorded address', () => {
       expect(
         resolveDeployedContractByAddress(
           'optimism',
           ['0x00000000000000000000000000000000000000ff'],
           rootDir
         )
-      ).toBeNull()
+      ).toEqual({ kind: 'unrecorded' })
     })
 
-    it('returns null when no candidate is a usable string', () => {
+    it('reports nothing recorded when no candidate is a usable string', () => {
       expect(
         resolveDeployedContractByAddress('optimism', ['', ''], rootDir)
-      ).toBeNull()
+      ).toEqual({ kind: 'unrecorded' })
     })
 
-    it('returns null when the cache is absent', () => {
+    it('reports nothing recorded when the cache is absent', () => {
       expect(
         resolveDeployedContractByAddress(
           'optimism',
           [FACET_ADDRESS],
           path.join(rootDir, 'does-not-exist')
         )
-      ).toBeNull()
+      ).toEqual({ kind: 'unrecorded' })
     })
 
     it('reports a null version when the record carries none', () => {
-      const partialRoot = fs.mkdtempSync(
-        path.join(os.tmpdir(), 'facet-version-utils-partial-')
-      )
+      const partialRoot = writeCache('partial', [
+        {
+          contractName: 'NoVersionFacet',
+          network: 'optimism',
+          address: FACET_ADDRESS,
+        },
+      ])
       try {
-        fs.mkdirSync(path.join(partialRoot, '.cache'), { recursive: true })
-        fs.writeFileSync(
-          path.join(partialRoot, '.cache', 'deployments_production.json'),
-          JSON.stringify([
-            {
-              contractName: 'NoVersionFacet',
-              network: 'optimism',
-              address: FACET_ADDRESS,
-            },
-          ])
-        )
         expect(
           resolveDeployedContractByAddress(
             'optimism',
             [FACET_ADDRESS],
             partialRoot
           )
-        ).toEqual({ contractName: 'NoVersionFacet', version: null })
+        ).toEqual({
+          kind: 'resolved',
+          contractName: 'NoVersionFacet',
+          version: null,
+        })
       } finally {
         fs.rmSync(partialRoot, { recursive: true, force: true })
       }
     })
 
     it('reports a null contract name when the record carries none', () => {
-      const namelessRoot = fs.mkdtempSync(
-        path.join(os.tmpdir(), 'facet-version-utils-nameless-')
-      )
+      const namelessRoot = writeCache('nameless', [
+        { network: 'optimism', version: '9.9.9', address: FACET_ADDRESS },
+      ])
       try {
-        fs.mkdirSync(path.join(namelessRoot, '.cache'), { recursive: true })
-        fs.writeFileSync(
-          path.join(namelessRoot, '.cache', 'deployments_production.json'),
-          JSON.stringify([
-            { network: 'optimism', version: '9.9.9', address: FACET_ADDRESS },
-          ])
-        )
         expect(
           resolveDeployedContractByAddress(
             'optimism',
             [FACET_ADDRESS],
             namelessRoot
           )
-        ).toEqual({ contractName: null, version: '9.9.9' })
+        ).toEqual({ kind: 'resolved', contractName: null, version: '9.9.9' })
       } finally {
         fs.rmSync(namelessRoot, { recursive: true, force: true })
+      }
+    })
+
+    // The live production mirror carries six (network, address) pairs with more
+    // than one record. These four fixtures are those real shapes.
+    it('reports a contradiction when two records give the same address different versions', () => {
+      const root = writeCache('dup-version', [
+        {
+          contractName: 'AllBridgeFacet',
+          network: 'tron',
+          version: '2.1.1',
+          address: 'TCYAJzpLJJGYUqPoq9kVM1zJw9zdmXLUFu',
+        },
+        {
+          contractName: 'AllBridgeFacet',
+          network: 'tron',
+          version: '2.1.2',
+          address: 'TCYAJzpLJJGYUqPoq9kVM1zJw9zdmXLUFu',
+        },
+      ])
+      try {
+        expect(
+          resolveDeployedContractByAddress(
+            'tron',
+            ['TCYAJzpLJJGYUqPoq9kVM1zJw9zdmXLUFu'],
+            root
+          )
+        ).toEqual({
+          kind: 'ambiguous',
+          contractNames: ['AllBridgeFacet'],
+          versions: ['2.1.1', '2.1.2'],
+        })
+      } finally {
+        fs.rmSync(root, { recursive: true, force: true })
+      }
+    })
+
+    it('reports a contradiction when two records give the same address different names', () => {
+      const root = writeCache('dup-name', [
+        {
+          contractName: 'LiFuelFeeCollector',
+          network: 'metis',
+          version: '1.0.1',
+          address: FACET_ADDRESS,
+        },
+        {
+          contractName: 'TokenWrapper',
+          network: 'metis',
+          version: '1.0.1',
+          address: FACET_ADDRESS,
+        },
+      ])
+      try {
+        expect(
+          resolveDeployedContractByAddress('metis', [FACET_ADDRESS], root)
+        ).toEqual({
+          kind: 'ambiguous',
+          contractNames: ['LiFuelFeeCollector', 'TokenWrapper'],
+          versions: ['1.0.1'],
+        })
+      } finally {
+        fs.rmSync(root, { recursive: true, force: true })
+      }
+    })
+
+    it('resolves past a blank-version sibling, which contradicts nothing', () => {
+      const root = writeCache('blank-sibling', [
+        {
+          contractName: 'PolymerCCTPFacet',
+          network: 'base',
+          version: '2.0.0',
+          address: FACET_ADDRESS,
+        },
+        {
+          contractName: 'PolymerCCTPFacet',
+          network: 'base',
+          version: '',
+          address: FACET_ADDRESS,
+        },
+      ])
+      try {
+        expect(
+          resolveDeployedContractByAddress('base', [FACET_ADDRESS], root)
+        ).toEqual({
+          kind: 'resolved',
+          contractName: 'PolymerCCTPFacet',
+          version: '2.0.0',
+        })
+      } finally {
+        fs.rmSync(root, { recursive: true, force: true })
+      }
+    })
+
+    it('resolves past a blank-version sibling listed first', () => {
+      const root = writeCache('blank-first', [
+        {
+          contractName: 'PolymerCCTPFacet',
+          network: 'base',
+          version: '',
+          address: FACET_ADDRESS,
+        },
+        {
+          contractName: 'PolymerCCTPFacet',
+          network: 'base',
+          version: '2.0.0',
+          address: FACET_ADDRESS,
+        },
+      ])
+      try {
+        expect(
+          resolveDeployedContractByAddress('base', [FACET_ADDRESS], root)
+        ).toEqual({
+          kind: 'resolved',
+          contractName: 'PolymerCCTPFacet',
+          version: '2.0.0',
+        })
+      } finally {
+        fs.rmSync(root, { recursive: true, force: true })
       }
     })
   })

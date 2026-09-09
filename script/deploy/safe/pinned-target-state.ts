@@ -20,7 +20,7 @@ import { collectDiamondCutCalls } from '../shared/diamond-cut-calls'
 
 import {
   resolveDeployedContractByAddress,
-  type IDeployedContractIdentity,
+  type DeployedContractLookup,
 } from './facet-version-utils'
 
 // Resolved from this module rather than `process.cwd()`: the anchor has to be
@@ -70,6 +70,7 @@ export type TargetStateStatus =
   | 'version-not-comparable'
   | 'proposed-version-unresolved'
   | 'contract-unidentified'
+  | 'deployment-record-ambiguous'
   | 'unrecognised-cut-action'
   | 'calldata-not-readable'
   | 'pinned-state-unavailable'
@@ -177,7 +178,7 @@ export interface ITargetStateDeps {
   /** The expected state, read at {@link PINNED_REF}. */
   readPinnedState: () => PinnedTargetStateRead
   /** What the deployment record says a facet address is. */
-  resolveDeployed: (facetAddress: string) => IDeployedContractIdentity | null
+  resolveDeployed: (facetAddress: string) => DeployedContractLookup
 }
 
 const describeUnavailable = (
@@ -287,8 +288,25 @@ export const evaluateTargetStateIntent = (
     }
 
     const deployed = deps.resolveDeployed(facetAddress)
-    const contractName = deployed?.contractName ?? null
-    const proposedVersion = deployed?.version ?? null
+
+    if (deployed.kind === 'ambiguous') {
+      findings.push({
+        ...blank,
+        facetAddress,
+        status: 'deployment-record-ambiguous',
+        detail: `the deployment record for this address on ${network} contradicts itself — ${
+          deployed.contractNames.join(' / ') || 'no name'
+        } at ${
+          deployed.versions.join(' / ') || 'no version'
+        } — so which one this cut installs cannot be established, and neither can a downgrade be ruled out.`,
+      })
+      continue
+    }
+
+    const contractName =
+      deployed.kind === 'resolved' ? deployed.contractName : null
+    const proposedVersion =
+      deployed.kind === 'resolved' ? deployed.version : null
 
     // An address with no record is not the same question as a contract with no
     // entry on `main`. Without a name there is nothing to look the anchor up
@@ -497,6 +515,7 @@ export const formatTargetStateLines = (
     'version-not-comparable': 'UNEXPECTED VERSION',
     'proposed-version-unresolved': 'PROPOSED VERSION UNRESOLVED',
     'contract-unidentified': 'CONTRACT UNIDENTIFIED',
+    'deployment-record-ambiguous': 'DEPLOYMENT RECORD AMBIGUOUS',
     'unrecognised-cut-action': 'UNRECOGNISED CUT ACTION',
     'calldata-not-readable': 'CUT NOT READABLE',
     'pinned-state-unavailable': 'EXPECTED STATE UNAVAILABLE',
