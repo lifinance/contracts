@@ -4178,6 +4178,45 @@ function getPrivateKey() {
   fi
 }
 
+# Runs the production deploy gate for calldata that is broadcast straight to the
+# target instead of proposed to a Safe. The funnel gate in
+# `script/deploy/shared/funnel-deploy-gate.ts` runs inside the proposal funnels,
+# which this route never enters, so without this a
+# `SEND_PROPOSALS_DIRECTLY_TO_DIAMOND` bring-up window installs unmerged code on
+# a mainnet diamond unchecked.
+#
+# `getPrivateKey` hands out the production key for every ENVIRONMENT that does
+# not contain "staging", so matching the exact string keeps the gate at least as
+# broad as the key it protects.
+#
+# Usage: assertDirectBroadcastCalldataGate NETWORK ENVIRONMENT CALLDATA
+# Returns: 0 to continue, 1 to refuse. Never exits.
+function assertDirectBroadcastCalldataGate() {
+  local NETWORK="$1"
+  local ENVIRONMENT="$2"
+  local CALLDATA="$3"
+
+  if [[ "$ENVIRONMENT" == "staging" ]]; then
+    echo "[info] direct-broadcast deploy gate skipped: staging environment"
+    return 0
+  fi
+
+  # Deploying an unmerged facet to a testnet is how it gets validated before its
+  # audit, and no mainnet Safe or production key is involved.
+  if isTestnetNetwork "$NETWORK"; then
+    echo "[info] direct-broadcast deploy gate skipped: $NETWORK is a testnet"
+    return 0
+  fi
+
+  if ! bunx tsx ./script/deploy/shared/assert-direct-broadcast-gate.ts --network "$NETWORK" --calldata "$CALLDATA"; then
+    error "Direct-broadcast deploy gate failed for $NETWORK - aborting before anything is broadcast"
+    return 1
+  fi
+
+  echo "[info] direct-broadcast deploy gate passed"
+  return 0
+}
+
 # Send or propose transaction
 # - SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true: send directly to target (e.g. new production networks before ownership transfer)
 # - Testnet (networks.json type=testnet): send directly; testnet diamonds are EOA-owned with no Safe/Timelock
@@ -4258,6 +4297,10 @@ function sendOrPropose() {
   if [[ "$ENVIRONMENT" != "production" ]] \
      || [[ "${SEND_PROPOSALS_DIRECTLY_TO_DIAMOND:-}" == "true" ]] \
      || isTestnetNetwork "$NETWORK"; then
+    # Disjoint from the funnel gate by construction: a proposal is gated on its
+    # calldata inside propose-to-safe.ts, and only the route that never reaches
+    # it is gated here.
+    assertDirectBroadcastCalldataGate "$NETWORK" "$ENVIRONMENT" "${CALLDATAS[0]}" || return 1
     universalCast "sendRaw" "$NETWORK" "$ENVIRONMENT" "$TARGET" "${CALLDATAS[0]}" "$PRIVATE_KEY_OVERRIDE" || return $?
     return 0
   fi

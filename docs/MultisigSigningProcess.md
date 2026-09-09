@@ -176,7 +176,12 @@ broadcasts the cut straight from the deployer key, reaching neither funnel, so
 proposal calldata to read. The two gates are disjoint: a cut is gated by the
 funnel or by the shell, never both, and never neither. The bash `sendOrPropose`
 direct route (`script/helperFunctions.sh`, the `universalCast sendRaw` branch)
-is **not** gated today; it never was, and closing it is tracked separately.
+is gated one level down by `assertDirectBroadcastCalldataGate`, which applies the
+same calldata-keyed policy through
+`script/deploy/shared/assert-direct-broadcast-gate.ts` before anything is
+broadcast — that route carries calldata rather than facet names, so it reuses the
+funnel's cut recovery instead of a second implementation. It skips on exactly
+`staging` and on testnets, and says which of the two it took.
 
 The funnel is handed calldata, not
 facet names, so `funnel-deploy-gate.ts` recovers the facet set from the cut:
