@@ -11,9 +11,12 @@
  * exemption is precisely why a behavioural test cannot catch this class of bug:
  * under `bun test` the offending line works. Hence a source assertion.
  *
- * `import.meta.main` is the same hazard and is deliberately not asserted here:
- * several CLIs still use it as a run guard, where under Node it degrades to a
- * silent no-op rather than a crash. Removing those is tracked separately.
+ * Scope is deliberately just `import.meta.dir` — the one member of
+ * [CONV:NODE-RUNTIME-APIS] that is broken on every Node version and therefore
+ * clean at zero. `import.meta.main` (fires on Node 22.23+/24, silently no-ops
+ * below) and `Bun.*` (throws at the call site) still have live uses that are not
+ * bugs on a current runtime, so asserting them here would only encode a
+ * baseline; they are tracked separately.
  */
 
 import { execFileSync } from 'child_process'
@@ -28,6 +31,18 @@ import {
 } from 'bun:test'
 
 const REPO_ROOT = join(import.meta.dir, '..')
+
+/**
+ * Matches a read of the API, not a mention of it — a module documenting the
+ * hazard in a comment (as `proposePeripheryWithWhitelist.ts` does for
+ * `import.meta.main`) must not be reported as a violation. The lookbehind keeps
+ * an unrelated `foo.import.meta.dir` from matching.
+ */
+const IMPORT_META_DIR = /(?<!\.)\bimport\s*\.\s*meta\s*\.\s*dir\b/
+
+/** Strips line and block comments so only executable text is inspected. */
+const stripComments = (source: string): string =>
+  source.replace(/\/\*[\s\S]*?\*\//g, '').replace(/(^|[^:])\/\/.*$/gm, '$1')
 
 /** Tracked, non-test TS modules — the files that actually run under `tsx`. */
 const shippedScriptModules = (): string[] =>
@@ -45,9 +60,23 @@ describe('no shipped script module depends on Bun-only import.meta.dir', () => {
 
   it('finds no non-test module reading import.meta.dir', () => {
     const offenders = shippedScriptModules().filter((path) =>
-      readFileSync(join(REPO_ROOT, path), 'utf8').includes('import.meta.dir')
+      IMPORT_META_DIR.test(
+        stripComments(readFileSync(join(REPO_ROOT, path), 'utf8'))
+      )
     )
 
     expect(offenders).toEqual([])
+  })
+
+  it('matches a real read but not a comment that names the API', () => {
+    expect(
+      IMPORT_META_DIR.test(stripComments('join(import.meta.dir, "..")'))
+    ).toBe(true)
+    expect(
+      IMPORT_META_DIR.test(stripComments('// never use import.meta.dir here'))
+    ).toBe(false)
+    expect(
+      IMPORT_META_DIR.test(stripComments('/* import.meta.dir is Bun-only */'))
+    ).toBe(false)
   })
 })
