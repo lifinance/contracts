@@ -39,7 +39,9 @@ import globalConfig from '../../../config/global.json'
 import networks from '../../../config/networks.json'
 import { sleep } from '../../utils/delay'
 import { getEnvVar } from '../../utils/utils'
+import { isTestnetNetwork } from '../../utils/viemScriptHelpers'
 import { flagIsOn, readBooleanFlag } from '../safe/cli-flags'
+import { assertSafeThresholdFloor } from '../safe/safe-deploy-guards'
 import { retryWithRateLimit } from '../shared/rateLimit.js'
 
 import { assertTronToolchainOrThrow } from './assertTronToolchain.js'
@@ -368,6 +370,15 @@ async function run(options: {
       `Threshold must be between 1 and ${ownersEvm.length} (number of owners)`
     )
   }
+
+  const thresholdFloor = assertSafeThresholdFloor({
+    network: TRON_DEPLOY_NETWORK,
+    threshold,
+    isTestnet: isTestnetNetwork(TRON_DEPLOY_NETWORK),
+  })
+  consola.info(
+    `Threshold ${threshold} clears the ${thresholdFloor.floor}-confirmation floor for ${TRON_DEPLOY_NETWORK}`
+  )
 
   const privateKey = getEnvVar('PRIVATE_KEY_PRODUCTION')
   const tvmKey = TRON_DEPLOY_NETWORK as TronTvmNetworkName
@@ -716,7 +727,7 @@ const main = defineCommand({
     },
   },
   async run({ args }) {
-    const threshold = parseInt(args.threshold, 10)
+    const threshold = Number(args.threshold)
     if (isNaN(threshold) || threshold < 1) {
       consola.error('Invalid --threshold; must be a positive integer.')
       process.exit(1)
