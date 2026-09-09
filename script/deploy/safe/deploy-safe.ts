@@ -86,7 +86,15 @@ import {
 import { setupEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
 import { sleep } from '../../utils/delay'
 import { getFoundryDefaultEvmVersion } from '../../utils/utils'
+import { isTestnetNetwork } from '../../utils/viemScriptHelpers'
 import { EVM_VERSIONS } from '../shared/constants'
+
+import {
+  assertSafeAddressOverrideAllowed,
+  assertSafeThresholdFloor,
+  compareOwnerSets,
+  describeOwnerSetDivergence,
+} from './safe-deploy-guards'
 
 // ES module equivalent of __dirname
 const __filename = fileURLToPath(import.meta.url)
@@ -278,9 +286,9 @@ const main = defineCommand({
     allowOverride: {
       type: 'boolean',
       description:
-        'Whether to allow overriding existing Safe address in networks.json (default: true)',
+        'Whether to allow overriding existing Safe address in networks.json (default: false)',
       required: false,
-      default: true,
+      default: false,
     },
     rpcUrl: {
       type: 'string',
@@ -336,16 +344,32 @@ const main = defineCommand({
     // validate network & existing
     const networkName = args.network as SupportedChain
     const existing = networks[networkName]?.safeAddress
-    if (existing && existing !== zeroAddress && !args.allowOverride)
-      throw new Error(
-        `Safe already deployed on ${networkName} @ ${existing}. Use --allowOverride flag to force redeployment.`
+    const override = assertSafeAddressOverrideAllowed({
+      network: networkName,
+      existing,
+      allowOverride: args.allowOverride,
+    })
+    if (override.occupied)
+      consola.warn(
+        `--allowOverride: this run replaces the Safe at ${existing} that config/networks.json names for ${networkName}`
       )
 
     // parse & validate threshold + owners
-    const isDefaultThreshold = !process.argv.includes('--threshold')
+    const isDefaultThreshold = !process.argv.some(
+      (arg) => arg === '--threshold' || arg.startsWith('--threshold=')
+    )
     const threshold = Number(args.threshold)
     if (isNaN(threshold) || threshold < 1)
       throw new Error('Threshold must be a positive integer')
+
+    const thresholdFloor = assertSafeThresholdFloor({
+      network: networkName,
+      threshold,
+      isTestnet: isTestnetNetwork(networkName),
+    })
+    consola.info(
+      `Threshold ${threshold} clears the ${thresholdFloor.floor}-confirmation floor for ${networkName}`
+    )
 
     if (isDefaultThreshold)
       consola.info('ℹ Using default threshold of 3 required confirmations')
@@ -525,6 +549,7 @@ const main = defineCommand({
     // verify on-chain owners & threshold
     consola.info('🔍 Verifying Safe on-chain state…')
 
+    let ownerDivergence: string[] = []
     try {
       const [actualOwners, actualThreshold] = await Promise.all([
         publicClient.readContract({
@@ -541,6 +566,21 @@ const main = defineCommand({
 
       const expected = owners.map((o) => o.toLowerCase())
       const actual = (actualOwners as Address[]).map((o) => o.toLowerCase())
+
+      // Against config first, because the requested-vs-actual check below throws
+      // unless the two sets are equal — so anything read after it can only
+      // restate the arguments this run supplied. The Safe's address is not
+      // always one this run derived: the no-`ProxyCreation` fallback takes it
+      // from an operator's keyboard.
+      ownerDivergence = describeOwnerSetDivergence({
+        network: networkName,
+        safeAddress,
+        comparison: compareOwnerSets(ownersFromConfig, actual),
+      })
+      if (ownerDivergence.length) {
+        consola.warn('⚠ CONFIG DIVERGENCE')
+        for (const line of ownerDivergence) consola.warn(line)
+      } else consola.success('✔ Owners match config/global.json safeOwners')
 
       const missing = expected.filter((o) => !actual.includes(o))
       const extra = actual.filter((o) => !expected.includes(o))
@@ -569,19 +609,16 @@ const main = defineCommand({
 
     // update networks.json
     try {
-      if (args.allowOverride) {
-        ;(networks as any)[networkName] = {
-          ...networks[networkName],
-          safeAddress,
-        }
-        writeFileSync(
-          join(__dirname, '../../../config/networks.json'),
-          `${JSON.stringify(networks, null, 2)}\n`,
-          'utf8'
-        )
-        consola.success(`✔ networks.json updated with Safe @ ${safeAddress}`)
-      } else
-        consola.info(`ℹ Skipping networks.json update (--allowOverride=false)`)
+      ;(networks as any)[networkName] = {
+        ...networks[networkName],
+        safeAddress,
+      }
+      writeFileSync(
+        join(__dirname, '../../../config/networks.json'),
+        `${JSON.stringify(networks, null, 2)}\n`,
+        'utf8'
+      )
+      consola.success(`✔ networks.json updated with Safe @ ${safeAddress}`)
     } catch (error) {
       consola.error('❌ Failed to update networks.json:', error)
       consola.error(
@@ -594,6 +631,10 @@ const main = defineCommand({
       consola.info('-'.repeat(80))
       consola.info('🎉 Deployment complete!')
       consola.info(`Safe Address: \u001b[32m${safeAddress}\u001b[0m`)
+      if (ownerDivergence.length) {
+        consola.warn('⚠ CONFIG DIVERGENCE')
+        for (const line of ownerDivergence) consola.warn(line)
+      }
       const explorerUrl = chain.blockExplorers?.default?.url
       if (explorerUrl)
         consola.info(

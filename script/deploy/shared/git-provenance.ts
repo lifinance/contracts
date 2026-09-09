@@ -83,19 +83,17 @@ const MAX_BUFFER_BYTES = 8 * 1024 * 1024
 
 /**
  * Paths the deploy pipeline itself writes mid-run (`saveContract`,
- * `saveDiamondFacets`, `saveDiamondPeriphery`, `updateDiamondLogs`, the
- * target-state merge, and the untracked `deployments/*.lock` markers). They
- * turn a normal deploy's tree dirty while saying nothing about source drift.
+ * `saveDiamondFacets`, `saveDiamondPeriphery`, `updateDiamondLogs`, and the
+ * untracked `deployments/*.lock` markers). They turn a normal deploy's tree
+ * dirty while saying nothing about source drift.
  *
- * Governance inputs such as `config/whitelist.json` are deliberately NOT
- * excluded: a dirty whitelist at proposal time is exactly what a reviewer needs
+ * Governance inputs such as `config/whitelist.json` and
+ * `script/deploy/_targetState.json` are deliberately NOT excluded: a dirty
+ * whitelist or target state at proposal time is exactly what a reviewer needs
  * to see. Most build output (`out/`, `cache/`, `broadcast/`, …) is gitignored
  * and never reaches this filter.
  */
-const PROVENANCE_DIRTY_EXCLUDES: readonly RegExp[] = [
-  /^deployments\//u,
-  /^script\/deploy\/_targetState\.json$/u,
-]
+const PROVENANCE_DIRTY_EXCLUDES: readonly RegExp[] = [/^deployments\//u]
 
 /**
  * Branches a PR lookup is pointless for: the trunk itself, a detached HEAD, and
@@ -157,6 +155,11 @@ export interface IDirtyTree {
   paths: string[]
   /** True when more dirty paths existed than `paths` records. */
   truncated: boolean
+  /**
+   * Whether `git status` itself ran. `paths: []` is a clean tree only when
+   * this is true; a failed probe also returns an empty list.
+   */
+  readable: boolean
 }
 
 /** Ambient git state describing the code a run was produced from. */
@@ -181,6 +184,11 @@ export interface IGitProvenance {
   /** Present only when the dirty list was capped at {@link MAX_DIRTY_PATHS}. */
   dirtyTreeTruncated?: boolean
   /**
+   * Whether the dirty-tree probe ran. `dirtyTreeScoped: []` is a clean tree
+   * only when this is true — the same probe failure also returns an empty list.
+   */
+  dirtyTreeRead: boolean
+  /**
    * Whether `gitCommit` is reachable from a remote-tracking ref, i.e. whether a
    * reviewer can fetch the code that produced this run. Read from local refs
    * only (no network), so a stale checkout can report `false` for a commit that
@@ -200,6 +208,7 @@ const UNKNOWN_GIT_PROVENANCE: Omit<IGitProvenance, 'capturedAt'> = {
   gitCommit: PROVENANCE_UNKNOWN,
   gitBranch: PROVENANCE_UNKNOWN,
   dirtyTreeScoped: [],
+  dirtyTreeRead: false,
 }
 
 /**
@@ -382,7 +391,8 @@ function scopedDirtyTree(ctx: IResolvedContext): IDirtyTree {
   )
   // `null` means the probe failed, which is not the same as a clean tree — the
   // recorded error is what tells a reader the empty list is not a clean bill.
-  if (porcelain === null) return { paths: [], truncated: false }
+  if (porcelain === null)
+    return { paths: [], truncated: false, readable: false }
 
   const relevant = parsePorcelainPaths(porcelain).filter(
     (path) => !PROVENANCE_DIRTY_EXCLUDES.some((pattern) => pattern.test(path))
@@ -391,6 +401,7 @@ function scopedDirtyTree(ctx: IResolvedContext): IDirtyTree {
   return {
     paths: unique.slice(0, MAX_DIRTY_PATHS),
     truncated: unique.length > MAX_DIRTY_PATHS,
+    readable: true,
   }
 }
 
@@ -592,6 +603,7 @@ export function captureGitProvenance(
       gitCommit: sanitizeField(commit),
       gitBranch: sanitizeField(branch),
       dirtyTreeScoped: dirty.paths.map(sanitizeProvenanceText).filter(Boolean),
+      dirtyTreeRead: dirty.readable,
       ...(dirty.truncated ? { dirtyTreeTruncated: true } : {}),
       ...(onRemote === undefined ? {} : { commitOnRemote: onRemote }),
       ...(prUrl ? { prUrl } : {}),

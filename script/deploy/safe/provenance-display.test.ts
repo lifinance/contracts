@@ -44,6 +44,7 @@ function buildProvenance(
     gitCommit: SHA,
     gitBranch: 'feat/exsc-692',
     dirtyTreeScoped: [],
+    dirtyTreeRead: true,
     commitOnRemote: true,
     capturedAt: '2026-07-27T10:00:00.000Z',
     ...overrides,
