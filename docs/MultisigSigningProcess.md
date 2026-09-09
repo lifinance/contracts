@@ -439,7 +439,37 @@ signer sees:
    outside its scope and says so; a proposal with empty calldata prints no gate
    line, because there is nothing to judge.
 
-5. The action prompt: `Do Nothing` / `Sign` / `Sign & Execute` /
+5. **The proposal-integrity assertions** (`confirm-integrity-asserts.ts`),
+   asking of each proposal whether it is what its own record claims. The Safe's
+   own `getTransactionHash` must equal the stored `safeTxHash`; the Safe the
+   proposal is against must be the one `config/networks.json` names; every
+   stored signature must `ecrecover` to a current owner **and** to the address
+   it is filed under; the signed struct must be a `Call` with every field the
+   hash omits at zero and no field outside the struct at all; the target must be
+   an address this checkout can name — the configured Safe itself, or an entry
+   in the committed deployment log; and a timelock `schedule` must ask for at
+   least the live `getMinDelay()` of the committed `LiFiTimelockController`.
+
+   Signatures are recovered against the **recomputed** hash, never the stored
+   one: the proposer writes both the hash and the calldata, so signatures
+   checked against the stored value would verify against whatever transaction
+   the proposer chose to describe. For the same reason the signing client is
+   pointed at the Safe config names rather than at the address on the document —
+   every read a verdict rests on goes through that client. The document's claim
+   survives as a value to compare, which is what makes the comparison say
+   anything.
+
+   Each verdict lands on a `check-ledger.ts` ledger, so that ledger's grading
+   rules apply without this module restating them: an integrity mismatch has no
+   acknowledgement path, and an anchor that may only *report* can never decide a
+   pass. That second rule is why a target only the deployment record names is
+   `UNVERIFIED` rather than green — the record is written by the deploying
+   process. A proposal whose assertions could not run at all is refused rather
+   than passed, and the refusal sits in the same two funnels the codehash gate
+   uses, immediately after it: one covering every signing route, one every
+   broadcast route, both ahead of the irreversible step.
+
+6. The action prompt: `Do Nothing` / `Sign` / `Sign & Execute` /
    `Sign and Execute With Deployer` / `Execute with Deployer`. The two
    deployer variants are the usual choice — see §2 on why the deployer
    wallet broadcasts.

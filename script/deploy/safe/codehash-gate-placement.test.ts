@@ -115,9 +115,15 @@ describe('the codehash refusal is in the one funnel every sign path uses', () =>
     expect(executing).toEqual(['safeClient.executeTransaction('])
 
     // …and it lives inside the one local helper every execute branch calls.
+    //
+    // Bounded by the helper's own dedented closing brace rather than by a
+    // character count: a fixed window silently stops covering the tail of the
+    // function the first time anything is inserted near its top, and then
+    // reports the broadcast as missing rather than as ungated.
+    const funnelStart = SOURCE.indexOf('async function executeTransaction(')
     const funnelBody = SOURCE.slice(
-      SOURCE.indexOf('async function executeTransaction('),
-      SOURCE.indexOf('async function executeTransaction(') + 1600
+      funnelStart,
+      SOURCE.indexOf('\n  }\n', funnelStart)
     )
     expect(funnelBody).toContain('safeClient.executeTransaction(')
     expect(funnelBody).toContain('assertCodehashSignGateAllowsSigning')

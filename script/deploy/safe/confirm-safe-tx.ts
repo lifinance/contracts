@@ -38,6 +38,13 @@ import {
   type ISignTimeCodehashDeps,
 } from './codehash-sign-gate-deps'
 import {
+  assertIntegrityAssertsAllowSigning,
+  createIntegrityAssertDeps,
+  renderIntegrityAsserts,
+  runIntegrityAsserts,
+  type IIntegrityAssertRun,
+} from './confirm-integrity-asserts'
+import {
   buildAcknowledgementKey,
   buildProposalKey,
   computeChangeFingerprint,
@@ -165,6 +172,7 @@ const processTxs = async (
     chain,
     safeAddress,
     txSafeAddress,
+    configuredSafeAddress,
     signerAddress,
     txs: initialTxs,
     onChainNonce,
@@ -179,6 +187,13 @@ const processTxs = async (
   // by the signer through `createGatedSigner`. It starts blocking so a proposal
   // whose evaluation never ran cannot be signed on last proposal's answer.
   let codehashGate: ICodehashSignGate = blockingUnevaluatedGate()
+
+  // The proposal's integrity verdict, re-run per proposal below. Absent is the
+  // blocking state: `assertIntegrityAssertsAllowSigning` refuses an undefined
+  // run, so a proposal whose assertions never ran cannot be signed on the last
+  // proposal's answer — and the run carries the transaction it graded, which
+  // that refusal compares against the one reaching the signer.
+  let integrityRun: IIntegrityAssertRun | undefined
 
   /**
    * Signs a SafeTransaction.
@@ -202,6 +217,15 @@ const processTxs = async (
     // against it rather than merely being non-blocking.
     keyOf: (safeTransaction) => proposalKeyOf(safeTransaction.data),
     sign: async (safeTransaction, client = safe) => {
+      // After the codehash refusal `createGatedSigner` has already run, never
+      // before it: placed first this would swallow that refusal, and the
+      // codehash verdict is the more specific answer of the two. Still ahead of
+      // every statement of this body, so nothing signs before it.
+      assertIntegrityAssertsAllowSigning(
+        integrityRun,
+        proposalKeyOf(safeTransaction.data)
+      )
+
       consola.info('Signing transaction')
       try {
         const signedTx = await client.signTransaction(safeTransaction)
@@ -272,6 +296,15 @@ const processTxs = async (
     // them by construction, and the sign-then-execute paths simply assert twice.
     assertCodehashSignGateAllowsSigning(
       codehashGate,
+      proposalKeyOf(safeTransaction.data)
+    )
+
+    // The same route-disjoint pair, for the same reason: a proposal already at
+    // threshold reaches the chain from here without the sign funnel being
+    // consulted. Ordered after the codehash refusal so that one still reports
+    // first, and before anything this function broadcasts.
+    assertIntegrityAssertsAllowSigning(
+      integrityRun,
       proposalKeyOf(safeTransaction.data)
     )
 
@@ -421,6 +454,7 @@ const processTxs = async (
         : 'future'
 
     codehashGate = blockingUnevaluatedGate()
+    integrityRun = undefined
 
     consola.info('-'.repeat(80))
     consola.info('Transaction Details:')
@@ -559,6 +593,59 @@ const processTxs = async (
       }
     }
     renderCodehashSignGate(codehashGate).forEach((line) => consola.info(line))
+
+    // Inserted here, after the codehash gate and before the fingerprint and the
+    // keys. Nothing between the top of this iteration and this point returns or
+    // continues, so no existing check is swallowed; the action prompt, the nonce
+    // gate and the acknowledgement prompt all still run in that order after it.
+    // The refusal itself lives in the two funnels, for the same reason the
+    // codehash refusal does: dropping the Sign option instead would hide which
+    // assertion refused.
+    try {
+      integrityRun = await runIntegrityAsserts(
+        {
+          network,
+          chainId: chain.id,
+          clientSafeAddress: safeAddress,
+          ...(configuredSafeAddress ? { configuredSafeAddress } : {}),
+          documentSafeAddress: tx.safeAddress,
+          documentSafeTxHash: tx.safeTxHash,
+          // Cast, not read through the interface: the check that refuses a
+          // field outside the signed struct exists precisely for keys the
+          // interface does not declare, and reading it as the declared type
+          // would hand the assertion a shape in which they cannot appear.
+          storedTxData: (tx.safeTx.data ?? {}) as unknown as Record<
+            string,
+            unknown
+          >,
+          storedSignatures: Object.values(tx.safeTx.signatures ?? {}),
+          // The signed struct throughout, never the stored row: the row is what
+          // is displayed, and a check that keys on it verifies the description
+          // rather than the transaction.
+          to: tx.safeTransaction.data.to,
+          data: (tx.safeTransaction.data.data ?? '0x') as Hex,
+          signedValue: String(tx.safeTransaction.data.value),
+          signedOperation: tx.safeTransaction.data.operation ?? 0,
+          signedNonce: Number(tx.safeTransaction.data.nonce),
+        },
+        createIntegrityAssertDeps({
+          network,
+          safe,
+          safeTx: tx.safeTransaction,
+        })
+      )
+    } catch (error) {
+      // Left undefined, which is the blocking state. "The assertions could not
+      // run" and "the assertions passed" are the two things they exist to keep
+      // apart, so a thrown lookup must not read as the second.
+      integrityRun = undefined
+      consola.error(
+        `    Proposal integrity: the assertions could not be run — ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      )
+    }
+    renderIntegrityAsserts(integrityRun).forEach((line) => consola.info(line))
 
     const integrity = evaluateProposalIntegrity({ nonceStatus })
     // Read from the normalised transaction, not the stored document: this is the
