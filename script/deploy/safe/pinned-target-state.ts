@@ -1,0 +1,540 @@
+/**
+ * Sign-time target-state check, evaluated against `origin/main` rather than the
+ * reviewer's checkout.
+ *
+ * Import this from the confirmation flow to grade what a proposal's `diamondCut`
+ * would install against the version `main` declares for that network. Two classes
+ * of input are kept apart on purpose: the expected version comes from `origin/main`
+ * and the proposed version from the deployment record, while the proposer's branch
+ * is never read — nothing a proposer controls may turn this check green.
+ */
+
+import { execFileSync } from 'node:child_process'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+import { type Hex } from 'viem'
+
+import { collectDiamondCutCalls } from '../shared/diamond-cut-calls'
+
+import {
+  resolveDeployedContractByAddress,
+  type IDeployedContractIdentity,
+} from './facet-version-utils'
+
+// Resolved from this module rather than `process.cwd()`: the anchor has to be
+// this repository's `origin/main` no matter which directory the reviewer ran the
+// script from.
+const REPO_ROOT = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../../..'
+)
+
+/** The path the anchor is read from, inside the pinned tree. */
+export const TARGET_STATE_REPO_PATH = 'script/deploy/_targetState.json'
+
+/** The ref the expected state is read at. */
+export const PINNED_REF = 'origin/main'
+
+const TARGET_STATE_ENVIRONMENT = 'production'
+const TARGET_STATE_DIAMOND = 'LiFiDiamond'
+
+/** `network → environment → diamond → contract → version`, as `main` declares it. */
+export type PinnedTargetState = Record<
+  string,
+  Record<string, Record<string, Record<string, unknown>>>
+>
+
+export type PinnedTargetStateRead =
+  | { ok: true; state: PinnedTargetState }
+  | { ok: false; reason: 'fetch-failed' | 'blob-unreadable' | 'invalid-shape' }
+
+/** `LibDiamond.FacetCutAction`. */
+const CUT_ACTION_ADD = 0
+const CUT_ACTION_REPLACE = 1
+const CUT_ACTION_REMOVE = 2
+
+const INSTALLING_ACTIONS: ReadonlySet<number> = new Set([
+  CUT_ACTION_ADD,
+  CUT_ACTION_REPLACE,
+])
+
+export type TargetStateStatus =
+  | 'no-diamond-cut'
+  | 'removal'
+  | 'not-previously-targeted'
+  | 'matches-main'
+  | 'ahead-of-main'
+  | 'downgrade'
+  | 'version-not-comparable'
+  | 'proposed-version-unresolved'
+  | 'unrecognised-cut-action'
+  | 'calldata-not-readable'
+  | 'pinned-state-unavailable'
+
+/**
+ * The statuses a proposal may be signed or executed with.
+ *
+ * Named by what may proceed, so a status added later refuses until it is
+ * admitted here deliberately.
+ */
+const STATUSES_CLEARED_TO_PROCEED: ReadonlySet<TargetStateStatus> =
+  new Set<TargetStateStatus>([
+    'no-diamond-cut',
+    'removal',
+    'not-previously-targeted',
+    'matches-main',
+    'ahead-of-main',
+  ])
+
+/** One graded element of a proposal. */
+export interface ITargetStateFinding {
+  status: TargetStateStatus
+  /** Checksummed facet address the cut names, or null when the finding is not per-facet. */
+  facetAddress: string | null
+  contractName: string | null
+  /** Version the deployment record has for `facetAddress`. */
+  proposedVersion: string | null
+  /** Version `origin/main` declares for this contract on this network. */
+  mainVersion: string | null
+  /** Networks whose pinned target state already declares this contract at `proposedVersion`. */
+  crossFleetCount: number | null
+  detail: string
+}
+
+export interface ITargetStateVerdict {
+  findings: ITargetStateFinding[]
+  /** True only when every finding's status is cleared to proceed. */
+  cleared: boolean
+}
+
+const SEMVER = /^(\d+)\.(\d+)\.(\d+)$/
+
+/**
+ * Compares two `major.minor.patch` versions numerically.
+ * @param left - first version
+ * @param right - second version
+ * @returns Negative when `left` is older, 0 when equal, positive when newer;
+ * null when either side is not three dot-separated integers.
+ */
+export const compareSemanticVersions = (
+  left: string,
+  right: string
+): number | null => {
+  const a = SEMVER.exec(left.trim())
+  const b = SEMVER.exec(right.trim())
+  if (!a || !b) return null
+  for (let part = 1; part <= 3; part++) {
+    const diff = Number(a[part]) - Number(b[part])
+    if (diff !== 0) return diff
+  }
+  return 0
+}
+
+/**
+ * Reads the version `main` declares for one contract on one network.
+ * @param state - the pinned target state
+ * @param network - network name (e.g. optimism)
+ * @param contractName - contract name as the target state spells it
+ * @returns The declared version, or null when the network, diamond or contract has no entry
+ */
+export const readDeclaredVersion = (
+  state: PinnedTargetState,
+  network: string,
+  contractName: string
+): string | null => {
+  const version =
+    state[network.toLowerCase()]?.[TARGET_STATE_ENVIRONMENT]?.[
+      TARGET_STATE_DIAMOND
+    ]?.[contractName]
+  return typeof version === 'string' ? version : null
+}
+
+/**
+ * Counts the networks whose pinned target state declares a contract at a version.
+ *
+ * Corroboration for a first-time add, which by construction has no entry of its
+ * own on `main`: a version already declared across the fleet is a rollout, one
+ * declared nowhere is a genuinely new build.
+ * @param state - the pinned target state
+ * @param contractName - contract name as the target state spells it
+ * @param version - version to count
+ * @returns How many networks declare that contract at that version
+ */
+export const countNetworksDeclaring = (
+  state: PinnedTargetState,
+  contractName: string,
+  version: string
+): number =>
+  Object.keys(state).filter(
+    (network) => readDeclaredVersion(state, network, contractName) === version
+  ).length
+
+/** The two reads this check needs, injectable so the policy is testable. */
+export interface ITargetStateDeps {
+  /** The expected state, read at {@link PINNED_REF}. */
+  readPinnedState: () => PinnedTargetStateRead
+  /** What the deployment record says an address is. */
+  resolveDeployed: (
+    addressCandidates: string[]
+  ) => IDeployedContractIdentity | null
+}
+
+const describeUnavailable = (
+  reason: Exclude<PinnedTargetStateRead, { ok: true }>['reason']
+): string => {
+  if (reason === 'fetch-failed')
+    return `could not refresh ${PINNED_REF} — the expected version can only come from the remote, and a stale local copy is not an anchor. Restore network access to the git remote and re-run.`
+  if (reason === 'blob-unreadable')
+    return `could not read ${PINNED_REF}:${TARGET_STATE_REPO_PATH} — the ref or the file is missing from this clone.`
+  return `${PINNED_REF}:${TARGET_STATE_REPO_PATH} did not parse as a target-state object.`
+}
+
+/**
+ * Grades a proposal's `diamondCut` elements against the version `origin/main`
+ * declares, one finding per element.
+ *
+ * R4.6 is graded per case, not as a single equality: an upgrade of a facet `main`
+ * already targets is the mechanical anchor and a downgrade there refuses, while a
+ * first-time add has no entry on `main` by construction — the target-state PR
+ * merges only after execution — so it is labeled and allowed. Grading absence as
+ * a "no" would refuse every honest new-chain rollout.
+ * @param calldatas - the proposal's calls, in the order they were passed
+ * @param network - network the proposal targets
+ * @param deps - the pinned-state and deployment-record reads
+ * @returns Every finding, and whether all of them are cleared to proceed
+ */
+export const evaluateTargetStateIntent = (
+  calldatas: readonly Hex[],
+  network: string,
+  deps: ITargetStateDeps
+): ITargetStateVerdict => {
+  const findings: ITargetStateFinding[] = []
+  const blank = {
+    facetAddress: null,
+    contractName: null,
+    proposedVersion: null,
+    mainVersion: null,
+    crossFleetCount: null,
+  }
+
+  const { calls, undecodable } = collectDiamondCutCalls(calldatas)
+
+  for (const index of undecodable)
+    findings.push({
+      ...blank,
+      status: 'calldata-not-readable',
+      detail: `call ${index} carries the diamondCut selector but no cut could be read out of it, so what it installs cannot be graded against ${PINNED_REF}.`,
+    })
+
+  const elements = calls.flatMap((call) => call.cuts)
+
+  if (elements.length === 0) {
+    if (findings.length === 0)
+      findings.push({
+        ...blank,
+        status: 'no-diamond-cut',
+        detail: 'no diamondCut in this proposal — nothing to compare.',
+      })
+    return {
+      findings,
+      cleared: findings.every((f) => STATUSES_CLEARED_TO_PROCEED.has(f.status)),
+    }
+  }
+
+  // Read lazily: a proposal made only of removals, or of calls that are not cuts
+  // at all, needs no anchor, and must not be refused because the remote is
+  // unreachable.
+  let pinned: PinnedTargetStateRead | undefined
+  const pinnedState = (): PinnedTargetStateRead => {
+    pinned ??= deps.readPinnedState()
+    return pinned
+  }
+
+  for (const element of elements) {
+    const facetAddress = element.facetAddress
+
+    if (element.action === CUT_ACTION_REMOVE) {
+      findings.push({
+        ...blank,
+        facetAddress,
+        status: 'removal',
+        detail:
+          'facet removal — the target state carries no record of a removal, so this is reported rather than graded.',
+      })
+      continue
+    }
+
+    if (!INSTALLING_ACTIONS.has(element.action)) {
+      findings.push({
+        ...blank,
+        facetAddress,
+        status: 'unrecognised-cut-action',
+        detail: `cut action ${element.action} is not Add, Replace or Remove — what it would do to the diamond is unknown.`,
+      })
+      continue
+    }
+
+    const read = pinnedState()
+    if (!read.ok) {
+      findings.push({
+        ...blank,
+        facetAddress,
+        status: 'pinned-state-unavailable',
+        detail: describeUnavailable(read.reason),
+      })
+      continue
+    }
+
+    const deployed = deps.resolveDeployed([facetAddress])
+    const contractName = deployed?.contractName ?? null
+    const proposedVersion = deployed?.version ?? null
+    const mainVersion = contractName
+      ? readDeclaredVersion(read.state, network, contractName)
+      : null
+
+    if (!mainVersion) {
+      const crossFleetCount =
+        contractName && proposedVersion
+          ? countNetworksDeclaring(read.state, contractName, proposedVersion)
+          : null
+      findings.push({
+        facetAddress,
+        contractName,
+        proposedVersion,
+        mainVersion: null,
+        crossFleetCount,
+        status: 'not-previously-targeted',
+        detail: `${
+          contractName ?? 'this contract'
+        } is not previously targeted on ${network} in ${PINNED_REF} — expected for a first deployment, since the target-state update merges only after execution. Intent rests on the linked ticket and PR.`,
+      })
+      continue
+    }
+
+    if (!proposedVersion) {
+      findings.push({
+        facetAddress,
+        contractName,
+        proposedVersion: null,
+        mainVersion,
+        crossFleetCount: null,
+        status: 'proposed-version-unresolved',
+        detail: `${PINNED_REF} declares ${
+          contractName ?? 'this contract'
+        } at v${mainVersion} on ${network}, but no deployment record matches this address, so a downgrade cannot be ruled out.`,
+      })
+      continue
+    }
+
+    const order = compareSemanticVersions(proposedVersion, mainVersion)
+    const shared = {
+      facetAddress,
+      contractName,
+      proposedVersion,
+      mainVersion,
+      crossFleetCount: null,
+    }
+
+    if (order === null)
+      findings.push({
+        ...shared,
+        status: 'version-not-comparable',
+        detail: `v${proposedVersion} and the declared v${mainVersion} are not both major.minor.patch, so which is newer cannot be established.`,
+      })
+    else if (order < 0)
+      findings.push({
+        ...shared,
+        status: 'downgrade',
+        detail: `v${proposedVersion} is OLDER than the v${mainVersion} ${PINNED_REF} declares on ${network} — this cut would move the diamond backwards.`,
+      })
+    else if (order === 0)
+      findings.push({
+        ...shared,
+        status: 'matches-main',
+        detail: `v${proposedVersion} matches the version ${PINNED_REF} declares on ${network}.`,
+      })
+    else
+      findings.push({
+        ...shared,
+        status: 'ahead-of-main',
+        detail: `v${proposedVersion} is newer than the v${mainVersion} ${PINNED_REF} declares on ${network}.`,
+      })
+  }
+
+  return {
+    findings,
+    cleared: findings.every((f) => STATUSES_CLEARED_TO_PROCEED.has(f.status)),
+  }
+}
+
+/** Injectable git reads, so tests never touch a real remote. */
+export interface IPinnedStateGit {
+  fetch: () => void
+  show: (revSpec: string) => string
+}
+
+const defaultGit = (repoRoot: string): IPinnedStateGit => ({
+  fetch: () => {
+    execFileSync('git', ['fetch', '--quiet', 'origin', 'main'], {
+      cwd: repoRoot,
+      stdio: 'ignore',
+      timeout: 60_000, // 60 seconds — a hung remote must not hold up a review
+    })
+  },
+  show: (revSpec) =>
+    execFileSync('git', ['show', revSpec], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      maxBuffer: 16 * 1024 * 1024, // 16 MB — the target state is ~74 KB today
+    }),
+})
+
+/**
+ * Builds the pinned read: one `git fetch` per process, then the target state as
+ * `origin/main` has it.
+ *
+ * The result is memoized so a fleet run of 70 networks costs one fetch and one
+ * blob read.
+ * @param options - repository root and git seam; both default to this checkout
+ * @returns A reader returning the pinned state, or why it could not be read
+ */
+export const createPinnedTargetStateReader = (options?: {
+  repoRoot?: string
+  git?: IPinnedStateGit
+}): (() => PinnedTargetStateRead) => {
+  const repoRoot = options?.repoRoot ?? REPO_ROOT
+  const git = options?.git ?? defaultGit(repoRoot)
+  let memo: PinnedTargetStateRead | undefined
+
+  return () => {
+    if (memo) return memo
+
+    try {
+      git.fetch()
+    } catch {
+      memo = { ok: false, reason: 'fetch-failed' }
+      return memo
+    }
+
+    let raw: string
+    try {
+      raw = git.show(`${PINNED_REF}:${TARGET_STATE_REPO_PATH}`)
+    } catch {
+      memo = { ok: false, reason: 'blob-unreadable' }
+      return memo
+    }
+
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(raw)
+    } catch {
+      memo = { ok: false, reason: 'invalid-shape' }
+      return memo
+    }
+
+    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed))
+      memo = { ok: false, reason: 'invalid-shape' }
+    else memo = { ok: true, state: parsed as PinnedTargetState }
+
+    return memo
+  }
+}
+
+/**
+ * The production reads: `origin/main` for the expected version, the deployment
+ * record for the proposed one.
+ *
+ * The record read stays relative to the working directory because that is where
+ * the confirmation flow refreshes the cache from MongoDB; only the anchor is
+ * pinned, and only the anchor is repository content a proposer could edit.
+ * @param network - network the proposal targets
+ * @param options - overrides for the pinned read and the cache root
+ * @returns Deps for {@link evaluateTargetStateIntent}
+ */
+export const createTargetStateDeps = (
+  network: string,
+  options?: {
+    readPinnedState?: () => PinnedTargetStateRead
+    cacheRootDir?: string
+  }
+): ITargetStateDeps => ({
+  readPinnedState: options?.readPinnedState ?? createPinnedTargetStateReader(),
+  resolveDeployed: (candidates) =>
+    resolveDeployedContractByAddress(
+      network,
+      candidates,
+      options?.cacheRootDir
+    ),
+})
+
+/**
+ * Renders a verdict for the signer, one line per finding.
+ * @param verdict - output of {@link evaluateTargetStateIntent}
+ * @returns Display lines, blocking findings first
+ */
+export const formatTargetStateLines = (
+  verdict: ITargetStateVerdict
+): string[] => {
+  const label: Record<TargetStateStatus, string> = {
+    'no-diamond-cut': 'n/a',
+    removal: 'REMOVAL (warn)',
+    'not-previously-targeted': 'NOT PREVIOUSLY TARGETED',
+    'matches-main': 'matches main',
+    'ahead-of-main': 'upgrade',
+    downgrade: 'DOWNGRADE',
+    'version-not-comparable': 'UNEXPECTED VERSION',
+    'proposed-version-unresolved': 'PROPOSED VERSION UNRESOLVED',
+    'unrecognised-cut-action': 'UNRECOGNISED CUT ACTION',
+    'calldata-not-readable': 'CUT NOT READABLE',
+    'pinned-state-unavailable': 'EXPECTED STATE UNAVAILABLE',
+  }
+
+  const ordered = [
+    ...verdict.findings.filter(
+      (f) => !STATUSES_CLEARED_TO_PROCEED.has(f.status)
+    ),
+    ...verdict.findings.filter((f) =>
+      STATUSES_CLEARED_TO_PROCEED.has(f.status)
+    ),
+  ]
+
+  return [
+    `    Expected state:  read from ${PINNED_REF}:${TARGET_STATE_REPO_PATH} (this checkout is not consulted)`,
+    ...ordered.map((finding) => {
+      const who = finding.contractName ?? finding.facetAddress ?? 'proposal'
+      const fleet =
+        finding.crossFleetCount === null
+          ? ''
+          : ` [${finding.crossFleetCount} network(s) already declare this contract at this version]`
+      return `      ${label[finding.status]} — ${who}: ${
+        finding.detail
+      }${fleet}`
+    }),
+  ]
+}
+
+/**
+ * A refusing verdict for a check that could not run at all.
+ *
+ * An evaluation that throws must not read as "nothing to report" — the caller
+ * has no verdict, and no verdict is not a pass.
+ * @param message - what went wrong, shown to the signer
+ * @returns A verdict whose single finding is not cleared to proceed
+ */
+export const blockedByEvaluationError = (
+  message: string
+): ITargetStateVerdict => ({
+  cleared: false,
+  findings: [
+    {
+      status: 'pinned-state-unavailable',
+      facetAddress: null,
+      contractName: null,
+      proposedVersion: null,
+      mainVersion: null,
+      crossFleetCount: null,
+      detail: `the target-state check could not be evaluated: ${message}`,
+    },
+  ],
+})

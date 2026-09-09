@@ -7,7 +7,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'bun:test'
 
 import {
   getDeployedFacetVersionFromLog,
-  getTargetStateFacetVersion,
+  resolveDeployedContractByAddress,
 } from './facet-version-utils'
 
 const FACET_ADDRESS = '0xC21a00A346d5b29955449CA912343a3aB4C5552f'
@@ -19,7 +19,6 @@ describe('facet-version-utils', () => {
   beforeAll(() => {
     rootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'facet-version-utils-'))
     fs.mkdirSync(path.join(rootDir, '.cache'), { recursive: true })
-    fs.mkdirSync(path.join(rootDir, 'script', 'deploy'), { recursive: true })
 
     // Flat array matching the structure of .cache/deployments_production.json.
     // The cache contains only production records — staging entries are absent.
@@ -51,20 +50,6 @@ describe('facet-version-utils', () => {
           address: FACET_ADDRESS,
         },
       ])
-    )
-
-    fs.writeFileSync(
-      path.join(rootDir, 'script', 'deploy', '_targetState.json'),
-      JSON.stringify({
-        optimism: {
-          production: {
-            LiFiDiamond: {
-              AcrossFacetV3: '1.1.0',
-              BadValueFacet: 42,
-            },
-          },
-        },
-      })
     )
   })
 
@@ -293,84 +278,104 @@ describe('facet-version-utils', () => {
     })
   })
 
-  describe('getTargetStateFacetVersion', () => {
-    it('resolves the target version for a known facet', () => {
+  describe('resolveDeployedContractByAddress', () => {
+    it('resolves name and version from the deployment record', () => {
       expect(
-        getTargetStateFacetVersion('optimism', 'AcrossFacetV3', rootDir)
-      ).toBe('1.1.0')
+        resolveDeployedContractByAddress('optimism', [FACET_ADDRESS], rootDir)
+      ).toEqual({ contractName: 'AcrossFacetV3', version: '1.1.0' })
     })
 
-    it('lowercases the network key', () => {
+    it('matches case-insensitively', () => {
       expect(
-        getTargetStateFacetVersion('Optimism', 'AcrossFacetV3', rootDir)
-      ).toBe('1.1.0')
+        resolveDeployedContractByAddress(
+          'Optimism',
+          [FACET_ADDRESS.toLowerCase()],
+          rootDir
+        )
+      ).toEqual({ contractName: 'AcrossFacetV3', version: '1.1.0' })
     })
 
-    it('returns null for a facet missing from the target state', () => {
+    it('returns null for an address on another network', () => {
       expect(
-        getTargetStateFacetVersion('optimism', 'UnknownFacet', rootDir)
+        resolveDeployedContractByAddress('base', [FACET_ADDRESS], rootDir)
       ).toBeNull()
     })
 
-    it('returns null for an unknown network', () => {
+    it('returns null for an unrecorded address', () => {
       expect(
-        getTargetStateFacetVersion('base', 'AcrossFacetV3', rootDir)
-      ).toBeNull()
-    })
-
-    it('returns null when the stored value is not a string', () => {
-      expect(
-        getTargetStateFacetVersion('optimism', 'BadValueFacet', rootDir)
-      ).toBeNull()
-    })
-
-    it('returns null when the target state file does not exist', () => {
-      expect(
-        getTargetStateFacetVersion(
+        resolveDeployedContractByAddress(
           'optimism',
-          'AcrossFacetV3',
+          ['0x00000000000000000000000000000000000000ff'],
+          rootDir
+        )
+      ).toBeNull()
+    })
+
+    it('returns null when no candidate is a usable string', () => {
+      expect(
+        resolveDeployedContractByAddress('optimism', ['', ''], rootDir)
+      ).toBeNull()
+    })
+
+    it('returns null when the cache is absent', () => {
+      expect(
+        resolveDeployedContractByAddress(
+          'optimism',
+          [FACET_ADDRESS],
           path.join(rootDir, 'does-not-exist')
         )
       ).toBeNull()
     })
 
-    it('returns null when the target state file contains invalid JSON', () => {
-      const brokenRoot = fs.mkdtempSync(
-        path.join(os.tmpdir(), 'facet-version-utils-broken-ts-')
+    it('reports a null version when the record carries none', () => {
+      const partialRoot = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'facet-version-utils-partial-')
       )
       try {
-        fs.mkdirSync(path.join(brokenRoot, 'script', 'deploy'), {
-          recursive: true,
-        })
+        fs.mkdirSync(path.join(partialRoot, '.cache'), { recursive: true })
         fs.writeFileSync(
-          path.join(brokenRoot, 'script', 'deploy', '_targetState.json'),
-          'not json'
+          path.join(partialRoot, '.cache', 'deployments_production.json'),
+          JSON.stringify([
+            {
+              contractName: 'NoVersionFacet',
+              network: 'optimism',
+              address: FACET_ADDRESS,
+            },
+          ])
         )
         expect(
-          getTargetStateFacetVersion('optimism', 'AcrossFacetV3', brokenRoot)
-        ).toBeNull()
+          resolveDeployedContractByAddress(
+            'optimism',
+            [FACET_ADDRESS],
+            partialRoot
+          )
+        ).toEqual({ contractName: 'NoVersionFacet', version: null })
       } finally {
-        fs.rmSync(brokenRoot, { recursive: true, force: true })
+        fs.rmSync(partialRoot, { recursive: true, force: true })
       }
     })
 
-    it('returns null when the target state file is not an object', () => {
-      const scalarRoot = fs.mkdtempSync(
-        path.join(os.tmpdir(), 'facet-version-utils-scalar-ts-')
+    it('reports a null contract name when the record carries none', () => {
+      const namelessRoot = fs.mkdtempSync(
+        path.join(os.tmpdir(), 'facet-version-utils-nameless-')
       )
       try {
-        fs.mkdirSync(path.join(scalarRoot, 'script', 'deploy'), {
-          recursive: true,
-        })
+        fs.mkdirSync(path.join(namelessRoot, '.cache'), { recursive: true })
         fs.writeFileSync(
-          path.join(scalarRoot, 'script', 'deploy', '_targetState.json'),
-          'null'
+          path.join(namelessRoot, '.cache', 'deployments_production.json'),
+          JSON.stringify([
+            { network: 'optimism', version: '9.9.9', address: FACET_ADDRESS },
+          ])
         )
         expect(
-          getTargetStateFacetVersion('optimism', 'AcrossFacetV3', scalarRoot)
-        ).toBeNull()
+          resolveDeployedContractByAddress(
+            'optimism',
+            [FACET_ADDRESS],
+            namelessRoot
+          )
+        ).toEqual({ contractName: null, version: '9.9.9' })
       } finally {
-        fs.rmSync(scalarRoot, { recursive: true, force: true })
+        fs.rmSync(namelessRoot, { recursive: true, force: true })
       }
     })
   })
