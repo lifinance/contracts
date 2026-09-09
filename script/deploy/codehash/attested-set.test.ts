@@ -167,7 +167,7 @@ describe('compareToAttestedSet', () => {
       // The verdict alone does not distinguish this from an unbuilt lineage, so
       // assert the message: without its own branch a signer is told the code
       // came from a compiler "no attested build used ()" — an empty list.
-      expect(result.reason).toContain('no attested build of main is available')
+      expect(result.reason).toContain('no attested build is available')
     }
   })
 })
@@ -258,7 +258,7 @@ describe('with a closed set of legitimate builds', () => {
 
       expect(result.verdict).toBe('MISMATCH')
       expect(result.blocksSigning).toBe(true)
-      expect(result.reason).toContain('not a build of main')
+      expect(result.reason).toContain('matches none of the')
     }
   )
 

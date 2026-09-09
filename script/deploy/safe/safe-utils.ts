@@ -224,8 +224,38 @@ export interface ISafeTxMongoDocument extends ISafeTxDocument {
   _id?: ObjectId
 }
 
+/**
+ * The struct Safe hashes and signs, as returned by `initializeSafeTransaction`.
+ *
+ * The type is a hint. **`isSignedStruct` is the guarantee** — a type-level brand
+ * cannot express object identity, and identity is the actual question: a spread
+ * (`{ ...struct, data: row.safeTx.data }`) keeps the brand in the type while
+ * swapping the bytes, and compiles. So membership is recorded at runtime, on the
+ * object this function produced, and checked where it matters.
+ */
+export type ISignedSafeTransaction = ISafeTransaction & {
+  readonly __signedStruct: 'initializeSafeTransaction'
+}
+
+/**
+ * The structs `initializeSafeTransaction` produced, by identity.
+ *
+ * Deliberately not exported and deliberately without a registrar: nothing can
+ * add to this except the one function below, so there is no forging call to
+ * review for. A test that needs a member goes through that function.
+ */
+const signedStructs = new WeakSet<object>()
+
+/**
+ * Whether this exact object is one Safe would hash and sign.
+ * @param value - the struct a caller proposes to vouch for
+ * @returns True only for an object `initializeSafeTransaction` returned
+ */
+export const isSignedStruct = (value: object): boolean =>
+  signedStructs.has(value)
+
 export interface IAugmentedSafeTxDocument extends ISafeTxMongoDocument {
-  safeTransaction: ISafeTransaction
+  safeTransaction: ISignedSafeTransaction
   hasSignedAlready: boolean
   canExecute: boolean
   threshold: number
@@ -1216,7 +1246,7 @@ export function mongoSafeTxRowFilter(
 export const initializeSafeTransaction = async (
   txFromMongo: ISafeTxDocument,
   safe: SafeClient
-): Promise<ISafeTransaction> => {
+): Promise<ISignedSafeTransaction> => {
   // Create a new transaction using our viem-based Safe implementation
   const safeTransaction = await safe.createTransaction({
     transactions: [
@@ -1257,7 +1287,11 @@ export const initializeSafeTransaction = async (
     safeTransaction.signatures = signatures
   }
 
-  return safeTransaction
+  // The one place identity is recorded: this function is what turns a stored row
+  // into the struct that gets hashed and signed. The cast is the type hint; the
+  // WeakSet entry is what a gate can actually rely on.
+  signedStructs.add(safeTransaction)
+  return safeTransaction as ISignedSafeTransaction
 }
 
 /**

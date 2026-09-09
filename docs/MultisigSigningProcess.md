@@ -403,7 +403,43 @@ signer sees:
    and only when the transaction carries calldata: a **Ledger Flex
    "filmstrip"** (`renderLedgerFlexFlow`, `ledger-flex-preview.ts`), an ASCII
    replica of the device screens for the exact to-be-signed values.
-4. The action prompt: `Do Nothing` / `Sign` / `Sign & Execute` /
+4. **The sign-time codehash gate** (`codehash-sign-gate.ts`, deciding through
+   `script/deploy/codehash/`). Where the calldata decodes to a `diamondCut` —
+   timelock-wrapped and batched frames included — every address the cut would
+   install is compared against a local rebuild at the commit that address's
+   production deployment record names. **Not** against `main`: per D3 the
+   verifier asserts that the commit is present and fetchable, never that it is
+   an ancestor of `main`. The verdict **blocks the signature**, and `MATCH`,
+   `MISMATCH` and `UNVERIFIABLE` stay three separate buckets — both of the
+   latter stop a signature but they are different facts, and collapsing them is
+   what teaches a signer to click through grey. A removal installs nothing and
+   is not gated; a removal-only cut carrying `_init` is refused outright,
+   because `_init` is delegatecalled in the diamond's own storage context
+   whatever the entries describe. It judges the normalised transaction, the same
+   struct that gets hashed and signed, so what it vouches for cannot drift from
+   what the device shows.
+
+   Infrastructure failures block as well, and they land in two different places
+   depending on how far the gate got. One that stops it reaching any verdict —
+   an unreadable `foundry.toml`, so the legitimate toolchain set cannot be
+   derived — is a **refusal**, rendered `⛔ REFUSED`, because there is no verdict
+   to render. One that stops it judging a *particular address* — an RPC that
+   will not answer, an attestation store that is down — is that address's
+   verdict, and it is **`UNVERIFIABLE`**, the same grey bucket as an address with
+   no attested build. Both stop the signature; neither is ever a pass, because
+   "we could not check" and "we checked and it is fine" are the pair this gate
+   exists to keep apart. Worth knowing when reading a grey line: it means the
+   check did not conclude, not necessarily that a rebuild is missing.
+
+   Three limits are put on screen rather than hidden. A hash match with bytes
+   excluded as immutables renders grey rather than green, until the
+   per-immutable check (WP-2.3) can price those bytes. Calldata this decoder
+   cannot open makes **no claim** — it names the frames it could not read
+   instead of reporting a pass. And calldata that decodes to no cut at all is
+   outside its scope and says so; a proposal with empty calldata prints no gate
+   line, because there is nothing to judge.
+
+5. The action prompt: `Do Nothing` / `Sign` / `Sign & Execute` /
    `Sign and Execute With Deployer` / `Execute with Deployer`. The two
    deployer variants are the usual choice — see §2 on why the deployer
    wallet broadcasts.
@@ -471,6 +507,7 @@ parked tasks are reconciled weekly by `reconcileParkedTasks.yml`.
 | Confirm | Signer must be an owner; network must be active; threshold and nonce read on-chain per Safe | Block / skip | `confirm-safe-tx.ts`, `safe-utils.ts` |
 | Confirm | `operation` must be exactly `Call` (0). A DelegateCall, or any other value, on the signed struct is refused before `SafeClient` signs or broadcasts — decoded calldata is not consulted. Sign/Execute options are hidden | Block | `delegatecall-gate.ts`, `SafeClient.signTransaction` / `executeTransaction` |
 | Confirm | Ledger blind-signing enabled, fail-fast before any review | Block | `checkBlindSigningEnabled` in `ledger.ts` |
+| Confirm | Sign-time codehash gate: every address a decoded `diamondCut` installs — `Add`/`Replace` targets plus a non-zero `_init` — must match a local rebuild at the commit its production deployment record names, under the toolchain that network's `foundry.toml` profile pins. **Not** an ancestry check against `main` — per D3 the referenced commit need only be present and fetchable, so this row is anchored differently from the Propose row above it. MATCH passes; MISMATCH and UNVERIFIABLE both block and stay distinct. A removal-only cut carrying `_init` is refused rather than gated. A MATCH with bytes excluded as immutables is downgraded to UNVERIFIABLE until WP-2.3 checks their values, and calldata the decoder cannot open makes **no claim** rather than reporting a pass. Asserted on both the sign and the execute route, not only at signature time — a proposal already at threshold is broadcast through a different funnel. Infrastructure failures block too, in two places: one that stops any verdict being reached (config unreadable) is a refusal, while one that stops a single address being judged (RPC or attestation store unreachable) is that address's `UNVERIFIABLE` verdict | Block | `codehash-sign-gate.ts` + `codehash-sign-gate-deps.ts` in `confirm-safe-tx.ts`, deciding through `script/deploy/codehash/` (EXSC-906) |
 | Confirm | Full calldata decode: diamond cut, scheduleBatch, whitelist, periphery, roles; per-selector name resolution | Display / warn only | `safe-decode-utils.ts` (`formatDecodedTxDataForDisplay`) |
 | Confirm | Deployed-version vs target-state mismatch highlight | **Warn only** | `facet-version-utils.ts`, `safe-utils.ts` |
 | Confirm | Stale nonce blocks Execute; future nonce prompts | Block / prompt | `confirm-safe-tx.ts` |
@@ -499,6 +536,18 @@ Honest list — the tooling displays these, but does **not** machine-assert them
   the external `api.4byte.sourcify.dev` database, displayed as-is.
 - **Execution outcome.** No simulation at review or sign time; the first
   signal is the broadcast itself.
+- **Bytecode of anything a cut does not install.** The sign-time codehash gate
+  (§4.3) machine-asserts the facet addresses and `_init` target of a decoded
+  `diamondCut` and nothing else — a fee change, a role grant or an ordinary
+  call is displayed and not vouched for, and it says so rather than leaving the
+  signer to infer it. One exception, in the safe direction: calldata it cannot
+  open is byte-scanned for the `diamondCut` selector, and a hit **blocks**, so
+  an unknown envelope carrying a cut is not merely displayed.
+- **That an attested commit is on `main`.** The gate rebuilds at the commit each
+  deployment record names and compares bytes; per D3 it asserts that commit is
+  present and fetchable, not that it is an ancestor of `main`. Code deployed
+  honestly from an unmerged branch therefore reads MATCH. The audit/approval
+  gate at Propose time (§5) is what anchors content to `main`, not this.
 
 ## 7. Emergency path
 
