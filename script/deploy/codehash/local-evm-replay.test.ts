@@ -11,7 +11,7 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
-import { composeCreationCode } from './local-evm-replay'
+import { composeCreationCode, createLocalEvmReplay } from './local-evm-replay'
 
 const CREATION_CODE = '0x60806040'
 const ONE_WORD =
@@ -100,4 +100,33 @@ describe('refusing inputs that cannot form deploy calldata', () => {
       reason: 'encoded constructor args are not hex',
     })
   })
+})
+
+describe('when the anvil binary is not there', () => {
+  it('reports the missing binary instead of taking the process down', async () => {
+    // Measured rather than assumed, because the runtimes differ: with no
+    // `error` listener the ENOENT leaves `createLocalEvmReplay` at the `spawn`
+    // call itself under bun, while under Node it arrives as an `error` event
+    // that terminates the process when nothing is listening. Either way it
+    // exits this module by a path the caller cannot turn into a verdict, which
+    // is the bug — the signer must lose the replay and fall back to masking,
+    // never lose the run.
+    const evm = createLocalEvmReplay({
+      binary: 'anvil-absent-in-tests',
+      port: 8611,
+    })
+
+    try {
+      const outcome = await evm.replay({
+        creationCode: '0x60806040',
+        encodedArgs: '',
+      })
+
+      expect(outcome.ok).toBe(false)
+      if (outcome.ok) return
+      expect(outcome.reason).toContain('anvil-absent-in-tests')
+    } finally {
+      evm.stop()
+    }
+  }, 20_000)
 })

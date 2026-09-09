@@ -137,6 +137,32 @@ describe('a nullary constructor', () => {
     expect(result.encoded).toBe('')
     expect(result.args).toEqual([])
   })
+
+  it('still refuses when the record claims arguments it cannot have', () => {
+    // The nullary shortcut used to return before the record cross-check, so the
+    // one case where the two repo-controlled sources cannot both be right was
+    // the one case that passed. A record carrying args against a constructor
+    // that takes none is not a disagreement about a value — it says the record
+    // describes a different build.
+    const result = derive({
+      inputs: [],
+      requirements: {},
+      recordedArgs: `0x${'11'.repeat(32)}`, // pre-commit-checker: not a secret
+    })
+
+    expect(result.ok).toBe(false)
+    if (result.ok) return
+    expect(result.reason).toContain('takes no arguments')
+  })
+
+  it('accepts a record that carries no args at all', () => {
+    // The paired present: absence is not disagreement. Most records predate the
+    // field, so refusing on absence would refuse the fleet.
+    expect(derive({ inputs: [], requirements: {}, recordedArgs: '' }).ok).toBe(
+      true
+    )
+    expect(derive({ inputs: [], requirements: {} }).ok).toBe(true)
+  })
 })
 
 describe('when an arg has no config-side expectation', () => {

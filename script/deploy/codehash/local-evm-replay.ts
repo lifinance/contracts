@@ -66,8 +66,20 @@ export const composeCreationCode = (
   return { ok: true, data: `0x${(code + args).toLowerCase()}` }
 }
 
-const awaitStartup = async (client: PublicClient): Promise<boolean> => {
+/**
+ * @param client - Client pointed at the throwaway node.
+ * @param hasFailed - Whether the child has already reported it cannot run, so
+ * the probe budget is not spent waiting for a process that will never exist.
+ * Checked between probes rather than once up front: `spawn` reports ENOENT
+ * asynchronously, so the first probe can precede the failure.
+ * @returns Whether the node answered.
+ */
+const awaitStartup = async (
+  client: PublicClient,
+  hasFailed: () => boolean
+): Promise<boolean> => {
   for (let attempt = 0; attempt < STARTUP_PROBES; attempt++) {
+    if (hasFailed()) return false
     try {
       await client.getBlockNumber()
       return true
@@ -93,13 +105,22 @@ export const createLocalEvmReplay = (
   options: ILocalEvmOptions = {}
 ): ILocalEvm => {
   const port = options.port ?? 8599
-  const child = spawn(
-    options.binary ?? 'anvil',
-    ['--silent', '--port', String(port)],
-    {
-      stdio: 'ignore',
-    }
-  )
+  const binary = options.binary ?? 'anvil'
+  const child = spawn(binary, ['--silent', '--port', String(port)], {
+    stdio: 'ignore',
+  })
+
+  // Without this listener a missing binary escapes as a throw — from the
+  // `spawn` call itself under bun, and under Node as an `error` event that
+  // terminates the process when nothing is listening. Either shape takes the
+  // signer's run down over an optional replay whose whole design is to fall
+  // back to masking when it cannot decide. Recorded rather than rethrown, so
+  // `replay` can name the cause instead of leaving the caller to infer it from
+  // a startup timeout.
+  let spawnFailure: string | undefined
+  child.on('error', (error) => {
+    spawnFailure = `could not start ${binary}: ${error.message}`
+  })
 
   const client = createPublicClient({
     chain: foundry,
@@ -112,9 +133,12 @@ export const createLocalEvmReplay = (
     const composed = composeCreationCode(request)
     if (!composed.ok) return composed
 
-    started ??= awaitStartup(client)
+    started ??= awaitStartup(client, () => spawnFailure !== undefined)
     if (!(await started))
-      return { ok: false, reason: `anvil did not come up on port ${port}` }
+      return {
+        ok: false,
+        reason: spawnFailure ?? `anvil did not come up on port ${port}`,
+      }
 
     try {
       const accounts = (await client.request({

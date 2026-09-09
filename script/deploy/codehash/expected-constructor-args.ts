@@ -81,6 +81,24 @@ const EVM_ADDRESS = /^0x[0-9a-fA-F]{40}$/
 const undrivable = (reason: string): IArgsUndrivable => ({ ok: false, reason })
 
 /**
+ * Whether the deployment record's own `constructorArgs` contradict the encoding
+ * derived from config. A record carrying none is not a contradiction — most
+ * records predate the field — so only a present, differing value counts.
+ *
+ * Shared with the nullary path deliberately: a constructor that takes nothing
+ * still has an expected encoding, the empty one, and a record claiming
+ * arguments against it is the same disagreement between two repo-controlled
+ * sources that this refuses everywhere else.
+ */
+const recordDisagrees = (
+  recorded: string | undefined,
+  encoded: string
+): boolean =>
+  recorded !== undefined &&
+  recorded !== '' &&
+  strip0x(recorded).toLowerCase() !== encoded
+
+/**
  * Resolves every constructor arg of a contract to the value `config/` declares.
  *
  * Fails closed on the first arg it cannot answer. There is deliberately no
@@ -100,7 +118,12 @@ export const deriveExpectedConstructorArgs = (
 ): ExpectedArgs => {
   const { contractName, inputs, network, environment } = request
 
-  if (inputs.length === 0) return { ok: true, args: [], encoded: '' }
+  if (inputs.length === 0)
+    return recordDisagrees(request.recordedArgs, '')
+      ? undrivable(
+          `${contractName}'s constructor takes no arguments but the deployment record for ${network} carries constructorArgs, so the record does not describe this build`
+        )
+      : { ok: true, args: [], encoded: '' }
 
   const configData = requirements[contractName]?.configData
   if (!configData)
@@ -168,14 +191,10 @@ export const deriveExpectedConstructorArgs = (
     )
   }
 
-  const recorded = request.recordedArgs
-  if (recorded !== undefined && recorded !== '') {
-    const normalized = strip0x(recorded).toLowerCase()
-    if (normalized !== encoded)
-      return undrivable(
-        `the deployment record's constructorArgs disagree with what config declares for ${contractName} on ${network}, so neither can be treated as the expectation`
-      )
-  }
+  if (recordDisagrees(request.recordedArgs, encoded))
+    return undrivable(
+      `the deployment record's constructorArgs disagree with what config declares for ${contractName} on ${network}, so neither can be treated as the expectation`
+    )
 
   return { ok: true, args, encoded }
 }
