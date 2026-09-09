@@ -26,6 +26,7 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 
 import { sleep } from '../../utils/delay'
+import { flagIsOn } from '../safe/cli-flags'
 
 import {
   assertSafePathSegment,
@@ -53,6 +54,7 @@ const ALREADY_VERIFIED = new Set(['AccessManagerFacet', 'LiFiDiamond'])
 const DEFAULT_COMPILER = 'v0.8.29+commit.ab55807c'
 const DEFAULT_OPTIMIZER_RUNS = 1_000_000
 const DEFAULT_VIA_IR = false
+const DEFAULT_REPO_ROOT = '.'
 
 /**
  * TronScan license enum (SPDX dropdown, Etherscan-compatible ordering).
@@ -89,8 +91,7 @@ const main = defineCommand({
     'repo-root': {
       type: 'string',
       description:
-        'Checkout to flatten sources from (point at the contracts-tron fork)',
-      default: '.',
+        'Checkout to flatten sources from (point at the contracts-tron fork; default: the current directory)',
     },
     'flattened-dir': {
       type: 'string',
@@ -108,24 +109,25 @@ const main = defineCommand({
     compiler: { type: 'string', default: DEFAULT_COMPILER },
     'optimizer-runs': {
       type: 'string',
-      default: String(DEFAULT_OPTIMIZER_RUNS),
+      description: `Optimizer runs the sources were compiled with (default: ${DEFAULT_OPTIMIZER_RUNS})`,
     },
-    'via-ir': { type: 'boolean', default: DEFAULT_VIA_IR },
+    'via-ir': { type: 'boolean' },
     license: { type: 'string', default: String(DEFAULT_LICENSE) },
     'dry-run': {
       type: 'boolean',
       description: 'Print planned requests without submitting',
-      default: false,
     },
   },
   async run({ args }) {
     const network = args.network
-    const repoRoot = args['repo-root']
+    const repoRoot = args['repo-root'] ?? DEFAULT_REPO_ROOT
     const flattenedDir = args['flattened-dir']
-    const optimizerRuns = Number(args['optimizer-runs'])
+    const optimizerRuns = Number(
+      args['optimizer-runs'] ?? DEFAULT_OPTIMIZER_RUNS
+    )
     const license = Number(args.license)
-    const viaIR = args['via-ir']
-    const dryRun = args['dry-run']
+    const viaIR = flagIsOn(args['via-ir'], { whenAbsent: DEFAULT_VIA_IR })
+    const dryRun = flagIsOn(args['dry-run'])
 
     if (Number.isNaN(optimizerRuns))
       throw new Error(
