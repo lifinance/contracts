@@ -29,6 +29,7 @@ import {
   compareSemanticVersions,
   countNetworksDeclaring,
   createPinnedTargetStateReader,
+  createTargetStateDeps,
   evaluateTargetStateIntent,
   formatTargetStateLines,
   readDeclaredVersion,
@@ -309,8 +310,8 @@ describe('evaluateTargetStateIntent — the anchor itself', () => {
       'optimism',
       {
         readPinnedState: () => ({ ok: true, state: STATE }),
-        resolveDeployed: (candidates) =>
-          versions.get(String(candidates[0]).toLowerCase()) ?? null,
+        resolveDeployed: (facetAddress) =>
+          versions.get(facetAddress.toLowerCase()) ?? null,
       }
     )
     expect(verdict.cleared).toBe(false)
@@ -479,5 +480,65 @@ describe('createPinnedTargetStateReader', () => {
           git: { fetch: () => undefined, show: () => raw },
         })()
       ).toEqual({ ok: false, reason: 'invalid-shape' })
+  })
+})
+
+describe('createTargetStateDeps', () => {
+  let cacheRootDir: string
+
+  // The base58 form of FACET. Hard-coded rather than derived, so the assertion
+  // cannot move with the conversion it is checking.
+  const FACET_BASE58 = 'TBXSw8fM4jpQkGc6zZjsVABFpVN7UvXPdV'
+
+  beforeAll(() => {
+    cacheRootDir = fs.mkdtempSync(path.join(os.tmpdir(), 'target-state-deps-'))
+    fs.mkdirSync(path.join(cacheRootDir, '.cache'), { recursive: true })
+    fs.writeFileSync(
+      path.join(cacheRootDir, '.cache', 'deployments_production.json'),
+      JSON.stringify([
+        {
+          contractName: 'TronFacet',
+          network: 'tron',
+          version: '1.4.0',
+          address: FACET_BASE58,
+        },
+        {
+          contractName: 'AcrossFacetV3',
+          network: 'optimism',
+          version: '1.4.0',
+          address: FACET,
+        },
+      ])
+    )
+  })
+
+  afterAll(() => {
+    fs.rmSync(cacheRootDir, { recursive: true, force: true })
+  })
+
+  it('resolves a Tron record recorded in base58 from the hex address a cut carries', () => {
+    const resolved = createTargetStateDeps('tron', {
+      readPinnedState: () => ({ ok: true, state: STATE }),
+      cacheRootDir,
+    }).resolveDeployed(FACET)
+    expect(resolved).toEqual({ contractName: 'TronFacet', version: '1.4.0' })
+  })
+
+  it('does not find that Tron record under the hex address', () => {
+    const records = JSON.parse(
+      fs.readFileSync(
+        path.join(cacheRootDir, '.cache', 'deployments_production.json'),
+        'utf8'
+      )
+    ) as { network: string; address: string }[]
+    expect(records.find((r) => r.network === 'tron')?.address).toBe(
+      FACET_BASE58
+    )
+    expect(
+      createTargetStateDeps('optimism', {
+        readPinnedState: () => ({ ok: true, state: STATE }),
+        cacheRootDir,
+      }).resolveDeployed(FACET)
+    ).toEqual({ contractName: 'AcrossFacetV3', version: '1.4.0' })
   })
 })

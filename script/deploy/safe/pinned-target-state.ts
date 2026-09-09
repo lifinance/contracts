@@ -13,6 +13,7 @@ import { execFileSync } from 'node:child_process'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { formatAddressForNetworkCliDisplay } from '@lifi/tron-devkit'
 import { type Hex } from 'viem'
 
 import { collectDiamondCutCalls } from '../shared/diamond-cut-calls'
@@ -174,10 +175,8 @@ export const countNetworksDeclaring = (
 export interface ITargetStateDeps {
   /** The expected state, read at {@link PINNED_REF}. */
   readPinnedState: () => PinnedTargetStateRead
-  /** What the deployment record says an address is. */
-  resolveDeployed: (
-    addressCandidates: string[]
-  ) => IDeployedContractIdentity | null
+  /** What the deployment record says a facet address is. */
+  resolveDeployed: (facetAddress: string) => IDeployedContractIdentity | null
 }
 
 const describeUnavailable = (
@@ -286,7 +285,7 @@ export const evaluateTargetStateIntent = (
       continue
     }
 
-    const deployed = deps.resolveDeployed([facetAddress])
+    const deployed = deps.resolveDeployed(facetAddress)
     const contractName = deployed?.contractName ?? null
     const proposedVersion = deployed?.version ?? null
     const mainVersion = contractName
@@ -460,10 +459,13 @@ export const createTargetStateDeps = (
   }
 ): ITargetStateDeps => ({
   readPinnedState: options?.readPinnedState ?? createPinnedTargetStateReader(),
-  resolveDeployed: (candidates) =>
+  resolveDeployed: (facetAddress) =>
     resolveDeployedContractByAddress(
       network,
-      candidates,
+      // A Tron deployment record stores the base58 form, so the hex address a
+      // cut carries matches nothing there and every Tron facet would grade as
+      // never targeted.
+      [facetAddress, formatAddressForNetworkCliDisplay(network, facetAddress)],
       options?.cacheRootDir
     ),
 })
