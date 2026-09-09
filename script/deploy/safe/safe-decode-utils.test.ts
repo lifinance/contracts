@@ -460,23 +460,28 @@ describe('formatDecodedTxDataForDisplay renders no proposer-controlled text raw'
   })
 
   it('sanitises a signature the 4byte lookup supplied', async () => {
-    // Remote text a proposer can choose by choosing the selector.
+    // Remote text, and a proposer picks which of it is fetched by picking the
+    // selector. The selector is derived from the hostile signature because
+    // `resolveSelectorsViaFourByte` drops a name that does not hash back to the
+    // selector it was asked about — a stub ignoring that would leave this
+    // assertion observing the raw-preview arm instead of this route.
+    const hostileSignature = `evil${ESC}[2J(uint256)`
+    const selector = toFunctionSelector(hostileSignature)
     globalThis.fetch = (() =>
       Promise.resolve({
         ok: true,
         json: () =>
           Promise.resolve({
             ok: true,
-            result: {
-              function: {
-                '0x99887766': [{ name: `evil${ESC}[2J(uint256)` }],
-              },
-            },
+            result: { function: { [selector]: [{ name: hostileSignature }] } },
           }),
       })) as unknown as typeof fetch
 
-    const lines = await render('0x99887766')
+    const lines = await render(selector)
     expectInert(lines)
+    // The 4byte name really did reach a line, so the assertion above is about
+    // that route and not about the preview the raw arm would have printed.
+    expect(lines.some((line) => line.includes('evil'))).toBe(true)
   })
 
   it('sanitises through the nested scheduleBatch recursion', async () => {

@@ -31,7 +31,7 @@ const HANGUL_FILLER = '\u3164'
 describe('asPrintable', () => {
   it('leaves a benign ASCII value untouched and says nothing', () => {
     const hash =
-      '0x7c6d5e4f3a2b1908172635445362718091a2b3c4d5e6f708192a3b4c5d6e7f80'
+      '0x7c6d5e4f3a2b1908172635445362718091a2b3c4d5e6f708192a3b4c5d6e7f80' // pre-commit-checker: not a secret
     const field = asPrintable(hash)
     expect(field.text as string).toBe(hash)
     expect(field.notice).toBe('')
