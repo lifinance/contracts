@@ -69,6 +69,7 @@ export type TargetStateStatus =
   | 'downgrade'
   | 'version-not-comparable'
   | 'proposed-version-unresolved'
+  | 'contract-unidentified'
   | 'unrecognised-cut-action'
   | 'calldata-not-readable'
   | 'pinned-state-unavailable'
@@ -288,25 +289,35 @@ export const evaluateTargetStateIntent = (
     const deployed = deps.resolveDeployed(facetAddress)
     const contractName = deployed?.contractName ?? null
     const proposedVersion = deployed?.version ?? null
-    const mainVersion = contractName
-      ? readDeclaredVersion(read.state, network, contractName)
-      : null
+
+    // An address with no record is not the same question as a contract with no
+    // entry on `main`. Without a name there is nothing to look the anchor up
+    // by, so clearing it as a first-time add would hand a free pass to any
+    // address a proposer chose to name.
+    if (!contractName) {
+      findings.push({
+        ...blank,
+        facetAddress,
+        proposedVersion,
+        status: 'contract-unidentified',
+        detail: `no deployment record on ${network} names this address, so the contract it installs cannot be identified and no expected version can be looked up.`,
+      })
+      continue
+    }
+
+    const mainVersion = readDeclaredVersion(read.state, network, contractName)
 
     if (!mainVersion) {
-      const crossFleetCount =
-        contractName && proposedVersion
-          ? countNetworksDeclaring(read.state, contractName, proposedVersion)
-          : null
       findings.push({
         facetAddress,
         contractName,
         proposedVersion,
         mainVersion: null,
-        crossFleetCount,
+        crossFleetCount: proposedVersion
+          ? countNetworksDeclaring(read.state, contractName, proposedVersion)
+          : null,
         status: 'not-previously-targeted',
-        detail: `${
-          contractName ?? 'this contract'
-        } is not previously targeted on ${network} in ${PINNED_REF} — expected for a first deployment, since the target-state update merges only after execution. Intent rests on the linked ticket and PR.`,
+        detail: `${contractName} is not previously targeted on ${network} in ${PINNED_REF} — expected for a first deployment, since the target-state update merges only after execution. Intent rests on the linked ticket and PR.`,
       })
       continue
     }
@@ -319,9 +330,7 @@ export const evaluateTargetStateIntent = (
         mainVersion,
         crossFleetCount: null,
         status: 'proposed-version-unresolved',
-        detail: `${PINNED_REF} declares ${
-          contractName ?? 'this contract'
-        } at v${mainVersion} on ${network}, but no deployment record matches this address, so a downgrade cannot be ruled out.`,
+        detail: `${PINNED_REF} declares ${contractName} at v${mainVersion} on ${network}, but its deployment record carries no version, so a downgrade cannot be ruled out.`,
       })
       continue
     }
@@ -487,6 +496,7 @@ export const formatTargetStateLines = (
     downgrade: 'DOWNGRADE',
     'version-not-comparable': 'UNEXPECTED VERSION',
     'proposed-version-unresolved': 'PROPOSED VERSION UNRESOLVED',
+    'contract-unidentified': 'CONTRACT UNIDENTIFIED',
     'unrecognised-cut-action': 'UNRECOGNISED CUT ACTION',
     'calldata-not-readable': 'CUT NOT READABLE',
     'pinned-state-unavailable': 'EXPECTED STATE UNAVAILABLE',

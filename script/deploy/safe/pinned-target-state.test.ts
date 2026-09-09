@@ -208,15 +208,26 @@ describe('evaluateTargetStateIntent — first-time add', () => {
     expect(verdict.findings[0]?.crossFleetCount).toBe(1)
   })
 
-  it('does not block an add whose address resolves to nothing', () => {
+  it('labels a first-time add whose record carries no version, without a count', () => {
+    const verdict = evaluateTargetStateIntent(
+      [cut([{ facetAddress: FACET, action: 0 }])],
+      'optimism',
+      deps({ deployed: { contractName: 'NewFacet', version: null } })
+    )
+    expect(verdict.cleared).toBe(true)
+    expect(verdict.findings[0]?.status).toBe('not-previously-targeted')
+    expect(verdict.findings[0]?.crossFleetCount).toBeNull()
+  })
+
+  it('refuses an install whose address no deployment record names', () => {
     const verdict = evaluateTargetStateIntent(
       [cut([{ facetAddress: FACET, action: 0 }])],
       'optimism',
       deps({ deployed: null })
     )
-    expect(verdict.cleared).toBe(true)
-    expect(verdict.findings[0]?.status).toBe('not-previously-targeted')
-    expect(verdict.findings[0]?.crossFleetCount).toBeNull()
+    expect(verdict.cleared).toBe(false)
+    expect(verdict.findings[0]?.status).toBe('contract-unidentified')
+    expect(verdict.findings[0]?.facetAddress).toBe(FACET)
   })
 })
 
