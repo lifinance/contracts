@@ -492,6 +492,23 @@ describe('createPinnedTargetStateReader', () => {
     expect(read).toEqual({ ok: false, reason: 'fetch-failed' })
   })
 
+  it('retries a failed fetch instead of pinning the refusal for the process', () => {
+    let fetches = 0
+    const reader = createPinnedTargetStateReader({
+      repoRoot: clone,
+      git: {
+        fetch: () => {
+          fetches++
+          if (fetches === 1) throw new Error('no route to host')
+        },
+        show: (revSpec) => git(clone, ['show', revSpec]),
+      },
+    })
+    expect(reader()).toEqual({ ok: false, reason: 'fetch-failed' })
+    expect(reader().ok).toBe(true)
+    expect(fetches).toBe(2)
+  })
+
   it('reports an unreadable blob', () => {
     const read = createPinnedTargetStateReader({
       repoRoot: clone,

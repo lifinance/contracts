@@ -439,8 +439,9 @@ export const createPinnedTargetStateReader = (options?: {
     try {
       git.fetch()
     } catch {
-      memo = { ok: false, reason: 'fetch-failed' }
-      return memo
+      // A transient fetch must not pin the rest of the process to a refusal —
+      // the sibling cache reader in facet-version-utils.ts makes the same call.
+      return { ok: false, reason: 'fetch-failed' }
     }
 
     let raw: string
