@@ -29,9 +29,13 @@ describe('ensureCommitAvailable', () => {
     expect(ensureCommitAvailable('HEAD', CWD)).toBe(true)
   })
 
-  it('fetches a commit that no local ref reaches', () => {
-    expect(ensureCommitAvailable(SQUASHED_AUDIT_COMMIT, CWD)).toBe(true)
-  })
+  it(
+    'fetches a commit that no local ref reaches',
+    () => {
+      expect(ensureCommitAvailable(SQUASHED_AUDIT_COMMIT, CWD)).toBe(true)
+    },
+    { timeout: 30_000 }
+  )
 
   it('gives up on a commit that does not exist, rather than throwing', () => {
     expect(ensureCommitAvailable(ABSENT_COMMIT, CWD, 1)).toBe(false)
