@@ -31,7 +31,10 @@ const NONCE_GATE = "nonceDecision?.reason === 'stale-nonce'"
 /** Every point past which the proposal is no longer only being reviewed. */
 const IRREVERSIBLE_CALLS = [
   'await signTransaction(safeTransaction)',
-  'await deployerSafe.signTransaction(signedTx)',
+  // Deployer re-sign goes through the same gated funnel; the old
+  // `deployerSafe.signTransaction(...)` spelling is gone after the codehash
+  // gate landed on main.
+  'await signTransaction(signedTx, deployerSafe)',
   'await executeTransaction(',
 ]
 
