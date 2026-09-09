@@ -43,6 +43,9 @@ scriptMaster() {
 
   # make sure that all compiled artifacts are current
   if [[ "$COMPILE_ON_STARTUP" == "true" ]]; then
+    if ! assertFoundryVersionOrFail; then
+      return 1
+    fi
     forge build
   fi
 
@@ -146,7 +149,10 @@ scriptMaster() {
       # Use zksync specific scripts
       DEPLOY_SCRIPT_DIRECTORY="script/deploy/zksync/"
       # Check if the foundry-zksync binaries exist, if not fetch them
-      install_foundry_zksync
+      if ! install_foundry_zksync; then
+        error "failed to install or verify foundry-zksync"
+        return 1
+      fi
       # get user-selected deploy script and contract from list
       SCRIPT=$(ls -1 "$DEPLOY_SCRIPT_DIRECTORY" | sed -e 's/\.zksync.s.sol$//' | grep 'Deploy' | gum filter --placeholder "Deploy Script")
     else

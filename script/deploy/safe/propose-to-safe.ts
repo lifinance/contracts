@@ -38,6 +38,10 @@ import { consola } from 'consola'
 import { getAddress, type Address, type Hex } from 'viem'
 
 import type { IProposeToSafeOptions } from '../../common/types'
+import {
+  assertFunnelDeployGate,
+  createFunnelGateDeps,
+} from '../shared/funnel-deploy-gate'
 
 import { readBooleanFlag, readValueFlag } from './cli-flags'
 import { proposeWithDrain, type ITimelockCall } from './drain-parked-tasks'
@@ -111,6 +115,18 @@ export async function _runPropose(
   // when they are already arrays, so pushing here would corrupt the caller's input.
   const targets = [...normalized.targets]
   const calldatas = [...normalized.calldatas]
+
+  // Reads the very array that gets signed: parsing the calldata a second time
+  // of its own would let the gate vouch for bytes other than the ones proposed.
+  // Ordered before the Ledger, the Safe client and the signature — though not
+  // before all Mongo work, since an enabled drain claims parked tasks in
+  // `proposeWithDrain` before this runs, and reverts them on the throw.
+  // `extraTimelockCalls` are excluded deliberately — they are facet removals,
+  // which install no code.
+  await assertFunnelDeployGate(
+    { network: options.network, calldatas },
+    createFunnelGateDeps()
+  )
 
   if (extraTimelockCalls.length > 0) {
     if (!options.timelock)

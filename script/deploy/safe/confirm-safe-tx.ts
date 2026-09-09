@@ -24,6 +24,20 @@ import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
 
 import { readBooleanFlag, readValueFlag } from './cli-flags'
 import {
+  assertCodehashSignGateAllowsSigning,
+  gateInputFor,
+  proposalKeyOf,
+  blockingUnevaluatedGate,
+  createGatedSigner,
+  evaluateCodehashSignGate,
+  renderCodehashSignGate,
+  type ICodehashSignGate,
+} from './codehash-sign-gate'
+import {
+  createSignTimeCodehashDeps,
+  type ISignTimeCodehashDeps,
+} from './codehash-sign-gate-deps'
+import {
   buildAcknowledgementKey,
   buildProposalKey,
   computeChangeFingerprint,
@@ -40,17 +54,22 @@ import {
   ConfirmSafeTxPrefetchQueue,
   type IConfirmSafeTxNetworkContext,
 } from './confirm-safe-tx-prefetch'
+import {
+  describeOperationValue,
+  evaluateDelegateCallGate,
+  renderDelegateCallGate,
+} from './delegatecall-gate'
 import type { ILedgerAccountResult } from './ledger'
 import {
   LEDGER_FLEX_WRAP_NOTE,
   renderLedgerFlexFlow,
 } from './ledger-flex-preview'
-import { formatProvenanceLines } from './provenance-display'
 import { reconcileAllSubmittedSafeTxs } from './reconcile'
 import {
   formatDecodedTxDataForDisplay,
   getTargetName,
 } from './safe-decode-utils'
+import { buildSafeTxDetailLines } from './safe-tx-detail-display'
 import {
   parseAccountIndex,
   canExecuteWithNonceStatus,
@@ -82,6 +101,15 @@ import {
 import { enqueueTimelockOpIfApplicable } from './timelock-queue'
 
 dotenv.config()
+
+// One set of sign-time codehash dependencies per run: they hold a MongoDB
+// connection and a rebuild cache, and a rebuild repeated per network would
+// recompile the same commit dozens of times on a fleet rollout.
+let codehashDeps: ISignTimeCodehashDeps | undefined
+const getCodehashDeps = (): ISignTimeCodehashDeps => {
+  codehashDeps ??= createSignTimeCodehashDeps()
+  return codehashDeps
+}
 
 // Acknowledgements roll up across networks so a fleet-wide rollout is reviewed
 // once; the operator's chosen action is never remembered.
@@ -147,23 +175,45 @@ const processTxs = async (
   consola.info('Chain:', chain.name)
   consola.info('Signer:', signerAddress)
 
+  // The proposal's codehash verdict, re-evaluated per proposal below and read
+  // by the signer through `createGatedSigner`. It starts blocking so a proposal
+  // whose evaluation never ran cannot be signed on last proposal's answer.
+  let codehashGate: ICodehashSignGate = blockingUnevaluatedGate()
+
   /**
-   * Signs a SafeTransaction
+   * Signs a SafeTransaction.
+   *
+   * Every sign path goes through here — Sign, Sign & Execute, and both deployer
+   * steps of Sign and Execute With Deployer — so the codehash refusal is
+   * evaluated once and cannot be missed by a path added later. It is the first
+   * statement, ahead of every other check in this function, so nothing it would
+   * otherwise swallow runs first.
+   *
    * @param safeTransaction - The transaction to sign
+   * @param client - Which Safe client signs; the run's own by default
    * @returns The signed transaction
    */
-  const signTransaction = async (safeTransaction: ISafeTransaction) => {
-    consola.info('Signing transaction')
-    try {
-      const signedTx = await safe.signTransaction(safeTransaction)
-      consola.success('Transaction signed')
-      return signedTx
-    } catch (error: unknown) {
-      const errorMsg = error instanceof Error ? error.message : String(error)
-      consola.error('Error signing transaction:', error)
-      throw new Error(`Failed to sign transaction: ${errorMsg}`)
-    }
-  }
+  const signTransaction = createGatedSigner<
+    [ISafeTransaction, SafeClient?],
+    ISafeTransaction
+  >({
+    gate: () => codehashGate,
+    // Which transaction this signature will cover, so the verdict is checked
+    // against it rather than merely being non-blocking.
+    keyOf: (safeTransaction) => proposalKeyOf(safeTransaction.data),
+    sign: async (safeTransaction, client = safe) => {
+      consola.info('Signing transaction')
+      try {
+        const signedTx = await client.signTransaction(safeTransaction)
+        consola.success('Transaction signed')
+        return signedTx
+      } catch (error: unknown) {
+        const errorMsg = error instanceof Error ? error.message : String(error)
+        consola.error('Error signing transaction:', error)
+        throw new Error(`Failed to sign transaction: ${errorMsg}`)
+      }
+    },
+  })
 
   /**
    * Persists a signed Safe tx on the exact MongoDB row being processed.
@@ -210,6 +260,21 @@ const processTxs = async (
     txDoc: ISafeTxMongoDocument,
     safeClient: SafeClient = safe
   ): Promise<boolean> {
+    // Execution is the irreversible step, and it needs no signature of ours: a
+    // proposal already at threshold is broadcast from here with other people's
+    // signatures, so the sign funnel is never consulted and the gate's verdict
+    // sat on screen in red while nothing refused.
+    //
+    // Two route-disjoint gates is D23's ruling. WP-1.4 read D9's "the gate is
+    // never in two places" as forbidding a second gate anywhere and left the
+    // direct-broadcast route open; the same reading would leave this one open.
+    // Every execute branch calls this helper, so asserting here covers all of
+    // them by construction, and the sign-then-execute paths simply assert twice.
+    assertCodehashSignGateAllowsSigning(
+      codehashGate,
+      proposalKeyOf(safeTransaction.data)
+    )
+
     consola.info('Preparing to execute Safe transaction...')
     let safeTxHash = ''
     try {
@@ -355,6 +420,8 @@ const processTxs = async (
         ? 'stale'
         : 'future'
 
+    codehashGate = blockingUnevaluatedGate()
+
     consola.info('-'.repeat(80))
     consola.info('Transaction Details:')
     consola.info('-'.repeat(80))
@@ -365,24 +432,24 @@ const processTxs = async (
         network,
       })
 
-    // Get target name for display
-    const targetName = await getTargetName(tx.safeTx.data.to, network)
-    const toAddrDisplay = `${formatAddressForNetworkCliDisplay(
-      network,
-      tx.safeTx.data.to
-    )}${tronHexSuffix(network, tx.safeTx.data.to)}`
-    const toDisplay = targetName
-      ? `${toAddrDisplay} \u001b[33m${targetName}\u001b[0m`
-      : toAddrDisplay
-    const toExplorerUrl = buildExplorerAddressUrl(
-      network.toLowerCase(),
-      tx.safeTx.data.to
+    // The block sanitises the stored addresses itself, so it can report a row
+    // that needed it. These only decide how a clean address is displayed.
+    const formatAddress = (address: string): string =>
+      `${formatAddressForNetworkCliDisplay(
+        network,
+        address as Address
+      )}${tronHexSuffix(network, address as Address)}`
+    const explorerUrlFor = (address: string): string =>
+      buildExplorerAddressUrl(network.toLowerCase(), address as Address) ?? ''
+
+    // Looked up on the sanitised address: the record keys are repository
+    // configuration, so a match names a contract this repo deployed. The block
+    // decides whether to show the name — it refuses for an address it had to
+    // repair, since sanitising a corrupt one can yield a valid one.
+    const targetName = await getTargetName(
+      sanitizeProvenanceText(tx.safeTx.data.to) as Address,
+      network
     )
-    const toExplorerSuffix = toExplorerUrl ? ` [36m${toExplorerUrl}[0m` : ''
-    const proposerDisplay = `${formatAddressForNetworkCliDisplay(
-      network,
-      tx.proposer
-    )}${tronHexSuffix(network, tx.proposer)}`
 
     const nonceColor =
       nonceStatus === 'current' ? '32' : nonceStatus === 'stale' ? '31' : '33'
@@ -394,44 +461,40 @@ const processTxs = async (
         ? ` \u001b[33m⚠ on-chain nonce is ${expectedNonce} — cannot execute yet\u001b[0m`
         : ''
 
-    const detailLines = [
-      'Safe Transaction Details:',
-      `    Nonce:           \u001b[${nonceColor}m${tx.safeTx.data.nonce}\u001b[0m${nonceWarning}`,
-      `    To:              \u001b[32m${toDisplay}${toExplorerSuffix}\u001b[0m`,
-      `    Value:           \u001b[32m${tx.safeTx.data.value}\u001b[0m`,
-      `    Operation:       \u001b[32m${
-        tx.safeTx.data.operation === 0 ? 'Call' : 'DelegateCall'
-      }\u001b[0m`,
-      `    Data:            \u001b[32m${tx.safeTx.data.data}\u001b[0m`,
-      `    Proposer:        \u001b[32m${proposerDisplay}\u001b[0m`,
-      `    Safe Tx Hash:    \u001b[36m${tx.safeTxHash}\u001b[0m`,
-      `    Signatures:      \u001b[32m${tx.safeTransaction.signatures.size}/${tx.threshold}\u001b[0m required`,
-      `    Execution Ready: \u001b[${tx.canExecute ? '32m✓' : '31m✗'}\u001b[0m`,
-    ]
-
-    // Deferred diamond-cleanup: if parked facet removals were folded into this
-    // proposal, show the originating deprecation PR(s) so the signer sees WHY each
-    // facet is being removed (DeferredDiamondCleanupQueue.md §6). Plain strings,
-    // outside the shared decode formatter (rule 201 untouched).
-    if (tx.parkedTaskRefs && tx.parkedTaskRefs.length > 0) {
-      detailLines.push('    Parked cleanup — origin PRs:')
-      for (const ref of tx.parkedTaskRefs)
-        detailLines.push(`        [32m${ref.facet}[0m → [36m${ref.prUrl}[0m`)
-    }
-
-    // Belt-and-braces around a total function: no shape of stored row may cost
-    // the operator the rest of the networks in this run.
-    try {
-      detailLines.push(...formatProvenanceLines(tx.provenance))
-    } catch (error) {
-      detailLines.push(
-        `    Provenance:      \u001b[33mUNKNOWN — could not be rendered: ${sanitizeProvenanceText(
-          error instanceof Error ? error.message : error
-        )}\u001b[0m`
-      )
-    }
+    const detailLines = buildSafeTxDetailLines({
+      nonce: tx.safeTx.data.nonce,
+      nonceColor,
+      nonceWarning,
+      to: tx.safeTx.data.to,
+      toTargetName: targetName,
+      formatAddress,
+      explorerUrlFor,
+      value: tx.safeTx.data.value,
+      operationLabel:
+        tx.safeTransaction.data.operation === 0
+          ? 'Call'
+          : tx.safeTransaction.data.operation === 1
+          ? 'DelegateCall'
+          : `not Call (${describeOperationValue(
+              tx.safeTransaction.data.operation
+            )})`,
+      data: tx.safeTx.data.data,
+      proposer: tx.proposer,
+      safeTxHash: tx.safeTxHash,
+      signatureCount: tx.safeTransaction.signatures.size,
+      threshold: tx.threshold,
+      canExecute: tx.canExecute,
+      parkedTaskRefs: tx.parkedTaskRefs,
+      provenance: tx.provenance,
+    })
 
     consola.info(detailLines.join('\n'))
+
+    // The struct the signature covers, never the stored row: createTransaction
+    // normalises an absent operation to Call, so those two copies can disagree.
+    const operationVerdict = evaluateDelegateCallGate(tx.safeTransaction.data)
+    for (const line of renderDelegateCallGate(operationVerdict))
+      consola.info(line)
 
     // A display error must never block signing.
     const verificationDisplay = resolveSignerVerificationDisplay(
@@ -444,8 +507,8 @@ const processTxs = async (
         const filmstrip = renderLedgerFlexFlow({
           chainId: chain.id,
           verifyingContract: safeAddress,
-          to: tx.safeTx.data.to,
-          value: String(tx.safeTx.data.value),
+          to: tx.safeTransaction.data.to,
+          value: String(tx.safeTransaction.data.value),
           data: tx.safeTx.data.data as Hex,
         })
         consola.info(
@@ -469,6 +532,33 @@ const processTxs = async (
           'At least 16 characters, 8 from each end. Four-and-four is grindable.',
         ].join('\n')
       )
+
+    // The struct itself reaches the gate, which reads its calldata when it
+    // judges; the verdict is then bound to that transaction, so it cannot
+    // authorise the signature of another row or of a mutated one. Displayed
+    // here and refused inside
+    // `signTransaction`: removing the Sign option instead would hide why a
+    // specific proposal is unsignable, which is the same reason the nonce gate
+    // runs after the choice.
+    try {
+      codehashGate = await evaluateCodehashSignGate(
+        gateInputFor(tx, networkKey),
+        getCodehashDeps
+      )
+    } catch (error) {
+      // Blocking, not skipped: "the gate could not run" and "the gate passed"
+      // are the two things it exists to keep apart.
+      const why = `the codehash gate could not be evaluated — ${
+        error instanceof Error ? error.message : String(error)
+      }`
+      codehashGate = {
+        ...blockingUnevaluatedGate(),
+        evaluated: true,
+        refusals: [why],
+        summary: why,
+      }
+    }
+    renderCodehashSignGate(codehashGate).forEach((line) => consola.info(line))
 
     const integrity = evaluateProposalIntegrity({ nonceStatus })
     // Read from the normalised transaction, not the stored document: this is the
@@ -508,23 +598,25 @@ const processTxs = async (
     let action: string
     if (privKeyType === PrivateKeyTypeEnum.SAFE_SIGNER) {
       const options = ['Do Nothing']
-      if (!tx.hasSignedAlready) {
-        options.push('Sign')
+      if (!operationVerdict.refuses) {
+        if (!tx.hasSignedAlready) {
+          options.push('Sign')
 
-        // Check if signing with current user + deployer (if needed) would meet threshold
-        if (
-          shouldShowSignAndExecuteWithDeployer(
-            tx.safeTransaction,
-            tx.threshold,
-            signerAddress
+          // Check if signing with current user + deployer (if needed) would meet threshold
+          if (
+            shouldShowSignAndExecuteWithDeployer(
+              tx.safeTransaction,
+              tx.threshold,
+              signerAddress
+            )
           )
-        )
-          options.push('Sign and Execute With Deployer')
-      }
+            options.push('Sign and Execute With Deployer')
+        }
 
-      if (tx.canExecute) {
-        options.push('Execute')
-        options.push('Execute with Deployer')
+        if (tx.canExecute) {
+          options.push('Execute')
+          options.push('Execute with Deployer')
+        }
       }
 
       action = await consola.prompt('Select action:', {
@@ -533,25 +625,27 @@ const processTxs = async (
       })
     } else {
       const options = ['Do Nothing']
-      if (!tx.hasSignedAlready) {
-        options.push('Sign')
-        if (wouldMeetThreshold(tx.safeTransaction, tx.threshold))
-          options.push('Sign & Execute')
+      if (!operationVerdict.refuses) {
+        if (!tx.hasSignedAlready) {
+          options.push('Sign')
+          if (wouldMeetThreshold(tx.safeTransaction, tx.threshold))
+            options.push('Sign & Execute')
 
-        // Check if signing with current user + deployer (if needed) would meet threshold
-        if (
-          shouldShowSignAndExecuteWithDeployer(
-            tx.safeTransaction,
-            tx.threshold,
-            signerAddress
+          // Check if signing with current user + deployer (if needed) would meet threshold
+          if (
+            shouldShowSignAndExecuteWithDeployer(
+              tx.safeTransaction,
+              tx.threshold,
+              signerAddress
+            )
           )
-        )
-          options.push('Sign and Execute With Deployer')
-      }
+            options.push('Sign and Execute With Deployer')
+        }
 
-      if (hasEnoughSignatures(tx.safeTransaction, tx.threshold)) {
-        options.push('Execute')
-        options.push('Execute with Deployer')
+        if (hasEnoughSignatures(tx.safeTransaction, tx.threshold)) {
+          options.push('Execute')
+          options.push('Execute with Deployer')
+        }
       }
 
       action = await consola.prompt('Select action:', {
@@ -585,10 +679,10 @@ const processTxs = async (
       consola.error('✗  STALE PROPOSAL — THIS TRANSACTION WILL REVERT')
       consola.error('='.repeat(80))
       consola.error(
-        `  This proposal has nonce \u001b[31m${tx.safeTx.data.nonce}\u001b[0m but the Safe's on-chain nonce is already \u001b[31m${expectedNonce}\u001b[0m.`
+        `  This proposal has nonce \u001b[31m${txNonce}\u001b[0m but the Safe's on-chain nonce is already \u001b[31m${expectedNonce}\u001b[0m.`
       )
       consola.error(
-        `  Nonce ${tx.safeTx.data.nonce} was already used — this proposal is stale and cannot be executed.`
+        `  Nonce ${txNonce} was already used — this proposal is stale and cannot be executed.`
       )
       consola.error(
         `  Likely cause: the RPC returned a stale nonce when the proposal was created.`
@@ -618,7 +712,7 @@ const processTxs = async (
         consola.warn('⚠  GS026 — THIS TRANSACTION WILL REVERT')
         consola.warn('='.repeat(80))
         consola.warn(
-          `  This transaction has nonce \u001b[33m${tx.safeTx.data.nonce}\u001b[0m but the Safe's current on-chain nonce is \u001b[33m${expectedNonce}\u001b[0m.`
+          `  This transaction has nonce \u001b[33m${txNonce}\u001b[0m but the Safe's current on-chain nonce is \u001b[33m${expectedNonce}\u001b[0m.`
         )
         consola.warn(
           `  The Safe requires nonce ${expectedNonce} to be executed first — executing this will revert with GS026.`
@@ -659,7 +753,7 @@ const processTxs = async (
       consola.warn('⚠  NONCE GAP — EXECUTING BY OPERATOR OVERRIDE')
       consola.warn('='.repeat(80))
       consola.warn(
-        `  This transaction has nonce \u001b[33m${tx.safeTx.data.nonce}\u001b[0m but the configured RPC reports on-chain nonce \u001b[33m${expectedNonce}\u001b[0m.`
+        `  This transaction has nonce \u001b[33m${txNonce}\u001b[0m but the configured RPC reports on-chain nonce \u001b[33m${expectedNonce}\u001b[0m.`
       )
       consola.warn(
         '  ALLOW_FUTURE_NONCE_EXECUTION=true — proceeding on the assumption that the RPC nonce is out of date.'
@@ -768,7 +862,7 @@ const processTxs = async (
         if (needsDeployerSignature) {
           consola.info('Deployer signature needed - signing with deployer...')
           // Sign with deployer
-          const deployerSignedTx = await deployerSafe.signTransaction(signedTx)
+          const deployerSignedTx = await signTransaction(signedTx, deployerSafe)
 
           // Update MongoDB with deployer's signature
           await persistSignedSafeTx(tx, deployerSignedTx)
@@ -1184,6 +1278,11 @@ const main = defineCommand({
       await mongoClient.close(true)
     } finally {
       await releaseAllPooledSafeClients().catch(() => undefined)
+      if (codehashDeps) {
+        const deps = codehashDeps
+        codehashDeps = undefined
+        await deps.close().catch(() => undefined)
+      }
       // Always close ledger connection if it was created
       if (ledgerResult) {
         const { closeLedgerConnection } = await import('./ledger')

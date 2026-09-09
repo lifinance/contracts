@@ -1,6 +1,6 @@
 # Verify Clear-Signing Proposal is Current
 # - Purpose: block PRs that change facets / the generator / the proposal JSON without keeping `config/clearSigningProposal.json` in sync with the generator's output. Also blocks PRs that introduce a user-facing function the generator can't template.
-# - Triggers: pull_request on src/Facets/**, tasks/buildClearSigningProposal.ts, config/clearSigningProposal.json, the workflow itself,
+# - Triggers: pull_request on src/Facets/**, src/Libraries/** (the structs the templates resolve paths into), tasks/buildClearSigningProposal.ts, config/clearSigningProposal.json, the workflow itself,
 #   and the shared foundry setup action + .foundry-version its toolchain comes from
 # - Key behaviors: builds forge artifacts, runs `tasks/buildClearSigningProposal.ts` (strict-by-default; exits non-zero on unrecognized or shape-mismatched functions), then `git diff --exit-code` on the committed JSON
 # - Failure modes (and remedy):
@@ -15,6 +15,10 @@ on:
     types: [opened, synchronize, reopened, ready_for_review]
     paths:
       - 'src/Facets/**'
+      # LiFi.BridgeData / LibSwap.SwapData live here and every template resolves
+      # its field paths into them, so a struct change can invalidate the proposal
+      # without touching a facet.
+      - 'src/Libraries/**'
       - 'tasks/buildClearSigningProposal.ts'
       - 'config/clearSigningProposal.json'
       - '.github/workflows/verifyClearSigning.yml'
@@ -74,3 +78,19 @@ jobs:
             exit 1
           fi
           echo -e "\033[32m✓ proposal is current\033[0m"
+
+      - name: Verify every display.formats entry has renderable fields
+        # A format with no `fields` renders only a title in the wallet (no amount,
+        # receiver or destination), which the ERC-7730 registry rejects. Guard the
+        # source of truth so we never author one; the sync generator additionally
+        # scrubs the `*Packed` / `*Min` residue earlier syncs pushed to the registry.
+        run: |
+          set -euo pipefail
+          empty=$(jq -r '.formats | to_entries[] | select((.value.fields // []) | length == 0) | .key' config/clearSigningProposal.json)
+          if [ -n "$empty" ]; then
+            echo -e "\n\033[31m❌ These display.formats entries have no fields:\033[0m"
+            echo "$empty"
+            echo -e "\033[33mEvery format must render at least one field. Fix its template in tasks/buildClearSigningProposal.ts or exclude the function.\033[0m"
+            exit 1
+          fi
+          echo -e "\033[32m✓ all display.formats entries have fields\033[0m"

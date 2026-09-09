@@ -59,6 +59,10 @@ import {
 
 import { SAFE_SINGLETON_ABI } from './config'
 import {
+  assertProposalOperationPermitted,
+  evaluateDelegateCallGate,
+} from './delegatecall-gate'
+import {
   getDeployedFacetVersionFromLog,
   getTargetStateFacetVersion,
 } from './facet-version-utils'
@@ -220,8 +224,38 @@ export interface ISafeTxMongoDocument extends ISafeTxDocument {
   _id?: ObjectId
 }
 
+/**
+ * The struct Safe hashes and signs, as returned by `initializeSafeTransaction`.
+ *
+ * The type is a hint. **`isSignedStruct` is the guarantee** — a type-level brand
+ * cannot express object identity, and identity is the actual question: a spread
+ * (`{ ...struct, data: row.safeTx.data }`) keeps the brand in the type while
+ * swapping the bytes, and compiles. So membership is recorded at runtime, on the
+ * object this function produced, and checked where it matters.
+ */
+export type ISignedSafeTransaction = ISafeTransaction & {
+  readonly __signedStruct: 'initializeSafeTransaction'
+}
+
+/**
+ * The structs `initializeSafeTransaction` produced, by identity.
+ *
+ * Deliberately not exported and deliberately without a registrar: nothing can
+ * add to this except the one function below, so there is no forging call to
+ * review for. A test that needs a member goes through that function.
+ */
+const signedStructs = new WeakSet<object>()
+
+/**
+ * Whether this exact object is one Safe would hash and sign.
+ * @param value - the struct a caller proposes to vouch for
+ * @returns True only for an object `initializeSafeTransaction` returned
+ */
+export const isSignedStruct = (value: object): boolean =>
+  signedStructs.has(value)
+
 export interface IAugmentedSafeTxDocument extends ISafeTxMongoDocument {
-  safeTransaction: ISafeTransaction
+  safeTransaction: ISignedSafeTransaction
   hasSignedAlready: boolean
   canExecute: boolean
   threshold: number
@@ -777,7 +811,11 @@ export class SafeClient {
 
   // Sign a transaction hash using eth_sign (most compatible with all Safe versions)
   // Error GS026 indicates an invalid signature issue
-  public async signHash(hash: Hex): Promise<ISafeSignature> {
+  //
+  // Private because it signs a bare hash: there is no operation field in scope
+  // for the gate to read, so a caller reaching this directly would obtain a
+  // valid signature over a delegatecall with the gate never consulted.
+  private async signHash(hash: Hex): Promise<ISafeSignature> {
     try {
       console.log('Signing hash:', hash)
 
@@ -817,10 +855,14 @@ export class SafeClient {
    * Hardware wallets (e.g. Ledger) reject very large EIP-712 payloads (status
    * 0x6a80). The Safe contracts fully support eth_sign signatures over the Safe
    * transaction hash.
+   * @throws When the proposal's operation field is not exactly Call
    */
   public async signTransactionWithHash(
     safeTx: ISafeTransaction
   ): Promise<ISafeTransaction> {
+    // Redundant when `signTransaction` funnels here, but this entry point is
+    // public: a caller reaching the hash route directly must still be gated.
+    assertProposalOperationPermitted(evaluateDelegateCallGate(safeTx.data))
     try {
       // 1) Compute the Safe transaction hash on-chain (via viem client)
       const hash = await this.getTransactionHash(safeTx)
@@ -844,6 +886,7 @@ export class SafeClient {
   public async signTransaction(
     safeTx: ISafeTransaction
   ): Promise<ISafeTransaction> {
+    assertProposalOperationPermitted(evaluateDelegateCallGate(safeTx.data))
     if (resolveSafeSigningMode(process.env) === 'hash')
       return this.signTransactionWithHash(safeTx)
 
@@ -986,6 +1029,7 @@ export class SafeClient {
   public async executeTransaction(
     safeTx: ISafeTransaction
   ): Promise<IChainExecutionResult> {
+    assertProposalOperationPermitted(evaluateDelegateCallGate(safeTx.data))
     try {
       const signatures = this.formatSignatures(safeTx.signatures)
       if (!this.chainExecutor)
@@ -1009,6 +1053,7 @@ export class SafeClient {
       // Relabelling it would tell the operator a nonce was consumed when nothing
       // was ever sent.
       if (errorMsg.includes('refusing to broadcast')) throw error
+      if (errorMsg.startsWith('Operation gate:')) throw error
 
       // Redacted: viem embeds the endpoint, credentials and all, in error.message,
       // and SlackNotifier publishes it outside the workflow log's masking.
@@ -1201,7 +1246,7 @@ export function mongoSafeTxRowFilter(
 export const initializeSafeTransaction = async (
   txFromMongo: ISafeTxDocument,
   safe: SafeClient
-): Promise<ISafeTransaction> => {
+): Promise<ISignedSafeTransaction> => {
   // Create a new transaction using our viem-based Safe implementation
   const safeTransaction = await safe.createTransaction({
     transactions: [
@@ -1242,7 +1287,11 @@ export const initializeSafeTransaction = async (
     safeTransaction.signatures = signatures
   }
 
-  return safeTransaction
+  // The one place identity is recorded: this function is what turns a stored row
+  // into the struct that gets hashed and signed. The cast is the type hint; the
+  // WeakSet entry is what a gate can actually rely on.
+  signedStructs.add(safeTransaction)
+  return safeTransaction as ISignedSafeTransaction
 }
 
 /**
@@ -1577,6 +1626,10 @@ function sanitizeOverride(
     dirtyTreeScoped: Array.isArray(override.dirtyTreeScoped)
       ? override.dirtyTreeScoped.map(sanitizeProvenanceText).filter(Boolean)
       : [],
+    dirtyTreeRead:
+      typeof override.dirtyTreeRead === 'boolean'
+        ? override.dirtyTreeRead
+        : Array.isArray(override.dirtyTreeScoped),
     ...(override.dirtyTreeTruncated === true
       ? { dirtyTreeTruncated: true }
       : {}),
@@ -1662,6 +1715,7 @@ export function buildProposalProvenance(
       gitCommit: PROVENANCE_UNKNOWN,
       gitBranch: PROVENANCE_UNKNOWN,
       dirtyTreeScoped: [],
+      dirtyTreeRead: false,
       captureErrors: [`provenance capture failed: ${error}`],
       ...(reason ? { reason } : {}),
       ...ticket,

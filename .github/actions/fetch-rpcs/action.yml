@@ -1,0 +1,53 @@
+# Fetch prioritized RPC endpoints from MongoDB and forward them into the job environment.
+#
+# Masking is per URL, not per line: a `*_FALLBACKS` value is a space-separated list, and a
+# provider error quotes the single URL it failed on — a mask covering only the joined string
+# would leave that URL, and any key in it, readable in the log.
+name: Fetch RPC endpoints
+description: Fetch RPC endpoints from MongoDB into the job environment, masked
+
+inputs:
+  mongodb-uri:
+    description: MongoDB connection string used to read the RpcEndpoints collection
+    required: true
+  environment:
+    description: Environment whose endpoints to fetch
+    required: false
+    default: production
+
+runs:
+  using: composite
+  steps:
+    - name: Fetch and inject RPC endpoints
+      shell: bash
+      env:
+        MONGODB_URI: ${{ inputs.mongodb-uri }}
+        RPC_ENVIRONMENT: ${{ inputs.environment }}
+      run: |
+        # Falls back to the public RPCs in networks.json when MongoDB is unreachable.
+        bun run fetch-rpcs --environment "$RPC_ENVIRONMENT"
+
+        while IFS= read -r line || [[ -n "$line" ]]; do
+          [[ "$line" =~ ^ETH_NODE_URI_ ]] || continue
+          key="${line%%=*}"
+          value="${line#*=}"
+          # viem rejects a URL carrying a trailing CR or its surrounding quotes.
+          value="${value%$'\r'}"
+          if [[ "$value" == \"*\" ]]; then value="${value:1:-1}"; fi
+          if [[ "$value" == \'*\' ]]; then value="${value:1:-1}"; fi
+
+          if [[ -z "$value" ]]; then
+            echo "::warning::skipping $key (empty value)"
+            continue
+          fi
+
+          echo "::add-mask::$value"
+          read -ra rpc_urls <<< "$value"
+          if ((${#rpc_urls[@]} > 1)); then
+            for rpc_url in "${rpc_urls[@]}"; do
+              echo "::add-mask::$rpc_url"
+            done
+          fi
+
+          echo "${key}=${value}" >> "$GITHUB_ENV"
+        done < ".env"

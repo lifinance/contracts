@@ -3,7 +3,7 @@
  *
  * Proposes Safe transactions to add owners (from `config/global.json:safeOwners`
  * and/or `--owners`) and, when current threshold differs, propose a change to
- * the expected value (`EXPECTED_THRESHOLD`).
+ * the expected value (`SAFE_THRESHOLD`).
  * Supports a single network (`--network <name>`) or every active EVM mainnet
  * (`--all-networks`, excludes `networks.json` entries with `type: "testnet"`).
  * Signs with a Ledger by default; falls back to a private
@@ -26,7 +26,9 @@ import {
 import globalConfig from '../../../config/global.json'
 import networksData from '../../../config/networks.json'
 import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
+import { SAFE_THRESHOLD } from '../shared/constants'
 
+import { readBooleanFlag } from './cli-flags'
 import type { ILedgerAccountResult } from './ledger'
 import { assertTicketPresent } from './proposal-intent'
 import {
@@ -39,8 +41,6 @@ import {
   storeTransactionInMongoDB,
   type ISafeTxDocument,
 } from './safe-utils'
-
-const EXPECTED_THRESHOLD = 3
 
 const ansi = (code: string, text: string) => `\x1b[${code}m${text}\x1b[0m`
 const green = (text: string) => ansi('32', text)
@@ -88,7 +88,7 @@ interface ICheckResult {
 const main = defineCommand({
   meta: {
     name: 'add-safe-owners-and-threshold',
-    description: `Proposes transactions to add SAFE owners from global.json (and/or --owners) and sets threshold to ${EXPECTED_THRESHOLD}. Single network via --network; --all-networks skips networks where type is testnet.`,
+    description: `Proposes transactions to add SAFE owners from global.json (and/or --owners) and sets threshold to ${SAFE_THRESHOLD}. Single network via --network; --all-networks skips networks where type is testnet.`,
   },
   args: {
     network: {
@@ -100,7 +100,6 @@ const main = defineCommand({
       description:
         'Run on every active EVM network in networks.json with type mainnet (excludes testnets)',
       alias: 'all-networks',
-      default: false,
     },
     privateKey: {
       type: 'string',
@@ -135,15 +134,25 @@ const main = defineCommand({
     },
   },
   async run({ args }) {
-    if (!args.network && !args.allNetworks)
+    // Strict: on fans the run out to every active network, so `--all-networks 0`
+    // has to be refused, not resolved to on.
+    const allNetworks = readBooleanFlag(process.argv, {
+      camel: 'allNetworks',
+      kebab: 'all-networks',
+    })
+    const useLedgerLive = readBooleanFlag(process.argv, {
+      camel: 'ledgerLive',
+      kebab: 'ledger-live',
+    })
+    if (!args.network && !allNetworks)
       throw new Error('Provide either --network <name> or --all-networks')
-    if (args.network && args.allNetworks)
+    if (args.network && allNetworks)
       throw new Error('--network and --all-networks are mutually exclusive')
 
     const cliOwners = parseCliOwners(args.owners)
 
     if (args.check) {
-      const networks = resolveNetworks(args.network, args.allNetworks)
+      const networks = resolveNetworks(args.network, allNetworks)
       if (!networks.length) {
         consola.warn('No networks selected — exiting')
         return
@@ -155,16 +164,12 @@ const main = defineCommand({
       ) as Address[]
 
       consola.info(
-        `Checking ${networks.length} network(s) against ${expectedOwners.length} expected owner(s) + threshold=${EXPECTED_THRESHOLD}`
+        `Checking ${networks.length} network(s) against ${expectedOwners.length} expected owner(s) + threshold=${SAFE_THRESHOLD}`
       )
 
       const checkResults: ICheckResult[] = []
       for (const network of networks) {
-        const r = await checkNetwork(
-          network,
-          expectedOwners,
-          EXPECTED_THRESHOLD
-        )
+        const r = await checkNetwork(network, expectedOwners, SAFE_THRESHOLD)
         checkResults.push(r)
       }
 
@@ -177,7 +182,7 @@ const main = defineCommand({
     // Resolved here rather than after the Ledger, so both constraints hold at
     // once: an empty selection proposes nothing and must not be refused, and the
     // refusal must land before a device confirmation is collected per network.
-    const networks = resolveNetworks(args.network, args.allNetworks)
+    const networks = resolveNetworks(args.network, allNetworks)
     if (!networks.length) {
       consola.warn('No networks selected — exiting')
       return
@@ -188,13 +193,13 @@ const main = defineCommand({
     const useLedger = args.ledger ?? true
     const ledgerOptions: ILedgerOptions | undefined = useLedger
       ? {
-          ledgerLive: args.ledgerLive || false,
+          ledgerLive: useLedgerLive,
           accountIndex: args.accountIndex ? Number(args.accountIndex) : 0,
           derivationPath: args.derivationPath,
         }
       : undefined
 
-    if (useLedger && args.derivationPath && args.ledgerLive)
+    if (useLedger && args.derivationPath && useLedgerLive)
       throw new Error(
         "Cannot use both 'derivationPath' and 'ledgerLive' options together"
       )
@@ -417,7 +422,7 @@ async function processNetwork(
 
     let thresholdNewlyProposed = false
     let thresholdAlreadyProposed = false
-    if (currentThreshold !== EXPECTED_THRESHOLD) {
+    if (currentThreshold !== SAFE_THRESHOLD) {
       // Existing proposals will add their owners when executed, so include
       // both newly proposed and already-proposed addOwners in the projection.
       const updatedOwnerCount =
@@ -425,16 +430,16 @@ async function processNetwork(
         addOwnerNewlyProposed +
         addOwnerAlreadyProposed
 
-      if (updatedOwnerCount < EXPECTED_THRESHOLD)
+      if (updatedOwnerCount < SAFE_THRESHOLD)
         throw new Error(
-          `Cannot set threshold to ${EXPECTED_THRESHOLD} when only ${updatedOwnerCount} owner(s) would exist (would lock the Safe)`
+          `Cannot set threshold to ${SAFE_THRESHOLD} when only ${updatedOwnerCount} owner(s) would exist (would lock the Safe)`
         )
 
       consola.info(
-        `Now proposing to change threshold from ${currentThreshold} to ${EXPECTED_THRESHOLD}`
+        `Now proposing to change threshold from ${currentThreshold} to ${SAFE_THRESHOLD}`
       )
       const changeThresholdTx = await safe.createChangeThresholdTx(
-        EXPECTED_THRESHOLD,
+        SAFE_THRESHOLD,
         { nonce: nextNonce }
       )
       const signedThresholdTx = await safe.signTransaction(changeThresholdTx)
@@ -463,7 +468,7 @@ async function processNetwork(
       }
     } else
       consola.success(
-        `Threshold is already set to ${EXPECTED_THRESHOLD} - no action required`
+        `Threshold is already set to ${SAFE_THRESHOLD} - no action required`
       )
 
     const summaryParts: string[] = []
@@ -473,10 +478,9 @@ async function processNetwork(
       summaryParts.push(`${addOwnerAlreadyProposed} addOwner already proposed`)
     if (ownersAlreadyOnChain > 0)
       summaryParts.push(`${ownersAlreadyOnChain} already on-chain`)
-    if (thresholdNewlyProposed)
-      summaryParts.push(`threshold→${EXPECTED_THRESHOLD}`)
+    if (thresholdNewlyProposed) summaryParts.push(`threshold→${SAFE_THRESHOLD}`)
     else if (thresholdAlreadyProposed)
-      summaryParts.push(`threshold→${EXPECTED_THRESHOLD} already proposed`)
+      summaryParts.push(`threshold→${SAFE_THRESHOLD} already proposed`)
     if (!summaryParts.length) summaryParts.push('no changes')
 
     return { proposalsCreated, summary: summaryParts.join(', ') }
@@ -588,7 +592,7 @@ function printCheckTable(results: ICheckResult[]): void {
     const th =
       r.threshold !== undefined
         ? `threshold=${
-            r.threshold === EXPECTED_THRESHOLD
+            r.threshold === SAFE_THRESHOLD
               ? green(String(r.threshold))
               : red(String(r.threshold))
           }`

@@ -33,6 +33,7 @@ import { type Address, type Hex } from 'viem'
 import { signMessage } from 'viem/accounts'
 
 import { getEnvVar } from '../../utils/utils'
+import { flagIsOn } from '../safe/cli-flags'
 import { assertTicketPresent } from '../safe/proposal-intent'
 import {
   getNextNonce,
@@ -43,6 +44,10 @@ import {
   storeTransactionInMongoDB,
 } from '../safe/safe-utils'
 import { encodeTimelockScheduleBatch } from '../safe/timelock-abi'
+import {
+  assertFunnelDeployGate,
+  createFunnelGateDeps,
+} from '../shared/funnel-deploy-gate'
 
 import {
   TRON_DIAMOND_CONFIRM_OWNERSHIP_SELECTOR,
@@ -136,6 +141,13 @@ async function runPropose(options: IProposeToSafeTronOptions) {
     consola.info('Mode: ownership (confirmOwnershipTransfer via Timelock)')
   }
 
+  // Parsed once, here, and reused below: the deploy gate has to read the very
+  // calls that get signed — a second parse of its own would let it vouch for
+  // bytes other than the ones proposed.
+  const genericCalls = genericMode
+    ? normalizeTronProposeCalls(options.to, options.calldata, !useDirect)
+    : undefined
+
   // 1) Get min delay from Timelock (needed for scheduleBatch). Skipped in
   // direct mode, which doesn't touch the Timelock.
   let minDelayBigInt = 0n
@@ -173,7 +185,9 @@ async function runPropose(options: IProposeToSafeTronOptions) {
   let hashToBase58: string
   let dryRunDescription: string
 
-  if (!genericMode) {
+  // branching on the parsed calls rather than the flag lets the compiler see
+  // that generic mode has them; the two are set together and cannot disagree
+  if (!genericCalls) {
     safeTxDataHex = encodeTimelockScheduleBatch(
       [diamondAddressEvm] as Address[],
       [TRON_DIAMOND_CONFIRM_OWNERSHIP_SELECTOR],
@@ -185,11 +199,7 @@ async function runPropose(options: IProposeToSafeTronOptions) {
     dryRunDescription =
       'scheduleBatch(Diamond, confirmOwnershipTransfer selector)'
   } else {
-    const { targets, calldatas } = normalizeTronProposeCalls(
-      options.to,
-      options.calldata,
-      !useDirect
-    )
+    const { targets, calldatas } = genericCalls
 
     if (!useDirect) {
       // Combine one or more inner calls into a single scheduleBatch proposal;
@@ -229,6 +239,27 @@ async function runPropose(options: IProposeToSafeTronOptions) {
   // opened: the store-time refusal throws past this function's only
   // `mongoClient.close()`, leaving the connection open and the process hanging.
   assertTicketPresent()
+
+  // Beside the ticket check for the same two reasons: a dry run proposes
+  // nothing, so gating its preview would refuse a command that cannot install
+  // anything; and both must precede the signature, which they do. Ownership
+  // mode proposes a single `confirmOwnershipTransfer` selector and installs no
+  // code, so only generic mode carries calls worth decoding.
+  // `deployments/<network>.json` stores base58 here while a cut's calldata
+  // carries 20-byte hex, hence the reader.
+  if (genericCalls)
+    await assertFunnelDeployGate(
+      { network: networkName, calldatas: genericCalls.calldatas },
+      createFunnelGateDeps({
+        toEvmHex: (value) => {
+          try {
+            return tronBase58ToEvm20Hex(tronWeb, value).toLowerCase()
+          } catch {
+            return undefined
+          }
+        },
+      })
+    )
 
   // 2) Get current Safe nonce on chain
   const safeAbiNonce = [
@@ -377,7 +408,6 @@ const main = defineCommand({
     dryRun: {
       type: 'boolean',
       description: 'Do not write to MongoDB',
-      default: false,
     },
     to: {
       type: 'string',
@@ -451,7 +481,7 @@ const main = defineCommand({
       }
 
       await runPropose({
-        dryRun: args.dryRun,
+        dryRun: flagIsOn(args.dryRun),
         // citty returns a string for a single flag and an array when repeated
         to: args.to as unknown as string | string[] | undefined,
         calldata: args.calldata as unknown as Hex | Hex[] | undefined,

@@ -2,8 +2,12 @@
  * Reads and strips the solc CBOR metadata trailer from runtime bytecode.
  *
  * Import this before hashing deployed code for comparison: two builds of one
- * source differ in these bytes whenever a comment or a file path changed. The
- * zksolc trailer is a different format and is not handled here.
+ * source differ in these bytes whenever a comment or a file path changed.
+ *
+ * zksolc writes the same length-word-and-CBOR envelope, so the strip is shared
+ * rather than forked — a second reader of one field is how the bytes vouched for
+ * and the bytes compared come apart. Only the `solc` value differs: solc writes
+ * a three-byte release, zksolc a `zksolc:…;solc:…;llvm:…` text triple.
  */
 
 import { decodeCborMap } from './cbor-map'
@@ -19,6 +23,19 @@ const LENGTH_WORD_BYTES = 2
 /** solc is still on 0.x, and no released minor or patch is near this. */
 const MAX_PLAUSIBLE_VERSION_PART = 99
 
+/**
+ * The three versions a zksolc build records about itself.
+ *
+ * All-or-nothing on purpose: D19(b) requires the solc-fork/LLVM sub-version to
+ * be compared **unmasked**, and a partially-read triple would make that
+ * comparison silently incomplete while looking finished.
+ */
+export interface IToolchainVersions {
+  zksolcVersion: string
+  solcVersion: string
+  llvmVersion: string
+}
+
 export interface IMetadataTrailerFound {
   present: true
   /** Bytes of CBOR, excluding the length word. */
@@ -27,6 +44,8 @@ export interface IMetadataTrailerFound {
   totalStrippedBytes: number
   /** Undefined when no version can be read, which is never a guess. */
   solcVersion?: string
+  /** Present only for a zksolc build, so its absence identifies an EVM lineage. */
+  toolchain?: IToolchainVersions
 }
 
 export interface IMetadataTrailerAbsent {
@@ -70,6 +89,33 @@ const readSolcVersion = (value: string | undefined): string | undefined => {
 }
 
 /**
+ * Anchored, ordered and fully numeric: every component must be present and
+ * parse as a release, because these bytes are chosen by whoever deployed the
+ * code. Anything else is reported as "no toolchain" rather than as a partial
+ * reading a signer would see as fact.
+ */
+const ZK_TOOLCHAIN =
+  /^zksolc:(\d+\.\d+\.\d+);solc:(\d+\.\d+\.\d+);llvm:(\d+\.\d+\.\d+)$/
+
+/**
+ * Reads zksolc's text version triple out of the `solc` entry.
+ * @param value - the entry's value as hex, or undefined when absent
+ */
+const readZkToolchain = (value?: string): IToolchainVersions | undefined => {
+  if (value === undefined) return undefined
+  // Bytes that are not text decode to replacement characters, which the
+  // anchored pattern then rejects.
+  const text = Buffer.from(value, 'hex').toString('utf8')
+  const parts = ZK_TOOLCHAIN.exec(text)
+  if (!parts) return undefined
+  return {
+    zksolcVersion: parts[1] as string,
+    solcVersion: parts[2] as string,
+    llvmVersion: parts[3] as string,
+  }
+}
+
+/**
  * Inspects the tail of runtime bytecode for a solc metadata trailer.
  *
  * Every path that cannot read a trailer reports absence rather than a best
@@ -108,13 +154,16 @@ export const readMetadataTrailer = (runtimeHex: string): MetadataTrailer => {
   const decoded = decodeCborMap(cbor.toLowerCase())
   if (!decoded.ok) return absent(decoded.reason)
 
-  const solcVersion = readSolcVersion(decoded.entries[SOLC_KEY])
+  const raw = decoded.entries[SOLC_KEY]
+  const toolchain = readZkToolchain(raw)
+  const solcVersion = toolchain?.solcVersion ?? readSolcVersion(raw)
 
   return {
     present: true,
     byteLength: declared,
     totalStrippedBytes,
     ...(solcVersion ? { solcVersion } : {}),
+    ...(toolchain ? { toolchain } : {}),
   }
 }
 

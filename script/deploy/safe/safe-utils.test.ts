@@ -157,6 +157,7 @@ const FIXED_PROVENANCE: IProposalProvenance = {
   gitCommit: 'a'.repeat(40),
   gitBranch: 'test-branch',
   dirtyTreeScoped: [],
+  dirtyTreeRead: true,
   capturedAt: '2026-01-01T00:00:00.000Z',
 }
 
@@ -2196,7 +2197,7 @@ describe('resolveSignerVerificationDisplay', () => {
   })
 })
 
-describe('SafeClient.signTransaction default path', () => {
+describe('SafeClient sign-path operation gate and default path', () => {
   const previous = process.env.ENABLE_SAFE_EIP712_SIGNING
   beforeEach(() => {
     delete process.env.ENABLE_SAFE_EIP712_SIGNING
@@ -2324,5 +2325,83 @@ describe('SafeClient.signTransaction default path', () => {
     expect(threw).toBe(true)
     expect(calls.filter((call) => call.startsWith('signMessage'))).toEqual([])
     expect(calls).not.toContain('getTransactionHash')
+  })
+
+  it('never reaches the signing client for a delegatecall', async () => {
+    const { client, calls } = await makeClient()
+
+    await expectRejects(
+      client.signTransaction(
+        buildSafeTx({ operation: OperationTypeEnum.DelegateCall })
+      ),
+      /Operation gate:[\s\S]*Nothing has been signed or executed/
+    )
+
+    expect(calls).toEqual([])
+  })
+
+  it('refuses on the hash route reached without the funnel', async () => {
+    // Reached directly, not through `signTransaction`: that method is the only
+    // in-repo caller today, so asserting through it would pass with this
+    // public entry point ungated.
+    const { client, calls } = await makeClient()
+
+    // Matched on the gate's own wording: the method's catch relabels failures
+    // as "Failed to sign transaction hash", so a refusal raised inside the try
+    // would pass a laxer assertion while hiding what refused.
+    await expectRejects(
+      client.signTransactionWithHash(
+        buildSafeTx({ operation: OperationTypeEnum.DelegateCall })
+      ),
+      /Operation gate:[\s\S]*Nothing has been signed or executed/
+    )
+
+    expect(calls).toEqual([])
+  })
+
+  it('refuses a string operation, the shape a stored row can carry', async () => {
+    // `createTransaction` normalises the field with `||`, so a truthy string
+    // survives to the struct untouched — the enum value the case above uses is
+    // not the shape that actually arrives off an unvalidated row.
+    const { client, calls } = await makeClient()
+
+    await expectRejects(
+      client.signTransactionWithHash(
+        buildSafeTx({ operation: '0' as unknown as OperationTypeEnum })
+      ),
+      /Operation gate:[\s\S]*only the number 0/
+    )
+
+    expect(calls).toEqual([])
+  })
+})
+
+describe('SafeClient.executeTransaction operation gate', () => {
+  it('never reaches the chain executor for a delegatecall', async () => {
+    const { SafeClient } = await import('./safe-utils')
+    const account = privateKeyToAccount(generatePrivateKey())
+    const broadcasts: unknown[] = []
+    const client = new SafeClient(
+      {} as never,
+      {} as never,
+      SAFE_ADDR,
+      account,
+      {
+        executeTransaction: async (execution) => {
+          broadcasts.push(execution)
+          return { hash: '0x1' as Hex }
+        },
+      },
+      1
+    )
+
+    await expectRejects(
+      client.executeTransaction(
+        buildSafeTx({ operation: OperationTypeEnum.DelegateCall })
+      ),
+      /Operation gate:[\s\S]*Nothing has been signed or executed/
+    )
+
+    expect(broadcasts).toEqual([])
   })
 })

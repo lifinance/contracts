@@ -27,9 +27,10 @@ import { getEnvVar } from '../utils/utils'
 
 import { createDefaultCache } from './shared/deployment-cache'
 import {
+  buildDeploymentUpsert,
+  captureRecordProvenance,
   deploymentRecordEqFilter,
-  getCurrentGitCommitHash,
-  getCurrentRepo,
+  describeDirtyTree,
   provenanceUpdate,
   type IDeploymentRecord,
   type IUpdateConfig,
@@ -190,37 +191,7 @@ class DeploymentLogManager {
   public async upsertDeployment(record: IDeploymentRecord): Promise<void> {
     if (!this.collection) throw new Error('Collection not initialized')
 
-    const filter = {
-      contractName: mongoEq(record.contractName),
-      network: mongoEq(record.network),
-      version: mongoEq(record.version),
-      address: mongoEq(record.address),
-    }
-
-    const update = {
-      $set: {
-        contractName: record.contractName,
-        network: record.network,
-        version: record.version,
-        address: record.address,
-        optimizerRuns: record.optimizerRuns,
-        timestamp: record.timestamp,
-        constructorArgs: record.constructorArgs,
-        salt: record.salt,
-        verified: record.verified,
-        solcVersion: record.solcVersion,
-        evmVersion: record.evmVersion,
-        zkSolcVersion: record.zkSolcVersion,
-        ...provenanceUpdate(record).set,
-        contractNetworkKey: record.contractNetworkKey,
-        contractVersionKey: record.contractVersionKey,
-        updatedAt: new Date(),
-      },
-      $setOnInsert: {
-        createdAt: new Date(),
-        ...provenanceUpdate(record).setOnInsert,
-      },
-    }
+    const { filter, update } = buildDeploymentUpsert(record)
 
     await this.collection.updateOne(filter, update, { upsert: true })
   }
@@ -707,6 +678,17 @@ const addCommand = defineCommand({
       description: 'EVM version',
       required: false,
     },
+    dryRun: {
+      type: 'boolean',
+      // Every sibling flag here is kebab-cased, so `--dry-run` is the spelling a
+      // caller reaches for. Both the alias and the absent `default` are needed:
+      // citty resolves a kebab spelling through its own fallback only for an arg
+      // that carries no default, and a `--dry-run` silently read as `false`
+      // would make a dry run a real write.
+      alias: 'dry-run',
+      description:
+        'Print the upsert that would be applied, without connecting to MongoDB',
+    },
   },
   async run({ args }) {
     // Validate environment
@@ -720,6 +702,13 @@ const addCommand = defineCommand({
       consola.error('Verified must be either "true" or "false"')
       process.exit(1)
     }
+
+    const { captureErrors, ...provenanceFields } = captureRecordProvenance()
+    // Info, not warn: `logContractDeploymentInfo` runs this command with
+    // stderr discarded unless DEBUG is set, and consola sends warnings there —
+    // so a warning about the tree a deploy came from would never be seen.
+    for (const problem of captureErrors ?? [])
+      consola.info(`Provenance capture problem: ${problem}`)
 
     // Create deployment record
     const record: IDeploymentRecord = {
@@ -739,12 +728,33 @@ const addCommand = defineCommand({
         typeof args['zk-solc-version'] === 'string'
           ? args['zk-solc-version']
           : '',
-      gitCommitHash: getCurrentGitCommitHash(),
-      repo: getCurrentRepo(),
+      ...provenanceFields,
       createdAt: new Date(),
       updatedAt: new Date(),
       contractNetworkKey: `${args.contract}-${args.network}`,
       contractVersionKey: `${args.contract}-${args.version}`,
+    }
+
+    consola.info(
+      `Deployment provenance: branch ${record.gitBranch}, actor ${
+        record.actor
+      }, dirty ${describeDirtyTree(record)}`
+    )
+    if (record.dirtyTreeScoped?.length)
+      consola.info(
+        `Deployed from a dirty tree: ${record.dirtyTreeScoped.join(', ')}${
+          record.dirtyTreeTruncated ? ', …' : ''
+        }`
+      )
+
+    if (args.dryRun) {
+      consola.info('Dry run: nothing was written to MongoDB')
+      // The upsert, not just the record, because that is what a reviewer needs
+      // to see: which provenance fields reach `$set` and which only `$setOnInsert`.
+      process.stdout.write(
+        `${JSON.stringify(buildDeploymentUpsert(record), null, 2)}\n`
+      )
+      return
     }
 
     const manager = new DeploymentLogManager(

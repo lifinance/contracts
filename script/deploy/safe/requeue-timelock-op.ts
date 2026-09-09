@@ -36,6 +36,7 @@ import { getDeployments } from '../../utils/deploymentHelpers'
 import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
 import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 
+import { flagIsOn } from './cli-flags'
 import {
   byOperationId,
   computeOperationIdBatch,
@@ -193,7 +194,6 @@ const cmd = defineCommand({
       type: 'boolean',
       description: 'Validate and report, but do not write to MongoDB',
       required: false,
-      default: false,
     },
     force: {
       type: 'boolean',
@@ -332,7 +332,7 @@ const cmd = defineCommand({
       }
       if (verdict.warning) consola.warn(verdict.warning)
 
-      if (args.dryRun) {
+      if (flagIsOn(args.dryRun)) {
         consola.success(
           `[DRY RUN] Would flip ${operationId} on ${network} from '${doc.status}' to 'queued'.`
         )

@@ -35,13 +35,46 @@ describe('getLocalSelectorInfo', () => {
     expect(info?.signature).toBe('transfer(address,uint256)')
   })
 
-  it('resolves a diamond function published in clearSigningProposal.json', () => {
-    // Key taken from config/clearSigningProposal.json formats
-    const selector = toFunctionSelector(
-      'function startBridgeTokensViaAcrossV4ERC20Packed()'
+  it('resolves every diamond function published in clearSigningProposal.json', () => {
+    const proposalPath = path.join(
+      process.cwd(),
+      'config/clearSigningProposal.json'
     )
-    const info = getLocalSelectorInfo(selector)
-    expect(info?.name).toBe('startBridgeTokensViaAcrossV4ERC20Packed')
+    const proposal = JSON.parse(fs.readFileSync(proposalPath, 'utf8')) as {
+      formats: Record<string, unknown>
+    }
+    const signatures = Object.keys(proposal.formats)
+    expect(signatures.length).toBeGreaterThan(0)
+    for (const signature of signatures) {
+      const name = signature.slice(0, signature.indexOf('('))
+      const info = getLocalSelectorInfo(
+        toFunctionSelector(`function ${signature}`)
+      )
+      expect(info?.name).toBe(name)
+    }
+  })
+
+  it('resolves the AcrossV4 packed/min entry-points the proposal omits', () => {
+    // These carry no ERC-7730 entry, so the well-known list is what covers them.
+    // Selectors and signatures cross-checked against the Foundry artifact at
+    // out/AcrossFacetPackedV4.sol. The signature is asserted too: a typo in the
+    // well-known entry would change the selector it registers under, so both
+    // sides of the mapping are pinned. `source` is deliberately not asserted —
+    // diamond.json takes precedence when present, and it is generated, so
+    // pinning the source would fail on any checkout that has run `abi:generate`.
+    const expected: Record<string, string> = {
+      '0x36b92404': 'startBridgeTokensViaAcrossV4ERC20Packed()',
+      '0xc5d60e97': 'startBridgeTokensViaAcrossV4NativePacked()',
+      '0x7260352d':
+        'startBridgeTokensViaAcrossV4ERC20Min((bytes8,bytes32,bytes32,uint64,bytes32,uint256,bytes32,uint32,uint32,uint32,bytes),bytes32,uint256)',
+      '0x72dd147e':
+        'startBridgeTokensViaAcrossV4NativeMin((bytes8,bytes32,bytes32,uint64,bytes32,uint256,bytes32,uint32,uint32,uint32,bytes))',
+    }
+    for (const [selector, signature] of Object.entries(expected)) {
+      const info = getLocalSelectorInfo(selector)
+      expect(info?.name).toBe(signature.slice(0, signature.indexOf('(')))
+      expect(info?.signature).toBe(signature)
+    }
   })
 
   it('is case-insensitive on the selector', () => {
