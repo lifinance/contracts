@@ -25,12 +25,6 @@ export interface IProposeToSafeTronOptions {
   privateKey?: string
 }
 
-export interface IDiamondRegistrationResult {
-  success: boolean
-  transactionId?: string
-  error?: string
-}
-
 /** Resume state for `deploy-safe-tron.ts` (singleton + factory addresses). */
 export interface ITronSafeTemp {
   safeSingletonAddress?: string
