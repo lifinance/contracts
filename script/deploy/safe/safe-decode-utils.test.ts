@@ -26,6 +26,7 @@ import {
   formatBatchSetContractSelectorWhitelist,
   formatDecodedArg,
   formatDecodedTxDataForDisplay,
+  formatTimelockScheduleBatch,
 } from './safe-decode-utils'
 
 const DEFAULT_ADMIN_ROLE = `0x${'00'.repeat(32)}`
@@ -548,6 +549,44 @@ describe('formatDecodedTxDataForDisplay renders no proposer-controlled text raw'
     // The nested frame really was entered, so the assertion above is about the
     // recursion rather than about the batch header alone.
     expect(lines.some((line) => line.includes('Periphery Name:'))).toBe(true)
+  })
+})
+
+describe('formatTimelockScheduleBatch — driven by the stored row', () => {
+  const ESC = String.fromCharCode(27)
+
+  it('renders a hostile payload selector inert', async () => {
+    // `execute-pending-timelock-tx` hands `deserializeScheduleParams(row)`
+    // straight in, so these are stored strings rather than ABI-decoded bytes:
+    // the payload need not be hex at all, and the selector is simply its first
+    // ten characters. Driving the function directly is the only way to reach
+    // that, since `bytes` recovered from calldata is always valid hex.
+    const infoSpy = spyOn(consola, 'info').mockImplementation(
+      (() => {}) as never
+    )
+    try {
+      await formatTimelockScheduleBatch(
+        [
+          ['0x1111111111111111111111111111111111111111'],
+          [0n],
+          [`0xbeef${ESC}[2Jfake`],
+          `0x${'00'.repeat(32)}`,
+          `0x${'11'.repeat(32)}`,
+          86400n,
+        ],
+        'mainnet'
+      )
+      const line = infoSpy.mock.calls
+        .map((call) => String(call[0]))
+        .find((text) => text.includes('selector='))
+
+      // Present: the stored value did reach the line, so the absence below is
+      // about sanitising rather than about the line never being printed.
+      expect(line).toContain('0xbeef')
+      expect(line).not.toContain(`${ESC}[2J`)
+    } finally {
+      infoSpy.mockRestore()
+    }
   })
 })
 

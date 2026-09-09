@@ -607,7 +607,7 @@ export async function formatTimelockScheduleBatch(
       `[${idx}] target=\u001b[32m${targetDisplay}\u001b[0m${targetNameSuffix}`
     )
     consola.info(`     value=\u001b[32m${valueStr}\u001b[0m`)
-    consola.info(`     selector=\u001b[36m${selector}\u001b[0m`)
+    consola.info(`     selector=\u001b[36m${printableField(selector)}\u001b[0m`)
     if (context && payloadStr && payloadStr !== '0x') {
       consola.info('     Decoded call:')
       const nestedContext: IFormatDecodedTxContext = {
