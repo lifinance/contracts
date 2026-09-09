@@ -533,7 +533,22 @@ Honest list — the tooling displays these, but does **not** machine-assert them
 - **The Safe itself.** The `safeAddress` comes from the proposal document and
   is not cross-checked against `config/networks.json` at confirm time.
 - **Unknown selectors.** Names for selectors without a local ABI come from
-  the external `api.4byte.sourcify.dev` database, displayed as-is.
+  the external `api.4byte.sourcify.dev` database. The name is sanitised and
+  bounded before it is printed, but nothing vouches for what it says.
+- **Confusable characters.** Every stored field the prompt shows is reduced to
+  printable text and annotated with a `⚠` notice naming what had to be repaired
+  — how many characters were stored against how many are printable, invisible
+  characters that survived, and how many code points are outside ASCII. The
+  notice is the signal: a facet name written with a Cyrillic `о` is
+  byte-different and glyph-identical, so the count is all that distinguishes it.
+  A field with no notice needed no repair.
+
+  Fields are also bounded in length, with one deliberate exception: the calldata
+  is never clipped, because clipping it would remove the thing the signer is
+  being asked to approve. Its length is its own disclosure. A field that *was*
+  clipped says so separately, naming how much is off screen. Note the counts
+  cover everything that survived sanitising, including any part past a clip —
+  those characters are still covered by the signature.
 - **Execution outcome.** No simulation at review or sign time; the first
   signal is the broadcast itself.
 - **Bytecode of anything a cut does not install.** The sign-time codehash gate

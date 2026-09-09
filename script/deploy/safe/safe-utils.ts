@@ -66,6 +66,7 @@ import {
   getDeployedFacetVersionFromLog,
   getTargetStateFacetVersion,
 } from './facet-version-utils'
+import { printableField } from './printable-field'
 import {
   firstSupplied,
   formatReasonWarning,
@@ -3216,7 +3217,9 @@ export async function decodeDiamondCut(
         const fourByteName = fourByteResolved.get(normalizedSelector)
         if (fourByteName)
           consola.info(
-            `${pre}Function: \u001b[34m${fourByteName}\u001b[0m [${selector}] \u001b[90m(4byte.sourcify.dev)\u001b[0m`
+            `${pre}Function: \u001b[34m${printableField(
+              fourByteName
+            )}\u001b[0m [${selector}] \u001b[90m(4byte.sourcify.dev)\u001b[0m`
           )
         else consola.warn(`${pre}Unknown function [${selector}]`)
       }
