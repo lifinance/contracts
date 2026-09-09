@@ -31,6 +31,7 @@ import {
 import { getDeployments } from '../../utils/deploymentHelpers'
 import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
 
+import { flagIsOn } from './cli-flags'
 import { getSafeMongoCollection, type ISafeTxDocument } from './safe-utils'
 import { TIMELOCK_SCHEDULE_BATCH_SELECTOR } from './timelock-abi'
 import {
@@ -60,7 +61,6 @@ const cmd = defineCommand({
       type: 'boolean',
       description: 'Scan and report without writing the queue',
       required: false,
-      default: false,
     },
     network: {
       type: 'string',
@@ -69,7 +69,7 @@ const cmd = defineCommand({
     },
   },
   async run({ args }) {
-    const isDryRun = Boolean(args?.dryRun)
+    const isDryRun = flagIsOn(args?.dryRun)
     const networksConfig = data as INetworksObject
     const networksToProcess: INetworksObject[string][] = args?.network
       ? [

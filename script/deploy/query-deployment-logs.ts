@@ -15,6 +15,7 @@ import { MongoClient, type Db, type Collection, type Filter } from 'mongodb'
 import type { EnvironmentEnum } from '../common/types'
 import { getEnvVar } from '../utils/utils'
 
+import { flagIsOn } from './safe/cli-flags'
 import {
   type IBatchQuerier,
   executeBatchQueries,
@@ -230,7 +231,6 @@ const latestCommand = defineCommand({
       type: 'boolean',
       description:
         'Use local cache (default: true, use --no-use-cache to disable)',
-      default: true,
     },
   },
   async run({ args }) {
@@ -247,7 +247,7 @@ const latestCommand = defineCommand({
     }
 
     // Use cached querier by default
-    if (args.useCache) {
+    if (flagIsOn(args.useCache, { whenAbsent: true })) {
       const cachedQuerier = new CachedDeploymentQuerier(
         config,
         args.env as keyof typeof EnvironmentEnum
@@ -341,7 +341,6 @@ const listCommand = defineCommand({
       type: 'boolean',
       description:
         'Use local cache (default: true, use --no-use-cache to disable)',
-      default: true,
     },
   },
   async run({ args }) {
@@ -361,7 +360,7 @@ const listCommand = defineCommand({
     const page = ValidationUtils.safeParseInt(args.page, 1, 1)
 
     // Use cached querier by default
-    if (args.useCache) {
+    if (flagIsOn(args.useCache, { whenAbsent: true })) {
       const cachedQuerier = new CachedDeploymentQuerier(
         config,
         args.env as keyof typeof EnvironmentEnum
@@ -488,7 +487,6 @@ const findCommand = defineCommand({
       type: 'boolean',
       description:
         'Use local cache (default: true, use --no-use-cache to disable)',
-      default: true,
     },
   },
   async run({ args }) {
@@ -505,7 +503,7 @@ const findCommand = defineCommand({
     }
 
     // Use cached querier by default
-    if (args.useCache) {
+    if (flagIsOn(args.useCache, { whenAbsent: true })) {
       const cachedQuerier = new CachedDeploymentQuerier(
         config,
         args.env as keyof typeof EnvironmentEnum
@@ -606,7 +604,6 @@ const filterCommand = defineCommand({
       type: 'boolean',
       description:
         'Use local cache (default: true, use --no-use-cache to disable)',
-      default: true,
     },
   },
   async run({ args }) {
@@ -631,7 +628,7 @@ const filterCommand = defineCommand({
       filters.limit = ValidationUtils.safeParseInt(args.limit, 50, 1, 1000)
 
     // Use cached querier by default
-    if (args.useCache) {
+    if (flagIsOn(args.useCache, { whenAbsent: true })) {
       const cachedQuerier = new CachedDeploymentQuerier(
         config,
         args.env as keyof typeof EnvironmentEnum
@@ -718,7 +715,6 @@ const historyCommand = defineCommand({
       type: 'boolean',
       description:
         'Use local cache (default: true, use --no-use-cache to disable)',
-      default: true,
     },
   },
   async run({ args }) {
@@ -735,7 +731,7 @@ const historyCommand = defineCommand({
     }
 
     // Use cached querier by default
-    if (args.useCache) {
+    if (flagIsOn(args.useCache, { whenAbsent: true })) {
       const cachedQuerier = new CachedDeploymentQuerier(
         config,
         args.env as keyof typeof EnvironmentEnum
@@ -829,7 +825,6 @@ const existsCommand = defineCommand({
       type: 'boolean',
       description:
         'Use local cache (default: true, use --no-use-cache to disable)',
-      default: true,
     },
   },
   async run({ args }) {
@@ -840,7 +835,7 @@ const existsCommand = defineCommand({
     }
 
     // Use cached querier by default
-    if (args.useCache) {
+    if (flagIsOn(args.useCache, { whenAbsent: true })) {
       const cachedQuerier = new CachedDeploymentQuerier(
         config,
         args.env as keyof typeof EnvironmentEnum
@@ -928,7 +923,6 @@ const getCommand = defineCommand({
       type: 'boolean',
       description:
         'Use local cache (default: true, use --no-use-cache to disable)',
-      default: true,
     },
   },
   async run({ args }) {
@@ -945,7 +939,7 @@ const getCommand = defineCommand({
     }
 
     // Use cached querier by default
-    if (args.useCache) {
+    if (flagIsOn(args.useCache, { whenAbsent: true })) {
       const cachedQuerier = new CachedDeploymentQuerier(
         config,
         args.env as keyof typeof EnvironmentEnum
@@ -1041,7 +1035,6 @@ const batchCommand = defineCommand({
       type: 'boolean',
       description:
         'Use local cache (default: true, use --no-use-cache to disable)',
-      default: true,
     },
   },
   async run({ args }) {
@@ -1070,7 +1063,8 @@ const batchCommand = defineCommand({
         requests,
         defaultEnv,
         async (env): Promise<IBatchQuerier> => {
-          if (args.useCache) return new CachedDeploymentQuerier(config, env)
+          if (flagIsOn(args.useCache, { whenAbsent: true }))
+            return new CachedDeploymentQuerier(config, env)
           const querier = new DeploymentLogQuerier(config, env)
           await querier.connect()
           directQueriers.push(querier)

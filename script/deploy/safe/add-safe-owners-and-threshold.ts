@@ -28,6 +28,7 @@ import networksData from '../../../config/networks.json'
 import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 import { SAFE_THRESHOLD } from '../shared/constants'
 
+import { readBooleanFlag } from './cli-flags'
 import type { ILedgerAccountResult } from './ledger'
 import { assertTicketPresent } from './proposal-intent'
 import {
@@ -99,7 +100,6 @@ const main = defineCommand({
       description:
         'Run on every active EVM network in networks.json with type mainnet (excludes testnets)',
       alias: 'all-networks',
-      default: false,
     },
     privateKey: {
       type: 'string',
@@ -134,15 +134,25 @@ const main = defineCommand({
     },
   },
   async run({ args }) {
-    if (!args.network && !args.allNetworks)
+    // Strict: on fans the run out to every active network, so `--all-networks 0`
+    // has to be refused, not resolved to on.
+    const allNetworks = readBooleanFlag(process.argv, {
+      camel: 'allNetworks',
+      kebab: 'all-networks',
+    })
+    const useLedgerLive = readBooleanFlag(process.argv, {
+      camel: 'ledgerLive',
+      kebab: 'ledger-live',
+    })
+    if (!args.network && !allNetworks)
       throw new Error('Provide either --network <name> or --all-networks')
-    if (args.network && args.allNetworks)
+    if (args.network && allNetworks)
       throw new Error('--network and --all-networks are mutually exclusive')
 
     const cliOwners = parseCliOwners(args.owners)
 
     if (args.check) {
-      const networks = resolveNetworks(args.network, args.allNetworks)
+      const networks = resolveNetworks(args.network, allNetworks)
       if (!networks.length) {
         consola.warn('No networks selected — exiting')
         return
@@ -172,7 +182,7 @@ const main = defineCommand({
     // Resolved here rather than after the Ledger, so both constraints hold at
     // once: an empty selection proposes nothing and must not be refused, and the
     // refusal must land before a device confirmation is collected per network.
-    const networks = resolveNetworks(args.network, args.allNetworks)
+    const networks = resolveNetworks(args.network, allNetworks)
     if (!networks.length) {
       consola.warn('No networks selected — exiting')
       return
@@ -183,13 +193,13 @@ const main = defineCommand({
     const useLedger = args.ledger ?? true
     const ledgerOptions: ILedgerOptions | undefined = useLedger
       ? {
-          ledgerLive: args.ledgerLive || false,
+          ledgerLive: useLedgerLive,
           accountIndex: args.accountIndex ? Number(args.accountIndex) : 0,
           derivationPath: args.derivationPath,
         }
       : undefined
 
-    if (useLedger && args.derivationPath && args.ledgerLive)
+    if (useLedger && args.derivationPath && useLedgerLive)
       throw new Error(
         "Cannot use both 'derivationPath' and 'ledgerLive' options together"
       )
