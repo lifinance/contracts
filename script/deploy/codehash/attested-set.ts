@@ -6,7 +6,7 @@
  * build, never equality against one record- or network-derived profile.
  */
 
-/** A build of main this repo can vouch for, produced locally or in CI. */
+/** A build this repo can vouch for, produced locally or in CI. */
 export interface IAttestedBuild {
   /** Human label for the toolchain, e.g. `upstream cancun`. */
   lineage: string
@@ -48,7 +48,7 @@ export interface ILineageScope {
   /**
    * True when `attested` enumerates every toolchain the contract can
    * legitimately have been built with, so code matching none of them is not a
-   * build of main. Derive it from repo configuration — the network's declared
+   * build. Derive it from repo configuration — the network's declared
    * EVM version and whether it is zkEVM — and never from the deployed
    * bytecode, which the proposer controls.
    */
@@ -200,7 +200,7 @@ export const compareToAttestedSet = (
   if (attested.length === 0)
     return blocked(
       'UNVERIFIABLE',
-      'no attested build of main is available for this contract, so nothing can be compared',
+      'no attested build is available for this contract, so nothing can be compared',
       observed.maskedByteCount
     )
 
@@ -209,7 +209,7 @@ export const compareToAttestedSet = (
   if (scope.isClosedSet)
     return blocked(
       'MISMATCH',
-      `the deployed code matches none of the ${attested.length} builds this contract can legitimately have, so it is not a build of main`,
+      `the deployed code matches none of the ${attested.length} builds this contract can legitimately have`,
       observed.maskedByteCount
     )
 
