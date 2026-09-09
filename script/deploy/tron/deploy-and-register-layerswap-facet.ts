@@ -33,6 +33,7 @@ import {
   displayRegistrationInfo,
   getFacetSelectors,
 } from '../../utils/utils'
+import { flagIsOn } from '../safe/cli-flags'
 import { getContractVersion } from '../shared/getContractVersion'
 import { proposeDiamondCut } from '../shared/propose-diamond-cut'
 
@@ -238,12 +239,11 @@ const main = defineCommand({
     dryRun: {
       type: 'boolean',
       description: 'Perform a dry run without actual deployment',
-      default: false,
     },
   },
   async run({ args }) {
     await deployAndRegisterLayerSwapFacet({
-      dryRun: args.dryRun,
+      dryRun: flagIsOn(args.dryRun),
     })
   },
 })
