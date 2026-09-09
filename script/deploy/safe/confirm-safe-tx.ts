@@ -6,6 +6,9 @@
  * and provides options to sign and/or execute them.
  */
 
+import path from 'path'
+import { fileURLToPath } from 'url'
+
 import {
   formatAddressForNetworkCliDisplay,
   isTronNetworkKey,
@@ -14,12 +17,19 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import * as dotenv from 'dotenv'
 import { type Collection } from 'mongodb'
-import { type Address, type Hex } from 'viem'
+import { createPublicClient, http, type Address, type Hex } from 'viem'
 
+import globalConfig from '../../../config/global.json'
 import networksData from '../../../config/networks.json'
-import { buildExplorerAddressUrl } from '../../utils/viemScriptHelpers'
+import { EnvironmentEnum, type SupportedChain } from '../../common/types'
+import { getDeployments } from '../../utils/deploymentHelpers'
+import {
+  buildExplorerAddressUrl,
+  getViemChainForNetworkName,
+  networks,
+} from '../../utils/viemScriptHelpers'
 import { createDefaultCache } from '../shared/deployment-cache'
-import { sanitizeProvenanceText } from '../shared/git-provenance'
+import { getGitCommit, sanitizeProvenanceText } from '../shared/git-provenance'
 import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
 
 import { readBooleanFlag, readValueFlag } from './cli-flags'
@@ -64,6 +74,11 @@ import {
   LEDGER_FLEX_WRAP_NOTE,
   renderLedgerFlexFlow,
 } from './ledger-flex-preview'
+import {
+  observeCalldata,
+  resolveGateCoverage,
+  viemGateReaders,
+} from './prebroadcast-gate'
 import { reconcileAllSubmittedSafeTxs } from './reconcile'
 import {
   formatDecodedTxDataForDisplay,
@@ -98,7 +113,19 @@ import {
   type SafeNonceStatus,
   type SafeTxStatus,
 } from './safe-utils'
-import { enqueueTimelockOpIfApplicable } from './timelock-queue'
+import {
+  buildSignedSetRecord,
+  formatSignedSetForDisplay,
+  persistSignedSetRecord,
+  toSignedAuthorityEntries,
+  toSignedCodehashEntries,
+} from './signed-set-record'
+import {
+  computeOperationIdBatch,
+  decodeScheduleBatch,
+  enqueueTimelockOpIfApplicable,
+  isScheduleBatchCalldata,
+} from './timelock-queue'
 
 dotenv.config()
 
@@ -110,6 +137,12 @@ const getCodehashDeps = (): ISignTimeCodehashDeps => {
   codehashDeps ??= createSignTimeCodehashDeps()
   return codehashDeps
 }
+
+/** Repo root, so the sign-time set is read against the build this checkout has. */
+const REPO_ROOT = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../../..'
+)
 
 // Acknowledgements roll up across networks so a fleet-wide rollout is reviewed
 // once; the operator's chosen action is never remembered.
@@ -240,6 +273,90 @@ const processTxs = async (
           `A duplicate row with the same hash may exist under a different status (e.g. reverted).`
       )
     consola.success('Transaction signed and stored in MongoDB')
+
+    // Every signing branch funnels through here, so this is the one site that
+    // sees the whole sign event.
+    await recordSignedSet(txDoc, signedTx)
+  }
+
+  /**
+   * Records what this machine saw at every address in the signed calldata
+   * (WP-6.1 / R3.1): the address→codehash set plus the declared storage
+   * authorities.
+   *
+   * A G6 reconstruction trail, not a check — nothing here can refuse a
+   * signature, and the pre-broadcast gate never reads these values back. Every
+   * failure is therefore a warning: the gate alerts on a record that never
+   * landed, and blocking here would turn a write error into a signing outage.
+   */
+  async function recordSignedSet(
+    txDoc: ISafeTxMongoDocument,
+    signedTx: ISafeTransaction
+  ): Promise<void> {
+    const callData = signedTx.data.data as Hex | undefined
+    if (!callData || !isScheduleBatchCalldata(callData)) return
+
+    if (resolveGateCoverage(networkKey) === 'uncovered-tron') {
+      consola.info(
+        "Sign-time set not recorded: reading code on this chain is outside the gate's coverage (EXSC-954)"
+      )
+      return
+    }
+
+    try {
+      const params = decodeScheduleBatch(callData)
+      const operationId = computeOperationIdBatch(
+        params.targets,
+        params.values,
+        params.payloads,
+        params.predecessor,
+        params.salt
+      )
+      const publicClient = createPublicClient({
+        chain: getViemChainForNetworkName(networkKey),
+        transport: rpcUrl ? http(rpcUrl) : http(),
+      })
+      const observed = await observeCalldata(
+        {
+          operationId,
+          targets: params.targets,
+          payloads: params.payloads,
+        },
+        {
+          ...viemGateReaders(publicClient),
+          deployments: (await getDeployments(
+            networkKey as SupportedChain,
+            EnvironmentEnum.production
+          )) as unknown as Record<string, unknown>,
+          globalConfig: globalConfig as unknown as Record<string, unknown>,
+          networkConfig: networks[networkKey] ?? {},
+          artifactRoot: REPO_ROOT,
+          lineage: `local build of ${getGitCommit()}`,
+        }
+      )
+
+      const record = buildSignedSetRecord(
+        {
+          operationId,
+          network: networkKey,
+          chainId: chain.id,
+          safeTxHash: txDoc.safeTxHash,
+          signer: signerAddress,
+          derivedFromCommit: getGitCommit(),
+          codehashes: toSignedCodehashEntries(observed.targets),
+          authorities: toSignedAuthorityEntries(observed.authorities),
+        },
+        new Date()
+      )
+
+      consola.info(formatSignedSetForDisplay(record).join('\n'))
+      await persistSignedSetRecord(record)
+    } catch (error) {
+      consola.warn(
+        'Could not record the sign-time set (the pre-broadcast gate re-derives without it and will alert on the gap):',
+        error
+      )
+    }
   }
 
   /**

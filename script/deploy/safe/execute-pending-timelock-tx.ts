@@ -9,6 +9,9 @@
 
 import 'dotenv/config'
 
+import path from 'path'
+import { fileURLToPath } from 'url'
+
 import { isTronNetworkKey } from '@lifi/tron-devkit'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
@@ -16,6 +19,7 @@ import type { Collection, UpdateFilter } from 'mongodb'
 import type { Address, Hex, PublicClient } from 'viem'
 import { encodeFunctionData, formatEther, parseAbi } from 'viem'
 
+import globalConfig from '../../../config/global.json'
 import data from '../../../config/networks.json'
 import {
   EnvironmentEnum,
@@ -33,6 +37,7 @@ import {
   type INetworkResult,
   type IProcessingStats,
 } from '../../utils/slack-notifier'
+import { getGitCommit } from '../shared/git-provenance'
 
 import { flagIsOn, readBooleanFlag } from './cli-flags'
 import { confirmTimelockExecution } from './confirm-timelock-execution'
@@ -47,7 +52,14 @@ import {
   getParkedTasksCollection,
   listParkedTasksBySafeTxHash,
 } from './parked-tasks'
+import {
+  resolveGateCoverage,
+  runPreBroadcastGate,
+  viemGateReaders,
+  viemOperationIdReader,
+} from './prebroadcast-gate'
 import { formatTimelockScheduleBatch } from './safe-decode-utils'
+import { fetchSignedSetRecord } from './signed-set-record'
 import {
   classifyPrefetchResults,
   fetchPendingForNetworks,
@@ -1659,6 +1671,138 @@ async function revalidateFoldedRemovalsOrAbort(
   return 'blocked'
 }
 
+/** Repo root, so the gate can read the build this checkout produced. */
+const REPO_ROOT = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../../..'
+)
+
+/**
+ * Pre-broadcast integrity gate (WP-6.1). Re-derives, from `main` and live chain
+ * state alone, whether the code this operation would run is a build of `main`
+ * and whether the storage authorities that can redirect it still match config.
+ *
+ * Runs before the interactive prompt so an operator is never asked to authorise
+ * a broadcast the gate is about to refuse, and before the folded-removal guard
+ * because that guard's reads assume the code it inspects is the code we
+ * attested — a proven integrity failure makes its verdict meaningless.
+ *
+ * Verdicts map onto the existing {@link GuardOutcome} states: a proven failure
+ * is durable and flips the row to `blocked`; anything unverified leaves it
+ * `queued` so the next tick retries, and is never escalated on our behalf.
+ *
+ * @returns See {@link GuardOutcome}.
+ */
+async function enforcePreBroadcastGateOrAbort(
+  operation: ITimelockOperation,
+  networkName: string,
+  networkPrefix: string,
+  isDryRun: boolean,
+  notifyFailure: (error: unknown) => Promise<void>,
+  publicClient: PublicClient,
+  timelockAddress: Address
+): Promise<GuardOutcome> {
+  if (resolveGateCoverage(networkName) === 'uncovered-tron') {
+    consola.warn(
+      `${networkPrefix} ⚠️  Pre-broadcast integrity gate does not cover this chain — no codehash or authority verdict was produced for ${operation.id} (EXSC-954)`
+    )
+    return 'ok'
+  }
+
+  const alertFailure = async (error: unknown): Promise<void> => {
+    if (!isDryRun) await notifyFailure(error)
+  }
+
+  let deployments: Record<string, unknown>
+  try {
+    deployments = (await getDeployments(
+      networkName as SupportedChain,
+      EnvironmentEnum.production
+    )) as unknown as Record<string, unknown>
+  } catch (error) {
+    consola.error(
+      `${networkPrefix} ❌ Pre-broadcast gate could not read the deployment record — refusing execute (row left queued, next run retries):`,
+      error
+    )
+    await alertFailure(error)
+    return 'retry'
+  }
+
+  // A record that could not be looked up is not a record that is absent: only
+  // the second is an alert, so a cluster outage holds rather than reporting a
+  // gap in the audit trail that may not exist.
+  let signTimeRecord: unknown
+  try {
+    signTimeRecord = await fetchSignedSetRecord(networkName, operation.id)
+  } catch (error) {
+    consola.error(
+      `${networkPrefix} ❌ Pre-broadcast gate could not read the sign-time record store — refusing execute (row left queued, next run retries):`,
+      error
+    )
+    await alertFailure(error)
+    return 'retry'
+  }
+
+  const salt =
+    operation.salt ??
+    ('0x0000000000000000000000000000000000000000000000000000000000000000' as Hex) // [pre-commit-checker: not a secret]
+
+  const result = await runPreBroadcastGate(
+    {
+      operationId: operation.id,
+      targets: operation.targets,
+      payloads: operation.payloads,
+    },
+    {
+      ...viemGateReaders(publicClient),
+      deployments,
+      globalConfig: globalConfig as unknown as Record<string, unknown>,
+      networkConfig: (data as INetworksObject)[networkName] ?? {},
+      artifactRoot: REPO_ROOT,
+      lineage: `local build of ${getGitCommit()}`,
+      signTimeRecord,
+      readOnChainOperationId: viemOperationIdReader(
+        publicClient,
+        timelockAddress,
+        {
+          targets: operation.targets,
+          values: operation.values,
+          payloads: operation.payloads,
+          predecessor: operation.predecessor,
+          salt,
+        }
+      ),
+    }
+  )
+
+  for (const alert of result.alerts)
+    consola.warn(`${networkPrefix} ⚠️  ${alert}`)
+
+  if (result.disposition === 'PROCEED') {
+    consola.info(`${networkPrefix} ✅ Pre-broadcast gate: ${result.reason}`)
+    return 'ok'
+  }
+
+  const headline =
+    result.disposition === 'BLOCK'
+      ? 'Pre-broadcast gate REFUSED — the code or authority this operation would touch is not what main describes'
+      : 'Pre-broadcast gate could not verify this operation — refusing execute (row left queued, next run retries)'
+  consola.error(`${networkPrefix} ❌ ${headline}`)
+  for (const finding of result.findings)
+    consola.error(`${networkPrefix}    · ${finding}`)
+
+  const reason = `pre-broadcast gate ${result.disposition}: ${result.reason}`
+  if (result.disposition === 'BLOCK') {
+    if (!isDryRun)
+      await blockTimelockOp(networkName, operation.id, reason, networkPrefix)
+    await alertFailure(new Error(reason))
+    return 'blocked'
+  }
+
+  await alertFailure(new Error(reason))
+  return 'retry'
+}
+
 async function executeOperation(
   chainCaller: IChainCaller,
   publicClient: PublicClient,
@@ -1721,11 +1865,28 @@ async function executeOperation(
     decodeContext
   )
 
+  // Ahead of the prompt on purpose: an operator must see the integrity verdict
+  // before choosing, and must not be offered Execute against a refusal. Reject
+  // stays offered, because a refused operation is exactly one a human may want
+  // to cancel.
+  const gate = networkName
+    ? await enforcePreBroadcastGateOrAbort(
+        operation,
+        networkName,
+        networkPrefix,
+        isDryRun,
+        notifyFailure,
+        publicClient,
+        timelockAddress
+      )
+    : 'ok'
+
   // If interactive mode, show choice prompt
   if (interactive) {
     const action = await consola.prompt('Select action:', {
       type: 'select',
-      options: ['Execute', 'Reject', 'Skip'],
+      options:
+        gate === 'ok' ? ['Execute', 'Reject', 'Skip'] : ['Reject', 'Skip'],
     })
 
     if (action === 'Skip') {
@@ -1748,6 +1909,11 @@ async function executeOperation(
 
     // If action === 'Execute', continue with execution below
   }
+
+  // Enforced here rather than at the gate call above, so a non-interactive run
+  // and an operator who chose Execute hit the same refusal, and it lands before
+  // both the dry-run simulate and the broadcast.
+  if (gate !== 'ok') return 'failed'
 
   // Pre-execute re-validation for folded parked removals. Under the fold a
   // stale Remove would either silently delete a live selector (re-pointed) or
