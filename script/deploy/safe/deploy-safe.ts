@@ -290,7 +290,6 @@ const main = defineCommand({
       description:
         'Whether to allow overriding existing Safe address in networks.json (default: false)',
       required: false,
-      default: false,
     },
     rpcUrl: {
       type: 'string',
