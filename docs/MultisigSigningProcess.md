@@ -457,7 +457,11 @@ signer sees:
    pointed at the Safe config names rather than at the address on the document —
    every read a verdict rests on goes through that client. The document's claim
    survives as a value to compare, which is what makes the comparison say
-   anything.
+   anything. Where config names no Safe for a network — today the testnets and
+   `localanvil`, never a production network — there is no reviewed anchor to
+   compare against, the client falls back to the document's own address, and the
+   assertion records the missing anchor and blocks rather than comparing that
+   address with itself.
 
    Each verdict lands on a `check-ledger.ts` ledger, so that ledger's grading
    rules apply without this module restating them: an integrity mismatch has no
