@@ -32,6 +32,7 @@ import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
 import {
   asPrintable,
   fieldNotice,
+  MAX_FIELD_CHARS,
   printableField,
   UNBOUNDED,
 } from './printable-field'
@@ -469,6 +470,24 @@ function getDiamondAbiItemForSelector(selector: string): Abi[number] | null {
  * @param network - When set, an address is rendered in the network's format
  * @returns Printable text
  */
+/** The shape a decoded argument has when it is a payload rather than a label. */
+const HEX_PAYLOAD = /^0x[0-9a-fA-F]*$/u
+
+/**
+ * How long a decoded argument may be before it is clipped.
+ *
+ * A hex payload is what the signature covers, so its length is its own
+ * disclosure and clipping it would hide the thing being approved — the same
+ * reason the calldata field is unbounded. Anything else is a name or a label,
+ * where a value past the bound is a terminal flood rather than information: a
+ * 500,000-character periphery name pushed the target address and the
+ * matches-deployments verdict off the screen entirely.
+ * @param value - The decoded scalar, already stringified
+ * @returns The code-point bound to render it under
+ */
+const scalarBound = (value: string): number =>
+  HEX_PAYLOAD.test(value) ? UNBOUNDED : MAX_FIELD_CHARS
+
 function renderScalarArg(value: string, network?: string): string {
   if (
     network !== undefined &&
@@ -479,7 +498,7 @@ function renderScalarArg(value: string, network?: string): string {
       network,
       value
     )}`
-  return asPrintable(value, UNBOUNDED).text
+  return asPrintable(value, scalarBound(value)).text
 }
 
 /**
@@ -507,7 +526,11 @@ export function formatDecodedArg(arg: unknown, network?: string): string {
       return value
     })
   const s = String(arg)
-  return `${renderScalarArg(s, network)}${asPrintable(s, UNBOUNDED).notice}`
+  // Same bound as the text above, so the notice reports the clip it actually
+  // made rather than one measured against a different limit.
+  return `${renderScalarArg(s, network)}${
+    asPrintable(s, scalarBound(s)).notice
+  }`
 }
 
 /**
@@ -943,9 +966,13 @@ export async function formatDecodedTxDataForDisplay(
       // cleaned by the caller, so the line that prints it is the line that
       // reports it.
       const storedPeripheryName = String(decoded.args[0] ?? '')
+      // Bounded: a contract name is a label, and one long enough to scroll the
+      // target address and the deployments verdict off the screen is a flood
+      // rather than information. The lookup below still keys on the whole
+      // stored value, so clipping the display cannot change the verdict.
       const { text: peripheryName, notice: peripheryNotice } = asPrintable(
         storedPeripheryName,
-        UNBOUNDED
+        MAX_FIELD_CHARS
       )
       const peripheryAddress = String(decoded.args[1] ?? '')
       log(

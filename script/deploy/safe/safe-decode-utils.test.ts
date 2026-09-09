@@ -401,6 +401,35 @@ describe('formatDecodedTxDataForDisplay renders no proposer-controlled text raw'
     )
   })
 
+  it('clips a name long enough to scroll the verdict away', async () => {
+    // Needs no escape sequence at all: half a million characters of a valid
+    // `string` argument pushed the target address and the deployments verdict
+    // off the top of the screen, leaving the prompt. The lookup still keys on
+    // the whole stored value, so clipping the display cannot change the verdict.
+    const lines = await render(
+      encodeFunctionData({
+        abi: parseAbi(['function registerPeripheryContract(string,address)']),
+        args: [
+          'A'.repeat(500_000),
+          '0x1111111111111111111111111111111111111111',
+        ],
+      })
+    )
+    const nameLine = lines.find((line) => line.includes('Periphery Name:'))
+
+    expect(nameLine?.length).toBeLessThan(500)
+    expect(nameLine).toContain('clipped for display')
+  })
+
+  it('leaves a hex payload argument whole', async () => {
+    // Paired present, and the reason the bound is by shape rather than blanket:
+    // a hex payload is what the signature covers, so its length is its own
+    // disclosure and clipping it would hide the thing being approved.
+    const long = `0x${'ab'.repeat(400)}`
+    expect(formatDecodedArg(long)).toContain(long.slice(2).toLowerCase())
+    expect(formatDecodedArg(long)).not.toContain('clipped for display')
+  })
+
   it('does not vouch for a name the calldata does not contain', async () => {
     // `GasZipPeriphery` is a real mainnet deployment at this address, and a
     // zero-width space inside the stored name sanitises away. Keying the
