@@ -18,13 +18,14 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 import { consola } from 'consola'
-import { toFunctionSelector } from 'viem'
+import { encodeFunctionData, parseAbi, toFunctionSelector } from 'viem'
 
 import {
   getRoleName,
   formatRoleChange,
   formatBatchSetContractSelectorWhitelist,
   formatDecodedArg,
+  formatDecodedTxDataForDisplay,
 } from './safe-decode-utils'
 
 const DEFAULT_ADMIN_ROLE = `0x${'00'.repeat(32)}`
@@ -303,5 +304,228 @@ describe('formatDecodedArg', () => {
     expect(formatDecodedArg({ name: 'FraxFacet' }, 'tron')).toBe(
       '{"name":"FraxFacet"}'
     )
+  })
+})
+
+/**
+ * The decoded display, driven through the real formatter.
+ *
+ * `formatDecodedTxDataForDisplay` prints one screen above the sanitised detail
+ * block, so anything it renders raw lands closer to the sign prompt than the
+ * lines the signer is told to read. Every case below encodes a payload and runs
+ * the formatter; none of them scans the source, because a scanner cannot decide
+ * where a value came from.
+ */
+describe('formatDecodedTxDataForDisplay renders no proposer-controlled text raw', () => {
+  const ESC = String.fromCharCode(27)
+  /** Colour codes this module writes itself; nothing else may remain. */
+  // eslint-disable-next-line no-control-regex -- these are the codes the module writes
+  const OWN_COLOURS = /\u001b\[(?:0|3[0-9]|90)m/gu
+  // eslint-disable-next-line no-control-regex -- finding the escapes is the point
+  const TERMINAL_DRIVING = /[\p{Cc}\p{Cf}\p{Zl}\p{Zp}]/gu
+  const CONTEXT = { chainId: 1, network: 'mainnet' }
+
+  /** Repaints the screen, then forges a plausible `To:` line under it. */
+  const REPAINT = `${ESC}[2J${ESC}[H  To:  0x0000000000000000000000000000000000000001`
+
+  let originalFetch: typeof globalThis.fetch
+  let cacheDir: string
+  let originalCachePath: string | undefined
+
+  beforeEach(() => {
+    cacheDir = fs.mkdtempSync(path.join(os.tmpdir(), 'decode-display-cache-'))
+    originalCachePath = process.env.SELECTOR_SIGNATURE_CACHE_PATH
+    process.env.SELECTOR_SIGNATURE_CACHE_PATH = path.join(
+      cacheDir,
+      'selector-signatures.json'
+    )
+    originalFetch = globalThis.fetch
+    // Offline by construction: an unresolved selector must not depend on what
+    // 4byte.sourcify.dev happens to answer today.
+    globalThis.fetch = (() =>
+      Promise.resolve({
+        ok: true,
+        json: () => Promise.resolve({ ok: true, result: { function: {} } }),
+      })) as unknown as typeof fetch
+  })
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch
+    if (originalCachePath === undefined)
+      delete process.env.SELECTOR_SIGNATURE_CACHE_PATH
+    else process.env.SELECTOR_SIGNATURE_CACHE_PATH = originalCachePath
+    fs.rmSync(cacheDir, { recursive: true, force: true })
+    spyOn(consola, 'info').mockRestore()
+    spyOn(consola, 'warn').mockRestore()
+  })
+
+  const render = async (
+    data: unknown,
+    context: { chainId: number; network: string; indent?: string } = CONTEXT
+  ): Promise<string[]> => {
+    const infoSpy = spyOn(consola, 'info').mockImplementation(
+      (() => {}) as never
+    )
+    const warnSpy = spyOn(consola, 'warn').mockImplementation(
+      (() => {}) as never
+    )
+    await formatDecodedTxDataForDisplay(data as never, context)
+    return [...infoSpy.mock.calls, ...warnSpy.mock.calls].map((call) =>
+      String(call[0])
+    )
+  }
+
+  const expectInert = (lines: string[]): void => {
+    for (const line of lines)
+      expect(line.replace(OWN_COLOURS, '').match(TERMINAL_DRIVING)).toBeNull()
+  }
+
+  it('renders a hostile registerPeripheryContract name inert and says so', async () => {
+    // A cleanly decoding call, encoded exactly as this repository encodes it:
+    // the whole payload is the `string` argument's content.
+    const lines = await render(
+      encodeFunctionData({
+        abi: parseAbi(['function registerPeripheryContract(string,address)']),
+        args: [
+          `GasZipPeriphery${REPAINT}`,
+          '0x1111111111111111111111111111111111111111',
+        ],
+      })
+    )
+
+    expectInert(lines)
+    const nameLine = lines.find((line) => line.includes('Periphery Name:'))
+    expect(nameLine).toBe(
+      'Periphery Name: \u001b[33mGasZipPeriphery[2J[H To: 0x0000000000000000000000000000000000000001\u001b[0m\u001b[33m ⚠ sanitised for display — stored 71, printable 67\u001b[0m'
+    )
+  })
+
+  it('renders a benign registerPeripheryContract call unchanged', async () => {
+    const lines = await render(
+      encodeFunctionData({
+        abi: parseAbi(['function registerPeripheryContract(string,address)']),
+        args: ['GasZipPeriphery', '0x1111111111111111111111111111111111111111'],
+      })
+    )
+
+    expect(lines).toContain(
+      'Periphery Name: \u001b[33mGasZipPeriphery\u001b[0m'
+    )
+    // No notice anywhere: a benign row must render exactly as it did before.
+    expect(lines.some((line) => line.includes('⚠'))).toBe(false)
+  })
+
+  it('bounds and sanitises the raw preview when nothing decodes', async () => {
+    const lines = await render(`0x99887766${'ab'.repeat(400)}`)
+
+    const raw = lines.find((line) => line.includes('Data (raw):'))
+    expect(raw).toBe(
+      `Data (raw): \u001b[90m0x99887766${'ab'.repeat(
+        28
+      )}\u001b[0m\u001b[33m ⚠ clipped for display — stored 810, shown 66\u001b[0m`
+    )
+  })
+
+  it('sanitises the raw preview reached through the catch arm', async () => {
+    // `data.slice` is called outside every inner try, so a row shape that has
+    // no `slice` lands in the outer catch — the arm that echoes viem's message
+    // (which quotes its input back) and then the row's own bytes.
+    const lines = await render({
+      substring: () => '0xdeadbeef',
+      toString: () => `0x${REPAINT}`,
+    })
+
+    expectInert(lines)
+    expect(lines.some((line) => line.includes('Failed to decode data:'))).toBe(
+      true
+    )
+    expect(lines.find((line) => line.includes('Data (raw):'))).toContain(
+      '[2J[H To: 0x00000000'
+    )
+  })
+
+  it('sanitises the error message on the catch arm', async () => {
+    const lines = await render({
+      substring: () => '0xdeadbeef',
+      slice: () => {
+        throw new Error(`viem echoed back ${REPAINT}`)
+      },
+      toString: () => '0x1234',
+    })
+
+    expectInert(lines)
+    expect(lines.find((line) => line.includes('Failed to decode data:'))).toBe(
+      'Failed to decode data: viem echoed back [2J[H To: 0x0000000000000000000000000000000000000001\u001b[33m ⚠ sanitised for display — stored 73, printable 69\u001b[0m'
+    )
+  })
+
+  it('sanitises a signature the 4byte lookup supplied', async () => {
+    // Remote text a proposer can choose by choosing the selector.
+    globalThis.fetch = (() =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            ok: true,
+            result: {
+              function: {
+                '0x99887766': [{ name: `evil${ESC}[2J(uint256)` }],
+              },
+            },
+          }),
+      })) as unknown as typeof fetch
+
+    const lines = await render('0x99887766')
+    expectInert(lines)
+  })
+
+  it('sanitises through the nested scheduleBatch recursion', async () => {
+    const inner = encodeFunctionData({
+      abi: parseAbi(['function registerPeripheryContract(string,address)']),
+      args: [`Patcher${REPAINT}`, '0x2222222222222222222222222222222222222222'],
+    })
+    const lines = await render(
+      encodeFunctionData({
+        abi: parseAbi([
+          'function scheduleBatch(address[],uint256[],bytes[],bytes32,bytes32,uint256)',
+        ]),
+        args: [
+          ['0x3333333333333333333333333333333333333333'],
+          [0n],
+          [inner],
+          `0x${'00'.repeat(32)}`,
+          `0x${'11'.repeat(32)}`,
+          86400n,
+        ],
+      })
+    )
+
+    expectInert(lines)
+    // The nested frame really was entered, so the assertion above is about the
+    // recursion rather than about the batch header alone.
+    expect(lines.some((line) => line.includes('Periphery Name:'))).toBe(true)
+  })
+})
+
+describe('formatDecodedArg — a decoded string is proposer-controlled', () => {
+  const ESC = String.fromCharCode(27)
+
+  it('renders a hostile decoded string inert and discloses it', () => {
+    expect(formatDecodedArg(`${ESC}[2Jfake`)).toBe(
+      '[2Jfake\u001b[33m ⚠ sanitised for display — stored 8, printable 7\u001b[0m'
+    )
+  })
+
+  it('renders a hostile string nested in a tuple inert, with no notice', () => {
+    // The notice would land inside a JSON string, where its own colour codes
+    // are escaped into visible text and read as part of the value.
+    const rendered = formatDecodedArg([`${ESC}[2Jfake`, 1n])
+    expect(rendered).toBe('["[2Jfake","1"]')
+    expect(rendered).not.toContain(ESC)
+  })
+
+  it('leaves a benign string exactly as it was', () => {
+    expect(formatDecodedArg('GasZipPeriphery')).toBe('GasZipPeriphery')
+    expect(formatDecodedArg(['a', 1n])).toBe('["a","1"]')
   })
 })

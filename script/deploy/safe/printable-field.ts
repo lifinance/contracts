@@ -1,0 +1,238 @@
+/**
+ * Printable field primitive for the signer's prompt
+ *
+ * Every value the signing prompt shows off a MongoDB proposal row is text the
+ * proposer wrote, and the rows are not all written by this repository. This
+ * module is the one place that turns such a value into something safe to print,
+ * and it reports what it had to do rather than cleaning quietly: a signer who
+ * cannot see that a field was repaired cannot tell a normal proposal from a
+ * hand-edited one.
+ *
+ * Three properties beyond stripping control characters, each reachable through
+ * a row that needs no escape sequence at all:
+ *
+ * - **Length.** A 500,000-character hash is a valid row shape. The line wraps
+ *   for thousands of terminal rows, pushes the rest of the block off the top
+ *   and leaves the prompt, so every field carries a bound.
+ * - **Invisibles.** `sanitizeProvenanceText` keeps U+200D and the Hangul
+ *   fillers by design — they are printable letters and separators — so two
+ *   values differing only by these print identically.
+ * - **Confusables.** A Cyrillic `о` in a facet name is glyph-identical to the
+ *   ASCII one. No repair is possible without changing which value this is, so
+ *   the count is reported instead. Every field this module renders is ASCII by
+ *   construction — an address, a hash, a decimal, a facet name, a URL — which
+ *   is what makes a bare non-ASCII count precise enough to act on here.
+ *
+ * `Printable` is a branded string, and `color` accepts nothing else. A field
+ * added later as a plain `string` is then a type error rather than a review
+ * question, and the intentional exceptions — values built from chain reads,
+ * which carry colour codes of their own that sanitising would strip — are
+ * greppable as `trustedMarkup` call sites.
+ */
+
+import { sanitizeProvenanceText } from '../shared/git-provenance'
+
+/**
+ * Text that has been through this module. Branded so a stored value cannot
+ * reach a printed line by being typed `string`.
+ */
+export type Printable = string & { readonly __printable: unique symbol }
+
+/**
+ * Bound for every stored field but the calldata. The longest legitimate value
+ * in the prompt is a 66-character hash or a PR URL, so beyond this a field is a
+ * terminal flood rather than information.
+ */
+export const MAX_FIELD_CHARS = 120
+
+/**
+ * The calldata is deliberately unbounded: it is the payload the signature
+ * covers and the only place a signer can read it in full, so clipping it would
+ * remove the thing they are being asked to approve. Its length is also its own
+ * disclosure — a wall of hex reads as one, where a 66-character field silently
+ * grown to 500,000 does not.
+ */
+export const UNBOUNDED = Number.POSITIVE_INFINITY
+
+/** Most parked refs rendered; the overflow is counted on a line of its own. */
+export const MAX_PARKED_REFS = 20
+
+const YELLOW = '\u001b[33m'
+const RESET = '\u001b[0m'
+
+/**
+ * Code points a renderer is meant to pass over rather than draw — U+200D and
+ * the Hangul fillers among them. The sanitiser keeps them because they are
+ * printable letters and separators, not control or formatting characters, so
+ * a value can differ from another only by these and print identically.
+ */
+const DEFAULT_IGNORABLE = /\p{Default_Ignorable_Code_Point}/gu
+
+/** Anything outside ASCII; the ignorables above are discounted separately. */
+const NON_ASCII = /[^\p{ASCII}]/gu
+
+/**
+ * Marks text this repository composed as printable.
+ *
+ * The only permitted arguments are values derived from a chain read or from
+ * something already sanitised, which carry colour codes of their own that
+ * sanitising would strip. A stored row value is never one of those.
+ * @param text - Repository-composed markup
+ * @returns The same text, branded
+ */
+export const trustedMarkup = (text: string): Printable => text as Printable
+
+/**
+ * Wraps printable text in an SGR code.
+ * @param code - The escape sequence to open with
+ * @param text - Text that has been through this module
+ * @returns The wrapped text, still printable
+ */
+export const color = (code: string, text: Printable): Printable =>
+  `${code}${text}${RESET}` as Printable
+
+/**
+ * Joins printable parts without losing the brand.
+ * @param parts - Printable fragments, in order
+ * @returns Their concatenation
+ */
+export const concatPrintable = (...parts: Printable[]): Printable =>
+  parts.join('') as Printable
+
+/** A stored value reduced to something safe to print. */
+export interface IRenderedField {
+  readonly text: Printable
+  /**
+   * True when the printable text still identifies whatever the stored value
+   * identified — only leading and trailing whitespace was lost.
+   */
+  readonly identityPreserved: boolean
+  /** Appended after the field; empty unless there is something to report. */
+  readonly notice: string
+}
+
+/**
+ * Reduces one stored value to printable text plus a notice describing every
+ * repair it needed.
+ * @param value - Whatever the row held, of any type
+ * @param maxChars - Code-point bound; `UNBOUNDED` for the calldata
+ * @returns The text to print, whether it still identifies the stored value,
+ * and the notice to print after it
+ */
+export const asPrintable = (
+  value: unknown,
+  maxChars: number = MAX_FIELD_CHARS
+): IRenderedField => {
+  // `String()` throws on a value with no `toString` or one that throws its
+  // own; the block still has to render, because the signer needs the rest of
+  // it to decide.
+  let stored: string
+  try {
+    // Not `value ?? ''`: an absent field has to stay visibly absent. Blanking
+    // it makes a row with no `data` — which is still cast to `Hex` and signed —
+    // indistinguishable from one carrying `0x`.
+    stored = String(value)
+  } catch {
+    return {
+      text: 'unrenderable' as Printable,
+      identityPreserved: false,
+      notice: `${YELLOW} ⚠ sanitised for display — value cannot be shown${RESET}`,
+    }
+  }
+
+  const sanitized = sanitizeProvenanceText(stored)
+  const remarks: string[] = []
+
+  if (sanitized !== stored)
+    // Counts describe the stored value and what survived sanitising, not the
+    // finished line: a network formatter may replace what it is given with an
+    // entirely different rendering. They can also be equal, since a newline
+    // collapses to a space one for one, which is why the fact of the change is
+    // stated separately from the numbers.
+    remarks.push(
+      sanitized === ''
+        ? 'no printable characters'
+        : `sanitised for display — stored ${[...stored].length}, printable ${
+            [...sanitized].length
+          }`
+    )
+
+  // Counted on the printable text, not the stored value: a character the
+  // sanitiser removed is reported by the remark above, and repeating it here
+  // would claim it survived.
+  const hidden = (sanitized.match(DEFAULT_IGNORABLE) ?? []).length
+  if (hidden > 0)
+    remarks.push(
+      `${hidden} invisible character${hidden === 1 ? '' : 's'} among ${
+        [...sanitized].length
+      } printable`
+    )
+
+  // Discounts the ignorables above so one code point is not reported twice
+  // under two different descriptions.
+  const confusable = (sanitized.match(NON_ASCII) ?? []).length - hidden
+  if (confusable > 0)
+    remarks.push(
+      `${confusable} non-ASCII character${
+        confusable === 1 ? '' : 's'
+      } — a letter here can be drawn identically to an ASCII one`
+    )
+
+  // Clipped by code point, not by index: cutting mid-pair emits a lone
+  // surrogate, which the sanitiser does not strip — it is neither a control
+  // nor a formatting character — so nothing downstream would repair it.
+  const points = [...sanitized]
+  const clipped = points.length > maxChars
+  const text = clipped ? points.slice(0, maxChars).join('') : sanitized
+  if (clipped)
+    remarks.push(
+      `clipped for display — stored ${points.length}, shown ${maxChars}`
+    )
+
+  // Says only what it knows. An earlier version called these "empty", which is
+  // a claim about the container: `[' ']` and `[null]` both render as nothing
+  // while holding an element.
+  if (typeof value === 'object' && value !== null)
+    remarks.push(
+      `stored as ${
+        Array.isArray(value) ? 'an array' : 'an object'
+      }, not a string`
+    )
+
+  return {
+    text: text as Printable,
+    // A byte-level property, not a glyph-level one, for the parts it can
+    // decide: it says the printable text is the stored text modulo trimming,
+    // which is what `getTargetName` and the explorer link are resolved from.
+    // Anything that was not a string was never an address, absent included —
+    // `String(undefined)` is a word, not a target. Trimming the ends is the one
+    // repair that cannot change which address this is; an edit inside it can,
+    // since a zero-width space between two hex digits simply vanishes. A
+    // surviving invisible or a confusable is that same problem without the
+    // repair, and a clip is a different value outright.
+    identityPreserved:
+      typeof value === 'string' &&
+      stored.trim() === sanitized &&
+      hidden === 0 &&
+      confusable === 0 &&
+      !clipped,
+    notice:
+      remarks.length > 0 ? `${YELLOW} ⚠ ${remarks.join('; ')}${RESET}` : '',
+  }
+}
+
+/**
+ * One stored value as a single printable run: the text with its notice after
+ * it. For callers that interpolate into their own colour codes rather than
+ * composing lines through `color`.
+ * @param value - Whatever the row held
+ * @param maxChars - Code-point bound
+ * @returns Printable text with any notice appended
+ */
+export const printableField = (
+  value: unknown,
+  maxChars: number = MAX_FIELD_CHARS
+): Printable => {
+  const { text, notice } = asPrintable(value, maxChars)
+  return `${text}${notice}` as Printable
+}
