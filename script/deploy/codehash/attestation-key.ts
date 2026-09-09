@@ -120,25 +120,24 @@ export interface ISourceEntry {
  * source, not of a build.
  *
  * Paths are sorted, so the hash does not depend on the order solc happened to
- * emit them, and each entry carries its separator so a path ending in the
- * delimiter cannot impersonate the start of the next entry.
+ * emit them. Each entry is length-prefixed so a path cannot impersonate the
+ * start of the next field.
  * @param sources - Every source in the closure, in any order
  * @returns `0x`-prefixed keccak over the canonical closure
- * @throws When two entries claim the same path, since the closure is then
- * ambiguous and hashing either reading would vouch for source that was not
- * compiled
+ * @throws When two entries claim the same path with different hashes
  */
 export const sourceClosureHash = (sources: readonly ISourceEntry[]): string => {
   const byPath = new Map<string, string>()
   for (const entry of sources) {
+    const keccak = entry.keccak.toLowerCase()
     const seen = byPath.get(entry.path)
     // Two hashes for one path is not something to pick a winner from: whichever
     // is dropped, the resulting hash claims a closure that was never compiled.
-    if (seen !== undefined && seen !== entry.keccak)
+    if (seen !== undefined && seen !== keccak)
       throw new Error(
         `source closure names ${entry.path} twice with different hashes, so which source was compiled cannot be established`
       )
-    byPath.set(entry.path, entry.keccak)
+    byPath.set(entry.path, keccak)
   }
 
   const canonical = joinFields(
@@ -189,10 +188,10 @@ export const findAttestationConflicts = (
   for (const attestation of attestations) {
     const serialised = serialiseAttestationKey(attestation.key)
     const entry = byKey.get(serialised) ?? { masked: [], closure: [] }
-    if (!entry.masked.includes(attestation.maskedHash))
-      entry.masked.push(attestation.maskedHash)
-    if (!entry.closure.includes(attestation.sourceClosureHash))
-      entry.closure.push(attestation.sourceClosureHash)
+    const masked = attestation.maskedHash.toLowerCase()
+    const closure = attestation.sourceClosureHash.toLowerCase()
+    if (!entry.masked.includes(masked)) entry.masked.push(masked)
+    if (!entry.closure.includes(closure)) entry.closure.push(closure)
     byKey.set(serialised, entry)
   }
 

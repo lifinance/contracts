@@ -20,7 +20,7 @@ import {
 const EVM: IAttestationKey = {
   contractName: 'CBridgeFacet',
   version: '1.2.0',
-  profile: 'production',
+  profile: 'default',
   viaIR: true,
   solcVersion: '0.8.29',
 }
@@ -51,7 +51,7 @@ describe('serialiseAttestationKey', () => {
     const differing: [string, IAttestationKey][] = [
       ['contract name', { ...EVM, contractName: 'CBridgeFacetV2' }],
       ['version', { ...EVM, version: '1.2.1' }],
-      ['profile', { ...EVM, profile: 'staging' }],
+      ['profile', { ...EVM, profile: 'ci' }],
       ['pipeline', { ...EVM, viaIR: false }],
       ['solc version', { ...EVM, solcVersion: '0.8.30' }],
       ['zk toolchain', ZK],
@@ -81,8 +81,8 @@ describe('serialiseAttestationKey', () => {
   it('gives an EVM build a key a zk build cannot reach', () => {
     // The absent zk section is written as a marker, not skipped: a key that
     // shortens when a field is missing is a key two builds can share.
-    expect(serialiseAttestationKey(EVM)).toContain('evm')
-    expect(serialiseAttestationKey(ZK)).not.toContain(' evm')
+    expect(serialiseAttestationKey(EVM)).toContain('3:evm')
+    expect(serialiseAttestationKey(ZK)).not.toContain('3:evm')
   })
 
   it('is stable for the same inputs', () => {
@@ -156,6 +156,15 @@ describe('sourceClosureHash', () => {
       ])
     ).toBe(sourceClosureHash([{ path: 'src/Facets/A.sol', keccak: HASH_A }]))
   })
+
+  it('treats case-drifted identical hashes as the same source', () => {
+    expect(
+      sourceClosureHash([
+        { path: 'src/Facets/A.sol', keccak: HASH_A },
+        { path: 'src/Facets/A.sol', keccak: HASH_A.toUpperCase() },
+      ])
+    ).toBe(sourceClosureHash([{ path: 'src/Facets/A.sol', keccak: HASH_A }]))
+  })
 })
 
 describe('findAttestationConflicts', () => {
@@ -179,6 +188,15 @@ describe('findAttestationConflicts', () => {
 
     expect(conflicts).toHaveLength(1)
     expect(conflicts[0]?.sourceClosureHashes).toEqual([CLOSURE_A, CLOSURE_B])
+  })
+
+  it('does not report the same hash written in different case', () => {
+    expect(
+      findAttestationConflicts([
+        minted(EVM, HASH_A),
+        minted(EVM, HASH_A.toUpperCase()),
+      ])
+    ).toEqual([])
   })
 
   it('does not report the same build attested twice', () => {
