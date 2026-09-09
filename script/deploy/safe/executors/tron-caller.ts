@@ -22,13 +22,12 @@ import type {
   IChainCaller,
   IChainSimulateResult,
 } from '../../../common/types'
-
 import {
   configuredTronFeeLimitSun,
   estimateTronEnergy,
   tronEnergyCostInSun,
-} from './tron-energy-estimate'
-import { assertTronBroadcastAffordable } from './tron-energy-preflight'
+} from '../../tron/tron-energy-estimate'
+import { assertTronBroadcastAffordable } from '../../tron/tron-energy-preflight'
 
 /**
  * Seams for the tests that prove a refusal never reaches the network. Nothing

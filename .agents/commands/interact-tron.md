@@ -8,17 +8,17 @@ usage: /interact-tron <call|send|address|code> ...
 
 Tron has its own address format, RPC surface, and resource model, so `cast` does not work against it (`eth_getTransactionCount` and `debug_traceTransaction` aren't supported on TronGrid public endpoints). All read/write contract interaction on Tron goes through `troncast` (`script/troncast/`), a Cast-like TronWeb wrapper — never hand-roll a TronWeb script for something `troncast` already covers.
 
-**Repo: stay in `contracts`.** Unlike `/deploy-contract-tron`, this skill needs no `contracts-tron` fork checkout — `troncast` and the deployed contract's on-chain state are both reachable from the normal `contracts` session. See `docs/TronFork.md` for why the fork exists at all and when it *does* matter (deploys and any change to `LibAsset`/`WithdrawablePeriphery`).
+**Repo: stay in `contracts`.** Unlike `/deploy-contract-tron`, this skill needs no `contracts-tron` fork checkout — `troncast` and the deployed contract's on-chain state are both reachable from the normal `contracts` session. See `docs/TronFork.md` for why the fork exists at all and when it _does_ matter (deploys and any change to `LibAsset`/`WithdrawablePeriphery`).
 
 ## When to reach for this vs other skills
 
-| Situation | Skill |
-|---|---|
-| Deploying a new contract to Tron | `/deploy-contract-tron` |
-| Read a Tron contract's state, or send a simple write (transfer, approve, single admin call) | **this skill** |
-| Move gas (TRX) from our own deployer wallet | this skill (`troncast send ... --value`) |
+| Situation                                                                                        | Skill                                                                                                                                                                                                           |
+| ------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Deploying a new contract to Tron                                                                 | `/deploy-contract-tron`                                                                                                                                                                                         |
+| Read a Tron contract's state, or send a simple write (transfer, approve, single admin call)      | **this skill**                                                                                                                                                                                                  |
+| Move gas (TRX) from our own deployer wallet                                                      | this skill (`troncast send ... --value`)                                                                                                                                                                        |
 | Production governance change (whitelist sync, ownership transfer, anything needing the Timelock) | route to `propose-to-safe-tron.ts` conventions — this needs Safe-quorum + `scheduleBatch`/`executeBatch` sequencing, not a one-off `troncast send`. Flag it and get explicit direction rather than improvising. |
-| Analyzing a past Tron transaction/trace | `/analyze-tx` (already has a Tron-specific section) |
+| Analyzing a past Tron transaction/trace                                                          | `/analyze-tx` (already has a Tron-specific section)                                                                                                                                                             |
 
 ## Address handling ([CONV:TRON-ADDRESS], see `202-tron-scripts.md`)
 
@@ -29,7 +29,7 @@ bun troncast address to-hex TLPh66vQ2QMb64rG3WEBV5qnAhefh2kcdw     # -> 0x7252af
 bun troncast address to-base58 0x7252afce04856eaac8f8a8beb5ae29621a1ca49b   # -> TLPh66...
 ```
 
-`troncast` itself accepts either format for `call`/`send`/`code` target addresses, so conversion is only needed when the user needs the *other* format back, or when composing calldata by hand.
+`troncast` itself accepts either format for `call`/`send`/`code` target addresses, so conversion is only needed when the user needs the _other_ format back, or when composing calldata by hand.
 
 **RPC env var required even for offline conversions.** `troncast address to-hex`/`to-base58` always requires `ETH_NODE_URI_TRON` in `.env` — the codec hardcodes the mainnet TronWeb instance, so `ETH_NODE_URI_TRONSHASTA` does not satisfy it and `address` takes no `--env` flag — even though the conversion itself is a pure offline codec operation; the CLI aborts without it. If it's not set, prefix a dummy value for that one invocation rather than editing `.env`.
 
@@ -77,7 +77,9 @@ Key flags: `--value` (`0.1tron` / `100000sun` / raw sun), `--fee-limit` (TRX cap
 
 ## Energy & fee-limit awareness
 
-Tron pays for execution in Energy (≈ gas), not just bandwidth. `--fee-limit` is a TRX ceiling on what the transaction may consume if it must buy Energy — set it deliberately for anything beyond a cheap call rather than trusting the 1000 TRX default. If a write repeatedly fails with an out-of-energy-style error, that's a fee-limit or energy-limit problem, not a revert — raise `--fee-limit`/`--energy-limit` and retry rather than assuming the call itself is wrong.
+Tron pays for execution in Energy (≈ gas), not just bandwidth. `--fee-limit` is a TRX ceiling on what the transaction may consume if it must buy Energy — set it deliberately for anything beyond a cheap call rather than trusting the 1000 TRX default.
+
+`troncast send` pre-flights that ceiling on every contract call: it estimates the Energy, prices it, and **refuses before broadcasting** when the estimate costs more than `--fee-limit` covers, or when the estimate cannot be obtained at all. So an out-of-energy problem now surfaces as a refusal naming the required `--fee-limit`, not as a half-applied transaction. A failed _estimate_ usually means the call would revert — investigate that before reaching for a bigger limit. `ALLOW_GAS_ESTIMATE_FALLBACK=<network>` broadcasts anyway; scope it to the network, because `true` disables the guard for every network in the run. Native TRX transfers are exempt — they run no VM code.
 
 Ongoing higher-volume Tron operations (the Timelock's `scheduleBatch`/`executeBatch`) run off **delegated** Energy from staked TRX on `deployerWallet`/`devWallet` rather than burning TRX per call — that delegation is a separate, human-arranged concern (ping Max) and out of scope for a one-off `troncast` interaction.
 
@@ -89,6 +91,7 @@ No ABI auto-fetch, no contract verification, no wallet management, limited gas e
 
 - `cast` used against a Tron network → will fail on RPC methods Tron doesn't support; switch to `troncast`.
 - Function call reverts with no clear reason → dry-run first (`--dry-run`), then check the target address is in the form `troncast` expects (base58 or 0x-hex, not a malformed hybrid).
-- Transaction fails after broadcast with an energy-related error → raise `--fee-limit`/`--energy-limit`, don't assume the calldata was wrong.
+- `troncast send` refuses with `exceeds the fee limit` → re-run with the `--fee-limit` the message names; the call was never broadcast.
+- `troncast send` refuses with `Energy estimation failed` → the call would most likely revert; diagnose that rather than raising the limit. The same message is used when TronGrid returns 429 / the RPC dies after the estimator's retries — wait and re-run, or set `ALLOW_GAS_ESTIMATE_FALLBACK=tron` if the send (including a break-glass pause) must proceed without a figure.
 - Request turns out to need Safe/Timelock sequencing (multi-step, quorum, or anything touching production governance) → stop and hand off; this skill is for direct one-off calls only.
 - Command fails with `proto is not defined` → known TronWeb/Bun compatibility hiccup; retry the same command once before investigating further.
