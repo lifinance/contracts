@@ -135,7 +135,7 @@ describe('what the CLI hands the floor check', () => {
 
     // And nothing truncates it on the way to the guard either.
     expect(source).not.toMatch(/Math\.(?:trunc|floor|round)\s*\(\s*threshold/u)
-    expect(source).not.toMatch(/threshold(?:\s*\)?)*\s*(?:\||>>>?)\s*0/u)
+    expect(source).not.toMatch(/threshold[\s)]*(?:\||>>>?)\s*0/u)
   })
 })
 
