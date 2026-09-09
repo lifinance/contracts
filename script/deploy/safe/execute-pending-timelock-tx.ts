@@ -1763,12 +1763,18 @@ async function enforcePreBroadcastGateOrAbort(
     ('0x0000000000000000000000000000000000000000000000000000000000000000' as Hex) // [pre-commit-checker: not a secret]
 
   // Every other external read in this guard is caught and turned into a
-  // GuardOutcome, and this one has to be too: `getGitCommit` runs git, and the
-  // gate itself reads the filesystem and the chain through the artifact anchor
-  // and the address index, of which only the operation-id read is caught
-  // inside. A throw escaping here leaves `executeOperation` by a path that
-  // returns no outcome, records no status and sends no alert — the row would be
-  // left mid-flight with nobody told, which is worse than either verdict.
+  // GuardOutcome, and this one has to be too. Inside the gate, `deriveLineageScope`
+  // and `resolveExpectedAuthority` are called outside the per-row try blocks, so
+  // a malformed config or an unexpected shape throws past them; the `Promise.all`
+  // adds its own. The two obvious-looking sources are NOT the reason: git
+  // provenance is fail-soft by contract and yields `PROVENANCE_UNKNOWN`, and
+  // `readArtifactAnchor` returns undefined on every failure.
+  //
+  // A throw escaping here leaves `executeOperation` by a path that returns no
+  // outcome, records no status and sends no alert — the row left mid-flight with
+  // nobody told, which is worse than either verdict. So this is also defence in
+  // depth: no read here is proven throw-free, and the guard's contract is that
+  // it always returns one.
   let result: Awaited<ReturnType<typeof runPreBroadcastGate>>
   try {
     result = await runPreBroadcastGate(

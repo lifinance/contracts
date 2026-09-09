@@ -123,7 +123,17 @@ export const extractCalldataAddresses = (
     //
     // Widening the stride cannot invent a target: `knownAddresses` comes from
     // the deployments file, so an extra alignment can only match 20 bytes that
-    // name a contract main already knows.
+    // name a contract main already knows. Worth being precise about the cost if
+    // it ever did — a spurious row is name-resolved and its live code compared,
+    // so an older-build contract that is referenced but never called would
+    // BLOCK, not merely hold. Measured against all 188 compiled artifacts'
+    // bytecode as payloads: zero addresses found that the 32-byte stride did
+    // not already find.
+    //
+    // Four bytes, not one: nesting shifts a frame by a selector, always a
+    // multiple of four. An address packed at an arbitrary byte offset inside a
+    // `bytes` blob is still missed, and deliberately — covering that means
+    // scanning every byte, which is a different trade.
     for (
       let offset = 0;
       offset + EVM_WORD_HEX_CHARS <= body.length;
