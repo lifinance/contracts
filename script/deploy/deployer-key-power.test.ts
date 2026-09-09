@@ -1,0 +1,365 @@
+/**
+ * The assertion is exercised against the committed `config/global.json` and
+ * `config/networks.json`, not fixtures — a widened copy is derived from the real files so a
+ * refusal proves the check fires on the document it will actually read in CI.
+ */
+import {
+  describe,
+  expect,
+  it,
+  // eslint-disable-next-line import/no-unresolved
+} from 'bun:test'
+
+import globalConfig from '../../config/global.json'
+import networksConfig from '../../config/networks.json'
+
+import {
+  ACKNOWLEDGED_PRODUCTION_INTEGRITY_POWERS,
+  assertDeployerKeyPowerBounded,
+  DEPLOYER_KEY_POWERS,
+  DOCUMENTED_DEPLOYER_CONFIG_SLOTS,
+  findDeployerConfigSlots,
+  renderDeployerKeyPowerInventory,
+  type IDeployerPower,
+} from './deployer-key-power'
+
+const clone = <T>(value: T): T => JSON.parse(JSON.stringify(value)) as T
+
+const expectRefusal = (run: () => void, match: string | RegExp): string => {
+  let message: string | undefined
+  try {
+    run()
+  } catch (error) {
+    message = error instanceof Error ? error.message : String(error)
+  }
+  if (message === undefined)
+    throw new Error(`expected a refusal matching ${String(match)}, got none`)
+  expect(message).toMatch(match)
+  return message
+}
+
+describe('deployer key power — the committed config', () => {
+  it('grants the deployer exactly the documented slots', () => {
+    const slots = findDeployerConfigSlots(globalConfig, networksConfig)
+
+    expect(slots.length).toBeGreaterThan(0)
+    expect([...new Set(slots.map((s) => s.slot))].sort()).toEqual(
+      [...DOCUMENTED_DEPLOYER_CONFIG_SLOTS].sort()
+    )
+    expect(slots.map((s) => s.path)).toEqual([
+      'global.json:deployerWallet',
+      'global.json:tronWallets.deployerWallet',
+      'global.json:safeOwners[0]',
+    ])
+  })
+
+  it('passes the bound on the real config/global.json and config/networks.json', () => {
+    expect(() =>
+      assertDeployerKeyPowerBounded(globalConfig, networksConfig)
+    ).not.toThrow()
+  })
+
+  it('prints the inventory with every power and the resolved slots', () => {
+    const rendered = renderDeployerKeyPowerInventory(
+      globalConfig,
+      networksConfig
+    )
+    for (const power of DEPLOYER_KEY_POWERS)
+      expect(rendered).toContain(power.id)
+    expect(rendered).toContain('global.json:safeOwners[0]')
+  })
+})
+
+describe('deployer key power — a widened config refuses', () => {
+  it('refuses a documented role field reassigned to the deployer', () => {
+    const widened = clone(globalConfig)
+    widened.pauserWallet = globalConfig.deployerWallet
+    expectRefusal(
+      () => assertDeployerKeyPowerBounded(widened, networksConfig),
+      /undocumented grant: global\.json:pauserWallet/
+    )
+  })
+
+  it('refuses a config field that did not exist when the check was written', () => {
+    const widened = clone(globalConfig) as Record<string, unknown>
+    widened.someNewOperatorWallet = globalConfig.deployerWallet
+    expectRefusal(
+      () => assertDeployerKeyPowerBounded(widened, networksConfig),
+      /undocumented grant: global\.json:someNewOperatorWallet/
+    )
+  })
+
+  it('refuses the deployer standing in for a network Safe', () => {
+    const widened = clone(networksConfig) as Record<
+      string,
+      { safeAddress?: string }
+    >
+    const mainnet = widened.mainnet
+    if (!mainnet) throw new Error('config/networks.json has no mainnet entry')
+    mainnet.safeAddress = globalConfig.deployerWallet
+    expectRefusal(
+      () => assertDeployerKeyPowerBounded(globalConfig, widened),
+      /undocumented grant: networks\.json:mainnet\.safeAddress/
+    )
+  })
+
+  it('refuses the Tron identity pasted into another Tron slot', () => {
+    const widened = clone(globalConfig)
+    widened.tronWallets.pauserWallet = globalConfig.tronWallets.deployerWallet
+    expectRefusal(
+      () => assertDeployerKeyPowerBounded(widened, networksConfig),
+      /undocumented grant: global\.json:tronWallets\.pauserWallet/
+    )
+  })
+
+  it('refuses every equivalent spelling of the same address', () => {
+    // The bound claims nothing outside the documented slots, so a spelling the
+    // walk fails to recognise is a slot it cannot claim anything about. The
+    // prefix and the digit case carry no meaning, and neither does the Tron
+    // `41` hex form of the same key.
+    const body = globalConfig.deployerWallet.slice(2)
+    const spellings = [
+      body,
+      body.toLowerCase(),
+      body.toUpperCase(),
+      `0X${body}`,
+      `0x${body.toUpperCase()}`,
+      `41${body}`,
+      `0x41${body}`,
+    ]
+
+    for (const spelling of spellings) {
+      const widened = clone(globalConfig)
+      widened.pauserWallet = spelling
+      const message = expectRefusal(
+        () => assertDeployerKeyPowerBounded(widened, networksConfig),
+        /undocumented grant: global\.json:pauserWallet/
+      )
+      // The refusal names the spelling it found, so an operator reading it can
+      // see which line of the config to open.
+      expect(message).toContain(spelling)
+    }
+  })
+
+  it('leaves an unrelated address alone, so recognition is not a blanket match', () => {
+    // Paired presence: broadening which spellings count as the deployer must
+    // not make every address count as the deployer.
+    const untouched = clone(globalConfig)
+    untouched.pauserWallet = `0x${'a'.repeat(40)}`
+    expect(() =>
+      assertDeployerKeyPowerBounded(untouched, networksConfig)
+    ).not.toThrow()
+  })
+
+  it('refuses a duplicated owner entry, which the signature count is derived from', () => {
+    const widened = clone(globalConfig)
+    widened.safeOwners.push(globalConfig.deployerWallet)
+    expectRefusal(
+      () => assertDeployerKeyPowerBounded(widened, networksConfig),
+      /occupies 2 safeOwners slots, expected at most 1/
+    )
+  })
+
+  it('reports every violation in one pass rather than only the first', () => {
+    const widened = clone(globalConfig)
+    widened.pauserWallet = globalConfig.deployerWallet
+    widened.safeOwners.push(globalConfig.deployerWallet)
+    const message = expectRefusal(
+      () => assertDeployerKeyPowerBounded(widened, networksConfig),
+      /undocumented grant/
+    )
+    expect(message).toMatch(/occupies 2 safeOwners slots/)
+  })
+})
+
+describe('deployer key power — the integrity bound', () => {
+  it('refuses a threshold one signature can reach', () => {
+    expectRefusal(
+      () =>
+        assertDeployerKeyPowerBounded(globalConfig, networksConfig, {
+          safeThreshold: 1,
+        }),
+      /the key alone reaches the threshold/
+    )
+  })
+
+  it('passes at a threshold above one, so the bound is not a blanket refusal', () => {
+    expect(() =>
+      assertDeployerKeyPowerBounded(globalConfig, networksConfig, {
+        safeThreshold: 2,
+      })
+    ).not.toThrow()
+  })
+
+  it('refuses an inventory claiming an integrity power in production steady state', () => {
+    const promoted: IDeployerPower[] = [
+      ...DEPLOYER_KEY_POWERS,
+      {
+        id: 'schedule-without-safe',
+        power: 'Schedule a timelock operation without the Safe',
+        surface: 'hypothetical',
+        class: 'integrity',
+        scope: 'production-mainnet',
+        status: 'current',
+        note: 'Would falsify R7.1.',
+      },
+    ]
+    expectRefusal(
+      () =>
+        assertDeployerKeyPowerBounded(globalConfig, networksConfig, {
+          powers: promoted,
+        }),
+      /schedule-without-safe/
+    )
+  })
+
+  it('accepts the shipped inventory, whose integrity powers are either out of production steady state or disclosed', () => {
+    const integrity = DEPLOYER_KEY_POWERS.filter((p) => p.class === 'integrity')
+    expect(integrity.length).toBeGreaterThan(0)
+    for (const power of integrity)
+      if (power.scope === 'production-mainnet' && power.status === 'current')
+        expect(
+          ACKNOWLEDGED_PRODUCTION_INTEGRITY_POWERS.get(power.id)
+        ).toBeTruthy()
+    expect(integrity.some((p) => p.scope !== 'production-mainnet')).toBe(true)
+    expect(() =>
+      assertDeployerKeyPowerBounded(globalConfig, networksConfig, {
+        powers: DEPLOYER_KEY_POWERS,
+      })
+    ).not.toThrow()
+  })
+})
+
+describe('deployer key power — the F7 executor row', () => {
+  it('carries timelock execution as pending, not as a power held today', () => {
+    const pending = DEPLOYER_KEY_POWERS.filter((p) => p.status === 'pending')
+    expect(pending.map((p) => p.id)).toEqual(['timelock-execute'])
+    expect(pending[0]?.note).toMatch(/EXSC-872/)
+  })
+})
+
+describe('deployer key power — the two config files are both required', () => {
+  for (const [label, networks] of [
+    ['undefined', undefined],
+    ['null', null],
+    ['an empty object', {}],
+  ] as const)
+    it(`refuses ${label} as config/networks.json rather than walking one file`, () => {
+      expectRefusal(
+        () => assertDeployerKeyPowerBounded(globalConfig, networks),
+        /networks config must be a non-empty object/
+      )
+    })
+
+  it('refuses a global config that declares no deployerWallet, even with the Tron identity present', () => {
+    const stripped = clone(globalConfig) as Record<string, unknown>
+    delete stripped.deployerWallet
+    expect(
+      (stripped.tronWallets as Record<string, string>).deployerWallet
+    ).toBeTruthy()
+    expectRefusal(
+      () => assertDeployerKeyPowerBounded(stripped, networksConfig),
+      /config\/global\.json declares no deployerWallet/
+    )
+  })
+})
+
+describe('deployer key power — identity forms the walk resolves', () => {
+  const body = globalConfig.deployerWallet.slice(2)
+
+  for (const [label, form] of [
+    ['the TronWeb 41-prefixed hex form', `41${body}`],
+    ['the 0x41-prefixed hex form', `0x41${body}`],
+  ] as const)
+    it(`refuses ${label} pasted into another Tron slot`, () => {
+      const widened = clone(globalConfig)
+      widened.tronWallets.pauserWallet = form
+      expectRefusal(
+        () => assertDeployerKeyPowerBounded(widened, networksConfig),
+        /undocumented grant: global\.json:tronWallets\.pauserWallet/
+      )
+    })
+
+  it('refuses the deployer used as an object key, the shape a grant table takes', () => {
+    const widened = clone(globalConfig) as Record<string, unknown>
+    widened.roleGrants = { [globalConfig.deployerWallet]: 'CANCELLER_ROLE' }
+    expectRefusal(
+      () => assertDeployerKeyPowerBounded(widened, networksConfig),
+      /undocumented grant: global\.json:roleGrants\./
+    )
+  })
+
+  it('does not match the base58 Tron form of the EVM identity, the disclosed residual', () => {
+    const slots = findDeployerConfigSlots(globalConfig, networksConfig)
+    expect(slots.map((s) => s.value)).toContain(
+      globalConfig.tronWallets.deployerWallet
+    )
+    expect(globalConfig.tronWallets.deployerWallet).not.toMatch(/^(0x)?41/)
+  })
+})
+
+describe('deployer key power — a reduction of power is not a violation', () => {
+  it('passes with the deployer absent from safeOwners', () => {
+    const reduced = clone(globalConfig)
+    reduced.safeOwners = reduced.safeOwners.filter(
+      (owner) =>
+        owner.toLowerCase() !== globalConfig.deployerWallet.toLowerCase()
+    )
+    expect(reduced.safeOwners.length).toBe(globalConfig.safeOwners.length - 1)
+    expect(() =>
+      assertDeployerKeyPowerBounded(reduced, networksConfig)
+    ).not.toThrow()
+  })
+})
+
+describe('deployer key power — disclosed production integrity powers', () => {
+  it('refuses an integrity power that no disclosure names a detection for', () => {
+    const promoted: IDeployerPower[] = [
+      ...DEPLOYER_KEY_POWERS,
+      {
+        id: 'undisclosed-integrity',
+        power: 'Change which code executes without a Safe threshold',
+        surface: 'hypothetical',
+        class: 'integrity',
+        scope: 'production-mainnet',
+        status: 'current',
+        note: 'Not named in ACKNOWLEDGED_PRODUCTION_INTEGRITY_POWERS.',
+      },
+    ]
+    expectRefusal(
+      () =>
+        assertDeployerKeyPowerBounded(globalConfig, networksConfig, {
+          powers: promoted,
+        }),
+      /undisclosed integrity power in production steady state: undisclosed-integrity/
+    )
+  })
+
+  it('carries the Safe-deployment power as a disclosed integrity break with a named detection', () => {
+    const safeDeployment = DEPLOYER_KEY_POWERS.find(
+      (p) => p.id === 'safe-deployment'
+    )
+    expect(safeDeployment?.class).toBe('integrity')
+    expect(safeDeployment?.scope).toBe('production-mainnet')
+    expect(safeDeployment?.status).toBe('current')
+    expect(safeDeployment?.surface).toMatch(/deploy-safe\.ts/)
+    expect(safeDeployment?.surface).toMatch(/deploy-safe-tron\.ts/)
+    expect(
+      ACKNOWLEDGED_PRODUCTION_INTEGRITY_POWERS.get('safe-deployment')
+    ).toMatch(/safe-config/)
+  })
+
+  it('discloses no production integrity power the inventory does not carry', () => {
+    const ids = new Set(DEPLOYER_KEY_POWERS.map((p) => p.id))
+    for (const id of ACKNOWLEDGED_PRODUCTION_INTEGRITY_POWERS.keys())
+      expect(ids.has(id)).toBe(true)
+  })
+
+  it('scopes the diamond-outright power to testnets, not to staging', () => {
+    const testnet = DEPLOYER_KEY_POWERS.find(
+      (p) => p.id === 'testnet-diamond-owner'
+    )
+    expect(testnet?.note).not.toMatch(/staging diamonds/)
+    expect(testnet?.note).toMatch(/devWallet/)
+  })
+})
