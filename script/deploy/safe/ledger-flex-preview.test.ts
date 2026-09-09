@@ -3,10 +3,14 @@ import { describe, expect, it } from 'bun:test'
 import { type Hex } from 'viem'
 
 import {
+  applyStyleRanges,
+  HASH_COMPARE_CHARS,
   joinPanelsHorizontally,
+  LEDGER_FLEX_HASH_NOTE,
   LEDGER_FLEX_WRAP_NOTE,
   pixelWrap,
   renderLedgerFlexFlow,
+  renderLedgerFlexHashFlow,
   type ILedgerFlexFlowParams,
 } from './ledger-flex-preview'
 
@@ -167,5 +171,230 @@ describe('joinPanelsHorizontally', () => {
   it('pads missing lines of shorter panels with empty strings', () => {
     const out = joinPanelsHorizontally([['A', 'B', 'C'], ['X']], 1)
     expect(out).toEqual(['A X', 'B ', 'C '])
+  })
+})
+
+const COMPARE_STYLE = `${ESC}[1;33m`
+
+/** Every character the renderer wrapped in the compare style, in output order. */
+const highlightedRuns = (lines: string[]): string => {
+  const pattern = new RegExp(`${ESC}\\[1;33m([^${ESC}]*)${ESC}\\[0m`, 'g')
+  return lines
+    .flatMap((line) => [...line.matchAll(pattern)].map((m) => m[1] ?? ''))
+    .join('')
+}
+
+const BOX_CHARS = '│╭╮╰╯'
+
+/** Visible width of a row up to the last box border — the framed screens. */
+const panelWidth = (line: string): number => {
+  const plain = stripAnsi(line)
+  let last = -1
+  for (let i = 0; i < plain.length; i++)
+    if (BOX_CHARS.includes(plain[i] as string)) last = i
+  return last + 1
+}
+
+/**
+ * One row of output split into the framed screens and the instruction column
+ * printed beside them — the compare runs must be checked separately, since a
+ * single row carries a slice of each.
+ */
+const splitRow = (line: string): { screens: string; column: string } => {
+  // Walk the styled string so the split index accounts for the ANSI bytes.
+  const plain = stripAnsi(line)
+  let visible = -1
+  let cut = line.length
+  const width = panelWidth(line)
+  for (let i = 0; i < line.length; i++) {
+    if (line.startsWith(`${ESC}[`, i)) {
+      i = line.indexOf('m', i)
+      continue
+    }
+    visible++
+    if (visible === width) {
+      cut = i
+      break
+    }
+  }
+  void plain
+  return { screens: line.slice(0, cut), column: line.slice(cut) }
+}
+
+describe('applyStyleRanges', () => {
+  const S = `${ESC}[1m`
+
+  it('leaves text untouched with no ranges', () => {
+    expect(applyStyleRanges('abcdef', [])).toBe('abcdef')
+  })
+
+  it('styles two disjoint runs and nothing between them', () => {
+    expect(
+      applyStyleRanges('abcdef', [
+        { start: 0, end: 2, style: S },
+        { start: 4, end: 6, style: S },
+      ])
+    ).toBe(`${S}ab${ESC}[0mcd${S}ef${ESC}[0m`)
+  })
+
+  it('applies ranges given out of order', () => {
+    expect(
+      applyStyleRanges('abcd', [
+        { start: 2, end: 4, style: S },
+        { start: 0, end: 1, style: S },
+      ])
+    ).toBe(`${S}a${ESC}[0mb${S}cd${ESC}[0m`)
+  })
+
+  it('clamps a range that runs past the end of the text', () => {
+    expect(applyStyleRanges('ab', [{ start: 1, end: 99, style: S }])).toBe(
+      `a${S}b${ESC}[0m`
+    )
+  })
+
+  it('drops a range that starts past the end of the text', () => {
+    expect(applyStyleRanges('ab', [{ start: 5, end: 9, style: S }])).toBe('ab')
+  })
+
+  it('never changes the visible character count', () => {
+    const text = 'abcdefghij'
+    const styled = applyStyleRanges(text, [
+      { start: 1, end: 3, style: S },
+      { start: 7, end: 10, style: S },
+    ])
+    expect(stripAnsi(styled)).toBe(text)
+  })
+})
+
+describe('renderLedgerFlexHashFlow', () => {
+  const HASH =
+    '0x1a2b3c4d5e6f70819293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f9'
+  const flow = renderLedgerFlexHashFlow({ hash: HASH })
+  const joined = flow.join('\n')
+
+  it('renders the three message screens in order', () => {
+    const plain = stripAnsi(joined)
+    expect(plain).toContain('Review message')
+    expect(plain).toContain('Swipe to review')
+    expect(plain).toContain('Message')
+    expect(plain).toContain('Sign message')
+    expect(plain).toContain('Hold to sign')
+    // Left to right, not top to bottom: the screens are columns of one row of
+    // panels, so order is a column offset, never a line index.
+    const columnOf = (needle: string): number => {
+      const row = flow.find((line) => stripAnsi(line).includes(needle))
+      return stripAnsi(row ?? '').indexOf(needle)
+    }
+    expect(columnOf('Review message')).toBeLessThan(columnOf('Sign message'))
+    expect(columnOf('< 1 of 3 >')).toBeLessThan(columnOf('< 2 of 3 >'))
+    // Three screens, not the EIP-712 flow's eight.
+    expect(plain).not.toContain('of 8')
+  })
+
+  it('renders the hash upper case, as the device does', () => {
+    const plain = stripAnsi(joined).replace(/\s+/g, '')
+    expect(plain).toContain('0x1A2B3C4D')
+    expect(plain).not.toContain('1a2b3c4d')
+  })
+
+  // Pinned as a literal, not derived from HASH_COMPARE_CHARS: a mutation that
+  // shortens the compared run to a grindable four-and-four must fail here
+  // rather than move the expectation with it.
+  it('compares 8 characters from each end', () => {
+    expect(HASH_COMPARE_CHARS).toBe(8)
+  })
+
+  it('highlights exactly the first and last 8 hex characters on the screen', () => {
+    const onScreen = flow.map((line) => splitRow(line).screens)
+
+    expect(highlightedRuns(onScreen)).toBe('1A2B3C4DC6D7E8F9')
+  })
+
+  it('highlights the same two runs in the instruction column', () => {
+    const hex = HASH.slice(2).toUpperCase()
+    const beside = flow.map((line) => splitRow(line).column)
+
+    expect(highlightedRuns(beside)).toBe(
+      `${hex.slice(0, HASH_COMPARE_CHARS)}${hex.slice(-HASH_COMPARE_CHARS)}`
+    )
+  })
+
+  it('highlights both ends whatever the row breaks are', () => {
+    // Row breaks follow measured glyph widths, so which row each end lands on
+    // varies with the hash — including a final row shorter than 8 characters,
+    // where the tail spans two rows.
+    for (let seed = 1; seed <= 200; seed++) {
+      const hex = Array.from({ length: 64 }, (_, i) =>
+        ((seed * 31 + i * 17) % 16 >>> 0).toString(16)
+      )
+        .join('')
+        .toUpperCase()
+      const rendered = renderLedgerFlexHashFlow({ hash: `0x${hex}` })
+      const onScreen = rendered.map((line) => splitRow(line).screens)
+      const head = hex.slice(0, HASH_COMPARE_CHARS)
+      const tail = hex.slice(-HASH_COMPARE_CHARS)
+
+      expect(highlightedRuns(onScreen)).toBe(`${head}${tail}`)
+
+      // Exactly two runs, never a run split across a line break. A 66-character
+      // display cannot put fewer than 9 characters on its final row (three rows
+      // hold at most 19 each), and the first row always holds more than the
+      // `0x` prefix plus 8, so neither end can straddle a break at this length.
+      const pattern = new RegExp(`${ESC}\\[1;33m([^${ESC}]*)${ESC}\\[0m`, 'g')
+      expect(
+        onScreen.flatMap((line) => [...line.matchAll(pattern)]).length
+      ).toBe(2)
+    }
+  })
+
+  it('names the 16 characters to compare beside the screens', () => {
+    const plain = stripAnsi(joined)
+    expect(plain).toContain('COMPARE THESE 16 CHARACTERS')
+    expect(plain).toContain('first 8')
+    expect(plain).toContain('last 8')
+    expect(plain.toLowerCase()).toContain('dm from the proposer')
+  })
+
+  it('keeps every screen row the same visible width despite the styling', () => {
+    // The compare column is unframed and trails the panels, so widths are
+    // measured up to the last box border on each row.
+    expect(new Set(flow.map(panelWidth)).size).toBe(1)
+  })
+
+  it('styles the hash on the device screen, not only in the column', () => {
+    const styledScreenRows = flow.filter((line) =>
+      splitRow(line).screens.includes(COMPARE_STYLE)
+    )
+    expect(styledScreenRows.length).toBeGreaterThan(0)
+  })
+
+  const REJECTED: [string, string][] = [
+    ['too short', `0x${'a'.repeat(63)}`],
+    ['too long', `0x${'a'.repeat(65)}`],
+    ['not hex', `0x${'g'.repeat(64)}`],
+    ['unprefixed', 'a'.repeat(64)],
+    ['empty', ''],
+    ['an address', '0x031f25f640e0530a51f5617757b281a8df5614ee'],
+    // The hash reaches the operator's terminal: a value carrying its own escape
+    // codes or box characters could redraw the screens it is printed inside.
+    ['ansi escapes', `0x${ESC}[31m${'a'.repeat(58)}${ESC}[0m`],
+    ['box drawing', `0x${'│'.repeat(64)}`],
+  ]
+
+  for (const [label, value] of REJECTED)
+    it(`refuses to render ${label}`, () => {
+      expect(() => renderLedgerFlexHashFlow({ hash: value })).toThrow(
+        /Expected a Safe transaction hash/
+      )
+    })
+})
+
+describe('LEDGER_FLEX_HASH_NOTE', () => {
+  it('is a red caveat about case and line breaks', () => {
+    expect(LEDGER_FLEX_HASH_NOTE).toContain(`${ESC}[31m`)
+    expect(LEDGER_FLEX_HASH_NOTE).toContain(`${ESC}[0m`)
+    const plain = stripAnsi(LEDGER_FLEX_HASH_NOTE).toLowerCase()
+    expect(plain).toContain('case')
+    expect(plain).toContain('wrap')
   })
 })

@@ -334,18 +334,26 @@ signer sees:
 2. **Safe transaction details** — nonce (current/stale/future coloring), `to`
    + resolved name, raw data, proposer, stored `safeTxHash`, signature count
    vs threshold, drain origin-PR links where present.
-3. The value to verify on the device, which depends on the signing mode. In
-   the default hash mode: the single message screen, compared character by
-   character against the hash in the out-of-band message from the proposer —
-   not against the hash stored with the proposal, which the proposer controls
-   alongside the calldata. Under `ENABLE_SAFE_EIP712_SIGNING=true`
-   and only when the transaction carries calldata: a **Ledger Flex
-   "filmstrip"** (`renderLedgerFlexFlow`, `ledger-flex-preview.ts`), an ASCII
-   replica of the device screens for the exact to-be-signed values.
+3. The value to verify on the device, which depends on the signing mode. In the
+   default hash mode: a **Ledger Flex "filmstrip"**
+   (`renderLedgerFlexHashFlow`, `ledger-flex-preview.ts`) of the three message
+   screens the device shows, with the first and last eight hex characters of the
+   hash highlighted and spelled out beside it. Those sixteen characters are
+   compared against the hash in the out-of-band message from the proposer — not
+   against the hash stored with the proposal, which the proposer controls
+   alongside the calldata. The previewed hash is read from the Safe's own
+   on-chain `getTransactionHash` for that reason, and a stored hash that
+   disagrees with it is reported. Under `ENABLE_SAFE_EIP712_SIGNING=true` and
+   only when the transaction carries calldata: the typed-data filmstrip
+   (`renderLedgerFlexFlow`), an ASCII replica of the device screens for the
+   exact to-be-signed values.
 4. The action prompt: `Do Nothing` / `Sign` / `Sign & Execute` /
    `Sign and Execute With Deployer` / `Execute with Deployer`. The two
    deployer variants are the usual choice — see §2 on why the deployer
-   wallet broadcasts.
+   wallet broadcasts. Selecting an action is itself the review
+   acknowledgement — the payload, the provenance and the device screens are all
+   on screen at that prompt — and it is recorded once per target + value +
+   operation + payload for the run summary.
 
 Signing is `eth_sign` over the `safeTxHash`, read from the Safe's own
 on-chain `getTransactionHash` so the digest is correct for that Safe's version.

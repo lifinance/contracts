@@ -457,6 +457,24 @@ describe('normalizeRpcUrlForNetwork', () => {
     )
   })
 
+  // A provider that scopes the chain onto the path is already pointed at JSON-RPC there.
+  // dRPC answers `eth_blockNumber` at `/tron/<key>` and 404s under `/tron/<key>/jsonrpc`, so
+  // appending the route makes every Tron read fail against it.
+  it('leaves a path-scoped Tron endpoint untouched', () => {
+    const pathScoped = 'https://lb.example.invalid/tron/AbCdEf0123456789xyz'
+    expect(normalizeRpcUrlForNetwork('tron', pathScoped)).toBe(pathScoped)
+  })
+
+  it('leaves a path-scoped Tron endpoint with a trailing slash untouched', () => {
+    const pathScoped = 'https://lb.example.invalid/tron/AbCdEf0123456789xyz/'
+    expect(normalizeRpcUrlForNetwork('tron', pathScoped)).toBe(pathScoped)
+  })
+
+  it('leaves a path-scoped Tron endpoint untouched on a testnet key too', () => {
+    const pathScoped = 'https://lb.example.invalid/tron-shasta/AbCdEf0123456789'
+    expect(normalizeRpcUrlForNetwork('tronshasta', pathScoped)).toBe(pathScoped)
+  })
+
   it('keeps a credential query parameter behind the route', () => {
     expect(
       normalizeRpcUrlForNetwork('tron', `${TRONGRID_ROOT}?apikey=secret-value`)
