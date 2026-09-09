@@ -1762,33 +1762,50 @@ async function enforcePreBroadcastGateOrAbort(
     operation.salt ??
     ('0x0000000000000000000000000000000000000000000000000000000000000000' as Hex) // [pre-commit-checker: not a secret]
 
-  const result = await runPreBroadcastGate(
-    {
-      operationId: operation.id,
-      targets: operation.targets,
-      payloads: operation.payloads,
-    },
-    {
-      ...viemGateReaders(publicClient),
-      deployments,
-      globalConfig: globalConfig as unknown as Record<string, unknown>,
-      networkConfig: (data as INetworksObject)[networkName] ?? {},
-      artifactRoot: REPO_ROOT,
-      lineage: `local build of ${getGitCommit()}`,
-      signTimeRecord,
-      readOnChainOperationId: viemOperationIdReader(
-        publicClient,
-        timelockAddress,
-        {
-          targets: operation.targets,
-          values: operation.values,
-          payloads: operation.payloads,
-          predecessor: operation.predecessor,
-          salt,
-        }
-      ),
-    }
-  )
+  // Every other external read in this guard is caught and turned into a
+  // GuardOutcome, and this one has to be too: `getGitCommit` runs git, and the
+  // gate itself reads the filesystem and the chain through the artifact anchor
+  // and the address index, of which only the operation-id read is caught
+  // inside. A throw escaping here leaves `executeOperation` by a path that
+  // returns no outcome, records no status and sends no alert — the row would be
+  // left mid-flight with nobody told, which is worse than either verdict.
+  let result: Awaited<ReturnType<typeof runPreBroadcastGate>>
+  try {
+    result = await runPreBroadcastGate(
+      {
+        operationId: operation.id,
+        targets: operation.targets,
+        payloads: operation.payloads,
+      },
+      {
+        ...viemGateReaders(publicClient),
+        deployments,
+        globalConfig: globalConfig as unknown as Record<string, unknown>,
+        networkConfig: (data as INetworksObject)[networkName] ?? {},
+        artifactRoot: REPO_ROOT,
+        lineage: `local build of ${getGitCommit()}`,
+        signTimeRecord,
+        readOnChainOperationId: viemOperationIdReader(
+          publicClient,
+          timelockAddress,
+          {
+            targets: operation.targets,
+            values: operation.values,
+            payloads: operation.payloads,
+            predecessor: operation.predecessor,
+            salt,
+          }
+        ),
+      }
+    )
+  } catch (error) {
+    consola.error(
+      `${networkPrefix} ❌ Pre-broadcast gate could not run — refusing execute (row left queued, next run retries):`,
+      error
+    )
+    await alertFailure(error)
+    return 'retry'
+  }
 
   for (const alert of result.alerts)
     consola.warn(`${networkPrefix} ⚠️  ${alert}`)

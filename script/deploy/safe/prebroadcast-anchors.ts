@@ -35,6 +35,8 @@ import type {
 
 const EVM_WORD_HEX_CHARS = 64
 const ADDRESS_HEX_CHARS = 40
+/** Also the scan stride: a nested frame is offset by its own selector. */
+const SELECTOR_HEX_CHARS = 8
 const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 
 /**
@@ -112,11 +114,20 @@ export const extractCalldataAddresses = (
 
   for (const payload of payloads) {
     const body = strip0x(payload ?? '')
-    // Skip the 4-byte selector so words line up with ABI encoding.
+    // Every 4-byte alignment, not only the top-level frame's. A call carried in
+    // a `bytes` argument — `diamondCut`'s init `_calldata` is the one that
+    // matters here — shifts all of its own words by its own selector, so an
+    // address reachable only through a nested frame sits on no 32-byte stride.
+    // It would get no codehash row and no authority row at all, which is a hole
+    // in coverage rather than a verdict about it.
+    //
+    // Widening the stride cannot invent a target: `knownAddresses` comes from
+    // the deployments file, so an extra alignment can only match 20 bytes that
+    // name a contract main already knows.
     for (
-      let offset = 8;
+      let offset = 0;
       offset + EVM_WORD_HEX_CHARS <= body.length;
-      offset += EVM_WORD_HEX_CHARS
+      offset += SELECTOR_HEX_CHARS
     ) {
       const word = body.slice(offset, offset + EVM_WORD_HEX_CHARS).toLowerCase()
       const candidate = `0x${word.slice(

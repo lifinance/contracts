@@ -80,17 +80,35 @@ describe('extractCalldataAddresses', () => {
     ).toEqual([])
   })
 
-  it('skips the four selector bytes so words stay aligned', () => {
-    // Two full words follow the selector, so a scan that counted the selector
-    // as payload would straddle both boundaries and find neither address.
+  it('finds both addresses in the top-level frame', () => {
     const payload = `0x1f931c1c${asWord(FACET)}${asWord(DIAMOND)}`
     expect(extractCalldataAddresses([], [payload], known)).toEqual([
       FACET,
       DIAMOND,
     ])
-    // The same two words with the selector removed are off by four bytes.
-    const misaligned = `0x${asWord(FACET)}${asWord(DIAMOND)}`
-    expect(extractCalldataAddresses([], [misaligned], known)).toEqual([])
+  })
+
+  it('finds an address that only a nested frame reaches', () => {
+    // A call carried in a `bytes` argument — diamondCut's init `_calldata` is
+    // the one that matters — shifts its own words by its own selector, so its
+    // addresses sit on no 32-byte stride of the outer frame. A single-alignment
+    // scan gives such an address no codehash row and no authority row at all:
+    // not a verdict about it, the absence of one.
+    const payload = `0xdeadbeef${asWord(FACET)}1f931c1c${asWord(DIAMOND)}`
+
+    expect(extractCalldataAddresses([], [payload], known)).toEqual([
+      FACET,
+      DIAMOND,
+    ])
+  })
+
+  it('still names nothing the deployments file does not hold', () => {
+    // The paired present for the widening: a 4-byte stride examines eight times
+    // as many windows, so it has to stay incapable of naming an address main
+    // cannot — otherwise the added coverage is noise the gate must then read
+    // code for, and a failed read holds the operation.
+    const payload = `0xdeadbeef${asWord(STRANGER)}1f931c1c${asWord(STRANGER)}`
+    expect(extractCalldataAddresses([], [payload], known)).toEqual([])
   })
 
   it('deduplicates an address that is both a target and in a payload', () => {
