@@ -15,6 +15,7 @@ import type { AuditLogEntry, IAuditLogFile } from './audit-log-guard'
 import type { IClosureDetail } from './source-closure'
 import {
   verifyAuditContent,
+  resolvePinCommit,
   type AuditVerdict,
   type ClosureResolutionFailure,
   type IAuditCheckResult,
@@ -159,6 +160,7 @@ const toEntryInput = (
   // so a stray newline in the JSON made them disagree and produced "the closure
   // was not resolved" — an error that names neither the cause nor the fix.
   auditCommitHash: (entry.auditCommitHash ?? '').trim(),
+  finalCommitHash: entry.finalCommitHash?.trim() || undefined,
   sourceClosureHash: asHex(entry.sourceClosureHash),
   pinnedClosureHash: asHex(entry.pinnedClosureHash),
 })
@@ -242,12 +244,15 @@ export const runAuditGate = (input: IAuditGateInput): IAuditGateReport => {
       }
 
     const entries = collectEntriesForContract(log, name, contract.version).map(
-      (entry) => ({
-        ...entry,
-        closureAtAuditCommit: /^[0-9a-f]{40}$/i.test(entry.auditCommitHash)
-          ? closureAt(entry.auditCommitHash, contract.path)
-          : undefined,
-      })
+      (entry) => {
+        const pinCommit = resolvePinCommit(entry)
+        return {
+          ...entry,
+          closureAtAuditCommit: /^[0-9a-f]{40}$/i.test(pinCommit)
+            ? closureAt(pinCommit, contract.path)
+            : undefined,
+        }
+      }
     )
 
     return {

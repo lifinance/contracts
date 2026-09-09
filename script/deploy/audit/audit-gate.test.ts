@@ -158,6 +158,26 @@ describe('runAuditGate', () => {
     expect(report.results[0]?.reason).toContain('changed after it was audited')
   })
 
+  it('pins content equality to finalCommitHash when scope and remediation differ', () => {
+    const report = runAuditGate({
+      log: singleAuditLog({
+        auditCommitHash: AUDIT_SHA,
+        finalCommitHash: SECOND_SHA,
+      }),
+      contracts: [{ path: FOO, version: '1.0.0' }],
+      headTreeish: 'HEAD',
+      deps: depsFrom({
+        [`HEAD:${FOO}`]: HEAD,
+        // Scope commit A would fail; pin commit D matches head.
+        [`${AUDIT_SHA}:${FOO}`]: DRIFTED,
+        [`${SECOND_SHA}:${FOO}`]: HEAD,
+      }),
+    })
+
+    expect(report.verdict).toBe('pass')
+    expect(report.results[0]?.reason).toContain(SECOND_SHA)
+  })
+
   it('ERROR-blocks — never falls through — when the audit commit cannot be fetched', () => {
     const report = runAuditGate({
       log: singleAuditLog(),

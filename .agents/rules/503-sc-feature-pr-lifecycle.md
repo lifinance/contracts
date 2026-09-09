@@ -41,9 +41,10 @@ it can be posted for peer review.
 8. **Audit** — request the audit (`/request-audit`) and resolve the findings
    (`/resolve-audit-issues`).
 9. **File the audit** — add the report PDF and update `audit/auditLog.json`
-   (`/add-audit`). `auditCommitHash` is the **post-remediation** commit the
-   auditor signed off on, not the commit they first reviewed. This lands as a
-   new commit, which **dismisses the stale peer-review approval — that is
+   (`/add-audit`). Set `auditCommitHash` to scope commit **A** and, after
+   remediations, `finalCommitHash` to post-remediation commit **D** the
+   auditor signed off on (see `[CONV:AUDIT-PIN]` in `501-audits`). This lands
+   as a new commit, which **dismisses the stale peer-review approval — that is
    expected**; re-request review.
 10. **Final review & merge** — obtain a fresh approval, then merge.
 

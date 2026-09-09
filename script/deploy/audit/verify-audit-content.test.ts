@@ -11,6 +11,7 @@ import type { Hex } from 'viem'
 import type { IClosureDetail } from './source-closure'
 import {
   classifyAuditEntry,
+  resolvePinCommit,
   verifyAuditContent,
   type IAuditEntryInput,
 } from './verify-audit-content'
@@ -18,6 +19,7 @@ import {
 const HEAD = `0x${'a'.repeat(64)}` as Hex
 const OTHER = `0x${'b'.repeat(64)}` as Hex
 const SHA = 'c'.repeat(40)
+const FINAL = 'd'.repeat(40)
 
 /**
  * A closure detail carrying only a combined hash. With no per-file hashes and no
@@ -38,6 +40,27 @@ const withCommit = (
   ...over,
 })
 
+describe('resolvePinCommit', () => {
+  it('uses finalCommitHash when it is a 40-hex SHA', () => {
+    expect(
+      resolvePinCommit({ auditCommitHash: SHA, finalCommitHash: FINAL })
+    ).toBe(FINAL)
+  })
+
+  it('falls back to auditCommitHash when finalCommitHash is absent', () => {
+    expect(resolvePinCommit({ auditCommitHash: SHA })).toBe(SHA)
+  })
+
+  it('falls back when finalCommitHash is not a SHA', () => {
+    expect(
+      resolvePinCommit({
+        auditCommitHash: SHA,
+        finalCommitHash: 'n/a (not used)',
+      })
+    ).toBe(SHA)
+  })
+})
+
 describe('classifyAuditEntry', () => {
   it('recorded — the entry carries a sourceClosureHash', () => {
     expect(
@@ -47,6 +70,17 @@ describe('classifyAuditEntry', () => {
 
   it('commit — a 40-hex auditCommitHash and no recorded hash', () => {
     expect(classifyAuditEntry(withCommit()).kind).toBe('commit')
+  })
+
+  it('commit — finalCommitHash alone can make an n/a scope entry pin-able', () => {
+    expect(
+      classifyAuditEntry(
+        withCommit({
+          auditCommitHash: 'n/a (forked)',
+          finalCommitHash: FINAL,
+        })
+      ).kind
+    ).toBe('commit')
   })
 
   it.each([

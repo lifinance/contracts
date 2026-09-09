@@ -19,7 +19,18 @@ export type ClosureResolutionFailure =
 
 export interface IAuditEntryInput {
   auditId: string
+  /**
+   * Scope commit the auditor first reviewed (report “audited at”), or `"n/a"`
+   * with explanation. Not necessarily what the gate pins to — see
+   * {@link resolvePinCommit}.
+   */
   auditCommitHash: string
+  /**
+   * Post-remediation commit the auditor signed off on. When set to a 40-hex
+   * SHA, the gate pins content equality here; otherwise it falls back to
+   * `auditCommitHash` (legacy entries and audits with no findings).
+   */
+  finalCommitHash?: string
   /** Recorded closure hash, once the schema field is populated. */
   sourceClosureHash?: Hex
   /**
@@ -28,7 +39,10 @@ export interface IAuditEntryInput {
    * it makes later drift detectable without claiming the closure was reviewed.
    */
   pinnedClosureHash?: Hex
-  /** Closure recomputed at `auditCommitHash`, or why it could not be. */
+  /**
+   * Closure recomputed at the pin commit ({@link resolvePinCommit}), or why it
+   * could not be.
+   */
   closureAtAuditCommit?: IClosureDetail | ClosureResolutionFailure
 }
 
@@ -36,6 +50,27 @@ export type AuditEntryKind = 'recorded' | 'commit' | 'unverifiable'
 
 export interface IAuditEntryClassification {
   kind: AuditEntryKind
+}
+
+const COMMIT_SHA = /^[0-9a-f]{40}$/i
+
+/**
+ * Commit whose source the content gate accepts.
+ *
+ * Prefer `finalCommitHash` when it is a real SHA (post-remediation pin). Fall
+ * back to `auditCommitHash` for legacy rows and audits with no remediations.
+ *
+ * @param entry - one audit log entry (or the gate's trimmed view of it).
+ * @returns the 40-hex pin, or the trimmed `auditCommitHash` even when it is not a SHA.
+ */
+export const resolvePinCommit = (entry: {
+  auditCommitHash: string
+  finalCommitHash?: string
+}): string => {
+  const final = (entry.finalCommitHash ?? '').trim()
+  if (COMMIT_SHA.test(final)) return final
+
+  return (entry.auditCommitHash ?? '').trim()
 }
 
 /**
@@ -53,8 +88,6 @@ export interface IAuditCheckResult {
   driftingDependencies?: string[]
 }
 
-const COMMIT_SHA = /^[0-9a-f]{40}$/i
-
 /**
  * Which comparison an entry supports.
  *
@@ -68,8 +101,7 @@ export const classifyAuditEntry = (
   entry: IAuditEntryInput
 ): IAuditEntryClassification => {
   if (entry.sourceClosureHash) return { kind: 'recorded' }
-  if (COMMIT_SHA.test((entry.auditCommitHash ?? '').trim()))
-    return { kind: 'commit' }
+  if (COMMIT_SHA.test(resolvePinCommit(entry))) return { kind: 'commit' }
 
   return { kind: 'unverifiable' }
 }
@@ -147,13 +179,13 @@ export interface IVerifyAuditContentInput {
 /**
  * Named on every hard failure, because the commonest way to reach one is not tampering.
  *
- * The lifecycle audits at one commit and then resolves the findings, and `/add-audit` takes
- * `auditCommitHash` from the report, which names the pre-remediation commit. So the first
- * failure an author sees after a real audit is this one, and without the way out it reads as
- * the gate being broken.
+ * Reports usually name scope commit A; remediations land at D. The gate pins to
+ * `finalCommitHash` (D) when present, else `auditCommitHash`. Filing with only A
+ * after fixes were made is the common miss — without this hint it looks like the
+ * gate is broken.
  */
 const REMEDIATION_HINT =
-  'If this follows audit remediation, the recorded commit predates the fixes: add a NEW audit entry naming the post-remediation commit (the same report can be referenced). The append-only guard means an existing entry cannot be corrected in place.'
+  'If this follows audit remediation, add a NEW audit entry with auditCommitHash=scope (A) and finalCommitHash=post-remediation (D) the auditor signed off on (same report / addendum OK). The append-only guard means an existing entry cannot be corrected in place.'
 
 /**
  * Decides whether the audited source still matches PR head.
@@ -233,18 +265,19 @@ export const verifyAuditContent = (
     }
 
     if (kind === 'commit') {
+      const pinCommit = resolvePinCommit(entry)
       const resolved = entry.closureAtAuditCommit
 
       if (resolved === 'unfetchable') {
         errors.push(
-          `audit '${entry.auditId}': commit ${entry.auditCommitHash} could not be fetched from GitHub, so the audited source cannot be compared`
+          `audit '${entry.auditId}': pin commit ${pinCommit} could not be fetched from GitHub, so the audited source cannot be compared`
         )
         continue
       }
 
       if (resolved === 'contract-absent') {
         errors.push(
-          `audit '${entry.auditId}': ${contract} does not exist at commit ${entry.auditCommitHash}, so that entry cannot describe this contract`
+          `audit '${entry.auditId}': ${contract} does not exist at pin commit ${pinCommit}, so that entry cannot describe this contract`
         )
         continue
       }
@@ -254,14 +287,14 @@ export const verifyAuditContent = (
       // an undetected change would hide.
       if (resolved === 'closure-incomplete') {
         errors.push(
-          `audit '${entry.auditId}': the import closure at commit ${entry.auditCommitHash} could not be fully read, so no hash over it can be trusted`
+          `audit '${entry.auditId}': the import closure at pin commit ${pinCommit} could not be fully read, so no hash over it can be trusted`
         )
         continue
       }
 
       if (resolved === undefined) {
         errors.push(
-          `audit '${entry.auditId}': the closure at commit ${entry.auditCommitHash} was not resolved`
+          `audit '${entry.auditId}': the closure at pin commit ${pinCommit} was not resolved`
         )
         continue
       }
@@ -269,7 +302,7 @@ export const verifyAuditContent = (
       if (resolved.combined === headClosureHash)
         return {
           verdict: 'pass',
-          reason: `${subject}: source closure is byte-identical to the audited source at commit ${entry.auditCommitHash} (audit '${entry.auditId}')`,
+          reason: `${subject}: source closure is byte-identical to the audited source at pin commit ${pinCommit} (audit '${entry.auditId}')`,
           matchedAuditId: entry.auditId,
         }
 
@@ -286,7 +319,7 @@ export const verifyAuditContent = (
         const classified = classifyContentVerdict(subject, comparison)
         if (classified.verdict === 'closure-drift') {
           drifts.push({
-            reason: `${classified.reason} (audit '${entry.auditId}', commit ${entry.auditCommitHash})`,
+            reason: `${classified.reason} (audit '${entry.auditId}', pin commit ${pinCommit})`,
             auditId: entry.auditId,
             driftingDependencies: comparison.driftingDependencies,
           })
@@ -295,7 +328,7 @@ export const verifyAuditContent = (
       }
 
       failures.push(
-        `audit '${entry.auditId}': closure at audited commit ${entry.auditCommitHash} is ${resolved.combined}, PR head is ${headClosureHash} — the contract changed after it was audited`
+        `audit '${entry.auditId}': closure at pin commit ${pinCommit} is ${resolved.combined}, PR head is ${headClosureHash} — the contract changed after it was audited`
       )
       continue
     }
