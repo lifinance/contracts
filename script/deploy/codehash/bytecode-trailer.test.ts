@@ -288,3 +288,78 @@ describe('readMetadataTrailer, against a trailer chosen by the deployer', () => 
     expect(readMetadataTrailer(`0X${REAL_TAIL.slice(2)}`).present).toBe(true)
   })
 })
+
+describe('the zksolc trailer — the third format', () => {
+  /**
+   * Layout measured on a real `CalldataVerificationFacet` and recorded in
+   * `10c-zkevm-verification-plan.md` §3.4. The IPFS digest here is filler; the
+   * STRUCTURE is the measured part, and the fixture self-validates — its own
+   * length word `0x0055` is 85, which is what the layout's pieces sum to
+   * (1 + 5 + 36 + 5 + 38), and 85 is the length the doc measured. A fixture whose
+   * declared length disagreed with its contents would be testing nothing.
+   */
+  const ZK_CBOR =
+    'a2646970667358221220abababababababababababababababababababababababababababababababab64736f6c6378247a6b736f6c633a312e352e31353b736f6c633a302e382e32393b6c6c766d3a312e302e32'
+  const ZK_TAIL = `0x925092509256fe${ZK_CBOR}0055`
+
+  it('strips it with the same mechanics as the EVM trailer', () => {
+    // Same length-word convention, so the strip is shared rather than forked —
+    // two readers of one field is how the bytes vouched for and the bytes
+    // compared come apart.
+    const trailer = readMetadataTrailer(ZK_TAIL)
+    expect(trailer.present).toBe(true)
+    if (!trailer.present) return
+    expect(trailer.byteLength).toBe(85)
+    expect(trailer.totalStrippedBytes).toBe(87)
+    expect(stripMetadataTrailer(ZK_TAIL).code).toBe('0x925092509256fe')
+  })
+
+  it('reads all three toolchain versions, not just solc', () => {
+    // D19(b) requires the solc-fork/LLVM sub-version to be compared UNMASKED,
+    // so a reader that surfaced only `solc` would make that comparison
+    // impossible while looking complete.
+    const trailer = readMetadataTrailer(ZK_TAIL)
+    expect(trailer.present).toBe(true)
+    if (!trailer.present) return
+    expect(trailer.toolchain).toEqual({
+      zksolcVersion: '1.5.15',
+      solcVersion: '0.8.29',
+      llvmVersion: '1.0.2',
+    })
+  })
+
+  it('reports the solc version from the zk text form too', () => {
+    const trailer = readMetadataTrailer(ZK_TAIL)
+    if (!trailer.present) throw new Error('expected a trailer')
+    expect(trailer.solcVersion).toBe('0.8.29')
+  })
+
+  it('leaves the EVM trailer with no toolchain block', () => {
+    // Absence here is meaningful: it is how a caller tells an EVM lineage from a
+    // zk one without consulting the network, and it is asserted PRESENT in the
+    // zk case above so this is not a vacuous absence.
+    const trailer = readMetadataTrailer(REAL_TAIL)
+    if (!trailer.present) throw new Error('expected a trailer')
+    expect(trailer.toolchain).toBeUndefined()
+    expect(trailer.solcVersion).toBe('0.8.29')
+  })
+
+  it.each([
+    ['a truncated triple', 'zksolc:1.5.15;solc:0.8.29'],
+    ['keys in an unexpected order', 'llvm:1.0.2;zksolc:1.5.15;solc:0.8.29'],
+    ['a plausible-looking lie', 'zksolc:9.9.9;solc:0.8.29;llvm:notaversion'],
+  ])(
+    'reports no toolchain rather than a partial one for %s',
+    (_label, tool) => {
+      // These bytes are part of the deployed code, so the proposer writes them.
+      // A half-read toolchain shown to a signer as fact is worse than none.
+      const hex = Buffer.from(tool, 'utf8').toString('hex')
+      const len = tool.length.toString(16).padStart(2, '0')
+      const cbor = `a164736f6c6378${len}${hex}`
+      const byteLen = (cbor.length / 2).toString(16).padStart(4, '0')
+      const trailer = readMetadataTrailer(`0x925092509256fe${cbor}${byteLen}`)
+      if (!trailer.present) throw new Error('expected a trailer')
+      expect(trailer.toolchain).toBeUndefined()
+    }
+  )
+})
