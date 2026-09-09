@@ -4189,6 +4189,13 @@ function getPrivateKey() {
 # not contain "staging", so matching the exact string keeps the gate at least as
 # broad as the key it protects.
 #
+# On a Tron mainnet the CLI reads the deployment log with the EVM address reader,
+# so a cut there is refused as unattributable rather than compared: the Tron log
+# stores base58 and the converter needs a live TronWeb. No caller encodes a
+# diamondCut through this helper today, so that refusal is unreachable — if one
+# ever reaches it, the fix is the reader `propose-to-safe-tron.ts` already passes
+# to `createFunnelGateDeps`, not a carve-out here.
+#
 # Usage: assertDirectBroadcastCalldataGate NETWORK ENVIRONMENT CALLDATA
 # Returns: 0 to continue, 1 to refuse. Never exits.
 function assertDirectBroadcastCalldataGate() {
