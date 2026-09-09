@@ -29,6 +29,7 @@ import { arbitrum } from 'viem/chains'
 
 import arbitrumDeployments from '../../deployments/arbitrum.staging.json'
 import erc20Artifact from '../../out/ERC20/ERC20.sol/ERC20.json'
+import { flagIsOn } from '../deploy/safe/cli-flags'
 
 import { setupCowShedPostHooks } from './utils/cowSwapHelpers'
 
@@ -222,11 +223,10 @@ const cmd = defineCommand({
     dryRun: {
       type: 'boolean',
       description: 'Run in dry-run mode without submitting transactions',
-      default: false,
     },
   },
   run: async ({ args }) => {
-    await main(args)
+    await main({ privateKey: args.privateKey, dryRun: flagIsOn(args.dryRun) })
   },
 })
 
