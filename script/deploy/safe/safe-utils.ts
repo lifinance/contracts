@@ -58,6 +58,10 @@ import {
 } from '../shared/git-provenance'
 
 import { SAFE_SINGLETON_ABI } from './config'
+import {
+  assertProposalOperationPermitted,
+  evaluateDelegateCallGate,
+} from './delegatecall-gate'
 import { getDeployedFacetVersionFromLog } from './facet-version-utils'
 import {
   firstSupplied,
@@ -804,7 +808,11 @@ export class SafeClient {
 
   // Sign a transaction hash using eth_sign (most compatible with all Safe versions)
   // Error GS026 indicates an invalid signature issue
-  public async signHash(hash: Hex): Promise<ISafeSignature> {
+  //
+  // Private because it signs a bare hash: there is no operation field in scope
+  // for the gate to read, so a caller reaching this directly would obtain a
+  // valid signature over a delegatecall with the gate never consulted.
+  private async signHash(hash: Hex): Promise<ISafeSignature> {
     try {
       console.log('Signing hash:', hash)
 
@@ -844,10 +852,14 @@ export class SafeClient {
    * Hardware wallets (e.g. Ledger) reject very large EIP-712 payloads (status
    * 0x6a80). The Safe contracts fully support eth_sign signatures over the Safe
    * transaction hash.
+   * @throws When the proposal's operation field is not exactly Call
    */
   public async signTransactionWithHash(
     safeTx: ISafeTransaction
   ): Promise<ISafeTransaction> {
+    // Redundant when `signTransaction` funnels here, but this entry point is
+    // public: a caller reaching the hash route directly must still be gated.
+    assertProposalOperationPermitted(evaluateDelegateCallGate(safeTx.data))
     try {
       // 1) Compute the Safe transaction hash on-chain (via viem client)
       const hash = await this.getTransactionHash(safeTx)
@@ -871,6 +883,7 @@ export class SafeClient {
   public async signTransaction(
     safeTx: ISafeTransaction
   ): Promise<ISafeTransaction> {
+    assertProposalOperationPermitted(evaluateDelegateCallGate(safeTx.data))
     if (resolveSafeSigningMode(process.env) === 'hash')
       return this.signTransactionWithHash(safeTx)
 
@@ -1013,6 +1026,7 @@ export class SafeClient {
   public async executeTransaction(
     safeTx: ISafeTransaction
   ): Promise<IChainExecutionResult> {
+    assertProposalOperationPermitted(evaluateDelegateCallGate(safeTx.data))
     try {
       const signatures = this.formatSignatures(safeTx.signatures)
       if (!this.chainExecutor)
@@ -1036,6 +1050,7 @@ export class SafeClient {
       // Relabelling it would tell the operator a nonce was consumed when nothing
       // was ever sent.
       if (errorMsg.includes('refusing to broadcast')) throw error
+      if (errorMsg.startsWith('Operation gate:')) throw error
 
       // Redacted: viem embeds the endpoint, credentials and all, in error.message,
       // and SlackNotifier publishes it outside the workflow log's masking.
@@ -3039,8 +3054,8 @@ function displayFacetVersionInfo(
     facetAddressCandidates
   )
   const deployedDisplay = deployedVersion
-    ? `\u001b[34m${deployedVersion}\u001b[0m`
-    : `\u001b[33munknown (address not found in deployment log)\u001b[0m`
+    ? `[34m${deployedVersion}[0m`
+    : `[33munknown (address not found in deployment log)[0m`
 
   consola.info(`${pre}Facet Version (to be added): ${deployedDisplay}`)
 }
