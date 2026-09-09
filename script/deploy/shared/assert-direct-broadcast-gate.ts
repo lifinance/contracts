@@ -10,6 +10,10 @@
  * funnel runs here, which is why the call has to be made from the shell.
  */
 
+import { realpathSync } from 'node:fs'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import type { Hex } from 'viem'
@@ -18,6 +22,12 @@ import {
   assertFunnelDeployGate,
   createFunnelGateDeps,
 } from './funnel-deploy-gate'
+
+/**
+ * Printed on every successful CLI exit so `assertDirectBroadcastCalldataGate`
+ * can refuse a process that exited 0 without ever running the gate.
+ */
+export const DIRECT_BROADCAST_GATE_ALLOWED = 'DIRECT_BROADCAST_GATE_ALLOWED'
 
 const main = defineCommand({
   meta: {
@@ -51,7 +61,23 @@ const main = defineCommand({
     consola.success(
       `Direct-broadcast deploy gate passed for ${args.network} - nothing has been broadcast yet.`
     )
+    console.log(DIRECT_BROADCAST_GATE_ALLOWED)
   },
 })
 
-if (import.meta.main) runMain(main)
+// `import.meta.main` only exists on Node >= 22.18 and package.json allows
+// older, where it is undefined and the CLI would exit 0 without running. The
+// loader realpaths `import.meta.url`, so argv[1] needs realpathing too.
+const isEntrypoint = (): boolean => {
+  if (process.argv[1] === undefined) return false
+  try {
+    return (
+      realpathSync(path.resolve(process.argv[1])) ===
+      realpathSync(fileURLToPath(import.meta.url))
+    )
+  } catch {
+    return false
+  }
+}
+
+if (isEntrypoint()) runMain(main)

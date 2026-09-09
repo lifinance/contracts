@@ -9,7 +9,7 @@
  * of real calldata against a real production deployment log.
  */
 import { execFileSync, spawnSync } from 'child_process'
-import { mkdtempSync, rmSync, writeFileSync } from 'fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 
@@ -23,6 +23,7 @@ import {
 } from 'bun:test'
 import { encodeFunctionData, zeroAddress } from 'viem'
 
+import { DIRECT_BROADCAST_GATE_ALLOWED } from './deploy/shared/assert-direct-broadcast-gate'
 import { DIAMOND_CUT_ABI } from './deploy/shared/constants'
 
 const REPO_ROOT = join(import.meta.dir, '..')
@@ -119,7 +120,7 @@ describe('assertDirectBroadcastCalldataGate', () => {
       ${LOAD_HELPERS}
       isTestnetNetwork() { [[ "$1" == "${TESTNET}" ]]; }
       error() { echo "[error] $*"; }
-      bunx() { echo "GATE_RAN $*"; return ${gateRc}; }
+      bunx() { echo "GATE_RAN $*"; echo "${DIRECT_BROADCAST_GATE_ALLOWED}"; return ${gateRc}; }
       assertDirectBroadcastCalldataGate "${network}" "${environment}" "0xdeadbeef"
       echo "rc=$?"
     `)
@@ -166,6 +167,21 @@ describe('assertDirectBroadcastCalldataGate', () => {
   it('refuses when the CLI reports failures', () => {
     const out = decide(MAINNET, 'production', '1')
     expect(out).toContain('GATE_RAN')
+    expect(out).toContain('rc=1')
+  })
+
+  it('refuses when the CLI exits 0 without an allow token', () => {
+    const out = runHarness(`
+      ${LOAD_HELPERS}
+      isTestnetNetwork() { [[ "$1" == "${TESTNET}" ]]; }
+      error() { echo "[error] $*"; }
+      bunx() { echo "GATE_RAN $*"; return 0; }
+      assertDirectBroadcastCalldataGate "${MAINNET}" "production" "0xdeadbeef"
+      echo "rc=$?"
+    `)
+
+    expect(out).toContain('GATE_RAN')
+    expect(out).toContain('no allow token')
     expect(out).toContain('rc=1')
   })
 })
@@ -312,6 +328,7 @@ describe('assert-direct-broadcast-gate CLI against real repo data', () => {
     expect(`${stdout}${stderr}`.toLowerCase()).toContain(
       UNRECORDED_FACET.toLowerCase()
     )
+    expect(`${stdout}${stderr}`).not.toContain(DIRECT_BROADCAST_GATE_ALLOWED)
   })
 
   it('refuses calldata it cannot read as a cut', () => {
@@ -321,6 +338,7 @@ describe('assert-direct-broadcast-gate CLI against real repo data', () => {
 
     expect(status).toBe(1)
     expect(`${stdout}${stderr}`).toContain('not well-formed calldata')
+    expect(`${stdout}${stderr}`).not.toContain(DIRECT_BROADCAST_GATE_ALLOWED)
   })
 
   it('allows calldata that installs no facet code', () => {
@@ -344,6 +362,7 @@ describe('assert-direct-broadcast-gate CLI against real repo data', () => {
 
     expect(status).toBe(0)
     expect(`${stdout}${stderr}`).toContain('installs facet code')
+    expect(`${stdout}${stderr}`).toContain(DIRECT_BROADCAST_GATE_ALLOWED)
   })
 
   it('allows a cut on a testnet, saying why', () => {
@@ -354,5 +373,12 @@ describe('assert-direct-broadcast-gate CLI against real repo data', () => {
 
     expect(status).toBe(0)
     expect(`${stdout}${stderr}`).toContain('is a testnet')
+    expect(`${stdout}${stderr}`).toContain(DIRECT_BROADCAST_GATE_ALLOWED)
+  })
+
+  it('does not use import.meta.main as the CLI guard', () => {
+    const src = readFileSync(join(REPO_ROOT, GATE_CLI), 'utf8')
+    expect(src).not.toMatch(/if \(import\.meta\.main\)/)
+    expect(src).toContain('fileURLToPath')
   })
 })

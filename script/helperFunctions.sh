@@ -4215,8 +4215,17 @@ function assertDirectBroadcastCalldataGate() {
     return 0
   fi
 
-  if ! bunx tsx ./script/deploy/shared/assert-direct-broadcast-gate.ts --network "$NETWORK" --calldata "$CALLDATA"; then
+  local GATE_OUT
+  if ! GATE_OUT=$(bunx tsx ./script/deploy/shared/assert-direct-broadcast-gate.ts --network "$NETWORK" --calldata "$CALLDATA" 2>&1); then
+    printf '%s\n' "$GATE_OUT"
     error "Direct-broadcast deploy gate failed for $NETWORK - aborting before anything is broadcast"
+    return 1
+  fi
+  printf '%s\n' "$GATE_OUT"
+
+  # Exit 0 is not consent: a CLI that never ran also exits 0 and prints nothing.
+  if [[ "$GATE_OUT" != *DIRECT_BROADCAST_GATE_ALLOWED* ]]; then
+    error "Direct-broadcast deploy gate produced no allow token - aborting before anything is broadcast"
     return 1
   fi
 
