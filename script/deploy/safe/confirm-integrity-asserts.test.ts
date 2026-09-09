@@ -50,14 +50,14 @@ import {
   TIMELOCK_SCHEDULE_BATCH_ABI,
 } from './timelock-abi'
 
-// pre-commit-checker: not a secret
 const OWNER_KEY =
+  // pre-commit-checker: not a secret
   '0x1111111111111111111111111111111111111111111111111111111111111111' as Hex
-// pre-commit-checker: not a secret
 const SECOND_OWNER_KEY =
+  // pre-commit-checker: not a secret
   '0x2222222222222222222222222222222222222222222222222222222222222222' as Hex
-// pre-commit-checker: not a secret
 const STRANGER_KEY =
+  // pre-commit-checker: not a secret
   '0x3333333333333333333333333333333333333333333333333333333333333333' as Hex
 
 const OWNER = privateKeyToAccount(OWNER_KEY).address
@@ -70,11 +70,11 @@ const DIAMOND = getAddress('0x00000000000000000000000000000000000000d1')
 const TIMELOCK = getAddress('0x00000000000000000000000000000000000000e1')
 const UNKNOWN_TARGET = getAddress('0x00000000000000000000000000000000000000bb')
 
-// pre-commit-checker: not a secret
 const REAL_HASH =
+  // pre-commit-checker: not a secret
   '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' as Hex
-// pre-commit-checker: not a secret
 const TAMPERED_HASH =
+  // pre-commit-checker: not a secret
   '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' as Hex
 
 const ZERO = '0x0000000000000000000000000000000000000000'
