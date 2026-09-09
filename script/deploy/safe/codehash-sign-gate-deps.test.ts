@@ -336,6 +336,68 @@ describe('createForgeRebuildRunner', () => {
     expect(harness.gitCalls[0]?.[4]).toBe(request.commit)
   })
 
+  it('pins submodules in the worktree before forging, and builds offline without test/script trees', () => {
+    const gitCalls: string[][] = []
+    let built = false
+    const seenArgs: string[] = []
+    createForgeRebuildRunner({
+      repoRoot: '/repo',
+      checkoutRoot: '/tmp/rebuilds',
+      git: (args) => {
+        gitCalls.push(args)
+        if (args.includes('status'))
+          return ' e50c24f5aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa lib/openzeppelin-contracts (v4.9.2)\n'
+        return ''
+      },
+      run: (_command, args) => {
+        seenArgs.push(...args)
+        built = true
+        return { ok: true, output: '' }
+      },
+      exists: (path) => (path.endsWith('.json') ? built : false),
+      readFile: () => artifact,
+    }).build(request)
+
+    expect(gitCalls[0]?.slice(0, 3)).toEqual(['worktree', 'add', '--detach'])
+    expect(gitCalls[1]).toEqual([
+      '-C',
+      `/tmp/rebuilds/${request.commit}`,
+      'submodule',
+      'update',
+      '--init',
+      '--recursive',
+    ])
+    expect(gitCalls[2]?.slice(0, 4)).toEqual([
+      '-C',
+      `/tmp/rebuilds/${request.commit}`,
+      'submodule',
+      'status',
+    ])
+    expect(seenArgs).toContain('--offline')
+    expect(seenArgs).toEqual(
+      expect.arrayContaining(['--skip', 'test/**', '--skip', 'script/**'])
+    )
+    expect(seenArgs).not.toContain('test')
+    expect(seenArgs).not.toContain('script')
+  })
+
+  it('refuses to rebuild when submodule pins drifted after update', () => {
+    expect(() =>
+      createForgeRebuildRunner({
+        repoRoot: '/repo',
+        checkoutRoot: '/tmp/rebuilds',
+        git: (args) => {
+          if (args.includes('status'))
+            return '+bbf3600daaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa lib/openzeppelin-contracts (v4.8.0)\n'
+          return ''
+        },
+        run: () => ({ ok: true, output: '' }),
+        exists: () => false,
+        readFile: () => artifact,
+      }).build(request)
+    ).toThrow(/submodule pins are not clean/)
+  })
+
   it('builds under the profile it was asked for', () => {
     const harness = runner({ exists: () => false })
     let built = false

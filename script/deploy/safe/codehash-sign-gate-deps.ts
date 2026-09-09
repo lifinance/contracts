@@ -299,6 +299,35 @@ export interface IForgeRebuildDeps {
 }
 
 /**
+ * Refuses a rebuild whose `lib/` pins do not match the commit's `.gitmodules`.
+ *
+ * `git submodule status` prefixes each row: a leading space means the checkout
+ * matches the recorded SHA; `+`/`-`/`U` mean drift, missing, or conflict. A
+ * rebuild against any of those is not an attestation of what was deployed.
+ *
+ * @param git - runs git with the same cwd/env the runner uses
+ * @param checkout - absolute path of the detached worktree
+ * @throws when any submodule row is not cleanly pinned
+ */
+const assertSubmodulesPinned = (
+  git: (args: string[]) => string,
+  checkout: string
+): void => {
+  const status = git(['-C', checkout, 'submodule', 'status', '--recursive'])
+  const drifted = status
+    .split('\n')
+    .map((line) => line.trimEnd())
+    .filter((line) => line.length > 0)
+    .filter((line) => !line.startsWith(' '))
+  if (drifted.length === 0) return
+  throw new Error(
+    `refusing to rebuild at ${checkout}: submodule pins are not clean after update — a rebuild against unpinned libraries is not an attestation. Drifted rows:\n${drifted.join(
+      '\n'
+    )}`
+  )
+}
+
+/**
  * Compiles one contract at one commit under one profile.
  *
  * The commit is built in its own detached checkout, never in the tree the
@@ -345,18 +374,30 @@ export const createForgeRebuildRunner = (
     )
 
     if (!deps.exists(artifactPath)) {
+      // `worktree add --detach` does not populate `lib/`. Without pinning,
+      // forge's auto-install clones at tip revisions and the rebuilt runtime
+      // cannot match what was deployed — every cut grades MISMATCH.
+      deps.git(['-C', checkout, 'submodule', 'update', '--init', '--recursive'])
+      assertSubmodulesPinned(deps.git, checkout)
+
       const isZk = request.profile.zksolcVersion !== undefined
       const command = isZk
         ? join(deps.repoRoot, 'foundry-zksync', 'forge')
         : 'forge'
+      // `test`/`script` are forge aliases for `.t.sol`/`.s.sol` only; the
+      // path globs match `[profile.solc_floor]` and skip the whole trees.
+      // `--offline` refuses forge's auto-install so a missing pin cannot be
+      // silently substituted mid-build.
       const args = [
         'build',
         '--out',
         outDir,
         ...(isZk ? ['--zksync'] : []),
         '--skip',
-        'test',
-        'script',
+        'test/**',
+        '--skip',
+        'script/**',
+        '--offline',
       ]
       const env: Record<string, string> = {
         FOUNDRY_PROFILE: request.profile.profile,
