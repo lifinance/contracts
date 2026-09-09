@@ -28,6 +28,8 @@ import { join } from 'node:path'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 
+import { flagIsOn } from '../deploy/safe/cli-flags'
+
 import {
   composeSlackMessage,
   evaluateLiveness,
@@ -153,7 +155,6 @@ const main = defineCommand({
     'dry-run': {
       type: 'boolean',
       description: 'Print the verdict table without posting to Slack',
-      default: false,
     },
     heartbeat: {
       type: 'boolean',
@@ -308,7 +309,7 @@ const main = defineCommand({
 
     if (message === null)
       consola.success('All scheduled workflows alive; staying silent.')
-    else if (args['dry-run']) {
+    else if (flagIsOn(args['dry-run'])) {
       consola.info('--dry-run: the message below would be posted to Slack')
       consola.log(message)
     } else await postToSlack(message)

@@ -40,6 +40,7 @@ import networks from '../../../config/networks.json'
 import { sleep } from '../../utils/delay'
 import { getEnvVar } from '../../utils/utils'
 import { isTestnetNetwork } from '../../utils/viemScriptHelpers'
+import { flagIsOn, readBooleanFlag } from '../safe/cli-flags'
 import { assertSafeThresholdFloor } from '../safe/safe-deploy-guards'
 import { retryWithRateLimit } from '../shared/rateLimit.js'
 
@@ -54,6 +55,10 @@ import {
   TRON_SAFE_SETUP_ABI,
 } from './constants.js'
 import type { ITronSafeTemp } from './types.js'
+
+// 1.2x the energy estimate: enough headroom that a tight estimate still lands,
+// without reserving TRX the deploy will not spend.
+const DEFAULT_SAFETY_MARGIN = 1.2
 
 function readTronSafeTemp(): ITronSafeTemp | null {
   try {
@@ -694,37 +699,31 @@ const main = defineCommand({
     dryRun: {
       type: 'boolean',
       description: 'Do not send transactions',
-      default: false,
     },
     allowOverride: {
       type: 'boolean',
       description:
         'Allow overwriting existing tron.safeAddress in networks.json',
-      default: false,
     },
     safetyMargin: {
       type: 'string',
       description:
         'Energy estimate multiplier (default 1.2). Lower (e.g. 1.1) reduces required TRX but may cause deployment to fail if estimate is tight.',
-      default: '1.2',
     },
     safeSingletonAddress: {
       type: 'string',
       description:
         'Existing Safe implementation address (base58). If set with --safeProxyFactoryAddress, skips deploying Safe impl and Factory and only runs createProxyWithNonce.',
-      default: '',
     },
     safeProxyFactoryAddress: {
       type: 'string',
       description:
         'Existing SafeProxyFactory address (base58). Use with --safeSingletonAddress to skip deploy and only create the Safe proxy.',
-      default: '',
     },
     setupOnly: {
       type: 'boolean',
       description:
         'Only call setup() on the existing Safe at tron.safeAddress (no deployment). Use when the proxy was created but never initialized.',
-      default: false,
     },
   },
   async run({ args }) {
@@ -733,7 +732,10 @@ const main = defineCommand({
       consola.error('Invalid --threshold; must be a positive integer.')
       process.exit(1)
     }
-    const safetyMargin = parseFloat(args.safetyMargin)
+    const safetyMargin =
+      args.safetyMargin === undefined
+        ? DEFAULT_SAFETY_MARGIN
+        : parseFloat(String(args.safetyMargin))
     if (isNaN(safetyMargin) || safetyMargin < 1 || safetyMargin > 3) {
       consola.error('Invalid --safetyMargin; must be a number between 1 and 3.')
       process.exit(1)
@@ -741,10 +743,21 @@ const main = defineCommand({
     try {
       await run({
         threshold,
-        dryRun: args.dryRun,
-        allowOverride: args.allowOverride,
+        dryRun: flagIsOn(args.dryRun),
+        // Strict, as in the EVM twin: on overwrites tron.safeAddress in
+        // networks.json. Absence is off here, so an unreadable value would flip
+        // it from the safe direction to the dangerous one.
+        allowOverride: readBooleanFlag(process.argv, {
+          camel: 'allowOverride',
+          kebab: 'allow-override',
+        }),
         safetyMargin,
-        setupOnly: args.setupOnly,
+        // Strict: on calls setup() on the live Safe at tron.safeAddress and
+        // takes a branch that never reaches the override guard.
+        setupOnly: readBooleanFlag(process.argv, {
+          camel: 'setupOnly',
+          kebab: 'setup-only',
+        }),
         safeSingletonAddress: args.safeSingletonAddress || undefined,
         safeProxyFactoryAddress: args.safeProxyFactoryAddress || undefined,
       })

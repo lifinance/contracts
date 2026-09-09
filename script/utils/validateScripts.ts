@@ -16,6 +16,14 @@
  *    running it on manifest changes catches "dependency removed from
  *    package.json while a script still imports it" even when no .ts file was
  *    touched.
+ * 3. citty argument defaults: no multi-word `defineCommand` argument may
+ *    declare a `default`. citty then resolves the spelling the caller did not
+ *    type to that default instead of falling back to the one they did, so
+ *    `--dry-run` against a `dryRun: { default: false }` reads as off and the
+ *    run broadcasts. Swept over ALL files under `script/` and `tasks/`, since
+ *    the shape is a defect wherever it sits, not only in the diff. Runs on
+ *    manifest changes too: a citty bump is manifest-only and is the change most
+ *    likely to re-shape the defect.
  *
  * Used by the `.husky/pre-push` hook (fast local feedback) and the
  * `validateScripts.yml` CI workflow (enforcement backstop).
@@ -50,7 +58,10 @@ import {
 } from 'typescript'
 import type { Expression, Node } from 'typescript'
 
+import { scanFilesForMultiWordArgDefaults } from './cittyArgDefaults'
+
 const SCRIPT_FILE_PATTERN = /^script\/.*\.ts$/u
+const TASK_FILE_PATTERN = /^tasks\/.*\.ts$/u
 const DEPENDENCY_MANIFESTS = ['package.json', 'bun.lock', 'tsconfig.json']
 
 interface IMissingImport {
@@ -102,21 +113,29 @@ const getChangedFiles = (
   return output ? output.split('\n').filter(Boolean) : []
 }
 
-const listScriptFiles = (repoRoot: string): string[] => {
+const walkTsFiles = (repoRoot: string, relativeDir: string): string[] => {
   const result: string[] = []
-  const walk = (relativeDir: string): void => {
-    for (const entry of readdirSync(join(repoRoot, relativeDir), {
+  const walk = (dir: string): void => {
+    for (const entry of readdirSync(join(repoRoot, dir), {
       withFileTypes: true,
     })) {
-      const relativePath = `${relativeDir}/${entry.name}`
+      const relativePath = `${dir}/${entry.name}`
       if (entry.isDirectory()) walk(relativePath)
       else if (entry.isFile() && entry.name.endsWith('.ts'))
         result.push(relativePath)
     }
   }
-  walk('script')
+  walk(relativeDir)
   return result
 }
+
+const listScriptFiles = (repoRoot: string): string[] =>
+  walkTsFiles(repoRoot, 'script')
+
+const listCittyFiles = (repoRoot: string): string[] => [
+  ...walkTsFiles(repoRoot, 'script'),
+  ...walkTsFiles(repoRoot, 'tasks'),
+]
 
 /**
  * Extracts the npm package name from a bare import specifier
@@ -230,11 +249,30 @@ const runImportResolutionCheck = (repoRoot: string): boolean => {
   return true
 }
 
+const runCittyArgDefaultCheck = (repoRoot: string): boolean => {
+  const cittyFiles = listCittyFiles(repoRoot)
+  consola.info(
+    `Checking citty argument declarations in ${cittyFiles.length} script/ and tasks/ file(s)`
+  )
+  const findings = scanFilesForMultiWordArgDefaults(repoRoot, cittyFiles)
+  if (findings.length === 0) return true
+
+  consola.error(
+    'Multi-word citty arguments declaring a `default` (citty resolves the spelling the caller did NOT type to it, so the other spelling is a silent no-op):'
+  )
+  for (const finding of findings)
+    consola.error(`  ${finding.file}:${finding.line} — \`${finding.argument}\``)
+  consola.error(
+    'Drop the `default` and apply the fallback in the command body: `flagIsOn(args.x)` for a boolean (see script/deploy/safe/cli-flags.ts), `args.x ?? DEFAULT` for a value.'
+  )
+  return false
+}
+
 const main = defineCommand({
   meta: {
     name: 'validateScripts',
     description:
-      'Static validation (type check + import resolution) of changed TS files under script/',
+      'Static validation of TS files under script/: type check of the changed ones, import resolution across all of them, and citty argument defaults across script/ and tasks/',
   },
   args: {
     base: {
@@ -256,13 +294,20 @@ const main = defineCommand({
     const changedScriptFiles = changedFiles.filter((file) =>
       SCRIPT_FILE_PATTERN.test(file)
     )
+    const changedTaskFiles = changedFiles.filter((file) =>
+      TASK_FILE_PATTERN.test(file)
+    )
     const manifestsChanged = changedFiles.some((file) =>
       DEPENDENCY_MANIFESTS.includes(file)
     )
 
-    if (changedScriptFiles.length === 0 && !manifestsChanged) {
+    if (
+      changedScriptFiles.length === 0 &&
+      changedTaskFiles.length === 0 &&
+      !manifestsChanged
+    ) {
       consola.success(
-        `No script/**/*.ts or dependency manifest changes between ${base} and ${head} — nothing to validate`
+        `No script/**/*.ts, tasks/**/*.ts or dependency manifest changes between ${base} and ${head} — nothing to validate`
       )
       return
     }
@@ -276,6 +321,12 @@ const main = defineCommand({
     // an unrelated manifest edit next trips the sweep.
     if (manifestsChanged || changedScriptFiles.length > 0)
       passed = runImportResolutionCheck(repoRoot) && passed
+    if (
+      manifestsChanged ||
+      changedScriptFiles.length > 0 ||
+      changedTaskFiles.length > 0
+    )
+      passed = runCittyArgDefaultCheck(repoRoot) && passed
 
     if (!passed) {
       consola.error('Script validation failed')

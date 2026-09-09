@@ -25,6 +25,7 @@ import {
   displayNetworkInfo,
   updateDiamondJsonBatch,
 } from '../../utils/utils'
+import { flagIsOn } from '../safe/cli-flags'
 import { getContractVersion } from '../shared/getContractVersion'
 import { getCoreFacets } from '../shared/globalContractLists'
 
@@ -386,7 +387,6 @@ const deployCommand = defineCommand({
     dryRun: {
       type: 'boolean',
       description: 'Simulate deployment without executing',
-      default: false,
     },
     verbose: {
       type: 'boolean',
@@ -396,13 +396,12 @@ const deployCommand = defineCommand({
     delaySeconds: {
       type: 'string',
       description: 'Number of seconds to wait between deployments (default: 5)',
-      default: '5',
     },
   },
   async run({ args }) {
     try {
       // Also check environment variables for backward compatibility
-      let dryRun = args.dryRun
+      let dryRun = flagIsOn(args.dryRun)
       let verbose = args.verbose
 
       try {
@@ -421,13 +420,13 @@ const deployCommand = defineCommand({
       let delaySeconds = 5 // default
       try {
         // First try command line argument
-        if (args.delaySeconds) {
-          const parsed = parseInt(args.delaySeconds, 10)
+        if (args.delaySeconds !== undefined) {
+          const parsed = parseInt(String(args.delaySeconds), 10)
           if (!isNaN(parsed) && parsed >= 0) {
             delaySeconds = parsed
           } else {
             consola.warn(
-              `Invalid delaySeconds value: ${args.delaySeconds}, using default: 5`
+              `Invalid delaySeconds value: "${args.delaySeconds}", using default: 5`
             )
           }
         }
