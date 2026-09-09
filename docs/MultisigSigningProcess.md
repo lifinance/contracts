@@ -43,6 +43,67 @@ Status: **current state**, verified against the repo. Author: Daniel B. (SC).
 | Executor (Safe leg) | Any owner may execute once the threshold is met, but in practice the **deployer wallet** broadcasts: it is the only owner funded on every chain, whereas the signer hardware wallets are not | The "…With Deployer" execute variants inside `bun confirm-safe-tx`, which broadcast with `PRIVATE_KEY_PRODUCTION` |
 | Executor (timelock leg) | The **"Timelock Auto Execution" GitHub cron** (`.github/workflows/runPendingTimelockTXs.yml`), every 10 minutes, gated on repo var `ENABLE_TIMELOCK_AUTO_EXECUTION` | `script/deploy/safe/execute-pending-timelock-tx.ts --executeAll`, signing with `TIMELOCK_EXECUTOR_PRIVATE_KEY` — a pure gas-payer EOA with no protocol authority (`EXECUTOR_ROLE` is open). Manual fallback: `bun execute-timelock` |
 
+### 2.1 What the deployer key can do
+
+The deployer wallet (`config/global.json` `deployerWallet`, key
+`PRIVATE_KEY_PRODUCTION`) is the only key that appears at every stage: it
+deploys, writes the deployment record, creates the proposal, holds one of the
+Safe owner slots, and holds `CANCELLER_ROLE` on every timelock. Against an
+**already-deployed** governance Safe its power is bounded to **DoS and
+griefing** — it cannot schedule or push a bad operation, because both need the
+Safe threshold, and it holds one signature of `SAFE_THRESHOLD`
+(`script/deploy/shared/constants.ts`). Deploying the Safe itself is the one
+exception, below.
+
+`bun deployer-key-power` prints the full inventory and refuses if the config
+grants the wallet anything outside the documented set. The check walks the whole
+of `config/global.json` and `config/networks.json` rather than a list of known
+field names — matching addresses used as values and as object keys, and the
+`41`-prefixed TronWeb hex form as well as the EVM hex form — so a newly added
+field pointing at the deployer is caught too, and it runs in `bun test:ts`
+(whose path filter includes `config/**`).
+
+One production-mainnet **integrity** power is disclosed rather than bounded away:
+the deployer can deploy the governance Safe and choose its owner set and
+threshold. `script/deploy/safe/deploy-safe.ts` unions `--owners` into
+`globalConfig.safeOwners`, accepts any `--threshold` of 1 or more, defaults
+`allowOverride` to `true` so the "Safe already deployed on …" guard does not fire
+without a flag, signs with `PRIVATE_KEY_PRODUCTION`, and rewrites
+`config/networks.json` with the resulting `safeAddress`. Its own on-chain
+verification compares `getOwners()` and `getThreshold()` against the same
+expanded arguments it was handed, so it confirms "deployed as asked", not "as
+configured". `script/deploy/tron/deploy-safe-tron.ts` is the Tron equivalent.
+This is not bring-up-only. What bounds it is **detection**, not prevention: the
+`safe-config` health-check invariant asserts the Safe owner set in both
+directions, so an owner the config does not declare is reported (PR #2337,
+EXSC-943). The inventory carries the power in
+`ACKNOWLEDGED_PRODUCTION_INTEGRITY_POWERS`, and an integrity power that no
+disclosure names a detection for refuses. An empty map is the target state:
+detection is weaker than removal, so each entry also names the work that retires
+it — here EXSC-944, which defaults `allowOverride` to `false` and refuses a
+production threshold below `SAFE_THRESHOLD`.
+
+Two further scoped exceptions are part of the inventory rather than hidden by it.
+On **testnets** the deployer owns the diamond outright, in every environment —
+those networks have no Safe or timelock. Staging on a mainnet network is a
+different key, not a deployer power: `getPrivateKey` in
+`script/helperFunctions.sh` returns `PRIVATE_KEY` for a staging environment, and
+`script/deploy/healthCheck.ts` resolves `ctx.deployerWallet` to
+`globalConfig.devWallet` there; the `diamond-owner` invariant skips staging
+entirely. And during **production bring-up** the deployer owns the diamond
+between `transferOwnership(timelock)` and the Safe-executed
+`confirmOwnershipTransfer()`; a network left in that state is reported unhealthy
+by the `diamond-owner` invariant.
+
+Timelock execution is **not** a deployer power today: `EXECUTOR_ROLE` is granted
+to `address(0)`, so execution is permissionless. It becomes one when the F7
+executor restriction lands (EXSC-872), and the inventory carries it as `pending`
+until then.
+
+The Tron and EVM deployer identities are the same key
+(`tronWallets.deployerWallet` decodes to `deployerWallet`), so there is one
+deployer key, not two.
+
 ## 3. Architecture
 
 Two MongoDB clusters with different trust profiles:
