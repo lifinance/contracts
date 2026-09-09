@@ -27,8 +27,7 @@ paths:
 
 ## Scripts That Display Decoded Data
 
-- **confirm-safe-tx.ts**: Uses `formatDecodedTxDataForDisplay(tx.safeTx.data.data, { chainId: chain.id, network })` for each Safe tx; uses `getTargetName` from safe-decode-utils for the "To:" line in Safe Transaction Details. Unlike `execute-pending-timelock-tx.ts` it also prints the full raw `Data:` hex alongside the decoded display, and that is deliberate: this is where a human commits a signature to exact bytes, and the hex is the artefact they compare against the Ledger screen. Do not extend the "no raw `Data:` hex" rule below to this script.
-- **Displaying a stored or decoded value**: every value that comes off a proposal row or out of a decode — including a `string` ABI argument and a signature resolved via 4byte — goes through `asPrintable` / `printableField` from [script/deploy/safe/printable-field.ts](script/deploy/safe/printable-field.ts) before it is interpolated into a log line. The notice must stay visually distinct from the value it warns about: it carries its own colour and reset, so it reads correctly wherever it is interpolated — do not strip those, and do not build a notice that inherits the surrounding colour.
+- **confirm-safe-tx.ts**: Uses `formatDecodedTxDataForDisplay(tx.safeTx.data.data, { chainId: chain.id, network })` for each Safe tx; uses `getTargetName` from safe-decode-utils for the "To:" line in Safe Transaction Details.
 - **execute-pending-timelock-tx.ts**: Calls `formatDecodedTxDataForDisplay(operation.data, { chainId, network })` before the Execute/Reject/Skip prompt when `chainId` and `network` are available; passes `network.chainId` and `network.name` into `executeOperation` so the decoded display runs. Do not log raw `Data:` hex when decoded display is shown; optional "Data (raw)" is acceptable if needed for debugging.
 
 ## Conventions Summary

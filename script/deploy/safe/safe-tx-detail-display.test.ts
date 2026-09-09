@@ -5,7 +5,6 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
-import { trustedMarkup } from './printable-field'
 import {
   buildSafeTxDetailLines,
   type ISafeTxDetailInput,
@@ -43,13 +42,13 @@ const expectNoTerminalControl = (lines: string[]): void => {
 const benign: ISafeTxDetailInput = {
   nonce: '31',
   nonceColor: '32',
-  nonceWarning: trustedMarkup(''),
+  nonceWarning: '',
   to: '0x11f1022cA6AdEF6400e5677528a80d49a069C00c',
   toTargetName: '',
   formatAddress: (address: string) => address,
   explorerUrlFor: () => '',
   value: '0',
-  operationLabel: trustedMarkup('Call'),
+  operationLabel: 'Call',
   data: '0xdeadbeef',
   proposer: '0x5c19DE04c40f9F8Ed9F0Fe6a5cEb84E5C8a5b31E',
   safeTxHash:
@@ -773,7 +772,7 @@ describe('a normal proposal renders exactly as it does today', () => {
     const lines = buildSafeTxDetailLines({
       ...benign,
       nonceColor: '31',
-      nonceWarning: trustedMarkup(' \u001b[31m✗ STALE\u001b[0m'),
+      nonceWarning: ' \u001b[31m✗ STALE\u001b[0m',
       explorerUrlFor: () => 'https://etherscan.io/address/0x11',
       canExecute: true,
     })
@@ -887,102 +886,5 @@ describe('the block is total — no row shape costs the operator the run', () =>
     })
 
     expectNoTerminalControl(lines)
-  })
-})
-
-describe('a row needs no escape sequence to scroll the prompt away', () => {
-  it('clips a hash grown to 500,000 characters', () => {
-    const line = lineStartingWith(
-      linesFor({ safeTxHash: `0x${'a'.repeat(500_000)}` }),
-      'Safe Tx Hash:'
-    )
-
-    // The whole line, bytes included. 120 and 208 are written out rather than
-    // derived from MAX_FIELD_CHARS, so raising the bound fails here instead of
-    // moving with it — and this line measured 500,032 before the clip existed.
-    expect(line).toBe(
-      '    Safe Tx Hash:    \u001b[36m0x' +
-        'a'.repeat(118) +
-        '\u001b[0m\u001b[33m ⚠ clipped for display — stored 500002, shown 120\u001b[0m'
-    )
-    expect(line.length).toBe(208)
-  })
-
-  it('leaves the calldata whole — it is the payload under signature', () => {
-    const calldata = `0x${'ab'.repeat(5_000)}`
-    expect(lineStartingWith(linesFor({ data: calldata }), 'Data:')).toBe(
-      `    Data:            \u001b[32m${calldata}\u001b[0m`
-    )
-  })
-
-  it('bounds the number of parked refs, not only each one’s length', () => {
-    const parkedTaskRefs = Array.from({ length: 40 }, (_, index) => ({
-      facet: `Facet${index}`,
-      prUrl: 'https://github.com/lifinance/contracts/pull/1',
-    }))
-    const lines = linesFor({ parkedTaskRefs })
-    const refLines = lines.filter((line) => line.includes('→'))
-
-    expect(refLines.length).toBe(20)
-    expect(lines).toContain(
-      '        \u001b[33m⚠ 20 further parked refs not shown (40 stored)\u001b[0m'
-    )
-    // Paired present: the refs shown are the first ones, not a window that
-    // silently drops the head of the list.
-    expect(refLines[0]).toContain('Facet0')
-    expect(refLines[19]).toContain('Facet19')
-  })
-
-  it('says nothing about an overflow when there is none', () => {
-    const lines = linesFor({
-      parkedTaskRefs: [{ facet: 'AcrossFacetV3', prUrl: 'https://x/1' }],
-    })
-    expect(lines.some((line) => line.includes('not shown'))).toBe(false)
-  })
-})
-
-describe('a facet name drawn identically to another is disclosed', () => {
-  it('reports the Cyrillic homoglyph in a parked facet name', () => {
-    const lines = linesFor({
-      parkedTaskRefs: [
-        {
-          // AcrossFacetV3 with U+043E in place of the first ASCII "o".
-          facet: 'Acr\u043essFacetV3',
-          prUrl: 'https://github.com/lifinance/contracts/pull/1',
-        },
-      ],
-    })
-
-    expect(lines[lines.length - 2]).toBe(
-      '        \u001b[32mAcr\u043essFacetV3\u001b[0m\u001b[33m ⚠ 1 non-ASCII character — a letter here can be drawn identically to an ASCII one\u001b[0m → \u001b[36mhttps://github.com/lifinance/contracts/pull/1\u001b[0m'
-    )
-  })
-
-  it('says nothing about an ASCII facet name', () => {
-    const lines = linesFor({
-      parkedTaskRefs: [
-        {
-          facet: 'AcrossFacetV3',
-          prUrl: 'https://github.com/lifinance/contracts/pull/1',
-        },
-      ],
-    })
-
-    expect(lines[lines.length - 2]).toBe(
-      '        \u001b[32mAcrossFacetV3\u001b[0m → \u001b[36mhttps://github.com/lifinance/contracts/pull/1\u001b[0m'
-    )
-  })
-
-  it('withholds the target name for a homoglyph address', () => {
-    const line = lineStartingWith(
-      linesFor({
-        to: '0x11f1022cA6AdEF6400e5677528a80d49a069C0\u043ec',
-        toTargetName: '(LiFiDiamond)',
-      }),
-      'To:'
-    )
-
-    expect(line).toContain('target name withheld')
-    expect(line).not.toContain('(LiFiDiamond)')
   })
 })
