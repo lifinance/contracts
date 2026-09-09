@@ -33,6 +33,9 @@ const FENCE = [
   // that had only the two selectors above.
   { selector: `Literal[value='${FUNNEL}']`, message: MESSAGE },
   { selector: `TemplateElement[value.cooked='${FUNNEL}']`, message: MESSAGE },
+  // Not covered, deliberately: a name assembled by concatenation. No static
+  // selector can see it, and unlike the three above it is not a rewrite anyone
+  // reaches for by accident.
 ]
 
 module.exports = {
