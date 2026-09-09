@@ -157,9 +157,12 @@ export const asPrintable = (
           }`
     )
 
-  // Counted on the printable text, not the stored value: a character the
-  // sanitiser removed is reported by the remark above, and repeating it here
-  // would claim it survived.
+  // Counted on everything that survived sanitising, including the part a clip
+  // below will cut. A character the sanitiser removed is reported by the remark
+  // above, and repeating it here would claim it survived — but one that survived
+  // is part of the value the signature covers whether or not the line has room
+  // to show it, so counting only the shown prefix would under-report what is
+  // being signed. The clip remark says how much is off screen.
   const hidden = (sanitized.match(DEFAULT_IGNORABLE) ?? []).length
   if (hidden > 0)
     remarks.push(

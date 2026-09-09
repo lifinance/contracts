@@ -322,6 +322,13 @@ const frameLine = ({ text, align, style }: IFlexLine): string => {
   }
   // Style only the text run so the padding (and thus the visible width) is
   // untouched — keeps the box borders and neighbouring panels aligned.
+  //
+  // `t` lands in the replacement operand, where `$&`, `` $` `` and `$'` are
+  // substitutions rather than literals, so a styled row carrying text off the
+  // proposal could rewrite the frame around itself. What keeps that unreachable
+  // is that every styled row is a hardcoded label and all row-derived content is
+  // pushed with no `style` — so a new screen must not style text it read from
+  // the row.
   if (style && t) body = body.replace(t, `${style}${t}${RESET}`)
   return `│${body}│`
 }

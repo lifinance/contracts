@@ -400,6 +400,45 @@ describe('formatDecodedTxDataForDisplay renders no proposer-controlled text raw'
     )
   })
 
+  it('does not vouch for a name the calldata does not contain', async () => {
+    // `GasZipPeriphery` is a real mainnet deployment at this address, and a
+    // zero-width space inside the stored name sanitises away. Keying the
+    // deployments lookup on the printable text therefore matched an entry the
+    // calldata never named and printed a ✅ about it: this check has to decide
+    // on the stored value even though it shows the printable one.
+    const spoofed = await render(
+      encodeFunctionData({
+        abi: parseAbi(['function registerPeripheryContract(string,address)']),
+        args: [
+          'GasZip​Periphery',
+          '0x363d698649cd04f9692Ab86e8365b227c1ee859d',
+        ],
+      })
+    )
+    const spoofedLine = spoofed.find((line) =>
+      line.includes('Periphery Address:')
+    )
+
+    expect(spoofedLine).not.toContain('matches deployments')
+    expect(spoofedLine).toContain('no deployments entry')
+  })
+
+  it('still vouches for the name the calldata really holds', async () => {
+    // Paired present for the case above, in its own test because `render`'s spy
+    // accumulates across calls — two renders in one test and `find` returns the
+    // first match, which would have asserted this against the spoofed line.
+    const lines = await render(
+      encodeFunctionData({
+        abi: parseAbi(['function registerPeripheryContract(string,address)']),
+        args: ['GasZipPeriphery', '0x363d698649cd04f9692Ab86e8365b227c1ee859d'],
+      })
+    )
+
+    expect(lines.find((line) => line.includes('Periphery Address:'))).toContain(
+      'matches deployments'
+    )
+  })
+
   it('renders a benign registerPeripheryContract call unchanged', async () => {
     const lines = await render(
       encodeFunctionData({

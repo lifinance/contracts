@@ -245,7 +245,8 @@ async function getTargetSuffix(
 
 async function getPeripheryDeploymentCheckSuffix(
   network: string,
-  peripheryName: string,
+  storedName: string,
+  printableName: string,
   peripheryAddress: string
 ): Promise<string> {
   let providedNormalized: Address
@@ -259,14 +260,14 @@ async function getPeripheryDeploymentCheckSuffix(
   }
   const deployments = await getDeploymentsRecord(network)
   if (!deployments) return ` \u001b[90m(deployments unavailable)\u001b[0m`
-  const expectedRaw = deployments[peripheryName]
+  const expectedRaw = deployments[storedName]
   if (typeof expectedRaw !== 'string' || !expectedRaw)
-    return ` \u001b[90m(no deployments entry for '${peripheryName}')\u001b[0m`
+    return ` \u001b[90m(no deployments entry for '${printableName}')\u001b[0m`
   let expectedNormalized: Address
   try {
     expectedNormalized = normalizeAddressForNetwork(network, expectedRaw.trim())
   } catch {
-    return ` \u001b[31m(❌ invalid deployments address for '${peripheryName}')\u001b[0m`
+    return ` \u001b[31m(❌ invalid deployments address for '${printableName}')\u001b[0m`
   }
   if (expectedNormalized.toLowerCase() === providedNormalized.toLowerCase())
     return ` \u001b[32m(✅ matches deployments)\u001b[0m`
@@ -915,16 +916,23 @@ export async function formatDecodedTxDataForDisplay(
       // carries whatever text the proposer chose. Disclosed here rather than
       // cleaned by the caller, so the line that prints it is the line that
       // reports it.
+      const storedPeripheryName = String(decoded.args[0] ?? '')
       const { text: peripheryName, notice: peripheryNotice } = asPrintable(
-        decoded.args[0] ?? '',
+        storedPeripheryName,
         UNBOUNDED
       )
       const peripheryAddress = String(decoded.args[1] ?? '')
       log(
         `Periphery Name: \u001b[33m${peripheryName}\u001b[0m${peripheryNotice}`
       )
+      // Keyed on the stored name, never the printable one. Sanitising can turn
+      // a name the record does not hold into one it does — a zero-width space
+      // inside it is simply removed — and the check would then print a ✅ about
+      // a value the calldata does not contain. What is shown and what is
+      // decided come off the same argument, but not off the same string.
       const deploymentSuffix = await getPeripheryDeploymentCheckSuffix(
         network,
+        storedPeripheryName,
         peripheryName,
         peripheryAddress
       )

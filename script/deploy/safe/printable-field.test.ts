@@ -115,6 +115,21 @@ describe('asPrintable', () => {
     expect([...field.text].length).toBe(120)
     expect(field.text.endsWith('😀')).toBe(true)
   })
+
+  it('counts an invisible sitting past the clip, and says it clipped', () => {
+    // The two remarks answer different questions and a clipped field needs
+    // both: an invisible beyond the boundary is never shown, but it is still
+    // covered by the signature, so counting only the visible prefix would
+    // under-report what is being signed.
+    const field = asPrintable(`${'a'.repeat(200)}‍`)
+
+    expect([...field.text].length).toBe(120)
+    expect(field.text).not.toContain('‍')
+    expect(field.notice).toContain('1 invisible character')
+    expect(field.notice).toContain('clipped for display')
+    // Paired present: an unclipped value with no invisible earns neither remark.
+    expect(asPrintable('a'.repeat(10)).notice).toBe('')
+  })
 })
 
 describe('printableField', () => {
