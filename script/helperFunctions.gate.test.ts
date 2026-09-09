@@ -281,15 +281,25 @@ describe('assert-direct-broadcast-gate CLI against real repo data', () => {
    * @param network - network to gate against
    * @param calldata - calldata the gate has to read a cut out of
    */
-  const run = (network: string, calldata: string) =>
-    spawnSync(
+  const run = (network: string, calldata: string) => {
+    // `bun test` sets NODE_ENV=test on this process; consola then silences
+    // info/success in the child, so the allow-path reasons these cases pin
+    // would arrive as "" even though the gate exited 0. Mirror
+    // funnel-deploy-gate.cli.test.ts: drop NODE_ENV so the child behaves as a
+    // real CLI.
+    const env = { ...(process.env as Record<string, string>) }
+    delete env.NODE_ENV
+    return spawnSync(
       'bunx',
       ['tsx', GATE_CLI, '--network', network, '--calldata', calldata],
       {
         cwd: REPO_ROOT,
         encoding: 'utf8',
+        env,
+        stdio: ['ignore', 'pipe', 'pipe'],
       }
     )
+  }
 
   it('refuses a cut installing an address the production log does not record', () => {
     const { status, stdout, stderr } = run(
