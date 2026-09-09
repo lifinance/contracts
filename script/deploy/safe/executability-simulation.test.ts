@@ -19,6 +19,7 @@ import {
   RevertCertaintyEnum,
   toCancelDecisionExecutability,
   type IChainObservations,
+  type IExecutabilityFinding,
   type IExecutabilityInput,
   type IExecutabilityVerdict,
   type IFacetCutInput,
@@ -154,7 +155,7 @@ const codes = (verdict: IExecutabilityVerdict): ExecutabilityFindingEnum[] =>
 const findingFor = (
   verdict: IExecutabilityVerdict,
   code: ExecutabilityFindingEnum
-) => {
+): IExecutabilityFinding => {
   const found = verdict.findings.find((finding) => finding.code === code)
   if (!found) throw new Error(`no ${code} finding in ${codes(verdict).join()}`)
   return found
@@ -449,23 +450,28 @@ describe('predicted from state read now', () => {
   })
 
   it('refuses a Replace or Remove of a selector defined on the diamond itself', () => {
-    const immutable = observations({
-      selectorFacets: new Map([[FACETS_SELECTOR, DIAMOND]]),
-    })
+    // Both casings of the observed diamond: the comparison normalises, so a
+    // checksummed collector and a lowercased one must reach the same verdict.
+    // Asserting only one of them lets a regression in either direction pass.
+    for (const observed of [DIAMOND, DIAMOND.toLowerCase()]) {
+      const immutable = observations({
+        selectorFacets: new Map([[FACETS_SELECTOR, observed]]),
+      })
 
-    for (const [action, facet] of [
-      [FacetCutActionEnum.Replace, CUT_FACET],
-      [FacetCutActionEnum.Remove, ZERO],
-    ] as const) {
-      const verdict = evaluate(
-        cutCall([cut(action, facet, [FACETS_SELECTOR])]),
-        { observations: immutable }
-      )
+      for (const [action, facet] of [
+        [FacetCutActionEnum.Replace, CUT_FACET],
+        [FacetCutActionEnum.Remove, ZERO],
+      ] as const) {
+        const verdict = evaluate(
+          cutCall([cut(action, facet, [FACETS_SELECTOR])]),
+          { observations: immutable }
+        )
 
-      expect(
-        findingFor(verdict, ExecutabilityFindingEnum.FunctionIsImmutable)
-          .certainty
-      ).toBe(RevertCertaintyEnum.Predicted)
+        expect(
+          findingFor(verdict, ExecutabilityFindingEnum.FunctionIsImmutable)
+            .certainty
+        ).toBe(RevertCertaintyEnum.Predicted)
+      }
     }
   })
 
