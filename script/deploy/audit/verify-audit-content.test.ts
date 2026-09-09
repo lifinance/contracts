@@ -411,6 +411,32 @@ describe('verifyAuditContent closure-drift split', () => {
     expect(alsoRecorded.driftingDependencies).toEqual([LIB])
   })
 
+  it('passes a recorded entry when recomputed closures match despite envelope mismatch', () => {
+    // sourceClosureHash was stamped under an older hasher version, so it disagrees
+    // with head. The pin-commit closure was recomputed with the current envelope
+    // and matches head — that is the pass, not the stale recorded hash.
+    const head = detail(HEAD, OWN_A, LIB_A)
+    const audited = detail(HEAD, OWN_A, LIB_A)
+
+    const result = verifyAuditContent({
+      contract: 'ERC20Proxy',
+      version: '1.2.0',
+      headClosureHash: head.combined,
+      headClosureDetail: head,
+      contractPath: PATH,
+      entries: [
+        withCommit({
+          sourceClosureHash: OTHER,
+          closureAtAuditCommit: audited,
+        }),
+      ],
+    })
+
+    expect(result.verdict).toBe('pass')
+    expect(result.matchedAuditId).toBe('audit1')
+    expect(result.reason).toContain('recomputed closures match')
+  })
+
   it('still blocks a recorded entry whose own source moved', () => {
     const result = verifyAuditContent({
       contract: 'ERC20Proxy',

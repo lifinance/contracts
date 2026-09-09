@@ -156,10 +156,14 @@ const compareClosures = (
     if (head.dependencies[dir] !== audited.dependencies[dir])
       driftingDependencies.push(dir)
 
+  const sortedDrift = driftingDependencies.sort()
+  const ownSourceMatches = ownAtHead === ownAtAudit
+  // Per-file (+ submodule) equality — not `combined`, which can disagree across
+  // hasher envelope versions even when every file hash is unchanged.
   return {
-    ownSourceMatches: ownAtHead === ownAtAudit,
-    closureMatches: head.combined === audited.combined,
-    driftingDependencies: driftingDependencies.sort(),
+    ownSourceMatches,
+    closureMatches: ownSourceMatches && sortedDrift.length === 0,
+    driftingDependencies: sortedDrift,
   }
 }
 
@@ -248,6 +252,14 @@ export const verifyAuditContent = (
 
       if (recordedComparison) {
         const classified = classifyContentVerdict(subject, recordedComparison)
+        // Recorded hash can disagree while the recomputed closures match — e.g. an
+        // older hash envelope (version bump in the hasher). Trust the recompute.
+        if (classified.verdict === 'pass')
+          return {
+            verdict: 'pass',
+            reason: `${classified.reason} (audit '${entry.auditId}', recorded hash ${entry.sourceClosureHash} disagreed with head but recomputed closures match)`,
+            matchedAuditId: entry.auditId,
+          }
         if (classified.verdict === 'closure-drift') {
           drifts.push({
             reason: `${classified.reason} (audit '${entry.auditId}', recorded hash ${entry.sourceClosureHash})`,
@@ -317,6 +329,12 @@ export const verifyAuditContent = (
       )
       if (comparison) {
         const classified = classifyContentVerdict(subject, comparison)
+        if (classified.verdict === 'pass')
+          return {
+            verdict: 'pass',
+            reason: `${classified.reason} (audit '${entry.auditId}', pin commit ${pinCommit})`,
+            matchedAuditId: entry.auditId,
+          }
         if (classified.verdict === 'closure-drift') {
           drifts.push({
             reason: `${classified.reason} (audit '${entry.auditId}', pin commit ${pinCommit})`,
