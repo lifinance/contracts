@@ -513,11 +513,10 @@ const processTxs = async (
         error instanceof Error ? error.message : String(error)
       )
     }
+    consola.info(detailLines.join('\n'))
     // Target-state lines are graded here, not inside the sanitising detail
     // block: they are computed verdicts, not stored proposer-controlled fields.
-    consola.info(
-      [...detailLines, ...formatTargetStateLines(targetState)].join('\n')
-    )
+    for (const line of formatTargetStateLines(targetState)) consola.info(line)
 
     // The struct the signature covers, never the stored row: createTransaction
     // normalises an absent operation to Call, so those two copies can disagree.
