@@ -22,6 +22,7 @@ import { createPublicClient, http, parseAbi } from 'viem'
 
 import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 
+import { flagIsOn } from './cli-flags'
 import {
   getTimelockQueueCollection,
   queueStatusReason,
@@ -358,7 +359,6 @@ const cmd = defineCommand({
       description:
         "Cross-check isOperationDone on each row's timelock controller",
       required: false,
-      default: false,
     },
     attention: {
       type: 'boolean',
@@ -424,7 +424,7 @@ const cmd = defineCommand({
 
     // --attention is defined in terms of on-chain readiness, so it cannot be
     // evaluated without the cross-check.
-    const checkOnChain = Boolean(args.checkOnChain) || Boolean(args.attention)
+    const checkOnChain = flagIsOn(args.checkOnChain) || Boolean(args.attention)
 
     let doneByKey = new Map<string, boolean | null>()
     let readyByKey = new Map<string, boolean | null>()
