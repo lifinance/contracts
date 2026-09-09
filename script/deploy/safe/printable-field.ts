@@ -99,6 +99,19 @@ export const color = (code: string, text: Printable): Printable =>
 export const concatPrintable = (...parts: Printable[]): Printable =>
   parts.join('') as Printable
 
+/**
+ * A notice in the same voice as the ones {@link asPrintable} attaches, for a
+ * caller that has something to disclose this module cannot know about — that a
+ * value is not a valid address for its network, say.
+ *
+ * Here rather than at the call site so every notice carries the same colour and
+ * its own reset, which is what lets it stay legible wherever it is interpolated.
+ * @param text - What the signer needs told, without the marker
+ * @returns The notice, branded
+ */
+export const fieldNotice = (text: string): Printable =>
+  `${YELLOW} ⚠ ${text}${RESET}` as Printable
+
 /** A stored value reduced to something safe to print. */
 export interface IRenderedField {
   readonly text: Printable

@@ -29,7 +29,12 @@ import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringFo
 import { buildExplorerContractPageUrl } from '../../utils/viemScriptHelpers'
 import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
 
-import { asPrintable, printableField, UNBOUNDED } from './printable-field'
+import {
+  asPrintable,
+  fieldNotice,
+  printableField,
+  UNBOUNDED,
+} from './printable-field'
 import { decodeDiamondCut } from './safe-utils'
 import {
   getLocalSelectorInfo,
@@ -591,10 +596,31 @@ export async function formatTimelockScheduleBatch(
     const payload = payloads[i]
     const idx = String(i).padStart(2, '0')
     const targetRaw = String(target ?? '')
-    const targetDisplay = formatAddressForNetworkCliDisplay(network, targetRaw)
+    // A target is either a valid address for this network or it is not. A valid
+    // one cannot carry an escape, so it is formatted and keeps its name and
+    // explorer link. An invalid one must not be sanitised into a different
+    // address that still looks like one — the same mistake as keying a
+    // deployments lookup on repaired text — so it is shown as stored, with a
+    // notice and without a name or link: there is nothing left to vouch for,
+    // and a link built from a non-address is worse than no link.
+    let targetDisplay: string
     let targetNameSuffix = ''
-    if (typeof target === 'string')
-      targetNameSuffix = await getTargetSuffix(network, target)
+    try {
+      const normalisedTarget = normalizeAddressForNetwork(
+        network,
+        targetRaw.trim()
+      )
+      targetDisplay = formatAddressForNetworkCliDisplay(
+        network,
+        normalisedTarget
+      )
+      targetNameSuffix = await getTargetSuffix(network, normalisedTarget)
+    } catch {
+      targetDisplay = printableField(targetRaw)
+      targetNameSuffix = fieldNotice(
+        `not a valid address for ${network} — shown as stored, and no explorer link`
+      )
+    }
     const valueStr =
       typeof value === 'bigint'
         ? value.toString()

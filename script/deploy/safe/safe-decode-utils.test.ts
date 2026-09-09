@@ -555,6 +555,54 @@ describe('formatDecodedTxDataForDisplay renders no proposer-controlled text raw'
 describe('formatTimelockScheduleBatch — driven by the stored row', () => {
   const ESC = String.fromCharCode(27)
 
+  const captureBatch = async (target: unknown): Promise<string[]> => {
+    const infoSpy = spyOn(consola, 'info').mockImplementation(
+      (() => {}) as never
+    )
+    try {
+      await formatTimelockScheduleBatch(
+        [
+          [target],
+          [0n],
+          ['0x'],
+          `0x${'00'.repeat(32)}`,
+          `0x${'11'.repeat(32)}`,
+          86400n,
+        ],
+        'mainnet'
+      )
+      return infoSpy.mock.calls.map((call) => String(call[0]))
+    } finally {
+      infoSpy.mockRestore()
+    }
+  }
+
+  it('shows a target that is not an address as stored, with no link', async () => {
+    // Sanitising an address produces a *different* address that still looks
+    // like one, which is how the periphery check came to vouch for a name the
+    // calldata never held. So an unparseable target is reported rather than
+    // repaired, and loses its name and explorer link: there is nothing left to
+    // vouch for, and a link built from a non-address is worse than none.
+    const line = (
+      await captureBatch(`0x1111111111111111111111111111111111111111${ESC}[2J`)
+    ).find((text) => text.includes('target='))
+
+    expect(line).toContain('not a valid address')
+    expect(line).not.toContain(`${ESC}[2J`)
+    expect(line).not.toContain('http')
+  })
+
+  it('still names and links a target that is an address', async () => {
+    // Paired present: the refusal above is about the value, not about the
+    // feature having been switched off.
+    const line = (
+      await captureBatch('0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE')
+    ).find((text) => text.includes('target='))
+
+    expect(line).toContain('http')
+    expect(line).not.toContain('not a valid address')
+  })
+
   it('renders a hostile payload selector inert', async () => {
     // `execute-pending-timelock-tx` hands `deserializeScheduleParams(row)`
     // straight in, so these are stored strings rather than ABI-decoded bytes:
