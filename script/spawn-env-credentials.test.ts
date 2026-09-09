@@ -68,8 +68,20 @@ const DELETES_A_CREDENTIAL = new RegExp(
  */
 const EXEMPTION_MARKER = 'spawn-env: child cwd has no .env'
 
-/** Tracked test files under the script tree — the ones that spawn CLIs. */
-const shippedTests = (): string[] =>
+/**
+ * This file, which holds the violation as test data below and would otherwise
+ * report itself. Excluded by exact path rather than by a pattern, so the
+ * exclusion cannot widen to cover a real offender — a test below pins it at
+ * exactly one file.
+ *
+ * Note it did not report itself until it was committed: `git ls-files` lists
+ * tracked files only, so the suite was green while the file was untracked and
+ * red immediately after the commit.
+ */
+const SELF = 'script/spawn-env-credentials.test.ts'
+
+/** Every tracked test file under the script tree — the ones that spawn CLIs. */
+const allShippedTests = (): string[] =>
   execFileSync('git', ['ls-files', 'script', 'tasks'], {
     cwd: REPO_ROOT,
     encoding: 'utf8',
@@ -77,9 +89,22 @@ const shippedTests = (): string[] =>
     .split('\n')
     .filter((path) => path.endsWith('.test.ts'))
 
+const shippedTests = (): string[] =>
+  allShippedTests().filter((path) => path !== SELF)
+
+/**
+ * A line terminator between `delete` and its operand is legal grammar — the
+ * spec puts no `[no LineTerminator here]` restriction there — so a per-line
+ * scan would walk straight past `delete\n  env.PRIVATE_KEY`. Joining the
+ * operand onto the keyword's line first also carries any trailing marker
+ * comment with it, which keeps the exemption line-scoped.
+ */
+const joinDeleteOperands = (source: string): string =>
+  source.replace(/\bdelete\s+/gu, 'delete ')
+
 /** Lines that delete a credential and do not carry the marker. */
 const unexemptedDeletions = (source: string): string[] =>
-  source
+  joinDeleteOperands(source)
     .split('\n')
     .filter(
       (line) =>
@@ -99,6 +124,33 @@ describe('no shipped test deletes a credential from a child environment', () => 
     )
 
     expect(offenders).toEqual([])
+  })
+
+  it('excludes exactly one file, this one', () => {
+    // The self-exclusion is the guard's only blind spot, so it is pinned by
+    // count: a second entry could hide a real offender behind the same reason.
+    const all = allShippedTests()
+
+    expect(all).toContain(SELF)
+    expect(all.length - shippedTests().length).toBe(1)
+  })
+
+  it('sees a delete whose operand is on the next line', () => {
+    // Legal grammar: nothing in the spec forbids a line terminator between
+    // `delete` and its operand, so a per-line scan walks past this.
+    expect(unexemptedDeletions('  delete\n    env.PRIVATE_KEY\n')).toEqual([
+      '  delete env.PRIVATE_KEY',
+    ])
+  })
+
+  it('keeps the marker attached across that join', () => {
+    // The exemption must survive the newline it was written across, or the fix
+    // above turns every annotated delete back into an offender.
+    expect(
+      unexemptedDeletions(
+        `  delete\n    env.PRIVATE_KEY // ${EXEMPTION_MARKER}\n`
+      )
+    ).toEqual([])
   })
 
   it('counts the exemption as an exemption only on its own line', () => {
