@@ -80,18 +80,45 @@ export function initTronWeb(
   return tronWeb
 }
 
+/** SUN per TRX, so a TRX amount carries at most this many decimal places. */
+const TRX_DECIMALS = 6
+
 /**
  * Parses a human-readable Tron value string to SUN (the smallest Tron unit).
  * Accepts `"<n>tron"` (converts TRX → SUN), `"<n>sun"` (strips suffix), or a bare integer string.
  *
+ * The TRX form is shifted digit-wise rather than multiplied. `4.1 * 1e6` is
+ * 4099999.9999999995 in floating point and `1e15 * 1e6` stringifies as `1e+21`,
+ * neither of which is a SUN amount; rounding instead turns `0.0000004tron` into
+ * `0`, which would broadcast a zero-value call for a nonzero `--value`.
+ *
  * @param value - Value string, e.g. `"0.1tron"`, `"100sun"`, or `"1000000"`.
  * @returns The value in SUN as a string.
+ * @throws When a TRX amount is malformed, or finer than one SUN.
  */
 export function parseValue(value: string): string {
   // Handle formats like "0.1tron", "100sun", "1000000"
   if (value.endsWith('tron')) {
-    const amount = parseFloat(value.replace('tron', ''))
-    return (amount * 1_000_000).toString() // Convert to SUN
+    const amount = value.slice(0, -'tron'.length).trim()
+    if (!/^\d+(\.\d+)?$/.test(amount))
+      throw new Error(
+        `Invalid TRX amount: "${value}" (expected a non-negative decimal, e.g. 0.1tron)`
+      )
+
+    const [whole, fraction = ''] = amount.split('.')
+    // Trailing zeros carry no value, so `1.5000000tron` is a plain 1500000 SUN
+    // rather than an amount finer than the unit.
+    const significant = fraction.replace(/0+$/, '')
+    if (significant.length > TRX_DECIMALS)
+      throw new Error(
+        `"${value}" is finer than one SUN (${TRX_DECIMALS} decimal places); TRX has no smaller unit.`
+      )
+
+    // Leading zeros stripped, but never the last digit: "0tron" is 0 SUN.
+    return `${whole}${significant.padEnd(TRX_DECIMALS, '0')}`.replace(
+      /^0+(?=\d)/,
+      ''
+    )
   } else if (value.endsWith('sun')) return value.replace('sun', '')
 
   return value // Assume it's already in SUN

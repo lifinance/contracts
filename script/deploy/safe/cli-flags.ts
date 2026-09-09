@@ -3,7 +3,7 @@
  * unambiguous. Import it in a citty command that reads a signing flag: citty
  * cannot distinguish `--ledgerLive=no` from a bare `--ledgerLive`, passes the raw
  * value through for the kebab spelling, drops a `-`-prefixed value (`--accountIndex
- * -1` parses to `''`), and keeps one occurrence of a repeated flag, and none of
+ * -1` parses to `''`), and collapses a repeated flag into an array, and none of
  * that is recoverable once the command body runs.
  */
 
@@ -69,6 +69,61 @@ export interface IBooleanFlagOptions {
 }
 
 /**
+ * Reads a boolean citty argument that a command has already had parsed for it.
+ *
+ * Prefer {@link readBooleanFlag} where the command can reach `argv`. This is for
+ * a command whose body only sees `args`, and it exists because a `type:
+ * 'boolean'` argument does not always arrive as a boolean: `--flag=true` arrives
+ * as `'true'` and `--flag <token>` swallows the token as the value, numeric-looking
+ * ones as a `number`. Anything present that is not an explicit `false` therefore
+ * counts as on — for a `--dry-run` the alternative is broadcasting a run the
+ * operator asked to simulate. A repeated flag arrives as an array and is refused
+ * rather than reduced, because which occurrence wins decides the safe direction
+ * and that differs per flag: for `--dry-run` it is on, for `--allowOverride` off.
+ *
+ * Declare such an argument with **no** citty `default`: for a multi-word
+ * argument citty resolves the spelling the caller did not type to the default,
+ * so a `default: false` makes `--dry-run` unreachable. A flag that is on unless
+ * switched off keeps its fallback here, via `whenAbsent`, for the same reason.
+ *
+ * Only for a flag where **on is the safe direction**. Resolving an unreadable
+ * value to on is fail-safe for `--dry-run` and fail-dangerous for anything that
+ * widens what the run touches: `--all-networks 0` would fan out to every
+ * network, `--skip-confirmation 0` would skip the last prompt before a
+ * production deploy. Read those with {@link readBooleanFlag}, which refuses a
+ * value it cannot read instead of choosing.
+ *
+ * @param value - The argument as citty resolved it.
+ * @param options - What absence means, when it is not `false`.
+ * @returns Whether the flag is on.
+ * @throws If the flag was passed more than once.
+ */
+export const flagIsOn = (
+  value: unknown,
+  options: IBooleanFlagOptions = {}
+): boolean => {
+  if (value === undefined) return options.whenAbsent ?? false
+
+  // citty concatenates repeats, so an array means the flag was passed twice.
+  // Reducing it would have to pick a winner, and the safe winner depends on the
+  // flag: `--dry-run --dry-run=false` wants on, `--allowOverride=false` twice
+  // wants off. Refuse instead, as `readBooleanFlag` does.
+  if (Array.isArray(value))
+    throw new Error(
+      `A boolean flag was given more than once (parsed as ${JSON.stringify(
+        value
+      )}). Which occurrence wins is not something this script should decide quietly — pass it once.`
+    )
+
+  // Stated as what is off rather than what is on, because the set of shapes
+  // citty can hand this is open: `--dry-run 5` arrives as the number 5, and
+  // testing for on would read that as off and broadcast. `''` cannot arise for
+  // a `type: 'boolean'` argument; it is here for a value argument read through
+  // this function.
+  return value !== false && value !== 'false' && value !== ''
+}
+
+/**
  * Reads a boolean flag, refusing any form that is not unambiguous.
  *
  * @param argv - Raw arguments, normally `process.argv`.
@@ -101,6 +156,60 @@ export const readBooleanFlag = (
   throw new Error(
     `--${name.camel} accepts no value, 'true' or 'false'; got '${value}'. Pass --${name.camel} on its own to enable it.`
   )
+}
+
+/**
+ * Reads an opt-out flag — one whose own name begins with `no`, such as
+ * `--noPropose` — as whether the operator asked to opt out.
+ *
+ * Needed because mri (under citty) reads a leading `--no-` as *negating* the
+ * rest of the name rather than as part of it: `--no-propose` never reaches the
+ * command as `noPropose` at all, it arrives as `{ propose: false }`. Declaring
+ * the argument as `noPropose` therefore leaves its kebab spelling silently
+ * inert, and the run does the very thing it was told to skip. Both spellings
+ * are resolved here, from argv, and a `--propose=false` with them.
+ *
+ * @param argv - Raw arguments, normally `process.argv`.
+ * @param positive - The flag being opted out of, e.g. `propose`.
+ * @returns Whether the opt-out is on.
+ * @throws If either spelling appears more than once, or carries a value other
+ * than `true` or `false`.
+ */
+export const readOptOutFlag = (
+  argv: string[],
+  positive: IFlagName
+): boolean => {
+  // Spelled without a `-` after `no`, so mri leaves it alone and reads it as a
+  // name rather than as a negation of `positive`.
+  const negative = `no${positive.camel
+    .charAt(0)
+    .toUpperCase()}${positive.camel.slice(1)}`
+  const negativeName = { camel: negative, kebab: negative }
+
+  const given = (name: IFlagName, read: () => boolean): boolean | undefined =>
+    uniqueOccurrence(argv, name) === undefined ? undefined : read()
+
+  const fromNegative = given(negativeName, () =>
+    readBooleanFlag(argv, negativeName)
+  )
+  const fromPositive = given(
+    positive,
+    () => !readBooleanFlag(argv, positive, { whenAbsent: true })
+  )
+
+  // The two spellings land on different parser keys, so a contradiction between
+  // them slips past the per-flag duplicate check that refuses `--propose
+  // --no-propose`. Refused here for the same reason that one is.
+  if (
+    fromNegative !== undefined &&
+    fromPositive !== undefined &&
+    fromNegative !== fromPositive
+  )
+    throw new Error(
+      `--${negative} and --${positive.camel} were both given and disagree. Which one wins is not something this script should decide quietly — pass one.`
+    )
+
+  return fromNegative ?? fromPositive ?? false
 }
 
 /**

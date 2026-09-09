@@ -113,6 +113,8 @@ const UNISWAP_ADDRESSES: Record<string, string> = {
 }
 
 // Eco API configuration
+const DEFAULT_SRC_CHAIN = 'optimism'
+const DEFAULT_DST_CHAIN = 'base'
 const ECO_API_URL = process.env.ECO_API_URL || 'https://quotes.eco.com'
 const DAPP_ID = process.env.ECO_DAPP_ID || 'lifi-demo'
 
@@ -745,13 +747,11 @@ const command = defineCommand({
   args: {
     srcChain: {
       type: 'string',
-      default: 'optimism',
-      description: 'Source chain for the bridge (e.g., optimism)',
+      description: `Source chain for the bridge (default: ${DEFAULT_SRC_CHAIN})`,
     },
     dstChain: {
       type: 'string',
-      default: 'base',
-      description: 'Destination chain for the bridge (e.g., base)',
+      description: `Destination chain for the bridge (default: ${DEFAULT_DST_CHAIN})`,
     },
     amount: {
       type: 'string',
@@ -766,8 +766,8 @@ const command = defineCommand({
   },
   async run({ args }) {
     await main({
-      srcChain: args.srcChain as SupportedChain,
-      dstChain: args.dstChain,
+      srcChain: (args.srcChain ?? DEFAULT_SRC_CHAIN) as SupportedChain,
+      dstChain: args.dstChain ?? DEFAULT_DST_CHAIN,
       amount: args.amount,
       swap: args.swap,
     })
