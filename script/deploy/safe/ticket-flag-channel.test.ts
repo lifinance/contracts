@@ -72,13 +72,26 @@ const runRefused = (
   }
   // These children are exercised as CLIs, not under a harness.
   delete env.NODE_ENV
-  // Bun auto-loads the repo env file into this process, so the child would
-  // otherwise inherit whatever a developer has exported locally.
-  delete env.SAFE_PROPOSAL_TICKET
+  env.SAFE_PROPOSAL_TICKET = ''
   if (envTicket !== undefined) env.SAFE_PROPOSAL_TICKET = envTicket
-  // Withheld so a child that somehow ran past the check cannot sign.
-  delete env.PRIVATE_KEY
-  delete env.PRIVATE_KEY_PRODUCTION
+  // Set, never deleted: bun loads the repo `.env` inside the child for every
+  // name the passed environment leaves unset, so deleting these hands back a
+  // real production signer key and the real proposal store — on the one funnel
+  // whose next step signs on every production mainnet in turn.
+  //
+  // Malformed rather than merely wrong, so a child that got past the ticket
+  // check dies before it can act: a key viem cannot parse throws where a
+  // valid-but-unfunded one would derive an address and go on to open the
+  // store, and a URI the driver rejects on construction throws where an
+  // unreachable host would first spend 30 s selecting a server.
+  for (const name of [
+    'PRIVATE_KEY',
+    'PRIVATE_KEY_PRODUCTION',
+    'SAFE_SIGNER_PRIVATE_KEY',
+  ])
+    env[name] = 'blocked-in-tests-not-a-key'
+  for (const name of ['MONGODB_URI', 'SC_MONGODB_URI'])
+    env[name] = 'blocked-in-tests://no-store'
 
   const result = Bun.spawnSync(
     [process.execPath, join(SCRIPT_ROOT, script), ...args],
@@ -91,6 +104,21 @@ const runRefused = (
     }
   )
 
+  const output = `${result.stdout.toString()}${result.stderr.toString()}`
+
+  // Checked before the usability checks below: a child that reached the real
+  // store is the failure most likely to present as a timeout, and the one
+  // whose cost is a dummy row in the live proposal queue.
+  //
+  // Keyed on this funnel's own success lines, which have to be unsatisfiable
+  // by the refusal text sitting beside them — the refusal itself contains the
+  // words "Safe proposal", so a predicate on those fires on every case and
+  // fails the runs it exists to protect.
+  if (/Transaction proposed|network\(s\) processed successfully/i.test(output))
+    throw new Error(
+      'a probe reached a real Safe or proposal store — the child environment is not isolated'
+    )
+
   // A killed child is not a result: without this, an assertion about what the
   // output does NOT contain passes on a run that never produced output.
   if (result.signalCode !== null && result.signalCode !== undefined)
@@ -98,7 +126,7 @@ const runRefused = (
       `child was killed by ${result.signalCode} after ${TIMEOUT_MS}ms, so its output proves nothing`
     )
 
-  return `${result.stdout.toString()}${result.stderr.toString()}`
+  return output
 }
 
 // `unpauseAllDiamonds.ts` is the funnel this can be shown on end to end: its
