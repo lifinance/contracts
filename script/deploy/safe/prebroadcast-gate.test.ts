@@ -7,6 +7,7 @@ import { afterAll, describe, expect, it } from 'bun:test'
 import type { Address } from 'viem'
 
 import {
+  buildGateGapAlert,
   resolveGateCoverage,
   runPreBroadcastGate,
   type IGateDependencies,
@@ -383,5 +384,60 @@ describe('resolveGateCoverage', () => {
 
   it('names Tron as uncovered rather than reporting a verdict for it', () => {
     expect(resolveGateCoverage('tron')).toBe('uncovered-tron')
+  })
+})
+
+describe('buildGateGapAlert', () => {
+  it('says nothing when the verdict was complete', () => {
+    // The paired present for the cases below, and the property that keeps the
+    // cron quiet: a run whose gate checked everything must not post at all,
+    // or the channel trains its readers to ignore it.
+    expect(
+      buildGateGapAlert({ network: 'mainnet', operationId: '0xabc', gaps: [] })
+    ).toBeNull()
+  })
+
+  it('names the network and the operation the gap belongs to', () => {
+    // A gap posted without its operation cannot be acted on: the reader's next
+    // step is to look the operation up.
+    const message = buildGateGapAlert({
+      network: 'arbitrum',
+      operationId: '0xfeed',
+      gaps: ['no sign-time record was found for this operation'],
+    })
+
+    expect(message).toContain('arbitrum')
+    expect(message).toContain('0xfeed')
+    expect(message).toContain('no sign-time record was found')
+  })
+
+  it('carries every gap, so one does not hide another', () => {
+    const message = buildGateGapAlert({
+      network: 'mainnet',
+      operationId: '0xabc',
+      gaps: ['no sign-time record', 'authority read failed'],
+    })
+
+    expect(message).toContain('• no sign-time record')
+    expect(message).toContain('• authority read failed')
+  })
+
+  it('does not post an empty bullet for a blank gap', () => {
+    // An empty alert string reaching the channel as "• " reads as a gap whose
+    // description was lost, which is worse than the truth: there was none.
+    expect(
+      buildGateGapAlert({
+        network: 'mainnet',
+        operationId: '0xabc',
+        gaps: ['', '   '],
+      })
+    ).toBeNull()
+    expect(
+      buildGateGapAlert({
+        network: 'mainnet',
+        operationId: '0xabc',
+        gaps: ['', 'authority read failed'],
+      })
+    ).not.toContain('• \n')
   })
 })

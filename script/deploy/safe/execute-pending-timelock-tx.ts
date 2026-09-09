@@ -53,6 +53,7 @@ import {
   listParkedTasksBySafeTxHash,
 } from './parked-tasks'
 import {
+  buildGateGapAlert,
   resolveGateCoverage,
   runPreBroadcastGate,
   viemGateReaders,
@@ -1700,12 +1701,26 @@ async function enforcePreBroadcastGateOrAbort(
   isDryRun: boolean,
   notifyFailure: (error: unknown) => Promise<void>,
   publicClient: PublicClient,
-  timelockAddress: Address
+  timelockAddress: Address,
+  slackNotifier?: SlackNotifier
 ): Promise<GuardOutcome> {
+  // A gap is not a failure, so it must not travel the failure path — that would
+  // report an operation as failed while it goes on to execute. It still has to
+  // leave the process; see buildGateGapAlert.
+  const alertGap = async (gaps: readonly string[]): Promise<void> => {
+    const message = buildGateGapAlert({
+      network: networkName,
+      operationId: operation.id,
+      gaps,
+    })
+    if (!message || isDryRun || !slackNotifier) return
+    await slackNotifier.sendNotificationWithRetry({ text: message })
+  }
+
   if (resolveGateCoverage(networkName) === 'uncovered-tron') {
-    consola.warn(
-      `${networkPrefix} ⚠️  Pre-broadcast integrity gate does not cover this chain — no codehash or authority verdict was produced for ${operation.id} (EXSC-954)`
-    )
+    const gap = `the gate does not cover this chain — no codehash or authority verdict was produced for ${operation.id} (EXSC-954)`
+    consola.warn(`${networkPrefix} ⚠️  Pre-broadcast integrity gate: ${gap}`)
+    await alertGap([gap])
     return 'ok'
   }
 
@@ -1780,6 +1795,7 @@ async function enforcePreBroadcastGateOrAbort(
 
   if (result.disposition === 'PROCEED') {
     consola.info(`${networkPrefix} ✅ Pre-broadcast gate: ${result.reason}`)
+    await alertGap(result.alerts)
     return 'ok'
   }
 
@@ -1877,7 +1893,8 @@ async function executeOperation(
         isDryRun,
         notifyFailure,
         publicClient,
-        timelockAddress
+        timelockAddress,
+        slackNotifier
       )
     : 'ok'
 
