@@ -24,6 +24,13 @@ const REFUSAL = 'No Linear ticket supplied'
 /** 20 seconds: long enough to reach the gate, short enough that a run past it is cheap. */
 const TIMEOUT_MS = 20_000
 
+/**
+ * Malformed on purpose, and set rather than deleted. Bun re-loads the repo
+ * `.env` in the child for every name the passed environment leaves unset, so
+ * deleting a credential hands the real one back instead of withholding it.
+ */
+const MALFORMED_KEY = 'malformed-in-tests'
+
 const run = (
   script: string,
   args: string[],
@@ -39,11 +46,10 @@ const run = (
   // local value through process.env. Cleared, or a developer's own decides these.
   delete env.SAFE_PROPOSAL_TICKET
   if (ticket !== undefined) env.SAFE_PROPOSAL_TICKET = ticket
-  // Withheld so a child that runs past the gate cannot reach a signature. One
-  // case below asserts a run is NOT refused, which means letting it go on to a
-  // branch that sends directly.
-  delete env.PRIVATE_KEY
-  delete env.PRIVATE_KEY_PRODUCTION
+  // One case below asserts a run is NOT refused, which means letting it go on
+  // to a branch that sends directly — with a real key that branch signs.
+  env.PRIVATE_KEY = MALFORMED_KEY
+  env.PRIVATE_KEY_PRODUCTION = MALFORMED_KEY
 
   const result = Bun.spawnSync(
     [process.execPath, join(import.meta.dir, '..', '..', script), ...args],

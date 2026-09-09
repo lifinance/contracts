@@ -39,6 +39,13 @@ const REFUSAL = "accepts no value, 'true' or 'false'"
 const PROBE_NETWORK = 'zzplacementprobe'
 
 /**
+ * Malformed on purpose, and set rather than deleted. Bun re-loads the repo
+ * `.env` in the child for every name the passed environment leaves unset, so
+ * deleting a credential hands the real one back instead of withholding it.
+ */
+const MALFORMED_KEY = 'malformed-in-tests'
+
+/**
  * Some of these commands transitively import generated `typechain/` types, and
  * the CI job that runs this suite does not generate them, so the child dies at
  * module load before reaching the reader. Such a run cannot judge the placement
@@ -59,9 +66,10 @@ const run = (script: string, args: string[]): string => {
   }
   // `bun test` sets NODE_ENV=test; these children are exercised as CLIs.
   delete env.NODE_ENV
-  // Withheld so a child that runs past the reader cannot reach a signature.
-  delete env.PRIVATE_KEY
-  delete env.PRIVATE_KEY_PRODUCTION
+  // These children include deploy-safe.ts and execute-pending-timelock-tx.ts, so
+  // a child that runs past the flag reader must not hold a usable key.
+  env.PRIVATE_KEY = MALFORMED_KEY
+  env.PRIVATE_KEY_PRODUCTION = MALFORMED_KEY
 
   const result = Bun.spawnSync(
     [process.execPath, join(import.meta.dir, '..', '..', script), ...args],
