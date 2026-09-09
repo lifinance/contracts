@@ -353,3 +353,84 @@ describe('update-deployment-logs add — provenance capture', () => {
     CASE_TIMEOUT_MS
   )
 })
+
+describe('update-deployment-logs add — codehash', () => {
+  const HASH = `0x${'1'.repeat(64)}`
+  const MASKED = `0x${'2'.repeat(64)}`
+  const GROUP = [
+    '--codehash',
+    HASH,
+    '--masked-codehash',
+    MASKED,
+    '--code-byte-length',
+    '7390',
+    '--masked-byte-count',
+    '480',
+  ]
+
+  it(
+    'carries the whole group into the upsert and exits 0',
+    () => {
+      const { status, upsert } = runAdd({
+        repoRoot: makeRepo({ branch: 'main', dirty: false }),
+        extraArgs: GROUP,
+      })
+
+      expect(status).toBe(0)
+      expect(upsert.update.$set).toHaveProperty('codehash', {
+        hash: HASH,
+        maskedHash: MASKED,
+        byteLength: 7390,
+        maskedByteCount: 480,
+      })
+    },
+    CASE_TIMEOUT_MS
+  )
+
+  it(
+    'writes no codehash key at all when none was offered',
+    () => {
+      const { status, upsert } = runAdd({
+        repoRoot: makeRepo({ branch: 'main', dirty: false }),
+      })
+
+      expect(status).toBe(0)
+      expect(upsert.update.$set).not.toHaveProperty('codehash')
+      // Paired positive: the absence above must not pass on an empty upsert.
+      expect(upsert.update.$set).toHaveProperty('contractName', CONTRACT)
+    },
+    CASE_TIMEOUT_MS
+  )
+
+  it.each([
+    ['a partly-provided group', GROUP.slice(0, 6), 'maskedByteCount'],
+    [
+      'a byte length parseInt would have accepted',
+      [...GROUP.slice(0, 5), '7390 bytes', ...GROUP.slice(6)],
+      'whole numbers',
+    ],
+    [
+      'a hash that is not a digest',
+      ['--codehash', '0xdeadbeef', ...GROUP.slice(2)],
+      'not a keccak digest',
+    ],
+  ])(
+    'still writes the record, then exits non-zero, for %s',
+    (_label, extraArgs, expected) => {
+      // The refusal cannot come before the write: this command runs after the
+      // deploy, so refusing outright would trade a record missing one field
+      // for a broadcast deployment with no record at all.
+      const { output, status, upsert } = runAdd({
+        repoRoot: makeRepo({ branch: 'main', dirty: false }),
+        extraArgs,
+      })
+
+      expect(upsert.update.$set).not.toHaveProperty('codehash')
+      expect(upsert.update.$set).toHaveProperty('address', ADDRESS)
+      expect(output).toContain('Not recording a codehash')
+      expect(output).toContain(expected)
+      expect(status).not.toBe(0)
+    },
+    CASE_TIMEOUT_MS
+  )
+})
