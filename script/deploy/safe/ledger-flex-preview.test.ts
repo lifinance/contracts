@@ -202,7 +202,6 @@ const panelWidth = (line: string): number => {
  */
 const splitRow = (line: string): { screens: string; column: string } => {
   // Walk the styled string so the split index accounts for the ANSI bytes.
-  const plain = stripAnsi(line)
   let visible = -1
   let cut = line.length
   const width = panelWidth(line)
@@ -217,7 +216,6 @@ const splitRow = (line: string): { screens: string; column: string } => {
       break
     }
   }
-  void plain
   return { screens: line.slice(0, cut), column: line.slice(cut) }
 }
 
@@ -254,6 +252,21 @@ describe('applyStyleRanges', () => {
 
   it('drops a range that starts past the end of the text', () => {
     expect(applyStyleRanges('ab', [{ start: 5, end: 9, style: S }])).toBe('ab')
+  })
+
+  // A replacement operand that contains the styled text makes `$&`, `` $` ``
+  // and `$'` inside it expand as substitution patterns, widening the row past
+  // the panel interior and breaking the frame the signer compares against the
+  // device. Slicing cannot do that; this pins it so a rewrite via
+  // `String.prototype.replace` fails here.
+  it('treats substitution patterns in the text as literal characters', () => {
+    for (const probe of ['$&$&$&', "a$'b", '$`x', '$1$2']) {
+      const styled = applyStyleRanges(probe, [
+        { start: 0, end: probe.length, style: S },
+      ])
+
+      expect(stripAnsi(styled)).toBe(probe)
+    }
   })
 
   it('never changes the visible character count', () => {
@@ -319,32 +332,42 @@ describe('renderLedgerFlexHashFlow', () => {
     )
   })
 
-  it('highlights both ends whatever the row breaks are', () => {
-    // Row breaks follow measured glyph widths, so which row each end lands on
-    // varies with the hash — including a final row shorter than 8 characters,
-    // where the tail spans two rows.
-    for (let seed = 1; seed <= 200; seed++) {
-      const hex = Array.from({ length: 64 }, (_, i) =>
-        ((seed * 31 + i * 17) % 16 >>> 0).toString(16)
+  // Row breaks follow measured per-glyph widths, so the hash's own characters
+  // decide where they land. These are the width extremes: 'A' is the widest
+  // glyph in the table and wraps into five rows, leaving a short final row that
+  // splits the tail run across a break; 'F' is the narrowest. A run that
+  // straddles a break must still come out exact, which is what the per-row span
+  // intersection in `hashRows` is for.
+  const WIDTH_EXTREMES: [string, string][] = [
+    ['widest glyphs', 'A'.repeat(64)],
+    ['narrowest glyphs', 'F'.repeat(64)],
+    ['wide then narrow', `${'A'.repeat(32)}${'F'.repeat(32)}`],
+    ['narrow then wide', `${'F'.repeat(32)}${'A'.repeat(32)}`],
+    ['all digits', '0'.repeat(64)],
+  ]
+
+  for (const [label, hex] of WIDTH_EXTREMES)
+    it(`highlights both ends with ${label}, wherever the rows break`, () => {
+      const onScreen = renderLedgerFlexHashFlow({ hash: `0x${hex}` }).map(
+        (line) => splitRow(line).screens
       )
-        .join('')
-        .toUpperCase()
-      const rendered = renderLedgerFlexHashFlow({ hash: `0x${hex}` })
-      const onScreen = rendered.map((line) => splitRow(line).screens)
-      const head = hex.slice(0, HASH_COMPARE_CHARS)
-      const tail = hex.slice(-HASH_COMPARE_CHARS)
 
-      expect(highlightedRuns(onScreen)).toBe(`${head}${tail}`)
+      expect(highlightedRuns(onScreen)).toBe(
+        `${hex.slice(0, HASH_COMPARE_CHARS)}${hex.slice(-HASH_COMPARE_CHARS)}`
+      )
+    })
 
-      // Exactly two runs, never a run split across a line break. A 66-character
-      // display cannot put fewer than 9 characters on its final row (three rows
-      // hold at most 19 each), and the first row always holds more than the
-      // `0x` prefix plus 8, so neither end can straddle a break at this length.
-      const pattern = new RegExp(`${ESC}\\[1;33m([^${ESC}]*)${ESC}\\[0m`, 'g')
-      expect(
-        onScreen.flatMap((line) => [...line.matchAll(pattern)]).length
-      ).toBe(2)
-    }
+  // Guards the cases above against proving nothing: if no hash reached the
+  // renderer's multi-row path, the span intersection went untested.
+  it('splits a compare run across a line break when the rows fall that way', () => {
+    const pattern = new RegExp(`${ESC}\\[1;33m([^${ESC}]*)${ESC}\\[0m`, 'g')
+    const onScreen = renderLedgerFlexHashFlow({
+      hash: `0x${'A'.repeat(64)}`,
+    }).map((line) => splitRow(line).screens)
+
+    expect(
+      onScreen.flatMap((line) => [...line.matchAll(pattern)]).length
+    ).toBeGreaterThan(2)
   })
 
   it('names the 16 characters to compare beside the screens', () => {
@@ -375,8 +398,9 @@ describe('renderLedgerFlexHashFlow', () => {
     ['unprefixed', 'a'.repeat(64)],
     ['empty', ''],
     ['an address', '0x031f25f640e0530a51f5617757b281a8df5614ee'],
-    // The hash reaches the operator's terminal: a value carrying its own escape
-    // codes or box characters could redraw the screens it is printed inside.
+    // Unreachable from the production caller, whose `bytes32` read can only
+    // decode to the accepted shape. Kept as a shape invariant on an exported
+    // function: a caller passing row-derived text is refused, not framed.
     ['ansi escapes', `0x${ESC}[31m${'a'.repeat(58)}${ESC}[0m`],
     ['box drawing', `0x${'│'.repeat(64)}`],
   ]

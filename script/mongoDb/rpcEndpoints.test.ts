@@ -457,6 +457,10 @@ describe('normalizeRpcUrlForNetwork', () => {
     )
   })
 
+  // The two hosts config/networks.json actually stores. Used literally because the rewrite is
+  // keyed on the TronGrid host family, which a synthetic host cannot stand in for.
+  const TRONGRID_HOST = 'https://api.trongrid.io'
+
   // A provider that scopes the chain onto the path is already pointed at JSON-RPC there.
   // dRPC answers `eth_blockNumber` at `/tron/<key>` and 404s under `/tron/<key>/jsonrpc`, so
   // appending the route makes every Tron read fail against it.
@@ -473,6 +477,28 @@ describe('normalizeRpcUrlForNetwork', () => {
   it('leaves a path-scoped Tron endpoint untouched on a testnet key too', () => {
     const pathScoped = 'https://lb.example.invalid/tron-shasta/AbCdEf0123456789'
     expect(normalizeRpcUrlForNetwork('tronshasta', pathScoped)).toBe(pathScoped)
+  })
+
+  // TronGrid's non-root paths are its native HTTP API, not JSON-RPC, so the route still gets
+  // appended there. Without this the relaxation above would silently strip the route from a
+  // stored TronGrid URL that carries any path at all.
+  it('still routes a TronGrid endpoint that carries a native-API path', () => {
+    expect(normalizeRpcUrlForNetwork('tron', `${TRONGRID_HOST}/wallet`)).toBe(
+      `${TRONGRID_HOST}/wallet/jsonrpc`
+    )
+  })
+
+  it('normalises a trailing slash after the route on a TronGrid host', () => {
+    expect(normalizeRpcUrlForNetwork('tron', `${TRONGRID_HOST}/jsonrpc/`)).toBe(
+      `${TRONGRID_HOST}/jsonrpc`
+    )
+  })
+
+  // Suffix matching on a bare domain would treat this attacker-controlled host as TronGrid.
+  it('does not treat a host merely ending in the TronGrid name as TronGrid', () => {
+    const lookalike =
+      'https://trongrid.io.example.invalid/tron/AbCdEf0123456789'
+    expect(normalizeRpcUrlForNetwork('tron', lookalike)).toBe(lookalike)
   })
 
   it('keeps a credential query parameter behind the route', () => {

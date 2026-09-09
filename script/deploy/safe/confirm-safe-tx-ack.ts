@@ -5,9 +5,8 @@
  * cache: an operator's *action* is never remembered, while their *acknowledgement*
  * of a reviewed change rolls up across the networks it is genuinely the same on.
  *
- * The acknowledgement is implicit — an operator who selects an action on a
- * proposal has acknowledged it. There is no separate confirm prompt to answer,
- * so this module records and rolls up; it never gates.
+ * The acknowledgement is implicit: selecting an action on a proposal
+ * acknowledges it. So this module records and rolls up, and never gates.
  */
 
 import { encodeAbiParameters, keccak256, type Hex } from 'viem'

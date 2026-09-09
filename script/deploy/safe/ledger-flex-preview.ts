@@ -10,7 +10,8 @@
  * default hash mode, where the device signs the Safe transaction hash as a
  * message; `renderLedgerFlexFlow` covers the opt-in EIP-712 mode below.
  *
- * Only the first five screens are reproduced (warning + screens 1–4 of 8): the
+ * In the EIP-712 flow only the first five screens are reproduced (warning +
+ * screens 1–4 of 8): the
  * security-relevant ones — domain chainId/verifyingContract, SafeTx to/value,
  * and the calldata. Screens 5–8 (safeTxGas, baseGas, gasPrice, gasToken,
  * refundReceiver, nonce) are boilerplate — typically zero and not worth
@@ -296,6 +297,15 @@ const buildScreens = (p: ILedgerFlexFlowParams): IFlexScreen[] => {
  * string, so a range that survived a row clip cannot reach past its end. Only
  * the styled runs gain bytes; the visible character count is unchanged, which
  * is what keeps the panel borders aligned.
+ *
+ * Built from slices rather than `String.prototype.replace`: a replacement
+ * operand containing the styled text makes `$&`, `` $` `` and `$'` inside that
+ * text expand as substitution patterns, which widens the row and breaks the
+ * frame the signer is comparing against their device.
+ *
+ * @param text - The unstyled row text.
+ * @param ranges - Half-open `[start, end)` index ranges and the style each carries.
+ * @returns The same characters with ANSI styles wrapped around the given ranges.
  */
 export const applyStyleRanges = (
   text: string,
@@ -549,9 +559,10 @@ const compareColumn = (hash: string, height: number): string[] => {
  * @param params - The Safe transaction hash the device will sign.
  * @returns The filmstrip as an array of lines: three framed screens followed by
  *   the compare instruction column.
- * @throws If `hash` is not 0x + 64 hex characters. Rejected rather than
- *   rendered: the hash reaches the operator's terminal, and a value of any other
- *   shape is not a Safe transaction hash whatever else it may be.
+ * @throws If `hash` is not 0x + 64 hex characters. A shape invariant on an
+ *   exported function, not an operator-facing sanitiser: the only production
+ *   caller reads the hash from the Safe's `getTransactionHash`, whose `bytes32`
+ *   return can only decode to that shape, so this cannot fire from there.
  */
 export const renderLedgerFlexHashFlow = (
   params: ILedgerFlexHashFlowParams

@@ -83,8 +83,8 @@ import { enqueueTimelockOpIfApplicable } from './timelock-queue'
 
 dotenv.config()
 
-// Acknowledgements roll up across networks so a fleet-wide rollout is reviewed
-// once; the operator's chosen action is never remembered.
+// Acknowledgements roll up across networks so a fleet-wide rollout counts once;
+// the operator's chosen action is never remembered.
 const acknowledgementLedger = createAcknowledgementLedger()
 const networkOutcomes: INetworkOutcome[] = []
 
@@ -477,13 +477,19 @@ const processTxs = async (
     else if (verificationDisplay === 'hash-compare') {
       // Report-only, and it names only the computed value: the stored hash is
       // proposer-written text and is not echoed a second time here.
-      if (
-        deviceHash &&
-        deviceHash.toLowerCase() !== String(tx.safeTxHash).toLowerCase()
-      )
-        consola.warn(
-          `The hash stored on this proposal is not the hash the Safe computes from it. Your device will show \u001b[36m${deviceHash}\u001b[0m — compare that one.`
-        )
+      if (deviceHash) {
+        const stored = tx.safeTxHash
+        const storedIsHash =
+          typeof stored === 'string' && /^0x[0-9a-f]{64}$/i.test(stored)
+        if (!storedIsHash)
+          consola.warn(
+            `This proposal carries no readable stored hash. Your device will show \u001b[36m${deviceHash}\u001b[0m — compare that one.`
+          )
+        else if (stored.toLowerCase() !== deviceHash.toLowerCase())
+          consola.warn(
+            `The hash stored on this proposal is not the hash the Safe computes from it. Your device will show \u001b[36m${deviceHash}\u001b[0m — compare that one.`
+          )
+      }
 
       let flow: string[] = []
       if (deviceHash)
@@ -494,26 +500,41 @@ const processTxs = async (
             LEDGER_FLEX_HASH_NOTE,
           ]
         } catch (error) {
-          consola.debug(`Ledger Flex hash filmstrip skipped: ${error}`)
+          consola.warn(`Ledger Flex hash screens could not be drawn: ${error}`)
         }
 
       consola.info(
-        [
-          ...(flow.length
-            ? flow
-            : [
-                'Ledger — the device shows one message screen holding the Safe transaction hash.',
-              ]),
-          'That hash is computed by the Safe contract from this proposal, not read from',
-          'the proposal row — the proposer controls that field. Computing it here still',
-          'proves nothing about intent: the authority is the hash in the out-of-band',
-          'message from the proposer. Compare 16 characters, 8 from each end —',
-          'four-and-four is grindable by whoever wrote the payload.',
-        ].join('\n')
+        (flow.length
+          ? [
+              ...flow,
+              'That hash is read from the Safe contract, not from the proposal row — the',
+              'proposer controls that field. Reading it here still proves nothing about',
+              'intent: the authority is the hash in the out-of-band message from the',
+              'proposer. Compare 16 characters, 8 from each end — four-and-four is',
+              'grindable by whoever wrote the payload.',
+            ]
+          : [
+              'Ledger — the device shows one message screen holding the Safe transaction hash.',
+              'It could not be previewed here (see the warning above), so compare the device',
+              'screen directly against the hash in the out-of-band message from the proposer:',
+              '16 characters, 8 from each end — four-and-four is grindable by whoever wrote',
+              'the payload. The hash stored on the proposal row is not the authority; the',
+              'proposer controls it alongside the calldata.',
+            ]
+        ).join('\n')
       )
     }
 
     const integrity = evaluateProposalIntegrity({ nonceStatus })
+    // Said before the action prompt, not after it: a verdict the operator can no
+    // longer act on is a log line, not a warning.
+    if (!integrity.ok)
+      consola.warn(
+        `Nonce check failed on this proposal (${integrity.failures.join(
+          ', '
+        )}).`
+      )
+
     // Read from the normalised transaction, not the stored document: this is the
     // struct that gets hashed and signed, so the key describes what the operator
     // is about to approve.
@@ -713,18 +734,6 @@ const processTxs = async (
       consola.warn('='.repeat(80))
       consola.warn('')
     }
-
-    // Selecting an action IS the acknowledgement — the operator has the payload,
-    // the provenance and the Ledger screens in front of them at the action
-    // prompt, so a second "did you review this?" select adds a keystroke and no
-    // information. The nonce verdict still gets said out loud, because it is a
-    // machine finding the operator may not have read off the detail block.
-    if (!integrity.ok)
-      consola.warn(
-        `Nonce check failed on this proposal (${integrity.failures.join(
-          ', '
-        )}).`
-      )
 
     // The ledger refuses to store an acknowledgement for a proposal whose nonce
     // check failed, so the summary must report what the ledger accepted rather

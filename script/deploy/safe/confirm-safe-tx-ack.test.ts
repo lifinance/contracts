@@ -25,8 +25,7 @@ import {
 
 /**
  * The ledger's read side. Local to the tests: production code records and rolls
- * up, and never asks whether one effect is already acknowledged — the prompt
- * that needed that answer is gone.
+ * up, and never asks whether one effect is already acknowledged.
  */
 const isAcknowledged = (ledger: IAcknowledgementLedger, key: Hex): boolean =>
   (ledger.acknowledgedProposalKeys.get(key)?.size ?? 0) > 0
@@ -533,5 +532,35 @@ describe('confirm-safe-tx.ts previews the hash the device will sign', () => {
   it('asks for no second review confirmation', () => {
     expect(source).not.toContain('Confirm you reviewed this change')
     expect(source).not.toContain('shouldPromptForAcknowledgement')
+  })
+
+  // The absence above is only safe while the action select is still there: it
+  // is what the acknowledgement now rests on, so deleting it would satisfy the
+  // two negative assertions while leaving the flow with no acknowledgement at
+  // all. Pinned as a present, not only as an absence.
+  //
+  // WHAT IT DOES NOT CATCH: the select being rendered with its options built
+  // somewhere else, or an option list that offers no signing action. Both need
+  // the behavioural seam `processTxs` does not have.
+  it('still offers the action select the acknowledgement rests on', () => {
+    expect(source).toContain("await consola.prompt('Select action:'")
+    expect(source).toContain("const options = ['Do Nothing']")
+    expect(source).toContain("options.push('Sign')")
+  })
+
+  it('still lets the operator decline a proposal outright', () => {
+    expect(source).toContain("if (action === 'Do Nothing') continue")
+  })
+
+  // A machine verdict the operator can no longer act on is a log line, not a
+  // warning. Positional rather than presence-only, because the failure mode is
+  // the warning drifting below the prompt it exists to inform.
+  it('warns about a failing nonce verdict before the action select', () => {
+    const warned = source.indexOf('Nonce check failed on this proposal')
+    const selected = source.indexOf("await consola.prompt('Select action:'")
+
+    expect(warned).toBeGreaterThan(-1)
+    expect(selected).toBeGreaterThan(-1)
+    expect(warned).toBeLessThan(selected)
   })
 })
