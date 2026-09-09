@@ -1,0 +1,56 @@
+# Enforce Safe Proposal Funnel
+# - enforces that every Safe proposal is created through proposeSafeTx()
+#   (`script/deploy/safe/propose-safe-tx.ts`), the seam the funnel's checks are sited in
+#   (mandatory Linear ticket link, provenance, duplicate-intent refusal)
+# - fails the build when any file outside the allowlist in `.eslintrc.funnel-fence.cjs`
+#   names `storeTransactionInMongoDB`, the storage function the funnel ends in
+# - the fence is an ESLint rule keyed on the AST identifier, so an alias, a namespace
+#   member access, a dynamic import or a computed lookup is flagged the same way a plain
+#   import is; it is not a text scan over the file
+# - runs on every pull request, drafts included, and on push to main; deliberately not
+#   path-filtered and with no aggregator job, so there is no state in which this reports
+#   green because a producing step did not run
+# - known limitations: the fence covers the funnel's storage function, not a hand-rolled
+#   insert into the proposal collection; `propose-to-safe-tron.ts` and
+#   `add-safe-owners-and-threshold.ts` are grandfathered in the allowlist (EXSC-958)
+
+name: Enforce Safe Proposal Funnel
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+  push:
+    branches:
+      - main
+
+# Default-deny at the workflow level; grant only what the job needs.
+permissions: {}
+
+concurrency:
+  group: enforce-proposal-funnel-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  enforce-proposal-funnel:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read # required to fetch repository contents
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          persist-credentials: false
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2.1.2
+        with:
+          bun-version-file: package.json
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      # The fence runs on its own config rather than the repo-wide one, so a
+      # lint error elsewhere can neither hide a fence violation nor manufacture one.
+      - name: Check every Safe proposal goes through proposeSafeTx()
+        run: bun lint:funnel

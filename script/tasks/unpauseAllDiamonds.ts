@@ -14,14 +14,13 @@ import { privateKeyToAccount } from 'viem/accounts'
 
 import { EnvironmentEnum, type SupportedChain } from '../common/types'
 import { assertTicketPresent } from '../deploy/safe/proposal-intent'
+import { proposeSafeTx } from '../deploy/safe/propose-safe-tx'
 import {
   getNextNonce,
   getPrivateKey,
   getSafeInfo,
   getSafeMongoCollection,
   initializeSafeClient,
-  OperationTypeEnum,
-  storeTransactionInMongoDB,
 } from '../deploy/safe/safe-utils'
 import {
   castEnv,
@@ -183,7 +182,6 @@ const main = defineCommand({
 
     // Pass 2: production mainnets — propose to Safe. Initialize Safe / Mongo only now.
     const privateKey = getPrivateKey('PRIVATE_KEY_PRODUCTION')
-    const senderAddress = privateKeyToAccount(`0x${privateKey}`).address
     const { client: mongoClient, pendingTransactions } =
       await getSafeMongoCollection()
 
@@ -232,44 +230,26 @@ const main = defineCommand({
             safeInfo.nonce
           )
 
-          // prepare SAFE transaction
-          const safeTransaction = await safe.createTransaction({
-            transactions: [
-              {
+          try {
+            const { stored } = await proposeSafeTx({
+              safe,
+              network: network.name,
+              chainId: chain.id,
+              safeAddress,
+              pendingTransactions,
+              payload: {
+                kind: 'call',
                 to: timelockAddress as Address,
-                value: 0n,
                 data: calldata,
-                operation: OperationTypeEnum.Call,
                 nonce: nextNonce,
               },
-            ],
-          })
+            })
 
-          // sign transaction with SAFE_SIGNER_PRIVATE_KEY
-          const signedTx = await safe.signTransaction(safeTransaction)
-          const safeTxHash = await safe.getTransactionHash(safeTransaction)
-
-          // Store transaction proposal in MongoDB
-          try {
-            const result = await storeTransactionInMongoDB(
-              pendingTransactions,
-              safeAddress,
-              network.name,
-              chain.id,
-              signedTx,
-              safeTxHash,
-              senderAddress
-            )
-
-            if (result === null) {
+            if (!stored)
               consola.info(
                 `[${network.name}] Proposal already exists - skipping`
               )
-            } else if (!result.acknowledged) {
-              throw new Error(
-                `[${network.name}] MongoDB insert was not acknowledged`
-              )
-            } else {
+            else {
               consola.info(
                 `[${network.name}] Transaction successfully stored in MongoDB`
               )
