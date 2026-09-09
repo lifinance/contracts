@@ -18,8 +18,8 @@ graph LR;
   cross-chain messaging fee, not the bridged amount.
 - Only registered Centrifuge share tokens can be bridged. The bridge resolves the token through
   `spoke.shareTokenDetails(token)`, which reverts for anything else.
-- There is no on-chain fee quote. The native messaging fee is supplied by the LI.FI backend as
-  `CentrifugeData.nativeFee`.
+- There is no on-chain fee quote. The native messaging fee is read per transfer from Centrifuge's
+  bridge quote API and passed as `CentrifugeData.nativeFee`.
 - There is no slippage parameter and no exchange rate — the same share token arrives on the
   destination chain in the same amount.
 
@@ -80,31 +80,42 @@ The methods listed above take a variable labeled `_centrifugeData`:
 
 ```solidity
 /// @param nativeFee The native amount forwarded to the TokenBridge to pay for the cross-chain
-///        message. Centrifuge exposes no on-chain quote, so this value is supplied by the
-///        LI.FI backend. Underpaying makes the Centrifuge Gateway revert; overpaying is
-///        refunded to `refundRecipient` by the bridge itself.
+///        message. Centrifuge exposes no on-chain quote, so it is read per transfer from
+///        Centrifuge's bridge quote API, the same source the LI.FI backend builds the
+///        calldata from. Underpaying makes the Centrifuge Gateway revert; overpaying is
+///        refunded to `refundRecipient` unless the TokenBridge has a relayer configured, in
+///        which case the Gateway routes the overage to that relayer instead (`relayer` is
+///        unset on both supported chains today).
 /// @param refundRecipient Address that receives swap leftovers and positive slippage from
 ///        pre-bridge swaps, any excess source-side native, and the messaging-fee overage that
 ///        the Centrifuge Gateway refunds. Must accept plain native transfers: a refundRecipient
 ///        that rejects them reverts the whole bridge (self-inflicted).
 struct CentrifugeData {
-    uint256 nativeFee;
-    address refundRecipient;
+  uint256 nativeFee;
+  address refundRecipient;
 }
 ```
 
 There is deliberately no `receiver` field. The destination receiver is derived inside `_startBridge`
 from `_bridgeData.receiver`, so the address the bridge credits can never disagree with the one in the
-emitted `LiFiTransferStarted` event. A consequence is that this version is EVM-only: bridging to a
-non-EVM receiver would need a dedicated field and a version bump.
+emitted `LiFiTransferStarted` event. This version is therefore EVM-only, and enforces it: a
+`_bridgeData.receiver` equal to the `NON_EVM_ADDRESS` sentinel reverts `InvalidReceiver`, since the
+sentinel would otherwise be forwarded verbatim and the shares minted to it on arrival. Supporting a
+real non-EVM receiver would need a dedicated field and a version bump.
 
 Both entrypoints require a non-zero `refundRecipient` and a non-zero `nativeFee`, reverting
-`InvalidCallData`. The `nativeFee` guard exists because Centrifuge has no quote function, so a zero
-fee cannot be distinguished from a missing one. On the non-swap path `nativeFee` must additionally
-not exceed `msg.value` (reverts `InvalidCallData`), so the messaging fee can never be paid out of
-diamond balance. The swap path has no such check because the fee may be funded by an ERC20→native
-pre-swap — `_depositAndSwap` reserves `nativeFee` of native from the leftover sweep so it stays
-available for `send`.
+`InvalidCallData`. The `nativeFee` guard exists because every cross-chain message costs something,
+so a zero fee is always malformed — failing fast is cheaper than paying gas to reach the Gateway's
+own revert. On the non-swap path `nativeFee` must additionally not exceed `msg.value` (reverts
+`InvalidCallData`), so the messaging fee can never be paid out of diamond balance. The swap path has
+no such check because the fee may be funded by an ERC20→native pre-swap — `_depositAndSwap` reserves
+`nativeFee` of native from the leftover sweep so it stays available for `send`.
+
+The swap path additionally requires the last swap step to output the asset being bridged
+(`_swapData[last].receivingAssetId == _bridgeData.sendingAssetId`), reverting `InformationMismatch`.
+`_depositAndSwap` measures the received amount in the last swap's `receivingAssetId` while the
+approval and `send` act on `sendingAssetId`, so a mismatch would strand the swap output in the
+diamond and bridge whatever share-token residue the diamond happens to hold.
 
 ## Swap Data
 

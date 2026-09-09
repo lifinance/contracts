@@ -5,10 +5,11 @@ import { ILiFi } from "../Interfaces/ILiFi.sol";
 import { ICentrifugeTokenBridge } from "../Interfaces/ICentrifugeTokenBridge.sol";
 import { LibAsset, IERC20 } from "../Libraries/LibAsset.sol";
 import { LibSwap } from "../Libraries/LibSwap.sol";
+import { LiFiData } from "../Helpers/LiFiData.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { InvalidCallData, InvalidConfig } from "../Errors/GenericErrors.sol";
+import { InformationMismatch, InvalidCallData, InvalidConfig, InvalidReceiver } from "../Errors/GenericErrors.sol";
 
 /// @title CentrifugeFacet
 /// @author LI.FI (https://li.fi)
@@ -19,7 +20,13 @@ import { InvalidCallData, InvalidConfig } from "../Errors/GenericErrors.sol";
 ///      tokens are pulled in, approved to the TokenBridge and immediately consumed by it, and the
 ///      native fee is forwarded to the bridge. Any excess native left after the call is returned to
 ///      `CentrifugeData.refundRecipient` by `refundExcessNative`, so no balance should ever persist.
-contract CentrifugeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
+contract CentrifugeFacet is
+    ILiFi,
+    LiFiData,
+    ReentrancyGuard,
+    SwapperV2,
+    Validatable
+{
     /// Storage ///
 
     /// @notice The Centrifuge TokenBridge on the source chain.
@@ -28,9 +35,12 @@ contract CentrifugeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
     /// Types ///
 
     /// @param nativeFee The native amount forwarded to the TokenBridge to pay for the cross-chain
-    ///        message. Quote it per transfer from Centrifuge's bridge API before building the
-    ///        call. Underpaying makes the Centrifuge Gateway revert; overpaying is refunded to
-    ///        `refundRecipient` by the bridge itself.
+    ///        message. Centrifuge exposes no on-chain quote, so it is read per transfer from
+    ///        Centrifuge's bridge quote API, the same source the LI.FI backend builds the
+    ///        calldata from. Underpaying makes the Centrifuge Gateway revert; overpaying is
+    ///        refunded to `refundRecipient` unless the TokenBridge has a relayer configured, in
+    ///        which case the Gateway routes the overage to that relayer instead (`relayer` is
+    ///        unset on both supported chains today).
     /// @param refundRecipient Address that receives swap leftovers and positive slippage from
     ///        pre-bridge swaps, any excess source-side native, and the messaging-fee overage that
     ///        the Centrifuge Gateway refunds. Must accept plain native transfers: a refundRecipient
@@ -69,7 +79,7 @@ contract CentrifugeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         doesNotContainDestinationCalls(_bridgeData)
         noNativeAsset(_bridgeData)
     {
-        _validateCentrifugeData(_centrifugeData);
+        _validateCentrifugeData(_bridgeData.receiver, _centrifugeData);
 
         // The bridge's messaging fee must be paid from msg.value, never from diamond balance
         if (_centrifugeData.nativeFee > msg.value) {
@@ -101,7 +111,20 @@ contract CentrifugeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         validateBridgeData(_bridgeData)
         noNativeAsset(_bridgeData)
     {
-        _validateCentrifugeData(_centrifugeData);
+        _validateCentrifugeData(_bridgeData.receiver, _centrifugeData);
+
+        // The final swap output must be the asset that gets bridged: _depositAndSwap measures
+        // the received amount in the last swap's receivingAssetId, while the approval and the
+        // send below act on sendingAssetId. A mismatch would leave the swap output stranded in
+        // the diamond and bridge whatever share-token residue the diamond happens to hold. An
+        // empty array is left to _depositAndSwap, which reverts NoSwapDataProvided.
+        if (
+            _swapData.length != 0 &&
+            _swapData[_swapData.length - 1].receivingAssetId !=
+            _bridgeData.sendingAssetId
+        ) {
+            revert InformationMismatch();
+        }
 
         // NOTE: nativeFee is intentionally NOT checked against msg.value here (unlike the
         // non-swap path): the fee may be funded by an ERC20->native pre-swap, whose output
@@ -119,11 +142,20 @@ contract CentrifugeFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
 
     /// Internal Methods ///
 
-    /// @dev Validates the Centrifuge-specific calldata that both entrypoints share
+    /// @dev Validates the calldata that both entrypoints share
+    /// @param _receiver The destination receiver taken from the bridge data
     /// @param _centrifugeData Data specific to Centrifuge
     function _validateCentrifugeData(
+        address _receiver,
         CentrifugeData calldata _centrifugeData
     ) private pure {
+        // This facet is EVM-only: the sentinel is forwarded verbatim to the TokenBridge, so a
+        // non-EVM request would mint the shares to the sentinel address itself on the
+        // destination chain, where nobody can move them.
+        if (_receiver == NON_EVM_ADDRESS) {
+            revert InvalidReceiver();
+        }
+
         // refundExcessNative sends excess native to refundRecipient; with a zero address that
         // transfer would only revert once there actually is an excess - a data-dependent late
         // revert. Fail fast instead.

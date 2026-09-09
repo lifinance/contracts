@@ -8,7 +8,7 @@ import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol"
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { CentrifugeFacet } from "lifi/Facets/CentrifugeFacet.sol";
 import { ICentrifugeTokenBridge } from "lifi/Interfaces/ICentrifugeTokenBridge.sol";
-import { ETHTransferFailed, InvalidCallData, InvalidConfig, NativeAssetNotSupported, ReentrancyError, TransferFromFailed } from "lifi/Errors/GenericErrors.sol";
+import { InformationMismatch, InvalidCallData, InvalidConfig, InvalidReceiver, NativeAssetNotSupported, ReentrancyError, TransferFromFailed } from "lifi/Errors/GenericErrors.sol";
 
 /// View/error surface of the real Centrifuge TokenBridge that the fork tests need in order to
 /// pin its configuration and assert against its own reverts.
@@ -42,36 +42,65 @@ interface ICentrifugeGatewayErrors {
     error NotEnoughGas();
 }
 
+/// Aerodrome Slipstream's router on Base, the concentrated-liquidity venue where deJAAA trades
+/// against USDC. Its parameter struct carries `tickSpacing` where Uniswap V3 carries `fee`.
+interface ISlipstreamSwapRouter {
+    struct ExactOutputSingleParams {
+        address tokenIn;
+        address tokenOut;
+        int24 tickSpacing;
+        address recipient;
+        uint256 deadline;
+        uint256 amountOut;
+        uint256 amountInMaximum;
+        uint160 sqrtPriceLimitX96;
+    }
+
+    function exactOutputSingle(
+        ExactOutputSingleParams calldata params
+    ) external payable returns (uint256 amountIn);
+}
+
 /// @notice Re-enters the facet from `receive()` to prove the `nonReentrant` guard holds.
 /// @dev `ReentrancyChecker` from TestBase cannot be reused: its constructor approves the
 ///      hardcoded Ethereum USDC/DAI addresses, which hold no token contract on Base, so merely
 ///      deploying it reverts there. This probe is chain-agnostic and approves the asset under
 ///      test explicitly.
+///
+///      `receive()` records the re-entrant call's outcome and returns instead of reverting, so
+///      the test can assert on that outcome directly. Reverting here would surface as the
+///      facet's own `ETHTransferFailed` - Solady's ETH transfer erases the inner revert data,
+///      so that error is raised for ANY inner failure and asserting on it proves nothing about
+///      the guard. Returning normally keeps the recorded selector, since a reverted `receive()`
+///      would roll its own storage write back.
 contract CentrifugeReentrancyAttacker {
+    /// @notice Revert data of the re-entrant call, empty when it went through.
+    bytes public innerRevertData;
+    /// @notice True when the re-entrant call succeeded, i.e. the guard did not hold.
+    bool public innerCallSucceeded;
+
     address private immutable FACET;
     bytes private _callData;
+    bool private _reentryAttempted;
 
     error InitialCallFailed(bytes data);
-    error ReentrantCallFailed(bytes data);
 
     constructor(address _facet) {
         FACET = _facet;
     }
 
     receive() external payable {
+        // only the first refund re-enters: without the guard the re-entrant bridge succeeds and
+        // refunds in turn, which would otherwise recurse until the attacker runs out of shares
+        if (_reentryAttempted) return;
+        _reentryAttempted = true;
+
         (bool success, bytes memory data) = FACET.call{ value: 1 ether }(
             _callData
         );
-        if (!success) {
-            if (
-                keccak256(data) ==
-                keccak256(abi.encodePacked(ReentrancyError.selector))
-            ) {
-                revert ReentrancyError();
-            }
 
-            revert ReentrantCallFailed(data);
-        }
+        innerCallSucceeded = success;
+        innerRevertData = data;
     }
 
     function approveMax(address _token) external {
@@ -80,19 +109,11 @@ contract CentrifugeReentrancyAttacker {
 
     function callFacet(bytes calldata _data) external {
         _callData = _data;
+
         (bool success, bytes memory data) = FACET.call{ value: 10 ether }(
             _data
         );
         if (!success) {
-            // the facet's own native refund failed because our receive() re-entered and was
-            // rejected, which is exactly the guard we want to observe
-            if (
-                keccak256(data) ==
-                keccak256(abi.encodePacked(ETHTransferFailed.selector))
-            ) {
-                revert ReentrancyError();
-            }
-
             revert InitialCallFailed(data);
         }
     }
@@ -197,8 +218,7 @@ abstract contract CentrifugeFacetTestBase is TestBaseFacet {
         addFacet(diamond, address(centrifugeFacet), functionSelectors);
         centrifugeFacet = TestCentrifugeFacet(address(diamond));
 
-        // the only swap step a Centrifuge share token supports today is same-token fee
-        // collection (see setDefaultSwapDataSingleDAItoUSDC below for why)
+        // the swap step the shared battery uses (see setDefaultSwapDataSingleDAItoUSDC below)
         centrifugeFacet.addAllowedContractSelector(
             address(feeCollector),
             feeCollector.collectTokenFees.selector
@@ -225,11 +245,14 @@ abstract contract CentrifugeFacetTestBase is TestBaseFacet {
         });
     }
 
-    /// @dev Centrifuge share tokens have no DEX liquidity and their vaults are ERC-7540
-    ///      asynchronous, so no swap can produce them atomically. The swap entrypoint therefore
-    ///      exists for the other kind of LI.FI swap step: a same-token fee collection, which
-    ///      skims the integrator/LI.FI cut off the bridged amount. Overriding the shared helper
-    ///      re-points every inherited swap test at that shape instead of DAI -> USDC.
+    /// @dev The inherited DAI -> USDC shape cannot be used here: the last swap has to output a
+    ///      registered Centrifuge share, or the facet rejects it with `InformationMismatch`.
+    ///      Same-token fee collection - skimming the integrator/LI.FI cut off the bridged amount
+    ///      - is the one swap step that holds for every suite in this battery, including deJTRSY
+    ///      and the Ethereum leg, for which no DEX pool was found. It is therefore what the
+    ///      shared override uses. Real cross-token coverage is the Base suite's job: deJAAA does
+    ///      trade against USDC there, and `CentrifugeFacetBaseSwapTest` bridges the output of
+    ///      that swap.
     function setDefaultSwapDataSingleDAItoUSDC() internal virtual override {
         delete swapData;
 
@@ -481,6 +504,50 @@ abstract contract CentrifugeFacetTestBase is TestBaseFacet {
         vm.stopPrank();
     }
 
+    function testRevert_WhenBridgeReceiverIsTheNonEvmSentinel() public {
+        // the sentinel is forwarded verbatim to the bridge, so shares would be minted to
+        // 0x11f1...f1 itself on the destination chain and nobody could move them
+        bridgeData.receiver = NON_EVM_ADDRESS;
+
+        vm.startPrank(USER_SENDER);
+        shareToken.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(InvalidReceiver.selector);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function testRevert_WhenSwapAndBridgeReceiverIsTheNonEvmSentinel() public {
+        bridgeData.receiver = NON_EVM_ADDRESS;
+
+        vm.startPrank(USER_SENDER);
+        bridgeData.hasSourceSwaps = true;
+        setDefaultSwapDataSingleDAItoUSDC();
+        shareToken.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        vm.expectRevert(InvalidReceiver.selector);
+
+        initiateSwapAndBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function testRevert_WhenFinalSwapDoesNotOutputTheBridgedAsset() public {
+        // _depositAndSwap measures the received amount in the last swap's receivingAssetId while
+        // the bridge call acts on sendingAssetId; without the guard the swap output is stranded
+        // in the diamond and whatever share-token residue it holds gets bridged instead
+        vm.startPrank(USER_SENDER);
+        bridgeData.hasSourceSwaps = true;
+        setDefaultSwapDataSingleDAItoUSDC();
+        swapData[0].receivingAssetId = ADDRESS_USDC;
+        shareToken.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        vm.expectRevert(InformationMismatch.selector);
+
+        initiateSwapAndBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
     function testRevert_WhenNativeFeeExceedsMsgValue() public {
         // on the non-swap path msg.value is the only native source, so the fee must be covered
         vm.startPrank(USER_SENDER);
@@ -724,9 +791,8 @@ abstract contract CentrifugeFacetTestBase is TestBaseFacet {
     ///      sends it to `refundRecipient` rather than to `msg.sender`.
     ///
     ///      The fee is set to exactly what the bridge consumes so that the Centrifuge Gateway has
-    ///      no surplus of its own to return. Otherwise the Gateway's refund reaches the attacker
-    ///      first and the blocked re-entry surfaces as the Gateway's `CannotRefund()` instead of
-    ///      the facet's own `ETHTransferFailed` -> `ReentrancyError`.
+    ///      no surplus of its own to return, which keeps the single re-entry the attacker records
+    ///      the one triggered by the facet's own `refundExcessNative`.
     function _deployReentrantAttacker()
         internal
         returns (CentrifugeReentrancyAttacker attacker)
@@ -742,10 +808,24 @@ abstract contract CentrifugeFacetTestBase is TestBaseFacet {
         validCentrifugeData.refundRecipient = address(attacker);
     }
 
-    function testRevert_WhenReentrantCallBridge() public {
-        CentrifugeReentrancyAttacker attacker = _deployReentrantAttacker();
+    /// @dev Asserts the re-entrant call was rejected by the guard specifically, rather than by
+    ///      any of the other reasons an inner call can fail.
+    function _assertReentrancyWasBlocked(
+        CentrifugeReentrancyAttacker _attacker
+    ) internal view {
+        assertFalse(
+            _attacker.innerCallSucceeded(),
+            "the re-entrant call went through"
+        );
+        assertEq(
+            _attacker.innerRevertData(),
+            abi.encodePacked(ReentrancyError.selector),
+            "the re-entrant call failed for a reason other than the guard"
+        );
+    }
 
-        vm.expectRevert(ReentrancyError.selector);
+    function test_ReentrantBridgeCallIsBlocked() public {
+        CentrifugeReentrancyAttacker attacker = _deployReentrantAttacker();
 
         attacker.callFacet(
             abi.encodeWithSelector(
@@ -754,15 +834,15 @@ abstract contract CentrifugeFacetTestBase is TestBaseFacet {
                 validCentrifugeData
             )
         );
+
+        _assertReentrancyWasBlocked(attacker);
     }
 
-    function testRevert_WhenReentrantCallSwapAndBridge() public {
+    function test_ReentrantSwapAndBridgeCallIsBlocked() public {
         CentrifugeReentrancyAttacker attacker = _deployReentrantAttacker();
 
         bridgeData.hasSourceSwaps = true;
         setDefaultSwapDataSingleDAItoUSDC();
-
-        vm.expectRevert(ReentrancyError.selector);
 
         attacker.callFacet(
             abi.encodeWithSelector(
@@ -772,6 +852,8 @@ abstract contract CentrifugeFacetTestBase is TestBaseFacet {
                 validCentrifugeData
             )
         );
+
+        _assertReentrancyWasBlocked(attacker);
     }
 }
 
@@ -835,5 +917,92 @@ contract CentrifugeFacetBaseDeJtrsyTest is CentrifugeFacetTestBase {
         ADDRESS_SHARE_TOKEN = ADDRESS_DEJTRSY;
 
         super.setUp();
+    }
+}
+
+/// @dev Covers the cross-token route the /quote endpoint advertises - buy the share token, then
+///      bridge it - against the real DEX. deJAAA is the one share token in this battery with a
+///      live market: an Aerodrome Slipstream USDC pool on Base.
+contract CentrifugeFacetBaseSwapTest is CentrifugeFacetTestBase {
+    ISlipstreamSwapRouter internal constant SLIPSTREAM_ROUTER =
+        ISlipstreamSwapRouter(0xBE6D8f0d05cC4be24d5167a3eF062215bE6D18a5);
+
+    /// @dev Slipstream keys its pools by tick spacing rather than by fee. USDC/deJAAA exists at
+    ///      both 1 and 100; only this one carries liquidity at the pinned block.
+    int24 internal constant POOL_TICK_SPACING = 1;
+
+    /// @dev Comfortably above the ~104.1 USDC the pool charges for 100 deJAAA at the pinned
+    ///      block. `exactOutputSingle` pulls only what the swap needs, so the remainder is swept
+    ///      back to the leftover receiver - which the assertions below check.
+    uint256 internal constant MAX_USDC_IN = 130 * 10 ** 6;
+
+    function setUp() public override {
+        customRpcUrlForForking = "ETH_NODE_URI_BASE";
+        customBlockNumberForForking = 50860000;
+        destinationChainId = 1;
+
+        super.setUp();
+
+        centrifugeFacet.addAllowedContractSelector(
+            address(SLIPSTREAM_ROUTER),
+            ISlipstreamSwapRouter.exactOutputSingle.selector
+        );
+
+        deal(ADDRESS_USDC, USER_SENDER, MAX_USDC_IN);
+    }
+
+    function test_CanBuySharesWithUsdcAndBridgeThem() public {
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(SLIPSTREAM_ROUTER),
+                approveTo: address(SLIPSTREAM_ROUTER),
+                sendingAssetId: ADDRESS_USDC,
+                receivingAssetId: ADDRESS_SHARE_TOKEN,
+                fromAmount: MAX_USDC_IN,
+                callData: abi.encodeWithSelector(
+                    ISlipstreamSwapRouter.exactOutputSingle.selector,
+                    ISlipstreamSwapRouter.ExactOutputSingleParams({
+                        tokenIn: ADDRESS_USDC,
+                        tokenOut: ADDRESS_SHARE_TOKEN,
+                        tickSpacing: POOL_TICK_SPACING,
+                        recipient: _facetTestContractAddress,
+                        deadline: block.timestamp,
+                        amountOut: defaultShareAmount,
+                        amountInMaximum: MAX_USDC_IN,
+                        sqrtPriceLimitX96: 0
+                    })
+                ),
+                requiresDeposit: true
+            })
+        );
+
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.minAmount = defaultShareAmount;
+
+        uint256 refundUsdcBefore = usdc.balanceOf(USER_REFUND);
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(_facetTestContractAddress, MAX_USDC_IN);
+
+        vm.expectEmit(true, true, true, true, address(TOKEN_BRIDGE));
+        emit Send(
+            ADDRESS_SHARE_TOKEN,
+            address(diamond),
+            destinationChainId,
+            bytes32(bytes20(USER_RECEIVER)),
+            defaultShareAmount,
+            USER_REFUND
+        );
+
+        initiateSwapAndBridgeTxWithFacet(false);
+        vm.stopPrank();
+
+        assertEq(usdc.balanceOf(USER_SENDER), 0);
+        // the USDC the swap did not need comes back to the leftover receiver, never to msg.sender
+        assertGt(usdc.balanceOf(USER_REFUND), refundUsdcBefore);
+        assertEq(usdc.balanceOf(address(diamond)), 0);
+        assertEq(shareToken.balanceOf(address(diamond)), 0);
+        assertEq(address(diamond).balance, 0);
     }
 }

@@ -15,14 +15,6 @@
  *      bridge quote API, the same source the backend integration reads it from.
  *
  * Run:  bunx tsx script/demoScripts/demoCentrifuge.ts
- *
- * Verified base staging run (2026-09-09): 1 deJAAA base -> mainnet via CentrifugeFacet
- * 0x27a7dA998e8d508B5ff6c70EA734dC2305a810ec on the staging diamond
- * 0x947330863B5BA5E134fE8b73e0E1c7Eed90446C7. Diamond retained 0 deJAAA / 0 ETH, messaging-fee
- * surplus refunded, delivered on mainnet ~48 min later.
- *   src:  https://basescan.org/tx/0x3c1af4d8f82bd070917d96433609343374e5ac97a3ad38e97e9e5377d4d33b91
- *   dst:  https://etherscan.io/tx/0xebc3d06a8572df35b15318b9e66258ab3255f63dcab40b8c8cd3d06f237e74af
- *   msg:  https://centrifugescan.io/tx/0x763680baf555b59e99116775531ad18738e32efba0b42c237823aee23bfedf52
  */
 import { randomBytes } from 'crypto'
 
@@ -97,8 +89,10 @@ const BRIDGE_AMOUNT_HUMAN = '1'
 // from. Documented at https://docs.centrifuge.io/developer/centrifuge-api/#bridge-rest-api.
 const CENTRIFUGE_QUOTE_URL = 'https://api.centrifuge.io/bridge/quote'
 const CENTRIFUGE_STATUS_URL = 'https://api.centrifuge.io/bridge/status'
-const RPC_LAG_ATTEMPTS = 10
-const RPC_LAG_DELAY_MS = 2000 // one Base block
+// A load-balanced RPC can answer from a node that is a block or two behind, so reads that have
+// to see a specific block are retried rather than trusted first time.
+const RPC_LAG_ATTEMPTS = 10 // 10 attempts
+const RPC_LAG_DELAY_MS = 2000 // 2 seconds, one Base block
 
 // The quote is a single number rather than a bracket, so the Gateway may charge exactly what is
 // sent. Paying a deliberate margin over it guarantees there is a surplus to refund, which is
@@ -119,6 +113,77 @@ interface ICentrifugeQuote {
   estimate?: {
     gasEstimate?: number
   }
+}
+
+interface IBalanceSnapshot {
+  signerShares: bigint
+  signerNative: bigint
+  diamondShares: bigint
+  diamondNative: bigint
+}
+
+type DemoPublicClient = Awaited<
+  ReturnType<typeof setupEnvironment>
+>['publicClient']
+
+/**
+ * Tells a lagging node apart from a genuinely broken read.
+ *
+ * Only the former is worth retrying: a node that has not applied a block yet rejects a pinned
+ * read by name, while a bad address or a dropped connection will not fix itself.
+ *
+ * @param error - whatever the read threw
+ * @returns true when the node simply has not caught up to the requested block
+ */
+function isBlockNotYetApplied(error: unknown): boolean {
+  const message = error instanceof Error ? error.message.toLowerCase() : ''
+
+  return (
+    message.includes('block not found') ||
+    message.includes('unknown block') ||
+    message.includes('header not found') ||
+    message.includes('missing trie node')
+  )
+}
+
+/**
+ * Blocks until the Diamond's allowance is visible on the node that answers the next read.
+ *
+ * The approval and the bridge call are a second apart and the RPC is load balanced, so the
+ * bridge simulation can be answered by a node that has not applied the approval's block yet: it
+ * sees no allowance and reverts `TransferFromFailed` on a run that is perfectly fine.
+ *
+ * @param publicClient - client for the source chain
+ * @param owner - the signer that granted the allowance
+ * @param spender - the Diamond the allowance was granted to
+ * @param amount - the allowance the transfer needs
+ * @param shareTokenSymbol - used only to make the timeout message readable
+ * @throws when the allowance is still invisible after the full retry budget
+ */
+async function waitForAllowance(
+  publicClient: DemoPublicClient,
+  owner: Address,
+  spender: Address,
+  amount: bigint,
+  shareTokenSymbol: string
+): Promise<void> {
+  for (let attempt = 0; attempt < RPC_LAG_ATTEMPTS; attempt++) {
+    const allowance = (await publicClient.readContract({
+      address: SHARE_TOKEN,
+      abi: ERC20_ABI,
+      functionName: 'allowance',
+      args: [owner, spender],
+    })) as bigint
+    if (allowance >= amount) return
+
+    await sleep(RPC_LAG_DELAY_MS)
+  }
+
+  throw new Error(
+    `the approval of ${amount} ${shareTokenSymbol} to the Diamond is still not visible after ${
+      (RPC_LAG_ATTEMPTS * RPC_LAG_DELAY_MS) / 1000
+    }s - the RPC is lagging badly enough that this run cannot be trusted.`
+  )
 }
 
 /**
@@ -185,31 +250,33 @@ async function fetchCentrifugeQuote(
   if (!value || BigInt(value) <= 0n)
     throw new Error(`The quote carried no messaging fee: value=${value}`)
 
-  return {
-    nativeFee: BigInt(value),
-    gasEstimate: BigInt(quote.estimate?.gasEstimate ?? 0),
-  }
+  const gasEstimate = quote.estimate?.gasEstimate
+  if (!gasEstimate || gasEstimate <= 0)
+    throw new Error(
+      `The quote carried no gas estimate: gasEstimate=${gasEstimate}. The pre-flight balance check sizes its gas reserve from this number, so treating a missing one as zero would wave through a wallet that cannot pay for the transfer.`
+    )
+
+  return { nativeFee: BigInt(value), gasEstimate: BigInt(gasEstimate) }
 }
 
-async function main(): Promise<void> {
-  // === Set up environment ===
-  const { publicClient, walletClient, walletAccount, lifiDiamondAddress } =
-    await setupEnvironment(SRC_CHAIN, CENTRIFUGE_FACET_ABI)
-  const signerAddress = walletAccount.address
-
-  if (!lifiDiamondAddress) throw new Error('LiFi Diamond address is required')
-
-  const destinationChainId = getViemChainForNetworkName(DST_CHAIN).id
-  const tokenBridgeAddress = getAddress(
-    getConfigElement(centrifugeConfig.tokenBridge, SRC_CHAIN) as string
-  )
-
-  consola.info(`Connected wallet address: ${signerAddress}`)
-  consola.info(
-    `Diamond: ${lifiDiamondAddress}, Centrifuge TokenBridge: ${tokenBridgeAddress}`
-  )
-
-  // === Pre-flight: the facet has to be routed by the Diamond ===
+/**
+ * Fails unless the Diamond routes this facet and the bridge knows the destination chain.
+ *
+ * Both are cheap reads that would otherwise surface as an opaque revert inside the bridge call,
+ * after the wallet has already paid for an approval.
+ *
+ * @param publicClient - client for the source chain
+ * @param lifiDiamondAddress - the Diamond this demo calls
+ * @param tokenBridgeAddress - the Centrifuge TokenBridge configured for the source chain
+ * @param destinationChainId - EVM chain id the transfer targets
+ * @throws when the facet is not registered, or the bridge has no centrifugeId for the destination
+ */
+async function assertBridgeRouteIsAvailable(
+  publicClient: DemoPublicClient,
+  lifiDiamondAddress: Address,
+  tokenBridgeAddress: Address,
+  destinationChainId: number
+): Promise<void> {
   const bridgeFunction = getAbiItem({
     abi: CENTRIFUGE_FACET_ABI,
     name: 'startBridgeTokensViaCentrifuge',
@@ -219,42 +286,177 @@ async function main(): Promise<void> {
       'startBridgeTokensViaCentrifuge is missing from the CentrifugeFacet artifact - run `forge build`'
     )
 
-  const routedFacet = await publicClient.readContract({
-    address: lifiDiamondAddress,
-    abi: DIAMOND_LOUPE_ABI,
-    functionName: 'facetAddress',
-    args: [toFunctionSelector(bridgeFunction)],
-  })
+  const [routedFacet, destinationCentrifugeId] = await Promise.all([
+    publicClient.readContract({
+      address: lifiDiamondAddress,
+      abi: DIAMOND_LOUPE_ABI,
+      functionName: 'facetAddress',
+      args: [toFunctionSelector(bridgeFunction)],
+    }),
+    publicClient.readContract({
+      address: tokenBridgeAddress,
+      abi: TOKEN_BRIDGE_ABI,
+      functionName: 'chainIdToCentrifugeId',
+      args: [BigInt(destinationChainId)],
+    }),
+  ])
+
   if (routedFacet === zeroAddress)
     throw new Error(
       `CentrifugeFacet is not registered on the ${SRC_CHAIN} Diamond (${lifiDiamondAddress}). Deploy the facet and add it to script/deploy/_targetState.json first.`
     )
-  consola.info(`CentrifugeFacet routed at ${routedFacet}`)
-
-  // === Pre-flight: the bridge validates the destination against its own map ===
-  const destinationCentrifugeId = await publicClient.readContract({
-    address: tokenBridgeAddress,
-    abi: TOKEN_BRIDGE_ABI,
-    functionName: 'chainIdToCentrifugeId',
-    args: [BigInt(destinationChainId)],
-  })
   if (destinationCentrifugeId === 0)
     throw new Error(
       `${DST_CHAIN} (chain id ${destinationChainId}) has no centrifugeId on the TokenBridge, so it is not a valid destination`
     )
+
+  consola.info(`CentrifugeFacet routed at ${routedFacet}`)
   consola.info(
     `Destination ${DST_CHAIN} maps to centrifugeId ${destinationCentrifugeId}`
   )
+}
 
-  // === Read token metadata ===
-  const shareTokenContract = createContractObject(
-    SHARE_TOKEN,
-    ERC20_ABI,
+/**
+ * Reads the share-token and native balances of the signer and the Diamond at one block.
+ *
+ * The reads are pinned to a block number rather than taken around the call: a `latest` read can
+ * be answered by a load-balanced node that has not applied the receipt's block yet, which would
+ * report every delta as zero and fail the run on a bridge that worked. Pinning trades that
+ * silently wrong answer for a loud one, since a node that is behind rejects the block outright -
+ * which is the only error worth retrying here.
+ *
+ * @param publicClient - client for the source chain
+ * @param holders - the two addresses to snapshot
+ * @param blockNumber - the block to read state at
+ * @returns the four balances as of that block
+ * @throws when the reads fail for any reason other than the node lagging, or it never catches up
+ */
+async function readBalancesAtBlock(
+  publicClient: DemoPublicClient,
+  holders: { signer: Address; diamond: Address },
+  blockNumber: bigint
+): Promise<IBalanceSnapshot> {
+  const readShares = (holder: Address) =>
+    publicClient.readContract({
+      address: SHARE_TOKEN,
+      abi: ERC20_ABI,
+      functionName: 'balanceOf',
+      args: [holder],
+      blockNumber,
+    }) as Promise<bigint>
+
+  for (let attempt = 1; ; attempt++)
+    try {
+      const [signerShares, signerNative, diamondShares, diamondNative] =
+        await Promise.all([
+          readShares(holders.signer),
+          publicClient.getBalance({ address: holders.signer, blockNumber }),
+          readShares(holders.diamond),
+          publicClient.getBalance({ address: holders.diamond, blockNumber }),
+        ])
+
+      return { signerShares, signerNative, diamondShares, diamondNative }
+    } catch (error) {
+      if (attempt >= RPC_LAG_ATTEMPTS || !isBlockNotYetApplied(error))
+        throw error
+
+      await sleep(RPC_LAG_DELAY_MS)
+    }
+}
+
+/**
+ * Reports where the funds went and fails the run unless the flow matches what the facet
+ * promises: the bridged amount left the signer, part of the fee was consumed and the rest
+ * refunded, and the Diamond kept neither shares nor native.
+ *
+ * @param params - the executed transfer, plus the token metadata needed to format the report
+ * @throws when any leg of the money flow does not hold
+ */
+async function verifyAndReportMoneyFlow(params: {
+  publicClient: DemoPublicClient
+  txHash: Hex
+  signerAddress: Address
+  lifiDiamondAddress: Address
+  amount: bigint
+  nativeFee: bigint
+  refundRecipient: Address
+  shareTokenSymbol: string
+  shareTokenDecimals: number
+}): Promise<void> {
+  const { publicClient, signerAddress, lifiDiamondAddress } = params
+
+  const receipt = await publicClient.getTransactionReceipt({
+    hash: params.txHash,
+  })
+  const gasCost = receipt.gasUsed * receipt.effectiveGasPrice
+
+  const holders = { signer: signerAddress, diamond: lifiDiamondAddress }
+  const before = await readBalancesAtBlock(
     publicClient,
-    walletClient
+    holders,
+    receipt.blockNumber - 1n
+  )
+  const after = await readBalancesAtBlock(
+    publicClient,
+    holders,
+    receipt.blockNumber
   )
 
-  const [shareTokenSymbol, shareTokenDecimals] = await Promise.all([
+  // the refund lands back on the signer, so the fee actually spent is the native delta net of gas
+  const consumedFee = before.signerNative - after.signerNative - gasCost
+  const sharesSent = before.signerShares - after.signerShares
+
+  consola.info(
+    `Shares sent: ${formatUnits(sharesSent, params.shareTokenDecimals)} ${
+      params.shareTokenSymbol
+    }`
+  )
+  consola.info(
+    `Messaging fee consumed: ${formatEther(consumedFee)} ETH of ${formatEther(
+      params.nativeFee
+    )} ETH paid (surplus refunded to ${params.refundRecipient})`
+  )
+  consola.info(`Gas: ${formatEther(gasCost)} ETH`)
+  consola.info(
+    `Diamond residue - shares: ${
+      after.diamondShares - before.diamondShares
+    }, native: ${after.diamondNative - before.diamondNative}`
+  )
+
+  if (sharesSent !== params.amount)
+    throw new Error(
+      `the bridged amount did not leave the signer: sent ${sharesSent}, expected ${params.amount}`
+    )
+  if (after.diamondShares !== before.diamondShares)
+    throw new Error('the Diamond retained share tokens after bridging')
+  if (after.diamondNative !== before.diamondNative)
+    throw new Error('the Diamond retained native after bridging')
+  if (consumedFee <= 0n)
+    throw new Error('no messaging fee was consumed - was the message sent?')
+  if (consumedFee >= params.nativeFee)
+    throw new Error('the fee surplus was not refunded to refundRecipient')
+
+  consola.success(
+    `Sent ${BRIDGE_AMOUNT_HUMAN} ${params.shareTokenSymbol} towards ${signerAddress} on ${DST_CHAIN}: share-token pull, messaging-fee payment, surplus refund and zero Diamond residue verified`
+  )
+  // The destination mint is settled by Centrifuge's own executor minutes later, so the source
+  // leg succeeding is not yet proof the shares arrived.
+  consola.info(
+    `Destination leg settles asynchronously - track it at ${CENTRIFUGE_STATUS_URL}?txHash=${params.txHash}`
+  )
+}
+
+/**
+ * Reads the share token's symbol and decimals from the chain rather than hardcoding them, so
+ * switching `SHARE_TOKEN` needs no other edit.
+ *
+ * @param publicClient - client for the source chain
+ * @returns the token's symbol and decimals
+ */
+async function readShareTokenMetadata(
+  publicClient: DemoPublicClient
+): Promise<{ symbol: string; decimals: number }> {
+  const [symbol, decimals] = await Promise.all([
     publicClient.readContract({
       address: SHARE_TOKEN,
       abi: ERC20_ABI,
@@ -267,62 +469,28 @@ async function main(): Promise<void> {
     }) as Promise<number>,
   ])
 
-  const amount = parseUnits(BRIDGE_AMOUNT_HUMAN, Number(shareTokenDecimals))
+  return { symbol, decimals: Number(decimals) }
+}
 
-  consola.info(
-    `Bridge ${BRIDGE_AMOUNT_HUMAN} ${shareTokenSymbol} (${SHARE_TOKEN}) from ${SRC_CHAIN} --> ${DST_CHAIN}`
-  )
-
-  await ensureBalance(shareTokenContract, signerAddress, amount, publicClient)
-
-  // The approval and the bridge call are a second apart and the RPC is load balanced, so the
-  // bridge simulation can be answered by a node that has not applied the approval's block yet -
-  // it sees no allowance and reverts TransferFromFailed on a run that is perfectly fine. Wait
-  // until the approval is actually visible before building the transfer.
-  const waitForAllowance = async () => {
-    for (let attempt = 0; attempt < RPC_LAG_ATTEMPTS; attempt++) {
-      const allowance = (await publicClient.readContract({
-        address: SHARE_TOKEN,
-        abi: ERC20_ABI,
-        functionName: 'allowance',
-        args: [signerAddress, lifiDiamondAddress],
-      })) as bigint
-      if (allowance >= amount) return
-
-      await sleep(RPC_LAG_DELAY_MS)
-    }
-
-    throw new Error(
-      `the approval of ${amount} ${shareTokenSymbol} to the Diamond is still not visible after ${
-        (RPC_LAG_ATTEMPTS * RPC_LAG_DELAY_MS) / 1000
-      }s - the RPC is lagging badly enough that this run cannot be trusted.`
-    )
-  }
-
-  await ensureAllowance(
-    shareTokenContract,
-    signerAddress,
-    lifiDiamondAddress,
-    amount,
-    publicClient
-  )
-  await waitForAllowance()
-
-  // === Prepare bridge data ===
-  const bridgeData: ILiFi.BridgeDataStruct = {
-    transactionId: `0x${randomBytes(32).toString('hex')}`,
-    bridge: 'centrifuge',
-    integrator: 'ACME Devs',
-    referrer: zeroAddress,
-    sendingAssetId: SHARE_TOKEN,
-    receiver: signerAddress,
-    destinationChainId,
-    minAmount: amount,
-    hasSourceSwaps: false,
-    hasDestinationCall: false,
-  }
-
-  // === Quote the messaging fee ===
+/**
+ * Quotes the messaging fee for this transfer and refuses to continue unless the wallet can
+ * cover it alongside the gas the call will burn.
+ *
+ * @param publicClient - client for the source chain
+ * @param signerAddress - the wallet paying for the transfer
+ * @param tokenBridgeAddress - the bridge the quote has to agree with
+ * @param destinationChainId - EVM chain id the transfer targets
+ * @param amount - the amount of share tokens being bridged
+ * @returns the native value to send, the quote plus a deliberate surplus
+ * @throws when the quote is unusable, or the wallet cannot fund fee and gas
+ */
+async function quoteFeeAndCheckFunding(
+  publicClient: DemoPublicClient,
+  signerAddress: Address,
+  tokenBridgeAddress: Address,
+  destinationChainId: number,
+  amount: bigint
+): Promise<bigint> {
   const { nativeFee: quotedFee, gasEstimate } = await fetchCentrifugeQuote(
     {
       fromChainId: getViemChainForNetworkName(SRC_CHAIN).id,
@@ -333,6 +501,7 @@ async function main(): Promise<void> {
     },
     tokenBridgeAddress
   )
+
   const nativeFee = (quotedFee * (100n + FEE_SURPLUS_PERCENT)) / 100n
   consola.info(
     `Centrifuge quotes ${formatEther(quotedFee)} ETH; paying ${formatEther(
@@ -356,116 +525,155 @@ async function main(): Promise<void> {
       )} ETH. Top it up and re-run.`
     )
 
+  return nativeFee
+}
+
+/**
+ * Builds the calldata and broadcasts the bridge transaction.
+ *
+ * The receiver is the signer on the destination chain, and the signer is also the refund
+ * recipient, so both the Diamond's excess `msg.value` and the Gateway's fee surplus come back
+ * to the wallet that funded the run.
+ *
+ * @param params - the clients, the Diamond, and the transfer this run settled on
+ * @returns the source-chain transaction hash
+ */
+async function startBridge(params: {
+  publicClient: DemoPublicClient
+  walletClient: Awaited<ReturnType<typeof setupEnvironment>>['walletClient']
+  lifiDiamondAddress: Address
+  signerAddress: Address
+  destinationChainId: number
+  amount: bigint
+  nativeFee: bigint
+}): Promise<Hex> {
+  const bridgeData: ILiFi.BridgeDataStruct = {
+    transactionId: `0x${randomBytes(32).toString('hex')}`,
+    bridge: 'centrifuge',
+    integrator: 'ACME Devs',
+    referrer: zeroAddress,
+    sendingAssetId: SHARE_TOKEN,
+    receiver: params.signerAddress,
+    destinationChainId: params.destinationChainId,
+    minAmount: params.amount,
+    hasSourceSwaps: false,
+    hasDestinationCall: false,
+  }
+
   const centrifugeData: CentrifugeFacet.CentrifugeDataStruct = {
-    nativeFee,
-    // receives both the Diamond's excess `msg.value` and the Gateway's own fee surplus
-    refundRecipient: signerAddress,
+    nativeFee: params.nativeFee,
+    refundRecipient: params.signerAddress,
   }
 
-  // Both snapshots are pinned to a block number rather than read around the call: a `latest`
-  // read can be answered by a load-balanced node that has not applied the receipt's block yet,
-  // which reports every delta below as zero and fails the run on a bridge that worked.
-  const readShares = (holder: Address, blockNumber: bigint) =>
-    publicClient.readContract({
-      address: SHARE_TOKEN,
-      abi: ERC20_ABI,
-      functionName: 'balanceOf',
-      args: [holder],
-      blockNumber,
-    }) as Promise<bigint>
-
-  const readBalances = async (blockNumber: bigint) => ({
-    signerShares: await readShares(signerAddress, blockNumber),
-    signerNative: await publicClient.getBalance({
-      address: signerAddress,
-      blockNumber,
-    }),
-    diamondShares: await readShares(lifiDiamondAddress, blockNumber),
-    diamondNative: await publicClient.getBalance({
-      address: lifiDiamondAddress,
-      blockNumber,
-    }),
-  })
-
-  // Pinning the reads to a block trades a silently wrong answer for a loud one: a node that has
-  // not applied the block yet rejects the request as an unknown block instead of quietly serving
-  // the parent's state. Retry until it catches up, so the report is neither wrong nor lost.
-  const readBalancesWhenAvailable = async (blockNumber: bigint) => {
-    for (let attempt = 1; ; attempt++)
-      try {
-        return await readBalances(blockNumber)
-      } catch (error) {
-        if (attempt >= RPC_LAG_ATTEMPTS) throw error
-
-        await sleep(RPC_LAG_DELAY_MS)
-      }
-  }
-
-  // === Start bridging ===
-  const txHash = (await executeTransaction(
+  return (await executeTransaction(
     () =>
-      walletClient.writeContract({
-        address: lifiDiamondAddress,
+      params.walletClient.writeContract({
+        address: params.lifiDiamondAddress,
         abi: CENTRIFUGE_FACET_ABI,
         functionName: 'startBridgeTokensViaCentrifuge',
         args: [bridgeData, centrifugeData],
-        value: nativeFee,
+        value: params.nativeFee,
       }),
     'Starting bridge tokens via Centrifuge',
-    publicClient,
+    params.publicClient,
     true
   )) as Hex
+}
+
+async function main(): Promise<void> {
+  // === Set up environment ===
+  const { publicClient, walletClient, walletAccount, lifiDiamondAddress } =
+    await setupEnvironment(SRC_CHAIN, CENTRIFUGE_FACET_ABI)
+  const signerAddress = walletAccount.address
+
+  if (!lifiDiamondAddress) throw new Error('LiFi Diamond address is required')
+
+  const destinationChainId = getViemChainForNetworkName(DST_CHAIN).id
+  const tokenBridgeAddress = getAddress(
+    getConfigElement(centrifugeConfig.tokenBridge, SRC_CHAIN) as string
+  )
+
+  consola.info(`Connected wallet address: ${signerAddress}`)
+  consola.info(
+    `Diamond: ${lifiDiamondAddress}, Centrifuge TokenBridge: ${tokenBridgeAddress}`
+  )
+
+  await assertBridgeRouteIsAvailable(
+    publicClient,
+    lifiDiamondAddress,
+    tokenBridgeAddress,
+    destinationChainId
+  )
+
+  // === Read token metadata ===
+  const shareTokenContract = createContractObject(
+    SHARE_TOKEN,
+    ERC20_ABI,
+    publicClient,
+    walletClient
+  )
+
+  const { symbol: shareTokenSymbol, decimals: shareTokenDecimals } =
+    await readShareTokenMetadata(publicClient)
+
+  const amount = parseUnits(BRIDGE_AMOUNT_HUMAN, shareTokenDecimals)
+
+  consola.info(
+    `Bridge ${BRIDGE_AMOUNT_HUMAN} ${shareTokenSymbol} (${SHARE_TOKEN}) from ${SRC_CHAIN} --> ${DST_CHAIN}`
+  )
+
+  await ensureBalance(shareTokenContract, signerAddress, amount, publicClient)
+
+  // === Quote the messaging fee ===
+  const nativeFee = await quoteFeeAndCheckFunding(
+    publicClient,
+    signerAddress,
+    tokenBridgeAddress,
+    destinationChainId,
+    amount
+  )
+
+  // === Approve the Diamond ===
+  // Broadcast only once every free pre-flight has passed, so a run that was never going to make
+  // it does not leave an allowance and an approval fee behind.
+  await ensureAllowance(
+    shareTokenContract,
+    signerAddress,
+    lifiDiamondAddress,
+    amount,
+    publicClient
+  )
+  await waitForAllowance(
+    publicClient,
+    signerAddress,
+    lifiDiamondAddress,
+    amount,
+    shareTokenSymbol
+  )
+
+  // === Start bridging ===
+  const txHash = await startBridge({
+    publicClient,
+    walletClient,
+    lifiDiamondAddress,
+    signerAddress,
+    destinationChainId,
+    amount,
+    nativeFee,
+  })
 
   // === Report the money flow ===
-  const receipt = await publicClient.getTransactionReceipt({ hash: txHash })
-  const gasCost = receipt.gasUsed * receipt.effectiveGasPrice
-
-  const before = await readBalancesWhenAvailable(receipt.blockNumber - 1n)
-  const after = await readBalancesWhenAvailable(receipt.blockNumber)
-
-  // the refund lands back on the signer, so the fee actually spent is the native delta net of gas
-  const consumedFee = before.signerNative - after.signerNative - gasCost
-  const sharesSent = before.signerShares - after.signerShares
-
-  consola.info(
-    `Shares sent: ${formatUnits(
-      sharesSent,
-      Number(shareTokenDecimals)
-    )} ${shareTokenSymbol}`
-  )
-  consola.info(
-    `Messaging fee consumed: ${formatEther(consumedFee)} ETH of ${formatEther(
-      nativeFee
-    )} ETH paid (surplus refunded to ${centrifugeData.refundRecipient})`
-  )
-  consola.info(`Gas: ${formatEther(gasCost)} ETH`)
-  consola.info(
-    `Diamond residue - shares: ${
-      after.diamondShares - before.diamondShares
-    }, native: ${after.diamondNative - before.diamondNative}`
-  )
-
-  if (sharesSent !== amount)
-    throw new Error(
-      `the bridged amount did not leave the signer: sent ${sharesSent}, expected ${amount}`
-    )
-  if (after.diamondShares !== before.diamondShares)
-    throw new Error('the Diamond retained share tokens after bridging')
-  if (after.diamondNative !== before.diamondNative)
-    throw new Error('the Diamond retained native after bridging')
-  if (consumedFee <= 0n)
-    throw new Error('no messaging fee was consumed - was the message sent?')
-  if (consumedFee >= nativeFee)
-    throw new Error('the fee surplus was not refunded to refundRecipient')
-
-  consola.success(
-    `Sent ${BRIDGE_AMOUNT_HUMAN} ${shareTokenSymbol} towards ${signerAddress} on ${DST_CHAIN}: share-token pull, messaging-fee payment, surplus refund and zero Diamond residue verified`
-  )
-  // The destination mint is settled by Centrifuge's own executor minutes later, so the source
-  // leg succeeding is not yet proof the shares arrived.
-  consola.info(
-    `Destination leg settles asynchronously - track it at ${CENTRIFUGE_STATUS_URL}?txHash=${txHash}`
-  )
+  await verifyAndReportMoneyFlow({
+    publicClient,
+    txHash,
+    signerAddress,
+    lifiDiamondAddress,
+    amount,
+    nativeFee,
+    refundRecipient: signerAddress,
+    shareTokenSymbol,
+    shareTokenDecimals,
+  })
 }
 
 main()
