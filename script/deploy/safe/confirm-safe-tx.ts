@@ -594,13 +594,13 @@ const processTxs = async (
     }
     renderCodehashSignGate(codehashGate).forEach((line) => consola.info(line))
 
-    // Inserted here, after the codehash gate and before the fingerprint and the
-    // keys. Nothing between the top of this iteration and this point returns or
-    // continues, so no existing check is swallowed; the action prompt, the nonce
-    // gate and the acknowledgement prompt all still run in that order after it.
-    // The refusal itself lives in the two funnels, for the same reason the
-    // codehash refusal does: dropping the Sign option instead would hide which
-    // assertion refused.
+    // Nothing between the top of this iteration and this point returns or
+    // continues, which is what lets the run happen here without swallowing a
+    // check that would otherwise have decided first.
+    //
+    // Only the verdict is produced here; the refusal lives in the two funnels,
+    // because dropping the Sign option instead would hide which assertion
+    // refused.
     try {
       integrityRun = await runIntegrityAsserts(
         {
@@ -622,13 +622,13 @@ const processTxs = async (
           // The signed struct throughout, never the stored row: the row is what
           // is displayed, and a check that keys on it verifies the description
           // rather than the transaction.
-          // Handed over unchanged — no `?? '0x'` on the payload. The graded key
-          // is derived from these fields and compared against
-          // `proposalKeyOf(safeTransaction.data)` in the funnels, which reads
-          // an absent payload as the empty string; substituting `'0x'` here
-          // would make the two disagree and refuse every proposal that carries
-          // no calldata. An unusable payload is refused by the assertions
-          // themselves rather than repaired into a usable one.
+          // These five fields must reach the module exactly as
+          // `proposalKeyOf(safeTransaction.data)` in the funnels reads them: the
+          // graded key is derived from them and compared against that one, and
+          // `proposalKeyOf` reads an absent payload as the empty string. A
+          // default substituted here disagrees with it and refuses every
+          // proposal carrying no calldata. An unusable payload is for the
+          // assertions to refuse, not for this call site to repair.
           to: tx.safeTransaction.data.to,
           data: tx.safeTransaction.data.data,
           signedValue: String(tx.safeTransaction.data.value),
