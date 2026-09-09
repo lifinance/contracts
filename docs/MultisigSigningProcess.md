@@ -155,7 +155,22 @@ proposal document is built from, so a deployment record and the proposal that
 installs it describe them by one definition rather than two. The capture is self-reported context, not a
 control: it makes an honest mistake such as a deploy from an uncommitted edit
 visible, while `assertTreeRecordable` — not this record — is what refuses such
-a deploy, on the narrower set of build-affecting paths. Add `--dryRun` (or
+a deploy, on the narrower set of build-affecting paths — and it establishes
+that the repository the record will name **holds** the commit, not that some
+branch reaches it: `origin/main` is squash-merged, so ancestry answers a
+question about the checkout rather than about the repository.
+
+A record may also carry a `codehash` group: the keccak of the exact runtime
+bytes found at its address, the keccak after the metadata trailer came off and
+immutables were masked, the deployed byte length, and how many bytes the mask
+excluded. All four or none — the trailer's own length word says how much the
+masked hash removes, so equal masked hashes mean equal code only with the
+length pinned too. It is stored only where a post-deploy self-check established
+that the deployed code is the artifact that run built, and it is a **report**:
+the run that wrote it chose the bytes it hashed, so a check that has to be
+sound recomputes from the chain. A value it cannot accept is never stored and
+never costs the record — the `add` command writes everything else, says why the
+codehash was dropped, and exits non-zero afterwards. Add `--dryRun` (or
 `--dry-run`) to the `add` command to print the upsert it would apply without
 writing. File logs (`deployments/{network}.json`) only land in git at PR
 merge; the deploy scripts never commit.

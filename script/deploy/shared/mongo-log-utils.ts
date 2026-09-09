@@ -19,6 +19,7 @@ import {
   type ICaptureProvenanceOptions,
   type ProvenanceActor,
 } from './git-provenance'
+import type { IRecordedCodehash } from './record-codehash'
 import { REPO_UNKNOWN, readRepoIdentity } from './repo-identity'
 
 /**
@@ -84,6 +85,16 @@ export interface IDeploymentRecord {
    * identified the caller.
    */
   actor?: ProvenanceActor
+  /**
+   * The code found at `address` after the deploy, as observed by the run that
+   * deployed it. Absent on any record whose deploy ran no post-deploy check,
+   * which is not a statement that the deployed code differs from anything.
+   *
+   * Reports, never decides: the run that wrote it chose the bytes it hashed, so
+   * a check that has to be sound recomputes from the chain and reads this only
+   * as what was claimed at deploy time.
+   */
+  codehash?: IRecordedCodehash
   /** When this record was created in the database */
   createdAt: Date
   /** When this record was last updated in the database */
@@ -328,6 +339,10 @@ export function buildDeploymentUpsert(
         solcVersion: record.solcVersion,
         evmVersion: record.evmVersion,
         zkSolcVersion: record.zkSolcVersion,
+        // Only when present, and as one group: a re-log from a run that took no
+        // post-deploy observation has nothing to say about the code at this
+        // address, and must not erase what a run that did took.
+        ...(record.codehash ? { codehash: record.codehash } : {}),
         ...provenance.set,
         contractNetworkKey: record.contractNetworkKey,
         contractVersionKey: record.contractVersionKey,

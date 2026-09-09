@@ -6,6 +6,8 @@
  * before anything broadcasts.
  */
 
+import type { ICommitPresence } from './commit-presence'
+
 /**
  * Paths whose contents change the bytecode a rebuild produces.
  *
@@ -37,11 +39,13 @@ export interface ITreeState {
   /** `git rev-parse HEAD`, or the `UNKNOWN` sentinel. */
   head: string
   /**
-   * `git branch -r --contains HEAD --list 'origin/*'` output. Restricted to
-   * `origin` because a commit pushed only to a fork, or to the `tron` remote,
-   * is not fetchable from the repository the record names.
+   * Whether the repository the record will name holds `head`, as resolved by
+   * `resolveCommitPresence`. Presence, not reachability: `origin/main` is
+   * squash-merged, so a deployed commit is an ancestor of nothing once its PR
+   * lands, and which refs a checkout happens to hold is a fact about the
+   * checkout rather than about the repository.
    */
-  remoteRefsContainingHead: string
+  commitPresence: ICommitPresence
   /**
    * Submodule paths recorded in the index whose working tree holds no files, or
    * `undefined` when the index could not be read. Presence on disk rather than
@@ -50,12 +54,6 @@ export interface ITreeState {
    * primary deploy clone, whose source a rebuild resolves fine.
    */
   absentSubmodulePaths: string[] | undefined
-  /**
-   * `git rev-parse --is-shallow-repository`. A shallow clone's commit graph is
-   * truncated, so it can confirm that a remote branch contains HEAD but cannot
-   * be trusted when it reports that none does.
-   */
-  isShallow: boolean
 }
 
 /**
@@ -151,22 +149,17 @@ export const assertTreeRecordable = (state: ITreeState): void => {
         `\n  Run 'git submodule update --init --recursive'.`
     )
 
-  if (state.remoteRefsContainingHead.trim() === '') {
-    if (state.isShallow)
-      problems.push(
-        `This is a shallow clone, so 'git branch -r --contains' reporting no remote ` +
-          `branch for ${state.head} cannot be trusted — the commit graph is truncated. ` +
-          `Deploy from a full clone, or fetch with depth 0.`
-      )
-    else
-      problems.push(
-        `Commit ${state.head} is on no origin branch. The record would point at a ` +
-          `commit a verifier cannot fetch from this repository, so the rebuild it ` +
-          `promises could never be performed. Push the branch first, or run ` +
-          `'git fetch origin' if it was pushed from another clone — this check ` +
-          `never fetches, and a commit carried only by a tag does not count.`
-      )
-  }
+  // Only PRESENT proceeds. UNKNOWN is this check failing to get an answer, and
+  // reading that as a pass would make an unreachable API into a green light.
+  if (state.commitPresence.presence !== 'PRESENT')
+    problems.push(
+      `Commit ${state.head} could not be shown present in the repository this ` +
+        `record would name (${state.commitPresence.presence}: ` +
+        `${state.commitPresence.reason}). The record would point at a commit a ` +
+        `verifier cannot fetch, so the rebuild it promises could never be ` +
+        `performed. Push the branch first, or run 'git fetch origin' if it was ` +
+        `pushed from another clone.`
+    )
 
   if (problems.length > 0)
     throw new Error(
