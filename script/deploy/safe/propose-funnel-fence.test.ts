@@ -129,6 +129,21 @@ describe('the funnel fence refuses a new propose route', () => {
   )
 
   it(
+    'refuses a template-literal lookup, which is neither an identifier nor a string',
+    async () => {
+      const result = await lint(
+        `import * as safeUtils from '../deploy/safe/safe-utils'\n` +
+          'export const propose = safeUtils[`storeTransactionInMongoDB`]\n',
+        BYPASS_PATH
+      )
+
+      expect(result.exitCode).not.toBe(0)
+      expect(result.output).toContain(REFUSAL)
+    },
+    TIMEOUT_MS
+  )
+
+  it(
     'refuses a re-export, so the name cannot be laundered through a third file',
     async () => {
       const result = await lint(

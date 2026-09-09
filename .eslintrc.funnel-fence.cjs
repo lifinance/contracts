@@ -28,8 +28,11 @@ const MESSAGE =
 
 const FENCE = [
   { selector: `Identifier[name='${FUNNEL}']`, message: MESSAGE },
-  // A computed lookup carries the name as a string, not as an identifier.
+  // A computed lookup carries the name as a string, not as an identifier —
+  // and a template literal is neither, which is how it slipped past a fence
+  // that had only the two selectors above.
   { selector: `Literal[value='${FUNNEL}']`, message: MESSAGE },
+  { selector: `TemplateElement[value.cooked='${FUNNEL}']`, message: MESSAGE },
 ]
 
 module.exports = {
