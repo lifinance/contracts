@@ -2,10 +2,9 @@
 
 ## How it works
 
-The Centrifuge Facet bridges **Centrifuge share tokens** (tokenized RWA fund shares, e.g. `deJAAA`)
-by forwarding them to the Centrifuge `TokenBridge` via `send`. The LiFiDiamond custodies the share
-token, approves the bridge, and calls `send` on behalf of the user, keeping LI.FI's regular funds
-flow (including an optional pre-bridge swap step).
+The Centrifuge Facet bridges Centrifuge share tokens (tokenized RWA fund shares, e.g. `deJAAA`) by
+forwarding them to the Centrifuge `TokenBridge` via `send`. The LiFiDiamond pulls in the share token,
+approves the bridge and calls `send` on behalf of the user.
 
 ```mermaid
 graph LR;
@@ -15,78 +14,57 @@ graph LR;
     S -- CALL --> G(Centrifuge Gateway)
 ```
 
-Key properties of the Centrifuge bridge:
-
-- The bridged asset is **ERC20-only** (never native). `send` is `payable` because `msg.value` pays
-  the cross-chain messaging fee, not the bridged amount.
-- Only **registered Centrifuge share tokens** can be bridged. The bridge resolves the token through
+- The bridged asset is ERC20-only (never native). `send` is `payable` because `msg.value` pays the
+  cross-chain messaging fee, not the bridged amount.
+- Only registered Centrifuge share tokens can be bridged. The bridge resolves the token through
   `spoke.shareTokenDetails(token)`, which reverts for anything else.
-- There is **no on-chain fee quote**. The native messaging fee is supplied by the LI.FI backend as
+- There is no on-chain fee quote. The native messaging fee is supplied by the LI.FI backend as
   `CentrifugeData.nativeFee`.
-- There is **no slippage parameter and no exchange rate** — the same share token arrives on the
-  destination chain in the same amount. This is a transfer, not a swap.
+- There is no slippage parameter and no exchange rate — the same share token arrives on the
+  destination chain in the same amount.
 
 ## Deployed `TokenBridge` & integration dependencies
 
-The `TokenBridge` is deployed and verified at `0x82a6C7753380f98c093B27c53f86ef6b09C40f49` on
-**both** Ethereum (1) and Base (8453). Verified against that deployment:
+The `TokenBridge` is deployed and verified at `0x82a6C7753380f98c093B27c53f86ef6b09C40f49` on both
+Ethereum (1) and Base (8453). Verified against that deployment:
 
 - `send(address,uint256,bytes32,uint256,address)` pulls the share token from `msg.sender` via
-  `SafeTransferLib.safeTransferFrom`, so the Diamond is the payer and **must hold an allowance**.
-  The bridge's inline comment "No approval needed" refers to the *later* hop, where the Spoke pulls
-  from the bridge via `authTransferFrom` — it does not apply to our call. The `ITokenBridge` NatSpec
-  states the requirement explicitly ("after approving this contract with the token").
-- The destination is validated by the bridge itself against its own `chainIdToCentrifugeId` map;
-  an unmapped chain reverts `InvalidChainId()`. At integration time only Ethereum (centrifugeId 1)
-  and Base (centrifugeId 2) are mapped, so those two chains are the entire supported corridor.
-- The `receiver` is a `bytes32` holding an EVM address in its **low 20 bytes**.
+  `SafeTransferLib.safeTransferFrom`, so the Diamond is the payer and must hold an allowance. The
+  bridge's inline comment "No approval needed" refers to the later hop, where the Spoke pulls from
+  the bridge via `authTransferFrom` — it does not apply to our call.
+- The `receiver` is a `bytes32` holding the EVM address in its **high** 20 bytes
+  (`bytes32(bytes20(addr))`). The destination Spoke decodes it with `CastLib.toAddress`, which reads
+  the high 20 bytes and reverts `PrefixNotZero()` unless the low 12 are clear. Nothing on the source
+  chain checks this, so the wrong padding bridges "successfully" and strands the shares on arrival.
+- The destination is validated by the bridge against its own `chainIdToCentrifugeId` map; an
+  unmapped chain reverts `InvalidChainId()`. At integration time only Ethereum (centrifugeId 1) and
+  Base (centrifugeId 2) are mapped, so those two chains are the entire supported corridor.
 - The whole `msg.value` is forwarded to `spoke.crosschainTransferShares`; the bridge keeps nothing.
 - `deJAAA`'s transfer hook permits transfers between arbitrary addresses (freeze-only, not a KYC
-  allowlist), so **no whitelisting of the Diamond is required**.
+  allowlist), so no whitelisting of the Diamond is required.
+- `spoke`, `gateway` and `relayer` are admin-settable on the `TokenBridge` via `file()`, and the
+  contract is `Auth` + `Recoverable`. `relayer` is currently unset (`address(0)`) on both chains, so
+  overpayment returns to `refundRecipient` rather than to a relayer.
 
-Operational dependencies (Centrifuge / LI.FI backend, not enforced by this facet):
-
-- The share token must be registered on both the source and the destination chain.
-- `nativeFee` must cover the real messaging cost. There is no quote function, so this value comes
-  from the LI.FI backend — only ever submit backend-generated calldata.
+Not enforced by this facet: the share token must be registered on both the source and the
+destination chain, and `nativeFee` must cover the real messaging cost. Since there is no quote
+function, only ever submit backend-generated calldata.
 
 ## Fund flow and safety
-
-```
-USER --(share token)--> LiFiDiamond --(approve + send)--> TokenBridge --> Spoke --> Gateway
-USER --(native fee)---> LiFiDiamond --(msg.value)------> TokenBridge --> Spoke --> Gateway
-```
-
-The Diamond retains nothing. This is asserted after every bridge in the test suite, for both the
-share token and native, on both chains.
-
-Fee handling, verified against the real contracts on a fork:
 
 - **Overpayment is refunded.** The Gateway returns the unused portion of `nativeFee` directly to
   `refundRecipient` within the same transaction.
 - **Underpayment reverts** with the Gateway's `NotEnoughGas()`; the transfer is never half-executed.
-  Centrifuge's `sendInitiateTransferShares` takes no `unpaidMode` flag (unlike `sendRequest`), so
-  the "queued as underpaid" path mentioned in the `ITokenBridge` NatSpec applies only to the
-  hub-funded **second leg** of a spoke → hub → spoke transfer. Both supported corridors
-  (Ethereum → Base and Base → Ethereum) are single-leg for the pools in scope, because the pool hub
-  is on Ethereum and `hubIsEndpoint` is therefore always true.
+  Centrifuge's `sendInitiateTransferShares` takes no `unpaidMode` flag (unlike `sendRequest`), so the
+  "queued as underpaid" path in the `ITokenBridge` NatSpec applies only to the hub-funded second leg
+  of a spoke → hub → spoke transfer. Both supported corridors are single-leg, because the pool hub is
+  on Ethereum and `hubIsEndpoint` is therefore always true.
 - **Excess native above `nativeFee`** never reaches the bridge and is returned by
   `refundExcessNative`.
-- A `refundRecipient` that **rejects** plain native transfers reverts the whole bridge. Note that
-  the Gateway wraps a failed refund in its own `CannotRefund()` error rather than surfacing the
-  underlying failure.
-
-## Trust assumptions
-
-- **The bridge is upgradeable in effect.** `spoke`, `gateway` and `relayer` are admin-settable on
-  the `TokenBridge` via `file()`, and the contract is `Auth` + `Recoverable`. A compromised or
-  malicious Centrifuge admin could redirect the funds flow. This is the same trust model as any
-  third-party bridge contract we integrate.
-- **Share tokens are claims on an off-chain fund**, redeemable only through Centrifuge's
-  **ERC-7540 asynchronous** vaults. Redemption is a two-step request/claim flow, not an atomic
-  swap. Nothing in this facet redeems; it only transfers shares between chains.
-- **`relayer` is currently unset** (`address(0)`) on both chains, so first-leg overpayment always
-  returns to `refundRecipient` rather than to a relayer.
+- A `refundRecipient` that rejects plain native transfers reverts the whole bridge. The Gateway wraps
+  a failed refund in its own `CannotRefund()` error rather than surfacing the underlying failure.
+- The Diamond retains neither share tokens nor native. This is asserted after every bridge in the
+  test suite, on both chains.
 
 ## Public Methods
 
@@ -94,8 +72,7 @@ Fee handling, verified against the real contracts on a fork:
   - Simply bridges the share token using Centrifuge without performing any swaps
 - `function swapAndStartBridgeTokensViaCentrifuge(BridgeData memory _bridgeData, LibSwap.SwapData[] calldata _swapData, CentrifugeData calldata _centrifugeData)`
   - Performs swap(s) before bridging. Swap leftovers and excess native are refunded to
-    `refundRecipient` (not `msg.sender`, which may be a relayer or the Permit2Proxy). See
-    [Swap Data](#swap-data) for what a "swap" means for a share token.
+    `refundRecipient`, not to `msg.sender` (which may be a relayer or the Permit2Proxy).
 
 ## Centrifuge Specific Parameters
 
@@ -116,19 +93,18 @@ struct CentrifugeData {
 }
 ```
 
-There is deliberately **no `receiver` field**. The destination receiver is derived inside
-`_startBridge` as `LibBytes.toBytes32(_bridgeData.receiver)`, so the address the bridge actually
-credits can never disagree with the one in the emitted `LiFiTransferStarted` event.
-`validateBridgeData` already guarantees it is non-zero. A consequence is that this version is
-**EVM-only**: bridging to a non-EVM receiver would need a dedicated field and a version bump.
+There is deliberately no `receiver` field. The destination receiver is derived inside `_startBridge`
+from `_bridgeData.receiver`, so the address the bridge credits can never disagree with the one in the
+emitted `LiFiTransferStarted` event. A consequence is that this version is EVM-only: bridging to a
+non-EVM receiver would need a dedicated field and a version bump.
 
 Both entrypoints require a non-zero `refundRecipient` and a non-zero `nativeFee`, reverting
 `InvalidCallData`. The `nativeFee` guard exists because Centrifuge has no quote function, so a zero
-fee cannot be distinguished from a missing one and is always a malformed request. On the non-swap
-path `nativeFee` must additionally not exceed `msg.value` (reverts `InvalidCallData`), so the
-messaging fee can never be paid out of diamond balance. The swap path has no such check because the
-fee may be funded by an ERC20→native pre-swap — `_depositAndSwap` reserves `nativeFee` of native
-from the leftover sweep so it stays available for `send`.
+fee cannot be distinguished from a missing one. On the non-swap path `nativeFee` must additionally
+not exceed `msg.value` (reverts `InvalidCallData`), so the messaging fee can never be paid out of
+diamond balance. The swap path has no such check because the fee may be funded by an ERC20→native
+pre-swap — `_depositAndSwap` reserves `nativeFee` of native from the leftover sweep so it stays
+available for `send`.
 
 ## Swap Data
 
@@ -139,13 +115,6 @@ various DEXs (i.e. Uniswap) to make one or multiple swaps before performing anot
 
 The swap library can be found [here](../src/Libraries/LibSwap.sol).
 
-**For Centrifuge share tokens specifically:** the share token cannot be acquired by a swap. It has
-no DEX liquidity, and the only mint path is an ERC-7540 asynchronous vault, which cannot settle
-within one transaction. The swap entrypoint therefore exists for LI.FI's *other* kind of swap step —
-a **same-token fee collection**, where `FeeCollector.collectTokenFees` skims the integrator and
-LI.FI cut off the amount and the remainder is what gets bridged. That is the shape the swap-path
-tests exercise against the real `FeeCollector`.
-
 ## LiFi Data
 
 Some methods accept a `BridgeData _bridgeData` parameter.
@@ -154,7 +123,7 @@ This parameter is strictly for analytics purposes. It's used to emit events that
 and index in our subgraphs and provide data on how our contracts are being used. `BridgeData` and
 the events we can emit can be found [here](../src/Interfaces/ILiFi.sol).
 
-Note that unlike most facets, `_bridgeData.receiver` and `_bridgeData.destinationChainId` are **not**
+Note that unlike most facets, `_bridgeData.receiver` and `_bridgeData.destinationChainId` are not
 analytics-only here: both are passed straight to the bridge.
 
 ## Getting Sample Calls to interact with the Facet
@@ -206,6 +175,9 @@ curl 'https://li.quest/v1/quote?fromChain=ETH&fromAmount=10000000000000000000&fr
 
 ### Swap & Cross
 
-A share token cannot be produced by a swap (see [Swap Data](#swap-data)), so there is no
-swap-and-bridge quote to request from the API for this bridge. The swap entrypoint is reached when
-the quote includes a fee-collection step for the same token.
+To get a transaction for a transfer from 100 USDC on Base to deJAAA on Ethereum you can execute the
+following request:
+
+```shell
+curl 'https://li.quest/v1/quote?fromChain=BAS&fromAmount=100000000&fromToken=USDC&toChain=ETH&toToken=0xAAA0008C8CF3A7Dca931adaF04336A5D808C82Cc&slippage=0.03&allowBridges=centrifuge&fromAddress={YOUR_WALLET_ADDRESS}'
+```
