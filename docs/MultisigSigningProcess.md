@@ -162,26 +162,29 @@ merge; the deploy scripts never commit.
 
 ### 4.2 Propose
 
-Every EVM entry point proposes through `proposeSafeTx`
-(`script/deploy/safe/propose-safe-tx.ts`), which checks Safe ownership, signs,
-hashes the signed transaction and calls `storeTransactionInMongoDB`
-(`script/deploy/safe/safe-utils.ts`). That is where the Linear ticket link is
-required and the missing-reason warning is emitted — placing them there rather
-than per entry point means no funnel can be added that skips them.
+Every EVM entry point except
+`script/deploy/safe/add-safe-owners-and-threshold.ts` proposes through
+`proposeSafeTx` (`script/deploy/safe/propose-safe-tx.ts`), which checks Safe
+ownership, signs, hashes the signed transaction and calls
+`storeTransactionInMongoDB` (`script/deploy/safe/safe-utils.ts`). That last is
+where the Linear ticket link is required and the missing-reason warning is
+emitted — placing them there rather than per entry point means no funnel can be
+added that skips them. The refusal happens before the proposal document is
+inserted, so a refused proposal is never created and claims no nonce, and it
+names both `--ticket` and `SAFE_PROPOSAL_TICKET`.
 
 The seam is enforced, not conventional: `.eslintrc.funnel-fence.cjs` refuses any
 file outside its allowlist that names `storeTransactionInMongoDB`, so a propose
 route added later either comes through `proposeSafeTx` or fails lint
 (`bun lint:funnel`, run in CI by `enforceProposalFunnel.yml`). It is an ESLint
 rule keyed on the AST identifier, so an alias, a namespace member access or a
-computed lookup is refused the same way a plain import is. What it does **not**
-cover: a hand-rolled insert into the `pendingTransactions` collection that never
-names the storage function. The refusal
-happens before the proposal document is inserted, so a refused proposal is never
-created and claims no nonce, and it names both `--ticket` and
-`SAFE_PROPOSAL_TICKET`.
+computed lookup is refused the same way a plain import is. Two things it does
+**not** cover: a hand-rolled insert into the `pendingTransactions` collection
+that never names the storage function, and the two files still in the allowlist
+for their own storage call — `add-safe-owners-and-threshold.ts` and the Tron
+route, both tracked for migration by EXSC-958.
 
-That check is the backstop, not the first line: the entry points whose late
+The ticket check is the backstop, not the first line: the entry points whose late
 failure costs most — `unpauseAllDiamonds.ts`, `add-safe-owners-and-threshold.ts`,
 the Tron route, and the TS `sendOrPropose` — also call `assertTicketPresent`
 before they sign, and `propose-to-safe.ts` resolves the same intent up front in
