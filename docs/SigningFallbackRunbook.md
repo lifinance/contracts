@@ -26,8 +26,8 @@ The fallback is a **commit you check out**, never a flag you set:
 | commit | `49f05efa948d3bd208bbdfcf34ff70ce5eb183bf` (2026-07-24) |
 
 A `--legacy` / `SKIP_GATES` switch was refused — decision D26, recorded on
-EXSC-976. A bypass one environment
-variable away gets reached for under exactly the pressure where the gates
+EXSC-976. A bypass one environment variable away gets reached for under
+exactly the pressure where the gates
 matter most, and every gate's threat model would then have to account for it.
 Checking out a tag is deliberately slower and deliberately visible.
 
@@ -100,7 +100,11 @@ From inside your existing clone:
 
 ```bash
 CLONE=~/Documents/GitHub/contracts   # wherever yours lives
-git -C "$CLONE" fetch origin --tags
+
+# --force matters: a plain `fetch --tags` REFUSES to update a tag you already
+# have ("would clobber existing tag") and leaves the stale one in place, so the
+# check below would compare against your old copy and pass.
+git -C "$CLONE" fetch origin --tags --force
 
 # The tag is movable by design (§8), so resolve it and stop if it is not the
 # commit this runbook was written against.
@@ -406,8 +410,11 @@ to re-establish at the candidate commit, in the order that fails fastest:
    it is non-empty from 2026-07-28 onward and most of what it names is
    unrelated tooling (a prefetch cache, a selector registry, a read-only
    client). For each candidate, ask the only question that matters: does an
-   entry point reach it on a path that can *refuse*? Grep its call sites in
-   `propose-to-safe.ts` and `confirm-safe-tx.ts`.
+   entry point reach it on a path that can *refuse*? Follow its call sites
+   transitively, not just into `propose-to-safe.ts` and `confirm-safe-tx.ts`:
+   §1's worked example is a gate reached only through `safe-utils.ts`
+   (`signTransaction`), and a grep of the two entry points alone would have
+   called it sign-only.
 2. The entry points still resolve: `propose-safe-tx` and `confirm-safe-tx` in
    `package.json`, and `with-safe-tunnel.sh`.
 3. The `ISafeTxDocument` field diff against `main`, stated — today it is
