@@ -6,6 +6,8 @@
  * build, never equality against one record- or network-derived profile.
  */
 
+import { normalizeHash } from './hex'
+
 /** A build this repo can vouch for, produced locally or in CI. */
 export interface IAttestedBuild {
   /** Human label for the toolchain, e.g. `upstream cancun`. */
@@ -71,9 +73,6 @@ export interface ICodehashComparison {
   /** True for everything but MATCH. Render the verdict, never this flag. */
   blocksSigning: boolean
 }
-
-const normalizeHash = (hash: string): string =>
-  (/^0x/i.test(hash) ? hash.slice(2) : hash).toLowerCase()
 
 const blocked = (
   verdict: 'MISMATCH' | 'UNVERIFIABLE',
