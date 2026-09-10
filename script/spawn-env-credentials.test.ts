@@ -97,24 +97,43 @@ const allShippedTests = (): string[] =>
 const shippedTests = (): string[] =>
   allShippedTests().filter((path) => path !== SELF)
 
+/** Blanks block comments, keeping line and column positions intact. */
+const blankBlockComments = (source: string): string =>
+  source.replace(/\/\*[\s\S]*?\*\//gu, (block) => block.replace(/[^\n]/gu, ' '))
+
 /**
  * A line terminator between `delete` and its operand is legal grammar — the
  * spec puts no `[no LineTerminator here]` restriction there — so a per-line
  * scan would walk straight past `delete\n  env.PRIVATE_KEY`. Joining the
  * operand onto the keyword's line first also carries any trailing marker
- * comment with it, which keeps the exemption line-scoped.
+ * comment with it, which keeps the exemption attached to its own delete.
  */
 const joinDeleteOperands = (source: string): string =>
   source.replace(/\bdelete\s+/gu, 'delete ')
 
-/** Lines that delete a credential and do not carry the marker. */
-const unexemptedDeletions = (source: string): string[] =>
-  joinDeleteOperands(source)
+/**
+ * One entry per statement, not per line: a marker earns an exemption for the
+ * delete it sits beside, and `a; b` on one line is two deletes of which only
+ * the annotated one may pass.
+ */
+const statements = (source: string): string[] =>
+  joinDeleteOperands(blankBlockComments(source))
     .split('\n')
-    .filter(
-      (line) =>
-        DELETES_A_CREDENTIAL.test(line) && !line.includes(EXEMPTION_MARKER)
-    )
+    .flatMap((line) => line.split(';'))
+
+/**
+ * Statements that delete a credential and carry no marker.
+ *
+ * The marker is read before line comments are dropped, because the marker IS a
+ * line comment; the drop then keeps prose that merely mentions a deletion —
+ * a "never do this" example, say — from being reported as one.
+ */
+const unexemptedDeletions = (source: string): string[] =>
+  statements(source).filter(
+    (statement) =>
+      !statement.includes(EXEMPTION_MARKER) &&
+      DELETES_A_CREDENTIAL.test(statement.replace(/\/\/.*$/u, ''))
+  )
 
 describe('no shipped test deletes a credential from a child environment', () => {
   it('enumerates the tree, so a clean result is not vacuous', () => {
@@ -169,6 +188,27 @@ describe('no shipped test deletes a credential from a child environment', () => 
         ].join('\n')
       )
     ).toEqual(['  delete env.PRIVATE_KEY_PRODUCTION'])
+  })
+
+  it('judges two deletes sharing one line separately', () => {
+    // A marker sits at the end of the line, so a line-wide reading of it lets
+    // one justified delete carry an unjustified neighbour past the guard.
+    expect(
+      unexemptedDeletions(
+        `delete env.PRIVATE_KEY; delete env.MNEMONIC // ${EXEMPTION_MARKER} fixture cwd`
+      )
+    ).toEqual(['delete env.PRIVATE_KEY'])
+  })
+
+  it('does not report prose that merely mentions a deletion', () => {
+    // Both comment shapes, because this file's own guidance is written in them:
+    // describing the hazard must not be indistinguishable from committing it.
+    expect(
+      unexemptedDeletions('  // never write delete env.PRIVATE_KEY here\n')
+    ).toEqual([])
+    expect(
+      unexemptedDeletions('/**\n * Not this: delete env.MNEMONIC\n */\n')
+    ).toEqual([])
   })
 
   it('recognises each form the deletion is written in', () => {
