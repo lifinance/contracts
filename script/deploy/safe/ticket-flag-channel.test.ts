@@ -394,6 +394,10 @@ describe('every route is classified, and each funnel matches its source', () => 
     expect(readFileSync(join(REPO_ROOT, FUNNEL_FENCE), 'utf8')).toContain(
       `script/${TRON_FUNNEL}`
     )
+    // Asserted here rather than left to its one consumer above: when EXSC-984
+    // removes the exemption that consumer goes with it, and a fence that no
+    // longer declares the name would then be noticed by nothing.
+    expect(storeFn().length).toBeGreaterThan(0)
   })
 
   it.each(FUNNELS.filter((funnel) => funnel.flag).map((f) => f.script))(

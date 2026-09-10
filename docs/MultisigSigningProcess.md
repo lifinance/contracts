@@ -216,15 +216,15 @@ run only on the branches that actually propose; a staging or testnet-only run, a
 `propose-to-safe.ts`, `propose-to-safe-tron.ts`, `unpauseAllDiamonds.ts` and
 `add-safe-owners-and-threshold.ts`, and by no other route. Plenty of scripts
 reach those four with no flag of their own — the bash `sendOrPropose` chokepoint,
-`proposePeripheryWithWhitelist.ts`, `propose-diamond-cut.ts`,
-`cleanUpProdDiamond.ts` and `deploy-and-register-periphery.ts` among them. On all
-of those the exported variable is the channel, and a missing ticket still costs
-nothing, because the funnel they enter refuses before it signs. None of them is
-closed to a flag either: the bash chokepoint builds `propose-to-safe.ts`'s
-command out of named flags rather than passing its six positionals through, so
-`--ticket` would be one more element of that array, and `cleanUpProdDiamond.ts`
-already threads a signing-options object down the positional helpers it reaches
-the TS `sendOrPropose` through. They are simply unwired.
+`proposePeripheryWithWhitelist.ts`, `shared/propose-diamond-cut.ts`,
+`cleanUpProdDiamond.ts` and Tron's `deploy-and-register-periphery.ts` among
+them. On all of those the exported variable is the channel, and a missing
+ticket still costs nothing, because the funnel they enter refuses before it
+signs. None of them is closed to a flag either: the bash chokepoint builds
+`propose-to-safe.ts`'s command out of named flags rather than passing its six
+positionals through, so `--ticket` would be one more element of that array,
+and `cleanUpProdDiamond.ts` already threads a signing-options object down the
+positional helpers it reaches the TS `sendOrPropose` through. They are simply unwired.
 
 What costs a signature is the set carrying no entry-point check at all: the
 `script/tasks/propose*ChainIdMappings.ts` scripts and
