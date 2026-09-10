@@ -14,10 +14,10 @@
  *   identified by its zksolc version alone (F14).
  * - **The compiler settings are named, never proxied by the profile.** A
  *   profile name survives a retune of the profile it names, so a key holding
- *   only the name stays byte-identical while every masked hash moves. That
- *   collision is in the key itself, where `findAttestationConflicts` cannot see
- *   it — the same silent drift `lineage-scope.ts` parses `foundry.toml` to
- *   avoid rather than hardcoding a pair.
+ *   only the name stays byte-identical while every masked hash moves. Two
+ *   builds under one key are visible to `findAttestationConflicts` only while
+ *   both are still filed; once the older is pruned the survivor silently
+ *   answers lookups for both.
  * - **The audit bridge is profile-independent.** `sourceClosureHash` is taken
  *   over the source closure only, never the settings, so the same sources
  *   compiled under two profiles bridge to the same audit (E1).
@@ -25,7 +25,7 @@
 
 import { keccak256, stringToHex } from 'viem'
 
-import { frameFault, normalizeHash } from './hex'
+import { digestFault, normalizeHash } from './hex'
 
 /** A toolchain and settings combination a build can be produced under. */
 export interface IAttestationKey {
@@ -33,11 +33,7 @@ export interface IAttestationKey {
   contractName: string
   /** Version the contract declares, e.g. `1.2.0`. */
   version: string
-  /**
-   * Foundry profile the build ran under. Carried alongside the settings below
-   * rather than instead of them: it identifies the recipe, and identifies
-   * nothing about the output once the recipe is retuned.
-   */
+  /** Foundry profile the build ran under, e.g. `default`. */
   profile: string
   /** EVM version the build targeted, e.g. `cancun`. */
   evmVersion: string
@@ -71,17 +67,30 @@ export interface IAttestationKey {
 /** The part of solc's `metadata.settings` the key is built from. */
 export interface IMetadataSettings {
   evmVersion?: string | null
-  /** solc writes `null`, not `false`, when the IR pipeline did not run. */
+  /**
+   * solc emits this only when the IR pipeline ran, so a legacy build carries
+   * no `viaIR` key at all. `null` is accepted because that is what a JSON
+   * reader that fills absent keys hands over.
+   */
   viaIR?: boolean | null
-  optimizer?: { enabled?: boolean | null; runs?: number | null } | null
+  optimizer?: {
+    enabled?: boolean | null
+    runs?: number | null
+    /**
+     * Per-step optimizer tuning. solc drops `enabled` from its output whenever
+     * this is supplied, so its presence is also the only signal that `enabled`
+     * is missing for a reason rather than absent from an unoptimized build.
+     */
+    details?: unknown
+  } | null
 }
 
 /**
  * Reads the settings half of a key out of a build artifact's metadata.
  *
- * One place rather than one per producer: CI's mint and a local rebuild both
- * have to decide that solc's `viaIR: null` means `false`, and two producers
- * each making that decision is the same bug twice.
+ * One place rather than one per producer: an absent `viaIR` and an absent
+ * `optimizer.enabled` each have to be resolved to a build, and two producers
+ * resolving them separately is the same bug twice.
  *
  * Refuses rather than defaults. Every one of these has a solc default, but
  * assuming one here files the build under a key naming a setting the build may
@@ -100,6 +109,18 @@ export const buildSettingsFromMetadata = (
     )
   if (optimizer === undefined || optimizer === null)
     throw new Error('build artifact does not state its optimizer settings')
+
+  // `details` changes the output and no key field can express it, so a build
+  // carrying it must be refused rather than keyed as if it were absent. It is
+  // also why `enabled` alone cannot be read as off: solc omits `enabled`
+  // exactly when `details` is given, and an optimized build keyed `noopt`
+  // would collide with an unoptimized one.
+  if (optimizer.details !== undefined && optimizer.details !== null)
+    throw new Error(
+      'build artifact sets optimizer details, which the attestation key cannot express'
+    )
+  if (optimizer.enabled === undefined || optimizer.enabled === null)
+    throw new Error('build artifact does not state whether the optimizer ran')
 
   const named = { evmVersion, viaIR: viaIR === true }
   if (optimizer.enabled !== true) return named
@@ -157,7 +178,10 @@ export const serialiseAttestationKey = (key: IAttestationKey): string =>
     key.contractName,
     key.version,
     key.profile,
-    key.evmVersion,
+    // Lowercased for the same reason hashes are: `lineage-scope.ts` reads this
+    // from `foundry.toml` and a hand-built key from `networks.json`, and one
+    // build filed under `cancun` and `Cancun` is two keys.
+    key.evmVersion.toLowerCase(),
     key.viaIR ? 'viaIR' : 'legacy',
     key.optimizerRuns === undefined ? NO_OPTIMIZER : `opt:${key.optimizerRuns}`,
     key.solcVersion,
@@ -197,13 +221,15 @@ export interface ISourceEntry {
  * of the next field.
  * @param sources - Every source in the closure, in any order
  * @returns `0x`-prefixed keccak over the canonical closure
- * @throws When an entry's hash is not framed hex, or two entries claim the same
- * path with different hashes
+ * @throws When an entry names no path, its hash is not a keccak digest, or two
+ * entries claim the same path with different hashes
  */
 export const sourceClosureHash = (sources: readonly ISourceEntry[]): string => {
   const byPath = new Map<string, string>()
   for (const entry of sources) {
-    const fault = frameFault(entry.keccak, `source hash for ${entry.path}`)
+    if (entry.path === '')
+      throw new Error('source closure carries an entry with no path')
+    const fault = digestFault(entry.keccak, `source hash for ${entry.path}`)
     if (fault !== undefined) throw new Error(fault)
 
     const keccak = canonicalHash(entry.keccak)
@@ -237,11 +263,7 @@ export interface IMintedAttestation {
 
 /** Two attestations filed under one key that do not agree. */
 export interface IAttestationConflict {
-  /**
-   * The build the conflicting attestations claim to identify. Structured rather
-   * than only serialised: a caller has to refuse on this, and a human then has
-   * to read which build it was out of the refusal.
-   */
+  /** The build the conflicting attestations claim to identify. */
   key: IAttestationKey
   /** Canonical form the attestations were grouped under. */
   serialisedKey: string
@@ -264,7 +286,7 @@ export interface IAttestationConflict {
  * and locally, is the expected state.
  * @param attestations - Everything filed, in any order
  * @returns One entry per conflicting key; empty when every key agrees
- * @throws When an attestation carries a hash that is not framed hex
+ * @throws When an attestation carries a hash that is not a keccak digest
  */
 export const findAttestationConflicts = (
   attestations: readonly IMintedAttestation[]
@@ -275,8 +297,8 @@ export const findAttestationConflicts = (
   >()
   for (const attestation of attestations) {
     const fault =
-      frameFault(attestation.maskedHash, 'masked hash') ??
-      frameFault(attestation.sourceClosureHash, 'source closure hash')
+      digestFault(attestation.maskedHash, 'masked hash') ??
+      digestFault(attestation.sourceClosureHash, 'source closure hash')
     if (fault !== undefined)
       throw new Error(
         `${fault} in the attestation for ${attestation.key.contractName}`
@@ -284,7 +306,9 @@ export const findAttestationConflicts = (
 
     const serialised = serialiseAttestationKey(attestation.key)
     const entry = byKey.get(serialised) ?? {
-      key: attestation.key,
+      // Copied: this is handed back inside a refusal a caller may keep or
+      // annotate, and the attestations it came from are the caller's.
+      key: { ...attestation.key },
       masked: new Set<string>(),
       closure: new Set<string>(),
     }

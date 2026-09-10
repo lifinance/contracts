@@ -5,7 +5,7 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
-import { frameFault, normalizeHash, strip0x } from './hex'
+import { digestFault, frameFault, normalizeHash, strip0x } from './hex'
 
 describe('frameFault', () => {
   it('accepts real bytecode with and without a prefix', () => {
@@ -56,5 +56,26 @@ describe('normalizeHash', () => {
     const forms = ['0xABCD', '0xabcd', '0XAbCd', 'ABCD', 'abcd']
 
     for (const form of forms) expect(normalizeHash(form), form).toBe('abcd')
+  })
+})
+
+describe('digestFault', () => {
+  const DIGEST = `0x${'ab'.repeat(32)}`
+
+  it('accepts a keccak digest with or without a prefix', () => {
+    expect(digestFault(DIGEST, 'hash')).toBeUndefined()
+    expect(digestFault(DIGEST.slice(2), 'hash')).toBeUndefined()
+    expect(digestFault(DIGEST.toUpperCase(), 'hash')).toBeUndefined()
+  })
+
+  it('refuses the wrong-length values a framing check lets through', () => {
+    // A sliced digest, an address in a hash slot, and a value one byte over.
+    for (const hex of ['0xdeadbeef', `0x${'11'.repeat(20)}`, `${DIGEST}ab`])
+      expect(digestFault(hex, 'hash'), hex).toBe('hash is not 32 bytes')
+  })
+
+  it('reports a framing fault ahead of the length', () => {
+    expect(digestFault('nope', 'hash')).toBe('hash is not hex')
+    expect(digestFault('0x', 'hash')).toBe('hash is empty')
   })
 })

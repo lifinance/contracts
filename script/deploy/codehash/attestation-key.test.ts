@@ -23,7 +23,7 @@ const EVM: IAttestationKey = {
   version: '1.2.0',
   profile: 'default',
   evmVersion: 'cancun',
-  viaIR: true,
+  viaIR: false,
   optimizerRuns: 1000000,
   solcVersion: '0.8.29',
 }
@@ -35,7 +35,7 @@ const ZK_TOOLCHAIN = {
   llvmVersion: '1.0.2',
 }
 
-const ZK: IAttestationKey = { ...EVM, zk: ZK_TOOLCHAIN }
+const ZK: IAttestationKey = { ...EVM, profile: 'zksync', zk: ZK_TOOLCHAIN }
 
 const HASH_A = `0x${'aa'.repeat(32)}`
 const HASH_B = `0x${'bb'.repeat(32)}`
@@ -57,7 +57,7 @@ describe('serialiseAttestationKey', () => {
       ['version', { ...EVM, version: '1.2.1' }],
       ['profile', { ...EVM, profile: 'ci' }],
       ['evm version', { ...EVM, evmVersion: 'prague' }],
-      ['pipeline', { ...EVM, viaIR: false }],
+      ['pipeline', { ...EVM, viaIR: true }],
       ['optimizer runs', { ...EVM, optimizerRuns: 200 }],
       ['optimizer off', noOptimizer],
       ['solc version', { ...EVM, solcVersion: '0.8.30' }],
@@ -92,6 +92,14 @@ describe('serialiseAttestationKey', () => {
     expect(serialiseAttestationKey(ZK)).not.toContain('3:evm')
   })
 
+  it('files one build under one key when the evm version drifts in case', () => {
+    // `lineage-scope.ts` reads this from `foundry.toml` and a hand-built key
+    // reads it from `networks.json`; `cancun` and `Cancun` are one build.
+    expect(serialiseAttestationKey({ ...EVM, evmVersion: 'Cancun' })).toBe(
+      serialiseAttestationKey(EVM)
+    )
+  })
+
   it('writes a marker for an absent optimizer rather than shortening', () => {
     const { optimizerRuns: _dropped, ...noOptimizer } = EVM
 
@@ -119,21 +127,52 @@ describe('serialiseAttestationKey', () => {
 })
 
 describe('buildSettingsFromMetadata', () => {
+  // Verbatim shape of metadata.settings in all 193 artifacts of a real out/
+  // tree: solc emits viaIR only when the pipeline ran, so a legacy build
+  // carries no viaIR key. `jq '{viaIR}'` renders that absence as null, which
+  // is why the null reading is easy to arrive at and wrong.
   const SETTINGS = {
     evmVersion: 'cancun',
-    viaIR: null,
     optimizer: { enabled: true, runs: 1000000 },
   }
 
-  it('reads solc null viaIR as a legacy build', () => {
-    // What a real artifact carries: solc writes null, not false, for a pipeline
-    // that did not run. Two producers each mapping that themselves is the bug
-    // this helper exists to hold in one place.
+  it('reads an absent viaIR as a legacy build', () => {
     expect(buildSettingsFromMetadata(SETTINGS)).toEqual({
       evmVersion: 'cancun',
       viaIR: false,
       optimizerRuns: 1000000,
     })
+  })
+
+  it('reads an explicit null or false viaIR as a legacy build', () => {
+    // A JSON reader that fills absent keys hands over null rather than nothing,
+    // and solc's own build-info writes false, so all three reach a producer.
+    for (const viaIR of [null, false])
+      expect(
+        buildSettingsFromMetadata({ ...SETTINGS, viaIR }).viaIR,
+        String(viaIR)
+      ).toBe(false)
+  })
+
+  it('refuses a build whose optimizer details the key cannot express', () => {
+    // solc drops `enabled` from its output whenever details are given, so
+    // reading its absence as off would key an optimized build as `noopt` and
+    // collide it with an unoptimized one.
+    expect(() =>
+      buildSettingsFromMetadata({
+        evmVersion: 'cancun',
+        optimizer: { runs: 1000000, details: { peephole: false, yul: false } },
+      })
+    ).toThrow('optimizer details')
+  })
+
+  it('refuses an optimizer that does not say whether it ran', () => {
+    expect(() =>
+      buildSettingsFromMetadata({
+        evmVersion: 'cancun',
+        optimizer: { runs: 1000000 },
+      })
+    ).toThrow('whether the optimizer ran')
   })
 
   it('reads an IR build as viaIR', () => {
@@ -249,15 +288,32 @@ describe('sourceClosureHash', () => {
     ).toBe(sourceClosureHash([{ path: 'src/Facets/A.sol', keccak: HASH_A }]))
   })
 
-  it('refuses a source hash that is not framed hex', () => {
-    // Without the frame check an unset or garbled hash hashes into the closure
-    // without complaint, and the audit bridge points at a plausible-looking
-    // digest of nonsense.
-    for (const keccak of ['', '0x', 'nope', `${HASH_A}a`])
+  it('refuses a source hash that is not a keccak digest', () => {
+    // Without this an unset or garbled hash hashes into the closure without
+    // complaint, and the audit bridge points at a plausible-looking digest of
+    // nonsense. The wrong-length cases are the realistic ones — a sliced hash,
+    // or an address in a hash slot — and a framing check alone accepts them.
+    for (const keccak of [
+      '',
+      '0x',
+      'nope',
+      `${HASH_A}a`,
+      '0xdeadbeef',
+      `0x${'11'.repeat(20)}`,
+      `0x${'aa'.repeat(33)}`,
+    ])
       expect(
         () => sourceClosureHash([{ path: 'src/Facets/A.sol', keccak }]),
         keccak
       ).toThrow('source hash for src/Facets/A.sol')
+  })
+
+  it('refuses an entry that names no path', () => {
+    // The path is the other half of the pair, and a nameless entry silently
+    // becomes a closure member no audit can be traced back to.
+    expect(() => sourceClosureHash([{ path: '', keccak: HASH_A }])).toThrow(
+      'no path'
+    )
   })
 })
 
@@ -270,6 +326,17 @@ describe('findAttestationConflicts', () => {
 
     expect(conflicts).toHaveLength(1)
     expect(conflicts[0]?.maskedHashes).toEqual([HASH_A, HASH_B])
+  })
+
+  it('reports the hashes in the order found, not sorted', () => {
+    // The field is documented as first-seen order, and every other fixture
+    // here happens to feed ascending hashes, where a sort is indistinguishable.
+    const conflicts = findAttestationConflicts([
+      minted(EVM, HASH_B),
+      minted(EVM, HASH_A),
+    ])
+
+    expect(conflicts[0]?.maskedHashes).toEqual([HASH_B, HASH_A])
   })
 
   it('names the conflicting build structurally, not only serialised', () => {
@@ -322,12 +389,15 @@ describe('findAttestationConflicts', () => {
     ).toEqual([])
   })
 
-  it('refuses an attestation whose hashes are not framed hex', () => {
+  it('refuses an attestation whose hashes are not keccak digests', () => {
     expect(() => findAttestationConflicts([minted(EVM, 'nope')])).toThrow(
       'masked hash is not hex in the attestation for CBridgeFacet'
     )
     expect(() => findAttestationConflicts([minted(EVM, HASH_A, '0x')])).toThrow(
       'source closure hash is empty'
+    )
+    expect(() => findAttestationConflicts([minted(EVM, '0xdeadbeef')])).toThrow(
+      'masked hash is not 32 bytes'
     )
   })
 })
