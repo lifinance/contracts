@@ -257,7 +257,7 @@ const main = defineCommand({
             }
           } catch (error) {
             consola.error(
-              `[${network.name}] Failed to store transaction in MongoDB: ${error}`
+              `[${network.name}] Failed to propose the transaction to the Safe: ${error}`
             )
             throw error
           }

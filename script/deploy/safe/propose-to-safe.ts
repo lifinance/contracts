@@ -305,7 +305,7 @@ export async function _runPropose(
       provenance: { ticket: options.ticket, reason: options.reason },
     })
   } catch (error) {
-    consola.error('Failed to store transaction in MongoDB:', error)
+    consola.error('Failed to propose the transaction to the Safe:', error)
     throw error
   } finally {
     await mongoClient.close()
