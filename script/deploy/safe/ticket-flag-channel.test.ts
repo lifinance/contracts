@@ -37,7 +37,9 @@ const TIMEOUT_MS = 20_000
  * is unclassified, and the last case fails on it. `flag: false` records which
  * channel a funnel offers today, not which one it could offer. `call` is
  * matched verbatim, so forwarding the wrong value is a failure and not merely
- * forwarding nothing.
+ * forwarding nothing. `asserts: false` marks the funnel that resolves the
+ * intent itself instead of calling `assertTicketPresent`, so the caller grep
+ * must not expect to find it.
  */
 const FUNNELS = [
   { script: 'deploy/safe/propose-to-safe.ts', flag: true, asserts: false },
@@ -130,15 +132,21 @@ const runRefused = (
   const output = `${result.stdout.toString()}${result.stderr.toString()}`
 
   // Detects a breach, does not prevent one — the isolation above is what does
-  // that. Both lines print after the act they report, so this fails the run
-  // afterwards rather than stopping it; it exists so a dummy row in the live
-  // proposal queue can never be mistaken for a passing suite.
+  // that. Every line printed here follows the act it reports, so this fails the
+  // run afterwards rather than stopping it; it exists so a dummy row in the
+  // live proposal queue can never be mistaken for a passing suite.
   //
-  // Keyed on this funnel's own success lines, which have to be unsatisfiable
-  // by the refusal text sitting beside them — the refusal itself contains the
-  // words "Safe proposal", so a predicate on those fires on every case and
-  // fails the runs it exists to protect.
-  if (/Transaction proposed|network\(s\) processed successfully/i.test(output))
+  // Carries a line for each funnel spawned below, including the signing step
+  // that precedes the store on `add-safe-owners-and-threshold.ts` — a spent
+  // signature is already a breach. Each has to be unsatisfiable by the refusal
+  // text sitting beside it: the refusal itself contains the words "Safe
+  // proposal", so a predicate on those would fire on every case and fail the
+  // runs it exists to protect.
+  if (
+    /Transaction proposed|network\(s\) processed successfully|Transaction signed|successfully stored in MongoDB/i.test(
+      output
+    )
+  )
     throw new Error(
       'a probe reached a real Safe or proposal store — the child environment is not isolated'
     )
@@ -153,11 +161,11 @@ const runRefused = (
   return output
 }
 
-// `unpauseAllDiamonds.ts` is the funnel this can be shown on end to end: its
-// check sits before any Safe client, and a refused value keeps the run off the
-// proposing branch entirely. The first case is the pair for the rest — it says
-// the environment is genuinely empty, so a later refusal naming a URL cannot
-// have been satisfied by a value arriving from anywhere but the flag.
+// Both funnels whose check is reachable without proposing are spawned here:
+// each check sits before any Safe client, so a refused value keeps the run off
+// the proposing branch entirely. The first case is the pair for the rest — it
+// says the environment is genuinely empty, so a later refusal naming a URL
+// cannot have been satisfied by a value arriving from anywhere but the flag.
 describe('a funnel that offers --ticket reads it', () => {
   const REFUSED_URL = 'https://example.com/issue/EXSC-1'
   const PRODUCTION_MAINNET = [
@@ -217,13 +225,13 @@ describe('a funnel that offers --ticket reads it', () => {
   })
 })
 
-// The remaining funnels are checked on their source rather than by spawning
-// them: `add-safe-owners-and-threshold.ts` and the Tron funnel both propose for
-// real once a ticket parses, and neither has a branch that reads the flag
-// without heading for a proposal. A source check passes against a rewrite of
-// the same bug, so these assert only the shape the flag has to travel in —
-// declared, and forwarded to the check — and the last case makes an
-// unclassified funnel fail rather than pass.
+// The source side of the classification, over every funnel including the two
+// spawned above. It is the only cover the Tron funnel gets — its check sits
+// past the timelock reads inside `runPropose`, so reaching it costs a live
+// chain. A source check passes against a rewrite of the same bug, so these
+// assert only the shape the flag has to travel in — declared, forwarded to the
+// check, and given no `default` — and the last case makes an unclassified
+// funnel fail rather than pass.
 describe('every funnel is classified, and the classification matches its source', () => {
   it.each(FUNNELS.filter((funnel) => funnel.flag).map((f) => f.script))(
     '%s declares a ticket argument',
@@ -253,6 +261,9 @@ describe('every funnel is classified, and the classification matches its source'
       if ('hop' in funnel) expect(text).toContain(funnel.hop)
     }
 
+    // A second environment-only funnel would be a decision about where the flag
+    // stops, not a detail: the cases above would still pass, and only this one
+    // asks for it to be argued in §4.2 before the table records it.
     expect(asserting.filter((funnel) => !funnel.flag).length).toBe(1)
   })
 
