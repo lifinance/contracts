@@ -22,6 +22,11 @@ import { createDefaultCache } from '../shared/deployment-cache'
 import { sanitizeProvenanceText } from '../shared/git-provenance'
 import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
 
+import {
+  createCheckLedger,
+  recordCheck,
+  type ICheckLedger,
+} from './check-ledger'
 import { readBooleanFlag, readValueFlag } from './cli-flags'
 import {
   assertCodehashSignGateAllowsSigning,
@@ -37,6 +42,10 @@ import {
   createSignTimeCodehashDeps,
   type ISignTimeCodehashDeps,
 } from './codehash-sign-gate-deps'
+import {
+  CONFIRM_CHECK_DEFINITIONS,
+  targetStateCheckResult,
+} from './confirm-check-registry'
 import {
   buildAcknowledgementKey,
   buildProposalKey,
@@ -73,6 +82,7 @@ import {
   type ITargetStateVerdict,
 } from './pinned-target-state'
 import { reconcileAllSubmittedSafeTxs } from './reconcile'
+import { renderCheckLedger } from './render-check-ledger'
 import {
   formatDecodedTxDataForDisplay,
   getTargetName,
@@ -121,6 +131,11 @@ const getCodehashDeps = (): ISignTimeCodehashDeps => {
 
 // Acknowledgements roll up across networks so a fleet-wide rollout is reviewed
 // once; the operator's chosen action is never remembered.
+// Created once the run's network set is known, because the ledger's
+// denominator is that set: a check that never ran on a network must show as a
+// missing row rather than shrink the total it is measured against.
+let checkLedger: ICheckLedger | undefined
+
 const acknowledgementLedger = createAcknowledgementLedger()
 const networkOutcomes: INetworkOutcome[] = []
 
@@ -517,6 +532,8 @@ const processTxs = async (
     // Target-state lines are graded here, not inside the sanitising detail
     // block: they are computed verdicts, not stored proposer-controlled fields.
     for (const line of formatTargetStateLines(targetState)) consola.info(line)
+    if (checkLedger)
+      recordCheck(checkLedger, targetStateCheckResult(targetState, network))
 
     // The struct the signature covers, never the stored row: createTransaction
     // normalises an absent operation to Call, so those two copies can disagree.
@@ -1254,6 +1271,13 @@ const main = defineCommand({
           })
       }
 
+      checkLedger = createCheckLedger({
+        expectedNetworks: networks.filter((network): network is string =>
+          Boolean(network)
+        ),
+        checks: [...CONFIRM_CHECK_DEFINITIONS],
+      })
+
       for (let i = 0; i < networks.length; i++) {
         const network = networks[i]
         if (!network) continue
@@ -1341,6 +1365,11 @@ const main = defineCommand({
       // if the run succeeded.
       const executionsFailed =
         globalFailedExecutions.length > 0 || globalTimeoutExecutions.length > 0
+
+      // Before the change summary: the ledger says whether the run may proceed,
+      // and the roll-up below only counts what the operator acted on.
+      if (checkLedger && checkLedger.results.length > 0)
+        renderCheckLedger(checkLedger).forEach((line) => consola.info(line))
 
       if (networkOutcomes.length > 0) {
         consola.info('=== Change Review Summary ===')
