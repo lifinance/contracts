@@ -18,7 +18,8 @@
 import { spawnSync } from 'child_process'
 import { existsSync, mkdirSync, readFileSync, rmSync } from 'fs'
 import { tmpdir } from 'os'
-import { join } from 'path'
+import { dirname, join } from 'path'
+import { fileURLToPath } from 'url'
 
 import { MongoClient } from 'mongodb'
 import { createPublicClient, http, type Address } from 'viem'
@@ -54,7 +55,12 @@ const FULL_SHA = /^[0-9a-f]{40}$/
 const UNKNOWN_COMMIT = 'UNKNOWN'
 
 /** Repo root, resolved from this module so a caller's cwd cannot change it. */
-const REPO_ROOT = join(import.meta.dir, '..', '..', '..')
+const REPO_ROOT = join(
+  dirname(fileURLToPath(import.meta.url)),
+  '..',
+  '..',
+  '..'
+)
 
 export interface IToolchainConfig {
   networks: Record<string, { targetEvmVersion: string; isZkEVM: boolean }>
