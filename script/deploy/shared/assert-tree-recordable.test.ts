@@ -28,6 +28,9 @@ const REPO_ROOT = join(import.meta.dir, '..', '..', '..')
 const SEAM = 'script/deploy/shared/assertTreeRecordable.sh'
 const CLI = join(import.meta.dir, 'assert-tree-recordable.ts')
 
+/** Room for a real clone plus the CLI's own 5s git timeout. */
+const HANG_CASE_TIMEOUT_MS = 60_000
+
 const readScript = (relativePath: string): string =>
   readFileSync(join(REPO_ROOT, relativePath), 'utf8')
 
@@ -236,8 +239,15 @@ const makePushedClone = (): string => {
  * @returns The CLI's own exit status. Never taken after a pipe, where `$?`
  * would be the last filter's status instead.
  */
-const runCli = (cwd: string): number | null =>
-  spawnSync(process.execPath, [CLI], { cwd, encoding: 'utf8' }).status
+const runCli = (cwd: string, stubDir?: string): number | null =>
+  spawnSync(process.execPath, [CLI], {
+    cwd,
+    encoding: 'utf8',
+    env:
+      stubDir === undefined
+        ? process.env
+        : { ...process.env, PATH: `${stubDir}:${process.env.PATH ?? ''}` },
+  }).status
 /**
  * Puts a `git` on PATH that fails for one subcommand.
  *
@@ -252,6 +262,23 @@ const gitFailingFor = (subcommand: string): string => {
   writeFileSync(
     join(stubDir, 'git'),
     `#!/bin/bash\n[ "$1" = "${subcommand}" ] && exit 128\nexec ${real} "$@"\n`
+  )
+  chmodSync(join(stubDir, 'git'), 0o755)
+  return stubDir
+}
+
+/**
+ * Puts a `git` on PATH that never returns for one subcommand.
+ *
+ * @param subcommand - Matched at the subcommand position only, as above.
+ * @returns The stub directory to prepend to PATH.
+ */
+const gitHangingFor = (subcommand: string): string => {
+  const stubDir = mkdtempSync(join(tmpdir(), 'tree-recordable-hang-'))
+  const real = execFileSync('which', ['git'], { encoding: 'utf8' }).trim()
+  writeFileSync(
+    join(stubDir, 'git'),
+    `#!/bin/bash\n[ "$1" = "${subcommand}" ] && exec sleep 120\nexec ${real} "$@"\n`
   )
   chmodSync(join(stubDir, 'git'), 0o755)
   return stubDir
@@ -303,7 +330,7 @@ describe('the CLI against real git state', () => {
     expect(runCli(clone)).toBe(0)
   })
 
-  it('refuses a commit that is on no remote branch', () => {
+  it('refuses a commit no repository can be shown to hold', () => {
     const clone = makePushedClone()
     writeFileSync(join(clone, 'src/Facet.sol'), 'committed but unpushed\n')
     execFileSync('git', ['commit', '-am', 'unpushed'], {
@@ -329,10 +356,92 @@ describe('the CLI against real git state', () => {
     expect(runCli(shallowCloneOf(makePushedClone()))).toBe(0)
   })
 
+  /**
+   * Puts a `gh` on PATH that answers one `gh api` call.
+   *
+   * @param answer - Exit status, plus what to print on stdout and stderr.
+   * @returns The stub directory to prepend to PATH.
+   */
+  const ghAnswering = (answer: {
+    status: number
+    stdout?: string
+    stderr?: string
+  }): string => {
+    const stubDir = mkdtempSync(join(tmpdir(), 'tree-recordable-gh-'))
+    // Streamed from files rather than interpolated into `echo`, so a payload
+    // carrying the quotes and braces a real API error body has reaches the
+    // process unmangled.
+    writeFileSync(join(stubDir, 'stdout'), `${answer.stdout ?? ''}\n`)
+    writeFileSync(join(stubDir, 'stderr'), `${answer.stderr ?? ''}\n`)
+    writeFileSync(
+      join(stubDir, 'gh'),
+      `#!/bin/bash\nhere="$(dirname "$0")"\ncat "$here/stdout"\ncat "$here/stderr" >&2\nexit ${answer.status}\n`
+    )
+    chmodSync(join(stubDir, 'gh'), 0o755)
+    return stubDir
+  }
+
+  /**
+   * A clone whose HEAD no remote-tracking ref holds, declaring a queryable
+   * repository — the shape a squash-merged commit leaves behind, and the only
+   * shape in which the presence query decides the verdict.
+   *
+   * @returns The clone root.
+   */
+  const commitOnNoLocalRemoteRef = (): string => {
+    const clone = makePushedClone()
+    execFileSync(
+      'git',
+      [
+        'remote',
+        'set-url',
+        'origin',
+        'https://github.com/lifinance/example.git',
+      ],
+      { cwd: clone, stdio: 'pipe' }
+    )
+    writeFileSync(join(clone, 'src/Facet.sol'), 'on no local remote ref\n')
+    execFileSync('git', ['commit', '-am', 'unpushed'], {
+      cwd: clone,
+      stdio: 'pipe',
+    })
+    return clone
+  }
+
+  it('accepts a commit no local ref holds once the declared repository does', () => {
+    const clone = commitOnNoLocalRemoteRef()
+    const head = execFileSync('git', ['rev-parse', 'HEAD'], {
+      cwd: clone,
+      encoding: 'utf8',
+    }).trim()
+
+    expect(runCli(clone, ghAnswering({ status: 0, stdout: head }))).toBe(0)
+    // Paired negative: the same tree refuses when nothing answers for it, so
+    // the acceptance above is the query's doing and not a vacuous pass.
+    expect(
+      runCli(clone, ghAnswering({ status: 1, stderr: 'gh: broken' }))
+    ).toBe(1)
+  })
+
+  it('refuses when the declared repository holds no such commit', () => {
+    expect(
+      runCli(
+        commitOnNoLocalRemoteRef(),
+        ghAnswering({
+          status: 1,
+          // Real `gh` prints the API's error body on stdout as well, measured
+          // against this repository: the classification must not be reachable
+          // by reading stdout before the status.
+          stdout: '[{"message":"No commit found for SHA","status":"422"}]',
+          stderr: 'gh: No commit found for SHA (HTTP 422)',
+        })
+      )
+    ).toBe(1)
+  })
+
   it('refuses a shallow clone once HEAD moves off the fetched tip', () => {
-    // Here a negative `--contains` cannot be trusted: the commit graph is
-    // truncated, so "no remote branch has it" and "I cannot see that far" are
-    // the same answer.
+    // The clone declares a `file://` remote, which no presence query can ask,
+    // so the verdict is UNKNOWN — and UNKNOWN refuses.
     const target = shallowCloneOf(makePushedClone())
     execFileSync('git', ['config', 'user.email', 't@e.c'], {
       cwd: target,
@@ -468,6 +577,31 @@ describe('the CLI when git itself cannot answer', () => {
     expect(result.status).toBe(1)
     expect(`${result.stdout}${result.stderr}`).toContain('could not be read')
   })
+
+  it(
+    'refuses within the timeout when git hangs, rather than blocking the deploy',
+    () => {
+      // A production deploy waits on this gate, so an unbounded git read would
+      // stall the deploy indefinitely. Bounded, the read fails and the tree
+      // reads as unreadable — a refusal, never a pass.
+      const started = Date.now()
+      const result = spawnSync(process.execPath, [CLI], {
+        cwd: makePushedClone(),
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          PATH: `${gitHangingFor('status')}:${process.env.PATH}`,
+        },
+      })
+
+      expect(result.status).toBe(1)
+      expect(`${result.stdout}${result.stderr}`).toContain('could not be read')
+      // Well inside the stub's 120s sleep: without a timeout this case cannot
+      // finish at all.
+      expect(Date.now() - started).toBeLessThan(30_000)
+    },
+    HANG_CASE_TIMEOUT_MS
+  )
 })
 
 describe('the deploy script’s refusal branch', () => {
