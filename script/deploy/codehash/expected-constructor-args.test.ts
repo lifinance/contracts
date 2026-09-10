@@ -19,7 +19,10 @@ import {
 import type { IDeployRequirementEntry } from '../shared/immutableBindings'
 
 import { deriveExpectedConstructorArgs } from './expected-constructor-args'
-import type { IConstructorInput } from './expected-constructor-args'
+import type {
+  ExpectedArgs,
+  IConstructorInput,
+} from './expected-constructor-args'
 
 const SPOKE_POOL = '0x5c7BCd6E7De5423a257D81B442095A1a6ced35C5'
 const WRAPPED_NATIVE = '0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2'
@@ -68,7 +71,7 @@ const derive = (over: {
   config?: Record<string, unknown>
   recordedArgs?: string
   network?: string
-}) =>
+}): ExpectedArgs =>
   deriveExpectedConstructorArgs(
     {
       contractName: over.contractName ?? 'AcrossFacet',

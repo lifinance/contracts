@@ -27,6 +27,7 @@ import type {
   IConstructorReplayDeps,
   IReplayRequest,
   ReplayOutcome,
+  ReplayVerification,
 } from './constructor-replay'
 import type { ExpectedArgs } from './expected-constructor-args'
 import { normalizeRuntimeCode } from './rebuild-attestations'
@@ -128,7 +129,7 @@ const verify = (
   deps: IConstructorReplayDeps,
   attestedBuilds: IAttestedBuild[],
   expectedArgs: ExpectedArgs = DERIVED
-) =>
+): Promise<ReplayVerification> =>
   verifyByConstructorReplay(
     {
       observedRuntimeCode,
