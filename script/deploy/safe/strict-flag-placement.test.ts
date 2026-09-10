@@ -22,6 +22,8 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
+import { withholdCredentials } from './spawn-env'
+
 const REFUSAL = "accepts no value, 'true' or 'false'"
 
 /**
@@ -59,9 +61,7 @@ const run = (script: string, args: string[]): string => {
   }
   // `bun test` sets NODE_ENV=test; these children are exercised as CLIs.
   delete env.NODE_ENV
-  // Withheld so a child that runs past the reader cannot reach a signature.
-  delete env.PRIVATE_KEY
-  delete env.PRIVATE_KEY_PRODUCTION
+  withholdCredentials(env)
 
   const result = Bun.spawnSync(
     [process.execPath, join(import.meta.dir, '..', '..', script), ...args],

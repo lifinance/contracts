@@ -85,6 +85,11 @@ const main = defineCommand({
       description:
         'Target environment: production (default) or staging. Staging skips the Safe/MongoDB flow and sends directly to the diamond.',
     },
+    ticket: {
+      type: 'string',
+      description:
+        'Linear issue link or id (e.g. EXSC-123). Required — a proposal is not created without one. Falls back to SAFE_PROPOSAL_TICKET.',
+    },
   },
   async run({ args }) {
     const blacklist = args.blacklist
@@ -128,7 +133,7 @@ const main = defineCommand({
     // one. Checked here rather than at the store because Pass 2 signs on every
     // production mainnet in turn, and the store-time refusal would spend a
     // signature per network before failing.
-    if (mainnets.length > 0) assertTicketPresent()
+    if (mainnets.length > 0) assertTicketPresent(args.ticket)
 
     // Pass 1: direct-send networks (testnets always; all networks when staging).
     const failures: { network: string; error: string }[] = []
@@ -243,6 +248,7 @@ const main = defineCommand({
                 data: calldata,
                 nonce: nextNonce,
               },
+              provenance: { ticket: args.ticket },
             })
 
             if (!stored)

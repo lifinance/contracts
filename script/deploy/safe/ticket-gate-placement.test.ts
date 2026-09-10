@@ -19,6 +19,8 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
+import { withholdCredentials } from './spawn-env'
+
 const REFUSAL = 'No Linear ticket supplied'
 
 /** 20 seconds: long enough to reach the gate, short enough that a run past it is cheap. */
@@ -39,11 +41,10 @@ const run = (
   // local value through process.env. Cleared, or a developer's own decides these.
   delete env.SAFE_PROPOSAL_TICKET
   if (ticket !== undefined) env.SAFE_PROPOSAL_TICKET = ticket
-  // Withheld so a child that runs past the gate cannot reach a signature. One
-  // case below asserts a run is NOT refused, which means letting it go on to a
-  // branch that sends directly.
-  delete env.PRIVATE_KEY
-  delete env.PRIVATE_KEY_PRODUCTION
+  // One case below asserts a run is NOT refused, which means letting it go on to
+  // a branch that sends directly — with a real key that branch signs, and with a
+  // real store URI the pass after it proposes.
+  withholdCredentials(env)
 
   const result = Bun.spawnSync(
     [process.execPath, join(import.meta.dir, '..', '..', script), ...args],

@@ -52,11 +52,14 @@ invariant must be added, adjusted, or removed. Use this checklist:
   compiler AST for the deployed source trees (`src/Facets`, `src/Periphery`, `src/Security`)
   and fails on any public immutable address getter that is neither annotated nor listed in
   `script/deploy/immutables/getter-exemptions.json` with a reason.
-  Annotating is the expected fix — exempt a getter only when no config file holds a value to
-  compare it against (a LI.FI-deployed contract read from the deploy log, or an operated wallet).
-  The list may only shrink: the same suite fails on an exemption that has since been annotated
-  or whose getter no longer exists. The gate sees only getters that exist, so it cannot force a
-  binding to become readable — `101-solidity-contracts.md` carries that requirement.
+  Annotating is the expected fix. Exempt a getter only when no config file holds a value to
+  compare it against (a LI.FI-deployed contract read from the deploy log, or an operated wallet),
+  or when the invariant cannot express the expectation — in which case the reason names the
+  blocking ticket. Naming it is a review expectation, not a validated one: the suite reads the
+  reason only to check it is non-empty, and rejects an exemption that carries none, one whose
+  getter has since been annotated, and one whose getter no longer exists. The gate sees only
+  getters that exist, so it cannot force a binding to become readable — `101-solidity-contracts.md`
+  carries that requirement.
 - **Struct, authorization, or owner semantics changed** → adjust the affected invariant so
   its assertion still matches on-chain reality (e.g. a changed expected owner, a new
   authorized selector, a renamed getter). Renaming a public getter that a
