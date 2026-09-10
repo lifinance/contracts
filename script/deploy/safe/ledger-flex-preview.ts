@@ -182,11 +182,12 @@ const HEX_CALLDATA = /^0x[0-9a-f]*$/iu
  * the device's ~6-row preview budget.
  *
  * The field arrives as the row stored it, not as `Hex`: nothing coerces it on
- * the way here, and the panel neither strips nor even measures a control
- * character — `frameLine` clips at 20 characters and `ESC[2J` is four, so an
- * escape passes through inside a row that still looks the right width. This
- * filmstrip is the artefact the signer is told to compare against the physical
- * device, so text injected into it attacks the verification step itself.
+ * the way here, and the panel's own geometry settles nothing — `frameLine`
+ * clips at 20 characters and `ESC[2J` is four, so an escape would sit inside a
+ * row that still measures the right width. Hence the primitive below rather
+ * than the wrapping. This filmstrip is the artefact the signer is told to
+ * compare against the physical device, so text injected into it attacks the
+ * verification step itself.
  *
  * A value that is not `0x`-prefixed hex is reported rather than repaired: which
  * bytes the row holds is the whole question here, so nothing may quietly change

@@ -650,6 +650,33 @@ describe('formatDecodedTxDataForDisplay renders no proposer-controlled text raw'
     // recursion rather than about the batch header alone.
     expect(lines.some((line) => line.includes('Periphery Name:'))).toBe(true)
   })
+
+  it('bounds a decoded function name the 4byte lookup supplied', async () => {
+    // `decodeTransactionData` feeds a 4byte-sourced signature into `parseAbi`,
+    // so a *decoded* `functionName` is remote text too, and the proposer picks
+    // which of it is fetched by picking the selector. A no-argument signature
+    // is what reaches the decoded arm: `decodeFunctionData` succeeds on
+    // selector-only calldata, where a parameterised one falls through to the
+    // undecoded arm and would assert about a different line.
+    const sig = `${'a'.repeat(300)}()`
+    const selector = toFunctionSelector(sig)
+    globalThis.fetch = (() =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            ok: true,
+            result: { function: { [selector.toLowerCase()]: [{ name: sig }] } },
+          }),
+      })) as unknown as typeof fetch
+
+    const line = (await render(selector)).find((text) =>
+      text.includes('Function:')
+    )
+
+    expect(line).toContain('clipped for display — stored 300, shown 120')
+    expect(line).not.toContain('a'.repeat(121))
+  })
 })
 
 describe('formatTimelockScheduleBatch — driven by the stored row', () => {

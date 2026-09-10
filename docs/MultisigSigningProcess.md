@@ -624,13 +624,22 @@ Honest list — the tooling displays these, but does **not** machine-assert them
 - **Unknown selectors.** Names for selectors without a local ABI come from
   the external `api.4byte.sourcify.dev` database. The name is sanitised and
   bounded before it is printed, but nothing vouches for what it says.
-- **Confusable characters.** Every stored field the prompt shows is reduced to
+- **Confusable characters.** In the transaction detail block, the decoded
+  calldata display and the Ledger filmstrip, every stored field is reduced to
   printable text and annotated with a `⚠` notice naming what had to be repaired
   — how many characters were stored against how many are printable, invisible
   characters that survived, and how many code points are outside ASCII. The
   notice is the signal: a facet name written with a Cyrillic `о` is
   byte-different and glyph-identical, so the count is all that distinguishes it.
-  A field with no notice needed no repair.
+  Within those three, a field with no notice needed no repair.
+
+  **This does not cover the whole prompt.** The provenance block, the
+  delegatecall refusal and the check-ledger report clean their values with a
+  bare `sanitizeProvenanceText`: control characters are stripped, so nothing
+  there can drive the terminal, but no count and no notice is printed. On those
+  lines the absence of a notice is not evidence that the value was unrepaired,
+  and `proposerHandle`, `gitBranch` and `prUrl` are not length-bounded either.
+  Tracked as EXSC-986.
 
   Fields are also bounded in length, with one deliberate exception: the calldata
   is never clipped, because clipping it would remove the thing the signer is
