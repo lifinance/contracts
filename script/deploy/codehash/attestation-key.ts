@@ -7,48 +7,60 @@
  * lets two different builds share one key, and then the set-membership compare
  * in `attested-set.ts` is answering about a build the deployed code is not.
  *
- * Three properties the fleet sweep made non-negotiable:
+ * Four properties the fleet sweep made non-negotiable:
  *
- * - **`viaIR` and the zk toolchain belong in the key.** The solc fork and LLVM
- *   version float independently of `zkSolcVersion`, so a zk build is not
- *   identified by its zksolc version alone (F14).
- * - **The compiler settings are named, never proxied by the profile.** A
- *   profile name survives a retune of the profile it names, so a key holding
- *   only the name stays byte-identical while every masked hash moves. Two
- *   builds under one key are visible to `findAttestationConflicts` only while
- *   both are still filed; once the older is pruned the survivor silently
- *   answers lookups for both.
- * - **The audit bridge is profile-independent.** `sourceClosureHash` is taken
- *   over the source closure only, never the settings, so the same sources
- *   compiled under two profiles bridge to the same audit (E1).
+ * - **The settings are hashed whole, never enumerated.** A field list has to
+ *   stay complete against every compiler release, and the failure of an
+ *   incomplete one is silent and in the unsafe direction. `metadata.settings`
+ *   is hashed as the compiler emitted it, so a setting nobody has heard of yet
+ *   is covered the day it appears.
+ * - **`solcVersion` and the zk toolchain are named separately.** They are not
+ *   in `metadata.settings`, and the solc fork and LLVM version float
+ *   independently of `zksolcVersion`, so a zk build is not identified by its
+ *   zksolc version alone (F14).
+ * - **A contract's name does not identify its source.** Two unrelated `IPool`
+ *   contracts exist in `src/Periphery/`, and one contract name exists in both
+ *   repos with different code, so `sourceId` and `repo` are part of the key.
+ * - **The audit bridge is settings-independent.** `sourceClosureHash` is taken
+ *   over the source closure only, so the same sources compiled under two
+ *   settings bridge to the same audit (E1).
  */
 
 import { keccak256, stringToHex } from 'viem'
 
 import { digestFault, normalizeHash } from './hex'
 
-/** A toolchain and settings combination a build can be produced under. */
+/** Which repo produced a build; the minter runs in both. */
+export type BuildRepo = 'contracts' | 'contracts-tron'
+
+/**
+ * Where a build's settings were read from.
+ *
+ * Part of the key rather than a note beside it. zksolc records no settings at
+ * all, so a zk build's come from repo configuration — a claim about what we
+ * asked for, not a report of what ran. A key that did not separate the two
+ * would let a configured claim answer a lookup about a self-reported build.
+ */
+export type SettingsSource = 'artifact' | 'config'
+
+/** What a build is identified by. Everything here can change the bytecode. */
 export interface IAttestationKey {
   /** Contract name as the artifact records it. */
   contractName: string
+  /**
+   * Source unit the contract was compiled from, e.g. `src/Facets/A.sol`. Taken
+   * from `metadata.settings.compilationTarget`, which is the only thing in the
+   * artifact that distinguishes two contracts sharing a name.
+   */
+  sourceId: string
+  /** Repo the build ran in; one source path exists in both with different code. */
+  repo: BuildRepo
   /** Version the contract declares, e.g. `1.2.0`. */
   version: string
-  /** Foundry profile the build ran under, e.g. `default`. */
-  profile: string
-  /** EVM version the build targeted, e.g. `cancun`. */
-  evmVersion: string
-  /**
-   * Whether the build went through the IR pipeline. Required rather than
-   * optional: absent and `false` are the same build only by coincidence, and a
-   * key that omits it silently merges an IR build with a legacy one.
-   */
-  viaIR: boolean
-  /**
-   * Optimizer run count, absent when the optimizer did not run. Absent rather
-   * than zero because a run count cannot move bytecode the optimizer never
-   * touched, so two such builds must not be filed under different keys.
-   */
-  optimizerRuns?: number
+  /** {@link buildSettingsHash} over the settings the build ran under. */
+  settingsHash: string
+  /** Whether those settings were self-reported or configured. */
+  settingsSource: SettingsSource
   /** solc version, read from the build's own trailer rather than a record. */
   solcVersion: string
   /**
@@ -62,76 +74,6 @@ export interface IAttestationKey {
     solcForkVersion: string
     llvmVersion: string
   }
-}
-
-/** The part of solc's `metadata.settings` the key is built from. */
-export interface IMetadataSettings {
-  evmVersion?: string | null
-  /**
-   * solc emits this only when the IR pipeline ran, so a legacy build carries
-   * no `viaIR` key at all. `null` is accepted because that is what a JSON
-   * reader that fills absent keys hands over.
-   */
-  viaIR?: boolean | null
-  optimizer?: {
-    enabled?: boolean | null
-    runs?: number | null
-    /**
-     * Per-step optimizer tuning. solc drops `enabled` from its output whenever
-     * this is supplied, so its presence is also the only signal that `enabled`
-     * is missing for a reason rather than absent from an unoptimized build.
-     */
-    details?: unknown
-  } | null
-}
-
-/**
- * Reads the settings half of a key out of a build artifact's metadata.
- *
- * One place rather than one per producer: an absent `viaIR` and an absent
- * `optimizer.enabled` each have to be resolved to a build, and two producers
- * resolving them separately is the same bug twice.
- *
- * Refuses rather than defaults. Every one of these has a solc default, but
- * assuming one here files the build under a key naming a setting the build may
- * not have used, which is the collision this module exists to prevent.
- * @param settings - `metadata.settings` from the contract's own artifact
- * @returns The EVM version, pipeline and optimizer fields of the key
- * @throws When the artifact does not state a setting that changes the bytecode
- */
-export const buildSettingsFromMetadata = (
-  settings: IMetadataSettings
-): Pick<IAttestationKey, 'evmVersion' | 'viaIR' | 'optimizerRuns'> => {
-  const { evmVersion, viaIR, optimizer } = settings
-  if (evmVersion === undefined || evmVersion === null || evmVersion === '')
-    throw new Error(
-      'build artifact does not state which evmVersion it targeted'
-    )
-  if (optimizer === undefined || optimizer === null)
-    throw new Error('build artifact does not state its optimizer settings')
-
-  // `details` changes the output and no key field can express it, so a build
-  // carrying it must be refused rather than keyed as if it were absent. It is
-  // also why `enabled` alone cannot be read as off: solc omits `enabled`
-  // exactly when `details` is given, and an optimized build keyed `noopt`
-  // would collide with an unoptimized one.
-  if (optimizer.details !== undefined && optimizer.details !== null)
-    throw new Error(
-      'build artifact sets optimizer details, which the attestation key cannot express'
-    )
-  if (optimizer.enabled === undefined || optimizer.enabled === null)
-    throw new Error('build artifact does not state whether the optimizer ran')
-
-  const named = { evmVersion, viaIR: viaIR === true }
-  if (optimizer.enabled !== true) return named
-
-  const { runs } = optimizer
-  if (typeof runs !== 'number')
-    throw new Error(
-      'build artifact enables the optimizer without stating a run count'
-    )
-
-  return { ...named, optimizerRuns: runs }
 }
 
 /**
@@ -150,15 +92,143 @@ const joinFields = (fields: readonly string[]): string =>
   fields.map((field) => `${field.length}:${field}`).join('')
 
 /**
+ * Fields of `metadata.settings` that describe the source, not the settings.
+ *
+ * `compilationTarget` is the source identity and is promoted to
+ * {@link IAttestationKey.sourceId}. `remappings` decide which files an import
+ * resolves to, not what the compiler does with the files it resolved — and the
+ * resolved sources are already covered by {@link sourceClosureHash}, so hashing
+ * remappings here would split the key for identical bytecode after a repo
+ * reorganisation. Nothing else is stripped: the whole point of hashing rather
+ * than enumerating is that this list stays short and justified.
+ */
+const NOT_SETTINGS = ['compilationTarget', 'remappings']
+
+/**
+ * Deterministic JSON: object keys sorted, absent values indistinguishable.
+ *
+ * Two normalisations, both load-bearing. Key order is whatever the emitter
+ * happened to use, so sorting is what makes the hash a function of the content.
+ * `null` values are dropped so a reader that fills absent keys with `null`
+ * agrees with one that omits them — solc emits `viaIR` only when the pipeline
+ * ran, and `{}` and `{viaIR: null}` are the same build.
+ * @param value - Any JSON value
+ * @returns The canonical text form of that value
+ */
+const canonicalJson = (value: unknown): string => {
+  if (Array.isArray(value)) return `[${value.map(canonicalJson).join(',')}]`
+  if (typeof value === 'object' && value !== null) {
+    const entries = Object.entries(value as Record<string, unknown>)
+      .filter(([, v]) => v !== null && v !== undefined)
+      .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+      .map(([k, v]) => `${JSON.stringify(k)}:${canonicalJson(v)}`)
+    return `{${entries.join(',')}}`
+  }
+  return value === undefined ? 'null' : JSON.stringify(value)
+}
+
+/** Settings with the source-describing fields removed, ready to hash. */
+const settingsForHashing = (
+  settings: Record<string, unknown>
+): Record<string, unknown> =>
+  Object.fromEntries(
+    Object.entries(settings).filter(([key]) => !NOT_SETTINGS.includes(key))
+  )
+
+/**
+ * One hash over every setting a build ran under.
+ *
+ * Hashed whole rather than enumerated field by field. A field list has to be
+ * kept complete against every compiler release, and an incomplete one fails
+ * silently in the unsafe direction: the omitted setting changes the bytecode,
+ * the key does not change, and two builds share an entry. Hashing what the
+ * compiler emitted has no such list — `optimizer.details`, `metadata.appendCBOR`
+ * and anything a future release adds are all covered without being named.
+ *
+ * The cost is legibility, which is why {@link IMintedAttestation} carries the
+ * readable settings beside the key for anything a person has to act on.
+ * @param source - Whether the settings were self-reported or configured
+ * @param settings - The settings, as the compiler or the config states them
+ * @returns `0x`-prefixed keccak over the canonical settings
+ * @throws When there are no settings to hash
+ */
+export const buildSettingsHash = (
+  source: SettingsSource,
+  settings: Record<string, unknown>
+): string => {
+  const hashable = settingsForHashing(settings)
+  if (Object.keys(hashable).length === 0)
+    throw new Error('build settings are empty, so they identify no build')
+
+  return keccak256(stringToHex(joinFields([source, canonicalJson(hashable)])))
+}
+
+/** The part of a build a solc artifact reports about itself. */
+export interface IArtifactIdentity {
+  sourceId: string
+  settingsHash: string
+  settingsSource: SettingsSource
+  /** The settings as emitted, for a refusal a person has to read. */
+  settings: Record<string, unknown>
+}
+
+/**
+ * Reads a build's source identity and settings hash out of its artifact.
+ *
+ * One reader rather than one per producer: the mint in CI and a local rebuild
+ * have to agree on the strip list and the canonical form, and two producers
+ * deciding those separately is the same bug twice.
+ *
+ * There is deliberately no defaulting. Every setting has a compiler default,
+ * but supplying one here files the build under a key naming a setting the build
+ * may not have used — and unlike a missing field, a wrong one is unfalsifiable
+ * after the fact.
+ * @param settings - `metadata.settings` from the contract's own artifact
+ * @returns Source identity, settings hash, and the settings as emitted
+ * @throws When the artifact names no compilation target or carries no settings
+ */
+export const identityFromArtifactMetadata = (
+  settings: Record<string, unknown>
+): IArtifactIdentity => {
+  const target = settings['compilationTarget']
+  const paths =
+    typeof target === 'object' && target !== null ? Object.keys(target) : []
+  if (paths.length !== 1)
+    throw new Error(
+      `build artifact names ${paths.length} compilation targets, so which source it compiled cannot be established`
+    )
+
+  return {
+    sourceId: paths[0] as string,
+    settingsHash: buildSettingsHash('artifact', settings),
+    settingsSource: 'artifact',
+    settings: settingsForHashing(settings),
+  }
+}
+
+/**
+ * Settings hash for a build whose toolchain reports none.
+ *
+ * zksolc writes no `metadata` object at all — verified across a full `zkout/`
+ * tree — so a zk build's settings exist nowhere on disk and have to come from
+ * repo configuration. That is a claim about what we asked the compiler for, not
+ * a report of what it did, which is why the resulting key is tagged `config`
+ * and can never answer a lookup for a self-reported build.
+ * @param settings - The configured settings, e.g. from `foundry.toml`
+ * @returns `0x`-prefixed keccak over the canonical settings, tagged `config`
+ * @throws When there are no settings to hash
+ */
+export const configuredSettingsHash = (
+  settings: Record<string, unknown>
+): string => buildSettingsHash('config', settings)
+
+/**
  * Stands in for an absent zk section.
  *
  * Named rather than empty so an EVM key cannot collide with a zk key whose
  * three versions happen to serialise to nothing.
  */
 const NO_ZK = 'evm'
-
-/** Stands in for an absent optimizer, for the same reason as {@link NO_ZK}. */
-const NO_OPTIMIZER = 'noopt'
 
 /** Hash as this module reports and compares it: `0x`-prefixed, lower case. */
 const canonicalHash = (hash: string): string => `0x${normalizeHash(hash)}`
@@ -168,22 +238,19 @@ const canonicalHash = (hash: string): string => `0x${normalizeHash(hash)}`
  *
  * Field order is fixed here and nowhere else, so two callers cannot disagree
  * about it. Every field is always present in the output — an absent zk section
- * or optimizer is written as a marker rather than skipped — because a key that
- * shortens when a field is missing is a key two different builds can share.
- * @param key - The toolchain and settings the build ran under
+ * is written as a marker rather than skipped — because a key that shortens when
+ * a field is missing is a key two different builds can share.
+ * @param key - What identifies the build
  * @returns The canonical key string
  */
 export const serialiseAttestationKey = (key: IAttestationKey): string =>
   joinFields([
     key.contractName,
+    key.sourceId,
+    key.repo,
     key.version,
-    key.profile,
-    // Lowercased for the same reason hashes are: `lineage-scope.ts` reads this
-    // from `foundry.toml` and a hand-built key from `networks.json`, and one
-    // build filed under `cancun` and `Cancun` is two keys.
-    key.evmVersion.toLowerCase(),
-    key.viaIR ? 'viaIR' : 'legacy',
-    key.optimizerRuns === undefined ? NO_OPTIMIZER : `opt:${key.optimizerRuns}`,
+    canonicalHash(key.settingsHash),
+    key.settingsSource,
     key.solcVersion,
     key.zk
       ? joinFields([
@@ -212,9 +279,8 @@ export interface ISourceEntry {
  * The audit bridge: one hash over the source closure a build compiled.
  *
  * Deliberately independent of every compiler setting, so the same sources built
- * under a different profile, EVM version or pipeline bridge to the same audit
- * record. That is what makes it usable as an audit key at all — an audit is of
- * source, not of a build.
+ * under different settings bridge to the same audit record. That is what makes
+ * it usable as an audit key at all — an audit is of source, not of a build.
  *
  * Paths are sorted, so the hash does not depend on the order solc happened to
  * emit them. Fields are length-prefixed, so a path cannot impersonate the start
@@ -255,6 +321,16 @@ export const sourceClosureHash = (sources: readonly ISourceEntry[]): string => {
 /** What a mint records for one key. */
 export interface IMintedAttestation {
   key: IAttestationKey
+  /**
+   * Provenance the key hashes but does not spell out. Carried so a refusal a
+   * signer has to act on names the settings rather than only their digest, and
+   * so the Foundry profile survives without being part of the identity — two
+   * profiles that compile to the same bytes are one build.
+   */
+  build: {
+    profile: string
+    settings: Record<string, unknown>
+  }
   /** keccak of the runtime code after trailer-stripping and immutable masking. */
   maskedHash: string
   /** The audit bridge for the sources this build compiled. */
@@ -267,6 +343,8 @@ export interface IAttestationConflict {
   key: IAttestationKey
   /** Canonical form the attestations were grouped under. */
   serialisedKey: string
+  /** The first attestation's readable settings, so the refusal is legible. */
+  build: IMintedAttestation['build']
   /** Every distinct masked hash filed under that key, in the order found. */
   maskedHashes: string[]
   /** Every distinct source closure filed under it, in the order found. */
@@ -293,7 +371,12 @@ export const findAttestationConflicts = (
 ): IAttestationConflict[] => {
   const byKey = new Map<
     string,
-    { key: IAttestationKey; masked: Set<string>; closure: Set<string> }
+    {
+      key: IAttestationKey
+      build: IMintedAttestation['build']
+      masked: Set<string>
+      closure: Set<string>
+    }
   >()
   for (const attestation of attestations) {
     const fault =
@@ -309,6 +392,7 @@ export const findAttestationConflicts = (
       // Copied: this is handed back inside a refusal a caller may keep or
       // annotate, and the attestations it came from are the caller's.
       key: { ...attestation.key },
+      build: { ...attestation.build },
       masked: new Set<string>(),
       closure: new Set<string>(),
     }
@@ -325,6 +409,7 @@ export const findAttestationConflicts = (
       conflicts.push({
         key: entry.key,
         serialisedKey,
+        build: entry.build,
         maskedHashes: [...entry.masked],
         sourceClosureHashes: [...entry.closure],
       })
