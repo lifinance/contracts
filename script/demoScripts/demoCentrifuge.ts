@@ -16,11 +16,14 @@
  *
  * Run:  bunx tsx script/demoScripts/demoCentrifuge.ts
  *
- * Verified staging run (2026-09-09): 1 deJAAA Base -> Ethereum, delivered 48 min later, with
- * zero Diamond residue and the messaging-fee surplus refunded to the signer.
- *   src: https://basescan.org/tx/0x3c1af4d8f82bd070917d96433609343374e5ac97a3ad38e97e9e5377d4d33b91
- *   dst: https://etherscan.io/tx/0xebc3d06a8572df35b15318b9e66258ab3255f63dcab40b8c8cd3d06f237e74af
- *   msg: https://centrifugescan.io/tx/0x763680baf555b59e99116775531ad18738e32efba0b42c237823aee23bfedf52
+ * Verified staging run (2026-09-10): 1 deJAAA Base -> Ethereum, credited to the receiver 39 min
+ * later. The Diamond retained no shares and no native, and 0.000515 ETH of the 0.002574 ETH
+ * messaging fee came back to the signer. The message is delivered and executed in two separate
+ * destination transactions, so both are listed.
+ *   src:      https://basescan.org/tx/0x9cd6c0cabdd9df0c9dcb515b5691afe9aa0f33b03a54413b40a4426db246b1ec
+ *   msg:      https://centrifugescan.io/tx/0x763680baf555b59e99116775531ad18738e32efba0b42c237823aee23bfedf52/1
+ *   delivery: https://etherscan.io/tx/0x6e57b4b65894c1dc146693c240026ab8292594ef6d090f975dba792cab145a8c
+ *   credit:   https://etherscan.io/tx/0x41d72024358052453f625be4bf63f3dd34c90f6c40932d103859144bcd53a163
  */
 import { randomBytes } from 'crypto'
 
