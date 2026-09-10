@@ -42,12 +42,16 @@
  * unexplained count off 0. G2's honest contribution is its rate and its class
  * split.
  *
- * G1 is pinned the same way for a different reason: its catch assigns every
- * refusal the single class AFR-3, so its unexplained count cannot move either.
- * An unexplained count of 0 therefore carries information only on G3, G4 and
- * G5, where a refusal can arrive carrying no class at all. Each gate's
- * coverage note repeats this where it applies, because the table's Unexplained
- * column does not distinguish "nothing was refused" from "nothing could be".
+ * The other gates are pinned too, each for its own reason: G1's catch assigns
+ * every refusal the single class AFR-3, and G4 is offered only a Replace cut
+ * with a zero init against a fleet holding no zero-address facet, so none of
+ * its three refusal branches is reachable. G3 can refuse, but its own note
+ * says such a refusal measures the executing checkout rather than the gate.
+ * G5 is therefore the only gate whose unexplained count is a live measurement
+ * — and its one reachable refusal is currently held out of the denominator by
+ * the GenericSwapFacet exclusion. The table's Unexplained column does not
+ * distinguish "nothing was refused" from "nothing could be", so read each
+ * gate's coverage note before reading its zero.
  */
 
 import { execFileSync } from 'node:child_process'
@@ -181,11 +185,10 @@ export const explainScopeRefusal = (
 /**
  * The network key {@link deriveToolchainScope} is indexed by.
  *
- * #2329 moved this normalisation inside `evaluateCodehashSignGate` so no
- * caller could repeat the `--network Mainnet` false red. This harness is such
- * a caller and reaches `deriveToolchainScope` directly, so it normalises too;
- * every row in today's corpus is already lower case, which is why omitting it
- * would go unnoticed until the corpus is regenerated.
+ * This harness reaches `deriveToolchainScope` directly, bypassing the
+ * lowercasing `evaluateCodehashSignGate` does for the signing path, so it has
+ * to normalise here too. Every row in today's corpus is already lower case,
+ * which is why omitting it would go unnoticed until the corpus is regenerated.
  *
  * @param network - the network as the corpus row spells it
  * @returns The key `config/networks.json` is keyed by
@@ -233,7 +236,7 @@ export const gradeToolchainScope = (deps: ICorpusDeps): IGateBudget => {
       Object.keys(deps.networks).length
     } configured networks carry none, so their scope paths are measured on 0: ${uncovered.join(
       ', '
-    )}. This gate's unexplained count is NOT a fleet measurement: the catch below assigns every refusal the single class AFR-3, so no corpus can drive it off 0 — and because AFR-3 grades grey, no refusal rate this gate can report will block its promotion. Read the rate, not the Unexplained or May-enforce column.`,
+    )}. This gate's unexplained count is NOT a fleet measurement: the catch below assigns every refusal the single class AFR-3, so no corpus can drive it off 0 — and because AFR-3 grades grey, no refusal rate this gate can report will block its promotion. Read the rate, not the Unexplained or May enforce column.`,
     observations,
   })
 }
@@ -292,11 +295,9 @@ export const gradeAttestedSet = (deps: ICorpusDeps): IGateBudget => {
         solcVersion: slot.solcVersion,
       },
       attested,
-      // The scope the derivation returned, not a literal: verify-cut-targets
-      // forwards this same object, and a hardcoded `true` here would keep
-      // grading closed after a future scope legitimately reports an open set,
-      // turning that gate's grey UNVERIFIABLE into this harness's red
-      // MISMATCH.
+      // The scope object itself, as verify-cut-targets forwards it: if a
+      // network's scope ever legitimately opens, this has to grade it open
+      // too, or an honest UNVERIFIABLE reads here as a red MISMATCH.
       scope
     )
 
@@ -334,11 +335,11 @@ export const gradeAttestedSet = (deps: ICorpusDeps): IGateBudget => {
  * G3 — is every record's commit readable before anything is concluded from it?
  *
  * The injected git runner reads locally and refuses to fetch, so the run stays
- * offline — which also disables the fetch-by-SHA recovery `ensureCommitAvailable`
- * exists to perform. A refusal here therefore says the executing checkout lacks
- * the object, not that the merged gate would refuse; #2354 measured 79 of 99
- * audit commits unreachable from a `--single-branch` clone. The coverage note
- * derives that caveat from what the run actually observed.
+ * offline — which also disables the fetch-by-SHA recovery
+ * `ensureCommitAvailable` exists to perform. A refusal here therefore says the
+ * executing checkout lacks the object, not that the merged gate would refuse:
+ * a single-branch or shallow clone routinely lacks squash-merged commits
+ * entirely. The coverage note derives that caveat from what the run observed.
  * @param deps - the corpus
  */
 export const gradeCommitAvailability = (deps: ICorpusDeps): IGateBudget => {
@@ -467,11 +468,12 @@ export const gradeCutClassification = (deps: ICorpusDeps): IGateBudget => {
  * G5 — can the funnel deploy gate attribute a live facet to a source file?
  *
  * Drives the real {@link assertFunnelDeployGate} through its own dependency
- * seam. `deployedNames` and `facetSourceExists` are the production functions;
- * `isTestnet` and `currentBranch` are pinned to false and 'main' because every
- * corpus row is a mainnet slot; `runGate` — the GitHub main-equivalence call —
- * is stubbed to no failures so the run makes no network requests. The coverage
- * note carries what that leaves unmeasured.
+ * seam. `facetSourceExists` is the production function and `deployedNames`
+ * calls the production inverter over an injected log read; `isTestnet` and
+ * `currentBranch` are pinned to false and 'main' because every corpus row is a
+ * mainnet slot; `runGate` — the GitHub main-equivalence call — is stubbed to
+ * no failures so the run makes no network requests. The coverage note carries
+ * what that leaves unmeasured.
  * @param deps - the corpus
  */
 export const gradeFunnelDeployGate = async (
@@ -531,11 +533,12 @@ export const gradeFunnelDeployGate = async (
 /**
  * The corpus as it exists in this checkout.
  * @param repoRoot - repository root
- * @returns Every input the eight gates read
+ * @returns Every input G1 through G5 read; G6 to G8 take no corpus
  * @throws If the attestation corpus is absent, carries no non-empty
- * `attestations` array, or `config/networks.json` cannot be read — each of
- * which would otherwise be reported as a measurement rather than as a
- * corpus that graded nothing.
+ * `attestations` array, or `config/networks.json` is missing — each of which
+ * would otherwise be reported as a measurement rather than as a corpus that
+ * graded nothing. Also if `foundry.toml` is unreadable, or any of the three
+ * files holds malformed JSON, both of which surface as the raw read error.
  */
 export const loadRepoCorpus = (repoRoot: string): ICorpusDeps => {
   // Memoised because the gates ask per slot rather than per network: without it

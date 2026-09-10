@@ -303,8 +303,9 @@ describe('explainScopeRefusal — the classifier has no fallthrough class', () =
   // comparison refuses exactly when the reproducing pair is not offered, which
   // is exactly when the classifier names a class — so the refusal count moves
   // with the input while the unexplained count cannot. G2's coverage note says
-  // so. If this row ever fails, the two predicates have stopped being
-  // complements and that note is the thing to rewrite.
+  // so. This pins the observable half — a refusal the classifier fails to name
+  // fails this row; a classifier that names the wrong class does not, which is
+  // what the three rows above are for.
   it('moves G2 refusals with the input while its unexplained count cannot move', () => {
     const cases = [
       { solcVersion: '0.8.29', evmVersion: 'cancun', refusals: 0 },
@@ -324,9 +325,8 @@ describe('explainScopeRefusal — the classifier has no fallthrough class', () =
 })
 
 describe('what the report discloses is derived, not asserted', () => {
-  // #2329 centralised this normalisation so no caller could repeat the
-  // `--network Mainnet` false red. Every row in today's corpus is already
-  // lower case, so only a test can hold the line.
+  // Every row in today's corpus is already lower case, so only a test
+  // exercises the normalisation an unnormalised corpus would need.
   it('resolves a network whose corpus row is not lower case', () => {
     const shouting = gradeToolchainScope(
       corpus({ slots: [slot({ network: 'SomeChain' })] })
@@ -335,6 +335,12 @@ describe('what the report discloses is derived, not asserted', () => {
       refusals: shouting.refusals,
       byRule: shouting.byRule,
     }).toEqual({ refusals: 0, byRule: [] })
+
+    // The second call site, which the refusal count cannot see: the
+    // uncovered-network list normalises too, or it names a network as
+    // uncovered that a corpus row does cover.
+    expect(shouting.coverageNote).toContain('1 of 2 configured networks')
+    expect(shouting.coverageNote).not.toContain('somechain')
 
     // The present that pairs with it: a network no config row names still
     // refuses, so the normalisation did not make G1 unable to refuse at all.
@@ -350,7 +356,7 @@ describe('what the report discloses is derived, not asserted', () => {
     ).coverageNote
     expect(note).toContain('1 of 2 configured networks carry none')
     expect(note).toContain('oldchain')
-    expect(note).not.toContain('somechain,')
+    expect(note).not.toContain('somechain')
   })
 
   it('says whether commits were unreadable rather than asserting they were not', () => {
