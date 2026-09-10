@@ -416,6 +416,20 @@ describe('stored signatures against the current owner set', () => {
     expect(outcome.actual).toContain('v=5')
   })
 
+  it('reports a struct it cannot reframe as typed data rather than throwing', async () => {
+    const real = await ethSignSignature(OWNER_KEY, REAL_HASH)
+    const outcome = await statusOf(
+      makeInput({
+        to: 'not-an-address',
+        storedSignatures: [{ signer: OWNER, data: `${real.slice(0, 130)}1b` }],
+      }),
+      makeDeps(),
+      CHECK_SIGNATURES
+    )
+    expect(outcome.status).toBe('fail')
+    expect(outcome.actual).toContain('could not be reframed as typed data')
+  })
+
   it('is unverified when the owner set could not be read', async () => {
     const outcome = await statusOf(
       makeInput({

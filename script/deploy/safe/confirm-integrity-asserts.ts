@@ -441,42 +441,54 @@ async function recoverStoredSignature(
     }
   }
 
-  if (TYPED_DATA_V.has(v)) {
-    const digest = hashTypedData({
-      domain: {
-        chainId: input.chainId,
-        verifyingContract: input.clientSafeAddress,
-      },
-      types: {
-        SafeTx: [
-          { name: 'to', type: 'address' },
-          { name: 'value', type: 'uint256' },
-          { name: 'data', type: 'bytes' },
-          { name: 'operation', type: 'uint8' },
-          { name: 'safeTxGas', type: 'uint256' },
-          { name: 'baseGas', type: 'uint256' },
-          { name: 'gasPrice', type: 'uint256' },
-          { name: 'gasToken', type: 'address' },
-          { name: 'refundReceiver', type: 'address' },
-          { name: 'nonce', type: 'uint256' },
-        ],
-      },
-      primaryType: 'SafeTx',
-      message: {
-        to: getAddress(input.to),
-        value: BigInt(input.signedValue),
-        data: input.data,
-        operation: input.signedOperation,
-        safeTxGas: 0n,
-        baseGas: 0n,
-        gasPrice: 0n,
-        gasToken: ZERO_ADDRESS,
-        refundReceiver: ZERO_ADDRESS,
-        nonce: BigInt(input.signedNonce),
-      },
-    })
-    return { signer: await recoverAddress({ hash: digest, signature }) }
-  }
+  if (TYPED_DATA_V.has(v))
+    // `to`, `value` and `nonce` come off the signed struct unvalidated, and
+    // `getAddress`/`BigInt` throw on a malformed one. A throw here would escape
+    // this function's result contract and leave the run undefined — which
+    // blocks, but under no named anchor, so the display could not say which
+    // assertion refused.
+    try {
+      const digest = hashTypedData({
+        domain: {
+          chainId: input.chainId,
+          verifyingContract: input.clientSafeAddress,
+        },
+        types: {
+          SafeTx: [
+            { name: 'to', type: 'address' },
+            { name: 'value', type: 'uint256' },
+            { name: 'data', type: 'bytes' },
+            { name: 'operation', type: 'uint8' },
+            { name: 'safeTxGas', type: 'uint256' },
+            { name: 'baseGas', type: 'uint256' },
+            { name: 'gasPrice', type: 'uint256' },
+            { name: 'gasToken', type: 'address' },
+            { name: 'refundReceiver', type: 'address' },
+            { name: 'nonce', type: 'uint256' },
+          ],
+        },
+        primaryType: 'SafeTx',
+        message: {
+          to: getAddress(input.to),
+          value: BigInt(input.signedValue),
+          data: input.data,
+          operation: input.signedOperation,
+          safeTxGas: 0n,
+          baseGas: 0n,
+          gasPrice: 0n,
+          gasToken: ZERO_ADDRESS,
+          refundReceiver: ZERO_ADDRESS,
+          nonce: BigInt(input.signedNonce),
+        },
+      })
+      return { signer: await recoverAddress({ hash: digest, signature }) }
+    } catch (error) {
+      return {
+        unrecoverable: `the signed struct could not be reframed as typed data: ${errorOf(
+          error
+        )}`,
+      }
+    }
 
   return {
     unrecoverable: `v=${v} is neither an eth_sign nor a typed-data recovery id`,
