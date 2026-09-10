@@ -91,9 +91,9 @@ describe('gradeMatchProvenance', () => {
 
   it('matches across a 0x prefix the comparison already treats as the same hash', () => {
     // `compareToAttestedSet` normalises the prefix away, so it calls these a
-    // match. Grading them apart reported a CI-attested build as unattested,
-    // and — with a local rebuild carrying the prefixed form — as CI disagreeing
-    // about a build CI agreed with exactly.
+    // match. Grading them apart reads a CI-attested build as unattested — and,
+    // with a local rebuild carrying the prefixed form, as CI disagreeing about
+    // a build CI attested exactly.
     const bare = HASH_A.slice(2)
 
     expect(gradeMatchProvenance(HASH_A, [ci(bare)]).grade).toBe('ci-attested')

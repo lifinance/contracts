@@ -8,7 +8,7 @@
  * could be compromised. A gate that renders both as one green tells the signer
  * their own machine agreed with itself.
  *
- * The sharp case is neither. When CI has attested this contract and the
+ * The sharp case is neither of those. When CI has attested this contract and the
  * deployed code matches only the local rebuild, CI and this host disagree about
  * what the source compiles to. That is not a weaker pass; it is the one outcome
  * here that a signer must not see rendered as any kind of pass.
