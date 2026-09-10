@@ -30,6 +30,7 @@ import {
   countNetworksDeclaring,
   createPinnedTargetStateReader,
   createTargetStateDeps,
+  describeTargetStateUnavailable,
   evaluateTargetStateIntent,
   formatTargetStateLines,
   PINNED_FETCH_REFSPEC,
@@ -247,26 +248,6 @@ describe('evaluateTargetStateIntent — first-time add', () => {
     expect(verdict.findings[0]?.detail).toContain('2.1.1 / 2.1.2')
   })
 
-  it('names the network gap when the identity came from the same address elsewhere', () => {
-    const verdict = evaluateTargetStateIntent(
-      [cut([{ facetAddress: FACET, action: 0 }])],
-      'robinhood',
-      deps({
-        lookup: {
-          kind: 'resolved',
-          contractName: 'AcrossFacetV3',
-          version: '1.1.0',
-          recordedOn: 'other-networks',
-        },
-      })
-    )
-    expect(verdict.cleared).toBe(true)
-    expect(verdict.findings[0]?.status).toBe('not-previously-targeted')
-    expect(verdict.findings[0]?.detail).toContain(
-      'No deployment record for this address on robinhood'
-    )
-  })
-
   it('refuses an install whose address no deployment record names', () => {
     const verdict = evaluateTargetStateIntent(
       [cut([{ facetAddress: FACET, action: 0 }])],
@@ -356,7 +337,6 @@ describe('evaluateTargetStateIntent — the anchor itself', () => {
           kind: 'resolved',
           contractName: 'AcrossFacetV3',
           version: '1.1.0',
-          recordedOn: 'network',
         },
       ],
       [
@@ -365,7 +345,6 @@ describe('evaluateTargetStateIntent — the anchor itself', () => {
           kind: 'resolved',
           contractName: 'NewFacet',
           version: '2.0.0',
-          recordedOn: 'network',
         },
       ],
     ])
@@ -583,7 +562,7 @@ describe('createPinnedTargetStateReader', () => {
     for (const url of [
       'git@github.com:0xDEnYO/contracts.git',
       'https://github.com/lifinance/contracts-tron.git',
-      path.join(origin),
+      origin,
     ])
       expect(
         createPinnedTargetStateReader({
@@ -601,12 +580,83 @@ describe('createPinnedTargetStateReader', () => {
       ).toEqual({ ok: false, reason: 'remote-unexpected' })
   })
 
+  it('reports a remote it could not read as unreadable, not as the wrong remote', () => {
+    let reads = 0
+    const reader = createPinnedTargetStateReader({
+      repoRoot: clone,
+      git: {
+        ...realGit(clone),
+        remoteUrl: () => {
+          reads++
+          if (reads === 1) throw new Error('git: fork failed')
+          return CANONICAL_REMOTE
+        },
+      },
+    })
+    const read = reader()
+    expect(read).toEqual({ ok: false, reason: 'remote-unreadable' })
+    if (read.ok) throw new Error('expected a refusal')
+    expect(describeTargetStateUnavailable(read.reason)).toContain(
+      "could not read this clone's"
+    )
+    expect(reader().ok).toBe(true)
+  })
+
+  it('names the wrong remote rather than a missing one', () => {
+    const read = createPinnedTargetStateReader({
+      repoRoot: clone,
+      git: { ...realGit(clone), remoteUrl: () => 'git@github.com:evil/x.git' },
+    })()
+    expect(read.ok).toBe(false)
+    if (read.ok) throw new Error('expected a refusal')
+    expect(describeTargetStateUnavailable(read.reason)).toContain(
+      'github.com/lifinance/contracts'
+    )
+  })
+
+  // A clone the proposer supplied can carry a tag named `origin/main`, and git
+  // resolves tags before remote-tracking refs.
+  it('reads the remote-tracking ref, not a same-named tag in the clone', () => {
+    git(clone, ['checkout', 'main'])
+    const shadow = path.join(clone, 'shadow.json')
+    fs.writeFileSync(shadow, 'shadow')
+    const blob = git(clone, ['hash-object', '-w', shadow]).trim()
+    fs.rmSync(shadow)
+    const tree = execFileSync('git', ['mktree'], {
+      cwd: clone,
+      encoding: 'utf8',
+      input: `100644 blob ${blob}\t${path.basename(TARGET_STATE_REPO_PATH)}\n`,
+    }).trim()
+    const shadowCommit = git(clone, [
+      'commit-tree',
+      tree,
+      '-m',
+      'a ref the proposer controls',
+    ]).trim()
+    git(clone, ['tag', '-f', 'origin/main', shadowCommit])
+
+    try {
+      const read = createPinnedTargetStateReader({
+        repoRoot: clone,
+        git: realGit(clone),
+      })()
+      expect(read.ok).toBe(true)
+      if (!read.ok) throw new Error('expected a readable state')
+      expect(readDeclaredVersion(read.state, 'optimism', 'AcrossFacetV3')).toBe(
+        '1.2.0'
+      )
+    } finally {
+      git(clone, ['tag', '-d', 'origin/main'])
+    }
+  })
+
   it('accepts every spelling of the canonical remote', () => {
     for (const url of [
       'git@github.com:lifinance/contracts.git',
       'https://github.com/lifinance/contracts.git',
       'https://github.com/lifinance/contracts\n',
       'ssh://git@github.com/lifinance/contracts.git',
+      'ssh://git@ssh.github.com:443/lifinance/contracts.git',
     ])
       expect(
         createPinnedTargetStateReader({
@@ -620,23 +670,40 @@ describe('createPinnedTargetStateReader', () => {
   // fetch refspec of its own, `git fetch origin main` leaves origin/main where
   // it was, so the anchor would be read stale with no error.
   it('updates origin/main even where the clone has no fetch refspec', () => {
-    const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'pinned-refspec-'))
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'pinned-refspec-'))
     try {
-      const stale = path.join(bare, 'stale')
-      execFileSync('git', ['clone', origin, stale])
+      const ownOrigin = path.join(base, 'origin.git')
+      const author = path.join(base, 'author')
+      const stale = path.join(base, 'stale')
+      execFileSync('git', ['init', '--bare', '-b', 'main', ownOrigin])
+      execFileSync('git', ['clone', ownOrigin, author])
+      git(author, ['config', 'user.email', 'test@example.com'])
+      git(author, ['config', 'user.name', 'test'])
+      git(author, ['config', 'commit.gpgsign', 'false'])
+      fs.mkdirSync(path.dirname(targetStateAt(author)), { recursive: true })
+      fs.writeFileSync(
+        targetStateAt(author),
+        JSON.stringify({
+          optimism: { production: { LiFiDiamond: { AcrossFacetV3: '1.2.0' } } },
+        })
+      )
+      git(author, ['add', '-A'])
+      git(author, ['commit', '-m', 'target state on main'])
+      git(author, ['push', 'origin', 'main'])
+
+      execFileSync('git', ['clone', ownOrigin, stale])
       git(stale, ['config', '--unset', 'remote.origin.fetch'])
       const before = git(stale, ['rev-parse', 'origin/main']).trim()
 
-      git(clone, ['checkout', 'main'])
       fs.writeFileSync(
-        targetStateAt(clone),
+        targetStateAt(author),
         JSON.stringify({
           optimism: { production: { LiFiDiamond: { AcrossFacetV3: '1.3.0' } } },
         })
       )
-      git(clone, ['add', '-A'])
-      git(clone, ['commit', '-m', 'move main on'])
-      git(clone, ['push', 'origin', 'main'])
+      git(author, ['add', '-A'])
+      git(author, ['commit', '-m', 'move main on'])
+      git(author, ['push', 'origin', 'main'])
 
       git(stale, ['fetch', '--quiet', 'origin', 'main'])
       expect(git(stale, ['rev-parse', 'origin/main']).trim()).toBe(before)
@@ -651,7 +718,7 @@ describe('createPinnedTargetStateReader', () => {
         '1.3.0'
       )
     } finally {
-      fs.rmSync(bare, { recursive: true, force: true })
+      fs.rmSync(base, { recursive: true, force: true })
     }
   })
 
@@ -712,7 +779,6 @@ describe('createTargetStateDeps', () => {
       kind: 'resolved',
       contractName: 'TronFacet',
       version: '1.4.0',
-      recordedOn: 'network',
     })
   })
 
@@ -735,7 +801,6 @@ describe('createTargetStateDeps', () => {
       kind: 'resolved',
       contractName: 'AcrossFacetV3',
       version: '1.4.0',
-      recordedOn: 'network',
     })
   })
 })

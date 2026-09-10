@@ -34,8 +34,13 @@ const REPO_ROOT = path.resolve(
 /** The path the anchor is read from, inside the pinned tree. */
 export const TARGET_STATE_REPO_PATH = 'script/deploy/_targetState.json'
 
-/** The ref the expected state is read at. */
+/** The ref the expected state is read at, as the signer is told it. */
 export const PINNED_REF = 'origin/main'
+
+// Spelled in full for the read: git resolves a short name through refs/, tags and
+// heads before refs/remotes, so a tag or branch literally named `origin/main` in
+// the clone would be read instead of the ref the fetch just wrote.
+const PINNED_READ_REF = 'refs/remotes/origin/main'
 
 /** The repository the anchor must come from. */
 export const EXPECTED_REMOTE_REPO = 'github.com/lifinance/contracts'
@@ -52,10 +57,10 @@ export const PINNED_FETCH_REFSPEC = '+refs/heads/main:refs/remotes/origin/main'
 
 // `origin` is whatever the clone happens to point at, so the ref alone does not
 // establish where the anchor came from: a fork remote would let a proposer author
-// the expected state. Both SSH and HTTPS spellings of the canonical repo pass,
-// nothing else does.
+// the expected state. ssh.github.com and an explicit port are admitted because
+// they are GitHub's own SSH-over-443 spelling, which a restricted network needs.
 const EXPECTED_REMOTE_URL =
-  /^(?:(?:https?:\/\/|ssh:\/\/)(?:[^@/]+@)?github\.com\/|(?:[^@/]+@)?github\.com:)lifinance\/contracts(?:\.git)?\/?$/i
+  /^(?:https?:\/\/(?:[^@/]+@)?github\.com(?::\d+)?\/|ssh:\/\/(?:[^@/]+@)?(?:ssh\.)?github\.com(?::\d+)?\/|(?:[^@/]+@)?(?:ssh\.)?github\.com:)lifinance\/contracts(?:\.git)?\/?$/i
 
 const TARGET_STATE_ENVIRONMENT = 'production'
 const TARGET_STATE_DIAMOND = 'LiFiDiamond'
@@ -72,6 +77,7 @@ export type PinnedTargetStateRead =
       ok: false
       reason:
         | 'fetch-failed'
+        | 'remote-unreadable'
         | 'remote-unexpected'
         | 'blob-unreadable'
         | 'invalid-shape'
@@ -208,11 +214,18 @@ export interface ITargetStateDeps {
   resolveDeployed: (facetAddress: string) => DeployedContractLookup
 }
 
-const describeUnavailable = (
+/**
+ * Says why the anchor could not be read, in the words the signer sees.
+ * @param reason - why the pinned read failed
+ * @returns The operator-facing explanation, naming the remedy
+ */
+export const describeTargetStateUnavailable = (
   reason: Exclude<PinnedTargetStateRead, { ok: true }>['reason']
 ): string => {
   if (reason === 'fetch-failed')
     return `could not refresh ${PINNED_REF} — the expected version can only come from the remote, and a stale local copy is not an anchor. Restore network access to the git remote and re-run.`
+  if (reason === 'remote-unreadable')
+    return `could not read this clone's \`origin\` remote, so it cannot be established that the anchor would come from ${EXPECTED_REMOTE_REPO}.`
   if (reason === 'remote-unexpected')
     return `this clone's \`origin\` is not ${EXPECTED_REMOTE_REPO} — the anchor would be read from a repository the proposer could control. Re-run from a clone whose origin is ${EXPECTED_REMOTE_REPO}.`
   if (reason === 'blob-unreadable')
@@ -311,7 +324,7 @@ export const evaluateTargetStateIntent = (
         ...blank,
         facetAddress,
         status: 'pinned-state-unavailable',
-        detail: describeUnavailable(read.reason),
+        detail: describeTargetStateUnavailable(read.reason),
       })
       continue
     }
@@ -336,11 +349,6 @@ export const evaluateTargetStateIntent = (
       deployed.kind === 'resolved' ? deployed.contractName : null
     const proposedVersion =
       deployed.kind === 'resolved' ? deployed.version : null
-    const identifiedElsewhere =
-      deployed.kind === 'resolved' && deployed.recordedOn === 'other-networks'
-    const provenance = identifiedElsewhere
-      ? ` No deployment record for this address on ${network} — identified from the same address on other networks, whose rows agree.`
-      : ''
 
     // An address with no record is not the same question as a contract with no
     // entry on `main`. Without a name there is nothing to look the anchor up
@@ -352,7 +360,7 @@ export const evaluateTargetStateIntent = (
         facetAddress,
         proposedVersion,
         status: 'contract-unidentified',
-        detail: `no deployment record on ${network} names this address, so the contract it installs cannot be identified and no expected version can be looked up.`,
+        detail: `no deployment record on ${network} names this address, so the contract it installs cannot be identified and no expected version can be looked up. Remedy: write the missing MongoDB deployment record for this address — the same address on another chain is not evidence of what is deployed here, so it is deliberately not consulted.`,
       })
       continue
     }
@@ -369,7 +377,7 @@ export const evaluateTargetStateIntent = (
           ? countNetworksDeclaring(read.state, contractName, proposedVersion)
           : null,
         status: 'not-previously-targeted',
-        detail: `${contractName} is not previously targeted on ${network} in ${PINNED_REF} — expected for a first deployment, since the target-state update merges only after execution. Intent rests on the linked ticket and PR.${provenance}`,
+        detail: `${contractName} is not previously targeted on ${network} in ${PINNED_REF} — expected for a first deployment, since the target-state update merges only after execution. Intent rests on the linked ticket and PR.`,
       })
       continue
     }
@@ -382,7 +390,7 @@ export const evaluateTargetStateIntent = (
         mainVersion,
         crossFleetCount: null,
         status: 'proposed-version-unresolved',
-        detail: `${PINNED_REF} declares ${contractName} at v${mainVersion} on ${network}, but its deployment record carries no version, so a downgrade cannot be ruled out. Remedy: backfill the version on that MongoDB deployment record (the blank is in the record, not in the cut) and re-run — the core facets installed at diamond creation are the known population of blanks.${provenance}`,
+        detail: `${PINNED_REF} declares ${contractName} at v${mainVersion} on ${network}, but its deployment record carries no version, so a downgrade cannot be ruled out. Remedy: backfill the version on that MongoDB deployment record (the blank is in the record, not in the cut) and re-run — the core facets installed at diamond creation are the known population of blanks.`,
       })
       continue
     }
@@ -400,25 +408,25 @@ export const evaluateTargetStateIntent = (
       findings.push({
         ...shared,
         status: 'version-not-comparable',
-        detail: `v${proposedVersion} and the declared v${mainVersion} are not both major.minor.patch, so which is newer cannot be established.${provenance}`,
+        detail: `v${proposedVersion} and the declared v${mainVersion} are not both major.minor.patch, so which is newer cannot be established.`,
       })
     else if (order < 0)
       findings.push({
         ...shared,
         status: 'downgrade',
-        detail: `v${proposedVersion} is OLDER than the v${mainVersion} ${PINNED_REF} declares on ${network} — this cut would move the diamond backwards.${provenance}`,
+        detail: `v${proposedVersion} is OLDER than the v${mainVersion} ${PINNED_REF} declares on ${network} — this cut would move the diamond backwards.`,
       })
     else if (order === 0)
       findings.push({
         ...shared,
         status: 'matches-main',
-        detail: `v${proposedVersion} matches the version ${PINNED_REF} declares on ${network}.${provenance}`,
+        detail: `v${proposedVersion} matches the version ${PINNED_REF} declares on ${network}.`,
       })
     else
       findings.push({
         ...shared,
         status: 'ahead-of-main',
-        detail: `v${proposedVersion} is newer than the v${mainVersion} ${PINNED_REF} declares on ${network}.${provenance}`,
+        detail: `v${proposedVersion} is newer than the v${mainVersion} ${PINNED_REF} declares on ${network}.`,
       })
   }
 
@@ -436,10 +444,13 @@ export interface IPinnedStateGit {
 }
 
 const defaultGit = (repoRoot: string): IPinnedStateGit => ({
+  // `get-url` rather than `config remote.origin.url`, because it applies any
+  // insteadOf rewrite and so reports where a fetch would actually go.
   remoteUrl: () =>
     execFileSync('git', ['remote', 'get-url', 'origin'], {
       cwd: repoRoot,
       encoding: 'utf8',
+      timeout: 60_000,
     }),
   fetch: () => {
     execFileSync('git', ['fetch', '--quiet', 'origin', PINNED_FETCH_REFSPEC], {
@@ -480,8 +491,9 @@ export const createPinnedTargetStateReader = (options?: {
     try {
       remote = git.remoteUrl()
     } catch {
-      memo = { ok: false, reason: 'remote-unexpected' }
-      return memo
+      // Not memoized, for the same reason a failed fetch is not: an exec that
+      // could not run says nothing about what the remote is.
+      return { ok: false, reason: 'remote-unreadable' }
     }
     if (!EXPECTED_REMOTE_URL.test(remote.trim())) {
       memo = { ok: false, reason: 'remote-unexpected' }
@@ -498,7 +510,7 @@ export const createPinnedTargetStateReader = (options?: {
 
     let raw: string
     try {
-      raw = git.show(`${PINNED_REF}:${TARGET_STATE_REPO_PATH}`)
+      raw = git.show(`${PINNED_READ_REF}:${TARGET_STATE_REPO_PATH}`)
     } catch {
       memo = { ok: false, reason: 'blob-unreadable' }
       return memo

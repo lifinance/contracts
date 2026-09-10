@@ -324,7 +324,6 @@ describe('facet-version-utils', () => {
         kind: 'resolved',
         contractName: 'AcrossFacetV3',
         version: '1.1.0',
-        recordedOn: 'network',
       })
     })
 
@@ -339,7 +338,6 @@ describe('facet-version-utils', () => {
         kind: 'resolved',
         contractName: 'AcrossFacetV3',
         version: '1.1.0',
-        recordedOn: 'network',
       })
     })
 
@@ -353,72 +351,10 @@ describe('facet-version-utils', () => {
       })
     })
 
-    it('falls back to the same address on other networks when this one has no record', () => {
+    it('reports nothing recorded for an address recorded only on another network', () => {
       expect(
         resolveDeployedContractByAddress('base', [FACET_ADDRESS], soleRoot)
-      ).toEqual({
-        kind: 'resolved',
-        contractName: 'AcrossFacetV3',
-        version: '1.1.0',
-        recordedOn: 'other-networks',
-      })
-    })
-
-    it('does not fall back while this network has a record of its own', () => {
-      const root = writeCache('network-wins', [
-        {
-          contractName: 'AcrossFacetV3',
-          network: 'base',
-          version: '1.1.0',
-          address: FACET_ADDRESS,
-        },
-        {
-          contractName: 'SomethingElse',
-          network: 'optimism',
-          version: '9.9.9',
-          address: FACET_ADDRESS,
-        },
-      ])
-      try {
-        expect(
-          resolveDeployedContractByAddress('base', [FACET_ADDRESS], root)
-        ).toEqual({
-          kind: 'resolved',
-          contractName: 'AcrossFacetV3',
-          version: '1.1.0',
-          recordedOn: 'network',
-        })
-      } finally {
-        fs.rmSync(root, { recursive: true, force: true })
-      }
-    })
-
-    it('refuses a fallback whose rows disagree across networks', () => {
-      const root = writeCache('fleet-contradiction', [
-        {
-          contractName: 'CalldataVerificationFacet',
-          network: 'optimism',
-          version: '1.3.1',
-          address: FACET_ADDRESS,
-        },
-        {
-          contractName: 'LiFuelFeeCollector',
-          network: 'polygon',
-          version: '1.0.1',
-          address: FACET_ADDRESS,
-        },
-      ])
-      try {
-        expect(
-          resolveDeployedContractByAddress('base', [FACET_ADDRESS], root)
-        ).toEqual({
-          kind: 'ambiguous',
-          contractNames: ['CalldataVerificationFacet', 'LiFuelFeeCollector'],
-          versions: ['1.3.1', '1.0.1'],
-        })
-      } finally {
-        fs.rmSync(root, { recursive: true, force: true })
-      }
+      ).toEqual({ kind: 'unrecorded' })
     })
 
     it('reports a name contradiction a blank-version sibling would otherwise hide', () => {
@@ -494,7 +430,6 @@ describe('facet-version-utils', () => {
           kind: 'resolved',
           contractName: 'NoVersionFacet',
           version: null,
-          recordedOn: 'network',
         })
       } finally {
         fs.rmSync(partialRoot, { recursive: true, force: true })
@@ -516,7 +451,6 @@ describe('facet-version-utils', () => {
           kind: 'resolved',
           contractName: null,
           version: '9.9.9',
-          recordedOn: 'network',
         })
       } finally {
         fs.rmSync(namelessRoot, { recursive: true, force: true })
@@ -607,7 +541,6 @@ describe('facet-version-utils', () => {
           kind: 'resolved',
           contractName: 'PolymerCCTPFacet',
           version: '2.0.0',
-          recordedOn: 'network',
         })
       } finally {
         fs.rmSync(root, { recursive: true, force: true })
@@ -636,7 +569,6 @@ describe('facet-version-utils', () => {
           kind: 'resolved',
           contractName: 'PolymerCCTPFacet',
           version: '2.0.0',
-          recordedOn: 'network',
         })
       } finally {
         fs.rmSync(root, { recursive: true, force: true })

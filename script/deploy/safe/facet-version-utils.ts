@@ -112,13 +112,7 @@ export function getDeployedFacetVersionFromLog(
 
 /** What the deployment record says a proposed address is. */
 export type DeployedContractLookup =
-  | {
-      kind: 'resolved'
-      contractName: string | null
-      version: string | null
-      /** Whether the record came from the network under review or from the same address elsewhere. */
-      recordedOn: 'network' | 'other-networks'
-    }
+  | { kind: 'resolved'; contractName: string | null; version: string | null }
   | { kind: 'ambiguous'; contractNames: string[]; versions: string[] }
   | { kind: 'unrecorded' }
 
@@ -138,16 +132,15 @@ const nonBlank = (value: string | undefined): string | null => {
  * A `(network, address)` pair is not unique in that cache — the live production
  * mirror carries six such pairs, two of them at genuinely different versions —
  * so contradicting records are reported rather than resolved to whichever the
- * unsorted scan reached first. A record carrying no version cannot contradict
- * one that does, which keeps the three blank-sibling pairs resolvable; a record
- * carrying a different *name*, blank version or not, always contradicts.
+ * unsorted scan reached first. A record carrying no version cannot contradict one
+ * that does; a record carrying a different *name* always does, blank version or
+ * not, or a blank sibling would hide the disagreement.
  *
- * When the network under review has no record at all, the same address on other
- * networks is consulted. An address is a CREATE2 identity, so its bytecode — and
- * therefore its name and version — does not vary by chain, while the record rows
- * do: 13 installed facet addresses have no row on their own network today,
- * robinhood's whole core facet set among them. A name or version disagreement
- * across those rows still refuses.
+ * The lookup stays scoped to the network under review. The same address on
+ * another chain is not evidence of what is deployed here: the deploy salt binds
+ * the bytecode only for contracts that went through the deploy script, and the
+ * mirror already carries `0xae77c9ad…` as CalldataVerificationFacet on 17
+ * networks and LiFuelFeeCollector on opbnb.
  * @param network - Network name (e.g. optimism)
  * @param addressCandidates - Address forms to match; compared case-insensitively
  * @param rootDir - Project root containing `.cache/`; defaults to cwd
@@ -167,27 +160,18 @@ export function resolveDeployedContractByAddress(
       .map((a) => a.toLowerCase())
     if (normalizedCandidates.length === 0) return { kind: 'unrecorded' }
 
-    const atAddress = records.filter(
+    const networkLower = network.toLowerCase()
+    const matches = records.filter(
       (r) =>
+        r.network?.toLowerCase() === networkLower &&
         typeof r.address === 'string' &&
         normalizedCandidates.includes(r.address.toLowerCase())
     )
-    if (atAddress.length === 0) return { kind: 'unrecorded' }
+    if (matches.length === 0) return { kind: 'unrecorded' }
 
-    const networkLower = network.toLowerCase()
-    const onNetwork = atAddress.filter(
-      (r) => r.network?.toLowerCase() === networkLower
-    )
-    const matches = onNetwork.length > 0 ? onNetwork : atAddress
-    const recordedOn = onNetwork.length > 0 ? 'network' : 'other-networks'
-
-    // A blank version cannot contradict a present one, so it is dropped before
-    // the versions are compared — but the names are taken from every match, or a
-    // blank-version sibling could hide a name disagreement.
-    const versioned = matches.filter((r) => nonBlank(r.version))
     const versions = [
       ...new Set(
-        versioned
+        matches
           .map((r) => nonBlank(r.version))
           .filter((v): v is string => v !== null)
       ),
@@ -207,7 +191,6 @@ export function resolveDeployedContractByAddress(
       kind: 'resolved',
       contractName: contractNames[0] ?? null,
       version: versions[0] ?? null,
-      recordedOn,
     }
   } catch {
     return { kind: 'unrecorded' }
