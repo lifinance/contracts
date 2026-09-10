@@ -10,6 +10,7 @@
 import { describe, expect, it } from 'bun:test'
 
 import {
+  buildSettingsFromMetadata,
   findAttestationConflicts,
   serialiseAttestationKey,
   sourceClosureHash,
@@ -21,7 +22,9 @@ const EVM: IAttestationKey = {
   contractName: 'CBridgeFacet',
   version: '1.2.0',
   profile: 'default',
+  evmVersion: 'cancun',
   viaIR: true,
+  optimizerRuns: 1000000,
   solcVersion: '0.8.29',
 }
 
@@ -48,11 +51,15 @@ const minted = (
 describe('serialiseAttestationKey', () => {
   it('separates on every input that can change the bytecode', () => {
     const base = serialiseAttestationKey(EVM)
+    const { optimizerRuns: _dropped, ...noOptimizer } = EVM
     const differing: [string, IAttestationKey][] = [
       ['contract name', { ...EVM, contractName: 'CBridgeFacetV2' }],
       ['version', { ...EVM, version: '1.2.1' }],
       ['profile', { ...EVM, profile: 'ci' }],
+      ['evm version', { ...EVM, evmVersion: 'prague' }],
       ['pipeline', { ...EVM, viaIR: false }],
+      ['optimizer runs', { ...EVM, optimizerRuns: 200 }],
+      ['optimizer off', noOptimizer],
       ['solc version', { ...EVM, solcVersion: '0.8.30' }],
       ['zk toolchain', ZK],
     ]
@@ -85,12 +92,88 @@ describe('serialiseAttestationKey', () => {
     expect(serialiseAttestationKey(ZK)).not.toContain('3:evm')
   })
 
-  it('is stable for the same inputs', () => {
-    // Paired present for the separations above: the key changes when an input
-    // changes, and only then.
-    expect(serialiseAttestationKey({ ...EVM })).toBe(
+  it('writes a marker for an absent optimizer rather than shortening', () => {
+    const { optimizerRuns: _dropped, ...noOptimizer } = EVM
+
+    expect(serialiseAttestationKey(noOptimizer)).toContain('5:noopt')
+    expect(serialiseAttestationKey(EVM)).not.toContain('5:noopt')
+  })
+
+  it('fixes the field order itself rather than taking the object literal order', () => {
+    // A serialiser reading the object's own key order would give one build two
+    // keys, depending on how the caller happened to construct it.
+    const reordered: IAttestationKey = {
+      solcVersion: EVM.solcVersion,
+      optimizerRuns: EVM.optimizerRuns,
+      viaIR: EVM.viaIR,
+      evmVersion: EVM.evmVersion,
+      profile: EVM.profile,
+      version: EVM.version,
+      contractName: EVM.contractName,
+    }
+
+    expect(serialiseAttestationKey(reordered)).toBe(
       serialiseAttestationKey(EVM)
     )
+  })
+})
+
+describe('buildSettingsFromMetadata', () => {
+  const SETTINGS = {
+    evmVersion: 'cancun',
+    viaIR: null,
+    optimizer: { enabled: true, runs: 1000000 },
+  }
+
+  it('reads solc null viaIR as a legacy build', () => {
+    // What a real artifact carries: solc writes null, not false, for a pipeline
+    // that did not run. Two producers each mapping that themselves is the bug
+    // this helper exists to hold in one place.
+    expect(buildSettingsFromMetadata(SETTINGS)).toEqual({
+      evmVersion: 'cancun',
+      viaIR: false,
+      optimizerRuns: 1000000,
+    })
+  })
+
+  it('reads an IR build as viaIR', () => {
+    expect(buildSettingsFromMetadata({ ...SETTINGS, viaIR: true }).viaIR).toBe(
+      true
+    )
+  })
+
+  it('omits the run count when the optimizer did not run', () => {
+    // A run count cannot move bytecode the optimizer never touched, so naming
+    // it would file two identical builds under different keys.
+    expect(
+      buildSettingsFromMetadata({
+        ...SETTINGS,
+        optimizer: { enabled: false, runs: 200 },
+      })
+    ).toEqual({ evmVersion: 'cancun', viaIR: false })
+  })
+
+  it('refuses an artifact that does not state its evm version', () => {
+    // Assuming solc's default files the build under a key naming a setting the
+    // build may not have used.
+    expect(() =>
+      buildSettingsFromMetadata({ ...SETTINGS, evmVersion: undefined })
+    ).toThrow('evmVersion')
+  })
+
+  it('refuses an artifact that does not state its optimizer settings', () => {
+    expect(() =>
+      buildSettingsFromMetadata({ ...SETTINGS, optimizer: undefined })
+    ).toThrow('optimizer settings')
+  })
+
+  it('refuses an enabled optimizer with no run count', () => {
+    expect(() =>
+      buildSettingsFromMetadata({
+        ...SETTINGS,
+        optimizer: { enabled: true, runs: null },
+      })
+    ).toThrow('run count')
   })
 })
 
@@ -165,6 +248,17 @@ describe('sourceClosureHash', () => {
       ])
     ).toBe(sourceClosureHash([{ path: 'src/Facets/A.sol', keccak: HASH_A }]))
   })
+
+  it('refuses a source hash that is not framed hex', () => {
+    // Without the frame check an unset or garbled hash hashes into the closure
+    // without complaint, and the audit bridge points at a plausible-looking
+    // digest of nonsense.
+    for (const keccak of ['', '0x', 'nope', `${HASH_A}a`])
+      expect(
+        () => sourceClosureHash([{ path: 'src/Facets/A.sol', keccak }]),
+        keccak
+      ).toThrow('source hash for src/Facets/A.sol')
+  })
 })
 
 describe('findAttestationConflicts', () => {
@@ -176,6 +270,18 @@ describe('findAttestationConflicts', () => {
 
     expect(conflicts).toHaveLength(1)
     expect(conflicts[0]?.maskedHashes).toEqual([HASH_A, HASH_B])
+  })
+
+  it('names the conflicting build structurally, not only serialised', () => {
+    // The caller has to refuse on this, so the refusal has to be legible
+    // without a human parsing the length-prefixed form.
+    const [conflict] = findAttestationConflicts([
+      minted(EVM, HASH_A),
+      minted(EVM, HASH_B),
+    ])
+
+    expect(conflict?.key).toEqual(EVM)
+    expect(conflict?.serialisedKey).toBe(serialiseAttestationKey(EVM))
   })
 
   it('reports one bytecode attested from two different source closures', () => {
@@ -214,5 +320,14 @@ describe('findAttestationConflicts', () => {
     expect(
       findAttestationConflicts([minted(EVM, HASH_A), minted(ZK, HASH_B)])
     ).toEqual([])
+  })
+
+  it('refuses an attestation whose hashes are not framed hex', () => {
+    expect(() => findAttestationConflicts([minted(EVM, 'nope')])).toThrow(
+      'masked hash is not hex in the attestation for CBridgeFacet'
+    )
+    expect(() => findAttestationConflicts([minted(EVM, HASH_A, '0x')])).toThrow(
+      'source closure hash is empty'
+    )
   })
 })

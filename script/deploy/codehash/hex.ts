@@ -24,3 +24,14 @@ export const frameFault = (hex: string, noun: string): string | undefined => {
   if (!/^[0-9a-f]*$/i.test(body)) return `${noun} is not hex`
   return undefined
 }
+
+/**
+ * Canonical form for comparing hashes: no prefix, lower case.
+ *
+ * Shared so two modules cannot disagree about whether `0xAA…` and `0xaa…` are
+ * one hash. Frame-check with {@link frameFault} first — this normalises
+ * nonsense as readily as it normalises a hash.
+ * @param hex - A hash, with or without a `0x` prefix
+ * @returns The same hash, unprefixed and lower case
+ */
+export const normalizeHash = (hex: string): string => strip0x(hex).toLowerCase()

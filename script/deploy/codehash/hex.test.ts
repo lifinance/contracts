@@ -5,7 +5,7 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
-import { frameFault, strip0x } from './hex'
+import { frameFault, normalizeHash, strip0x } from './hex'
 
 describe('frameFault', () => {
   it('accepts real bytecode with and without a prefix', () => {
@@ -46,5 +46,15 @@ describe('strip0x', () => {
   it('does not mistake leading hex digits for a prefix', () => {
     // `0` and `x` only pair up at the very start; `a0x…` is data.
     expect(strip0x('a0xbc')).toBe('a0xbc')
+  })
+})
+
+describe('normalizeHash', () => {
+  it('brings prefix and case drift of one hash to a single form', () => {
+    // Shared rather than per-module so two modules cannot disagree about
+    // whether these are the same hash.
+    const forms = ['0xABCD', '0xabcd', '0XAbCd', 'ABCD', 'abcd']
+
+    for (const form of forms) expect(normalizeHash(form), form).toBe('abcd')
   })
 })
