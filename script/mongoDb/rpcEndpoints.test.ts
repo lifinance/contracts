@@ -428,9 +428,9 @@ describe('normalizeRpcUrlForNetwork', () => {
   const TRONGRID_ROOT = 'https://api.trongrid.io'
 
   it('routes a TronGrid endpoint to its JSON-RPC path', () => {
-    expect(normalizeRpcUrlForNetwork('tron', TRONGRID_ROOT)).toBe(
-      `${TRONGRID_ROOT}/jsonrpc`
-    )
+    const normalizedUrl = normalizeRpcUrlForNetwork('tron', TRONGRID_ROOT)
+
+    expect(normalizedUrl).toBe(`${TRONGRID_ROOT}/jsonrpc`)
   })
 
   it('routes a TronGrid testnet endpoint the same way', () => {

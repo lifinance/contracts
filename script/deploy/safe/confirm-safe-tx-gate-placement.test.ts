@@ -25,11 +25,6 @@ const CONFIRM_SCRIPT = path.join(
 )
 
 const GATE = 'if (!targetState.cleared) {'
-/**
- * The point past which this proposal counts as acknowledged. Anchored on the
- * ledger write rather than on a review prompt in front of it: acknowledgement
- * is implicit in choosing an action, so no prompt precedes this.
- */
 const ACKNOWLEDGEMENT_RECORDED =
   'recordAcknowledgement(acknowledgementLedger, {'
 const NONCE_GATE = "nonceDecision?.reason === 'stale-nonce'"
