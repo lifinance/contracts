@@ -10,10 +10,9 @@
  * than one that lost the wiring.
  *
  * Both sides of §4.2's split are classified: the funnels carrying an entry-point
- * `assertTicketPresent`, and the scripts refused only inside
- * `storeTransactionInMongoDB` — the ones where a missing ticket costs a
- * signature. Which set a script is in is the whole content of that section, so
- * a script in neither fails the run.
+ * `assertTicketPresent`, and the scripts refused only at the store — the ones
+ * where a missing ticket costs a signature. Which set a script is in is the
+ * whole content of that section, so a script in neither fails the run.
  */
 
 import { readFileSync } from 'fs'
@@ -49,14 +48,14 @@ const FUNNELS = [
     script: 'deploy/safe/propose-to-safe.ts',
     flag: true,
     asserts: false,
-    store: '{ ticket: options.ticket, reason: options.reason }',
+    store: 'provenance: { ticket: options.ticket, reason: options.reason },',
   },
   {
     script: 'deploy/safe/add-safe-owners-and-threshold.ts',
     flag: true,
     asserts: true,
     call: 'assertTicketPresent(args.ticket)',
-    store: '{ ticket }',
+    store: 'provenance: { ticket },',
   },
   {
     script: 'deploy/tron/propose-to-safe-tron.ts',
@@ -73,7 +72,7 @@ const FUNNELS = [
     flag: true,
     asserts: true,
     call: 'assertTicketPresent(args.ticket)',
-    store: '{ ticket: args.ticket }',
+    store: 'provenance: { ticket: args.ticket },',
   },
   // Its only caller, `cleanUpProdDiamond.ts`, declares no `--ticket`, so the
   // exported variable is the whole channel — `MultisigSigningProcess.md` §4.2.
@@ -85,10 +84,33 @@ const FUNNELS = [
   },
 ] as const
 
+/** The blessed wrapper every EVM proposal is created through. */
+const WRAPPER = 'proposeSafeTx'
+
+const FUNNEL_FENCE = '.eslintrc.funnel-fence.cjs'
+
+/** `deploy/tron/...`: signs without a `SafeClient`, so it cannot use WRAPPER. */
+const TRON_FUNNEL = 'deploy/tron/propose-to-safe-tron.ts'
+
 /**
- * Reaches `storeTransactionInMongoDB` with no entry-point check in front of it,
- * so the refusal lands after a signature has been spent — §4.2 names these as
- * the routes that cost one, which is only true while the list is this one.
+ * The storage call the fence reserves, read from the fence rather than written
+ * here: naming it in this file is what the fence forbids, and assembling it out
+ * of fragments to slip past that is the evasion the fence documents as the one
+ * it cannot see. Reading it also means a rename of the funnel reaches these
+ * cases instead of quietly emptying them.
+ */
+const storeFn = (): string => {
+  const fence = readFileSync(join(REPO_ROOT, FUNNEL_FENCE), 'utf8')
+  const declared = /^const FUNNEL = '([A-Za-z0-9_]+)'$/m.exec(fence)
+  if (!declared)
+    throw new Error(`${FUNNEL_FENCE} no longer declares FUNNEL as a literal`)
+  return declared[1] as string
+}
+
+/**
+ * Reaches the store with no entry-point check in front of it, so the refusal
+ * lands after a signature has been spent — §4.2 names these as the routes that
+ * cost one, which is only true while the list is this one.
  */
 const STORE_ONLY = [
   'tasks/proposeAllBridgeChainIdMappings.ts',
@@ -98,8 +120,8 @@ const STORE_ONLY = [
   'tasks/proposePolymerCCTPChainIdMappings.ts',
 ] as const
 
-/** Where the function is defined, which is not a route into it. */
-const NOT_A_STORE_ROUTE = ['deploy/safe/safe-utils.ts']
+/** Where the wrapper is defined, which is not a route into it. */
+const NOT_A_STORE_ROUTE = ['deploy/safe/propose-safe-tx.ts']
 
 /** Matches the citty argument declaration, not a mention of the word. */
 const TICKET_ARG = /^\s*ticket: \{$/m
@@ -135,9 +157,9 @@ const grepScripts = (pattern: string): string[] => {
  * Scripts that call `symbol`.
  *
  * Matched with the opening parenthesis, so a mention in a comment cannot be
- * counted as a route: a JSDoc line reading "mirroring
- * `storeTransactionInMongoDB`" otherwise classifies a module that never reaches
- * it, and then turns the classification red when someone rewords that comment.
+ * counted as a route: a JSDoc line reading "mirroring `proposeSafeTx`"
+ * otherwise classifies a module that never reaches it, and then turns the
+ * classification red when someone rewords that comment.
  *
  * @param symbol - Function name, without the parenthesis.
  * @returns Paths relative to `script/`.
@@ -349,18 +371,29 @@ describe('every route is classified, and each funnel matches its source', () => 
   })
 
   it('hands the ticket to the store as well as to the entry check', () => {
-    // The two resolve independently: `storeTransactionInMongoDB` consults
-    // `SAFE_PROPOSAL_TICKET` unless its caller supplies one, so a funnel can
-    // clear its own gate on the flag and then be refused once per signature it
-    // already spent — or, where the variable is set to something older, record
-    // that stale link against the proposal `--ticket` was passed to override.
-    // Counted, so a second store call added later cannot skip the argument.
+    // The two resolve independently: the store consults `SAFE_PROPOSAL_TICKET`
+    // unless its caller supplies one, so a funnel can clear its own gate on the
+    // flag and then be refused once per signature it already spent — or, where
+    // the variable is set to something older, record that stale link against
+    // the proposal `--ticket` was passed to override. Counted, so a second
+    // proposal added later cannot skip the argument.
     for (const funnel of FUNNELS.filter((f) => f.flag)) {
       const text = source(funnel.script)
-      const storeCalls = text.split('storeTransactionInMongoDB(').length - 1
-      expect(storeCalls).toBeGreaterThan(0)
-      expect(text.split(funnel.store).length - 1).toBe(storeCalls)
+      const via = funnel.script === TRON_FUNNEL ? storeFn() : WRAPPER
+      const proposals = text.split(`${via}(`).length - 1
+      expect(proposals).toBeGreaterThan(0)
+      expect(text.split(funnel.store).length - 1).toBe(proposals)
     }
+  })
+
+  it('leaves Tron the only route that stores without the blessed wrapper', () => {
+    // Tron signs without a `SafeClient`, so it cannot reach `proposeSafeTx`,
+    // and the funnel fence exempts it by name. That exemption is what makes the
+    // store classification below complete; EXSC-984 will end it, and this case
+    // is what asks for the classification to be revisited when it does.
+    expect(readFileSync(join(REPO_ROOT, FUNNEL_FENCE), 'utf8')).toContain(
+      `script/${TRON_FUNNEL}`
+    )
   })
 
   it.each(FUNNELS.filter((funnel) => funnel.flag).map((f) => f.script))(
@@ -393,7 +426,10 @@ describe('every route is classified, and each funnel matches its source', () => 
     // a new route into the store has to land in one of these two lists or be
     // named here. Nothing else catches it: it calls no entry-point check, which
     // is exactly what puts it in the expensive set.
-    const routes = callersOf('storeTransactionInMongoDB').filter(
+    // Callers of the wrapper, plus Tron, which the fence exempts and the case
+    // above pins. The fence is what makes those two the whole set: no other
+    // file may name the storage call.
+    const routes = [...callersOf(WRAPPER), TRON_FUNNEL].filter(
       (path) => !NOT_A_STORE_ROUTE.includes(path)
     )
 
