@@ -78,7 +78,8 @@ const cutCalldata = (facetAddress: string, action = 0): string =>
   })
 
 /**
- * Run a bash harness and return its trimmed stdout and stderr.
+ * Run a bash harness and return its trimmed stdout. Stderr is inherited, so a
+ * case that turns on which stream a line arrived on needs `runHarnessStreams`.
  * @param body - harness script body
  */
 const runHarness = (body: string): string => {
@@ -92,6 +93,27 @@ const runHarness = (body: string): string => {
     encoding: 'utf8',
     env: { ...process.env, HELPERS },
   }).trim()
+}
+
+/**
+ * Run a bash harness and return both streams separately.
+ * @param body - harness script body
+ */
+const runHarnessStreams = (
+  body: string
+): { stdout: string; stderr: string } => {
+  const harnessPath = join(
+    workDir,
+    `harness-${Math.random().toString(36).slice(2)}.sh`
+  )
+  writeFileSync(harnessPath, body)
+  const { stdout, stderr } = spawnSync('bash', [harnessPath], {
+    cwd: REPO_ROOT,
+    encoding: 'utf8',
+    env: { ...process.env, HELPERS },
+    stdio: ['ignore', 'pipe', 'pipe'],
+  })
+  return { stdout: stdout.trim(), stderr: stderr.trim() }
 }
 
 /**
@@ -203,21 +225,22 @@ describe('assertDirectBroadcastCalldataGate', () => {
   })
 
   it('refuses a token written to stderr rather than stdout', () => {
-    // `runHarness` inherits stderr, so the token below never reaches the capture
-    // at all — which is the point: the gate used to merge the two streams and
-    // would have read this as consent.
-    const out = runHarness(`
+    // The gate used to capture the two streams merged, which read this as
+    // consent. Both streams are asserted, so the case cannot pass by the token
+    // never having been emitted.
+    const { stdout, stderr } = runHarnessStreams(`
       ${LOAD_HELPERS}
       isTestnetNetwork() { [[ "$1" == "${TESTNET}" ]]; }
       error() { echo "[error] $*"; }
-      bunx() { echo "${DIRECT_BROADCAST_GATE_ALLOWED}" >&2 && echo "TOKEN_WENT_TO_STDERR"; return 0; }
+      bunx() { echo "${DIRECT_BROADCAST_GATE_ALLOWED}" >&2; return 0; }
       assertDirectBroadcastCalldataGate "${MAINNET}" "production" "0xdeadbeef"
       echo "rc=$?"
     `)
 
-    expect(out).toContain('TOKEN_WENT_TO_STDERR')
-    expect(out).toContain('no allow token')
-    expect(out).toContain('rc=1')
+    expect(stderr).toContain(DIRECT_BROADCAST_GATE_ALLOWED)
+    expect(stdout).not.toContain(DIRECT_BROADCAST_GATE_ALLOWED)
+    expect(stdout).toContain('no allow token')
+    expect(stdout).toContain('rc=1')
   })
 })
 
