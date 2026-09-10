@@ -25,7 +25,8 @@ const CONFIRM_SCRIPT = path.join(
 )
 
 const GATE = 'if (!targetState.cleared) {'
-const ACKNOWLEDGEMENT_PROMPT = 'shouldPromptForAcknowledgement({'
+const ACKNOWLEDGEMENT_RECORDED =
+  'recordAcknowledgement(acknowledgementLedger, {'
 const NONCE_GATE = "nonceDecision?.reason === 'stale-nonce'"
 
 /** Every point past which the proposal is no longer only being reviewed. */
@@ -58,10 +59,10 @@ describe('target-state gate placement in confirm-safe-tx', () => {
     expect(source.indexOf(GATE)).toBeGreaterThan(source.indexOf(NONCE_GATE))
   })
 
-  it('sits before the acknowledgement prompt', () => {
-    expect(source.indexOf(ACKNOWLEDGEMENT_PROMPT)).toBeGreaterThan(-1)
+  it('sits before the acknowledgement is recorded', () => {
+    expect(source.indexOf(ACKNOWLEDGEMENT_RECORDED)).toBeGreaterThan(-1)
     expect(source.indexOf(GATE)).toBeLessThan(
-      source.indexOf(ACKNOWLEDGEMENT_PROMPT)
+      source.indexOf(ACKNOWLEDGEMENT_RECORDED)
     )
   })
 

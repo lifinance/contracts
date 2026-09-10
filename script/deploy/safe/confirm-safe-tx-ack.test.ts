@@ -16,13 +16,19 @@ import {
   computeChangeFingerprint,
   createAcknowledgementLedger,
   evaluateProposalIntegrity,
-  isChangeAcknowledged,
   recordAcknowledgement,
   renderChangeRollup,
   rollUpByChange,
-  shouldPromptForAcknowledgement,
+  type IAcknowledgementLedger,
   type INetworkOutcome,
 } from './confirm-safe-tx-ack'
+
+/**
+ * The ledger's read side. Local to the tests: production code records and rolls
+ * up, and never asks whether one effect is already acknowledged.
+ */
+const isAcknowledged = (ledger: IAcknowledgementLedger, key: Hex): boolean =>
+  (ledger.acknowledgedProposalKeys.get(key)?.size ?? 0) > 0
 
 const REPO_ROOT = join(import.meta.dir, '..', '..', '..')
 
@@ -290,35 +296,6 @@ describe('evaluateProposalIntegrity', () => {
   })
 })
 
-describe('shouldPromptForAcknowledgement', () => {
-  it('prompts the first time an effect is seen', () => {
-    expect(
-      shouldPromptForAcknowledgement({
-        alreadyAcknowledged: false,
-        integrityOk: true,
-      })
-    ).toBe(true)
-  })
-
-  it('does not re-prompt for an effect already acknowledged this run', () => {
-    expect(
-      shouldPromptForAcknowledgement({
-        alreadyAcknowledged: true,
-        integrityOk: true,
-      })
-    ).toBe(false)
-  })
-
-  it('always re-prompts when the nonce verdict failed, even if acknowledged', () => {
-    expect(
-      shouldPromptForAcknowledgement({
-        alreadyAcknowledged: true,
-        integrityOk: false,
-      })
-    ).toBe(true)
-  })
-})
-
 describe('acknowledgement ledger', () => {
   const fingerprint = computeChangeFingerprint('0xdeadbeef')
   const KEY = effectKey(DIAMOND_A, fingerprint)
@@ -326,7 +303,7 @@ describe('acknowledgement ledger', () => {
 
   it('records and reports an acknowledgement', () => {
     const ledger = createAcknowledgementLedger()
-    expect(isChangeAcknowledged(ledger, KEY)).toBe(false)
+    expect(isAcknowledged(ledger, KEY)).toBe(false)
 
     expect(
       recordAcknowledgement(ledger, {
@@ -335,7 +312,7 @@ describe('acknowledgement ledger', () => {
         integrityOk: true,
       })
     ).toBe(true)
-    expect(isChangeAcknowledged(ledger, KEY)).toBe(true)
+    expect(isAcknowledged(ledger, KEY)).toBe(true)
   })
 
   it('never acknowledges a proposal whose nonce verdict failed', () => {
@@ -348,7 +325,7 @@ describe('acknowledgement ledger', () => {
         integrityOk: false,
       })
     ).toBe(false)
-    expect(isChangeAcknowledged(ledger, KEY)).toBe(false)
+    expect(isAcknowledged(ledger, KEY)).toBe(false)
   })
 
   it('does not leak an acknowledgement to a different effect', () => {
@@ -359,14 +336,11 @@ describe('acknowledgement ledger', () => {
       integrityOk: true,
     })
 
+    expect(isAcknowledged(ledger, effectKey(DIAMOND_B, fingerprint))).toBe(
+      false
+    )
     expect(
-      isChangeAcknowledged(ledger, effectKey(DIAMOND_B, fingerprint))
-    ).toBe(false)
-    expect(
-      isChangeAcknowledged(
-        ledger,
-        effectKey(DIAMOND_A, fingerprint, DELEGATECALL)
-      )
+      isAcknowledged(ledger, effectKey(DIAMOND_A, fingerprint, DELEGATECALL))
     ).toBe(false)
   })
 
@@ -406,7 +380,7 @@ describe('rollUpByChange', () => {
     acknowledged: true,
   })
 
-  it('renders N/N and reads complete when every network passed and was reviewed', () => {
+  it('renders N/N and reads complete when every network passed and was acted on', () => {
     const rollups = rollUpByChange(
       Array.from({ length: 57 }, (_, i) => outcome(i + 1, true))
     )
@@ -433,7 +407,7 @@ describe('rollUpByChange', () => {
     expect(line.startsWith('✗')).toBe(true)
   })
 
-  it('is not complete when a network was never reviewed, even with every nonce usable', () => {
+  it('is not complete when a network was never acted on, even with every nonce usable', () => {
     const rollups = rollUpByChange([
       outcome(1, true),
       { ...outcome(2, true), acknowledged: false },
@@ -444,7 +418,7 @@ describe('rollUpByChange', () => {
     expect(rollups[0]?.acknowledged).toBe(1)
     expect(rollups[0]?.complete).toBe(false)
     expect(line.startsWith('✗')).toBe(true)
-    expect(line).toContain('reviewed 1/2')
+    expect(line).toContain('acted on 1/2')
   })
 
   it('counts one network once even if it is revisited', () => {
@@ -527,5 +501,66 @@ describe('confirm-safe-tx.ts carries no action cache', () => {
     expect(
       source.split('\n').filter((line) => line.includes('storedResponses'))
     ).toEqual([])
+  })
+})
+
+describe('confirm-safe-tx.ts previews the hash the device will sign', () => {
+  const source = readFileSync(
+    join(import.meta.dir, 'confirm-safe-tx.ts'),
+    'utf8'
+  )
+
+  // WHAT THIS CATCHES: the preview being fed the stored, proposer-written
+  // `safeTxHash` instead of the value the Safe computes from the normalised
+  // struct. That substitution is invisible to the renderer's own unit tests —
+  // both values are well-formed hashes — and it turns the preview into a
+  // picture of what the proposer claims the device will show.
+  //
+  // WHAT IT DOES NOT CATCH: a helper that computes the hash and returns the
+  // stored one anyway, or the preview being moved into a branch that never
+  // runs. Both need a behavioural seam `processTxs` does not have.
+  it('renders the filmstrip from the computed hash, not the stored one', () => {
+    const call = source.match(/renderLedgerFlexHashFlow\(\{[^}]*\}\)/)
+
+    expect(call?.[0]).toContain('hash: deviceHash')
+  })
+
+  it('computes that hash by asking the Safe contract', () => {
+    expect(source).toContain('deviceHash = await safe.getTransactionHash(')
+  })
+
+  it('asks for no second review confirmation', () => {
+    expect(source).not.toContain('Confirm you reviewed this change')
+    expect(source).not.toContain('shouldPromptForAcknowledgement')
+  })
+
+  // The absence above is only safe while the action select is still there: it
+  // is what the acknowledgement now rests on, so deleting it would satisfy the
+  // two negative assertions while leaving the flow with no acknowledgement at
+  // all. Pinned as a present, not only as an absence.
+  //
+  // WHAT IT DOES NOT CATCH: the select being rendered with its options built
+  // somewhere else, or an option list that offers no signing action. Both need
+  // the behavioural seam `processTxs` does not have.
+  it('still offers the action select the acknowledgement rests on', () => {
+    expect(source).toContain("await consola.prompt('Select action:'")
+    expect(source).toContain("const options = ['Do Nothing']")
+    expect(source).toContain("options.push('Sign')")
+  })
+
+  it('still lets the operator decline a proposal outright', () => {
+    expect(source).toContain("if (action === 'Do Nothing') continue")
+  })
+
+  // A machine verdict the operator can no longer act on is a log line, not a
+  // warning. Positional rather than presence-only, because the failure mode is
+  // the warning drifting below the prompt it exists to inform.
+  it('warns about a failing nonce verdict before the action select', () => {
+    const warned = source.indexOf('Nonce check failed on this proposal')
+    const selected = source.indexOf("await consola.prompt('Select action:'")
+
+    expect(warned).toBeGreaterThan(-1)
+    expect(selected).toBeGreaterThan(-1)
+    expect(warned).toBeLessThan(selected)
   })
 })
