@@ -266,6 +266,29 @@ describe('proposeSafeTx — what reaches the store', () => {
     expect(stored[0]?.safeTx.data.nonce).toBe(9n)
   })
 
+  it('passes the drain annotations through to the stored proposal', async () => {
+    const { safe } = buildSafeStub([OWNER], OWNER)
+    const { collection, calls: stored } = buildStore(acknowledged)
+    const parkedTaskRefs = [
+      { taskKey: 'mainnet:0xabc', prUrl: 'https://github.com/o/r/pull/1' },
+    ]
+
+    await proposeSafeTx({
+      safe,
+      network: 'mainnet',
+      chainId: 1,
+      safeAddress: SAFE,
+      pendingTransactions: collection,
+      payload: callPayload,
+      parkedTaskRefs: parkedTaskRefs as never,
+      provenance: { ticket: 'EXSC-957', reason: 'drained removals' },
+    })
+
+    // The removals a proposal drains are only traceable to their origin PR
+    // through these, and the wrapper is the only thing carrying them now.
+    expect(stored[0]?.parkedTaskRefs).toEqual(parkedTaskRefs)
+  })
+
   it('signs a prebuilt transaction without rebuilding it', async () => {
     const { safe, calls } = buildSafeStub([OWNER], OWNER)
     const { collection, calls: stored } = buildStore(acknowledged)

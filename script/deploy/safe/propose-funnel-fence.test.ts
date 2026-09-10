@@ -10,8 +10,8 @@
  * through it.
  */
 
-import { readFileSync } from 'fs'
-import { join } from 'path'
+import { readdirSync, readFileSync } from 'fs'
+import { extname, join } from 'path'
 
 import {
   describe,
@@ -23,6 +23,9 @@ import {
 const REPO_ROOT = join(import.meta.dir, '..', '..', '..')
 const FENCE_CONFIG = './.eslintrc.funnel-fence.cjs'
 const WORKFLOW = '.github/workflows/enforceProposalFunnel.yml'
+
+/** Extensions ESLint can parse as a module, so any of them could carry a route. */
+const MODULE_EXTENSIONS = ['.ts', '.tsx', '.mts', '.cts', '.js', '.mjs', '.cjs']
 
 /** The identifying fragment of the fence's message, not the whole paragraph. */
 const REFUSAL = 'Safe proposals are created through proposeSafeTx()'
@@ -50,6 +53,9 @@ const lint = async (
         '--no-eslintrc',
         '-c',
         FENCE_CONFIG,
+        // The flag CI runs with. Without it the cases below that carry an
+        // `eslint-disable` would pass while the fence had judged nothing.
+        '--no-inline-config',
         '--stdin',
         '--stdin-filename',
         virtualPath,
@@ -144,6 +150,69 @@ describe('the funnel fence refuses a new propose route', () => {
   )
 
   it(
+    'refuses an aliased import, which renames the funnel but not the reference',
+    async () => {
+      const result = await lint(
+        `import { storeTransactionInMongoDB as persist } from '../deploy/safe/safe-utils'\n` +
+          `export const propose = persist\n`,
+        BYPASS_PATH
+      )
+
+      expect(result.exitCode).not.toBe(0)
+      expect(result.output).toContain(REFUSAL)
+    },
+    TIMEOUT_MS
+  )
+
+  it(
+    'refuses a dynamic import, which no import declaration carries',
+    async () => {
+      const result = await lint(
+        `export const propose = async () =>\n` +
+          `  (await import('../deploy/safe/safe-utils')).storeTransactionInMongoDB\n`,
+        BYPASS_PATH
+      )
+
+      expect(result.exitCode).not.toBe(0)
+      expect(result.output).toContain(REFUSAL)
+    },
+    TIMEOUT_MS
+  )
+
+  it(
+    'refuses a file that disables the rule on itself',
+    async () => {
+      // An `eslint-disable` is the one rewrite people reach for by habit; the
+      // suites in this directory already carry one for another rule.
+      const result = await lint(
+        `/* eslint-disable no-restricted-syntax */\n` +
+          `import { storeTransactionInMongoDB } from '../deploy/safe/safe-utils'\n` +
+          `export const propose = storeTransactionInMongoDB\n`,
+        BYPASS_PATH
+      )
+
+      expect(result.exitCode).not.toBe(0)
+      expect(result.output).toContain(REFUSAL)
+    },
+    TIMEOUT_MS
+  )
+
+  it(
+    'refuses a route written at a module extension the repo-wide globs miss',
+    async () => {
+      const result = await lint(
+        `import { storeTransactionInMongoDB } from '../deploy/safe/safe-utils'\n` +
+          `export const propose = storeTransactionInMongoDB\n`,
+        'script/tasks/proposeSomethingNew.mjs'
+      )
+
+      expect(result.exitCode).not.toBe(0)
+      expect(result.output).toContain(REFUSAL)
+    },
+    TIMEOUT_MS
+  )
+
+  it(
     'refuses a re-export, so the name cannot be laundered through a third file',
     async () => {
       const result = await lint(
@@ -160,7 +229,7 @@ describe('the funnel fence refuses a new propose route', () => {
 
 describe('the allowlist is only what it claims to be', () => {
   it(
-    'refuses the owner-change script, which used to own its storage call',
+    'refuses the owner-change script, which the allowlist does not name',
     async () => {
       const result = await lint(
         `import { storeTransactionInMongoDB } from './safe-utils'\n` +
@@ -179,14 +248,22 @@ describe('the allowlist is only what it claims to be', () => {
       join(REPO_ROOT, '.eslintrc.funnel-fence.cjs')
     )) as { default: { overrides: { files: string[] }[] } }
 
-    expect(
-      config.default.overrides.flatMap((override) => override.files)
-    ).toEqual([
-      'script/deploy/safe/safe-utils.ts',
-      'script/deploy/safe/propose-safe-tx.ts',
-      'script/deploy/safe/safe-utils.test.ts',
-      'script/deploy/tron/propose-to-safe-tron.ts',
-    ])
+    const allowed = config.default.overrides.flatMap(
+      (override) => override.files
+    )
+
+    // Length and membership rather than a fixed order, so widening the
+    // allowlist still fails here while reordering or retiring an entry does not.
+    expect(allowed).toHaveLength(5)
+    expect(allowed.sort()).toEqual(
+      [
+        '.eslintrc.funnel-fence.cjs',
+        'script/deploy/safe/safe-utils.ts',
+        'script/deploy/safe/propose-safe-tx.ts',
+        'script/deploy/safe/safe-utils.test.ts',
+        'script/deploy/tron/propose-to-safe-tron.ts',
+      ].sort()
+    )
   })
 })
 
@@ -243,8 +320,7 @@ describe('the fence runs where it has to run', () => {
     async () => {
       // A path that exists: the repo-wide config resolves types from
       // `tsconfig.eslint.json`, whose include is a filesystem glob, so a virtual
-      // filename with no file behind it fails to parse before any rule runs. The
-      // source below is what this migrated call site must never go back to.
+      // filename with no file behind it fails to parse before any rule runs.
       const result = await lint(
         `import { storeTransactionInMongoDB } from '../deploy/safe/safe-utils'\n` +
           `export const propose = storeTransactionInMongoDB\n`,
@@ -285,4 +361,32 @@ describe('the fence runs where it has to run', () => {
     },
     TIMEOUT_MS
   )
+
+  it('sweeps every module extension a propose route could be written at', () => {
+    const script = (
+      JSON.parse(readFileSync(join(REPO_ROOT, 'package.json'), 'utf8')) as {
+        scripts: Record<string, string>
+      }
+    ).scripts['lint:funnel']
+    if (!script) throw new Error('package.json declares no lint:funnel script')
+
+    // A directory sweep judges only the extensions it is given, and the flag is
+    // what the stdin cases above cannot prove about the traversal. Measured
+    // against what the tree actually holds — `.mjs` is in use today — rather
+    // than against a list written here.
+    const present = new Set<string>()
+    const walk = (dir: string): void => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        if (entry.isDirectory()) walk(join(dir, entry.name))
+        else if (MODULE_EXTENSIONS.includes(extname(entry.name)))
+          present.add(extname(entry.name))
+      }
+    }
+    walk(join(REPO_ROOT, 'script'))
+    expect(present.size).toBeGreaterThan(0)
+
+    const swept = (/--ext\s+(\S+)/.exec(script)?.[1] ?? '').split(',')
+    for (const ext of present) expect(swept).toContain(ext)
+    expect(script).toContain('--no-inline-config')
+  })
 })

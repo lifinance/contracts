@@ -94,7 +94,7 @@ the source prompt or inferred, **not** confirmed.
    silently in `notFoundOnChain`) so the drain surfaces it for investigation.
 3. `[code]` Both proposal-creation entry points funnel through
    `storeTransactionInMongoDB(pendingTransactions, safeAddress, network, chainId,
-   safeTx, safeTxHash, proposer)` — `script/deploy/safe/safe-utils.ts:1263`. It is
+   safeTx, safeTxHash, proposer)` — `script/deploy/safe/safe-utils.ts:1804`. It is
    the single point where a proposal is *persisted*; it receives a **pre-signed**
    `safeTx` and has **no Safe SDK client** in scope. Since EXSC-957 every EVM
    caller reaches it through `proposeSafeTx` (`propose-safe-tx.ts`), which a lint
@@ -102,8 +102,8 @@ the source prompt or inferred, **not** confirmed.
 4. `[code]` **`runPropose(options)` — `script/deploy/safe/propose-to-safe.ts:58` — is
    the true funnel for programmatic Safe proposals**, and it owns `{network,
    environment, safe client, Mongo collection}`. It does `normalizeProposeCalls →
-   initializeSafeClient → getSafeMongoCollection → getNextNonce → safe.createTransaction
-   → sign → storeTransactionInMongoDB` (`:59-249`). Everything else routes *into* it:
+   initializeSafeClient → getSafeMongoCollection → getNextNonce → proposeSafeTx`
+   (`:59-249`). Everything else routes *into* it:
    the manual CLI `main` (`:257`) only parses argv and calls `runPropose` (`:356`,
    `runMain(main)` `:375`); the **facet-cut path** `proposeDiamondCut`
    (`script/deploy/shared/propose-diamond-cut.ts:53`) calls `runPropose` for EVM
@@ -113,7 +113,7 @@ the source prompt or inferred, **not** confirmed.
    is `proposeDiamondCut → runPropose`, no CLI). A *separate* helper
    `sendOrPropose({calldata, network, environment, diamondAddress, signing})` —
    `script/safe/safeScriptHelpers.ts:29` — does its own `getSafeMongoCollection →
-   getNextNonce → createTransaction → sign → storeTransactionInMongoDB` and **does not
+   getNextNonce → proposeSafeTx` and **does not
    call `runPropose`**; it backs whitelist-sync and `cleanUpProdDiamond` removals
    (`script/tasks/cleanUpProdDiamond.ts:515` `proposeRemovals`). So a `runPropose` hook
    covers the facet-cut funnel but **not** the `sendOrPropose` funnel (§6 gap).
@@ -436,8 +436,7 @@ export async function _runPropose(
   parkedTaskRefs?: IParkedTaskRef[] // annotated onto the stored proposal
 ): Promise<{ safeTxHash: Hex; stored: boolean }> {
   /* normalizeProposeCalls → (append extraTimelockCalls) → initializeSafeClient →
-     getSafeMongoCollection → getNextNonce → createTransaction → sign →
-     storeTransactionInMongoDB(…, parkedTaskRefs) */
+     getSafeMongoCollection → getNextNonce → proposeSafeTx(…, parkedTaskRefs) */
 }
 
 export async function runPropose(options: IProposeToSafeOptions) {

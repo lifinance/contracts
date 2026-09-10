@@ -13,7 +13,11 @@
  *
  * Extended by `.eslintrc.cjs` so a commit is checked by lint-staged, and run on
  * its own by `bun lint:funnel` (and `.github/workflows/enforceProposalFunnel.yml`)
- * so the fence does not depend on repo-wide lint being green.
+ * so the fence does not depend on repo-wide lint being green. That standalone run
+ * passes `--no-inline-config`, without which a file-level `eslint-disable` would
+ * turn the rule off, and sweeps every module extension the repo can hold — the
+ * repo-wide globs stop at `.ts`/`.js`/`.tsx`, so a `.mjs` or `.cts` route would
+ * otherwise be linted by nothing at all.
  */
 
 const FUNNEL = 'storeTransactionInMongoDB'
@@ -32,9 +36,11 @@ const FENCE = [
   // and as a template literal it is neither.
   { selector: `Literal[value='${FUNNEL}']`, message: MESSAGE },
   { selector: `TemplateElement[value.cooked='${FUNNEL}']`, message: MESSAGE },
-  // Not covered, deliberately: a name assembled by concatenation. No static
-  // selector can see it, and unlike the three above it is not a rewrite anyone
-  // reaches for by accident.
+  // Not covered, deliberately: a name assembled by concatenation, which no
+  // static selector can see, and an alias re-exported from an allowlisted file,
+  // which carries the funnel to a consumer under a name this rule never reads.
+  // Neither is a rewrite anyone reaches for by accident; the allowlisted files
+  // export no such alias today.
 ]
 
 module.exports = {
@@ -51,6 +57,8 @@ module.exports = {
   overrides: [
     {
       files: [
+        // names it to build the rule
+        '.eslintrc.funnel-fence.cjs',
         // declares it
         'script/deploy/safe/safe-utils.ts',
         // the blessed wrapper: the only caller
