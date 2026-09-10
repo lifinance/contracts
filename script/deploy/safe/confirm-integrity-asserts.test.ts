@@ -447,9 +447,9 @@ describe('stored signatures against the current owner set', () => {
     expect(outcome.status).toBe('error')
   })
 
-  it('passes a proposal that carries no signature yet', async () => {
+  it('refuses a proposal whose stored signature set is empty', async () => {
     const outcome = await statusOf(makeInput(), makeDeps(), CHECK_SIGNATURES)
-    expect(outcome.status).toBe('pass')
+    expect(outcome.status).toBe('error')
     expect(outcome.actual).toBe('0 stored signatures')
   })
 })

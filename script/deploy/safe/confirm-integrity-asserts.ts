@@ -516,10 +516,12 @@ async function assertSignatures(
 
   if (input.storedSignatures.length === 0)
     return {
-      status: 'pass',
+      status: 'error',
       expected,
       actual: '0 stored signatures',
       anchor: 'A-CHAIN',
+      detail:
+        'every writer stores a signature with the row, so an empty set is a row that lost its signatures rather than one awaiting them, and there is nothing to recover against the recomputed hash',
     }
 
   // Recovered against the recomputed hash, never the stored one: the stored hash
