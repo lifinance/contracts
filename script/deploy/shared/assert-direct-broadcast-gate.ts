@@ -68,10 +68,12 @@ const main = defineCommand({
   },
 })
 
-// Not `import.meta.main`: tsx's resolve hook rewrites the entry URL, so Node
-// never marks the module as main and the CLI would exit 0 without running.
-// That hook also realpaths `import.meta.url` but leaves argv[1] as given, so
-// both sides need realpathing or the compare fails through a symlinked path.
+// Not `import.meta.main`: it is undefined below Node 22.23, which `engines`
+// still permits, and there the CLI would exit 0 without gating. Node resolves
+// symlinks as it loads, so `import.meta.url` is already the real path while
+// argv[1] stays as typed - realpath both sides or the compare fails whenever a
+// path component is a link, which is why [CONV:NODE-RUNTIME-APIS]'s plain
+// compare is not enough here.
 const isEntrypoint = (): boolean => {
   if (process.argv[1] === undefined) return false
   try {
