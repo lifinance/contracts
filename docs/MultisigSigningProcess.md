@@ -165,8 +165,10 @@ bytes found at its address, the keccak after the metadata trailer came off and
 immutables were masked, the deployed byte length, and how many bytes the mask
 excluded. All four or none — the trailer's own length word says how much the
 masked hash removes, so equal masked hashes mean equal code only with the
-length pinned too. It is stored only where a post-deploy self-check established
-that the deployed code is the artifact that run built, and it is a **report**:
+length pinned too. It may be stored only where a post-deploy self-check has
+established that the deployed code is the artifact that run built — the deploy
+scripts do not pass these flags yet, so records written today carry no
+codehash — and it is a **report**:
 the run that wrote it chose the bytes it hashed, so a check that has to be
 sound recomputes from the chain. A value it cannot accept is never stored and
 never costs the record or the deploy — the `add` command writes everything else

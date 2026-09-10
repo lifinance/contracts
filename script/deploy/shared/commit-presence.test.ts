@@ -71,9 +71,9 @@ describe('resolveCommitPresence', () => {
   })
 
   it('does not let a shallow clone decide the negative', () => {
-    // The measured failure this replaces: `.git/shallow` holding one SHA made
-    // local reachability reads answer nonsense, and the old check refused an
-    // honest, pushed commit on that basis alone.
+    // A truncated commit graph cannot distinguish "no ref holds it" from "I
+    // cannot see that far", so shallowness must not decide the negative on its
+    // own — the query still does.
     const asked = spy({
       presence: 'PRESENT',
       reason: 'the repository holds it',
