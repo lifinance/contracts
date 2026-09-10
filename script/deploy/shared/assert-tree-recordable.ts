@@ -24,11 +24,19 @@ import {
 // status instead of listing the paths.
 const MAX_BUFFER_BYTES = 8 * 1024 * 1024
 
+/**
+ * A hung git must never stall the deploy this gates. Every call site's fallback
+ * leads to a refusal or to the presence query, so a timeout costs a deploy
+ * attempt and never buys one.
+ */
+const GIT_TIMEOUT_MS = 5_000
+
 const git = <T>(args: string[], fallback: T): string | T => {
   try {
     return execFileSync('git', args, {
       encoding: 'utf8',
       maxBuffer: MAX_BUFFER_BYTES,
+      timeout: GIT_TIMEOUT_MS,
     })
   } catch {
     return fallback
@@ -130,15 +138,21 @@ const readTreeState = (): ITreeState => {
 }
 
 const main = (): void => {
+  const state = readTreeState()
+
   try {
-    assertTreeRecordable(readTreeState())
+    assertTreeRecordable(state)
   } catch (error) {
     consola.error(error instanceof Error ? error.message : String(error))
     process.exit(1)
   }
 
+  // The verdict's own reason, rather than a fixed sentence: presence is
+  // established either by a ref this clone fetched or by asking the declared
+  // repository, and only the former is available when the remote cannot be
+  // identified at all.
   consola.success(
-    'Working tree matches a commit the declared repository holds — this deployment can be verified later.'
+    `Working tree matches a recordable commit — ${state.commitPresence.reason}. This deployment can be verified later.`
   )
 }
 

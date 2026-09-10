@@ -339,9 +339,11 @@ export function buildDeploymentUpsert(
         solcVersion: record.solcVersion,
         evmVersion: record.evmVersion,
         zkSolcVersion: record.zkSolcVersion,
-        // Only when present, and as one group: a re-log from a run that took no
-        // post-deploy observation has nothing to say about the code at this
-        // address, and must not erase what a run that did took.
+        // Spread rather than assigned, because the driver runs with
+        // `ignoreUndefined: false` and would write an absent value as a null: a
+        // re-log from a run that took no post-deploy observation has nothing to
+        // say about the code at this address, and must not erase what a run
+        // that did observe it stored.
         ...(record.codehash ? { codehash: record.codehash } : {}),
         ...provenance.set,
         contractNetworkKey: record.contractNetworkKey,

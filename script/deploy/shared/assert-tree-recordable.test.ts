@@ -28,6 +28,9 @@ const REPO_ROOT = join(import.meta.dir, '..', '..', '..')
 const SEAM = 'script/deploy/shared/assertTreeRecordable.sh'
 const CLI = join(import.meta.dir, 'assert-tree-recordable.ts')
 
+/** Room for a real clone plus the CLI's own 5s git timeout. */
+const HANG_CASE_TIMEOUT_MS = 60_000
+
 const readScript = (relativePath: string): string =>
   readFileSync(join(REPO_ROOT, relativePath), 'utf8')
 
@@ -264,6 +267,23 @@ const gitFailingFor = (subcommand: string): string => {
   return stubDir
 }
 
+/**
+ * Puts a `git` on PATH that never returns for one subcommand.
+ *
+ * @param subcommand - Matched at the subcommand position only, as above.
+ * @returns The stub directory to prepend to PATH.
+ */
+const gitHangingFor = (subcommand: string): string => {
+  const stubDir = mkdtempSync(join(tmpdir(), 'tree-recordable-hang-'))
+  const real = execFileSync('which', ['git'], { encoding: 'utf8' }).trim()
+  writeFileSync(
+    join(stubDir, 'git'),
+    `#!/bin/bash\n[ "$1" = "${subcommand}" ] && exec sleep 120\nexec ${real} "$@"\n`
+  )
+  chmodSync(join(stubDir, 'git'), 0o755)
+  return stubDir
+}
+
 describe('the CLI against real git state', () => {
   const withEdit = (relativePath: string): number | null => {
     const clone = makePushedClone()
@@ -348,11 +368,14 @@ describe('the CLI against real git state', () => {
     stderr?: string
   }): string => {
     const stubDir = mkdtempSync(join(tmpdir(), 'tree-recordable-gh-'))
+    // Streamed from files rather than interpolated into `echo`, so a payload
+    // carrying the quotes and braces a real API error body has reaches the
+    // process unmangled.
+    writeFileSync(join(stubDir, 'stdout'), `${answer.stdout ?? ''}\n`)
+    writeFileSync(join(stubDir, 'stderr'), `${answer.stderr ?? ''}\n`)
     writeFileSync(
       join(stubDir, 'gh'),
-      `#!/bin/bash\necho "${answer.stdout ?? ''}"\necho "${
-        answer.stderr ?? ''
-      }" >&2\nexit ${answer.status}\n`
+      `#!/bin/bash\nhere="$(dirname "$0")"\ncat "$here/stdout"\ncat "$here/stderr" >&2\nexit ${answer.status}\n`
     )
     chmodSync(join(stubDir, 'gh'), 0o755)
     return stubDir
@@ -406,6 +429,10 @@ describe('the CLI against real git state', () => {
         commitOnNoLocalRemoteRef(),
         ghAnswering({
           status: 1,
+          // Real `gh` prints the API's error body on stdout as well, measured
+          // against this repository: the classification must not be reachable
+          // by reading stdout before the status.
+          stdout: '[{"message":"No commit found for SHA","status":"422"}]',
           stderr: 'gh: No commit found for SHA (HTTP 422)',
         })
       )
@@ -550,6 +577,31 @@ describe('the CLI when git itself cannot answer', () => {
     expect(result.status).toBe(1)
     expect(`${result.stdout}${result.stderr}`).toContain('could not be read')
   })
+
+  it(
+    'refuses within the timeout when git hangs, rather than blocking the deploy',
+    () => {
+      // A production deploy waits on this gate, so an unbounded git read would
+      // stall the deploy indefinitely. Bounded, the read fails and the tree
+      // reads as unreadable — a refusal, never a pass.
+      const started = Date.now()
+      const result = spawnSync(process.execPath, [CLI], {
+        cwd: makePushedClone(),
+        encoding: 'utf8',
+        env: {
+          ...process.env,
+          PATH: `${gitHangingFor('status')}:${process.env.PATH}`,
+        },
+      })
+
+      expect(result.status).toBe(1)
+      expect(`${result.stdout}${result.stderr}`).toContain('could not be read')
+      // Well inside the stub's 120s sleep: without a timeout this case cannot
+      // finish at all.
+      expect(Date.now() - started).toBeLessThan(30_000)
+    },
+    HANG_CASE_TIMEOUT_MS
+  )
 })
 
 describe('the deploy script’s refusal branch', () => {

@@ -39,11 +39,11 @@ export interface ITreeState {
   /** `git rev-parse HEAD`, or the `UNKNOWN` sentinel. */
   head: string
   /**
-   * Whether the repository the record will name holds `head`, as resolved by
-   * `resolveCommitPresence`. Presence, not reachability: `origin/main` is
-   * squash-merged, so a deployed commit is an ancestor of nothing once its PR
-   * lands, and which refs a checkout happens to hold is a fact about the
-   * checkout rather than about the repository.
+   * Whether `head` was shown present in a repository a verifier could fetch it
+   * from, as resolved by `resolveCommitPresence` — the declared repository when
+   * it was queryable and answered, and otherwise the remote this clone holds a
+   * ref from. Presence, not reachability: `origin/main` is squash-merged, so a
+   * deployed commit is an ancestor of nothing once its PR lands.
    */
   commitPresence: ICommitPresence
   /**
@@ -153,8 +153,8 @@ export const assertTreeRecordable = (state: ITreeState): void => {
   // reading that as a pass would make an unreachable API into a green light.
   if (state.commitPresence.presence !== 'PRESENT')
     problems.push(
-      `Commit ${state.head} could not be shown present in the repository this ` +
-        `record would name (${state.commitPresence.presence}: ` +
+      `Commit ${state.head} could not be shown present in any repository a ` +
+        `verifier could fetch it from (${state.commitPresence.presence}: ` +
         `${state.commitPresence.reason}). The record would point at a commit a ` +
         `verifier cannot fetch, so the rebuild it promises could never be ` +
         `performed. Push the branch first, or run 'git fetch origin' if it was ` +

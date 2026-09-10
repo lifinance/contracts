@@ -193,19 +193,19 @@ describe('codehashFromSelfCheck', () => {
 
 describe('codehashFromArgs', () => {
   const args = {
-    hash: HASH,
-    maskedHash: MASKED,
-    byteLength: '7390',
-    maskedByteCount: '480',
+    codehash: HASH,
+    'masked-codehash': MASKED,
+    'code-byte-length': '7390',
+    'masked-byte-count': '480',
   }
 
   it('is not requested when no flag was passed', () => {
     expect(
       codehashFromArgs({
-        hash: undefined,
-        maskedHash: undefined,
-        byteLength: undefined,
-        maskedByteCount: undefined,
+        codehash: undefined,
+        'masked-codehash': undefined,
+        'code-byte-length': undefined,
+        'masked-byte-count': undefined,
       })
     ).toEqual({ requested: false })
   })
@@ -213,10 +213,10 @@ describe('codehashFromArgs', () => {
   it('is not requested when every flag was passed empty', () => {
     expect(
       codehashFromArgs({
-        hash: '',
-        maskedHash: '',
-        byteLength: '',
-        maskedByteCount: '',
+        codehash: '',
+        'masked-codehash': '',
+        'code-byte-length': '',
+        'masked-byte-count': '',
       })
     ).toEqual({ requested: false })
   })
@@ -234,15 +234,21 @@ describe('codehashFromArgs', () => {
     })
   })
 
-  it.each([['hash'], ['maskedHash'], ['byteLength'], ['maskedByteCount']] as [
-    'hash' | 'maskedHash' | 'byteLength' | 'maskedByteCount'
+  it.each([
+    ['codehash'],
+    ['masked-codehash'],
+    ['code-byte-length'],
+    ['masked-byte-count'],
+  ] as [
+    'codehash' | 'masked-codehash' | 'code-byte-length' | 'masked-byte-count'
   ][])('records nothing when only %s is missing', (missing) => {
     const decision = codehashFromArgs({ ...args, [missing]: undefined })
 
     expect(decision).toEqual({
       requested: true,
       recordable: false,
-      reason: expect.stringContaining(missing),
+      // The flag an operator would have to add, not the field name behind it.
+      reason: expect.stringContaining(`--${missing}`),
     })
   })
 
@@ -254,9 +260,13 @@ describe('codehashFromArgs', () => {
     ['a sign', '+7390'],
     ['whitespace', ' 7390 '],
   ])('records nothing for a byte length with %s', (_label, byteLength) => {
-    // `parseInt('7390 bytes')` answers 7390. A length that has to be repaired
-    // to be read is not a length that was observed.
-    const decision = codehashFromArgs({ ...args, byteLength })
+    // `parseInt('7390 bytes')` answers 7390, and `parseInt('0x1cde')` answers
+    // exactly 7390 too. A length that has to be repaired to be read is not a
+    // length that was observed.
+    const decision = codehashFromArgs({
+      ...args,
+      'code-byte-length': byteLength,
+    })
 
     expect(decision).toEqual({
       requested: true,
@@ -266,7 +276,7 @@ describe('codehashFromArgs', () => {
   })
 
   it('records nothing for a masked count that is not a whole number', () => {
-    const decision = codehashFromArgs({ ...args, maskedByteCount: '-1' })
+    const decision = codehashFromArgs({ ...args, 'masked-byte-count': '-1' })
 
     expect(decision).toEqual({
       requested: true,
@@ -276,7 +286,7 @@ describe('codehashFromArgs', () => {
   })
 
   it('carries the group validation through, tagged as requested', () => {
-    const decision = codehashFromArgs({ ...args, hash: '0xnothex' })
+    const decision = codehashFromArgs({ ...args, codehash: '0xnothex' })
 
     expect(decision).toEqual({
       requested: true,

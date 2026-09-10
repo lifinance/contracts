@@ -142,6 +142,10 @@ const parseByteCount = (value: string): number | undefined =>
 /**
  * The codehash a CLI caller's arguments describe.
  *
+ * Keyed by flag name rather than by field name so a refusal can name what the
+ * operator would have to type. The keys are the flags verbatim, which is what
+ * keeps the two from drifting apart.
+ *
  * @param input - The four values as given, each absent when the flag was not
  * passed. An absent flag reaching this as an empty string is treated as absent.
  * @returns `{ requested: false }` when none were passed, otherwise the group to
@@ -149,10 +153,10 @@ const parseByteCount = (value: string): number | undefined =>
  * the four are one claim.
  */
 export const codehashFromArgs = (input: {
-  hash: string | undefined
-  maskedHash: string | undefined
-  byteLength: string | undefined
-  maskedByteCount: string | undefined
+  codehash: string | undefined
+  'masked-codehash': string | undefined
+  'code-byte-length': string | undefined
+  'masked-byte-count': string | undefined
 }): CodehashInputDecision => {
   const given = Object.entries(input).filter(
     ([, value]) => value !== undefined && value !== ''
@@ -166,25 +170,25 @@ export const codehashFromArgs = (input: {
     return {
       requested: true,
       recordable: false,
-      reason: `a codehash is stored as one group and ${missing.join(', ')} ${
-        missing.length === 1 ? 'was' : 'were'
-      } not provided`,
+      reason: `a codehash is stored as one group and ${missing
+        .map((flag) => `--${flag}`)
+        .join(', ')} ${missing.length === 1 ? 'was' : 'were'} not provided`,
     }
 
-  const byteLength = parseByteCount(input.byteLength ?? '')
-  const maskedByteCount = parseByteCount(input.maskedByteCount ?? '')
+  const byteLength = parseByteCount(input['code-byte-length'] ?? '')
+  const maskedByteCount = parseByteCount(input['masked-byte-count'] ?? '')
   if (byteLength === undefined || maskedByteCount === undefined)
     return {
       requested: true,
       recordable: false,
       reason: `byte counts must be whole numbers, got '${String(
-        input.byteLength
-      )}' and '${String(input.maskedByteCount)}'`,
+        input['code-byte-length']
+      )}' and '${String(input['masked-byte-count'])}'`,
     }
 
   const decision = recordedCodehash({
-    hash: input.hash ?? '',
-    maskedHash: input.maskedHash ?? '',
+    hash: input.codehash ?? '',
+    maskedHash: input['masked-codehash'] ?? '',
     byteLength,
     maskedByteCount,
   })

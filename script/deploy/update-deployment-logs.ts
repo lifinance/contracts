@@ -729,10 +729,10 @@ const addCommand = defineCommand({
     const asString = (value: unknown): string | undefined =>
       typeof value === 'string' ? value : undefined
     const codehashDecision = codehashFromArgs({
-      hash: asString(args.codehash),
-      maskedHash: asString(args['masked-codehash']),
-      byteLength: asString(args['code-byte-length']),
-      maskedByteCount: asString(args['masked-byte-count']),
+      codehash: asString(args.codehash),
+      'masked-codehash': asString(args['masked-codehash']),
+      'code-byte-length': asString(args['code-byte-length']),
+      'masked-byte-count': asString(args['masked-byte-count']),
     })
     // Info on stdout, and a zero exit: this runs after the deploy, and
     // `logContractDeploymentInfo` discards stderr unless DEBUG is set and reads

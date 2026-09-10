@@ -410,7 +410,7 @@ describe('update-deployment-logs add — codehash', () => {
   )
 
   it.each([
-    ['a partly-provided group', GROUP.slice(0, 6), 'maskedByteCount'],
+    ['a partly-provided group', GROUP.slice(0, 6), '--masked-byte-count'],
     [
       'a byte length parseInt would have accepted',
       [...GROUP.slice(0, 5), '7390 bytes', ...GROUP.slice(6)],

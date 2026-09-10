@@ -113,6 +113,10 @@ export const githubCommitPresence: CommitPresenceQuery = (repo, commit) => {
     [
       'api',
       `repos/${parsed.owner}/${parsed.name}/commits/${commit}`,
+      // `GH_HOST` applies only where no hostname was given, so passing one pins
+      // the question to the host the record declares — otherwise an exported
+      // `GH_HOST` would answer about another server's repository of the same
+      // name.
       '--hostname',
       parsed.host,
       '--jq',
