@@ -1,0 +1,446 @@
+// eslint-disable-next-line import/no-unresolved
+import { beforeEach, describe, expect, it } from 'bun:test'
+import { consola } from 'consola'
+
+import { DIAMOND_CUT_FEE_LIMIT_SUN } from '../tron/send-guarded-facet-registration'
+import { applyTronSafetyMargin } from '../tron/tron-energy-estimate'
+import { assertTronBroadcastAffordable } from '../tron/tron-energy-preflight'
+
+import { compareToAttestedSet } from './attested-set'
+import { evaluatePromotion } from './false-refusal-budget'
+import {
+  explainScopeRefusal,
+  gradeAttestedSet,
+  gradeCommitAvailability,
+  gradeCutClassification,
+  gradeFunnelDeployGate,
+  gradeToolchainScope,
+  loadRepoCorpus,
+  unreachedGates,
+  type ICorpusDeps,
+  type ICorpusSlot,
+} from './false-refusal-budget-run'
+import { deriveToolchainScope, parseBuildProfiles } from './lineage-scope'
+
+/**
+ * Two profiles, matching the shape `foundry.toml` pins: one cancun, one london.
+ * Written out rather than read from disk so a plant can move one of them.
+ */
+const TOML = [
+  '[profile.default]',
+  "solc_version = '0.8.29'",
+  "evm_version = 'cancun'",
+  '',
+  '[profile.solc_floor]',
+  "solc_version = '0.8.17'",
+  "evm_version = 'london'",
+].join('\n')
+
+const slot = (overrides: Partial<ICorpusSlot> = {}): ICorpusSlot => ({
+  network: 'somechain',
+  address: '0x1111111111111111111111111111111111111111',
+  contractName: 'SomeFacet',
+  version: '1.0.0',
+  commit: 'a'.repeat(40),
+  solcVersion: '0.8.29',
+  evmVersion: 'cancun',
+  optimizerRuns: '1000000',
+  ...overrides,
+})
+
+const corpus = (overrides: Partial<ICorpusDeps> = {}): ICorpusDeps => ({
+  slots: [slot()],
+  networks: {
+    somechain: { targetEvmVersion: 'cancun', isZkEVM: false },
+    oldchain: { targetEvmVersion: 'london', isZkEVM: false },
+  },
+  foundryToml: TOML,
+  readLog: () => undefined,
+  facetSourceExists: () => true,
+  hasCommit: () => true,
+  funnelExclusions: new Map(),
+  deprecatedContracts: new Set(),
+  ...overrides,
+})
+
+describe('the shadow runner over the real repository corpus', () => {
+  // One load, reused: it reads ~170 deployment logs.
+  const repo = loadRepoCorpus(process.cwd())
+
+  it('grades a corpus of real production slots, not a handful of fixtures', () => {
+    expect(repo.slots.length).toBeGreaterThan(700)
+    expect(new Set(repo.slots.map((s) => s.network)).size).toBeGreaterThan(50)
+  })
+
+  it('leaves nothing unexplained on any gate it could reach', async () => {
+    consola.level = 1
+    const budgets = [
+      gradeToolchainScope(repo),
+      gradeAttestedSet(repo),
+      gradeCommitAvailability(repo),
+      gradeCutClassification(repo),
+      await gradeFunnelDeployGate(repo),
+    ]
+    for (const budget of budgets) {
+      expect(budget.denominator).toBeGreaterThan(0)
+      expect({
+        gate: budget.gate,
+        unexplained: budget.adjudications
+          .filter((a) => a.adjudication === 'unexplained')
+          .map((a) => `${a.slot}: ${a.reason}`),
+      }).toEqual({ gate: budget.gate, unexplained: [] })
+    }
+  }, 60_000)
+
+  // The paired present for the row above. "Zero unexplained" is worth nothing
+  // unless something was actually refused, and the attested-set gate is where
+  // the fleet's real false reds are.
+  it('does refuse a large share of provably honest slots on the attested-set gate', () => {
+    const budget = gradeAttestedSet(repo)
+    expect(budget.refusals).toBeGreaterThan(400)
+    expect(budget.acceptedFalseReds).toBe(budget.refusals)
+    expect(evaluatePromotion(budget).mayEnforce).toBe(false)
+  })
+
+  it('reports the gates no corpus reached as measured on 0, not as clean', () => {
+    for (const budget of unreachedGates()) {
+      expect(budget.falseRefusalRate).toBeUndefined()
+      expect(evaluatePromotion(budget).mayEnforce).toBe(false)
+    }
+  })
+})
+
+describe('the corpus grades against a closed set, per D19', () => {
+  // Not a detail of the harness. `isClosedSet` is what decides whether these
+  // refusals read MISMATCH ("this is not our code") or UNVERIFIABLE ("we
+  // cannot tell") — and the promotion criterion turns on red versus grey. D19
+  // rules the set closed and derived from config, because an open set falls
+  // back to the compiler version the deployed bytecode reports about itself,
+  // which the proposer writes. So the greying has to come from widening the
+  // attested set, never from opening the scope.
+  it('reports every attested-set refusal as MISMATCH, not as UNVERIFIABLE', () => {
+    const budget = gradeAttestedSet(
+      corpus({ slots: [slot({ solcVersion: '0.8.17', evmVersion: 'london' })] })
+    )
+    expect(budget.refusals).toBe(1)
+    expect(budget.adjudications[0]?.reason).toStartWith('MISMATCH:')
+    expect(budget.adjudications[0]?.reason).not.toContain('UNVERIFIABLE')
+  })
+
+  it('is the closed set that makes it so — an open one would grade it grey', () => {
+    const open = compareToAttestedSet(
+      {
+        maskedHash: '0x01',
+        rawByteLength: 100,
+        rawHash: '0x01',
+        maskedByteCount: 0,
+        solcVersion: '0.8.17',
+      },
+      [
+        {
+          lineage: 'default 0.8.29/cancun',
+          solcVersion: '0.8.29',
+          maskedHash: '0x02',
+          rawByteLength: 200,
+          rawHash: undefined,
+        },
+      ],
+      { isClosedSet: false }
+    )
+    expect(open.verdict).toBe('UNVERIFIABLE')
+  })
+})
+
+describe('explainScopeRefusal — the classifier has no fallthrough class', () => {
+  const pinned = new Set(['0.8.29/cancun', '0.8.17/london'])
+
+  // The decision that keeps the unexplained count reachable. Today the
+  // comparison cannot refuse a slot whose reproducing profile it was offered,
+  // so nothing in the corpus exercises this branch — which is exactly why it
+  // needs a test naming it rather than coverage that happens to pass over it.
+  it('names no class when the gate was offered the reproducing profile', () => {
+    expect(
+      explainScopeRefusal(
+        slot({ solcVersion: '0.8.29', evmVersion: 'cancun' }),
+        pinned,
+        new Set(['0.8.29/cancun'])
+      )
+    ).toBeUndefined()
+  })
+
+  it('names the retired-pin class when no profile pins the pair', () => {
+    expect(
+      explainScopeRefusal(
+        slot({ solcVersion: '0.8.26', evmVersion: 'cancun' }),
+        pinned,
+        new Set(['0.8.29/cancun'])
+      )
+    ).toBe('AFR-1-retired-pin')
+  })
+
+  it('names the cross-profile class when the pair is pinned but not offered', () => {
+    expect(
+      explainScopeRefusal(
+        slot({ solcVersion: '0.8.17', evmVersion: 'london' }),
+        pinned,
+        new Set(['0.8.29/cancun'])
+      )
+    ).toBe('AFR-2-cross-profile-network')
+  })
+})
+
+describe('falsification demo — the runner can report a defect', () => {
+  it('reports nothing when every slot reproduces at the profile the gate offers', () => {
+    const budget = gradeAttestedSet(
+      corpus({ slots: [slot(), slot({ solcVersion: '0.8.29' })] })
+    )
+    expect(budget.refusals).toBe(0)
+  })
+
+  // Plant 1: a slot whose reproducing compiler is one no profile pins.
+  it('surfaces a retired-pin slot, and stops surfacing it once removed', () => {
+    const planted = slot({ solcVersion: '0.8.26', evmVersion: 'cancun' })
+    const withPlant = gradeAttestedSet(corpus({ slots: [slot(), planted] }))
+    expect(withPlant.refusals).toBe(1)
+    expect(withPlant.byRule).toEqual([['AFR-1-retired-pin', 1]])
+
+    const withoutPlant = gradeAttestedSet(corpus({ slots: [slot()] }))
+    expect(withoutPlant.refusals).toBe(0)
+    expect(withoutPlant.byRule).toEqual([])
+  })
+
+  // Plant 2: a slot built at the other pinned profile, on a network whose
+  // config selects only one of them. This is the MayanFacet shape.
+  it('surfaces a cross-profile slot, and stops surfacing it once removed', () => {
+    const planted = slot({ solcVersion: '0.8.17', evmVersion: 'london' })
+    const withPlant = gradeAttestedSet(corpus({ slots: [planted] }))
+    expect(withPlant.refusals).toBe(1)
+    expect(withPlant.byRule).toEqual([['AFR-2-cross-profile-network', 1]])
+
+    // Removed by moving the same slot to the network whose config names its
+    // lineage, rather than by deleting the row — a plant that only disappears
+    // when the row does proves nothing about the gate.
+    const moved = gradeAttestedSet(
+      corpus({ slots: [slot({ ...planted, network: 'oldchain' })] })
+    )
+    expect(moved.refusals).toBe(0)
+  })
+
+  // Plant 3: a config row whose two flags contradict each other. This one is
+  // the grey class, so it must surface AND stay promotable.
+  it('surfaces an unresolvable network, and grades it grey', () => {
+    const budget = gradeToolchainScope(
+      corpus({
+        networks: {
+          somechain: { targetEvmVersion: 'n/a', isZkEVM: false },
+        },
+      })
+    )
+    expect(budget.refusals).toBe(1)
+    expect(budget.byRule).toEqual([['AFR-3-unresolvable-network', 1]])
+    expect(evaluatePromotion(budget).mayEnforce).toBe(true)
+  })
+
+  // Plant 4: the one that matters most, driven end to end through the real
+  // funnel gate. A refusal no named class covers has to reach the budget as
+  // unexplained; if it were swept into the nearest named class the count would
+  // be structurally unreachable and the whole report decoration.
+  it('counts a refusal the enumeration does not cover as unexplained', async () => {
+    const registered = slot({ network: 'somechain' })
+    const diamondLog = {
+      LiFiDiamond: { Facets: { [registered.address]: { Name: 'SomeFacet' } } },
+    }
+    const deploymentLog = { SomeFacet: registered.address }
+    const withPlant = await gradeFunnelDeployGate(
+      corpus({
+        slots: [registered],
+        readLog: (path) =>
+          path.endsWith('.diamond.json') ? diamondLog : deploymentLog,
+        // The plant: the live facet's source is not on this checkout.
+        facetSourceExists: () => false,
+      })
+    )
+    expect(withPlant.denominator).toBe(1)
+    expect(withPlant.refusals).toBe(1)
+    expect(withPlant.unexplained).toBe(1)
+    expect(withPlant.adjudications[0]?.reason).toContain(
+      'has no facet source at src/Facets/SomeFacet.sol'
+    )
+    expect(evaluatePromotion(withPlant).mayEnforce).toBe(false)
+
+    // Removed: the same slot, the same gate, the source present.
+    const withoutPlant = await gradeFunnelDeployGate(
+      corpus({
+        slots: [registered],
+        readLog: (path) =>
+          path.endsWith('.diamond.json') ? diamondLog : deploymentLog,
+        facetSourceExists: () => true,
+      })
+    )
+    expect(withoutPlant.denominator).toBe(1)
+    expect(withoutPlant.refusals).toBe(0)
+    expect(evaluatePromotion(withoutPlant).mayEnforce).toBe(true)
+  })
+
+  // Plant 5: the false-GREEN direction. A runner whose numerator does not move
+  // with the input reports a constant, not a measurement.
+  it('reports 100% when no slot reproduces at an offered profile', () => {
+    const budget = gradeAttestedSet(
+      corpus({
+        slots: [
+          slot({ solcVersion: '0.8.26' }),
+          slot({ solcVersion: '0.8.28' }),
+          slot({ solcVersion: '0.8.17', evmVersion: 'london' }),
+        ],
+      })
+    )
+    expect(budget.falseRefusalRate).toBe(1)
+  })
+
+  it('surfaces an unreadable commit on the commit-availability gate', () => {
+    const withPlant = gradeCommitAvailability(
+      corpus({ hasCommit: () => false })
+    )
+    expect(withPlant.refusals).toBe(1)
+    expect(withPlant.unexplained).toBe(1)
+    expect(evaluatePromotion(withPlant).mayEnforce).toBe(false)
+
+    const withoutPlant = gradeCommitAvailability(corpus())
+    expect(withoutPlant.refusals).toBe(0)
+    expect(evaluatePromotion(withoutPlant).mayEnforce).toBe(true)
+  })
+})
+
+describe('regression fixture — EXSC-920, the 10x-inflated fee-limit comparison', () => {
+  beforeEach(() => {
+    // Set rather than deleted: `delete` makes bun hand back whatever `.env`
+    // holds, and this escape hatch downgrades every refusal below to a warning,
+    // which would make the fixture pass while observing nothing.
+    process.env.ALLOW_GAS_ESTIMATE_FALLBACK = ''
+  })
+
+  /** 6,000,000 raw energy — the cut the guard refused — at 100 SUN per unit. */
+  const RAW_ENERGY = 6_000_000
+  const SUN_PER_ENERGY = 100n
+
+  it('does not refuse a 720 TRX cut against the 5,000 TRX limit', async () => {
+    const estimated = applyTronSafetyMargin(RAW_ENERGY)
+    expect(estimated).toBe(7_200_000n)
+
+    const result = await assertTronBroadcastAffordable(
+      async () => ({
+        estimatedResource: estimated,
+        resourceLabel: 'energy',
+        estimateFailed: false,
+      }),
+      {
+        networkName: 'tron',
+        operation: 'diamondCut registering 3 facets',
+        feeLimitSun: DIAMOND_CUT_FEE_LIMIT_SUN,
+        costInSun: async (energy) => energy * SUN_PER_ENERGY,
+      }
+    )
+
+    expect(result.costSun).toBe(720_000_000n)
+    expect(result.costSun).toBeLessThan(BigInt(DIAMOND_CUT_FEE_LIMIT_SUN))
+  })
+
+  // The paired absence: the figure the guard used to compare is the one that
+  // refuses. Without this the row above would pass against any margin at all.
+  it('would have refused the same cut at the 10x margin the guard used', async () => {
+    let refusal: string | undefined
+    try {
+      await assertTronBroadcastAffordable(
+        async () => ({
+          estimatedResource: BigInt(RAW_ENERGY * 10),
+          resourceLabel: 'energy',
+          estimateFailed: false,
+        }),
+        {
+          networkName: 'tron',
+          operation: 'diamondCut registering 3 facets',
+          feeLimitSun: DIAMOND_CUT_FEE_LIMIT_SUN,
+          costInSun: async (energy) => energy * SUN_PER_ENERGY,
+        }
+      )
+    } catch (error) {
+      refusal = error instanceof Error ? error.message : String(error)
+    }
+    expect(refusal).toBeDefined()
+    expect(refusal).toContain('6000000000')
+  })
+})
+
+describe('regression fixture — EXSC-906, the version to profile fallback', () => {
+  const profiles = parseBuildProfiles(TOML)
+
+  it('grades an honest london deploy against the london profile, not the default', () => {
+    const scope = deriveToolchainScope('oldchain', {
+      networks: { oldchain: { targetEvmVersion: 'london', isZkEVM: false } },
+      profiles,
+    })
+    expect(
+      scope.profiles.map((p) => `${p.solcVersion}/${p.evmVersion}`)
+    ).toEqual(['0.8.17/london'])
+  })
+
+  it('refuses rather than falling back when no profile pins the hardfork', () => {
+    expect(() =>
+      deriveToolchainScope('newchain', {
+        networks: { newchain: { targetEvmVersion: 'prague', isZkEVM: false } },
+        profiles,
+      })
+    ).toThrow(/no foundry.toml profile pins/)
+  })
+})
+
+describe('false-GREEN probe — the widening vector the MayanFacet fix would open', () => {
+  const profiles = parseBuildProfiles(TOML)
+
+  /**
+   * The input class a relaxation would start trusting: the compiler pair named
+   * by the record whose commit the proposer chose. D3 asserts commit presence,
+   * not ancestry, so a proposer can point a record at any fetchable commit —
+   * which under a "read foundry.toml at the record's commit" fix would let them
+   * pick the lineage they are graded against.
+   *
+   * This probe pins that door shut: the scope of legitimate builds is a
+   * function of the network row and today's foundry.toml, and adding a
+   * record-supplied profile to the call changes nothing about the answer.
+   */
+  it('offers a network only the lineage its config names, never one merely pinned', () => {
+    // `solc_floor` IS pinned and IS a legitimate lineage for the fleet — 50
+    // attested slots reproduce under it. What decides whether this network is
+    // graded against it is the network row, and nothing else. A fix reading
+    // foundry.toml at the record's own commit would hand that decision to
+    // whoever chose the commit.
+    expect(Object.keys(profiles)).toContain('solc_floor')
+
+    const scope = deriveToolchainScope('somechain', {
+      networks: { somechain: { targetEvmVersion: 'cancun', isZkEVM: false } },
+      profiles,
+    })
+    expect(scope.isClosedSet).toBe(true)
+    expect(scope.profiles.map((p) => p.profile)).toEqual(['default'])
+
+    // The paired present: the same available profile IS offered to the network
+    // whose row names it, so the assertion above is about the row and not
+    // about `solc_floor` being unreachable everywhere.
+    const london = deriveToolchainScope('oldchain', {
+      networks: { oldchain: { targetEvmVersion: 'london', isZkEVM: false } },
+      profiles,
+    })
+    expect(london.profiles.map((p) => p.profile)).toEqual(['solc_floor'])
+  })
+
+  it('still refuses a slot whose record names a lineage the network does not', () => {
+    const budget = gradeAttestedSet(
+      corpus({ slots: [slot({ solcVersion: '0.8.17', evmVersion: 'london' })] })
+    )
+    expect(budget.refusals).toBe(1)
+    // A relaxation that made this row pass would have to be paired with a
+    // probe showing a tampered record cannot reach the same outcome. No
+    // relaxation ships in this package, so the row stays refused and named.
+    expect(budget.byRule).toEqual([['AFR-2-cross-profile-network', 1]])
+  })
+})
