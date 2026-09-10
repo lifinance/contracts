@@ -14,6 +14,8 @@
  * - Any receiver that is not a bare `consola`/`console` with a dotted method: an alias
  *   (`const c = consola`), `console['log'](…)`, `consola.info.call(…)` and a tagged template are
  *   each invisible however the method is named.
+ * - A redactor trusted by name: a local function called `redactUrls` that returns its argument
+ *   unchanged is believed. Resolving the binding needs a type-checked program, not one file.
  * - A computed environment read, `process.env[name]` — the form three scripts here use.
  * - Anything needing dataflow: a value renamed, destructured to another name, or handed to a
  *   helper that logs it.
