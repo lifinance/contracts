@@ -360,7 +360,7 @@ export const evaluateTargetStateIntent = (
         facetAddress,
         proposedVersion,
         status: 'contract-unidentified',
-        detail: `no deployment record on ${network} names this address, so the contract it installs cannot be identified and no expected version can be looked up. Remedy: write the missing MongoDB deployment record for this address — the same address on another chain is not evidence of what is deployed here, so it is deliberately not consulted.`,
+        detail: `no deployment record on ${network} names this address, so the contract it installs cannot be identified and this check could not run. Remedy: write the missing MongoDB deployment record for this address.`,
       })
       continue
     }
@@ -390,7 +390,7 @@ export const evaluateTargetStateIntent = (
         mainVersion,
         crossFleetCount: null,
         status: 'proposed-version-unresolved',
-        detail: `${PINNED_REF} declares ${contractName} at v${mainVersion} on ${network}, but its deployment record carries no version, so a downgrade cannot be ruled out. Remedy: backfill the version on that MongoDB deployment record (the blank is in the record, not in the cut) and re-run — the core facets installed at diamond creation are the known population of blanks.`,
+        detail: `${PINNED_REF} declares ${contractName} at v${mainVersion} on ${network}, but its deployment record carries no version, so a downgrade cannot be ruled out. Remedy: backfill the version on that MongoDB deployment record — the blank is in the record, not in the cut.`,
       })
       continue
     }
