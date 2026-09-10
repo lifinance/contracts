@@ -61,6 +61,13 @@ interface IProcessNetworkDeps {
   ledgerOptions?: ILedgerOptions
   ledgerAccount?: Account
   cliOwners?: Address[]
+  /**
+   * `--ticket`. Carried down because the entry-point check validating it and the
+   * store recording it resolve their ticket independently: without it the store
+   * consults only `SAFE_PROPOSAL_TICKET` and a flag-only run is refused after
+   * every signature it spent.
+   */
+  ticket?: string
 }
 
 interface IProcessNetworkResult {
@@ -132,6 +139,11 @@ const main = defineCommand({
         'Read-only audit: compare on-chain owners + threshold against config',
       default: false,
     },
+    ticket: {
+      type: 'string',
+      description:
+        'Linear issue link or id (e.g. EXSC-123). Required — a proposal is not created without one. Falls back to SAFE_PROPOSAL_TICKET.',
+    },
   },
   async run({ args }) {
     // Strict: on fans the run out to every active network, so `--all-networks 0`
@@ -188,7 +200,7 @@ const main = defineCommand({
       return
     }
 
-    assertTicketPresent()
+    assertTicketPresent(args.ticket)
 
     const useLedger = args.ledger ?? true
     const ledgerOptions: ILedgerOptions | undefined = useLedger
@@ -235,6 +247,7 @@ const main = defineCommand({
             ledgerOptions,
             ledgerAccount: ledgerResult?.account,
             cliOwners,
+            ticket: args.ticket,
           })
           results.push({
             network,
@@ -324,6 +337,7 @@ async function processNetwork(
     ledgerOptions,
     ledgerAccount,
     cliOwners,
+    ticket,
   } = deps
 
   const { safe, chain, safeAddress } = await initializeSafeClient(
@@ -398,6 +412,7 @@ async function processNetwork(
         safeAddress,
         pendingTransactions,
         payload: { kind: 'prebuilt', safeTx: safeTransaction },
+        provenance: { ticket },
       })
       consola.info('Transaction signed:', safeTxHash)
 
@@ -444,6 +459,7 @@ async function processNetwork(
           safeAddress,
           pendingTransactions,
           payload: { kind: 'prebuilt', safeTx: changeThresholdTx },
+          provenance: { ticket },
         })
       consola.info('Transaction signed:', thresholdTxHash)
 
