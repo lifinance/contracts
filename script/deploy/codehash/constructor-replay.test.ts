@@ -6,6 +6,10 @@
  * same body at two different deployed lengths — the case the `rawByteLength`
  * pin exists for. Both were checked against `readMetadataTrailer`.
  *
+ * Attested builds are produced with `normalizeRuntimeCode`, the function a real
+ * attestation is built with, so no fixture can attest a hash the production
+ * normaliser would never emit.
+ *
  * An end-to-end run against a real artifact needs `out/` and the `anvil`
  * binary, neither of which the suite has, so nothing here drives a real node.
  */
@@ -17,6 +21,7 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
+import type { IAttestedBuild } from './attested-set'
 import { verifyByConstructorReplay } from './constructor-replay'
 import type {
   IConstructorReplayDeps,
@@ -24,6 +29,7 @@ import type {
   ReplayOutcome,
 } from './constructor-replay'
 import type { ExpectedArgs } from './expected-constructor-args'
+import { normalizeRuntimeCode } from './rebuild-attestations'
 
 const BODY = `60806040${'ab'.repeat(28)}`
 
@@ -58,6 +64,26 @@ const DERIVED: ExpectedArgs = {
     },
   ],
   encoded: IMMUTABLE_WORD,
+}
+
+/** The attestation a build of `runtimeCode` would produce. */
+const attesting = (
+  runtimeCode: string,
+  lineage = 'upstream cancun'
+): IAttestedBuild[] => {
+  const normalized = normalizeRuntimeCode(runtimeCode, undefined, {
+    isZk: false,
+  })
+  if (!normalized.ok) throw new Error(normalized.reason)
+  return [
+    {
+      lineage,
+      solcVersion: '0.8.29',
+      maskedHash: normalized.maskedHash,
+      rawByteLength: normalized.rawByteLength,
+      rawHash: undefined,
+    },
+  ]
 }
 
 /** Returns fixed code for any request, and counts the calls it received. */
@@ -100,14 +126,16 @@ const evmAnswering = (
 const verify = (
   observedRuntimeCode: string,
   deps: IConstructorReplayDeps,
+  attestedBuilds: IAttestedBuild[],
   expectedArgs: ExpectedArgs = DERIVED
 ) =>
   verifyByConstructorReplay(
     {
-      lineage: 'upstream cancun',
       observedRuntimeCode,
       creationCode: CREATION_CODE,
       chainId: 42161,
+      attestedBuilds,
+      immutableReferences: undefined,
       expectedArgs,
     },
     deps
@@ -117,20 +145,34 @@ describe('when the replay reproduces the deployed bytes', () => {
   it('matches on every byte and excludes none', async () => {
     const honest = withImmutable(IMMUTABLE_WORD, TRAILER_12)
 
-    const result = await verify(honest, evmReturning(honest))
+    const result = await verify(honest, evmReturning(honest), attesting(honest))
 
+    expect(result.decided).toBe(true)
+    if (!result.decided) return
     expect(result.comparison.verdict).toBe('MATCH')
     expect(result.comparison.excludedByteCount).toBe(0)
     expect(result.comparison.blocksSigning).toBe(false)
-    expect(result.fallsBackToMasking).toBe(false)
-    expect(result.comparison.matchedLineages).toEqual(['upstream cancun'])
   })
 
-  it('passes the local EVM our creation code and the derived args, nothing else', async () => {
+  it('reports the lineage of the attested build, never one the caller named', async () => {
+    const honest = withImmutable(IMMUTABLE_WORD, TRAILER_12)
+
+    const result = await verify(
+      honest,
+      evmReturning(honest),
+      attesting(honest, 'zksync 1.5.7')
+    )
+
+    expect(result.decided).toBe(true)
+    if (!result.decided) return
+    expect(result.comparison.matchedLineages).toEqual(['zksync 1.5.7'])
+  })
+
+  it('passes the local EVM our creation code, the derived args and the chain, nothing else', async () => {
     const honest = withImmutable(IMMUTABLE_WORD, TRAILER_12)
     const evm = evmReturning(honest)
 
-    await verify(honest, evm)
+    await verify(honest, evm, attesting(honest))
 
     expect(evm.calls).toEqual([
       {
@@ -145,10 +187,52 @@ describe('when the replay reproduces the deployed bytes', () => {
     const observed = withImmutable(IMMUTABLE_WORD, TRAILER_12)
     const replayed = withImmutable(IMMUTABLE_WORD, 'a164736f6c634300081c000a')
 
-    const result = await verify(observed, evmReturning(replayed))
+    const result = await verify(
+      observed,
+      evmReturning(replayed),
+      attesting(replayed)
+    )
 
+    expect(result.decided).toBe(true)
+    if (!result.decided) return
     expect(result.comparison.verdict).toBe('MATCH')
     expect(result.comparison.excludedByteCount).toBe(0)
+  })
+})
+
+describe('the attested-build precondition', () => {
+  it('refuses when the replayed code normalises to no attested build', async () => {
+    const honest = withImmutable(IMMUTABLE_WORD, TRAILER_12)
+
+    const result = await verify(
+      honest,
+      evmReturning(honest),
+      attesting(withImmutable(OTHER_WORD, TRAILER_12))
+    )
+
+    expect(result.decided).toBe(false)
+    if (result.decided) return
+    expect(result.reason).toContain('no attested build')
+  })
+
+  it('refuses against an empty attested set rather than taking the match on trust', async () => {
+    const honest = withImmutable(IMMUTABLE_WORD, TRAILER_12)
+
+    const result = await verify(honest, evmReturning(honest), [])
+
+    expect(result.decided).toBe(false)
+  })
+
+  it('refuses an attested build that strips to the same body at another length', async () => {
+    const honest = withImmutable(IMMUTABLE_WORD, TRAILER_12)
+
+    const result = await verify(
+      honest,
+      evmReturning(honest),
+      attesting(withImmutable(IMMUTABLE_WORD, TRAILER_16))
+    )
+
+    expect(result.decided).toBe(false)
   })
 })
 
@@ -157,49 +241,56 @@ describe('when an immutable does not hold what config declares', () => {
     const observed = withImmutable(TAMPERED_WORD, TRAILER_12)
     const replayed = withImmutable(IMMUTABLE_WORD, TRAILER_12)
 
-    const result = await verify(observed, evmReturning(replayed))
+    const result = await verify(
+      observed,
+      evmReturning(replayed),
+      attesting(replayed)
+    )
 
+    expect(result.decided).toBe(true)
+    if (!result.decided) return
     expect(result.comparison.verdict).toBe('MISMATCH')
     expect(result.comparison.blocksSigning).toBe(true)
-    expect(result.fallsBackToMasking).toBe(false)
   })
 })
 
 describe('when the constructor stores where it was deployed', () => {
   it('refuses instead of blocking, because a replay cannot land where the deployment did', async () => {
     const observed = withImmutable(IMMUTABLE_WORD, TRAILER_12)
+    const first = withImmutable(TAMPERED_WORD, TRAILER_12)
     const evm = evmAnswering([
-      { ok: true, runtimeCode: withImmutable(TAMPERED_WORD, TRAILER_12) },
+      { ok: true, runtimeCode: first },
       { ok: true, runtimeCode: withImmutable(OTHER_WORD, TRAILER_12) },
     ])
 
-    const result = await verify(observed, evm)
+    const result = await verify(observed, evm, attesting(first))
 
-    expect(result.comparison.verdict).toBe('UNVERIFIABLE')
-    expect(result.fallsBackToMasking).toBe(true)
-    expect(result.comparison.reason).toContain('two local replays')
+    expect(result.decided).toBe(false)
+    if (result.decided) return
+    expect(result.reason).toContain('two local replays')
     expect(evm.calls).toHaveLength(2)
   })
 
-  it('reports UNVERIFIABLE when the constructor ran once but not a second time', async () => {
+  it('reports undecided when the constructor ran once but not a second time', async () => {
     const observed = withImmutable(IMMUTABLE_WORD, TRAILER_12)
+    const first = withImmutable(TAMPERED_WORD, TRAILER_12)
     const evm = evmAnswering([
-      { ok: true, runtimeCode: withImmutable(TAMPERED_WORD, TRAILER_12) },
+      { ok: true, runtimeCode: first },
       { ok: false, reason: 'the constructor reverted on the local EVM' },
     ])
 
-    const result = await verify(observed, evm)
+    const result = await verify(observed, evm, attesting(first))
 
-    expect(result.comparison.verdict).toBe('UNVERIFIABLE')
-    expect(result.fallsBackToMasking).toBe(true)
-    expect(result.comparison.reason).toContain('not a second time')
+    expect(result.decided).toBe(false)
+    if (result.decided) return
+    expect(result.reason).toContain('not a second time')
   })
 
   it('spends no second replay on a deployment that already matched', async () => {
     const honest = withImmutable(IMMUTABLE_WORD, TRAILER_12)
     const evm = evmReturning(honest)
 
-    await verify(honest, evm)
+    await verify(honest, evm, attesting(honest))
 
     expect(evm.calls).toHaveLength(1)
   })
@@ -210,67 +301,89 @@ describe('the deployed-length pin', () => {
     const observed = withImmutable(IMMUTABLE_WORD, TRAILER_16)
     const replayed = withImmutable(IMMUTABLE_WORD, TRAILER_12)
 
-    const result = await verify(observed, evmReturning(replayed))
+    const result = await verify(
+      observed,
+      evmReturning(replayed),
+      attesting(replayed)
+    )
 
+    expect(result.decided).toBe(true)
+    if (!result.decided) return
     expect(result.comparison.verdict).toBe('MISMATCH')
     expect(result.comparison.reason).toContain('not accounted for')
   })
 })
 
 describe('when the immutables cannot be reconstructed', () => {
-  it('reports UNVERIFIABLE and never runs the local EVM', async () => {
+  it('reports undecided and never runs the local EVM', async () => {
     const observed = withImmutable(IMMUTABLE_WORD, TRAILER_12)
     const evm = evmReturning(observed)
 
-    const result = await verify(observed, evm, {
+    const result = await verify(observed, evm, attesting(observed), {
       ok: false,
       reason: 'EcoFacet constructor arg _backendSigner is not annotated',
     })
 
-    expect(result.comparison.verdict).toBe('UNVERIFIABLE')
-    expect(result.comparison.blocksSigning).toBe(true)
-    expect(result.fallsBackToMasking).toBe(true)
+    expect(result.decided).toBe(false)
     expect(evm.calls).toEqual([])
   })
 
   it('carries the derivation refusal into the signer-facing line', async () => {
     const observed = withImmutable(IMMUTABLE_WORD, TRAILER_12)
 
-    const result = await verify(observed, evmReturning(observed), {
-      ok: false,
-      reason: 'EcoFacet constructor arg _backendSigner is not annotated',
-    })
+    const result = await verify(
+      observed,
+      evmReturning(observed),
+      attesting(observed),
+      {
+        ok: false,
+        reason: 'EcoFacet constructor arg _backendSigner is not annotated',
+      }
+    )
 
-    expect(result.comparison.reason).toContain('_backendSigner')
+    expect(result.decided).toBe(false)
+    if (result.decided) return
+    expect(result.reason).toContain('_backendSigner')
   })
 
-  it('reports UNVERIFIABLE when the local EVM could not run the constructor', async () => {
+  it('reports undecided when the local EVM could not run the constructor', async () => {
     const observed = withImmutable(IMMUTABLE_WORD, TRAILER_12)
 
     const result = await verify(
       observed,
-      evmFailing('the constructor reverted on the local EVM')
+      evmFailing('the constructor reverted on the local EVM'),
+      attesting(observed)
     )
 
-    expect(result.comparison.verdict).toBe('UNVERIFIABLE')
-    expect(result.fallsBackToMasking).toBe(true)
-    expect(result.comparison.reason).toContain('reverted')
+    expect(result.decided).toBe(false)
+    if (result.decided) return
+    expect(result.reason).toContain('reverted')
   })
 
-  it('reports UNVERIFIABLE when the replay returns code that is not bytes', async () => {
+  it('reports undecided when the replay returns code that is not bytes', async () => {
     const observed = withImmutable(IMMUTABLE_WORD, TRAILER_12)
 
-    const result = await verify(observed, evmReturning('0xabc'))
+    const result = await verify(
+      observed,
+      evmReturning('0xabc'),
+      attesting(observed)
+    )
 
-    expect(result.comparison.verdict).toBe('UNVERIFIABLE')
-    expect(result.comparison.reason).toContain('replayed code')
+    expect(result.decided).toBe(false)
+    if (result.decided) return
+    expect(result.reason).toContain('replayed code')
   })
 
-  it('reports UNVERIFIABLE for empty deployed code rather than matching empty against empty', async () => {
-    const result = await verify('0x', evmReturning('0x'))
+  it('reports undecided for empty deployed code rather than matching empty against empty', async () => {
+    const result = await verify(
+      '0x',
+      evmReturning('0x'),
+      attesting(withImmutable(IMMUTABLE_WORD, TRAILER_12))
+    )
 
-    expect(result.comparison.verdict).toBe('UNVERIFIABLE')
-    expect(result.comparison.reason).toContain('deployed code')
+    expect(result.decided).toBe(false)
+    if (result.decided) return
+    expect(result.reason).toContain('deployed code')
   })
 })
 
@@ -278,37 +391,53 @@ describe('what this layer never does', () => {
   it('reports zero excluded bytes on every verdict it reaches', async () => {
     const honest = withImmutable(IMMUTABLE_WORD, TRAILER_12)
     const results = await Promise.all([
-      verify(honest, evmReturning(honest)),
-      verify(withImmutable(TAMPERED_WORD, TRAILER_12), evmReturning(honest)),
-      verify(honest, evmFailing('anvil did not come up')),
-      verify(honest, evmReturning(honest), { ok: false, reason: 'no config' }),
+      verify(honest, evmReturning(honest), attesting(honest)),
+      verify(
+        withImmutable(TAMPERED_WORD, TRAILER_12),
+        evmReturning(honest),
+        attesting(honest)
+      ),
+      verify(honest, evmFailing('anvil did not come up'), attesting(honest)),
+      verify(honest, evmReturning(honest), attesting(honest), {
+        ok: false,
+        reason: 'no config',
+      }),
     ])
 
-    expect(results.map((r) => r.comparison.excludedByteCount)).toEqual([
-      0, 0, 0, 0,
-    ])
-    expect(results.map((r) => r.comparison.verdict)).toEqual([
+    const reached = results.flatMap((result) =>
+      result.decided ? [result.comparison] : []
+    )
+
+    expect(reached.map((comparison) => comparison.verdict)).toEqual([
       'MATCH',
       'MISMATCH',
-      'UNVERIFIABLE',
-      'UNVERIFIABLE',
+    ])
+    expect(reached.map((comparison) => comparison.excludedByteCount)).toEqual([
+      0, 0,
     ])
   })
 
-  it('falls back to masking only where it reached no verdict about the code', async () => {
+  it('leaves the masking path to run wherever it reached no verdict about the code', async () => {
     const honest = withImmutable(IMMUTABLE_WORD, TRAILER_12)
     const results = await Promise.all([
-      verify(honest, evmReturning(honest)),
-      verify(withImmutable(TAMPERED_WORD, TRAILER_12), evmReturning(honest)),
-      verify(honest, evmFailing('anvil did not come up')),
-      verify(honest, evmReturning(honest), { ok: false, reason: 'no config' }),
+      verify(honest, evmReturning(honest), attesting(honest)),
+      verify(
+        withImmutable(TAMPERED_WORD, TRAILER_12),
+        evmReturning(honest),
+        attesting(honest)
+      ),
+      verify(honest, evmFailing('anvil did not come up'), attesting(honest)),
+      verify(honest, evmReturning(honest), attesting(honest), {
+        ok: false,
+        reason: 'no config',
+      }),
     ])
 
-    expect(results.map((r) => r.fallsBackToMasking)).toEqual([
-      false,
-      false,
+    expect(results.map((result) => result.decided)).toEqual([
       true,
       true,
+      false,
+      false,
     ])
   })
 })

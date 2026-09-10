@@ -3,10 +3,10 @@
  * a local EVM, so all of its runtime bytes can be compared instead of the bytes
  * outside the immutables.
  *
- * Import this in front of `compareToAttestedSet`. When it answers with
- * `fallsBackToMasking` the caller runs the masking path unchanged, so this
- * layer only ever turns a qualified verdict into an unqualified one, or a pass
- * into a block — never the other way round.
+ * Import this in front of `compareToAttestedSet`. When it answers `decided:
+ * false` the caller runs the masking path unchanged, so this layer only ever
+ * turns a qualified verdict into an unqualified one, or a pass into a block —
+ * never the other way round.
  *
  * The expected args must come from `deriveExpectedConstructorArgs`, which reads
  * only this repo's registry and `config/`. Handing this function args taken
@@ -14,10 +14,12 @@
  * the replay then bakes in whatever the proposer chose and every immutable
  * verifies against itself.
  */
-import type { ICodehashComparison } from './attested-set'
+import type { IAttestedBuild, ICodehashComparison } from './attested-set'
 import { stripMetadataTrailer } from './bytecode-trailer'
 import type { ExpectedArgs } from './expected-constructor-args'
-import { frameFault, strip0x } from './hex'
+import { frameFault, normalizeHash, strip0x } from './hex'
+import type { ImmutableReferences } from './immutable-offsets'
+import { normalizeRuntimeCode } from './rebuild-attestations'
 
 export interface IReplayRequest {
   /** Creation code from our own build of the attested commit, `0x`-prefixed. */
@@ -56,48 +58,61 @@ export interface IConstructorReplayDeps {
   replay: (request: IReplayRequest) => Promise<ReplayOutcome>
 }
 
-export interface IReplayVerification {
+/**
+ * This layer reached no verdict, so WP-2.1's masking path still has to run and
+ * its qualified MATCH is what the signer sees.
+ *
+ * Carries no `ICodehashComparison`: a refusal used to be reported as one with
+ * `blocksSigning` set, which is only safe to read alongside a second field, and
+ * a caller reading it alone blocks the signer on every refusal.
+ */
+export interface IReplayUndecided {
+  decided: false
+  reason: string
+}
+
+export interface IReplayDecided {
+  decided: true
   /**
    * This layer's own verdict. MATCH only when every runtime byte outside the
    * metadata trailer was compared, so its `excludedByteCount` is always 0.
    */
   comparison: ICodehashComparison
-  /**
-   * True when this layer could not decide and WP-2.1's masking path still has
-   * to run. Its verdict then stays qualified by a nonzero `excludedByteCount`.
-   */
-  fallsBackToMasking: boolean
 }
 
+export type ReplayVerification = IReplayUndecided | IReplayDecided
+
 export interface IReplayInput {
-  /** Human label for the toolchain the creation code was built with. */
-  lineage: string
   /** Runtime code found at the address, `0x`-prefixed. */
   observedRuntimeCode: string
   /** Creation code from our own build of the attested commit, `0x`-prefixed. */
   creationCode: string
   /** Chain the deployment lives on, reproduced as `block.chainid` by the replay. */
   chainId: number
+  /**
+   * Every build this repo vouches for. The replayed code has to normalise to
+   * one of them before any verdict is reached, and the lineage a MATCH reports
+   * is that build's. A caller cannot assert a lineage, because a MATCH here
+   * tells it to skip masking: creation code from an unattested build would
+   * otherwise pass with layer 1 never running.
+   */
+  attestedBuilds: readonly IAttestedBuild[]
+  /** Foundry's `immutableReferences` for the artifact, or undefined when it has none. */
+  immutableReferences: ImmutableReferences | undefined
   expectedArgs: ExpectedArgs
 }
 
-const unverifiable = (reason: string): IReplayVerification => ({
-  comparison: {
-    verdict: 'UNVERIFIABLE',
-    matchedLineages: [],
-    reason,
-    excludedByteCount: 0,
-    blocksSigning: true,
-  },
-  fallsBackToMasking: true,
+const undecided = (reason: string): ReplayVerification => ({
+  decided: false,
+  reason,
 })
 
-const decided = (comparison: ICodehashComparison): IReplayVerification => ({
+const decided = (comparison: ICodehashComparison): ReplayVerification => ({
+  decided: true,
   comparison,
-  fallsBackToMasking: false,
 })
 
-const mismatch = (reason: string): IReplayVerification =>
+const mismatch = (reason: string): ReplayVerification =>
   decided({
     verdict: 'MISMATCH',
     matchedLineages: [],
@@ -107,6 +122,57 @@ const mismatch = (reason: string): IReplayVerification =>
   })
 
 const byteLength = (hex: string): number => strip0x(hex).length / 2
+
+/**
+ * The attested lineages whose build the replayed code reproduces.
+ *
+ * A MATCH here tells the caller to skip masking, so the code it matched has to
+ * be code this repo attested — otherwise the layer would vouch for whatever
+ * creation code it was handed. Normalisation goes through the same
+ * `normalizeRuntimeCode` both sides of layer 1 use; a second implementation of
+ * strip-then-mask is how two sides come to normalise differently.
+ *
+ * EVM semantics are assumed: zksolc keeps its immutables in `ImmutableSimulator`
+ * rather than in the runtime code, and its creation code does not execute on the
+ * local EVM at all, so a zk artifact never reaches here.
+ *
+ * @param replayedRuntimeCode - What the constructor returned, `0x`-prefixed.
+ * @param input - The attested set and the artifact's immutable ranges.
+ * @returns The matching lineages, or why the replay vouches for nothing.
+ */
+const attestedLineages = (
+  replayedRuntimeCode: string,
+  input: IReplayInput
+): { ok: true; lineages: string[] } | { ok: false; reason: string } => {
+  const normalized = normalizeRuntimeCode(
+    replayedRuntimeCode,
+    input.immutableReferences,
+    { isZk: false }
+  )
+  if (!normalized.ok)
+    return {
+      ok: false,
+      reason: `the replayed code could not be normalised against the attested set: ${normalized.reason}`,
+    }
+
+  const lineages = input.attestedBuilds
+    .filter(
+      (build) =>
+        normalizeHash(build.maskedHash) ===
+          normalizeHash(normalized.maskedHash) &&
+        build.rawByteLength === normalized.rawByteLength
+    )
+    .map((build) => build.lineage)
+
+  if (lineages.length === 0)
+    return {
+      ok: false,
+      reason:
+        'the creation code that was replayed normalises to no attested build, so matching the deployment against it would vouch for the creation code rather than for anything this repo attested',
+    }
+
+  return { ok: true, lineages }
+}
 
 /**
  * Why a second replay does not reproduce the first, when it does not.
@@ -164,18 +230,18 @@ const contextFault = async (
 export const verifyByConstructorReplay = async (
   input: IReplayInput,
   deps: IConstructorReplayDeps
-): Promise<IReplayVerification> => {
+): Promise<ReplayVerification> => {
   const { expectedArgs } = input
   if (!expectedArgs.ok)
-    return unverifiable(
+    return undecided(
       `the constructor args cannot be derived from our own record and config, so the immutables cannot be reconstructed: ${expectedArgs.reason}`
     )
 
   const observedFault = frameFault(input.observedRuntimeCode, 'deployed code')
-  if (observedFault) return unverifiable(observedFault)
+  if (observedFault) return undecided(observedFault)
 
   const creationFault = frameFault(input.creationCode, 'creation code')
-  if (creationFault) return unverifiable(creationFault)
+  if (creationFault) return undecided(creationFault)
 
   const request: IReplayRequest = {
     creationCode: input.creationCode,
@@ -185,12 +251,15 @@ export const verifyByConstructorReplay = async (
 
   const outcome = await deps.replay(request)
   if (!outcome.ok)
-    return unverifiable(
+    return undecided(
       `the constructor could not be replayed locally, so the immutables were not reconstructed: ${outcome.reason}`
     )
 
   const replayedFault = frameFault(outcome.runtimeCode, 'replayed code')
-  if (replayedFault) return unverifiable(replayedFault)
+  if (replayedFault) return undecided(replayedFault)
+
+  const attested = attestedLineages(outcome.runtimeCode, input)
+  if (!attested.ok) return undecided(attested.reason)
 
   const observedRaw = strip0x(input.observedRuntimeCode).toLowerCase()
   const replayedRaw = strip0x(outcome.runtimeCode).toLowerCase()
@@ -198,7 +267,7 @@ export const verifyByConstructorReplay = async (
   if (observedRaw === replayedRaw)
     return decided({
       verdict: 'MATCH',
-      matchedLineages: [input.lineage],
+      matchedLineages: attested.lineages,
       reason: `every one of the ${byteLength(
         observedRaw
       )} deployed bytes matches a local replay of the constructor with the args config declares, so the immutables hold the expected values`,
@@ -214,7 +283,7 @@ export const verifyByConstructorReplay = async (
     observedRaw.length !== replayedRaw.length
   ) {
     const contextReason = await contextFault(deps, request, replayedRaw)
-    if (contextReason) return unverifiable(contextReason)
+    if (contextReason) return undecided(contextReason)
 
     return mismatch(
       observedStripped !== replayedStripped
@@ -229,7 +298,7 @@ export const verifyByConstructorReplay = async (
 
   return decided({
     verdict: 'MATCH',
-    matchedLineages: [input.lineage],
+    matchedLineages: attested.lineages,
     reason: `the deployed code matches a local replay of the constructor with the args config declares in all ${byteLength(
       observedStripped
     )} bytes outside its metadata trailer, immutables included, and is the same ${byteLength(
