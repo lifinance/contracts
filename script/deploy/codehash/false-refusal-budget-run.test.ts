@@ -190,11 +190,20 @@ describe('the shadow runner over the real repository corpus', () => {
 })
 
 describe('loadRepoCorpus fails closed on an unmeasurable corpus', () => {
-  const scratch = mkdtempSync(join(tmpdir(), 'frb-corpus-'))
-  const attestationPath = join(
-    scratch,
-    'script/deploy/resources/reproducibilityAttestations.json'
-  )
+  // A corpus per test rather than per block. Sharing one made the
+  // missing-networks row depend on an earlier row having written the file it
+  // deletes, so running it alone threw ENOENT before the loader was reached —
+  // a test that passes only in company is not evidence about the loader.
+  let scratch: string
+  const CORPUS = 'script/deploy/resources/reproducibilityAttestations.json'
+
+  beforeEach(() => {
+    scratch = mkdtempSync(join(tmpdir(), 'frb-corpus-'))
+  })
+
+  afterEach(() => {
+    rmSync(scratch, { recursive: true, force: true })
+  })
 
   const write = (relativePath: string, body: unknown): void => {
     const target = join(scratch, relativePath)
@@ -203,11 +212,11 @@ describe('loadRepoCorpus fails closed on an unmeasurable corpus', () => {
   }
 
   it('refuses an attestation file with no non-empty attestations array', () => {
-    write('script/deploy/resources/reproducibilityAttestations.json', {})
+    write(CORPUS, {})
     write('config/networks.json', { somechain: {} })
     expect(() => loadRepoCorpus(scratch)).toThrow(/nothing to measure/)
 
-    write('script/deploy/resources/reproducibilityAttestations.json', {
+    write(CORPUS, {
       attestations: [],
     })
     expect(() => loadRepoCorpus(scratch)).toThrow(/nothing to measure/)
@@ -217,9 +226,11 @@ describe('loadRepoCorpus fails closed on an unmeasurable corpus', () => {
   // deriveToolchainScope, is filed under the grey AFR-3 class, and every gate
   // comes back promotable having graded nothing.
   it('refuses a missing networks config rather than grading everything grey', () => {
-    write('script/deploy/resources/reproducibilityAttestations.json', {
-      attestations: [slot()],
-    })
+    write(CORPUS, { attestations: [slot()] })
+    // Written and then removed rather than simply never written: that proves
+    // the loader refuses an absent file, not merely a scratch dir it could not
+    // find anything in.
+    write('config/networks.json', { somechain: {} })
     rmSync(join(scratch, 'config/networks.json'))
     expect(() => loadRepoCorpus(scratch)).toThrow(
       /config\/networks.json is missing/
@@ -245,7 +256,7 @@ describe('loadRepoCorpus fails closed on an unmeasurable corpus', () => {
         string,
         unknown
       >
-      write('script/deploy/resources/reproducibilityAttestations.json', {
+      write(CORPUS, {
         attestations: [slot(), incomplete],
       })
       expect(() => loadRepoCorpus(scratch)).toThrow(
@@ -258,7 +269,7 @@ describe('loadRepoCorpus fails closed on an unmeasurable corpus', () => {
   // and carries the sweep's own zk-exclusion count rather than a written-down
   // one that no input can move.
   it('loads when both inputs are present', () => {
-    write('script/deploy/resources/reproducibilityAttestations.json', {
+    write(CORPUS, {
       attestations: [slot()],
       zkEvmSlotsExcluded: 9,
     })
@@ -267,7 +278,7 @@ describe('loadRepoCorpus fails closed on an unmeasurable corpus', () => {
     const loaded = loadRepoCorpus(scratch)
     expect(loaded.slots).toHaveLength(1)
     expect(loaded.zkEvmSlotsExcluded).toBe(9)
-    expect(existsSync(attestationPath)).toBe(true)
+    expect(existsSync(join(scratch, CORPUS))).toBe(true)
   })
 })
 
