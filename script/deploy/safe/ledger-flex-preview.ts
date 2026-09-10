@@ -201,7 +201,11 @@ const dataRows = (
     remarks.push(
       `${RED} ⚠ the stored calldata is not 0x-prefixed hex — your device will not show this${RESET}`
     )
-  const display = `0x${text.replace(/^0x/i, '').toUpperCase()}`
+  // Case-folding a value that is not hex would show the signer characters the
+  // row does not hold, on the one panel whose job is a character comparison.
+  const display = HEX_CALLDATA.test(text)
+    ? `0x${text.replace(/^0x/i, '').toUpperCase()}`
+    : text
   const all = pixelWrap(display)
   const truncated = all.length > DATA_PREVIEW_ROWS
   const rows = truncated ? all.slice(0, DATA_PREVIEW_ROWS) : all

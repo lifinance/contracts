@@ -497,8 +497,9 @@ describe('the filmstrip cannot be driven by the stored calldata', () => {
 
     for (const line of lines)
       expect(line.replace(OWN_STYLES, '').match(TERMINAL_DRIVING)).toBeNull()
-    // Paired present: the row is still rendered, inert, not silently dropped.
-    expect(lines.join('\n')).toContain('0x[2J[HDEADBEEF')
+    // Paired present: the row is still rendered, inert, not silently dropped —
+    // and in the case the row stored, since the value is no longer hex.
+    expect(lines.join('\n')).toContain('0x[2J[Hdeadbeef')
   })
 
   it('discloses below the panels what it had to repair', () => {
@@ -521,6 +522,23 @@ describe('the filmstrip cannot be driven by the stored calldata', () => {
     expect(lines[lines.length - 1]).toBe(
       '\u001b[31m ⚠ the stored calldata is not 0x-prefixed hex — your device will not show this\u001b[0m'
     )
+  })
+
+  it('shows a non-hex value as stored, and keeps case-folding hex', () => {
+    // Upper-casing a value that is not hex invents characters for the panel the
+    // signer compares character by character, and the `0x` prefix asserts a
+    // shape the row does not have.
+    const rendered = renderLedgerFlexFlow({
+      ...PARAMS,
+      data: 'not calldata',
+    }).join('\n')
+    expect(rendered).toContain('not calldata')
+    expect(rendered).not.toContain('0xNOT CALLDATA')
+
+    // Paired present: hex still reaches the panel in the device's own case.
+    expect(
+      renderLedgerFlexFlow({ ...PARAMS, data: '0xe318b52b' }).join('\n')
+    ).toContain('0xE318B52B')
   })
 
   it('takes the field as stored, not as Hex', () => {
