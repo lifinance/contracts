@@ -43,11 +43,9 @@ import {
   computeChangeFingerprint,
   createAcknowledgementLedger,
   evaluateProposalIntegrity,
-  isChangeAcknowledged,
   recordAcknowledgement,
   renderChangeRollup,
   rollUpByChange,
-  shouldPromptForAcknowledgement,
   type INetworkOutcome,
 } from './confirm-safe-tx-ack'
 import {
@@ -61,8 +59,10 @@ import {
 } from './delegatecall-gate'
 import type { ILedgerAccountResult } from './ledger'
 import {
+  LEDGER_FLEX_HASH_NOTE,
   LEDGER_FLEX_WRAP_NOTE,
   renderLedgerFlexFlow,
+  renderLedgerFlexHashFlow,
 } from './ledger-flex-preview'
 import {
   blockedByEvaluationError,
@@ -119,8 +119,8 @@ const getCodehashDeps = (): ISignTimeCodehashDeps => {
   return codehashDeps
 }
 
-// Acknowledgements roll up across networks so a fleet-wide rollout is reviewed
-// once; the operator's chosen action is never remembered.
+// Acknowledgements roll up across networks so a fleet-wide rollout counts once;
+// the operator's chosen action is never remembered.
 const acknowledgementLedger = createAcknowledgementLedger()
 const networkOutcomes: INetworkOutcome[] = []
 
@@ -530,6 +530,22 @@ const processTxs = async (
       isTronNetworkKey(network),
       tx.safeTx.data.data
     )
+
+    // The hash the device will be asked to sign, computed by the Safe contract
+    // from the normalised struct. Never the stored `safeTxHash`: the proposer
+    // writes that field, so previewing it would show the operator a picture of
+    // what the proposer CLAIMS the device will display.
+    let deviceHash: Hex | undefined
+    if (verificationDisplay === 'hash-compare')
+      try {
+        deviceHash = await safe.getTransactionHash(tx.safeTransaction)
+      } catch (error) {
+        consola.warn(
+          `Could not compute the Safe transaction hash on ${network} — the Ledger screens cannot be previewed: ${
+            error instanceof Error ? error.message : error
+          }`
+        )
+      }
     if (verificationDisplay === 'filmstrip')
       try {
         const filmstrip = renderLedgerFlexFlow({
@@ -549,17 +565,56 @@ const processTxs = async (
       } catch (error) {
         consola.debug(`Ledger Flex filmstrip skipped: ${error}`)
       }
-    else if (verificationDisplay === 'hash-compare')
+    else if (verificationDisplay === 'hash-compare') {
+      // Report-only, and it names only the computed value: the stored hash is
+      // proposer-written text and is not echoed a second time here.
+      if (deviceHash) {
+        const stored = tx.safeTxHash
+        const storedIsHash =
+          typeof stored === 'string' && /^0x[0-9a-f]{64}$/i.test(stored)
+        if (!storedIsHash)
+          consola.warn(
+            `This proposal carries no readable stored hash. Your device will show \u001b[36m${deviceHash}\u001b[0m — compare that one.`
+          )
+        else if (stored.toLowerCase() !== deviceHash.toLowerCase())
+          consola.warn(
+            `The hash stored on this proposal is not the hash the Safe computes from it. Your device will show \u001b[36m${deviceHash}\u001b[0m — compare that one.`
+          )
+      }
+
+      let flow: string[] = []
+      if (deviceHash)
+        try {
+          flow = [
+            'Ledger — hash mode. Your device will show these three screens:',
+            ...renderLedgerFlexHashFlow({ hash: deviceHash }),
+            LEDGER_FLEX_HASH_NOTE,
+          ]
+        } catch (error) {
+          consola.warn(`Ledger Flex hash screens could not be drawn: ${error}`)
+        }
+
       consola.info(
-        [
-          'Ledger — the device shows one message screen holding the Safe transaction hash.',
-          'Compare that screen against the hash in the out-of-band message from the',
-          'proposer. The hash stored with this proposal is not the authority here: the',
-          'proposer controls it as well as the calldata, so checking one against the',
-          'other confirms nothing.',
-          'At least 16 characters, 8 from each end. Four-and-four is grindable.',
-        ].join('\n')
+        (flow.length
+          ? [
+              ...flow,
+              'That hash is read from the Safe contract, not from the proposal row — the',
+              'proposer controls that field. Reading it here still proves nothing about',
+              'intent: the authority is the hash in the out-of-band message from the',
+              'proposer. Compare 16 characters, 8 from each end — four-and-four is',
+              'grindable by whoever wrote the payload.',
+            ]
+          : [
+              'Ledger — the device shows one message screen holding the Safe transaction hash.',
+              'It could not be previewed here (see the warning above), so compare the device',
+              'screen directly against the hash in the out-of-band message from the proposer:',
+              '16 characters, 8 from each end — four-and-four is grindable by whoever wrote',
+              'the payload. The hash stored on the proposal row is not the authority; the',
+              'proposer controls it alongside the calldata.',
+            ]
+        ).join('\n')
       )
+    }
 
     // The struct itself reaches the gate, which reads its calldata when it
     // judges; the verdict is then bound to that transaction, so it cannot
@@ -589,6 +644,15 @@ const processTxs = async (
     renderCodehashSignGate(codehashGate).forEach((line) => consola.info(line))
 
     const integrity = evaluateProposalIntegrity({ nonceStatus })
+    // Said before the action prompt, not after it: a verdict the operator can no
+    // longer act on is a log line, not a warning.
+    if (!integrity.ok)
+      consola.warn(
+        `Nonce check failed on this proposal (${integrity.failures.join(
+          ', '
+        )}).`
+      )
+
     // Read from the normalised transaction, not the stored document: this is the
     // struct that gets hashed and signed, so the key describes what the operator
     // is about to approve.
@@ -794,8 +858,8 @@ const processTxs = async (
     }
 
     // Placed after the nonce gates, which are older and refuse only execute
-    // actions, and before the acknowledgement prompt: a proposal that fails this
-    // check must not be acknowledgeable, and no signature or broadcast has
+    // actions, and before the acknowledgement is recorded: a proposal that fails
+    // this check must not be acknowledgeable, and no signature or broadcast has
     // happened yet at this point. Skipping to the next proposal keeps the rest of
     // the run intact.
     if (!targetState.cleared) {
@@ -810,42 +874,9 @@ const processTxs = async (
       continue
     }
 
-    if (
-      shouldPromptForAcknowledgement({
-        alreadyAcknowledged: isChangeAcknowledged(
-          acknowledgementLedger,
-          acknowledgementKey
-        ),
-        integrityOk: integrity.ok,
-      })
-    ) {
-      if (!integrity.ok)
-        consola.warn(
-          `Nonce check failed on this proposal (${integrity.failures.join(
-            ', '
-          )}) — an earlier acknowledgement of the same change does not carry over.`
-        )
-
-      const acknowledgement = await consola.prompt(
-        `Confirm you reviewed this change (payload ${fingerprint.slice(
-          0,
-          10
-        )}) — asked once per target + value + operation + payload, not once per network:`,
-        {
-          type: 'select',
-          options: ['No — stop and inspect', 'Yes — I reviewed this change'],
-        }
-      )
-
-      if (acknowledgement.startsWith('No')) {
-        consola.info('Aborted — change not acknowledged')
-        continue
-      }
-    }
-
     // The ledger refuses to store an acknowledgement for a proposal whose nonce
     // check failed, so the summary must report what the ledger accepted rather
-    // than that the operator answered.
+    // than that the operator acted.
     const acknowledged = recordAcknowledgement(acknowledgementLedger, {
       acknowledgementKey,
       proposalKey,
