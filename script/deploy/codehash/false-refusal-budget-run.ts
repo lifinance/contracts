@@ -110,6 +110,12 @@ export interface ICorpusDeps {
   funnelExclusions: ReadonlyMap<string, string>
   /** Contracts deprecated from `src/`, so installing one is not honest input. */
   deprecatedContracts: ReadonlySet<string>
+  /**
+   * How many zkEVM slots the sweep left out, as the corpus itself records it.
+   * Undefined when it records nothing, which G2's note then says rather than
+   * printing a number nothing in the corpus can move.
+   */
+  zkEvmSlotsExcluded: number | undefined
 }
 
 const slotId = (slot: ICorpusSlot): string =>
@@ -146,9 +152,10 @@ const buildFingerprint = (parts: {
 /**
  * A stand-in for the deployed byte length of one build.
  *
- * Length is compared alongside the hash by {@link compareToAttestedSet}, and a
- * differing compiler produces a differing length — that is the `length-mismatch`
- * signature all fourteen wrong-compiler slots in the WP-7.1 sweep carried.
+ * {@link compareToAttestedSet} compares length alongside the hash, so the
+ * length has to be a function of the fingerprint and of nothing else: derived
+ * that way, the two agree exactly when the hashes do, and no build the gate was
+ * not offered can satisfy the length check on its own.
  * @param fingerprint - the build's fingerprint
  */
 const buildLength = (fingerprint: string): number =>
@@ -320,7 +327,9 @@ export const gradeAttestedSet = (deps: ICorpusDeps): IGateBudget => {
     gate: 'G2-attested-set',
     corpus: 'attested production slots (WP-7.1 / #2289)',
     denominator: observations.length,
-    coverageNote: `EVM only. The sweep excluded 6 zkEVM slots because it did not record which zksolc version produced the match, so the zk normalisation path is measured on 0. Bytecode equality is taken from the sweep rather than re-fetched, and layer 1 is graded without the sign-time MATCH-to-UNVERIFIABLE downgrade for uncompared immutable bytes, which the corpus records nothing about — so this rate is a lower bound on what the real gate refuses. This gate's unexplained count is NOT a fleet measurement: keyed on build identity, the comparison refuses exactly when the reproducing pair is not offered, which is exactly when explainScopeRefusal names a class, so no corpus can drive it off 0. Read the rate and the class split. See this module's header. ${
+    coverageNote: `EVM only. The sweep excluded ${
+      deps.zkEvmSlotsExcluded ?? 'an unrecorded number of'
+    } zkEVM slots because it did not record which zksolc version produced the match, so the zk normalisation path is measured on 0. Bytecode equality is taken from the sweep rather than re-fetched, and layer 1 is graded without the sign-time MATCH-to-UNVERIFIABLE downgrade for uncompared immutable bytes, which the corpus records nothing about — so this rate is a lower bound on what the real gate refuses. This gate's unexplained count is NOT a fleet measurement: keyed on build identity, the comparison refuses exactly when the reproducing pair is not offered, which is exactly when explainScopeRefusal names a class, so no corpus can drive it off 0. Read the rate and the class split. See this module's header. ${
       deps.slots.length - observations.length
     } of ${
       deps.slots.length
@@ -574,6 +583,18 @@ export const loadRepoCorpus = (repoRoot: string): ICorpusDeps => {
       'the fleet attestation corpus carries no non-empty "attestations" array; there is nothing to measure'
     )
 
+  // AFR-1 and AFR-2 both assert that a compiler pair provably reproduces the
+  // deployed code. A row naming no pair reproduces nothing, so its refusal
+  // would be filed under a named accepted class the rule text does not
+  // describe — a refusal reported as explained by a name nobody earned.
+  const unusable = (slots as ICorpusSlot[]).filter(
+    (row) => !row?.network || !row?.solcVersion || !row?.evmVersion
+  )
+  if (unusable.length > 0)
+    throw new Error(
+      `${unusable.length} of ${slots.length} attestation rows name no network or no compiler pair, so no refusal they produce can be attributed to a named class. Regenerate the corpus rather than measuring against it.`
+    )
+
   // Fails closed rather than deriving scope against an absent config: every
   // slot would then throw inside deriveToolchainScope, land in the grey
   // AFR-3 class, and leave every gate promotable on a corpus that measured
@@ -602,6 +623,10 @@ export const loadRepoCorpus = (repoRoot: string): ICorpusDeps => {
         return false
       }
     },
+    zkEvmSlotsExcluded:
+      typeof attestations['zkEvmSlotsExcluded'] === 'number'
+        ? attestations['zkEvmSlotsExcluded']
+        : undefined,
     funnelExclusions: new Map([
       [
         'tron',

@@ -76,6 +76,7 @@ const corpus = (overrides: Partial<ICorpusDeps> = {}): ICorpusDeps => ({
   hasCommit: () => true,
   funnelExclusions: new Map(),
   deprecatedContracts: new Set(),
+  zkEvmSlotsExcluded: 6,
   ...overrides,
 })
 
@@ -170,14 +171,33 @@ describe('loadRepoCorpus fails closed on an unmeasurable corpus', () => {
     )
   })
 
-  // The paired present: with both inputs in place the loader returns a corpus.
+  // A row naming no compiler pair reproduces nothing, so filing its refusal
+  // under AFR-1 or AFR-2 would report it as explained by a rule whose text
+  // does not describe it.
+  it('refuses a row that names no compiler pair rather than classifying it', () => {
+    const { solcVersion: _omitted, ...pairless } = slot()
+    write('script/deploy/resources/reproducibilityAttestations.json', {
+      attestations: [slot(), pairless],
+    })
+    write('config/networks.json', { somechain: {} })
+    expect(() => loadRepoCorpus(scratch)).toThrow(
+      /1 of 2 attestation rows name no network or no compiler pair/
+    )
+  })
+
+  // The paired present: with both inputs in place the loader returns a corpus,
+  // and carries the sweep's own zk-exclusion count rather than a written-down
+  // one that no input can move.
   it('loads when both inputs are present', () => {
     write('script/deploy/resources/reproducibilityAttestations.json', {
       attestations: [slot()],
+      zkEvmSlotsExcluded: 9,
     })
     write('config/networks.json', { somechain: {} })
     writeFileSync(join(scratch, 'foundry.toml'), TOML)
-    expect(loadRepoCorpus(scratch).slots).toHaveLength(1)
+    const loaded = loadRepoCorpus(scratch)
+    expect(loaded.slots).toHaveLength(1)
+    expect(loaded.zkEvmSlotsExcluded).toBe(9)
     expect(existsSync(attestationPath)).toBe(true)
   })
 })
@@ -357,6 +377,19 @@ describe('what the report discloses is derived, not asserted', () => {
     expect(note).toContain('1 of 2 configured networks carry none')
     expect(note).toContain('oldchain')
     expect(note).not.toContain('somechain')
+  })
+
+  // The zk exclusion is the sweep's own count, not a number written into the
+  // note. A corpus that records a different one has to move it, and a corpus
+  // that records none must not have one invented on its behalf.
+  it('reports the zk exclusion the corpus records, and says so when it records none', () => {
+    expect(
+      gradeAttestedSet(corpus({ zkEvmSlotsExcluded: 9 })).coverageNote
+    ).toContain('excluded 9 zkEVM slots')
+
+    expect(
+      gradeAttestedSet(corpus({ zkEvmSlotsExcluded: undefined })).coverageNote
+    ).toContain('excluded an unrecorded number of zkEVM slots')
   })
 
   it('says whether commits were unreadable rather than asserting they were not', () => {
@@ -664,11 +697,11 @@ describe('false-GREEN probe — the widening vector the MayanFacet fix would ope
    * record-supplied profile to the call changes nothing about the answer.
    */
   it('offers a network only the lineage its config names, never one merely pinned', () => {
-    // `solc_floor` IS pinned and IS a legitimate lineage for the fleet — 50
-    // attested slots reproduce under it. What decides whether this network is
-    // graded against it is the network row, and nothing else. A fix reading
-    // foundry.toml at the record's own commit would hand that decision to
-    // whoever chose the commit.
+    // `solc_floor` IS pinned and IS a legitimate lineage for the fleet: it is
+    // the pair the largest class of attested slots reproduces under. What
+    // decides whether this network is graded against it is the network row, and
+    // nothing else. A fix reading foundry.toml at the record's own commit would
+    // hand that decision to whoever chose the commit.
     expect(Object.keys(profiles)).toContain('solc_floor')
 
     const scope = deriveToolchainScope('somechain', {
