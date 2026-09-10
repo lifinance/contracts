@@ -19,6 +19,8 @@ import {
 
 import type { IImmutableDeclaration } from '../immutables/immutable-ast'
 import type { DeployRequirements } from '../immutables/registry-schema'
+import realRequirements from '../resources/deployRequirements.json'
+import realRegistry from '../resources/immutableRegistry.json'
 
 import type { IObservedImmutable } from './immutable-expectations'
 import { observeEvmImmutables, priceImmutables } from './immutable-expectations'
@@ -74,14 +76,17 @@ const REQUIREMENTS: DeployRequirements = {
         configFileName: 'across.json',
         keyInConfigFile: '.<NETWORK>.acrossSpokePool',
       },
-      _wrappedNative: {
+      _wrappedNativeAddress: {
         configFileName: 'networks.json',
         keyInConfigFile: '.<NETWORK>.wrappedNativeAddress',
       },
     },
     immutables: {
       spokePool: { source: 'config', configData: '_spokePool' },
-      wrappedNative: { source: 'config', configData: '_wrappedNative' },
+      wrappedNative: {
+        source: 'config',
+        configData: '_wrappedNativeAddress',
+      },
     },
   },
 }
@@ -146,6 +151,45 @@ describe('observeEvmImmutables', () => {
     if ('ok' in result) return
     expect(result.reason).toContain('astId 102')
     expect(result.reason).toContain('different compilations')
+  })
+
+  it('refuses when two contracts claim one astId', () => {
+    // Ids are unique within a compilation, but a repo-wide declaration set spans
+    // one solc invocation per pragma, and two of them can reuse an id.
+    const colliding: IImmutableDeclaration[] = [
+      ...DECLARATIONS,
+      {
+        file: 'src/Periphery/Other.sol',
+        contract: 'Other',
+        line: 9,
+        astId: 102,
+        type: 'address',
+        name: 'somethingElse',
+      },
+    ]
+    const result = observe(colliding)
+
+    expect('ok' in result).toBe(false)
+    if ('ok' in result) return
+    expect(result.reason).toContain('claimed by both')
+    expect(result.reason).toContain('Other.somethingElse')
+  })
+
+  it('accepts one astId declared twice under the same name, as an inherited immutable is', () => {
+    const inherited: IImmutableDeclaration[] = [
+      ...DECLARATIONS,
+      {
+        file: 'src/Helpers/Base.sol',
+        contract: 'Base',
+        line: 9,
+        astId: 102,
+        type: 'address',
+        name: 'wrappedNative',
+      },
+    ]
+    const result = observe(inherited)
+
+    expect('ok' in result).toBe(true)
   })
 
   it('refuses when a declaration carries no astId at all', () => {
@@ -227,6 +271,13 @@ describe('priceImmutables', () => {
     expect(result.disagreements[0]?.observed).toBe(slot(attacker))
     // The honest slot still counts: a disagreement is per slot, not per contract.
     expect(result.pricedByteCount).toBe(32)
+    expect(result.disagreeingByteCount).toBe(64)
+    // The three buckets account for every byte layer 1 masked.
+    expect(
+      result.pricedByteCount +
+        result.unpricedByteCount +
+        result.disagreeingByteCount
+    ).toBe(96)
   })
 
   it('gives partial credit when one immutable of several is undeclared', () => {
@@ -435,6 +486,104 @@ describe('priceImmutables', () => {
     if (result.decided) return
     expect(result.reason).toContain('2 bytes')
     expect(result.reason).toContain('32-byte slot')
+  })
+
+  it('does not read a Tron base58 config value as a disagreement', () => {
+    // config/networks.json gives .tron.wrappedNativeAddress in base58. Padding
+    // it yields a value no slot can hold, and calling that a mismatch would
+    // block a correctly deployed contract on every Tron chain.
+    const result = priceImmutables(
+      {
+        contractName: 'AcrossFacet',
+        observed: [
+          {
+            name: 'wrappedNative',
+            value: slot(WRAPPED_NATIVE),
+            slotByteCount: 32,
+            byteCount: 32,
+          },
+        ],
+        network: 'tron',
+        environment: 'production',
+      },
+      REQUIREMENTS,
+      () => ({
+        tron: { wrappedNativeAddress: 'TNUC9Qb1rRpS5CbWLmNMxXBjyFoydXjWFR' },
+      })
+    )
+    if (!result.decided) throw new Error(result.reason)
+
+    expect(result.slots[0]?.status).toBe('unpriceable')
+    expect(result.slots[0]?.detail).toContain('not hex')
+    expect(result.disagreements).toEqual([])
+    expect(result.unpricedByteCount).toBe(32)
+  })
+
+  it('grades one slot unpriceable rather than throwing on a malformed configData entry', () => {
+    // resolveExpectedAddress reads keyInConfigFile.startsWith before testing it,
+    // and validateImmutableRegistry checks only that the label exists.
+    const result = price(
+      [
+        {
+          name: 'spokePool',
+          value: slot(SPOKE_POOL),
+          slotByteCount: 32,
+          byteCount: 64,
+        },
+      ],
+      {
+        AcrossFacet: {
+          configData: {
+            _spokePool: {
+              configFileName: 'across.json',
+            } as never,
+          },
+          immutables: {
+            spokePool: { source: 'config', configData: '_spokePool' },
+          },
+        },
+      }
+    )
+    if (!result.decided) throw new Error(result.reason)
+
+    expect(result.slots[0]?.status).toBe('unpriceable')
+    expect(result.slots[0]?.detail).toContain('names no key within')
+    expect(result.unpricedByteCount).toBe(64)
+  })
+
+  it('resolves the entry the shipped registry actually authors', () => {
+    // The fixtures above stand in for the real files; this one reads them, so a
+    // registry label that stops resolving cannot pass the suite.
+    const observed = [
+      {
+        name: 'spokePool',
+        value: slot(SPOKE_POOL),
+        slotByteCount: 32,
+        byteCount: 96,
+      },
+    ]
+    const merged: DeployRequirements = {
+      AcrossFacet: {
+        ...(realRequirements as DeployRequirements).AcrossFacet,
+        immutables: realRegistry.AcrossFacet,
+      },
+    }
+
+    const result = priceImmutables(
+      {
+        contractName: 'AcrossFacet',
+        observed,
+        network: 'arbitrum',
+        environment: 'production',
+      },
+      merged
+    )
+    if (!result.decided) throw new Error(result.reason)
+
+    expect(result.slots[0]?.status).toBe('verified')
+    expect(result.slots[0]?.origin).toBe(
+      'config/across.json.arbitrum.acrossSpokePool'
+    )
   })
 
   it('treats a contract with no registry section as wholly undeclared', () => {

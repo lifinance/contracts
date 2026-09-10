@@ -15,10 +15,10 @@
  * sources the same values from the explorer record or from the tail of the
  * onchain creation code, so every immutable it checks verifies against itself.
  *
- * Unlike a rebuild of the contract, this needs no constructor ABI, no argument
- * order and no argument encoding: a slot holds one left-padded value whatever
- * the parameter that filled it was declared as. What it cannot answer it says so
- * about, per slot, rather than refusing the contract.
+ * A slot holds one left-padded value whatever the parameter that filled it was
+ * declared as, so no constructor ABI, argument order or argument encoding enters
+ * into it — which is also why a `bytes32` immutable holding an address needs no
+ * handling of its own.
  */
 
 import type { IImmutableDeclaration } from '../immutables/immutable-ast'
@@ -30,7 +30,7 @@ import {
   substituteConfigKeyPlaceholders,
 } from '../shared/immutableBindings'
 
-import { strip0x } from './hex'
+import { frameFault, strip0x } from './hex'
 import type { ImmutableReferences } from './immutable-offsets'
 import { readImmutableCopies } from './immutable-offsets'
 
@@ -99,10 +99,18 @@ export interface IPricedImmutables {
   /** Bytes checked against a declared expectation and found to hold it. */
   pricedByteCount: number
   /**
-   * Bytes still unaccounted for: undeclared or unpriceable slots. Zero means
-   * every byte layer 1 masked now has an expectation behind it.
+   * Bytes with no expectation behind them: undeclared or unpriceable slots.
    */
   unpricedByteCount: number
+  /**
+   * Bytes of slots holding something other than what the registry declares.
+   *
+   * Its own counter because the three sum to what layer 1 masked, and folding it
+   * into either of the others loses that: a tampered slot is neither priced nor
+   * missing an expectation. Retiring layer 1's `excludedByteCount` needs this
+   * and `unpricedByteCount` both at zero.
+   */
+  disagreeingByteCount: number
 }
 
 export type ImmutablePricing = IPricingRefused | IPricedImmutables
@@ -124,17 +132,37 @@ const refused = (reason: string): IPricingRefused => ({
  * copy, and padding to it would compare a 20-byte address against two slots
  * concatenated.
  *
+ * Requires hex. `config/` also holds Tron addresses in base58 —
+ * `networks.json` gives `.tron.wrappedNativeAddress` as
+ * `TNUC9Qb1rRpS5CbWLmNMxXBjyFoydXjWFR` — and padding one produces a value no
+ * slot can hold, which would then read as the deployment disagreeing with
+ * config on every Tron chain. An expectation that cannot be expressed in the
+ * slot's encoding is not a mismatch, so this returns a fault and the caller
+ * leaves the slot unpriced.
+ *
  * @param address - Address as config writes it, checksummed or not.
  * @param slotBytes - Width of a single copy of the immutable.
- * @returns The padded value, or undefined when it does not fit.
+ * @returns The padded value, or why the declared value cannot fill the slot.
  */
 const paddedToSlot = (
   address: string,
   slotBytes: number
-): string | undefined => {
+): { value: string } | { fault: string } => {
+  const fault = frameFault(address, 'the declared value')
+  if (fault)
+    return {
+      fault: `${fault} — a base58 Tron address cannot be compared against an inlined slot`,
+    }
+
   const hex = strip0x(address).toLowerCase()
-  if (hex.length % 2 !== 0 || hex.length / 2 > slotBytes) return undefined
-  return `0x${hex.padStart(slotBytes * 2, '0')}`
+  if (hex.length / 2 > slotBytes)
+    return {
+      fault: `the declared value is ${
+        hex.length / 2
+      } bytes and does not fit a ${slotBytes}-byte slot`,
+    }
+
+  return { value: `0x${hex.padStart(slotBytes * 2, '0')}` }
 }
 
 /**
@@ -147,9 +175,16 @@ const paddedToSlot = (
  * name the wrong slot too. That refuses, rather than pricing the ids that
  * happened to line up.
  *
+ * The declarations must be the ones the graded artifact's own AST carries. An
+ * id is unique within one solc invocation, and `src/` compiles under a single
+ * pragma today, so a repo-wide set drawn from one build happens to be unique
+ * too — but that is a property of the current tree, not of the interface, and
+ * the duplicate check below is what refuses if a second invocation ever reuses
+ * an id.
+ *
  * @param runtimeHex - Runtime bytecode found at the address, `0x`-prefixed.
  * @param refs - Foundry's `immutableReferences` for the artifact.
- * @param declarations - The contract's immutables as its AST declares them.
+ * @param declarations - Immutables as the AST declares them, from the same build.
  * @returns One observation per inlined immutable, or why none can be reported.
  */
 export const observeEvmImmutables = (
@@ -161,9 +196,16 @@ export const observeEvmImmutables = (
   if (!read.ok) return refused(read.reason)
 
   const nameByAstId = new Map<string, string>()
-  for (const declaration of declarations)
-    if (declaration.astId !== undefined)
-      nameByAstId.set(String(declaration.astId), declaration.name)
+  for (const declaration of declarations) {
+    if (declaration.astId === undefined) continue
+    const astId = String(declaration.astId)
+    const claimed = nameByAstId.get(astId)
+    if (claimed !== undefined && claimed !== declaration.name)
+      return refused(
+        `astId ${astId} is claimed by both ${claimed} and ${declaration.contract}.${declaration.name}, so no slot it keys can be named unambiguously`
+      )
+    nameByAstId.set(astId, declaration.name)
+  }
 
   const observed: IObservedImmutable[] = []
   for (const [astId, value] of Object.entries(read.values)) {
@@ -216,6 +258,19 @@ const declaredAddress = (
       reason: `the registry points at configData key '${label}', which this contract does not have`,
     }
 
+  // `resolveExpectedAddress` reads `keyInConfigFile.startsWith` before testing
+  // it, so a `configData` entry missing the field throws out of here instead of
+  // grading one slot — and `validateImmutableRegistry` checks only that the
+  // label exists, never the shape of the entry it names.
+  if (typeof entry.configFileName !== 'string' || entry.configFileName === '')
+    return {
+      reason: `configData key '${label}' names no config file`,
+    }
+  if (typeof entry.keyInConfigFile !== 'string' || entry.keyInConfigFile === '')
+    return {
+      reason: `configData key '${label}' names no key within config/${entry.configFileName}`,
+    }
+
   const { keyUsed, expectedAddress } = resolveExpectedAddress(
     loadConfigFile(entry.configFileName),
     entry.keyInConfigFile,
@@ -238,12 +293,11 @@ const declaredAddress = (
 /**
  * Grades every immutable a deployment holds against the registry's expectation.
  *
- * Each slot is answered on its own. A slot the registry declares as `config` is
- * compared; one it declares `derived`, `unchecked` or `unverifiable`, and one it
- * does not declare at all, is reported unpriced with its reason. That is the
- * whole difference from rebuilding the contract, which had to answer every arg
- * or none: a contract whose one undeclared immutable sits beside four declared
- * ones gets credit for the four.
+ * Each slot is answered on its own, so a contract whose one undeclared immutable
+ * sits beside four declared ones still gets credit for the four. A slot the
+ * registry declares as `config` is compared; one it declares `derived`,
+ * `unchecked` or `unverifiable`, and one it does not declare at all, is reported
+ * unpriced with its reason.
  *
  * @param input - The contract, its observed immutables, and the network to resolve for.
  * @param requirements - `deployRequirements.json` including its registry sections.
@@ -280,7 +334,14 @@ export const priceImmutables = (
       byteCount: one.byteCount,
       observed: one.value.toLowerCase(),
     }
-    const entry = contract?.immutables?.[one.name]
+    // `in`/bracket access walks the prototype, so an immutable named `toString`
+    // would find a function and route into the declared paths.
+    const entry = Object.prototype.hasOwnProperty.call(
+      contract?.immutables ?? {},
+      one.name
+    )
+      ? contract?.immutables?.[one.name]
+      : undefined
 
     if (!entry) {
       slots.push({
@@ -337,36 +398,35 @@ export const priceImmutables = (
     }
 
     const expected = paddedToSlot(declared.address, one.slotByteCount)
-    if (expected === undefined) {
+    if ('fault' in expected) {
       slots.push({
         ...base,
         status: 'unpriceable',
         origin: declared.origin,
-        detail: `${declared.origin} answers with a value that does not fit the ${one.slotByteCount} bytes ${one.name} occupies`,
+        detail: `${declared.origin} cannot be compared against ${one.name}: ${expected.fault}`,
       })
       continue
     }
 
     slots.push({
       ...base,
-      status: expected === base.observed ? 'verified' : 'disagrees',
-      expected,
+      status: expected.value === base.observed ? 'verified' : 'disagrees',
+      expected: expected.value,
       origin: declared.origin,
     })
   }
 
-  const byteTotal = (status: ImmutableStatus | ImmutableStatus[]): number => {
-    const wanted = Array.isArray(status) ? status : [status]
-    return slots
+  const byteTotal = (...wanted: ImmutableStatus[]): number =>
+    slots
       .filter((slot) => wanted.includes(slot.status))
       .reduce((total, slot) => total + slot.byteCount, 0)
-  }
 
   return {
     decided: true,
     slots,
     disagreements: slots.filter((slot) => slot.status === 'disagrees'),
     pricedByteCount: byteTotal('verified'),
-    unpricedByteCount: byteTotal(['undeclared', 'unpriceable']),
+    unpricedByteCount: byteTotal('undeclared', 'unpriceable'),
+    disagreeingByteCount: byteTotal('disagrees'),
   }
 }
