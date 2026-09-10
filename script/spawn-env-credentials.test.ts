@@ -26,9 +26,9 @@ const REPO_ROOT = join(import.meta.dir, '..')
 
 /**
  * Any name holding a signing key or a store URI. Matched by substring rather
- * than enumerated because `.env` declares far more of them than the two the
- * placement probes reach for — the pauser, refund and withdraw wallets and
- * several retired deployer generations all sit in the same file, and an
+ * than enumerated because `.env` declares seventeen of them, well past the
+ * handful any one probe neutralizes — the pauser, refund and withdraw wallets
+ * and several retired deployer generations all sit in the same file, and an
  * enumeration would silently stop covering the next one added.
  *
  * `ENABLE_MONGODB_LOGGING` is the near miss this must not match, so the URI
