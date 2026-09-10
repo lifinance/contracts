@@ -19,30 +19,12 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
+import { withholdCredentials } from './spawn-env'
+
 const REFUSAL = 'No Linear ticket supplied'
 
 /** 20 seconds: long enough to reach the gate, short enough that a run past it is cheap. */
 const TIMEOUT_MS = 20_000
-
-/**
- * Set rather than deleted: bun re-loads the repo `.env` in the child for every
- * name the passed environment leaves unset, so deleting a credential hands the
- * real one back instead of withholding it.
- *
- * Malformed rather than merely wrong, so a child that reached past the gate
- * dies before it can act: a key viem cannot parse throws where a
- * valid-but-unfunded one would derive an address, and a URI the driver rejects
- * on construction throws where an unreachable host would first spend its 30 s
- * server-selection budget.
- */
-const MALFORMED_KEYS = [
-  'PRIVATE_KEY',
-  'PRIVATE_KEY_PRODUCTION',
-  'SAFE_SIGNER_PRIVATE_KEY',
-] as const
-const MALFORMED_KEY = 'malformed-in-tests'
-const MALFORMED_STORES = ['MONGODB_URI', 'SC_MONGODB_URI'] as const
-const MALFORMED_STORE = 'malformed-in-tests://no-store'
 
 const run = (
   script: string,
@@ -62,8 +44,7 @@ const run = (
   // One case below asserts a run is NOT refused, which means letting it go on to
   // a branch that sends directly — with a real key that branch signs, and with a
   // real store URI the pass after it proposes.
-  for (const name of MALFORMED_KEYS) env[name] = MALFORMED_KEY
-  for (const name of MALFORMED_STORES) env[name] = MALFORMED_STORE
+  withholdCredentials(env)
 
   const result = Bun.spawnSync(
     [process.execPath, join(import.meta.dir, '..', '..', script), ...args],

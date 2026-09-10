@@ -15,33 +15,47 @@
  * replacement depends on, without any real credential taking part.
  */
 import { execFileSync } from 'child_process'
-import { mkdtempSync, readFileSync, writeFileSync } from 'fs'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 
 // eslint-disable-next-line import/no-unresolved
-import { describe, expect, it } from 'bun:test'
+import { afterAll, describe, expect, it } from 'bun:test'
 
 const REPO_ROOT = join(import.meta.dir, '..')
 
 /**
- * Any name holding a signing key or a store URI. Matched by substring rather
- * than enumerated because `.env` declares seventeen of them, well past the
- * handful any one probe neutralizes — the pauser, refund and withdraw wallets
- * and several retired deployer generations all sit in the same file, and an
- * enumeration would silently stop covering the next one added.
+ * Names holding a signing secret or a proposal-store URI. Matched by substring
+ * rather than enumerated because the wallet keys come in generations — pauser,
+ * refund and withdraw wallets sit alongside several retired deployer ones — so
+ * an enumeration would silently stop covering the next name added.
  *
- * `ENABLE_MONGODB_LOGGING` is the near miss this must not match, so the URI
- * half anchors on `MONGODB_URI` rather than on `MONGODB`.
+ * The keyed RPC endpoints, explorer and provider API keys and Slack webhooks
+ * are deliberately outside this: deleting one of those is often how a fallback
+ * gets tested, and matching them would put a marker on every such test to
+ * withhold something no signature depends on.
+ *
+ * The store half anchors on the full URI suffix rather than on the driver name
+ * alone, so the logging toggle that shares that prefix is not mistaken for a
+ * credential.
  */
-const CREDENTIAL_NAME = '[A-Z0-9_]*(?:PRIVATE_KEY|MONGODB_URI)[A-Z0-9_]*'
+const CREDENTIAL_NAME =
+  '[A-Z0-9_]*(?:PRIVATE_KEY|MNEMONIC|MONGODB_URI)[A-Z0-9_]*'
 
 /**
- * Matches `delete env.PRIVATE_KEY`, `delete env['PRIVATE_KEY']` and
- * `delete process.env.PRIVATE_KEY`, whatever the holder is called.
+ * Matches `delete env.PRIVATE_KEY`, `delete env['PRIVATE_KEY']`,
+ * `delete process.env.PRIVATE_KEY` and the optional-chained forms, whatever the
+ * holder is called.
+ *
+ * Only literal member access is visible here. A computed key
+ * (`delete env[name]`), a concatenated one, `Reflect.deleteProperty`, and
+ * dropping a name by rest-destructuring all withhold nothing in the same way
+ * and are all invisible to a source scan — deciding them needs a parser and a
+ * constant-folding pass. The hermetic spawn below is what covers the mechanism
+ * itself; this pattern only catches the spelling people actually reach for.
  */
 const DELETES_A_CREDENTIAL = new RegExp(
-  `delete\\s+[A-Za-z_$][\\w$.]*(?:\\.${CREDENTIAL_NAME}\\b|\\[['"\`]${CREDENTIAL_NAME}['"\`]\\])`,
+  `delete\\s+[A-Za-z_$][\\w$.?]*(?:\\.${CREDENTIAL_NAME}\\b|\\[['"\`]${CREDENTIAL_NAME}['"\`]\\])`,
   'u'
 )
 
@@ -170,6 +184,9 @@ describe('no shipped test deletes a credential from a child environment', () => 
       'delete env.PRIVATE_KEY_REFUND_WALLET',
       'delete env.PRIVATE_KEY_WITHDRAW_WALLET',
       'delete env.PRIVATE_KEY_PRODUCTION_OLD_V3',
+      'delete env.MNEMONIC',
+      'delete env?.PRIVATE_KEY',
+      "delete process.env?.['PRIVATE_KEY_PRODUCTION']",
     ])
       expect(DELETES_A_CREDENTIAL.test(source), source).toBe(true)
   })
@@ -208,6 +225,8 @@ describe('setting a credential, unlike deleting it, withholds it from a child', 
     `const v = process.env[${JSON.stringify(NAME)}]\n` +
       `console.log(v === undefined ? 'undefined' : String(v.length))\n`
   )
+
+  afterAll(() => rmSync(fixture, { force: true, recursive: true }))
 
   /** What the child reports the name's length to be, or `'undefined'`. */
   const lengthInChild = (
