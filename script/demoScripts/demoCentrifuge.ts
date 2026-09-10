@@ -15,6 +15,12 @@
  *      bridge quote API, the same source the backend integration reads it from.
  *
  * Run:  bunx tsx script/demoScripts/demoCentrifuge.ts
+ *
+ * Verified staging run (2026-09-09): 1 deJAAA Base -> Ethereum, delivered 48 min later, with
+ * zero Diamond residue and the messaging-fee surplus refunded to the signer.
+ *   src: https://basescan.org/tx/0x3c1af4d8f82bd070917d96433609343374e5ac97a3ad38e97e9e5377d4d33b91
+ *   dst: https://etherscan.io/tx/0xebc3d06a8572df35b15318b9e66258ab3255f63dcab40b8c8cd3d06f237e74af
+ *   msg: https://centrifugescan.io/tx/0x763680baf555b59e99116775531ad18738e32efba0b42c237823aee23bfedf52
  */
 import { randomBytes } from 'crypto'
 
