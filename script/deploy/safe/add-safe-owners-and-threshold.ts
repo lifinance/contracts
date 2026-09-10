@@ -31,6 +31,7 @@ import { SAFE_THRESHOLD } from '../shared/constants'
 import { readBooleanFlag } from './cli-flags'
 import type { ILedgerAccountResult } from './ledger'
 import { assertTicketPresent } from './proposal-intent'
+import { proposeSafeTx } from './propose-safe-tx'
 import {
   getNextNonce,
   getPrivateKey,
@@ -38,7 +39,6 @@ import {
   getSafeMongoCollection,
   initializeSafeClient,
   isAddressASafeOwner,
-  storeTransactionInMongoDB,
   type ISafeTxDocument,
 } from './safe-utils'
 
@@ -391,29 +391,23 @@ async function processNetwork(
       )
 
       consola.info('Proposing to add owner', owner)
-      const signedTx = await safe.signTransaction(safeTransaction)
-      const safeTxHash = await safe.getTransactionHash(signedTx)
+      const { safeTxHash, stored } = await proposeSafeTx({
+        safe,
+        network,
+        chainId: chain.id,
+        safeAddress,
+        pendingTransactions,
+        payload: { kind: 'prebuilt', safeTx: safeTransaction },
+      })
       consola.info('Transaction signed:', safeTxHash)
 
-      const result = await storeTransactionInMongoDB(
-        pendingTransactions,
-        safe.getAddress(),
-        network,
-        chain.id,
-        signedTx,
-        safeTxHash,
-        senderAddress
-      )
-
-      if (result === null) {
-        consola.info('Proposal already exists - skipping')
-        addOwnerAlreadyProposed++
-      } else if (!result.acknowledged)
-        throw new Error('MongoDB insert was not acknowledged')
-      else {
+      if (stored) {
         consola.success('Transaction successfully stored in MongoDB')
         proposalsCreated++
         addOwnerNewlyProposed++
+      } else {
+        consola.info('Proposal already exists - skipping')
+        addOwnerAlreadyProposed++
       }
       nextNonce++
     }
@@ -442,29 +436,24 @@ async function processNetwork(
         SAFE_THRESHOLD,
         { nonce: nextNonce }
       )
-      const signedThresholdTx = await safe.signTransaction(changeThresholdTx)
-      const thresholdTxHash = await safe.getTransactionHash(signedThresholdTx)
+      const { safeTxHash: thresholdTxHash, stored: thresholdStored } =
+        await proposeSafeTx({
+          safe,
+          network,
+          chainId: chain.id,
+          safeAddress,
+          pendingTransactions,
+          payload: { kind: 'prebuilt', safeTx: changeThresholdTx },
+        })
       consola.info('Transaction signed:', thresholdTxHash)
 
-      const thresholdResult = await storeTransactionInMongoDB(
-        pendingTransactions,
-        safe.getAddress(),
-        network,
-        chain.id,
-        signedThresholdTx,
-        thresholdTxHash,
-        senderAddress
-      )
-
-      if (thresholdResult === null) {
-        consola.info('Proposal already exists - skipping')
-        thresholdAlreadyProposed = true
-      } else if (!thresholdResult.acknowledged)
-        throw new Error('MongoDB insert was not acknowledged')
-      else {
+      if (thresholdStored) {
         consola.success('Transaction successfully stored in MongoDB')
         proposalsCreated++
         thresholdNewlyProposed = true
+      } else {
+        consola.info('Proposal already exists - skipping')
+        thresholdAlreadyProposed = true
       }
     } else
       consola.success(

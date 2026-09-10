@@ -100,14 +100,20 @@ const assertChildIsUsable = (
 /**
  * Runs the real `add` CLI in a throwaway repo and parses what it would write.
  * @param options - the repo to run in, and extra CLI arguments
- * @returns the child's combined output, exit status, and the parsed upsert
+ * @returns the child's combined output, its stdout alone, exit status, and
+ * the parsed upsert
  */
 const runAdd = (options: {
   repoRoot: string
   extraArgs?: string[]
   ci?: Record<string, string>
   flag?: string
-}): { output: string; status: number | null; upsert: IUpsertShape } => {
+}): {
+  output: string
+  stdout: string
+  status: number | null
+  upsert: IUpsertShape
+} => {
   const env: Record<string, string> = {
     ...(process.env as Record<string, string>),
   }
@@ -188,6 +194,7 @@ const runAdd = (options: {
 
   return {
     output,
+    stdout: result.stdout,
     status: result.status,
     upsert: JSON.parse(result.stdout.slice(start)) as IUpsertShape,
   }
@@ -349,6 +356,89 @@ describe('update-deployment-logs add — provenance capture', () => {
       expect(output).toContain('branch UNKNOWN')
       expect(output).toContain('dirty unknown')
       expect(output).toContain('Provenance capture problem:')
+    },
+    CASE_TIMEOUT_MS
+  )
+})
+
+describe('update-deployment-logs add — codehash', () => {
+  const HASH = `0x${'1'.repeat(64)}`
+  const MASKED = `0x${'2'.repeat(64)}`
+  const GROUP = [
+    '--codehash',
+    HASH,
+    '--masked-codehash',
+    MASKED,
+    '--code-byte-length',
+    '7390',
+    '--masked-byte-count',
+    '480',
+  ]
+
+  it(
+    'carries the whole group into the upsert and exits 0',
+    () => {
+      const { status, upsert } = runAdd({
+        repoRoot: makeRepo({ branch: 'main', dirty: false }),
+        extraArgs: GROUP,
+      })
+
+      expect(status).toBe(0)
+      expect(upsert.update.$set).toHaveProperty('codehash', {
+        hash: HASH,
+        maskedHash: MASKED,
+        byteLength: 7390,
+        maskedByteCount: 480,
+      })
+    },
+    CASE_TIMEOUT_MS
+  )
+
+  it(
+    'writes no codehash key at all when none was offered',
+    () => {
+      const { status, upsert } = runAdd({
+        repoRoot: makeRepo({ branch: 'main', dirty: false }),
+      })
+
+      expect(status).toBe(0)
+      expect(upsert.update.$set).not.toHaveProperty('codehash')
+      // Paired positive: the absence above must not pass on an empty upsert.
+      expect(upsert.update.$set).toHaveProperty('contractName', CONTRACT)
+    },
+    CASE_TIMEOUT_MS
+  )
+
+  it.each([
+    ['a partly-provided group', GROUP.slice(0, 6), '--masked-byte-count'],
+    [
+      'a byte length parseInt would have accepted',
+      [...GROUP.slice(0, 5), '7390 bytes', ...GROUP.slice(6)],
+      'whole numbers',
+    ],
+    [
+      'a hash that is not a digest',
+      ['--codehash', '0xdeadbeef', ...GROUP.slice(2)],
+      'not a keccak digest',
+    ],
+  ])(
+    'still writes the record, and reports the drop on stdout, for %s',
+    (_label, extraArgs, expected) => {
+      const { stdout, status, upsert } = runAdd({
+        repoRoot: makeRepo({ branch: 'main', dirty: false }),
+        extraArgs,
+      })
+
+      expect(upsert.update.$set).not.toHaveProperty('codehash')
+      expect(upsert.update.$set).toHaveProperty('address', ADDRESS)
+      // On stdout, not merely somewhere: `logContractDeploymentInfo` discards
+      // this command's stderr unless DEBUG is set, so a reason sent there is a
+      // reason the operator never sees.
+      expect(stdout).toContain('Not recording a codehash')
+      expect(stdout).toContain(expected)
+      // Zero, because the record landed: that caller reads any non-zero status
+      // as "the record did not land" and aborts the deploy.
+      expect(status).toBe(0)
     },
     CASE_TIMEOUT_MS
   )
