@@ -178,10 +178,9 @@ describe('the evaluation is placed where it swallows nothing', () => {
     expect(ackKeys).toBeGreaterThan(evaluation)
   })
 
-  // The last leg is the ledger write, not the review prompt that currently
-  // precedes it: whether the operator is prompted, or acknowledgement is
-  // implicit in choosing an action, is settled in EXSC-963 and not here. The
-  // ordering this pins holds either way.
+  // The last leg is anchored on the ledger write rather than the prompt that
+  // precedes it, so the ordering holds whether acknowledgement is prompted for
+  // or implicit in the action choice.
   it('leaves the action prompt, the nonce gate and the acknowledgement in that order', () => {
     const evaluation = SOURCE.indexOf(
       'integrityRun = await runIntegrityAsserts('

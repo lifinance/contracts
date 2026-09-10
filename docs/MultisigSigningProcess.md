@@ -569,8 +569,6 @@ Honest list — the tooling displays these, but does **not** machine-assert them
   labeled; the signer still has to judge them from the linked ticket and PR.
 - **Unknown targets.** `to`-address name resolution is display-only; an
   unknown target renders without a label — the absence is the only signal.
-- **The Safe itself.** The `safeAddress` comes from the proposal document and
-  is not cross-checked against `config/networks.json` at confirm time.
 - **Unknown selectors.** Names for selectors without a local ABI come from
   the external `api.4byte.sourcify.dev` database, displayed as-is.
 - **Execution outcome.** No simulation at review or sign time; the first
@@ -650,9 +648,6 @@ Design themes under discussion. Nothing below exists in the repo today:
 
 - **Provenance on proposals** — attach human identity, git commit/branch, and
   a PR link/description to each proposal, shown at signing.
-- **Integrity asserts + check report** — machine-assert what §6 leaves to the
-  signer (recomputed `safeTxHash`, `safeAddress` vs `config/networks.json`,
-  mismatches escalated from warn), summarized per proposal.
 - **Executability simulation** — simulate the Safe transaction and its inner
   timelock payload before signatures are collected.
 - **Bytecode ↔ audit attestation** — verify the deployed bytecode/commit
