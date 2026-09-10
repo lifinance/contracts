@@ -90,11 +90,16 @@ export interface IReplayInput {
   /** Chain the deployment lives on, reproduced as `block.chainid` by the replay. */
   chainId: number
   /**
-   * Every build this repo vouches for. The replayed code has to normalise to
-   * one of them before any verdict is reached, and the lineage a MATCH reports
-   * is that build's. A caller cannot assert a lineage, because a MATCH here
-   * tells it to skip masking: creation code from an unattested build would
-   * otherwise pass with layer 1 never running.
+   * Every build this repo vouches for. The replayed code has to normalise into
+   * this set before any verdict is reached, and the lineage a MATCH reports is
+   * the matching build's rather than a label the caller chose.
+   *
+   * This binds the runtime bytes *outside* the immutables, and nothing more.
+   * An attestation records no creation code, and a constructor is not part of
+   * runtime code, so a creation code whose constructor writes a different
+   * immutable normalises into the set exactly as the attested one does. Closing
+   * that needs a creation-code hash on `IAttestedBuild`; until it exists a
+   * MATCH here does not establish that the constructor was ours.
    */
   attestedBuilds: readonly IAttestedBuild[]
   /** Foundry's `immutableReferences` for the artifact, or undefined when it has none. */
@@ -126,15 +131,17 @@ const byteLength = (hex: string): number => strip0x(hex).length / 2
 /**
  * The attested lineages whose build the replayed code reproduces.
  *
- * A MATCH here tells the caller to skip masking, so the code it matched has to
- * be code this repo attested — otherwise the layer would vouch for whatever
- * creation code it was handed. Normalisation goes through the same
- * `normalizeRuntimeCode` both sides of layer 1 use; a second implementation of
- * strip-then-mask is how two sides come to normalise differently.
+ * Normalisation goes through the same `normalizeRuntimeCode` both sides of
+ * layer 1 use; a second implementation of strip-then-mask is how two sides come
+ * to normalise differently.
  *
- * EVM semantics are assumed: zksolc keeps its immutables in `ImmutableSimulator`
- * rather than in the runtime code, and its creation code does not execute on the
- * local EVM at all, so a zk artifact never reaches here.
+ * The masked comparison cannot see the immutable bytes, which is where a
+ * tampered constructor puts its result, so membership here is necessary and not
+ * sufficient — see `IReplayInput.attestedBuilds`.
+ *
+ * EVM semantics are assumed. A zk attestation's `maskedHash` is built unmasked,
+ * so a masked replay hash cannot match one and a zk lineage reaches no verdict
+ * here rather than a wrong one.
  *
  * @param replayedRuntimeCode - What the constructor returned, `0x`-prefixed.
  * @param input - The attested set and the artifact's immutable ranges.

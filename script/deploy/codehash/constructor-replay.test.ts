@@ -7,8 +7,9 @@
  * pin exists for. Both were checked against `readMetadataTrailer`.
  *
  * Attested builds are produced with `normalizeRuntimeCode`, the function a real
- * attestation is built with, so no fixture can attest a hash the production
- * normaliser would never emit.
+ * attestation is built with, and every case runs with `REFS` rather than no
+ * immutable ranges: masking is what the attested-set check is blind through,
+ * and a fixture without ranges would exercise exact-body equality instead.
  *
  * An end-to-end run against a real artifact needs `out/` and the `anvil`
  * binary, neither of which the suite has, so nothing here drives a real node.
@@ -54,6 +55,14 @@ const OTHER_WORD =
 const withImmutable = (word: string, trailer: string): string =>
   `0x${BODY}${word}${trailer}`
 
+/**
+ * The word `withImmutable` splices, as Foundry would report it. Production
+ * artifacts always carry these when a contract has immutables, and masking is
+ * what makes the attested-set check blind to the spliced word — a fixture that
+ * passes `undefined` here tests exact-body equality instead.
+ */
+const REFS = { '1': [{ start: BODY.length / 2, length: 32 }] }
+
 const DERIVED: ExpectedArgs = {
   ok: true,
   args: [
@@ -72,7 +81,7 @@ const attesting = (
   runtimeCode: string,
   lineage = 'upstream cancun'
 ): IAttestedBuild[] => {
-  const normalized = normalizeRuntimeCode(runtimeCode, undefined, {
+  const normalized = normalizeRuntimeCode(runtimeCode, REFS, {
     isZk: false,
   })
   if (!normalized.ok) throw new Error(normalized.reason)
@@ -136,7 +145,7 @@ const verify = (
       creationCode: CREATION_CODE,
       chainId: 42161,
       attestedBuilds,
-      immutableReferences: undefined,
+      immutableReferences: REFS,
       expectedArgs,
     },
     deps
@@ -204,16 +213,32 @@ describe('when the replay reproduces the deployed bytes', () => {
 describe('the attested-build precondition', () => {
   it('refuses when the replayed code normalises to no attested build', async () => {
     const honest = withImmutable(IMMUTABLE_WORD, TRAILER_12)
+    const otherBody = `0x${'11'.repeat(32)}${IMMUTABLE_WORD}${TRAILER_12}`
 
     const result = await verify(
       honest,
       evmReturning(honest),
-      attesting(withImmutable(OTHER_WORD, TRAILER_12))
+      attesting(otherBody)
     )
 
     expect(result.decided).toBe(false)
     if (result.decided) return
     expect(result.reason).toContain('no attested build')
+  })
+
+  it('does not see a constructor that differs only in what it writes to an immutable', async () => {
+    const attested = withImmutable(IMMUTABLE_WORD, TRAILER_12)
+    const tampered = withImmutable(TAMPERED_WORD, TRAILER_12)
+
+    const result = await verify(
+      tampered,
+      evmReturning(tampered),
+      attesting(attested)
+    )
+
+    expect(result.decided).toBe(true)
+    if (!result.decided) return
+    expect(result.comparison.verdict).toBe('MATCH')
   })
 
   it('refuses against an empty attested set rather than taking the match on trust', async () => {
@@ -234,6 +259,24 @@ describe('the attested-build precondition', () => {
     )
 
     expect(result.decided).toBe(false)
+  })
+
+  it('refuses a replay whose immutable ranges do not fit the code', async () => {
+    const result = await verifyByConstructorReplay(
+      {
+        observedRuntimeCode: withImmutable(IMMUTABLE_WORD, TRAILER_12),
+        creationCode: CREATION_CODE,
+        chainId: 42161,
+        attestedBuilds: attesting(withImmutable(IMMUTABLE_WORD, TRAILER_12)),
+        immutableReferences: { '1': [{ start: 4096, length: 32 }] },
+        expectedArgs: DERIVED,
+      },
+      evmReturning(withImmutable(IMMUTABLE_WORD, TRAILER_12))
+    )
+
+    expect(result.decided).toBe(false)
+    if (result.decided) return
+    expect(result.reason).toContain('normalised')
   })
 })
 
