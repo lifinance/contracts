@@ -297,6 +297,30 @@ describe('explainScopeRefusal — the classifier has no fallthrough class', () =
       )
     ).toBe('AFR-2-cross-profile-network')
   })
+
+  // The gate-level consequence, and the paired absence for the G5 plant that
+  // DOES produce an unexplained refusal. Keyed on build identity, the
+  // comparison refuses exactly when the reproducing pair is not offered, which
+  // is exactly when the classifier names a class — so the refusal count moves
+  // with the input while the unexplained count cannot. G2's coverage note says
+  // so. If this row ever fails, the two predicates have stopped being
+  // complements and that note is the thing to rewrite.
+  it('moves G2 refusals with the input while its unexplained count cannot move', () => {
+    const cases = [
+      { solcVersion: '0.8.29', evmVersion: 'cancun', refusals: 0 },
+      { solcVersion: '0.8.17', evmVersion: 'london', refusals: 1 },
+      { solcVersion: '0.8.26', evmVersion: 'cancun', refusals: 1 },
+      { solcVersion: '0.8.28', evmVersion: 'london', refusals: 1 },
+    ]
+    for (const { refusals, ...pair } of cases) {
+      const budget = gradeAttestedSet(corpus({ slots: [slot(pair)] }))
+      expect({
+        ...pair,
+        refusals: budget.refusals,
+        unexplained: budget.unexplained,
+      }).toEqual({ ...pair, refusals, unexplained: 0 })
+    }
+  })
 })
 
 describe('a zksolc-only pin is not a pin any EVM network is offered', () => {

@@ -196,4 +196,20 @@ describe('renderBudgetReport', () => {
     expect(lines[3]).toContain('measured on 0')
     expect(lines[3]).not.toContain('0.0%')
   })
+
+  // A note the reader never sees is not a disclosure. The measured-on-0
+  // blocker quotes the note only when the denominator is 0, which is the one
+  // case the table already states in words.
+  it('prints the coverage note of a gate that did measure something', () => {
+    const measured = summariseGate({
+      gate: 'G-measured',
+      corpus: 'test rows',
+      denominator: 100,
+      coverageNote: 'this rate is a lower bound',
+      observations: [observation({ ruleId: 'AFR-1-retired-pin' })],
+    })
+    expect(renderBudgetReport([measured]).join('\n')).toContain(
+      '`G-measured`: this rate is a lower bound'
+    )
+  })
 })

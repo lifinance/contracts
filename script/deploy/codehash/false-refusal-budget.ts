@@ -294,6 +294,12 @@ export const evaluatePromotion = (budget: IGateBudget): IPromotionVerdict => {
 /**
  * Renders the budget table a reviewer reads, denominators included.
  *
+ * Every coverage note is printed under the table. They used to reach the
+ * reader only through the measured-on-0 blocker, so the notes on the gates
+ * that DID measure something — which is where "this rate is a lower bound" and
+ * "this gate's unexplained count cannot move" live — were the ones nothing
+ * printed.
+ *
  * @param budgets - one entry per gate, in report order
  * @returns Lines to print
  */
@@ -321,6 +327,10 @@ export const renderBudgetReport = (
       } | ${verdict.mayEnforce ? 'yes' : 'no'} |`
     )
   }
+
+  lines.push('', 'What each corpus does not cover:')
+  for (const budget of budgets)
+    lines.push(`- \`${budget.gate}\`: ${budget.coverageNote}`)
 
   return lines
 }

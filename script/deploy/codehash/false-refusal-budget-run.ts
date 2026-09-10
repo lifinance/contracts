@@ -34,6 +34,16 @@
  * measured here is therefore whether the gate's derived set of legitimate
  * builds CONTAINS the build that provably reproduces the deployed code. When
  * it does not, MISMATCH is not avoidable by any bytecode the address holds.
+ *
+ * That modelling has one consequence the report must not bury: keyed on build
+ * identity, the comparison refuses a slot exactly when its reproducing pair is
+ * not offered, which is exactly the input {@link explainScopeRefusal} names a
+ * class for. The two predicates are complements, so no corpus can drive G2's
+ * unexplained count off 0. G2's honest contribution is its rate and its class
+ * split; its unexplained count measures this model, not the fleet. Read the
+ * budget's headline zero accordingly — on G1/G3/G4/G5 it means nothing was
+ * refused, and on G2 it means the classifier covers every refusal the model
+ * can produce.
  */
 
 import { execFileSync } from 'node:child_process'
@@ -274,7 +284,7 @@ export const gradeAttestedSet = (deps: ICorpusDeps): IGateBudget => {
     gate: 'G2-attested-set',
     corpus: 'attested production slots (WP-7.1 / #2289)',
     denominator: observations.length,
-    coverageNote: `EVM only. The sweep excluded 6 zkEVM slots because it did not record which zksolc version produced the match, so the zk normalisation path is measured on 0. Bytecode equality is taken from the sweep rather than re-fetched, and layer 1 is graded without the sign-time MATCH-to-UNVERIFIABLE downgrade for uncompared immutable bytes, which the corpus records nothing about — so this rate is a lower bound on what the real gate refuses. See this module's header. ${
+    coverageNote: `EVM only. The sweep excluded 6 zkEVM slots because it did not record which zksolc version produced the match, so the zk normalisation path is measured on 0. Bytecode equality is taken from the sweep rather than re-fetched, and layer 1 is graded without the sign-time MATCH-to-UNVERIFIABLE downgrade for uncompared immutable bytes, which the corpus records nothing about — so this rate is a lower bound on what the real gate refuses. This gate's unexplained count is NOT a fleet measurement: keyed on build identity, the comparison refuses exactly when the reproducing pair is not offered, which is exactly when explainScopeRefusal names a class, so no corpus can drive it off 0. Read the rate and the class split. See this module's header. ${
       deps.slots.length - observations.length
     } of ${
       deps.slots.length
