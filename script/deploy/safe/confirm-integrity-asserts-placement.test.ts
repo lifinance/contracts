@@ -11,27 +11,28 @@
  * a run reused across proposals, a refusal placed ahead of the codehash one, or
  * a sign/execute route the refusal does not cover.
  *
- * The order the checks run in, at the point this was inserted, written down
- * before inserting it:
+ * The order the checks run in, kept current so it can be used to place the
+ * next one:
  *
  * 1. nonce status for the proposal
  * 2. per-proposal reset of the codehash gate and of the integrity run
  * 3. `formatDecodedTxDataForDisplay` — the calldata the checks then judge
  * 4. detail lines, parked-cleanup refs, provenance
- * 5. the delegatecall gate
- * 6. the Ledger verification display (filmstrip or hash-compare)
- * 7. the codehash gate — evaluated and displayed
- * 8. **the integrity assertions** — run and displayed here
- * 9. `evaluateProposalIntegrity`, the fingerprint and the two keys
- * 10. the pre-prompt `networkOutcomes.push`
- * 11. the action prompt, then `continue` on "Do Nothing"
- * 12. the nonce gate on execute actions, then `continue` on stale/unreachable
- * 13. the target-state check, then `continue` when it refuses
- * 14. `recordAcknowledgement`
- * 15. the sign and execute branches
+ * 5. the target-state verdict — evaluated and displayed; its refusal is at 14
+ * 6. the delegatecall gate
+ * 7. the Ledger verification display (filmstrip or hash-compare)
+ * 8. the codehash gate — evaluated and displayed
+ * 9. **the integrity assertions** — run and displayed here
+ * 10. `evaluateProposalIntegrity`, the fingerprint and the two keys
+ * 11. the pre-prompt `networkOutcomes.push`
+ * 12. the action prompt, then `continue` on "Do Nothing"
+ * 13. the nonce gate on execute actions, then `continue` on stale/unreachable
+ * 14. the target-state refusal, then `continue` when it did not clear
+ * 15. `recordAcknowledgement`
+ * 16. the sign and execute branches
  *
- * Nothing in 1-7 returns or continues, so inserting at 8 swallows no existing
- * check, and 11-14 keep their order relative to each other — the ledger write
+ * Nothing in 1-8 returns or continues, so inserting at 9 swallows no existing
+ * check, and 12-15 keep their order relative to each other — the ledger write
  * still sits after the action prompt and the nonce gate, where it was.
  * The refusal itself goes inside both funnels, immediately after the codehash
  * refusal: ahead of it, this one would swallow the more specific answer.
