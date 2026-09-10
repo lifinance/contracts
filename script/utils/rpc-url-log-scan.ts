@@ -25,7 +25,18 @@
 import { type Dirent, readFileSync, readdirSync } from 'node:fs'
 import { join, relative } from 'node:path'
 
-import ts from 'typescript'
+import {
+  createSourceFile,
+  forEachChild,
+  isCallExpression,
+  isIdentifier,
+  isPropertyAccessExpression,
+  isQualifiedName,
+  isShorthandPropertyAssignment,
+  isTypeNode,
+  ScriptTarget,
+} from 'typescript'
+import type { CallExpression, Identifier, Node } from 'typescript'
 
 /** Identifiers whose value is, or holds, a full endpoint URL. */
 export const RPC_IDENTIFIERS: readonly string[] = [
@@ -97,17 +108,17 @@ const namesAnEndpoint = (text: string): boolean =>
   RPC_IDENTIFIERS.includes(text) ||
   RPC_ENV_PREFIXES.some((p) => text.startsWith(p))
 
-const calleeName = (node: ts.CallExpression): string | undefined => {
-  if (ts.isIdentifier(node.expression)) return node.expression.text
-  if (ts.isPropertyAccessExpression(node.expression))
+const calleeName = (node: CallExpression): string | undefined => {
+  if (isIdentifier(node.expression)) return node.expression.text
+  if (isPropertyAccessExpression(node.expression))
     return node.expression.name.text
   return undefined
 }
 
-const isLogCall = (node: ts.Node): boolean =>
-  ts.isCallExpression(node) &&
-  ts.isPropertyAccessExpression(node.expression) &&
-  ts.isIdentifier(node.expression.expression) &&
+const isLogCall = (node: Node): boolean =>
+  isCallExpression(node) &&
+  isPropertyAccessExpression(node.expression) &&
+  isIdentifier(node.expression.expression) &&
   LOGGERS.has(node.expression.expression.text) &&
   LOG_METHODS.includes(node.expression.name.text)
 
@@ -123,15 +134,15 @@ const isLogCall = (node: ts.Node): boolean =>
  * reports. A property access reads a member, so `chain.rpcUrls` reports even though `rpcUrls` is
  * its parent's `name`.
  */
-function declaresRatherThanReads(node: ts.Identifier): boolean {
+function declaresRatherThanReads(node: Identifier): boolean {
   const p = node.parent
   if (!p) return false
-  if (ts.isPropertyAccessExpression(p) || ts.isQualifiedName(p)) return false
-  if (ts.isShorthandPropertyAssignment(p)) return false
-  const named = p as ts.Node & {
-    name?: ts.Node
-    propertyName?: ts.Node
-    label?: ts.Node
+  if (isPropertyAccessExpression(p) || isQualifiedName(p)) return false
+  if (isShorthandPropertyAssignment(p)) return false
+  const named = p as Node & {
+    name?: Node
+    propertyName?: Node
+    label?: Node
   }
   return (
     named.name === node || named.propertyName === node || named.label === node
@@ -203,25 +214,21 @@ export function scanForRawRpcUrlLogs(
         continue
       }
       // The parser error-recovers rather than throwing, so a malformed file still yields a tree.
-      const sf = ts.createSourceFile(abs, src, ts.ScriptTarget.Latest, true)
+      const sf = createSourceFile(abs, src, ScriptTarget.Latest, true)
 
-      const visit = (
-        node: ts.Node,
-        inLog: boolean,
-        redacted: boolean
-      ): void => {
+      const visit = (node: Node, inLog: boolean, redacted: boolean): void => {
         // A type never renders at runtime, so `cfg as { rpcUrl?: string }` names nothing.
-        if (ts.isTypeNode(node)) return
+        if (isTypeNode(node)) return
 
         const nowLog = inLog || isLogCall(node)
         const nowRedacted =
           redacted ||
-          (ts.isCallExpression(node) && REDACTORS.has(calleeName(node) ?? ''))
+          (isCallExpression(node) && REDACTORS.has(calleeName(node) ?? ''))
 
         if (
           nowLog &&
           !nowRedacted &&
-          ts.isIdentifier(node) &&
+          isIdentifier(node) &&
           namesAnEndpoint(node.text) &&
           !exemptHere.includes(node.text) &&
           !declaresRatherThanReads(node)
@@ -238,11 +245,11 @@ export function scanForRawRpcUrlLogs(
               .replace(/\s+/g, ' '),
           })
 
-        ts.forEachChild(node, (c) => {
+        forEachChild(node, (c) => {
           // `consola.info` — the method name is not an argument.
           if (
             nowLog &&
-            ts.isCallExpression(node) &&
+            isCallExpression(node) &&
             c === node.expression &&
             isLogCall(node)
           )
