@@ -15,12 +15,9 @@ import type { PublicClient } from 'viem'
 import { foundry } from 'viem/chains'
 
 import type { IReplayRequest, ReplayOutcome } from './constructor-replay'
-import { strip0x } from './hex'
+import { frameFault, strip0x } from './hex'
 
-/**
- * Enough for the largest artifact in `src/` with room to spare, and below the
- * 30M block limit anvil rejects a transaction above.
- */
+/** anvil's default block gas limit, which is also the most a transaction may ask for. */
 const REPLAY_GAS = 30_000_000n
 
 const STARTUP_PROBES = 100
@@ -52,13 +49,12 @@ export interface ILocalEvm {
 export const composeCreationCode = (
   request: Pick<IReplayRequest, 'creationCode' | 'encodedArgs'>
 ): { ok: true; data: string } | { ok: false; reason: string } => {
+  const codeFault = frameFault(request.creationCode, 'creation code')
+  if (codeFault) return { ok: false, reason: codeFault }
   const code = strip0x(request.creationCode)
-  if (code.length === 0) return { ok: false, reason: 'creation code is empty' }
-  if (code.length % 2 !== 0)
-    return { ok: false, reason: 'creation code is not whole bytes' }
-  if (!/^[0-9a-fA-F]*$/.test(code))
-    return { ok: false, reason: 'creation code is not hex' }
 
+  // Not `frameFault`: empty is the nullary constructor's valid encoding, and
+  // whole *words* rather than whole bytes is what the ABI tail must be.
   const args = strip0x(request.encodedArgs)
   if (args.length % 64 !== 0)
     return {
@@ -111,7 +107,7 @@ export const createLocalEvmReplay = (options: ILocalEvmOptions): ILocalEvm => {
   const binary = options.binary ?? 'anvil'
   const child = spawn(
     binary,
-    ['--silent', '--port', String(port), '--chain-id', String(options.chainId)],
+    ['--quiet', '--port', String(port), '--chain-id', String(options.chainId)],
     { stdio: 'ignore' }
   )
 

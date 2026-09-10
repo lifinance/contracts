@@ -64,8 +64,7 @@ export interface IReplayVerification {
   comparison: ICodehashComparison
   /**
    * True when this layer could not decide and WP-2.1's masking path still has
-   * to run. Its verdict then stays qualified by a nonzero `excludedByteCount`,
-   * exactly as before this layer existed.
+   * to run. Its verdict then stays qualified by a nonzero `excludedByteCount`.
    */
   fallsBackToMasking: boolean
 }
