@@ -162,15 +162,31 @@ merge; the deploy scripts never commit.
 
 ### 4.2 Propose
 
-All EVM funnels end in `storeTransactionInMongoDB`
-(`script/deploy/safe/safe-utils.ts`), which is where the Linear ticket link is
-required and the missing-reason warning is emitted — placing them there rather
-than per entry point means no funnel can be added that skips them. The refusal
-happens before the proposal document is inserted, so a refused proposal is never
-created and claims no nonce, and it names both `--ticket` and
-`SAFE_PROPOSAL_TICKET`.
+Every EVM entry point proposes through `proposeSafeTx`
+(`script/deploy/safe/propose-safe-tx.ts`), which checks Safe
+ownership, signs, hashes the signed transaction and calls
+`storeTransactionInMongoDB` (`script/deploy/safe/safe-utils.ts`). That last is
+where the Linear ticket link is required and the missing-reason warning is
+emitted — placing them there rather than per entry point means no funnel can be
+added that skips them. The refusal happens before the proposal document is
+inserted, so a refused proposal is never created and claims no nonce, and it
+names both `--ticket` and `SAFE_PROPOSAL_TICKET`.
 
-That check is the backstop, not the first line: the entry points whose late
+The seam is enforced, not conventional: `.eslintrc.funnel-fence.cjs` refuses any
+file outside its allowlist that names `storeTransactionInMongoDB`, so a propose
+route added later either comes through `proposeSafeTx` or fails lint
+(`bun lint:funnel`, run in CI by `enforceProposalFunnel.yml`). It is an ESLint
+rule keyed on the AST identifier, so an alias, a namespace member access, a
+dynamic import or a computed lookup is refused the same way a plain import is,
+and the CI run passes `--no-inline-config` over every module extension the repo
+can hold, so neither a file-level `eslint-disable` nor a `.mjs` route escapes it.
+Three things it does **not** cover: a hand-rolled insert into the
+`pendingTransactions` collection that never names the storage function, an alias
+re-exported from an allowlisted file, and the one file still allowlisted for its
+own storage call — the Tron route, which hand-rolls its own signature instead of
+signing through a `SafeClient` (EXSC-984).
+
+The ticket check is the backstop, not the first line: the entry points whose late
 failure costs most — `unpauseAllDiamonds.ts`, `add-safe-owners-and-threshold.ts`,
 the Tron route, and the TS `sendOrPropose` — also call `assertTicketPresent`
 before they sign, and `propose-to-safe.ts` resolves the same intent up front in
@@ -206,18 +222,20 @@ run only on the branches that actually propose; a staging or testnet-only run, a
 - **Deferred-cleanup drain** (`script/deploy/safe/drain-parked-tasks.ts`) —
   gated on `DRAIN_PARKED_TASKS`, hooked at the tail of `runPropose`
   ([DeferredDiamondCleanupQueue.md](./DeferredDiamondCleanupQueue.md)).
-- **Bespoke task scripts** that store proposals directly:
-  `script/tasks/proposeMegaETHBridgeRegistrations.ts`,
+- **Bespoke task scripts** that propose without going through
+  `propose-to-safe.ts`: `script/tasks/proposeMegaETHBridgeRegistrations.ts`,
   `proposeDeBridgeDlnChainIdMappings.ts`,
   `proposePolymerCCTPChainIdMappings.ts`, `unpauseAllDiamonds.ts`,
-  `script/deploy/safe/add-safe-owners-and-threshold.ts`, and two more chain-id
-  mapping tasks (`proposeAllBridgeChainIdMappings.ts`,
-  `proposeFraxChainIdMappings.ts`) — there is **no single chokepoint**. All of
-  them reach `storeTransactionInMongoDB` directly rather than through
-  `propose-to-safe.ts`, so the deploy gate below does not see them. None encodes
-  a `diamondCut` today, so none installs facet code; the list is what
-  `grep -rn storeTransactionInMongoDB script/` returns, not a fixed set, so
-  check it rather than trusting this sentence.
+  `proposeAllBridgeChainIdMappings.ts`, `proposeFraxChainIdMappings.ts` and
+  `script/deploy/safe/add-safe-owners-and-threshold.ts`. They share the storage
+  seam (`proposeSafeTx`) but **not** `propose-to-safe.ts`, so the deploy gate
+  below does not see them. None encodes a `diamondCut` today, so none installs
+  facet code. Every propose route is `git grep -l proposeSafeTx script` plus the
+  files still allowlisted in `.eslintrc.funnel-fence.cjs` (the Tron route,
+  EXSC-984) — matched on the name alone, because a route importing it alongside
+  a type is invisible to a grep for the import statement. Run it rather than
+  trusting this sentence: the fence guarantees the two together are exhaustive,
+  not that this list is current.
 - **Tron** is a parallel flow (`script/deploy/tron/propose-to-safe-tron.ts`).
 
 The proposal funnel additionally runs the production deploy gate before it signs
@@ -348,10 +366,12 @@ below.
 
 **One propose path does not go through either funnel**, and it is not the bash
 `sendOrPropose`: the identically-named **TypeScript** `sendOrPropose`
-(`script/safe/safeScriptHelpers.ts`) signs and stores a proposal itself. It is the
-third call site, carrying the same gate call inline so the two cannot diverge. A
-*fourth* proposer written against `storeTransactionInMongoDB` directly would not
-be covered — see the bespoke task scripts listed in §4.1, and the `sendOrPropose`
+(`script/safe/safeScriptHelpers.ts`) proposes through `proposeSafeTx` rather than
+through `runPropose`. It is the third call site, carrying the same gate call
+inline so the two cannot diverge. The funnel fence (§4.2) keeps the *storage*
+seam closed, but it says nothing about the gate: a *fourth* proposer that came
+through `proposeSafeTx` without calling `assertFunnelDeployGate` would still not
+be gated — see the bespoke task scripts listed in §4.1, and the `sendOrPropose`
 gap recorded in
 [DeferredDiamondCleanupQueue.md](./DeferredDiamondCleanupQueue.md) §6.
 
@@ -543,7 +563,7 @@ parked tasks are reconciled weekly by `reconcileParkedTasks.yml`.
 | Stage | Check category | Behavior | Enforced by |
 |---|---|---|---|
 | Propose | CLI input validation: `--to`/`--calldata` pairing, address/hex validity, multi-call requires `--timelock` | Block | `script/deploy/safe/propose-calls.ts`, `timelock-abi.ts` |
-| Propose | Proposer must be a current Safe owner (on-chain `getOwners()`) | Block | `propose-to-safe.ts` (`runPropose`), `safeScriptHelpers.ts` (`sendOrPropose`) |
+| Propose | Proposer must be a current Safe owner (on-chain `getOwners()`), checked before the signature so a non-owner proposal never claims a nonce | Block | `proposeSafeTx` in `propose-safe-tx.ts`, on every path that proposes; `propose-to-safe.ts` (`runPropose`) and `add-safe-owners-and-threshold.ts` also check earlier, before they build a call |
 | Propose | Ledger signing flags: unambiguous value, no repeat, no unusable combination, no multi-proposal run (see the `sendOrPropose` bullet in §3) | Block | `script/deploy/safe/cli-flags.ts`, `resolveSafeSigningOptions` in `safe-utils.ts`, `cleanUpProdDiamond.ts` |
 | Propose | Nonce safety: override collision checks, auto-nonce clamped to on-chain | Block / auto-correct | `propose-to-safe.ts`, `getNextNonce` in `safe-utils.ts` |
 | Propose | Duplicate-intent dedup (partial unique index on pending rows) | Block insert | `computeProposalIntentHash` + index in `safe-utils.ts` |
@@ -569,6 +589,7 @@ parked tasks are reconciled weekly by `reconcileParkedTasks.yml`.
 | CI (PR gate) | ≥ 1 approval from the SC core team | Block merge | Repository ruleset `main protection` — `required_reviewers` on the `smart-contract-core` team |
 | CI (PR gate) | Security-relevant paths need ISM/CTO approval | Block PR | `protectSecurityRelevantCode.yml` |
 | CI (PR gate) | Static analysis; LibAsset routing; config/deploy-log consistency and JSON validity; clear-signing sync; deploy smoke test; signed commits; solc floor; SPDX | Block PR | `olympixStaticAnalysis.yml` + `securityAlertsReview.yml`, `enforceLibAssetRouting.yml`, `deploymentAddressConsistency.yml`, `jsonChecker.yml`, `verifyClearSigning.yml`, `deploy-smoke-test.yml`, `verifyCommitsSigned.yml`, `solc-floor-build.yml`, `spdxLicenseChecker.yml` |
+| CI (PR gate) | Every Safe proposal is created through `proposeSafeTx`: any file outside the allowlist naming `storeTransactionInMongoDB` fails lint. AST-keyed, so an alias, namespace access, dynamic import or computed lookup is refused too, and the CI run ignores inline `eslint-disable` comments; a hand-rolled insert into the collection and an alias re-exported from an allowlisted file are **not** covered | Report only until `enforce-proposal-funnel` is added to the `main protection` ruleset's required checks; blocks the job either way | `.eslintrc.funnel-fence.cjs` via `bun lint:funnel`, run by `.github/workflows/enforceProposalFunnel.yml` and by lint-staged through `.eslintrc.cjs` |
 | CI (ops) | Daily on-chain health check of every production diamond; weekly emergency-pause readiness | Alert | `healthCheckAllNetworks.yml`, `verifyEmergencyPauseReadiness.yml` |
 
 ## 6. What the signer must verify manually today
@@ -643,6 +664,7 @@ fleet-wide run ends with zero mainnets unpaused and no obvious cause.
 | Path | Role |
 |---|---|
 | `script/deploy/safe/propose-to-safe.ts` | Main proposal funnel (`runPropose`); `bun propose-safe-tx` |
+| `script/deploy/safe/propose-safe-tx.ts` | `proposeSafeTx` — the blessed seam every propose route goes through |
 | `script/deploy/safe/confirm-safe-tx.ts` | Signer review/sign/execute CLI; `bun confirm-safe-tx` |
 | `script/deploy/safe/safe-utils.ts` | `SafeClient`, Mongo store, signing, timelock wrap |
 | `script/deploy/safe/safe-decode-utils.ts` | Calldata decode for the signing view |
@@ -654,6 +676,7 @@ fleet-wide run ends with zero mainnets unpaused and no obvious cause.
 | `script/helperFunctions.sh` | bash `sendOrPropose` chokepoint + deploy logging |
 | `.github/workflows/runPendingTimelockTXs.yml` | "Timelock Auto Execution" 10-min cron |
 | `.github/workflows/reconcileParkedTasks.yml` | Weekly parked-task reconcile + TTL alert |
+| `.github/workflows/enforceProposalFunnel.yml` | Fence: no propose route outside `proposeSafeTx` |
 | `.agents/commands/multisig-rollout.md` | The end-to-end rollout runbook |
 
 ## 9. Planned improvements (proposal stage — NOT yet implemented)
