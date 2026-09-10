@@ -43,17 +43,26 @@ is what §8 tells the next person to re-run rather than trusting a list of
 names — so the escape commit clears any gate. But it only clears the ones
 that run on the side that checks it out:
 
-| refusing gate | runs at | who falls back |
-|---|---|---|
-| `assertTicketPresent`, the `proposeSafeTx` funnel and its deploy gate | propose time | the proposer only |
-| `runIntegrityAsserts`, `evaluateCodehashSignGate` | sign time, inside `confirm-safe-tx.ts` | **the signers too** |
+**The command that printed the refusal is the answer**, and it is a better
+guide than any list of gate names, which will go out of date:
+
+| the refusal appeared while running | who falls back |
+|---|---|
+| `bun propose-safe-tx` (or a deploy script that proposes) | the proposer only |
+| `bun confirm-safe-tx` | **the signers too** |
+
+Sign-time gates are the larger group and they refuse in different ways, so do
+not expect a single recognisable message: `evaluateCodehashSignGate` and
+`runIntegrityAsserts` both block by leaving their verdict unevaluated
+(`blockingUnevaluatedGate()`, and an undefined integrity run *is* the blocking
+state), `evaluateDelegateCallGate` silently removes every signing option from
+the menu, and `evaluateTargetStateIntent` prints `✗  EXPECTED-STATE CHECK
+FAILED — NOT SIGNING OR EXECUTING` and moves to the next network.
 
 Getting this wrong wastes the ceremony: proposing from the escape commit does
 nothing for a sign-time refusal, because the signer on `main` reaches the
 identical check — and the proposal is then stuck *and* carries neither
-provenance nor a ticket binding. Both sign-time gates block rather than skip:
-an unevaluated codehash gate becomes `blockingUnevaluatedGate()`, and a failed
-integrity run leaves the run undefined, which is itself the blocking state.
+provenance nor a ticket binding.
 
 ## 2. Check out the escape commit
 
@@ -88,8 +97,12 @@ mechanism has not been pinned down, so treat the flag as the remedy and
 
 **The `node_modules` symlink borrows `main`'s resolved versions, not the
 baseline's.** That works today — the baseline's propose/confirm import closure
-is `citty consola viem mongodb dotenv @lifi/tron-devkit fs path`, none of which
-was dropped, and the installed `viem` still satisfies the baseline's range —
+is `citty consola viem viem/accounts mongodb dotenv @lifi/tron-devkit tronweb
+@ledgerhq/hw-transport` plus node builtins, none of which was dropped, and the
+installed `viem` and `tronweb` both still satisfy the baseline's ranges. Note
+that `@ledgerhq/hw-transport-node-hid` and `@ledgerhq/hw-app-eth` are loaded by
+**dynamic import**, so a resolution failure there surfaces at Ledger-tap time
+rather than at startup —
 but nothing enforces it, and one `bun install` in the clone can end it. The
 slower, correct alternative is a real `bun install` in the escape worktree
 against the baseline's own lockfile.
@@ -98,14 +111,20 @@ against the baseline's own lockfile.
 
 Both entry points load `.env` themselves — `import 'dotenv/config'` in
 `propose-to-safe.ts`, `dotenv.config()` in `confirm-safe-tx.ts` — and
-`with-safe-tunnel.sh` greps the repo-root `.env` directly. **None of them
-reads your shell**, so checking exported variables would report everything
-unset on a correctly configured worktree. Check the file, and never print a
-value:
+`with-safe-tunnel.sh` greps the repo-root `.env` directly, so nothing has to
+be exported into your shell for the scripts to work.
+
+**But an export still wins.** Neither call passes `override: true`, and dotenv
+only fills in names that are not already in `process.env`; `getPrivateKey`
+then reads `process.env[keyType]` directly. So a stale value exported earlier
+in the session silently beats the file. Check both, and never print a value:
 
 ```bash
 for v in SC_MONGODB_URI PRIVATE_KEY_PRODUCTION SAFE_SIGNER_PRIVATE_KEY; do
-  grep -qE "^${v}=." .env && echo "$v: declared" || echo "$v: MISSING from .env"
+  grep -qE "^[[:space:]]*${v}=." .env \
+    && echo "$v: declared in .env" || echo "$v: MISSING from .env"
+  eval "exported=\${$v:-}"
+  [ -n "$exported" ] && echo "  ⚠ $v is ALSO exported in this shell — the export wins"
 done
 ```
 
@@ -129,11 +148,22 @@ likely to bite:
 - **`injective` and `sepolia` do not exist in the baseline's
   `config/networks.json`.** A fallback proposal on either is impossible from
   the escape commit; the tag has to move first (§8).
-- **Seven networks the org has since dropped are still `active` there** —
-  `botanix`, `moonbeam`, `sophon`, `superposition`, `swellchain`, `taiko`,
-  `tronshasta`. `getNetworksToProcess()` with no `--network` returns every
-  active network, so **always pass `--network`**: an unqualified run fans out
-  over the baseline's 76 rather than today's 71.
+- **Seven networks are still `active` there that are not active on `main`** —
+  `botanix`, `moonbeam`, `sophon`, `superposition`, `swellchain`, `taiko` and
+  `tronshasta` (the first six were removed from `networks.json` outright; the
+  seventh is still listed but `inactive`). The baseline will therefore accept
+  a `--network` the org has since retired, and answer with its stale
+  addresses. `--network` is required by the baseline's `propose-to-safe.ts`,
+  so there is no fan-out risk — the risk is that a name it accepts no longer
+  means what you think.
+- **`deployments/` is frozen too, and `--timelock` reads it.** The baseline's
+  `propose-to-safe.ts` loads `deployments/<network>.json` and requires
+  `LiFiTimelockController` in it whenever `--timelock` is passed, throwing
+  `Deployment file not found` otherwise. `injective.json` and `sepolia.json`
+  do not exist at the baseline at all — the same two networks, failing a
+  second way. For the 69 files both trees share, no `LiFiTimelockController`
+  address drifted, so this is a missing-network problem rather than a
+  wrong-address one.
 - `safeAddress` is unchanged on every network both files share, which is the
   one thing that would have made this unusable.
 - `config/global.json` has drifted too — diff it rather than trust this list.
@@ -182,13 +212,16 @@ proposal to a ticket except what a human writes down.
 
 ## 7. Reconcile afterwards
 
-**Name the rows.** Every row `main` has written since 2026-09-01 carries a
-provenance block: `buildProposalProvenance` returns one unconditionally, never
-throws, and yields sentinel values with the cause in `captureErrors` when
-capture fails. So fallback rows are identified exactly, not approximately:
+**Name the rows.** Every row `main` has written since provenance landed
+carries a provenance block: `buildProposalProvenance` returns one
+unconditionally, never throws, and yields sentinel values with the cause in
+`captureErrors` when capture fails. The cutover is the merge of `80c3c1bf6`,
+and it is a **time of day, not a date** — rows written earlier that same
+morning have no provenance and would otherwise be swept in:
 
 ```text
-{ provenance: { $exists: false }, timestamp: { $gte: ISODate("2026-09-01") } }
+{ provenance: { $exists: false },
+  timestamp: { $gte: ISODate("2026-09-01T09:13:19Z") } }
 ```
 
 Record the ceremony window on the ticket anyway — it is what lets a reader
@@ -200,6 +233,13 @@ safeTx.data.nonce}`, partial on `status ∈ {pending, submitted}` — refuses a
 colliding nonce from the escape commit exactly as it would from `main`,
 because the baseline's writer sets every one of those fields. That refusal is
 correct. The reporting is not.
+
+On a Safe whose rows hold both address spellings — `propose-to-safe-tron.ts`
+stores lowercase hex, `initializeSafeClient` stores checksummed — this is not
+a rare collision but a reliable one: the index compares under collation, and
+the baseline's `getNextNonce` reads **uncollated**, so it is blind to the very
+row that will reject it and keeps handing back the same nonce. `main`'s read
+is collated for exactly this reason.
 
 `main` classifies which index rejected the write (`classifyDuplicateKeyError`)
 and turns a nonce collision into an explicit *"Nonce … is already taken by
@@ -216,6 +256,12 @@ and **exits 0**. That second line is the one an operator acts on, and in the
 nonce case it is simply wrong: nothing was stored, and the intent may never
 have been proposed at all. Check the Safe's in-flight nonces before believing
 it.
+
+The escape commit does not create that index — `getSafeMongoCollection` at the
+baseline creates only `unique_pending_intent_hash`. It refuses the insert
+because `main` has already created it on the live collection, which is also
+why a rehearsal store has to be seeded with today's indexes to reproduce any
+of this.
 
 Two smaller traps in the same area. The intent index is partial on
 `{ status: 'pending', intentHash: { $exists: true } }` — the `status` half is
@@ -240,5 +286,15 @@ to re-establish at the candidate commit, in the order that fails fastest:
    `package.json`, and `with-safe-tunnel.sh`.
 3. The `ISafeTxDocument` field diff against `main`, stated — today it is
    `+provenance`, optional.
-4. The `config/networks.json` and `config/global.json` diff against `main`,
-   stated as in §4.
+4. The `config/networks.json`, `config/global.json` and `deployments/` diffs
+   against `main`, stated as in §4 — a network present on `main` and missing
+   from either the config or the deployment file cannot be proposed for.
+5. That the escape worktree still resolves its dependencies, per §2's caveat:
+   the borrowed `node_modules` is `main`'s, and a `bun install` in the clone
+   can invalidate it without touching this repo.
+
+**One case this list cannot satisfy.** Requirement 1 wants a commit with no
+2.0 gate module, and the earliest of those landed 2026-09-02. For a network
+added after that date there is no such commit, so there is no fallback for it
+at all — the answer then is to fix the gate, not to move the tag. Say so on
+the ticket rather than retagging to something that still carries the gate.
