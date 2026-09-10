@@ -22,8 +22,12 @@ const main = async (): Promise<void> => {
   // counts is suppressed.
   const level = consola.level
   consola.level = 1
-  const budgets = await runShadowBudget(loadRepoCorpus(process.cwd()))
-  consola.level = level
+  let budgets
+  try {
+    budgets = await runShadowBudget(loadRepoCorpus(process.cwd()))
+  } finally {
+    consola.level = level
+  }
 
   for (const line of renderBudgetReport(budgets)) consola.log(line)
 
@@ -45,4 +49,7 @@ const main = async (): Promise<void> => {
   if (unexplained > 0) process.exitCode = 1
 }
 
-void main()
+main().catch((error) => {
+  consola.error(error instanceof Error ? error.message : String(error))
+  process.exitCode = 1
+})

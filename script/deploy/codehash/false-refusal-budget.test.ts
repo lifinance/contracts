@@ -1,5 +1,9 @@
-// eslint-disable-next-line import/no-unresolved
-import { describe, expect, it } from 'bun:test'
+import {
+  describe,
+  expect,
+  it,
+  // eslint-disable-next-line import/no-unresolved
+} from 'bun:test'
 
 import {
   ACCEPTED_FALSE_RED_RULES,
@@ -7,6 +11,7 @@ import {
   evaluatePromotion,
   renderBudgetReport,
   summariseGate,
+  type IGateBudget,
   type IShadowObservation,
 } from './false-refusal-budget'
 
@@ -19,7 +24,10 @@ const observation = (
   ...overrides,
 })
 
-const budgetOf = (observations: IShadowObservation[], denominator = 10) =>
+const budgetOf = (
+  observations: IShadowObservation[],
+  denominator = 10
+): IGateBudget =>
   summariseGate({
     gate: 'G-test',
     corpus: 'test rows',
@@ -152,6 +160,21 @@ describe('evaluatePromotion — the shipped control', () => {
       budgetOf([observation({ ruleId: 'AFR-3-unresolvable-network' })], 100)
     )
     expect(verdict.mayEnforce).toBe(true)
+  })
+
+  // Unreachable through summariseGate, which fills byRule only from matched
+  // rules — so it is reached the only way a renamed or deleted rule would
+  // reach it, by handing evaluatePromotion a budget naming a class the closed
+  // list does not. Skipping it would promote the gate on a class nobody vouches for.
+  it('refuses to promote a gate whose class no rule in the closed list names', () => {
+    const verdict = evaluatePromotion({
+      ...budgetOf([], 100),
+      byRule: [['AFR-42-renamed-away', 3]],
+    })
+    expect(verdict.mayEnforce).toBe(false)
+    expect(verdict.blockers.join(' ')).toContain(
+      'An unnamed class is not an accepted class'
+    )
   })
 
   it('reports every blocker, not just the first', () => {

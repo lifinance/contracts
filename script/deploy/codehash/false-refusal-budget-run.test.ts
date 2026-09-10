@@ -1,5 +1,21 @@
-// eslint-disable-next-line import/no-unresolved
-import { beforeEach, describe, expect, it } from 'bun:test'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
+import { tmpdir } from 'node:os'
+import { dirname, join } from 'node:path'
+
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  // eslint-disable-next-line import/no-unresolved
+} from 'bun:test'
 import { consola } from 'consola'
 
 import { DIAMOND_CUT_FEE_LIMIT_SUN } from '../tron/send-guarded-facet-registration'
@@ -67,6 +83,13 @@ describe('the shadow runner over the real repository corpus', () => {
   // One load, reused: it carries the memoised reader the gates hit per slot.
   const repo = loadRepoCorpus(process.cwd())
 
+  // consola.level is module-global, so a test that quiets it must put it back
+  // or every later test in the process silently loses output.
+  const level = consola.level
+  afterEach(() => {
+    consola.level = level
+  })
+
   it('grades a corpus of real production slots, not a handful of fixtures', () => {
     expect(repo.slots.length).toBeGreaterThan(700)
     expect(new Set(repo.slots.map((s) => s.network)).size).toBeGreaterThan(50)
@@ -107,6 +130,55 @@ describe('the shadow runner over the real repository corpus', () => {
       expect(budget.falseRefusalRate).toBeUndefined()
       expect(evaluatePromotion(budget).mayEnforce).toBe(false)
     }
+  })
+})
+
+describe('loadRepoCorpus fails closed on an unmeasurable corpus', () => {
+  const scratch = mkdtempSync(join(tmpdir(), 'frb-corpus-'))
+  const attestationPath = join(
+    scratch,
+    'script/deploy/resources/reproducibilityAttestations.json'
+  )
+
+  const write = (relativePath: string, body: unknown): void => {
+    const target = join(scratch, relativePath)
+    mkdirSync(dirname(target), { recursive: true })
+    writeFileSync(target, JSON.stringify(body))
+  }
+
+  it('refuses an attestation file with no non-empty attestations array', () => {
+    write('script/deploy/resources/reproducibilityAttestations.json', {})
+    write('config/networks.json', { somechain: {} })
+    expect(() => loadRepoCorpus(scratch)).toThrow(/nothing to measure/)
+
+    write('script/deploy/resources/reproducibilityAttestations.json', {
+      attestations: [],
+    })
+    expect(() => loadRepoCorpus(scratch)).toThrow(/nothing to measure/)
+  })
+
+  // The reason this one matters: without it every slot throws inside
+  // deriveToolchainScope, is filed under the grey AFR-3 class, and every gate
+  // comes back promotable having graded nothing.
+  it('refuses a missing networks config rather than grading everything grey', () => {
+    write('script/deploy/resources/reproducibilityAttestations.json', {
+      attestations: [slot()],
+    })
+    rmSync(join(scratch, 'config/networks.json'))
+    expect(() => loadRepoCorpus(scratch)).toThrow(
+      /config\/networks.json is missing/
+    )
+  })
+
+  // The paired present: with both inputs in place the loader returns a corpus.
+  it('loads when both inputs are present', () => {
+    write('script/deploy/resources/reproducibilityAttestations.json', {
+      attestations: [slot()],
+    })
+    write('config/networks.json', { somechain: {} })
+    writeFileSync(join(scratch, 'foundry.toml'), TOML)
+    expect(loadRepoCorpus(scratch).slots).toHaveLength(1)
+    expect(existsSync(attestationPath)).toBe(true)
   })
 })
 
@@ -227,10 +299,41 @@ describe('explainScopeRefusal — the classifier has no fallthrough class', () =
   })
 })
 
+describe('a zksolc-only pin is not a pin any EVM network is offered', () => {
+  // Inert today because [profile.zksync] happens to pin the same pair as
+  // [profile.default]. It stops being inert the moment they diverge, and then
+  // the class a retired EVM build is filed under turns on this filter.
+  const ZK_DIVERGED = [
+    TOML,
+    '',
+    '[profile.zksync]',
+    "solc_version = '0.8.26'",
+    "evm_version = 'cancun'",
+    '',
+    '[zksync]',
+    'zksolc = "1.5.15"',
+  ].join('\n')
+
+  it('files a retired EVM build under AFR-1, not AFR-2, when only the zk profile pins its pair', () => {
+    const profiles = parseBuildProfiles(ZK_DIVERGED)
+    expect(profiles['zksync']?.zksolcVersion).toBe('1.5.15')
+    expect(profiles['zksync']?.solcVersion).toBe('0.8.26')
+
+    const budget = gradeAttestedSet(
+      corpus({
+        foundryToml: ZK_DIVERGED,
+        slots: [slot({ solcVersion: '0.8.26', evmVersion: 'cancun' })],
+      })
+    )
+    expect(budget.refusals).toBe(1)
+    expect(budget.byRule).toEqual([['AFR-1-retired-pin', 1]])
+  })
+})
+
 describe('falsification demo — the runner can report a defect', () => {
   it('reports nothing when every slot reproduces at the profile the gate offers', () => {
     const budget = gradeAttestedSet(
-      corpus({ slots: [slot(), slot({ solcVersion: '0.8.29' })] })
+      corpus({ slots: [slot(), slot({ contractName: 'OtherFacet' })] })
     )
     expect(budget.refusals).toBe(0)
   })

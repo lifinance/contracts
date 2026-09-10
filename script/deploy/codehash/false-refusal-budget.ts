@@ -265,7 +265,18 @@ export const evaluatePromotion = (budget: IGateBudget): IPromotionVerdict => {
 
   for (const [ruleId, count] of budget.byRule) {
     const rule = ACCEPTED_FALSE_RED_RULES.find((r) => r.id === ruleId)
-    if (rule === undefined || rule.remedyGrade === 'grey') continue
+    // Blocks rather than skips, matching adjudicateRefusal: an id the closed
+    // list no longer names is what a renamed or deleted rule looks like, and
+    // skipping it would promote the gate on a class nobody vouches for.
+    if (rule === undefined) {
+      blockers.push(
+        `${budget.gate} produced ${count} refusal${
+          count === 1 ? '' : 's'
+        } in the class ${ruleId}, which no rule in ACCEPTED_FALSE_RED_RULES names. An unnamed class is not an accepted class.`
+      )
+      continue
+    }
+    if (rule.remedyGrade === 'grey') continue
     blockers.push(
       `${budget.gate} produced ${count} refusal${
         count === 1 ? '' : 's'

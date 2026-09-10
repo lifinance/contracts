@@ -17,6 +17,14 @@
  *   the real deployment and diamond logs.
  * - `config/networks.json` and `foundry.toml` — the config the gates read.
  *
+ * G2 drives layer 1 — {@link compareToAttestedSet} — and not the sign-time
+ * `judge` in `verify-cut-targets.ts`, which additionally downgrades a layer-1
+ * MATCH to UNVERIFIABLE whenever any byte was excluded as an immutable. The
+ * WP-7.1 corpus recorded no masked-byte counts, so that downgrade cannot be
+ * modelled from this data at all: every G2 refusal rate here is a LOWER bound
+ * on what the real gate refuses, never an upper one. G2's coverage note carries
+ * this.
+ *
  * One thing is modelled rather than re-executed, and the report says so: the
  * bytecode comparison itself. Re-fetching 742 addresses and re-running several
  * hundred forge builds is what WP-7.1 already did, and its result is the input
@@ -196,10 +204,13 @@ export const gradeToolchainScope = (deps: ICorpusDeps): IGateBudget => {
  */
 export const gradeAttestedSet = (deps: ICorpusDeps): IGateBudget => {
   const profiles = parseBuildProfiles(deps.foundryToml)
+  // zksolc-pinned profiles are left out for the same reason deriveToolchainScope
+  // filters them: no EVM network is ever offered one, so counting its pair as
+  // "pinned today" would file a retired EVM build under AFR-2 instead of AFR-1.
   const pinnedPairs = new Set(
-    Object.values(profiles).map((p: IBuildProfile) =>
-      profileKey(p.solcVersion, p.evmVersion)
-    )
+    Object.values(profiles)
+      .filter((p: IBuildProfile) => p.zksolcVersion === undefined)
+      .map((p: IBuildProfile) => profileKey(p.solcVersion, p.evmVersion))
   )
 
   const observations: IShadowObservation[] = []
@@ -263,7 +274,7 @@ export const gradeAttestedSet = (deps: ICorpusDeps): IGateBudget => {
     gate: 'G2-attested-set',
     corpus: 'attested production slots (WP-7.1 / #2289)',
     denominator: observations.length,
-    coverageNote: `EVM only. The sweep excluded 6 zkEVM slots because it did not record which zksolc version produced the match, so the zk normalisation path is measured on 0. Bytecode equality is taken from the sweep rather than re-fetched — see this module's header. ${
+    coverageNote: `EVM only. The sweep excluded 6 zkEVM slots because it did not record which zksolc version produced the match, so the zk normalisation path is measured on 0. Bytecode equality is taken from the sweep rather than re-fetched, and layer 1 is graded without the sign-time MATCH-to-UNVERIFIABLE downgrade for uncompared immutable bytes, which the corpus records nothing about — so this rate is a lower bound on what the real gate refuses. See this module's header. ${
       deps.slots.length - observations.length
     } of ${
       deps.slots.length
@@ -483,9 +494,25 @@ export const loadRepoCorpus = (repoRoot: string): ICorpusDeps => {
       'the fleet attestation corpus is missing; there is nothing to measure against and a run without it would report a rate on no data'
     )
 
+  const slots = attestations['attestations']
+  if (!Array.isArray(slots) || slots.length === 0)
+    throw new Error(
+      'the fleet attestation corpus carries no non-empty "attestations" array; there is nothing to measure'
+    )
+
+  // Fails closed rather than deriving scope against an absent config: every
+  // slot would then throw inside deriveToolchainScope, land in the grey
+  // AFR-3 class, and leave every gate promotable on a corpus that measured
+  // nothing — the exact false GREEN evaluatePromotion exists to refuse.
+  const networks = read('config/networks.json')
+  if (!networks)
+    throw new Error(
+      "config/networks.json is missing, so no network's legitimate builds can be enumerated. Every refusal would be reported as the grey AFR-3-unresolvable-network class and every gate would come back promotable on a corpus that graded nothing."
+    )
+
   return {
-    slots: attestations['attestations'] as ICorpusSlot[],
-    networks: read('config/networks.json') as ICorpusDeps['networks'],
+    slots: slots as ICorpusSlot[],
+    networks: networks as ICorpusDeps['networks'],
     foundryToml: readFileSync(join(repoRoot, 'foundry.toml'), 'utf8'),
     readLog: read,
     facetSourceExists: (name: string) =>
