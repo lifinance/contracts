@@ -134,6 +134,7 @@ export const createLocalEvmReplay = (options: ILocalEvmOptions): ILocalEvm => {
   }) as PublicClient
 
   let started: Promise<boolean> | undefined
+  let replayCount = 0
 
   const replay = async (request: IReplayRequest): Promise<ReplayOutcome> => {
     const composed = composeCreationCode(request)
@@ -158,7 +159,10 @@ export const createLocalEvmReplay = (options: ILocalEvmOptions): ILocalEvm => {
         method: 'eth_accounts' as never,
         params: [] as never,
       })) as string[]
-      const from = accounts[0]
+      // A different sender each call, so successive replays differ in
+      // msg.sender as well as in the address they land on — an immutable
+      // derived from either then shows up as two replays disagreeing.
+      const from = accounts[replayCount++ % accounts.length]
       if (!from)
         return { ok: false, reason: 'anvil offered no unlocked account' }
 
