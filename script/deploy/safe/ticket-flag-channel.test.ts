@@ -280,9 +280,9 @@ describe('a funnel that offers --ticket reads it', () => {
 // past the timelock reads inside `runPropose`, so reaching it costs a live
 // chain. A source check passes against a rewrite of the same bug, so these
 // assert only the shape the flag has to travel in — declared, forwarded to the
-// check, and given no `default` — and the last case makes an unclassified
-// funnel fail rather than pass.
-describe('every funnel is classified, and the classification matches its source', () => {
+// check, and given no `default`. The last two cases are the fail-closed pair,
+// one per side of §4.2's split.
+describe('every route is classified, and each funnel matches its source', () => {
   it.each(FUNNELS.filter((funnel) => funnel.flag).map((f) => f.script))(
     '%s declares a ticket argument',
     (script) => {
