@@ -169,8 +169,8 @@ length pinned too. It is stored only where a post-deploy self-check established
 that the deployed code is the artifact that run built, and it is a **report**:
 the run that wrote it chose the bytes it hashed, so a check that has to be
 sound recomputes from the chain. A value it cannot accept is never stored and
-never costs the record — the `add` command writes everything else, says why the
-codehash was dropped, and exits non-zero afterwards. Add `--dryRun` (or
+never costs the record or the deploy — the `add` command writes everything else
+and says on stdout why the codehash was dropped. Add `--dryRun` (or
 `--dry-run`) to the `add` command to print the upsert it would apply without
 writing. File logs (`deployments/{network}.json`) only land in git at PR
 merge; the deploy scripts never commit.

@@ -734,13 +734,12 @@ const addCommand = defineCommand({
       byteLength: asString(args['code-byte-length']),
       maskedByteCount: asString(args['masked-byte-count']),
     })
-    // Reported now, refused after the write. This command runs once the deploy
-    // has happened, so exiting here over a codehash it cannot accept would
-    // trade a record missing one field for no record at all.
-    const codehashRejected =
-      codehashDecision.requested && !codehashDecision.recordable
+    // Info on stdout, and a zero exit: this runs after the deploy, and
+    // `logContractDeploymentInfo` discards stderr unless DEBUG is set and reads
+    // any non-zero status as "the record did not land" — so an error here would
+    // abort the deploy over a field it never asked for, with the reason hidden.
     if (codehashDecision.requested && !codehashDecision.recordable)
-      consola.error(
+      consola.info(
         `Not recording a codehash: ${codehashDecision.reason}. The rest of the record is still being written.`
       )
 
@@ -798,7 +797,6 @@ const addCommand = defineCommand({
       process.stdout.write(
         `${JSON.stringify(buildDeploymentUpsert(record), null, 2)}\n`
       )
-      if (codehashRejected) process.exit(1)
       return
     }
 
@@ -824,9 +822,6 @@ const addCommand = defineCommand({
     } finally {
       await manager.disconnect()
     }
-    // After the write, never instead of it: the caller still has to learn that
-    // the codehash it asked to store was rejected.
-    if (codehashRejected) exitCode = 1
     if (exitCode !== 0) process.exit(exitCode)
   },
 })

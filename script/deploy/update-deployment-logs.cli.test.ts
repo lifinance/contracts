@@ -100,14 +100,20 @@ const assertChildIsUsable = (
 /**
  * Runs the real `add` CLI in a throwaway repo and parses what it would write.
  * @param options - the repo to run in, and extra CLI arguments
- * @returns the child's combined output, exit status, and the parsed upsert
+ * @returns the child's combined output, its stdout alone, exit status, and
+ * the parsed upsert
  */
 const runAdd = (options: {
   repoRoot: string
   extraArgs?: string[]
   ci?: Record<string, string>
   flag?: string
-}): { output: string; status: number | null; upsert: IUpsertShape } => {
+}): {
+  output: string
+  stdout: string
+  status: number | null
+  upsert: IUpsertShape
+} => {
   const env: Record<string, string> = {
     ...(process.env as Record<string, string>),
   }
@@ -188,6 +194,7 @@ const runAdd = (options: {
 
   return {
     output,
+    stdout: result.stdout,
     status: result.status,
     upsert: JSON.parse(result.stdout.slice(start)) as IUpsertShape,
   }
@@ -415,21 +422,23 @@ describe('update-deployment-logs add — codehash', () => {
       'not a keccak digest',
     ],
   ])(
-    'still writes the record, then exits non-zero, for %s',
+    'still writes the record, and reports the drop on stdout, for %s',
     (_label, extraArgs, expected) => {
-      // The refusal cannot come before the write: this command runs after the
-      // deploy, so refusing outright would trade a record missing one field
-      // for a broadcast deployment with no record at all.
-      const { output, status, upsert } = runAdd({
+      const { stdout, status, upsert } = runAdd({
         repoRoot: makeRepo({ branch: 'main', dirty: false }),
         extraArgs,
       })
 
       expect(upsert.update.$set).not.toHaveProperty('codehash')
       expect(upsert.update.$set).toHaveProperty('address', ADDRESS)
-      expect(output).toContain('Not recording a codehash')
-      expect(output).toContain(expected)
-      expect(status).not.toBe(0)
+      // On stdout, not merely somewhere: `logContractDeploymentInfo` discards
+      // this command's stderr unless DEBUG is set, so a reason sent there is a
+      // reason the operator never sees.
+      expect(stdout).toContain('Not recording a codehash')
+      expect(stdout).toContain(expected)
+      // Zero, because the record landed: that caller reads any non-zero status
+      // as "the record did not land" and aborts the deploy.
+      expect(status).toBe(0)
     },
     CASE_TIMEOUT_MS
   )
