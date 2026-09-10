@@ -64,6 +64,14 @@ import {
   LEDGER_FLEX_WRAP_NOTE,
   renderLedgerFlexFlow,
 } from './ledger-flex-preview'
+import {
+  blockedByEvaluationError,
+  createPinnedTargetStateReader,
+  createTargetStateDeps,
+  evaluateTargetStateIntent,
+  formatTargetStateLines,
+  type ITargetStateVerdict,
+} from './pinned-target-state'
 import { reconcileAllSubmittedSafeTxs } from './reconcile'
 import {
   formatDecodedTxDataForDisplay,
@@ -115,6 +123,9 @@ const getCodehashDeps = (): ISignTimeCodehashDeps => {
 // once; the operator's chosen action is never remembered.
 const acknowledgementLedger = createAcknowledgementLedger()
 const networkOutcomes: INetworkOutcome[] = []
+
+// One fetch and one blob read for the whole run, however many networks it covers.
+const readPinnedTargetState = createPinnedTargetStateReader()
 
 // Networks the run tried to process. A network can be attempted and still
 // contribute no outcome (not an owner, ownership read failed, nothing
@@ -488,7 +499,24 @@ const processTxs = async (
       provenance: tx.provenance,
     })
 
+    let targetState: ITargetStateVerdict
+    try {
+      targetState = evaluateTargetStateIntent(
+        tx.safeTx.data?.data ? [tx.safeTx.data.data as Hex] : [],
+        network,
+        createTargetStateDeps(network, {
+          readPinnedState: readPinnedTargetState,
+        })
+      )
+    } catch (error) {
+      targetState = blockedByEvaluationError(
+        error instanceof Error ? error.message : String(error)
+      )
+    }
     consola.info(detailLines.join('\n'))
+    // Target-state lines are graded here, not inside the sanitising detail
+    // block: they are computed verdicts, not stored proposer-controlled fields.
+    for (const line of formatTargetStateLines(targetState)) consola.info(line)
 
     // The struct the signature covers, never the stored row: createTransaction
     // normalises an absent operation to Call, so those two copies can disagree.
@@ -763,6 +791,23 @@ const processTxs = async (
       )
       consola.warn('='.repeat(80))
       consola.warn('')
+    }
+
+    // Placed after the nonce gates, which are older and refuse only execute
+    // actions, and before the acknowledgement prompt: a proposal that fails this
+    // check must not be acknowledgeable, and no signature or broadcast has
+    // happened yet at this point. Skipping to the next proposal keeps the rest of
+    // the run intact.
+    if (!targetState.cleared) {
+      consola.error('')
+      consola.error('='.repeat(80))
+      consola.error('✗  EXPECTED-STATE CHECK FAILED — NOT SIGNING OR EXECUTING')
+      consola.error('='.repeat(80))
+      for (const line of formatTargetStateLines(targetState))
+        consola.error(line)
+      consola.error('='.repeat(80))
+      consola.error('')
+      continue
     }
 
     if (
