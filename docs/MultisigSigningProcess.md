@@ -181,15 +181,18 @@ run only on the branches that actually propose; a staging or testnet-only run, a
 
 `SAFE_PROPOSAL_TICKET` is the channel every path reads; `--ticket` is offered by
 `propose-to-safe.ts`, `propose-to-safe-tron.ts`, `unpauseAllDiamonds.ts` and
-`add-safe-owners-and-threshold.ts`, and by no other route. Two of the flagless
-ones are worth naming because they front those funnels: the bash `sendOrPropose`
-chokepoint takes six positional arguments and forwards them wholesale to
-`propose-to-safe.ts`, and `cleanUpProdDiamond.ts` reaches the TS `sendOrPropose`
-through several positional helpers. Neither is closed to a flag —
-`cleanUpProdDiamond.ts` already threads a signing-options object down those same
-hops — they are simply unwired. The rest are the `script/tasks/propose*.ts`
-mapping scripts and `parked-tasks.ts`, which carry no entry-point check either,
-so they are refused at store time — after a signature has been spent. Where flag
+`add-safe-owners-and-threshold.ts`, and by no other route. Three of the flagless
+ones front those funnels, so a missing ticket still costs nothing there: the bash
+`sendOrPropose` chokepoint takes six positional arguments and forwards them
+wholesale to `propose-to-safe.ts`, `proposePeripheryWithWhitelist.ts` drives that
+same script as a child process on the inherited environment, and
+`cleanUpProdDiamond.ts` reaches the TS `sendOrPropose` through several positional
+helpers. None is closed to a flag — `cleanUpProdDiamond.ts` already threads a
+signing-options object down those same hops — they are simply unwired. What does
+cost a signature is the set carrying no entry-point check at all: the
+`script/tasks/propose*ChainIdMappings.ts` scripts,
+`proposeMegaETHBridgeRegistrations.ts` and `parked-tasks.ts` reach
+`storeTransactionInMongoDB` directly, so they are refused only there. Where flag
 and variable are both set the flag wins, and a valueless `--ticket` falls
 through to the variable rather than consuming the slot.
 

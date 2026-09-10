@@ -8,9 +8,11 @@
  * which does not is the one the documentation says is environment-only rather
  * than one that lost the wiring.
  *
- * Scoped to the funnels carrying an entry-point `assertTicketPresent`. Scripts
- * refused only at store time, inside `storeTransactionInMongoDB`, are a
- * different set and are not classified here.
+ * Both sides of §4.2's split are classified: the funnels carrying an entry-point
+ * `assertTicketPresent`, and the scripts refused only inside
+ * `storeTransactionInMongoDB` — the ones where a missing ticket costs a
+ * signature. Which set a script is in is the whole content of that section, so
+ * a script in neither fails the run.
  */
 
 import { readFileSync } from 'fs'
@@ -74,11 +76,59 @@ const FUNNELS = [
   },
 ] as const
 
+/**
+ * Reaches `storeTransactionInMongoDB` with no entry-point check in front of it,
+ * so the refusal lands after a signature has been spent — §4.2 names these as
+ * the routes that cost one, which is only true while the list is this one.
+ */
+const STORE_ONLY = [
+  'deploy/safe/parked-tasks.ts',
+  'tasks/proposeAllBridgeChainIdMappings.ts',
+  'tasks/proposeDeBridgeDlnChainIdMappings.ts',
+  'tasks/proposeFraxChainIdMappings.ts',
+  'tasks/proposeMegaETHBridgeRegistrations.ts',
+  'tasks/proposePolymerCCTPChainIdMappings.ts',
+] as const
+
+/**
+ * Neither is a route into the store: `safe-utils.ts` is where the function is
+ * defined, and `proposal-intent.ts` only names it in a comment.
+ */
+const NOT_A_STORE_ROUTE = [
+  'deploy/safe/safe-utils.ts',
+  'deploy/safe/proposal-intent.ts',
+]
+
 /** Matches the citty argument declaration, not a mention of the word. */
 const TICKET_ARG = /^\s*ticket: \{$/m
 
 const source = (script: string): string =>
   readFileSync(join(SCRIPT_ROOT, script), 'utf8')
+
+/**
+ * Scripts under `script/` that name `symbol`, relative to `script/`.
+ *
+ * `--untracked` because the script these cases exist to name is usually one
+ * just written: without it they pass at exactly the moment they should fire,
+ * and only start working once the new file has been staged.
+ *
+ * @param symbol - Matched as a substring, so a mention counts and the callers
+ * that are not routes have to be excluded by name.
+ * @returns Paths relative to `script/`, test files dropped.
+ */
+const callersOf = (symbol: string): string[] => {
+  const grep = Bun.spawnSync(
+    ['git', 'grep', '-l', '--untracked', symbol, '--', 'script'],
+    { cwd: REPO_ROOT, stdout: 'pipe', stderr: 'pipe' }
+  )
+
+  return grep.stdout
+    .toString()
+    .split('\n')
+    .filter(Boolean)
+    .map((path) => relative('script', path))
+    .filter((path) => !path.endsWith('.test.ts'))
+}
 
 /**
  * Spawns a funnel and returns what it printed.
@@ -280,30 +330,10 @@ describe('every funnel is classified, and the classification matches its source'
   it('classifies every script that calls the check', () => {
     // The fail-closed half. `FUNNELS` is a snapshot, so a funnel added later
     // lands in neither list and this case names it instead of ignoring it.
-    // `--untracked` because the funnel this is meant to name is usually one
-    // just written: without it the case passes at exactly the moment it should
-    // fire, and only starts working once the new file has been staged.
-    const grep = Bun.spawnSync(
-      [
-        'git',
-        'grep',
-        '-l',
-        '--untracked',
-        'assertTicketPresent',
-        '--',
-        'script',
-      ],
-      { cwd: REPO_ROOT, stdout: 'pipe', stderr: 'pipe' }
-    )
-
-    const callers = grep.stdout
-      .toString()
-      .split('\n')
-      .filter(Boolean)
-      .map((path) => relative('script', path))
-      .filter((path) => !path.endsWith('.test.ts'))
+    const callers = callersOf('assertTicketPresent').filter(
       // The module the check is defined in is not a caller of it.
-      .filter((path) => path !== 'deploy/safe/proposal-intent.ts')
+      (path) => path !== 'deploy/safe/proposal-intent.ts'
+    )
 
     const expected = FUNNELS.filter((funnel) => funnel.asserts).map(
       (funnel) => funnel.script
@@ -313,5 +343,23 @@ describe('every funnel is classified, and the classification matches its source'
     // otherwise make the comparison trivially true.
     expect(callers.length).toBe(expected.length)
     expect(new Set(callers)).toEqual(new Set(expected))
+  })
+
+  it('classifies every script that reaches the store', () => {
+    // §4.2 tells an operator which routes cost a signature before refusing, so
+    // a new route into the store has to land in one of these two lists or be
+    // named here. Nothing else catches it: it calls no entry-point check, which
+    // is exactly what puts it in the expensive set.
+    const routes = callersOf('storeTransactionInMongoDB').filter(
+      (path) => !NOT_A_STORE_ROUTE.includes(path)
+    )
+
+    const classified = [
+      ...FUNNELS.map((funnel) => funnel.script),
+      ...STORE_ONLY,
+    ]
+
+    expect(routes.length).toBe(classified.length)
+    expect(new Set(routes)).toEqual(new Set(classified))
   })
 })
