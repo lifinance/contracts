@@ -6,8 +6,8 @@
  * same body at two different deployed lengths — the case the `rawByteLength`
  * pin exists for. Both were checked against `readMetadataTrailer`.
  *
- * The end-to-end run against a real artifact and a real `anvil` lives in the
- * PR body, not here: it needs `out/` and the binary, and the suite has neither.
+ * An end-to-end run against a real artifact needs `out/` and the `anvil`
+ * binary, neither of which the suite has, so nothing here drives a real node.
  */
 
 import {

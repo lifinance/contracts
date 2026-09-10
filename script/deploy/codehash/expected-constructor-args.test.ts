@@ -139,11 +139,9 @@ describe('a nullary constructor', () => {
   })
 
   it('still refuses when the record claims arguments it cannot have', () => {
-    // The nullary shortcut used to return before the record cross-check, so the
-    // one case where the two repo-controlled sources cannot both be right was
-    // the one case that passed. A record carrying args against a constructor
-    // that takes none is not a disagreement about a value — it says the record
-    // describes a different build.
+    // A record carrying args against a constructor that takes none is not a
+    // disagreement about a value — it says the record describes a different
+    // build.
     const result = derive({
       inputs: [],
       requirements: {},

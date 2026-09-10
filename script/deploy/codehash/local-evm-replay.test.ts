@@ -1,7 +1,7 @@
 /**
  * Covers composing the deploy calldata and the path where the binary is absent.
- * A node that does start is exercised by the end-to-end runs recorded in the PR
- * body, because the suite has neither `out/` nor the `anvil` binary to rely on.
+ * A node that does start is not covered: driving one needs `out/` and the
+ * `anvil` binary, neither of which the suite can rely on.
  */
 
 import {
