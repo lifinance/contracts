@@ -323,6 +323,51 @@ describe('explainScopeRefusal — the classifier has no fallthrough class', () =
   })
 })
 
+describe('what the report discloses is derived, not asserted', () => {
+  // #2329 centralised this normalisation so no caller could repeat the
+  // `--network Mainnet` false red. Every row in today's corpus is already
+  // lower case, so only a test can hold the line.
+  it('resolves a network whose corpus row is not lower case', () => {
+    const shouting = gradeToolchainScope(
+      corpus({ slots: [slot({ network: 'SomeChain' })] })
+    )
+    expect({
+      refusals: shouting.refusals,
+      byRule: shouting.byRule,
+    }).toEqual({ refusals: 0, byRule: [] })
+
+    // The present that pairs with it: a network no config row names still
+    // refuses, so the normalisation did not make G1 unable to refuse at all.
+    const absent = gradeToolchainScope(
+      corpus({ slots: [slot({ network: 'NoSuchChain' })] })
+    )
+    expect(absent.refusals).toBe(1)
+  })
+
+  it('names every configured network no attested slot covers', () => {
+    const note = gradeToolchainScope(
+      corpus({ slots: [slot({ network: 'somechain' })] })
+    ).coverageNote
+    expect(note).toContain('1 of 2 configured networks carry none')
+    expect(note).toContain('oldchain')
+    expect(note).not.toContain('somechain,')
+  })
+
+  it('says whether commits were unreadable rather than asserting they were not', () => {
+    const clean = gradeCommitAvailability(corpus())
+    expect(clean.coverageNote).toContain('0 of them unreadable')
+    expect(clean.coverageNote).toContain('measured on 0')
+
+    const truncated = gradeCommitAvailability(
+      corpus({ hasCommit: () => false })
+    )
+    expect(truncated.coverageNote).toContain('1 of them unreadable')
+    expect(truncated.coverageNote).toContain(
+      'measure this checkout, not the gate'
+    )
+  })
+})
+
 describe('a zksolc-only pin is not a pin any EVM network is offered', () => {
   // Inert today because [profile.zksync] happens to pin the same pair as
   // [profile.default]. It stops being inert the moment they diverge, and then

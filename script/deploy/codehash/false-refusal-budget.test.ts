@@ -212,4 +212,18 @@ describe('renderBudgetReport', () => {
       '`G-measured`: this rate is a lower bound'
     )
   })
+
+  // A zero in that column reads as "no gate caught a real defect". It has to
+  // stop saying so the moment something does classify one.
+  it('says a zero true-positive column is an absence, and stops once one is marked', () => {
+    const absent = renderBudgetReport([
+      budgetOf([observation({ ruleId: 'AFR-1-retired-pin' })], 100),
+    ]).join('\n')
+    expect(absent).toContain('by absence of a classifier, not by measurement')
+
+    const marked = renderBudgetReport([
+      budgetOf([observation({ truePositive: true })], 100),
+    ]).join('\n')
+    expect(marked).not.toContain('by absence of a classifier')
+  })
 })

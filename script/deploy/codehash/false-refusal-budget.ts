@@ -294,11 +294,11 @@ export const evaluatePromotion = (budget: IGateBudget): IPromotionVerdict => {
 /**
  * Renders the budget table a reviewer reads, denominators included.
  *
- * Every coverage note is printed under the table. They used to reach the
- * reader only through the measured-on-0 blocker, so the notes on the gates
- * that DID measure something — which is where "this rate is a lower bound" and
- * "this gate's unexplained count cannot move" live — were the ones nothing
- * printed.
+ * Every coverage note is printed under the table, not only the one a
+ * measured-on-0 blocker quotes. A gate that did measure something is where the
+ * caveats that qualify a number live — "this rate is a lower bound", "this
+ * gate's unexplained count cannot move" — so those are the notes a reader most
+ * needs next to the row they qualify.
  *
  * @param budgets - one entry per gate, in report order
  * @returns Lines to print
@@ -331,6 +331,15 @@ export const renderBudgetReport = (
   lines.push('', 'What each corpus does not cover:')
   for (const budget of budgets)
     lines.push(`- \`${budget.gate}\`: ${budget.coverageNote}`)
+
+  // Derived, not asserted: the column reads as a measured finding, and a run
+  // in which no caller ever sets the flag would otherwise present "no gate
+  // caught a real defect" when the truth is that nothing looked.
+  if (budgets.every((budget) => budget.truePositives === 0))
+    lines.push(
+      '',
+      'No refusal in this run was marked a true positive. Nothing classifies one, so that column is 0 by absence of a classifier, not by measurement.'
+    )
 
   return lines
 }

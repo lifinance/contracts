@@ -40,10 +40,14 @@
  * not offered, which is exactly the input {@link explainScopeRefusal} names a
  * class for. The two predicates are complements, so no corpus can drive G2's
  * unexplained count off 0. G2's honest contribution is its rate and its class
- * split; its unexplained count measures this model, not the fleet. Read the
- * budget's headline zero accordingly — on G1/G3/G4/G5 it means nothing was
- * refused, and on G2 it means the classifier covers every refusal the model
- * can produce.
+ * split.
+ *
+ * G1 is pinned the same way for a different reason: its catch assigns every
+ * refusal the single class AFR-3, so its unexplained count cannot move either.
+ * An unexplained count of 0 therefore carries information only on G3, G4 and
+ * G5, where a refusal can arrive carrying no class at all. Each gate's
+ * coverage note repeats this where it applies, because the table's Unexplained
+ * column does not distinguish "nothing was refused" from "nothing could be".
  */
 
 import { execFileSync } from 'node:child_process'
@@ -71,6 +75,7 @@ import {
   deriveToolchainScope,
   parseBuildProfiles,
   type IBuildProfile,
+  type IToolchainScope,
 } from './lineage-scope'
 
 /** One attested production slot, as the sweep recorded it. */
@@ -174,6 +179,20 @@ export const explainScopeRefusal = (
 }
 
 /**
+ * The network key {@link deriveToolchainScope} is indexed by.
+ *
+ * #2329 moved this normalisation inside `evaluateCodehashSignGate` so no
+ * caller could repeat the `--network Mainnet` false red. This harness is such
+ * a caller and reaches `deriveToolchainScope` directly, so it normalises too;
+ * every row in today's corpus is already lower case, which is why omitting it
+ * would go unnoticed until the corpus is regenerated.
+ *
+ * @param network - the network as the corpus row spells it
+ * @returns The key `config/networks.json` is keyed by
+ */
+const scopeKey = (network: string): string => network.toLowerCase()
+
+/**
  * G1 — can the network's legitimate builds be enumerated at all?
  * @param deps - the corpus
  */
@@ -181,7 +200,10 @@ export const gradeToolchainScope = (deps: ICorpusDeps): IGateBudget => {
   const profiles = parseBuildProfiles(deps.foundryToml)
   const observations: IShadowObservation[] = deps.slots.map((slot) => {
     try {
-      deriveToolchainScope(slot.network, { networks: deps.networks, profiles })
+      deriveToolchainScope(scopeKey(slot.network), {
+        networks: deps.networks,
+        profiles,
+      })
       return {
         slot: slotId(slot),
         refused: false,
@@ -197,12 +219,21 @@ export const gradeToolchainScope = (deps: ICorpusDeps): IGateBudget => {
     }
   })
 
+  const uncovered = Object.keys(deps.networks).filter(
+    (network) => !deps.slots.some((slot) => scopeKey(slot.network) === network)
+  )
+
   return summariseGate({
     gate: 'G1-toolchain-scope',
     corpus: 'attested production slots (WP-7.1 / #2289)',
     denominator: deps.slots.length,
-    coverageNote:
-      'Covers every network carrying an attested slot. The three zkEVM networks and localanvil carry none, so their scope paths are measured on 0.',
+    coverageNote: `Covers every network carrying an attested slot. ${
+      uncovered.length
+    } of ${
+      Object.keys(deps.networks).length
+    } configured networks carry none, so their scope paths are measured on 0: ${uncovered.join(
+      ', '
+    )}. This gate's unexplained count is NOT a fleet measurement: the catch below assigns every refusal the single class AFR-3, so no corpus can drive it off 0 — and because AFR-3 grades grey, no refusal rate this gate can report will block its promotion. Read the rate, not the Unexplained or May-enforce column.`,
     observations,
   })
 }
@@ -225,16 +256,17 @@ export const gradeAttestedSet = (deps: ICorpusDeps): IGateBudget => {
 
   const observations: IShadowObservation[] = []
   for (const slot of deps.slots) {
-    let scopeProfiles: IBuildProfile[]
+    let scope: IToolchainScope
     try {
-      scopeProfiles = deriveToolchainScope(slot.network, {
+      scope = deriveToolchainScope(scopeKey(slot.network), {
         networks: deps.networks,
         profiles,
-      }).profiles
+      })
     } catch {
       // Counted by G1; grading it twice would double-count one refusal.
       continue
     }
+    const scopeProfiles = scope.profiles
 
     const offeredPairs = new Set(
       scopeProfiles.map((p) => profileKey(p.solcVersion, p.evmVersion))
@@ -260,7 +292,12 @@ export const gradeAttestedSet = (deps: ICorpusDeps): IGateBudget => {
         solcVersion: slot.solcVersion,
       },
       attested,
-      { isClosedSet: true }
+      // The scope the derivation returned, not a literal: verify-cut-targets
+      // forwards this same object, and a hardcoded `true` here would keep
+      // grading closed after a future scope legitimately reports an open set,
+      // turning that gate's grey UNVERIFIABLE into this harness's red
+      // MISMATCH.
+      scope
     )
 
     observations.push({
@@ -294,11 +331,14 @@ export const gradeAttestedSet = (deps: ICorpusDeps): IGateBudget => {
 }
 
 /**
- * G3 — is every record\'s commit readable before anything is concluded from it?
+ * G3 — is every record's commit readable before anything is concluded from it?
  *
  * The injected git runner reads locally and refuses to fetch, so the run stays
- * offline. Every commit in the corpus is already readable, so the fetch path is
- * measured on 0 and the coverage note says so.
+ * offline — which also disables the fetch-by-SHA recovery `ensureCommitAvailable`
+ * exists to perform. A refusal here therefore says the executing checkout lacks
+ * the object, not that the merged gate would refuse; #2354 measured 79 of 99
+ * audit commits unreachable from a `--single-branch` clone. The coverage note
+ * derives that caveat from what the run actually observed.
  * @param deps - the corpus
  */
 export const gradeCommitAvailability = (deps: ICorpusDeps): IGateBudget => {
@@ -323,11 +363,18 @@ export const gradeCommitAvailability = (deps: ICorpusDeps): IGateBudget => {
   })
 
   const distinct = new Set(deps.slots.map((slot) => slot.commit)).size
+  const unreadable = new Set(
+    deps.slots.filter((_, i) => observations[i]?.refused).map((s) => s.commit)
+  ).size
   return summariseGate({
     gate: 'G3-commit-availability',
     corpus: 'attested production slots (WP-7.1 / #2289)',
     denominator: deps.slots.length,
-    coverageNote: `${distinct} distinct commits, all readable in this checkout, so the three-attempt fetch path is measured on 0.`,
+    coverageNote: `${distinct} distinct commits, ${unreadable} of them unreadable in the checkout this run executed in. ${
+      unreadable === 0
+        ? 'The three-attempt fetch path is therefore measured on 0.'
+        : 'Those refusals measure this checkout, not the gate: the runner is offline and cannot fetch by SHA, which is the recovery the real gate performs. Re-run in a full clone before reading them as false reds.'
+    }`,
     observations,
   })
 }
@@ -409,7 +456,7 @@ export const gradeCutClassification = (deps: ICorpusDeps): IGateBudget => {
     gate: 'G4-cut-classification',
     corpus: 'live registered facets, as a Replace cut',
     denominator: slots.length,
-    coverageNote: `The classifier also judges Remove-with-init and unknown actions; neither shape occurs in the corpus, so both are measured on 0. ${exclusionNote(
+    coverageNote: `A rate of 0 here is close to a tautology and should not be read as evidence about the classifier. All three of its refusal branches are unreachable from repo data: the cut is synthesised as Replace with a zero init, so the unknown-action and Remove-with-init branches are measured on 0, and the zero-address branch needs a diamond log listing the zero address as a facet, which none of the 1,262 real entries does. What is measured is that a Replace cut over a live registered facet decodes. ${exclusionNote(
       deps
     )}`,
     observations,
@@ -420,8 +467,11 @@ export const gradeCutClassification = (deps: ICorpusDeps): IGateBudget => {
  * G5 — can the funnel deploy gate attribute a live facet to a source file?
  *
  * Drives the real {@link assertFunnelDeployGate} through its own dependency
- * seam. Only `runGate` is stubbed: it is the GitHub main-equivalence call, and
- * this run makes no network requests. The coverage note carries that.
+ * seam. `deployedNames` and `facetSourceExists` are the production functions;
+ * `isTestnet` and `currentBranch` are pinned to false and 'main' because every
+ * corpus row is a mainnet slot; `runGate` — the GitHub main-equivalence call —
+ * is stubbed to no failures so the run makes no network requests. The coverage
+ * note carries what that leaves unmeasured.
  * @param deps - the corpus
  */
 export const gradeFunnelDeployGate = async (
@@ -471,7 +521,7 @@ export const gradeFunnelDeployGate = async (
     gate: 'G5-funnel-deploy-gate',
     corpus: 'live registered facets, as a Replace cut',
     denominator: slots.length,
-    coverageNote: `The GitHub main-equivalence call (\`runGate\`) is stubbed to no failures, so what is measured is address attribution and cut decoding, not approval state. ${exclusionNote(
+    coverageNote: `The GitHub main-equivalence call (\`runGate\`) is stubbed to no failures, and \`isTestnet\`/\`currentBranch\` are pinned, so what is measured is address attribution, not approval state. The calldata is encoded by this module and decoded by the gate, so the undecodable branch — the one that guards proposer-written calldata — is measured on 0. The rate of 0 also depends on the GenericSwapFacet exclusion below: that row is the only refusal the 452 registered facets produce, so without it this gate reports 1 refusal and is not promotable. ${exclusionNote(
       deps
     )}`,
     observations,
@@ -481,6 +531,11 @@ export const gradeFunnelDeployGate = async (
 /**
  * The corpus as it exists in this checkout.
  * @param repoRoot - repository root
+ * @returns Every input the eight gates read
+ * @throws If the attestation corpus is absent, carries no non-empty
+ * `attestations` array, or `config/networks.json` cannot be read — each of
+ * which would otherwise be reported as a measurement rather than as a
+ * corpus that graded nothing.
  */
 export const loadRepoCorpus = (repoRoot: string): ICorpusDeps => {
   // Memoised because the gates ask per slot rather than per network: without it
