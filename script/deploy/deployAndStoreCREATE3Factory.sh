@@ -89,7 +89,7 @@ deployAndStoreCREATE3Factory() {
       fi
       local TX_OUTPUT
       TX_OUTPUT=$(cast send --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY" --legacy --create "$BYTECODE" --json 2>&1) || {
-        error "cast send failed: $TX_OUTPUT"
+        error "cast send failed: $(redactRpcUrl "$TX_OUTPUT")"
         return 1
       }
       # cast may print log lines before the JSON; use last line or first {...} for jq

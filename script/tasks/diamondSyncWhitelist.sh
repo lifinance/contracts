@@ -1177,7 +1177,7 @@ function diamondSyncWhitelist {
           OUTPUT=$(universalCast "send" "$NETWORK" "$ENVIRONMENT" "$DIAMOND_ADDRESS" "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "$SEND_ARGS" "$TIMELOCK_FLAG" 2>&1)
           local EXIT_CODE=$?
 
-          if [[ "$MULTI_NETWORK_RUN" != "true" ]]; then echo "$OUTPUT"; fi
+          if [[ "$MULTI_NETWORK_RUN" != "true" ]]; then printf '%s\n' "$(redactRpcUrl "$OUTPUT")"; fi
 
           if [[ $EXIT_CODE -eq 0 ]]; then
             if [[ "$TIMELOCK_FLAG" == "true" ]]; then
