@@ -6,8 +6,8 @@
  * profile while their networks declare cancun, so a contract audited under one
  * compiler and deployed under another is invisible in the log today (A6).
  *
- * The fix is forward-only, per Daniel's ruling — no fleet re-audit, no
- * redeploy — and it rests on three moves:
+ * The fix is forward-only — no fleet re-audit, no redeploy — and it rests on
+ * three moves:
  *
  * - **Audits stay version-agnostic.** An audit is of source, so it is not
  *   invalidated by a different compiler. What needs review is the *compiler
@@ -130,8 +130,9 @@ export interface IAuditRecord {
  * - `compiler-set-differs` — the profile is vetted, but the build reports
  *   different versions than the vetted set, so what ran is not what was
  *   reviewed.
- * - `closure-unrecorded` — the audit predates `sourceClosureHash`, so the
- *   bridge cannot be proved, only assumed.
+ * - `closure-unrecorded` — one side records no `sourceClosureHash`, usually
+ *   the audit since most predate the field, so the bridge cannot be proved,
+ *   only assumed.
  * - `closure-differs` — both sides record a closure and they disagree, so the
  *   audited source is not the source that was built.
  */
@@ -147,6 +148,22 @@ export interface IAuditBridgeNote {
   note: AuditBridgeNote
   detail: string
 }
+
+/**
+ * The versions a set was reviewed at, as a signer reads them.
+ *
+ * The zk half is spelled out because a zk mismatch is usually only in the zk
+ * half: rendering solc alone prints two identical strings either side of a
+ * "but", which reads as a note about nothing.
+ */
+const describeCompilerSet = (set: {
+  solcVersion: string
+  evmVersion: string
+  zk?: { zksolcVersion: string; solcForkVersion: string; llvmVersion: string }
+}): string =>
+  set.zk === undefined
+    ? `solc ${set.solcVersion}/${set.evmVersion}`
+    : `solc ${set.solcVersion}/${set.evmVersion}, zksolc ${set.zk.zksolcVersion} (solc fork ${set.zk.solcForkVersion}, LLVM ${set.zk.llvmVersion})`
 
 const sameZk = (
   a: IVettedCompilerSet['zk'],
@@ -188,7 +205,14 @@ export const auditCoverageNotes = (
       detail: `no audit is recorded for ${build.contractName} at v${build.version}`,
     })
 
-  const vetted = VETTED_COMPILER_SETS[build.profile]
+  // A plain property read resolves a profile named `toString` against
+  // Object.prototype and hands back a set nobody vetted.
+  const vetted = Object.prototype.hasOwnProperty.call(
+    VETTED_COMPILER_SETS,
+    build.profile
+  )
+    ? VETTED_COMPILER_SETS[build.profile]
+    : undefined
   if (vetted === undefined)
     notes.push({
       note: 'profile-not-vetted',
@@ -204,7 +228,11 @@ export const auditCoverageNotes = (
     // was reviewed.
     notes.push({
       note: 'compiler-set-differs',
-      detail: `${build.profile} was vetted at solc ${vetted.solcVersion}/${vetted.evmVersion} on ${vetted.vettedOn}, but this build reports solc ${build.solcVersion}/${build.evmVersion}`,
+      detail: `${build.profile} was vetted at ${describeCompilerSet(
+        vetted
+      )} on ${vetted.vettedOn}, but this build reports ${describeCompilerSet(
+        build
+      )}`,
     })
 
   // Closure notes are about the bridge itself, so they apply whether or not an

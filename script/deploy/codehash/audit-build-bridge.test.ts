@@ -94,6 +94,35 @@ describe('auditCoverageNotes', () => {
     // A missing zk section and a present one are different builds; treating
     // absent as "matches whatever is vetted" would bless either as the other.
     expect(notesOf({ profile: 'zksync' })).toContain('compiler-set-differs')
+    expect(
+      notesOf({
+        zk: {
+          zksolcVersion: '1.5.15',
+          solcForkVersion: '0.8.29',
+          llvmVersion: '1.0.2',
+        },
+      })
+    ).toContain('compiler-set-differs')
+  })
+
+  it('names the zk toolchain in the mismatch detail', () => {
+    // A zk build differs from the vetted set only in its zk half, so a detail
+    // rendering solc alone prints the same string either side of the "but".
+    const [reported] = auditCoverageNotes(
+      { ...BRIDGED, profile: 'zksync' },
+      AUDITED
+    )
+
+    expect(reported?.note).toBe('compiler-set-differs')
+    expect(reported?.detail).toContain('zksolc 1.5.15')
+    expect(reported?.detail).toContain('LLVM 1.0.2')
+  })
+
+  it('treats a profile named after an Object prototype member as unvetted', () => {
+    // A property read would resolve these against Object.prototype and report
+    // a vetted compiler set that nobody wrote.
+    for (const profile of ['toString', 'constructor', 'hasOwnProperty'])
+      expect(notesOf({ profile })).toContain('profile-not-vetted')
   })
 
   it('reports an audit that records no source closure', () => {
