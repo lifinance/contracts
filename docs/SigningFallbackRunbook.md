@@ -34,14 +34,28 @@ with a known cause, prefer fixing the gate — the fallback costs a ceremony,
 freezes config as well as code (§4), and leaves rows in the store that §7 has
 to clean up.
 
+**What the fallback does not weaken.** It drops the 2.0 gate layer; it does
+not drop the multisig or the timelock. The baseline reads the threshold from
+the Safe contract itself (`safe.getThreshold()` in `confirm-safe-tx.ts`, not
+from the frozen `config/`), and offers an execute option only once
+`hasEnoughSignatures` finds the collected signatures at or above it — so
+quorum is enforced by the same on-chain value either way, and there is no
+single-signer path. `--timelock` still wraps the call in a
+`scheduleBatch` via `wrapWithTimelockSchedule`, still resolving
+`LiFiTimelockController` from `deployments/` (§4 covers what being frozen
+costs there). What is lost is provenance and the ticket binding, which is §6.
+
 ### Which side of the ceremony has to fall back
 
-**Answer this before checking anything out.** The entire 2.0 gate layer is
-absent at the baseline — `git ls-tree -r 49f05efa9 -- script/deploy/safe/
-script/deploy/shared/` against the same paths on `main` is the check, and it
-is what §8 tells the next person to re-run rather than trusting a list of
-names — so the escape commit clears any gate. But it only clears the ones
-that run on the side that checks it out:
+**Answer this before checking anything out.** At `49f05efa9` every 2.0 gate
+module is absent outright — `delegatecall-gate.ts`, `codehash-sign-gate.ts`,
+`confirm-integrity-asserts.ts`, `ledger-guards.ts`, `proposal-intent.ts` and
+`calldata-address-check.ts` are all missing from `script/deploy/safe/`, and
+all six exist on `main`. So this commit clears any gate. That is a property of
+this commit, established by checking those paths — not something the §8
+directory diff would have told you, which is why §8 asks a different question
+of a *candidate* commit. But it only clears the gates that run on the side
+that checks it out:
 
 **The command that printed the refusal is the answer**, and it is a better
 guide than any list of gate names, which will go out of date:
@@ -80,7 +94,19 @@ From inside your existing clone:
 ```bash
 CLONE=~/Documents/GitHub/contracts   # wherever yours lives
 git -C "$CLONE" fetch origin --tags
-git -C "$CLONE" worktree add --detach ~/contracts-escape pre-signing-2.0-baseline
+
+# The tag is movable by design (§8), so resolve it and stop if it is not the
+# commit this runbook was written against.
+EXPECTED=49f05efa948d3bd208bbdfcf34ff70ce5eb183bf
+RESOLVED=$(git -C "$CLONE" rev-parse "pre-signing-2.0-baseline^{commit}")
+if [ "$RESOLVED" = "$EXPECTED" ]; then
+  echo "✓ tag resolves to the documented commit: $RESOLVED"
+else
+  echo "✗ STOP — tag resolves to $RESOLVED, not $EXPECTED (see §8)"
+fi
+
+# Only with a ✓ above:
+git -C "$CLONE" worktree add --detach ~/contracts-escape "$RESOLVED"
 cd ~/contracts-escape
 ln -s "$CLONE/.env" .env
 ln -s "$CLONE/node_modules" node_modules
@@ -88,6 +114,12 @@ ln -s "$CLONE/node_modules" node_modules
 
 A worktree rather than a checkout in place: the fallback runs alongside a
 normal clone, and nothing about the working repo has to be disturbed.
+
+Record the resolved SHA alongside the `safeTxHash`es of §5 — a fallback
+ceremony is only reconstructable afterwards if both are on the ticket. A
+mismatch is not automatically wrong (§8 is the procedure for moving the tag
+deliberately); it means this runbook's §4 and §7 facts were established
+against a different commit and have to be re-checked at the one you have.
 
 **Only the confirm path needs a build.** `bun confirm-safe-tx` runs
 `build:typechain-and-abi` (so `forge build src`, so the `lib/` submodules);
@@ -146,6 +178,15 @@ done
 [ -n "${SAFE_SIGNER_PRIVATE_KEY:-}" ] && echo '  ⚠ SAFE_SIGNER_PRIVATE_KEY is exported here — the export wins'
 ```
 
+**An exported `SC_MONGODB_URI` does more than win — it splits the two halves
+apart.** `with-safe-tunnel.sh` reads the URI by grepping `.env` and never
+consults the environment, so it opens the port named in the *file*, while the
+script connects to the URI in the *environment*. The failure that produces is
+a tunnel that comes up healthy (`✓ Safe Mongo tunnel already up`) in front of
+a proposal written somewhere else. If any of the three warns above, `unset` it
+and start the ceremony in a fresh shell rather than reasoning about which
+value applies where.
+
 The proposer needs `PRIVATE_KEY_PRODUCTION`; a signer needs
 `SAFE_SIGNER_PRIVATE_KEY` or `PRIVATE_KEY_PRODUCTION`, which are the two
 `confirm-safe-tx.ts` offers. There is no `SAFE_SIGNER` variable —
@@ -168,10 +209,11 @@ likely to bite:
   the escape commit; the tag has to move first (§8).
 - **Seven networks are still `active` there that are not active on `main`** —
   `botanix`, `moonbeam`, `sophon`, `superposition`, `swellchain`, `taiko` and
-  `tronshasta` (the first six were removed from `networks.json` outright; the
-  seventh is still listed but `inactive`). The baseline will therefore accept
-  a `--network` the org has since retired, and answer with its stale
-  addresses. `--network` is required by the baseline's `propose-to-safe.ts`,
+  `tronshasta`. All seven are `active` at the baseline; on `main` the first six
+  are gone from `networks.json` outright and `tronshasta` is still listed but
+  `inactive`. The baseline will therefore accept a `--network` the org has
+  since retired, and answer with its stale addresses. `--network` is required
+  by the baseline's `propose-to-safe.ts`,
   so there is no fan-out risk — the risk is that a name it accepts no longer
   means what you think.
 - **`deployments/` is frozen too, and `--timelock` reads it.** The baseline's
@@ -202,6 +244,25 @@ From the escape worktree. The baseline's `propose-to-safe.ts` requires
 `--network` and `--to`, takes the payload as `--calldata` or `--calldataFile`,
 signs with `--privateKey` or `--ledger`, and routes through the timelock with
 `--timelock`:
+
+**§4 says the config is frozen; this is where that has to be paid for.**
+Nothing in the baseline compares its own `config/` against `main`, so before
+proposing, diff the values this run will actually resolve — for the one
+network you are targeting, not the whole file:
+
+```bash
+for f in config/networks.json config/global.json deployments/<network>.json; do
+  diff <(git show "origin/main:$f") "$f" && echo "same: $f"
+done
+```
+
+Three things make the difference between a stale value and a wrong proposal:
+the network's `status` on `main` (a name the baseline accepts may be retired),
+`safeAddress` (unchanged on every shared network as of `b7fc074df` — if this
+one differs, stop), and `LiFiTimelockController` in the deployment file, which
+`--timelock` resolves and sends to. A difference in any of the three is a stop,
+not a note: it means the baseline would address a Safe or timelock the org has
+moved on from.
 
 ```bash
 bun propose-safe-tx --network <network> --to <target> \
@@ -246,8 +307,19 @@ morning have no provenance and would otherwise be swept in:
   timestamp: { $gte: ISODate("2026-09-01T09:13:19Z") } }
 ```
 
-Record the ceremony window on the ticket anyway — it is what lets a reader
-tell one fallback from another.
+**That query does not name your rows — it names every fallback's.** It has
+only a lower bound, so a second ceremony's rows are indistinguishable from the
+first's, and there is nothing in a row that says which. Reconcile against the
+`safeTxHash`es §5 told you to record, and touch nothing outside that set:
+
+```text
+{ safeTxHash: { $in: [ "0x…", "0x…" ] } }
+```
+
+Use the unbounded form to *find* what the recorded set missed — a proposal
+whose hash never got written down is exactly the row worth knowing about — and
+never as the selector for a cleanup. Record the ceremony window on the ticket
+as well: it is what lets a later reader tell one fallback from another.
 
 **A nonce collision is reported as something else.**
 `unique_inflight_safe_nonce_ci` — keyed on `{safeAddress, network, chainId,
