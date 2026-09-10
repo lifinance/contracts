@@ -1,7 +1,8 @@
 /**
- * Regression tests for the two bash endpoint redactors and the retry helper that returns their
- * output: `redactRpcUrl` (`script/helperFunctions.sh`) and `bgRedactUrl`
- * (`script/emergency/emergencyPauseBreakGlass.sh`).
+ * Regression tests for the two bash endpoint redactors — `redactRpcUrl`
+ * (`script/helperFunctions.sh`) and `bgRedactUrl`
+ * (`script/emergency/emergencyPauseBreakGlass.sh`) — and for the shared bash paths that print
+ * their output: the retry helper that returns it, and `parseExecuteCommandResult`.
  *
  * `getRPCUrl` returns the keyed `ETH_NODE_URI_<NETWORK>` on stdout and `cast` embeds `--rpc-url`
  * in its error text, so both the value and any RPC failure carry the provider key.
@@ -166,7 +167,7 @@ describe.each(RETRY_SCRIPTS)('%s > rpcCallWithRetry', (_label, defs) => {
 })
 
 /**
- * The widest of the bash paths: every `forge`/`cast` execution routed through `executeAndParse`
+ * The widest of the bash paths: every `forge script` execution routed through `executeAndParse`
  * lands here, and `error` is not debug-gated, so a failed deploy prints the captured stderr —
  * which carries `--rpc-url` — on any run, not only a `DEBUG=true` one.
  */

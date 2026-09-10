@@ -5079,7 +5079,7 @@ function executeAndCapture() {
 
   # Debug: Show what we captured
   echoDebug "=== RAW_RETURN_DATA (stdout) ==="
-  echoDebug "$RAW_RETURN_DATA"
+  echoDebug "$(redactRpcUrl "$RAW_RETURN_DATA")"
   echoDebug "=== STDERR_CONTENT (stderr) ==="
   echoDebug "$(redactRpcUrl "$STDERR_CONTENT")"
 
@@ -5154,7 +5154,7 @@ function parseExecuteCommandResult() {
         error "stderr: $(redactRpcUrl "$STDERR_CONTENT")"
       fi
       if [[ -n "$RAW_RETURN_DATA" ]]; then
-        echoDebug "stdout: $RAW_RETURN_DATA"
+        echoDebug "stdout: $(redactRpcUrl "$RAW_RETURN_DATA")"
       fi
 
       case "$ON_ERROR_ACTION" in

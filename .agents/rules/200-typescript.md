@@ -119,7 +119,7 @@ Add comments only where the code doesn't speak for itself. Avoid restating what 
 
 `ETH_NODE_URI_*` embeds the provider key in the URL, so a log line naming the endpoint writes a live credential into every transcript of every run. Log the network name, or pass the URL through `redactUrls()` from `script/utils/redactUrls.ts`.
 
-`script/utils/rpc-url-log-scan.test.ts` enforces this for the identifiers and log calls it knows about. It does not close the class, so two cases stay yours: an endpoint held in a differently-named variable, and one viem embeds in an `error.message` — log `redactUrls(err.stack ?? String(err))` rather than the error itself (`redactErrorReason()` is for Slack: it collapses whitespace and truncates at 180 chars). In bash use `redactRpcUrl` from `helperFunctions.sh`; nothing checks bash automatically.
+`script/utils/rpc-url-log-scan.test.ts` enforces this for the identifiers and log calls it knows about. It does not close the class, so two cases stay yours: an endpoint held in a differently-named variable, and one viem embeds in an `error.message` — log `redactUrls(err.stack ?? String(err))` rather than the error itself (`redactErrorReason()` is for Slack: it collapses whitespace and truncates at 180 chars). In bash use `redactRpcUrl` from `helperFunctions.sh`, or `bgRedactUrl` inside `script/emergency/`, which must not depend on `helperFunctions.sh` loading. `script/redactRpcUrl.test.ts` pins the shared bash print paths, but there is no bash-wide scan: `getRPCUrl` returns the endpoint on stdout by design, so a naive one false-reds on the function whose job is to return it.
 
 ## Testing
 
