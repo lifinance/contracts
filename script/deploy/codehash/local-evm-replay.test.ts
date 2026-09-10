@@ -1,7 +1,7 @@
 /**
- * Covers only the pure half of the adapter. Starting a node is exercised by the
- * end-to-end run recorded in the PR body, because the suite has neither `out/`
- * nor the `anvil` binary to rely on.
+ * Covers composing the deploy calldata and the path where the binary is absent.
+ * A node that does start is exercised by the end-to-end runs recorded in the PR
+ * body, because the suite has neither `out/` nor the `anvil` binary to rely on.
  */
 
 import {

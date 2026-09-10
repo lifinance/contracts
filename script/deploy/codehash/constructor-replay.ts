@@ -154,7 +154,11 @@ const contextFault = async (
  * outside the immutables to match; this requires that and the immutable bytes,
  * so nothing that failed there can pass here.
  *
- * @param input - Observed code, our creation code, and the config-derived args.
+ * Costs one local deployment, and a second only where the first would block: a
+ * verdict against a constructor that stores where it landed has to be withheld
+ * rather than reached, and two replays disagreeing is what identifies one.
+ *
+ * @param input - Observed code, our creation code, the chain, and the config-derived args.
  * @param deps - The local EVM to run the constructor on.
  * @returns The verdict, and whether the masking path still has to run.
  */
