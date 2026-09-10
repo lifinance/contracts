@@ -29,6 +29,19 @@ const BRIDGED: IDeployedBuild = {
   sourceClosureHash: CLOSURE,
 }
 
+/** The vetted zksync toolchain, so a case can drift exactly one field. */
+const ZK_TOOLCHAIN = {
+  zksolcVersion: '1.5.15',
+  solcForkVersion: '0.8.29',
+  llvmVersion: '1.0.2',
+}
+
+const ZKSYNC: IDeployedBuild = {
+  ...BRIDGED,
+  profile: 'zksync',
+  zk: ZK_TOOLCHAIN,
+}
+
 const AUDITED: IAuditRecord = {
   auditIds: ['audit20250508'],
   sourceClosureHash: CLOSURE,
@@ -64,29 +77,30 @@ describe('auditCoverageNotes', () => {
     expect(notesOf({ evmVersion: 'prague' })).toContain('compiler-set-differs')
   })
 
-  it('reports a zk build whose fork or LLVM version differs from the vetted set', () => {
-    // Named separately so a variant can be built without spreading an optional.
-    const zkToolchain = {
-      zksolcVersion: '1.5.15',
-      solcForkVersion: '0.8.29',
-      llvmVersion: '1.0.2',
-    }
-    const zksync: IDeployedBuild = {
-      ...BRIDGED,
-      profile: 'zksync',
-      zk: zkToolchain,
-    }
-
-    // Present: the vetted zk set is reachable, so the notes below are about the
-    // versions rather than about zk builds never matching.
-    expect(auditCoverageNotes(zksync, AUDITED)).toEqual([])
-    expect(
-      auditCoverageNotes(
-        { ...zksync, zk: { ...zkToolchain, llvmVersion: '1.0.3' } },
-        AUDITED
-      ).map((entry) => entry.note)
-    ).toContain('compiler-set-differs')
+  it('says nothing about a zk build that matches the vetted toolchain', () => {
+    // The present the three cases below need: the vetted zk set is reachable,
+    // so a note there is about the version rather than about zk builds never
+    // matching.
+    expect(auditCoverageNotes(ZKSYNC, AUDITED)).toEqual([])
   })
+
+  it.each([
+    ['zksolcVersion', { zksolcVersion: '1.5.16' }],
+    ['solcForkVersion', { solcForkVersion: '0.8.30' }],
+    ['llvmVersion', { llvmVersion: '1.0.3' }],
+  ])(
+    'reports a zk build whose %s differs from the vetted set',
+    (_field, drift) => {
+      // Each of the three floats independently of the others, so a build is
+      // not identified by its zksolc version alone.
+      expect(
+        auditCoverageNotes(
+          { ...ZKSYNC, zk: { ...ZK_TOOLCHAIN, ...drift } },
+          AUDITED
+        ).map((entry) => entry.note)
+      ).toEqual(['compiler-set-differs'])
+    }
+  )
 
   it('reports a build carrying a zk toolchain under an EVM profile', () => {
     // A missing zk section and a present one are different builds; treating
