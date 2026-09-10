@@ -181,14 +181,15 @@ run only on the branches that actually propose; a staging or testnet-only run, a
 
 `SAFE_PROPOSAL_TICKET` is the channel every path reads; `--ticket` is offered by
 `propose-to-safe.ts`, `propose-to-safe-tron.ts`, `unpauseAllDiamonds.ts` and
-`add-safe-owners-and-threshold.ts`. One path is environment-only by construction
-rather than by omission: the TS `sendOrPropose` is reached from
-`cleanUpProdDiamond.ts` through several positional hops, and the bash
-`sendOrPropose` chokepoint that fronts `propose-to-safe.ts` takes six positional
-arguments and forwards them wholesale, so a ticket has no slot to travel in
-either way. Both inherit the exported variable. Where flag and variable are both
-set the flag wins, and a valueless `--ticket` falls through to the variable
-rather than consuming the slot.
+`add-safe-owners-and-threshold.ts`. Two routes carry no flag of their own and so
+read the exported variable only: the bash `sendOrPropose` chokepoint, which
+takes six positional arguments and forwards them wholesale to
+`propose-to-safe.ts`, and `cleanUpProdDiamond.ts`, which reaches the TS
+`sendOrPropose` through several positional helpers. Neither is closed to one —
+`cleanUpProdDiamond.ts` already threads a signing-options object down the same
+hops — but until a flag is added there, export the variable. Where flag and
+variable are both set the flag wins, and a valueless `--ticket` falls through to
+the variable rather than consuming the slot.
 
 Entry points:
 
@@ -572,10 +573,10 @@ or change any. Restoring capability always requires the Safe.
 Both unpause routes are ordinary Safe proposals, so the mandatory ticket link
 applies unchanged: `export SAFE_PROPOSAL_TICKET=<url|TEAM-123>` before running
 `unpauseAllDiamonds.ts` or `diamondEMERGENCYPause.sh`. `unpauseAllDiamonds.ts`
-also takes `--ticket <url|TEAM-123>`; `diamondEMERGENCYPause.sh` goes through the
-bash `sendOrPropose` chokepoint, which has no slot for one, so there the exported
-variable is the only channel. An incident is when the record matters most, and
-the cost is one `export` before anything is signed. The check runs at each script's
+also takes `--ticket <url|TEAM-123>`; `diamondEMERGENCYPause.sh` has no flag of
+its own, so there the exported variable is the only channel. An incident is when
+the record matters most, and the cost is one `export` before anything is signed.
+The check runs at each script's
 entry rather than only in `storeTransactionInMongoDB`, because the funnel check
 alone spends a signature per network before refusing — and on
 `unpauseAllDiamonds.ts` the per-network `catch` then swallows the refusal, so a

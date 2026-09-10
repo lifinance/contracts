@@ -30,9 +30,8 @@ const TIMEOUT_MS = 20_000
  * accepts one through and which helper it refuses in.
  *
  * Named by what may proceed: a funnel absent from this table is not exempt, it
- * is unclassified, and the last case fails on it. `flag: false` is a claim about
- * the caller, not a preference — a path whose arguments are forwarded
- * positionally has nowhere to put one.
+ * is unclassified, and the last case fails on it. `flag: false` records which
+ * channel a funnel offers today, not which one it could offer.
  */
 const FUNNELS = [
   { script: 'deploy/safe/propose-to-safe.ts', flag: true, asserts: false },
@@ -43,9 +42,8 @@ const FUNNELS = [
   },
   { script: 'deploy/tron/propose-to-safe-tron.ts', flag: true, asserts: true },
   { script: 'tasks/unpauseAllDiamonds.ts', flag: true, asserts: true },
-  // Reached from `cleanUpProdDiamond.ts` through several positional hops; the
-  // exported variable is the whole channel, as `MultisigSigningProcess.md` §4.2
-  // states.
+  // Its only caller, `cleanUpProdDiamond.ts`, declares no `--ticket`, so the
+  // exported variable is the whole channel — `MultisigSigningProcess.md` §4.2.
   { script: 'safe/safeScriptHelpers.ts', flag: false, asserts: true },
 ] as const
 
