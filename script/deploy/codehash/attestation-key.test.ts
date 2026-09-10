@@ -1,18 +1,15 @@
 /**
  * What the attestation key has to identify, and what it must never merge.
  *
- * The gate looks a build up by this key, so any input the key omits lets two
- * different builds share one entry — and the set-membership compare then
- * answers about a build the deployed code is not. Each test here names one
- * input and shows the key separates on it. The mirror matters as much: an input
- * that cannot change the bytecode must NOT separate, or one build is filed
- * under two keys and a lookup misses a build we made.
+ * Each test names one input and shows the key separates on it. The mirror
+ * matters as much: an input that cannot change the bytecode must NOT separate,
+ * or one build is filed under two keys and a lookup misses a build we made.
  */
 // eslint-disable-next-line import/no-unresolved
 import { describe, expect, it } from 'bun:test'
 
 import {
-  buildSettingsHash,
+  artifactSettingsHash,
   configuredSettingsHash,
   findAttestationConflicts,
   identityFromArtifactMetadata,
@@ -23,10 +20,10 @@ import {
 } from './attestation-key'
 
 /**
- * Verbatim `metadata.settings` of a real `out/` artifact. All 193 in a real
- * tree carry exactly this shape — note there is no `viaIR` key: solc emits it
- * only when the IR pipeline ran. `jq '{viaIR}'` renders that absence as
- * `null`, which is why the `null` reading is easy to reach and wrong.
+ * Verbatim `metadata.settings` of a real `out/` artifact. All 190 artifacts
+ * carrying metadata in a real tree have exactly this shape — note there is no
+ * `viaIR` key: solc emits it only when the IR pipeline ran, and `jq '{viaIR}'`
+ * renders that absence as `null`, which is why the `null` reading is wrong.
  */
 const ARTIFACT_SETTINGS: Record<string, unknown> = {
   remappings: ['ds-test/=lib/forge-std/lib/ds-test/src/'],
@@ -37,46 +34,68 @@ const ARTIFACT_SETTINGS: Record<string, unknown> = {
   libraries: {},
 }
 
+const HASHED_SETTINGS = {
+  optimizer: { enabled: true, runs: 1000000 },
+  metadata: { bytecodeHash: 'ipfs' },
+  evmVersion: 'cancun',
+  libraries: {},
+}
+
+const CLOSURE_A = sourceClosureHash([
+  { path: 'src/Facets/CBridgeFacet.sol', keccak: `0x${'11'.repeat(32)}` },
+  { path: 'src/Helpers/SwapperV2.sol', keccak: `0x${'22'.repeat(32)}` },
+])
+/** The same closure with only the inherited helper changed. */
+const CLOSURE_SWAPPER_BUMPED = sourceClosureHash([
+  { path: 'src/Facets/CBridgeFacet.sol', keccak: `0x${'11'.repeat(32)}` },
+  { path: 'src/Helpers/SwapperV2.sol', keccak: `0x${'33'.repeat(32)}` },
+])
+
 const EVM: IAttestationKey = {
   contractName: 'CBridgeFacet',
   sourceId: 'src/Facets/CBridgeFacet.sol',
-  repo: 'contracts',
   version: '1.2.0',
-  settingsHash: buildSettingsHash('artifact', ARTIFACT_SETTINGS),
+  closureHash: CLOSURE_A,
+  settingsHash: artifactSettingsHash(ARTIFACT_SETTINGS),
   settingsSource: 'artifact',
   solcVersion: '0.8.29',
 }
 
-/** Named separately so the tests below can vary one version without a cast. */
 const ZK_TOOLCHAIN = {
   zksolcVersion: '1.5.15',
   solcForkVersion: '0.8.29',
   llvmVersion: '1.0.2',
 }
 
-const ZK: IAttestationKey = { ...EVM, zk: ZK_TOOLCHAIN }
+/**
+ * zksolc reports no settings, so a zk key is `config`-tagged by construction —
+ * an `artifact`-tagged zk key is a build that cannot exist.
+ */
+const ZK: IAttestationKey = {
+  ...EVM,
+  settingsHash: configuredSettingsHash(ARTIFACT_SETTINGS),
+  settingsSource: 'config',
+  zk: ZK_TOOLCHAIN,
+}
 
 const HASH_A = `0x${'aa'.repeat(32)}`
 const HASH_B = `0x${'bb'.repeat(32)}`
-const CLOSURE_A = `0x${'11'.repeat(32)}`
-const CLOSURE_B = `0x${'22'.repeat(32)}`
 
-const BUILD = { profile: 'default', settings: ARTIFACT_SETTINGS }
+const EVM_BUILD = {
+  repo: 'contracts' as const,
+  profile: 'default',
+  hashedSettings: HASHED_SETTINGS,
+}
+const ZK_BUILD = { ...EVM_BUILD, profile: 'zksync' }
 
 const minted = (
   key: IAttestationKey,
   maskedHash: string,
-  closure = CLOSURE_A
-): IMintedAttestation => ({
-  key,
-  build: BUILD,
-  maskedHash,
-  sourceClosureHash: closure,
-})
+  build = EVM_BUILD
+): IMintedAttestation => ({ key, build, maskedHash })
 
-/** The artifact settings with one field changed, as a producer would see it. */
 const settingsWith = (patch: Record<string, unknown>): string =>
-  buildSettingsHash('artifact', { ...ARTIFACT_SETTINGS, ...patch })
+  artifactSettingsHash({ ...ARTIFACT_SETTINGS, ...patch })
 
 describe('serialiseAttestationKey', () => {
   it('separates on every input that can change the bytecode', () => {
@@ -84,8 +103,8 @@ describe('serialiseAttestationKey', () => {
     const differing: [string, IAttestationKey][] = [
       ['contract name', { ...EVM, contractName: 'CBridgeFacetV2' }],
       ['source id', { ...EVM, sourceId: 'src/Periphery/CBridgeFacet.sol' }],
-      ['repo', { ...EVM, repo: 'contracts-tron' }],
       ['version', { ...EVM, version: '1.2.1' }],
+      ['source closure', { ...EVM, closureHash: CLOSURE_SWAPPER_BUMPED }],
       ['solc version', { ...EVM, solcVersion: '0.8.30' }],
       [
         'settings',
@@ -97,6 +116,20 @@ describe('serialiseAttestationKey', () => {
 
     for (const [what, key] of differing)
       expect(serialiseAttestationKey(key), what).not.toBe(base)
+  })
+
+  it('separates a facet whose bytecode moved because a helper it inherits did', () => {
+    // Commit 4cfabbf22 bumped SwapperV2 alone. The 31 facets inheriting it all
+    // changed bytecode while keeping their own file, version and settings, so
+    // every field but the closure hash is identical across the two builds.
+    const before = { ...EVM, closureHash: CLOSURE_A }
+    const after = { ...EVM, closureHash: CLOSURE_SWAPPER_BUMPED }
+
+    expect(before.version).toBe(after.version)
+    expect(before.settingsHash).toBe(after.settingsHash)
+    expect(serialiseAttestationKey(after)).not.toBe(
+      serialiseAttestationKey(before)
+    )
   })
 
   it('separates two zk builds that differ only below zksolc', () => {
@@ -117,30 +150,27 @@ describe('serialiseAttestationKey', () => {
   })
 
   it('gives an EVM build a key a zk build cannot reach', () => {
-    // The absent zk section is written as a marker, not skipped: a key that
-    // shortens when a field is missing is a key two builds can share.
     expect(serialiseAttestationKey(EVM)).toContain('3:evm')
     expect(serialiseAttestationKey(ZK)).not.toContain('3:evm')
   })
 
-  it('files one build under one key when the settings hash drifts in case', () => {
+  it('files one build under one key when a hash drifts in case', () => {
     expect(
       serialiseAttestationKey({
         ...EVM,
+        closureHash: EVM.closureHash.toUpperCase(),
         settingsHash: EVM.settingsHash.toUpperCase(),
       })
     ).toBe(serialiseAttestationKey(EVM))
   })
 
   it('fixes the field order itself rather than taking the object literal order', () => {
-    // A serialiser reading the object's own key order would give one build two
-    // keys, depending on how the caller happened to construct it.
     const reordered: IAttestationKey = {
       solcVersion: EVM.solcVersion,
       settingsSource: EVM.settingsSource,
       settingsHash: EVM.settingsHash,
+      closureHash: EVM.closureHash,
       version: EVM.version,
-      repo: EVM.repo,
       sourceId: EVM.sourceId,
       contractName: EVM.contractName,
     }
@@ -149,16 +179,31 @@ describe('serialiseAttestationKey', () => {
       serialiseAttestationKey(EVM)
     )
   })
+
+  it('refuses a key whose hashes are not keccak digests', () => {
+    // The key's own hashes were the only ones in this module reaching the
+    // serialiser unvalidated, so nonsense became a plausible-looking key field.
+    expect(() =>
+      serialiseAttestationKey({ ...EVM, settingsHash: 'nope' })
+    ).toThrow('settings hash is not hex in the key for CBridgeFacet')
+    expect(() =>
+      serialiseAttestationKey({ ...EVM, closureHash: '0xdeadbeef' })
+    ).toThrow('source closure hash is not 32 bytes')
+    expect(() =>
+      serialiseAttestationKey({ ...EVM, settingsHash: '0x' })
+    ).toThrow('settings hash is empty')
+  })
 })
 
-describe('buildSettingsHash', () => {
+describe('settings hashing', () => {
   it('covers a setting no field list names', () => {
-    // The whole reason for hashing rather than enumerating: these three change
-    // the bytecode and no key field mentions any of them.
+    // The reason for hashing rather than enumerating: each of these changes the
+    // bytecode and no key field mentions any of them.
     for (const patch of [
       { optimizer: { runs: 1000000, details: { yul: false } } },
       { metadata: { bytecodeHash: 'none' } },
-      { metadata: { bytecodeHash: 'ipfs', appendCBOR: false } },
+      { metadata: { bytecodeHash: 'none', appendCBOR: false } },
+      { debug: { revertStrings: 'strip' } },
       {
         libraries: {
           'src/L.sol': { L: '0x0000000000000000000000000000000000000001' },
@@ -171,18 +216,42 @@ describe('buildSettingsHash', () => {
   })
 
   it('does not separate on the order the compiler emitted the settings', () => {
-    // Key order is an artefact of the emitter, so a hash that depended on it
-    // would file one build under two keys.
     const reversed = Object.fromEntries(
       Object.entries(ARTIFACT_SETTINGS).reverse()
     )
 
-    expect(buildSettingsHash('artifact', reversed)).toBe(EVM.settingsHash)
+    expect(artifactSettingsHash(reversed)).toBe(EVM.settingsHash)
+  })
+
+  it('does not separate on the order of a nested settings object', () => {
+    // Real settings are nested (`optimizer`, `metadata`, `libraries`), and the
+    // config path is where a differently-ordered object comes from, so sorting
+    // only the top level would still file one build under two keys.
+    expect(settingsWith({ optimizer: { runs: 1000000, enabled: true } })).toBe(
+      EVM.settingsHash
+    )
+    expect(
+      settingsWith({
+        libraries: { 'src/L.sol': { B: '0x02', A: '0x01' } },
+      })
+    ).toBe(
+      settingsWith({
+        libraries: { 'src/L.sol': { A: '0x01', B: '0x02' } },
+      })
+    )
+  })
+
+  it('separates on the order of a settings array', () => {
+    // Arrays are ordered content, not emitter noise: `optimizerSteps` is a
+    // sequence, so sorting or ignoring it would merge two different builds.
+    expect(
+      settingsWith({ optimizer: { details: { optimizerSteps: ['a', 'b'] } } })
+    ).not.toBe(
+      settingsWith({ optimizer: { details: { optimizerSteps: ['b', 'a'] } } })
+    )
   })
 
   it('reads an absent setting and an explicitly null one as the same build', () => {
-    // solc omits `viaIR` for a legacy build; a JSON reader that fills absent
-    // keys hands over null. Both describe one build.
     expect(settingsWith({ viaIR: null })).toBe(EVM.settingsHash)
   })
 
@@ -190,11 +259,7 @@ describe('buildSettingsHash', () => {
     expect(settingsWith({ viaIR: true })).not.toBe(EVM.settingsHash)
   })
 
-  it('ignores the fields that describe the source rather than the settings', () => {
-    // `compilationTarget` is the source identity and is carried as `sourceId`;
-    // remappings decide what an import resolves to, and the resolved sources
-    // are covered by the closure hash. Hashing either would split the key for
-    // identical bytecode.
+  it('ignores the fields that name the source rather than the settings', () => {
     expect(
       settingsWith({
         compilationTarget: { 'src/Other.sol': 'Other' },
@@ -209,11 +274,23 @@ describe('buildSettingsHash', () => {
     expect(configuredSettingsHash(ARTIFACT_SETTINGS)).not.toBe(EVM.settingsHash)
   })
 
+  it('cannot be made to produce a self-reported hash from configured values', () => {
+    // The tag follows from which reader was used; no exported entry point lets
+    // a caller choose it, so these are the only two hashes reachable.
+    const both = new Set([
+      artifactSettingsHash(ARTIFACT_SETTINGS),
+      configuredSettingsHash(ARTIFACT_SETTINGS),
+    ])
+
+    expect(both.size).toBe(2)
+  })
+
   it('refuses settings that identify no build', () => {
-    expect(() => buildSettingsHash('artifact', {})).toThrow('empty')
-    // Everything present was stripped, so there is nothing left to identify.
+    expect(() => artifactSettingsHash({})).toThrow('empty')
+    expect(() => configuredSettingsHash({})).toThrow('empty')
+    // Everything present was stripped, so nothing is left to identify.
     expect(() =>
-      buildSettingsHash('artifact', { compilationTarget: {}, remappings: [] })
+      artifactSettingsHash({ compilationTarget: {}, remappings: [] })
     ).toThrow('empty')
   })
 })
@@ -224,12 +301,7 @@ describe('identityFromArtifactMetadata', () => {
       sourceId: 'src/Facets/CBridgeFacet.sol',
       settingsHash: EVM.settingsHash,
       settingsSource: 'artifact',
-      settings: {
-        optimizer: { enabled: true, runs: 1000000 },
-        metadata: { bytecodeHash: 'ipfs' },
-        evmVersion: 'cancun',
-        libraries: {},
-      },
+      hashedSettings: HASHED_SETTINGS,
     })
   })
 
@@ -291,11 +363,9 @@ describe('sourceClosureHash', () => {
   })
 
   it('separates two closures a delimiter-joined hash would merge', () => {
-    // Fields are length-prefixed, not delimited, so a path cannot contain the
-    // boundary and impersonate the next pair. Both of these flatten to the same
-    // character sequence under any single-character delimiter, and to different
-    // ones here. This is the property that does not rest on an assumption about
-    // what a source path may contain.
+    // Both of these flatten to the same character sequence under any
+    // single-character delimiter, and to different ones here — the property
+    // that does not rest on an assumption about what a source path contains.
     const split = sourceClosureHash([
       { path: 'A', keccak: HASH_A },
       { path: 'B', keccak: HASH_B },
@@ -308,8 +378,6 @@ describe('sourceClosureHash', () => {
   })
 
   it('refuses a closure that names one path twice with different hashes', () => {
-    // Picking a winner would hash a closure that was never compiled, so the
-    // audit bridge would vouch for source the build did not use.
     expect(() =>
       sourceClosureHash([
         { path: 'src/Facets/A.sol', keccak: HASH_A },
@@ -338,10 +406,8 @@ describe('sourceClosureHash', () => {
   })
 
   it('refuses a source hash that is not a keccak digest', () => {
-    // Without this an unset or garbled hash hashes into the closure without
-    // complaint, and the audit bridge points at a plausible-looking digest of
-    // nonsense. The wrong-length cases are the realistic ones — a sliced hash,
-    // or an address in a hash slot — and a framing check alone accepts them.
+    // The wrong-length cases are the realistic corruptions — a sliced hash, or
+    // an address in a hash slot — and a framing check alone accepts them.
     for (const keccak of [
       '',
       '0x',
@@ -358,8 +424,6 @@ describe('sourceClosureHash', () => {
   })
 
   it('refuses an entry that names no path', () => {
-    // The path is the other half of the pair, and a nameless entry silently
-    // becomes a closure member no audit can be traced back to.
     expect(() => sourceClosureHash([{ path: '', keccak: HASH_A }])).toThrow(
       'no path'
     )
@@ -378,8 +442,8 @@ describe('findAttestationConflicts', () => {
   })
 
   it('reports the hashes in the order found, not sorted', () => {
-    // The field is documented as first-seen order, and every other fixture
-    // here happens to feed ascending hashes, where a sort is indistinguishable.
+    // Every other fixture here feeds ascending hashes, where a sort is
+    // indistinguishable from insertion order.
     const conflicts = findAttestationConflicts([
       minted(EVM, HASH_B),
       minted(EVM, HASH_A),
@@ -389,8 +453,6 @@ describe('findAttestationConflicts', () => {
   })
 
   it('names the build readably, not only as a digest', () => {
-    // A signer has to refuse on this, so the refusal has to say which settings
-    // without a human reversing a hash.
     const [conflict] = findAttestationConflicts([
       minted(EVM, HASH_A),
       minted(EVM, HASH_B),
@@ -398,20 +460,31 @@ describe('findAttestationConflicts', () => {
 
     expect(conflict?.key).toEqual(EVM)
     expect(conflict?.serialisedKey).toBe(serialiseAttestationKey(EVM))
-    expect(conflict?.build.profile).toBe('default')
-    expect(conflict?.build.settings).toEqual(ARTIFACT_SETTINGS)
+    expect(conflict?.build.hashedSettings).toEqual(HASHED_SETTINGS)
   })
 
-  it('reports one bytecode attested from two different source closures', () => {
-    // As disqualifying as the reverse: the audit bridge then points at two
-    // different bodies of source for one build.
-    const conflicts = findAttestationConflicts([
-      minted(EVM, HASH_A, CLOSURE_A),
-      minted(EVM, HASH_A, CLOSURE_B),
+  it('reports the provenance of the first attestation, not the last', () => {
+    const [conflict] = findAttestationConflicts([
+      minted(EVM, HASH_A, { ...EVM_BUILD, profile: 'default' }),
+      minted(EVM, HASH_B, { ...EVM_BUILD, profile: 'ci' }),
     ])
 
-    expect(conflicts).toHaveLength(1)
-    expect(conflicts[0]?.sourceClosureHashes).toEqual([CLOSURE_A, CLOSURE_B])
+    expect(conflict?.build.profile).toBe('default')
+  })
+
+  it('hands back a refusal a caller can annotate without touching the input', () => {
+    const attestation = minted(EVM, HASH_A)
+    const [conflict] = findAttestationConflicts([
+      attestation,
+      minted(EVM, HASH_B),
+    ])
+
+    expect(conflict?.build.hashedSettings).not.toBe(
+      attestation.build.hashedSettings
+    )
+    ;(conflict?.build.hashedSettings as Record<string, unknown>)['evmVersion'] =
+      'annotated'
+    expect(attestation.build.hashedSettings['evmVersion']).toBe('cancun')
   })
 
   it('does not report the same hash written in different case', () => {
@@ -425,8 +498,7 @@ describe('findAttestationConflicts', () => {
 
   it('does not report the same build attested twice', () => {
     // Paired present: CI and a local rebuild filing identical results is the
-    // expected state, not a conflict, so this is what stops the check from
-    // simply refusing everything.
+    // expected state, so this is what stops the check refusing everything.
     expect(
       findAttestationConflicts([minted(EVM, HASH_A), minted(EVM, HASH_A)])
     ).toEqual([])
@@ -436,28 +508,26 @@ describe('findAttestationConflicts', () => {
     // `[profile.ci]` inherits `[profile.default]` and differs only in fuzz
     // settings, so the two compile to the same bytes. The profile is carried as
     // provenance and not hashed into the key, so this is one entry.
-    const underCi: IMintedAttestation = {
-      ...minted(EVM, HASH_A),
-      build: { profile: 'ci', settings: ARTIFACT_SETTINGS },
-    }
-
-    expect(findAttestationConflicts([minted(EVM, HASH_A), underCi])).toEqual([])
-  })
-
-  it('does not report two builds that differ only in their key', () => {
-    // The zk build and the EVM build legitimately have different bytecode;
-    // they are separate entries, not a contradiction.
     expect(
-      findAttestationConflicts([minted(EVM, HASH_A), minted(ZK, HASH_B)])
+      findAttestationConflicts([
+        minted(EVM, HASH_A),
+        minted(EVM, HASH_A, { ...EVM_BUILD, profile: 'ci' }),
+      ])
     ).toEqual([])
   })
 
-  it('refuses an attestation whose hashes are not keccak digests', () => {
+  it('does not report two builds that differ only in their key', () => {
+    expect(
+      findAttestationConflicts([
+        minted(EVM, HASH_A),
+        minted(ZK, HASH_B, ZK_BUILD),
+      ])
+    ).toEqual([])
+  })
+
+  it('refuses an attestation whose masked hash is not a keccak digest', () => {
     expect(() => findAttestationConflicts([minted(EVM, 'nope')])).toThrow(
       'masked hash is not hex in the attestation for CBridgeFacet'
-    )
-    expect(() => findAttestationConflicts([minted(EVM, HASH_A, '0x')])).toThrow(
-      'source closure hash is empty'
     )
     expect(() => findAttestationConflicts([minted(EVM, '0xdeadbeef')])).toThrow(
       'masked hash is not 32 bytes'
