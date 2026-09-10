@@ -61,7 +61,8 @@ export interface IDeclaredImmutableGetter {
  * getter no longer exists, so the list cannot quietly accumulate and misrepresent how much of
  * the fleet is verified. Annotating the binding is always the preferred fix; add an entry here
  * only when no config file holds a value to compare against, or when the invariant cannot
- * express the expectation — in which case the reason names the blocking ticket.
+ * express the expectation — in which case the reason names the blocking ticket, which review
+ * enforces rather than this function.
  */
 export const EXEMPTIONS_PATH = 'script/deploy/immutables/getter-exemptions.json'
 
