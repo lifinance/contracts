@@ -127,11 +127,14 @@ const settingsHashTagged = (
   source: SettingsSource,
   settings: Record<string, unknown>
 ): string => {
-  const hashable = hashableSettings(settings)
-  if (Object.keys(hashable).length === 0)
+  // Judged on the canonical form, not the surviving key count: `canonicalJson`
+  // drops null values, so an object of nothing but nulls has keys to count and
+  // still canonicalises to `{}` — and every such object would share one hash.
+  const canonical = canonicalJson(hashableSettings(settings))
+  if (canonical === '{}')
     throw new Error('build settings are empty, so they identify no build')
 
-  return keccak256(stringToHex(joinFields([source, canonicalJson(hashable)])))
+  return keccak256(stringToHex(joinFields([source, canonical])))
 }
 
 /**

@@ -339,6 +339,20 @@ describe('settings hashing', () => {
       artifactSettingsHash({ compilationTarget: {}, remappings: [] })
     ).toThrow('empty')
   })
+
+  it('refuses settings that canonicalise away to nothing', () => {
+    // These have keys to count, so a count check passes them, and then every
+    // value is dropped as null — two unrelated objects would share one hash.
+    for (const settings of [
+      { evmVersion: null, optimizer: null },
+      { viaIR: null, libraries: null, metadata: null },
+      { compilationTarget: { 'src/A.sol': 'A' }, evmVersion: null },
+    ])
+      expect(
+        () => artifactSettingsHash(settings),
+        JSON.stringify(settings)
+      ).toThrow('empty')
+  })
 })
 
 describe('identityFromArtifactMetadata', () => {
