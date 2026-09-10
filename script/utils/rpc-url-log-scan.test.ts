@@ -82,6 +82,15 @@ describe('no shipped script logs a raw RPC endpoint', () => {
     for (const path of EXEMPT.keys()) expect(scanned).toContain(path)
   })
 
+  // Pinned by VALUE for the same reason as the vocabulary below: a widened exemption would
+  // otherwise carry its own test with it and silence a real leak in that file.
+  it('pins the exempted identifiers', () => {
+    expect(
+      [...EXEMPT].map(([path, { identifiers }]) => [path, identifiers])
+    ).toEqual([['script/demoScripts/demoPaxosTransit.ts', ['RPC_URL']]])
+    for (const { why } of EXEMPT.values()) expect(why.length).toBeGreaterThan(0)
+  })
+
   it('an exempted file is still scanned for everything it did not exempt', () => {
     // The one exempted file also reads ETH_NODE_URI_MAINNET for its anvil fork. A whole-file
     // skip would hide a credential-bearing log added there later.
