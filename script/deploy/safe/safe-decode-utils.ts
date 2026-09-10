@@ -38,7 +38,6 @@ import {
   fieldNotice,
   MAX_FIELD_CHARS,
   printableField,
-  UNBOUNDED,
 } from './printable-field'
 import { decodeDiamondCut } from './safe-utils'
 import {
@@ -464,30 +463,20 @@ function getDiamondAbiItemForSelector(selector: string): Abi[number] | null {
   return null
 }
 
-/** The shape a decoded argument has when it is a payload rather than a label. */
-const HEX_PAYLOAD = /^0x[0-9a-fA-F]*$/u
-
-/**
- * How long a decoded argument may be before it is clipped.
- *
- * A hex payload is what the signature covers, so its length is its own
- * disclosure and clipping it would hide the thing being approved — the same
- * reason the calldata field is unbounded. Anything else is a name or a label,
- * where a value past the bound is a terminal flood rather than information: a
- * 500,000-character periphery name pushed the target address and the
- * matches-deployments verdict off the screen entirely.
- * @param value - The decoded scalar, already stringified
- * @returns The code-point bound to render it under
- */
-const scalarBound = (value: string): number =>
-  HEX_PAYLOAD.test(value) ? UNBOUNDED : MAX_FIELD_CHARS
-
 /**
  * One decoded scalar as printable text plus whatever that cost.
  *
  * A `string` ABI argument of a legitimately encoded call is arbitrary text the
  * proposer chose — `registerPeripheryContract(string,address)` decodes cleanly
  * with an ESC in its name — so it cannot reach the operator's terminal raw.
+ *
+ * Bounded whatever the value looks like. A decoded argument is never the thing
+ * clipping would hide: the bytes under the signature are printed unclipped as
+ * the `Data:` field, so a clipped argument is still readable in full one screen
+ * up. Deciding the bound from the value's shape instead cannot tell a `bytes`
+ * payload from a `string` that happens to be hex, which left every `string`
+ * argument — `getPeripheryContract(string)`, a bridge facet's `_integrator` —
+ * able to flood the prompt without carrying an escape sequence.
  * @param value - The decoded scalar
  * @param network - When set, an address is rendered in the network's format
  * @returns The text to print and the notice describing any repair
@@ -508,7 +497,7 @@ function renderScalarArg(
       )}${tronHexSuffix(network, value)}`,
       notice: '',
     }
-  return asPrintable(value, scalarBound(value))
+  return asPrintable(value, MAX_FIELD_CHARS)
 }
 
 /**

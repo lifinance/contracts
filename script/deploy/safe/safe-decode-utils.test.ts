@@ -421,13 +421,17 @@ describe('formatDecodedTxDataForDisplay renders no proposer-controlled text raw'
     expect(nameLine).toContain('clipped for display')
   })
 
-  it('leaves a hex payload argument whole', async () => {
-    // Paired present, and the reason the bound is by shape rather than blanket:
-    // a hex payload is what the signature covers, so its length is its own
-    // disclosure and clipping it would hide the thing being approved.
+  it('bounds a hex-shaped argument like any other', async () => {
+    // A bound decided from the value's shape cannot tell a `bytes` payload from
+    // a `string` that happens to be hex, so it left every `string` argument
+    // able to flood the prompt. 120 written out: the bound is the claim.
     const long = `0x${'ab'.repeat(400)}`
-    expect(formatDecodedArg(long)).toContain(long.slice(2).toLowerCase())
-    expect(formatDecodedArg(long)).not.toContain('clipped for display')
+    const rendered = formatDecodedArg(long)
+
+    expect([...rendered.slice(0, rendered.indexOf('\u001b'))].length).toBe(120)
+    expect(rendered).toContain('clipped for display — stored 802, shown 120')
+    // Nothing is lost: the bytes under the signature print unclipped as `Data:`.
+    expect(rendered).not.toContain('ab'.repeat(400))
   })
 
   it('does not vouch for a name the calldata does not contain', async () => {
