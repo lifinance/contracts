@@ -171,7 +171,7 @@ function handleNetwork() {
         return 0
     else
         # Handle other RPC or network errors
-        error "[network: $NETWORK] RPC or network error while checking if diamond is paused: $RESPONSE"
+        error "[network: $NETWORK] RPC or network error while checking if diamond is paused: $(redactRpcUrl "$RESPONSE")"
     fi
   fi
 

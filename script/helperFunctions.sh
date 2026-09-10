@@ -5300,7 +5300,7 @@ function handleForgeScriptError() {
       warning "forge script returned exit code 0 but with unexpected/empty return data${NETWORK_MSG}${ATTEMPT_MSG}"
     fi
     if [[ -n "${STDERR_CONTENT:-}" ]]; then
-      error "stderr: ${STDERR_CONTENT}"
+      error "stderr: $(redactRpcUrl "${STDERR_CONTENT}")"
     fi
     if [[ -z "${RAW_RETURN_DATA:-}" || "${RAW_RETURN_DATA:-}" == "" ]]; then
       warning "No JSON output received. This usually indicates a connection/RPC error."
@@ -6072,7 +6072,7 @@ function estimatePauseCost() {
       return 2
     fi
     if [[ $ATTEMPT -ge $ESTIMATE_MAX_ATTEMPTS ]]; then
-      error "estimatePauseCost: cast estimate failed for $NETWORK after $ESTIMATE_MAX_ATTEMPTS attempts: ${CAST_ERR:-non-numeric gas estimate ($GAS_ESTIMATE)}" >&2
+      error "estimatePauseCost: cast estimate failed for $NETWORK after $ESTIMATE_MAX_ATTEMPTS attempts: $(redactRpcUrl "${CAST_ERR:-non-numeric gas estimate ($GAS_ESTIMATE)}")" >&2
       return 1
     fi
     sleep "$ESTIMATE_RETRY_SLEEP_SECONDS"

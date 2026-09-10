@@ -450,7 +450,7 @@ function handleNetwork() {
     FINAL_ATTEMPT=$((FINAL_ATTEMPT + 1))
   done
 
-  bgError "[network: $NETWORK] final pause check failed after $RPC_MAX_ATTEMPTS attempts - please check diamond ($DIAMOND_ADDRESS) manually (last response: $FINAL_RESPONSE)"
+  bgError "[network: $NETWORK] final pause check failed after $RPC_MAX_ATTEMPTS attempts - please check diamond ($DIAMOND_ADDRESS) manually (last response: $(bgRedactUrl "$FINAL_RESPONSE"))"
   echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
   return 1
 }
@@ -491,7 +491,7 @@ function printStatus() {
   elif [[ "$RESPONSE" =~ ^0x[0-9a-fA-F]{40}$ ]] || [[ "$RESPONSE" == T* ]]; then
     bgError "[network: $NETWORK] diamond NOT paused."
   else
-    bgError "[network: $NETWORK] RPC/network error while checking pause state: $RESPONSE"
+    bgError "[network: $NETWORK] RPC/network error while checking pause state: $(bgRedactUrl "$RESPONSE")"
   fi
 }
 
