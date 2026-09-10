@@ -17,8 +17,8 @@
  * - A computed environment read, `process.env[name]` — the form three scripts here use.
  * - Anything needing dataflow: a value renamed, destructured to another name, or handed to a
  *   helper that logs it.
- * - A path in {@link EXEMPT}, which is whole-file rather than per-line, and anything outside the
- *   roots the caller passes.
+ * - The specific identifiers a path lists in {@link EXEMPT}; everything else in such a file is
+ *   still scanned. And anything outside the roots the caller passes.
  */
 import { type Dirent, readFileSync, readdirSync } from 'node:fs'
 import { join, relative } from 'node:path'
@@ -71,10 +71,16 @@ const REDACTORS = new Set(['redactUrls', 'redactErrorReason', 'hostOf'])
  * Sites that name an endpoint in a log deliberately. An entry is a standing exception to a
  * credential rule, so each carries its reason.
  */
-export const EXEMPT = new Map<string, string>([
+export const EXEMPT = new Map<
+  string,
+  { identifiers: readonly string[]; why: string }
+>([
   [
     'script/demoScripts/demoPaxosTransit.ts',
-    'prints the local anvil endpoint it starts itself (127.0.0.1), which carries no credential',
+    {
+      identifiers: ['RPC_URL'],
+      why: 'RPC_URL is the local anvil endpoint the demo starts itself (127.0.0.1), no credential',
+    },
   ],
 ])
 
@@ -183,7 +189,10 @@ export function scanForRawRpcUrlLogs(
     for (const abs of tsFilesUnder(join(repoRoot, r))) {
       const rel = relative(repoRoot, abs).replace(/\\/g, '/')
       scanned.push(rel)
-      if (EXEMPT.has(rel)) continue
+      // Per identifier, never per file: the one exempted file also holds a real
+      // `ETH_NODE_URI_MAINNET` for its anvil fork, so skipping the whole file would hide a
+      // credential-bearing log added to it later.
+      const exemptHere = EXEMPT.get(rel)?.identifiers ?? []
 
       let src: string
       try {
@@ -212,6 +221,7 @@ export function scanForRawRpcUrlLogs(
           !nowRedacted &&
           ts.isIdentifier(node) &&
           namesAnEndpoint(node.text) &&
+          !exemptHere.includes(node.text) &&
           !declaresRatherThanReads(node)
         )
           findings.push({

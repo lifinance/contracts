@@ -41,7 +41,7 @@ function withBashFns(
       ([file, fn]) =>
         // -E, not BRE: BSD sed has no `\\?`, so a basic-regex extraction silently matches nothing
         // and every test then fails with "command not found".
-        `eval "$(sed -nE '/^(function )?${fn}\\(\\) \\{/,/^\\}/p' ${file})"`
+        `source <(sed -nE '/^(function )?${fn}\\(\\) \\{/,/^\\}/p' ${file})`
     )
     .join('\n')
   return execFileSync(

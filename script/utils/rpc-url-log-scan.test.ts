@@ -82,6 +82,34 @@ describe('no shipped script logs a raw RPC endpoint', () => {
     for (const path of EXEMPT.keys()) expect(scanned).toContain(path)
   })
 
+  it('an exempted file is still scanned for everything it did not exempt', () => {
+    // The one exempted file also reads ETH_NODE_URI_MAINNET for its anvil fork. A whole-file
+    // skip would hide a credential-bearing log added there later.
+    const root = mkdtempSync(join(tmpdir(), 'rpc-log-scan-'))
+    try {
+      const roots = new Set<string>()
+      for (const [path, entry] of EXEMPT) {
+        mkdirSync(join(root, path.slice(0, path.lastIndexOf('/'))), {
+          recursive: true,
+        })
+        const exemptedLogs = entry.identifiers
+          .map((id) => `consola.info(\`\${${id}}\`)`)
+          .join('\n')
+        writeFileSync(
+          join(root, path),
+          `${exemptedLogs}\nconsola.warn(\`\${process.env.ETH_NODE_URI_MAINNET}\`)\n`
+        )
+        roots.add(path.slice(0, path.indexOf('/')))
+      }
+      const { findings } = scanForRawRpcUrlLogs(root, [...roots])
+      expect(findings.map((f) => f.identifier)).toEqual(
+        [...EXEMPT.keys()].map(() => 'ETH_NODE_URI_MAINNET')
+      )
+    } finally {
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
   it('reads test files but never reports them', () => {
     const root = mkdtempSync(join(tmpdir(), 'rpc-log-scan-'))
     try {
