@@ -25,6 +25,49 @@ export const TIMELOCK_SCHEDULE_BATCH_SELECTOR = toFunctionSelector(
 )
 
 /**
+ * `LiFiTimelockController` inherits OpenZeppelin's `TimelockController`, so the
+ * singular `schedule` is callable by the Safe even though this repo's tooling
+ * only ever emits `scheduleBatch`.
+ */
+export const TIMELOCK_SCHEDULE_ABI = parseAbi([
+  'function schedule(address target, uint256 value, bytes payload, bytes32 predecessor, bytes32 salt, uint256 delay)',
+])
+
+export const TIMELOCK_SCHEDULE_SELECTOR = toFunctionSelector(
+  'schedule(address,uint256,bytes,bytes32,bytes32,uint256)'
+)
+
+/**
+ * Whether either schedule selector appears in `data` on a byte boundary,
+ * anywhere.
+ *
+ * For a caller that has already ruled out both selectors at offset zero, a hit
+ * here means a schedule is reachable through an envelope that caller does not
+ * open. Alignment narrows the false-positive class without closing it — an
+ * address or other argument can carry the same four bytes at an even offset —
+ * and an envelope that splits or transforms the selector is not caught at all,
+ * so a hit is grounds to refuse rather than proof of intent.
+ * @param data - Calldata to search.
+ * @returns Whether a byte-aligned schedule selector is present.
+ */
+export const carriesTimelockScheduleSelector = (data: Hex): boolean => {
+  const body = data.slice(2).toLowerCase()
+  for (const selector of [
+    TIMELOCK_SCHEDULE_BATCH_SELECTOR,
+    TIMELOCK_SCHEDULE_SELECTOR,
+  ]) {
+    const needle = selector.slice(2).toLowerCase()
+    for (
+      let at = body.indexOf(needle);
+      at !== -1;
+      at = body.indexOf(needle, at + 1)
+    )
+      if (at % 2 === 0) return true
+  }
+  return false
+}
+
+/**
  * Reads used to pick a salt that will not collide with an existing operation.
  *
  * `hashOperationBatch` is read from the contract so the id cannot drift from the

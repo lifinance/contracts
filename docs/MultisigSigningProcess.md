@@ -451,7 +451,41 @@ signer sees:
    outside its scope and says so; a proposal with empty calldata prints no gate
    line, because there is nothing to judge.
 
-5. The action prompt: `Do Nothing` / `Sign` / `Sign & Execute` /
+5. **The proposal-integrity assertions** (`confirm-integrity-asserts.ts`),
+   asking of each proposal whether it is what its own record claims. The Safe's
+   own `getTransactionHash` must equal the stored `safeTxHash`; the Safe the
+   proposal is against must be the one `config/networks.json` names; every
+   stored signature must `ecrecover` to a current owner **and** to the address
+   it is filed under; the signed struct must be a `Call` with every field the
+   hash omits at zero and no field outside the struct at all; the target must be
+   an address this checkout can name — the configured Safe itself, or an entry
+   in the committed deployment log; and a timelock `schedule` must ask for at
+   least the live `getMinDelay()` of the committed `LiFiTimelockController`.
+
+   Signatures are recovered against the **recomputed** hash, never the stored
+   one: the proposer writes both the hash and the calldata, so signatures
+   checked against the stored value would verify against whatever transaction
+   the proposer chose to describe. For the same reason the signing client is
+   pointed at the Safe config names rather than at the address on the document —
+   every read a verdict rests on goes through that client. The document's claim
+   survives as a value to compare, which is what makes the comparison say
+   anything. Where config names no Safe for a network — today the testnets and
+   `localanvil`, never a production network — there is no reviewed anchor to
+   compare against, the client falls back to the document's own address, and the
+   assertion records the missing anchor and blocks rather than comparing that
+   address with itself.
+
+   Each verdict lands on a `check-ledger.ts` ledger, so that ledger's grading
+   rules apply without this module restating them: an integrity mismatch has no
+   acknowledgement path, and an anchor that may only *report* can never decide a
+   pass. That second rule is why a target only the deployment record names is
+   `UNVERIFIED` rather than green — the record is written by the deploying
+   process. A proposal whose assertions could not run at all is refused rather
+   than passed, and the refusal sits in the same two funnels the codehash gate
+   uses, immediately after it: one covering every signing route, one every
+   broadcast route, both ahead of the irreversible step.
+
+6. The action prompt: `Do Nothing` / `Sign` / `Sign & Execute` /
    `Sign and Execute With Deployer` / `Execute with Deployer`. The two
    deployer variants are the usual choice — see §2 on why the deployer
    wallet broadcasts. Selecting an action is itself the review
@@ -526,6 +560,7 @@ parked tasks are reconciled weekly by `reconcileParkedTasks.yml`.
 | Confirm | Full calldata decode: diamond cut, scheduleBatch, whitelist, periphery, roles; per-selector name resolution | Display / warn only | `safe-decode-utils.ts` (`formatDecodedTxDataForDisplay`) |
 | Confirm | To-be-added facet version, resolved from the deployment record (the MongoDB mirror under `.cache/`, which the deploy script writes before proposing) | Display only | `facet-version-utils.ts`, `safe-utils.ts` |
 | Confirm | Target state graded against `origin/main`, never the reviewer's checkout: the anchor is `git show origin/main:script/deploy/_targetState.json` after a fresh fetch of an explicit `+refs/heads/main:refs/remotes/origin/main` (git updates that ref only opportunistically, so a clone without a covering refspec would otherwise read a stale anchor with no error), read through `refs/remotes/origin/main` in full rather than the short name, which git resolves through tags and heads first, so a tag a proposer's clone carries cannot shadow the fetched ref. `origin` must be `github.com/lifinance/contracts` or the read refuses — a fork remote would let a proposer author the expected state; the URL is taken from `git remote get-url`, which applies any `insteadOf` rewrite and so reports where a fetch would really go. Which branch the reviewer happens to be on cannot change a verdict. Graded per case, not as one equality — an **upgrade of a facet `main` already targets** refuses a downgrade, a version pair that cannot be ordered, and a proposed version no deployment record resolves; a **first-time add** has no entry on `main` by construction (the target-state PR merges only after execution, so gating on it would deadlock) and is labeled "not previously targeted" with the count of networks already declaring that contract at that version, without blocking — intent there rests on the linked ticket and PR; a **removal** is reported only. The statuses that may proceed are named, so an unrecognised cut action, a cut whose calldata cannot be read, a facet address no deployment record names on that network (the same address on another chain is deliberately not consulted — the mirror carries one address as two different contracts across networks), a deployment record that contradicts itself about which contract or version an address is (the `(network, address)` pair is not unique in that cache — six such pairs today, two at genuinely different versions), an anchor read through the wrong remote, and an anchor that could not be refreshed all refuse. | Block (downgrade / unorderable / unresolved / unidentified / ambiguous record / unreadable / anchor unavailable) / label (first-time add) / report (removal) | `pinned-target-state.ts` + `diamond-cut-calls.ts`, gated in `confirm-safe-tx.ts` after the nonce gates and before the acknowledgement is recorded (EXSC-704) |
+| Confirm | Proposal integrity on the pending row: the `safeTxHash` recomputed from the signed struct, the Safe the proposal is against vs `config/networks.json`, every stored signature recovered against the recomputed hash (never the stored one, which the proposer writes), the fields the hash omits, the target, and the timelock delay. Each refusal carries a named anchor — `A-LOCAL` local data, `A-CHAIN` an on-chain read, `A-MONGO` the deployment record, `A-PROPOSAL` the proposal document, `A-UNRESOLVED` nothing to compare against — so the display says which assertion refused and on what evidence. An empty stored signature set refuses rather than passing: every writer stores a signature with the row, so an empty set is a row that lost them, not one awaiting them. Asserted on both the sign and the execute route, and the verdict is keyed to one transaction, so a run left over from the previous proposal cannot authorise this one. **Caveat on a Safe migration:** the check compares the proposal's Safe against the configured one, and `propose-to-safe.ts --safeAddress` deliberately proposes to a different Safe (granting `TIMELOCK_ADMIN_ROLE` to the new Safe from the old one, `playgroundHelpers.sh`). Flip `config/networks.json` to the new Safe **after** that proposal is signed and executed, or the migration proposal is unsignable | Block | `confirm-integrity-asserts.ts` (`runIntegrityAsserts` / `renderIntegrityAsserts`) on the `check-ledger.ts` result model, gated in `confirm-safe-tx.ts` after the codehash gate (EXSC-700) |
 | Confirm | Stale nonce blocks Execute; future nonce prompts | Block / prompt | `confirm-safe-tx.ts` |
 | Execute | Signature format + sorting; threshold gating of the Execute option | Block / hide option | `safe-utils.ts` |
 | Timelock exec | operationId re-derived from row params; timelock address vs deploy log; on-chain `isOperationReady`/`isOperationDone` | Block, mark failed | `execute-pending-timelock-tx.ts`, `timelock-queue.ts`, `confirm-timelock-execution.ts` |
@@ -548,8 +583,6 @@ Honest list — the tooling displays these, but does **not** machine-assert them
   labeled; the signer still has to judge them from the linked ticket and PR.
 - **Unknown targets.** `to`-address name resolution is display-only; an
   unknown target renders without a label — the absence is the only signal.
-- **The Safe itself.** The `safeAddress` comes from the proposal document and
-  is not cross-checked against `config/networks.json` at confirm time.
 - **Unknown selectors.** Names for selectors without a local ABI come from
   the external `api.4byte.sourcify.dev` database, displayed as-is.
 - **Execution outcome.** No simulation at review or sign time; the first
@@ -629,9 +662,6 @@ Design themes under discussion. Nothing below exists in the repo today:
 
 - **Provenance on proposals** — attach human identity, git commit/branch, and
   a PR link/description to each proposal, shown at signing.
-- **Integrity asserts + check report** — machine-assert what §6 leaves to the
-  signer (recomputed `safeTxHash`, `safeAddress` vs `config/networks.json`,
-  mismatches escalated from warn), summarized per proposal.
 - **Executability simulation** — simulate the Safe transaction and its inner
   timelock payload before signatures are collected.
 - **Bytecode ↔ audit attestation** — verify the deployed bytecode/commit
