@@ -146,7 +146,7 @@ function handleNetwork() {
   echoDebug "in function handleNetwork"
   echoDebug "NETWORK=$NETWORK"
   echoDebug "ACTION=$ACTION"
-  echoDebug "RPC_URL=$RPC_URL"
+  echoDebug "RPC_URL=$(redactRpcUrl "$RPC_URL")"
   echoDebug "DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
   echoDebug "FACET_CONTRACT_NAME=$FACET_CONTRACT_NAME"
   echoDebug "BLACKLIST=$BLACKLIST"

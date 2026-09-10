@@ -197,7 +197,7 @@ register() {
   echoDebug "DIAMOND=$DIAMOND"
   echoDebug "CONTRACT_NAME=$CONTRACT_NAME"
   echoDebug "ADDR=$ADDR"
-  echoDebug "RPC_URL=$RPC_URL"
+  echoDebug "RPC_URL=$(redactRpcUrl "$RPC_URL")"
   echoDebug "ENVIRONMENT=$ENVIRONMENT"
   echoDebug "GAS_ESTIMATE_MULTIPLIER=$GAS_ESTIMATE_MULTIPLIER (default value: 130, set in .env for example to 200 for doubling Foundry's estimate)"
   echo ""

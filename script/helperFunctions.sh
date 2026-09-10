@@ -1203,7 +1203,7 @@ function saveDiamondPeriphery() {
   echoDebug "ENVIRONMENT=$ENVIRONMENT"
   echoDebug "USE_MUTABLE_DIAMOND=$USE_MUTABLE_DIAMOND"
   echoDebug "FILE_SUFFIX=$FILE_SUFFIX"
-  echoDebug "RPC_URL=$RPC_URL"
+  echoDebug "RPC_URL=$(redactRpcUrl "$RPC_URL")"
   echoDebug "DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
   echoDebug "DIAMOND_FILE=$DIAMOND_FILE"
 
@@ -2177,6 +2177,13 @@ function extractFromVerificationOutput() {
 # argument (never over a joined string) so a key containing whitespace or a
 # newline cannot spill its tail past the substitution, and remaining arguments
 # are quoted with %q so their boundaries stay visible in the log.
+function redactRpcUrl() {
+  # Endpoint URLs carry the provider key in the path or query, so the value must never reach a
+  # log line verbatim. Callers that need the URL itself (getRPCUrl returns it on stdout) must
+  # not use this.
+  printf '%s' "$1" | sed -E 's#[a-zA-Z][a-zA-Z0-9+.-]*://[^[:space:]]+#[redacted-url]#g'
+}
+
 function redactVerifyCmd() {
   local PLACEHOLDER='***REDACTED***'
   local OUTPUT=''

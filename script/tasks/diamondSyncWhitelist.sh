@@ -312,7 +312,7 @@ function diamondSyncWhitelist {
 
     RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
-    echoSyncDebug "Using RPC URL: $RPC_URL"
+    echoSyncDebug "Using RPC URL: $(redactRpcUrl "$RPC_URL")"
     echoSyncDebug "Diamond address: $DIAMOND_ADDRESS"
 
     # Function to get contract-selector pairs from whitelist files (whitelist.json or whitelist.staging.json)

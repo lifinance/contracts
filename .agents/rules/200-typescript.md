@@ -119,7 +119,7 @@ Add comments only where the code doesn't speak for itself. Avoid restating what 
 
 `ETH_NODE_URI_*` embeds the provider key in the URL, so a log line naming the endpoint writes a live credential into every transcript of every run. Log the network name, or pass the URL through `redactUrls()` from `script/utils/redactUrls.ts`.
 
-`script/utils/rpc-url-log-scan.test.ts` enforces this over `script/` and `tasks/`. It matches a fixed vocabulary of identifiers (`rpcUrl`, `fullHost`, `ETH_NODE_URI*`, …), so it narrows the class rather than closing it — an endpoint held in a differently-named variable is still yours to redact.
+A test enforces this for the identifiers and log calls it knows about. It does not close the class: an endpoint held in a differently-named variable, or one embedded by viem in an `error.message`, is still yours to redact — pass the error through `redactErrorReason()`. In bash, use `redactRpcUrl` from `helperFunctions.sh`; nothing checks bash automatically.
 
 ## Testing
 

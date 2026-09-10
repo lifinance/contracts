@@ -1,22 +1,16 @@
 /**
- * Find log calls that put a raw RPC endpoint on screen.
+ * Finds log calls that put a raw RPC endpoint on screen.
  *
- * `ETH_NODE_URI_*` carries the provider key inside the URL, so one `consola.info(...)` naming the
- * endpoint publishes a live credential into every transcript that runs the script. An endpoint
- * reaches a log through `redactUrls()` or it does not reach one.
+ * `ETH_NODE_URI_*` embeds the provider key in the URL, so a log line naming the endpoint writes a
+ * live credential into every transcript of the run. Imported by `rpc-url-log-scan.test.ts`, which
+ * fails when a new such site appears under `script/` or `tasks/`.
  *
- * Two limits, stated because a reader will otherwise assume they are not there:
- *
- * 1. The reach is {@link RPC_IDENTIFIERS}. An endpoint laundered through a variable named
- *    something else is invisible, so this narrows the class rather than closing it.
- * 2. It reads text, not an AST — a TypeScript-aware parser is not usable here (the repo's
- *    `typescript` is the Go port, whose JS compiler API is absent, and `oxc-parser` segfaults the
- *    runtime on these files). What makes the text scan trustworthy is {@link blankNonCode}: the
- *    only three ways this repo mentions an endpoint innocently — a doc comment, a help string and
- *    an object key — are removed structurally before anything is matched, and each is covered by
- *    a case in the test.
+ * What it does NOT reach, so nobody mistakes a green run for a closed class:
+ * bash (`.sh` is not walked), endpoints embedded in an error object's `message` by viem or
+ * tronweb, identifiers outside {@link RPC_IDENTIFIERS}, and log surfaces outside
+ * {@link LOG_METHODS}.
  */
-import { readdirSync, readFileSync, statSync } from 'node:fs'
+import { type Dirent, readFileSync, readdirSync } from 'node:fs'
 import { join, relative } from 'node:path'
 
 /** Identifiers whose value is, or holds, a full endpoint URL. */
@@ -27,22 +21,48 @@ export const RPC_IDENTIFIERS: readonly string[] = [
   'nodeUrl',
   'providerUrl',
   'endpointUrl',
-  'RPC_URL',
 ]
 
 /**
- * Matched as a prefix, so `process.env.ETH_NODE_URI_TRON` is caught. A plain word-boundary entry
- * in {@link RPC_IDENTIFIERS} cannot be: the network suffix leaves no boundary after `URI`.
+ * Matched as prefixes, so `ETH_NODE_URI_TRON` and `RPC_URL_TRON` are caught. A word-boundary entry
+ * cannot be: the network suffix leaves no boundary after the base name. `@lifi/tron-devkit`'s
+ * `getTronRpcUrl` reads `RPC_URL_TRON`, so the suffixed form is the one the Tron path uses.
  */
-const RPC_ENV_PREFIX = 'ETH_NODE_URI'
+const RPC_ENV_PREFIXES: readonly string[] = ['ETH_NODE_URI', 'RPC_URL']
 
-const LOG_CALL =
-  /\b(?:consola|console)\s*\.\s*(?:debug|info|log|warn|error|success|start|ready|fail|box)\s*\(/g
+/** consola's `LogType` union plus the `console` methods that dump a whole object. */
+const LOG_METHODS = [
+  'debug',
+  'info',
+  'log',
+  'warn',
+  'error',
+  'success',
+  'start',
+  'ready',
+  'fail',
+  'box',
+  'fatal',
+  'trace',
+  'verbose',
+  'silent',
+  'dir',
+  'table',
+  'group',
+  'groupCollapsed',
+] as const
+const LOG_CALL = new RegExp(
+  String.raw`\b(?:consola|console)\s*\.\s*(?:${LOG_METHODS.join('|')})\s*\(`,
+  'g'
+)
 
 /**
  * Sites that name an endpoint in a log deliberately. An entry is a standing exception to a
  * credential rule, so each carries its reason.
  */
+/** Calls whose argument is safe to log; `hostOf` strips a URL to its host. */
+const REDACTORS = new Set(['redactUrls', 'redactErrorReason', 'hostOf'])
+
 export const EXEMPT = new Map<string, string>([
   [
     'script/demoScripts/demoPaxosTransit.ts',
@@ -57,13 +77,68 @@ export interface IFinding {
   text: string
 }
 
+/** After these, a `/` starts a regex; after any other word it is division. */
+const REGEX_OK_AFTER_WORD = new Set([
+  'return',
+  'typeof',
+  'instanceof',
+  'in',
+  'of',
+  'new',
+  'delete',
+  'void',
+  'case',
+  'do',
+  'else',
+  'yield',
+  'await',
+])
+
+const isWordChar = (c: string | undefined): boolean =>
+  c !== undefined && /[A-Za-z0-9_$]/.test(c)
+
 /**
- * Replace every comment and string body with spaces, keeping length and newlines so offsets and
- * line numbers still line up with the original source.
+ * End offset (exclusive) of the regex literal opening at `i`, or -1 if there is none on that line.
  *
- * A template literal's `${...}` expressions are deliberately KEPT — `${rpcUrl}` is the single most
- * common way this leak is written, and blanking the whole template would hide exactly the case
- * this module exists to catch. Only the literal text around them is blanked.
+ * Looked ahead without mutating, so a `/` that turns out to be division — or an unterminated
+ * literal — leaves the source untouched rather than blanking a line of real code.
+ *
+ * @param src - source text.
+ * @param i - offset of the opening `/`.
+ * @returns offset just past the closing `/` and its flags, or -1.
+ */
+function endOfRegex(src: string, i: number): number {
+  let j = i + 1
+  let inClass = false
+  while (j < src.length) {
+    const c = src[j]
+    if (c === '\n') return -1
+    if (c === '\\') {
+      j += 2
+      continue
+    }
+    if (c === '[') inClass = true
+    else if (c === ']') inClass = false
+    else if (c === '/' && !inClass) {
+      j++
+      while (j < src.length && /[a-z]/i.test(src[j] ?? '')) j++
+      return j
+    }
+    j++
+  }
+  return -1
+}
+
+/**
+ * Replace every comment, string body and regex body with spaces, keeping length and newlines so
+ * offsets and line numbers still line up with the original source.
+ *
+ * A template literal's `${...}` expressions are deliberately KEPT — `${rpcUrl}` is the most common
+ * way this leak is written, and blanking the whole template would hide the case this module
+ * exists to catch. Only the literal text around them is blanked.
+ *
+ * Regex literals are blanked for the same reason strings are: `/['"`]/` would otherwise open a
+ * phantom string that swallows the rest of the file, and `/^https:\/\//` reads as a line comment.
  *
  * @param src - original source text.
  * @returns the same text with non-code spans replaced by spaces.
@@ -74,15 +149,16 @@ export function blankNonCode(src: string): string {
     if (out[i] !== '\n') out[i] = ' '
   }
 
-  // A stack, because the two contexts nest without limit: a template holds `${...}` code, which
-  // holds another template, which holds another string. A single pass with one flag blanks the
-  // wrong half — the first version of this kept an interpolation as code but never blanked the
-  // string literals inside it, so `` `${n.replace('ETH_NODE_URI_', '')}` `` read as a live
-  // endpoint. `braceDepth` is what stops an object literal's `}` from ending the interpolation.
+  // A stack, because the contexts nest without limit: a template holds `${...}` code, which holds
+  // another template, which holds another string. `braceDepth` is what stops an object literal's
+  // `}` from ending the interpolation.
   const stack: { kind: 'code' | 'tmpl'; braceDepth: number }[] = [
     { kind: 'code', braceDepth: 0 },
   ]
   let i = 0
+  // Decides the `/` ambiguity. A regex may follow an operator or a keyword, never a value.
+  let prevChar = ''
+  let prevWord = ''
 
   while (i < src.length) {
     const top = stack[stack.length - 1]
@@ -97,16 +173,22 @@ export function blankNonCode(src: string): string {
       } else if (c === '$' && n === '{') {
         i += 2
         stack.push({ kind: 'code', braceDepth: 0 })
+        prevChar = ''
+        prevWord = ''
       } else if (c === '`') {
         blank(i++)
         stack.pop()
+        prevChar = '`'
+        prevWord = ''
       } else blank(i++)
       continue
     }
 
     if (c === '/' && n === '/') {
       while (i < src.length && src[i] !== '\n') blank(i++)
-    } else if (c === '/' && n === '*') {
+      continue
+    }
+    if (c === '/' && n === '*') {
       blank(i++)
       blank(i++)
       while (i < src.length && !(src[i] === '*' && src[i + 1] === '/'))
@@ -115,28 +197,56 @@ export function blankNonCode(src: string): string {
         blank(i++)
         blank(i++)
       }
-    } else if (c === "'" || c === '"') {
+      continue
+    }
+    if (
+      c === '/' &&
+      (!isWordChar(prevChar) || REGEX_OK_AFTER_WORD.has(prevWord)) &&
+      prevChar !== ')' &&
+      prevChar !== ']'
+    ) {
+      const end = endOfRegex(src, i)
+      if (end !== -1) {
+        while (i < end) blank(i++)
+        prevChar = '/'
+        prevWord = ''
+        continue
+      }
+    }
+    if (c === "'" || c === '"') {
       blank(i++)
       while (i < src.length && src[i] !== c) {
         if (src[i] === '\\') blank(i++)
         if (i < src.length) blank(i++)
       }
       if (i < src.length) blank(i++)
-    } else if (c === '`') {
+      prevChar = c
+      prevWord = ''
+      continue
+    }
+    if (c === '`') {
       blank(i++)
       stack.push({ kind: 'tmpl', braceDepth: 0 })
-    } else if (c === '{') {
-      top.braceDepth++
-      i++
-    } else if (c === '}') {
-      if (top.braceDepth > 0) {
-        top.braceDepth--
-        i++
-      } else if (stack.length > 1) {
-        stack.pop()
-        i++
-      } else i++
-    } else i++
+      continue
+    }
+    if (c !== undefined && /[A-Za-z_$]/.test(c)) {
+      let j = i
+      while (j < src.length && isWordChar(src[j])) j++
+      prevWord = src.slice(i, j)
+      prevChar = src[j - 1] ?? ''
+      i = j
+      continue
+    }
+    if (c === '{') top.braceDepth++
+    else if (c === '}') {
+      if (top.braceDepth > 0) top.braceDepth--
+      else if (stack.length > 1) stack.pop()
+    }
+    if (c !== undefined && !/\s/.test(c)) {
+      prevChar = c
+      prevWord = ''
+    }
+    i++
   }
   return out.join('')
 }
@@ -154,10 +264,10 @@ function endOfCall(src: string, openParen: number): number {
   return src.length
 }
 
-/** Argument spans of every `redactUrls(...)` / `redactErrorReason(...)` call. */
+/** Argument spans of every redaction call. */
 function redactedSpans(code: string): [number, number][] {
   const spans: [number, number][] = []
-  const re = /\bredact(?:Urls|ErrorReason)\s*\(/g
+  const re = new RegExp(String.raw`\b(?:${[...REDACTORS].join('|')})\s*\(`, 'g')
   let m: RegExpExecArray | null
   while ((m = re.exec(code)) !== null) {
     const open = m.index + m[0].length - 1
@@ -166,21 +276,46 @@ function redactedSpans(code: string): [number, number][] {
   return spans
 }
 
+/**
+ * True when the identifier at `at` is an object-literal key rather than a value being read.
+ *
+ * Both halves are required. Testing only for a following `:` also suppresses the consequent of a
+ * ternary — `${flag ? rpcUrl : ''}` — which is a normal way to write an endpoint override, so the
+ * preceding `{` or `,` is what separates a label from a value.
+ *
+ * @param code - blanked source.
+ * @param at - offset of the identifier.
+ * @param length - identifier length.
+ * @returns whether this occurrence names a field.
+ */
+function isObjectKey(code: string, at: number, length: number): boolean {
+  if (!/^\s*:/.test(code.slice(at + length))) return false
+  let b = at - 1
+  while (b >= 0 && /\s/.test(code[b] ?? '')) b--
+  const prev = code[b]
+  return prev === '{' || prev === ','
+}
+
 function tsFilesUnder(root: string, out: string[] = []): string[] {
-  let entries: string[]
+  let entries: Dirent[]
   try {
-    entries = readdirSync(root)
+    // withFileTypes, so the kind comes back with the listing: a second stat call would both
+    // follow symlinked directories (a self-referential one loops) and race a file being removed
+    // between the two calls.
+    entries = readdirSync(root, { withFileTypes: true })
   } catch {
     return out
   }
   for (const e of entries) {
-    if (e === 'node_modules' || e.startsWith('.')) continue
-    const p = join(root, e)
-    if (statSync(p).isDirectory()) tsFilesUnder(p, out)
+    const name = e.name
+    if (name === 'node_modules' || name.startsWith('.') || e.isSymbolicLink())
+      continue
+    const p = join(root, name)
+    if (e.isDirectory()) tsFilesUnder(p, out)
     else if (
-      e.endsWith('.ts') &&
-      !e.endsWith('.test.ts') &&
-      !e.endsWith('.d.ts')
+      name.endsWith('.ts') &&
+      !name.endsWith('.test.ts') &&
+      !name.endsWith('.d.ts')
     )
       out.push(p)
   }
@@ -196,6 +331,7 @@ function tsFilesUnder(root: string, out: string[] = []): string[] {
  * @param repoRoot - repository root.
  * @param roots - directories to walk, relative to the root.
  * @returns one finding per offending log argument, and the files actually examined.
+ * @throws never for an unreadable path — a directory or file it cannot read is skipped.
  */
 export function scanForRawRpcUrlLogs(
   repoRoot: string,
@@ -210,7 +346,12 @@ export function scanForRawRpcUrlLogs(
       scanned.push(rel)
       if (EXEMPT.has(rel)) continue
 
-      const src = readFileSync(abs, 'utf8')
+      let src: string
+      try {
+        src = readFileSync(abs, 'utf8')
+      } catch {
+        continue
+      }
       const code = blankNonCode(src)
       const safe = redactedSpans(code)
 
@@ -221,17 +362,15 @@ export function scanForRawRpcUrlLogs(
         const close = endOfCall(code, open)
         const args = code.slice(open, close)
 
-        for (const id of [...RPC_IDENTIFIERS, RPC_ENV_PREFIX]) {
-          const idRe =
-            id === RPC_ENV_PREFIX
-              ? new RegExp(`\\b${id}\\w*\\b`, 'g')
-              : new RegExp(`\\b${id}\\b`, 'g')
+        for (const id of [...RPC_IDENTIFIERS, ...RPC_ENV_PREFIXES]) {
+          const idRe = RPC_ENV_PREFIXES.includes(id)
+            ? new RegExp(String.raw`\b${id}\w*\b`, 'g')
+            : new RegExp(String.raw`\b${id}\b`, 'g')
           let m: RegExpExecArray | null
           while ((m = idRe.exec(args)) !== null) {
             const at = open + m.index
-            // `{ rpcUrl: network }` labels a field rather than reading an endpoint.
-            if (/^\s*:/.test(code.slice(at + m[0].length))) continue
-            if (safe.some(([s, e]) => at > s && at < e)) continue
+            if (isObjectKey(code, at, m[0].length)) continue
+            if (safe.some(([st, e]) => at > st && at < e)) continue
             findings.push({
               file: rel,
               line: src.slice(0, at).split('\n').length,

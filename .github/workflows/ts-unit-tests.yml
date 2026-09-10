@@ -52,6 +52,9 @@ jobs:
           filters: |
             ts:
               - 'script/**'
+              # the suite walks tasks/ too, so a leak added there would otherwise ship with
+              # ts-tests-required green on a skipped job
+              - 'tasks/**'
               # several suites assert against the committed config files, so a
               # config-only change can break them without touching script/**
               - 'config/**'
