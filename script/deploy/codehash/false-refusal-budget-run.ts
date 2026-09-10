@@ -148,7 +148,7 @@ const buildLength = (fingerprint: string): number =>
  * shape G4 forbids.
  *
  * @param slot - the honest row that was refused
- * @param pinnedPairs - every compiler pair foundry.toml pins today
+ * @param pinnedPairs - every non-zk compiler pair foundry.toml pins today
  * @param offeredPairs - the pairs the gate actually graded this slot against
  * @returns The rule id, or undefined when nothing named covers it
  */

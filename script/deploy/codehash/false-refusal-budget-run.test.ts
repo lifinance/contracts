@@ -204,7 +204,7 @@ describe('a shrunken denominator is never silent', () => {
   })
 
   // Both gates share registeredFacetSlots, so both denominators shrink by the
-  // same exclusions. Only the funnel gate used to say so.
+  // same exclusions, and both coverage notes have to name them.
   it('names the exclusions on both gates that apply them', async () => {
     const deps = corpus({
       funnelExclusions: new Map([['tron', 'no offline TronWeb reader']]),
@@ -310,7 +310,7 @@ describe('a zksolc-only pin is not a pin any EVM network is offered', () => {
     "solc_version = '0.8.26'",
     "evm_version = 'cancun'",
     '',
-    '[zksync]',
+    '[external.zksync]',
     'zksolc = "1.5.15"',
   ].join('\n')
 
