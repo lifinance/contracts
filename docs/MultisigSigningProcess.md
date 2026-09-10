@@ -237,7 +237,12 @@ broadcasts the cut straight from the deployer key, reaching neither funnel, so
 proposal calldata to read. The two gates are disjoint: a cut is gated by the
 funnel or by the shell, never both, and never neither. The bash `sendOrPropose`
 direct route (`script/helperFunctions.sh`, the `universalCast sendRaw` branch)
-is **not** gated today; it never was, and closing it is tracked separately.
+is gated one level down by `assertDirectBroadcastCalldataGate`, which applies the
+same calldata-keyed policy through
+`script/deploy/shared/assert-direct-broadcast-gate.ts` before anything is
+broadcast — that route carries calldata rather than facet names, so it reuses the
+funnel's cut recovery instead of a second implementation. It skips on exactly
+`staging` and on testnets, and says which of the two it took.
 
 The funnel is handed calldata, not
 facet names, so `funnel-deploy-gate.ts` recovers the facet set from the cut:
@@ -396,15 +401,20 @@ signer sees:
    + resolved name, raw data, proposer, stored `safeTxHash`, signature count
    vs threshold, drain origin-PR links where present, and the
    **target-state verdict** read at `origin/main` (`pinned-target-state.ts`),
-   which refuses a downgrade before the acknowledgement prompt.
-3. The value to verify on the device, which depends on the signing mode. In
-   the default hash mode: the single message screen, compared character by
-   character against the hash in the out-of-band message from the proposer —
-   not against the hash stored with the proposal, which the proposer controls
-   alongside the calldata. Under `ENABLE_SAFE_EIP712_SIGNING=true`
-   and only when the transaction carries calldata: a **Ledger Flex
-   "filmstrip"** (`renderLedgerFlexFlow`, `ledger-flex-preview.ts`), an ASCII
-   replica of the device screens for the exact to-be-signed values.
+   which refuses a downgrade before any signature or broadcast.
+3. The value to verify on the device, which depends on the signing mode. In the
+   default hash mode: a **Ledger Flex "filmstrip"**
+   (`renderLedgerFlexHashFlow`, `ledger-flex-preview.ts`) of the three message
+   screens the device shows, with the first and last eight hex characters of the
+   hash highlighted and spelled out beside it. Those sixteen characters are
+   compared against the hash in the out-of-band message from the proposer — not
+   against the hash stored with the proposal, which the proposer controls
+   alongside the calldata. The previewed hash is read from the Safe's own
+   on-chain `getTransactionHash` for that reason, and a stored hash that
+   disagrees with it is reported. Under `ENABLE_SAFE_EIP712_SIGNING=true` and
+   only when the transaction carries calldata: the typed-data filmstrip
+   (`renderLedgerFlexFlow`), an ASCII replica of the device screens for the
+   exact to-be-signed values.
 4. **The sign-time codehash gate** (`codehash-sign-gate.ts`, deciding through
    `script/deploy/codehash/`). Where the calldata decodes to a `diamondCut` —
    timelock-wrapped and batched frames included — every address the cut would
@@ -444,7 +454,10 @@ signer sees:
 5. The action prompt: `Do Nothing` / `Sign` / `Sign & Execute` /
    `Sign and Execute With Deployer` / `Execute with Deployer`. The two
    deployer variants are the usual choice — see §2 on why the deployer
-   wallet broadcasts.
+   wallet broadcasts. Selecting an action is itself the review
+   acknowledgement — the payload, the provenance and the device screens are all
+   on screen at that prompt — and it is recorded once per target + value +
+   operation + payload for the run summary.
 
 Signing is `eth_sign` over the `safeTxHash`, read from the Safe's own
 on-chain `getTransactionHash` so the digest is correct for that Safe's version.
@@ -512,7 +525,7 @@ parked tasks are reconciled weekly by `reconcileParkedTasks.yml`.
 | Confirm | Sign-time codehash gate: every address a decoded `diamondCut` installs — `Add`/`Replace` targets plus a non-zero `_init` — must match a local rebuild at the commit its production deployment record names, under the toolchain that network's `foundry.toml` profile pins. **Not** an ancestry check against `main` — per D3 the referenced commit need only be present and fetchable, so this row is anchored differently from the Propose row above it. MATCH passes; MISMATCH and UNVERIFIABLE both block and stay distinct. A removal-only cut carrying `_init` is refused rather than gated. A MATCH with bytes excluded as immutables is downgraded to UNVERIFIABLE until WP-2.3 checks their values, and calldata the decoder cannot open makes **no claim** rather than reporting a pass. Asserted on both the sign and the execute route, not only at signature time — a proposal already at threshold is broadcast through a different funnel. Infrastructure failures block too, in two places: one that stops any verdict being reached (config unreadable) is a refusal, while one that stops a single address being judged (RPC or attestation store unreachable) is that address's `UNVERIFIABLE` verdict | Block | `codehash-sign-gate.ts` + `codehash-sign-gate-deps.ts` in `confirm-safe-tx.ts`, deciding through `script/deploy/codehash/` (EXSC-906) |
 | Confirm | Full calldata decode: diamond cut, scheduleBatch, whitelist, periphery, roles; per-selector name resolution | Display / warn only | `safe-decode-utils.ts` (`formatDecodedTxDataForDisplay`) |
 | Confirm | To-be-added facet version, resolved from the deployment record (the MongoDB mirror under `.cache/`, which the deploy script writes before proposing) | Display only | `facet-version-utils.ts`, `safe-utils.ts` |
-| Confirm | Target state graded against `origin/main`, never the reviewer's checkout: the anchor is `git show origin/main:script/deploy/_targetState.json` after a fresh fetch of an explicit `+refs/heads/main:refs/remotes/origin/main` (git updates that ref only opportunistically, so a clone without a covering refspec would otherwise read a stale anchor with no error), read through `refs/remotes/origin/main` in full rather than the short name, which git resolves through tags and heads first, so a tag a proposer's clone carries cannot shadow the fetched ref. `origin` must be `github.com/lifinance/contracts` or the read refuses — a fork remote would let a proposer author the expected state; the URL is taken from `git remote get-url`, which applies any `insteadOf` rewrite and so reports where a fetch would really go. Which branch the reviewer happens to be on cannot change a verdict. Graded per case, not as one equality — an **upgrade of a facet `main` already targets** refuses a downgrade, a version pair that cannot be ordered, and a proposed version no deployment record resolves; a **first-time add** has no entry on `main` by construction (the target-state PR merges only after execution, so gating on it would deadlock) and is labeled "not previously targeted" with the count of networks already declaring that contract at that version, without blocking — intent there rests on the linked ticket and PR; a **removal** is reported only. The statuses that may proceed are named, so an unrecognised cut action, a cut whose calldata cannot be read, a facet address no deployment record names on that network (the same address on another chain is deliberately not consulted — the mirror carries one address as two different contracts across networks), a deployment record that contradicts itself about which contract or version an address is (the `(network, address)` pair is not unique in that cache — six such pairs today, two at genuinely different versions), an anchor read through the wrong remote, and an anchor that could not be refreshed all refuse. | Block (downgrade / unorderable / unresolved / unidentified / ambiguous record / unreadable / anchor unavailable) / label (first-time add) / report (removal) | `pinned-target-state.ts` + `diamond-cut-calls.ts`, gated in `confirm-safe-tx.ts` after the nonce gates and before the acknowledgement prompt (EXSC-704) |
+| Confirm | Target state graded against `origin/main`, never the reviewer's checkout: the anchor is `git show origin/main:script/deploy/_targetState.json` after a fresh fetch of an explicit `+refs/heads/main:refs/remotes/origin/main` (git updates that ref only opportunistically, so a clone without a covering refspec would otherwise read a stale anchor with no error), read through `refs/remotes/origin/main` in full rather than the short name, which git resolves through tags and heads first, so a tag a proposer's clone carries cannot shadow the fetched ref. `origin` must be `github.com/lifinance/contracts` or the read refuses — a fork remote would let a proposer author the expected state; the URL is taken from `git remote get-url`, which applies any `insteadOf` rewrite and so reports where a fetch would really go. Which branch the reviewer happens to be on cannot change a verdict. Graded per case, not as one equality — an **upgrade of a facet `main` already targets** refuses a downgrade, a version pair that cannot be ordered, and a proposed version no deployment record resolves; a **first-time add** has no entry on `main` by construction (the target-state PR merges only after execution, so gating on it would deadlock) and is labeled "not previously targeted" with the count of networks already declaring that contract at that version, without blocking — intent there rests on the linked ticket and PR; a **removal** is reported only. The statuses that may proceed are named, so an unrecognised cut action, a cut whose calldata cannot be read, a facet address no deployment record names on that network (the same address on another chain is deliberately not consulted — the mirror carries one address as two different contracts across networks), a deployment record that contradicts itself about which contract or version an address is (the `(network, address)` pair is not unique in that cache — six such pairs today, two at genuinely different versions), an anchor read through the wrong remote, and an anchor that could not be refreshed all refuse. | Block (downgrade / unorderable / unresolved / unidentified / ambiguous record / unreadable / anchor unavailable) / label (first-time add) / report (removal) | `pinned-target-state.ts` + `diamond-cut-calls.ts`, gated in `confirm-safe-tx.ts` after the nonce gates and before the acknowledgement is recorded (EXSC-704) |
 | Confirm | Stale nonce blocks Execute; future nonce prompts | Block / prompt | `confirm-safe-tx.ts` |
 | Execute | Signature format + sorting; threshold gating of the Execute option | Block / hide option | `safe-utils.ts` |
 | Timelock exec | operationId re-derived from row params; timelock address vs deploy log; on-chain `isOperationReady`/`isOperationDone` | Block, mark failed | `execute-pending-timelock-tx.ts`, `timelock-queue.ts`, `confirm-timelock-execution.ts` |

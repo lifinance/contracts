@@ -799,7 +799,6 @@ export class SafeClient {
         ],
       })
 
-      console.log('Generated transaction hash:', hash)
       return hash
     } catch (error) {
       console.error('Error generating transaction hash:', error)

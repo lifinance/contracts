@@ -3,10 +3,14 @@ import { describe, expect, it } from 'bun:test'
 import { type Hex } from 'viem'
 
 import {
+  applyStyleRanges,
+  HASH_COMPARE_CHARS,
   joinPanelsHorizontally,
+  LEDGER_FLEX_HASH_NOTE,
   LEDGER_FLEX_WRAP_NOTE,
   pixelWrap,
   renderLedgerFlexFlow,
+  renderLedgerFlexHashFlow,
   type ILedgerFlexFlowParams,
 } from './ledger-flex-preview'
 
@@ -170,8 +174,305 @@ describe('joinPanelsHorizontally', () => {
   })
 })
 
+const COMPARE_STYLE = `${ESC}[1;33m`
+
+/** Every character the renderer wrapped in the compare style, in output order. */
+const highlightedRuns = (lines: string[]): string => {
+  const pattern = new RegExp(`${ESC}\\[1;33m([^${ESC}]*)${ESC}\\[0m`, 'g')
+  return lines
+    .flatMap((line) => [...line.matchAll(pattern)].map((m) => m[1] ?? ''))
+    .join('')
+}
+
+const BOX_CHARS = '│╭╮╰╯'
+
+/** Visible width of a row up to the last box border — the framed screens. */
+const panelWidth = (line: string): number => {
+  const plain = stripAnsi(line)
+  let last = -1
+  for (let i = 0; i < plain.length; i++)
+    if (BOX_CHARS.includes(plain[i] as string)) last = i
+  return last + 1
+}
+
+/**
+ * One row of output split into the framed screens and the instruction column
+ * printed beside them — the compare runs must be checked separately, since a
+ * single row carries a slice of each.
+ */
+const splitRow = (line: string): { screens: string; column: string } => {
+  // Walk the styled string so the split index accounts for the ANSI bytes.
+  let visible = -1
+  let cut = line.length
+  const width = panelWidth(line)
+  for (let i = 0; i < line.length; i++) {
+    if (line.startsWith(`${ESC}[`, i)) {
+      i = line.indexOf('m', i)
+      continue
+    }
+    visible++
+    if (visible === width) {
+      cut = i
+      break
+    }
+  }
+  return { screens: line.slice(0, cut), column: line.slice(cut) }
+}
+
+describe('applyStyleRanges', () => {
+  const S = `${ESC}[1m`
+
+  it('leaves text untouched with no ranges', () => {
+    expect(applyStyleRanges('abcdef', [])).toBe('abcdef')
+  })
+
+  it('styles two disjoint runs and nothing between them', () => {
+    expect(
+      applyStyleRanges('abcdef', [
+        { start: 0, end: 2, style: S },
+        { start: 4, end: 6, style: S },
+      ])
+    ).toBe(`${S}ab${ESC}[0mcd${S}ef${ESC}[0m`)
+  })
+
+  it('applies ranges given out of order', () => {
+    expect(
+      applyStyleRanges('abcd', [
+        { start: 2, end: 4, style: S },
+        { start: 0, end: 1, style: S },
+      ])
+    ).toBe(`${S}a${ESC}[0mb${S}cd${ESC}[0m`)
+  })
+
+  it('clamps a range that runs past the end of the text', () => {
+    expect(applyStyleRanges('ab', [{ start: 1, end: 99, style: S }])).toBe(
+      `a${S}b${ESC}[0m`
+    )
+  })
+
+  it('drops a range that starts past the end of the text', () => {
+    expect(applyStyleRanges('ab', [{ start: 5, end: 9, style: S }])).toBe('ab')
+  })
+
+  // A replacement operand that contains the styled text makes `$&`, `` $` ``
+  // and `$'` inside it expand as substitution patterns, widening the row past
+  // the panel interior and breaking the frame the signer compares against the
+  // device. Slicing cannot do that; this pins it so a rewrite via
+  // `String.prototype.replace` fails here.
+  it('treats substitution patterns in the text as literal characters', () => {
+    for (const probe of ['$&$&$&', "a$'b", '$`x', '$1$2']) {
+      const styled = applyStyleRanges(probe, [
+        { start: 0, end: probe.length, style: S },
+      ])
+
+      expect(stripAnsi(styled)).toBe(probe)
+    }
+  })
+
+  it('never changes the visible character count', () => {
+    const text = 'abcdefghij'
+    const styled = applyStyleRanges(text, [
+      { start: 1, end: 3, style: S },
+      { start: 7, end: 10, style: S },
+    ])
+    expect(stripAnsi(styled)).toBe(text)
+  })
+})
+
+describe('renderLedgerFlexHashFlow', () => {
+  const HASH =
+    '0x1a2b3c4d5e6f70819293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8f9'
+  const flow = renderLedgerFlexHashFlow({ hash: HASH })
+  const joined = flow.join('\n')
+
+  it('renders the three message screens in order', () => {
+    const plain = stripAnsi(joined)
+    expect(plain).toContain('Review message')
+    expect(plain).toContain('Swipe to review')
+    expect(plain).toContain('Message')
+    expect(plain).toContain('Sign message')
+    expect(plain).toContain('Hold to sign')
+    // Left to right, not top to bottom: the screens are columns of one row of
+    // panels, so order is a column offset, never a line index.
+    // Measured on the framed screens only: the instruction column beside them
+    // names the "Message" screen too, and would be found first.
+    const columnOf = (needle: string): number => {
+      const screens = flow.map((line) => stripAnsi(splitRow(line).screens))
+      const row = screens.find((line) => line.includes(needle))
+      return row?.indexOf(needle) ?? -1
+    }
+    expect(columnOf('Review message')).toBeGreaterThan(-1)
+    expect(columnOf('Review message')).toBeLessThan(columnOf('Message'))
+    expect(columnOf('Message')).toBeLessThan(columnOf('Sign message'))
+  })
+
+  // Everything the preview shows is something read off a physical device. A
+  // page counter or a per-screen affordance carried over from the typed-data
+  // flow would be an invented detail the operator is asked to check against a
+  // screen that may not carry it.
+  //
+  // A whitelist, not a denylist of the specific strings that were removed: the
+  // property is "nothing beyond these lines appears", which a denylist cannot
+  // express — reinstating a counter in different words (`< 1 / 3 >`, a `Cancel`
+  // header) satisfies every "does not contain" assertion.
+  it('shows nothing beyond the observed screen text and the hash', () => {
+    const cells: string[] = []
+    for (const line of flow) {
+      const screens = stripAnsi(splitRow(line).screens)
+      for (const cell of screens.split('│')) {
+        const text = cell.trim()
+        // Drop the frame itself: the top and bottom rows carry no '│' to split
+        // on, so they arrive whole. '>' is the between-panel step marker.
+        if (!text || text === '>' || /^[─╭╮╰╯\s]+$/.test(text)) continue
+        cells.push(text)
+      }
+    }
+
+    expect([...cells].sort()).toEqual(
+      [
+        'Review message',
+        'Swipe to review',
+        'Message',
+        '0x1A2B3C4D5E6F7081',
+        '9293A4B5C6D7E8F90A',
+        '1B2C3D4E5F60718293',
+        'A4B5C6D7E8F9',
+        'Sign message',
+        'Hold to sign',
+      ].sort()
+    )
+  })
+
+  it('renders the hash upper case, as the device does', () => {
+    const plain = stripAnsi(joined).replace(/\s+/g, '')
+    expect(plain).toContain('0x1A2B3C4D')
+    expect(plain).not.toContain('1a2b3c4d')
+  })
+
+  // Pinned as a literal, not derived from HASH_COMPARE_CHARS: a mutation that
+  // shortens the compared run to a grindable four-and-four must fail here
+  // rather than move the expectation with it.
+  it('compares 8 characters from each end', () => {
+    expect(HASH_COMPARE_CHARS).toBe(8)
+  })
+
+  it('highlights exactly the first and last 8 hex characters on the screen', () => {
+    const onScreen = flow.map((line) => splitRow(line).screens)
+
+    expect(highlightedRuns(onScreen)).toBe('1A2B3C4DC6D7E8F9')
+  })
+
+  it('highlights the same two runs in the instruction column', () => {
+    const hex = HASH.slice(2).toUpperCase()
+    const beside = flow.map((line) => splitRow(line).column)
+
+    expect(highlightedRuns(beside)).toBe(
+      `${hex.slice(0, HASH_COMPARE_CHARS)}${hex.slice(-HASH_COMPARE_CHARS)}`
+    )
+  })
+
+  // Row breaks follow measured per-glyph widths, so the hash's own characters
+  // decide where they land. These are the width extremes: 'A' is the widest
+  // glyph in the table and wraps into five rows, leaving a short final row that
+  // splits the tail run across a break; 'F' is the narrowest. A run that
+  // straddles a break must still come out exact, which is what the per-row span
+  // intersection in `hashRows` is for.
+  const WIDTH_EXTREMES: [string, string][] = [
+    ['widest glyphs', 'A'.repeat(64)],
+    ['narrowest glyphs', 'F'.repeat(64)],
+    ['wide then narrow', `${'A'.repeat(32)}${'F'.repeat(32)}`],
+    ['narrow then wide', `${'F'.repeat(32)}${'A'.repeat(32)}`],
+    ['all digits', '0'.repeat(64)],
+  ]
+
+  for (const [label, hex] of WIDTH_EXTREMES)
+    it(`highlights both ends with ${label}, wherever the rows break`, () => {
+      const onScreen = renderLedgerFlexHashFlow({ hash: `0x${hex}` }).map(
+        (line) => splitRow(line).screens
+      )
+
+      expect(highlightedRuns(onScreen)).toBe(
+        `${hex.slice(0, HASH_COMPARE_CHARS)}${hex.slice(-HASH_COMPARE_CHARS)}`
+      )
+    })
+
+  // Guards the cases above against proving nothing: if no hash reached the
+  // renderer's multi-row path, the span intersection went untested.
+  it('splits a compare run across a line break when the rows fall that way', () => {
+    const pattern = new RegExp(`${ESC}\\[1;33m([^${ESC}]*)${ESC}\\[0m`, 'g')
+    const onScreen = renderLedgerFlexHashFlow({
+      hash: `0x${'A'.repeat(64)}`,
+    }).map((line) => splitRow(line).screens)
+
+    expect(
+      onScreen.flatMap((line) => [...line.matchAll(pattern)]).length
+    ).toBeGreaterThan(2)
+  })
+
+  it('names the 16 characters to compare beside the screens', () => {
+    const plain = stripAnsi(joined)
+    expect(plain).toContain('COMPARE THESE 16 CHARACTERS')
+    expect(plain).toContain('first 8')
+    expect(plain).toContain('last 8')
+    expect(plain.toLowerCase()).toContain('dm from the proposer')
+  })
+
+  it('keeps every screen row the same visible width despite the styling', () => {
+    // The compare column is unframed and trails the panels, so widths are
+    // measured up to the last box border on each row.
+    expect(new Set(flow.map(panelWidth)).size).toBe(1)
+  })
+
+  it('styles the hash on the device screen, not only in the column', () => {
+    const styledScreenRows = flow.filter((line) =>
+      splitRow(line).screens.includes(COMPARE_STYLE)
+    )
+    expect(styledScreenRows.length).toBeGreaterThan(0)
+  })
+
+  const REJECTED: [string, string][] = [
+    ['too short', `0x${'a'.repeat(63)}`],
+    ['too long', `0x${'a'.repeat(65)}`],
+    ['not hex', `0x${'g'.repeat(64)}`],
+    ['unprefixed', 'a'.repeat(64)],
+    ['empty', ''],
+    ['an address', '0x031f25f640e0530a51f5617757b281a8df5614ee'],
+    // Unreachable from the production caller, whose `bytes32` read can only
+    // decode to the accepted shape. Kept as a shape invariant on an exported
+    // function: a caller passing row-derived text is refused, not framed.
+    ['ansi escapes', `0x${ESC}[31m${'a'.repeat(58)}${ESC}[0m`],
+    ['box drawing', `0x${'│'.repeat(64)}`],
+  ]
+
+  for (const [label, value] of REJECTED)
+    it(`refuses to render ${label}`, () => {
+      expect(() => renderLedgerFlexHashFlow({ hash: value })).toThrow(
+        /Expected a Safe transaction hash/
+      )
+    })
+})
+
+describe('LEDGER_FLEX_HASH_NOTE', () => {
+  it('is a red caveat about case and line breaks', () => {
+    expect(LEDGER_FLEX_HASH_NOTE).toContain(`${ESC}[31m`)
+    expect(LEDGER_FLEX_HASH_NOTE).toContain(`${ESC}[0m`)
+    const plain = stripAnsi(LEDGER_FLEX_HASH_NOTE).toLowerCase()
+    expect(plain).toContain('case')
+    expect(plain).toContain('wrap')
+  })
+
+  // The screens omit navigation the device may well show. Unsaid, that omission
+  // is a false alarm of its own — the signer sees more on the Flex than in the
+  // terminal and cannot tell an expected extra from a real difference.
+  it('says that navigation the preview omits is expected', () => {
+    const plain = stripAnsi(LEDGER_FLEX_HASH_NOTE).toLowerCase()
+
+    expect(plain).toContain('not a mismatch')
+    expect(plain).toContain('navigation')
+  })
+})
+
 describe('the filmstrip cannot be driven by the stored calldata', () => {
-  const ESC = String.fromCharCode(27)
   /** Everything this module writes itself; nothing else may remain. */
   // eslint-disable-next-line no-control-regex -- these are the codes the module writes
   const OWN_STYLES = /\u001b\[(?:0|1|31|33|1;32)m/gu
