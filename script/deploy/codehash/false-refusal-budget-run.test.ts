@@ -338,6 +338,7 @@ describe('the corpus grades against a closed set, per D19', () => {
       [
         {
           lineage: 'default 0.8.29/cancun',
+          provenance: 'A-LOCAL',
           solcVersion: '0.8.29',
           maskedHash: '0x02',
           rawByteLength: 200,

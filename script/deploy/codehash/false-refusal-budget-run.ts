@@ -286,6 +286,10 @@ export const gradeAttestedSet = (deps: ICorpusDeps): IGateBudget => {
       const fingerprint = buildFingerprint({ ...slot, ...profile })
       return {
         lineage: `${profile.profile} ${profile.solcVersion}/${profile.evmVersion}`,
+        // What rebuild-attestations mints, and what the sweep behind this
+        // corpus was: a local rebuild. Minting A-CI here would model a second
+        // opinion no input to this run has.
+        provenance: 'A-LOCAL',
         solcVersion: profile.solcVersion,
         maskedHash: fingerprint,
         rawByteLength: buildLength(fingerprint),
@@ -331,7 +335,7 @@ export const gradeAttestedSet = (deps: ICorpusDeps): IGateBudget => {
     denominator: observations.length,
     coverageNote: `EVM only. The sweep excluded ${
       deps.zkEvmSlotsExcluded ?? 'an unrecorded number of'
-    } zkEVM slots because it did not record which zksolc version produced the match, so the zk normalisation path is measured on 0. Bytecode equality is taken from the sweep rather than re-fetched, and layer 1 is graded without the sign-time MATCH-to-UNVERIFIABLE downgrade for uncompared immutable bytes, which the corpus records nothing about — so this rate is a lower bound on what the real gate refuses. Build identity is keyed on the compiler pair and omits optimizer runs, which every row of today's corpus records as the single value foundry.toml pins: a corpus recording a second value would need this keyed on it too, or a build compiled differently would read here as a match. This gate's unexplained count is NOT a fleet measurement: keyed on build identity, the comparison refuses exactly when the reproducing pair is not offered, which is exactly when explainScopeRefusal names a class, so no corpus can drive it off 0. Read the rate and the class split. See this module's header. ${
+    } zkEVM slots because it did not record which zksolc version produced the match, so the zk normalisation path is measured on 0. Bytecode equality is taken from the sweep rather than re-fetched, and layer 1 is graded without the sign-time MATCH-to-UNVERIFIABLE downgrade for uncompared immutable bytes, which the corpus records nothing about — so this rate is a lower bound on what the real gate refuses. Build identity is keyed on the compiler pair and omits optimizer runs, which every row of today's corpus records as the single value foundry.toml pins: a corpus recording a second value would need this keyed on it too, or a build compiled differently would read here as a match. The provenance grade (EXSC-952) is not modelled: it grades a MATCH by who built what matched, nothing in the sign path blocks on it yet, and every build offered here is A-LOCAL because that is what rebuild-attestations mints and what the sweep behind this corpus performed — so if that grade ever blocks, not one of the slots this gate does NOT refuse would clear it either. This gate's unexplained count is NOT a fleet measurement: keyed on build identity, the comparison refuses exactly when the reproducing pair is not offered, which is exactly when explainScopeRefusal names a class, so no corpus can drive it off 0. Read the rate and the class split. See this module's header. ${
       deps.slots.length - observations.length
     } of ${
       deps.slots.length
