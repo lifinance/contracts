@@ -96,12 +96,17 @@ describe('the shadow runner over the real repository corpus', () => {
     expect(new Set(repo.slots.map((s) => s.network)).size).toBeGreaterThan(50)
   })
 
+  // G3 is deliberately not in this list. Its count is a property of the clone
+  // rather than of the fleet — a full clone reads every corpus commit and a
+  // depth-1 checkout, which is what actions/checkout gives by default, reads
+  // none and drives it to one unexplained refusal per row. Asserting 0 here
+  // would be asserting that whoever runs the suite cloned deeply. The row
+  // below grades it against what the checkout can actually read.
   it('leaves nothing unexplained on any gate it could reach', async () => {
     consola.level = 1
     const budgets = [
       gradeToolchainScope(repo),
       gradeAttestedSet(repo),
-      gradeCommitAvailability(repo),
       gradeCutClassification(repo),
       await gradeFunnelDeployGate(repo),
     ]
@@ -124,6 +129,21 @@ describe('the shadow runner over the real repository corpus', () => {
     expect(budget.refusals).toBeGreaterThan(400)
     expect(budget.acceptedFalseReds).toBe(budget.refusals)
     expect(evaluatePromotion(budget).mayEnforce).toBe(false)
+  })
+
+  // Both ends are honest, and which one holds is decided by the clone. What is
+  // asserted is that the note says which — the run must never report a
+  // depth-limited checkout's refusals as a finding about the gate. The two ends
+  // themselves are pinned with an injected reader further down.
+  it('grades commit availability against what this checkout can read', () => {
+    const budget = gradeCommitAvailability(repo)
+    expect(budget.denominator).toBe(repo.slots.length)
+    if (budget.refusals === 0) {
+      expect(budget.coverageNote).toContain('0 of them unreadable')
+      return
+    }
+    expect(budget.unexplained).toBe(budget.refusals)
+    expect(budget.coverageNote).toContain('measure this checkout, not the gate')
   })
 
   it('reports the gates no corpus reached as measured on 0, not as clean', () => {

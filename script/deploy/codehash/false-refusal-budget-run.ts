@@ -152,10 +152,10 @@ const buildFingerprint = (parts: {
 /**
  * A stand-in for the deployed byte length of one build.
  *
- * {@link compareToAttestedSet} compares length alongside the hash, so the
- * length has to be a function of the fingerprint and of nothing else: derived
- * that way, the two agree exactly when the hashes do, and no build the gate was
- * not offered can satisfy the length check on its own.
+ * {@link compareToAttestedSet} compares length alongside the hash, among the
+ * builds that already hash-match. Deriving the length from the fingerprint and
+ * from nothing else is what keeps the two in step, so the build that reproduces
+ * the deployed code is never rejected on its length.
  * @param fingerprint - the build's fingerprint
  */
 const buildLength = (fingerprint: string): number =>
@@ -612,17 +612,28 @@ export const loadRepoCorpus = (repoRoot: string): ICorpusDeps => {
     readLog: read,
     facetSourceExists: (name: string) =>
       existsSync(join(repoRoot, 'src', 'Facets', `${name}.sol`)),
-    hasCommit: (sha: string) => {
-      try {
-        execFileSync('git', ['cat-file', '-e', `${sha}^{commit}`], {
-          cwd: repoRoot,
-          stdio: 'ignore',
-        })
-        return true
-      } catch {
-        return false
+    // Memoised for the same reason the log reader is: the gates ask per slot,
+    // and 742 slots carry 18 distinct commits. Readability cannot change
+    // underneath a run that never fetches.
+    hasCommit: (() => {
+      const known = new Map<string, boolean>()
+      return (sha: string): boolean => {
+        const cached = known.get(sha)
+        if (cached !== undefined) return cached
+        let readable: boolean
+        try {
+          execFileSync('git', ['cat-file', '-e', `${sha}^{commit}`], {
+            cwd: repoRoot,
+            stdio: 'ignore',
+          })
+          readable = true
+        } catch {
+          readable = false
+        }
+        known.set(sha, readable)
+        return readable
       }
-    },
+    })(),
     zkEvmSlotsExcluded:
       typeof attestations['zkEvmSlotsExcluded'] === 'number'
         ? attestations['zkEvmSlotsExcluded']
