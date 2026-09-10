@@ -49,6 +49,13 @@ describe('auditCoverageNotes', () => {
     // note means something rather than being the only thing it ever produces.
     expect(notesOf({})).toEqual([])
     expect(isFullyBridged(BRIDGED, AUDITED)).toBe(true)
+
+    // Both directions: a marker pinned only where it is true cannot be told
+    // apart from a constant.
+    expect(isFullyBridged(BRIDGED, { auditIds: [] })).toBe(false)
+    expect(
+      isFullyBridged({ ...BRIDGED, profile: 'experimental' }, AUDITED)
+    ).toBe(false)
   })
 
   it('reports a contract with no audit at that version', () => {
@@ -121,8 +128,62 @@ describe('auditCoverageNotes', () => {
   it('treats a profile named after an Object prototype member as unvetted', () => {
     // A property read would resolve these against Object.prototype and report
     // a vetted compiler set that nobody wrote.
-    for (const profile of ['toString', 'constructor', 'hasOwnProperty'])
+    for (const profile of [
+      'toString',
+      'constructor',
+      'hasOwnProperty',
+      '__proto__',
+    ])
       expect(notesOf({ profile })).toContain('profile-not-vetted')
+  })
+
+  it('does not report a compiler set that differs only in case or whitespace', () => {
+    // The record and foundry.toml do not agree on either, and a note over
+    // formatting is a false red on a build that matches.
+    expect(notesOf({ evmVersion: 'Cancun' })).toEqual([])
+    expect(notesOf({ evmVersion: ' cancun ' })).toEqual([])
+    expect(notesOf({ solcVersion: ' 0.8.29' })).toEqual([])
+
+    // Present: the check still separates on a real difference, so the
+    // normalisation has not been widened into accepting another hardfork.
+    expect(notesOf({ evmVersion: 'zkevm' })).toContain('compiler-set-differs')
+  })
+
+  it('names the vetting date in the mismatch detail', () => {
+    // The date is the claim a signer weighs — that somebody read the
+    // advisories for these versions — so it has to reach them.
+    const [reported] = auditCoverageNotes(
+      { ...BRIDGED, solcVersion: '0.8.30' },
+      AUDITED
+    )
+
+    // The literal date, not the map's own field: an assertion read through
+    // VETTED_COMPILER_SETS moves with any edit to it and pins nothing.
+    expect(reported?.detail).toContain('2026-09-09')
+  })
+
+  it('reads one closure in two hex spellings as one closure', () => {
+    // Every sibling module compares hashes through normalizeHash: the audit
+    // log is hand-authored, so its spelling of a hash is not the build's.
+    expect(
+      notesOf({}, { sourceClosureHash: CLOSURE.slice(2).toUpperCase() })
+    ).toEqual([])
+
+    // Present: a genuinely different closure still reports.
+    expect(notesOf({}, { sourceClosureHash: OTHER_CLOSURE })).toContain(
+      'closure-differs'
+    )
+  })
+
+  it('does not render a bare v for a record with no version', () => {
+    // Two real attestation records carry an empty version.
+    const [reported] = auditCoverageNotes(
+      { ...BRIDGED, version: '' },
+      { auditIds: [] }
+    )
+
+    expect(reported?.detail).toContain('an unrecorded version')
+    expect(reported?.detail).not.toContain('at v')
   })
 
   it('reports an audit that records no source closure', () => {
@@ -181,8 +242,15 @@ describe('auditCoverageNotes', () => {
       { auditIds: [] }
     )
 
-    expect(Array.isArray(worst)).toBe(true)
-    for (const entry of worst) expect(typeof entry.detail).toBe('string')
+    // Pinned by note rather than by shape: `Array.isArray` and a typeof on
+    // each entry both hold for an empty array, so they pass for a module that
+    // produces nothing.
+    expect(worst.map((entry) => entry.note)).toEqual([
+      'no-audit-recorded',
+      'profile-not-vetted',
+      'closure-unrecorded',
+    ])
+    for (const entry of worst) expect(entry.detail).not.toBe('')
   })
 })
 

@@ -18,12 +18,18 @@
  *   the full transitive closure. A diff of the facet file alone misses a
  *   swapped library — the `AcrossV4SwapFacet`/`LibAsset` case — which is why
  *   the closure and not the file is the unit (E1).
+ * `versionControlAndAuditCheck.yml` already refuses a PR that modifies a
+ * contract without an audit at its latest version, so `no-audit-recorded` is
+ * new only for versions deployed earlier.
+ *
  * - **Everything here is a NOTE, never a block.** A per-deploy version gate
  *   would brand every london-chain deploy unaudited, which is a false red on
  *   routine work. The failure this module must avoid is refusing honest
  *   deploys, not permitting dishonest ones — the codehash gate is what
  *   refuses.
  */
+
+import { normalizeHash } from './hex'
 
 /** A compiler set that has been vetted against advisories and blessed. */
 export interface IVettedCompilerSet {
@@ -92,6 +98,11 @@ export interface IDeployedBuild {
   version: string
   /** Foundry profile the deploy built under. */
   profile: string
+  /**
+   * The upstream solc pin. A zk build's fork solc belongs in {@link zk}
+   * instead, so a caller reading a build's trailer must not put the fork
+   * version here — the two can diverge.
+   */
   solcVersion: string
   evmVersion: string
   zk?: {
@@ -165,6 +176,17 @@ const describeCompilerSet = (set: {
     ? `solc ${set.solcVersion}/${set.evmVersion}`
     : `solc ${set.solcVersion}/${set.evmVersion}, zksolc ${set.zk.zksolcVersion} (solc fork ${set.zk.solcForkVersion}, LLVM ${set.zk.llvmVersion})`
 
+/**
+ * Whether two version strings name the same thing.
+ *
+ * Case and surrounding whitespace are format, not version: the deployment
+ * record and `foundry.toml` do not reliably agree on either, and reporting a
+ * compiler mismatch over `Cancun` against `cancun` is a false red on a build
+ * that matches. `lineage-scope.ts` normalises the same field the same way.
+ */
+const sameVersionText = (a: string, b: string): boolean =>
+  a.trim().toLowerCase() === b.trim().toLowerCase()
+
 const sameZk = (
   a: IVettedCompilerSet['zk'],
   b: IDeployedBuild['zk']
@@ -202,7 +224,9 @@ export const auditCoverageNotes = (
   if (audit.auditIds.length === 0)
     notes.push({
       note: 'no-audit-recorded',
-      detail: `no audit is recorded for ${build.contractName} at v${build.version}`,
+      detail: `no audit is recorded for ${build.contractName} at ${
+        build.version === '' ? 'an unrecorded version' : `v${build.version}`
+      }`,
     })
 
   // A plain property read resolves a profile named `toString` against
@@ -219,8 +243,8 @@ export const auditCoverageNotes = (
       detail: `the ${build.profile} profile is not in the vetted compiler map, so its solc/zksolc advisories have not been reviewed`,
     })
   else if (
-    vetted.solcVersion !== build.solcVersion ||
-    vetted.evmVersion !== build.evmVersion ||
+    !sameVersionText(vetted.solcVersion, build.solcVersion) ||
+    !sameVersionText(vetted.evmVersion, build.evmVersion) ||
     !sameZk(vetted.zk, build.zk)
   )
     // The profile name agreeing is not the compiler set agreeing: a pin can
@@ -247,7 +271,10 @@ export const auditCoverageNotes = (
       detail:
         'the audit or the build records no source closure, so the audited source cannot be shown to be the source that was built',
     })
-  else if (audit.sourceClosureHash !== build.sourceClosureHash)
+  else if (
+    normalizeHash(audit.sourceClosureHash) !==
+    normalizeHash(build.sourceClosureHash)
+  )
     notes.push({
       note: 'closure-differs',
       detail:
