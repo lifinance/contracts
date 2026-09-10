@@ -28,9 +28,8 @@ const MESSAGE =
 
 const FENCE = [
   { selector: `Identifier[name='${FUNNEL}']`, message: MESSAGE },
-  // A computed lookup carries the name as a string, not as an identifier —
-  // and a template literal is neither, which is how it slipped past a fence
-  // that had only the two selectors above.
+  // A computed lookup carries the name as a string rather than an identifier,
+  // and as a template literal it is neither.
   { selector: `Literal[value='${FUNNEL}']`, message: MESSAGE },
   { selector: `TemplateElement[value.cooked='${FUNNEL}']`, message: MESSAGE },
   // Not covered, deliberately: a name assembled by concatenation. No static
@@ -58,15 +57,12 @@ module.exports = {
         'script/deploy/safe/propose-safe-tx.ts',
         // its unit tests
         'script/deploy/safe/safe-utils.test.ts',
-        // Grandfathered when the fence was introduced (EXSC-957). Do NOT add a
-        // file here to make a new propose route lint-clean.
+        // Do NOT add a file here to make a new propose route lint-clean.
         //
-        // Tron is a parallel non-EVM flow that hand-rolls its own signature and
-        // is excluded from reconcile too; the owner-change script sequences
-        // nonces across a loop of prebuilt transactions. Both are tracked for
-        // migration by EXSC-958.
+        // Tron hand-rolls its own signature instead of going through a
+        // `SafeClient`, which is what the wrapper signs with, so it cannot pass
+        // through it as written. Tracked for migration by EXSC-984.
         'script/deploy/tron/propose-to-safe-tron.ts',
-        'script/deploy/safe/add-safe-owners-and-threshold.ts',
       ],
       rules: {
         'no-restricted-syntax': 'off',

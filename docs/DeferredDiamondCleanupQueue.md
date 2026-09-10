@@ -95,9 +95,10 @@ the source prompt or inferred, **not** confirmed.
 3. `[code]` Both proposal-creation entry points funnel through
    `storeTransactionInMongoDB(pendingTransactions, safeAddress, network, chainId,
    safeTx, safeTxHash, proposer)` — `script/deploy/safe/safe-utils.ts:1263`. It is
-   the single point where a proposal is *persisted*, but it is called from ~9 sites,
-   not via one wrapper; it receives a **pre-signed** `safeTx` and has **no Safe SDK
-   client** in scope.
+   the single point where a proposal is *persisted*; it receives a **pre-signed**
+   `safeTx` and has **no Safe SDK client** in scope. Since EXSC-957 every EVM
+   caller reaches it through `proposeSafeTx` (`propose-safe-tx.ts`), which a lint
+   fence enforces; the Tron route still calls it directly (EXSC-984).
 4. `[code]` **`runPropose(options)` — `script/deploy/safe/propose-to-safe.ts:58` — is
    the true funnel for programmatic Safe proposals**, and it owns `{network,
    environment, safe client, Mongo collection}`. It does `normalizeProposeCalls →
@@ -468,9 +469,11 @@ export async function runPropose(options: IProposeToSafeOptions) {
 **Known gap (stated, not hidden).** `sendOrPropose` (`safeScriptHelpers.ts:29`) is a
 *separate* funnel that does **not** call `runPropose` (Fact 4), so actions that go only
 through it — **whitelist syncs** and `cleanUpProdDiamond` removals — will **not** drain
-opportunistically, nor will the four bespoke scripts that call `storeTransactionInMongoDB`
-directly (`proposePolymerCCTPChainIdMappings`, `proposeMegaETHBridgeRegistrations`,
-`unpauseAllDiamonds`, `proposeDeBridgeDlnChainIdMappings`). This is an accepted
+opportunistically, nor will the bespoke scripts that propose through `proposeSafeTx`
+without `runPropose` (`proposePolymerCCTPChainIdMappings`,
+`proposeMegaETHBridgeRegistrations`, `unpauseAllDiamonds`,
+`proposeDeBridgeDlnChainIdMappings`, `proposeAllBridgeChainIdMappings`,
+`proposeFraxChainIdMappings`, `add-safe-owners-and-threshold`). This is an accepted
 consequence of hooking the facet-cut funnel only: deprecation removals naturally ride
 facet cuts (`proposeDiamondCut → runPropose`), and the **cold-network backstop (§8)**
 catches anything the opportunistic path misses. Extending the hook to `sendOrPropose` is

@@ -11,8 +11,7 @@
 #   path-filtered and with no aggregator job, so there is no state in which this reports
 #   green because a producing step did not run
 # - known limitations: the fence covers the funnel's storage function, not a hand-rolled
-#   insert into the proposal collection; `propose-to-safe-tron.ts` and
-#   `add-safe-owners-and-threshold.ts` are grandfathered in the allowlist (EXSC-958)
+#   insert into the proposal collection; the Tron route is allowlisted (EXSC-984)
 
 name: Enforce Safe Proposal Funnel
 on:

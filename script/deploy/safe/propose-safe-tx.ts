@@ -3,10 +3,9 @@
  *
  * The checks that ride on storage — the mandatory Linear ticket, the resolved
  * reason, the duplicate-intent refusal, the nonce-collision retry — are only as
- * wide as the set of paths that reach it, and that set used to be a convention.
- * This is the named seam instead: `.eslintrc.funnel-fence.cjs` refuses any other
- * file that names `storeTransactionInMongoDB`, so a propose route added later
- * either comes through here or fails lint.
+ * wide as the set of paths that reach it. `.eslintrc.funnel-fence.cjs` refuses
+ * any other file that names `storeTransactionInMongoDB`, so a propose route
+ * added later either comes through here or fails lint.
  *
  * Checks that need more than the proposal — the production deploy gate, the
  * proposal card — stay at their call sites; this seam is what makes the set of

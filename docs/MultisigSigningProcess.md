@@ -162,9 +162,8 @@ merge; the deploy scripts never commit.
 
 ### 4.2 Propose
 
-Every EVM entry point except
-`script/deploy/safe/add-safe-owners-and-threshold.ts` proposes through
-`proposeSafeTx` (`script/deploy/safe/propose-safe-tx.ts`), which checks Safe
+Every EVM entry point proposes through `proposeSafeTx`
+(`script/deploy/safe/propose-safe-tx.ts`), which checks Safe
 ownership, signs, hashes the signed transaction and calls
 `storeTransactionInMongoDB` (`script/deploy/safe/safe-utils.ts`). That last is
 where the Linear ticket link is required and the missing-reason warning is
@@ -180,9 +179,9 @@ route added later either comes through `proposeSafeTx` or fails lint
 rule keyed on the AST identifier, so an alias, a namespace member access or a
 computed lookup is refused the same way a plain import is. Two things it does
 **not** cover: a hand-rolled insert into the `pendingTransactions` collection
-that never names the storage function, and the two files still in the allowlist
-for their own storage call — `add-safe-owners-and-threshold.ts` and the Tron
-route, both tracked for migration by EXSC-958.
+that never names the storage function, and the one file still allowlisted for
+its own storage call — the Tron route, which hand-rolls its own signature
+instead of signing through a `SafeClient` (EXSC-984).
 
 The ticket check is the backstop, not the first line: the entry points whose late
 failure costs most — `unpauseAllDiamonds.ts`, `add-safe-owners-and-threshold.ts`,
@@ -224,16 +223,13 @@ run only on the branches that actually propose; a staging or testnet-only run, a
   `propose-to-safe.ts`: `script/tasks/proposeMegaETHBridgeRegistrations.ts`,
   `proposeDeBridgeDlnChainIdMappings.ts`,
   `proposePolymerCCTPChainIdMappings.ts`, `unpauseAllDiamonds.ts`,
-  `proposeAllBridgeChainIdMappings.ts` and `proposeFraxChainIdMappings.ts`.
-  They share the storage seam (`proposeSafeTx`) but **not**
-  `propose-to-safe.ts`, so the deploy gate below does not see them.
-  `script/deploy/safe/add-safe-owners-and-threshold.ts` is in the same position
-  and additionally still holds its own storage call, allowlisted in the fence.
-  None encodes a `diamondCut` today, so none installs facet code. Every propose
-  route is
+  `proposeAllBridgeChainIdMappings.ts`, `proposeFraxChainIdMappings.ts` and
+  `script/deploy/safe/add-safe-owners-and-threshold.ts`. They share the storage
+  seam (`proposeSafeTx`) but **not** `propose-to-safe.ts`, so the deploy gate
+  below does not see them. None encodes a `diamondCut` today, so none installs
+  facet code. Every propose route is
   `grep -rl 'import { proposeSafeTx }' script` plus the files still allowlisted
-  in `.eslintrc.funnel-fence.cjs` (`add-safe-owners-and-threshold.ts` and the
-  Tron route, both tracked for migration by EXSC-958). Run it rather than
+  in `.eslintrc.funnel-fence.cjs` (the Tron route, EXSC-984). Run it rather than
   trusting this sentence — the fence guarantees the two together are
   exhaustive, not that this list is current.
 - **Tron** is a parallel flow (`script/deploy/tron/propose-to-safe-tron.ts`).
@@ -361,10 +357,12 @@ below.
 
 **One propose path does not go through either funnel**, and it is not the bash
 `sendOrPropose`: the identically-named **TypeScript** `sendOrPropose`
-(`script/safe/safeScriptHelpers.ts`) signs and stores a proposal itself. It is the
-third call site, carrying the same gate call inline so the two cannot diverge. A
-*fourth* proposer written against `storeTransactionInMongoDB` directly would not
-be covered — see the bespoke task scripts listed in §4.1, and the `sendOrPropose`
+(`script/safe/safeScriptHelpers.ts`) proposes through `proposeSafeTx` rather than
+through `runPropose`. It is the third call site, carrying the same gate call
+inline so the two cannot diverge. The funnel fence (§4.2) keeps the *storage*
+seam closed, but it says nothing about the gate: a *fourth* proposer that came
+through `proposeSafeTx` without calling `assertFunnelDeployGate` would still not
+be gated — see the bespoke task scripts listed in §4.1, and the `sendOrPropose`
 gap recorded in
 [DeferredDiamondCleanupQueue.md](./DeferredDiamondCleanupQueue.md) §6.
 

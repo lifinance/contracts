@@ -158,6 +158,38 @@ describe('the funnel fence refuses a new propose route', () => {
   )
 })
 
+describe('the allowlist is only what it claims to be', () => {
+  it(
+    'refuses the owner-change script, which used to own its storage call',
+    async () => {
+      const result = await lint(
+        `import { storeTransactionInMongoDB } from './safe-utils'\n` +
+          `export const propose = storeTransactionInMongoDB\n`,
+        'script/deploy/safe/add-safe-owners-and-threshold.ts'
+      )
+
+      expect(result.exitCode).not.toBe(0)
+      expect(result.output).toContain(REFUSAL)
+    },
+    TIMEOUT_MS
+  )
+
+  it('grants no exemption beyond the files named in the config', async () => {
+    const config = (await import(
+      join(REPO_ROOT, '.eslintrc.funnel-fence.cjs')
+    )) as { default: { overrides: { files: string[] }[] } }
+
+    expect(
+      config.default.overrides.flatMap((override) => override.files)
+    ).toEqual([
+      'script/deploy/safe/safe-utils.ts',
+      'script/deploy/safe/propose-safe-tx.ts',
+      'script/deploy/safe/safe-utils.test.ts',
+      'script/deploy/tron/propose-to-safe-tron.ts',
+    ])
+  })
+})
+
 describe('the funnel fence lets compliant code through', () => {
   it(
     'accepts a new call site that goes through the wrapper',
