@@ -1,33 +1,12 @@
 /**
  * Printable field primitive for the signer's prompt
  *
- * Every value the signing prompt shows off a MongoDB proposal row is text the
- * proposer wrote, and the rows are not all written by this repository. This
- * module is the one place that turns such a value into something safe to print,
- * and it reports what it had to do rather than cleaning quietly: a signer who
- * cannot see that a field was repaired cannot tell a normal proposal from a
- * hand-edited one.
- *
- * Three properties beyond stripping control characters, each reachable through
- * a row that needs no escape sequence at all:
- *
- * - **Length.** A 500,000-character hash is a valid row shape. The line wraps
- *   for thousands of terminal rows, pushes the rest of the block off the top
- *   and leaves the prompt, so every field carries a bound.
- * - **Invisibles.** `sanitizeProvenanceText` keeps U+200D and the Hangul
- *   fillers by design — they are printable letters and separators — so two
- *   values differing only by these print identically.
- * - **Confusables.** A Cyrillic `о` in a facet name is glyph-identical to the
- *   ASCII one. No repair is possible without changing which value this is, so
- *   the count is reported instead. Every field this module renders is ASCII by
- *   construction — an address, a hash, a decimal, a facet name, a URL — which
- *   is what makes a bare non-ASCII count precise enough to act on here.
- *
- * `Printable` is a branded string, and `color` accepts nothing else. A field
- * added later as a plain `string` is then a type error rather than a review
- * question, and the intentional exceptions — values built from chain reads,
- * which carry colour codes of their own that sanitising would strip — are
- * greppable as `trustedMarkup` call sites.
+ * Import this to render any value that came off a MongoDB proposal row: it
+ * bounds the value's length, strips what a terminal would execute, counts the
+ * invisibles and confusables it cannot repair, and returns a notice naming
+ * everything it did. A signer who cannot see that a field was repaired cannot
+ * tell a normal proposal from a hand-edited one, so nothing here cleans
+ * quietly.
  */
 
 import { sanitizeProvenanceText } from '../shared/git-provenance'

@@ -20,7 +20,6 @@ import {
 import { consola } from 'consola'
 import { encodeFunctionData, parseAbi, toFunctionSelector } from 'viem'
 
-import { MAX_FIELD_CHARS } from './printable-field'
 import {
   getRoleName,
   formatRoleChange,
@@ -689,8 +688,11 @@ describe('formatDecodedArg — a decoded string is proposer-controlled', () => {
   })
 
   it('discloses a clip inside a tuple', () => {
-    const rendered = formatDecodedArg(['x'.repeat(MAX_FIELD_CHARS + 1), 1n])
-    expect(rendered).toContain(`"${'x'.repeat(MAX_FIELD_CHARS)}"`)
+    // 120 written out rather than derived from MAX_FIELD_CHARS, so gutting the
+    // constant fails here instead of moving with it.
+    const rendered = formatDecodedArg(['x'.repeat(121), 1n])
+    expect(rendered).toContain(`"${'x'.repeat(120)}"`)
+    expect(rendered).not.toContain('x'.repeat(121))
     expect(rendered).toContain(
       'a value inside this argument was sanitised or clipped for display'
     )
