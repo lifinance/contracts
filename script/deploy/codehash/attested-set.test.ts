@@ -38,6 +38,7 @@ const seen = (
 
 const ATTESTED: IAttestedBuild[] = [
   {
+    provenance: 'A-LOCAL',
     lineage: 'upstream cancun',
     solcVersion: '0.8.29',
     maskedHash: CANCUN_HASH,
@@ -45,6 +46,7 @@ const ATTESTED: IAttestedBuild[] = [
     rawHash: undefined,
   },
   {
+    provenance: 'A-LOCAL',
     lineage: 'upstream london',
     solcVersion: '0.8.17',
     maskedHash: LONDON_HASH,
@@ -108,6 +110,7 @@ describe('compareToAttestedSet', () => {
     // hash carries no version, so both lineages are named.
     const twins: IAttestedBuild[] = [
       {
+        provenance: 'A-LOCAL',
         lineage: 'upstream cancun',
         solcVersion: '0.8.29',
         maskedHash: CANCUN_HASH,
@@ -115,6 +118,7 @@ describe('compareToAttestedSet', () => {
         rawHash: undefined,
       },
       {
+        provenance: 'A-LOCAL',
         lineage: 'tron fork',
         solcVersion: '0.8.29',
         maskedHash: CANCUN_HASH,
@@ -216,6 +220,7 @@ describe('when the normalised hash matches but the deployed length does not', ()
     const both: IAttestedBuild[] = [
       ...ATTESTED,
       {
+        provenance: 'A-LOCAL',
         lineage: 'london, metadata hash off',
         solcVersion: '0.8.17',
         maskedHash: LONDON_HASH,
@@ -418,6 +423,7 @@ describe('when the attestation pins the exact deployed bytes', () => {
   const RAW = `0x${'cd'.repeat(32)}`
   const PINNED: IAttestedBuild[] = [
     {
+      provenance: 'A-LOCAL',
       lineage: 'upstream london, exact bytes',
       solcVersion: '0.8.17',
       maskedHash: LONDON_HASH,
@@ -468,6 +474,7 @@ describe('what a pinned rawHash covers, and what a pinned mismatch may be', () =
   const RAW = `0x${'cd'.repeat(32)}`
   const PINNED: IAttestedBuild[] = [
     {
+      provenance: 'A-LOCAL',
       lineage: 'upstream london, exact bytes',
       solcVersion: '0.8.17',
       maskedHash: LONDON_HASH,

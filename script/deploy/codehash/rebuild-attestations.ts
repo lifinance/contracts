@@ -293,6 +293,7 @@ const attestationFrom = (
     ok: true,
     build: {
       lineage: describeLineage(record, commit, profile, trailer),
+      provenance: 'A-LOCAL',
       solcVersion,
       maskedHash: normalized.maskedHash,
       rawByteLength: normalized.rawByteLength,
