@@ -308,14 +308,39 @@ describe('renderLedgerFlexHashFlow', () => {
 
   // Everything the preview shows is something read off a physical device. A
   // page counter or a per-screen affordance carried over from the typed-data
-  // flow would be an invented detail the operator is asked to check.
-  it('shows nothing that has not been read off the device', () => {
-    const plain = stripAnsi(joined)
+  // flow would be an invented detail the operator is asked to check against a
+  // screen that may not carry it.
+  //
+  // A whitelist, not a denylist of the specific strings that were removed: the
+  // property is "nothing beyond these lines appears", which a denylist cannot
+  // express — reinstating a counter in different words (`< 1 / 3 >`, a `Cancel`
+  // header) satisfies every "does not contain" assertion.
+  it('shows nothing beyond the observed screen text and the hash', () => {
+    const cells: string[] = []
+    for (const line of flow) {
+      const screens = stripAnsi(splitRow(line).screens)
+      for (const cell of screens.split('│')) {
+        const text = cell.trim()
+        // Drop the frame itself: the top and bottom rows carry no '│' to split
+        // on, so they arrive whole. '>' is the between-panel step marker.
+        if (!text || text === '>' || /^[─╭╮╰╯\s]+$/.test(text)) continue
+        cells.push(text)
+      }
+    }
 
-    expect(plain).not.toContain('of 3')
-    expect(plain).not.toContain('of 8')
-    expect(plain).not.toContain('Skip')
-    expect(plain).not.toContain('Reject')
+    expect([...cells].sort()).toEqual(
+      [
+        'Review message',
+        'Swipe to review',
+        'Message',
+        '0x1A2B3C4D5E6F7081',
+        '9293A4B5C6D7E8F90A',
+        '1B2C3D4E5F60718293',
+        'A4B5C6D7E8F9',
+        'Sign message',
+        'Hold to sign',
+      ].sort()
+    )
   })
 
   it('renders the hash upper case, as the device does', () => {
@@ -434,5 +459,15 @@ describe('LEDGER_FLEX_HASH_NOTE', () => {
     const plain = stripAnsi(LEDGER_FLEX_HASH_NOTE).toLowerCase()
     expect(plain).toContain('case')
     expect(plain).toContain('wrap')
+  })
+
+  // The screens omit navigation the device may well show. Unsaid, that omission
+  // is a false alarm of its own — the signer sees more on the Flex than in the
+  // terminal and cannot tell an expected extra from a real difference.
+  it('says that navigation the preview omits is expected', () => {
+    const plain = stripAnsi(LEDGER_FLEX_HASH_NOTE).toLowerCase()
+
+    expect(plain).toContain('not a mismatch')
+    expect(plain).toContain('navigation')
   })
 })

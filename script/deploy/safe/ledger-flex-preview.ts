@@ -443,7 +443,10 @@ export const HASH_COMPARE_CHARS = 8
 const COMPARE = `${ESC}[1;33m`
 
 /** Caveat to print BELOW the hash filmstrip. */
-export const LEDGER_FLEX_HASH_NOTE = `${RED}⚠ The device renders hex in upper case and may wrap it differently — compare the characters, not the case or the line breaks.${RESET}`
+export const LEDGER_FLEX_HASH_NOTE = [
+  `${RED}⚠ The device renders hex in upper case and may wrap it differently — compare the characters, not the case or the line breaks.${RESET}`,
+  `${RED}⚠ Only the titles, the prompt on each screen and the hash are reproduced. Navigation the device adds around them is expected, not a mismatch.${RESET}`,
+].join('\n')
 
 export interface ILedgerFlexHashFlowParams {
   /** The Safe transaction hash the device will be asked to sign, as 0x + 64 hex. */
@@ -489,12 +492,17 @@ const hashRows = (hash: string): IFlexLine[] => {
  * The three screens, carrying only what has been read off a physical Flex: the
  * titles, the prompt on each, and the hash itself.
  *
- * Page counters and per-screen affordances are deliberately absent. The preview
- * exists so that a difference from the device reads as an alarm, which only
- * works while everything in it is known to be true — a counter reproduced from
- * the typed-data flow's conventions would be a detail the operator is invited
- * to check against a device that may not show it, and teaches them to shrug at
- * exactly the mismatch this is for.
+ * Page counters and per-screen affordances are deliberately absent, unlike the
+ * typed-data flow below, whose chrome was measured on-device. The preview exists
+ * so that a difference from the device reads as an alarm, which only holds while
+ * everything in it is known to be true — a counter carried over from that flow's
+ * conventions would be a detail the operator is invited to check against a screen
+ * that may not show it, and teaches them to shrug at exactly the mismatch this is
+ * for.
+ *
+ * That makes the preview deliberately incomplete rather than wrong, so
+ * `LEDGER_FLEX_HASH_NOTE` tells the signer that navigation the device adds around
+ * these lines is expected — otherwise the omission becomes its own false alarm.
  */
 const buildHashScreens = (hash: string): IFlexScreen[] => [
   {
