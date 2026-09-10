@@ -3,6 +3,7 @@ import { consola } from 'consola'
 import { createPublicClient, createWalletClient, http } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
+import { redactUrls } from '../utils/redactUrls'
 import { getViemChainForNetworkName } from '../utils/viemScriptHelpers'
 
 import { getPrivateKey } from './safe/safe-utils'
@@ -51,7 +52,11 @@ const main = defineCommand({
       transport: http(chain.rpcUrls.default.http[0]),
     })
 
-    consola.info(`Connected to ${network} via ${chain.rpcUrls.default.http[0]}`)
+    consola.info(
+      `Connected to ${network} via ${redactUrls(
+        chain.rpcUrls.default.http[0] ?? ''
+      )}`
+    )
     const block = await publicClient.getBlock()
 
     consola.info(`Latest block: ${block.number}`)
