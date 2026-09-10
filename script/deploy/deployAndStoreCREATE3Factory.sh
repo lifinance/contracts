@@ -5,6 +5,7 @@
 deployAndStoreCREATE3Factory() {
   # load helper functions
   source script/helperFunctions.sh
+  source script/deploy/shared/assertTreeRecordable.sh
 
   # make sure script was called with sufficient parameters
   if [ "$#" -lt 2 ]; then
@@ -34,6 +35,10 @@ deployAndStoreCREATE3Factory() {
   echoDebug "ENVIRONMENT=$ENVIRONMENT"
   echoDebug "FILE_SUFFIX=$FILE_SUFFIX"
   echo ""
+
+  # The factory is the singleton every deterministic address derives from, and it
+  # broadcasts on its own path rather than through deploySingleContract.
+  assertTreeRecordableOrFail "$ENVIRONMENT" || return 1
 
   # deploy CREATE3Factory
   echo "Trying to deploy CREATE3Factory now"
@@ -84,7 +89,7 @@ deployAndStoreCREATE3Factory() {
       fi
       local TX_OUTPUT
       TX_OUTPUT=$(cast send --rpc-url "$RPC_URL" --private-key "$PRIVATE_KEY" --legacy --create "$BYTECODE" --json 2>&1) || {
-        error "cast send failed: $TX_OUTPUT"
+        error "cast send failed: $(redactRpcUrl "$TX_OUTPUT")"
         return 1
       }
       # cast may print log lines before the JSON; use last line or first {...} for jq
@@ -109,7 +114,7 @@ deployAndStoreCREATE3Factory() {
 
   if [[ -z "$FACTORY_ADDRESS" || "$FACTORY_ADDRESS" == "null" ]]; then
     if [[ -n "${STDERR_CONTENT:-}" ]]; then
-      error "❌ Deployment failed on $NETWORK. Last stderr: ${STDERR_CONTENT:0:500}"
+      error "❌ Deployment failed on $NETWORK. Last stderr: $(redactRpcUrl "${STDERR_CONTENT:0:500}")"
     else
       error "Failed to obtain CREATE3Factory address on $NETWORK ($ENVIRONMENT)"
     fi

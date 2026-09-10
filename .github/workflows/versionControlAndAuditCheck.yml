@@ -2,7 +2,7 @@
 # Version Control (runs on all branches):
 # - will check all modified or new contracts in src/*
 # - makes sure that all contracts that have changes in audit-relevant code require a contract version update
-# - relevant changes => anything except for single (//) or multi-line (/*) comments and changes in solidity pragma
+# - relevant changes => anything except wholly-comment, wholly-pragma, or blank lines (trailing code after pragma/; or /* */ is relevant)
 # - fails if contract version was not updated despite relevant changes
 # - fails if a new contract was added without a ///custom:version tag
 # - will update the PR title to contain contract names with version changes (incl. their new version)
@@ -17,9 +17,11 @@
 # - checks include:
 #   - ensuring the audit log contains an entry for all added/modified contracts in their latest version
 #   - ensuring that an audit report has been added at the logged path
-#   - ensuring that the logged audit commit hash is part of the PR's commit list (skipped for revert PRs,
-#     i.e. titles starting with "Revert" or containing "[Revert]", since the audited commit lives in the
-#     reverted PR's history, not the revert PR's)
+#   - ensuring that the source at PR head is the source that was audited: the contract's full import
+#     closure is hashed at PR head and at each logged audit commit, and they must match. There is no
+#     revert exemption — a clean revert restores byte-identical audited source and passes on content
+#   - ensuring that audit/auditLog.json is append-only, so the recorded expectation cannot be edited
+#     in the same PR it is being checked against
 # - assigns label "AuditCompleted" if the audit for each relevant modified contract passed all checks
 # - KNOWN LIMITATIONS
 #   - multiple audits can be registered per contract (in a specific version)
@@ -70,7 +72,10 @@ jobs:
 
           ##### get all files modified by this PR
           # --diff-filter=AM argument to only include files that were added or modified not deleted
-          FILES="$(git diff --name-only --diff-filter=AM "origin/${BASE_REF}" HEAD)"
+          # three-dot so the diff is against the merge base. Two-dot also lists the commits the
+          # base branch gained since the branch point, which flags contracts this PR never
+          # touched as needing a version bump and an audit
+          FILES="$(git diff --name-only --diff-filter=AM "origin/${BASE_REF}...HEAD")"
 
           ##### if no files were modified, this is valid (e.g., just moving files around)
           if [[ -z "$FILES" ]]; then
@@ -117,6 +122,14 @@ jobs:
           ##### Read tmp file into variable
           CONTRACTS=$(cat modified_contracts.txt)
 
+          ##### every comparison below is against the commit this branch forked from, not the
+          ##### moving base-branch tip
+          ##### `set -e` would abort on the failing substitution before any message is printed
+          MERGE_BASE=$(git merge-base "origin/$BASE_REF" HEAD) || {
+            echo -e "\033[31mCould not determine the merge base with origin/$BASE_REF. Aborting now.\033[0m"
+            exit 1
+          }
+
           ##### Initialize variables
           MISSING_VERSION_TAG=()
           MISSING_VERSION_UPDATE=()
@@ -143,12 +156,37 @@ jobs:
             else
               echo -e "\033[32mFile contains a custom:version tag\033[0m"
 
-              ##### Filter relevant code changes (exclude comments, pragma, license, empty lines)
-              DIFF_OUTPUT=$(git diff "origin/$BASE_REF" HEAD -- "$FILE_PATH")
-              RELEVANT_CHANGES=$(echo "$DIFF_OUTPUT" | grep -E '^[\+\-]' \
-                | grep -vE "^[\+\-][[:space:]]*(//|/\*|pragma)" \
-                | grep -vE '^(\+\+\+|---)' \
-                | grep -vE '^([\+\-])[[:space:]]*$' || true)
+              ##### Filter relevant code changes. Same rule as
+              ##### isAuditNonRelevantLine in script/deploy/audit/audit-relevant-source.ts:
+              ##### drop a +/- line only when the remainder is wholly comment, wholly
+              ##### pragma, or blank. Trailing code after `pragma …;` or `/* … */` is
+              ##### relevant (otherwise `pragma …; function steal()` skips both gates).
+              DIFF_OUTPUT=$(git diff "$MERGE_BASE" HEAD -- "$FILE_PATH")
+              RELEVANT_CHANGES=$(
+                echo "$DIFF_OUTPUT" | while IFS= read -r DIFF_LINE; do
+                  [[ "$DIFF_LINE" == +++* || "$DIFF_LINE" == ---* ]] && continue
+                  case "$DIFF_LINE" in
+                    +*|-* ) ;;
+                    *) continue ;;
+                  esac
+                  REST="${DIFF_LINE:1}"
+                  REST="${REST#"${REST%%[![:space:]]*}"}"
+                  [[ -z "$REST" ]] && continue
+                  [[ "$REST" == //* ]] && continue
+                  if [[ "$REST" == '/*'* ]]; then
+                    if [[ "$REST" != *'*/'* ]]; then
+                      continue
+                    fi
+                    AFTER_BLOCK="${REST#*'*/'}"
+                    [[ -z "${AFTER_BLOCK#"${AFTER_BLOCK%%[![:space:]]*}"}" ]] && continue
+                  fi
+                  if [[ "$REST" == pragma* && "$REST" == *';'* ]]; then
+                    AFTER_PRAGMA="${REST#*;}"
+                    [[ -z "${AFTER_PRAGMA#"${AFTER_PRAGMA%%[![:space:]]*}"}" ]] && continue
+                  fi
+                  printf '%s\n' "$DIFF_LINE"
+                done
+              )
 
               ##### Decide if audit/version update is needed
               if [[ -n "$RELEVANT_CHANGES" ]]; then
@@ -159,7 +197,7 @@ jobs:
                   echo "--------------------"
                   echo "Checking if version was updated..."
 
-                  OLD_FILE_CONTENT=$(git show "origin/$BASE_REF:${FILE_PATH}" 2>/dev/null || echo "")
+                  OLD_FILE_CONTENT=$(git show "$MERGE_BASE:${FILE_PATH}" 2>/dev/null || echo "")
                   OLD_VERSION=$(echo "$OLD_FILE_CONTENT" | grep -E '^/// @custom:version' | sed -E 's/^\/\/\/ @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*$/\1/')
 
                   # If there was no old version line in the diff, it's a new file.
@@ -344,6 +382,27 @@ jobs:
           fetch-depth: 0
           persist-credentials: false
 
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+
+      - name: Install dev dependencies
+        run: bun install --frozen-lockfile
+
+      # Runs unconditionally, not under AUDIT_REQUIRED: rewriting the log is precisely
+      # the move that would otherwise arrive in a PR touching no contract at all.
+      #
+      # Compared against HEAD^1, not base.sha. This workflow runs only on pull_request,
+      # where HEAD is the merge commit, so HEAD^1 IS the base tip that HEAD merged, while
+      # base.sha is the base as it stood when the PR was opened. An entry that lands on
+      # main after that point and is then deleted on the branch after a merge from main
+      # is absent from both sides of a base.sha comparison — zero violations reported,
+      # and recorded history quietly loses an entry.
+      - name: Verify the audit log is append-only
+        run: |
+          bunx tsx script/deploy/audit/verify-audit-log-append-only.ts \
+            --base HEAD^1 \
+            --head HEAD
+
       - name: Download list of audit-relevant contracts from previous version control step
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
         with:
@@ -458,8 +517,6 @@ jobs:
       - name: Check Audit Log
         id: check-audit-log
         if: ${{ always() && env.AUDIT_REQUIRED == 'true' }} # always() ensures that validation is always executed, even if env variable is not set
-        env:
-          PR_TITLE: ${{ github.event.pull_request.title }} # passed via env (not inline interpolation) to prevent shell injection through PR titles
         run: |
 
           echo "This step will make sure that an audit is logged for each contract modified/added by this PR."
@@ -597,36 +654,9 @@ jobs:
               fi
               echo -e "\033[32mA user with handle '$AUDITOR_GIT_HANDLE' exists on GitHub.\033[0m"
 
-              ##### make sure that the audited commit is part of this PR's commit list
-              ##### skipped for revert PRs (title starts with "Revert" or contains "[Revert]"):
-              ##### a revert PR cannot contain the originally audited commit, and the check
-              ##### would otherwise make it impossible to revert through the normal PR process
-              if [[ "$PR_TITLE" == Revert* || "$PR_TITLE" == *"[Revert]"* ]]; then
-                echo "PR title indicates a revert PR. Skipping audit commit hash verification for audit $AUDIT_ID."
-              else
-                echo "now checking if audit commit hash $AUDIT_COMMIT_HASH is associated with PR $PR_NUMBER"
-                ##### Fetch the list of commits associated with the PR
-                COMMIT_LIST=$(gh pr view "$PR_NUMBER" --json commits --jq '.commits[].oid')
-
-                ##### Check if the target commit is in the list
-                if echo "$COMMIT_LIST" | grep -Fxq -- "$AUDIT_COMMIT_HASH"; then
-                  echo -e "\033[32mCommit $AUDIT_COMMIT_HASH is associated with PR #$PR_NUMBER.\033[0m"
-                else
-                  echo -e "\033[31mCommit $AUDIT_COMMIT_HASH is NOT associated with PR #$PR_NUMBER.\033[0m"
-                  exit 1
-                fi
-              fi
-
-            ##### Check if the auditor git handle exists on github
-            echo "now checking if the auditor git handle ($AUDITOR_GIT_HANDLE) actually exists"
-            if gh api users/$AUDITOR_GIT_HANDLE > /dev/null 2>&1; then
-              echo -e "\033[32mA user with handle '$AUDITOR_GIT_HANDLE' exists on GitHub.\033[0m"
-            else
-              echo -e "\033[31mA user with handle '$AUDITOR_GIT_HANDLE' does not exist on GitHub.\033[0m"
-              echo -e "\033[31mPlease fix the audit log before continuing.\033[0m"
-              echo -e "\033[31mCheck failed.\033[0m"
-              exit 1
-            fi
+              ##### whether this audit actually describes the source being merged is decided
+              ##### by content in the "Verify audited source matches PR head" step below, once
+              ##### per contract rather than once per audit id
 
             # ##### -----------------------------------------------------------------------------
             # ##### DISABLED FOR NOW (NEED TO CHECK IF THIS IS COMPATIBLE WITH OUR FLOW) - WAS USED FOR SINGLE AUDIT CHECK
@@ -679,6 +709,27 @@ jobs:
           echo -e "\033[32mCheck passed.\033[0m"
           echo "Assigning label 'AuditCompleted' next"
 
+      # The verdict this whole workflow exists for. The step above proves each audit
+      # entry is well-formed; this one proves an audit describes the source being merged.
+      #
+      # On a pull_request event HEAD is the merge commit, so this gates the tree that
+      # would actually land rather than the PR branch tip — which also means a change
+      # arriving from the base branch can flip this red (see D13 on EXSC-883).
+      #
+      # `!cancelled()` rather than a bare `always()`: it still reports alongside a
+      # failure in the step above, so an author sees both problems in one run, without
+      # also running after the job is cancelled.
+      - name: Verify audited source matches PR head
+        if: ${{ !cancelled() && env.AUDIT_REQUIRED == 'true' }}
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title }} # via env, never inline, so a PR title cannot inject shell
+        run: |
+          bunx tsx script/deploy/audit/verify-audit-gate.ts \
+            --contracts-file contracts_for_audit.txt \
+            --audit-log "$AUDIT_LOG_PATH" \
+            --head HEAD \
+            --pr-title "$PR_TITLE"
+
       - name: Assign label "AuditCompleted" if all checks passed
         if: ${{ env.AUDIT_REQUIRED == 'true' }}
         uses: actions-ecosystem/action-add-labels@18f1af5e3544586314bbe15c0273249c770b2daf # v1
@@ -687,3 +738,51 @@ jobs:
           github_token: ${{ secrets.GIT_ACTIONS_BOT_PAT_CLASSIC }} # we use the token of the lifi-action-bot so the label protection check will pass
           labels: 'AuditCompleted'
           number: ${{ env.PR_NUMBER }}
+
+  # Reports closure drift on its own status, per D14. Deliberately a separate job:
+  # a status check is per-job, so folding this into `audit-verification` would make
+  # drift indistinguishable from the blocking verdict. Register this one as
+  # NON-REQUIRED on `main` — it goes red to make drift visible, not to stop a merge.
+  #
+  # It re-runs the same gate with --fail-on-drift rather than reading a step output,
+  # so it cannot report green because an upstream step failed to set a variable.
+  audit-closure-drift:
+    if: ${{ github.event.pull_request.draft == false && github.event.pull_request.base.ref == 'main' }}
+    needs: version-control
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      AUDIT_LOG_PATH: 'audit/auditLog.json'
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2
+
+      - name: Install dev dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Download list of audit-relevant contracts from previous version control step
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: contracts_for_audit
+
+      - name: Report closure drift
+        run: |
+          ##### An empty list means no contract in this PR needs an audit, so there is
+          ##### nothing whose closure could have drifted. The blocking gate refuses an
+          ##### absent list; here an empty one is simply nothing to report.
+          if [[ ! -s contracts_for_audit.txt ]]; then
+            echo "No audit-relevant contracts in this PR — no closure to compare."
+            exit 0
+          fi
+
+          bunx tsx script/deploy/audit/verify-audit-gate.ts \
+            --contracts-file contracts_for_audit.txt \
+            --audit-log "$AUDIT_LOG_PATH" \
+            --head HEAD \
+            --fail-on-drift

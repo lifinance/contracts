@@ -4,10 +4,6 @@
       "type": "http",
       "url": "https://mcp.linear.app/mcp"
     },
-    "slack": {
-      "type": "http",
-      "url": "https://mcp.slack.com/mcp"
-    },
     "notion": {
       "type": "http",
       "url": "https://mcp.notion.com/mcp"

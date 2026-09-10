@@ -2,7 +2,8 @@ import fs from 'fs'
 import path from 'path'
 
 import { defineCommand, runMain } from 'citty'
-import { keccak256, toBytes } from 'viem'
+
+import { flagIsOn } from '../script/deploy/safe/cli-flags'
 
 type Json = Record<string, unknown>
 
@@ -21,50 +22,9 @@ function installEpipeHandler(): void {
   process.stdout.on('error', onError)
 }
 
-interface IAbiParam {
-  name?: string
-  type: string
-  internalType?: string
-  components?: IAbiParam[]
-  indexed?: boolean
-}
-
-interface IAbiItemBase {
-  type: string
-  name?: string
-}
-
-interface IAbiFunction extends IAbiItemBase {
-  type: 'function'
-  name: string
-  inputs: IAbiParam[]
-  outputs?: IAbiParam[]
-  stateMutability?: string
-}
-
-interface IAbiEvent extends IAbiItemBase {
-  type: 'event'
-  name: string
-  inputs: IAbiParam[]
-  anonymous?: boolean
-}
-
-interface IAbiError extends IAbiItemBase {
-  type: 'error'
-  name: string
-  inputs?: IAbiParam[]
-}
-
-type AbiItem = IAbiFunction | IAbiEvent | IAbiError | IAbiItemBase
-
-interface IFoundryArtifact {
-  abi: AbiItem[]
-}
-
 interface INetworkConfig {
   chainId: number
   status?: string
-  type?: string
 }
 
 interface IClearSigningProposal {
@@ -85,42 +45,14 @@ interface ILedgerRegistryFile {
     $id?: string
     contract?: {
       deployments?: Array<{ chainId: number; address: string }>
-      abi?: AbiItem[]
+      // [Deprecated] Present in older registry files; stripped on every sync.
+      abi?: unknown[]
     }
   }
   metadata?: Json
   display?: ILedgerDisplay
   // allow extra keys
   [k: string]: unknown
-}
-
-function canonicalType(param: IAbiParam): string {
-  if (!param.type.startsWith('tuple')) return param.type
-  const suffix = param.type.slice('tuple'.length) // "", "[]", "[2]" etc
-  if (!param.components || param.components.length === 0) return `()${suffix}`
-  const inner = param.components.map(canonicalType).join(',')
-  return `(${inner})${suffix}`
-}
-
-function functionSignature(fn: IAbiFunction): string {
-  const inputs = fn.inputs?.map(canonicalType).join(',') ?? ''
-  return `${fn.name}(${inputs})`
-}
-
-function selectorFromSignature(sig: string): string {
-  return keccak256(toBytes(sig)).slice(0, 10)
-}
-
-function eventSignature(ev: IAbiEvent): string {
-  // Canonical event signature (used for dedup keys + sort ordering, and safe for
-  // future keccak256 topic-0 derivation): types only, no `indexed` prefix.
-  const inputs = ev.inputs?.map(canonicalType).join(',') ?? ''
-  return `${ev.name}(${inputs})`
-}
-
-function errorSignature(er: IAbiError): string {
-  const inputs = er.inputs?.map(canonicalType).join(',') ?? ''
-  return `${er.name}(${inputs})`
 }
 
 function isObject(value: unknown): value is Record<string, unknown> {
@@ -146,6 +78,29 @@ function writePrettyJson(filePath: string, data: unknown): void {
   fs.writeFileSync(filePath, `${JSON.stringify(data, null, 2)}\n`)
 }
 
+// An ERC-7730 format with an explicitly empty `fields` renders only a title (no
+// amount, receiver, or destination) and the registry rejects it. Earlier syncs
+// pushed such entries for the `*Packed` / `*Min` bridge entry-points: `*Packed`
+// declares no ABI parameters at all, `*Min` a packed tuple the templates do not
+// decode, so neither can carry a useful field. The proposal no longer emits them
+// (tasks/buildClearSigningProposal.ts), so the merge below would otherwise
+// preserve that residue forever.
+//
+// The test is deliberately narrow on both axes. Only `*Packed` / `*Min` keys
+// qualify: every other key is either ours (replaced from the proposal) or
+// authored by the EF working group, and deleting the latter would silently
+// propose removing their work. And `fields` must be present and empty: an entry
+// that omits `fields` may legally inherit them from a file the registry pulls in
+// via the top-level `includes` key, so it renders fine and is not ours to drop.
+function isResidualTitleOnlyEntry(formatKey: string, entry: unknown): boolean {
+  const parenIndex = formatKey.indexOf('(')
+  const functionName =
+    parenIndex === -1 ? formatKey : formatKey.slice(0, parenIndex)
+  if (!/(Packed|Min)$/u.test(functionName)) return false
+  if (!isObject(entry)) return false
+  return Array.isArray(entry.fields) && entry.fields.length === 0
+}
+
 // Merges `display.formats` entries from the local proposal into the registry's
 // existing display block.
 //
@@ -155,6 +110,8 @@ function writePrettyJson(filePath: string, data: unknown): void {
 //  - Selectors present in the registry but not in the proposal: PRESERVE.
 //    These may be registry-only entries the EF working group adds, or stale
 //    entries for selectors we deprecated but older deployments still expose.
+//    The one exception is our own title-only `*Packed` / `*Min` residue — see
+//    `isResidualTitleOnlyEntry`.
 //  - Other `display.*` keys (definitions, screens, etc.): PRESERVE verbatim.
 //
 // Returns the next `display` object. Pass `proposalFilePath = null` to skip
@@ -192,100 +149,23 @@ function mergeDisplayFormats(
     else added++
     nextFormats[sig] = entry as Json
   }
-  const preserved = Object.keys(existingFormats).filter(
+  const dropped: string[] = []
+  for (const [sig, entry] of Object.entries(nextFormats))
+    if (isResidualTitleOnlyEntry(sig, entry)) {
+      delete nextFormats[sig]
+      dropped.push(sig)
+    }
+
+  const preserved = Object.keys(nextFormats).filter(
     (k) => !(k in proposal.formats)
   ).length
 
   console.log(
-    `display.formats merge: +${added} added, ~${replaced} replaced, =${preserved} preserved (unowned)`
+    `display.formats merge: +${added} added, ~${replaced} replaced, =${preserved} preserved (unowned), -${dropped.length} dropped (title-only Packed/Min residue)`
   )
+  for (const sig of dropped) console.log(`  dropped: ${sig}`)
   next.formats = nextFormats
   return next
-}
-
-function listFacetArtifacts(facetsDir: string, outDir: string): string[] {
-  const facetFiles = fs
-    .readdirSync(facetsDir)
-    .filter((f) => f.endsWith('.sol'))
-    .sort((a, b) => a.localeCompare(b))
-
-  return facetFiles.map((file) => {
-    const jsonFile = file.replace(/\.sol$/u, '.json')
-    return path.resolve(outDir, file, jsonFile)
-  })
-}
-
-function buildDiamondAbiFromFacets(
-  facetsDir: string,
-  outDir: string
-): AbiItem[] {
-  const artifactPaths = listFacetArtifacts(facetsDir, outDir)
-
-  const seen = new Set<string>()
-  const collected: AbiItem[] = []
-
-  for (const artifactPath of artifactPaths) {
-    if (!fs.existsSync(artifactPath)) {
-      throw new Error(
-        `Missing Foundry artifact at ${artifactPath}. Did you run "forge build" first?`
-      )
-    }
-
-    const artifact = readJsonFile<IFoundryArtifact>(artifactPath)
-    for (const item of artifact.abi ?? []) {
-      // Skip constructors (not callable via diamond)
-      if (item.type === 'constructor') continue
-
-      let key: string
-      if (item.type === 'function')
-        key = `fn:${functionSignature(item as IAbiFunction)}`
-      else if (item.type === 'event')
-        key = `ev:${eventSignature(item as IAbiEvent)}`
-      else if (item.type === 'error')
-        key = `er:${errorSignature(item as IAbiError)}`
-      else key = `misc:${item.type}:${item.name ?? ''}`
-
-      if (seen.has(key)) continue
-      seen.add(key)
-      collected.push(item)
-    }
-  }
-
-  const orderType = (t: string): number => {
-    if (t === 'function') return 0
-    if (t === 'event') return 1
-    if (t === 'error') return 2
-    if (t === 'receive') return 3
-    if (t === 'fallback') return 4
-    return 99
-  }
-
-  collected.sort((a, b) => {
-    const ta = orderType(a.type)
-    const tb = orderType(b.type)
-    if (ta !== tb) return ta - tb
-
-    const na = a.name ?? ''
-    const nb = b.name ?? ''
-    if (na !== nb) return na.localeCompare(nb)
-
-    if (a.type === 'function' && b.type === 'function')
-      return functionSignature(a as IAbiFunction).localeCompare(
-        functionSignature(b as IAbiFunction)
-      )
-    if (a.type === 'event' && b.type === 'event')
-      return eventSignature(a as IAbiEvent).localeCompare(
-        eventSignature(b as IAbiEvent)
-      )
-    if (a.type === 'error' && b.type === 'error')
-      return errorSignature(a as IAbiError).localeCompare(
-        errorSignature(b as IAbiError)
-      )
-
-    return 0
-  })
-
-  return collected
 }
 
 function buildDeploymentsFromRepo(
@@ -305,9 +185,8 @@ function buildDeploymentsFromRepo(
     const cfg = networks[networkName]
     if (!cfg) continue
 
-    // Ledger file targets production deployments; ignore testnets/inactive networks
+    // Catches networks marked inactive whose deployment files are still present
     if (cfg.status && cfg.status !== 'active') continue
-    if (cfg.type && cfg.type !== 'mainnet') continue
 
     const deploymentPath = path.resolve(deploymentsDir, file)
     const data = readJsonFile<Record<string, unknown>>(deploymentPath)
@@ -336,56 +215,6 @@ function normalizeLedgerFile(input: unknown): ILedgerRegistryFile {
 
 function normalizeAddress(address: string): string {
   return address.toLowerCase()
-}
-
-function isAbiFunction(item: AbiItem): item is IAbiFunction {
-  return item.type === 'function'
-}
-
-function diffLedgerVsLocalFunctions(params: {
-  ledger: ILedgerRegistryFile
-  localAbi: AbiItem[]
-}): {
-  localCount: number
-  ledgerCount: number
-  missingInLedger: Array<{ sig: string; selector: string }>
-  extraInLedger: Array<{ sig: string; selector: string }>
-} {
-  const ledgerAbi = params.ledger.context?.contract?.abi ?? []
-  const ledgerFns = ledgerAbi.filter(isAbiFunction)
-  const localFns = params.localAbi.filter(isAbiFunction)
-
-  const localBySig = new Map<string, string>()
-  for (const fn of localFns) {
-    const sig = functionSignature(fn)
-    localBySig.set(sig, selectorFromSignature(sig))
-  }
-
-  const ledgerBySig = new Map<string, string>()
-  for (const fn of ledgerFns) {
-    const sig = functionSignature(fn)
-    ledgerBySig.set(sig, selectorFromSignature(sig))
-  }
-
-  const missingInLedger: Array<{ sig: string; selector: string }> = []
-  for (const [sig, selector] of localBySig.entries()) {
-    if (!ledgerBySig.has(sig)) missingInLedger.push({ sig, selector })
-  }
-
-  const extraInLedger: Array<{ sig: string; selector: string }> = []
-  for (const [sig, selector] of ledgerBySig.entries()) {
-    if (!localBySig.has(sig)) extraInLedger.push({ sig, selector })
-  }
-
-  missingInLedger.sort((a, b) => a.sig.localeCompare(b.sig))
-  extraInLedger.sort((a, b) => a.sig.localeCompare(b.sig))
-
-  return {
-    localCount: localFns.length,
-    ledgerCount: ledgerFns.length,
-    missingInLedger,
-    extraInLedger,
-  }
 }
 
 async function fetchJson<T>(url: string): Promise<T> {
@@ -461,7 +290,7 @@ const main = defineCommand({
   meta: {
     name: 'generate-ledger-clear-signing',
     description:
-      'Updates ERC-7730 registry JSON for LiFiDiamond: regenerates context.contract.{abi,deployments} from this repo, and merges display.formats from config/clearSigningProposal.json (registry entries we own → replaced; entries we do not own → preserved). metadata + other display keys are preserved verbatim.',
+      'Updates ERC-7730 registry JSON for LiFiDiamond: regenerates context.contract.deployments from this repo, strips the deprecated context.contract.abi, and merges display.formats from config/clearSigningProposal.json (registry entries we own → replaced; entries we do not own → preserved). metadata + other display keys are preserved verbatim.',
   },
   args: {
     ledgerFilePath: {
@@ -482,64 +311,51 @@ const main = defineCommand({
         'Optional: write output to this file (defaults to ledgerFilePath for in-place updates).',
       required: false,
     },
-    facetsDir: {
-      type: 'string',
-      description: 'Facets directory to aggregate ABI from',
-      default: './src/Facets',
-    },
-    foundryOutDir: {
-      type: 'string',
-      description: 'Foundry out directory containing compiled artifacts',
-      default: './out',
-    },
     deploymentsDir: {
       type: 'string',
       description:
         'Deployments directory containing per-network JSON deployment files',
-      default: './deployments',
     },
     networksJson: {
       type: 'string',
       description: 'Path to config/networks.json',
-      default: './config/networks.json',
     },
     skipDeployments: {
       type: 'boolean',
       description: 'Do not modify context.contract.deployments',
-      default: false,
-    },
-    skipAbi: {
-      type: 'boolean',
-      description: 'Do not modify context.contract.abi',
-      default: false,
     },
     proposalFilePath: {
       type: 'string',
       description:
         "Path to the clear-signing display.formats proposal JSON (generated by tasks/buildClearSigningProposal.ts). Defaults to ./config/clearSigningProposal.json. Entries from this file replace same-selector entries in the registry's display.formats; other display entries are preserved.",
-      default: './config/clearSigningProposal.json',
     },
     skipDisplayMerge: {
       type: 'boolean',
       description:
         'Do not merge display.formats from the proposal file. Useful for emergency runs when the proposal is known stale or the gate is being debugged.',
-      default: false,
     },
     printDiff: {
       type: 'boolean',
       description:
-        'Print ABI + deployments diffs between Ledger JSON and local repo-derived values before writing.',
-      default: false,
+        'Print the deployments diff between Ledger JSON and local repo-derived values before writing.',
     },
     diffOnly: {
       type: 'boolean',
       description:
         'Only compute/print diffs (and/or derived counts); do not write any output file.',
-      default: false,
     },
   },
   async run({ args }) {
     installEpipeHandler()
+
+    const skipDeployments = flagIsOn(args.skipDeployments)
+    const skipDisplayMerge = flagIsOn(args.skipDisplayMerge)
+    const printDiff = flagIsOn(args.printDiff)
+    const diffOnly = flagIsOn(args.diffOnly)
+    const deploymentsDir = args.deploymentsDir ?? './deployments'
+    const networksJson = args.networksJson ?? './config/networks.json'
+    const proposalFilePath =
+      args.proposalFilePath ?? './config/clearSigningProposal.json'
 
     if (!args.ledgerFilePath && !args.ledgerUrl) {
       throw new Error('Provide either --ledgerFilePath or --ledgerUrl')
@@ -555,83 +371,55 @@ const main = defineCommand({
           )
         })()
 
-    const nextAbi = args.skipAbi
-      ? undefined
-      : buildDiamondAbiFromFacets(
-          resolveWithinCwd(args.facetsDir),
-          resolveWithinCwd(args.foundryOutDir)
-        )
-
-    const nextDeployments = args.skipDeployments
+    const nextDeployments = skipDeployments
       ? undefined
       : buildDeploymentsFromRepo(
-          resolveWithinCwd(args.deploymentsDir),
-          resolveWithinCwd(args.networksJson)
+          resolveWithinCwd(deploymentsDir),
+          resolveWithinCwd(networksJson)
         )
 
-    if (args.printDiff) {
-      if (nextAbi) {
-        const diff = diffLedgerVsLocalFunctions({ ledger, localAbi: nextAbi })
-        safeLog(`Local functions:  ${diff.localCount}`)
-        safeLog(`Ledger functions: ${diff.ledgerCount}`)
-        safeLog(`Missing in Ledger: ${diff.missingInLedger.length}`)
-        safeLog(`Extra in Ledger:   ${diff.extraInLedger.length}`)
+    if (printDiff && nextDeployments) {
+      const d = diffLedgerVsLocalDeployments({
+        ledger,
+        localDeployments: nextDeployments,
+      })
+      safeLog(`Ledger deployments: ${d.ledgerCount}`)
+      safeLog(`Local deployments:  ${d.localCount}`)
+      safeLog(`Deployments added:  ${d.added.length}`)
+      safeLog(`Deployments removed: ${d.removed.length}`)
+      safeLog(`Deployments changed: ${d.changed.length}`)
 
-        if (diff.missingInLedger.length) {
-          safeLogEmptyLine()
-          safeLog('--- Missing in Ledger (local ABI has, Ledger does not) ---')
-          for (const { sig, selector } of diff.missingInLedger)
-            safeLog(`${selector} ${sig}`)
-        }
-        if (diff.extraInLedger.length) {
-          safeLogEmptyLine()
-          safeLog('--- Extra in Ledger (Ledger has, local ABI does not) ---')
-          for (const { sig, selector } of diff.extraInLedger)
-            safeLog(`${selector} ${sig}`)
-        }
-      }
-
-      if (nextDeployments) {
-        const d = diffLedgerVsLocalDeployments({
-          ledger,
-          localDeployments: nextDeployments,
-        })
+      if (d.added.length) {
         safeLogEmptyLine()
-        safeLog(`Ledger deployments: ${d.ledgerCount}`)
-        safeLog(`Local deployments:  ${d.localCount}`)
-        safeLog(`Deployments added:  ${d.added.length}`)
-        safeLog(`Deployments removed: ${d.removed.length}`)
-        safeLog(`Deployments changed: ${d.changed.length}`)
-
-        if (d.added.length) {
-          safeLogEmptyLine()
-          safeLog('--- Deployments added (local has, Ledger does not) ---')
-          for (const x of d.added) safeLog(`+ ${x.chainId} ${x.address}`)
-        }
-        if (d.removed.length) {
-          safeLogEmptyLine()
-          safeLog('--- Deployments removed (Ledger has, local does not) ---')
-          for (const x of d.removed) safeLog(`- ${x.chainId} ${x.address}`)
-        }
-        if (d.changed.length) {
-          safeLogEmptyLine()
-          safeLog('--- Deployments changed (same chainId, address differs) ---')
-          for (const x of d.changed)
-            safeLog(`~ ${x.chainId} ${x.from} -> ${x.to}`)
-        }
+        safeLog('--- Deployments added (local has, Ledger does not) ---')
+        for (const x of d.added) safeLog(`+ ${x.chainId} ${x.address}`)
+      }
+      if (d.removed.length) {
+        safeLogEmptyLine()
+        safeLog('--- Deployments removed (Ledger has, local does not) ---')
+        for (const x of d.removed) safeLog(`- ${x.chainId} ${x.address}`)
+      }
+      if (d.changed.length) {
+        safeLogEmptyLine()
+        safeLog('--- Deployments changed (same chainId, address differs) ---')
+        for (const x of d.changed)
+          safeLog(`~ ${x.chainId} ${x.from} -> ${x.to}`)
       }
     }
 
-    if (args.diffOnly) return
+    if (diffOnly) return
 
     const context = ledger.context ?? {}
     const contract = context.contract ?? {}
 
-    const nextContract = {
-      ...contract,
-      ...(nextDeployments ? { deployments: nextDeployments } : {}),
-      ...(nextAbi ? { abi: nextAbi } : {}),
-    }
+    // Strip the deprecated context.contract.abi. Since the v2 schema the registry
+    // infers the ABI + selectors from the display.formats keys (they carry full
+    // signatures), and the maintainer asked us to stop shipping it (EXSC-894).
+    // The generator merges into the fetched registry file, so an existing abi key
+    // must be deleted explicitly — leaving it unset would preserve the old block.
+    const nextContract = { ...contract }
+    delete nextContract.abi
+    if (nextDeployments) nextContract.deployments = nextDeployments
 
     // Merge `display.formats` from our committed proposal into the registry's
     // existing `display`. Two-way contract:
@@ -644,12 +432,13 @@ const main = defineCommand({
     //  - selectors removed from our diamond (in registry but not in proposal):
     //    preserve. Some older deployments may still expose them; dropping the
     //    entry would break clear-signing for those signers. Dead entries are
-    //    a cheap cost.
+    //    a cheap cost. The exception is title-only `*Packed` / `*Min` residue we
+    //    pushed ourselves, which the registry rejects (`isResidualTitleOnlyEntry`).
     //
     // Other `display.*` keys (definitions, screens, etc.) are preserved verbatim.
     const nextDisplay = mergeDisplayFormats(
       ledger.display,
-      args.skipDisplayMerge ? null : (args.proposalFilePath as string)
+      skipDisplayMerge ? null : proposalFilePath
     )
 
     const nextLedger: ILedgerRegistryFile = {
@@ -682,8 +471,7 @@ const main = defineCommand({
 
     writePrettyJson(outputPath, nextLedger)
     console.log(`Updated ${outputPath}`)
-    if (!args.skipAbi) console.log(`- ABI entries: ${nextAbi?.length ?? 0}`)
-    if (!args.skipDeployments)
+    if (!skipDeployments)
       console.log(`- Deployments: ${nextDeployments?.length ?? 0}`)
   },
 })

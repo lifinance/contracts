@@ -24,14 +24,14 @@ All non-packed variants share the standard `ILiFi.BridgeData` struct:
   "interpolatedIntent": "Bridge {_bridgeData.minAmount} via <Bridge> to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}",
   "fields": [
     { "path": "_bridgeData.minAmount",          "label": "Amount to Bridge",   "format": "tokenAmount", "params": { "tokenPath": "_bridgeData.sendingAssetId" }, "visible": "always" },
-    { "path": "_bridgeData.destinationChainId", "label": "Destination Chain", "format": "chainId",     "visible": "always" },
+    { "path": "_bridgeData.destinationChainId", "label": "Destination Chain", "format": "raw",         "visible": "always" },
     { "path": "_bridgeData.receiver",           "label": "Recipient",         "format": "addressName", "params": { "types": ["eoa","contract"], "sources": ["local","ens"] }, "visible": "always" },
     /* hidden plumbing: transactionId, bridge, integrator, referrer, hasSourceSwaps, hasDestinationCall */
   ]
 }
 ```
 
-Reads on a hardware wallet as one sentence: *"Bridge 100 USDC via Across to chain Polygon for vitalik.eth"*. A destination the wallet cannot name — any non-EVM synthetic id — falls back to the integer.
+Reads on a hardware wallet as one sentence: *"Bridge 100 USDC via Across to chain 137 for vitalik.eth"*.
 
 Note the bridge name (`<Bridge>`) is a literal substituted at descriptor-generation time, not a `{path}` placeholder resolved by the wallet — it's constant per selector and doesn't change between transactions.
 
@@ -70,15 +70,22 @@ Adds the head of the swap chain (`_swapData.[0]`) as a separate field:
 
 The user sees both the swap input amount and the minimum bridge output. Intentionally does not interpolate `_swapData.[0].fromAmount` into the sentence — hardware wallets struggle to render two token amounts on one line, and the bridge output is the user-facing commitment.
 
-### Packed / Min variants: `*ERC20Packed`, `*NativePacked`, `*ERC20Min`, `*NativeMin`
+### Packed / Min variants: `*ERC20Packed`, `*NativePacked`, `*ERC20Min`, `*NativeMin` — excluded
 
-Each facet's packed/min entry-point has a bespoke calldata layout (Across packed, …). These are signed almost exclusively by relayer infrastructure, not end users. We emit a static `intent` only (e.g. `"Bridge via AcrossV4 (ERC-20, packed)"`) and leave `fields: []` — the wallet falls back to raw calldata display, which is acceptable for the audience.
+Each facet's packed/min entry-point has a bespoke calldata layout (Across packed, …). These are signed almost exclusively by relayer infrastructure, not end users.
 
-Full interpolation for packed variants is deferred to a follow-up once we know which packed entry-points wallets actually want to surface to users.
+**No entry is emitted for them.** `*Packed` declares no ABI parameters at all (it reads `msg.data` by hand), so ERC-7730 has nothing to describe; `*Min` carries a packed tuple the templates do not decode. The only entry we could write is title-only — an `intent` with `fields: []` — and the registry rejects those: a format that renders no amount, receiver or destination is worse than an honest fallback to raw calldata display. We shipped such entries once and they were reverted upstream (EXSC-926). Two guards keep them out now:
+
+- `verifyClearSigning.yml` fails any PR whose proposal contains an entry with no `fields`.
+- `tasks/generateLedgerClearSigning.ts` scrubs the residual `*Packed` / `*Min` title-only entries left in the registry file by earlier syncs. The scrub is deliberately narrow — it matches only those names, and only when `fields` is present and empty — so it can never delete an EF-authored entry that inherits its `fields` from an `includes` file.
+
+Full decoding for packed variants is deferred to a follow-up once we know which packed entry-points wallets actually want to surface to users. Until then they blind-sign.
+
+These selectors are still resolved by name in the Safe signing CLI: `script/deploy/safe/selector-registry.ts` carries them in its well-known list precisely because the proposal no longer does.
 
 ### Swap-only: `swapTokens<Variant>`
 
-The seven existing `display.formats` entries from the current registry descriptor, re-authored with `interpolatedIntent` added. Pattern:
+The `display.formats` entries carried over from the registry descriptor, re-authored with `interpolatedIntent` added. Pattern:
 
 | Variant | `interpolatedIntent` |
 |---|---|
@@ -86,107 +93,39 @@ The seven existing `display.formats` entries from the current registry descripto
 | `SingleV3NativeToERC20` | `Swap {@.value} for at least {_minAmountOut} to {_receiver}` |
 | `MultipleV3ERC20ToERC20` / `MultipleV3ERC20ToNative` | `Swap {_swapData.[0].fromAmount} for at least {_minAmountOut} to {_receiver}` |
 | `MultipleV3NativeToERC20` | `Swap {@.value} for at least {_minAmountOut} to {_receiver}` |
-| `swapTokensGeneric` | `Swap {_swapData.[0].fromAmount} for at least {_minAmount} to {_receiver}` (note: this signature uses `_minAmount`, not `_minAmountOut`) |
+| `swapTokensGeneric` | `Swap {_swapData.[0].fromAmount} for at least {_minAmount} to {_receiver}` (note: this signature uses `_minAmount`, not `_minAmountOut`; the function is no longer in the diamond, so the generator emits no entry and the registry keeps its own) |
 
 ## Conventions & deliberate choices
 
 1. **Verb is "Bridge", not "Send"** — clear-signing is a hand-curated security primitive; the verb should match the user's mental model of "moving funds across chains" rather than the developer-facing `start*` naming.
 2. **Bridge name embedded in `interpolatedIntent`** — the bridge identity is the single most important security signal in a bridge tx (Across vs. Mayan vs. StargateV2 have very different trust + finality models). Since wallets prefer `interpolatedIntent` over `intent`, placing the bridge name only in `intent` would effectively hide it from users in the happy path. The cost is ~6-12 extra characters per template, which still fits on a single Ledger Nano X screen for every bridge name in our diamond.
-3. **`destinationChainId` as `chainId`** — the ERC-7730 v2 integer format that renders an EIP-155 chain id as the network's name, so the wallet shows "Polygon" instead of `137`. LI.FI's non-EVM destinations use synthetic ids outside EIP-155 (e.g. Solana); wallets fall back to rendering those numerically.
+3. **`destinationChainId` as `raw`, deliberately not `chainId`** — `chainId` is the format that renders an EIP-155 id as a network name, and it is the obvious choice here, but it cannot be used: it resolves through public EIP-155 chain lists that mislabel LI.FI chains. Chain `999` is HyperEVM to us and resolves to "Wanchain Testnet"; `1337` is HyperCore and resolves to "Geth Testnet" — both mainnet destinations shown to a signer as testnets. Only 7 of 30 ids tested render identically across the two ERC-7730 reference implementations. The spec defines `chainId` over EIP-155 reference values only, with no fallback (unlike `tokenAmount` and `nft`) and no pinned name source, so the rendering of this field is not something the descriptor can bound. A wrong network name is worse than a number here, so it stays raw until that is settled upstream (EXSC-838).
+
+   A LI.FI-authored `format: enum` map was the natural alternative and does not work either: the on-device ENUM_VALUE struct encodes an entry value in a single byte taken from the enum key, so no chain id above 255 is representable and `erc7730 calldata` silently drops the entire descriptor.
 4. **All `BridgeData` plumbing fields hidden** (`transactionId`, `bridge` (free-text), `integrator`, `referrer`, `hasSourceSwaps`, `hasDestinationCall`) — these carry no user-facing decision content.
 5. **Swap-data array tail hidden** — for `swapAndStart*` we hide `_swapData.[].callData`, `callTo`, `approveTo`, `requiresDeposit` since they're opaque to a non-technical signer. The aggregate effect is captured by `_bridgeData.minAmount`.
 
 ## Full proposal — per function
 
-| Function | `intent` | `interpolatedIntent` |
-|---|---|---|
-| `startBridgeTokensViaAcross` | Bridge via Across | Bridge {_bridgeData.minAmount} via Across to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaAcrossERC20Min` | Bridge via Across (ERC-20, min) | _(packed / no interpolation, see notes)_ |
-| `startBridgeTokensViaAcrossERC20Packed` | Bridge via Across (ERC-20, packed) | _(packed / no interpolation, see notes)_ |
-| `startBridgeTokensViaAcrossNativeMin` | Bridge via Across (native, min) | _(packed / no interpolation, see notes)_ |
-| `startBridgeTokensViaAcrossNativePacked` | Bridge via Across (native, packed) | _(packed / no interpolation, see notes)_ |
-| `startBridgeTokensViaAcrossV3` | Bridge via AcrossV3 | Bridge {_bridgeData.minAmount} via AcrossV3 to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaAcrossV3ERC20Min` | Bridge via AcrossV3 (ERC-20, min) | _(packed / no interpolation, see notes)_ |
-| `startBridgeTokensViaAcrossV3ERC20Packed` | Bridge via AcrossV3 (ERC-20, packed) | _(packed / no interpolation, see notes)_ |
-| `startBridgeTokensViaAcrossV3NativeMin` | Bridge via AcrossV3 (native, min) | _(packed / no interpolation, see notes)_ |
-| `startBridgeTokensViaAcrossV3NativePacked` | Bridge via AcrossV3 (native, packed) | _(packed / no interpolation, see notes)_ |
-| `startBridgeTokensViaAcrossV4` | Bridge via AcrossV4 | Bridge {_bridgeData.minAmount} via AcrossV4 to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaAcrossV4ERC20Min` | Bridge via AcrossV4 (ERC-20, min) | _(packed / no interpolation, see notes)_ |
-| `startBridgeTokensViaAcrossV4ERC20Packed` | Bridge via AcrossV4 (ERC-20, packed) | _(packed / no interpolation, see notes)_ |
-| `startBridgeTokensViaAcrossV4NativeMin` | Bridge via AcrossV4 (native, min) | _(packed / no interpolation, see notes)_ |
-| `startBridgeTokensViaAcrossV4NativePacked` | Bridge via AcrossV4 (native, packed) | _(packed / no interpolation, see notes)_ |
-| `startBridgeTokensViaAcrossV4Swap` | Bridge via AcrossV4Swap | Bridge {_bridgeData.minAmount} via AcrossV4Swap to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaAllBridge` | Bridge via AllBridge | Bridge {_bridgeData.minAmount} via AllBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaArbitrumBridge` | Bridge via ArbitrumBridge | Bridge {_bridgeData.minAmount} via ArbitrumBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaCelerCircleBridge` | Bridge via CelerCircleBridge | Bridge {_bridgeData.minAmount} via CelerCircleBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaChainflip` | Bridge via Chainflip | Bridge {_bridgeData.minAmount} via Chainflip to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaDeBridgeDln` | Bridge via DeBridgeDln | Bridge {_bridgeData.minAmount} via DeBridgeDln to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaEco` | Bridge via Eco | Bridge {_bridgeData.minAmount} via Eco to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaGarden` | Bridge via Garden | Bridge {_bridgeData.minAmount} via Garden to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaGasZip` | Bridge via GasZip | Bridge {_bridgeData.minAmount} via GasZip to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaGlacis` | Bridge via Glacis | Bridge {_bridgeData.minAmount} via Glacis to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaGnosisBridge` | Bridge via GnosisBridge | Bridge {_bridgeData.minAmount} via GnosisBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaLiFiIntentEscrowV2` | Bridge via LiFiIntentEscrowV2 | Bridge {_bridgeData.minAmount} via LiFiIntentEscrowV2 to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaMayan` | Bridge via Mayan | Bridge {_bridgeData.minAmount} via Mayan to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaMegaETHBridge` | Bridge via MegaETHBridge | Bridge {_bridgeData.minAmount} via MegaETHBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaNEARIntents` | Bridge via NEARIntents | Bridge {_bridgeData.minAmount} via NEARIntents to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaOmniBridge` | Bridge via OmniBridge | Bridge {_bridgeData.minAmount} via OmniBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaOptimismBridge` | Bridge via OptimismBridge | Bridge {_bridgeData.minAmount} via OptimismBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaPioneer` | Bridge via Pioneer | Bridge {_bridgeData.minAmount} via Pioneer to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaPolygonBridge` | Bridge via PolygonBridge | Bridge {_bridgeData.minAmount} via PolygonBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaPolymerCCTP` | Bridge via PolymerCCTP | Bridge {_bridgeData.minAmount} via PolymerCCTP to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaRelayDepository` | Bridge via RelayDepository | Bridge {_bridgeData.minAmount} via RelayDepository to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaSquid` | Bridge via Squid | Bridge {_bridgeData.minAmount} via Squid to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaStargate` | Bridge via Stargate | Bridge {_bridgeData.minAmount} via Stargate to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaSymbiosis` | Bridge via Symbiosis | Bridge {_bridgeData.minAmount} via Symbiosis to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaThorSwap` | Bridge via ThorSwap | Bridge {_bridgeData.minAmount} via ThorSwap to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `startBridgeTokensViaUnit` | Bridge via Unit | Bridge {_bridgeData.minAmount} via Unit to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaAcross` | Swap & Bridge via Across | Swap then bridge {_bridgeData.minAmount} via Across to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaAcrossV3` | Swap & Bridge via AcrossV3 | Swap then bridge {_bridgeData.minAmount} via AcrossV3 to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaAcrossV4` | Swap & Bridge via AcrossV4 | Swap then bridge {_bridgeData.minAmount} via AcrossV4 to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaAcrossV4Swap` | Swap & Bridge via AcrossV4Swap | Swap then bridge {_bridgeData.minAmount} via AcrossV4Swap to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaAllBridge` | Swap & Bridge via AllBridge | Swap then bridge {_bridgeData.minAmount} via AllBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaArbitrumBridge` | Swap & Bridge via ArbitrumBridge | Swap then bridge {_bridgeData.minAmount} via ArbitrumBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaCelerCircleBridge` | Swap & Bridge via CelerCircleBridge | Swap then bridge {_bridgeData.minAmount} via CelerCircleBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaChainflip` | Swap & Bridge via Chainflip | Swap then bridge {_bridgeData.minAmount} via Chainflip to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaDeBridgeDln` | Swap & Bridge via DeBridgeDln | Swap then bridge {_bridgeData.minAmount} via DeBridgeDln to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaEco` | Swap & Bridge via Eco | Swap then bridge {_bridgeData.minAmount} via Eco to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaGarden` | Swap & Bridge via Garden | Swap then bridge {_bridgeData.minAmount} via Garden to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaGasZip` | Swap & Bridge via GasZip | Swap then bridge {_bridgeData.minAmount} via GasZip to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaGlacis` | Swap & Bridge via Glacis | Swap then bridge {_bridgeData.minAmount} via Glacis to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaGnosisBridge` | Swap & Bridge via GnosisBridge | Swap then bridge {_bridgeData.minAmount} via GnosisBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaLiFiIntentEscrowV2` | Swap & Bridge via LiFiIntentEscrowV2 | Swap then bridge {_bridgeData.minAmount} via LiFiIntentEscrowV2 to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaMayan` | Swap & Bridge via Mayan | Swap then bridge {_bridgeData.minAmount} via Mayan to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaMegaETHBridge` | Swap & Bridge via MegaETHBridge | Swap then bridge {_bridgeData.minAmount} via MegaETHBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaNEARIntents` | Swap & Bridge via NEARIntents | Swap then bridge {_bridgeData.minAmount} via NEARIntents to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaOmniBridge` | Swap & Bridge via OmniBridge | Swap then bridge {_bridgeData.minAmount} via OmniBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaOptimismBridge` | Swap & Bridge via OptimismBridge | Swap then bridge {_bridgeData.minAmount} via OptimismBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaPioneer` | Swap & Bridge via Pioneer | Swap then bridge {_bridgeData.minAmount} via Pioneer to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaPolygonBridge` | Swap & Bridge via PolygonBridge | Swap then bridge {_bridgeData.minAmount} via PolygonBridge to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaPolymerCCTP` | Swap & Bridge via PolymerCCTP | Swap then bridge {_bridgeData.minAmount} via PolymerCCTP to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaRelayDepository` | Swap & Bridge via RelayDepository | Swap then bridge {_bridgeData.minAmount} via RelayDepository to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaSquid` | Swap & Bridge via Squid | Swap then bridge {_bridgeData.minAmount} via Squid to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaStargate` | Swap & Bridge via Stargate | Swap then bridge {_bridgeData.minAmount} via Stargate to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaSymbiosis` | Swap & Bridge via Symbiosis | Swap then bridge {_bridgeData.minAmount} via Symbiosis to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaThorSwap` | Swap & Bridge via ThorSwap | Swap then bridge {_bridgeData.minAmount} via ThorSwap to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapAndStartBridgeTokensViaUnit` | Swap & Bridge via Unit | Swap then bridge {_bridgeData.minAmount} via Unit to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver} |
-| `swapTokensGeneric` | Swap | Swap {_swapData.[0].fromAmount} for at least {_minAmount} to {_receiver} |
-| `swapTokensMultipleV3ERC20ToERC20` | Swap | Swap {_swapData.[0].fromAmount} for at least {_minAmountOut} to {_receiver} |
-| `swapTokensMultipleV3ERC20ToNative` | Swap | Swap {_swapData.[0].fromAmount} for at least {_minAmountOut} to {_receiver} |
-| `swapTokensMultipleV3NativeToERC20` | Swap | Swap {@.value} for at least {_minAmountOut} to {_receiver} |
-| `swapTokensSingleV3ERC20ToERC20` | Swap | Swap {_swapData.fromAmount} for at least {_minAmountOut} to {_receiver} |
-| `swapTokensSingleV3ERC20ToNative` | Swap | Swap {_swapData.fromAmount} for at least {_minAmountOut} to {_receiver} |
-| `swapTokensSingleV3NativeToERC20` | Swap | Swap {@.value} for at least {_minAmountOut} to {_receiver} |
+The entry list is not reproduced here: it is generated, CI-enforced current, and changes with every facet that lands. Read it from the source of truth instead:
+
+```bash
+jq -r '.formats | keys[]' config/clearSigningProposal.json   # signatures
+jq -r '.["$count"]' config/clearSigningProposal.json         # entry count
+```
+
+Every entry comes from one of the three templates above, so the signature tells you which strings it carries: `startBridgeTokensVia<Bridge>` → the canonical bridge template, `swapAndStartBridgeTokensVia<Bridge>` → the swap-and-bridge template, `swapTokens<Variant>` → its hardcoded `SWAP_TEMPLATES` entry. `*Packed` / `*Min` entry-points are absent by design (see above).
 
 ## How to regenerate
 
 ```bash
 forge build --skip script --skip test --skip Base --skip Test --skip '*.t.sol'
 bunx tsx tasks/buildClearSigningProposal.ts
-# writes config/clearSigningProposal.json — 101 entries total:
-#   59 startBridgeTokensVia*  (canonical + Packed/Min variants)
-#   35 swapAndStartBridgeTokensVia*  (canonical only)
-#    7 swapTokens* (hardcoded templates)
+# writes config/clearSigningProposal.json — one entry per user-facing function:
+#   startBridgeTokensVia*         (canonical only; Packed/Min are excluded)
+#   swapAndStartBridgeTokensVia*  (canonical only)
+#   swapTokens*                   (hardcoded templates)
+# the total lands in the file's own $count field
 ```
 
 The generator is strict-by-default: any user-facing function it cannot confidently template (unrecognized prefix, struct shape mismatch with `LiFi.BridgeData` / `LibSwap.SwapData`, or `swapTokens*` variant without a hardcoded template) makes it exit non-zero with a per-function "reason + fix" message. The CI gate (see [`verifyClearSigning.yml`](../.github/workflows/verifyClearSigning.yml)) wires this exit code into the PR-merge gate.
@@ -209,16 +148,21 @@ src/Facets/** changes in a PR
 verifyClearSigning.yml (BLOCKING):
   - runs buildClearSigningProposal.ts in strict mode
   - git diff --exit-code config/clearSigningProposal.json
-  → PR merges only if both pass
+  - rejects any entry with no fields
+  → PR merges only if all three pass
   │
   ▼ (merged to main)
-syncLedgerClearSigning.yml (push to main / monthly cron / manual dispatch):
+syncLedgerClearSigning.yml (push to main touching deployments/ or the
+                            proposal / monthly cron / manual dispatch):
   - runs generateLedgerClearSigning.ts
-    - regenerates context.contract.abi from facet artifacts
-    - regenerates context.contract.deployments from deployments/*
-    - merges display.formats from config/clearSigningProposal.json
+    - strips the deprecated context.contract.abi (the v2 registry infers
+      the ABI from the display.formats keys)
+    - regenerates context.contract.deployments from deployments/* (all active
+      networks, testnets included)
+    - merges display.formats from config/clearSigningProposal.json,
+      scrubbing our own title-only Packed/Min residue
   - pushes PR to ethereum/clear-signing-erc7730-registry
   - pings #sc-general via SLACK_WEBHOOK_SC_GENERAL on new upstream PRs
 ```
 
-The generator boundary is the single integration point: anything in `display.formats` here is treated as LI.FI-owned and replaces same-selector entries in the registry; everything else is preserved.
+The generator boundary is the single integration point: anything in `display.formats` here is treated as LI.FI-owned and replaces same-selector entries in the registry; everything else is preserved, except the title-only `*Packed` / `*Min` residue described above.

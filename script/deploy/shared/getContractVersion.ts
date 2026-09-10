@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises'
 import { relative, resolve } from 'path'
 
 /** Solidity-style contract name (no path segments, so reads stay under `src/`). */
@@ -32,7 +33,7 @@ export async function getContractVersion(
       continue
     }
     try {
-      const content = await Bun.file(fullPath).text()
+      const content = await readFile(fullPath, 'utf8')
       const versionMatch = content.match(/@custom:version\s+(\S+)/)
       if (versionMatch && versionMatch[1]) return versionMatch[1]
     } catch {

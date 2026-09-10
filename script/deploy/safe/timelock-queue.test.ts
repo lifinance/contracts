@@ -9,13 +9,23 @@ import { encodeFunctionData, type Address, type Hex } from 'viem'
 
 import { TIMELOCK_SCHEDULE_BATCH_ABI } from './timelock-abi'
 import {
+  BLOCKED_ALERT_INTERVAL_MS,
+  classifyBlockedRow,
   byOperationId,
   computeOperationIdBatch,
   decodeScheduleBatch,
   deserializeScheduleParams,
   ensureTimelockQueueIndexes,
   isScheduleBatchCalldata,
+  queueStatusReason,
+  recordTimelockOpRevert,
+  REVERT_BLOCK_THRESHOLD,
+  selectBlockedNeedingAlert,
+  shouldBlockAfterRevert,
+  staleStatusMetadataUnset,
   serializeScheduleParams,
+  TIMELOCK_QUEUE_STATUSES,
+  type IBlockedOpCandidate,
   type IScheduleBatchParams,
   type ITimelockQueueDoc,
 } from './timelock-queue'
@@ -393,5 +403,343 @@ describe('ensureTimelockQueueIndexes', () => {
     })
     await ensureTimelockQueueIndexes(coll)
     expect(coll.createIndexCalls).toHaveLength(2)
+  })
+})
+
+describe('TIMELOCK_QUEUE_STATUSES', () => {
+  it('includes blocked as a distinct state from failed', () => {
+    expect(TIMELOCK_QUEUE_STATUSES).toContain('blocked')
+    expect(TIMELOCK_QUEUE_STATUSES).toContain('failed')
+  })
+})
+
+describe('queueStatusReason', () => {
+  it('reads blockedReason for a blocked row', () => {
+    expect(
+      queueStatusReason({
+        status: 'blocked',
+        blockedReason: 'obsolete folded removals',
+        failureReason: 'stale',
+      })
+    ).toBe('obsolete folded removals')
+  })
+
+  it('reads failureReason for a failed row', () => {
+    expect(
+      queueStatusReason({
+        status: 'failed',
+        blockedReason: 'obsolete folded removals',
+        failureReason: 'operationId mismatch',
+      })
+    ).toBe('operationId mismatch')
+  })
+
+  it('returns undefined for statuses that carry no reason', () => {
+    expect(
+      queueStatusReason({ status: 'queued', blockedReason: 'ignored' })
+    ).toBeUndefined()
+    expect(queueStatusReason({ status: 'executed' })).toBeUndefined()
+  })
+})
+
+describe('selectBlockedNeedingAlert', () => {
+  const now = new Date('2026-08-21T12:00:00Z')
+
+  const blocked = (
+    overrides: Partial<ITimelockQueueDoc> = {}
+  ): ITimelockQueueDoc =>
+    ({
+      operationId: '0xabc' as Hex,
+      network: 'mode',
+      chainId: 34443,
+      status: 'blocked',
+      blockedReason: 'obsolete folded removals',
+      safeTxHash: '0xdead',
+      ...overrides,
+    } as ITimelockQueueDoc)
+
+  it('alerts on a ready blocked op that has never been alerted', () => {
+    const out = selectBlockedNeedingAlert(
+      [{ doc: blocked(), onChainReady: true }],
+      now
+    )
+    expect(out).toHaveLength(1)
+  })
+
+  it('stays silent while inside the throttle window', () => {
+    const doc = blocked({
+      blockedAlertedAt: new Date(now.getTime() - 60 * 60 * 1000),
+    })
+    expect(
+      selectBlockedNeedingAlert([{ doc, onChainReady: true }], now)
+    ).toHaveLength(0)
+  })
+
+  it('re-alerts once the throttle window has elapsed', () => {
+    const doc = blocked({
+      blockedAlertedAt: new Date(now.getTime() - BLOCKED_ALERT_INTERVAL_MS),
+    })
+    expect(
+      selectBlockedNeedingAlert([{ doc, onChainReady: true }], now)
+    ).toHaveLength(1)
+  })
+
+  it('does not alert on an op that is not ready on-chain', () => {
+    expect(
+      selectBlockedNeedingAlert([{ doc: blocked(), onChainReady: false }], now)
+    ).toHaveLength(0)
+  })
+
+  // A failed readiness read must not manufacture an alert about an op we could
+  // not actually observe.
+  it('does not alert when the readiness check failed', () => {
+    expect(
+      selectBlockedNeedingAlert([{ doc: blocked(), onChainReady: null }], now)
+    ).toHaveLength(0)
+  })
+
+  it('ignores rows that are not blocked', () => {
+    const candidates: IBlockedOpCandidate[] = [
+      { doc: blocked({ status: 'queued' }), onChainReady: true },
+      { doc: blocked({ status: 'failed' }), onChainReady: true },
+      { doc: blocked({ status: 'executed' }), onChainReady: true },
+    ]
+    expect(selectBlockedNeedingAlert(candidates, now)).toHaveLength(0)
+  })
+
+  it('selects only the rows that qualify out of a mixed batch', () => {
+    const fresh = blocked({ operationId: '0xfresh' as Hex })
+    const throttled = blocked({
+      operationId: '0xthrottled' as Hex,
+      blockedAlertedAt: new Date(now.getTime() - 1000),
+    })
+    const notReady = blocked({ operationId: '0xnotready' as Hex })
+    const out = selectBlockedNeedingAlert(
+      [
+        { doc: fresh, onChainReady: true },
+        { doc: throttled, onChainReady: true },
+        { doc: notReady, onChainReady: false },
+      ],
+      now
+    )
+    expect(out.map((d) => d.operationId)).toEqual(['0xfresh'])
+  })
+})
+
+describe('classifyBlockedRow', () => {
+  it('reconciles a blocked op the controller already executed', () => {
+    expect(
+      classifyBlockedRow({
+        isDone: true,
+        isPending: false,
+        isReady: false,
+        isOperation: true,
+      })
+    ).toBe('done')
+  })
+
+  // The worldchain shape observed in production: the operator followed the
+  // guard's "cancel and re-propose" advice, so the controller dropped the
+  // timestamp and isOperation went false — but the queue row never moved.
+  it('reconciles a blocked op the controller no longer knows about', () => {
+    expect(
+      classifyBlockedRow({
+        isDone: false,
+        isPending: false,
+        isReady: false,
+        isOperation: false,
+      })
+    ).toBe('gone')
+  })
+
+  // The EXSC-816 shape: delay elapsed, still scheduled, still un-executed.
+  it('keeps a ready op as a live candidate for alerting', () => {
+    expect(
+      classifyBlockedRow({
+        isDone: false,
+        isPending: true,
+        isReady: true,
+        isOperation: true,
+      })
+    ).toBe('pending')
+  })
+
+  it('keeps an op still inside its delay as a live candidate', () => {
+    expect(
+      classifyBlockedRow({
+        isDone: false,
+        isPending: true,
+        isReady: false,
+        isOperation: true,
+      })
+    ).toBe('pending')
+  })
+
+  // Guard against a contradictory read (e.g. a mid-block RPC race) being
+  // classified as gone and silently marked cancelled.
+  it('does not treat a contradictory read as gone', () => {
+    expect(
+      classifyBlockedRow({
+        isDone: false,
+        isPending: false,
+        isReady: true,
+        isOperation: false,
+      })
+    ).toBe('pending')
+    expect(
+      classifyBlockedRow({
+        isDone: false,
+        isPending: true,
+        isReady: false,
+        isOperation: false,
+      })
+    ).toBe('pending')
+  })
+
+  it('prefers done over every other signal', () => {
+    expect(
+      classifyBlockedRow({
+        isDone: true,
+        isPending: true,
+        isReady: true,
+        isOperation: false,
+      })
+    ).toBe('done')
+  })
+})
+
+describe('shouldBlockAfterRevert', () => {
+  it('keeps retrying below the threshold so a transient revert can clear', () => {
+    expect(shouldBlockAfterRevert(1)).toBe(false)
+    expect(shouldBlockAfterRevert(REVERT_BLOCK_THRESHOLD - 1)).toBe(false)
+  })
+
+  it('blocks once the retry budget is spent', () => {
+    expect(shouldBlockAfterRevert(REVERT_BLOCK_THRESHOLD)).toBe(true)
+  })
+
+  // The pre-fix behaviour was an unbounded retry loop, so anything past the
+  // threshold must stay blocked rather than wrapping back to retrying.
+  it('stays blocked past the threshold', () => {
+    expect(shouldBlockAfterRevert(REVERT_BLOCK_THRESHOLD + 10)).toBe(true)
+  })
+
+  it('honours an explicit threshold', () => {
+    expect(shouldBlockAfterRevert(1, 1)).toBe(true)
+    expect(shouldBlockAfterRevert(4, 5)).toBe(false)
+  })
+
+  it('does not block a row that has never reverted', () => {
+    expect(shouldBlockAfterRevert(0)).toBe(false)
+  })
+})
+
+describe('recordTimelockOpRevert', () => {
+  /** Minimal findOneAndUpdate stand-in capturing the update document. */
+  function createFakeRevertCollection(returnedCount: number | undefined) {
+    const calls: { filter: unknown; update: unknown }[] = []
+    const api = {
+      async findOneAndUpdate(filter: unknown, update: unknown) {
+        calls.push({ filter, update })
+        return returnedCount === undefined
+          ? null
+          : ({ revertCount: returnedCount } as ITimelockQueueDoc)
+      },
+      calls,
+    }
+    return api as unknown as Collection<ITimelockQueueDoc> & {
+      calls: typeof calls
+    }
+  }
+
+  it('increments the tally and returns the new count', async () => {
+    const collection = createFakeRevertCollection(2)
+    const count = await recordTimelockOpRevert(
+      collection,
+      'mode',
+      '0xabc' as Hex,
+      '0xtx'
+    )
+    expect(count).toBe(2)
+    const update = collection.calls[0]?.update as {
+      $inc: Record<string, number>
+      $set: Record<string, unknown>
+    }
+    expect(update.$inc).toEqual({ revertCount: 1 })
+    expect(update.$set.lastRevertTxHash).toBe('0xtx')
+  })
+
+  it('scopes the update to the row by network and operationId', async () => {
+    const collection = createFakeRevertCollection(1)
+    await recordTimelockOpRevert(collection, 'Mode', '0xabc' as Hex, '0xtx')
+    expect(collection.calls[0]?.filter).toEqual({
+      network: { $eq: 'mode' },
+      operationId: { $eq: '0xabc' },
+    })
+  })
+
+  // A missing row must not read as "0 reverts so far, keep retrying forever".
+  it('returns 0 when the row is gone', async () => {
+    const collection = createFakeRevertCollection(undefined)
+    expect(
+      await recordTimelockOpRevert(collection, 'mode', '0xabc' as Hex, '0xtx')
+    ).toBe(0)
+  })
+})
+
+describe('staleStatusMetadataUnset', () => {
+  // The visible bug this prevents: list-timelock-queue prints blockedAt whenever
+  // it exists, so a terminal row that kept it reports a block it no longer has.
+  it('clears blocked metadata when leaving blocked for a terminal status', () => {
+    for (const status of ['executed', 'cancelled', 'failed'] as const) {
+      const unset = staleStatusMetadataUnset(status)
+      expect(unset).toHaveProperty('blockedReason')
+      expect(unset).toHaveProperty('blockedAt')
+      expect(unset).toHaveProperty('blockedAlertedAt')
+    }
+  })
+
+  it('keeps blocked metadata when writing blocked', () => {
+    const unset = staleStatusMetadataUnset('blocked')
+    expect(unset).not.toHaveProperty('blockedReason')
+    expect(unset).not.toHaveProperty('blockedAt')
+    expect(unset).toHaveProperty('failureReason')
+  })
+
+  it('keeps failureReason when writing failed', () => {
+    const unset = staleStatusMetadataUnset('failed')
+    expect(unset).not.toHaveProperty('failureReason')
+    expect(unset).toHaveProperty('blockedReason')
+  })
+
+  it('clears every status-owned field when returning to queued', () => {
+    expect(staleStatusMetadataUnset('queued')).toEqual({
+      blockedReason: '',
+      blockedAt: '',
+      blockedAlertedAt: '',
+      failureReason: '',
+    })
+  })
+
+  // The revert tally describes attempts, not a status, and is cleared only by an
+  // operator requeue — a status transition must not silently reset it.
+  it('never clears the revert tally', () => {
+    for (const status of [
+      'queued',
+      'blocked',
+      'failed',
+      'executed',
+      'cancelled',
+    ] as const) {
+      const unset = staleStatusMetadataUnset(status)
+      expect(unset).not.toHaveProperty('revertCount')
+      expect(unset).not.toHaveProperty('lastRevertAt')
+      expect(unset).not.toHaveProperty('lastRevertTxHash')
+    }
+  })
+
+  it('produces a Mongo-shaped $unset document', () => {
+    for (const value of Object.values(staleStatusMetadataUnset('queued')))
+      expect(value).toBe('')
   })
 })

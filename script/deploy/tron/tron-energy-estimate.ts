@@ -1,0 +1,368 @@
+/**
+ * Energy estimation and pricing for Tron, for any path that broadcasts: the
+ * chain caller, the Safe executor and the direct-EOA operator tools. Import it
+ * to estimate a call from encoded calldata and to price the result in SUN.
+ *
+ * The estimate posts raw calldata rather than the devkit's own
+ * `estimateContractCallEnergy`, which takes a human-readable function selector
+ * and hardcodes `call_value: 0`: neither is available to a caller holding
+ * encoded calldata and no ABI, and a Safe execution can carry value. A caller
+ * that does hold decoded arguments wants `estimateTronEnergyBySelector` in
+ * `tron-guarded-send.ts`.
+ */
+
+import {
+  DEFAULT_SAFETY_MARGIN,
+  MAX_RETRIES,
+  RETRY_DELAY,
+  TRON_TRIGGER_ESTIMATE_FEE_LIMIT_SUN,
+  TRON_WALLET_API_FETCH_TIMEOUT_MS,
+  buildTronWalletJsonPostHeaders,
+  getTronRPCConfig,
+  resolveTronWebRpcUrlToFullHost,
+  type TronTvmNetworkName,
+} from '@lifi/tron-devkit'
+
+import { fetchWithTimeout } from '../../utils/fetchWithTimeout'
+
+/**
+ * The devkit's default cap, mirrored so a refusal can name the figure the
+ * broadcast will actually run under.
+ */
+const TRON_DEFAULT_FEE_LIMIT_SUN = 50_000_000
+
+/** The env var the devkit reads for that cap. */
+export const TRON_FEE_LIMIT_SUN_ENV = 'TRON_SAFE_EXEC_FEE_LIMIT_SUN'
+
+export interface ITronEnergyEstimateParams {
+  networkKey: TronTvmNetworkName
+  /** Base58 address the call is made from. */
+  ownerBase58: string
+  /** Base58 address of the contract being called. */
+  contractBase58: string
+  /** Calldata, `0x`-prefixed. */
+  data: `0x${string}`
+  /** TRX carried by the call, in SUN. */
+  callValue: bigint
+  /**
+   * Endpoint to estimate against. Defaults to the one
+   * {@link getTronRPCConfig} resolves for `networkKey`; pass it when the caller
+   * broadcasts somewhere else, such as `troncast --rpcUrl`. Estimating against
+   * a different node than the send would check a different chain's state.
+   */
+  rpcUrl?: string
+  /** Injected in tests so retries do not sleep. */
+  sleep?: (ms: number) => Promise<void>
+}
+
+const realSleep = (ms: number): Promise<void> =>
+  new Promise((resolve) => setTimeout(resolve, ms))
+
+/**
+ * An estimate failure, tagged with whether trying again could change it.
+ *
+ * A transport failure might; a node answering "this call would revert" will
+ * not, and retrying it only spends the operator's time before the same refusal.
+ */
+export class TronEstimateError extends Error {
+  public constructor(message: string, public readonly retryable: boolean) {
+    super(message)
+    this.name = 'TronEstimateError'
+  }
+}
+
+/**
+ * Newest energy price at or before now, in SUN, from Tron's
+ * `getEnergyPrices` history string (`<ms>:<sunPerEnergy>,...`).
+ *
+ * @param priceString - The history as the node returns it.
+ * @returns Price in SUN per energy.
+ * @throws When the string carries no usable price.
+ */
+export const latestEnergyPriceSun = (priceString: string): number => {
+  const now = Date.now()
+  const entries = priceString
+    .split(',')
+    .map((entry) => entry.split(':'))
+    .map(([timestamp, price]) => ({
+      timestamp: Number(timestamp),
+      price: Number(price),
+    }))
+    .filter(
+      ({ timestamp, price }) =>
+        Number.isFinite(timestamp) && Number.isFinite(price) && price > 0
+    )
+    .sort((a, b) => b.timestamp - a.timestamp)
+
+  const applicable = entries.find(({ timestamp }) => timestamp <= now)
+
+  if (applicable === undefined)
+    throw new Error(
+      `No usable energy price in '${priceString}'. Refusing to price a broadcast ` +
+        `against a guessed rate.`
+    )
+
+  return applicable.price
+}
+
+/**
+ * Reads the fee limit the devkit will apply to the next broadcast.
+ *
+ * Deliberately mirrors the devkit's own parse, including throwing on a
+ * malformed value: a guard that computed a different limit from the one the
+ * broadcast runs under would be checking the wrong number.
+ *
+ * @returns The cap in SUN.
+ * @throws When the env var is set to something that is not a positive integer.
+ */
+export const configuredTronFeeLimitSun = (): number => {
+  const raw = process.env[TRON_FEE_LIMIT_SUN_ENV]?.trim()
+  if (raw === undefined || raw === '') return TRON_DEFAULT_FEE_LIMIT_SUN
+
+  const parsed = Number(raw)
+  if (!Number.isInteger(parsed) || parsed <= 0)
+    throw new Error(
+      `${TRON_FEE_LIMIT_SUN_ENV} must be a positive integer (SUN), got: ${raw}`
+    )
+
+  return parsed
+}
+
+/**
+ * Applies the devkit's safety margin to a raw `energy_used` figure.
+ *
+ * The justification is parity, not measurement. The deploy scripts price calls
+ * through the devkit's own `estimateContractEnergy`, which applies this same
+ * constant, so without it the deploy path and this guard would disagree about
+ * what a call costs. The one measurement this repo has of a real batch
+ * (EXSC-842: 501,386 simulated against roughly 501,348 charged) shows
+ * `triggerconstantcontract` was accurate to well under a percent and slightly
+ * *over*, so the margin should not be described as correcting an under-report.
+ * It buys headroom for the state drift between simulating and sending.
+ *
+ * Separated out so it can be tested: the request around it needs a live
+ * endpoint, and this is the arithmetic that decides whether a batch is refused.
+ *
+ * @param rawEnergyUsed - `energy_used` as `triggerconstantcontract` reports it.
+ * @returns The figure the guard should compare, margin included.
+ */
+export const applyTronSafetyMargin = (rawEnergyUsed: number): bigint =>
+  BigInt(Math.ceil(rawEnergyUsed * DEFAULT_SAFETY_MARGIN))
+
+/**
+ * Hostnames that reach the machine the estimate runs on, spelled as
+ * `URL.hostname` reports them: lowercased, and an IPv6 host bracketed and
+ * collapsed (`[0:0:0:0:0:0:0:1]` arrives here as `[::1]`).
+ */
+const LOOPBACK_HOSTNAMES = ['localhost', '127.0.0.1', '[::1]']
+
+/**
+ * Whether an `energy_used` figure read from this endpoint can be trusted to
+ * decide a broadcast.
+ *
+ * The restriction is about forgery, not privacy: an on-path attacker who can
+ * answer plaintext HTTP picks the energy figure, and so picks whether the
+ * pre-flight lets a send past the fee limit. Loopback has no on-path attacker,
+ * and a local full node is the realistic development case — refusing it would
+ * make the calldata branch of `troncast send` disagree with the signature
+ * branch on the same `--rpcUrl`.
+ *
+ * Matched on the parsed hostname rather than a prefix, so `http://localhost.an-attacker.example`
+ * is not read as loopback.
+ *
+ * @param apiUrl - The endpoint the estimate would post to.
+ * @returns True when the transport is HTTPS, or plaintext HTTP to loopback.
+ */
+const estimateTransportIsTrusted = (apiUrl: string): boolean => {
+  let parsed: URL
+  try {
+    parsed = new URL(apiUrl)
+  } catch {
+    // Not a URL at all, so there is no host to judge: the endpoint is
+    // unusable either way, and the request would fail after the check.
+    return false
+  }
+
+  if (parsed.protocol === 'https:') return true
+
+  return (
+    parsed.protocol === 'http:' && LOOPBACK_HOSTNAMES.includes(parsed.hostname)
+  )
+}
+
+/**
+ * Above this, `Number(callValue)` would round rather than convert: the guard
+ * would then be pricing a call the node never actually simulated.
+ */
+const MAX_SAFE_CALL_VALUE_SUN = BigInt(Number.MAX_SAFE_INTEGER)
+
+/** One `triggerconstantcontract` round trip. Throws on anything unusable. */
+const requestEnergyUsed = async (
+  params: ITronEnergyEstimateParams
+): Promise<number> => {
+  if (params.callValue > MAX_SAFE_CALL_VALUE_SUN)
+    throw new TronEstimateError(
+      `callValue ${params.callValue} SUN exceeds Number.MAX_SAFE_INTEGER; ` +
+        `estimating it would silently simulate a different, rounded value.`,
+      false
+    )
+
+  const rpcUrl = params.rpcUrl ?? getTronRPCConfig(params.networkKey).rpcUrl
+  const fullHost = resolveTronWebRpcUrlToFullHost(rpcUrl, params.networkKey)
+  const apiUrl = fullHost.replace(/\/$/, '') + '/wallet/triggerconstantcontract'
+
+  if (!estimateTransportIsTrusted(apiUrl))
+    throw new TronEstimateError(
+      `Refusing to estimate energy over a non-HTTPS endpoint: ${apiUrl}. ` +
+        `HTTPS is required for every host except loopback ` +
+        `(${LOOPBACK_HOSTNAMES.join(
+          ', '
+        )}), which has no network segment for an ` +
+        `on-path attacker to forge the energy figure on. To broadcast without an ` +
+        `estimate, set ALLOW_GAS_ESTIMATE_FALLBACK to this network's name.`,
+      false
+    )
+
+  const res = await fetchWithTimeout(
+    apiUrl,
+    {
+      method: 'POST',
+      // A redirect to a non-HTTPS target would silently defeat the check above.
+      redirect: 'error',
+      headers: buildTronWalletJsonPostHeaders(fullHost),
+      body: JSON.stringify({
+        owner_address: params.ownerBase58,
+        contract_address: params.contractBase58,
+        data: params.data.slice(2),
+        // A high limit for the estimate itself; it caps nothing that broadcasts.
+        fee_limit: TRON_TRIGGER_ESTIMATE_FEE_LIMIT_SUN,
+        call_value: params.callValue > 0n ? Number(params.callValue) : 0,
+        visible: true,
+      }),
+    },
+    TRON_WALLET_API_FETCH_TIMEOUT_MS
+  )
+
+  if (!res.ok) {
+    const text = await res.text()
+    throw new TronEstimateError(
+      `triggerconstantcontract failed: ${res.status} ${text}`,
+      true
+    )
+  }
+
+  const result = (await res.json()) as {
+    energy_used?: number
+    result?: { result?: boolean; message?: string }
+  }
+
+  if (
+    result.result?.result === false ||
+    result.energy_used === undefined ||
+    result.energy_used === null
+  )
+    // Deterministic: this is what a call that would revert looks like here, and
+    // asking again returns the same answer.
+    throw new TronEstimateError(
+      `Tron simulation failed: ${JSON.stringify(result.result ?? result)}`,
+      false
+    )
+
+  // A contract call always burns energy, so a zero is a node answering without
+  // having simulated. Priced, it would cost nothing and clear any fee limit —
+  // the guard would be a no-op on exactly the batches it exists to stop.
+  if (!(result.energy_used > 0))
+    throw new TronEstimateError(
+      `triggerconstantcontract reported ${result.energy_used} energy, which no ` +
+        `contract call costs. Refusing to treat it as an estimate.`,
+      false
+    )
+
+  return result.energy_used
+}
+
+/**
+ * Runs an estimate, retrying only the failures another attempt could change.
+ *
+ * Every estimate is now mandatory before a direct-EOA Tron send, so a single
+ * transient 429 — `runPendingTimelockTXs.yml` reaches TronGrid with no API key
+ * — would otherwise refuse a production execution. A {@link TronEstimateError}
+ * marked non-retryable is a deterministic answer (a call that would revert, a
+ * refused transport) and is surfaced on the first attempt.
+ *
+ * @param attempt - One estimate round trip.
+ * @param sleep - Injected in tests so retries do not wait.
+ * @returns Whatever the first successful attempt returns.
+ * @throws The last error, once no attempt is left or the failure is settled.
+ */
+export const retryTronEstimate = async <T>(
+  attempt: () => Promise<T>,
+  sleep: (ms: number) => Promise<void> = realSleep
+): Promise<T> => {
+  let lastError: unknown
+
+  for (let n = 1; n <= MAX_RETRIES; n++)
+    try {
+      return await attempt()
+    } catch (error) {
+      lastError = error
+      const retryable =
+        error instanceof TronEstimateError ? error.retryable : true
+      if (!retryable) break
+      if (n < MAX_RETRIES) await sleep(RETRY_DELAY)
+    }
+
+  throw lastError instanceof Error ? lastError : new Error(String(lastError))
+}
+
+/**
+ * Estimates the energy a contract call would consume, with the devkit's safety
+ * margin applied.
+ *
+ * The margin exists for parity with the devkit's own estimator, which the
+ * deploy scripts price through — see {@link applyTronSafetyMargin} for why it
+ * is not described as correcting an under-report.
+ *
+ * Retried through {@link retryTronEstimate}.
+ *
+ * @param params - Owner, contract, calldata and call value.
+ * @returns Estimated energy including the safety margin.
+ * @throws When the node rejects every attempt, or returns no energy figure —
+ * which is what a call that would revert looks like here.
+ */
+export const estimateTronEnergy = async (
+  params: ITronEnergyEstimateParams
+): Promise<bigint> =>
+  retryTronEstimate(
+    async () => applyTronSafetyMargin(await requestEnergyUsed(params)),
+    params.sleep
+  )
+
+/**
+ * Prices energy at the network's current rate.
+ *
+ * Reads `getEnergyPrices` directly rather than through the devkit's
+ * `getCurrentPrices`, which catches its own failure and substitutes a constant.
+ * Two things made that unusable for a guard. A node that resolves with an empty
+ * price string never reaches the catch at all, so the price came back as `0`,
+ * the cost as `0`, and any batch cleared any fee limit. And the substituted
+ * constant, 210 SUN/energy, is a real Tron price — mainnet's actual rate for
+ * roughly eleven months — so no comparison against its value can tell a
+ * fallback from a correct read.
+ *
+ * Rounded up: the figure decides whether a broadcast is refused, and the
+ * conservative direction is to refuse slightly early rather than send a call
+ * that cannot finish.
+ *
+ * @param tronWeb - Client used to read the chain's energy price.
+ * @param energy - Energy to price.
+ * @returns Cost in SUN.
+ * @throws When the price cannot be read, or carries no usable value.
+ */
+export const tronEnergyCostInSun = async (
+  tronWeb: { trx: { getEnergyPrices: () => Promise<string> } },
+  energy: bigint
+): Promise<bigint> => {
+  const priceSun = latestEnergyPriceSun(await tronWeb.trx.getEnergyPrices())
+  return BigInt(Math.ceil(Number(energy) * priceSun))
+}

@@ -1,7 +1,8 @@
 # Run TypeScript Unit Tests
 # - Runs the TypeScript/Bun test suite (`bun test:ts` → every `script/**/*.test.ts`).
 # - Path-gated: the test job runs only when files that can affect the outcome change
-#   (`script/**`, `package.json`, `bun.lock`, `tsconfig*.json`, this workflow).
+#   (`script/**`, `tasks/**`, `config/**`, `package.json`, `bun.lock`, `tsconfig*.json`,
+#   this workflow).
 # - A `ts-tests-required` aggregator job always reports a final status so this workflow
 #   can remain a required check on `main` branch protection even when the test job is
 #   skipped (same pattern as `forge-unit-tests.yml`, see `.agents/rules/500-github-actions.md`).
@@ -52,6 +53,9 @@ jobs:
           filters: |
             ts:
               - 'script/**'
+              # the suite walks tasks/ too, so a leak added there would otherwise ship with
+              # ts-tests-required green on a skipped job
+              - 'tasks/**'
               # several suites assert against the committed config files, so a
               # config-only change can break them without touching script/**
               - 'config/**'

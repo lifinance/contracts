@@ -17,6 +17,7 @@ import {
   assertScopeContractsEligible,
   isNetworkInScope,
 } from '../common/whitelistScope'
+import { flagIsOn } from '../deploy/safe/cli-flags'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -316,7 +317,6 @@ const main = defineCommand({
     dryRun: {
       type: 'boolean',
       description: 'Show what would be updated without making changes',
-      default: false,
     },
   },
   async run({ args }) {
@@ -526,7 +526,7 @@ const main = defineCommand({
         whitelistStagingData.PERIPHERY = stagingPeripheryData
       }
 
-      if (args.dryRun) {
+      if (flagIsOn(args.dryRun)) {
         consola.info('DRY RUN - Would update the following:')
         if (isProduction) {
           consola.info(
@@ -599,7 +599,7 @@ const main = defineCommand({
         )
         fs.writeFileSync(
           tempProductionPath,
-          JSON.stringify(whitelistData, null, 2)
+          `${JSON.stringify(whitelistData, null, 2)}\n`
         )
 
         // Validate the temporary production file
@@ -644,7 +644,7 @@ const main = defineCommand({
         )
         fs.writeFileSync(
           tempStagingPath,
-          JSON.stringify(whitelistStagingData, null, 2)
+          `${JSON.stringify(whitelistStagingData, null, 2)}\n`
         )
 
         // Validate the temporary staging file

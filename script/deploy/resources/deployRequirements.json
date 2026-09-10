@@ -32,7 +32,8 @@
       "_spokePool": {
         "configFileName": "across.json",
         "keyInConfigFile": ".<NETWORK>.acrossSpokePool",
-        "allowToDeployWithZeroAddress": "false"
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "SPOKEPOOL"
       },
       "_wrappedNative": {
         "configFileName": "networks.json",
@@ -46,7 +47,8 @@
       "_spokePool": {
         "configFileName": "across.json",
         "keyInConfigFile": ".<NETWORK>.acrossSpokePool",
-        "allowToDeployWithZeroAddress": "false"
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "SPOKEPOOL"
       },
       "_wrappedNative": {
         "configFileName": "networks.json",
@@ -60,17 +62,20 @@
       "_spokePoolPeriphery": {
         "configFileName": "across.json",
         "keyInConfigFile": ".<NETWORK>.spokePoolPeriphery",
-        "allowToDeployWithZeroAddress": "true"
+        "allowToDeployWithZeroAddress": "true",
+        "getter": "SPOKE_POOL_PERIPHERY"
       },
       "_spokePool": {
         "configFileName": "across.json",
         "keyInConfigFile": ".<NETWORK>.acrossSpokePool",
-        "allowToDeployWithZeroAddress": "false"
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "SPOKE_POOL"
       },
       "_wrappedNative": {
         "configFileName": "networks.json",
         "keyInConfigFile": ".<NETWORK>.wrappedNativeAddress",
-        "allowToDeployWithZeroAddress": "false"
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "WRAPPED_NATIVE"
       },
       "_sponsoredOftSrcPeriphery": {
         "configFileName": "across.json",
@@ -149,12 +154,14 @@
       "_circleBridgeProxy": {
         "configFileName": "celerCircle.json",
         "keyInConfigFile": ".<NETWORK>.circleBridgeProxy",
-        "allowToDeployWithZeroAddress": "false"
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "CIRCLE_BRIDGE_PROXY"
       },
       "_usdc": {
         "configFileName": "celerCircle.json",
         "keyInConfigFile": ".<NETWORK>.usdc",
-        "allowToDeployWithZeroAddress": "false"
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "USDC"
       }
     }
   },
@@ -181,22 +188,39 @@
       }
     }
   },
+  "EcoFacet": {
+    "configData": {
+      "_portal": {
+        "configFileName": "eco.json",
+        "keyInConfigFile": ".<NETWORK>.portal",
+        "allowToDeployWithZeroAddress": "false"
+      },
+      "_backendSigner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".backendSigner.<ENVIRONMENT>",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
   "FraxFacet": {
     "configData": {
       "_hop": {
         "configFileName": "frax.json",
         "keyInConfigFile": ".hop.<NETWORK>",
-        "allowToDeployWithZeroAddress": "false"
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "FRAX_HOP"
       },
       "_tipFeeManager": {
         "configFileName": "frax.json",
         "keyInConfigFile": ".tipFeeManager.<NETWORK>",
-        "allowToDeployWithZeroAddress": "true"
+        "allowToDeployWithZeroAddress": "true",
+        "getter": "FRAX_TIP_FEE_MANAGER"
       },
       "_pathUsd": {
         "configFileName": "frax.json",
         "keyInConfigFile": ".pathUsd.<NETWORK>",
-        "allowToDeployWithZeroAddress": "true"
+        "allowToDeployWithZeroAddress": "true",
+        "getter": "FRAX_PATH_USD"
       }
     }
   },
@@ -214,7 +238,8 @@
       "_airlift": {
         "configFileName": "glacis.json",
         "keyInConfigFile": ".airlift.<NETWORK>",
-        "allowToDeployWithZeroAddress": "false"
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "AIRLIFT"
       }
     }
   },
@@ -377,17 +402,20 @@
       "_tokenMessenger": {
         "configFileName": "polymercctp.json",
         "keyInConfigFile": ".<NETWORK>.tokenMessengerV2",
-        "allowToDeployWithZeroAddress": "false"
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "TOKEN_MESSENGER"
       },
       "_usdc": {
         "configFileName": "polymercctp.json",
         "keyInConfigFile": ".<NETWORK>.usdc",
-        "allowToDeployWithZeroAddress": "false"
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "USDC"
       },
       "_polymerFeeReceiver": {
         "configFileName": "polymercctp.json",
         "keyInConfigFile": ".<NETWORK>.polymerFeeReceiver",
-        "allowToDeployWithZeroAddress": "false"
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "POLYMER_FEE_RECEIVER"
       }
     }
   },
@@ -414,7 +442,8 @@
       "_tokenMessaging": {
         "configFileName": "stargateV2.json",
         "keyInConfigFile": ".tokenMessaging.<NETWORK>",
-        "allowToDeployWithZeroAddress": "false"
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "tokenMessaging"
       }
     }
   },
@@ -423,7 +452,8 @@
       "_poolManager": {
         "configFileName": "superset.json",
         "keyInConfigFile": ".poolManager.<NETWORK>",
-        "allowToDeployWithZeroAddress": "false"
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "POOL_MANAGER"
       }
     }
   },
@@ -507,12 +537,14 @@
       "_endpointV2": {
         "configFileName": "stargateV2.json",
         "keyInConfigFile": ".endpointV2.<NETWORK>",
-        "allowToDeployWithZeroAddress": "false"
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "endpointV2"
       },
       "_tokenMessaging": {
         "configFileName": "stargateV2.json",
         "keyInConfigFile": ".tokenMessaging.<NETWORK>",
-        "allowToDeployWithZeroAddress": "false"
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "tokenMessaging"
       }
     },
     "contractAddresses": {
@@ -531,7 +563,8 @@
       "_spokepool": {
         "configFileName": "across.json",
         "keyInConfigFile": ".<NETWORK>.acrossSpokePool",
-        "allowToDeployWithZeroAddress": "false"
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "spokepool"
       }
     },
     "contractAddresses": {
@@ -550,7 +583,8 @@
       "_spokepool": {
         "configFileName": "across.json",
         "keyInConfigFile": ".<NETWORK>.acrossSpokePool",
-        "allowToDeployWithZeroAddress": "false"
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "SPOKEPOOL"
       }
     },
     "contractAddresses": {
@@ -600,7 +634,8 @@
       "_transitStation": {
         "configFileName": "paxosTransit.json",
         "keyInConfigFile": ".transitStation.<NETWORK>",
-        "allowToDeployWithZeroAddress": "false"
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "TRANSIT_STATION"
       }
     }
   },
@@ -618,7 +653,8 @@
       "permit2Address": {
         "configFileName": "permit2Proxy.json",
         "keyInConfigFile": ".<NETWORK>",
-        "allowToDeployWithZeroAddress": "false"
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "PERMIT2"
       },
       "_owner": {
         "configFileName": "global.json",
@@ -632,7 +668,8 @@
       "_gasZipRouter": {
         "configFileName": "gaszip.json",
         "keyInConfigFile": ".gasZipRouters.<NETWORK>",
-        "allowToDeployWithZeroAddress": "false"
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "GAS_ZIP_ROUTER"
       }
     }
   },
@@ -641,7 +678,8 @@
       "_gasZipRouter": {
         "configFileName": "gaszip.json",
         "keyInConfigFile": ".gasZipRouters.<NETWORK>",
-        "allowToDeployWithZeroAddress": "false"
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "GAS_ZIP_ROUTER"
       },
       "_owner": {
         "configFileName": "global.json",
@@ -655,7 +693,9 @@
       "_chainflipVault": {
         "configFileName": "chainflip.json",
         "keyInConfigFile": ".chainflipVault.<NETWORK>",
-        "allowToDeployWithZeroAddress": "false"
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "CHAINFLIP_VAULT",
+        "legacyGetters": ["chainflipVault"]
       }
     }
   },
@@ -664,7 +704,8 @@
       "_relayDepository": {
         "configFileName": "relay.json",
         "keyInConfigFile": ".<NETWORK>.relayDepository",
-        "allowToDeployWithZeroAddress": "false"
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "RELAY_DEPOSITORY"
       }
     }
   },
@@ -678,7 +719,8 @@
       "_chainflipVault": {
         "configFileName": "chainflip.json",
         "keyInConfigFile": ".chainflipVault.<NETWORK>",
-        "allowToDeployWithZeroAddress": "false"
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "chainflipVault"
       }
     },
     "contractAddresses": {
@@ -701,7 +743,9 @@
       "_wrappedToken": {
         "configFileName": "networks.json",
         "keyInConfigFile": ".<NETWORK>.wrappedNativeAddress",
-        "allowToDeployWithZeroAddress": "false"
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "WRAPPED_TOKEN",
+        "legacyGetters": ["wrappedToken"]
       },
       "_converter": {
         "configFileName": "tokenconverters.json",
@@ -729,7 +773,8 @@
       "_layerSwapDepository": {
         "configFileName": "layerswap.json",
         "keyInConfigFile": ".layerSwapDepository.<NETWORK>",
-        "allowToDeployWithZeroAddress": "false"
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "LAYERSWAP_DEPOSITORY"
       },
       "_backendSigner": {
         "configFileName": "global.json",
@@ -743,7 +788,8 @@
       "_inputSettler": {
         "configFileName": "lifiintentescrow.json",
         "keyInConfigFile": ".lifiEscrowInputSettler",
-        "allowToDeployWithZeroAddress": "false"
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "LIFI_INTENT_ESCROW_SETTLER_V2"
       }
     }
   },
@@ -757,12 +803,65 @@
       "_outputSettler": {
         "configFileName": "lifiintentescrow.json",
         "keyInConfigFile": ".OIFOutputSettlerSimple",
-        "allowToDeployWithZeroAddress": "false"
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "OUTPUT_SETTLER"
       }
     },
     "contractAddresses": {
       "Executor": {
         "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "DeBridgeDlnFacet": {
+    "configData": {
+      "_dlnSource": {
+        "configFileName": "debridgedln.json",
+        "keyInConfigFile": ".networks.<NETWORK>.dlnSource",
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "DLN_SOURCE",
+        "legacyGetters": ["dlnSource"]
+      }
+    }
+  },
+  "EcoFacet": {
+    "configData": {
+      "_portal": {
+        "configFileName": "eco.json",
+        "keyInConfigFile": ".<NETWORK>.portal",
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "PORTAL"
+      }
+    }
+  },
+  "LidoWrapper": {
+    "configData": {
+      "_stETHAddress": {
+        "configFileName": "lidowrapper.json",
+        "keyInConfigFile": ".<NETWORK>.stETH",
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "ST_ETH"
+      },
+      "_wstETHAddress": {
+        "configFileName": "lidowrapper.json",
+        "keyInConfigFile": ".<NETWORK>.wstETH",
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "WST_ETH_ADDRESS"
+      },
+      "_owner": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".refundWallet",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "MayanFacet": {
+    "configData": {
+      "_mayan": {
+        "configFileName": "mayan.json",
+        "keyInConfigFile": ".bridges.<NETWORK>.bridge",
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "MAYAN"
       }
     }
   }

@@ -16,13 +16,22 @@ import { getAssociatedTokenAddressSync } from '@solana/spl-token'
 import { Keypair, PublicKey } from '@solana/web3.js'
 import { defineCommand, runMain } from 'citty'
 import { config } from 'dotenv'
-import { parseUnits, zeroAddress, type Narrow, toHex } from 'viem'
+import {
+  parseUnits,
+  zeroAddress,
+  type Narrow,
+  type Hex,
+  toHex,
+  keccak256,
+} from 'viem'
 import { erc20Abi } from 'viem'
+import { privateKeyToAccount } from 'viem/accounts'
 
 import ecoFacetArtifact from '../../out/EcoFacet.sol/EcoFacet.json'
 import type { ILiFi } from '../../typechain'
 import type { EcoFacet, LibSwap } from '../../typechain/EcoFacet'
 import type { SupportedChain } from '../common/types'
+import { getEnvVar } from '../utils/utils'
 
 import {
   ADDRESS_USDC_OPT,
@@ -104,6 +113,8 @@ const UNISWAP_ADDRESSES: Record<string, string> = {
 }
 
 // Eco API configuration
+const DEFAULT_SRC_CHAIN = 'optimism'
+const DEFAULT_DST_CHAIN = 'base'
 const ECO_API_URL = process.env.ECO_API_URL || 'https://quotes.eco.com'
 const DAPP_ID = process.env.ECO_DAPP_ID || 'lifi-demo'
 
@@ -547,6 +558,59 @@ async function main(args: {
     console.log('  For token mint:', usdcMint)
   }
 
+  // === Backend EIP-712 signature over the EcoPayload ===
+  const backendSignerKey = getEnvVar('PRIVATE_KEY_BACKEND_SIGNER_STAGING')
+  const normalizedBackendKey: Hex = backendSignerKey.startsWith('0x')
+    ? (backendSignerKey as Hex)
+    : (`0x${backendSignerKey}` as Hex)
+  const backendSignerAccount = privateKeyToAccount(normalizedBackendKey)
+
+  const sourceChainId = await publicClient.getChainId()
+  const signatureDeadline = BigInt(Math.floor(Date.now() / 1000) + 3600)
+
+  const backendSignature = await backendSignerAccount.signTypedData({
+    domain: {
+      name: 'LI.FI Eco Facet',
+      version: '1',
+      chainId: sourceChainId,
+      verifyingContract: lifiDiamondContract.address,
+    },
+    types: {
+      EcoPayload: [
+        { name: 'transactionId', type: 'bytes32' },
+        { name: 'sendingAssetId', type: 'address' },
+        { name: 'minAmount', type: 'uint256' },
+        { name: 'destinationChainId', type: 'uint256' },
+        { name: 'receiver', type: 'address' },
+        { name: 'nonEVMReceiverHash', type: 'bytes32' },
+        { name: 'encodedRouteHash', type: 'bytes32' },
+        { name: 'prover', type: 'address' },
+        { name: 'refundRecipient', type: 'address' },
+        { name: 'rewardDeadline', type: 'uint64' },
+        { name: 'solanaATA', type: 'bytes32' },
+        { name: 'deadline', type: 'uint256' },
+      ],
+    },
+    primaryType: 'EcoPayload',
+    message: {
+      transactionId: bridgeData.transactionId as Hex,
+      sendingAssetId: SRC_TOKEN_ADDRESS as Hex,
+      minAmount: BigInt(bridgeMinAmount),
+      destinationChainId,
+      receiver: receiverAddress as Hex,
+      nonEVMReceiverHash: keccak256(nonEVMReceiverBytes),
+      encodedRouteHash: keccak256(encodedRoute as Hex),
+      prover: quote.data.contracts.prover as Hex,
+      refundRecipient: signerAddress as Hex,
+      rewardDeadline: BigInt(quote.data.quoteResponse.deadline),
+      solanaATA,
+      deadline: signatureDeadline,
+    },
+  })
+
+  console.log('  Backend signer:', backendSignerAccount.address)
+  console.log('  Signature deadline:', signatureDeadline.toString())
+
   const ecoData: EcoFacet.EcoDataStruct = {
     nonEVMReceiver: nonEVMReceiverBytes,
     prover: quote.data.contracts.prover,
@@ -554,6 +618,8 @@ async function main(args: {
     encodedRoute: encodedRoute,
     solanaATA: solanaATA,
     refundRecipient: signerAddress,
+    deadline: signatureDeadline,
+    signature: backendSignature,
   }
 
   // === Ensure allowance ===
@@ -681,13 +747,11 @@ const command = defineCommand({
   args: {
     srcChain: {
       type: 'string',
-      default: 'optimism',
-      description: 'Source chain for the bridge (e.g., optimism)',
+      description: `Source chain for the bridge (default: ${DEFAULT_SRC_CHAIN})`,
     },
     dstChain: {
       type: 'string',
-      default: 'base',
-      description: 'Destination chain for the bridge (e.g., base)',
+      description: `Destination chain for the bridge (default: ${DEFAULT_DST_CHAIN})`,
     },
     amount: {
       type: 'string',
@@ -702,8 +766,8 @@ const command = defineCommand({
   },
   async run({ args }) {
     await main({
-      srcChain: args.srcChain as SupportedChain,
-      dstChain: args.dstChain,
+      srcChain: (args.srcChain ?? DEFAULT_SRC_CHAIN) as SupportedChain,
+      dstChain: args.dstChain ?? DEFAULT_DST_CHAIN,
       amount: args.amount,
       swap: args.swap,
     })

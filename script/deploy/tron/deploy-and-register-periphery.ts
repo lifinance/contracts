@@ -31,17 +31,21 @@ import {
   getContractAddress,
   getEnvironment,
   getNetworkConfig,
-  logDeployment,
   readJsonFile,
   saveContractAddress,
   updateDiamondJsonPeriphery,
 } from '../../utils/utils'
+import { flagIsOn, readBooleanFlag } from '../safe/cli-flags'
 import { ZERO_ADDRESS } from '../shared/constants.js'
 import { getContractVersion } from '../shared/getContractVersion'
 import { retryWithRateLimit } from '../shared/rateLimit.js'
 
 import { getTronCorePeriphery } from './helpers/tronContractLists.js'
-import { encodeConstructorArgs, getTronWallet } from './tronUtils.js'
+import {
+  assertTronDeploymentRecordable,
+  getTronWallet,
+  recordTronDeployment,
+} from './tronUtils.js'
 
 const ERC20_PROXY_ABI = [
   {
@@ -398,6 +402,16 @@ async function deployAndRegisterPeripheryImpl(options: {
             )
             consola.info(`Version: ${version}`)
 
+            assertTronDeploymentRecordable(
+              artifact,
+
+              constructorArgs,
+
+              'ERC20Proxy',
+
+              network
+            )
+
             const result = await deployer.deployContract(
               artifact,
               constructorArgs
@@ -419,19 +433,20 @@ async function deployAndRegisterPeripheryImpl(options: {
             consola.info(`Cost: ${result.actualCost.trxCost} TRX`)
 
             if (!dryRun) {
-              await logDeployment(
-                'ERC20Proxy',
-                network,
-                result.contractAddress,
-                version,
-                '0x',
-                false
-              )
               await saveContractAddress(
                 network,
                 'ERC20Proxy',
                 result.contractAddress
               )
+              await recordTronDeployment({
+                contractName: 'ERC20Proxy',
+                network,
+                address: result.contractAddress,
+                version,
+                artifact,
+                constructorArgs,
+                verified: false,
+              })
             }
           }
 
@@ -498,6 +513,16 @@ async function deployAndRegisterPeripheryImpl(options: {
             consola.info(`Using refundWallet: ${refundWalletHex}`)
             consola.info(`Version: ${version}`)
 
+            assertTronDeploymentRecordable(
+              artifact,
+
+              constructorArgs,
+
+              'Executor',
+
+              network
+            )
+
             const result = await deployer.deployContract(
               artifact,
               constructorArgs
@@ -517,19 +542,20 @@ async function deployAndRegisterPeripheryImpl(options: {
             consola.info(`Cost: ${result.actualCost.trxCost} TRX`)
 
             if (!dryRun) {
-              await logDeployment(
-                'Executor',
-                network,
-                result.contractAddress,
-                version,
-                '0x',
-                false
-              )
               await saveContractAddress(
                 network,
                 'Executor',
                 result.contractAddress
               )
+              await recordTronDeployment({
+                contractName: 'Executor',
+                network,
+                address: result.contractAddress,
+                version,
+                artifact,
+                constructorArgs,
+                verified: false,
+              })
             }
           }
 
@@ -611,6 +637,16 @@ async function deployAndRegisterPeripheryImpl(options: {
             consola.info(`Using feeCollectorOwner: ${feeCollectorOwnerHex}`)
             consola.info(`Version: ${version}`)
 
+            assertTronDeploymentRecordable(
+              artifact,
+
+              constructorArgs,
+
+              'FeeCollector',
+
+              network
+            )
+
             const result = await deployer.deployContract(
               artifact,
               constructorArgs
@@ -632,19 +668,20 @@ async function deployAndRegisterPeripheryImpl(options: {
             consola.info(`Cost: ${result.actualCost.trxCost} TRX`)
 
             if (!dryRun) {
-              await logDeployment(
-                'FeeCollector',
-                network,
-                result.contractAddress,
-                version,
-                '0x',
-                false
-              )
               await saveContractAddress(
                 network,
                 'FeeCollector',
                 result.contractAddress
               )
+              await recordTronDeployment({
+                contractName: 'FeeCollector',
+                network,
+                address: result.contractAddress,
+                version,
+                artifact,
+                constructorArgs,
+                verified: false,
+              })
             }
           }
 
@@ -707,6 +744,16 @@ async function deployAndRegisterPeripheryImpl(options: {
             )
             consola.info(`Version: ${version}`)
 
+            assertTronDeploymentRecordable(
+              artifact,
+
+              constructorArgs,
+
+              'FeeForwarder',
+
+              network
+            )
+
             const result = await deployer.deployContract(
               artifact,
               constructorArgs
@@ -728,19 +775,20 @@ async function deployAndRegisterPeripheryImpl(options: {
             consola.info(`Cost: ${result.actualCost.trxCost} TRX`)
 
             if (!dryRun) {
-              await logDeployment(
-                'FeeForwarder',
-                network,
-                result.contractAddress,
-                version,
-                '0x',
-                false
-              )
               await saveContractAddress(
                 network,
                 'FeeForwarder',
                 result.contractAddress
               )
+              await recordTronDeployment({
+                contractName: 'FeeForwarder',
+                network,
+                address: result.contractAddress,
+                version,
+                artifact,
+                constructorArgs,
+                verified: false,
+              })
             }
           }
 
@@ -868,6 +916,16 @@ async function deployAndRegisterPeripheryImpl(options: {
               consola.info(`Using refundWallet: ${refundWalletHex}`)
               consola.info(`Version: ${version}`)
 
+              assertTronDeploymentRecordable(
+                artifact,
+
+                constructorArgs,
+
+                'TokenWrapper',
+
+                network
+              )
+
               const result = await deployer.deployContract(
                 artifact,
                 constructorArgs
@@ -889,19 +947,20 @@ async function deployAndRegisterPeripheryImpl(options: {
               consola.info(`Cost: ${result.actualCost.trxCost} TRX`)
 
               if (!dryRun) {
-                await logDeployment(
-                  'TokenWrapper',
-                  network,
-                  result.contractAddress,
-                  version,
-                  '0x',
-                  false
-                )
                 await saveContractAddress(
                   network,
                   'TokenWrapper',
                   result.contractAddress
                 )
+                await recordTronDeployment({
+                  contractName: 'TokenWrapper',
+                  network,
+                  address: result.contractAddress,
+                  version,
+                  artifact,
+                  constructorArgs,
+                  verified: false,
+                })
               }
             }
 
@@ -960,6 +1019,16 @@ async function deployAndRegisterPeripheryImpl(options: {
             )
             consola.info(`Version: ${version}`)
 
+            assertTronDeploymentRecordable(
+              artifact,
+
+              constructorArgs,
+
+              'OutputValidator',
+
+              network
+            )
+
             const result = await deployer.deployContract(
               artifact,
               constructorArgs
@@ -981,19 +1050,20 @@ async function deployAndRegisterPeripheryImpl(options: {
             consola.info(`Cost: ${result.actualCost.trxCost} TRX`)
 
             if (!dryRun) {
-              await logDeployment(
-                'OutputValidator',
-                network,
-                result.contractAddress,
-                version,
-                '0x',
-                false
-              )
               await saveContractAddress(
                 network,
                 'OutputValidator',
                 result.contractAddress
               )
+              await recordTronDeployment({
+                contractName: 'OutputValidator',
+                network,
+                address: result.contractAddress,
+                version,
+                artifact,
+                constructorArgs,
+                verified: false,
+              })
             }
           }
 
@@ -1089,6 +1159,16 @@ async function deployAndRegisterPeripheryImpl(options: {
             )
             consola.info(`Version: ${version}`)
 
+            assertTronDeploymentRecordable(
+              artifact,
+
+              constructorArgs,
+
+              'ReceiverOIF',
+
+              network
+            )
+
             const result = await deployer.deployContract(
               artifact,
               constructorArgs
@@ -1110,19 +1190,20 @@ async function deployAndRegisterPeripheryImpl(options: {
             consola.info(`Cost: ${result.actualCost.trxCost} TRX`)
 
             if (!dryRun) {
-              await logDeployment(
-                'ReceiverOIF',
-                network,
-                result.contractAddress,
-                version,
-                await encodeConstructorArgs(constructorArgs),
-                false
-              )
               await saveContractAddress(
                 network,
                 'ReceiverOIF',
                 result.contractAddress
               )
+              await recordTronDeployment({
+                contractName: 'ReceiverOIF',
+                network,
+                address: result.contractAddress,
+                version,
+                artifact,
+                constructorArgs,
+                verified: false,
+              })
             }
           }
 
@@ -1221,6 +1302,12 @@ async function deployAndRegisterPeripheryImpl(options: {
                   const version = await getContractVersion(
                     'LiFiTimelockController'
                   )
+                  assertTronDeploymentRecordable(
+                    artifact,
+                    constructorArgs,
+                    'LiFiTimelockController',
+                    network
+                  )
                   const result = await deployer.deployContract(
                     artifact,
                     constructorArgs
@@ -1238,19 +1325,20 @@ async function deployAndRegisterPeripheryImpl(options: {
                     ` LiFiTimelockController deployed: ${result.contractAddress}`
                   )
                   if (!dryRun) {
-                    await logDeployment(
-                      'LiFiTimelockController',
-                      network,
-                      result.contractAddress,
-                      version,
-                      '0x',
-                      false
-                    )
                     await saveContractAddress(
                       network,
                       'LiFiTimelockController',
                       result.contractAddress
                     )
+                    await recordTronDeployment({
+                      contractName: 'LiFiTimelockController',
+                      network,
+                      address: result.contractAddress,
+                      version,
+                      artifact,
+                      constructorArgs,
+                      verified: false,
+                    })
                   }
                 }
               }
@@ -1407,7 +1495,6 @@ const deployCommand = defineCommand({
     dryRun: {
       type: 'boolean',
       description: 'Simulate deployment without executing',
-      default: false,
     },
     verbose: {
       type: 'boolean',
@@ -1417,7 +1504,6 @@ const deployCommand = defineCommand({
     skipConfirmation: {
       type: 'boolean',
       description: 'Skip confirmation prompts',
-      default: false,
     },
     only: {
       type: 'string',
@@ -1429,13 +1515,12 @@ const deployCommand = defineCommand({
       type: 'boolean',
       description:
         'Skip deployment; only register contract(s) from deployments file with the Diamond. Use with --only to register a single contract (e.g. after a failed registration).',
-      default: false,
     },
   },
   async run({ args }) {
     try {
       // Also check environment variables for backward compatibility
-      let dryRun = args.dryRun
+      let dryRun = flagIsOn(args.dryRun)
       let verbose = args.verbose
 
       try {
@@ -1468,9 +1553,19 @@ const deployCommand = defineCommand({
       await deployAndRegisterPeripheryImpl({
         dryRun,
         verbose,
-        skipConfirmation: args.skipConfirmation,
+        // Strict: on skips the prompt that is the last check before a
+        // production deploy, so an unreadable value must be refused.
+        skipConfirmation: readBooleanFlag(process.argv, {
+          camel: 'skipConfirmation',
+          kebab: 'skip-confirmation',
+        }),
         onlyContracts,
-        registerOnly: args.registerOnly,
+        // Strict for the same reason as skipConfirmation: this is the other
+        // flag the production confirmation prompt gates on.
+        registerOnly: readBooleanFlag(process.argv, {
+          camel: 'registerOnly',
+          kebab: 'register-only',
+        }),
       })
     } catch (error: unknown) {
       const errorMessage =

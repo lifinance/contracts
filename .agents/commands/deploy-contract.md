@@ -1,6 +1,6 @@
 ---
 name: deploy-contract
-description: Deploys a facet/periphery contract (the version currently in the repo) to one or more networks and registers it in each network's LiFiDiamond — deploy, explorer-verify, diamondCut (facets) or diamondUpdatePeriphery (periphery), plus the diamond allowlist sync for diamond-called periphery. Use whenever the user wants to "deploy <Contract> to <networks>", "redeploy <Facet> on staging", "push <Periphery> to base/optimism", or otherwise get a contract on-chain and into the diamond WITHOUT the Safe-proposal lifecycle. This is the staging/test deploy path and is the deploy primitive that `multisig-rollout` calls. For a PRODUCTION rollout — anything that needs Safe proposals shepherded to signing ("roll out vX.Y.Z to all chains", "upgrade <Facet> in production", "create the diamond cut proposals") — use `multisig-rollout` instead; it calls this skill and then drives the proposal → PR → signing → Slack tail. If any target network is `tron`/`tronshasta`, route those to `deploy-contract-tron` instead — Foundry has no Tron support and this skill's pipeline cannot deploy there. Requires Foundry, gh, and (production only) VPN for MongoDB.
+description: ROUTING GATE (check BEFORE invoking) — resolve the target environment first. A deploy that lands in a PRODUCTION diamond (any mainnet network, unless the user explicitly says staging) is a multisig rollout: invoke `multisig-rollout` instead, even when the request is a bare "deploy <Contract> to <chain>" or "the receiver is missing on <chain>" — the deploy verb does NOT imply this skill. Invoke this skill directly only for staging/testnet targets, or when `multisig-rollout` is already driving and delegates here. — Deploys a facet/periphery contract (the version currently in the repo) to one or more networks and registers it in each network's LiFiDiamond — deploy, explorer-verify, diamondCut (facets) or diamondUpdatePeriphery (periphery), plus the diamond allowlist sync for diamond-called periphery. Use whenever the user wants to "deploy <Contract> to <networks>", "redeploy <Facet> on staging", "push <Periphery> to base/optimism", or otherwise get a contract on-chain and into the diamond WITHOUT the Safe-proposal lifecycle. This is the staging/test deploy path and is the deploy primitive that `multisig-rollout` calls. For a PRODUCTION rollout — anything that needs Safe proposals shepherded to signing ("roll out vX.Y.Z to all chains", "upgrade <Facet> in production", "create the diamond cut proposals") — use `multisig-rollout` instead; it calls this skill and then drives the proposal → PR → signing → Slack tail. If any target network is `tron`/`tronshasta`, route those to `deploy-contract-tron` instead — Foundry has no Tron support and this skill's pipeline cannot deploy there. Requires Foundry, gh, and (production only) VPN for MongoDB.
 usage: /deploy-contract <ContractName> <network...> [--production]
 ---
 
@@ -69,6 +69,22 @@ jq -e --arg N "<Contract>" '.whitelistPeripheryFunctions | has($N)' config/globa
 If it matches, Phase 3b runs an allowlist sync afterwards (a second production proposal). No manual `whitelist.json` editing: the sync derives the address + selectors from `global.json.whitelistPeripheryFunctions` automatically. Facets and non-diamond-called periphery skip Phase 3b.
 
 A contract listed under `global.json.whitelistPeripheryNetworks` is whitelisted only on the networks named there; one absent from that map is whitelisted on every network it is deployed to.
+
+**Facets with a required companion periphery.** A bridge facet usually covers only the source side; destination calls are completed by a partner contract on the same chain (`LiFiIntentEscrowFacetV2` → `ReceiverOIF`, `StargateFacetV2` → `ReceiverStargateV2`). Deploying the facet alone silently disables inbound transfers there. Detect deterministically:
+
+```bash
+jq -r --arg N "<Contract>" '.facetPeripheryCouplings[$N].requires // empty' config/global.json
+```
+
+If it names a companion, check every target network and **add the ones missing it to this deploy's target list**. An empty string or `MISSING` means it is not registered in that diamond:
+
+```bash
+jq -r --arg C "<Companion>" '.LiFiDiamond.Periphery[$C] // "MISSING"' deployments/<net>.diamond.json
+```
+
+`notRequiredOn` in the same coupling entry names networks where the companion is deliberately absent — respect it rather than deploying over it.
+
+Resolve this here, at target resolution, rather than relying on the existing tooling: the pipeline's `facetCompanionReminder.ts` is a non-fatal nudge that only checks the flat deploy log, so it falls silent once the companion is deployed even if it was never registered, and it is easily lost in an interleaved multi-network log; the enforcing `facet-required-periphery` health-check invariant only catches the gap after the fact. The reminder was already in place when a ten-chain facet rollout shipped without its receiver and disabled inbound traffic on all ten (EXSC-823).
 
 ## Phase 2 — Confirm plan
 

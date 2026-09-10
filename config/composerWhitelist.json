@@ -57,6 +57,17 @@
       ]
     }
   ],
+  "arc": [
+    {
+      "address": "0xbfE34dF90A81113b7D3f943E9925DD1B44e96644",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    }
+  ],
   "avalanche": [
     {
       "address": "0x9706b69De23Fe0B471Addd642175126B3A8BF071",
@@ -466,6 +477,17 @@
   "pharos": [
     {
       "address": "0x48eCDAA6aDA921f61357c1104829E9b1f4D1F75E",
+      "functionSelectors": [
+        {
+          "selector": "0x00a32e6c",
+          "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+        }
+      ]
+    }
+  ],
+  "plasma": [
+    {
+      "address": "0xA9076E5FD4b9D553af8956Fd5F580De7F6f055CE",
       "functionSelectors": [
         {
           "selector": "0x00a32e6c",

@@ -39,8 +39,51 @@ const TIMELOCK_QUEUE_DB_NAME = 'timelock-operations'
 /** Collection name for timelock execution queue. */
 const TIMELOCK_QUEUE_COLLECTION_NAME = 'queue'
 
-/** Possible lifecycle states for a queue row. */
-type TimelockQueueStatus = 'queued' | 'executed' | 'cancelled' | 'failed'
+/**
+ * Possible lifecycle states for a queue row.
+ *
+ * `blocked` and `failed` both mean "the runner refused to execute", but they are
+ * not interchangeable: a `blocked` op is still live on-chain and becomes
+ * executable again once an operator clears the cause, so it stays visible and
+ * re-drivable (`requeue-timelock-op.ts`). `failed` is reserved for ops that can
+ * never run as stored — a tampered row, or an on-chain revert.
+ */
+export type TimelockQueueStatus =
+  | 'queued'
+  | 'executed'
+  | 'cancelled'
+  | 'blocked'
+  | 'failed'
+
+/** Every lifecycle state, for CLI argument validation. */
+export const TIMELOCK_QUEUE_STATUSES = [
+  'queued',
+  'executed',
+  'cancelled',
+  'blocked',
+  'failed',
+] as const
+
+/**
+ * How long the runner waits before re-alerting on the same blocked op. Blocked
+ * rows persist until an operator acts, so alerting is level-triggered with this
+ * interval rather than edge-triggered — a single notification at the moment of
+ * blocking is what let EXSC-816 sit unnoticed.
+ */
+export const BLOCKED_ALERT_INTERVAL_MS = 6 * 60 * 60 * 1000
+
+/**
+ * How many reverted `executeBatch` attempts a row absorbs before the runner
+ * stops retrying it and blocks it for an operator.
+ *
+ * Not 1, because a revert is not always durable: the diamond can be paused, or a
+ * value-bearing inner call can be temporarily underfunded, and those clear on
+ * their own. Not unbounded either — before this threshold existed, a batch whose
+ * payload could never succeed was re-attempted every ten minutes forever, and
+ * re-alerted every time. Three attempts is roughly half an hour of self-healing
+ * on the 10-minute cron.
+ */
+export const REVERT_BLOCK_THRESHOLD = 3
 
 /**
  * Schedule parameters as decoded from a `scheduleBatch` Safe tx (BigInts).
@@ -101,6 +144,27 @@ export interface ITimelockQueueDoc {
   cancelledAt?: Date
   /** Optional human-readable reason when status is `failed`. */
   failureReason?: string
+  /** Set when status flips to `blocked`. */
+  blockedAt?: Date
+  /** Human-readable reason when status is `blocked`. */
+  blockedReason?: string
+  /** Last time a blocked-op alert was sent for this row; throttles re-alerting. */
+  blockedAlertedAt?: Date
+  /** Set when an operator re-drove the row back to `queued`. */
+  requeuedAt?: Date
+  /** How many times this row has been re-driven. */
+  requeueCount?: number
+  /**
+   * Reverted `executeBatch` attempts since the last requeue. Only a requeue
+   * resets it — an attempt that fails for some other reason (RPC error, missing
+   * receipt) leaves it alone, because those say nothing about whether the
+   * payload itself can succeed.
+   */
+  revertCount?: number
+  /** Timestamp of the most recent reverted attempt. */
+  lastRevertAt?: Date
+  /** Hash of the most recent reverted `executeBatch` tx, for triage. */
+  lastRevertTxHash?: string
 }
 
 /**
@@ -407,6 +471,244 @@ export function deserializeScheduleParams(
 }
 
 /**
+ * Flips a queue row to `blocked` — the runner refused to execute it for a reason
+ * an operator can clear, and the op is still live on-chain.
+ *
+ * Distinct from `failed`: blocked rows are surfaced by `list-timelock-queue`,
+ * re-alerted by the runner while they stay executable, and can be re-driven with
+ * `requeue-timelock-op.ts`.
+ *
+ * @param timelockQueue - The queue collection.
+ * @param network - Network slug of the row.
+ * @param operationId - Operation id of the row.
+ * @param reason - Human-readable cause, shown in alerts and the lister.
+ */
+export async function markTimelockOpBlocked(
+  timelockQueue: Collection<ITimelockQueueDoc>,
+  network: string,
+  operationId: Hex,
+  reason: string
+): Promise<void> {
+  const now = new Date()
+  await timelockQueue.updateOne(byOperationId(network, operationId), {
+    $set: {
+      status: 'blocked',
+      blockedReason: reason,
+      blockedAt: now,
+      updatedAt: now,
+    },
+    $unset: {
+      ...staleStatusMetadataUnset('blocked'),
+      // Also drop any previous alert stamp so the new block alerts on the next
+      // run instead of inheriting an earlier block's throttle window.
+      blockedAlertedAt: '',
+    },
+  })
+}
+
+/**
+ * Flips a queue row to `failed` — the op can never run as stored (tampered row,
+ * or an on-chain revert). Terminal; `requeue-timelock-op.ts` refuses these
+ * without `--force`.
+ *
+ * @param timelockQueue - The queue collection.
+ * @param network - Network slug of the row.
+ * @param operationId - Operation id of the row.
+ * @param reason - Human-readable cause.
+ */
+export async function markTimelockOpFailedInQueue(
+  timelockQueue: Collection<ITimelockQueueDoc>,
+  network: string,
+  operationId: Hex,
+  reason: string
+): Promise<void> {
+  await timelockQueue.updateOne(byOperationId(network, operationId), {
+    $set: {
+      status: 'failed',
+      failureReason: reason,
+      updatedAt: new Date(),
+    },
+    $unset: staleStatusMetadataUnset('failed'),
+  })
+}
+
+/**
+ * Returns the reason text for whichever non-executed status a row carries, so
+ * callers do not have to know which of the two reason fields applies.
+ *
+ * @param doc - Queue row.
+ * @returns The blocked or failure reason, or `undefined` when neither applies.
+ */
+export function queueStatusReason(
+  doc: Pick<ITimelockQueueDoc, 'status' | 'blockedReason' | 'failureReason'>
+): string | undefined {
+  if (doc.status === 'blocked') return doc.blockedReason
+  if (doc.status === 'failed') return doc.failureReason
+  return undefined
+}
+
+/**
+ * Metadata that only makes sense while a row carries a particular status, keyed
+ * by the status that owns it.
+ *
+ * Anything listed here must not outlive its status: `list-timelock-queue` prints
+ * these fields whenever they are present, so an `executed` row that kept
+ * `blockedAt` reports a block timestamp it no longer has.
+ *
+ * Deliberately excludes the revert tally (`revertCount` and friends), which
+ * describes execution attempts rather than a status and is cleared only by an
+ * operator requeue.
+ */
+const STATUS_OWNED_METADATA: Readonly<
+  Partial<Record<TimelockQueueStatus, readonly string[]>>
+> = {
+  blocked: ['blockedReason', 'blockedAt', 'blockedAlertedAt'],
+  failed: ['failureReason'],
+}
+
+/**
+ * `$unset` document clearing the revert tally.
+ *
+ * Applies to every path that returns a row to `queued` — an operator requeue and
+ * a re-enqueue alike. Both mean "try this again from scratch", so carrying the
+ * old tally over would hand the fresh attempt no retry budget at all: one revert
+ * would immediately re-cross {@link REVERT_BLOCK_THRESHOLD}.
+ */
+export const REVERT_TALLY_UNSET: Readonly<Record<string, ''>> = {
+  revertCount: '',
+  lastRevertAt: '',
+  lastRevertTxHash: '',
+}
+
+/**
+ * Builds the `$unset` document that strips metadata belonging to every status
+ * other than the one being written.
+ *
+ * Every status transition should apply this, so adding a new status-owned field
+ * to {@link STATUS_OWNED_METADATA} is enough to have all transitions clear it.
+ *
+ * @param newStatus - The status about to be written.
+ * @returns A Mongo `$unset` document; empty when nothing needs clearing.
+ */
+export function staleStatusMetadataUnset(
+  newStatus: TimelockQueueStatus
+): Record<string, ''> {
+  const unset: Record<string, ''> = {}
+  for (const [status, fields] of Object.entries(STATUS_OWNED_METADATA))
+    if (status !== newStatus)
+      for (const field of fields ?? []) unset[field] = ''
+  return unset
+}
+
+/**
+ * Records a reverted `executeBatch` attempt and returns the new revert tally.
+ *
+ * The row stays `queued` — deciding whether the tally has run out is the
+ * caller's job via {@link shouldBlockAfterRevert}, so a transient revert still
+ * gets its retries.
+ *
+ * @param timelockQueue - The queue collection.
+ * @param network - Network slug of the row.
+ * @param operationId - Operation id of the row.
+ * @param txHash - Hash of the reverted `executeBatch` tx.
+ * @returns Total reverted attempts recorded for this row since its last requeue.
+ */
+export async function recordTimelockOpRevert(
+  timelockQueue: Collection<ITimelockQueueDoc>,
+  network: string,
+  operationId: Hex,
+  txHash: string
+): Promise<number> {
+  const now = new Date()
+  const updated = await timelockQueue.findOneAndUpdate(
+    byOperationId(network, operationId),
+    {
+      $inc: { revertCount: 1 },
+      $set: { lastRevertAt: now, lastRevertTxHash: txHash, updatedAt: now },
+    },
+    { returnDocument: 'after' }
+  )
+  return updated?.revertCount ?? 0
+}
+
+/**
+ * Whether a row has reverted often enough to stop auto-retrying it.
+ *
+ * @param revertCount - Tally from {@link recordTimelockOpRevert}.
+ * @param threshold - Attempts to allow; defaults to {@link REVERT_BLOCK_THRESHOLD}.
+ * @returns Whether the runner should block the row instead of retrying.
+ */
+export function shouldBlockAfterRevert(
+  revertCount: number,
+  threshold: number = REVERT_BLOCK_THRESHOLD
+): boolean {
+  return revertCount >= threshold
+}
+
+/**
+ * Classifies a `blocked` row from its freshly-read on-chain state.
+ *
+ * - `done` — the controller executed it; reconcile the row to `executed`.
+ * - `gone` — the controller holds no timestamp for the id, so it was cancelled
+ *   (or never scheduled); reconcile the row to `cancelled`. Cancelling is the
+ *   documented remediation for a blocked op, so this is the common path, and
+ *   without it following that advice leaves a permanently misleading row.
+ * - `pending` — still a live operation; a candidate for the ready-check alert.
+ *
+ * Only a fully negative read counts as `gone`: a contradictory combination (from
+ * a mid-block RPC race, say) stays `pending` rather than being silently
+ * cancelled.
+ *
+ * @param state - On-chain flags for the operation.
+ * @returns Which reconciliation, if any, the row needs.
+ */
+export function classifyBlockedRow(state: {
+  isDone: boolean
+  isPending: boolean
+  isReady: boolean
+  isOperation: boolean
+}): 'done' | 'gone' | 'pending' {
+  if (state.isDone) return 'done'
+  if (!state.isPending && !state.isReady && !state.isOperation) return 'gone'
+  return 'pending'
+}
+
+/** A blocked row paired with its freshly-read on-chain readiness. */
+export interface IBlockedOpCandidate {
+  doc: ITimelockQueueDoc
+  /** `isOperationReady` result; `null` when the RPC check failed. */
+  onChainReady: boolean | null
+}
+
+/**
+ * Picks the blocked rows that warrant an alert on this run: still executable
+ * on-chain, and either never alerted or last alerted longer ago than
+ * `throttleMs`.
+ *
+ * Rows whose readiness check failed are deliberately excluded — a transient RPC
+ * error must not manufacture an alert about an op we could not read.
+ *
+ * @param candidates - Blocked rows with their on-chain readiness.
+ * @param now - Current time (injected for testability).
+ * @param throttleMs - Minimum gap between alerts for the same row.
+ * @returns The rows to alert on.
+ */
+export function selectBlockedNeedingAlert(
+  candidates: IBlockedOpCandidate[],
+  now: Date,
+  throttleMs: number = BLOCKED_ALERT_INTERVAL_MS
+): ITimelockQueueDoc[] {
+  return candidates
+    .filter(({ doc, onChainReady }) => {
+      if (doc.status !== 'blocked' || onChainReady !== true) return false
+      const lastAlert = doc.blockedAlertedAt
+      if (!lastAlert) return true
+      return now.getTime() - lastAlert.getTime() >= throttleMs
+    })
+    .map(({ doc }) => doc)
+}
+
+/**
  * Upserts a row into the timelock execution queue when the just-executed Safe
  * tx scheduled a timelock op. No-op for any other Safe tx.
  *
@@ -475,6 +777,14 @@ export async function enqueueTimelockOpIfApplicable(
             safeTxHash,
             executionHash,
             updatedAt: now,
+          },
+          // Re-enqueueing an existing row resets it to `queued`; clear the
+          // previous block/failure bookkeeping so the row carries no reason that
+          // contradicts its status, and the revert tally so the fresh attempt
+          // gets a full retry budget.
+          $unset: {
+            ...staleStatusMetadataUnset('queued'),
+            ...REVERT_TALLY_UNSET,
           },
         },
         { upsert: true }

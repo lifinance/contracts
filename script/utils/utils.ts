@@ -28,6 +28,7 @@ import { EnvironmentEnum } from '../common/types'
 import { EVM_VERSIONS } from '../deploy/shared/constants'
 import { getContractVersion } from '../deploy/shared/getContractVersion'
 
+import { redactUrls } from './redactUrls'
 import { spawnAndCapture } from './spawnAndCapture'
 
 const networks: INetworksObject = networksConfig
@@ -38,6 +39,14 @@ const networks: INetworksObject = networksConfig
  */
 export function getRPCEnvVarName(networkName: string): string {
   return `ETH_NODE_URI_${networkName.toUpperCase().replace(/-/g, '_')}`
+}
+
+/**
+ * Returns the environment variable name holding a network’s lower-priority RPC URLs,
+ * space-separated. Written by `fetch-rpcs`, read by the viem fallback transport.
+ */
+export function getRPCFallbacksEnvVarName(networkName: string): string {
+  return `${getRPCEnvVarName(networkName)}_FALLBACKS`
 }
 
 /**
@@ -64,7 +73,9 @@ export function node_url(networkName: string): string {
 
   if (uri.indexOf('{{') >= 0)
     throw new Error(
-      `invalid uri or network not supported by node provider : ${uri}`
+      `invalid uri or network not supported by node provider : ${redactUrls(
+        uri
+      )}`
     )
 
   return uri
@@ -73,6 +84,17 @@ export function node_url(networkName: string): string {
 const FOUNDRY_TOML_PATH = resolve(
   dirname(fileURLToPath(import.meta.url)),
   '../../foundry.toml'
+)
+
+/**
+ * Foundry's build output, resolved from this module rather than `process.cwd()`.
+ * A cwd-relative lookup makes every artifact reader report "not built" whenever
+ * the caller was launched from outside the repo root, which reads as a missing
+ * contract rather than a missing build.
+ */
+export const OUT_ROOT = resolve(
+  dirname(fileURLToPath(import.meta.url)),
+  '../../out'
 )
 
 function readFoundryProfileDefaultConfig(): IFoundryProfileDefaultConfig {
@@ -474,7 +496,7 @@ export async function getFacetSelectors(
   facetName: string,
   excludeSelectors: string[] = []
 ): Promise<string[]> {
-  const base = resolve(process.cwd(), 'out')
+  const base = OUT_ROOT
   const artifactPath = resolve(base, `${facetName}.sol`, `${facetName}.json`)
   const relativePath = relative(base, artifactPath)
   if (relativePath.startsWith('..') || isAbsolute(relativePath))
@@ -944,7 +966,7 @@ export function displayNetworkInfo(
 
   const infoContent = `
 Network: ${networkName}
-RPC URL: ${rpcUrl}
+RPC URL: ${redactUrls(rpcUrl)}
 Environment: ${environmentString}
 Address: ${networkInfo.address}
 Balance: ${networkInfo.balance}

@@ -312,7 +312,7 @@ function diamondSyncWhitelist {
 
     RPC_URL=$(getRPCUrl "$NETWORK") || checkFailure $? "get rpc url"
 
-    echoSyncDebug "Using RPC URL: $RPC_URL"
+    echoSyncDebug "Using RPC URL: $(redactRpcUrl "$RPC_URL")"
     echoSyncDebug "Diamond address: $DIAMOND_ADDRESS"
 
     # Function to get contract-selector pairs from whitelist files (whitelist.json or whitelist.staging.json)
@@ -980,7 +980,7 @@ function diamondSyncWhitelist {
           local REMOVE_EXIT_CODE=$?
 
           # Print output in verbose mode
-          if [[ "$MULTI_NETWORK_RUN" != "true" ]]; then echo "$REMOVE_OUTPUT"; fi
+          if [[ "$MULTI_NETWORK_RUN" != "true" ]]; then printf '%s\n' "$(redactRpcUrl "$REMOVE_OUTPUT")"; fi
 
           if [[ $REMOVE_EXIT_CODE -eq 0 ]]; then
             if [[ "$TIMELOCK_FLAG" == "true" ]]; then
@@ -1177,7 +1177,7 @@ function diamondSyncWhitelist {
           OUTPUT=$(universalCast "send" "$NETWORK" "$ENVIRONMENT" "$DIAMOND_ADDRESS" "batchSetContractSelectorWhitelist(address[],bytes4[],bool)" "$SEND_ARGS" "$TIMELOCK_FLAG" 2>&1)
           local EXIT_CODE=$?
 
-          if [[ "$MULTI_NETWORK_RUN" != "true" ]]; then echo "$OUTPUT"; fi
+          if [[ "$MULTI_NETWORK_RUN" != "true" ]]; then printf '%s\n' "$(redactRpcUrl "$OUTPUT")"; fi
 
           if [[ $EXIT_CODE -eq 0 ]]; then
             if [[ "$TIMELOCK_FLAG" == "true" ]]; then
@@ -1240,7 +1240,7 @@ function diamondSyncWhitelist {
           local COMBINED_EXIT_CODE=$?
 
           # Print output in verbose mode
-          if [[ "$MULTI_NETWORK_RUN" != "true" ]]; then echo "$COMBINED_OUTPUT"; fi
+          if [[ "$MULTI_NETWORK_RUN" != "true" ]]; then printf '%s\n' "$(redactRpcUrl "$COMBINED_OUTPUT")"; fi
 
           if [[ $COMBINED_EXIT_CODE -eq 0 ]]; then
             printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Combined removal+addition proposal submitted successfully!"

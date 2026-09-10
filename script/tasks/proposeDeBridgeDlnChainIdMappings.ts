@@ -32,15 +32,15 @@ import {
 } from 'viem'
 
 import { EnvironmentEnum } from '../common/types'
+import { proposeSafeTx } from '../deploy/safe/propose-safe-tx'
 import {
   getNextNonce,
   getPrivateKey,
   getSafeMongoCollection,
   initializeSafeClient,
-  isAddressASafeOwner,
-  OperationTypeEnum,
-  storeTransactionInMongoDB,
+  pickTimelockSalt,
 } from '../deploy/safe/safe-utils'
+import { encodeTimelockScheduleBatch } from '../deploy/safe/timelock-abi'
 import {
   getAllActiveNetworks,
   getViemChainForNetworkName,
@@ -51,9 +51,6 @@ interface IChainIdMapping {
   chainId: bigint
   deBridgeChainId: bigint
 }
-
-const ZERO_BYTES32 =
-  '0x0000000000000000000000000000000000000000000000000000000000000000' as Hex // pre-commit-checker: not a secret
 
 function castEnv(environment?: string): EnvironmentEnum {
   if (!environment) return EnvironmentEnum.production
@@ -166,17 +163,17 @@ async function buildTimelockScheduleBatchCalldata(params: {
   })
 
   // Encode scheduleBatch call
-  const scheduleBatchAbi = parseAbi([
-    'function scheduleBatch(address[] targets, uint256[] values, bytes[] payloads, bytes32 predecessor, bytes32 salt, uint256 delay)',
-  ])
 
-  const salt = `0x${Date.now().toString(16).padStart(64, '0')}` as Hex
-
-  return encodeFunctionData({
-    abi: scheduleBatchAbi,
-    functionName: 'scheduleBatch',
-    args: [targets, values, payloads, ZERO_BYTES32, salt, minDelay],
+  const salt = await pickTimelockSalt({
+    client,
+    chainId: chain.id,
+    timelockAddress,
+    targetAddresses: targets,
+    originalCalldatas: payloads,
+    values,
   })
+
+  return encodeTimelockScheduleBatch(targets, payloads, salt, minDelay, values)
 }
 
 async function proposeToSafe(params: {
@@ -198,14 +195,6 @@ async function proposeToSafe(params: {
       rpcUrl
     )
 
-    // Ensure signer is an owner (avoid creating proposals with non-owner key)
-    const owners = await safe.getOwners()
-    if (!isAddressASafeOwner(owners, safe.account.address)) {
-      throw new Error(
-        `Signer ${safe.account.address} is not an owner of Safe ${safeAddress} on ${network}`
-      )
-    }
-
     const nextNonce = await getNextNonce(
       pendingTransactions,
       safeAddress,
@@ -214,38 +203,19 @@ async function proposeToSafe(params: {
       await safe.getNonce()
     )
 
-    const safeTransaction = await safe.createTransaction({
-      transactions: [
-        {
-          to,
-          value: 0n,
-          data: calldata,
-          operation: OperationTypeEnum.Call,
-          nonce: nextNonce,
-        },
-      ],
+    const { safeTxHash, stored } = await proposeSafeTx({
+      safe,
+      network,
+      chainId: chain.id,
+      safeAddress,
+      pendingTransactions,
+      payload: { kind: 'call', to, data: calldata, nonce: nextNonce },
     })
 
-    const signedTx = await safe.signTransaction(safeTransaction)
-    const safeTxHash = await safe.getTransactionHash(signedTx)
-
-    const result = await storeTransactionInMongoDB(
-      pendingTransactions,
-      safeAddress,
-      network,
-      chain.id,
-      signedTx,
-      safeTxHash,
-      safe.account.address
-    )
-
-    if (result === null) {
+    if (!stored) {
       consola.info(`[${network}] ℹ️ Proposal already exists - skipping insert`)
       return
     }
-
-    if (!result.acknowledged)
-      throw new Error(`[${network}] MongoDB insert was not acknowledged`)
 
     consola.success(`[${network}] ✅ Proposed Safe tx ${safeTxHash}`)
   } finally {

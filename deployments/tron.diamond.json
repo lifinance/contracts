@@ -17,20 +17,12 @@
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
       },
-      "TPDdY4Qqy9gU8eD3bJ63pUFhHr4WWnabks": {
-        "Name": "DexManagerFacet",
-        "Version": "1.0.2"
-      },
       "TLqbL8MKosbLxrJ9iTDTpZTzcXRWq8bFJ3": {
         "Name": "AccessManagerFacet",
         "Version": "1.0.0"
       },
       "TA9z2Lmg6g4tAwn31CK57ekjpmVXCr8kum": {
         "Name": "PeripheryRegistryFacet",
-        "Version": "1.0.0"
-      },
-      "TPccg9MTwWVxcSrMA3dYRxzpAGaiLeZmxS": {
-        "Name": "GenericSwapFacet",
         "Version": "1.0.0"
       },
       "TZD2bfN2dKawq3TeJkbRopeTD4kAbXceWN": {
@@ -45,17 +37,9 @@
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
-      "TAXonvq4chZufsFS1NdTLaK4zq8ruPct8f": {
-        "Name": "SymbiosisFacet",
-        "Version": "1.0.0"
-      },
       "TR15epdwXG9kBXtEBnF5bv6kSYRY5w6mXY": {
         "Name": "AllBridgeFacet",
         "Version": "2.2.0"
-      },
-      "TMLwFQAjLQqCJDUNVCVd9c9Q8LLqbmhaW8": {
-        "Name": "EcoFacet",
-        "Version": "1.0.0"
       },
       "TG6586TTEv664XWSD875tMk6yDuwedphpW": {
         "Name": "EcoFacet",

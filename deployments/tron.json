@@ -1,11 +1,9 @@
 {
   "AccessManagerFacet": "TLqbL8MKosbLxrJ9iTDTpZTzcXRWq8bFJ3",
   "CalldataVerificationFacet": "TFJLkNo9rHYTkp6w5G5ETnTBzzybRTqwQf",
-  "DexManagerFacet": "TPDdY4Qqy9gU8eD3bJ63pUFhHr4WWnabks",
   "DiamondCutFacet": "TNGUuj9GYbeUDn4GbTH2711kNyE4WcMbb4",
   "DiamondLoupeFacet": "TSFek3JXzdwPHH6bs9TBF7wviJ71ZxRC5j",
   "EmergencyPauseFacet": "TNDAp17M3vKJ432TLPGGEokuhzf4GTQXR6",
-  "GenericSwapFacet": "TPccg9MTwWVxcSrMA3dYRxzpAGaiLeZmxS",
   "OwnershipFacet": "TVofq5iFiwsDf4M3xcucpV7HCX5M6XpcHW",
   "PeripheryRegistryFacet": "TA9z2Lmg6g4tAwn31CK57ekjpmVXCr8kum",
   "LiFiDiamond": "TU3ymitEKCWQFtASkEeHaPb8NfZcJtCHLt",

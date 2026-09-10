@@ -27,6 +27,21 @@ contract DeployScript is DeployScriptBase {
             string.concat(".", network, ".portal")
         );
 
-        return abi.encode(portal);
+        string memory globalPath = string.concat(root, "/config/global.json");
+        string memory globalJson = vm.readFile(globalPath);
+
+        address backendSigner;
+        if (
+            keccak256(abi.encodePacked(fileSuffix)) ==
+            keccak256(abi.encodePacked("staging."))
+        ) {
+            backendSigner = globalJson.readAddress(".backendSigner.staging");
+        } else {
+            backendSigner = globalJson.readAddress(
+                ".backendSigner.production"
+            );
+        }
+
+        return abi.encode(portal, backendSigner);
     }
 }

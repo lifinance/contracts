@@ -13,6 +13,15 @@ import {
 import type { EnvironmentEnum } from '../../common/types'
 import { sleep } from '../../utils/delay'
 
+import {
+  captureGitProvenance,
+  PROVENANCE_UNKNOWN,
+  type ICaptureProvenanceOptions,
+  type ProvenanceActor,
+} from './git-provenance'
+import type { IRecordedCodehash } from './record-codehash'
+import { REPO_UNKNOWN, readRepoIdentity } from './repo-identity'
+
 /**
  * Represents a deployment record stored in MongoDB
  * @interface IDeploymentRecord
@@ -46,6 +55,46 @@ export interface IDeploymentRecord {
   zkSolcVersion: string
   /** Git commit hash of the local codebase at the time this record was logged */
   gitCommitHash: string
+  /**
+   * Repository the commit was logged from, as `host/owner/repo`. Absent on
+   * records written before this field existed; `'UNKNOWN'` when the capture ran
+   * and could not identify a remote.
+   */
+  repo?: string
+  /**
+   * Branch checked out when the record was logged, `'HEAD'` on a detached
+   * checkout, or `'UNKNOWN'` when the capture failed. Absent on records written
+   * before this field existed.
+   */
+  gitBranch?: string
+  /**
+   * Working-tree paths that differed from `gitCommitHash` at log time, with the
+   * artefacts the deploy pipeline rewrites during its own run excluded. An
+   * empty array means the capture ran and found a clean tree; absent means no
+   * capture ran, or ran and could not read the tree. Broader on purpose than
+   * the build-affecting paths `assertTreeRecordable` refuses a deploy on: this
+   * one is a reviewer's view of the whole tree, not the subset that changes
+   * what a rebuild produces.
+   */
+  dirtyTreeScoped?: string[]
+  /** True when more dirty paths existed than `dirtyTreeScoped` records. */
+  dirtyTreeTruncated?: boolean
+  /**
+   * Execution context the deploy ran in: `'human'`, `'bot'` (an unattended job
+   * that set `SAFE_PROPOSAL_ACTOR=bot`), `'ci'`, or `'UNKNOWN'` when nothing
+   * identified the caller.
+   */
+  actor?: ProvenanceActor
+  /**
+   * The code found at `address` after the deploy, as observed by the run that
+   * deployed it. Absent on any record whose deploy ran no post-deploy check,
+   * which is not a statement that the deployed code differs from anything.
+   *
+   * Reports, never decides: the run that wrote it chose the bytes it hashed, so
+   * a check that has to be sound recomputes from the chain and reads this only
+   * as what was claimed at deploy time.
+   */
+  codehash?: IRecordedCodehash
   /** When this record was created in the database */
   createdAt: Date
   /** When this record was last updated in the database */
@@ -98,6 +147,217 @@ export function getCurrentGitCommitHash(): string {
   }
 }
 
+/**
+ * Captures the repository the local codebase was cloned from, as
+ * `host/owner/repo`. Returns 'UNKNOWN' (with a warning) when there is no
+ * `origin` remote or its URL names no host and path — the same sentinel, and
+ * the same reason, as the commit hash above: a failed capture has to stay
+ * visible on later audits rather than blending in as legacy data.
+ */
+export function getCurrentRepo(): string {
+  const identity = readRepoIdentity()
+  if (identity === REPO_UNKNOWN)
+    consola.warn('Could not identify a repository from the origin remote')
+  return identity
+}
+
+/** The record fields describing which code and whose run produced a deployment. */
+export type IRecordProvenance = Pick<
+  IDeploymentRecord,
+  | 'gitCommitHash'
+  | 'repo'
+  | 'gitBranch'
+  | 'dirtyTreeScoped'
+  | 'dirtyTreeTruncated'
+  | 'actor'
+>
+
+/** The provenance halves of an upsert: what to set, and what only to set on insert. */
+export interface IProvenanceUpdate {
+  set: Partial<IRecordProvenance>
+  setOnInsert: Partial<IRecordProvenance>
+}
+
+/**
+ * Captures every provenance field for a record about to be logged.
+ *
+ * Reads {@link captureGitProvenance}, the same capture the Safe proposal
+ * document is built from, so a deployment and the proposal that installs it
+ * cannot disagree about the branch or the dirty tree they came from.
+ *
+ * @param options - Overrides forwarded to the capture; production passes none.
+ * @returns The provenance fields, each degraded to a sentinel on failure, plus
+ * any non-fatal capture problems so a sentinel stays explainable.
+ */
+export function captureRecordProvenance(
+  options?: ICaptureProvenanceOptions
+): IRecordProvenance & {
+  captureErrors?: string[]
+} {
+  const captured = captureGitProvenance({ resolvePrUrl: false, ...options })
+  return {
+    gitCommitHash: captured.gitCommit,
+    repo: getCurrentRepo(),
+    gitBranch: captured.gitBranch,
+    ...(captured.dirtyTreeRead
+      ? {
+          dirtyTreeScoped: captured.dirtyTreeScoped,
+          dirtyTreeTruncated: captured.dirtyTreeTruncated === true,
+        }
+      : {}),
+    actor: captured.actor,
+    ...(captured.captureErrors?.length
+      ? { captureErrors: captured.captureErrors }
+      : {}),
+  }
+}
+
+/**
+ * Splits a record's provenance fields across `$set` and `$setOnInsert`.
+ *
+ * The add CLI writes these to Mongo only, so a JSON-sourced record carries
+ * none of them and an unconditional `$set` would erase what Mongo already
+ * holds. The `UNKNOWN` sentinels of `repo`, `gitBranch` and `actor` are handled
+ * the same way for the opposite reason: each is a real answer on a fresh
+ * insert, and a downgrade on an existing one, so it goes in only where there is
+ * nothing to lose. `gitCommitHash` is the exception, unchanged here: its
+ * sentinel is a plain truthy string and still reaches `$set`.
+ *
+ * A later clean capture must not `$set` an empty dirty list over a dirty one:
+ * that is the tell-tale of the deploy this field exists to surface, and the
+ * person who produced it is the one who would re-log from a cleaned tree.
+ * An empty list is therefore a real answer on insert only, same as the
+ * `UNKNOWN` sentinels. A new non-empty list still `$set`s — that is more
+ * evidence, not less.
+ *
+ * @param record - The record about to be written.
+ * @returns The two update fragments, either of which may be empty.
+ */
+export function provenanceUpdate(record: IRecordProvenance): IProvenanceUpdate {
+  const capturedDirtyTree = record.dirtyTreeScoped !== undefined
+  const dirtyPaths = record.dirtyTreeScoped ?? []
+  const dirtyEvidence =
+    dirtyPaths.length > 0 || record.dirtyTreeTruncated === true
+  return {
+    set: {
+      ...(record.gitCommitHash ? { gitCommitHash: record.gitCommitHash } : {}),
+      ...(record.repo && record.repo !== REPO_UNKNOWN
+        ? { repo: record.repo }
+        : {}),
+      ...(record.gitBranch && record.gitBranch !== PROVENANCE_UNKNOWN
+        ? { gitBranch: record.gitBranch }
+        : {}),
+      ...(record.actor && record.actor !== PROVENANCE_UNKNOWN
+        ? { actor: record.actor }
+        : {}),
+      ...(dirtyEvidence
+        ? {
+            dirtyTreeScoped: record.dirtyTreeScoped,
+            dirtyTreeTruncated: record.dirtyTreeTruncated === true,
+          }
+        : {}),
+    },
+    setOnInsert: {
+      // '' = "predates EXSC-330"
+      ...(record.gitCommitHash ? {} : { gitCommitHash: '' }),
+      ...(record.repo === REPO_UNKNOWN ? { repo: REPO_UNKNOWN } : {}),
+      ...(record.gitBranch === PROVENANCE_UNKNOWN
+        ? { gitBranch: PROVENANCE_UNKNOWN }
+        : {}),
+      ...(record.actor === PROVENANCE_UNKNOWN
+        ? { actor: PROVENANCE_UNKNOWN }
+        : {}),
+      ...(capturedDirtyTree && !dirtyEvidence
+        ? {
+            dirtyTreeScoped: [],
+            dirtyTreeTruncated: false,
+          }
+        : {}),
+    },
+  }
+}
+
+/**
+ * Renders a record's scoped dirty tree for a one-line human summary.
+ *
+ * @param record - The record whose dirty tree to describe.
+ * @returns `'unknown'` when no readable capture happened — which must never
+ * read as a clean tree — `'no'` for a clean one, else the path count.
+ */
+export function describeDirtyTree(
+  record: Pick<IDeploymentRecord, 'dirtyTreeScoped' | 'dirtyTreeTruncated'>
+): string {
+  const paths = record.dirtyTreeScoped
+  if (paths === undefined) return 'unknown'
+  if (paths.length === 0) return 'no'
+  return `${paths.length}${record.dirtyTreeTruncated ? '+' : ''} path(s)`
+}
+
+/** A single-record upsert: the identity it matches on, and the update it applies. */
+export interface IDeploymentUpsert {
+  filter: Filter<IDeploymentRecord>
+  update: {
+    $set: Partial<IDeploymentRecord> & { updatedAt: Date }
+    $setOnInsert: Partial<IDeploymentRecord> & { createdAt: Date }
+  }
+}
+
+/**
+ * Builds the upsert for one deployment record.
+ *
+ * The filter is deliberately the four identity fields only. Provenance stays
+ * out of it: matching on branch or dirtiness would make every re-log from a
+ * different tree insert a second row for the same deployed address.
+ *
+ * @param record - The record about to be written.
+ * @param now - Timestamp for the `updatedAt`/`createdAt` stamps.
+ * @returns The filter and update to hand to `updateOne`.
+ */
+export function buildDeploymentUpsert(
+  record: IDeploymentRecord,
+  now: Date = new Date()
+): IDeploymentUpsert {
+  const provenance = provenanceUpdate(record)
+  return {
+    filter: {
+      contractName: mongoEq(record.contractName),
+      network: mongoEq(record.network),
+      version: mongoEq(record.version),
+      address: mongoEq(record.address),
+    },
+    update: {
+      $set: {
+        contractName: record.contractName,
+        network: record.network,
+        version: record.version,
+        address: record.address,
+        optimizerRuns: record.optimizerRuns,
+        timestamp: record.timestamp,
+        constructorArgs: record.constructorArgs,
+        salt: record.salt,
+        verified: record.verified,
+        solcVersion: record.solcVersion,
+        evmVersion: record.evmVersion,
+        zkSolcVersion: record.zkSolcVersion,
+        // Spread rather than assigned, because the driver runs with
+        // `ignoreUndefined: false` and would write an absent value as a null: a
+        // re-log from a run that took no post-deploy observation has nothing to
+        // say about the code at this address, and must not erase what a run
+        // that did observe it stored.
+        ...(record.codehash ? { codehash: record.codehash } : {}),
+        ...provenance.set,
+        contractNetworkKey: record.contractNetworkKey,
+        contractVersionKey: record.contractVersionKey,
+        updatedAt: now,
+      },
+      $setOnInsert: {
+        createdAt: now,
+        ...provenance.setOnInsert,
+      },
+    },
+  }
+}
+
 const DEPLOYMENT_QUERY_EQ_KEYS = [
   'contractName',
   'network',
@@ -110,6 +370,7 @@ const DEPLOYMENT_QUERY_EQ_KEYS = [
   'evmVersion',
   'zkSolcVersion',
   'gitCommitHash',
+  'repo',
   'contractNetworkKey',
   'contractVersionKey',
   'timestamp',

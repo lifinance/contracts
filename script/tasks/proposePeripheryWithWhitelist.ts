@@ -22,6 +22,7 @@ import 'dotenv/config'
 import globalConfig from '../../config/global.json'
 import networksConfig from '../../config/networks.json'
 import whitelistConfig from '../../config/whitelist.json'
+import { flagIsOn } from '../deploy/safe/cli-flags'
 import { getViemChainForNetworkName } from '../utils/viemScriptHelpers'
 
 // executeBatch runs every inner call in one transaction, so an oversized batch
@@ -231,7 +232,6 @@ const main = defineCommand({
     },
     dryRun: {
       type: 'boolean',
-      default: false,
       description: 'Build and report the batch without proposing',
     },
   },
@@ -345,7 +345,7 @@ const main = defineCommand({
         for (const p of toAdd)
           consola.info(`[${network}]   + ${p.contract} ${p.selector}`)
 
-        if (args.dryRun) {
+        if (flagIsOn(args.dryRun)) {
           consola.success(`[${network}] dry-run: no proposal created`)
           continue
         }

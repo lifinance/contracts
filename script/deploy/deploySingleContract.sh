@@ -7,6 +7,7 @@ deploySingleContract() {
   # load helper functions
   source script/helperFunctions.sh
   source script/deploy/resources/contractSpecificReminders.sh # pre-commit-checker: not a secret
+  source script/deploy/shared/assertTreeRecordable.sh
 
   # read function arguments into variables
   local CONTRACT="$1"
@@ -44,6 +45,28 @@ deploySingleContract() {
       ENVIRONMENT="production"
     else
       ENVIRONMENT="staging"
+    fi
+  fi
+
+  # Also checked at the shared executeAndParse seam, but the zk path below builds and
+  # derives the CREATE2 salt through forge before reaching it.
+  if ! assertFoundryVersionOrFail; then
+    if [[ -z "$EXIT_ON_ERROR" || "$EXIT_ON_ERROR" == "false" ]]; then
+      return 1
+    else
+      exit 1
+    fi
+  fi
+
+  # A deployment record claims that rebuilding at its commit reproduces the deployed
+  # bytecode. Checked here rather than beside the record write: the deployment logger
+  # runs after the deploy, so a refusal there would lose a deployment instead of
+  # preventing one.
+  if ! assertTreeRecordableOrFail "$ENVIRONMENT"; then
+    if [[ -z "$EXIT_ON_ERROR" || "$EXIT_ON_ERROR" == "false" ]]; then
+      return 1
+    else
+      exit 1
     fi
   fi
 
@@ -130,7 +153,7 @@ deploySingleContract() {
   # check if deploy script exists
   if ! checkIfFileExists "$FULL_SCRIPT_PATH" >/dev/null; then
     error "could not find deploy script for $CONTRACT in this path: $FULL_SCRIPT_PATH". Aborting deployment.
-    if [[ -z "$EXIT_ON_ERROR" ]]; then
+    if [[ -z "$EXIT_ON_ERROR" || "$EXIT_ON_ERROR" == "false" ]]; then
       return 1
     else
       exit 1
@@ -169,8 +192,16 @@ deploySingleContract() {
   # the following is only applicable for networks where we use CREATE3 (= non-zkEVM)
   if ! isZkEvmNetwork "$NETWORK"; then
     # prepare bytecode
-    BYTECODE=$(getBytecodeFromArtifact "$CONTRACT")
-    
+    ensureStandardArtifactForSalt "$CONTRACT" || {
+      if [[ -z "$EXIT_ON_ERROR" || "$EXIT_ON_ERROR" == "false" ]]; then
+        return 1
+      else
+        exit 1
+      fi
+    }
+
+    BYTECODE=$(getBytecodeFromArtifact "$CONTRACT") || return 1
+
     # get CREATE3_FACTORY_ADDRESS
     CREATE3_FACTORY_ADDRESS=$(getCreate3FactoryAddress "$NETWORK")
     checkFailure $? "retrieve create3Factory address from networks.json"
@@ -198,7 +229,15 @@ deploySingleContract() {
     local EXECUTOR_DEPLOYSALT=""
     if [[ "$CONTRACT" == "ERC20Proxy" ]]; then
       local EXECUTOR_BYTECODE
-      EXECUTOR_BYTECODE=$(getBytecodeFromArtifact "Executor")
+      ensureStandardArtifactForSalt "Executor" || {
+        if [[ -z "$EXIT_ON_ERROR" || "$EXIT_ON_ERROR" == "false" ]]; then
+          return 1
+        else
+          exit 1
+        fi
+      }
+
+      EXECUTOR_BYTECODE=$(getBytecodeFromArtifact "Executor") || return 1
       EXECUTOR_DEPLOYSALT=$(cast keccak "${EXECUTOR_BYTECODE}${SALT}")
     fi
 
@@ -217,7 +256,7 @@ deploySingleContract() {
 
     # do not continue if data required for deployment is missing
     if [ $? -ne 0 ]; then
-      if [[ -z "$EXIT_ON_ERROR" || $EXIT_ON_ERROR == "false" ]]; then
+      if [[ -z "$EXIT_ON_ERROR" || "$EXIT_ON_ERROR" == "false" ]]; then
         return 1
       else
         exit 1
@@ -248,7 +287,17 @@ deploySingleContract() {
       echo "[info] building zksync artifacts"
       FOUNDRY_PROFILE=zksync ./foundry-zksync/forge build --zksync --skip test
 
-      # Compute deploy salt for zk path and check for potential CREATE2 collision
+      # Compute deploy salt for zk path and check for potential CREATE2 collision.
+      # The zk build above populates zkout/ only, so the standard artifact the salt is derived from
+      # has to be ensured separately (see ensureStandardArtifactForSalt).
+      ensureStandardArtifactForSalt "$CONTRACT" || {
+        if [[ -z "$EXIT_ON_ERROR" || "$EXIT_ON_ERROR" == "false" ]]; then
+          return 1
+        else
+          exit 1
+        fi
+      }
+
       local BYTECODE
       BYTECODE=$(getBytecodeFromArtifact "$CONTRACT") || return 1
 

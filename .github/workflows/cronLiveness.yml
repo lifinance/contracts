@@ -1,0 +1,91 @@
+# Cron Liveness Watchdog
+# - Answers the one question no scheduled workflow can answer about itself: did it RUN? Every cron in
+#   this repo alerts on its own failures, but a schedule GitHub silently dropped, a workflow disabled
+#   for inactivity, and YAML that Actions refused to register all look exactly like a quiet, healthy
+#   day. This job watches for that absence.
+# - LIVENESS ONLY, deliberately. A workflow that ran and FAILED counts as alive here: its own alerting
+#   owns that outcome, and reporting it again would ping twice for one problem. So a run that dies
+#   before reaching its own Slack step is not this job's to catch — that is what each workflow's
+#   `!cancelled()` guard is for.
+# - Why a separate job: healthCheckAllNetworks.yml (and every sibling cron) deliberately stays silent
+#   when green, so "no message" carries no information. Restoring a daily green heartbeat to each of
+#   them would just train everyone to skip the channel; one watchdog that alerts on staleness is the
+#   signal-preserving version of the same guarantee.
+# - Scope is DISCOVERED, never configured: script/utils/checkCronLiveness.ts reads every workflow file
+#   at the checked-out ref and watches each one that declares `on.schedule`. GitHub only runs schedule
+#   triggers from the default branch, so the checkout IS the authoritative list — a new cron is covered
+#   the moment its PR merges, and a deleted one drops out on its own. Nothing to keep in sync.
+#   Opt out with `# watchdog:ignore <reason>` in the workflow's own YAML; the reason is mandatory.
+# - Staleness is judged against a coarse cadence bucket (minutely / hourly / daily / weekly / monthly)
+#   times a grace window of 1.5x + 3h, which absorbs the hours of scheduler drift GitHub routinely adds
+#   without letting two missed cycles pass. A cron the classifier cannot bucket is REPORTED, never
+#   skipped — silent under-coverage is the exact failure this job exists to remove.
+# - Only scheduled runs count as evidence of life: a manual workflow_dispatch says nothing about
+#   whether the SCHEDULE still fires, and counting it would hide the failure we are looking for.
+# - Slack: alerts whenever something is stale, disabled or unwatchable. Otherwise silent, EXCEPT on
+#   Mondays, when it posts a green "N/N alive" heartbeat. That heartbeat is the point: without it, a
+#   dead watchdog is indistinguishable from a healthy fleet, and the blind spot just moves up a level.
+# - A workflow file the Actions API does not know about is reported as not-registered. On a feature
+#   branch that is just noise (the file is not on the default branch yet), but on main it means GitHub
+#   REFUSED TO PARSE the workflow — invalid YAML that would otherwise fail silently forever.
+# - Known limitation: this job cannot detect its own total absence. If it never runs, it cannot report
+#   that it never ran. The Monday heartbeat bounds that window to a week; a truly out-of-band
+#   dead-man's switch (an external ping service) is the only way to close it completely.
+
+name: Cron Liveness Watchdog
+
+on:
+  schedule:
+    - cron: '13 9 * * *' # 09:13 UTC daily (off-minute to avoid the fleet-wide :00 spike)
+  workflow_dispatch: # manual trigger / drill
+
+# Default-deny at the workflow level; grant only what the job needs.
+permissions: {}
+
+concurrency:
+  group: cron-liveness-${{ github.ref }}
+  cancel-in-progress: false # let an in-flight check finish rather than dropping its report
+
+jobs:
+  cron-liveness:
+    # Upstream-only: forks have neither this repo's schedules nor its Slack webhook.
+    if: ${{ github.repository == 'lifinance/contracts' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read # checkout, and `git log` for each workflow file's first-commit date
+      actions: read # list workflows and their scheduled runs
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false # read-only check; no git write operations
+          # Full history: a workflow that has never run is only stale if its FILE is older than the
+          # grace window, and a shallow clone cannot date the file.
+          fetch-depth: 0
+
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2.1.2
+        with:
+          bun-version-file: package.json
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Check cron liveness
+        env:
+          # GH_TOKEN, not GITHUB_TOKEN: Actions silently ignores `env:` assignments to reserved
+          # GITHUB_* names, so that spelling would fall back to the runner default and work only by
+          # coincidence. Passed via env rather than an argv flag to keep it out of the process table.
+          GH_TOKEN: ${{ github.token }}
+          WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS: ${{ secrets.SLACK_WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS }}
+        run: |
+          # Monday only for the green heartbeat: rare enough that nobody learns to scroll past it,
+          # frequent enough that a dead watchdog surfaces within a week. Alerts are unaffected — they
+          # post on any day. The script exits non-zero when it found something, so the run also goes
+          # red in the Actions list rather than relying on Slack alone.
+          if [[ "$(date -u +%u)" == "1" ]]; then
+            bunx tsx script/utils/checkCronLiveness.ts --heartbeat
+          else
+            bunx tsx script/utils/checkCronLiveness.ts
+          fi

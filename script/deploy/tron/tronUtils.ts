@@ -1,18 +1,15 @@
 /**
- * Tron-specific deployment utilities: diamond JSON management,
+ * Tron-specific deployment utilities: deployment recording,
  * health-check helpers (ownership, facet/whitelist verification), and on-chain cost helpers.
  * Generic deployment utilities (file I/O, environment, selectors) live in `../../utils/utils.ts`.
  */
 
 import {
-  DEFAULT_FEE_LIMIT_TRX,
-  MIN_BALANCE_REGISTRATION,
+  DEFAULT_SAFETY_MARGIN,
   MIN_BALANCE_WARNING,
-  TRON_ZERO_ADDRESS,
   createTronWebReadOnly,
   estimateContractCallEnergy,
   evmHexToTronBase58,
-  getCurrentPrices,
   getTronWebCodecFullHostForNetwork,
   getTronWebCodecOnlyForNetwork,
   loadForgeArtifact,
@@ -26,13 +23,7 @@ import { decodeFunctionResult, parseAbi, type Abi, type Hex } from 'viem'
 import type { IDeploymentResult, SupportedChain } from '../../common/types'
 import { sleep } from '../../utils/delay'
 import { spawnAndCapture } from '../../utils/spawnAndCapture'
-import {
-  getContractAddress,
-  getFacetSelectors,
-  logDeployment,
-  saveContractAddress,
-  updateDiamondJson,
-} from '../../utils/utils'
+import { logDeployment, saveContractAddress } from '../../utils/utils'
 import {
   INITIAL_CALL_DELAY,
   MAX_RETRIES,
@@ -42,8 +33,13 @@ import {
 import { getContractVersion } from '../shared/getContractVersion'
 import { isRateLimitError } from '../shared/rateLimit'
 
-import { DIAMOND_CUT_ENERGY_MULTIPLIER } from './constants'
-import type { IDiamondRegistrationResult } from './types'
+import { assertTronToolchainOrThrow } from './assertTronToolchain'
+import {
+  assertRecordedArgsMatchAbi,
+  constructorInputTypes,
+  encodeConstructorArgs as encodeWithTypes,
+  type AbiParamEncoder,
+} from './constructor-args'
 
 /**
  * Check if a contract is deployed on Tron
@@ -178,6 +174,11 @@ export async function deployContractWithLogging(
   network: SupportedChain = 'tron'
 ): Promise<IDeploymentResult> {
   try {
+    // Ahead of the artifact load so a drifted toolchain is reported as such, rather than as
+    // a stale or missing artifact. The same call also guards every deploy site from inside
+    // assertTronDeploymentRecordable; it runs the checker once per process either way.
+    assertTronToolchainOrThrow()
+
     const artifact = await loadForgeArtifact(contractName)
     const version = await getContractVersion(contractName)
 
@@ -185,6 +186,13 @@ export async function deployContractWithLogging(
 
     if (constructorArgs.length > 0)
       consola.info(`Constructor arguments:`, constructorArgs)
+
+    assertTronDeploymentRecordable(
+      artifact,
+      constructorArgs,
+      contractName,
+      network
+    )
 
     const result = await deployer.deployContract(artifact, constructorArgs)
 
@@ -194,22 +202,19 @@ export async function deployContractWithLogging(
 
     // Log deployment (skip in dry run)
     if (!dryRun) {
-      // Encode constructor args
-      const constructorArgsHex =
-        constructorArgs.length > 0
-          ? await encodeConstructorArgs(constructorArgs)
-          : '0x'
+      // The address is saved first: the contract is already on chain, and a
+      // recording failure that loses its address costs a duplicate deployment.
+      await saveContractAddress(network, contractName, result.contractAddress)
 
-      await logDeployment(
+      await recordTronDeployment({
         contractName,
         network,
-        result.contractAddress,
+        address: result.contractAddress,
         version,
-        constructorArgsHex,
-        false
-      )
-
-      await saveContractAddress(network, contractName, result.contractAddress)
+        artifact,
+        constructorArgs,
+        verified: false,
+      })
     }
 
     return {
@@ -229,49 +234,95 @@ export async function deployContractWithLogging(
 /**
  * Encode constructor arguments to hex
  */
-export async function encodeConstructorArgs(args: any[]): Promise<string> {
-  // Return empty hex for no arguments
-  if (args.length === 0) return '0x'
-
-  try {
-    const tronWeb = getTronWebCodecOnlyForNetwork('tron')
-
-    // Determine types based on argument values
-    const types: string[] = args.map((arg) => {
-      if (typeof arg === 'string') {
-        // Check if it's an address (starts with T or 0x)
-        if (arg.startsWith('T') || arg.startsWith('0x')) return 'address'
-
-        return 'string'
-      } else if (typeof arg === 'number' || typeof arg === 'bigint')
-        return 'uint256'
-      else if (typeof arg === 'boolean') return 'bool'
-      else if (Array.isArray(arg)) {
-        // For arrays, try to determine the element type
-        if (arg.length > 0 && typeof arg[0] === 'string') return 'string[]'
-
-        return 'uint256[]'
-      }
-      return 'bytes'
-    })
-
-    // Use TronWeb's ABI encoder
-    return tronWeb.utils.abi.encodeParams(types, args)
-  } catch (error) {
-    consola.warn('Failed to encode constructor args, using fallback:', error)
-    // Fallback to simple hex encoding
-    return (
-      '0x' +
-      args
-        .map((arg) => {
-          if (typeof arg === 'string' && arg.startsWith('0x'))
-            return arg.slice(2)
-
-          return Buffer.from(String(arg)).toString('hex')
-        })
-        .join('')
+/** TronWeb's ABI encoder for one network; it accepts base58 addresses, viem's does not. */
+const tronAbiEncoder =
+  (network: SupportedChain): AbiParamEncoder =>
+  (types, values) =>
+    getTronWebCodecOnlyForNetwork(network).utils.abi.encodeParams(
+      types,
+      values as any[]
     )
-  }
+
+/**
+ * Checks that a deployment will be recordable and that its artifact came from the pinned
+ * toolchain, before anything is broadcast.
+ *
+ * Call this immediately before deploying. Everything it checks is pure — the
+ * artifact's ABI and the values — so failing here costs nothing, while the same
+ * failure after `deployer.deployContract` leaves a contract on chain that
+ * cannot be recorded, and TRX already spent.
+ *
+ * The toolchain pre-flight lives here because every Tron deploy site calls this immediately
+ * before its `deployer.deployContract`, so a new deploy site cannot reach a chain without
+ * passing it. It costs one checker run per process, not one per contract.
+ *
+ * @param artifact - The Forge artifact about to be deployed.
+ * @param constructorArgs - Exactly the values the constructor will receive.
+ * @param contractName - Named in every message.
+ * @param network - Network whose codec will encode the values.
+ * @throws When the local forge does not match the pin, the ABI is unreadable, the arity
+ * disagrees, or the values cannot be encoded.
+ */
+export function assertTronDeploymentRecordable(
+  artifact: { abi?: unknown },
+  constructorArgs: readonly unknown[],
+  contractName: string,
+  network: SupportedChain
+): void {
+  assertTronToolchainOrThrow()
+
+  const types = constructorInputTypes(artifact?.abi, contractName)
+  const encoded = encodeWithTypes(
+    tronAbiEncoder(network),
+    constructorArgs,
+    types,
+    contractName
+  )
+  assertRecordedArgsMatchAbi(contractName, encoded, types)
+}
+
+/**
+ * Records a Tron deployment with its constructor arguments encoded from the ABI.
+ *
+ * Use this rather than calling `logDeployment` directly: it is the only place
+ * that decides what the `constructorArgs` field holds, so a call site cannot
+ * hand the log a string of its own.
+ *
+ * @param params.artifact - The Forge artifact the contract was deployed from.
+ * @param params.constructorArgs - Exactly the values passed to the constructor.
+ * @throws When the arguments cannot be encoded from the ABI. Callers must save
+ * the deployed address BEFORE calling this: the contract is already on chain by
+ * then, and losing its address costs a duplicate deployment.
+ */
+export async function recordTronDeployment(params: {
+  contractName: string
+  network: SupportedChain
+  address: string
+  version: string
+  artifact: { abi?: unknown }
+  constructorArgs: readonly unknown[]
+  verified: boolean
+}): Promise<void> {
+  const { contractName, network, address, version, artifact } = params
+  // Parsed once: an encode and an assert reading the ABI separately could
+  // disagree about what the contract takes.
+  const types = constructorInputTypes(artifact?.abi, contractName)
+  const encoded = encodeWithTypes(
+    tronAbiEncoder(network),
+    params.constructorArgs,
+    types,
+    contractName
+  )
+  assertRecordedArgsMatchAbi(contractName, encoded, types)
+
+  await logDeployment(
+    contractName,
+    network,
+    address,
+    version,
+    encoded,
+    params.verified
+  )
 }
 
 /**
@@ -298,181 +349,12 @@ export async function estimateDiamondCutEnergy(
     contractAddressBase58: diamondAddress,
     functionSelector: 'diamondCut((address,uint8,bytes4[])[],address,bytes)',
     parameterHex: encodedParams,
-    safetyMargin: DIAMOND_CUT_ENERGY_MULTIPLIER,
+    // The margin belongs on the figure the guard compares; the headroom belongs
+    // in DIAMOND_CUT_FEE_LIMIT_SUN. Putting a 10x multiplier here too made the
+    // guard refuse at a tenth of the true threshold — a 6,000,000-energy cut
+    // costs 720 TRX against a 5000 TRX limit and was refused.
+    safetyMargin: DEFAULT_SAFETY_MARGIN,
   })
-}
-
-/**
- * Register a facet to the diamond
- */
-export async function registerFacetToDiamond(
-  facetName: string,
-  facetAddress: string,
-  tronWeb: any,
-  fullHost: string,
-  dryRun = false,
-  networkOrDiamondAddress: SupportedChain | string = 'tron'
-): Promise<IDiamondRegistrationResult> {
-  try {
-    // Determine if we received a network name or a diamond address
-    let diamondAddress: string
-    let network: SupportedChain
-
-    // Check if it's a Tron address (starts with T) or hex address
-    if (
-      networkOrDiamondAddress.startsWith('T') ||
-      networkOrDiamondAddress.startsWith('0x')
-    ) {
-      diamondAddress = networkOrDiamondAddress
-      // Default to 'tron' for network when diamond address is provided directly
-      network = 'tron'
-    } else {
-      // It's a network name
-      network = networkOrDiamondAddress as SupportedChain
-      const loadedAddress = await getContractAddress(network, 'LiFiDiamond')
-      if (!loadedAddress)
-        throw new Error(`LiFiDiamond not found in deployments for ${network}`)
-      diamondAddress = loadedAddress
-    }
-
-    consola.info(`Registering ${facetName} to LiFiDiamond: ${diamondAddress}`)
-
-    // Load ABIs
-    const diamondCutABI = await loadForgeArtifact('DiamondCutFacet')
-    const diamondLoupeABI = await loadForgeArtifact('DiamondLoupeFacet')
-    const combinedABI = [...diamondCutABI.abi, ...diamondLoupeABI.abi]
-    const diamond = tronWeb.contract(combinedABI, diamondAddress)
-
-    // Get function selectors
-    const selectors = await getFacetSelectors(facetName)
-    consola.info(`Found ${selectors.length} function selectors`)
-
-    if (dryRun) {
-      consola.info('Dry run mode - not executing registration')
-      return { success: true }
-    }
-
-    const facetAddressHex = tronAddressToHex(tronWeb, facetAddress)
-
-    // Check each selector and group by action needed
-    const selectorsToAdd = []
-    const selectorsToReplace = []
-    let alreadyRegisteredCount = 0
-
-    for (const selector of selectors)
-      try {
-        const currentFacetAddressRaw = await diamond
-          .facetAddress(selector)
-          .call()
-        const currentFacetAddress = String(currentFacetAddressRaw)
-
-        const isZeroAddress =
-          !currentFacetAddress ||
-          currentFacetAddress === 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb' ||
-          currentFacetAddress ===
-            '0x0000000000000000000000000000000000000000' ||
-          currentFacetAddress === TRON_ZERO_ADDRESS ||
-          currentFacetAddress === ZERO_ADDRESS
-
-        if (isZeroAddress) selectorsToAdd.push(selector)
-        else {
-          const currentHex = tronWeb.address
-            .toHex(currentFacetAddress)
-            .toLowerCase()
-          const targetHex = tronWeb.address.toHex(facetAddress).toLowerCase()
-
-          if (currentHex === targetHex) alreadyRegisteredCount++
-          else {
-            selectorsToReplace.push(selector)
-            consola.debug(
-              `Selector ${selector} currently on ${currentFacetAddress}, will replace with ${facetAddress}`
-            )
-          }
-        }
-      } catch (error) {
-        consola.debug(
-          `Could not check selector ${selector}, assuming ADD needed`
-        )
-        selectorsToAdd.push(selector)
-      }
-
-    // Build facetCuts array based on what's needed
-    const facetCuts = []
-
-    if (selectorsToAdd.length > 0) {
-      facetCuts.push([facetAddressHex, 0, selectorsToAdd]) // 0 = Add
-      consola.info(`Will ADD ${selectorsToAdd.length} new selectors`)
-    }
-
-    if (selectorsToReplace.length > 0) {
-      facetCuts.push([facetAddressHex, 1, selectorsToReplace]) // 1 = Replace
-      consola.info(
-        `Will REPLACE ${selectorsToReplace.length} existing selectors`
-      )
-    }
-
-    if (alreadyRegisteredCount > 0)
-      consola.info(
-        `${alreadyRegisteredCount} selectors already registered to this facet`
-      )
-
-    // If nothing to do, exit early
-    if (facetCuts.length === 0) {
-      consola.success(`${facetName} is already fully registered!`)
-      return { success: true }
-    }
-
-    // Estimate energy
-    const estimatedEnergy = await estimateDiamondCutEnergy(
-      tronWeb,
-      diamondAddress,
-      facetCuts,
-      fullHost
-    )
-    // Get current energy price from the network
-    const { energyPrice } = await getCurrentPrices(tronWeb)
-    const estimatedCost = estimatedEnergy * energyPrice
-    consola.info(`Estimated registration cost: ${estimatedCost.toFixed(4)} TRX`)
-
-    // Check balance
-    const balance = await tronWeb.trx.getBalance(tronWeb.defaultAddress.base58)
-    const balanceTRX = balance / 1000000
-    if (balanceTRX < MIN_BALANCE_REGISTRATION)
-      throw new Error(
-        `Insufficient balance. Have: ${balanceTRX} TRX, Need: at least ${MIN_BALANCE_REGISTRATION} TRX`
-      )
-
-    // Execute diamondCut
-    consola.info(`Executing diamondCut...`)
-    const feeLimitInSun = DEFAULT_FEE_LIMIT_TRX * 1000000 // Convert to SUN
-
-    const tx = await diamond.diamondCut(facetCuts, ZERO_ADDRESS, '0x').send({
-      feeLimit: feeLimitInSun,
-      shouldPollResponse: true,
-    })
-
-    consola.success(`Registration transaction successful: ${tx}`)
-
-    // Verify registration
-    const verified = await verifyFacetRegistration(
-      diamond,
-      facetAddress,
-      facetName,
-      tronWeb
-    )
-    if (!verified)
-      throw new Error(
-        `${facetName} not found in registered facets after registration`
-      )
-
-    // Update diamond.json
-    await updateDiamondJson(facetAddress, facetName, undefined, network)
-
-    return { success: true, transactionId: tx }
-  } catch (error: any) {
-    consola.error(`Registration failed:`, error.message)
-    return { success: false, error: error.message }
-  }
 }
 
 /**

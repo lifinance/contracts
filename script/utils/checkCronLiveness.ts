@@ -1,0 +1,402 @@
+/**
+ * Cron-liveness watchdog.
+ *
+ * Every scheduled workflow in this repo alerts on its own failures, but none of
+ * them can alert on never having run: a dropped schedule, a workflow GitHub
+ * disabled for inactivity, and YAML that Actions refused to register all look
+ * exactly like a quiet, healthy day. This job watches for that absence.
+ *
+ * Liveness only, by design. A workflow that RAN and failed is alive here — its own
+ * alerting owns that, and duplicating it would ping twice for one problem. So a
+ * run that dies before its Slack step is NOT this job's to catch.
+ *
+ * Scope is discovered, never configured: the workflow directory at the checked-out
+ * ref IS the authoritative list of schedules (GitHub only runs `schedule` triggers
+ * from the default branch), so a new cron is covered the moment its PR merges and
+ * a deleted one drops out on its own. Opt out with `# watchdog:ignore <reason>`
+ * in the workflow's own YAML.
+ *
+ * Usage (CI supplies github.token; locally take one from the gh CLI):
+ *   GH_TOKEN=$(gh auth token) bunx tsx script/utils/checkCronLiveness.ts --dry-run
+ *   GH_TOKEN=$(gh auth token) bunx tsx script/utils/checkCronLiveness.ts --heartbeat
+ */
+
+import { execFileSync } from 'node:child_process'
+import { readdirSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
+
+import { defineCommand, runMain } from 'citty'
+import { consola } from 'consola'
+
+import { flagIsOn } from '../deploy/safe/cli-flags'
+
+import {
+  composeSlackMessage,
+  evaluateLiveness,
+  extractCronExpressions,
+  findIgnoreMarker,
+  isAlertable,
+  newestScheduledRun,
+  scanForNewestScheduledRun,
+} from './cronLiveness'
+import type {
+  ILivenessVerdict,
+  IWorkflowFacts,
+  IWorkflowRunSummary,
+} from './cronLiveness'
+import { fetchWithTimeout } from './fetchWithTimeout'
+
+const GITHUB_API = 'https://api.github.com'
+const WORKFLOW_DIR = '.github/workflows'
+const DEFAULT_OWNER = 'lifinance'
+const DEFAULT_REPO = 'contracts'
+const RUNS_PER_PAGE = 100
+// The second opinion has to reach back past the cron's grace window, and a page of
+// this repo's busiest workflow has covered as little as 11h of runs — its schedule
+// competes with a push trigger on every branch. Five pages clears the widest grace
+// window in the fleet with room to spare, and only a stale verdict ever pays for them.
+const CORROBORATION_MAX_PAGES = 5
+
+/** The slice of GitHub's workflow object this job reads. */
+interface IRegisteredWorkflow {
+  id: number
+  name: string
+  path: string
+  /** `active`, `disabled_manually` or `disabled_inactivity`. */
+  state: string
+}
+
+/**
+ * GitHub REST GET via the repo's mandated timeout helper ([CONV:FETCH-TIMEOUT]).
+ *
+ * Throws on a non-2xx so a token or permission problem surfaces as a red run
+ * rather than as an empty result that would read as "nothing is scheduled".
+ */
+async function githubGet<T>(path: string, token: string): Promise<T> {
+  const response = await fetchWithTimeout(`${GITHUB_API}${path}`, {
+    headers: {
+      accept: 'application/vnd.github+json',
+      authorization: `Bearer ${token}`,
+      'x-github-api-version': '2022-11-28',
+    },
+  })
+
+  if (!response.ok)
+    throw new Error(
+      `GitHub API ${path} returned HTTP ${response.status} ${response.statusText}`
+    )
+
+  return (await response.json()) as T
+}
+
+interface IScheduledWorkflowFile {
+  path: string
+  cronExpressions: string[]
+  ignore: ReturnType<typeof findIgnoreMarker>
+}
+
+/**
+ * Every workflow file at this ref that declares an `on.schedule` block.
+ *
+ * Deliberately NOT recursive. GitHub reads `.github/workflows/*.yml` one level deep,
+ * so this repo's `.github/workflows/disabled/` holds workflows that can never fire —
+ * recursing would alert on every parked workflow forever. `withFileTypes` skips that
+ * directory explicitly rather than relying on it not ending in `.yml`.
+ */
+function discoverScheduledWorkflows(): IScheduledWorkflowFile[] {
+  const entries = readdirSync(WORKFLOW_DIR, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && /\.ya?ml$/.test(entry.name))
+    .map((entry) => entry.name)
+
+  return entries
+    .map((file) => {
+      const path = `${WORKFLOW_DIR}/${file}`
+      const contents = readFileSync(join(WORKFLOW_DIR, file), 'utf8')
+      return {
+        path,
+        cronExpressions: extractCronExpressions(contents),
+        ignore: findIgnoreMarker(contents),
+      }
+    })
+    .filter((workflow) => workflow.cronExpressions.length > 0)
+}
+
+/**
+ * When the workflow file first landed, bounding how long it has had to fire.
+ *
+ * Returns null when git cannot answer (a shallow checkout). A never-run workflow
+ * with an unknown file date is still reported stale: over-alerting is visible and
+ * gets fixed, under-alerting is invisible and is the whole failure this job
+ * exists to remove. The verdict says the date was unknown so nobody reads it as a
+ * confirmed "never ran". The workflow checks out with fetch-depth: 0 so CI always
+ * has the real date.
+ */
+function firstCommitDate(path: string): Date | null {
+  try {
+    const output = execFileSync(
+      'git',
+      ['log', '--format=%cI', '--reverse', '--', path],
+      { encoding: 'utf8' }
+    )
+    const first = output.split('\n')[0]?.trim()
+    return first ? new Date(first) : null
+  } catch {
+    return null
+  }
+}
+
+const main = defineCommand({
+  meta: {
+    name: 'checkCronLiveness',
+    description:
+      'Alerts when a scheduled workflow stops running, is disabled, or cannot be watched',
+  },
+  args: {
+    'dry-run': {
+      type: 'boolean',
+      description: 'Print the verdict table without posting to Slack',
+    },
+    heartbeat: {
+      type: 'boolean',
+      description: 'Post the green summary even when nothing is wrong',
+      default: false,
+    },
+    token: {
+      type: 'string',
+      description:
+        'GitHub token; prefer the GH_TOKEN env var so it stays out of the process table',
+    },
+  },
+  async run({ args }): Promise<void> {
+    const [owner, repo] = (
+      process.env.GITHUB_REPOSITORY ?? `${DEFAULT_OWNER}/${DEFAULT_REPO}`
+    ).split('/') as [string, string]
+
+    // GH_TOKEN over GITHUB_TOKEN: Actions silently drops `env:` assignments to
+    // reserved GITHUB_* names, so a workflow that set GITHUB_TOKEN would fall back
+    // to the runner default and work only by coincidence ([CONV:ACTIONS-NO-INJECTION]).
+    const token = args.token ?? process.env.GH_TOKEN ?? process.env.GITHUB_TOKEN
+    if (!token) {
+      consola.error(
+        'No GitHub token. In CI the workflow supplies github.token; locally run: GH_TOKEN=$(gh auth token) bunx tsx script/utils/checkCronLiveness.ts --dry-run'
+      )
+      process.exit(1)
+    }
+
+    const scheduled = discoverScheduledWorkflows()
+    consola.info(
+      `Discovered ${scheduled.length} scheduled workflow(s) in ${WORKFLOW_DIR}`
+    )
+
+    const registered = await listRegisteredWorkflows(owner, repo, token)
+    const byPath = new Map(
+      registered.map((workflow) => [workflow.path, workflow])
+    )
+
+    const now = new Date()
+    const verdicts: ILivenessVerdict[] = []
+
+    for (const workflow of scheduled) {
+      const registration = byPath.get(workflow.path)
+
+      // A file on the default branch that Actions does not know about will never
+      // fire; surfacing it as a non-active state routes it to the same alert.
+      const state = registration?.state ?? 'not_registered_with_actions'
+
+      let lastScheduledRunAt: Date | null = null
+      let runLookupFailed = false
+      if (registration) {
+        // event=schedule is load-bearing: a manual workflow_dispatch run is not
+        // evidence that the SCHEDULE still fires, and counting it would hide
+        // exactly the failure this job looks for.
+        try {
+          const { workflow_runs: runs } = await githubGet<{
+            workflow_runs: IWorkflowRunSummary[]
+          }>(
+            `/repos/${owner}/${repo}/actions/workflows/${registration.id}/runs?event=schedule&per_page=1`,
+            token
+          )
+          lastScheduledRunAt = newestScheduledRun(runs)
+        } catch (error) {
+          // Flagged rather than swallowed: leaving lastScheduledRunAt null here would
+          // make a GitHub outage indistinguishable from a cron that stopped firing.
+          runLookupFailed = true
+          consola.warn(
+            `Could not read runs for ${workflow.path}: ${
+              error instanceof Error ? error.message : String(error)
+            }`
+          )
+        }
+      }
+
+      const facts: IWorkflowFacts = {
+        name: registration?.name ?? workflow.path,
+        path: workflow.path,
+        state,
+        cronExpressions: workflow.cronExpressions,
+        ignore: workflow.ignore,
+        lastScheduledRunAt,
+        fileFirstSeenAt: firstCommitDate(workflow.path),
+        runLookupFailed,
+      }
+
+      let verdict = evaluateLiveness(facts, now)
+
+      // Never alert on the event-filtered index alone: it can serve a snapshot days
+      // to weeks behind the runs GitHub already lists unfiltered, which reads exactly
+      // like a dropped schedule. Only a stale verdict pays for the second opinion, so
+      // the healthy path still costs one request per workflow.
+      if (verdict.status === 'stale' && registration)
+        try {
+          const scan = await scanForNewestScheduledRun(
+            (page) => fetchRunPage(owner, repo, registration.id, page, token),
+            { maxPages: CORROBORATION_MAX_PAGES, pageSize: RUNS_PER_PAGE }
+          )
+
+          if (scan.exhaustedPageBudget)
+            consola.warn(
+              `${workflow.path}: read ${
+                CORROBORATION_MAX_PAGES * RUNS_PER_PAGE
+              } runs without reaching a scheduled one, so the stale verdict below is uncorroborated — raise CORROBORATION_MAX_PAGES if this workflow's other triggers have outgrown the budget`
+            )
+
+          if (
+            scan.runAt !== null &&
+            (lastScheduledRunAt === null || scan.runAt > lastScheduledRunAt)
+          ) {
+            consola.warn(
+              `${workflow.path}: event=schedule reported ${
+                lastScheduledRunAt?.toISOString() ?? 'no run at all'
+              }, but the unfiltered run list has ${scan.runAt.toISOString()} — trusting the newer one`
+            )
+            verdict = evaluateLiveness(
+              { ...facts, lastScheduledRunAt: scan.runAt },
+              now
+            )
+          }
+        } catch (error) {
+          // The stale verdict stands. A second opinion we could not obtain is not
+          // evidence the workflow is alive.
+          consola.warn(
+            `Could not corroborate the stale verdict for ${workflow.path}: ${
+              error instanceof Error ? error.message : String(error)
+            }`
+          )
+        }
+
+      verdicts.push(verdict)
+    }
+
+    verdicts.sort((a, b) => a.name.localeCompare(b.name))
+    for (const verdict of verdicts) {
+      const line = `${verdict.status.padEnd(18)} ${verdict.name} — ${
+        verdict.detail
+      }`
+      if (isAlertable(verdict.status)) consola.warn(line)
+      else consola.info(line)
+    }
+
+    const message = composeSlackMessage(verdicts, {
+      heartbeat: args.heartbeat,
+      runUrl: process.env.GITHUB_RUN_ID
+        ? `https://github.com/${owner}/${repo}/actions/runs/${process.env.GITHUB_RUN_ID}`
+        : `https://github.com/${owner}/${repo}/actions`,
+    })
+
+    const alertCount = verdicts.filter((verdict) =>
+      isAlertable(verdict.status)
+    ).length
+
+    if (message === null)
+      consola.success('All scheduled workflows alive; staying silent.')
+    else if (flagIsOn(args['dry-run'])) {
+      consola.info('--dry-run: the message below would be posted to Slack')
+      consola.log(message)
+    } else await postToSlack(message)
+
+    if (alertCount > 0) process.exit(1)
+  },
+})
+
+/** One page of a workflow's runs, unfiltered by event. */
+async function fetchRunPage(
+  owner: string,
+  repo: string,
+  workflowId: number,
+  page: number,
+  token: string
+): Promise<IWorkflowRunSummary[]> {
+  const { workflow_runs: runs } = await githubGet<{
+    workflow_runs: IWorkflowRunSummary[]
+  }>(
+    `/repos/${owner}/${repo}/actions/workflows/${workflowId}/runs?per_page=${RUNS_PER_PAGE}&page=${page}`,
+    token
+  )
+
+  return runs
+}
+
+/** Every workflow registered with Actions, following pagination to the last page. */
+async function listRegisteredWorkflows(
+  owner: string,
+  repo: string,
+  token: string
+): Promise<IRegisteredWorkflow[]> {
+  const perPage = 100
+  const collected: IRegisteredWorkflow[] = []
+
+  for (let page = 1; ; page++) {
+    const { workflows } = await githubGet<{ workflows: IRegisteredWorkflow[] }>(
+      `/repos/${owner}/${repo}/actions/workflows?per_page=${perPage}&page=${page}`,
+      token
+    )
+    collected.push(...workflows)
+    if (workflows.length < perPage) return collected
+  }
+}
+
+/**
+ * Post to the CI notifications channel.
+ *
+ * A webhook that is unset or refuses the message fails the run: an alerting job
+ * that silently fails to alert is worse than no alerting job, because it looks
+ * like coverage.
+ */
+async function postToSlack(message: string): Promise<void> {
+  const webhookUrl = process.env.WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS
+  if (!webhookUrl) {
+    consola.error(
+      'WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS is unset, so the cron-liveness alert cannot be delivered. Set the SLACK_WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS repository secret.'
+    )
+    process.exit(1)
+  }
+
+  // A webhook URL is a bearer capability: anyone who observes it can post as us, so
+  // it must never travel in cleartext even on an internal path.
+  if (!URL.parse(webhookUrl)?.protocol.startsWith('https')) {
+    consola.error(
+      'WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS must be an https:// URL; refusing to send the webhook over cleartext.'
+    )
+    process.exit(1)
+  }
+
+  const response = await fetchWithTimeout(webhookUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ text: message }),
+  })
+
+  // Slack's incoming webhooks answer 200 'ok' as a plain body, so a 2xx alone is
+  // not proof of delivery.
+  const body = (await response.text()).trim()
+  if (!response.ok || body !== 'ok') {
+    consola.error(
+      `Slack rejected the cron-liveness alert: HTTP ${response.status} '${body}'`
+    )
+    process.exit(1)
+  }
+
+  consola.success('Posted cron-liveness status to Slack.')
+}
+
+void runMain(main)

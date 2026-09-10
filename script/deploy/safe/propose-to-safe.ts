@@ -38,17 +38,23 @@ import { consola } from 'consola'
 import { getAddress, type Address, type Hex } from 'viem'
 
 import type { IProposeToSafeOptions } from '../../common/types'
-
-import { proposeWithDrain, type ITimelockCall } from './drain-parked-tasks'
-import { normalizeProposeCalls } from './propose-calls'
 import {
-  OperationTypeEnum,
+  assertFunnelDeployGate,
+  createFunnelGateDeps,
+} from '../shared/funnel-deploy-gate'
+
+import { readBooleanFlag, readValueFlag } from './cli-flags'
+import { proposeWithDrain, type ITimelockCall } from './drain-parked-tasks'
+import { resolveProposalIntent } from './proposal-intent'
+import { normalizeProposeCalls } from './propose-calls'
+import { proposeSafeTx } from './propose-safe-tx'
+import {
   getNextNonce,
   getPrivateKey,
   getSafeMongoCollection,
   initializeSafeClient,
   isAddressASafeOwner,
-  storeTransactionInMongoDB,
+  parseAccountIndex,
   wrapWithTimelockSchedule,
   type IParkedTaskRef,
 } from './safe-utils'
@@ -65,6 +71,18 @@ import {
  * @param options - Options including network, rpcUrl, privateKey, to address, and calldata
  */
 export async function runPropose(options: IProposeToSafeOptions) {
+  // Fails here before any RPC, Ledger or Mongo work, so a missing ticket costs
+  // the operator a second rather than a Safe init and a tunnel. The
+  // authoritative refusal is still the one inside storeTransactionInMongoDB,
+  // which every funnel reaches and this one cannot bypass; both call the same
+  // pure resolver, so they cannot disagree.
+  resolveProposalIntent({
+    ticket: options.ticket,
+    envTicket: process.env.SAFE_PROPOSAL_TICKET,
+    reason: options.reason,
+    envReason: process.env.SAFE_PROPOSAL_REASON,
+  })
+
   await proposeWithDrain(options, (extraTimelockCalls, parkedTaskRefs) =>
     _runPropose(options, extraTimelockCalls, parkedTaskRefs)
   )
@@ -97,6 +115,18 @@ export async function _runPropose(
   const targets = [...normalized.targets]
   const calldatas = [...normalized.calldatas]
 
+  // Reads the very array that gets signed: parsing the calldata a second time
+  // of its own would let the gate vouch for bytes other than the ones proposed.
+  // Ordered before the Ledger, the Safe client and the signature — though not
+  // before all Mongo work, since an enabled drain claims parked tasks in
+  // `proposeWithDrain` before this runs, and reverts them on the throw.
+  // `extraTimelockCalls` are excluded deliberately — they are facet removals,
+  // which install no code.
+  await assertFunnelDeployGate(
+    { network: options.network, calldatas },
+    createFunnelGateDeps()
+  )
+
   if (extraTimelockCalls.length > 0) {
     if (!options.timelock)
       throw new Error(
@@ -122,9 +152,9 @@ export async function _runPropose(
     consola.info('Using Ledger hardware wallet for signing')
     if (options.ledgerLive)
       consola.info(
-        `Using Ledger Live derivation path with account index ${
-          options.accountIndex || 0
-        }`
+        `Using Ledger Live derivation path with account index ${parseAccountIndex(
+          options.accountIndex
+        )}`
       )
     else if (options.derivationPath)
       consola.info(`Using custom derivation path: ${options.derivationPath}`)
@@ -136,7 +166,7 @@ export async function _runPropose(
 
   const ledgerOptions = {
     ledgerLive: options.ledgerLive || false,
-    accountIndex: options.accountIndex ? Number(options.accountIndex) : 0,
+    accountIndex: parseAccountIndex(options.accountIndex),
     derivationPath: options.derivationPath,
   }
 
@@ -245,22 +275,6 @@ export async function _runPropose(
       await safe.getNonce()
     )
 
-  // Create and sign the Safe transaction
-  const safeTransaction = await safe.createTransaction({
-    transactions: [
-      {
-        to: finalTo,
-        value: 0n,
-        data: finalCalldata,
-        operation: OperationTypeEnum.Call,
-        nonce: nextNonce,
-      },
-    ],
-  })
-
-  const signedTx = await safe.signTransaction(safeTransaction)
-  const safeTxHash = await safe.getTransactionHash(signedTx)
-
   consola.info('Signer Address', senderAddress)
   consola.info('Safe Address', safeAddress)
   consola.info('Network', chain.name)
@@ -273,37 +287,38 @@ export async function _runPropose(
     )
   }
 
-  // Store transaction in MongoDB using the utility function
+  let outcome: { safeTxHash: Hex; stored: boolean }
   try {
-    const result = await storeTransactionInMongoDB(
-      pendingTransactions,
+    outcome = await proposeSafeTx({
+      safe,
+      network: options.network,
+      chainId: chain.id,
       safeAddress,
-      options.network,
-      chain.id,
-      signedTx,
-      safeTxHash,
-      senderAddress,
-      parkedTaskRefs
-    )
-
-    if (result === null) {
-      consola.info('Proposal already exists - no new proposal created')
-      return { safeTxHash, stored: false }
-    }
-
-    if (!result.acknowledged)
-      throw new Error('MongoDB insert was not acknowledged')
-
-    consola.success('Transaction successfully stored in MongoDB')
+      pendingTransactions,
+      payload: {
+        kind: 'call',
+        to: finalTo,
+        data: finalCalldata,
+        nonce: nextNonce,
+      },
+      parkedTaskRefs,
+      provenance: { ticket: options.ticket, reason: options.reason },
+    })
   } catch (error) {
-    consola.error('Failed to store transaction in MongoDB:', error)
+    consola.error('Failed to propose the transaction to the Safe:', error)
     throw error
   } finally {
     await mongoClient.close()
   }
 
+  if (!outcome.stored) {
+    consola.info('Proposal already exists - no new proposal created')
+    return outcome
+  }
+
+  consola.success('Transaction successfully stored in MongoDB')
   consola.info('Transaction proposed')
-  return { safeTxHash, stored: true }
+  return outcome
 }
 
 /**
@@ -384,6 +399,21 @@ const main = defineCommand({
         'Override the Safe nonce (default: auto-derived). Use to fill a gap that blocks higher-nonce proposals. Rejected if below the on-chain nonce or already occupied by a pending/submitted proposal.',
       required: false,
     },
+    // Not `required: true`: SAFE_PROPOSAL_TICKET is an equally valid channel and
+    // citty would refuse the run before the fallback is consulted. The refusal
+    // happens in the storage funnel, which sees both.
+    ticket: {
+      type: 'string',
+      description:
+        'Linear issue link or id (e.g. EXSC-123). Required — a proposal is not created without one. Falls back to SAFE_PROPOSAL_TICKET.',
+      required: false,
+    },
+    reason: {
+      type: 'string',
+      description:
+        'One-line rationale shown to the signer. Falls back to SAFE_PROPOSAL_REASON.',
+      required: false,
+    },
   },
   async run({ args }) {
     if (!args.calldata && !args.calldataFile)
@@ -417,12 +447,23 @@ const main = defineCommand({
       timelock: args.timelock,
       privateKey: args.privateKey,
       rpcUrl: args.rpcUrl,
-      ledger: args.ledger,
-      ledgerLive: args.ledgerLive,
-      accountIndex: args.accountIndex ? Number(args.accountIndex) : undefined,
+      ledger: readBooleanFlag(process.argv, {
+        camel: 'ledger',
+        kebab: 'ledger',
+      }),
+      ledgerLive: readBooleanFlag(process.argv, {
+        camel: 'ledgerLive',
+        kebab: 'ledger-live',
+      }),
+      accountIndex: readValueFlag(process.argv, {
+        camel: 'accountIndex',
+        kebab: 'account-index',
+      }),
       derivationPath: args.derivationPath,
       safeAddress: args.safeAddress,
       nonce: args.nonce !== undefined ? BigInt(args.nonce) : undefined,
+      ticket: args.ticket,
+      reason: args.reason,
     })
   },
 })

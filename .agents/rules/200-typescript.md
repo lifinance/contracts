@@ -10,6 +10,10 @@ paths:
 ## TypeScript Script Conventions
 
 - TS scripts use `.eslintrc.cjs` rules, `citty`, `consola`, and env validated via helpers (e.g., `getEnvVar()`). Invoke TS scripts via `bunx tsx ./script/path.ts` (from `package.json` scripts and shell callers); do NOT use bare `bun ./script/path.ts`. `tsx` is pinned in `devDependencies` so `bunx` resolves the local copy and the project's `node_modules` is used for bare-specifier imports.
+- **No Bun-only runtime APIs in shipped modules** ([CONV:NODE-RUNTIME-APIS]). `tsx` runs on **Node**, so a module under `script/**` or `tasks/**` that is not a `*.test.ts` cannot rely on Bun's runtime globals. Test files are exempt — `bun test` provides them. **Neither the type checker nor the test suite catches a violation**: `tsconfig.json` declares `"types": ["node", "bun"]`, so `tsc` believes the Bun globals exist everywhere, and tests run under Bun where they really do. The three cases fail differently and have different fixes:
+  - `import.meta.dir` — Bun-only, never implemented in Node, so it is `undefined` under `tsx` on every Node version. A module-scope `join(import.meta.dir, …)` throws `ERR_INVALID_ARG_TYPE` **at import time**, taking down every CLI that transitively imports it (that is how EXSC-964 broke `confirm-safe-tx.ts` for the whole team). Use `dirname(fileURLToPath(import.meta.url))` — see `script/tasks/checkDeploymentAddressConsistency.ts`. This is the one case that is clean at zero today, and `script/bun-only-api-placement.test.ts` keeps it there.
+  - `import.meta.main` — version-dependent, not universally broken: `undefined` on Node 18, `true` on Node 22.23+ and Node 24. CI runners ship Node 24, so entry guards do fire there; a developer on an older Node instead gets a **silent** `exit 0` that does no work. For a CLI entry guard write `const isEntrypoint = process.argv[1] === fileURLToPath(import.meta.url)` (verified equivalent under `tsx` on Node 18/22 and under `bun`). Do **not** call `runMain` unconditionally: 13 of the 19 shipped modules that carry this guard are imported by their own `*.test.ts` for their pure helpers, and an unconditional call would execute the CLI during `bun test`. Converting the existing 19 is tracked in EXSC-971 — treat the portable form as the shape for new code.
+  - `Bun.*` (`Bun.file`, `Bun.write`, `Bun.TOML`) — throws `ReferenceError: Bun is not defined` at the **call site** under `tsx`. Nine shipped modules use it, `script/utils/utils.ts` among them; every call sits inside a function body, so importing those modules is safe and only invoking the affected helper fails. Don't add new `Bun.*` to anything reachable from a `bunx tsx` entry point — use `node:fs/promises` (`readFile` / `writeFile`) instead.
 - **Update `.env.example` whenever you introduce a new env var.** Add a placeholder entry with a one-line comment explaining what it controls and where the value comes from (e.g. 1Password vault, generated, etc.). Keep `.env.example` and runtime env reads in sync. Use UPPERCASE names with underscores (e.g. `WEBHOOK_DEV_SC_AUDIT`, not `webhook_dev-sc-audit`) — POSIX env-var convention.
 - MUST use viem for all contract interactions in demo/operational scripts; ethers.js helpers are deprecated.
 - DO NOT use deprecated ethers-based helpers (`getProvider`, `getWalletFromPrivateKeyInDotEnv`, ethers `sendTransaction`, `ensureBalanceAndAllowanceToDiamond`).
@@ -114,6 +118,12 @@ Add comments only where the code doesn't speak for itself. Avoid restating what 
 ## CLI and Logging
 
 - CLI: use `citty`; logging via `consola`; validate env via `getEnvVar()`; exit 0/1 appropriately.
+
+### Never log a full RPC URL ([CONV:REDACT-RPC-URL])
+
+`ETH_NODE_URI_*` embeds the provider key in the URL, so a log line naming the endpoint writes a live credential into every transcript of every run. Log the network name, or pass the URL through `redactUrls()` from `script/utils/redactUrls.ts`.
+
+`script/utils/rpc-url-log-scan.test.ts` enforces this for the identifiers and log calls it knows about. It does not close the class, so two cases stay yours: an endpoint held in a differently-named variable, and one viem embeds in an `error.message` — log `redactUrls(err.stack ?? String(err))` rather than the error itself (`redactErrorReason()` is for Slack: it collapses whitespace and truncates at 180 chars). In bash use `redactRpcUrl` from `helperFunctions.sh`, or `bgRedactUrl` inside `script/emergency/`, which must not depend on `helperFunctions.sh` loading. `script/redactRpcUrl.test.ts` pins the shared bash print paths, but there is no bash-wide scan: `getRPCUrl` returns the endpoint on stdout by design, so a naive one false-reds on the function whose job is to return it.
 
 ## Testing
 

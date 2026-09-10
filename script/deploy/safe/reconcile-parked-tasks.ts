@@ -66,6 +66,7 @@ import { redactErrorReason } from '../../utils/redactUrls'
 import { isUnattendedRun, SlackNotifier } from '../../utils/slack-notifier'
 import { getEnvVar } from '../../utils/utils'
 import { getAllActiveNetworks } from '../../utils/viemScriptHelpers'
+import { DAY_MS } from '../shared/constants'
 
 import { computeFacetRemovalsByAddress } from './diamondRemovalDiff'
 import {
@@ -80,9 +81,6 @@ import {
   type ParkedTaskStatus,
 } from './parked-tasks'
 import { getSafeMongoCollection, type SafeTxStatus } from './safe-utils'
-
-/** Milliseconds in a day. */
-const DAY_MS = 24 * 60 * 60 * 1000
 
 /** Default cold-network TTL before a "still open" alert fires (spec §14 Q10). */
 const DEFAULT_TTL_DAYS = 60
@@ -1069,7 +1067,7 @@ async function reconcileAll(
           const reason =
             refusalReason !== undefined
               ? `facet is routed again and the removal engine refuses it (${refusalReason}) — treated as a deliberate re-add, reopen withheld`
-              : `facet is routed again but removability cannot be verified (no target-state entry for ${network}:${environment}, or the selector unions are unavailable — run \`forge build\`) — reopen withheld`
+              : `facet is routed again but removability cannot be verified (no target-state entry for ${network}:${environment}, or the selector unions could not be built from \`out/\`) — reopen withheld`
           consola.warn(
             `[${network}:${environment}] ${task.facetName}: ${reason}`
           )

@@ -15,9 +15,15 @@ import { consola } from 'consola'
 
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
+import { redactUrls } from '../../utils/redactUrls'
 import { getEnvironment, updateDiamondJsonBatch } from '../../utils/utils'
+import { flagIsOn } from '../safe/cli-flags'
 
 import { TRON_DIAMOND_FACET_GROUPS } from './constants.js'
+import {
+  DIAMOND_CUT_FEE_LIMIT_SUN,
+  sendGuardedFacetRegistration,
+} from './send-guarded-facet-registration.js'
 import {
   estimateDiamondCutEnergy,
   waitBetweenDeployments,
@@ -229,20 +235,18 @@ async function registerFacetsBatch(
       consola.warn(' Could not verify diamondCut function')
     }
 
-    // TronWeb contract calls - facetCuts is already formatted as arrays
-    // Use a higher fee limit - the actual transaction needs more energy than estimated
-    // Based on failed tx, it needs at least 3.41763 TRX worth of energy
-    // Setting to 5 TRX (5,000,000,000 SUN) to be safe
-    const feeLimitInSun = 5_000_000_000 // 5 TRX in SUN
+    consola.info(
+      `💸 Using fee limit: ${DIAMOND_CUT_FEE_LIMIT_SUN / 1_000_000} TRX`
+    )
 
-    consola.info(`💸 Using fee limit: ${feeLimitInSun / 1_000_000} TRX`)
-
-    const tx = await diamond
-      .diamondCut(facetCuts, '0x0000000000000000000000000000000000000000', '0x')
-      .send({
-        feeLimit: feeLimitInSun,
-        shouldPollResponse: true,
-      })
+    const tx = await sendGuardedFacetRegistration({
+      tronWeb,
+      diamond,
+      network,
+      facetCuts,
+      estimatedEnergy,
+      feeLimitSun: DIAMOND_CUT_FEE_LIMIT_SUN,
+    })
 
     consola.success(` Transaction successful: ${tx}`)
 
@@ -357,7 +361,7 @@ async function registerFacetsToDiamond(
       privateKey,
     })
 
-    consola.info(` Connected to: ${fullHost}`)
+    consola.info(` Connected to: ${redactUrls(fullHost)}`)
     consola.info(`👛 Deployer: ${tronWeb.defaultAddress.base58}`)
 
     // 3. Get LiFiDiamond contract
@@ -606,10 +610,12 @@ const main = defineCommand({
     description: 'Register facets to the Tron Diamond contract',
   },
   args: {
+    // No citty `default`: for a multi-word argument citty resolves the
+    // spelling the caller did NOT type to the default, so `--dry-run` left
+    // `args.dryRun` at `false` and registered facets for real.
     dryRun: {
       type: 'boolean',
       description: 'Run in dry-run mode without sending transactions',
-      default: false,
     },
     split: {
       type: 'boolean',
@@ -618,12 +624,13 @@ const main = defineCommand({
     },
   },
   async run({ args }) {
+    const dryRun = flagIsOn(args.dryRun)
     const options = {
-      dryRun: args.dryRun,
+      dryRun,
       splitMode: args.split,
     }
 
-    if (args.dryRun)
+    if (dryRun)
       consola.info(' Running in DRY RUN mode - no transactions will be sent')
 
     if (args.split)

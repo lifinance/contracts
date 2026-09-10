@@ -52,9 +52,13 @@ jobs:
               - 'script/utils/**'
               - 'script/tasks/**'
               - 'script/resources/**'
+              # The pipeline sources these; helperFunctions.sh is the chokepoint every
+              # deploy passes through, so a change to it that skipped this job would
+              # never have run the pipeline test at all.
+              - 'script/*.sh'
               - '.env.example'
               - 'package.json'
-              - 'bun.lockb'
+              - 'bun.lock'
               - '.github/workflows/deploy-smoke-test.yml'
               - '.github/actions/setup-foundry/**'
               - '.foundry-version'

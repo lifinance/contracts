@@ -13,10 +13,16 @@ import { consola } from 'consola'
 
 import { EnvironmentEnum } from '../../common/types'
 import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
+import { redactUrls } from '../../utils/redactUrls'
 import { getEnvVar, getEnvironment } from '../../utils/utils'
+import { flagIsOn, readOptOutFlag } from '../safe/cli-flags'
 
 import { TRON_DIAMOND_CONFIRM_OWNERSHIP_SELECTOR } from './constants.js'
 import { runPropose } from './propose-to-safe-tron.js'
+import {
+  sendTransferOwnership,
+  type ITronOwnershipDiamond,
+} from './send-transfer-ownership.js'
 import { waitBetweenDeployments } from './tronUtils.js'
 
 /**
@@ -104,7 +110,7 @@ async function transferOwnershipToTimelock(options: {
       consola.info('   Using provided current owner private key')
 
     consola.info(`   Deployments file: deployments/${deploymentFileName}`)
-    consola.info(` Connected to: ${fullHost}`)
+    consola.info(` Connected to: ${redactUrls(fullHost)}`)
     consola.info(`👛 Current owner (signer): ${tronWeb.defaultAddress.base58}`)
     consola.info(`🔷 LiFiDiamond: ${diamondAddress}`)
     const timelockBase58 = formatAddressForNetworkCliDisplay(
@@ -130,7 +136,7 @@ async function transferOwnershipToTimelock(options: {
         )
       if (!options.dryRun) {
         const shouldContinue = await consola.prompt(
-          'Continue anyway? (will fail if you are not the owner)',
+          'Continue anyway? (the owner check reverts for this signer, so the energy pre-flight refuses it unless ALLOW_GAS_ESTIMATE_FALLBACK names this network)',
           { type: 'confirm', default: false }
         )
         if (!shouldContinue) {
@@ -171,9 +177,12 @@ async function transferOwnershipToTimelock(options: {
     )
 
     try {
-      const tx = await diamond.transferOwnership(timelockBase58).send({
-        feeLimit: 10_000_000,
-        shouldPollResponse: true,
+      const tx = await sendTransferOwnership({
+        tronWeb,
+        diamond: diamond as unknown as ITronOwnershipDiamond,
+        networkName,
+        diamondAddress,
+        timelockBase58,
       })
       consola.success('   ✅ Ownership transfer initiated.')
       consola.info(`   Transaction: ${tx}`)
@@ -217,7 +226,7 @@ async function transferOwnershipToTimelock(options: {
       `   Calldata (no args): ${TRON_DIAMOND_CONFIRM_OWNERSHIP_SELECTOR} (verify: cast sig 'confirmOwnershipTransfer()')`
     )
     consola.info(
-      `   (--noPropose) Propose manually: schedule Timelock operation → target: Diamond, data: ${TRON_DIAMOND_CONFIRM_OWNERSHIP_SELECTOR}, then execute after delay.`
+      `   (--no-propose) Propose manually: schedule Timelock operation → target: Diamond, data: ${TRON_DIAMOND_CONFIRM_OWNERSHIP_SELECTOR}, then execute after delay.`
     )
   }
 }
@@ -235,16 +244,26 @@ const main = defineCommand({
         'Run only step 1 (transferOwnership to Timelock) or step 2 (Safe proposal for confirmOwnershipTransfer). Omit step 1 only; add --confirm to also run step 2 in one invocation.',
       default: undefined,
     },
+    // No citty `default` on the multi-word flags below. For a multi-word
+    // argument citty resolves the spelling the caller did NOT type to the
+    // default, so `--dry-run` left `args.dryRun` at `false` and transferred
+    // ownership for real. The fallbacks are applied in the body instead.
     noPropose: {
       type: 'boolean',
       description:
-        'With --step 2: skip MongoDB Safe proposal; print calldata / manual instructions only.',
-      default: false,
+        'With --step 2: skip MongoDB Safe proposal; print calldata / manual instructions only. Also spelled --no-propose.',
+    },
+    // mri reads a `--no-` prefix as negating `propose`, so `--no-propose` never
+    // reaches `args.noPropose` at all. Declared so --help names the argument
+    // that spelling actually sets; both are resolved from argv below.
+    propose: {
+      type: 'boolean',
+      description:
+        'With --step 2: create the MongoDB Safe proposal (on by default; --no-propose turns it off).',
     },
     dryRun: {
       type: 'boolean',
       description: 'Run in dry-run mode without sending transactions',
-      default: false,
     },
     confirm: {
       type: 'boolean',
@@ -262,7 +281,6 @@ const main = defineCommand({
       type: 'string',
       description:
         'Number of seconds to wait between transactions (default: 5)',
-      default: '5',
     },
     verbose: {
       type: 'boolean',
@@ -271,6 +289,12 @@ const main = defineCommand({
     },
   },
   async run({ args }) {
+    const dryRun = flagIsOn(args.dryRun)
+    // Not `args.noPropose`, which `--no-propose` never reaches.
+    const noPropose = readOptOutFlag(process.argv, {
+      camel: 'propose',
+      kebab: 'propose',
+    })
     const stepNum =
       args.step !== undefined
         ? args.step === '1'
@@ -294,8 +318,8 @@ const main = defineCommand({
       verbose?: boolean
     } = {
       step: stepNum,
-      noPropose: args.noPropose,
-      dryRun: args.dryRun,
+      noPropose,
+      dryRun,
       confirm: args.confirm,
       currentOwnerPrivateKey: args.currentOwnerPrivateKey,
       delaySeconds: 5,
@@ -303,7 +327,7 @@ const main = defineCommand({
     }
 
     if (args.delaySeconds) {
-      const parsed = parseInt(args.delaySeconds, 10)
+      const parsed = parseInt(String(args.delaySeconds), 10)
       if (!isNaN(parsed) && parsed >= 0) {
         options.delaySeconds = parsed
       } else {
@@ -313,12 +337,12 @@ const main = defineCommand({
       }
     }
 
-    if (args.dryRun)
+    if (dryRun)
       consola.info(' Running in DRY RUN mode - no transactions will be sent')
 
-    if (stepNum === 2 && !args.noPropose) {
+    if (stepNum === 2 && !noPropose) {
       consola.info(
-        '--step 2: creating Safe proposal in MongoDB by default (use --noPropose for instructions only).'
+        '--step 2: creating Safe proposal in MongoDB by default (use --no-propose for instructions only).'
       )
     }
 

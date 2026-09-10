@@ -222,6 +222,15 @@ function updateFoundryTomlForGroup() {
         return 1
     fi
 
+    # Ahead of the sed below, so a refusal cannot leave foundry.toml rewritten for a group
+    # whose build never ran — but only under STRICT. The tolerant mode swallows build
+    # failures for the playground runner and its two callers in multiNetworkExecution.sh
+    # rely on that, so refusing there would abort a whole multi-network group on a
+    # mismatch the per-network gate in deploySingleContract already refuses.
+    if [[ "$STRICT" == "true" ]] && ! assertFoundryVersionOrFail; then
+        return 1
+    fi
+
     case "$group" in
         "$GROUP_LONDON")
             # Update solc version and EVM version in profile.default section only
@@ -239,7 +248,9 @@ function updateFoundryTomlForGroup() {
         "$GROUP_ZKEVM")
             # zkEVM networks use the [profile.zksync] section; zksolc is pinned in foundry.toml [external.zksync] and exported via FOUNDRY_ZKSYNC (see helperFunctions.sh)
             # No need to update the main solc_version or evm_version settings
-            # No standard forge build needed for zkEVM - compilation handled by deploy scripts
+            # No standard forge build needed for zkEVM - compilation handled by deploy scripts.
+            # out/ is nonetheless required to derive the CREATE2 deploy salt; deploySingleContract's
+            # zk path ensures it per contract (ensureStandardArtifactForSalt).
             ;;
         "$GROUP_CANCUN")
             # Update solc version and EVM version in profile.default section only

@@ -13,14 +13,14 @@ import {
 import { privateKeyToAccount } from 'viem/accounts'
 
 import { EnvironmentEnum, type SupportedChain } from '../common/types'
+import { assertTicketPresent } from '../deploy/safe/proposal-intent'
+import { proposeSafeTx } from '../deploy/safe/propose-safe-tx'
 import {
   getNextNonce,
   getPrivateKey,
   getSafeInfo,
   getSafeMongoCollection,
   initializeSafeClient,
-  OperationTypeEnum,
-  storeTransactionInMongoDB,
 } from '../deploy/safe/safe-utils'
 import {
   castEnv,
@@ -35,6 +35,34 @@ import {
 const unpauseDiamondABI = parseAbi([
   'function unpauseDiamond(address[] calldata _blacklist) external',
 ])
+
+/**
+ * Exits non-zero when any network was skipped.
+ *
+ * A network that threw got no unpause at all, so an operator running an
+ * emergency unpause must not be told every diamond is covered.
+ *
+ * @param failures - networks that failed, with the reason.
+ * @param attempted - how many networks were attempted across both passes.
+ */
+const reportOutcome = (
+  failures: { network: string; error: string }[],
+  attempted: number
+): never => {
+  if (failures.length > 0) {
+    consola.error(
+      `${failures.length} of ${attempted} network(s) got NO unpause:`
+    )
+    for (const failure of failures)
+      consola.error(`  ${failure.network}: ${failure.error}`)
+
+    process.exit(1)
+  }
+
+  consola.success(`All ${attempted} network(s) processed successfully.`)
+
+  process.exit(0)
+}
 
 const main = defineCommand({
   meta: {
@@ -56,6 +84,11 @@ const main = defineCommand({
       type: 'string',
       description:
         'Target environment: production (default) or staging. Staging skips the Safe/MongoDB flow and sends directly to the diamond.',
+    },
+    ticket: {
+      type: 'string',
+      description:
+        'Linear issue link or id (e.g. EXSC-123). Required — a proposal is not created without one. Falls back to SAFE_PROPOSAL_TICKET.',
     },
   },
   async run({ args }) {
@@ -95,7 +128,16 @@ const main = defineCommand({
       : activeNetworks.filter((n) => !isTestnetNetwork(n.id))
     const directSendNetworks = isStaging ? activeNetworks : testnets
 
+    // Only Pass 2 proposes, so only Pass 2 needs a ticket — a staging or
+    // testnet-only run creates no proposal and must not be refused for lacking
+    // one. Checked here rather than at the store because Pass 2 signs on every
+    // production mainnet in turn, and the store-time refusal would spend a
+    // signature per network before failing.
+    if (mainnets.length > 0) assertTicketPresent(args.ticket)
+
     // Pass 1: direct-send networks (testnets always; all networks when staging).
+    const failures: { network: string; error: string }[] = []
+
     await Promise.all(
       directSendNetworks.map(async (network) => {
         try {
@@ -130,18 +172,21 @@ const main = defineCommand({
             `[${network.name}] Error sending direct unpause:`,
             error
           )
+          failures.push({
+            network: network.name,
+            error: error instanceof Error ? error.message : String(error),
+          })
         }
       })
     )
 
     if (mainnets.length === 0) {
-      consola.success('All networks processed successfully.')
-      process.exit(0)
+      reportOutcome(failures, directSendNetworks.length)
+      return
     }
 
     // Pass 2: production mainnets — propose to Safe. Initialize Safe / Mongo only now.
     const privateKey = getPrivateKey('PRIVATE_KEY_PRODUCTION')
-    const senderAddress = privateKeyToAccount(`0x${privateKey}`).address
     const { client: mongoClient, pendingTransactions } =
       await getSafeMongoCollection()
 
@@ -190,44 +235,27 @@ const main = defineCommand({
             safeInfo.nonce
           )
 
-          // prepare SAFE transaction
-          const safeTransaction = await safe.createTransaction({
-            transactions: [
-              {
+          try {
+            const { stored } = await proposeSafeTx({
+              safe,
+              network: network.name,
+              chainId: chain.id,
+              safeAddress,
+              pendingTransactions,
+              payload: {
+                kind: 'call',
                 to: timelockAddress as Address,
-                value: 0n,
                 data: calldata,
-                operation: OperationTypeEnum.Call,
                 nonce: nextNonce,
               },
-            ],
-          })
+              provenance: { ticket: args.ticket },
+            })
 
-          // sign transaction with SAFE_SIGNER_PRIVATE_KEY
-          const signedTx = await safe.signTransaction(safeTransaction)
-          const safeTxHash = await safe.getTransactionHash(safeTransaction)
-
-          // Store transaction proposal in MongoDB
-          try {
-            const result = await storeTransactionInMongoDB(
-              pendingTransactions,
-              safeAddress,
-              network.name,
-              chain.id,
-              signedTx,
-              safeTxHash,
-              senderAddress
-            )
-
-            if (result === null) {
+            if (!stored)
               consola.info(
                 `[${network.name}] Proposal already exists - skipping`
               )
-            } else if (!result.acknowledged) {
-              throw new Error(
-                `[${network.name}] MongoDB insert was not acknowledged`
-              )
-            } else {
+            else {
               consola.info(
                 `[${network.name}] Transaction successfully stored in MongoDB`
               )
@@ -235,7 +263,7 @@ const main = defineCommand({
             }
           } catch (error) {
             consola.error(
-              `[${network.name}] Failed to store transaction in MongoDB: ${error}`
+              `[${network.name}] Failed to propose the transaction to the Safe: ${error}`
             )
             throw error
           }
@@ -244,14 +272,17 @@ const main = defineCommand({
             `[${network.name}] Error proposing unpause transaction:`,
             error
           )
+          failures.push({
+            network: network.name,
+            error: error instanceof Error ? error.message : String(error),
+          })
         }
       })
     )
 
     await mongoClient.close()
-    consola.success('All networks processed successfully.')
 
-    process.exit(0)
+    reportOutcome(failures, directSendNetworks.length + mainnets.length)
   },
 })
 

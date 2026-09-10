@@ -9,6 +9,8 @@ contract DeployScript is UpdateScriptBase {
         public
         returns (address[] memory facets, bytes memory cutData)
     {
+        _rejectVerificationMode();
+
         // Check if the loupe was already added to the diamond
         bool loupeExists;
         try loupe.facetAddresses() returns (address[] memory) {

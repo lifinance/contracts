@@ -284,10 +284,30 @@ const RECEIVER_FIELD: IField = {
 const CHAIN_FIELD: IField = {
   path: '_bridgeData.destinationChainId',
   label: 'Destination Chain',
-  // Non-EVM destinations use synthetic ids outside EIP-155, which wallets fall
-  // back to rendering numerically.
-  format: 'chainId',
+  // Not `chainId`, however much it looks like the right format: this field also
+  // carries LI.FI's synthetic non-EVM ids (LiFiData.sol), and `chainId` resolves
+  // through public EIP-155 chain lists that mislabel our chains — 999 is
+  // HyperEVM to us and "Wanchain Testnet" upstream, 1337 is HyperCore and
+  // "Geth Testnet". A wrong network name on a signing screen is worse than a
+  // number, so this stays raw until ERC-7730 pins a name source and a fallback.
+  format: 'raw',
   visible: 'always',
+}
+
+// `LibAsset.isNativeAsset` accepts exactly one sentinel — the zero address — so
+// that is the only value declared here. (`0xEeee…EEeE` is an outbound
+// translation for bridges that expect it, e.g. SquidFacet and GardenFacet;
+// no asset-id input is ever read as native at that value.) Without this param
+// `tokenAmount` has no decimals or ticker to format the sentinel with and
+// wallets fall back to the raw integer — a bare `7538051138939978` on the
+// signing screen where `0.007538051138939978 ETH` belongs.
+const NATIVE_CURRENCY_ADDRESS = '0x0000000000000000000000000000000000000000'
+
+// Every `tokenAmount` field goes through this: any asset-id path in this
+// diamond can hold the native sentinel, so opting in per-site would only leave
+// room to forget one.
+function tokenAmountParams(tokenPath: string): Record<string, unknown> {
+  return { tokenPath, nativeCurrencyAddress: NATIVE_CURRENCY_ADDRESS }
 }
 
 function bridgeFacetName(fnName: string): string {
@@ -478,20 +498,6 @@ function extraReceiverFields(fn: IAbiFn): IField[] {
   ]
 }
 
-function variantTag(fnName: string): string | null {
-  // Packed/Min disambiguator for the intent string.
-  const native = /Native(Packed|Min)$/u.test(fnName)
-  const erc20 = /ERC20(Packed|Min)$/u.test(fnName)
-  const packed = /Packed$/u.test(fnName)
-  const min = /Min$/u.test(fnName)
-  const bits: string[] = []
-  if (native) bits.push('native')
-  else if (erc20) bits.push('ERC-20')
-  if (packed) bits.push('packed')
-  else if (min) bits.push('min')
-  return bits.length ? bits.join(', ') : null
-}
-
 function buildStartFormat(fn: IAbiFn): IFormatEntry {
   const facet = bridgeFacetName(fn.name)
   return {
@@ -507,7 +513,7 @@ function buildStartFormat(fn: IAbiFn): IFormatEntry {
         path: '_bridgeData.minAmount',
         label: 'Amount to Bridge',
         format: 'tokenAmount',
-        params: { tokenPath: '_bridgeData.sendingAssetId' },
+        params: tokenAmountParams('_bridgeData.sendingAssetId'),
         visible: 'always',
       },
       CHAIN_FIELD,
@@ -530,14 +536,14 @@ function buildSwapAndStartFormat(fn: IAbiFn): IFormatEntry {
         path: '_swapData.[0].fromAmount',
         label: 'Amount to Swap',
         format: 'tokenAmount',
-        params: { tokenPath: '_swapData.[0].sendingAssetId' },
+        params: tokenAmountParams('_swapData.[0].sendingAssetId'),
         visible: 'always',
       },
       {
         path: '_bridgeData.minAmount',
         label: 'Minimum to Bridge',
         format: 'tokenAmount',
-        params: { tokenPath: '_bridgeData.sendingAssetId' },
+        params: tokenAmountParams('_bridgeData.sendingAssetId'),
         visible: 'always',
       },
       CHAIN_FIELD,
@@ -580,14 +586,14 @@ const SWAP_TEMPLATES: Record<string, IFormatEntry> = {
         path: '_swapData.fromAmount',
         label: 'Amount to Send',
         format: 'tokenAmount',
-        params: { tokenPath: '_swapData.sendingAssetId' },
+        params: tokenAmountParams('_swapData.sendingAssetId'),
         visible: 'always',
       },
       {
         path: '_minAmountOut',
         label: 'Minimum to Receive',
         format: 'tokenAmount',
-        params: { tokenPath: '_swapData.receivingAssetId' },
+        params: tokenAmountParams('_swapData.receivingAssetId'),
         visible: 'always',
       },
       {
@@ -623,12 +629,35 @@ const SWAP_TEMPLATES: Record<string, IFormatEntry> = {
 // (or the @.value for the legacy descriptor) is replaced. We just reproduce
 // the existing descriptor's field shape and append `interpolatedIntent`.
 
-SWAP_TEMPLATES.swapTokensSingleV3ERC20ToNative = {
-  // Cast: the ERC20ToERC20 entry is the literal object above and always present
-  // at this point. Required because `Record<string, T>` indexed access returns
-  // `T | undefined` under `noUncheckedIndexedAccess`.
-  ...(SWAP_TEMPLATES.swapTokensSingleV3ERC20ToERC20 as IFormatEntry),
+// The ERC20→Native variants send `address(this).balance` and never read the
+// `receivingAssetId` they are handed (`swapTokensSingleV3ERC20ToNative` and
+// `_transferNativeTokensAndEmitEvent` in GenericSwapFacetV3). Formatting
+// `_minAmountOut` against that unvalidated field would let crafted calldata put
+// any ticker and decimals on a guaranteed-native amount — `1 USDC` on screen for
+// 1e6 wei of native, on a transaction that succeeds. The output currency is
+// fixed, so state it rather than derive it.
+function withNativeMinAmountOut(base: IFormatEntry): IFormatEntry {
+  return {
+    ...base,
+    fields: base.fields.map((field) =>
+      field.path === '_minAmountOut'
+        ? {
+            path: field.path,
+            label: field.label,
+            format: 'amount',
+            visible: 'always' as const,
+          }
+        : field
+    ),
+  }
 }
+
+// Cast: the ERC20ToERC20 entry is the literal object above and always present
+// at this point. Required because `Record<string, T>` indexed access returns
+// `T | undefined` under `noUncheckedIndexedAccess`.
+SWAP_TEMPLATES.swapTokensSingleV3ERC20ToNative = withNativeMinAmountOut(
+  SWAP_TEMPLATES.swapTokensSingleV3ERC20ToERC20 as IFormatEntry
+)
 SWAP_TEMPLATES.swapTokensSingleV3NativeToERC20 = {
   intent: 'Swap',
   interpolatedIntent:
@@ -639,7 +668,7 @@ SWAP_TEMPLATES.swapTokensSingleV3NativeToERC20 = {
       path: '_minAmountOut',
       label: 'Minimum to Receive',
       format: 'tokenAmount',
-      params: { tokenPath: '_swapData.receivingAssetId' },
+      params: tokenAmountParams('_swapData.receivingAssetId'),
       visible: 'always',
     },
     {
@@ -679,14 +708,14 @@ SWAP_TEMPLATES.swapTokensMultipleV3ERC20ToERC20 = {
       path: '_swapData.[0].fromAmount',
       label: 'Amount to Send',
       format: 'tokenAmount',
-      params: { tokenPath: '_swapData.[0].sendingAssetId' },
+      params: tokenAmountParams('_swapData.[0].sendingAssetId'),
       visible: 'always',
     },
     {
       path: '_minAmountOut',
       label: 'Minimum to Receive',
       format: 'tokenAmount',
-      params: { tokenPath: '_swapData.[-1].receivingAssetId' },
+      params: tokenAmountParams('_swapData.[-1].receivingAssetId'),
       visible: 'always',
     },
     {
@@ -721,10 +750,10 @@ SWAP_TEMPLATES.swapTokensMultipleV3ERC20ToERC20 = {
     },
   ],
 }
-SWAP_TEMPLATES.swapTokensMultipleV3ERC20ToNative = {
-  // See note on the SingleV3 variant above re. the cast.
-  ...(SWAP_TEMPLATES.swapTokensMultipleV3ERC20ToERC20 as IFormatEntry),
-}
+// See notes on the SingleV3 variant above re. the cast and the native output.
+SWAP_TEMPLATES.swapTokensMultipleV3ERC20ToNative = withNativeMinAmountOut(
+  SWAP_TEMPLATES.swapTokensMultipleV3ERC20ToERC20 as IFormatEntry
+)
 SWAP_TEMPLATES.swapTokensMultipleV3NativeToERC20 = {
   intent: 'Swap',
   interpolatedIntent:
@@ -735,7 +764,7 @@ SWAP_TEMPLATES.swapTokensMultipleV3NativeToERC20 = {
       path: '_minAmountOut',
       label: 'Minimum to Receive',
       format: 'tokenAmount',
-      params: { tokenPath: '_swapData.[-1].receivingAssetId' },
+      params: tokenAmountParams('_swapData.[-1].receivingAssetId'),
       visible: 'always',
     },
     {
@@ -780,14 +809,14 @@ SWAP_TEMPLATES.swapTokensGeneric = {
       path: '_swapData.[0].fromAmount',
       label: 'Amount to Send',
       format: 'tokenAmount',
-      params: { tokenPath: '_swapData.[0].sendingAssetId' },
+      params: tokenAmountParams('_swapData.[0].sendingAssetId'),
       visible: 'always',
     },
     {
       path: '_minAmount',
       label: 'Minimum to Receive',
       format: 'tokenAmount',
-      params: { tokenPath: '_swapData.[-1].receivingAssetId' },
+      params: tokenAmountParams('_swapData.[-1].receivingAssetId'),
       visible: 'always',
     },
     {
@@ -863,6 +892,16 @@ const NON_USER_FACING_NAMES = new Set([
   'executeCallAndWithdraw', // operator-only utility
 ])
 
+const PACKED_OR_MIN_SUFFIX = /(Packed|Min)$/u
+
+// The exclusion below is a silent escape from a strict-by-default generator, so
+// it is keyed on the bridge prefix as well as the suffix. A future user-facing
+// function that merely ends in `Min` (say `executeIntentMin`) must not inherit
+// the exemption — it falls through to the unrecognized-prefix failure instead,
+// which is what forces someone to classify it.
+const PACKED_OR_MIN_BRIDGE_VARIANT =
+  /^(startBridgeTokensVia|swapAndStartBridgeTokensVia).*(Packed|Min)$/u
+
 function isKnownNonUserFacing(fn: IAbiFn): boolean {
   const name = fn.name
   // Zero-input functions are usually Solidity-generated getters for `public`
@@ -870,7 +909,7 @@ function isKnownNonUserFacing(fn: IAbiFn): boolean {
   // `pendingOwner()`) — skip those. The exception is `*Packed` / `*Min` bridge
   // variants: they declare no ABI params but read `msg.data` manually, so they
   // are user-facing entry-points despite having `inputs.length === 0`.
-  if (fn.inputs.length === 0 && !/(Packed|Min)$/u.test(name)) return true
+  if (fn.inputs.length === 0 && !PACKED_OR_MIN_SUFFIX.test(name)) return true
   if (NON_USER_FACING_NAMES.has(name)) return true
   for (const prefix of NON_USER_FACING_PREFIXES)
     if (name.startsWith(prefix)) return true
@@ -897,6 +936,16 @@ function main() {
     // either the templates or the skip list still fall through to the failure
     // branch below.
     if (isKnownNonUserFacing(fn)) continue
+    // Packed/Min variants are signed by relayer infrastructure, not end users.
+    // Packed encodes its args in a bespoke layout with no ABI parameters, so
+    // ERC-7730 cannot describe it at all; Min carries a packed tuple we do not
+    // decode. A title-only entry (intent, empty fields) renders nothing useful
+    // and the registry rejects it, so emit no entry — these functions fall back
+    // to blind-signing until there is wallet demand for full decoding. Skipped
+    // before signature() for the same reason as the check above, and ahead of
+    // the prefix dispatch so they never reach the unrecognized-prefix failure.
+    // (EXSC-926)
+    if (PACKED_OR_MIN_BRIDGE_VARIANT.test(fn.name)) continue
     const sig = signature(fn)
     if (fn.name.startsWith('swapTokens')) {
       const tpl = SWAP_TEMPLATES[fn.name]
@@ -907,18 +956,6 @@ function main() {
         continue
       }
       out[sig] = tpl
-    } else if (/(Packed|Min)$/u.test(fn.name)) {
-      // Packed/Min variants encode args differently and are typically only
-      // signed by relayer infrastructure, not end users. Emit a static intent
-      // only; full interpolation would require per-facet calldata decoders
-      // (each packed variant has its own bespoke layout). Deferred until we
-      // see wallet demand for full decoding here.
-      const facet = bridgeFacetName(fn.name)
-      const tag = variantTag(fn.name)
-      out[sig] = {
-        intent: `Bridge via ${facet}${tag ? ` (${tag})` : ''}`,
-        fields: [],
-      }
     } else if (fn.name.startsWith('swapAndStartBridgeTokensVia')) {
       const err = validateSwapAndStartFn(fn)
       if (err) {

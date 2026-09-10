@@ -1,0 +1,445 @@
+/**
+ * Placement proof for the deploy-log provenance capture: the `add` CLI has to
+ * capture branch, scoped dirty tree and actor from the tree it is invoked in,
+ * and carry them into the upsert it applies. `shared/mongo-log-utils.test.ts`
+ * covers what the pure functions decide with those values.
+ *
+ * Each case runs the real CLI in a throwaway git repo, because a tree whose
+ * dirtiness the test controls is the only way to observe the capture rather
+ * than assume it. `--dryRun` is what keeps the probes off a real store; the
+ * store URI is made unparseable as well, so a probe that ignored the flag dies
+ * on connect instead of writing.
+ *
+ * Every absence assertion is paired with a positive marker, and a child killed
+ * by a timeout is treated as no result at all.
+ */
+import { spawnSync } from 'node:child_process'
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
+import {
+  describe,
+  expect,
+  it,
+  // eslint-disable-next-line import/no-unresolved
+} from 'bun:test'
+
+const REPO_ROOT = join(import.meta.dir, '..', '..')
+const ADD_CLI = join(REPO_ROOT, 'script/deploy/update-deployment-logs.ts')
+
+/** Long enough for a bun start-up plus a handful of git probes. */
+const TIMEOUT_MS = 60_000
+/** Per-case budget: these spawn a real CLI, well past bun's 5 s default. */
+const CASE_TIMEOUT_MS = 90_000
+
+const CONTRACT = 'AcrossFacetV4'
+const CONTRACT_PATH = `src/Facets/${CONTRACT}.sol`
+const ADDRESS = '0x1111111111111111111111111111111111111111'
+
+interface IUpsertShape {
+  filter: Record<string, { $eq: unknown }>
+  update: {
+    $set: Record<string, unknown>
+    $setOnInsert: Record<string, unknown>
+  }
+}
+
+/**
+ * Builds a repo on a named branch, optionally leaving one source file dirty.
+ * @param options - branch to check out, and whether to diverge the source
+ * @returns the repository root
+ */
+const makeRepo = (options: { branch: string; dirty: boolean }): string => {
+  const repoRoot = mkdtempSync(join(tmpdir(), 'deploy-log-provenance-'))
+  const run = (...args: string[]) =>
+    spawnSync('git', args, { cwd: repoRoot, encoding: 'utf8' })
+
+  run('init', '-b', options.branch)
+  run('config', 'user.email', 'provenance@example.com')
+  run('config', 'user.name', 'provenance')
+  mkdirSync(join(repoRoot, 'src/Facets'), { recursive: true })
+  writeFileSync(
+    join(repoRoot, CONTRACT_PATH),
+    `// SPDX-License-Identifier: LGPL-3.0-only\ncontract ${CONTRACT} {}\n`
+  )
+  run('add', '.')
+  run('commit', '-m', 'deployed state', '--no-gpg-sign')
+
+  if (options.dirty)
+    writeFileSync(
+      join(repoRoot, CONTRACT_PATH),
+      `// SPDX-License-Identifier: LGPL-3.0-only\ncontract ${CONTRACT} { uint256 public unreviewed; }\n`
+    )
+
+  return repoRoot
+}
+
+/**
+ * Rejects a child whose result cannot be reasoned about, and — first — one that
+ * reached a real store. A probe that wrote is the one most likely to look like a
+ * timeout, so the breach check runs before the usability checks.
+ * @param result - what `spawnSync` returned
+ * @param output - the child's combined stdout and stderr
+ */
+const assertChildIsUsable = (
+  result: { error?: Error; signal: NodeJS.Signals | null },
+  output: string
+): void => {
+  if (/Connected to MongoDB|Successfully added\/updated/i.test(output))
+    throw new Error(
+      'a probe reached a real deployment store — the child environment is not isolated'
+    )
+  if (result.error) throw result.error
+  if (result.signal)
+    throw new Error(
+      `child was killed by ${result.signal} after ${TIMEOUT_MS}ms, so its output proves nothing`
+    )
+}
+
+/**
+ * Runs the real `add` CLI in a throwaway repo and parses what it would write.
+ * @param options - the repo to run in, and extra CLI arguments
+ * @returns the child's combined output, its stdout alone, exit status, and
+ * the parsed upsert
+ */
+const runAdd = (options: {
+  repoRoot: string
+  extraArgs?: string[]
+  ci?: Record<string, string>
+  flag?: string
+}): {
+  output: string
+  stdout: string
+  status: number | null
+  upsert: IUpsertShape
+} => {
+  const env: Record<string, string> = {
+    ...(process.env as Record<string, string>),
+  }
+  // `bun test` sets NODE_ENV=test; this child is exercised as a CLI.
+  delete env.NODE_ENV
+  // Isolate git identity: `git config user.name` reads the global config when
+  // there is no checkout, so a runner with no identity and a laptop with one
+  // disagree on `actor`. Local repo config from `makeRepo` still applies.
+  const isolatedHome = mkdtempSync(join(tmpdir(), 'deploy-log-home-'))
+  env.HOME = isolatedHome
+  env.GIT_CONFIG_NOSYSTEM = '1'
+  env.GIT_CONFIG_GLOBAL = join(isolatedHome, '.gitconfig')
+  // The capture reads the workflow environment in preference to git, so on an
+  // Actions runner every case below would observe the runner's own branch and
+  // actor instead of the throwaway repo it just built — and the suite would
+  // pass locally and fail in CI. Cleared here, then set explicitly by the one
+  // case that is about the CI branch.
+  for (const name of [
+    'CI',
+    'GITHUB_ACTIONS',
+    'GITHUB_ACTOR',
+    'GITHUB_HEAD_REF',
+    'GITHUB_REF_NAME',
+    'GITHUB_SHA',
+  ])
+    delete env[name]
+  Object.assign(env, options.ci ?? {})
+  // Bun auto-loads the repo env file into THIS process, so the child inherits a
+  // real production environment unless every store name is neutralised here.
+  // Deliberately malformed rather than unroutable: a driver spends 30 s of
+  // server selection on an unreachable host, where a URI it cannot parse throws
+  // on construction — so a probe that got past `--dryRun` dies at once.
+  env.MONGODB_URI = 'blocked-in-tests://no-store'
+  env.SC_MONGODB_URI = env.MONGODB_URI
+
+  const result = spawnSync(
+    'bun',
+    [
+      ADD_CLI,
+      'add',
+      '--env',
+      'staging',
+      '--contract',
+      CONTRACT,
+      '--network',
+      'arbitrum',
+      '--version',
+      '1.0.0',
+      '--address',
+      ADDRESS,
+      '--optimizer-runs',
+      '1000000',
+      '--timestamp',
+      '2026-09-08 00:00:00',
+      '--constructor-args',
+      '0x',
+      '--verified',
+      'false',
+      options.flag ?? '--dryRun',
+      ...(options.extraArgs ?? []),
+    ],
+    {
+      cwd: options.repoRoot,
+      encoding: 'utf8',
+      env,
+      timeout: TIMEOUT_MS,
+      maxBuffer: Infinity,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    }
+  )
+
+  const output = `${result.stdout}${result.stderr}`
+  assertChildIsUsable(result, output)
+
+  const start = result.stdout.indexOf('{')
+  if (start === -1)
+    throw new Error(`the CLI printed no upsert document:\n${output}`)
+
+  return {
+    output,
+    stdout: result.stdout,
+    status: result.status,
+    upsert: JSON.parse(result.stdout.slice(start)) as IUpsertShape,
+  }
+}
+
+describe('update-deployment-logs add — provenance capture', () => {
+  it(
+    'records the branch, the actor and a dirty source file it was run from',
+    () => {
+      const { output, status, upsert } = runAdd({
+        repoRoot: makeRepo({ branch: 'feature/exsc-695', dirty: true }),
+      })
+
+      expect(status).toBe(0)
+      expect(upsert.update.$set).toMatchObject({
+        gitBranch: 'feature/exsc-695',
+        dirtyTreeScoped: [CONTRACT_PATH],
+        dirtyTreeTruncated: false,
+        actor: 'human',
+      })
+      // The signer-visible half: a reviewer reading the deploy output, not the
+      // record, has to see the dirty tree too.
+      expect(output).toContain('Deployed from a dirty tree')
+      expect(output).toContain(CONTRACT_PATH)
+    },
+    CASE_TIMEOUT_MS
+  )
+
+  it(
+    'records a clean tree as an empty list rather than omitting the field',
+    () => {
+      const { output, upsert } = runAdd({
+        repoRoot: makeRepo({ branch: 'main', dirty: false }),
+      })
+
+      expect(upsert.update.$set).toHaveProperty('gitBranch', 'main')
+      expect(upsert.update.$set).not.toHaveProperty('dirtyTreeScoped')
+      expect(upsert.update.$setOnInsert).toMatchObject({
+        dirtyTreeScoped: [],
+        dirtyTreeTruncated: false,
+      })
+      expect(output).toContain('dirty no')
+      expect(output).not.toContain('Deployed from a dirty tree')
+    },
+    CASE_TIMEOUT_MS
+  )
+
+  it(
+    'reports CI as the actor and takes the branch from the workflow environment',
+    () => {
+      const repoRoot = makeRepo({ branch: 'feature/exsc-695', dirty: false })
+      const detach = spawnSync('git', ['checkout', '--detach'], {
+        cwd: repoRoot,
+        encoding: 'utf8',
+      })
+      expect(detach.status).toBe(0)
+
+      const { upsert } = runAdd({
+        repoRoot,
+        // The values a real `pull_request` run sets, and the precedence that
+        // matters: HEAD_REF is the source branch and wins over REF_NAME, which
+        // on that event names the synthetic merge ref.
+        ci: {
+          GITHUB_ACTIONS: 'true',
+          GITHUB_HEAD_REF: 'feature/exsc-695',
+          GITHUB_REF_NAME: '2331/merge',
+        },
+      })
+
+      expect(upsert.update.$set).toMatchObject({
+        actor: 'ci',
+        gitBranch: 'feature/exsc-695',
+      })
+    },
+    CASE_TIMEOUT_MS
+  )
+
+  /**
+   * Every sibling flag on this command is kebab-cased, so `--dry-run` is the
+   * spelling a caller types. Read as `false` it would not be a no-op: the CLI
+   * would fall through to a real upsert.
+   */
+  it(
+    'honours the kebab spelling of the dry-run flag',
+    () => {
+      const { output, upsert } = runAdd({
+        repoRoot: makeRepo({ branch: 'main', dirty: false }),
+        flag: '--dry-run',
+      })
+
+      expect(output).toContain('Dry run: nothing was written to MongoDB')
+      expect(upsert.update.$set).toHaveProperty('gitBranch', 'main')
+    },
+    CASE_TIMEOUT_MS
+  )
+
+  it(
+    'caps the recorded dirty list and says so',
+    () => {
+      const repoRoot = makeRepo({ branch: 'main', dirty: false })
+      // One more than MAX_DIRTY_PATHS, so the cap is crossed rather than met.
+      for (let index = 0; index <= 20; index++)
+        writeFileSync(
+          join(repoRoot, `src/Facets/Extra${index}.sol`),
+          `contract Extra${index} {}\n`
+        )
+
+      const { output, upsert } = runAdd({ repoRoot })
+
+      expect(upsert.update.$set.dirtyTreeScoped).toHaveLength(20)
+      expect(upsert.update.$set).toHaveProperty('dirtyTreeTruncated', true)
+      expect(output).toContain('dirty 20+ path(s)')
+    },
+    CASE_TIMEOUT_MS
+  )
+
+  it(
+    'never lets provenance into the identity the upsert matches on',
+    () => {
+      const { upsert } = runAdd({
+        repoRoot: makeRepo({ branch: 'feature/exsc-695', dirty: true }),
+      })
+
+      expect(Object.keys(upsert.filter).sort()).toEqual([
+        'address',
+        'contractName',
+        'network',
+        'version',
+      ])
+      expect(upsert.filter.address).toEqual({ $eq: ADDRESS })
+    },
+    CASE_TIMEOUT_MS
+  )
+
+  it(
+    'reports unknown provenance instead of a clean tree outside a git checkout',
+    () => {
+      // No `git init`: every probe fails, and the one answer that must never be
+      // invented here is "the tree was clean".
+      const { output, upsert } = runAdd({
+        repoRoot: mkdtempSync(join(tmpdir(), 'deploy-log-no-git-')),
+      })
+
+      expect(upsert.update.$set).not.toHaveProperty('gitBranch')
+      expect(upsert.update.$setOnInsert).toMatchObject({
+        gitBranch: 'UNKNOWN',
+        repo: 'UNKNOWN',
+        actor: 'UNKNOWN',
+      })
+      expect(upsert.update.$set).not.toHaveProperty('actor')
+      // The dirty list must be absent, not empty: the capture returns an empty
+      // list for an unreadable tree as well as a clean one, and only the
+      // recorded errors separate them.
+      expect(upsert.update.$set).not.toHaveProperty('dirtyTreeScoped')
+      expect(upsert.update.$set).not.toHaveProperty('dirtyTreeTruncated')
+      // Paired positives, so the two absences above cannot pass on a run that
+      // printed no upsert fields at all.
+      expect(upsert.update.$set).toHaveProperty('contractName', CONTRACT)
+      expect(output).toContain('branch UNKNOWN')
+      expect(output).toContain('dirty unknown')
+      expect(output).toContain('Provenance capture problem:')
+    },
+    CASE_TIMEOUT_MS
+  )
+})
+
+describe('update-deployment-logs add — codehash', () => {
+  const HASH = `0x${'1'.repeat(64)}`
+  const MASKED = `0x${'2'.repeat(64)}`
+  const GROUP = [
+    '--codehash',
+    HASH,
+    '--masked-codehash',
+    MASKED,
+    '--code-byte-length',
+    '7390',
+    '--masked-byte-count',
+    '480',
+  ]
+
+  it(
+    'carries the whole group into the upsert and exits 0',
+    () => {
+      const { status, upsert } = runAdd({
+        repoRoot: makeRepo({ branch: 'main', dirty: false }),
+        extraArgs: GROUP,
+      })
+
+      expect(status).toBe(0)
+      expect(upsert.update.$set).toHaveProperty('codehash', {
+        hash: HASH,
+        maskedHash: MASKED,
+        byteLength: 7390,
+        maskedByteCount: 480,
+      })
+    },
+    CASE_TIMEOUT_MS
+  )
+
+  it(
+    'writes no codehash key at all when none was offered',
+    () => {
+      const { status, upsert } = runAdd({
+        repoRoot: makeRepo({ branch: 'main', dirty: false }),
+      })
+
+      expect(status).toBe(0)
+      expect(upsert.update.$set).not.toHaveProperty('codehash')
+      // Paired positive: the absence above must not pass on an empty upsert.
+      expect(upsert.update.$set).toHaveProperty('contractName', CONTRACT)
+    },
+    CASE_TIMEOUT_MS
+  )
+
+  it.each([
+    ['a partly-provided group', GROUP.slice(0, 6), '--masked-byte-count'],
+    [
+      'a byte length parseInt would have accepted',
+      [...GROUP.slice(0, 5), '7390 bytes', ...GROUP.slice(6)],
+      'whole numbers',
+    ],
+    [
+      'a hash that is not a digest',
+      ['--codehash', '0xdeadbeef', ...GROUP.slice(2)],
+      'not a keccak digest',
+    ],
+  ])(
+    'still writes the record, and reports the drop on stdout, for %s',
+    (_label, extraArgs, expected) => {
+      const { stdout, status, upsert } = runAdd({
+        repoRoot: makeRepo({ branch: 'main', dirty: false }),
+        extraArgs,
+      })
+
+      expect(upsert.update.$set).not.toHaveProperty('codehash')
+      expect(upsert.update.$set).toHaveProperty('address', ADDRESS)
+      // On stdout, not merely somewhere: `logContractDeploymentInfo` discards
+      // this command's stderr unless DEBUG is set, so a reason sent there is a
+      // reason the operator never sees.
+      expect(stdout).toContain('Not recording a codehash')
+      expect(stdout).toContain(expected)
+      // Zero, because the record landed: that caller reads any non-zero status
+      // as "the record did not land" and aborts the deploy.
+      expect(status).toBe(0)
+    },
+    CASE_TIMEOUT_MS
+  )
+})

@@ -39,8 +39,12 @@ import globalConfig from '../../../config/global.json'
 import networks from '../../../config/networks.json'
 import { sleep } from '../../utils/delay'
 import { getEnvVar } from '../../utils/utils'
+import { isTestnetNetwork } from '../../utils/viemScriptHelpers'
+import { flagIsOn, readBooleanFlag } from '../safe/cli-flags'
+import { assertSafeThresholdFloor } from '../safe/safe-deploy-guards'
 import { retryWithRateLimit } from '../shared/rateLimit.js'
 
+import { assertTronToolchainOrThrow } from './assertTronToolchain.js'
 import {
   CREATE_PROXY_SAFETY_MARGIN,
   TRON_DEPLOY_NETWORK,
@@ -51,6 +55,10 @@ import {
   TRON_SAFE_SETUP_ABI,
 } from './constants.js'
 import type { ITronSafeTemp } from './types.js'
+
+// 1.2x the energy estimate: enough headroom that a tight estimate still lands,
+// without reserving TRX the deploy will not spend.
+const DEFAULT_SAFETY_MARGIN = 1.2
 
 function readTronSafeTemp(): ITronSafeTemp | null {
   try {
@@ -363,6 +371,15 @@ async function run(options: {
     )
   }
 
+  const thresholdFloor = assertSafeThresholdFloor({
+    network: TRON_DEPLOY_NETWORK,
+    threshold,
+    isTestnet: isTestnetNetwork(TRON_DEPLOY_NETWORK),
+  })
+  consola.info(
+    `Threshold ${threshold} clears the ${thresholdFloor.floor}-confirmation floor for ${TRON_DEPLOY_NETWORK}`
+  )
+
   const privateKey = getEnvVar('PRIVATE_KEY_PRODUCTION')
   const tvmKey = TRON_DEPLOY_NETWORK as TronTvmNetworkName
   const { rpcUrl, headers } = getTronRPCConfig(tvmKey, false)
@@ -486,6 +503,14 @@ async function run(options: {
     // 1) Deploy Safe implementation (no constructor)
     if (!existingSingleton) {
       consola.info('Deploying Safe implementation...')
+      // The toolchain check, not `assertTronDeploymentRecordable`: these are
+      // third-party Safe artifacts built separately by `forge build -C
+      // safe/london` and never written to the deployment log, so recordability
+      // is not the applicable question — and that assert validates constructor
+      // args against the artifact ABI, which for the committed
+      // SafeProxyFactory build declares none while its source declares one. It
+      // refused every run, environment-independently.
+      assertTronToolchainOrThrow()
       const safeResult = await deployer.deployContract(safeArtifact, [])
       singletonAddress = safeResult.contractAddress
       consola.success(`Safe implementation: ${singletonAddress}`)
@@ -502,6 +527,7 @@ async function run(options: {
     // 2) Deploy SafeProxyFactory(singleton)
     if (!existingFactory) {
       consola.info('Deploying SafeProxyFactory...')
+      assertTronToolchainOrThrow()
       const factoryResult = await deployer.deployContract(factoryArtifact, [
         singletonAddress,
       ])
@@ -648,7 +674,7 @@ async function run(options: {
   delete networkEntry.safeProxyFactoryAddress
   fs.writeFileSync(
     networksPath,
-    JSON.stringify(networksContent, null, 2),
+    `${JSON.stringify(networksContent, null, 2)}\n`,
     'utf8'
   )
   consola.success(
@@ -673,46 +699,43 @@ const main = defineCommand({
     dryRun: {
       type: 'boolean',
       description: 'Do not send transactions',
-      default: false,
     },
     allowOverride: {
       type: 'boolean',
       description:
         'Allow overwriting existing tron.safeAddress in networks.json',
-      default: false,
     },
     safetyMargin: {
       type: 'string',
       description:
         'Energy estimate multiplier (default 1.2). Lower (e.g. 1.1) reduces required TRX but may cause deployment to fail if estimate is tight.',
-      default: '1.2',
     },
     safeSingletonAddress: {
       type: 'string',
       description:
         'Existing Safe implementation address (base58). If set with --safeProxyFactoryAddress, skips deploying Safe impl and Factory and only runs createProxyWithNonce.',
-      default: '',
     },
     safeProxyFactoryAddress: {
       type: 'string',
       description:
         'Existing SafeProxyFactory address (base58). Use with --safeSingletonAddress to skip deploy and only create the Safe proxy.',
-      default: '',
     },
     setupOnly: {
       type: 'boolean',
       description:
         'Only call setup() on the existing Safe at tron.safeAddress (no deployment). Use when the proxy was created but never initialized.',
-      default: false,
     },
   },
   async run({ args }) {
-    const threshold = parseInt(args.threshold, 10)
+    const threshold = Number(args.threshold)
     if (isNaN(threshold) || threshold < 1) {
       consola.error('Invalid --threshold; must be a positive integer.')
       process.exit(1)
     }
-    const safetyMargin = parseFloat(args.safetyMargin)
+    const safetyMargin =
+      args.safetyMargin === undefined
+        ? DEFAULT_SAFETY_MARGIN
+        : parseFloat(String(args.safetyMargin))
     if (isNaN(safetyMargin) || safetyMargin < 1 || safetyMargin > 3) {
       consola.error('Invalid --safetyMargin; must be a number between 1 and 3.')
       process.exit(1)
@@ -720,10 +743,21 @@ const main = defineCommand({
     try {
       await run({
         threshold,
-        dryRun: args.dryRun,
-        allowOverride: args.allowOverride,
+        dryRun: flagIsOn(args.dryRun),
+        // Strict, as in the EVM twin: on overwrites tron.safeAddress in
+        // networks.json. Absence is off here, so an unreadable value would flip
+        // it from the safe direction to the dangerous one.
+        allowOverride: readBooleanFlag(process.argv, {
+          camel: 'allowOverride',
+          kebab: 'allow-override',
+        }),
         safetyMargin,
-        setupOnly: args.setupOnly,
+        // Strict: on calls setup() on the live Safe at tron.safeAddress and
+        // takes a branch that never reaches the override guard.
+        setupOnly: readBooleanFlag(process.argv, {
+          camel: 'setupOnly',
+          kebab: 'setup-only',
+        }),
         safeSingletonAddress: args.safeSingletonAddress || undefined,
         safeProxyFactoryAddress: args.safeProxyFactoryAddress || undefined,
       })

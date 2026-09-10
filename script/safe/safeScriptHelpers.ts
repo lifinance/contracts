@@ -9,13 +9,19 @@ import {
 import { privateKeyToAccount } from 'viem/accounts'
 
 import { EnvironmentEnum } from '../common/types'
+import { assertTicketPresent } from '../deploy/safe/proposal-intent'
+import { proposeSafeTx } from '../deploy/safe/propose-safe-tx'
 import {
   getNextNonce,
   getSafeMongoCollection,
   initializeSafeClient,
-  OperationTypeEnum,
-  storeTransactionInMongoDB,
+  resolveSafeSigningOptions,
+  type ISafeSigningOptions,
 } from '../deploy/safe/safe-utils'
+import {
+  assertFunnelDeployGate,
+  createFunnelGateDeps,
+} from '../deploy/shared/funnel-deploy-gate'
 import {
   getViemChainForNetworkName,
   isTestnetNetwork,
@@ -31,12 +37,18 @@ export async function sendOrPropose({
   network,
   environment,
   diamondAddress,
+  signing,
 }: {
   calldata: `0x${string}`
   network: string
   environment: EnvironmentEnum
   diamondAddress: string
-}) {
+  /**
+   * Ledger flags for the Safe-proposal path; the direct-send path broadcasts
+   * with the environment key and warns if a Ledger was asked for.
+   */
+  signing: Omit<ISafeSigningOptions, 'envPrivateKey' | 'envPrivateKeyName'>
+}): Promise<void> {
   const isProd = environment === EnvironmentEnum.production
   const isTestnet = isTestnetNetwork(network)
   const sendDirectly =
@@ -47,6 +59,11 @@ export async function sendOrPropose({
   // ───────────── DIRECT TX FLOW ───────────── //
   if (sendDirectly) {
     consola.info('📤 Sending transaction directly to the Diamond...')
+
+    if (signing.ledger)
+      consola.warn(
+        'Ignoring --ledger: this route broadcasts directly to the Diamond and signs with the environment key, not via the Safe.'
+      )
 
     const pkVar = isProd ? 'PRIVATE_KEY_PRODUCTION' : 'PRIVATE_KEY'
     const pk = process.env[pkVar]
@@ -93,10 +110,36 @@ export async function sendOrPropose({
   }
 
   // ───────────── SAFE PROPOSAL FLOW ───────────── //
-  const pk = process.env.PRIVATE_KEY_PRODUCTION
-  if (!pk) throw new Error('Missing PRIVATE_KEY_PRODUCTION in environment')
+  // Before the Safe client and any signing. The authoritative refusal is still
+  // the one in storeTransactionInMongoDB, which no funnel can skip.
+  assertTicketPresent()
 
-  const { safe, chain, safeAddress } = await initializeSafeClient(network, pk)
+  // This helper shares a name with the bash `sendOrPropose` but not its route:
+  // it does not go through propose-to-safe.ts, so the gate that funnel runs has
+  // to be called explicitly or a caller reaching for this one to install a facet
+  // would bypass it. Today's only caller proposes removals, which carry no
+  // installing entry and cost nothing here.
+  await assertFunnelDeployGate(
+    { network, calldatas: [calldata] },
+    createFunnelGateDeps()
+  )
+
+  const { useLedger, privateKey, ledgerOptions } = resolveSafeSigningOptions({
+    ...signing,
+    envPrivateKey: process.env.PRIVATE_KEY_PRODUCTION,
+    envPrivateKeyName: 'PRIVATE_KEY_PRODUCTION',
+  })
+
+  if (useLedger) consola.info('Using Ledger hardware wallet for signing')
+
+  const { safe, chain, safeAddress } = await initializeSafeClient(
+    network,
+    privateKey,
+    undefined,
+    useLedger,
+    ledgerOptions
+  )
+
   consola.info(`🔐 Proposing transaction to Safe ${safeAddress}`)
 
   const { client: mongoClient, pendingTransactions } =
@@ -112,49 +155,37 @@ export async function sendOrPropose({
     currentSafeNonce
   )
 
-  const safeTransaction = await safe.createTransaction({
-    transactions: [
-      {
+  try {
+    const { safeTxHash, stored } = await proposeSafeTx({
+      safe,
+      network,
+      chainId: chain.id,
+      safeAddress,
+      pendingTransactions,
+      payload: {
+        kind: 'call',
         to: diamondAddress as Address,
-        value: 0n,
         data: calldata,
-        operation: OperationTypeEnum.Call,
         nonce: nextNonce,
       },
-    ],
-  })
+    })
 
-  const signedTx = await safe.signTransaction(safeTransaction)
-  const safeTxHash = await safe.getTransactionHash(signedTx)
+    consola.info('📝 Safe Address:', safeAddress)
+    consola.info('🧾 Safe Tx Hash:', safeTxHash)
 
-  consola.info('📝 Safe Address:', safeAddress)
-  consola.info('🧾 Safe Tx Hash:', safeTxHash)
-
-  try {
-    const result = await storeTransactionInMongoDB(
-      pendingTransactions,
-      safeAddress,
-      network,
-      chain.id,
-      signedTx,
-      safeTxHash,
-      safe.account.address
-    )
-
-    if (result === null) {
+    if (!stored) {
       consola.info('ℹ️ Proposal already exists - no new proposal created')
       await mongoClient.close()
       return
     }
 
-    if (!result.acknowledged)
-      throw new Error('MongoDB insert was not acknowledged')
-
     consola.success('✅ Safe transaction proposed and stored in MongoDB')
   } catch (err: any) {
-    consola.error('❌ Failed to store transaction in MongoDB:', err)
+    consola.error('❌ Failed to propose the transaction to the Safe:', err)
     await mongoClient.close()
-    throw new Error(`Failed to store transaction in MongoDB: ${err.message}`)
+    throw new Error(
+      `Failed to propose the transaction to the Safe: ${err.message}`
+    )
   }
 
   await mongoClient.close()

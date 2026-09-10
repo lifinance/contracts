@@ -22,11 +22,15 @@ const REDACTED_URL_MARKER = '[redacted-url]'
  * text intact. Length and whitespace are left alone so callers that do their own capping
  * (e.g. a grouped digest) do not lose text to a cap they did not choose.
  *
+ * @remarks The scheme is deliberately not \b-anchored: a scheme glued to a word character
+ *   (`log_https://…`) has no word boundary before it, so an anchored pattern matches nothing
+ *   and leaks the endpoint it exists to hide.
+ *
  * @param message - Raw text that may embed an endpoint.
  * @returns The same text with `scheme://…` tokens replaced.
  */
 export function redactUrls(message: string): string {
-  return message.replace(/\b[a-z][a-z0-9+.-]*:\/\/\S+/gi, REDACTED_URL_MARKER)
+  return message.replace(/[a-z][a-z0-9+.-]*:\/\/\S+/gi, REDACTED_URL_MARKER)
 }
 
 /**
