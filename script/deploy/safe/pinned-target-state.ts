@@ -37,6 +37,26 @@ export const TARGET_STATE_REPO_PATH = 'script/deploy/_targetState.json'
 /** The ref the expected state is read at. */
 export const PINNED_REF = 'origin/main'
 
+/** The repository the anchor must come from. */
+export const EXPECTED_REMOTE_REPO = 'github.com/lifinance/contracts'
+
+/**
+ * The refspec the anchor is fetched with.
+ *
+ * Explicit, because git updates `refs/remotes/origin/main` only opportunistically:
+ * where the clone's own fetch refspec does not cover main, `git fetch origin main`
+ * leaves an existing `origin/main` untouched and the anchor is read stale with no
+ * error.
+ */
+export const PINNED_FETCH_REFSPEC = '+refs/heads/main:refs/remotes/origin/main'
+
+// `origin` is whatever the clone happens to point at, so the ref alone does not
+// establish where the anchor came from: a fork remote would let a proposer author
+// the expected state. Both SSH and HTTPS spellings of the canonical repo pass,
+// nothing else does.
+const EXPECTED_REMOTE_URL =
+  /^(?:(?:https?:\/\/|ssh:\/\/)(?:[^@/]+@)?github\.com\/|(?:[^@/]+@)?github\.com:)lifinance\/contracts(?:\.git)?\/?$/i
+
 const TARGET_STATE_ENVIRONMENT = 'production'
 const TARGET_STATE_DIAMOND = 'LiFiDiamond'
 
@@ -48,7 +68,14 @@ export type PinnedTargetState = Record<
 
 export type PinnedTargetStateRead =
   | { ok: true; state: PinnedTargetState }
-  | { ok: false; reason: 'fetch-failed' | 'blob-unreadable' | 'invalid-shape' }
+  | {
+      ok: false
+      reason:
+        | 'fetch-failed'
+        | 'remote-unexpected'
+        | 'blob-unreadable'
+        | 'invalid-shape'
+    }
 
 /** `LibDiamond.FacetCutAction`. */
 const CUT_ACTION_ADD = 0
@@ -186,6 +213,8 @@ const describeUnavailable = (
 ): string => {
   if (reason === 'fetch-failed')
     return `could not refresh ${PINNED_REF} — the expected version can only come from the remote, and a stale local copy is not an anchor. Restore network access to the git remote and re-run.`
+  if (reason === 'remote-unexpected')
+    return `this clone's \`origin\` is not ${EXPECTED_REMOTE_REPO} — the anchor would be read from a repository the proposer could control. Re-run from a clone whose origin is ${EXPECTED_REMOTE_REPO}.`
   if (reason === 'blob-unreadable')
     return `could not read ${PINNED_REF}:${TARGET_STATE_REPO_PATH} — the ref or the file is missing from this clone.`
   return `${PINNED_REF}:${TARGET_STATE_REPO_PATH} did not parse as a target-state object.`
@@ -307,6 +336,11 @@ export const evaluateTargetStateIntent = (
       deployed.kind === 'resolved' ? deployed.contractName : null
     const proposedVersion =
       deployed.kind === 'resolved' ? deployed.version : null
+    const identifiedElsewhere =
+      deployed.kind === 'resolved' && deployed.recordedOn === 'other-networks'
+    const provenance = identifiedElsewhere
+      ? ` No deployment record for this address on ${network} — identified from the same address on other networks, whose rows agree.`
+      : ''
 
     // An address with no record is not the same question as a contract with no
     // entry on `main`. Without a name there is nothing to look the anchor up
@@ -335,7 +369,7 @@ export const evaluateTargetStateIntent = (
           ? countNetworksDeclaring(read.state, contractName, proposedVersion)
           : null,
         status: 'not-previously-targeted',
-        detail: `${contractName} is not previously targeted on ${network} in ${PINNED_REF} — expected for a first deployment, since the target-state update merges only after execution. Intent rests on the linked ticket and PR.`,
+        detail: `${contractName} is not previously targeted on ${network} in ${PINNED_REF} — expected for a first deployment, since the target-state update merges only after execution. Intent rests on the linked ticket and PR.${provenance}`,
       })
       continue
     }
@@ -348,7 +382,7 @@ export const evaluateTargetStateIntent = (
         mainVersion,
         crossFleetCount: null,
         status: 'proposed-version-unresolved',
-        detail: `${PINNED_REF} declares ${contractName} at v${mainVersion} on ${network}, but its deployment record carries no version, so a downgrade cannot be ruled out.`,
+        detail: `${PINNED_REF} declares ${contractName} at v${mainVersion} on ${network}, but its deployment record carries no version, so a downgrade cannot be ruled out. Remedy: backfill the version on that MongoDB deployment record (the blank is in the record, not in the cut) and re-run — the core facets installed at diamond creation are the known population of blanks.${provenance}`,
       })
       continue
     }
@@ -366,25 +400,25 @@ export const evaluateTargetStateIntent = (
       findings.push({
         ...shared,
         status: 'version-not-comparable',
-        detail: `v${proposedVersion} and the declared v${mainVersion} are not both major.minor.patch, so which is newer cannot be established.`,
+        detail: `v${proposedVersion} and the declared v${mainVersion} are not both major.minor.patch, so which is newer cannot be established.${provenance}`,
       })
     else if (order < 0)
       findings.push({
         ...shared,
         status: 'downgrade',
-        detail: `v${proposedVersion} is OLDER than the v${mainVersion} ${PINNED_REF} declares on ${network} — this cut would move the diamond backwards.`,
+        detail: `v${proposedVersion} is OLDER than the v${mainVersion} ${PINNED_REF} declares on ${network} — this cut would move the diamond backwards.${provenance}`,
       })
     else if (order === 0)
       findings.push({
         ...shared,
         status: 'matches-main',
-        detail: `v${proposedVersion} matches the version ${PINNED_REF} declares on ${network}.`,
+        detail: `v${proposedVersion} matches the version ${PINNED_REF} declares on ${network}.${provenance}`,
       })
     else
       findings.push({
         ...shared,
         status: 'ahead-of-main',
-        detail: `v${proposedVersion} is newer than the v${mainVersion} ${PINNED_REF} declares on ${network}.`,
+        detail: `v${proposedVersion} is newer than the v${mainVersion} ${PINNED_REF} declares on ${network}.${provenance}`,
       })
   }
 
@@ -396,13 +430,19 @@ export const evaluateTargetStateIntent = (
 
 /** Injectable git reads, so tests never touch a real remote. */
 export interface IPinnedStateGit {
+  remoteUrl: () => string
   fetch: () => void
   show: (revSpec: string) => string
 }
 
 const defaultGit = (repoRoot: string): IPinnedStateGit => ({
+  remoteUrl: () =>
+    execFileSync('git', ['remote', 'get-url', 'origin'], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+    }),
   fetch: () => {
-    execFileSync('git', ['fetch', '--quiet', 'origin', 'main'], {
+    execFileSync('git', ['fetch', '--quiet', 'origin', PINNED_FETCH_REFSPEC], {
       cwd: repoRoot,
       stdio: 'ignore',
       timeout: 60_000, // 60 seconds — a hung remote must not hold up a review
@@ -435,6 +475,18 @@ export const createPinnedTargetStateReader = (options?: {
 
   return () => {
     if (memo) return memo
+
+    let remote: string
+    try {
+      remote = git.remoteUrl()
+    } catch {
+      memo = { ok: false, reason: 'remote-unexpected' }
+      return memo
+    }
+    if (!EXPECTED_REMOTE_URL.test(remote.trim())) {
+      memo = { ok: false, reason: 'remote-unexpected' }
+      return memo
+    }
 
     try {
       git.fetch()

@@ -32,8 +32,10 @@ import {
   createTargetStateDeps,
   evaluateTargetStateIntent,
   formatTargetStateLines,
+  PINNED_FETCH_REFSPEC,
   readDeclaredVersion,
   TARGET_STATE_REPO_PATH,
+  type IPinnedStateGit,
   type ITargetStateDeps,
   type PinnedTargetState,
   type PinnedTargetStateRead,
@@ -88,7 +90,11 @@ const deps = (options: {
   resolveDeployed: () =>
     options.lookup ??
     (options.deployed
-      ? { kind: 'resolved', ...options.deployed }
+      ? {
+          kind: 'resolved',
+          recordedOn: 'network' as const,
+          ...options.deployed,
+        }
       : { kind: 'unrecorded' }),
 })
 
@@ -241,6 +247,26 @@ describe('evaluateTargetStateIntent — first-time add', () => {
     expect(verdict.findings[0]?.detail).toContain('2.1.1 / 2.1.2')
   })
 
+  it('names the network gap when the identity came from the same address elsewhere', () => {
+    const verdict = evaluateTargetStateIntent(
+      [cut([{ facetAddress: FACET, action: 0 }])],
+      'robinhood',
+      deps({
+        lookup: {
+          kind: 'resolved',
+          contractName: 'AcrossFacetV3',
+          version: '1.1.0',
+          recordedOn: 'other-networks',
+        },
+      })
+    )
+    expect(verdict.cleared).toBe(true)
+    expect(verdict.findings[0]?.status).toBe('not-previously-targeted')
+    expect(verdict.findings[0]?.detail).toContain(
+      'No deployment record for this address on robinhood'
+    )
+  })
+
   it('refuses an install whose address no deployment record names', () => {
     const verdict = evaluateTargetStateIntent(
       [cut([{ facetAddress: FACET, action: 0 }])],
@@ -326,11 +352,21 @@ describe('evaluateTargetStateIntent — the anchor itself', () => {
     const versions = new Map<string, DeployedContractLookup>([
       [
         FACET.toLowerCase(),
-        { kind: 'resolved', contractName: 'AcrossFacetV3', version: '1.1.0' },
+        {
+          kind: 'resolved',
+          contractName: 'AcrossFacetV3',
+          version: '1.1.0',
+          recordedOn: 'network',
+        },
       ],
       [
         OTHER_FACET.toLowerCase(),
-        { kind: 'resolved', contractName: 'NewFacet', version: '2.0.0' },
+        {
+          kind: 'resolved',
+          contractName: 'NewFacet',
+          version: '2.0.0',
+          recordedOn: 'network',
+        },
       ],
     ])
     const verdict = evaluateTargetStateIntent(
@@ -403,6 +439,17 @@ describe('createPinnedTargetStateReader', () => {
   const targetStateAt = (dir: string): string =>
     path.join(dir, TARGET_STATE_REPO_PATH)
 
+  // The clone's real origin is a temp path, so the remote read is the one seam
+  // the assertion cannot check against a fixture; git itself does the rest.
+  const CANONICAL_REMOTE = 'git@github.com:lifinance/contracts.git'
+  const realGit = (cwd: string): IPinnedStateGit => ({
+    remoteUrl: () => CANONICAL_REMOTE,
+    fetch: () => {
+      git(cwd, ['fetch', '--quiet', 'origin', PINNED_FETCH_REFSPEC])
+    },
+    show: (revSpec) => git(cwd, ['show', revSpec]),
+  })
+
   beforeAll(() => {
     const base = fs.mkdtempSync(path.join(os.tmpdir(), 'pinned-target-state-'))
     origin = path.join(base, 'origin.git')
@@ -431,7 +478,10 @@ describe('createPinnedTargetStateReader', () => {
   })
 
   it('reads the anchor from origin/main, not from the checked-out branch', () => {
-    const onMain = createPinnedTargetStateReader({ repoRoot: clone })()
+    const onMain = createPinnedTargetStateReader({
+      repoRoot: clone,
+      git: realGit(clone),
+    })()
     expect(onMain.ok).toBe(true)
 
     // The proposer's own branch, committed and checked out — the shape that used
@@ -446,7 +496,10 @@ describe('createPinnedTargetStateReader', () => {
     git(clone, ['add', '-A'])
     git(clone, ['commit', '-m', 'proposer edits the anchor'])
 
-    const onBranch = createPinnedTargetStateReader({ repoRoot: clone })()
+    const onBranch = createPinnedTargetStateReader({
+      repoRoot: clone,
+      git: realGit(clone),
+    })()
     expect(onBranch.ok).toBe(true)
     if (!onBranch.ok || !onMain.ok) throw new Error('expected a readable state')
 
@@ -465,6 +518,7 @@ describe('createPinnedTargetStateReader', () => {
     const reader = createPinnedTargetStateReader({
       repoRoot: clone,
       git: {
+        remoteUrl: () => CANONICAL_REMOTE,
         fetch: () => undefined,
         show: (revSpec) => {
           shows++
@@ -481,6 +535,7 @@ describe('createPinnedTargetStateReader', () => {
     const read = createPinnedTargetStateReader({
       repoRoot: clone,
       git: {
+        remoteUrl: () => CANONICAL_REMOTE,
         fetch: () => {
           throw new Error('no route to host')
         },
@@ -497,6 +552,7 @@ describe('createPinnedTargetStateReader', () => {
     const reader = createPinnedTargetStateReader({
       repoRoot: clone,
       git: {
+        remoteUrl: () => CANONICAL_REMOTE,
         fetch: () => {
           fetches++
           if (fetches === 1) throw new Error('no route to host')
@@ -513,6 +569,7 @@ describe('createPinnedTargetStateReader', () => {
     const read = createPinnedTargetStateReader({
       repoRoot: clone,
       git: {
+        remoteUrl: () => CANONICAL_REMOTE,
         fetch: () => undefined,
         show: () => {
           throw new Error('does not exist in origin/main')
@@ -522,12 +579,92 @@ describe('createPinnedTargetStateReader', () => {
     expect(read).toEqual({ ok: false, reason: 'blob-unreadable' })
   })
 
+  it('refuses an anchor read through a remote that is not the canonical repo', () => {
+    for (const url of [
+      'git@github.com:0xDEnYO/contracts.git',
+      'https://github.com/lifinance/contracts-tron.git',
+      path.join(origin),
+    ])
+      expect(
+        createPinnedTargetStateReader({
+          repoRoot: clone,
+          git: {
+            remoteUrl: () => url,
+            fetch: () => {
+              throw new Error('must not be reached')
+            },
+            show: () => {
+              throw new Error('must not be reached')
+            },
+          },
+        })()
+      ).toEqual({ ok: false, reason: 'remote-unexpected' })
+  })
+
+  it('accepts every spelling of the canonical remote', () => {
+    for (const url of [
+      'git@github.com:lifinance/contracts.git',
+      'https://github.com/lifinance/contracts.git',
+      'https://github.com/lifinance/contracts\n',
+      'ssh://git@github.com/lifinance/contracts.git',
+    ])
+      expect(
+        createPinnedTargetStateReader({
+          repoRoot: clone,
+          git: { ...realGit(clone), remoteUrl: () => url },
+        })().ok
+      ).toBe(true)
+  })
+
+  // Falsifies the refspec rather than asserting the argv: in a clone with no
+  // fetch refspec of its own, `git fetch origin main` leaves origin/main where
+  // it was, so the anchor would be read stale with no error.
+  it('updates origin/main even where the clone has no fetch refspec', () => {
+    const bare = fs.mkdtempSync(path.join(os.tmpdir(), 'pinned-refspec-'))
+    try {
+      const stale = path.join(bare, 'stale')
+      execFileSync('git', ['clone', origin, stale])
+      git(stale, ['config', '--unset', 'remote.origin.fetch'])
+      const before = git(stale, ['rev-parse', 'origin/main']).trim()
+
+      git(clone, ['checkout', 'main'])
+      fs.writeFileSync(
+        targetStateAt(clone),
+        JSON.stringify({
+          optimism: { production: { LiFiDiamond: { AcrossFacetV3: '1.3.0' } } },
+        })
+      )
+      git(clone, ['add', '-A'])
+      git(clone, ['commit', '-m', 'move main on'])
+      git(clone, ['push', 'origin', 'main'])
+
+      git(stale, ['fetch', '--quiet', 'origin', 'main'])
+      expect(git(stale, ['rev-parse', 'origin/main']).trim()).toBe(before)
+
+      const read = createPinnedTargetStateReader({
+        repoRoot: stale,
+        git: realGit(stale),
+      })()
+      expect(read.ok).toBe(true)
+      if (!read.ok) throw new Error('expected a readable state')
+      expect(readDeclaredVersion(read.state, 'optimism', 'AcrossFacetV3')).toBe(
+        '1.3.0'
+      )
+    } finally {
+      fs.rmSync(bare, { recursive: true, force: true })
+    }
+  })
+
   it('reports content that is not a target-state object', () => {
     for (const raw of ['not json', 'null', '[]'])
       expect(
         createPinnedTargetStateReader({
           repoRoot: clone,
-          git: { fetch: () => undefined, show: () => raw },
+          git: {
+            remoteUrl: () => CANONICAL_REMOTE,
+            fetch: () => undefined,
+            show: () => raw,
+          },
         })()
       ).toEqual({ ok: false, reason: 'invalid-shape' })
   })
@@ -575,6 +712,7 @@ describe('createTargetStateDeps', () => {
       kind: 'resolved',
       contractName: 'TronFacet',
       version: '1.4.0',
+      recordedOn: 'network',
     })
   })
 
@@ -597,6 +735,7 @@ describe('createTargetStateDeps', () => {
       kind: 'resolved',
       contractName: 'AcrossFacetV3',
       version: '1.4.0',
+      recordedOn: 'network',
     })
   })
 })
