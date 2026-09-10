@@ -10,6 +10,8 @@ import { join } from 'node:path'
 
 import { consola } from 'consola'
 
+import { githubCommitPresence, resolveCommitPresence } from './commit-presence'
+import { readRepoIdentity } from './repo-identity'
 import {
   assertTreeRecordable,
   submodulePathsInIndex,
@@ -22,11 +24,19 @@ import {
 // status instead of listing the paths.
 const MAX_BUFFER_BYTES = 8 * 1024 * 1024
 
+/**
+ * A hung git must never stall the deploy this gates. Every call site's fallback
+ * leads to a refusal or to the presence query, so a timeout costs a deploy
+ * attempt and never buys one.
+ */
+const GIT_TIMEOUT_MS = 5_000
+
 const git = <T>(args: string[], fallback: T): string | T => {
   try {
     return execFileSync('git', args, {
       encoding: 'utf8',
       maxBuffer: MAX_BUFFER_BYTES,
+      timeout: GIT_TIMEOUT_MS,
     })
   } catch {
     return fallback
@@ -86,46 +96,63 @@ const readAbsentSubmodulePaths = (): string[] | undefined => {
   )
 }
 
-const readTreeState = (): ITreeState => ({
-  // `--untracked-files=all` overrides a local status.showUntrackedFiles=no,
-  // which would otherwise hide a new source file. `--ignore-submodules=untracked`
-  // drops the one state porcelain cannot distinguish from a real change: a
-  // submodule holding only untracked content (a .DS_Store, a stray forge cache)
-  // reports the same ` M lib/x` as one left at a different commit, and no
-  // remedy the refusal could name would clear it.
-  statusZ: git(
-    [
-      'status',
-      '--porcelain=v1',
-      '-z',
-      '--no-renames',
-      '--untracked-files=all',
-      '--ignore-submodules=untracked',
-    ],
-    undefined
-  ),
-  head: git(['rev-parse', 'HEAD'], 'UNKNOWN').trim(),
-  // Deliberately not preceded by a fetch: a guard on the deploy path should not
-  // depend on the network, and a local `git push` updates this ref itself.
-  remoteRefsContainingHead: git(
-    ['branch', '-r', '--contains', 'HEAD', '--list', 'origin/*'],
-    ''
-  ),
-  absentSubmodulePaths: readAbsentSubmodulePaths(),
-  isShallow:
-    git(['rev-parse', '--is-shallow-repository'], 'true').trim() === 'true',
-})
+const readTreeState = (): ITreeState => {
+  const head = git(['rev-parse', 'HEAD'], 'UNKNOWN').trim()
+  return {
+    // `--untracked-files=all` overrides a local status.showUntrackedFiles=no,
+    // which would otherwise hide a new source file. `--ignore-submodules=untracked`
+    // drops the one state porcelain cannot distinguish from a real change: a
+    // submodule holding only untracked content (a .DS_Store, a stray forge cache)
+    // reports the same ` M lib/x` as one left at a different commit, and no
+    // remedy the refusal could name would clear it.
+    statusZ: git(
+      [
+        'status',
+        '--porcelain=v1',
+        '-z',
+        '--no-renames',
+        '--untracked-files=all',
+        '--ignore-submodules=untracked',
+      ],
+      undefined
+    ),
+    head,
+    commitPresence: resolveCommitPresence(
+      {
+        commit: head,
+        repo: readRepoIdentity(),
+        // Restricted to `origin` because a commit pushed only to a fork, or to
+        // the `tron` remote, is not held by the repository the record names.
+        localRemoteRefsContainingCommit: git(
+          ['branch', '-r', '--contains', head, '--list', 'origin/*'],
+          ''
+        ),
+        isShallow:
+          git(['rev-parse', '--is-shallow-repository'], 'true').trim() ===
+          'true',
+      },
+      githubCommitPresence
+    ),
+    absentSubmodulePaths: readAbsentSubmodulePaths(),
+  }
+}
 
 const main = (): void => {
+  const state = readTreeState()
+
   try {
-    assertTreeRecordable(readTreeState())
+    assertTreeRecordable(state)
   } catch (error) {
     consola.error(error instanceof Error ? error.message : String(error))
     process.exit(1)
   }
 
+  // The verdict's own reason, rather than a fixed sentence: presence is
+  // established either by a ref this clone fetched or by asking the declared
+  // repository, and only the former is available when the remote cannot be
+  // identified at all.
   consola.success(
-    'Working tree matches a pushed commit — this deployment can be verified later.'
+    `Working tree matches a recordable commit — ${state.commitPresence.reason}. This deployment can be verified later.`
   )
 }
 
