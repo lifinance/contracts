@@ -4215,16 +4215,24 @@ function assertDirectBroadcastCalldataGate() {
     return 0
   fi
 
-  local GATE_OUT
-  if ! GATE_OUT=$(bunx tsx ./script/deploy/shared/assert-direct-broadcast-gate.ts --network "$NETWORK" --calldata "$CALLDATA" 2>&1); then
-    printf '%s\n' "$GATE_OUT"
+  # Only stdout is captured, and only the token's own line counts as consent:
+  # CALLDATA and NETWORK come from the caller, so a diagnostic that quotes either
+  # of them back must not be able to spell the token. Diagnostics keep streaming
+  # on stderr.
+  local GATE_STDOUT
+  if ! GATE_STDOUT=$(bunx tsx ./script/deploy/shared/assert-direct-broadcast-gate.ts --network "$NETWORK" --calldata "$CALLDATA"); then
+    if [[ -n "$GATE_STDOUT" ]]; then
+      printf '%s\n' "$GATE_STDOUT"
+    fi
     error "Direct-broadcast deploy gate failed for $NETWORK - aborting before anything is broadcast"
     return 1
   fi
-  printf '%s\n' "$GATE_OUT"
+  if [[ -n "$GATE_STDOUT" ]]; then
+    printf '%s\n' "$GATE_STDOUT"
+  fi
 
   # Exit 0 is not consent: a CLI that never ran also exits 0 and prints nothing.
-  if [[ "$GATE_OUT" != *DIRECT_BROADCAST_GATE_ALLOWED* ]]; then
+  if ! printf '%s\n' "$GATE_STDOUT" | grep -Fxq "DIRECT_BROADCAST_GATE_ALLOWED"; then
     error "Direct-broadcast deploy gate produced no allow token - aborting before anything is broadcast"
     return 1
   fi

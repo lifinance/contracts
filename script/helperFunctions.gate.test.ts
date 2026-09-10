@@ -184,6 +184,41 @@ describe('assertDirectBroadcastCalldataGate', () => {
     expect(out).toContain('no allow token')
     expect(out).toContain('rc=1')
   })
+
+  it('refuses a token that only appears inside another line', () => {
+    // CALLDATA is the caller's, so a CLI that never gated and merely echoed its
+    // arguments would satisfy a substring match on the captured output.
+    const out = runHarness(`
+      ${LOAD_HELPERS}
+      isTestnetNetwork() { [[ "$1" == "${TESTNET}" ]]; }
+      error() { echo "[error] $*"; }
+      bunx() { echo "refused: $*"; return 0; }
+      assertDirectBroadcastCalldataGate "${MAINNET}" "production" "0x${DIRECT_BROADCAST_GATE_ALLOWED}"
+      echo "rc=$?"
+    `)
+
+    expect(out).toContain(DIRECT_BROADCAST_GATE_ALLOWED)
+    expect(out).toContain('no allow token')
+    expect(out).toContain('rc=1')
+  })
+
+  it('refuses a token written to stderr rather than stdout', () => {
+    // `runHarness` inherits stderr, so the token below never reaches the capture
+    // at all — which is the point: the gate used to merge the two streams and
+    // would have read this as consent.
+    const out = runHarness(`
+      ${LOAD_HELPERS}
+      isTestnetNetwork() { [[ "$1" == "${TESTNET}" ]]; }
+      error() { echo "[error] $*"; }
+      bunx() { echo "GATE_RAN"; echo "${DIRECT_BROADCAST_GATE_ALLOWED}" >&2; return 0; }
+      assertDirectBroadcastCalldataGate "${MAINNET}" "production" "0xdeadbeef"
+      echo "rc=$?"
+    `)
+
+    expect(out).toContain('GATE_RAN')
+    expect(out).toContain('no allow token')
+    expect(out).toContain('rc=1')
+  })
 })
 
 /** Printed only by the branch that broadcasts instead of proposing. */
