@@ -42,16 +42,14 @@
  * unexplained count off 0. G2's honest contribution is its rate and its class
  * split.
  *
- * The other gates are pinned too, each for its own reason: G1's catch assigns
- * every refusal the single class AFR-3, and G4 is offered only a Replace cut
- * with a zero init against a fleet holding no zero-address facet, so none of
- * its three refusal branches is reachable. G3 can refuse, but its own note
- * says such a refusal measures the executing checkout rather than the gate.
- * G5 is therefore the only gate whose unexplained count is a live measurement
- * — and its one reachable refusal is currently held out of the denominator by
- * the GenericSwapFacet exclusion. The table's Unexplained column does not
- * distinguish "nothing was refused" from "nothing could be", so read each
- * gate's coverage note before reading its zero.
+ * G2 is not the only gate whose zero is structural, and this header
+ * deliberately does not enumerate the others. Three attempts at that list
+ * shipped a wrong one, because the list is a property of the corpus and the
+ * gate wiring on the day it is read, and a sentence here cannot be re-derived
+ * when either changes. Each gate states its own case in its own coverage note,
+ * next to the number the caveat qualifies, and the report prints every one of
+ * them. Read those before reading any zero: the Unexplained column does not
+ * distinguish "nothing was refused" from "nothing could be".
  */
 
 import { execFileSync } from 'node:child_process'
@@ -337,9 +335,10 @@ export const gradeAttestedSet = (deps: ICorpusDeps): IGateBudget => {
  * The injected git runner reads locally and refuses to fetch, so the run stays
  * offline — which also disables the fetch-by-SHA recovery
  * `ensureCommitAvailable` exists to perform. A refusal here therefore says the
- * executing checkout lacks the object, not that the merged gate would refuse:
- * a single-branch or shallow clone routinely lacks squash-merged commits
- * entirely. The coverage note derives that caveat from what the run observed.
+ * executing checkout lacks the object, not that the merged gate would refuse.
+ * Every corpus commit is an ancestor of main, so depth is what decides this:
+ * a full clone holds all of them and a depth-limited one holds none. The
+ * coverage note derives that caveat from what the run observed.
  * @param deps - the corpus
  */
 export const gradeCommitAvailability = (deps: ICorpusDeps): IGateBudget => {
@@ -374,8 +373,10 @@ export const gradeCommitAvailability = (deps: ICorpusDeps): IGateBudget => {
     coverageNote: `${distinct} distinct commits, ${unreadable} of them unreadable in the checkout this run executed in. ${
       unreadable === 0
         ? 'The three-attempt fetch path is therefore measured on 0.'
-        : 'Those refusals measure this checkout, not the gate: the runner is offline and cannot fetch by SHA, which is the recovery the real gate performs. Re-run in a full clone before reading them as false reds.'
-    }`,
+        : 'Those refusals measure this checkout, not the gate: the runner is offline and cannot fetch by SHA, which is the recovery the real gate performs. Re-run at full depth before reading them as false reds.'
+    } This is the one unexplained count here that a corpus can move on its own, and what moves it is the clone: every corpus commit is an ancestor of main, so a depth-limited checkout — the actions/checkout default — holds none of them and drives this gate to ${
+      deps.slots.length
+    } unexplained refusals that say nothing about any gate.`,
     observations,
   })
 }
@@ -468,8 +469,9 @@ export const gradeCutClassification = (deps: ICorpusDeps): IGateBudget => {
  * G5 — can the funnel deploy gate attribute a live facet to a source file?
  *
  * Drives the real {@link assertFunnelDeployGate} through its own dependency
- * seam. `facetSourceExists` is the production function and `deployedNames`
- * calls the production inverter over an injected log read; `isTestnet` and
+ * seam. `deployedNames` calls the production inverter over an injected log
+ * read; `facetSourceExists` is a copy of the production lambda, which is not
+ * exported and so cannot be shared the way the inverter is; `isTestnet` and
  * `currentBranch` are pinned to false and 'main' because every corpus row is a
  * mainnet slot; `runGate` — the GitHub main-equivalence call — is stubbed to
  * no failures so the run makes no network requests. The coverage note carries
@@ -497,13 +499,14 @@ export const gradeFunnelDeployGate = async (
     runGate: async () => [],
   }
 
-  for (const slot of slots)
+  for (const slot of slots) {
+    // Encoded outside the try on purpose. This is the harness building its own
+    // input, not the gate judging one, so a failure here has to be loud rather
+    // than land in the budget wearing the gate's name.
+    const calldatas = [replaceCutCalldata(slot.address)]
     try {
       await assertFunnelDeployGate(
-        {
-          network: slot.network,
-          calldatas: [replaceCutCalldata(slot.address)],
-        },
+        { network: slot.network, calldatas },
         gateDeps
       )
       observations.push({
@@ -518,12 +521,13 @@ export const gradeFunnelDeployGate = async (
         reason: error instanceof Error ? error.message : String(error),
       })
     }
+  }
 
   return summariseGate({
     gate: 'G5-funnel-deploy-gate',
     corpus: 'live registered facets, as a Replace cut',
     denominator: slots.length,
-    coverageNote: `The GitHub main-equivalence call (\`runGate\`) is stubbed to no failures, and \`isTestnet\`/\`currentBranch\` are pinned, so what is measured is address attribution, not approval state. The calldata is encoded by this module and decoded by the gate, so the undecodable branch — the one that guards proposer-written calldata — is measured on 0. The rate of 0 also depends on the GenericSwapFacet exclusion below: that row is the only refusal the 452 registered facets produce, so without it this gate reports 1 refusal and is not promotable. ${exclusionNote(
+    coverageNote: `The GitHub main-equivalence call (\`runGate\`) is stubbed to no failures, and \`isTestnet\`/\`currentBranch\` are pinned, so what is measured is address attribution, not approval state. The calldata is encoded by this module and decoded by the gate, so the undecodable branch — the one that guards proposer-written calldata — is measured on 0. The rate of 0 rests on both exclusions below, differently. Re-admit GenericSwapFacet and this gate reports 1 refusal over 452 rows and is not promotable — that row is the only gate refusal the fleet produces. Re-admit tron and the run aborts instead: the harness cannot encode a base58 address into a cut, which is a limit of this runner and never a verdict about the gate. ${exclusionNote(
       deps
     )}`,
     observations,
@@ -537,8 +541,9 @@ export const gradeFunnelDeployGate = async (
  * @throws If the attestation corpus is absent, carries no non-empty
  * `attestations` array, or `config/networks.json` is missing — each of which
  * would otherwise be reported as a measurement rather than as a corpus that
- * graded nothing. Also if `foundry.toml` is unreadable, or any of the three
- * files holds malformed JSON, both of which surface as the raw read error.
+ * graded nothing. Also if `foundry.toml` is unreadable, which surfaces as the
+ * raw read error, or if either JSON file is malformed, which surfaces as the
+ * parse error.
  */
 export const loadRepoCorpus = (repoRoot: string): ICorpusDeps => {
   // Memoised because the gates ask per slot rather than per network: without it

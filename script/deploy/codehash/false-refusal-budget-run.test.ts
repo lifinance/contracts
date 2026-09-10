@@ -457,6 +457,45 @@ describe('falsification demo — the runner can report a defect', () => {
     expect(evaluatePromotion(budget).mayEnforce).toBe(true)
   })
 
+  // The budget counts gate verdicts. An address this runner cannot encode is
+  // the runner failing to build an input, so it has to abort rather than
+  // arrive as a refusal wearing the gate's name — that is how a tron row would
+  // otherwise spend the unexplained budget on a viem error.
+  it('aborts rather than charging the gate for calldata it could not encode', async () => {
+    const base58 = slot({
+      network: 'somechain',
+      address: 'TViNVAJsVwfsL96yS8RqYMzg6uB9JmAYWn',
+    })
+    const logs = (s: ICorpusSlot): Partial<ICorpusDeps> => ({
+      slots: [s],
+      readLog: (path) =>
+        path.endsWith('.diamond.json')
+          ? { LiFiDiamond: { Facets: { [s.address]: { Name: 'SomeFacet' } } } }
+          : { SomeFacet: s.address },
+    })
+
+    // Bun's `.rejects` is not a real Promise; see 402-typescript-tests
+    // [CONV:TEST-ASSERT-REJECTS].
+    let thrown: unknown
+    try {
+      await gradeFunnelDeployGate(corpus(logs(base58)))
+    } catch (error) {
+      thrown = error
+    }
+    expect(thrown instanceof Error ? thrown.message : thrown).toMatch(
+      /is invalid/
+    )
+
+    // The paired present: an address it can encode is graded, not thrown.
+    const encodable = await gradeFunnelDeployGate(
+      corpus(logs(slot({ network: 'somechain' })))
+    )
+    expect({
+      denominator: encodable.denominator,
+      refusals: encodable.refusals,
+    }).toEqual({ denominator: 1, refusals: 0 })
+  })
+
   // Plant 4: the one that matters most, driven end to end through the real
   // funnel gate. A refusal no named class covers has to reach the budget as
   // unexplained; if it were swept into the nearest named class the count would
