@@ -90,6 +90,14 @@ describe('gradeMatchProvenance', () => {
       expect(verdict.presentableAsAttested).toBe(false)
     }
   })
+
+  it('does not let a malformed attestation elsewhere in the set refuse a good match', () => {
+    // The guard asks about the matched builds only. Widened to the whole set, a
+    // corrupt record nobody matched would block a legitimate CI attestation.
+    const verdict = gradeMatchProvenance([ci(HASH_A)], [ci(HASH_A), ci('0x')])
+
+    expect(verdict.grade).toBe('ci-attested')
+  })
 })
 
 describe('the grading agrees with the comparison it grades', () => {
@@ -127,12 +135,47 @@ describe('the grading agrees with the comparison it grades', () => {
     expect(comparison.verdict).toBe('MATCH')
     expect(comparison.matchedLineages).toEqual(['local (zksync)'])
 
-    const matched = all.filter((candidate) =>
-      comparison.matchedLineages.includes(candidate.lineage)
-    )
-    const verdict = gradeMatchProvenance(matched, all)
+    expect(comparison.matched).toEqual([localBuild])
+
+    const verdict = gradeMatchProvenance(comparison.matched, all)
 
     expect(verdict.presentableAsAttested).toBe(false)
     expect(verdict.grade).toBe('ci-disagrees')
+  })
+
+  it('holds when the two builds share a lineage', () => {
+    // `describeLineage` carries no provenance marker, so a CI mint and a local
+    // rebuild of one contract at one commit under one profile collide. Re-deriving
+    // the matched set from `matchedLineages` re-admits the rejected CI build and
+    // grades this ci-attested; taking `comparison.matched` cannot.
+    const shared =
+      'AcrossFacet@1.0.0 rebuilt at abc123def (zksync: zksolc 1.5.11, solc 0.8.28)'
+    const all = [
+      local(HASH_A, { lineage: shared, rawHash: LOCAL_RAW }),
+      ci(HASH_A, { lineage: shared, rawHash: CI_RAW }),
+    ]
+    const comparison = compareToAttestedSet(
+      {
+        maskedHash: HASH_A,
+        rawByteLength: 1440,
+        rawHash: LOCAL_RAW,
+        maskedByteCount: 0,
+      },
+      all,
+      { isClosedSet: true }
+    )
+
+    expect(comparison.verdict).toBe('MATCH')
+    expect(comparison.matched).toHaveLength(1)
+    expect(
+      all.filter((candidate) =>
+        comparison.matchedLineages.includes(candidate.lineage)
+      )
+    ).toHaveLength(2)
+
+    const verdict = gradeMatchProvenance(comparison.matched, all)
+
+    expect(verdict.grade).toBe('ci-disagrees')
+    expect(verdict.presentableAsAttested).toBe(false)
   })
 })

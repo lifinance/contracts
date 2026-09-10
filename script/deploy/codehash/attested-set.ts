@@ -74,6 +74,16 @@ export interface ICodehashComparison {
   verdict: CodehashVerdict
   /** Every attested lineage reaching this hash, in the order given. */
   matchedLineages: string[]
+  /**
+   * The builds this comparison matched, for a caller that must say something
+   * about them — `gradeMatchProvenance` and who built them.
+   *
+   * Handed over rather than left to be re-derived: `lineage` is a human label
+   * and two builds may share one, so filtering the set by `matchedLineages`
+   * re-admits builds this comparison rejected. Empty for every verdict but
+   * MATCH.
+   */
+  matched: IAttestedBuild[]
   /** One line a signer can act on. */
   reason: string
   /**
@@ -92,6 +102,7 @@ const blocked = (
 ): ICodehashComparison => ({
   verdict,
   matchedLineages: [],
+  matched: [],
   reason,
   excludedByteCount,
   blocksSigning: true,
@@ -162,6 +173,7 @@ export const compareToAttestedSet = (
     return {
       verdict: 'MATCH',
       matchedLineages,
+      matched: exact,
       reason:
         excludedByteCount === 0
           ? `code matches the attested build from ${matchedLineages.join(

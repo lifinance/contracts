@@ -13,12 +13,14 @@
  * about what the source compiles to. That is not a weaker pass; it is the one
  * outcome here that a signer must not see rendered as any kind of pass.
  *
- * This module is handed the builds the comparison matched and never re-derives
- * that set. A predicate weaker than the comparison's — masked hash alone, where
- * the comparison also requires the deployed length and, on a pinned
- * attestation, the exact bytes — would read provenance off builds the
- * comparison rejected, and `ci-disagrees` could then never fire: the CI
- * attestation that failed to match would be counted as one that matched.
+ * The matched builds are taken from `ICodehashComparison.matched` and never
+ * re-derived. Any predicate of this module's own would be weaker than the
+ * comparison's — masked hash alone, where the comparison also requires the
+ * deployed length and, on a pinned attestation, the exact bytes — and would
+ * read provenance off builds the comparison rejected, so `ci-disagrees` could
+ * never fire: the CI attestation that failed to match would be counted as one
+ * that matched. Re-deriving the set by `matchedLineages` has the same effect,
+ * because a lineage is a label two builds may share.
  */
 
 import type { IAttestedBuild } from './attested-set'
@@ -58,14 +60,13 @@ export interface IProvenanceVerdict {
 /**
  * Grades a codehash match by who built the attestation it matched.
  *
- * Never a substitute for the comparison itself. Pass the builds
- * `compareToAttestedSet` actually matched as `matched`; `all` is consulted only
- * to count CI attestations that did *not* match, which is invisible from the
- * matched subset alone.
+ * Never a substitute for the comparison itself. Pass `ICodehashComparison.matched`
+ * as `matched`; `all` is consulted only to count CI attestations that did *not*
+ * match, which is invisible from the matched subset alone.
  *
  * An empty `matched` grades `unattested` rather than throwing, so a caller that
  * has not run the comparison cannot obtain a pass from this module by accident.
- * @param matched - The builds the comparison found the deployed code equal to
+ * @param matched - `ICodehashComparison.matched`, the builds it matched
  * @param all - Every attestation for this contract, both provenances
  * @returns The grade, whether it may be shown as attested, and why
  */
