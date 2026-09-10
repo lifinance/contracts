@@ -38,13 +38,15 @@ export interface IAttestationKey {
   /**
    * {@link sourceClosureHash} over every source the build compiled.
    *
-   * In the key because a contract's own file and declared version do not move
-   * when something it inherits does: commit 4cfabbf22 bumped `SwapperV2` alone
-   * and changed the bytecode of the 31 facets that inherit it, all of which
-   * kept their own version.
+   * In the key because a contract's own file and its declared version do not
+   * move when something it inherits does, so neither identifies the bytecode a
+   * shared helper produced.
    */
   closureHash: string
-  /** {@link artifactSettingsHash} over the settings the build ran under. */
+  /**
+   * {@link artifactSettingsHash} or {@link configuredSettingsHash} over the
+   * settings, depending on which of the two reported them.
+   */
   settingsHash: string
   /** Whether those settings were self-reported or configured. */
   settingsSource: SettingsSource
@@ -155,6 +157,11 @@ export const artifactSettingsHash = (
  * zksolc writes no `metadata` object, so a zk build's settings come from repo
  * configuration. Callers must agree on the shape they pass — the tag records
  * that the settings were claimed, not that two claimants spelled them alike.
+ *
+ * The same absence leaves a zk build with no source for
+ * {@link IAttestationKey.closureHash}, which {@link sourceClosureHash} takes
+ * from `metadata.sources`. A zk producer has to obtain that closure some other
+ * way; there is no reader for it here.
  * @param settings - The configured settings, e.g. read from `foundry.toml`
  * @returns `0x`-prefixed keccak over the canonical settings, tagged `config`
  * @throws When no setting survives {@link NOT_SETTINGS}
@@ -221,9 +228,19 @@ const canonicalHash = (hash: string): string => `0x${normalizeHash(hash)}`
  * a field is missing is a key two different builds can share.
  * @param key - What identifies the build
  * @returns The canonical key string
- * @throws When either hash in the key is not a keccak digest
+ * @throws When a field is empty, or either hash is not a keccak digest
  */
 export const serialiseAttestationKey = (key: IAttestationKey): string => {
+  // Length-prefixing keeps an empty field collision-free, but a key naming no
+  // contract also strips every refusal in this module of the name it reports.
+  for (const [field, value] of [
+    ['contract name', key.contractName],
+    ['source id', key.sourceId],
+    ['version', key.version],
+    ['solc version', key.solcVersion],
+  ] as const)
+    if (value === '') throw new Error(`attestation key states no ${field}`)
+
   const fault =
     digestFault(key.closureHash, 'source closure hash') ??
     digestFault(key.settingsHash, 'settings hash')
@@ -267,8 +284,8 @@ export interface ISourceEntry {
  *
  * Independent of every compiler setting, so the same sources built under
  * different settings bridge to the same audit record — an audit is of source,
- * not of a build (E1). Paths are sorted so the hash does not depend on the
- * order solc emitted them.
+ * not of a build. Paths are sorted so the hash does not depend on the order
+ * solc emitted them.
  * @param sources - Every source in the closure, in any order
  * @returns `0x`-prefixed keccak over the canonical closure
  * @throws When an entry names no path, its hash is not a keccak digest, or two
@@ -306,13 +323,19 @@ export const sourceClosureHash = (sources: readonly ISourceEntry[]): string => {
 export interface IMintedAttestation {
   key: IAttestationKey
   /**
-   * What the key hashes but does not spell out. Carried so a refusal names the
-   * settings rather than only their digest, and so the repo and Foundry profile
-   * survive without being part of the identity — `[profile.ci]` inherits
-   * `[profile.default]` and compiles to the same bytes.
+   * What the key hashes but does not spell out, so a refusal names the settings
+   * rather than only their digest.
    */
   build: {
+    /**
+     * Not in the key: one source path exists in both repos with different
+     * content, so the closure hash already separates those builds.
+     */
     repo: BuildRepo
+    /**
+     * Not in the key: `[profile.ci]` inherits `[profile.default]` and differs
+     * only in fuzz settings, so the two compile to the same bytes.
+     */
     profile: string
     /** The settings the key's `settingsHash` was taken over. */
     hashedSettings: Record<string, unknown>
@@ -345,7 +368,8 @@ export interface IAttestationConflict {
  * and locally, is the expected state.
  * @param attestations - Everything filed, in any order
  * @returns One entry per conflicting key; empty when every key agrees
- * @throws When an attestation carries a hash that is not a keccak digest
+ * @throws When an attestation's key is unserialisable, its masked hash is not a
+ * keccak digest, or its provenance holds a value `structuredClone` refuses
  */
 export const findAttestationConflicts = (
   attestations: readonly IMintedAttestation[]

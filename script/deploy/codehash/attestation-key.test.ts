@@ -20,16 +20,17 @@ import {
 } from './attestation-key'
 
 /**
- * Verbatim `metadata.settings` of a real `out/` artifact. All 190 artifacts
- * carrying metadata in a real tree have exactly this shape — note there is no
- * `viaIR` key: solc emits it only when the IR pipeline ran, and `jq '{viaIR}'`
- * renders that absence as `null`, which is why the `null` reading is wrong.
+ * A real artifact's `metadata.settings`, with the remappings list cut to one
+ * entry. The hashed half is byte-for-byte what all 190 artifacts carrying
+ * metadata in a real `out/` tree share — note there is no `viaIR` key: solc
+ * emits it only when the IR pipeline ran, and `jq '{viaIR}'` renders that
+ * absence as `null`, which is why the `null` reading is wrong.
  */
 const ARTIFACT_SETTINGS: Record<string, unknown> = {
-  remappings: ['ds-test/=lib/forge-std/lib/ds-test/src/'],
+  remappings: ['ds-test/=lib/ds-test/src/'],
   optimizer: { enabled: true, runs: 1000000 },
   metadata: { bytecodeHash: 'ipfs' },
-  compilationTarget: { 'src/Facets/CBridgeFacet.sol': 'CBridgeFacet' },
+  compilationTarget: { 'src/Facets/AcrossFacetV4.sol': 'AcrossFacetV4' },
   evmVersion: 'cancun',
   libraries: {},
 }
@@ -42,18 +43,18 @@ const HASHED_SETTINGS = {
 }
 
 const CLOSURE_A = sourceClosureHash([
-  { path: 'src/Facets/CBridgeFacet.sol', keccak: `0x${'11'.repeat(32)}` },
+  { path: 'src/Facets/AcrossFacetV4.sol', keccak: `0x${'11'.repeat(32)}` },
   { path: 'src/Helpers/SwapperV2.sol', keccak: `0x${'22'.repeat(32)}` },
 ])
 /** The same closure with only the inherited helper changed. */
 const CLOSURE_SWAPPER_BUMPED = sourceClosureHash([
-  { path: 'src/Facets/CBridgeFacet.sol', keccak: `0x${'11'.repeat(32)}` },
+  { path: 'src/Facets/AcrossFacetV4.sol', keccak: `0x${'11'.repeat(32)}` },
   { path: 'src/Helpers/SwapperV2.sol', keccak: `0x${'33'.repeat(32)}` },
 ])
 
 const EVM: IAttestationKey = {
-  contractName: 'CBridgeFacet',
-  sourceId: 'src/Facets/CBridgeFacet.sol',
+  contractName: 'AcrossFacetV4',
+  sourceId: 'src/Facets/AcrossFacetV4.sol',
   version: '1.2.0',
   closureHash: CLOSURE_A,
   settingsHash: artifactSettingsHash(ARTIFACT_SETTINGS),
@@ -69,11 +70,17 @@ const ZK_TOOLCHAIN = {
 
 /**
  * zksolc reports no settings, so a zk key is `config`-tagged by construction —
- * an `artifact`-tagged zk key is a build that cannot exist.
+ * an `artifact`-tagged zk key is a build that cannot exist. The settings object
+ * stands in for whatever a zk producer configures; no shape is fixed yet, and
+ * the closure a zk build needs has no reader either.
  */
 const ZK: IAttestationKey = {
   ...EVM,
-  settingsHash: configuredSettingsHash(ARTIFACT_SETTINGS),
+  settingsHash: configuredSettingsHash({
+    solcVersion: '0.8.29',
+    evmVersion: 'cancun',
+    optimizer: { enabled: true, runs: 1000000 },
+  }),
   settingsSource: 'config',
   zk: ZK_TOOLCHAIN,
 }
@@ -101,8 +108,8 @@ describe('serialiseAttestationKey', () => {
   it('separates on every input that can change the bytecode', () => {
     const base = serialiseAttestationKey(EVM)
     const differing: [string, IAttestationKey][] = [
-      ['contract name', { ...EVM, contractName: 'CBridgeFacetV2' }],
-      ['source id', { ...EVM, sourceId: 'src/Periphery/CBridgeFacet.sol' }],
+      ['contract name', { ...EVM, contractName: 'AcrossFacetV5' }],
+      ['source id', { ...EVM, sourceId: 'src/Periphery/AcrossFacetV4.sol' }],
       ['version', { ...EVM, version: '1.2.1' }],
       ['source closure', { ...EVM, closureHash: CLOSURE_SWAPPER_BUMPED }],
       ['solc version', { ...EVM, solcVersion: '0.8.30' }],
@@ -119,9 +126,9 @@ describe('serialiseAttestationKey', () => {
   })
 
   it('separates a facet whose bytecode moved because a helper it inherits did', () => {
-    // Commit 4cfabbf22 bumped SwapperV2 alone. The 31 facets inheriting it all
-    // changed bytecode while keeping their own file, version and settings, so
-    // every field but the closure hash is identical across the two builds.
+    // A facet inheriting a bumped helper changes bytecode while its own file,
+    // version and settings stay put, so every key field but the closure hash
+    // is identical across the two builds.
     const before = { ...EVM, closureHash: CLOSURE_A }
     const after = { ...EVM, closureHash: CLOSURE_SWAPPER_BUMPED }
 
@@ -147,6 +154,30 @@ describe('serialiseAttestationKey', () => {
     expect(forkMoved).not.toBe(serialiseAttestationKey(ZK))
     expect(llvmMoved).not.toBe(serialiseAttestationKey(ZK))
     expect(forkMoved).not.toBe(llvmMoved)
+  })
+
+  it('keeps the three zk versions from smuggling into each other', () => {
+    // The zk triple is length-prefixed inside the outer join, not concatenated.
+    // These two toolchains flatten to one string under plain concatenation and
+    // must not share a key.
+    const a = serialiseAttestationKey({
+      ...ZK,
+      zk: {
+        zksolcVersion: '1.5.15',
+        solcForkVersion: '0.8.29',
+        llvmVersion: '1.0.2',
+      },
+    })
+    const b = serialiseAttestationKey({
+      ...ZK,
+      zk: {
+        zksolcVersion: '1.5.1',
+        solcForkVersion: '50.8.29',
+        llvmVersion: '1.0.2',
+      },
+    })
+
+    expect(a).not.toBe(b)
   })
 
   it('gives an EVM build a key a zk build cannot reach', () => {
@@ -180,12 +211,27 @@ describe('serialiseAttestationKey', () => {
     )
   })
 
+  it('refuses a key that leaves an identifying field empty', () => {
+    // Length-prefixing keeps these collision-free, but a key naming no contract
+    // also strips every refusal in this module of the name it reports.
+    for (const [field, patch] of [
+      ['contract name', { contractName: '' }],
+      ['source id', { sourceId: '' }],
+      ['version', { version: '' }],
+      ['solc version', { solcVersion: '' }],
+    ] as const)
+      expect(
+        () => serialiseAttestationKey({ ...EVM, ...patch }),
+        field
+      ).toThrow(`attestation key states no ${field}`)
+  })
+
   it('refuses a key whose hashes are not keccak digests', () => {
     // The key's own hashes were the only ones in this module reaching the
     // serialiser unvalidated, so nonsense became a plausible-looking key field.
     expect(() =>
       serialiseAttestationKey({ ...EVM, settingsHash: 'nope' })
-    ).toThrow('settings hash is not hex in the key for CBridgeFacet')
+    ).toThrow('settings hash is not hex in the key for AcrossFacetV4')
     expect(() =>
       serialiseAttestationKey({ ...EVM, closureHash: '0xdeadbeef' })
     ).toThrow('source closure hash is not 32 bytes')
@@ -298,7 +344,7 @@ describe('settings hashing', () => {
 describe('identityFromArtifactMetadata', () => {
   it('reads the source id and settings hash off a real artifact shape', () => {
     expect(identityFromArtifactMetadata(ARTIFACT_SETTINGS)).toEqual({
-      sourceId: 'src/Facets/CBridgeFacet.sol',
+      sourceId: 'src/Facets/AcrossFacetV4.sol',
       settingsHash: EVM.settingsHash,
       settingsSource: 'artifact',
       hashedSettings: HASHED_SETTINGS,
@@ -473,15 +519,19 @@ describe('findAttestationConflicts', () => {
   })
 
   it('hands back a refusal a caller can annotate without touching the input', () => {
-    const attestation = minted(EVM, HASH_A)
+    // Both halves of the payload nest an object — the settings, and the zk
+    // toolchain — so a shallow copy would leave either one the caller's.
+    const attestation = minted(ZK, HASH_A, ZK_BUILD)
     const [conflict] = findAttestationConflicts([
       attestation,
-      minted(EVM, HASH_B),
+      minted(ZK, HASH_B, ZK_BUILD),
     ])
 
     expect(conflict?.build.hashedSettings).not.toBe(
       attestation.build.hashedSettings
     )
+    expect(conflict?.key.zk).not.toBe(attestation.key.zk)
+    expect(conflict?.key.zk).toEqual(ZK_TOOLCHAIN)
     ;(conflict?.build.hashedSettings as Record<string, unknown>)['evmVersion'] =
       'annotated'
     expect(attestation.build.hashedSettings['evmVersion']).toBe('cancun')
@@ -527,7 +577,7 @@ describe('findAttestationConflicts', () => {
 
   it('refuses an attestation whose masked hash is not a keccak digest', () => {
     expect(() => findAttestationConflicts([minted(EVM, 'nope')])).toThrow(
-      'masked hash is not hex in the attestation for CBridgeFacet'
+      'masked hash is not hex in the attestation for AcrossFacetV4'
     )
     expect(() => findAttestationConflicts([minted(EVM, '0xdeadbeef')])).toThrow(
       'masked hash is not 32 bytes'
