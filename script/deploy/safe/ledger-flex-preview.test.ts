@@ -294,14 +294,28 @@ describe('renderLedgerFlexHashFlow', () => {
     expect(plain).toContain('Hold to sign')
     // Left to right, not top to bottom: the screens are columns of one row of
     // panels, so order is a column offset, never a line index.
+    // Measured on the framed screens only: the instruction column beside them
+    // names the "Message" screen too, and would be found first.
     const columnOf = (needle: string): number => {
-      const row = flow.find((line) => stripAnsi(line).includes(needle))
-      return stripAnsi(row ?? '').indexOf(needle)
+      const screens = flow.map((line) => stripAnsi(splitRow(line).screens))
+      const row = screens.find((line) => line.includes(needle))
+      return row?.indexOf(needle) ?? -1
     }
-    expect(columnOf('Review message')).toBeLessThan(columnOf('Sign message'))
-    expect(columnOf('< 1 of 3 >')).toBeLessThan(columnOf('< 2 of 3 >'))
-    // Three screens, not the EIP-712 flow's eight.
+    expect(columnOf('Review message')).toBeGreaterThan(-1)
+    expect(columnOf('Review message')).toBeLessThan(columnOf('Message'))
+    expect(columnOf('Message')).toBeLessThan(columnOf('Sign message'))
+  })
+
+  // Everything the preview shows is something read off a physical device. A
+  // page counter or a per-screen affordance carried over from the typed-data
+  // flow would be an invented detail the operator is asked to check.
+  it('shows nothing that has not been read off the device', () => {
+    const plain = stripAnsi(joined)
+
+    expect(plain).not.toContain('of 3')
     expect(plain).not.toContain('of 8')
+    expect(plain).not.toContain('Skip')
+    expect(plain).not.toContain('Reject')
   })
 
   it('renders the hash upper case, as the device does', () => {

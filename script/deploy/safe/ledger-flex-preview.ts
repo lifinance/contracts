@@ -195,9 +195,9 @@ const dataRows = (data: Hex): { rows: string[]; truncated: boolean } => {
 const addressRows = (addr: string): string[] =>
   pixelWrap(getAddress(addr as Hex))
 
-const navFooter = (page: number, total = 8): string => {
+const navFooter = (page: number): string => {
   const left = 'Reject'
-  const right = `< ${page} of ${total} >`
+  const right = `< ${page} of 8 >`
   const gap = Math.max(1, INNER - left.length - right.length)
   return `${left}${' '.repeat(gap)}${right}`
 }
@@ -485,25 +485,34 @@ const hashRows = (hash: string): IFlexLine[] => {
   })
 }
 
+/**
+ * The three screens, carrying only what has been read off a physical Flex: the
+ * titles, the prompt on each, and the hash itself.
+ *
+ * Page counters and per-screen affordances are deliberately absent. The preview
+ * exists so that a difference from the device reads as an alarm, which only
+ * works while everything in it is known to be true — a counter reproduced from
+ * the typed-data flow's conventions would be a detail the operator is invited
+ * to check against a device that may not show it, and teaches them to shrug at
+ * exactly the mismatch this is for.
+ */
 const buildHashScreens = (hash: string): IFlexScreen[] => [
   {
     header: '',
     content: [
-      { text: '[=]', align: 'center' },
-      { text: '', align: 'center' },
       { text: 'Review message', align: 'center', style: BOLD },
       { text: '', align: 'center' },
       { text: 'Swipe to review', align: 'center' },
     ],
-    footer: navFooter(1, 3),
+    footer: '',
   },
   {
-    header: 'Skip',
+    header: '',
     content: [
       { text: 'Message', align: 'left', style: BOLD },
       ...hashRows(hash),
     ],
-    footer: navFooter(2, 3),
+    footer: '',
   },
   {
     header: '',
@@ -512,7 +521,7 @@ const buildHashScreens = (hash: string): IFlexScreen[] => [
       { text: '', align: 'center' },
       { text: 'Hold to sign', align: 'center', style: HIGHLIGHT },
     ],
-    footer: 'Reject',
+    footer: '',
   },
 ]
 
