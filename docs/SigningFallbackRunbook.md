@@ -4,12 +4,15 @@ How to propose and sign a production Safe transaction from the pinned pre-2.0
 baseline when a check added by the Signing 2.0 work is refusing an honest
 proposal and cannot be fixed forward in time.
 
-Ticket: **EXSC-976** · D26.
+Ticket: **EXSC-976**, which carries the decision (D26) this runbook implements.
 
 Status: **written, not yet rehearsed.** The rehearsal against a testnet Safe
 and a rehearsal store is EXSC-976 item 3, and until it runs, everything below
 about how the live store behaves is read off the code rather than observed.
-Treat §7 as the part most likely to need correction.
+Treat §7 as the part most likely to need correction. §4's inventory — which
+networks, how many deployment files — is the part most likely to have gone
+stale, since networks are added and retired continuously; it is dated, and §5
+re-derives what it actually depends on rather than trusting it.
 
 ---
 
@@ -17,12 +20,13 @@ Treat §7 as the part most likely to need correction.
 
 The fallback is a **commit you check out**, never a flag you set:
 
-| | |
+| what | value |
 |---|---|
 | tag | `pre-signing-2.0-baseline` |
 | commit | `49f05efa948d3bd208bbdfcf34ff70ce5eb183bf` (2026-07-24) |
 
-A `--legacy` / `SKIP_GATES` switch was refused (D26). A bypass one environment
+A `--legacy` / `SKIP_GATES` switch was refused — decision D26, recorded on
+EXSC-976. A bypass one environment
 variable away gets reached for under exactly the pressure where the gates
 matter most, and every gate's threat model would then have to account for it.
 Checking out a tag is deliberately slower and deliberately visible.
@@ -32,7 +36,7 @@ correct and the fix cannot ship in the time available.** A gate refusing a
 proposal that is *wrong* is the system working. If the refusal is a false red
 with a known cause, prefer fixing the gate — the fallback costs a ceremony,
 freezes config as well as code (§4), and leaves rows in the store that §7 has
-to clean up.
+to reconcile.
 
 **What the fallback does not weaken.** It drops the 2.0 gate layer; it does
 not drop the multisig or the timelock. The baseline reads the threshold from
@@ -66,11 +70,14 @@ guide than any list of gate names, which will go out of date:
 | `bun confirm-safe-tx` | **the signers too** |
 
 That is a first cut, not the whole answer: **a gate can be wired on both
-paths.** `evaluateDelegateCallGate` is — three call sites in `safe-utils.ts`
-(`signTransactionWithHash`, `signTransaction`, `executeTransaction`) as well
-as in `confirm-safe-tx.ts`. Before concluding the signers can stay on `main`,
-grep the refusing gate's call sites; if the propose path reaches it too, both
-sides fall back.
+paths.** `evaluateDelegateCallGate` is — `confirm-safe-tx.ts` calls it
+directly, and so do three methods in `safe-utils.ts`
+(`signTransactionWithHash`, `signTransaction`, `executeTransaction`). The
+propose path reaches it through the third of those: `propose-safe-tx.ts` calls
+`safe.signTransaction()`, which asserts the gate before it signs. So grep the
+refusing gate's call sites *and follow them back to an entry point* — a gate
+that looks sign-only can sit behind a helper the proposer also calls, and then
+both sides fall back.
 
 Sign-time gates are the larger group and they refuse in different ways, so do
 not expect a single recognisable message: `evaluateCodehashSignGate` and
@@ -99,18 +106,20 @@ git -C "$CLONE" fetch origin --tags
 # commit this runbook was written against.
 EXPECTED=49f05efa948d3bd208bbdfcf34ff70ce5eb183bf
 RESOLVED=$(git -C "$CLONE" rev-parse "pre-signing-2.0-baseline^{commit}")
+
 if [ "$RESOLVED" = "$EXPECTED" ]; then
   echo "✓ tag resolves to the documented commit: $RESOLVED"
+  git -C "$CLONE" worktree add --detach ~/contracts-escape "$RESOLVED"
+  cd ~/contracts-escape
+  ln -s "$CLONE/.env" .env
+  ln -s "$CLONE/node_modules" node_modules
 else
   echo "✗ STOP — tag resolves to $RESOLVED, not $EXPECTED (see §8)"
 fi
-
-# Only with a ✓ above:
-git -C "$CLONE" worktree add --detach ~/contracts-escape "$RESOLVED"
-cd ~/contracts-escape
-ln -s "$CLONE/.env" .env
-ln -s "$CLONE/node_modules" node_modules
 ```
+
+The checkout is inside the `if` on purpose: a mismatch has to leave you with no
+escape worktree at all, not with one you were told not to use.
 
 A worktree rather than a checkout in place: the fallback runs alongside a
 normal clone, and nothing about the working repo has to be disturbed.
@@ -192,7 +201,9 @@ The proposer needs `PRIVATE_KEY_PRODUCTION`; a signer needs
 `confirm-safe-tx.ts` offers. There is no `SAFE_SIGNER` variable —
 `PrivateKeyTypeEnum.SAFE_SIGNER` is an internal enum member, and the only key
 names `getPrivateKey` accepts are `PRIVATE_KEY`, `PRIVATE_KEY_PRODUCTION` and
-`SAFE_SIGNER_PRIVATE_KEY`.
+`SAFE_SIGNER_PRIVATE_KEY`. Neither entry point asks for `PRIVATE_KEY` on this
+path, which is why the check above covers the other two — add it if a script
+you are driving takes it.
 
 The store is the same one either way: `SC_MONGODB_URI` holds
 `sc_private.pendingTransactions` at both commits, and `MONGODB_URI` is the
@@ -226,12 +237,14 @@ likely to bite:
   reachable too. `injective.json` and `sepolia.json`
   do not exist at the baseline at all — the same two networks, failing a
   second way. For the 69 files both trees share, no `LiFiTimelockController`
-  address drifted, so this is a missing-network problem rather than a
-  wrong-address one.
+  address drifted, so as of the date above this is a missing-network problem
+  rather than a wrong-address one — which is a fact with a shelf life, and why
+  §5 re-diffs the one file it will actually read.
 - `safeAddress` is unchanged on every network both files share, which is the
   one thing that would have made this unusable.
 - `config/global.json` has drifted too — diff it rather than trust this list.
-  As of `b7fc074df` the baseline still names `LiFiIntentEscrowFacet` where
+  As of `main` at `b7fc074df` (2026-09-10) the baseline still names
+  `LiFiIntentEscrowFacet` where
   `main` has `LiFiIntentEscrowFacetV2` in `coreFacets`, still carries
   `FeeCollector` in `corePeriphery`, and still approves
   `CBridgeFacet.triggerRefund` (`0x0d19e519`) in
@@ -251,15 +264,25 @@ proposing, diff the values this run will actually resolve — for the one
 network you are targeting, not the whole file:
 
 ```bash
-for f in config/networks.json config/global.json deployments/<network>.json; do
-  diff <(git show "origin/main:$f") "$f" && echo "same: $f"
-done
+NET=<network>
+
+# The target network's entry, not the whole file — §4's other drift is noise here.
+diff <(git show "origin/main:config/networks.json" | jq ".$NET") \
+     <(jq ".$NET" config/networks.json) && echo "same: networks.json[$NET]"
+
+# The deployment file --timelock reads.
+diff <(git show "origin/main:deployments/$NET.json") "deployments/$NET.json" \
+  && echo "same: deployments/$NET.json"
+
+# global.json is not per-network, so read this one rather than expecting silence.
+diff <(git show "origin/main:config/global.json") config/global.json
 ```
 
 Three things make the difference between a stale value and a wrong proposal:
 the network's `status` on `main` (a name the baseline accepts may be retired),
-`safeAddress` (unchanged on every shared network as of `b7fc074df` — if this
-one differs, stop), and `LiFiTimelockController` in the deployment file, which
+`safeAddress` (unchanged on every shared network as of `main` at `b7fc074df`,
+2026-09-10 — if this one differs, stop), and `LiFiTimelockController` in the
+deployment file, which
 `--timelock` resolves and sends to. A difference in any of the three is a stop,
 not a note: it means the baseline would address a Safe or timelock the org has
 moved on from.
@@ -294,6 +317,9 @@ that saves a Ledger tap. Neither exists at the baseline, so nothing ties the
 proposal to a ticket except what a human writes down.
 
 ## 7. Reconcile afterwards
+
+The two filters below are `mongosh` queries against
+`sc_private.pendingTransactions`, through the same tunnel §3 describes.
 
 **Name the rows.** Every row `main` has written since provenance landed
 carries a provenance block: `buildProposalProvenance` returns one
