@@ -193,9 +193,9 @@ describe('no shipped test deletes a credential from a child environment', () => 
 
   it('does not object to setting one, or to deleting a non-credential', () => {
     // Setting a malformed value is the fix, so it must not trip the guard, and
-    // these unsets are legitimate — `.env` declares none of these names, so
-    // deleting them really does unset them. `ENABLE_MONGODB_LOGGING` is the
-    // near miss: it is declared, but holds a flag rather than a credential.
+    // these unsets are legitimate: none of these names holds a credential, so
+    // whatever a child re-loads for them cannot be one. `ENABLE_MONGODB_LOGGING`
+    // is the near miss the store half must not swallow.
     for (const source of [
       "env.PRIVATE_KEY = 'malformed-in-tests'",
       'delete env.NODE_ENV',
@@ -263,9 +263,9 @@ describe('setting a credential, unlike deleting it, withholds it from a child', 
   })
 
   it('lets a passed value win over that re-load', () => {
-    // What every `env.PRIVATE_KEY = MALFORMED_KEY` in the placement probes
-    // rests on. If bun ever gave the env file precedence, those probes would
-    // start handing children real keys again with every suite still green.
+    // What `withholdCredentials` rests on. If bun ever gave the env file
+    // precedence, the placement probes would start handing children real keys
+    // again with every suite still green.
     expect(lengthInChild((env) => (env[NAME] = PASSED_VALUE))).toBe(
       String(PASSED_VALUE.length)
     )
