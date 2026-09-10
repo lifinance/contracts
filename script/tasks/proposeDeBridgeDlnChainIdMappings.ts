@@ -195,7 +195,6 @@ async function proposeToSafe(params: {
       rpcUrl
     )
 
-    // Ensure signer is an owner (avoid creating proposals with non-owner key)
     const nextNonce = await getNextNonce(
       pendingTransactions,
       safeAddress,
