@@ -5081,7 +5081,7 @@ function executeAndCapture() {
   echoDebug "=== RAW_RETURN_DATA (stdout) ==="
   echoDebug "$RAW_RETURN_DATA"
   echoDebug "=== STDERR_CONTENT (stderr) ==="
-  echoDebug "$STDERR_CONTENT"
+  echoDebug "$(redactRpcUrl "$STDERR_CONTENT")"
 
   # Extract JSON if requested
   if [[ "$EXTRACT_JSON" == "true" ]]; then
@@ -5151,7 +5151,7 @@ function parseExecuteCommandResult() {
     if [[ "$RETURN_CODE" -ne 0 ]]; then
       error "$ERROR_MESSAGE (exit code: $RETURN_CODE)"
       if [[ -n "$STDERR_CONTENT" ]]; then
-        error "stderr: $STDERR_CONTENT"
+        error "stderr: $(redactRpcUrl "$STDERR_CONTENT")"
       fi
       if [[ -n "$RAW_RETURN_DATA" ]]; then
         echoDebug "stdout: $RAW_RETURN_DATA"

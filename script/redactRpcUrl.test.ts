@@ -164,3 +164,35 @@ describe.each(RETRY_SCRIPTS)('%s > rpcCallWithRetry', (_label, defs) => {
     ).toBe('see https://docs.example/x')
   })
 })
+
+/**
+ * The widest of the bash paths: every `forge`/`cast` execution routed through `executeAndParse`
+ * lands here, and `error` is not debug-gated, so a failed deploy prints the captured stderr —
+ * which carries `--rpc-url` — on any run, not only a `DEBUG=true` one.
+ */
+describe('script/helperFunctions.sh > parseExecuteCommandResult', () => {
+  const run = (stderr: string): string =>
+    withBashFns(
+      [
+        ['script/helperFunctions.sh', 'redactRpcUrl'],
+        ['script/helperFunctions.sh', 'error'],
+        ['script/helperFunctions.sh', 'echoDebug'],
+        ['script/helperFunctions.sh', 'parseExecuteCommandResult'],
+      ],
+      `parseExecuteCommandResult "$1" "deploy failed" "continue" 2>&1 || true`,
+      [JSON.stringify({ stdout: '', stderr, returnCode: 1 })]
+    )
+
+  it('redacts the endpoint in the stderr it prints on failure', () => {
+    const out = run(
+      'Error: error sending request for url (https://lb.drpc.org/ogrpc?network=base&dkey=FAKEKEY999)'
+    )
+    expect(out).not.toContain('FAKEKEY999')
+    expect(out).toContain('[redacted-url]')
+    expect(out).toContain('deploy failed')
+  })
+
+  it('leaves failure stderr that names no endpoint intact', () => {
+    expect(run('EvmError: Revert')).toContain('EvmError: Revert')
+  })
+})

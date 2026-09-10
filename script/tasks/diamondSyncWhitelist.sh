@@ -980,7 +980,7 @@ function diamondSyncWhitelist {
           local REMOVE_EXIT_CODE=$?
 
           # Print output in verbose mode
-          if [[ "$MULTI_NETWORK_RUN" != "true" ]]; then echo "$REMOVE_OUTPUT"; fi
+          if [[ "$MULTI_NETWORK_RUN" != "true" ]]; then printf '%s\n' "$(redactRpcUrl "$REMOVE_OUTPUT")"; fi
 
           if [[ $REMOVE_EXIT_CODE -eq 0 ]]; then
             if [[ "$TIMELOCK_FLAG" == "true" ]]; then
@@ -1240,7 +1240,7 @@ function diamondSyncWhitelist {
           local COMBINED_EXIT_CODE=$?
 
           # Print output in verbose mode
-          if [[ "$MULTI_NETWORK_RUN" != "true" ]]; then echo "$COMBINED_OUTPUT"; fi
+          if [[ "$MULTI_NETWORK_RUN" != "true" ]]; then printf '%s\n' "$(redactRpcUrl "$COMBINED_OUTPUT")"; fi
 
           if [[ $COMBINED_EXIT_CODE -eq 0 ]]; then
             printf '\033[0;32m%s\033[0m\n' "✅ [$NETWORK] Combined removal+addition proposal submitted successfully!"

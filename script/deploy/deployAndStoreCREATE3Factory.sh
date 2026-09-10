@@ -114,7 +114,7 @@ deployAndStoreCREATE3Factory() {
 
   if [[ -z "$FACTORY_ADDRESS" || "$FACTORY_ADDRESS" == "null" ]]; then
     if [[ -n "${STDERR_CONTENT:-}" ]]; then
-      error "❌ Deployment failed on $NETWORK. Last stderr: ${STDERR_CONTENT:0:500}"
+      error "❌ Deployment failed on $NETWORK. Last stderr: $(redactRpcUrl "${STDERR_CONTENT:0:500}")"
     else
       error "Failed to obtain CREATE3Factory address on $NETWORK ($ENVIRONMENT)"
     fi
