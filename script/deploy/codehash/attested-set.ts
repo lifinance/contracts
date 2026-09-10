@@ -8,10 +8,21 @@
 
 import { normalizeHash } from './hex'
 
+/**
+ * Who produced an attestation.
+ *
+ * Required rather than optional: absent and `A-LOCAL` are the same build only
+ * by coincidence, and a grading that reads an absent value as a local rebuild
+ * would present a CI mint the same way as the host's own rebuild.
+ */
+export type AttestationProvenance = 'A-CI' | 'A-LOCAL'
+
 /** A build this repo can vouch for, produced locally or in CI. */
 export interface IAttestedBuild {
   /** Human label for the toolchain, e.g. `upstream cancun`. */
   lineage: string
+  /** Which side built it. Graded by `gradeMatchProvenance`. */
+  provenance: AttestationProvenance
   /** Read from the build's own metadata trailer, never from a record. */
   solcVersion: string
   /** keccak of the runtime code after trailer-stripping and immutable masking. */
