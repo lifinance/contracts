@@ -470,13 +470,10 @@ function getDiamondAbiItemForSelector(selector: string): Abi[number] | null {
  * proposer chose — `registerPeripheryContract(string,address)` decodes cleanly
  * with an ESC in its name — so it cannot reach the operator's terminal raw.
  *
- * Bounded whatever the value looks like. A decoded argument is never the thing
- * clipping would hide: the bytes under the signature are printed unclipped as
- * the `Data:` field, so a clipped argument is still readable in full one screen
- * up. Deciding the bound from the value's shape instead cannot tell a `bytes`
- * payload from a `string` that happens to be hex, which left every `string`
- * argument — `getPeripheryContract(string)`, a bridge facet's `_integrator` —
- * able to flood the prompt without carrying an escape sequence.
+ * Bounded unconditionally, and deliberately not by the value's shape: hex here
+ * is no more likely to be a payload than a `string` argument the proposer
+ * chose. The bytes under the signature are disclosed by the unclipped `Data:`
+ * field rather than by this line, which is what makes clipping safe.
  * @param value - The decoded scalar
  * @param network - When set, an address is rendered in the network's format
  * @returns The text to print and the notice describing any repair
