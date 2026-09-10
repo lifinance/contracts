@@ -62,15 +62,15 @@ export interface IDeclaredImmutableGetter {
  * the fleet is verified. Annotating the binding is always the preferred fix; add an entry here
  * only when no config file holds a value to compare against, or when the invariant cannot
  * express the expectation — in which case the reason names the blocking ticket, which review
- * enforces rather than this function.
+ * enforces rather than the gate.
  */
 export const EXEMPTIONS_PATH = 'script/deploy/immutables/getter-exemptions.json'
 
 /**
  * Reads the recorded exemptions.
  *
- * An unreadable list is not an empty one: every exempt getter would report as unaccounted, which
- * is loud and fail-closed, so it is left to the caller's error handling rather than defaulted.
+ * An unreadable list defaults to no exemptions rather than throwing: every exempt getter then
+ * reports as unaccounted, which is loud and fail-closed.
  *
  * @param path - repo-relative path; defaults to {@link EXEMPTIONS_PATH}.
  * @returns getter key to the reason it is not checked.

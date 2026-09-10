@@ -57,8 +57,9 @@ invariant must be added, adjusted, or removed. Use this checklist:
   or when the invariant cannot express the expectation — in which case the reason names the
   blocking ticket. Naming it is a review expectation, not a validated one: the suite reads the
   reason only to check it is non-empty, and rejects an exemption that carries none, one whose
-  getter has since been annotated, and one whose getter no longer exists. The gate sees only getters that exist, so it
-  cannot force a binding to become readable — `101-solidity-contracts.md` carries that requirement.
+  getter has since been annotated, and one whose getter no longer exists. The gate sees only
+  getters that exist, so it cannot force a binding to become readable — `101-solidity-contracts.md`
+  carries that requirement.
 - **Struct, authorization, or owner semantics changed** → adjust the affected invariant so
   its assertion still matches on-chain reality (e.g. a changed expected owner, a new
   authorized selector, a renamed getter). Renaming a public getter that a
