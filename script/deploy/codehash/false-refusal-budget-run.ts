@@ -337,7 +337,8 @@ export const gradeAttestedSet = (deps: ICorpusDeps): IGateBudget => {
  * `ensureCommitAvailable` exists to perform. A refusal here therefore says the
  * executing checkout lacks the object, not that the merged gate would refuse.
  * Every corpus commit is an ancestor of main, so depth is what decides this:
- * a full clone holds all of them and a depth-limited one holds none. The
+ * a full clone holds all of them and one at the actions/checkout default
+ * depth of 1 holds none. The
  * coverage note derives that caveat from what the run observed.
  * @param deps - the corpus
  */
@@ -374,7 +375,7 @@ export const gradeCommitAvailability = (deps: ICorpusDeps): IGateBudget => {
       unreadable === 0
         ? 'The three-attempt fetch path is therefore measured on 0.'
         : 'Those refusals measure this checkout, not the gate: the runner is offline and cannot fetch by SHA, which is the recovery the real gate performs. Re-run at full depth before reading them as false reds.'
-    } This is the one unexplained count here that a corpus can move on its own, and what moves it is the clone: every corpus commit is an ancestor of main, so a depth-limited checkout — the actions/checkout default — holds none of them and drives this gate to ${
+    } What moves this number is the clone rather than the fleet: every corpus commit is an ancestor of main, so a checkout at the actions/checkout default depth of 1 holds none of them and drives this gate to ${
       deps.slots.length
     } unexplained refusals that say nothing about any gate.`,
     observations,
@@ -458,7 +459,7 @@ export const gradeCutClassification = (deps: ICorpusDeps): IGateBudget => {
     gate: 'G4-cut-classification',
     corpus: 'live registered facets, as a Replace cut',
     denominator: slots.length,
-    coverageNote: `A rate of 0 here is close to a tautology and should not be read as evidence about the classifier. All three of its refusal branches are unreachable from repo data: the cut is synthesised as Replace with a zero init, so the unknown-action and Remove-with-init branches are measured on 0, and the zero-address branch needs a diamond log listing the zero address as a facet, which none of the 1,262 real entries does. What is measured is that a Replace cut over a live registered facet decodes. ${exclusionNote(
+    coverageNote: `A rate of 0 here is close to a tautology and should not be read as evidence about the classifier. All three of its refusal branches are unreachable from repo data: the cut is synthesised as Replace with a zero init, so the unknown-action and Remove-with-init branches are measured on 0, and the zero-address branch needs a diamond log listing the zero address as a facet, which none of the 1,262 real entries does. What is measured is that a Replace cut over a live registered facet decodes. Because nothing here can refuse, nothing here can go unexplained either: this gate's unexplained count is not a fleet measurement. ${exclusionNote(
       deps
     )}`,
     observations,
@@ -471,7 +472,7 @@ export const gradeCutClassification = (deps: ICorpusDeps): IGateBudget => {
  * Drives the real {@link assertFunnelDeployGate} through its own dependency
  * seam. `deployedNames` calls the production inverter over an injected log
  * read; `facetSourceExists` is a copy of the production lambda, which is not
- * exported and so cannot be shared the way the inverter is; `isTestnet` and
+ * exported as its own function; `isTestnet` and
  * `currentBranch` are pinned to false and 'main' because every corpus row is a
  * mainnet slot; `runGate` — the GitHub main-equivalence call — is stubbed to
  * no failures so the run makes no network requests. The coverage note carries
@@ -527,7 +528,7 @@ export const gradeFunnelDeployGate = async (
     gate: 'G5-funnel-deploy-gate',
     corpus: 'live registered facets, as a Replace cut',
     denominator: slots.length,
-    coverageNote: `The GitHub main-equivalence call (\`runGate\`) is stubbed to no failures, and \`isTestnet\`/\`currentBranch\` are pinned, so what is measured is address attribution, not approval state. The calldata is encoded by this module and decoded by the gate, so the undecodable branch — the one that guards proposer-written calldata — is measured on 0. The rate of 0 rests on both exclusions below, differently. Re-admit GenericSwapFacet and this gate reports 1 refusal over 452 rows and is not promotable — that row is the only gate refusal the fleet produces. Re-admit tron and the run aborts instead: the harness cannot encode a base58 address into a cut, which is a limit of this runner and never a verdict about the gate. ${exclusionNote(
+    coverageNote: `The GitHub main-equivalence call (\`runGate\`) is stubbed to no failures, and \`isTestnet\`/\`currentBranch\` are pinned, so what is measured is address attribution, not approval state. The calldata is encoded by this module and decoded by the gate, so the undecodable branch — the one that guards proposer-written calldata — is measured on 0. The rate of 0 rests on both exclusions below, differently. Re-admit GenericSwapFacet and this gate reports 1 refusal over 452 rows and is not promotable — that row is the only refusal the 452 registered facets produce today, though 18 further live facets would refuse the same way if a re-sweep attested them. Re-admit tron and the run aborts before reaching a verdict, because no cut can be encoded for a base58 address — a limit of this runner, never a judgement by the gate. ${exclusionNote(
       deps
     )}`,
     observations,
