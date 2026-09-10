@@ -75,6 +75,13 @@ NETWORK="${NETWORK:-all}"
 # Vendored logging (no external dependency)
 # --------------------------------------------------------------------------------------------
 
+# `cast` puts the full --rpc-url in its error text, and ETH_NODE_URI_* carries the provider key,
+# so an RPC error echoed from here would publish a live credential. Defined locally rather than
+# pulled from helperFunctions.sh: this script is break-glass and must not depend on that loading.
+bgRedactUrl() {
+  printf '%s' "${1:-}" | sed -E 's#[a-zA-Z][a-zA-Z0-9+.-]*://[^[:space:]]+#[redacted-url]#g'
+}
+
 function bgError() { printf '\033[31m[error] %s\033[0m\n' "$1"; }
 function bgWarning() { printf '\033[33m[warning] %s\033[0m\n' "$1"; }
 function bgSuccess() { printf '\033[0;32m[success] %s\033[0m\n' "$1"; }
@@ -190,7 +197,7 @@ function rpcCallWithRetry() {
       return 0
     fi
     if [ "$ATTEMPT" -lt "$RPC_MAX_ATTEMPTS" ]; then
-      echo "[retry] $LABEL attempt $ATTEMPT failed ($(< "$ERR_FILE")), sleeping ${RPC_RETRY_SLEEP_SECONDS}s..." >&2
+      echo "[retry] $LABEL attempt $ATTEMPT failed ($(bgRedactUrl "$(< "$ERR_FILE")")), sleeping ${RPC_RETRY_SLEEP_SECONDS}s..." >&2
       sleep "$RPC_RETRY_SLEEP_SECONDS"
     fi
     ATTEMPT=$((ATTEMPT + 1))
@@ -198,7 +205,9 @@ function rpcCallWithRetry() {
   local LAST_ERR
   LAST_ERR=$(< "$ERR_FILE")
   rm -f "$ERR_FILE"
-  printf "%s" "${LAST_ERR:-$OUT}"
+  # Redacted at the single return rather than at each caller: every one of them echoes this
+  # string, and `cast` puts the full --rpc-url in its error text.
+  printf "%s" "$(bgRedactUrl "${LAST_ERR:-$OUT}")"
   return 1
 }
 
@@ -349,7 +358,7 @@ function handleNetwork() {
     echo "[network: $NETWORK] The diamond is not yet paused. Proceeding..."
   else
     # Fail closed: pause state undetermined after retries — do NOT pause blindly.
-    bgError "[network: $NETWORK] RPC/network error while checking pause state after $RPC_MAX_ATTEMPTS attempts: $PRE_PAUSE_RESPONSE"
+    bgError "[network: $NETWORK] RPC/network error while checking pause state after $RPC_MAX_ATTEMPTS attempts: $(bgRedactUrl "$PRE_PAUSE_RESPONSE")"
     echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
     return 1
   fi
@@ -441,7 +450,7 @@ function handleNetwork() {
     FINAL_ATTEMPT=$((FINAL_ATTEMPT + 1))
   done
 
-  bgError "[network: $NETWORK] final pause check failed after $RPC_MAX_ATTEMPTS attempts - please check diamond ($DIAMOND_ADDRESS) manually (last response: $FINAL_RESPONSE)"
+  bgError "[network: $NETWORK] final pause check failed after $RPC_MAX_ATTEMPTS attempts - please check diamond ($DIAMOND_ADDRESS) manually (last response: $(bgRedactUrl "$FINAL_RESPONSE"))"
   echo "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< end network $NETWORK <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<"
   return 1
 }
@@ -482,7 +491,7 @@ function printStatus() {
   elif [[ "$RESPONSE" =~ ^0x[0-9a-fA-F]{40}$ ]] || [[ "$RESPONSE" == T* ]]; then
     bgError "[network: $NETWORK] diamond NOT paused."
   else
-    bgError "[network: $NETWORK] RPC/network error while checking pause state: $RESPONSE"
+    bgError "[network: $NETWORK] RPC/network error while checking pause state: $(bgRedactUrl "$RESPONSE")"
   fi
 }
 

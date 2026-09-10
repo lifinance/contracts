@@ -28,6 +28,7 @@ import { EnvironmentEnum } from '../common/types'
 import { EVM_VERSIONS } from '../deploy/shared/constants'
 import { getContractVersion } from '../deploy/shared/getContractVersion'
 
+import { redactUrls } from './redactUrls'
 import { spawnAndCapture } from './spawnAndCapture'
 
 const networks: INetworksObject = networksConfig
@@ -72,7 +73,9 @@ export function node_url(networkName: string): string {
 
   if (uri.indexOf('{{') >= 0)
     throw new Error(
-      `invalid uri or network not supported by node provider : ${uri}`
+      `invalid uri or network not supported by node provider : ${redactUrls(
+        uri
+      )}`
     )
 
   return uri
@@ -963,7 +966,7 @@ export function displayNetworkInfo(
 
   const infoContent = `
 Network: ${networkName}
-RPC URL: ${rpcUrl}
+RPC URL: ${redactUrls(rpcUrl)}
 Environment: ${environmentString}
 Address: ${networkInfo.address}
 Balance: ${networkInfo.balance}
