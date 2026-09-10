@@ -349,7 +349,7 @@ export const gradeAttestedSet = (deps: ICorpusDeps): IGateBudget => {
     denominator: observations.length,
     coverageNote: `EVM only. The sweep excluded ${
       deps.zkEvmSlotsExcluded ?? 'an unrecorded number of'
-    } zkEVM slots because it did not record which zksolc version produced the match, so the zk normalisation path is measured on 0. Bytecode equality is taken from the sweep rather than re-fetched, and layer 1 is graded without the sign-time MATCH-to-UNVERIFIABLE downgrade for uncompared immutable bytes, which the corpus records nothing about — so this rate is a lower bound on what the real gate refuses. Build identity is keyed on the compiler pair and omits optimizer runs, which every row of today's corpus records as the single value foundry.toml pins: a corpus recording a second value would need this keyed on it too, or a build compiled differently would read here as a match. The provenance grade (EXSC-952) is not modelled: it grades a MATCH by who built what matched, and nothing in the sign path blocks on it yet. Every build offered here carries A-LOCAL, which is what rebuild-attestations mints and what the sweep behind this corpus performed, so all ${
+    } zkEVM slots because it did not record which zksolc version produced the match, so the zk normalisation path is measured on 0. Bytecode equality is taken from the sweep rather than re-fetched, and layer 1 is graded without the sign-time MATCH-to-UNVERIFIABLE downgrade for uncompared immutable bytes, which the corpus records nothing about — so this rate is a lower bound on what the real gate refuses. Build identity is keyed on the compiler pair and omits optimizer runs, because foundry.toml pins one setting every profile inherits and so offers no per-profile value to key on. loadRepoCorpus refuses a corpus recording more than one setting rather than measuring against it, so the omission cannot quietly turn a differing build into a match. The provenance grade (EXSC-952) is not modelled: it grades a MATCH by who built what matched, and nothing in the sign path blocks on it yet. Every build offered here carries A-LOCAL, which is what rebuild-attestations mints and what the sweep behind this corpus performed, so all ${
       observations.filter((o) => !o.refused).length
     } slots this gate does not refuse would grade locally-rebuilt. Which way that cuts depends on the future gate: one requiring CI attestation refuses every one of them, while one firing only on the ci-disagrees case refuses none, because reaching that case needs a CI attestation this corpus has nowhere to put. This gate's unexplained count is NOT a fleet measurement: keyed on build identity, the comparison refuses exactly when the reproducing pair is not offered, which is exactly when explainScopeRefusal names a class, so no corpus can drive it off 0. Read the rate and the class split. See this module's header. ${
       deps.slots.length - observations.length
@@ -642,6 +642,25 @@ export const loadRepoCorpus = (repoRoot: string): ICorpusDeps => {
       } attestation rows are missing one of ${required.join(
         ', '
       )}. A row naming no compiler pair reproduces nothing, so no refusal it produces can be attributed to a named class. Regenerate the corpus rather than measuring against it.`
+    )
+
+  // Build identity is keyed on the compiler pair, and optimizer runs are not
+  // part of it — foundry.toml pins one setting that every profile inherits, so
+  // there is no per-profile value to key on. That holds only while the corpus
+  // agrees: two rows sharing a pair but built at different optimizer settings
+  // would produce equal fingerprints, and G2 would report a match where the
+  // real gate compares bytecode that differs. Refused rather than disclosed,
+  // because a disclosure does not stop the number from being wrong.
+  const settings = new Set(
+    (slots as ICorpusSlot[]).map((row) => row.optimizerRuns)
+  )
+  if (settings.size > 1)
+    throw new Error(
+      `the corpus records ${settings.size} optimizer settings (${[...settings]
+        .sort()
+        .join(
+          ', '
+        )}), and build identity here is keyed on the compiler pair alone. Two builds differing only in optimizer runs would compare equal, so G2 would understate its refusals. Key the fingerprint on the setting before measuring against this corpus.`
     )
 
   // Fails closed rather than deriving scope against an absent config: every

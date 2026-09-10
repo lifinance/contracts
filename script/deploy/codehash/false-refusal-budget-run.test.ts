@@ -104,6 +104,9 @@ describe('the shadow runner over the real repository corpus', () => {
   // written. Pinned here so tightening it fails a test rather than a run.
   it('tolerates the empty versions the real corpus carries', () => {
     expect(repo.slots.some((s) => s.version === '')).toBe(true)
+    // The optimizer-setting guard's other half: the real fleet records exactly
+    // one, so the guard is a tripwire and not a standing refusal.
+    expect(new Set(repo.slots.map((s) => s.optimizerRuns)).size).toBe(1)
     for (const slot of repo.slots)
       expect({
         network: slot.network !== '',
@@ -272,6 +275,25 @@ describe('loadRepoCorpus fails closed on an unmeasurable corpus', () => {
         /1 of 2 attestation rows are missing one of/
       )
     }
+  })
+
+  // Build identity omits optimizer runs, so two rows sharing a compiler pair
+  // but built at different settings would fingerprint equal and G2 would report
+  // a match the real gate would not. The corpus is refused rather than the
+  // limitation disclosed, because a disclosure does not stop the rate being
+  // wrong. The real corpus records one setting, which the row above pins.
+  it('refuses a corpus recording more than one optimizer setting', () => {
+    write('config/networks.json', { somechain: {} })
+    write(CORPUS, {
+      attestations: [slot(), slot({ optimizerRuns: '200' })],
+    })
+    expect(() => loadRepoCorpus(scratch)).toThrow(
+      /records 2 optimizer settings \(1000000, 200\)/
+    )
+
+    write(CORPUS, { attestations: [slot(), slot({ address: '0x2' })] })
+    writeFileSync(join(scratch, 'foundry.toml'), TOML)
+    expect(loadRepoCorpus(scratch).slots).toHaveLength(2)
   })
 
   // The paired present: with both inputs in place the loader returns a corpus,
