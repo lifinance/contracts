@@ -183,7 +183,7 @@ describe('deployToNetworkWorker result file', () => {
   // repo-root check and would run the whole deploy), then drives it with a stubbed
   // deployAndAddContractToDiamond.
   const harness = `
-    eval "$(sed -n '/^function deployToNetworkWorker()/,/^}/p' "$REPO_ROOT/script/deploy/deployContractToNetworks.sh")"
+    source <(sed -n '/^function deployToNetworkWorker()/,/^}/p' "$REPO_ROOT/script/deploy/deployContractToNetworks.sh")
     ${STUB_PRELUDE}
     success() { echo "[success] $*"; }
     checkRequiredVariablesInDotEnv() { return 0; }
