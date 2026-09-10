@@ -17,8 +17,12 @@ import { foundry } from 'viem/chains'
 import type { IReplayRequest, ReplayOutcome } from './constructor-replay'
 import { frameFault, strip0x } from './hex'
 
-/** anvil's default block gas limit, which is also the most a transaction may ask for. */
-const REPLAY_GAS = 30_000_000n
+/**
+ * Under anvil's 30M default block limit rather than exactly at it, so a node
+ * whose limit is lower or exclusive does not turn every replay into a refusal.
+ * The largest artifact in `src/` deploys for a fifth of this.
+ */
+const REPLAY_GAS = 29_000_000n
 
 const STARTUP_PROBES = 100
 const STARTUP_PROBE_INTERVAL_MS = 100

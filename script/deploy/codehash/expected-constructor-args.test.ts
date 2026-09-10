@@ -1,9 +1,12 @@
 /**
- * The registry fixture mirrors `AcrossFacet`'s real shape in
- * `deployRequirements.json`, with the config loader stubbed so no test reads
- * `config/`. Encoded expectations are written out as literal hex rather than
- * recomputed with the encoder the module uses, so a change of encoder is
- * visible here.
+ * The registry fixture has the shape of a `deployRequirements.json` entry with
+ * the config loader stubbed, so no test reads `config/`. Its arg names are the
+ * artifact's own, which is what makes the happy path derive — no real entry is
+ * being mirrored, and `AcrossFacet`'s in particular annotates
+ * `_wrappedNativeAddress` against a `_wrappedNative` constructor arg.
+ *
+ * Encoded expectations are written out as literal hex rather than recomputed
+ * with the encoder the module uses, so a change of encoder is visible here.
  */
 
 import {
