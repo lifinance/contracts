@@ -38,8 +38,9 @@ Run from the repo root. Check and report (don't fix silently) the lifecycle prer
 - `SAFE_PROPOSAL_TICKET` exported with the Linear issue this rollout belongs to,
   e.g. `export SAFE_PROPOSAL_TICKET="EXSC-812"` (a full issue URL works too).
   **Mandatory** — no proposal is created without it, so an unset value fails every
-  network in Phase 2. Export it **before Phase 2**; only `propose-to-safe.ts` has a
-  `--ticket` flag, every other funnel reads this variable.
+  network in Phase 2. Export it **before Phase 2** — Phase 2 reaches
+  `propose-to-safe.ts` through the bash `sendOrPropose` chokepoint, which has no
+  slot for the `--ticket` flag, so the variable is the channel here.
 - `SAFE_PROPOSAL_REASON` exported with a one-line rationale for this rollout, e.g.
   `export SAFE_PROPOSAL_REASON="roll out AcrossFacetV4 v1.2.0 (EXSC-812)"`. Every
   proposal stored during the run records it, and `confirm-safe-tx` shows it to the

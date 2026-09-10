@@ -7,6 +7,10 @@
  * side: that a funnel offering `--ticket` actually reads it, and that a funnel
  * which does not is the one the documentation says is environment-only rather
  * than one that lost the wiring.
+ *
+ * Scoped to the funnels carrying an entry-point `assertTicketPresent`. Scripts
+ * refused only at store time, inside `storeTransactionInMongoDB`, are a
+ * different set and are not classified here.
  */
 
 import { readFileSync } from 'fs'
@@ -26,12 +30,14 @@ const SCRIPT_ROOT = join(REPO_ROOT, 'script')
 const TIMEOUT_MS = 20_000
 
 /**
- * Every funnel that refuses a run for a missing ticket, with the channels it
- * accepts one through and which helper it refuses in.
+ * Every funnel that refuses a run at its own entry, with the channels it
+ * accepts a ticket through and the exact call the check is reached by.
  *
  * Named by what may proceed: a funnel absent from this table is not exempt, it
  * is unclassified, and the last case fails on it. `flag: false` records which
- * channel a funnel offers today, not which one it could offer.
+ * channel a funnel offers today, not which one it could offer. `call` is
+ * matched verbatim, so forwarding the wrong value is a failure and not merely
+ * forwarding nothing.
  */
 const FUNNELS = [
   { script: 'deploy/safe/propose-to-safe.ts', flag: true, asserts: false },
@@ -39,12 +45,31 @@ const FUNNELS = [
     script: 'deploy/safe/add-safe-owners-and-threshold.ts',
     flag: true,
     asserts: true,
+    call: 'assertTicketPresent(args.ticket)',
   },
-  { script: 'deploy/tron/propose-to-safe-tron.ts', flag: true, asserts: true },
-  { script: 'tasks/unpauseAllDiamonds.ts', flag: true, asserts: true },
+  {
+    script: 'deploy/tron/propose-to-safe-tron.ts',
+    flag: true,
+    asserts: true,
+    call: 'assertTicketPresent(options.ticket)',
+    // The only funnel where the flag does not reach the check directly, so the
+    // handoff `main` makes into `runPropose` is pinned as well.
+    hop: 'ticket: args.ticket,',
+  },
+  {
+    script: 'tasks/unpauseAllDiamonds.ts',
+    flag: true,
+    asserts: true,
+    call: 'assertTicketPresent(args.ticket)',
+  },
   // Its only caller, `cleanUpProdDiamond.ts`, declares no `--ticket`, so the
   // exported variable is the whole channel — `MultisigSigningProcess.md` §4.2.
-  { script: 'safe/safeScriptHelpers.ts', flag: false, asserts: true },
+  {
+    script: 'safe/safeScriptHelpers.ts',
+    flag: false,
+    asserts: true,
+    call: 'assertTicketPresent()',
+  },
 ] as const
 
 /** Matches the citty argument declaration, not a mention of the word. */
@@ -104,9 +129,10 @@ const runRefused = (
 
   const output = `${result.stdout.toString()}${result.stderr.toString()}`
 
-  // Checked before the usability checks below: a child that reached the real
-  // store is the failure most likely to present as a timeout, and the one
-  // whose cost is a dummy row in the live proposal queue.
+  // Detects a breach, does not prevent one — the isolation above is what does
+  // that. Both lines print after the act they report, so this fails the run
+  // afterwards rather than stopping it; it exists so a dummy row in the live
+  // proposal queue can never be mistaken for a passing suite.
   //
   // Keyed on this funnel's own success lines, which have to be unsatisfiable
   // by the refusal text sitting beside them — the refusal itself contains the
@@ -172,6 +198,23 @@ describe('a funnel that offers --ticket reads it', () => {
     expect(output).toContain('not a Linear issue link')
     expect(output).toContain(REFUSED_URL)
   })
+
+  // The second funnel this is reachable on: its check follows argument parsing
+  // and a config-only network resolution, with no RPC, Ledger or Mongo before
+  // it. The Tron funnel is the one that cannot join them — its check sits past
+  // the timelock reads inside `runPropose`, so reaching it costs a live chain.
+  it('names the value passed to add-safe-owners-and-threshold.ts', () => {
+    const output = runRefused('deploy/safe/add-safe-owners-and-threshold.ts', [
+      '--network',
+      'mainnet',
+      '--ticket',
+      REFUSED_URL,
+    ])
+
+    expect(output).toContain('not a Linear issue link')
+    expect(output).toContain(REFUSED_URL)
+    expect(output).not.toContain('No Linear ticket supplied')
+  })
 })
 
 // The remaining funnels are checked on their source rather than by spawning
@@ -196,28 +239,49 @@ describe('every funnel is classified, and the classification matches its source'
     }
   )
 
-  it('leaves no flag-bearing funnel calling the check with nothing to read', () => {
-    // A bare `assertTicketPresent()` is correct only where the environment is
-    // the whole channel. Anywhere else it means a declared flag is inert, which
-    // is worse than no flag: the run refuses while the operator can see the
-    // value they passed.
+  it('reaches the check by the exact call its channel requires', () => {
+    // Positive and verbatim, because the absence of a bare
+    // `assertTicketPresent()` is satisfied by any argument at all: forwarding
+    // the wrong field leaves the flag inert while still looking wired. A bare
+    // call is correct only where the environment is the whole channel.
     const asserting = FUNNELS.filter((funnel) => funnel.asserts)
 
-    for (const { script, flag } of asserting)
-      if (flag) expect(source(script)).not.toContain('assertTicketPresent()')
-      // The present half: the bare form is what an environment-only funnel is
-      // supposed to look like, so its absence everywhere would make the loop
-      // above vacuous.
-      else expect(source(script)).toContain('assertTicketPresent()')
+    for (const funnel of asserting) {
+      const text = source(funnel.script)
+      expect(text).toContain(funnel.call)
+      if (funnel.flag) expect(text).not.toContain('assertTicketPresent()')
+      if ('hop' in funnel) expect(text).toContain(funnel.hop)
+    }
 
     expect(asserting.filter((funnel) => !funnel.flag).length).toBe(1)
   })
 
+  it.each(FUNNELS.filter((funnel) => funnel.flag).map((f) => f.script))(
+    '%s gives the ticket argument no default to swallow the flag with',
+    (script) => {
+      // A citty argument with a `default` discards what the caller passed and
+      // hands every run the same fabricated value, which parses — so the gate
+      // records a link that leads nowhere on every proposal.
+      expect(source(script)).not.toMatch(/ticket: \{[^}]*default:/s)
+    }
+  )
+
   it('classifies every script that calls the check', () => {
     // The fail-closed half. `FUNNELS` is a snapshot, so a funnel added later
     // lands in neither list and this case names it instead of ignoring it.
+    // `--untracked` because the funnel this is meant to name is usually one
+    // just written: without it the case passes at exactly the moment it should
+    // fire, and only starts working once the new file has been staged.
     const grep = Bun.spawnSync(
-      ['git', 'grep', '-l', 'assertTicketPresent', '--', 'script'],
+      [
+        'git',
+        'grep',
+        '-l',
+        '--untracked',
+        'assertTicketPresent',
+        '--',
+        'script',
+      ],
       { cwd: REPO_ROOT, stdout: 'pipe', stderr: 'pipe' }
     )
 

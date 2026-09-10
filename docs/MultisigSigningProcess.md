@@ -181,15 +181,17 @@ run only on the branches that actually propose; a staging or testnet-only run, a
 
 `SAFE_PROPOSAL_TICKET` is the channel every path reads; `--ticket` is offered by
 `propose-to-safe.ts`, `propose-to-safe-tron.ts`, `unpauseAllDiamonds.ts` and
-`add-safe-owners-and-threshold.ts`. Two routes carry no flag of their own and so
-read the exported variable only: the bash `sendOrPropose` chokepoint, which
-takes six positional arguments and forwards them wholesale to
-`propose-to-safe.ts`, and `cleanUpProdDiamond.ts`, which reaches the TS
-`sendOrPropose` through several positional helpers. Neither is closed to one —
-`cleanUpProdDiamond.ts` already threads a signing-options object down the same
-hops — but until a flag is added there, export the variable. Where flag and
-variable are both set the flag wins, and a valueless `--ticket` falls through to
-the variable rather than consuming the slot.
+`add-safe-owners-and-threshold.ts`, and by no other route. Two of the flagless
+ones are worth naming because they front those funnels: the bash `sendOrPropose`
+chokepoint takes six positional arguments and forwards them wholesale to
+`propose-to-safe.ts`, and `cleanUpProdDiamond.ts` reaches the TS `sendOrPropose`
+through several positional helpers. Neither is closed to a flag —
+`cleanUpProdDiamond.ts` already threads a signing-options object down those same
+hops — they are simply unwired. The rest are the `script/tasks/propose*.ts`
+mapping scripts and `parked-tasks.ts`, which carry no entry-point check either,
+so they are refused at store time — after a signature has been spent. Where flag
+and variable are both set the flag wins, and a valueless `--ticket` falls
+through to the variable rather than consuming the slot.
 
 Entry points:
 
