@@ -120,6 +120,10 @@
       "0x1c1488c16d9d790e378B7354b35B0F12Dc9D4B49": {
         "Name": "AllBridgeFacet",
         "Version": "2.2.0"
+      },
+      "0x2C5F02b087F719c74D715a2771Fb908ec08F9D72": {
+        "Name": "CentrifugeFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
