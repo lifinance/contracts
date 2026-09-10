@@ -26,11 +26,12 @@
  * 10. the pre-prompt `networkOutcomes.push`
  * 11. the action prompt, then `continue` on "Do Nothing"
  * 12. the nonce gate on execute actions, then `continue` on stale/unreachable
- * 13. `recordAcknowledgement`
- * 14. the sign and execute branches
+ * 13. the target-state check, then `continue` when it refuses
+ * 14. `recordAcknowledgement`
+ * 15. the sign and execute branches
  *
  * Nothing in 1-7 returns or continues, so inserting at 8 swallows no existing
- * check, and 11-13 keep their order relative to each other — the ledger write
+ * check, and 11-14 keep their order relative to each other — the ledger write
  * still sits after the action prompt and the nonce gate, where it was.
  * The refusal itself goes inside both funnels, immediately after the codehash
  * refusal: ahead of it, this one would swallow the more specific answer.
@@ -158,8 +159,8 @@ describe('the run cannot survive into the next proposal', () => {
     // misplaced. It also has to be the *handler*, not the whole try — the
     // assignment inside the try is what this exists to distinguish from.
     // Both ends guarded: an unfound close runs the window to the end of the
-    // file, where the per-proposal reset satisfies this on its own and a
-    // handler that stopped resetting would still pass.
+    // file, and the assertion then holds on any later reset rather than on the
+    // handler's own.
     const opens = SOURCE.indexOf('} catch (error) {', evaluation)
     expect(opens).toBeGreaterThan(evaluation)
     const closes = SOURCE.indexOf('\n    }\n', opens)
