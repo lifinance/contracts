@@ -29,10 +29,14 @@ const build = (
   ...over,
 })
 
-const ci = (maskedHash: string, over?: Partial<IAttestedBuild>) =>
-  build('A-CI', maskedHash, over)
-const local = (maskedHash: string, over?: Partial<IAttestedBuild>) =>
-  build('A-LOCAL', maskedHash, over)
+const ci = (
+  maskedHash: string,
+  over?: Partial<IAttestedBuild>
+): IAttestedBuild => build('A-CI', maskedHash, over)
+const local = (
+  maskedHash: string,
+  over?: Partial<IAttestedBuild>
+): IAttestedBuild => build('A-LOCAL', maskedHash, over)
 
 describe('gradeMatchProvenance', () => {
   it('presents a CI-attested match as attested', () => {
