@@ -1,9 +1,13 @@
 /**
- * Regression tests for redactRpcUrl (script/helperFunctions.sh).
+ * Regression tests for the two bash endpoint redactors and the retry helper that returns their
+ * output: `redactRpcUrl` (`script/helperFunctions.sh`) and `bgRedactUrl`
+ * (`script/emergency/emergencyPauseBreakGlass.sh`).
  *
- * `getRPCUrl` returns the keyed `ETH_NODE_URI_<NETWORK>` on stdout, and several scripts echo that
- * value into a log line — one of them ungated. The provider key sits in the path or the query, so
- * the whole URL has to go.
+ * `getRPCUrl` returns the keyed `ETH_NODE_URI_<NETWORK>` on stdout and `cast` embeds `--rpc-url`
+ * in its error text, so both the value and any RPC failure carry the provider key.
+ *
+ * `bgRedactUrl` is a deliberate second copy: the break-glass script must not depend on
+ * `helperFunctions.sh` loading. Both are exercised here so the copy cannot rot.
  */
 import { execFileSync } from 'child_process'
 import { join } from 'path'
@@ -18,48 +22,66 @@ import {
 const REPO_ROOT = join(import.meta.dir, '..')
 
 /**
- * Call redactRpcUrl with the given value and return its output.
+ * Run `script` with the named bash functions pulled out of their files.
  *
- * @param value - the text to redact
+ * The functions are extracted rather than sourced: `emergencyPauseBreakGlass.sh` runs `main` at
+ * the bottom, so sourcing it would execute the break-glass path.
+ *
+ * @param defs - [file, function name] pairs to make available
+ * @param script - bash to run once the definitions are loaded
+ * @param args - positional arguments for the script
  */
-function redact(value: string): string {
+function withBashFns(
+  defs: [string, string][],
+  script: string,
+  args: string[] = []
+): string {
+  const extracts = defs
+    .map(
+      ([file, fn]) =>
+        // -E, not BRE: BSD sed has no `\\?`, so a basic-regex extraction silently matches nothing
+        // and every test then fails with "command not found".
+        `eval "$(sed -nE '/^(function )?${fn}\\(\\) \\{/,/^\\}/p' ${file})"`
+    )
+    .join('\n')
   return execFileSync(
     'bash',
-    [
-      '-c',
-      'source script/helperFunctions.sh >/dev/null 2>&1; redactRpcUrl "$1"',
-      'harness',
-      value,
-    ],
-    { cwd: REPO_ROOT, encoding: 'utf8' }
+    ['-c', `${extracts}\n${script}`, 'harness', ...args],
+    {
+      cwd: REPO_ROOT,
+      encoding: 'utf8',
+    }
   )
 }
 
-describe('redactRpcUrl', () => {
+const REDACTORS: [string, string][] = [
+  ['script/helperFunctions.sh', 'redactRpcUrl'],
+  ['script/emergency/emergencyPauseBreakGlass.sh', 'bgRedactUrl'],
+]
+
+describe.each(REDACTORS)('%s > %s', (file, fn) => {
+  const redact = (value: string): string =>
+    withBashFns([[file, fn]], `${fn} "$1"`, [value])
+
   it.each([
     ['a key in the path', 'https://lb.drpc.org/ogrpc/KEY123'],
     ['a key in the query', 'https://eth.example/v1?dkey=KEY123'],
-    [
-      'a key as the whole path segment',
-      'https://eth-mainnet.nodereal.io/v1/KEY123',
-    ],
+    ['a nodereal-style path key', 'https://eth-mainnet.nodereal.io/v1/KEY123'],
     ['a websocket endpoint', 'wss://eth.example/ws/KEY123'],
   ])('removes %s', (_name, url) => {
-    const out = redact(url)
-    expect(out).not.toContain('KEY123')
-    expect(out).toBe('[redacted-url]')
+    expect(redact(url)).toBe('[redacted-url]')
   })
 
-  it('redacts a URL embedded in a longer line, keeping the rest', () => {
+  it('redacts a URL inside a realistic cast error, keeping the rest', () => {
     const out = redact(
-      'Analyzing tx 0xabc on network: mainnet with RPC URL: https://x.io/v1/KEY123'
+      'Error: error sending request for url (https://x.io/v1/KEY123): operation timed out'
     )
     expect(out).not.toContain('KEY123')
-    expect(out).toContain('Analyzing tx 0xabc on network: mainnet')
+    expect(out).toContain('operation timed out')
   })
 
   it('leaves text with no endpoint untouched', () => {
-    // Paired negative: a redactor that returned a constant would satisfy every case above.
+    // Paired negative: a redactor returning a constant would satisfy every case above.
     expect(redact('no endpoint here')).toBe('no endpoint here')
   })
 
@@ -67,5 +89,41 @@ describe('redactRpcUrl', () => {
     const out = redact('primary https://a.io/K1 fallback https://b.io/K2')
     expect(out).not.toContain('K1')
     expect(out).not.toContain('K2')
+  })
+
+  it('survives an empty argument under set -u', () => {
+    expect(withBashFns([[file, fn]], `set -u; ${fn} ""`)).toBe('')
+  })
+})
+
+describe('rpcCallWithRetry returns a redacted error but an untouched result', () => {
+  const BG = 'script/emergency/emergencyPauseBreakGlass.sh'
+  const run = (script: string): string =>
+    withBashFns(
+      [
+        [BG, 'bgRedactUrl'],
+        [BG, 'rpcCallWithRetry'],
+      ],
+      `RPC_MAX_ATTEMPTS=2\nRPC_RETRY_SLEEP_SECONDS=0\n${script}`
+    )
+
+  it('redacts the endpoint on the exhaustion path', () => {
+    // The failing path is the one that runs during an incident, and every caller echoes what it
+    // returns. Redacting only the per-attempt retry line left this one leaking.
+    const out = run(
+      `failing() { echo "Error: error sending request for url (https://lb.drpc.org/ogrpc?network=base&dkey=FAKEKEY777)" >&2; return 1; }\n` +
+        `rpcCallWithRetry "label" failing 2>/dev/null || true`
+    )
+    expect(out).not.toContain('FAKEKEY777')
+    expect(out).toContain('[redacted-url]')
+  })
+
+  it('leaves a successful result verbatim', () => {
+    // The success path returns data callers parse — a balance, an address. Redacting it would
+    // break every one of them, so this is the assertion that keeps the fix honest.
+    const out = run(
+      `ok() { echo "1000000000000000000"; }\nrpcCallWithRetry "label" ok`
+    )
+    expect(out).toBe('1000000000000000000')
   })
 })

@@ -205,7 +205,9 @@ function rpcCallWithRetry() {
   local LAST_ERR
   LAST_ERR=$(< "$ERR_FILE")
   rm -f "$ERR_FILE"
-  printf "%s" "${LAST_ERR:-$OUT}"
+  # Redacted at the single return rather than at each caller: every one of them echoes this
+  # string, and `cast` puts the full --rpc-url in its error text.
+  printf "%s" "$(bgRedactUrl "${LAST_ERR:-$OUT}")"
   return 1
 }
 

@@ -4,9 +4,9 @@
 /**
  * Guards the rule that no shipped script puts a raw RPC endpoint into a log line.
  *
- * The scan is textual, so most of what follows aims at the scan rather than at the tree: every
- * innocent way this repo names an endpoint is pinned as a negative BESIDE a real leak in the same
- * fixture, so a check that has started refusing everything — or seeing nothing — fails here.
+ * Every innocent way this repo names an endpoint is pinned as a negative BESIDE a real leak in
+ * the same fixture, so a scan that has started refusing everything — or seeing nothing — fails
+ * here rather than in review.
  */
 import {
   mkdirSync,
@@ -25,7 +25,7 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
-import { blankNonCode, EXEMPT, scanForRawRpcUrlLogs } from './rpc-url-log-scan'
+import { EXEMPT, scanForRawRpcUrlLogs } from './rpc-url-log-scan'
 
 const REPO_ROOT = join(import.meta.dir, '..', '..')
 
@@ -110,6 +110,12 @@ describe('the scan fires on a new leak', () => {
     ).toEqual(['RPC_URL_TRON'])
   })
 
+  it('catches an endpoint reached through a property chain', () => {
+    expect(
+      identifiers('consola.info(`${chain.rpcUrls.default.http[0]}`)\n')
+    ).toEqual(['rpcUrls'])
+  })
+
   it.each(['fatal', 'trace', 'verbose'])('catches consola.%s', (method) => {
     expect(identifiers(`consola.${method}(\`\${rpcUrl}\`)\n`)).toEqual([
       'rpcUrl',
@@ -118,6 +124,14 @@ describe('the scan fires on a new leak', () => {
 
   it('catches console.dir, which dumps a whole object', () => {
     expect(identifiers('console.dir({ url: rpcUrl })\n')).toEqual(['rpcUrl'])
+  })
+
+  it('catches a shorthand property, which reads the variable', () => {
+    expect(identifiers('consola.info({ rpcUrl })\n')).toEqual(['rpcUrl'])
+  })
+
+  it('catches a computed key, where the endpoint becomes the printed key', () => {
+    expect(identifiers('consola.info({ [rpcUrl]: n })\n')).toEqual(['rpcUrl'])
   })
 
   it('stays silent once the same site is redacted', () => {
@@ -138,8 +152,8 @@ describe('the innocent mentions stay silent, beside a leak that does not', () =>
   // Each fixture carries a real leak. Without it a case would pass against a scan that had
   // stopped reading the file entirely.
   it('a doc comment naming rpcUrl is not a log', () => {
-    // The comment sits INSIDE the argument list: text outside a log call is never inspected, so a
-    // comment placed above one asserts nothing about comment handling.
+    // Inside the argument list: text outside a log call is never inspected, so a comment placed
+    // above one would assert nothing about comment handling.
     expect(
       identifiers(
         `consola.info(\n  // the rpcUrl is deliberately not printed\n  'network', name\n)\n${LEAK}`
@@ -166,11 +180,52 @@ describe('the innocent mentions stay silent, beside a leak that does not', () =>
       )
     ).toEqual(['fullHost'])
   })
+
+  it('a type annotation names a field that never renders', () => {
+    expect(
+      identifiers(`consola.info('cfg', cfg as { rpcUrl?: string })\n${LEAK}`)
+    ).toEqual(['fullHost'])
+  })
+
+  it('a parameter binding is a name, not a read', () => {
+    expect(
+      identifiers(
+        `consola.info(list.map((rpcUrl) => hostOf(rpcUrl)).join())\n${LEAK}`
+      )
+    ).toEqual(['fullHost'])
+  })
+
+  it('a type query names a type, not a value', () => {
+    // `cfg as { rpcUrl?: string }` is caught by the property-signature rule alone; this shape
+    // reaches the identifier only if type nodes are skipped outright.
+    expect(identifiers(`consola.info(cfg as typeof rpcUrl)\n${LEAK}`)).toEqual([
+      'fullHost',
+    ])
+  })
+
+  it('a variable declared inside the call is a name, not a read', () => {
+    expect(
+      identifiers(
+        `consola.info((() => { const rpcUrl = pick(); return hostOf(rpcUrl) })())\n${LEAK}`
+      )
+    ).toEqual(['fullHost'])
+  })
+
+  it('a consola or console method that prints nothing is not a log surface', () => {
+    expect(identifiers(`console.time(rpcUrl)\n${LEAK}`)).toEqual(['fullHost'])
+    expect(identifiers(`consola.withTag(rpcUrl)\n${LEAK}`)).toEqual([
+      'fullHost',
+    ])
+  })
+
+  it('a vocabulary word inside a regex is not a value', () => {
+    expect(identifiers(`consola.info(typeof /rpcUrl/)\n${LEAK}`)).toEqual([
+      'fullHost',
+    ])
+  })
 })
 
 describe('a value read through an operator is still a value', () => {
-  // Requiring only a following `:` would suppress this: it is how an override-or-default is
-  // written at exactly these call sites.
   it('catches the consequent of a ternary', () => {
     expect(identifiers("consola.info(`${flag ? rpcUrl : ''}`)\n")).toEqual([
       'rpcUrl',
@@ -184,9 +239,9 @@ describe('a value read through an operator is still a value', () => {
   })
 })
 
-describe('regex literals do not derail the lexer', () => {
-  // A regex is blanked like a string. Without that, a quote or backtick inside one opens a
-  // phantom literal that swallows the rest of the file — four shipped files went blind this way.
+describe('grammar the previous text-scanning versions got wrong', () => {
+  // Each of these blinded or false-alarmed a hand-written lexer across three rounds. They are
+  // kept as behaviour, not as lexer internals: the parser is what makes them uninteresting.
   it.each([
     ['a character class holding quotes', 'const RE = /[\'"]/g\n'],
     ['a character class holding a backtick', 'const RE = /[`]/g\n'],
@@ -195,93 +250,29 @@ describe('regex literals do not derail the lexer', () => {
       "const s = x.replace(/^https:\\/\\//, '')\n",
     ],
     ['an apostrophe inside a regex', "const RE = /don't/\n"],
+    [
+      'a regex in value position after a call',
+      'if (isTron(net)) /[\'"]/.test(s)\n',
+    ],
+    [
+      'a regex in value position after an index',
+      'const R = LIST[0] /[\'"]/.test(s)\n',
+    ],
   ])('still sees a leak after %s', (_name, prefix) => {
     expect(
       identifiers(`${prefix}consola.info(\`connecting via \${rpcUrl}\`)\n`)
     ).toEqual(['rpcUrl'])
   })
 
-  it('sees a leak in a log call that itself contains a regex', () => {
+  it('does not report a vocabulary word in a regex reached without a semicolon', () => {
     expect(
-      identifiers(
-        "consola.info(`${scheme.replace(/^https:\\/\\//, '')} -> ${rpcUrl}`)\n"
-      )
-    ).toEqual(['rpcUrl'])
-  })
-
-  // Every case below puts the leak where a WRONG decision would blank it, so the assertion
-  // observes the decision rather than the lines around it. The previous version sat on a line
-  // the assertions never inspected, and nine mutations of this logic survived it.
-  it('does not read division as a regex, on the same line as the leak', () => {
-    expect(identifiers('consola.info(`${a/b} ${rpcUrl} ${c/d}`)\n')).toEqual([
-      'rpcUrl',
-    ])
-  })
-
-  it('treats a postfix increment as the end of a value, not a regex opener', () => {
-    expect(
-      identifiers('consola.info(`${a++ / b} ${rpcUrl} ${c / d}`)\n')
-    ).toEqual(['rpcUrl'])
-  })
-
-  it.each([
-    ['a call', 'if (isTron(net)) /[\'"]/.test(s)\n'],
-    ['an optional call', 'const r = f?.() /[\'"]/.test(s)\n'],
-    ['an index', 'const RE = LIST[0] /[\'"]/.test(s)\n'],
-  ])(
-    'survives a quote-bearing regex in value position after %s',
-    (_n, prefix) => {
-      expect(
-        identifiers(`${prefix}consola.info(\`connecting via \${rpcUrl}\`)\n`)
-      ).toEqual(['rpcUrl'])
-    }
-  )
-
-  it.each(['return', 'typeof', 'case'])(
-    'reads a regex after the keyword %s',
-    (kw) => {
-      expect(
-        identifiers(
-          `const f = () => { ${kw} /['"]/.test(s) }\nconsola.info(\`\${rpcUrl}\`)\n`
-        )
-      ).toEqual(['rpcUrl'])
-    }
-  )
-
-  it('starts each interpolation with a clean token history', () => {
-    // Carrying the previous interpolation's last token in makes this `/` look like division, and
-    // its quote then hides the leak beside it.
-    expect(
-      identifiers('consola.info(`a${b}c${/[\'"]/.test(s)} ${rpcUrl}`)\n')
-    ).toEqual(['rpcUrl'])
-  })
-
-  // The keyword list and the per-interpolation reset are observable as FALSE POSITIVES: a `/`
-  // wrongly read as division leaves the regex body as code, so a vocabulary word inside it is
-  // reported as a leak. (They are not observable as missed leaks any more — a stray quote can no
-  // longer swallow a following line.)
-  it('does not report a vocabulary word inside a regex after a keyword', () => {
-    expect(scanFixture('consola.info(typeof /rpcUrl/)\n').findings).toEqual([])
-  })
-
-  it('does not report a vocabulary word inside a regex in a tagged template', () => {
-    // The token before the backtick is a value, so without a per-interpolation reset the `/`
-    // reads as division and the regex body is scanned as code.
-    expect(
-      scanFixture('consola.info(String.raw`${/rpcUrl/.test(s)}`)\n').findings
+      scanFixture(
+        'consola.info(\n  items.map((x) => {\n    n++\n    return /rpcUrl/.test(x)\n  }).length\n)\n'
+      ).findings
     ).toEqual([])
   })
 
-  it('gives up on an unterminated regex instead of running to the next slash', () => {
-    // Without the newline stop this swallows lines 1-3, taking the leak with it.
-    expect(
-      identifiers('const RE = /abc\nconsola.info(`${rpcUrl}`)\nconst y = p/q\n')
-    ).toEqual(['rpcUrl'])
-  })
-
   it('does not let a parenthesis inside a regex spill the call boundary', () => {
-    // An unmatched `(` in a regex used to run the "arguments" to end-of-file, reporting later,
-    // unrelated lines as leaks.
     expect(
       scanFixture(
         "consola.info(msg.replace(/\\(/g, ''))\n" +
@@ -292,8 +283,9 @@ describe('regex literals do not derail the lexer', () => {
   })
 })
 
-describe('malformed sources do not crash or hang the walk', () => {
-  it('an unterminated call still terminates', () => {
+describe('malformed sources do not crash the walk', () => {
+  it('an unterminated call still reports what it can', () => {
+    // The parser error-recovers rather than throwing.
     expect(identifiers('consola.info(`${rpcUrl}`\n')).toEqual(['rpcUrl'])
   })
 
@@ -315,8 +307,6 @@ describe('the walk survives what a real tree contains', () => {
   })
 
   it('steps over a dangling symlink and still reads its neighbour', () => {
-    // An unguarded stat throws ENOENT out of the whole scan, failing the suite with an error
-    // that names neither this rule nor the file.
     const root = mkdtempSync(join(tmpdir(), 'rpc-log-scan-'))
     try {
       mkdirSync(join(root, 'script'), { recursive: true })
@@ -344,59 +334,5 @@ describe('the walk survives what a real tree contains', () => {
     } finally {
       rmSync(root, { recursive: true, force: true })
     }
-  })
-
-  it('an unterminated regex running to end of file does not hang', () => {
-    // endOfRegex gives up rather than blanking on, so the leak before it is still reported.
-    expect(identifiers('consola.info(`${rpcUrl}`)\nconst RE = /abc[')).toEqual([
-      'rpcUrl',
-    ])
-  })
-})
-
-describe('blankNonCode', () => {
-  it('keeps length and line numbering so offsets still line up', () => {
-    const src = "const a = 'xx' // yy\nconst b = 1\n"
-    const out = blankNonCode(src)
-    expect(out.length).toBe(src.length)
-    expect(out.split('\n').length).toBe(src.split('\n').length)
-  })
-
-  it('blanks a string body but keeps a template interpolation', () => {
-    const out = blankNonCode("const s = 'secret'\nconst t = `x ${rpcUrl} y`\n")
-    expect(out).not.toContain('secret')
-    expect(out).toContain('rpcUrl')
-  })
-
-  it('blanks a string nested inside a template interpolation', () => {
-    const out = blankNonCode("const t = `${n.replace('ETH_NODE_URI_', '')}`\n")
-    expect(out).not.toContain('ETH_NODE_URI_')
-    expect(out).toContain('replace')
-  })
-
-  it('blanks a regex body, its character class and its flags', () => {
-    // `total/count` holds one slash, so endOfRegex declines it whatever the decision says; the
-    // three-slash form is what actually distinguishes the two readings.
-    expect(blankNonCode('const RE = /secret/g\n')).not.toContain('secret')
-    expect(blankNonCode('const q = total/count/other\n')).toContain(
-      'total/count/other'
-    )
-  })
-
-  it('consumes a regex\u2019s trailing flags', () => {
-    // Leaving them behind makes the flag letters read as an identifier, which then decides the
-    // next `/` the wrong way.
-    expect(blankNonCode('const RE = /a/gi\n').trimEnd()).toBe('const RE =')
-  })
-
-  it('does not end a regex at a slash inside its character class', () => {
-    expect(blankNonCode('const RE = /[/]x/g\n')).not.toContain('x')
-  })
-
-  it('leaves a quote with no partner on its line as a lone character', () => {
-    // Otherwise the apostrophe opens a string that swallows every following line.
-    expect(blankNonCode("const s = don't\nconst keep = rpcUrl\n")).toContain(
-      'rpcUrl'
-    )
   })
 })
