@@ -89,7 +89,7 @@ const main = defineCommand({
     ticket: {
       type: 'string',
       description:
-        'Linear issue link or id (e.g. EXSC-123). Required — nothing is proposed without one. Falls back to SAFE_PROPOSAL_TICKET.',
+        'Linear issue link or id (e.g. EXSC-123). Required — a proposal is not created without one. Falls back to SAFE_PROPOSAL_TICKET.',
     },
   },
   async run({ args }) {

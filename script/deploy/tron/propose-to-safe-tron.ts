@@ -443,6 +443,7 @@ const main = defineCommand({
       type: 'string',
       description:
         'Linear issue link or id (e.g. EXSC-123). Required — a proposal is not created without one. Falls back to SAFE_PROPOSAL_TICKET.',
+      required: false,
     },
   },
   async run({ args }) {
