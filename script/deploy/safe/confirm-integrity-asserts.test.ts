@@ -430,6 +430,21 @@ describe('stored signatures against the current owner set', () => {
     expect(outcome.actual).toContain('could not be reframed as typed data')
   })
 
+  it('reports a signature it cannot recover rather than throwing', async () => {
+    // An out-of-range `r`/`s` on an otherwise well-formed eth_sign signature:
+    // `recoverAddress` throws on this, and the throw would escape under no
+    // anchor instead of naming this check.
+    const outcome = await statusOf(
+      makeInput({
+        storedSignatures: [{ signer: OWNER, data: `0x${'0'.repeat(128)}1f` }],
+      }),
+      makeDeps(),
+      CHECK_SIGNATURES
+    )
+    expect(outcome.status).toBe('fail')
+    expect(outcome.actual).toContain('could not be recovered')
+  })
+
   it('is unverified when the owner set could not be read', async () => {
     const outcome = await statusOf(
       makeInput({
@@ -449,8 +464,11 @@ describe('stored signatures against the current owner set', () => {
 
   it('refuses a proposal whose stored signature set is empty', async () => {
     const outcome = await statusOf(makeInput(), makeDeps(), CHECK_SIGNATURES)
-    expect(outcome.status).toBe('error')
+    // `fail`, not `error`: the check ran and found a real mismatch, and
+    // `error` is reserved for a check that could not run at all.
+    expect(outcome.status).toBe('fail')
     expect(outcome.actual).toBe('0 stored signatures')
+    expect(outcome.anchor).toBe('A-PROPOSAL')
   })
 })
 
@@ -870,6 +888,11 @@ describe('the refusal the funnels call', () => {
     // check registers and cannot conclude.
     expect(run.registered).toContain(CHECK_TIMELOCK_DELAY)
     expect(run.verdict.hardBlocked).toBe(true)
+    // On the delay check specifically: `hardBlocked` alone would also be
+    // satisfied by any other check refusing on this input.
+    expect(run.verdict.blocking.map((blocked) => blocked.checkId)).toContain(
+      CHECK_TIMELOCK_DELAY
+    )
   })
 
   it('blocks a tampered stored hash', async () => {
@@ -937,8 +960,21 @@ describe('the refusal the funnels call', () => {
 
 describe('what the signer sees before the prompt', () => {
   it('names every check and its anchor on a clean run', async () => {
+    // A real signature, so this is the run in which nothing refuses — with the
+    // default empty set the signature check itself blocks, and then no test
+    // here renders an all-pass run.
     const lines = renderIntegrityAsserts(
-      await runIntegrityAsserts(makeInput(), makeDeps())
+      await runIntegrityAsserts(
+        makeInput({
+          storedSignatures: [
+            {
+              signer: OWNER,
+              data: await ethSignSignature(OWNER_KEY, REAL_HASH),
+            },
+          ],
+        }),
+        makeDeps()
+      )
     ).join('\n')
     for (const checkId of [
       CHECK_SAFE_ADDRESS,

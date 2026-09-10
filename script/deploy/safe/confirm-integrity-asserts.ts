@@ -419,6 +419,26 @@ async function assertSafeTxHash(
  * `ecrecover` cannot answer for at all — reported as unrecoverable rather than
  * as a signature belonging to nobody.
  */
+/**
+ * `recoverAddress` throws on a signature whose `r` or `s` is out of range, and a
+ * throw would escape this module's result contract and leave the run undefined —
+ * which blocks, but under no named anchor, so the display could not say which
+ * assertion refused. The signature comes off a stored row, so a corrupt blob
+ * reaches this.
+ */
+const recoverOrUnrecoverable = async (
+  hash: Hex,
+  signature: Hex
+): Promise<{ signer: Address } | { unrecoverable: string }> => {
+  try {
+    return { signer: await recoverAddress({ hash, signature }) }
+  } catch (error) {
+    return {
+      unrecoverable: `the signature could not be recovered: ${errorOf(error)}`,
+    }
+  }
+}
+
 async function recoverStoredSignature(
   signature: Hex,
   input: IIntegrityAssertInput,
@@ -433,22 +453,17 @@ async function recoverStoredSignature(
     const reframed = `${signature.slice(0, 130)}${(v - 4)
       .toString(16)
       .padStart(2, '0')}` as Hex
-    return {
-      signer: await recoverAddress({
-        hash: hashMessage({ raw: safeTxHash }),
-        signature: reframed,
-      }),
-    }
+    return recoverOrUnrecoverable(hashMessage({ raw: safeTxHash }), reframed)
   }
 
-  if (TYPED_DATA_V.has(v))
+  if (TYPED_DATA_V.has(v)) {
     // `to`, `value` and `nonce` come off the signed struct unvalidated, and
-    // `getAddress`/`BigInt` throw on a malformed one. A throw here would escape
-    // this function's result contract and leave the run undefined — which
-    // blocks, but under no named anchor, so the display could not say which
-    // assertion refused.
+    // `getAddress`/`BigInt` throw on a malformed one. Only the reframing is
+    // guarded here: recovery is a statement about the signature, so folding it
+    // in would report a bad signature as a bad struct.
+    let digest: Hex
     try {
-      const digest = hashTypedData({
+      digest = hashTypedData({
         domain: {
           chainId: input.chainId,
           verifyingContract: input.clientSafeAddress,
@@ -481,7 +496,6 @@ async function recoverStoredSignature(
           nonce: BigInt(input.signedNonce),
         },
       })
-      return { signer: await recoverAddress({ hash: digest, signature }) }
     } catch (error) {
       return {
         unrecoverable: `the signed struct could not be reframed as typed data: ${errorOf(
@@ -489,6 +503,8 @@ async function recoverStoredSignature(
         )}`,
       }
     }
+    return recoverOrUnrecoverable(digest, signature)
+  }
 
   return {
     unrecoverable: `v=${v} is neither an eth_sign nor a typed-data recovery id`,
@@ -516,10 +532,10 @@ async function assertSignatures(
 
   if (input.storedSignatures.length === 0)
     return {
-      status: 'error',
+      status: 'fail',
       expected,
       actual: '0 stored signatures',
-      anchor: 'A-CHAIN',
+      anchor: 'A-PROPOSAL',
       detail:
         'every writer stores a signature with the row, so an empty set is a row that lost its signatures rather than one awaiting them, and there is nothing to recover against the recomputed hash',
     }
