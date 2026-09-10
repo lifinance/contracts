@@ -62,10 +62,7 @@ import {
   assertProposalOperationPermitted,
   evaluateDelegateCallGate,
 } from './delegatecall-gate'
-import {
-  getDeployedFacetVersionFromLog,
-  getTargetStateFacetVersion,
-} from './facet-version-utils'
+import { getDeployedFacetVersionFromLog } from './facet-version-utils'
 import { printableField } from './printable-field'
 import {
   firstSupplied,
@@ -3029,9 +3026,13 @@ async function createSelectorMap(): Promise<Map<
 }
 
 /**
- * Displays the to-be-added facet version (resolved from the deployment log)
- * next to the target-state version and highlights a mismatch so the signer
- * can catch an unintended version before signing. Display-only.
+ * Displays the to-be-added facet version, resolved from the deployment record.
+ * Display-only.
+ *
+ * The expected version is deliberately absent here: grading it needs the anchor
+ * pinned at `origin/main` and a per-case verdict, which the sign-time
+ * target-state check renders and enforces. Reading the anchor out of this
+ * checkout is what produced the false red banners signers learned to dismiss.
  */
 function displayFacetVersionInfo(
   pre: string,
@@ -3053,26 +3054,11 @@ function displayFacetVersionInfo(
     network,
     facetAddressCandidates
   )
-  const targetVersion = knownName
-    ? getTargetStateFacetVersion(network, knownName)
-    : null
-
   const deployedDisplay = deployedVersion
-    ? `\u001b[34m${deployedVersion}\u001b[0m`
-    : `\u001b[33munknown (address not found in deployment log)\u001b[0m`
-  const targetDisplay = targetVersion
-    ? `\u001b[34m${targetVersion}\u001b[0m`
-    : knownName
-    ? `\u001b[33mnot in target state\u001b[0m`
-    : `\u001b[33munknown (contract name unresolved)\u001b[0m`
+    ? `[34m${deployedVersion}[0m`
+    : `[33munknown (address not found in deployment log)[0m`
 
   consola.info(`${pre}Facet Version (to be added): ${deployedDisplay}`)
-  consola.info(`${pre}Target State Version:        ${targetDisplay}`)
-
-  if (deployedVersion && targetVersion && deployedVersion !== targetVersion)
-    consola.warn(
-      `${pre}\u001b[31m⚠️  VERSION MISMATCH: to-be-added facet is v${deployedVersion} but target state expects v${targetVersion}\u001b[0m`
-    )
 }
 
 /**
