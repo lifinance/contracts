@@ -25,7 +25,12 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
-import { EXEMPT, scanForRawRpcUrlLogs } from './rpc-url-log-scan'
+import {
+  EXEMPT,
+  LOG_METHODS,
+  RPC_IDENTIFIERS,
+  scanForRawRpcUrlLogs,
+} from './rpc-url-log-scan'
 
 const REPO_ROOT = join(import.meta.dir, '..', '..')
 
@@ -61,6 +66,13 @@ describe('no shipped script logs a raw RPC endpoint', () => {
     expect(scanned.length).toBeGreaterThan(100)
     expect(scanned).toContain('script/troncast/utils/tronweb.ts')
     expect(scanned).toContain('script/deploy/tron/deploy-core-facets.ts')
+  })
+
+  it('walks every root it claims, not just script/', () => {
+    // Dropping `tasks` from the default roots leaves >100 files scanned and both asserted paths
+    // present, so nothing else here would notice.
+    const { scanned } = scanForRawRpcUrlLogs(REPO_ROOT)
+    expect(scanned.some((p) => p.startsWith('tasks/'))).toBe(true)
   })
 
   it('every exemption still names a file that exists', () => {
@@ -134,6 +146,57 @@ describe('the scan fires on a new leak', () => {
     expect(identifiers('consola.info({ [rpcUrl]: n })\n')).toEqual(['rpcUrl'])
   })
 
+  // The two sets are pinned by VALUE. Iterating the constant alone is self-referential: deleting
+  // an entry also deletes its case, so the assertion moves with the mutation.
+  it('pins the vocabulary and the log surface', () => {
+    expect([...RPC_IDENTIFIERS]).toEqual([
+      'rpcUrl',
+      'rpcUrls',
+      'fullHost',
+      'nodeUrl',
+      'providerUrl',
+      'endpointUrl',
+    ])
+    expect([...LOG_METHODS]).toEqual([
+      'debug',
+      'info',
+      'log',
+      'warn',
+      'error',
+      'success',
+      'start',
+      'ready',
+      'fail',
+      'box',
+      'fatal',
+      'trace',
+      'verbose',
+      'silent',
+      'dir',
+      'table',
+      'group',
+      'groupCollapsed',
+    ])
+  })
+
+  it.each([...RPC_IDENTIFIERS])('catches the identifier %s', (name) => {
+    expect(identifiers(`consola.info(\`\${${name}}\`)\n`)).toEqual([name])
+  })
+
+  it.each([...LOG_METHODS])('catches consola.%s', (method) => {
+    expect(identifiers(`consola.${method}(\`\${rpcUrl}\`)\n`)).toEqual([
+      'rpcUrl',
+    ])
+  })
+
+  it('reports the line and the text a developer reads when CI goes red', () => {
+    const [finding] = scanFixture(
+      '// a leading comment\nconst x = 1\nconsola.info(`connecting via ${rpcUrl}`)\n'
+    ).findings
+    expect(finding?.line).toBe(3)
+    expect(finding?.text).toContain('rpcUrl')
+  })
+
   it('stays silent once the same site is redacted', () => {
     expect(
       scanFixture(
@@ -143,9 +206,21 @@ describe('the scan fires on a new leak', () => {
     ).toEqual([])
   })
 
-  it('accepts hostOf as a redaction too', () => {
-    expect(scanFixture('consola.info(hostOf(rpcUrl))\n').findings).toEqual([])
+  it('accepts a redactor reached through a namespace', () => {
+    // `utils.redactUrls(...)` — without the member branch of calleeName this reads as an
+    // unredacted call and reports honest code.
+    expect(
+      scanFixture('consola.info(utils.redactUrls(rpcUrl))\n').findings
+    ).toEqual([])
   })
+
+  it.each(['hostOf', 'redactErrorReason'])(
+    'accepts %s as a redaction too',
+    (fn) => {
+      // redactErrorReason has 27 call sites in the repo and was unpinned.
+      expect(scanFixture(`consola.info(${fn}(rpcUrl))\n`).findings).toEqual([])
+    }
+  )
 })
 
 describe('the innocent mentions stay silent, beside a leak that does not', () => {
@@ -214,6 +289,30 @@ describe('the innocent mentions stay silent, beside a leak that does not', () =>
   it('a consola or console method that prints nothing is not a log surface', () => {
     expect(identifiers(`console.time(rpcUrl)\n${LEAK}`)).toEqual(['fullHost'])
     expect(identifiers(`consola.withTag(rpcUrl)\n${LEAK}`)).toEqual([
+      'fullHost',
+    ])
+  })
+
+  it.each([
+    ['a method shorthand', 'consola.info({ rpcUrl() { return 1 } })'],
+    ['a getter', 'consola.info({ get rpcUrl() { return 1 } })'],
+    ['a setter', 'consola.info({ set rpcUrl(v) {} })'],
+    ['a class property', 'consola.info(class { rpcUrl = 1 })'],
+    [
+      'a named function expression',
+      'consola.info((function rpcUrl(){ return 1 })())',
+    ],
+    ['a renamed binding', 'consola.info((({ rpcUrl: u }) => hostOf(u))(o))'],
+  ])('%s names something rather than reading it', (_n, src) => {
+    // Asked structurally, so this list is illustration rather than the rule — an enumeration of
+    // declaration kinds is what left accessors and methods reporting.
+    expect(identifiers(`${src}\n${LEAK}`)).toEqual(['fullHost'])
+  })
+
+  it('a logger that is not consola or console is not a log surface', () => {
+    // Without the receiver check this becomes "any x.info()", and every wrapper in the repo
+    // starts failing CI.
+    expect(identifiers(`logger.info(\`\${rpcUrl}\`)\n${LEAK}`)).toEqual([
       'fullHost',
     ])
   })

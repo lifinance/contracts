@@ -5,11 +5,20 @@
  * live credential into every transcript of the run. Imported by `rpc-url-log-scan.test.ts`, which
  * fails when a new such site appears under `script/` or `tasks/`.
  *
- * What it does NOT reach, so nobody mistakes a green run for a closed class: bash (`.sh` is not
- * walked); endpoints embedded in an error object's `message` by viem or tronweb; identifiers
- * outside {@link RPC_IDENTIFIERS}; log surfaces outside {@link LOG_METHODS}; anything under a
- * path in {@link EXEMPT}, which is whole-file rather than per-line; and anything outside the
- * roots the caller passes.
+ * What it does NOT reach, so nobody mistakes a green run for a closed class:
+ *
+ * - bash — `.sh` is not walked at all.
+ * - An endpoint viem or tronweb embeds in an error object's `message`.
+ * - A name outside {@link RPC_IDENTIFIERS} / `RPC_ENV_PREFIXES`, or a method outside
+ *   {@link LOG_METHODS}.
+ * - Any receiver that is not a bare `consola`/`console` with a dotted method: an alias
+ *   (`const c = consola`), `console['log'](…)`, `consola.info.call(…)` and a tagged template are
+ *   each invisible however the method is named.
+ * - A computed environment read, `process.env[name]` — the form three scripts here use.
+ * - Anything needing dataflow: a value renamed, destructured to another name, or handed to a
+ *   helper that logs it.
+ * - A path in {@link EXEMPT}, which is whole-file rather than per-line, and anything outside the
+ *   roots the caller passes.
  */
 import { type Dirent, readFileSync, readdirSync } from 'node:fs'
 import { join, relative } from 'node:path'
@@ -97,19 +106,28 @@ const isLogCall = (node: ts.Node): boolean =>
 /**
  * True when this identifier declares a name rather than reading a value.
  *
- * An object key, a parameter and a binding all *mention* the word without putting an endpoint on
- * screen. A shorthand `{ rpcUrl }` is deliberately NOT one of these: it reads the variable.
+ * An object key, a parameter, a binding, a method name and a label all *mention* the word without
+ * putting an endpoint on screen. Asked structurally — is this identifier the thing its parent is
+ * naming — rather than by listing declaration kinds: a fixed list of node kinds silently omits
+ * accessors, methods, enum members and labels, and that omission is a false red on honest code.
+ *
+ * Two deliberate exceptions. A shorthand `{ rpcUrl }` is both the name and the read, so it
+ * reports. A property access reads a member, so `chain.rpcUrls` reports even though `rpcUrls` is
+ * its parent's `name`.
  */
 function declaresRatherThanReads(node: ts.Identifier): boolean {
   const p = node.parent
   if (!p) return false
-  if (ts.isPropertyAssignment(p) && p.name === node) return true
-  if (ts.isParameter(p) && p.name === node) return true
-  if (ts.isBindingElement(p) && (p.name === node || p.propertyName === node))
-    return true
-  if (ts.isVariableDeclaration(p) && p.name === node) return true
-  if (ts.isPropertySignature(p) && p.name === node) return true
-  return false
+  if (ts.isPropertyAccessExpression(p) || ts.isQualifiedName(p)) return false
+  if (ts.isShorthandPropertyAssignment(p)) return false
+  const named = p as ts.Node & {
+    name?: ts.Node
+    propertyName?: ts.Node
+    label?: ts.Node
+  }
+  return (
+    named.name === node || named.propertyName === node || named.label === node
+  )
 }
 
 function tsFilesUnder(root: string, out: string[] = []): string[] {

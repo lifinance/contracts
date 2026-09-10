@@ -96,14 +96,34 @@ describe.each(REDACTORS)('%s > %s', (file, fn) => {
   })
 })
 
-describe('rpcCallWithRetry returns a redacted error but an untouched result', () => {
-  const BG = 'script/emergency/emergencyPauseBreakGlass.sh'
+/**
+ * Both scripts define their own `rpcCallWithRetry`. The readiness one runs on a schedule in
+ * GitHub Actions, where its output lands in a CI log, and was the untested of the two.
+ */
+const RETRY_SCRIPTS: [string, [string, string][]][] = [
+  [
+    'script/emergency/emergencyPauseBreakGlass.sh',
+    [
+      ['script/emergency/emergencyPauseBreakGlass.sh', 'bgRedactUrl'],
+      ['script/emergency/emergencyPauseBreakGlass.sh', 'rpcCallWithRetry'],
+    ],
+  ],
+  [
+    'script/utils/verifyEmergencyPauseReadinessGitHub.sh',
+    [
+      ['script/helperFunctions.sh', 'redactRpcUrl'],
+      [
+        'script/utils/verifyEmergencyPauseReadinessGitHub.sh',
+        'rpcCallWithRetry',
+      ],
+    ],
+  ],
+]
+
+describe.each(RETRY_SCRIPTS)('%s > rpcCallWithRetry', (_label, defs) => {
   const run = (script: string): string =>
     withBashFns(
-      [
-        [BG, 'bgRedactUrl'],
-        [BG, 'rpcCallWithRetry'],
-      ],
+      defs,
       `RPC_MAX_ATTEMPTS=2\nRPC_RETRY_SLEEP_SECONDS=0\n${script}`
     )
 
@@ -118,12 +138,29 @@ describe('rpcCallWithRetry returns a redacted error but an untouched result', ()
     expect(out).toContain('[redacted-url]')
   })
 
+  it('redacts an endpoint that arrived on stdout instead of stderr', () => {
+    // The `${LAST_ERR:-$OUT}` fallback: helpers that merge stderr with 2>&1 land here.
+    const out = run(
+      `failing() { echo "failed for url (https://x.io/v1/FAKEKEY888)"; return 1; }\n` +
+        `rpcCallWithRetry "label" failing 2>/dev/null || true`
+    )
+    expect(out).not.toContain('FAKEKEY888')
+    expect(out).toContain('[redacted-url]')
+  })
+
   it('leaves a successful result verbatim', () => {
     // The success path returns data callers parse — a balance, an address. Redacting it would
     // break every one of them, so this is the assertion that keeps the fix honest.
-    const out = run(
-      `ok() { echo "1000000000000000000"; }\nrpcCallWithRetry "label" ok`
-    )
-    expect(out).toBe('1000000000000000000')
+    expect(
+      run(`ok() { echo "1000000000000000000"; }\nrpcCallWithRetry "label" ok`)
+    ).toBe('1000000000000000000')
+  })
+
+  it('does not redact a URL that appears in successful output', () => {
+    expect(
+      run(
+        `ok() { echo "see https://docs.example/x"; }\nrpcCallWithRetry "label" ok`
+      )
+    ).toBe('see https://docs.example/x')
   })
 })
