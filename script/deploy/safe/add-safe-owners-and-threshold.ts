@@ -61,6 +61,13 @@ interface IProcessNetworkDeps {
   ledgerOptions?: ILedgerOptions
   ledgerAccount?: Account
   cliOwners?: Address[]
+  /**
+   * `--ticket`. Carried down because the entry-point check validating it and the
+   * store recording it resolve their ticket independently: without it the store
+   * consults only `SAFE_PROPOSAL_TICKET` and a flag-only run is refused after
+   * every signature it spent.
+   */
+  ticket?: string
 }
 
 interface IProcessNetworkResult {
@@ -240,6 +247,7 @@ const main = defineCommand({
             ledgerOptions,
             ledgerAccount: ledgerResult?.account,
             cliOwners,
+            ticket: args.ticket,
           })
           results.push({
             network,
@@ -329,6 +337,7 @@ async function processNetwork(
     ledgerOptions,
     ledgerAccount,
     cliOwners,
+    ticket,
   } = deps
 
   const { safe, chain, safeAddress } = await initializeSafeClient(
@@ -407,7 +416,9 @@ async function processNetwork(
         chain.id,
         signedTx,
         safeTxHash,
-        senderAddress
+        senderAddress,
+        undefined,
+        { ticket }
       )
 
       if (result === null) {
@@ -458,7 +469,9 @@ async function processNetwork(
         chain.id,
         signedThresholdTx,
         thresholdTxHash,
-        senderAddress
+        senderAddress,
+        undefined,
+        { ticket }
       )
 
       if (thresholdResult === null) {

@@ -1,6 +1,7 @@
 /**
  * Which channel each funnel accepts a Linear ticket through — the flag, the
- * environment variable, or both.
+ * environment variable, or both — and that the channel reaches both places a
+ * ticket is resolved.
  *
  * `ticket-gate-placement.test.ts` covers where the check sits and
  * `proposal-intent.test.ts` what it decides. This file covers only the input
@@ -33,29 +34,36 @@ const TIMEOUT_MS = 20_000
 
 /**
  * Every funnel that refuses a run at its own entry, with the channels it
- * accepts a ticket through and the exact call the check is reached by.
+ * accepts a ticket through and the exact calls the ticket travels by.
  *
  * Named by what may proceed: a funnel absent from this table is not exempt, it
- * is unclassified, and the last case fails on it. `flag: false` records which
- * channel a funnel offers today, not which one it could offer. `call` is
- * matched verbatim, so forwarding the wrong value is a failure and not merely
- * forwarding nothing. `asserts: false` marks the funnel that resolves the
- * intent itself instead of calling `assertTicketPresent`, so the caller grep
+ * is unclassified, and the fail-closed cases fail on it. `flag: false` records
+ * which channel a funnel offers today, not which one it could offer. `call` and
+ * `store` are matched verbatim, so forwarding the wrong value is a failure and
+ * not merely forwarding nothing. `asserts: false` marks the funnel that resolves
+ * the intent itself instead of calling `assertTicketPresent`, so the caller grep
  * must not expect to find it.
  */
 const FUNNELS = [
-  { script: 'deploy/safe/propose-to-safe.ts', flag: true, asserts: false },
+  {
+    script: 'deploy/safe/propose-to-safe.ts',
+    flag: true,
+    asserts: false,
+    store: '{ ticket: options.ticket, reason: options.reason }',
+  },
   {
     script: 'deploy/safe/add-safe-owners-and-threshold.ts',
     flag: true,
     asserts: true,
     call: 'assertTicketPresent(args.ticket)',
+    store: '{ ticket }',
   },
   {
     script: 'deploy/tron/propose-to-safe-tron.ts',
     flag: true,
     asserts: true,
     call: 'assertTicketPresent(options.ticket)',
+    store: '{ ticket: options.ticket }',
     // The only funnel where the flag does not reach the check directly, so the
     // handoff `main` makes into `runPropose` is pinned as well.
     hop: 'ticket: args.ticket,',
@@ -65,6 +73,7 @@ const FUNNELS = [
     flag: true,
     asserts: true,
     call: 'assertTicketPresent(args.ticket)',
+    store: '{ ticket: args.ticket }',
   },
   // Its only caller, `cleanUpProdDiamond.ts`, declares no `--ticket`, so the
   // exported variable is the whole channel — `MultisigSigningProcess.md` §4.2.
@@ -82,7 +91,6 @@ const FUNNELS = [
  * the routes that cost one, which is only true while the list is this one.
  */
 const STORE_ONLY = [
-  'deploy/safe/parked-tasks.ts',
   'tasks/proposeAllBridgeChainIdMappings.ts',
   'tasks/proposeDeBridgeDlnChainIdMappings.ts',
   'tasks/proposeFraxChainIdMappings.ts',
@@ -90,14 +98,8 @@ const STORE_ONLY = [
   'tasks/proposePolymerCCTPChainIdMappings.ts',
 ] as const
 
-/**
- * Neither is a route into the store: `safe-utils.ts` is where the function is
- * defined, and `proposal-intent.ts` only names it in a comment.
- */
-const NOT_A_STORE_ROUTE = [
-  'deploy/safe/safe-utils.ts',
-  'deploy/safe/proposal-intent.ts',
-]
+/** Where the function is defined, which is not a route into it. */
+const NOT_A_STORE_ROUTE = ['deploy/safe/safe-utils.ts']
 
 /** Matches the citty argument declaration, not a mention of the word. */
 const TICKET_ARG = /^\s*ticket: \{$/m
@@ -106,19 +108,18 @@ const source = (script: string): string =>
   readFileSync(join(SCRIPT_ROOT, script), 'utf8')
 
 /**
- * Scripts under `script/` that name `symbol`, relative to `script/`.
+ * Runs `git grep -l` under `script/` and returns the hits relative to it.
  *
  * `--untracked` because the script these cases exist to name is usually one
  * just written: without it they pass at exactly the moment they should fire,
  * and only start working once the new file has been staged.
  *
- * @param symbol - Matched as a substring, so a mention counts and the callers
- * that are not routes have to be excluded by name.
+ * @param pattern - Passed to `git grep` as a basic regular expression.
  * @returns Paths relative to `script/`, test files dropped.
  */
-const callersOf = (symbol: string): string[] => {
+const grepScripts = (pattern: string): string[] => {
   const grep = Bun.spawnSync(
-    ['git', 'grep', '-l', '--untracked', symbol, '--', 'script'],
+    ['git', 'grep', '-l', '--untracked', pattern, '--', 'script'],
     { cwd: REPO_ROOT, stdout: 'pipe', stderr: 'pipe' }
   )
 
@@ -129,6 +130,42 @@ const callersOf = (symbol: string): string[] => {
     .map((path) => relative('script', path))
     .filter((path) => !path.endsWith('.test.ts'))
 }
+
+/**
+ * Scripts that call `symbol`.
+ *
+ * Matched with the opening parenthesis, so a mention in a comment cannot be
+ * counted as a route: a JSDoc line reading "mirroring
+ * `storeTransactionInMongoDB`" otherwise classifies a module that never reaches
+ * it, and then turns the classification red when someone rewords that comment.
+ *
+ * @param symbol - Function name, without the parenthesis.
+ * @returns Paths relative to `script/`.
+ */
+const callersOf = (symbol: string): string[] => grepScripts(`${symbol}(`)
+
+/**
+ * Lines either spawned funnel prints only once it has signed, queried the live
+ * collection, or broadcast.
+ *
+ * Each has to be unsatisfiable by the refusal text printed beside it — the
+ * refusal itself contains the words "Safe proposal", so a predicate on those
+ * would fire on every case and fail the runs it exists to protect. The
+ * duplicate-proposal and store-failure lines belong here because both land
+ * after the signature was spent and the store was reached, which is a breach
+ * even though no row was written. The summary line is anchored on a non-zero
+ * count, because the same sentence reads "All 0 network(s) processed
+ * successfully." on a run that proposed nothing.
+ */
+const ACTED_LINES = [
+  /Transaction proposed/,
+  /Transaction signed/,
+  /successfully stored in MongoDB/,
+  /Proposal already exists/,
+  /Failed to store transaction in MongoDB/,
+  /confirmed in block/,
+  /All [1-9]\d* network\(s\) processed successfully/,
+]
 
 /**
  * Spawns a funnel and returns what it printed.
@@ -159,6 +196,10 @@ const runRefused = (
   // valid-but-unfunded one would derive an address and go on to open the
   // store, and a URI the driver rejects on construction throws where an
   // unreachable host would first spend 30 s selecting a server.
+  //
+  // This covers only the funnels that sign with a key. The caller passes
+  // `--ledger=false` where a funnel would otherwise reach for a device, which
+  // no environment value can blunt.
   for (const name of [
     'PRIVATE_KEY',
     'PRIVATE_KEY_PRODUCTION',
@@ -182,21 +223,10 @@ const runRefused = (
   const output = `${result.stdout.toString()}${result.stderr.toString()}`
 
   // Detects a breach, does not prevent one — the isolation above is what does
-  // that. Every line printed here follows the act it reports, so this fails the
-  // run afterwards rather than stopping it; it exists so a dummy row in the
+  // that. Every line in `ACTED_LINES` follows the act it reports, so this fails
+  // the run afterwards rather than stopping it; it exists so a dummy row in the
   // live proposal queue can never be mistaken for a passing suite.
-  //
-  // Carries a line for each funnel spawned below, including the signing step
-  // that precedes the store on `add-safe-owners-and-threshold.ts` — a spent
-  // signature is already a breach. Each has to be unsatisfiable by the refusal
-  // text sitting beside it: the refusal itself contains the words "Safe
-  // proposal", so a predicate on those would fire on every case and fail the
-  // runs it exists to protect.
-  if (
-    /Transaction proposed|network\(s\) processed successfully|Transaction signed|successfully stored in MongoDB/i.test(
-      output
-    )
-  )
+  if (ACTED_LINES.some((line) => line.test(output)))
     throw new Error(
       'a probe reached a real Safe or proposal store — the child environment is not isolated'
     )
@@ -259,12 +289,13 @@ describe('a funnel that offers --ticket reads it', () => {
 
   // The second funnel this is reachable on: its check follows argument parsing
   // and a config-only network resolution, with no RPC, Ledger or Mongo before
-  // it. The Tron funnel is the one that cannot join them — its check sits past
-  // the timelock reads inside `runPropose`, so reaching it costs a live chain.
+  // it. `--ledger=false` so that a run which somehow got past the check reaches
+  // for the blocked key rather than blocking on a device.
   it('names the value passed to add-safe-owners-and-threshold.ts', () => {
     const output = runRefused('deploy/safe/add-safe-owners-and-threshold.ts', [
       '--network',
       'mainnet',
+      '--ledger=false',
       '--ticket',
       REFUSED_URL,
     ])
@@ -279,9 +310,9 @@ describe('a funnel that offers --ticket reads it', () => {
 // spawned above. It is the only cover the Tron funnel gets — its check sits
 // past the timelock reads inside `runPropose`, so reaching it costs a live
 // chain. A source check passes against a rewrite of the same bug, so these
-// assert only the shape the flag has to travel in — declared, forwarded to the
-// check, and given no `default`. The last two cases are the fail-closed pair,
-// one per side of §4.2's split.
+// assert only the shape the ticket has to travel in — declared, forwarded to
+// the check, forwarded to the store, and given no `default`. The last three
+// cases are the fail-closed set, one per claim §4.2 makes exhaustively.
 describe('every route is classified, and each funnel matches its source', () => {
   it.each(FUNNELS.filter((funnel) => funnel.flag).map((f) => f.script))(
     '%s declares a ticket argument',
@@ -317,6 +348,21 @@ describe('every route is classified, and each funnel matches its source', () => 
     expect(asserting.filter((funnel) => !funnel.flag).length).toBe(1)
   })
 
+  it('hands the ticket to the store as well as to the entry check', () => {
+    // The two resolve independently: `storeTransactionInMongoDB` consults
+    // `SAFE_PROPOSAL_TICKET` unless its caller supplies one, so a funnel can
+    // clear its own gate on the flag and then be refused once per signature it
+    // already spent — or, where the variable is set to something older, record
+    // that stale link against the proposal `--ticket` was passed to override.
+    // Counted, so a second store call added later cannot skip the argument.
+    for (const funnel of FUNNELS.filter((f) => f.flag)) {
+      const text = source(funnel.script)
+      const storeCalls = text.split('storeTransactionInMongoDB(').length - 1
+      expect(storeCalls).toBeGreaterThan(0)
+      expect(text.split(funnel.store).length - 1).toBe(storeCalls)
+    }
+  })
+
   it.each(FUNNELS.filter((funnel) => funnel.flag).map((f) => f.script))(
     '%s gives the ticket argument no default to swallow the flag with',
     (script) => {
@@ -328,12 +374,9 @@ describe('every route is classified, and each funnel matches its source', () => 
   )
 
   it('classifies every script that calls the check', () => {
-    // The fail-closed half. `FUNNELS` is a snapshot, so a funnel added later
-    // lands in neither list and this case names it instead of ignoring it.
-    const callers = callersOf('assertTicketPresent').filter(
-      // The module the check is defined in is not a caller of it.
-      (path) => path !== 'deploy/safe/proposal-intent.ts'
-    )
+    // `FUNNELS` is a snapshot, so a funnel added later lands in neither list
+    // and this case names it instead of ignoring it.
+    const callers = callersOf('assertTicketPresent')
 
     const expected = FUNNELS.filter((funnel) => funnel.asserts).map(
       (funnel) => funnel.script
@@ -361,5 +404,19 @@ describe('every route is classified, and each funnel matches its source', () => 
 
     expect(routes.length).toBe(classified.length)
     expect(new Set(routes)).toEqual(new Set(classified))
+  })
+
+  it('is offered by no route outside the table', () => {
+    // §4.2 names four scripts "and no other route". The declaration cases above
+    // only look at the scripts already in the table, so a fifth one growing a
+    // `--ticket` would falsify that sentence with every other case still green.
+    const declarers = grepScripts('^\\s*ticket: {$')
+
+    const expected = FUNNELS.filter((funnel) => funnel.flag).map(
+      (funnel) => funnel.script
+    )
+
+    expect(declarers.length).toBe(expected.length)
+    expect(new Set(declarers)).toEqual(new Set(expected))
   })
 })

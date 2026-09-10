@@ -381,7 +381,9 @@ async function runPropose(options: IProposeToSafeTronOptions) {
     chainId,
     safeTxForMongo,
     txHashBytes32,
-    proposerEvm as Address
+    proposerEvm as Address,
+    undefined,
+    { ticket: options.ticket }
   )
   await mongoClient.close()
 

@@ -263,7 +263,9 @@ const main = defineCommand({
               chain.id,
               signedTx,
               safeTxHash,
-              senderAddress
+              senderAddress,
+              undefined,
+              { ticket: args.ticket }
             )
 
             if (result === null) {
