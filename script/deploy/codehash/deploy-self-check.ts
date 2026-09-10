@@ -14,9 +14,7 @@ import type {
   IObservedCode,
   CodehashVerdict,
 } from './attested-set'
-
-const normalizeHash = (hash: string): string =>
-  (/^0x/i.test(hash) ? hash.slice(2) : hash).toLowerCase()
+import { normalizeHash } from './hex'
 
 export type SelfCheckOutcome = 'PASS' | 'CONFIRM' | 'REFUSE'
 

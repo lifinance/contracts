@@ -89,6 +89,7 @@
     "lint:js:fix": "eslint \"**/*.{js,ts,tsx}\" --fix",
     "lint:sol": "solhint \"src/**/*.sol\"",
     "lint:sol:fix": "solhint \"src/**/*.sol\" --fix",
+    "lint:funnel": "eslint --no-eslintrc -c ./.eslintrc.funnel-fence.cjs --no-inline-config --ext .ts,.tsx,.mts,.cts,.js,.mjs,.cjs .",
     "lint:md": "markdownlint-cli2 \"**/*.md\"",
     "lint:md:fix": "markdownlint-cli2 --fix \"**/*.md\"",
     "lint:fix": "bun lint:js:fix && bun lint:sol:fix",
