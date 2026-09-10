@@ -51,13 +51,22 @@ guide than any list of gate names, which will go out of date:
 | `bun propose-safe-tx` (or a deploy script that proposes) | the proposer only |
 | `bun confirm-safe-tx` | **the signers too** |
 
+That is a first cut, not the whole answer: **a gate can be wired on both
+paths.** `evaluateDelegateCallGate` is — three call sites in `safe-utils.ts`
+(`signTransactionWithHash`, `signTransaction`, `executeTransaction`) as well
+as in `confirm-safe-tx.ts`. Before concluding the signers can stay on `main`,
+grep the refusing gate's call sites; if the propose path reaches it too, both
+sides fall back.
+
 Sign-time gates are the larger group and they refuse in different ways, so do
 not expect a single recognisable message: `evaluateCodehashSignGate` and
 `runIntegrityAsserts` both block by leaving their verdict unevaluated
 (`blockingUnevaluatedGate()`, and an undefined integrity run *is* the blocking
-state), `evaluateDelegateCallGate` silently removes every signing option from
-the menu, and `evaluateTargetStateIntent` prints `✗  EXPECTED-STATE CHECK
-FAILED — NOT SIGNING OR EXECUTING` and moves to the next network.
+state), `evaluateDelegateCallGate` prints `⛔ REFUSED` with its reason and then leaves
+`Do Nothing` as the only option — it withdraws the execute choices as well as
+the signing ones — and `evaluateTargetStateIntent` prints `✗  EXPECTED-STATE
+CHECK FAILED — NOT SIGNING OR EXECUTING` and skips to the next **proposal**,
+leaving the rest of the run intact.
 
 Getting this wrong wastes the ceremony: proposing from the escape commit does
 nothing for a sign-time refusal, because the signer on `main` reaches the
@@ -97,13 +106,18 @@ mechanism has not been pinned down, so treat the flag as the remedy and
 
 **The `node_modules` symlink borrows `main`'s resolved versions, not the
 baseline's.** That works today — the baseline's propose/confirm import closure
-is `citty consola viem viem/accounts mongodb dotenv @lifi/tron-devkit tronweb
-@ledgerhq/hw-transport` plus node builtins, none of which was dropped, and the
-installed `viem` and `tronweb` both still satisfy the baseline's ranges. Note
-that `@ledgerhq/hw-transport-node-hid` and `@ledgerhq/hw-app-eth` are loaded by
-**dynamic import**, so a resolution failure there surfaces at Ledger-tap time
-rather than at startup —
-but nothing enforces it, and one `bun install` in the clone can end it. The
+is `citty consola viem viem/accounts mongodb dotenv @lifi/tron-devkit tronweb`
+plus the Ledger packages and node builtins; none was dropped, and the installed
+`viem` and `tronweb` both still satisfy the baseline's ranges.
+
+The Ledger side deserves its own note. `@ledgerhq/hw-transport-node-hid` and
+`@ledgerhq/hw-app-eth` are loaded by **dynamic import**, so a resolution
+failure there surfaces at Ledger-tap time rather than at startup —
+mid-ceremony, in other words. `@ledgerhq/hw-transport` itself is imported only
+as a type and is declared in neither `package.json`; it resolves today as a
+hoisted transitive of `hw-transport-node-hid`.
+
+Nothing enforces any of this, and one `bun install` in the clone can end it. The
 slower, correct alternative is a real `bun install` in the escape worktree
 against the baseline's own lockfile.
 
@@ -123,9 +137,13 @@ in the session silently beats the file. Check both, and never print a value:
 for v in SC_MONGODB_URI PRIVATE_KEY_PRODUCTION SAFE_SIGNER_PRIVATE_KEY; do
   grep -qE "^[[:space:]]*${v}=." .env \
     && echo "$v: declared in .env" || echo "$v: MISSING from .env"
-  eval "exported=\${$v:-}"
-  [ -n "$exported" ] && echo "  ⚠ $v is ALSO exported in this shell — the export wins"
 done
+
+# An export beats the file, so check the three by name — presence only, never
+# the value.
+[ -n "${SC_MONGODB_URI:-}" ]         && echo '  ⚠ SC_MONGODB_URI is exported here — the export wins'
+[ -n "${PRIVATE_KEY_PRODUCTION:-}" ] && echo '  ⚠ PRIVATE_KEY_PRODUCTION is exported here — the export wins'
+[ -n "${SAFE_SIGNER_PRIVATE_KEY:-}" ] && echo '  ⚠ SAFE_SIGNER_PRIVATE_KEY is exported here — the export wins'
 ```
 
 The proposer needs `PRIVATE_KEY_PRODUCTION`; a signer needs
@@ -157,9 +175,13 @@ likely to bite:
   so there is no fan-out risk — the risk is that a name it accepts no longer
   means what you think.
 - **`deployments/` is frozen too, and `--timelock` reads it.** The baseline's
-  `propose-to-safe.ts` loads `deployments/<network>.json` and requires
-  `LiFiTimelockController` in it whenever `--timelock` is passed, throwing
-  `Deployment file not found` otherwise. `injective.json` and `sepolia.json`
+  `propose-to-safe.ts` loads `deployments/<network>.json` whenever `--timelock`
+  is passed and requires `LiFiTimelockController` in it, with a different
+  message for each failure — `Deployment file not found: <path>` when the file
+  is missing, `LiFiTimelockController not found in deployments for network
+  <n>` when the file is there without the key. Four of the 69 shared files
+  carry no `LiFiTimelockController` at either commit, so the second is
+  reachable too. `injective.json` and `sepolia.json`
   do not exist at the baseline at all — the same two networks, failing a
   second way. For the 69 files both trees share, no `LiFiTimelockController`
   address drifted, so this is a missing-network problem rather than a
@@ -278,10 +300,16 @@ and so is a new network, since §4 shows config is pinned along with the code.
 Moving the tag is a recorded decision on EXSC-976, never a silent retag. What
 to re-establish at the candidate commit, in the order that fails fastest:
 
-1. No 2.0 gate module is present. Check the layer, not a list of names —
+1. No 2.0 gate module is present. Get the candidates from the layer rather
+   than from a list of names, so a gate added after this runbook was written
+   cannot be missed:
    `git ls-tree -r <sha> -- script/deploy/safe/ script/deploy/shared/` against
-   the same paths on `main`, so a gate added after this runbook was written
-   cannot be missed by a stale list.
+   the same paths on `main`. **That diff is a candidate list, not an answer** —
+   it is non-empty from 2026-07-28 onward and most of what it names is
+   unrelated tooling (a prefetch cache, a selector registry, a read-only
+   client). For each candidate, ask the only question that matters: does an
+   entry point reach it on a path that can *refuse*? Grep its call sites in
+   `propose-to-safe.ts` and `confirm-safe-tx.ts`.
 2. The entry points still resolve: `propose-safe-tx` and `confirm-safe-tx` in
    `package.json`, and `with-safe-tunnel.sh`.
 3. The `ISafeTxDocument` field diff against `main`, stated — today it is
@@ -293,8 +321,14 @@ to re-establish at the candidate commit, in the order that fails fastest:
    the borrowed `node_modules` is `main`'s, and a `bun install` in the clone
    can invalidate it without touching this repo.
 
-**One case this list cannot satisfy.** Requirement 1 wants a commit with no
-2.0 gate module, and the earliest of those landed 2026-09-02. For a network
-added after that date there is no such commit, so there is no fallback for it
-at all — the answer then is to fix the gate, not to move the tag. Say so on
-the ticket rather than retagging to something that still carries the gate.
+**One case this list cannot satisfy.** The earliest signing gates —
+`ledger-guards.ts` and `proposal-intent.ts` — landed **2026-09-02**. For a
+network added after that date, no commit both knows the network and predates
+the gates, so there is no fallback for it at all: the answer is to fix the
+gate, not to move the tag. Say so on the ticket rather than retagging to
+something that still carries the gate.
+
+Both networks §4 names predate that, so a candidate exists for each
+(`injective` 2026-07-31, `sepolia` 2026-08-25) — but requirement 1's diff is
+non-empty at either, which is why it asks whether a candidate can refuse
+rather than whether the diff is empty.
