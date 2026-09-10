@@ -177,12 +177,9 @@ const spawnCli = (options: {
   // unroutable host rather than removed. An earlier version of this probe
   // inherited the real store and queued a proposal on a production Safe, which
   // takes a real nonce and blocks the queue behind it.
-  // Deleted rather than set to a malformed value, which is the opposite of what
-  // the sibling placement probes must do: those spawn with no `cwd`, so the
-  // child resolves the repo's own env file and a deleted name comes back at its
-  // real length. Here `cwd` is the mkdtempSync fixture repo, which has no env
-  // file to resolve, and four cases below assert the key-absent message that a
-  // malformed value would replace.
+  // Deleted, not set to a malformed value: `cwd` is the mkdtempSync fixture repo,
+  // which has no env file for bun to re-load, and four cases below assert the
+  // key-absent message that a malformed value would replace.
   delete env.PRIVATE_KEY // spawn-env: child cwd has no .env
   delete env.PRIVATE_KEY_PRODUCTION // spawn-env: child cwd has no .env
   // Deliberately malformed rather than merely unroutable: the driver spends its

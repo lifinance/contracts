@@ -4,23 +4,19 @@
  *
  * Bun re-loads the repo `.env` inside a spawned child for every name the passed
  * environment leaves unset, so deleting a credential name hands the real value
- * back. Measured rather than assumed: a child spawned with
- * `PRIVATE_KEY_PRODUCTION` deleted reports it at its real 64-character length,
- * and at 18 characters when the name is set to `malformed-in-tests` instead.
- *
- * This matters most in exactly the tests that look safest. The blast radius of
- * a spawn test is the *failing* path, and mutation testing manufactures that
- * path deliberately — so a probe whose only barrier is the refusal it is
+ * back. The blast radius is the *failing* path, which mutation testing
+ * manufactures deliberately: a probe whose only barrier is the refusal it is
  * testing will, the moment that refusal is mutated away, run a real CLI with a
- * real production key. Three files on `main` did this; `strict-flag-placement`
- * spawns `deploy-safe.ts` and `execute-pending-timelock-tx.ts`.
+ * real production key.
  *
- * A source assertion rather than a behavioural one, because the behaviour it
- * would have to observe is a child holding a live credential — which is the
- * thing being prevented.
+ * Two checks, because either alone is weak. A source assertion catches the
+ * spelling across the whole tree but cannot tell whether the replacement
+ * actually works; a spawn against a fixture `.env` pins the bun behaviour the
+ * replacement depends on, without any real credential taking part.
  */
 import { execFileSync } from 'child_process'
-import { readFileSync } from 'fs'
+import { mkdtempSync, readFileSync, writeFileSync } from 'fs'
+import { tmpdir } from 'os'
 import { join } from 'path'
 
 // eslint-disable-next-line import/no-unresolved
@@ -29,58 +25,53 @@ import { describe, expect, it } from 'bun:test'
 const REPO_ROOT = join(import.meta.dir, '..')
 
 /**
- * Names whose real value must never reach a spawned child. Every one of these
- * is declared in the repo `.env`, which is what makes deleting them worse than
- * useless.
+ * Any name holding a signing key or a store URI. Matched by substring rather
+ * than enumerated because `.env` declares far more of them than the two the
+ * placement probes reach for — the pauser, refund and withdraw wallets and
+ * several retired deployer generations all sit in the same file, and an
+ * enumeration would silently stop covering the next one added.
+ *
+ * `ENABLE_MONGODB_LOGGING` is the near miss this must not match, so the URI
+ * half anchors on `MONGODB_URI` rather than on `MONGODB`.
  */
-const CREDENTIAL_NAMES = [
-  'PRIVATE_KEY',
-  'PRIVATE_KEY_PRODUCTION',
-  'SAFE_SIGNER_PRIVATE_KEY',
-  'TIMELOCK_EXECUTOR_PRIVATE_KEY',
-  'MONGODB_URI',
-  'SC_MONGODB_URI',
-] as const
+const CREDENTIAL_NAME = '[A-Z0-9_]*(?:PRIVATE_KEY|MONGODB_URI)[A-Z0-9_]*'
 
 /**
  * Matches `delete env.PRIVATE_KEY`, `delete env['PRIVATE_KEY']` and
- * `delete process.env.PRIVATE_KEY` for any of the names above, whatever the
- * holder is called.
+ * `delete process.env.PRIVATE_KEY`, whatever the holder is called.
  */
 const DELETES_A_CREDENTIAL = new RegExp(
-  `delete\\s+[A-Za-z_$][\\w$.]*(?:\\.(?:${CREDENTIAL_NAMES.join(
-    '|'
-  )})\\b|\\[['"\`](?:${CREDENTIAL_NAMES.join('|')})['"\`]\\])`,
+  `delete\\s+[A-Za-z_$][\\w$.]*(?:\\.${CREDENTIAL_NAME}\\b|\\[['"\`]${CREDENTIAL_NAME}['"\`]\\])`,
   'u'
 )
 
 /**
- * The one legitimate reason to delete instead of set: the child's `cwd` is a
- * fixture directory with no `.env`, so there is nothing for bun to re-load and
- * the delete really does unset. `funnel-deploy-gate.cli.test.ts` is that case —
- * it spawns into a `mkdtempSync` repo — and its assertions depend on the
- * key-absent message, which a malformed value would replace.
+ * Marks a delete whose reason is written down next to it. The reason is free
+ * text after the prefix, because there is more than one legitimate shape: a
+ * child spawned into a fixture directory with no `.env` has nothing to
+ * re-load, and an in-process test that needs the name genuinely unset is not
+ * spawning at all.
  *
  * Annotated rather than inferred, because whether a spawn's `cwd` can reach a
  * `.env` is not decidable from the call site: it depends on a value computed
  * elsewhere. Writing the reason down puts the burden on whoever adds the next
  * one.
  */
-const EXEMPTION_MARKER = 'spawn-env: child cwd has no .env'
+const EXEMPTION_MARKER = 'spawn-env:'
 
 /**
  * This file, which holds the violation as test data below and would otherwise
  * report itself. Excluded by exact path rather than by a pattern, so the
  * exclusion cannot widen to cover a real offender — a test below pins it at
  * exactly one file.
- *
- * Note it did not report itself until it was committed: `git ls-files` lists
- * tracked files only, so the suite was green while the file was untracked and
- * red immediately after the commit.
  */
 const SELF = 'script/spawn-env-credentials.test.ts'
 
-/** Every tracked test file under the script tree — the ones that spawn CLIs. */
+/**
+ * Every *tracked* test file under the script tree. Tracked, because
+ * `git ls-files` is what makes the guard land with the code it guards: a new
+ * offender is invisible here until it is staged, and red from then on.
+ */
 const allShippedTests = (): string[] =>
   execFileSync('git', ['ls-files', 'script', 'tasks'], {
     cwd: REPO_ROOT,
@@ -148,7 +139,7 @@ describe('no shipped test deletes a credential from a child environment', () => 
     // above turns every annotated delete back into an offender.
     expect(
       unexemptedDeletions(
-        `  delete\n    env.PRIVATE_KEY // ${EXEMPTION_MARKER}\n`
+        `  delete\n    env.PRIVATE_KEY // ${EXEMPTION_MARKER} fixture cwd\n`
       )
     ).toEqual([])
   })
@@ -159,7 +150,7 @@ describe('no shipped test deletes a credential from a child environment', () => 
     expect(
       unexemptedDeletions(
         [
-          `  delete env.PRIVATE_KEY // ${EXEMPTION_MARKER}`,
+          `  delete env.PRIVATE_KEY // ${EXEMPTION_MARKER} fixture cwd`,
           '  delete env.PRIVATE_KEY_PRODUCTION',
         ].join('\n')
       )
@@ -174,20 +165,90 @@ describe('no shipped test deletes a credential from a child environment', () => 
       "delete env['PRIVATE_KEY_PRODUCTION']",
       'delete process.env.SC_MONGODB_URI',
       'delete childEnv.MONGODB_URI',
+      'delete env.SAFE_SIGNER_PRIVATE_KEY',
+      'delete env.PRIVATE_KEY_PAUSER_WALLET',
+      'delete env.PRIVATE_KEY_REFUND_WALLET',
+      'delete env.PRIVATE_KEY_WITHDRAW_WALLET',
+      'delete env.PRIVATE_KEY_PRODUCTION_OLD_V3',
     ])
       expect(DELETES_A_CREDENTIAL.test(source), source).toBe(true)
   })
 
   it('does not object to setting one, or to deleting a non-credential', () => {
     // Setting a malformed value is the fix, so it must not trip the guard, and
-    // an unset of NODE_ENV is legitimate — `.env` does not declare it, so
-    // deleting it really does unset it.
+    // these unsets are legitimate — `.env` declares none of these names, so
+    // deleting them really does unset them. `ENABLE_MONGODB_LOGGING` is the
+    // near miss: it is declared, but holds a flag rather than a credential.
     for (const source of [
       "env.PRIVATE_KEY = 'malformed-in-tests'",
       'delete env.NODE_ENV',
       'delete env.SAFE_PROPOSAL_TICKET',
       'delete env.ENVIRONMENT',
+      'delete env.ENABLE_MONGODB_LOGGING',
     ])
       expect(DELETES_A_CREDENTIAL.test(source), source).toBe(false)
+  })
+})
+
+describe('setting a credential, unlike deleting it, withholds it from a child', () => {
+  /**
+   * Hermetic: a fixture directory holding its own env file and the child that
+   * reports back, so the behaviour is pinned without a real credential taking
+   * part. Lengths only, never values.
+   */
+  const NAME = 'PRIVATE_KEY_PRODUCTION'
+  const FIXTURE_VALUE = 'value-from-fixture-env'
+  const PASSED_VALUE = 'malformed-in-tests'
+
+  const fixture = mkdtempSync(join(tmpdir(), 'spawn-env-'))
+  writeFileSync(join(fixture, '.env'), `${NAME}=${FIXTURE_VALUE}\n`)
+  const child = join(fixture, 'report-length.ts')
+  writeFileSync(
+    child,
+    `const v = process.env[${JSON.stringify(NAME)}]\n` +
+      `console.log(v === undefined ? 'undefined' : String(v.length))\n`
+  )
+
+  /** What the child reports the name's length to be, or `'undefined'`. */
+  const lengthInChild = (
+    mutate: (env: Record<string, string>) => void
+  ): string => {
+    const env: Record<string, string> = {
+      ...(process.env as Record<string, string>),
+    }
+    delete env.NODE_ENV
+    delete env[NAME] // spawn-env: what a delete leaves behind is the case under test
+    mutate(env)
+
+    const result = Bun.spawnSync([process.execPath, child], {
+      cwd: fixture,
+      env,
+      stdin: 'ignore',
+      stdout: 'pipe',
+      stderr: 'pipe',
+      timeout: 20_000,
+    })
+    if (result.signalCode)
+      throw new Error(
+        `child killed by ${result.signalCode}, so its output proves nothing`
+      )
+
+    return result.stdout.toString().trim()
+  }
+
+  it('re-loads a deleted name from the env file in cwd', () => {
+    // The defect itself. Without this half the assertion below would pass just
+    // as well on a bun that never re-loaded anything, and the whole fix would
+    // be guarding against nothing.
+    expect(lengthInChild(() => undefined)).toBe(String(FIXTURE_VALUE.length))
+  })
+
+  it('lets a passed value win over that re-load', () => {
+    // What every `env.PRIVATE_KEY = MALFORMED_KEY` in the placement probes
+    // rests on. If bun ever gave the env file precedence, those probes would
+    // start handing children real keys again with every suite still green.
+    expect(lengthInChild((env) => (env[NAME] = PASSED_VALUE))).toBe(
+      String(PASSED_VALUE.length)
+    )
   })
 })

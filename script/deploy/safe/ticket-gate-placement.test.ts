@@ -25,11 +25,24 @@ const REFUSAL = 'No Linear ticket supplied'
 const TIMEOUT_MS = 20_000
 
 /**
- * Malformed on purpose, and set rather than deleted. Bun re-loads the repo
- * `.env` in the child for every name the passed environment leaves unset, so
- * deleting a credential hands the real one back instead of withholding it.
+ * Set rather than deleted: bun re-loads the repo `.env` in the child for every
+ * name the passed environment leaves unset, so deleting a credential hands the
+ * real one back instead of withholding it.
+ *
+ * Malformed rather than merely wrong, so a child that reached past the gate
+ * dies before it can act: a key viem cannot parse throws where a
+ * valid-but-unfunded one would derive an address, and a URI the driver rejects
+ * on construction throws where an unreachable host would first spend its 30 s
+ * server-selection budget.
  */
+const MALFORMED_KEYS = [
+  'PRIVATE_KEY',
+  'PRIVATE_KEY_PRODUCTION',
+  'SAFE_SIGNER_PRIVATE_KEY',
+] as const
 const MALFORMED_KEY = 'malformed-in-tests'
+const MALFORMED_STORES = ['MONGODB_URI', 'SC_MONGODB_URI'] as const
+const MALFORMED_STORE = 'malformed-in-tests://no-store'
 
 const run = (
   script: string,
@@ -46,10 +59,11 @@ const run = (
   // local value through process.env. Cleared, or a developer's own decides these.
   delete env.SAFE_PROPOSAL_TICKET
   if (ticket !== undefined) env.SAFE_PROPOSAL_TICKET = ticket
-  // One case below asserts a run is NOT refused, which means letting it go on
-  // to a branch that sends directly — with a real key that branch signs.
-  env.PRIVATE_KEY = MALFORMED_KEY
-  env.PRIVATE_KEY_PRODUCTION = MALFORMED_KEY
+  // One case below asserts a run is NOT refused, which means letting it go on to
+  // a branch that sends directly — with a real key that branch signs, and with a
+  // real store URI the pass after it proposes.
+  for (const name of MALFORMED_KEYS) env[name] = MALFORMED_KEY
+  for (const name of MALFORMED_STORES) env[name] = MALFORMED_STORE
 
   const result = Bun.spawnSync(
     [process.execPath, join(import.meta.dir, '..', '..', script), ...args],

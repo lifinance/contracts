@@ -39,11 +39,24 @@ const REFUSAL = "accepts no value, 'true' or 'false'"
 const PROBE_NETWORK = 'zzplacementprobe'
 
 /**
- * Malformed on purpose, and set rather than deleted. Bun re-loads the repo
- * `.env` in the child for every name the passed environment leaves unset, so
- * deleting a credential hands the real one back instead of withholding it.
+ * Set rather than deleted: bun re-loads the repo `.env` in the child for every
+ * name the passed environment leaves unset, so deleting a credential hands the
+ * real one back instead of withholding it.
+ *
+ * Malformed rather than merely wrong, so a child that reached past the reader
+ * dies before it can act: a key viem cannot parse throws where a
+ * valid-but-unfunded one would derive an address, and a URI the driver rejects
+ * on construction throws where an unreachable host would first spend its 30 s
+ * server-selection budget.
  */
+const MALFORMED_KEYS = [
+  'PRIVATE_KEY',
+  'PRIVATE_KEY_PRODUCTION',
+  'SAFE_SIGNER_PRIVATE_KEY',
+] as const
 const MALFORMED_KEY = 'malformed-in-tests'
+const MALFORMED_STORES = ['MONGODB_URI', 'SC_MONGODB_URI'] as const
+const MALFORMED_STORE = 'malformed-in-tests://no-store'
 
 /**
  * Some of these commands transitively import generated `typechain/` types, and
@@ -66,10 +79,11 @@ const run = (script: string, args: string[]): string => {
   }
   // `bun test` sets NODE_ENV=test; these children are exercised as CLIs.
   delete env.NODE_ENV
-  // These children include deploy-safe.ts and execute-pending-timelock-tx.ts, so
-  // a child that runs past the flag reader must not hold a usable key.
-  env.PRIVATE_KEY = MALFORMED_KEY
-  env.PRIVATE_KEY_PRODUCTION = MALFORMED_KEY
+  // The store URIs matter as much as the keys here: `execute-pending-timelock-tx.ts`
+  // opens the timelock queue in its fleet prefetch before it reads any key, so a
+  // malformed key alone would not keep a run past the reader off the real queue.
+  for (const name of MALFORMED_KEYS) env[name] = MALFORMED_KEY
+  for (const name of MALFORMED_STORES) env[name] = MALFORMED_STORE
 
   const result = Bun.spawnSync(
     [process.execPath, join(import.meta.dir, '..', '..', script), ...args],
