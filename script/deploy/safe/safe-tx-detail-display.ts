@@ -169,8 +169,10 @@ function describeThrown(error: unknown): Printable {
     // `String` before `asPrintable`, which would otherwise absorb the throw and
     // report "unrenderable" — a description of a field, not of an error nobody
     // can describe.
-    return asPrintable(String(error instanceof Error ? error.message : error))
-      .text
+    const { text, notice } = asPrintable(
+      String(error instanceof Error ? error.message : error)
+    )
+    return concatPrintable(text, trustedMarkup(notice))
   } catch {
     return trustedMarkup('an error that cannot itself be described')
   }

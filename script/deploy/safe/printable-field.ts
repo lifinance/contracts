@@ -205,9 +205,8 @@ export const asPrintable = (
       `clipped for display — stored ${points.length}, shown ${maxChars}`
     )
 
-  // Says only what it knows. An earlier version called these "empty", which is
-  // a claim about the container: `[' ']` and `[null]` both render as nothing
-  // while holding an element.
+  // Reports the shape, not emptiness: `[' ']` and `[null]` both render as
+  // nothing while holding an element.
   if (typeof value === 'object' && value !== null)
     remarks.push(
       `stored as ${

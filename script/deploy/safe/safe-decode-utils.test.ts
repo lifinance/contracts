@@ -20,6 +20,7 @@ import {
 import { consola } from 'consola'
 import { encodeFunctionData, parseAbi, toFunctionSelector } from 'viem'
 
+import { MAX_FIELD_CHARS } from './printable-field'
 import {
   getRoleName,
   formatRoleChange,
@@ -676,12 +677,23 @@ describe('formatDecodedArg — a decoded string is proposer-controlled', () => {
     )
   })
 
-  it('renders a hostile string nested in a tuple inert, with no notice', () => {
-    // The notice would land inside a JSON string, where its own colour codes
-    // are escaped into visible text and read as part of the value.
+  it('renders a hostile string nested in a tuple inert and discloses it after the JSON', () => {
     const rendered = formatDecodedArg([`${ESC}[2Jfake`, 1n])
-    expect(rendered).toBe('["[2Jfake","1"]')
-    expect(rendered).not.toContain(ESC)
+    const json = rendered.slice(0, rendered.indexOf(ESC))
+    // The notice sits after the JSON, never inside it: its own colour codes
+    // would be escaped into visible text and read as part of the value.
+    expect(json).toBe('["[2Jfake","1"]')
+    expect(rendered.slice(json.length)).toContain(
+      'a value inside this argument was sanitised or clipped for display'
+    )
+  })
+
+  it('discloses a clip inside a tuple', () => {
+    const rendered = formatDecodedArg(['x'.repeat(MAX_FIELD_CHARS + 1), 1n])
+    expect(rendered).toContain(`"${'x'.repeat(MAX_FIELD_CHARS)}"`)
+    expect(rendered).toContain(
+      'a value inside this argument was sanitised or clipped for display'
+    )
   })
 
   it('leaves a benign string exactly as it was', () => {

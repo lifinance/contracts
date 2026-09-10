@@ -464,16 +464,6 @@ function getDiamondAbiItemForSelector(selector: string): Abi[number] | null {
   return null
 }
 
-/**
- * One decoded scalar as printable text, with no notice attached.
- *
- * A `string` ABI argument of a legitimately encoded call is arbitrary text the
- * proposer chose — `registerPeripheryContract(string,address)` decodes cleanly
- * with an ESC in its name — so it cannot reach the operator's terminal raw.
- * @param value - The decoded scalar
- * @param network - When set, an address is rendered in the network's format
- * @returns Printable text
- */
 /** The shape a decoded argument has when it is a payload rather than a label. */
 const HEX_PAYLOAD = /^0x[0-9a-fA-F]*$/u
 
@@ -492,25 +482,37 @@ const HEX_PAYLOAD = /^0x[0-9a-fA-F]*$/u
 const scalarBound = (value: string): number =>
   HEX_PAYLOAD.test(value) ? UNBOUNDED : MAX_FIELD_CHARS
 
-function renderScalarArg(value: string, network?: string): string {
+/**
+ * One decoded scalar as printable text plus whatever that cost.
+ *
+ * A `string` ABI argument of a legitimately encoded call is arbitrary text the
+ * proposer chose — `registerPeripheryContract(string,address)` decodes cleanly
+ * with an ESC in its name — so it cannot reach the operator's terminal raw.
+ * @param value - The decoded scalar
+ * @param network - When set, an address is rendered in the network's format
+ * @returns The text to print and the notice describing any repair
+ */
+function renderScalarArg(
+  value: string,
+  network?: string
+): { text: string; notice: string } {
   if (
     network !== undefined &&
     value.startsWith('0x') &&
     /^0x[a-fA-F0-9]{40}$/.test(value)
   )
-    return `${formatAddressForNetworkCliDisplay(network, value)}${tronHexSuffix(
-      network,
-      value
-    )}`
-  return asPrintable(value, scalarBound(value)).text
+    return {
+      text: `${formatAddressForNetworkCliDisplay(
+        network,
+        value
+      )}${tronHexSuffix(network, value)}`,
+      notice: '',
+    }
+  return asPrintable(value, scalarBound(value))
 }
 
 /**
  * Renders one decoded ABI argument for display.
- *
- * The notice is appended at the top level only. Inside the JSON branch it would
- * land in a JSON string, where `JSON.stringify` escapes its colour codes into
- * visible text and the disclosure reads as part of the value.
  * @param arg - Decoded argument value (may be a bigint, tuple, or array).
  * @param network - When set, addresses are rendered in the network's format.
  * @returns Display string for the argument.
@@ -523,18 +525,28 @@ export function formatDecodedArg(arg: unknown, network?: string): string {
   // leaving the operator approving a payload they were never shown. Nested
   // strings recurse so an address inside a tuple gets the same per-network
   // rendering as a top-level one instead of staying raw hex.
-  if (typeof arg === 'object')
-    return JSON.stringify(arg, (_key, value: unknown) => {
+  if (typeof arg === 'object') {
+    let repaired = false
+    const json = JSON.stringify(arg, (_key, value: unknown) => {
       if (typeof value === 'bigint') return value.toString()
-      if (typeof value === 'string') return renderScalarArg(value, network)
+      if (typeof value === 'string') {
+        const { text, notice } = renderScalarArg(value, network)
+        if (notice) repaired = true
+        return text
+      }
       return value
     })
-  const s = String(arg)
-  // Same bound as the text above, so the notice reports the clip it actually
-  // made rather than one measured against a different limit.
-  return `${renderScalarArg(s, network)}${
-    asPrintable(s, scalarBound(s)).notice
-  }`
+    // One notice after the JSON rather than per element: inside a JSON string
+    // `JSON.stringify` escapes its colour codes into visible text and the
+    // disclosure reads as part of the value.
+    return repaired
+      ? `${json}${fieldNotice(
+          'a value inside this argument was sanitised or clipped for display'
+        )}`
+      : json
+  }
+  const { text, notice } = renderScalarArg(String(arg), network)
+  return `${text}${notice}`
 }
 
 /**
@@ -792,7 +804,14 @@ export async function decodeTransactionData(
       }
     return {}
   } catch (error) {
-    consola.warn(`Error decoding transaction data: ${printableField(error)}`)
+    // `.message`, not the error: `asPrintable` reports an object as "stored as
+    // an object, not a string", which is true of every `Error` and says nothing
+    // about the row.
+    consola.warn(
+      `Error decoding transaction data: ${printableField(
+        error instanceof Error ? error.message : error
+      )}`
+    )
     return {}
   }
 }
