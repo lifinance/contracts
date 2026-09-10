@@ -18,10 +18,9 @@
  *   the full transitive closure. A diff of the facet file alone misses a
  *   swapped library — the `AcrossV4SwapFacet`/`LibAsset` case — which is why
  *   the closure and not the file is the unit (E1).
- * `versionControlAndAuditCheck.yml` already refuses a PR that modifies a
- * contract without an audit at its latest version, so `no-audit-recorded` is
- * new only for versions deployed earlier.
- *
+ *   `versionControlAndAuditCheck.yml` already refuses a PR that modifies a
+ *   contract without an audit at its latest version, so `no-audit-recorded` is
+ *   new only for versions deployed earlier.
  * - **Everything here is a NOTE, never a block.** A per-deploy version gate
  *   would brand every london-chain deploy unaudited, which is a false red on
  *   routine work. The failure this module must avoid is refusing honest
@@ -207,6 +206,21 @@ const describeCompilerSet = (set: {
 const sameVersionText = (a: string, b: string): boolean =>
   a.trim().toLowerCase() === b.trim().toLowerCase()
 
+/**
+ * Whether a recorded closure can carry the weight of a comparison.
+ *
+ * A whole keccak digest, and not the zero digest: `bytes32(0)` is what an
+ * unset field encodes to, so a zero on both sides would compare equal and
+ * report a bridge proved by comparing nothing to nothing.
+ */
+const isUsableClosure = (hash: string): boolean => {
+  const normalised = normalizeHash(hash)
+  return (
+    digestFault(hash, 'source closure') === undefined &&
+    /[1-9a-f]/u.test(normalised)
+  )
+}
+
 const sameZk = (
   a: IVettedCompilerSet['zk'],
   b: IDeployedBuild['zk']
@@ -214,9 +228,9 @@ const sameZk = (
   if (a === undefined && b === undefined) return true
   if (a === undefined || b === undefined) return false
   return (
-    a.zksolcVersion === b.zksolcVersion &&
-    a.solcForkVersion === b.solcForkVersion &&
-    a.llvmVersion === b.llvmVersion
+    sameVersionText(a.zksolcVersion, b.zksolcVersion) &&
+    sameVersionText(a.solcForkVersion, b.solcForkVersion) &&
+    sameVersionText(a.llvmVersion, b.llvmVersion)
   )
 }
 
@@ -302,21 +316,20 @@ export const auditCoverageNotes = (
   //
   // Validated rather than only compared: two empty strings are equal, and a
   // bridge proved by comparing nothing to nothing is a false green.
-  const closureUnusable =
+  if (
     audit.sourceClosureHash === undefined ||
     build.sourceClosureHash === undefined ||
-    digestFault(audit.sourceClosureHash, 'audit source closure') !==
-      undefined ||
-    digestFault(build.sourceClosureHash, 'build source closure') !== undefined
-  if (closureUnusable)
+    !isUsableClosure(audit.sourceClosureHash) ||
+    !isUsableClosure(build.sourceClosureHash)
+  )
     notes.push({
       note: 'closure-unrecorded',
       detail:
         'the audit or the build records no usable source closure, so the audited source cannot be shown to be the source that was built',
     })
   else if (
-    normalizeHash(audit.sourceClosureHash ?? '') !==
-    normalizeHash(build.sourceClosureHash ?? '')
+    normalizeHash(audit.sourceClosureHash) !==
+    normalizeHash(build.sourceClosureHash)
   )
     notes.push({
       note: 'closure-differs',

@@ -143,6 +143,16 @@ describe('auditCoverageNotes', () => {
     expect(notesOf({ evmVersion: 'Cancun' })).toEqual([])
     expect(notesOf({ evmVersion: ' cancun ' })).toEqual([])
     expect(notesOf({ solcVersion: ' 0.8.29' })).toEqual([])
+    expect(
+      notesOf({
+        profile: 'zksync',
+        zk: {
+          zksolcVersion: ' 1.5.15',
+          solcForkVersion: '0.8.29',
+          llvmVersion: '1.0.2',
+        },
+      })
+    ).toEqual([])
 
     // Present: the check still separates on a real difference, so the
     // normalisation has not been widened into accepting another hardfork.
@@ -191,6 +201,13 @@ describe('auditCoverageNotes', () => {
     // what a caller assembling a zk build from the deployment record produces.
     expect(notesOf({ profile: 'zksync' })).toEqual(['zk-toolchain-unverified'])
 
+    // Present: the solc and evm halves are still compared on that same build,
+    // so the unverified note covers the zk half alone.
+    expect(notesOf({ profile: 'zksync', solcVersion: '0.8.30' })).toEqual([
+      'compiler-set-differs',
+      'zk-toolchain-unverified',
+    ])
+
     // Present: a build that does report a zk toolchain is still compared
     // against the vetted one, so the unverified note has not replaced the
     // check.
@@ -211,6 +228,15 @@ describe('auditCoverageNotes', () => {
     // nothing to nothing is a false green rather than a quiet pass.
     expect(
       notesOf({ sourceClosureHash: '' }, { sourceClosureHash: '' })
+    ).toEqual(['closure-unrecorded'])
+
+    // The zero digest is a whole digest and is what an unset bytes32 encodes
+    // to, so it is the one well-formed value that proves nothing.
+    expect(
+      notesOf(
+        { sourceClosureHash: `0x${'00'.repeat(32)}` },
+        { sourceClosureHash: `0x${'00'.repeat(32)}` }
+      )
     ).toEqual(['closure-unrecorded'])
 
     // A sliced hash frames as valid hex and is not a digest.
