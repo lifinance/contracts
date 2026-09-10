@@ -390,11 +390,13 @@ signer sees:
    (`script/deploy/safe/safe-decode-utils.ts`): batch params, per-call target
    + resolved name, nested diamond-cut details (facet address,
    Add/Replace/Remove, per-selector names, decoded init call), and the
-   **deployed vs `_targetState.json` version mismatch highlight**
+   **to-be-added facet version** from the deployment record
    (`facet-version-utils.ts`).
 2. **Safe transaction details** — nonce (current/stale/future coloring), `to`
    + resolved name, raw data, proposer, stored `safeTxHash`, signature count
-   vs threshold, drain origin-PR links where present.
+   vs threshold, drain origin-PR links where present, and the
+   **target-state verdict** read at `origin/main` (`pinned-target-state.ts`),
+   which refuses a downgrade before the acknowledgement prompt.
 3. The value to verify on the device, which depends on the signing mode. In
    the default hash mode: the single message screen, compared character by
    character against the hash in the out-of-band message from the proposer —
@@ -543,7 +545,8 @@ parked tasks are reconciled weekly by `reconcileParkedTasks.yml`.
 | Confirm | Ledger blind-signing enabled, fail-fast before any review | Block | `checkBlindSigningEnabled` in `ledger.ts` |
 | Confirm | Sign-time codehash gate: every address a decoded `diamondCut` installs — `Add`/`Replace` targets plus a non-zero `_init` — must match a local rebuild at the commit its production deployment record names, under the toolchain that network's `foundry.toml` profile pins. **Not** an ancestry check against `main` — per D3 the referenced commit need only be present and fetchable, so this row is anchored differently from the Propose row above it. MATCH passes; MISMATCH and UNVERIFIABLE both block and stay distinct. A removal-only cut carrying `_init` is refused rather than gated. A MATCH with bytes excluded as immutables is downgraded to UNVERIFIABLE until WP-2.3 checks their values, and calldata the decoder cannot open makes **no claim** rather than reporting a pass. Asserted on both the sign and the execute route, not only at signature time — a proposal already at threshold is broadcast through a different funnel. Infrastructure failures block too, in two places: one that stops any verdict being reached (config unreadable) is a refusal, while one that stops a single address being judged (RPC or attestation store unreachable) is that address's `UNVERIFIABLE` verdict | Block | `codehash-sign-gate.ts` + `codehash-sign-gate-deps.ts` in `confirm-safe-tx.ts`, deciding through `script/deploy/codehash/` (EXSC-906) |
 | Confirm | Full calldata decode: diamond cut, scheduleBatch, whitelist, periphery, roles; per-selector name resolution | Display / warn only | `safe-decode-utils.ts` (`formatDecodedTxDataForDisplay`) |
-| Confirm | Deployed-version vs target-state mismatch highlight | **Warn only** | `facet-version-utils.ts`, `safe-utils.ts` |
+| Confirm | To-be-added facet version, resolved from the deployment record (the MongoDB mirror under `.cache/`, which the deploy script writes before proposing) | Display only | `facet-version-utils.ts`, `safe-utils.ts` |
+| Confirm | Target state graded against `origin/main`, never the reviewer's checkout: the anchor is `git show origin/main:script/deploy/_targetState.json` after a fresh fetch of an explicit `+refs/heads/main:refs/remotes/origin/main` (git updates that ref only opportunistically, so a clone without a covering refspec would otherwise read a stale anchor with no error), read through `refs/remotes/origin/main` in full rather than the short name, which git resolves through tags and heads first, so a tag a proposer's clone carries cannot shadow the fetched ref. `origin` must be `github.com/lifinance/contracts` or the read refuses — a fork remote would let a proposer author the expected state; the URL is taken from `git remote get-url`, which applies any `insteadOf` rewrite and so reports where a fetch would really go. Which branch the reviewer happens to be on cannot change a verdict. Graded per case, not as one equality — an **upgrade of a facet `main` already targets** refuses a downgrade, a version pair that cannot be ordered, and a proposed version no deployment record resolves; a **first-time add** has no entry on `main` by construction (the target-state PR merges only after execution, so gating on it would deadlock) and is labeled "not previously targeted" with the count of networks already declaring that contract at that version, without blocking — intent there rests on the linked ticket and PR; a **removal** is reported only. The statuses that may proceed are named, so an unrecognised cut action, a cut whose calldata cannot be read, a facet address no deployment record names on that network (the same address on another chain is deliberately not consulted — the mirror carries one address as two different contracts across networks), a deployment record that contradicts itself about which contract or version an address is (the `(network, address)` pair is not unique in that cache — six such pairs today, two at genuinely different versions), an anchor read through the wrong remote, and an anchor that could not be refreshed all refuse. | Block (downgrade / unorderable / unresolved / unidentified / ambiguous record / unreadable / anchor unavailable) / label (first-time add) / report (removal) | `pinned-target-state.ts` + `diamond-cut-calls.ts`, gated in `confirm-safe-tx.ts` after the nonce gates and before the acknowledgement prompt (EXSC-704) |
 | Confirm | Stale nonce blocks Execute; future nonce prompts | Block / prompt | `confirm-safe-tx.ts` |
 | Execute | Signature format + sorting; threshold gating of the Execute option | Block / hide option | `safe-utils.ts` |
 | Timelock exec | operationId re-derived from row params; timelock address vs deploy log; on-chain `isOperationReady`/`isOperationDone` | Block, mark failed | `execute-pending-timelock-tx.ts`, `timelock-queue.ts`, `confirm-timelock-execution.ts` |
@@ -560,8 +563,10 @@ Honest list — the tooling displays these, but does **not** machine-assert them
 
 - **Intent.** No description, PR link (drain excepted), or human identity on
   the proposal — the signer matches calldata against Slack/PR context.
-- **Version mismatches.** The deployed-vs-target-state highlight is
-  display-only; it never blocks or prompts.
+- **First-time adds and removals.** A facet `main` already targets is graded
+  mechanically and a downgrade refuses, but a contract with no entry on `main`
+  has no anchor to grade against, and a removal has none either. Both are
+  labeled; the signer still has to judge them from the linked ticket and PR.
 - **Unknown targets.** `to`-address name resolution is display-only; an
   unknown target renders without a label — the absence is the only signal.
 - **The Safe itself.** The `safeAddress` comes from the proposal document and

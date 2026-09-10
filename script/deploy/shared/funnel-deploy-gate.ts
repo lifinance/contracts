@@ -13,52 +13,15 @@ import { existsSync } from 'node:fs'
 import { join } from 'node:path'
 
 import { consola } from 'consola'
-import {
-  decodeFunctionData,
-  getAddress,
-  isHex,
-  toFunctionSelector,
-  type Address,
-  type Hex,
-} from 'viem'
+import { getAddress, type Address, type Hex } from 'viem'
 
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { getDeployments } from '../../utils/deploymentHelpers'
 import { isTestnetNetwork } from '../../utils/viemScriptHelpers'
 import { verifyDeployGateForRepo } from '../github/verify-approvals'
-import {
-  TIMELOCK_SCHEDULE_ABI,
-  TIMELOCK_SCHEDULE_BATCH_ABI,
-  TIMELOCK_SCHEDULE_BATCH_SELECTOR,
-  TIMELOCK_SCHEDULE_SELECTOR,
-} from '../safe/timelock-abi'
 
-import { DIAMOND_CUT_ABI, ZERO_ADDRESS } from './constants'
-
-const DIAMOND_CUT_SELECTOR = toFunctionSelector(
-  'diamondCut((address,uint8,bytes4[])[],address,bytes)'
-).toLowerCase() as Hex
-
-/**
- * Whether the cut selector appears in `data` on a byte boundary.
- *
- * Alignment is necessary but not sufficient: only an even offset can be a
- * selector, yet an address or other argument can carry the same four bytes at
- * one. So this narrows the false-refusal class rather than closing it, which is
- * why the refusal message names a coincidence as a possible cause.
- * @param data - calldata to search
- */
-const carriesCutSelectorAligned = (data: Hex): boolean => {
-  const body = data.slice(2).toLowerCase()
-  const needle = DIAMOND_CUT_SELECTOR.slice(2)
-  for (
-    let at = body.indexOf(needle);
-    at !== -1;
-    at = body.indexOf(needle, at + 1)
-  )
-    if (at % 2 === 0) return true
-  return false
-}
+import { ZERO_ADDRESS } from './constants'
+import { collectDiamondCutCalls, MAX_UNWRAP_DEPTH } from './diamond-cut-calls'
 
 /**
  * `LibDiamond.FacetCutAction`: Add=0, Replace=1, Remove=2. Only the first two
@@ -66,13 +29,6 @@ const carriesCutSelectorAligned = (data: Hex): boolean => {
  * `main`; a Remove cut carries the zero address and is deliberately out of scope.
  */
 const INSTALLING_ACTIONS = new Set([0, 1])
-
-/**
- * How many `scheduleBatch` layers to unwrap. The funnel wraps a cut itself, so a
- * caller handing in a pre-wrapped payload is the shape this has to see through;
- * the bound stops a self-referential payload from spinning.
- */
-const MAX_UNWRAP_DEPTH = 4
 
 /** What a proposal's calls turned out to contain. */
 export interface IInstalledFacets {
@@ -90,32 +46,6 @@ export interface IInstalledFacets {
   undecodable: number[]
 }
 
-const decodeCut = (
-  data: Hex
-): {
-  cuts: readonly { facetAddress: Address; action: number }[]
-  init: Address
-} => {
-  const { args } = decodeFunctionData({ abi: DIAMOND_CUT_ABI, data })
-  return {
-    cuts: args[0] as readonly { facetAddress: Address; action: number }[],
-    init: args[1] as Address,
-  }
-}
-
-const decodeScheduleBatch = (data: Hex): readonly Hex[] => {
-  const { args } = decodeFunctionData({
-    abi: TIMELOCK_SCHEDULE_BATCH_ABI,
-    data,
-  })
-  return args[2] as readonly Hex[]
-}
-
-const decodeSchedule = (data: Hex): readonly Hex[] => {
-  const { args } = decodeFunctionData({ abi: TIMELOCK_SCHEDULE_ABI, data })
-  return [args[2] as Hex]
-}
-
 /**
  * Recovers the addresses a proposal's calls would run code from — installed
  * facets and any non-zero `_init` delegatecall target — unwrapping a timelock
@@ -128,7 +58,6 @@ export const collectInstalledFacetAddresses = (
   calldatas: readonly Hex[]
 ): IInstalledFacets => {
   const seen = new Map<string, Address>()
-  const undecodable = new Set<number>()
 
   const remember = (value: Address): void => {
     const address = getAddress(value)
@@ -136,82 +65,24 @@ export const collectInstalledFacetAddresses = (
       seen.set(address.toLowerCase(), address)
   }
 
-  const walk = (data: Hex, index: number, depth: number): void => {
-    const selector = data.slice(0, 10).toLowerCase()
+  const { calls, undecodable } = collectDiamondCutCalls(calldatas)
 
-    if (selector === DIAMOND_CUT_SELECTOR) {
-      let decoded
-      try {
-        decoded = decodeCut(data)
-      } catch {
-        undecodable.add(index)
-        return
-      }
-      for (const entry of decoded.cuts) {
-        if (!INSTALLING_ACTIONS.has(Number(entry.action))) continue
-        remember(entry.facetAddress)
-      }
-      // `_init` is delegatecalled in the diamond's context by the same
-      // transaction, so its code runs against the diamond's storage exactly as a
-      // facet's would. It is non-zero only when the update carries init
-      // calldata, and in every current caller it is then the facet's own
-      // address (`UpdateScriptBase.update` passes `_resolveFacetAddress(name)`),
-      // so attributing it costs nothing legitimate. A cut whose init target is
-      // some other contract is refused rather than delegatecalled unexamined.
-      if (decoded.init !== ZERO_ADDRESS) remember(decoded.init)
-      return
+  for (const call of calls) {
+    for (const entry of call.cuts) {
+      if (!INSTALLING_ACTIONS.has(entry.action)) continue
+      remember(entry.facetAddress)
     }
-
-    const unwrap =
-      selector === TIMELOCK_SCHEDULE_BATCH_SELECTOR.toLowerCase()
-        ? decodeScheduleBatch
-        : selector === TIMELOCK_SCHEDULE_SELECTOR.toLowerCase()
-        ? decodeSchedule
-        : undefined
-
-    if (unwrap) {
-      if (depth >= MAX_UNWRAP_DEPTH) {
-        undecodable.add(index)
-        return
-      }
-      let payloads
-      try {
-        payloads = unwrap(data)
-      } catch {
-        undecodable.add(index)
-        return
-      }
-      for (const payload of payloads) walk(payload, index, depth + 1)
-      return
-    }
-
-    // An envelope this cannot open. Only the wrappers above are unwrapped, so
-    // any other — `multiSend`, a bespoke batcher — hides whatever it carries. A
-    // call is refused on its own bytes, never on its siblings': a batch pairing
-    // one readable cut with one unreadable envelope must not pass because the
-    // readable half decoded.
-    //
-    // The reach of this is exactly "the selector, verbatim and byte-aligned".
-    // An envelope that splits or transforms it — two `bytes2` halves reassembled
-    // on chain, a payload rebuilt from a perturbed copy — is not caught, and
-    // needs a bespoke batcher the Safe would have to be pointed at.
-    if (carriesCutSelectorAligned(data)) undecodable.add(index)
+    // `_init` is delegatecalled in the diamond's context by the same
+    // transaction, so its code runs against the diamond's storage exactly as a
+    // facet's would. It is non-zero only when the update carries init
+    // calldata, and in every current caller it is then the facet's own
+    // address (`UpdateScriptBase.update` passes `_resolveFacetAddress(name)`),
+    // so attributing it costs nothing legitimate. A cut whose init target is
+    // some other contract is refused rather than delegatecalled unexamined.
+    if (call.init !== ZERO_ADDRESS) remember(call.init)
   }
 
-  calldatas.forEach((data, index) => {
-    // Every selector and offset below is read positionally off a `0x` prefix, so
-    // input that is not well-formed calldata would be silently skipped rather
-    // than examined. The funnels validate before calling, but `sendOrPropose`
-    // does not, and a skip here is a pass.
-    if (!isHex(data, { strict: true }) || data.length % 2 !== 0)
-      undecodable.add(index)
-    else walk(data, index, 0)
-  })
-
-  return {
-    addresses: [...seen.values()],
-    undecodable: [...undecodable],
-  }
+  return { addresses: [...seen.values()], undecodable }
 }
 
 /** Lookups the funnel gate needs, injectable so the policy is testable. */

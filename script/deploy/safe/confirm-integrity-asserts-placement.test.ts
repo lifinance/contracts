@@ -178,7 +178,11 @@ describe('the evaluation is placed where it swallows nothing', () => {
     expect(ackKeys).toBeGreaterThan(evaluation)
   })
 
-  it('leaves the action prompt, the nonce gate and the acknowledgement prompt in that order', () => {
+  // The last leg is the ledger write, not the review prompt that currently
+  // precedes it: whether the operator is prompted, or acknowledgement is
+  // implicit in choosing an action, is settled in EXSC-963 and not here. The
+  // ordering this pins holds either way.
+  it('leaves the action prompt, the nonce gate and the acknowledgement in that order', () => {
     const evaluation = SOURCE.indexOf(
       'integrityRun = await runIntegrityAsserts('
     )
@@ -190,13 +194,13 @@ describe('the evaluation is placed where it swallows nothing', () => {
       'canExecuteWithNonceStatus(nonceStatus',
       evaluation
     )
-    const ackPrompt = SOURCE.indexOf(
-      'shouldPromptForAcknowledgement({',
+    const ackRecorded = SOURCE.indexOf(
+      'recordAcknowledgement(acknowledgementLedger, {',
       evaluation
     )
     expect(actionPrompt).toBeGreaterThan(evaluation)
     expect(nonceGate).toBeGreaterThan(actionPrompt)
-    expect(ackPrompt).toBeGreaterThan(nonceGate)
+    expect(ackRecorded).toBeGreaterThan(nonceGate)
   })
 
   it('prints the verdict before any prompt offers to sign', () => {
