@@ -59,8 +59,9 @@ export interface IDeclaredImmutableGetter {
  *
  * The gate fails on an entry with no reason, one that has since been annotated, and one whose
  * getter no longer exists, so the list cannot quietly accumulate and misrepresent how much of
- * the fleet is verified. Annotating the binding is always the preferred fix; add an entry here only
- * when no config file holds a value to compare against.
+ * the fleet is verified. Annotating the binding is always the preferred fix; add an entry here
+ * only when no config file holds a value to compare against, or when the invariant cannot
+ * express the expectation — in which case the reason names the blocking ticket.
  */
 export const EXEMPTIONS_PATH = 'script/deploy/immutables/getter-exemptions.json'
 
@@ -170,7 +171,7 @@ export const verifyGetterCoverage = (
   for (const key of Object.keys(exemptions).sort()) {
     if (annotated.has(key))
       errors.push(
-        `${key} is exempted but now annotated. Drop the exemption — the list may only shrink.`
+        `${key} is exempted but now annotated. Drop the exemption — an annotated binding is verified, so the reason no longer holds.`
       )
     else if (!declaredKeys.has(key))
       errors.push(
