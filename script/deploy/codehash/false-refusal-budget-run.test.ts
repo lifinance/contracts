@@ -96,6 +96,31 @@ describe('the shadow runner over the real repository corpus', () => {
     expect(new Set(repo.slots.map((s) => s.network)).size).toBeGreaterThan(50)
   })
 
+  // The loader's row guard requires every field a gate dereferences, and the
+  // real corpus is the only thing that says which those can be. Some rows carry
+  // an empty version because their deployment record had none, so a guard that
+  // required it would refuse the whole fleet — which is how it was first
+  // written. Pinned here so tightening it fails a test rather than a run.
+  it('tolerates the empty versions the real corpus carries', () => {
+    expect(repo.slots.some((s) => s.version === '')).toBe(true)
+    for (const slot of repo.slots)
+      expect({
+        network: slot.network !== '',
+        address: slot.address !== '',
+        contractName: slot.contractName !== '',
+        commit: slot.commit !== '',
+        solcVersion: slot.solcVersion !== '',
+        evmVersion: slot.evmVersion !== '',
+      }).toEqual({
+        network: true,
+        address: true,
+        contractName: true,
+        commit: true,
+        solcVersion: true,
+        evmVersion: true,
+      })
+  })
+
   // G3 is deliberately not in this list. Its count is a property of the clone
   // rather than of the fleet — a full clone reads every corpus commit and a
   // depth-1 checkout, which is what actions/checkout gives by default, reads
@@ -131,23 +156,33 @@ describe('the shadow runner over the real repository corpus', () => {
     expect(evaluatePromotion(budget).mayEnforce).toBe(false)
   })
 
-  // Both ends are honest, and which one holds is decided by the clone. What is
-  // asserted is that the note says which — the run must never report a
-  // depth-limited checkout's refusals as a finding about the gate. The two ends
-  // themselves are pinned with an injected reader further down.
+  // Both ends are honest, and which one holds is decided by the clone. The
+  // refusal set is pinned against readability determined here rather than
+  // against a constant, so a gate that stopped refusing would fail this row in
+  // a depth-limited checkout — where it would otherwise report "0 of them
+  // unreadable" about a checkout that could read none of them. In a full clone
+  // the gate genuinely cannot refuse, so nothing over the real corpus can catch
+  // that mutation there; the injected-reader plant further down is what does.
   it('grades commit availability against what this checkout can read', () => {
     const budget = gradeCommitAvailability(repo)
+    const unreadable = repo.slots
+      .filter((s) => !repo.hasCommit(s.commit))
+      .map((s) => `${s.network}/${s.contractName}@${s.version}`)
+
     expect(budget.denominator).toBe(repo.slots.length)
-    if (budget.refusals === 0) {
-      expect(budget.coverageNote).toContain('0 of them unreadable')
-      return
-    }
-    expect(budget.unexplained).toBe(budget.refusals)
-    expect(budget.coverageNote).toContain('measure this checkout, not the gate')
+    expect(budget.adjudications.map((a) => a.slot).sort()).toEqual(
+      unreadable.sort()
+    )
+    expect(budget.unexplained).toBe(unreadable.length)
+    expect(budget.coverageNote).toContain(
+      unreadable.length === 0
+        ? '0 of them unreadable'
+        : 'measure this checkout, not the gate'
+    )
   })
 
   it('reports the gates no corpus reached as measured on 0, not as clean', () => {
-    for (const budget of unreachedGates()) {
+    for (const budget of unreachedGates(repo)) {
       expect(budget.falseRefusalRate).toBeUndefined()
       expect(evaluatePromotion(budget).mayEnforce).toBe(false)
     }
@@ -193,16 +228,30 @@ describe('loadRepoCorpus fails closed on an unmeasurable corpus', () => {
 
   // A row naming no compiler pair reproduces nothing, so filing its refusal
   // under AFR-1 or AFR-2 would report it as explained by a rule whose text
-  // does not describe it.
-  it('refuses a row that names no compiler pair rather than classifying it', () => {
-    const { solcVersion: _omitted, ...pairless } = slot()
-    write('script/deploy/resources/reproducibilityAttestations.json', {
-      attestations: [slot(), pairless],
-    })
+  // does not describe it. A row missing a field the gates merely dereference
+  // fails for a blunter reason: without this it dies mid-run in a TypeError
+  // that names neither the row nor the gate.
+  it('refuses a row missing any field the gates read', () => {
     write('config/networks.json', { somechain: {} })
-    expect(() => loadRepoCorpus(scratch)).toThrow(
-      /1 of 2 attestation rows name no network or no compiler pair/
-    )
+    for (const field of [
+      'solcVersion',
+      'evmVersion',
+      'network',
+      'address',
+      'contractName',
+      'commit',
+    ]) {
+      const { [field]: _omitted, ...incomplete } = slot() as unknown as Record<
+        string,
+        unknown
+      >
+      write('script/deploy/resources/reproducibilityAttestations.json', {
+        attestations: [slot(), incomplete],
+      })
+      expect(() => loadRepoCorpus(scratch)).toThrow(
+        /1 of 2 attestation rows are missing one of/
+      )
+    }
   })
 
   // The paired present: with both inputs in place the loader returns a corpus,
@@ -620,11 +669,20 @@ describe('falsification demo — the runner can report a defect', () => {
 })
 
 describe('regression fixture — EXSC-920, the 10x-inflated fee-limit comparison', () => {
+  let originalAllow: string | undefined
+
   beforeEach(() => {
     // Set rather than deleted: `delete` makes bun hand back whatever `.env`
     // holds, and this escape hatch downgrades every refusal below to a warning,
     // which would make the fixture pass while observing nothing.
+    originalAllow = process.env.ALLOW_GAS_ESTIMATE_FALLBACK
     process.env.ALLOW_GAS_ESTIMATE_FALLBACK = ''
+  })
+
+  afterEach(() => {
+    if (originalAllow === undefined)
+      delete process.env.ALLOW_GAS_ESTIMATE_FALLBACK
+    else process.env.ALLOW_GAS_ESTIMATE_FALLBACK = originalAllow
   })
 
   /** 6,000,000 raw energy — the cut the guard refused — at 100 SUN per unit. */

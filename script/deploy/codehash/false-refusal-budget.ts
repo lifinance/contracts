@@ -71,7 +71,7 @@ export const ACCEPTED_FALSE_RED_RULES: readonly IAcceptedFalseRedRule[] = [
     id: 'AFR-3-unresolvable-network',
     namedBy: 'D19 — "stale config"',
     describes:
-      "deriveToolchainScope cannot enumerate the network's legitimate builds at all — the row is absent, its two flags contradict each other, or its targetEvmVersion is blank",
+      "deriveToolchainScope cannot enumerate the network's legitimate builds at all — the row is absent, its targetEvmVersion is blank or names a hardfork no foundry.toml profile pins, or it is zkEVM and the zk profile is missing or pins no zksolc version. The class is whatever that function refuses to answer, not a closed list of causes",
     remedy:
       'fix the config/networks.json row. Until then the gate errors rather than judging, which already reads as "we could not check" and not as "this is not our code".',
     remedyGrade: 'grey',
@@ -242,6 +242,14 @@ export interface IPromotionVerdict {
  * unexplained count of 0 and no accepted false reds, so the first two clauses
  * pass it — which would promote every gate this run could not exercise.
  * "Measured on 0" is the honest reading and it is not a pass.
+ *
+ * What this deliberately is NOT is a rate ceiling: it never reads
+ * `falseRefusalRate`, so a gate whose false reds all grade grey is promotable
+ * however large a share of the fleet it refuses. Read `mayEnforce` as "clears
+ * the floor" — no unnamed class, and something was measured — never as "safe to
+ * enforce". Whether to add a ceiling is a decision about how much honest
+ * friction signers should absorb, and not one this function should take
+ * silently.
  *
  * @param budget - one gate's measured budget
  * @returns Whether it may enforce, and every blocker if not

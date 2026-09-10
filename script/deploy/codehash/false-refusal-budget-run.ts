@@ -43,13 +43,13 @@
  * split.
  *
  * G2 is not the only gate whose zero is structural, and this header
- * deliberately does not enumerate the others. Three attempts at that list
- * shipped a wrong one, because the list is a property of the corpus and the
- * gate wiring on the day it is read, and a sentence here cannot be re-derived
- * when either changes. Each gate states its own case in its own coverage note,
- * next to the number the caveat qualifies, and the report prints every one of
- * them. Read those before reading any zero: the Unexplained column does not
- * distinguish "nothing was refused" from "nothing could be".
+ * deliberately does not enumerate the others: which gates those are is a
+ * property of the corpus and the gate wiring on the day it is read, so a
+ * sentence here cannot be re-derived when either changes. Each gate states its
+ * own case in its own coverage note, next to the number the caveat qualifies,
+ * and the report prints every one of them. Read those before reading any zero:
+ * the Unexplained column does not distinguish "nothing was refused" from
+ * "nothing could be".
  */
 
 import { execFileSync } from 'node:child_process'
@@ -167,9 +167,9 @@ const buildLength = (fingerprint: string): number =>
  * Evidence-based rather than exhaustive, and that is the point: a refusal
  * whose reproducing build the gate WAS offered has no explanation in D19's
  * enumeration, so it returns undefined and lands in the budget. Classifying
- * every refusal by falling through to a last named class would make the
- * unexplained count structurally unreachable, which is the decorative-gate
- * shape G4 forbids.
+ * every refusal by falling through to a last named class would leave the
+ * unexplained count structurally unreachable, which is a budget that cannot
+ * report a finding.
  *
  * @param slot - the honest row that was refused
  * @param pinnedPairs - every non-zk compiler pair foundry.toml pins today
@@ -203,6 +203,7 @@ const scopeKey = (network: string): string => network.toLowerCase()
 /**
  * G1 — can the network's legitimate builds be enumerated at all?
  * @param deps - the corpus
+ * @returns Its budget over every attested slot
  */
 export const gradeToolchainScope = (deps: ICorpusDeps): IGateBudget => {
   const profiles = parseBuildProfiles(deps.foundryToml)
@@ -250,6 +251,7 @@ export const gradeToolchainScope = (deps: ICorpusDeps): IGateBudget => {
  * G2 — does the gate's legitimate set contain the build that reproduces the
  * deployed code?
  * @param deps - the corpus
+ * @returns Its budget over the slots G1 could scope
  */
 export const gradeAttestedSet = (deps: ICorpusDeps): IGateBudget => {
   const profiles = parseBuildProfiles(deps.foundryToml)
@@ -329,7 +331,7 @@ export const gradeAttestedSet = (deps: ICorpusDeps): IGateBudget => {
     denominator: observations.length,
     coverageNote: `EVM only. The sweep excluded ${
       deps.zkEvmSlotsExcluded ?? 'an unrecorded number of'
-    } zkEVM slots because it did not record which zksolc version produced the match, so the zk normalisation path is measured on 0. Bytecode equality is taken from the sweep rather than re-fetched, and layer 1 is graded without the sign-time MATCH-to-UNVERIFIABLE downgrade for uncompared immutable bytes, which the corpus records nothing about — so this rate is a lower bound on what the real gate refuses. This gate's unexplained count is NOT a fleet measurement: keyed on build identity, the comparison refuses exactly when the reproducing pair is not offered, which is exactly when explainScopeRefusal names a class, so no corpus can drive it off 0. Read the rate and the class split. See this module's header. ${
+    } zkEVM slots because it did not record which zksolc version produced the match, so the zk normalisation path is measured on 0. Bytecode equality is taken from the sweep rather than re-fetched, and layer 1 is graded without the sign-time MATCH-to-UNVERIFIABLE downgrade for uncompared immutable bytes, which the corpus records nothing about — so this rate is a lower bound on what the real gate refuses. Build identity is keyed on the compiler pair and omits optimizer runs, which every row of today's corpus records as the single value foundry.toml pins: a corpus recording a second value would need this keyed on it too, or a build compiled differently would read here as a match. This gate's unexplained count is NOT a fleet measurement: keyed on build identity, the comparison refuses exactly when the reproducing pair is not offered, which is exactly when explainScopeRefusal names a class, so no corpus can drive it off 0. Read the rate and the class split. See this module's header. ${
       deps.slots.length - observations.length
     } of ${
       deps.slots.length
@@ -350,6 +352,7 @@ export const gradeAttestedSet = (deps: ICorpusDeps): IGateBudget => {
  * depth of 1 holds none. The
  * coverage note derives that caveat from what the run observed.
  * @param deps - the corpus
+ * @returns Its budget over every attested slot
  */
 export const gradeCommitAvailability = (deps: ICorpusDeps): IGateBudget => {
   const git = (args: string[]): string => {
@@ -421,7 +424,11 @@ const replaceCutCalldata = (address: string): Hex =>
  * @param deps - the corpus
  */
 const exclusionNote = (deps: ICorpusDeps): string =>
-  `Excluded: ${[...deps.funnelExclusions.entries()]
+  `${deps.slots.length - registeredFacetSlots(deps).length} of ${
+    deps.slots.length
+  } attested rows are not in this denominator: most are periphery, which the diamond routes to but never keys as a facet, so no cut installs them. Named exclusions on top of that: ${[
+    ...deps.funnelExclusions.entries(),
+  ]
     .map(([network, why]) => `${network} (${why})`)
     .join('; ')}; and ${[...deps.deprecatedContracts].join(
     ', '
@@ -447,6 +454,7 @@ const registeredFacetSlots = (deps: ICorpusDeps): ICorpusSlot[] =>
 /**
  * G4 — does the cut classifier refuse a plain Replace of a live facet?
  * @param deps - the corpus
+ * @returns Its budget over the live registered facets
  */
 export const gradeCutClassification = (deps: ICorpusDeps): IGateBudget => {
   const slots = registeredFacetSlots(deps)
@@ -468,7 +476,7 @@ export const gradeCutClassification = (deps: ICorpusDeps): IGateBudget => {
     gate: 'G4-cut-classification',
     corpus: 'live registered facets, as a Replace cut',
     denominator: slots.length,
-    coverageNote: `A rate of 0 here is close to a tautology and should not be read as evidence about the classifier. All three of its refusal branches are unreachable from repo data: the cut is synthesised as Replace with a zero init, so the unknown-action and Remove-with-init branches are measured on 0, and the zero-address branch needs a diamond log listing the zero address as a facet, which none of the 1,262 real entries does. What is measured is that a Replace cut over a live registered facet decodes. Because nothing here can refuse, nothing here can go unexplained either: this gate's unexplained count is not a fleet measurement. ${exclusionNote(
+    coverageNote: `A rate of 0 here is close to a tautology and should not be read as evidence about the classifier. All three of its refusal branches are unreachable from repo data: the cut is synthesised as Replace with a zero init, so the unknown-action and Remove-with-init branches are measured on 0, and the zero-address branch needs BOTH an attestation row carrying the zero address and a diamond log keying it as a facet, because the cut is synthesised from the row's own address — no diamond log in the fleet keys it, and no attestation row carries it. What is measured is that a Replace cut over a live registered facet decodes. Because nothing here can refuse, nothing here can go unexplained either: this gate's unexplained count is not a fleet measurement. Re-admitting tron aborts this gate too, before any verdict: classifyCut checksums the address, which a base58 one is not. ${exclusionNote(
       deps
     )}`,
     observations,
@@ -487,6 +495,7 @@ export const gradeCutClassification = (deps: ICorpusDeps): IGateBudget => {
  * no failures so the run makes no network requests. The coverage note carries
  * what that leaves unmeasured.
  * @param deps - the corpus
+ * @returns Its budget over the live registered facets
  */
 export const gradeFunnelDeployGate = async (
   deps: ICorpusDeps
@@ -537,7 +546,7 @@ export const gradeFunnelDeployGate = async (
     gate: 'G5-funnel-deploy-gate',
     corpus: 'live registered facets, as a Replace cut',
     denominator: slots.length,
-    coverageNote: `The GitHub main-equivalence call (\`runGate\`) is stubbed to no failures, and \`isTestnet\`/\`currentBranch\` are pinned, so what is measured is address attribution, not approval state. The calldata is encoded by this module and decoded by the gate, so the undecodable branch — the one that guards proposer-written calldata — is measured on 0. The rate of 0 rests on both exclusions below, differently. Re-admit GenericSwapFacet and this gate reports 1 refusal over 452 rows and is not promotable — that row is the only refusal the 452 registered facets produce today, though 18 further live facets would refuse the same way if a re-sweep attested them. Re-admit tron and the run aborts before reaching a verdict, because no cut can be encoded for a base58 address — a limit of this runner, never a judgement by the gate. ${exclusionNote(
+    coverageNote: `The GitHub main-equivalence call (\`runGate\`) is stubbed to no failures, and \`isTestnet\`/\`currentBranch\` are pinned, so what is measured is address attribution, not approval state. The calldata is encoded by this module and decoded by the gate, so the undecodable branch — the one that guards proposer-written calldata — is measured on 0. The rate of 0 rests on both exclusions below, differently. Re-admit GenericSwapFacet and this gate reports 1 refusal over 452 rows and is not promotable — that row is the only refusal the 452 registered facets produce today. A further 16 live mainnet facet entries would refuse if a re-sweep attested them, but through the gate's other unattributable branch and for a different defect: their address is keyed in the network's diamond log yet absent from its deployment log, so no name resolves, where GenericSwapFacet resolves to a name whose source is gone. (Two more entries on arbitrumsepolia and basesepolia refuse only in this harness, which pins isTestnet to false; the real gate exempts a testnet and a production re-sweep would not attest one.) Re-admit tron and the run aborts before reaching a verdict, because no cut can be encoded for a base58 address — a limit of this runner, never a judgement by the gate. ${exclusionNote(
       deps
     )}`,
     observations,
@@ -549,15 +558,15 @@ export const gradeFunnelDeployGate = async (
  * @param repoRoot - repository root
  * @returns Every input G1 through G5 read; G6 to G8 take no corpus
  * @throws If the attestation corpus is absent, carries no non-empty
- * `attestations` array, or `config/networks.json` is missing — each of which
- * would otherwise be reported as a measurement rather than as a corpus that
- * graded nothing. Also if `foundry.toml` is unreadable, which surfaces as the
- * raw read error, or if either JSON file is malformed, which surfaces as the
- * parse error.
+ * `attestations` array, carries a row missing any field the gates read, or
+ * `config/networks.json` is missing — each of which would otherwise be reported
+ * as a measurement rather than as a corpus that graded nothing. Also if
+ * `foundry.toml` is unreadable, which surfaces as the raw read error, or if
+ * either JSON file is malformed, which surfaces as the parse error.
  */
 export const loadRepoCorpus = (repoRoot: string): ICorpusDeps => {
   // Memoised because the gates ask per slot rather than per network: without it
-  // the run re-reads and re-parses the same ~170 logs some 1,900 times.
+  // the run re-reads and re-parses the same 118 logs some 1,900 times.
   const cache = new Map<string, Record<string, unknown> | undefined>()
   const read = (relativePath: string): Record<string, unknown> | undefined => {
     if (cache.has(relativePath)) return cache.get(relativePath)
@@ -586,13 +595,31 @@ export const loadRepoCorpus = (repoRoot: string): ICorpusDeps => {
   // AFR-1 and AFR-2 both assert that a compiler pair provably reproduces the
   // deployed code. A row naming no pair reproduces nothing, so its refusal
   // would be filed under a named accepted class the rule text does not
-  // describe — a refusal reported as explained by a name nobody earned.
-  const unusable = (slots as ICorpusSlot[]).filter(
-    (row) => !row?.network || !row?.solcVersion || !row?.evmVersion
+  // describe — a refusal reported as explained by a name nobody earned. The
+  // other fields are required for a blunter reason: the gates dereference them,
+  // so a row missing one dies mid-run with a TypeError naming neither the row
+  // nor the gate. `version` is deliberately absent from the list: three
+  // periphery rows in today's corpus carry an empty one because their
+  // deployment record had none, and nothing reads it but the slot label and the
+  // fingerprint, which an empty string serves as well as any other value.
+  const required = [
+    'network',
+    'address',
+    'contractName',
+    'commit',
+    'solcVersion',
+    'evmVersion',
+  ] as const
+  const unusable = (slots as Record<string, unknown>[]).filter((row) =>
+    required.some((field) => typeof row?.[field] !== 'string' || !row[field])
   )
   if (unusable.length > 0)
     throw new Error(
-      `${unusable.length} of ${slots.length} attestation rows name no network or no compiler pair, so no refusal they produce can be attributed to a named class. Regenerate the corpus rather than measuring against it.`
+      `${unusable.length} of ${
+        slots.length
+      } attestation rows are missing one of ${required.join(
+        ', '
+      )}. A row naming no compiler pair reproduces nothing, so no refusal it produces can be attributed to a named class. Regenerate the corpus rather than measuring against it.`
     )
 
   // Fails closed rather than deriving scope against an absent config: every
@@ -651,6 +678,7 @@ export const loadRepoCorpus = (repoRoot: string): ICorpusDeps => {
 /**
  * Every gate, over the whole corpus.
  * @param deps - the corpus
+ * @returns One budget per gate, in report order
  */
 export const runShadowBudget = async (
   deps: ICorpusDeps
@@ -660,7 +688,7 @@ export const runShadowBudget = async (
   gradeCommitAvailability(deps),
   gradeCutClassification(deps),
   await gradeFunnelDeployGate(deps),
-  ...unreachedGates(),
+  ...unreachedGates(deps),
 ]
 
 /**
@@ -669,8 +697,11 @@ export const runShadowBudget = async (
  * Reported rather than omitted: a gate missing from the table reads as a gate
  * with nothing to report, and `evaluatePromotion` must see a denominator of 0
  * so it refuses to promote them.
+ *
+ * @param deps - the corpus, read only for the counts G8's note quotes
+ * @returns One measured-on-0 budget per unreached gate
  */
-export const unreachedGates = (): IGateBudget[] =>
+export const unreachedGates = (deps: ICorpusDeps): IGateBudget[] =>
   [
     {
       gate: 'G6-delegatecall-gate',
@@ -682,7 +713,9 @@ export const unreachedGates = (): IGateBudget[] =>
     },
     {
       gate: 'G8-tron-fee-limit-preflight',
-      note: 'exercised only by the EXSC-920 regression fixture in the test file, which is one row and not a fleet corpus. Tron carries 2 attested slots in total.',
+      note: `exercised only by the EXSC-920 regression fixture in the test file, which is one row and not a fleet corpus. Tron carries ${
+        deps.slots.filter((slot) => scopeKey(slot.network) === 'tron').length
+      } attested slots in total.`,
     },
   ].map((entry) =>
     summariseGate({
