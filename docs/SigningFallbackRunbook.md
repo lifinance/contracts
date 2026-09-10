@@ -41,20 +41,25 @@ to reconcile.
 **What the fallback does not weaken.** It drops the 2.0 gate layer; it does
 not drop the multisig or the timelock. The baseline reads the threshold from
 the Safe contract itself (`safe.getThreshold()` in `confirm-safe-tx.ts`, not
-from the frozen `config/`), and offers an execute option only once
-`hasEnoughSignatures` finds the collected signatures at or above it — so
-quorum is enforced by the same on-chain value either way, and there is no
-single-signer path. `--timelock` still wraps the call in a
+from the frozen `config/`), and every execute option is gated against it —
+`Execute` on `hasEnoughSignatures` (signatures already collected),
+`Sign & Execute` on `wouldMeetThreshold` (collected + you), the deployer
+variants on collected + signer + deployer. Quorum is enforced against the same
+on-chain value either way. Note what that does *not* say: on a threshold-2
+Safe, one person holding both `SAFE_SIGNER_PRIVATE_KEY` and
+`PRIVATE_KEY_PRODUCTION` still satisfies it alone in a single run — two keys,
+one human. That is equally true on `main`; the fallback neither creates nor
+closes it. `--timelock` still wraps the call in a
 `scheduleBatch` via `wrapWithTimelockSchedule`, still resolving
 `LiFiTimelockController` from `deployments/` (§4 covers what being frozen
 costs there). What is lost is provenance and the ticket binding, which is §6.
 
 ### Which side of the ceremony has to fall back
 
-**Answer this before checking anything out.** At `49f05efa9` every 2.0 gate
-module is absent outright — `delegatecall-gate.ts`, `codehash-sign-gate.ts`,
-`confirm-integrity-asserts.ts`, `ledger-guards.ts`, `proposal-intent.ts` and
-`calldata-address-check.ts` are all missing from `script/deploy/safe/`, and
+**Answer this before checking anything out.** At `49f05efa9` the 2.0 gate
+modules are absent outright — `delegatecall-gate.ts`, `codehash-sign-gate.ts`,
+`confirm-integrity-asserts.ts`, `proposal-intent.ts`, `calldata-address-check.ts`
+and `pinned-target-state.ts` are all missing from `script/deploy/safe/`, and
 all six exist on `main`. So this commit clears any gate. That is a property of
 this commit, established by checking those paths — not something the §8
 directory diff would have told you, which is why §8 asks a different question
@@ -73,8 +78,9 @@ That is a first cut, not the whole answer: **a gate can be wired on both
 paths.** `evaluateDelegateCallGate` is — `confirm-safe-tx.ts` calls it
 directly, and so do three methods in `safe-utils.ts`
 (`signTransactionWithHash`, `signTransaction`, `executeTransaction`). The
-propose path reaches it through the third of those: `propose-safe-tx.ts` calls
-`safe.signTransaction()`, which asserts the gate before it signs. So grep the
+propose path reaches it through `signTransaction`: `propose-safe-tx.ts` calls
+`safe.signTransaction()`, which asserts the gate before it signs.
+`executeTransaction` is never reached while proposing. So grep the
 refusing gate's call sites *and follow them back to an entry point* — a gate
 that looks sign-only can sit behind a helper the proposer also calls, and then
 both sides fall back.
@@ -193,10 +199,11 @@ done
 
 **An exported `SC_MONGODB_URI` does more than win — it splits the two halves
 apart.** `with-safe-tunnel.sh` reads the URI by grepping `.env` and never
-consults the environment, so it opens the port named in the *file*, while the
-script connects to the URI in the *environment*. The failure that produces is
-a tunnel that comes up healthy (`✓ Safe Mongo tunnel already up`) in front of
-a proposal written somewhere else. If any of the three warns above, `unset` it
+consults the environment: it takes the *file's* port as its readiness probe
+and reports the tunnel healthy on that basis, while the script connects to the
+URI in the *environment*. The failure that produces is `✓ Safe Mongo tunnel
+already up` in front of a proposal written somewhere else. If any of the three
+warns above, `unset` it
 and start the ceremony in a fresh shell rather than reasoning about which
 value applies where.
 
@@ -268,19 +275,33 @@ proposing, diff the values this run will actually resolve — for the one
 network you are targeting, not the whole file:
 
 ```bash
-NET=<network>
+NET=arbitrum   # substitute your target network before pasting
 
-# The target network's entry, not the whole file — §4's other drift is noise here.
-diff <(git show "origin/main:config/networks.json" | jq ".$NET") \
-     <(jq ".$NET" config/networks.json) && echo "same: networks.json[$NET]"
+M=$(mktemp); B=$(mktemp)
 
-# The deployment file --timelock reads.
-diff <(git show "origin/main:deployments/$NET.json") "deployments/$NET.json" \
-  && echo "same: deployments/$NET.json"
+# 1. The network's own entry, not the whole file — §4's other drift is noise here.
+git show "origin/main:config/networks.json" | jq ".$NET" > "$M" 2>/dev/null
+jq ".$NET" config/networks.json > "$B" 2>/dev/null
+if ! [ -s "$M" ] || ! [ -s "$B" ]; then
+  echo "✗ one side produced nothing (jq missing? read failed?) — THIS CHECK PROVED NOTHING"
+elif diff "$M" "$B" >/dev/null; then
+  echo "✓ networks.json[$NET] identical"
+else
+  echo "✗ networks.json[$NET] differs — read it:"; diff "$M" "$B"
+fi
 
-# global.json is not per-network, so read this one rather than expecting silence.
+# 2. Only the field --timelock actually sends to. The rest of the deployment
+#    file is facet-address churn and will always differ.
+echo "timelock on main:     $(git show "origin/main:deployments/$NET.json" 2>/dev/null | jq -r '.LiFiTimelockController // "ABSENT"')"
+echo "timelock at baseline: $(jq -r '.LiFiTimelockController // "ABSENT"' "deployments/$NET.json" 2>/dev/null || echo 'FILE ABSENT')"
+
+# 3. global.json is not per-network — expect output, and read it.
 diff <(git show "origin/main:config/global.json") config/global.json
 ```
+
+An empty result is not a pass. Step 1 says so out loud because the natural
+shape of that check — two substitutions into `diff` — exits 0 when *both*
+sides fail, which prints a green line for a comparison that never happened.
 
 Three things make the difference between a stale value and a wrong proposal:
 the network's `status` on `main` (a name the baseline accepts may be retired),
@@ -314,11 +335,15 @@ Say, in the channel where the ceremony is coordinated:
 - the ticket link, which nothing on the row carries, so it has to travel with
   the message.
 
-That last point is the substantive loss. The binding check on `main` is
-`resolveProposalIntent` inside `storeTransactionInMongoDB` — the unbypassable
-one, which runs after signing — while `assertTicketPresent` is the early exit
-that saves a Ledger tap. Neither exists at the baseline, so nothing ties the
-proposal to a ticket except what a human writes down.
+That last point is the substantive loss. On `main` this path binds the ticket
+twice, both through `resolveProposalIntent`: once early in
+`propose-to-safe.ts` (before the Ledger tap) and again inside
+`storeTransactionInMongoDB`, which is the unbypassable one because it runs on
+the write. (`assertTicketPresent` is the same module's guard for the *other*
+proposal entry points — the Tron proposer, `add-safe-owners-and-threshold`,
+`unpauseAllDiamonds` — not for this one.) The whole module is absent at the
+baseline, so nothing ties a fallback proposal to a ticket except what a human
+writes down.
 
 ## 7. Reconcile afterwards
 
@@ -407,7 +432,8 @@ to re-establish at the candidate commit, in the order that fails fastest:
    cannot be missed:
    `git ls-tree -r <sha> -- script/deploy/safe/ script/deploy/shared/` against
    the same paths on `main`. **That diff is a candidate list, not an answer** —
-   it is non-empty from 2026-07-28 onward and most of what it names is
+   it is never empty, not even at the escape commit itself (49 non-test paths
+   on `main` are missing at `49f05efa9`), and most of what it names is
    unrelated tooling (a prefetch cache, a selector registry, a read-only
    client). For each candidate, ask the only question that matters: does an
    entry point reach it on a path that can *refuse*? Follow its call sites
@@ -426,12 +452,17 @@ to re-establish at the candidate commit, in the order that fails fastest:
    the borrowed `node_modules` is `main`'s, and a `bun install` in the clone
    can invalidate it without touching this repo.
 
-**One case this list cannot satisfy.** The earliest signing gates —
-`ledger-guards.ts` and `proposal-intent.ts` — landed **2026-09-02**. For a
-network added after that date, no commit both knows the network and predates
-the gates, so there is no fallback for it at all: the answer is to fix the
-gate, not to move the tag. Say so on the ticket rather than retagging to
-something that still carries the gate.
+**One case this list cannot satisfy.** The earliest thing on a ceremony path
+that can refuse is `canExecuteWithNonceStatus`, which `confirm-safe-tx.ts`
+reaches and which withdraws execute options on a future nonce; it landed with
+`80c3c1bf6` on **2026-09-01**, the same commit as the provenance cutover §7
+uses. `proposal-intent.ts` follows on 2026-09-02. (`ledger-guards.ts` landed
+alongside them but is *not* a gate by requirement 1's own test — its only
+caller is `script/tasks/cleanUpProdDiamond.ts`, which is neither entry point.)
+For a network added after 2026-09-01, no commit both knows the network and
+predates every refusal, so there is no fallback for it at all: the answer is
+to fix the gate, not to move the tag. Say so on the ticket rather than
+retagging to something that still carries the gate.
 
 Both networks §4 names predate that, so a candidate exists for each
 (`injective` 2026-07-31, `sepolia` 2026-08-25) — but requirement 1's diff is
