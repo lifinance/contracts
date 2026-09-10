@@ -9,7 +9,7 @@
  * of real calldata against a real production deployment log.
  */
 import { execFileSync, spawnSync } from 'child_process'
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
+import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 
@@ -376,9 +376,42 @@ describe('assert-direct-broadcast-gate CLI against real repo data', () => {
     expect(`${stdout}${stderr}`).toContain(DIRECT_BROADCAST_GATE_ALLOWED)
   })
 
-  it('does not use import.meta.main as the CLI guard', () => {
-    const src = readFileSync(join(REPO_ROOT, GATE_CLI), 'utf8')
-    expect(src).not.toMatch(/if \(import\.meta\.main\)/)
-    expect(src).toContain('fileURLToPath')
+  it('still runs when its own path is reached through a symlink', () => {
+    // tsx realpaths `import.meta.url` but not argv[1], so an entrypoint check
+    // that compares them unresolved is true only in an unsymlinked checkout.
+    // Grepping the source cannot tell the two compares apart; reaching the CLI
+    // through a link can, and a no-op CLI would exit 0 with no output.
+    const linkRoot = mkdtempSync(join(tmpdir(), 'gate-symlink-'))
+    const linked = join(linkRoot, 'shared')
+
+    try {
+      symlinkSync(join(REPO_ROOT, 'script/deploy/shared'), linked, 'dir')
+
+      const env = { ...(process.env as Record<string, string>) }
+      delete env.NODE_ENV
+      const { status, stdout, stderr } = spawnSync(
+        'bunx',
+        [
+          'tsx',
+          join(linked, 'assert-direct-broadcast-gate.ts'),
+          '--network',
+          MAINNET,
+          '--calldata',
+          'not-hex',
+        ],
+        {
+          cwd: REPO_ROOT,
+          encoding: 'utf8',
+          env,
+          stdio: ['ignore', 'pipe', 'pipe'],
+        }
+      )
+
+      expect(status).toBe(1)
+      expect(`${stdout}${stderr}`).toContain('not well-formed calldata')
+      expect(`${stdout}${stderr}`).not.toContain(DIRECT_BROADCAST_GATE_ALLOWED)
+    } finally {
+      rmSync(linkRoot, { recursive: true, force: true })
+    }
   })
 })
