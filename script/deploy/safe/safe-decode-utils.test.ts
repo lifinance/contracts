@@ -125,6 +125,26 @@ describe('formatRoleChange', () => {
     await formatRoleChange('revokeRole', [CANCELLER_ROLE], 'mainnet')
     expect(infoSpy).not.toHaveBeenCalled()
   })
+
+  it('renders a hostile function name and role inert', async () => {
+    // Defence in depth at the exported boundary, not a route: the only caller
+    // inside this module gates on `ACCESS_CONTROL_ROLE_FUNCTIONS`, and reaches
+    // the role as an ABI-decoded `bytes32`. Asserted anyway so the exported
+    // signature — which takes a bare `string` and `unknown[]` — cannot start
+    // printing either raw without a test noticing.
+    const ESC = String.fromCharCode(27)
+    const output = await capture(
+      `grantRole${ESC}[2Jfake`,
+      `${DEFAULT_ADMIN_ROLE}${ESC}[2Jfake`,
+      account
+    )
+
+    // Present: both stored values did reach a line, so the absences below are
+    // about sanitising rather than about the lines never being printed.
+    expect(output).toContain('grantRole')
+    expect(output).toContain(DEFAULT_ADMIN_ROLE)
+    expect(output).not.toContain(`${ESC}[2J`)
+  })
 })
 
 describe('decodeTransactionData', () => {
@@ -142,6 +162,35 @@ describe('decodeTransactionData', () => {
       )
     } finally {
       globalThis.fetch = originalFetch
+    }
+  })
+
+  it('sanitises the message on the catch arm', async () => {
+    // A distinct site from the `Failed to decode data:` arm in
+    // `formatDecodedTxDataForDisplay`: this one is `decodeTransactionData`'s
+    // own catch, reached by a row shape whose `substring` throws. viem's
+    // messages quote their input back, so the text is row-derived.
+    const { decodeTransactionData } = await import('./safe-decode-utils')
+    const ESC = String.fromCharCode(27)
+    const warnSpy = spyOn(consola, 'warn').mockImplementation(
+      (() => {}) as never
+    )
+    try {
+      await decodeTransactionData({
+        substring: () => {
+          throw new Error(`viem echoed back 0xdead${ESC}[2Jfake`)
+        },
+      } as never)
+      const line = warnSpy.mock.calls
+        .map((call) => String(call[0]))
+        .find((text) => text.includes('Error decoding transaction data:'))
+
+      // Present: the message did reach the line, so the absence below is about
+      // sanitising rather than about the arm never being taken.
+      expect(line).toContain('viem echoed back')
+      expect(line).not.toContain(`${ESC}[2J`)
+    } finally {
+      warnSpy.mockRestore()
     }
   })
 })
@@ -263,6 +312,24 @@ describe('formatBatchSetContractSelectorWhitelist', () => {
     const output = await capture([FALLBACK_ONLY])
     expect(output).toContain('signature unknown')
     expect(output).not.toContain('transfer(address,uint256)')
+  })
+
+  it('renders a 4byte-supplied signature inert on the fallback line', async () => {
+    // Remote text, and a proposer picks which of it is fetched by picking the
+    // selector, so this line is a route rather than defence in depth. Derived
+    // with `toFunctionSelector` because the resolver drops a name that does not
+    // hash back to the selector it was asked about — a stub ignoring that would
+    // leave this assertion observing the "signature unknown" arm instead.
+    const ESC = String.fromCharCode(27)
+    const hostile = `evilProbe${ESC}[2J(uint256)`
+    const selector = toFunctionSelector(hostile)
+    stubFourByte({ [selector]: hostile })
+    const output = await capture([selector])
+
+    // Present: the remote name did reach the line, so the absence below is
+    // about sanitising rather than about the line never being printed.
+    expect(output).toContain('evilProbe')
+    expect(output).not.toContain(`${ESC}[2J`)
   })
 })
 
@@ -668,6 +735,94 @@ describe('formatTimelockScheduleBatch — driven by the stored row', () => {
     } finally {
       infoSpy.mockRestore()
     }
+  })
+
+  /**
+   * The six positional args as `execute-pending-timelock-tx` supplies them:
+   * `deserializeScheduleParams(row)` straight off the stored operation, so
+   * every one of them is arbitrary text rather than an ABI-decoded value.
+   */
+  const ROW_ARGS = [
+    ['0x1111111111111111111111111111111111111111'],
+    [0n],
+    ['0x'],
+    `0x${'00'.repeat(32)}`,
+    `0x${'11'.repeat(32)}`,
+    86400n,
+  ] as const
+
+  const captureRow = async (args: readonly unknown[]): Promise<string[]> => {
+    const infoSpy = spyOn(consola, 'info').mockImplementation(
+      (() => {}) as never
+    )
+    try {
+      await formatTimelockScheduleBatch(args, 'mainnet')
+      return infoSpy.mock.calls.map((call) => String(call[0]))
+    } finally {
+      infoSpy.mockRestore()
+    }
+  }
+
+  it('renders each batch header field inert', async () => {
+    const lines = await captureRow([
+      ROW_ARGS[0],
+      ROW_ARGS[1],
+      ROW_ARGS[2],
+      `0xdead${ESC}[2Jpred`,
+      `0xbeef${ESC}[2Jsalt`,
+      `99${ESC}[2Jdelay`,
+    ])
+
+    // Asserted per label rather than over the joined output, so removing the
+    // guard on any one of the three fails on that field and not on a sibling.
+    for (const [label, stored] of [
+      ['Predecessor:', '0xdead'],
+      ['Salt:', '0xbeef'],
+      ['Delay:', '99'],
+    ] as const) {
+      const line = lines.find((text) => text.includes(label))
+      // Present: the stored value did reach the line, so the absence below is
+      // about sanitising rather than about the line never being printed.
+      expect(line).toContain(stored)
+      expect(line).not.toContain(`${ESC}[2J`)
+    }
+  })
+
+  it('renders a stored value inert', async () => {
+    // A string, not the `bigint` the ABI-decoded caller supplies: the row is
+    // JSON, so this field arrives however it was written.
+    const line = (
+      await captureRow([
+        ROW_ARGS[0],
+        [`7${ESC}[2Jfake`],
+        ROW_ARGS[2],
+        ROW_ARGS[3],
+        ROW_ARGS[4],
+        ROW_ARGS[5],
+      ])
+    ).find((text) => text.includes('value='))
+
+    expect(line).toContain('7')
+    expect(line).not.toContain(`${ESC}[2J`)
+  })
+
+  it('bounds and sanitises the raw payload preview', async () => {
+    // The escape sits inside the first 96 code points so that sanitising is
+    // load-bearing: placed past the clip it would be cut either way, and the
+    // assertion would hold with the guard removed.
+    const line = (
+      await captureRow([
+        ROW_ARGS[0],
+        ROW_ARGS[1],
+        [`0xab${ESC}[2J${'cd'.repeat(400)}`],
+        ROW_ARGS[3],
+        ROW_ARGS[4],
+        ROW_ARGS[5],
+      ])
+    ).find((text) => text.includes('payload='))
+
+    expect(line).toContain('clipped for display')
+    expect(line).not.toContain(`${ESC}[2J`)
   })
 })
 
