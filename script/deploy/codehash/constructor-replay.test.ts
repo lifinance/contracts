@@ -40,6 +40,10 @@ const IMMUTABLE_WORD =
 const TAMPERED_WORD =
   '000000000000000000000000dead000000000000000000000000000000000000'
 
+/** A third value, so a second replay can differ from the first as well as from the deployment. */
+const OTHER_WORD =
+  '000000000000000000000000beef000000000000000000000000000000000000'
+
 const withImmutable = (word: string, trailer: string): string =>
   `0x${BODY}${word}${trailer}`
 
@@ -74,6 +78,25 @@ const evmFailing = (reason: string): IConstructorReplayDeps => ({
   replay: async (): Promise<ReplayOutcome> => ({ ok: false, reason }),
 })
 
+/** Answers each call from `outcomes` in turn, as a real node reached by two replays would. */
+const evmAnswering = (
+  outcomes: readonly ReplayOutcome[]
+): IConstructorReplayDeps & { calls: IReplayRequest[] } => {
+  const calls: IReplayRequest[] = []
+  return {
+    calls,
+    replay: async (request) => {
+      calls.push(request)
+      return (
+        outcomes[calls.length - 1] ?? {
+          ok: false,
+          reason: 'the test offered no further outcome',
+        }
+      )
+    },
+  }
+}
+
 const verify = (
   observedRuntimeCode: string,
   deps: IConstructorReplayDeps,
@@ -84,6 +107,7 @@ const verify = (
       lineage: 'upstream cancun',
       observedRuntimeCode,
       creationCode: CREATION_CODE,
+      chainId: 42161,
       expectedArgs,
     },
     deps
@@ -109,7 +133,11 @@ describe('when the replay reproduces the deployed bytes', () => {
     await verify(honest, evm)
 
     expect(evm.calls).toEqual([
-      { creationCode: CREATION_CODE, encodedArgs: IMMUTABLE_WORD },
+      {
+        creationCode: CREATION_CODE,
+        encodedArgs: IMMUTABLE_WORD,
+        chainId: 42161,
+      },
     ])
   })
 
@@ -134,6 +162,46 @@ describe('when an immutable does not hold what config declares', () => {
     expect(result.comparison.verdict).toBe('MISMATCH')
     expect(result.comparison.blocksSigning).toBe(true)
     expect(result.fallsBackToMasking).toBe(false)
+  })
+})
+
+describe('when the constructor stores where it was deployed', () => {
+  it('refuses instead of blocking, because a replay cannot land where the deployment did', async () => {
+    const observed = withImmutable(IMMUTABLE_WORD, TRAILER_12)
+    const evm = evmAnswering([
+      { ok: true, runtimeCode: withImmutable(TAMPERED_WORD, TRAILER_12) },
+      { ok: true, runtimeCode: withImmutable(OTHER_WORD, TRAILER_12) },
+    ])
+
+    const result = await verify(observed, evm)
+
+    expect(result.comparison.verdict).toBe('UNVERIFIABLE')
+    expect(result.fallsBackToMasking).toBe(true)
+    expect(result.comparison.reason).toContain('two local replays')
+    expect(evm.calls).toHaveLength(2)
+  })
+
+  it('reports UNVERIFIABLE when the constructor ran once but not a second time', async () => {
+    const observed = withImmutable(IMMUTABLE_WORD, TRAILER_12)
+    const evm = evmAnswering([
+      { ok: true, runtimeCode: withImmutable(TAMPERED_WORD, TRAILER_12) },
+      { ok: false, reason: 'the constructor reverted on the local EVM' },
+    ])
+
+    const result = await verify(observed, evm)
+
+    expect(result.comparison.verdict).toBe('UNVERIFIABLE')
+    expect(result.fallsBackToMasking).toBe(true)
+    expect(result.comparison.reason).toContain('not a second time')
+  })
+
+  it('spends no second replay on a deployment that already matched', async () => {
+    const honest = withImmutable(IMMUTABLE_WORD, TRAILER_12)
+    const evm = evmReturning(honest)
+
+    await verify(honest, evm)
+
+    expect(evm.calls).toHaveLength(1)
   })
 })
 

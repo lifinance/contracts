@@ -112,6 +112,7 @@ describe('when the anvil binary is not there', () => {
     // is the bug — the signer must lose the replay and fall back to masking,
     // never lose the run.
     const evm = createLocalEvmReplay({
+      chainId: 1,
       binary: 'anvil-absent-in-tests',
       port: 8611,
     })
@@ -120,6 +121,7 @@ describe('when the anvil binary is not there', () => {
       const outcome = await evm.replay({
         creationCode: '0x60806040',
         encodedArgs: '',
+        chainId: 1,
       })
 
       expect(outcome.ok).toBe(false)

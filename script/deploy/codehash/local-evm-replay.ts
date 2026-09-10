@@ -3,10 +3,10 @@
  * `anvil`, deployed to and read back over JSON-RPC.
  *
  * Import this only to build the `replay` dependency. A local chain is enough
- * because the deployment is reconstructed rather than re-observed — the args
- * come from `config/`, and the runtime bytes a constructor returns do not
- * depend on the chain it ran on. So there is no archive RPC to reach, no
- * creation block to fork, and no explorer in the path.
+ * because the deployment is reconstructed rather than re-observed: the args
+ * come from `config/`, so there is no archive RPC to reach, no creation block
+ * to fork, and no explorer in the path. The node does run as the graded chain,
+ * because a constructor may store `block.chainid`.
  */
 import { spawn } from 'child_process'
 
@@ -27,6 +27,11 @@ const STARTUP_PROBES = 100
 const STARTUP_PROBE_INTERVAL_MS = 100
 
 export interface ILocalEvmOptions {
+  /**
+   * Chain the graded deployment lives on. The node reports it as
+   * `block.chainid`, so one node grades one chain.
+   */
+  chainId: number
   /** Port for the throwaway node. Give each concurrent caller its own. */
   port?: number
   /** `anvil` binary, for a caller whose PATH does not carry it. */
@@ -45,7 +50,7 @@ export interface ILocalEvm {
  * @returns The deploy calldata, or why the inputs cannot form any.
  */
 export const composeCreationCode = (
-  request: IReplayRequest
+  request: Pick<IReplayRequest, 'creationCode' | 'encodedArgs'>
 ): { ok: true; data: string } | { ok: false; reason: string } => {
   const code = strip0x(request.creationCode)
   if (code.length === 0) return { ok: false, reason: 'creation code is empty' }
@@ -98,17 +103,17 @@ const awaitStartup = async (
  * The caller owns the lifetime: call `stop` in a `finally`, or the node outlives
  * the process that asked for it.
  *
- * @param options - Port and binary overrides.
- * @returns The replay port and the handle that shuts the node down.
+ * @param options - Chain to run as, plus port and binary overrides.
+ * @returns The replay dependency and the handle that shuts the node down.
  */
-export const createLocalEvmReplay = (
-  options: ILocalEvmOptions = {}
-): ILocalEvm => {
+export const createLocalEvmReplay = (options: ILocalEvmOptions): ILocalEvm => {
   const port = options.port ?? 8599
   const binary = options.binary ?? 'anvil'
-  const child = spawn(binary, ['--silent', '--port', String(port)], {
-    stdio: 'ignore',
-  })
+  const child = spawn(
+    binary,
+    ['--silent', '--port', String(port), '--chain-id', String(options.chainId)],
+    { stdio: 'ignore' }
+  )
 
   // Without this listener a missing binary escapes as a throw — from the
   // `spawn` call itself under bun, and under Node as an `error` event that
@@ -141,6 +146,13 @@ export const createLocalEvmReplay = (
       }
 
     try {
+      const running = await client.getChainId()
+      if (running !== request.chainId)
+        return {
+          ok: false,
+          reason: `the local EVM runs chain ${running} but the deployment is on chain ${request.chainId}, so a constructor reading block.chainid would be replayed under the wrong one`,
+        }
+
       const accounts = (await client.request({
         method: 'eth_accounts' as never,
         params: [] as never,
