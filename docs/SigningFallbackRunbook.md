@@ -56,11 +56,14 @@ costs there). What is lost is provenance and the ticket binding, which is §6.
 
 ### Which side of the ceremony has to fall back
 
-**Answer this before checking anything out.** At `49f05efa9` the 2.0 gate
-modules are absent outright — `delegatecall-gate.ts`, `codehash-sign-gate.ts`,
-`confirm-integrity-asserts.ts`, `proposal-intent.ts`, `calldata-address-check.ts`
-and `pinned-target-state.ts` are all missing from `script/deploy/safe/`, and
-all six exist on `main`. So this commit clears any gate. That is a property of
+**Answer this before checking anything out.** At `49f05efa9` the modules that
+actually refuse are absent outright: `delegatecall-gate.ts`,
+`codehash-sign-gate.ts`, `confirm-integrity-asserts.ts`, `proposal-intent.ts`
+and `pinned-target-state.ts` in `script/deploy/safe/`, plus
+`funnel-deploy-gate.ts` in `script/deploy/shared/` — which `propose-to-safe.ts`
+calls directly, and which is the reason §8's diff spans both directories
+rather than `safe/` alone. All six exist on `main`. So this commit clears any
+gate. That is a property of
 this commit, established by checking those paths — not something the §8
 directory diff would have told you, which is why §8 asks a different question
 of a *candidate* commit. But it only clears the gates that run on the side
@@ -282,8 +285,9 @@ M=$(mktemp); B=$(mktemp)
 # 1. The network's own entry, not the whole file — §4's other drift is noise here.
 git show "origin/main:config/networks.json" | jq ".$NET" > "$M" 2>/dev/null
 jq ".$NET" config/networks.json > "$B" 2>/dev/null
-if ! [ -s "$M" ] || ! [ -s "$B" ]; then
-  echo "✗ one side produced nothing (jq missing? read failed?) — THIS CHECK PROVED NOTHING"
+if ! [ -s "$M" ] || ! [ -s "$B" ] || grep -qx null "$M" || grep -qx null "$B"; then
+  echo "✗ no entry on one side — typo'd network, jq missing, or absent at the"
+  echo "  baseline (§4). Either way THIS CHECK PROVED NOTHING; resolve it first."
 elif diff "$M" "$B" >/dev/null; then
   echo "✓ networks.json[$NET] identical"
 else
@@ -292,8 +296,10 @@ fi
 
 # 2. Only the field --timelock actually sends to. The rest of the deployment
 #    file is facet-address churn and will always differ.
-echo "timelock on main:     $(git show "origin/main:deployments/$NET.json" 2>/dev/null | jq -r '.LiFiTimelockController // "ABSENT"')"
-echo "timelock at baseline: $(jq -r '.LiFiTimelockController // "ABSENT"' "deployments/$NET.json" 2>/dev/null || echo 'FILE ABSENT')"
+tl_main=$(git show "origin/main:deployments/$NET.json" 2>/dev/null | jq -r '.LiFiTimelockController // "KEY ABSENT"' 2>/dev/null)
+tl_base=$(jq -r '.LiFiTimelockController // "KEY ABSENT"' "deployments/$NET.json" 2>/dev/null)
+echo "timelock on main:     ${tl_main:-FILE ABSENT}"
+echo "timelock at baseline: ${tl_base:-FILE ABSENT}"
 
 # 3. global.json is not per-network — expect output, and read it.
 diff <(git show "origin/main:config/global.json") config/global.json
@@ -341,7 +347,9 @@ twice, both through `resolveProposalIntent`: once early in
 `storeTransactionInMongoDB`, which is the unbypassable one because it runs on
 the write. (`assertTicketPresent` is the same module's guard for the *other*
 proposal entry points — the Tron proposer, `add-safe-owners-and-threshold`,
-`unpauseAllDiamonds` — not for this one.) The whole module is absent at the
+`unpauseAllDiamonds`, and the `sendOrPropose` flow in
+`script/safe/safeScriptHelpers.ts` — not for this one.) The whole module is
+absent at the
 baseline, so nothing ties a fallback proposal to a ticket except what a human
 writes down.
 
