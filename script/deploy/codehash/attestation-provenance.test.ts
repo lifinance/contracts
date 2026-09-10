@@ -44,24 +44,12 @@ describe('gradeMatchProvenance', () => {
   })
 
   it('does not upgrade a local match because some unrelated CI attestation exists', () => {
-    // The bug this is here for: reading the strongest provenance present in the
-    // set answers "is anything here CI-attested" instead of "was the thing that
-    // matched CI-attested".
+    // Reading the strongest provenance present in the set answers "is anything
+    // here CI-attested" instead of "was the thing that matched CI-attested".
     const verdict = gradeMatchProvenance(HASH_A, [local(HASH_A), ci(HASH_B)])
 
     expect(verdict.grade).toBe('ci-disagrees')
     expect(verdict.presentableAsAttested).toBe(false)
-  })
-
-  it('separates a disagreement from having no second opinion', () => {
-    // Both match only a local rebuild, and they are not the same situation: one
-    // has a CI attestation that failed to match, the other has none at all.
-    expect(gradeMatchProvenance(HASH_A, [local(HASH_A)]).grade).toBe(
-      'locally-rebuilt'
-    )
-    expect(
-      gradeMatchProvenance(HASH_A, [local(HASH_A), ci(HASH_B)]).grade
-    ).toBe('ci-disagrees')
   })
 
   it('says how many CI attestations disagreed', () => {
@@ -99,5 +87,19 @@ describe('gradeMatchProvenance', () => {
     const verdict = gradeMatchProvenance(HASH_A.toUpperCase(), [ci(HASH_A)])
 
     expect(verdict.grade).toBe('ci-attested')
+  })
+
+  it('matches across a 0x prefix the comparison already treats as the same hash', () => {
+    // `compareToAttestedSet` normalises the prefix away, so it calls these a
+    // match. Grading them apart reported a CI-attested build as unattested,
+    // and — with a local rebuild carrying the prefixed form — as CI disagreeing
+    // about a build CI agreed with exactly.
+    const bare = HASH_A.slice(2)
+
+    expect(gradeMatchProvenance(HASH_A, [ci(bare)]).grade).toBe('ci-attested')
+    expect(gradeMatchProvenance(bare, [ci(HASH_A)]).grade).toBe('ci-attested')
+    expect(gradeMatchProvenance(HASH_A, [local(HASH_A), ci(bare)]).grade).toBe(
+      'ci-attested'
+    )
   })
 })

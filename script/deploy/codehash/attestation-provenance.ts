@@ -8,16 +8,13 @@
  * could be compromised. A gate that renders both as one green tells the signer
  * their own machine agreed with itself.
  *
- * WP-5.2 therefore names the fallback as a visible *state* rather than a silent
- * substitution: `A-CI` and `A-LOCAL`. This module is the grading, kept apart
- * from the comparison so that the set-membership logic cannot be made to depend
- * on provenance and vice versa.
- *
- * The sharp case is neither of those two. When CI has attested this contract
- * and the deployed code matches only the local rebuild, CI and this host
- * disagree about what the source compiles to. That is not a weaker pass; it is
- * the one outcome here that a signer must not see rendered as any kind of pass.
+ * The sharp case is neither. When CI has attested this contract and the
+ * deployed code matches only the local rebuild, CI and this host disagree about
+ * what the source compiles to. That is not a weaker pass; it is the one outcome
+ * here that a signer must not see rendered as any kind of pass.
  */
+
+import { normalizeHash } from './hex'
 
 /** Who produced an attestation. */
 export type AttestationProvenance = 'A-CI' | 'A-LOCAL'
@@ -50,7 +47,7 @@ export interface IProvenanceVerdict {
   /**
    * Whether the match may be presented as CI-attested. Only `ci-attested` may.
    * A local rebuild is a fallback the signer has to see, and `ci-disagrees` is
-   * a finding rather than a weaker pass.
+   * a finding rather than a weaker pass. Render the grade, never this flag.
    */
   presentableAsAttested: boolean
   /** One line naming what was compared, for the signer-facing report. */
@@ -58,20 +55,16 @@ export interface IProvenanceVerdict {
 }
 
 /**
- * Hex is case-insensitive by definition, so folding case here compares the same
- * value to itself rather than turning one value into another. That distinction
- * is why this is safe and why sanitising a *name* before a lookup is not: a
- * lookup key must never be something the input could be transformed into.
- */
-const foldHex = (hash: string): string => hash.trim().toLowerCase()
-
-/**
  * Grades a codehash match by who built the attestation it matched.
  *
  * Never a substitute for the comparison itself — pass the hash the comparison
- * already matched. A hash matching nothing grades `unattested` rather than
- * throwing, so a caller that has not run the comparison cannot obtain a pass
- * from this module by accident.
+ * already matched. Hashes are compared through `normalizeHash`, the same
+ * canonical form `compareToAttestedSet` uses, so a pair that comparison called
+ * a match cannot read as a different hash here.
+ *
+ * A hash matching nothing grades `unattested` rather than throwing, so a caller
+ * that has not run the comparison cannot obtain a pass from this module by
+ * accident.
  * @param matchedHash - Masked hash the deployed code was found to equal
  * @param attestations - Every attestation in the set, both provenances
  * @returns The grade, whether it may be shown as attested, and why
@@ -80,9 +73,9 @@ export const gradeMatchProvenance = (
   matchedHash: string,
   attestations: readonly IProvenancedAttestation[]
 ): IProvenanceVerdict => {
-  const target = foldHex(matchedHash)
+  const target = normalizeHash(matchedHash)
   const matching = attestations.filter(
-    (entry) => foldHex(entry.maskedHash) === target
+    (entry) => normalizeHash(entry.maskedHash) === target
   )
 
   if (matching.length === 0)
@@ -99,11 +92,9 @@ export const gradeMatchProvenance = (
       reason: 'the deployed code matches a build CI attested',
     }
 
-  // Deliberately asked of the whole set, not of the matching subset: the
-  // question is whether a CI attestation exists *and failed to match*, which is
-  // invisible if only the matches are examined. Reading the strongest
-  // provenance present in the set would answer the opposite question and
-  // upgrade this to ci-attested.
+  // Asked of the whole set, not of the matching subset: the question is whether
+  // a CI attestation exists *and failed to match*, which is invisible if only
+  // the matches are examined.
   const ciCount = attestations.filter(
     (entry) => entry.provenance === 'A-CI'
   ).length
