@@ -11,7 +11,6 @@ import { describe, expect, it } from 'bun:test'
 
 import {
   auditCoverageNotes,
-  isFullyBridged,
   VETTED_COMPILER_SETS,
   type IAuditRecord,
   type IDeployedBuild,
@@ -48,14 +47,6 @@ describe('auditCoverageNotes', () => {
     // The paired present for every note below: the bridge can be quiet, so a
     // note means something rather than being the only thing it ever produces.
     expect(notesOf({})).toEqual([])
-    expect(isFullyBridged(BRIDGED, AUDITED)).toBe(true)
-
-    // Both directions: a marker pinned only where it is true cannot be told
-    // apart from a constant.
-    expect(isFullyBridged(BRIDGED, { auditIds: [] })).toBe(false)
-    expect(
-      isFullyBridged({ ...BRIDGED, profile: 'experimental' }, AUDITED)
-    ).toBe(false)
   })
 
   it('reports a contract with no audit at that version', () => {
@@ -97,10 +88,11 @@ describe('auditCoverageNotes', () => {
     ).toContain('compiler-set-differs')
   })
 
-  it('reports an EVM build claiming the zk profile, and the reverse', () => {
+  it('reports a build carrying a zk toolchain under an EVM profile', () => {
     // A missing zk section and a present one are different builds; treating
     // absent as "matches whatever is vetted" would bless either as the other.
-    expect(notesOf({ profile: 'zksync' })).toContain('compiler-set-differs')
+    // The mirror case — the zk profile with no zk section — is not a mismatch
+    // but an unchecked half, and has its own test.
     expect(
       notesOf({
         zk: {
@@ -116,7 +108,15 @@ describe('auditCoverageNotes', () => {
     // A zk build differs from the vetted set only in its zk half, so a detail
     // rendering solc alone prints the same string either side of the "but".
     const [reported] = auditCoverageNotes(
-      { ...BRIDGED, profile: 'zksync' },
+      {
+        ...BRIDGED,
+        profile: 'zksync',
+        zk: {
+          zksolcVersion: '1.5.16',
+          solcForkVersion: '0.8.29',
+          llvmVersion: '1.0.2',
+        },
+      },
       AUDITED
     )
 
@@ -184,6 +184,42 @@ describe('auditCoverageNotes', () => {
 
     expect(reported?.detail).toContain('an unrecorded version')
     expect(reported?.detail).not.toContain('at v')
+  })
+
+  it('reports a zk build whose toolchain nothing recorded, without calling it a mismatch', () => {
+    // Only a bytecode trailer carries the fork and LLVM versions, so this is
+    // what a caller assembling a zk build from the deployment record produces.
+    expect(notesOf({ profile: 'zksync' })).toEqual(['zk-toolchain-unverified'])
+
+    // Present: a build that does report a zk toolchain is still compared
+    // against the vetted one, so the unverified note has not replaced the
+    // check.
+    expect(
+      notesOf({
+        profile: 'zksync',
+        zk: {
+          zksolcVersion: '1.5.15',
+          solcForkVersion: '0.8.29',
+          llvmVersion: '9.9.9',
+        },
+      })
+    ).toEqual(['compiler-set-differs'])
+  })
+
+  it('does not read two unusable closures as a proved bridge', () => {
+    // Empty strings are equal to each other, and a bridge proved by comparing
+    // nothing to nothing is a false green rather than a quiet pass.
+    expect(
+      notesOf({ sourceClosureHash: '' }, { sourceClosureHash: '' })
+    ).toEqual(['closure-unrecorded'])
+
+    // A sliced hash frames as valid hex and is not a digest.
+    expect(
+      notesOf(
+        { sourceClosureHash: '0xdeadbeef' },
+        { sourceClosureHash: '0xdeadbeef' }
+      )
+    ).toEqual(['closure-unrecorded'])
   })
 
   it('reports an audit that records no source closure', () => {

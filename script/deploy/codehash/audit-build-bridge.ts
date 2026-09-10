@@ -29,7 +29,7 @@
  *   refuses.
  */
 
-import { normalizeHash } from './hex'
+import { digestFault, normalizeHash } from './hex'
 
 /** A compiler set that has been vetted against advisories and blessed. */
 export interface IVettedCompilerSet {
@@ -96,7 +96,13 @@ export const VETTED_COMPILER_SETS: Readonly<
 export interface IDeployedBuild {
   contractName: string
   version: string
-  /** Foundry profile the deploy built under. */
+  /**
+   * Foundry profile the deploy built under.
+   *
+   * No deployment record carries this, so a caller derives it. Deriving it
+   * differently changes which notes appear, which is tolerable only because
+   * every disposition here is a note: nothing downstream may branch on one.
+   */
   profile: string
   /**
    * The upstream solc pin. A zk build's fork solc belongs in {@link zk}
@@ -104,7 +110,18 @@ export interface IDeployedBuild {
    * version here — the two can diverge.
    */
   solcVersion: string
+  /**
+   * Read from the profile that produced the build, not from the deploy log's
+   * `EVM_VERSION` — the log says `zkevm` where the profile says `cancun`, and
+   * the two vocabularies are not compared here.
+   */
   evmVersion: string
+  /**
+   * The zk toolchain the build reports, when anything reports it. Only a
+   * bytecode trailer carries the fork and LLVM versions, so this is
+   * self-reported: it may be reported to a signer, and must not decide
+   * anything.
+   */
   zk?: {
     zksolcVersion: string
     solcForkVersion: string
@@ -141,8 +158,10 @@ export interface IAuditRecord {
  * - `compiler-set-differs` — the profile is vetted, but the build reports
  *   different versions than the vetted set, so what ran is not what was
  *   reviewed.
- * - `closure-unrecorded` — one side records no `sourceClosureHash`, usually
- *   the audit since most predate the field, so the bridge cannot be proved,
+ * - `zk-toolchain-unverified` — the vetted set names a zk toolchain and the
+ *   build reports none, so the zk half could not be checked either way.
+ * - `closure-unrecorded` — one side records no usable `sourceClosureHash` —
+ *   absent, or not a whole keccak digest — so the bridge cannot be proved,
  *   only assumed.
  * - `closure-differs` — both sides record a closure and they disagree, so the
  *   audited source is not the source that was built.
@@ -151,6 +170,7 @@ export type AuditBridgeNote =
   | 'no-audit-recorded'
   | 'profile-not-vetted'
   | 'compiler-set-differs'
+  | 'zk-toolchain-unverified'
   | 'closure-unrecorded'
   | 'closure-differs'
 
@@ -242,38 +262,61 @@ export const auditCoverageNotes = (
       note: 'profile-not-vetted',
       detail: `the ${build.profile} profile is not in the vetted compiler map, so its solc/zksolc advisories have not been reviewed`,
     })
-  else if (
-    !sameVersionText(vetted.solcVersion, build.solcVersion) ||
-    !sameVersionText(vetted.evmVersion, build.evmVersion) ||
-    !sameZk(vetted.zk, build.zk)
-  )
+  else {
+    // Nothing outside a bytecode trailer records the fork and LLVM versions, so
+    // a zk build a caller can honestly assemble from the deployment record
+    // reports no zk section at all. Calling that a mismatch would brand every
+    // zk deploy — the false red this module exists not to produce — and calling
+    // it a match would bless a toolchain nobody checked. It is neither.
+    const zkUnreported = vetted.zk !== undefined && build.zk === undefined
+
     // The profile name agreeing is not the compiler set agreeing: a pin can
     // move under a profile that keeps its name, and then what ran is not what
     // was reviewed.
-    notes.push({
-      note: 'compiler-set-differs',
-      detail: `${build.profile} was vetted at ${describeCompilerSet(
-        vetted
-      )} on ${vetted.vettedOn}, but this build reports ${describeCompilerSet(
-        build
-      )}`,
-    })
+    if (
+      !sameVersionText(vetted.solcVersion, build.solcVersion) ||
+      !sameVersionText(vetted.evmVersion, build.evmVersion) ||
+      (!zkUnreported && !sameZk(vetted.zk, build.zk))
+    )
+      notes.push({
+        note: 'compiler-set-differs',
+        detail: `${build.profile} was vetted at ${describeCompilerSet(
+          vetted
+        )} on ${vetted.vettedOn}, but this build reports ${describeCompilerSet(
+          build
+        )}`,
+      })
+
+    if (zkUnreported)
+      notes.push({
+        note: 'zk-toolchain-unverified',
+        detail: `${build.profile} was vetted at ${describeCompilerSet(
+          vetted
+        )}, but this build reports no zk toolchain, so its zksolc, fork and LLVM versions were not checked`,
+      })
+  }
 
   // Closure notes are about the bridge itself, so they apply whether or not an
   // audit is recorded — an audit that records no closure is exactly the state
   // this module exists to make visible.
-  if (
+  //
+  // Validated rather than only compared: two empty strings are equal, and a
+  // bridge proved by comparing nothing to nothing is a false green.
+  const closureUnusable =
     audit.sourceClosureHash === undefined ||
-    build.sourceClosureHash === undefined
-  )
+    build.sourceClosureHash === undefined ||
+    digestFault(audit.sourceClosureHash, 'audit source closure') !==
+      undefined ||
+    digestFault(build.sourceClosureHash, 'build source closure') !== undefined
+  if (closureUnusable)
     notes.push({
       note: 'closure-unrecorded',
       detail:
-        'the audit or the build records no source closure, so the audited source cannot be shown to be the source that was built',
+        'the audit or the build records no usable source closure, so the audited source cannot be shown to be the source that was built',
     })
   else if (
-    normalizeHash(audit.sourceClosureHash) !==
-    normalizeHash(build.sourceClosureHash)
+    normalizeHash(audit.sourceClosureHash ?? '') !==
+    normalizeHash(build.sourceClosureHash ?? '')
   )
     notes.push({
       note: 'closure-differs',
@@ -283,18 +326,3 @@ export const auditCoverageNotes = (
 
   return notes
 }
-
-/**
- * Whether a build is fully bridged to its audit.
- *
- * A convenience over {@link auditCoverageNotes} for a caller rendering a single
- * marker. **It is not a gate**: a false here means "tell the signer", never
- * "refuse the deploy".
- * @param build - The deployed build
- * @param audit - What the audit log says
- * @returns True only when no note applies
- */
-export const isFullyBridged = (
-  build: IDeployedBuild,
-  audit: IAuditRecord
-): boolean => auditCoverageNotes(build, audit).length === 0
