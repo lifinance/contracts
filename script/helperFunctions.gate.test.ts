@@ -210,12 +210,12 @@ describe('assertDirectBroadcastCalldataGate', () => {
       ${LOAD_HELPERS}
       isTestnetNetwork() { [[ "$1" == "${TESTNET}" ]]; }
       error() { echo "[error] $*"; }
-      bunx() { echo "GATE_RAN"; echo "${DIRECT_BROADCAST_GATE_ALLOWED}" >&2; return 0; }
+      bunx() { echo "${DIRECT_BROADCAST_GATE_ALLOWED}" >&2 && echo "TOKEN_WENT_TO_STDERR"; return 0; }
       assertDirectBroadcastCalldataGate "${MAINNET}" "production" "0xdeadbeef"
       echo "rc=$?"
     `)
 
-    expect(out).toContain('GATE_RAN')
+    expect(out).toContain('TOKEN_WENT_TO_STDERR')
     expect(out).toContain('no allow token')
     expect(out).toContain('rc=1')
   })
@@ -325,6 +325,12 @@ describe('placement inside sendOrPropose', () => {
   })
 })
 
+/**
+ * Each case here spawns `bunx tsx`, which lands just under bun's 5s default on
+ * an idle machine and over it on a loaded CI runner.
+ */
+const CLI_TIMEOUT_MS = 30_000
+
 describe('assert-direct-broadcast-gate CLI against real repo data', () => {
   /**
    * Spawns the real CLI in the real checkout, so the deployment log and network
@@ -352,101 +358,124 @@ describe('assert-direct-broadcast-gate CLI against real repo data', () => {
     )
   }
 
-  it('refuses a cut installing an address the production log does not record', () => {
-    const { status, stdout, stderr } = run(
-      MAINNET,
-      cutCalldata(UNRECORDED_FACET)
-    )
-
-    expect(status).toBe(1)
-    expect(`${stdout}${stderr}`).toContain('cannot attribute to a facet')
-    expect(`${stdout}${stderr}`.toLowerCase()).toContain(
-      UNRECORDED_FACET.toLowerCase()
-    )
-    expect(`${stdout}${stderr}`).not.toContain(DIRECT_BROADCAST_GATE_ALLOWED)
-  })
-
-  it('refuses calldata it cannot read as a cut', () => {
-    // Every selector and offset is read positionally off a `0x` prefix, so a
-    // skip here would be a pass
-    const { status, stdout, stderr } = run(MAINNET, 'not-hex')
-
-    expect(status).toBe(1)
-    expect(`${stdout}${stderr}`).toContain('not well-formed calldata')
-    expect(`${stdout}${stderr}`).not.toContain(DIRECT_BROADCAST_GATE_ALLOWED)
-  })
-
-  it('allows calldata that installs no facet code', () => {
-    // The paired positive: the gate cannot degrade into refusing everything, and
-    // this route carries far more config calls than cuts
-    const transferOwnership = encodeFunctionData({
-      abi: [
-        {
-          inputs: [{ name: '_newOwner', type: 'address' }],
-          name: 'transferOwnership',
-          outputs: [],
-          stateMutability: 'nonpayable',
-          type: 'function',
-        },
-      ] as const,
-      functionName: 'transferOwnership',
-      args: [UNRECORDED_FACET as `0x${string}`],
-    })
-
-    const { status, stdout, stderr } = run(MAINNET, transferOwnership)
-
-    expect(status).toBe(0)
-    expect(`${stdout}${stderr}`).toContain('installs facet code')
-    expect(`${stdout}${stderr}`).toContain(DIRECT_BROADCAST_GATE_ALLOWED)
-  })
-
-  it('allows a cut on a testnet, saying why', () => {
-    const { status, stdout, stderr } = run(
-      TESTNET,
-      cutCalldata(UNRECORDED_FACET)
-    )
-
-    expect(status).toBe(0)
-    expect(`${stdout}${stderr}`).toContain('is a testnet')
-    expect(`${stdout}${stderr}`).toContain(DIRECT_BROADCAST_GATE_ALLOWED)
-  })
-
-  it('still runs when its own path is reached through a symlink', () => {
-    // tsx realpaths `import.meta.url` but not argv[1], so an entrypoint check
-    // that compares them unresolved is true only in an unsymlinked checkout.
-    // Grepping the source cannot tell the two compares apart; reaching the CLI
-    // through a link can, and a no-op CLI would exit 0 with no output.
-    const linkRoot = mkdtempSync(join(tmpdir(), 'gate-symlink-'))
-    const linked = join(linkRoot, 'shared')
-
-    try {
-      symlinkSync(join(REPO_ROOT, 'script/deploy/shared'), linked, 'dir')
-
-      const env = { ...(process.env as Record<string, string>) }
-      delete env.NODE_ENV
-      const { status, stdout, stderr } = spawnSync(
-        'bunx',
-        [
-          'tsx',
-          join(linked, 'assert-direct-broadcast-gate.ts'),
-          '--network',
-          MAINNET,
-          '--calldata',
-          'not-hex',
-        ],
-        {
-          cwd: REPO_ROOT,
-          encoding: 'utf8',
-          env,
-          stdio: ['ignore', 'pipe', 'pipe'],
-        }
+  it(
+    'refuses a cut installing an address the production log does not record',
+    () => {
+      const { status, stdout, stderr } = run(
+        MAINNET,
+        cutCalldata(UNRECORDED_FACET)
       )
+
+      expect(status).toBe(1)
+      expect(`${stdout}${stderr}`).toContain('cannot attribute to a facet')
+      expect(`${stdout}${stderr}`.toLowerCase()).toContain(
+        UNRECORDED_FACET.toLowerCase()
+      )
+      expect(`${stdout}${stderr}`).not.toContain(DIRECT_BROADCAST_GATE_ALLOWED)
+    },
+    CLI_TIMEOUT_MS
+  )
+
+  it(
+    'refuses calldata it cannot read as a cut',
+    () => {
+      // Every selector and offset is read positionally off a `0x` prefix, so a
+      // skip here would be a pass
+      const { status, stdout, stderr } = run(MAINNET, 'not-hex')
 
       expect(status).toBe(1)
       expect(`${stdout}${stderr}`).toContain('not well-formed calldata')
       expect(`${stdout}${stderr}`).not.toContain(DIRECT_BROADCAST_GATE_ALLOWED)
-    } finally {
-      rmSync(linkRoot, { recursive: true, force: true })
-    }
-  })
+    },
+    CLI_TIMEOUT_MS
+  )
+
+  it(
+    'allows calldata that installs no facet code',
+    () => {
+      // The paired positive: the gate cannot degrade into refusing everything, and
+      // this route carries far more config calls than cuts
+      const transferOwnership = encodeFunctionData({
+        abi: [
+          {
+            inputs: [{ name: '_newOwner', type: 'address' }],
+            name: 'transferOwnership',
+            outputs: [],
+            stateMutability: 'nonpayable',
+            type: 'function',
+          },
+        ] as const,
+        functionName: 'transferOwnership',
+        args: [UNRECORDED_FACET as `0x${string}`],
+      })
+
+      const { status, stdout, stderr } = run(MAINNET, transferOwnership)
+
+      expect(status).toBe(0)
+      expect(`${stdout}${stderr}`).toContain('installs facet code')
+      expect(`${stdout}${stderr}`).toContain(DIRECT_BROADCAST_GATE_ALLOWED)
+    },
+    CLI_TIMEOUT_MS
+  )
+
+  it(
+    'allows a cut on a testnet, saying why',
+    () => {
+      const { status, stdout, stderr } = run(
+        TESTNET,
+        cutCalldata(UNRECORDED_FACET)
+      )
+
+      expect(status).toBe(0)
+      expect(`${stdout}${stderr}`).toContain('is a testnet')
+      expect(`${stdout}${stderr}`).toContain(DIRECT_BROADCAST_GATE_ALLOWED)
+    },
+    CLI_TIMEOUT_MS
+  )
+
+  it(
+    'still runs when its own path is reached through a symlink',
+    () => {
+      // Node realpaths `import.meta.url` as it loads but leaves argv[1] as typed,
+      // so an entrypoint check that compares them unresolved is true only in an
+      // unsymlinked checkout.
+      // Grepping the source cannot tell the two compares apart; reaching the CLI
+      // through a link can, and a no-op CLI would exit 0 with no output.
+      const linkRoot = mkdtempSync(join(tmpdir(), 'gate-symlink-'))
+      const linked = join(linkRoot, 'shared')
+
+      try {
+        symlinkSync(join(REPO_ROOT, 'script/deploy/shared'), linked, 'dir')
+
+        const env = { ...(process.env as Record<string, string>) }
+        delete env.NODE_ENV
+        const { status, stdout, stderr } = spawnSync(
+          'bunx',
+          [
+            'tsx',
+            join(linked, 'assert-direct-broadcast-gate.ts'),
+            '--network',
+            MAINNET,
+            '--calldata',
+            'not-hex',
+          ],
+          {
+            cwd: REPO_ROOT,
+            encoding: 'utf8',
+            env,
+            stdio: ['ignore', 'pipe', 'pipe'],
+          }
+        )
+
+        expect(status).toBe(1)
+        expect(`${stdout}${stderr}`).toContain('not well-formed calldata')
+        expect(`${stdout}${stderr}`).not.toContain(
+          DIRECT_BROADCAST_GATE_ALLOWED
+        )
+      } finally {
+        rmSync(linkRoot, { recursive: true, force: true })
+      }
+    },
+    CLI_TIMEOUT_MS
+  )
 })
