@@ -110,8 +110,8 @@ const main = defineCommand({
         err.message?.includes('execution reverted')
       )
         consola.warn('PUSH0 caused invalid opcode — not supported')
-      // viem puts the full endpoint in `error.message`, so the raw error leaks the same URL
-      // the line above redacts.
+      // viem puts the full endpoint in `error.message`, so logging the raw error would publish
+      // the keyed URL this file redacts when it reports the connection.
       else
         consola.error(
           'Unexpected error testing PUSH0:',

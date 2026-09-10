@@ -209,13 +209,74 @@ describe('regex literals do not derail the lexer', () => {
     ).toEqual(['rpcUrl'])
   })
 
-  // Division must not be mistaken for a regex, or real code gets blanked instead.
-  it('does not read division as a regex', () => {
+  // Every case below puts the leak where a WRONG decision would blank it, so the assertion
+  // observes the decision rather than the lines around it. The previous version sat on a line
+  // the assertions never inspected, and nine mutations of this logic survived it.
+  it('does not read division as a regex, on the same line as the leak', () => {
+    expect(identifiers('consola.info(`${a/b} ${rpcUrl} ${c/d}`)\n')).toEqual([
+      'rpcUrl',
+    ])
+  })
+
+  it('treats a postfix increment as the end of a value, not a regex opener', () => {
     expect(
-      identifiers(
-        `const q = a/b/c\nconsola.info('n', { rpcUrl: net })\n${LEAK}`
-      )
-    ).toEqual(['fullHost'])
+      identifiers('consola.info(`${a++ / b} ${rpcUrl} ${c / d}`)\n')
+    ).toEqual(['rpcUrl'])
+  })
+
+  it.each([
+    ['a call', 'if (isTron(net)) /[\'"]/.test(s)\n'],
+    ['an optional call', 'const r = f?.() /[\'"]/.test(s)\n'],
+    ['an index', 'const RE = LIST[0] /[\'"]/.test(s)\n'],
+  ])(
+    'survives a quote-bearing regex in value position after %s',
+    (_n, prefix) => {
+      expect(
+        identifiers(`${prefix}consola.info(\`connecting via \${rpcUrl}\`)\n`)
+      ).toEqual(['rpcUrl'])
+    }
+  )
+
+  it.each(['return', 'typeof', 'case'])(
+    'reads a regex after the keyword %s',
+    (kw) => {
+      expect(
+        identifiers(
+          `const f = () => { ${kw} /['"]/.test(s) }\nconsola.info(\`\${rpcUrl}\`)\n`
+        )
+      ).toEqual(['rpcUrl'])
+    }
+  )
+
+  it('starts each interpolation with a clean token history', () => {
+    // Carrying the previous interpolation's last token in makes this `/` look like division, and
+    // its quote then hides the leak beside it.
+    expect(
+      identifiers('consola.info(`a${b}c${/[\'"]/.test(s)} ${rpcUrl}`)\n')
+    ).toEqual(['rpcUrl'])
+  })
+
+  // The keyword list and the per-interpolation reset are observable as FALSE POSITIVES: a `/`
+  // wrongly read as division leaves the regex body as code, so a vocabulary word inside it is
+  // reported as a leak. (They are not observable as missed leaks any more — a stray quote can no
+  // longer swallow a following line.)
+  it('does not report a vocabulary word inside a regex after a keyword', () => {
+    expect(scanFixture('consola.info(typeof /rpcUrl/)\n').findings).toEqual([])
+  })
+
+  it('does not report a vocabulary word inside a regex in a tagged template', () => {
+    // The token before the backtick is a value, so without a per-interpolation reset the `/`
+    // reads as division and the regex body is scanned as code.
+    expect(
+      scanFixture('consola.info(String.raw`${/rpcUrl/.test(s)}`)\n').findings
+    ).toEqual([])
+  })
+
+  it('gives up on an unterminated regex instead of running to the next slash', () => {
+    // Without the newline stop this swallows lines 1-3, taking the leak with it.
+    expect(
+      identifiers('const RE = /abc\nconsola.info(`${rpcUrl}`)\nconst y = p/q\n')
+    ).toEqual(['rpcUrl'])
   })
 
   it('does not let a parenthesis inside a regex spill the call boundary', () => {
@@ -313,8 +374,29 @@ describe('blankNonCode', () => {
     expect(out).toContain('replace')
   })
 
-  it('blanks a regex body but leaves division alone', () => {
+  it('blanks a regex body, its character class and its flags', () => {
+    // `total/count` holds one slash, so endOfRegex declines it whatever the decision says; the
+    // three-slash form is what actually distinguishes the two readings.
     expect(blankNonCode('const RE = /secret/g\n')).not.toContain('secret')
-    expect(blankNonCode('const q = total/count\n')).toContain('total/count')
+    expect(blankNonCode('const q = total/count/other\n')).toContain(
+      'total/count/other'
+    )
+  })
+
+  it('consumes a regex\u2019s trailing flags', () => {
+    // Leaving them behind makes the flag letters read as an identifier, which then decides the
+    // next `/` the wrong way.
+    expect(blankNonCode('const RE = /a/gi\n').trimEnd()).toBe('const RE =')
+  })
+
+  it('does not end a regex at a slash inside its character class', () => {
+    expect(blankNonCode('const RE = /[/]x/g\n')).not.toContain('x')
+  })
+
+  it('leaves a quote with no partner on its line as a lone character', () => {
+    // Otherwise the apostrophe opens a string that swallows every following line.
+    expect(blankNonCode("const s = don't\nconst keep = rpcUrl\n")).toContain(
+      'rpcUrl'
+    )
   })
 })

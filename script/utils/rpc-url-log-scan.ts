@@ -5,10 +5,11 @@
  * live credential into every transcript of the run. Imported by `rpc-url-log-scan.test.ts`, which
  * fails when a new such site appears under `script/` or `tasks/`.
  *
- * What it does NOT reach, so nobody mistakes a green run for a closed class:
- * bash (`.sh` is not walked), endpoints embedded in an error object's `message` by viem or
- * tronweb, identifiers outside {@link RPC_IDENTIFIERS}, and log surfaces outside
- * {@link LOG_METHODS}.
+ * What it does NOT reach, so nobody mistakes a green run for a closed class: bash (`.sh` is not
+ * walked); endpoints embedded in an error object's `message` by viem or tronweb; identifiers
+ * outside {@link RPC_IDENTIFIERS}; log surfaces outside {@link LOG_METHODS}; anything under a
+ * path in {@link EXEMPT}, which is whole-file rather than per-line; and anything outside the
+ * roots the caller passes.
  */
 import { type Dirent, readFileSync, readdirSync } from 'node:fs'
 import { join, relative } from 'node:path'
@@ -158,7 +159,12 @@ export function blankNonCode(src: string): string {
   let i = 0
   // Decides the `/` ambiguity. A regex may follow an operator or a keyword, never a value.
   let prevChar = ''
+  let prevTwo = ''
   let prevWord = ''
+  const endsAValue = (): boolean =>
+    [')', ']', "'", '"', '`'].includes(prevChar) ||
+    prevTwo === '++' ||
+    prevTwo === '--'
 
   while (i < src.length) {
     const top = stack[stack.length - 1]
@@ -202,8 +208,7 @@ export function blankNonCode(src: string): string {
     if (
       c === '/' &&
       (!isWordChar(prevChar) || REGEX_OK_AFTER_WORD.has(prevWord)) &&
-      prevChar !== ')' &&
-      prevChar !== ']'
+      !endsAValue()
     ) {
       const end = endOfRegex(src, i)
       if (end !== -1) {
@@ -214,13 +219,18 @@ export function blankNonCode(src: string): string {
       }
     }
     if (c === "'" || c === '"') {
-      blank(i++)
-      while (i < src.length && src[i] !== c) {
-        if (src[i] === '\\') blank(i++)
-        if (i < src.length) blank(i++)
-      }
-      if (i < src.length) blank(i++)
+      // Looked ahead before blanking, and bounded to the line: a quoted string cannot hold a raw
+      // newline, so a quote with no partner on its own line is not a string opener — usually a
+      // quote inside a regex this pass declined to read as one. Blanking such a quote all the way
+      // to end-of-file is what made four shipped files invisible, so any future mis-decision is
+      // now confined to the line it happens on.
+      let j = i + 1
+      while (j < src.length && src[j] !== c && src[j] !== '\n')
+        j += src[j] === '\\' ? 2 : 1
+      if (j < src.length && src[j] === c) while (i <= j) blank(i++)
+      else i++
       prevChar = c
+      prevTwo = ''
       prevWord = ''
       continue
     }
@@ -243,6 +253,7 @@ export function blankNonCode(src: string): string {
       else if (stack.length > 1) stack.pop()
     }
     if (c !== undefined && !/\s/.test(c)) {
+      prevTwo = prevChar + c
       prevChar = c
       prevWord = ''
     }

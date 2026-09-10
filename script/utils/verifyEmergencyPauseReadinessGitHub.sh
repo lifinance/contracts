@@ -67,7 +67,7 @@ function rpcCallWithRetry() {
       return 0
     fi
     if [ "$ATTEMPT" -lt "$RPC_MAX_ATTEMPTS" ]; then
-      echo "[retry] $LABEL attempt $ATTEMPT failed ($(< "$ERR_FILE")), sleeping ${RPC_RETRY_SLEEP_SECONDS}s..." >&2
+      echo "[retry] $LABEL attempt $ATTEMPT failed ($(redactRpcUrl "$(< "$ERR_FILE")")), sleeping ${RPC_RETRY_SLEEP_SECONDS}s..." >&2
       sleep "$RPC_RETRY_SLEEP_SECONDS"
     fi
     ATTEMPT=$((ATTEMPT + 1))
