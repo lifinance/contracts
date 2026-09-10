@@ -24,6 +24,7 @@ import { frameFault, strip0x } from './hex'
  */
 const REPLAY_GAS = 29_000_000n
 
+/** 100 probes 100 ms apart: a 10 s budget for the node to answer. */
 const STARTUP_PROBES = 100
 const STARTUP_PROBE_INTERVAL_MS = 100
 
