@@ -31,6 +31,7 @@ import {
   gradeCutClassification,
   gradeFunnelDeployGate,
   gradeToolchainScope,
+  HARNESS_PROVENANCE,
   loadRepoCorpus,
   unreachedGates,
   type ICorpusDeps,
@@ -190,10 +191,11 @@ describe('the shadow runner over the real repository corpus', () => {
 })
 
 describe('loadRepoCorpus fails closed on an unmeasurable corpus', () => {
-  // A corpus per test rather than per block. Sharing one made the
-  // missing-networks row depend on an earlier row having written the file it
-  // deletes, so running it alone threw ENOENT before the loader was reached —
-  // a test that passes only in company is not evidence about the loader.
+  // A corpus per test rather than per block, so no row can be handed state an
+  // earlier row happened to leave behind. What makes each row self-sufficient
+  // is the file it writes in its own body; this pair only stops the dir from
+  // outliving the row and keeps the temp dirs from accumulating, neither of
+  // which the suite can observe — check $TMPDIR, not a green run.
   let scratch: string
   const CORPUS = 'script/deploy/resources/reproducibilityAttestations.json'
 
@@ -210,6 +212,13 @@ describe('loadRepoCorpus fails closed on an unmeasurable corpus', () => {
     mkdirSync(dirname(target), { recursive: true })
     writeFileSync(target, JSON.stringify(body))
   }
+
+  it('refuses an absent attestation file', () => {
+    write('config/networks.json', { somechain: {} })
+    expect(() => loadRepoCorpus(scratch)).toThrow(
+      /the fleet attestation corpus is missing/
+    )
+  })
 
   it('refuses an attestation file with no non-empty attestations array', () => {
     write(CORPUS, {})
@@ -471,6 +480,44 @@ describe('what the report discloses is derived, not asserted', () => {
     expect(
       gradeAttestedSet(corpus({ zkEvmSlotsExcluded: undefined })).coverageNote
     ).toContain('excluded an unrecorded number of zkEVM slots')
+  })
+
+  // Two decisions no refusal count moves with, so only a test can hold them.
+  // The provenance is one G2's note reasons from, and the re-admitted
+  // denominator is a number the note used to state as a constant.
+  it('mints the provenance production mints, and derives the re-admitted count', async () => {
+    expect(HARNESS_PROVENANCE).toBe('A-LOCAL')
+
+    const registered = slot({ network: 'somechain' })
+    const logs = {
+      readLog: (path: string) =>
+        path.endsWith('.diamond.json')
+          ? {
+              LiFiDiamond: { Facets: { [registered.address]: { Name: 'X' } } },
+            }
+          : { X: registered.address },
+    }
+    const deprecated = slot({ contractName: 'Gone', version: '2.0.0' })
+
+    // One graded row, one held out as deprecated: the note has to say 2 where
+    // the denominator says 1, or it is not deriving anything.
+    const note = (
+      await gradeFunnelDeployGate(
+        corpus({
+          ...logs,
+          slots: [registered, deprecated],
+          deprecatedContracts: new Set(['Gone']),
+        })
+      )
+    ).coverageNote
+    expect(note).toContain('this gate grades 2 rows instead')
+
+    const none = (
+      await gradeFunnelDeployGate(
+        corpus({ ...logs, slots: [registered], deprecatedContracts: new Set() })
+      )
+    ).coverageNote
+    expect(none).toContain('this gate grades 1 rows instead')
   })
 
   it('says whether commits were unreadable rather than asserting they were not', () => {

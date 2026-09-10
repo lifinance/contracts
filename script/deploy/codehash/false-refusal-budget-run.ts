@@ -65,7 +65,11 @@ import {
   type IFunnelGateDeps,
 } from '../shared/funnel-deploy-gate'
 
-import { compareToAttestedSet, type IAttestedBuild } from './attested-set'
+import {
+  compareToAttestedSet,
+  type AttestationProvenance,
+  type IAttestedBuild,
+} from './attested-set'
 import { ensureCommitAvailable } from './commit-availability'
 import { classifyCut, FacetCutActionEnum } from './cut-classification'
 import {
@@ -117,6 +121,16 @@ export interface ICorpusDeps {
    */
   zkEvmSlotsExcluded: number | undefined
 }
+
+/**
+ * The provenance every build this harness offers carries.
+ *
+ * A named constant rather than a literal at the call site because G2's coverage
+ * note reasons from it, so a test can pin it. Minting A-CI would model a second
+ * opinion no input to this run has, and would do so invisibly: no refusal count
+ * moves with this value.
+ */
+export const HARNESS_PROVENANCE: AttestationProvenance = 'A-LOCAL'
 
 const slotId = (slot: ICorpusSlot): string =>
   `${slot.network}/${slot.contractName}@${slot.version}`
@@ -289,7 +303,7 @@ export const gradeAttestedSet = (deps: ICorpusDeps): IGateBudget => {
         // What rebuild-attestations mints, and what the sweep behind this
         // corpus was: a local rebuild. Minting A-CI here would model a second
         // opinion no input to this run has.
-        provenance: 'A-LOCAL',
+        provenance: HARNESS_PROVENANCE,
         solcVersion: profile.solcVersion,
         maskedHash: fingerprint,
         rawByteLength: buildLength(fingerprint),
@@ -335,7 +349,9 @@ export const gradeAttestedSet = (deps: ICorpusDeps): IGateBudget => {
     denominator: observations.length,
     coverageNote: `EVM only. The sweep excluded ${
       deps.zkEvmSlotsExcluded ?? 'an unrecorded number of'
-    } zkEVM slots because it did not record which zksolc version produced the match, so the zk normalisation path is measured on 0. Bytecode equality is taken from the sweep rather than re-fetched, and layer 1 is graded without the sign-time MATCH-to-UNVERIFIABLE downgrade for uncompared immutable bytes, which the corpus records nothing about — so this rate is a lower bound on what the real gate refuses. Build identity is keyed on the compiler pair and omits optimizer runs, which every row of today's corpus records as the single value foundry.toml pins: a corpus recording a second value would need this keyed on it too, or a build compiled differently would read here as a match. The provenance grade (EXSC-952) is not modelled: it grades a MATCH by who built what matched, nothing in the sign path blocks on it yet, and every build offered here is A-LOCAL because that is what rebuild-attestations mints and what the sweep behind this corpus performed — so if that grade ever blocks, not one of the slots this gate does NOT refuse would clear it either. This gate's unexplained count is NOT a fleet measurement: keyed on build identity, the comparison refuses exactly when the reproducing pair is not offered, which is exactly when explainScopeRefusal names a class, so no corpus can drive it off 0. Read the rate and the class split. See this module's header. ${
+    } zkEVM slots because it did not record which zksolc version produced the match, so the zk normalisation path is measured on 0. Bytecode equality is taken from the sweep rather than re-fetched, and layer 1 is graded without the sign-time MATCH-to-UNVERIFIABLE downgrade for uncompared immutable bytes, which the corpus records nothing about — so this rate is a lower bound on what the real gate refuses. Build identity is keyed on the compiler pair and omits optimizer runs, which every row of today's corpus records as the single value foundry.toml pins: a corpus recording a second value would need this keyed on it too, or a build compiled differently would read here as a match. The provenance grade (EXSC-952) is not modelled: it grades a MATCH by who built what matched, and nothing in the sign path blocks on it yet. Every build offered here carries A-LOCAL, which is what rebuild-attestations mints and what the sweep behind this corpus performed, so all ${
+      observations.filter((o) => !o.refused).length
+    } slots this gate does not refuse would grade locally-rebuilt. Which way that cuts depends on the future gate: one requiring CI attestation refuses every one of them, while one firing only on the ci-disagrees case refuses none, because reaching that case needs a CI attestation this corpus has nowhere to put. This gate's unexplained count is NOT a fleet measurement: keyed on build identity, the comparison refuses exactly when the reproducing pair is not offered, which is exactly when explainScopeRefusal names a class, so no corpus can drive it off 0. Read the rate and the class split. See this module's header. ${
       deps.slots.length - observations.length
     } of ${
       deps.slots.length
@@ -572,7 +588,7 @@ export const gradeFunnelDeployGate = async (
  */
 export const loadRepoCorpus = (repoRoot: string): ICorpusDeps => {
   // Memoised because the gates ask per slot rather than per network: without it
-  // the run re-reads and re-parses the same 118 logs some 1,900 times.
+  // the run re-reads and re-parses the same 118 logs some 4,100 times.
   const cache = new Map<string, Record<string, unknown> | undefined>()
   const read = (relativePath: string): Record<string, unknown> | undefined => {
     if (cache.has(relativePath)) return cache.get(relativePath)
