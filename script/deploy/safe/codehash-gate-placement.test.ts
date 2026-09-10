@@ -22,9 +22,8 @@
  * 7. the pre-prompt `networkOutcomes.push`
  * 8. the action prompt, then `continue` on "Do Nothing"
  * 9. the nonce gate on execute actions, then `continue` on stale/unreachable
- * 10. the acknowledgement prompt, then `continue` on "No"
- * 11. `recordAcknowledgement`
- * 12. the sign and execute branches
+ * 10. `recordAcknowledgement`
+ * 11. the sign and execute branches
  *
  * Nothing in 1-4 returns or continues, so inserting at 5 swallows no existing
  * check; and the refusal itself goes first inside the signer, where nothing
@@ -119,12 +118,15 @@ describe('the codehash refusal is in the one funnel every sign path uses', () =>
     // Bounded by the helper's own dedented closing brace rather than by a
     // character count: a fixed window silently stops covering the tail of the
     // function the first time anything is inserted near its top, and then
-    // reports the broadcast as missing rather than as ungated.
+    // reports the broadcast as missing rather than as ungated. Both ends are
+    // guarded, because an unfound delimiter widens the window to the rest of
+    // the file instead of narrowing it, and the assertions then hold on text
+    // outside the helper.
     const funnelStart = SOURCE.indexOf('async function executeTransaction(')
-    const funnelBody = SOURCE.slice(
-      funnelStart,
-      SOURCE.indexOf('\n  }\n', funnelStart)
-    )
+    expect(funnelStart).toBeGreaterThan(-1)
+    const funnelEnd = SOURCE.indexOf('\n  }\n', funnelStart)
+    expect(funnelEnd).toBeGreaterThan(funnelStart)
+    const funnelBody = SOURCE.slice(funnelStart, funnelEnd)
     expect(funnelBody).toContain('safeClient.executeTransaction(')
     expect(funnelBody).toContain('assertCodehashSignGateAllowsSigning')
 

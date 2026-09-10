@@ -26,13 +26,12 @@
  * 10. the pre-prompt `networkOutcomes.push`
  * 11. the action prompt, then `continue` on "Do Nothing"
  * 12. the nonce gate on execute actions, then `continue` on stale/unreachable
- * 13. the acknowledgement prompt, then `continue` on "No"
- * 14. `recordAcknowledgement`
- * 15. the sign and execute branches
+ * 13. `recordAcknowledgement`
+ * 14. the sign and execute branches
  *
  * Nothing in 1-7 returns or continues, so inserting at 8 swallows no existing
- * check, and 11-14 keep their order relative to each other — the acknowledgement
- * prompt still sits after the action prompt and the nonce gate, where it was.
+ * check, and 11-13 keep their order relative to each other — the ledger write
+ * still sits after the action prompt and the nonce gate, where it was.
  * The refusal itself goes inside both funnels, immediately after the codehash
  * refusal: ahead of it, this one would swallow the more specific answer.
  */
@@ -85,10 +84,13 @@ describe('the integrity refusal covers both routes to the chain', () => {
       'sign: async (safeTransaction, client = safe) => {'
     )
     expect(funnelStart).toBeGreaterThan(-1)
-    const funnelBody = SOURCE.slice(
-      funnelStart,
-      SOURCE.indexOf('client.signTransaction(')
-    )
+    // Searched forward from the funnel, and guarded: unfound, `indexOf` gives
+    // -1, the window silently becomes the rest of the file, and the execute
+    // funnel's own refusal then satisfies the assertion below — so a refusal
+    // moved to after the signature would still read as covered.
+    const signsAt = SOURCE.indexOf('client.signTransaction(', funnelStart)
+    expect(signsAt).toBeGreaterThan(funnelStart)
+    const funnelBody = SOURCE.slice(funnelStart, signsAt)
     expect(funnelBody).toContain(REFUSAL)
 
     // The codehash refusal for this route lives in `createGatedSigner`, which
@@ -155,9 +157,14 @@ describe('the run cannot survive into the next proposal', () => {
     // added above it, and then reports the reset as missing rather than as
     // misplaced. It also has to be the *handler*, not the whole try — the
     // assignment inside the try is what this exists to distinguish from.
+    // Both ends guarded: an unfound close runs the window to the end of the
+    // file, where the per-proposal reset satisfies this on its own and a
+    // handler that stopped resetting would still pass.
     const opens = SOURCE.indexOf('} catch (error) {', evaluation)
     expect(opens).toBeGreaterThan(evaluation)
-    const handler = SOURCE.slice(opens, SOURCE.indexOf('\n    }\n', opens))
+    const closes = SOURCE.indexOf('\n    }\n', opens)
+    expect(closes).toBeGreaterThan(opens)
+    const handler = SOURCE.slice(opens, closes)
     expect(handler).toContain('integrityRun = undefined')
   })
 })
@@ -236,10 +243,11 @@ describe('the evaluation is placed where it swallows nothing', () => {
     const evaluation = SOURCE.indexOf(
       'integrityRun = await runIntegrityAsserts('
     )
-    const call = SOURCE.slice(
-      evaluation,
-      SOURCE.indexOf('createIntegrityAssertDeps({', evaluation)
-    )
+    // Guarded: unfound, the window widens to the rest of the file and the two
+    // negative assertions below stop being about this call at all.
+    const depsAt = SOURCE.indexOf('createIntegrityAssertDeps({', evaluation)
+    expect(depsAt).toBeGreaterThan(evaluation)
+    const call = SOURCE.slice(evaluation, depsAt)
     for (const field of [
       'to: tx.safeTransaction.data.to',
       'signedValue: String(tx.safeTransaction.data.value)',
