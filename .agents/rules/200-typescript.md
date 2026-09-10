@@ -115,6 +115,12 @@ Add comments only where the code doesn't speak for itself. Avoid restating what 
 
 - CLI: use `citty`; logging via `consola`; validate env via `getEnvVar()`; exit 0/1 appropriately.
 
+### Never log a full RPC URL ([CONV:REDACT-RPC-URL])
+
+`ETH_NODE_URI_*` embeds the provider key in the URL, so a log line naming the endpoint writes a live credential into every transcript of every run. Log the network name, or pass the URL through `redactUrls()` from `script/utils/redactUrls.ts`.
+
+`script/utils/rpc-url-log-scan.test.ts` enforces this over `script/` and `tasks/`. It matches a fixed vocabulary of identifiers (`rpcUrl`, `fullHost`, `ETH_NODE_URI*`, …), so it narrows the class rather than closing it — an endpoint held in a differently-named variable is still yours to redact.
+
 ## Testing
 
 - New TypeScript helpers must be covered by a colocated `*.test.ts` file using Bun (`describe` / `it` / `expect`) with **100% coverage**. Cover edge cases and error paths.
