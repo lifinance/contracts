@@ -155,22 +155,55 @@ proposal document is built from, so a deployment record and the proposal that
 installs it describe them by one definition rather than two. The capture is self-reported context, not a
 control: it makes an honest mistake such as a deploy from an uncommitted edit
 visible, while `assertTreeRecordable` — not this record — is what refuses such
-a deploy, on the narrower set of build-affecting paths. Add `--dryRun` (or
+a deploy, on the narrower set of build-affecting paths — and it establishes
+that the repository the record will name **holds** the commit, not that some
+branch reaches it: `origin/main` is squash-merged, so ancestry answers a
+question about the checkout rather than about the repository.
+
+A record may also carry a `codehash` group: the keccak of the exact runtime
+bytes found at its address, the keccak after the metadata trailer came off and
+immutables were masked, the deployed byte length, and how many bytes the mask
+excluded. All four or none — the trailer's own length word says how much the
+masked hash removes, so equal masked hashes mean equal code only with the
+length pinned too. It may be stored only where a post-deploy self-check has
+established that the deployed code is the artifact that run built — the deploy
+scripts do not pass these flags yet, so records written today carry no
+codehash — and it is a **report**:
+the run that wrote it chose the bytes it hashed, so a check that has to be
+sound recomputes from the chain. A value it cannot accept is never stored and
+never costs the record or the deploy — the `add` command writes everything else
+and says on stdout why the codehash was dropped. Add `--dryRun` (or
 `--dry-run`) to the `add` command to print the upsert it would apply without
 writing. File logs (`deployments/{network}.json`) only land in git at PR
 merge; the deploy scripts never commit.
 
 ### 4.2 Propose
 
-All EVM funnels end in `storeTransactionInMongoDB`
-(`script/deploy/safe/safe-utils.ts`), which is where the Linear ticket link is
-required and the missing-reason warning is emitted — placing them there rather
-than per entry point means no funnel can be added that skips them. The refusal
-happens before the proposal document is inserted, so a refused proposal is never
-created and claims no nonce, and it names both `--ticket` and
-`SAFE_PROPOSAL_TICKET`.
+Every EVM entry point proposes through `proposeSafeTx`
+(`script/deploy/safe/propose-safe-tx.ts`), which checks Safe
+ownership, signs, hashes the signed transaction and calls
+`storeTransactionInMongoDB` (`script/deploy/safe/safe-utils.ts`). That last is
+where the Linear ticket link is required and the missing-reason warning is
+emitted — placing them there rather than per entry point means no funnel can be
+added that skips them. The refusal happens before the proposal document is
+inserted, so a refused proposal is never created and claims no nonce, and it
+names both `--ticket` and `SAFE_PROPOSAL_TICKET`.
 
-That check is the backstop, not the first line: the entry points whose late
+The seam is enforced, not conventional: `.eslintrc.funnel-fence.cjs` refuses any
+file outside its allowlist that names `storeTransactionInMongoDB`, so a propose
+route added later either comes through `proposeSafeTx` or fails lint
+(`bun lint:funnel`, run in CI by `enforceProposalFunnel.yml`). It is an ESLint
+rule keyed on the AST identifier, so an alias, a namespace member access, a
+dynamic import or a computed lookup is refused the same way a plain import is,
+and the CI run passes `--no-inline-config` over every module extension the repo
+can hold, so neither a file-level `eslint-disable` nor a `.mjs` route escapes it.
+Three things it does **not** cover: a hand-rolled insert into the
+`pendingTransactions` collection that never names the storage function, an alias
+re-exported from an allowlisted file, and the one file still allowlisted for its
+own storage call — the Tron route, which hand-rolls its own signature instead of
+signing through a `SafeClient` (EXSC-984).
+
+The ticket check is the backstop, not the first line: the entry points whose late
 failure costs most — `unpauseAllDiamonds.ts`, `add-safe-owners-and-threshold.ts`,
 the Tron route, and the TS `sendOrPropose` — also call `assertTicketPresent`
 before they sign, and `propose-to-safe.ts` resolves the same intent up front in
@@ -206,18 +239,20 @@ run only on the branches that actually propose; a staging or testnet-only run, a
 - **Deferred-cleanup drain** (`script/deploy/safe/drain-parked-tasks.ts`) —
   gated on `DRAIN_PARKED_TASKS`, hooked at the tail of `runPropose`
   ([DeferredDiamondCleanupQueue.md](./DeferredDiamondCleanupQueue.md)).
-- **Bespoke task scripts** that store proposals directly:
-  `script/tasks/proposeMegaETHBridgeRegistrations.ts`,
+- **Bespoke task scripts** that propose without going through
+  `propose-to-safe.ts`: `script/tasks/proposeMegaETHBridgeRegistrations.ts`,
   `proposeDeBridgeDlnChainIdMappings.ts`,
   `proposePolymerCCTPChainIdMappings.ts`, `unpauseAllDiamonds.ts`,
-  `script/deploy/safe/add-safe-owners-and-threshold.ts`, and two more chain-id
-  mapping tasks (`proposeAllBridgeChainIdMappings.ts`,
-  `proposeFraxChainIdMappings.ts`) — there is **no single chokepoint**. All of
-  them reach `storeTransactionInMongoDB` directly rather than through
-  `propose-to-safe.ts`, so the deploy gate below does not see them. None encodes
-  a `diamondCut` today, so none installs facet code; the list is what
-  `grep -rn storeTransactionInMongoDB script/` returns, not a fixed set, so
-  check it rather than trusting this sentence.
+  `proposeAllBridgeChainIdMappings.ts`, `proposeFraxChainIdMappings.ts` and
+  `script/deploy/safe/add-safe-owners-and-threshold.ts`. They share the storage
+  seam (`proposeSafeTx`) but **not** `propose-to-safe.ts`, so the deploy gate
+  below does not see them. None encodes a `diamondCut` today, so none installs
+  facet code. Every propose route is `git grep -l proposeSafeTx script` plus the
+  files still allowlisted in `.eslintrc.funnel-fence.cjs` (the Tron route,
+  EXSC-984) — matched on the name alone, because a route importing it alongside
+  a type is invisible to a grep for the import statement. Run it rather than
+  trusting this sentence: the fence guarantees the two together are exhaustive,
+  not that this list is current.
 - **Tron** is a parallel flow (`script/deploy/tron/propose-to-safe-tron.ts`).
 
 The proposal funnel additionally runs the production deploy gate before it signs
@@ -348,10 +383,12 @@ below.
 
 **One propose path does not go through either funnel**, and it is not the bash
 `sendOrPropose`: the identically-named **TypeScript** `sendOrPropose`
-(`script/safe/safeScriptHelpers.ts`) signs and stores a proposal itself. It is the
-third call site, carrying the same gate call inline so the two cannot diverge. A
-*fourth* proposer written against `storeTransactionInMongoDB` directly would not
-be covered — see the bespoke task scripts listed in §4.1, and the `sendOrPropose`
+(`script/safe/safeScriptHelpers.ts`) proposes through `proposeSafeTx` rather than
+through `runPropose`. It is the third call site, carrying the same gate call
+inline so the two cannot diverge. The funnel fence (§4.2) keeps the *storage*
+seam closed, but it says nothing about the gate: a *fourth* proposer that came
+through `proposeSafeTx` without calling `assertFunnelDeployGate` would still not
+be gated — see the bespoke task scripts listed in §4.1, and the `sendOrPropose`
 gap recorded in
 [DeferredDiamondCleanupQueue.md](./DeferredDiamondCleanupQueue.md) §6.
 
@@ -451,7 +488,41 @@ signer sees:
    outside its scope and says so; a proposal with empty calldata prints no gate
    line, because there is nothing to judge.
 
-5. The action prompt: `Do Nothing` / `Sign` / `Sign & Execute` /
+5. **The proposal-integrity assertions** (`confirm-integrity-asserts.ts`),
+   asking of each proposal whether it is what its own record claims. The Safe's
+   own `getTransactionHash` must equal the stored `safeTxHash`; the Safe the
+   proposal is against must be the one `config/networks.json` names; every
+   stored signature must `ecrecover` to a current owner **and** to the address
+   it is filed under; the signed struct must be a `Call` with every field the
+   hash omits at zero and no field outside the struct at all; the target must be
+   an address this checkout can name — the configured Safe itself, or an entry
+   in the committed deployment log; and a timelock `schedule` must ask for at
+   least the live `getMinDelay()` of the committed `LiFiTimelockController`.
+
+   Signatures are recovered against the **recomputed** hash, never the stored
+   one: the proposer writes both the hash and the calldata, so signatures
+   checked against the stored value would verify against whatever transaction
+   the proposer chose to describe. For the same reason the signing client is
+   pointed at the Safe config names rather than at the address on the document —
+   every read a verdict rests on goes through that client. The document's claim
+   survives as a value to compare, which is what makes the comparison say
+   anything. Where config names no Safe for a network — today the testnets and
+   `localanvil`, never a production network — there is no reviewed anchor to
+   compare against, the client falls back to the document's own address, and the
+   assertion records the missing anchor and blocks rather than comparing that
+   address with itself.
+
+   Each verdict lands on a `check-ledger.ts` ledger, so that ledger's grading
+   rules apply without this module restating them: an integrity mismatch has no
+   acknowledgement path, and an anchor that may only *report* can never decide a
+   pass. That second rule is why a target only the deployment record names is
+   `UNVERIFIED` rather than green — the record is written by the deploying
+   process. A proposal whose assertions could not run at all is refused rather
+   than passed, and the refusal sits in the same two funnels the codehash gate
+   uses, immediately after it: one covering every signing route, one every
+   broadcast route, both ahead of the irreversible step.
+
+6. The action prompt: `Do Nothing` / `Sign` / `Sign & Execute` /
    `Sign and Execute With Deployer` / `Execute with Deployer`. The two
    deployer variants are the usual choice — see §2 on why the deployer
    wallet broadcasts. Selecting an action is itself the review
@@ -509,7 +580,7 @@ parked tasks are reconciled weekly by `reconcileParkedTasks.yml`.
 | Stage | Check category | Behavior | Enforced by |
 |---|---|---|---|
 | Propose | CLI input validation: `--to`/`--calldata` pairing, address/hex validity, multi-call requires `--timelock` | Block | `script/deploy/safe/propose-calls.ts`, `timelock-abi.ts` |
-| Propose | Proposer must be a current Safe owner (on-chain `getOwners()`) | Block | `propose-to-safe.ts` (`runPropose`), `safeScriptHelpers.ts` (`sendOrPropose`) |
+| Propose | Proposer must be a current Safe owner (on-chain `getOwners()`), checked before the signature so a non-owner proposal never claims a nonce | Block | `proposeSafeTx` in `propose-safe-tx.ts`, on every path that proposes; `propose-to-safe.ts` (`runPropose`) and `add-safe-owners-and-threshold.ts` also check earlier, before they build a call |
 | Propose | Ledger signing flags: unambiguous value, no repeat, no unusable combination, no multi-proposal run (see the `sendOrPropose` bullet in §3) | Block | `script/deploy/safe/cli-flags.ts`, `resolveSafeSigningOptions` in `safe-utils.ts`, `cleanUpProdDiamond.ts` |
 | Propose | Nonce safety: override collision checks, auto-nonce clamped to on-chain | Block / auto-correct | `propose-to-safe.ts`, `getNextNonce` in `safe-utils.ts` |
 | Propose | Duplicate-intent dedup (partial unique index on pending rows) | Block insert | `computeProposalIntentHash` + index in `safe-utils.ts` |
@@ -526,6 +597,7 @@ parked tasks are reconciled weekly by `reconcileParkedTasks.yml`.
 | Confirm | Full calldata decode: diamond cut, scheduleBatch, whitelist, periphery, roles; per-selector name resolution | Display / warn only | `safe-decode-utils.ts` (`formatDecodedTxDataForDisplay`) |
 | Confirm | To-be-added facet version, resolved from the deployment record (the MongoDB mirror under `.cache/`, which the deploy script writes before proposing) | Display only | `facet-version-utils.ts`, `safe-utils.ts` |
 | Confirm | Target state graded against `origin/main`, never the reviewer's checkout: the anchor is `git show origin/main:script/deploy/_targetState.json` after a fresh fetch of an explicit `+refs/heads/main:refs/remotes/origin/main` (git updates that ref only opportunistically, so a clone without a covering refspec would otherwise read a stale anchor with no error), read through `refs/remotes/origin/main` in full rather than the short name, which git resolves through tags and heads first, so a tag a proposer's clone carries cannot shadow the fetched ref. `origin` must be `github.com/lifinance/contracts` or the read refuses — a fork remote would let a proposer author the expected state; the URL is taken from `git remote get-url`, which applies any `insteadOf` rewrite and so reports where a fetch would really go. Which branch the reviewer happens to be on cannot change a verdict. Graded per case, not as one equality — an **upgrade of a facet `main` already targets** refuses a downgrade, a version pair that cannot be ordered, and a proposed version no deployment record resolves; a **first-time add** has no entry on `main` by construction (the target-state PR merges only after execution, so gating on it would deadlock) and is labeled "not previously targeted" with the count of networks already declaring that contract at that version, without blocking — intent there rests on the linked ticket and PR; a **removal** is reported only. The statuses that may proceed are named, so an unrecognised cut action, a cut whose calldata cannot be read, a facet address no deployment record names on that network (the same address on another chain is deliberately not consulted — the mirror carries one address as two different contracts across networks), a deployment record that contradicts itself about which contract or version an address is (the `(network, address)` pair is not unique in that cache — six such pairs today, two at genuinely different versions), an anchor read through the wrong remote, and an anchor that could not be refreshed all refuse. | Block (downgrade / unorderable / unresolved / unidentified / ambiguous record / unreadable / anchor unavailable) / label (first-time add) / report (removal) | `pinned-target-state.ts` + `diamond-cut-calls.ts`, gated in `confirm-safe-tx.ts` after the nonce gates and before the acknowledgement is recorded (EXSC-704) |
+| Confirm | Proposal integrity on the pending row: the `safeTxHash` recomputed from the signed struct, the Safe the proposal is against vs `config/networks.json`, every stored signature recovered against the recomputed hash (never the stored one, which the proposer writes), the fields the hash omits, the target, and the timelock delay. Each refusal carries a named anchor — `A-LOCAL` local data, `A-CHAIN` an on-chain read, `A-MONGO` the deployment record, `A-PROPOSAL` the proposal document, `A-UNRESOLVED` nothing to compare against — so the display says which assertion refused and on what evidence. An empty stored signature set refuses rather than passing: every writer stores a signature with the row, so an empty set is a row that lost them, not one awaiting them. Asserted on both the sign and the execute route, and the verdict is keyed to one transaction, so a run left over from the previous proposal cannot authorise this one. **Caveat on a Safe migration:** the check compares the proposal's Safe against the configured one, and `propose-to-safe.ts --safeAddress` deliberately proposes to a different Safe (granting `TIMELOCK_ADMIN_ROLE` to the new Safe from the old one, `playgroundHelpers.sh`). Flip `config/networks.json` to the new Safe **after** that proposal is signed and executed, or the migration proposal is unsignable | Block | `confirm-integrity-asserts.ts` (`runIntegrityAsserts` / `renderIntegrityAsserts`) on the `check-ledger.ts` result model, gated in `confirm-safe-tx.ts` after the codehash gate (EXSC-700) |
 | Confirm | Stale nonce blocks Execute; future nonce prompts | Block / prompt | `confirm-safe-tx.ts` |
 | Execute | Signature format + sorting; threshold gating of the Execute option | Block / hide option | `safe-utils.ts` |
 | Timelock exec | operationId re-derived from row params; timelock address vs deploy log; on-chain `isOperationReady`/`isOperationDone` | Block, mark failed | `execute-pending-timelock-tx.ts`, `timelock-queue.ts`, `confirm-timelock-execution.ts` |
@@ -534,6 +606,7 @@ parked tasks are reconciled weekly by `reconcileParkedTasks.yml`.
 | CI (PR gate) | ≥ 1 approval from the SC core team | Block merge | Repository ruleset `main protection` — `required_reviewers` on the `smart-contract-core` team |
 | CI (PR gate) | Security-relevant paths need ISM/CTO approval | Block PR | `protectSecurityRelevantCode.yml` |
 | CI (PR gate) | Static analysis; LibAsset routing; config/deploy-log consistency and JSON validity; clear-signing sync; deploy smoke test; signed commits; solc floor; SPDX | Block PR | `olympixStaticAnalysis.yml` + `securityAlertsReview.yml`, `enforceLibAssetRouting.yml`, `deploymentAddressConsistency.yml`, `jsonChecker.yml`, `verifyClearSigning.yml`, `deploy-smoke-test.yml`, `verifyCommitsSigned.yml`, `solc-floor-build.yml`, `spdxLicenseChecker.yml` |
+| CI (PR gate) | Every Safe proposal is created through `proposeSafeTx`: any file outside the allowlist naming `storeTransactionInMongoDB` fails lint. AST-keyed, so an alias, namespace access, dynamic import or computed lookup is refused too, and the CI run ignores inline `eslint-disable` comments; a hand-rolled insert into the collection and an alias re-exported from an allowlisted file are **not** covered | Report only until `enforce-proposal-funnel` is added to the `main protection` ruleset's required checks; blocks the job either way | `.eslintrc.funnel-fence.cjs` via `bun lint:funnel`, run by `.github/workflows/enforceProposalFunnel.yml` and by lint-staged through `.eslintrc.cjs` |
 | CI (ops) | Daily on-chain health check of every production diamond; weekly emergency-pause readiness | Alert | `healthCheckAllNetworks.yml`, `verifyEmergencyPauseReadiness.yml` |
 
 ## 6. What the signer must verify manually today
@@ -548,8 +621,6 @@ Honest list — the tooling displays these, but does **not** machine-assert them
   labeled; the signer still has to judge them from the linked ticket and PR.
 - **Unknown targets.** `to`-address name resolution is display-only; an
   unknown target renders without a label — the absence is the only signal.
-- **The Safe itself.** The `safeAddress` comes from the proposal document and
-  is not cross-checked against `config/networks.json` at confirm time.
 - **Unknown selectors.** Names for selectors without a local ABI come from
   the external `api.4byte.sourcify.dev` database. The name is sanitised and
   bounded before it is printed, but nothing vouches for what it says.
@@ -625,6 +696,7 @@ fleet-wide run ends with zero mainnets unpaused and no obvious cause.
 | Path | Role |
 |---|---|
 | `script/deploy/safe/propose-to-safe.ts` | Main proposal funnel (`runPropose`); `bun propose-safe-tx` |
+| `script/deploy/safe/propose-safe-tx.ts` | `proposeSafeTx` — the blessed seam every propose route goes through |
 | `script/deploy/safe/confirm-safe-tx.ts` | Signer review/sign/execute CLI; `bun confirm-safe-tx` |
 | `script/deploy/safe/safe-utils.ts` | `SafeClient`, Mongo store, signing, timelock wrap |
 | `script/deploy/safe/safe-decode-utils.ts` | Calldata decode for the signing view |
@@ -636,6 +708,7 @@ fleet-wide run ends with zero mainnets unpaused and no obvious cause.
 | `script/helperFunctions.sh` | bash `sendOrPropose` chokepoint + deploy logging |
 | `.github/workflows/runPendingTimelockTXs.yml` | "Timelock Auto Execution" 10-min cron |
 | `.github/workflows/reconcileParkedTasks.yml` | Weekly parked-task reconcile + TTL alert |
+| `.github/workflows/enforceProposalFunnel.yml` | Fence: no propose route outside `proposeSafeTx` |
 | `.agents/commands/multisig-rollout.md` | The end-to-end rollout runbook |
 
 ## 9. Planned improvements (proposal stage — NOT yet implemented)
@@ -644,9 +717,6 @@ Design themes under discussion. Nothing below exists in the repo today:
 
 - **Provenance on proposals** — attach human identity, git commit/branch, and
   a PR link/description to each proposal, shown at signing.
-- **Integrity asserts + check report** — machine-assert what §6 leaves to the
-  signer (recomputed `safeTxHash`, `safeAddress` vs `config/networks.json`,
-  mismatches escalated from warn), summarized per proposal.
 - **Executability simulation** — simulate the Safe transaction and its inner
   timelock payload before signatures are collected.
 - **Bytecode ↔ audit attestation** — verify the deployed bytecode/commit

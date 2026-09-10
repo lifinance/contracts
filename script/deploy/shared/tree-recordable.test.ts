@@ -1,8 +1,8 @@
 /**
  * A deployment record claims that rebuilding at its commit reproduces the
  * deployed bytecode. These assert the two ways that claim can be false before
- * anything is broadcast: the tree does not match the commit, or the commit is
- * not anywhere a verifier can fetch it.
+ * anything is broadcast: the tree does not match the commit, or the repository
+ * the record names does not hold that commit.
  *
  * Fixtures are real `git status --porcelain=v1 -z --no-renames` output, NUL
  * separated, because the parse is where this can go quietly wrong.
@@ -28,9 +28,11 @@ const z = (...entries: string[]): string =>
 const clean: ITreeState = {
   statusZ: '',
   head: 'a'.repeat(40),
-  remoteRefsContainingHead: '  origin/main\n',
+  commitPresence: {
+    presence: 'PRESENT',
+    reason: 'github.com/lifinance/contracts holds it',
+  },
   absentSubmodulePaths: [],
-  isShallow: false,
 }
 
 describe('buildAffectingDirtyPaths', () => {
@@ -132,20 +134,50 @@ describe('assertTreeRecordable', () => {
     expect(error?.message).not.toMatch(/refusing/i)
   })
 
-  it('refuses a commit no remote branch contains', () => {
+  it('refuses a commit the declared repository does not hold', () => {
     // The record would point at a commit a verifier cannot fetch, so the
     // rebuild it promises can never be performed.
     const error = (() => {
       try {
-        assertTreeRecordable({ ...clean, remoteRefsContainingHead: '' })
+        assertTreeRecordable({
+          ...clean,
+          commitPresence: {
+            presence: 'ABSENT',
+            reason: 'github.com/lifinance/contracts holds no such commit',
+          },
+        })
         return undefined
       } catch (e) {
         return e as Error
       }
     })()
 
-    expect(error?.message).toMatch(/on no origin branch/i)
+    expect(error?.message).toMatch(/could not be shown present/i)
+    expect(error?.message).toContain('ABSENT')
+    expect(error?.message).toContain('holds no such commit')
     expect(error?.message).toContain(clean.head)
+  })
+
+  it('refuses a commit whose presence could not be established', () => {
+    // Only PRESENT proceeds. Reading "we could not ask" as a pass is how an
+    // unreachable API becomes a green light.
+    const error = (() => {
+      try {
+        assertTreeRecordable({
+          ...clean,
+          commitPresence: {
+            presence: 'UNKNOWN',
+            reason: 'gh is not installed',
+          },
+        })
+        return undefined
+      } catch (e) {
+        return e as Error
+      }
+    })()
+
+    expect(error?.message).toContain('UNKNOWN')
+    expect(error?.message).toContain('gh is not installed')
   })
 
   it('refuses when the working tree could not be read at all', () => {
@@ -210,37 +242,6 @@ describe('assertTreeRecordable', () => {
     expect(error?.message).toMatch(/UNKNOWN/)
   })
 
-  it('refuses a shallow clone whose HEAD no remote branch contains', () => {
-    // A truncated commit graph cannot be trusted when `--contains` reports that
-    // no remote branch has the commit; it can be when it reports that one does.
-    const error = (() => {
-      try {
-        assertTreeRecordable({
-          ...clean,
-          isShallow: true,
-          remoteRefsContainingHead: '',
-        })
-        return undefined
-      } catch (e) {
-        return e as Error
-      }
-    })()
-
-    expect(error?.message).toMatch(/shallow clone/)
-    // Not also the unpushed message: it cannot know that, and saying both would
-    // send the operator to push a commit that may already be pushed.
-    expect(error?.message).not.toMatch(/is on no origin branch/)
-  })
-
-  it('does not refuse a shallow clone whose HEAD a remote branch contains', () => {
-    // The shape of every CI checkout. A blanket shallow refusal was a false
-    // refusal here: a ref that contains the commit is a trustworthy answer
-    // however truncated the history behind it is.
-    expect(() =>
-      assertTreeRecordable({ ...clean, isShallow: true })
-    ).not.toThrow()
-  })
-
   it('reports both problems at once rather than one per run', () => {
     // An operator fixing these one refusal at a time would need two deploy
     // attempts to learn about two problems.
@@ -250,7 +251,10 @@ describe('assertTreeRecordable', () => {
           ...clean,
           statusZ: z(' M src/A.sol'),
           head: 'b'.repeat(40),
-          remoteRefsContainingHead: '',
+          commitPresence: {
+            presence: 'ABSENT',
+            reason: 'github.com/lifinance/contracts holds no such commit',
+          },
         })
         return undefined
       } catch (e) {
@@ -259,7 +263,7 @@ describe('assertTreeRecordable', () => {
     })()
 
     expect(error?.message).toContain('src/A.sol')
-    expect(error?.message).toMatch(/on no origin branch/i)
+    expect(error?.message).toMatch(/could not be shown present/i)
   })
 })
 

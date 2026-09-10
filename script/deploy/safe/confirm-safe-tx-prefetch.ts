@@ -9,6 +9,8 @@ import { consola } from 'consola'
 import { type Collection } from 'mongodb'
 import { type Account, type Address, type Chain } from 'viem'
 
+import { networks } from '../../utils/viemScriptHelpers'
+
 import { reconcileCoverageKey, reconcileSubmittedSafeTxs } from './reconcile'
 import {
   getOrInitializeSafeClient,
@@ -29,6 +31,13 @@ export interface IConfirmSafeTxNetworkContext {
   chain: Chain
   safeAddress: Address
   txSafeAddress: Address
+  /**
+   * The Safe `config/networks.json` names for this network, absent when it
+   * names none. Carried separately from `safeAddress` because the client falls
+   * back to the document's claim in that case, so the two agreeing there would
+   * say nothing.
+   */
+  configuredSafeAddress?: string
   signerAddress: Address
   threshold: number
   onChainNonce: bigint
@@ -90,13 +99,24 @@ export async function prepareConfirmSafeTxNetwork(
   if (initialPendingTxs.length === 0) return { kind: 'nothing-actionable' }
 
   const txSafeAddress = initialPendingTxs[0]?.safeAddress as Address
+  // The client is pointed at the Safe config names rather than at the one the
+  // proposal document claims: every read that decides whether this proposal may
+  // be signed — the hash recompute, the owner set, the threshold, the nonce —
+  // goes through it, and a client pointed at the document's address answers for
+  // whatever Safe the proposer chose. The claim survives as `txSafeAddress`, so
+  // the integrity assertions can compare the two and name which disagreed.
+  //
+  // The document's address remains the fallback on a network config names no
+  // Safe for. Refusing to build a client there would abort the run before any
+  // check could print why; the assertion records the missing anchor and blocks.
+  const configuredSafeAddress = networks[network.toLowerCase()]?.safeAddress
   const { safe, chain, safeAddress } = await getOrInitializeSafeClient(
     network,
     privateKey,
     rpcUrl,
     useLedger,
     ledgerOptions,
-    txSafeAddress,
+    configuredSafeAddress ? undefined : txSafeAddress,
     account
   )
 
@@ -193,6 +213,7 @@ export async function prepareConfirmSafeTxNetwork(
       chain,
       safeAddress,
       txSafeAddress,
+      ...(configuredSafeAddress ? { configuredSafeAddress } : {}),
       signerAddress,
       threshold,
       onChainNonce,
