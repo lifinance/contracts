@@ -64,7 +64,7 @@ const corpus = (overrides: Partial<ICorpusDeps> = {}): ICorpusDeps => ({
 })
 
 describe('the shadow runner over the real repository corpus', () => {
-  // One load, reused: it reads ~170 deployment logs.
+  // One load, reused: it carries the memoised reader the gates hit per slot.
   const repo = loadRepoCorpus(process.cwd())
 
   it('grades a corpus of real production slots, not a handful of fixtures', () => {
@@ -106,6 +106,44 @@ describe('the shadow runner over the real repository corpus', () => {
     for (const budget of unreachedGates()) {
       expect(budget.falseRefusalRate).toBeUndefined()
       expect(evaluatePromotion(budget).mayEnforce).toBe(false)
+    }
+  })
+})
+
+describe('a shrunken denominator is never silent', () => {
+  // G1's refusals leave G2's denominator, so the number that says how many is
+  // the only thing standing between a rate over 742 rows and a rate over
+  // however many happened to be gradable. Pinned at both ends, or it is a
+  // constant rather than a count.
+  it('reports on G2 how many rows G1 could not resolve', () => {
+    const resolvable = gradeAttestedSet(
+      corpus({ slots: [slot(), slot({ contractName: 'OtherFacet' })] })
+    )
+    expect(resolvable.denominator).toBe(2)
+    expect(resolvable.coverageNote).toContain('0 of 2 attested slots left')
+
+    const dropped = gradeAttestedSet(
+      corpus({
+        slots: [slot(), slot({ network: 'notinconfig' })],
+      })
+    )
+    expect(dropped.denominator).toBe(1)
+    expect(dropped.coverageNote).toContain('1 of 2 attested slots left')
+  })
+
+  // Both gates share registeredFacetSlots, so both denominators shrink by the
+  // same exclusions. Only the funnel gate used to say so.
+  it('names the exclusions on both gates that apply them', async () => {
+    const deps = corpus({
+      funnelExclusions: new Map([['tron', 'no offline TronWeb reader']]),
+      deprecatedContracts: new Set(['GenericSwapFacet']),
+    })
+    for (const note of [
+      gradeCutClassification(deps).coverageNote,
+      (await gradeFunnelDeployGate(deps)).coverageNote,
+    ]) {
+      expect(note).toContain('no offline TronWeb reader')
+      expect(note).toContain('GenericSwapFacet')
     }
   })
 })

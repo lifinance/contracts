@@ -7,10 +7,10 @@
  * *named* accepted false red, or unexplained. The last class is the budget.
  *
  * `evaluatePromotion` is the only control this package ships. A gate may flip
- * report-only to blocking when its unexplained-refusal count is 0 and every
- * accepted false red it produced carries a remedy that grades grey. It is code
- * rather than prose so that a gate cannot be promoted by someone reading a
- * table and deciding it looks fine.
+ * report-only to blocking when its unexplained-refusal count is 0, every
+ * accepted false red it produced carries a remedy that grades grey, and
+ * something was actually measured. It is code rather than prose so that a gate
+ * cannot be promoted by someone reading a table and deciding it looks fine.
  */
 
 /** Where a refusal lands. `unexplained` is the budget, and its target is 0. */
@@ -80,8 +80,6 @@ export const ACCEPTED_FALSE_RED_RULES: readonly IAcceptedFalseRedRule[] = [
 
 /** One gate's verdict about one corpus row, in shadow mode. */
 export interface IShadowObservation {
-  /** Stable gate id, e.g. `G2-attested-set`. */
-  gate: string
   /** Stable row id, e.g. `mantle/GenericSwapFacet@2.0.0`. */
   slot: string
   refused: boolean

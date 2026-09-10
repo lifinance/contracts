@@ -13,7 +13,6 @@ import {
 const observation = (
   overrides: Partial<IShadowObservation> = {}
 ): IShadowObservation => ({
-  gate: 'G-test',
   slot: 'somenetwork/SomeFacet@1.0.0',
   refused: true,
   reason: 'refused',

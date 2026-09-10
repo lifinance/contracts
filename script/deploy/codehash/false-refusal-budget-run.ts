@@ -37,6 +37,7 @@ import { encodeFunctionData, keccak256, toHex, type Hex } from 'viem'
 import { DIAMOND_CUT_ABI } from '../shared/constants'
 import {
   assertFunnelDeployGate,
+  indexDeploymentsByAddress,
   type IFunnelGateDeps,
 } from '../shared/funnel-deploy-gate'
 
@@ -164,14 +165,12 @@ export const gradeToolchainScope = (deps: ICorpusDeps): IGateBudget => {
     try {
       deriveToolchainScope(slot.network, { networks: deps.networks, profiles })
       return {
-        gate: 'G1-toolchain-scope',
         slot: slotId(slot),
         refused: false,
         reason: '',
       }
     } catch (error) {
       return {
-        gate: 'G1-toolchain-scope',
         slot: slotId(slot),
         refused: true,
         reason: error instanceof Error ? error.message : String(error),
@@ -244,7 +243,6 @@ export const gradeAttestedSet = (deps: ICorpusDeps): IGateBudget => {
     )
 
     observations.push({
-      gate: 'G2-attested-set',
       slot: slotId(slot),
       refused: comparison.blocksSigning,
       reason: comparison.blocksSigning
@@ -265,8 +263,11 @@ export const gradeAttestedSet = (deps: ICorpusDeps): IGateBudget => {
     gate: 'G2-attested-set',
     corpus: 'attested production slots (WP-7.1 / #2289)',
     denominator: observations.length,
-    coverageNote:
-      "EVM only. The sweep excluded 6 zkEVM slots because it did not record which zksolc version produced the match, so the zk normalisation path is measured on 0. Bytecode equality is taken from the sweep rather than re-fetched — see this module's header.",
+    coverageNote: `EVM only. The sweep excluded 6 zkEVM slots because it did not record which zksolc version produced the match, so the zk normalisation path is measured on 0. Bytecode equality is taken from the sweep rather than re-fetched — see this module's header. ${
+      deps.slots.length - observations.length
+    } of ${
+      deps.slots.length
+    } attested slots left this denominator because G1 could not derive their scope.`,
     observations,
   })
 }
@@ -294,7 +295,6 @@ export const gradeCommitAvailability = (deps: ICorpusDeps): IGateBudget => {
   const observations: IShadowObservation[] = deps.slots.map((slot) => {
     const availability = ensureCommitAvailable(slot.commit, { git })
     return {
-      gate: 'G3-commit-availability',
       slot: slotId(slot),
       refused: !availability.ok,
       reason: availability.ok ? '' : availability.reason,
@@ -335,6 +335,18 @@ const replaceCutCalldata = (address: string): Hex =>
     ],
   })
 
+/**
+ * What `registeredFacetSlots` drops before either gate grades a row, so a
+ * shrunken denominator is never silent on the gate that shrank it.
+ * @param deps - the corpus
+ */
+const exclusionNote = (deps: ICorpusDeps): string =>
+  `Excluded: ${[...deps.funnelExclusions.entries()]
+    .map(([network, why]) => `${network} (${why})`)
+    .join('; ')}; and ${[...deps.deprecatedContracts].join(
+    ', '
+  )}, deprecated from src/ so a cut installing one is not an honest input.`
+
 /** Slots whose address is registered as a facet in the network's diamond log. */
 const registeredFacetSlots = (deps: ICorpusDeps): ICorpusSlot[] =>
   deps.slots.filter((slot) => {
@@ -366,7 +378,6 @@ export const gradeCutClassification = (deps: ICorpusDeps): IGateBudget => {
       init: '0x0000000000000000000000000000000000000000',
     })
     return {
-      gate: 'G4-cut-classification',
       slot: slotId(slot),
       refused: verdict.refusals.length > 0,
       reason: verdict.refusals.join(' '),
@@ -377,8 +388,9 @@ export const gradeCutClassification = (deps: ICorpusDeps): IGateBudget => {
     gate: 'G4-cut-classification',
     corpus: 'live registered facets, as a Replace cut',
     denominator: slots.length,
-    coverageNote:
-      'The classifier also judges Remove-with-init and unknown actions; neither shape occurs in the corpus, so both are measured on 0.',
+    coverageNote: `The classifier also judges Remove-with-init and unknown actions; neither shape occurs in the corpus, so both are measured on 0. ${exclusionNote(
+      deps
+    )}`,
     observations,
   })
 }
@@ -402,17 +414,12 @@ export const gradeFunnelDeployGate = async (
     // must not be what makes the measurement come back clean.
     isTestnet: () => false,
     currentBranch: () => 'main',
-    deployedNames: async (network: string): Promise<Map<string, string>> => {
-      const log = deps.readLog(`deployments/${network}.json`) ?? {}
-      const byAddress = new Map<string, string>()
-      for (const [name, value] of Object.entries(log)) {
-        if (name === 'default' || typeof value !== 'string') continue
-        if (!/^0x[0-9a-fA-F]{40}$/.test(value)) continue
-        if (!byAddress.has(value.toLowerCase()))
-          byAddress.set(value.toLowerCase(), name)
-      }
-      return byAddress
-    },
+    // The production inverter itself rather than a copy: a re-implementation
+    // would measure the copy's attribution instead of the gate's.
+    deployedNames: async (network: string): Promise<Map<string, string>> =>
+      indexDeploymentsByAddress(
+        deps.readLog(`deployments/${network}.json`) ?? {}
+      ),
     facetSourceExists: deps.facetSourceExists,
     runGate: async () => [],
   }
@@ -427,33 +434,25 @@ export const gradeFunnelDeployGate = async (
         gateDeps
       )
       observations.push({
-        gate: 'G5-funnel-deploy-gate',
         slot: slotId(slot),
         refused: false,
         reason: '',
       })
     } catch (error) {
       observations.push({
-        gate: 'G5-funnel-deploy-gate',
         slot: slotId(slot),
         refused: true,
         reason: error instanceof Error ? error.message : String(error),
       })
     }
 
-  const excluded = [...deps.funnelExclusions.entries()]
-    .map(([network, why]) => `${network} (${why})`)
-    .join('; ')
-
   return summariseGate({
     gate: 'G5-funnel-deploy-gate',
     corpus: 'live registered facets, as a Replace cut',
     denominator: slots.length,
-    coverageNote: `The GitHub main-equivalence call (\`runGate\`) is stubbed to no failures, so what is measured is address attribution and cut decoding, not approval state. Excluded: ${excluded}; and ${[
-      ...deps.deprecatedContracts,
-    ].join(
-      ', '
-    )}, deprecated from src/ so a cut installing one is not an honest input.`,
+    coverageNote: `The GitHub main-equivalence call (\`runGate\`) is stubbed to no failures, so what is measured is address attribution and cut decoding, not approval state. ${exclusionNote(
+      deps
+    )}`,
     observations,
   })
 }
@@ -463,10 +462,17 @@ export const gradeFunnelDeployGate = async (
  * @param repoRoot - repository root
  */
 export const loadRepoCorpus = (repoRoot: string): ICorpusDeps => {
+  // Memoised because the gates ask per slot rather than per network: without it
+  // the run re-reads and re-parses the same ~170 logs some 1,900 times.
+  const cache = new Map<string, Record<string, unknown> | undefined>()
   const read = (relativePath: string): Record<string, unknown> | undefined => {
+    if (cache.has(relativePath)) return cache.get(relativePath)
     const path = join(repoRoot, relativePath)
-    if (!existsSync(path)) return undefined
-    return JSON.parse(readFileSync(path, 'utf8')) as Record<string, unknown>
+    const parsed = existsSync(path)
+      ? (JSON.parse(readFileSync(path, 'utf8')) as Record<string, unknown>)
+      : undefined
+    cache.set(relativePath, parsed)
+    return parsed
   }
 
   const attestations = read(

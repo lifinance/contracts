@@ -16,9 +16,10 @@ import { evaluatePromotion, renderBudgetReport } from './false-refusal-budget'
 import { loadRepoCorpus, runShadowBudget } from './false-refusal-budget-run'
 
 const main = async (): Promise<void> => {
-  // The gates log a line per call, and the corpus is ~2,300 calls. Only the
-  // info stream is dropped: a gate states its verdict by throwing or by what
-  // it returns, never by logging, so nothing the budget counts is suppressed.
+  // The gates log a line per call, and the corpus runs them several thousand
+  // times. Only the info stream is dropped: a gate states its verdict by
+  // throwing or by what it returns, never by logging, so nothing the budget
+  // counts is suppressed.
   const level = consola.level
   consola.level = 1
   const budgets = await runShadowBudget(loadRepoCorpus(process.cwd()))
