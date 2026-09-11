@@ -9,10 +9,11 @@
 #   over the committed bytes via Sigstore. That attestation is what makes the
 #   committed file first-party evidence rather than a transcription.
 # - Verifying and minting are separate jobs because a job's permissions cover
-#   every step in it, including the ones a step-level `if` skips. The verify job
-#   installs dependencies and runs repo scripts, both of which a same-repo PR can
-#   edit, so it holds nothing worth stealing. The mint job carries the signing
-#   permissions and runs nothing out of the checkout but the attest action.
+#   every step in it, including the ones a step-level `if` skips. The
+#   verify-build-manifest job installs dependencies and runs repo scripts, both
+#   of which a same-repo PR can edit, so it holds nothing worth stealing. The
+#   mint job carries the signing permissions and runs nothing out of the
+#   checkout but the attest action.
 # - Deliberately NOT path-filtered. A path filter turns this into a job that
 #   skips, and a skipped job reports success — which is exactly how a gate goes
 #   quiet without anyone noticing. The build is the cost of never having to ask
@@ -20,17 +21,9 @@
 # - Known limitation: only the `default` profile is minted today. The manifest
 #   records its own `coveredProfiles`; script/deploy/codehash/build-manifest.ts
 #   states what a reader has to do with that.
-#
-# Reading the attestation. The signature is worth only as much as the identity
-# it is pinned to, so a consumer must name the workflow that signed:
-#
-#   gh attestation verify script/deploy/resources/buildAttestations.json \
-#     --repo lifinance/contracts \
-#     --signer-workflow lifinance/contracts/.github/workflows/mintBuildAttestations.yml
-#
-# Without --signer-workflow the command passes for bytes signed by any workflow
-# in this repository, which is a weaker claim than the one this manifest is
-# read for. See docs/MultisigSigningProcess.md.
+# - How a consumer must verify what this mints — the `gh attestation verify`
+#   invocation and why it has to pin this workflow as the signer — is in
+#   docs/MultisigSigningProcess.md §8.1.
 
 name: Mint Build Attestations
 

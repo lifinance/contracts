@@ -31,9 +31,11 @@ import { parseBuildProfiles } from '../script/deploy/codehash/lineage-scope'
 
 const TARGET = 'script/deploy/resources/buildAttestations.json'
 // Every location `script/deploy/shared/getContractVersion.ts` resolves a
-// contract from. A directory missing here takes its contracts out of the
-// manifest without putting them in the skip report, so the two lists move
-// together.
+// contract from; keep the two lists in step. A directory missing here takes its
+// contracts out of the manifest without putting them in the skip report, which
+// is the one failure the skip report cannot tell a reader about. The scan is
+// also non-recursive, so a contract in a nested directory is invisible the same
+// way.
 const SOURCE_DIRS = ['src', 'src/Facets', 'src/Periphery', 'src/Security']
 const VERSION_RE = /@custom:version\s+(\S+)/
 const PROFILE = 'default'
@@ -184,9 +186,9 @@ const main = (): void => {
 
     // Deliberately fatal, unlike the skips above. Those describe artifacts that
     // are legitimately not a build to attest; reaching here with an artifact
-    // that names no single compilation target, repeats a source under two
-    // hashes or carries a malformed digest means the compiler output itself is
-    // not trustworthy, and minting the rest around it would publish a manifest
+    // that names no single compilation target, reports empty settings or
+    // carries a malformed source digest means the compiler output itself is not
+    // trustworthy, and minting the rest around it would publish a manifest
     // nobody noticed was short. Rethrown with the contract named, since the
     // underlying errors do not say which artifact they choked on.
     let key: IAttestationKey

@@ -292,9 +292,18 @@ describe('serialiseManifest', () => {
     ).toBe(true)
   })
 
-  it('orders two versions of one contract by version', () => {
-    const newer = entryFor(keyFor({ version: '2.0.0' }), CODE_A)
-    const older = entryFor(keyFor({ version: '1.0.0' }), CODE_B)
+  it('orders two versions of one contract by version, not by source path', () => {
+    // The key puts `sourceId` ahead of `version`, so a contract whose newer
+    // version moved to an earlier-sorting path comes out newest-first if the
+    // key decides. The paths here are chosen so the two orders disagree.
+    const newer = entryFor(
+      keyFor({ version: '2.0.0', sourceId: 'src/Periphery/Aaa.sol' }),
+      CODE_A
+    )
+    const older = entryFor(
+      keyFor({ version: '1.0.0', sourceId: 'src/Periphery/Zzz.sol' }),
+      CODE_B
+    )
     const parsed = JSON.parse(
       serialiseManifest(['default'], [newer, older])
     ) as IBuildManifest
@@ -303,5 +312,27 @@ describe('serialiseManifest', () => {
       '1.0.0',
       '2.0.0',
     ])
+    expect(
+      serialiseAttestationKey(newer.key) < serialiseAttestationKey(older.key)
+    ).toBe(true)
+  })
+
+  it('orders entries the key cannot separate, so the bytes never follow input order', () => {
+    // Same key, agreeing bytecode, different profile: the profile is
+    // deliberately outside the key, so nothing above the last tie-breaker can
+    // tell these two apart. Without it the serialised bytes would be whatever
+    // order the runner emitted, and the attested digest would not survive a
+    // rebuild.
+    const key = keyFor()
+    const a = entryFor(key, CODE_A, DEFAULT_PROFILE)
+    const b = entryFor(key, CODE_A, {
+      ...DEFAULT_PROFILE,
+      profile: 'solc_floor',
+    })
+
+    expect(serialiseAttestationKey(a.key)).toBe(serialiseAttestationKey(b.key))
+    expect(serialiseManifest(['default', 'solc_floor'], [a, b])).toBe(
+      serialiseManifest(['default', 'solc_floor'], [b, a])
+    )
   })
 })
