@@ -884,6 +884,21 @@ describe('formatDecodedArg — a decoded string is proposer-controlled', () => {
     )
   })
 
+  it('bounds the whole rendered argument, not only each element of it', () => {
+    // The element count is encoded in the calldata and bounded by nothing, so
+    // an array floods the prompt without any one element being long enough to
+    // clip — and with every element short, no per-element notice fires either.
+    const rendered = formatDecodedArg(
+      Array.from({ length: 20_000 }, () => `0x${'11'.repeat(20)}`)
+    )
+    // 2000 written out rather than derived from MAX_ARG_JSON_CHARS, so gutting
+    // the constant fails here instead of moving with it.
+    expect(rendered).toContain(
+      'clipped for display — stored 900001, shown 2000'
+    )
+    expect(rendered.length).toBeLessThan(2100)
+  })
+
   it('leaves a benign string exactly as it was', () => {
     expect(formatDecodedArg('GasZipPeriphery')).toBe('GasZipPeriphery')
     expect(formatDecodedArg(['a', 1n])).toBe('["a","1"]')

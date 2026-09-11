@@ -36,6 +36,14 @@ export const UNBOUNDED = Number.POSITIVE_INFINITY
 /** Most parked refs rendered; the overflow is counted on a line of its own. */
 export const MAX_PARKED_REFS = 20
 
+/**
+ * Bound for a decoded tuple or array argument, whose element count is as
+ * proposer-controlled as each element's contents. Wide enough for the argument
+ * shapes that reach this display — an `initFrax`-style pair list, a handful of
+ * selectors — so a real proposal still renders whole.
+ */
+export const MAX_ARG_JSON_CHARS = 2_000
+
 const YELLOW = '\u001b[33m'
 const RESET = '\u001b[0m'
 

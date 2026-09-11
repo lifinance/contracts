@@ -31,6 +31,8 @@
  * so a field added later as a plain `string` does not compile.
  */
 
+import { isAddress } from 'viem'
+
 import {
   asPrintable,
   color,
@@ -231,11 +233,21 @@ function formattedAddressField(
  *
  * Both are dropped too when the address itself will not render, so a name and
  * a link can never stand beside nothing.
+ *
+ * Identity is not validity: a value that was never an address survives
+ * sanitising untouched, and neither callback refuses one — the formatter passes
+ * an unrecognised shape through and the explorer builder interpolates whatever
+ * it is given. Composing a link out of that produces a real-looking URL for a
+ * value no chain holds, so address-ness is checked here rather than inferred
+ * from the text having come through intact.
  */
 function toLine(input: ISafeTxDetailInput): Printable {
   const { text, identityPreserved, notice } = asPrintable(input.to)
   const { shown, failed } = renderAddress(text, input.formatAddress)
-  const resolvable = identityPreserved && !failed && shown !== ''
+  // Non-strict: a legitimately lower-case address is not a corrupt one.
+  const addressShaped = isAddress(text, { strict: false })
+  const resolvable =
+    identityPreserved && !failed && shown !== '' && addressShaped
 
   const targetName = resolvable
     ? printableFragment(() => input.toTargetName)
@@ -253,12 +265,26 @@ function toLine(input: ISafeTxDetailInput): Printable {
       ? EMPTY
       : concatPrintable(trustedMarkup(' '), color(CYAN, url))
 
+  // Only when nothing was repaired: a value that lost a character to the
+  // sanitiser is described by the notice for that, and "withheld" below says
+  // the rest. Here the stored value *is* what is shown — it simply was never
+  // an address — so that wording would be the false half of the explanation.
+  const neverAnAddress = identityPreserved && text !== '' && !addressShaped
+  const notAnAddress = neverAnAddress
+    ? color(
+        YELLOW,
+        trustedMarkup(
+          ' ⚠ not a valid address — shown as stored, and no explorer link'
+        )
+      )
+    : EMPTY
+
   // Saying nothing here inverts the meaning. The deployment records did match,
   // and a bare address reads to a signer as "not a contract this repo
   // deployed" — the opposite of what the code concluded, which is that it
   // declined to vouch for a name it could otherwise have printed.
   const withheld =
-    !resolvable && input.toTargetName
+    !resolvable && !neverAnAddress && input.toTargetName
       ? color(
           YELLOW,
           trustedMarkup(
@@ -271,6 +297,7 @@ function toLine(input: ISafeTxDetailInput): Printable {
     color(GREEN, concatPrintable(shown, name, link)),
     trustedMarkup(notice),
     failed ? FRAGMENT_UNRENDERABLE : EMPTY,
+    notAnAddress,
     withheld
   )
 }

@@ -36,6 +36,7 @@ import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
 import {
   asPrintable,
   fieldNotice,
+  MAX_ARG_JSON_CHARS,
   MAX_FIELD_CHARS,
   printableField,
 } from './printable-field'
@@ -525,11 +526,18 @@ export function formatDecodedArg(arg: unknown, network?: string): string {
     // One notice after the JSON rather than per element: inside a JSON string
     // `JSON.stringify` escapes its colour codes into visible text and the
     // disclosure reads as part of the value.
-    return repaired
-      ? `${json}${fieldNotice(
-          'a value inside this argument was sanitised or clipped for display'
-        )}`
-      : json
+    //
+    // Bounding each element leaves the aggregate unbounded: the element count
+    // is encoded in the calldata, so an array scrolls the proposal off the
+    // screen without any single value being long enough to clip.
+    const { text, notice } = asPrintable(json, MAX_ARG_JSON_CHARS)
+    return `${text}${
+      repaired
+        ? fieldNotice(
+            'a value inside this argument was sanitised or clipped for display'
+          )
+        : ''
+    }${notice}`
   }
   const { text, notice } = renderScalarArg(String(arg), network)
   return `${text}${notice}`

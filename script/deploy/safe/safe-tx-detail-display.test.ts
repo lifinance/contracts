@@ -262,6 +262,28 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
     expect(clean).toContain('etherscan')
   })
 
+  it('builds no explorer link for a target that was never an address', () => {
+    // Surviving sanitising untouched is what a value that was never an address
+    // does, so identity alone cannot gate the link: the network formatter
+    // passes an unrecognised shape through and the explorer builder
+    // interpolates whatever it is handed.
+    const line = lineStartingWith(
+      buildSafeTxDetailLines({
+        ...benign,
+        to: 'this-is-not-an-address',
+        toTargetName: '(LiFiDiamond)',
+        explorerUrlFor: (address: string) =>
+          `https://etherscan.io/address/${address}`,
+      }),
+      'To:'
+    )
+
+    expect(line).toContain('this-is-not-an-address')
+    expect(line).not.toContain('etherscan')
+    expect(line).not.toContain('(LiFiDiamond)')
+    expect(line).toContain('not a valid address')
+  })
+
   it('keeps the name and link when only surrounding whitespace was lost', () => {
     // Trimming the ends cannot change which address this is, and the name is
     // the strongest confirmation the signer gets that the target is the
