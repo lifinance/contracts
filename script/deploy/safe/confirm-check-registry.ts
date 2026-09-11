@@ -398,9 +398,13 @@ export const rpcQuorumCheckResult = (
     // there were not enough of them, or they agreed the value is empty, which
     // is agreement without the fact an integrity read wanted.
     anchor: 'A-UNRESOLVED',
+    // Keyed on providers, worded as providers. `independentProviders` collapses
+    // endpoints that share an upstream, so a network with three endpoints from
+    // one provider still counts as one — telling that operator they have one
+    // *endpoint* sends them to re-run a command that would change nothing.
     detail:
       verdict.independentProviders < MIN_INDEPENDENT_PROVIDERS
-        ? `${verdict.detail} — only ${verdict.independentProviders} endpoint(s) are configured for this network; run "bun fetch-rpcs" to pick up the fallbacks MongoDB holds`
+        ? `${verdict.detail} — ${verdict.independentProviders} independent provider(s) across ${verdict.endpointsConsulted} configured endpoint(s); a second provider is needed, which "bun fetch-rpcs" picks up where MongoDB holds one`
         : verdict.detail,
   }
 }

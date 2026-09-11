@@ -372,3 +372,96 @@ describe('createExecutabilityChainReader', () => {
     )
   })
 })
+
+describe('simulating across several endpoints', () => {
+  const clientThat = (behaviour: () => Promise<unknown>): PublicClient =>
+    ({ call: behaviour } as unknown as PublicClient)
+
+  const reverting = (message: string) =>
+    clientThat(async () => {
+      throw new Error(message)
+    })
+  const succeeding = () => clientThat(async () => ({}))
+  const unreachable = () =>
+    clientThat(async () => {
+      throw new Error('HTTP request failed: 503')
+    })
+
+  // The false green a fallback transport produces. viem stops failing over only
+  // for a revert it recognises by wording, so a node answering
+  // `-32000 "Reverted 0x…"` is treated as unreachable and the next endpoint's
+  // success is recorded as the answer — a reverting proposal reads as fine.
+  it('a revert settles the answer, whatever the node calls it', async () => {
+    for (const wording of [
+      'execution reverted: FunctionAlreadyExists',
+      'Reverted 0xdeadbeef',
+      'VM Exception while processing transaction: reverted',
+    ]) {
+      const reader = createExecutabilityChainReader(succeeding(), [
+        reverting(wording),
+        succeeding(),
+      ])
+
+      const outcome = await reader.staticCall({
+        from: SAFE,
+        to: DIAMOND,
+        data: '0x' as Hex,
+      })
+      expect(outcome.outcome).toBe('reverted')
+    }
+  })
+
+  it('an unreachable endpoint hands the question to the next one', async () => {
+    const reader = createExecutabilityChainReader(succeeding(), [
+      unreachable(),
+      succeeding(),
+    ])
+
+    expect(
+      (await reader.staticCall({ from: SAFE, to: DIAMOND, data: '0x' as Hex }))
+        .outcome
+    ).toBe('succeeded')
+  })
+
+  it('a revert found after an unreachable endpoint is still the answer', async () => {
+    const reader = createExecutabilityChainReader(succeeding(), [
+      unreachable(),
+      reverting('Reverted 0xdeadbeef'),
+    ])
+
+    expect(
+      (await reader.staticCall({ from: SAFE, to: DIAMOND, data: '0x' as Hex }))
+        .outcome
+    ).toBe('reverted')
+  })
+
+  it('every endpoint failing is unverified, never a pass', async () => {
+    const reader = createExecutabilityChainReader(succeeding(), [
+      unreachable(),
+      unreachable(),
+    ])
+
+    const outcome = await reader.staticCall({
+      from: SAFE,
+      to: DIAMOND,
+      data: '0x' as Hex,
+    })
+    expect(outcome.outcome).toBe('errored')
+    expect(outcome.outcome).not.toBe('succeeded')
+  })
+
+  it('stops at the first endpoint that answers', async () => {
+    let asked = 0
+    const counting = clientThat(async () => {
+      asked += 1
+      return {}
+    })
+    const reader = createExecutabilityChainReader(counting, [
+      counting,
+      counting,
+    ])
+
+    await reader.staticCall({ from: SAFE, to: DIAMOND, data: '0x' as Hex })
+    expect(asked).toBe(1)
+  })
+})

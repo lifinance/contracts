@@ -20,6 +20,7 @@ import {
   http,
   type Address,
   type Hex,
+  type Transport,
 } from 'viem'
 
 import networksData from '../../../config/networks.json'
@@ -209,11 +210,8 @@ const readDeploymentRecords = async (): Promise<
 // denominator is that set: a check that never ran on a network must show as a
 // missing row rather than shrink the total it is measured against.
 //
-// Composed, never read. Only a `pass` counts toward the verified coverage, and
-// every status a correct Add/Replace cut produces is `needs-ack` whose
-// acknowledgement lands in `acknowledgementLedger` — so a correct rollout would
-// grade 0/N. EXSC-994 settles the verdict before anything reads these rows, so
-// what the comments below say a row does to one describes that consumer.
+// Read once, at the end of the run: the verdict is rendered from these rows, so
+// a status any row below claims is a status a signer is shown.
 let checkLedger: ICheckLedger | undefined
 
 const recordEveryCheck = (
@@ -909,15 +907,46 @@ const processTxs = async (
         // primary alone: one throttled provider must not be the reason a
         // proposal goes unverified. Only when all of them fail does the row
         // below record `error`, which blocks — the signer investigates rather
-        // than signing on a simulation nobody made. An explicit `--rpcUrl`
-        // stays first and keeps the rest as its failover.
-        const chainTransport = getFallbackTransportForChain(chain)
+        // than signing on a simulation nobody made.
+        //
+        // The override is kept outside the chain transport's own construction,
+        // which throws when every configured endpoint is unusable: built inline
+        // that throw would discard a `--rpcUrl` that works, in exactly the case
+        // an override exists for.
+        const overrideEndpoints = rpcUrl ? [rpcUrl] : []
+        let chainTransport: Transport | undefined
+        try {
+          chainTransport = getFallbackTransportForChain(chain)
+        } catch (error) {
+          if (overrideEndpoints.length === 0) throw error
+          consola.warn(
+            `    Executability: no endpoint from the chain config is usable on ${network}; simulating through the supplied override alone — ${redactUrls(
+              error instanceof Error ? error.message : String(error)
+            )}`
+          )
+        }
+
+        const transports = [
+          ...overrideEndpoints.map((url) => http(url)),
+          ...(chainTransport ? [chainTransport] : []),
+        ]
+        const [onlyTransport] = transports
+        if (!onlyTransport)
+          throw new Error(
+            `No usable RPC endpoint for ${network} — nothing could simulate this proposal`
+          )
         const client = createPublicClient({
           chain,
-          transport: rpcUrl
-            ? fallback([http(rpcUrl), chainTransport])
-            : chainTransport,
+          transport:
+            transports.length === 1 ? onlyTransport : fallback(transports),
         })
+
+        // One client per endpoint for the simulation itself. A fallback
+        // transport decides revert-versus-unreachable by the node's wording, so
+        // the payload's own answer has to be read endpoint by endpoint instead.
+        const simulators = [...overrideEndpoints, ...endpoints].map((url) =>
+          createPublicClient({ chain, transport: http(url) })
+        )
         executability = evaluateExecutability(
           await collectExecutabilityInput(
             {
@@ -935,7 +964,7 @@ const processTxs = async (
                   .map((pending) => Number(pending.safeTx.data.nonce)),
               },
             },
-            createExecutabilityChainReader(client)
+            createExecutabilityChainReader(client, simulators)
           )
         )
       } catch (error) {
@@ -943,7 +972,7 @@ const processTxs = async (
         // A thrown collection is not a simulation that found nothing wrong, and
         // every configured endpoint was already tried before reaching here.
         consola.error(
-          `    Executability: no endpoint for ${network} could simulate this proposal, so it is UNVERIFIED — investigate before signing: ${redactUrls(
+          `    Executability: this proposal could not be simulated on ${network}, so it is UNVERIFIED — investigate before signing: ${redactUrls(
             error instanceof Error ? error.message : String(error)
           )}`
         )

@@ -870,11 +870,18 @@ describe('a shortfall the signer can act on', () => {
         reachesQuorum: false,
         agreeingProviders: 0,
         independentProviders: 1,
+        endpointsConsulted: 3,
       }),
       NETWORK
     )
 
     expect(result.detail).toContain('bun fetch-rpcs')
+    // Providers and endpoints are different counts, and the line must not
+    // report one as the other: three endpoints behind one provider is still a
+    // shortfall, and calling that "1 endpoint" sends the operator nowhere.
+    expect(result.detail).toContain('1 independent provider(s)')
+    expect(result.detail).toContain('3 configured endpoint(s)')
+    expect(result.detail).not.toMatch(/only 1 endpoint\(s\) are configured/u)
   })
 
   // A disagreement between providers that are all present is a different
@@ -924,5 +931,76 @@ describe('the verdict the run now closes on', () => {
     const verdict = stripColor(renderCheckLedger(ledger).at(-1) ?? '')
     expect(verdict).toContain('BLOCKED')
     expect(verdict).not.toContain('ALL CHECKS GREEN')
+  })
+})
+
+describe('the primitive that makes an unmade check blocking', () => {
+  // `unresolved` backs every "this was never established" path. Nothing else
+  // pins its status, so flipping it to `pass` — a check nobody made counting as
+  // verified — used to leave the whole suite green. Each path is asserted on
+  // its own row, so a regression names which one broke.
+  const unresolvedPaths: {
+    what: string
+    verdict: Partial<IProposalCheckVerdicts>
+    checkId: string
+  }[] = [
+    {
+      what: 'the integrity assertions never ran',
+      verdict: { integrity: undefined },
+      checkId: INTEGRITY_CHECKS_ALWAYS[0] as string,
+    },
+    {
+      what: 'the simulation was never attempted',
+      verdict: { executability: undefined },
+      checkId: EXECUTABILITY_CHECK_ID,
+    },
+  ]
+
+  for (const { what, verdict, checkId } of unresolvedPaths)
+    it(`records ${what} as unverified, and it blocks`, () => {
+      const ledger = runLedger()
+      recordInto(ledger, verdicts(verdict))
+
+      const row = ledger.results.find((result) => result.checkId === checkId)
+      expect(row?.status).toBe('error')
+      expect(row?.status).not.toBe('pass')
+      expect(row?.anchor).toBe('A-UNRESOLVED')
+
+      // Asserted per row rather than on the run: with several unresolved rows
+      // at once, one of them regressing to `pass` leaves the run blocked by the
+      // others and the regression invisible.
+      const blocking = summariseLedger(ledger).blocking.filter(
+        (entry) => entry.checkId === checkId
+      )
+      expect(blocking).toHaveLength(1)
+      expect(blocking[0]?.status).toBe('error')
+    })
+
+  // A registered check that reported nothing is the third path, and it is the
+  // one a delay assertion that died mid-run takes.
+  it('records a registered check that never reported as unverified', () => {
+    const run = integrityRun({ includeTimelockDelay: true })
+    const thinned = {
+      ...run,
+      ledger: {
+        ...run.ledger,
+        results: run.ledger.results.filter(
+          (result) => result.checkId !== CHECK_TIMELOCK_DELAY
+        ),
+      },
+    }
+
+    const ledger = runLedger()
+    recordInto(ledger, verdicts({ integrity: thinned }))
+
+    const row = ledger.results.find(
+      (result) => result.checkId === CHECK_TIMELOCK_DELAY
+    )
+    expect(row?.status).toBe('error')
+    expect(
+      summariseLedger(ledger).blocking.some(
+        (entry) => entry.checkId === CHECK_TIMELOCK_DELAY
+      )
+    ).toBe(true)
   })
 })

@@ -359,7 +359,8 @@ export const collectExecutabilityInput = async (
  * @returns Reads backed by that endpoint.
  */
 export const createExecutabilityChainReader = (
-  client: PublicClient
+  client: PublicClient,
+  simulators: readonly PublicClient[] = [client]
 ): IExecutabilityChainReader => ({
   hasCode: async (address) => {
     try {
@@ -393,16 +394,36 @@ export const createExecutabilityChainReader = (
     }
   },
   staticCall: async (call) => {
-    try {
-      await client.call(call)
-      return { outcome: 'succeeded' }
-    } catch (error) {
-      const message = error instanceof Error ? error.message : String(error)
-      // A revert is the answer; anything else is the endpoint failing to give
-      // one, and the two must not be recorded the same way.
-      return /revert/i.test(message)
-        ? { outcome: 'reverted', revertReason: redactUrls(message) }
-        : { outcome: 'errored', errorReason: redactUrls(message) }
+    // Endpoint by endpoint, never through a fallback transport. viem's fallback
+    // stops failing over only for a revert it recognises by wording — a node
+    // that answers `-32000 "Reverted 0x…"` instead of "execution reverted" is
+    // treated as unreachable, and the next endpoint's success becomes the
+    // answer. That turns a proposal which reverts into a green row, which is
+    // the one outcome this whole gate exists to prevent.
+    let lastError: string | undefined
+
+    for (const simulator of simulators)
+      try {
+        await simulator.call(call)
+        return { outcome: 'succeeded' }
+      } catch (error) {
+        const message = error instanceof Error ? error.message : String(error)
+        // A revert is the answer, and the first endpoint to give one settles
+        // it: asking another endpoint could only disagree with a fact this one
+        // established.
+        if (/revert/i.test(message))
+          return { outcome: 'reverted', revertReason: redactUrls(message) }
+
+        // Anything else is this endpoint failing to answer, so the next one
+        // gets the question.
+        lastError = message
+      }
+
+    return {
+      outcome: 'errored',
+      errorReason: redactUrls(
+        lastError ?? 'no endpoint was available to simulate this payload'
+      ),
     }
   },
 })
