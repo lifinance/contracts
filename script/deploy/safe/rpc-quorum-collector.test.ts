@@ -29,6 +29,25 @@ const answer = (value: string) => ({
   blockHash: BLOCK_HASH,
 })
 
+/**
+ * Asserts a rejection without `expect(...).rejects`, which is not a real
+ * Promise and trips `@typescript-eslint/await-thenable`. Same shape as
+ * `parked-tasks.test.ts`.
+ */
+async function expectRejects(
+  promise: Promise<unknown>,
+  match: RegExp
+): Promise<void> {
+  let error: Error | undefined
+  try {
+    await promise
+  } catch (caught) {
+    error = caught as Error
+  }
+  expect(error).toBeInstanceOf(Error)
+  expect(error?.message ?? '').toMatch(match)
+}
+
 describe('collectProviderObservations', () => {
   it('consults every endpoint it is given', async () => {
     const seen: string[] = []
@@ -161,6 +180,29 @@ describe('createCodeReader', () => {
     }
   })
 
+  // The timeout bounds one attempt, so an endpoint's own retry profile is what
+  // decides how long the fan-out can hold the signer.
+  it('caps the retry budget rather than inheriting the endpoint profile', async () => {
+    let attempts = 0
+    globalThis.fetch = (async (
+      _input: RequestInfo | URL,
+      _init?: RequestInit
+    ): Promise<Response> => {
+      attempts += 1
+      const throttled = new Error('HTTP request failed: 429')
+      throttled.name = 'HttpRequestError'
+      throw throttled
+    }) as typeof fetch
+
+    await expectRejects(
+      createCodeReader(ADDRESS, 1)('https://throttled.example/rpc'),
+      /429/
+    )
+
+    // One attempt plus one retry. TronGrid's own profile would be nine.
+    expect(attempts).toBe(2)
+  })
+
   it('leaves a credential-free endpoint unauthenticated', async () => {
     const seen = recordRequests()
 
@@ -175,16 +217,10 @@ describe('createCodeReader', () => {
   it('refuses to carry credentials over cleartext http', async () => {
     recordRequests()
 
-    const outcome = await createCodeReader(
-      ADDRESS,
-      1
-    )('http://user:pass@auth.example/rpc').then(
-      (read) => read as unknown,
-      (error: unknown) => error
+    await expectRejects(
+      createCodeReader(ADDRESS, 1)('http://user:pass@auth.example/rpc'),
+      /credentials over http/i
     )
-
-    expect(outcome).toBeInstanceOf(Error)
-    expect(String(outcome)).toMatch(/credentials over http/i)
   })
 
   it('records the cleartext refusal as an error observation', async () => {

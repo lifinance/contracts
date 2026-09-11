@@ -23,6 +23,19 @@ import type { IProviderObservation } from './rpc-quorum'
 /** 8 seconds: a sign-time fan-out must not stall the operator on one slow endpoint. */
 const ENDPOINT_TIMEOUT_MS = 8_000
 
+/**
+ * One retry per endpoint, overriding whatever profile the shared transport
+ * config carries.
+ *
+ * The timeout above bounds one attempt, not the call, so a provider's own retry
+ * profile multiplies it: TronGrid's is 8 retries on an exponential backoff,
+ * which is minutes of wall clock inside the `Promise.all` a signer is waiting
+ * on. A quorum read wants a snapshot of who answers now — an endpoint that
+ * needs nine attempts is a non-answer, and the verdict already grades it as
+ * one.
+ */
+const ENDPOINT_RETRY_COUNT = 1
+
 /** One endpoint's answer, before it is graded. */
 export interface IEndpointRead {
   /** The value read, compared across providers after trimming. */
@@ -103,15 +116,13 @@ export const createCodeReader =
     // URL, no header is sent, and the 401 that comes back would be recorded as
     // that provider's answer. The helper also refuses credentials over
     // cleartext http and carries the TronGrid and retry settings.
-    const { url, fetchOptions, retryCount, retryDelay } =
-      getTransportConfigFromRpcUrl(endpointUrl)
+    const { url, fetchOptions } = getTransportConfigFromRpcUrl(endpointUrl)
 
     const client = createPublicClient({
       transport: http(url, {
         timeout: ENDPOINT_TIMEOUT_MS,
+        retryCount: ENDPOINT_RETRY_COUNT,
         ...(fetchOptions ? { fetchOptions } : {}),
-        ...(retryCount !== undefined ? { retryCount } : {}),
-        ...(retryDelay !== undefined ? { retryDelay } : {}),
       }),
     })
 

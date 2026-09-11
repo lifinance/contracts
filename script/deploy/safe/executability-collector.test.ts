@@ -201,8 +201,9 @@ describe('collectExecutabilityInput', () => {
   })
 
   // `attempted` gates the "the endpoint answered nothing" claim, so a payload
-  // that was never read must not be counted into it — otherwise a proposal the
-  // collector skipped entirely is reported as an endpoint outage.
+  // that was never read must not be counted into it. The proposal blocks either
+  // way — the absent reads are unchecked — but a malformed `to` would otherwise
+  // send the signer after an endpoint outage that never happened.
   it('does not count a skipped owner read as an unanswered one', async () => {
     const skipped = {
       network: 'arbitrum',

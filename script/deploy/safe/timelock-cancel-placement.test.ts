@@ -95,6 +95,18 @@ describe('buildCancelDecisionInput', () => {
     expect(input.agreeingProviders).toBe(0)
   })
 
+  // These three are one decision, not three. The authority leg is declared
+  // absent *because* the provenance leg can never be anchored, so whoever makes
+  // provenance real has to restore the read in the same change — otherwise every
+  // proven divergence lands on `canceller-authority-missing`, which is fail-safe
+  // and silent.
+  it('declares the authority leg absent only while provenance cannot be anchored', () => {
+    const input = buildCancelDecisionInput(signals())
+
+    expect(input.cancellerAuthority).toBe('unknown')
+    expect(input.verdictProvenance).not.toBe('anchors')
+  })
+
   it('reports the observed revert rather than a predicted one', () => {
     expect(buildCancelDecisionInput(signals()).executability).toBe(
       'would-revert'
@@ -246,19 +258,26 @@ describe('where the executor evaluates the matrix', () => {
     // in, and the matrix renders each as an observed fact, so a failed read has
     // no value it can honestly return. The one leg that does have one is
     // asserted above by `buildCancelDecisionInput`.
+    // Both ends are checked before slicing. An unfound `indexOf` returns -1, and
+    // a -1 end widens the window to the rest of the file, which is the one
+    // failure direction that lets the negative assertion below go vacuous.
     const start = EXECUTOR.indexOf('readOperationState: async ()')
+    const end = EXECUTOR.indexOf('\n            }\n', start)
     expect(start).toBeGreaterThan(-1)
-    const leg = EXECUTOR.slice(
-      start,
-      EXECUTOR.indexOf('\n            }\n', start)
-    )
+    expect(end).toBeGreaterThan(start)
+
+    const leg = EXECUTOR.slice(start, end)
 
     expect(leg).toContain('checkOperationStatus(')
     expect(leg).toMatch(
       /catch[\s\S]*?throw new Error\(\s*`the operation's on-chain state could not be read/u
     )
-    // The paired absence: no branch of the catch may hand back a state.
-    expect(leg.slice(leg.indexOf('} catch'))).not.toMatch(
+    // The paired absence: no branch of the catch may hand back a state. Guarded
+    // for the same reason — `slice(-1)` is the last character, against which the
+    // absence is trivially true.
+    const catchAt = leg.indexOf('} catch')
+    expect(catchAt).toBeGreaterThan(-1)
+    expect(leg.slice(catchAt)).not.toMatch(
       /return '(ready|pending|done|unset)'/u
     )
   })
