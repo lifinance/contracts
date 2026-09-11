@@ -13,7 +13,7 @@
 import { existsSync, readFileSync } from 'fs'
 import path from 'path'
 
-import { keccak256, type Hex } from 'viem'
+import { keccak256, parseAbi, type Hex } from 'viem'
 
 import type {
   IAttestedBuild,
@@ -51,9 +51,24 @@ export type AuthorityExpectationSource =
   | { from: 'deployments'; contractName: string }
   | { from: 'globalConfig'; key: string }
 
+/**
+ * The getters the gate can call. Kept beside the table below so a getter added
+ * to one without the other fails to compile rather than becoming a read error
+ * at run time, which the gate cannot tell apart from an unreachable node.
+ */
+export const AUTHORITY_ABI = parseAbi([
+  'function owner() view returns (address)',
+  'function pauserWallet() view returns (address)',
+])
+
+export type AuthorityGetter = Extract<
+  (typeof AUTHORITY_ABI)[number],
+  { type: 'function' }
+>['name']
+
 export interface IDeclaredAuthority {
   /** Zero-argument view function returning an address. */
-  getter: string
+  getter: AuthorityGetter
   source: AuthorityExpectationSource
 }
 
@@ -114,26 +129,10 @@ export const extractCalldataAddresses = (
 
   for (const payload of payloads) {
     const body = strip0x(payload ?? '')
-    // Every 4-byte alignment, not only the top-level frame's. A call carried in
-    // a `bytes` argument — `diamondCut`'s init `_calldata` is the one that
-    // matters here — shifts all of its own words by its own selector, so an
-    // address reachable only through a nested frame sits on no 32-byte stride.
-    // It would get no codehash row and no authority row at all, which is a hole
-    // in coverage rather than a verdict about it.
-    //
-    // Widening the stride cannot invent a target: `knownAddresses` comes from
-    // the deployments file, so an extra alignment can only match 20 bytes that
-    // name a contract main already knows. Worth being precise about the cost if
-    // it ever did — a spurious row is name-resolved and its live code compared,
-    // so an older-build contract that is referenced but never called would
-    // BLOCK, not merely hold. Measured against all 188 compiled artifacts'
-    // bytecode as payloads: zero addresses found that the 32-byte stride did
-    // not already find.
-    //
-    // Four bytes, not one: nesting shifts a frame by a selector, always a
-    // multiple of four. An address packed at an arbitrary byte offset inside a
-    // `bytes` blob is still missed, and deliberately — covering that means
-    // scanning every byte, which is a different trade.
+    // Every 4-byte alignment, not only the top-level frame's: a call carried in
+    // a `bytes` argument — `diamondCut`'s init `_calldata` — shifts all of its
+    // own words by its own selector, so an address reachable only through a
+    // nested frame sits on no 32-byte stride and would get no row at all.
     for (
       let offset = 0;
       offset + EVM_WORD_HEX_CHARS <= body.length;
@@ -362,30 +361,6 @@ export const resolveExpectedAuthority = (
   return /^0x[0-9a-f]{40}$/.test(address) ? address : undefined
 }
 
-/**
- * What the gate needs about the sign-time record — and nothing more.
- *
- * The record is a G6 reconstruction trail, written by the proposer's own run,
- * so every value in it is proposer-controlled. Reducing it to a boolean here is
- * what makes tampering with its contents structurally unable to move the
- * verdict: no other field survives into the gate's input.
- */
-export interface ISignTimeRecordPresence {
-  present: boolean
-}
-
-/**
- * Reduces a fetched sign-time record to its presence.
- *
- * @param record - The stored document, or null when none exists.
- * @returns Whether a record exists.
- */
-export const readSignTimeRecordPresence = (
-  record: unknown
-): ISignTimeRecordPresence => ({
-  present: record !== null && record !== undefined,
-})
-
 export interface IDeriveGateInput {
   operationId: string
   onChainOperationId: string | undefined
@@ -398,6 +373,11 @@ export interface IDeriveGateInput {
 /**
  * Assembles the gate's input from live observations and the stored record.
  *
+ * The record is a G6 reconstruction trail written by the proposer's own run, so
+ * every value in it is proposer-controlled. Reducing it to a boolean here is
+ * what makes tampering with its contents structurally unable to move the
+ * verdict: no other field survives into the gate's input.
+ *
  * @param input - Observations, anchors, and the stored record.
  * @returns The gate input, carrying the record's presence and none of its
  * values.
@@ -409,6 +389,6 @@ export const deriveGateInput = (
   onChainOperationId: input.onChainOperationId,
   targets: input.targets,
   authorities: input.authorities,
-  signTimeRecordPresent: readSignTimeRecordPresence(input.signTimeRecord)
-    .present,
+  signTimeRecordPresent:
+    input.signTimeRecord !== null && input.signTimeRecord !== undefined,
 })

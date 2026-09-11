@@ -228,6 +228,22 @@ export const bySignedSetKey = (
 })
 
 /**
+ * The update document for an upsert.
+ *
+ * `_id` is immutable once a document exists, so a record that ever carried one
+ * would make the upsert throw instead of updating.
+ *
+ * @param record - The document to store.
+ * @returns The `$set` update, without `_id`.
+ */
+export const buildSignedSetUpdate = (
+  record: ISignedSetRecord
+): { $set: Omit<ISignedSetRecord, '_id'> } => {
+  const { _id: _ignored, ...fields } = record
+  return { $set: fields }
+}
+
+/**
  * Upserts a sign-time record.
  *
  * Failure is logged and swallowed: the record is an audit trail, the gate
@@ -245,7 +261,7 @@ export const persistSignedSetRecord = async (
     try {
       await signedSets.updateOne(
         bySignedSetKey(record.network, record.operationId),
-        { $set: record },
+        buildSignedSetUpdate(record),
         { upsert: true }
       )
       return true

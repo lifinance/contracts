@@ -1779,19 +1779,9 @@ async function enforcePreBroadcastGateOrAbort(
     operation.salt ??
     ('0x0000000000000000000000000000000000000000000000000000000000000000' as Hex) // [pre-commit-checker: not a secret]
 
-  // Every other external read in this guard is caught and turned into a
-  // GuardOutcome, and this one has to be too. Inside the gate, `deriveLineageScope`
-  // and `resolveExpectedAuthority` are called outside the per-row try blocks, so
-  // a malformed config or an unexpected shape throws past them; the `Promise.all`
-  // adds its own. The two obvious-looking sources are NOT the reason: git
-  // provenance is fail-soft by contract and yields `PROVENANCE_UNKNOWN`, and
-  // `readArtifactAnchor` returns undefined on every failure.
-  //
   // A throw escaping here leaves `executeOperation` by a path that returns no
-  // outcome, records no status and sends no alert — the row left mid-flight with
-  // nobody told, which is worse than either verdict. So this is also defence in
-  // depth: no read here is proven throw-free, and the guard's contract is that
-  // it always returns one.
+  // outcome, records no status and sends no alert — the row left mid-flight
+  // with nobody told, which is worse than either verdict.
   let result: Awaited<ReturnType<typeof runPreBroadcastGate>>
   try {
     result = await runPreBroadcastGate(
@@ -1833,9 +1823,8 @@ async function enforcePreBroadcastGateOrAbort(
   for (const alert of result.alerts)
     consola.warn(`${networkPrefix} ⚠️  ${alert}`)
 
-  // `blocksBroadcast`, not the disposition string: DISPOSITIONS_THAT_MAY_BROADCAST
-  // exists so a disposition added later refuses by default, and branching on the
-  // string here is the pattern that set was written to prevent.
+  // `blocksBroadcast`, not the disposition string: a disposition added later
+  // must refuse by default, and only the set that flag comes from decides that.
   if (!result.blocksBroadcast) {
     consola.info(`${networkPrefix} ✅ Pre-broadcast gate: ${result.reason}`)
     await alertGap(result.alerts)

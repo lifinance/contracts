@@ -1,9 +1,11 @@
 // eslint-disable-next-line import/no-unresolved
 import { describe, expect, it } from 'bun:test'
+import { ObjectId } from 'mongodb'
 import type { Hex } from 'viem'
 
 import {
   buildSignedSetRecord,
+  buildSignedSetUpdate,
   bySignedSetKey,
   formatSignedSetForDisplay,
   type ISignedAuthorityEntry,
@@ -188,5 +190,25 @@ describe('bySignedSetKey', () => {
       network: { $eq: 'mainnet' },
       operationId: { $eq: OP_ID },
     })
+  })
+})
+
+describe('buildSignedSetUpdate', () => {
+  it('omits _id, which an upsert onto an existing document cannot carry', () => {
+    const withId = {
+      ...build(),
+      _id: new ObjectId('0123456789abcdef01234567'),
+    }
+
+    const update = buildSignedSetUpdate(withId)
+
+    expect(Object.prototype.hasOwnProperty.call(update.$set, '_id')).toBe(false)
+    expect(update.$set).toEqual(build())
+  })
+
+  it('carries every other field through unchanged', () => {
+    const record = build()
+
+    expect(buildSignedSetUpdate(record).$set).toEqual(record)
   })
 })

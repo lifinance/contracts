@@ -13,7 +13,6 @@ import {
   extractCalldataAddresses,
   normalizeRuntimeCode,
   readArtifactAnchor,
-  readSignTimeRecordPresence,
   resolveExpectedAuthority,
 } from './prebroadcast-anchors'
 
@@ -472,10 +471,18 @@ describe('the stored record reaches the decision only as a boolean', () => {
     authorities: [],
   }
 
-  it('reports presence for a record and absence for none', () => {
-    expect(readSignTimeRecordPresence({ codehashes: [] }).present).toBe(true)
-    expect(readSignTimeRecordPresence(null).present).toBe(false)
-    expect(readSignTimeRecordPresence(undefined).present).toBe(false)
+  it('reports presence for a record and absence for either empty value', () => {
+    expect(
+      deriveGateInput({ ...base, signTimeRecord: { codehashes: [] } })
+        .signTimeRecordPresent
+    ).toBe(true)
+    expect(
+      deriveGateInput({ ...base, signTimeRecord: null }).signTimeRecordPresent
+    ).toBe(false)
+    expect(
+      deriveGateInput({ ...base, signTimeRecord: undefined })
+        .signTimeRecordPresent
+    ).toBe(false)
   })
 
   it('produces an identical gate input from two records that disagree on everything', () => {

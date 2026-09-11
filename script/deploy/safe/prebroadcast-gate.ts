@@ -14,6 +14,7 @@ import { parseAbi, type Address, type Hex, type PublicClient } from 'viem'
 import type { IAttestedBuild } from '../codehash/attested-set'
 
 import {
+  AUTHORITY_ABI,
   DECLARED_STORAGE_AUTHORITIES,
   buildAddressNameIndex,
   deriveGateInput,
@@ -22,6 +23,7 @@ import {
   normalizeRuntimeCode,
   readArtifactAnchor,
   resolveExpectedAuthority,
+  type AuthorityGetter,
   type IArtifactAnchor,
 } from './prebroadcast-anchors'
 import {
@@ -30,11 +32,6 @@ import {
   type IPreBroadcastGateResult,
   type IPreBroadcastTarget,
 } from './prebroadcast-rederive'
-
-const AUTHORITY_ABI = parseAbi([
-  'function owner() view returns (address)',
-  'function pauserWallet() view returns (address)',
-])
 
 /**
  * Which chains this gate reads code on.
@@ -65,7 +62,7 @@ export interface IObservationDependencies {
   /** Live runtime code at an address, `0x` when none. */
   readCode: (address: Address) => Promise<string>
   /** Live value of a zero-argument address getter. */
-  readAuthority: (address: Address, getter: string) => Promise<string>
+  readAuthority: (address: Address, getter: AuthorityGetter) => Promise<string>
   /** Parsed `deployments/<network>.json` for this network. */
   deployments: Record<string, unknown>
   /** Parsed `config/global.json`. */
@@ -326,7 +323,7 @@ export const viemGateReaders = (
     const value = await publicClient.readContract({
       address,
       abi: AUTHORITY_ABI,
-      functionName: getter as 'owner' | 'pauserWallet',
+      functionName: getter,
     })
     return value as string
   },
@@ -411,19 +408,14 @@ export const PRE_BROADCAST_GATE_ENFORCE_ENV = 'PRE_BROADCAST_GATE_ENFORCE'
 /**
  * Whether a pre-broadcast refusal is binding.
  *
- * Off unless the variable is exactly `'true'`. Anything else — unset, empty,
- * `'1'`, `'TRUE'`, `'yes'` — reads as off, because the failure this default
- * protects against is an outage: the gate re-derives its attested set from one
- * fresh local build of the current checkout, so any contract not redeployed
- * since the compiler moved grades MISMATCH. Measured on `LiFiDiamond` across
- * mainnet, arbitrum, base, optimism, polygon and bsc — six honest deploys, six
- * MISMATCHes. Every timelock batch targets the diamond, so enforcing today
- * would flip effectively every queued operation to `blocked`, which is durable
- * and needs a manual requeue per row.
- *
- * A pure function of the environment rather than a module constant so both
- * modes are reachable from a test without spawning the executor, which would
- * run the real thing.
+ * Off unless the variable is exactly `'true'`; anything else — unset, empty,
+ * `'1'`, `'TRUE'`, `'yes'` — reads as off. The fail-closed reflex is wrong
+ * here: the gate re-derives its attested set from one fresh local build of the
+ * current checkout, so every contract not redeployed since the compiler moved
+ * grades MISMATCH — `LiFiDiamond` among them, which every timelock batch
+ * targets. Until the set is anchored on the WP-5.2 attestation store,
+ * enforcing refuses effectively all honest traffic, durably, one manual
+ * requeue per row.
  *
  * @param env - The environment to read, normally `process.env`.
  * @returns True only for the exact opt-in.
@@ -435,11 +427,9 @@ export const isPreBroadcastGateEnforcing = (env: {
 /**
  * The message for a refusal the run declined to act on.
  *
- * Distinct from {@link buildGateGapAlert}, which says the gate proceeded
- * *without* a verdict. Here the gate reached one and refused, and shadow mode
- * broadcast anyway — so a reader who saw the gap wording would conclude nothing
- * was checked, when in fact something was checked and found wrong. The two
- * cases warrant different responses and must not share a sentence.
+ * Must not share wording with {@link buildGateGapAlert}: that one says nothing
+ * was checked, this one says something was checked and found wrong, and the
+ * two warrant different responses.
  *
  * @param input - The network and operation, the disposition, and its findings.
  * @returns The message, or null when there is no refusal to report.
