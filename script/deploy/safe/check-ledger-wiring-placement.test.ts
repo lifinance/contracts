@@ -1,5 +1,5 @@
 /**
- * Where the check ledger is created, written and rendered inside
+ * Where the check ledger is created and written inside
  * `confirm-safe-tx.ts` — not what it decides.
  *
  * What it decides is driven for real in `check-ledger.test.ts` and
@@ -164,7 +164,7 @@ describe('a network the run skipped does not block it', () => {
    * The distinction is the whole point: an outcome that *answered* is a
    * verified "nothing here", while a read that *failed* established nothing and
    * must stay unverified. Recording the second as a pass is how a run that
-   * examined two networks out of three reports `3/3 network results verified`.
+   * examined two networks out of three rolls up all three as verified.
    *
    * `read-failed` and `prepare-error` are deliberately absent: both throw, so
    * the run aborts and the networks it never reached *should* roll up as
@@ -197,7 +197,7 @@ describe('a network the run skipped does not block it', () => {
       const branch = SOURCE.slice(start, end)
 
       // Without a row the network stays in the denominator, rolls up as missing
-      // and produces VERDICT: BLOCKED on a run where nothing was wrong…
+      // and hard-blocks the verdict on a run where nothing was wrong…
       expect(branch).toContain(recorder)
       // …and with the wrong row it goes green on a network nothing examined.
       const wrong =
@@ -221,7 +221,8 @@ describe('a network the run skipped does not block it', () => {
    * calls `runMain` at module scope, so importing it runs the CLI, and both
    * helpers are module-private. Asserting only the anchor and the prose left the
    * status free — flipping `recordNothingToGrade` to `error` kept the whole
-   * directory green while reinstating the spurious BLOCKED it exists to prevent.
+   * directory green while reinstating the spurious hard block it exists to
+   * prevent.
    */
   const RECORDERS = [
     ['const recordNothingToGrade = (', "status: 'pass'", "anchor: 'A-LOCAL'"],

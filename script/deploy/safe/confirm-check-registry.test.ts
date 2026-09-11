@@ -383,9 +383,9 @@ describe('the registry is usable by the ledger it feeds', () => {
     expect(stored.anchor).toBe('A-MONGO')
   })
 
-  // End of the escalated finding, at the surface the signer actually reads: a
-  // first deployment used to print ALL CHECKS GREEN on an anchor that had
-  // decided nothing.
+  // End of the escalated finding: a first deployment must never reduce to a
+  // verified run on an anchor that decided nothing. Asserted through the
+  // renderer, which EXSC-994 decides whether to put in front of a signer.
   it('does not render a first deployment as a verified run', () => {
     const ledger = targetStateLedger()
     recordCheck(

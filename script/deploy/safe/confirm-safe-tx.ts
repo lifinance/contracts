@@ -140,6 +140,12 @@ const getCodehashDeps = (): ISignTimeCodehashDeps => {
 // Created once the run's network set is known, because the ledger's
 // denominator is that set: a check that never ran on a network must show as a
 // missing row rather than shrink the total it is measured against.
+//
+// Composed, never read. Only a `pass` counts toward the verified coverage, and
+// every status a correct Add/Replace cut produces is `needs-ack` whose
+// acknowledgement lands in `acknowledgementLedger` — so a correct rollout would
+// grade 0/N. EXSC-994 settles the verdict before anything reads these rows, so
+// what the comments below say a row does to one describes that consumer.
 let checkLedger: ICheckLedger | undefined
 
 const recordEveryCheck = (
@@ -1579,14 +1585,6 @@ const main = defineCommand({
       // if the run succeeded.
       const executionsFailed =
         globalFailedExecutions.length > 0 || globalTimeoutExecutions.length > 0
-
-      // The ledger is composed but deliberately not rendered. `summariseLedger`
-      // counts only a `pass` as verified, and every status covering a real
-      // Add/Replace cut is `needs-ack` whose acknowledgement lands in a
-      // different ledger — so a fully correct rollout closes `0/N verified`
-      // while a run that graded nothing closes green. EXSC-994 decides what the
-      // verdict should say, and whether it should be printed at all, before any
-      // of it reaches a signer.
 
       if (networkOutcomes.length > 0) {
         consola.info('=== Change Review Summary ===')
