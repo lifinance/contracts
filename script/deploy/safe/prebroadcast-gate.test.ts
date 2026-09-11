@@ -374,7 +374,7 @@ describe('shadow mode', () => {
       network: 'arbitrum',
       operationId: '0xop',
       disposition: 'BLOCK',
-      findings: ['LiFiDiamond codehash MISMATCH'],
+      findings: ['LiFiDiamond.owner() holds 0xee…, main declares 0xa1…'],
     }
 
     it('says the operation executed despite the refusal', () => {
@@ -382,7 +382,7 @@ describe('shadow mode', () => {
       expect(message).toContain('BLOCK')
       expect(message).toContain('arbitrum')
       expect(message).toContain('0xop')
-      expect(message).toContain('LiFiDiamond codehash MISMATCH')
+      expect(message).toContain('LiFiDiamond.owner()')
       expect(message).toContain('OVERRIDDEN by shadow mode')
     })
 

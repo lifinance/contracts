@@ -116,8 +116,8 @@ export interface IObservedTarget {
  * say what their machine saw, and the value of that record is that three
  * signers' copies are comparable to each other — which they are only if every
  * machine hashes the same bytes it read, with nothing derived from a local
- * build folded in. Grading these against an attested set is EXSC-952's job,
- * once there is a set nobody's laptop produced.
+ * build folded in. Grading these against an attested set is EXSC-1004's job,
+ * once EXSC-952 has minted a set nobody's laptop produced.
  *
  * @param address - Lowercased address from the calldata.
  * @param contractName - Name the deployments file bound to it, if any.

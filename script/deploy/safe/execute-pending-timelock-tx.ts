@@ -1686,15 +1686,15 @@ async function revalidateFoldedRemovalsOrAbort(
  *
  * Runs before the interactive prompt so an operator is never asked to authorise
  * a broadcast the gate is about to refuse, and before the folded-removal guard
- * because that guard's reads assume the code it inspects is the code we
- * attested — a proven integrity failure makes its verdict meaningless.
+ * because that guard reasons about a diamond whose authorities it assumes are
+ * ours — an owner that has moved makes its verdict meaningless.
  *
  * Only binding when {@link isPreBroadcastGateEnforcing} says so. In shadow mode
- * — the default — a refusal is logged and alerted and the operation still
- * executes, because the set the verdict is derived from refuses honest traffic
- * until it is anchored on a real attestation store (EXSC-952). That holds for
- * every way the gate can decline to clear an operation, a refusal and a throw
- * alike: shadow mode always returns `ok`.
+ * — the default — a refusal is logged, nothing is sent to Slack, and the
+ * operation still executes, because a `HOLD` refuses the broadcast and an
+ * authority read that fails intermittently would otherwise stop honest rollouts
+ * fleet-wide. That holds for every way the gate can decline to clear an
+ * operation, a refusal and a throw alike: shadow mode always returns `ok`.
  *
  * When enforcing, verdicts map onto the existing {@link GuardOutcome} states: a
  * proven failure is durable and flips the row to `blocked`; anything unverified

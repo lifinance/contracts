@@ -44,7 +44,8 @@ export interface ISignedCodehashEntry {
    * Raw, never masked. The record's value is that three signers' copies are
    * comparable to each other, which holds only if every machine hashed the
    * bytes it read with nothing derived from its own build folded in. Comparing
-   * these against an attested set is EXSC-952's job.
+   * these against an attested set is EXSC-1004's job, once EXSC-952 has
+   * minted a set to compare against.
    */
   rawHash: string | undefined
   /** Byte length as deployed. */
