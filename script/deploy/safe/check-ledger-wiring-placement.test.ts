@@ -10,6 +10,8 @@
  * fails them:
  *
  * - deleting either call site;
+ * - restoring the render, which puts a verdict that inverts back in front of a
+ *   signer;
  * - recording per proposal, which lets `rollUpChecks` read two proposals on one
  *   network as a retry and a later clean one erase an earlier refusal;
  * - leaving a network the run skipped in the denominator, where it rolls up as
@@ -251,5 +253,22 @@ describe('a network the run skipped does not block it', () => {
     expect(
       countOf(/recordNothingToGrade\(|recordCouldNotGrade\(/g)
     ).toBeGreaterThanOrEqual(5)
+  })
+})
+
+describe('the verdict stays withheld', () => {
+  it('does not render the ledger', () => {
+    // Only a `pass` counts toward the verified coverage while every status a
+    // correct Add/Replace cut produces is `needs-ack`, so a correct rollout
+    // grades 0/N and a run that graded nothing grades green. EXSC-994 owns
+    // fixing that before any of it is printed.
+    //
+    // `summariseLedger` is pinned alongside the renderer because it is where
+    // the inversion lives: the render is a thin wrapper over it, this file
+    // already imports from that module, and printing its verdict directly
+    // would restore the display without naming the renderer at all.
+    expect(SOURCE).not.toMatch(
+      /renderCheckLedger|render-check-ledger|summariseLedger/
+    )
   })
 })
