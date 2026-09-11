@@ -231,7 +231,8 @@
       "_nativeAddress": {
         "configFileName": "networks.json",
         "keyInConfigFile": ".<NETWORK>.nativeAddress",
-        "allowToDeployWithZeroAddress": "true"
+        "allowToDeployWithZeroAddress": "true",
+        "getter": "NATIVE_ADDRESS"
       }
     }
   },

@@ -1,7 +1,6 @@
 {
   "EmergencyPauseFacet.pauserWallet": "a LI.FI-operated wallet rather than an external counterparty; covered by the wallet-role checks",
   "GasZipPeriphery.LIFI_DIAMOND": "resolved from the deploy log, not config; covered by the periphery presence and registry checks",
-  "GenericSwapFacetV3.NATIVE_ADDRESS": "stable binds its wrapped native instead of the configured nativeAddress sentinel, so annotating it would report a live deployment red before that mismatch is settled — blocked by EXSC-966",
   "LiFiDEXAggregator.BENTO_BOX": "no config value exists to compare against — every deployment passes address(0) for _bentoBox by design",
   "Permit2Proxy.LIFI_DIAMOND": "resolved from the deploy log, not config; covered by the periphery presence and registry checks",
   "ReceiverAcrossV3.executor": "resolved from the deploy log, not config; covered by the periphery presence and registry checks",
