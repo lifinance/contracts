@@ -24,7 +24,8 @@
  * 9. the integrity assertions — run and displayed
  * 10. the executability simulation, the RPC quorum read and the calldata
  *     address check — each evaluated and displayed
- * 11. `recordProposalChecks` — every verdict above, onto the run ledger
+ * 11. `proposalCheckResults` — the ledger-bearing verdicts above, collected
+ *     for the run ledger; the calldata address check is displayed only
  * 12. `evaluateProposalIntegrity`, the fingerprint and the two keys
  * 13. the pre-prompt `networkOutcomes.push`
  * 14. the action prompt, then `continue` on "Do Nothing"

@@ -313,10 +313,11 @@ describe('each gate that owns a ledger row hands the recorder its verdict', () =
    * The gates whose verdict is collected in the loop, by the reader that
    * produces it, the evaluator that grades it and the field it arrives under.
    *
-   * A registered check the recorder is never given a verdict for is not a gap
-   * the type system sees: the row falls through to the unresolved branch and
-   * records an `error`, so the run blocks for an evidence reason and the gate
-   * reads as wired.
+   * Every field of `IProposalCheckVerdicts` is a required key, so omitting one
+   * is a type error and not what this pins. What it pins is a field that is
+   * present and fed something other than the gate's own verdict: the row then
+   * falls through to the unresolved branch and records an `error`, so the run
+   * blocks for an evidence reason and the gate still reads as wired.
    */
   const collected = [
     {
@@ -348,8 +349,13 @@ describe('each gate that owns a ledger row hands the recorder its verdict', () =
       // instead would turn "nobody asked" into "the chain agreed" — the
       // false-green path the collectors exist to close.
       const { body } = proposalLoop()
+      // Every assignment form, compound included: `rpcQuorum ||= <verdict>`
+      // in the catch is exactly how a fabricated green gets in, and a bare-`=`
+      // pattern does not see it.
       const assignments =
-        body.match(new RegExp(`\\b${field}\\s*=(?!=)`, 'gu')) ?? []
+        body.match(
+          new RegExp(`\\b${field}\\s*(?:\\?\\?|\\|\\||&&)?=(?!=)`, 'gu')
+        ) ?? []
       const fromEvaluator =
         body.match(
           new RegExp(

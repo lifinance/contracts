@@ -186,13 +186,15 @@ describe('renderCancelRecommendation', () => {
   // action taken — an operator would otherwise look for a cancel that never
   // happened.
   it('names the verdict as a recommendation', () => {
-    const line = renderCancelRecommendation(
-      decideRevertedOperation(signals()),
-      OP_ID
-    )
+    const decision = decideRevertedOperation(signals())
+    const line = renderCancelRecommendation(decision, OP_ID)
 
-    expect(line).toContain('would')
+    expect(line).toContain('recommends')
+    expect(line).toContain(decision.action)
     expect(line).toContain(OP_ID)
+    // The intent, asserted rather than left to the wording: nothing in the line
+    // may read as an action already carried out.
+    expect(line).not.toMatch(/\b(cancelled|canceled|executed|blocked|held)\b/u)
   })
 })
 
@@ -280,14 +282,24 @@ describe('where the executor evaluates the matrix', () => {
     // the attested build exists, so every verdict the executor can assemble
     // short-circuits to hold; branching on it would hold and page every
     // operation on every pass.
-    const packed = EXECUTOR.replace(/\s+/gu, '')
-    const reads = packed.match(/\bdecision\b[.,)]/gu) ?? []
-    const reporting =
-      packed.match(
-        /renderCancelRecommendation\(decision,|decision\.notes\b/gu
+    //
+    // Counted over every occurrence of the bare identifier rather than over
+    // `decision.` reads: `const { action } = decision` carries the verdict out
+    // under a new name, and a property-access match cannot see that. Each use
+    // must be one of the three permitted ones, so a fourth fails whatever it
+    // spells.
+    const block = EXECUTOR.slice(
+      EXECUTOR.indexOf('const decision = decideRevertedOperation({'),
+      EXECUTOR.indexOf('if (!shouldBlockAfterRevert(revertCount)) {')
+    )
+    const uses = block.match(/(?<![$\w])decision(?![$\w])/gu) ?? []
+    const permitted =
+      block.match(
+        /const decision = decideRevertedOperation\(\{|renderCancelRecommendation\(decision,|(?<![$\w])decision\.notes(?![$\w])/gu
       ) ?? []
 
-    expect(reads.length).toBeGreaterThan(0)
-    expect(reporting.length).toBe(reads.length)
+    expect(block).toContain('const decision = decideRevertedOperation({')
+    expect(uses.length).toBe(3)
+    expect(permitted.length).toBe(uses.length)
   })
 })

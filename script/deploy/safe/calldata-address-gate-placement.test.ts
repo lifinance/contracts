@@ -43,8 +43,13 @@ describe('the calldata address check surfaces before the signing decision', () =
     )
   })
 
-  it('resolves them against the record and renders the verdict', () => {
-    expect(CONFIRM).toContain('evaluateCalldataAddresses(')
+  it('grades the references it collected, not a narrowed set', () => {
+    // Pins the *use*, not just the call. An emptied or filtered list — the
+    // obvious way to quiet a noisy gate — satisfies a presence check on
+    // `evaluateCalldataAddresses(` while grading nothing the payload carries.
+    const packed = CONFIRM.replace(/\s+/gu, '')
+
+    expect(packed).toContain('evaluateCalldataAddresses({network,references,')
     expect(CONFIRM).toContain('renderCalldataAddresses(calldataAddresses)')
   })
 

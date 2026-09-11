@@ -344,10 +344,11 @@ export const executabilityCheckResult = (
  * refusal to sign. So a quorum that was not reached is recorded as an acknowledgement,
  * which puts it on the signer's screen without blocking the run.
  *
- * `agreed-absent` is the exception worth naming: the providers did agree, and
- * what they agreed on is that nothing is at the address. That is the loudest
- * thing this read can say, so it is recorded as an acknowledgement rather than
- * folded into the pass its `status` shares a prefix with.
+ * The branch keys on `reachesQuorum`, never on the status text, which is what
+ * keeps `agreed-absent` out of the pass its name shares a prefix with: the
+ * providers did agree there, and what they agreed on is that nothing is at the
+ * address, so `evaluateRpcQuorum` leaves `reachesQuorum` false and the row is an
+ * acknowledgement.
  *
  * @param verdict - What `evaluateRpcQuorum` decided.
  * @param network - The network the read was made on.

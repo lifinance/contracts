@@ -143,4 +143,4 @@ export const renderCancelRecommendation = (
   decision: ICancelDecision,
   operationId: string
 ): string =>
-  `Cancel matrix on ${operationId}: would ${decision.reason} → ${decision.action} (${decision.detail})`
+  `Cancel matrix on ${operationId}: recommends ${decision.action} — ${decision.reason} (${decision.detail})`
