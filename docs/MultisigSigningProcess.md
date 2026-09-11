@@ -210,7 +210,31 @@ before they sign, and `propose-to-safe.ts` resolves the same intent up front in
 `runPropose`, so an unset ticket costs one message
 rather than a signature or a device confirmation per network. Those pre-checks
 run only on the branches that actually propose; a staging or testnet-only run, a
-`--check` audit and a `--dryRun` need no ticket. Entry points:
+`--check` audit and a `--dryRun` need no ticket.
+
+`SAFE_PROPOSAL_TICKET` is the channel every path reads; `--ticket` is offered by
+`propose-to-safe.ts`, `propose-to-safe-tron.ts`, `unpauseAllDiamonds.ts` and
+`add-safe-owners-and-threshold.ts`, and by no other route. Plenty of scripts
+reach those four with no flag of their own — the bash `sendOrPropose` chokepoint,
+`proposePeripheryWithWhitelist.ts`, `shared/propose-diamond-cut.ts`,
+`cleanUpProdDiamond.ts` and Tron's `deploy-and-register-periphery.ts` among
+them. On all of those the exported variable is the channel, and a missing
+ticket still costs nothing, because the funnel they enter refuses before it
+signs. None of them is closed to a flag either: the bash chokepoint builds
+`propose-to-safe.ts`'s command out of named flags rather than passing its six
+positionals through, so `--ticket` would be one more element of that array,
+and `cleanUpProdDiamond.ts` already threads a signing-options object down the
+positional helpers it reaches the TS `sendOrPropose` through. They are simply unwired.
+
+What costs a signature is the set carrying no entry-point check at all: the
+`script/tasks/propose*ChainIdMappings.ts` scripts and
+`proposeMegaETHBridgeRegistrations.ts` propose through `proposeSafeTx` with no
+check of their own in front of it, so they are refused only at the store —
+after a signature has been spent.
+Where flag and variable are both set the flag wins, and a valueless `--ticket`
+falls through to the variable rather than consuming the slot.
+
+Entry points:
 
 - **`script/deploy/safe/propose-to-safe.ts`** (`runPropose`) — the main
   funnel, invoked by the bash `sendOrPropose` chokepoint in
@@ -647,9 +671,11 @@ or change any. Restoring capability always requires the Safe.
 **A Linear ticket is required here too — there is no break-glass exemption.**
 Both unpause routes are ordinary Safe proposals, so the mandatory ticket link
 applies unchanged: `export SAFE_PROPOSAL_TICKET=<url|TEAM-123>` before running
-`unpauseAllDiamonds.ts` or `diamondEMERGENCYPause.sh`, or pass `--ticket` where
-the script offers it. An incident is when the record matters most, and the cost
-is one `export` before anything is signed. The check runs at each script's
+`unpauseAllDiamonds.ts` or `diamondEMERGENCYPause.sh`. `unpauseAllDiamonds.ts`
+also takes `--ticket <url|TEAM-123>`; `diamondEMERGENCYPause.sh` has no flag of
+its own, so there the exported variable is the only channel. An incident is when
+the record matters most, and the cost is one `export` before anything is signed.
+The check runs at each script's
 entry rather than only in `storeTransactionInMongoDB`, because the funnel check
 alone spends a signature per network before refusing — and on
 `unpauseAllDiamonds.ts` the per-network `catch` then swallows the refusal, so a

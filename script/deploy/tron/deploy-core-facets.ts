@@ -15,6 +15,7 @@ import { consola } from 'consola'
 import type { IDeploymentResult, SupportedChain } from '../../common/types'
 import { EnvironmentEnum } from '../../common/types'
 import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
+import { redactUrls } from '../../utils/redactUrls'
 import {
   getEnvVar,
   saveDiamondDeployment,
@@ -75,7 +76,7 @@ async function deployCoreFacetsImpl(options: {
   // Get RPC URL and API key configuration (automatically handles TronGrid API key)
   const { rpcUrl, headers } = getTronRPCConfig(networkName, options.verbose)
 
-  consola.info(`RPC URL: ${rpcUrl}`)
+  consola.info(`RPC URL: ${redactUrls(rpcUrl)}`)
 
   // Get the correct private key based on environment
   let privateKey: string

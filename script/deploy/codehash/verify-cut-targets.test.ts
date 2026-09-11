@@ -44,6 +44,7 @@ const attested = (
   lineage = 'main@abc1234'
 ): IAttestedBuild => ({
   lineage,
+  provenance: 'A-LOCAL',
   maskedHash,
   rawByteLength: 100,
   rawHash: maskedHash,
