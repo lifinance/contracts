@@ -174,8 +174,9 @@ describe('manifestEntryFrom', () => {
   })
 
   it('refuses an artifact whose own settings contradict the profile', () => {
-    // Why a build under another profile can reach this at all: the refusal in
-    // `manifestEntryFrom`.
+    // Without this the floor build is filed under `default`, with
+    // `coveredProfiles` vouching for a toolchain that never produced these
+    // bytes.
     const refused = manifestEntryFrom(
       IDENTITY,
       keyFor(),
@@ -186,7 +187,58 @@ describe('manifestEntryFrom', () => {
 
     expect(refused.ok).toBe(false)
     expect(refused.ok === false && refused.reason).toBe(
-      'artifact was built for evm london, but profile default pins cancun'
+      'artifact was built for evm london, but profile default pins cancun — minting it would file the build under a toolchain it was not built with'
+    )
+  })
+
+  it('reads a matching evmVersion the profile spells differently', () => {
+    // Case and surrounding whitespace are format, not version: refusing over
+    // them is a false red on a build that matches, the same normalisation
+    // `audit-build-bridge.ts` and `lineage-scope.ts` apply to this field.
+    const built = manifestEntryFrom(
+      IDENTITY,
+      keyFor(),
+      DEFAULT_PROFILE,
+      { runtimeHex: CODE_A },
+      { ...HASHED_SETTINGS, evmVersion: ' Cancun ' }
+    )
+
+    expect(built.ok).toBe(true)
+  })
+
+  it('separates an artifact that reports no evmVersion from one that contradicts', () => {
+    // `String(builtFor)` would report `built for evm undefined`, dressing up
+    // "said nothing" as "said something wrong" in the only line the skip
+    // report shows.
+    const { evmVersion: _dropped, ...withoutEvmVersion } = HASHED_SETTINGS
+    const refused = manifestEntryFrom(
+      IDENTITY,
+      keyFor(),
+      DEFAULT_PROFILE,
+      { runtimeHex: CODE_A },
+      withoutEvmVersion
+    )
+
+    expect(refused.ok).toBe(false)
+    expect(refused.ok === false && refused.reason).toBe(
+      "artifact reports no evmVersion, so nothing corroborates profile default's cancun pin"
+    )
+  })
+
+  it('refuses an evmVersion that is not a string, whatever it stringifies to', () => {
+    // `String(['cancun'])` is `'cancun'`, so a stringifying comparison lets a
+    // settings blob that never named a version pass as one that did.
+    const refused = manifestEntryFrom(
+      IDENTITY,
+      keyFor(),
+      DEFAULT_PROFILE,
+      { runtimeHex: CODE_A },
+      { ...HASHED_SETTINGS, evmVersion: ['cancun'] }
+    )
+
+    expect(refused.ok).toBe(false)
+    expect(refused.ok === false && refused.reason).toContain(
+      'reports no evmVersion'
     )
   })
 
