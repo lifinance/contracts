@@ -1260,11 +1260,12 @@ async function getPendingOperations(
         }
 
         const baseOp: Omit<ITimelockOperation, 'functionName'> = {
-          // The stored id, not the `opId` derived above. The pre-broadcast gate
-          // asks the chain to hash these parameters and compares the answer
-          // against this field, so carrying the derivation here would make that
-          // keccak(params) against keccak(params) — an identity that cannot
-          // fail. Trust check 1 has already proven the two equal.
+          // The stored id, not the `opId` derived above — the two are equal by
+          // trust check 1, so this changes no value. It changes where the
+          // pre-broadcast gate's id comes from: the gate compares this field
+          // against the chain's hash of these same parameters, and sourcing it
+          // from the derivation makes that comparison depend on trust check 1
+          // still standing upstream for its meaning.
           id: row.operationId,
           index: 0n,
           predecessor,
@@ -1759,16 +1760,19 @@ async function enforcePreBroadcastGateOrAbort(
     if (!isDryRun) await notifyFailure(error)
   }
 
-  // Shadow mode reports what could not be checked and lets the operation
-  // through, exactly as the uncovered-chain path does; see
-  // {@link unverifiedGateOutcome} for why a throw must not refuse here.
+  // Shadow mode reports what could not be checked and clears the operation,
+  // exactly as the uncovered-chain path does; see {@link unverifiedGateOutcome}
+  // for why a throw must not refuse here. Totality rests on the alert calls
+  // being unable to throw — `sendNotificationWithRetry` swallows a terminal
+  // failure unless asked not to, and asking would put this gate back in the
+  // business of stopping broadcasts.
   const abortUnverified = async (
     gap: string,
     error: unknown
   ): Promise<GuardOutcome> => {
     if (unverifiedGateOutcome(process.env) === 'ok') {
       consola.warn(
-        `${networkPrefix} 🕶️  Shadow mode: ${gap} — reporting only, the operation will execute.`,
+        `${networkPrefix} 🕶️  Shadow mode: ${gap} — reporting only, the gate will not stop this operation.`,
         error
       )
       await alertGap([`${gap} for ${operation.id}`])
@@ -1795,9 +1799,10 @@ async function enforcePreBroadcastGateOrAbort(
     )
   }
 
-  // A record that could not be looked up is not a record that is absent: only
-  // the second is an alert, so a cluster outage holds rather than reporting a
-  // gap in the audit trail that may not exist.
+  // A record that could not be looked up is not a record that is absent. The
+  // gate alerts on the second; this path reports the first as a gap in what
+  // could be checked, so a store outage never reads as a hole in the audit
+  // trail that may not exist.
   let signTimeRecord: unknown
   try {
     signTimeRecord = await fetchSignedSetRecord(networkName, operation.id)

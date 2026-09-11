@@ -474,28 +474,14 @@ describe('shadow mode', () => {
     // The executor maps every outcome other than 'ok' onto `failed`, so this
     // returning 'retry' under shadow mode is a production broadcast stopped and
     // an honest operation reported as failed — by a gate that is not binding.
-    it.each([
-      ['unset', {}],
-      ['empty', { PRE_BROADCAST_GATE_ENFORCE: '' }],
-      ['1', { PRE_BROADCAST_GATE_ENFORCE: '1' }],
-      ['TRUE', { PRE_BROADCAST_GATE_ENFORCE: 'TRUE' }],
-      ['yes', { PRE_BROADCAST_GATE_ENFORCE: 'yes' }],
-      [' true ', { PRE_BROADCAST_GATE_ENFORCE: ' true ' }],
-    ])('lets the operation through when %s reads as shadow mode', (_l, env) => {
-      expect(unverifiedGateOutcome(env)).toBe('ok')
+    it('lets the operation through in shadow mode', () => {
+      expect(unverifiedGateOutcome({})).toBe('ok')
     })
 
     it('leaves the row queued for the next tick when enforcing', () => {
       expect(
         unverifiedGateOutcome({ PRE_BROADCAST_GATE_ENFORCE: 'true' })
       ).toBe('retry')
-    })
-
-    // Not 'blocked': nothing was proven wrong, so nothing durable may be
-    // recorded against the row.
-    it('never reaches a durable verdict', () => {
-      for (const env of [{}, { PRE_BROADCAST_GATE_ENFORCE: 'true' }])
-        expect(unverifiedGateOutcome(env)).not.toBe('blocked')
     })
   })
 

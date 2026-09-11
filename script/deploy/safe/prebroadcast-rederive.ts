@@ -60,10 +60,10 @@ export interface IPreBroadcastAuthority {
 
 export interface IPreBroadcastGateInput {
   /**
-   * The id the executor is about to execute this operation under, as stored —
-   * never one re-derived from the parameters. Against a re-derivation the
-   * `onChainOperationId` comparison below is keccak(params) against
-   * keccak(params), an identity that cannot fail.
+   * The id the executor is about to execute this operation under, as stored.
+   * Passing one re-derived from the parameters below costs the
+   * `onChainOperationId` comparison what independence it has: it becomes
+   * keccak(params) against keccak(params), true whatever the caller was handed.
    */
   operationId: string
   /**
