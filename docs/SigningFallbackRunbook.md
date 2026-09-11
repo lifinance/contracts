@@ -327,9 +327,11 @@ MAIN_NET=$(git show "origin/main:config/networks.json" 2>/dev/null)
 # 1. The two fields in the network entry that decide correctness — NOT the whole
 #    entry. `targetEvmVersion` replaced `deployedWith{Evm,Solc}Version` on every
 #    network, so diffing the entry wholesale refuses every honest run.
-st_main=$(printf '%s' "$MAIN_NET" | jq -r ".$NET.status // \"ABSENT\"" 2>/dev/null)
-sa_main=$(printf '%s' "$MAIN_NET" | jq -r ".$NET.safeAddress // \"ABSENT\"" 2>/dev/null)
-sa_base=$(jq -r ".$NET.safeAddress // \"ABSENT\"" config/networks.json 2>/dev/null)
+# Bracket form, not `.$NET`: `0g` is a real network name and `jq '.0g'` is a
+# syntax error, which would refuse a legitimate network rather than check it.
+st_main=$(printf '%s' "$MAIN_NET" | jq -r --arg net "$NET" '.[$net].status // "ABSENT"' 2>/dev/null)
+sa_main=$(printf '%s' "$MAIN_NET" | jq -r --arg net "$NET" '.[$net].safeAddress // "ABSENT"' 2>/dev/null)
+sa_base=$(jq -r --arg net "$NET" '.[$net].safeAddress // "ABSENT"' config/networks.json 2>/dev/null)
 
 echo "status on main:       ${st_main:-ABSENT}"
 [ "${st_main:-ABSENT}" = "active" ] \
@@ -345,7 +347,8 @@ case "${sa_main:-ABSENT}" in
 esac
 
 # The rest of the entry, for you to read — never a gate.
-diff <(printf '%s' "$MAIN_NET" | jq ".$NET") <(jq ".$NET" config/networks.json)
+diff <(printf '%s' "$MAIN_NET" | jq --arg net "$NET" '.[$net]') \
+     <(jq --arg net "$NET" '.[$net]' config/networks.json)
 
 # 2. Only the field --timelock actually sends to. The rest of the deployment
 #    file is facet-address churn and will always differ.
@@ -394,19 +397,28 @@ not a note: it means the baseline would address a Safe or timelock the org has
 moved on from. `status` and `safeAddress` both live inside the entry step 1
 compares, so all three are covered — by `$DRIFT`, not by your reading.
 
-Which is why the proposal is gated on that variable rather than on having read
-the output. `${DRIFT:-1}` defaults to **1**, so pasting this without having run
-the block above refuses instead of proposing:
+Which is why the proposal is gated on those variables rather than on having read
+the output. Both default to the refusing value, so pasting this without having
+run §3 and §5 refuses instead of proposing:
 
 ```bash
-[ "${DRIFT:-1}" -eq 0 ] || echo "✗ refusing: §5's config check did not pass"
-[ "${DRIFT:-1}" -eq 0 ] && bun propose-safe-tx --network <network> --to <target> \
+READY=1
+[ "${ENVCONFLICT:-1}" -eq 0 ] || { echo "✗ §3 not clean: an export beats .env"; READY=0; }
+[ "${DRIFT:-1}"       -eq 0 ] || { echo "✗ §5 not clean: config drift or a check proved nothing"; READY=0; }
+# --ledger only: §2's resolve step must have passed.
+# [ "${LEDGEROK:-0}" -eq 1 ] || { echo "✗ §2 not clean: a Ledger package does not resolve"; READY=0; }
+
+[ "$READY" -eq 1 ] || echo "✗ refusing to propose — fix the above and re-run the checks"
+[ "$READY" -eq 1 ] && bun propose-safe-tx --network "$NET" --to <target> \
   --calldataFile <path> --timelock
 ```
 
-(Two statements rather than `exit 1`, because this is pasted into an
-interactive shell and `exit` would close it — losing the tunnel §3 set up
-along with it.)
+**`--network "$NET"`, not a placeholder you retype.** The checks above validated
+exactly that value; a hand-typed name here would propose against a network
+nothing verified, which is the one way to hold a green gate and still be wrong.
+
+(Statements rather than `exit 1`, because this is pasted into an interactive
+shell and `exit` would close it — losing the tunnel §3 set up along with it.)
 
 There is no `--ticket` flag: that gate does not exist at the baseline, which
 is what §6's third bullet is about.
