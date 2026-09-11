@@ -14,19 +14,26 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import * as dotenv from 'dotenv'
 import { type Collection } from 'mongodb'
-import { type Address, type Hex } from 'viem'
+import { createPublicClient, http, type Address, type Hex } from 'viem'
 
 import networksData from '../../../config/networks.json'
+import { redactUrls } from '../../utils/redactUrls'
 import { buildExplorerAddressUrl } from '../../utils/viemScriptHelpers'
 import { createDefaultCache } from '../shared/deployment-cache'
 import { sanitizeProvenanceText } from '../shared/git-provenance'
 import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
 
 import {
-  createCheckLedger,
-  recordCheck,
-  type ICheckLedger,
-} from './check-ledger'
+  evaluateCalldataAddresses,
+  renderCalldataAddresses,
+  type ICalldataAddressVerdict,
+  type IDeploymentIndexEntry,
+} from './calldata-address-check'
+import {
+  buildDeploymentIndex,
+  collectAddressReferences,
+} from './calldata-address-collector'
+import { createCheckLedger, type ICheckLedger } from './check-ledger'
 import { readBooleanFlag, readValueFlag } from './cli-flags'
 import {
   assertCodehashSignGateAllowsSigning,
@@ -44,7 +51,7 @@ import {
 } from './codehash-sign-gate-deps'
 import {
   CONFIRM_CHECK_DEFINITIONS,
-  targetStateCheckResult,
+  recordProposalChecks,
 } from './confirm-check-registry'
 import {
   assertIntegrityAssertsAllowSigning,
@@ -73,6 +80,15 @@ import {
   evaluateDelegateCallGate,
   renderDelegateCallGate,
 } from './delegatecall-gate'
+import {
+  collectExecutabilityInput,
+  createExecutabilityChainReader,
+} from './executability-collector'
+import {
+  evaluateExecutability,
+  renderExecutability,
+  type IExecutabilityVerdict,
+} from './executability-simulation'
 import type { ILedgerAccountResult } from './ledger'
 import {
   LEDGER_FLEX_HASH_NOTE,
@@ -90,6 +106,16 @@ import {
 } from './pinned-target-state'
 import { reconcileAllSubmittedSafeTxs } from './reconcile'
 import { renderCheckLedger } from './render-check-ledger'
+import {
+  evaluateRpcQuorum,
+  renderRpcQuorum,
+  type IRpcQuorumVerdict,
+} from './rpc-quorum'
+import {
+  codeReadLabel,
+  collectProviderObservations,
+  createCodeReader,
+} from './rpc-quorum-collector'
 import {
   formatDecodedTxDataForDisplay,
   getTargetName,
@@ -134,6 +160,35 @@ let codehashDeps: ISignTimeCodehashDeps | undefined
 const getCodehashDeps = (): ISignTimeCodehashDeps => {
   codehashDeps ??= createSignTimeCodehashDeps()
   return codehashDeps
+}
+
+// One read of the deploy log per run, shared by every proposal: the log is the
+// only source written before a proposal exists, and re-reading it per proposal
+// would re-fetch the whole fleet on a fleet-wide rollout.
+let deploymentRecords: IDeploymentIndexEntry[] | undefined
+let deploymentRecordsRead = false
+const readDeploymentRecords = async (): Promise<
+  IDeploymentIndexEntry[] | undefined
+> => {
+  if (deploymentRecordsRead) return deploymentRecords
+  deploymentRecordsRead = true
+  if (!process.env.MONGODB_URI) return undefined
+
+  try {
+    // Same config the run's warm refresh uses, so this reads that cache rather
+    // than re-fetching the fleet.
+    deploymentRecords = await createDefaultCache({
+      mongoUri: process.env.MONGODB_URI,
+      databaseName: 'contract-deployments',
+      batchSize: 100,
+    }).get('production')
+  } catch {
+    // Left undefined, which the index reports as unavailable. An empty record
+    // read as available would grade every address as one nobody deployed.
+    deploymentRecords = undefined
+  }
+
+  return deploymentRecords
 }
 
 // Created once the run's network set is known, because the ledger's
@@ -566,8 +621,6 @@ const processTxs = async (
     // Target-state lines are graded here, not inside the sanitising detail
     // block: they are computed verdicts, not stored proposer-controlled fields.
     for (const line of formatTargetStateLines(targetState)) consola.info(line)
-    if (checkLedger)
-      recordCheck(checkLedger, targetStateCheckResult(targetState, network))
 
     // The struct the signature covers, never the stored row: createTransaction
     // normalises an absent operation to Call, so those two copies can disagree.
@@ -753,6 +806,127 @@ const processTxs = async (
       )
     }
     renderIntegrityAsserts(integrityRun).forEach((line) => consola.info(line))
+
+    // The remaining sign-time gates. Run here because every verdict above now
+    // exists, so all of them reach the ledger in one ordered step rather than
+    // in whatever order their call sites happen to sit in.
+    const endpoints = chain.rpcUrls.default.http
+    const primaryEndpoint = rpcUrl ?? endpoints[0]
+
+    // Tron is reached through its own executor, not through `eth_call`, so the
+    // EVM simulator does not cover it. That is a declared limit rather than a
+    // read that failed, which is why the ledger row below says so and asks for
+    // an acknowledgement instead of reporting a verified simulation.
+    const evmSimulatable =
+      !isTronNetworkKey(network) && Boolean(primaryEndpoint)
+
+    let executability: IExecutabilityVerdict | undefined
+    if (evmSimulatable && primaryEndpoint)
+      try {
+        const client = createPublicClient({
+          chain,
+          transport: http(primaryEndpoint),
+        })
+        executability = evaluateExecutability(
+          await collectExecutabilityInput(
+            {
+              network,
+              safeAddress,
+              to: tx.safeTransaction.data.to as Address,
+              data: (tx.safeTransaction.data.data ?? '0x') as Hex,
+              nonce: {
+                proposalNonce: Number(tx.safeTransaction.data.nonce),
+                safeNonce: Number(onChainNonce),
+                pendingNonces: initialTxs.map((pending) =>
+                  Number(pending.safeTx.data.nonce)
+                ),
+              },
+            },
+            createExecutabilityChainReader(client)
+          )
+        )
+      } catch (error) {
+        // Left undefined, which the ledger records as unverified. A thrown
+        // collection is not a simulation that found nothing wrong.
+        consola.warn(
+          `    Executability: the simulation could not be run — ${redactUrls(
+            error instanceof Error ? error.message : String(error)
+          )}`
+        )
+      }
+
+    if (executability)
+      renderExecutability(executability).forEach((line) => consola.info(line))
+
+    let rpcQuorum: IRpcQuorumVerdict | undefined
+    if (evmSimulatable && endpoints.length > 0)
+      try {
+        const target = tx.safeTransaction.data.to as Address
+        rpcQuorum = evaluateRpcQuorum(
+          await collectProviderObservations(
+            endpoints,
+            createCodeReader(target, chain.id)
+          )
+        )
+        renderRpcQuorum(rpcQuorum, codeReadLabel(target, network)).forEach(
+          (line) => consola.info(line)
+        )
+      } catch (error) {
+        consola.warn(
+          `    RPC quorum: the read could not be made — ${redactUrls(
+            error instanceof Error ? error.message : String(error)
+          )}`
+        )
+      }
+
+    // Report-only and never gated on: the record is written by the deploying
+    // machine, so this catches the typo and the address nobody deployed, not a
+    // proposer who controls that machine. It carries no ledger row because the
+    // only anchor it could rest on reports rather than decides — see
+    // `check-ledger.ts`'s reporting-only anchors.
+    let calldataAddresses: ICalldataAddressVerdict | undefined
+    try {
+      const { references, undecodable } = collectAddressReferences(
+        tx.safeTransaction.data.data
+          ? [tx.safeTransaction.data.data as Hex]
+          : []
+      )
+      const records = await readDeploymentRecords()
+      calldataAddresses = evaluateCalldataAddresses(
+        {
+          network,
+          references,
+          ...(undecodable.length > 0 ? { undecodable } : {}),
+        },
+        buildDeploymentIndex(
+          records,
+          references.map((reference) => reference.address)
+        )
+      )
+      renderCalldataAddresses(calldataAddresses).forEach((line) =>
+        consola.info(line)
+      )
+    } catch (error) {
+      consola.warn(
+        `    Calldata addresses: the check could not be run — ${
+          error instanceof Error ? error.message : String(error)
+        }`
+      )
+    }
+
+    if (checkLedger)
+      recordProposalChecks(checkLedger, {
+        network,
+        integrity: integrityRun,
+        targetState,
+        executability,
+        ...(evmSimulatable
+          ? {}
+          : {
+              executabilityOutOfScope: `${network} is executed through its own chain executor, which the EVM simulator does not cover`,
+            }),
+        rpcQuorum,
+      })
 
     const integrity = evaluateProposalIntegrity({ nonceStatus })
     // Said before the action prompt, not after it: a verdict the operator can no
