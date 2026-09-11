@@ -4,6 +4,9 @@
  * Import this from `confirm-safe-tx.ts`. It replaces the calldata-keyed action
  * cache: an operator's *action* is never remembered, while their *acknowledgement*
  * of a reviewed change rolls up across the networks it is genuinely the same on.
+ *
+ * The acknowledgement is implicit: selecting an action on a proposal
+ * acknowledges it. So this module records and rolls up, and never gates.
  */
 
 import { encodeAbiParameters, keccak256, type Hex } from 'viem'
@@ -115,12 +118,13 @@ export interface IProposalIntegrity {
  * A future nonce is legitimate: a lower-nonce proposal executing earlier in the
  * same run makes it current. Only a consumed nonce is a failure.
  *
- * Reachability worth knowing: a failing verdict only reaches the acknowledgement
- * gate via a bare `Sign`, because every execute-shaped action on a stale nonce is
- * already terminated earlier in `processTxs`.
+ * Reachability worth knowing: a failing verdict is only ever seen on a bare
+ * `Sign`, because every execute-shaped action on a stale nonce is already
+ * terminated earlier in `processTxs`. It is warned about and recorded, and
+ * blocks nothing on its own.
  *
  * @param input - The nonce status resolved against the Safe's on-chain nonce.
- * @returns Whether the proposal may be acknowledged, and why not if it may not.
+ * @returns Whether the proposal's nonce is usable, and why not if it is not.
  */
 export const evaluateProposalIntegrity = (
   input: IProposalIntegrityInput
@@ -142,36 +146,6 @@ export const createAcknowledgementLedger = (): IAcknowledgementLedger => ({
   acknowledgedProposalKeys: new Map(),
 })
 
-/**
- * @param ledger - The run's ledger.
- * @param acknowledgementKey - The effect key to look up.
- * @returns Whether this effect was acknowledged earlier in the run.
- */
-export const isChangeAcknowledged = (
-  ledger: IAcknowledgementLedger,
-  acknowledgementKey: Hex
-): boolean =>
-  (ledger.acknowledgedProposalKeys.get(acknowledgementKey)?.size ?? 0) > 0
-
-export interface IAcknowledgementPromptInput {
-  alreadyAcknowledged: boolean
-  integrityOk: boolean
-}
-
-/**
- * Whether the operator must acknowledge this proposal before it proceeds.
- *
- * A failing nonce verdict always re-prompts: a rolled-up acknowledgement was
- * earned on a proposal whose nonce was usable and says nothing about one whose
- * nonce is not.
- *
- * @param input - Whether the effect is already acknowledged and whether the nonce verdict passed.
- * @returns Whether to prompt.
- */
-export const shouldPromptForAcknowledgement = (
-  input: IAcknowledgementPromptInput
-): boolean => !input.alreadyAcknowledged || !input.integrityOk
-
 export interface IAcknowledgementRecord {
   acknowledgementKey: Hex
   proposalKey: string
@@ -179,8 +153,7 @@ export interface IAcknowledgementRecord {
 }
 
 /**
- * Records an acknowledgement so later networks carrying the same effect skip the
- * review prompt.
+ * Records an acknowledgement of one proposal against its effect.
  *
  * @param ledger - The run's ledger, mutated in place.
  * @param record - The effect, the proposal it was acknowledged on, and its nonce verdict.
@@ -221,7 +194,7 @@ export interface IChangeRollup {
   noncesUsable: number
   acknowledged: number
   staleNetworks: string[]
-  /** Every proposal for this effect had a usable nonce AND was acknowledged. */
+  /** Every proposal for this effect had a usable nonce AND was acted on. */
   complete: boolean
 }
 
@@ -283,8 +256,10 @@ export const rollUpByChange = (
 /**
  * Renders the roll-up as printable lines.
  *
- * The counts are named for exactly what they measure — a usable nonce and a
- * recorded review — so the marker is never read as "the run succeeded".
+ * The counts are named for exactly what they measure — a usable nonce, and a
+ * proposal the operator acted on — so the marker is never read as "the run
+ * succeeded". `acted on` is deliberately not `reviewed`: acknowledgement is
+ * implicit in selecting an action, and nothing here observes a review.
  * Execution outcomes are reported separately by the caller.
  *
  * @param rollups - Rollups from `rollUpByChange`.
@@ -299,7 +274,7 @@ export const renderChangeRollup = (rollups: IChangeRollup[]): string[] =>
     return `${rollup.complete ? '✓' : '✗'} payload ${rollup.fingerprint.slice(
       0,
       10
-    )} · nonce usable ${rollup.noncesUsable}/${rollup.networks} · reviewed ${
+    )} · nonce usable ${rollup.noncesUsable}/${rollup.networks} · acted on ${
       rollup.acknowledged
     }/${rollup.networks}${stale}`
   })

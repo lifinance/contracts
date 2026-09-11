@@ -23,6 +23,8 @@ export interface IProposeToSafeTronOptions {
   /** When true with generic mode, Safe → target with calldata (no timelock schedule). */
   direct?: boolean
   privateKey?: string
+  /** `--ticket`; falls back to `SAFE_PROPOSAL_TICKET`. */
+  ticket?: string
 }
 
 /** Resume state for `deploy-safe-tron.ts` (singleton + factory addresses). */

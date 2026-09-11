@@ -22,6 +22,7 @@ import { consola } from 'consola'
 import { TronWeb } from 'tronweb'
 
 import { sleep } from '../../utils/delay'
+import { redactUrls } from '../../utils/redactUrls'
 import { getEnvVar, getRPCEnvVarName } from '../../utils/utils'
 import type { Environment } from '../types'
 /* eslint-enable import/first */
@@ -48,7 +49,9 @@ export function initTronWeb(
     rpcUrl = getEnvVar(envVarName)
   }
 
-  consola.debug(`Initializing TronWeb with ${env} network: ${rpcUrl}`)
+  consola.debug(
+    `Initializing TronWeb with ${env} network: ${redactUrls(rpcUrl)}`
+  )
 
   // TronGrid rate-limits anonymous traffic hard enough that read-heavy scripts (the health
   // check's refund-wallet-access in particular) fail with 429 before finishing. Send

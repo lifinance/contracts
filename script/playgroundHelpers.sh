@@ -782,7 +782,7 @@ function analyzeFailingTx() {
     return 1
   fi
 
-  echo "Analyzing transaction: $TX_HASH on network: $NETWORK with RPC URL: $RPC_URL"
+  echo "Analyzing transaction: $TX_HASH on network: $NETWORK with RPC URL: $(redactRpcUrl "$RPC_URL")"
   echo ""
 
   # Step 1: Run cast run

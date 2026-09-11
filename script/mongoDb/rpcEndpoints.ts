@@ -90,12 +90,22 @@ export function hostOf(url: string): string {
   }
 }
 
+/** Whether a host belongs to TronGrid, whose root is a native HTTP API rather than JSON-RPC. */
+const isTronGridHost = (hostname: string): boolean =>
+  hostname === 'trongrid.io' || hostname.endsWith('.trongrid.io')
+
 /**
  * The URL a network's JSON-RPC traffic actually goes to.
  *
  * TronGrid's stored root serves Tron's native HTTP API and answers JSON-RPC only under
  * `/jsonrpc`, so anything that speaks JSON-RPC — the viem transport and the reachability probe
  * alike — has to ask for the same URL, or the probe reports a healthy chain as unreachable.
+ *
+ * That is a fact about TronGrid, not about Tron, so it is applied only to TronGrid hosts.
+ * Any other provider's Tron endpoint is used exactly as stored — including a bare host:
+ * dRPC's keyless root 404s under `/jsonrpc`, and where a keyed per-project endpoint serves
+ * JSON-RPC cannot be derived from the URL, so such an endpoint must be **stored as its
+ * full JSON-RPC URL**.
  */
 export function normalizeRpcUrlForNetwork(
   networkName: string,
@@ -110,10 +120,12 @@ export function normalizeRpcUrlForNetwork(
     return rpcUrl
   }
 
+  if (!isTronGridHost(parsed.hostname)) return rpcUrl
+
+  const path = parsed.pathname.replace(/\/+$/, '')
   // The route belongs on the path: appending it to the raw string would push it behind a query
   // string or fragment, leaving the request pointed at the root — and a keyed TronGrid URL
   // carries its key in the query.
-  const path = parsed.pathname.replace(/\/+$/, '')
   parsed.pathname = path.endsWith('/jsonrpc') ? path : `${path}/jsonrpc`
   return parsed.toString()
 }

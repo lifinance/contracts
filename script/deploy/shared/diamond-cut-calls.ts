@@ -8,12 +8,14 @@
  * once instead of once per caller.
  */
 
-import { decodeFunctionData, getAddress, isHex, parseAbi } from 'viem'
+import { decodeFunctionData, getAddress, isHex } from 'viem'
 import { toFunctionSelector, type Address, type Hex } from 'viem'
 
 import {
+  TIMELOCK_SCHEDULE_ABI,
   TIMELOCK_SCHEDULE_BATCH_ABI,
   TIMELOCK_SCHEDULE_BATCH_SELECTOR,
+  TIMELOCK_SCHEDULE_SELECTOR,
 } from '../safe/timelock-abi'
 
 import { DIAMOND_CUT_ABI } from './constants'
@@ -21,19 +23,6 @@ import { DIAMOND_CUT_ABI } from './constants'
 export const DIAMOND_CUT_SELECTOR = toFunctionSelector(
   'diamondCut((address,uint8,bytes4[])[],address,bytes)'
 ).toLowerCase() as Hex
-
-/**
- * `LiFiTimelockController` inherits OpenZeppelin's `TimelockController`, so the
- * singular `schedule` is callable by the Safe even though this repo's tooling
- * only ever emits `scheduleBatch`.
- */
-const TIMELOCK_SCHEDULE_ABI = parseAbi([
-  'function schedule(address target, uint256 value, bytes payload, bytes32 predecessor, bytes32 salt, uint256 delay)',
-])
-
-const TIMELOCK_SCHEDULE_SELECTOR = toFunctionSelector(
-  'schedule(address,uint256,bytes,bytes32,bytes32,uint256)'
-)
 
 /**
  * Whether the cut selector appears in `data` on a byte boundary.

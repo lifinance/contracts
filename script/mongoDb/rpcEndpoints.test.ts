@@ -424,17 +424,16 @@ describe('findEndpointIndex', () => {
 })
 
 describe('normalizeRpcUrlForNetwork', () => {
-  // The stored value: config/networks.json holds the TronGrid root, and only the JSON-RPC route
-  // answers a JSON-RPC body — probing the root reports every Tron chain as unreachable.
-  const TRONGRID_ROOT = 'https://api.example-trongrid.invalid'
+  // The rewrite is keyed on the TronGrid host family, which a synthetic host cannot stand in for.
+  const TRONGRID_ROOT = 'https://api.trongrid.io'
 
-  it('routes a Tron endpoint to its JSON-RPC path', () => {
-    expect(normalizeRpcUrlForNetwork('tron', TRONGRID_ROOT)).toBe(
-      `${TRONGRID_ROOT}/jsonrpc`
-    )
+  it('routes a TronGrid endpoint to its JSON-RPC path', () => {
+    const normalizedUrl = normalizeRpcUrlForNetwork('tron', TRONGRID_ROOT)
+
+    expect(normalizedUrl).toBe(`${TRONGRID_ROOT}/jsonrpc`)
   })
 
-  it('routes a Tron testnet endpoint the same way', () => {
+  it('routes a TronGrid testnet endpoint the same way', () => {
     expect(normalizeRpcUrlForNetwork('tronshasta', TRONGRID_ROOT)).toBe(
       `${TRONGRID_ROOT}/jsonrpc`
     )
@@ -455,6 +454,55 @@ describe('normalizeRpcUrlForNetwork', () => {
     expect(normalizeRpcUrlForNetwork('arbitrum', KEYLESS_PUBLIC)).toBe(
       KEYLESS_PUBLIC
     )
+  })
+
+  // The two hosts config/networks.json actually stores. Used literally because the rewrite is
+  // keyed on the TronGrid host family, which a synthetic host cannot stand in for.
+  const TRONGRID_HOST = 'https://api.trongrid.io'
+
+  // A provider that scopes the chain onto the path is already pointed at JSON-RPC there.
+  // dRPC answers `eth_blockNumber` at `/tron/<key>` and 404s under `/tron/<key>/jsonrpc`, so
+  // appending the route makes every Tron read fail against it.
+  it('leaves a path-scoped Tron endpoint untouched', () => {
+    const pathScoped = 'https://lb.example.invalid/tron/AbCdEf0123456789xyz'
+    expect(normalizeRpcUrlForNetwork('tron', pathScoped)).toBe(pathScoped)
+  })
+
+  it('leaves a path-scoped Tron endpoint with a trailing slash untouched', () => {
+    const pathScoped = 'https://lb.example.invalid/tron/AbCdEf0123456789xyz/'
+    expect(normalizeRpcUrlForNetwork('tron', pathScoped)).toBe(pathScoped)
+  })
+
+  it('leaves a path-scoped Tron endpoint untouched on a testnet key too', () => {
+    const pathScoped = 'https://lb.example.invalid/tron-shasta/AbCdEf0123456789'
+    expect(normalizeRpcUrlForNetwork('tronshasta', pathScoped)).toBe(pathScoped)
+  })
+
+  it('leaves a non-TronGrid bare host untouched', () => {
+    const bare = 'https://tron.example.invalid'
+    expect(normalizeRpcUrlForNetwork('tron', bare)).toBe(bare)
+  })
+
+  // TronGrid's non-root paths are its native HTTP API, not JSON-RPC, so the route still gets
+  // appended there. Without this the relaxation above would silently strip the route from a
+  // stored TronGrid URL that carries any path at all.
+  it('still routes a TronGrid endpoint that carries a native-API path', () => {
+    expect(normalizeRpcUrlForNetwork('tron', `${TRONGRID_HOST}/wallet`)).toBe(
+      `${TRONGRID_HOST}/wallet/jsonrpc`
+    )
+  })
+
+  it('normalises a trailing slash after the route on a TronGrid host', () => {
+    expect(normalizeRpcUrlForNetwork('tron', `${TRONGRID_HOST}/jsonrpc/`)).toBe(
+      `${TRONGRID_HOST}/jsonrpc`
+    )
+  })
+
+  // Suffix matching on a bare domain would treat this attacker-controlled host as TronGrid.
+  it('does not treat a host merely ending in the TronGrid name as TronGrid', () => {
+    const lookalike =
+      'https://trongrid.io.example.invalid/tron/AbCdEf0123456789'
+    expect(normalizeRpcUrlForNetwork('tron', lookalike)).toBe(lookalike)
   })
 
   it('keeps a credential query parameter behind the route', () => {

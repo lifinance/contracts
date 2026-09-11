@@ -41,6 +41,14 @@ Reuse these instead of inline regex for selector/address checks:
 | `isValidTronAddress VALUE` | Returns 0 if Tron Base58 (T + 33 alphanumeric) |
 | `isZeroAddress VALUE` | Returns 0 if zero address (0x0...0) |
 
+### Never echo a full RPC URL
+
+`ETH_NODE_URI_*` embeds the provider key, and `cast`/`forge` put `--rpc-url` in their error
+text, so echoing captured output publishes a live credential. Pass it through `redactRpcUrl`
+from `helperFunctions.sh`, or `bgRedactUrl` inside `script/emergency/`, which must not depend
+on `helperFunctions.sh` loading. `getRPCUrl`'s own stdout return stays verbatim — callers
+consume it. Full rule: `[CONV:REDACT-RPC-URL]` in `200-typescript.md`.
+
 ### Contract Interaction Helpers
 
 **Preferred**: use `universalCast ACTION NETWORK [rest...]` so all cast-like operations go through one entry point. New networks are handled inside the underlying helpers and `universalCast` supports them automatically.
