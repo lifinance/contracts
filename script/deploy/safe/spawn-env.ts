@@ -75,9 +75,10 @@ const CREDENTIAL_CLASSES: readonly {
  *
  * `NO_ETHERSCAN_API_KEY_REQUIRED` names a marker rather than holding a key:
  * `helperFunctions.sh` compares the name against this literal to allow an
- * empty key, and exports the value as the explorer key when it is set, so a
- * malformed value would be sent as a present one. The two anvil entries are
- * the publicly known local-node key and `127.0.0.1`.
+ * empty key, and exports it so `foundry.toml` — which substitutes it as the
+ * explorer key on every network that needs none — has something to read. A
+ * malformed value would therefore be sent as a present key. The two anvil
+ * entries are the publicly known local-node key and the local node's endpoint.
  */
 const NOT_A_CREDENTIAL: ReadonlySet<string> = new Set([
   'NO_ETHERSCAN_API_KEY_REQUIRED',

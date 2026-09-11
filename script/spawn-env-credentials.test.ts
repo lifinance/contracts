@@ -55,21 +55,43 @@ const REPO_ROOT = join(import.meta.dir, '..')
 const CREDENTIAL_NAME = `[A-Z0-9_]*(?:${CREDENTIAL_CORES.join('|')})[A-Z0-9_]*`
 
 /**
- * Matches `delete env.PRIVATE_KEY`, `delete env['PRIVATE_KEY']`,
- * `delete process.env.PRIVATE_KEY` and the optional-chained forms, whatever the
- * holder is called.
+ * A `holder.NAME` or `holder['NAME']` access, with the name captured, whatever
+ * the holder is called and through an optional chain.
  *
- * Only literal member access is visible here. A computed key
- * (`delete env[name]`), a concatenated one, `Reflect.deleteProperty`, and
- * dropping a name by rest-destructuring all withhold nothing in the same way
- * and are all invisible to a source scan — deciding them needs a parser and a
+ * Only literal member access is visible here. A computed key (`env[name]`), a
+ * concatenated one, `Reflect.deleteProperty`, and dropping a name by
+ * rest-destructuring all withhold nothing in the same way and are all
+ * invisible to a source scan — deciding them needs a parser and a
  * constant-folding pass. The hermetic spawn below is what covers the mechanism
- * itself; this pattern only catches the spelling people actually reach for.
+ * itself; this pattern only catches the spellings people actually reach for.
  */
-const DELETES_A_CREDENTIAL = new RegExp(
-  `delete\\s+[A-Za-z_$][\\w$.?]*(?:\\.${CREDENTIAL_NAME}\\b|\\[['"\`]${CREDENTIAL_NAME}['"\`]\\])`,
+const CREDENTIAL_ACCESS = `[A-Za-z_$][\\w$.?]*(?:\\.(${CREDENTIAL_NAME})\\b|\\[['"\`](${CREDENTIAL_NAME})['"\`]\\])`
+
+/** Matches `delete env.PRIVATE_KEY` and its bracketed and optional-chained forms. */
+const DELETES_A_CREDENTIAL = new RegExp(`delete\\s+${CREDENTIAL_ACCESS}`, 'u')
+
+/**
+ * Matches `env.PRIVATE_KEY = undefined`, which leaves the name unset for the
+ * child's re-load exactly as a `delete` does — measured, not assumed: a child
+ * reports the fixture value's full length for both, and length 0 only for
+ * `= ''`.
+ *
+ * Covered because the convention this file enforces says to *set* a name
+ * rather than delete it, and `undefined` is the one value that obeys the
+ * letter of that while reopening the hole it closes.
+ */
+const BLANKS_A_CREDENTIAL = new RegExp(
+  `${CREDENTIAL_ACCESS}\\s*=\\s*undefined\\b`,
   'u'
 )
+
+/** The credential `code` unsets, by either spelling, or `undefined` for none. */
+const credentialUnsetBy = (code: string): string | undefined => {
+  const match =
+    DELETES_A_CREDENTIAL.exec(code) ?? BLANKS_A_CREDENTIAL.exec(code)
+
+  return match?.[1] ?? match?.[2]
+}
 
 /**
  * Marks a delete whose reason is written down next to it. The reason is free
@@ -133,28 +155,29 @@ const blankBlockComments = (source: string): string =>
  * needs code no formatter would leave, and no shipped test is affected.
  */
 const joinDeleteOperands = (source: string): string =>
-  source.replace(
-    /\bdelete\s+[A-Za-z_$][\w$]*(?:\s*\??\.\s*[\w$]+|\s*\??\.?\s*\[[^\]]*\])*/gu,
-    (expression) =>
-      `delete ${expression.replace(/^delete\s+/u, '').replace(/\s+/gu, '')}`
-  )
+  source
+    .replace(
+      /\bdelete\s+[A-Za-z_$][\w$]*(?:\s*\??\.\s*[\w$]+|\s*\??\.?\s*\[[^\]]*\])*/gu,
+      (expression) =>
+        `delete ${expression.replace(/^delete\s+/u, '').replace(/\s+/gu, '')}`
+    )
+    // The same break on the other spelling: prettier puts `undefined` on its
+    // own line when the assignment passes 80 columns, leaving a statement that
+    // ends at the `=` and carries no value to judge.
+    .replace(/=\s*\n\s*undefined\b/gu, '= undefined')
 
 /**
  * One entry per statement, not per line: a marker earns an exemption for the
- * delete it sits beside, and `a; b` on one line is two deletes of which only
- * the annotated one may pass.
+ * unset it sits beside, and `a; b` on one line is two unsets of which only the
+ * annotated one may pass.
  */
 const statements = (source: string): string[] =>
   joinDeleteOperands(blankBlockComments(source))
     .split('\n')
     .flatMap((line) => line.split(';'))
 
-/** Matches a delete of exactly `name`, not of a longer name starting with it. */
-const DELETES_EXACTLY = (name: string): RegExp =>
-  new RegExp(`\\.${name}\\b|['"\`]${name}['"\`]`, 'u')
-
 /**
- * Statements that delete a credential and carry no marker.
+ * Statements that unset a credential and carry no marker.
  *
  * The marker is read before line comments are dropped, because the marker IS a
  * line comment; the drop then keeps prose that merely mentions a deletion —
@@ -162,17 +185,16 @@ const DELETES_EXACTLY = (name: string): RegExp =>
  */
 const unexemptedDeletions = (source: string): string[] =>
   statements(source).filter((statement) => {
-    const code = statement.replace(/\/\/.*$/u, '')
+    const unset = credentialUnsetBy(statement.replace(/\/\/.*$/u, ''))
 
     return (
+      unset !== undefined &&
       !statement.includes(EXEMPTION_MARKER) &&
-      DELETES_A_CREDENTIAL.test(code) &&
-      // A reviewed non-credential is not withheld either, so flagging its
-      // deletion would demand a marker for something no class claims — the
-      // scan and the sweep have to agree about a name or the pairing below
-      // means nothing. Anchored, so a longer name that merely starts with one
-      // of these is still judged on its own cores.
-      !NON_CREDENTIAL_NAMES.some((name) => DELETES_EXACTLY(name).test(code))
+      // Judged on the name actually unset, never on the statement's text: a
+      // reviewed non-credential mentioned anywhere else in the same statement
+      // — a sibling condition, say — would otherwise exempt the real
+      // credential being unset beside it.
+      !NON_CREDENTIAL_NAMES.includes(unset)
     )
   })
 
@@ -201,9 +223,9 @@ describe('no shipped test deletes a credential from a child environment', () => 
   })
 
   it('sees a delete prettier broke across the brackets', () => {
-    // The computed-key half of the same formatter break. The first version of
-    // the collapse excluded newlines inside the brackets, so this form read as
-    // `delete holder` — a clean result for the very shape it claimed to cover.
+    // The computed-key half of the same formatter break. The collapse has to
+    // reach across a newline inside the brackets, or this form reads as
+    // `delete holder` — a clean result for the very shape it claims to cover.
     expect(
       unexemptedDeletions(
         "  delete childEnv[\n    'PRIVATE_KEY_PRODUCTION'\n  ]\n"
@@ -224,10 +246,37 @@ describe('no shipped test deletes a credential from a child environment', () => 
     ).toEqual(['  delete env.PRIVATE_KEY_ANVIL_PRODUCTION'])
   })
 
+  it('does not let a non-credential elsewhere in the statement excuse one', () => {
+    // The exemption is keyed on the name actually unset. Read off the
+    // statement's text instead, a reviewed non-credential in a sibling
+    // condition silently exempts the real credential being deleted beside it.
+    expect(
+      unexemptedDeletions(
+        '  if (env.PRIVATE_KEY_ANVIL) delete env.PRIVATE_KEY_PRODUCTION\n'
+      )
+    ).toEqual([
+      '  if (env.PRIVATE_KEY_ANVIL) delete env.PRIVATE_KEY_PRODUCTION',
+    ])
+  })
+
+  it('sees a credential set to undefined, which unsets it as a delete does', () => {
+    // The convention says to set rather than delete, and `undefined` is the
+    // one value that keeps the letter of that while leaving the name unset for
+    // the child's re-load. Both the flat and the prettier-broken spelling.
+    expect(unexemptedDeletions('  env.PRIVATE_KEY = undefined\n')).toEqual([
+      '  env.PRIVATE_KEY = undefined',
+    ])
+    expect(
+      unexemptedDeletions(
+        "  childEnv['PRIVATE_KEY_PRODUCTION'] =\n    undefined\n"
+      )
+    ).toEqual(["  childEnv['PRIVATE_KEY_PRODUCTION'] = undefined"])
+  })
+
   it('sees a delete prettier broke across the dot', () => {
     // What the formatter produces from `delete process.env.X // marker` once
-    // the comment pushes the line past 80 columns. Before this was handled the
-    // statement read `delete process.env`, and the scan reported it clean.
+    // the comment pushes the line past 80 columns. Uncollapsed, the statement
+    // reads `delete process.env`, which carries no name for the scan to match.
     expect(
       unexemptedDeletions(
         '        delete process.env\n          .PRIVATE_KEY\n'
@@ -324,6 +373,10 @@ describe('no shipped test deletes a credential from a child environment', () => 
     // is the near miss the store half must not swallow.
     for (const source of [
       "env.PRIVATE_KEY = 'malformed-in-tests'",
+      // The empty string is a real value to the child, not an unset one —
+      // pinned against a spawn below — so it is a legitimate way to clear a
+      // name and must stay distinguishable from `= undefined`.
+      "env.PRIVATE_KEY = ''",
       'delete env.NODE_ENV',
       'delete env.SAFE_PROPOSAL_TICKET',
       'delete env.ENVIRONMENT',
@@ -472,6 +525,16 @@ describe('setting a credential, unlike deleting it, withholds it from a child', 
     expect(lengthInChild((env) => (env[NAME] = PASSED_VALUE))).toBe(
       String(PASSED_VALUE.length)
     )
+  })
+
+  it('re-loads a name set to undefined, and does not for an empty string', () => {
+    // Why the scan treats `= undefined` as a deletion and `= ''` as a value.
+    // Both obey the convention's letter — neither is a `delete` — but only one
+    // of them actually keeps the file's value out of the child.
+    expect(lengthInChild((env) => (env[NAME] = undefined as never))).toBe(
+      String(FIXTURE_VALUE.length)
+    )
+    expect(lengthInChild((env) => (env[NAME] = ''))).toBe('0')
   })
 })
 

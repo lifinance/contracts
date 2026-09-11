@@ -23,8 +23,10 @@ paths:
 A test that spawns a child must **set** every credential name to a dummy, never
 `delete` it. Bun re-loads the repo `.env` inside the child for every name the
 passed environment leaves unset, so deleting a name hands the real value back at
-full length. Use `withholdCredentials()` from
-`script/deploy/safe/spawn-env.ts` rather than rolling your own.
+full length. Setting it to `undefined` does the same thing — the name is still
+unset — while an empty string is a real value the child sees as empty. Use
+`withholdCredentials()` from `script/deploy/safe/spawn-env.ts` rather than
+rolling your own.
 
 A name is a credential when it carries one of the cores in that module's
 `CREDENTIAL_CLASSES` — read the table, don't keep a copy. Each core spans the
@@ -35,22 +37,23 @@ reason, because replacing its value would change what a child does rather than
 withhold anything.
 
 `script/spawn-env-credentials.test.ts` derives its source scan from those same
-cores, so the guard and the withholding widen together. Two consequences:
+cores, so the guard and the withholding widen together. Consequences:
 
-- **Deleting one of these names is red**, including in a test that never spawns.
-  When the delete is legitimate — an in-process test, or a child whose `cwd`
-  holds no `.env` — annotate it with a trailing `// spawn-env: <reason>` comment
-  on the delete's own line, and keep that delete a standalone statement: the
-  marker only counts on the line its delete ends on, and prettier relocates a
-  trailing comment when the delete is the body of an `if`/`else`, which
-  silently detaches it. Across the whole tree this costs two markers today, so
-  a widened core is not the marker tax it looks like.
+- **Unsetting one of these names is red** — by `delete` or by `= undefined`,
+  including in a test that never spawns. When it is legitimate — an in-process
+  test, or a child whose `cwd` holds no `.env` — annotate it with a trailing
+  `// spawn-env: <reason>` comment on the statement's own line, and keep that
+  statement standalone: the marker only counts on the line its statement ends
+  on, and prettier relocates a trailing comment when the unset is the unbraced
+  body of an `if`/`else`, which silently detaches it. Brace the branch. Widening
+  the cores past the signing keys cost two markers across the whole tree, so a
+  wider core is not the marker tax it looks like.
 - **A credential whose name carries no core is invisible** to both the scan and
   the sweep. Adding a new kind of secret to the store means adding its core,
   not assuming the pattern grew.
 - **Only the two `withholdCredentials` callers are covered.** Other tests that
   spawn a child build the environment by hand; nothing yet asserts that a
-  spawning test calls the helper.
+  spawning test calls the helper. Tracked in EXSC-996.
 
 ## Asserting rejections ([CONV:TEST-ASSERT-REJECTS])
 
