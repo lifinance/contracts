@@ -116,6 +116,11 @@ export interface IEntryRefused {
 
 /**
  * Names a lineage the way a signer will read it in a verdict.
+ *
+ * States the toolchain only. Where a build ran is not something the mint can
+ * observe — this same code produces the string on a laptop — so claiming it
+ * here would put an unearned provenance in front of the one reader whose job
+ * is to check provenance.
  * @param identity - the contract this build is of
  * @param profile - the compiler pair it was built under
  * @param solcVersion - the version the build's own trailer reported
@@ -125,7 +130,7 @@ const describeLineage = (
   profile: IMintProfile,
   solcVersion: string
 ): string => {
-  const built = `${identity.contractName}@${identity.version} built in CI`
+  const built = `${identity.contractName}@${identity.version}`
   if (profile.zksolcVersion === undefined)
     return `${built} (${profile.profile}: solc ${solcVersion}, ${profile.evmVersion})`
 
