@@ -42,17 +42,29 @@ interface IStatusMapping {
  * How each graded status reaches the ledger.
  *
  * Split by the anchor each status rests on, not by whether it is cleared to
- * proceed: the four record-derived statuses are `A-MONGO` because the value
- * that produced them came from a document the proposer writes, and the two
- * unreadable-calldata statuses resolve to nothing at all. Keyed exhaustively so
- * a status added to `TargetStateStatus` fails to compile here rather than
- * falling through to a default that would grade it green.
+ * proceed. Every status that had to resolve the proposed version through the
+ * deployment record is `A-MONGO` — including the three that then compared it
+ * against `origin/main`, because the proposer writes that record and so owns
+ * one side of the comparison. `A-MONGO` cannot decide a pass, so those three
+ * ask a human instead, which a `semantic` check may legitimately do.
+ *
+ * The three unresolvable statuses reach `A-UNRESOLVED` because nothing
+ * answered at all: an action that is not Add, Replace or Remove, calldata that
+ * could not be read, or an anchor that could not be reached.
+ *
+ * Keyed exhaustively so a status added to `TargetStateStatus` fails to compile
+ * here rather than falling through to a default that would grade it green.
  */
 const STATUS_MAPPING: Readonly<Record<TargetStateStatus, IStatusMapping>> = {
-  'matches-main': { status: 'pass', anchor: 'A-MAIN' },
-  'ahead-of-main': { status: 'pass', anchor: 'A-MAIN' },
-  removal: { status: 'pass', anchor: 'A-MAIN' },
-  'not-previously-targeted': { status: 'pass', anchor: 'A-MAIN' },
+  'matches-main': { status: 'needs-ack', anchor: 'A-MONGO' },
+  'ahead-of-main': { status: 'needs-ack', anchor: 'A-MONGO' },
+  // `origin/main` declares nothing for this contract, so nothing was compared.
+  // The common path, not an edge case: the target-state update merges only
+  // after execution, so every first deployment lands here.
+  'not-previously-targeted': { status: 'needs-ack', anchor: 'A-MONGO' },
+  // The removal branch returns before the anchor is read at all, so there is no
+  // claim on `origin/main` to make — the same shape as `no-diamond-cut` below.
+  removal: { status: 'pass', anchor: 'A-LOCAL' },
   // No cut to grade. A pass on `A-LOCAL` rather than a skipped row: the
   // calldata was read and found to install nothing, which is a verified fact
   // about this proposal, not an absence of evidence.
@@ -67,11 +79,17 @@ const STATUS_MAPPING: Readonly<Record<TargetStateStatus, IStatusMapping>> = {
   'pinned-state-unavailable': { status: 'error', anchor: 'A-UNRESOLVED' },
 }
 
-/** Worst-first, so reducing many findings to one row cannot lose a refusal. */
+/**
+ * Worst-first, so reducing many findings to one row cannot lose a refusal.
+ *
+ * `needs-ack` ranks below `error`: an acknowledgement has a human path and an
+ * unverified check has none, so a status someone can wave through must never
+ * stand in for one nothing could grade.
+ */
 const SEVERITY: readonly ICheckResult['status'][] = [
   'fail',
-  'needs-ack',
   'error',
+  'needs-ack',
   'pass',
 ]
 
@@ -116,7 +134,10 @@ export const targetStateCheckResult = (
     }
 
   let status: ICheckResult['status'] = 'pass'
-  let anchor: ICheckResult['anchor'] = 'A-MAIN'
+  // Replaced by the first finding, since every mapped status outranks the seed.
+  // `A-UNRESOLVED` rather than `A-MAIN` so the unreachable case still describes
+  // a row nothing decided.
+  let anchor: ICheckResult['anchor'] = 'A-UNRESOLVED'
   let worstRank = SEVERITY.length
 
   for (const finding of verdict.findings) {
@@ -151,4 +172,39 @@ export const targetStateCheckResult = (
         }
       : {}),
   }
+}
+
+/**
+ * Reduces every result a network produced to one row per check.
+ *
+ * `recordCheck` is called per proposal, but a ledger row is denominated per
+ * network, and `rollUpChecks` treats repeat calls for one `(checkId, network)`
+ * pair as retries — deliberately letting a later `pass` supersede an earlier
+ * `error`. Two proposals on one network are not a retry of each other, so the
+ * caller must reduce them here first: extending across proposals the same
+ * worst-first reduction `targetStateCheckResult` runs across findings.
+ *
+ * Grouped by `checkId` so a run recording several checks per proposal reduces
+ * each of them independently.
+ *
+ * @param results - Every result the network's proposals produced, in any order.
+ * @returns The worst result for each check, in the order the checks first reported.
+ */
+export const worstResultPerCheck = (
+  results: readonly ICheckResult[]
+): ICheckResult[] => {
+  const worst = new Map<string, ICheckResult>()
+
+  for (const result of results) {
+    const held = worst.get(result.checkId)
+    // Strictly worse, so a tie keeps the row already held — the earlier
+    // proposal's, which is the one the signer has already been shown.
+    if (
+      !held ||
+      SEVERITY.indexOf(result.status) < SEVERITY.indexOf(held.status)
+    )
+      worst.set(result.checkId, result)
+  }
+
+  return [...worst.values()]
 }

@@ -1,0 +1,176 @@
+/**
+ * Where the check ledger is created, written and rendered inside
+ * `confirm-safe-tx.ts` — not what it decides.
+ *
+ * What it decides is driven for real in `check-ledger.test.ts` and
+ * `confirm-check-registry.test.ts`. What cannot be driven at all is the script:
+ * `confirm-safe-tx.ts` calls `runMain` at module scope, so importing it runs the
+ * CLI, and reaching its loop needs MongoDB, a Safe and a Ledger. So the wiring
+ * is asserted on the source, and the assertions are shaped so each bug this file
+ * was written after fails them:
+ *
+ * - deleting either call site, which left the whole suite green while three
+ *   merged gates sat unreached;
+ * - recording per proposal, which lets `rollUpChecks` read two proposals on one
+ *   network as a retry and a later clean one erase an earlier refusal;
+ * - leaving a network the run skipped in the denominator, where it rolls up as
+ *   missing and blocks a run on which nothing was wrong;
+ * - gating the render on the ledger holding results, which suppresses the report
+ *   for exactly the runs that aborted before their first proposal.
+ *
+ * Anchored on call sites throughout, never on a rendered string: a display
+ * literal is reworded for reasons that have nothing to do with the wiring, and
+ * a placement test pinned to one fails the rewording instead of the regression.
+ */
+
+import { readFileSync } from 'fs'
+import { join } from 'path'
+
+import {
+  describe,
+  expect,
+  it,
+  // eslint-disable-next-line import/no-unresolved
+} from 'bun:test'
+
+const SOURCE = readFileSync(join(import.meta.dir, 'confirm-safe-tx.ts'), 'utf8')
+
+/**
+ * The per-proposal loop's body.
+ *
+ * Bounded by the loop's own dedented closing brace rather than by a character
+ * count: a fixed window stops covering the tail of the loop the first time
+ * anything is inserted near its top, and then reports a call site as absent
+ * rather than as misplaced. Both ends are guarded, because an unfound delimiter
+ * widens the window to the rest of the file instead of narrowing it.
+ */
+const proposalLoop = (): { start: number; end: number; body: string } => {
+  const start = SOURCE.indexOf('for (const tx of initialTxs')
+  expect(start).toBeGreaterThan(-1)
+  const end = SOURCE.indexOf('\n  }\n', start)
+  expect(end).toBeGreaterThan(start)
+
+  return { start, end, body: SOURCE.slice(start, end) }
+}
+
+const countOf = (pattern: RegExp): number =>
+  [...SOURCE.matchAll(pattern)].length
+
+describe('the check ledger is wired into the confirmation run', () => {
+  it('creates the ledger, records into it and renders it', () => {
+    // The paired positive for every negative below: an assertion that no call
+    // site is misplaced passes trivially against a file that has none.
+    expect(SOURCE).toContain('createCheckLedger({')
+    expect(SOURCE).toContain('recordCheck(checkLedger,')
+    expect(SOURCE).toContain('renderCheckLedger(checkLedger)')
+  })
+
+  it('fixes the denominator before the first network is processed', () => {
+    const created = SOURCE.indexOf('createCheckLedger({')
+    const networkLoop = SOURCE.indexOf(
+      'for (let i = 0; i < networks.length; i++)'
+    )
+
+    expect(networkLoop).toBeGreaterThan(-1)
+    // Created from the run's own network set, and before anything is graded: a
+    // ledger built later would take its denominator from whatever had already
+    // been reached.
+    expect(created).toBeLessThan(networkLoop)
+    expect(SOURCE).toContain('expectedNetworks: networks.filter(')
+  })
+})
+
+describe('one row per network, not one per proposal', () => {
+  it('grades every proposal inside the loop', () => {
+    const { body } = proposalLoop()
+
+    expect(body).toContain('targetStateCheckResult(targetState, network)')
+    expect(body).toContain('proposalChecks.push(')
+  })
+
+  it('records nothing from inside the loop', () => {
+    const { body } = proposalLoop()
+
+    // The bug: `recordCheck` per proposal. `rollUpChecks` treats two records for
+    // one (check, network) pair as a retry and lets a later `pass` supersede an
+    // earlier `error`, so the last proposal's verdict stood for the network.
+    expect([...body.matchAll(/recordCheck\(/g)]).toEqual([])
+  })
+
+  it('reduces the proposals worst-first and records once, after the loop', () => {
+    const { end } = proposalLoop()
+    const reduce = SOURCE.indexOf('worstResultPerCheck(proposalChecks)')
+
+    expect(reduce).toBeGreaterThan(-1)
+    // After the loop closes, so every proposal on the network has been graded
+    // before the one surviving row is written.
+    expect(reduce).toBeGreaterThan(end)
+    expect(SOURCE.slice(end)).toContain('recordCheck(checkLedger, result)')
+  })
+})
+
+describe('a network the run skipped does not block it', () => {
+  /**
+   * Every `prepare` outcome that continues the run without grading anything.
+   * `read-failed` and `prepare-error` are deliberately absent: both throw, so
+   * the run aborts and the networks it never reached *should* roll up as
+   * missing.
+   */
+  const SKIPPING_CASES = [
+    ["case 'nothing-actionable':", "case 'not-owner':"],
+    ["case 'not-owner':", "case 'owner-check-failed':"],
+    ["case 'owner-check-failed':", "case 'read-failed':"],
+  ] as const
+
+  it('records an explicit row in every branch that skips a network', () => {
+    for (const [open, close] of SKIPPING_CASES) {
+      const start = SOURCE.indexOf(open)
+      expect(start).toBeGreaterThan(-1)
+      const end = SOURCE.indexOf(close, start)
+      expect(end).toBeGreaterThan(start)
+
+      // Without this the network stays in the denominator, rolls up as missing
+      // and produces VERDICT: BLOCKED on a run where nothing was wrong.
+      expect(SOURCE.slice(start, end)).toContain('recordNoProposalGraded(')
+    }
+  })
+
+  it('records one for a network whose transactions never arrived', () => {
+    expect(SOURCE).toContain(
+      "recordNoProposalGraded(network, 'no pending transaction was fetched')"
+    )
+  })
+
+  it('says so on the row rather than claiming an anchor decided it', () => {
+    const helper = SOURCE.indexOf('const recordNoProposalGraded = (')
+    expect(helper).toBeGreaterThan(-1)
+    const body = SOURCE.slice(helper, SOURCE.indexOf('\n}\n', helper))
+
+    expect(body).toContain("anchor: 'A-LOCAL'")
+    expect(body).toContain('no proposal was graded on ')
+  })
+
+  it('keeps the helper reachable from every branch that needs it', () => {
+    // Four skip paths plus the empty-proposal branch inside processTxs.
+    expect(countOf(/recordNoProposalGraded\(/g)).toBeGreaterThanOrEqual(5)
+  })
+})
+
+describe('the report is printed whatever the ledger holds', () => {
+  it('renders in the finally block, after the signing decisions', () => {
+    const finallyBlock = SOURCE.indexOf('} finally {')
+    const render = SOURCE.indexOf('renderCheckLedger(checkLedger)')
+
+    expect(finallyBlock).toBeGreaterThan(-1)
+    // An aborted run is where the report matters most, so it cannot sit on the
+    // happy path.
+    expect(render).toBeGreaterThan(finallyBlock)
+  })
+
+  it('is not suppressed for a run that recorded nothing', () => {
+    // A ledger with no results renders as `VERDICT: BLOCKED — N unverified`,
+    // which is the single most important report there is; the old guard hid it
+    // for exactly the runs that aborted before the first proposal.
+    expect(SOURCE).not.toContain('checkLedger.results.length')
+  })
+})
