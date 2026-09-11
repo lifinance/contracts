@@ -175,6 +175,29 @@ Nothing enforces any of this, and one `bun install` in the clone can end it. The
 slower, correct alternative is a real `bun install` in the escape worktree
 against the baseline's own lockfile.
 
+Resolve them up front, so a broken link fails here rather than at Ledger-tap
+time:
+
+```bash
+LEDGEROK=1
+for m in @ledgerhq/hw-transport-node-hid @ledgerhq/hw-app-eth @ledgerhq/hw-transport; do
+  # `node`, NOT `bun`: bun auto-installs a missing package, so `bun -e
+  # "require.resolve(...)"` reports success for a name that does not exist and
+  # for an absent node_modules alike — it cannot fail, so it proves nothing.
+  if node -e "require.resolve('$m')" >/dev/null 2>&1
+  then echo "✓ $m"
+  else echo "✗ $m DOES NOT RESOLVE"; LEDGEROK=0
+  fi
+done
+[ "$LEDGEROK" -eq 1 ] \
+  && echo "✓ Ledger path ready" \
+  || echo "✗ STOP — fix this before the ceremony, not during it"
+```
+
+Only the first two are loaded; `@ledgerhq/hw-transport` is checked because it
+is declared in neither `package.json` and survives purely as a hoisted
+transitive, which is the one most likely to vanish under a reinstall.
+
 ## 3. What the environment needs
 
 Both entry points load `.env` themselves — `import 'dotenv/config'` in
@@ -188,16 +211,28 @@ then reads `process.env[keyType]` directly. So a stale value exported earlier
 in the session silently beats the file. Check both, and never print a value:
 
 ```bash
+ENVCONFLICT=0   # an export beating the file is a stop, not a note
+
 for v in SC_MONGODB_URI PRIVATE_KEY_PRODUCTION SAFE_SIGNER_PRIVATE_KEY; do
   grep -qE "^[[:space:]]*${v}=." .env \
     && echo "$v: declared in .env" || echo "$v: MISSING from .env"
 done
 
-# An export beats the file, so check the three by name — presence only, never
-# the value.
-[ -n "${SC_MONGODB_URI:-}" ]         && echo '  ⚠ SC_MONGODB_URI is exported here — the export wins'
-[ -n "${PRIVATE_KEY_PRODUCTION:-}" ] && echo '  ⚠ PRIVATE_KEY_PRODUCTION is exported here — the export wins'
-[ -n "${SAFE_SIGNER_PRIVATE_KEY:-}" ] && echo '  ⚠ SAFE_SIGNER_PRIVATE_KEY is exported here — the export wins'
+# An export beats the file, so check the three by name. Written out rather than
+# looped on purpose: `[ -n "${VAR:-}" ]` tests presence without expanding the
+# value anywhere, which an indirect lookup cannot do without routing it through
+# a subshell's stdout first.
+[ -n "${SC_MONGODB_URI:-}" ]          && { echo '  ⚠ SC_MONGODB_URI is exported here — the export wins';          ENVCONFLICT=1; }
+[ -n "${PRIVATE_KEY_PRODUCTION:-}" ]  && { echo '  ⚠ PRIVATE_KEY_PRODUCTION is exported here — the export wins';  ENVCONFLICT=1; }
+[ -n "${SAFE_SIGNER_PRIVATE_KEY:-}" ] && { echo '  ⚠ SAFE_SIGNER_PRIVATE_KEY is exported here — the export wins'; ENVCONFLICT=1; }
+
+if [ "$ENVCONFLICT" -ne 0 ]; then
+  echo "✗ STOP — two sources disagree and the export is the one that applies."
+  echo "  unset the names flagged above and restart the ceremony in a fresh"
+  echo "  shell. Do not proceed while reasoning about which value is in play."
+else
+  echo "✓ .env is the only source for all three"
+fi
 ```
 
 **An exported `SC_MONGODB_URI` does more than win — it splits the two halves
@@ -240,7 +275,13 @@ likely to bite:
   since retired, and answer with its stale addresses. `--network` is required
   by the baseline's `propose-to-safe.ts`,
   so there is no fan-out risk — the risk is that a name it accepts no longer
-  means what you think.
+  means what you think. **Neither case announces itself.** The baseline's
+  `propose-to-safe.ts` never reads `status` at all, so a retired network and a
+  live one take the identical path and nothing is printed either way; the
+  absent-versus-`inactive` split decides what a reconciler sees on `main`
+  afterwards, not whether the proposal gets made. §5's step 1 is the only thing
+  between you and a proposal against a retired network, which is why it refuses
+  rather than warns.
 - **`deployments/` is frozen too, and `--timelock` reads it.** The baseline's
   `propose-to-safe.ts` loads `deployments/<network>.json` whenever `--timelock`
   is passed and requires `LiFiTimelockController` in it, with a different
@@ -280,34 +321,68 @@ network you are targeting, not the whole file:
 ```bash
 NET=arbitrum   # substitute your target network before pasting
 
-M=$(mktemp); B=$(mktemp)
+DRIFT=0   # any check that does not positively pass sets this to 1
+MAIN_NET=$(git show "origin/main:config/networks.json" 2>/dev/null)
 
-# 1. The network's own entry, not the whole file — §4's other drift is noise here.
-git show "origin/main:config/networks.json" | jq ".$NET" > "$M" 2>/dev/null
-jq ".$NET" config/networks.json > "$B" 2>/dev/null
-if ! [ -s "$M" ] || ! [ -s "$B" ] || grep -qx null "$M" || grep -qx null "$B"; then
-  echo "✗ no entry on one side — typo'd network, jq missing, or absent at the"
-  echo "  baseline (§4). Either way THIS CHECK PROVED NOTHING; resolve it first."
-elif diff "$M" "$B" >/dev/null; then
-  echo "✓ networks.json[$NET] identical"
-else
-  echo "✗ networks.json[$NET] differs — read it:"; diff "$M" "$B"
-fi
+# 1. The two fields in the network entry that decide correctness — NOT the whole
+#    entry. `targetEvmVersion` replaced `deployedWith{Evm,Solc}Version` on every
+#    network, so diffing the entry wholesale refuses every honest run.
+st_main=$(printf '%s' "$MAIN_NET" | jq -r ".$NET.status // \"ABSENT\"" 2>/dev/null)
+sa_main=$(printf '%s' "$MAIN_NET" | jq -r ".$NET.safeAddress // \"ABSENT\"" 2>/dev/null)
+sa_base=$(jq -r ".$NET.safeAddress // \"ABSENT\"" config/networks.json 2>/dev/null)
+
+echo "status on main:       ${st_main:-ABSENT}"
+[ "${st_main:-ABSENT}" = "active" ] \
+  && echo "✓ $NET is active on main" \
+  || { echo "✗ $NET is '${st_main:-ABSENT}' on main, not active (§4) — STOP"; DRIFT=1; }
+
+echo "safeAddress on main:  ${sa_main:-ABSENT}"
+echo "safeAddress baseline: ${sa_base:-ABSENT}"
+case "${sa_main:-ABSENT}" in
+  0x*) [ "$sa_main" = "$sa_base" ] && echo "✓ safeAddress identical" \
+         || { echo "✗ safeAddress differs — STOP"; DRIFT=1; } ;;
+  *)   echo "✗ no safeAddress on main — THIS CHECK PROVED NOTHING"; DRIFT=1 ;;
+esac
+
+# The rest of the entry, for you to read — never a gate.
+diff <(printf '%s' "$MAIN_NET" | jq ".$NET") <(jq ".$NET" config/networks.json)
 
 # 2. Only the field --timelock actually sends to. The rest of the deployment
 #    file is facet-address churn and will always differ.
 tl_main=$(git show "origin/main:deployments/$NET.json" 2>/dev/null | jq -r '.LiFiTimelockController // "KEY ABSENT"' 2>/dev/null)
 tl_base=$(jq -r '.LiFiTimelockController // "KEY ABSENT"' "deployments/$NET.json" 2>/dev/null)
-echo "timelock on main:     ${tl_main:-FILE ABSENT}"
-echo "timelock at baseline: ${tl_base:-FILE ABSENT}"
+tl_main=${tl_main:-FILE ABSENT}; tl_base=${tl_base:-FILE ABSENT}
+echo "timelock on main:     $tl_main"
+echo "timelock at baseline: $tl_base"
+case "$tl_main" in
+  0x*) [ "$tl_main" = "$tl_base" ] \
+         && echo "✓ LiFiTimelockController identical" \
+         || { echo "✗ LiFiTimelockController differs — STOP"; DRIFT=1; } ;;
+  *)   echo "✗ no timelock address on main — this check proved nothing"; DRIFT=1 ;;
+esac
 
-# 3. global.json is not per-network — expect output, and read it.
+# 3. global.json is not per-network and ALWAYS differs (§4), so it cannot gate
+#    anything mechanically — it is the one item you have to read yourself.
 diff <(git show "origin/main:config/global.json") config/global.json
+
+if [ "$DRIFT" -ne 0 ]; then
+  echo "✗ STOP — do not propose. A check above failed or proved nothing (§4)."
+else
+  echo "✓ steps 1-2 clean. Read the global.json diff above before proceeding."
+fi
 ```
 
-An empty result is not a pass. Step 1 says so out loud because the natural
-shape of that check — two substitutions into `diff` — exits 0 when *both*
-sides fail, which prints a green line for a comparison that never happened.
+An empty result is not a pass. Every branch above that could not read a value
+sets `DRIFT=1` and says "THIS CHECK PROVED NOTHING", because the natural shape
+of these checks — two substitutions into `diff`, or a bare string compare —
+passes when *both* sides are empty, printing a green line for a comparison that
+never happened. A typo'd network name reaches that branch, not the happy one.
+
+Note what is deliberately **not** gated: the full entry diff, and `global.json`.
+Both differ on every network at every commit — the baseline predates the
+`targetEvmVersion` rename — so gating on them would refuse 100% of honest runs,
+which trains you to paste past the check. They print for you to read; only the
+three fields below decide.
 
 Three things make the difference between a stale value and a wrong proposal:
 the network's `status` on `main` (a name the baseline accepts may be retired),
@@ -316,12 +391,22 @@ the network's `status` on `main` (a name the baseline accepts may be retired),
 deployment file, which
 `--timelock` resolves and sends to. A difference in any of the three is a stop,
 not a note: it means the baseline would address a Safe or timelock the org has
-moved on from.
+moved on from. `status` and `safeAddress` both live inside the entry step 1
+compares, so all three are covered — by `$DRIFT`, not by your reading.
+
+Which is why the proposal is gated on that variable rather than on having read
+the output. `${DRIFT:-1}` defaults to **1**, so pasting this without having run
+the block above refuses instead of proposing:
 
 ```bash
-bun propose-safe-tx --network <network> --to <target> \
+[ "${DRIFT:-1}" -eq 0 ] || echo "✗ refusing: §5's config check did not pass"
+[ "${DRIFT:-1}" -eq 0 ] && bun propose-safe-tx --network <network> --to <target> \
   --calldataFile <path> --timelock
 ```
+
+(Two statements rather than `exit 1`, because this is pasted into an
+interactive shell and `exit` would close it — losing the tunnel §3 set up
+along with it.)
 
 There is no `--ticket` flag: that gate does not exist at the baseline, which
 is what §6's third bullet is about.
@@ -367,13 +452,19 @@ morning have no provenance and would otherwise be swept in:
 
 ```text
 { provenance: { $exists: false },
-  timestamp: { $gte: ISODate("2026-09-01T09:13:19Z") } }
+  timestamp: { $gte: ISODate("2026-09-01T09:13:19Z"),
+               $lte: ISODate("<last safeTxHash's time, rounded up>") } }
 ```
 
-**That query does not name your rows — it names every fallback's.** It has
-only a lower bound, so a second ceremony's rows are indistinguishable from the
-first's, and there is nothing in a row that says which. Reconcile against the
-`safeTxHash`es §5 told you to record, and touch nothing outside that set:
+The upper bound is the ceremony window §5 told you to record. Without it the
+filter has only a floor and selects every fallback's rows, not yours — drop it
+only to answer "what did I fail to write down?", never to select rows to act
+on.
+
+**Even bounded, that query does not name your rows.** A window is not an
+identity: two ceremonies inside it are indistinguishable, and there is nothing
+in a row that says which one wrote it. Reconcile against the `safeTxHash`es §5
+told you to record, and touch nothing outside that set:
 
 ```text
 { safeTxHash: { $in: [ "0x…", "0x…" ] } }
@@ -413,6 +504,41 @@ and **exits 0**. That second line is the one an operator acts on, and in the
 nonce case it is simply wrong: nothing was stored, and the intent may never
 have been proposed at all. Check the Safe's in-flight nonces before believing
 it.
+
+**Telling the two apart.** List what actually occupies the Safe's in-flight
+nonces. The collation matters as much as the filter — the rows carry both
+address spellings, so an equality match on `safeAddress` silently misses
+exactly the row you are hunting:
+
+```text
+db.pendingTransactions.find(
+  { safeAddress: "<safe>", network: "<network>", chainId: <id>,
+    status: { $in: [ "pending", "submitted" ] } },
+  { _id: 0, safeTxHash: 1, status: 1, intentHash: 1, "safeTx.data.nonce": 1 }
+).collation({ locale: "en", strength: 2 }).sort({ "safeTx.data.nonce": 1 })
+```
+
+Read it against the message you got. A row whose `intentHash` equals the one
+the warning printed is a **genuine** intent-hash duplicate — the proposal is
+already there, and exit 0 was right. No row with that `intentHash`, but the
+nonce the run would have taken already occupied, is the **misreported nonce
+collision**: nothing was stored and nothing was proposed.
+
+**Recovering from it needs no database write.** The baseline already refuses a
+nonce collision correctly — but only on the explicit-override branch, which
+the §5 command never takes:
+
+- `--nonce` supplied → `propose-to-safe.ts` pre-checks the same four fields and
+  throws *"A pending proposal already occupies nonce N (safeTxHash 0x…)"*,
+  which is accurate and non-zero.
+- `--nonce` omitted (the §5 default) → `getNextNonce` picks the nonce
+  uncollated, so it hands back one it cannot see is taken, and the insert dies
+  as the mis-classified E11000 above.
+
+So re-run §5's command with `--nonce` set to the first free slot the query
+above shows, and the baseline will either accept it or tell you the truth
+about why it cannot. Correct the stored row only if the query shows a genuinely
+orphaned one; a write here is a last resort, not the routine path.
 
 The escape commit does not create that index — `getSafeMongoCollection` at the
 baseline creates only `unique_pending_intent_hash`. It refuses the insert
