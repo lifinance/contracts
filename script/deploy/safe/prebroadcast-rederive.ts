@@ -19,14 +19,21 @@ export type PreBroadcastDisposition = 'PROCEED' | 'BLOCK' | 'HOLD'
 const DISPOSITIONS_THAT_MAY_BROADCAST: ReadonlySet<PreBroadcastDisposition> =
   new Set<PreBroadcastDisposition>(['PROCEED'])
 
+/**
+ * `TimelockController._DONE_TIMESTAMP` — the sentinel the controller writes over
+ * an operation's schedule time once it has run
+ * (`lib/openzeppelin-contracts/contracts/governance/TimelockController.sol`).
+ */
+const DONE_TIMESTAMP = 1n
+
 export interface IPreBroadcastGateInput {
   /** The id the executor is about to execute this operation under, as stored. */
   operationId: string
   /**
    * The timestamp the controller has stored against that id — what it actually
    * holds, rather than a re-hash of parameters we were handed. Zero is the
-   * controller's own answer for "no schedule entry under this id". Undefined
-   * when the call could not be made.
+   * controller's own answer for "no schedule entry under this id"; one is its
+   * answer for "already executed". Undefined when the call could not be made.
    */
   scheduledAt: bigint | undefined
   /**
@@ -114,7 +121,16 @@ export const evaluatePreBroadcastGate = (
     )
   else if (input.scheduledAt === 0n)
     blockFindings.push(
-      `the timelock holds no schedule entry under id ${input.operationId}, so this operation was never scheduled under it or has already been consumed`
+      `the timelock holds no schedule entry under id ${input.operationId}, so this operation was never scheduled under it or has been cancelled`
+    )
+  // `TimelockController` stores 1 — not 0 — against an operation it has already
+  // run, so a consumed operation is indistinguishable from a scheduled one on a
+  // bare zero test. `executeBatch` would revert on it, and the executor retires
+  // such a row before the gate runs; this is the gate's own stated invariant
+  // holding without depending on either.
+  else if (input.scheduledAt === DONE_TIMESTAMP)
+    blockFindings.push(
+      `the timelock has already executed the operation under id ${input.operationId}, so broadcasting it again would revert`
     )
 
   // An operation naming no address has nothing to read authorities from, and

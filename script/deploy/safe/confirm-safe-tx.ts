@@ -463,9 +463,12 @@ const processTxs = async (
       consola.info(formatSignedSetForDisplay(record).join('\n'))
       await persistSignedSetRecord(record)
 
+      // Accumulated, not recorded: this runs once per proposal while a ledger
+      // row is denominated per network, and `rollUpChecks` only lets a `fail`
+      // block supersession — so a later clean proposal would erase an earlier
+      // proposal's unread authority with no trace.
       if (checkLedger)
-        recordCheck(
-          checkLedger,
+        proposalChecks.push(
           storageAuthorityCheckResult(
             record.authorities,
             networkKey,

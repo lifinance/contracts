@@ -91,6 +91,43 @@ const proposalLoop = (): { start: number; end: number; body: string } => {
 const countOf = (pattern: RegExp): number =>
   [...SOURCE.matchAll(pattern)].length
 
+/**
+ * Every function declared in the file, by name, with its body.
+ *
+ * Brace-counted from the declaration, the same way {@link proposalLoop} bounds
+ * the loop, so a nested function or an object literal cannot end a body early.
+ */
+const localFunctionBodies = (): Map<string, string> => {
+  const bodies = new Map<string, string>()
+
+  for (const match of SOURCE.matchAll(/(?:async\s+)?function\s+(\w+)\s*\(/gu)) {
+    const name = match[1]
+    if (name === undefined) continue
+
+    let parens = 0
+    let open = -1
+    for (let i = match.index + match[0].length - 1; i < SOURCE.length; i++) {
+      if (SOURCE[i] === '(') parens++
+      else if (SOURCE[i] === ')' && --parens === 0) {
+        open = SOURCE.indexOf('{', i)
+        break
+      }
+    }
+    if (open === -1) continue
+
+    let depth = 0
+    for (let i = open; i < SOURCE.length; i++) {
+      if (SOURCE[i] === '{') depth++
+      else if (SOURCE[i] === '}' && --depth === 0) {
+        bodies.set(name, SOURCE.slice(open, i))
+        break
+      }
+    }
+  }
+
+  return bodies
+}
+
 describe('the check ledger is wired into the confirmation run', () => {
   it('creates the ledger and records into it', () => {
     // The paired positive for every negative below: an assertion that no call
@@ -144,6 +181,40 @@ describe('one row per network, not one per proposal', () => {
     // and lets a later `pass` supersede an earlier `error`, so a per-proposal
     // record would let the last proposal's verdict stand for the network.
     expect([...body.matchAll(/recordCheck\(/g)]).toEqual([])
+  })
+
+  // Lexical absence is not runtime absence. `recordSignedSet` is declared above
+  // the loop and called from inside it, so scanning the loop's own text reports
+  // a clean file while a row is still written once per proposal. Reachability
+  // is the property the ledger actually needs.
+  it('records nothing from anything the loop calls either', () => {
+    const { body } = proposalLoop()
+    const bodies = localFunctionBodies()
+
+    // A positive control: the traversal is worth nothing if it cannot see the
+    // helper the loop is known to reach.
+    expect(bodies.has('recordSignedSet')).toBe(true)
+    expect(body).toContain('persistSignedSafeTx(')
+
+    const reached = new Set<string>()
+    const walk = (source: string): void => {
+      for (const [name, functionBody] of bodies)
+        if (
+          !reached.has(name) &&
+          new RegExp(`\\b${name}\\s*\\(`, 'u').test(source)
+        ) {
+          reached.add(name)
+          walk(functionBody)
+        }
+    }
+    walk(body)
+
+    expect(reached).toContain('recordSignedSet')
+
+    const recording = [...reached].filter((name) =>
+      (bodies.get(name) ?? '').includes('recordCheck(')
+    )
+    expect(recording).toEqual([])
   })
 
   it('reduces the proposals worst-first and records once, after the loop', () => {

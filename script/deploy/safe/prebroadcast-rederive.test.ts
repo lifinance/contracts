@@ -115,9 +115,18 @@ describe('evaluatePreBroadcastGate', () => {
       expect(result.findings[0]).toContain('could not be asked')
     })
 
-    it('proceeds on any non-zero timestamp', () => {
+    // 1 is `TimelockController._DONE_TIMESTAMP`, not a schedule time: the
+    // controller writes it over the entry once the operation has run. A bare
+    // non-zero test would clear exactly the operation that can only revert.
+    it('blocks on the done sentinel rather than treating it as scheduled', () => {
+      const result = evaluatePreBroadcastGate(input({ scheduledAt: 1n }))
+      expect(result.disposition).toBe('BLOCK')
+      expect(result.findings[0]).toContain('already executed')
+    })
+
+    it('proceeds on a real schedule time', () => {
       expect(
-        evaluatePreBroadcastGate(input({ scheduledAt: 1n })).disposition
+        evaluatePreBroadcastGate(input({ scheduledAt: 2n })).disposition
       ).toBe('PROCEED')
     })
   })
