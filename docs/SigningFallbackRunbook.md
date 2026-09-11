@@ -138,12 +138,14 @@ if [ "$RESOLVED" = "$EXPECTED" ]; then
   # points, and `HEAD` says nothing about the working files §5 reads or the
   # propose script itself. `diff`, not `status --porcelain` — `.gitignore` has
   # `node_modules/`, which being directory-only misses the symlink, so porcelain
-  # is dirty on every honest run.
+  # is dirty on every honest run. `bun.lock` is excluded because the real
+  # `bun install` below rewrites it, and refusing after the step this section
+  # recommends is a refusal nobody can act on.
   [ "$(git -C "$ESC" rev-parse HEAD 2>/dev/null)" = "$RESOLVED" ] \
     && [ "$(readlink "$ESC/.env")" = "$CLONE/.env" ] \
     && [ "$(readlink "$ESC/node_modules")" = "$CLONE/node_modules" ] \
     && [ -e "$ESC/.env" ] && [ -e "$ESC/node_modules" ] \
-    && git -C "$ESC" diff --quiet HEAD \
+    && git -C "$ESC" diff --quiet HEAD -- ':!bun.lock' \
     && ESCAPEOK=1
   if [ "$ESCAPEOK" -eq 1 ] && cd "$ESC"; then
     echo "✓ escape worktree ready at $RESOLVED"
@@ -374,7 +376,7 @@ network you are targeting, not the whole file:
 
 ```bash
 NET=arbitrum   # substitute your target network before pasting
-SIGNER=key     # or `ledger` — §5 refuses until this says which key signs
+SIGNER=        # set to `key` or `ledger`; §5 refuses while it is empty
 
 DRIFT=0   # any check that does not positively pass sets this to 1
 # The baseline side of every comparison below is read cwd-relative, so pasted
@@ -502,7 +504,8 @@ case "${SIGNER:-}" in
 esac
 
 [ "$READY" -eq 1 ] || echo "✗ refusing to propose — fix the above and re-run the checks"
-# --signer flags derived from $SIGNER, so the declared signer is the one passed.
+# The signer flag is derived from $SIGNER, so the signer you declared is the
+# one the command carries.
 [ "${SIGNER:-}" = "ledger" ] && SIGNFLAGS="--ledger" || SIGNFLAGS=""
 [ "$READY" -eq 1 ] && bun propose-safe-tx --network "$NET" --to <target> \
   --calldataFile <path> --timelock $SIGNFLAGS
