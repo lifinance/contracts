@@ -13,7 +13,10 @@ import {
 } from 'bun:test'
 
 import { evaluateRpcQuorum } from './rpc-quorum'
-import { collectProviderObservations } from './rpc-quorum-collector'
+import {
+  codeReadLabel,
+  collectProviderObservations,
+} from './rpc-quorum-collector'
 
 const answer = (value: string) => ({
   value,
@@ -83,5 +86,17 @@ describe('collectProviderObservations', () => {
 
     expect(observations[0]?.blockNumber).toBe(100n)
     expect(observations[0]?.blockHash).toBe('0xblock')
+  })
+})
+
+describe('codeReadLabel', () => {
+  it('names what was read and where, for the operator line', () => {
+    const label = codeReadLabel(
+      '0x1111111111111111111111111111111111111111',
+      'arbitrum'
+    )
+
+    expect(label).toContain('0x1111111111111111111111111111111111111111')
+    expect(label).toContain('arbitrum')
   })
 })

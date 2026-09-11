@@ -12,12 +12,18 @@ import {
   it,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
-import { encodeFunctionData, type Address, type Hex } from 'viem'
+import {
+  encodeFunctionData,
+  type Address,
+  type Hex,
+  type PublicClient,
+} from 'viem'
 
 import { DIAMOND_CUT_ABI, ZERO_ADDRESS } from '../shared/constants'
 
 import {
   collectExecutabilityInput,
+  createExecutabilityChainReader,
   type IExecutabilityChainReader,
 } from './executability-collector'
 import { evaluateExecutability } from './executability-simulation'
@@ -259,5 +265,60 @@ describe('collectExecutabilityInput', () => {
     )
 
     expect(input.nonce?.proposalNonce).toBe(7)
+  })
+})
+
+describe('createExecutabilityChainReader', () => {
+  // The contract the whole module rests on: a read that fails must resolve to
+  // `undefined`, not throw. A throw would abort the collection and lose the
+  // reads that did land, and the verdict would then rest on a partial set it
+  // could not report as partial.
+  const failing = {
+    getCode: async () => {
+      throw new Error('rpc down')
+    },
+    readContract: async () => {
+      throw new Error('rpc down')
+    },
+    call: async () => {
+      throw new Error('rpc down')
+    },
+  } as unknown as PublicClient
+
+  it('reports a failed read as unanswered rather than throwing', async () => {
+    const reader = createExecutabilityChainReader(failing)
+
+    expect(await reader.hasCode(FACET)).toBeUndefined()
+    expect(await reader.facetAddress(DIAMOND, SELECTOR)).toBeUndefined()
+    expect(await reader.owner(DIAMOND)).toBeUndefined()
+  })
+
+  it('distinguishes a revert from an endpoint that could not answer', async () => {
+    const reverting = {
+      call: async () => {
+        throw new Error('execution reverted: FunctionAlreadyExists')
+      },
+    } as unknown as PublicClient
+    const unreachable = {
+      call: async () => {
+        throw new Error('fetch failed')
+      },
+    } as unknown as PublicClient
+
+    const call = { from: SAFE, to: DIAMOND, data: '0x' as Hex }
+    expect(
+      (await createExecutabilityChainReader(reverting).staticCall(call)).outcome
+    ).toBe('reverted')
+    expect(
+      (await createExecutabilityChainReader(unreachable).staticCall(call))
+        .outcome
+    ).toBe('errored')
+  })
+
+  it('reads an address holding no code as no code, not as unanswered', async () => {
+    const empty = { getCode: async () => '0x' } as unknown as PublicClient
+    expect(await createExecutabilityChainReader(empty).hasCode(FACET)).toBe(
+      false
+    )
   })
 })

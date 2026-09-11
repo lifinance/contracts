@@ -37,7 +37,10 @@ const cut = (entries: { facetAddress: Address; action: number }[]): Hex =>
     abi: DIAMOND_CUT_ABI,
     functionName: 'diamondCut',
     args: [
-      entries.map((entry) => ({ ...entry, functionSelectors: ['0xaabbccdd' as Hex] })),
+      entries.map((entry) => ({
+        ...entry,
+        functionSelectors: ['0xaabbccdd' as Hex],
+      })),
       ZERO_ADDRESS as Address,
       '0x' as Hex,
     ],

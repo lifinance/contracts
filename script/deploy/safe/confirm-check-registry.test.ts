@@ -507,3 +507,80 @@ describe('rpcQuorumCheckResult', () => {
     expect(summariseLedger(ledger).hardBlocked).toBe(false)
   })
 })
+
+describe('a chain the simulator does not cover', () => {
+  // The Tron path. Distinct from a simulation that failed on a chain the
+  // simulator does cover: a declared limit is acknowledgeable, an unmade read
+  // is not, and grading them the same way would either block every Tron
+  // rollout or let a failed EVM read pass as reviewed.
+  it('is acknowledgeable rather than unverified', () => {
+    const ledger = runLedger()
+    recordProposalChecks(
+      ledger,
+      verdicts({
+        executability: undefined,
+        executabilityOutOfScope: 'tron runs through its own chain executor',
+      })
+    )
+
+    const row = ledger.results.find(
+      (result) => result.checkId === EXECUTABILITY_CHECK_ID
+    )
+    expect(row?.status).toBe('needs-ack')
+    expect(row?.actual).toContain('tron')
+
+    const verdict = summariseLedger(ledger)
+    expect(verdict.hardBlocked).toBe(false)
+    expect(
+      verdict.requiresAcknowledgement.map((result) => result.checkId)
+    ).toContain(EXECUTABILITY_CHECK_ID)
+  })
+
+  // The scope note must never rescue a simulation that genuinely ran and
+  // could not decide — that one is unverified and blocks.
+  it('does not soften a simulation that ran and errored', () => {
+    const ledger = runLedger()
+    recordProposalChecks(
+      ledger,
+      verdicts({
+        executability: executabilityVerdict({
+          error: true,
+          errors: ['chain state could not be read'],
+        }),
+        executabilityOutOfScope: 'tron runs through its own chain executor',
+      })
+    )
+
+    expect(
+      ledger.results.find((result) => result.checkId === EXECUTABILITY_CHECK_ID)
+        ?.status
+    ).toBe('error')
+    expect(summariseLedger(ledger).hardBlocked).toBe(true)
+  })
+})
+
+describe('an integrity check the run registered but never reported', () => {
+  // A registered check with no row is counted missing and blocks, so the
+  // recorder answers for it — as unverified, never as a pass.
+  it('is recorded unverified rather than left absent', () => {
+    const run = integrityRun({ includeTimelockDelay: true })
+    const dropped = INTEGRITY_CHECKS_ALWAYS[1] as string
+    const thinned = {
+      ...run,
+      ledger: {
+        ...run.ledger,
+        results: run.ledger.results.filter(
+          (result) => result.checkId !== dropped
+        ),
+      },
+    }
+
+    const ledger = runLedger()
+    recordProposalChecks(ledger, verdicts({ integrity: thinned }))
+
+    const row = ledger.results.find((result) => result.checkId === dropped)
+    expect(row?.status).toBe('error')
+    expect(row?.anchor).toBe('A-UNRESOLVED')
+    expect(summariseLedger(ledger).totals.missing).toBe(0)
+  })
+})

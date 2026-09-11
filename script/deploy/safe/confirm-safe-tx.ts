@@ -911,9 +911,9 @@ const processTxs = async (
       )
     } catch (error) {
       consola.warn(
-        `    Calldata addresses: the check could not be run — ${
+        `    Calldata addresses: the check could not be run — ${redactUrls(
           error instanceof Error ? error.message : String(error)
-        }`
+        )}`
       )
     }
 

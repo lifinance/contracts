@@ -27,6 +27,7 @@ import { setupEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
 import { sleep } from '../../utils/delay'
 import { getDeployments } from '../../utils/deploymentHelpers'
 import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
+import { redactUrls } from '../../utils/redactUrls'
 import {
   isUnattendedRun,
   SlackNotifier,
@@ -1434,7 +1435,11 @@ async function handleRevertedExecution(
         consola.info(`${networkPrefix}   note: ${note}`)
     } catch (error) {
       consola.warn(
-        `${networkPrefix} Could not evaluate the cancel matrix for ${operation.id}: ${error}`
+        `${networkPrefix} Could not evaluate the cancel matrix for ${
+          operation.id
+        }: ${redactUrls(
+          error instanceof Error ? error.message : String(error)
+        )}`
       )
     }
 
