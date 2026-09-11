@@ -392,12 +392,19 @@ describe('the guard and the withholding cannot disagree about a name', () => {
     expect(withheldValueFor('MAINNET_ETHERSCAN_API_KEY')).toBe(signing)
   })
 
-  it('pins every name the sweep cannot reach', () => {
-    // Each pinned name must be claimed by a class, or the pin sets nothing.
-    // Looped rather than spot-checked: four of the five were unasserted, and
-    // the one that matters most holds a key the store leaves unset, so this
-    // list is its only cover.
-    expect(ALWAYS_WITHHELD.length).toBeGreaterThan(0)
+  it('pins exactly the names the sweep cannot be trusted to reach', () => {
+    // The set, not a property of its members: a loop over the list cannot see
+    // a name dropped FROM the list, and dropping one is the whole failure —
+    // the Safe signer key is unset in the store, so the sweep never sees it
+    // and this list is the only thing withholding it.
+    expect([...ALWAYS_WITHHELD].sort()).toEqual([
+      'MONGODB_URI',
+      'PRIVATE_KEY',
+      'PRIVATE_KEY_PRODUCTION',
+      'SAFE_SIGNER_PRIVATE_KEY',
+      'SC_MONGODB_URI',
+    ])
+    // And each must still be claimed by a class, or the pin sets nothing.
     for (const name of ALWAYS_WITHHELD)
       expect(withheldValueFor(name), name).toBeDefined()
   })
