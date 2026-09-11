@@ -382,10 +382,16 @@ DRIFT=0   # any check that does not positively pass sets this to 1
 # The baseline side of every comparison below is read cwd-relative, so pasted
 # anywhere else — the clone on `main` being the easy mistake — these compare
 # main with main and pass having proved nothing.
+# Both, because either alone is satisfiable by the wrong tree: any checkout can
+# sit at $EXPECTED, and the path alone says nothing about the commit. Physical
+# paths on both sides so a symlinked $HOME cannot make equal paths compare
+# unequal.
+[ "$(pwd -P)" = "$(cd ~/contracts-escape 2>/dev/null && pwd -P)" ] \
+  || { echo "✗ cwd is not ~/contracts-escape — cd there first"; DRIFT=1; }
 [ -n "${EXPECTED:-}" ] \
   || { echo "✗ EXPECTED is unset — re-paste §2 in this shell, then re-run §5"; DRIFT=1; }
 [ -n "${EXPECTED:-}" ] && [ "$(git rev-parse HEAD 2>/dev/null)" != "$EXPECTED" ] \
-  && { echo "✗ this tree is not the escape worktree — cd ~/contracts-escape first"; DRIFT=1; }
+  && { echo "✗ this tree is not at the escape commit — re-paste §2"; DRIFT=1; }
 MAIN_NET=$(git show "origin/main:config/networks.json" 2>/dev/null)
 
 # 1. The two fields in the network entry that decide correctness — NOT the whole
@@ -487,11 +493,14 @@ confirming, whatever `SIGNER` says here.
 ```bash
 READY=1
 [ "${ESCAPEOK:-0}"    -eq 1 ] || { echo "✗ §2 not clean: no verified escape worktree"; READY=0; }
-# ESCAPEOK says a verified tree was built, not that you are standing in it.
+# ESCAPEOK says a verified tree was built, not that you are standing in it — and
+# the commit alone does not identify which tree you are standing in.
+[ "$(pwd -P)" = "$(cd ~/contracts-escape 2>/dev/null && pwd -P)" ] \
+  || { echo "✗ cwd is not ~/contracts-escape — cd there and re-run §5"; READY=0; }
 [ -n "${EXPECTED:-}" ] \
   || { echo "✗ EXPECTED is unset — re-paste §2 in this shell"; READY=0; }
 [ -n "${EXPECTED:-}" ] && [ "$(git rev-parse HEAD 2>/dev/null)" != "$EXPECTED" ] \
-  && { echo "✗ cwd is not the escape worktree — cd there and re-run §5"; READY=0; }
+  && { echo "✗ this tree is not at the escape commit — re-paste §2"; READY=0; }
 [ "${ENVCONFLICT:-1}" -eq 0 ] || { echo "✗ §3 not clean: an export beats .env"; READY=0; }
 [ "${DRIFT:-1}"       -eq 0 ] || { echo "✗ §5 not clean: config drift or a check proved nothing"; READY=0; }
 # SIGNER names the key you will actually pass. §2's Ledger check bears on one of
