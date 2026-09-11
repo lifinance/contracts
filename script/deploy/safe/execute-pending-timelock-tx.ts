@@ -1691,9 +1691,15 @@ const REPO_ROOT = path.resolve(
  * because that guard's reads assume the code it inspects is the code we
  * attested — a proven integrity failure makes its verdict meaningless.
  *
- * Verdicts map onto the existing {@link GuardOutcome} states: a proven failure
- * is durable and flips the row to `blocked`; anything unverified leaves it
- * `queued` so the next tick retries, and is never escalated on our behalf.
+ * Only binding when {@link isPreBroadcastGateEnforcing} says so. In shadow mode
+ * — the default — a refusal is logged and alerted and the operation still
+ * executes, because the set the verdict is derived from refuses honest traffic
+ * until it is anchored on the WP-5.2 attestation store.
+ *
+ * When enforcing, verdicts map onto the existing {@link GuardOutcome} states: a
+ * proven failure is durable and flips the row to `blocked`; anything unverified
+ * leaves it `queued` so the next tick retries, and is never escalated on our
+ * behalf.
  *
  * @returns See {@link GuardOutcome}.
  */

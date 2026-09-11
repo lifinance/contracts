@@ -52,9 +52,9 @@ export type AuthorityExpectationSource =
   | { from: 'globalConfig'; key: string }
 
 /**
- * The getters the gate can call. Kept beside the table below so a getter added
- * to one without the other fails to compile rather than becoming a read error
- * at run time, which the gate cannot tell apart from an unreachable node.
+ * The getters the gate can call. Kept beside the table below so a getter
+ * declared there but not here fails to compile, rather than becoming a run-time
+ * read error the gate cannot tell apart from an unreachable node.
  */
 export const AUTHORITY_ABI = parseAbi([
   'function owner() view returns (address)',
