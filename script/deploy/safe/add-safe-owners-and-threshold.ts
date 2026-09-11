@@ -3,7 +3,7 @@
  *
  * Proposes Safe transactions to add owners (from `config/global.json:safeOwners`
  * and/or `--owners`) and, when current threshold differs, propose a change to
- * the expected value (`EXPECTED_THRESHOLD`).
+ * the expected value (`SAFE_THRESHOLD`).
  * Supports a single network (`--network <name>`) or every active EVM mainnet
  * (`--all-networks`, excludes `networks.json` entries with `type: "testnet"`).
  * Signs with a Ledger by default; falls back to a private
@@ -26,9 +26,12 @@ import {
 import globalConfig from '../../../config/global.json'
 import networksData from '../../../config/networks.json'
 import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
+import { SAFE_THRESHOLD } from '../shared/constants'
 
+import { readBooleanFlag } from './cli-flags'
 import type { ILedgerAccountResult } from './ledger'
 import { assertTicketPresent } from './proposal-intent'
+import { proposeSafeTx } from './propose-safe-tx'
 import {
   getNextNonce,
   getPrivateKey,
@@ -36,11 +39,8 @@ import {
   getSafeMongoCollection,
   initializeSafeClient,
   isAddressASafeOwner,
-  storeTransactionInMongoDB,
   type ISafeTxDocument,
 } from './safe-utils'
-
-const EXPECTED_THRESHOLD = 3
 
 const ansi = (code: string, text: string) => `\x1b[${code}m${text}\x1b[0m`
 const green = (text: string) => ansi('32', text)
@@ -61,6 +61,13 @@ interface IProcessNetworkDeps {
   ledgerOptions?: ILedgerOptions
   ledgerAccount?: Account
   cliOwners?: Address[]
+  /**
+   * `--ticket`. Carried down because the entry-point check validating it and the
+   * store recording it resolve their ticket independently: without it the store
+   * consults only `SAFE_PROPOSAL_TICKET` and a flag-only run is refused after
+   * every signature it spent.
+   */
+  ticket?: string
 }
 
 interface IProcessNetworkResult {
@@ -88,7 +95,7 @@ interface ICheckResult {
 const main = defineCommand({
   meta: {
     name: 'add-safe-owners-and-threshold',
-    description: `Proposes transactions to add SAFE owners from global.json (and/or --owners) and sets threshold to ${EXPECTED_THRESHOLD}. Single network via --network; --all-networks skips networks where type is testnet.`,
+    description: `Proposes transactions to add SAFE owners from global.json (and/or --owners) and sets threshold to ${SAFE_THRESHOLD}. Single network via --network; --all-networks skips networks where type is testnet.`,
   },
   args: {
     network: {
@@ -100,7 +107,6 @@ const main = defineCommand({
       description:
         'Run on every active EVM network in networks.json with type mainnet (excludes testnets)',
       alias: 'all-networks',
-      default: false,
     },
     privateKey: {
       type: 'string',
@@ -133,17 +139,32 @@ const main = defineCommand({
         'Read-only audit: compare on-chain owners + threshold against config',
       default: false,
     },
+    ticket: {
+      type: 'string',
+      description:
+        'Linear issue link or id (e.g. EXSC-123). Required — a proposal is not created without one. Falls back to SAFE_PROPOSAL_TICKET.',
+    },
   },
   async run({ args }) {
-    if (!args.network && !args.allNetworks)
+    // Strict: on fans the run out to every active network, so `--all-networks 0`
+    // has to be refused, not resolved to on.
+    const allNetworks = readBooleanFlag(process.argv, {
+      camel: 'allNetworks',
+      kebab: 'all-networks',
+    })
+    const useLedgerLive = readBooleanFlag(process.argv, {
+      camel: 'ledgerLive',
+      kebab: 'ledger-live',
+    })
+    if (!args.network && !allNetworks)
       throw new Error('Provide either --network <name> or --all-networks')
-    if (args.network && args.allNetworks)
+    if (args.network && allNetworks)
       throw new Error('--network and --all-networks are mutually exclusive')
 
     const cliOwners = parseCliOwners(args.owners)
 
     if (args.check) {
-      const networks = resolveNetworks(args.network, args.allNetworks)
+      const networks = resolveNetworks(args.network, allNetworks)
       if (!networks.length) {
         consola.warn('No networks selected — exiting')
         return
@@ -155,16 +176,12 @@ const main = defineCommand({
       ) as Address[]
 
       consola.info(
-        `Checking ${networks.length} network(s) against ${expectedOwners.length} expected owner(s) + threshold=${EXPECTED_THRESHOLD}`
+        `Checking ${networks.length} network(s) against ${expectedOwners.length} expected owner(s) + threshold=${SAFE_THRESHOLD}`
       )
 
       const checkResults: ICheckResult[] = []
       for (const network of networks) {
-        const r = await checkNetwork(
-          network,
-          expectedOwners,
-          EXPECTED_THRESHOLD
-        )
+        const r = await checkNetwork(network, expectedOwners, SAFE_THRESHOLD)
         checkResults.push(r)
       }
 
@@ -177,24 +194,24 @@ const main = defineCommand({
     // Resolved here rather than after the Ledger, so both constraints hold at
     // once: an empty selection proposes nothing and must not be refused, and the
     // refusal must land before a device confirmation is collected per network.
-    const networks = resolveNetworks(args.network, args.allNetworks)
+    const networks = resolveNetworks(args.network, allNetworks)
     if (!networks.length) {
       consola.warn('No networks selected — exiting')
       return
     }
 
-    assertTicketPresent()
+    assertTicketPresent(args.ticket)
 
     const useLedger = args.ledger ?? true
     const ledgerOptions: ILedgerOptions | undefined = useLedger
       ? {
-          ledgerLive: args.ledgerLive || false,
+          ledgerLive: useLedgerLive,
           accountIndex: args.accountIndex ? Number(args.accountIndex) : 0,
           derivationPath: args.derivationPath,
         }
       : undefined
 
-    if (useLedger && args.derivationPath && args.ledgerLive)
+    if (useLedger && args.derivationPath && useLedgerLive)
       throw new Error(
         "Cannot use both 'derivationPath' and 'ledgerLive' options together"
       )
@@ -230,6 +247,7 @@ const main = defineCommand({
             ledgerOptions,
             ledgerAccount: ledgerResult?.account,
             cliOwners,
+            ticket: args.ticket,
           })
           results.push({
             network,
@@ -319,6 +337,7 @@ async function processNetwork(
     ledgerOptions,
     ledgerAccount,
     cliOwners,
+    ticket,
   } = deps
 
   const { safe, chain, safeAddress } = await initializeSafeClient(
@@ -386,29 +405,24 @@ async function processNetwork(
       )
 
       consola.info('Proposing to add owner', owner)
-      const signedTx = await safe.signTransaction(safeTransaction)
-      const safeTxHash = await safe.getTransactionHash(signedTx)
+      const { safeTxHash, stored } = await proposeSafeTx({
+        safe,
+        network,
+        chainId: chain.id,
+        safeAddress,
+        pendingTransactions,
+        payload: { kind: 'prebuilt', safeTx: safeTransaction },
+        provenance: { ticket },
+      })
       consola.info('Transaction signed:', safeTxHash)
 
-      const result = await storeTransactionInMongoDB(
-        pendingTransactions,
-        safe.getAddress(),
-        network,
-        chain.id,
-        signedTx,
-        safeTxHash,
-        senderAddress
-      )
-
-      if (result === null) {
-        consola.info('Proposal already exists - skipping')
-        addOwnerAlreadyProposed++
-      } else if (!result.acknowledged)
-        throw new Error('MongoDB insert was not acknowledged')
-      else {
+      if (stored) {
         consola.success('Transaction successfully stored in MongoDB')
         proposalsCreated++
         addOwnerNewlyProposed++
+      } else {
+        consola.info('Proposal already exists - skipping')
+        addOwnerAlreadyProposed++
       }
       nextNonce++
     }
@@ -417,7 +431,7 @@ async function processNetwork(
 
     let thresholdNewlyProposed = false
     let thresholdAlreadyProposed = false
-    if (currentThreshold !== EXPECTED_THRESHOLD) {
+    if (currentThreshold !== SAFE_THRESHOLD) {
       // Existing proposals will add their owners when executed, so include
       // both newly proposed and already-proposed addOwners in the projection.
       const updatedOwnerCount =
@@ -425,45 +439,41 @@ async function processNetwork(
         addOwnerNewlyProposed +
         addOwnerAlreadyProposed
 
-      if (updatedOwnerCount < EXPECTED_THRESHOLD)
+      if (updatedOwnerCount < SAFE_THRESHOLD)
         throw new Error(
-          `Cannot set threshold to ${EXPECTED_THRESHOLD} when only ${updatedOwnerCount} owner(s) would exist (would lock the Safe)`
+          `Cannot set threshold to ${SAFE_THRESHOLD} when only ${updatedOwnerCount} owner(s) would exist (would lock the Safe)`
         )
 
       consola.info(
-        `Now proposing to change threshold from ${currentThreshold} to ${EXPECTED_THRESHOLD}`
+        `Now proposing to change threshold from ${currentThreshold} to ${SAFE_THRESHOLD}`
       )
       const changeThresholdTx = await safe.createChangeThresholdTx(
-        EXPECTED_THRESHOLD,
+        SAFE_THRESHOLD,
         { nonce: nextNonce }
       )
-      const signedThresholdTx = await safe.signTransaction(changeThresholdTx)
-      const thresholdTxHash = await safe.getTransactionHash(signedThresholdTx)
+      const { safeTxHash: thresholdTxHash, stored: thresholdStored } =
+        await proposeSafeTx({
+          safe,
+          network,
+          chainId: chain.id,
+          safeAddress,
+          pendingTransactions,
+          payload: { kind: 'prebuilt', safeTx: changeThresholdTx },
+          provenance: { ticket },
+        })
       consola.info('Transaction signed:', thresholdTxHash)
 
-      const thresholdResult = await storeTransactionInMongoDB(
-        pendingTransactions,
-        safe.getAddress(),
-        network,
-        chain.id,
-        signedThresholdTx,
-        thresholdTxHash,
-        senderAddress
-      )
-
-      if (thresholdResult === null) {
-        consola.info('Proposal already exists - skipping')
-        thresholdAlreadyProposed = true
-      } else if (!thresholdResult.acknowledged)
-        throw new Error('MongoDB insert was not acknowledged')
-      else {
+      if (thresholdStored) {
         consola.success('Transaction successfully stored in MongoDB')
         proposalsCreated++
         thresholdNewlyProposed = true
+      } else {
+        consola.info('Proposal already exists - skipping')
+        thresholdAlreadyProposed = true
       }
     } else
       consola.success(
-        `Threshold is already set to ${EXPECTED_THRESHOLD} - no action required`
+        `Threshold is already set to ${SAFE_THRESHOLD} - no action required`
       )
 
     const summaryParts: string[] = []
@@ -473,10 +483,9 @@ async function processNetwork(
       summaryParts.push(`${addOwnerAlreadyProposed} addOwner already proposed`)
     if (ownersAlreadyOnChain > 0)
       summaryParts.push(`${ownersAlreadyOnChain} already on-chain`)
-    if (thresholdNewlyProposed)
-      summaryParts.push(`threshold→${EXPECTED_THRESHOLD}`)
+    if (thresholdNewlyProposed) summaryParts.push(`threshold→${SAFE_THRESHOLD}`)
     else if (thresholdAlreadyProposed)
-      summaryParts.push(`threshold→${EXPECTED_THRESHOLD} already proposed`)
+      summaryParts.push(`threshold→${SAFE_THRESHOLD} already proposed`)
     if (!summaryParts.length) summaryParts.push('no changes')
 
     return { proposalsCreated, summary: summaryParts.join(', ') }
@@ -588,7 +597,7 @@ function printCheckTable(results: ICheckResult[]): void {
     const th =
       r.threshold !== undefined
         ? `threshold=${
-            r.threshold === EXPECTED_THRESHOLD
+            r.threshold === SAFE_THRESHOLD
               ? green(String(r.threshold))
               : red(String(r.threshold))
           }`

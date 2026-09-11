@@ -14,14 +14,13 @@ import { privateKeyToAccount } from 'viem/accounts'
 
 import { EnvironmentEnum, type SupportedChain } from '../common/types'
 import { assertTicketPresent } from '../deploy/safe/proposal-intent'
+import { proposeSafeTx } from '../deploy/safe/propose-safe-tx'
 import {
   getNextNonce,
   getPrivateKey,
   getSafeInfo,
   getSafeMongoCollection,
   initializeSafeClient,
-  OperationTypeEnum,
-  storeTransactionInMongoDB,
 } from '../deploy/safe/safe-utils'
 import {
   castEnv,
@@ -86,6 +85,11 @@ const main = defineCommand({
       description:
         'Target environment: production (default) or staging. Staging skips the Safe/MongoDB flow and sends directly to the diamond.',
     },
+    ticket: {
+      type: 'string',
+      description:
+        'Linear issue link or id (e.g. EXSC-123). Required — a proposal is not created without one. Falls back to SAFE_PROPOSAL_TICKET.',
+    },
   },
   async run({ args }) {
     const blacklist = args.blacklist
@@ -129,7 +133,7 @@ const main = defineCommand({
     // one. Checked here rather than at the store because Pass 2 signs on every
     // production mainnet in turn, and the store-time refusal would spend a
     // signature per network before failing.
-    if (mainnets.length > 0) assertTicketPresent()
+    if (mainnets.length > 0) assertTicketPresent(args.ticket)
 
     // Pass 1: direct-send networks (testnets always; all networks when staging).
     const failures: { network: string; error: string }[] = []
@@ -183,7 +187,6 @@ const main = defineCommand({
 
     // Pass 2: production mainnets — propose to Safe. Initialize Safe / Mongo only now.
     const privateKey = getPrivateKey('PRIVATE_KEY_PRODUCTION')
-    const senderAddress = privateKeyToAccount(`0x${privateKey}`).address
     const { client: mongoClient, pendingTransactions } =
       await getSafeMongoCollection()
 
@@ -232,44 +235,27 @@ const main = defineCommand({
             safeInfo.nonce
           )
 
-          // prepare SAFE transaction
-          const safeTransaction = await safe.createTransaction({
-            transactions: [
-              {
+          try {
+            const { stored } = await proposeSafeTx({
+              safe,
+              network: network.name,
+              chainId: chain.id,
+              safeAddress,
+              pendingTransactions,
+              payload: {
+                kind: 'call',
                 to: timelockAddress as Address,
-                value: 0n,
                 data: calldata,
-                operation: OperationTypeEnum.Call,
                 nonce: nextNonce,
               },
-            ],
-          })
+              provenance: { ticket: args.ticket },
+            })
 
-          // sign transaction with SAFE_SIGNER_PRIVATE_KEY
-          const signedTx = await safe.signTransaction(safeTransaction)
-          const safeTxHash = await safe.getTransactionHash(safeTransaction)
-
-          // Store transaction proposal in MongoDB
-          try {
-            const result = await storeTransactionInMongoDB(
-              pendingTransactions,
-              safeAddress,
-              network.name,
-              chain.id,
-              signedTx,
-              safeTxHash,
-              senderAddress
-            )
-
-            if (result === null) {
+            if (!stored)
               consola.info(
                 `[${network.name}] Proposal already exists - skipping`
               )
-            } else if (!result.acknowledged) {
-              throw new Error(
-                `[${network.name}] MongoDB insert was not acknowledged`
-              )
-            } else {
+            else {
               consola.info(
                 `[${network.name}] Transaction successfully stored in MongoDB`
               )
@@ -277,7 +263,7 @@ const main = defineCommand({
             }
           } catch (error) {
             consola.error(
-              `[${network.name}] Failed to store transaction in MongoDB: ${error}`
+              `[${network.name}] Failed to propose the transaction to the Safe: ${error}`
             )
             throw error
           }

@@ -8210,6 +8210,16 @@
             "signature": "validateNativeOutput(uint256,address)"
           }
         ]
+      },
+      {
+        "name": "Composer",
+        "address": "0xA9076E5FD4b9D553af8956Fd5F580De7F6f055CE",
+        "selectors": [
+          {
+            "selector": "0x00a32e6c",
+            "signature": "runVM((uint8,bytes32)[],(bytes[]))"
+          }
+        ]
       }
     ],
     "plume": [

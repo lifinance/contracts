@@ -35,10 +35,22 @@ only the quick-start; this is the full guide.
    foundryup --install "$(cat .foundry-version)"
    ```
 
-   The pre-commit hook and CI verify that your installed `forge` matches
-   `.foundry-version` and refuse to run on mismatch. To bump the pin, change
-   `.foundry-version` in a PR — every workflow and dev environment picks it up
-   automatically.
+   CI and the shell deploy scripts verify that your installed `forge` matches
+   `.foundry-version` and refuse to run on mismatch — a deploy built with a
+   drifted compiler produces bytecode that cannot be reproduced from the
+   recorded commit. The pre-commit hook runs the same check but only warns, so a
+   drifted local `forge` can still commit. To bump the pin, change
+   `.foundry-version` in a PR — every workflow picks it up automatically, but
+   your machine does not: rerun `foundryup --install "$(cat .foundry-version)"`
+   after the pin changes, or deploys will refuse.
+
+   The zkEVM toolchain is pinned separately, in `foundry.toml`
+   `[external.zksync]` (`foundry_zksync` for the binary release, `zksolc` for
+   the compiler it drives). `install_foundry_zksync` installs that release and
+   then refuses unless both pins hold, so `FOUNDRY_ZKSYNC_VERSION` cannot be
+   used to build a deployment against a release the repository does not pin.
+   The Tron deploy scripts deploy pre-built Forge artifacts and check
+   `.foundry-version` before loading any of them.
 
 4. Set up environment variables:
 

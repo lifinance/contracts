@@ -27,15 +27,17 @@ import { getEnvVar } from '../utils/utils'
 
 import { createDefaultCache } from './shared/deployment-cache'
 import {
+  buildDeploymentUpsert,
+  captureRecordProvenance,
   deploymentRecordEqFilter,
-  getCurrentGitCommitHash,
-  getCurrentRepo,
+  describeDirtyTree,
   provenanceUpdate,
   type IDeploymentRecord,
   type IUpdateConfig,
   mongoEq,
   RecordTransformer,
 } from './shared/mongo-log-utils'
+import { codehashFromArgs } from './shared/record-codehash'
 
 // Interface for index specifications with old names
 interface IIndexSpec {
@@ -190,37 +192,7 @@ class DeploymentLogManager {
   public async upsertDeployment(record: IDeploymentRecord): Promise<void> {
     if (!this.collection) throw new Error('Collection not initialized')
 
-    const filter = {
-      contractName: mongoEq(record.contractName),
-      network: mongoEq(record.network),
-      version: mongoEq(record.version),
-      address: mongoEq(record.address),
-    }
-
-    const update = {
-      $set: {
-        contractName: record.contractName,
-        network: record.network,
-        version: record.version,
-        address: record.address,
-        optimizerRuns: record.optimizerRuns,
-        timestamp: record.timestamp,
-        constructorArgs: record.constructorArgs,
-        salt: record.salt,
-        verified: record.verified,
-        solcVersion: record.solcVersion,
-        evmVersion: record.evmVersion,
-        zkSolcVersion: record.zkSolcVersion,
-        ...provenanceUpdate(record).set,
-        contractNetworkKey: record.contractNetworkKey,
-        contractVersionKey: record.contractVersionKey,
-        updatedAt: new Date(),
-      },
-      $setOnInsert: {
-        createdAt: new Date(),
-        ...provenanceUpdate(record).setOnInsert,
-      },
-    }
+    const { filter, update } = buildDeploymentUpsert(record)
 
     await this.collection.updateOne(filter, update, { upsert: true })
   }
@@ -707,6 +679,39 @@ const addCommand = defineCommand({
       description: 'EVM version',
       required: false,
     },
+    codehash: {
+      type: 'string',
+      description:
+        'keccak of the exact runtime bytes observed at the address after the deploy',
+      required: false,
+    },
+    'masked-codehash': {
+      type: 'string',
+      description:
+        'keccak of those bytes after the metadata trailer came off and immutables were masked',
+      required: false,
+    },
+    'code-byte-length': {
+      type: 'string',
+      description: 'Runtime code length as deployed, before any stripping',
+      required: false,
+    },
+    'masked-byte-count': {
+      type: 'string',
+      description: 'Bytes excluded from the masked codehash as immutables',
+      required: false,
+    },
+    dryRun: {
+      type: 'boolean',
+      // Every sibling flag here is kebab-cased, so `--dry-run` is the spelling a
+      // caller reaches for. Both the alias and the absent `default` are needed:
+      // citty resolves a kebab spelling through its own fallback only for an arg
+      // that carries no default, and a `--dry-run` silently read as `false`
+      // would make a dry run a real write.
+      alias: 'dry-run',
+      description:
+        'Print the upsert that would be applied, without connecting to MongoDB',
+    },
   },
   async run({ args }) {
     // Validate environment
@@ -720,6 +725,30 @@ const addCommand = defineCommand({
       consola.error('Verified must be either "true" or "false"')
       process.exit(1)
     }
+
+    const asString = (value: unknown): string | undefined =>
+      typeof value === 'string' ? value : undefined
+    const codehashDecision = codehashFromArgs({
+      codehash: asString(args.codehash),
+      'masked-codehash': asString(args['masked-codehash']),
+      'code-byte-length': asString(args['code-byte-length']),
+      'masked-byte-count': asString(args['masked-byte-count']),
+    })
+    // Info on stdout, and a zero exit: this runs after the deploy, and
+    // `logContractDeploymentInfo` discards stderr unless DEBUG is set and reads
+    // any non-zero status as "the record did not land" — so an error here would
+    // abort the deploy over a field it never asked for, with the reason hidden.
+    if (codehashDecision.requested && !codehashDecision.recordable)
+      consola.info(
+        `Not recording a codehash: ${codehashDecision.reason}. The rest of the record is still being written.`
+      )
+
+    const { captureErrors, ...provenanceFields } = captureRecordProvenance()
+    // Info, not warn: `logContractDeploymentInfo` runs this command with
+    // stderr discarded unless DEBUG is set, and consola sends warnings there —
+    // so a warning about the tree a deploy came from would never be seen.
+    for (const problem of captureErrors ?? [])
+      consola.info(`Provenance capture problem: ${problem}`)
 
     // Create deployment record
     const record: IDeploymentRecord = {
@@ -739,12 +768,36 @@ const addCommand = defineCommand({
         typeof args['zk-solc-version'] === 'string'
           ? args['zk-solc-version']
           : '',
-      gitCommitHash: getCurrentGitCommitHash(),
-      repo: getCurrentRepo(),
+      ...provenanceFields,
+      ...(codehashDecision.requested && codehashDecision.recordable
+        ? { codehash: codehashDecision.codehash }
+        : {}),
       createdAt: new Date(),
       updatedAt: new Date(),
       contractNetworkKey: `${args.contract}-${args.network}`,
       contractVersionKey: `${args.contract}-${args.version}`,
+    }
+
+    consola.info(
+      `Deployment provenance: branch ${record.gitBranch}, actor ${
+        record.actor
+      }, dirty ${describeDirtyTree(record)}`
+    )
+    if (record.dirtyTreeScoped?.length)
+      consola.info(
+        `Deployed from a dirty tree: ${record.dirtyTreeScoped.join(', ')}${
+          record.dirtyTreeTruncated ? ', …' : ''
+        }`
+      )
+
+    if (args.dryRun) {
+      consola.info('Dry run: nothing was written to MongoDB')
+      // The upsert, not just the record, because that is what a reviewer needs
+      // to see: which provenance fields reach `$set` and which only `$setOnInsert`.
+      process.stdout.write(
+        `${JSON.stringify(buildDeploymentUpsert(record), null, 2)}\n`
+      )
+      return
     }
 
     const manager = new DeploymentLogManager(

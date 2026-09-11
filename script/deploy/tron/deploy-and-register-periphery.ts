@@ -35,6 +35,7 @@ import {
   saveContractAddress,
   updateDiamondJsonPeriphery,
 } from '../../utils/utils'
+import { flagIsOn, readBooleanFlag } from '../safe/cli-flags'
 import { ZERO_ADDRESS } from '../shared/constants.js'
 import { getContractVersion } from '../shared/getContractVersion'
 import { retryWithRateLimit } from '../shared/rateLimit.js'
@@ -1494,7 +1495,6 @@ const deployCommand = defineCommand({
     dryRun: {
       type: 'boolean',
       description: 'Simulate deployment without executing',
-      default: false,
     },
     verbose: {
       type: 'boolean',
@@ -1504,7 +1504,6 @@ const deployCommand = defineCommand({
     skipConfirmation: {
       type: 'boolean',
       description: 'Skip confirmation prompts',
-      default: false,
     },
     only: {
       type: 'string',
@@ -1516,13 +1515,12 @@ const deployCommand = defineCommand({
       type: 'boolean',
       description:
         'Skip deployment; only register contract(s) from deployments file with the Diamond. Use with --only to register a single contract (e.g. after a failed registration).',
-      default: false,
     },
   },
   async run({ args }) {
     try {
       // Also check environment variables for backward compatibility
-      let dryRun = args.dryRun
+      let dryRun = flagIsOn(args.dryRun)
       let verbose = args.verbose
 
       try {
@@ -1555,9 +1553,19 @@ const deployCommand = defineCommand({
       await deployAndRegisterPeripheryImpl({
         dryRun,
         verbose,
-        skipConfirmation: args.skipConfirmation,
+        // Strict: on skips the prompt that is the last check before a
+        // production deploy, so an unreadable value must be refused.
+        skipConfirmation: readBooleanFlag(process.argv, {
+          camel: 'skipConfirmation',
+          kebab: 'skip-confirmation',
+        }),
         onlyContracts,
-        registerOnly: args.registerOnly,
+        // Strict for the same reason as skipConfirmation: this is the other
+        // flag the production confirmation prompt gates on.
+        registerOnly: readBooleanFlag(process.argv, {
+          camel: 'registerOnly',
+          kebab: 'register-only',
+        }),
       })
     } catch (error: unknown) {
       const errorMessage =

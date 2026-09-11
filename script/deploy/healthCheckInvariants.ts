@@ -54,6 +54,7 @@ import {
   loadCompiledFacetSelectors,
   resolveLiveFacets,
 } from './shared/facetPeripheryCouplings'
+import { sanitizeProvenanceText } from './shared/git-provenance'
 import { getCorePeriphery } from './shared/globalContractLists'
 import {
   collectImmutableBindingChecks,
@@ -1757,6 +1758,27 @@ async function resolvePendingRegistrations(
 }
 
 /**
+ * Names a `safeOwners` entry that cannot be used, for an operator to read.
+ *
+ * Carries the position and the length rather than relying on the rendering being visible:
+ * sanitising strips most invisible characters but not all of them (a zero-width joiner and
+ * a Hangul filler both survive it and occupy no width), and a value that renders blank is
+ * indistinguishable from the next one inside a comma-joined list. Position and length
+ * identify the line to fix whatever the characters are.
+ * @param entry - the unusable entry, whatever it held
+ * @param index - its position in `safeOwners`, as an operator counts them
+ * @returns A control-character-free description that identifies the entry
+ */
+const describeConfigEntry = (entry: unknown, index: number): string => {
+  const raw = String(entry)
+  const size = `${raw.length} char${raw.length === 1 ? '' : 's'}`
+  const rendered = sanitizeProvenanceText(raw)
+  return rendered === ''
+    ? `entry ${index} (nothing printable, ${size})`
+    : `entry ${index} "${rendered}" (${size})`
+}
+
+/**
  * Ordered registry of every health-check invariant. The order matches historical log
  * output; earlier invariants may populate mutable context fields (e.g. `onChainFacets`)
  * that later ones reuse.
@@ -3298,12 +3320,15 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
     },
     run: async (ctx) => {
       if (!ctx.networkConfig.safeAddress) {
-        consola.warn('SAFE address not configured')
+        // `ctx.logWarn`, not `consola`: the run summary counts only what the
+        // context collected, so a raw warn makes a network that skipped this
+        // check read as one that passed it.
+        ctx.logWarn(`No SAFE address configured, cannot check the owner set`)
         return
       }
       if (!ctx.publicClient) return
 
-      const safeOwners = ctx.globalConfig.safeOwners
+      const safeOwners = ctx.globalConfig.safeOwners ?? []
       const safeAddress = ctx.networkConfig.safeAddress
 
       try {
@@ -3313,18 +3338,86 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
           safeAddress as Address
         )
 
-        for (const o in safeOwners) {
-          const safeOwnerAddr = safeOwners[o]
-          if (!safeOwnerAddr) continue
-          const safeOwner = getAddress(safeOwnerAddr)
-          const isOwner = safeInfo.owners.some(
-            (owner) => getAddress(owner) === safeOwner
-          )
-          if (!isOwner)
-            ctx.logError(`SAFE owner ${safeOwner} not in SAFE configuration`)
-          else
-            consola.success(`SAFE owner ${safeOwner} is in SAFE configuration`)
+        // Checksummed on both sides, because the two sources disagree on case:
+        // `getOwners()` returns whatever the node encodes and the config file is
+        // hand-written.
+        const configured = new Set<string>()
+        const unusable: string[] = []
+        let duplicates = 0
+        for (const [index, entry] of safeOwners.entries()) {
+          // A blank entry leaves the configured set incomplete by exactly the
+          // argument that governs an unparseable one, so it takes the same
+          // route: comparing against a partial set names a legitimate owner as
+          // unexpected.
+          if (!entry) {
+            unusable.push(describeConfigEntry(entry, index))
+            continue
+          }
+          try {
+            const normalised = getAddress(entry)
+            if (configured.has(normalised)) duplicates += 1
+            configured.add(normalised)
+          } catch {
+            unusable.push(describeConfigEntry(entry, index))
+          }
         }
+
+        const onChain = new Set<string>()
+        for (const owner of safeInfo.owners) onChain.add(getAddress(owner))
+
+        let mismatches = 0
+        const report = (message: string): void => {
+          mismatches += 1
+          ctx.logError(message)
+        }
+
+        for (const safeOwner of configured)
+          if (!onChain.has(safeOwner))
+            report(
+              `SAFE owner ${safeOwner} is in config/global.json but is NOT an owner of ${safeAddress} on chain`
+            )
+
+        if (unusable.length > 0)
+          // Reported instead of compared: an incomplete configured set would
+          // name an on-chain owner as unexpected when it may be configured and
+          // merely mistyped.
+          report(
+            `Cannot check ${safeAddress} for unexpected owners: ${
+              unusable.length
+            } entr${
+              unusable.length === 1 ? 'y' : 'ies'
+            } in config/global.json safeOwners ${
+              unusable.length === 1 ? 'is' : 'are'
+            } not a valid address (${unusable.join(
+              ', '
+            )}). An owner added to the Safe stays invisible until the full set can be compared.`
+          )
+        else if (configured.size === 0)
+          // An empty expected set agrees with every on-chain set there is.
+          report(
+            `Cannot check ${safeAddress} for unexpected owners: config/global.json lists no safeOwners`
+          )
+        else
+          for (const safeOwner of onChain)
+            if (!configured.has(safeOwner))
+              report(
+                `SAFE owner ${safeOwner} is an owner of ${safeAddress} on chain but is NOT in config/global.json`
+              )
+
+        // Set equality pins the distinct owners, not the entry count, so a
+        // duplicated entry is outside it: the sets agree while config names
+        // fewer distinct owners than it has entries.
+        if (duplicates > 0)
+          report(
+            `config/global.json safeOwners lists ${duplicates} duplicate entr${
+              duplicates === 1 ? 'y' : 'ies'
+            }, so it names fewer distinct owners than it has entries`
+          )
+
+        if (mismatches === 0)
+          consola.success(
+            `SAFE owner set matches config/global.json (${onChain.size} owner(s))`
+          )
 
         if (safeInfo.threshold < BigInt(SAFE_THRESHOLD))
           ctx.logError(

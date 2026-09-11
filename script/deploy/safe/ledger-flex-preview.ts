@@ -2,12 +2,16 @@
  * Ledger Flex signing filmstrip
  *
  * Renders an ASCII replica of the sequence of Ledger Flex screens a signer
- * steps through when blind-signing a Safe transaction (EIP-712), populated with
- * the actual to-be-signed values. Import from `confirm-safe-tx.ts` to print the
- * filmstrip so the operator can compare each screen against the physical device
- * instead of eyeballing a 200-character hex blob.
+ * steps through, populated with the actual to-be-signed values, so the operator
+ * compares each screen against the physical device instead of eyeballing a
+ * 200-character hex blob. Import from `confirm-safe-tx.ts`.
  *
- * Only the first five screens are reproduced (warning + screens 1–4 of 8): the
+ * Two flows, one per signing mode. `renderLedgerFlexHashFlow` covers the
+ * default hash mode, where the device signs the Safe transaction hash as a
+ * message; `renderLedgerFlexFlow` covers the opt-in EIP-712 mode below.
+ *
+ * In the EIP-712 flow only the first five screens are reproduced (warning +
+ * screens 1–4 of 8): the
  * security-relevant ones — domain chainId/verifyingContract, SafeTx to/value,
  * and the calldata. Screens 5–8 (safeTxGas, baseGas, gasPrice, gasToken,
  * refundReceiver, nonce) are boilerplate — typically zero and not worth
@@ -15,6 +19,8 @@
  */
 
 import { getAddress, type Hex } from 'viem'
+
+import { asPrintable, UNBOUNDED } from './printable-field'
 
 const INNER = 20 // interior width of each screen box (between the borders)
 const PANEL_GAP = 2 // spaces between panels in the row
@@ -72,11 +78,23 @@ const RESET = `${ESC}[0m`
  */
 export const LEDGER_FLEX_WRAP_NOTE = `${RED}⚠ Address lines may wrap slightly differently on your Ledger — compare the character sequence, not the line breaks.${RESET}`
 
+/** A styled run of `text`, by character index — `[start, end)`. */
+interface IFlexStyleRange {
+  start: number
+  end: number
+  style: string
+}
+
 interface IFlexLine {
   text: string
   align: 'left' | 'center'
   /** Optional ANSI style applied to the text (not the padding). */
   style?: string
+  /**
+   * Styled runs within `text`. Needed where part of a row carries its own
+   * emphasis — the two ends of the hash the signer compares sit mid-row.
+   */
+  ranges?: IFlexStyleRange[]
 }
 
 interface IFlexScreen {
@@ -95,8 +113,12 @@ export interface ILedgerFlexFlowParams {
   to: string
   /** SafeTx `value`, decimal string. */
   value: string
-  /** SafeTx `data` calldata, `0x`-prefixed. */
-  data: Hex
+  /**
+   * SafeTx `data` as the row stores it. Deliberately `unknown`: it reaches the
+   * signed struct through a cast, so it can hold anything at runtime, and a
+   * caller that pre-rendered it would leave this module unable to say so.
+   */
+  data: unknown
 }
 
 /**
@@ -151,13 +173,40 @@ const wrapWords = (text: string, width: number): string[] => {
   return out
 }
 
+/** The shape a calldata field has when it is calldata. */
+const HEX_CALLDATA = /^0x[0-9a-f]*$/iu
+
 /**
  * Rows for the Ledger `data` field: uppercased hex with a lowercase `0x`
  * prefix, wrapped by on-device glyph width, truncated with a trailing "…" past
  * the device's ~6-row preview budget.
+ *
+ * The field arrives as the row stored it, not as `Hex`: nothing coerces it on
+ * the way here, and the panel's own geometry settles nothing — `frameLine`
+ * clips at 20 characters and `ESC[2J` is four, so an escape would sit inside a
+ * row that still measures the right width. Hence the primitive below rather
+ * than the wrapping. This filmstrip is the artefact the signer is told to
+ * compare against the physical device, so text injected into it attacks the
+ * verification step itself.
+ *
+ * A value that is not `0x`-prefixed hex is reported rather than repaired: which
+ * bytes the row holds is the whole question here, so nothing may quietly change
+ * them.
  */
-const dataRows = (data: Hex): { rows: string[]; truncated: boolean } => {
-  const display = `0x${data.replace(/^0x/i, '').toUpperCase()}`
+const dataRows = (
+  data: unknown
+): { rows: string[]; truncated: boolean; notice: string } => {
+  const { text, notice } = asPrintable(data, UNBOUNDED)
+  const remarks = notice ? [notice] : []
+  if (!HEX_CALLDATA.test(text))
+    remarks.push(
+      `${RED} ⚠ the stored calldata is not 0x-prefixed hex — your device will not show this${RESET}`
+    )
+  // Case-folding a value that is not hex would show the signer characters the
+  // row does not hold, on the one panel whose job is a character comparison.
+  const display = HEX_CALLDATA.test(text)
+    ? `0x${text.replace(/^0x/i, '').toUpperCase()}`
+    : text
   const all = pixelWrap(display)
   const truncated = all.length > DATA_PREVIEW_ROWS
   const rows = truncated ? all.slice(0, DATA_PREVIEW_ROWS) : all
@@ -170,7 +219,7 @@ const dataRows = (data: Hex): { rows: string[]; truncated: boolean } => {
         ? lastRow.slice(0, MAX_ROW_CHARS - 1)
         : lastRow) + '…'
   }
-  return { rows, truncated }
+  return { rows, truncated, notice: remarks.join('') }
 }
 
 // Address fields render EIP-55 checksummed (mixed case), unlike the uppercased
@@ -186,8 +235,10 @@ const navFooter = (page: number): string => {
   return `${left}${' '.repeat(gap)}${right}`
 }
 
-const buildScreens = (p: ILedgerFlexFlowParams): IFlexScreen[] => {
-  const { rows, truncated } = dataRows(p.data)
+const buildScreens = (
+  p: ILedgerFlexFlowParams
+): { screens: IFlexScreen[]; notice: string } => {
+  const { rows, truncated, notice } = dataRows(p.data)
 
   const warning: IFlexScreen = {
     header: '',
@@ -271,25 +322,78 @@ const buildScreens = (p: ILedgerFlexFlowParams): IFlexScreen[] => {
     footer: navFooter(4),
   }
 
-  return [warning, typedMessage, domain, safeTx, dataScreen]
+  return {
+    screens: [warning, typedMessage, domain, safeTx, dataScreen],
+    notice,
+  }
+}
+
+/**
+ * Wraps the given index ranges of `text` in their ANSI styles.
+ *
+ * Ranges are applied left to right over the ORIGINAL indices and clamped to the
+ * string, so a range that survived a row clip cannot reach past its end. Only
+ * the styled runs gain bytes; the visible character count is unchanged, which
+ * is what keeps the panel borders aligned.
+ *
+ * Built from slices rather than `String.prototype.replace`: a replacement
+ * operand containing the styled text makes `$&`, `` $` `` and `$'` inside that
+ * text expand as substitution patterns, which widens the row and breaks the
+ * frame the signer is comparing against their device.
+ *
+ * @param text - The unstyled row text.
+ * @param ranges - Half-open `[start, end)` index ranges and the style each carries.
+ * @returns The same characters with ANSI styles wrapped around the given ranges.
+ */
+export const applyStyleRanges = (
+  text: string,
+  ranges: IFlexStyleRange[]
+): string => {
+  if (!ranges.length) return text
+
+  const sorted = [...ranges].sort((a, b) => a.start - b.start)
+  let out = ''
+  let cursor = 0
+  for (const range of sorted) {
+    const start = Math.max(cursor, Math.min(range.start, text.length))
+    const end = Math.max(start, Math.min(range.end, text.length))
+    if (end === start) continue
+    out += `${text.slice(cursor, start)}${range.style}${text.slice(
+      start,
+      end
+    )}${RESET}`
+    cursor = end
+  }
+  return out + text.slice(cursor)
 }
 
 /** One interior row, clipped/padded to `INNER` with a 1-space side margin. */
-const frameLine = ({ text, align, style }: IFlexLine): string => {
+const frameLine = ({ text, align, style, ranges }: IFlexLine): string => {
   const t = text.length > INNER ? text.slice(0, INNER) : text
   let body: string
+  let offset: number
   if (align === 'center') {
     const space = INNER - t.length
     const left = Math.floor(space / 2)
     body = ' '.repeat(left) + t + ' '.repeat(space - left)
+    offset = left
   } else {
     // slice before padEnd: a 1-space margin + INNER-length text would be
     // INNER+1 wide, and padEnd never truncates — breaking the row width.
     body = ` ${t}`.slice(0, INNER).padEnd(INNER)
+    offset = 1
   }
-  // Style only the text run so the padding (and thus the visible width) is
+  // Style only the text runs so the padding (and thus the visible width) is
   // untouched — keeps the box borders and neighbouring panels aligned.
-  if (style && t) body = body.replace(t, `${style}${t}${RESET}`)
+  const shifted: IFlexStyleRange[] = []
+  if (style && t) shifted.push({ start: offset, end: offset + t.length, style })
+  for (const range of ranges ?? [])
+    shifted.push({
+      start: offset + range.start,
+      end: offset + Math.min(range.end, t.length),
+      style: range.style,
+    })
+  if (shifted.length) body = applyStyleRanges(body, shifted)
   return `│${body}│`
 }
 
@@ -346,7 +450,7 @@ export const joinPanelsHorizontally = (
 export const renderLedgerFlexFlow = (
   params: ILedgerFlexFlowParams
 ): string[] => {
-  const screens = buildScreens(params)
+  const { screens, notice } = buildScreens(params)
   const contentHeight = Math.max(...screens.map((s) => s.content.length))
   const panels = screens.map((s) => framePanel(s, contentHeight))
 
@@ -360,5 +464,187 @@ export const renderLedgerFlexFlow = (
   const withArrows = panels.flatMap((panel, i) =>
     i === 0 ? [panel] : [connector, panel]
   )
-  return joinPanelsHorizontally(withArrows, 1)
+  const panelLines = joinPanelsHorizontally(withArrows, 1)
+  // Below the panels, never inside one: the boxes are exactly `INNER` wide and
+  // a notice threaded through them would break the geometry the comparison
+  // depends on.
+  return notice ? [...panelLines, notice] : panelLines
+}
+
+/**
+ * Hex characters from each end of the hash the signer compares.
+ *
+ * The locked figure is 16 characters, eight from each end: four-and-four is
+ * grindable at 2^32 by an attacker who controls the malicious payload's cheap
+ * fields, so a shorter comparison is not a weaker check but no check.
+ */
+export const HASH_COMPARE_CHARS = 8
+
+// Bold yellow, used for nothing else in the filmstrip: the two runs the signer
+// must actually read carry a colour no other field can be confused with.
+const COMPARE = `${ESC}[1;33m`
+
+/** Caveat to print BELOW the hash filmstrip. */
+export const LEDGER_FLEX_HASH_NOTE = [
+  `${RED}⚠ The device renders hex in upper case and may wrap it differently — compare the characters, not the case or the line breaks.${RESET}`,
+  `${RED}⚠ Only the titles, the prompt on each screen and the hash are reproduced. Navigation the device adds around them is expected, not a mismatch.${RESET}`,
+].join('\n')
+
+export interface ILedgerFlexHashFlowParams {
+  /** The Safe transaction hash the device will be asked to sign, as 0x + 64 hex. */
+  hash: string
+}
+
+const HASH_HEX_CHARS = 64
+
+/**
+ * The hash as the device shows it, split into rows, each row carrying the
+ * styled runs that fall inside it.
+ *
+ * The two compare runs are located in the unwrapped display string and then
+ * intersected with each row, so they stay correct however the row breaks land —
+ * including the case where one run spans two rows.
+ */
+const hashRows = (hash: string): IFlexLine[] => {
+  const display = `0x${hash.slice(2).toUpperCase()}`
+  const spans = [
+    { start: 2, end: 2 + HASH_COMPARE_CHARS },
+    { start: display.length - HASH_COMPARE_CHARS, end: display.length },
+  ]
+
+  let consumed = 0
+  return pixelWrap(display).map((text) => {
+    const ranges: { start: number; end: number; style: string }[] = []
+    for (const span of spans) {
+      const start = Math.max(span.start, consumed)
+      const end = Math.min(span.end, consumed + text.length)
+      if (end > start)
+        ranges.push({
+          start: start - consumed,
+          end: end - consumed,
+          style: COMPARE,
+        })
+    }
+    consumed += text.length
+    return { text, align: 'left' as const, ranges }
+  })
+}
+
+/**
+ * The three screens, carrying only what has been read off a physical Flex: the
+ * titles, the prompt on each, and the hash itself.
+ *
+ * Page counters and per-screen affordances are deliberately absent, unlike the
+ * typed-data flow below, whose chrome was measured on-device. The preview exists
+ * so that a difference from the device reads as an alarm, which only holds while
+ * everything in it is known to be true — a counter carried over from that flow's
+ * conventions would be a detail the operator is invited to check against a screen
+ * that may not show it, and teaches them to shrug at exactly the mismatch this is
+ * for.
+ *
+ * That makes the preview deliberately incomplete rather than wrong, so
+ * `LEDGER_FLEX_HASH_NOTE` tells the signer that navigation the device adds around
+ * these lines is expected — otherwise the omission becomes its own false alarm.
+ */
+const buildHashScreens = (hash: string): IFlexScreen[] => [
+  {
+    header: '',
+    content: [
+      { text: 'Review message', align: 'center', style: BOLD },
+      { text: '', align: 'center' },
+      { text: 'Swipe to review', align: 'center' },
+    ],
+    footer: '',
+  },
+  {
+    header: '',
+    content: [
+      { text: 'Message', align: 'left', style: BOLD },
+      ...hashRows(hash),
+    ],
+    footer: '',
+  },
+  {
+    header: '',
+    content: [
+      { text: 'Sign message', align: 'center', style: BOLD },
+      { text: '', align: 'center' },
+      { text: 'Hold to sign', align: 'center', style: HIGHLIGHT },
+    ],
+    footer: '',
+  },
+]
+
+/**
+ * The instruction column printed to the right of the screens: what to compare,
+ * and the two runs to compare, in the same colour they carry on screen 2.
+ *
+ * Upper case matches the device rather than the lower-case hash the rest of the
+ * terminal prints — the operator is comparing against the screen, not the log.
+ */
+const compareColumn = (hash: string, height: number): string[] => {
+  const hex = hash.slice(2).toUpperCase()
+  const runs: [string, string] = [
+    hex.slice(0, HASH_COMPARE_CHARS),
+    hex.slice(-HASH_COMPARE_CHARS),
+  ]
+
+  // Nothing follows this column, so the lines carry their own left gap and need
+  // no right padding.
+  const lines = [
+    `${BOLD}COMPARE THESE 16 CHARACTERS${RESET}`,
+    `${BOLD}against the "Message" screen${RESET}`,
+    '',
+    `  first 8   ${COMPARE}${runs[0]}${RESET}`,
+    `  last 8    ${COMPARE}${runs[1]}${RESET}`,
+    '',
+    `${BOLD}Both must match the hash in${RESET}`,
+    `${BOLD}the DM from the proposer —${RESET}`,
+    `${BOLD}nothing here can prove it.${RESET}`,
+  ].map((line) => `   ${line}`)
+
+  const slack = Math.max(0, height - lines.length)
+  const top = Math.floor(slack / 2)
+  return [
+    ...Array.from({ length: top }, () => ''),
+    ...lines,
+    ...Array.from({ length: slack - top }, () => ''),
+  ]
+}
+
+/**
+ * Render the Ledger Flex filmstrip for hash-mode signing.
+ *
+ * @param params - The Safe transaction hash the device will sign.
+ * @returns The filmstrip as an array of lines: three framed screens followed by
+ *   the compare instruction column.
+ * @throws If `hash` is not 0x + 64 hex characters. A shape invariant on an
+ *   exported function, not an operator-facing sanitiser: the only production
+ *   caller reads the hash from the Safe's `getTransactionHash`, whose `bytes32`
+ *   return can only decode to that shape, so this cannot fire from there.
+ */
+export const renderLedgerFlexHashFlow = (
+  params: ILedgerFlexHashFlowParams
+): string[] => {
+  if (!new RegExp(`^0x[0-9a-fA-F]{${HASH_HEX_CHARS}}$`).test(params.hash))
+    throw new Error(
+      `Expected a Safe transaction hash as 0x + ${HASH_HEX_CHARS} hex characters, got ${params.hash.length} characters`
+    )
+
+  const screens = buildHashScreens(params.hash)
+  const contentHeight = Math.max(...screens.map((s) => s.content.length))
+  const panels = screens.map((s) => framePanel(s, contentHeight))
+
+  const height = panels[0]?.length ?? 0
+  const mid = Math.floor(height / 2)
+  const connector = Array.from({ length: height }, (_, i) =>
+    i === mid ? '>' : ' '
+  )
+  const withArrows = panels.flatMap((panel, i) =>
+    i === 0 ? [panel] : [connector, panel]
+  )
+  return joinPanelsHorizontally(
+    [...withArrows, compareColumn(params.hash, height)],
+    1
+  )
 }

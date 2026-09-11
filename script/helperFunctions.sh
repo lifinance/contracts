@@ -15,34 +15,12 @@ set +a
 NETWORKS_JSON_FILE_PATH="config/networks.json"
 GLOBAL_FILE_PATH="config/global.json"
 source script/universalCast.sh
+source script/deploy/shared/assertFoundryVersion.sh
+source script/utils/zkToolchainPins.sh
+source script/deploy/shared/assertZkToolchain.sh
 
 ZERO_ADDRESS=0x0000000000000000000000000000000000000000
 TRON_ZERO_ADDRESS_BASE58=T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb
-
-# getZkToolchainPin: Reads a version pin from the [external.zksync] section of foundry.toml.
-# Vanilla forge ignores [external.*] sections without warning, so the pins can live in
-# foundry.toml even though only our scripts consume them.
-#
-# Usage: getZkToolchainPin KEY
-#   KEY - Pin name, e.g. "zksolc" or "foundry_zksync"
-#
-# Returns: The pinned version string (empty if not found)
-# Example: getZkToolchainPin "zksolc"
-function getZkToolchainPin() {
-  local KEY="$1"
-  # default covers .env files that don't define FOUNDRY_TOML_FILE_PATH
-  local FOUNDRY_TOML="${FOUNDRY_TOML_FILE_PATH:-foundry.toml}"
-
-  if [[ ! -f "$FOUNDRY_TOML" ]]; then
-    return 1
-  fi
-
-  awk -v key="$KEY" '
-    /^\[external\.zksync\]/ { IN_SECTION = 1; next }
-    /^\[/ { IN_SECTION = 0 }
-    IN_SECTION && $1 == key && $2 == "=" { gsub(/["'\'']/, "", $3); print $3; exit }
-  ' "$FOUNDRY_TOML"
-}
 
 # zksolc version pin for foundry-zksync, defined in foundry.toml [external.zksync].
 # Passed to foundry-zksync via env because a real `zksync` key in any profile makes
@@ -1225,7 +1203,7 @@ function saveDiamondPeriphery() {
   echoDebug "ENVIRONMENT=$ENVIRONMENT"
   echoDebug "USE_MUTABLE_DIAMOND=$USE_MUTABLE_DIAMOND"
   echoDebug "FILE_SUFFIX=$FILE_SUFFIX"
-  echoDebug "RPC_URL=$RPC_URL"
+  echoDebug "RPC_URL=$(redactRpcUrl "$RPC_URL")"
   echoDebug "DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
   echoDebug "DIAMOND_FILE=$DIAMOND_FILE"
 
@@ -2133,6 +2111,10 @@ function ensureStandardArtifactForSalt() {
     return 0
   fi
 
+  if ! assertFoundryVersionOrFail; then
+    return 1
+  fi
+
   echo "[info] standard artifact $ARTIFACT_PATH not found - running 'forge build --skip test' to derive the deploy salt"
   if ! forge build --skip test; then
     error "'forge build --skip test' failed - cannot derive the deploy salt for $CONTRACT without $ARTIFACT_PATH"
@@ -2220,6 +2202,13 @@ function redactVerifyCmd() {
   done
 
   printf '%s\n' "$OUTPUT"
+}
+
+# Endpoint URLs carry the provider key in the path or query, so the value must never reach a log
+# line verbatim. Only a scheme-bearing URL is matched, mirroring the TypeScript redactUrls().
+# Callers that need the URL itself — getRPCUrl returns it on stdout — must not use this.
+function redactRpcUrl() {
+  printf '%s' "${1:-}" | sed -E 's#[a-zA-Z][a-zA-Z0-9+.-]*://[^[:space:]]+#[redacted-url]#g'
 }
 
 function verifyContract() {
@@ -4196,6 +4185,68 @@ function getPrivateKey() {
   fi
 }
 
+# Runs the production deploy gate for calldata that is broadcast straight to the
+# target instead of proposed to a Safe. The funnel gate in
+# `script/deploy/shared/funnel-deploy-gate.ts` runs inside the proposal funnels,
+# which this route never enters, so without this a
+# `SEND_PROPOSALS_DIRECTLY_TO_DIAMOND` bring-up window installs unmerged code on
+# a mainnet diamond unchecked.
+#
+# `getPrivateKey` hands out the production key for every ENVIRONMENT that does
+# not contain "staging", so matching the exact string keeps the gate at least as
+# broad as the key it protects.
+#
+# On a Tron mainnet the CLI reads the deployment log with the EVM address reader,
+# so a cut there is refused as unattributable rather than compared: the Tron log
+# stores base58 and the converter needs a live TronWeb. No caller encodes a
+# diamondCut through this helper today, so that refusal is unreachable — if one
+# ever reaches it, the fix is the reader `propose-to-safe-tron.ts` already passes
+# to `createFunnelGateDeps`, not a carve-out here.
+#
+# Usage: assertDirectBroadcastCalldataGate NETWORK ENVIRONMENT CALLDATA
+# Returns: 0 to continue, 1 to refuse. Never exits.
+function assertDirectBroadcastCalldataGate() {
+  local NETWORK="$1"
+  local ENVIRONMENT="$2"
+  local CALLDATA="$3"
+
+  if [[ "$ENVIRONMENT" == "staging" ]]; then
+    echo "[info] direct-broadcast deploy gate skipped: staging environment"
+    return 0
+  fi
+
+  # Deploying an unmerged facet to a testnet is how it gets validated before its
+  # audit, and no mainnet Safe or production key is involved.
+  if isTestnetNetwork "$NETWORK"; then
+    echo "[info] direct-broadcast deploy gate skipped: $NETWORK is a testnet"
+    return 0
+  fi
+
+  # Only stdout is captured, and only the token's own line counts as consent:
+  # CALLDATA and NETWORK come from the caller, so no stdout line may consist
+  # solely of what they carry. Diagnostics keep streaming on stderr.
+  local GATE_STDOUT
+  if ! GATE_STDOUT=$(bunx tsx ./script/deploy/shared/assert-direct-broadcast-gate.ts --network "$NETWORK" --calldata "$CALLDATA"); then
+    if [[ -n "$GATE_STDOUT" ]]; then
+      printf '%s\n' "$GATE_STDOUT"
+    fi
+    error "Direct-broadcast deploy gate failed for $NETWORK - aborting before anything is broadcast"
+    return 1
+  fi
+  if [[ -n "$GATE_STDOUT" ]]; then
+    printf '%s\n' "$GATE_STDOUT"
+  fi
+
+  # Exit 0 is not consent: a CLI that never ran also exits 0 and prints nothing.
+  if ! printf '%s\n' "$GATE_STDOUT" | grep -Fxq "DIRECT_BROADCAST_GATE_ALLOWED"; then
+    error "Direct-broadcast deploy gate produced no allow token - aborting before anything is broadcast"
+    return 1
+  fi
+
+  echo "[info] direct-broadcast deploy gate passed"
+  return 0
+}
+
 # Send or propose transaction
 # - SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true: send directly to target (e.g. new production networks before ownership transfer)
 # - Testnet (networks.json type=testnet): send directly; testnet diamonds are EOA-owned with no Safe/Timelock
@@ -4276,6 +4327,10 @@ function sendOrPropose() {
   if [[ "$ENVIRONMENT" != "production" ]] \
      || [[ "${SEND_PROPOSALS_DIRECTLY_TO_DIAMOND:-}" == "true" ]] \
      || isTestnetNetwork "$NETWORK"; then
+    # Disjoint from the funnel gate by construction: a proposal is gated on its
+    # calldata inside propose-to-safe.ts, and only the route that never reaches
+    # it is gated here.
+    assertDirectBroadcastCalldataGate "$NETWORK" "$ENVIRONMENT" "${CALLDATAS[0]}" || return 1
     universalCast "sendRaw" "$NETWORK" "$ENVIRONMENT" "$TARGET" "${CALLDATAS[0]}" "$PRIVATE_KEY_OVERRIDE" || return $?
     return 0
   fi
@@ -5090,9 +5145,9 @@ function executeAndCapture() {
 
   # Debug: Show what we captured
   echoDebug "=== RAW_RETURN_DATA (stdout) ==="
-  echoDebug "$RAW_RETURN_DATA"
+  echoDebug "$(redactRpcUrl "$RAW_RETURN_DATA")"
   echoDebug "=== STDERR_CONTENT (stderr) ==="
-  echoDebug "$STDERR_CONTENT"
+  echoDebug "$(redactRpcUrl "$STDERR_CONTENT")"
 
   # Extract JSON if requested
   if [[ "$EXTRACT_JSON" == "true" ]]; then
@@ -5162,10 +5217,10 @@ function parseExecuteCommandResult() {
     if [[ "$RETURN_CODE" -ne 0 ]]; then
       error "$ERROR_MESSAGE (exit code: $RETURN_CODE)"
       if [[ -n "$STDERR_CONTENT" ]]; then
-        error "stderr: $STDERR_CONTENT"
+        error "stderr: $(redactRpcUrl "$STDERR_CONTENT")"
       fi
       if [[ -n "$RAW_RETURN_DATA" ]]; then
-        echoDebug "stdout: $RAW_RETURN_DATA"
+        echoDebug "stdout: $(redactRpcUrl "$RAW_RETURN_DATA")"
       fi
 
       case "$ON_ERROR_ACTION" in
@@ -5194,6 +5249,11 @@ function parseExecuteCommandResult() {
 #   $2 - EXTRACT_JSON: If set to "true", will extract JSON from stdout (default: "false")
 #   $3 - ERROR_MESSAGE: Optional error message for return code check (if provided, will check return code)
 #   $4 - ON_ERROR_ACTION: Optional action on error: "return" (default), "continue", or "exit"
+# Routing/Behavior:
+#   - Local foundry does not match .foundry-version: refuses before running COMMAND,
+#     sets RETURN_CODE to 1, clears RAW_RETURN_DATA, puts the refusal in
+#     STDERR_CONTENT, and returns 1 whatever ON_ERROR_ACTION says
+#   - Otherwise: runs COMMAND and parses the result as described below
 # Returns:
 #   Sets global variables RAW_RETURN_DATA, STDERR_CONTENT, RETURN_CODE (always contain last execution output)
 #   Returns 0 if RETURN_CODE is 0 (or if no error check requested), 1 otherwise
@@ -5211,6 +5271,19 @@ function executeAndParse() {
   local EXTRACT_JSON="${2:-false}"
   local ERROR_MESSAGE="${3:-}"
   local ON_ERROR_ACTION="${4:-return}"
+
+  # Every deploy-path `forge script` is a COMMAND passed to this function, which is why a
+  # toolchain check lives in a generic executor. Direct `forge build` call sites do not pass
+  # through here and carry their own; zkEVM builds are gated in install_foundry_zksync. The
+  # result globals are reset because callers that ignore the status read the verdict out of
+  # them via handleForgeScriptError, where a previous call's success payload would read as a
+  # completed forge run.
+  if ! assertFoundryVersionOrFail; then
+    RAW_RETURN_DATA=""
+    STDERR_CONTENT="refused: could not confirm the local foundry matches .foundry-version"
+    RETURN_CODE=1
+    return 1
+  fi
 
   # Execute command and capture output
   local RESULT
@@ -5293,7 +5366,7 @@ function handleForgeScriptError() {
       warning "forge script returned exit code 0 but with unexpected/empty return data${NETWORK_MSG}${ATTEMPT_MSG}"
     fi
     if [[ -n "${STDERR_CONTENT:-}" ]]; then
-      error "stderr: ${STDERR_CONTENT}"
+      error "stderr: $(redactRpcUrl "${STDERR_CONTENT}")"
     fi
     if [[ -z "${RAW_RETURN_DATA:-}" || "${RAW_RETURN_DATA:-}" == "" ]]; then
       warning "No JSON output received. This usually indicates a connection/RPC error."
@@ -5612,7 +5685,7 @@ function updateDiamondLogs() {
   fi
 }
 
-# Function: install_foundry_zksync
+# Function: installFoundryZksyncBinary
 # Description: Downloads and installs the zkSync version of foundry tools (forge and cast).
 # Idempotent: returns immediately if the installed binary already matches the expected
 # version; on mismatch the binaries are removed and re-downloaded.
@@ -5629,7 +5702,7 @@ function updateDiamondLogs() {
 # Returns:
 #   0 - Success
 #   1 - Failure (with error message)
-install_foundry_zksync() {
+installFoundryZksyncBinary() {
   # env override takes precedence over the pin in foundry.toml [external.zksync]
   local EXPECTED_VERSION="${FOUNDRY_ZKSYNC_VERSION:-$(getZkToolchainPin "foundry_zksync")}"
   # Allow custom installation directory or use default
@@ -5776,6 +5849,19 @@ install_foundry_zksync() {
   echo "Installation completed successfully"
   echo "Binaries are executable and ready to use"
   return 0
+}
+
+# install_foundry_zksync: Installs the pinned foundry-zksync, then refuses unless the
+# toolchain that will compile matches the pins in foundry.toml [external.zksync].
+#
+# Every zkEVM build and every zkEVM forge script installs through here first, so the pin
+# check cannot be missed by a future caller the way a per-call-site check could.
+#
+# Arguments and env overrides: see installFoundryZksyncBinary.
+# Returns: 0 when the toolchain is installed and pinned, 1 otherwise.
+install_foundry_zksync() {
+  installFoundryZksyncBinary "$@" || return 1
+  assertZkToolchainOrFail "${1:-./foundry-zksync}" || return 1
 }
 
 # Function: getContractDeploymentStatusSummary
@@ -6052,7 +6138,7 @@ function estimatePauseCost() {
       return 2
     fi
     if [[ $ATTEMPT -ge $ESTIMATE_MAX_ATTEMPTS ]]; then
-      error "estimatePauseCost: cast estimate failed for $NETWORK after $ESTIMATE_MAX_ATTEMPTS attempts: ${CAST_ERR:-non-numeric gas estimate ($GAS_ESTIMATE)}" >&2
+      error "estimatePauseCost: cast estimate failed for $NETWORK after $ESTIMATE_MAX_ATTEMPTS attempts: $(redactRpcUrl "${CAST_ERR:-non-numeric gas estimate ($GAS_ESTIMATE)}")" >&2
       return 1
     fi
     sleep "$ESTIMATE_RETRY_SLEEP_SECONDS"

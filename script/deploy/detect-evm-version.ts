@@ -3,6 +3,7 @@ import { consola } from 'consola'
 import { createPublicClient, createWalletClient, http } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
+import { redactUrls } from '../utils/redactUrls'
 import { getViemChainForNetworkName } from '../utils/viemScriptHelpers'
 
 import { getPrivateKey } from './safe/safe-utils'
@@ -51,7 +52,11 @@ const main = defineCommand({
       transport: http(chain.rpcUrls.default.http[0]),
     })
 
-    consola.info(`Connected to ${network} via ${chain.rpcUrls.default.http}`)
+    consola.info(
+      `Connected to ${network} via ${redactUrls(
+        chain.rpcUrls.default.http[0] ?? ''
+      )}`
+    )
     const block = await publicClient.getBlock()
 
     consola.info(`Latest block: ${block.number}`)
@@ -105,7 +110,13 @@ const main = defineCommand({
         err.message?.includes('execution reverted')
       )
         consola.warn('PUSH0 caused invalid opcode — not supported')
-      else consola.error('Unexpected error testing PUSH0:', err)
+      // viem puts the full endpoint in `error.message`, so logging the raw error would publish
+      // the keyed URL this file redacts when it reports the connection.
+      else
+        consola.error(
+          'Unexpected error testing PUSH0:',
+          redactUrls(err?.stack ?? String(err))
+        )
     }
 
     // Adjust inferred version if PUSH0 failed

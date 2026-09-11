@@ -1,0 +1,15 @@
+{
+  "AcrossV4SwapFacet.SPONSORED_CCTP_SRC_PERIPHERY": "deliberately address(0) on the 11 chains without sponsored CCTP (allowToDeployWithZeroAddress); the invariant treats any zero read as drift, so annotating it would fail those chains — blocked by EXSC-967",
+  "AcrossV4SwapFacet.SPONSORED_OFT_SRC_PERIPHERY": "deliberately address(0) on the 15 chains without sponsored OFT (allowToDeployWithZeroAddress); the invariant treats any zero read as drift, so annotating it would fail those chains — blocked by EXSC-967",
+  "EmergencyPauseFacet.pauserWallet": "a LI.FI-operated wallet rather than an external counterparty; covered by the wallet-role checks",
+  "GasZipPeriphery.LIFI_DIAMOND": "resolved from the deploy log, not config; covered by the periphery presence and registry checks",
+  "GenericSwapFacetV3.NATIVE_ADDRESS": "networks.json nativeAddress is address(0) on most chains and the invariant treats any zero read as drift (EXSC-967); stable also binds its wrapped native instead of the configured sentinel (EXSC-966)",
+  "LiFiDEXAggregator.BENTO_BOX": "no config value exists to compare against — every deployment passes address(0) for _bentoBox by design",
+  "Permit2Proxy.LIFI_DIAMOND": "resolved from the deploy log, not config; covered by the periphery presence and registry checks",
+  "ReceiverAcrossV3.executor": "resolved from the deploy log, not config; covered by the periphery presence and registry checks",
+  "ReceiverAcrossV4.EXECUTOR": "resolved from the deploy log, not config; covered by the periphery presence and registry checks",
+  "ReceiverChainflip.executor": "resolved from the deploy log, not config; covered by the periphery presence and registry checks",
+  "ReceiverOIF.EXECUTOR": "resolved from the deploy log, not config; covered by the periphery presence and registry checks",
+  "ReceiverStargateV2.executor": "resolved from the deploy log, not config; covered by the periphery presence and registry checks",
+  "TokenWrapper.CONVERTER": "bound conditionally (falls back to WRAPPED_TOKEN when no converter is configured), so no single config key states the expected value"
+}

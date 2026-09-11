@@ -294,6 +294,22 @@ const CHAIN_FIELD: IField = {
   visible: 'always',
 }
 
+// `LibAsset.isNativeAsset` accepts exactly one sentinel — the zero address — so
+// that is the only value declared here. (`0xEeee…EEeE` is an outbound
+// translation for bridges that expect it, e.g. SquidFacet and GardenFacet;
+// no asset-id input is ever read as native at that value.) Without this param
+// `tokenAmount` has no decimals or ticker to format the sentinel with and
+// wallets fall back to the raw integer — a bare `7538051138939978` on the
+// signing screen where `0.007538051138939978 ETH` belongs.
+const NATIVE_CURRENCY_ADDRESS = '0x0000000000000000000000000000000000000000'
+
+// Every `tokenAmount` field goes through this: any asset-id path in this
+// diamond can hold the native sentinel, so opting in per-site would only leave
+// room to forget one.
+function tokenAmountParams(tokenPath: string): Record<string, unknown> {
+  return { tokenPath, nativeCurrencyAddress: NATIVE_CURRENCY_ADDRESS }
+}
+
 function bridgeFacetName(fnName: string): string {
   // startBridgeTokensViaXxx | swapAndStartBridgeTokensViaXxx
   // Strip Packed/Min/ERC20/Native suffixes; keep the bridge identity + version.
@@ -497,7 +513,7 @@ function buildStartFormat(fn: IAbiFn): IFormatEntry {
         path: '_bridgeData.minAmount',
         label: 'Amount to Bridge',
         format: 'tokenAmount',
-        params: { tokenPath: '_bridgeData.sendingAssetId' },
+        params: tokenAmountParams('_bridgeData.sendingAssetId'),
         visible: 'always',
       },
       CHAIN_FIELD,
@@ -520,14 +536,14 @@ function buildSwapAndStartFormat(fn: IAbiFn): IFormatEntry {
         path: '_swapData.[0].fromAmount',
         label: 'Amount to Swap',
         format: 'tokenAmount',
-        params: { tokenPath: '_swapData.[0].sendingAssetId' },
+        params: tokenAmountParams('_swapData.[0].sendingAssetId'),
         visible: 'always',
       },
       {
         path: '_bridgeData.minAmount',
         label: 'Minimum to Bridge',
         format: 'tokenAmount',
-        params: { tokenPath: '_bridgeData.sendingAssetId' },
+        params: tokenAmountParams('_bridgeData.sendingAssetId'),
         visible: 'always',
       },
       CHAIN_FIELD,
@@ -570,14 +586,14 @@ const SWAP_TEMPLATES: Record<string, IFormatEntry> = {
         path: '_swapData.fromAmount',
         label: 'Amount to Send',
         format: 'tokenAmount',
-        params: { tokenPath: '_swapData.sendingAssetId' },
+        params: tokenAmountParams('_swapData.sendingAssetId'),
         visible: 'always',
       },
       {
         path: '_minAmountOut',
         label: 'Minimum to Receive',
         format: 'tokenAmount',
-        params: { tokenPath: '_swapData.receivingAssetId' },
+        params: tokenAmountParams('_swapData.receivingAssetId'),
         visible: 'always',
       },
       {
@@ -613,12 +629,35 @@ const SWAP_TEMPLATES: Record<string, IFormatEntry> = {
 // (or the @.value for the legacy descriptor) is replaced. We just reproduce
 // the existing descriptor's field shape and append `interpolatedIntent`.
 
-SWAP_TEMPLATES.swapTokensSingleV3ERC20ToNative = {
-  // Cast: the ERC20ToERC20 entry is the literal object above and always present
-  // at this point. Required because `Record<string, T>` indexed access returns
-  // `T | undefined` under `noUncheckedIndexedAccess`.
-  ...(SWAP_TEMPLATES.swapTokensSingleV3ERC20ToERC20 as IFormatEntry),
+// The ERC20→Native variants send `address(this).balance` and never read the
+// `receivingAssetId` they are handed (`swapTokensSingleV3ERC20ToNative` and
+// `_transferNativeTokensAndEmitEvent` in GenericSwapFacetV3). Formatting
+// `_minAmountOut` against that unvalidated field would let crafted calldata put
+// any ticker and decimals on a guaranteed-native amount — `1 USDC` on screen for
+// 1e6 wei of native, on a transaction that succeeds. The output currency is
+// fixed, so state it rather than derive it.
+function withNativeMinAmountOut(base: IFormatEntry): IFormatEntry {
+  return {
+    ...base,
+    fields: base.fields.map((field) =>
+      field.path === '_minAmountOut'
+        ? {
+            path: field.path,
+            label: field.label,
+            format: 'amount',
+            visible: 'always' as const,
+          }
+        : field
+    ),
+  }
 }
+
+// Cast: the ERC20ToERC20 entry is the literal object above and always present
+// at this point. Required because `Record<string, T>` indexed access returns
+// `T | undefined` under `noUncheckedIndexedAccess`.
+SWAP_TEMPLATES.swapTokensSingleV3ERC20ToNative = withNativeMinAmountOut(
+  SWAP_TEMPLATES.swapTokensSingleV3ERC20ToERC20 as IFormatEntry
+)
 SWAP_TEMPLATES.swapTokensSingleV3NativeToERC20 = {
   intent: 'Swap',
   interpolatedIntent:
@@ -629,7 +668,7 @@ SWAP_TEMPLATES.swapTokensSingleV3NativeToERC20 = {
       path: '_minAmountOut',
       label: 'Minimum to Receive',
       format: 'tokenAmount',
-      params: { tokenPath: '_swapData.receivingAssetId' },
+      params: tokenAmountParams('_swapData.receivingAssetId'),
       visible: 'always',
     },
     {
@@ -669,14 +708,14 @@ SWAP_TEMPLATES.swapTokensMultipleV3ERC20ToERC20 = {
       path: '_swapData.[0].fromAmount',
       label: 'Amount to Send',
       format: 'tokenAmount',
-      params: { tokenPath: '_swapData.[0].sendingAssetId' },
+      params: tokenAmountParams('_swapData.[0].sendingAssetId'),
       visible: 'always',
     },
     {
       path: '_minAmountOut',
       label: 'Minimum to Receive',
       format: 'tokenAmount',
-      params: { tokenPath: '_swapData.[-1].receivingAssetId' },
+      params: tokenAmountParams('_swapData.[-1].receivingAssetId'),
       visible: 'always',
     },
     {
@@ -711,10 +750,10 @@ SWAP_TEMPLATES.swapTokensMultipleV3ERC20ToERC20 = {
     },
   ],
 }
-SWAP_TEMPLATES.swapTokensMultipleV3ERC20ToNative = {
-  // See note on the SingleV3 variant above re. the cast.
-  ...(SWAP_TEMPLATES.swapTokensMultipleV3ERC20ToERC20 as IFormatEntry),
-}
+// See notes on the SingleV3 variant above re. the cast and the native output.
+SWAP_TEMPLATES.swapTokensMultipleV3ERC20ToNative = withNativeMinAmountOut(
+  SWAP_TEMPLATES.swapTokensMultipleV3ERC20ToERC20 as IFormatEntry
+)
 SWAP_TEMPLATES.swapTokensMultipleV3NativeToERC20 = {
   intent: 'Swap',
   interpolatedIntent:
@@ -725,7 +764,7 @@ SWAP_TEMPLATES.swapTokensMultipleV3NativeToERC20 = {
       path: '_minAmountOut',
       label: 'Minimum to Receive',
       format: 'tokenAmount',
-      params: { tokenPath: '_swapData.[-1].receivingAssetId' },
+      params: tokenAmountParams('_swapData.[-1].receivingAssetId'),
       visible: 'always',
     },
     {
@@ -770,14 +809,14 @@ SWAP_TEMPLATES.swapTokensGeneric = {
       path: '_swapData.[0].fromAmount',
       label: 'Amount to Send',
       format: 'tokenAmount',
-      params: { tokenPath: '_swapData.[0].sendingAssetId' },
+      params: tokenAmountParams('_swapData.[0].sendingAssetId'),
       visible: 'always',
     },
     {
       path: '_minAmount',
       label: 'Minimum to Receive',
       format: 'tokenAmount',
-      params: { tokenPath: '_swapData.[-1].receivingAssetId' },
+      params: tokenAmountParams('_swapData.[-1].receivingAssetId'),
       visible: 'always',
     },
     {

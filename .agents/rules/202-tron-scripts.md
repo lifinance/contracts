@@ -37,9 +37,19 @@ paths:
 
 ### Energy estimation
 
-- Use `estimateEnergyAndFeeLimit()` from `script/deploy/tron/helpers/estimateContractEnergy.ts` for fee limit calculation.
-- Always apply the safety margin from constants (`ENERGY_SAFETY_MARGIN`, default 1.2).
-- Pricing uses cached values via `tronPricing.ts` with TTL-based refresh.
+- Use `estimateEnergyAndFeeLimit()` from `@lifi/tron-devkit` to derive a fee limit from an estimate. A send whose limit is derived this way is affordable by construction, so it needs no pre-flight — but the two are alternatives, never a pair: see the fixed-limit rule below.
+- Always apply the devkit's `DEFAULT_SAFETY_MARGIN` (1.2) so the deploy path and the pre-flight guard agree on what a call costs.
+- Pricing for display uses the devkit's `getCurrentPrices()`, cached with TTL-based refresh. Never price a **guard** through it: it substitutes a constant when the read fails and yields `0` for an empty price string, and a cost of zero clears any fee limit. Use `tronEnergyCostInSun()` from `script/deploy/tron/tron-energy-estimate.ts`.
+
+### Before any broadcast ([CONV:TRON-ENERGY-PREFLIGHT])
+
+- Any send you add or touch must go through `sendGuardedTronContractCall()` from `script/deploy/tron/tron-guarded-send.ts`, which refuses when the fee limit cannot be shown to cover the call. A fee limit that cannot pay for a call does not make it fail cleanly — it runs until the limit is spent and aborts part-way, with the energy still charged. An unguarded send elsewhere in this tree is not precedent.
+- Pass the broadcast as the `broadcast` callback rather than guarding a bare `.send()`: a call site that holds no raw send has no ordering to get wrong.
+- The estimate must be taken against the endpoint the broadcast uses, and priced from the same fee limit the send runs under — a guard that recomputes either is checking a different number.
+- That fee limit must be fixed **before** the estimate — a flag, a constant or an env var — and the same value passed to both the guard and the `broadcast` callback. A limit derived from the estimate it is compared against grows with it, so the comparison can never fail and the guard becomes decoration.
+- `ALLOW_GAS_ESTIMATE_FALLBACK=<network>` is the only escape hatch. Do not add a second one.
+- A transport failure after the estimator's retries (TronGrid 429, dead HTTP) is the same refusal as an unaffordable or reverting estimate. `emergencyPauseBreakGlass` reaches `troncast send`, so a 429 after retries blocks a Tron pause. That is accepted: broadcasting without a figure can leave a pause half-applied. Override with `ALLOW_GAS_ESTIMATE_FALLBACK=tron`. Do not add a transport-only bypass.
+- Native TRX transfers are exempt: they run no VM code, so the fee limit caps nothing they can exceed.
 
 ### RPC configuration
 

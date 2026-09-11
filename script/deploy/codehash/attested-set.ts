@@ -6,10 +6,23 @@
  * build, never equality against one record- or network-derived profile.
  */
 
-/** A build of main this repo can vouch for, produced locally or in CI. */
+import { normalizeHash } from './hex'
+
+/**
+ * Who produced an attestation.
+ *
+ * Required rather than optional: absent and `A-LOCAL` are the same build only
+ * by coincidence, and a grading that reads an absent value as a local rebuild
+ * would present a CI mint the same way as the host's own rebuild.
+ */
+export type AttestationProvenance = 'A-CI' | 'A-LOCAL'
+
+/** A build this repo can vouch for, produced locally or in CI. */
 export interface IAttestedBuild {
   /** Human label for the toolchain, e.g. `upstream cancun`. */
   lineage: string
+  /** Which side built it. Graded by `gradeMatchProvenance`. */
+  provenance: AttestationProvenance
   /** Read from the build's own metadata trailer, never from a record. */
   solcVersion: string
   /** keccak of the runtime code after trailer-stripping and immutable masking. */
@@ -48,7 +61,7 @@ export interface ILineageScope {
   /**
    * True when `attested` enumerates every toolchain the contract can
    * legitimately have been built with, so code matching none of them is not a
-   * build of main. Derive it from repo configuration — the network's declared
+   * build. Derive it from repo configuration — the network's declared
    * EVM version and whether it is zkEVM — and never from the deployed
    * bytecode, which the proposer controls.
    */
@@ -61,6 +74,16 @@ export interface ICodehashComparison {
   verdict: CodehashVerdict
   /** Every attested lineage reaching this hash, in the order given. */
   matchedLineages: string[]
+  /**
+   * The builds this comparison matched, for a caller that must say something
+   * about them — `gradeMatchProvenance` and who built them.
+   *
+   * Handed over rather than left to be re-derived: `lineage` is a human label
+   * and two builds may share one, so filtering the set by `matchedLineages`
+   * re-admits builds this comparison rejected. Empty for every verdict but
+   * MATCH.
+   */
+  matched: IAttestedBuild[]
   /** One line a signer can act on. */
   reason: string
   /**
@@ -72,9 +95,6 @@ export interface ICodehashComparison {
   blocksSigning: boolean
 }
 
-const normalizeHash = (hash: string): string =>
-  (/^0x/i.test(hash) ? hash.slice(2) : hash).toLowerCase()
-
 const blocked = (
   verdict: 'MISMATCH' | 'UNVERIFIABLE',
   reason: string,
@@ -82,6 +102,7 @@ const blocked = (
 ): ICodehashComparison => ({
   verdict,
   matchedLineages: [],
+  matched: [],
   reason,
   excludedByteCount,
   blocksSigning: true,
@@ -152,6 +173,7 @@ export const compareToAttestedSet = (
     return {
       verdict: 'MATCH',
       matchedLineages,
+      matched: exact,
       reason:
         excludedByteCount === 0
           ? `code matches the attested build from ${matchedLineages.join(
@@ -200,7 +222,7 @@ export const compareToAttestedSet = (
   if (attested.length === 0)
     return blocked(
       'UNVERIFIABLE',
-      'no attested build of main is available for this contract, so nothing can be compared',
+      'no attested build is available for this contract, so nothing can be compared',
       observed.maskedByteCount
     )
 
@@ -209,7 +231,7 @@ export const compareToAttestedSet = (
   if (scope.isClosedSet)
     return blocked(
       'MISMATCH',
-      `the deployed code matches none of the ${attested.length} builds this contract can legitimately have, so it is not a build of main`,
+      `the deployed code matches none of the ${attested.length} builds this contract can legitimately have`,
       observed.maskedByteCount
     )
 

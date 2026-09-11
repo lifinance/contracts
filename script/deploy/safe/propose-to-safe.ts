@@ -38,20 +38,23 @@ import { consola } from 'consola'
 import { getAddress, type Address, type Hex } from 'viem'
 
 import type { IProposeToSafeOptions } from '../../common/types'
+import {
+  assertFunnelDeployGate,
+  createFunnelGateDeps,
+} from '../shared/funnel-deploy-gate'
 
 import { readBooleanFlag, readValueFlag } from './cli-flags'
 import { proposeWithDrain, type ITimelockCall } from './drain-parked-tasks'
 import { resolveProposalIntent } from './proposal-intent'
 import { normalizeProposeCalls } from './propose-calls'
+import { proposeSafeTx } from './propose-safe-tx'
 import {
-  OperationTypeEnum,
   getNextNonce,
   getPrivateKey,
   getSafeMongoCollection,
   initializeSafeClient,
   isAddressASafeOwner,
   parseAccountIndex,
-  storeTransactionInMongoDB,
   wrapWithTimelockSchedule,
   type IParkedTaskRef,
 } from './safe-utils'
@@ -111,6 +114,18 @@ export async function _runPropose(
   // when they are already arrays, so pushing here would corrupt the caller's input.
   const targets = [...normalized.targets]
   const calldatas = [...normalized.calldatas]
+
+  // Reads the very array that gets signed: parsing the calldata a second time
+  // of its own would let the gate vouch for bytes other than the ones proposed.
+  // Ordered before the Ledger, the Safe client and the signature — though not
+  // before all Mongo work, since an enabled drain claims parked tasks in
+  // `proposeWithDrain` before this runs, and reverts them on the throw.
+  // `extraTimelockCalls` are excluded deliberately — they are facet removals,
+  // which install no code.
+  await assertFunnelDeployGate(
+    { network: options.network, calldatas },
+    createFunnelGateDeps()
+  )
 
   if (extraTimelockCalls.length > 0) {
     if (!options.timelock)
@@ -260,22 +275,6 @@ export async function _runPropose(
       await safe.getNonce()
     )
 
-  // Create and sign the Safe transaction
-  const safeTransaction = await safe.createTransaction({
-    transactions: [
-      {
-        to: finalTo,
-        value: 0n,
-        data: finalCalldata,
-        operation: OperationTypeEnum.Call,
-        nonce: nextNonce,
-      },
-    ],
-  })
-
-  const signedTx = await safe.signTransaction(safeTransaction)
-  const safeTxHash = await safe.getTransactionHash(signedTx)
-
   consola.info('Signer Address', senderAddress)
   consola.info('Safe Address', safeAddress)
   consola.info('Network', chain.name)
@@ -288,38 +287,38 @@ export async function _runPropose(
     )
   }
 
-  // Store transaction in MongoDB using the utility function
+  let outcome: { safeTxHash: Hex; stored: boolean }
   try {
-    const result = await storeTransactionInMongoDB(
-      pendingTransactions,
+    outcome = await proposeSafeTx({
+      safe,
+      network: options.network,
+      chainId: chain.id,
       safeAddress,
-      options.network,
-      chain.id,
-      signedTx,
-      safeTxHash,
-      senderAddress,
+      pendingTransactions,
+      payload: {
+        kind: 'call',
+        to: finalTo,
+        data: finalCalldata,
+        nonce: nextNonce,
+      },
       parkedTaskRefs,
-      { ticket: options.ticket, reason: options.reason }
-    )
-
-    if (result === null) {
-      consola.info('Proposal already exists - no new proposal created')
-      return { safeTxHash, stored: false }
-    }
-
-    if (!result.acknowledged)
-      throw new Error('MongoDB insert was not acknowledged')
-
-    consola.success('Transaction successfully stored in MongoDB')
+      provenance: { ticket: options.ticket, reason: options.reason },
+    })
   } catch (error) {
-    consola.error('Failed to store transaction in MongoDB:', error)
+    consola.error('Failed to propose the transaction to the Safe:', error)
     throw error
   } finally {
     await mongoClient.close()
   }
 
+  if (!outcome.stored) {
+    consola.info('Proposal already exists - no new proposal created')
+    return outcome
+  }
+
+  consola.success('Transaction successfully stored in MongoDB')
   consola.info('Transaction proposed')
-  return { safeTxHash, stored: true }
+  return outcome
 }
 
 /**

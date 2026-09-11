@@ -28,20 +28,34 @@ import { join } from 'node:path'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 
+import { flagIsOn } from '../deploy/safe/cli-flags'
+
 import {
   composeSlackMessage,
   evaluateLiveness,
   extractCronExpressions,
   findIgnoreMarker,
   isAlertable,
+  newestScheduledRun,
+  scanForNewestScheduledRun,
 } from './cronLiveness'
-import type { ILivenessVerdict, IWorkflowFacts } from './cronLiveness'
+import type {
+  ILivenessVerdict,
+  IWorkflowFacts,
+  IWorkflowRunSummary,
+} from './cronLiveness'
 import { fetchWithTimeout } from './fetchWithTimeout'
 
 const GITHUB_API = 'https://api.github.com'
 const WORKFLOW_DIR = '.github/workflows'
 const DEFAULT_OWNER = 'lifinance'
 const DEFAULT_REPO = 'contracts'
+const RUNS_PER_PAGE = 100
+// The second opinion has to reach back past the cron's grace window, and a page of
+// this repo's busiest workflow has covered as little as 11h of runs — its schedule
+// competes with a push trigger on every branch. Five pages clears the widest grace
+// window in the fleet with room to spare, and only a stale verdict ever pays for them.
+const CORROBORATION_MAX_PAGES = 5
 
 /** The slice of GitHub's workflow object this job reads. */
 interface IRegisteredWorkflow {
@@ -50,10 +64,6 @@ interface IRegisteredWorkflow {
   path: string
   /** `active`, `disabled_manually` or `disabled_inactivity`. */
   state: string
-}
-
-interface IWorkflowRun {
-  created_at: string
 }
 
 /**
@@ -145,7 +155,6 @@ const main = defineCommand({
     'dry-run': {
       type: 'boolean',
       description: 'Print the verdict table without posting to Slack',
-      default: false,
     },
     heartbeat: {
       type: 'boolean',
@@ -202,13 +211,12 @@ const main = defineCommand({
         // exactly the failure this job looks for.
         try {
           const { workflow_runs: runs } = await githubGet<{
-            workflow_runs: IWorkflowRun[]
+            workflow_runs: IWorkflowRunSummary[]
           }>(
             `/repos/${owner}/${repo}/actions/workflows/${registration.id}/runs?event=schedule&per_page=1`,
             token
           )
-          const latest = runs[0]
-          lastScheduledRunAt = latest ? new Date(latest.created_at) : null
+          lastScheduledRunAt = newestScheduledRun(runs)
         } catch (error) {
           // Flagged rather than swallowed: leaving lastScheduledRunAt null here would
           // make a GitHub outage indistinguishable from a cron that stopped firing.
@@ -232,7 +240,51 @@ const main = defineCommand({
         runLookupFailed,
       }
 
-      verdicts.push(evaluateLiveness(facts, now))
+      let verdict = evaluateLiveness(facts, now)
+
+      // Never alert on the event-filtered index alone: it can serve a snapshot days
+      // to weeks behind the runs GitHub already lists unfiltered, which reads exactly
+      // like a dropped schedule. Only a stale verdict pays for the second opinion, so
+      // the healthy path still costs one request per workflow.
+      if (verdict.status === 'stale' && registration)
+        try {
+          const scan = await scanForNewestScheduledRun(
+            (page) => fetchRunPage(owner, repo, registration.id, page, token),
+            { maxPages: CORROBORATION_MAX_PAGES, pageSize: RUNS_PER_PAGE }
+          )
+
+          if (scan.exhaustedPageBudget)
+            consola.warn(
+              `${workflow.path}: read ${
+                CORROBORATION_MAX_PAGES * RUNS_PER_PAGE
+              } runs without reaching a scheduled one, so the stale verdict below is uncorroborated — raise CORROBORATION_MAX_PAGES if this workflow's other triggers have outgrown the budget`
+            )
+
+          if (
+            scan.runAt !== null &&
+            (lastScheduledRunAt === null || scan.runAt > lastScheduledRunAt)
+          ) {
+            consola.warn(
+              `${workflow.path}: event=schedule reported ${
+                lastScheduledRunAt?.toISOString() ?? 'no run at all'
+              }, but the unfiltered run list has ${scan.runAt.toISOString()} — trusting the newer one`
+            )
+            verdict = evaluateLiveness(
+              { ...facts, lastScheduledRunAt: scan.runAt },
+              now
+            )
+          }
+        } catch (error) {
+          // The stale verdict stands. A second opinion we could not obtain is not
+          // evidence the workflow is alive.
+          consola.warn(
+            `Could not corroborate the stale verdict for ${workflow.path}: ${
+              error instanceof Error ? error.message : String(error)
+            }`
+          )
+        }
+
+      verdicts.push(verdict)
     }
 
     verdicts.sort((a, b) => a.name.localeCompare(b.name))
@@ -257,7 +309,7 @@ const main = defineCommand({
 
     if (message === null)
       consola.success('All scheduled workflows alive; staying silent.')
-    else if (args['dry-run']) {
+    else if (flagIsOn(args['dry-run'])) {
       consola.info('--dry-run: the message below would be posted to Slack')
       consola.log(message)
     } else await postToSlack(message)
@@ -265,6 +317,24 @@ const main = defineCommand({
     if (alertCount > 0) process.exit(1)
   },
 })
+
+/** One page of a workflow's runs, unfiltered by event. */
+async function fetchRunPage(
+  owner: string,
+  repo: string,
+  workflowId: number,
+  page: number,
+  token: string
+): Promise<IWorkflowRunSummary[]> {
+  const { workflow_runs: runs } = await githubGet<{
+    workflow_runs: IWorkflowRunSummary[]
+  }>(
+    `/repos/${owner}/${repo}/actions/workflows/${workflowId}/runs?per_page=${RUNS_PER_PAGE}&page=${page}`,
+    token
+  )
+
+  return runs
+}
 
 /** Every workflow registered with Actions, following pagination to the last page. */
 async function listRegisteredWorkflows(

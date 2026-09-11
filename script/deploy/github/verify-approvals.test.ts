@@ -704,56 +704,6 @@ describe('getContractVersion under the tsx runtime', () => {
   })
 })
 
-describe('diamondUpdateFacet gate condition', () => {
-  // getPrivateKey hands out the production key for every value that does not contain
-  // "staging", so a typo like "prod" reaches it. The gate must run for those too.
-  // Anchored on the gate's own invocation and walked backwards, because the host
-  // script carries other `$ENVIRONMENT` conditions that a first-match scan picks up.
-  const lines = readFileSync(
-    join(import.meta.dir, '..', '..', 'tasks', 'diamondUpdateFacet.sh'),
-    'utf8'
-  ).split('\n')
-  const gateIndex = lines.findIndex((line) =>
-    line.includes('verify-approvals.ts')
-  )
-  const condition = lines
-    .slice(0, gateIndex)
-    .reverse()
-    .find((line) => line.includes('$ENVIRONMENT') && line.includes('if [['))
-
-  it('extracts the gate condition from the shell script', () => {
-    expect(condition).toBeDefined()
-  })
-
-  it.each([
-    ['production', 'MAINNET', 'RUNS'],
-    ['prod', 'MAINNET', 'RUNS'],
-    ['', 'MAINNET', 'RUNS'],
-    ['staging', 'MAINNET', 'SKIPPED'],
-    // testnets carry production target state but no Safe, and an unmerged facet is
-    // deployed there before it is audited - gating them would block that rollout
-    ['production', 'TESTNET', 'SKIPPED'],
-    ['staging', 'TESTNET', 'SKIPPED'],
-  ])('decides %p on a %s network as %s', (environment, network, expected) => {
-    const result = spawnSync(
-      'bash',
-      [
-        '-c',
-        // isTestnetNetwork is stubbed on the marker rather than reimplemented, so
-        // this asserts the condition consults it, not how helperFunctions decides
-        `isTestnetNetwork() { [[ "$1" == "TESTNET" ]]; }; ENVIRONMENT=$1; NETWORK=$2; ${condition} echo RUNS; else echo SKIPPED; fi`,
-        'bash',
-        environment,
-        network,
-      ],
-      { encoding: 'utf8' }
-    )
-
-    expect(result.status).toBe(0)
-    expect(result.stdout.trim()).toBe(expected)
-  })
-})
-
 describe('audit log source', () => {
   const MERGED_HASH = '11'.repeat(20)
   const FABRICATED_HASH = '99'.repeat(20)

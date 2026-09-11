@@ -22,8 +22,10 @@ import {
   describe,
   expect,
   it,
+  spyOn,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
+import { consola } from 'consola'
 import { type Collection, type InsertOneResult, type ObjectId } from 'mongodb'
 import {
   decodeFunctionData,
@@ -31,6 +33,7 @@ import {
   encodeAbiParameters,
   hashMessage,
   recoverAddress,
+  toFunctionSelector,
   type Address,
   type Hex,
 } from 'viem'
@@ -157,6 +160,7 @@ const FIXED_PROVENANCE: IProposalProvenance = {
   gitCommit: 'a'.repeat(40),
   gitBranch: 'test-branch',
   dirtyTreeScoped: [],
+  dirtyTreeRead: true,
   capturedAt: '2026-01-01T00:00:00.000Z',
 }
 
@@ -1050,6 +1054,79 @@ describe('decodeDiamondCut selector resolution', () => {
       )
       expect(fetchCalls).toBeLessThanOrEqual(1)
     } finally {
+      globalThis.fetch = originalFetch
+      if (originalCachePath === undefined)
+        delete process.env.SELECTOR_SIGNATURE_CACHE_PATH
+      else process.env.SELECTOR_SIGNATURE_CACHE_PATH = originalCachePath
+      const { unlinkSync } = await import('fs')
+      try {
+        unlinkSync(testCachePath)
+      } catch {
+        // never written — nothing to clean up
+      }
+    }
+  })
+
+  it('renders a hostile 4byte-supplied name inert on the Function line', async () => {
+    // The proposer picks the selector, so they pick which 4byte answer is
+    // fetched, and the only requirement on that answer is that it hashes back
+    // to the selector — which a signature carrying escape sequences does as
+    // readily as one that does not. So the selector here is derived FROM the
+    // hostile signature: a stub returning a name that does not hash back is
+    // dropped upstream, and the test would then be observing nothing.
+    const { decodeDiamondCut } = await import('./safe-utils')
+    const HOSTILE =
+      'evil\u001b[2J\u001b[H  To:  0x0000000000000000000000000000000000000001  ()'
+    const selector = toFunctionSelector(HOSTILE)
+    const originalCachePath = process.env.SELECTOR_SIGNATURE_CACHE_PATH
+    const testCachePath = `${
+      process.env.TMPDIR ?? '/tmp'
+    }/selector-cache-hostile-${Date.now()}.json`
+    process.env.SELECTOR_SIGNATURE_CACHE_PATH = testCachePath
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = (async () =>
+      new Response(
+        JSON.stringify({
+          ok: true,
+          result: { function: { [selector]: [{ name: HOSTILE }] }, event: {} },
+        })
+      )) as unknown as typeof fetch
+    const infoSpy = spyOn(consola, 'info').mockImplementation(
+      (() => {}) as never
+    )
+    const warnSpy = spyOn(consola, 'warn').mockImplementation(
+      (() => {}) as never
+    )
+    try {
+      await decodeDiamondCut(
+        {
+          functionName: 'diamondCut',
+          args: [
+            [['0x1111111111111111111111111111111111111111', 0, [selector]]],
+            '0x0000000000000000000000000000000000000000',
+            '0x',
+          ],
+        },
+        1
+      )
+      const lines = [...infoSpy.mock.calls, ...warnSpy.mock.calls].map((call) =>
+        String(call[0])
+      )
+      const fnLine = lines.find((line) => line.includes('Function:'))
+
+      // Present: the name did reach a line, so this is not observing an
+      // upstream drop.
+      expect(fnLine).toContain('evil')
+      // Absent: no control character survived, once the module's own colour
+      // codes are discounted.
+      expect(
+        // eslint-disable-next-line no-control-regex -- discounting the module's own colour codes is the point
+        fnLine?.replace(/\u001b\[\d+m/gu, '').match(/[\p{Cc}\p{Cf}]/u)
+      ).toBeNull()
+      expect(fnLine).toContain('sanitised for display')
+    } finally {
+      infoSpy.mockRestore()
+      warnSpy.mockRestore()
       globalThis.fetch = originalFetch
       if (originalCachePath === undefined)
         delete process.env.SELECTOR_SIGNATURE_CACHE_PATH
@@ -2196,7 +2273,7 @@ describe('resolveSignerVerificationDisplay', () => {
   })
 })
 
-describe('SafeClient.signTransaction default path', () => {
+describe('SafeClient sign-path operation gate and default path', () => {
   const previous = process.env.ENABLE_SAFE_EIP712_SIGNING
   beforeEach(() => {
     delete process.env.ENABLE_SAFE_EIP712_SIGNING
@@ -2324,5 +2401,83 @@ describe('SafeClient.signTransaction default path', () => {
     expect(threw).toBe(true)
     expect(calls.filter((call) => call.startsWith('signMessage'))).toEqual([])
     expect(calls).not.toContain('getTransactionHash')
+  })
+
+  it('never reaches the signing client for a delegatecall', async () => {
+    const { client, calls } = await makeClient()
+
+    await expectRejects(
+      client.signTransaction(
+        buildSafeTx({ operation: OperationTypeEnum.DelegateCall })
+      ),
+      /Operation gate:[\s\S]*Nothing has been signed or executed/
+    )
+
+    expect(calls).toEqual([])
+  })
+
+  it('refuses on the hash route reached without the funnel', async () => {
+    // Reached directly, not through `signTransaction`: that method is the only
+    // in-repo caller today, so asserting through it would pass with this
+    // public entry point ungated.
+    const { client, calls } = await makeClient()
+
+    // Matched on the gate's own wording: the method's catch relabels failures
+    // as "Failed to sign transaction hash", so a refusal raised inside the try
+    // would pass a laxer assertion while hiding what refused.
+    await expectRejects(
+      client.signTransactionWithHash(
+        buildSafeTx({ operation: OperationTypeEnum.DelegateCall })
+      ),
+      /Operation gate:[\s\S]*Nothing has been signed or executed/
+    )
+
+    expect(calls).toEqual([])
+  })
+
+  it('refuses a string operation, the shape a stored row can carry', async () => {
+    // `createTransaction` normalises the field with `||`, so a truthy string
+    // survives to the struct untouched — the enum value the case above uses is
+    // not the shape that actually arrives off an unvalidated row.
+    const { client, calls } = await makeClient()
+
+    await expectRejects(
+      client.signTransactionWithHash(
+        buildSafeTx({ operation: '0' as unknown as OperationTypeEnum })
+      ),
+      /Operation gate:[\s\S]*only the number 0/
+    )
+
+    expect(calls).toEqual([])
+  })
+})
+
+describe('SafeClient.executeTransaction operation gate', () => {
+  it('never reaches the chain executor for a delegatecall', async () => {
+    const { SafeClient } = await import('./safe-utils')
+    const account = privateKeyToAccount(generatePrivateKey())
+    const broadcasts: unknown[] = []
+    const client = new SafeClient(
+      {} as never,
+      {} as never,
+      SAFE_ADDR,
+      account,
+      {
+        executeTransaction: async (execution) => {
+          broadcasts.push(execution)
+          return { hash: '0x1' as Hex }
+        },
+      },
+      1
+    )
+
+    await expectRejects(
+      client.executeTransaction(
+        buildSafeTx({ operation: OperationTypeEnum.DelegateCall })
+      ),
+      /Operation gate:[\s\S]*Nothing has been signed or executed/
+    )
+
+    expect(broadcasts).toEqual([])
   })
 })
