@@ -295,6 +295,43 @@ describe('collectImmutableBindingChecks', () => {
     ])
   })
 
+  it('does not count a config file that parsed to a non-object as loaded', () => {
+    // Valid JSON that is not an object carries no keys, so every lookup in it resolves to null.
+    // Counting it as loaded turns a corrupted file into a fleet-wide "the value is zero" claim.
+    const checks = collectImmutableBindingChecks(
+      'mainnet',
+      'production',
+      {
+        Scalar: {
+          configData: {
+            _a: {
+              configFileName: 'scalar.json',
+              keyInConfigFile: '.a',
+              allowToDeployWithZeroAddress: 'true',
+              getter: 'A',
+            },
+          },
+        },
+        Listy: {
+          configData: {
+            _a: {
+              configFileName: 'listy.json',
+              keyInConfigFile: '.a',
+              allowToDeployWithZeroAddress: 'true',
+              getter: 'A',
+            },
+          },
+        },
+      },
+      (name: string) => (name === 'scalar.json' ? false : [])
+    )
+
+    expect(checks.map((c) => [c.contractName, c.configFileLoaded])).toEqual([
+      ['Listy', false],
+      ['Scalar', false],
+    ])
+  })
+
   it('skips an entry without configData', () => {
     expect(
       collectImmutableBindingChecks('mainnet', 'production', { X: {} }, load)

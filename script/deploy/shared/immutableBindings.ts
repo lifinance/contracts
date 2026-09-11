@@ -67,9 +67,10 @@ export interface IImmutableBindingCheck {
    */
   zeroAddressAllowed: boolean
   /**
-   * Whether the referenced config file was readable. A null `expectedAddress` means "this
-   * network has no value" only when this is true; on a false it means the expectation is
-   * unknown, which is not the same thing and must not be read as a zero expectation.
+   * Whether the referenced config file parsed into an object keys can be read from. A null
+   * `expectedAddress` means "this network has no value" only when this is true; on a false it
+   * means the expectation is unknown, which is not the same thing and must not be read as a
+   * zero expectation.
    */
   configFileLoaded: boolean
 }
@@ -296,7 +297,10 @@ export function collectImmutableBindingChecks(
         ),
         expectedAddress,
         zeroAddressAllowed: configData.allowToDeployWithZeroAddress === 'true',
-        configFileLoaded: config !== null && config !== undefined,
+        configFileLoaded:
+          typeof config === 'object' &&
+          config !== null &&
+          !Array.isArray(config),
       })
     }
 

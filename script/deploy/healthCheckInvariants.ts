@@ -1576,8 +1576,8 @@ async function readAddressGetter(
     // parseTronAddressOutput returns the last non-diagnostic line, so unexpected tooling output
     // that still exits 0 would arrive here as a "value". Throwing keeps that an unverified
     // warning instead of an error-severity mismatch against a line of prose.
-    // A zero address in any encoding is a real answer the caller must report as an error, so
-    // it passes the shape check; anything else non-base58 is unusable output.
+    // A zero address in any encoding is a real answer for the caller to judge, so it passes the
+    // shape check; anything else non-base58 is unusable output.
     if (
       !isZeroAddressValue(parsed) &&
       (!parsed.startsWith('T') || parsed.length !== 34)
@@ -2229,10 +2229,10 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         // Not present on this chain — nothing to compare.
         if (!address) continue
 
-        // `allowToDeployWithZeroAddress` makes a zero binding a declared value rather than
-        // drift, and the deploy scripts read such a key with `_getOptionalConfigContractAddress`
-        // — so an absent key and an explicit zero both deploy `address(0)`, and both are
-        // checkable. A config file that could not be read states nothing, so it stays a warning.
+        // `allowToDeployWithZeroAddress` makes a zero binding a declared value rather than drift,
+        // so an explicit zero is an expectation to assert. An absent key is one too: whichever
+        // overload the deploy script used, no deploy can have produced a non-zero binding from a
+        // key config does not carry. A config file that could not be read states neither.
         const expectsZeroAddress =
           check.zeroAddressAllowed &&
           check.configFileLoaded &&
@@ -2287,7 +2287,7 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
             ctx.logError(
               `${readLabel} is ${onChainValue} but ${
                 check.expectedAddress === null
-                  ? `${check.configFileName} has no ${check.resolvedKeyInConfigFile} value, so the binding must be the zero address`
+                  ? `${check.configFileName} carries no ${check.resolvedKeyInConfigFile} value for this network`
                   : `${check.configFileName} ${check.resolvedKeyInConfigFile} is the zero address`
               }`
             )

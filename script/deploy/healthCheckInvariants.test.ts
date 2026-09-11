@@ -1,3 +1,7 @@
+import { mkdtempSync } from 'fs'
+import { tmpdir } from 'os'
+import { join } from 'path'
+
 import {
   describe,
   expect,
@@ -1724,6 +1728,31 @@ describe('immutable-bindings-match-config declared-zero bindings', () => {
     await invariant.run(ctx)
 
     expect(ctx.errors).toEqual([])
+  })
+
+  it('warns rather than asserting zero when the config file cannot be read', async () => {
+    // The declared-zero assertion rests on config saying so. Run from a directory with no
+    // `config/`, every lookup returns null for want of a file, and a check that skipped this
+    // distinction would read that as "the value is zero" on every network at once.
+    const cwd = process.cwd()
+    const ctx = makeFacetCtx('FraxFacet', 'mainnet', {
+      FRAX_PATH_USD: ZERO,
+      FRAX_TIP_FEE_MANAGER: ZERO,
+    })
+
+    try {
+      process.chdir(mkdtempSync(join(tmpdir(), 'no-config-')))
+      await invariant.run(ctx)
+    } finally {
+      process.chdir(cwd)
+    }
+
+    expect(ctx.errors).toEqual([])
+    expect(
+      ctx.warnings.some(
+        (w) => w.includes('FRAX_PATH_USD()') && w.includes('cannot verify')
+      )
+    ).toBe(true)
   })
 
   it('errors when a binding config states as zero holds an address', async () => {
