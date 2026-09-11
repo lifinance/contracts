@@ -26,8 +26,8 @@ const MALFORMED_WEBHOOK = 'malformed-in-tests://no-webhook'
  *
  * Every other class below is swept out of the environment actually being
  * passed, which cannot cover a name the parent does not have — and a child
- * re-loads the repo `.env` for exactly those names. These five are the ones
- * whose exposure is a signature rather than a quota, so they are pinned by
+ * re-loads the repo `.env` for exactly those names. These five buy a signature
+ * or the proposal store rather than a provider quota, so they are pinned by
  * name and do not depend on the parent having been started with a `.env`.
  */
 const ALWAYS_WITHHELD: readonly (readonly [string, string])[] = [

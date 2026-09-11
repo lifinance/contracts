@@ -9,10 +9,13 @@
  * testing will, the moment that refusal is mutated away, run a real CLI with a
  * real production key.
  *
- * Two checks, because either alone is weak. A source assertion catches the
+ * Four checks, because no one of them is enough. A source assertion catches the
  * spelling across the whole tree but cannot tell whether the replacement
- * actually works; a spawn against a fixture `.env` pins the bun behaviour the
- * replacement depends on, without any real credential taking part.
+ * actually works; a pairing against the class table in
+ * `script/deploy/safe/spawn-env.ts` catches the scan and the withholding
+ * drifting apart; and two spawns against fixture `.env` files pin the bun
+ * behaviour the replacement depends on and the withholding of each class
+ * end to end, without any real credential taking part.
  */
 import { execFileSync } from 'child_process'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
