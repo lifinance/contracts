@@ -241,6 +241,43 @@ describe('manifestEntryFrom', () => {
     )
   })
 
+  it('lets the mint carry on past a refusal that is not about the tree', () => {
+    // Paired with the abort below: without a skip asserted too, a disposition
+    // hard-coded to `abort` everywhere would satisfy every other assertion here.
+    const refused = manifestEntryFrom(
+      IDENTITY,
+      keyFor(),
+      ZK_PROFILE,
+      { runtimeHex: CODE_A },
+      HASHED_SETTINGS
+    )
+
+    expect(refused.ok === false && refused.disposition).toBe('skip')
+  })
+
+  it('stops the mint when the tree is not what the profile claims', () => {
+    // A conflict is a statement about the whole tree, so the contracts that
+    // happen to agree are a manifest short by however many did not.
+    const contradicts = manifestEntryFrom(
+      IDENTITY,
+      keyFor(),
+      DEFAULT_PROFILE,
+      { runtimeHex: CODE_A },
+      { ...HASHED_SETTINGS, evmVersion: 'london' }
+    )
+    const { evmVersion: _dropped, ...silent } = HASHED_SETTINGS
+    const saysNothing = manifestEntryFrom(
+      IDENTITY,
+      keyFor(),
+      DEFAULT_PROFILE,
+      { runtimeHex: CODE_A },
+      silent
+    )
+
+    expect(contradicts.ok === false && contradicts.disposition).toBe('abort')
+    expect(saysNothing.ok === false && saysNothing.disposition).toBe('abort')
+  })
+
   it('refuses bytecode it cannot normalise instead of minting a hash of nothing', () => {
     const built = manifestEntryFrom(
       IDENTITY,

@@ -241,6 +241,8 @@ const main = (): void => {
       hashedSettings
     )
     if (!built.ok) {
+      if (built.disposition === 'abort')
+        throw new Error(`${contract.name} (${artifactPath}): ${built.reason}`)
       skipped.push(`${contract.name}: ${built.reason}`)
       continue
     }

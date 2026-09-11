@@ -108,6 +108,17 @@ export interface IMintProfile {
 export interface IEntryRefused {
   ok: false
   reason: string
+  /**
+   * Whether the mint may carry on without this build.
+   *
+   * `skip` is for an artifact that is legitimately not a build to attest.
+   * `abort` is for one whose refusal says the tree is not what the caller
+   * claims: the contracts that happen to agree are then a manifest short by
+   * however many did not, published under a profile label nothing corroborates.
+   * Required rather than optional so a refusal added later has to choose, since
+   * the silent default would be the one that keeps minting.
+   */
+  disposition: 'skip' | 'abort'
 }
 
 /**
@@ -183,7 +194,8 @@ const flattenOffsets = (refs: ImmutableReferences): IImmutableOccurrence[] =>
  * @param profile - the compiler pair used
  * @param artifact - what the build produced
  * @param hashedSettings - the settings `key.settingsHash` was taken over
- * @returns The entry, or why this mint will not carry the build
+ * @returns The entry, or why this mint will not carry the build and whether
+ * the rest of the mint may proceed without it
  */
 export const manifestEntryFrom = (
   identity: IContractIdentity,
@@ -196,6 +208,7 @@ export const manifestEntryFrom = (
     return {
       ok: false,
       reason: `profile ${profile.profile} is zkEVM, which this mint does not cover`,
+      disposition: 'skip',
     }
 
   // `profile` is the caller's claim about the tree; this is the build's own
@@ -206,11 +219,13 @@ export const manifestEntryFrom = (
     return {
       ok: false,
       reason: `artifact reports no evmVersion, so nothing corroborates profile ${profile.profile}'s ${profile.evmVersion} pin`,
+      disposition: 'abort',
     }
   if (!sameVersionText(builtFor, profile.evmVersion))
     return {
       ok: false,
       reason: `artifact was built for evm ${builtFor}, but profile ${profile.profile} pins ${profile.evmVersion} — minting it would file the build under a toolchain it was not built with`,
+      disposition: 'abort',
     }
 
   // The one normalisation both sides go through. A second "strip then mask"
@@ -221,7 +236,8 @@ export const manifestEntryFrom = (
     artifact.immutableReferences,
     { isZk: false }
   )
-  if (!normalised.ok) return { ok: false, reason: normalised.reason }
+  if (!normalised.ok)
+    return { ok: false, reason: normalised.reason, disposition: 'skip' }
 
   const trailer = readMetadataTrailer(artifact.runtimeHex)
   const solcVersion =
