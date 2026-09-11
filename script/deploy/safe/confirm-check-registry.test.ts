@@ -4,6 +4,7 @@ import { describe, expect, it } from 'bun:test'
 import {
   createCheckLedger,
   recordCheck,
+  rollUpChecks,
   summariseLedger,
   type CheckStatus,
   type ICheckLedger,
@@ -238,9 +239,8 @@ describe('targetStateCheckResult', () => {
   })
 
   // An acknowledgement has a human path and an unverified check has none, so a
-  // row reduced from both must carry the one nobody can wave through. Before the
-  // deployment-record statuses became `needs-ack` this ordering was unreachable,
-  // and ranking them the other way would have let the common path mask an error.
+  // row reduced from both must carry the one nobody can wave through: ranking
+  // them the other way lets the common path mask an error.
   it('lets an unverifiable finding outrank one awaiting acknowledgement', () => {
     const result = targetStateCheckResult(
       verdictOf([finding('matches-main'), finding('contract-unidentified')]),
@@ -404,9 +404,9 @@ describe('the registry is usable by the ledger it feeds', () => {
     expect(stored.anchor).toBe('A-MONGO')
   })
 
-  // End of the escalated finding, at the surface the signer actually reads: a
-  // first deployment used to print ALL CHECKS GREEN on an anchor that had
-  // decided nothing.
+  // End of the escalated finding: a first deployment must never reduce to a
+  // verified run on an anchor that decided nothing. Asserted through the
+  // renderer, which EXSC-994 decides whether to put in front of a signer.
   it('does not render a first deployment as a verified run', () => {
     const ledger = targetStateLedger()
     recordCheck(
@@ -891,5 +891,38 @@ describe('a shortfall the signer can act on', () => {
     )
 
     expect(result.detail).not.toContain('bun fetch-rpcs')
+  })
+})
+
+describe('the verdict the run now closes on', () => {
+  // Why the render was withheld: with target-state as the only row, every real
+  // Add/Replace cut graded `needs-ack`, so a correct rollout closed
+  // `0/N verified` while a run that graded nothing closed green. The rows this
+  // registry adds are what make the denominator mean something again.
+  it('a clean proposal closes with most rows verified, not none', () => {
+    const ledger = runLedger()
+    recordInto(ledger, verdicts())
+
+    const rollups = rollUpChecks(ledger)
+    const passed = rollups.reduce((sum, rollup) => sum + rollup.passed, 0)
+
+    expect(passed).toBeGreaterThan(rollups.length / 2)
+    expect(stripColor(renderCheckLedger(ledger).at(-1) ?? '')).not.toContain(
+      `0/${rollups.length} network results verified`
+    )
+  })
+
+  // The other half of that asymmetry: a run that graded nothing must not close
+  // greener than one that graded a real cut.
+  it('a run whose checks could not be made does not close green', () => {
+    const ledger = runLedger()
+    recordInto(
+      ledger,
+      verdicts({ integrity: undefined, executability: undefined })
+    )
+
+    const verdict = stripColor(renderCheckLedger(ledger).at(-1) ?? '')
+    expect(verdict).toContain('BLOCKED')
+    expect(verdict).not.toContain('ALL CHECKS GREEN')
   })
 })

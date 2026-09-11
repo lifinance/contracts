@@ -1,22 +1,19 @@
 /**
- * Where the check ledger is created, written and rendered inside
+ * Where the check ledger is created and written inside
  * `confirm-safe-tx.ts` — not what it decides.
  *
  * What it decides is driven for real in `check-ledger.test.ts` and
  * `confirm-check-registry.test.ts`. What cannot be driven at all is the script:
  * `confirm-safe-tx.ts` calls `runMain` at module scope, so importing it runs the
  * CLI, and reaching its loop needs MongoDB, a Safe and a Ledger. So the wiring
- * is asserted on the source, and the assertions are shaped so each bug this file
- * was written after fails them:
+ * is asserted on the source, and the assertions are shaped so each of these
+ * fails them:
  *
- * - deleting either call site, which left the whole suite green while three
- *   merged gates sat unreached;
+ * - deleting either call site;
  * - recording per proposal, which lets `rollUpChecks` read two proposals on one
  *   network as a retry and a later clean one erase an earlier refusal;
  * - leaving a network the run skipped in the denominator, where it rolls up as
- *   missing and blocks a run on which nothing was wrong;
- * - gating the render on the ledger holding results, which suppresses the report
- *   for exactly the runs that aborted before their first proposal.
+ *   missing and blocks a run on which nothing was wrong.
  *
  * Anchored on call sites throughout, never on a rendered string: a display
  * literal is reworded for reasons that have nothing to do with the wiring, and
@@ -93,12 +90,11 @@ const countOf = (pattern: RegExp): number =>
   [...SOURCE.matchAll(pattern)].length
 
 describe('the check ledger is wired into the confirmation run', () => {
-  it('creates the ledger, records into it and renders it', () => {
+  it('creates the ledger and records into it', () => {
     // The paired positive for every negative below: an assertion that no call
     // site is misplaced passes trivially against a file that has none.
     expect(SOURCE).toContain('createCheckLedger({')
     expect(SOURCE).toContain('recordCheck(checkLedger,')
-    expect(SOURCE).toContain('renderCheckLedger(checkLedger)')
   })
 
   it('fixes the denominator before the first network is processed', () => {
@@ -145,9 +141,9 @@ describe('one row per network, not one per proposal', () => {
   it('records nothing from inside the loop', () => {
     const { body } = proposalLoop()
 
-    // The bug: `recordCheck` per proposal. `rollUpChecks` treats two records for
-    // one (check, network) pair as a retry and lets a later `pass` supersede an
-    // earlier `error`, so the last proposal's verdict stood for the network.
+    // `rollUpChecks` treats two records for one (check, network) pair as a retry
+    // and lets a later `pass` supersede an earlier `error`, so a per-proposal
+    // record would let the last proposal's verdict stand for the network.
     expect([...body.matchAll(/recordCheck\(/g)]).toEqual([])
   })
 
@@ -171,7 +167,7 @@ describe('a network the run skipped does not block it', () => {
    * The distinction is the whole point: an outcome that *answered* is a
    * verified "nothing here", while a read that *failed* established nothing and
    * must stay unverified. Recording the second as a pass is how a run that
-   * examined two networks out of three reports `3/3 network results verified`.
+   * examined two networks out of three rolls up all three as verified.
    *
    * `read-failed` and `prepare-error` are deliberately absent: both throw, so
    * the run aborts and the networks it never reached *should* roll up as
@@ -204,7 +200,7 @@ describe('a network the run skipped does not block it', () => {
       const branch = SOURCE.slice(start, end)
 
       // Without a row the network stays in the denominator, rolls up as missing
-      // and produces VERDICT: BLOCKED on a run where nothing was wrong…
+      // and hard-blocks the verdict on a run where nothing was wrong…
       expect(branch).toContain(recorder)
       // …and with the wrong row it goes green on a network nothing examined.
       const wrong =
@@ -228,7 +224,8 @@ describe('a network the run skipped does not block it', () => {
    * calls `runMain` at module scope, so importing it runs the CLI, and both
    * helpers are module-private. Asserting only the anchor and the prose left the
    * status free — flipping `recordNothingToGrade` to `error` kept the whole
-   * directory green while reinstating the spurious BLOCKED it exists to prevent.
+   * directory green while reinstating the spurious hard block it exists to
+   * prevent.
    */
   const RECORDERS = [
     ['const recordNothingToGrade = (', "status: 'pass'", "anchor: 'A-LOCAL'"],

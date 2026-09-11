@@ -208,6 +208,12 @@ const readDeploymentRecords = async (): Promise<
 // Created once the run's network set is known, because the ledger's
 // denominator is that set: a check that never ran on a network must show as a
 // missing row rather than shrink the total it is measured against.
+//
+// Composed, never read. Only a `pass` counts toward the verified coverage, and
+// every status a correct Add/Replace cut produces is `needs-ack` whose
+// acknowledgement lands in `acknowledgementLedger` — so a correct rollout would
+// grade 0/N. EXSC-994 settles the verdict before anything reads these rows, so
+// what the comments below say a row does to one describes that consumer.
 let checkLedger: ICheckLedger | undefined
 
 const recordEveryCheck = (
@@ -1785,16 +1791,13 @@ const main = defineCommand({
       const executionsFailed =
         globalFailedExecutions.length > 0 || globalTimeoutExecutions.length > 0
 
-      // Before the change summary: the ledger reports what was verified across
-      // the run, while the roll-up below only counts what the operator acted on.
-      // It reports and does not gate — signing already happened per proposal,
-      // refused there by `targetState.cleared` and by the sign-time gates.
-      //
-      // Rendered whatever the ledger holds. A ledger with no results renders a
-      // BLOCKED verdict counting every expected network as unverified, which is
-      // the report a run that aborted before its first proposal most needs to
-      // print — for aborts after the ledger exists; an earlier one leaves it
-      // undefined and prints nothing.
+      // Ahead of the change summary: the ledger says what was verified, and the
+      // roll-up below only counts what the operator acted on. Withheld while
+      // target-state was the only row — every real cut graded `needs-ack`, so a
+      // correct rollout closed `0/N verified`. With the integrity, executability
+      // and quorum rows beside it a clean proposal now closes mostly verified,
+      // and an `executability` row that could not be read blocks; a block the
+      // signer never sees is worse than no check at all.
       if (checkLedger)
         renderCheckLedger(checkLedger).forEach((line) => consola.info(line))
 

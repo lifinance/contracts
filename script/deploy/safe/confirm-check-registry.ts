@@ -177,7 +177,13 @@ export const targetStateCheckResult = (
     checkId: TARGET_STATE_CHECK_ID,
     network,
     status,
-    expected: 'every installed version at or ahead of origin/main',
+    // Names what the worst finding was actually judged against, so a `removal`
+    // or `no-diamond-cut` row does not claim a comparison against `origin/main`
+    // that its branch never made.
+    expected:
+      anchor === 'A-LOCAL'
+        ? 'the cut read and found to install nothing requiring a version comparison'
+        : 'every installed version at or ahead of origin/main',
     actual: (failing.length ? failing : verdict.findings)
       .map(describe)
       .join('; '),
