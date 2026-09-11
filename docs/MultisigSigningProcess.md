@@ -744,7 +744,36 @@ fleet-wide run ends with zero mainnets unpaused and no obvious cause.
 | `.github/workflows/runPendingTimelockTXs.yml` | "Timelock Auto Execution" 10-min cron |
 | `.github/workflows/reconcileParkedTasks.yml` | Weekly parked-task reconcile + TTL alert |
 | `.github/workflows/enforceProposalFunnel.yml` | Fence: no propose route outside `proposeSafeTx` |
+| `.github/workflows/mintBuildAttestations.yml` | Verifies the committed build manifest on every PR; mints its build-provenance attestation on push to `main` |
+| `tasks/buildAttestationManifest.ts` | Generates `script/deploy/resources/buildAttestations.json`; `bun attestations:mint` / `bun attestations:check` |
 | `.agents/commands/multisig-rollout.md` | The end-to-end rollout runbook |
+
+### 8.1 Reading the build-provenance attestation
+
+`script/deploy/resources/buildAttestations.json` records what this repo built —
+one entry per versioned contract, keyed so a sign-time check can look a build up
+instead of recompiling. Nothing reads it yet; wiring the codehash gate to it is a
+separate change.
+
+The threat model that makes the file worth signing is a compromised signer host,
+which can present any file contents it likes. The copy in a local checkout
+therefore proves nothing on its own, and a consumer has to verify the
+attestation:
+
+```bash
+gh attestation verify script/deploy/resources/buildAttestations.json \
+  --repo lifinance/contracts \
+  --signer-workflow lifinance/contracts/.github/workflows/mintBuildAttestations.yml
+```
+
+`--signer-workflow` is the load-bearing flag. Without it the command passes for
+bytes signed by any workflow in this repository, which is a weaker claim than the
+one the manifest is read for — and the set of workflows holding
+`attestations: write` is not fixed.
+
+The attestation binds a sha256 of exact bytes, so a manifest that differs by one
+space is one the attestation no longer covers. That is what the PR-time
+`verify-build-manifest` job exists to catch.
 
 ## 9. Planned improvements (proposal stage — NOT yet implemented)
 
