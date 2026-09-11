@@ -111,6 +111,12 @@ contract ThorSwapFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
                 _bridgeData.minAmount
             );
         }
+
+        // Known limitation (EXSC-927): `memo` encodes the THORChain swap LIMIT quoted against the
+        // pre-swap amount, while the full realized output is deposited below, so a favorable
+        // source swap leaves the minimum-output guarantee looser than quoted. No funds are
+        // stranded. Acknowledged and accepted; this facet is route-deprecated, so removal is the
+        // likely resolution rather than a fix.
         IThorSwap(thorchainRouter).depositWithExpiry{
             value: isNative ? _bridgeData.minAmount : 0
         }(
