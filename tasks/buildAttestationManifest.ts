@@ -1,12 +1,12 @@
 /**
  * Mints `script/deploy/resources/buildAttestations.json` from Foundry artifacts.
  *
- * Run once per checkout with every profile already built into its own `out/`
- * tree. CI attests the file this writes, so the bytes are the artifact: rerun
- * it after any source change and commit the result.
+ * Run once per checkout with the `default` profile already built into `out/`.
+ * CI attests the file this writes, so the bytes are the artifact: rerun it
+ * after any source change and commit the result.
  *
- *   bunx tsx tasks/buildAttestationManifest.ts --builds default=out
- *   bunx tsx tasks/buildAttestationManifest.ts --builds default=out --check
+ *   bunx tsx tasks/buildAttestationManifest.ts --out out
+ *   bunx tsx tasks/buildAttestationManifest.ts --out out --check
  *
  * `--check` writes nothing and exits non-zero when the committed manifest is
  * not what this checkout produces.
@@ -30,34 +30,25 @@ import {
 import { parseBuildProfiles } from '../script/deploy/codehash/lineage-scope'
 
 const TARGET = 'script/deploy/resources/buildAttestations.json'
-const SOURCE_DIRS = ['src/Facets', 'src/Periphery', 'src/Security']
+// Every location `script/deploy/shared/getContractVersion.ts` resolves a
+// contract from. A directory missing here takes its contracts out of the
+// manifest without putting them in the skip report, so the two lists move
+// together.
+const SOURCE_DIRS = ['src', 'src/Facets', 'src/Periphery', 'src/Security']
 const VERSION_RE = /@custom:version\s+(\S+)/
-
-interface IBuildInput {
-  profile: string
-  outDir: string
-}
+const PROFILE = 'default'
 
 /**
- * Parses `--builds name=dir,name=dir` into the trees to read.
+ * Reads the `out/` tree to mint from.
  * @param argv - process arguments
- * @returns One entry per profile built
+ * @returns The directory named by `--out`
  */
-const parseBuilds = (argv: string[]): IBuildInput[] => {
-  const flag = argv.indexOf('--builds')
+const parseOutDir = (argv: string[]): string => {
+  const flag = argv.indexOf('--out')
   const value = flag === -1 ? undefined : argv[flag + 1]
-  if (value === undefined)
-    throw new Error(
-      '--builds <profile>=<outDir>[,<profile>=<outDir>] is required'
-    )
-
-  return value.split(',').map((pair) => {
-    const segments = pair.split('=')
-    const [profile, outDir] = segments
-    if (segments.length !== 2 || !profile || !outDir)
-      throw new Error(`--builds entry "${pair}" is not <profile>=<outDir>`)
-    return { profile, outDir }
-  })
+  if (value === undefined || value.startsWith('--'))
+    throw new Error('--out <outDir> is required')
+  return value
 }
 
 /** Every contract whose source declares a version, with that version. */
@@ -112,17 +103,10 @@ const mintProfile = (profile: string): IMintProfile => {
   }
 }
 
-/** How many differing lines to print before a reader has seen enough. */
-const DRIFT_LINES = 20
-
 /**
- * Prints where the committed manifest and this build part company.
- *
- * Without this the failure says only that two files differ, which on a
- * cross-machine mismatch leaves no way to tell a stale commit from a build that
- * is not reproducible — and those call for opposite responses.
- * @param committed - the manifest as committed
- * @param built - the manifest this checkout produces
+ * Reads the builds a manifest carries, by name and version.
+ * @param text - a serialised manifest, possibly unparseable
+ * @returns One label per entry, empty when the text is not a manifest
  */
 const entryNames = (text: string): string[] => {
   try {
@@ -137,15 +121,13 @@ const entryNames = (text: string): string[] => {
 /**
  * Names the builds that are on one side of the comparison only.
  *
- * A positional line diff of a file whose entries shifted reports every later
- * line as changed, so one removed contract reads as a cascade of renames and
- * the fact that matters — which build entered or left the manifest — is never
- * stated.
+ * The one question `git diff` on the regenerated file cannot answer at a
+ * glance: entries are sorted, so a contract entering or leaving shifts every
+ * line after it and the fact that matters is buried in the churn.
  * @param committed - the manifest as committed
  * @param built - the manifest this checkout produces
- * @returns Whether the two sides carry different builds
  */
-const reportEntrySetDrift = (committed: string, built: string): boolean => {
+const reportEntrySetDrift = (committed: string, built: string): void => {
   const inCommitted = new Set(entryNames(committed))
   const inBuilt = new Set(entryNames(built))
   const missing = [...inBuilt].filter((name) => !inCommitted.has(name))
@@ -159,78 +141,60 @@ const reportEntrySetDrift = (committed: string, built: string): boolean => {
     console.error(
       `  the committed manifest carries ${name}, this checkout does not build it`
     )
-
-  return missing.length > 0 || stale.length > 0
-}
-
-const reportDrift = (committed: string, built: string): void => {
-  const a = committed.split('\n')
-  const b = built.split('\n')
-  let shown = 0
-  for (
-    let i = 0;
-    i < Math.max(a.length, b.length) && shown < DRIFT_LINES;
-    i++
-  ) {
-    if (a[i] === b[i]) continue
-    console.error(
-      `  line ${i + 1}\n    committed: ${a[i] ?? '<eof>'}\n    built:     ${
-        b[i] ?? '<eof>'
-      }`
-    )
-    shown++
-  }
-  console.error(`\n  committed lines: ${a.length}, built lines: ${b.length}`)
 }
 
 const main = (): void => {
-  const builds = parseBuilds(process.argv)
+  const outDir = parseOutDir(process.argv)
   const check = process.argv.includes('--check')
   const contracts = versionedContracts()
+  const profile = mintProfile(PROFILE)
   const entries: IManifestEntry[] = []
   const skipped: string[] = []
 
-  for (const build of builds) {
-    const profile = mintProfile(build.profile)
-    for (const contract of contracts) {
-      const artifactPath = path.join(
-        build.outDir,
-        contract.file,
-        `${contract.name}.json`
-      )
-      if (!fs.existsSync(artifactPath)) {
-        skipped.push(
-          `${contract.name} (${build.profile}): no artifact under ${build.outDir}`
-        )
-        continue
-      }
+  for (const contract of contracts) {
+    const artifactPath = path.join(
+      outDir,
+      contract.file,
+      `${contract.name}.json`
+    )
+    if (!fs.existsSync(artifactPath)) {
+      skipped.push(`${contract.name}: no artifact under ${outDir}`)
+      continue
+    }
 
-      const artifact = JSON.parse(fs.readFileSync(artifactPath, 'utf8'))
-      const runtimeHex = artifact.deployedBytecode?.object
-      // An abstract contract or an interface compiles to nothing. It is not a
-      // build to attest, and hashing the empty string would file every one of
-      // them under the same masked hash.
-      if (typeof runtimeHex !== 'string' || runtimeHex.length <= 2) {
-        skipped.push(
-          `${contract.name} (${build.profile}): compiles to no runtime code`
-        )
-        continue
-      }
+    const artifact = JSON.parse(fs.readFileSync(artifactPath, 'utf8'))
+    const runtimeHex = artifact.deployedBytecode?.object
+    // An abstract contract or an interface compiles to nothing. It is not a
+    // build to attest, and hashing the empty string would file every one of
+    // them under the same masked hash.
+    if (typeof runtimeHex !== 'string' || runtimeHex.length <= 2) {
+      skipped.push(`${contract.name}: compiles to no runtime code`)
+      continue
+    }
 
-      const settings = artifact.metadata?.settings
-      const sources = artifact.metadata?.sources
-      if (settings === undefined || sources === undefined) {
-        // zksolc writes no metadata object, so there is no closure to hash and
-        // no self-reported settings. Recording it as covered would claim more
-        // than was minted.
-        skipped.push(
-          `${contract.name} (${build.profile}): artifact has no metadata`
-        )
-        continue
-      }
+    const settings = artifact.metadata?.settings
+    const sources = artifact.metadata?.sources
+    if (settings === undefined || sources === undefined) {
+      // zksolc writes no metadata object, so there is no closure to hash and
+      // no self-reported settings. Recording it as covered would claim more
+      // than was minted.
+      skipped.push(`${contract.name}: artifact has no metadata`)
+      continue
+    }
 
+    // Deliberately fatal, unlike the skips above. Those describe artifacts that
+    // are legitimately not a build to attest; reaching here with an artifact
+    // that names no single compilation target, repeats a source under two
+    // hashes or carries a malformed digest means the compiler output itself is
+    // not trustworthy, and minting the rest around it would publish a manifest
+    // nobody noticed was short. Rethrown with the contract named, since the
+    // underlying errors do not say which artifact they choked on.
+    let key: IAttestationKey
+    let hashedSettings: Record<string, unknown>
+    try {
       const identity = identityFromArtifactMetadata(settings)
-      const key: IAttestationKey = {
+      hashedSettings = identity.hashedSettings
+      key = {
         contractName: contract.name,
         sourceId: identity.sourceId,
         version: contract.version,
@@ -246,34 +210,39 @@ const main = (): void => {
         settingsSource: identity.settingsSource,
         solcVersion: artifact.metadata.compiler.version,
       }
-
-      const built = manifestEntryFrom(
-        {
-          contractName: contract.name,
-          version: contract.version,
-          repo: 'contracts',
-        },
-        key,
-        profile,
-        {
-          runtimeHex,
-          ...(artifact.deployedBytecode.immutableReferences === undefined ||
-          Object.keys(artifact.deployedBytecode.immutableReferences).length ===
-            0
-            ? {}
-            : {
-                immutableReferences:
-                  artifact.deployedBytecode.immutableReferences,
-              }),
-        },
-        identity.hashedSettings
+    } catch (error) {
+      throw new Error(
+        `${contract.name} (${artifactPath}): ${
+          error instanceof Error ? error.message : String(error)
+        }`
       )
-      if (!built.ok) {
-        skipped.push(`${contract.name} (${build.profile}): ${built.reason}`)
-        continue
-      }
-      entries.push(built.entry)
     }
+
+    const built = manifestEntryFrom(
+      {
+        contractName: contract.name,
+        version: contract.version,
+        repo: 'contracts',
+      },
+      key,
+      profile,
+      {
+        runtimeHex,
+        ...(artifact.deployedBytecode.immutableReferences === undefined ||
+        Object.keys(artifact.deployedBytecode.immutableReferences).length === 0
+          ? {}
+          : {
+              immutableReferences:
+                artifact.deployedBytecode.immutableReferences,
+            }),
+      },
+      hashedSettings
+    )
+    if (!built.ok) {
+      skipped.push(`${contract.name}: ${built.reason}`)
+      continue
+    }
+    entries.push(built.entry)
   }
 
   if (skipped.length > 0) {
@@ -283,24 +252,13 @@ const main = (): void => {
 
   if (entries.length === 0)
     throw new Error(
-      'no contract produced a manifest entry — the out/ tree is empty or was built without --ast metadata'
+      `no contract produced a manifest entry — ${outDir} is empty or was built without --ast metadata`
     )
 
-  // Taken from the entries rather than from `--builds`, so the field records
-  // what was minted. A profile named in the request that produced nothing
-  // would otherwise be published as covered, and a reader told to treat
-  // covered-but-absent as a mismatch would fail an honest build under it.
-  const contributed = new Set(entries.map((entry) => entry.build.profile))
-  const barren = builds
-    .map((build) => build.profile)
-    .filter((profile) => !contributed.has(profile))
-  if (barren.length > 0)
-    throw new Error(
-      `no artifact under the tree given for ${barren.join(', ')} — ` +
-        'build the profile before minting it, or drop it from --builds'
-    )
-
-  const text = serialiseManifest([...contributed], entries)
+  // Safe to name the profile covered only because the throw above proves it
+  // contributed. A manifest that lists a profile nothing was minted under tells
+  // a reader to grade an honest build under it as a mismatch.
+  const text = serialiseManifest([PROFILE], entries)
 
   if (check) {
     const committed = fs.existsSync(TARGET)
@@ -313,21 +271,16 @@ const main = (): void => {
     console.error(
       `\n❌ ${TARGET} does not match this checkout.\n\n` +
         'CI attests the committed bytes, so a stale manifest is one the attestation no longer covers.\n' +
-        'Regenerate and commit:\n\n  bun attestations:mint\n'
+        'Regenerate, then read the change off git:\n\n  bun attestations:mint && git diff -- ' +
+        `${TARGET}\n`
     )
-    if (!reportEntrySetDrift(committed ?? '', text))
-      reportDrift(committed ?? '', text)
+    reportEntrySetDrift(committed ?? '', text)
     process.exit(1)
   }
 
   fs.mkdirSync(path.dirname(TARGET), { recursive: true })
   fs.writeFileSync(TARGET, text)
-  console.log(
-    `Wrote ${entries.length} entries across ${contributed.size} profile(s) to ${TARGET}`
-  )
-  // Printed so a reviewer can see what the manifest claims to cover without
-  // opening it; the file itself records the same list.
-  console.log(`Covered profiles: ${[...contributed].sort().join(', ')}`)
+  console.log(`Wrote ${entries.length} ${PROFILE} entries to ${TARGET}`)
   console.log(
     `Distinct keys: ${
       new Set(entries.map((e) => serialiseAttestationKey(e.key))).size

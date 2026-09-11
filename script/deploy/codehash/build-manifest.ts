@@ -13,8 +13,8 @@
  *
  * **The serialised form must be byte-stable.** The attestation binds a digest,
  * so a regeneration that differs by a space is a manifest the attestation no
- * longer covers. Entries are therefore ordered by their own key rather than by
- * the order a build runner happened to emit them.
+ * longer covers. Entries are therefore ordered by what they describe rather
+ * than by the order a build runner happened to emit them.
  *
  * **A profile nobody minted is not an empty attested set.** Code built under a
  * toolchain outside {@link IBuildManifest.coveredProfiles} has not been checked
@@ -48,13 +48,6 @@ export interface IManifestEntry extends IMintedAttestation {
   /** Length of the runtime code as built, before stripping or masking. */
   rawByteLength: number
   /**
-   * keccak of the exact runtime bytes, present only where the comparison pins
-   * them. On zkEVM the solc-fork/LLVM version lives in the trailer alone, so
-   * stripping it is exactly what makes fork drift invisible; elsewhere the
-   * trailer holds a source digest that moves for a changed comment.
-   */
-  rawHash?: string
-  /**
    * Every immutable occurrence, ordered by offset; absent for a contract with
    * none.
    *
@@ -75,12 +68,7 @@ export interface IManifestEntry extends IMintedAttestation {
 
 export interface IBuildManifest {
   schema: number
-  /**
-   * Every toolchain this manifest was minted under.
-   *
-   * A reader must treat code built outside this list as unverifiable rather
-   * than unattested — see the module header.
-   */
+  /** Every toolchain this manifest was minted under; see the module header. */
   coveredProfiles: string[]
   entries: IManifestEntry[]
 }
@@ -105,7 +93,14 @@ export interface IMintProfile {
   /** Pinned solc, used only when the build's own trailer reports none. */
   solcVersion: string
   evmVersion: string
-  /** Present exactly for a zkEVM profile. */
+  /**
+   * Present exactly for a zkEVM profile, which this mint refuses.
+   *
+   * A zksolc build is pinned by a solc-fork and LLVM version that live in the
+   * bytecode trailer alone, so the normalisation below would strip the very
+   * fields that separate two zk toolchains. The profile is refused rather than
+   * minted wrong; the zkEVM shape gets decided by the change that builds it.
+   */
   zksolcVersion?: string
 }
 
@@ -129,13 +124,19 @@ const describeLineage = (
   identity: IContractIdentity,
   profile: IMintProfile,
   solcVersion: string
-): string => {
-  const built = `${identity.contractName}@${identity.version}`
-  if (profile.zksolcVersion === undefined)
-    return `${built} (${profile.profile}: solc ${solcVersion}, ${profile.evmVersion})`
+): string =>
+  `${identity.contractName}@${identity.version} (${profile.profile}: solc ${solcVersion}, ${profile.evmVersion})`
 
-  return `${built} (${profile.profile}: zksolc ${profile.zksolcVersion}, solc ${solcVersion})`
-}
+/**
+ * Orders two strings by code unit.
+ *
+ * Not `localeCompare`: that answers differently under a different ICU build, and
+ * the order decides the bytes the attestation binds.
+ * @param a - left string
+ * @param b - right string
+ * @returns -1, 0 or 1
+ */
+const compare = (a: string, b: string): number => (a < b ? -1 : a > b ? 1 : 0)
 
 /**
  * Rebuilds a value with every object's keys in sorted order.
@@ -152,7 +153,7 @@ const canonicalise = (value: unknown): unknown => {
   if (typeof value === 'object' && value !== null)
     return Object.fromEntries(
       Object.entries(value as Record<string, unknown>)
-        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+        .sort(([a], [b]) => compare(a, b))
         .map(([entryKey, entryValue]) => [entryKey, canonicalise(entryValue)])
     )
   return value
@@ -181,7 +182,7 @@ const flattenOffsets = (refs: ImmutableReferences): IImmutableOccurrence[] =>
  * @param profile - the compiler pair used
  * @param artifact - what the build produced
  * @param hashedSettings - the settings `key.settingsHash` was taken over
- * @returns The entry, or why the artifact is unusable
+ * @returns The entry, or why this mint will not carry the build
  */
 export const manifestEntryFrom = (
   identity: IContractIdentity,
@@ -190,14 +191,19 @@ export const manifestEntryFrom = (
   artifact: IBuiltArtifact,
   hashedSettings: Record<string, unknown>
 ): { ok: true; entry: IManifestEntry } | IEntryRefused => {
-  const isZk = profile.zksolcVersion !== undefined
+  if (profile.zksolcVersion !== undefined)
+    return {
+      ok: false,
+      reason: `profile ${profile.profile} is zkEVM, which this mint does not cover`,
+    }
+
   // The one normalisation both sides go through. A second "strip then mask"
   // here is how the mint and a local rebuild would come to disagree while both
   // look finished, and the comparison downstream is between exactly these two.
   const normalised = normalizeRuntimeCode(
     artifact.runtimeHex,
     artifact.immutableReferences,
-    { isZk }
+    { isZk: false }
   )
   if (!normalised.ok) return { ok: false, reason: normalised.reason }
 
@@ -217,7 +223,6 @@ export const manifestEntryFrom = (
       maskedHash: normalised.maskedHash,
       lineage: describeLineage(identity, profile, solcVersion),
       rawByteLength: normalised.rawByteLength,
-      ...(isZk ? { rawHash: normalised.rawHash } : {}),
       ...(artifact.immutableReferences === undefined
         ? {}
         : { immutableOffsets: flattenOffsets(artifact.immutableReferences) }),
@@ -253,11 +258,6 @@ export class ManifestConflictError extends Error {
  * answer with whichever was written first — vouching for bytecode on the
  * strength of an attestation of something else.
  *
- * Entries are ordered by their own serialised key, so the bytes do not depend
- * on the order a build runner emitted them. Two runs of the same commit
- * therefore produce an identical digest, which is the only reason a committed
- * manifest and its attestation can stay bound.
- *
  * @param coveredProfiles - every profile this mint built, in any order
  * @param entries - the entries, in any order
  * @returns The manifest text, newline-terminated
@@ -282,17 +282,24 @@ export const serialiseManifest = (
     schema: MANIFEST_SCHEMA,
     coveredProfiles: [...new Set(coveredProfiles)].sort(),
     entries: [...entries].sort((a, b) => {
-      const left = serialiseAttestationKey(a.key)
-      const right = serialiseAttestationKey(b.key)
-      if (left !== right) return left < right ? -1 : 1
+      // Name then version first: byte-stability needs only *a* total order, and
+      // the serialised key is length-prefixed, so ordering on it alone files a
+      // 3,000-line committed file by contract-name length.
+      const byName = compare(a.key.contractName, b.key.contractName)
+      if (byName !== 0) return byName
+      const byVersion = compare(a.key.version, b.key.version)
+      if (byVersion !== 0) return byVersion
+
+      const byKey = compare(
+        serialiseAttestationKey(a.key),
+        serialiseAttestationKey(b.key)
+      )
+      if (byKey !== 0) return byKey
       // Two entries can share a key and still serialise differently: the
       // profile that produced them is deliberately outside the key. Ordering
       // them by the key alone would leave the bytes decided by the order the
       // runner emitted them, which is the one thing this file cannot afford.
-      const leftEntry = JSON.stringify(a)
-      const rightEntry = JSON.stringify(b)
-      if (leftEntry === rightEntry) return 0
-      return leftEntry < rightEntry ? -1 : 1
+      return compare(JSON.stringify(a), JSON.stringify(b))
     }),
   }
 

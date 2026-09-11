@@ -1,11 +1,7 @@
 /**
- * What the minted manifest must guarantee for its attestation to mean anything.
- *
- * The attestation binds a sha256 of these exact bytes, so byte-stability is not
- * a tidiness property here — it is the whole binding. The rest of the file
- * covers the two ways a manifest can be worse than useless: filing two
- * different builds under one key, and letting a reader mistake a toolchain
- * nobody minted for a build nobody attested.
+ * What the minted manifest must guarantee for its attestation to mean anything:
+ * byte-stability, one build per key, and an honest record of what was minted.
+ * `build-manifest.ts` states why each of those is load-bearing.
  */
 // eslint-disable-next-line import/no-unresolved
 import { describe, expect, it } from 'bun:test'
@@ -106,11 +102,20 @@ describe('manifestEntryFrom', () => {
     expect(built.entry.rawByteLength).toBe(rebuilt.rawByteLength)
   })
 
-  it('pins the exact bytes on zk and leaves them unpinned elsewhere', () => {
-    // The solc-fork/LLVM version a zksolc build came from lives only in the
-    // trailer, so stripping it is what makes fork drift invisible there.
-    expect(entryFor(keyFor(), CODE_A, ZK_PROFILE).rawHash).toBeDefined()
-    expect(entryFor(keyFor(), CODE_A).rawHash).toBeUndefined()
+  it('refuses a zkEVM profile rather than minting an entry under it', () => {
+    const refused = manifestEntryFrom(
+      IDENTITY,
+      keyFor(),
+      ZK_PROFILE,
+      { runtimeHex: CODE_A },
+      HASHED_SETTINGS
+    )
+    expect(refused.ok).toBe(false)
+    // The normalisation below strips the trailer, which on zkEVM is the only
+    // place the solc-fork and LLVM versions live — so an entry minted here
+    // would file two different zk toolchains under one hash.
+    expect(refused.ok === false && refused.reason).toContain('zkEVM')
+    expect(entryFor(keyFor(), CODE_A).lineage).toContain('default: solc')
   })
 
   it('carries the immutable offsets a reader needs to mask deployed code', () => {
@@ -182,9 +187,6 @@ describe('serialiseManifest', () => {
     const a = entryFor(keyFor(), CODE_A)
     const b = entryFor(keyFor({ contractName: 'Other' }), CODE_B)
 
-    // The attestation binds a digest of these bytes. A manifest whose text
-    // depends on emission order cannot stay bound across two runs of one
-    // commit, and every verify would fail for a build that never changed.
     expect(serialiseManifest(['default'], [a, b])).toBe(
       serialiseManifest(['default'], [b, a])
     )
@@ -258,34 +260,48 @@ describe('serialiseManifest', () => {
   })
 
   it('refuses a manifest that names no covered profile', () => {
-    // An empty list reads as "nothing was minted", which a consumer cannot
-    // distinguish from "this toolchain was minted and matched nothing".
     expect(() => serialiseManifest([], [entryFor(keyFor(), CODE_A)])).toThrow(
       /names no covered profile/
     )
   })
 
-  it('records the profiles minted so an unminted toolchain is not read as unattested', () => {
+  it('records only the profiles it was minted under', () => {
     const parsed = JSON.parse(
       serialiseManifest(['default', 'solc_floor'], [entryFor(keyFor(), CODE_A)])
     ) as IBuildManifest
 
-    // A zkEVM deploy is outside this manifest's claim. A reader that ignores
-    // coveredProfiles grades it MISMATCH on the strength of a manifest that
-    // never described it.
-    expect(parsed.coveredProfiles).not.toContain('zksync')
+    expect(parsed.coveredProfiles).toEqual(['default', 'solc_floor'])
   })
 
-  it('sorts entries by their own key, not by contract name', () => {
-    const first = entryFor(keyFor({ contractName: 'Aaa' }), CODE_A)
-    const second = entryFor(keyFor({ contractName: 'Zzz' }), CODE_B)
+  it('orders entries by contract name, not by the length-prefixed key', () => {
+    // The serialised key is length-prefixed, so ordering on it alone puts
+    // `Zzz` ahead of `Aaaa`. The second assertion pins that, so this test
+    // still fails if the comparator goes back to the key.
+    const short = entryFor(keyFor({ contractName: 'Zzz' }), CODE_A)
+    const long = entryFor(keyFor({ contractName: 'Aaaa' }), CODE_B)
     const parsed = JSON.parse(
-      serialiseManifest(['default'], [second, first])
+      serialiseManifest(['default'], [short, long])
     ) as IBuildManifest
 
-    const keys = parsed.entries.map((entry) =>
-      serialiseAttestationKey(entry.key)
-    )
-    expect([...keys].sort()).toEqual(keys)
+    expect(parsed.entries.map((entry) => entry.key.contractName)).toEqual([
+      'Aaaa',
+      'Zzz',
+    ])
+    expect(
+      serialiseAttestationKey(short.key) < serialiseAttestationKey(long.key)
+    ).toBe(true)
+  })
+
+  it('orders two versions of one contract by version', () => {
+    const newer = entryFor(keyFor({ version: '2.0.0' }), CODE_A)
+    const older = entryFor(keyFor({ version: '1.0.0' }), CODE_B)
+    const parsed = JSON.parse(
+      serialiseManifest(['default'], [newer, older])
+    ) as IBuildManifest
+
+    expect(parsed.entries.map((entry) => entry.key.version)).toEqual([
+      '1.0.0',
+      '2.0.0',
+    ])
   })
 })

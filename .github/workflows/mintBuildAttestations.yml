@@ -18,8 +18,19 @@
 #   quiet without anyone noticing. The build is the cost of never having to ask
 #   whether the check ran.
 # - Known limitation: only the `default` profile is minted today. The manifest
-#   records its own `coveredProfiles`, so a reader must treat code built under
-#   any other toolchain (notably zksync) as unverifiable rather than unattested.
+#   records its own `coveredProfiles`; script/deploy/codehash/build-manifest.ts
+#   states what a reader has to do with that.
+#
+# Reading the attestation. The signature is worth only as much as the identity
+# it is pinned to, so a consumer must name the workflow that signed:
+#
+#   gh attestation verify script/deploy/resources/buildAttestations.json \
+#     --repo lifinance/contracts \
+#     --signer-workflow lifinance/contracts/.github/workflows/mintBuildAttestations.yml
+#
+# Without --signer-workflow the command passes for bytes signed by any workflow
+# in this repository, which is a weaker claim than the one this manifest is
+# read for. See docs/MultisigSigningProcess.md.
 
 name: Mint Build Attestations
 
@@ -39,7 +50,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  verify:
+  verify-build-manifest:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -82,7 +93,7 @@ jobs:
     ##### it ran on, and one minted from a branch would vouch for code that
     ##### never passed review.
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
-    needs: verify
+    needs: verify-build-manifest
     runs-on: ubuntu-latest
     timeout-minutes: 10
     permissions:
