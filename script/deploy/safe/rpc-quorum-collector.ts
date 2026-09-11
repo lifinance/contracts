@@ -16,6 +16,8 @@
 
 import { createPublicClient, http, type Address } from 'viem'
 
+import { getTransportConfigFromRpcUrl } from '../../utils/viemScriptHelpers'
+
 import type { IProviderObservation } from './rpc-quorum'
 
 /** 8 seconds: a sign-time fan-out must not stall the operator on one slow endpoint. */
@@ -96,8 +98,21 @@ export const codeReadLabel = (address: Address, network: string): string =>
 export const createCodeReader =
   (address: Address, chainId: number): TEndpointReader =>
   async (endpointUrl) => {
+    // viem's own transport lifts `user:pass@` out of the URL, but its branch is
+    // `if (url.username)`: a password-only endpoint keeps its credential in the
+    // URL, no header is sent, and the 401 that comes back would be recorded as
+    // that provider's answer. The helper also refuses credentials over
+    // cleartext http and carries the TronGrid and retry settings.
+    const { url, fetchOptions, retryCount, retryDelay } =
+      getTransportConfigFromRpcUrl(endpointUrl)
+
     const client = createPublicClient({
-      transport: http(endpointUrl, { timeout: ENDPOINT_TIMEOUT_MS }),
+      transport: http(url, {
+        timeout: ENDPOINT_TIMEOUT_MS,
+        ...(fetchOptions ? { fetchOptions } : {}),
+        ...(retryCount !== undefined ? { retryCount } : {}),
+        ...(retryDelay !== undefined ? { retryDelay } : {}),
+      }),
     })
 
     const observed = await client.getChainId()

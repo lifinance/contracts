@@ -214,11 +214,18 @@ const readObservations = async (
     if (held !== undefined) hasCode.set(key, held)
   })
 
-  const ownerReads = cutPayloads.map(async (payload) => {
+  // Resolved before the map rather than skipped inside it, so a payload whose
+  // diamond does not parse is not counted as an owner read that went
+  // unanswered.
+  const ownerReadTargets = cutPayloads.flatMap((payload) => {
     const diamond = parsed(payload.diamond)
-    if (diamond === undefined) return
+    return diamond === undefined
+      ? []
+      : [{ key: normalise(payload.diamond), diamond }]
+  })
+  const ownerReads = ownerReadTargets.map(async ({ key, diamond }) => {
     const owner = await reader.owner(diamond)
-    if (owner !== undefined) owners.set(normalise(payload.diamond), owner)
+    if (owner !== undefined) owners.set(key, owner)
   })
 
   const onlyDiamond =
@@ -237,7 +244,9 @@ const readObservations = async (
   await Promise.all([...codeReads, ...ownerReads, ...selectorReads])
 
   const attempted =
-    addresses.size + cutPayloads.length + (onlyDiamond ? selectors.size : 0)
+    addresses.size +
+    ownerReadTargets.length +
+    (onlyDiamond ? selectors.size : 0)
   const answered = hasCode.size + owners.size + selectorFacets.size
 
   // "Available" is about whether the endpoint answered at all, not about

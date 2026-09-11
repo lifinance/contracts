@@ -86,8 +86,6 @@ const TIMELOCK_ABI = parseAbi([
   'function executeBatch(address[] targets, uint256[] values, bytes[] payloads, bytes32 predecessor, bytes32 salt) payable returns (bytes[])',
   'function cancel(bytes32 id)',
   'function hashOperationBatch(address[] targets, uint256[] values, bytes[] payloads, bytes32 predecessor, bytes32 salt) view returns (bytes32)',
-  'function hasRole(bytes32 role, address account) view returns (bool)',
-  'function CANCELLER_ROLE() view returns (bytes32)',
   'event CallScheduled(bytes32 indexed id, uint256 indexed index, address target, uint256 value, bytes data, bytes32 predecessor, uint256 delay)',
   'event CallExecuted(bytes32 indexed id, uint256 indexed index, address target, uint256 value, bytes data)',
   'event CallSalt(bytes32 indexed id, bytes32 salt)',
@@ -1354,16 +1352,14 @@ async function getPendingOperations(
  * The reads the cancel matrix needs, supplied by the caller that already holds
  * a client for this network.
  *
- * Two legs carry a could-not-answer value — `undefined` for the recomputed id,
- * `'unknown'` for the canceller authority — and the matrix reaches a
- * non-destructive verdict on either. `readOperationState` has none, because
- * every member of its union is a state the controller can really be in, so it
- * throws instead and the caller reports the matrix as unevaluated.
+ * `recomputeOperationId` carries a could-not-answer value — `undefined` — and
+ * the matrix reaches a non-destructive verdict on it. `readOperationState` has
+ * none, because every member of its union is a state the controller can really
+ * be in, so it throws instead and the caller reports the matrix as unevaluated.
  */
 interface ICancelRecommendationContext {
   recomputeOperationId: () => Promise<string | undefined>
   readOperationState: () => Promise<'ready' | 'pending' | 'done' | 'unset'>
-  readCancellerAuthority: () => Promise<'held' | 'absent' | 'unknown'>
 }
 
 /**
@@ -1423,7 +1419,6 @@ async function handleRevertedExecution(
         scheduledOperationId: operation.id,
         recomputedOperationId: await cancelContext.recomputeOperationId(),
         operationState: await cancelContext.readOperationState(),
-        cancellerAuthority: await cancelContext.readCancellerAuthority(),
         // Nothing at execute time consults the deploy log, so this is
         // reported as a check that did not complete rather than as one that
         // found every address recorded.
@@ -1973,24 +1968,6 @@ async function executeOperation(
                       error instanceof Error ? error.message : String(error)
                     }`
                   )
-                }
-              },
-              readCancellerAuthority: async () => {
-                try {
-                  const role = await publicClient.readContract({
-                    address: timelockAddress,
-                    abi: TIMELOCK_ABI,
-                    functionName: 'CANCELLER_ROLE',
-                  })
-                  const held = await publicClient.readContract({
-                    address: timelockAddress,
-                    abi: TIMELOCK_ABI,
-                    functionName: 'hasRole',
-                    args: [role, chainCaller.senderAddress],
-                  })
-                  return held ? 'held' : 'absent'
-                } catch {
-                  return 'unknown'
                 }
               },
             }

@@ -4,7 +4,7 @@
  * Import this from `execute-pending-timelock-tx.ts`. The matrix decides between
  * execute / cancel / hold / block for one queued operation; this module turns
  * what the executor already knows about a row into that matrix's input, and
- * names the one leg the executor cannot supply.
+ * names the legs the executor cannot supply.
  *
  * Two constraints fix the placement, and neither lets it gate.
  *
@@ -51,7 +51,6 @@ export interface ITimelockCancelSignals {
    */
   recomputedOperationId: string | undefined
   operationState: ICancelDecisionInput['operationState']
-  cancellerAuthority: ICancelDecisionInput['cancellerAuthority']
   deploymentRecord: ICancelDecisionInput['deploymentRecord']
   signTimeVerdictRecord: ICancelDecisionInput['signTimeVerdictRecord']
   revertAttempts: number
@@ -109,7 +108,11 @@ export const buildCancelDecisionInput = (
   deploymentRecord: signals.deploymentRecord,
   signTimeVerdictRecord: signals.signTimeVerdictRecord,
   operationState: signals.operationState,
-  cancellerAuthority: signals.cancellerAuthority,
+  // Only read when a divergence is already proven, which needs
+  // `verdictProvenance: 'anchors'` — so the read cannot affect any branch until
+  // the integrity leg above becomes real. Declared absent instead of costing
+  // two round-trips per reverting row.
+  cancellerAuthority: 'unknown',
   revertAttempts: signals.revertAttempts,
   revertBlockThreshold: signals.revertBlockThreshold,
 })

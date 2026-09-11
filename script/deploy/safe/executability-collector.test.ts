@@ -200,6 +200,43 @@ describe('collectExecutabilityInput', () => {
     expect(evaluateExecutability(input).error).toBe(true)
   })
 
+  // `attempted` gates the "the endpoint answered nothing" claim, so a payload
+  // that was never read must not be counted into it — otherwise a proposal the
+  // collector skipped entirely is reported as an endpoint outage.
+  it('does not count a skipped owner read as an unanswered one', async () => {
+    const skipped = {
+      network: 'arbitrum',
+      safeAddress: SAFE,
+      to: '0x1234' as Address,
+      // Every address in the cut is the zero address, which is deliberately
+      // not read, so the unparsable diamond is the only read left to skip.
+      data: encodeFunctionData({
+        abi: DIAMOND_CUT_ABI,
+        functionName: 'diamondCut',
+        args: [
+          [
+            {
+              facetAddress: ZERO_ADDRESS as Address,
+              action: 2,
+              functionSelectors: [SELECTOR],
+            },
+          ],
+          ZERO_ADDRESS as Address,
+          '0x' as Hex,
+        ],
+      }),
+    }
+
+    const input = await collectExecutabilityInput(skipped, reader({}))
+
+    expect(input.observations.hasCode.size).toBe(0)
+    expect(input.observations.owners.size).toBe(0)
+    expect(input.observations.available).toBe(true)
+    expect(input.observations.unavailableReason).toBeUndefined()
+    // The absent reads still block; only the outage claim is withdrawn.
+    expect(evaluateExecutability(input).error).toBe(true)
+  })
+
   it('leaves a failed selector read absent rather than defaulting it', async () => {
     const input = await collectExecutabilityInput(
       wrapped,

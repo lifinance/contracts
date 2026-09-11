@@ -6,6 +6,7 @@
  * failing one recorded rather than dropped.
  */
 import {
+  afterEach,
   describe,
   expect,
   it,
@@ -16,6 +17,7 @@ import { evaluateRpcQuorum } from './rpc-quorum'
 import {
   codeReadLabel,
   collectProviderObservations,
+  createCodeReader,
 } from './rpc-quorum-collector'
 
 /** A real 32-byte block hash: the shape a provider actually returns. */
@@ -89,6 +91,113 @@ describe('collectProviderObservations', () => {
 
     expect(observations[0]?.blockNumber).toBe(100n)
     expect(observations[0]?.blockHash).toBe(BLOCK_HASH)
+  })
+})
+
+describe('createCodeReader', () => {
+  const ADDRESS = '0x1111111111111111111111111111111111111111'
+  const originalFetch = globalThis.fetch
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch
+  })
+
+  /** Records what the transport actually put on the wire. */
+  const recordRequests = (): {
+    url: string
+    authorization: string | null
+  }[] => {
+    const seen: { url: string; authorization: string | null }[] = []
+
+    globalThis.fetch = (async (
+      input: RequestInfo | URL,
+      init?: RequestInit
+    ) => {
+      const headers = new Headers(init?.headers ?? {})
+      seen.push({
+        url: String(input),
+        authorization: headers.get('authorization'),
+      })
+
+      const body = JSON.parse(String(init?.body ?? '{}')) as {
+        method?: string
+        id?: number
+      }
+      const result =
+        body.method === 'eth_chainId'
+          ? '0x1'
+          : body.method === 'eth_getBlockByNumber'
+          ? { number: '0x64', hash: BLOCK_HASH }
+          : '0xcode'
+
+      return new Response(
+        JSON.stringify({ jsonrpc: '2.0', id: body.id ?? 1, result }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    }) as typeof fetch
+
+    return seen
+  }
+
+  // viem's own transport lifts `user:pass@` into a header, but its branch is
+  // `if (url.username)`, so a password-only endpoint keeps its credential in
+  // the URL and bun's `fetch` sends it with no header: the provider answers
+  // 401 and this module records that 401 as its answer.
+  it('sends a password-only credential as an Authorization header', async () => {
+    const seen = recordRequests()
+
+    const observed = await createCodeReader(
+      ADDRESS,
+      1
+    )('https://:pa%3Ass@auth.example/rpc')
+
+    expect(observed.value).toBe('0xcode')
+    expect(seen.length).toBeGreaterThan(0)
+    for (const request of seen) {
+      expect(request.url).toBe('https://auth.example/rpc')
+      expect(request.authorization).toBe(
+        `Basic ${Buffer.from(':pa:ss', 'utf8').toString('base64')}`
+      )
+    }
+  })
+
+  it('leaves a credential-free endpoint unauthenticated', async () => {
+    const seen = recordRequests()
+
+    await createCodeReader(ADDRESS, 1)('https://plain.example/rpc')
+
+    expect(seen.length).toBeGreaterThan(0)
+    expect(seen.every((request) => request.authorization === null)).toBe(true)
+  })
+
+  // Recorded as that endpoint's `error` observation by the collector, which is
+  // what keeps it in the denominator instead of silently shrinking it.
+  it('refuses to carry credentials over cleartext http', async () => {
+    recordRequests()
+
+    const outcome = await createCodeReader(
+      ADDRESS,
+      1
+    )('http://user:pass@auth.example/rpc').then(
+      (read) => read as unknown,
+      (error: unknown) => error
+    )
+
+    expect(outcome).toBeInstanceOf(Error)
+    expect(String(outcome)).toMatch(/credentials over http/i)
+  })
+
+  it('records the cleartext refusal as an error observation', async () => {
+    recordRequests()
+
+    const observations = await collectProviderObservations(
+      ['https://plain.example/rpc', 'http://user:pass@auth.example/rpc'],
+      createCodeReader(ADDRESS, 1)
+    )
+
+    expect(observations).toHaveLength(2)
+    expect(observations[0]?.outcome).toBe('ok')
+    expect(observations[1]?.outcome).toBe('error')
   })
 })
 

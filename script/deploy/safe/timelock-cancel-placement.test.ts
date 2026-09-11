@@ -43,7 +43,6 @@ const signals = (
   scheduledOperationId: OP_ID,
   recomputedOperationId: OP_ID,
   operationState: 'ready',
-  cancellerAuthority: 'held',
   deploymentRecord: 'present',
   signTimeVerdictRecord: 'present',
   revertAttempts: 3,
@@ -113,11 +112,6 @@ describe('decideRevertedOperation', () => {
       'done',
       'unset',
     ]
-    const authorities: ITimelockCancelSignals['cancellerAuthority'][] = [
-      'held',
-      'absent',
-      'unknown',
-    ]
     const records: ITimelockCancelSignals['deploymentRecord'][] = [
       'present',
       'missing',
@@ -126,19 +120,17 @@ describe('decideRevertedOperation', () => {
     const recomputed = [OP_ID, `0x${'b'.repeat(64)}`, undefined]
 
     for (const operationState of states)
-      for (const cancellerAuthority of authorities)
-        for (const deploymentRecord of records)
-          for (const recomputedOperationId of recomputed) {
-            const decision = decideRevertedOperation(
-              signals({
-                operationState,
-                cancellerAuthority,
-                deploymentRecord,
-                recomputedOperationId,
-              })
-            )
-            expect(decision.action).not.toBe('cancel')
-          }
+      for (const deploymentRecord of records)
+        for (const recomputedOperationId of recomputed) {
+          const decision = decideRevertedOperation(
+            signals({
+              operationState,
+              deploymentRecord,
+              recomputedOperationId,
+            })
+          )
+          expect(decision.action).not.toBe('cancel')
+        }
   })
 
   it('a mismatched id is blocked rather than cancelled, being unproven', () => {
@@ -209,28 +201,21 @@ describe('what the executor can never reach', () => {
       'done',
       'unset',
     ]
-    const authorities: ITimelockCancelSignals['cancellerAuthority'][] = [
-      'held',
-      'absent',
-      'unknown',
-    ]
     const recomputed = [OP_ID, `0x${'b'.repeat(64)}`, undefined]
 
     for (const operationState of states)
-      for (const cancellerAuthority of authorities)
-        for (const recomputedOperationId of recomputed)
-          expect(
-            decideRevertedOperation(
-              signals({
-                operationState,
-                cancellerAuthority,
-                recomputedOperationId,
-                // As the executor hardcodes them.
-                deploymentRecord: 'error',
-                signTimeVerdictRecord: 'missing',
-              })
-            ).action
-          ).not.toBe('execute')
+      for (const recomputedOperationId of recomputed)
+        expect(
+          decideRevertedOperation(
+            signals({
+              operationState,
+              recomputedOperationId,
+              // As the executor hardcodes them.
+              deploymentRecord: 'error',
+              signTimeVerdictRecord: 'missing',
+            })
+          ).action
+        ).not.toBe('execute')
   })
 })
 
@@ -259,11 +244,13 @@ describe('where the executor evaluates the matrix', () => {
   it('reports an unreadable operation state instead of grading one', () => {
     // Every member of the state union is a state the controller can really be
     // in, and the matrix renders each as an observed fact, so a failed read has
-    // no value it can honestly return. The two legs that do have one are
+    // no value it can honestly return. The one leg that does have one is
     // asserted above by `buildCancelDecisionInput`.
+    const start = EXECUTOR.indexOf('readOperationState: async ()')
+    expect(start).toBeGreaterThan(-1)
     const leg = EXECUTOR.slice(
-      EXECUTOR.indexOf('readOperationState: async ()'),
-      EXECUTOR.indexOf('readCancellerAuthority: async ()')
+      start,
+      EXECUTOR.indexOf('\n            }\n', start)
     )
 
     expect(leg).toContain('checkOperationStatus(')
