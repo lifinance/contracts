@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 
 import {
+  afterEach,
   describe,
   expect,
   it,
@@ -64,9 +65,15 @@ const floorArtifact = (contract: { name: string; file: string }): unknown => ({
 })
 
 describe('the mint refuses to publish a manifest short by a profile conflict', () => {
+  let outDir: string
+
+  afterEach(() => {
+    fs.rmSync(outDir, { recursive: true, force: true })
+  })
+
   it('exits non-zero naming the artifact, instead of skipping past it', () => {
     const contract = firstVersionedContract()
-    const outDir = fs.mkdtempSync(path.join(tmpdir(), 'mint-abort-'))
+    outDir = fs.mkdtempSync(path.join(tmpdir(), 'mint-abort-'))
     fs.mkdirSync(path.join(outDir, contract.file), { recursive: true })
     fs.writeFileSync(
       path.join(outDir, contract.file, `${contract.name}.json`),
