@@ -11,7 +11,10 @@ import {
 } from './check-ledger'
 import {
   CONFIRM_CHECK_DEFINITIONS,
+  EVERY_ELEMENT_COMPARED,
   EXECUTABILITY_CHECK_ID,
+  NOTHING_TO_COMPARE,
+  ORDERING_HOLDS,
   RPC_QUORUM_CHECK_ID,
   TARGET_STATE_CHECK,
   TARGET_STATE_CHECK_ID,
@@ -219,6 +222,74 @@ describe('targetStateCheckResult', () => {
       expect(result.anchor).toBe('A-MONGO')
       expect(result.status).not.toBe('pass')
     }
+  })
+
+  /**
+   * The exact sentence each status must put in `expected`.
+   *
+   * Asserted against the module's own constants rather than restated copies,
+   * and keyed so a status added later is a compile error here too. Full
+   * sentences rather than a substring: matching only on "at or ahead of" could
+   * not tell the two non-comparing sentences apart, so swapping them stayed
+   * green.
+   */
+  const EXPECTED_SENTENCE: Record<TargetStateStatus, string> = {
+    'matches-main': ORDERING_HOLDS,
+    'ahead-of-main': ORDERING_HOLDS,
+    'not-previously-targeted': ORDERING_HOLDS,
+    downgrade: ORDERING_HOLDS,
+    'version-not-comparable': ORDERING_HOLDS,
+    removal: NOTHING_TO_COMPARE,
+    'no-diamond-cut': NOTHING_TO_COMPARE,
+    'proposed-version-unresolved': EVERY_ELEMENT_COMPARED,
+    'contract-unidentified': EVERY_ELEMENT_COMPARED,
+    'deployment-record-ambiguous': EVERY_ELEMENT_COMPARED,
+    'unrecognised-cut-action': EVERY_ELEMENT_COMPARED,
+    'calldata-not-readable': EVERY_ELEMENT_COMPARED,
+    'pinned-state-unavailable': EVERY_ELEMENT_COMPARED,
+  }
+
+  it('states a requirement for every status, not a diagnosis', () => {
+    for (const status of ALL_STATUSES) {
+      const { expected } = targetStateCheckResult(
+        verdictOf([finding(status)]),
+        'mainnet'
+      )
+
+      expect({ status, expected }).toEqual({
+        status,
+        expected: EXPECTED_SENTENCE[status],
+      })
+    }
+  })
+
+  // The canonical rollout cut: add a new facet and replace a live one in the
+  // same proposal. Both are `needs-ack`, so they tie and the reduction keeps
+  // whichever calldata listed first — the row must read the same either way,
+  // or its truth depends on element order.
+  it('reads the same whichever tied finding calldata listed first', () => {
+    const newFirst = targetStateCheckResult(
+      verdictOf([finding('not-previously-targeted'), finding('matches-main')]),
+      'mainnet'
+    )
+    const newSecond = targetStateCheckResult(
+      verdictOf([finding('matches-main'), finding('not-previously-targeted')]),
+      'mainnet'
+    )
+
+    expect(newFirst.expected).toBe(ORDERING_HOLDS)
+    expect(newSecond.expected).toBe(ORDERING_HOLDS)
+  })
+
+  it('moves expected with the finding that decided the row', () => {
+    // `removal` alone claims nothing to compare; the downgrade outranks it and
+    // the row must then stand on the ordering that actually failed.
+    const { expected } = targetStateCheckResult(
+      verdictOf([finding('removal'), finding('downgrade')]),
+      'mainnet'
+    )
+
+    expect(expected).toBe(ORDERING_HOLDS)
   })
 
   it('lets the worst finding decide the row, and reports its anchor', () => {

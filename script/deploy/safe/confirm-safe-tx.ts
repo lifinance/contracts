@@ -224,6 +224,9 @@ const recordEveryCheck = (
     recordCheck(checkLedger, {
       checkId: definition.checkId,
       network,
+      // Quantified over the proposals this run would sign, which is empty on
+      // every branch that reaches `recordNothingToGrade` — a network can carry
+      // pending transactions and still offer this signer nothing to act on.
       expected: 'every proposal this run would sign graded before signing',
       ...row,
     })

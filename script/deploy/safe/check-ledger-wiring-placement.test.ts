@@ -10,6 +10,8 @@
  * fails them:
  *
  * - deleting either call site;
+ * - restoring the render, which puts a verdict that inverts back in front of a
+ *   signer;
  * - recording per proposal, which lets `rollUpChecks` read two proposals on one
  *   network as a retry and a later clean one erase an earlier refusal;
  * - leaving a network the run skipped in the denominator, where it rolls up as

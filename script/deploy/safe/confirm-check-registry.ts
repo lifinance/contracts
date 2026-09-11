@@ -39,7 +39,29 @@ export const TARGET_STATE_CHECK: ICheckDefinition = {
 interface IStatusMapping {
   status: ICheckResult['status']
   anchor: ICheckResult['anchor']
+  /**
+   * Carried per status rather than derived from the anchor, which tracks where
+   * the evidence came from and so cannot say whether a comparison happened.
+   */
+  expected: ICheckResult['expected']
 }
+
+/**
+ * What each status says the network should have.
+ *
+ * Every one is a requirement, never a description of the row — `expected` is
+ * rendered verbatim after the word "expected", and a sentence that diagnoses
+ * the situation instead ("a first deployment") is false as soon as one cut
+ * carries two elements. It also makes the reduction below safe: findings of
+ * equal rank keep the first in calldata order, which only ever costs
+ * specificity when both sentences are requirements.
+ */
+export const ORDERING_HOLDS =
+  'no installed version behind what origin/main declares'
+export const EVERY_ELEMENT_COMPARED =
+  'every installed element compared against origin/main'
+export const NOTHING_TO_COMPARE =
+  'a cut that installs nothing requiring a version comparison'
 
 /**
  * How each graded status reaches the ledger.
@@ -59,27 +81,75 @@ interface IStatusMapping {
  * here rather than falling through to a default that would grade it green.
  */
 const STATUS_MAPPING: Readonly<Record<TargetStateStatus, IStatusMapping>> = {
-  'matches-main': { status: 'needs-ack', anchor: 'A-MONGO' },
-  'ahead-of-main': { status: 'needs-ack', anchor: 'A-MONGO' },
+  'matches-main': {
+    status: 'needs-ack',
+    anchor: 'A-MONGO',
+    expected: ORDERING_HOLDS,
+  },
+  'ahead-of-main': {
+    status: 'needs-ack',
+    anchor: 'A-MONGO',
+    expected: ORDERING_HOLDS,
+  },
   // `origin/main` declares nothing for this contract, so nothing was compared.
   // The common path, not an edge case: the target-state update merges only
-  // after execution, so every first deployment lands here.
-  'not-previously-targeted': { status: 'needs-ack', anchor: 'A-MONGO' },
+  // after execution, so every first deployment lands here — and so does every
+  // new network for a contract already live elsewhere, since the declaration is
+  // keyed per network.
+  'not-previously-targeted': {
+    status: 'needs-ack',
+    anchor: 'A-MONGO',
+    expected: ORDERING_HOLDS,
+  },
   // The removal branch returns before the anchor is read at all, so there is no
   // claim on `origin/main` to make — the same shape as `no-diamond-cut` below.
-  removal: { status: 'pass', anchor: 'A-LOCAL' },
+  removal: { status: 'pass', anchor: 'A-LOCAL', expected: NOTHING_TO_COMPARE },
   // No cut to grade. A pass on `A-LOCAL` rather than a skipped row: the
   // calldata was read and found to install nothing, which is a verified fact
   // about this proposal, not an absence of evidence.
-  'no-diamond-cut': { status: 'pass', anchor: 'A-LOCAL' },
-  downgrade: { status: 'fail', anchor: 'A-MAIN' },
-  'version-not-comparable': { status: 'error', anchor: 'A-MONGO' },
-  'proposed-version-unresolved': { status: 'error', anchor: 'A-MONGO' },
-  'contract-unidentified': { status: 'error', anchor: 'A-MONGO' },
-  'deployment-record-ambiguous': { status: 'error', anchor: 'A-MONGO' },
-  'unrecognised-cut-action': { status: 'error', anchor: 'A-UNRESOLVED' },
-  'calldata-not-readable': { status: 'error', anchor: 'A-UNRESOLVED' },
-  'pinned-state-unavailable': { status: 'error', anchor: 'A-UNRESOLVED' },
+  'no-diamond-cut': {
+    status: 'pass',
+    anchor: 'A-LOCAL',
+    expected: NOTHING_TO_COMPARE,
+  },
+  downgrade: { status: 'fail', anchor: 'A-MAIN', expected: ORDERING_HOLDS },
+  // Ordering was attempted and the pair could not be ordered, so this one did
+  // reach the comparison.
+  'version-not-comparable': {
+    status: 'error',
+    anchor: 'A-MONGO',
+    expected: ORDERING_HOLDS,
+  },
+  'proposed-version-unresolved': {
+    status: 'error',
+    anchor: 'A-MONGO',
+    expected: EVERY_ELEMENT_COMPARED,
+  },
+  'contract-unidentified': {
+    status: 'error',
+    anchor: 'A-MONGO',
+    expected: EVERY_ELEMENT_COMPARED,
+  },
+  'deployment-record-ambiguous': {
+    status: 'error',
+    anchor: 'A-MONGO',
+    expected: EVERY_ELEMENT_COMPARED,
+  },
+  'unrecognised-cut-action': {
+    status: 'error',
+    anchor: 'A-UNRESOLVED',
+    expected: EVERY_ELEMENT_COMPARED,
+  },
+  'calldata-not-readable': {
+    status: 'error',
+    anchor: 'A-UNRESOLVED',
+    expected: EVERY_ELEMENT_COMPARED,
+  },
+  'pinned-state-unavailable': {
+    status: 'error',
+    anchor: 'A-UNRESOLVED',
+    expected: EVERY_ELEMENT_COMPARED,
+  },
 }
 
 /**
@@ -137,7 +207,7 @@ export const targetStateCheckResult = (
       checkId: TARGET_STATE_CHECK_ID,
       network,
       status: 'error',
-      expected: 'every element of the cut graded against origin/main',
+      expected: EVERY_ELEMENT_COMPARED,
       actual: 'the verdict graded nothing',
       anchor: 'A-UNRESOLVED',
       detail:
@@ -149,6 +219,7 @@ export const targetStateCheckResult = (
   // `A-UNRESOLVED` rather than `A-MAIN` so the unreachable case still describes
   // a row nothing decided.
   let anchor: ICheckResult['anchor'] = 'A-UNRESOLVED'
+  let expected = EVERY_ELEMENT_COMPARED
   let detail: string | undefined
   let worstRank = SEVERITY.length
 
@@ -158,13 +229,15 @@ export const targetStateCheckResult = (
 
     // The anchor reported is the one the *worst* finding rests on, so the row
     // never claims a stronger anchor than the thing that decided it.
-    // `detail` moves with the anchor for the same reason: taken from the first
-    // failing finding in calldata order it can explain a different, milder
-    // problem than the one the row is graded on.
+    // `detail` and `expected` move with the anchor for the same reason: taken
+    // from the first failing finding in calldata order they can describe a
+    // different, milder problem than the one the row is graded on. `actual`
+    // still lists every finding, so nothing is lost by reducing these three.
     const rank = SEVERITY.indexOf(mapped.status)
     if (rank < worstRank) {
       worstRank = rank
       anchor = mapped.anchor
+      expected = mapped.expected
       detail = finding.detail
     }
   }
@@ -177,13 +250,7 @@ export const targetStateCheckResult = (
     checkId: TARGET_STATE_CHECK_ID,
     network,
     status,
-    // Names what the worst finding was actually judged against, so a `removal`
-    // or `no-diamond-cut` row does not claim a comparison against `origin/main`
-    // that its branch never made.
-    expected:
-      anchor === 'A-LOCAL'
-        ? 'the cut read and found to install nothing requiring a version comparison'
-        : 'every installed version at or ahead of origin/main',
+    expected,
     actual: (failing.length ? failing : verdict.findings)
       .map(describe)
       .join('; '),
