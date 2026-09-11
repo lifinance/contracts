@@ -198,7 +198,7 @@ describe('endpoint redaction', () => {
   it('keeps the endpoint out of the unsubstituted-template error', () => {
     const previousUri = process.env.ETH_NODE_URI
     const previousNetworkUri = process.env.ETH_NODE_URI_TESTNET
-    delete process.env.ETH_NODE_URI_TESTNET
+    delete process.env.ETH_NODE_URI_TESTNET // spawn-env: in-process; the fallback is the case under test
     process.env.ETH_NODE_URI =
       'https://lb.drpc.org/ogrpc?chain={{chain}}&dkey=SYNTHETIC-NOT-REAL-abc123'
 
@@ -212,8 +212,8 @@ describe('endpoint redaction', () => {
       expect(message).toContain('[redacted-url]')
       expect(message).not.toContain('dkey')
     } finally {
-      if (previousUri === undefined) delete process.env.ETH_NODE_URI
-      else process.env.ETH_NODE_URI = previousUri
+      if (previousUri !== undefined) process.env.ETH_NODE_URI = previousUri
+      else delete process.env.ETH_NODE_URI // spawn-env: in-process restore
       if (previousNetworkUri !== undefined)
         process.env.ETH_NODE_URI_TESTNET = previousNetworkUri
     }

@@ -22,25 +22,31 @@ import { join } from 'path'
 // eslint-disable-next-line import/no-unresolved
 import { afterAll, describe, expect, it } from 'bun:test'
 
+import {
+  CREDENTIAL_CORES,
+  NON_CREDENTIAL_NAMES,
+  withheldValueFor,
+  withholdCredentials,
+} from './deploy/safe/spawn-env'
+
 const REPO_ROOT = join(import.meta.dir, '..')
 
 /**
- * Names holding a signing secret or a proposal-store URI. Matched by substring
- * rather than enumerated because the wallet keys come in generations — pauser,
- * refund and withdraw wallets sit alongside several retired deployer ones — so
- * an enumeration would silently stop covering the next name added.
+ * Names holding a credential, by the substring the name carries.
  *
- * The keyed RPC endpoints, explorer and provider API keys and Slack webhooks
- * are deliberately outside this: deleting one of those is often how a fallback
- * gets tested, and matching them would put a marker on every such test to
- * withhold something no signature depends on.
+ * Derived from the cores `withholdCredentials` withholds by, rather than
+ * spelled out again here, because the two drifting apart is the failure this
+ * file exists to prevent: a guard that reports a clean tree while the fix it
+ * guards has stopped covering a class is worse than no guard. Widening one now
+ * widens both, and a class dropped from the table goes red below.
  *
- * The store half anchors on the full URI suffix rather than on the driver name
- * alone, so the logging toggle that shares that prefix is not mistaken for a
- * credential.
+ * What this cannot see is a credential whose name carries none of those cores —
+ * a `FOO_SECRET_SAUCE` is invisible to the scan here and to the sweep there
+ * alike. Naming the classes is therefore a decision that has to be revisited
+ * when a new kind of secret enters the store, not a pattern that grows by
+ * itself.
  */
-const CREDENTIAL_NAME =
-  '[A-Z0-9_]*(?:PRIVATE_KEY|MNEMONIC|MONGODB_URI)[A-Z0-9_]*'
+const CREDENTIAL_NAME = `[A-Z0-9_]*(?:${CREDENTIAL_CORES.join('|')})[A-Z0-9_]*`
 
 /**
  * Matches `delete env.PRIVATE_KEY`, `delete env['PRIVATE_KEY']`,
@@ -107,9 +113,20 @@ const blankBlockComments = (source: string): string =>
  * scan would walk straight past `delete\n  env.PRIVATE_KEY`. Joining the
  * operand onto the keyword's line first also carries any trailing marker
  * comment with it, which keeps the exemption attached to its own delete.
+ *
+ * The whole member expression is collapsed, not just the gap after the
+ * keyword, because prettier breaks a long `delete` across the dot on its own:
+ * `delete process.env\n  .PRIVATE_KEY` leaves `delete process.env` as the
+ * statement, which carries no name for the pattern to match. That form is
+ * reachable by adding a trailing comment and re-running the formatter, so it
+ * is the likeliest way for the scan to go quietly blind.
  */
 const joinDeleteOperands = (source: string): string =>
-  source.replace(/\bdelete\s+/gu, 'delete ')
+  source.replace(
+    /\bdelete\s+[A-Za-z_$][\w$]*(?:\s*\??\.\s*[\w$]+|\s*\??\.?\s*\[[^\]\n]*\])*/gu,
+    (expression) =>
+      `delete ${expression.replace(/^delete\s+/u, '').replace(/\s+/gu, '')}`
+  )
 
 /**
  * One entry per statement, not per line: a marker earns an exemption for the
@@ -157,6 +174,17 @@ describe('no shipped test deletes a credential from a child environment', () => 
 
     expect(all).toContain(SELF)
     expect(all.length - shippedTests().length).toBe(1)
+  })
+
+  it('sees a delete prettier broke across the dot', () => {
+    // What the formatter produces from `delete process.env.X // marker` once
+    // the comment pushes the line past 80 columns. Before this was handled the
+    // statement read `delete process.env`, and the scan reported it clean.
+    expect(
+      unexemptedDeletions(
+        '        delete process.env\n          .PRIVATE_KEY\n'
+      )
+    ).toEqual(['        delete process.env.PRIVATE_KEY'])
   })
 
   it('sees a delete whose operand is on the next line', () => {
@@ -227,6 +255,17 @@ describe('no shipped test deletes a credential from a child environment', () => 
       'delete env.MNEMONIC',
       'delete env?.PRIVATE_KEY',
       "delete process.env?.['PRIVATE_KEY_PRODUCTION']",
+      // The classes this file widened to. One real name per class, so a class
+      // dropped from the table in `spawn-env.ts` goes red here rather than
+      // quietly narrowing the scan.
+      'delete env.ETH_NODE_URI',
+      'delete env.ETH_NODE_URI_ARBITRUM',
+      'delete env.MAINNET_ETHERSCAN_API_KEY',
+      'delete env.TRONGRID_API_KEY',
+      'delete env.TENDERLY_ACCESS_KEY',
+      'delete env.LEDGER_SYNC_TOKEN',
+      'delete env.WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS',
+      'delete env.SLACK_WEBHOOK_SC_GENERAL',
     ])
       expect(DELETES_A_CREDENTIAL.test(source), source).toBe(true)
   })
@@ -242,8 +281,54 @@ describe('no shipped test deletes a credential from a child environment', () => 
       'delete env.SAFE_PROPOSAL_TICKET',
       'delete env.ENVIRONMENT',
       'delete env.ENABLE_MONGODB_LOGGING',
+      // The near misses each widened core must not swallow: a list of token
+      // contracts is not a `SYNC_TOKEN`, and neither a verification toggle nor
+      // a network exclusion list is a key or an endpoint.
+      'delete env.ALLOW_TOKEN_CONTRACTS',
+      'delete env.DO_NOT_VERIFY_IN_THESE_NETWORKS',
+      'delete env.ZKSYNC_NATIVE_VERIFIER',
     ])
       expect(DELETES_A_CREDENTIAL.test(source), source).toBe(false)
+  })
+})
+
+describe('the guard and the withholding cannot disagree about a name', () => {
+  it('withholds something for every core it scans for', () => {
+    // The drift this pairing exists to stop, in the direction that matters: a
+    // core the scan enforces but the sweep does not act on would put markers
+    // on tests while handing children the real value.
+    for (const core of CREDENTIAL_CORES)
+      expect(withheldValueFor(`PREFIX_${core}_SUFFIX`), core).toBeDefined()
+  })
+
+  it('withholds nothing for a name no core claims', () => {
+    // The paired absence: a `withheldValueFor` that returned a value for
+    // everything would satisfy the assertion above while clobbering the whole
+    // environment.
+    for (const name of ['NODE_ENV', 'PRODUCTION', 'SALT', 'FOO_SECRET_SAUCE'])
+      expect(withheldValueFor(name), name).toBeUndefined()
+  })
+
+  it('exempts the reviewed non-credentials from the sweep as well', () => {
+    // These match a core and are deliberately not withheld, so the sweep must
+    // leave them alone; the scan's own tolerance for them is asserted above.
+    expect(NON_CREDENTIAL_NAMES.length).toBeGreaterThan(0)
+    for (const name of NON_CREDENTIAL_NAMES)
+      expect(withheldValueFor(name), name).toBeUndefined()
+  })
+
+  it('gives each class a value that cannot be used as the real thing', () => {
+    // A plausible-looking stand-in is the hazard: a parseable key derives an
+    // address and a routable URL posts to a live channel, so every class value
+    // has to be something its consumer refuses outright.
+    for (const name of [
+      'PRIVATE_KEY_PRODUCTION',
+      'SC_MONGODB_URI',
+      'ETH_NODE_URI_ARBITRUM',
+      'MAINNET_ETHERSCAN_API_KEY',
+      'WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS',
+    ])
+      expect(withheldValueFor(name), name).toContain('malformed-in-tests')
   })
 })
 
@@ -309,5 +394,125 @@ describe('setting a credential, unlike deleting it, withholds it from a child', 
     expect(lengthInChild((env) => (env[NAME] = PASSED_VALUE))).toBe(
       String(PASSED_VALUE.length)
     )
+  })
+})
+
+describe('withholdCredentials withholds each widened class from a real child', () => {
+  /**
+   * The classes this change added, end to end: a fixture `.env` a child would
+   * re-load, a `withholdCredentials` pass over the environment it is handed,
+   * and the child reporting back what it actually sees. Synthetic values
+   * throughout, lengths only.
+   *
+   * Asserted against the class values rather than against "not the fixture",
+   * because a child that saw `undefined` would also satisfy the weaker form
+   * while the child in the real probes would be re-loading the store.
+   */
+  const FIXTURE = {
+    ETH_NODE_URI_ZZPROBE: 'endpoint-from-fixture',
+    MAINNET_ETHERSCAN_API_KEY: 'explorer-key-from-fixture',
+    WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS: 'webhook-from-fixture',
+    NO_ETHERSCAN_API_KEY_REQUIRED: 'true',
+  } as const
+
+  const fixture = mkdtempSync(join(tmpdir(), 'spawn-env-classes-'))
+  writeFileSync(
+    join(fixture, '.env'),
+    Object.entries(FIXTURE)
+      .map(([name, value]) => `${name}=${value}\n`)
+      .join('')
+  )
+  const child = join(fixture, 'report-lengths.ts')
+  writeFileSync(
+    child,
+    `const names = ${JSON.stringify(Object.keys(FIXTURE))}\n` +
+      'console.log(\n' +
+      '  JSON.stringify(\n' +
+      '    Object.fromEntries(\n' +
+      '      names.map((n) => [\n' +
+      '        n,\n' +
+      "        process.env[n] === undefined ? 'undefined' : process.env[n].length,\n" +
+      '      ])\n' +
+      '    )\n' +
+      '  )\n' +
+      ')\n'
+  )
+
+  afterAll(() => rmSync(fixture, { force: true, recursive: true }))
+
+  /** What the child reports each name's length to be, given `present` in env. */
+  const lengthsInChild = (
+    present: Record<string, string>
+  ): Record<string, number | string> => {
+    const env: Record<string, string> = {
+      ...(process.env as Record<string, string>),
+      ...present,
+    }
+    delete env.NODE_ENV
+    withholdCredentials(env)
+
+    const result = Bun.spawnSync([process.execPath, child], {
+      cwd: fixture,
+      env,
+      stdin: 'ignore',
+      stdout: 'pipe',
+      stderr: 'pipe',
+      timeout: 20_000,
+    })
+    if (result.signalCode)
+      throw new Error(
+        `child killed by ${result.signalCode}, so its output proves nothing`
+      )
+
+    return JSON.parse(result.stdout.toString().trim())
+  }
+
+  it('replaces an endpoint, a provider key and a webhook the parent holds', () => {
+    const lengths = lengthsInChild(FIXTURE)
+
+    for (const name of [
+      'ETH_NODE_URI_ZZPROBE',
+      'MAINNET_ETHERSCAN_API_KEY',
+      'WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS',
+    ] as const) {
+      const withheld = withheldValueFor(name)
+      expect(withheld, name).toBeDefined()
+      expect(lengths[name], name).toBe((withheld as string).length)
+      // The paired negative: equal lengths would let a coincidence pass.
+      expect(lengths[name], name).not.toBe(FIXTURE[name].length)
+    }
+  })
+
+  it('leaves a reviewed non-credential at the value it was given', () => {
+    // Withholding this one would hand a verification run a key that looks
+    // present, which is a behaviour change rather than a withholding.
+    expect(lengthsInChild(FIXTURE).NO_ETHERSCAN_API_KEY_REQUIRED).toBe(
+      FIXTURE.NO_ETHERSCAN_API_KEY_REQUIRED.length
+    )
+  })
+
+  it('does NOT cover a name the spawning process does not hold', () => {
+    // The documented limit of the sweep, asserted rather than described: it can
+    // only replace names in the environment it is handed, and the child
+    // re-loads the file for every name that environment leaves unset. The five
+    // names in `ALWAYS_WITHHELD` are the ones pinned against this; every other
+    // class depends on the parent having loaded the store.
+    const lengths = lengthsInChild({})
+
+    expect(lengths.ETH_NODE_URI_ZZPROBE).toBe(
+      FIXTURE.ETH_NODE_URI_ZZPROBE.length
+    )
+  })
+
+  it('withholds the pinned names even when the parent does not hold them', () => {
+    // The other side of that limit: these five do not depend on the parent, so
+    // a child spawned from a process with no store loaded still cannot re-load
+    // them.
+    const pinned = 'PRIVATE_KEY_PRODUCTION'
+    const env: Record<string, string> = {}
+    withholdCredentials(env)
+
+    expect(env[pinned]).toBeDefined()
+    expect(env[pinned]).toContain('malformed-in-tests')
   })
 })
