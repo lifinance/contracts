@@ -112,7 +112,12 @@ describe('the check ledger is wired into the confirmation run', () => {
     // ledger built later would take its denominator from whatever had already
     // been reached.
     expect(created).toBeLessThan(networkLoop)
-    expect(SOURCE).toContain('expectedNetworks: networks.filter(')
+    // The filter body, not just the call: `toContain` on the opening line stays
+    // green while the predicate grows a condition that drops networks from the
+    // denominator, which is the one thing fixing it early is meant to prevent.
+    expect(SOURCE).toMatch(
+      /expectedNetworks: networks\.filter\(\(network\): network is string =>\s*Boolean\(network\)\s*\),/
+    )
   })
 })
 
@@ -122,6 +127,16 @@ describe('one row per network, not one per proposal', () => {
 
     expect(body).toContain('targetStateCheckResult(targetState, network)')
     expect(body).toContain('proposalChecks.push(')
+
+    // Position, not just presence. Below the operator's own `continue` the push
+    // is skipped for a declined proposal, and a network whose only proposal was
+    // declined then reaches `proposalChecks.length === 0` and records a pass —
+    // a green row for a real proposal nothing graded.
+    const graded = body.indexOf('proposalChecks.push(')
+    const declined = body.indexOf("if (action === 'Do Nothing') continue")
+
+    expect(declined).toBeGreaterThan(-1)
+    expect(graded).toBeLessThan(declined)
   })
 
   it('records nothing from inside the loop', () => {
@@ -254,9 +269,10 @@ describe('the report is printed whatever the ledger holds', () => {
   })
 
   it('is not suppressed for a run that recorded nothing', () => {
-    // A ledger with no results renders as `VERDICT: BLOCKED — N unverified`,
-    // which is the single most important report there is; the old guard hid it
-    // for exactly the runs that aborted before the first proposal.
+    // A ledger with no results renders a BLOCKED verdict counting every
+    // expected network as an unverified result, which is the single most
+    // important report there is; the old guard hid it for exactly the runs that
+    // aborted before the first proposal.
     //
     // Asserted as a shape rather than as one spelling: pinning the literal
     // `checkLedger.results.length` leaves `checkLedger?.results?.length` free,

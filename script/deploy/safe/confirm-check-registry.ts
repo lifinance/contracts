@@ -6,10 +6,11 @@
  * than in `check-ledger.ts` (which must not know about any particular gate) or
  * in the gates themselves (which must stay usable without a ledger).
  *
- * Every mapping names the anchor the verdict actually rests on. `recordCheck`
- * coerces a `pass` claimed on a reporting-only anchor to `error`, so a mapping
- * that names its anchor honestly cannot produce a false green even if the
- * status below it is wrong.
+ * Every mapping names the anchor the verdict actually rests on, so `recordCheck`
+ * coerces a `pass` claimed on a reporting-only anchor to `error`. That backstop
+ * only covers the record-derived rows; the two mappings that can emit a green
+ * sit on `A-LOCAL`, which decides, so what actually guards them is the
+ * cross-check against `STATUSES_CLEARED_TO_PROCEED`.
  */
 
 import type { ICheckDefinition, ICheckResult } from './check-ledger'
@@ -146,6 +147,7 @@ export const targetStateCheckResult = (
   // `A-UNRESOLVED` rather than `A-MAIN` so the unreachable case still describes
   // a row nothing decided.
   let anchor: ICheckResult['anchor'] = 'A-UNRESOLVED'
+  let detail: string | undefined
   let worstRank = SEVERITY.length
 
   for (const finding of verdict.findings) {
@@ -154,10 +156,14 @@ export const targetStateCheckResult = (
 
     // The anchor reported is the one the *worst* finding rests on, so the row
     // never claims a stronger anchor than the thing that decided it.
+    // `detail` moves with the anchor for the same reason: taken from the first
+    // failing finding in calldata order it can explain a different, milder
+    // problem than the one the row is graded on.
     const rank = SEVERITY.indexOf(mapped.status)
     if (rank < worstRank) {
       worstRank = rank
       anchor = mapped.anchor
+      detail = finding.detail
     }
   }
 
@@ -174,11 +180,7 @@ export const targetStateCheckResult = (
       .map(describe)
       .join('; '),
     anchor,
-    ...(failing.length
-      ? {
-          detail: failing[0]?.detail ?? undefined,
-        }
-      : {}),
+    ...(failing.length && detail ? { detail } : {}),
   }
 }
 

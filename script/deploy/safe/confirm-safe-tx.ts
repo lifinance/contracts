@@ -1586,9 +1586,11 @@ const main = defineCommand({
       // It reports and does not gate — signing already happened per proposal,
       // refused there by `targetState.cleared` and by the sign-time gates.
       //
-      // Rendered whatever the ledger holds. A ledger with no results renders as
-      // `VERDICT: BLOCKED — N unverified`, which is the report a run that
-      // aborted before its first proposal most needs to print.
+      // Rendered whatever the ledger holds. A ledger with no results renders a
+      // BLOCKED verdict counting every expected network as unverified, which is
+      // the report a run that aborted before its first proposal most needs to
+      // print — for aborts after the ledger exists; an earlier one leaves it
+      // undefined and prints nothing.
       if (checkLedger)
         renderCheckLedger(checkLedger).forEach((line) => consola.info(line))
 
