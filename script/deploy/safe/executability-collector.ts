@@ -4,8 +4,7 @@
  * Import this from a script that has a pending proposal and an RPC endpoint;
  * it turns one Safe transaction into the {@link IExecutabilityInput} the
  * simulation grades. The reads are behind {@link IExecutabilityChainReader} so
- * the assembly can be exercised without a node — the decision module is already
- * pure, and this is the part that was missing between it and a signer.
+ * the assembly can be exercised without a node.
  *
  * Nothing here decides anything. Every read that fails is left absent rather
  * than defaulted, because the simulation grades an absent observation as
@@ -22,6 +21,7 @@ import {
 } from 'viem'
 
 import { redactUrls } from '../../utils/redactUrls'
+import { ZERO_ADDRESS } from '../shared/constants'
 import {
   collectDiamondCutCalls,
   type IDiamondCutCall,
@@ -40,7 +40,14 @@ const DIAMOND_LOUPE_ABI = parseAbi([
 
 const OWNER_ABI = parseAbi(['function owner() view returns (address)'])
 
-/** The reads one verdict needs, each returning `undefined` when it could not be made. */
+/**
+ * The reads one verdict needs.
+ *
+ * The three value reads return `undefined` when they could not be made;
+ * `staticCall` carries that in the observation's own outcome instead, because a
+ * call that reverted and a call that could not be attempted are different
+ * findings and the simulation grades them differently.
+ */
 export interface IExecutabilityChainReader {
   /** Whether the address holds code. */
   hasCode: (address: Address) => Promise<boolean | undefined>
@@ -76,8 +83,6 @@ export interface ICollectExecutabilityInput {
 }
 
 const normalise = (value: string): string => value.trim().toLowerCase()
-
-const ZERO = '0x0000000000000000000000000000000000000000'
 
 /**
  * Names where a decoded cut sits, for every line the verdict prints.
@@ -156,7 +161,7 @@ const readObservations = async (
 
   const addresses = new Map<string, Address>()
   const remember = (value: string): void => {
-    if (normalise(value) === ZERO) return
+    if (normalise(value) === normalise(ZERO_ADDRESS)) return
     try {
       addresses.set(normalise(value), getAddress(value))
     } catch {
@@ -198,8 +203,8 @@ const readObservations = async (
   })
 
   const onlyDiamond =
-    diamonds.size === 1
-      ? getAddress(cutPayloads[0]?.diamond ?? ZERO)
+    diamonds.size === 1 && cutPayloads[0]
+      ? getAddress(cutPayloads[0].diamond)
       : undefined
 
   const selectorReads =

@@ -1,15 +1,15 @@
 /**
  * Maps each sign-time gate's own verdict onto a `check-ledger` row.
  *
- * The gates were built as independent modules, each printing its own block. The
- * ledger is where they become one verdict, so the translation lives here rather
- * than in `check-ledger.ts` (which must not know about any particular gate) or
- * in the gates themselves (which must stay usable without a ledger).
+ * The translation lives here rather than in `check-ledger.ts` (which must not
+ * know about any particular gate) or in the gates themselves (which must stay
+ * usable without a ledger).
  *
- * Every mapping names the anchor the verdict actually rests on. `recordCheck`
- * coerces a `pass` claimed on a reporting-only anchor to `error`, so a mapping
- * that names its anchor honestly cannot produce a false green even if the
- * status below it is wrong.
+ * Every mapping names the anchor the verdict actually rests on, so `recordCheck`
+ * coerces a `pass` claimed on a reporting-only anchor to `error`. That backstop
+ * reaches only the reporting-only anchors; a green on `A-LOCAL` or `A-CHAIN` is
+ * not coerced, so each mapping that can emit one carries its own guard — the
+ * target state's is the cross-check against `STATUSES_CLEARED_TO_PROCEED`.
  */
 
 import type { ICheckDefinition, ICheckResult } from './check-ledger'
@@ -85,9 +85,17 @@ const STATUS_MAPPING: Readonly<Record<TargetStateStatus, IStatusMapping>> = {
 /**
  * Worst-first, so reducing many findings to one row cannot lose a refusal.
  *
- * `needs-ack` ranks below `error`: an acknowledgement has a human path and an
- * unverified check has none, so a status someone can wave through must never
- * stand in for one nothing could grade.
+ * `needs-ack` ranks below `error` because an acknowledgement has a human path
+ * and an unverified check has none, so the acknowledgement must never stand in
+ * for the thing nothing could grade.
+ *
+ * `fail` still ranks above `error`, which is not the same ordering: on a
+ * `semantic` check `summariseLedger` sends a mismatch to acknowledgement and an
+ * `error` to the hard block, so a row reduced from both understates by one
+ * step. It is kept because the reduced row's `actual` lists every finding and a
+ * mismatch is the more actionable line, and because the signing refusal does not
+ * read this order at all — `STATUSES_CLEARED_TO_PROCEED` grades each finding
+ * separately.
  */
 const SEVERITY: readonly ICheckResult['status'][] = [
   'fail',
@@ -141,6 +149,7 @@ export const targetStateCheckResult = (
   // `A-UNRESOLVED` rather than `A-MAIN` so the unreachable case still describes
   // a row nothing decided.
   let anchor: ICheckResult['anchor'] = 'A-UNRESOLVED'
+  let detail: string | undefined
   let worstRank = SEVERITY.length
 
   for (const finding of verdict.findings) {
@@ -149,10 +158,14 @@ export const targetStateCheckResult = (
 
     // The anchor reported is the one the *worst* finding rests on, so the row
     // never claims a stronger anchor than the thing that decided it.
+    // `detail` moves with the anchor for the same reason: taken from the first
+    // failing finding in calldata order it can explain a different, milder
+    // problem than the one the row is graded on.
     const rank = SEVERITY.indexOf(mapped.status)
     if (rank < worstRank) {
       worstRank = rank
       anchor = mapped.anchor
+      detail = finding.detail
     }
   }
 
@@ -169,11 +182,7 @@ export const targetStateCheckResult = (
       .map(describe)
       .join('; '),
     anchor,
-    ...(failing.length
-      ? {
-          detail: failing[0]?.detail ?? undefined,
-        }
-      : {}),
+    ...(failing.length && detail ? { detail } : {}),
   }
 }
 
@@ -235,22 +244,6 @@ export const RPC_QUORUM_CHECK: ICheckDefinition = {
 }
 
 /**
- * Every check `confirm-safe-tx.ts` registers on the run's ledger, in the order
- * a signer reads them: what this proposal *is*, then what it *changes*, then
- * whether it would *execute*, then how good the evidence for all of it was.
- *
- * The integrity checks are the same definitions `runIntegrityAsserts` registers
- * on its own per-proposal ledger, reused rather than restated: a second copy
- * would let the two drift in class, and `checkClass` is the field that decides
- * whether a mismatch can be acknowledged.
- *
- * `INT-TIMELOCK-DELAY` is registered here unconditionally even though
- * `runIntegrityAsserts` registers it only for a schedule payload. A registered
- * check that never reports is counted missing and blocks, so the recorder below
- * has to answer for it on every proposal — which it does, with a pass on
- * `A-LOCAL` when the calldata was read and found not to be a schedule.
- */
-/**
  * The integrity ids this registry mirrors onto the run-level ledger.
  *
  * One list, read by both the registration below and the recorder further down.
@@ -263,6 +256,23 @@ const MIRRORED_INTEGRITY_CHECKS: readonly string[] = [
   CHECK_TIMELOCK_DELAY,
 ]
 
+/**
+ * Every check `confirm-safe-tx.ts` registers on the run's ledger, in the order
+ * a signer reads them: what this proposal *is*, then what it *changes*, then
+ * whether it would *execute*, then how good the evidence for all of it was.
+ *
+ * The integrity checks are the same definitions `runIntegrityAsserts` registers
+ * on its own per-proposal ledger, reused rather than restated: a second copy
+ * would let the two drift in class, and `checkClass` is the field that decides
+ * whether a mismatch can be acknowledged.
+ *
+ * `INT-TIMELOCK-DELAY` is registered here unconditionally even though
+ * `runIntegrityAsserts` registers it only for a payload that is a schedule or
+ * could not be decoded. A registered
+ * check that never reports is counted missing and blocks, so the recorder below
+ * has to answer for it on every proposal — which it does, with a pass on
+ * `A-LOCAL` when the calldata was read and found not to be a schedule.
+ */
 export const CONFIRM_CHECK_DEFINITIONS: readonly ICheckDefinition[] = [
   ...MIRRORED_INTEGRITY_CHECKS.map((checkId) => {
     const definition = INTEGRITY_CHECK_DEFINITIONS[checkId]
@@ -329,9 +339,9 @@ export const executabilityCheckResult = (
  *
  * Report-only: this check never records a `fail`. Its hard-block has an
  * infrastructure precondition — two independent providers on every production
- * chain — that this repo does not meet, and a fleet where roughly a third of
- * networks are single-endpoint would turn missing redundancy into a refusal to
- * sign. So a quorum that was not reached is recorded as an acknowledgement,
+ * chain — that this repo does not meet, and a fleet where a substantial share of
+ * networks are still single-endpoint would turn missing redundancy into a
+ * refusal to sign. So a quorum that was not reached is recorded as an acknowledgement,
  * which puts it on the signer's screen without blocking the run.
  *
  * `agreed-absent` is the exception worth naming: the providers did agree, and
@@ -366,8 +376,9 @@ export const rpcQuorumCheckResult = (
     status: 'needs-ack',
     expected,
     actual,
-    // Nothing decided the read: either the providers disagreed, or there were
-    // not enough of them to establish agreement either way.
+    // No quorum on the value the caller asked about: the providers disagreed,
+    // there were not enough of them, or they agreed the value is empty, which
+    // is agreement without the fact an integrity read wanted.
     anchor: 'A-UNRESOLVED',
     detail: verdict.detail,
   }
@@ -477,10 +488,8 @@ const integrityResults = (
  * reduces them with `worstResultPerCheck` before recording. Recording here
  * would let a later proposal's `pass` supersede an earlier one's `error`.
  *
- * One ordered step rather than a call beside each gate: the sequence *is* the
- * report's order, so pinning it here makes it a property of the rows a test can
- * read back, instead of a property of where the calls happen to sit in a
- * 1400-line CLI.
+ * One ordered step, so the sequence *is* the report's order and a test can pin
+ * it by reading the rows back.
  *
  * @param verdicts - What each gate decided for this proposal.
  * @returns One row per registered check, in reading order.

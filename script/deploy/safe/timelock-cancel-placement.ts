@@ -6,9 +6,7 @@
  * what the executor already knows about a row into that matrix's input, and
  * names the one leg the executor cannot supply.
  *
- * ## Why the reverting path, and why it does not gate
- *
- * Two constraints fix the placement.
+ * Two constraints fix the placement, and neither lets it gate.
  *
  * The matrix reports `integrity` from a re-derivation of the attested build at
  * every signed address. Nothing at execute time does that today, so the leg is
@@ -28,10 +26,9 @@
  * count alone, and the matrix is the thing that can say whether blocking is the
  * right answer or whether the row has diverged and should be cancelled.
  *
- * Promoting this to drive the action needs the integrity leg first. Until then
- * the decision is printed next to the block the executor already applies, so a
- * divergence it can see is on the operator's screen rather than in a module
- * nobody calls.
+ * Promoting this to drive the action needs the integrity leg first, so the
+ * decision is printed next to the block the executor already applies and a
+ * divergence it can see reaches the operator's screen.
  */
 
 import {

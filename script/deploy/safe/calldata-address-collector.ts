@@ -94,14 +94,16 @@ export const collectAddressReferences = (
 /**
  * Wraps deployment records as the index the gate may decide against.
  *
- * The source is named `DeploymentRecord` only when the records really came from
- * the deploy log: it is the one source written before the proposal exists, and
- * the gate refuses to decide against any other. A caller that could not reach
- * the log passes `undefined`, which produces an unavailable index — the gate
- * then errors rather than reading an empty record as "nobody deployed this".
+ * The source names the deploy log because that is the only source this gate may
+ * decide against — it is the one written before the proposal exists. Whether the
+ * log was actually read is carried by `available`, not by the source: a caller
+ * that could not reach it passes `undefined`, and the gate then errors rather
+ * than reading an empty record as "nobody deployed this".
  *
  * @param records - Deployment entries from the deploy log, or undefined when it could not be read.
- * @param queried - The addresses the store was asked about, so an absence means something.
+ * @param queried - The addresses the log was asked about, so an absence from
+ * `entries` means "not deployed" rather than "not looked up". Ignored when
+ * `records` is undefined, since nothing was asked.
  * @param unavailableReason - Why the log could not be read.
  * @returns The index `evaluateCalldataAddresses` grades against.
  */

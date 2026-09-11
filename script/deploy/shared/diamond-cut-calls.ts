@@ -169,6 +169,9 @@ const decodeSchedule = (data: Hex): readonly IUnwrappedCall[] => {
  * Reads every `diamondCut` a proposal's calls would reach, unwrapping timelock
  * envelopes on the way down.
  * @param calldatas - the proposal's calls, in the order they were passed
+ * @param context - The target and sender to stamp on every call, when the
+ * caller knows them. Absent, each result leaves both fields unset rather than
+ * naming an address nothing observed.
  * @returns The decoded cuts, plus the indices of calls this could not read
  * through.
  */

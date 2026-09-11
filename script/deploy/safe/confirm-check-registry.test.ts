@@ -36,17 +36,54 @@ import {
 } from './pinned-target-state'
 import { renderCheckLedger } from './render-check-ledger'
 import type { IRpcQuorumVerdict, TQuorumStatus } from './rpc-quorum'
+
+const FACET = '0x1111111111111111111111111111111111111111'
+
+/**
+ * The field shape `evaluateTargetStateIntent` actually emits for each status.
+ *
+ * Mirrored from `pinned-target-state.ts:260-440` rather than defaulted
+ * uniformly, because the uniform version was unfalsifiable: it gave every
+ * status a `contractName`, so the `contractName ?? facetAddress ?? 'unnamed
+ * element'` fallback in `describe` was never exercised even though seven of the
+ * thirteen statuses are pushed from `blank` and really do carry a null name —
+ * and it gave `not-previously-targeted` a `mainVersion`, which is the one thing
+ * that branch's `if (!mainVersion)` guarantees it cannot have.
+ */
+const EMITTED_SHAPE: Record<TargetStateStatus, Partial<ITargetStateFinding>> = {
+  // Pushed from `blank`: no address either, since there is no cut element.
+  'no-diamond-cut': { facetAddress: null, contractName: null },
+  'calldata-not-readable': { facetAddress: null, contractName: null },
+  // Pushed from `blank` with the cut's address, before anything is resolved.
+  removal: { contractName: null },
+  'unrecognised-cut-action': { contractName: null },
+  'pinned-state-unavailable': { contractName: null },
+  'deployment-record-ambiguous': { contractName: null },
+  // Resolved to an address but never to a name, so no version either.
+  'contract-unidentified': { contractName: null, proposedVersion: null },
+  // `origin/main` declared nothing — the only status carrying a fleet count.
+  'not-previously-targeted': { mainVersion: null, crossFleetCount: 3 },
+  // The record carried no version to compare against main's.
+  'proposed-version-unresolved': { proposedVersion: null },
+  // Both versions resolved; `shared` never carries a fleet count.
+  'matches-main': {},
+  'ahead-of-main': {},
+  downgrade: {},
+  'version-not-comparable': {},
+}
+
 const finding = (
   status: TargetStateStatus,
   overrides: Partial<ITargetStateFinding> = {}
 ): ITargetStateFinding => ({
   status,
-  facetAddress: '0x1111111111111111111111111111111111111111',
+  facetAddress: FACET,
   contractName: 'AcrossFacet',
   proposedVersion: '1.0.0',
   mainVersion: '1.0.0',
-  crossFleetCount: 3,
+  crossFleetCount: null,
   detail: `detail for ${status}`,
+  ...EMITTED_SHAPE[status],
   ...overrides,
 })
 
@@ -93,6 +130,20 @@ const ledgerWith = (networks: string[] = ['mainnet']) =>
     checks: [...CONFIRM_CHECK_DEFINITIONS],
   })
 
+/**
+ * A ledger registering only the check under test.
+ *
+ * For assertions that read the rolled-up verdict rather than the stored row:
+ * every registered check that reports nothing counts as a missing row, so a
+ * whole-registry ledger reports `BLOCKED` on the checks the test never touched
+ * and the assertion stops being about the one it does.
+ */
+const targetStateLedger = () =>
+  createCheckLedger({
+    expectedNetworks: ['mainnet'],
+    checks: [TARGET_STATE_CHECK],
+  })
+
 const ESC = String.fromCharCode(27)
 const stripColor = (line: string): string =>
   line.replace(new RegExp(`${ESC}\\[[0-9;]*m`, 'g'), '')
@@ -131,12 +182,7 @@ describe('targetStateCheckResult', () => {
       'not-previously-targeted',
     ] as TargetStateStatus[]) {
       const result = targetStateCheckResult(
-        verdictOf([
-          finding(
-            status,
-            status === 'not-previously-targeted' ? { mainVersion: null } : {}
-          ),
-        ]),
+        verdictOf([finding(status)]),
         'mainnet'
       )
 
@@ -203,6 +249,26 @@ describe('targetStateCheckResult', () => {
 
     expect(result.status).toBe('error')
     expect(result.anchor).toBe('A-MONGO')
+  })
+
+  // Seven of the thirteen statuses are pushed from `blank` and carry no name,
+  // so the row has to fall back to the address — and for the two that have
+  // neither, to a placeholder. An `actual` reading `null: calldata-not-readable`
+  // is what this catches.
+  it('names an unnamed element by address, and a nameless one at all', () => {
+    const byAddress = targetStateCheckResult(
+      verdictOf([finding('deployment-record-ambiguous')]),
+      'mainnet'
+    )
+    expect(byAddress.actual).toContain(FACET)
+    expect(byAddress.actual).not.toContain('null')
+
+    const nameless = targetStateCheckResult(
+      verdictOf([finding('calldata-not-readable')]),
+      'mainnet'
+    )
+    expect(nameless.actual).toContain('unnamed element')
+    expect(nameless.actual).not.toContain('null')
   })
 
   it('refuses to call an empty verdict a pass', () => {
@@ -281,6 +347,19 @@ describe('worstResultPerCheck', () => {
     )
   })
 
+  // The tie-break the reducer's comment documents. Without it the *last*
+  // equally-bad proposal wins, so the row the signer was shown silently swaps
+  // for a different one carrying different text.
+  it('keeps the earlier of two equally bad proposals', () => {
+    const reduced = worstResultPerCheck([
+      { ...resultWith('error', 'A-MONGO'), actual: 'first proposal' },
+      { ...resultWith('error', 'A-MONGO'), actual: 'second proposal' },
+    ])
+
+    expect(reduced).toHaveLength(1)
+    expect(reduced[0]?.actual).toBe('first proposal')
+  })
+
   it('returns nothing for a network that graded nothing', () => {
     expect(worstResultPerCheck([])).toEqual([])
   })
@@ -329,17 +408,11 @@ describe('the registry is usable by the ledger it feeds', () => {
   // first deployment used to print ALL CHECKS GREEN on an anchor that had
   // decided nothing.
   it('does not render a first deployment as a verified run', () => {
-    // Registered with the target-state check alone: the run-level ledger holds
-    // nine checks, and the eight this test records nothing for would roll up as
-    // missing and render BLOCKED before the acknowledgement was reached.
-    const ledger = createCheckLedger({
-      expectedNetworks: ['mainnet'],
-      checks: [TARGET_STATE_CHECK],
-    })
+    const ledger = targetStateLedger()
     recordCheck(
       ledger,
       targetStateCheckResult(
-        verdictOf([finding('not-previously-targeted', { mainVersion: null })]),
+        verdictOf([finding('not-previously-targeted')]),
         'mainnet'
       )
     )

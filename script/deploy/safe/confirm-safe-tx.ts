@@ -201,32 +201,60 @@ const readDeploymentRecords = async (): Promise<
 // missing row rather than shrink the total it is measured against.
 let checkLedger: ICheckLedger | undefined
 
-/**
- * Records every registered check for a network on which no proposal was graded.
- *
- * The denominator is fixed before the run can learn that a network it listed as
- * actionable has nothing to grade — the signer is not an owner, the ownership
- * read failed, or nothing actionable survived preparation. Left unrecorded such
- * a network rolls up as missing and hard-blocks a run on which nothing was
- * wrong. A pass on `A-LOCAL` is the reading `no-diamond-cut` already gets: the
- * run established locally that there was nothing to compare, which is a fact
- * about this network rather than an absence of evidence.
- * @param network - The network that produced no proposal.
- * @param reason - Why none was graded, shown on the row.
- */
-const recordNoProposalGraded = (network: string, reason: string): void => {
+const recordEveryCheck = (
+  network: string,
+  row: Pick<ICheckResult, 'status' | 'actual' | 'anchor'>
+): void => {
   if (!checkLedger) return
 
   for (const definition of CONFIRM_CHECK_DEFINITIONS)
     recordCheck(checkLedger, {
       checkId: definition.checkId,
       network,
-      status: 'pass',
       expected: 'every proposal this run would sign graded before signing',
-      actual: `no proposal was graded on ${network} — ${reason}`,
-      anchor: 'A-LOCAL',
+      ...row,
     })
 }
+
+/**
+ * Records a network the run positively established had nothing to grade.
+ *
+ * The denominator is fixed before the run can learn that a network it listed as
+ * actionable carries no proposal for this operator. Left unrecorded it rolls up
+ * as missing and hard-blocks a run on which nothing was wrong. A pass on
+ * `A-LOCAL` is the reading `no-diamond-cut` already gets: the run read its input
+ * and found nothing to compare, which is a verified fact about this network.
+ *
+ * Only for outcomes that answered. A read that *failed* has not established
+ * anything and belongs in `recordCouldNotGrade` — mixing the two is how a fully
+ * green run comes to verify nothing.
+ * @param network - The network that carried no proposal.
+ * @param reason - What the run established instead, shown on the row.
+ */
+const recordNothingToGrade = (network: string, reason: string): void =>
+  recordEveryCheck(network, {
+    status: 'pass',
+    actual: `no proposal was graded on ${network} — ${reason}`,
+    anchor: 'A-LOCAL',
+  })
+
+/**
+ * Records a network the run could not reach a verdict on at all.
+ *
+ * Distinct from `recordNothingToGrade` in exactly the way `check-ledger.ts`'s
+ * header requires: a check that could not run is not a check that passed. The
+ * row is unverified, so the verdict blocks and names the network — which is the
+ * correct outcome for an infrastructure failure, and costs nothing operationally
+ * because this ledger reports rather than gates.
+ * @param network - The network that could not be graded.
+ * @param reason - What failed, shown on the row.
+ */
+const recordCouldNotGrade = (network: string, reason: string): void =>
+  recordEveryCheck(network, {
+    status: 'error',
+    actual: `nothing could be graded on ${network} — ${reason}`,
+    anchor: 'A-UNRESOLVED',
+  })
 
 // Acknowledgements roll up across networks so a fleet-wide rollout counts once;
 // the operator's chosen action is never remembered.
@@ -846,9 +874,8 @@ const processTxs = async (
     }
     renderIntegrityAsserts(integrityRun).forEach((line) => consola.info(line))
 
-    // The remaining sign-time gates. Run here because every verdict above now
-    // exists, so all of them reach the ledger in one ordered step rather than
-    // in whatever order their call sites happen to sit in.
+    // The remaining sign-time gates, run below the verdicts they are recorded
+    // beside so one ordered step hands the recorder all of them.
     const endpoints = chain.rpcUrls.default.http
     const primaryEndpoint = rpcUrl ?? endpoints[0]
 
@@ -1324,10 +1351,7 @@ const processTxs = async (
   // to roll up as a missing row and block the run.
   if (checkLedger) {
     if (proposalChecks.length === 0)
-      recordNoProposalGraded(
-        network,
-        'the prepared network carried no proposal'
-      )
+      recordNothingToGrade(network, 'the prepared network carried no proposal')
     else
       for (const result of worstResultPerCheck(proposalChecks))
         recordCheck(checkLedger, result)
@@ -1645,7 +1669,7 @@ const main = defineCommand({
 
         const networkTxs = txsByNetwork[network.toLowerCase()]
         if (!networkTxs || networkTxs.length === 0) {
-          recordNoProposalGraded(network, 'no pending transaction was fetched')
+          recordNothingToGrade(network, 'no pending transaction was fetched')
           continue
         }
 
@@ -1677,7 +1701,7 @@ const main = defineCommand({
             break
           case 'nothing-actionable':
             consola.success(`No actionable pending transactions on ${network}`)
-            recordNoProposalGraded(
+            recordNothingToGrade(
               network,
               'nothing actionable was left once the network was prepared'
             )
@@ -1688,7 +1712,7 @@ const main = defineCommand({
             )
             consola.error(`  Signer: ${prepared.signerAddress}`)
             consola.error(`  Owners: ${prepared.owners.join(', ')}`)
-            recordNoProposalGraded(
+            recordNothingToGrade(
               network,
               'the signer is not an owner of this Safe, so nothing here can be signed'
             )
@@ -1697,9 +1721,9 @@ const main = defineCommand({
             consola.error(
               `[${network}] Failed to check Safe ownership — skipping this network: ${prepared.error}`
             )
-            recordNoProposalGraded(
+            recordCouldNotGrade(
               network,
-              'the Safe ownership read failed, so no proposal was presented'
+              'the Safe ownership read failed, so ownership could not be established'
             )
             break
           case 'read-failed':
@@ -1747,9 +1771,11 @@ const main = defineCommand({
       // It reports and does not gate — signing already happened per proposal,
       // refused there by `targetState.cleared` and by the sign-time gates.
       //
-      // Rendered whatever the ledger holds. A ledger with no results renders as
-      // `VERDICT: BLOCKED — N unverified`, which is the report a run that
-      // aborted before its first proposal most needs to print.
+      // Rendered whatever the ledger holds. A ledger with no results renders a
+      // BLOCKED verdict counting every expected network as unverified, which is
+      // the report a run that aborted before its first proposal most needs to
+      // print — for aborts after the ledger exists; an earlier one leaves it
+      // undefined and prints nothing.
       if (checkLedger)
         renderCheckLedger(checkLedger).forEach((line) => consola.info(line))
 

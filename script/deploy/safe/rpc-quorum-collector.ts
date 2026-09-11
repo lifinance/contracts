@@ -108,6 +108,10 @@ export const createCodeReader =
     const code = await client.getCode({ address, blockNumber: block.number })
 
     return {
+      // `'0x'` is the answer, not a default: viem resolves `getCode` to
+      // `undefined` for an address that holds no code, and an endpoint that
+      // could not answer at all throws and is recorded as an `error`
+      // observation instead of reaching this return.
       value: code ?? '0x',
       blockNumber: block.number,
       blockHash: block.hash,

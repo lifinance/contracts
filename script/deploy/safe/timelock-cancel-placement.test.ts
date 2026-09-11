@@ -2,10 +2,18 @@
  * Tests for where the timelock cancel matrix sits in the executor.
  *
  * The matrix itself is covered by `timelock-cancel-decision.test.ts`; these pin
- * the placement's two safety properties — that an unread leg never reaches the
- * matrix as an affirmative one, and that nothing this module builds can reach
- * the destructive verdict.
+ * the placement's safety properties — that an unread leg never reaches the
+ * matrix as an affirmative one, that nothing this module builds can reach the
+ * destructive verdict, and that the executor evaluates it where the question is
+ * live without letting it drive the action.
+ *
+ * `execute-pending-timelock-tx.ts` calls `runMain` at module scope and its
+ * reverting path needs a chain, a Safe and MongoDB, so the call site is
+ * asserted on the source — deleting it otherwise leaves the whole suite green.
  */
+import { readFileSync } from 'fs'
+import { join } from 'path'
+
 import {
   describe,
   expect,
@@ -20,6 +28,11 @@ import {
   renderCancelRecommendation,
   type ITimelockCancelSignals,
 } from './timelock-cancel-placement'
+
+const EXECUTOR = readFileSync(
+  join(import.meta.dir, 'execute-pending-timelock-tx.ts'),
+  'utf8'
+)
 
 const OP_ID =
   '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
@@ -216,5 +229,65 @@ describe('what the executor can never reach', () => {
               })
             ).action
           ).not.toBe('execute')
+  })
+})
+
+describe('where the executor evaluates the matrix', () => {
+  it('evaluates it on the reverting path, after the revert is recorded', () => {
+    const recorded = EXECUTOR.indexOf('recordTimelockOpRevert(')
+    const decided = EXECUTOR.indexOf('decideRevertedOperation({')
+
+    expect(recorded).toBeGreaterThan(-1)
+    expect(decided).toBeGreaterThan(recorded)
+
+    // `revertAttempts` is the count the row now carries, so the matrix has to
+    // be asked after the write. Asked before it, the matrix grades the previous
+    // attempt and the threshold leg is off by one for the life of the queue.
+    expect(EXECUTOR).toContain('revertAttempts: revertCount')
+  })
+
+  it('reports the recommendation before the executor decides what to do', () => {
+    const rendered = EXECUTOR.indexOf('renderCancelRecommendation(decision')
+    const blocked = EXECUTOR.indexOf('shouldBlockAfterRevert(revertCount)')
+
+    expect(rendered).toBeGreaterThan(-1)
+    expect(blocked).toBeGreaterThan(rendered)
+  })
+
+  it('reports an unreadable operation state instead of grading one', () => {
+    // Every member of the state union is a state the controller can really be
+    // in, and the matrix renders each as an observed fact, so a failed read has
+    // no value it can honestly return. The two legs that do have one are
+    // asserted above by `buildCancelDecisionInput`.
+    const leg = EXECUTOR.slice(
+      EXECUTOR.indexOf('readOperationState: async ()'),
+      EXECUTOR.indexOf('readCancellerAuthority: async ()')
+    )
+
+    expect(leg).toContain('checkOperationStatus(')
+    expect(leg).toMatch(
+      /catch[\s\S]*?throw new Error\(\s*`the operation's on-chain state could not be read/u
+    )
+    // The paired absence: no branch of the catch may hand back a state.
+    expect(leg.slice(leg.indexOf('} catch'))).not.toMatch(
+      /return '(ready|pending|done|unset)'/u
+    )
+  })
+
+  it('reads the decision only to report it, never to act on it', () => {
+    // The one property that makes a report-only placement safe. The `integrity`
+    // leg is hardcoded `unsupported` because no execute-time re-derivation of
+    // the attested build exists, so every verdict the executor can assemble
+    // short-circuits to hold; branching on it would hold and page every
+    // operation on every pass.
+    const packed = EXECUTOR.replace(/\s+/gu, '')
+    const reads = packed.match(/\bdecision\b[.,)]/gu) ?? []
+    const reporting =
+      packed.match(
+        /renderCancelRecommendation\(decision,|decision\.notes\b/gu
+      ) ?? []
+
+    expect(reads.length).toBeGreaterThan(0)
+    expect(reporting.length).toBe(reads.length)
   })
 })

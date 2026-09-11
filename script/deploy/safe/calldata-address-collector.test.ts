@@ -112,6 +112,11 @@ describe('collectAddressReferences', () => {
       cut([{ facetAddress: FACET, action: 7 }]),
     ])
 
+    // Paired with the reference that must survive: an empty result would
+    // satisfy the absence on its own and prove nothing about the skip.
+    expect(references.map((reference) => reference.role)).toEqual([
+      AddressRoleEnum.CutInit,
+    ])
     expect(references.some((reference) => reference.address === FACET)).toBe(
       false
     )

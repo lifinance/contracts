@@ -143,15 +143,16 @@ describe('collectExecutabilityInput', () => {
     expect(input.observations.hasCode.get(FACET.toLowerCase())).toBe(true)
   })
 
-  // The property the whole module rests on, asserted per read rather than in
-  // aggregate: a defaulted owner is the false-green path this module's header
-  // names, and it would be invisible to a test that only covers `hasCode`.
   const wrapped = {
     network: 'arbitrum',
     safeAddress: SAFE,
     to: TIMELOCK,
     data: scheduleBatch([DIAMOND], [cut()]),
   }
+
+  // The property the whole module rests on, asserted per read rather than
+  // in aggregate — a defaulted read is the false-green path this module's
+  // header names, so each of the three is driven on its own.
 
   it('leaves a failed code read absent rather than defaulting it', async () => {
     const input = await collectExecutabilityInput(
@@ -274,7 +275,7 @@ describe('collectExecutabilityInput', () => {
     )
 
     const verdict = evaluateExecutability(input)
-    expect(verdict.refuses || verdict.error).toBe(true)
+    expect(verdict.refuses).toBe(true)
   })
 
   it('carries the proposal nonce through when the caller read it', async () => {

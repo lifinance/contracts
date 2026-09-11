@@ -1352,9 +1352,13 @@ async function getPendingOperations(
 
 /**
  * The reads the cancel matrix needs, supplied by the caller that already holds
- * a client for this network. Each returns the value the matrix grades, and is
- * free to report that it could not answer — the matrix reaches a
- * non-destructive verdict on an unread leg rather than an affirmative one.
+ * a client for this network.
+ *
+ * Two legs carry a could-not-answer value — `undefined` for the recomputed id,
+ * `'unknown'` for the canceller authority — and the matrix reaches a
+ * non-destructive verdict on either. `readOperationState` has none, because
+ * every member of its union is a state the controller can really be in, so it
+ * throws instead and the caller reports the matrix as unevaluated.
  */
 interface ICancelRecommendationContext {
   recomputeOperationId: () => Promise<string | undefined>
@@ -1958,10 +1962,17 @@ async function executeOperation(
                   if (status.isReady) return 'ready'
                   if (status.isPending) return 'pending'
                   return 'unset'
-                } catch {
-                  // Not a state the matrix recognises, which lands it on the
-                  // branch that neither executes nor cancels.
-                  return 'unset'
+                } catch (error) {
+                  // Rethrown rather than graded. `unset` is a state the
+                  // controller can really be in, and the matrix renders it as
+                  // one, so returning it here would put a fact on the
+                  // operator's screen that no read established. The caller's
+                  // catch reports the matrix as unevaluated instead.
+                  throw new Error(
+                    `the operation's on-chain state could not be read: ${
+                      error instanceof Error ? error.message : String(error)
+                    }`
+                  )
                 }
               },
               readCancellerAuthority: async () => {

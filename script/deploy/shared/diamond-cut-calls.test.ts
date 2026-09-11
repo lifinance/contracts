@@ -190,8 +190,8 @@ describe('what a cut carries beyond its facet addresses', () => {
   const INIT = '0x1417141714171417141714171417141714171417' as Address
 
   // `initCalldata` decides whether an init delegatecall is graded at all, and
-  // asserting only the empty case is a tautology — the empty string is what a
-  // dropped field returns.
+  // the empty string is what a dropped field returns, so the payload has to be
+  // asserted as a value and not merely as present.
   it('carries the init payload, not just the init target', () => {
     const payload = cut([{ facetAddress: FACET_A, action: 0 }], INIT)
     const { calls } = collectDiamondCutCalls([payload])
@@ -232,6 +232,10 @@ describe('what a cut carries beyond its facet addresses', () => {
       cut([{ facetAddress: FACET_A, action: 0 }]),
     ])
 
+    // The paired present: absent fields on a cut that was never decoded would
+    // satisfy the two assertions below without the behaviour existing.
+    expect(calls).toHaveLength(1)
+    expect(calls[0]?.cuts.map((entry) => entry.facetAddress)).toEqual([FACET_A])
     expect(calls[0]?.target).toBeUndefined()
     expect(calls[0]?.caller).toBeUndefined()
   })
