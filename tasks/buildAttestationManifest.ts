@@ -184,13 +184,11 @@ const main = (): void => {
       continue
     }
 
-    // Deliberately fatal, unlike the skips above. Those describe artifacts that
-    // are legitimately not a build to attest; reaching here with an artifact
-    // that names no single compilation target, reports empty settings or
-    // carries a malformed source digest means the compiler output itself is not
-    // trustworthy, and minting the rest around it would publish a manifest
-    // nobody noticed was short. Rethrown with the contract named, since the
-    // underlying errors do not say which artifact they choked on.
+    // Fatal for the reason `IEntryRefused.disposition` gives: an artifact that
+    // names no single compilation target, reports empty settings or carries a
+    // malformed source digest means the compiler output itself is not
+    // trustworthy. Rethrown with the contract named, since the underlying
+    // errors do not say which artifact they choked on.
     let key: IAttestationKey
     let hashedSettings: Record<string, unknown>
     try {
