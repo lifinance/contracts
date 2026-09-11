@@ -5,6 +5,7 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
+import { trustedMarkup } from './printable-field'
 import {
   buildSafeTxDetailLines,
   type ISafeTxDetailInput,
@@ -40,15 +41,16 @@ const expectNoTerminalControl = (lines: string[]): void => {
 
 /** A row with nothing hostile in it. Every field is the shape Mongo stores. */
 const benign: ISafeTxDetailInput = {
+  network: 'mainnet',
   nonce: '31',
   nonceColor: '32',
-  nonceWarning: '',
+  nonceWarning: trustedMarkup(''),
   to: '0x11f1022cA6AdEF6400e5677528a80d49a069C00c',
   toTargetName: '',
   formatAddress: (address: string) => address,
   explorerUrlFor: () => '',
   value: '0',
-  operationLabel: 'Call',
+  operationLabel: trustedMarkup('Call'),
   data: '0xdeadbeef',
   proposer: '0x5c19DE04c40f9F8Ed9F0Fe6a5cEb84E5C8a5b31E',
   safeTxHash:
@@ -261,6 +263,90 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
     expect(clean).toContain('etherscan')
   })
 
+  it('builds no explorer link for a target that was never an address', () => {
+    // Surviving sanitising untouched is what a value that was never an address
+    // does, so identity alone cannot gate the link: the network formatter
+    // passes an unrecognised shape through and the explorer builder
+    // interpolates whatever it is handed.
+    const line = lineStartingWith(
+      buildSafeTxDetailLines({
+        ...benign,
+        to: 'this-is-not-an-address',
+        toTargetName: '(LiFiDiamond)',
+        explorerUrlFor: (address: string) =>
+          `https://etherscan.io/address/${address}`,
+      }),
+      'To:'
+    )
+
+    expect(line).toContain('this-is-not-an-address')
+    expect(line).not.toContain('etherscan')
+    expect(line).not.toContain('(LiFiDiamond)')
+    expect(line).toContain('not a valid address')
+  })
+
+  it('builds no explorer link for a target one nibble short of an address', () => {
+    // The realistic corruption, and the one the name and link were vouching
+    // for: 39 hex digits reads as an address to anyone scanning the prompt, so
+    // a check loose enough to accept "hex-shaped" would pass it.
+    const line = lineStartingWith(
+      buildSafeTxDetailLines({
+        ...benign,
+        to: `0x${'1'.repeat(39)}`,
+        toTargetName: '(LiFiDiamond)',
+        explorerUrlFor: (address: string) =>
+          `https://etherscan.io/address/${address}`,
+      }),
+      'To:'
+    )
+
+    expect(line).not.toContain('etherscan')
+    expect(line).not.toContain('(LiFiDiamond)')
+    expect(line).toContain('not a valid address')
+  })
+
+  it('keeps the name and link for a base58 target on a Tron network', () => {
+    // Tron rows store base58, and `initializeSafeTransaction` accepts it —
+    // `normalizeAddressForNetwork` resolves `T…` to the same 20 bytes a hex
+    // address would. A hex-only check would call this signable row "not a
+    // valid address" one line above the sign prompt, which is the notice that
+    // must never cry wolf.
+    const line = lineStartingWith(
+      buildSafeTxDetailLines({
+        ...benign,
+        network: 'tron',
+        to: 'TXYZopYRdj2D9XRtbG411XZZ3kM5VkAeBf',
+        toTargetName: '(LiFiDiamond)',
+        explorerUrlFor: (address: string) => `https://tronscan.org/${address}`,
+      }),
+      'To:'
+    )
+
+    expect(line).not.toContain('not a valid address')
+    expect(line).toContain('(LiFiDiamond)')
+    expect(line).toContain('tronscan')
+  })
+
+  it('still refuses a non-address target on a Tron network', () => {
+    // A `T…` prefix is not an address by itself, so the refusing branch has to
+    // stay reachable on Tron too — the network that accepts base58 is the one
+    // where the notice would otherwise be absent for every shape.
+    const line = lineStartingWith(
+      buildSafeTxDetailLines({
+        ...benign,
+        network: 'tron',
+        to: 'Tnot-an-address',
+        toTargetName: '(LiFiDiamond)',
+        explorerUrlFor: (address: string) => `https://tronscan.org/${address}`,
+      }),
+      'To:'
+    )
+
+    expect(line).toContain('not a valid address')
+    expect(line).not.toContain('(LiFiDiamond)')
+    expect(line).not.toContain('tronscan')
+  })
+
   it('keeps the name and link when only surrounding whitespace was lost', () => {
     // Trimming the ends cannot change which address this is, and the name is
     // the strongest confirmation the signer gets that the target is the
@@ -320,19 +406,24 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
 
   it('resolves nothing for a target that was never a string', () => {
     // `String(undefined)` is a word, not an address. Naming it would present a
-    // row with no target at all as a known contract.
-    for (const to of [undefined, 42, true])
-      expect(
-        lineStartingWith(
-          buildSafeTxDetailLines({
-            ...benign,
-            to,
-            toTargetName: '(LiFiDiamond)',
-            explorerUrlFor: () => 'https://etherscan.io/address/0x11',
-          }),
-          'To:'
-        )
-      ).not.toContain('(LiFiDiamond)')
+    // row with no target at all as a known contract. Withholding the name
+    // silently is not enough: the line still shows the signer a target, so it
+    // has to say why that target carries neither a name nor a link.
+    for (const to of [undefined, 42, true]) {
+      const line = lineStartingWith(
+        buildSafeTxDetailLines({
+          ...benign,
+          to,
+          toTargetName: '(LiFiDiamond)',
+          explorerUrlFor: () => 'https://etherscan.io/address/0x11',
+        }),
+        'To:'
+      )
+
+      expect(line).not.toContain('(LiFiDiamond)')
+      expect(line).not.toContain('etherscan')
+      expect(line).toContain('not a valid address')
+    }
   })
 
   it('shows no name or link beside an address that would not render', () => {
@@ -772,7 +863,7 @@ describe('a normal proposal renders exactly as it does today', () => {
     const lines = buildSafeTxDetailLines({
       ...benign,
       nonceColor: '31',
-      nonceWarning: ' \u001b[31m✗ STALE\u001b[0m',
+      nonceWarning: trustedMarkup(' \u001b[31m✗ STALE\u001b[0m'),
       explorerUrlFor: () => 'https://etherscan.io/address/0x11',
       canExecute: true,
     })
@@ -886,5 +977,102 @@ describe('the block is total — no row shape costs the operator the run', () =>
     })
 
     expectNoTerminalControl(lines)
+  })
+})
+
+describe('a row needs no escape sequence to scroll the prompt away', () => {
+  it('clips a hash grown to 500,000 characters', () => {
+    const line = lineStartingWith(
+      linesFor({ safeTxHash: `0x${'a'.repeat(500_000)}` }),
+      'Safe Tx Hash:'
+    )
+
+    // The whole line, bytes included. 120 and 208 are written out rather than
+    // derived from MAX_FIELD_CHARS, so raising the bound fails here instead of
+    // moving with it — and this line measured 500,032 before the clip existed.
+    expect(line).toBe(
+      '    Safe Tx Hash:    \u001b[36m0x' +
+        'a'.repeat(118) +
+        '\u001b[0m\u001b[33m ⚠ clipped for display — stored 500002, shown 120\u001b[0m'
+    )
+    expect(line.length).toBe(208)
+  })
+
+  it('leaves the calldata whole — it is the payload under signature', () => {
+    const calldata = `0x${'ab'.repeat(5_000)}`
+    expect(lineStartingWith(linesFor({ data: calldata }), 'Data:')).toBe(
+      `    Data:            \u001b[32m${calldata}\u001b[0m`
+    )
+  })
+
+  it('bounds the number of parked refs, not only each one’s length', () => {
+    const parkedTaskRefs = Array.from({ length: 40 }, (_, index) => ({
+      facet: `Facet${index}`,
+      prUrl: 'https://github.com/lifinance/contracts/pull/1',
+    }))
+    const lines = linesFor({ parkedTaskRefs })
+    const refLines = lines.filter((line) => line.includes('→'))
+
+    expect(refLines.length).toBe(20)
+    expect(lines).toContain(
+      '        \u001b[33m⚠ 20 further parked refs not shown (40 stored)\u001b[0m'
+    )
+    // Paired present: the refs shown are the first ones, not a window that
+    // silently drops the head of the list.
+    expect(refLines[0]).toContain('Facet0')
+    expect(refLines[19]).toContain('Facet19')
+  })
+
+  it('says nothing about an overflow when there is none', () => {
+    const lines = linesFor({
+      parkedTaskRefs: [{ facet: 'AcrossFacetV3', prUrl: 'https://x/1' }],
+    })
+    expect(lines.some((line) => line.includes('not shown'))).toBe(false)
+  })
+})
+
+describe('a facet name drawn identically to another is disclosed', () => {
+  it('reports the Cyrillic homoglyph in a parked facet name', () => {
+    const lines = linesFor({
+      parkedTaskRefs: [
+        {
+          // AcrossFacetV3 with U+043E in place of the first ASCII "o".
+          facet: 'Acr\u043essFacetV3',
+          prUrl: 'https://github.com/lifinance/contracts/pull/1',
+        },
+      ],
+    })
+
+    expect(lines[lines.length - 2]).toBe(
+      '        \u001b[32mAcr\u043essFacetV3\u001b[0m\u001b[33m ⚠ 1 non-ASCII character — a letter here can be drawn identically to an ASCII one\u001b[0m → \u001b[36mhttps://github.com/lifinance/contracts/pull/1\u001b[0m'
+    )
+  })
+
+  it('says nothing about an ASCII facet name', () => {
+    const lines = linesFor({
+      parkedTaskRefs: [
+        {
+          facet: 'AcrossFacetV3',
+          prUrl: 'https://github.com/lifinance/contracts/pull/1',
+        },
+      ],
+    })
+
+    expect(lines[lines.length - 2]).toBe(
+      '        \u001b[32mAcrossFacetV3\u001b[0m → \u001b[36mhttps://github.com/lifinance/contracts/pull/1\u001b[0m'
+    )
+  })
+
+  it('withholds the target name for a homoglyph address', () => {
+    const line = lineStartingWith(
+      linesFor({
+        to: '0x11f1022cA6AdEF6400e5677528a80d49a069C0\u043ec',
+        toTargetName: '(LiFiDiamond)',
+      }),
+      'To:'
+    )
+
+    expect(line).toContain('target name withheld')
+    expect(line).not.toContain('(LiFiDiamond)')
   })
 })

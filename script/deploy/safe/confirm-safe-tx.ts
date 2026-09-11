@@ -119,6 +119,7 @@ import {
   formatTargetStateLines,
   type ITargetStateVerdict,
 } from './pinned-target-state'
+import { printableField, trustedMarkup } from './printable-field'
 import { reconcileAllSubmittedSafeTxs } from './reconcile'
 import { renderCheckLedger } from './render-check-ledger'
 import {
@@ -416,8 +417,14 @@ const processTxs = async (
       }
     )
     if (result.matchedCount === 0)
+      // The hash comes off the stored row and is never compared to anything on
+      // this path. It prints after signing, so it cannot corrupt the decision —
+      // but it can repaint a success line over a real failure to persist, which
+      // hides that the signature was never stored.
       throw new Error(
-        `MongoDB update matched 0 rows for safeTxHash ${txDoc.safeTxHash}. ` +
+        `MongoDB update matched 0 rows for safeTxHash ${printableField(
+          txDoc.safeTxHash
+        )}. ` +
           `A duplicate row with the same hash may exist under a different status (e.g. reverted).`
       )
     consola.success('Transaction signed and stored in MongoDB')
@@ -652,14 +659,18 @@ const processTxs = async (
     const nonceColor =
       nonceStatus === 'current' ? '32' : nonceStatus === 'stale' ? '31' : '33'
     // Only show nonce warning if the tx can be executed — irrelevant while still collecting signatures
-    const nonceWarning =
+    // `trustedMarkup`: both readings are a chain-read `bigint`, and the strings
+    // carry colour codes of their own that sanitising would strip.
+    const nonceWarning = trustedMarkup(
       nonceStatus === 'stale'
         ? ` \u001b[31m✗ STALE — on-chain nonce is ${expectedNonce}, this proposal's nonce was already used\u001b[0m`
         : nonceStatus === 'future' && tx.canExecute
         ? ` \u001b[33m⚠ on-chain nonce is ${expectedNonce} — cannot execute yet\u001b[0m`
         : ''
+    )
 
     const detailLines = buildSafeTxDetailLines({
+      network,
       nonce: tx.safeTx.data.nonce,
       nonceColor,
       nonceWarning,
@@ -668,14 +679,17 @@ const processTxs = async (
       formatAddress,
       explorerUrlFor,
       value: tx.safeTx.data.value,
-      operationLabel:
+      // `trustedMarkup`: two literals, and a value `describeOperationValue`
+      // has already sanitised and bounded.
+      operationLabel: trustedMarkup(
         tx.safeTransaction.data.operation === 0
           ? 'Call'
           : tx.safeTransaction.data.operation === 1
           ? 'DelegateCall'
           : `not Call (${describeOperationValue(
               tx.safeTransaction.data.operation
-            )})`,
+            )})`
+      ),
       data: tx.safeTx.data.data,
       proposer: tx.proposer,
       safeTxHash: tx.safeTxHash,
@@ -728,9 +742,9 @@ const processTxs = async (
         deviceHash = await safe.getTransactionHash(tx.safeTransaction)
       } catch (error) {
         consola.warn(
-          `Could not compute the Safe transaction hash on ${network} — the Ledger screens cannot be previewed: ${
+          `Could not compute the Safe transaction hash on ${network} — the Ledger screens cannot be previewed: ${printableField(
             error instanceof Error ? error.message : error
-          }`
+          )}`
         )
       }
     if (verificationDisplay === 'filmstrip')
@@ -740,7 +754,7 @@ const processTxs = async (
           verifyingContract: safeAddress,
           to: tx.safeTransaction.data.to,
           value: String(tx.safeTransaction.data.value),
-          data: tx.safeTx.data.data as Hex,
+          data: tx.safeTx.data.data,
         })
         consola.info(
           [
@@ -883,9 +897,9 @@ const processTxs = async (
       // apart, so a thrown lookup must not read as the second.
       integrityRun = undefined
       consola.error(
-        `    Proposal integrity: the assertions could not be run — ${
-          error instanceof Error ? error.message : String(error)
-        }`
+        `    Proposal integrity: the assertions could not be run — ${printableField(
+          error instanceof Error ? error.message : error
+        )}`
       )
     }
     renderIntegrityAsserts(integrityRun).forEach((line) => consola.info(line))
