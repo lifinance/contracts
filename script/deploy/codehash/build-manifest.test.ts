@@ -134,9 +134,7 @@ describe('manifestEntryFrom', () => {
     // An AST id counts source units in load order, so building the same
     // contract alongside a different set renumbers it. Keyed by that id, two
     // honest machines mint two manifests and the attested digest stops
-    // surviving a rebuild — observed as CI and a laptop disagreeing on
-    // ReceiverChainflip alone, 1927/1930 against 103206/103209, over identical
-    // offsets.
+    // surviving a rebuild.
     const laptop = {
       '1927': [{ start: 20, length: 4 }],
       '1930': [{ start: 4, length: 4 }],

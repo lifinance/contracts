@@ -52,8 +52,9 @@ const parseBuilds = (argv: string[]): IBuildInput[] => {
     )
 
   return value.split(',').map((pair) => {
-    const [profile, outDir] = pair.split('=')
-    if (!profile || !outDir)
+    const segments = pair.split('=')
+    const [profile, outDir] = segments
+    if (segments.length !== 2 || !profile || !outDir)
       throw new Error(`--builds entry "${pair}" is not <profile>=<outDir>`)
     return { profile, outDir }
   })
@@ -87,8 +88,9 @@ const versionedContracts = (): {
 /**
  * Builds the profile's compiler pair from `foundry.toml`.
  *
- * Read rather than passed in, so a retuned profile cannot be minted under the
- * settings it used to have.
+ * Supplies the lineage label and the solc version a build falls back to when
+ * its own trailer reports none. Every field the key hashes is read from the
+ * artifact instead, so this is not what pins the build's identity.
  * @param profile - the profile name as `foundry.toml` spells it
  */
 const mintProfile = (profile: string): IMintProfile => {
@@ -122,6 +124,45 @@ const DRIFT_LINES = 20
  * @param committed - the manifest as committed
  * @param built - the manifest this checkout produces
  */
+const entryNames = (text: string): string[] => {
+  try {
+    return (JSON.parse(text).entries as IManifestEntry[]).map(
+      (entry) => `${entry.key.contractName}@${entry.key.version}`
+    )
+  } catch {
+    return []
+  }
+}
+
+/**
+ * Names the builds that are on one side of the comparison only.
+ *
+ * A positional line diff of a file whose entries shifted reports every later
+ * line as changed, so one removed contract reads as a cascade of renames and
+ * the fact that matters — which build entered or left the manifest — is never
+ * stated.
+ * @param committed - the manifest as committed
+ * @param built - the manifest this checkout produces
+ * @returns Whether the two sides carry different builds
+ */
+const reportEntrySetDrift = (committed: string, built: string): boolean => {
+  const inCommitted = new Set(entryNames(committed))
+  const inBuilt = new Set(entryNames(built))
+  const missing = [...inBuilt].filter((name) => !inCommitted.has(name))
+  const stale = [...inCommitted].filter((name) => !inBuilt.has(name))
+
+  for (const name of missing.sort())
+    console.error(
+      `  this checkout builds ${name}, the committed manifest does not carry it`
+    )
+  for (const name of stale.sort())
+    console.error(
+      `  the committed manifest carries ${name}, this checkout does not build it`
+    )
+
+  return missing.length > 0 || stale.length > 0
+}
+
 const reportDrift = (committed: string, built: string): void => {
   const a = committed.split('\n')
   const b = built.split('\n')
@@ -157,14 +198,24 @@ const main = (): void => {
         contract.file,
         `${contract.name}.json`
       )
-      if (!fs.existsSync(artifactPath)) continue
+      if (!fs.existsSync(artifactPath)) {
+        skipped.push(
+          `${contract.name} (${build.profile}): no artifact under ${build.outDir}`
+        )
+        continue
+      }
 
       const artifact = JSON.parse(fs.readFileSync(artifactPath, 'utf8'))
       const runtimeHex = artifact.deployedBytecode?.object
       // An abstract contract or an interface compiles to nothing. It is not a
       // build to attest, and hashing the empty string would file every one of
       // them under the same masked hash.
-      if (typeof runtimeHex !== 'string' || runtimeHex.length <= 2) continue
+      if (typeof runtimeHex !== 'string' || runtimeHex.length <= 2) {
+        skipped.push(
+          `${contract.name} (${build.profile}): compiles to no runtime code`
+        )
+        continue
+      }
 
       const settings = artifact.metadata?.settings
       const sources = artifact.metadata?.sources
@@ -225,15 +276,31 @@ const main = (): void => {
     }
   }
 
+  if (skipped.length > 0) {
+    console.log(`Skipped ${skipped.length}:`)
+    for (const reason of skipped) console.log(`   - ${reason}`)
+  }
+
   if (entries.length === 0)
     throw new Error(
       'no contract produced a manifest entry — the out/ tree is empty or was built without --ast metadata'
     )
 
-  const text = serialiseManifest(
-    builds.map((build) => build.profile),
-    entries
-  )
+  // Taken from the entries rather than from `--builds`, so the field records
+  // what was minted. A profile named in the request that produced nothing
+  // would otherwise be published as covered, and a reader told to treat
+  // covered-but-absent as a mismatch would fail an honest build under it.
+  const contributed = new Set(entries.map((entry) => entry.build.profile))
+  const barren = builds
+    .map((build) => build.profile)
+    .filter((profile) => !contributed.has(profile))
+  if (barren.length > 0)
+    throw new Error(
+      `no artifact under the tree given for ${barren.join(', ')} — ` +
+        'build the profile before minting it, or drop it from --builds'
+    )
+
+  const text = serialiseManifest([...contributed], entries)
 
   if (check) {
     const committed = fs.existsSync(TARGET)
@@ -248,26 +315,19 @@ const main = (): void => {
         'CI attests the committed bytes, so a stale manifest is one the attestation no longer covers.\n' +
         'Regenerate and commit:\n\n  bun attestations:mint\n'
     )
-    reportDrift(committed ?? '', text)
+    if (!reportEntrySetDrift(committed ?? '', text))
+      reportDrift(committed ?? '', text)
     process.exit(1)
   }
 
   fs.mkdirSync(path.dirname(TARGET), { recursive: true })
   fs.writeFileSync(TARGET, text)
   console.log(
-    `Wrote ${entries.length} entries across ${builds.length} profile(s) to ${TARGET}`
+    `Wrote ${entries.length} entries across ${contributed.size} profile(s) to ${TARGET}`
   )
-  if (skipped.length > 0) {
-    console.log(`Skipped ${skipped.length}:`)
-    for (const reason of skipped) console.log(`   - ${reason}`)
-  }
   // Printed so a reviewer can see what the manifest claims to cover without
   // opening it; the file itself records the same list.
-  console.log(
-    `Covered profiles: ${[...new Set(builds.map((b) => b.profile))]
-      .sort()
-      .join(', ')}`
-  )
+  console.log(`Covered profiles: ${[...contributed].sort().join(', ')}`)
   console.log(
     `Distinct keys: ${
       new Set(entries.map((e) => serialiseAttestationKey(e.key))).size

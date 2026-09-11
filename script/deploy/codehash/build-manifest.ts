@@ -146,9 +146,9 @@ const flattenOffsets = (refs: ImmutableReferences): IImmutableOccurrence[] =>
  * Turns one built artifact into a manifest entry.
  *
  * The solc version is read from the build's own trailer and falls back to the
- * profile's pin, because 63 of 2,094 fleet slots carry no trailer at all. That
- * read is safe here in a way that reading a *deployed* trailer never is: these
- * bytes are our own build output, not a proposer's.
+ * profile's pin, since a build need not carry a trailer at all. That read is
+ * safe here in a way that reading a *deployed* trailer never is: these bytes
+ * are our own build output, not a proposer's.
  *
  * @param identity - the contract this build is of
  * @param key - everything that identifies the build, already assembled
@@ -236,7 +236,8 @@ export class ManifestConflictError extends Error {
  * @param entries - the entries, in any order
  * @returns The manifest text, newline-terminated
  * @throws ManifestConflictError when one key carries disagreeing bytecode
- * @throws Error when no profile is named
+ * @throws Error when no profile is named, or when an entry's key is
+ * unserialisable or its masked hash is not a keccak digest
  */
 export const serialiseManifest = (
   coveredProfiles: readonly string[],
@@ -253,10 +254,20 @@ export const serialiseManifest = (
 
   const manifest: IBuildManifest = {
     schema: MANIFEST_SCHEMA,
-    coveredProfiles: [...coveredProfiles].sort(),
-    entries: [...entries].sort((a, b) =>
-      serialiseAttestationKey(a.key) < serialiseAttestationKey(b.key) ? -1 : 1
-    ),
+    coveredProfiles: [...new Set(coveredProfiles)].sort(),
+    entries: [...entries].sort((a, b) => {
+      const left = serialiseAttestationKey(a.key)
+      const right = serialiseAttestationKey(b.key)
+      if (left !== right) return left < right ? -1 : 1
+      // Two entries can share a key and still serialise differently: the
+      // profile that produced them is deliberately outside the key. Ordering
+      // them by the key alone would leave the bytes decided by the order the
+      // runner emitted them, which is the one thing this file cannot afford.
+      const leftEntry = JSON.stringify(a)
+      const rightEntry = JSON.stringify(b)
+      if (leftEntry === rightEntry) return 0
+      return leftEntry < rightEntry ? -1 : 1
+    }),
   }
 
   return `${JSON.stringify(manifest, null, 2)}\n`
