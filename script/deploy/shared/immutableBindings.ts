@@ -60,6 +60,18 @@ export interface IImmutableBindingCheck {
   resolvedKeyInConfigFile: string
   /** Expected address as written in config, or null when config has no value for this network. */
   expectedAddress: string | null
+  /**
+   * The registry's `allowToDeployWithZeroAddress`, i.e. whether a zero binding is a declared
+   * value here rather than drift. Absent in the registry reads as false, so an unstated flag
+   * keeps the strict comparison.
+   */
+  zeroAddressAllowed: boolean
+  /**
+   * Whether the referenced config file was readable. A null `expectedAddress` means "this
+   * network has no value" only when this is true; on a false it means the expectation is
+   * unknown, which is not the same thing and must not be read as a zero expectation.
+   */
+  configFileLoaded: boolean
 }
 
 /**
@@ -283,6 +295,8 @@ export function collectImmutableBindingChecks(
           environment
         ),
         expectedAddress,
+        zeroAddressAllowed: configData.allowToDeployWithZeroAddress === 'true',
+        configFileLoaded: config !== null && config !== undefined,
       })
     }
 

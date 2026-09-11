@@ -1623,6 +1623,135 @@ describe('immutable-bindings-match-config invariant', () => {
   })
 })
 
+describe('immutable-bindings-match-config declared-zero bindings', () => {
+  const FACET = '0x7777777777777777777777777777777777777777'
+  const ZERO = '0x0000000000000000000000000000000000000000'
+  const OTHER = '0x5555555555555555555555555555555555555555'
+
+  const invariant = HEALTH_CHECK_INVARIANTS.find(
+    (i) => i.name === 'immutable-bindings-match-config'
+  ) as IHealthCheckInvariant
+
+  /** One live facet at FACET on `network`, each getter answering from `getterValues`. */
+  function makeFacetCtx(
+    contractName: string,
+    network: string,
+    getterValues: Record<string, string>
+  ): IHealthCheckContext {
+    return Object.assign(makeCtx(), {
+      networkLower: network,
+      diamondAddress: FACET,
+      deployedContracts: { [contractName]: FACET },
+      coreFacetsToCheck: [],
+      nonCoreFacets: [contractName],
+      onChainFacets: [{ address: FACET, selectors: ['0xffffffff'] }],
+      publicClient: {
+        readContract: async ({ functionName }: { functionName: string }) => {
+          if (functionName === 'getPeripheryContract') return ZERO
+          return getterValues[functionName] ?? OTHER
+        },
+      },
+    } as unknown as IHealthCheckContext)
+  }
+
+  const fraxChecks = collectImmutableBindingChecks(
+    'mainnet',
+    'production'
+  ).filter((c) => c.contractName === 'FraxFacet')
+  const fraxHop = fraxChecks.find((c) => c.getter === 'FRAX_HOP')
+  const fraxPathUsd = fraxChecks.find((c) => c.getter === 'FRAX_PATH_USD')
+
+  it('frax.json carries a hop but no pathUsd for mainnet (test precondition)', () => {
+    expect(fraxHop?.expectedAddress).toBeTruthy()
+    expect(fraxPathUsd?.expectedAddress).toBeNull()
+    expect(fraxPathUsd?.zeroAddressAllowed).toBe(true)
+    expect(fraxPathUsd?.configFileLoaded).toBe(true)
+  })
+
+  it('passes a zero binding whose config map deliberately omits this network', async () => {
+    const ctx = makeFacetCtx('FraxFacet', 'mainnet', {
+      FRAX_HOP: fraxHop?.expectedAddress as string,
+      FRAX_TIP_FEE_MANAGER: ZERO,
+      FRAX_PATH_USD: ZERO,
+    })
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+    // A "cannot verify" warning here means the omission is being skipped rather than asserted,
+    // which leaves the binding unchecked on every chain the map omits.
+    expect(ctx.warnings.filter((w) => w.includes('cannot verify'))).toEqual([])
+  })
+
+  it('errors when a binding whose config map omits this network holds an address', async () => {
+    const ctx = makeFacetCtx('FraxFacet', 'mainnet', {
+      FRAX_HOP: fraxHop?.expectedAddress as string,
+      FRAX_TIP_FEE_MANAGER: ZERO,
+      FRAX_PATH_USD: OTHER,
+    })
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('FRAX_PATH_USD()')
+    expect(ctx.errors[0]).toContain(getAddress(OTHER))
+    expect(ctx.errors[0]).toContain('.pathUsd.mainnet')
+  })
+
+  const bobaPeriphery = collectImmutableBindingChecks(
+    'boba',
+    'production'
+  ).find((c) => c.getter === 'SPOKE_POOL_PERIPHERY')
+
+  it('across.json holds an explicit zero periphery for boba (test precondition)', () => {
+    expect(bobaPeriphery?.expectedAddress).toBe(ZERO)
+    expect(bobaPeriphery?.zeroAddressAllowed).toBe(true)
+  })
+
+  it('passes a zero binding whose config value is an explicit zero', async () => {
+    const acrossChecks = collectImmutableBindingChecks(
+      'boba',
+      'production'
+    ).filter((c) => c.contractName === 'AcrossV4SwapFacet')
+    const ctx = makeFacetCtx(
+      'AcrossV4SwapFacet',
+      'boba',
+      Object.fromEntries(
+        acrossChecks.map((c) => [c.getter, c.expectedAddress ?? ZERO])
+      )
+    )
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toEqual([])
+  })
+
+  it('errors when a binding config states as zero holds an address', async () => {
+    const acrossChecks = collectImmutableBindingChecks(
+      'boba',
+      'production'
+    ).filter((c) => c.contractName === 'AcrossV4SwapFacet')
+    const ctx = makeFacetCtx(
+      'AcrossV4SwapFacet',
+      'boba',
+      Object.fromEntries(
+        acrossChecks.map((c) => [
+          c.getter,
+          c.getter === 'SPOKE_POOL_PERIPHERY'
+            ? OTHER
+            : c.expectedAddress ?? ZERO,
+        ])
+      )
+    )
+
+    await invariant.run(ctx)
+
+    expect(ctx.errors).toHaveLength(1)
+    expect(ctx.errors[0]).toContain('SPOKE_POOL_PERIPHERY()')
+    expect(ctx.errors[0]).toContain('.boba.spokePoolPeriphery')
+  })
+})
+
 describe('immutable-bindings-match-config legacy getter fallback', () => {
   const FACET = '0x7777777777777777777777777777777777777777'
   const ZERO = '0x0000000000000000000000000000000000000000'

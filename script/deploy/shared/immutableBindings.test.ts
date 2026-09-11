@@ -165,6 +165,8 @@ describe('collectImmutableBindingChecks', () => {
         keyInConfigFile: '.a',
         resolvedKeyInConfigFile: '.a',
         expectedAddress: null,
+        zeroAddressAllowed: false,
+        configFileLoaded: false,
       },
     ])
   })
@@ -204,6 +206,93 @@ describe('collectImmutableBindingChecks', () => {
     )
     expect(check?.getter).toBe('DLN_SOURCE')
     expect(check?.legacyGetters).toEqual(['dlnSource'])
+  })
+
+  it('carries allowToDeployWithZeroAddress as zeroAddressAllowed', () => {
+    // The flag is the only record that a zero read is deliberate rather than drift; a collector
+    // that drops it forces every consumer to re-open the registry to find out.
+    const checks = collectImmutableBindingChecks(
+      'mainnet',
+      'production',
+      {
+        Optional: {
+          configData: {
+            _a: {
+              configFileName: 'across.json',
+              keyInConfigFile: '.<NETWORK>.acrossSpokePool',
+              allowToDeployWithZeroAddress: 'true',
+              getter: 'A',
+            },
+          },
+        },
+        Required: {
+          configData: {
+            _b: {
+              configFileName: 'across.json',
+              keyInConfigFile: '.<NETWORK>.acrossSpokePool',
+              allowToDeployWithZeroAddress: 'false',
+              getter: 'B',
+            },
+          },
+        },
+        Unstated: {
+          configData: {
+            _c: {
+              configFileName: 'across.json',
+              keyInConfigFile: '.<NETWORK>.acrossSpokePool',
+              getter: 'C',
+            },
+          },
+        },
+      },
+      load
+    )
+
+    expect(checks.map((c) => [c.contractName, c.zeroAddressAllowed])).toEqual([
+      ['Optional', true],
+      ['Required', false],
+      ['Unstated', false],
+    ])
+  })
+
+  it('distinguishes an unreadable config file from a key that file does not carry', () => {
+    // Both resolve to a null expectedAddress, but only the second one proves the deployment used
+    // the zero default — treating an unreadable file the same way would assert zero fleet-wide
+    // on nothing more than a missing file.
+    const registry: Record<string, IDeployRequirementEntry> = {
+      Missing: {
+        configData: {
+          _a: {
+            configFileName: 'missing.json',
+            keyInConfigFile: '.a',
+            getter: 'A',
+          },
+        },
+      },
+      Absent: {
+        configData: {
+          _a: {
+            configFileName: 'across.json',
+            keyInConfigFile: '.<NETWORK>.notAKey',
+            getter: 'A',
+          },
+        },
+      },
+    }
+
+    const checks = collectImmutableBindingChecks(
+      'mainnet',
+      'production',
+      registry,
+      load
+    )
+
+    expect(
+      checks.map((c) => [c.contractName, c.configFileLoaded, c.expectedAddress])
+    ).toEqual([
+      ['Absent', true, null],
+      ['Missing', false, null],
+    ])
   })
 
   it('skips an entry without configData', () => {

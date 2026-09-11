@@ -80,12 +80,14 @@
       "_sponsoredOftSrcPeriphery": {
         "configFileName": "across.json",
         "keyInConfigFile": ".<NETWORK>.sponsoredOftSrcPeriphery",
-        "allowToDeployWithZeroAddress": "true"
+        "allowToDeployWithZeroAddress": "true",
+        "getter": "SPONSORED_OFT_SRC_PERIPHERY"
       },
       "_sponsoredCctpSrcPeriphery": {
         "configFileName": "across.json",
         "keyInConfigFile": ".<NETWORK>.sponsoredCctpSrcPeriphery",
-        "allowToDeployWithZeroAddress": "true"
+        "allowToDeployWithZeroAddress": "true",
+        "getter": "SPONSORED_CCTP_SRC_PERIPHERY"
       },
       "_backendSigner": {
         "configFileName": "global.json",
