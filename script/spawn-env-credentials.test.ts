@@ -9,13 +9,13 @@
  * testing will, the moment that refusal is mutated away, run a real CLI with a
  * real production key.
  *
- * Four checks, because no one of them is enough. A source assertion catches the
- * spelling across the whole tree but cannot tell whether the replacement
- * actually works; a pairing against the class table in
+ * Several checks, because no one of them is enough. A source assertion catches
+ * the spelling across the whole tree but cannot tell whether the replacement
+ * works; a pairing against the class table in
  * `script/deploy/safe/spawn-env.ts` catches the scan and the withholding
- * drifting apart; and two spawns against fixture `.env` files pin the bun
- * behaviour the replacement depends on and the withholding of each class
- * end to end, without any real credential taking part.
+ * drifting apart; and spawns against fixture `.env` files pin the bun
+ * behaviour the replacement depends on, and the endpoint, provider-key and
+ * webhook classes end to end, without any real credential taking part.
  */
 import { execFileSync } from 'child_process'
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
@@ -24,8 +24,11 @@ import { join } from 'path'
 
 // eslint-disable-next-line import/no-unresolved
 import { afterAll, describe, expect, it } from 'bun:test'
+import type { Hex } from 'viem'
+import { privateKeyToAccount } from 'viem/accounts'
 
 import {
+  ALWAYS_WITHHELD,
   CREDENTIAL_CORES,
   NON_CREDENTIAL_NAMES,
   withheldValueFor,
@@ -118,15 +121,20 @@ const blankBlockComments = (source: string): string =>
  * comment with it, which keeps the exemption attached to its own delete.
  *
  * The whole member expression is collapsed, not just the gap after the
- * keyword, because prettier breaks a long `delete` across the dot on its own:
- * `delete process.env\n  .PRIVATE_KEY` leaves `delete process.env` as the
- * statement, which carries no name for the pattern to match. That form is
- * reachable by adding a trailing comment and re-running the formatter, so it
- * is the likeliest way for the scan to go quietly blind.
+ * keyword, because prettier breaks a `delete` whose code alone passes 80
+ * columns — across the dot, and across the brackets for a computed key.
+ * Either leaves the holder alone as the statement (`delete process.env`),
+ * carrying no name for the pattern to match.
+ *
+ * One limit the collapse introduces: a marker on a continuation line now
+ * exempts the delete it was joined to. That is what carries the marker back
+ * onto a statement prettier split, and there is no way to tell that case from
+ * a marker parked on a continuation line to silence a neighbour. Reaching it
+ * needs code no formatter would leave, and no shipped test is affected.
  */
 const joinDeleteOperands = (source: string): string =>
   source.replace(
-    /\bdelete\s+[A-Za-z_$][\w$]*(?:\s*\??\.\s*[\w$]+|\s*\??\.?\s*\[[^\]\n]*\])*/gu,
+    /\bdelete\s+[A-Za-z_$][\w$]*(?:\s*\??\.\s*[\w$]+|\s*\??\.?\s*\[[^\]]*\])*/gu,
     (expression) =>
       `delete ${expression.replace(/^delete\s+/u, '').replace(/\s+/gu, '')}`
   )
@@ -141,6 +149,10 @@ const statements = (source: string): string[] =>
     .split('\n')
     .flatMap((line) => line.split(';'))
 
+/** Matches a delete of exactly `name`, not of a longer name starting with it. */
+const DELETES_EXACTLY = (name: string): RegExp =>
+  new RegExp(`\\.${name}\\b|['"\`]${name}['"\`]`, 'u')
+
 /**
  * Statements that delete a credential and carry no marker.
  *
@@ -149,11 +161,20 @@ const statements = (source: string): string[] =>
  * a "never do this" example, say — from being reported as one.
  */
 const unexemptedDeletions = (source: string): string[] =>
-  statements(source).filter(
-    (statement) =>
+  statements(source).filter((statement) => {
+    const code = statement.replace(/\/\/.*$/u, '')
+
+    return (
       !statement.includes(EXEMPTION_MARKER) &&
-      DELETES_A_CREDENTIAL.test(statement.replace(/\/\/.*$/u, ''))
-  )
+      DELETES_A_CREDENTIAL.test(code) &&
+      // A reviewed non-credential is not withheld either, so flagging its
+      // deletion would demand a marker for something no class claims — the
+      // scan and the sweep have to agree about a name or the pairing below
+      // means nothing. Anchored, so a longer name that merely starts with one
+      // of these is still judged on its own cores.
+      !NON_CREDENTIAL_NAMES.some((name) => DELETES_EXACTLY(name).test(code))
+    )
+  })
 
 describe('no shipped test deletes a credential from a child environment', () => {
   it('enumerates the tree, so a clean result is not vacuous', () => {
@@ -177,6 +198,30 @@ describe('no shipped test deletes a credential from a child environment', () => 
 
     expect(all).toContain(SELF)
     expect(all.length - shippedTests().length).toBe(1)
+  })
+
+  it('sees a delete prettier broke across the brackets', () => {
+    // The computed-key half of the same formatter break. The first version of
+    // the collapse excluded newlines inside the brackets, so this form read as
+    // `delete holder` — a clean result for the very shape it claimed to cover.
+    expect(
+      unexemptedDeletions(
+        "  delete childEnv[\n    'PRIVATE_KEY_PRODUCTION'\n  ]\n"
+      )
+    ).toEqual(["  delete childEnv['PRIVATE_KEY_PRODUCTION']"])
+  })
+
+  it('leaves a reviewed non-credential deletable without a marker', () => {
+    // The scan and the sweep have to agree: this name matches a core but is
+    // not withheld, so demanding a marker for it would be asking for a reason
+    // to withhold something no class claims.
+    expect(
+      unexemptedDeletions('  delete env.NO_ETHERSCAN_API_KEY_REQUIRED\n')
+    ).toEqual([])
+    // Anchored, so a longer name is still judged on its cores.
+    expect(
+      unexemptedDeletions('  delete env.PRIVATE_KEY_ANVIL_PRODUCTION\n')
+    ).toEqual(['  delete env.PRIVATE_KEY_ANVIL_PRODUCTION'])
   })
 
   it('sees a delete prettier broke across the dot', () => {
@@ -258,9 +303,8 @@ describe('no shipped test deletes a credential from a child environment', () => 
       'delete env.MNEMONIC',
       'delete env?.PRIVATE_KEY',
       "delete process.env?.['PRIVATE_KEY_PRODUCTION']",
-      // The classes this file widened to. One real name per class, so a class
-      // dropped from the table in `spawn-env.ts` goes red here rather than
-      // quietly narrowing the scan.
+      // One real name per class, so a class dropped from the table in
+      // `spawn-env.ts` goes red here rather than quietly narrowing the scan.
       'delete env.ETH_NODE_URI',
       'delete env.ETH_NODE_URI_ARBITRUM',
       'delete env.MAINNET_ETHERSCAN_API_KEY',
@@ -284,9 +328,9 @@ describe('no shipped test deletes a credential from a child environment', () => 
       'delete env.SAFE_PROPOSAL_TICKET',
       'delete env.ENVIRONMENT',
       'delete env.ENABLE_MONGODB_LOGGING',
-      // The near misses each widened core must not swallow: a list of token
-      // contracts is not a `SYNC_TOKEN`, and neither a verification toggle nor
-      // a network exclusion list is a key or an endpoint.
+      // The near misses no core must swallow: a list of token contracts is
+      // not a `SYNC_TOKEN`, and neither a verification toggle nor a network
+      // exclusion list is a key or an endpoint.
       'delete env.ALLOW_TOKEN_CONTRACTS',
       'delete env.DO_NOT_VERIFY_IN_THESE_NETWORKS',
       'delete env.ZKSYNC_NATIVE_VERIFIER',
@@ -320,18 +364,42 @@ describe('the guard and the withholding cannot disagree about a name', () => {
       expect(withheldValueFor(name), name).toBeUndefined()
   })
 
-  it('gives each class a value that cannot be used as the real thing', () => {
-    // A plausible-looking stand-in is the hazard: a parseable key derives an
-    // address and a routable URL posts to a live channel, so every class value
-    // has to be something its consumer refuses outright.
+  it('gives every URL-shaped class a scheme fetch refuses', () => {
+    // The property, not the spelling: asserting the sentinel substring would
+    // pass just as well for `https://hooks.slack.com/services/malformed-…`,
+    // which a run that got past the check under test would really post to.
     for (const name of [
-      'PRIVATE_KEY_PRODUCTION',
       'SC_MONGODB_URI',
       'ETH_NODE_URI_ARBITRUM',
-      'MAINNET_ETHERSCAN_API_KEY',
       'WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS',
-    ])
-      expect(withheldValueFor(name), name).toContain('malformed-in-tests')
+    ]) {
+      const withheld = withheldValueFor(name)
+      expect(withheld, name).toBeDefined()
+      expect(new URL(withheld as string).protocol, name).not.toMatch(
+        /^https?:$/u
+      )
+    }
+  })
+
+  it('gives the signing class a value viem cannot parse', () => {
+    // The provider keys share this value, so one refusal covers both classes;
+    // what a given explorer rejects is not decidable here.
+    const signing = withheldValueFor('PRIVATE_KEY_PRODUCTION')
+    if (signing === undefined)
+      throw new Error('no class claims the signing key, so nothing is withheld')
+
+    expect(() => privateKeyToAccount(signing as Hex)).toThrow()
+    expect(withheldValueFor('MAINNET_ETHERSCAN_API_KEY')).toBe(signing)
+  })
+
+  it('pins every name the sweep cannot reach', () => {
+    // Each pinned name must be claimed by a class, or the pin sets nothing.
+    // Looped rather than spot-checked: four of the five were unasserted, and
+    // the one that matters most holds a key the store leaves unset, so this
+    // list is its only cover.
+    expect(ALWAYS_WITHHELD.length).toBeGreaterThan(0)
+    for (const name of ALWAYS_WITHHELD)
+      expect(withheldValueFor(name), name).toBeDefined()
   })
 })
 
@@ -373,7 +441,7 @@ describe('setting a credential, unlike deleting it, withholds it from a child', 
       stdin: 'ignore',
       stdout: 'pipe',
       stderr: 'pipe',
-      timeout: 20_000,
+      timeout: 20_000, // 20 seconds: a hermetic child that has to spawn bun
     })
     if (result.signalCode)
       throw new Error(
@@ -400,9 +468,9 @@ describe('setting a credential, unlike deleting it, withholds it from a child', 
   })
 })
 
-describe('withholdCredentials withholds each widened class from a real child', () => {
+describe('withholdCredentials withholds each class from a real child', () => {
   /**
-   * The classes this change added, end to end: a fixture `.env` a child would
+   * End to end: a fixture `.env` a child would
    * re-load, a `withholdCredentials` pass over the environment it is handed,
    * and the child reporting back what it actually sees. Synthetic values
    * throughout, lengths only.
@@ -412,7 +480,9 @@ describe('withholdCredentials withholds each widened class from a real child', (
    * while the child in the real probes would be re-loading the store.
    */
   const FIXTURE = {
-    ETH_NODE_URI_ZZPROBE: 'endpoint-from-fixture',
+    // A query string, which is the shape most of the store's endpoints have;
+    // the writer below quotes every value so the `&` survives the re-load.
+    ETH_NODE_URI_ZZPROBE: 'https://probe.invalid/x?chain=1&dkey=from-fixture',
     MAINNET_ETHERSCAN_API_KEY: 'explorer-key-from-fixture',
     WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS: 'webhook-from-fixture',
     NO_ETHERSCAN_API_KEY_REQUIRED: 'true',
@@ -422,7 +492,7 @@ describe('withholdCredentials withholds each widened class from a real child', (
   writeFileSync(
     join(fixture, '.env'),
     Object.entries(FIXTURE)
-      .map(([name, value]) => `${name}=${value}\n`)
+      .map(([name, value]) => `${name}="${value}"\n`)
       .join('')
   )
   const child = join(fixture, 'report-lengths.ts')
@@ -460,7 +530,7 @@ describe('withholdCredentials withholds each widened class from a real child', (
       stdin: 'ignore',
       stdout: 'pipe',
       stderr: 'pipe',
-      timeout: 20_000,
+      timeout: 20_000, // 20 seconds: a hermetic child that has to spawn bun
     })
     if (result.signalCode)
       throw new Error(

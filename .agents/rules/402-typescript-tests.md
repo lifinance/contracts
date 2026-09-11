@@ -26,12 +26,13 @@ passed environment leaves unset, so deleting a name hands the real value back at
 full length. Use `withholdCredentials()` from
 `script/deploy/safe/spawn-env.ts` rather than rolling your own.
 
-A name is a credential when it carries one of the cores in that module's class
-table — today `PRIVATE_KEY`, `MNEMONIC`, `MONGODB_URI`, `ETH_NODE_URI`,
-`API_KEY`, `ACCESS_KEY`, `SYNC_TOKEN`, `WEBHOOK`. The cores are anchored on the
-credential-bearing suffix, not the vendor, so a name that merely shares a prefix
-is not swept up; a name that holds no secret despite matching a core belongs in
-the same module's reviewed non-credential set, with the reason.
+A name is a credential when it carries one of the cores in that module's
+`CREDENTIAL_CLASSES` — read the table, don't keep a copy. Each core spans the
+whole credential-bearing part of a name rather than the vendor alone, so a name
+that merely shares a prefix is not swept up. A name that matches a core but
+holds no secret goes in the same module's reviewed non-credential set with its
+reason, because replacing its value would change what a child does rather than
+withhold anything.
 
 `script/spawn-env-credentials.test.ts` derives its source scan from those same
 cores, so the guard and the withholding widen together. Two consequences:
@@ -39,12 +40,17 @@ cores, so the guard and the withholding widen together. Two consequences:
 - **Deleting one of these names is red**, including in a test that never spawns.
   When the delete is legitimate — an in-process test, or a child whose `cwd`
   holds no `.env` — annotate it with a trailing `// spawn-env: <reason>` comment
-  on the delete's own line. The marker only counts on that line, so keep the
-  reason short enough to survive prettier at 80 columns; restructure the
-  statement rather than letting the formatter move the comment off it.
+  on the delete's own line, and keep that delete a standalone statement: the
+  marker only counts on the line its delete ends on, and prettier relocates a
+  trailing comment when the delete is the body of an `if`/`else`, which
+  silently detaches it. Across the whole tree this costs two markers today, so
+  a widened core is not the marker tax it looks like.
 - **A credential whose name carries no core is invisible** to both the scan and
   the sweep. Adding a new kind of secret to the store means adding its core,
   not assuming the pattern grew.
+- **Only the two `withholdCredentials` callers are covered.** Other tests that
+  spawn a child build the environment by hand; nothing yet asserts that a
+  spawning test calls the helper.
 
 ## Asserting rejections ([CONV:TEST-ASSERT-REJECTS])
 

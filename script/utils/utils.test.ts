@@ -198,7 +198,7 @@ describe('endpoint redaction', () => {
   it('keeps the endpoint out of the unsubstituted-template error', () => {
     const previousUri = process.env.ETH_NODE_URI
     const previousNetworkUri = process.env.ETH_NODE_URI_TESTNET
-    delete process.env.ETH_NODE_URI_TESTNET // spawn-env: in-process; the fallback is the case under test
+    delete process.env.ETH_NODE_URI_TESTNET // spawn-env: in-process; left set, node_url returns early and the assertion never runs
     process.env.ETH_NODE_URI =
       'https://lb.drpc.org/ogrpc?chain={{chain}}&dkey=SYNTHETIC-NOT-REAL-abc123'
 
