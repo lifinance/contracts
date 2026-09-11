@@ -59,6 +59,7 @@ import {
   PRE_BROADCAST_GATE_ENFORCE_ENV,
   resolveGateCoverage,
   runPreBroadcastGate,
+  unverifiedGateOutcome,
   viemGateReaders,
   viemOperationIdReader,
 } from './prebroadcast-gate'
@@ -1259,7 +1260,12 @@ async function getPendingOperations(
         }
 
         const baseOp: Omit<ITimelockOperation, 'functionName'> = {
-          id: opId,
+          // The stored id, not the `opId` derived above. The pre-broadcast gate
+          // asks the chain to hash these parameters and compares the answer
+          // against this field, so carrying the derivation here would make that
+          // keccak(params) against keccak(params) — an identity that cannot
+          // fail. Trust check 1 has already proven the two equal.
+          id: row.operationId,
           index: 0n,
           predecessor,
           delay,
@@ -1694,7 +1700,9 @@ const REPO_ROOT = path.resolve(
  * Only binding when {@link isPreBroadcastGateEnforcing} says so. In shadow mode
  * — the default — a refusal is logged and alerted and the operation still
  * executes, because the set the verdict is derived from refuses honest traffic
- * until it is anchored on a real attestation store (EXSC-952).
+ * until it is anchored on a real attestation store (EXSC-952). That holds for
+ * every way the gate can decline to clear an operation, a refusal and a throw
+ * alike: shadow mode always returns `ok`.
  *
  * When enforcing, verdicts map onto the existing {@link GuardOutcome} states: a
  * proven failure is durable and flips the row to `blocked`; anything unverified
@@ -1751,6 +1759,29 @@ async function enforcePreBroadcastGateOrAbort(
     if (!isDryRun) await notifyFailure(error)
   }
 
+  // Shadow mode reports what could not be checked and lets the operation
+  // through, exactly as the uncovered-chain path does; see
+  // {@link unverifiedGateOutcome} for why a throw must not refuse here.
+  const abortUnverified = async (
+    gap: string,
+    error: unknown
+  ): Promise<GuardOutcome> => {
+    if (unverifiedGateOutcome(process.env) === 'ok') {
+      consola.warn(
+        `${networkPrefix} 🕶️  Shadow mode: ${gap} — reporting only, the operation will execute.`,
+        error
+      )
+      await alertGap([`${gap} for ${operation.id}`])
+      return 'ok'
+    }
+    consola.error(
+      `${networkPrefix} ❌ Pre-broadcast gate: ${gap} — refusing execute (row left queued, next run retries):`,
+      error
+    )
+    await alertFailure(error)
+    return 'retry'
+  }
+
   let deployments: Record<string, unknown>
   try {
     deployments = (await getDeployments(
@@ -1758,12 +1789,10 @@ async function enforcePreBroadcastGateOrAbort(
       EnvironmentEnum.production
     )) as unknown as Record<string, unknown>
   } catch (error) {
-    consola.error(
-      `${networkPrefix} ❌ Pre-broadcast gate could not read the deployment record — refusing execute (row left queued, next run retries):`,
+    return await abortUnverified(
+      'the deployment record could not be read, so no verdict was produced',
       error
     )
-    await alertFailure(error)
-    return 'retry'
   }
 
   // A record that could not be looked up is not a record that is absent: only
@@ -1773,12 +1802,10 @@ async function enforcePreBroadcastGateOrAbort(
   try {
     signTimeRecord = await fetchSignedSetRecord(networkName, operation.id)
   } catch (error) {
-    consola.error(
-      `${networkPrefix} ❌ Pre-broadcast gate could not read the sign-time record store — refusing execute (row left queued, next run retries):`,
+    return await abortUnverified(
+      'the sign-time record store could not be read, so no verdict was produced',
       error
     )
-    await alertFailure(error)
-    return 'retry'
   }
 
   const salt =
@@ -1818,12 +1845,10 @@ async function enforcePreBroadcastGateOrAbort(
       }
     )
   } catch (error) {
-    consola.error(
-      `${networkPrefix} ❌ Pre-broadcast gate could not run — refusing execute (row left queued, next run retries):`,
+    return await abortUnverified(
+      'the gate could not run, so no verdict was produced',
       error
     )
-    await alertFailure(error)
-    return 'retry'
   }
 
   for (const alert of result.alerts)

@@ -59,7 +59,12 @@ export interface IPreBroadcastAuthority {
 }
 
 export interface IPreBroadcastGateInput {
-  /** The id the executor is about to execute this operation under. */
+  /**
+   * The id the executor is about to execute this operation under, as stored —
+   * never one re-derived from the parameters. Against a re-derivation the
+   * `onChainOperationId` comparison below is keccak(params) against
+   * keccak(params), an identity that cannot fail.
+   */
   operationId: string
   /**
    * The chain's own hash of the parameters this operation would execute with.

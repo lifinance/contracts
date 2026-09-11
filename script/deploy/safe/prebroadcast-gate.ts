@@ -425,6 +425,26 @@ export const isPreBroadcastGateEnforcing = (env: {
 }): boolean => env[PRE_BROADCAST_GATE_ENFORCE_ENV] === 'true'
 
 /**
+ * What an operation is worth when the gate could not reach a verdict at all —
+ * a deployment record that would not load, a record store that would not
+ * answer, a throw out of the gate itself.
+ *
+ * `'retry'` only where a refusal is binding. The executor turns any outcome
+ * other than `'ok'` into `failed`, so answering `'retry'` under shadow mode
+ * would stop a production broadcast and report an honest operation as failed on
+ * the strength of a verdict this run is not permitted to act on. That is the
+ * inversion `persistSignedSetRecord` refuses on the write side, and it applies
+ * with more force here: these paths are not even a refusal, only an absence of
+ * one.
+ *
+ * @param env - The environment to read, normally `process.env`.
+ * @returns `'retry'` when enforcing, `'ok'` in shadow mode.
+ */
+export const unverifiedGateOutcome = (env: {
+  readonly [key: string]: string | undefined
+}): 'ok' | 'retry' => (isPreBroadcastGateEnforcing(env) ? 'retry' : 'ok')
+
+/**
  * The message for a refusal the run declined to act on.
  *
  * Must not share wording with {@link buildGateGapAlert}: that one says nothing
