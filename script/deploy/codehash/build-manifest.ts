@@ -197,6 +197,21 @@ export const manifestEntryFrom = (
       reason: `profile ${profile.profile} is zkEVM, which this mint does not cover`,
     }
 
+  // The profile is what the caller says the tree was built under; this is the
+  // build's own account of itself. They part company because `solc_floor`
+  // declares no `out` of its own and so writes into the default profile's
+  // tree — run the floor build, mint, and every entry is filed under `default`
+  // while `coveredProfiles` says the toolchain was covered. Refusing here keeps
+  // the profile label something the artifact corroborates.
+  const builtFor = hashedSettings['evmVersion']
+  if (builtFor !== profile.evmVersion)
+    return {
+      ok: false,
+      reason: `artifact was built for evm ${String(builtFor)}, but profile ${
+        profile.profile
+      } pins ${profile.evmVersion}`,
+    }
+
   // The one normalisation both sides go through. A second "strip then mask"
   // here is how the mint and a local rebuild would come to disagree while both
   // look finished, and the comparison downstream is between exactly these two.

@@ -254,7 +254,9 @@ const main = (): void => {
 
   if (entries.length === 0)
     throw new Error(
-      `no contract produced a manifest entry — ${outDir} is empty or was built without --ast metadata`
+      skipped.length > 0
+        ? `no contract produced a manifest entry — every candidate under ${outDir} was skipped for the reasons above`
+        : `no contract produced a manifest entry — ${outDir} is empty or was built without --ast metadata`
     )
 
   // Safe to name the profile covered only because the throw above proves it

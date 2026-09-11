@@ -109,7 +109,6 @@ jobs:
           subject-path: script/deploy/resources/buildAttestations.json
 
       - name: Report the mint
-        if: steps.attest.outcome == 'success'
         env:
           ATTESTATION_URL: ${{ steps.attest.outputs.attestation-url }}
         shell: bash

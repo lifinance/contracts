@@ -47,7 +47,10 @@ const ZK_PROFILE: IMintProfile = {
   zksolcVersion: '1.5.15',
 }
 
-const HASHED_SETTINGS = { optimizer: { enabled: true, runs: 1000000 } }
+const HASHED_SETTINGS = {
+  evmVersion: 'cancun',
+  optimizer: { enabled: true, runs: 1000000 },
+}
 
 /** Runtime code with no metadata trailer, so the profile pin supplies solc. */
 const CODE_A = `0x${'60'.repeat(40)}`
@@ -170,6 +173,23 @@ describe('manifestEntryFrom', () => {
     expect(b.entry.immutableOffsets).toEqual(expected)
   })
 
+  it('refuses an artifact whose own settings contradict the profile', () => {
+    // Why a build under another profile can reach this at all: the refusal in
+    // `manifestEntryFrom`.
+    const refused = manifestEntryFrom(
+      IDENTITY,
+      keyFor(),
+      DEFAULT_PROFILE,
+      { runtimeHex: CODE_A },
+      { ...HASHED_SETTINGS, evmVersion: 'london' }
+    )
+
+    expect(refused.ok).toBe(false)
+    expect(refused.ok === false && refused.reason).toBe(
+      'artifact was built for evm london, but profile default pins cancun'
+    )
+  })
+
   it('refuses bytecode it cannot normalise instead of minting a hash of nothing', () => {
     const built = manifestEntryFrom(
       IDENTITY,
@@ -227,12 +247,14 @@ describe('serialiseManifest', () => {
     // hash is taken over a canonical form — so two runs agreeing on every
     // value would otherwise write different bytes under an identical hash.
     const ordered = {
+      evmVersion: 'cancun',
       optimizer: { enabled: true, runs: 1000000 },
       viaIR: false,
     }
     const shuffled = {
       viaIR: false,
       optimizer: { runs: 1000000, enabled: true },
+      evmVersion: 'cancun',
     }
 
     const manifestWith = (settings: Record<string, unknown>): string => {
