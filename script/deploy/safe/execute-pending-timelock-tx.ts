@@ -54,6 +54,9 @@ import {
 } from './parked-tasks'
 import {
   buildGateGapAlert,
+  buildShadowRefusalAlert,
+  isPreBroadcastGateEnforcing,
+  PRE_BROADCAST_GATE_ENFORCE_ENV,
   resolveGateCoverage,
   runPreBroadcastGate,
   viemGateReaders,
@@ -1724,6 +1727,20 @@ async function enforcePreBroadcastGateOrAbort(
     return 'ok'
   }
 
+  const alertShadowRefusal = async (
+    disposition: string,
+    findings: readonly string[]
+  ): Promise<void> => {
+    const message = buildShadowRefusalAlert({
+      network: networkName,
+      operationId: operation.id,
+      disposition,
+      findings,
+    })
+    if (!message || isDryRun || !slackNotifier) return
+    await slackNotifier.sendNotificationWithRetry({ text: message })
+  }
+
   const alertFailure = async (error: unknown): Promise<void> => {
     if (!isDryRun) await notifyFailure(error)
   }
@@ -1816,7 +1833,10 @@ async function enforcePreBroadcastGateOrAbort(
   for (const alert of result.alerts)
     consola.warn(`${networkPrefix} ⚠️  ${alert}`)
 
-  if (result.disposition === 'PROCEED') {
+  // `blocksBroadcast`, not the disposition string: DISPOSITIONS_THAT_MAY_BROADCAST
+  // exists so a disposition added later refuses by default, and branching on the
+  // string here is the pattern that set was written to prevent.
+  if (!result.blocksBroadcast) {
     consola.info(`${networkPrefix} ✅ Pre-broadcast gate: ${result.reason}`)
     await alertGap(result.alerts)
     return 'ok'
@@ -1831,6 +1851,15 @@ async function enforcePreBroadcastGateOrAbort(
     consola.error(`${networkPrefix}    · ${finding}`)
 
   const reason = `pre-broadcast gate ${result.disposition}: ${result.reason}`
+
+  if (!isPreBroadcastGateEnforcing(process.env)) {
+    consola.warn(
+      `${networkPrefix} 🕶️  Shadow mode: reporting only, the operation will execute. Set ${PRE_BROADCAST_GATE_ENFORCE_ENV}=true to make this refusal binding.`
+    )
+    await alertShadowRefusal(result.disposition, result.findings)
+    return 'ok'
+  }
+
   if (result.disposition === 'BLOCK') {
     if (!isDryRun)
       await blockTimelockOp(networkName, operation.id, reason, networkPrefix)

@@ -404,3 +404,60 @@ export const buildGateGapAlert = (input: {
     bullets,
   ].join('\n')
 }
+
+/** Env var that makes a pre-broadcast refusal binding. */
+export const PRE_BROADCAST_GATE_ENFORCE_ENV = 'PRE_BROADCAST_GATE_ENFORCE'
+
+/**
+ * Whether a pre-broadcast refusal is binding.
+ *
+ * Off unless the variable is exactly `'true'`. Anything else — unset, empty,
+ * `'1'`, `'TRUE'`, `'yes'` — reads as off, because the failure this default
+ * protects against is an outage: the gate re-derives its attested set from one
+ * fresh local build of the current checkout, so any contract not redeployed
+ * since the compiler moved grades MISMATCH. Measured on `LiFiDiamond` across
+ * mainnet, arbitrum, base, optimism, polygon and bsc — six honest deploys, six
+ * MISMATCHes. Every timelock batch targets the diamond, so enforcing today
+ * would flip effectively every queued operation to `blocked`, which is durable
+ * and needs a manual requeue per row.
+ *
+ * A pure function of the environment rather than a module constant so both
+ * modes are reachable from a test without spawning the executor, which would
+ * run the real thing.
+ *
+ * @param env - The environment to read, normally `process.env`.
+ * @returns True only for the exact opt-in.
+ */
+export const isPreBroadcastGateEnforcing = (env: {
+  readonly [key: string]: string | undefined
+}): boolean => env[PRE_BROADCAST_GATE_ENFORCE_ENV] === 'true'
+
+/**
+ * The message for a refusal the run declined to act on.
+ *
+ * Distinct from {@link buildGateGapAlert}, which says the gate proceeded
+ * *without* a verdict. Here the gate reached one and refused, and shadow mode
+ * broadcast anyway — so a reader who saw the gap wording would conclude nothing
+ * was checked, when in fact something was checked and found wrong. The two
+ * cases warrant different responses and must not share a sentence.
+ *
+ * @param input - The network and operation, the disposition, and its findings.
+ * @returns The message, or null when there is no refusal to report.
+ */
+export const buildShadowRefusalAlert = (input: {
+  readonly network: string
+  readonly operationId: string
+  readonly disposition: string
+  readonly findings: readonly string[]
+}): string | null => {
+  const findings = input.findings.filter((f) => f.trim().length > 0)
+  if (findings.length === 0) return null
+
+  const bullets = findings.map((f) => `• ${f}`).join('\n')
+  return [
+    `🕶️ Pre-broadcast gate returned ${input.disposition} on ${input.network} and was OVERRIDDEN by shadow mode — the operation executed`,
+    `operation ${input.operationId}`,
+    bullets,
+    `Shadow mode is on because the gate re-derives from one fresh local build; enforcing it today refuses honest deploys (EXSC-952 anchors it to minted attestations).`,
+  ].join('\n')
+}

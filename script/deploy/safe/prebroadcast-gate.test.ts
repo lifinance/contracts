@@ -8,6 +8,9 @@ import type { Address } from 'viem'
 
 import {
   buildGateGapAlert,
+  buildShadowRefusalAlert,
+  isPreBroadcastGateEnforcing,
+  PRE_BROADCAST_GATE_ENFORCE_ENV,
   resolveGateCoverage,
   runPreBroadcastGate,
   type IGateDependencies,
@@ -439,5 +442,69 @@ describe('buildGateGapAlert', () => {
         gaps: ['', 'authority read failed'],
       })
     ).not.toContain('• \n')
+  })
+})
+
+describe('shadow mode', () => {
+  describe('isPreBroadcastGateEnforcing', () => {
+    it('enforces only on the exact string true', () => {
+      expect(
+        isPreBroadcastGateEnforcing({ PRE_BROADCAST_GATE_ENFORCE: 'true' })
+      ).toBe(true)
+    })
+
+    it.each([
+      ['unset', {}],
+      ['empty', { PRE_BROADCAST_GATE_ENFORCE: '' }],
+      ['1', { PRE_BROADCAST_GATE_ENFORCE: '1' }],
+      ['TRUE', { PRE_BROADCAST_GATE_ENFORCE: 'TRUE' }],
+      ['yes', { PRE_BROADCAST_GATE_ENFORCE: 'yes' }],
+      [' true ', { PRE_BROADCAST_GATE_ENFORCE: ' true ' }],
+    ])('reads %s as shadow mode', (_label, env) => {
+      expect(isPreBroadcastGateEnforcing(env)).toBe(false)
+    })
+
+    it('names the variable the operator has to set', () => {
+      expect(PRE_BROADCAST_GATE_ENFORCE_ENV).toBe('PRE_BROADCAST_GATE_ENFORCE')
+    })
+  })
+
+  describe('buildShadowRefusalAlert', () => {
+    const input = {
+      network: 'arbitrum',
+      operationId: '0xop',
+      disposition: 'BLOCK',
+      findings: ['LiFiDiamond codehash MISMATCH'],
+    }
+
+    it('says the operation executed despite the refusal', () => {
+      const message = buildShadowRefusalAlert(input)
+      expect(message).toContain('BLOCK')
+      expect(message).toContain('arbitrum')
+      expect(message).toContain('0xop')
+      expect(message).toContain('LiFiDiamond codehash MISMATCH')
+      expect(message).toContain('OVERRIDDEN by shadow mode')
+    })
+
+    // The whole reason this is not buildGateGapAlert: that message says the
+    // gate proceeded WITHOUT a verdict, which would tell a reader nothing was
+    // checked when something was checked and found wrong.
+    it('does not claim the verdict was incomplete', () => {
+      expect(buildShadowRefusalAlert(input)).not.toContain(
+        'without a complete verdict'
+      )
+      expect(
+        buildGateGapAlert({
+          network: 'arbitrum',
+          operationId: '0xop',
+          gaps: ['a gap'],
+        })
+      ).toContain('without a complete verdict')
+    })
+
+    it('returns null when there is no finding to report', () => {
+      expect(buildShadowRefusalAlert({ ...input, findings: [] })).toBeNull()
+      expect(buildShadowRefusalAlert({ ...input, findings: ['  '] })).toBeNull()
+    })
   })
 })
