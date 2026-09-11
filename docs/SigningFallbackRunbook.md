@@ -134,8 +134,16 @@ if [ "$RESOLVED" = "$EXPECTED" ]; then
   [ -d "$ESC" ]                 || git -C "$CLONE" worktree add --detach "$ESC" "$RESOLVED"
   [ -e "$ESC/.env" ]            || ln -s "$CLONE/.env" "$ESC/.env"
   [ -e "$ESC/node_modules" ]    || ln -s "$CLONE/node_modules" "$ESC/node_modules"
+  # What reuse can inherit wrongly: `-e` proves a link resolves, not where it
+  # points, and `HEAD` says nothing about the working files §5 reads or the
+  # propose script itself. `diff`, not `status --porcelain` — `.gitignore` has
+  # `node_modules/`, which being directory-only misses the symlink, so porcelain
+  # is dirty on every honest run.
   [ "$(git -C "$ESC" rev-parse HEAD 2>/dev/null)" = "$RESOLVED" ] \
+    && [ "$(readlink "$ESC/.env")" = "$CLONE/.env" ] \
+    && [ "$(readlink "$ESC/node_modules")" = "$CLONE/node_modules" ] \
     && [ -e "$ESC/.env" ] && [ -e "$ESC/node_modules" ] \
+    && git -C "$ESC" diff --quiet HEAD \
     && ESCAPEOK=1
   if [ "$ESCAPEOK" -eq 1 ] && cd "$ESC"; then
     echo "✓ escape worktree ready at $RESOLVED"
@@ -152,9 +160,18 @@ The checkout is inside the `if` on purpose: a mismatch has to leave you with no
 escape worktree at all, not with one you were told not to use.
 
 Re-pasting the block is safe, and an escape worktree left by an earlier ceremony
-is reused rather than refused — but only after its `HEAD` is checked against
-`$EXPECTED`, so reuse is never a way to inherit a stale tree. To clear it
-deliberately: `git -C "$CLONE" worktree remove --force ~/contracts-escape`.
+is reused rather than refused — but only once its commit, its two link targets
+and its tracked contents all check out, because reuse is the one path that can
+inherit someone else's tree.
+
+To clear it deliberately:
+`git -C "$CLONE" worktree remove --force ~/contracts-escape` — which needs
+`$CLONE` set, so re-paste the first line of this section if you are in a fresh
+shell. That command **fails** if the tree's `.git` file is damaged
+(`validation failed, cannot remove working tree`), and `prune` does not clear
+that state either; the recovery is `rm -rf ~/contracts-escape` and a re-paste,
+which the `prune` above is there to absorb. A plain file sitting at the escape
+path is the same story — `rm` it.
 
 A worktree rather than a checkout in place: the fallback runs alongside a
 normal clone, and nothing about the working repo has to be disturbed.
@@ -187,11 +204,13 @@ plus the Ledger packages and node builtins; none was dropped, and the installed
 `viem` and `tronweb` both still satisfy the baseline's ranges.
 
 The Ledger side deserves its own note. `@ledgerhq/hw-transport-node-hid` and
-`@ledgerhq/hw-app-eth` are loaded by **dynamic import**, so a resolution
-failure there surfaces at Ledger-tap time rather than at startup —
-mid-ceremony, in other words. `@ledgerhq/hw-transport` itself is imported only
-as a type and is declared in neither `package.json`; it resolves today as a
-hoisted transitive of `hw-transport-node-hid`.
+`@ledgerhq/hw-app-eth` are loaded by dynamic import, but not lazily enough to
+matter: both entry points reach them through `initializeSafeClient` before any
+signing prompt, so a resolution failure is a startup crash rather than a
+mid-ceremony one — see the note above the check below.
+`@ledgerhq/hw-transport` itself is imported only as a type and is declared in
+neither `package.json`; it resolves today as a hoisted transitive of
+`hw-transport-node-hid`.
 
 Nothing enforces any of this, and one `bun install` in the clone can end it. The
 slower, correct alternative is a real `bun install` in the escape worktree
@@ -355,13 +374,16 @@ network you are targeting, not the whole file:
 
 ```bash
 NET=arbitrum   # substitute your target network before pasting
+SIGNER=key     # or `ledger` — §5 refuses until this says which key signs
 
 DRIFT=0   # any check that does not positively pass sets this to 1
 # The baseline side of every comparison below is read cwd-relative, so pasted
 # anywhere else — the clone on `main` being the easy mistake — these compare
 # main with main and pass having proved nothing.
-[ "$(git rev-parse HEAD 2>/dev/null)" = "${EXPECTED:-}" ] \
-  || { echo "✗ not in the escape worktree at ${EXPECTED:-<unset>} — cd there first"; DRIFT=1; }
+[ -n "${EXPECTED:-}" ] \
+  || { echo "✗ EXPECTED is unset — re-paste §2 in this shell, then re-run §5"; DRIFT=1; }
+[ -n "${EXPECTED:-}" ] && [ "$(git rev-parse HEAD 2>/dev/null)" != "$EXPECTED" ] \
+  && { echo "✗ this tree is not the escape worktree — cd ~/contracts-escape first"; DRIFT=1; }
 MAIN_NET=$(git show "origin/main:config/networks.json" 2>/dev/null)
 
 # 1. The two fields in the network entry that decide correctness — NOT the whole
@@ -442,22 +464,32 @@ is actually standing on, rather than on having read the output. Every one of
 them defaults to the refusing value, so pasting this without having run §2, §3
 and §5 refuses instead of proposing.
 
-`SIGNER` is there because `LEDGEROK` cannot simply be required. A Ledger and a
-raw key are a free choice on **both** commands — `propose-to-safe.ts` reads
-`options.ledger` and otherwise falls back to `PRIVATE_KEY_PRODUCTION` — so the
-choice is orthogonal to whether you are proposing or confirming, and §2's resolve
-step is honestly skipped on one branch and mandatory on the other. Defaulting it
-to *pass* would make the two indistinguishable: an unset `LEDGEROK` would mean
-both "raw key, never needed it" and "Ledger, skipped the check", and the second
-is the one that fails at Ledger-tap time mid-ceremony. Stating the signer costs a
-word and is a thing you know before you start.
+`SIGNER` is there because `LEDGEROK` can be neither required nor ignored. Both
+commands take a Ledger or a raw key, so the choice is orthogonal to whether you
+are proposing or confirming — but **their defaults are opposite**, and that is
+the part worth knowing before you paste: at the baseline `propose-to-safe.ts:85`
+reads `options.ledger || false`, so a propose run with no flag uses
+`PRIVATE_KEY_PRODUCTION`, while `confirm-safe-tx` keeps Ledger as its default
+signer, so a confirm run with no flag taps a device. Defaulting `LEDGEROK` to
+*pass* would make an unset value mean both "raw key, never needed the check" and
+"Ledger, skipped the check". Naming the signer separates them, and it is a thing
+you know before you start.
+
+Two limits of this, stated rather than glossed. `SIGNER` is what you *assert*,
+not what the command carries, so it is interpolated into the command below —
+declaring `key` and then hand-editing `--ledger` in would defeat the check it
+exists for. And there is no gate on the **confirm** side at all: signers get
+Ledger by default there, so treat §2's Ledger check as mandatory before
+confirming, whatever `SIGNER` says here.
 
 ```bash
 READY=1
 [ "${ESCAPEOK:-0}"    -eq 1 ] || { echo "✗ §2 not clean: no verified escape worktree"; READY=0; }
 # ESCAPEOK says a verified tree was built, not that you are standing in it.
-[ "$(git rev-parse HEAD 2>/dev/null)" = "${EXPECTED:-}" ] \
-  || { echo "✗ cwd is not the escape worktree — cd there and re-run §5"; READY=0; }
+[ -n "${EXPECTED:-}" ] \
+  || { echo "✗ EXPECTED is unset — re-paste §2 in this shell"; READY=0; }
+[ -n "${EXPECTED:-}" ] && [ "$(git rev-parse HEAD 2>/dev/null)" != "$EXPECTED" ] \
+  && { echo "✗ cwd is not the escape worktree — cd there and re-run §5"; READY=0; }
 [ "${ENVCONFLICT:-1}" -eq 0 ] || { echo "✗ §3 not clean: an export beats .env"; READY=0; }
 [ "${DRIFT:-1}"       -eq 0 ] || { echo "✗ §5 not clean: config drift or a check proved nothing"; READY=0; }
 # SIGNER names the key you will actually pass. §2's Ledger check bears on one of
@@ -470,8 +502,10 @@ case "${SIGNER:-}" in
 esac
 
 [ "$READY" -eq 1 ] || echo "✗ refusing to propose — fix the above and re-run the checks"
+# --signer flags derived from $SIGNER, so the declared signer is the one passed.
+[ "${SIGNER:-}" = "ledger" ] && SIGNFLAGS="--ledger" || SIGNFLAGS=""
 [ "$READY" -eq 1 ] && bun propose-safe-tx --network "$NET" --to <target> \
-  --calldataFile <path> --timelock
+  --calldataFile <path> --timelock $SIGNFLAGS
 ```
 
 **`--network "$NET"`, not a placeholder you retype.** The checks above validated
