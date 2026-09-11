@@ -24,17 +24,26 @@ import type { IProviderObservation } from './rpc-quorum'
 const ENDPOINT_TIMEOUT_MS = 8_000
 
 /**
- * One retry per endpoint, overriding whatever profile the shared transport
- * config carries.
+ * One retry per endpoint: viem's default of 3 for most of the fleet, and
+ * TronGrid's 8 where the shared transport config carries its profile.
  *
- * The timeout above bounds one attempt, not the call, so a provider's own retry
- * profile multiplies it: TronGrid's is 8 retries on an exponential backoff,
- * which is minutes of wall clock inside the `Promise.all` a signer is waiting
- * on. A quorum read wants a snapshot of who answers now — an endpoint that
- * needs nine attempts is a non-answer, and the verdict already grades it as
- * one.
+ * The timeout above bounds one attempt, not the call, so a retry profile
+ * multiplies it — nine TronGrid attempts on an exponential backoff is minutes
+ * of wall clock inside the `Promise.all` a signer is waiting on. A quorum read
+ * wants a snapshot of who answers now, and an endpoint needing nine attempts is
+ * a non-answer the verdict already grades as one.
  */
 const ENDPOINT_RETRY_COUNT = 1
+
+/**
+ * 2 seconds between the two attempts, rather than viem's 150 ms default.
+ *
+ * The retry exists for a throttled endpoint, and 150 ms after a 429 is still
+ * inside the window that produced it — a retry that fast is decorative. Two
+ * attempts at this spacing cost at most ~2s on top of the timeout, which is the
+ * budget the cap above was protecting.
+ */
+const ENDPOINT_RETRY_DELAY_MS = 2_000
 
 /** One endpoint's answer, before it is graded. */
 export interface IEndpointRead {
@@ -122,6 +131,7 @@ export const createCodeReader =
       transport: http(url, {
         timeout: ENDPOINT_TIMEOUT_MS,
         retryCount: ENDPOINT_RETRY_COUNT,
+        retryDelay: ENDPOINT_RETRY_DELAY_MS,
         ...(fetchOptions ? { fetchOptions } : {}),
       }),
     })

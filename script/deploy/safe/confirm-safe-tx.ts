@@ -932,11 +932,39 @@ const processTxs = async (
         // that throw would discard a `--rpcUrl` that works, in exactly the case
         // an override exists for.
         const overrideEndpoints = rpcUrl ? [rpcUrl] : []
+
+        // Resolved before the chain transport, so the fallback message below
+        // can say what is actually left. Through the same transport config as
+        // the simulators further down, for the same reason: a `--rpcUrl`
+        // carrying credentials is queried unauthenticated when it is handed to
+        // `http()` bare, and the 401 that comes back is recorded as chain state
+        // that could not be read.
+        const overrideTransports = overrideEndpoints.flatMap((endpointUrl) => {
+          try {
+            const { url, fetchOptions, retryCount, retryDelay } =
+              getTransportConfigFromRpcUrl(endpointUrl)
+            return [
+              http(url, {
+                ...(fetchOptions ? { fetchOptions } : {}),
+                ...(retryCount !== undefined ? { retryCount } : {}),
+                ...(retryDelay !== undefined ? { retryDelay } : {}),
+              }),
+            ]
+          } catch (error) {
+            consola.warn(
+              `    Executability: the supplied --rpcUrl cannot be used on ${network} — ${redactUrls(
+                error instanceof Error ? error.message : String(error)
+              )}`
+            )
+            return []
+          }
+        })
+
         let chainTransport: Transport | undefined
         try {
           chainTransport = getFallbackTransportForChain(chain)
         } catch (error) {
-          if (overrideEndpoints.length === 0) throw error
+          if (overrideTransports.length === 0) throw error
           consola.warn(
             `    Executability: no endpoint from the chain config is usable on ${network}; simulating through the supplied override alone — ${redactUrls(
               error instanceof Error ? error.message : String(error)
@@ -945,30 +973,7 @@ const processTxs = async (
         }
 
         const transports = [
-          // Through the same transport config as the simulators below, for the
-          // same reason: a `--rpcUrl` carrying credentials is queried
-          // unauthenticated when it is handed to `http()` bare, and the 401 that
-          // comes back is recorded as chain state that could not be read.
-          ...overrideEndpoints.flatMap((endpointUrl) => {
-            try {
-              const { url, fetchOptions, retryCount, retryDelay } =
-                getTransportConfigFromRpcUrl(endpointUrl)
-              return [
-                http(url, {
-                  ...(fetchOptions ? { fetchOptions } : {}),
-                  ...(retryCount !== undefined ? { retryCount } : {}),
-                  ...(retryDelay !== undefined ? { retryDelay } : {}),
-                }),
-              ]
-            } catch (error) {
-              consola.warn(
-                `    Executability: the supplied --rpcUrl cannot be used on ${network} — ${redactUrls(
-                  error instanceof Error ? error.message : String(error)
-                )}`
-              )
-              return []
-            }
-          }),
+          ...overrideTransports,
           ...(chainTransport ? [chainTransport] : []),
         ]
         const [onlyTransport] = transports

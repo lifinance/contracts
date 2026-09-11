@@ -258,13 +258,15 @@ describe('where the executor evaluates the matrix', () => {
     // in, and the matrix renders each as an observed fact, so a failed read has
     // no value it can honestly return. The one leg that does have one is
     // asserted above by `buildCancelDecisionInput`.
-    // Both ends are checked before slicing. An unfound `indexOf` returns -1, and
-    // a -1 end widens the window to the rest of the file, which is the one
-    // failure direction that lets the negative assertion below go vacuous.
+    // The window is bounded by length, not only by both ends being found. A
+    // terminator that moves is matched by the *next* one instead, which widens
+    // the slice silently — and a wide enough window makes the negative
+    // assertion below vacuous while every `indexOf` still returns a real index.
     const start = EXECUTOR.indexOf('readOperationState: async ()')
     const end = EXECUTOR.indexOf('\n            }\n', start)
     expect(start).toBeGreaterThan(-1)
     expect(end).toBeGreaterThan(start)
+    expect(end - start).toBeLessThan(2_000)
 
     const leg = EXECUTOR.slice(start, end)
 

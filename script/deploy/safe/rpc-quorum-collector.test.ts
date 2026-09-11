@@ -181,7 +181,9 @@ describe('createCodeReader', () => {
   })
 
   // The timeout bounds one attempt, so an endpoint's own retry profile is what
-  // decides how long the fan-out can hold the signer.
+  // decides how long the fan-out can hold the signer. A real 429 response
+  // rather than a thrown error, so this drives viem's retry path rather than
+  // its transport-failure path — the two have different budgets.
   it('caps the retry budget rather than inheriting the endpoint profile', async () => {
     let attempts = 0
     globalThis.fetch = (async (
@@ -189,18 +191,23 @@ describe('createCodeReader', () => {
       _init?: RequestInit
     ): Promise<Response> => {
       attempts += 1
-      const throttled = new Error('HTTP request failed: 429')
-      throttled.name = 'HttpRequestError'
-      throw throttled
+      return new Response('rate limited', {
+        status: 429,
+        headers: { 'Content-Type': 'text/plain' },
+      })
     }) as typeof fetch
 
+    const started = Date.now()
     await expectRejects(
       createCodeReader(ADDRESS, 1)('https://throttled.example/rpc'),
       /429/
     )
 
-    // One attempt plus one retry. TronGrid's own profile would be nine.
+    // One attempt plus one retry. viem's default is 3, TronGrid's profile 8.
     expect(attempts).toBe(2)
+    // The retry is spaced to outlast the window that produced the 429, not
+    // viem's 150ms default — a retry that fast is decorative against a limiter.
+    expect(Date.now() - started).toBeGreaterThanOrEqual(1_500)
   })
 
   it('leaves a credential-free endpoint unauthenticated', async () => {

@@ -73,4 +73,25 @@ describe('target-state gate placement in confirm-safe-tx', () => {
       expect(source.indexOf(GATE)).toBeLessThan(at)
     }
   })
+
+  // Enumerated over every `http(` in the file rather than asserted against the
+  // spelling one bypass happened to use. viem lifts `user:pass@` out of a URL
+  // itself but its branch is `if (url.username)`, so a password-only endpoint
+  // handed to `http()` bare is queried unauthenticated and answers 401 — which
+  // this CLI records as chain state that could not be read. Two of these were
+  // added and fixed separately on one PR, so the next one is worth catching by
+  // shape.
+  it('builds no transport from a raw endpoint URL', () => {
+    const callSites = [...source.matchAll(/(?<![$\w])http\(([^,)]*)/gu)]
+
+    expect(callSites.length).toBeGreaterThan(0)
+    // `url` is `getTransportConfigFromRpcUrl`'s output; a bare `http()` takes
+    // the chain's own default and carries no endpoint of ours.
+    for (const [, argument] of callSites)
+      expect(argument?.trim() ?? '').toMatch(/^(url)?$/u)
+  })
+
+  it('passes every endpoint through the shared transport config first', () => {
+    expect(source.indexOf('getTransportConfigFromRpcUrl(')).toBeGreaterThan(-1)
+  })
 })
