@@ -67,7 +67,7 @@ function rpcCallWithRetry() {
       return 0
     fi
     if [ "$ATTEMPT" -lt "$RPC_MAX_ATTEMPTS" ]; then
-      echo "[retry] $LABEL attempt $ATTEMPT failed ($(< "$ERR_FILE")), sleeping ${RPC_RETRY_SLEEP_SECONDS}s..." >&2
+      echo "[retry] $LABEL attempt $ATTEMPT failed ($(redactRpcUrl "$(< "$ERR_FILE")")), sleeping ${RPC_RETRY_SLEEP_SECONDS}s..." >&2
       sleep "$RPC_RETRY_SLEEP_SECONDS"
     fi
     ATTEMPT=$((ATTEMPT + 1))
@@ -79,7 +79,9 @@ function rpcCallWithRetry() {
   local LAST_ERR
   LAST_ERR=$(< "$ERR_FILE")
   rm -f "$ERR_FILE"
-  printf "%s" "${LAST_ERR:-$OUT}"
+  # Redacted at the single return rather than at each caller: every one of them echoes this
+  # string, and `cast` puts the full --rpc-url in its error text.
+  printf "%s" "$(redactRpcUrl "${LAST_ERR:-$OUT}")"
   return 1
 }
 

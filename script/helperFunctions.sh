@@ -1203,7 +1203,7 @@ function saveDiamondPeriphery() {
   echoDebug "ENVIRONMENT=$ENVIRONMENT"
   echoDebug "USE_MUTABLE_DIAMOND=$USE_MUTABLE_DIAMOND"
   echoDebug "FILE_SUFFIX=$FILE_SUFFIX"
-  echoDebug "RPC_URL=$RPC_URL"
+  echoDebug "RPC_URL=$(redactRpcUrl "$RPC_URL")"
   echoDebug "DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
   echoDebug "DIAMOND_FILE=$DIAMOND_FILE"
 
@@ -2202,6 +2202,13 @@ function redactVerifyCmd() {
   done
 
   printf '%s\n' "$OUTPUT"
+}
+
+# Endpoint URLs carry the provider key in the path or query, so the value must never reach a log
+# line verbatim. Only a scheme-bearing URL is matched, mirroring the TypeScript redactUrls().
+# Callers that need the URL itself — getRPCUrl returns it on stdout — must not use this.
+function redactRpcUrl() {
+  printf '%s' "${1:-}" | sed -E 's#[a-zA-Z][a-zA-Z0-9+.-]*://[^[:space:]]+#[redacted-url]#g'
 }
 
 function verifyContract() {
@@ -5138,9 +5145,9 @@ function executeAndCapture() {
 
   # Debug: Show what we captured
   echoDebug "=== RAW_RETURN_DATA (stdout) ==="
-  echoDebug "$RAW_RETURN_DATA"
+  echoDebug "$(redactRpcUrl "$RAW_RETURN_DATA")"
   echoDebug "=== STDERR_CONTENT (stderr) ==="
-  echoDebug "$STDERR_CONTENT"
+  echoDebug "$(redactRpcUrl "$STDERR_CONTENT")"
 
   # Extract JSON if requested
   if [[ "$EXTRACT_JSON" == "true" ]]; then
@@ -5210,10 +5217,10 @@ function parseExecuteCommandResult() {
     if [[ "$RETURN_CODE" -ne 0 ]]; then
       error "$ERROR_MESSAGE (exit code: $RETURN_CODE)"
       if [[ -n "$STDERR_CONTENT" ]]; then
-        error "stderr: $STDERR_CONTENT"
+        error "stderr: $(redactRpcUrl "$STDERR_CONTENT")"
       fi
       if [[ -n "$RAW_RETURN_DATA" ]]; then
-        echoDebug "stdout: $RAW_RETURN_DATA"
+        echoDebug "stdout: $(redactRpcUrl "$RAW_RETURN_DATA")"
       fi
 
       case "$ON_ERROR_ACTION" in
@@ -5359,7 +5366,7 @@ function handleForgeScriptError() {
       warning "forge script returned exit code 0 but with unexpected/empty return data${NETWORK_MSG}${ATTEMPT_MSG}"
     fi
     if [[ -n "${STDERR_CONTENT:-}" ]]; then
-      error "stderr: ${STDERR_CONTENT}"
+      error "stderr: $(redactRpcUrl "${STDERR_CONTENT}")"
     fi
     if [[ -z "${RAW_RETURN_DATA:-}" || "${RAW_RETURN_DATA:-}" == "" ]]; then
       warning "No JSON output received. This usually indicates a connection/RPC error."
@@ -6131,7 +6138,7 @@ function estimatePauseCost() {
       return 2
     fi
     if [[ $ATTEMPT -ge $ESTIMATE_MAX_ATTEMPTS ]]; then
-      error "estimatePauseCost: cast estimate failed for $NETWORK after $ESTIMATE_MAX_ATTEMPTS attempts: ${CAST_ERR:-non-numeric gas estimate ($GAS_ESTIMATE)}" >&2
+      error "estimatePauseCost: cast estimate failed for $NETWORK after $ESTIMATE_MAX_ATTEMPTS attempts: $(redactRpcUrl "${CAST_ERR:-non-numeric gas estimate ($GAS_ESTIMATE)}")" >&2
       return 1
     fi
     sleep "$ESTIMATE_RETRY_SLEEP_SECONDS"
