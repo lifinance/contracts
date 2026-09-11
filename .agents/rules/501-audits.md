@@ -34,7 +34,8 @@ Each audit entry must contain:
 - `auditedBy`: Auditor name/firm (format: "Name (individual security researcher)" or "Firm Name")
 - `auditorGitHandle`: GitHub username
 - `auditReportPath`: Relative path to PDF (e.g., `"./audit/reports/2025.01.06_ContractName(v1.0.0).pdf"`)
-- `auditCommitHash`: Commit hash that was audited (or "n/a" with explanation)
+- `auditCommitHash`: Scope commit the auditor first reviewed (report “audited at”), or `"n/a"` with explanation
+- `finalCommitHash` (optional): Post-remediation commit the auditor signed off on. When present (40-hex SHA), the content gate **pins** here; otherwise it pins to `auditCommitHash` (legacy rows / no findings)
 
 ### Contract Mapping
 
@@ -64,6 +65,15 @@ Each audit entry must contain:
 4. Upload PDF to `audit/reports/` with correct naming
 5. Verify `auditReportPath` matches actual file location
 6. Validate JSON syntax (no trailing commas, proper escaping)
+
+### Scope vs pin commits ([CONV:AUDIT-PIN])
+
+- `auditCommitHash` = **A** — what was sent to the auditor / named in the report scope.
+- `finalCommitHash` = **D** — what we pin deploy/CI content equality to after remediations.
+- Fast path (CI / signer): hash contract+imports at the pin commit (`finalCommitHash` if set, else `auditCommitHash`). No PDF parsing, no “nothing after D” git-log check.
+- Slow path (once, at `/add-audit` or QA on the audit-log PR): confirm the report (or addendum) supports both hashes — quote evidence. Automated PDF / `Fixed in #` scrape is a follow-up, not a signer step.
+- If findings were fixed after an entry was already filed with only A, add a **new** entry (append-only); same PDF path may be reused.
+- `finalCommitHash` must be the single tree the auditor signed off on (usually the merge/squash containing all fixes), not “latest of B/C/D by clock”.
 
 ## Validation
 

@@ -119,6 +119,12 @@ Add comments only where the code doesn't speak for itself. Avoid restating what 
 
 - CLI: use `citty`; logging via `consola`; validate env via `getEnvVar()`; exit 0/1 appropriately.
 
+### Never log a full RPC URL ([CONV:REDACT-RPC-URL])
+
+`ETH_NODE_URI_*` embeds the provider key in the URL, so a log line naming the endpoint writes a live credential into every transcript of every run. Log the network name, or pass the URL through `redactUrls()` from `script/utils/redactUrls.ts`.
+
+`script/utils/rpc-url-log-scan.test.ts` enforces this for the identifiers and log calls it knows about. It does not close the class, so two cases stay yours: an endpoint held in a differently-named variable, and one viem embeds in an `error.message` — log `redactUrls(err.stack ?? String(err))` rather than the error itself (`redactErrorReason()` is for Slack: it collapses whitespace and truncates at 180 chars). In bash use `redactRpcUrl` from `helperFunctions.sh`, or `bgRedactUrl` inside `script/emergency/`, which must not depend on `helperFunctions.sh` loading. `script/redactRpcUrl.test.ts` pins the shared bash print paths, but there is no bash-wide scan: `getRPCUrl` returns the endpoint on stdout by design, so a naive one false-reds on the function whose job is to return it.
+
 ## Testing
 
 - New TypeScript helpers must be covered by a colocated `*.test.ts` file using Bun (`describe` / `it` / `expect`) with **100% coverage**. Cover edge cases and error paths.
