@@ -26,7 +26,6 @@ import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
 import {
   evaluateCalldataAddresses,
   renderCalldataAddresses,
-  type ICalldataAddressVerdict,
   type IDeploymentIndexEntry,
 } from './calldata-address-check'
 import {
@@ -813,10 +812,11 @@ const processTxs = async (
     const endpoints = chain.rpcUrls.default.http
     const primaryEndpoint = rpcUrl ?? endpoints[0]
 
-    // Tron is reached through its own executor, not through `eth_call`, so the
-    // EVM simulator does not cover it. That is a declared limit rather than a
-    // read that failed, which is why the ledger row below says so and asks for
-    // an acknowledgement instead of reporting a verified simulation.
+    // Two different reasons not to simulate, graded differently below. Tron is
+    // reached through its own executor rather than `eth_call`, so the EVM
+    // simulator does not cover it at all — a declared limit, recorded as an
+    // acknowledgement. A network it does cover but has no endpoint for is a
+    // read that should have happened and did not, which stays unverified.
     const evmSimulatable =
       !isTronNetworkKey(network) && Boolean(primaryEndpoint)
 
@@ -860,18 +860,15 @@ const processTxs = async (
     if (executability)
       renderExecutability(executability).forEach((line) => consola.info(line))
 
+    const quorumTarget = tx.safeTransaction.data.to as Address
     let rpcQuorum: IRpcQuorumVerdict | undefined
     if (evmSimulatable && endpoints.length > 0)
       try {
-        const target = tx.safeTransaction.data.to as Address
         rpcQuorum = evaluateRpcQuorum(
           await collectProviderObservations(
             endpoints,
-            createCodeReader(target, chain.id)
+            createCodeReader(quorumTarget, chain.id)
           )
-        )
-        renderRpcQuorum(rpcQuorum, codeReadLabel(target, network)).forEach(
-          (line) => consola.info(line)
         )
       } catch (error) {
         consola.warn(
@@ -881,12 +878,16 @@ const processTxs = async (
         )
       }
 
+    if (rpcQuorum)
+      renderRpcQuorum(rpcQuorum, codeReadLabel(quorumTarget, network)).forEach(
+        (line) => consola.info(line)
+      )
+
     // Report-only and never gated on: the record is written by the deploying
     // machine, so this catches the typo and the address nobody deployed, not a
     // proposer who controls that machine. It carries no ledger row because the
     // only anchor it could rest on reports rather than decides — see
     // `check-ledger.ts`'s reporting-only anchors.
-    let calldataAddresses: ICalldataAddressVerdict | undefined
     try {
       const { references, undecodable } = collectAddressReferences(
         tx.safeTransaction.data.data
@@ -894,7 +895,7 @@ const processTxs = async (
           : []
       )
       const records = await readDeploymentRecords()
-      calldataAddresses = evaluateCalldataAddresses(
+      const calldataAddresses = evaluateCalldataAddresses(
         {
           network,
           references,

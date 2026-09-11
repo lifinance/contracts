@@ -73,10 +73,6 @@ import {
   type ITimelockQueueDoc,
 } from './timelock-queue'
 
-/** The zero salt an operation scheduled without one was hashed with. */
-const ZERO_BYTES32 =
-  '0x0000000000000000000000000000000000000000000000000000000000000000' as Hex
-
 // TimelockController ABI for the functions we need
 const TIMELOCK_ABI = parseAbi([
   'function getMinDelay() view returns (uint256)',
@@ -1361,9 +1357,7 @@ async function getPendingOperations(
  */
 interface ICancelRecommendationContext {
   recomputeOperationId: () => Promise<string | undefined>
-  readOperationState: () => Promise<
-    'ready' | 'pending' | 'done' | 'unset'
-  >
+  readOperationState: () => Promise<'ready' | 'pending' | 'done' | 'unset'>
   readCancellerAuthority: () => Promise<'held' | 'absent' | 'unknown'>
 }
 
@@ -1937,7 +1931,10 @@ async function executeOperation(
                       operation.values,
                       operation.payloads,
                       operation.predecessor,
-                      operation.salt ?? ZERO_BYTES32,
+                      // The salt this run really broadcasts, not a
+                      // re-derivation of it: an id hashed under a different
+                      // salt would read as a divergence nothing caused.
+                      salt,
                     ],
                   })
                 } catch {
