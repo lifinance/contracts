@@ -218,9 +218,8 @@ describe('targetStateCheckResult', () => {
   })
 
   // An acknowledgement has a human path and an unverified check has none, so a
-  // row reduced from both must carry the one nobody can wave through. Before the
-  // deployment-record statuses became `needs-ack` this ordering was unreachable,
-  // and ranking them the other way would have let the common path mask an error.
+  // row reduced from both must carry the one nobody can wave through: ranking
+  // them the other way lets the common path mask an error.
   it('lets an unverifiable finding outrank one awaiting acknowledgement', () => {
     const result = targetStateCheckResult(
       verdictOf([finding('matches-main'), finding('contract-unidentified')]),

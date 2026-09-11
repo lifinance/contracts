@@ -91,7 +91,6 @@ import {
   type ITargetStateVerdict,
 } from './pinned-target-state'
 import { reconcileAllSubmittedSafeTxs } from './reconcile'
-import { renderCheckLedger } from './render-check-ledger'
 import {
   formatDecodedTxDataForDisplay,
   getTargetName,
@@ -1581,18 +1580,13 @@ const main = defineCommand({
       const executionsFailed =
         globalFailedExecutions.length > 0 || globalTimeoutExecutions.length > 0
 
-      // Before the change summary: the ledger reports what was verified across
-      // the run, while the roll-up below only counts what the operator acted on.
-      // It reports and does not gate — signing already happened per proposal,
-      // refused there by `targetState.cleared` and by the sign-time gates.
-      //
-      // Rendered whatever the ledger holds. A ledger with no results renders a
-      // BLOCKED verdict counting every expected network as unverified, which is
-      // the report a run that aborted before its first proposal most needs to
-      // print — for aborts after the ledger exists; an earlier one leaves it
-      // undefined and prints nothing.
-      if (checkLedger)
-        renderCheckLedger(checkLedger).forEach((line) => consola.info(line))
+      // The ledger is composed but deliberately not rendered. `summariseLedger`
+      // counts only a `pass` as verified, and every status covering a real
+      // Add/Replace cut is `needs-ack` whose acknowledgement lands in a
+      // different ledger — so a fully correct rollout closes `0/N verified`
+      // while a run that graded nothing closes green. EXSC-994 decides what the
+      // verdict should say, and whether it should be printed at all, before any
+      // of it reaches a signer.
 
       if (networkOutcomes.length > 0) {
         consola.info('=== Change Review Summary ===')

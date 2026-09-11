@@ -6,17 +6,14 @@
  * `confirm-check-registry.test.ts`. What cannot be driven at all is the script:
  * `confirm-safe-tx.ts` calls `runMain` at module scope, so importing it runs the
  * CLI, and reaching its loop needs MongoDB, a Safe and a Ledger. So the wiring
- * is asserted on the source, and the assertions are shaped so each bug this file
- * was written after fails them:
+ * is asserted on the source, and the assertions are shaped so each of these
+ * fails them:
  *
- * - deleting either call site, which left the whole suite green while three
- *   merged gates sat unreached;
+ * - deleting either call site;
  * - recording per proposal, which lets `rollUpChecks` read two proposals on one
  *   network as a retry and a later clean one erase an earlier refusal;
  * - leaving a network the run skipped in the denominator, where it rolls up as
- *   missing and blocks a run on which nothing was wrong;
- * - gating the render on the ledger holding results, which suppresses the report
- *   for exactly the runs that aborted before their first proposal.
+ *   missing and blocks a run on which nothing was wrong.
  *
  * Anchored on call sites throughout, never on a rendered string: a display
  * literal is reworded for reasons that have nothing to do with the wiring, and
@@ -93,12 +90,11 @@ const countOf = (pattern: RegExp): number =>
   [...SOURCE.matchAll(pattern)].length
 
 describe('the check ledger is wired into the confirmation run', () => {
-  it('creates the ledger, records into it and renders it', () => {
+  it('creates the ledger and records into it', () => {
     // The paired positive for every negative below: an assertion that no call
     // site is misplaced passes trivially against a file that has none.
     expect(SOURCE).toContain('createCheckLedger({')
     expect(SOURCE).toContain('recordCheck(checkLedger,')
-    expect(SOURCE).toContain('renderCheckLedger(checkLedger)')
   })
 
   it('fixes the denominator before the first network is processed', () => {
@@ -142,9 +138,9 @@ describe('one row per network, not one per proposal', () => {
   it('records nothing from inside the loop', () => {
     const { body } = proposalLoop()
 
-    // The bug: `recordCheck` per proposal. `rollUpChecks` treats two records for
-    // one (check, network) pair as a retry and lets a later `pass` supersede an
-    // earlier `error`, so the last proposal's verdict stood for the network.
+    // `rollUpChecks` treats two records for one (check, network) pair as a retry
+    // and lets a later `pass` supersede an earlier `error`, so a per-proposal
+    // record would let the last proposal's verdict stand for the network.
     expect([...body.matchAll(/recordCheck\(/g)]).toEqual([])
   })
 
@@ -254,32 +250,5 @@ describe('a network the run skipped does not block it', () => {
     expect(
       countOf(/recordNothingToGrade\(|recordCouldNotGrade\(/g)
     ).toBeGreaterThanOrEqual(5)
-  })
-})
-
-describe('the report is printed whatever the ledger holds', () => {
-  it('renders in the finally block, after the signing decisions', () => {
-    const finallyBlock = SOURCE.indexOf('} finally {')
-    const render = SOURCE.indexOf('renderCheckLedger(checkLedger)')
-
-    expect(finallyBlock).toBeGreaterThan(-1)
-    // An aborted run is where the report matters most, so it cannot sit on the
-    // happy path.
-    expect(render).toBeGreaterThan(finallyBlock)
-  })
-
-  it('is not suppressed for a run that recorded nothing', () => {
-    // A ledger with no results renders a BLOCKED verdict counting every
-    // expected network as an unverified result, which is the single most
-    // important report there is; the old guard hid it for exactly the runs that
-    // aborted before the first proposal.
-    //
-    // Asserted as a shape rather than as one spelling: pinning the literal
-    // `checkLedger.results.length` leaves `checkLedger?.results?.length` free,
-    // which restores the suppression and reads as a tidy-up in review.
-    expect(SOURCE).not.toMatch(/checkLedger\s*\??\.\s*results\s*\??\.\s*length/)
-
-    // The paired positive — the guard is the existence check and nothing else.
-    expect(SOURCE).toMatch(/if \(checkLedger\)\s*\n\s*renderCheckLedger\(/)
   })
 })
