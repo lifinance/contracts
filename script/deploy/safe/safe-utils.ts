@@ -3053,8 +3053,10 @@ function displayFacetVersionInfo(
     network,
     facetAddressCandidates
   )
+  // The deployment cache is refreshed from MongoDB, so a version string is
+  // remote row text reaching the signer's prompt, not a repo constant.
   const deployedDisplay = deployedVersion
-    ? `[34m${deployedVersion}[0m`
+    ? `[34m${printableField(deployedVersion)}[0m`
     : `[33munknown (address not found in deployment log)[0m`
 
   consola.info(`${pre}Facet Version (to be added): ${deployedDisplay}`)

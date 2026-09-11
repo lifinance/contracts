@@ -284,6 +284,26 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
     expect(line).toContain('not a valid address')
   })
 
+  it('builds no explorer link for a target one nibble short of an address', () => {
+    // The realistic corruption, and the one the name and link were vouching
+    // for: 39 hex digits reads as an address to anyone scanning the prompt, so
+    // a check loose enough to accept "hex-shaped" would pass it.
+    const line = lineStartingWith(
+      buildSafeTxDetailLines({
+        ...benign,
+        to: `0x${'1'.repeat(39)}`,
+        toTargetName: '(LiFiDiamond)',
+        explorerUrlFor: (address: string) =>
+          `https://etherscan.io/address/${address}`,
+      }),
+      'To:'
+    )
+
+    expect(line).not.toContain('etherscan')
+    expect(line).not.toContain('(LiFiDiamond)')
+    expect(line).toContain('not a valid address')
+  })
+
   it('keeps the name and link when only surrounding whitespace was lost', () => {
     // Trimming the ends cannot change which address this is, and the name is
     // the strongest confirmation the signer gets that the target is the
@@ -343,19 +363,24 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
 
   it('resolves nothing for a target that was never a string', () => {
     // `String(undefined)` is a word, not an address. Naming it would present a
-    // row with no target at all as a known contract.
-    for (const to of [undefined, 42, true])
-      expect(
-        lineStartingWith(
-          buildSafeTxDetailLines({
-            ...benign,
-            to,
-            toTargetName: '(LiFiDiamond)',
-            explorerUrlFor: () => 'https://etherscan.io/address/0x11',
-          }),
-          'To:'
-        )
-      ).not.toContain('(LiFiDiamond)')
+    // row with no target at all as a known contract. Withholding the name
+    // silently is not enough: the line still shows the signer a target, so it
+    // has to say why that target carries neither a name nor a link.
+    for (const to of [undefined, 42, true]) {
+      const line = lineStartingWith(
+        buildSafeTxDetailLines({
+          ...benign,
+          to,
+          toTargetName: '(LiFiDiamond)',
+          explorerUrlFor: () => 'https://etherscan.io/address/0x11',
+        }),
+        'To:'
+      )
+
+      expect(line).not.toContain('(LiFiDiamond)')
+      expect(line).not.toContain('etherscan')
+      expect(line).toContain('not a valid address')
+    }
   })
 
   it('shows no name or link beside an address that would not render', () => {

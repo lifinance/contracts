@@ -588,9 +588,9 @@ const processTxs = async (
         deviceHash = await safe.getTransactionHash(tx.safeTransaction)
       } catch (error) {
         consola.warn(
-          `Could not compute the Safe transaction hash on ${network} — the Ledger screens cannot be previewed: ${
+          `Could not compute the Safe transaction hash on ${network} — the Ledger screens cannot be previewed: ${printableField(
             error instanceof Error ? error.message : error
-          }`
+          )}`
         )
       }
     if (verificationDisplay === 'filmstrip')
@@ -743,9 +743,9 @@ const processTxs = async (
       // apart, so a thrown lookup must not read as the second.
       integrityRun = undefined
       consola.error(
-        `    Proposal integrity: the assertions could not be run — ${
-          error instanceof Error ? error.message : String(error)
-        }`
+        `    Proposal integrity: the assertions could not be run — ${printableField(
+          error instanceof Error ? error.message : error
+        )}`
       )
     }
     renderIntegrityAsserts(integrityRun).forEach((line) => consola.info(line))

@@ -265,11 +265,13 @@ function toLine(input: ISafeTxDetailInput): Printable {
       ? EMPTY
       : concatPrintable(trustedMarkup(' '), color(CYAN, url))
 
-  // Only when nothing was repaired: a value that lost a character to the
-  // sanitiser is described by the notice for that, and "withheld" below says
-  // the rest. Here the stored value *is* what is shown — it simply was never
-  // an address — so that wording would be the false half of the explanation.
-  const neverAnAddress = identityPreserved && text !== '' && !addressShaped
+  // Keyed on the notice rather than on `identityPreserved`, which is false both
+  // for a value the sanitiser repaired and for one that was never a string —
+  // and the second of those is the case this says out loud. An empty notice is
+  // what the two have in common when nothing was repaired: the stored value
+  // *is* what is shown, it simply was never an address, so "the stored value is
+  // not what is shown" below would be the false half of the explanation.
+  const neverAnAddress = notice === '' && text !== '' && !addressShaped
   const notAnAddress = neverAnAddress
     ? color(
         YELLOW,
