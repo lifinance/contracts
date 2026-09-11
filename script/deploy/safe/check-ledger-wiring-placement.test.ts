@@ -84,7 +84,10 @@ describe('one row per network, not one per proposal', () => {
   it('grades every proposal inside the loop', () => {
     const { body } = proposalLoop()
 
-    expect(body).toContain('targetStateCheckResult(targetState, network)')
+    // Every gate's verdict for this proposal, produced in one ordered step and
+    // pushed rather than recorded. The order itself is pinned in
+    // `confirm-check-registry.test.ts` over the rows, not over this source.
+    expect(body).toContain('proposalCheckResults({')
     expect(body).toContain('proposalChecks.push(')
   })
 
