@@ -464,7 +464,7 @@ describe('formatDecodedTxDataForDisplay renders no proposer-controlled text raw'
     expectInert(lines)
     const nameLine = lines.find((line) => line.includes('Periphery Name:'))
     expect(nameLine).toBe(
-      'Periphery Name: \u001b[33mGasZipPeriphery[2J[H To: 0x0000000000000000000000000000000000000001\u001b[0m\u001b[33m ⚠ sanitised for display — stored 71, printable 67\u001b[0m'
+      'Periphery Name: \u001b[32mGasZipPeriphery[2J[H To: 0x0000000000000000000000000000000000000001\u001b[0m\u001b[33m ⚠ sanitised for display — stored 71, printable 67\u001b[0m'
     )
   })
 
@@ -549,10 +549,51 @@ describe('formatDecodedTxDataForDisplay renders no proposer-controlled text raw'
     )
 
     expect(lines).toContain(
-      'Periphery Name: \u001b[33mGasZipPeriphery\u001b[0m'
+      'Periphery Name: \u001b[32mGasZipPeriphery\u001b[0m'
     )
     // No notice anywhere: a benign row must render exactly as it did before.
     expect(lines.some((line) => line.includes('⚠'))).toBe(false)
+  })
+
+  it('keeps the argument colour across a notice on the decoded-args line', async () => {
+    // A clipped `bytes` argument carries its notice mid-value, and the notice
+    // ends with its own reset — so a plain colour wrapper leaves everything
+    // after it uncoloured, which reads as a glitch rather than as a warning.
+    const SIG = 'function store(bytes)'
+    const selector = toFunctionSelector(SIG)
+    globalThis.fetch = (() =>
+      Promise.resolve({
+        ok: true,
+        json: () =>
+          Promise.resolve({
+            ok: true,
+            result: { function: { [selector]: [{ name: 'store(bytes)' }] } },
+          }),
+      })) as unknown as typeof fetch
+
+    const lines = await render(
+      encodeFunctionData({
+        abi: parseAbi([SIG]),
+        args: [`0x${'ab'.repeat(200)}`],
+      })
+    )
+
+    const argLine = lines.find((line) => line.includes('⚠'))
+    // Thrown rather than asserted, so the checks below narrow to a string and
+    // a missing notice fails here instead of vacuously passing them.
+    if (argLine === undefined)
+      throw new Error('no notice reached the decoded-args line')
+    // The notice is yellow and the value is not, so the two are distinguishable.
+    expect(argLine).toContain('\u001b[34m')
+    expect(argLine).not.toContain('\u001b[33m0x')
+    // Every reset is followed by the colour re-opening, the notice opening, or
+    // the end of the line — never by unpainted text.
+    for (const part of argLine.split('\u001b[0m').slice(1))
+      expect(
+        part === '' ||
+          part.startsWith('\u001b[34m') ||
+          part.startsWith('\u001b[33m')
+      ).toBe(true)
   })
 
   it('bounds and sanitises the raw preview when nothing decodes', async () => {

@@ -517,6 +517,7 @@ const processTxs = async (
     )
 
     const detailLines = buildSafeTxDetailLines({
+      network,
       nonce: tx.safeTx.data.nonce,
       nonceColor,
       nonceWarning,

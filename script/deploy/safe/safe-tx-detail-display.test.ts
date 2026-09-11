@@ -41,6 +41,7 @@ const expectNoTerminalControl = (lines: string[]): void => {
 
 /** A row with nothing hostile in it. Every field is the shape Mongo stores. */
 const benign: ISafeTxDetailInput = {
+  network: 'mainnet',
   nonce: '31',
   nonceColor: '32',
   nonceWarning: trustedMarkup(''),
@@ -302,6 +303,48 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
     expect(line).not.toContain('etherscan')
     expect(line).not.toContain('(LiFiDiamond)')
     expect(line).toContain('not a valid address')
+  })
+
+  it('keeps the name and link for a base58 target on a Tron network', () => {
+    // Tron rows store base58, and `initializeSafeTransaction` accepts it —
+    // `normalizeAddressForNetwork` resolves `T…` to the same 20 bytes a hex
+    // address would. A hex-only check calls that row "not a valid address" one
+    // line above the sign prompt, which is the notice that trains a signer to
+    // stop reading them.
+    const line = lineStartingWith(
+      buildSafeTxDetailLines({
+        ...benign,
+        network: 'tron',
+        to: 'TXYZopYRdj2D9XRtbG411XZZ3kM5VkAeBf',
+        toTargetName: '(LiFiDiamond)',
+        explorerUrlFor: (address: string) => `https://tronscan.org/${address}`,
+      }),
+      'To:'
+    )
+
+    expect(line).not.toContain('not a valid address')
+    expect(line).toContain('(LiFiDiamond)')
+    expect(line).toContain('tronscan')
+  })
+
+  it('still refuses a non-address target on a Tron network', () => {
+    // The relaxation above is network-shaped, not a blanket one: base58 is an
+    // address on Tron and nothing else is, so the refusing branch has to stay
+    // reachable on the network that widened it.
+    const line = lineStartingWith(
+      buildSafeTxDetailLines({
+        ...benign,
+        network: 'tron',
+        to: 'Tnot-an-address',
+        toTargetName: '(LiFiDiamond)',
+        explorerUrlFor: (address: string) => `https://tronscan.org/${address}`,
+      }),
+      'To:'
+    )
+
+    expect(line).toContain('not a valid address')
+    expect(line).not.toContain('(LiFiDiamond)')
+    expect(line).not.toContain('tronscan')
   })
 
   it('keeps the name and link when only surrounding whitespace was lost', () => {

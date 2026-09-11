@@ -35,6 +35,7 @@ import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
 
 import {
   asPrintable,
+  colorAroundNotices,
   fieldNotice,
   MAX_ARG_JSON_CHARS,
   MAX_FIELD_CHARS,
@@ -473,8 +474,19 @@ function getDiamondAbiItemForSelector(selector: string): Abi[number] | null {
  *
  * Bounded unconditionally, and deliberately not by the value's shape: hex here
  * is no more likely to be a payload than a `string` argument the proposer
- * chose. The bytes under the signature are disclosed by the unclipped `Data:`
- * field rather than by this line, which is what makes clipping safe.
+ * chose.
+ *
+ * On the signing path that costs nothing, because the bytes under the
+ * signature are disclosed by the unclipped `Data:` field in
+ * `confirm-safe-tx.ts` rather than by this line. That is not true of
+ * `execute-pending-timelock-tx.ts`, which reaches here through
+ * `formatTimelockScheduleBatch` and prints no `Data:` field before the Execute
+ * prompt — rule 201 forbids it — so a `bytes` argument longer than
+ * {@link MAX_FIELD_CHARS} is clipped there with nowhere else on screen to read
+ * it. The notice fires and clipping is the safe direction, but the operator
+ * decides on a partial value: a known gap, alongside the `diamondCut` and
+ * `scheduleBatch` element-count gaps, not a property this bound is safe
+ * because of.
  * @param value - The decoded scalar
  * @param network - When set, an address is rendered in the network's format
  * @returns The text to print and the notice describing any repair
@@ -676,7 +688,7 @@ export async function formatTimelockScheduleBatch(
       await formatDecodedTxDataForDisplay(payloadStr, nestedContext)
     } else {
       const pretty = tryFormatDiamondPayload(payloadStr, network)
-      if (pretty) consola.info(`     call=\u001b[34m${pretty}\u001b[0m`)
+      if (pretty) consola.info(`     call=${colorAroundNotices('34', pretty)}`)
       else {
         consola.info(
           `     payload=\u001b[90m${printableField(
@@ -995,8 +1007,13 @@ export async function formatDecodedTxDataForDisplay(
         MAX_FIELD_CHARS
       )
       const peripheryAddress = String(decoded.args[1] ?? '')
+      // Never yellow: the notice appended after this value is, and a signer
+      // cannot tell a warning from the value it warns about in one colour.
       log(
-        `Periphery Name: \u001b[33m${peripheryName}\u001b[0m${peripheryNotice}`
+        `Periphery Name: ${colorAroundNotices(
+          '32',
+          peripheryName
+        )}${peripheryNotice}`
       )
       // Keyed on the stored name, never the printable one. Sanitising can turn
       // a name the record does not hold into one it does — a zero-width space
@@ -1051,8 +1068,13 @@ export async function formatDecodedTxDataForDisplay(
               ? (input as { name: string }).name
               : undefined
           const label = paramName ? paramName : `[${index}]`
+          // Blue, as the sibling value lines are — and never yellow, which
+          // the notices this value can carry mid-string already use.
           log(
-            `  ${label}: \u001b[33m${formatDecodedArg(arg, network)}\u001b[0m`
+            `  ${label}: ${colorAroundNotices(
+              '34',
+              formatDecodedArg(arg, network)
+            )}`
           )
         })
       } else {
@@ -1064,7 +1086,7 @@ export async function formatDecodedTxDataForDisplay(
     if (functionName) {
       const pretty = tryFormatDiamondPayload(data, network)
       if (pretty) {
-        log(`Call: \u001b[34m${pretty}\u001b[0m`)
+        log(`Call: ${colorAroundNotices('34', pretty)}`)
         return
       }
       log(`Function: \u001b[34m${printableField(functionName)}\u001b[0m`)

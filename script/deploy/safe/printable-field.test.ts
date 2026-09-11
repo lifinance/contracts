@@ -13,7 +13,9 @@ import { describe, expect, it } from 'bun:test'
 import {
   asPrintable,
   color,
+  colorAroundNotices,
   concatPrintable,
+  fieldNotice,
   MAX_FIELD_CHARS,
   MAX_PARKED_REFS,
   printableField,
@@ -155,5 +157,35 @@ describe('the printable brand', () => {
 describe('MAX_PARKED_REFS', () => {
   it('is 20 — pinned by value, since it is the bound being claimed', () => {
     expect(MAX_PARKED_REFS).toBe(20)
+  })
+})
+
+describe('colorAroundNotices', () => {
+  it('re-opens the colour a notice closed, so the rest is not uncoloured', () => {
+    // The failure it exists to prevent: a plain wrapper leaves everything
+    // after the first notice colourless, which reads as a rendering glitch
+    // rather than as the warning it follows.
+    const value = `cut=A${fieldNotice('clipped for display')} then=B`
+    const line = colorAroundNotices('34', value)
+
+    expect(line).toBe(
+      `${ESC}[34mcut=A${ESC}[33m \u26a0 clipped for display${ESC}[0m${ESC}[34m then=B${ESC}[0m`
+    )
+    // Every reset in the line is followed by either the colour re-opening or
+    // the end of the line — nothing is left unpainted mid-value.
+    for (const part of line.split(`${ESC}[0m`).slice(1))
+      expect(part === '' || part.startsWith(`${ESC}[34m`)).toBe(true)
+  })
+
+  it('leaves a value carrying no notice exactly as a plain wrapper would', () => {
+    expect(colorAroundNotices('32', 'plain')).toBe(`${ESC}[32mplain${ESC}[0m`)
+  })
+
+  it('cannot be asked for the notice colour', () => {
+    // Structural, not asserted at runtime: yellow is the notice's own colour,
+    // so painting a value in it would make the two indistinguishable. The line
+    // below must not compile.
+    // @ts-expect-error -- '33' is outside ValueColor
+    expect(() => colorAroundNotices('33', 'x')).toBeDefined()
   })
 })

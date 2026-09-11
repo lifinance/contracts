@@ -31,7 +31,7 @@
  * so a field added later as a plain `string` does not compile.
  */
 
-import { isAddress } from 'viem'
+import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
 
 import {
   asPrintable,
@@ -87,6 +87,13 @@ export interface IParkedTaskRef {
  * rather than beside one.
  */
 export interface ISafeTxDetailInput {
+  /**
+   * Which network this proposal is for. Not a stored field — it comes from the
+   * operator's own invocation — and the only thing it decides here is what
+   * shape counts as an address, so that Tron's base58 is not reported as
+   * invalid on the one network that stores it.
+   */
+  readonly network: string
   readonly nonce: unknown
   /**
    * SGR parameter for the nonce. A closed set rather than a string: this is
@@ -221,6 +228,22 @@ function formattedAddressField(
 }
 
 /**
+ * Whether this network would resolve the text to an address at all.
+ *
+ * The same call `initializeSafeTransaction` already made on this field, so a
+ * row that reaches the prompt and a row this reports on are the same set: it
+ * accepts base58 on Tron and checksummed hex everywhere, and refuses the rest.
+ */
+const isAddressForNetwork = (network: string, text: string): boolean => {
+  try {
+    normalizeAddressForNetwork(network, text)
+    return true
+  } catch {
+    return false
+  }
+}
+
+/**
  * The target, with its name from the deployment records and its explorer link.
  *
  * Neither is resolved unless the printable text still identifies the address
@@ -240,12 +263,18 @@ function formattedAddressField(
  * it is given. Composing a link out of that produces a real-looking URL for a
  * value no chain holds, so address-ness is checked here rather than inferred
  * from the text having come through intact.
+ *
+ * What counts as an address is asked of the network rather than assumed to be
+ * hex: a Tron row stores base58 and is signed over the hex it resolves to, so
+ * a hex-only test would call a valid, signable row invalid — and this is the
+ * one notice on the block that must never cry wolf.
+ * `formatTimelockScheduleBatch` gates its own `target=` on the same call, so
+ * both address checks answer to one rule.
  */
 function toLine(input: ISafeTxDetailInput): Printable {
   const { text, identityPreserved, notice } = asPrintable(input.to)
   const { shown, failed } = renderAddress(text, input.formatAddress)
-  // Non-strict: a legitimately lower-case address is not a corrupt one.
-  const addressShaped = isAddress(text, { strict: false })
+  const addressShaped = isAddressForNetwork(input.network, text)
   const resolvable =
     identityPreserved && !failed && shown !== '' && addressShaped
 

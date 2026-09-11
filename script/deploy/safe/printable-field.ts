@@ -99,6 +99,34 @@ export const concatPrintable = (...parts: Printable[]): Printable =>
 export const fieldNotice = (text: string): Printable =>
   `${YELLOW} ⚠ ${text}${RESET}` as Printable
 
+/**
+ * SGR parameter a value carrying notices may be shown in.
+ *
+ * Yellow is absent on purpose: it is the notice's own colour, and a notice
+ * inside a yellow value is not distinguishable from the value it warns about.
+ * A closed set rather than a string so that stays a compile error instead of a
+ * judgement each call site makes again — and so this cannot become a route for
+ * a stored value to reach the terminal inside an escape sequence.
+ */
+export type ValueColor = '31' | '32' | '34' | '36'
+
+/**
+ * Colours a value that may already carry notices of its own.
+ *
+ * A notice ends with its own reset, so a caller that simply wrapped the value
+ * in a colour would have that reset close the wrapper mid-line: everything
+ * after the first notice renders uncoloured, which reads as a rendering glitch
+ * rather than as a warning. Re-opening the colour after each reset keeps the
+ * value one colour and leaves each notice its own.
+ * @param code - SGR parameter the value is shown in
+ * @param value - Text that may contain notices
+ * @returns The coloured value, notices intact
+ */
+export const colorAroundNotices = (code: ValueColor, value: string): string => {
+  const open = `\u001b[${code}m`
+  return `${open}${value.split(RESET).join(`${RESET}${open}`)}${RESET}`
+}
+
 /** A stored value reduced to something safe to print. */
 export interface IRenderedField {
   readonly text: Printable
