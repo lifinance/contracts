@@ -837,9 +837,11 @@ const processTxs = async (
               nonce: {
                 proposalNonce: Number(tx.safeTransaction.data.nonce),
                 safeNonce: Number(onChainNonce),
-                pendingNonces: initialTxs.map((pending) =>
-                  Number(pending.safeTx.data.nonce)
-                ),
+                // The proposal itself is in this list, and a nonce it shares
+                // with itself is not a collision with another proposal.
+                pendingNonces: initialTxs
+                  .filter((pending) => pending.safeTxHash !== tx.safeTxHash)
+                  .map((pending) => Number(pending.safeTx.data.nonce)),
               },
             },
             createExecutabilityChainReader(client)
@@ -920,11 +922,14 @@ const processTxs = async (
         integrity: integrityRun,
         targetState,
         executability,
-        ...(evmSimulatable
-          ? {}
-          : {
+        // Only a chain the simulator was never written for is out of scope. An
+        // EVM network it does cover but could not reach is a read that should
+        // have happened and did not, so it is left to record as unverified.
+        ...(isTronNetworkKey(network)
+          ? {
               executabilityOutOfScope: `${network} is executed through its own chain executor, which the EVM simulator does not cover`,
-            }),
+            }
+          : {}),
         rpcQuorum,
       })
 
