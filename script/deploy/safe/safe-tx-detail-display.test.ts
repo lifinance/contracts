@@ -308,9 +308,9 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
   it('keeps the name and link for a base58 target on a Tron network', () => {
     // Tron rows store base58, and `initializeSafeTransaction` accepts it —
     // `normalizeAddressForNetwork` resolves `T…` to the same 20 bytes a hex
-    // address would. A hex-only check calls that row "not a valid address" one
-    // line above the sign prompt, which is the notice that trains a signer to
-    // stop reading them.
+    // address would. A hex-only check would call this signable row "not a
+    // valid address" one line above the sign prompt, which is the notice that
+    // must never cry wolf.
     const line = lineStartingWith(
       buildSafeTxDetailLines({
         ...benign,
@@ -328,9 +328,9 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
   })
 
   it('still refuses a non-address target on a Tron network', () => {
-    // The relaxation above is network-shaped, not a blanket one: base58 is an
-    // address on Tron and nothing else is, so the refusing branch has to stay
-    // reachable on the network that widened it.
+    // A `T…` prefix is not an address by itself, so the refusing branch has to
+    // stay reachable on Tron too — the network that accepts base58 is the one
+    // where the notice would otherwise be absent for every shape.
     const line = lineStartingWith(
       buildSafeTxDetailLines({
         ...benign,

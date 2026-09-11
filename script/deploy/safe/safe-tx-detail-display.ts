@@ -88,10 +88,10 @@ export interface IParkedTaskRef {
  */
 export interface ISafeTxDetailInput {
   /**
-   * Which network this proposal is for. Not a stored field — it comes from the
-   * operator's own invocation — and the only thing it decides here is what
-   * shape counts as an address, so that Tron's base58 is not reported as
-   * invalid on the one network that stores it.
+   * Which network this proposal is for. Never free text: every route into this
+   * script resolves it to an active `networks.json` key before a row is shown.
+   * The only thing it decides here is what shape counts as an address, so that
+   * Tron's base58 is not reported as invalid on the one network that stores it.
    */
   readonly network: string
   readonly nonce: unknown
@@ -232,7 +232,9 @@ function formattedAddressField(
  *
  * The same call `initializeSafeTransaction` already made on this field, so a
  * row that reaches the prompt and a row this reports on are the same set: it
- * accepts base58 on Tron and checksummed hex everywhere, and refuses the rest.
+ * accepts base58 on Tron and address-shaped hex everywhere, and refuses the
+ * rest. Shape only — mixed-case hex has its checksum recomputed rather than
+ * verified, so this is not a corruption check.
  */
 const isAddressForNetwork = (network: string, text: string): boolean => {
   try {
