@@ -110,6 +110,38 @@ const mintProfile = (profile: string): IMintProfile => {
   }
 }
 
+/** How many differing lines to print before a reader has seen enough. */
+const DRIFT_LINES = 20
+
+/**
+ * Prints where the committed manifest and this build part company.
+ *
+ * Without this the failure says only that two files differ, which on a
+ * cross-machine mismatch leaves no way to tell a stale commit from a build that
+ * is not reproducible — and those call for opposite responses.
+ * @param committed - the manifest as committed
+ * @param built - the manifest this checkout produces
+ */
+const reportDrift = (committed: string, built: string): void => {
+  const a = committed.split('\n')
+  const b = built.split('\n')
+  let shown = 0
+  for (
+    let i = 0;
+    i < Math.max(a.length, b.length) && shown < DRIFT_LINES;
+    i++
+  ) {
+    if (a[i] === b[i]) continue
+    console.error(
+      `  line ${i + 1}\n    committed: ${a[i] ?? '<eof>'}\n    built:     ${
+        b[i] ?? '<eof>'
+      }`
+    )
+    shown++
+  }
+  console.error(`\n  committed lines: ${a.length}, built lines: ${b.length}`)
+}
+
 const main = (): void => {
   const builds = parseBuilds(process.argv)
   const check = process.argv.includes('--check')
@@ -216,6 +248,7 @@ const main = (): void => {
         'CI attests the committed bytes, so a stale manifest is one the attestation no longer covers.\n' +
         'Regenerate and commit:\n\n  bun attestations:mint\n'
     )
+    reportDrift(committed ?? '', text)
     process.exit(1)
   }
 
