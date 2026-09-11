@@ -114,18 +114,57 @@ describe('manifestEntryFrom', () => {
   })
 
   it('carries the immutable offsets a reader needs to mask deployed code', () => {
-    const refs = { owner: [{ start: 8, length: 32 }] }
     const built = manifestEntryFrom(
       IDENTITY,
       keyFor(),
       DEFAULT_PROFILE,
-      { runtimeHex: CODE_A, immutableReferences: refs },
+      {
+        runtimeHex: CODE_A,
+        immutableReferences: { owner: [{ start: 8, length: 32 }] },
+      },
       HASHED_SETTINGS
     )
     if (!built.ok) throw new Error(built.reason)
     // Without these a lookup can verify the manifest and still be unable to use
     // it: nothing else says which deployed bytes to exclude before comparing.
-    expect(built.entry.immutableReferences).toEqual(refs)
+    expect(built.entry.immutableOffsets).toEqual([{ start: 8, length: 32 }])
+  })
+
+  it('records offsets in a form two compilation scopes agree on', () => {
+    // An AST id counts source units in load order, so building the same
+    // contract alongside a different set renumbers it. Keyed by that id, two
+    // honest machines mint two manifests and the attested digest stops
+    // surviving a rebuild — observed as CI and a laptop disagreeing on
+    // ReceiverChainflip alone, 1927/1930 against 103206/103209, over identical
+    // offsets.
+    const laptop = {
+      '1927': [{ start: 20, length: 4 }],
+      '1930': [{ start: 4, length: 4 }],
+    }
+    const runner = {
+      '103206': [{ start: 20, length: 4 }],
+      '103209': [{ start: 4, length: 4 }],
+    }
+    const entryOf = (
+      refs: Record<string, { start: number; length: number }[]>
+    ) =>
+      manifestEntryFrom(
+        IDENTITY,
+        keyFor(),
+        DEFAULT_PROFILE,
+        { runtimeHex: CODE_A, immutableReferences: refs },
+        HASHED_SETTINGS
+      )
+
+    const a = entryOf(laptop)
+    const b = entryOf(runner)
+    if (!a.ok || !b.ok) throw new Error('fixture did not build')
+    const expected = [
+      { start: 4, length: 4 },
+      { start: 20, length: 4 },
+    ]
+    expect(a.entry.immutableOffsets).toEqual(expected)
+    expect(b.entry.immutableOffsets).toEqual(expected)
   })
 
   it('refuses bytecode it cannot normalise instead of minting a hash of nothing', () => {

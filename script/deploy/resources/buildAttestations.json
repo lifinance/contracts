@@ -61,30 +61,28 @@
       "maskedHash": "0x81889c43c3d5e029f78a45a06402d5a1a599d0e58093c4c03fe2a867751d81d5",
       "lineage": "MayanFacet@2.0.0 built in CI (default: solc 0.8.29, cancun)",
       "rawByteLength": 12235,
-      "immutableReferences": {
-        "80566": [
-          {
-            "start": 112,
-            "length": 32
-          },
-          {
-            "start": 4201,
-            "length": 32
-          },
-          {
-            "start": 4244,
-            "length": 32
-          },
-          {
-            "start": 4500,
-            "length": 32
-          },
-          {
-            "start": 4759,
-            "length": 32
-          }
-        ]
-      }
+      "immutableOffsets": [
+        {
+          "start": 112,
+          "length": 32
+        },
+        {
+          "start": 4201,
+          "length": 32
+        },
+        {
+          "start": 4244,
+          "length": 32
+        },
+        {
+          "start": 4500,
+          "length": 32
+        },
+        {
+          "start": 4759,
+          "length": 32
+        }
+      ]
     },
     {
       "key": {
@@ -114,26 +112,24 @@
       "maskedHash": "0x3fb1622a218ed0d904fecc9acf418994aeea4d21420d312f25a32e48e66456d1",
       "lineage": "SquidFacet@1.0.0 built in CI (default: solc 0.8.29, cancun)",
       "rawByteLength": 10016,
-      "immutableReferences": {
-        "85148": [
-          {
-            "start": 1353,
-            "length": 32
-          },
-          {
-            "start": 2420,
-            "length": 32
-          },
-          {
-            "start": 2532,
-            "length": 32
-          },
-          {
-            "start": 2783,
-            "length": 32
-          }
-        ]
-      }
+      "immutableOffsets": [
+        {
+          "start": 1353,
+          "length": 32
+        },
+        {
+          "start": 2420,
+          "length": 32
+        },
+        {
+          "start": 2532,
+          "length": 32
+        },
+        {
+          "start": 2783,
+          "length": 32
+        }
+      ]
     },
     {
       "key": {
@@ -163,28 +159,24 @@
       "maskedHash": "0xa527f50cce4ba77e2e071d39195adc4ef45aeaee186611ef08c894bc15b22ae1",
       "lineage": "AcrossFacet@2.0.0 built in CI (default: solc 0.8.29, cancun)",
       "rawByteLength": 7497,
-      "immutableReferences": {
-        "68060": [
-          {
-            "start": 1434,
-            "length": 32
-          },
-          {
-            "start": 1655,
-            "length": 32
-          },
-          {
-            "start": 1698,
-            "length": 32
-          }
-        ],
-        "68063": [
-          {
-            "start": 1477,
-            "length": 32
-          }
-        ]
-      }
+      "immutableOffsets": [
+        {
+          "start": 1434,
+          "length": 32
+        },
+        {
+          "start": 1477,
+          "length": 32
+        },
+        {
+          "start": 1655,
+          "length": 32
+        },
+        {
+          "start": 1698,
+          "length": 32
+        }
+      ]
     },
     {
       "key": {
@@ -214,14 +206,12 @@
       "maskedHash": "0xc30c18276dd68c1e3bc9c050153b88720a3d8526b7f853671f2baf7894641769",
       "lineage": "GardenFacet@1.0.0 built in CI (default: solc 0.8.29, cancun)",
       "rawByteLength": 7852,
-      "immutableReferences": {
-        "77273": [
-          {
-            "start": 1726,
-            "length": 32
-          }
-        ]
-      }
+      "immutableOffsets": [
+        {
+          "start": 1726,
+          "length": 32
+        }
+      ]
     },
     {
       "key": {
@@ -251,18 +241,16 @@
       "maskedHash": "0x688888cb982d6685835a4aa59a654cc9ba9bbe013df9079d3ca90a9ccbe154b9",
       "lineage": "GasZipFacet@2.0.5 built in CI (default: solc 0.8.29, cancun)",
       "rawByteLength": 7268,
-      "immutableReferences": {
-        "77620": [
-          {
-            "start": 83,
-            "length": 32
-          },
-          {
-            "start": 1931,
-            "length": 32
-          }
-        ]
-      }
+      "immutableOffsets": [
+        {
+          "start": 83,
+          "length": 32
+        },
+        {
+          "start": 1931,
+          "length": 32
+        }
+      ]
     },
     {
       "key": {
@@ -292,22 +280,20 @@
       "maskedHash": "0x5df98771fc88d7db0374db2989fe87abc58e4cb4e731098ba669df945e2f5cd8",
       "lineage": "GlacisFacet@1.2.0 built in CI (default: solc 0.8.29, cancun)",
       "rawByteLength": 7983,
-      "immutableReferences": {
-        "78984": [
-          {
-            "start": 112,
-            "length": 32
-          },
-          {
-            "start": 2064,
-            "length": 32
-          },
-          {
-            "start": 2143,
-            "length": 32
-          }
-        ]
-      }
+      "immutableOffsets": [
+        {
+          "start": 112,
+          "length": 32
+        },
+        {
+          "start": 2064,
+          "length": 32
+        },
+        {
+          "start": 2143,
+          "length": 32
+        }
+      ]
     },
     {
       "key": {
@@ -337,48 +323,44 @@
       "maskedHash": "0x4818e397cf8beebe43832985474b72ecd8f2a40a44ed82d4953f8fea106617cb",
       "lineage": "LidoWrapper@1.0.0 built in CI (default: solc 0.8.29, cancun)",
       "rawByteLength": 3283,
-      "immutableReferences": {
-        "100974": [
-          {
-            "start": 272,
-            "length": 32
-          },
-          {
-            "start": 1150,
-            "length": 32
-          },
-          {
-            "start": 1326,
-            "length": 32
-          },
-          {
-            "start": 1502,
-            "length": 32
-          },
-          {
-            "start": 2283,
-            "length": 32
-          },
-          {
-            "start": 2466,
-            "length": 32
-          }
-        ],
-        "100977": [
-          {
-            "start": 414,
-            "length": 32
-          },
-          {
-            "start": 1685,
-            "length": 32
-          },
-          {
-            "start": 2108,
-            "length": 32
-          }
-        ]
-      }
+      "immutableOffsets": [
+        {
+          "start": 272,
+          "length": 32
+        },
+        {
+          "start": 414,
+          "length": 32
+        },
+        {
+          "start": 1150,
+          "length": 32
+        },
+        {
+          "start": 1326,
+          "length": 32
+        },
+        {
+          "start": 1502,
+          "length": 32
+        },
+        {
+          "start": 1685,
+          "length": 32
+        },
+        {
+          "start": 2108,
+          "length": 32
+        },
+        {
+          "start": 2283,
+          "length": 32
+        },
+        {
+          "start": 2466,
+          "length": 32
+        }
+      ]
     },
     {
       "key": {
@@ -408,32 +390,28 @@
       "maskedHash": "0x2320891f5286d4472a0730c456b6cab0dacc879bc218c527c9320ed2cf57791d",
       "lineage": "ReceiverOIF@1.0.0 built in CI (default: solc 0.8.29, cancun)",
       "rawByteLength": 3843,
-      "immutableReferences": {
-        "103490": [
-          {
-            "start": 231,
-            "length": 32
-          },
-          {
-            "start": 2032,
-            "length": 32
-          },
-          {
-            "start": 2071,
-            "length": 32
-          }
-        ],
-        "103492": [
-          {
-            "start": 386,
-            "length": 32
-          },
-          {
-            "start": 1368,
-            "length": 32
-          }
-        ]
-      }
+      "immutableOffsets": [
+        {
+          "start": 231,
+          "length": 32
+        },
+        {
+          "start": 386,
+          "length": 32
+        },
+        {
+          "start": 1368,
+          "length": 32
+        },
+        {
+          "start": 2032,
+          "length": 32
+        },
+        {
+          "start": 2071,
+          "length": 32
+        }
+      ]
     },
     {
       "key": {
@@ -521,70 +499,64 @@
       "maskedHash": "0x263c44ea08dde3997d954e2205736c6ea8790bbe8ab92038f863f8de9553d931",
       "lineage": "Permit2Proxy@1.0.4 built in CI (default: solc 0.8.29, cancun)",
       "rawByteLength": 8037,
-      "immutableReferences": {
-        "102124": [
-          {
-            "start": 370,
-            "length": 32
-          },
-          {
-            "start": 1127,
-            "length": 32
-          },
-          {
-            "start": 1745,
-            "length": 32
-          },
-          {
-            "start": 2407,
-            "length": 32
-          },
-          {
-            "start": 2852,
-            "length": 32
-          },
-          {
-            "start": 3957,
-            "length": 32
-          },
-          {
-            "start": 4459,
-            "length": 32
-          }
-        ],
-        "102127": [
-          {
-            "start": 675,
-            "length": 32
-          },
-          {
-            "start": 1002,
-            "length": 32
-          },
-          {
-            "start": 1849,
-            "length": 32
-          },
-          {
-            "start": 2616,
-            "length": 32
-          },
-          {
-            "start": 4844,
-            "length": 32
-          }
-        ],
-        "102137": [
-          {
-            "start": 789,
-            "length": 32
-          },
-          {
-            "start": 1994,
-            "length": 32
-          }
-        ]
-      }
+      "immutableOffsets": [
+        {
+          "start": 370,
+          "length": 32
+        },
+        {
+          "start": 675,
+          "length": 32
+        },
+        {
+          "start": 789,
+          "length": 32
+        },
+        {
+          "start": 1002,
+          "length": 32
+        },
+        {
+          "start": 1127,
+          "length": 32
+        },
+        {
+          "start": 1745,
+          "length": 32
+        },
+        {
+          "start": 1849,
+          "length": 32
+        },
+        {
+          "start": 1994,
+          "length": 32
+        },
+        {
+          "start": 2407,
+          "length": 32
+        },
+        {
+          "start": 2616,
+          "length": 32
+        },
+        {
+          "start": 2852,
+          "length": 32
+        },
+        {
+          "start": 3957,
+          "length": 32
+        },
+        {
+          "start": 4459,
+          "length": 32
+        },
+        {
+          "start": 4844,
+          "length": 32
+        }
+      ]
     },
     {
       "key": {
@@ -614,60 +586,52 @@
       "maskedHash": "0xec8a61d2faf8421bcd21b0ae1e08cec832d95d518611bbbcb20f9fbf7ce76fab",
       "lineage": "TokenWrapper@1.2.1 built in CI (default: solc 0.8.29, cancun)",
       "rawByteLength": 2997,
-      "immutableReferences": {
-        "104078": [
-          {
-            "start": 381,
-            "length": 32
-          },
-          {
-            "start": 1187,
-            "length": 32
-          },
-          {
-            "start": 1320,
-            "length": 32
-          },
-          {
-            "start": 2093,
-            "length": 32
-          }
-        ],
-        "104080": [
-          {
-            "start": 484,
-            "length": 32
-          },
-          {
-            "start": 1406,
-            "length": 32
-          },
-          {
-            "start": 1863,
-            "length": 32
-          }
-        ],
-        "104082": [
-          {
-            "start": 1516,
-            "length": 32
-          },
-          {
-            "start": 1988,
-            "length": 32
-          }
-        ],
-        "104084": [
-          {
-            "start": 1554,
-            "length": 32
-          },
-          {
-            "start": 2038,
-            "length": 32
-          }
-        ]
-      }
+      "immutableOffsets": [
+        {
+          "start": 381,
+          "length": 32
+        },
+        {
+          "start": 484,
+          "length": 32
+        },
+        {
+          "start": 1187,
+          "length": 32
+        },
+        {
+          "start": 1320,
+          "length": 32
+        },
+        {
+          "start": 1406,
+          "length": 32
+        },
+        {
+          "start": 1516,
+          "length": 32
+        },
+        {
+          "start": 1554,
+          "length": 32
+        },
+        {
+          "start": 1863,
+          "length": 32
+        },
+        {
+          "start": 1988,
+          "length": 32
+        },
+        {
+          "start": 2038,
+          "length": 32
+        },
+        {
+          "start": 2093,
+          "length": 32
+        }
+      ]
     },
     {
       "key": {
@@ -697,36 +661,32 @@
       "maskedHash": "0x87ac902b3cbf42631e3e7c3a7caec127cc78c3c6943a896d1d6b709a44e718dd",
       "lineage": "AcrossFacetV4@1.0.0 built in CI (default: solc 0.8.29, cancun)",
       "rawByteLength": 8530,
-      "immutableReferences": {
-        "69560": [
-          {
-            "start": 255,
-            "length": 32
-          },
-          {
-            "start": 2278,
-            "length": 32
-          },
-          {
-            "start": 2527,
-            "length": 32
-          },
-          {
-            "start": 2570,
-            "length": 32
-          }
-        ],
-        "69563": [
-          {
-            "start": 160,
-            "length": 32
-          },
-          {
-            "start": 2352,
-            "length": 32
-          }
-        ]
-      }
+      "immutableOffsets": [
+        {
+          "start": 160,
+          "length": 32
+        },
+        {
+          "start": 255,
+          "length": 32
+        },
+        {
+          "start": 2278,
+          "length": 32
+        },
+        {
+          "start": 2352,
+          "length": 32
+        },
+        {
+          "start": 2527,
+          "length": 32
+        },
+        {
+          "start": 2570,
+          "length": 32
+        }
+      ]
     },
     {
       "key": {
@@ -756,56 +716,52 @@
       "maskedHash": "0x5a36b5b5ec7d9b3aff5a5f7660ac2b37af5b5e78545e7649e1c2cf137c5ced35",
       "lineage": "SupersetFacet@1.1.0 built in CI (default: solc 0.8.29, cancun)",
       "rawByteLength": 13035,
-      "immutableReferences": {
-        "85940": [
-          {
-            "start": 183,
-            "length": 32
-          },
-          {
-            "start": 3333,
-            "length": 32
-          },
-          {
-            "start": 4398,
-            "length": 32
-          },
-          {
-            "start": 4493,
-            "length": 32
-          },
-          {
-            "start": 4827,
-            "length": 32
-          },
-          {
-            "start": 5043,
-            "length": 32
-          },
-          {
-            "start": 5200,
-            "length": 32
-          },
-          {
-            "start": 6232,
-            "length": 32
-          }
-        ],
-        "85943": [
-          {
-            "start": 307,
-            "length": 32
-          },
-          {
-            "start": 3792,
-            "length": 32
-          },
-          {
-            "start": 4448,
-            "length": 32
-          }
-        ]
-      }
+      "immutableOffsets": [
+        {
+          "start": 183,
+          "length": 32
+        },
+        {
+          "start": 307,
+          "length": 32
+        },
+        {
+          "start": 3333,
+          "length": 32
+        },
+        {
+          "start": 3792,
+          "length": 32
+        },
+        {
+          "start": 4398,
+          "length": 32
+        },
+        {
+          "start": 4448,
+          "length": 32
+        },
+        {
+          "start": 4493,
+          "length": 32
+        },
+        {
+          "start": 4827,
+          "length": 32
+        },
+        {
+          "start": 5043,
+          "length": 32
+        },
+        {
+          "start": 5200,
+          "length": 32
+        },
+        {
+          "start": 6232,
+          "length": 32
+        }
+      ]
     },
     {
       "key": {
@@ -835,18 +791,16 @@
       "maskedHash": "0x4e84a75daaa02c5b367234215d0fced02e3ebbb8d7d59f95fb89e908c4502b87",
       "lineage": "ThorSwapFacet@1.2.1 built in CI (default: solc 0.8.29, cancun)",
       "rawByteLength": 7246,
-      "immutableReferences": {
-        "87682": [
-          {
-            "start": 1521,
-            "length": 32
-          },
-          {
-            "start": 1564,
-            "length": 32
-          }
-        ]
-      }
+      "immutableOffsets": [
+        {
+          "start": 1521,
+          "length": 32
+        },
+        {
+          "start": 1564,
+          "length": 32
+        }
+      ]
     },
     {
       "key": {
@@ -905,22 +859,20 @@
       "maskedHash": "0x67339f7010dfaecbec849198cce4c8b5e42fc6c13fd5fc2a7b0687f3fe2c0c8e",
       "lineage": "AllBridgeFacet@2.2.0 built in CI (default: solc 0.8.29, cancun)",
       "rawByteLength": 9232,
-      "immutableReferences": {
-        "71698": [
-          {
-            "start": 3247,
-            "length": 32
-          },
-          {
-            "start": 3311,
-            "length": 32
-          },
-          {
-            "start": 3529,
-            "length": 32
-          }
-        ]
-      }
+      "immutableOffsets": [
+        {
+          "start": 3247,
+          "length": 32
+        },
+        {
+          "start": 3311,
+          "length": 32
+        },
+        {
+          "start": 3529,
+          "length": 32
+        }
+      ]
     },
     {
       "key": {
@@ -950,34 +902,32 @@
       "maskedHash": "0x8144c0841c1f3973dcc654b6cd796e4b7d8963873e58a573ec79786015266e88",
       "lineage": "ChainflipFacet@1.0.1 built in CI (default: solc 0.8.29, cancun)",
       "rawByteLength": 9494,
-      "immutableReferences": {
-        "73530": [
-          {
-            "start": 93,
-            "length": 32
-          },
-          {
-            "start": 1882,
-            "length": 32
-          },
-          {
-            "start": 2097,
-            "length": 32
-          },
-          {
-            "start": 2281,
-            "length": 32
-          },
-          {
-            "start": 2562,
-            "length": 32
-          },
-          {
-            "start": 2710,
-            "length": 32
-          }
-        ]
-      }
+      "immutableOffsets": [
+        {
+          "start": 93,
+          "length": 32
+        },
+        {
+          "start": 1882,
+          "length": 32
+        },
+        {
+          "start": 2097,
+          "length": 32
+        },
+        {
+          "start": 2281,
+          "length": 32
+        },
+        {
+          "start": 2562,
+          "length": 32
+        },
+        {
+          "start": 2710,
+          "length": 32
+        }
+      ]
     },
     {
       "key": {
@@ -1007,32 +957,28 @@
       "maskedHash": "0xcb7eb4b3b0f247d53558c8b2a682e7488500607f2fa055e96060eaa5f9d6f552",
       "lineage": "LayerSwapFacet@1.0.0 built in CI (default: solc 0.8.29, cancun)",
       "rawByteLength": 9117,
-      "immutableReferences": {
-        "79532": [
-          {
-            "start": 93,
-            "length": 32
-          },
-          {
-            "start": 3092,
-            "length": 32
-          },
-          {
-            "start": 3292,
-            "length": 32
-          },
-          {
-            "start": 3361,
-            "length": 32
-          }
-        ],
-        "79535": [
-          {
-            "start": 2400,
-            "length": 32
-          }
-        ]
-      }
+      "immutableOffsets": [
+        {
+          "start": 93,
+          "length": 32
+        },
+        {
+          "start": 2400,
+          "length": 32
+        },
+        {
+          "start": 3092,
+          "length": 32
+        },
+        {
+          "start": 3292,
+          "length": 32
+        },
+        {
+          "start": 3361,
+          "length": 32
+        }
+      ]
     },
     {
       "key": {
@@ -1091,46 +1037,36 @@
       "maskedHash": "0xa05a41aaef591c556b55d4846707c9464dc6da7c1f329958dea6fb9bf39ba09d",
       "lineage": "SymbiosisFacet@2.0.0 built in CI (default: solc 0.8.29, cancun)",
       "rawByteLength": 11424,
-      "immutableReferences": {
-        "86882": [
-          {
-            "start": 6225,
-            "length": 32
-          }
-        ],
-        "86884": [
-          {
-            "start": 6182,
-            "length": 32
-          }
-        ],
-        "86888": [
-          {
-            "start": 1771,
-            "length": 32
-          },
-          {
-            "start": 5249,
-            "length": 32
-          },
-          {
-            "start": 5605,
-            "length": 32
-          }
-        ],
-        "86891": [
-          {
-            "start": 5483,
-            "length": 32
-          }
-        ],
-        "86894": [
-          {
-            "start": 3567,
-            "length": 32
-          }
-        ]
-      }
+      "immutableOffsets": [
+        {
+          "start": 1771,
+          "length": 32
+        },
+        {
+          "start": 3567,
+          "length": 32
+        },
+        {
+          "start": 5249,
+          "length": 32
+        },
+        {
+          "start": 5483,
+          "length": 32
+        },
+        {
+          "start": 5605,
+          "length": 32
+        },
+        {
+          "start": 6182,
+          "length": 32
+        },
+        {
+          "start": 6225,
+          "length": 32
+        }
+      ]
     },
     {
       "key": {
@@ -1189,28 +1125,24 @@
       "maskedHash": "0x5e2b2cfa49f9e41511353b88517b1912c40d993b48132e4c1aaa60ac6fed89e2",
       "lineage": "GasZipPeriphery@1.0.2 built in CI (default: solc 0.8.29, cancun)",
       "rawByteLength": 4866,
-      "immutableReferences": {
-        "96788": [
-          {
-            "start": 341,
-            "length": 32
-          },
-          {
-            "start": 2640,
-            "length": 32
-          }
-        ],
-        "96790": [
-          {
-            "start": 248,
-            "length": 32
-          },
-          {
-            "start": 1682,
-            "length": 32
-          }
-        ]
-      }
+      "immutableOffsets": [
+        {
+          "start": 248,
+          "length": 32
+        },
+        {
+          "start": 341,
+          "length": 32
+        },
+        {
+          "start": 1682,
+          "length": 32
+        },
+        {
+          "start": 2640,
+          "length": 32
+        }
+      ]
     },
     {
       "key": {
@@ -1240,24 +1172,20 @@
       "maskedHash": "0xbfea34152566ac19e4d8374c1bb94019453d6f478c39cbd06b4103b20a536554",
       "lineage": "OmniBridgeFacet@1.0.0 built in CI (default: solc 0.8.29, cancun)",
       "rawByteLength": 7030,
-      "immutableReferences": {
-        "82437": [
-          {
-            "start": 1576,
-            "length": 32
-          },
-          {
-            "start": 1714,
-            "length": 32
-          }
-        ],
-        "82441": [
-          {
-            "start": 1471,
-            "length": 32
-          }
-        ]
-      }
+      "immutableOffsets": [
+        {
+          "start": 1471,
+          "length": 32
+        },
+        {
+          "start": 1576,
+          "length": 32
+        },
+        {
+          "start": 1714,
+          "length": 32
+        }
+      ]
     },
     {
       "key": {
@@ -1316,18 +1244,16 @@
       "maskedHash": "0x93e5627182283197e2ed0d2aabbc19beede2473d5380e2d4229b5b4ecaf71f30",
       "lineage": "StargateFacetV2@1.0.1 built in CI (default: solc 0.8.29, cancun)",
       "rawByteLength": 9240,
-      "immutableReferences": {
-        "85548": [
-          {
-            "start": 112,
-            "length": 32
-          },
-          {
-            "start": 1682,
-            "length": 32
-          }
-        ]
-      }
+      "immutableOffsets": [
+        {
+          "start": 112,
+          "length": 32
+        },
+        {
+          "start": 1682,
+          "length": 32
+        }
+      ]
     },
     {
       "key": {
@@ -1357,34 +1283,32 @@
       "maskedHash": "0x42c6d42ac9c1fed0e244bf8b201fa9ab62ba76126ee282f3e738a5293eb3d4cc",
       "lineage": "DeBridgeDlnFacet@1.1.0 built in CI (default: solc 0.8.29, cancun)",
       "rawByteLength": 10273,
-      "immutableReferences": {
-        "73995": [
-          {
-            "start": 210,
-            "length": 32
-          },
-          {
-            "start": 965,
-            "length": 32
-          },
-          {
-            "start": 1881,
-            "length": 32
-          },
-          {
-            "start": 3497,
-            "length": 32
-          },
-          {
-            "start": 3599,
-            "length": 32
-          },
-          {
-            "start": 3817,
-            "length": 32
-          }
-        ]
-      }
+      "immutableOffsets": [
+        {
+          "start": 210,
+          "length": 32
+        },
+        {
+          "start": 965,
+          "length": 32
+        },
+        {
+          "start": 1881,
+          "length": 32
+        },
+        {
+          "start": 3497,
+          "length": 32
+        },
+        {
+          "start": 3599,
+          "length": 32
+        },
+        {
+          "start": 3817,
+          "length": 32
+        }
+      ]
     },
     {
       "key": {
@@ -1414,14 +1338,12 @@
       "maskedHash": "0xec993daef8bd054b5e1eda8ba7d7d05ab6c2b32dd67c6da9e06e739501286c66",
       "lineage": "NEARIntentsFacet@1.0.0 built in CI (default: solc 0.8.29, cancun)",
       "rawByteLength": 9034,
-      "immutableReferences": {
-        "81917": [
-          {
-            "start": 2777,
-            "length": 32
-          }
-        ]
-      }
+      "immutableOffsets": [
+        {
+          "start": 2777,
+          "length": 32
+        }
+      ]
     },
     {
       "key": {
@@ -1451,90 +1373,84 @@
       "maskedHash": "0x05300343f174c075c1eb2a505bac8862214b33ec9d94e20fab1d263b0b7cb597",
       "lineage": "PolymerCCTPFacet@3.1.0 built in CI (default: solc 0.8.29, cancun)",
       "rawByteLength": 12597,
-      "immutableReferences": {
-        "83966": [
-          {
-            "start": 478,
-            "length": 32
-          },
-          {
-            "start": 670,
-            "length": 32
-          },
-          {
-            "start": 4974,
-            "length": 32
-          },
-          {
-            "start": 5190,
-            "length": 32
-          },
-          {
-            "start": 5502,
-            "length": 32
-          },
-          {
-            "start": 5876,
-            "length": 32
-          }
-        ],
-        "83969": [
-          {
-            "start": 308,
-            "length": 32
-          },
-          {
-            "start": 748,
-            "length": 32
-          },
-          {
-            "start": 1447,
-            "length": 32
-          },
-          {
-            "start": 1833,
-            "length": 32
-          },
-          {
-            "start": 3027,
-            "length": 32
-          },
-          {
-            "start": 3292,
-            "length": 32
-          },
-          {
-            "start": 4697,
-            "length": 32
-          },
-          {
-            "start": 5036,
-            "length": 32
-          },
-          {
-            "start": 5281,
-            "length": 32
-          },
-          {
-            "start": 5576,
-            "length": 32
-          },
-          {
-            "start": 5922,
-            "length": 32
-          }
-        ],
-        "83972": [
-          {
-            "start": 396,
-            "length": 32
-          },
-          {
-            "start": 4730,
-            "length": 32
-          }
-        ]
-      }
+      "immutableOffsets": [
+        {
+          "start": 308,
+          "length": 32
+        },
+        {
+          "start": 396,
+          "length": 32
+        },
+        {
+          "start": 478,
+          "length": 32
+        },
+        {
+          "start": 670,
+          "length": 32
+        },
+        {
+          "start": 748,
+          "length": 32
+        },
+        {
+          "start": 1447,
+          "length": 32
+        },
+        {
+          "start": 1833,
+          "length": 32
+        },
+        {
+          "start": 3027,
+          "length": 32
+        },
+        {
+          "start": 3292,
+          "length": 32
+        },
+        {
+          "start": 4697,
+          "length": 32
+        },
+        {
+          "start": 4730,
+          "length": 32
+        },
+        {
+          "start": 4974,
+          "length": 32
+        },
+        {
+          "start": 5036,
+          "length": 32
+        },
+        {
+          "start": 5190,
+          "length": 32
+        },
+        {
+          "start": 5281,
+          "length": 32
+        },
+        {
+          "start": 5502,
+          "length": 32
+        },
+        {
+          "start": 5576,
+          "length": 32
+        },
+        {
+          "start": 5876,
+          "length": 32
+        },
+        {
+          "start": 5922,
+          "length": 32
+        }
+      ]
     },
     {
       "key": {
@@ -1564,36 +1480,32 @@
       "maskedHash": "0x6494932005a3336ee62744e621ee11ad2a0638b3feced00e1e03321ba1bdbdeb",
       "lineage": "ReceiverAcrossV3@1.1.0 built in CI (default: solc 0.8.29, cancun)",
       "rawByteLength": 4086,
-      "immutableReferences": {
-        "102805": [
-          {
-            "start": 417,
-            "length": 32
-          },
-          {
-            "start": 1955,
-            "length": 32
-          },
-          {
-            "start": 2053,
-            "length": 32
-          },
-          {
-            "start": 2314,
-            "length": 32
-          }
-        ],
-        "102807": [
-          {
-            "start": 262,
-            "length": 32
-          },
-          {
-            "start": 1140,
-            "length": 32
-          }
-        ]
-      }
+      "immutableOffsets": [
+        {
+          "start": 262,
+          "length": 32
+        },
+        {
+          "start": 417,
+          "length": 32
+        },
+        {
+          "start": 1140,
+          "length": 32
+        },
+        {
+          "start": 1955,
+          "length": 32
+        },
+        {
+          "start": 2053,
+          "length": 32
+        },
+        {
+          "start": 2314,
+          "length": 32
+        }
+      ]
     },
     {
       "key": {
@@ -1623,36 +1535,32 @@
       "maskedHash": "0x4156e0797717540309f6803c1c6f043877e0538739755f21193ea5fa49fb09f4",
       "lineage": "ReceiverAcrossV4@1.0.0 built in CI (default: solc 0.8.29, cancun)",
       "rawByteLength": 4179,
-      "immutableReferences": {
-        "102992": [
-          {
-            "start": 262,
-            "length": 32
-          },
-          {
-            "start": 1955,
-            "length": 32
-          },
-          {
-            "start": 2053,
-            "length": 32
-          },
-          {
-            "start": 2292,
-            "length": 32
-          }
-        ],
-        "102994": [
-          {
-            "start": 492,
-            "length": 32
-          },
-          {
-            "start": 1140,
-            "length": 32
-          }
-        ]
-      }
+      "immutableOffsets": [
+        {
+          "start": 262,
+          "length": 32
+        },
+        {
+          "start": 492,
+          "length": 32
+        },
+        {
+          "start": 1140,
+          "length": 32
+        },
+        {
+          "start": 1955,
+          "length": 32
+        },
+        {
+          "start": 2053,
+          "length": 32
+        },
+        {
+          "start": 2292,
+          "length": 32
+        }
+      ]
     },
     {
       "key": {
@@ -1682,96 +1590,84 @@
       "maskedHash": "0x9c5e0f6dcb4d390cd9842d0d9090f8cce9aef35b9bc2a819731b909db078f1bf",
       "lineage": "AcrossV4SwapFacet@1.0.0 built in CI (default: solc 0.8.29, cancun)",
       "rawByteLength": 16613,
-      "immutableReferences": {
-        "70017": [
-          {
-            "start": 282,
-            "length": 32
-          },
-          {
-            "start": 4968,
-            "length": 32
-          },
-          {
-            "start": 5153,
-            "length": 32
-          }
-        ],
-        "70020": [
-          {
-            "start": 189,
-            "length": 32
-          },
-          {
-            "start": 4154,
-            "length": 32
-          },
-          {
-            "start": 4285,
-            "length": 32
-          },
-          {
-            "start": 8415,
-            "length": 32
-          }
-        ],
-        "70023": [
-          {
-            "start": 403,
-            "length": 32
-          },
-          {
-            "start": 3903,
-            "length": 32
-          },
-          {
-            "start": 4607,
-            "length": 32
-          },
-          {
-            "start": 4697,
-            "length": 32
-          }
-        ],
-        "70026": [
-          {
-            "start": 493,
-            "length": 32
-          },
-          {
-            "start": 5265,
-            "length": 32
-          },
-          {
-            "start": 5808,
-            "length": 32
-          },
-          {
-            "start": 5864,
-            "length": 32
-          }
-        ],
-        "70029": [
-          {
-            "start": 352,
-            "length": 32
-          },
-          {
-            "start": 6441,
-            "length": 32
-          },
-          {
-            "start": 6543,
-            "length": 32
-          }
-        ],
-        "70064": [
-          {
-            "start": 2461,
-            "length": 32
-          }
-        ]
-      }
+      "immutableOffsets": [
+        {
+          "start": 189,
+          "length": 32
+        },
+        {
+          "start": 282,
+          "length": 32
+        },
+        {
+          "start": 352,
+          "length": 32
+        },
+        {
+          "start": 403,
+          "length": 32
+        },
+        {
+          "start": 493,
+          "length": 32
+        },
+        {
+          "start": 2461,
+          "length": 32
+        },
+        {
+          "start": 3903,
+          "length": 32
+        },
+        {
+          "start": 4154,
+          "length": 32
+        },
+        {
+          "start": 4285,
+          "length": 32
+        },
+        {
+          "start": 4607,
+          "length": 32
+        },
+        {
+          "start": 4697,
+          "length": 32
+        },
+        {
+          "start": 4968,
+          "length": 32
+        },
+        {
+          "start": 5153,
+          "length": 32
+        },
+        {
+          "start": 5265,
+          "length": 32
+        },
+        {
+          "start": 5808,
+          "length": 32
+        },
+        {
+          "start": 5864,
+          "length": 32
+        },
+        {
+          "start": 6441,
+          "length": 32
+        },
+        {
+          "start": 6543,
+          "length": 32
+        },
+        {
+          "start": 8415,
+          "length": 32
+        }
+      ]
     },
     {
       "key": {
@@ -1830,18 +1726,16 @@
       "maskedHash": "0x4c1a5edcdeb847b914141e3cff9e9049f0f420c283cf5742ef04992f799e5f8e",
       "lineage": "GnosisBridgeFacet@2.0.0 built in CI (default: solc 0.8.29, cancun)",
       "rawByteLength": 7404,
-      "immutableReferences": {
-        "79280": [
-          {
-            "start": 2093,
-            "length": 32
-          },
-          {
-            "start": 2231,
-            "length": 32
-          }
-        ]
-      }
+      "immutableOffsets": [
+        {
+          "start": 2093,
+          "length": 32
+        },
+        {
+          "start": 2231,
+          "length": 32
+        }
+      ]
     },
     {
       "key": {
@@ -1871,58 +1765,56 @@
       "maskedHash": "0xbf029f78313b96fbf94b21db129879a95aca1f403d118ba28ab383c36d12cb09",
       "lineage": "LiFiDEXAggregator@1.12.0 built in CI (default: solc 0.8.29, cancun)",
       "rawByteLength": 22427,
-      "immutableReferences": {
-        "97269": [
-          {
-            "start": 838,
-            "length": 32
-          },
-          {
-            "start": 6087,
-            "length": 32
-          },
-          {
-            "start": 10091,
-            "length": 32
-          },
-          {
-            "start": 10191,
-            "length": 32
-          },
-          {
-            "start": 10297,
-            "length": 32
-          },
-          {
-            "start": 10492,
-            "length": 32
-          },
-          {
-            "start": 10663,
-            "length": 32
-          },
-          {
-            "start": 10889,
-            "length": 32
-          },
-          {
-            "start": 11148,
-            "length": 32
-          },
-          {
-            "start": 11315,
-            "length": 32
-          },
-          {
-            "start": 11519,
-            "length": 32
-          },
-          {
-            "start": 11789,
-            "length": 32
-          }
-        ]
-      }
+      "immutableOffsets": [
+        {
+          "start": 838,
+          "length": 32
+        },
+        {
+          "start": 6087,
+          "length": 32
+        },
+        {
+          "start": 10091,
+          "length": 32
+        },
+        {
+          "start": 10191,
+          "length": 32
+        },
+        {
+          "start": 10297,
+          "length": 32
+        },
+        {
+          "start": 10492,
+          "length": 32
+        },
+        {
+          "start": 10663,
+          "length": 32
+        },
+        {
+          "start": 10889,
+          "length": 32
+        },
+        {
+          "start": 11148,
+          "length": 32
+        },
+        {
+          "start": 11315,
+          "length": 32
+        },
+        {
+          "start": 11519,
+          "length": 32
+        },
+        {
+          "start": 11789,
+          "length": 32
+        }
+      ]
     },
     {
       "key": {
@@ -1952,22 +1844,20 @@
       "maskedHash": "0xdf3b6fe118c2cd05dd317c0511ac40b401fe78e261a459883f0964442dd306a9",
       "lineage": "PaxosTransitFacet@1.0.0 built in CI (default: solc 0.8.29, cancun)",
       "rawByteLength": 8654,
-      "immutableReferences": {
-        "83276": [
-          {
-            "start": 193,
-            "length": 32
-          },
-          {
-            "start": 2650,
-            "length": 32
-          },
-          {
-            "start": 2714,
-            "length": 32
-          }
-        ]
-      }
+      "immutableOffsets": [
+        {
+          "start": 193,
+          "length": 32
+        },
+        {
+          "start": 2650,
+          "length": 32
+        },
+        {
+          "start": 2714,
+          "length": 32
+        }
+      ]
     },
     {
       "key": {
@@ -1997,40 +1887,36 @@
       "maskedHash": "0x48dcf05cc185db38c488de41bba4ecaa0f7516c449c5136292bae3e2719d6c92",
       "lineage": "ReceiverChainflip@1.0.1 built in CI (default: solc 0.8.29, cancun)",
       "rawByteLength": 4562,
-      "immutableReferences": {
-        "1927": [
-          {
-            "start": 405,
-            "length": 32
-          },
-          {
-            "start": 2027,
-            "length": 32
-          },
-          {
-            "start": 2125,
-            "length": 32
-          },
-          {
-            "start": 2397,
-            "length": 32
-          },
-          {
-            "start": 2500,
-            "length": 32
-          }
-        ],
-        "1930": [
-          {
-            "start": 270,
-            "length": 32
-          },
-          {
-            "start": 1128,
-            "length": 32
-          }
-        ]
-      }
+      "immutableOffsets": [
+        {
+          "start": 270,
+          "length": 32
+        },
+        {
+          "start": 405,
+          "length": 32
+        },
+        {
+          "start": 1128,
+          "length": 32
+        },
+        {
+          "start": 2027,
+          "length": 32
+        },
+        {
+          "start": 2125,
+          "length": 32
+        },
+        {
+          "start": 2397,
+          "length": 32
+        },
+        {
+          "start": 2500,
+          "length": 32
+        }
+      ]
     },
     {
       "key": {
@@ -2089,38 +1975,36 @@
       "maskedHash": "0x3993becc222cf9ddbe85f1f30fbfde62142facd7acbd2fc8e7d802000b02c9d8",
       "lineage": "GenericSwapFacetV3@2.0.0 built in CI (default: solc 0.8.29, cancun)",
       "rawByteLength": 7625,
-      "immutableReferences": {
-        "77902": [
-          {
-            "start": 295,
-            "length": 32
-          },
-          {
-            "start": 1300,
-            "length": 32
-          },
-          {
-            "start": 1410,
-            "length": 32
-          },
-          {
-            "start": 2004,
-            "length": 32
-          },
-          {
-            "start": 2158,
-            "length": 32
-          },
-          {
-            "start": 3847,
-            "length": 32
-          },
-          {
-            "start": 5526,
-            "length": 32
-          }
-        ]
-      }
+      "immutableOffsets": [
+        {
+          "start": 295,
+          "length": 32
+        },
+        {
+          "start": 1300,
+          "length": 32
+        },
+        {
+          "start": 1410,
+          "length": 32
+        },
+        {
+          "start": 2004,
+          "length": 32
+        },
+        {
+          "start": 2158,
+          "length": 32
+        },
+        {
+          "start": 3847,
+          "length": 32
+        },
+        {
+          "start": 5526,
+          "length": 32
+        }
+      ]
     },
     {
       "key": {
@@ -2179,28 +2063,24 @@
       "maskedHash": "0x8a980775cff6a9aae7a9396d36dce951b9c0d932829e5b9d185649786e5c2d7b",
       "lineage": "PolygonBridgeFacet@1.0.0 built in CI (default: solc 0.8.29, cancun)",
       "rawByteLength": 7403,
-      "immutableReferences": {
-        "83707": [
-          {
-            "start": 1480,
-            "length": 32
-          },
-          {
-            "start": 1649,
-            "length": 32
-          },
-          {
-            "start": 1951,
-            "length": 32
-          }
-        ],
-        "83710": [
-          {
-            "start": 1768,
-            "length": 32
-          }
-        ]
-      }
+      "immutableOffsets": [
+        {
+          "start": 1480,
+          "length": 32
+        },
+        {
+          "start": 1649,
+          "length": 32
+        },
+        {
+          "start": 1768,
+          "length": 32
+        },
+        {
+          "start": 1951,
+          "length": 32
+        }
+      ]
     },
     {
       "key": {
@@ -2230,76 +2110,68 @@
       "maskedHash": "0xa1563cbf1cdf7a5c17b25606e3a5f91f8108616ccb7605f381e7df5199e1135d",
       "lineage": "ReceiverStargateV2@1.1.0 built in CI (default: solc 0.8.29, cancun)",
       "rawByteLength": 7312,
-      "immutableReferences": {
-        "103743": [
-          {
-            "start": 489,
-            "length": 32
-          },
-          {
-            "start": 2751,
-            "length": 32
-          },
-          {
-            "start": 3058,
-            "length": 32
-          },
-          {
-            "start": 3299,
-            "length": 32
-          },
-          {
-            "start": 3359,
-            "length": 32
-          },
-          {
-            "start": 3676,
-            "length": 32
-          }
-        ],
-        "103746": [
-          {
-            "start": 634,
-            "length": 32
-          },
-          {
-            "start": 1666,
-            "length": 32
-          }
-        ],
-        "103748": [
-          {
-            "start": 288,
-            "length": 32
-          },
-          {
-            "start": 1510,
-            "length": 32
-          }
-        ],
-        "103750": [
-          {
-            "start": 424,
-            "length": 32
-          },
-          {
-            "start": 2578,
-            "length": 32
-          },
-          {
-            "start": 2794,
-            "length": 32
-          },
-          {
-            "start": 3097,
-            "length": 32
-          },
-          {
-            "start": 3401,
-            "length": 32
-          }
-        ]
-      }
+      "immutableOffsets": [
+        {
+          "start": 288,
+          "length": 32
+        },
+        {
+          "start": 424,
+          "length": 32
+        },
+        {
+          "start": 489,
+          "length": 32
+        },
+        {
+          "start": 634,
+          "length": 32
+        },
+        {
+          "start": 1510,
+          "length": 32
+        },
+        {
+          "start": 1666,
+          "length": 32
+        },
+        {
+          "start": 2578,
+          "length": 32
+        },
+        {
+          "start": 2751,
+          "length": 32
+        },
+        {
+          "start": 2794,
+          "length": 32
+        },
+        {
+          "start": 3058,
+          "length": 32
+        },
+        {
+          "start": 3097,
+          "length": 32
+        },
+        {
+          "start": 3299,
+          "length": 32
+        },
+        {
+          "start": 3359,
+          "length": 32
+        },
+        {
+          "start": 3401,
+          "length": 32
+        },
+        {
+          "start": 3676,
+          "length": 32
+        }
+      ]
     },
     {
       "key": {
@@ -2329,48 +2201,44 @@
       "maskedHash": "0xe95b03161a503f8d45fec7608e35af9bb08e7a0b35af287f3bc7ecdf29981be5",
       "lineage": "AcrossFacetPackedV4@1.0.0 built in CI (default: solc 0.8.29, cancun)",
       "rawByteLength": 10463,
-      "immutableReferences": {
-        "68300": [
-          {
-            "start": 848,
-            "length": 32
-          },
-          {
-            "start": 3052,
-            "length": 32
-          },
-          {
-            "start": 3657,
-            "length": 32
-          },
-          {
-            "start": 4002,
-            "length": 32
-          },
-          {
-            "start": 4370,
-            "length": 32
-          },
-          {
-            "start": 5650,
-            "length": 32
-          }
-        ],
-        "68303": [
-          {
-            "start": 708,
-            "length": 32
-          },
-          {
-            "start": 4420,
-            "length": 32
-          },
-          {
-            "start": 5736,
-            "length": 32
-          }
-        ]
-      }
+      "immutableOffsets": [
+        {
+          "start": 708,
+          "length": 32
+        },
+        {
+          "start": 848,
+          "length": 32
+        },
+        {
+          "start": 3052,
+          "length": 32
+        },
+        {
+          "start": 3657,
+          "length": 32
+        },
+        {
+          "start": 4002,
+          "length": 32
+        },
+        {
+          "start": 4370,
+          "length": 32
+        },
+        {
+          "start": 4420,
+          "length": 32
+        },
+        {
+          "start": 5650,
+          "length": 32
+        },
+        {
+          "start": 5736,
+          "length": 32
+        }
+      ]
     },
     {
       "key": {
@@ -2400,24 +2268,20 @@
       "maskedHash": "0x4f9dbab8d653dbf37667a898dee0a48b9baba9f5c0eec30ce8136a5aac53f0bf",
       "lineage": "ArbitrumBridgeFacet@1.0.0 built in CI (default: solc 0.8.29, cancun)",
       "rawByteLength": 7991,
-      "immutableReferences": {
-        "72305": [
-          {
-            "start": 2074,
-            "length": 32
-          },
-          {
-            "start": 2193,
-            "length": 32
-          }
-        ],
-        "72309": [
-          {
-            "start": 1697,
-            "length": 32
-          }
-        ]
-      }
+      "immutableOffsets": [
+        {
+          "start": 1697,
+          "length": 32
+        },
+        {
+          "start": 2074,
+          "length": 32
+        },
+        {
+          "start": 2193,
+          "length": 32
+        }
+      ]
     },
     {
       "key": {
@@ -2447,36 +2311,32 @@
       "maskedHash": "0xb058cb1c01aa65bdcb30f56ee1309093253973eb7e8982307d87c5dda796eb3c",
       "lineage": "EmergencyPauseFacet@1.0.1 built in CI (default: solc 0.8.29, cancun)",
       "rawByteLength": 8889,
-      "immutableReferences": {
-        "75747": [
-          {
-            "start": 204,
-            "length": 32
-          },
-          {
-            "start": 323,
-            "length": 32
-          },
-          {
-            "start": 1848,
-            "length": 32
-          }
-        ],
-        "75754": [
-          {
-            "start": 481,
-            "length": 32
-          },
-          {
-            "start": 2122,
-            "length": 32
-          },
-          {
-            "start": 4374,
-            "length": 32
-          }
-        ]
-      }
+      "immutableOffsets": [
+        {
+          "start": 204,
+          "length": 32
+        },
+        {
+          "start": 323,
+          "length": 32
+        },
+        {
+          "start": 481,
+          "length": 32
+        },
+        {
+          "start": 1848,
+          "length": 32
+        },
+        {
+          "start": 2122,
+          "length": 32
+        },
+        {
+          "start": 4374,
+          "length": 32
+        }
+      ]
     },
     {
       "key": {
@@ -2535,26 +2395,24 @@
       "maskedHash": "0x99c7ecc06eba520d481a3d7644f51517d9285df64748280e53ea877287aaa8f9",
       "lineage": "RelayDepositoryFacet@1.0.0 built in CI (default: solc 0.8.29, cancun)",
       "rawByteLength": 7426,
-      "immutableReferences": {
-        "84869": [
-          {
-            "start": 112,
-            "length": 32
-          },
-          {
-            "start": 1656,
-            "length": 32
-          },
-          {
-            "start": 1855,
-            "length": 32
-          },
-          {
-            "start": 1919,
-            "length": 32
-          }
-        ]
-      }
+      "immutableOffsets": [
+        {
+          "start": 112,
+          "length": 32
+        },
+        {
+          "start": 1656,
+          "length": 32
+        },
+        {
+          "start": 1855,
+          "length": 32
+        },
+        {
+          "start": 1919,
+          "length": 32
+        }
+      ]
     },
     {
       "key": {
@@ -2613,48 +2471,44 @@
       "maskedHash": "0x8ab2f927b028116cf724dbfc6a6b7b0b7b1d41904a926980659fef02025223b8",
       "lineage": "CelerCircleBridgeFacet@2.0.0 built in CI (default: solc 0.8.29, cancun)",
       "rawByteLength": 8007,
-      "immutableReferences": {
-        "73258": [
-          {
-            "start": 242,
-            "length": 32
-          },
-          {
-            "start": 376,
-            "length": 32
-          },
-          {
-            "start": 2511,
-            "length": 32
-          }
-        ],
-        "73261": [
-          {
-            "start": 150,
-            "length": 32
-          },
-          {
-            "start": 454,
-            "length": 32
-          },
-          {
-            "start": 1042,
-            "length": 32
-          },
-          {
-            "start": 1751,
-            "length": 32
-          },
-          {
-            "start": 1892,
-            "length": 32
-          },
-          {
-            "start": 2558,
-            "length": 32
-          }
-        ]
-      }
+      "immutableOffsets": [
+        {
+          "start": 150,
+          "length": 32
+        },
+        {
+          "start": 242,
+          "length": 32
+        },
+        {
+          "start": 376,
+          "length": 32
+        },
+        {
+          "start": 454,
+          "length": 32
+        },
+        {
+          "start": 1042,
+          "length": 32
+        },
+        {
+          "start": 1751,
+          "length": 32
+        },
+        {
+          "start": 1892,
+          "length": 32
+        },
+        {
+          "start": 2511,
+          "length": 32
+        },
+        {
+          "start": 2558,
+          "length": 32
+        }
+      ]
     },
     {
       "key": {
@@ -2742,22 +2596,20 @@
       "maskedHash": "0xac8a5b38c66da37760c4f1a5b9a5d670b7811208c27e39daae6a294ae8731427",
       "lineage": "LiFiIntentEscrowFacetV2@1.0.0 built in CI (default: solc 0.8.29, cancun)",
       "rawByteLength": 9845,
-      "immutableReferences": {
-        "80073": [
-          {
-            "start": 72,
-            "length": 32
-          },
-          {
-            "start": 2339,
-            "length": 32
-          },
-          {
-            "start": 2917,
-            "length": 32
-          }
-        ]
-      }
+      "immutableOffsets": [
+        {
+          "start": 72,
+          "length": 32
+        },
+        {
+          "start": 2339,
+          "length": 32
+        },
+        {
+          "start": 2917,
+          "length": 32
+        }
+      ]
     },
     {
       "key": {
@@ -2845,32 +2697,28 @@
       "maskedHash": "0x3c01973c3968cfa147a5ab0b977b331329e698ff71052bfc456efa18f104584f",
       "lineage": "EcoFacet@2.0.0 built in CI (default: solc 0.8.29, cancun)",
       "rawByteLength": 12999,
-      "immutableReferences": {
-        "74771": [
-          {
-            "start": 72,
-            "length": 32
-          },
-          {
-            "start": 4103,
-            "length": 32
-          },
-          {
-            "start": 4311,
-            "length": 32
-          },
-          {
-            "start": 4371,
-            "length": 32
-          }
-        ],
-        "74774": [
-          {
-            "start": 2246,
-            "length": 32
-          }
-        ]
-      }
+      "immutableOffsets": [
+        {
+          "start": 72,
+          "length": 32
+        },
+        {
+          "start": 2246,
+          "length": 32
+        },
+        {
+          "start": 4103,
+          "length": 32
+        },
+        {
+          "start": 4311,
+          "length": 32
+        },
+        {
+          "start": 4371,
+          "length": 32
+        }
+      ]
     },
     {
       "key": {
@@ -2929,74 +2777,68 @@
       "maskedHash": "0x8d74b9d456236153e82d3018862037cbff6d2383cbb3f5adb48f401a9b4c223b",
       "lineage": "FraxFacet@1.0.0 built in CI (default: solc 0.8.29, cancun)",
       "rawByteLength": 13140,
-      "immutableReferences": {
-        "76229": [
-          {
-            "start": 497,
-            "length": 32
-          },
-          {
-            "start": 4655,
-            "length": 32
-          },
-          {
-            "start": 5549,
-            "length": 32
-          },
-          {
-            "start": 5817,
-            "length": 32
-          },
-          {
-            "start": 6100,
-            "length": 32
-          },
-          {
-            "start": 8439,
-            "length": 32
-          },
-          {
-            "start": 8503,
-            "length": 32
-          }
-        ],
-        "76232": [
-          {
-            "start": 363,
-            "length": 32
-          },
-          {
-            "start": 1138,
-            "length": 32
-          },
-          {
-            "start": 1471,
-            "length": 32
-          },
-          {
-            "start": 3167,
-            "length": 32
-          },
-          {
-            "start": 6020,
-            "length": 32
-          },
-          {
-            "start": 7974,
-            "length": 32
-          }
-        ],
-        "76235": [
-          {
-            "start": 220,
-            "length": 32
-          },
-          {
-            "start": 8132,
-            "length": 32
-          }
-        ]
-      }
+      "immutableOffsets": [
+        {
+          "start": 220,
+          "length": 32
+        },
+        {
+          "start": 363,
+          "length": 32
+        },
+        {
+          "start": 497,
+          "length": 32
+        },
+        {
+          "start": 1138,
+          "length": 32
+        },
+        {
+          "start": 1471,
+          "length": 32
+        },
+        {
+          "start": 3167,
+          "length": 32
+        },
+        {
+          "start": 4655,
+          "length": 32
+        },
+        {
+          "start": 5549,
+          "length": 32
+        },
+        {
+          "start": 5817,
+          "length": 32
+        },
+        {
+          "start": 6020,
+          "length": 32
+        },
+        {
+          "start": 6100,
+          "length": 32
+        },
+        {
+          "start": 7974,
+          "length": 32
+        },
+        {
+          "start": 8132,
+          "length": 32
+        },
+        {
+          "start": 8439,
+          "length": 32
+        },
+        {
+          "start": 8503,
+          "length": 32
+        }
+      ]
     },
     {
       "key": {
@@ -3026,14 +2868,12 @@
       "maskedHash": "0xa40f1cb14bf3e372ee3adf9e7add5dcf44a059954cba37e7923fa245f6c82dfe",
       "lineage": "UnitFacet@1.0.1 built in CI (default: solc 0.8.29, cancun)",
       "rawByteLength": 8204,
-      "immutableReferences": {
-        "87930": [
-          {
-            "start": 2195,
-            "length": 32
-          }
-        ]
-      }
+      "immutableOffsets": [
+        {
+          "start": 2195,
+          "length": 32
+        }
+      ]
     }
   ]
 }

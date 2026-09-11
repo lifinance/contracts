@@ -32,7 +32,10 @@ import {
   type IMintedAttestation,
 } from './attestation-key'
 import { readMetadataTrailer } from './bytecode-trailer'
-import type { ImmutableReferences } from './immutable-offsets'
+import type {
+  IImmutableOccurrence,
+  ImmutableReferences,
+} from './immutable-offsets'
 import { normalizeRuntimeCode } from './rebuild-attestations'
 
 /** Schema version, so a reader can refuse a manifest it does not understand. */
@@ -52,14 +55,22 @@ export interface IManifestEntry extends IMintedAttestation {
    */
   rawHash?: string
   /**
-   * Foundry's `immutableReferences`, absent for a contract with none.
+   * Every immutable occurrence, ordered by offset; absent for a contract with
+   * none.
    *
    * Carried because the reader has to mask the *deployed* code the same way to
    * compare it, and those offsets are the only place that says which bytes to
    * exclude. Without them a lookup could verify the manifest and still be
    * unable to use it.
+   *
+   * Flattened out of Foundry's AST-id-keyed map on purpose. An AST id counts
+   * source units in the order solc loaded them, so the same contract compiled
+   * in a different scope carries different ids for identical bytes — two
+   * machines then serialise two manifests and the attested digest does not
+   * survive a rebuild. Masking reads only the offsets, so the id is a key the
+   * manifest can afford to drop and cannot afford to keep.
    */
-  immutableReferences?: ImmutableReferences
+  immutableOffsets?: IImmutableOccurrence[]
 }
 
 export interface IBuildManifest {
@@ -122,6 +133,16 @@ const describeLineage = (
 }
 
 /**
+ * Drops Foundry's AST-id grouping, keeping the occurrences in offset order.
+ * @param refs - Foundry's `immutableReferences`
+ * @returns Every occurrence, ordered by start offset
+ */
+const flattenOffsets = (refs: ImmutableReferences): IImmutableOccurrence[] =>
+  Object.values(refs)
+    .flat()
+    .sort((a, b) => a.start - b.start)
+
+/**
  * Turns one built artifact into a manifest entry.
  *
  * The solc version is read from the build's own trailer and falls back to the
@@ -173,7 +194,7 @@ export const manifestEntryFrom = (
       ...(isZk ? { rawHash: normalised.rawHash } : {}),
       ...(artifact.immutableReferences === undefined
         ? {}
-        : { immutableReferences: artifact.immutableReferences }),
+        : { immutableOffsets: flattenOffsets(artifact.immutableReferences) }),
     },
   }
 }
