@@ -37,9 +37,10 @@ const run = (
   // `bun test` sets NODE_ENV=test; these children are exercised as CLIs, so they
   // must not run as if under a test harness.
   delete env.NODE_ENV
-  // Bun auto-loads the repo env file into this process, so the child inherits any
-  // local value through process.env. Cleared, or a developer's own decides these.
-  delete env.SAFE_PROPOSAL_TICKET
+  // Set empty rather than deleted: the child re-loads the repo env file for
+  // every name this environment leaves unset, so a delete here would hand a
+  // developer's own ticket to the run and decide the cases below for them.
+  env.SAFE_PROPOSAL_TICKET = ''
   if (ticket !== undefined) env.SAFE_PROPOSAL_TICKET = ticket
   // One case below asserts a run is NOT refused, which means letting it go on to
   // a branch that sends directly — with a real key that branch signs, and with a
