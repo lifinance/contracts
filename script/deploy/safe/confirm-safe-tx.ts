@@ -22,6 +22,12 @@ import { createDefaultCache } from '../shared/deployment-cache'
 import { sanitizeProvenanceText } from '../shared/git-provenance'
 import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
 
+import {
+  createCheckLedger,
+  recordCheck,
+  type ICheckLedger,
+  type ICheckResult,
+} from './check-ledger'
 import { readBooleanFlag, readValueFlag } from './cli-flags'
 import {
   assertCodehashSignGateAllowsSigning,
@@ -37,6 +43,11 @@ import {
   createSignTimeCodehashDeps,
   type ISignTimeCodehashDeps,
 } from './codehash-sign-gate-deps'
+import {
+  CONFIRM_CHECK_DEFINITIONS,
+  targetStateCheckResult,
+  worstResultPerCheck,
+} from './confirm-check-registry'
 import {
   assertIntegrityAssertsAllowSigning,
   createIntegrityAssertDeps,
@@ -126,6 +137,75 @@ const getCodehashDeps = (): ISignTimeCodehashDeps => {
   codehashDeps ??= createSignTimeCodehashDeps()
   return codehashDeps
 }
+
+// Created once the run's network set is known, because the ledger's
+// denominator is that set: a check that never ran on a network must show as a
+// missing row rather than shrink the total it is measured against.
+//
+// Composed, never read. Only a `pass` counts toward the verified coverage, and
+// every status a correct Add/Replace cut produces is `needs-ack` whose
+// acknowledgement lands in `acknowledgementLedger` — so a correct rollout would
+// grade 0/N. EXSC-994 settles the verdict before anything reads these rows, so
+// what the comments below say a row does to one describes that consumer.
+let checkLedger: ICheckLedger | undefined
+
+const recordEveryCheck = (
+  network: string,
+  row: Pick<ICheckResult, 'status' | 'actual' | 'anchor'>
+): void => {
+  if (!checkLedger) return
+
+  for (const definition of CONFIRM_CHECK_DEFINITIONS)
+    recordCheck(checkLedger, {
+      checkId: definition.checkId,
+      network,
+      // Quantified over the proposals this run would sign, which is empty on
+      // every branch that reaches `recordNothingToGrade` — a network can carry
+      // pending transactions and still offer this signer nothing to act on.
+      expected: 'every proposal this run would sign graded before signing',
+      ...row,
+    })
+}
+
+/**
+ * Records a network the run positively established had nothing to grade.
+ *
+ * The denominator is fixed before the run can learn that a network it listed as
+ * actionable carries no proposal for this operator. Left unrecorded it rolls up
+ * as missing and hard-blocks a run on which nothing was wrong. A pass on
+ * `A-LOCAL` is the reading `no-diamond-cut` already gets: the run read its input
+ * and found nothing to compare, which is a verified fact about this network.
+ *
+ * Only for outcomes that answered. A read that *failed* has not established
+ * anything and belongs in `recordCouldNotGrade` — mixing the two is how a fully
+ * green run comes to verify nothing.
+ * @param network - The network that carried no proposal.
+ * @param reason - What the run established instead, shown on the row.
+ */
+const recordNothingToGrade = (network: string, reason: string): void =>
+  recordEveryCheck(network, {
+    status: 'pass',
+    actual: `no proposal was graded on ${network} — ${reason}`,
+    anchor: 'A-LOCAL',
+  })
+
+/**
+ * Records a network the run could not reach a verdict on at all.
+ *
+ * Distinct from `recordNothingToGrade` in exactly the way `check-ledger.ts`'s
+ * header requires: a check that could not run is not a check that passed. The
+ * row is unverified, so the verdict blocks and names the network — which is the
+ * correct outcome for an infrastructure failure, and costs nothing operationally
+ * because this ledger reports rather than gates.
+ * @param network - The network that could not be graded.
+ * @param reason - What failed, shown on the row.
+ */
+const recordCouldNotGrade = (network: string, reason: string): void =>
+  recordEveryCheck(network, {
+    status: 'error',
+    actual: `nothing could be graded on ${network} — ${reason}`,
+    anchor: 'A-UNRESOLVED',
+  })
 
 // Acknowledgements roll up across networks so a fleet-wide rollout counts once;
 // the operator's chosen action is never remembered.
@@ -452,6 +532,13 @@ const processTxs = async (
     }
   }
 
+  // Every proposal's ledger rows, accumulated rather than recorded as they are
+  // graded. A ledger row is denominated per network while proposals are graded
+  // one by one, and `rollUpChecks` reads two records for one (check, network)
+  // pair as a retry — so recording per proposal lets the last proposal's verdict
+  // stand for the whole network, and a clean one erase an earlier refusal.
+  const proposalChecks: ICheckResult[] = []
+
   // Sort transactions by nonce in ascending order to process them in sequence
   // Track expected nonce so sequential executions within a single run work correctly
   let expectedNonce = onChainNonce
@@ -565,6 +652,7 @@ const processTxs = async (
     // Target-state lines are graded here, not inside the sanitising detail
     // block: they are computed verdicts, not stored proposer-controlled fields.
     for (const line of formatTargetStateLines(targetState)) consola.info(line)
+    proposalChecks.push(targetStateCheckResult(targetState, network))
 
     // The struct the signature covers, never the stored row: createTransaction
     // normalises an absent operation to Call, so those two copies can disagree.
@@ -1093,6 +1181,18 @@ const processTxs = async (
         consola.error('Error executing with deployer:', error)
       }
   }
+
+  // One row per network, written once every proposal on it has been graded and
+  // reduced worst-first. A `ready` network always carries at least one proposal,
+  // so the empty branch is the unreachable case made explicit rather than left
+  // to roll up as a missing row and block the run.
+  if (checkLedger) {
+    if (proposalChecks.length === 0)
+      recordNothingToGrade(network, 'the prepared network carried no proposal')
+    else
+      for (const result of worstResultPerCheck(proposalChecks))
+        recordCheck(checkLedger, result)
+  }
 }
 
 /**
@@ -1393,12 +1493,22 @@ const main = defineCommand({
           })
       }
 
+      checkLedger = createCheckLedger({
+        expectedNetworks: networks.filter((network): network is string =>
+          Boolean(network)
+        ),
+        checks: [...CONFIRM_CHECK_DEFINITIONS],
+      })
+
       for (let i = 0; i < networks.length; i++) {
         const network = networks[i]
         if (!network) continue
 
         const networkTxs = txsByNetwork[network.toLowerCase()]
-        if (!networkTxs || networkTxs.length === 0) continue
+        if (!networkTxs || networkTxs.length === 0) {
+          recordNothingToGrade(network, 'no pending transaction was fetched')
+          continue
+        }
 
         networksAttempted.add(network)
 
@@ -1428,6 +1538,10 @@ const main = defineCommand({
             break
           case 'nothing-actionable':
             consola.success(`No actionable pending transactions on ${network}`)
+            recordNothingToGrade(
+              network,
+              'nothing actionable was left once the network was prepared'
+            )
             break
           case 'not-owner':
             consola.error(
@@ -1435,10 +1549,18 @@ const main = defineCommand({
             )
             consola.error(`  Signer: ${prepared.signerAddress}`)
             consola.error(`  Owners: ${prepared.owners.join(', ')}`)
+            recordNothingToGrade(
+              network,
+              'the signer is not an owner of this Safe, so nothing here can be signed'
+            )
             break
           case 'owner-check-failed':
             consola.error(
               `[${network}] Failed to check Safe ownership — skipping this network: ${prepared.error}`
+            )
+            recordCouldNotGrade(
+              network,
+              'the Safe ownership read failed, so ownership could not be established'
             )
             break
           case 'read-failed':
