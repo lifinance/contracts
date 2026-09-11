@@ -6,6 +6,7 @@ import type { Hex } from 'viem'
 import {
   buildSignedSetRecord,
   buildSignedSetUpdate,
+  byOperationKey,
   bySignedSetKey,
   formatSignedSetForDisplay,
   type ISignedAuthorityEntry,
@@ -16,6 +17,7 @@ const OP_ID =
   '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' as Hex // pre-commit-checker: not a secret — a synthetic test hash
 const DIAMOND = '0x1231deb6f5749ef6ce6943a275a1d3e7486f4eae'
 const TIMELOCK = '0x00000000000000000000000000000000000000a1'
+const SECOND_SIGNER = '0x00000000000000000000000000000000000000c4'
 const AT = new Date('2026-09-09T10:00:00.000Z')
 
 const codehash = (
@@ -24,7 +26,6 @@ const codehash = (
   address: DIAMOND,
   contractName: 'LiFiDiamond',
   rawHash: '0xdeadbeef',
-  maskedHash: '0xfeedface',
   rawByteLength: 1440,
   observationError: undefined,
   ...overrides,
@@ -90,7 +91,6 @@ describe('buildSignedSetRecord', () => {
     const record = build([
       codehash({
         rawHash: undefined,
-        maskedHash: undefined,
         rawByteLength: undefined,
         observationError: 'RPC timed out',
       }),
@@ -185,11 +185,36 @@ describe('formatSignedSetForDisplay', () => {
 })
 
 describe('bySignedSetKey', () => {
-  it('wraps both fields so a value arriving as an object cannot become an operator', () => {
-    expect(bySignedSetKey('Mainnet', OP_ID)).toEqual({
+  it('wraps every field so a value arriving as an object cannot become an operator', () => {
+    expect(bySignedSetKey('Mainnet', OP_ID, '0xAbC')).toEqual({
+      network: { $eq: 'mainnet' },
+      operationId: { $eq: OP_ID },
+      signer: { $eq: '0xabc' },
+    })
+  })
+
+  it('separates two signers of the same operation', () => {
+    // Without the signer dimension the second signer's upsert overwrites the
+    // first, and a 3-of-N Safe leaves one machine's view behind — which is a
+    // log line, where three agreeing observations are the evidence.
+    const first = bySignedSetKey('mainnet', OP_ID, TIMELOCK)
+    const second = bySignedSetKey('mainnet', OP_ID, SECOND_SIGNER)
+    expect(first).not.toEqual(second)
+  })
+})
+
+describe('byOperationKey', () => {
+  it('matches any signer, which is all the gate needs to know', () => {
+    expect(byOperationKey('Mainnet', OP_ID)).toEqual({
       network: { $eq: 'mainnet' },
       operationId: { $eq: OP_ID },
     })
+  })
+
+  it('does not constrain the signer', () => {
+    expect(Object.keys(byOperationKey('mainnet', OP_ID))).not.toContain(
+      'signer'
+    )
   })
 })
 

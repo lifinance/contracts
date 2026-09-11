@@ -49,6 +49,16 @@ const ENFORCING_CHECK =
 
 const REFUSING_RETURN = /return '(?:retry|blocked)'/gu
 
+/**
+ * The same pattern without `g`, for the `toMatch` assertions.
+ *
+ * bun's `toMatch` advances `lastIndex` on a global regex, so a second call with
+ * the same object starts scanning past the first match and reports no match.
+ * Under `.not.toMatch` that reads as a pass — the assertion would go green on
+ * exactly the refusal it exists to catch.
+ */
+const REFUSING_RETURN_TEST = /return '(?:retry|blocked)'/u
+
 describe('pre-broadcast gate placement', () => {
   const body = gateFunctionSource()
 
@@ -77,7 +87,7 @@ describe('pre-broadcast gate placement', () => {
         body.indexOf('}', match.index + match[0].length) + 1
       )
       expect(after).toContain('abortUnverified')
-      expect(after).not.toMatch(REFUSING_RETURN)
+      expect(after).not.toMatch(REFUSING_RETURN_TEST)
     }
   })
 
@@ -91,6 +101,47 @@ describe('pre-broadcast gate placement', () => {
     )
     expect(helper).toContain("unverifiedGateOutcome(process.env) === 'ok'")
     expect([...helper.matchAll(REFUSING_RETURN)]).toHaveLength(1)
+  })
+
+  // Goran, PR #2353: the totality of this function rested on every alert call
+  // being unable to throw, which is a property of `sendNotificationWithRetry`'s
+  // default argument in another module — something a scan of this file cannot
+  // see. The call site catching makes it hold whatever that module does.
+  it('catches at the call site, so a throw here cannot escape unhandled', () => {
+    const callSite = SOURCE.slice(
+      SOURCE.indexOf('const gate = networkName'),
+      SOURCE.indexOf('// If interactive mode, show choice prompt')
+    )
+    expect(callSite).toContain('enforcePreBroadcastGateOrAbort(')
+    expect(callSite).toContain('.catch(')
+    // And what it answers with is the flag-aware outcome, not a bare refusal:
+    // a throw must not stop a production broadcast under shadow mode either.
+    expect(callSite).toContain('unverifiedGateOutcome(process.env)')
+    expect(callSite).not.toMatch(REFUSING_RETURN_TEST)
+  })
+
+  // Daniel's call, PR #2353: while the gate cannot stop anything, its output
+  // must not compete with the escalations a human is expected to act on. Every
+  // operation queued before this shipped has no sign-time record, so the gap
+  // alert would otherwise fire on every honest operation on every chain.
+  it('sends nothing to Slack until enforcement is on', () => {
+    const guard = body.slice(
+      body.indexOf('const mayAlert'),
+      body.indexOf('const alertFailure')
+    )
+    expect(guard).toContain('isPreBroadcastGateEnforcing(process.env)')
+
+    // Every notifier call in this function is behind that guard. The trailing
+    // paren keeps a mention in a comment from counting as a call site.
+    const sends = [...body.matchAll(/sendNotificationWithRetry\(/gu)]
+    expect(sends.length).toBeGreaterThan(0)
+    for (const send of sends) {
+      const statement = body.slice(
+        body.lastIndexOf('if (', send.index),
+        send.index
+      )
+      expect(statement).toContain('mayAlert()')
+    }
   })
 
   // The alert channels are not interchangeable: a gap says nothing was checked,

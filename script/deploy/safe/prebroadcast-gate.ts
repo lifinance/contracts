@@ -1,36 +1,38 @@
 /**
- * The pre-broadcast gate: assembles live observations and `main`-derived
- * anchors, then asks `evaluatePreBroadcastGate` whether the operation may run.
+ * The pre-broadcast gate: assembles live observations and the expectations
+ * `main` declares, then asks `evaluatePreBroadcastGate` whether the operation
+ * may run.
  *
  * Import `runPreBroadcastGate` from the executor immediately before the point
- * where it would broadcast. Every dependency that touches the network, the
- * filesystem or MongoDB is injected, so the whole path can be driven in a test
- * without a chain.
+ * where it would broadcast, and `observeCalldata` from `confirm-safe-tx.ts` to
+ * build a signer's record. Every dependency that touches the network or MongoDB
+ * is injected, so the whole path can be driven in a test without a chain.
  */
 
 import { isTronNetworkKey } from '@lifi/tron-devkit'
-import { parseAbi, type Address, type Hex, type PublicClient } from 'viem'
+import {
+  keccak256,
+  parseAbi,
+  type Address,
+  type Hex,
+  type PublicClient,
+} from 'viem'
 
-import type { IAttestedBuild } from '../codehash/attested-set'
+import { strip0x } from '../codehash/hex'
 
 import {
   AUTHORITY_ABI,
   DECLARED_STORAGE_AUTHORITIES,
   buildAddressNameIndex,
-  deriveGateInput,
-  deriveLineageScope,
   extractCalldataAddresses,
-  normalizeRuntimeCode,
-  readArtifactAnchor,
   resolveExpectedAuthority,
   type AuthorityGetter,
-  type IArtifactAnchor,
-} from './prebroadcast-anchors'
-import {
-  evaluatePreBroadcastGate,
   type IPreBroadcastAuthority,
+} from './prebroadcast-authorities'
+import {
+  deriveGateInput,
+  evaluatePreBroadcastGate,
   type IPreBroadcastGateResult,
-  type IPreBroadcastTarget,
 } from './prebroadcast-rederive'
 
 /**
@@ -67,20 +69,14 @@ export interface IObservationDependencies {
   deployments: Record<string, unknown>
   /** Parsed `config/global.json`. */
   globalConfig: Record<string, unknown>
-  /** This network's `config/networks.json` entry. */
-  networkConfig: { isZkEVM?: unknown; targetEvmVersion?: unknown }
-  /** Directory holding forge's `out/`. */
-  artifactRoot: string
-  /** Label for the local build, e.g. the commit it was built from. */
-  lineage: string
 }
 
 /** Everything the gate reaches the outside world through. */
 export interface IGateDependencies extends IObservationDependencies {
   /** The stored sign-time record, or null. Only its presence is used. */
   signTimeRecord: unknown
-  /** Reads the id the timelock itself derives from the operation parameters. */
-  readOnChainOperationId: () => Promise<string>
+  /** Reads the timestamp the timelock has stored against the operation id. */
+  readScheduledAt: () => Promise<bigint>
 }
 
 export interface IGateOperation {
@@ -92,28 +88,47 @@ export interface IGateOperation {
 const describeError = (error: unknown): string =>
   error instanceof Error ? error.message : String(error)
 
+/** One address the operation names, and the code seen at it. */
+export interface IObservedTarget {
+  /**
+   * The address as it appears in the operation parameters, lowercased. Never a
+   * display name and never a name-resolved address: the calldata's own bytes
+   * are what executes.
+   */
+  address: string
+  /**
+   * Contract name resolved from the deployments file at `main` by exact address
+   * match, or undefined when no entry holds this address.
+   */
+  resolvedContractName: string | undefined
+  /** keccak of the exact bytes at the address; undefined when unread. */
+  rawHash: string | undefined
+  /** Byte length as deployed; undefined when unread. */
+  rawByteLength: number | undefined
+  /** Why the live read yielded nothing. */
+  observationError: string | undefined
+}
+
 /**
- * Reads live code at one address and grades it against the local build.
+ * Reads the live code at one address and hashes exactly what is there.
+ *
+ * No masking and no comparison. The observation exists so a signer's record can
+ * say what their machine saw, and the value of that record is that three
+ * signers' copies are comparable to each other — which they are only if every
+ * machine hashes the same bytes it read, with nothing derived from a local
+ * build folded in. Grading these against an attested set is EXSC-952's job,
+ * once there is a set nobody's laptop produced.
  *
  * @param address - Lowercased address from the calldata.
  * @param contractName - Name the deployments file bound to it, if any.
- * @param anchor - The artifact anchor for that name, if one was readable.
- * @param dependencies - Injected readers and anchors.
- * @returns The target observation the gate decides on.
+ * @param dependencies - Injected readers.
+ * @returns The observation, readable or not.
  */
 const observeTarget = async (
   address: string,
   contractName: string | undefined,
-  anchor: IArtifactAnchor | undefined,
   dependencies: IObservationDependencies
-): Promise<IPreBroadcastTarget> => {
-  const scope = deriveLineageScope(
-    dependencies.networkConfig,
-    anchor?.evmVersion
-  )
-  const attested: IAttestedBuild[] =
-    anchor === undefined ? [] : [anchor.attested]
-
+): Promise<IObservedTarget> => {
   let code: string
   try {
     code = await dependencies.readCode(address as Address)
@@ -121,31 +136,28 @@ const observeTarget = async (
     return {
       address,
       resolvedContractName: contractName,
-      observed: undefined,
+      rawHash: undefined,
+      rawByteLength: undefined,
       observationError: describeError(error),
-      attested,
-      scope,
     }
   }
 
-  const normalized = normalizeRuntimeCode(code, anchor?.immutableReferences)
-  if (normalized.error !== undefined)
+  const body = strip0x(code)
+  if (!/^[0-9a-fA-F]*$/.test(body) || body.length % 2 !== 0)
     return {
       address,
       resolvedContractName: contractName,
-      observed: undefined,
-      observationError: normalized.error,
-      attested,
-      scope,
+      rawHash: undefined,
+      rawByteLength: undefined,
+      observationError: `live code at ${address} is not an even-length hex string`,
     }
 
   return {
     address,
     resolvedContractName: contractName,
-    observed: normalized.observed,
+    rawHash: keccak256(`0x${body}` as Hex),
+    rawByteLength: body.length / 2,
     observationError: undefined,
-    attested,
-    scope,
   }
 }
 
@@ -153,7 +165,7 @@ const observeTarget = async (
  * Reads every storage authority declared for the contracts in this operation.
  *
  * @param resolved - Address → contract name for the operation's addresses.
- * @param dependencies - Injected readers and anchors.
+ * @param dependencies - Injected readers.
  * @returns One row per declared authority.
  */
 const observeAuthorities = async (
@@ -191,6 +203,7 @@ const observeAuthorities = async (
           label,
           liveValue: liveValue.trim().toLowerCase(),
           expectedValue,
+          expectationSource: authority.source.from,
           readError: undefined,
         })
       } catch (error) {
@@ -198,6 +211,7 @@ const observeAuthorities = async (
           label,
           liveValue: undefined,
           expectedValue,
+          expectationSource: authority.source.from,
           readError: describeError(error),
         })
       }
@@ -210,24 +224,24 @@ const observeAuthorities = async (
 /**
  * Re-derives whether a queued timelock operation may be broadcast.
  *
- * Reads the operation id back from the timelock, resolves every address in the
- * calldata that `main` can name, reads their live code and declared storage
- * authorities, and decides. The stored sign-time record reaches the decision
+ * Asks the timelock what it has scheduled under the id, resolves every address
+ * in the calldata that `main` can name, reads their declared storage
+ * authorities and decides. The stored sign-time record reaches the decision
  * only as a boolean.
  *
  * @param operation - The operation about to be executed.
- * @param dependencies - Injected readers and anchors.
+ * @param dependencies - Injected readers.
  * @returns The gate result.
  */
 export const runPreBroadcastGate = async (
   operation: IGateOperation,
   dependencies: IGateDependencies
 ): Promise<IPreBroadcastGateResult> => {
-  let onChainOperationId: string | undefined
+  let scheduledAt: bigint | undefined
   try {
-    onChainOperationId = await dependencies.readOnChainOperationId()
+    scheduledAt = await dependencies.readScheduledAt()
   } catch {
-    onChainOperationId = undefined
+    scheduledAt = undefined
   }
 
   const { targets, authorities } = await observeCalldata(
@@ -238,8 +252,13 @@ export const runPreBroadcastGate = async (
   return evaluatePreBroadcastGate(
     deriveGateInput({
       operationId: operation.operationId,
-      onChainOperationId,
-      targets,
+      scheduledAt,
+      addressesNamed: targets.length,
+      addressesResolved: targets.filter(
+        (target) =>
+          target.resolvedContractName !== undefined &&
+          target.resolvedContractName.length > 0
+      ).length,
       authorities,
       signTimeRecord: dependencies.signTimeRecord,
     })
@@ -248,7 +267,7 @@ export const runPreBroadcastGate = async (
 
 /** What one pass over an operation's calldata observed. */
 export interface IObservedCalldata {
-  targets: IPreBroadcastTarget[]
+  targets: IObservedTarget[]
   authorities: IPreBroadcastAuthority[]
 }
 
@@ -260,7 +279,7 @@ export interface IObservedCalldata {
  * implementation of the resolution would let the two drift.
  *
  * @param operation - The operation whose calldata to walk.
- * @param dependencies - Injected readers and anchors.
+ * @param dependencies - Injected readers.
  * @returns One target row per resolved address, plus every declared authority.
  */
 export const observeCalldata = async (
@@ -279,27 +298,9 @@ export const observeCalldata = async (
     contractName: nameIndex.get(address),
   }))
 
-  const anchors = new Map<string, IArtifactAnchor | undefined>()
-  for (const { contractName } of resolved) {
-    if (contractName === undefined || anchors.has(contractName)) continue
-    anchors.set(
-      contractName,
-      readArtifactAnchor(
-        contractName,
-        dependencies.artifactRoot,
-        dependencies.lineage
-      )
-    )
-  }
-
   const targets = await Promise.all(
     resolved.map(({ address, contractName }) =>
-      observeTarget(
-        address,
-        contractName,
-        contractName === undefined ? undefined : anchors.get(contractName),
-        dependencies
-      )
+      observeTarget(address, contractName, dependencies)
     )
   )
 
@@ -330,47 +331,41 @@ export const viemGateReaders = (
 })
 
 /**
- * Builds the operation-id reader from a viem client.
+ * Builds the schedule-timestamp reader from a viem client.
  *
- * `hashOperationBatch` is a pure function of the arguments passed to it — the
- * controller stores only id→timestamp, never the parameters — so this proves
- * the row's parameters hash to the id the row claims, and nothing more. A row
- * edited consistently in both still agrees here; what refuses that one is the
- * timelock itself, which has no schedule entry under the new id.
+ * Asks the controller what it has stored against the id, rather than asking it
+ * to re-hash parameters we already hold. `hashOperationBatch` is pure, so
+ * hashing the row's own parameters could only ever confirm that viem and solc
+ * agree on ABI encoding — worth knowing once in a test, not once per operation
+ * per tick. `getTimestamp` reads state instead: a row whose parameters were
+ * edited consistently in both places hashes to a new id the controller has
+ * never scheduled, and comes back zero here.
+ *
+ * This does not make the broadcast safe on its own — `executeBatch` re-derives
+ * the id and enforces `isOperationReady` regardless of what we read. It turns
+ * that revert into a pre-flight refusal an operator can act on.
  *
  * @param publicClient - Client for the network.
  * @param timelockAddress - The controller to ask.
- * @param params - Operation parameters from the queue row.
+ * @param operationId - The id the row is being executed under.
  * @returns The reader dependency.
  */
-export const viemOperationIdReader =
+export const viemScheduledAtReader =
   (
     publicClient: PublicClient,
     timelockAddress: Address,
-    params: {
-      targets: readonly Address[]
-      values: readonly bigint[]
-      payloads: readonly Hex[]
-      predecessor: Hex
-      salt: Hex
-    }
-  ): IGateDependencies['readOnChainOperationId'] =>
+    operationId: Hex
+  ): IGateDependencies['readScheduledAt'] =>
   async () => {
-    const id = await publicClient.readContract({
+    const timestamp = await publicClient.readContract({
       address: timelockAddress,
       abi: parseAbi([
-        'function hashOperationBatch(address[] targets, uint256[] values, bytes[] payloads, bytes32 predecessor, bytes32 salt) view returns (bytes32)',
+        'function getTimestamp(bytes32 id) view returns (uint256)',
       ]),
-      functionName: 'hashOperationBatch',
-      args: [
-        params.targets,
-        params.values,
-        params.payloads,
-        params.predecessor,
-        params.salt,
-      ],
+      functionName: 'getTimestamp',
+      args: [operationId],
     })
-    return id as string
+    return timestamp as bigint
   }
 
 /**
@@ -414,10 +409,14 @@ export const PRE_BROADCAST_GATE_ENFORCE_ENV = 'PRE_BROADCAST_GATE_ENFORCE'
  *
  * Off unless the variable is exactly `'true'`; anything else — unset, empty,
  * `'1'`, `'TRUE'`, `'yes'` — reads as off. Defaulting to off rather than on
- * inverts the usual reflex because the gate's attested set is one local build
- * of the current checkout: it grades any contract not redeployed since the
- * compiler moved as MISMATCH, so enforcing refuses honest traffic until that
- * set is anchored on a real attestation store (EXSC-952).
+ * inverts the usual reflex because a `HOLD` refuses the broadcast: an authority
+ * read that fails intermittently would stop honest rollouts on every chain it
+ * touches. The gate has to demonstrate it does not hold on honest traffic
+ * before an unattended cron is allowed to act on it.
+ *
+ * The same flag gates the gate's Slack alerting, for the same reason: output
+ * nobody may act on does not belong on the channel carrying escalations
+ * somebody must.
  *
  * @param env - The environment to read, normally `process.env`.
  * @returns True only for the exact opt-in.
@@ -470,6 +469,6 @@ export const buildShadowRefusalAlert = (input: {
     `🕶️ Pre-broadcast gate returned ${input.disposition} on ${input.network} and was OVERRIDDEN by shadow mode — the operation executed`,
     `operation ${input.operationId}`,
     bullets,
-    `Shadow mode is on because the gate re-derives from one fresh local build; enforcing it today refuses honest deploys (EXSC-952 anchors it to minted attestations).`,
+    `Shadow mode is on until the gate has shown it does not refuse honest traffic; a HOLD would otherwise stop rollouts on every chain.`,
   ].join('\n')
 }

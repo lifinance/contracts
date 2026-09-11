@@ -42,10 +42,11 @@
 #         confirm-safe-tx.ts when a Safe tx scheduling a timelock op is mined. The
 #         pre-broadcast gate also reads timelock-operations.signed-sets from the same cluster.)
 #     * PRE_BROADCAST_GATE_ENFORCE is deliberately NOT set here. Unset, the pre-broadcast
-#         integrity gate runs in shadow mode: it logs and alerts its verdict and the operation
-#         still executes. Setting it to "true" makes refusals binding, which must wait for the
-#         attestation store tracked by EXSC-952 — the set the gate derives today grades honest
-#         deployments MISMATCH, so enforcing would block effectively every queued operation.
+#         integrity gate runs in shadow mode: it logs its verdict, sends nothing to Slack, and
+#         the operation still executes. Setting it to "true" makes refusals binding AND turns
+#         on the gate's alerting. Both wait on the same evidence: a HOLD refuses the broadcast,
+#         so the gate has to show it does not HOLD on honest traffic before an unattended cron
+#         is allowed to act on it.
 # - Known limitations:
 #     * Job timeout caps runtime; very large multi-network runs may need a higher value
 

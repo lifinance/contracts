@@ -7,12 +7,7 @@
  * caller can hand this decision something a proposer could have written.
  */
 
-import { compareToAttestedSet } from '../codehash/attested-set'
-import type {
-  IAttestedBuild,
-  ILineageScope,
-  IObservedCode,
-} from '../codehash/attested-set'
+import type { IPreBroadcastAuthority } from './prebroadcast-authorities'
 
 /**
  * What the gate permits. `PROCEED` is the only member that allows a broadcast;
@@ -24,61 +19,29 @@ export type PreBroadcastDisposition = 'PROCEED' | 'BLOCK' | 'HOLD'
 const DISPOSITIONS_THAT_MAY_BROADCAST: ReadonlySet<PreBroadcastDisposition> =
   new Set<PreBroadcastDisposition>(['PROCEED'])
 
-/** One address from the on-chain operation parameters, and what was read at it. */
-export interface IPreBroadcastTarget {
-  /**
-   * The address as it appears in the operation parameters read from the
-   * timelock, lowercased. Never a display name and never a name-resolved
-   * address: the calldata's own bytes are what executes.
-   */
-  address: string
-  /**
-   * Contract name resolved from the deployments file at `main` by exact address
-   * match, or undefined when no entry holds this address.
-   */
-  resolvedContractName: string | undefined
-  /** Live `eth_getCode` at `address`, normalised; undefined when unread. */
-  observed: IObservedCode | undefined
-  /** Why the live read yielded nothing. */
-  observationError: string | undefined
-  /** Every attested build of `main` for `resolvedContractName`. */
-  attested: IAttestedBuild[]
-  scope: ILineageScope
-}
-
-/** One R2.6 storage-authority value: what is live versus what `main` declares. */
-export interface IPreBroadcastAuthority {
-  /** Identifies the value for the operator, e.g. `LiFiDiamond.owner`. */
-  label: string
-  /** Live on-chain value, lowercased; undefined when the read failed. */
-  liveValue: string | undefined
-  /** Value `main` declares, lowercased; undefined when it declares none. */
-  expectedValue: string | undefined
-  /** Why the live read yielded nothing. */
-  readError: string | undefined
-}
-
 export interface IPreBroadcastGateInput {
-  /**
-   * The id the executor is about to execute this operation under, as stored.
-   * Passing one re-derived from the parameters below costs the
-   * `onChainOperationId` comparison what independence it has: it becomes
-   * keccak(params) against keccak(params), true whatever the caller was handed.
-   */
+  /** The id the executor is about to execute this operation under, as stored. */
   operationId: string
   /**
-   * The chain's own hash of the parameters this operation would execute with.
-   * `hashOperationBatch` is pure, so this confirms the parameters hash to the
-   * id they are executed under; it reads nothing the timelock stores.
-   * Undefined when the call could not be made.
+   * The timestamp the controller has stored against that id — what it actually
+   * holds, rather than a re-hash of parameters we were handed. Zero is the
+   * controller's own answer for "no schedule entry under this id". Undefined
+   * when the call could not be made.
    */
-  onChainOperationId: string | undefined
-  targets: IPreBroadcastTarget[]
+  scheduledAt: bigint | undefined
+  /**
+   * How many addresses the operation's parameters name, and how many of those
+   * `main` binds to a contract. The gap is what the gate could not look at. It
+   * is reported rather than decided on: an address the deployments file does
+   * not hold is routine on a rollout that installs new code.
+   */
+  addressesNamed: number
+  addressesResolved: number
   authorities: IPreBroadcastAuthority[]
   /**
    * Whether a sign-time verdict record exists. It only ever raises an alert:
-   * the verdict below is re-derived from anchors either way, so blocking on a
-   * missing record would turn a failed record write into a liveness outage.
+   * the verdict below is re-derived either way, so blocking on a missing record
+   * would turn a failed record write into a liveness outage.
    */
   signTimeRecordPresent: boolean
 }
@@ -95,20 +58,42 @@ export interface IPreBroadcastGateResult {
   blocksBroadcast: boolean
 }
 
-const normalizeId = (id: string): string => id.trim().toLowerCase()
+/**
+ * Describes how much of the operation the gate actually looked at.
+ *
+ * Spelled out on every disposition, PROCEED included, because the coverage is
+ * partial by construction: a payload address the deployments file does not name
+ * produces no row, and a contract with no entry in
+ * `DECLARED_STORAGE_AUTHORITIES` produces none either. A PROCEED that says how
+ * much it read cannot be misread as a statement about the rest.
+ *
+ * @param input - The gate input the counts are taken from.
+ * @returns A clause naming what was covered.
+ */
+const describeCoverage = (input: IPreBroadcastGateInput): string =>
+  `${input.addressesResolved} of ${input.addressesNamed} calldata address(es) resolve to a contract main names, and ${input.authorities.length} declared storage authority value(s) were read`
 
 /**
  * Decides whether a queued timelock operation may be broadcast.
  *
- * `BLOCK` is a statement about the operation: the code that would run is not a
- * build of `main`, an authority has moved, or the id does not match the one the
- * timelock scheduled. `HOLD` is a statement about our knowledge — a read
- * failed, an address resolves to no contract we can name, or the lineage cannot
- * be established. Both refuse the broadcast; they differ only in what the
- * cancel decision may do with them, so a `HOLD` is never escalated on our
+ * `BLOCK` is a statement about the operation: a storage authority has moved, or
+ * the timelock holds no schedule entry under the id being executed. `HOLD` is a
+ * statement about our knowledge — a read failed, or `main` declares no value to
+ * judge a live one against. Both refuse the broadcast; they differ only in what
+ * the cancel decision may do with them, so a `HOLD` is never escalated on our
  * behalf.
  *
- * @param input - Live observations and `main`-derived anchors. No stored value.
+ * Storage authorities are the whole of the integrity half on purpose. Of the
+ * things this gate could re-derive, they are the only ones whose subject can
+ * change during the delay window: the operation's parameters are chain-enforced
+ * by `executeBatch`'s own `hashOperationBatch` and `isOperationReady`, and
+ * deployed code is immutable. Re-deriving code against a local build would
+ * compare the executor against its own checkout — the same oracle the three
+ * signers already used, so three observations of it are still one (EXSC-952
+ * mints the independent one).
+ *
+ * @param input - Live observations and `main`-derived expectations. No stored
+ * value.
  * @returns The disposition, every finding behind it, and any alerts.
  */
 export const evaluatePreBroadcastGate = (
@@ -123,61 +108,21 @@ export const evaluatePreBroadcastGate = (
       `no sign-time verdict record exists for operation ${input.operationId}; the verdict below was re-derived without it, but the signing audit trail has a gap`
     )
 
-  if (input.onChainOperationId === undefined)
+  if (input.scheduledAt === undefined)
     holdFindings.push(
-      'the timelock could not be asked to recompute the operation id, so the id being executed is unconfirmed'
+      'the timelock could not be asked what it has scheduled under this id, so the operation being executed is unconfirmed'
     )
-  else if (
-    normalizeId(input.onChainOperationId) !== normalizeId(input.operationId)
-  )
+  else if (input.scheduledAt === 0n)
     blockFindings.push(
-      `the chain hashes this operation's parameters to id ${input.onChainOperationId}, not the ${input.operationId} it is being executed under`
+      `the timelock holds no schedule entry under id ${input.operationId}, so this operation was never scheduled under it or has already been consumed`
     )
 
-  // An operation whose parameters name no target has nothing to verify, and
+  // An operation naming no address has nothing to read authorities from, and
   // "nothing was checked" must not read as "everything checked out".
-  if (input.targets.length === 0)
+  if (input.addressesNamed === 0)
     holdFindings.push(
-      'the operation parameters read off chain name no target, so no code could be compared'
+      'the operation parameters read off chain name no address, so nothing could be checked'
     )
-
-  for (const target of input.targets) {
-    if (target.observationError !== undefined) {
-      holdFindings.push(
-        `${target.address}: its live code could not be read (${target.observationError})`
-      )
-      continue
-    }
-
-    if (target.observed === undefined) {
-      holdFindings.push(
-        `${target.address}: no live code observation was supplied for it`
-      )
-      continue
-    }
-
-    // Without a single name there is no attested set to compare against. Both
-    // an address the deployment record does not hold and one it binds to two
-    // names land here, and neither may pass unremarked.
-    if (
-      target.resolvedContractName === undefined ||
-      target.resolvedContractName.length === 0
-    ) {
-      holdFindings.push(
-        `${target.address}: main binds no single contract to this address, so there is nothing to compare its code against`
-      )
-      continue
-    }
-
-    const comparison = compareToAttestedSet(
-      target.observed,
-      target.attested,
-      target.scope
-    )
-    const detail = `${target.address} (${target.resolvedContractName}): ${comparison.reason}`
-    if (comparison.verdict === 'MISMATCH') blockFindings.push(detail)
-    else if (comparison.verdict === 'UNVERIFIABLE') holdFindings.push(detail)
-  }
 
   for (const authority of input.authorities) {
     if (authority.readError !== undefined) {
@@ -219,14 +164,15 @@ export const evaluatePreBroadcastGate = (
       ? 'HOLD'
       : 'PROCEED'
 
+  const coverage = describeCoverage(input)
   const reason =
     disposition === 'PROCEED'
-      ? `re-derived from main: every target's live code matches an attested build and every storage authority matches config${
+      ? `re-derived from main: every storage authority read matches config — ${coverage}${
           alerts.length > 0 ? ', with alerts' : ''
         }`
       : disposition === 'BLOCK'
-      ? `${blockFindings.length} proven integrity failure(s): ${blockFindings[0]}`
-      : `${holdFindings.length} thing(s) could not be verified: ${holdFindings[0]}`
+      ? `${blockFindings.length} proven integrity failure(s): ${blockFindings[0]} — ${coverage}`
+      : `${holdFindings.length} thing(s) could not be verified: ${holdFindings[0]} — ${coverage}`
 
   return {
     disposition,
@@ -236,3 +182,37 @@ export const evaluatePreBroadcastGate = (
     blocksBroadcast: !DISPOSITIONS_THAT_MAY_BROADCAST.has(disposition),
   }
 }
+
+export interface IDeriveGateInput {
+  operationId: string
+  scheduledAt: bigint | undefined
+  addressesNamed: number
+  addressesResolved: number
+  authorities: IPreBroadcastAuthority[]
+  /** The stored sign-time record, or null. Only its existence is carried on. */
+  signTimeRecord: unknown
+}
+
+/**
+ * Assembles the gate's input from live observations and the stored record.
+ *
+ * The record is a G6 reconstruction trail written by the proposer's own run, so
+ * every value in it is proposer-controlled. Reducing it to a boolean here is
+ * what makes tampering with its contents structurally unable to move the
+ * verdict: no other field survives into the gate's input.
+ *
+ * @param input - Observations, counts, and the stored record.
+ * @returns The gate input, carrying the record's presence and none of its
+ * values.
+ */
+export const deriveGateInput = (
+  input: IDeriveGateInput
+): IPreBroadcastGateInput => ({
+  operationId: input.operationId,
+  scheduledAt: input.scheduledAt,
+  addressesNamed: input.addressesNamed,
+  addressesResolved: input.addressesResolved,
+  authorities: input.authorities,
+  signTimeRecordPresent:
+    input.signTimeRecord !== null && input.signTimeRecord !== undefined,
+})

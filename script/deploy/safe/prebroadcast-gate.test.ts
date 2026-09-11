@@ -1,15 +1,12 @@
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'fs'
-import { tmpdir } from 'os'
-import path from 'path'
-
 // eslint-disable-next-line import/no-unresolved
-import { afterAll, describe, expect, it } from 'bun:test'
-import type { Address } from 'viem'
+import { describe, expect, it } from 'bun:test'
+import { keccak256, type Address, type Hex } from 'viem'
 
 import {
   buildGateGapAlert,
   buildShadowRefusalAlert,
   isPreBroadcastGateEnforcing,
+  observeCalldata,
   PRE_BROADCAST_GATE_ENFORCE_ENV,
   resolveGateCoverage,
   runPreBroadcastGate,
@@ -17,9 +14,6 @@ import {
   type IGateDependencies,
   type IGateOperation,
 } from './prebroadcast-gate'
-
-const REAL_TRAILER =
-  'a2646970667358221220d03ac5dc4a08882370fe06263f9bcf6dee1812146c63a9d19ed384af9919e81e64736f6c634300081d0033'
 
 const DIAMOND = '0x1231deb6f5749ef6ce6943a275a1d3e7486f4eae'
 const FACET = '0x00000000000000000000000000000000000000aa'
@@ -32,38 +26,11 @@ const OP_ID =
   '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' // pre-commit-checker: not a secret — a synthetic test hash
 
 /** Distinct runtime bodies so a swap at one address is visible. */
-const DIAMOND_BODY = '11'.repeat(64)
-const FACET_BODY = '22'.repeat(64)
-
-const withTrailer = (body: string): string => `0x${body}${REAL_TRAILER}`
+const DIAMOND_BODY = `0x${'11'.repeat(64)}`
+const FACET_BODY = `0x${'22'.repeat(64)}`
 
 const asWord = (address: string): string =>
   address.replace(/^0x/, '').toLowerCase().padStart(64, '0')
-
-const tempDirs: string[] = []
-const buildArtifactRoot = (): string => {
-  const root = mkdtempSync(path.join(tmpdir(), 'prebroadcast-gate-'))
-  tempDirs.push(root)
-  for (const [name, body] of [
-    ['LiFiDiamond', DIAMOND_BODY],
-    ['OwnershipFacet', FACET_BODY],
-  ] as const) {
-    const dir = path.join(root, 'out', `${name}.sol`)
-    mkdirSync(dir, { recursive: true })
-    writeFileSync(
-      path.join(dir, `${name}.json`),
-      JSON.stringify({
-        deployedBytecode: { object: withTrailer(body) },
-        metadata: { settings: { evmVersion: 'cancun' } },
-      })
-    )
-  }
-  return root
-}
-
-afterAll(() => {
-  for (const dir of tempDirs) rmSync(dir, { recursive: true, force: true })
-})
 
 const DEPLOYMENTS = {
   LiFiDiamond: DIAMOND,
@@ -86,10 +53,7 @@ interface IChainState {
 }
 
 const healthyChain = (): IChainState => ({
-  code: {
-    [DIAMOND]: withTrailer(DIAMOND_BODY),
-    [FACET]: withTrailer(FACET_BODY),
-  },
+  code: { [DIAMOND]: DIAMOND_BODY, [FACET]: FACET_BODY },
   authorities: {
     [`${DIAMOND}:owner`]: TIMELOCK,
     [`${DIAMOND}:pauserWallet`]: PAUSER,
@@ -112,271 +76,191 @@ const dependencies = (
   },
   deployments: DEPLOYMENTS,
   globalConfig: GLOBAL_CONFIG,
-  networkConfig: { isZkEVM: false, targetEvmVersion: 'cancun' },
-  artifactRoot: buildArtifactRoot(),
-  lineage: 'local build of main',
   signTimeRecord: { operationId: OP_ID, codehashes: [], authorities: [] },
-  readOnChainOperationId: async () => OP_ID,
+  readScheduledAt: async () => 1_700_000_000n,
   ...overrides,
 })
 
 describe('runPreBroadcastGate — the real path, driven end to end', () => {
-  it('proceeds when the live code at every address is the local build of main', async () => {
+  it('proceeds when the timelock holds the operation and every authority matches', async () => {
     const result = await runPreBroadcastGate(
       OPERATION,
       dependencies(healthyChain())
     )
-
-    expect(result.findings).toEqual([])
     expect(result.disposition).toBe('PROCEED')
     expect(result.blocksBroadcast).toBe(false)
-  })
-
-  it('blocks when the code at a signed address diverged', async () => {
-    const chain = healthyChain()
-    chain.code[FACET] = withTrailer('33'.repeat(64))
-
-    const result = await runPreBroadcastGate(OPERATION, dependencies(chain))
-
-    expect(result.disposition).toBe('BLOCK')
-    expect(result.blocksBroadcast).toBe(true)
-    expect(result.findings.join('\n')).toContain(FACET)
-    expect(result.findings.join('\n')).toContain('OwnershipFacet')
-  })
-
-  it('blocks a build with a payload appended and the length word rewritten to cover it', async () => {
-    // The proposer controls the trailer's own length word, which decides how
-    // much comes off before hashing. Rewriting it does not buy a MATCH.
-    const chain = healthyChain()
-    const padding = 'ab'.repeat(20)
-    const declared = (REAL_TRAILER.length / 2 - 2 + padding.length / 2)
-      .toString(16)
-      .padStart(4, '0')
-    chain.code[FACET] = `0x${FACET_BODY}${REAL_TRAILER.slice(
-      0,
-      -4
-    )}${padding}${declared}`
-
-    const result = await runPreBroadcastGate(OPERATION, dependencies(chain))
-
-    expect(result.disposition).toBe('BLOCK')
-    expect(result.blocksBroadcast).toBe(true)
-    expect(result.findings.join('\n')).toContain('OwnershipFacet')
-  })
-
-  it('blocks an address in the calldata that holds no code at all', async () => {
-    const chain = healthyChain()
-    chain.code[FACET] = '0x'
-
-    const result = await runPreBroadcastGate(OPERATION, dependencies(chain))
-
-    expect(result.blocksBroadcast).toBe(true)
-    expect(result.findings.join('\n')).toContain('holds no code')
   })
 
   it('blocks a diamond whose owner is no longer the timelock main declares', async () => {
     const chain = healthyChain()
     chain.authorities[`${DIAMOND}:owner`] = ATTACKER
-
     const result = await runPreBroadcastGate(OPERATION, dependencies(chain))
-
     expect(result.disposition).toBe('BLOCK')
-    expect(result.findings.join('\n')).toContain('LiFiDiamond.owner()')
-    expect(result.findings.join('\n')).toContain(ATTACKER)
+    expect(result.findings.join(' ')).toContain(ATTACKER)
   })
 
   it('blocks a pauser that has drifted off config', async () => {
     const chain = healthyChain()
     chain.authorities[`${DIAMOND}:pauserWallet`] = ATTACKER
-
     const result = await runPreBroadcastGate(OPERATION, dependencies(chain))
-
     expect(result.disposition).toBe('BLOCK')
-    expect(result.findings.join('\n')).toContain('LiFiDiamond.pauserWallet()')
+    expect(result.findings.join(' ')).toContain('pauserWallet')
   })
 
-  it('blocks when the timelock recomputes a different operation id', async () => {
-    const scheduled =
-      '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb' // pre-commit-checker: not a secret — a synthetic test hash
+  it('blocks when the timelock has nothing scheduled under the id', async () => {
     const result = await runPreBroadcastGate(
       OPERATION,
-      dependencies(healthyChain(), {
-        readOnChainOperationId: async () => scheduled,
-      })
+      dependencies(healthyChain(), { readScheduledAt: async () => 0n })
     )
-
     expect(result.disposition).toBe('BLOCK')
-    expect(result.findings.join('\n')).toContain(scheduled)
+    expect(result.findings.join(' ')).toContain('no schedule entry')
   })
 
-  it('holds rather than blocking when a code read fails', async () => {
+  it('holds when the timelock cannot be asked what it scheduled', async () => {
     const result = await runPreBroadcastGate(
       OPERATION,
       dependencies(healthyChain(), {
-        readCode: async () => {
-          throw new Error('HTTP request failed')
+        readScheduledAt: async () => {
+          throw new Error('node unreachable')
         },
       })
     )
-
     expect(result.disposition).toBe('HOLD')
-    expect(result.blocksBroadcast).toBe(true)
-    expect(result.findings.join('\n')).toContain('HTTP request failed')
-  })
-
-  it('holds when the id cannot be read back off chain', async () => {
-    const result = await runPreBroadcastGate(
-      OPERATION,
-      dependencies(healthyChain(), {
-        readOnChainOperationId: async () => {
-          throw new Error('RPC down')
-        },
-      })
-    )
-
-    expect(result.disposition).toBe('HOLD')
-    expect(result.findings.join('\n')).toContain('unconfirmed')
+    expect(result.findings.join(' ')).toContain('could not be asked')
   })
 
   it('holds when an authority read reverts', async () => {
     const chain = healthyChain()
     delete chain.authorities[`${DIAMOND}:owner`]
-
     const result = await runPreBroadcastGate(OPERATION, dependencies(chain))
-
     expect(result.disposition).toBe('HOLD')
-    expect(result.findings.join('\n')).toContain('execution reverted')
+    expect(result.findings.join(' ')).toContain('execution reverted')
   })
 
-  it('holds when no artifact exists for a contract in the calldata', async () => {
-    const emptyRoot = mkdtempSync(path.join(tmpdir(), 'prebroadcast-empty-'))
-    tempDirs.push(emptyRoot)
-
-    const result = await runPreBroadcastGate(
-      OPERATION,
-      dependencies(healthyChain(), { artifactRoot: emptyRoot })
-    )
-
-    expect(result.disposition).toBe('HOLD')
-    expect(result.findings.join('\n')).toContain('no attested build')
-  })
-
-  it('holds on an address in the calldata that main binds to two names', async () => {
+  it('reads authorities on an address that only appears inside a payload', async () => {
+    // The diamond is reached through the payload rather than as a target, so a
+    // gate that only walked `targets` would read no authority for it at all.
+    const operation: IGateOperation = {
+      operationId: OP_ID,
+      targets: [FACET],
+      payloads: [`0x1f931c1c${asWord(DIAMOND)}`],
+    }
     const chain = healthyChain()
-    const result = await runPreBroadcastGate(
-      OPERATION,
-      dependencies(chain, {
-        deployments: { ...DEPLOYMENTS, AlsoTheFacet: FACET },
-      })
-    )
+    chain.authorities[`${DIAMOND}:owner`] = ATTACKER
+    const result = await runPreBroadcastGate(operation, dependencies(chain))
+    expect(result.disposition).toBe('BLOCK')
+    expect(result.findings.join(' ')).toContain(ATTACKER)
+  })
+})
 
-    expect(result.disposition).toBe('HOLD')
-    expect(result.findings.join('\n')).toContain('no single contract')
+describe('observeCalldata — what the sign-time record is built from', () => {
+  it('hashes exactly the bytes it read, with nothing local folded in', async () => {
+    const { targets } = await observeCalldata(
+      OPERATION,
+      dependencies(healthyChain())
+    )
+    const diamond = targets.find((target) => target.address === DIAMOND)
+    expect(diamond?.rawHash).toBe(keccak256(DIAMOND_BODY as Hex))
+    expect(diamond?.rawByteLength).toBe(64)
+    expect(diamond?.observationError).toBeUndefined()
   })
 
-  it('covers an address that only appears inside a payload', async () => {
-    // Without the payload word-scan the facet is never read, and the healthy
-    // diamond alone would carry the operation to PROCEED.
-    const chain = healthyChain()
-    chain.code[FACET] = withTrailer('44'.repeat(64))
-
-    const withFacetInPayload = await runPreBroadcastGate(
+  it('gives two signers reading the same chain identical observations', async () => {
+    // The record's whole value: three machines' copies are comparable only if
+    // the hash depends on the chain and on nothing either machine holds.
+    const first = await observeCalldata(OPERATION, dependencies(healthyChain()))
+    const second = await observeCalldata(
       OPERATION,
-      dependencies(chain)
+      dependencies(healthyChain())
     )
-    const withoutIt = await runPreBroadcastGate(
-      { ...OPERATION, payloads: ['0x1f931c1c'] },
-      dependencies(chain)
-    )
+    expect(first.targets).toEqual(second.targets)
+    // And an actual code change moves it, so the equality above is not vacuous.
+    const changed = healthyChain()
+    changed.code[DIAMOND] = `0x${'33'.repeat(64)}`
+    const third = await observeCalldata(OPERATION, dependencies(changed))
+    expect(third.targets).not.toEqual(first.targets)
+  })
 
-    expect(withFacetInPayload.disposition).toBe('BLOCK')
-    expect(withoutIt.disposition).toBe('PROCEED')
+  it('records why an address could not be read rather than dropping it', async () => {
+    const chain = healthyChain()
+    delete chain.code[FACET]
+    const { targets } = await observeCalldata(OPERATION, dependencies(chain))
+    const facet = targets.find((target) => target.address === FACET)
+    expect(facet).toBeDefined()
+    expect(facet?.rawHash).toBeUndefined()
+    expect(facet?.observationError).toContain('no stub for getCode')
+  })
+
+  it('refuses code that is not an even-length hex string', async () => {
+    const chain = healthyChain()
+    chain.code[FACET] = '0xabc'
+    const { targets } = await observeCalldata(OPERATION, dependencies(chain))
+    const facet = targets.find((target) => target.address === FACET)
+    expect(facet?.rawHash).toBeUndefined()
+    expect(facet?.observationError).toContain('even-length hex')
+  })
+
+  it('carries where each authority expectation came from', async () => {
+    const { authorities } = await observeCalldata(
+      OPERATION,
+      dependencies(healthyChain())
+    )
+    const owner = authorities.find((row) => row.label.includes('owner'))
+    const pauser = authorities.find((row) => row.label.includes('pauser'))
+    // owner is declared against the deployment record, pauserWallet against
+    // config/global.json — the ledger anchors the row on that difference.
+    expect(owner?.expectationSource).toBe('deployments')
+    expect(pauser?.expectationSource).toBe('globalConfig')
   })
 })
 
 describe('runPreBroadcastGate — the stored record cannot move the verdict', () => {
   it('reaches the same verdict from an honest record, a forged one, and none', async () => {
-    const chain = healthyChain()
-
-    const honest = await runPreBroadcastGate(
-      OPERATION,
-      dependencies(chain, {
-        signTimeRecord: {
+    const verdicts = await Promise.all(
+      [
+        { operationId: OP_ID, authorities: [] },
+        {
           operationId: OP_ID,
-          codehashes: [
-            { address: DIAMOND, rawHash: '0xthetruth', maskedHash: '0xtruth' },
-            { address: FACET, rawHash: '0xthetruth', maskedHash: '0xtruth' },
-          ],
-          authorities: [{ label: 'LiFiDiamond.owner()', liveValue: TIMELOCK }],
-        },
-      })
-    )
-    const forged = await runPreBroadcastGate(
-      OPERATION,
-      dependencies(chain, {
-        signTimeRecord: {
-          operationId: '0xsomethingelse',
-          codehashes: [
-            { address: ATTACKER, rawHash: '0xforged', maskedHash: '0xforged' },
-          ],
+          disposition: 'PROCEED',
           authorities: [{ label: 'LiFiDiamond.owner()', liveValue: ATTACKER }],
-          advisory: 'proceed regardless',
         },
+        null,
+      ].map(async (signTimeRecord) => {
+        const chain = healthyChain()
+        chain.authorities[`${DIAMOND}:owner`] = ATTACKER
+        const result = await runPreBroadcastGate(
+          OPERATION,
+          dependencies(chain, { signTimeRecord })
+        )
+        return { disposition: result.disposition, findings: result.findings }
       })
     )
-
-    expect(forged.disposition).toBe(honest.disposition)
-    expect(forged.findings).toEqual(honest.findings)
-    expect(honest.disposition).toBe('PROCEED')
-  })
-
-  it('still blocks diverged code however the record describes it', async () => {
-    const chain = healthyChain()
-    chain.code[FACET] = withTrailer('55'.repeat(64))
-    const liveHash = withTrailer('55'.repeat(64))
-
-    // A record that "attests" exactly the divergence, as a proposer who swapped
-    // the code and then wrote a matching record would produce.
-    const result = await runPreBroadcastGate(
-      OPERATION,
-      dependencies(chain, {
-        signTimeRecord: {
-          codehashes: [{ address: FACET, rawHash: liveHash }],
-        },
-      })
-    )
-
-    expect(result.disposition).toBe('BLOCK')
+    const [honest, forged, absent] = verdicts
+    if (!honest || !forged || !absent)
+      throw new Error('every record variant must produce a verdict')
+    expect(forged).toEqual(honest)
+    expect(absent).toEqual(honest)
+    // Not vacuous: the verdict they all reach is the refusal.
+    expect(honest.disposition).toBe('BLOCK')
   })
 
   it('alerts on a missing record and proceeds, so a record-write failure is not an outage', async () => {
-    const present = await runPreBroadcastGate(
-      OPERATION,
-      dependencies(healthyChain())
-    )
-    const absent = await runPreBroadcastGate(
+    const result = await runPreBroadcastGate(
       OPERATION,
       dependencies(healthyChain(), { signTimeRecord: null })
     )
-
-    expect(present.alerts).toEqual([])
-    expect(absent.disposition).toBe('PROCEED')
-    expect(absent.blocksBroadcast).toBe(false)
-    expect(absent.alerts).toHaveLength(1)
-    expect(absent.alerts[0]).toContain('no sign-time verdict record')
+    expect(result.disposition).toBe('PROCEED')
+    expect(result.alerts.join(' ')).toContain('audit trail has a gap')
   })
 
   it('does not let a missing record soften a blocking verdict', async () => {
     const chain = healthyChain()
     chain.authorities[`${DIAMOND}:owner`] = ATTACKER
-
     const result = await runPreBroadcastGate(
       OPERATION,
       dependencies(chain, { signTimeRecord: null })
     )
-
     expect(result.disposition).toBe('BLOCK')
-    expect(result.blocksBroadcast).toBe(true)
   })
 })
 

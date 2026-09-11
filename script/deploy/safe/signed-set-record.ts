@@ -9,6 +9,12 @@
  * comparing it against something the proposer wrote. The gate re-derives from
  * `main` instead and reads nothing here but presence.
  *
+ * What the record IS good for is comparison between signers. Each signer of a
+ * 3-of-N Safe writes their own document, keyed by signer, holding the raw hash
+ * their machine read at each address. Three machines agreeing is evidence no
+ * one of them can manufacture; that is why nothing in a document is derived
+ * from the machine that wrote it.
+ *
  * It lives on the un-gated `MONGODB_URI` cluster rather than beside the Safe
  * proposals, because the CI job that raises the missing-record alert cannot
  * open the tunnel the Safe collection sits behind.
@@ -20,10 +26,8 @@ import type { Hex } from 'viem'
 
 import { getEnvVar } from '../../utils/utils'
 
-import type {
-  IPreBroadcastAuthority,
-  IPreBroadcastTarget,
-} from './prebroadcast-rederive'
+import type { IPreBroadcastAuthority } from './prebroadcast-authorities'
+import type { IObservedTarget } from './prebroadcast-gate'
 
 const SIGNED_SET_DB_NAME = 'timelock-operations'
 const SIGNED_SET_COLLECTION_NAME = 'signed-sets'
@@ -34,10 +38,15 @@ export interface ISignedCodehashEntry {
   address: string
   /** Contract name the deployments file at `main` bound to that address. */
   contractName: string | undefined
-  /** keccak of the exact bytes at the address, or undefined when unread. */
+  /**
+   * keccak of the exact bytes at the address, or undefined when unread.
+   *
+   * Raw, never masked. The record's value is that three signers' copies are
+   * comparable to each other, which holds only if every machine hashed the
+   * bytes it read with nothing derived from its own build folded in. Comparing
+   * these against an attested set is EXSC-952's job.
+   */
   rawHash: string | undefined
-  /** keccak after trailer-stripping and immutable masking. */
-  maskedHash: string | undefined
   /** Byte length as deployed. */
   rawByteLength: number | undefined
   /** Why nothing was read, when nothing was. */
@@ -126,14 +135,13 @@ export const buildSignedSetRecord = (
  * @returns One entry per address, unreadable ones included.
  */
 export const toSignedCodehashEntries = (
-  targets: readonly IPreBroadcastTarget[]
+  targets: readonly IObservedTarget[]
 ): ISignedCodehashEntry[] =>
   targets.map((target) => ({
     address: target.address,
     contractName: target.resolvedContractName,
-    rawHash: target.observed?.rawHash,
-    maskedHash: target.observed?.maskedHash,
-    rawByteLength: target.observed?.rawByteLength,
+    rawHash: target.rawHash,
+    rawByteLength: target.rawByteLength,
     observationError: target.observationError,
   }))
 
@@ -194,8 +202,64 @@ export const formatSignedSetForDisplay = (
   return lines
 }
 
+/** Name pinned so a test can assert the index rather than its shape. */
+export const SIGNED_SET_KEY_INDEX_NAME = 'network_operationId_signer'
+
+/**
+ * True when `error` is a MongoDB authorization failure — the connected role
+ * lacks `createIndex` (server code 13). Matched the way `parked-tasks.ts`
+ * matches it, and for the same reason: every consumer of this collection runs
+ * on the un-gated `MONGODB_URI` cluster from a readWrite-only credential.
+ */
+const isUnauthorizedError = (error: unknown): boolean =>
+  error instanceof Error &&
+  (('code' in error && (error as { code: number }).code === 13) ||
+    /not authorized/i.test(error.message))
+
+/**
+ * Ensures the index the key lookup depends on.
+ *
+ * Without it `findOne` is a collection scan that grows with every operation
+ * ever signed, on a collection read once per operation per network per tick of
+ * the executor's cron.
+ *
+ * Not unique. A signer legitimately re-signs after a rebase, and the write is
+ * an upsert on the full key, so uniqueness would buy nothing and turn a
+ * duplicate into a lost record.
+ *
+ * Degrades rather than throws on an authorization failure, matching
+ * `ensureParkedTasksIndexes`: this collection is the audit trail, and a role
+ * that cannot create indexes must still be able to write to it.
+ *
+ * @param signedSets - The collection to index.
+ */
+export const ensureSignedSetIndexes = async (
+  signedSets: Collection<ISignedSetRecord>
+): Promise<void> => {
+  try {
+    await signedSets.createIndex(
+      { network: 1, operationId: 1, signer: 1 },
+      { name: SIGNED_SET_KEY_INDEX_NAME }
+    )
+  } catch (error: unknown) {
+    if (!isUnauthorizedError(error)) throw error
+    consola.warn(
+      `Could not create the "${SIGNED_SET_KEY_INDEX_NAME}" index on ` +
+        `${signedSets.collectionName}: the MONGODB_URI role lacks createIndex. ` +
+        `Reads and writes still work; lookups scan the collection until an ` +
+        `admin creates it once.`
+    )
+  }
+}
+
 /**
  * Opens a short-lived client and returns the signed-set collection.
+ *
+ * One client per call, closed by the caller. That is what every other Mongo
+ * accessor in this directory does — `getTimelockQueueCollection`,
+ * `getParkedTasksCollection` — and the executor already opens several per
+ * operation through them, so a pooled handle here would be the odd one out
+ * rather than the fix.
  *
  * @returns The connected client (caller must `close()`) and the collection.
  * @throws When `MONGODB_URI` is not set.
@@ -208,18 +272,52 @@ export const getSignedSetCollection = async (): Promise<{
   const signedSets = client
     .db(SIGNED_SET_DB_NAME)
     .collection<ISignedSetRecord>(SIGNED_SET_COLLECTION_NAME)
-  return { client, signedSets }
+  try {
+    await ensureSignedSetIndexes(signedSets)
+    return { client, signedSets }
+  } catch (error) {
+    await client.close()
+    throw error
+  }
 }
 
 /**
- * Filter for the natural key. `$eq`-wrapped so a value arriving as an object
- * cannot become a query operator.
+ * Filter for one signer's record. `$eq`-wrapped so a value arriving as an
+ * object cannot become a query operator.
+ *
+ * The signer is part of the key, and that is the whole point of the record:
+ * on a 3-of-N Safe the evidence is that three machines each observed the same
+ * set, and a key without the signer makes the last upsert overwrite the first
+ * two — leaving a document that claims one machine's view with nothing
+ * indicating the others ever existed. One observation is a log line; three
+ * agreeing observations are the artifact.
+ *
+ * @param network - Lowercased network name.
+ * @param operationId - Timelock operation id.
+ * @param signer - Address that signed, lowercased.
+ * @returns The filter.
+ */
+export const bySignedSetKey = (
+  network: string,
+  operationId: string,
+  signer: string
+): Record<string, unknown> => ({
+  network: { $eq: network.toLowerCase() },
+  operationId: { $eq: operationId },
+  signer: { $eq: signer.toLowerCase() },
+})
+
+/**
+ * Filter for every signer's record of one operation.
+ *
+ * What the gate asks, because all it carries onward is whether any record
+ * exists.
  *
  * @param network - Lowercased network name.
  * @param operationId - Timelock operation id.
  * @returns The filter.
  */
-export const bySignedSetKey = (
+export const byOperationKey = (
   network: string,
   operationId: string
 ): Record<string, unknown> => ({
@@ -260,7 +358,7 @@ export const persistSignedSetRecord = async (
     const { client, signedSets } = await getSignedSetCollection()
     try {
       await signedSets.updateOne(
-        bySignedSetKey(record.network, record.operationId),
+        bySignedSetKey(record.network, record.operationId, record.signer),
         buildSignedSetUpdate(record),
         { upsert: true }
       )
@@ -280,9 +378,13 @@ export const persistSignedSetRecord = async (
 /**
  * Fetches a sign-time record.
  *
+ * Any one signer's record answers the gate, which carries only presence
+ * onward — so this asks the operation-wide filter rather than naming a signer
+ * the executor has no way to pick.
+ *
  * @param network - Network name.
  * @param operationId - Timelock operation id.
- * @returns The document, or null when none exists.
+ * @returns One signer's document, or null when no signer recorded one.
  * @throws When the cluster cannot be reached — the caller must tell "no record"
  * apart from "could not look", because only the first is an alert.
  */
@@ -292,7 +394,7 @@ export const fetchSignedSetRecord = async (
 ): Promise<ISignedSetRecord | null> => {
   const { client, signedSets } = await getSignedSetCollection()
   try {
-    return await signedSets.findOne(bySignedSetKey(network, operationId))
+    return await signedSets.findOne(byOperationKey(network, operationId))
   } finally {
     await client.close()
   }

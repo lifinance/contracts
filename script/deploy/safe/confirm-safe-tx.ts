@@ -6,9 +6,6 @@
  * and provides options to sign and/or execute them.
  */
 
-import path from 'path'
-import { fileURLToPath } from 'url'
-
 import {
   formatAddressForNetworkCliDisplay,
   isTronNetworkKey,
@@ -26,7 +23,6 @@ import { getDeployments } from '../../utils/deploymentHelpers'
 import {
   buildExplorerAddressUrl,
   getViemChainForNetworkName,
-  networks,
 } from '../../utils/viemScriptHelpers'
 import { createDefaultCache } from '../shared/deployment-cache'
 import { getGitCommit, sanitizeProvenanceText } from '../shared/git-provenance'
@@ -54,7 +50,9 @@ import {
   type ISignTimeCodehashDeps,
 } from './codehash-sign-gate-deps'
 import {
+  authorityExpectationAnchors,
   CONFIRM_CHECK_DEFINITIONS,
+  storageAuthorityCheckResult,
   targetStateCheckResult,
   worstResultPerCheck,
 } from './confirm-check-registry'
@@ -164,12 +162,6 @@ const getCodehashDeps = (): ISignTimeCodehashDeps => {
   codehashDeps ??= createSignTimeCodehashDeps()
   return codehashDeps
 }
-
-/** Repo root, so the sign-time set is read against the build this checkout has. */
-const REPO_ROOT = path.resolve(
-  path.dirname(fileURLToPath(import.meta.url)),
-  '../../..'
-)
 
 // Created once the run's network set is known, because the ledger's
 // denominator is that set: a check that never ran on a network must show as a
@@ -451,9 +443,6 @@ const processTxs = async (
             EnvironmentEnum.production
           )) as unknown as Record<string, unknown>,
           globalConfig: globalConfig as unknown as Record<string, unknown>,
-          networkConfig: networks[networkKey] ?? {},
-          artifactRoot: REPO_ROOT,
-          lineage: `local build of ${getGitCommit()}`,
         }
       )
 
@@ -473,6 +462,16 @@ const processTxs = async (
 
       consola.info(formatSignedSetForDisplay(record).join('\n'))
       await persistSignedSetRecord(record)
+
+      if (checkLedger)
+        recordCheck(
+          checkLedger,
+          storageAuthorityCheckResult(
+            record.authorities,
+            networkKey,
+            authorityExpectationAnchors(observed.authorities)
+          )
+        )
     } catch (error) {
       consola.warn(
         'Could not record the sign-time set (the pre-broadcast gate re-derives without it and will alert on the gap):',
