@@ -28,10 +28,10 @@ import {
 
 /**
  * `LibDiamond.FacetCutAction` to the role the gate grades it in. An action
- * outside the three is left unmapped rather than defaulted: the gate refuses a
- * role it has no policy for, which is the right answer for a cut nobody can
- * classify, whereas defaulting it to `FacetAdd` would grade an unknown action
- * under a policy written for a known one.
+ * outside the three is left unmapped rather than defaulted, because defaulting
+ * it to `FacetAdd` would grade an unknown action under a policy written for a
+ * known one. Unmapped is not dropped: the cut is reported as unreadable, since
+ * an address nobody graded is an unchecked address.
  */
 const ROLE_BY_ACTION: Readonly<Record<number, AddressRoleEnum>> = {
   0: AddressRoleEnum.FacetAdd,
@@ -42,13 +42,17 @@ const ROLE_BY_ACTION: Readonly<Record<number, AddressRoleEnum>> = {
 const referencesOfCall = (
   call: IDiamondCutCall,
   ordinal: number
-): IAddressReference[] => {
+): { references: IAddressReference[]; unreadable: string[] } => {
   const path = `call[${call.callIndex}].diamondCut[${ordinal}]`
   const references: IAddressReference[] = []
+  const unreadable: string[] = []
 
   for (const [at, cut] of call.cuts.entries()) {
     const role = ROLE_BY_ACTION[cut.action]
-    if (role === undefined) continue
+    if (role === undefined) {
+      unreadable.push(`${path}.cuts[${at}] (action ${cut.action})`)
+      continue
+    }
     references.push({
       address: cut.facetAddress,
       role,
@@ -64,7 +68,7 @@ const referencesOfCall = (
     path: `${path}.init`,
   })
 
-  return references
+  return { references, unreadable }
 }
 
 /**
@@ -79,15 +83,23 @@ export const collectAddressReferences = (
   const { calls, undecodable } = collectDiamondCutCalls(calldatas)
   const seen = new Map<number, number>()
 
-  const references = calls.flatMap((call) => {
+  const references: IAddressReference[] = []
+  const unreadable: string[] = []
+
+  for (const call of calls) {
     const ordinal = seen.get(call.callIndex) ?? 0
     seen.set(call.callIndex, ordinal + 1)
-    return referencesOfCall(call, ordinal)
-  })
+    const perCall = referencesOfCall(call, ordinal)
+    references.push(...perCall.references)
+    unreadable.push(...perCall.unreadable)
+  }
 
   return {
     references,
-    undecodable: undecodable.map((index) => `call[${index}]`),
+    undecodable: [
+      ...undecodable.map((index) => `call[${index}]`),
+      ...unreadable,
+    ],
   }
 }
 

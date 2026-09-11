@@ -6,10 +6,17 @@
  * simulation grades. The reads are behind {@link IExecutabilityChainReader} so
  * the assembly can be exercised without a node.
  *
- * Nothing here decides anything. Every read that fails is left absent rather
- * than defaulted, because the simulation grades an absent observation as
- * unchecked and an unchecked observation as an error: a collector that filled
- * in a plausible value would convert "nobody asked" into "the chain said yes".
+ * Nothing here decides anything. A read that answers with nothing is left
+ * absent rather than defaulted, because the simulation grades an absent
+ * observation as unchecked and an unchecked observation as an error: a collector
+ * that filled in a plausible value would convert "nobody asked" into "the chain
+ * said yes".
+ *
+ * That holds per read, including an unparseable address: every parse goes
+ * through one guard, so a malformed diamond leaves its own read absent instead
+ * of rejecting the batch that carries the others. Absent still grades as
+ * unchecked and blocks, so nothing is softened — the other reads simply survive
+ * to be reported alongside it.
  */
 
 import {
@@ -159,6 +166,17 @@ const readObservations = async (
       payload.kind === 'diamond-cut'
   )
 
+  // One parse, one rule: a value this reader cannot query yields nothing rather
+  // than throwing. `Promise.all` rejects on the first throw, so an unguarded
+  // parse anywhere below discards every read that did land.
+  const parsed = (value: string): Address | undefined => {
+    try {
+      return getAddress(value)
+    } catch {
+      return undefined
+    }
+  }
+
   const addresses = new Map<string, Address>()
   const remember = (value: string): void => {
     if (normalise(value) === normalise(ZERO_ADDRESS)) return
@@ -197,14 +215,15 @@ const readObservations = async (
   })
 
   const ownerReads = cutPayloads.map(async (payload) => {
-    const diamond = getAddress(payload.diamond)
+    const diamond = parsed(payload.diamond)
+    if (diamond === undefined) return
     const owner = await reader.owner(diamond)
     if (owner !== undefined) owners.set(normalise(payload.diamond), owner)
   })
 
   const onlyDiamond =
     diamonds.size === 1 && cutPayloads[0]
-      ? getAddress(cutPayloads[0].diamond)
+      ? parsed(cutPayloads[0].diamond)
       : undefined
 
   const selectorReads =

@@ -321,15 +321,26 @@ export const executabilityCheckResult = (
       anchor: 'A-CHAIN',
     }
 
+  // A payload the simulator has no revert model for was not simulated, so the
+  // run has no evidence about it. Recording that as the same green as a fully
+  // simulated proposal is how partial coverage reads as verified, so it is an
+  // acknowledgement on the anchor that decided nothing instead.
+  if (verdict.notSimulated.length > 0)
+    return {
+      checkId: EXECUTABILITY_CHECK_ID,
+      network,
+      status: 'needs-ack',
+      expected: 'every payload simulated against the state it will execute in',
+      actual: `no revert found in the payloads that were simulated; ${verdict.notSimulated.length} payload(s) have no revert model`,
+      anchor: 'A-UNRESOLVED',
+    }
+
   return {
     checkId: EXECUTABILITY_CHECK_ID,
     network,
     status: 'pass',
     expected: 'no payload reverts',
-    actual:
-      verdict.notSimulated.length > 0
-        ? `no revert found; ${verdict.notSimulated.length} payload(s) have no revert model`
-        : 'no revert found in any payload',
+    actual: 'no revert found in any payload',
     anchor: 'A-CHAIN',
   }
 }
@@ -462,7 +473,14 @@ const integrityResults = (
     const recorded = byCheckId.get(checkId)
     if (recorded) return { ...recorded, network }
 
-    if (checkId === CHECK_TIMELOCK_DELAY)
+    // Only when the assertions never registered the delay check, which is how
+    // they say the calldata was read and found not to be a schedule. Registered
+    // with no row means the assertion did not finish, and the two are opposite
+    // facts: `run.registered` is what separates them.
+    if (
+      checkId === CHECK_TIMELOCK_DELAY &&
+      !run.registered.includes(CHECK_TIMELOCK_DELAY)
+    )
       return {
         checkId,
         network,

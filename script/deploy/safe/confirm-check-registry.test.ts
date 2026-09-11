@@ -469,7 +469,12 @@ const quorumVerdict = (
  * real run would carry, not hand-written approximations of them.
  */
 const integrityRun = (
-  options: { includeTimelockDelay?: boolean; status?: CheckStatus } = {}
+  options: {
+    includeTimelockDelay?: boolean
+    status?: CheckStatus
+    /** Registered but never reported, i.e. an assertion that did not finish. */
+    registerWithoutRecording?: string
+  } = {}
 ): IIntegrityAssertRun => {
   const registered = [
     ...INTEGRITY_CHECKS_ALWAYS,
@@ -484,14 +489,15 @@ const integrityRun = (
     }),
   })
   for (const checkId of registered)
-    recordCheck(ledger, {
-      checkId,
-      network: NETWORK,
-      status: options.status ?? 'pass',
-      expected: 'the anchor value',
-      actual: 'the observed value',
-      anchor: 'A-CHAIN',
-    })
+    if (checkId !== options.registerWithoutRecording)
+      recordCheck(ledger, {
+        checkId,
+        network: NETWORK,
+        status: options.status ?? 'pass',
+        expected: 'the anchor value',
+        actual: 'the observed value',
+        anchor: 'A-CHAIN',
+      })
 
   return {
     ledger,
@@ -606,9 +612,9 @@ describe('integrity verdicts reaching the run-level ledger', () => {
       ).toBe('error')
   })
 
-  // The distinction the ticket turns on: a check with nothing to judge that
-  // *read* its evidence passes on the anchor it read, while one that could not
-  // open the envelope errors. The delay check is the former.
+  // A check with nothing to judge that *read* its evidence passes on the anchor
+  // it read; one that could not open the envelope errors. The delay check is
+  // the former, and `run.registered` is the only thing that says which it is.
   it('a proposal carrying no schedule passes the delay check on A-LOCAL', () => {
     const ledger = runLedger()
     recordInto(
@@ -623,6 +629,26 @@ describe('integrity verdicts reaching the run-level ledger', () => {
     expect(row?.anchor).toBe('A-LOCAL')
     expect(summariseLedger(ledger).hardBlocked).toBe(false)
   })
+
+  it('a registered delay check that never reported errors instead', () => {
+    const ledger = runLedger()
+    recordInto(
+      ledger,
+      verdicts({
+        integrity: integrityRun({
+          includeTimelockDelay: true,
+          registerWithoutRecording: CHECK_TIMELOCK_DELAY,
+        }),
+      })
+    )
+
+    const row = ledger.results.find(
+      (result) => result.checkId === CHECK_TIMELOCK_DELAY
+    )
+    expect(row?.status).toBe('error')
+    expect(row?.anchor).toBe('A-UNRESOLVED')
+    expect(summariseLedger(ledger).hardBlocked).toBe(true)
+  })
 })
 
 describe('executabilityCheckResult', () => {
@@ -630,6 +656,20 @@ describe('executabilityCheckResult', () => {
     const result = executabilityCheckResult(executabilityVerdict(), NETWORK)
     expect(result.status).toBe('pass')
     expect(result.anchor).toBe('A-CHAIN')
+  })
+
+  it('grades partial simulation coverage an acknowledgement, not a pass', () => {
+    // The paired directions: a clean run with nothing left unsimulated is the
+    // pass above, and one payload without a revert model is coverage the run
+    // does not have, so it cannot share that row.
+    const result = executabilityCheckResult(
+      executabilityVerdict({ notSimulated: ['call[0].diamondCut[0]'] }),
+      NETWORK
+    )
+
+    expect(result.status).toBe('needs-ack')
+    expect(result.anchor).toBe('A-UNRESOLVED')
+    expect(result.actual).toContain('1 payload(s) have no revert model')
   })
 
   it('grades a proposal that would revert a mismatch', () => {

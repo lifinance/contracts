@@ -108,9 +108,14 @@ describe('collectAddressReferences', () => {
   // An action outside Add/Replace/Remove has no refusal policy, and defaulting
   // it to one written for a known action would grade it under the wrong rule.
   it('leaves an unknown cut action unmapped rather than defaulting it', () => {
-    const { references } = collectAddressReferences([
+    const { references, undecodable } = collectAddressReferences([
       cut([{ facetAddress: FACET, action: 7 }]),
     ])
+
+    // Unmapped, but not dropped: the evaluator turns any `undecodable` entry
+    // into an error, so the cut it could not classify blocks rather than
+    // leaving its address silently ungraded.
+    expect(undecodable).toEqual(['call[0].diamondCut[0].cuts[0] (action 7)'])
 
     // Paired with the reference that must survive: an empty result would
     // satisfy the absence on its own and prove nothing about the skip.

@@ -176,6 +176,30 @@ describe('collectExecutabilityInput', () => {
     expect(evaluateExecutability(input).error).toBe(true)
   })
 
+  it('a malformed diamond loses its own read, not the whole batch', async () => {
+    // `Promise.all` rejects on the first throw, so an unguarded address parse
+    // anywhere in the fan-out discards every read that did land — and the
+    // collection then reports one error where it had real observations.
+    // Direct, not wrapped: a timelock envelope carries its own target, so the
+    // diamond would come from there and `to` would never be parsed as one.
+    const malformed = {
+      network: 'arbitrum',
+      safeAddress: SAFE,
+      to: '0x1234' as Address,
+      data: cut(),
+    }
+
+    const input = await collectExecutabilityInput(malformed, reader({}))
+
+    // The owner read is the one keyed on the malformed diamond, so it is absent.
+    expect(input.observations.owners.size).toBe(0)
+    // The paired present: the reads that do not depend on it still landed, so
+    // the batch was not thrown away.
+    expect(input.observations.hasCode.size).toBeGreaterThan(0)
+    // Absent is still unchecked, so the verdict blocks either way.
+    expect(evaluateExecutability(input).error).toBe(true)
+  })
+
   it('leaves a failed selector read absent rather than defaulting it', async () => {
     const input = await collectExecutabilityInput(
       wrapped,

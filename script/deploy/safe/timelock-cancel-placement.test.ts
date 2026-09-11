@@ -288,10 +288,16 @@ describe('where the executor evaluates the matrix', () => {
     // under a new name, and a property-access match cannot see that. Each use
     // must be one of the three permitted ones, so a fourth fails whatever it
     // spells.
-    const block = EXECUTOR.slice(
-      EXECUTOR.indexOf('const decision = decideRevertedOperation({'),
-      EXECUTOR.indexOf('if (!shouldBlockAfterRevert(revertCount)) {')
-    )
+    // Both ends are checked before slicing. An unfound `indexOf` returns -1,
+    // and a -1 *end* widens the window to the rest of the file, which is the
+    // one failure direction that lets an added use go unseen.
+    const from = EXECUTOR.indexOf('const decision = decideRevertedOperation({')
+    const to = EXECUTOR.indexOf('if (!shouldBlockAfterRevert(revertCount)) {')
+
+    expect(from).toBeGreaterThan(-1)
+    expect(to).toBeGreaterThan(from)
+
+    const block = EXECUTOR.slice(from, to)
     const uses = block.match(/(?<![$\w])decision(?![$\w])/gu) ?? []
     const permitted =
       block.match(
