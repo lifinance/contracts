@@ -22,13 +22,13 @@ import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 
 import { MongoClient } from 'mongodb'
-import { createPublicClient, http, type Address } from 'viem'
+import { createPublicClient, type Address, type Chain } from 'viem'
 
 import { EnvironmentEnum } from '../../common/types'
 import { redactUrls } from '../../utils/redactUrls'
 import {
+  getFallbackTransportForChain,
   getViemChainForNetworkName,
-  getTransportConfigFromRpcUrl,
 } from '../../utils/viemScriptHelpers'
 import type { ILineageScope, IObservedCode } from '../codehash/attested-set'
 import { readMetadataTrailer } from '../codehash/bytecode-trailer'
@@ -526,6 +526,38 @@ export interface ISignTimeCodehashDeps extends IVerifyCutDeps {
  * @param overrides.checkoutRoot - where per-commit checkouts go
  * @returns The three dependencies plus a teardown
  */
+/**
+ * Reads the code live at an address, across every endpoint the chain has.
+ *
+ * The primary alone is not enough here. This read decides the codehash gate,
+ * which is the one check that refuses a signature outright: a throttled or
+ * method-restricted primary makes the gate unverifiable and blocks the signer,
+ * with the healthy endpoints beside it never consulted. `getFallbackTransportForChain`
+ * also carries each endpoint's own auth options, which reading `.url` alone
+ * dropped — an endpoint needing a header was being called without one.
+ *
+ * Failing over is safe for this read in a way it is not for a simulation: code
+ * at an address is a fact every honest endpoint agrees on, so there is no
+ * answer here for a second endpoint to contradict. A read that reverts does not
+ * exist. Whether the endpoints agree is a separate question, and the quorum
+ * check is what asks it.
+ *
+ * @param resolveChain - Resolves a network name to its viem chain; injectable for tests.
+ * @returns A reader from `(address, network)` to the code at that address, `0x` when none.
+ */
+export const createDeployedCodeReader =
+  (
+    resolveChain: (network: string) => Chain = getViemChainForNetworkName
+  ): ((address: string, network: string) => Promise<string>) =>
+  async (address, network) => {
+    const chain = resolveChain(network)
+    const client = createPublicClient({
+      chain,
+      transport: getFallbackTransportForChain(chain),
+    })
+    return (await client.getCode({ address: address as Address })) ?? '0x'
+  }
+
 export const createSignTimeCodehashDeps = (overrides?: {
   recordSource?: IRecordSource
   checkoutRoot?: string
@@ -592,17 +624,7 @@ export const createSignTimeCodehashDeps = (overrides?: {
       scopeFor,
       build: rebuild.build,
     }),
-    readDeployedCode: async (address, network) => {
-      const chain = getViemChainForNetworkName(network)
-      const client = createPublicClient({
-        chain,
-        transport: http(
-          getTransportConfigFromRpcUrl(chain.rpcUrls.default.http[0] as string)
-            .url
-        ),
-      })
-      return (await client.getCode({ address: address as Address })) ?? '0x'
-    },
+    readDeployedCode: createDeployedCodeReader(),
   })
 
   return {

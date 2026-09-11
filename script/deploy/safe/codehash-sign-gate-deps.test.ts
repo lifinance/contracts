@@ -17,12 +17,13 @@
 import { join } from 'path'
 
 import {
+  afterEach,
   describe,
   expect,
   it,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
-import { keccak256, type Hex } from 'viem'
+import { keccak256, type Chain, type Hex } from 'viem'
 
 import type { ImmutableReferences } from '../codehash/immutable-offsets'
 import { normalizeRuntimeCode } from '../codehash/rebuild-attestations'
@@ -30,6 +31,7 @@ import { normalizeRuntimeCode } from '../codehash/rebuild-attestations'
 import {
   createForgeRebuildRunner,
   createImmutableReferencesResolver,
+  createDeployedCodeReader,
   createRecordReader,
   createRuntimeCodeObserver,
   createToolchainScopeResolver,
@@ -732,5 +734,88 @@ describe('createImmutableReferencesResolver refuses several lineages', () => {
       'per lineage'
     )
     expect(builds).toEqual([])
+  })
+})
+
+describe('createDeployedCodeReader', () => {
+  const PRIMARY = 'https://primary.example/rpc'
+  const SECONDARY = 'https://secondary.example/rpc'
+  const ADDRESS = '0x1111111111111111111111111111111111111111'
+
+  const chainWith = (http: string[]): Chain =>
+    ({
+      id: 1,
+      name: 'test',
+      nativeCurrency: { name: 'E', symbol: 'E', decimals: 18 },
+      rpcUrls: { default: { http } },
+    } as Chain)
+
+  const originalFetch = globalThis.fetch
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch
+  })
+
+  /** Answers `eth_getCode` from whichever hosts are not listed as down. */
+  const stubEndpoints = (down: string[]): { hits: string[] } => {
+    const hits: string[] = []
+    globalThis.fetch = (async (input: RequestInfo | URL) => {
+      const url = String(input)
+      hits.push(url)
+      if (down.some((host) => url.startsWith(host)))
+        throw new Error('HTTP request failed: 503')
+
+      return new Response(
+        JSON.stringify({ jsonrpc: '2.0', id: 1, result: '0xfeed' }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    }) as typeof fetch
+    return { hits }
+  }
+
+  // The property the change is about, asserted through the reader rather than
+  // through the transport helper: a test that calls the helper itself passes
+  // just as happily when the reader goes back to reading the primary alone.
+  it('falls over to a second endpoint when the primary is down', async () => {
+    const { hits } = stubEndpoints([PRIMARY])
+    const read = createDeployedCodeReader(() => chainWith([PRIMARY, SECONDARY]))
+
+    expect(await read(ADDRESS, 'arbitrum')).toBe('0xfeed')
+    expect(hits.some((url) => url.startsWith(SECONDARY))).toBe(true)
+  })
+
+  it('uses the primary when it answers', async () => {
+    const { hits } = stubEndpoints([])
+    const read = createDeployedCodeReader(() => chainWith([PRIMARY, SECONDARY]))
+
+    expect(await read(ADDRESS, 'arbitrum')).toBe('0xfeed')
+    expect(hits.every((url) => url.startsWith(PRIMARY))).toBe(true)
+  })
+
+  // Every endpoint failing must reach the caller as a throw. The gate treats
+  // that as unverifiable and blocks, which is the right answer — what it must
+  // not do is come back as `0x` and compare clean against a rebuild.
+  it('throws when no endpoint answers, rather than reporting no code', async () => {
+    stubEndpoints([PRIMARY, SECONDARY])
+    const read = createDeployedCodeReader(() => chainWith([PRIMARY, SECONDARY]))
+
+    let threw = false
+    try {
+      await read(ADDRESS, 'arbitrum')
+    } catch {
+      threw = true
+    }
+    expect(threw).toBe(true)
+  })
+
+  it('resolves the chain for the network it is asked about', async () => {
+    stubEndpoints([])
+    const asked: string[] = []
+    await createDeployedCodeReader((network) => {
+      asked.push(network)
+      return chainWith([PRIMARY])
+    })(ADDRESS, 'arbitrum')
+
+    expect(asked).toEqual(['arbitrum'])
   })
 })
