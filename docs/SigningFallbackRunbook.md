@@ -121,20 +121,28 @@ EXPECTED=49f05efa948d3bd208bbdfcf34ff70ce5eb183bf
 RESOLVED=$(git -C "$CLONE" rev-parse "pre-signing-2.0-baseline^{commit}")
 
 ESCAPEOK=0
+ESC=~/contracts-escape
 if [ "$RESOLVED" = "$EXPECTED" ]; then
   echo "✓ tag resolves to the documented commit: $RESOLVED"
-  # &&-chained: a ~/contracts-escape left by an earlier ceremony fails `worktree
-  # add`, and an unchained `cd` then lands in that stale tree at an unknown
-  # commit with both symlinks refused as "File exists".
-  git -C "$CLONE" worktree add --detach ~/contracts-escape "$RESOLVED" \
-    && cd ~/contracts-escape \
-    && ln -s "$CLONE/.env" .env \
-    && ln -s "$CLONE/node_modules" node_modules \
-    && [ "$(git rev-parse HEAD)" = "$RESOLVED" ] \
+  # The verdict is the tree's final state, not the exit codes of the steps that
+  # built it — an escape tree left by an earlier ceremony fails `worktree add`
+  # while being perfectly usable, and one deleted with `rm -rf` stays registered
+  # until pruned. Nothing cd's until that state is proven: a `cd` cannot be
+  # undone by a later failure, and §3's checks are cwd-relative, so a shell
+  # parked in a half-built tree would check it instead of the clone.
+  git -C "$CLONE" worktree prune
+  [ -d "$ESC" ]                 || git -C "$CLONE" worktree add --detach "$ESC" "$RESOLVED"
+  [ -e "$ESC/.env" ]            || ln -s "$CLONE/.env" "$ESC/.env"
+  [ -e "$ESC/node_modules" ]    || ln -s "$CLONE/node_modules" "$ESC/node_modules"
+  [ "$(git -C "$ESC" rev-parse HEAD 2>/dev/null)" = "$RESOLVED" ] \
+    && [ -e "$ESC/.env" ] && [ -e "$ESC/node_modules" ] \
     && ESCAPEOK=1
-  [ "$ESCAPEOK" -eq 1 ] \
-    && echo "✓ escape worktree ready at $RESOLVED" \
-    || echo "✗ STOP — setup did not complete; do not use ~/contracts-escape"
+  if [ "$ESCAPEOK" -eq 1 ] && cd "$ESC"; then
+    echo "✓ escape worktree ready at $RESOLVED"
+  else
+    ESCAPEOK=0
+    echo "✗ STOP — $ESC is not a verified checkout of $RESOLVED; you are still in $PWD"
+  fi
 else
   echo "✗ STOP — tag resolves to $RESOLVED, not $EXPECTED (see §8)"
 fi
@@ -142,6 +150,11 @@ fi
 
 The checkout is inside the `if` on purpose: a mismatch has to leave you with no
 escape worktree at all, not with one you were told not to use.
+
+Re-pasting the block is safe, and an escape worktree left by an earlier ceremony
+is reused rather than refused — but only after its `HEAD` is checked against
+`$EXPECTED`, so reuse is never a way to inherit a stale tree. To clear it
+deliberately: `git -C "$CLONE" worktree remove --force ~/contracts-escape`.
 
 A worktree rather than a checkout in place: the fallback runs alongside a
 normal clone, and nothing about the working repo has to be disturbed.
@@ -184,12 +197,17 @@ Nothing enforces any of this, and one `bun install` in the clone can end it. The
 slower, correct alternative is a real `bun install` in the escape worktree
 against the baseline's own lockfile.
 
-Resolve them up front, so a broken link fails here rather than at Ledger-tap
-time:
+Resolve them up front, so you learn before the ceremony rather than inside it.
+Note what the failure is **not**: on the propose path a missing package is a
+startup crash, not a mid-ceremony one — `initializeSafeClient`
+(`propose-to-safe.ts:120`) reaches `SafeClient.init`, which awaits
+`import('./ledger')` and `getLedgerAccount` (`safe-utils.ts:340-341` at the
+baseline) before the owner check and before any store write, so it dies in the
+first seconds with nothing half-written:
 
 ```bash
 LEDGEROK=1
-for m in @ledgerhq/hw-transport-node-hid @ledgerhq/hw-app-eth @ledgerhq/hw-transport; do
+for m in @ledgerhq/hw-transport-node-hid @ledgerhq/hw-app-eth; do
   # `node`, NOT `bun`: bun auto-installs a missing package, so `bun -e
   # "require.resolve(...)"` reports success for a name that does not exist and
   # for an absent node_modules alike — it cannot fail, so it proves nothing.
@@ -198,14 +216,22 @@ for m in @ledgerhq/hw-transport-node-hid @ledgerhq/hw-app-eth @ledgerhq/hw-trans
   else echo "✗ $m DOES NOT RESOLVE"; LEDGEROK=0
   fi
 done
+# Reported, never gated: `ledger.ts` takes @ledgerhq/hw-transport as `import
+# type` only, so it is erased at runtime and its absence cannot fail a run.
+node -e "require.resolve('@ledgerhq/hw-transport')" >/dev/null 2>&1 \
+  && echo "· @ledgerhq/hw-transport resolves (types only — not required at runtime)" \
+  || echo "· @ledgerhq/hw-transport absent (types only — harmless)"
 [ "$LEDGEROK" -eq 1 ] \
   && echo "✓ Ledger path ready" \
   || echo "✗ STOP — fix this before the ceremony, not during it"
 ```
 
-Only the first two are loaded; `@ledgerhq/hw-transport` is checked because it
-is declared in neither `package.json` and survives purely as a hoisted
-transitive, which is the one most likely to vanish under a reinstall.
+`@ledgerhq/hw-transport` is printed rather than gated on, and the reason is the
+same fact that makes it tempting to gate: it is declared in neither
+`package.json` and survives purely as a hoisted transitive, so it is the one
+most likely to vanish under a reinstall. But `ledger.ts` imports it as a type
+only, so a run without it is unaffected — refusing on its absence would block
+ceremonies that would have worked, and block them most often.
 
 ## 3. What the environment needs
 
@@ -331,6 +357,11 @@ network you are targeting, not the whole file:
 NET=arbitrum   # substitute your target network before pasting
 
 DRIFT=0   # any check that does not positively pass sets this to 1
+# The baseline side of every comparison below is read cwd-relative, so pasted
+# anywhere else — the clone on `main` being the easy mistake — these compare
+# main with main and pass having proved nothing.
+[ "$(git rev-parse HEAD 2>/dev/null)" = "${EXPECTED:-}" ] \
+  || { echo "✗ not in the escape worktree at ${EXPECTED:-<unset>} — cd there first"; DRIFT=1; }
 MAIN_NET=$(git show "origin/main:config/networks.json" 2>/dev/null)
 
 # 1. The two fields in the network entry that decide correctness — NOT the whole
@@ -406,20 +437,37 @@ not a note: it means the baseline would address a Safe or timelock the org has
 moved on from. `status` and `safeAddress` both live inside the entry step 1
 compares, so all three are covered — by `$DRIFT`, not by your reading.
 
-Which is why the proposal is gated on those variables rather than on having read
-the output. `ESCAPEOK`, `ENVCONFLICT` and `DRIFT` default to the refusing value,
-so pasting this without having run §2, §3 and §5 refuses instead of proposing.
-`LEDGEROK` defaults the other way on purpose: the deployer path never runs §2's
-Ledger step, and a gate that refuses every honest run is one you learn to paste
-past.
+Which is why the proposal is gated on those variables, plus the commit the shell
+is actually standing on, rather than on having read the output. Every one of
+them defaults to the refusing value, so pasting this without having run §2, §3
+and §5 refuses instead of proposing.
+
+`SIGNER` is there because `LEDGEROK` cannot simply be required. A Ledger and a
+raw key are a free choice on **both** commands — `propose-to-safe.ts` reads
+`options.ledger` and otherwise falls back to `PRIVATE_KEY_PRODUCTION` — so the
+choice is orthogonal to whether you are proposing or confirming, and §2's resolve
+step is honestly skipped on one branch and mandatory on the other. Defaulting it
+to *pass* would make the two indistinguishable: an unset `LEDGEROK` would mean
+both "raw key, never needed it" and "Ledger, skipped the check", and the second
+is the one that fails at Ledger-tap time mid-ceremony. Stating the signer costs a
+word and is a thing you know before you start.
 
 ```bash
 READY=1
 [ "${ESCAPEOK:-0}"    -eq 1 ] || { echo "✗ §2 not clean: no verified escape worktree"; READY=0; }
+# ESCAPEOK says a verified tree was built, not that you are standing in it.
+[ "$(git rev-parse HEAD 2>/dev/null)" = "${EXPECTED:-}" ] \
+  || { echo "✗ cwd is not the escape worktree — cd there and re-run §5"; READY=0; }
 [ "${ENVCONFLICT:-1}" -eq 0 ] || { echo "✗ §3 not clean: an export beats .env"; READY=0; }
 [ "${DRIFT:-1}"       -eq 0 ] || { echo "✗ §5 not clean: config drift or a check proved nothing"; READY=0; }
-# Unset passes here: the deployer path never runs §2's Ledger step. Ran-and-failed refuses.
-[ "${LEDGEROK:-1}"    -eq 1 ] || { echo "✗ §2 not clean: a Ledger package does not resolve"; READY=0; }
+# SIGNER names the key you will actually pass. §2's Ledger check bears on one of
+# the two answers only, so the gate has to be told which — and an unset SIGNER
+# is the case where skipping §2 would otherwise go unnoticed.
+case "${SIGNER:-}" in
+  ledger) [ "${LEDGEROK:-0}" -eq 1 ] || { echo "✗ §2 not clean: a Ledger package does not resolve"; READY=0; } ;;
+  key)    ;;
+  *)      echo "✗ set SIGNER=ledger or SIGNER=key — §2's Ledger check depends on it"; READY=0 ;;
+esac
 
 [ "$READY" -eq 1 ] || echo "✗ refusing to propose — fix the above and re-run the checks"
 [ "$READY" -eq 1 ] && bun propose-safe-tx --network "$NET" --to <target> \
