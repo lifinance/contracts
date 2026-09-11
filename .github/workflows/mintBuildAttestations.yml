@@ -1,7 +1,8 @@
 # Mint Build Attestations
 # - Rebuilds every versioned contract with `--ast` and regenerates
-#   script/deploy/resources/buildAttestations.json, the manifest the sign-time
-#   codehash gate looks up instead of recompiling.
+#   script/deploy/resources/buildAttestations.json, the manifest a sign-time
+#   codehash check is meant to read instead of recompiling. Nothing consumes it
+#   yet: wiring the WP-2.1 gate to it is a separate change.
 # - On pull requests: fails when the committed manifest is not what the checkout
 #   produces. A stale manifest is one the attestation no longer covers.
 # - On push to main: the same check, then mints a build-provenance attestation
