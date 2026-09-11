@@ -92,34 +92,53 @@ const countOf = (pattern: RegExp): number =>
   [...SOURCE.matchAll(pattern)].length
 
 /**
+ * `SOURCE` with comments blanked out.
+ *
+ * The traversal below matches names and call sites textually, so a name merely
+ * mentioned in a comment would otherwise read as a call — enough to pull an
+ * uncalled helper into the reached set, or to fail the file on the word
+ * `recordCheck(` appearing in prose explaining why it is absent.
+ */
+const CODE = SOURCE.replace(/\/\*[\s\S]*?\*\//gu, (block) =>
+  block.replace(/[^\n]/gu, ' ')
+).replace(/\/\/[^\n]*/gu, (line) => ' '.repeat(line.length))
+
+/**
  * Every function declared in the file, by name, with its body.
+ *
+ * Both declaration styles, because this file uses `function` for three helpers
+ * and an arrow const for everything else — including `recordEveryCheck`, which
+ * records. An enumeration covering only `function` would walk past the file's
+ * dominant style and report a clean traversal having looked at almost nothing.
  *
  * Brace-counted from the declaration, the same way {@link proposalLoop} bounds
  * the loop, so a nested function or an object literal cannot end a body early.
  */
 const localFunctionBodies = (): Map<string, string> => {
   const bodies = new Map<string, string>()
+  const declaration =
+    /(?:async\s+)?function\s+(\w+)\s*\(|const\s+(\w+)\s*(?::[^=\n]*)?=\s*(?:async\s*)?\(/gu
 
-  for (const match of SOURCE.matchAll(/(?:async\s+)?function\s+(\w+)\s*\(/gu)) {
-    const name = match[1]
+  for (const match of CODE.matchAll(declaration)) {
+    const name = match[1] ?? match[2]
     if (name === undefined) continue
 
     let parens = 0
     let open = -1
-    for (let i = match.index + match[0].length - 1; i < SOURCE.length; i++) {
-      if (SOURCE[i] === '(') parens++
-      else if (SOURCE[i] === ')' && --parens === 0) {
-        open = SOURCE.indexOf('{', i)
+    for (let i = match.index + match[0].length - 1; i < CODE.length; i++) {
+      if (CODE[i] === '(') parens++
+      else if (CODE[i] === ')' && --parens === 0) {
+        open = CODE.indexOf('{', i)
         break
       }
     }
     if (open === -1) continue
 
     let depth = 0
-    for (let i = open; i < SOURCE.length; i++) {
-      if (SOURCE[i] === '{') depth++
-      else if (SOURCE[i] === '}' && --depth === 0) {
-        bodies.set(name, SOURCE.slice(open, i))
+    for (let i = open; i < CODE.length; i++) {
+      if (CODE[i] === '{') depth++
+      else if (CODE[i] === '}' && --depth === 0) {
+        bodies.set(name, CODE.slice(open, i))
         break
       }
     }
@@ -188,12 +207,17 @@ describe('one row per network, not one per proposal', () => {
   // a clean file while a row is still written once per proposal. Reachability
   // is the property the ledger actually needs.
   it('records nothing from anything the loop calls either', () => {
-    const { body } = proposalLoop()
+    const { start, end } = proposalLoop()
+    const body = CODE.slice(start, end)
     const bodies = localFunctionBodies()
 
-    // A positive control: the traversal is worth nothing if it cannot see the
-    // helper the loop is known to reach.
+    // Positive controls, one per declaration style: the traversal is worth
+    // nothing if it cannot see the helpers it is supposed to walk, and an
+    // enumeration that quietly stops matching arrow consts would otherwise
+    // leave every assertion below passing over an empty set.
     expect(bodies.has('recordSignedSet')).toBe(true)
+    expect(bodies.has('recordEveryCheck')).toBe(true)
+    expect(bodies.get('recordEveryCheck')).toContain('recordCheck(')
     expect(body).toContain('persistSignedSafeTx(')
 
     const reached = new Set<string>()
