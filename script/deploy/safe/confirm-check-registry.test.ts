@@ -859,3 +859,37 @@ describe('an integrity check the run registered but never reported', () => {
     expect(summariseLedger(ledger).totals.missing).toBe(0)
   })
 })
+
+describe('a shortfall the signer can act on', () => {
+  // Amber on its own teaches signers to click through. A row that names the
+  // command that fixes it is one they can clear instead.
+  it('names the remedy when the network has too few endpoints', () => {
+    const result = rpcQuorumCheckResult(
+      quorumVerdict({
+        status: 'insufficient-providers',
+        reachesQuorum: false,
+        agreeingProviders: 0,
+        independentProviders: 1,
+      }),
+      NETWORK
+    )
+
+    expect(result.detail).toContain('bun fetch-rpcs')
+  })
+
+  // A disagreement between providers that are all present is a different
+  // problem, and pointing it at the endpoint list would misdirect.
+  it('does not blame the endpoint list when enough providers answered', () => {
+    const result = rpcQuorumCheckResult(
+      quorumVerdict({
+        status: 'disagreement',
+        reachesQuorum: false,
+        agreeingProviders: 0,
+        independentProviders: 3,
+      }),
+      NETWORK
+    )
+
+    expect(result.detail).not.toContain('bun fetch-rpcs')
+  })
+})

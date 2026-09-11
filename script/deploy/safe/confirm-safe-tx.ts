@@ -14,11 +14,20 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import * as dotenv from 'dotenv'
 import { type Collection } from 'mongodb'
-import { createPublicClient, http, type Address, type Hex } from 'viem'
+import {
+  createPublicClient,
+  fallback,
+  http,
+  type Address,
+  type Hex,
+} from 'viem'
 
 import networksData from '../../../config/networks.json'
 import { redactUrls } from '../../utils/redactUrls'
-import { buildExplorerAddressUrl } from '../../utils/viemScriptHelpers'
+import {
+  buildExplorerAddressUrl,
+  getFallbackTransportForChain,
+} from '../../utils/viemScriptHelpers'
 import { createDefaultCache } from '../shared/deployment-cache'
 import { sanitizeProvenanceText } from '../shared/git-provenance'
 import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
@@ -890,9 +899,18 @@ const processTxs = async (
     let executability: IExecutabilityVerdict | undefined
     if (evmSimulatable && primaryEndpoint)
       try {
+        // Every endpoint the chain has, in priority order, rather than the
+        // primary alone: one throttled provider must not be the reason a
+        // proposal goes unverified. Only when all of them fail does the row
+        // below record `error`, which blocks — the signer investigates rather
+        // than signing on a simulation nobody made. An explicit `--rpcUrl`
+        // stays first and keeps the rest as its failover.
+        const chainTransport = getFallbackTransportForChain(chain)
         const client = createPublicClient({
           chain,
-          transport: http(primaryEndpoint),
+          transport: rpcUrl
+            ? fallback([http(rpcUrl), chainTransport])
+            : chainTransport,
         })
         executability = evaluateExecutability(
           await collectExecutabilityInput(
@@ -915,10 +933,11 @@ const processTxs = async (
           )
         )
       } catch (error) {
-        // Left undefined, which the ledger records as unverified. A thrown
-        // collection is not a simulation that found nothing wrong.
-        consola.warn(
-          `    Executability: the simulation could not be run — ${redactUrls(
+        // Left undefined, which the ledger records as unverified and blocks on.
+        // A thrown collection is not a simulation that found nothing wrong, and
+        // every configured endpoint was already tried before reaching here.
+        consola.error(
+          `    Executability: no endpoint for ${network} could simulate this proposal, so it is UNVERIFIED — investigate before signing: ${redactUrls(
             error instanceof Error ? error.message : String(error)
           )}`
         )

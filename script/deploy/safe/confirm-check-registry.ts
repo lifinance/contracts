@@ -392,7 +392,10 @@ export const rpcQuorumCheckResult = (
     // there were not enough of them, or they agreed the value is empty, which
     // is agreement without the fact an integrity read wanted.
     anchor: 'A-UNRESOLVED',
-    detail: verdict.detail,
+    detail:
+      verdict.independentProviders < MIN_INDEPENDENT_PROVIDERS
+        ? `${verdict.detail} — only ${verdict.independentProviders} endpoint(s) are configured for this network; run "bun fetch-rpcs" to pick up the fallbacks MongoDB holds`
+        : verdict.detail,
   }
 }
 
