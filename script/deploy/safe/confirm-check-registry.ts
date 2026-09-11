@@ -12,12 +12,7 @@
  * status below it is wrong.
  */
 
-import {
-  recordCheck,
-  type ICheckDefinition,
-  type ICheckLedger,
-  type ICheckResult,
-} from './check-ledger'
+import type { ICheckDefinition, ICheckResult } from './check-ledger'
 import {
   CHECK_TIMELOCK_DELAY,
   INTEGRITY_CHECKS_ALWAYS,
@@ -50,17 +45,29 @@ interface IStatusMapping {
  * How each graded status reaches the ledger.
  *
  * Split by the anchor each status rests on, not by whether it is cleared to
- * proceed: the four record-derived statuses are `A-MONGO` because the value
- * that produced them came from a document the proposer writes, and the two
- * unreadable-calldata statuses resolve to nothing at all. Keyed exhaustively so
- * a status added to `TargetStateStatus` fails to compile here rather than
- * falling through to a default that would grade it green.
+ * proceed. Every status that had to resolve the proposed version through the
+ * deployment record is `A-MONGO` — including the three that then compared it
+ * against `origin/main`, because the proposer writes that record and so owns
+ * one side of the comparison. `A-MONGO` cannot decide a pass, so those three
+ * ask a human instead, which a `semantic` check may legitimately do.
+ *
+ * The three unresolvable statuses reach `A-UNRESOLVED` because nothing
+ * answered at all: an action that is not Add, Replace or Remove, calldata that
+ * could not be read, or an anchor that could not be reached.
+ *
+ * Keyed exhaustively so a status added to `TargetStateStatus` fails to compile
+ * here rather than falling through to a default that would grade it green.
  */
 const STATUS_MAPPING: Readonly<Record<TargetStateStatus, IStatusMapping>> = {
-  'matches-main': { status: 'pass', anchor: 'A-MAIN' },
-  'ahead-of-main': { status: 'pass', anchor: 'A-MAIN' },
-  removal: { status: 'pass', anchor: 'A-MAIN' },
-  'not-previously-targeted': { status: 'pass', anchor: 'A-MAIN' },
+  'matches-main': { status: 'needs-ack', anchor: 'A-MONGO' },
+  'ahead-of-main': { status: 'needs-ack', anchor: 'A-MONGO' },
+  // `origin/main` declares nothing for this contract, so nothing was compared.
+  // The common path, not an edge case: the target-state update merges only
+  // after execution, so every first deployment lands here.
+  'not-previously-targeted': { status: 'needs-ack', anchor: 'A-MONGO' },
+  // The removal branch returns before the anchor is read at all, so there is no
+  // claim on `origin/main` to make — the same shape as `no-diamond-cut` below.
+  removal: { status: 'pass', anchor: 'A-LOCAL' },
   // No cut to grade. A pass on `A-LOCAL` rather than a skipped row: the
   // calldata was read and found to install nothing, which is a verified fact
   // about this proposal, not an absence of evidence.
@@ -75,11 +82,17 @@ const STATUS_MAPPING: Readonly<Record<TargetStateStatus, IStatusMapping>> = {
   'pinned-state-unavailable': { status: 'error', anchor: 'A-UNRESOLVED' },
 }
 
-/** Worst-first, so reducing many findings to one row cannot lose a refusal. */
+/**
+ * Worst-first, so reducing many findings to one row cannot lose a refusal.
+ *
+ * `needs-ack` ranks below `error`: an acknowledgement has a human path and an
+ * unverified check has none, so a status someone can wave through must never
+ * stand in for one nothing could grade.
+ */
 const SEVERITY: readonly ICheckResult['status'][] = [
   'fail',
-  'needs-ack',
   'error',
+  'needs-ack',
   'pass',
 ]
 
@@ -124,7 +137,10 @@ export const targetStateCheckResult = (
     }
 
   let status: ICheckResult['status'] = 'pass'
-  let anchor: ICheckResult['anchor'] = 'A-MAIN'
+  // Replaced by the first finding, since every mapped status outranks the seed.
+  // `A-UNRESOLVED` rather than `A-MAIN` so the unreachable case still describes
+  // a row nothing decided.
+  let anchor: ICheckResult['anchor'] = 'A-UNRESOLVED'
   let worstRank = SEVERITY.length
 
   for (const finding of verdict.findings) {
@@ -159,6 +175,41 @@ export const targetStateCheckResult = (
         }
       : {}),
   }
+}
+
+/**
+ * Reduces every result a network produced to one row per check.
+ *
+ * `recordCheck` is called per proposal, but a ledger row is denominated per
+ * network, and `rollUpChecks` treats repeat calls for one `(checkId, network)`
+ * pair as retries — deliberately letting a later `pass` supersede an earlier
+ * `error`. Two proposals on one network are not a retry of each other, so the
+ * caller must reduce them here first: extending across proposals the same
+ * worst-first reduction `targetStateCheckResult` runs across findings.
+ *
+ * Grouped by `checkId` so a run recording several checks per proposal reduces
+ * each of them independently.
+ *
+ * @param results - Every result the network's proposals produced, in any order.
+ * @returns The worst result for each check, in the order the checks first reported.
+ */
+export const worstResultPerCheck = (
+  results: readonly ICheckResult[]
+): ICheckResult[] => {
+  const worst = new Map<string, ICheckResult>()
+
+  for (const result of results) {
+    const held = worst.get(result.checkId)
+    // Strictly worse, so a tie keeps the row already held — the earlier
+    // proposal's, which is the one the signer has already been shown.
+    if (
+      !held ||
+      SEVERITY.indexOf(result.status) < SEVERITY.indexOf(held.status)
+    )
+      worst.set(result.checkId, result)
+  }
+
+  return [...worst.values()]
 }
 
 export const EXECUTABILITY_CHECK_ID = 'executability'
@@ -199,8 +250,21 @@ export const RPC_QUORUM_CHECK: ICheckDefinition = {
  * has to answer for it on every proposal — which it does, with a pass on
  * `A-LOCAL` when the calldata was read and found not to be a schedule.
  */
+/**
+ * The integrity ids this registry mirrors onto the run-level ledger.
+ *
+ * One list, read by both the registration below and the recorder further down.
+ * Two independent copies would let a check be registered here and never
+ * answered for, and a registered check with no row is counted missing and
+ * blocks — with no type error and no failing test to say why.
+ */
+const MIRRORED_INTEGRITY_CHECKS: readonly string[] = [
+  ...INTEGRITY_CHECKS_ALWAYS,
+  CHECK_TIMELOCK_DELAY,
+]
+
 export const CONFIRM_CHECK_DEFINITIONS: readonly ICheckDefinition[] = [
-  ...[...INTEGRITY_CHECKS_ALWAYS, CHECK_TIMELOCK_DELAY].map((checkId) => {
+  ...MIRRORED_INTEGRITY_CHECKS.map((checkId) => {
     const definition = INTEGRITY_CHECK_DEFINITIONS[checkId]
     if (!definition)
       throw new Error(`CONFIRM_CHECK_DEFINITIONS: no definition for ${checkId}`)
@@ -367,7 +431,7 @@ const integrityResults = (
   run: IIntegrityAssertRun | undefined,
   network: string
 ): ICheckResult[] => {
-  const registered = [...INTEGRITY_CHECKS_ALWAYS, CHECK_TIMELOCK_DELAY]
+  const registered = MIRRORED_INTEGRITY_CHECKS
 
   if (!run)
     return registered.map((checkId) =>
@@ -406,30 +470,29 @@ const integrityResults = (
 }
 
 /**
- * Records every sign-time verdict for one proposal, in the order a signer reads
- * them.
+ * Every sign-time verdict for one proposal, in the order a signer reads them.
  *
- * One ordered step rather than a `recordCheck` beside each gate: the sequence
- * the ledger holds *is* the report's order, so pinning it here makes it a
- * property of the recorded rows that a test can read back, instead of a
- * property of where the calls happen to sit in a 1400-line CLI.
+ * Produces rows rather than recording them: a ledger row is denominated per
+ * network, so the caller collects these across the network's proposals and
+ * reduces them with `worstResultPerCheck` before recording. Recording here
+ * would let a later proposal's `pass` supersede an earlier one's `error`.
  *
- * @param ledger - The run's ledger, mutated in place.
+ * One ordered step rather than a call beside each gate: the sequence *is* the
+ * report's order, so pinning it here makes it a property of the rows a test can
+ * read back, instead of a property of where the calls happen to sit in a
+ * 1400-line CLI.
+ *
  * @param verdicts - What each gate decided for this proposal.
+ * @returns One row per registered check, in reading order.
  */
-export const recordProposalChecks = (
-  ledger: ICheckLedger,
+export const proposalCheckResults = (
   verdicts: IProposalCheckVerdicts
-): void => {
+): ICheckResult[] => {
   const { network } = verdicts
 
-  for (const result of integrityResults(verdicts.integrity, network))
-    recordCheck(ledger, result)
-
-  recordCheck(ledger, targetStateCheckResult(verdicts.targetState, network))
-
-  recordCheck(
-    ledger,
+  return [
+    ...integrityResults(verdicts.integrity, network),
+    targetStateCheckResult(verdicts.targetState, network),
     verdicts.executability
       ? executabilityCheckResult(verdicts.executability, network)
       : verdicts.executabilityOutOfScope
@@ -447,11 +510,7 @@ export const recordProposalChecks = (
           network,
           'every payload simulated against the state it will execute in',
           'no simulation was attempted for this proposal'
-        )
-  )
-
-  recordCheck(
-    ledger,
+        ),
     verdicts.rpcQuorum
       ? rpcQuorumCheckResult(verdicts.rpcQuorum, network)
       : {
@@ -464,6 +523,6 @@ export const recordProposalChecks = (
           expected: `${MIN_INDEPENDENT_PROVIDERS} independent providers agreeing`,
           actual: 'no quorum read was made for this proposal',
           anchor: 'A-UNRESOLVED',
-        }
-  )
+        },
+  ]
 }

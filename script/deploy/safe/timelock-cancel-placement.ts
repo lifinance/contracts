@@ -12,13 +12,15 @@
  *
  * The matrix reports `integrity` from a re-derivation of the attested build at
  * every signed address. Nothing at execute time does that today, so the leg is
- * `unsupported` — and `unsupported` short-circuits to `hold` with a `page`
- * before any other branch is reached. Letting the verdict drive the action
- * would therefore hold *every* operation on *every* pass and page for each one,
- * which is why this is reported and not enforced. The comparison that makes
- * the report worth reading is the identity leg, which is real: the executor
- * asks the controller for the id its own call list hashes to and compares it
- * with the id the row was scheduled under.
+ * always `unsupported`, and no input the executor can assemble ever reaches
+ * `execute`: a row still on the schedule holds on `op-form-unsupported` and
+ * pages, one the controller has already run or forgotten blocks on
+ * `op-not-schedulable`, and an identity mismatch blocks unproven. Letting the
+ * verdict drive the action would therefore stop every operation it saw, which
+ * is why this is reported and not enforced. The comparison that makes the
+ * report worth reading is the identity leg, which is real: the executor asks
+ * the controller for the id its own call list hashes to and compares it with
+ * the id the row was scheduled under.
  *
  * The healthy path is also the wrong place to ask the question. An operation
  * that executes cleanly has nothing for a cancel matrix to decide. A row whose

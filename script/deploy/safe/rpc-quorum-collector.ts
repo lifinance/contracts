@@ -49,29 +49,27 @@ export const collectProviderObservations = async (
   read: TEndpointReader
 ): Promise<IProviderObservation[]> =>
   Promise.all(
-    endpointUrls.map(
-      async (endpointUrl): Promise<IProviderObservation> => {
-        try {
-          const observed = await read(endpointUrl)
-          return {
-            endpointUrl,
-            outcome: 'ok',
-            value: observed.value,
-            blockNumber: observed.blockNumber,
-            blockHash: observed.blockHash,
-          }
-        } catch (error) {
-          return {
-            endpointUrl,
-            outcome: 'error',
-            // Never rendered as-is by the quorum module, which redacts it: an
-            // endpoint URL carrying an API key can appear in a provider's own
-            // failure text.
-            error: error instanceof Error ? error.message : String(error),
-          }
+    endpointUrls.map(async (endpointUrl): Promise<IProviderObservation> => {
+      try {
+        const observed = await read(endpointUrl)
+        return {
+          endpointUrl,
+          outcome: 'ok',
+          value: observed.value,
+          blockNumber: observed.blockNumber,
+          blockHash: observed.blockHash,
+        }
+      } catch (error) {
+        return {
+          endpointUrl,
+          outcome: 'error',
+          // Never rendered as-is by the quorum module, which redacts it: an
+          // endpoint URL carrying an API key can appear in a provider's own
+          // failure text.
+          error: error instanceof Error ? error.message : String(error),
         }
       }
-    )
+    })
   )
 
 /**
@@ -104,9 +102,7 @@ export const createCodeReader =
 
     const observed = await client.getChainId()
     if (observed !== chainId)
-      throw new Error(
-        `endpoint reports chain ${observed}, expected ${chainId}`
-      )
+      throw new Error(`endpoint reports chain ${observed}, expected ${chainId}`)
 
     const block = await client.getBlock()
     const code = await client.getCode({ address, blockNumber: block.number })

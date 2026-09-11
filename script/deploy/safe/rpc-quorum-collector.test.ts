@@ -18,10 +18,13 @@ import {
   collectProviderObservations,
 } from './rpc-quorum-collector'
 
+/** A real 32-byte block hash: the shape a provider actually returns. */
+const BLOCK_HASH = `0x${'ab'.repeat(32)}`
+
 const answer = (value: string) => ({
   value,
   blockNumber: 100n,
-  blockHash: '0xblock',
+  blockHash: BLOCK_HASH,
 })
 
 describe('collectProviderObservations', () => {
@@ -85,7 +88,7 @@ describe('collectProviderObservations', () => {
     )
 
     expect(observations[0]?.blockNumber).toBe(100n)
-    expect(observations[0]?.blockHash).toBe('0xblock')
+    expect(observations[0]?.blockHash).toBe(BLOCK_HASH)
   })
 })
 

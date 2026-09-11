@@ -128,7 +128,7 @@ describe('decideRevertedOperation', () => {
           }
   })
 
-  it('a mismatched id is held rather than cancelled, being unproven', () => {
+  it('a mismatched id is blocked rather than cancelled, being unproven', () => {
     const decision = decideRevertedOperation(
       signals({ recomputedOperationId: `0x${'b'.repeat(64)}` })
     )
@@ -147,8 +147,9 @@ describe('decideRevertedOperation', () => {
     expect(decision.reason).toBe('op-not-schedulable')
   })
 
-  // With the integrity leg unsupported, this is what every clean row reports —
-  // which is exactly why the verdict is printed and not enforced.
+  // With the integrity leg unsupported, this is what a row still on the
+  // schedule reports — which is exactly why the verdict is printed, not
+  // enforced.
   it('an agreeing row still holds, because integrity was never verified', () => {
     const decision = decideRevertedOperation(signals())
 
@@ -179,5 +180,41 @@ describe('renderCancelRecommendation', () => {
 
     expect(line).toContain('would')
     expect(line).toContain(OP_ID)
+  })
+})
+
+describe('what the executor can never reach', () => {
+  // The report is worth printing only because it can never authorise the two
+  // actions that change anything. `cancel` is covered above; `execute` is the
+  // other one, and no combination the executor assembles produces it.
+  it('never reaches execute either, on any combination', () => {
+    const states: ITimelockCancelSignals['operationState'][] = [
+      'ready',
+      'pending',
+      'done',
+      'unset',
+    ]
+    const authorities: ITimelockCancelSignals['cancellerAuthority'][] = [
+      'held',
+      'absent',
+      'unknown',
+    ]
+    const recomputed = [OP_ID, `0x${'b'.repeat(64)}`, undefined]
+
+    for (const operationState of states)
+      for (const cancellerAuthority of authorities)
+        for (const recomputedOperationId of recomputed)
+          expect(
+            decideRevertedOperation(
+              signals({
+                operationState,
+                cancellerAuthority,
+                recomputedOperationId,
+                // As the executor hardcodes them.
+                deploymentRecord: 'error',
+                signTimeVerdictRecord: 'missing',
+              })
+            ).action
+          ).not.toBe('execute')
   })
 })

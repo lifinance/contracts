@@ -143,20 +143,45 @@ describe('collectExecutabilityInput', () => {
     expect(input.observations.hasCode.get(FACET.toLowerCase())).toBe(true)
   })
 
-  // The property the whole module rests on: a read that did not happen must
-  // reach the verdict as an absence, which the simulation grades unchecked.
-  it('leaves a failed read absent rather than defaulting it', async () => {
+  // The property the whole module rests on, asserted per read rather than in
+  // aggregate: a defaulted owner is the false-green path this module's header
+  // names, and it would be invisible to a test that only covers `hasCode`.
+  const wrapped = {
+    network: 'arbitrum',
+    safeAddress: SAFE,
+    to: TIMELOCK,
+    data: scheduleBatch([DIAMOND], [cut()]),
+  }
+
+  it('leaves a failed code read absent rather than defaulting it', async () => {
     const input = await collectExecutabilityInput(
-      {
-        network: 'arbitrum',
-        safeAddress: SAFE,
-        to: TIMELOCK,
-        data: scheduleBatch([DIAMOND], [cut()]),
-      },
+      wrapped,
       reader({ hasCode: async () => undefined })
     )
 
     expect(input.observations.hasCode.size).toBe(0)
+    expect(evaluateExecutability(input).error).toBe(true)
+  })
+
+  it('leaves a failed owner read absent rather than defaulting it', async () => {
+    const input = await collectExecutabilityInput(
+      wrapped,
+      reader({ owner: async () => undefined })
+    )
+
+    expect(input.observations.owners.size).toBe(0)
+    // The one that matters most: `gradeOwner` returns no finding for an owner
+    // it was never given, so a defaulted value would read as a verified match.
+    expect(evaluateExecutability(input).error).toBe(true)
+  })
+
+  it('leaves a failed selector read absent rather than defaulting it', async () => {
+    const input = await collectExecutabilityInput(
+      wrapped,
+      reader({ facetAddress: async () => undefined })
+    )
+
+    expect(input.observations.selectorFacets.size).toBe(0)
     expect(evaluateExecutability(input).error).toBe(true)
   })
 
