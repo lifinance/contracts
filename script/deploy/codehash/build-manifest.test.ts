@@ -220,6 +220,34 @@ describe('serialiseManifest', () => {
     ).toThrow(ManifestConflictError)
   })
 
+  it('serialises the same settings identically whatever order solc emitted them', () => {
+    // solc is free to order `metadata.settings` as it likes, and the key's
+    // hash is taken over a canonical form — so two runs agreeing on every
+    // value would otherwise write different bytes under an identical hash.
+    const ordered = {
+      optimizer: { enabled: true, runs: 1000000 },
+      viaIR: false,
+    }
+    const shuffled = {
+      viaIR: false,
+      optimizer: { runs: 1000000, enabled: true },
+    }
+
+    const manifestWith = (settings: Record<string, unknown>): string => {
+      const built = manifestEntryFrom(
+        IDENTITY,
+        keyFor(),
+        DEFAULT_PROFILE,
+        { runtimeHex: CODE_A },
+        settings
+      )
+      if (!built.ok) throw new Error(`fixture did not build: ${built.reason}`)
+      return serialiseManifest(['default'], [built.entry])
+    }
+
+    expect(manifestWith(shuffled)).toBe(manifestWith(ordered))
+  })
+
   it('accepts the same build attested twice, which is not a conflict', () => {
     const key = keyFor()
     const text = serialiseManifest(

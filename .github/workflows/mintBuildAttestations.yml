@@ -8,6 +8,11 @@
 # - On push to main: the same check, then mints a build-provenance attestation
 #   over the committed bytes via Sigstore. That attestation is what makes the
 #   committed file first-party evidence rather than a transcription.
+# - Verifying and minting are separate jobs because a job's permissions cover
+#   every step in it, including the ones a step-level `if` skips. The verify job
+#   installs dependencies and runs repo scripts, both of which a same-repo PR can
+#   edit, so it holds nothing worth stealing. The mint job carries the signing
+#   permissions and runs nothing out of the checkout but the attest action.
 # - Deliberately NOT path-filtered. A path filter turns this into a job that
 #   skips, and a skipped job reports success — which is exactly how a gate goes
 #   quiet without anyone noticing. The build is the cost of never having to ask
@@ -26,7 +31,7 @@ on:
       - main
   workflow_dispatch:
 
-# Default-deny at the workflow level; grant only what the job needs.
+# Default-deny at the workflow level; grant only what each job needs.
 permissions: {}
 
 concurrency:
@@ -34,13 +39,11 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
-  mint:
+  verify:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
       contents: read # required to fetch repository contents
-      id-token: write # required by attest-build-provenance to obtain the OIDC token it signs with
-      attestations: write # required to write the attestation to this repository
     steps:
       - name: Checkout repository
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
@@ -58,15 +61,13 @@ jobs:
 
       - name: Install Foundry
         uses: ./.github/actions/setup-foundry
-        with:
-          cache-key-suffix: mint-attestations
 
       - name: Verify the committed manifest matches this checkout
         shell: bash
         run: |
           set -euo pipefail
           ##### `--check` writes nothing and exits 1 on any byte of drift.
-          ##### The attestation below binds a digest of the committed bytes, so
+          ##### The attestation binds a digest of the committed bytes, so
           ##### minting a manifest that differs from the reviewed one would sign
           ##### something no human ever read.
           if ! bun attestations:check; then
@@ -76,11 +77,28 @@ jobs:
           fi
           echo -e "\033[32mManifest matches the build.\033[0m"
 
+  mint:
+    ##### Only on main: an attestation names the workflow identity and the ref
+    ##### it ran on, and one minted from a branch would vouch for code that
+    ##### never passed review.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    needs: verify
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read # required to fetch repository contents
+      id-token: write # required by attest-build-provenance to obtain the OIDC token it signs with
+      attestations: write # required to write the attestation to this repository
+    steps:
+      ##### Only the manifest is needed, and nothing out of the checkout runs
+      ##### here: the signing permissions above must not be live while repo
+      ##### scripts do.
+      - name: Checkout repository
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
+        with:
+          persist-credentials: false
+
       - name: Mint the attestation
-        ##### Only on main: an attestation names the workflow identity and the
-        ##### ref it ran on, and one minted from a branch would vouch for code
-        ##### that never passed review.
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         id: attest
         uses: actions/attest-build-provenance@4d101475d8b20a2381f78447822ac1eab6504dd8 # v4.2.2
         with:

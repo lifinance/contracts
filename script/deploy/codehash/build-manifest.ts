@@ -138,6 +138,27 @@ const describeLineage = (
 }
 
 /**
+ * Rebuilds a value with every object's keys in sorted order.
+ *
+ * `settingsHash` is taken over a canonical form, so it does not move when solc
+ * emits the same settings in a different order. Embedding the raw object would
+ * let the manifest's bytes move under a hash that stayed put, which is the same
+ * class of defect as keying immutables by AST id.
+ * @param value - any JSON-shaped value
+ * @returns The value with object keys ordered
+ */
+const canonicalise = (value: unknown): unknown => {
+  if (Array.isArray(value)) return value.map(canonicalise)
+  if (typeof value === 'object' && value !== null)
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>)
+        .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0))
+        .map(([entryKey, entryValue]) => [entryKey, canonicalise(entryValue)])
+    )
+  return value
+}
+
+/**
  * Drops Foundry's AST-id grouping, keeping the occurrences in offset order.
  * @param refs - Foundry's `immutableReferences`
  * @returns Every occurrence, ordered by start offset
@@ -191,7 +212,7 @@ export const manifestEntryFrom = (
       build: {
         repo: identity.repo,
         profile: profile.profile,
-        hashedSettings,
+        hashedSettings: canonicalise(hashedSettings) as Record<string, unknown>,
       },
       maskedHash: normalised.maskedHash,
       lineage: describeLineage(identity, profile, solcVersion),
