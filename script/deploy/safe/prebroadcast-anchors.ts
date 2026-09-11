@@ -4,7 +4,7 @@
  *
  * Import this from the gate. Every function here derives from `main` — the
  * deployments file, the build artifacts, `config/networks.json`,
- * `config/global.json` — or from the operation parameters read back off chain.
+ * `config/global.json` — or from the operation's own parameters.
  * Nothing reads a stored verdict, and `deriveGateInput` is the seam that keeps
  * it that way: it takes the sign-time record and passes on only whether one
  * exists.
@@ -76,9 +76,10 @@ export interface IDeclaredAuthority {
  * The storage-authority values this gate asserts, per contract (R2.6 / F9).
  *
  * A code MATCH says nothing about mutable storage, so the authority that can
- * redirect a contract has to be read live and compared too. The table is
- * deliberately short and explicit: a contract absent from it contributes no
- * authority row, which the gate reports as uncovered rather than as checked.
+ * redirect a contract has to be read live and compared too. A contract absent
+ * from this table contributes no authority row and produces no finding, so the
+ * gate's PROCEED covers only the authorities named here — absence of a row is
+ * not evidence that a contract's authorities were checked.
  */
 export const DECLARED_STORAGE_AUTHORITIES: Readonly<
   Record<string, readonly IDeclaredAuthority[]>

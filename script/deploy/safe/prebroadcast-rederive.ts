@@ -62,8 +62,10 @@ export interface IPreBroadcastGateInput {
   /** The id the executor is about to execute this operation under. */
   operationId: string
   /**
-   * The id recomputed by the timelock itself from the operation parameters read
-   * back off chain. Undefined when that call could not be made.
+   * The chain's own hash of the parameters this operation would execute with.
+   * `hashOperationBatch` is pure, so this confirms the parameters hash to the
+   * id they are executed under; it reads nothing the timelock stores.
+   * Undefined when the call could not be made.
    */
   onChainOperationId: string | undefined
   targets: IPreBroadcastTarget[]
@@ -124,7 +126,7 @@ export const evaluatePreBroadcastGate = (
     normalizeId(input.onChainOperationId) !== normalizeId(input.operationId)
   )
     blockFindings.push(
-      `the timelock recomputes this operation's parameters to id ${input.onChainOperationId}, not the ${input.operationId} it is being executed under`
+      `the chain hashes this operation's parameters to id ${input.onChainOperationId}, not the ${input.operationId} it is being executed under`
     )
 
   // An operation whose parameters name no target has nothing to verify, and

@@ -332,13 +332,15 @@ export const viemGateReaders = (
 /**
  * Builds the operation-id reader from a viem client.
  *
- * The id is recomputed by the timelock from the parameters it holds, not by us
- * from the queue row, so a row whose parameters were edited resolves to a
- * different id than the one being executed.
+ * `hashOperationBatch` is a pure function of the arguments passed to it — the
+ * controller stores only id→timestamp, never the parameters — so this proves
+ * the row's parameters hash to the id the row claims, and nothing more. A row
+ * edited consistently in both still agrees here; what refuses that one is the
+ * timelock itself, which has no schedule entry under the new id.
  *
  * @param publicClient - Client for the network.
- * @param timelockAddress - The controller holding the operation.
- * @param params - Operation parameters as read back off chain.
+ * @param timelockAddress - The controller to ask.
+ * @param params - Operation parameters from the queue row.
  * @returns The reader dependency.
  */
 export const viemOperationIdReader =
@@ -409,13 +411,11 @@ export const PRE_BROADCAST_GATE_ENFORCE_ENV = 'PRE_BROADCAST_GATE_ENFORCE'
  * Whether a pre-broadcast refusal is binding.
  *
  * Off unless the variable is exactly `'true'`; anything else — unset, empty,
- * `'1'`, `'TRUE'`, `'yes'` — reads as off. The fail-closed reflex is wrong
- * here: the gate re-derives its attested set from one fresh local build of the
- * current checkout, so every contract not redeployed since the compiler moved
- * grades MISMATCH — `LiFiDiamond` among them, which every timelock batch
- * targets. Until the set is anchored on the WP-5.2 attestation store,
- * enforcing refuses effectively all honest traffic, durably, one manual
- * requeue per row.
+ * `'1'`, `'TRUE'`, `'yes'` — reads as off. Defaulting to off rather than on
+ * inverts the usual reflex because the gate's attested set is one local build
+ * of the current checkout: it grades any contract not redeployed since the
+ * compiler moved as MISMATCH, so enforcing refuses honest traffic until that
+ * set is anchored on a real attestation store (EXSC-952).
  *
  * @param env - The environment to read, normally `process.env`.
  * @returns True only for the exact opt-in.

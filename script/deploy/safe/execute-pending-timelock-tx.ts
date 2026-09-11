@@ -1694,7 +1694,7 @@ const REPO_ROOT = path.resolve(
  * Only binding when {@link isPreBroadcastGateEnforcing} says so. In shadow mode
  * — the default — a refusal is logged and alerted and the operation still
  * executes, because the set the verdict is derived from refuses honest traffic
- * until it is anchored on the WP-5.2 attestation store.
+ * until it is anchored on a real attestation store (EXSC-952).
  *
  * When enforcing, verdicts map onto the existing {@link GuardOutcome} states: a
  * proven failure is durable and flips the row to `blocked`; anything unverified

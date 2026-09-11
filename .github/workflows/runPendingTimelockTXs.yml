@@ -39,7 +39,13 @@
 #         budget. The script throws if it has that alert to send and this is unset.)
 #     * secrets.MONGODB_URI (non-sensitive MongoDB connection string; the script reads queued
 #         timelock ops from the timelock-operations.queue collection. Rows are written by
-#         confirm-safe-tx.ts when a Safe tx scheduling a timelock op is mined.)
+#         confirm-safe-tx.ts when a Safe tx scheduling a timelock op is mined. The
+#         pre-broadcast gate also reads timelock-operations.signed-sets from the same cluster.)
+#     * PRE_BROADCAST_GATE_ENFORCE is deliberately NOT set here. Unset, the pre-broadcast
+#         integrity gate runs in shadow mode: it logs and alerts its verdict and the operation
+#         still executes. Setting it to "true" makes refusals binding, which must wait for the
+#         attestation store tracked by EXSC-952 — the set the gate derives today grades honest
+#         deployments MISMATCH, so enforcing would block effectively every queued operation.
 # - Known limitations:
 #     * Job timeout caps runtime; very large multi-network runs may need a higher value
 
