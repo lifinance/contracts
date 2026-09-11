@@ -33,6 +33,7 @@ const attestedBuild = (
   overrides: Partial<IAttestedBuild> = {}
 ): IAttestedBuild => ({
   lineage: 'local build of main',
+  provenance: 'A-LOCAL',
   solcVersion: '0.8.29',
   maskedHash: GOOD_MASKED_HASH,
   rawByteLength: 1440,

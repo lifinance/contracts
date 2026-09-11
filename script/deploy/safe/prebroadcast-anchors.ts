@@ -304,6 +304,9 @@ export const readArtifactAnchor = (
   return {
     attested: {
       lineage,
+      // The artifact comes out of this host's own `out/`, so a match here is
+      // the executor agreeing with itself, never a CI mint.
+      provenance: 'A-LOCAL',
       solcVersion,
       maskedHash: normalized.observed.maskedHash,
       rawByteLength: normalized.observed.rawByteLength,
