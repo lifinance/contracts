@@ -82,9 +82,17 @@ const STATUS_MAPPING: Readonly<Record<TargetStateStatus, IStatusMapping>> = {
 /**
  * Worst-first, so reducing many findings to one row cannot lose a refusal.
  *
- * `needs-ack` ranks below `error`: an acknowledgement has a human path and an
- * unverified check has none, so a status someone can wave through must never
- * stand in for one nothing could grade.
+ * `needs-ack` ranks below `error` because an acknowledgement has a human path
+ * and an unverified check has none, so the acknowledgement must never stand in
+ * for the thing nothing could grade.
+ *
+ * `fail` still ranks above `error`, which is not the same ordering: on a
+ * `semantic` check `summariseLedger` sends a mismatch to acknowledgement and an
+ * `error` to the hard block, so a row reduced from both understates by one
+ * step. It is kept because the reduced row's `actual` lists every finding and a
+ * mismatch is the more actionable line, and because the signing refusal does not
+ * read this order at all — `STATUSES_CLEARED_TO_PROCEED` grades each finding
+ * separately.
  */
 const SEVERITY: readonly ICheckResult['status'][] = [
   'fail',
