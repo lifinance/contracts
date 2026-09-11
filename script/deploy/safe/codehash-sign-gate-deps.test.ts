@@ -739,7 +739,8 @@ describe('createImmutableReferencesResolver refuses several lineages', () => {
 
 describe('createDeployedCodeReader', () => {
   const PRIMARY = 'https://primary.example/rpc'
-  const SECONDARY = 'https://secondary.example/rpc'
+  const SECOND = 'https://second.example/rpc'
+  const THIRD = 'https://third.example/rpc'
   const ADDRESS = '0x1111111111111111111111111111111111111111'
 
   const chainWith = (http: string[]): Chain =>
@@ -756,48 +757,80 @@ describe('createDeployedCodeReader', () => {
     globalThis.fetch = originalFetch
   })
 
-  /** Answers `eth_getCode` from whichever hosts are not listed as down. */
-  const stubEndpoints = (down: string[]): { hits: string[] } => {
-    const hits: string[] = []
-    globalThis.fetch = (async (input: RequestInfo | URL) => {
+  /**
+   * Answers each JSON-RPC method per host. `code` undefined marks the host
+   * down, so a test can fail one endpoint without failing the rest.
+   */
+  const stub = (byHost: Record<string, string | undefined>): void => {
+    globalThis.fetch = (async (
+      input: RequestInfo | URL,
+      init?: RequestInit
+    ) => {
       const url = String(input)
-      hits.push(url)
-      if (down.some((host) => url.startsWith(host)))
-        throw new Error('HTTP request failed: 503')
+      const host = Object.keys(byHost).find((h) => url.startsWith(h))
+      const code = host ? byHost[host] : undefined
+      if (code === undefined) {
+        const error = new Error('HTTP request failed: 503')
+        error.name = 'HttpRequestError'
+        throw error
+      }
+
+      const body = JSON.parse(String(init?.body ?? '{}')) as {
+        method?: string
+        id?: number
+      }
+      const result =
+        body.method === 'eth_chainId'
+          ? '0x1'
+          : body.method === 'eth_getBlockByNumber'
+          ? { number: '0x64', hash: `0x${'ab'.repeat(32)}` }
+          : code
 
       return new Response(
-        JSON.stringify({ jsonrpc: '2.0', id: 1, result: '0xfeed' }),
+        JSON.stringify({ jsonrpc: '2.0', id: body.id ?? 1, result }),
         { status: 200, headers: { 'Content-Type': 'application/json' } }
       )
     }) as typeof fetch
-    return { hits }
   }
 
-  // The property the change is about, asserted through the reader rather than
-  // through the transport helper: a test that calls the helper itself passes
-  // just as happily when the reader goes back to reading the primary alone.
-  it('falls over to a second endpoint when the primary is down', async () => {
-    const { hits } = stubEndpoints([PRIMARY])
-    const read = createDeployedCodeReader(() => chainWith([PRIMARY, SECONDARY]))
+  it('takes the primary answer when the primary answers', async () => {
+    stub({ [PRIMARY]: '0xfeed', [SECOND]: '0xbad' })
+    const read = createDeployedCodeReader(() => chainWith([PRIMARY, SECOND]))
 
     expect(await read(ADDRESS, 'arbitrum')).toBe('0xfeed')
-    expect(hits.some((url) => url.startsWith(SECONDARY))).toBe(true)
   })
 
-  it('uses the primary when it answers', async () => {
-    const { hits } = stubEndpoints([])
-    const read = createDeployedCodeReader(() => chainWith([PRIMARY, SECONDARY]))
+  // The security property. A single fallback must not be able to decide the
+  // gate that refuses a signature: a stale or hostile endpoint returning the
+  // expected bytes would otherwise pass code that is not on chain.
+  it('refuses a lone fallback answer when the primary is down', async () => {
+    stub({ [PRIMARY]: undefined, [SECOND]: '0xfeed' })
+    const read = createDeployedCodeReader(() => chainWith([PRIMARY, SECOND]))
+
+    let threw = false
+    try {
+      await read(ADDRESS, 'arbitrum')
+    } catch {
+      threw = true
+    }
+    expect(threw).toBe(true)
+  })
+
+  it('accepts a fallback answer two independent providers agree on', async () => {
+    stub({ [PRIMARY]: undefined, [SECOND]: '0xfeed', [THIRD]: '0xfeed' })
+    const read = createDeployedCodeReader(() =>
+      chainWith([PRIMARY, SECOND, THIRD])
+    )
 
     expect(await read(ADDRESS, 'arbitrum')).toBe('0xfeed')
-    expect(hits.every((url) => url.startsWith(PRIMARY))).toBe(true)
   })
 
-  // Every endpoint failing must reach the caller as a throw. The gate treats
-  // that as unverifiable and blocks, which is the right answer — what it must
-  // not do is come back as `0x` and compare clean against a rebuild.
-  it('throws when no endpoint answers, rather than reporting no code', async () => {
-    stubEndpoints([PRIMARY, SECONDARY])
-    const read = createDeployedCodeReader(() => chainWith([PRIMARY, SECONDARY]))
+  // Disagreement is the case the corroboration exists for.
+  it('refuses when the fallbacks disagree', async () => {
+    stub({ [PRIMARY]: undefined, [SECOND]: '0xfeed', [THIRD]: '0xdead' })
+    const read = createDeployedCodeReader(() =>
+      chainWith([PRIMARY, SECOND, THIRD])
+    )
 
     let threw = false
     try {
@@ -809,10 +842,10 @@ describe('createDeployedCodeReader', () => {
   })
 
   it('resolves the chain for the network it is asked about', async () => {
-    stubEndpoints([])
+    stub({ [PRIMARY]: '0xfeed' })
     const asked: string[] = []
-    await createDeployedCodeReader((network) => {
-      asked.push(network)
+    await createDeployedCodeReader((n) => {
+      asked.push(n)
       return chainWith([PRIMARY])
     })(ADDRESS, 'arbitrum')
 

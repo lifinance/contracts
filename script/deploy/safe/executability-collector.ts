@@ -349,6 +349,36 @@ export const collectExecutabilityInput = async (
 }
 
 /**
+ * Whether an error is the endpoint failing to answer, rather than the chain
+ * answering that the payload does not execute.
+ *
+ * Deliberately a closed list. Everything else — an EVM revert however the node
+ * words it, an invalid opcode, an out-of-gas, a decode failure — is the
+ * payload's own answer and must stop the endpoint walk: a later endpoint
+ * returning `succeeded` would otherwise overwrite an execution failure that
+ * really happened, which is the false green this gate exists to prevent.
+ *
+ * @param error - What `PublicClient.call` threw.
+ * @returns True only for a transport-level failure the next endpoint may answer.
+ */
+const isEndpointUnavailable = (error: unknown): boolean => {
+  const name = error instanceof Error ? error.name : ''
+  const message = error instanceof Error ? error.message : String(error)
+
+  // viem's own transport-level errors, by type rather than by wording.
+  if (
+    /^(HttpRequestError|TimeoutError|RpcRequestError|SocketClosedError|WebSocketRequestError|InternalRpcError|LimitExceededRpcError)$/u.test(
+      name
+    )
+  )
+    return true
+
+  return /HTTP request failed|fetch failed|socket hang up|ECONNREFUSED|ECONNRESET|ETIMEDOUT|EAI_AGAIN|network (?:error|request failed)|timed out|timeout|too many requests|rate ?limit|service unavailable|bad gateway|gateway timeout|\b(?:429|500|502|503|504)\b/iu.test(
+    message
+  )
+}
+
+/**
  * Wires the reads to a real endpoint.
  *
  * Every read resolves to `undefined` rather than throwing, because the
@@ -408,14 +438,16 @@ export const createExecutabilityChainReader = (
         return { outcome: 'succeeded' }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
-        // A revert is the answer, and the first endpoint to give one settles
-        // it: asking another endpoint could only disagree with a fact this one
-        // established.
-        if (/revert/i.test(message))
+
+        // Failing over is the narrow case, not the default. An error this does
+        // not recognise stops the walk and is reported as the payload's own
+        // answer, because the alternative — treating anything unfamiliar as an
+        // unreachable endpoint — lets the next endpoint's success stand in for
+        // an execution failure the first one really saw. An invalid opcode and
+        // an out-of-gas both arrive wrapped without the word "revert".
+        if (!isEndpointUnavailable(error))
           return { outcome: 'reverted', revertReason: redactUrls(message) }
 
-        // Anything else is this endpoint failing to answer, so the next one
-        // gets the question.
         lastError = message
       }
 

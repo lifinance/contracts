@@ -382,9 +382,12 @@ describe('simulating across several endpoints', () => {
       throw new Error(message)
     })
   const succeeding = () => clientThat(async () => ({}))
+  /** A transport-level failure, which is the only thing that may fail over. */
   const unreachable = () =>
     clientThat(async () => {
-      throw new Error('HTTP request failed: 503')
+      const error = new Error('HTTP request failed: 503 Service Unavailable')
+      error.name = 'HttpRequestError'
+      throw error
     })
 
   // The false green a fallback transport produces. viem stops failing over only
@@ -408,6 +411,33 @@ describe('simulating across several endpoints', () => {
         data: '0x' as Hex,
       })
       expect(outcome.outcome).toBe('reverted')
+    }
+  })
+
+  // An execution failure the node words without "revert" — an invalid opcode,
+  // an out-of-gas — must stop the walk too. Treating it as an unreachable
+  // endpoint lets the next endpoint's success stand in for a failure the first
+  // one really saw.
+  it('an execution failure stops the walk even without the word revert', async () => {
+    for (const wording of [
+      'invalid opcode: INVALID',
+      'out of gas',
+      'CallExecutionError: An unknown error occurred while executing the call',
+    ]) {
+      const reader = createExecutabilityChainReader(succeeding(), [
+        reverting(wording),
+        succeeding(),
+      ])
+
+      expect(
+        (
+          await reader.staticCall({
+            from: SAFE,
+            to: DIAMOND,
+            data: '0x' as Hex,
+          })
+        ).outcome
+      ).not.toBe('succeeded')
     }
   })
 

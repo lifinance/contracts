@@ -22,12 +22,12 @@ import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 
 import { MongoClient } from 'mongodb'
-import { createPublicClient, type Address, type Chain } from 'viem'
+import { createPublicClient, http, type Address, type Chain } from 'viem'
 
 import { EnvironmentEnum } from '../../common/types'
 import { redactUrls } from '../../utils/redactUrls'
 import {
-  getFallbackTransportForChain,
+  getTransportConfigFromRpcUrl,
   getViemChainForNetworkName,
 } from '../../utils/viemScriptHelpers'
 import type { ILineageScope, IObservedCode } from '../codehash/attested-set'
@@ -47,6 +47,12 @@ import {
   type IRebuiltArtifact,
 } from '../codehash/rebuild-attestations'
 import type { IVerifyCutDeps } from '../codehash/verify-cut-targets'
+
+import { evaluateRpcQuorum } from './rpc-quorum'
+import {
+  collectProviderObservations,
+  createCodeReader,
+} from './rpc-quorum-collector'
 
 /** A full commit SHA and nothing else: this value reaches a path and git argv. */
 const FULL_SHA = /^[0-9a-f]{40}$/
@@ -527,23 +533,28 @@ export interface ISignTimeCodehashDeps extends IVerifyCutDeps {
  * @returns The three dependencies plus a teardown
  */
 /**
- * Reads the code live at an address, across every endpoint the chain has.
+ * Reads the code live at an address, without letting one fallback decide it.
  *
- * The primary alone is not enough here. This read decides the codehash gate,
- * which is the one check that refuses a signature outright: a throttled or
- * method-restricted primary makes the gate unverifiable and blocks the signer,
- * with the healthy endpoints beside it never consulted. `getFallbackTransportForChain`
- * also carries each endpoint's own auth options, which reading `.url` alone
- * dropped — an endpoint needing a header was being called without one.
+ * This read decides the codehash gate, which is the one check that refuses a
+ * signature outright, so failing over is not simply a robustness win: it widens
+ * the set of endpoints whose answer can make a wrong codehash look right. A
+ * stale or hostile fallback that returns the expected bytes would pass the gate
+ * on code that is not on chain.
  *
- * Failing over is safe for this read in a way it is not for a simulation: code
- * at an address is a fact every honest endpoint agrees on, so there is no
- * answer here for a second endpoint to contradict. A read that reverts does not
- * exist. Whether the endpoints agree is a separate question, and the quorum
- * check is what asks it.
+ * So the two cases are separated. The primary answers and its answer stands —
+ * the same single endpoint the gate has always trusted, no new trust. Only when
+ * the primary cannot answer do the fallbacks get the question, and then no
+ * single one of them decides: the remaining endpoints are read together and
+ * their answer is taken only if independent providers agree on it at the same
+ * block. Agreeing that there is no code at all is agreement too, and is
+ * returned as such — the gate is what grades that against the rebuild.
+ *
+ * Never worse than reading the primary alone: where that blocked, this either
+ * blocks the same way or proceeds on corroborated agreement.
  *
  * @param resolveChain - Resolves a network name to its viem chain; injectable for tests.
  * @returns A reader from `(address, network)` to the code at that address, `0x` when none.
+ * @throws When the primary is unavailable and the fallbacks do not agree.
  */
 export const createDeployedCodeReader =
   (
@@ -551,11 +562,46 @@ export const createDeployedCodeReader =
   ): ((address: string, network: string) => Promise<string>) =>
   async (address, network) => {
     const chain = resolveChain(network)
-    const client = createPublicClient({
-      chain,
-      transport: getFallbackTransportForChain(chain),
-    })
-    return (await client.getCode({ address: address as Address })) ?? '0x'
+    const [primary, ...fallbacks] = chain.rpcUrls.default.http
+
+    if (primary)
+      try {
+        const { url, fetchOptions, retryCount, retryDelay } =
+          getTransportConfigFromRpcUrl(primary)
+        const client = createPublicClient({
+          chain,
+          transport: http(url, {
+            ...(fetchOptions ? { fetchOptions } : {}),
+            ...(retryCount !== undefined ? { retryCount } : {}),
+            ...(retryDelay !== undefined ? { retryDelay } : {}),
+          }),
+        })
+        return (await client.getCode({ address: address as Address })) ?? '0x'
+      } catch (error) {
+        if (fallbacks.length === 0) throw error
+      }
+
+    if (fallbacks.length === 0)
+      throw new Error(
+        `No RPC endpoint is configured for ${network}, so the code at ${address} could not be read`
+      )
+
+    const verdict = evaluateRpcQuorum(
+      await collectProviderObservations(
+        fallbacks,
+        createCodeReader(address as Address, chain.id)
+      )
+    )
+
+    // `agreed-absent` is agreement: the providers concur that nothing is
+    // deployed there. The gate grades that against the rebuild, and it is the
+    // loudest thing this read can report.
+    if (verdict.reachesQuorum) return verdict.agreedValue ?? '0x'
+    if (verdict.status === 'agreed-absent') return '0x'
+
+    throw new Error(
+      `The primary RPC for ${network} could not answer and its fallbacks did not agree on the code at ${address} (${verdict.status}), so nothing here is verified`
+    )
   }
 
 export const createSignTimeCodehashDeps = (overrides?: {
