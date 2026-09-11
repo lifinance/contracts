@@ -31,6 +31,21 @@ import {
   it,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
+import {
+  createSourceFile,
+  forEachChild,
+  isCallExpression,
+  isForOfStatement,
+  isFunctionDeclaration,
+  isFunctionLike,
+  isIdentifier,
+  isMethodDeclaration,
+  isPropertyAccessExpression,
+  isPropertyAssignment,
+  isVariableDeclaration,
+  ScriptTarget,
+  type Node,
+} from 'typescript'
 
 const SOURCE = readFileSync(join(import.meta.dir, 'confirm-safe-tx.ts'), 'utf8')
 
@@ -91,60 +106,93 @@ const proposalLoop = (): { start: number; end: number; body: string } => {
 const countOf = (pattern: RegExp): number =>
   [...SOURCE.matchAll(pattern)].length
 
-/**
- * `SOURCE` with comments blanked out.
- *
- * The traversal below matches names and call sites textually, so a name merely
- * mentioned in a comment would otherwise read as a call — enough to pull an
- * uncalled helper into the reached set, or to fail the file on the word
- * `recordCheck(` appearing in prose explaining why it is absent.
- */
-const CODE = SOURCE.replace(/\/\*[\s\S]*?\*\//gu, (block) =>
-  block.replace(/[^\n]/gu, ' ')
-).replace(/\/\/[^\n]*/gu, (line) => ' '.repeat(line.length))
+/** The file parsed once, so placement can be asked of the syntax tree. */
+const TREE = createSourceFile(
+  'confirm-safe-tx.ts',
+  SOURCE,
+  ScriptTarget.Latest,
+  true
+)
 
 /**
- * Every function declared in the file, by name, with its body.
+ * The `for (const tx of initialTxs…)` statement, as a node.
  *
- * Both declaration styles, because this file uses `function` for three helpers
- * and an arrow const for everything else — including `recordEveryCheck`, which
- * records. An enumeration covering only `function` would walk past the file's
- * dominant style and report a clean traversal having looked at almost nothing.
- *
- * Brace-counted from the declaration, the same way {@link proposalLoop} bounds
- * the loop, so a nested function or an object literal cannot end a body early.
+ * A node rather than a brace-counted window: the window had to be defended
+ * against braces inside strings and comments, and a node has no such failure
+ * mode because the text was lexed rather than scanned.
  */
-const localFunctionBodies = (): Map<string, string> => {
-  const bodies = new Map<string, string>()
-  const declaration =
-    /(?:async\s+)?function\s+(\w+)\s*\(|const\s+(\w+)\s*(?::[^=\n]*)?=\s*(?:async\s*)?\(/gu
+const proposalLoopNode = (): Node => {
+  let found: Node | undefined
 
-  for (const match of CODE.matchAll(declaration)) {
-    const name = match[1] ?? match[2]
-    if (name === undefined) continue
-
-    let parens = 0
-    let open = -1
-    for (let i = match.index + match[0].length - 1; i < CODE.length; i++) {
-      if (CODE[i] === '(') parens++
-      else if (CODE[i] === ')' && --parens === 0) {
-        open = CODE.indexOf('{', i)
-        break
-      }
-    }
-    if (open === -1) continue
-
-    let depth = 0
-    for (let i = open; i < CODE.length; i++) {
-      if (CODE[i] === '{') depth++
-      else if (CODE[i] === '}' && --depth === 0) {
-        bodies.set(name, CODE.slice(open, i))
-        break
-      }
-    }
+  const visit = (node: Node): void => {
+    if (
+      found === undefined &&
+      isForOfStatement(node) &&
+      node.expression.getText(TREE).startsWith('initialTxs')
+    )
+      found = node
+    else forEachChild(node, visit)
   }
+  forEachChild(TREE, visit)
 
-  return bodies
+  expect(found).toBeDefined()
+  return found as Node
+}
+
+/**
+ * Every function in the file that has a name to be called by, keyed on it.
+ *
+ * Asked of node kinds rather than matched on declaration syntax. Two previous
+ * versions of this guard scanned the source with a regex, and each was blind in
+ * a way the other's controls could not express — first to arrow consts, then to
+ * concise arrows, whose "body" a brace hunt reads as the object literal they
+ * return. `recordNothingToGrade` and `recordCouldNotGrade` are both that shape,
+ * so the guard reported clean over a per-proposal record written with the two
+ * recorders the file already has.
+ */
+const namedFunctions = (): Map<string, Node> => {
+  const functions = new Map<string, Node>()
+
+  const visit = (node: Node): void => {
+    if (isFunctionDeclaration(node) && node.name)
+      functions.set(node.name.text, node)
+    else if (
+      isVariableDeclaration(node) &&
+      isIdentifier(node.name) &&
+      node.initializer &&
+      isFunctionLike(node.initializer)
+    )
+      functions.set(node.name.text, node.initializer)
+    else if (
+      (isMethodDeclaration(node) || isPropertyAssignment(node)) &&
+      isIdentifier(node.name)
+    ) {
+      const body = isMethodDeclaration(node) ? node : node.initializer
+      if (body && isFunctionLike(body)) functions.set(node.name.text, body)
+    }
+    forEachChild(node, visit)
+  }
+  forEachChild(TREE, visit)
+
+  return functions
+}
+
+/** Names called anywhere under a node, however the callee is written. */
+const calledNames = (node: Node): Set<string> => {
+  const names = new Set<string>()
+
+  const visit = (child: Node): void => {
+    if (isCallExpression(child)) {
+      const callee = child.expression
+      if (isIdentifier(callee)) names.add(callee.text)
+      else if (isPropertyAccessExpression(callee) && isIdentifier(callee.name))
+        names.add(callee.name.text)
+    }
+    forEachChild(child, visit)
+  }
+  visit(node)
+
+  return names
 }
 
 describe('the check ledger is wired into the confirmation run', () => {
@@ -194,49 +242,45 @@ describe('one row per network, not one per proposal', () => {
   })
 
   it('records nothing from inside the loop', () => {
-    const { body } = proposalLoop()
-
     // `rollUpChecks` treats two records for one (check, network) pair as a retry
     // and lets a later `pass` supersede an earlier `error`, so a per-proposal
     // record would let the last proposal's verdict stand for the network.
-    expect([...body.matchAll(/recordCheck\(/g)]).toEqual([])
+    expect(calledNames(proposalLoopNode())).not.toContain('recordCheck')
   })
 
-  // Lexical absence is not runtime absence. `recordSignedSet` is declared above
-  // the loop and called from inside it, so scanning the loop's own text reports
-  // a clean file while a row is still written once per proposal. Reachability
-  // is the property the ledger actually needs.
+  // Reachability, not lexical position. `recordSignedSet` is declared above the
+  // loop and called from inside it, so asking only where the text sits reports a
+  // clean file while a row is still written once per proposal.
   it('records nothing from anything the loop calls either', () => {
-    const { start, end } = proposalLoop()
-    const body = CODE.slice(start, end)
-    const bodies = localFunctionBodies()
+    const functions = namedFunctions()
 
-    // Positive controls, one per declaration style: the traversal is worth
-    // nothing if it cannot see the helpers it is supposed to walk, and an
-    // enumeration that quietly stops matching arrow consts would otherwise
-    // leave every assertion below passing over an empty set.
-    expect(bodies.has('recordSignedSet')).toBe(true)
-    expect(bodies.has('recordEveryCheck')).toBe(true)
-    expect(bodies.get('recordEveryCheck')).toContain('recordCheck(')
-    expect(body).toContain('persistSignedSafeTx(')
+    // Controls, one per declaration shape this file actually uses. An
+    // enumeration that stopped seeing any of them would leave every assertion
+    // below passing over a set that is missing the interesting members.
+    expect(functions.has('recordSignedSet')).toBe(true) // function declaration
+    expect(functions.has('recordEveryCheck')).toBe(true) // braced arrow
+    expect(functions.has('recordNothingToGrade')).toBe(true) // concise arrow
+    // The concise arrow's body is its returned call, not the object literal in
+    // it — the distinction the previous version of this guard got wrong.
+    expect(
+      calledNames(functions.get('recordNothingToGrade') as Node)
+    ).toContain('recordEveryCheck')
 
     const reached = new Set<string>()
-    const walk = (source: string): void => {
-      for (const [name, functionBody] of bodies)
-        if (
-          !reached.has(name) &&
-          new RegExp(`\\b${name}\\s*\\(`, 'u').test(source)
-        ) {
-          reached.add(name)
-          walk(functionBody)
-        }
+    const walk = (node: Node): void => {
+      for (const name of calledNames(node)) {
+        const callee = functions.get(name)
+        if (callee === undefined || reached.has(name)) continue
+        reached.add(name)
+        walk(callee)
+      }
     }
-    walk(body)
+    walk(proposalLoopNode())
 
     expect(reached).toContain('recordSignedSet')
 
     const recording = [...reached].filter((name) =>
-      (bodies.get(name) ?? '').includes('recordCheck(')
+      calledNames(functions.get(name) as Node).has('recordCheck')
     )
     expect(recording).toEqual([])
   })
