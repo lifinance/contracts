@@ -51,7 +51,8 @@ invariant must be added, adjusted, or removed. Use this checklist:
   (`allowToDeployWithZeroAddress: "true"`) too: the check reads that flag as a declaration that
   `address(0)` is a value, so on a chain whose config holds an explicit zero — or, for a sparse
   map, no entry at all — it asserts the binding is unset, and a non-zero binding there is an
-  error. Only an unreadable config file leaves the expectation unknown and warns. That makes such
+  error. Only a config file that does not parse into an object leaves the expectation unknown and
+  warns — a missing key states zero only when the file itself is usable. That makes such
   a key load-bearing for the healthcheck as well as for the deploy: deleting or renaming one turns
   every chain that held a non-zero value red, so move the annotation with it.
   Forgetting the annotation is not silent: the `verify-immutable-registry` CI job reads the

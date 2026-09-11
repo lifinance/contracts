@@ -276,8 +276,12 @@ export function collectImmutableBindingChecks(
       if (!configData.getter) continue
 
       const config = loadConfigFile(configData.configFileName)
+      // Anything but a plain object is unusable as config, and passing one on would let a
+      // numeric path segment index a list into an expectation the caller is told not to trust.
+      const configFileLoaded =
+        typeof config === 'object' && config !== null && !Array.isArray(config)
       const { keyUsed, expectedAddress } = resolveExpectedAddress(
-        config,
+        configFileLoaded ? config : null,
         configData.keyInConfigFile,
         network,
         environment
@@ -297,10 +301,7 @@ export function collectImmutableBindingChecks(
         ),
         expectedAddress,
         zeroAddressAllowed: configData.allowToDeployWithZeroAddress === 'true',
-        configFileLoaded:
-          typeof config === 'object' &&
-          config !== null &&
-          !Array.isArray(config),
+        configFileLoaded,
       })
     }
 

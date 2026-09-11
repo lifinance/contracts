@@ -332,6 +332,30 @@ describe('collectImmutableBindingChecks', () => {
     ])
   })
 
+  it('resolves no expectation at all from a config file it did not load', () => {
+    // A numeric path segment indexes a list, so a file that is one can still answer a key. That
+    // pairs a value the caller is told not to trust with a flag saying the file is unusable.
+    const checks = collectImmutableBindingChecks(
+      'mainnet',
+      'production',
+      {
+        Indexed: {
+          configData: {
+            _a: {
+              configFileName: 'listy.json',
+              keyInConfigFile: '.0',
+              getter: 'A',
+            },
+          },
+        },
+      },
+      () => ['0x1111111111111111111111111111111111111111']
+    )
+
+    expect(checks[0]?.configFileLoaded).toBe(false)
+    expect(checks[0]?.expectedAddress).toBeNull()
+  })
+
   it('skips an entry without configData', () => {
     expect(
       collectImmutableBindingChecks('mainnet', 'production', { X: {} }, load)
