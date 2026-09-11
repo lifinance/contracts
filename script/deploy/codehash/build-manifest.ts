@@ -31,6 +31,7 @@ import {
   type IAttestationKey,
   type IMintedAttestation,
 } from './attestation-key'
+import { sameVersionText } from './audit-build-bridge'
 import { readMetadataTrailer } from './bytecode-trailer'
 import type {
   IImmutableOccurrence,
@@ -206,7 +207,7 @@ export const manifestEntryFrom = (
       ok: false,
       reason: `artifact reports no evmVersion, so nothing corroborates profile ${profile.profile}'s ${profile.evmVersion} pin`,
     }
-  if (builtFor.trim().toLowerCase() !== profile.evmVersion.trim().toLowerCase())
+  if (!sameVersionText(builtFor, profile.evmVersion))
     return {
       ok: false,
       reason: `artifact was built for evm ${builtFor}, but profile ${profile.profile} pins ${profile.evmVersion} — minting it would file the build under a toolchain it was not built with`,

@@ -193,8 +193,7 @@ describe('manifestEntryFrom', () => {
 
   it('reads a matching evmVersion the profile spells differently', () => {
     // Case and surrounding whitespace are format, not version: refusing over
-    // them is a false red on a build that matches, the same normalisation
-    // `audit-build-bridge.ts` and `lineage-scope.ts` apply to this field.
+    // them is a false red on a build that matches.
     const built = manifestEntryFrom(
       IDENTITY,
       keyFor(),
@@ -207,9 +206,9 @@ describe('manifestEntryFrom', () => {
   })
 
   it('separates an artifact that reports no evmVersion from one that contradicts', () => {
-    // `String(builtFor)` would report `built for evm undefined`, dressing up
-    // "said nothing" as "said something wrong" in the only line the skip
-    // report shows.
+    // An artifact that named no toolchain and one that named the wrong
+    // toolchain are different claims, and the reason string is the only thing
+    // the skip report shows about either.
     const { evmVersion: _dropped, ...withoutEvmVersion } = HASHED_SETTINGS
     const refused = manifestEntryFrom(
       IDENTITY,
@@ -226,8 +225,8 @@ describe('manifestEntryFrom', () => {
   })
 
   it('refuses an evmVersion that is not a string, whatever it stringifies to', () => {
-    // `String(['cancun'])` is `'cancun'`, so a stringifying comparison lets a
-    // settings blob that never named a version pass as one that did.
+    // `String(['cancun'])` is `'cancun'`: only a string can corroborate the
+    // pin, so anything else is refused rather than coerced into agreeing.
     const refused = manifestEntryFrom(
       IDENTITY,
       keyFor(),
