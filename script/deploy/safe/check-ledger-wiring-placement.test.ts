@@ -152,6 +152,7 @@ const proposalLoopNode = (): Node => {
  */
 const namedFunctions = (): Map<string, Node> => {
   const functions = new Map<string, Node>()
+  const aliases = new Map<string, string>()
 
   const visit = (node: Node): void => {
     if (isFunctionDeclaration(node) && node.name)
@@ -164,6 +165,13 @@ const namedFunctions = (): Map<string, Node> => {
     )
       functions.set(node.name.text, node.initializer)
     else if (
+      isVariableDeclaration(node) &&
+      isIdentifier(node.name) &&
+      node.initializer &&
+      isIdentifier(node.initializer)
+    )
+      aliases.set(node.name.text, node.initializer.text)
+    else if (
       (isMethodDeclaration(node) || isPropertyAssignment(node)) &&
       isIdentifier(node.name)
     ) {
@@ -173,6 +181,20 @@ const namedFunctions = (): Map<string, Node> => {
     forEachChild(node, visit)
   }
   forEachChild(TREE, visit)
+
+  // A second name bound to a function is that function, so it must answer for
+  // what that function does. Resolved to fixpoint because an alias may name an
+  // alias.
+  for (;;) {
+    let bound = 0
+    for (const [name, target] of aliases) {
+      const node = functions.get(target)
+      if (node === undefined || functions.has(name)) continue
+      functions.set(name, node)
+      bound++
+    }
+    if (bound === 0) break
+  }
 
   return functions
 }
@@ -193,6 +215,56 @@ const calledNames = (node: Node): Set<string> => {
   visit(node)
 
   return names
+}
+
+/** Every identifier mentioned under a node, called or merely referenced. */
+const referencedNames = (node: Node): Set<string> => {
+  const names = new Set<string>()
+
+  const visit = (child: Node): void => {
+    if (isIdentifier(child)) names.add(child.text)
+    forEachChild(child, visit)
+  }
+  visit(node)
+
+  return names
+}
+
+/**
+ * Every function in the file that reaches `recordCheck`, directly or through
+ * another of them.
+ *
+ * The closure is computed over the whole file and the loop is then asked which
+ * of these it mentions — rather than walking outwards from the loop through
+ * call sites. Walking outwards resolves a callee by the name it is called
+ * under, so every indirection that separates the calling name from the
+ * declaring name drops out of the walk, and drops out silently: an unresolved
+ * name is indistinguishable from an ordinary library call. Passing a recorder
+ * to `forEach`, binding it to a second name, or hanging it off a property all
+ * escaped that way. A name the loop merely mentions cannot.
+ *
+ * Scope boundary, stated because it is not visible from the assertion: this
+ * reads `confirm-safe-tx.ts` alone. A recorder moved into another module and
+ * imported is outside what this can see.
+ */
+const recordingFunctions = (
+  functions: ReadonlyMap<string, Node>
+): Set<string> => {
+  const recording = new Set<string>()
+
+  for (;;) {
+    const before = recording.size
+    for (const [name, node] of functions) {
+      if (recording.has(name)) continue
+      const called = calledNames(node)
+      if (
+        called.has('recordCheck') ||
+        [...called].some((callee) => recording.has(callee))
+      )
+        recording.add(name)
+    }
+    if (recording.size === before) return recording
+  }
 }
 
 describe('the check ledger is wired into the confirmation run', () => {
@@ -251,38 +323,40 @@ describe('one row per network, not one per proposal', () => {
   // Reachability, not lexical position. `recordSignedSet` is declared above the
   // loop and called from inside it, so asking only where the text sits reports a
   // clean file while a row is still written once per proposal.
-  it('records nothing from anything the loop calls either', () => {
+  // Reachability, not lexical position. `recordSignedSet` is declared above the
+  // loop and called from inside it, so asking only where the text sits reports a
+  // clean file while a row is still written once per proposal.
+  it('mentions nothing that records, however indirectly', () => {
     const functions = namedFunctions()
 
     // Controls, one per declaration shape this file actually uses. An
-    // enumeration that stopped seeing any of them would leave every assertion
+    // enumeration that stopped seeing any of them would leave the assertion
     // below passing over a set that is missing the interesting members.
     expect(functions.has('recordSignedSet')).toBe(true) // function declaration
     expect(functions.has('recordEveryCheck')).toBe(true) // braced arrow
     expect(functions.has('recordNothingToGrade')).toBe(true) // concise arrow
     // The concise arrow's body is its returned call, not the object literal in
-    // it — the distinction the previous version of this guard got wrong.
+    // it — the distinction a brace hunt over the source got wrong.
     expect(
       calledNames(functions.get('recordNothingToGrade') as Node)
     ).toContain('recordEveryCheck')
 
-    const reached = new Set<string>()
-    const walk = (node: Node): void => {
-      for (const name of calledNames(node)) {
-        const callee = functions.get(name)
-        if (callee === undefined || reached.has(name)) continue
-        reached.add(name)
-        walk(callee)
-      }
-    }
-    walk(proposalLoopNode())
+    // A flat map keyed on the declared name, so a name declared twice would let
+    // an innocent function overwrite a recorder — or the reverse. Neither can
+    // happen quietly while this holds.
+    const declared = [...functions.keys()]
+    expect(declared).toHaveLength(new Set(declared).size)
 
-    expect(reached).toContain('recordSignedSet')
+    const recording = recordingFunctions(functions)
 
-    const recording = [...reached].filter((name) =>
-      calledNames(functions.get(name) as Node).has('recordCheck')
-    )
-    expect(recording).toEqual([])
+    // The closure is worth nothing if it did not find the recorders: these
+    // reach `recordCheck` at one, two and three hops respectively.
+    expect(recording).toContain('recordEveryCheck')
+    expect(recording).toContain('recordNothingToGrade')
+    expect(recording).toContain('recordCouldNotGrade')
+
+    const mentioned = referencedNames(proposalLoopNode())
+    expect([...mentioned].filter((name) => recording.has(name))).toEqual([])
   })
 
   it('reduces the proposals worst-first and records once, after the loop', () => {
