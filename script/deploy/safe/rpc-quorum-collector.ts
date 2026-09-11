@@ -14,9 +14,12 @@
  * non-response rather than as evidence.
  */
 
-import type { Address } from 'viem'
+import { createPublicClient, http, type Address } from 'viem'
 
 import type { IProviderObservation } from './rpc-quorum'
+
+/** 8 seconds: a sign-time fan-out must not stall the operator on one slow endpoint. */
+const ENDPOINT_TIMEOUT_MS = 8_000
 
 /** One endpoint's answer, before it is graded. */
 export interface IEndpointRead {
@@ -80,3 +83,37 @@ export const collectProviderObservations = async (
  */
 export const codeReadLabel = (address: Address, network: string): string =>
   `code at ${address} on ${network}`
+
+/**
+ * Reads the code at one address, at a named block, from a single endpoint.
+ *
+ * The block is read first and the code is then read *at that block*, so two
+ * providers answering at different heights are comparable rather than being
+ * silently compared across a reorg boundary.
+ *
+ * @param address - The address whose code is read.
+ * @param chainId - The chain the endpoints serve, so a misrouted endpoint fails loudly.
+ * @returns A reader for {@link collectProviderObservations}.
+ */
+export const createCodeReader =
+  (address: Address, chainId: number): TEndpointReader =>
+  async (endpointUrl) => {
+    const client = createPublicClient({
+      transport: http(endpointUrl, { timeout: ENDPOINT_TIMEOUT_MS }),
+    })
+
+    const observed = await client.getChainId()
+    if (observed !== chainId)
+      throw new Error(
+        `endpoint reports chain ${observed}, expected ${chainId}`
+      )
+
+    const block = await client.getBlock()
+    const code = await client.getCode({ address, blockNumber: block.number })
+
+    return {
+      value: code ?? '0x',
+      blockNumber: block.number,
+      blockHash: block.hash,
+    }
+  }

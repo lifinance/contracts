@@ -13,7 +13,9 @@
  * in a plausible value would convert "nobody asked" into "the chain said yes".
  */
 
-import { getAddress, type Address, type Hex } from 'viem'
+import { getAddress, parseAbi, type Address, type Hex, type PublicClient } from 'viem'
+
+import { redactUrls } from '../../utils/redactUrls'
 
 import {
   collectDiamondCutCalls,
@@ -26,6 +28,12 @@ import type {
   IStaticCallObservation,
   TSimulatedPayload,
 } from './executability-simulation'
+
+const DIAMOND_LOUPE_ABI = parseAbi([
+  'function facetAddress(bytes4 _functionSelector) view returns (address)',
+])
+
+const OWNER_ABI = parseAbi(['function owner() view returns (address)'])
 
 /** The reads one verdict needs, each returning `undefined` when it could not be made. */
 export interface IExecutabilityChainReader {
@@ -310,3 +318,62 @@ export const collectExecutabilityInput = async (
       : {}),
   }
 }
+
+/**
+ * Wires the reads to a real endpoint.
+ *
+ * Every read resolves to `undefined` rather than throwing, because the
+ * simulation's contract is that an unanswered read is absent: a throw here
+ * would abort the collection and lose the reads that did land.
+ *
+ * @param client - A viem public client pointed at the network's endpoint.
+ * @returns Reads backed by that endpoint.
+ */
+export const createExecutabilityChainReader = (
+  client: PublicClient
+): IExecutabilityChainReader => ({
+  hasCode: async (address) => {
+    try {
+      const code = await client.getCode({ address })
+      return code !== undefined && code !== '0x'
+    } catch {
+      return undefined
+    }
+  },
+  facetAddress: async (diamond, selector) => {
+    try {
+      return await client.readContract({
+        address: diamond,
+        abi: DIAMOND_LOUPE_ABI,
+        functionName: 'facetAddress',
+        args: [selector],
+      })
+    } catch {
+      return undefined
+    }
+  },
+  owner: async (diamond) => {
+    try {
+      return await client.readContract({
+        address: diamond,
+        abi: OWNER_ABI,
+        functionName: 'owner',
+      })
+    } catch {
+      return undefined
+    }
+  },
+  staticCall: async (call) => {
+    try {
+      await client.call(call)
+      return { outcome: 'succeeded' }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      // A revert is the answer; anything else is the endpoint failing to give
+      // one, and the two must not be recorded the same way.
+      return /revert/i.test(message)
+        ? { outcome: 'reverted', revertReason: redactUrls(message) }
+        : { outcome: 'errored', errorReason: redactUrls(message) }
+    }
+  },
+})
