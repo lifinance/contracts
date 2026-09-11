@@ -92,10 +92,19 @@ describe('collectDiamondCutCalls', () => {
       {
         callIndex: 0,
         cuts: [
-          { facetAddress: FACET_A, action: 1 },
-          { facetAddress: ZERO_ADDRESS, action: 2 },
+          {
+            facetAddress: FACET_A,
+            action: 1,
+            selectors: ['0xaabbccdd', '0x11223344'],
+          },
+          {
+            facetAddress: ZERO_ADDRESS,
+            action: 2,
+            selectors: ['0xaabbccdd', '0x11223344'],
+          },
         ],
         init: ZERO_ADDRESS,
+        initCalldata: '0x',
       },
     ])
   })
