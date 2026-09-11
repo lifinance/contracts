@@ -81,12 +81,11 @@ const unknownWrapper = (payload: Hex): Hex =>
 
 describe('collectDiamondCutCalls', () => {
   it('keeps the action of every entry, Remove included', () => {
-    const result = collectDiamondCutCalls([
-      cut([
-        { facetAddress: FACET_A, action: 1 },
-        { facetAddress: ZERO_ADDRESS as Address, action: 2 },
-      ]),
+    const payload = cut([
+      { facetAddress: FACET_A, action: 1 },
+      { facetAddress: ZERO_ADDRESS as Address, action: 2 },
     ])
+    const result = collectDiamondCutCalls([payload])
     expect(result.undecodable).toEqual([])
     expect(result.calls).toEqual([
       {
@@ -105,6 +104,7 @@ describe('collectDiamondCutCalls', () => {
         ],
         init: ZERO_ADDRESS,
         initCalldata: '0x',
+        raw: payload,
       },
     ])
   })
