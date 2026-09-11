@@ -120,12 +120,21 @@ git -C "$CLONE" fetch origin --tags --force
 EXPECTED=49f05efa948d3bd208bbdfcf34ff70ce5eb183bf
 RESOLVED=$(git -C "$CLONE" rev-parse "pre-signing-2.0-baseline^{commit}")
 
+ESCAPEOK=0
 if [ "$RESOLVED" = "$EXPECTED" ]; then
   echo "✓ tag resolves to the documented commit: $RESOLVED"
-  git -C "$CLONE" worktree add --detach ~/contracts-escape "$RESOLVED"
-  cd ~/contracts-escape
-  ln -s "$CLONE/.env" .env
-  ln -s "$CLONE/node_modules" node_modules
+  # &&-chained: a ~/contracts-escape left by an earlier ceremony fails `worktree
+  # add`, and an unchained `cd` then lands in that stale tree at an unknown
+  # commit with both symlinks refused as "File exists".
+  git -C "$CLONE" worktree add --detach ~/contracts-escape "$RESOLVED" \
+    && cd ~/contracts-escape \
+    && ln -s "$CLONE/.env" .env \
+    && ln -s "$CLONE/node_modules" node_modules \
+    && [ "$(git rev-parse HEAD)" = "$RESOLVED" ] \
+    && ESCAPEOK=1
+  [ "$ESCAPEOK" -eq 1 ] \
+    && echo "✓ escape worktree ready at $RESOLVED" \
+    || echo "✗ STOP — setup did not complete; do not use ~/contracts-escape"
 else
   echo "✗ STOP — tag resolves to $RESOLVED, not $EXPECTED (see §8)"
 fi
@@ -398,15 +407,19 @@ moved on from. `status` and `safeAddress` both live inside the entry step 1
 compares, so all three are covered — by `$DRIFT`, not by your reading.
 
 Which is why the proposal is gated on those variables rather than on having read
-the output. Both default to the refusing value, so pasting this without having
-run §3 and §5 refuses instead of proposing:
+the output. `ESCAPEOK`, `ENVCONFLICT` and `DRIFT` default to the refusing value,
+so pasting this without having run §2, §3 and §5 refuses instead of proposing.
+`LEDGEROK` defaults the other way on purpose: the deployer path never runs §2's
+Ledger step, and a gate that refuses every honest run is one you learn to paste
+past.
 
 ```bash
 READY=1
+[ "${ESCAPEOK:-0}"    -eq 1 ] || { echo "✗ §2 not clean: no verified escape worktree"; READY=0; }
 [ "${ENVCONFLICT:-1}" -eq 0 ] || { echo "✗ §3 not clean: an export beats .env"; READY=0; }
 [ "${DRIFT:-1}"       -eq 0 ] || { echo "✗ §5 not clean: config drift or a check proved nothing"; READY=0; }
-# --ledger only: §2's resolve step must have passed.
-# [ "${LEDGEROK:-0}" -eq 1 ] || { echo "✗ §2 not clean: a Ledger package does not resolve"; READY=0; }
+# Unset passes here: the deployer path never runs §2's Ledger step. Ran-and-failed refuses.
+[ "${LEDGEROK:-1}"    -eq 1 ] || { echo "✗ §2 not clean: a Ledger package does not resolve"; READY=0; }
 
 [ "$READY" -eq 1 ] || echo "✗ refusing to propose — fix the above and re-run the checks"
 [ "$READY" -eq 1 ] && bun propose-safe-tx --network "$NET" --to <target> \
