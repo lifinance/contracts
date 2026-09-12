@@ -5,6 +5,7 @@ import type { ICheckDefinition, ICheckResult } from './check-ledger'
 import {
   bucketOf,
   checkSummary,
+  PROPOSAL_SEPARATOR,
   renderCheckGroups,
   renderFields,
   renderTodos,
@@ -228,5 +229,18 @@ describe('renderTodos', () => {
 
     expect(plain.match(/☐/g)).toHaveLength(2)
     expect(plain).toContain('6d54855a … 25b64830')
+  })
+})
+
+describe('PROPOSAL_SEPARATOR', () => {
+  it('surrounds a full-width labelled rule with blank lines', () => {
+    const lines = PROPOSAL_SEPARATOR.map(stripAnsi)
+
+    expect(lines[0]).toBe('')
+    expect(lines[1]).toBe('')
+    expect(lines[2]).toHaveLength(VIEW_WIDTH)
+    expect(lines[2]).toContain('end of proposal')
+    expect(lines[3]).toBe('')
+    expect(lines[4]).toBe('')
   })
 })

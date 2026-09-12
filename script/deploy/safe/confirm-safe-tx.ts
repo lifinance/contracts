@@ -51,7 +51,6 @@ import {
 import {
   assertIntegrityAssertsAllowSigning,
   createIntegrityAssertDeps,
-  renderIntegrityAsserts,
   runIntegrityAsserts,
   type IIntegrityAssertRun,
 } from './confirm-integrity-asserts'
@@ -125,6 +124,19 @@ import {
   type SafeNonceStatus,
   type SafeTxStatus,
 } from './safe-utils'
+import {
+  checkSummary,
+  PROPOSAL_SEPARATOR,
+  renderCheckGroups,
+  renderTodos,
+  zoneHeading,
+} from './signer-view'
+import {
+  integrityResults,
+  signerChecks,
+  signerTodos,
+  viewDefinitions,
+} from './signer-zones'
 import { enqueueTimelockOpIfApplicable } from './timelock-queue'
 
 dotenv.config()
@@ -542,6 +554,11 @@ const processTxs = async (
   // Sort transactions by nonce in ascending order to process them in sequence
   // Track expected nonce so sequential executions within a single run work correctly
   let expectedNonce = onChainNonce
+
+  // A run walks several proposals and each one ends on a checklist, so the
+  // separator is what keeps the next proposal's fields from reading as more of
+  // the previous one's instructions.
+  let proposalIndex = 0
   for (const tx of initialTxs.sort((a, b) => {
     if (a.safeTx.data.nonce < b.safeTx.data.nonce) return -1
     if (a.safeTx.data.nonce > b.safeTx.data.nonce) return 1
@@ -560,16 +577,7 @@ const processTxs = async (
 
     codehashGate = blockingUnevaluatedGate()
     integrityRun = undefined
-
-    consola.info('-'.repeat(80))
-    consola.info('Transaction Details:')
-    consola.info('-'.repeat(80))
-
-    if (tx.safeTx.data?.data)
-      await formatDecodedTxDataForDisplay(tx.safeTx.data.data as Hex, {
-        chainId: chain.id,
-        network,
-      })
+    if (proposalIndex++ > 0) consola.log(PROPOSAL_SEPARATOR.join('\n'))
 
     // The block sanitises the stored addresses itself, so it can report a row
     // that needed it. These only decide how a clean address is displayed.
@@ -597,14 +605,23 @@ const processTxs = async (
     // carry colour codes of their own that sanitising would strip.
     const nonceWarning = trustedMarkup(
       nonceStatus === 'stale'
-        ? ` \u001b[31m✗ STALE — on-chain nonce is ${expectedNonce}, this proposal's nonce was already used\u001b[0m`
+        ? ` [31m✗ STALE — on-chain nonce is ${expectedNonce}, this proposal's nonce was already used[0m`
         : nonceStatus === 'future' && tx.canExecute
-        ? ` \u001b[33m⚠ on-chain nonce is ${expectedNonce} — cannot execute yet\u001b[0m`
+        ? ` [33m⚠ on-chain nonce is ${expectedNonce} — cannot execute yet[0m`
         : ''
     )
 
+    // The struct the signature covers, never the stored row: createTransaction
+    // normalises an absent operation to Call, so those two copies can disagree.
+    const operationVerdict = evaluateDelegateCallGate(tx.safeTransaction.data)
+
     const detailLines = buildSafeTxDetailLines({
       network,
+      heading: '',
+      // The Safe the client is pointed at, not the one the row claims: the row's
+      // claim is what `INT-SAFE-ADDRESS` grades, and displaying it here would
+      // show a signer the Safe a proposer chose to name.
+      safeAddress,
       nonce: tx.safeTx.data.nonce,
       nonceColor,
       nonceWarning,
@@ -624,6 +641,7 @@ const processTxs = async (
               tx.safeTransaction.data.operation
             )})`
       ),
+      operationIsCall: tx.safeTransaction.data.operation === 0,
       data: tx.safeTx.data.data,
       proposer: tx.proposer,
       safeTxHash: tx.safeTxHash,
@@ -633,6 +651,17 @@ const processTxs = async (
       parkedTaskRefs: tx.parkedTaskRefs,
       provenance: tx.provenance,
     })
+
+    consola.log(zoneHeading(1, 'WHAT YOU ARE BEING ASKED TO SIGN').join('\n'))
+    consola.info(detailLines.join('\n'))
+    for (const line of renderDelegateCallGate(operationVerdict))
+      consola.info(line)
+
+    if (tx.safeTx.data?.data)
+      await formatDecodedTxDataForDisplay(tx.safeTx.data.data as Hex, {
+        chainId: chain.id,
+        network,
+      })
 
     let targetState: ITargetStateVerdict
     try {
@@ -648,17 +677,8 @@ const processTxs = async (
         error instanceof Error ? error.message : String(error)
       )
     }
-    consola.info(detailLines.join('\n'))
-    // Target-state lines are graded here, not inside the sanitising detail
-    // block: they are computed verdicts, not stored proposer-controlled fields.
-    for (const line of formatTargetStateLines(targetState)) consola.info(line)
-    proposalChecks.push(targetStateCheckResult(targetState, network))
-
-    // The struct the signature covers, never the stored row: createTransaction
-    // normalises an absent operation to Call, so those two copies can disagree.
-    const operationVerdict = evaluateDelegateCallGate(tx.safeTransaction.data)
-    for (const line of renderDelegateCallGate(operationVerdict))
-      consola.info(line)
+    const targetStateResult = targetStateCheckResult(targetState, network)
+    proposalChecks.push(targetStateResult)
 
     // A display error must never block signing.
     const verificationDisplay = resolveSignerVerificationDisplay(
@@ -682,75 +702,35 @@ const processTxs = async (
           )}`
         )
       }
+
+    let devicePanel: string[] = []
+    let devicePanelNote: string | undefined
     if (verificationDisplay === 'filmstrip')
       try {
-        const filmstrip = renderLedgerFlexFlow({
+        devicePanel = renderLedgerFlexFlow({
           chainId: chain.id,
           verifyingContract: safeAddress,
           to: tx.safeTransaction.data.to,
           value: String(tx.safeTransaction.data.value),
           data: tx.safeTx.data.data,
         })
-        consola.info(
-          [
-            'Ledger Flex — verify these screens against your device (screens 5–8 are gas params / nonce, not security-relevant):',
-            ...filmstrip,
-            LEDGER_FLEX_WRAP_NOTE,
-          ].join('\n')
-        )
+        devicePanelNote = LEDGER_FLEX_WRAP_NOTE
       } catch (error) {
         consola.debug(`Ledger Flex filmstrip skipped: ${error}`)
       }
-    else if (verificationDisplay === 'hash-compare') {
-      // Report-only, and it names only the computed value: the stored hash is
-      // proposer-written text and is not echoed a second time here.
-      if (deviceHash) {
-        const stored = tx.safeTxHash
-        const storedIsHash =
-          typeof stored === 'string' && /^0x[0-9a-f]{64}$/i.test(stored)
-        if (!storedIsHash)
-          consola.warn(
-            `This proposal carries no readable stored hash. Your device will show \u001b[36m${deviceHash}\u001b[0m — compare that one.`
-          )
-        else if (stored.toLowerCase() !== deviceHash.toLowerCase())
-          consola.warn(
-            `The hash stored on this proposal is not the hash the Safe computes from it. Your device will show \u001b[36m${deviceHash}\u001b[0m — compare that one.`
-          )
+    else if (verificationDisplay === 'hash-compare' && deviceHash)
+      try {
+        devicePanel = renderLedgerFlexHashFlow({ hash: deviceHash })
+        devicePanelNote = LEDGER_FLEX_HASH_NOTE
+      } catch (error) {
+        consola.warn(`Ledger Flex hash screens could not be drawn: ${error}`)
       }
 
-      let flow: string[] = []
-      if (deviceHash)
-        try {
-          flow = [
-            'Ledger — hash mode. Your device will show these three screens:',
-            ...renderLedgerFlexHashFlow({ hash: deviceHash }),
-            LEDGER_FLEX_HASH_NOTE,
-          ]
-        } catch (error) {
-          consola.warn(`Ledger Flex hash screens could not be drawn: ${error}`)
-        }
-
-      consola.info(
-        (flow.length
-          ? [
-              ...flow,
-              'That hash is read from the Safe contract, not from the proposal row — the',
-              'proposer controls that field. Reading it here still proves nothing about',
-              'intent: the authority is the hash in the out-of-band message from the',
-              'proposer. Compare 16 characters, 8 from each end — four-and-four is',
-              'grindable by whoever wrote the payload.',
-            ]
-          : [
-              'Ledger — the device shows one message screen holding the Safe transaction hash.',
-              'It could not be previewed here (see the warning above), so compare the device',
-              'screen directly against the hash in the out-of-band message from the proposer:',
-              '16 characters, 8 from each end — four-and-four is grindable by whoever wrote',
-              'the payload. The hash stored on the proposal row is not the authority; the',
-              'proposer controls it alongside the calldata.',
-            ]
-        ).join('\n')
-      )
-    }
+    // Report-only, and it names only the computed value: the stored hash is
+    // proposer-written text and is not echoed a second time here.
+    const storedHash = tx.safeTxHash
+    const storedIsHash =
+      typeof storedHash === 'string' && /^0x[0-9a-f]{64}$/i.test(storedHash)
 
     // The struct itself reaches the gate, which reads its calldata when it
     // judges; the verdict is then bound to that transaction, so it cannot
@@ -777,7 +757,10 @@ const processTxs = async (
         summary: why,
       }
     }
-    renderCodehashSignGate(codehashGate).forEach((line) => consola.info(line))
+    // Rendered here and printed in zone 2: the gate's own block carries
+    // per-address detail no single ledger row holds — the reason, and the
+    // immutable bytes a verdict does not cover.
+    const codehashLines = renderCodehashSignGate(codehashGate)
 
     // Nothing between the top of this iteration and this point returns or
     // continues, which is what lets the run happen here without swallowing a
@@ -837,7 +820,47 @@ const processTxs = async (
         )}`
       )
     }
-    renderIntegrityAsserts(integrityRun).forEach((line) => consola.info(line))
+
+    const integrityRows = integrityResults(integrityRun)
+    const signerCheckRows = signerChecks({
+      results: [...integrityRows.results, targetStateResult],
+      notApplicable: integrityRows.notApplicable,
+      definitions: viewDefinitions(),
+    })
+
+    consola.log(
+      zoneHeading(
+        2,
+        'WHAT WAS CHECKED FOR YOU',
+        checkSummary(signerCheckRows)
+      ).join('\n')
+    )
+    consola.log(renderCheckGroups(signerCheckRows).join('\n'))
+    // Per-finding detail under the row that reduced them: the ledger holds one
+    // verdict per proposal, and a cut installing several facets has one line
+    // per element to show.
+    for (const line of formatTargetStateLines(targetState)) consola.info(line)
+    codehashLines.forEach((line) => consola.info(line))
+
+    consola.log(zoneHeading(3, 'WHAT ONLY YOU CAN DO').join('\n'))
+    consola.log(
+      renderTodos(
+        signerTodos({
+          ...(deviceHash ? { deviceHash } : {}),
+          ...(deviceHash
+            ? {
+                storedHash: !storedIsHash
+                  ? ('unreadable' as const)
+                  : storedHash.toLowerCase() !== deviceHash.toLowerCase()
+                  ? ('disagrees' as const)
+                  : ('agrees' as const),
+              }
+            : {}),
+          devicePanel,
+          ...(devicePanelNote ? { devicePanelNote } : {}),
+        })
+      ).join('\n')
+    )
 
     const integrity = evaluateProposalIntegrity({ nonceStatus })
     // Said before the action prompt, not after it: a verdict the operator can no

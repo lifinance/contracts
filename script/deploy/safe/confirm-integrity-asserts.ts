@@ -537,7 +537,7 @@ async function assertSignatures(
       actual: '0 stored signatures',
       anchor: 'A-PROPOSAL',
       detail:
-        'every writer stores a signature with the row, so an empty set is a row that lost its signatures rather than one awaiting them, and there is nothing to recover against the recomputed hash',
+        'propose-to-safe.ts signs and stores one signature with every row it writes, and refuses a signer who is not a Safe owner — so an empty set is a row something else wrote, not a row awaiting its first signature, and there is nothing to recover against the recomputed hash',
     }
 
   // Recovered against the recomputed hash, never the stored one: the stored hash
@@ -938,7 +938,7 @@ async function assertTimelockDelay(
   }
 }
 
-const DEFINITIONS: Record<string, ICheckDefinition> = {
+export const INTEGRITY_CHECK_DEFINITIONS: Record<string, ICheckDefinition> = {
   [CHECK_SAFE_ADDRESS]: {
     checkId: CHECK_SAFE_ADDRESS,
     section: SECTION,
@@ -1124,7 +1124,7 @@ export const runIntegrityAsserts = async (
   const ledger = createCheckLedger({
     expectedNetworks: [input.network],
     checks: registered.map((checkId) => {
-      const definition = DEFINITIONS[checkId]
+      const definition = INTEGRITY_CHECK_DEFINITIONS[checkId]
       if (!definition)
         throw new Error(`runIntegrityAsserts: no definition for ${checkId}`)
       return definition
@@ -1219,7 +1219,7 @@ export const renderIntegrityAsserts = (
   // The checks a proposal did not register at all, named rather than implied:
   // a delay assertion that had nothing to say and one that was skipped by a
   // bug look identical in a report that only lists what ran.
-  const notApplicable = Object.keys(DEFINITIONS).filter(
+  const notApplicable = Object.keys(INTEGRITY_CHECK_DEFINITIONS).filter(
     (checkId) => !run.registered.includes(checkId)
   )
   if (notApplicable.length > 0)

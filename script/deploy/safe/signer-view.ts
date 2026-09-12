@@ -138,6 +138,27 @@ export const zoneHeading = (
   ]
 }
 
+/**
+ * What separates one proposal from the next in a run.
+ *
+ * A run walks several proposals and each one ends on a checklist, so without a
+ * break the next proposal's zone 1 reads as more of the previous one's zone 3 —
+ * and the field a signer is comparing against an out-of-band message is then the
+ * wrong proposal's.
+ */
+export const PROPOSAL_SEPARATOR: readonly string[] = (() => {
+  const label = ' end of proposal '
+  const bar = Math.max(0, VIEW_WIDTH - label.length)
+  const left = Math.floor(bar / 2)
+  return [
+    '',
+    '',
+    `${BOLD}${'━'.repeat(left)}${label}${'━'.repeat(bar - left)}${RESET}`,
+    '',
+    '',
+  ]
+})()
+
 export interface IViewField {
   label: string
   value: string
