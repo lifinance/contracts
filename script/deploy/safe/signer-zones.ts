@@ -222,7 +222,10 @@ export const signerTodos = (input: ISignerTodoInput): ITodo[] => {
       text: 'Check every screen your device shows against these',
       lines: [
         ...input.devicePanel,
-        ...(input.devicePanelNote ? [input.devicePanelNote] : []),
+        // Split, because the renderer indents per element: a note carrying its
+        // own newlines gets its first line placed and the rest left at the
+        // margin, which reads as the panel having ended a line early.
+        ...(input.devicePanelNote?.split('\n') ?? []),
       ],
     })
 
