@@ -9,6 +9,7 @@ import {
 } from './check-ledger'
 import {
   CHECK_SAFE_ADDRESS,
+  CHECK_SAFE_TX_HASH,
   CHECK_SIGNATURES,
   CHECK_TIMELOCK_DELAY,
   INTEGRITY_CHECK_DEFINITIONS,
@@ -71,10 +72,10 @@ describe('viewDefinitions', () => {
   })
 
   it('leaves a title this view does not override alone', () => {
-    const own = INTEGRITY_CHECK_DEFINITIONS[CHECK_SAFE_ADDRESS]?.title ?? ''
+    const own = INTEGRITY_CHECK_DEFINITIONS[CHECK_SAFE_TX_HASH]?.title ?? ''
 
     expect(own).not.toBe('')
-    expect(viewDefinitions().get(CHECK_SAFE_ADDRESS)?.title).toBe(own)
+    expect(viewDefinitions().get(CHECK_SAFE_TX_HASH)?.title).toBe(own)
   })
 })
 
@@ -224,5 +225,13 @@ describe('a device note carrying its own line breaks', () => {
     })
 
     expect(device?.lines).toEqual(['screen', 'first caveat', 'second caveat'])
+  })
+})
+
+describe('the Safe-address check', () => {
+  it('is named for what it asserts about the proposal', () => {
+    expect(viewDefinitions().get(CHECK_SAFE_ADDRESS)?.title).toBe(
+      'Proposal targets correct Safe address'
+    )
   })
 })

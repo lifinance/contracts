@@ -12,6 +12,7 @@ import type { ICheckDefinition, ICheckResult } from './check-ledger'
 import { rollUpChecks } from './check-ledger'
 import { TARGET_STATE_CHECK } from './confirm-check-registry'
 import {
+  CHECK_SAFE_ADDRESS,
   CHECK_SIGNATURES,
   CHECK_TIMELOCK_DELAY,
   INTEGRITY_CHECK_DEFINITIONS,
@@ -30,6 +31,7 @@ import type { IBucketedResult, ITodo } from './signer-view'
  * row observed, printed where the row's name belongs.
  */
 const VIEW_TITLES: ReadonlyMap<string, string> = new Map([
+  [CHECK_SAFE_ADDRESS, 'Proposal targets correct Safe address'],
   [CHECK_SIGNATURES, 'Signatures recover to current owners'],
   ['executability', 'Calldata simulation'],
 ])
