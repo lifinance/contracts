@@ -88,18 +88,73 @@ const isDerivedHandle = (value: unknown): value is object =>
  * itself — so a read the seal permits re-exports the whole write surface one
  * hop later. Chained calls are sealed too, because `sort()` returns the cursor.
  *
- * Every function is allowed here rather than allow-listed by name: a cursor's
- * API is reads and chaining, and the escape routes are all object-valued.
+ * Allow-listed by name for the same reason the collection is. "Every function
+ * is a read" was false: `AbstractCursor._initialize` resolves to an object
+ * carrying a live `Server`, whose `command()` runs an arbitrary command — and a
+ * resolved promise is handed back unsealed so the documents a read was for stay
+ * readable.
+ */
+const PERMITTED_CURSOR_METHODS: ReadonlySet<string> = new Set([
+  'toArray',
+  'next',
+  'tryNext',
+  'hasNext',
+  'forEach',
+  'map',
+  'filter',
+  'sort',
+  'limit',
+  'skip',
+  'project',
+  'collation',
+  'batchSize',
+  'maxTimeMS',
+  'maxAwaitTimeMS',
+  'addCursorFlag',
+  'hint',
+  'comment',
+  'clone',
+  'rewind',
+  'close',
+  'explain',
+  'stream',
+  'count',
+  'allowDiskUse',
+  'withReadConcern',
+  'withReadPreference',
+])
+
+/**
+ * Seals what a permitted read hands back, and what that in turn returns.
+ *
+ * The allow-list stops at the collection boundary, but a `FindCursor` carries
+ * `.client` and a `ListIndexesCursor` carries `.parent` — the raw collection
+ * itself — so a read the seal permits re-exports the whole write surface one
+ * hop later. Chained calls are sealed too, because `sort()` returns the cursor.
  */
 const sealDerivedHandle = <T extends object>(handle: T): T =>
-  new Proxy(handle, {
-    get(target, property) {
+  // Proxied over an empty object rather than over the handle itself. Node's
+  // `util.inspect` reads a proxy's target directly without consulting a single
+  // trap, so `console.log(sealed)` on a real collection printed the whole
+  // `MongoClient` — options, hosts, credentials object and all. With nothing in
+  // the target there is nothing for it to print.
+  new Proxy({} as T, {
+    get(_target, property) {
+      const target = handle
       if (typeof property === 'string' && RENDERING_MEMBERS.has(property))
         return () => DERIVED_LABEL
       const value = Reflect.get(target, property, target)
       if (value === undefined || value === null) return value
 
-      if (typeof value === 'function')
+      if (typeof value === 'function') {
+        if (
+          typeof property !== 'string' ||
+          !PERMITTED_CURSOR_METHODS.has(property)
+        )
+          return () => {
+            throw new RehearsalWriteRefusedError(String(property))
+          }
+
         return (...args: unknown[]) => {
           const result = (value as (...a: unknown[]) => unknown).apply(
             target,
@@ -107,26 +162,58 @@ const sealDerivedHandle = <T extends object>(handle: T): T =>
           )
           return isDerivedHandle(result) ? sealDerivedHandle(result) : result
         }
+      }
 
       if (typeof value === 'object')
         throw new RehearsalWriteRefusedError(String(property))
 
       return value
     },
-    getOwnPropertyDescriptor(target, property) {
-      const descriptor = Reflect.getOwnPropertyDescriptor(target, property)
-      if (descriptor && typeof descriptor.value === 'object')
-        throw new RehearsalWriteRefusedError(String(property))
-      return descriptor
-    },
+    getOwnPropertyDescriptor: (_target, property) =>
+      redactingDescriptor(handle, property),
+    ownKeys: () => Reflect.ownKeys(handle),
+    has: (_target, property) => Reflect.has(handle, property),
   })
 
 const DERIVED_LABEL = '[read-only sealed handle]'
 
+/**
+ * Hands back a descriptor whose object value is replaced by a refusing stub.
+ *
+ * Throwing here instead would take down `Object.keys`, spread, `Object.entries`
+ * and `for…in` on a real `Collection`, whose only own properties are `s` and
+ * `client` — the guard taking down the run it was protecting, reported as a
+ * write attempt nobody made. Redacting keeps enumeration working while the
+ * handle itself stays out of reach.
+ */
+const redactingDescriptor = (
+  source: object,
+  property: string | symbol
+): PropertyDescriptor | undefined => {
+  const descriptor = Reflect.getOwnPropertyDescriptor(source, property)
+  if (!descriptor) return undefined
+
+  // `configurable` is forced because the proxy's target is an empty object:
+  // reporting a non-configurable property the target does not have violates a
+  // proxy invariant and throws a TypeError instead of refusing.
+  if (typeof descriptor.value !== 'object' || !descriptor.value)
+    return { ...descriptor, configurable: true }
+
+  return {
+    ...descriptor,
+    configurable: true,
+    value: () => {
+      throw new RehearsalWriteRefusedError(String(property))
+    },
+  }
+}
+
 export const sealCollectionReadOnly = <T extends object>(collection: T): T => {
   const label = '[read-only sealed collection]'
-  const sealed = new Proxy(collection, {
-    get(target, property) {
+  // Empty target, for the reason given on `sealDerivedHandle`.
+  const sealed = new Proxy({} as T, {
+    get(_target, property) {
+      const target = collection
       if (typeof property === 'string' && RENDERING_MEMBERS.has(property))
         return () => label
       // The receiver is the target, never the proxy: a driver getter such as
@@ -162,12 +249,10 @@ export const sealCollectionReadOnly = <T extends object>(collection: T): T => {
     // Trapped alongside `get`: a descriptor read returns the raw value, so
     // without this the refusal above is one `Object.getOwnPropertyDescriptor`
     // away from being bypassed.
-    getOwnPropertyDescriptor(target, property) {
-      const descriptor = Reflect.getOwnPropertyDescriptor(target, property)
-      if (descriptor && typeof descriptor.value === 'object')
-        throw new RehearsalWriteRefusedError(String(property))
-      return descriptor
-    },
+    getOwnPropertyDescriptor: (_target, property) =>
+      redactingDescriptor(collection, property),
+    ownKeys: () => Reflect.ownKeys(collection),
+    has: (_target, property) => Reflect.has(collection, property),
   })
   SEALED_HANDLES.add(sealed)
   return sealed

@@ -1,3 +1,7 @@
+import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { join } from 'node:path'
+
 import {
   describe,
   expect,
@@ -11,6 +15,8 @@ import {
   buildGateReport,
   checkGradingAnchors,
   renderGateReport,
+  renderGradingAnchors,
+  renderSignerWorkload,
   summariseSignerWorkload,
   verdictsAreActionable,
 } from './rehearsal-report'
@@ -169,5 +175,72 @@ describe('verdictsAreActionable', () => {
   it('does not hold for proposals that already executed', () => {
     expect(verdictsAreActionable('executed')).toBe(false)
     expect(verdictsAreActionable('reverted')).toBe(false)
+  })
+})
+
+describe('checkGradingAnchors, on a cache that exists but cannot be used', () => {
+  it('reports a file that is not a JSON array as missing', () => {
+    const root = mkdtempSync(join(tmpdir(), 'rehearsal-anchor-'))
+    mkdirSync(join(root, '.cache'), { recursive: true })
+    writeFileSync(join(root, '.cache', 'deployments_production.json'), '{}')
+
+    const cache = checkGradingAnchors(root).find((anchor) =>
+      anchor.path.includes('deployments_production.json')
+    )
+
+    expect(cache?.present).toBe(false)
+  })
+
+  it('reports a well-formed record array as present', () => {
+    const root = mkdtempSync(join(tmpdir(), 'rehearsal-anchor-'))
+    mkdirSync(join(root, '.cache'), { recursive: true })
+    writeFileSync(
+      join(root, '.cache', 'deployments_production.json'),
+      JSON.stringify([
+        { network: 'arbitrum', address: '0x1', version: '1.0.0' },
+      ])
+    )
+
+    const cache = checkGradingAnchors(root).find((anchor) =>
+      anchor.path.includes('deployments_production.json')
+    )
+
+    expect(cache?.present).toBe(true)
+  })
+})
+
+describe('renderGradingAnchors', () => {
+  it('names the consequence only for the anchor that is missing', () => {
+    const rendered = renderGradingAnchors([
+      { path: '/a/present.json', present: true, consequence: 'would be bad' },
+      { path: '/a/absent.json', present: false, consequence: 'would be bad' },
+    ])
+
+    expect(rendered).toContain('present : /a/present.json')
+    expect(rendered).toContain('MISSING : /a/absent.json')
+    expect(rendered.match(/would be bad/g)).toHaveLength(1)
+  })
+})
+
+describe('renderSignerWorkload', () => {
+  it('prints all three counts and the rows still waiting on a person', () => {
+    const rendered = renderSignerWorkload({
+      settled: 7,
+      blocked: 2,
+      needsYou: [
+        {
+          proposal: '0xabc',
+          checkId: 'target-state',
+          network: 'tron',
+          expected: 'ordering holds',
+          actual: 'EcoFacet: matches-main',
+        },
+      ],
+    })
+
+    expect(rendered).toContain('settled automatically : 7')
+    expect(rendered).toContain('blocked               : 2')
+    expect(rendered).toContain('needs your judgement  : 1')
+    expect(rendered).toContain('EcoFacet: matches-main')
   })
 })

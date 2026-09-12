@@ -1,3 +1,5 @@
+import { inspect } from 'node:util'
+
 import {
   describe,
   expect,
@@ -312,14 +314,81 @@ describe('sealCollectionReadOnly, on what a permitted read hands back', () => {
 })
 
 describe('sealCollectionReadOnly, against a descriptor read', () => {
-  it('refuses the property the get trap refuses', () => {
+  it('hands back a descriptor that does not carry the handle', () => {
     const sealed = sealCollectionReadOnly({
       client: { db: () => 'unsealed' },
       findOne: () => Promise.resolve(null),
     })
 
-    expect(() => Object.getOwnPropertyDescriptor(sealed, 'client')).toThrow(
+    const descriptor = Object.getOwnPropertyDescriptor(sealed, 'client')
+
+    // Redacted rather than refused outright: throwing here would take down
+    // `Object.keys` and `for…in`, which read descriptors but never values.
+    expect(descriptor?.value).not.toEqual({ db: expect.any(Function) })
+    expect(() => (descriptor?.value as () => unknown)()).toThrow(
       RehearsalWriteRefusedError
     )
+  })
+})
+
+describe('sealCollectionReadOnly, when something enumerates or renders it', () => {
+  const withObjectProps = () =>
+    sealCollectionReadOnly({
+      s: { db: { client: 'SECRET' } },
+      client: { id: 'CLIENT' },
+      collectionName: 'pendingTransactions',
+      findOne: () => Promise.resolve(null),
+    })
+
+  it('lets the key-only enumerations work', () => {
+    const sealed = withObjectProps()
+
+    expect(Object.keys(sealed)).toContain('client')
+    expect(() => {
+      for (const _key in sealed) void _key
+    }).not.toThrow()
+  })
+
+  it('still refuses an enumeration that reads the values', () => {
+    // Spread and `Object.entries` go through `get`, so they are asking for the
+    // handle itself. Refusing is the point; only the key-only paths above are
+    // expected to work.
+    expect(() => ({ ...withObjectProps() })).toThrow(RehearsalWriteRefusedError)
+    expect(() => Object.entries(withObjectProps())).toThrow(
+      RehearsalWriteRefusedError
+    )
+  })
+
+  it('does not print the wrapped target when inspected', () => {
+    const rendered = inspect(withObjectProps())
+
+    expect(rendered).not.toContain('SECRET')
+    expect(rendered).not.toContain('CLIENT')
+  })
+})
+
+describe('sealCollectionReadOnly, on a cursor a permitted read returns', () => {
+  it('refuses a cursor internal that resolves to a live server handle', () => {
+    const sealed = sealCollectionReadOnly({
+      find: () => ({
+        toArray: () => Promise.resolve([{ _id: 1 }]),
+        _initialize: () =>
+          Promise.resolve({ server: { command: () => 'wrote' } }),
+      }),
+    }) as unknown as { find: () => Record<string, () => unknown> }
+
+    expect(() => sealed.find()._initialize?.()).toThrow(
+      RehearsalWriteRefusedError
+    )
+  })
+
+  it('still allows the cursor methods a read needs', async () => {
+    const sealed = sealCollectionReadOnly({
+      find: () => ({
+        toArray: () => Promise.resolve([{ _id: 1 }, { _id: 2 }]),
+      }),
+    }) as unknown as { find: () => { toArray: () => Promise<unknown[]> } }
+
+    expect(await sealed.find().toArray()).toHaveLength(2)
   })
 })

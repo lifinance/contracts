@@ -27,6 +27,7 @@ import {
   summariseGate,
   type IShadowObservation,
 } from '../codehash/false-refusal-budget'
+import { collectDiamondCutCalls } from '../shared/diamond-cut-calls'
 
 import {
   createCheckLedger,
@@ -111,11 +112,50 @@ async function openReadOnlyProposalStore(): Promise<{
   }
 }
 
-/** Damages a proposal's calldata so the chain has something it must refuse. */
-const corruptCalldata = (calldata: Hex): Hex =>
-  (calldata.length > 10
-    ? `${calldata.slice(0, 10)}${'f'.repeat(64)}${calldata.slice(74)}`
-    : '0xdeadbeef') as Hex
+/**
+ * An address no deployment record can resolve, for the mutation below.
+ *
+ * Recognisable on sight in a survivor line, and deliberately not a plausible
+ * facet: if the gate grades this as a known contract, that is the finding.
+ */
+const UNRESOLVABLE_FACET = 'deadbeef'.repeat(5)
+
+/**
+ * Damages the field the gate actually grades: a cut's facet address.
+ *
+ * An earlier version overwrote the first 32-byte argument word. For a direct
+ * `diamondCut` that is the array offset, so the decode failed and the chain
+ * refused — but for the timelock-wrapped `schedule` that most production
+ * rollouts use, that word is `target`, and the inner cut bytes were left
+ * untouched. The gate then graded the corrupted payload byte-identically and
+ * the probe reported a survivor on every wrapped proposal: a red about the
+ * mutation rather than about the chain.
+ *
+ * Substituting the address wherever it appears reaches the inner cut at any
+ * nesting depth without this module having to know the wrapper's shape.
+ *
+ * @param calldata - the proposal payload
+ * @returns the payload with every cut's facet address replaced, or a payload
+ * whose leading word is damaged when no cut could be found to aim at
+ */
+const corruptCalldata = (calldata: Hex): Hex => {
+  const collected = collectDiamondCutCalls([calldata])
+  const addresses = collected.calls.flatMap((call) =>
+    call.cuts.map((cut) => cut.facetAddress.slice(2).toLowerCase())
+  )
+
+  if (addresses.length === 0)
+    return (
+      calldata.length > 10
+        ? `${calldata.slice(0, 10)}${'f'.repeat(64)}${calldata.slice(74)}`
+        : '0xdeadbeef'
+    ) as Hex
+
+  let damaged = calldata.toLowerCase()
+  for (const address of new Set(addresses))
+    damaged = damaged.split(address).join(UNRESOLVABLE_FACET)
+  return damaged as Hex
+}
 
 /**
  * Runs every merged gate over one proposal and returns its ledger.
@@ -358,20 +398,20 @@ const main = defineCommand({
         const outcome = gradeCorruptionProbe(first, corrupted)
         if (outcome === 'refused')
           consola.success(
-            'Corruption probe: every row that graded clean now refuses'
+            'Corruption probe: every row the chain had read and graded now refuses'
           )
         else if (outcome === 'did-not-refuse') {
           failed = true
           const survivors = survivedCorruption(first, corrupted)
           consola.error(
-            `Corruption probe: ${survivors.length} row(s) graded clean both before and after corruption`
+            `Corruption probe: the chain reached the same verdict on ${survivors.length} row(s) before and after their facet address was replaced`
           )
           for (const slot of survivors.slice(0, 10))
             consola.error(`  survived: ${slot}`)
         } else {
           failed = true
           consola.warn(
-            'Corruption probe: not exercised — no row graded clean before corruption, so damaging them proves nothing'
+            'Corruption probe: not exercised — no row was both readable and not already refusing, so damaging one proves nothing'
           )
         }
       }

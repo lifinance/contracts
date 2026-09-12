@@ -11,7 +11,7 @@
  * commit, and every entry it holds appears in the report with a presence.
  */
 
-import { existsSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 
 import {
@@ -269,6 +269,24 @@ export const renderSignerWorkload = (workload: ISignerWorkload): string => {
   return lines.join('\n')
 }
 
+/**
+ * Whether the cache is not just present but usable.
+ *
+ * `loadProductionDeploymentRecords` memoises `null` for a file that is missing
+ * *or* does not parse as an array, and both produce the same
+ * `contract-unidentified`-everywhere run. Checking existence alone would let a
+ * truncated or half-written cache — the case that loader's own catch block
+ * anticipates — past the gate that exists to catch it.
+ */
+const holdsDeploymentRecords = (cachePath: string): boolean => {
+  if (!existsSync(cachePath)) return false
+  try {
+    return Array.isArray(JSON.parse(readFileSync(cachePath, 'utf8')))
+  } catch {
+    return false
+  }
+}
+
 /** A file a gate's verdict rests on, and what its absence does to that verdict. */
 export interface IGradingAnchor {
   readonly path: string
@@ -287,11 +305,12 @@ export interface IGradingAnchor {
  * refusal on essentially every proposal. Nothing in that output says the cause
  * is a missing file, and the refusals are indistinguishable from real ones.
  *
- * The signing CLI does not have this hazard — it refreshes the cache from
- * MongoDB on every run so that every signer, not just the deployer, sees
- * current versions. The rehearsal inherits it precisely because it opens the
- * store by another route to avoid the index write on connect, and so never
- * reaches that warm-up.
+ * The signing CLI largely avoids this — it refreshes the cache from MongoDB at
+ * startup so that every signer, not just the deployer, sees current versions,
+ * though that refresh is itself conditional on `MONGODB_URI` and its failure is
+ * swallowed at debug level. The rehearsal never reaches that warm-up at all,
+ * because it opens the store by another route to avoid the index write on
+ * connect.
  *
  * This is the false-refusal case the harness exists to catch, so it is checked
  * before grading rather than inferred from the results afterwards.
@@ -306,9 +325,9 @@ export const checkGradingAnchors = (
   return [
     {
       path: cachePath,
-      present: existsSync(cachePath),
+      present: holdsDeploymentRecords(cachePath),
       consequence:
-        'every cut element grades contract-unidentified, so the run refuses almost every proposal for a reason that is about this checkout rather than about the proposals. Run confirm-safe-tx.ts once to refresh it from MongoDB, or rehearse from a checkout that has it.',
+        'missing or not a record array, so every cut element grades contract-unidentified and the run refuses almost every proposal for a reason that is about this checkout rather than about the proposals. Run confirm-safe-tx.ts with MONGODB_URI set to refresh it, or rehearse from a checkout that has it.',
     },
   ]
 }

@@ -287,10 +287,11 @@ export type CorruptionProbeOutcome =
  * *anything* refused answers yes before the corruption is applied — it reports
  * success on a chain that graded every damaged proposal clean.
  *
- * The population that carries the evidence is therefore the rows that passed
- * *before* corruption: each of those must refuse after it. A corpus with none
- * of them is `not-exercised` rather than a pass, for the same reason an empty
- * run is not deterministic.
+ * The population that carries the evidence is the rows the chain had read and
+ * graded without stopping on them — which includes `needs-ack`, where the bytes
+ * were understood and only the intent is open. Each of those must refuse after
+ * corruption. A corpus with none of them is `not-exercised` rather than a pass,
+ * for the same reason an empty run is not deterministic.
  *
  * @param baseline - the pass over undamaged input
  * @param corrupted - the pass over deliberately damaged input
@@ -344,11 +345,10 @@ const gradedPopulation = (
 }
 
 /**
- * The rows that were clean before corruption and stayed clean after it.
+ * The rows the chain graded the same way before and after corruption.
  *
- * Reported rather than merely counted: these are proposals the chain read as
- * damaged and graded green anyway, which is the finding the probe exists to
- * produce.
+ * Reported rather than merely counted: these are proposals whose damaged bytes
+ * changed no verdict, which is the finding the probe exists to produce.
  *
  * @param baseline - the pass over undamaged input
  * @param corrupted - the pass over deliberately damaged input
@@ -420,7 +420,10 @@ export const refusalClasses = (
   for (const observation of collectRefusalObservations(pass)) {
     if (!observation.refused) continue
     for (const clause of observation.reason.split('; ')) {
-      const verdict = clause.slice(clause.lastIndexOf(': ') + 2).trim()
+      const separator = clause.lastIndexOf(': ')
+      const verdict = (
+        separator === -1 ? clause : clause.slice(separator + 2)
+      ).trim()
       if (verdict) classes.add(verdict)
     }
   }
