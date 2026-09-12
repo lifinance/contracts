@@ -8,7 +8,9 @@
  *
  * A check that could not run is not a check that passed: it is recorded as
  * `error`, counted as unverified, and the verdict comes back blocked with no
- * acknowledgement path.
+ * acknowledgement path. A check that had nothing to grade is neither: it is
+ * recorded as `not-applicable`, counted outside both numerator and denominator,
+ * and a run made only of those closes as having reviewed nothing.
  */
 
 import { keccak256, stringToHex, type Hex } from 'viem'
@@ -17,8 +19,18 @@ import { keccak256, stringToHex, type Hex } from 'viem'
  * `error` means the check could not run — unreachable store, failed RPC,
  * unreadable anchor. It is never a synonym for `fail`, which is a real
  * mismatch, and never collapses into `pass`.
+ *
+ * `not-applicable` means the run established there was nothing here to grade —
+ * a network whose only pending proposal this signer had already signed. It does
+ * not block, because nothing is wrong, and it never counts as verified, because
+ * nothing was checked.
  */
-export type CheckStatus = 'pass' | 'fail' | 'error' | 'needs-ack'
+export type CheckStatus =
+  | 'pass'
+  | 'fail'
+  | 'error'
+  | 'needs-ack'
+  | 'not-applicable'
 
 /**
  * `integrity` checks answer "is the code/authority what it claims to be" and
@@ -62,6 +74,7 @@ const CHECK_STATUSES: ReadonlySet<string> = new Set<CheckStatus>([
   'fail',
   'error',
   'needs-ack',
+  'not-applicable',
 ])
 
 /** Every anchor a result may name, for validating a value that bypassed the type. */
@@ -274,8 +287,20 @@ function coerceStatus(
 }
 
 export interface ICheckRollup extends ICheckDefinition {
-  /** The coverage denominator: how many networks this check had to answer for. */
+  /** The declared denominator: how many networks this check had to answer for. */
   expected: number
+  /** Networks that had nothing for this check to grade. */
+  notApplicable: number
+  /**
+   * The coverage denominator `passed` is measured against: `expected` less the
+   * networks that had nothing to grade.
+   *
+   * A shrunk denominator is the module's own stated hazard, so it is never
+   * shrunk silently — `expected` stays on the rollup and every line that prints
+   * `passed/graded` prints the not-applicable count beside it, which is what
+   * makes the shrink recoverable rather than invisible.
+   */
+  graded: number
   passed: number
   failed: number
   errored: number
@@ -376,7 +401,12 @@ export const rollUpChecks = (ledger: ICheckLedger): ICheckRollup[] =>
 
     const expected = ledger.expectedNetworks.length
     const passed = countOf('pass')
-    // Anything outside the four statuses counts here, because that is how the
+    const notApplicable = countOf('not-applicable')
+    // A network that reported nothing at all stays in here, so it still rolls
+    // up as missing and blocks; only a network that positively answered "there
+    // was nothing to grade" leaves the denominator.
+    const graded = expected - notApplicable
+    // Anything outside this module's statuses counts here, because that is how the
     // verdict grades it — otherwise such a status sits in the denominator and in
     // no numerator.
     const errored = results.filter(
@@ -390,13 +420,18 @@ export const rollUpChecks = (ledger: ICheckLedger): ICheckRollup[] =>
     return {
       ...definition,
       expected,
+      notApplicable,
+      graded,
       passed,
       failed: countOf('fail'),
       errored,
       needsAck: countOf('needs-ack'),
       missing: missingNetworks.length,
       unverified: errored + missingNetworks.length,
-      green: expected > 0 && passed === expected,
+      // `graded > 0` is the half that matters: `passed === graded` is `0 === 0`
+      // for a check that graded nothing, which is the reading that closed a run
+      // green over a proposal it never looked at.
+      green: graded > 0 && passed === graded,
       anchors: [...new Set(results.map((result) => result.anchor))].sort(),
       missingNetworks,
       results,
@@ -468,11 +503,22 @@ export interface ILedgerTotals {
   error: number
   needsAck: number
   missing: number
+  /** Results the run established there was nothing to grade for. */
+  notApplicable: number
 }
 
 export interface ILedgerVerdict {
   /** True when something blocks with no acknowledgement path available. */
   hardBlocked: boolean
+  /**
+   * True when no result was graded at all — every one of them was
+   * `not-applicable`.
+   *
+   * Carried separately from `hardBlocked` because the two answer different
+   * questions, and a consumer reading only "nothing blocks" would read a run
+   * that reviewed nothing as a run that reviewed everything.
+   */
+  nothingGraded: boolean
   blocking: IBlockingResult[]
   /** Semantic non-passes a human may acknowledge; the caller must ask before proceeding. */
   requiresAcknowledgement: ICheckResult[]
@@ -490,10 +536,15 @@ export interface ILedgerVerdict {
  * acknowledgement path at all. Only a semantic non-pass is acknowledgeable, and
  * triage can drop one on a subtractive op alone.
  *
- * A status outside the four is treated as unverified and blocks. `recordCheck`
- * refuses one, so this is only reachable by a result that entered the log some
- * other way — and the safe reading of a status nothing recognises is that
- * nothing was verified.
+ * `not-applicable` blocks nothing and is owed to nobody, so it lands in its own
+ * total and in `nothingGraded`. It is the one status that is neither a finding
+ * nor a verification, which is why a caller reading `hardBlocked` alone cannot
+ * tell a clear run from an empty one.
+ *
+ * A status this module does not define is treated as unverified and blocks.
+ * `recordCheck` refuses one, so this is only reachable by a result that entered
+ * the log some other way — and the safe reading of a status nothing recognises
+ * is that nothing was verified.
  * @param ledger - The run's ledger.
  * @param options - `triageProfile` enables the narrowed relaxation.
  * @returns The verdict, the blocking rows, what awaits acknowledgement, and the totals.
@@ -520,12 +571,22 @@ export const summariseLedger = (
     error: 0,
     needsAck: 0,
     missing: 0,
+    notApplicable: 0,
   }
 
   for (const rollup of rollUpChecks(ledger)) {
     for (const result of rollup.results) {
       if (result.status === 'pass') {
         totals.pass += 1
+        continue
+      }
+
+      // Ahead of the unrecognised-status branch and of the acknowledgement
+      // fall-through below: a status that lands in neither numerator would be
+      // graded by whichever branch happens to catch it, and the one under this
+      // would file it as awaiting a human acknowledgement that nobody owes.
+      if (result.status === 'not-applicable') {
+        totals.notApplicable += 1
         continue
       }
 
@@ -595,6 +656,16 @@ export const summariseLedger = (
 
   return {
     hardBlocked: blocking.length > 0,
+    // Every result the run graded, whichever way it graded it, plus the ones it
+    // never recorded — so this is false the moment anything at all was looked
+    // at, and cannot mask a run that had both skipped and graded networks.
+    nothingGraded:
+      totals.pass +
+        totals.fail +
+        totals.error +
+        totals.needsAck +
+        totals.missing ===
+      0,
     blocking,
     requiresAcknowledgement,
     relaxed,
@@ -606,6 +677,8 @@ export interface IReviewAttestationCheck {
   checkId: string
   checkClass: CheckClass
   expected: number
+  /** Without it, a check that graded nothing reads as one that graded and failed. */
+  notApplicable: number
   passed: number
   failed: number
   needsAck: number
@@ -714,6 +787,7 @@ export const buildReviewAttestation = (
       checkId: rollup.checkId,
       checkClass: rollup.checkClass,
       expected: rollup.expected,
+      notApplicable: rollup.notApplicable,
       passed: rollup.passed,
       failed: rollup.failed,
       needsAck: rollup.needsAck,

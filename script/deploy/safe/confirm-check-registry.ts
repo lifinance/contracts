@@ -170,6 +170,10 @@ const SEVERITY: readonly ICheckResult['status'][] = [
   'error',
   'needs-ack',
   'pass',
+  // Least severe, and listed rather than left out: a status this array omits
+  // gets -1 from `indexOf`, which ranks it ahead of `fail` — "there was nothing
+  // to grade" would then displace a mismatch on a network that had both.
+  'not-applicable',
 ]
 
 const worstOf = (

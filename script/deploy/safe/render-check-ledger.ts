@@ -6,9 +6,11 @@
  * expanded per network only where a section is not green, and a single closing
  * verdict.
  *
- * Every count is printed as `N/N` against the declared denominator, and a
- * result that could not run is labelled `UNVERIFIED`, never folded into a green
- * line — the two states a signer must not be able to confuse.
+ * Every count is printed as `N/N` against the networks that were graded, always
+ * beside the count of those that had nothing to grade. A result that could not
+ * run is labelled `UNVERIFIED`, never folded into a green line, and a run that
+ * graded nothing closes `NOTHING TO REVIEW` with no verified count at all —
+ * the states a signer must not be able to confuse.
  */
 
 import { sanitizeProvenanceText } from '../shared/git-provenance'
@@ -110,10 +112,10 @@ function rowKind(result: ICheckResult): RowKind {
   if (result.status === 'fail') return 'fail'
   if (result.status === 'needs-ack') return 'needs-ack'
 
-  // `error`, and anything the ledger's four statuses do not cover: the verdict
+  // `error`, and anything the ledger's own statuses do not cover: the verdict
   // grades an unrecognised status as unverified with no acknowledgement path,
-  // and the row has to say the same. Passes never reach here; the caller
-  // filters them.
+  // and the row has to say the same. A pass and a not-applicable never reach
+  // here; the caller filters both.
   return 'error'
 }
 
@@ -122,10 +124,13 @@ function renderCheck(
   relaxed: ReadonlySet<string>
 ): string[] {
   const counts = [
-    `pass ${rollup.passed}/${rollup.expected}`,
+    `pass ${rollup.passed}/${rollup.graded}`,
     rollup.failed > 0 ? `fail ${rollup.failed}` : '',
     rollup.needsAck > 0 ? `needs review ${rollup.needsAck}` : '',
     rollup.unverified > 0 ? `unverified ${rollup.unverified}` : '',
+    // Printed whenever the denominator above is smaller than the declared one,
+    // so `pass 1/1` on a two-network run can never be read as full coverage.
+    rollup.notApplicable > 0 ? `not applicable ${rollup.notApplicable}` : '',
     `anchors ${clean(rollup.anchors.join(', ')) || 'none'}`,
   ]
     .filter(Boolean)
@@ -139,7 +144,10 @@ function renderCheck(
   ]
 
   for (const result of rollup.results) {
-    if (result.status === 'pass') continue
+    // A network with nothing to grade has no action attached to it and is
+    // already counted on the line above; expanded here it would put a row that
+    // needs nothing among the rows that do.
+    if (result.status === 'pass' || result.status === 'not-applicable') continue
 
     lines.push(
       renderRow(
@@ -178,7 +186,11 @@ function renderSection(
 ): string[] {
   const greenChecks = rollups.filter((rollup) => rollup.green).length
   const passed = rollups.reduce((sum, rollup) => sum + rollup.passed, 0)
-  const expected = rollups.reduce((sum, rollup) => sum + rollup.expected, 0)
+  const graded = rollups.reduce((sum, rollup) => sum + rollup.graded, 0)
+  const notApplicable = rollups.reduce(
+    (sum, rollup) => sum + rollup.notApplicable,
+    0
+  )
   const unverified = rollups.reduce((sum, rollup) => sum + rollup.unverified, 0)
   const needsAck = rollups.reduce((sum, rollup) => sum + rollup.needsAck, 0)
   // Every recorded mismatch, integrity and semantic alike — `verdict.blocking`
@@ -188,32 +200,81 @@ function renderSection(
   // keeps its own term, so one problem row still reads as one.
   const mismatched = rollups.reduce((sum, rollup) => sum + rollup.failed, 0)
 
+  // Nothing in this section was graded, so it has neither a verified count nor
+  // a share of checks green: printing either would be a count over an empty
+  // set, and `0/0` reads as coverage.
+  const nothingGraded = graded === 0
   const allGreen = greenChecks === rollups.length
-  const summary = [
-    `${greenChecks}/${rollups.length} checks green`,
-    `${passed}/${expected} network results verified`,
-    mismatched > 0 ? `${mismatched} mismatch` : '',
-    unverified > 0 ? `${unverified} unverified` : '',
-    needsAck > 0 ? `${needsAck} needs review` : '',
-  ]
+  const summary = (
+    nothingGraded
+      ? [
+          'nothing to grade',
+          `${plural(notApplicable, 'network result')} not applicable`,
+        ]
+      : [
+          `${greenChecks}/${rollups.length} checks green`,
+          `${passed}/${graded} network results verified`,
+          mismatched > 0 ? `${mismatched} mismatch` : '',
+          unverified > 0 ? `${unverified} unverified` : '',
+          needsAck > 0 ? `${needsAck} needs review` : '',
+          notApplicable > 0 ? `${notApplicable} not applicable` : '',
+        ]
+  )
     .filter(Boolean)
     .join(' · ')
 
   const lines = [
     color(
-      allGreen ? GREEN : mismatched > 0 ? RED : YELLOW,
-      `${allGreen ? '✓' : '✗'} ${clean(section).padEnd(
+      nothingGraded ? CYAN : allGreen ? GREEN : mismatched > 0 ? RED : YELLOW,
+      // Neither tick nor cross: a section with nothing to grade is not a
+      // success, and marking it as a failure would send a signer hunting for a
+      // problem that is not there.
+      `${nothingGraded ? '·' : allGreen ? '✓' : '✗'} ${clean(section).padEnd(
         SECTION_WIDTH
       )}${summary}`
     ),
   ]
 
   // A green check is fully described by the section line. Naming its networks
-  // there would put 71 rows between the signer and the rows that need them.
+  // there would put 71 rows between the signer and the rows that need them —
+  // and so is a check that graded nothing, whose every row is an absence.
   for (const rollup of rollups)
-    if (!rollup.green) lines.push(...renderCheck(rollup, relaxed))
+    if (!rollup.green && rollup.graded > 0)
+      lines.push(...renderCheck(rollup, relaxed))
 
   return lines
+}
+
+/** How many distinct reasons a closing line names before it stops listing them. */
+const MAX_SKIP_REASONS = 3
+
+/**
+ * The closing line for a run that graded nothing at all.
+ *
+ * It carries no count of what was verified, in either direction: `10/10` was the
+ * defect and `0/0` is the same sentence in a quieter font. What it carries
+ * instead is the number of networks that offered nothing and what each of them
+ * said, because that is the fact a signer needs — a proposal can be pending on a
+ * network this run had nothing to do on.
+ */
+function renderNothingToReview(rollups: ICheckRollup[]): string {
+  const skipped = rollups
+    .flatMap((rollup) => rollup.results)
+    .filter((result) => result.status === 'not-applicable')
+  const networks = new Set(skipped.map((result) => result.network))
+  const reasons = [...new Set(skipped.map((result) => clean(result.actual)))]
+  const shown = reasons.slice(0, MAX_SKIP_REASONS)
+  const elided = reasons.length - shown.length
+
+  return color(
+    YELLOW,
+    `VERDICT: NOTHING TO REVIEW — nothing was graded, so nothing was verified · ${plural(
+      networks.size,
+      'network'
+    )} had nothing to grade · ${shown.join(' · ')}${
+      elided > 0 ? ` · +${elided} more` : ''
+    }`
+  )
 }
 
 function renderVerdict(
@@ -221,10 +282,17 @@ function renderVerdict(
   rollups: ICheckRollup[]
 ): string {
   const passed = rollups.reduce((sum, rollup) => sum + rollup.passed, 0)
-  const expected = rollups.reduce((sum, rollup) => sum + rollup.expected, 0)
+  const graded = rollups.reduce((sum, rollup) => sum + rollup.graded, 0)
+  const notApplicable = rollups.reduce(
+    (sum, rollup) => sum + rollup.notApplicable,
+    0
+  )
+  const skippedNote =
+    notApplicable > 0 ? ` · ${notApplicable} not applicable` : ''
   // Carried by every verdict: the run that verified 56 of 57 is the one whose
-  // denominator has to be visible.
-  const coverage = `${passed}/${expected} network results verified`
+  // denominator has to be visible — and the skipped count travels with it, so a
+  // denominator smaller than the declared network set always says why.
+  const coverage = `${passed}/${graded} network results verified${skippedNote}`
 
   const relaxedNote =
     verdict.relaxed.length > 0
@@ -256,6 +324,11 @@ function renderVerdict(
       )} awaiting review${relaxedNote} · ${coverage}`
     )
 
+  // After the two verdicts that carry a finding, never before them: both rest
+  // on a graded result, so neither can coexist with this branch — and ordering
+  // it last of the three is what makes that structural rather than argued.
+  if (verdict.nothingGraded) return renderNothingToReview(rollups)
+
   if (verdict.relaxed.length > 0)
     return color(
       YELLOW,
@@ -269,7 +342,7 @@ function renderVerdict(
     GREEN,
     `VERDICT: ALL CHECKS GREEN — ${
       rollups.filter((rollup) => rollup.green).length
-    }/${rollups.length} checks, ${passed}/${expected} network results verified`
+    }/${rollups.length} checks, ${coverage}`
   )
 }
 

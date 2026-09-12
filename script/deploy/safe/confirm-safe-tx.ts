@@ -172,9 +172,13 @@ const recordEveryCheck = (
  *
  * The denominator is fixed before the run can learn that a network it listed as
  * actionable carries no proposal for this operator. Left unrecorded it rolls up
- * as missing and hard-blocks a run on which nothing was wrong. A pass on
- * `A-LOCAL` is the reading `no-diamond-cut` already gets: the run read its input
- * and found nothing to compare, which is a verified fact about this network.
+ * as missing and hard-blocks a run on which nothing was wrong.
+ *
+ * `not-applicable` on `A-LOCAL`, never a pass: the run read its input and found
+ * nothing to compare, which is a verified fact about the network but not a
+ * verified proposal. Recorded as a pass it satisfied the verified counter, and a
+ * run whose every network was skipped closed `ALL CHECKS GREEN — 10/10 network
+ * results verified` with a pending proposal on one of them.
  *
  * Only for outcomes that answered. A read that *failed* has not established
  * anything and belongs in `recordCouldNotGrade` — mixing the two is how a fully
@@ -184,7 +188,7 @@ const recordEveryCheck = (
  */
 const recordNothingToGrade = (network: string, reason: string): void =>
   recordEveryCheck(network, {
-    status: 'pass',
+    status: 'not-applicable',
     actual: `no proposal was graded on ${network} — ${reason}`,
     anchor: 'A-LOCAL',
   })

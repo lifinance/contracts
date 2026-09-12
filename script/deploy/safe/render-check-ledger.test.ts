@@ -772,3 +772,104 @@ describe('the superseded mismatch survives more than one retry', () => {
     )
   })
 })
+
+describe('a run that graded nothing', () => {
+  /**
+   * The row `confirm-safe-tx.ts` writes for a network it positively established
+   * carries no proposal for this signer. Measured in production: one pending
+   * proposal on arbitrum, already signed by the reviewing signer, and the run
+   * closed `ALL CHECKS GREEN — 10/10 checks, 10/10 network results verified`
+   * having graded none of it.
+   */
+  const nothingToGrade = (network: string): Partial<ICheckResult> => ({
+    network,
+    status: 'not-applicable',
+    expected: 'every proposal this run would sign graded before signing',
+    actual: `no proposal was graded on ${network} — nothing actionable was left once the network was prepared`,
+    anchor: 'A-LOCAL',
+  })
+
+  const vacuous = (): ICheckLedger => {
+    const ledger = ledgerOf(['arbitrum'], [CODEHASH])
+    recordCheck(ledger, result(nothingToGrade('arbitrum')))
+
+    return ledger
+  }
+
+  it('does not close with a green verdict', () => {
+    const verdict = renderCheckLedger(vacuous()).at(-1) as string
+
+    expect(verdict).not.toContain('ALL CHECKS GREEN')
+    expect(verdict).not.toContain(GREEN)
+  })
+
+  it('prints no verified count at all, rather than a vacuous one', () => {
+    // `1/1 network results verified` over a set of size zero is the claim that
+    // produced the defect, and `0/0` is the same claim in a quieter font.
+    expect(renderCheckLedger(vacuous()).at(-1) as string).not.toMatch(
+      /\d+\/\d+ network results verified/
+    )
+  })
+
+  it('names the skipped networks and why they were skipped', () => {
+    const verdict = renderCheckLedger(vacuous()).at(-1) as string
+
+    expect(verdict).toContain('NOTHING TO REVIEW')
+    expect(verdict).toContain('1 network')
+    expect(verdict).toContain('nothing actionable was left')
+  })
+
+  it('does not mark the section green either', () => {
+    const section = renderCheckLedger(vacuous()).filter((line) =>
+      line.includes('Integrity')
+    )
+
+    expect(section).toHaveLength(1)
+    expect(section[0]).not.toContain(GREEN)
+    expect(section[0]).not.toContain('checks green')
+    expect(section[0]).not.toMatch(/\d+\/\d+ network results verified/)
+    expect(section[0]).toContain('not applicable')
+  })
+
+  it('still closes an all-green run with the green verdict', () => {
+    const ledger = ledgerOf(['mainnet', 'polygon'], [CODEHASH])
+    recordCheck(ledger, result({ network: 'mainnet' }))
+    recordCheck(ledger, result({ network: 'polygon' }))
+
+    const verdict = renderCheckLedger(ledger).at(-1) as string
+
+    expect(verdict).toContain('ALL CHECKS GREEN')
+    expect(verdict).toContain('2/2 network results verified')
+    expect(verdict).toContain(GREEN)
+  })
+
+  it('still blocks when a graded network failed beside a skipped one', () => {
+    const ledger = ledgerOf(['mainnet', 'arbitrum'], [CODEHASH])
+    recordCheck(ledger, result({ network: 'mainnet', status: 'fail' }))
+    recordCheck(ledger, result(nothingToGrade('arbitrum')))
+
+    const verdict = renderCheckLedger(ledger).at(-1) as string
+
+    expect(verdict).toContain('VERDICT: BLOCKED')
+    expect(verdict).not.toContain('NOTHING TO REVIEW')
+    expect(verdict).toContain(RED)
+  })
+
+  it('keeps a skipped network out of the verified count of a mixed run', () => {
+    const ledger = ledgerOf(['mainnet', 'arbitrum'], [CODEHASH])
+    recordCheck(ledger, result({ network: 'mainnet' }))
+    recordCheck(ledger, result(nothingToGrade('arbitrum')))
+
+    const lines = renderCheckLedger(ledger)
+    const section = lines.filter((line) => line.includes('Integrity'))
+
+    // One network graded, one verified — never `2/2`, which reads the skipped
+    // network as one this run checked.
+    expect(section[0]).toContain('1/1 network results verified')
+    expect(section[0]).toContain('1 not applicable')
+    expect(section[0]).not.toContain('2/2')
+    expect(lines.at(-1)).toContain('1/1 network results verified')
+    expect(lines.at(-1)).toContain('1 not applicable')
+    expect(lines.at(-1)).not.toContain('2/2')
+  })
+})

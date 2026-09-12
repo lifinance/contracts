@@ -225,9 +225,18 @@ describe('a network the run skipped does not block it', () => {
    * status free — flipping `recordNothingToGrade` to `error` kept the whole
    * directory green while reinstating the spurious hard block it exists to
    * prevent.
+   *
+   * `not-applicable` rather than `pass`: a pass is a verified network result and
+   * counts toward the verified coverage, so recording one for a network nothing
+   * was graded on is what closed a real run `10/10 network results verified`
+   * with a pending proposal untouched on it.
    */
   const RECORDERS = [
-    ['const recordNothingToGrade = (', "status: 'pass'", "anchor: 'A-LOCAL'"],
+    [
+      'const recordNothingToGrade = (',
+      "status: 'not-applicable'",
+      "anchor: 'A-LOCAL'",
+    ],
     [
       'const recordCouldNotGrade = (',
       "status: 'error'",
@@ -235,7 +244,7 @@ describe('a network the run skipped does not block it', () => {
     ],
   ] as const
 
-  it('writes a verified row for one and an unverified row for the other', () => {
+  it('writes an ungraded row for one and an unverified row for the other', () => {
     for (const [declaration, status, anchor] of RECORDERS) {
       const helper = SOURCE.indexOf(declaration)
       expect(helper).toBeGreaterThan(-1)
