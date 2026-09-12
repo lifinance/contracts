@@ -136,6 +136,7 @@ import { evaluateRpcQuorum, type IRpcQuorumVerdict } from './rpc-quorum'
 import {
   collectProviderObservations,
   createCodeReader,
+  createPinnedBlock,
 } from './rpc-quorum-collector'
 import {
   formatDecodedTxDataForDisplay,
@@ -1153,7 +1154,11 @@ const processTxs = async (
         rpcQuorum = evaluateRpcQuorum(
           await collectProviderObservations(
             endpoints,
-            createCodeReader(quorumTarget, chain.id)
+            createCodeReader(
+              quorumTarget,
+              chain.id,
+              createPinnedBlock(endpoints, chain.id)
+            )
           )
         )
       } catch (error) {

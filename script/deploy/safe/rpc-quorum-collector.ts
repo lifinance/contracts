@@ -107,18 +107,85 @@ export const codeReadLabel = (address: Address, network: string): string =>
   `code at ${address} on ${network}`
 
 /**
+ * The height every provider is asked to answer at.
+ *
+ * The lowest head any of them reports, so each one holds the block: two
+ * providers left to pick their own heads answer at different heights, which
+ * `evaluateRpcQuorum` grades as `heights-not-aligned` — correctly, since values
+ * from different blocks are not comparable. On a chain with sub-second blocks
+ * that is every run, so the control degrades to a permanent unverified row
+ * without ever comparing anything. Pinning is what the verdict's own
+ * documentation asks the caller to do.
+ *
+ * Resolved once and shared, because a pin re-read per endpoint is not a pin.
+ *
+ * @param endpointUrls - The endpoints the quorum will read from.
+ * @param chainId - The chain they must serve.
+ * @returns A memoised resolver for the pinned height.
+ * @throws When no endpoint reported a height.
+ */
+export const createPinnedBlock = (
+  endpointUrls: readonly string[],
+  chainId: number
+): (() => Promise<bigint>) => {
+  let pinned: Promise<bigint> | undefined
+
+  const resolve = async (): Promise<bigint> => {
+    const heads = await Promise.all(
+      endpointUrls.map(async (endpointUrl) => {
+        try {
+          const { url, fetchOptions } =
+            getTransportConfigFromRpcUrl(endpointUrl)
+          const client = createPublicClient({
+            transport: http(url, {
+              timeout: ENDPOINT_TIMEOUT_MS,
+              retryCount: ENDPOINT_RETRY_COUNT,
+              retryDelay: ENDPOINT_RETRY_DELAY_MS,
+              ...(fetchOptions ? { fetchOptions } : {}),
+            }),
+          })
+          if ((await client.getChainId()) !== chainId) return undefined
+          return await client.getBlockNumber()
+        } catch {
+          // An endpoint that cannot say where it is cannot narrow the pin. It
+          // still gets asked for the value below, and fails there on its own.
+          return undefined
+        }
+      })
+    )
+
+    const answered = heads.filter((head): head is bigint => head !== undefined)
+    const lowest = answered.reduce<bigint | undefined>(
+      (least, head) => (least === undefined || head < least ? head : least),
+      undefined
+    )
+    if (lowest === undefined)
+      throw new Error('no endpoint reported a block height to pin the read to')
+    return lowest
+  }
+
+  return () => (pinned ??= resolve())
+}
+
+/**
  * Reads the code at one address, at a named block, from a single endpoint.
  *
- * The block is read first and the code is then read *at that block*, so two
- * providers answering at different heights are comparable rather than being
- * silently compared across a reorg boundary.
+ * Every provider is asked for the same block when a pin is supplied, so a
+ * difference in the value means a disagreement rather than the passage of time.
+ * The block is still fetched per endpoint at that height, so its hash is each
+ * provider's own and a fork between them is still visible.
  *
  * @param address - The address whose code is read.
  * @param chainId - The chain the endpoints serve, so a misrouted endpoint fails loudly.
+ * @param pinnedBlock - The shared height, from {@link createPinnedBlock}.
  * @returns A reader for {@link collectProviderObservations}.
  */
 export const createCodeReader =
-  (address: Address, chainId: number): TEndpointReader =>
+  (
+    address: Address,
+    chainId: number,
+    pinnedBlock?: () => Promise<bigint>
+  ): TEndpointReader =>
   async (endpointUrl) => {
     // viem's own transport lifts `user:pass@` out of the URL, but its branch is
     // `if (url.username)`: a password-only endpoint keeps its credential in the
@@ -140,7 +207,11 @@ export const createCodeReader =
     if (observed !== chainId)
       throw new Error(`endpoint reports chain ${observed}, expected ${chainId}`)
 
-    const block = await client.getBlock()
+    const at = await pinnedBlock?.()
+    const block =
+      at === undefined
+        ? await client.getBlock()
+        : await client.getBlock({ blockNumber: at })
     const code = await client.getCode({ address, blockNumber: block.number })
 
     return {
