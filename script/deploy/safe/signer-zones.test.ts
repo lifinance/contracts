@@ -179,7 +179,7 @@ describe('signerChecks', () => {
 })
 
 describe('signerTodos', () => {
-  it('puts the out-of-band comparison before the device panel', () => {
+  it('puts the message comparison before the device panel', () => {
     const todos = signerTodos({
       deviceHash: `0x${'ab'.repeat(32)}`,
       storedHash: 'agrees',
@@ -187,7 +187,7 @@ describe('signerTodos', () => {
     })
 
     expect(todos).toHaveLength(2)
-    expect(todos[0]?.text).toContain('out-of-band')
+    expect(todos[0]?.text).toContain('the proposer sent you')
     expect(todos[1]?.text).toContain('device')
   })
 
