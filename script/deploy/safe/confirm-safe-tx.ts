@@ -28,6 +28,7 @@ import networksData from '../../../config/networks.json'
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { getDeployments } from '../../utils/deploymentHelpers'
 import { redactUrls } from '../../utils/redactUrls'
+import { getRPCEnvVarName } from '../../utils/utils'
 import {
   buildExplorerAddressUrl,
   getFallbackTransportForChain,
@@ -182,6 +183,11 @@ import {
   toSignedCodehashEntries,
 } from './signed-set-record'
 import {
+  preflight,
+  PREFLIGHT_EXIT_CODE,
+  renderPreflight,
+} from './signer-preflight'
+import {
   checkSummary,
   PROPOSAL_SEPARATOR,
   renderCheckGroups,
@@ -249,6 +255,12 @@ const readDeploymentRecords = async (): Promise<
 // Read once, at the end of the run: the verdict is rendered from these rows, so
 // a status any row below claims is a status a signer is shown.
 let checkLedger: ICheckLedger | undefined
+
+// Networks the preflight refused, kept out of the ledger's denominator and
+// therefore invisible to its verdict. Held here so the end of the run can say
+// the coverage was short: a ledger that is green for the networks it graded
+// must not read as a green run when a network was never graded at all.
+let refusedNetworks: string[] = []
 
 const recordEveryCheck = (
   network: string,
@@ -1837,6 +1849,7 @@ const main = defineCommand({
       }
 
       let networks: string[]
+      let candidateNetworks: string[]
 
       if (args.network) {
         // If a specific network is provided, validate it exists and is active
@@ -1848,13 +1861,14 @@ const main = defineCommand({
         if (networkConfig.status !== 'active')
           throw new Error(`Network ${args.network} is not active`)
 
-        networks = [args.network]
+        candidateNetworks = [args.network]
       } else {
         // First, get all networks with pending transactions (for informational purposes)
-        const allNetworksWithPendingTxs =
-          await getNetworksWithPendingTransactions(pendingTransactions)
+        candidateNetworks = await getNetworksWithPendingTransactions(
+          pendingTransactions
+        )
 
-        if (allNetworksWithPendingTxs.length === 0) {
+        if (candidateNetworks.length === 0) {
           consola.info('No networks have pending transactions')
           await mongoClient.close(true)
           return
@@ -1862,17 +1876,54 @@ const main = defineCommand({
 
         consola.info(
           `Found pending transactions on ${
-            allNetworksWithPendingTxs.length
-          } network(s): ${allNetworksWithPendingTxs.join(', ')}`
+            candidateNetworks.length
+          } network(s): ${candidateNetworks.join(', ')}`
         )
+      }
+
+      // Before the ownership reads, and before a ledger exists. A network
+      // without a working endpoint cannot be graded, so it is named once here
+      // with its cause rather than appearing later as a column of unverified
+      // checks that describe one unset variable. Placed ahead of
+      // `getNetworksWithActionableTransactions` because that one swallows a
+      // failed read as "not actionable", which is a true statement with a false
+      // explanation.
+      const preflightVerdict = await preflight(candidateNetworks, {
+        endpointConfigured: (network) =>
+          Boolean(args.rpcUrl?.trim()) ||
+          Boolean(process.env[getRPCEnvVarName(network)]?.trim()),
+        chainIdOf: (network) =>
+          buildReadOnlyClient(network, args.rpcUrl).getChainId(),
+        expectedChainId: (network) =>
+          networksData[network.toLowerCase() as keyof typeof networksData]
+            .chainId,
+        envVarName: getRPCEnvVarName,
+      })
+      refusedNetworks = [...preflightVerdict.refused]
+      renderPreflight(preflightVerdict).forEach((line) => consola.log(line))
+
+      if (preflightVerdict.startable.length === 0) {
+        process.exitCode = PREFLIGHT_EXIT_CODE
+        await mongoClient.close(true)
+        return
+      }
+
+      if (args.network) networks = [...preflightVerdict.startable]
+      else {
+        const allNetworksWithPendingTxs = preflightVerdict.startable
         consola.info(`Checking ownership for signer: ${signerAddress}`)
 
-        // Filter to only networks where the user can take action (is a Safe owner)
-        networks = await getNetworksWithActionableTransactions(
-          pendingTransactions,
-          signerAddress,
-          args.rpcUrl
-        )
+        // Filter to only networks where the user can take action (is a Safe
+        // owner), then to the ones the preflight cleared: a refused network
+        // must not re-enter here, where a failed read would be reported as
+        // "you are not a Safe owner".
+        networks = (
+          await getNetworksWithActionableTransactions(
+            pendingTransactions,
+            signerAddress,
+            args.rpcUrl
+          )
+        ).filter((network) => preflightVerdict.startable.includes(network))
 
         if (networks.length === 0) {
           consola.info(
@@ -2058,6 +2109,18 @@ const main = defineCommand({
       // signer never sees is worse than no check at all.
       if (checkLedger)
         renderCheckLedger(checkLedger).forEach((line) => consola.info(line))
+
+      // After the ledger, because it is about what the ledger does not cover.
+      // The refused networks are absent from its denominator, so its verdict is
+      // about the networks that could be graded and says nothing about these.
+      if (refusedNetworks.length > 0) {
+        consola.error(
+          `Not covered by the verdict above: ${refusedNetworks.join(
+            ', '
+          )} — the run could not start there, so nothing on those networks was checked.`
+        )
+        process.exitCode = PREFLIGHT_EXIT_CODE
+      }
 
       if (networkOutcomes.length > 0) {
         consola.info('=== Change Review Summary ===')
