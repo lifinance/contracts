@@ -8,6 +8,7 @@ import {
   summariseLedger,
   type CheckStatus,
   type ICheckLedger,
+  type ICheckResult,
 } from './check-ledger'
 import {
   ALL_GATE_DEFINITIONS,
@@ -19,6 +20,7 @@ import {
   NOTHING_TO_COMPARE,
   ORDERING_HOLDS,
   RPC_QUORUM_CHECK_ID,
+  STORAGE_AUTHORITY_CHECK,
   STORAGE_AUTHORITY_CHECK_ID,
   storageAuthorityCheckResult,
   TARGET_STATE_CHECK,
@@ -1141,18 +1143,66 @@ describe('storageAuthorityCheckResult', () => {
     expect(result.status).toBe('error')
   })
 
+  const ownerFromRecord = (
+    overrides: Partial<IPreBroadcastAuthority> = {}
+  ): IPreBroadcastAuthority =>
+    entry({
+      label: 'LiFiDiamond.owner()',
+      liveValue: TIMELOCK,
+      expectedValue: TIMELOCK,
+      expectationSource: 'deployments',
+      ...overrides,
+    })
+
+  const verdictFor = (
+    entries: IPreBroadcastAuthority[],
+    anchors?: Map<string, ICheckResult['anchor']>
+  ) => {
+    const ledger = createCheckLedger({
+      checks: [STORAGE_AUTHORITY_CHECK],
+      expectedNetworks: ['mainnet'],
+    })
+    recordCheck(
+      ledger,
+      storageAuthorityCheckResult(
+        entries,
+        'mainnet',
+        anchors ?? authorityExpectationAnchors(entries)
+      )
+    )
+    return summariseLedger(ledger)
+  }
+
   describe('an expectation the proposer writes may report but not decide', () => {
-    it('anchors a deployment-record expectation on A-MONGO even when it matches', () => {
-      const result = resultFor([
-        entry({
-          label: 'LiFiDiamond.owner()',
-          liveValue: TIMELOCK,
-          expectedValue: TIMELOCK,
-          expectationSource: 'deployments',
-        }),
-      ])
-      expect(result.status).toBe('pass')
+    it('grades a matched deployment-record expectation needs-ack on A-MONGO', () => {
+      const result = resultFor([ownerFromRecord()])
+      expect(result.status).toBe('needs-ack')
       expect(result.anchor).toBe('A-MONGO')
+      // The signer is told which expectation they are taking on, not merely
+      // that one of them was weak.
+      expect(result.detail).toContain('LiFiDiamond.owner()')
+    })
+
+    it('routes that row to acknowledgement instead of blocking the run', () => {
+      const verdict = verdictFor([ownerFromRecord()])
+      expect(verdict.hardBlocked).toBe(false)
+      expect(verdict.blocking).toHaveLength(0)
+      expect(
+        verdict.requiresAcknowledgement.map((result) => result.checkId)
+      ).toEqual([STORAGE_AUTHORITY_CHECK_ID])
+    })
+
+    it('refuses to let triage drop that acknowledgement', () => {
+      // The row stays an integrity check, and triage relaxes only semantic
+      // ones — otherwise the opt-in would hand a subtractive op a silent pass.
+      const ledger = createCheckLedger({
+        checks: [STORAGE_AUTHORITY_CHECK],
+        expectedNetworks: ['mainnet'],
+      })
+      recordCheck(ledger, resultFor([ownerFromRecord()]))
+      const verdict = summariseLedger(ledger, { triageProfile: 'subtractive' })
+      expect(verdict.relaxed).toHaveLength(0)
+      expect(verdict.requiresAcknowledgement).toHaveLength(1)
     })
 
     it('takes the weaker anchor when one of two expectations is proposer-written', () => {
@@ -1168,27 +1218,83 @@ describe('storageAuthorityCheckResult', () => {
       expect(result.anchor).toBe('A-MONGO')
     })
 
-    it('is coerced away from a green by the ledger itself', () => {
-      // The point of the anchor: recordCheck refuses a pass claimed on an
-      // anchor the proposer controls, so this row cannot grade the run green
-      // on a value the proposer supplied one side of.
+    it('is kept away from a green by the ledger itself', () => {
+      // The point of the anchor: the run may not be reported as verified on a
+      // value the proposer supplied one side of. The row is answerable, not
+      // decided.
       const ledger = createCheckLedger({
-        checks: [...CONFIRM_CHECK_DEFINITIONS],
+        checks: [STORAGE_AUTHORITY_CHECK],
         expectedNetworks: ['mainnet'],
       })
-      recordCheck(
-        ledger,
-        resultFor([
-          entry({
-            label: 'LiFiDiamond.owner()',
-            liveValue: TIMELOCK,
-            expectedValue: TIMELOCK,
-            expectationSource: 'deployments',
-          }),
-        ])
+      recordCheck(ledger, resultFor([ownerFromRecord()]))
+      const rendered = renderCheckLedger(ledger).join('\n')
+      expect(rendered).not.toContain('ALL CHECKS GREEN')
+      expect(rendered).toContain('ACKNOWLEDGEMENT REQUIRED')
+    })
+  })
+
+  // Each case is a way the gate can be wrong or blind. None of them may reach
+  // the acknowledgement path the matched-on-record case above opened: an
+  // acknowledgement is a prompt a signer clicks through, so a mismatch routed
+  // there is the attack this gate exists to catch, shown as a question.
+  describe('what the acknowledgement path must never swallow', () => {
+    const expectHardBlock = (verdict: ReturnType<typeof verdictFor>): void => {
+      expect(verdict.hardBlocked).toBe(true)
+      expect(verdict.blocking.length).toBeGreaterThan(0)
+      expect(verdict.requiresAcknowledgement).toHaveLength(0)
+    }
+
+    it('a live value that disagrees with a record-sourced expectation', () => {
+      const result = resultFor([ownerFromRecord({ liveValue: ATTACKER })])
+      expect(result.status).toBe('fail')
+      expectHardBlock(verdictFor([ownerFromRecord({ liveValue: ATTACKER })]))
+    })
+
+    it('a live value that disagrees with a globalConfig-sourced expectation', () => {
+      const result = resultFor([entry({ liveValue: ATTACKER })])
+      expect(result.status).toBe('fail')
+      expectHardBlock(verdictFor([entry({ liveValue: ATTACKER })]))
+    })
+
+    it('a live read that failed, so nothing was compared', () => {
+      const unread = ownerFromRecord({
+        liveValue: undefined,
+        readError: 'node unreachable',
+      })
+      expect(resultFor([unread]).status).toBe('error')
+      expectHardBlock(verdictFor([unread]))
+    })
+
+    it('no contract in the proposal declaring an authority at all', () => {
+      expect(resultFor([]).status).toBe('error')
+      expectHardBlock(verdictFor([]))
+    })
+
+    it('an expectation of unknown provenance, even when every value matched', () => {
+      // An anchor map that does not name the label is `A-UNRESOLVED`: nothing
+      // said where the expectation came from, so there is nothing to take on.
+      const anchors = new Map<string, ICheckResult['anchor']>()
+      const result = storageAuthorityCheckResult(
+        [ownerFromRecord()],
+        'mainnet',
+        anchors
       )
-      const rendered = renderCheckLedger(ledger)
-      expect(JSON.stringify(rendered)).not.toContain('"status":"pass"')
+      expect(result.status).toBe('pass')
+      expect(result.anchor).toBe('A-UNRESOLVED')
+      expectHardBlock(verdictFor([ownerFromRecord()], anchors))
+    })
+
+    it('an A-UNRESOLVED expectation sitting before a record-sourced one', () => {
+      // The weakest anchor decides, not whichever the loop happened to see
+      // last — the acknowledgement turns on that answer.
+      const anchors = new Map<string, ICheckResult['anchor']>([
+        ['LiFiDiamond.owner()', 'A-MONGO'],
+      ])
+      const entries = [entry(), ownerFromRecord()]
+      expect(
+        storageAuthorityCheckResult(entries, 'mainnet', anchors).anchor
+      ).toBe('A-UNRESOLVED')
+      expectHardBlock(verdictFor(entries, anchors))
     })
   })
 
