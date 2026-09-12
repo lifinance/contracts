@@ -287,6 +287,12 @@ export interface IGradingAnchor {
  * refusal on essentially every proposal. Nothing in that output says the cause
  * is a missing file, and the refusals are indistinguishable from real ones.
  *
+ * The signing CLI does not have this hazard — it refreshes the cache from
+ * MongoDB on every run so that every signer, not just the deployer, sees
+ * current versions. The rehearsal inherits it precisely because it opens the
+ * store by another route to avoid the index write on connect, and so never
+ * reaches that warm-up.
+ *
  * This is the false-refusal case the harness exists to catch, so it is checked
  * before grading rather than inferred from the results afterwards.
  *
@@ -302,7 +308,7 @@ export const checkGradingAnchors = (
       path: cachePath,
       present: existsSync(cachePath),
       consequence:
-        'every cut element grades contract-unidentified, so the run refuses almost every proposal for a reason that is about this checkout rather than about the proposals',
+        'every cut element grades contract-unidentified, so the run refuses almost every proposal for a reason that is about this checkout rather than about the proposals. Run confirm-safe-tx.ts once to refresh it from MongoDB, or rehearse from a checkout that has it.',
     },
   ]
 }
