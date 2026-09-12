@@ -22,10 +22,10 @@ export interface IRosteredGate {
 /**
  * Every gate the confirm chain is meant to compose onto the run ledger.
  *
- * The integrity mirrors, executability and rpc-quorum are EXSC-994's, which was
- * still in flight when this was written: they are expected to be absent until
- * it merges, and the report says so rather than omitting them. `target-state`
- * is the one gate merged onto `main` today.
+ * Each entry names the source that is meant to register it. An entry whose
+ * source has not merged reports `absent` rather than dropping out of the
+ * report, which is the whole point: a roster that shrank to what is wired
+ * would grade a smaller chain green every time one went missing.
  */
 export const REHEARSAL_GATE_ROSTER: readonly IRosteredGate[] = [
   {

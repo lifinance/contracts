@@ -1,17 +1,19 @@
 /**
  * Rehearses the Safe verify path end to end, without signing anything.
  *
- * Run this to exercise the confirm-stage gate chain against real pending
- * proposals: it reads them from the store, runs every merged gate twice,
- * compares the two passes, and prints a report naming every gate the chain is
- * meant to run — including the ones no commit has wired yet.
+ * Run this to exercise the confirm-stage gate chain against real proposals: it
+ * reads them from the store, runs every merged gate twice, compares the two
+ * passes, and prints a report naming every gate the chain is meant to run —
+ * including the ones no commit has wired yet.
  *
  *   bunx tsx script/deploy/safe/verify-rehearsal.ts --networks tron,arbitrum
  *
  * It never signs, proposes or executes, and the preflight proves that before it
- * opens anything. `--corrupt` deliberately damages one proposal's calldata to
- * establish that the chain can still refuse — a rehearsal that only ever grades
- * green has not shown that its gates work.
+ * opens anything. `--corrupt` damages every proposal's calldata to establish
+ * that the chain can still refuse — a rehearsal that only ever grades green has
+ * not shown that its gates work. `--status` selects the corpus: `pending` is
+ * the live case, and `executed` gives the chain something to grade when nothing
+ * is in flight, at the cost of judging historical cuts against today's anchor.
  */
 
 import 'dotenv/config'

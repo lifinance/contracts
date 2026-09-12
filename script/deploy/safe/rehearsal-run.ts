@@ -1,10 +1,11 @@
 /**
- * Runs the confirm gate chain twice over one proposal set and grades the result.
+ * Grades two passes of the confirm gate chain against each other.
  *
- * Import this from the rehearsal CLI. The chain itself is injected rather than
- * imported: `confirm-safe-tx.ts` is an interactive command that signs, and the
- * rehearsal must be able to run the gates without going anywhere near that
- * path. Injecting it also keeps this module off the file EXSC-994 is rewriting.
+ * Import this from the rehearsal CLI, which runs the chain and hands the
+ * resulting ledgers here. Running it is deliberately not this module's job:
+ * `confirm-safe-tx.ts` is an interactive command that signs, so the rehearsal
+ * reaches the gates without going near that path, and the grading stays
+ * testable without a store or a chain behind it.
  *
  * Two passes over the same input must produce the same verdicts. A difference
  * is not noise to retry past — it means something in the chain reads a moving
