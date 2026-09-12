@@ -86,6 +86,20 @@ const RELAXED_ACTION =
 const plural = (count: number, noun: string): string =>
   `${count} ${noun}${count === 1 ? '' : 's'}`
 
+/**
+ * The networks a set of checks had nothing to grade on.
+ *
+ * Counted as networks everywhere a line aggregates across checks, so the same
+ * skip is not reported as one number by the section and another by the verdict.
+ */
+const skippedNetworks = (rollups: readonly ICheckRollup[]): Set<string> =>
+  new Set(
+    rollups
+      .flatMap((rollup) => rollup.results)
+      .filter((result) => result.status === 'not-applicable')
+      .map((result) => result.network)
+  )
+
 function renderRow(
   network: string,
   kind: RowKind,
@@ -123,14 +137,21 @@ function renderCheck(
   rollup: ICheckRollup,
   relaxed: ReadonlySet<string>
 ): string[] {
+  // A check that graded nothing has no count to print: `pass 0/0` is the
+  // vacuous claim this report exists to keep off the screen.
+  const nothingGraded = rollup.graded === 0
   const counts = [
-    `pass ${rollup.passed}/${rollup.graded}`,
+    nothingGraded
+      ? 'nothing to grade'
+      : `pass ${rollup.passed}/${rollup.graded}`,
     rollup.failed > 0 ? `fail ${rollup.failed}` : '',
     rollup.needsAck > 0 ? `needs review ${rollup.needsAck}` : '',
     rollup.unverified > 0 ? `unverified ${rollup.unverified}` : '',
     // Printed whenever the denominator above is smaller than the declared one,
     // so `pass 1/1` on a two-network run can never be read as full coverage.
-    rollup.notApplicable > 0 ? `not applicable ${rollup.notApplicable}` : '',
+    rollup.notApplicable > 0
+      ? `${plural(rollup.notApplicable, 'network')} not applicable`
+      : '',
     `anchors ${clean(rollup.anchors.join(', ')) || 'none'}`,
   ]
     .filter(Boolean)
@@ -138,8 +159,12 @@ function renderCheck(
 
   const lines = [
     color(
-      rollup.failed > 0 ? RED : YELLOW,
-      `  ✗ ${clean(rollup.checkId)} — ${clean(rollup.title)}  ${counts}`
+      nothingGraded ? CYAN : rollup.failed > 0 ? RED : YELLOW,
+      // Neither tick nor cross for a check with nothing to grade, for the same
+      // reason the section line carries neither.
+      `  ${nothingGraded ? '·' : '✗'} ${clean(rollup.checkId)} — ${clean(
+        rollup.title
+      )}  ${counts}`
     ),
   ]
 
@@ -187,10 +212,7 @@ function renderSection(
   const greenChecks = rollups.filter((rollup) => rollup.green).length
   const passed = rollups.reduce((sum, rollup) => sum + rollup.passed, 0)
   const graded = rollups.reduce((sum, rollup) => sum + rollup.graded, 0)
-  const notApplicable = rollups.reduce(
-    (sum, rollup) => sum + rollup.notApplicable,
-    0
-  )
+  const notApplicable = skippedNetworks(rollups).size
   const unverified = rollups.reduce((sum, rollup) => sum + rollup.unverified, 0)
   const needsAck = rollups.reduce((sum, rollup) => sum + rollup.needsAck, 0)
   // Every recorded mismatch, integrity and semantic alike — `verdict.blocking`
@@ -209,7 +231,7 @@ function renderSection(
     nothingGraded
       ? [
           'nothing to grade',
-          `${plural(notApplicable, 'network result')} not applicable`,
+          `${plural(notApplicable, 'network')} not applicable`,
         ]
       : [
           `${greenChecks}/${rollups.length} checks green`,
@@ -217,7 +239,9 @@ function renderSection(
           mismatched > 0 ? `${mismatched} mismatch` : '',
           unverified > 0 ? `${unverified} unverified` : '',
           needsAck > 0 ? `${needsAck} needs review` : '',
-          notApplicable > 0 ? `${notApplicable} not applicable` : '',
+          notApplicable > 0
+            ? `${plural(notApplicable, 'network')} not applicable`
+            : '',
         ]
   )
     .filter(Boolean)
@@ -236,40 +260,35 @@ function renderSection(
   ]
 
   // A green check is fully described by the section line. Naming its networks
-  // there would put 71 rows between the signer and the rows that need them —
-  // and so is a check that graded nothing, whose every row is an absence.
+  // there would put 71 rows between the signer and the rows that need them.
+  // Every other check is expanded, including one that graded nothing: the
+  // section line counts it as not green, so suppressing it leaves a `✗` section
+  // whose shortfall has no row explaining it.
   for (const rollup of rollups)
-    if (!rollup.green && rollup.graded > 0)
-      lines.push(...renderCheck(rollup, relaxed))
+    if (!rollup.green) lines.push(...renderCheck(rollup, relaxed))
 
   return lines
 }
 
-/** How many distinct reasons a closing line names before it stops listing them. */
-const MAX_SKIP_REASONS = 3
+/** How many skip notes a closing line names before it stops listing them. */
+const MAX_SKIP_NOTES = 3
 
-/**
- * The closing line for a run that graded nothing at all.
- *
- * It carries no count of what was verified, in either direction: `10/10` was the
- * defect and `0/0` is the same sentence in a quieter font. What it carries
- * instead is the number of networks that offered nothing and what each of them
- * said, because that is the fact a signer needs — a proposal can be pending on a
- * network this run had nothing to do on.
- */
 function renderNothingToReview(rollups: ICheckRollup[]): string {
-  const skipped = rollups
-    .flatMap((rollup) => rollup.results)
-    .filter((result) => result.status === 'not-applicable')
-  const networks = new Set(skipped.map((result) => result.network))
-  const reasons = [...new Set(skipped.map((result) => clean(result.actual)))]
-  const shown = reasons.slice(0, MAX_SKIP_REASONS)
-  const elided = reasons.length - shown.length
+  const notes = [
+    ...new Set(
+      rollups
+        .flatMap((rollup) => rollup.results)
+        .filter((result) => result.status === 'not-applicable')
+        .map((result) => clean(result.actual))
+    ),
+  ]
+  const shown = notes.slice(0, MAX_SKIP_NOTES)
+  const elided = notes.length - shown.length
 
   return color(
     YELLOW,
     `VERDICT: NOTHING TO REVIEW — nothing was graded, so nothing was verified · ${plural(
-      networks.size,
+      skippedNetworks(rollups).size,
       'network'
     )} had nothing to grade · ${shown.join(' · ')}${
       elided > 0 ? ` · +${elided} more` : ''
@@ -283,12 +302,11 @@ function renderVerdict(
 ): string {
   const passed = rollups.reduce((sum, rollup) => sum + rollup.passed, 0)
   const graded = rollups.reduce((sum, rollup) => sum + rollup.graded, 0)
-  const notApplicable = rollups.reduce(
-    (sum, rollup) => sum + rollup.notApplicable,
-    0
-  )
+  const notApplicable = skippedNetworks(rollups).size
   const skippedNote =
-    notApplicable > 0 ? ` · ${notApplicable} not applicable` : ''
+    notApplicable > 0
+      ? ` · ${plural(notApplicable, 'network')} not applicable`
+      : ''
   // Carried by every verdict: the run that verified 56 of 57 is the one whose
   // denominator has to be visible — and the skipped count travels with it, so a
   // denominator smaller than the declared network set always says why.
@@ -324,9 +342,6 @@ function renderVerdict(
       )} awaiting review${relaxedNote} · ${coverage}`
     )
 
-  // After the two verdicts that carry a finding, never before them: both rest
-  // on a graded result, so neither can coexist with this branch — and ordering
-  // it last of the three is what makes that structural rather than argued.
   if (verdict.nothingGraded) return renderNothingToReview(rollups)
 
   if (verdict.relaxed.length > 0)
@@ -338,11 +353,25 @@ function renderVerdict(
       )} · ${coverage}`
     )
 
+  const green = rollups.filter((rollup) => rollup.green).length
+
+  // Nothing blocks and nothing is owed, but a check that graded nothing is not
+  // a green check: `passed === graded` is measured over the graded networks
+  // alone, so it cannot see one whose networks all dropped out of it.
+  if (green < rollups.length)
+    return color(
+      YELLOW,
+      `VERDICT: COVERAGE INCOMPLETE — ${green}/${
+        rollups.length
+      } checks green, ${plural(
+        rollups.filter((rollup) => rollup.graded === 0).length,
+        'check'
+      )} graded nothing · ${coverage}`
+    )
+
   return color(
     GREEN,
-    `VERDICT: ALL CHECKS GREEN — ${
-      rollups.filter((rollup) => rollup.green).length
-    }/${rollups.length} checks, ${coverage}`
+    `VERDICT: ALL CHECKS GREEN — ${green}/${rollups.length} checks, ${coverage}`
   )
 }
 
