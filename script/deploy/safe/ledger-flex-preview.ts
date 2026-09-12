@@ -492,6 +492,31 @@ export const HASH_COMPARE_CHARS = 8
 // must actually read carry a colour no other field can be confused with.
 const COMPARE = `${ESC}[1;33m`
 
+/**
+ * The full hash with the two compared runs in the filmstrip's own colour.
+ *
+ * Printed wherever the hash is shown outside the filmstrip, so the characters
+ * that matter are the same characters everywhere the signer meets them — a hash
+ * shown flat somewhere else is an invitation to compare all 64 or none.
+ *
+ * @param hash - The hash as `0x` plus hex.
+ * @returns The hash, coloured; unchanged when it is too short to have two runs.
+ */
+export const highlightHashRuns = (hash: string): string => {
+  const hex = hash.slice(2)
+  if (hex.length <= HASH_COMPARE_CHARS * 2) return hash
+  return [
+    '0x',
+    COMPARE,
+    hex.slice(0, HASH_COMPARE_CHARS),
+    RESET,
+    hex.slice(HASH_COMPARE_CHARS, -HASH_COMPARE_CHARS),
+    COMPARE,
+    hex.slice(-HASH_COMPARE_CHARS),
+    RESET,
+  ].join('')
+}
+
 /** Caveat to print BELOW the hash filmstrip. */
 export const LEDGER_FLEX_HASH_NOTE = [
   `${RED}⚠ The device may wrap the hash differently — compare the characters, not the line breaks.${RESET}`,
@@ -650,15 +675,8 @@ const compareColumn = (hash: string, height: number): string[] => {
     `  first 8   ${COMPARE}${runs[0]}${RESET}`,
     `  last 8    ${COMPARE}${runs[1]}${RESET}`,
     '',
-    `${BOLD}Match them against the hash${RESET}`,
-    `${BOLD}the proposer sent you${RESET}`,
-    `${BOLD}directly — Slack DM, Signal,${RESET}`,
-    `${BOLD}in person. Not this screen.${RESET}`,
-    '',
-    `8 from each end, not 4: whoever`,
-    `wrote the payload could build`,
-    `another transaction that starts`,
-    `and ends the same way.`,
+    `${BOLD}against the hash the proposer${RESET}`,
+    `${BOLD}sent you directly.${RESET}`,
   ].map((line) => `   ${line}`)
 
   const slack = Math.max(0, height - lines.length)

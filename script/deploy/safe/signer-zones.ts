@@ -17,6 +17,7 @@ import {
   INTEGRITY_CHECK_DEFINITIONS,
   type IIntegrityAssertRun,
 } from './confirm-integrity-asserts'
+import { highlightHashRuns } from './ledger-flex-preview'
 import type { IBucketedResult, ITodo } from './signer-view'
 
 /**
@@ -157,12 +158,15 @@ export interface ISignerTodoInput {
   devicePanelNote?: string
 }
 
+/**
+ * Why the stored hash is not the thing to compare against is stated, once,
+ * because a signer looking at a row that shows both will otherwise compare the
+ * two values in front of them. The 2^32 arithmetic behind eight-and-eight is
+ * not: it justifies a constant nobody on this screen can change.
+ */
 const HASH_AUTHORITY = [
-  'The authority is the hash in the out-of-band message from the proposer —',
-  'not the hash stored on the proposal row, which the proposer controls',
-  'alongside the calldata.',
-  'Compare 16 characters, 8 from each end: four-and-four is grindable by',
-  'whoever wrote the payload.',
+  'Compare against the hash the proposer sent you directly — not against the',
+  'hash stored on this row, which the proposer also wrote.',
 ]
 
 /**
@@ -175,7 +179,7 @@ const HASH_AUTHORITY = [
 export const signerTodos = (input: ISignerTodoInput): ITodo[] => {
   const hashLines = input.deviceHash
     ? [
-        `Your device will show  [36m${input.deviceHash}[0m`,
+        `Your device will show  ${highlightHashRuns(input.deviceHash)}`,
         ...(input.storedHash === 'disagrees'
           ? [
               '[33m⚠ the hash stored on this proposal is not the hash the Safe computes from it[0m',

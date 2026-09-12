@@ -831,15 +831,18 @@ const processTxs = async (
       provenance: tx.provenance,
     })
 
-    consola.log(zoneHeading(1, 'WHAT YOU ARE BEING ASKED TO SIGN').join('\n'))
-    consola.info(detailLines.join('\n'))
+    consola.log(detailLines.join('\n'))
     for (const line of renderDelegateCallGate(operationVerdict))
-      consola.info(line)
+      consola.log(line)
 
     if (tx.safeTx.data?.data)
       await formatDecodedTxDataForDisplay(tx.safeTx.data.data as Hex, {
         chainId: chain.id,
         network,
+        // The block prints through consola's own prefix, so its lines start two
+        // columns right of the fields above; the indent puts them back in one
+        // column with the rest of the zone.
+        indent: '  ',
       })
 
     let targetState: ITargetStateVerdict
@@ -1232,10 +1235,10 @@ const processTxs = async (
     // Per-finding detail under the row that reduced them: the ledger holds one
     // verdict per proposal, and a cut installing several facets has one line
     // per element to show.
-    for (const line of formatTargetStateLines(targetState)) consola.info(line)
-    codehashLines.forEach((line) => consola.info(line))
+    for (const line of formatTargetStateLines(targetState)) consola.log(line)
+    codehashLines.forEach((line) => consola.log(line))
     // Carries no ledger row, so it has no grouped row to print under.
-    calldataAddressLines.forEach((line) => consola.info(line))
+    calldataAddressLines.forEach((line) => consola.log(line))
 
     consola.log(zoneHeading(3, 'WHAT ONLY YOU CAN DO').join('\n'))
     consola.log(
