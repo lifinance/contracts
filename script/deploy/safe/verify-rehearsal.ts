@@ -121,28 +121,37 @@ async function openReadOnlyProposalStore(): Promise<{
 const UNRESOLVABLE_FACET = 'deadbeef'.repeat(5)
 
 /**
+ * A cut's facet address is only a usable needle if it is distinctive.
+ *
+ * A `Remove` action carries the zero address, whose hex is forty zeroes — a run
+ * that occurs in almost every word of ABI padding, in a timelock `predecessor`,
+ * and in every array offset. Substituting it rewrites the whole payload rather
+ * than the field being aimed at, and the gate then refuses because nothing
+ * decodes: a pass the probe did not earn.
+ */
+const isUsableNeedle = (address: string): boolean =>
+  !/^0+$/.test(address) && !/^f+$/i.test(address)
+
+/**
  * Damages the field the gate actually grades: a cut's facet address.
  *
- * An earlier version overwrote the first 32-byte argument word. For a direct
- * `diamondCut` that is the array offset, so the decode failed and the chain
- * refused — but for the timelock-wrapped `schedule` that most production
- * rollouts use, that word is `target`, and the inner cut bytes were left
- * untouched. The gate then graded the corrupted payload byte-identically and
- * the probe reported a survivor on every wrapped proposal: a red about the
- * mutation rather than about the chain.
- *
- * Substituting the address wherever it appears reaches the inner cut at any
- * nesting depth without this module having to know the wrapper's shape.
+ * Substituting the address reaches the inner cut at any nesting depth without
+ * this module knowing the wrapper's shape: a timelock `schedule` and a direct
+ * `diamondCut` are damaged alike. It rewrites the address anywhere else it
+ * appears too — the `schedule` target included — so a refusal establishes that
+ * the chain noticed the change, not which field it noticed.
  *
  * @param calldata - the proposal payload
- * @returns the payload with every cut's facet address replaced, or a payload
- * whose leading word is damaged when no cut could be found to aim at
+ * @returns the payload with every usable facet address replaced, or one whose
+ * leading word is damaged when no cut offered a needle to aim at
  */
 const corruptCalldata = (calldata: Hex): Hex => {
   const collected = collectDiamondCutCalls([calldata])
-  const addresses = collected.calls.flatMap((call) =>
-    call.cuts.map((cut) => cut.facetAddress.slice(2).toLowerCase())
-  )
+  const addresses = collected.calls
+    .flatMap((call) =>
+      call.cuts.map((cut) => cut.facetAddress.slice(2).toLowerCase())
+    )
+    .filter(isUsableNeedle)
 
   if (addresses.length === 0)
     return (
@@ -404,7 +413,7 @@ const main = defineCommand({
           failed = true
           const survivors = survivedCorruption(first, corrupted)
           consola.error(
-            `Corruption probe: the chain reached the same verdict on ${survivors.length} row(s) before and after their facet address was replaced`
+            `Corruption probe: ${survivors.length} row(s) did not refuse after their calldata was damaged`
           )
           for (const slot of survivors.slice(0, 10))
             consola.error(`  survived: ${slot}`)

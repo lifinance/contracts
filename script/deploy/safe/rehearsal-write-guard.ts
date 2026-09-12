@@ -81,19 +81,25 @@ const isDerivedHandle = (value: unknown): value is object =>
   typeof (value as { then?: unknown }).then !== 'function'
 
 /**
- * Seals what a permitted read hands back.
+ * The cursor members a read legitimately needs.
  *
- * The allow-list stops at the collection boundary, but a `FindCursor` carries
- * `.client` and a `ListIndexesCursor` carries `.parent` — the raw collection
- * itself — so a read the seal permits re-exports the whole write surface one
- * hop later. Chained calls are sealed too, because `sort()` returns the cursor.
- *
- * Allow-listed by name for the same reason the collection is. "Every function
- * is a read" was false: `AbstractCursor._initialize` resolves to an object
- * carrying a live `Server`, whose `command()` runs an arbitrary command — and a
- * resolved promise is handed back unsealed so the documents a read was for stay
- * readable.
+ * Allow-listed by name for the same reason the collection is, and not "every
+ * function": `AbstractCursor._initialize` resolves to an object carrying a live
+ * `Server`, whose `command()` runs an arbitrary command. A resolved promise is
+ * handed back unsealed, so the documents a read was for stay readable.
  */
+const PERMITTED_CURSOR_SYMBOLS: ReadonlySet<symbol> = new Set(
+  [
+    Symbol.asyncIterator,
+    Symbol.iterator,
+    // `using` / `await using` disposal, looked up rather than named: the
+    // well-known symbols are absent from this project's TS lib target, and
+    // refusing them would turn leaving a scope into a write refusal.
+    (Symbol as unknown as Record<string, symbol | undefined>).asyncDispose,
+    (Symbol as unknown as Record<string, symbol | undefined>).dispose,
+  ].filter((symbol): symbol is symbol => symbol !== undefined)
+)
+
 const PERMITTED_CURSOR_METHODS: ReadonlySet<string> = new Set([
   'toArray',
   'next',
@@ -117,7 +123,6 @@ const PERMITTED_CURSOR_METHODS: ReadonlySet<string> = new Set([
   'rewind',
   'close',
   'explain',
-  'stream',
   'count',
   'allowDiskUse',
   'withReadConcern',
@@ -147,10 +152,11 @@ const sealDerivedHandle = <T extends object>(handle: T): T =>
       if (value === undefined || value === null) return value
 
       if (typeof value === 'function') {
-        if (
-          typeof property !== 'string' ||
-          !PERMITTED_CURSOR_METHODS.has(property)
-        )
+        const permitted =
+          typeof property === 'string'
+            ? PERMITTED_CURSOR_METHODS.has(property)
+            : PERMITTED_CURSOR_SYMBOLS.has(property)
+        if (!permitted)
           return () => {
             throw new RehearsalWriteRefusedError(String(property))
           }
@@ -173,9 +179,22 @@ const sealDerivedHandle = <T extends object>(handle: T): T =>
       redactingDescriptor(handle, property),
     ownKeys: () => Reflect.ownKeys(handle),
     has: (_target, property) => Reflect.has(handle, property),
+    preventExtensions: refuseExtensionChange,
   })
 
 const DERIVED_LABEL = '[read-only sealed handle]'
+
+/**
+ * Refuses `Object.freeze` / `Object.seal` in this module's own terms.
+ *
+ * Both make the proxy's empty target non-extensible, after which `ownKeys`
+ * reporting the source's keys violates an invariant and the engine raises an
+ * opaque `TypeError` about the trap — which reads as a bug in the harness
+ * rather than as a refusal.
+ */
+const refuseExtensionChange = (): never => {
+  throw new RehearsalWriteRefusedError('preventExtensions')
+}
 
 /**
  * Hands back a descriptor whose object value is replaced by a refusing stub.
@@ -193,19 +212,23 @@ const redactingDescriptor = (
   const descriptor = Reflect.getOwnPropertyDescriptor(source, property)
   if (!descriptor) return undefined
 
+  const refuse = (): never => {
+    throw new RehearsalWriteRefusedError(String(property))
+  }
+
   // `configurable` is forced because the proxy's target is an empty object:
   // reporting a non-configurable property the target does not have violates a
   // proxy invariant and throws a TypeError instead of refusing.
-  if (typeof descriptor.value !== 'object' || !descriptor.value)
-    return { ...descriptor, configurable: true }
+  const base = { ...descriptor, configurable: true }
 
-  return {
-    ...descriptor,
-    configurable: true,
-    value: () => {
-      throw new RehearsalWriteRefusedError(String(property))
-    },
-  }
+  // An accessor has no `value`, so a data-only check hands its raw getter back
+  // and the `get` trap's refusal is one descriptor read from being bypassed.
+  if (descriptor.get || descriptor.set)
+    return { ...base, get: refuse, set: refuse }
+
+  if (typeof descriptor.value !== 'object' || !descriptor.value) return base
+
+  return { ...base, value: refuse }
 }
 
 export const sealCollectionReadOnly = <T extends object>(collection: T): T => {
@@ -253,6 +276,7 @@ export const sealCollectionReadOnly = <T extends object>(collection: T): T => {
       redactingDescriptor(collection, property),
     ownKeys: () => Reflect.ownKeys(collection),
     has: (_target, property) => Reflect.has(collection, property),
+    preventExtensions: refuseExtensionChange,
   })
   SEALED_HANDLES.add(sealed)
   return sealed
@@ -307,10 +331,10 @@ const CANARY_WRITE_METHODS: readonly string[] = [
  * The non-function properties a driver `Collection` carries that lead back to a
  * write handle.
  *
- * Probed alongside the methods because the seal's first version refused only
- * callables and handed `client` back untouched — a live `MongoClient`, from
- * which an unsealed collection is one call away. A proof that covers only the
- * methods would have passed that version.
+ * Probed alongside the methods because a seal that refuses only callables hands
+ * `client` back untouched — a live `MongoClient`, from which an unsealed
+ * collection is one call away. A proof covering only methods would pass such a
+ * seal.
  */
 const CANARY_ESCAPE_PROPERTIES: readonly string[] = ['client', 's']
 

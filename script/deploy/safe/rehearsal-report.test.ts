@@ -244,3 +244,24 @@ describe('renderSignerWorkload', () => {
     expect(rendered).toContain('EcoFacet: matches-main')
   })
 })
+
+describe('checkGradingAnchors, on a cache that parses but holds nothing usable', () => {
+  const anchorFor = (contents: string) => {
+    const root = mkdtempSync(join(tmpdir(), 'rehearsal-anchor-'))
+    mkdirSync(join(root, '.cache'), { recursive: true })
+    writeFileSync(join(root, '.cache', 'deployments_production.json'), contents)
+    return checkGradingAnchors(root).find((anchor) =>
+      anchor.path.includes('deployments_production.json')
+    )
+  }
+
+  it('reports an empty array as missing', () => {
+    // What a refresh that returned nothing writes, and it produces exactly the
+    // contract-unidentified-everywhere run the anchor exists to catch.
+    expect(anchorFor('[]')?.present).toBe(false)
+  })
+
+  it('reports an array of the wrong shape as missing', () => {
+    expect(anchorFor('[1,2,3]')?.present).toBe(false)
+  })
+})

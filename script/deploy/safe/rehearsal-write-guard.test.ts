@@ -392,3 +392,46 @@ describe('sealCollectionReadOnly, on a cursor a permitted read returns', () => {
     expect(await sealed.find().toArray()).toHaveLength(2)
   })
 })
+
+describe('sealCollectionReadOnly, on the descriptor and extensibility paths', () => {
+  it('redacts an accessor descriptor, not only a data one', () => {
+    const source = {}
+    Object.defineProperty(source, 'client', {
+      configurable: true,
+      enumerable: true,
+      get: () => ({ db: () => 'unsealed' }),
+    })
+
+    const descriptor = Object.getOwnPropertyDescriptor(
+      sealCollectionReadOnly(source),
+      'client'
+    )
+
+    expect(() => descriptor?.get?.()).toThrow(RehearsalWriteRefusedError)
+  })
+
+  it('refuses to be frozen rather than raising an opaque proxy error', () => {
+    const sealed = sealCollectionReadOnly({ client: { id: 1 } })
+
+    expect(() => Object.freeze(sealed)).toThrow(RehearsalWriteRefusedError)
+  })
+})
+
+describe('sealCollectionReadOnly, on a cursor iterated with for await', () => {
+  it('does not report a read as a write refusal', async () => {
+    const docs = [{ _id: 1 }, { _id: 2 }]
+    const sealed = sealCollectionReadOnly({
+      find: () => ({
+        toArray: () => Promise.resolve(docs),
+        async *[Symbol.asyncIterator]() {
+          for (const doc of docs) yield doc
+        },
+      }),
+    }) as unknown as { find: () => AsyncIterable<unknown> }
+
+    const seen: unknown[] = []
+    for await (const doc of sealed.find()) seen.push(doc)
+
+    expect(seen).toHaveLength(2)
+  })
+})

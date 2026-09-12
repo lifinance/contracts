@@ -345,14 +345,16 @@ const gradedPopulation = (
 }
 
 /**
- * The rows the chain graded the same way before and after corruption.
+ * The rows that did not refuse once their calldata was damaged.
  *
- * Reported rather than merely counted: these are proposals whose damaged bytes
- * changed no verdict, which is the finding the probe exists to produce.
+ * Reported rather than merely counted: these are proposals the chain still let
+ * through after the bytes changed, which is the finding the probe exists to
+ * produce. A row whose verdict merely shifted without refusing counts here too
+ * — the question is whether the chain stopped, not whether it noticed.
  *
  * @param baseline - the pass over undamaged input
  * @param corrupted - the pass over deliberately damaged input
- * @returns the slots that survived corruption ungraded
+ * @returns the slots that failed to refuse
  */
 export const survivedCorruption = (
   baseline: readonly IRehearsalPassEntry[],

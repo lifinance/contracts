@@ -281,7 +281,20 @@ export const renderSignerWorkload = (workload: ISignerWorkload): string => {
 const holdsDeploymentRecords = (cachePath: string): boolean => {
   if (!existsSync(cachePath)) return false
   try {
-    return Array.isArray(JSON.parse(readFileSync(cachePath, 'utf8')))
+    const records: unknown = JSON.parse(readFileSync(cachePath, 'utf8'))
+    // An empty array is the realistic bad case — it is what a refresh that
+    // returned nothing writes, and it resolves exactly as many addresses as a
+    // missing file does. The shape check catches the rest.
+    return (
+      Array.isArray(records) &&
+      records.length > 0 &&
+      records.every(
+        (record) =>
+          typeof record === 'object' &&
+          record !== null &&
+          typeof (record as { address?: unknown }).address === 'string'
+      )
+    )
   } catch {
     return false
   }
