@@ -119,6 +119,15 @@ export interface IOpaquePayload {
   target: string
   /** Bytes of calldata. Zero means a plain value transfer. */
   calldataLength: number
+  /**
+   * The account the target sees as `msg.sender`, when it is not the Safe.
+   *
+   * Present on anything reached by opening a timelock envelope: that call is
+   * sent by the timelock once the delay expires, and an owner-gated function
+   * simulated from the Safe reverts for a reason the proposal is not
+   * responsible for.
+   */
+  caller?: string
 }
 
 export type TSimulatedPayload = IDiamondCutPayload | IOpaquePayload

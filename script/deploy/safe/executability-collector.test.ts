@@ -14,6 +14,7 @@ import {
 } from 'bun:test'
 import {
   encodeFunctionData,
+  parseAbi,
   type Address,
   type Hex,
   type PublicClient,
@@ -37,6 +38,9 @@ const DIAMOND = '0x3333333333333333333333333333333333333333' as Address
 const TIMELOCK = '0x4444444444444444444444444444444444444444' as Address
 const FACET = '0x1111111111111111111111111111111111111111' as Address
 const SELECTOR = '0xaabbccdd' as Hex
+const REGISTER_ABI = parseAbi([
+  'function registerPeripheryContract(string _name, address _contractAddress)',
+])
 
 const cut = (action = 0): Hex =>
   encodeFunctionData({
@@ -104,12 +108,77 @@ describe('collectExecutabilityInput', () => {
     )
 
     expect(input.staticCalls.attempted).toBe(true)
-    expect(chain.calls).toHaveLength(1)
     expect(chain.calls[0]?.from).toBe(TIMELOCK)
     expect(chain.calls[0]?.to).toBe(DIAMOND)
     // The cut's own bytes, not the scheduling envelope: replaying the envelope
     // would only prove the proposal can be queued.
     expect(chain.calls[0]?.data).toBe(inner)
+
+    // …and the envelope is simulated too, from the Safe. `schedule` can be
+    // refused on its own — an operation already queued, a Safe without the
+    // proposer role — while the call inside it would have executed.
+    expect(chain.calls).toHaveLength(2)
+    expect(chain.calls[1]?.from).toBe(SAFE)
+    expect(chain.calls[1]?.to).toBe(TIMELOCK)
+  })
+
+  // The point of the whole check: an owner-gated call scheduled through the
+  // timelock must be simulated as the timelock. Simulated as the Safe it
+  // reverts on the ownership check, and simulating only the envelope proves
+  // nothing at all — `schedule` succeeds whatever it carries.
+  it('simulates a timelock-wrapped non-cut call from the timelock', async () => {
+    const inner = encodeFunctionData({
+      abi: REGISTER_ABI,
+      functionName: 'registerPeripheryContract',
+      args: ['FeeCollector', FACET],
+    })
+    const chain = reader()
+
+    await collectExecutabilityInput(
+      {
+        network: 'arbitrum',
+        safeAddress: SAFE,
+        to: TIMELOCK,
+        data: scheduleBatch([DIAMOND], [inner]),
+      },
+      chain
+    )
+
+    const scheduled = chain.calls.find((call) => call.data === inner)
+    expect(scheduled).toBeDefined()
+    expect(scheduled?.from).toBe(TIMELOCK)
+    expect(scheduled?.to).toBe(DIAMOND)
+  })
+
+  it('reports a reverting scheduled call as the proposal not executing', async () => {
+    const inner = encodeFunctionData({
+      abi: REGISTER_ABI,
+      functionName: 'registerPeripheryContract',
+      args: ['FeeCollector', FACET],
+    })
+    const chain = reader({
+      staticCall: async (call) => {
+        return call.data === inner
+          ? { outcome: 'reverted' as const, revertReason: 'OnlyContractOwner' }
+          : { outcome: 'succeeded' as const }
+      },
+    })
+    const verdict = evaluateExecutability(
+      await collectExecutabilityInput(
+        {
+          network: 'arbitrum',
+          safeAddress: SAFE,
+          to: TIMELOCK,
+          data: scheduleBatch([DIAMOND], [inner]),
+        },
+        chain
+      )
+    )
+
+    // Before the leaf was unwrapped this proposal came back clean: the only
+    // thing simulated was `scheduleBatch`, which succeeds whatever it carries.
+    expect(verdict.refuses).toBe(true)
+    expect(verdict.reason).toContain('scheduled')
   })
 
   it('simulates a direct cut from the Safe', async () => {
@@ -285,7 +354,9 @@ describe('collectExecutabilityInput', () => {
       chain
     )
 
-    expect(input.payloads).toHaveLength(2)
+    expect(
+      input.payloads.filter((payload) => payload.kind === 'diamond-cut')
+    ).toHaveLength(2)
     expect(input.observations.selectorFacets.size).toBe(0)
   })
 
@@ -372,6 +443,28 @@ describe('createExecutabilityChainReader', () => {
       throw new Error('rpc down')
     },
   } as unknown as PublicClient
+
+  // Asserted against what viem is actually handed, not against what the
+  // collector passed in. viem names the sender `account`; a `from` key compiles
+  // — the argument is a variable, so excess-property checking never sees it —
+  // and is then dropped, so every payload simulated as the zero address and
+  // every owner-gated call reverted on its ownership check whatever the
+  // proposal did. The fake reader the tests above use records whatever it is
+  // given, so it cannot see this: only the real client's parameter name can.
+  it('hands viem the sender under the name viem reads', async () => {
+    const seen: Record<string, unknown>[] = []
+    const reader = createExecutabilityChainReader({
+      call: async (params: Record<string, unknown>) => {
+        seen.push(params)
+        return {}
+      },
+    } as unknown as PublicClient)
+
+    await reader.staticCall({ from: TIMELOCK, to: DIAMOND, data: cut() })
+
+    expect(seen[0]?.['account']).toBe(TIMELOCK)
+    expect(seen[0]?.['from']).toBeUndefined()
+  })
 
   it('reports a failed read as unanswered rather than throwing', async () => {
     const reader = createExecutabilityChainReader(failing)
