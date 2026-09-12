@@ -149,6 +149,7 @@ export const integrityResults = (
 export const signerChecks = (input: {
   results: readonly ICheckResult[]
   notApplicable?: ReadonlyMap<string, string>
+  notes?: ReadonlyMap<string, readonly string[]>
   definitions: ReadonlyMap<string, ICheckDefinition>
 }): IBucketedResult[] => {
   const rows: IBucketedResult[] = input.results.map((result) => ({
@@ -159,6 +160,9 @@ export const signerChecks = (input: {
       : {}),
     ...(VIEW_SHORT_TITLES.get(result.checkId)
       ? { shortTitle: VIEW_SHORT_TITLES.get(result.checkId) }
+      : {}),
+    ...(input.notes?.get(result.checkId)
+      ? { notes: input.notes.get(result.checkId) }
       : {}),
   }))
 
@@ -174,6 +178,9 @@ export const signerChecks = (input: {
       rows.push({
         definition: input.definitions.get(checkId),
         notApplicable: reason,
+        ...(input.notes?.get(checkId)
+          ? { notes: input.notes.get(checkId) }
+          : {}),
         result: {
           checkId,
           network: '',
