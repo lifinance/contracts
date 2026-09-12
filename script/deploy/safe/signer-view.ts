@@ -243,6 +243,14 @@ export interface IBucketedResult {
    * assertion is the point.
    */
   shortTitle?: string
+  /**
+   * Lines printed under this check, already indented by whoever produced them.
+   *
+   * Where a check states what it compared against — the ref a target state was
+   * read from, say. That provenance belongs to the check, not to the verdict,
+   * so it survives the check landing in the collapsed PASSED run.
+   */
+  notes?: readonly string[]
 }
 
 /**
@@ -299,15 +307,23 @@ export const renderCheckGroups = (
         } else line = next
       }
       flush()
+      out.push(...entries.flatMap((e) => e.notes ?? []))
       continue
     }
 
-    for (const { result, definition, notApplicable, docUrl } of entries) {
+    for (const {
+      result,
+      definition,
+      notApplicable,
+      docUrl,
+      notes,
+    } of entries) {
       const title = definition?.title ?? result.checkId
       if (notApplicable) {
         out.push(
           `    ${style.colour}${style.glyph} ${title} — ${notApplicable}${RESET}`
         )
+        out.push(...(notes ?? []))
         continue
       }
       out.push(
@@ -326,6 +342,7 @@ export const renderCheckGroups = (
             (line) => `${BLUE}${line}${RESET}`
           )
         )
+      out.push(...(notes ?? []))
     }
   }
   return out

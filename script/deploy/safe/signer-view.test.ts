@@ -324,3 +324,32 @@ describe('a check with a write-up to point at', () => {
     expect(withoutLink).not.toContain('https://')
   })
 })
+
+describe('check notes', () => {
+  it('keeps a passed check’s note when its title is collapsed away', () => {
+    const plain = renderCheckGroups([
+      entry('target-state', 'pass', {
+        shortTitle: 'Facet version',
+        notes: ['    Expected state:  read from origin/main'],
+      }),
+    ])
+      .map(stripAnsi)
+      .join('\n')
+
+    expect(plain).toContain('Facet version')
+    expect(plain).toContain('Expected state:  read from origin/main')
+  })
+
+  it('prints a note under the check it belongs to', () => {
+    const plain = renderCheckGroups([
+      entry('target-state', 'fail', { notes: ['    read from origin/main'] }),
+    ])
+      .map(stripAnsi)
+      .join('\n')
+    const lines = plain.split('\n')
+
+    expect(lines.indexOf('    read from origin/main')).toBeGreaterThan(
+      lines.findIndex((l) => l.includes('title for target-state'))
+    )
+  })
+})
