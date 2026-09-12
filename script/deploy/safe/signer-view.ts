@@ -24,6 +24,9 @@ const BLUE = `${ESC}[36m`
 /** Terminal columns the zones are drawn to. */
 export const VIEW_WIDTH = 76
 
+/** Where a check's value column starts, and so where an observation panel sits. */
+const OBSERVED_INDENT = ' '.repeat(8)
+
 /**
  * What a signer is being asked to do about a result.
  *
@@ -251,6 +254,15 @@ export interface IBucketedResult {
    * so it survives the check landing in the collapsed PASSED run.
    */
   notes?: readonly string[]
+  /**
+   * The observation as its own block, replacing the `observed` line.
+   *
+   * For a check whose answer is structured — one section per simulated call,
+   * say — where flattening it to a single wrapped value is what made it
+   * unreadable. Indented here and otherwise emitted verbatim, so the producer
+   * keeps its own blank lines and colour.
+   */
+  observedLines?: readonly string[]
 }
 
 /**
@@ -284,11 +296,19 @@ export const renderCheckGroups = (
     out.push('')
     out.push(`  ${style.colour}${BOLD}${style.heading}${RESET}`)
 
-    if (bucket === 'passed') {
+    // A row whose observation is a panel cannot survive being reduced to a
+    // title in a run, so it keeps its full block wherever it lands.
+    const collapsible =
+      bucket === 'passed'
+        ? entries.filter((e) => !e.observedLines)
+        : ([] as IBucketedResult[])
+    const expanded = entries.filter((e) => !collapsible.includes(e))
+
+    if (collapsible.length) {
       // Wrapped rather than one long line: a green run that overflows the
       // terminal breaks at an arbitrary column and stops reading as one item
       // per separator, which is all this collapsed form has to convey.
-      const titles = entries.map(
+      const titles = collapsible.map(
         (e) => e.shortTitle ?? e.definition?.title ?? e.result.checkId
       )
       const indent = '    '
@@ -307,8 +327,7 @@ export const renderCheckGroups = (
         } else line = next
       }
       flush()
-      out.push(...entries.flatMap((e) => e.notes ?? []))
-      continue
+      out.push(...collapsible.flatMap((e) => e.notes ?? []))
     }
 
     for (const {
@@ -317,7 +336,8 @@ export const renderCheckGroups = (
       notApplicable,
       docUrl,
       notes,
-    } of entries) {
+      observedLines,
+    } of expanded) {
       const title = definition?.title ?? result.checkId
       if (notApplicable) {
         out.push(
@@ -335,7 +355,13 @@ export const renderCheckGroups = (
         }`
       )
       out.push(...wrapValue('expected  ', result.expected))
-      out.push(...wrapValue('observed  ', result.actual))
+      if (observedLines)
+        out.push(
+          ...observedLines.map((line) =>
+            line ? `${OBSERVED_INDENT}${line}` : ''
+          )
+        )
+      else out.push(...wrapValue('observed  ', result.actual))
       if (result.detail)
         out.push(
           ...wrapValue('→ ', result.detail).map(
