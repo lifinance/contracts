@@ -17,6 +17,16 @@ import {
 const ESC = String.fromCharCode(27)
 const stripAnsi = (s: string): string =>
   s.replace(new RegExp(`${ESC}\\[[0-9;]*m`, 'g'), '')
+const RED = `${ESC}[31m`
+const YELLOW = `${ESC}[33m`
+
+/**
+ * Where a check's values start: the eight-space block indent, the widest label
+ * the rows carry, and the two-space gap after it. Written out rather than
+ * imported, so a renderer that stops deriving the column from its labels fails
+ * here instead of moving the number it is checked against.
+ */
+const VALUE_COLUMN = 8 + 'expected'.length + 2
 
 const definition = (checkId: string, title: string): ICheckDefinition => ({
   checkId,
@@ -290,15 +300,124 @@ describe('a check value too wide for the view', () => {
     )
   })
 
-  it('keeps a word longer than the budget whole', () => {
+  it('keeps a hash whole, however badly it fits the column', () => {
+    const hash = `0x${'a'.repeat(64)}`
     const lines = renderCheckGroups([
       {
         definition: definition('x', 'A check'),
-        result: result('x', 'fail', { actual: `0x${'a'.repeat(200)}` }),
+        result: result('x', 'fail', { actual: `reverted at ${hash}` }),
       },
     ]).map(stripAnsi)
 
-    expect(lines.join('\n')).toContain(`0x${'a'.repeat(200)}`)
+    expect(lines.join('\n')).toContain(hash)
+  })
+
+  // A revert dump carries the payload viem was called with, and zone 1 already
+  // prints that payload in full: printed again here it buries the revert reason
+  // under several screens of hex.
+  it('elides a payload too long to read, and says how long it was', () => {
+    const payload = `0x${'ab'.repeat(600)}`
+    const lines = renderCheckGroups([
+      {
+        definition: definition('x', 'A check'),
+        result: result('x', 'fail', {
+          actual: `eth_call reverted, data: ${payload} Details: execution reverted`,
+        }),
+      },
+    ]).map(stripAnsi)
+    const joined = lines.join('\n')
+
+    for (const line of lines)
+      expect(line.length).toBeLessThanOrEqual(VIEW_WIDTH)
+    expect(joined).not.toContain(payload)
+    expect(joined).toContain(payload.slice(0, 20))
+    expect(joined).toContain(`${payload.length} chars`)
+    expect(joined.replace(/\s+/gu, ' ')).toContain(
+      'Details: execution reverted'
+    )
+  })
+})
+
+describe('a value that disagrees with its expectation', () => {
+  const lineWith = (entry: IBucketedResult, label: string): string =>
+    renderCheckGroups([entry]).find((line) =>
+      stripAnsi(line).includes(label)
+    ) ?? ''
+
+  it('paints the observed value red, and leaves the expectation plain', () => {
+    const wrong = entry('INT-TIMELOCK-DELAY', 'fail')
+
+    expect(lineWith(wrong, 'observed')).toContain(`${RED}observed value`)
+    expect(lineWith(wrong, 'expected')).toBe(
+      stripAnsi(lineWith(wrong, 'expected'))
+    )
+  })
+
+  it('marks an acknowledgeable mismatch in its own colour, never in red', () => {
+    const line = lineWith(entry('target-state', 'needs-ack'), 'observed')
+
+    expect(line).toContain(`${YELLOW}observed value`)
+    expect(line).not.toContain(RED)
+  })
+
+  // `actual` on an unchecked row is why nothing could be read, not something
+  // read: colouring it as a mismatch blames the proposal for the environment.
+  it('leaves an unchecked row uncoloured, where a wrong one is coloured', () => {
+    const unchecked = lineWith(entry('rpc-quorum', 'error'), 'observed')
+    const wrong = lineWith(entry('rpc-quorum', 'fail'), 'observed')
+
+    expect(unchecked).toBe(stripAnsi(unchecked))
+    expect(wrong).not.toBe(stripAnsi(wrong))
+  })
+
+  it('marks nothing when the two values read the same', () => {
+    const same = lineWith(
+      {
+        definition: definition('x', 'A check'),
+        result: result('x', 'fail', {
+          expected: 'one value',
+          actual: 'one\nvalue',
+        }),
+      },
+      'observed'
+    )
+
+    expect(stripAnsi(same)).toContain('observed  one value')
+    expect(same).toBe(stripAnsi(same))
+  })
+})
+
+describe('the column a check prints its values in', () => {
+  const columnOf = (line: string, value: string): number =>
+    stripAnsi(line).indexOf(value)
+
+  it('is one column for every label, whatever the labels are', () => {
+    const lines = renderCheckGroups([entry('INT-SAFE-ADDRESS', 'fail')]).filter(
+      (line) => /expected|observed/u.test(stripAnsi(line))
+    )
+    const [expectedColumn, observedColumn] = [
+      columnOf(lines[0] ?? '', 'expected value'),
+      columnOf(lines[1] ?? '', 'observed value'),
+    ]
+
+    expect(lines).toHaveLength(2)
+    expect(expectedColumn).toBe(observedColumn)
+    expect(expectedColumn).toBe(VALUE_COLUMN)
+  })
+
+  it('keeps a wrapped value in the same column as the line it continues', () => {
+    const lines = renderCheckGroups([
+      {
+        definition: definition('executability', 'Calldata simulation'),
+        result: result('executability', 'fail', {
+          actual: `${'word '.repeat(30)}tail`,
+        }),
+      },
+    ]).map(stripAnsi)
+    const continuation = lines.find((line) => line.trimEnd().endsWith('tail'))
+
+    expect(continuation).toBeDefined()
+    expect((continuation ?? '').search(/\S/u)).toBe(VALUE_COLUMN)
   })
 })
 
@@ -350,6 +469,23 @@ describe('check notes', () => {
 
     expect(lines.indexOf('    read from origin/main')).toBeGreaterThan(
       lines.findIndex((l) => l.includes('title for target-state'))
+    )
+  })
+})
+
+describe('a reason a check had nothing to do', () => {
+  it('wraps inside the view rather than running past the terminal', () => {
+    const lines = renderCheckGroups([
+      entry('codehash', 'pass', {
+        notApplicable:
+          'not run by this harness, which has no deployment record to read',
+      }),
+    ]).map(stripAnsi)
+
+    for (const line of lines)
+      expect(line.length).toBeLessThanOrEqual(VIEW_WIDTH)
+    expect(lines.join(' ').replace(/\s+/gu, ' ')).toContain(
+      'no deployment record to read'
     )
   })
 })

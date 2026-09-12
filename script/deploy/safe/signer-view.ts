@@ -184,6 +184,22 @@ export const renderFields = (fields: readonly IViewField[]): string[] => {
 }
 
 /**
+ * The longest word a signer could still read off the screen and compare: a
+ * bytes32 with its `0x`.
+ *
+ * Anything longer is a payload rather than a value. A viem revert dump carries
+ * the entire calldata it called with, and zone 1 already prints that calldata
+ * in full — printed again here it runs off every terminal and buries the revert
+ * reason, which is the one line on the row worth reading.
+ */
+const LONGEST_READABLE_WORD = 66
+
+const elideUnreadable = (word: string): string =>
+  word.length <= LONGEST_READABLE_WORD
+    ? word
+    : `${word.slice(0, 24)}…(${word.length} chars)`
+
+/**
  * One `expected`/`observed`/detail value, as lines that stay inside the view.
  *
  * These come from whatever check produced the row, and a simulator's revert
@@ -195,16 +211,25 @@ export const renderFields = (fields: readonly IViewField[]): string[] => {
  *
  * @param label - The leading label, printed once on the first line.
  * @param value - The value, with any internal line breaks.
+ * @param colour - Applied to the value on every line, never to the label.
+ * @param indent - The column the label starts in; values hang under it.
  * @returns Lines, already indented for the check block.
  */
-const wrapValue = (label: string, value: string): string[] => {
-  const indent = '        '
+const wrapValue = (
+  label: string,
+  value: string,
+  colour = '',
+  indent = '        '
+): string[] => {
   const hang = `${indent}${' '.repeat(label.length)}`
+  const paint = (text: string): string =>
+    colour ? `${colour}${text}${RESET}` : text
   const budget = Math.max(20, VIEW_WIDTH - hang.length)
   const out: string[] = []
   let line = ''
 
-  for (const word of value.split(/\s+/u).filter(Boolean)) {
+  for (const raw of value.split(/\s+/u).filter(Boolean)) {
+    const word = elideUnreadable(raw)
     const next = line ? `${line} ${word}` : word
     // A single word longer than the budget still goes on its own line: breaking
     // it would split an address or a hash into two unsearchable halves.
@@ -217,8 +242,53 @@ const wrapValue = (label: string, value: string): string[] => {
   if (out.length === 0) return [`${indent}${label}`]
 
   return out.map((text, position) =>
-    position === 0 ? `${indent}${label}${text}` : `${hang}${text}`
+    position === 0 ? `${indent}${label}${paint(text)}` : `${hang}${paint(text)}`
   )
+}
+
+/**
+ * The labels a check prints its values under, and the column they leave for the
+ * values themselves.
+ *
+ * Derived from the widest label rather than written into each one, because the
+ * only reason expected and observed are printed one above the other is that a
+ * signer compares them by reading down a single column — a label added here
+ * with a different width would silently step that column.
+ */
+const VALUE_LABELS = ['expected', 'observed'] as const
+const VALUE_LABEL_GAP = 2
+const valueLabel = (label: string): string =>
+  label.padEnd(
+    Math.max(...VALUE_LABELS.map((one) => one.length)) + VALUE_LABEL_GAP
+  )
+
+/**
+ * The colour the observed value carries when it disagrees with the expected one.
+ *
+ * Only where the disagreement is the proposal's. An unchecked row's `actual` is
+ * why nothing could be read, so a mismatch colour there tells the signer the
+ * transaction is wrong when their environment is. Red keeps the one meaning it
+ * has everywhere else in this view — do not sign — and a mismatch that can be
+ * acknowledged therefore takes its own bucket's colour rather than borrowing it.
+ */
+const MISMATCH_COLOUR: ReadonlyMap<CheckBucket, string> = new Map([
+  ['wrong', RED],
+  ['ack', YELLOW],
+])
+
+/**
+ * Values print folded to single spaces, so two that differ only in whitespace
+ * reach the signer as the same text. Marking one of them red sends a signer
+ * looking for a difference that is not on the screen.
+ *
+ * @param bucket - The bucket the row prints under.
+ * @param result - The result whose two values are being printed.
+ * @returns The colour for the observed value, or nothing.
+ */
+const mismatchColour = (bucket: CheckBucket, result: ICheckResult): string => {
+  const fold = (value: string): string => value.replace(/\s+/gu, ' ').trim()
+  if (fold(result.expected) === fold(result.actual)) return ''
+  return MISMATCH_COLOUR.get(bucket) ?? ''
 }
 
 export interface IBucketedResult {
@@ -321,7 +391,12 @@ export const renderCheckGroups = (
       const title = definition?.title ?? result.checkId
       if (notApplicable) {
         out.push(
-          `    ${style.colour}${style.glyph} ${title} — ${notApplicable}${RESET}`
+          ...wrapValue(
+            `${style.glyph} `,
+            `${title} — ${notApplicable}`,
+            '',
+            '    '
+          ).map((line) => `${style.colour}${line}${RESET}`)
         )
         out.push(...(notes ?? []))
         continue
@@ -334,8 +409,14 @@ export const renderCheckGroups = (
           docUrl ? ` ${BLUE}${docUrl}${RESET}` : ''
         }`
       )
-      out.push(...wrapValue('expected  ', result.expected))
-      out.push(...wrapValue('observed  ', result.actual))
+      out.push(...wrapValue(valueLabel('expected'), result.expected))
+      out.push(
+        ...wrapValue(
+          valueLabel('observed'),
+          result.actual,
+          mismatchColour(bucket, result)
+        )
+      )
       if (result.detail)
         out.push(
           ...wrapValue('→ ', result.detail).map(
