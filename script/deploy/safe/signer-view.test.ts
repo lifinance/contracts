@@ -353,3 +353,50 @@ describe('check notes', () => {
     )
   })
 })
+
+describe('observedLines', () => {
+  const panel = [
+    'Simulation: FAILED — 1 of 2 calls would revert',
+    '',
+    '  call[0]',
+  ]
+
+  it('replaces the observed value and keeps expected', () => {
+    const plain = renderCheckGroups([
+      entry('executability', 'fail', { observedLines: panel }),
+    ])
+      .map(stripAnsi)
+      .join('\n')
+
+    expect(plain).toContain('expected  expected value')
+    expect(plain).not.toContain('observed  observed value')
+    expect(plain).toContain(
+      '        Simulation: FAILED — 1 of 2 calls would revert'
+    )
+    expect(plain).toContain('          call[0]')
+  })
+
+  it('never collapses a panel row into the passed run', () => {
+    const lines = renderCheckGroups([
+      entry('INT-TARGET', 'pass', { shortTitle: 'Target address' }),
+      entry('executability', 'pass', {
+        shortTitle: 'Calldata simulation',
+        observedLines: panel,
+      }),
+    ]).map(stripAnsi)
+    const joined = lines.join('\n')
+
+    expect(joined).toContain('Target address')
+    expect(joined).not.toContain('Target address · Calldata simulation')
+    expect(joined).toContain('Simulation: FAILED')
+  })
+
+  it('leaves an empty panel line empty rather than indenting it', () => {
+    const plain = renderCheckGroups([
+      entry('executability', 'fail', { observedLines: panel }),
+    ]).map(stripAnsi)
+
+    expect(plain).toContain('')
+    expect(plain.some((l) => l.trim() === '' && l.length > 0)).toBe(false)
+  })
+})
