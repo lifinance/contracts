@@ -17,6 +17,7 @@ import {
   INTEGRITY_CHECK_DEFINITIONS,
   type IIntegrityAssertRun,
 } from './confirm-integrity-asserts'
+import { highlightHashRuns } from './ledger-flex-preview'
 import type { IBucketedResult, ITodo } from './signer-view'
 
 /**
@@ -178,7 +179,7 @@ const HASH_AUTHORITY = [
 export const signerTodos = (input: ISignerTodoInput): ITodo[] => {
   const hashLines = input.deviceHash
     ? [
-        `Your device will show  [36m${input.deviceHash}[0m`,
+        `Your device will show  ${highlightHashRuns(input.deviceHash)}`,
         ...(input.storedHash === 'disagrees'
           ? [
               '[33m⚠ the hash stored on this proposal is not the hash the Safe computes from it[0m',
