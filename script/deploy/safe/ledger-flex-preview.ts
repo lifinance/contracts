@@ -650,15 +650,8 @@ const compareColumn = (hash: string, height: number): string[] => {
     `  first 8   ${COMPARE}${runs[0]}${RESET}`,
     `  last 8    ${COMPARE}${runs[1]}${RESET}`,
     '',
-    `${BOLD}Match them against the hash${RESET}`,
-    `${BOLD}the proposer sent you${RESET}`,
-    `${BOLD}directly — Slack DM, Signal,${RESET}`,
-    `${BOLD}in person. Not this screen.${RESET}`,
-    '',
-    `8 from each end, not 4: whoever`,
-    `wrote the payload could build`,
-    `another transaction that starts`,
-    `and ends the same way.`,
+    `${BOLD}against the hash the proposer${RESET}`,
+    `${BOLD}sent you directly.${RESET}`,
   ].map((line) => `   ${line}`)
 
   const slack = Math.max(0, height - lines.length)
