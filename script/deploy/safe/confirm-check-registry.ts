@@ -525,15 +525,30 @@ export const executabilityCheckResult = (
       anchor: 'A-UNRESOLVED',
     }
 
-  if (verdict.refuses)
+  if (verdict.refuses) {
+    // Which calls, not every reason: a row's `actual` is one value a signer
+    // compares against `expected` and the ledger stores verbatim, and
+    // `verdict.reason` is the whole finding list joined — including whatever
+    // the node echoed back, which for viem is the entire calldata. The reasons
+    // are not lost: `assertProposalWouldExecute` still refuses with the full
+    // `reason`, and the signer view prints one section per call.
+    const reverting = verdict.calls
+      .filter((call) => call.outcome === 'would-revert')
+      .map((call) => call.path)
+
     return {
       checkId: EXECUTABILITY_CHECK_ID,
       network,
       status: 'fail',
       expected: 'no payload reverts',
-      actual: verdict.reason,
+      actual: reverting.length
+        ? `${reverting.length} of ${
+            verdict.calls.length
+          } call(s) would revert: ${reverting.join(', ')}`
+        : verdict.reason,
       anchor: 'A-CHAIN',
     }
+  }
 
   // A payload the simulator has no revert model for was not simulated, so the
   // run has no evidence about it. Recording that as the same green as a fully

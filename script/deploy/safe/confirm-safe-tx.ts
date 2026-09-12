@@ -70,6 +70,7 @@ import {
 import {
   authorityExpectationAnchors,
   CONFIRM_CHECK_DEFINITIONS,
+  EXECUTABILITY_CHECK_ID,
   proposalCheckResults,
   storageAuthorityCheckResult,
   worstResultPerCheck,
@@ -108,6 +109,7 @@ import {
   evaluateExecutability,
   type IExecutabilityVerdict,
 } from './executability-simulation'
+import { executabilityNotes } from './executability-view'
 import type { ILedgerAccountResult } from './ledger'
 import {
   LEDGER_FLEX_HASH_NOTE,
@@ -1226,6 +1228,17 @@ const processTxs = async (
     const signerCheckRows = signerChecks({
       results: proposalResults,
       notApplicable: integrityResults(integrityRun).notApplicable,
+      // The simulation answers once per payload and a ledger row holds one
+      // verdict, so the breakdown goes in as a note: the row keeps the single
+      // answer the ledger and the refusal messages are written against, and the
+      // signer still sees which call it was that would revert.
+      ...(executability
+        ? {
+            notes: new Map([
+              [EXECUTABILITY_CHECK_ID, executabilityNotes(executability)],
+            ]),
+          }
+        : {}),
       definitions: viewDefinitions(CONFIRM_CHECK_DEFINITIONS),
     })
 

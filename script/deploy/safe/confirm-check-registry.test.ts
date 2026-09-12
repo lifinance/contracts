@@ -34,7 +34,10 @@ import {
   INTEGRITY_CHECK_DEFINITIONS,
   type IIntegrityAssertRun,
 } from './confirm-integrity-asserts'
-import type { IExecutabilityVerdict } from './executability-simulation'
+import type {
+  IExecutabilityCall,
+  IExecutabilityVerdict,
+} from './executability-simulation'
 import {
   STATUSES_CLEARED_TO_PROCEED,
   type ITargetStateFinding,
@@ -517,6 +520,7 @@ const executabilityVerdict = (
   errors: [],
   warnings: [],
   notSimulated: [],
+  calls: [],
   reason: '',
   ...overrides,
 })
@@ -1221,5 +1225,54 @@ describe('authorityExpectationAnchors', () => {
     ])
     expect(anchors.get('a')).toBe('A-LOCAL')
     expect(anchors.get('b')).toBe('A-MONGO')
+  })
+})
+
+describe('the row a reverting simulation writes to the ledger', () => {
+  const reverting = (path: string): IExecutabilityCall => ({
+    path,
+    description: 'diamondCut',
+    target: '0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE',
+    modelled: true,
+    simulation: 'reverted',
+    findings: [],
+    outcome: 'would-revert',
+  })
+
+  it('names the calls rather than carrying the whole finding list', () => {
+    const result = executabilityCheckResult(
+      executabilityVerdict({
+        refuses: true,
+        reason: `blocking — eth_call reverted. Raw Call Arguments: data: 0x${'0'.repeat(
+          600
+        )}`,
+        calls: [
+          reverting('call[0].schedule'),
+          { ...reverting('call[1]'), outcome: 'would-execute' },
+        ],
+      }),
+      NETWORK
+    )
+
+    expect(result.actual).toContain('1 of 2 call(s) would revert')
+    expect(result.actual).toContain('call[0].schedule')
+    expect(result.actual).not.toContain('Raw Call Arguments')
+    expect(result.actual.length).toBeLessThan(120)
+  })
+
+  it('falls back to the full reason when no call was marked reverting', () => {
+    // A refusal can come from a nonce or funding finding, which belongs to the
+    // proposal rather than to any call — summarising those as "0 calls" would
+    // report a blocked proposal as having nothing wrong with it.
+    const result = executabilityCheckResult(
+      executabilityVerdict({
+        refuses: true,
+        reason: 'another pending proposal sits at nonce 31',
+        calls: [{ ...reverting('call[0]'), outcome: 'would-execute' }],
+      }),
+      NETWORK
+    )
+
+    expect(result.actual).toBe('another pending proposal sits at nonce 31')
   })
 })
