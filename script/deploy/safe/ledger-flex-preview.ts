@@ -537,9 +537,11 @@ const HASH_SCREEN_COUNT = 3
  * The Flex's screen in pixels, from the device's published geometry.
  *
  * The one number here that is not measured is the terminal's: a cell is taken
- * as twice as tall as it is wide, which is typical and not universal. If the
- * box reads the wrong shape on a particular terminal, that is the value to
- * correct — the screen's own 480×600 is not in question.
+ * as twice as tall as it is wide, which is typical and not universal. It is a
+ * weak lever — across the 2.0–2.4 range real terminals span it moves the box by
+ * a single row, because the screen's own content sets the floor below. The box
+ * cannot be made wider than tall by tuning it, and the width that would do it
+ * is pinned by the device's observed 19-character hash wrap.
  */
 const FLEX_SCREEN_PX = { width: 480, height: 600 } as const
 const TERMINAL_CELL_ASPECT = 2
@@ -549,8 +551,7 @@ const HASH_PANEL_CHROME_ROWS = 4
 
 /**
  * Interior rows, derived so the drawn box carries the screen's aspect rather
- * than a rule of thumb about it. The previous constant was picked to "look the
- * shape a Flex is" and came out about a tenth too tall.
+ * than a rule of thumb about it.
  */
 const HASH_PANEL_MIN_CONTENT_ROWS = Math.max(
   9,

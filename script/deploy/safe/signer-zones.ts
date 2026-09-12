@@ -12,8 +12,11 @@ import type { ICheckDefinition, ICheckResult } from './check-ledger'
 import { rollUpChecks } from './check-ledger'
 import { TARGET_STATE_CHECK } from './confirm-check-registry'
 import {
+  CHECK_FIXED_FIELDS,
   CHECK_SAFE_ADDRESS,
+  CHECK_SAFE_TX_HASH,
   CHECK_SIGNATURES,
+  CHECK_TARGET,
   CHECK_TIMELOCK_DELAY,
   INTEGRITY_CHECK_DEFINITIONS,
   type IIntegrityAssertRun,
@@ -33,6 +36,24 @@ import type { IBucketedResult, ITodo } from './signer-view'
 const VIEW_TITLES: ReadonlyMap<string, string> = new Map([
   [CHECK_SAFE_ADDRESS, 'Proposal targets correct Safe address'],
   [CHECK_SIGNATURES, 'Signatures recover to current owners'],
+  ['executability', 'Calldata simulation'],
+])
+
+/**
+ * The subject of each check, for the collapsed PASSED run.
+ *
+ * A check with no short form keeps its full title there, which costs that run a
+ * line rather than printing a label nobody wrote.
+ */
+const VIEW_SHORT_TITLES: ReadonlyMap<string, string> = new Map([
+  [CHECK_SAFE_ADDRESS, 'Safe address'],
+  [CHECK_SAFE_TX_HASH, 'Safe tx hash'],
+  [CHECK_SIGNATURES, 'Signatures'],
+  [CHECK_FIXED_FIELDS, 'Call shape'],
+  [CHECK_TARGET, 'Target address'],
+  [CHECK_TIMELOCK_DELAY, 'Timelock delay'],
+  ['target-state', 'Facet version'],
+  ['rpc-quorum', 'Provider agreement'],
   ['executability', 'Calldata simulation'],
 ])
 
@@ -135,6 +156,9 @@ export const signerChecks = (input: {
     definition: input.definitions.get(result.checkId),
     ...(CHECK_DOCS.get(result.checkId)
       ? { docUrl: CHECK_DOCS.get(result.checkId) }
+      : {}),
+    ...(VIEW_SHORT_TITLES.get(result.checkId)
+      ? { shortTitle: VIEW_SHORT_TITLES.get(result.checkId) }
       : {}),
   }))
 

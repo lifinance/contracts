@@ -110,6 +110,30 @@ describe('renderCheckGroups', () => {
     expect(at('PASSED')).toBeLessThan(at('NOT APPLICABLE'))
   })
 
+  it('collapses the passed run onto its short labels', () => {
+    const passed = [
+      entry('INT-SAFE-TX-HASH', 'pass', { shortTitle: 'Safe tx hash' }),
+      entry('INT-FIXED-FIELDS', 'pass', { shortTitle: 'Call shape' }),
+      entry('INT-TARGET', 'pass', { shortTitle: 'Target address' }),
+      entry('target-state', 'pass', { shortTitle: 'Facet version' }),
+    ]
+    const lines = renderCheckGroups(passed)
+      .map(stripAnsi)
+      .filter((line) => line.includes('·') || line.trimStart().startsWith('✓'))
+
+    expect(lines).toHaveLength(1)
+    expect(lines[0]).toContain('Safe tx hash · Call shape')
+    expect(lines[0]).not.toContain('title for')
+  })
+
+  it('keeps the full title for a check with no short label', () => {
+    const plain = renderCheckGroups([entry('codehash', 'pass')])
+      .map(stripAnsi)
+      .join('\n')
+
+    expect(plain).toContain('title for codehash')
+  })
+
   it('omits a bucket nothing landed in', () => {
     const plain = renderCheckGroups([entry('INT-TARGET', 'pass')])
       .map(stripAnsi)
