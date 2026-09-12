@@ -15,6 +15,7 @@
  * evaluateExecutability} already set.
  */
 
+import { summariseRpcError } from './executability-collector'
 import {
   ExecutabilityFindingEnum,
   type IExecutabilityCall,
@@ -48,37 +49,28 @@ export const PANEL_WIDTH = VIEW_WIDTH - CHECK_BLOCK_INDENT
 const TOKEN_BUDGET = 24
 
 /**
- * Where a node's error stops saying what happened and starts repeating itself.
+ * A node's error message, as one line that fits the panel.
  *
- * Anchored on any whitespace rather than on a newline, because by the time a
- * message reaches here the line breaks may already be gone: the collector's
- * `summariseRpcError` drops the echoed request and the version banner and
- * joins what is left onto one line, which leaves viem's `Details:` — a verbatim
- * restatement of the reason already in the first sentence — sitting mid-line
- * where a newline anchor cannot see it.
- */
-const ECHO_SECTIONS =
-  /\s(?:Raw Call Arguments|Request Arguments|Details|Version|Docs|URL)\s*:/iu
-
-/**
- * A node's error message, reduced to the part that says what happened.
+ * What to drop is `summariseRpcError`'s decision, not this module's, and it is
+ * called here rather than reimplemented: the rule is not "cut at `Details:`" but
+ * "cut a `Details:` whose payload is already in what was kept, and keep one that
+ * adds a word". A second copy of that judgement here would have thrown away the
+ * `out of gas` on a revert whose only other line is "for an unknown reason" —
+ * which it did, until this delegated.
  *
- * Deliberately still correct on a raw viem error as well as on a collector
- * summary. The two overlap — `summariseRpcError` also drops the echoed request
- * — and that is not waste: a message reaching the panel from a path that did
- * not go through the collector must not put a calldata dump on the screen, and
- * the overlap is a few characters of regex rather than a second mechanism.
+ * Idempotent on a message the collector already summarised, so it is safe on
+ * both paths: the collector's output, and a message that reached the panel
+ * without passing through it.
  *
- * Kept, never rewritten: the reason itself is passed through as the node wrote
- * it.
+ * What is left is this module's own concern — folding to single spaces and
+ * eliding a token too long for a line, so the panel's columns survive a value
+ * a proposer chose.
  *
  * @param message - The node's error text, from the collector or raw.
- * @returns The reason, without the echoed request, banners or restatement.
+ * @returns One line, with nothing dropped that a signer could act on.
  */
-export const condenseNodeMessage = (message: string): string => {
-  const [head = ''] = message.split(ECHO_SECTIONS)
-
-  return head
+export const condenseNodeMessage = (message: string): string =>
+  summariseRpcError(message)
     .split(/\s+/u)
     .filter(Boolean)
     .map((token) =>
@@ -88,7 +80,6 @@ export const condenseNodeMessage = (message: string): string => {
     )
     .join(' ')
     .trim()
-}
 
 /** An address as it reads in a heading: enough to recognise, not to retype. */
 const shortAddress = (address: string): string =>

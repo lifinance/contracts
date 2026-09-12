@@ -1,6 +1,7 @@
 // eslint-disable-next-line import/no-unresolved
 import { describe, expect, it } from 'bun:test'
 
+import { summariseRpcError } from './executability-collector'
 import {
   ExecutabilityFindingEnum,
   RevertCertaintyEnum,
@@ -446,26 +447,68 @@ describe('executabilityNotes', () => {
 })
 
 describe('condensing what the collector already summarised', () => {
-  /** What `summariseRpcError` hands on: no echo, no banner, one line, and
-   * viem's `Details:` restatement still in it. */
-  const COLLECTOR_OUTPUT =
-    'Execution reverted with reason: TimelockController: insufficient delay. Details: execution reverted: TimelockController: insufficient delay'
+  /**
+   * Built by calling `summariseRpcError`, never hand-typed.
+   *
+   * An earlier version of this block wrote out what the collector's output was
+   * assumed to look like. The guess was wrong in a way the tests could not see
+   * — its `Details:` sat mid-line rather than at the start of one — so it
+   * exercised a shape the collector never produces, and went on passing while
+   * the real pipeline did something else.
+   */
+  const viemError = (short: string, details: string): string =>
+    [
+      short,
+      '',
+      'Raw Call Arguments:',
+      '  from:  0x743b11478D69C18693F41f25051a10DD4D1a6F39',
+      `  data:  0x8f2a0bb${'0'.repeat(400)}1841`,
+      '',
+      `Details: ${details}`,
+      'Version: viem@2.55.19',
+    ].join('\n')
 
-  it('drops the restatement the collector leaves behind', () => {
-    const condensed = condenseNodeMessage(COLLECTOR_OUTPUT)
+  const REDUNDANT = viemError(
+    'Execution reverted with reason: TimelockController: insufficient delay.',
+    'execution reverted: TimelockController: insufficient delay'
+  )
+  const INFORMATIVE = viemError(
+    'Execution reverted for an unknown reason.',
+    'out of gas'
+  )
+
+  it('says the reason once when the node restated it', () => {
+    const condensed = condenseNodeMessage(summariseRpcError(REDUNDANT))
 
     expect(condensed).toBe(
       'Execution reverted with reason: TimelockController: insufficient delay.'
     )
-    // The reason survives exactly once, which is the whole point: the panel
-    // prints this line beside a red glyph, and saying it twice reads as two
-    // separate failures.
     expect(condensed.match(/insufficient delay/gu)).toHaveLength(1)
   })
 
-  it('is unchanged by running after the collector rather than instead of it', () => {
-    expect(condenseNodeMessage(COLLECTOR_OUTPUT)).toBe(
-      condenseNodeMessage(VIEM_REVERT)
+  it('keeps a Details line that says something the reason does not', () => {
+    // The regression this module actually had: cutting at `Details:` threw away
+    // `out of gas` — the only diagnostic on a revert whose other line is
+    // "for an unknown reason". What to drop is the collector's judgement, and
+    // duplicating it here is how the two fell out of step.
+    expect(condenseNodeMessage(summariseRpcError(INFORMATIVE))).toContain(
+      'out of gas'
     )
+  })
+
+  it('gives the same answer whether or not the collector ran first', () => {
+    for (const raw of [REDUNDANT, INFORMATIVE])
+      expect(condenseNodeMessage(summariseRpcError(raw))).toBe(
+        condenseNodeMessage(raw)
+      )
+  })
+
+  it('drops the echoed calldata on either path', () => {
+    for (const message of [REDUNDANT, summariseRpcError(REDUNDANT)]) {
+      const condensed = condenseNodeMessage(message)
+      expect(condensed).not.toContain('Raw Call Arguments')
+      expect(condensed).not.toContain('0'.repeat(60))
+      expect(condensed).toContain('insufficient delay')
+    }
   })
 })
