@@ -71,11 +71,11 @@ function fakeCollection(rows: Record<string, unknown>[]) {
 const TRON_SAFE_LOWER = '0x43761f2fb70c8cabd94707cb34d0a012f5857936'
 const TRON_SAFE_CHECKSUMMED = '0x43761F2fB70C8cAbD94707cb34D0a012f5857936'
 
-const row = (nonce: number, safeAddress: string) => ({
+const row = (nonce: number, safeAddress: string, status = 'pending') => ({
   network: 'tron',
   chainId: 728126428,
   safeAddress,
-  status: 'pending',
+  status,
   safeTxHash: `0xhash${nonce}`,
   safeTx: { data: { nonce } },
 })
@@ -175,5 +175,58 @@ describe('tearDownProposalsAtNonce', () => {
 
     expect(deleted).toEqual(['0xhash31'])
     expect(results.map((result) => result.outcome)).toEqual(['deleted'])
+  })
+})
+
+describe('the statuses a teardown is allowed to touch', () => {
+  it('does not find an executed row occupying the same nonce', async () => {
+    const found = await findProposalsAtNonce(
+      fakeCollection([row(31, TRON_SAFE_LOWER, 'executed')]) as never,
+      {
+        network: 'tron',
+        chainId: 728126428,
+        safeAddress: TRON_SAFE_CHECKSUMMED,
+        nonce: 31,
+      }
+    )
+
+    expect(found).toEqual([])
+  })
+
+  it('finds a submitted row, which still holds the nonce', async () => {
+    const found = await findProposalsAtNonce(
+      fakeCollection([row(31, TRON_SAFE_LOWER, 'submitted')]) as never,
+      {
+        network: 'tron',
+        chainId: 728126428,
+        safeAddress: TRON_SAFE_CHECKSUMMED,
+        nonce: 31,
+      }
+    )
+
+    expect(found).toHaveLength(1)
+  })
+
+  it('refuses to delete anything that is not pending', async () => {
+    const deleted: string[] = []
+    const rows = [row(31, TRON_SAFE_LOWER, 'submitted')]
+    const collection = {
+      ...fakeCollection(rows),
+      findOne: () => Promise.resolve(rows[0] ?? null),
+      deleteOne: (filter: Record<string, unknown>) => {
+        deleted.push((filter.safeTxHash as { $eq: string }).$eq)
+        return Promise.resolve({ deletedCount: 1 })
+      },
+    }
+
+    const results = await tearDownProposalsAtNonce(collection as never, {
+      network: 'tron',
+      chainId: 728126428,
+      safeAddress: TRON_SAFE_CHECKSUMMED,
+      nonce: 31,
+    })
+
+    expect(deleted).toEqual([])
+    expect(results).toEqual([])
   })
 })

@@ -21,11 +21,32 @@ import {
   deletePendingProposals,
   type IDeleteResult,
 } from './delete-pending-proposals'
+import { printableField } from './printable-field'
 import {
   ADDRESS_COLLATION,
   type ISafeTxDocument,
+  type SafeTxStatus,
   getSafeMongoCollection,
 } from './safe-utils'
+
+/**
+ * The statuses that still occupy a Safe nonce.
+ *
+ * The same pair `getNextNonce` counts: a broadcast-but-unconfirmed transaction
+ * holds its nonce as firmly as a pending one. `executed` and `reverted` are
+ * history and must never be matched by a teardown.
+ */
+const NONCE_HOLDING_STATUSES: readonly SafeTxStatus[] = ['pending', 'submitted']
+
+/**
+ * The only status a teardown may delete.
+ *
+ * A `submitted` row has already been broadcast and its outcome is unknown, so
+ * deleting it would drop the record of a transaction that may well have landed.
+ * The hunt reports those; clearing one is a decision for a human with the chain
+ * in front of them.
+ */
+const DELETABLE_STATUS: SafeTxStatus = 'pending'
 
 /** Which Safe, on which network, at which nonce. */
 export interface IProposalSlot {
@@ -45,9 +66,14 @@ export interface IProposalSlot {
  * on 2026-09-12: the checksummed spelling of the Tron Safe matches 0 rows
  * uncollated and 34 collated.
  *
+ * Restricted to the statuses that actually hold the nonce. A Safe reuses a
+ * nonce across history, so an `executed` or `reverted` row can sit at the same
+ * number as the one being cleared — and matching it would put a settled
+ * transaction in front of a delete.
+ *
  * @param pendingTransactions - the proposal collection
  * @param slot - the Safe, network and nonce to hunt
- * @returns every row holding that nonce, newest ordering left to the caller
+ * @returns every in-flight row holding that nonce
  */
 export async function findProposalsAtNonce(
   pendingTransactions: Collection<ISafeTxDocument>,
@@ -59,6 +85,7 @@ export async function findProposalsAtNonce(
       chainId: slot.chainId,
       safeAddress: slot.safeAddress,
       'safeTx.data.nonce': slot.nonce,
+      status: { $in: [...NONCE_HOLDING_STATUSES] },
     })
     .collation(ADDRESS_COLLATION)
     .toArray()
@@ -82,9 +109,22 @@ export async function tearDownProposalsAtNonce(
   slot: IProposalSlot
 ): Promise<IDeleteResult[]> {
   const found = await findProposalsAtNonce(pendingTransactions, slot)
+  const deletable = found.filter((doc) => doc.status === DELETABLE_STATUS)
+  for (const doc of found)
+    if (doc.status !== DELETABLE_STATUS)
+      consola.warn(
+        `[${slot.network}] leaving ${printableField(
+          doc.safeTxHash
+        )} alone — status ${printableField(
+          doc.status
+        )}, which this teardown does not delete`
+      )
+
+  if (deletable.length === 0) return []
+
   return deletePendingProposals(pendingTransactions, {
     network: slot.network.toLowerCase(),
-    hashes: found.map((doc) => doc.safeTxHash),
+    hashes: deletable.map((doc) => doc.safeTxHash),
     force: false,
   })
 }
@@ -119,7 +159,9 @@ const main = defineCommand({
 
       for (const doc of found)
         consola.info(
-          `${doc.safeTxHash} status=${doc.status} safeAddress=${doc.safeAddress}`
+          `${printableField(doc.safeTxHash)} status=${printableField(
+            doc.status
+          )} safeAddress=${printableField(doc.safeAddress)}`
         )
 
       if (!args.delete) {
