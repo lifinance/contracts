@@ -493,6 +493,48 @@ const isEndpointUnavailable = (error: unknown): boolean => {
   )
 }
 
+const ECHOED_BLOCK =
+  /^(?:raw call arguments|request arguments|contract call):$/iu
+const LIBRARY_VERSION = /^version:/iu
+
+/**
+ * Reduces an RPC error to the part the signer cannot already see.
+ *
+ * viem formats a call failure as a multi-paragraph report whose middle section
+ * re-prints the payload verbatim — the same `to` and `data` zone 1 shows above
+ * it. Carried through, that pushes the revert reason several hundred characters
+ * down inside a red block, which is where a signer stops reading.
+ *
+ * @param message - The error message as the transport threw it.
+ * @returns The summary, or the original when nothing was recognised to drop.
+ */
+export const summariseRpcError = (message: string): string => {
+  const kept: string[] = []
+  let inEchoedBlock = false
+
+  for (const line of message.split('\n')) {
+    const trimmed = line.trim()
+
+    if (ECHOED_BLOCK.test(trimmed)) {
+      inEchoedBlock = true
+      continue
+    }
+
+    // An echoed block runs until the next unindented line, so a blank line
+    // inside it does not end it.
+    if (inEchoedBlock) {
+      if (trimmed === '' || line !== trimmed) continue
+      inEchoedBlock = false
+    }
+
+    if (trimmed === '' || LIBRARY_VERSION.test(trimmed)) continue
+
+    kept.push(trimmed)
+  }
+
+  return kept.length > 0 ? kept.join(' ') : message.trim()
+}
+
 /**
  * Wires the reads to a real endpoint.
  *
@@ -568,7 +610,10 @@ export const createExecutabilityChainReader = (
         // an execution failure the first one really saw. An invalid opcode and
         // an out-of-gas both arrive wrapped without the word "revert".
         if (!isEndpointUnavailable(error))
-          return { outcome: 'reverted', revertReason: redactUrls(message) }
+          return {
+            outcome: 'reverted',
+            revertReason: redactUrls(summariseRpcError(message)),
+          }
 
         lastError = message
       }
@@ -576,7 +621,9 @@ export const createExecutabilityChainReader = (
     return {
       outcome: 'errored',
       errorReason: redactUrls(
-        lastError ?? 'no endpoint was available to simulate this payload'
+        lastError === undefined
+          ? 'no endpoint was available to simulate this payload'
+          : summariseRpcError(lastError)
       ),
     }
   },
