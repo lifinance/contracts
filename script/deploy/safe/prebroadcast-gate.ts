@@ -18,6 +18,7 @@ import {
   type PublicClient,
 } from 'viem'
 
+import { redactErrorReason } from '../../utils/redactUrls'
 import { strip0x } from '../codehash/hex'
 
 import {
@@ -85,8 +86,17 @@ export interface IGateOperation {
   payloads: readonly string[]
 }
 
+/**
+ * Turns a thrown value into text that is safe to store and to publish.
+ *
+ * Every string this returns ends up in the persisted record and, under
+ * enforcement, in a Slack refusal alert. viem embeds the full node URL — API
+ * key included — in the message it throws on a failed request, so the raw
+ * message is a credential leak on both paths; `redactErrorReason` is the
+ * repository's existing answer to exactly that.
+ */
 const describeError = (error: unknown): string =>
-  error instanceof Error ? error.message : String(error)
+  redactErrorReason(error instanceof Error ? error.message : String(error))
 
 /** One address the operation names, and the code seen at it. */
 export interface IObservedTarget {

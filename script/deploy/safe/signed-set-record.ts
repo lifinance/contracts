@@ -260,7 +260,7 @@ export const ensureSignedSetIndexes = async (
  * accessor in this directory does — `getTimelockQueueCollection`,
  * `getParkedTasksCollection` — and the executor already opens several per
  * operation through them, so a pooled handle here would be the odd one out
- * rather than the fix.
+ * rather than the fix. Pooling the whole directory is EXSC-1008.
  *
  * @returns The connected client (caller must `close()`) and the collection.
  * @throws When `MONGODB_URI` is not set.

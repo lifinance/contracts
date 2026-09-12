@@ -14,16 +14,13 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import * as dotenv from 'dotenv'
 import { type Collection } from 'mongodb'
-import { createPublicClient, http, type Address, type Hex } from 'viem'
+import { type Address, type Hex } from 'viem'
 
 import globalConfig from '../../../config/global.json'
 import networksData from '../../../config/networks.json'
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { getDeployments } from '../../utils/deploymentHelpers'
-import {
-  buildExplorerAddressUrl,
-  getViemChainForNetworkName,
-} from '../../utils/viemScriptHelpers'
+import { buildExplorerAddressUrl } from '../../utils/viemScriptHelpers'
 import { createDefaultCache } from '../shared/deployment-cache'
 import { getGitCommit, sanitizeProvenanceText } from '../shared/git-provenance'
 import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
@@ -104,6 +101,7 @@ import {
   viemGateReaders,
 } from './prebroadcast-gate'
 import { printableField, trustedMarkup } from './printable-field'
+import { buildReadOnlyClient } from './read-only-safe-client'
 import { reconcileAllSubmittedSafeTxs } from './reconcile'
 import {
   formatDecodedTxDataForDisplay,
@@ -426,10 +424,11 @@ const processTxs = async (
         params.predecessor,
         params.salt
       )
-      const publicClient = createPublicClient({
-        chain: getViemChainForNetworkName(networkKey),
-        transport: rpcUrl ? http(rpcUrl) : http(),
-      })
+      // Same helper every other read-only Safe query goes through. Without an
+      // `--rpcUrl` override this is not a public endpoint: the chain object is
+      // built from `ETH_NODE_URI_<NETWORK>`, which `getViemChainForNetworkName`
+      // throws without, so the record is always the run's own RPC view.
+      const publicClient = buildReadOnlyClient(networkKey, rpcUrl)
       const observed = await observeCalldata(
         {
           operationId,

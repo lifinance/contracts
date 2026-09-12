@@ -408,3 +408,76 @@ describe('shadow mode', () => {
     })
   })
 })
+
+// Every string an observation carries is persisted to MongoDB and, under
+// enforcement, posted to Slack — outside the job log's `::add-mask::`
+// protection. viem puts the full node URL in the message it throws, so an
+// unredacted read error publishes the provider's API key.
+describe('observation errors never carry the endpoint that produced them', () => {
+  const KEYED_URL = 'https://lb.drpc.org/ogrpc?network=arbitrum&dkey=s3cr3tkey'
+  const viemFailure = (): Error =>
+    new Error(
+      `HTTP request failed.\n\nStatus: 429\nURL: ${KEYED_URL}\n\nDetails: rate limited`
+    )
+
+  it('redacts the URL out of an unreadable target', async () => {
+    const chain = healthyChain()
+    const { targets } = await observeCalldata(
+      OPERATION,
+      dependencies(chain, {
+        readCode: async () => {
+          throw viemFailure()
+        },
+      })
+    )
+    const reported = targets.map((target) => target.observationError ?? '')
+    expect(reported.join(' ')).not.toContain('dkey')
+    expect(reported.join(' ')).not.toContain('drpc.org')
+    // Positive control: the row still reports, so the absence above is
+    // redaction rather than an observation that never happened.
+    expect(reported.join(' ')).toContain('[redacted-url]')
+    expect(reported.join(' ')).toContain('Status: 429')
+  })
+
+  it('redacts the URL out of an unreadable authority', async () => {
+    const { authorities } = await observeCalldata(
+      OPERATION,
+      dependencies(healthyChain(), {
+        readAuthority: async () => {
+          throw viemFailure()
+        },
+      })
+    )
+    const reported = authorities.map((row) => row.readError ?? '')
+    expect(reported.join(' ')).not.toContain('dkey')
+    expect(reported.join(' ')).not.toContain('drpc.org')
+    expect(reported.join(' ')).toContain('[redacted-url]')
+  })
+
+  // The gate's own findings are what `buildShadowRefusalAlert` publishes, so
+  // the seam has to hold all the way through the verdict, not only in the row.
+  it('keeps the endpoint out of the verdict a refusal alert is built from', async () => {
+    const result = await runPreBroadcastGate(
+      OPERATION,
+      dependencies(healthyChain(), {
+        readAuthority: async () => {
+          throw viemFailure()
+        },
+      })
+    )
+    const published = [
+      result.reason,
+      ...result.findings,
+      ...result.alerts,
+      buildShadowRefusalAlert({
+        network: 'arbitrum',
+        operationId: OP_ID,
+        disposition: result.disposition,
+        findings: result.findings,
+      }) ?? '',
+    ].join(' ')
+    expect(published).not.toContain('dkey')
+    expect(published).not.toContain('drpc.org')
+    expect(result.disposition).toBe('HOLD')
+  })
+})
