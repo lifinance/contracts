@@ -18,7 +18,7 @@ import {
   type PublicClient,
 } from 'viem'
 
-import { redactErrorReason } from '../../utils/redactUrls'
+import { redactErrorReason, redactUrls } from '../../utils/redactUrls'
 import { strip0x } from '../codehash/hex'
 
 import {
@@ -87,16 +87,16 @@ export interface IGateOperation {
 }
 
 /**
- * Turns a thrown value into text that is safe to store and to publish.
+ * Turns a thrown value into the text an observation carries.
  *
- * Every string this returns ends up in the persisted record and, under
- * enforcement, in a Slack refusal alert. viem embeds the full node URL — API
- * key included — in the message it throws on a failed request, so the raw
- * message is a credential leak on both paths; `redactErrorReason` is the
- * repository's existing answer to exactly that.
+ * viem embeds the full node URL — API key included — in the message it throws
+ * on a failed request, and this string is persisted to the sign-time record.
+ * Redacted but uncapped, per [CONV:REDACT-RPC-URL]: the record is the durable
+ * forensic artifact, and the 180-char Slack cap lands mid-`Details:` on a real
+ * rate-limit error. Capping happens where the text is published.
  */
 const describeError = (error: unknown): string =>
-  redactErrorReason(error instanceof Error ? error.message : String(error))
+  redactUrls(error instanceof Error ? error.message : String(error))
 
 /** One address the operation names, and the code seen at it. */
 export interface IObservedTarget {
@@ -403,7 +403,7 @@ export const buildGateGapAlert = (input: {
   const gaps = input.gaps.filter((gap) => gap.trim().length > 0)
   if (gaps.length === 0) return null
 
-  const bullets = gaps.map((gap) => `• ${gap}`).join('\n')
+  const bullets = gaps.map((gap) => `• ${redactErrorReason(gap)}`).join('\n')
   return [
     `⚠️ Pre-broadcast gate proceeded without a complete verdict on ${input.network}`,
     `operation ${input.operationId}`,
@@ -474,7 +474,9 @@ export const buildShadowRefusalAlert = (input: {
   const findings = input.findings.filter((f) => f.trim().length > 0)
   if (findings.length === 0) return null
 
-  const bullets = findings.map((f) => `• ${f}`).join('\n')
+  const bullets = findings
+    .map((finding) => `• ${redactErrorReason(finding)}`)
+    .join('\n')
   return [
     `🕶️ Pre-broadcast gate returned ${input.disposition} on ${input.network} and was OVERRIDDEN by shadow mode — the operation executed`,
     `operation ${input.operationId}`,

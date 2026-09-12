@@ -45,6 +45,10 @@ import {
 } from './diamondRemovalDiff'
 import { createChainCaller } from './executors/create-chain-caller'
 import {
+  guardErrorDetail,
+  publishableGuardError,
+} from './guard-error-redaction'
+import {
   getParkedTasksCollection,
   listParkedTasksBySafeTxHash,
 } from './parked-tasks'
@@ -1537,7 +1541,7 @@ async function revalidateFoldedRemovalsOrAbort(
   if (!operation.safeTxHash) return 'ok'
 
   const alertFailure = async (error: unknown): Promise<void> => {
-    if (!isDryRun) await notifyFailure(error)
+    if (!isDryRun) await notifyFailure(publishableGuardError(error))
   }
 
   let parked: Awaited<ReturnType<typeof listParkedTasksBySafeTxHash>>
@@ -1761,7 +1765,7 @@ async function enforcePreBroadcastGateOrAbort(
   }
 
   const alertFailure = async (error: unknown): Promise<void> => {
-    if (!isDryRun) await notifyFailure(error)
+    if (!isDryRun) await notifyFailure(publishableGuardError(error))
   }
 
   // Shadow mode reports what could not be checked and clears the operation,
@@ -1775,14 +1779,14 @@ async function enforcePreBroadcastGateOrAbort(
     if (unverifiedGateOutcome(process.env) === 'ok') {
       consola.warn(
         `${networkPrefix} 🕶️  Shadow mode: ${gap} — reporting only, the gate will not stop this operation.`,
-        error
+        guardErrorDetail(error)
       )
       await alertGap([`${gap} for ${operation.id}`])
       return 'ok'
     }
     consola.error(
       `${networkPrefix} ❌ Pre-broadcast gate: ${gap} — refusing execute (row left queued, next run retries):`,
-      error
+      guardErrorDetail(error)
     )
     await alertFailure(error)
     return 'retry'
@@ -1970,7 +1974,7 @@ async function executeOperation(
       ).catch((error: unknown) => {
         consola.error(
           `${networkPrefix} ❌ Pre-broadcast gate threw outside its own handling:`,
-          error
+          guardErrorDetail(error)
         )
         return unverifiedGateOutcome(process.env)
       })
@@ -2207,10 +2211,10 @@ async function executeOperation(
   } catch (error) {
     consola.error(
       `${networkPrefix} Failed to execute operation ${operation.id}:`,
-      error
+      guardErrorDetail(error)
     )
 
-    if (!isDryRun) await notifyFailure(error)
+    if (!isDryRun) await notifyFailure(publishableGuardError(error))
 
     return 'failed'
   }
