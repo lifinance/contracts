@@ -13,6 +13,7 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 import {
+  BaseError,
   CallExecutionError,
   encodeFunctionData,
   ExecutionRevertedError,
@@ -678,5 +679,45 @@ describe('summariseRpcError', () => {
     expect(outcome.outcome).toBe('reverted')
     expect(outcome.revertReason).not.toContain('ababab')
     expect(outcome.revertReason).toContain('Execution reverted')
+  })
+})
+
+describe('summariseRpcError and viem’s Details line', () => {
+  const callError = (inner: Error): string =>
+    new CallExecutionError(inner as never, {
+      account: parseAccount(SAFE),
+      to: DIAMOND,
+      data: `0x1f931c1c${'ab'.repeat(200)}` as Hex,
+    }).message
+
+  it('drops a Details line that only restates the reason', () => {
+    const summary = summariseRpcError(
+      callError(
+        new BaseError(
+          'Execution reverted with reason: TimelockController: insufficient delay.',
+          {
+            details:
+              'execution reverted: TimelockController: insufficient delay',
+          }
+        )
+      )
+    )
+
+    expect(summary).toBe(
+      'Execution reverted with reason: TimelockController: insufficient delay.'
+    )
+    expect(summary).not.toContain('Details:')
+  })
+
+  it('keeps a Details line that says something the reason does not', () => {
+    const summary = summariseRpcError(
+      callError(
+        new BaseError('Execution reverted for an unknown reason.', {
+          details: 'out of gas',
+        })
+      )
+    )
+
+    expect(summary).toContain('out of gas')
   })
 })

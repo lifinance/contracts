@@ -496,6 +496,8 @@ const isEndpointUnavailable = (error: unknown): boolean => {
 const ECHOED_BLOCK =
   /^(?:raw call arguments|request arguments|contract call):$/iu
 const LIBRARY_VERSION = /^version:/iu
+const DETAILS_PREFIX = /^details:\s*(.*)$/iu
+const NODE_REVERT_PREFIX = /^execution reverted:?\s*/iu
 
 /**
  * Reduces an RPC error to the part the signer cannot already see.
@@ -532,7 +534,20 @@ export const summariseRpcError = (message: string): string => {
     kept.push(trimmed)
   }
 
-  return kept.length > 0 ? kept.join(' ') : message.trim()
+  const surviving = kept.filter((line, index) => {
+    const payload = DETAILS_PREFIX.exec(line)?.[1]
+    if (payload === undefined) return true
+
+    // viem's `Details:` is the node's own string, which for a named revert is
+    // the reason the line above already states. Kept, it reads as a second
+    // finding; dropped when it adds a word, it would be the only place the
+    // reason appears — so it survives on whether it says anything new.
+    const bare = payload.replace(NODE_REVERT_PREFIX, '').trim()
+    const rest = kept.filter((_, other) => other !== index).join(' ')
+    return !rest.toLowerCase().includes(bare.toLowerCase())
+  })
+
+  return surviving.length > 0 ? surviving.join(' ') : message.trim()
 }
 
 /**
