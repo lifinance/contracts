@@ -329,3 +329,23 @@ export const renderGradingAnchors = (
         : `MISSING : ${anchor.path}\n          ${anchor.consequence}`
     )
     .join('\n')
+
+/**
+ * Whether a corpus of this status produces verdicts anyone can act on.
+ *
+ * The gates grade a proposal against the target state `origin/main` declares
+ * *now*. That is the right comparison for a proposal about to be signed, and a
+ * meaningless one for a proposal that executed months ago: it installed what
+ * main declared then, so today it reads as a downgrade. Judging history against
+ * an anchor from its own future produces volume and no signal.
+ *
+ * An already-settled corpus is still worth running — it establishes that the
+ * chain survives real proposal shapes, that two passes agree, and which gates
+ * are wired. Those are properties of the chain, not verdicts about proposals,
+ * and this predicate is what keeps the run from presenting one as the other.
+ *
+ * @param status - the row status the corpus was drawn from
+ * @returns true only for proposals still awaiting execution
+ */
+export const verdictsAreActionable = (status: string): boolean =>
+  status === 'pending' || status === 'submitted'

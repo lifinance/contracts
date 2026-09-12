@@ -12,6 +12,7 @@ import {
   checkGradingAnchors,
   renderGateReport,
   summariseSignerWorkload,
+  verdictsAreActionable,
 } from './rehearsal-report'
 
 describe('buildGateReport', () => {
@@ -156,5 +157,17 @@ describe('checkGradingAnchors', () => {
       anchor.path.includes('deployments_production.json')
     )
     expect(typeof cache?.present).toBe('boolean')
+  })
+})
+
+describe('verdictsAreActionable', () => {
+  it('holds for a corpus of proposals still awaiting signature', () => {
+    expect(verdictsAreActionable('pending')).toBe(true)
+    expect(verdictsAreActionable('submitted')).toBe(true)
+  })
+
+  it('does not hold for proposals that already executed', () => {
+    expect(verdictsAreActionable('executed')).toBe(false)
+    expect(verdictsAreActionable('reverted')).toBe(false)
   })
 })

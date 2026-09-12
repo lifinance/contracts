@@ -48,6 +48,7 @@ import {
   checkGradingAnchors,
   renderGateReport,
   renderGradingAnchors,
+  verdictsAreActionable,
   renderSignerWorkload,
   summariseSignerWorkload,
 } from './rehearsal-report'
@@ -185,6 +186,7 @@ const main = defineCommand({
       .filter(Boolean)
     if (!networks.length) throw new Error('no networks given')
     const status = parseStatus(args.status)
+    const actionable = verdictsAreActionable(status)
 
     // Before anything is graded. A missing deployment cache turns the
     // target-state gate into a refusal on essentially every proposal, and the
@@ -289,7 +291,11 @@ const main = defineCommand({
       // blocking. Withheld rather than printed with a caveat: a number nobody
       // can move should not appear next to numbers that move.
       const classes = refusalClasses(first)
-      if (classes.length > 1)
+      if (!actionable)
+        consola.info(
+          `Verdicts withheld: '${status}' proposals are graded against the target state origin/main declares now, not the one they were proposed against, so every version comparison is against an anchor from its own future. What this run establishes: the chain survives ${docs.length} real proposal shapes and agrees with itself. What it does not establish: anything about these proposals. Use --status pending for verdicts a signer can act on.`
+        )
+      else if (classes.length > 1)
         consola.info(
           `Refusals: ${budget.refusals}/${budget.denominator} rows (unexplained ${budget.unexplained})`
         )
@@ -304,23 +310,26 @@ const main = defineCommand({
 
       // Grouped rather than listed: 30 rows refusing for one reason is a
       // property of the gate, and a flat list of 30 lines hides that.
-      const byReason = new Map<string, number>()
-      for (const observation of observations)
-        if (observation.refused)
-          byReason.set(
-            observation.reason,
-            (byReason.get(observation.reason) ?? 0) + 1
-          )
-      for (const [reason, count] of [...byReason.entries()].sort(
-        (a, b) => b[1] - a[1]
-      ))
-        consola.info(`  ${count}x ${reason}`)
+      const byReason = actionable ? new Map<string, number>() : undefined
+      if (byReason) {
+        for (const observation of observations)
+          if (observation.refused)
+            byReason.set(
+              observation.reason,
+              (byReason.get(observation.reason) ?? 0) + 1
+            )
+        for (const [reason, count] of [...byReason.entries()].sort(
+          (a, b) => b[1] - a[1]
+        ))
+          consola.info(`  ${count}x ${reason}`)
+      }
 
-      consola.info(
-        `\nWho has to act\n${renderSignerWorkload(
-          summariseSignerWorkload(first)
-        )}`
-      )
+      if (actionable)
+        consola.info(
+          `\nWho has to act\n${renderSignerWorkload(
+            summariseSignerWorkload(first)
+          )}`
+        )
 
       consola.info(
         `\nGate roster\n${renderGateReport(
