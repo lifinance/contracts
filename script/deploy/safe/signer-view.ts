@@ -234,6 +234,15 @@ export interface IBucketedResult {
    * the write-ups exist; a row without one prints exactly as it did before.
    */
   docUrl?: string
+  /**
+   * The subject alone, for the collapsed PASSED run.
+   *
+   * A passed check asks nothing of the signer, so the sentence stating what it
+   * asserted is worth less there than getting the whole run onto two lines that
+   * are taken in at once. Every other bucket keeps the full title, where the
+   * assertion is the point.
+   */
+  shortTitle?: string
 }
 
 /**
@@ -271,7 +280,9 @@ export const renderCheckGroups = (
       // Wrapped rather than one long line: a green run that overflows the
       // terminal breaks at an arbitrary column and stops reading as one item
       // per separator, which is all this collapsed form has to convey.
-      const titles = entries.map((e) => e.definition?.title ?? e.result.checkId)
+      const titles = entries.map(
+        (e) => e.shortTitle ?? e.definition?.title ?? e.result.checkId
+      )
       const indent = '    '
       const budget = VIEW_WIDTH - indent.length - 2
       let line = ''
