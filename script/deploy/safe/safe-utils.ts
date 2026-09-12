@@ -1738,7 +1738,7 @@ const NONCE_KEY_PATH = 'safeTx.data.nonce'
  * checksummed form, so one Safe has two spellings in this collection. Comparing
  * raw makes a nonce collision on Tron deterministic rather than merely possible.
  */
-const ADDRESS_COLLATION = { locale: 'en', strength: 2 } as const
+export const ADDRESS_COLLATION = { locale: 'en', strength: 2 } as const
 
 /** Which unique index rejected an insert, when one did. */
 export type DuplicateKeyKind =
