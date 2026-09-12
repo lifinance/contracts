@@ -1009,9 +1009,9 @@ describe('what the signer sees before the prompt', () => {
   })
 
   it('prints a status it does not recognise as unverified, never as a pass', async () => {
-    // `recordCheck` refuses a status outside the four, so this state cannot be
-    // reached through the module's own path — only by a rehydrated document or
-    // a direct push into the results log, which is exactly what is built here.
+    // `recordCheck` refuses a status the ledger does not define, so this state
+    // cannot be reached through the module's own path — only by a rehydrated
+    // document or a direct push into the results log, built here.
     // Left untested, the renderer's fallback would be code nothing had ever
     // exercised, sitting on the one path where being wrong prints green.
     const run = await runIntegrityAsserts(makeInput(), makeDeps())

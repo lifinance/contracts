@@ -211,8 +211,8 @@ export const createCheckLedger = (init: {
 }
 
 /**
- * Records one check's outcome on one network, coercing the two statuses that
- * would otherwise overstate what was verified.
+ * Records one check's outcome on one network, coercing the statuses that would
+ * otherwise overstate what was verified.
  *
  * A `pass` whose anchor can only report is stored as `error`, and a `needs-ack`
  * on an integrity check is stored as `fail`. Both rules live here rather than in
@@ -294,11 +294,6 @@ export interface ICheckRollup extends ICheckDefinition {
   /**
    * The coverage denominator `passed` is measured against: `expected` less the
    * networks that had nothing to grade.
-   *
-   * A shrunk denominator is the module's own stated hazard, so it is never
-   * shrunk silently — `expected` stays on the rollup and every line that prints
-   * `passed/graded` prints the not-applicable count beside it, which is what
-   * makes the shrink recoverable rather than invisible.
    */
   graded: number
   passed: number
@@ -323,9 +318,9 @@ export interface ICheckRollup extends ICheckDefinition {
  * reported — a check that ran nowhere is the most important row in the report
  * and must not be absent from it. Where a check reported twice for one network
  * the last entry wins, so a run may record a provisional result and supersede
- * it; the one exception is a mismatch, which nothing that would soften the
- * verdict may erase — only another mismatch, or an `error`, which blocks the
- * same way.
+ * it; the exceptions are a mismatch, which only another mismatch or an `error`
+ * may replace, and any finding at all, which a `not-applicable` may never
+ * remove from the denominator.
  *
  * The status coercions are re-applied here rather than trusted from write time,
  * so a result that reached the log some other way — a rehydrated document, a
@@ -338,6 +333,7 @@ export const rollUpChecks = (ledger: ICheckLedger): ICheckRollup[] =>
   [...ledger.checks.values()].map((definition) => {
     const latest = new Map<string, ICheckResult>()
     const mismatched = new Set<string>()
+    const withFinding = new Set<string>()
     // What each network's last disagreement was, kept for the whole run: the
     // note belongs to the network, not to whichever row happens to be displaced,
     // so it survives any number of failed retries.
@@ -355,6 +351,12 @@ export const rollUpChecks = (ledger: ICheckLedger): ICheckRollup[] =>
       // below or absent.
       const { supersededMismatch: _incoming, ...clean } = raw
       const result = coerceStatus(clean as ICheckResult, definition)
+      if (
+        result.status === 'fail' ||
+        result.status === 'error' ||
+        result.status === 'needs-ack'
+      )
+        withFinding.add(result.network)
       if (result.status === 'fail') {
         mismatched.add(result.network)
         lastMismatch.set(
@@ -377,6 +379,13 @@ export const rollUpChecks = (ledger: ICheckLedger): ICheckRollup[] =>
         result.status !== 'error' &&
         mismatched.has(result.network)
       )
+        continue
+
+      // A later "there was nothing to grade" does not supersede a finding, it
+      // deletes it: the network leaves the coverage denominator, so nothing
+      // records that the check disagreed, could not run, or is owed an
+      // acknowledgement there.
+      if (result.status === 'not-applicable' && withFinding.has(result.network))
         continue
 
       // One row per network is what the verdict needs, and it cannot hold both
@@ -428,9 +437,7 @@ export const rollUpChecks = (ledger: ICheckLedger): ICheckRollup[] =>
       needsAck: countOf('needs-ack'),
       missing: missingNetworks.length,
       unverified: errored + missingNetworks.length,
-      // `graded > 0` is the half that matters: `passed === graded` is `0 === 0`
-      // for a check that graded nothing, which is the reading that closed a run
-      // green over a proposal it never looked at.
+      // `passed === graded` is `0 === 0` for a check that graded nothing.
       green: graded > 0 && passed === graded,
       anchors: [...new Set(results.map((result) => result.anchor))].sort(),
       missingNetworks,
@@ -553,10 +560,9 @@ export const summariseLedger = (
   ledger: ICheckLedger,
   options: { triageProfile?: OpProfile } = {}
 ): ILedgerVerdict => {
-  // A ledger that verified nothing is not a clear result, and `passed ===
-  // expected` is `0 === 0`. The factory refuses to build one, but every
-  // consumer here takes a plain `ICheckLedger`, which a rehydrated document or
-  // a direct push reaches without passing the factory.
+  // The factory refuses to build one, but every consumer here takes a plain
+  // `ICheckLedger`, which a rehydrated document or a direct push reaches
+  // without passing the factory.
   if (ledger.checks.size === 0 || ledger.expectedNetworks.length === 0)
     throw new Error(
       `Refusing to summarise a ledger that verifies nothing: ${ledger.checks.size} checks over ${ledger.expectedNetworks.length} networks. A verdict about no results is not a pass, and reporting one as green is the failure this ledger exists to prevent.`

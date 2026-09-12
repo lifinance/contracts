@@ -1143,6 +1143,57 @@ describe('a network that had nothing to grade', () => {
     expect(verdict.nothingGraded).toBe(false)
   })
 
+  it('never erases a result the same network could not grade', () => {
+    const ledger = ledgerOf(['mainnet'], [CODEHASH])
+    recordCheck(
+      ledger,
+      result({ status: 'error', actual: 'unread', detail: 'rpc down' })
+    )
+    recordCheck(ledger, result(nothingToGrade('mainnet')))
+
+    const [rollup] = rollUpChecks(ledger)
+    const verdict = summariseLedger(ledger)
+
+    expect(rollup?.errored).toBe(1)
+    expect(rollup?.notApplicable).toBe(0)
+    expect(verdict.hardBlocked).toBe(true)
+    expect(verdict.totals.error).toBe(1)
+  })
+
+  it('never erases an acknowledgement the same network is owed', () => {
+    const ledger = ledgerOf(['mainnet'], [TARGET_STATE])
+    recordCheck(
+      ledger,
+      result({ checkId: 'target-state', status: 'needs-ack' })
+    )
+    recordCheck(
+      ledger,
+      result({ ...nothingToGrade('mainnet'), checkId: 'target-state' })
+    )
+
+    const [rollup] = rollUpChecks(ledger)
+    const verdict = summariseLedger(ledger)
+
+    expect(rollup?.needsAck).toBe(1)
+    expect(rollup?.notApplicable).toBe(0)
+    expect(verdict.requiresAcknowledgement).toHaveLength(1)
+    expect(verdict.nothingGraded).toBe(false)
+  })
+
+  it('is itself superseded by a result that did grade the network', () => {
+    // The paired positive: the guard protects what was graded, so it must not
+    // freeze a network the run went on to reach.
+    const ledger = ledgerOf(['mainnet'], [CODEHASH])
+    recordCheck(ledger, result(nothingToGrade('mainnet')))
+    recordCheck(ledger, result({ status: 'pass' }))
+
+    const [rollup] = rollUpChecks(ledger)
+
+    expect(rollup?.passed).toBe(1)
+    expect(rollup?.notApplicable).toBe(0)
+    expect(rollup?.green).toBe(true)
+  })
+
   it('is recorded in the attestation as a check that went ungraded', () => {
     const ledger = ledgerOf(['mainnet'], [CODEHASH])
     recordCheck(ledger, result(nothingToGrade('mainnet')))
