@@ -5,7 +5,10 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
-import { findProposalsAtNonce } from './rehearsal-teardown'
+import {
+  findProposalsAtNonce,
+  tearDownProposalsAtNonce,
+} from './rehearsal-teardown'
 import { getNextNonce } from './safe-utils'
 
 /**
@@ -137,5 +140,40 @@ describe('findProposalsAtNonce, when nothing holds the slot', () => {
     )
 
     expect(found).toEqual([])
+  })
+})
+
+describe('tearDownProposalsAtNonce', () => {
+  it('deletes rows even when the operator typed the network in the wrong case', async () => {
+    const rows = [row(31, TRON_SAFE_LOWER)]
+    const deleted: string[] = []
+    const collection = {
+      ...fakeCollection(rows),
+      findOne: (filter: Record<string, unknown>) =>
+        Promise.resolve(
+          rows.find(
+            (candidate) =>
+              candidate.network ===
+                (filter.network as { $eq: string } | undefined)?.$eq &&
+              candidate.safeTxHash ===
+                (filter.safeTxHash as { $eq: string } | undefined)?.$eq
+          ) ?? null
+        ),
+      deleteOne: (filter: Record<string, unknown>) => {
+        const hash = (filter.safeTxHash as { $eq: string }).$eq
+        deleted.push(hash)
+        return Promise.resolve({ deletedCount: 1 })
+      },
+    }
+
+    const results = await tearDownProposalsAtNonce(collection as never, {
+      network: 'Tron',
+      chainId: 728126428,
+      safeAddress: TRON_SAFE_CHECKSUMMED,
+      nonce: 31,
+    })
+
+    expect(deleted).toEqual(['0xhash31'])
+    expect(results.map((result) => result.outcome)).toEqual(['deleted'])
   })
 })

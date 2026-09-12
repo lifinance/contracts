@@ -17,7 +17,10 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import { type Collection } from 'mongodb'
 
-import { deletePendingProposals } from './delete-pending-proposals'
+import {
+  deletePendingProposals,
+  type IDeleteResult,
+} from './delete-pending-proposals'
 import {
   ADDRESS_COLLATION,
   type ISafeTxDocument,
@@ -52,13 +55,38 @@ export async function findProposalsAtNonce(
 ): Promise<ISafeTxDocument[]> {
   return pendingTransactions
     .find({
-      network: slot.network,
+      network: slot.network.toLowerCase(),
       chainId: slot.chainId,
       safeAddress: slot.safeAddress,
       'safeTx.data.nonce': slot.nonce,
     })
     .collation(ADDRESS_COLLATION)
     .toArray()
+}
+
+/**
+ * Frees a Safe nonce by deleting every row holding it.
+ *
+ * The network is lowercased here rather than trusted from the caller. The hunt
+ * tolerates a miscased network because its collation applies to the whole
+ * query, but `deletePendingProposals` matches `network` with an uncollated
+ * `$eq` — so `--network Tron` would list the rows, then delete none and report
+ * success, leaving the nonce blocked.
+ *
+ * @param pendingTransactions - the proposal collection
+ * @param slot - the Safe, network and nonce to clear
+ * @returns one result per row found, as `deletePendingProposals` reports it
+ */
+export async function tearDownProposalsAtNonce(
+  pendingTransactions: Collection<ISafeTxDocument>,
+  slot: IProposalSlot
+): Promise<IDeleteResult[]> {
+  const found = await findProposalsAtNonce(pendingTransactions, slot)
+  return deletePendingProposals(pendingTransactions, {
+    network: slot.network.toLowerCase(),
+    hashes: found.map((doc) => doc.safeTxHash),
+    force: false,
+  })
 }
 
 const main = defineCommand({
@@ -81,12 +109,13 @@ const main = defineCommand({
   async run({ args }) {
     const { client, pendingTransactions } = await getSafeMongoCollection()
     try {
-      const found = await findProposalsAtNonce(pendingTransactions, {
+      const slot: IProposalSlot = {
         network: args.network,
         chainId: Number(args.chainId),
         safeAddress: args.safeAddress,
         nonce: Number(args.nonce),
-      })
+      }
+      const found = await findProposalsAtNonce(pendingTransactions, slot)
 
       for (const doc of found)
         consola.info(
@@ -98,11 +127,7 @@ const main = defineCommand({
         return
       }
 
-      await deletePendingProposals(pendingTransactions, {
-        network: args.network,
-        hashes: found.map((doc) => doc.safeTxHash),
-        force: false,
-      })
+      await tearDownProposalsAtNonce(pendingTransactions, slot)
     } finally {
       await client.close(true)
     }

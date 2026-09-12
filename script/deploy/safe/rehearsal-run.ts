@@ -109,6 +109,21 @@ export const comparePasses = (
             second: String(secondResult[field]),
           })
     }
+
+    // The second pass's own keys, for the mirror case. Walking only the first
+    // pass's would grade a run green where the second answered for a check or
+    // network the first never reached — a pass that did strictly more work
+    // reads as agreement.
+    for (const [key, secondResult] of secondOutcomes)
+      if (!firstOutcomes.has(key))
+        findings.push({
+          proposal: entry.proposal,
+          checkId: secondResult.checkId,
+          network: secondResult.network,
+          field: 'status',
+          first: 'not recorded',
+          second: secondResult.status,
+        })
   }
 
   for (const entry of second)
@@ -154,6 +169,25 @@ const REFUSING_STATUSES: ReadonlySet<string> = new Set([
 const KNOWN_CORRECT_REFUSAL = 'contract-unidentified'
 
 /**
+ * Whether every finding behind a refusal is the known-correct class.
+ *
+ * `actual` joins one clause per failing element, so a substring test over the
+ * whole string lets one unidentified element launder the rest of the cut — a
+ * version **downgrade**, the most dangerous verdict this gate produces, would
+ * be filed as expected because some other element in the same cut resolved to
+ * nothing. Each clause must end in the class for the refusal to count as one,
+ * and the suffix is anchored so a contract whose own name contains the phrase
+ * cannot qualify on its name alone.
+ */
+const isKnownCorrectRefusal = (actual: string): boolean => {
+  const clauses = actual.split('; ').filter(Boolean)
+  return (
+    clauses.length > 0 &&
+    clauses.every((clause) => clause.endsWith(`: ${KNOWN_CORRECT_REFUSAL}`))
+  )
+}
+
+/**
  * Turns one pass's ledgers into observations the false-refusal budget can grade.
  *
  * Every row becomes an observation, refusing or not, because the budget's
@@ -174,7 +208,7 @@ export const collectRefusalObservations = (
         ? `${result.status}: expected ${result.expected}, observed ${result.actual}`
         : '',
       ...(REFUSING_STATUSES.has(result.status) &&
-      result.actual.includes(KNOWN_CORRECT_REFUSAL)
+      isKnownCorrectRefusal(result.actual)
         ? { truePositive: true }
         : {}),
     }))
@@ -219,7 +253,10 @@ export const summariseRehearsal = (passes: {
   )
   const findings = comparePasses(passes.first, passes.second)
 
-  if (rowsGraded === 0)
+  // Only a run that graded nothing *and* found nothing is unmeasured. An
+  // asymmetric pair grades zero rows on one side while still disagreeing, and
+  // calling that "not measured" would file a real difference as an absence.
+  if (rowsGraded === 0 && findings.length === 0)
     return {
       rowsGraded,
       deterministic: undefined,
@@ -242,21 +279,90 @@ export type CorruptionProbeOutcome =
   | 'not-exercised'
 
 /**
- * Grades the corruption probe.
+ * Grades the corruption probe, row by row against the undamaged baseline.
  *
- * An empty pass is `not-exercised`, never `did-not-refuse`: a corpus with
- * nothing in it to damage says nothing about whether the chain can refuse, and
- * reporting it as a failure would train a reader to ignore the real one.
+ * Graded per row because "some row refused" is not evidence. On real corpora
+ * most rows already refuse for their own reasons, so a probe asking whether
+ * *anything* refused answers yes before the corruption is applied — it reports
+ * success on a chain that graded every damaged proposal clean.
  *
- * @param corrupted - the pass run over deliberately damaged input
+ * The population that carries the evidence is therefore the rows that passed
+ * *before* corruption: each of those must refuse after it. A corpus with none
+ * of them is `not-exercised` rather than a pass, for the same reason an empty
+ * run is not deterministic.
+ *
+ * @param baseline - the pass over undamaged input
+ * @param corrupted - the pass over deliberately damaged input
  * @returns which of the three outcomes the probe reached
  */
 export const gradeCorruptionProbe = (
+  baseline: readonly IRehearsalPassEntry[],
   corrupted: readonly IRehearsalPassEntry[]
 ): CorruptionProbeOutcome => {
-  const observations = collectRefusalObservations(corrupted)
-  if (observations.length === 0) return 'not-exercised'
-  return observations.some((observation) => observation.refused)
+  const afterCorruption = new Map(
+    collectRefusalObservations(corrupted).map((observation) => [
+      observation.slot,
+      observation.refused,
+    ])
+  )
+
+  const wasClean = collectRefusalObservations(baseline).filter(
+    (observation) => !observation.refused
+  )
+  if (wasClean.length === 0) return 'not-exercised'
+
+  return wasClean.every(
+    (observation) => afterCorruption.get(observation.slot) === true
+  )
     ? 'refused'
     : 'did-not-refuse'
+}
+
+/**
+ * The rows that were clean before corruption and stayed clean after it.
+ *
+ * Reported rather than merely counted: these are proposals the chain read as
+ * damaged and graded green anyway, which is the finding the probe exists to
+ * produce.
+ *
+ * @param baseline - the pass over undamaged input
+ * @param corrupted - the pass over deliberately damaged input
+ * @returns the slots that survived corruption ungraded
+ */
+export const survivedCorruption = (
+  baseline: readonly IRehearsalPassEntry[],
+  corrupted: readonly IRehearsalPassEntry[]
+): readonly string[] => {
+  const afterCorruption = new Map(
+    collectRefusalObservations(corrupted).map((observation) => [
+      observation.slot,
+      observation.refused,
+    ])
+  )
+  return collectRefusalObservations(baseline)
+    .filter((observation) => !observation.refused)
+    .filter((observation) => afterCorruption.get(observation.slot) !== true)
+    .map((observation) => observation.slot)
+}
+
+/**
+ * Rows each check answered for, counted once per (check, network).
+ *
+ * Counted off the deduplicated outcomes rather than the ledger's append log, so
+ * the roster's `rows=` and the determinism summary's `rowsGraded` are derived
+ * the same way. A check that supersedes a result — which `check-ledger.ts`
+ * documents as expected — would otherwise be counted twice in one report
+ * section and once in the other.
+ *
+ * @param pass - one pass's per-proposal ledgers
+ * @returns row count keyed by check id
+ */
+export const rowCountsByCheck = (
+  pass: readonly IRehearsalPassEntry[]
+): Record<string, number> => {
+  const counts: Record<string, number> = {}
+  for (const entry of pass)
+    for (const result of outcomesOf(entry.ledger).values())
+      counts[result.checkId] = (counts[result.checkId] ?? 0) + 1
+  return counts
 }

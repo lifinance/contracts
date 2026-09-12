@@ -14,6 +14,7 @@ import {
   collectRefusalObservations,
   comparePasses,
   gradeCorruptionProbe,
+  rowCountsByCheck,
   summariseRehearsal,
 } from './rehearsal-run'
 
@@ -147,24 +148,46 @@ describe('summariseRehearsal', () => {
 })
 
 describe('gradeCorruptionProbe', () => {
-  it('says nothing was exercised when there was nothing to corrupt', () => {
-    expect(gradeCorruptionProbe([])).toBe('not-exercised')
+  const entry = (
+    status: 'pass' | 'fail' | 'error' | 'needs-ack',
+    actual: string
+  ) => [{ proposal: '0xabc', ledger: ledgerWith(status, actual) }]
+
+  it('says nothing was exercised when no row passed before corruption', () => {
+    // Every row already refused, so damaging them proves nothing.
+    expect(
+      gradeCorruptionProbe(entry('fail', 'downgrade'), entry('fail', 'damaged'))
+    ).toBe('not-exercised')
   })
 
-  it('passes when the damaged input drew a refusal', () => {
+  it('passes only when a row that was clean now refuses', () => {
     expect(
-      gradeCorruptionProbe([
-        { proposal: '0xabc', ledger: ledgerWith('fail', 'corrupted') },
-      ])
+      gradeCorruptionProbe(entry('pass', '1.0.0'), entry('fail', 'damaged'))
     ).toBe('refused')
   })
 
-  it('fails when damaged input was graded clean', () => {
+  it('fails when a row that was clean is still clean after corruption', () => {
     expect(
-      gradeCorruptionProbe([
-        { proposal: '0xabc', ledger: ledgerWith('pass', 'corrupted') },
-      ])
+      gradeCorruptionProbe(
+        entry('pass', '1.0.0'),
+        entry('pass', 'no-diamond-cut')
+      )
     ).toBe('did-not-refuse')
+  })
+
+  it('does not let an already-refusing row vouch for a row it did not damage', () => {
+    const baseline = [
+      { proposal: '0xclean', ledger: ledgerWith('pass', '1.0.0') },
+      { proposal: '0xdirty', ledger: ledgerWith('fail', 'downgrade') },
+    ]
+    const corrupted = [
+      // The clean row survived corruption untouched...
+      { proposal: '0xclean', ledger: ledgerWith('pass', 'no-diamond-cut') },
+      // ...while the row that already refused still refuses.
+      { proposal: '0xdirty', ledger: ledgerWith('fail', 'downgrade') },
+    ]
+
+    expect(gradeCorruptionProbe(baseline, corrupted)).toBe('did-not-refuse')
   })
 })
 
@@ -186,5 +209,118 @@ describe('collectRefusalObservations, classifying a known-correct refusal', () =
     ])
 
     expect(observations[0]?.truePositive).toBeUndefined()
+  })
+})
+
+describe('comparePasses, when the second pass records a row the first lacks', () => {
+  /** A two-network ledger, so one pass can answer for a network the other did not. */
+  const twoNetworkLedger = (networks: readonly string[]): ICheckLedger => {
+    const ledger = createCheckLedger({
+      expectedNetworks: ['tron', 'arbitrum'],
+      checks: [
+        {
+          checkId: 'target-state',
+          section: 'Intent',
+          checkClass: 'semantic',
+          title: 'Facet version matches the declared target state',
+        },
+      ],
+    })
+    for (const network of networks)
+      recordCheck(ledger, {
+        checkId: 'target-state',
+        network,
+        status: 'pass',
+        expected: 'no installed version behind what origin/main declares',
+        actual: '1.0.0',
+        anchor: 'A-LOCAL',
+      })
+    return ledger
+  }
+
+  it('reports it instead of grading the run deterministic', () => {
+    const summary = summariseRehearsal({
+      first: [{ proposal: '0xabc', ledger: twoNetworkLedger(['tron']) }],
+      second: [
+        { proposal: '0xabc', ledger: twoNetworkLedger(['tron', 'arbitrum']) },
+      ],
+    })
+
+    expect(summary.verdict).toBe('non-deterministic')
+    expect(
+      summary.findings.some((finding) => finding.network === 'arbitrum')
+    ).toBe(true)
+  })
+})
+
+describe('rowCountsByCheck', () => {
+  it('counts each check once per network, not once per append-log entry', () => {
+    const ledger = ledgerWith('pass', '1.0.0')
+    recordCheck(ledger, {
+      checkId: 'target-state',
+      network: 'tron',
+      status: 'fail',
+      expected: 'no installed version behind what origin/main declares',
+      actual: 'downgrade',
+      anchor: 'A-MAIN',
+    })
+
+    expect(rowCountsByCheck([{ proposal: '0xabc', ledger }])).toEqual({
+      'target-state': 1,
+    })
+  })
+})
+
+describe('summariseRehearsal, with asymmetric passes', () => {
+  it('does not call a run not-measured while it holds a finding', () => {
+    const summary = summariseRehearsal({
+      first: [],
+      second: [{ proposal: '0xabc', ledger: ledgerWith('pass', '1.0.0') }],
+    })
+
+    expect(summary.findings).toHaveLength(1)
+    expect(summary.verdict).toBe('non-deterministic')
+  })
+})
+
+describe('collectRefusalObservations, when a cut mixes refusal classes', () => {
+  it('does not launder a downgrade sitting beside an unidentified element', () => {
+    const observations = collectRefusalObservations([
+      {
+        proposal: '0xabc',
+        ledger: ledgerWith(
+          'fail',
+          'SomeLib: contract-unidentified; AcrossFacetV3: downgrade'
+        ),
+      },
+    ])
+
+    expect(observations[0]?.refused).toBe(true)
+    expect(observations[0]?.truePositive).toBeUndefined()
+  })
+
+  it('does not let a contract name carrying the phrase qualify on its name', () => {
+    const observations = collectRefusalObservations([
+      {
+        proposal: '0xabc',
+        ledger: ledgerWith('fail', 'contract-unidentified-helper: downgrade'),
+      },
+    ])
+
+    expect(observations[0]?.truePositive).toBeUndefined()
+  })
+
+  it('still accepts a cut whose every element is unidentified', () => {
+    const observations = collectRefusalObservations([
+      {
+        proposal: '0xabc',
+        ledger: ledgerWith(
+          'error',
+          '0xaaa: contract-unidentified; 0xbbb: contract-unidentified'
+        ),
+      },
+    ])
+
+    expect(observations[0]?.truePositive).toBe(true)
   })
 })

@@ -46,7 +46,9 @@ import { buildGateReport, renderGateReport } from './rehearsal-report'
 import {
   collectRefusalObservations,
   gradeCorruptionProbe,
+  rowCountsByCheck,
   summariseRehearsal,
+  survivedCorruption,
   type IRehearsalPassEntry,
 } from './rehearsal-run'
 import { READ_ONLY_RUN, runRehearsalPreflight } from './rehearsal-write-guard'
@@ -160,9 +162,12 @@ const main = defineCommand({
     },
   },
   async run({ args }) {
+    // Lowercased, as every writer in this package stores them. An uncased key
+    // matches no document, and the run would then report "not measured" — a
+    // typo reading as a clean rehearsal is the worst outcome for this tool.
     const networks = args.networks
       .split(',')
-      .map((network) => network.trim())
+      .map((network) => network.trim().toLowerCase())
       .filter(Boolean)
     if (!networks.length) throw new Error('no networks given')
     const status = parseStatus(args.status)
@@ -170,20 +175,20 @@ const main = defineCommand({
     // Captured from inside `openStore` so the client is never constructed
     // before the preflight has refused a write-configured run.
     let client: MongoClient | undefined
-    const preflight = await runRehearsalPreflight({
-      config: READ_ONLY_RUN,
-      openStore: async () => {
-        const opened = await openReadOnlyProposalStore()
-        client = opened.client
-        return opened.pendingTransactions
-      },
-    })
-    const pendingTransactions = preflight.store
-    consola.success(
-      `Preflight: ${preflight.evidence.length} write methods refused; run is read-only`
-    )
-
     try {
+      const preflight = await runRehearsalPreflight({
+        config: READ_ONLY_RUN,
+        openStore: async () => {
+          const opened = await openReadOnlyProposalStore()
+          client = opened.client
+          return opened.pendingTransactions
+        },
+      })
+      const pendingTransactions = preflight.store
+      consola.success(
+        `Preflight: ${preflight.evidence.length} write surfaces refused; run is read-only`
+      )
+
       const docs = (await pendingTransactions
         .find({ network: { $in: networks }, status })
         .toArray()) as ISafeTxDocument[]
@@ -194,26 +199,33 @@ const main = defineCommand({
         )}`
       )
 
-      // One reader for the whole run. It memoizes the `origin/main` read
-      // internally, so building it per proposal — as an earlier draft did —
-      // discards the memo and re-fetches the remote once per row.
-      const readPinnedState = createPinnedTargetStateReader()
-
-      const pass = (corrupt: boolean): IRehearsalPassEntry[] =>
-        docs.map((doc) => ({
+      // One reader per pass, not one per run. The reader memoizes its
+      // `origin/main` read, so sharing it across both passes would replay the
+      // first pass's answer into the second — and the remote anchor is the one
+      // genuinely moving input the determinism check exists to catch.
+      const pass = (corrupt: boolean): IRehearsalPassEntry[] => {
+        const readPinnedState = createPinnedTargetStateReader()
+        return docs.map((doc) => ({
           proposal: doc.safeTxHash,
           ledger: runGateChain(doc, doc.network, corrupt, readPinnedState),
         }))
+      }
 
       const first = pass(false)
       const second = pass(false)
 
       const summary = summariseRehearsal({ first, second })
-      if (summary.verdict === 'not-measured')
+      // Tracked so the process can exit non-zero. consola sets no exit code, so
+      // a wrapper or scheduled run would otherwise read a rehearsal that
+      // established nothing — or one that found a difference — as success.
+      let failed = false
+      if (summary.verdict === 'not-measured') {
+        failed = true
         consola.warn(
           'Not measured: no row was graded, so this run establishes nothing about determinism'
         )
-      else if (summary.verdict === 'non-deterministic') {
+      } else if (summary.verdict === 'non-deterministic') {
+        failed = true
         consola.error(
           `Non-deterministic: ${summary.findings.length} difference(s) over ${summary.rowsGraded} row(s)`
         )
@@ -231,7 +243,7 @@ const main = defineCommand({
       ]
       const budget = summariseGate({
         gate: 'confirm-gate-chain',
-        corpus: `pending proposals on ${networks.join(', ')}`,
+        corpus: `${status} proposals on ${networks.join(', ')}`,
         denominator: observations.length,
         coverageNote:
           'only the gates merged on this commit ran; see the roster below for the rest',
@@ -255,35 +267,39 @@ const main = defineCommand({
       ))
         consola.info(`  ${count}x ${reason}`)
 
-      const rowCounts: Record<string, number> = {}
-      for (const entry of first)
-        for (const result of entry.ledger.results)
-          rowCounts[result.checkId] = (rowCounts[result.checkId] ?? 0) + 1
-
       consola.info(
         `\nGate roster\n${renderGateReport(
           buildGateReport({
             registered: CONFIRM_CHECK_DEFINITIONS.map((check) => check.checkId),
-            rowCounts,
+            rowCounts: rowCountsByCheck(first),
           })
         )}`
       )
 
       if (args.corrupt) {
-        const outcome = gradeCorruptionProbe(pass(true))
+        const corrupted = pass(true)
+        const outcome = gradeCorruptionProbe(first, corrupted)
         if (outcome === 'refused')
           consola.success(
-            'Corruption probe: the chain refused damaged calldata'
+            'Corruption probe: every row that graded clean now refuses'
           )
-        else if (outcome === 'did-not-refuse')
+        else if (outcome === 'did-not-refuse') {
+          failed = true
+          const survivors = survivedCorruption(first, corrupted)
           consola.error(
-            'Corruption probe: the chain graded damaged calldata without refusing'
+            `Corruption probe: ${survivors.length} row(s) graded clean both before and after corruption`
           )
-        else
+          for (const slot of survivors.slice(0, 10))
+            consola.error(`  survived: ${slot}`)
+        } else {
+          failed = true
           consola.warn(
-            'Corruption probe: not exercised — there was nothing to damage'
+            'Corruption probe: not exercised — no row graded clean before corruption, so damaging them proves nothing'
           )
+        }
       }
+
+      if (failed) process.exitCode = 1
     } finally {
       await client?.close(true)
     }

@@ -164,3 +164,96 @@ describe('proveSealRefusesWrites, against a seal that does not seal', () => {
     expect(thrown?.message).not.toMatch(/createIndex/)
   })
 })
+
+describe('sealCollectionReadOnly, on the object properties a real driver carries', () => {
+  it('refuses a property that leads back to an unsealed write handle', () => {
+    const underlying = {
+      findOne: () => Promise.resolve(null),
+      // A real mongodb Collection exposes `.client` (the MongoClient) and `.s`
+      // (internal state holding the Db). Either one re-derives an unsealed
+      // collection, so reaching them is reaching a write surface.
+      client: {
+        db: () => ({ collection: () => ({ deleteMany: () => 'wrote' }) }),
+      },
+    }
+
+    const sealed = sealCollectionReadOnly(underlying) as unknown as Record<
+      string,
+      unknown
+    >
+
+    expect(() => sealed.client).toThrow(RehearsalWriteRefusedError)
+  })
+
+  it('still hands back the harmless primitives a caller needs', () => {
+    const sealed = sealCollectionReadOnly({
+      collectionName: 'pendingTransactions',
+      dbName: 'sc_private',
+    }) as unknown as Record<string, unknown>
+
+    expect(sealed.collectionName).toBe('pendingTransactions')
+    expect(sealed.dbName).toBe('sc_private')
+  })
+
+  it('leaves an absent property undefined so the sealed handle can be awaited', async () => {
+    const sealed = sealCollectionReadOnly({
+      findOne: () => Promise.resolve(null),
+    })
+
+    expect((sealed as unknown as Record<string, unknown>).then).toBeUndefined()
+    expect(await Promise.resolve(sealed)).toBe(sealed)
+  })
+
+  it('does not permit aggregate, which can write via $out and $merge', () => {
+    const sealed = sealCollectionReadOnly({
+      aggregate: () => 'ran',
+    }) as unknown as Record<string, () => unknown>
+
+    expect(() => sealed.aggregate?.()).toThrow(RehearsalWriteRefusedError)
+  })
+})
+
+describe('proveSealRefusesWrites, over the escape properties', () => {
+  it('probes the object properties that re-derive an unsealed handle', () => {
+    const evidence = proveSealRefusesWrites()
+
+    expect(evidence.map((probe) => probe.method)).toContain('client')
+    expect(evidence.map((probe) => probe.method)).toContain('s')
+    expect(evidence.every((probe) => probe.refused)).toBe(true)
+  })
+
+  it('fails when a seal lets an escape property through', () => {
+    const methodsOnlySeal = <T extends object>(collection: T): T =>
+      new Proxy(collection, {
+        get(target, property) {
+          const value = Reflect.get(target, property, target)
+          if (typeof value !== 'function') return value
+          return () => {
+            throw new RehearsalWriteRefusedError(String(property))
+          }
+        },
+      })
+
+    let thrown: Error | undefined
+    try {
+      proveSealRefusesWrites(methodsOnlySeal)
+    } catch (error: unknown) {
+      thrown = error as Error
+    }
+
+    expect(thrown?.message).toMatch(/client/)
+  })
+})
+
+describe('a sealed handle in a log line', () => {
+  it('renders instead of crashing the run it was guarding', () => {
+    const sealed = sealCollectionReadOnly({
+      collectionName: 'pendingTransactions',
+      s: { db: {} },
+      findOne: () => Promise.resolve(null),
+    })
+
+    expect(() => `${String(sealed)}`).not.toThrow()
+    expect(() => JSON.stringify(sealed)).not.toThrow()
+  })
+})

@@ -5,10 +5,11 @@
  * performs by accident. It is an incidental write: an index ensured on connect,
  * an acknowledgement recorded, a reconcile back-fill promoting a row. So the
  * guard refuses by default and the preflight *demonstrates* the refusal by
- * calling the refused methods, instead of asserting that a flag was not passed.
+ * reaching for the refused members, instead of asserting that a flag was not
+ * passed.
  */
 
-/** Raised when a rehearsal reaches for a method that could mutate the store. */
+/** Raised when a rehearsal reaches a member that could lead to a write. */
 export class RehearsalWriteRefusedError extends Error {
   public constructor(public readonly method: string) {
     super(
@@ -31,35 +32,71 @@ const PERMITTED_READ_METHODS: ReadonlySet<string> = new Set([
   'findOne',
   'countDocuments',
   'estimatedDocumentCount',
-  'aggregate',
   'distinct',
   'indexes',
   'listIndexes',
 ])
 
 /**
- * Wraps a collection so every method outside {@link PERMITTED_READ_METHODS}
- * throws instead of running.
+ * Wraps a collection so nothing that could reach a write runs.
  *
- * Only properties the target actually holds as functions are intercepted.
- * Replacing an absent property with a throwing stub would break the language's
- * own probes — `await` reads `then`, and a sealed object that threw on it could
- * not be awaited at all.
+ * The allow-list governs every property, not just the callable ones. A driver
+ * `Collection` carries its `MongoClient` on `.client` and its `Db` under `.s`,
+ * and either one re-derives an unsealed collection — so handing back an object
+ * property because it is not itself a function hands back the whole write
+ * surface. Object-valued properties are therefore refused outright.
+ *
+ * Primitives pass through: `collectionName` and `dbName` identify the handle and
+ * reach nothing. An absent property stays `undefined` rather than becoming a
+ * throwing stub, because the language probes for members that do not exist —
+ * `await` reads `then`, and a handle that threw on it could not be awaited.
  *
  * @param collection - the live collection to seal
  * @returns a proxy with the same shape that refuses anything that could write
  */
-export const sealCollectionReadOnly = <T extends object>(collection: T): T => {
-  const sealed = new Proxy(collection, {
-    get(target, property, receiver) {
-      const value = Reflect.get(target, property, receiver)
-      if (typeof property !== 'string' || typeof value !== 'function')
-        return value
-      if (PERMITTED_READ_METHODS.has(property)) return value.bind(target)
+/**
+ * Members the language itself reaches for when rendering a value.
+ *
+ * Answered with a harmless label rather than a throwing stub. Without this, any
+ * log line, template literal or `JSON.stringify` that touches a sealed handle
+ * crashes the run with a refusal about `toString` — the guard taking down the
+ * run it was protecting, reported as a write attempt that never happened.
+ */
+const RENDERING_MEMBERS: ReadonlySet<string> = new Set([
+  'toString',
+  'valueOf',
+  'toJSON',
+])
 
-      return () => {
-        throw new RehearsalWriteRefusedError(property)
+export const sealCollectionReadOnly = <T extends object>(collection: T): T => {
+  const label = '[read-only sealed collection]'
+  const sealed = new Proxy(collection, {
+    get(target, property) {
+      if (typeof property === 'string' && RENDERING_MEMBERS.has(property))
+        return () => label
+      // The receiver is the target, never the proxy: a driver getter such as
+      // `collectionName` reads its own internals to answer, and with the proxy
+      // as receiver that read comes back through this trap and is refused —
+      // the seal would reject the very properties it means to allow.
+      const value = Reflect.get(target, property, target)
+      if (value === undefined || value === null) return value
+
+      if (typeof value === 'function') {
+        if (
+          typeof property === 'string' &&
+          PERMITTED_READ_METHODS.has(property)
+        )
+          return value.bind(target)
+
+        return () => {
+          throw new RehearsalWriteRefusedError(String(property))
+        }
       }
+
+      if (typeof value === 'object')
+        throw new RehearsalWriteRefusedError(String(property))
+
+      return value
     },
   })
   SEALED_HANDLES.add(sealed)
@@ -111,7 +148,18 @@ const CANARY_WRITE_METHODS: readonly string[] = [
   'rename',
 ]
 
-/** One canary method, and whether the seal refused it. */
+/**
+ * The non-function properties a driver `Collection` carries that lead back to a
+ * write handle.
+ *
+ * Probed alongside the methods because the seal's first version refused only
+ * callables and handed `client` back untouched — a live `MongoClient`, from
+ * which an unsealed collection is one call away. A proof that covers only the
+ * methods would have passed that version.
+ */
+const CANARY_ESCAPE_PROPERTIES: readonly string[] = ['client', 's']
+
+/** One canary member, and whether the seal refused it. */
 export interface IWriteRefusalProbe {
   readonly method: string
   readonly refused: boolean
@@ -139,7 +187,7 @@ export const proveSealRefusesWrites = (
   seal: <T extends object>(collection: T) => T = sealCollectionReadOnly
 ): readonly IWriteRefusalProbe[] => {
   const reached: string[] = []
-  const canary = Object.fromEntries(
+  const canary: Record<string, unknown> = Object.fromEntries(
     CANARY_WRITE_METHODS.map((method) => [
       method,
       () => {
@@ -147,17 +195,41 @@ export const proveSealRefusesWrites = (
       },
     ])
   )
+  // Stand-ins for the driver's own handles: any object reached here is a route
+  // back to an unsealed collection, so the probe only has to reach one.
+  for (const property of CANARY_ESCAPE_PROPERTIES)
+    canary[property] = { db: () => undefined }
+
   const sealed = seal(canary) as unknown as Record<string, () => unknown>
 
-  const evidence = CANARY_WRITE_METHODS.map((method) => {
-    try {
-      sealed[method]?.()
-      return { method, refused: false, reachedTarget: reached.includes(method) }
-    } catch (error: unknown) {
-      if (!(error instanceof RehearsalWriteRefusedError)) throw error
-      return { method, refused: true, reachedTarget: false }
-    }
-  })
+  const evidence = [
+    ...CANARY_WRITE_METHODS.map((method) => {
+      try {
+        sealed[method]?.()
+        return {
+          method,
+          refused: false,
+          reachedTarget: reached.includes(method),
+        }
+      } catch (error: unknown) {
+        if (!(error instanceof RehearsalWriteRefusedError)) throw error
+        return { method, refused: true, reachedTarget: false }
+      }
+    }),
+    ...CANARY_ESCAPE_PROPERTIES.map((property) => {
+      try {
+        const escaped = sealed[property]
+        return {
+          method: property,
+          refused: false,
+          reachedTarget: escaped !== undefined,
+        }
+      } catch (error: unknown) {
+        if (!(error instanceof RehearsalWriteRefusedError)) throw error
+        return { method: property, refused: true, reachedTarget: false }
+      }
+    }),
+  ]
 
   const unrefused = evidence.filter((probe) => !probe.refused)
   if (unrefused.length)
@@ -166,7 +238,7 @@ export const proveSealRefusesWrites = (
         .map((probe) => probe.method)
         .join(
           ', '
-        )} ran instead of refusing. Nothing may read the proposal store on this run.`
+        )} was reachable instead of refusing. Nothing may read the proposal store on this run.`
     )
 
   return evidence
