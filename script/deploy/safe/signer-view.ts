@@ -183,6 +183,44 @@ export const renderFields = (fields: readonly IViewField[]): string[] => {
   return out
 }
 
+/**
+ * One `expected`/`observed`/detail value, as lines that stay inside the view.
+ *
+ * These come from whatever check produced the row, and a simulator's revert
+ * message arrives as a multi-line dump of its own. Printed raw it breaks the
+ * column, runs off the terminal, and takes the rows under it out of alignment —
+ * so a signer skimming for the red row finds a wall instead. Folded to single
+ * spaces and wrapped under a hanging indent, never truncated: the revert reason
+ * is the most useful thing on a failing row.
+ *
+ * @param label - The leading label, printed once on the first line.
+ * @param value - The value, with any internal line breaks.
+ * @returns Lines, already indented for the check block.
+ */
+const wrapValue = (label: string, value: string): string[] => {
+  const indent = '        '
+  const hang = `${indent}${' '.repeat(label.length)}`
+  const budget = Math.max(20, VIEW_WIDTH - hang.length)
+  const out: string[] = []
+  let line = ''
+
+  for (const word of value.split(/\s+/u).filter(Boolean)) {
+    const next = line ? `${line} ${word}` : word
+    // A single word longer than the budget still goes on its own line: breaking
+    // it would split an address or a hash into two unsearchable halves.
+    if (next.length > budget && line) {
+      out.push(line)
+      line = word
+    } else line = next
+  }
+  if (line) out.push(line)
+  if (out.length === 0) return [`${indent}${label}`]
+
+  return out.map((text, position) =>
+    position === 0 ? `${indent}${label}${text}` : `${hang}${text}`
+  )
+}
+
 export interface IBucketedResult {
   result: ICheckResult
   definition: ICheckDefinition | undefined
@@ -257,9 +295,14 @@ export const renderCheckGroups = (
         `    ${style.colour}${style.glyph}${RESET} ${BOLD}${title}${RESET}`
       )
       out.push(`        ${DIM}${result.checkId} · ${result.anchor}${RESET}`)
-      out.push(`        expected  ${result.expected}`)
-      out.push(`        observed  ${result.actual}`)
-      if (result.detail) out.push(`        ${BLUE}→ ${result.detail}${RESET}`)
+      out.push(...wrapValue('expected  ', result.expected))
+      out.push(...wrapValue('observed  ', result.actual))
+      if (result.detail)
+        out.push(
+          ...wrapValue('→ ', result.detail).map(
+            (line) => `${BLUE}${line}${RESET}`
+          )
+        )
     }
   }
   return out

@@ -244,3 +244,36 @@ describe('PROPOSAL_SEPARATOR', () => {
     expect(lines[4]).toBe('')
   })
 })
+
+describe('a check value too wide for the view', () => {
+  it('wraps under a hanging indent instead of running off the terminal', () => {
+    const lines = renderCheckGroups([
+      {
+        definition: definition('executability', 'Calldata simulation'),
+        result: result('executability', 'fail', {
+          actual:
+            'eth_call reverted\n\nRaw Call Arguments:\n  to:   0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE\n\nDetails: execution reverted',
+        }),
+      },
+    ]).map(stripAnsi)
+
+    for (const line of lines)
+      expect(line.length).toBeLessThanOrEqual(VIEW_WIDTH)
+    // Folded: the blob's own blank lines do not survive into the block.
+    expect(lines.filter((line) => line.trim() === '')).toHaveLength(1)
+    expect(lines.join(' ').replace(/\s+/gu, ' ')).toContain(
+      'Details: execution reverted'
+    )
+  })
+
+  it('keeps a word longer than the budget whole', () => {
+    const lines = renderCheckGroups([
+      {
+        definition: definition('x', 'A check'),
+        result: result('x', 'fail', { actual: `0x${'a'.repeat(200)}` }),
+      },
+    ]).map(stripAnsi)
+
+    expect(lines.join('\n')).toContain(`0x${'a'.repeat(200)}`)
+  })
+})
