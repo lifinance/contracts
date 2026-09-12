@@ -46,6 +46,10 @@ import {
 } from './diamondRemovalDiff'
 import { createChainCaller } from './executors/create-chain-caller'
 import {
+  guardErrorDetail,
+  publishableGuardError,
+} from './guard-error-redaction'
+import {
   getParkedTasksCollection,
   listParkedTasksBySafeTxHash,
 } from './parked-tasks'
@@ -717,7 +721,7 @@ async function alertBlockedOps(
             } catch (error) {
               consola.warn(
                 `[${networkName}] Failed to send blocked-op notification:`,
-                error
+                guardErrorDetail(error)
               )
             }
           // Stamped regardless of Slack success: the console/CI log already
@@ -1030,7 +1034,7 @@ async function processNetwork(
   } catch (error) {
     consola.error(
       `[${network.name}] Error processing network ${network.name}:`,
-      error
+      guardErrorDetail(error)
     )
 
     return {
@@ -1223,7 +1227,7 @@ async function getPendingOperations(
             } catch (error) {
               consola.warn(
                 'Failed to send reconciled-execution notification:',
-                error
+                guardErrorDetail(error)
               )
             }
           continue
@@ -1504,7 +1508,7 @@ async function handleRevertedExecution(
   } catch (error) {
     consola.error(
       `${networkPrefix} Failed to alert the CI notifications channel about ${operation.id}:`,
-      error
+      guardErrorDetail(error)
     )
   }
 }
@@ -1590,7 +1594,7 @@ async function revalidateFoldedRemovalsOrAbort(
   if (!operation.safeTxHash) return 'ok'
 
   const alertFailure = async (error: unknown): Promise<void> => {
-    if (!isDryRun) await notifyFailure(error)
+    if (!isDryRun) await notifyFailure(publishableGuardError(error))
   }
 
   let parked: Awaited<ReturnType<typeof listParkedTasksBySafeTxHash>>
@@ -1611,7 +1615,7 @@ async function revalidateFoldedRemovalsOrAbort(
     if (removeHint.kind === 'none') return 'ok'
     consola.warn(
       `${networkPrefix} ⚠️ Could not open parked-tasks queue to revalidate Remove cut(s); refusing execute (row left queued, next run retries):`,
-      error
+      guardErrorDetail(error)
     )
     await alertFailure(
       new Error('parked-tasks queue unreachable for Remove revalidation')
@@ -1701,7 +1705,7 @@ async function revalidateFoldedRemovalsOrAbort(
     // Loupe/RPC blip — refuse this run but leave queued for retry.
     consola.error(
       `${networkPrefix} ❌ Pre-execute removal revalidation failed — refusing execute (row left queued, next run retries):`,
-      error
+      guardErrorDetail(error)
     )
     await alertFailure(error)
     return 'retry'
@@ -1814,7 +1818,7 @@ async function enforcePreBroadcastGateOrAbort(
   }
 
   const alertFailure = async (error: unknown): Promise<void> => {
-    if (!isDryRun) await notifyFailure(error)
+    if (!isDryRun) await notifyFailure(publishableGuardError(error))
   }
 
   // Shadow mode reports what could not be checked and clears the operation,
@@ -1828,14 +1832,14 @@ async function enforcePreBroadcastGateOrAbort(
     if (unverifiedGateOutcome(process.env) === 'ok') {
       consola.warn(
         `${networkPrefix} 🕶️  Shadow mode: ${gap} — reporting only, the gate will not stop this operation.`,
-        error
+        guardErrorDetail(error)
       )
       await alertGap([`${gap} for ${operation.id}`])
       return 'ok'
     }
     consola.error(
       `${networkPrefix} ❌ Pre-broadcast gate: ${gap} — refusing execute (row left queued, next run retries):`,
-      error
+      guardErrorDetail(error)
     )
     await alertFailure(error)
     return 'retry'
@@ -2023,7 +2027,7 @@ async function executeOperation(
       ).catch((error: unknown) => {
         consola.error(
           `${networkPrefix} ❌ Pre-broadcast gate threw outside its own handling:`,
-          error
+          guardErrorDetail(error)
         )
         return unverifiedGateOutcome(process.env)
       })
@@ -2310,10 +2314,10 @@ async function executeOperation(
   } catch (error) {
     consola.error(
       `${networkPrefix} Failed to execute operation ${operation.id}:`,
-      error
+      guardErrorDetail(error)
     )
 
-    if (!isDryRun) await notifyFailure(error)
+    if (!isDryRun) await notifyFailure(publishableGuardError(error))
 
     return 'failed'
   }

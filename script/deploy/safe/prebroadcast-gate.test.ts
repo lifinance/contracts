@@ -478,6 +478,9 @@ describe('observation errors never carry the endpoint that produced them', () =>
     ].join(' ')
     expect(published).not.toContain('dkey')
     expect(published).not.toContain('drpc.org')
+    // Positive control: the read error does reach the published text, so the
+    // two absences above are redaction and not an empty verdict.
+    expect(published).toContain('[redacted-url]')
     expect(result.disposition).toBe('HOLD')
   })
 })

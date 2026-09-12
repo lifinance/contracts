@@ -491,10 +491,10 @@ const processTxs = async (
         params.predecessor,
         params.salt
       )
-      // Same helper every other read-only Safe query goes through. Without an
-      // `--rpcUrl` override this is not a public endpoint: the chain object is
-      // built from `ETH_NODE_URI_<NETWORK>`, which `getViemChainForNetworkName`
-      // throws without, so the record is always the run's own RPC view.
+      // Without an `--rpcUrl` override this is not a public endpoint: the
+      // chain object is built from the network's configured RPC env var,
+      // which `getViemChainForNetworkName` throws without, so the record is
+      // always the run's own view.
       const publicClient = buildReadOnlyClient(networkKey, rpcUrl)
       const observed = await observeCalldata(
         {
@@ -862,7 +862,7 @@ const processTxs = async (
       } catch (error) {
         consola.warn(
           `Could not compute the Safe transaction hash on ${network} — the Ledger screens cannot be previewed: ${printableField(
-            error instanceof Error ? error.message : error
+            redactUrls(error instanceof Error ? error.message : String(error))
           )}`
         )
       }
@@ -1017,7 +1017,7 @@ const processTxs = async (
       integrityRun = undefined
       consola.error(
         `    Proposal integrity: the assertions could not be run — ${printableField(
-          error instanceof Error ? error.message : error
+          redactUrls(error instanceof Error ? error.message : String(error))
         )}`
       )
     }

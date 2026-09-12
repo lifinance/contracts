@@ -24,6 +24,7 @@ import { consola } from 'consola'
 import { MongoClient, type Collection, type ObjectId } from 'mongodb'
 import type { Hex } from 'viem'
 
+import { redactUrls } from '../../utils/redactUrls'
 import { getEnvVar } from '../../utils/utils'
 
 import type { IPreBroadcastAuthority } from './prebroadcast-authorities'
@@ -368,9 +369,13 @@ export const persistSignedSetRecord = async (
       await client.close()
     }
   } catch (error) {
+    // The driver echoes its connection string, credentials included, in the
+    // errors it throws on this path.
     consola.warn(
       'Failed to store the sign-time set (the pre-broadcast gate re-derives without it and will alert on the gap):',
-      error
+      redactUrls(
+        error instanceof Error ? error.stack ?? error.message : String(error)
+      )
     )
     return false
   }
