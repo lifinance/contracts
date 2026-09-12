@@ -14,14 +14,35 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import * as dotenv from 'dotenv'
 import { type Collection } from 'mongodb'
-import { type Address, type Hex } from 'viem'
+import {
+  createPublicClient,
+  fallback,
+  http,
+  type Address,
+  type Hex,
+  type Transport,
+} from 'viem'
 
 import networksData from '../../../config/networks.json'
-import { buildExplorerAddressUrl } from '../../utils/viemScriptHelpers'
+import { redactUrls } from '../../utils/redactUrls'
+import {
+  buildExplorerAddressUrl,
+  getFallbackTransportForChain,
+  getTransportConfigFromRpcUrl,
+} from '../../utils/viemScriptHelpers'
 import { createDefaultCache } from '../shared/deployment-cache'
 import { sanitizeProvenanceText } from '../shared/git-provenance'
 import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
 
+import {
+  evaluateCalldataAddresses,
+  renderCalldataAddresses,
+  type IDeploymentIndexEntry,
+} from './calldata-address-check'
+import {
+  buildDeploymentIndex,
+  collectAddressReferences,
+} from './calldata-address-collector'
 import {
   createCheckLedger,
   recordCheck,
@@ -45,7 +66,7 @@ import {
 } from './codehash-sign-gate-deps'
 import {
   CONFIRM_CHECK_DEFINITIONS,
-  targetStateCheckResult,
+  proposalCheckResults,
   worstResultPerCheck,
 } from './confirm-check-registry'
 import {
@@ -75,6 +96,15 @@ import {
   evaluateDelegateCallGate,
   renderDelegateCallGate,
 } from './delegatecall-gate'
+import {
+  collectExecutabilityInput,
+  createExecutabilityChainReader,
+} from './executability-collector'
+import {
+  evaluateExecutability,
+  renderExecutability,
+  type IExecutabilityVerdict,
+} from './executability-simulation'
 import type { ILedgerAccountResult } from './ledger'
 import {
   LEDGER_FLEX_HASH_NOTE,
@@ -92,6 +122,17 @@ import {
 } from './pinned-target-state'
 import { printableField, trustedMarkup } from './printable-field'
 import { reconcileAllSubmittedSafeTxs } from './reconcile'
+import { renderCheckLedger } from './render-check-ledger'
+import {
+  evaluateRpcQuorum,
+  renderRpcQuorum,
+  type IRpcQuorumVerdict,
+} from './rpc-quorum'
+import {
+  codeReadLabel,
+  collectProviderObservations,
+  createCodeReader,
+} from './rpc-quorum-collector'
 import {
   formatDecodedTxDataForDisplay,
   getTargetName,
@@ -138,15 +179,41 @@ const getCodehashDeps = (): ISignTimeCodehashDeps => {
   return codehashDeps
 }
 
+// One read of the deploy log per run, shared by every proposal: the log is the
+// only source written before a proposal exists, and re-reading it per proposal
+// would re-fetch the whole fleet on a fleet-wide rollout.
+let deploymentRecords: IDeploymentIndexEntry[] | undefined
+let deploymentRecordsRead = false
+const readDeploymentRecords = async (): Promise<
+  IDeploymentIndexEntry[] | undefined
+> => {
+  if (deploymentRecordsRead) return deploymentRecords
+  deploymentRecordsRead = true
+  if (!process.env.MONGODB_URI) return undefined
+
+  try {
+    // Same config the run's warm refresh uses, so this reads that cache rather
+    // than re-fetching the fleet.
+    deploymentRecords = await createDefaultCache({
+      mongoUri: process.env.MONGODB_URI,
+      databaseName: 'contract-deployments',
+      batchSize: 100,
+    }).get('production')
+  } catch {
+    // Left undefined, which the index reports as unavailable. An empty record
+    // read as available would grade every address as one nobody deployed.
+    deploymentRecords = undefined
+  }
+
+  return deploymentRecords
+}
+
 // Created once the run's network set is known, because the ledger's
 // denominator is that set: a check that never ran on a network must show as a
 // missing row rather than shrink the total it is measured against.
 //
-// Composed, never read. Only a `pass` counts toward the verified coverage, and
-// every status a correct Add/Replace cut produces is `needs-ack` whose
-// acknowledgement lands in `acknowledgementLedger` — so a correct rollout would
-// grade 0/N. EXSC-994 settles the verdict before anything reads these rows, so
-// what the comments below say a row does to one describes that consumer.
+// Read once, at the end of the run: the verdict is rendered from these rows, so
+// a status any row below claims is a status a signer is shown.
 let checkLedger: ICheckLedger | undefined
 
 const recordEveryCheck = (
@@ -652,7 +719,6 @@ const processTxs = async (
     // Target-state lines are graded here, not inside the sanitising detail
     // block: they are computed verdicts, not stored proposer-controlled fields.
     for (const line of formatTargetStateLines(targetState)) consola.info(line)
-    proposalChecks.push(targetStateCheckResult(targetState, network))
 
     // The struct the signature covers, never the stored row: createTransaction
     // normalises an absent operation to Call, so those two copies can disagree.
@@ -838,6 +904,229 @@ const processTxs = async (
       )
     }
     renderIntegrityAsserts(integrityRun).forEach((line) => consola.info(line))
+
+    // The remaining sign-time gates, run below the verdicts they are recorded
+    // beside so one ordered step hands the recorder all of them.
+    const endpoints = chain.rpcUrls.default.http
+    const primaryEndpoint = rpcUrl ?? endpoints[0]
+
+    // Two different reasons not to simulate, graded differently below. Tron is
+    // reached through its own executor rather than `eth_call`, so the EVM
+    // simulator does not cover it at all — a declared limit, recorded as an
+    // acknowledgement. A network it does cover but has no endpoint for is a
+    // read that should have happened and did not, which stays unverified.
+    const evmSimulatable =
+      !isTronNetworkKey(network) && Boolean(primaryEndpoint)
+
+    let executability: IExecutabilityVerdict | undefined
+    if (evmSimulatable && primaryEndpoint)
+      try {
+        // Every endpoint the chain has, in priority order, rather than the
+        // primary alone: one throttled provider must not be the reason a
+        // proposal goes unverified. Only when all of them fail does the row
+        // below record `error`, which blocks — the signer investigates rather
+        // than signing on a simulation nobody made.
+        //
+        // The override is kept outside the chain transport's own construction,
+        // which throws when every configured endpoint is unusable: built inline
+        // that throw would discard a `--rpcUrl` that works, in exactly the case
+        // an override exists for.
+        const overrideEndpoints = rpcUrl ? [rpcUrl] : []
+
+        // Resolved before the chain transport, so the fallback message below
+        // can say what is actually left. Through the same transport config as
+        // the simulators further down, for the same reason: a `--rpcUrl`
+        // carrying credentials is queried unauthenticated when it is handed to
+        // `http()` bare, and the 401 that comes back is recorded as chain state
+        // that could not be read.
+        const overrideTransports = overrideEndpoints.flatMap((endpointUrl) => {
+          try {
+            const { url, fetchOptions, retryCount, retryDelay } =
+              getTransportConfigFromRpcUrl(endpointUrl)
+            return [
+              http(url, {
+                ...(fetchOptions ? { fetchOptions } : {}),
+                ...(retryCount !== undefined ? { retryCount } : {}),
+                ...(retryDelay !== undefined ? { retryDelay } : {}),
+              }),
+            ]
+          } catch (error) {
+            consola.warn(
+              `    Executability: the supplied --rpcUrl cannot be used on ${network} — ${redactUrls(
+                error instanceof Error ? error.message : String(error)
+              )}`
+            )
+            return []
+          }
+        })
+
+        let chainTransport: Transport | undefined
+        try {
+          chainTransport = getFallbackTransportForChain(chain)
+        } catch (error) {
+          if (overrideTransports.length === 0) throw error
+          consola.warn(
+            `    Executability: no endpoint from the chain config is usable on ${network}; simulating through the supplied override alone — ${redactUrls(
+              error instanceof Error ? error.message : String(error)
+            )}`
+          )
+        }
+
+        const transports = [
+          ...overrideTransports,
+          ...(chainTransport ? [chainTransport] : []),
+        ]
+        const [onlyTransport] = transports
+        if (!onlyTransport)
+          throw new Error(
+            `No usable RPC endpoint for ${network} — nothing could simulate this proposal`
+          )
+        const client = createPublicClient({
+          chain,
+          transport:
+            transports.length === 1 ? onlyTransport : fallback(transports),
+        })
+
+        // One client per endpoint for the simulation itself. A fallback
+        // transport decides revert-versus-unreachable by the node's wording, so
+        // the payload's own answer has to be read endpoint by endpoint instead.
+        //
+        // Built through the same transport config the rest of the run uses, not
+        // from the bare URL: that is where an endpoint's auth headers and retry
+        // policy come from, and a simulator missing them fails to authenticate
+        // on every endpoint — which this gate would then read as a proposal
+        // nobody could simulate rather than as its own misconfiguration.
+        const simulators = [...overrideEndpoints, ...endpoints].flatMap(
+          (endpointUrl) => {
+            try {
+              const { url, fetchOptions, retryCount, retryDelay } =
+                getTransportConfigFromRpcUrl(endpointUrl)
+              return [
+                createPublicClient({
+                  chain,
+                  transport: http(url, {
+                    ...(fetchOptions ? { fetchOptions } : {}),
+                    ...(retryCount !== undefined ? { retryCount } : {}),
+                    ...(retryDelay !== undefined ? { retryDelay } : {}),
+                  }),
+                }),
+              ]
+            } catch {
+              // An endpoint this chain cannot use, which the remaining ones are
+              // there to cover. Dropped rather than simulated against, so its
+              // own unusability is never reported as the proposal's verdict.
+              return []
+            }
+          }
+        )
+        executability = evaluateExecutability(
+          await collectExecutabilityInput(
+            {
+              network,
+              safeAddress,
+              to: tx.safeTransaction.data.to as Address,
+              data: (tx.safeTransaction.data.data ?? '0x') as Hex,
+              nonce: {
+                proposalNonce: Number(tx.safeTransaction.data.nonce),
+                safeNonce: Number(onChainNonce),
+                // The proposal itself is in this list, and a nonce it shares
+                // with itself is not a collision with another proposal.
+                pendingNonces: initialTxs
+                  .filter((pending) => pending.safeTxHash !== tx.safeTxHash)
+                  .map((pending) => Number(pending.safeTx.data.nonce)),
+              },
+            },
+            createExecutabilityChainReader(client, simulators)
+          )
+        )
+      } catch (error) {
+        // Left undefined, which the ledger records as unverified and blocks on.
+        // A thrown collection is not a simulation that found nothing wrong, and
+        // every configured endpoint was already tried before reaching here.
+        consola.error(
+          `    Executability: this proposal could not be simulated on ${network}, so it is UNVERIFIED — investigate before signing: ${redactUrls(
+            error instanceof Error ? error.message : String(error)
+          )}`
+        )
+      }
+
+    if (executability)
+      renderExecutability(executability).forEach((line) => consola.info(line))
+
+    const quorumTarget = tx.safeTransaction.data.to as Address
+    let rpcQuorum: IRpcQuorumVerdict | undefined
+    if (evmSimulatable && endpoints.length > 0)
+      try {
+        rpcQuorum = evaluateRpcQuorum(
+          await collectProviderObservations(
+            endpoints,
+            createCodeReader(quorumTarget, chain.id)
+          )
+        )
+      } catch (error) {
+        consola.warn(
+          `    RPC quorum: the read could not be made — ${redactUrls(
+            error instanceof Error ? error.message : String(error)
+          )}`
+        )
+      }
+
+    if (rpcQuorum)
+      renderRpcQuorum(rpcQuorum, codeReadLabel(quorumTarget, network)).forEach(
+        (line) => consola.info(line)
+      )
+
+    // Report-only and never gated on: the record is written by the deploying
+    // machine, so this catches the typo and the address nobody deployed, not a
+    // proposer who controls that machine. It carries no ledger row because the
+    // only anchor it could rest on reports rather than decides — see
+    // `check-ledger.ts`'s reporting-only anchors.
+    try {
+      const { references, undecodable } = collectAddressReferences(
+        tx.safeTransaction.data.data
+          ? [tx.safeTransaction.data.data as Hex]
+          : []
+      )
+      const records = await readDeploymentRecords()
+      const calldataAddresses = evaluateCalldataAddresses(
+        {
+          network,
+          references,
+          ...(undecodable.length > 0 ? { undecodable } : {}),
+        },
+        buildDeploymentIndex(
+          records,
+          references.map((reference) => reference.address)
+        )
+      )
+      renderCalldataAddresses(calldataAddresses).forEach((line) =>
+        consola.info(line)
+      )
+    } catch (error) {
+      consola.warn(
+        `    Calldata addresses: the check could not be run — ${redactUrls(
+          error instanceof Error ? error.message : String(error)
+        )}`
+      )
+    }
+
+    proposalChecks.push(
+      ...proposalCheckResults({
+        network,
+        integrity: integrityRun,
+        targetState,
+        executability,
+        // Only a chain the simulator was never written for is out of scope. An
+        // EVM network it does cover but could not reach is a read that should
+        // have happened and did not, so it is left to record as unverified.
+        ...(isTronNetworkKey(network)
+          ? {
+              executabilityOutOfScope: `${network} is executed through its own chain executor, which the EVM simulator does not cover`,
+            }
+          : {}),
+        rpcQuorum,
+      })
+    )
 
     const integrity = evaluateProposalIntegrity({ nonceStatus })
     // Said before the action prompt, not after it: a verdict the operator can no
@@ -1602,6 +1891,16 @@ const main = defineCommand({
       // if the run succeeded.
       const executionsFailed =
         globalFailedExecutions.length > 0 || globalTimeoutExecutions.length > 0
+
+      // Ahead of the change summary: the ledger says what was verified, and the
+      // roll-up below only counts what the operator acted on. Withheld while
+      // target-state was the only row — every real cut graded `needs-ack`, so a
+      // correct rollout closed `0/N verified`. With the integrity, executability
+      // and quorum rows beside it a clean proposal now closes mostly verified,
+      // and an `executability` row that could not be read blocks; a block the
+      // signer never sees is worse than no check at all.
+      if (checkLedger)
+        renderCheckLedger(checkLedger).forEach((line) => consola.info(line))
 
       if (networkOutcomes.length > 0) {
         consola.info('=== Change Review Summary ===')

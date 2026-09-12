@@ -1,17 +1,37 @@
 // eslint-disable-next-line import/no-unresolved
 import { describe, expect, it } from 'bun:test'
 
-import { createCheckLedger, recordCheck } from './check-ledger'
+import {
+  createCheckLedger,
+  recordCheck,
+  rollUpChecks,
+  summariseLedger,
+  type CheckStatus,
+  type ICheckLedger,
+} from './check-ledger'
 import {
   CONFIRM_CHECK_DEFINITIONS,
   EVERY_ELEMENT_COMPARED,
+  EXECUTABILITY_CHECK_ID,
   NOTHING_TO_COMPARE,
   ORDERING_HOLDS,
+  RPC_QUORUM_CHECK_ID,
   TARGET_STATE_CHECK,
   TARGET_STATE_CHECK_ID,
+  executabilityCheckResult,
+  proposalCheckResults,
+  rpcQuorumCheckResult,
   targetStateCheckResult,
   worstResultPerCheck,
+  type IProposalCheckVerdicts,
 } from './confirm-check-registry'
+import {
+  CHECK_TIMELOCK_DELAY,
+  INTEGRITY_CHECKS_ALWAYS,
+  INTEGRITY_CHECK_DEFINITIONS,
+  type IIntegrityAssertRun,
+} from './confirm-integrity-asserts'
+import type { IExecutabilityVerdict } from './executability-simulation'
 import {
   STATUSES_CLEARED_TO_PROCEED,
   type ITargetStateFinding,
@@ -19,6 +39,7 @@ import {
   type TargetStateStatus,
 } from './pinned-target-state'
 import { renderCheckLedger } from './render-check-ledger'
+import type { IRpcQuorumVerdict, TQuorumStatus } from './rpc-quorum'
 
 const FACET = '0x1111111111111111111111111111111111111111'
 
@@ -471,5 +492,586 @@ describe('the registry is usable by the ledger it feeds', () => {
 
     expect(verdict).toContain('ACKNOWLEDGEMENT REQUIRED')
     expect(verdict).not.toContain('ALL CHECKS GREEN')
+  })
+})
+
+const NETWORK = 'arbitrum'
+
+// `no-diamond-cut` rather than `matches-main`: a version that matches origin/main
+// is graded from the deployment record and is an acknowledgement, so using it here
+// would make every assertion about the gates this PR adds fail on someone else's row.
+const cleanTargetState: ITargetStateVerdict = {
+  findings: [finding('no-diamond-cut')],
+} as ITargetStateVerdict
+
+const executabilityVerdict = (
+  overrides: Partial<IExecutabilityVerdict> = {}
+): IExecutabilityVerdict => ({
+  refuses: false,
+  error: false,
+  findings: [],
+  errors: [],
+  warnings: [],
+  notSimulated: [],
+  reason: '',
+  ...overrides,
+})
+
+const quorumVerdict = (
+  overrides: Partial<IRpcQuorumVerdict> = {}
+): IRpcQuorumVerdict => ({
+  status: 'agreed',
+  reachesQuorum: true,
+  quorum: 2,
+  agreeingProviders: 2,
+  largestAgreeingGroup: 2,
+  respondingProviders: 2,
+  independentProviders: 2,
+  endpointsConsulted: 2,
+  transient: false,
+  detail: 'two providers agreed',
+  perProvider: [],
+  ...overrides,
+})
+
+/**
+ * An integrity run whose ledger already holds one row per always-on check.
+ * Built through the real ledger so the mirrored rows are the coerced ones a
+ * real run would carry, not hand-written approximations of them.
+ */
+const integrityRun = (
+  options: {
+    includeTimelockDelay?: boolean
+    status?: CheckStatus
+    /** Registered but never reported, i.e. an assertion that did not finish. */
+    registerWithoutRecording?: string
+  } = {}
+): IIntegrityAssertRun => {
+  const registered = [
+    ...INTEGRITY_CHECKS_ALWAYS,
+    ...(options.includeTimelockDelay ? [CHECK_TIMELOCK_DELAY] : []),
+  ]
+  const ledger = createCheckLedger({
+    expectedNetworks: [NETWORK],
+    checks: registered.map((checkId) => {
+      const definition = INTEGRITY_CHECK_DEFINITIONS[checkId]
+      if (!definition) throw new Error(`no definition for ${checkId}`)
+      return definition
+    }),
+  })
+  for (const checkId of registered)
+    if (checkId !== options.registerWithoutRecording)
+      recordCheck(ledger, {
+        checkId,
+        network: NETWORK,
+        status: options.status ?? 'pass',
+        expected: 'the anchor value',
+        actual: 'the observed value',
+        anchor: 'A-CHAIN',
+      })
+
+  return {
+    ledger,
+    verdict: summariseLedger(ledger),
+    registered,
+    gradedKey: 'graded-key',
+  }
+}
+
+const runLedger = () =>
+  createCheckLedger({
+    expectedNetworks: [NETWORK],
+    checks: [...CONFIRM_CHECK_DEFINITIONS],
+  })
+
+const verdicts = (
+  overrides: Partial<IProposalCheckVerdicts> = {}
+): IProposalCheckVerdicts => ({
+  network: NETWORK,
+  integrity: integrityRun({ includeTimelockDelay: true }),
+  targetState: cleanTargetState,
+  executability: executabilityVerdict(),
+  rpcQuorum: quorumVerdict(),
+  ...overrides,
+})
+
+/**
+ * Records one network's rows the way the CLI does: produce per proposal, reduce
+ * worst-first across the network's proposals, then record. Going through the
+ * same reducer keeps these tests honest about the shape the call site uses.
+ */
+const recordInto = (
+  ledger: ICheckLedger,
+  ...proposals: IProposalCheckVerdicts[]
+): void => {
+  const rows = proposals.flatMap((verdict) => proposalCheckResults(verdict))
+  for (const row of worstResultPerCheck(rows)) recordCheck(ledger, row)
+}
+
+describe('proposalCheckResults', () => {
+  it('records every registered check, so none is counted missing', () => {
+    const ledger = runLedger()
+    recordInto(ledger, verdicts())
+
+    const recorded = new Set(ledger.results.map((result) => result.checkId))
+    for (const definition of CONFIRM_CHECK_DEFINITIONS)
+      expect(recorded).toContain(definition.checkId)
+
+    expect(summariseLedger(ledger).totals.missing).toBe(0)
+  })
+
+  // The report's order is the order the rows were recorded in, so it is pinned
+  // here against the recorded sequence rather than against where the calls sit
+  // in the CLI's source.
+  it('records the checks in the order a signer reads them', () => {
+    const ledger = runLedger()
+    recordInto(ledger, verdicts())
+
+    expect(ledger.results.map((result) => result.checkId)).toEqual([
+      ...INTEGRITY_CHECKS_ALWAYS,
+      CHECK_TIMELOCK_DELAY,
+      TARGET_STATE_CHECK_ID,
+      EXECUTABILITY_CHECK_ID,
+      RPC_QUORUM_CHECK_ID,
+    ])
+  })
+
+  it('a clean proposal clears the ledger', () => {
+    const ledger = runLedger()
+    recordInto(ledger, verdicts())
+
+    const verdict = summariseLedger(ledger)
+    expect(verdict.hardBlocked).toBe(false)
+    expect(verdict.requiresAcknowledgement).toHaveLength(0)
+  })
+})
+
+describe('integrity verdicts reaching the run-level ledger', () => {
+  it('a failing integrity assertion hard-blocks the run ledger', () => {
+    const ledger = runLedger()
+    recordInto(
+      ledger,
+      verdicts({
+        integrity: integrityRun({
+          includeTimelockDelay: true,
+          status: 'fail',
+        }),
+      })
+    )
+
+    const verdict = summariseLedger(ledger)
+    expect(verdict.hardBlocked).toBe(true)
+    // Integrity has no acknowledgement path, so the row must block rather than
+    // land in the acknowledgeable pile.
+    expect(
+      verdict.blocking.some(
+        (entry) => entry.checkId === INTEGRITY_CHECKS_ALWAYS[0]
+      )
+    ).toBe(true)
+  })
+
+  it('assertions that never ran are unverified, never absent', () => {
+    const ledger = runLedger()
+    recordInto(ledger, verdicts({ integrity: undefined }))
+
+    const verdict = summariseLedger(ledger)
+    expect(verdict.hardBlocked).toBe(true)
+    expect(verdict.totals.missing).toBe(0)
+    for (const checkId of INTEGRITY_CHECKS_ALWAYS)
+      expect(
+        ledger.results.find((result) => result.checkId === checkId)?.status
+      ).toBe('error')
+  })
+
+  // A check with nothing to judge that *read* its evidence passes on the anchor
+  // it read; one that could not open the envelope errors. The delay check is
+  // the former, and `run.registered` is the only thing that says which it is.
+  it('a proposal carrying no schedule passes the delay check on A-LOCAL', () => {
+    const ledger = runLedger()
+    recordInto(
+      ledger,
+      verdicts({ integrity: integrityRun({ includeTimelockDelay: false }) })
+    )
+
+    const row = ledger.results.find(
+      (result) => result.checkId === CHECK_TIMELOCK_DELAY
+    )
+    expect(row?.status).toBe('pass')
+    expect(row?.anchor).toBe('A-LOCAL')
+    expect(summariseLedger(ledger).hardBlocked).toBe(false)
+  })
+
+  it('a registered delay check that never reported errors instead', () => {
+    const ledger = runLedger()
+    recordInto(
+      ledger,
+      verdicts({
+        integrity: integrityRun({
+          includeTimelockDelay: true,
+          registerWithoutRecording: CHECK_TIMELOCK_DELAY,
+        }),
+      })
+    )
+
+    const row = ledger.results.find(
+      (result) => result.checkId === CHECK_TIMELOCK_DELAY
+    )
+    expect(row?.status).toBe('error')
+    expect(row?.anchor).toBe('A-UNRESOLVED')
+    expect(summariseLedger(ledger).hardBlocked).toBe(true)
+  })
+})
+
+describe('executabilityCheckResult', () => {
+  it('grades a clean simulation a pass on the chain it read', () => {
+    const result = executabilityCheckResult(executabilityVerdict(), NETWORK)
+    expect(result.status).toBe('pass')
+    expect(result.anchor).toBe('A-CHAIN')
+  })
+
+  it('grades partial simulation coverage an acknowledgement, not a pass', () => {
+    // The paired directions: a clean run with nothing left unsimulated is the
+    // pass above, and one payload without a revert model is coverage the run
+    // does not have, so it cannot share that row.
+    const result = executabilityCheckResult(
+      executabilityVerdict({ notSimulated: ['call[0].diamondCut[0]'] }),
+      NETWORK
+    )
+
+    expect(result.status).toBe('needs-ack')
+    expect(result.anchor).toBe('A-UNRESOLVED')
+    expect(result.actual).toContain('1 payload(s) have no revert model')
+  })
+
+  it('grades a proposal that would revert a mismatch', () => {
+    const result = executabilityCheckResult(
+      executabilityVerdict({ refuses: true, reason: 'FunctionAlreadyExists' }),
+      NETWORK
+    )
+    expect(result.status).toBe('fail')
+    expect(result.anchor).toBe('A-CHAIN')
+  })
+
+  // A simulation that could not be made has not established that the proposal
+  // reverts, so it must not reach the ledger wearing a mismatch.
+  it('grades a simulation that could not be made unverified, not a mismatch', () => {
+    const result = executabilityCheckResult(
+      executabilityVerdict({
+        error: true,
+        refuses: true,
+        errors: ['chain state could not be read'],
+      }),
+      NETWORK
+    )
+    expect(result.status).toBe('error')
+    expect(result.anchor).toBe('A-UNRESOLVED')
+  })
+
+  it('an unverified simulation blocks the run', () => {
+    const ledger = runLedger()
+    recordInto(
+      ledger,
+      verdicts({
+        executability: executabilityVerdict({
+          error: true,
+          errors: ['no payload was simulated with eth_call'],
+        }),
+      })
+    )
+    expect(summariseLedger(ledger).hardBlocked).toBe(true)
+  })
+
+  it('a simulation that was never attempted is unverified', () => {
+    const ledger = runLedger()
+    recordInto(ledger, verdicts({ executability: undefined }))
+
+    const row = ledger.results.find(
+      (result) => result.checkId === EXECUTABILITY_CHECK_ID
+    )
+    expect(row?.status).toBe('error')
+    expect(summariseLedger(ledger).hardBlocked).toBe(true)
+  })
+})
+
+describe('rpcQuorumCheckResult', () => {
+  it('grades agreement across independent providers a pass on A-CHAIN', () => {
+    const result = rpcQuorumCheckResult(quorumVerdict(), NETWORK)
+    expect(result.status).toBe('pass')
+    expect(result.anchor).toBe('A-CHAIN')
+  })
+
+  // Report-only: the fleet still has single-endpoint production chains, and
+  // enforcing the quorum there would turn missing redundancy into a refusal.
+  it('never records a mismatch, whatever the shortfall', () => {
+    const shortfalls: TQuorumStatus[] = [
+      'agreed-absent',
+      'disagreement',
+      'fork-divergence',
+      'heights-not-aligned',
+      'insufficient-providers',
+      'insufficient-responses',
+      'no-responses',
+      'provider-identity-unverifiable',
+      'quorum-misconfigured',
+    ]
+
+    for (const status of shortfalls) {
+      const result = rpcQuorumCheckResult(
+        quorumVerdict({ status, reachesQuorum: false, agreeingProviders: 0 }),
+        NETWORK
+      )
+      expect(result.status).toBe('needs-ack')
+      expect(result.status).not.toBe('fail')
+    }
+  })
+
+  it('a single-endpoint network is acknowledgeable, never a hard block', () => {
+    const ledger = runLedger()
+    recordInto(
+      ledger,
+      verdicts({
+        rpcQuorum: quorumVerdict({
+          status: 'insufficient-providers',
+          reachesQuorum: false,
+          agreeingProviders: 0,
+          independentProviders: 1,
+        }),
+      })
+    )
+
+    const verdict = summariseLedger(ledger)
+    expect(verdict.hardBlocked).toBe(false)
+    expect(
+      verdict.requiresAcknowledgement.map((result) => result.checkId)
+    ).toContain(RPC_QUORUM_CHECK_ID)
+  })
+
+  it('an unmade quorum read is acknowledgeable, never a hard block', () => {
+    const ledger = runLedger()
+    recordInto(ledger, verdicts({ rpcQuorum: undefined }))
+
+    expect(summariseLedger(ledger).hardBlocked).toBe(false)
+  })
+})
+
+describe('a chain the simulator does not cover', () => {
+  // The Tron path. Distinct from a simulation that failed on a chain the
+  // simulator does cover: a declared limit is acknowledgeable, an unmade read
+  // is not, and grading them the same way would either block every Tron
+  // rollout or let a failed EVM read pass as reviewed.
+  it('is acknowledgeable rather than unverified', () => {
+    const ledger = runLedger()
+    recordInto(
+      ledger,
+      verdicts({
+        executability: undefined,
+        executabilityOutOfScope: 'tron runs through its own chain executor',
+      })
+    )
+
+    const row = ledger.results.find(
+      (result) => result.checkId === EXECUTABILITY_CHECK_ID
+    )
+    expect(row?.status).toBe('needs-ack')
+    expect(row?.actual).toContain('tron')
+
+    const verdict = summariseLedger(ledger)
+    expect(verdict.hardBlocked).toBe(false)
+    expect(
+      verdict.requiresAcknowledgement.map((result) => result.checkId)
+    ).toContain(EXECUTABILITY_CHECK_ID)
+  })
+
+  // The scope note must never rescue a simulation that genuinely ran and
+  // could not decide — that one is unverified and blocks.
+  it('does not soften a simulation that ran and errored', () => {
+    const ledger = runLedger()
+    recordInto(
+      ledger,
+      verdicts({
+        executability: executabilityVerdict({
+          error: true,
+          errors: ['chain state could not be read'],
+        }),
+        executabilityOutOfScope: 'tron runs through its own chain executor',
+      })
+    )
+
+    expect(
+      ledger.results.find((result) => result.checkId === EXECUTABILITY_CHECK_ID)
+        ?.status
+    ).toBe('error')
+    expect(summariseLedger(ledger).hardBlocked).toBe(true)
+  })
+})
+
+describe('an integrity check the run registered but never reported', () => {
+  // A registered check with no row is counted missing and blocks, so the
+  // recorder answers for it — as unverified, never as a pass.
+  it('is recorded unverified rather than left absent', () => {
+    const run = integrityRun({ includeTimelockDelay: true })
+    const dropped = INTEGRITY_CHECKS_ALWAYS[1] as string
+    const thinned = {
+      ...run,
+      ledger: {
+        ...run.ledger,
+        results: run.ledger.results.filter(
+          (result) => result.checkId !== dropped
+        ),
+      },
+    }
+
+    const ledger = runLedger()
+    recordInto(ledger, verdicts({ integrity: thinned }))
+
+    const row = ledger.results.find((result) => result.checkId === dropped)
+    expect(row?.status).toBe('error')
+    expect(row?.anchor).toBe('A-UNRESOLVED')
+    expect(summariseLedger(ledger).totals.missing).toBe(0)
+  })
+})
+
+describe('a shortfall the signer can act on', () => {
+  // Amber on its own teaches signers to click through. A row that names the
+  // command that fixes it is one they can clear instead.
+  it('names the remedy when the network has too few endpoints', () => {
+    const result = rpcQuorumCheckResult(
+      quorumVerdict({
+        status: 'insufficient-providers',
+        reachesQuorum: false,
+        agreeingProviders: 0,
+        independentProviders: 1,
+        endpointsConsulted: 3,
+      }),
+      NETWORK
+    )
+
+    expect(result.detail).toContain('bun fetch-rpcs')
+    // Providers and endpoints are different counts, and the line must not
+    // report one as the other: three endpoints behind one provider is still a
+    // shortfall, and calling that "1 endpoint" sends the operator nowhere.
+    expect(result.detail).toContain('1 independent provider(s)')
+    expect(result.detail).toContain('3 configured endpoint(s)')
+    expect(result.detail).not.toMatch(/only 1 endpoint\(s\) are configured/u)
+  })
+
+  // A disagreement between providers that are all present is a different
+  // problem, and pointing it at the endpoint list would misdirect.
+  it('does not blame the endpoint list when enough providers answered', () => {
+    const result = rpcQuorumCheckResult(
+      quorumVerdict({
+        status: 'disagreement',
+        reachesQuorum: false,
+        agreeingProviders: 0,
+        independentProviders: 3,
+      }),
+      NETWORK
+    )
+
+    expect(result.detail).not.toContain('bun fetch-rpcs')
+  })
+})
+
+describe('the verdict the run now closes on', () => {
+  // Why the render was withheld: with target-state as the only row, every real
+  // Add/Replace cut graded `needs-ack`, so a correct rollout closed
+  // `0/N verified` while a run that graded nothing closed green. The rows this
+  // registry adds are what make the denominator mean something again.
+  it('a clean proposal closes with most rows verified, not none', () => {
+    const ledger = runLedger()
+    recordInto(ledger, verdicts())
+
+    const rollups = rollUpChecks(ledger)
+    const passed = rollups.reduce((sum, rollup) => sum + rollup.passed, 0)
+
+    expect(passed).toBeGreaterThan(rollups.length / 2)
+    expect(stripColor(renderCheckLedger(ledger).at(-1) ?? '')).not.toContain(
+      `0/${rollups.length} network results verified`
+    )
+  })
+
+  // The other half of that asymmetry: a run that graded nothing must not close
+  // greener than one that graded a real cut.
+  it('a run whose checks could not be made does not close green', () => {
+    const ledger = runLedger()
+    recordInto(
+      ledger,
+      verdicts({ integrity: undefined, executability: undefined })
+    )
+
+    const verdict = stripColor(renderCheckLedger(ledger).at(-1) ?? '')
+    expect(verdict).toContain('BLOCKED')
+    expect(verdict).not.toContain('ALL CHECKS GREEN')
+  })
+})
+
+describe('the primitive that makes an unmade check blocking', () => {
+  // `unresolved` backs every "this was never established" path. Nothing else
+  // pins its status, so flipping it to `pass` — a check nobody made counting as
+  // verified — used to leave the whole suite green. Each path is asserted on
+  // its own row, so a regression names which one broke.
+  const unresolvedPaths: {
+    what: string
+    verdict: Partial<IProposalCheckVerdicts>
+    checkId: string
+  }[] = [
+    {
+      what: 'the integrity assertions never ran',
+      verdict: { integrity: undefined },
+      checkId: INTEGRITY_CHECKS_ALWAYS[0] as string,
+    },
+    {
+      what: 'the simulation was never attempted',
+      verdict: { executability: undefined },
+      checkId: EXECUTABILITY_CHECK_ID,
+    },
+  ]
+
+  for (const { what, verdict, checkId } of unresolvedPaths)
+    it(`records ${what} as unverified, and it blocks`, () => {
+      const ledger = runLedger()
+      recordInto(ledger, verdicts(verdict))
+
+      const row = ledger.results.find((result) => result.checkId === checkId)
+      expect(row?.status).toBe('error')
+      expect(row?.status).not.toBe('pass')
+      expect(row?.anchor).toBe('A-UNRESOLVED')
+
+      // Asserted per row rather than on the run: with several unresolved rows
+      // at once, one of them regressing to `pass` leaves the run blocked by the
+      // others and the regression invisible.
+      const blocking = summariseLedger(ledger).blocking.filter(
+        (entry) => entry.checkId === checkId
+      )
+      expect(blocking).toHaveLength(1)
+      expect(blocking[0]?.status).toBe('error')
+    })
+
+  // A registered check that reported nothing is the third path, and it is the
+  // one a delay assertion that died mid-run takes.
+  it('records a registered check that never reported as unverified', () => {
+    const run = integrityRun({ includeTimelockDelay: true })
+    const thinned = {
+      ...run,
+      ledger: {
+        ...run.ledger,
+        results: run.ledger.results.filter(
+          (result) => result.checkId !== CHECK_TIMELOCK_DELAY
+        ),
+      },
+    }
+
+    const ledger = runLedger()
+    recordInto(ledger, verdicts({ integrity: thinned }))
+
+    const row = ledger.results.find(
+      (result) => result.checkId === CHECK_TIMELOCK_DELAY
+    )
+    expect(row?.status).toBe('error')
+    expect(
+      summariseLedger(ledger).blocking.some(
+        (entry) => entry.checkId === CHECK_TIMELOCK_DELAY
+      )
+    ).toBe(true)
   })
 })

@@ -53,11 +53,13 @@ const carriesCutSelectorAligned = (data: Hex): boolean => {
  */
 export const MAX_UNWRAP_DEPTH = 4
 
-/** One `(facetAddress, action)` pair of a `diamondCut`. */
+/** One `(facetAddress, action, selectors)` triple of a `diamondCut`. */
 export interface IDiamondCutEntry {
   facetAddress: Address
   /** `LibDiamond.FacetCutAction`: Add=0, Replace=1, Remove=2. */
   action: number
+  /** The four-byte selectors this cut moves, lowercase. */
+  selectors: readonly Hex[]
 }
 
 /** One decoded `diamondCut` call, and where in the proposal it was reached. */
@@ -67,6 +69,37 @@ export interface IDiamondCutCall {
   cuts: readonly IDiamondCutEntry[]
   /** The cut's `_init` delegatecall target; zero when the update carries no init calldata. */
   init: Address
+  /** `_calldata` as hex. `0x` means the update carries no init calldata. */
+  initCalldata: Hex
+  /**
+   * The exact `diamondCut` calldata, as it will reach the diamond.
+   *
+   * Kept because a cut inside a timelock envelope is never sent by the Safe:
+   * simulating it means replaying these bytes from the timelock, and the
+   * proposal's own top-level calldata only schedules it.
+   */
+  raw: Hex
+  /**
+   * The diamond this cut executes against, when the caller supplied the
+   * top-level targets. Absent otherwise: a caller that only hands in calldata
+   * cannot be told which address it was sent to, and inventing one would put an
+   * address into a verdict that nothing observed.
+   */
+  target?: Address
+  /**
+   * The account the diamond sees as `msg.sender` — the Safe for a direct call,
+   * the timelock for anything reached by unwrapping one of its envelopes.
+   * Absent under the same condition as {@link IDiamondCutCall.target}.
+   */
+  caller?: Address
+}
+
+/** Where a proposal's top-level calls were sent, so a cut can name its diamond. */
+export interface IDiamondCutCallContext {
+  /** The address each top-level call in `calldatas` was sent to, by index. */
+  targets: readonly Address[]
+  /** The account that sends the top-level calls: the Safe. */
+  caller: Address
 }
 
 /** What a proposal's calls turned out to contain. */
@@ -84,46 +117,78 @@ export interface ICollectedDiamondCuts {
 
 const decodeCut = (
   data: Hex
-): { cuts: readonly IDiamondCutEntry[]; init: Address } => {
+): {
+  cuts: readonly IDiamondCutEntry[]
+  init: Address
+  initCalldata: Hex
+} => {
   const { args } = decodeFunctionData({ abi: DIAMOND_CUT_ABI, data })
   return {
     cuts: (
-      args[0] as readonly { facetAddress: Address; action: unknown }[]
+      args[0] as readonly {
+        facetAddress: Address
+        action: unknown
+        functionSelectors?: readonly Hex[]
+      }[]
     ).map((entry) => ({
       facetAddress: getAddress(entry.facetAddress),
       action: Number(entry.action),
+      selectors: (entry.functionSelectors ?? []).map(
+        (selector) => selector.toLowerCase() as Hex
+      ),
     })),
     init: args[1] as Address,
+    initCalldata: (args[2] as Hex) ?? '0x',
   }
 }
 
-const decodeScheduleBatch = (data: Hex): readonly Hex[] => {
+/** One unwrapped inner call: its payload and the address it will be sent to. */
+interface IUnwrappedCall {
+  payload: Hex
+  target?: Address
+}
+
+const decodeScheduleBatch = (data: Hex): readonly IUnwrappedCall[] => {
   const { args } = decodeFunctionData({
     abi: TIMELOCK_SCHEDULE_BATCH_ABI,
     data,
   })
-  return args[2] as readonly Hex[]
+  const targets = args[0] as readonly Address[]
+  return (args[2] as readonly Hex[]).map((payload, at) => ({
+    payload,
+    ...(targets[at] === undefined ? {} : { target: getAddress(targets[at]) }),
+  }))
 }
 
-const decodeSchedule = (data: Hex): readonly Hex[] => {
+const decodeSchedule = (data: Hex): readonly IUnwrappedCall[] => {
   const { args } = decodeFunctionData({ abi: TIMELOCK_SCHEDULE_ABI, data })
-  return [args[2] as Hex]
+  return [{ payload: args[2] as Hex, target: getAddress(args[0] as Address) }]
 }
 
 /**
  * Reads every `diamondCut` a proposal's calls would reach, unwrapping timelock
  * envelopes on the way down.
  * @param calldatas - the proposal's calls, in the order they were passed
+ * @param context - The target and sender to stamp on every call, when the
+ * caller knows them. Absent, each result leaves both fields unset rather than
+ * naming an address nothing observed.
  * @returns The decoded cuts, plus the indices of calls this could not read
  * through.
  */
 export const collectDiamondCutCalls = (
-  calldatas: readonly Hex[]
+  calldatas: readonly Hex[],
+  context?: IDiamondCutCallContext
 ): ICollectedDiamondCuts => {
   const calls: IDiamondCutCall[] = []
   const undecodable = new Set<number>()
 
-  const walk = (data: Hex, index: number, depth: number): void => {
+  const walk = (
+    data: Hex,
+    index: number,
+    depth: number,
+    target: Address | undefined,
+    caller: Address | undefined
+  ): void => {
     const selector = data.slice(0, 10).toLowerCase()
 
     if (selector === DIAMOND_CUT_SELECTOR) {
@@ -134,7 +199,15 @@ export const collectDiamondCutCalls = (
         undecodable.add(index)
         return
       }
-      calls.push({ callIndex: index, cuts: decoded.cuts, init: decoded.init })
+      calls.push({
+        callIndex: index,
+        cuts: decoded.cuts,
+        init: decoded.init,
+        initCalldata: decoded.initCalldata,
+        raw: data,
+        ...(target === undefined ? {} : { target }),
+        ...(caller === undefined ? {} : { caller }),
+      })
       return
     }
 
@@ -157,7 +230,11 @@ export const collectDiamondCutCalls = (
         undecodable.add(index)
         return
       }
-      for (const payload of payloads) walk(payload, index, depth + 1)
+      // The envelope's own address becomes `msg.sender` for everything it
+      // carries: a timelock batch executes its calls itself, so a cut reached
+      // this way is owner-gated against the timelock, never against the Safe.
+      for (const inner of payloads)
+        walk(inner.payload, index, depth + 1, inner.target, target)
       return
     }
 
@@ -181,7 +258,7 @@ export const collectDiamondCutCalls = (
     // does not, and a skip here is a pass.
     if (!isHex(data, { strict: true }) || data.length % 2 !== 0)
       undecodable.add(index)
-    else walk(data, index, 0)
+    else walk(data, index, 0, context?.targets[index], context?.caller)
   })
 
   return { calls, undecodable: [...undecodable] }

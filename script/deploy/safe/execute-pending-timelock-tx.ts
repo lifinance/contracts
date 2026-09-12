@@ -27,6 +27,7 @@ import { setupEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
 import { sleep } from '../../utils/delay'
 import { getDeployments } from '../../utils/deploymentHelpers'
 import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
+import { redactUrls } from '../../utils/redactUrls'
 import {
   isUnattendedRun,
   SlackNotifier,
@@ -48,6 +49,10 @@ import {
   listParkedTasksBySafeTxHash,
 } from './parked-tasks'
 import { formatTimelockScheduleBatch } from './safe-decode-utils'
+import {
+  decideRevertedOperation,
+  renderCancelRecommendation,
+} from './timelock-cancel-placement'
 import {
   classifyPrefetchResults,
   fetchPendingForNetworks,
@@ -80,6 +85,7 @@ const TIMELOCK_ABI = parseAbi([
   'function execute(address target, uint256 value, bytes calldata payload, bytes32 predecessor, bytes32 salt) payable returns (bytes)',
   'function executeBatch(address[] targets, uint256[] values, bytes[] payloads, bytes32 predecessor, bytes32 salt) payable returns (bytes[])',
   'function cancel(bytes32 id)',
+  'function hashOperationBatch(address[] targets, uint256[] values, bytes[] payloads, bytes32 predecessor, bytes32 salt) view returns (bytes32)',
   'event CallScheduled(bytes32 indexed id, uint256 indexed index, address target, uint256 value, bytes data, bytes32 predecessor, uint256 delay)',
   'event CallExecuted(bytes32 indexed id, uint256 indexed index, address target, uint256 value, bytes data)',
   'event CallSalt(bytes32 indexed id, bytes32 salt)',
@@ -1343,6 +1349,20 @@ async function getPendingOperations(
 }
 
 /**
+ * The reads the cancel matrix needs, supplied by the caller that already holds
+ * a client for this network.
+ *
+ * `recomputeOperationId` carries a could-not-answer value — `undefined` — and
+ * the matrix reaches a non-destructive verdict on it. `readOperationState` has
+ * none, because every member of its union is a state the controller can really
+ * be in, so it throws instead and the caller reports the matrix as unevaluated.
+ */
+interface ICancelRecommendationContext {
+  recomputeOperationId: () => Promise<string | undefined>
+  readOperationState: () => Promise<'ready' | 'pending' | 'done' | 'unset'>
+}
+
+/**
  * Records a reverted `executeBatch` and, once the row has burned its retry
  * budget, blocks it and alerts the CI notifications channel.
  *
@@ -1367,7 +1387,8 @@ async function handleRevertedExecution(
   networkName: string,
   operation: ITimelockOperation,
   txHash: string,
-  networkPrefix: string
+  networkPrefix: string,
+  cancelContext?: ICancelRecommendationContext
 ): Promise<void> {
   let revertCount: number
   try {
@@ -1388,6 +1409,38 @@ async function handleRevertedExecution(
     )
     return
   }
+
+  // Report-only: the matrix's verdict is printed next to the action the
+  // executor takes, never in place of it. See `timelock-cancel-placement.ts`
+  // for why it cannot drive the action until the integrity leg exists.
+  if (cancelContext)
+    try {
+      const decision = decideRevertedOperation({
+        scheduledOperationId: operation.id,
+        recomputedOperationId: await cancelContext.recomputeOperationId(),
+        operationState: await cancelContext.readOperationState(),
+        // Nothing at execute time consults the deploy log, so this is
+        // reported as a check that did not complete rather than as one that
+        // found every address recorded.
+        deploymentRecord: 'error',
+        signTimeVerdictRecord: 'missing',
+        revertAttempts: revertCount,
+        revertBlockThreshold: REVERT_BLOCK_THRESHOLD,
+      })
+      consola.info(
+        `${networkPrefix} ${renderCancelRecommendation(decision, operation.id)}`
+      )
+      for (const note of decision.notes)
+        consola.info(`${networkPrefix}   note: ${note}`)
+    } catch (error) {
+      consola.warn(
+        `${networkPrefix} Could not evaluate the cancel matrix for ${
+          operation.id
+        }: ${redactUrls(
+          error instanceof Error ? error.message : String(error)
+        )}`
+      )
+    }
 
   if (!shouldBlockAfterRevert(revertCount)) {
     consola.warn(
@@ -1867,7 +1920,57 @@ async function executeOperation(
             networkName,
             operation,
             result.hash,
-            networkPrefix
+            networkPrefix,
+            {
+              // Asked of the controller rather than recomputed here, so the
+              // comparison cannot drift from the contract's own hashing.
+              recomputeOperationId: async () => {
+                try {
+                  return await publicClient.readContract({
+                    address: timelockAddress,
+                    abi: TIMELOCK_ABI,
+                    functionName: 'hashOperationBatch',
+                    args: [
+                      operation.targets,
+                      operation.values,
+                      operation.payloads,
+                      operation.predecessor,
+                      // The salt this run really broadcasts, not a
+                      // re-derivation of it: an id hashed under a different
+                      // salt would read as a divergence nothing caused.
+                      salt,
+                    ],
+                  })
+                } catch {
+                  return undefined
+                }
+              },
+              readOperationState: async () => {
+                try {
+                  const status = await checkOperationStatus(
+                    publicClient,
+                    timelockAddress,
+                    operation.id,
+                    networkName
+                  )
+                  if (status.isDone) return 'done'
+                  if (status.isReady) return 'ready'
+                  if (status.isPending) return 'pending'
+                  return 'unset'
+                } catch (error) {
+                  // Rethrown rather than graded. `unset` is a state the
+                  // controller can really be in, and the matrix renders it as
+                  // one, so returning it here would put a fact on the
+                  // operator's screen that no read established. The caller's
+                  // catch reports the matrix as unevaluated instead.
+                  throw new Error(
+                    `the operation's on-chain state could not be read: ${
+                      error instanceof Error ? error.message : String(error)
+                    }`
+                  )
+                }
+              },
+            }
           )
         return 'failed'
       }
