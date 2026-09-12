@@ -277,3 +277,26 @@ describe('a check value too wide for the view', () => {
     expect(lines.join('\n')).toContain(`0x${'a'.repeat(200)}`)
   })
 })
+
+describe('a check with a write-up to point at', () => {
+  it('prints the link beside the check id, and nothing when there is none', () => {
+    const [withLink, withoutLink] = [
+      { docUrl: 'https://example.invalid/checks/x' },
+      {},
+    ].map((extra) =>
+      renderCheckGroups([
+        {
+          definition: definition('x', 'A check'),
+          result: result('x', 'fail'),
+          ...extra,
+        },
+      ])
+        .map(stripAnsi)
+        .join('\n')
+    )
+
+    expect(withLink).toContain('x · A-LOCAL https://example.invalid/checks/x')
+    expect(withoutLink).toContain('x · A-LOCAL')
+    expect(withoutLink).not.toContain('https://')
+  })
+})

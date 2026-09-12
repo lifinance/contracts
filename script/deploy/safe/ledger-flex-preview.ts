@@ -534,11 +534,32 @@ const HASH_HEX_CHARS = 64
 const HASH_SCREEN_COUNT = 3
 
 /**
- * Interior rows, chosen so the box reads portrait like the device rather than
- * landscape: a terminal cell is about twice as tall as it is wide, so an
- * `INNER`-wide box needs roughly `INNER / 1.6` rows to look the shape a Flex is.
+ * The Flex's screen in pixels, from the device's published geometry.
+ *
+ * The one number here that is not measured is the terminal's: a cell is taken
+ * as twice as tall as it is wide, which is typical and not universal. If the
+ * box reads the wrong shape on a particular terminal, that is the value to
+ * correct — the screen's own 480×600 is not in question.
  */
-const HASH_PANEL_MIN_CONTENT_ROWS = 11
+const FLEX_SCREEN_PX = { width: 480, height: 600 } as const
+const TERMINAL_CELL_ASPECT = 2
+
+/** Border rows plus the nav bar: box lines that are not content. */
+const HASH_PANEL_CHROME_ROWS = 4
+
+/**
+ * Interior rows, derived so the drawn box carries the screen's aspect rather
+ * than a rule of thumb about it. The previous constant was picked to "look the
+ * shape a Flex is" and came out about a tenth too tall.
+ */
+const HASH_PANEL_MIN_CONTENT_ROWS = Math.max(
+  9,
+  Math.round(
+    ((INNER + 2) * FLEX_SCREEN_PX.height) /
+      FLEX_SCREEN_PX.width /
+      TERMINAL_CELL_ASPECT
+  ) - HASH_PANEL_CHROME_ROWS
+)
 
 /**
  * The document glyph the Flex shows above "Review message" and "Sign message?".

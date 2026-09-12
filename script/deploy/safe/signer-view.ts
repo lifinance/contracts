@@ -226,6 +226,14 @@ export interface IBucketedResult {
   definition: ICheckDefinition | undefined
   /** Why the proposal gave this check nothing to do, when it did not. */
   notApplicable?: string
+  /**
+   * Where this check is written up, when there is somewhere to point at.
+   *
+   * A signer reading "the target is an address this checkout can name" at two
+   * in the morning needs somewhere to go that is not the source. Absent until
+   * the write-ups exist; a row without one prints exactly as it did before.
+   */
+  docUrl?: string
 }
 
 /**
@@ -283,7 +291,7 @@ export const renderCheckGroups = (
       continue
     }
 
-    for (const { result, definition, notApplicable } of entries) {
+    for (const { result, definition, notApplicable, docUrl } of entries) {
       const title = definition?.title ?? result.checkId
       if (notApplicable) {
         out.push(
@@ -294,7 +302,11 @@ export const renderCheckGroups = (
       out.push(
         `    ${style.colour}${style.glyph}${RESET} ${BOLD}${title}${RESET}`
       )
-      out.push(`        ${DIM}${result.checkId} · ${result.anchor}${RESET}`)
+      out.push(
+        `        ${DIM}${result.checkId} · ${result.anchor}${RESET}${
+          docUrl ? ` ${BLUE}${docUrl}${RESET}` : ''
+        }`
+      )
       out.push(...wrapValue('expected  ', result.expected))
       out.push(...wrapValue('observed  ', result.actual))
       if (result.detail)

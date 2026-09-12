@@ -34,6 +34,17 @@ const VIEW_TITLES: ReadonlyMap<string, string> = new Map([
   ['executability', 'Calldata simulation'],
 ])
 
+/**
+ * Where each check is written up, by `checkId`.
+ *
+ * Empty, and the rows render without a link until it is filled: a slot rather
+ * than a placeholder, because a link to a page that does not exist teaches a
+ * signer that the links are not worth following. `checkId` is stable across the
+ * ledger, the refusal messages and this view, so filling it is one entry per
+ * check and nothing else has to change.
+ */
+export const CHECK_DOCS: ReadonlyMap<string, string> = new Map()
+
 /** Every definition the signer view can name, by check id. */
 export const viewDefinitions = (
   extra: readonly ICheckDefinition[] = []
@@ -120,6 +131,9 @@ export const signerChecks = (input: {
   const rows: IBucketedResult[] = input.results.map((result) => ({
     result,
     definition: input.definitions.get(result.checkId),
+    ...(CHECK_DOCS.get(result.checkId)
+      ? { docUrl: CHECK_DOCS.get(result.checkId) }
+      : {}),
   }))
 
   // A check that answered is not a check with nothing to answer for, whatever

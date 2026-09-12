@@ -616,3 +616,19 @@ describe('the filmstrip cannot be driven by the stored calldata', () => {
     expect(widths.size).toBe(1)
   })
 })
+
+describe('the drawn box carries the screen it stands for', () => {
+  it('is within a tenth of the Flex aspect, not merely portrait', () => {
+    const plain = renderLedgerFlexHashFlow({
+      hash: `0x${'ab'.repeat(32)}`,
+    }).map((line) => stripAnsi(line))
+    const top = plain.find((line) => line.includes('╭')) ?? ''
+    const width = top.indexOf('╮') + 1
+    const height = plain.filter((line) => /[│╭╰]/u.test(line)).length
+
+    // A terminal cell is taken as twice as tall as it is wide, the same
+    // assumption the row count is derived from.
+    const drawn = width / (height * 2)
+    expect(Math.abs(drawn - 480 / 600)).toBeLessThan(0.08)
+  })
+})

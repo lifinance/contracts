@@ -62,6 +62,48 @@ const ROW_ACTION: Record<RowKind, string> = {
   missing: 're-run this check on this network before signing',
 }
 
+/**
+ * How many unverified rows have to share one cause before the report states it
+ * once rather than once per row.
+ *
+ * Two, because the defect this closes is arithmetic rather than aesthetic: one
+ * unset `ETH_NODE_URI_<NETWORK>` failed ten separate checks, each of which then
+ * printed "retry the check" — ten lines of advice that cannot work, above the
+ * one line naming the cause that can be acted on.
+ */
+const SHARED_CAUSE_MIN_ROWS = 2
+
+/**
+ * The single cause behind every unverified row, when they all share one.
+ *
+ * Only when they *all* do, and only when nothing disagreed: a run where nine
+ * rows blame a missing endpoint and one blames something else has two problems,
+ * and a banner naming the first sends the signer to fix an environment that was
+ * never the whole story.
+ *
+ * @param rollups - Every check's roll-up for this run.
+ * @returns The shared cause and how many rows rest on it, or nothing.
+ */
+const sharedUnverifiedCause = (
+  rollups: readonly ICheckRollup[]
+): { detail: string; rows: number } | undefined => {
+  const details = new Set<string>()
+  let rows = 0
+
+  for (const rollup of rollups)
+    for (const result of rollup.results) {
+      if (result.status === 'pass' || result.status === 'needs-ack') continue
+      if (result.status === 'fail') return undefined
+      rows += 1
+      details.add(clean(result.detail ?? ''))
+    }
+
+  const [only] = [...details]
+  if (details.size !== 1 || !only || rows < SHARED_CAUSE_MIN_ROWS)
+    return undefined
+  return { detail: only, rows }
+}
+
 const ROW_COLOR: Record<RowKind, string> = {
   fail: RED,
   error: YELLOW,
@@ -305,6 +347,23 @@ export function renderCheckLedger(
       'network'
     )} ===`,
   ]
+
+  // Above the rows rather than below them: this is the only line in the report
+  // a signer can act on when it applies, and the rows it explains are the ones
+  // that would otherwise bury it.
+  const cause = sharedUnverifiedCause(rollups)
+  if (cause)
+    lines.push(
+      color(
+        YELLOW,
+        `  ⚠ ${plural(
+          cause.rows,
+          'unverified result'
+        )} below, all for one reason: ${
+          cause.detail
+        }. Fix that and re-run; retrying the checks on their own will not change the answer.`
+      )
+    )
 
   for (const [section, sectionRollups] of sections)
     lines.push(...renderSection(section, sectionRollups, relaxed))
