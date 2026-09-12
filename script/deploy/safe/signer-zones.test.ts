@@ -214,3 +214,15 @@ describe('signerTodos', () => {
     expect(signerTodos({ deviceHash: `0x${'ef'.repeat(32)}` })).toHaveLength(1)
   })
 })
+
+describe('a device note carrying its own line breaks', () => {
+  it('indents every line of it, not just the first', () => {
+    const [, device] = signerTodos({
+      deviceHash: `0x${'ab'.repeat(32)}`,
+      devicePanel: ['screen'],
+      devicePanelNote: 'first caveat\nsecond caveat',
+    })
+
+    expect(device?.lines).toEqual(['screen', 'first caveat', 'second caveat'])
+  })
+})
