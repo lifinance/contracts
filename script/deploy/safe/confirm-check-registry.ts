@@ -460,6 +460,25 @@ export const RPC_QUORUM_CHECK: ICheckDefinition = {
   title: 'Provider agreement',
 }
 
+export const CODEHASH_CHECK_ID = 'codehash'
+
+/**
+ * Named here but deliberately absent from `CONFIRM_CHECK_DEFINITIONS`.
+ *
+ * The codehash gate refuses inside `confirm-integrity-asserts` rather than
+ * through a ledger row, so registering it would add a coverage denominator
+ * nothing answers for and block every run. It still needs a letter and a
+ * subject: a harness that cannot run it prints it as not-applicable, and a row
+ * with no definition renders as `Gate undefined`.
+ */
+export const CODEHASH_CHECK: ICheckDefinition = {
+  checkId: CODEHASH_CHECK_ID,
+  section: 'Integrity',
+  checkClass: 'integrity',
+  gate: 'K',
+  title: 'Deployed bytecode',
+}
+
 /**
  * The integrity ids this registry mirrors onto the run-level ledger.
  *
@@ -501,6 +520,18 @@ export const CONFIRM_CHECK_DEFINITIONS: readonly ICheckDefinition[] = [
   TARGET_STATE_CHECK,
   EXECUTABILITY_CHECK,
   RPC_QUORUM_CHECK,
+]
+
+/**
+ * Every gate this repo has a name for, registered or not.
+ *
+ * The naming authority, so the letters stay unique across gates that never
+ * share a ledger: `CONFIRM_CHECK_DEFINITIONS` is the subset a run must answer
+ * for, and anything a view might have to name belongs here too.
+ */
+export const ALL_GATE_DEFINITIONS: readonly ICheckDefinition[] = [
+  ...CONFIRM_CHECK_DEFINITIONS,
+  CODEHASH_CHECK,
 ]
 
 /**
@@ -564,8 +595,10 @@ export const executabilityCheckResult = (
       network,
       status: 'needs-ack',
       expected: 'every payload simulated against the state it will execute in',
-      actual: `no revert found in the payloads that were simulated; ${verdict.notSimulated.length} payload(s) have no revert model`,
+      actual: `${verdict.notSimulated.length} of ${verdict.calls.length} payload(s) judged on a live eth_call alone; nothing reverted`,
       anchor: 'A-UNRESOLVED',
+      detail:
+        'an eth_call shows only that the call does not revert against chain state as it is now, from the sender that was recorded; no revert model covers these payloads, so nothing was checked against the state this proposal will execute in',
     }
 
   return {

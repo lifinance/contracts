@@ -10,8 +10,20 @@
 
 import type { ICheckDefinition, ICheckResult } from './check-ledger'
 import { rollUpChecks } from './check-ledger'
-import { TARGET_STATE_CHECK } from './confirm-check-registry'
 import {
+  CODEHASH_CHECK_ID,
+  EXECUTABILITY_CHECK_ID,
+  RPC_QUORUM_CHECK_ID,
+  STORAGE_AUTHORITY_CHECK_ID,
+  TARGET_STATE_CHECK,
+  TARGET_STATE_CHECK_ID,
+} from './confirm-check-registry'
+import {
+  CHECK_FIXED_FIELDS,
+  CHECK_SAFE_ADDRESS,
+  CHECK_SAFE_TX_HASH,
+  CHECK_SIGNATURES,
+  CHECK_TARGET,
   CHECK_TIMELOCK_DELAY,
   INTEGRITY_CHECK_DEFINITIONS,
   type IIntegrityAssertRun,
@@ -41,7 +53,49 @@ const passedRunLabel = (definition: ICheckDefinition): string =>
  * ledger, the refusal messages and this view, so filling it is one entry per
  * check and nothing else has to change.
  */
-export const CHECK_DOCS: ReadonlyMap<string, string> = new Map()
+export const CHECK_DOCS: ReadonlyMap<string, string> = new Map([
+  [
+    CHECK_SAFE_ADDRESS,
+    'https://app.notion.com/p/3d9f0ff14ac78153b0c0df82ff579007',
+  ],
+  [
+    CHECK_SAFE_TX_HASH,
+    'https://app.notion.com/p/3d9f0ff14ac7813fa8f9e03ad3de5402',
+  ],
+  [
+    CHECK_SIGNATURES,
+    'https://app.notion.com/p/3d9f0ff14ac78181a4b2c9cffcb335fb',
+  ],
+  [
+    CHECK_FIXED_FIELDS,
+    'https://app.notion.com/p/3d9f0ff14ac7816e8eb1ebd82755e797',
+  ],
+  [CHECK_TARGET, 'https://app.notion.com/p/3d9f0ff14ac78181ab94d6c43d84c526'],
+  [
+    CHECK_TIMELOCK_DELAY,
+    'https://app.notion.com/p/3d9f0ff14ac7818e9d52edf131a9a254',
+  ],
+  [
+    STORAGE_AUTHORITY_CHECK_ID,
+    'https://app.notion.com/p/3d9f0ff14ac7818da0aeeb61f3c8bb85',
+  ],
+  [
+    TARGET_STATE_CHECK_ID,
+    'https://app.notion.com/p/3d9f0ff14ac7811287a5ce1cb50ba400',
+  ],
+  [
+    EXECUTABILITY_CHECK_ID,
+    'https://app.notion.com/p/3d9f0ff14ac7819faef6d001baa7355a',
+  ],
+  [
+    RPC_QUORUM_CHECK_ID,
+    'https://app.notion.com/p/3d9f0ff14ac7816f9f91cc85cdd16f81',
+  ],
+  [
+    CODEHASH_CHECK_ID,
+    'https://app.notion.com/p/3d9f0ff14ac7814db989e4e1091f255b',
+  ],
+])
 
 /** Every definition the signer view can name, by check id. */
 export const viewDefinitions = (

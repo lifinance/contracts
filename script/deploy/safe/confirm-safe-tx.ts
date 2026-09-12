@@ -68,6 +68,7 @@ import {
   type ISignTimeCodehashDeps,
 } from './codehash-sign-gate-deps'
 import {
+  ALL_GATE_DEFINITIONS,
   authorityExpectationAnchors,
   CONFIRM_CHECK_DEFINITIONS,
   EXECUTABILITY_CHECK_ID,
@@ -184,6 +185,7 @@ import {
   checkSummary,
   PROPOSAL_SEPARATOR,
   renderCheckGroups,
+  renderProposalOutcome,
   renderTodos,
   zoneHeading,
 } from './signer-view'
@@ -1239,7 +1241,7 @@ const processTxs = async (
             ]),
           }
         : {}),
-      definitions: viewDefinitions(CONFIRM_CHECK_DEFINITIONS),
+      definitions: viewDefinitions(ALL_GATE_DEFINITIONS),
     })
 
     consola.log(
@@ -1318,6 +1320,11 @@ const processTxs = async (
       nonceCurrent: integrity.ok,
       acknowledged: false,
     })
+
+    // Restated here rather than left to the rows above: by the time the prompt
+    // appears the signer has scrolled past every gate, the calldata and the
+    // device panel, and this is the screen the decision is made on.
+    consola.log(renderProposalOutcome(signerCheckRows).join('\n'))
 
     // Determine available actions based on signature status
     // Execute options are offered regardless of nonce status; the nonce gate runs

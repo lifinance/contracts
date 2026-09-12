@@ -121,20 +121,29 @@ describe('renderCheckGroups', () => {
     expect(at('PASSED')).toBeLessThan(at('NOT APPLICABLE'))
   })
 
-  it('collapses the passed run onto its short labels', () => {
+  it('gives every passed gate its own line', () => {
     const passed = [
-      entry('INT-SAFE-TX-HASH', 'pass', { shortTitle: 'Safe tx hash' }),
-      entry('INT-FIXED-FIELDS', 'pass', { shortTitle: 'Call shape' }),
-      entry('INT-TARGET', 'pass', { shortTitle: 'Target address' }),
-      entry('target-state', 'pass', { shortTitle: 'Facet version' }),
+      entry('INT-SAFE-TX-HASH', 'pass'),
+      entry('INT-FIXED-FIELDS', 'pass'),
+      entry('INT-TARGET', 'pass'),
+      entry('target-state', 'pass'),
     ]
     const lines = renderCheckGroups(passed)
       .map(stripAnsi)
-      .filter((line) => line.includes('·') || line.trimStart().startsWith('✓'))
+      .filter((line) => line.trimStart().startsWith('✓'))
 
-    expect(lines).toHaveLength(1)
-    expect(lines[0]).toContain('Safe tx hash · Call shape')
-    expect(lines[0]).not.toContain('title for')
+    expect(lines).toHaveLength(passed.length)
+    for (const line of lines) expect(line).toContain('title for')
+  })
+
+  it('points a passed gate at its write-up too', () => {
+    const plain = renderCheckGroups([
+      entry('INT-TARGET', 'pass', { docUrl: 'https://example.invalid/gate-e' }),
+    ])
+      .map(stripAnsi)
+      .join('\n')
+
+    expect(plain).toContain('https://example.invalid/gate-e')
   })
 
   it('keeps the full title for a check with no short label', () => {
@@ -268,15 +277,18 @@ describe('renderTodos', () => {
 })
 
 describe('PROPOSAL_SEPARATOR', () => {
-  it('surrounds a full-width labelled rule with blank lines', () => {
+  it('banners the end of a proposal between two full-width rules', () => {
     const lines = PROPOSAL_SEPARATOR.map(stripAnsi)
 
     expect(lines[0]).toBe('')
     expect(lines[1]).toBe('')
-    expect(lines[2]).toHaveLength(VIEW_WIDTH)
-    expect(lines[2]).toContain('end of proposal')
-    expect(lines[3]).toBe('')
-    expect(lines[4]).toBe('')
+    expect(lines[2]).toBe('x'.repeat(VIEW_WIDTH))
+    expect(lines[3]).toContain('END OF PROPOSAL')
+    expect(lines[3]).toContain('<<<')
+    expect(lines[3]).toContain('>>>')
+    expect(lines[4]).toBe('x'.repeat(VIEW_WIDTH))
+    expect(lines[5]).toBe('')
+    expect(lines[6]).toBe('')
   })
 })
 
@@ -467,17 +479,16 @@ describe('a check with a write-up to point at', () => {
 })
 
 describe('check notes', () => {
-  it('keeps a passed check’s note when its title is collapsed away', () => {
+  it('keeps a passed check’s note under its own line', () => {
     const plain = renderCheckGroups([
       entry('target-state', 'pass', {
-        shortTitle: 'Facet version',
         notes: ['    Expected state:  read from origin/main'],
       }),
     ])
       .map(stripAnsi)
       .join('\n')
 
-    expect(plain).toContain('Facet version')
+    expect(plain).toContain('title for target-state')
     expect(plain).toContain('Expected state:  read from origin/main')
   })
 

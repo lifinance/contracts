@@ -10,7 +10,9 @@ import {
   type ICheckLedger,
 } from './check-ledger'
 import {
+  ALL_GATE_DEFINITIONS,
   authorityExpectationAnchors,
+  CODEHASH_CHECK_ID,
   CONFIRM_CHECK_DEFINITIONS,
   EVERY_ELEMENT_COMPARED,
   EXECUTABILITY_CHECK_ID,
@@ -748,7 +750,11 @@ describe('executabilityCheckResult', () => {
 
     expect(result.status).toBe('needs-ack')
     expect(result.anchor).toBe('A-UNRESOLVED')
-    expect(result.actual).toContain('1 payload(s) have no revert model')
+    expect(result.actual).toContain('judged on a live eth_call alone')
+    // The row has to say what the acknowledgement is for: the screen shows
+    // those calls with a succeeding eth_call beside them, so "nothing reverted"
+    // on its own reads as a pass a signer is being asked to confirm twice.
+    expect(result.detail).toContain('no revert model covers these payloads')
   })
 
   it('grades a proposal that would revert a mismatch', () => {
@@ -1278,18 +1284,29 @@ describe('the row a reverting simulation writes to the ledger', () => {
 })
 
 describe('gate letters', () => {
-  it('are one uppercase letter, unique across every registered gate', () => {
-    const letters = CONFIRM_CHECK_DEFINITIONS.map(
-      (definition) => definition.gate
-    )
+  // Over every gate the repo names, not just the registered ones: a gate that
+  // never reaches a ledger still reaches a screen, and a letter it shares with
+  // a registered gate is read by a signer as the same gate.
+  it('are one uppercase letter, unique across every named gate', () => {
+    const letters = ALL_GATE_DEFINITIONS.map((definition) => definition.gate)
 
-    expect(letters.length).toBeGreaterThan(1)
+    expect(letters.length).toBeGreaterThan(CONFIRM_CHECK_DEFINITIONS.length - 1)
     for (const letter of letters) expect(letter).toMatch(/^[A-Z]$/u)
     expect(new Set(letters).size).toBe(letters.length)
   })
 
   it('name a subject rather than restate the assertion', () => {
-    for (const definition of CONFIRM_CHECK_DEFINITIONS)
+    for (const definition of ALL_GATE_DEFINITIONS)
       expect(definition.title.split(/\s+/u).length).toBeLessThanOrEqual(3)
+  })
+
+  it('covers every registered gate, and the ones that block elsewhere', () => {
+    const named = new Set(ALL_GATE_DEFINITIONS.map((one) => one.checkId))
+
+    for (const definition of CONFIRM_CHECK_DEFINITIONS)
+      expect(named).toContain(definition.checkId)
+    // The codehash gate refuses inside the integrity asserts rather than
+    // through a ledger row, so nothing else would notice it losing its name.
+    expect(named).toContain(CODEHASH_CHECK_ID)
   })
 })

@@ -148,13 +148,14 @@ export const zoneHeading = (
  * wrong proposal's.
  */
 export const PROPOSAL_SEPARATOR: readonly string[] = (() => {
-  const label = ' end of proposal '
-  const bar = Math.max(0, VIEW_WIDTH - label.length)
-  const left = Math.floor(bar / 2)
+  const banner = ' END OF PROPOSAL '
+  const wings = Math.max(3, Math.floor((VIEW_WIDTH - banner.length) / 2))
   return [
     '',
     '',
-    `${BOLD}${'━'.repeat(left)}${label}${'━'.repeat(bar - left)}${RESET}`,
+    `${DIM}${'x'.repeat(VIEW_WIDTH)}${RESET}`,
+    `${BOLD}${'<'.repeat(wings)}${banner}${'>'.repeat(wings)}${RESET}`,
+    `${DIM}${'x'.repeat(VIEW_WIDTH)}${RESET}`,
     '',
     '',
   ]
@@ -356,32 +357,24 @@ export const renderCheckGroups = (
     out.push(`  ${style.colour}${BOLD}${style.heading}${RESET}`)
 
     if (bucket === 'passed') {
-      // Wrapped rather than one long line: a green run that overflows the
-      // terminal breaks at an arbitrary column and stops reading as one item
-      // per separator, which is all this collapsed form has to convey.
-      const titles = entries.map(
-        (e) => e.shortTitle ?? e.definition?.title ?? e.result.checkId
-      )
-      const indent = '    '
-      const budget = VIEW_WIDTH - indent.length - 2
-      let line = ''
-      const flush = (): void => {
-        if (!line) return
-        out.push(`${indent}${style.colour}${style.glyph}${RESET} ${line}`)
-        line = ''
+      // One line per gate, not a run: a signer checking that a particular gate
+      // ran has to find it, and a name inside a wrapped list of names is the
+      // one arrangement that cannot be scanned down.
+      for (const entry of entries) {
+        const title = entry.definition
+          ? gateLabel(entry.definition)
+          : entry.result.checkId
+        out.push(
+          `    ${style.colour}${style.glyph}${RESET} ${title}${
+            entry.docUrl ? ` ${BLUE}${entry.docUrl}${RESET}` : ''
+          }`
+        )
+        out.push(...(entry.notes ?? []))
       }
-      for (const title of titles) {
-        const next = line ? `${line} · ${title}` : title
-        if (next.length > budget) {
-          flush()
-          line = title
-        } else line = next
-      }
-      flush()
-      out.push(...entries.flatMap((e) => e.notes ?? []))
       continue
     }
 
+    let first = true
     for (const {
       result,
       definition,
@@ -389,6 +382,10 @@ export const renderCheckGroups = (
       docUrl,
       notes,
     } of entries) {
+      // Between gates only: a leading blank would double the one this bucket's
+      // heading already printed.
+      if (!first) out.push('')
+      first = false
       const title = definition ? gateLabel(definition) : result.checkId
       if (notApplicable) {
         out.push(
@@ -462,6 +459,75 @@ export const renderTodos = (todos: readonly ITodo[]): string[] => {
  * @param results - The same results zone 2 renders.
  * @returns A summary such as "3 wrong · 2 unchecked · 3 passed".
  */
+/**
+ * What this proposal's gates add up to, in one sentence, before the prompt.
+ *
+ * The buckets above already say it row by row, but a signer who has scrolled
+ * past twelve rows and a device panel is deciding from whatever is on screen
+ * when the prompt appears — so the conclusion is restated where the decision is
+ * actually made, naming the gates it rests on.
+ *
+ * @param results - The proposal's bucketed rows.
+ * @returns Lines, already coloured.
+ */
+export const renderProposalOutcome = (
+  results: readonly IBucketedResult[]
+): string[] => {
+  const inBucket = (want: CheckBucket): string[] =>
+    results
+      .filter(
+        (entry) =>
+          bucketOf(entry.result.status, Boolean(entry.notApplicable)) === want
+      )
+      .map((entry) =>
+        entry.definition
+          ? `Gate ${entry.definition.gate}`
+          : entry.result.checkId
+      )
+
+  const name = (gates: readonly string[]): string => gates.join(', ')
+  const wrong = inBucket('wrong')
+  const unchecked = inBucket('unchecked')
+  const ack = inBucket('ack')
+
+  const say = (colour: string, text: string): string[] => [
+    '',
+    ...wrapValue('', text, `${BOLD}${colour}`, '  '),
+  ]
+
+  if (wrong.length)
+    return say(
+      RED,
+      `This proposal cannot be signed: ${
+        wrong.length
+      } mandatory gate(s) disagreed — ${name(
+        wrong
+      )}. An integrity gate has no acknowledgement path, so review and fix the proposal before proceeding.`
+    )
+
+  if (unchecked.length)
+    return say(
+      YELLOW,
+      `This proposal cannot be signed yet: ${
+        unchecked.length
+      } gate(s) could not be checked — ${name(
+        unchecked
+      )}. That is your environment rather than the proposal; fix it and run again.`
+    )
+
+  if (ack.length)
+    return say(
+      YELLOW,
+      `Every mandatory gate passed. ${
+        ack.length
+      } gate(s) reached a weaker answer than a pass — ${name(
+        ack
+      )}. Signing means you accept what each of them says it could not establish.`
+    )
+
+  return say(GREEN, 'Every gate passed. Nothing here blocks the signature.')
+}
+
 export const checkSummary = (results: readonly IBucketedResult[]): string => {
   const counts = new Map<CheckBucket, number>()
   for (const entry of results) {

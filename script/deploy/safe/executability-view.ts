@@ -188,10 +188,14 @@ const paint = (lines: readonly string[], colour: string): string[] =>
   lines.map((line) => `${colour}${line}${RESET}`)
 
 const renderCall = (call: IExecutabilityCall): string[] => {
-  const style = OUTCOME_STYLE.get(call.outcome) ?? {
-    glyph: '?',
-    colour: YELLOW,
-  }
+  // A call with no revert model is not a call that passed: its eth_call
+  // succeeded, which is weaker evidence than the model, and a green tick is the
+  // strongest mark on the screen. Only a revert keeps its own glyph — that one
+  // is a finding, not an absence of one.
+  const style =
+    call.modelled || call.outcome === 'would-revert'
+      ? OUTCOME_STYLE.get(call.outcome) ?? { glyph: '?', colour: YELLOW }
+      : { glyph: '?', colour: YELLOW }
   const out: string[] = ['']
 
   out.push(
