@@ -1276,3 +1276,20 @@ describe('the row a reverting simulation writes to the ledger', () => {
     expect(result.actual).toBe('another pending proposal sits at nonce 31')
   })
 })
+
+describe('gate letters', () => {
+  it('are one uppercase letter, unique across every registered gate', () => {
+    const letters = CONFIRM_CHECK_DEFINITIONS.map(
+      (definition) => definition.gate
+    )
+
+    expect(letters.length).toBeGreaterThan(1)
+    for (const letter of letters) expect(letter).toMatch(/^[A-Z]$/u)
+    expect(new Set(letters).size).toBe(letters.length)
+  })
+
+  it('name a subject rather than restate the assertion', () => {
+    for (const definition of CONFIRM_CHECK_DEFINITIONS)
+      expect(definition.title.split(/\s+/u).length).toBeLessThanOrEqual(3)
+  })
+})

@@ -35,7 +35,8 @@ export const TARGET_STATE_CHECK: ICheckDefinition = {
   checkId: TARGET_STATE_CHECK_ID,
   section: 'Intent',
   checkClass: 'semantic',
-  title: 'Facet version matches the declared target state',
+  gate: 'H',
+  title: 'Facet version',
 }
 
 export const STORAGE_AUTHORITY_CHECK_ID = 'storage-authority'
@@ -44,7 +45,8 @@ export const STORAGE_AUTHORITY_CHECK: ICheckDefinition = {
   checkId: STORAGE_AUTHORITY_CHECK_ID,
   section: 'Integrity',
   checkClass: 'integrity',
-  title: 'Storage authorities match what main declares',
+  gate: 'G',
+  title: 'Storage authorities',
 }
 
 /**
@@ -444,7 +446,8 @@ export const EXECUTABILITY_CHECK: ICheckDefinition = {
   // integrity class would hard-block a legitimate proposal on a stale read with
   // no way for the signer to say so.
   checkClass: 'semantic',
-  title: 'The proposal would execute rather than revert',
+  gate: 'I',
+  title: 'Calldata simulation',
 }
 
 export const RPC_QUORUM_CHECK_ID = 'rpc-quorum'
@@ -453,7 +456,8 @@ export const RPC_QUORUM_CHECK: ICheckDefinition = {
   checkId: RPC_QUORUM_CHECK_ID,
   section: 'Evidence',
   checkClass: 'semantic',
-  title: 'Chain reads agreed across independent providers',
+  gate: 'J',
+  title: 'Provider agreement',
 }
 
 /**

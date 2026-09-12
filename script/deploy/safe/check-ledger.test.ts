@@ -22,14 +22,16 @@ const CODEHASH: ICheckDefinition = {
   checkId: 'codehash',
   section: 'Integrity',
   checkClass: 'integrity',
-  title: 'Deployed codehash matches the attested build',
+  gate: 'X',
+  title: 'Deployed codehash',
 }
 
 const TARGET_STATE: ICheckDefinition = {
   checkId: 'target-state',
   section: 'Intent',
   checkClass: 'semantic',
-  title: 'Facet version matches the declared target state',
+  gate: 'Y',
+  title: 'Facet version',
 }
 
 const ledgerOf = (

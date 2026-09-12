@@ -11,6 +11,7 @@
  */
 
 import type { ICheckDefinition, ICheckResult } from './check-ledger'
+import { gateLabel } from './check-ledger'
 
 const ESC = String.fromCharCode(27)
 const RESET = `${ESC}[0m`
@@ -388,7 +389,7 @@ export const renderCheckGroups = (
       docUrl,
       notes,
     } of entries) {
-      const title = definition?.title ?? result.checkId
+      const title = definition ? gateLabel(definition) : result.checkId
       if (notApplicable) {
         out.push(
           ...wrapValue(

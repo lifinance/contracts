@@ -32,6 +32,7 @@ const definition = (checkId: string, title: string): ICheckDefinition => ({
   checkId,
   section: 'section',
   checkClass: 'integrity',
+  gate: 'X',
   title,
 })
 

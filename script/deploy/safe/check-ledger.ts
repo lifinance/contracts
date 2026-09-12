@@ -81,8 +81,37 @@ export interface ICheckDefinition {
   /** Groups checks into the one-line-per-section report. */
   section: string
   checkClass: CheckClass
+  /**
+   * The letter a signer refers to this gate by, unique across the registry.
+   *
+   * A signer asking anyone else about a refusal needs a handle short enough to
+   * say out loud; `checkId` is not it, and the title moves whenever the wording
+   * is improved.
+   */
+  gate: string
+  /**
+   * The subject of the gate, not the assertion it makes.
+   *
+   * Phrased as a name because the row's glyph already carries the verdict: a
+   * title written as a statement ("the hashes are equal") reads as true under a
+   * red glyph meaning the opposite, which is what the `expected`/`observed`
+   * pair beneath it is there to say.
+   */
   title: string
 }
+
+/**
+ * How every renderer names a gate.
+ *
+ * One function rather than a format string per view, so the letter a signer
+ * quotes cannot differ between the run-level ledger, the signer view and a
+ * refusal message.
+ *
+ * @param definition - The gate being named.
+ * @returns `Gate X · Subject`.
+ */
+export const gateLabel = (definition: ICheckDefinition): string =>
+  `Gate ${definition.gate} · ${definition.title}`
 
 export interface ICheckResult {
   /**
@@ -680,6 +709,7 @@ export const buildReviewAttestation = (
     definition.checkId,
     definition.checkClass,
     definition.section,
+    definition.gate,
     // The only text saying what is being checked, so relabelling a check must
     // move the digest.
     definition.title,

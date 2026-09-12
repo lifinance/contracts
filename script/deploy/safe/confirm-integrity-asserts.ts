@@ -35,6 +35,7 @@ import type { IDeploymentRecord } from '../shared/mongo-log-utils'
 
 import {
   createCheckLedger,
+  gateLabel,
   recordCheck,
   rollUpChecks,
   summariseLedger,
@@ -943,37 +944,43 @@ export const INTEGRITY_CHECK_DEFINITIONS: Record<string, ICheckDefinition> = {
     checkId: CHECK_SAFE_ADDRESS,
     section: SECTION,
     checkClass: 'integrity',
-    title: 'The proposal is against the Safe config names for this network',
+    gate: 'A',
+    title: 'Safe address',
   },
   [CHECK_SAFE_TX_HASH]: {
     checkId: CHECK_SAFE_TX_HASH,
     section: SECTION,
     checkClass: 'integrity',
-    title: "The Safe's own hash of this transaction equals the stored one",
+    gate: 'B',
+    title: 'Safe tx hash',
   },
   [CHECK_SIGNATURES]: {
     checkId: CHECK_SIGNATURES,
     section: SECTION,
     checkClass: 'integrity',
-    title: 'Every stored signature recovers to a current Safe owner',
+    gate: 'C',
+    title: 'Owner signatures',
   },
   [CHECK_FIXED_FIELDS]: {
     checkId: CHECK_FIXED_FIELDS,
     section: SECTION,
     checkClass: 'integrity',
-    title: 'The signed struct is a Call whose omitted fields are all zero',
+    gate: 'D',
+    title: 'Call shape',
   },
   [CHECK_TARGET]: {
     checkId: CHECK_TARGET,
     section: SECTION,
     checkClass: 'integrity',
-    title: 'The target is an address this checkout can name',
+    gate: 'E',
+    title: 'Target address',
   },
   [CHECK_TIMELOCK_DELAY]: {
     checkId: CHECK_TIMELOCK_DELAY,
     section: SECTION,
     checkClass: 'integrity',
-    title: "A schedule's delay is at least the timelock's live minimum",
+    gate: 'F',
+    title: 'Timelock delay',
   },
 }
 
@@ -1198,7 +1205,9 @@ export const renderIntegrityAsserts = (
     // row of its own to print.
     if (results.length === 0) {
       lines.push(
-        `        \u001b[31m⛔ NOT RUN\u001b[0m ${check.title} [${check.checkId}]`
+        `        \u001b[31m⛔ NOT RUN\u001b[0m ${gateLabel(check)} [${
+          check.checkId
+        }]`
       )
       continue
     }
@@ -1206,7 +1215,9 @@ export const renderIntegrityAsserts = (
     for (const result of results) {
       const bucket = STATUS_BUCKETS.get(result.status) ?? UNKNOWN_STATUS_BUCKET
       lines.push(
-        `        \u001b[${bucket.colour}m${bucket.glyph} ${bucket.word}\u001b[0m ${check.title} [${check.checkId}] (${result.anchor})`
+        `        \u001b[${bucket.colour}m${bucket.glyph} ${
+          bucket.word
+        }\u001b[0m ${gateLabel(check)} [${check.checkId}] (${result.anchor})`
       )
       if (result.status !== 'pass') {
         lines.push(`            expected ${result.expected}`)

@@ -5,6 +5,7 @@ import {
   createCheckLedger,
   recordCheck,
   summariseLedger,
+  type ICheckDefinition,
   type ICheckResult,
 } from './check-ledger'
 import {
@@ -51,31 +52,66 @@ const runWith = (
   }
 }
 
-describe('viewDefinitions', () => {
-  it('names the signature check by its subject, not by a count', () => {
-    expect(viewDefinitions().get(CHECK_SIGNATURES)?.title).toBe(
-      'Signatures recover to current owners'
+/** One failing row for `checkId`, rendered the way a signer sees it. */
+const renderFailing = (
+  checkId: string,
+  extra: readonly ICheckDefinition[] = []
+): string =>
+  renderCheckGroups(
+    signerChecks({
+      results: [
+        {
+          checkId,
+          network: NETWORK,
+          status: 'fail',
+          expected: 'the declared value',
+          actual: 'something else',
+          anchor: 'A-CHAIN',
+        },
+      ],
+      definitions: viewDefinitions(extra),
+    })
+  )
+    .map(stripAnsi)
+    .join('\n')
+
+describe('gate naming', () => {
+  it('heads a row with the gate letter and its subject', () => {
+    expect(renderFailing(CHECK_SIGNATURES)).toContain(
+      'Gate C \u00b7 Owner signatures'
     )
   })
 
-  it('names the executability check "Calldata simulation"', () => {
-    const definitions = viewDefinitions([
-      {
-        checkId: 'executability',
-        section: 'Execution',
-        checkClass: 'semantic',
-        title: 'The proposal would execute rather than revert',
-      },
-    ])
-
-    expect(definitions.get('executability')?.title).toBe('Calldata simulation')
+  it("uses an extra definition's own letter", () => {
+    expect(
+      renderFailing('executability', [
+        {
+          checkId: 'executability',
+          section: 'Execution',
+          checkClass: 'semantic',
+          gate: 'I',
+          title: 'Calldata simulation',
+        },
+      ])
+    ).toContain('Gate I \u00b7 Calldata simulation')
   })
 
-  it('leaves a title this view does not override alone', () => {
-    const own = INTEGRITY_CHECK_DEFINITIONS[CHECK_SAFE_TX_HASH]?.title ?? ''
+  it('never states the assertion in the row a red glyph heads', () => {
+    const rendered = renderFailing(CHECK_SAFE_TX_HASH)
 
-    expect(own).not.toBe('')
-    expect(viewDefinitions().get(CHECK_SAFE_TX_HASH)?.title).toBe(own)
+    expect(rendered).toContain('Gate B \u00b7 Safe tx hash')
+    expect(rendered).not.toContain('equals the stored one')
+  })
+
+  it('gives every definition a unique single-letter gate', () => {
+    const definitions = [...viewDefinitions().values()]
+
+    expect(definitions.length).toBeGreaterThan(1)
+    for (const definition of definitions)
+      expect(definition.gate).toMatch(/^[A-Z]$/u)
+
+    const letters = definitions.map((definition) => definition.gate)
+    expect(new Set(letters).size).toBe(letters.length)
   })
 })
 
@@ -229,9 +265,9 @@ describe('a device note carrying its own line breaks', () => {
 })
 
 describe('the Safe-address check', () => {
-  it('is named for what it asserts about the proposal', () => {
-    expect(viewDefinitions().get(CHECK_SAFE_ADDRESS)?.title).toBe(
-      'Proposal targets correct Safe address'
+  it('is named as a gate, not as a claim about the proposal', () => {
+    expect(renderFailing(CHECK_SAFE_ADDRESS)).toContain(
+      'Gate A \u00b7 Safe address'
     )
   })
 })

@@ -12,11 +12,6 @@ import type { ICheckDefinition, ICheckResult } from './check-ledger'
 import { rollUpChecks } from './check-ledger'
 import { TARGET_STATE_CHECK } from './confirm-check-registry'
 import {
-  CHECK_FIXED_FIELDS,
-  CHECK_SAFE_ADDRESS,
-  CHECK_SAFE_TX_HASH,
-  CHECK_SIGNATURES,
-  CHECK_TARGET,
   CHECK_TIMELOCK_DELAY,
   INTEGRITY_CHECK_DEFINITIONS,
   type IIntegrityAssertRun,
@@ -25,37 +20,17 @@ import { highlightHashRuns } from './ledger-flex-preview'
 import type { IBucketedResult, ITodo } from './signer-view'
 
 /**
- * Titles the signer view uses instead of the definition's own.
+ * The same gate, for the collapsed PASSED run.
  *
- * Overridden here rather than renamed at the definition, because the other
- * readers of these checks — the run-level ledger, the refusal messages — name
- * the thing that was asserted, while a signer skimming a grouped list needs the
- * subject. A count ("0 stored signatures") is the worst of both: it is what the
- * row observed, printed where the row's name belongs.
- */
-const VIEW_TITLES: ReadonlyMap<string, string> = new Map([
-  [CHECK_SAFE_ADDRESS, 'Proposal targets correct Safe address'],
-  [CHECK_SIGNATURES, 'Signatures recover to current owners'],
-  ['executability', 'Calldata simulation'],
-])
-
-/**
- * The subject of each check, for the collapsed PASSED run.
+ * Dropped to `A Safe address` because that run joins its entries with the same
+ * middle dot `gateLabel` puts between the letter and the subject, and a reader
+ * cannot tell which dots separate gates from which sit inside one.
  *
- * A check with no short form keeps its full title there, which costs that run a
- * line rather than printing a label nobody wrote.
+ * @param definition - The gate being named.
+ * @returns `X Subject`.
  */
-const VIEW_SHORT_TITLES: ReadonlyMap<string, string> = new Map([
-  [CHECK_SAFE_ADDRESS, 'Safe address'],
-  [CHECK_SAFE_TX_HASH, 'Safe tx hash'],
-  [CHECK_SIGNATURES, 'Signatures'],
-  [CHECK_FIXED_FIELDS, 'Call shape'],
-  [CHECK_TARGET, 'Target address'],
-  [CHECK_TIMELOCK_DELAY, 'Timelock delay'],
-  ['target-state', 'Facet version'],
-  ['rpc-quorum', 'Provider agreement'],
-  ['executability', 'Calldata simulation'],
-])
+const passedRunLabel = (definition: ICheckDefinition): string =>
+  `${definition.gate} ${definition.title}`
 
 /**
  * Where each check is written up, by `checkId`.
@@ -77,15 +52,7 @@ export const viewDefinitions = (
     TARGET_STATE_CHECK,
     ...extra,
   ]
-  return new Map(
-    all.map((definition) => [
-      definition.checkId,
-      {
-        ...definition,
-        title: VIEW_TITLES.get(definition.checkId) ?? definition.title,
-      },
-    ])
-  )
+  return new Map(all.map((definition) => [definition.checkId, definition]))
 }
 
 /** A run that never produced a verdict, as the one row that says so. */
@@ -158,8 +125,12 @@ export const signerChecks = (input: {
     ...(CHECK_DOCS.get(result.checkId)
       ? { docUrl: CHECK_DOCS.get(result.checkId) }
       : {}),
-    ...(VIEW_SHORT_TITLES.get(result.checkId)
-      ? { shortTitle: VIEW_SHORT_TITLES.get(result.checkId) }
+    ...(input.definitions.has(result.checkId)
+      ? {
+          shortTitle: passedRunLabel(
+            input.definitions.get(result.checkId) as ICheckDefinition
+          ),
+        }
       : {}),
     ...(input.notes?.get(result.checkId)
       ? { notes: input.notes.get(result.checkId) }

@@ -15,6 +15,7 @@ import { sanitizeProvenanceText } from '../shared/git-provenance'
 
 import {
   checkResultKey,
+  gateLabel,
   rollUpChecks,
   summariseLedger,
   type CheckClass,
@@ -176,7 +177,7 @@ function renderCheck(
   const lines = [
     color(
       rollup.failed > 0 ? RED : YELLOW,
-      `  ✗ ${clean(rollup.checkId)} — ${clean(rollup.title)}  ${counts}`
+      `  ✗ ${clean(gateLabel(rollup))} [${clean(rollup.checkId)}]  ${counts}`
     ),
   ]
 
