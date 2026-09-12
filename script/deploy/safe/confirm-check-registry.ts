@@ -25,7 +25,9 @@ import type {
   ITargetStateVerdict,
   TargetStateStatus,
 } from './pinned-target-state'
+import type { IPreBroadcastAuthority } from './prebroadcast-authorities'
 import { MIN_INDEPENDENT_PROVIDERS, type IRpcQuorumVerdict } from './rpc-quorum'
+import type { ISignedAuthorityEntry } from './signed-set-record'
 
 export const TARGET_STATE_CHECK_ID = 'target-state'
 
@@ -34,6 +36,144 @@ export const TARGET_STATE_CHECK: ICheckDefinition = {
   section: 'Intent',
   checkClass: 'semantic',
   title: 'Facet version matches the declared target state',
+}
+
+export const STORAGE_AUTHORITY_CHECK_ID = 'storage-authority'
+
+export const STORAGE_AUTHORITY_CHECK: ICheckDefinition = {
+  checkId: STORAGE_AUTHORITY_CHECK_ID,
+  section: 'Integrity',
+  checkClass: 'integrity',
+  title: 'Storage authorities match what main declares',
+}
+
+/**
+ * Where each authority's expectation came from, as an anchor.
+ *
+ * `config/global.json` is a repo file the proposer's branch cannot change
+ * without review, so it may decide a pass. The deployment record is written by
+ * the proposer, so it may only report — the ledger coerces a `pass` on it to
+ * `error`, which is the correct reading of "the value matched the one we were
+ * handed".
+ *
+ * @param authorities - Observation rows from `observeCalldata`.
+ * @returns Label → anchor, for `storageAuthorityCheckResult`.
+ */
+export const authorityExpectationAnchors = (
+  authorities: readonly IPreBroadcastAuthority[]
+): ReadonlyMap<string, ICheckResult['anchor']> =>
+  new Map(
+    authorities.map((authority) => [
+      authority.label,
+      authority.expectationSource === 'globalConfig'
+        ? ('A-LOCAL' as const)
+        : ('A-MONGO' as const),
+    ])
+  )
+
+export const EVERY_AUTHORITY_MATCHES =
+  'every declared storage authority holding the address main declares'
+
+/**
+ * Reduces a network's storage-authority observations to the one row the ledger
+ * holds.
+ *
+ * The comparison is a live chain read against a declaration in `main`, so the
+ * live side is `A-CHAIN` — but the row is anchored on the weaker of the two,
+ * because a comparison is only as good as its expectation. An authority whose
+ * expected value comes from the deployment record is `A-MONGO`, which the
+ * ledger treats as reporting-only and so coerces to `error` rather than letting
+ * it grade green: the proposer writes that record and therefore owns one side
+ * of the comparison. One sourced from `config/global.json` is `A-LOCAL` and may
+ * decide.
+ *
+ * An empty set is an `error` on `A-UNRESOLVED`, not a pass. No contract in the
+ * calldata carried a declared authority, so nothing was compared, and the
+ * denominator must not silently shrink.
+ *
+ * @param entries - Authority observations for this network's proposal.
+ * @param network - The network the observations are about.
+ * @param expectationAnchors - Per-label anchor for where the expectation came
+ * from, as `resolveExpectedAuthority` resolved it.
+ * @returns The row to hand to `recordCheck`.
+ */
+export const storageAuthorityCheckResult = (
+  entries: readonly ISignedAuthorityEntry[],
+  network: string,
+  expectationAnchors: ReadonlyMap<string, ICheckResult['anchor']>
+): ICheckResult => {
+  if (entries.length === 0)
+    return {
+      checkId: STORAGE_AUTHORITY_CHECK_ID,
+      network,
+      status: 'error',
+      expected: EVERY_AUTHORITY_MATCHES,
+      actual: 'no contract in this proposal declares a storage authority',
+      anchor: 'A-UNRESOLVED',
+      detail:
+        'nothing was compared, so this is an absence of evidence rather than a clean read',
+    }
+
+  let status: ICheckResult['status'] = 'pass'
+  let anchor: ICheckResult['anchor'] = 'A-CHAIN'
+  let worstRank = SEVERITY.length
+  const failing: string[] = []
+
+  for (const entry of entries) {
+    const entryStatus: ICheckResult['status'] =
+      entry.readError !== undefined || entry.liveValue === undefined
+        ? 'error'
+        : entry.expectedValue === undefined
+        ? 'error'
+        : entry.liveValue.trim().toLowerCase() !==
+          entry.expectedValue.trim().toLowerCase()
+        ? 'fail'
+        : 'pass'
+
+    if (entryStatus !== 'pass')
+      failing.push(
+        entry.readError !== undefined
+          ? `${entry.label}: NOT READ — ${entry.readError}`
+          : entry.expectedValue === undefined
+          ? `${entry.label}: main declares nothing to judge ${entry.liveValue} against`
+          : `${entry.label}: holds ${entry.liveValue}, main declares ${entry.expectedValue}`
+      )
+
+    status = worstOf(status, entryStatus)
+
+    // The row reports the anchor the worst row rests on, so it never claims a
+    // stronger one than the thing that decided it.
+    const rank = SEVERITY.indexOf(entryStatus)
+    const entryAnchor =
+      entry.readError !== undefined || entry.liveValue === undefined
+        ? 'A-UNRESOLVED'
+        : expectationAnchors.get(entry.label) ?? 'A-UNRESOLVED'
+    if (rank < worstRank) {
+      worstRank = rank
+      anchor = entryAnchor
+    }
+  }
+
+  // Every entry passed, so no single finding set the anchor. The row still must
+  // not claim `A-CHAIN` when an expectation it compared against was
+  // proposer-written, so it takes the weakest anchor in the set.
+  if (failing.length === 0)
+    for (const entry of entries) {
+      const entryAnchor = expectationAnchors.get(entry.label) ?? 'A-UNRESOLVED'
+      if (entryAnchor === 'A-MONGO' || entryAnchor === 'A-UNRESOLVED')
+        anchor = entryAnchor
+    }
+
+  return {
+    checkId: STORAGE_AUTHORITY_CHECK_ID,
+    network,
+    status,
+    expected: EVERY_AUTHORITY_MATCHES,
+    actual: failing.length
+      ? failing.join('; ')
+      : `${entries.length} declared authority value(s) match config`,
+    anchor,
+  }
 }
 
 interface IStatusMapping {
@@ -353,6 +493,7 @@ export const CONFIRM_CHECK_DEFINITIONS: readonly ICheckDefinition[] = [
       throw new Error(`CONFIRM_CHECK_DEFINITIONS: no definition for ${checkId}`)
     return definition
   }),
+  STORAGE_AUTHORITY_CHECK,
   TARGET_STATE_CHECK,
   EXECUTABILITY_CHECK,
   RPC_QUORUM_CHECK,

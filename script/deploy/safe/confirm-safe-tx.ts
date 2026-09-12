@@ -23,7 +23,10 @@ import {
   type Transport,
 } from 'viem'
 
+import globalConfig from '../../../config/global.json'
 import networksData from '../../../config/networks.json'
+import { EnvironmentEnum, type SupportedChain } from '../../common/types'
+import { getDeployments } from '../../utils/deploymentHelpers'
 import { redactUrls } from '../../utils/redactUrls'
 import {
   buildExplorerAddressUrl,
@@ -31,7 +34,7 @@ import {
   getTransportConfigFromRpcUrl,
 } from '../../utils/viemScriptHelpers'
 import { createDefaultCache } from '../shared/deployment-cache'
-import { sanitizeProvenanceText } from '../shared/git-provenance'
+import { getGitCommit, sanitizeProvenanceText } from '../shared/git-provenance'
 import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
 
 import {
@@ -65,8 +68,10 @@ import {
   type ISignTimeCodehashDeps,
 } from './codehash-sign-gate-deps'
 import {
+  authorityExpectationAnchors,
   CONFIRM_CHECK_DEFINITIONS,
   proposalCheckResults,
+  storageAuthorityCheckResult,
   worstResultPerCheck,
 } from './confirm-check-registry'
 import {
@@ -120,7 +125,13 @@ import {
   formatTargetStateLines,
   type ITargetStateVerdict,
 } from './pinned-target-state'
+import {
+  observeCalldata,
+  resolveGateCoverage,
+  viemGateReaders,
+} from './prebroadcast-gate'
 import { printableField, trustedMarkup } from './printable-field'
+import { buildReadOnlyClient } from './read-only-safe-client'
 import { reconcileAllSubmittedSafeTxs } from './reconcile'
 import { renderCheckLedger } from './render-check-ledger'
 import {
@@ -166,7 +177,19 @@ import {
   type SafeNonceStatus,
   type SafeTxStatus,
 } from './safe-utils'
-import { enqueueTimelockOpIfApplicable } from './timelock-queue'
+import {
+  buildSignedSetRecord,
+  formatSignedSetForDisplay,
+  persistSignedSetRecord,
+  toSignedAuthorityEntries,
+  toSignedCodehashEntries,
+} from './signed-set-record'
+import {
+  computeOperationIdBatch,
+  decodeScheduleBatch,
+  enqueueTimelockOpIfApplicable,
+  isScheduleBatchCalldata,
+} from './timelock-queue'
 
 dotenv.config()
 
@@ -429,6 +452,101 @@ const processTxs = async (
           `A duplicate row with the same hash may exist under a different status (e.g. reverted).`
       )
     consola.success('Transaction signed and stored in MongoDB')
+
+    // Every signing branch funnels through here, so this is the one site that
+    // sees the whole sign event.
+    await recordSignedSet(txDoc, signedTx)
+  }
+
+  /**
+   * Records what this machine saw at every address in the signed calldata
+   * (WP-6.1 / R3.1): the address→codehash set plus the declared storage
+   * authorities.
+   *
+   * A G6 reconstruction trail, not a check — nothing here can refuse a
+   * signature, and the pre-broadcast gate never reads these values back. Every
+   * failure is therefore a warning: the gate alerts on a record that never
+   * landed, and blocking here would turn a write error into a signing outage.
+   */
+  async function recordSignedSet(
+    txDoc: ISafeTxMongoDocument,
+    signedTx: ISafeTransaction
+  ): Promise<void> {
+    const callData = signedTx.data.data as Hex | undefined
+    if (!callData || !isScheduleBatchCalldata(callData)) return
+
+    if (resolveGateCoverage(networkKey) === 'uncovered-tron') {
+      consola.info(
+        "Sign-time set not recorded: reading code on this chain is outside the gate's coverage (EXSC-954)"
+      )
+      return
+    }
+
+    try {
+      const params = decodeScheduleBatch(callData)
+      const operationId = computeOperationIdBatch(
+        params.targets,
+        params.values,
+        params.payloads,
+        params.predecessor,
+        params.salt
+      )
+      // Same helper every other read-only Safe query goes through. Without an
+      // `--rpcUrl` override this is not a public endpoint: the chain object is
+      // built from `ETH_NODE_URI_<NETWORK>`, which `getViemChainForNetworkName`
+      // throws without, so the record is always the run's own RPC view.
+      const publicClient = buildReadOnlyClient(networkKey, rpcUrl)
+      const observed = await observeCalldata(
+        {
+          operationId,
+          targets: params.targets,
+          payloads: params.payloads,
+        },
+        {
+          ...viemGateReaders(publicClient),
+          deployments: (await getDeployments(
+            networkKey as SupportedChain,
+            EnvironmentEnum.production
+          )) as unknown as Record<string, unknown>,
+          globalConfig: globalConfig as unknown as Record<string, unknown>,
+        }
+      )
+
+      const record = buildSignedSetRecord(
+        {
+          operationId,
+          network: networkKey,
+          chainId: chain.id,
+          safeTxHash: txDoc.safeTxHash,
+          signer: signerAddress,
+          derivedFromCommit: getGitCommit(),
+          codehashes: toSignedCodehashEntries(observed.targets),
+          authorities: toSignedAuthorityEntries(observed.authorities),
+        },
+        new Date()
+      )
+
+      consola.info(formatSignedSetForDisplay(record).join('\n'))
+      await persistSignedSetRecord(record)
+
+      // Accumulated, not recorded: this runs once per proposal while a ledger
+      // row is denominated per network, and `rollUpChecks` only lets a `fail`
+      // block supersession — so a later clean proposal would erase an earlier
+      // proposal's unread authority with no trace.
+      if (checkLedger)
+        proposalChecks.push(
+          storageAuthorityCheckResult(
+            record.authorities,
+            networkKey,
+            authorityExpectationAnchors(observed.authorities)
+          )
+        )
+    } catch (error) {
+      consola.warn(
+        'Could not record the sign-time set (the pre-broadcast gate re-derives without it and will alert on the gap):',
+        error
+      )
+    }
   }
 
   /**
