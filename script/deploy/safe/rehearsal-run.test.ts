@@ -10,6 +10,7 @@ import {
   recordCheck,
   type ICheckLedger,
 } from './check-ledger'
+import { NOTHING_TO_COMPARE } from './confirm-check-registry'
 import {
   collectRefusalObservations,
   comparePasses,
@@ -365,5 +366,94 @@ describe('refusalClasses', () => {
     expect(
       refusalClasses([{ proposal: '0xa', ledger: ledgerWith('pass', '1.0.0') }])
     ).toEqual([])
+  })
+})
+
+describe('gradeCorruptionProbe, on rows the mutation cannot reach', () => {
+  const nothingToCompare = (): ICheckLedger => {
+    const built = createCheckLedger({
+      expectedNetworks: ['tron'],
+      checks: [
+        {
+          checkId: 'target-state',
+          section: 'Intent',
+          checkClass: 'semantic',
+          title: 'Facet version matches the declared target state',
+        },
+      ],
+    })
+    recordCheck(built, {
+      checkId: 'target-state',
+      network: 'tron',
+      status: 'pass',
+      expected: NOTHING_TO_COMPARE,
+      actual: 'unnamed element: no-diamond-cut',
+      anchor: 'A-LOCAL',
+    })
+    return built
+  }
+
+  it('does not demand a refusal from a row that grades no cut at all', () => {
+    // Corrupting a payload that is not a diamond cut cannot make it one, so
+    // these rows can never refuse and must not be held against the probe.
+    expect(
+      gradeCorruptionProbe(
+        [{ proposal: '0xabc', ledger: nothingToCompare() }],
+        [{ proposal: '0xabc', ledger: nothingToCompare() }]
+      )
+    ).toBe('not-exercised')
+  })
+
+  it('still fails when a row that did grade a cut survives corruption', () => {
+    expect(
+      gradeCorruptionProbe(
+        [
+          { proposal: '0xabc', ledger: nothingToCompare() },
+          { proposal: '0xdef', ledger: ledgerWith('pass', '1.0.0') },
+        ],
+        [
+          { proposal: '0xabc', ledger: nothingToCompare() },
+          { proposal: '0xdef', ledger: ledgerWith('pass', '1.0.0') },
+        ]
+      )
+    ).toBe('did-not-refuse')
+  })
+})
+
+describe('gradeCorruptionProbe, on a row awaiting a human answer', () => {
+  it('counts a needs-ack row as one the chain had read and graded', () => {
+    // needs-ack means the bytes were read and understood, and only the intent
+    // is open. If corruption makes them unreadable, the chain noticed — which
+    // is exactly what the probe asks.
+    expect(
+      gradeCorruptionProbe(
+        [
+          {
+            proposal: '0xabc',
+            ledger: ledgerWith('needs-ack', 'matches-main'),
+          },
+        ],
+        [
+          {
+            proposal: '0xabc',
+            ledger: ledgerWith('error', 'calldata-not-readable'),
+          },
+        ]
+      )
+    ).toBe('refused')
+  })
+
+  it('fails when corruption leaves a needs-ack row still merely needing an ack', () => {
+    expect(
+      gradeCorruptionProbe(
+        [
+          {
+            proposal: '0xabc',
+            ledger: ledgerWith('needs-ack', 'matches-main'),
+          },
+        ],
+        [{ proposal: '0xabc', ledger: ledgerWith('needs-ack', 'matches-main') }]
+      )
+    ).toBe('did-not-refuse')
   })
 })

@@ -15,6 +15,7 @@
 import { type IShadowObservation } from '../codehash/false-refusal-budget'
 
 import { checkResultKey, type ICheckLedger } from './check-ledger'
+import { NOTHING_TO_COMPARE } from './confirm-check-registry'
 
 /** One proposal's ledger, as one pass graded it. */
 export interface IRehearsalPassEntry {
@@ -299,23 +300,47 @@ export const gradeCorruptionProbe = (
   baseline: readonly IRehearsalPassEntry[],
   corrupted: readonly IRehearsalPassEntry[]
 ): CorruptionProbeOutcome => {
-  const afterCorruption = new Map(
-    collectRefusalObservations(corrupted).map((observation) => [
-      observation.slot,
-      observation.refused,
-    ])
-  )
+  const afterCorruption = hardRefusalsBySlot(corrupted)
+  const population = gradedPopulation(baseline)
+  if (population.length === 0) return 'not-exercised'
 
-  const wasClean = collectRefusalObservations(baseline).filter(
-    (observation) => !observation.refused
-  )
-  if (wasClean.length === 0) return 'not-exercised'
-
-  return wasClean.every(
-    (observation) => afterCorruption.get(observation.slot) === true
-  )
+  return population.every((slot) => afterCorruption.get(slot) === true)
     ? 'refused'
     : 'did-not-refuse'
+}
+
+/**
+ * The statuses that mean the chain stopped on the bytes themselves.
+ *
+ * Narrower than {@link REFUSING_STATUSES}, which the budget uses. `needs-ack`
+ * belongs there — it costs a signer attention — but not here: it says the
+ * payload was read and understood and only the intent is open, which is the
+ * opposite of the chain having caught damage.
+ */
+const HARD_REFUSING_STATUSES: ReadonlySet<string> = new Set(['fail', 'error'])
+
+/**
+ * The rows a corruption probe may legitimately hold to account.
+ *
+ * Two exclusions, both because the row cannot answer the question. A row that
+ * already refused proves nothing by refusing again. A row the gate graded as
+ * having no cut to compare cannot be made to refuse at all: damaging a payload
+ * that is not a diamond cut leaves it not a diamond cut, so demanding a refusal
+ * from it makes the probe permanently red for a reason that is about the corpus
+ * rather than about the chain.
+ */
+const gradedPopulation = (
+  baseline: readonly IRehearsalPassEntry[]
+): readonly string[] => {
+  const slots: string[] = []
+  for (const entry of baseline)
+    for (const result of outcomesOf(entry.ledger).values()) {
+      // Already stopped on the bytes, so refusing again proves nothing.
+      if (HARD_REFUSING_STATUSES.has(result.status)) continue
+      if (result.expected === NOTHING_TO_COMPARE) continue
+      slots.push(`${entry.proposal}/${result.checkId}/${result.network}`)
+    }
+  return slots
 }
 
 /**
@@ -333,16 +358,24 @@ export const survivedCorruption = (
   baseline: readonly IRehearsalPassEntry[],
   corrupted: readonly IRehearsalPassEntry[]
 ): readonly string[] => {
-  const afterCorruption = new Map(
-    collectRefusalObservations(corrupted).map((observation) => [
-      observation.slot,
-      observation.refused,
-    ])
+  const afterCorruption = hardRefusalsBySlot(corrupted)
+  return gradedPopulation(baseline).filter(
+    (slot) => afterCorruption.get(slot) !== true
   )
-  return collectRefusalObservations(baseline)
-    .filter((observation) => !observation.refused)
-    .filter((observation) => afterCorruption.get(observation.slot) !== true)
-    .map((observation) => observation.slot)
+}
+
+/** Which slots the chain stopped on outright, keyed for lookup. */
+const hardRefusalsBySlot = (
+  pass: readonly IRehearsalPassEntry[]
+): Map<string, boolean> => {
+  const refusals = new Map<string, boolean>()
+  for (const entry of pass)
+    for (const result of outcomesOf(entry.ledger).values())
+      refusals.set(
+        `${entry.proposal}/${result.checkId}/${result.network}`,
+        HARD_REFUSING_STATUSES.has(result.status)
+      )
+  return refusals
 }
 
 /**
