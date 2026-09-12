@@ -10,7 +10,7 @@ import { LibUtil } from "../Libraries/LibUtil.sol";
 import { ReentrancyGuard } from "../Helpers/ReentrancyGuard.sol";
 import { SwapperV2 } from "../Helpers/SwapperV2.sol";
 import { Validatable } from "../Helpers/Validatable.sol";
-import { InvalidConfig, InvalidReceiver, InvalidAmount, InformationMismatch } from "../Errors/GenericErrors.sol";
+import { InvalidConfig, InvalidReceiver, InvalidAmount, InformationMismatch, InvalidCallData } from "../Errors/GenericErrors.sol";
 import { LiFiData } from "../Helpers/LiFiData.sol";
 
 import { MandateOutput, StandardOrder } from "../Interfaces/IOpenIntentFramework.sol";
@@ -20,7 +20,7 @@ import { IOriginSettler } from "../Interfaces/IOriginSettler.sol";
 /// @author LI.FI (https://li.fi)
 /// @notice Deposits and registers claims directly on a OIF Input Settler.
 /// @notice This contract is not intended to custody user funds; any balance held is incidental (transient during execution) and should not persist.
-/// @custom:version 1.0.0
+/// @custom:version 1.1.0
 contract LiFiIntentEscrowFacetV2 is
     ILiFi,
     ReentrancyGuard,
@@ -54,21 +54,27 @@ contract LiFiIntentEscrowFacetV2 is
     ///         scale in both directions including input/output decimal differences.
     uint256 internal constant MULTIPLIER_BASE = 1e18;
 
+    /// @notice Values strictly below 31,536,000 seconds (365 days) are offsets
+    ///         from block.timestamp; values at or above it are Unix timestamps.
+    ///         Zero resolves to block.timestamp. Applies to expiry, fill deadline,
+    ///         and the exclusivity deadline in a packed 0xe0 output context.
+    uint32 internal constant MAX_RELATIVE_PERIOD_SECONDS = 365 days;
+
     /// Types ///
 
     /// @param dstCallReceiver If dstCallSwapData.length > 0, becomes the on-chain output recipient and must be a `ReceiverOIF` deployment. On-chain it is only checked to be non-zero, not verified to be an instance of `ReceiverOIF`. If it is any other address that accepts an OIF callback, funds may be lost. Ignored when dstCallSwapData.length == 0.
     /// @param recipient The end recipient of the swap. If no calldata is included, will be a simple recipient, otherwise it will be encoded as the end destination for the swaps.
     /// @param depositAndRefundAddress The deposit and claim registration will be made for. If any refund is made, it will be sent to this address
     /// @param nonce OrderId mixer. Used within the intent system to generate unique orderIds for each user. Should not be reused for `depositAndRefundAddress`
-    /// @param expires If the proof for the fill does not arrive before this time, the claim expires
-    /// @param fillDeadline The fill has to happen before this time
+    /// @param expires Claim expiry: seconds from block.timestamp if below MAX_RELATIVE_PERIOD_SECONDS, otherwise an absolute Unix timestamp.
+    /// @param fillDeadline Fill deadline: seconds from block.timestamp if below MAX_RELATIVE_PERIOD_SECONDS, otherwise an absolute Unix timestamp.
     /// @param inputOracle Address of the validation layer used on the input chain
     /// @param outputOracle Address of the validation layer used on the output chain
     /// @param outputSettler Address of the output settlement contract containing the fill logic
     /// @param outputToken The desired destination token
     /// @param outputAmountMultiplier Scaling factor against `MULTIPLIER_BASE` (1e18 = 100%). On both entrypoints the committed output is `inputAmount * outputAmountMultiplier / MULTIPLIER_BASE`, folding the backend-quoted price ratio and any input/output decimal difference into one factor (`multiplierPercentage * 1e18 * 10^(outputDecimals - inputDecimals)`). Use only LI.FI backend-generated calldata.
     /// @param dstCallSwapData List of swaps to be executed on the destination chain. Is called on dstCallReceiver. If empty no call is made.
-    /// @param outputContext Context for the outputSettler to identify the order type
+    /// @param outputContext Context for the outputSettler. A 0xe0 context must be exactly 37 packed bytes (bytes1 tag, bytes32 exclusive solver, uint32 exclusivity deadline); its deadline uses the same relative/absolute convention as fillDeadline. Other context types are forwarded unchanged.
     struct LiFiIntentEscrowDataV2 {
         // Goes into StandardOrder.outputs.recipient if .dstCallSwapData.length > 0
         bytes32 dstCallReceiver;
@@ -246,7 +252,7 @@ contract LiFiIntentEscrowFacetV2 is
             amount: _effectiveOutputAmount,
             recipient: recipient,
             callbackData: outputCall,
-            context: _lifiIntentData.outputContext
+            context: _resolveOutputContext(_lifiIntentData.outputContext)
         });
 
         // Convert given token and amount into a idsAndAmount array
@@ -259,8 +265,8 @@ contract LiFiIntentEscrowFacetV2 is
                 user: _lifiIntentData.depositAndRefundAddress,
                 nonce: _lifiIntentData.nonce,
                 originChainId: block.chainid,
-                expires: _lifiIntentData.expires,
-                fillDeadline: _lifiIntentData.fillDeadline,
+                expires: _resolveDeadline(_lifiIntentData.expires),
+                fillDeadline: _resolveDeadline(_lifiIntentData.fillDeadline),
                 inputOracle: _lifiIntentData.inputOracle,
                 inputs: inputs,
                 outputs: outputs
@@ -268,5 +274,24 @@ contract LiFiIntentEscrowFacetV2 is
         );
 
         emit LiFiTransferStarted(_bridgeData);
+    }
+
+    function _resolveDeadline(uint32 _value) internal view returns (uint32) {
+        if (_value >= MAX_RELATIVE_PERIOD_SECONDS) return _value;
+
+        return uint32(block.timestamp + _value);
+    }
+
+    function _resolveOutputContext(
+        bytes calldata _context
+    ) internal view returns (bytes memory) {
+        if (_context.length == 0 || _context[0] != 0xe0) return _context;
+        if (_context.length != 37) revert InvalidCallData();
+
+        return
+            abi.encodePacked(
+                _context[:33],
+                _resolveDeadline(uint32(bytes4(_context[33:37])))
+            );
     }
 }
