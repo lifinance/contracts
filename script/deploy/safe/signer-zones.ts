@@ -192,13 +192,13 @@ export const signerTodos = (input: ISignerTodoInput): ITodo[] => {
       ]
     : [
         '[33m⚠ the hash could not be computed here, so it is not previewed[0m',
-        'Compare the screen on your device directly against the out-of-band message.',
+        'Compare the screen on your device against the message the proposer sent you.',
         ...HASH_AUTHORITY,
       ]
 
   const todos: ITodo[] = [
     {
-      text: "Compare the hash against the proposer's out-of-band message",
+      text: 'Compare the hash against the message the proposer sent you directly',
       lines: hashLines,
     },
   ]
