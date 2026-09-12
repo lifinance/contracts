@@ -121,19 +121,27 @@ export const signerChecks = (input: {
     definition: input.definitions.get(result.checkId),
   }))
 
+  // A check that answered is not a check with nothing to answer for, whatever
+  // it answered. A caller can legitimately supply both — the registry grades an
+  // unregistered delay check as a pass on what it read, while the run that
+  // registered nothing knows why — and printing both puts one check in two
+  // buckets, which is precisely the reading the grouping exists to prevent.
+  const answered = new Set(input.results.map((result) => result.checkId))
+
   for (const [checkId, reason] of input.notApplicable ?? [])
-    rows.push({
-      definition: input.definitions.get(checkId),
-      notApplicable: reason,
-      result: {
-        checkId,
-        network: '',
-        status: 'pass',
-        expected: '',
-        actual: '',
-        anchor: 'A-LOCAL',
-      },
-    })
+    if (!answered.has(checkId))
+      rows.push({
+        definition: input.definitions.get(checkId),
+        notApplicable: reason,
+        result: {
+          checkId,
+          network: '',
+          status: 'pass',
+          expected: '',
+          actual: '',
+          anchor: 'A-LOCAL',
+        },
+      })
 
   return rows
 }

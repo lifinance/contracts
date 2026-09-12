@@ -133,6 +133,30 @@ describe('signerChecks', () => {
     expect(rendered).not.toContain('PASSED')
   })
 
+  it('never puts a check that answered in the not-applicable bucket too', () => {
+    const rows = signerChecks({
+      results: [
+        {
+          checkId: CHECK_TIMELOCK_DELAY,
+          network: NETWORK,
+          status: 'pass',
+          expected: 'nothing to compare',
+          actual: 'this proposal schedules nothing',
+          anchor: 'A-LOCAL',
+        },
+      ],
+      notApplicable: new Map([
+        [CHECK_TIMELOCK_DELAY, 'this proposal is not a timelock schedule'],
+      ]),
+      definitions: viewDefinitions(),
+    })
+
+    expect(rows).toHaveLength(1)
+    expect(renderCheckGroups(rows).map(stripAnsi).join('\n')).not.toContain(
+      'NOT APPLICABLE'
+    )
+  })
+
   it('carries a definition-less result through under its check id', () => {
     const rows = signerChecks({
       results: [
