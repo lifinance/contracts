@@ -227,6 +227,19 @@ const main = defineCommand({
         .find({ network: { $in: networks }, status })
         .toArray()) as ISafeTxDocument[]
 
+      // Nothing to grade is a normal state, not a failure — an empty pending
+      // queue means no wave is in flight. Returning here rather than running
+      // the sections over zero rows: "0/0 refused, all of one class (none)" is
+      // not a result, and four blocks of zeroes bury the one line that is.
+      if (docs.length === 0) {
+        consola.info(
+          `No ${status} proposals on ${networks.join(
+            ', '
+          )} — nothing to verify. Run this once a wave is in the store and before anyone signs.`
+        )
+        return
+      }
+
       consola.info(
         `Rehearsing ${docs.length} ${status} proposal(s) on ${networks.join(
           ', '
