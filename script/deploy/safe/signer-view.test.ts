@@ -422,8 +422,29 @@ describe('the column a check prints its values in', () => {
   })
 })
 
+describe('the head of a check row', () => {
+  it('carries the gate name and neither the check id nor the anchor code', () => {
+    const rendered = renderCheckGroups([
+      {
+        definition: definition(
+          'INT-SAFE-TX-HASH',
+          'Gate B \u00b7 Safe tx hash'
+        ),
+        result: result('INT-SAFE-TX-HASH', 'fail', { anchor: 'A-CHAIN' }),
+      },
+    ])
+      .map(stripAnsi)
+      .join('\n')
+
+    expect(rendered).toContain('Gate B \u00b7 Safe tx hash')
+    expect(rendered).toContain('expected')
+    expect(rendered).not.toContain('INT-SAFE-TX-HASH')
+    expect(rendered).not.toContain('A-CHAIN')
+  })
+})
+
 describe('a check with a write-up to point at', () => {
-  it('prints the link beside the check id, and nothing when there is none', () => {
+  it('prints the link beside the gate name, and nothing when there is none', () => {
     const [withLink, withoutLink] = [
       { docUrl: 'https://example.invalid/checks/x' },
       {},
@@ -439,8 +460,8 @@ describe('a check with a write-up to point at', () => {
         .join('\n')
     )
 
-    expect(withLink).toContain('x · A-LOCAL https://example.invalid/checks/x')
-    expect(withoutLink).toContain('x · A-LOCAL')
+    expect(withLink).toContain('A check https://example.invalid/checks/x')
+    expect(withoutLink).toContain('A check')
     expect(withoutLink).not.toContain('https://')
   })
 })

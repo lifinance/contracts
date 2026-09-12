@@ -403,10 +403,7 @@ export const renderCheckGroups = (
         continue
       }
       out.push(
-        `    ${style.colour}${style.glyph}${RESET} ${BOLD}${title}${RESET}`
-      )
-      out.push(
-        `        ${DIM}${result.checkId} · ${result.anchor}${RESET}${
+        `    ${style.colour}${style.glyph}${RESET} ${BOLD}${title}${RESET}${
           docUrl ? ` ${BLUE}${docUrl}${RESET}` : ''
         }`
       )
