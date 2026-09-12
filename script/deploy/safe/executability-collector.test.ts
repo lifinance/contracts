@@ -13,18 +13,22 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 import {
+  CallExecutionError,
   encodeFunctionData,
+  ExecutionRevertedError,
   parseAbi,
   type Address,
   type Hex,
   type PublicClient,
 } from 'viem'
+import { parseAccount } from 'viem/accounts'
 
 import { DIAMOND_CUT_ABI, ZERO_ADDRESS } from '../shared/constants'
 
 import {
   collectExecutabilityInput,
   createExecutabilityChainReader,
+  summariseRpcError,
   type IExecutabilityChainReader,
 } from './executability-collector'
 import { evaluateExecutability } from './executability-simulation'
@@ -624,5 +628,55 @@ describe('simulating across several endpoints', () => {
 
     await reader.staticCall({ from: SAFE, to: DIAMOND, data: '0x' as Hex })
     expect(asked).toBe(1)
+  })
+})
+
+describe('summariseRpcError', () => {
+  const clientThat = (behaviour: () => Promise<unknown>): PublicClient =>
+    ({ call: behaviour } as unknown as PublicClient)
+
+  const realCallError = (data: Hex): string =>
+    new CallExecutionError(
+      new ExecutionRevertedError({ message: 'execution reverted' }),
+      {
+        account: parseAccount(SAFE),
+        to: DIAMOND,
+        data,
+      }
+    ).message
+
+  it('keeps the revert reason and drops the echoed payload', () => {
+    const data = `0x1f931c1c${'ab'.repeat(300)}` as Hex
+    const summary = summariseRpcError(realCallError(data))
+
+    expect(summary).toContain('Execution reverted for an unknown reason.')
+    expect(summary).not.toContain('Raw Call Arguments')
+    expect(summary).not.toContain('ababab')
+    expect(summary).not.toContain(DIAMOND)
+    expect(summary).not.toContain('viem@')
+    expect(summary).not.toContain('\n')
+  })
+
+  it('leaves a message it recognises nothing to drop in untouched', () => {
+    expect(summariseRpcError('  execution reverted: Ownable  ')).toBe(
+      'execution reverted: Ownable'
+    )
+  })
+
+  it('reports the summary, not the raw report, as the revert reason', async () => {
+    const data = `0x1f931c1c${'ab'.repeat(300)}` as Hex
+    const reverting = clientThat(async () => {
+      throw new CallExecutionError(
+        new ExecutionRevertedError({ message: 'execution reverted' }),
+        { account: parseAccount(SAFE), to: DIAMOND, data }
+      )
+    })
+    const reader = createExecutabilityChainReader(reverting)
+
+    const outcome = await reader.staticCall({ from: SAFE, to: DIAMOND, data })
+
+    expect(outcome.outcome).toBe('reverted')
+    expect(outcome.revertReason).not.toContain('ababab')
+    expect(outcome.revertReason).toContain('Execution reverted')
   })
 })
