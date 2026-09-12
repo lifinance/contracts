@@ -1310,3 +1310,26 @@ describe('gate letters', () => {
     expect(named).toContain(CODEHASH_CHECK_ID)
   })
 })
+
+describe('section headings', () => {
+  // `renderCheckLedger` groups on the exact string, so two headings a signer
+  // reads as the same subject render as two adjacent near-identical lines with
+  // nothing to tell them apart. A name containing another is the shape that
+  // produced it: `Integrity` alongside `proposal integrity`.
+  it('are distinct, and none contains another', () => {
+    const sections = [
+      ...new Set(
+        ALL_GATE_DEFINITIONS.map((definition) =>
+          definition.section.trim().toLowerCase()
+        )
+      ),
+    ]
+
+    expect(sections.length).toBeGreaterThan(1)
+    for (const section of sections) {
+      expect(section).not.toBe('')
+      for (const other of sections)
+        if (other !== section) expect(other).not.toContain(section)
+    }
+  })
+})

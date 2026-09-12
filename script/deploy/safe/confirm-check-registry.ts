@@ -43,7 +43,7 @@ export const STORAGE_AUTHORITY_CHECK_ID = 'storage-authority'
 
 export const STORAGE_AUTHORITY_CHECK: ICheckDefinition = {
   checkId: STORAGE_AUTHORITY_CHECK_ID,
-  section: 'Integrity',
+  section: 'Deployed state',
   checkClass: 'integrity',
   gate: 'G',
   title: 'Storage authorities',
@@ -473,7 +473,7 @@ export const CODEHASH_CHECK_ID = 'codehash'
  */
 export const CODEHASH_CHECK: ICheckDefinition = {
   checkId: CODEHASH_CHECK_ID,
-  section: 'Integrity',
+  section: 'Deployed state',
   checkClass: 'integrity',
   gate: 'K',
   title: 'Deployed bytecode',
