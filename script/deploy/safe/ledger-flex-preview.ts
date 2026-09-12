@@ -54,12 +54,16 @@ const GLYPH_WIDTH: Record<string, number> = {
   D: 1.12,
   E: 1.0,
   F: 0.95,
-  a: 0.9,
-  b: 0.95,
-  c: 0.9,
-  d: 0.95,
-  e: 0.9,
-  f: 0.85,
+  // Uniform, and fitted to a single photographed hash (2026-09-12) rather than
+  // to a measurement sweep: that one wrap constrains the value to (0.95, 0.975]
+  // but says nothing about how the six glyphs differ from each other, so six
+  // distinct numbers would claim precision the evidence does not carry.
+  a: 0.97,
+  b: 0.97,
+  c: 0.97,
+  d: 0.97,
+  e: 0.97,
+  f: 0.97,
 }
 
 // Bold green, to flag on the terminal side that "Accept risk and continue" is
@@ -103,6 +107,8 @@ interface IFlexScreen {
   content: IFlexLine[]
   /** Pre-formatted, exactly `INNER`-wide bottom line (nav / tap area). */
   footer: string
+  /** Vertical placement of `content`; centred unless pinned to the top. */
+  anchor?: 'top'
 }
 
 export interface ILedgerFlexFlowParams {
@@ -410,9 +416,11 @@ const framePanel = (screen: IFlexScreen, contentHeight: number): string[] => {
 
   // Centre the content vertically between the header and footer: split the
   // slack evenly instead of dumping it all at the bottom (which made the
-  // shorter screens look top-heavy).
+  // shorter screens look top-heavy). `anchor: 'top'` opts out, for a screen the
+  // device itself fills from the top — its Message label sits against the top
+  // edge, not floating in the middle.
   const slack = Math.max(0, contentHeight - screen.content.length)
-  const topPad = Math.floor(slack / 2)
+  const topPad = screen.anchor === 'top' ? 0 : Math.floor(slack / 2)
   const blank = () => frameRaw('')
 
   return [
@@ -486,8 +494,8 @@ const COMPARE = `${ESC}[1;33m`
 
 /** Caveat to print BELOW the hash filmstrip. */
 export const LEDGER_FLEX_HASH_NOTE = [
-  `${RED}⚠ The device renders hex in upper case and may wrap it differently — compare the characters, not the case or the line breaks.${RESET}`,
-  `${RED}⚠ Only the titles, the prompt on each screen and the hash are reproduced. Navigation the device adds around them is expected, not a mismatch.${RESET}`,
+  `${RED}⚠ The device may wrap the hash differently — compare the characters, not the line breaks.${RESET}`,
+  `${RED}⚠ Only the titles, the prompt on each screen, the hash and the bottom bar are reproduced. Anything the device adds around them is expected, not a mismatch.${RESET}`,
 ].join('\n')
 
 export interface ILedgerFlexHashFlowParams {
@@ -496,6 +504,32 @@ export interface ILedgerFlexHashFlowParams {
 }
 
 const HASH_HEX_CHARS = 64
+
+/** Screens the device pages through in hash mode, as its own counter reports. */
+const HASH_SCREEN_COUNT = 3
+
+/**
+ * Interior rows, chosen so the box reads portrait like the device rather than
+ * landscape: a terminal cell is about twice as tall as it is wide, so an
+ * `INNER`-wide box needs roughly `INNER / 1.6` rows to look the shape a Flex is.
+ */
+const HASH_PANEL_MIN_CONTENT_ROWS = 11
+
+/**
+ * The document glyph the Flex shows above "Review message" and "Sign message?".
+ *
+ * Indicative, not a reproduction: the icon is on screen, so omitting it made the
+ * replica emptier than the device, but its exact artwork was not measured and a
+ * character sketch is the honest amount of detail to claim.
+ */
+const DOCUMENT_ICON: IFlexLine[] = [
+  { text: '╔═══╗', align: 'center' },
+  // Double-ruled deliberately: a light '│' here is the same character as the
+  // panel border, so anything splitting a row on the frame cuts the icon in
+  // half, and a reader's eye does the same.
+  { text: '║ ≡ ║', align: 'center' },
+  { text: '╚═══╝', align: 'center' },
+]
 
 /**
  * The hash as the device shows it, split into rows, each row carrying the
@@ -506,7 +540,10 @@ const HASH_HEX_CHARS = 64
  * including the case where one run spans two rows.
  */
 const hashRows = (hash: string): IFlexLine[] => {
-  const display = `0x${hash.slice(2).toUpperCase()}`
+  // Lower case, photographed on a Flex 2026-09-12. The uppercasing this line
+  // used to do was inherited from the `data` field, which the device really
+  // does force-uppercase; the hash-mode Message screen does not.
+  const display = `0x${hash.slice(2).toLowerCase()}`
   const spans = [
     { start: 2, end: 2 + HASH_COMPARE_CHARS },
     { start: display.length - HASH_COMPARE_CHARS, end: display.length },
@@ -530,48 +567,62 @@ const hashRows = (hash: string): IFlexLine[] => {
   })
 }
 
+/** The bottom bar: "Reject" left, the page counter right, exactly `INNER` wide. */
+const navBar = (page: number): string => {
+  const left = ' Reject'
+  const right = `< ${page} of ${HASH_SCREEN_COUNT} >`
+  return `${left}${' '.repeat(
+    Math.max(1, INNER - left.length - right.length)
+  )}${right}`.slice(0, INNER)
+}
+
 /**
  * The three screens, carrying only what has been read off a physical Flex: the
- * titles, the prompt on each, and the hash itself.
+ * titles, the prompt on each, the hash itself, and the bottom bar.
  *
- * Page counters and per-screen affordances are deliberately absent, unlike the
- * typed-data flow below, whose chrome was measured on-device. The preview exists
- * so that a difference from the device reads as an alarm, which only holds while
- * everything in it is known to be true — a counter carried over from that flow's
- * conventions would be a detail the operator is invited to check against a screen
- * that may not show it, and teaches them to shrug at exactly the mismatch this is
- * for.
- *
- * That makes the preview deliberately incomplete rather than wrong, so
- * `LEDGER_FLEX_HASH_NOTE` tells the signer that navigation the device adds around
- * these lines is expected — otherwise the omission becomes its own false alarm.
+ * The bar was photographed on 2026-09-12 and shows "Reject" beside a
+ * "< n of 3 >" counter on all three screens. An earlier round removed both,
+ * having inherited them from the typed-data flow rather than measuring them —
+ * the right instinct applied to the wrong elements, since these two are real and
+ * only the "Skip" header was invented. The preview exists so that a difference
+ * from the device reads as an alarm, which holds only while everything in it is
+ * known to be true; an element that is genuinely on screen and missing here
+ * teaches the same shrug as one that is invented.
  */
 const buildHashScreens = (hash: string): IFlexScreen[] => [
   {
     header: '',
     content: [
-      { text: 'Review message', align: 'center', style: BOLD },
+      ...DOCUMENT_ICON,
       { text: '', align: 'center' },
+      { text: 'Review message', align: 'center', style: BOLD },
       { text: 'Swipe to review', align: 'center' },
     ],
-    footer: '',
+    footer: navBar(1),
   },
   {
     header: '',
     content: [
-      { text: 'Message', align: 'left', style: BOLD },
+      // Not bold: on the device this label is the quietest thing on the screen
+      // and the hash is the loudest. Bolding it here inverted that.
+      { text: 'Message', align: 'left' },
       ...hashRows(hash),
     ],
-    footer: '',
+    footer: navBar(2),
+    anchor: 'top',
   },
   {
     header: '',
     content: [
-      { text: 'Sign message', align: 'center', style: BOLD },
+      ...DOCUMENT_ICON,
       { text: '', align: 'center' },
-      { text: 'Hold to sign', align: 'center', style: HIGHLIGHT },
+      { text: 'Sign message?', align: 'center', style: BOLD },
+      { text: '', align: 'center' },
+      { text: `${'─'.repeat(INNER - 2)}`, align: 'center' },
+      { text: '', align: 'center' },
+      { text: 'Hold to sign    (✓)', align: 'left', style: HIGHLIGHT },
     ],
-    footer: '',
+    footer: navBar(3),
   },
 ]
 
@@ -579,11 +630,12 @@ const buildHashScreens = (hash: string): IFlexScreen[] => [
  * The instruction column printed to the right of the screens: what to compare,
  * and the two runs to compare, in the same colour they carry on screen 2.
  *
- * Upper case matches the device rather than the lower-case hash the rest of the
- * terminal prints — the operator is comparing against the screen, not the log.
+ * Lower case, which is what the device shows in hash mode and also what the rest
+ * of the terminal prints — so the operator compares the same characters against
+ * the screen and against the log, with no case difference to wave away.
  */
 const compareColumn = (hash: string, height: number): string[] => {
-  const hex = hash.slice(2).toUpperCase()
+  const hex = hash.slice(2).toLowerCase()
   const runs: [string, string] = [
     hex.slice(0, HASH_COMPARE_CHARS),
     hex.slice(-HASH_COMPARE_CHARS),
@@ -592,15 +644,21 @@ const compareColumn = (hash: string, height: number): string[] => {
   // Nothing follows this column, so the lines carry their own left gap and need
   // no right padding.
   const lines = [
-    `${BOLD}COMPARE THESE 16 CHARACTERS${RESET}`,
-    `${BOLD}against the "Message" screen${RESET}`,
+    `${BOLD}CHECK THESE 16 CHARACTERS${RESET}`,
+    `${BOLD}on the "Message" screen${RESET}`,
     '',
     `  first 8   ${COMPARE}${runs[0]}${RESET}`,
     `  last 8    ${COMPARE}${runs[1]}${RESET}`,
     '',
-    `${BOLD}Both must match the hash in${RESET}`,
-    `${BOLD}the DM from the proposer —${RESET}`,
-    `${BOLD}nothing here can prove it.${RESET}`,
+    `${BOLD}Match them against the hash${RESET}`,
+    `${BOLD}the proposer sent you${RESET}`,
+    `${BOLD}directly — Slack DM, Signal,${RESET}`,
+    `${BOLD}in person. Not this screen.${RESET}`,
+    '',
+    `8 from each end, not 4: whoever`,
+    `wrote the payload could build`,
+    `another transaction that starts`,
+    `and ends the same way.`,
   ].map((line) => `   ${line}`)
 
   const slack = Math.max(0, height - lines.length)
@@ -632,7 +690,10 @@ export const renderLedgerFlexHashFlow = (
     )
 
   const screens = buildHashScreens(params.hash)
-  const contentHeight = Math.max(...screens.map((s) => s.content.length))
+  const contentHeight = Math.max(
+    HASH_PANEL_MIN_CONTENT_ROWS,
+    ...screens.map((s) => s.content.length)
+  )
   const panels = screens.map((s) => framePanel(s, contentHeight))
 
   const height = panels[0]?.length ?? 0

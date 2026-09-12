@@ -537,7 +537,7 @@ async function assertSignatures(
       actual: '0 stored signatures',
       anchor: 'A-PROPOSAL',
       detail:
-        'every writer stores a signature with the row, so an empty set is a row that lost its signatures rather than one awaiting them, and there is nothing to recover against the recomputed hash',
+        'propose-to-safe.ts signs and stores one signature with every row it writes, and refuses a signer who is not a Safe owner — so an empty set is a row something else wrote, not a row awaiting its first signature, and there is nothing to recover against the recomputed hash',
     }
 
   // Recovered against the recomputed hash, never the stored one: the stored hash

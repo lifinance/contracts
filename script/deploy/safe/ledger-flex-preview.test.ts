@@ -60,8 +60,10 @@ describe('renderLedgerFlexFlow', () => {
 
   it('shows the domain values (checksummed, glyph-width wrapped)', () => {
     expect(joined).toContain('34443')
-    // lowercase glyphs are narrower on-device, so 17 hex + 0x fit on row 1
-    expect(joined).toContain('0x031f25F640E0530a5')
+    // Row 1 takes 16 hex + the 0x. The lowercase width behind that is fitted to
+    // a hash-mode photograph, and this is the address field on a different
+    // screen, so the break stays approximate — LEDGER_FLEX_WRAP_NOTE says so.
+    expect(joined).toContain('0x031f25F640E0530a')
     expect(joined).not.toContain('0x031f25f640e0530a') // not the lowercase form
   })
 
@@ -330,23 +332,61 @@ describe('renderLedgerFlexHashFlow', () => {
 
     expect([...cells].sort()).toEqual(
       [
+        '╔═══╗',
+        '║ ≡ ║',
+        '╚═══╝',
         'Review message',
         'Swipe to review',
+        'Reject   < 1 of 3 >',
         'Message',
-        '0x1A2B3C4D5E6F7081',
-        '9293A4B5C6D7E8F90A',
-        '1B2C3D4E5F60718293',
-        'A4B5C6D7E8F9',
-        'Sign message',
-        'Hold to sign',
+        '0x1a2b3c4d5e6f7081',
+        '9293a4b5c6d7e8f90a1',
+        'b2c3d4e5f60718293a',
+        '4b5c6d7e8f9',
+        'Reject   < 2 of 3 >',
+        '╔═══╗',
+        '║ ≡ ║',
+        '╚═══╝',
+        'Sign message?',
+        'Hold to sign    (✓)',
+        'Reject   < 3 of 3 >',
       ].sort()
     )
   })
 
-  it('renders the hash upper case, as the device does', () => {
+  // Photographed on a Flex 2026-09-12: the hash-mode Message screen is lower
+  // case. The uppercasing this replaces was inherited from the `data` field,
+  // which the device really does force-uppercase, and was asserted here as
+  // though it had been observed in this mode.
+  it('renders the hash lower case, as the device does', () => {
     const plain = stripAnsi(joined).replace(/\s+/g, '')
-    expect(plain).toContain('0x1A2B3C4D')
-    expect(plain).not.toContain('1a2b3c4d')
+    expect(plain).toContain('0x1a2b3c4d')
+    expect(plain).not.toContain('1A2B3C4D')
+  })
+
+  // The one row of ground truth this module has. Photographed on a physical
+  // Flex on 2026-09-12 (Safe tx hash of a real arbitrum proposal), so these four
+  // lines are an observation, not a model output — which is what makes the
+  // glyph widths falsifiable at all. Every other wrap assertion in this file
+  // rests on the model; this one is what the model is fitted to, so a change to
+  // LINE_BUDGET or GLYPH_WIDTH that breaks it has broken the only measurement.
+  it('reproduces the line breaks photographed on a physical Flex', () => {
+    const photographed =
+      '0x6d54855a554710e7dac6ae76b1fe0224479dc8e635ba282f15bdc14c25b64830'
+    const rows = renderLedgerFlexHashFlow({ hash: photographed })
+    const messageScreen: string[] = []
+    for (const line of rows)
+      for (const cell of stripAnsi(splitRow(line).screens).split('│')) {
+        const text = cell.trim()
+        if (/^(0x)?[0-9a-f]{6,}$/.test(text)) messageScreen.push(text)
+      }
+
+    expect(messageScreen).toEqual([
+      '0x6d54855a554710e7',
+      'dac6ae76b1fe0224479',
+      'dc8e635ba282f15bdc1',
+      '4c25b64830',
+    ])
   })
 
   // Pinned as a literal, not derived from HASH_COMPARE_CHARS: a mutation that
@@ -359,11 +399,11 @@ describe('renderLedgerFlexHashFlow', () => {
   it('highlights exactly the first and last 8 hex characters on the screen', () => {
     const onScreen = flow.map((line) => splitRow(line).screens)
 
-    expect(highlightedRuns(onScreen)).toBe('1A2B3C4DC6D7E8F9')
+    expect(highlightedRuns(onScreen)).toBe('1a2b3c4dc6d7e8f9')
   })
 
   it('highlights the same two runs in the instruction column', () => {
-    const hex = HASH.slice(2).toUpperCase()
+    const hex = HASH.slice(2).toLowerCase()
     const beside = flow.map((line) => splitRow(line).column)
 
     expect(highlightedRuns(beside)).toBe(
@@ -371,21 +411,21 @@ describe('renderLedgerFlexHashFlow', () => {
     )
   })
 
-  // Row breaks follow measured per-glyph widths, so the hash's own characters
-  // decide where they land. These are the width extremes: 'A' is the widest
-  // glyph in the table and wraps into five rows, leaving a short final row that
-  // splits the tail run across a break; 'F' is the narrowest. A run that
-  // straddles a break must still come out exact, which is what the per-row span
-  // intersection in `hashRows` is for.
-  const WIDTH_EXTREMES: [string, string][] = [
-    ['widest glyphs', 'A'.repeat(64)],
-    ['narrowest glyphs', 'F'.repeat(64)],
-    ['wide then narrow', `${'A'.repeat(32)}${'F'.repeat(32)}`],
-    ['narrow then wide', `${'F'.repeat(32)}${'A'.repeat(32)}`],
+  // Hash mode renders lower case, where every a-f carries the same width, so
+  // these no longer vary the glyph width — they vary how many rows the hash
+  // occupies and where the breaks fall relative to the two compared runs. The
+  // property is unchanged and is the one that matters: a run straddling a break
+  // must still come out exact, which is what the per-row span intersection in
+  // `hashRows` is for. Digits are the wide case, being wider than letters.
+  const ROW_BREAK_SHAPES: [string, string][] = [
+    ['all letters', 'a'.repeat(64)],
+    ['the narrowest run', 'f'.repeat(64)],
+    ['letters then digits', `${'a'.repeat(32)}${'0'.repeat(32)}`],
+    ['digits then letters', `${'0'.repeat(32)}${'a'.repeat(32)}`],
     ['all digits', '0'.repeat(64)],
   ]
 
-  for (const [label, hex] of WIDTH_EXTREMES)
+  for (const [label, hex] of ROW_BREAK_SHAPES)
     it(`highlights both ends with ${label}, wherever the rows break`, () => {
       const onScreen = renderLedgerFlexHashFlow({ hash: `0x${hex}` }).map(
         (line) => splitRow(line).screens
@@ -396,25 +436,37 @@ describe('renderLedgerFlexHashFlow', () => {
       )
     })
 
-  // Guards the cases above against proving nothing: if no hash reached the
-  // renderer's multi-row path, the span intersection went untested.
-  it('splits a compare run across a line break when the rows fall that way', () => {
+  // This used to assert that a compare run SPLITS across a line break, guarding
+  // the cases above against proving nothing. At the lower-case widths the device
+  // photograph fixed, that is unreachable: a 64-character hash always wraps
+  // 16-19 / 19 / 19 / 9-12, so the first run sits inside row 1 and the last
+  // inside the final row. Searched 200,000 random hashes — the smallest final
+  // row was 9, never below the 8 a straddle needs.
+  //
+  // So the reachable property is the weaker one, asserted here: each run reaches
+  // the screen whole. If the widths ever change such that a final row drops
+  // below 8, restore the split assertion — `hashRows` still carries the per-row
+  // span intersection for it, and nothing else would exercise it.
+  it('puts each compare run on screen whole, at these glyph widths', () => {
     const pattern = new RegExp(`${ESC}\\[1;33m([^${ESC}]*)${ESC}\\[0m`, 'g')
     const onScreen = renderLedgerFlexHashFlow({
-      hash: `0x${'A'.repeat(64)}`,
+      hash: '0xb32af38d1d4cdcff7682f3d122720ecbbf740e249bcd4c39a7cd3305fde58b51',
     }).map((line) => splitRow(line).screens)
 
-    expect(
-      onScreen.flatMap((line) => [...line.matchAll(pattern)]).length
-    ).toBeGreaterThan(2)
+    const runs = onScreen.flatMap((line) =>
+      [...line.matchAll(pattern)].map((m) => m[1] ?? '')
+    )
+
+    expect(runs).toHaveLength(2)
+    for (const run of runs) expect(run).toHaveLength(HASH_COMPARE_CHARS)
   })
 
   it('names the 16 characters to compare beside the screens', () => {
     const plain = stripAnsi(joined)
-    expect(plain).toContain('COMPARE THESE 16 CHARACTERS')
+    expect(plain).toContain('CHECK THESE 16 CHARACTERS')
     expect(plain).toContain('first 8')
     expect(plain).toContain('last 8')
-    expect(plain.toLowerCase()).toContain('dm from the proposer')
+    expect(plain.toLowerCase()).toContain('sent you')
   })
 
   it('keeps every screen row the same visible width despite the styling', () => {
@@ -453,12 +505,14 @@ describe('renderLedgerFlexHashFlow', () => {
 })
 
 describe('LEDGER_FLEX_HASH_NOTE', () => {
-  it('is a red caveat about case and line breaks', () => {
+  // No longer mentions case: the preview and the device agree on it now, so a
+  // caveat would invite the signer to wave away a difference that would be real.
+  it('is a red caveat about line breaks, and no longer about case', () => {
     expect(LEDGER_FLEX_HASH_NOTE).toContain(`${ESC}[31m`)
     expect(LEDGER_FLEX_HASH_NOTE).toContain(`${ESC}[0m`)
     const plain = stripAnsi(LEDGER_FLEX_HASH_NOTE).toLowerCase()
-    expect(plain).toContain('case')
     expect(plain).toContain('wrap')
+    expect(plain).not.toContain('upper case')
   })
 
   // The screens omit navigation the device may well show. Unsaid, that omission
@@ -468,7 +522,7 @@ describe('LEDGER_FLEX_HASH_NOTE', () => {
     const plain = stripAnsi(LEDGER_FLEX_HASH_NOTE).toLowerCase()
 
     expect(plain).toContain('not a mismatch')
-    expect(plain).toContain('navigation')
+    expect(plain).toContain('the device adds')
   })
 })
 

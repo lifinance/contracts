@@ -212,10 +212,16 @@ describe('the evaluation is placed where it swallows nothing', () => {
   })
 
   it('prints the verdict before any prompt offers to sign', () => {
-    const render = SOURCE.indexOf('renderIntegrityAsserts(integrityRun)')
+    // The assertions reach the signer through the grouped check zone, which is
+    // the run's one report: a second block restating the same verdicts is how a
+    // signer learns that a summary can be skipped.
+    const feed = SOURCE.indexOf('integrityResults(integrityRun)')
+    const render = SOURCE.indexOf('renderCheckGroups(signerCheckRows)')
     const firstPrompt = SOURCE.indexOf("consola.prompt('Select action:'")
-    expect(render).toBeGreaterThan(-1)
+    expect(feed).toBeGreaterThan(-1)
+    expect(render).toBeGreaterThan(feed)
     expect(render).toBeLessThan(firstPrompt)
+    expect(SOURCE).not.toContain('renderIntegrityAsserts(')
   })
 
   it('points the signing client at the configured Safe, not at the document', () => {
