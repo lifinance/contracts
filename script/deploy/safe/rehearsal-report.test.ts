@@ -5,10 +5,13 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
+import { createCheckLedger, recordCheck } from './check-ledger'
 import {
   REHEARSAL_GATE_ROSTER,
   buildGateReport,
+  checkGradingAnchors,
   renderGateReport,
+  summariseSignerWorkload,
 } from './rehearsal-report'
 
 describe('buildGateReport', () => {
@@ -70,5 +73,88 @@ describe('renderGateReport', () => {
     for (const gate of REHEARSAL_GATE_ROSTER)
       expect(rendered).toContain(gate.checkId)
     expect(rendered).toMatch(/absent/)
+  })
+})
+
+describe('summariseSignerWorkload', () => {
+  const ledger = (rows: [string, string, string][]) => {
+    const built = createCheckLedger({
+      expectedNetworks: ['tron', 'arbitrum'],
+      checks: [
+        {
+          checkId: 'INT-SAFE-TX-HASH',
+          section: 'Integrity',
+          checkClass: 'integrity',
+          title: 'Recomputed safeTxHash matches the stored one',
+        },
+        {
+          checkId: 'target-state',
+          section: 'Intent',
+          checkClass: 'semantic',
+          title: 'Facet version matches the declared target state',
+        },
+      ],
+    })
+    for (const [checkId, network, status] of rows)
+      recordCheck(built, {
+        checkId,
+        network,
+        status: status as 'pass' | 'fail' | 'error' | 'needs-ack',
+        expected: 'e',
+        actual: 'a',
+        anchor: 'A-LOCAL',
+      })
+    return built
+  }
+
+  it('separates what the machine settled from what the signer must answer', () => {
+    const workload = summariseSignerWorkload([
+      {
+        proposal: '0xabc',
+        ledger: ledger([
+          ['INT-SAFE-TX-HASH', 'tron', 'pass'],
+          ['target-state', 'tron', 'needs-ack'],
+          ['target-state', 'arbitrum', 'pass'],
+        ]),
+      },
+    ])
+
+    expect(workload.settled).toBe(2)
+    expect(workload.needsYou).toHaveLength(1)
+    expect(workload.needsYou[0]?.checkId).toBe('target-state')
+    expect(workload.blocked).toBe(0)
+  })
+
+  it('counts a refusal as blocked, not as something the signer may wave through', () => {
+    const workload = summariseSignerWorkload([
+      {
+        proposal: '0xabc',
+        ledger: ledger([['INT-SAFE-TX-HASH', 'tron', 'fail']]),
+      },
+    ])
+
+    expect(workload.blocked).toBe(1)
+    expect(workload.needsYou).toHaveLength(0)
+  })
+})
+
+describe('checkGradingAnchors', () => {
+  it('reports the deployment cache as missing when it is not there', () => {
+    const anchors = checkGradingAnchors('/nonexistent-root-for-this-test')
+
+    const cache = anchors.find((anchor) =>
+      anchor.path.includes('deployments_production.json')
+    )
+    expect(cache?.present).toBe(false)
+    expect(cache?.consequence).toMatch(/every|all/i)
+  })
+
+  it('reports it present when the file exists', () => {
+    const anchors = checkGradingAnchors(process.cwd())
+
+    const cache = anchors.find((anchor) =>
+      anchor.path.includes('deployments_production.json')
+    )
+    expect(typeof cache?.present).toBe('boolean')
   })
 })

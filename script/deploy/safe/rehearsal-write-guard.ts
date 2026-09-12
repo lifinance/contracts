@@ -68,6 +68,61 @@ const RENDERING_MEMBERS: ReadonlySet<string> = new Set([
   'toJSON',
 ])
 
+/**
+ * Whether a value is a handle that must stay sealed as it is passed along.
+ *
+ * Arrays and promises are excluded: `toArray()` resolves to the documents the
+ * read was for, and sealing those would refuse every field on every row.
+ */
+const isDerivedHandle = (value: unknown): value is object =>
+  typeof value === 'object' &&
+  value !== null &&
+  !Array.isArray(value) &&
+  typeof (value as { then?: unknown }).then !== 'function'
+
+/**
+ * Seals what a permitted read hands back.
+ *
+ * The allow-list stops at the collection boundary, but a `FindCursor` carries
+ * `.client` and a `ListIndexesCursor` carries `.parent` — the raw collection
+ * itself — so a read the seal permits re-exports the whole write surface one
+ * hop later. Chained calls are sealed too, because `sort()` returns the cursor.
+ *
+ * Every function is allowed here rather than allow-listed by name: a cursor's
+ * API is reads and chaining, and the escape routes are all object-valued.
+ */
+const sealDerivedHandle = <T extends object>(handle: T): T =>
+  new Proxy(handle, {
+    get(target, property) {
+      if (typeof property === 'string' && RENDERING_MEMBERS.has(property))
+        return () => DERIVED_LABEL
+      const value = Reflect.get(target, property, target)
+      if (value === undefined || value === null) return value
+
+      if (typeof value === 'function')
+        return (...args: unknown[]) => {
+          const result = (value as (...a: unknown[]) => unknown).apply(
+            target,
+            args
+          )
+          return isDerivedHandle(result) ? sealDerivedHandle(result) : result
+        }
+
+      if (typeof value === 'object')
+        throw new RehearsalWriteRefusedError(String(property))
+
+      return value
+    },
+    getOwnPropertyDescriptor(target, property) {
+      const descriptor = Reflect.getOwnPropertyDescriptor(target, property)
+      if (descriptor && typeof descriptor.value === 'object')
+        throw new RehearsalWriteRefusedError(String(property))
+      return descriptor
+    },
+  })
+
+const DERIVED_LABEL = '[read-only sealed handle]'
+
 export const sealCollectionReadOnly = <T extends object>(collection: T): T => {
   const label = '[read-only sealed collection]'
   const sealed = new Proxy(collection, {
@@ -86,7 +141,13 @@ export const sealCollectionReadOnly = <T extends object>(collection: T): T => {
           typeof property === 'string' &&
           PERMITTED_READ_METHODS.has(property)
         )
-          return value.bind(target)
+          return (...args: unknown[]) => {
+            const result = (value as (...a: unknown[]) => unknown).apply(
+              target,
+              args
+            )
+            return isDerivedHandle(result) ? sealDerivedHandle(result) : result
+          }
 
         return () => {
           throw new RehearsalWriteRefusedError(String(property))
@@ -97,6 +158,15 @@ export const sealCollectionReadOnly = <T extends object>(collection: T): T => {
         throw new RehearsalWriteRefusedError(String(property))
 
       return value
+    },
+    // Trapped alongside `get`: a descriptor read returns the raw value, so
+    // without this the refusal above is one `Object.getOwnPropertyDescriptor`
+    // away from being bypassed.
+    getOwnPropertyDescriptor(target, property) {
+      const descriptor = Reflect.getOwnPropertyDescriptor(target, property)
+      if (descriptor && typeof descriptor.value === 'object')
+        throw new RehearsalWriteRefusedError(String(property))
+      return descriptor
     },
   })
   SEALED_HANDLES.add(sealed)

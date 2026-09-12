@@ -257,3 +257,69 @@ describe('a sealed handle in a log line', () => {
     expect(() => JSON.stringify(sealed)).not.toThrow()
   })
 })
+
+describe('sealCollectionReadOnly, on what a permitted read hands back', () => {
+  const cursorShapedCollection = () => {
+    const cursor: Record<string, unknown> = {
+      client: { db: () => 'unsealed' },
+      parent: { deleteMany: () => 'wrote' },
+      toArray: () => Promise.resolve([{ _id: 1 }, { _id: 2 }]),
+    }
+    cursor.sort = () => cursor
+    cursor.collation = () => cursor
+    return { find: () => cursor }
+  }
+
+  it('refuses the client the cursor re-exports', () => {
+    const sealed = sealCollectionReadOnly(
+      cursorShapedCollection()
+    ) as unknown as {
+      find: () => Record<string, unknown>
+    }
+
+    expect(() => sealed.find().client).toThrow(RehearsalWriteRefusedError)
+    expect(() => sealed.find().parent).toThrow(RehearsalWriteRefusedError)
+  })
+
+  it('keeps refusing after the cursor is chained', () => {
+    interface ISealedCursor {
+      sort: () => ISealedCursor
+      collation: () => ISealedCursor
+      client: unknown
+      parent: unknown
+    }
+    const sealed = sealCollectionReadOnly(
+      cursorShapedCollection()
+    ) as unknown as { find: () => ISealedCursor }
+
+    expect(() => sealed.find().sort().client).toThrow(
+      RehearsalWriteRefusedError
+    )
+    expect(() => sealed.find().collation().sort().parent).toThrow(
+      RehearsalWriteRefusedError
+    )
+  })
+
+  it('still returns the documents the read was for', async () => {
+    const sealed = sealCollectionReadOnly(
+      cursorShapedCollection()
+    ) as unknown as {
+      find: () => { toArray: () => Promise<unknown[]> }
+    }
+
+    expect(await sealed.find().toArray()).toHaveLength(2)
+  })
+})
+
+describe('sealCollectionReadOnly, against a descriptor read', () => {
+  it('refuses the property the get trap refuses', () => {
+    const sealed = sealCollectionReadOnly({
+      client: { db: () => 'unsealed' },
+      findOne: () => Promise.resolve(null),
+    })
+
+    expect(() => Object.getOwnPropertyDescriptor(sealed, 'client')).toThrow(
+      RehearsalWriteRefusedError
+    )
+  })
+})

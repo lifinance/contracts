@@ -366,3 +366,30 @@ export const rowCountsByCheck = (
       counts[result.checkId] = (counts[result.checkId] ?? 0) + 1
   return counts
 }
+
+/**
+ * The distinct refusal classes a run actually produced.
+ *
+ * A refusal budget divides refusals into true positives, named false reds and
+ * unexplained. When only one class is reachable and this release has already
+ * ruled that class correct, every refusal lands in the first bucket and the
+ * unexplained count is 0 for any corpus, on any day — a constant rather than a
+ * measurement. Counting the classes is how the caller can tell the two apart
+ * and decline to publish a rate that cannot vary.
+ *
+ * @param pass - one pass's per-proposal ledgers
+ * @returns each distinct class, in first-seen order
+ */
+export const refusalClasses = (
+  pass: readonly IRehearsalPassEntry[]
+): readonly string[] => {
+  const classes = new Set<string>()
+  for (const observation of collectRefusalObservations(pass)) {
+    if (!observation.refused) continue
+    for (const clause of observation.reason.split('; ')) {
+      const verdict = clause.slice(clause.lastIndexOf(': ') + 2).trim()
+      if (verdict) classes.add(verdict)
+    }
+  }
+  return [...classes]
+}

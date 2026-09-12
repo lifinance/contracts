@@ -11,6 +11,15 @@
  * commit, and every entry it holds appears in the report with a presence.
  */
 
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
+
+import {
+  checkResultKey,
+  type ICheckLedger,
+  type ICheckResult,
+} from './check-ledger'
+
 /** Why the roster names a gate, so an entry can be retired on evidence. */
 export interface IRosteredGate {
   readonly checkId: string
@@ -169,3 +178,148 @@ export const renderGateReport = (report: readonly IGateReportRow[]): string => {
     )
     .join('\n')
 }
+
+/**
+ * One row a signer has to answer for personally.
+ */
+export interface ISignerTask {
+  readonly proposal: string
+  readonly checkId: string
+  readonly network: string
+  readonly expected: string
+  readonly actual: string
+}
+
+/**
+ * What the run settled by itself, and what it is handing to the signer.
+ */
+export interface ISignerWorkload {
+  /** Rows the evidence decided outright. Nothing to do. */
+  readonly settled: number
+  /** Rows that refused. Not the signer's to wave through — the run is blocked. */
+  readonly blocked: number
+  /** Rows where "is this the change we meant?" has no machine answer. */
+  readonly needsYou: readonly ISignerTask[]
+}
+
+/**
+ * Splits a run's rows by who has to act on them.
+ *
+ * The three buckets are the distinction the ledger already encodes and never
+ * shows: an `integrity` check asks whether the bytes are what they claim, which
+ * evidence settles; a `semantic` check asks whether this is the change we meant,
+ * which only a person can answer, and that answer is the acknowledgement. A
+ * report that prints one undifferentiated list of checks makes the signer
+ * re-derive that split by eye on every proposal.
+ *
+ * `blocked` is deliberately not merged into `needsYou`: a refusal is not a
+ * question put to the signer, and presenting it as one invites clicking
+ * through it.
+ *
+ * @param pass - one pass's per-proposal ledgers
+ * @returns the counts, and every row still waiting on a person
+ */
+export const summariseSignerWorkload = (
+  pass: readonly {
+    readonly proposal: string
+    readonly ledger: ICheckLedger
+  }[]
+): ISignerWorkload => {
+  let settled = 0
+  let blocked = 0
+  const needsYou: ISignerTask[] = []
+
+  for (const entry of pass) {
+    const outcomes = new Map<string, ICheckResult>()
+    for (const result of entry.ledger.results)
+      outcomes.set(checkResultKey(result.checkId, result.network), result)
+
+    for (const result of outcomes.values())
+      if (result.status === 'needs-ack')
+        needsYou.push({
+          proposal: entry.proposal,
+          checkId: result.checkId,
+          network: result.network,
+          expected: result.expected,
+          actual: result.actual,
+        })
+      else if (result.status === 'pass') settled += 1
+      else blocked += 1
+  }
+
+  return { settled, blocked, needsYou }
+}
+
+/**
+ * Renders the workload split for a signer.
+ *
+ * @param workload - the split
+ * @returns a short block naming what is settled, what is blocked, and what is left
+ */
+export const renderSignerWorkload = (workload: ISignerWorkload): string => {
+  const lines = [
+    `settled automatically : ${workload.settled} row(s) — evidence decided these, nothing to do`,
+    `blocked               : ${workload.blocked} row(s) — refused; not yours to wave through`,
+    `needs your judgement  : ${workload.needsYou.length} row(s) — acknowledging one IS answering it`,
+  ]
+  for (const task of workload.needsYou.slice(0, 10))
+    lines.push(
+      `  ${task.checkId} on ${task.network}: expected ${task.expected}, observed ${task.actual}`
+    )
+  return lines.join('\n')
+}
+
+/** A file a gate's verdict rests on, and what its absence does to that verdict. */
+export interface IGradingAnchor {
+  readonly path: string
+  readonly present: boolean
+  /** What a run produces when this anchor is missing. */
+  readonly consequence: string
+}
+
+/**
+ * Checks the local files the gates grade against.
+ *
+ * A rehearsal in a fresh worktree is the case this exists for. The deployment
+ * record is read from a gitignored cache, not from `deployments/*.json`, and
+ * `resolveDeployedContractByAddress` returns `unrecorded` when it is absent —
+ * so every cut element grades `contract-unidentified` and the run reports a
+ * refusal on essentially every proposal. Nothing in that output says the cause
+ * is a missing file, and the refusals are indistinguishable from real ones.
+ *
+ * This is the false-refusal case the harness exists to catch, so it is checked
+ * before grading rather than inferred from the results afterwards.
+ *
+ * @param rootDir - repo root the gates will read from
+ * @returns one entry per anchor, with what its absence would cost
+ */
+export const checkGradingAnchors = (
+  rootDir: string
+): readonly IGradingAnchor[] => {
+  const cachePath = join(rootDir, '.cache', 'deployments_production.json')
+  return [
+    {
+      path: cachePath,
+      present: existsSync(cachePath),
+      consequence:
+        'every cut element grades contract-unidentified, so the run refuses almost every proposal for a reason that is about this checkout rather than about the proposals',
+    },
+  ]
+}
+
+/**
+ * Renders the anchor check.
+ *
+ * @param anchors - the checked anchors
+ * @returns a line per anchor, naming the consequence of a missing one
+ */
+export const renderGradingAnchors = (
+  anchors: readonly IGradingAnchor[]
+): string =>
+  anchors
+    .map((anchor) =>
+      anchor.present
+        ? `present : ${anchor.path}`
+        : `MISSING : ${anchor.path}\n          ${anchor.consequence}`
+    )
+    .join('\n')

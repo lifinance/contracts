@@ -33,6 +33,7 @@ import {
   recordCheck,
   type ICheckLedger,
 } from './check-ledger'
+import { readBooleanFlag } from './cli-flags'
 import {
   CONFIRM_CHECK_DEFINITIONS,
   targetStateCheckResult,
@@ -42,10 +43,18 @@ import {
   createTargetStateDeps,
   evaluateTargetStateIntent,
 } from './pinned-target-state'
-import { buildGateReport, renderGateReport } from './rehearsal-report'
+import {
+  buildGateReport,
+  checkGradingAnchors,
+  renderGateReport,
+  renderGradingAnchors,
+  renderSignerWorkload,
+  summariseSignerWorkload,
+} from './rehearsal-report'
 import {
   collectRefusalObservations,
   gradeCorruptionProbe,
+  refusalClasses,
   rowCountsByCheck,
   summariseRehearsal,
   survivedCorruption,
@@ -154,6 +163,11 @@ const main = defineCommand({
       description:
         'Damage every proposal, to establish the chain can still refuse',
     },
+    gradeWithoutAnchors: {
+      type: 'boolean',
+      description:
+        'Grade even though a local anchor the gates read is missing. Every refusal is then suspect.',
+    },
     status: {
       type: 'string',
       default: 'pending',
@@ -171,6 +185,24 @@ const main = defineCommand({
       .filter(Boolean)
     if (!networks.length) throw new Error('no networks given')
     const status = parseStatus(args.status)
+
+    // Before anything is graded. A missing deployment cache turns the
+    // target-state gate into a refusal on essentially every proposal, and the
+    // refusals it produces are indistinguishable from real ones — so a run that
+    // grades anyway publishes a corpus of false reds as findings.
+    const anchors = checkGradingAnchors(process.cwd())
+    consola.info(`Grading anchors\n${renderGradingAnchors(anchors)}`)
+    const missing = anchors.filter((anchor) => !anchor.present)
+    // Read from argv, not from `args`: citty parses a multi-word flag's
+    // `--no-` form to the string 'false', which is truthy. See `cli-flags.ts`.
+    const gradeWithoutAnchors = readBooleanFlag(process.argv, {
+      camel: 'gradeWithoutAnchors',
+      kebab: 'grade-without-anchors',
+    })
+    if (missing.length && !gradeWithoutAnchors)
+      throw new Error(
+        `Refusing to grade: ${missing.length} grading anchor(s) missing. Every verdict would rest on a file this checkout does not have. Re-run where they exist, or pass --grade-without-anchors to grade anyway and read every refusal as suspect.`
+      )
 
     // Captured from inside `openStore` so the client is never constructed
     // before the preflight has refused a write-configured run.
@@ -249,9 +281,26 @@ const main = defineCommand({
           'only the gates merged on this commit ran; see the roster below for the rest',
         observations,
       })
-      consola.info(
-        `Refusals: ${budget.refusals}/${budget.denominator} rows (unexplained ${budget.unexplained})`
-      )
+
+      // A budget over a single refusal class is not a measurement. Every
+      // refusal lands in the one bucket this release has already ruled correct,
+      // so `unexplained` is 0 for any corpus on any day — and that 0 is what
+      // EXSC-977's promotion criterion reads to decide a gate may start
+      // blocking. Withheld rather than printed with a caveat: a number nobody
+      // can move should not appear next to numbers that move.
+      const classes = refusalClasses(first)
+      if (classes.length > 1)
+        consola.info(
+          `Refusals: ${budget.refusals}/${budget.denominator} rows (unexplained ${budget.unexplained})`
+        )
+      else
+        consola.warn(
+          `Refusal budget: not measured — ${budget.refusals}/${
+            budget.denominator
+          } rows refused, all of one class (${
+            classes[0] ?? 'none'
+          }), so "unexplained 0" would be a constant, not a result`
+        )
 
       // Grouped rather than listed: 30 rows refusing for one reason is a
       // property of the gate, and a flat list of 30 lines hides that.
@@ -266,6 +315,12 @@ const main = defineCommand({
         (a, b) => b[1] - a[1]
       ))
         consola.info(`  ${count}x ${reason}`)
+
+      consola.info(
+        `\nWho has to act\n${renderSignerWorkload(
+          summariseSignerWorkload(first)
+        )}`
+      )
 
       consola.info(
         `\nGate roster\n${renderGateReport(

@@ -14,6 +14,7 @@ import {
   collectRefusalObservations,
   comparePasses,
   gradeCorruptionProbe,
+  refusalClasses,
   rowCountsByCheck,
   summariseRehearsal,
 } from './rehearsal-run'
@@ -322,5 +323,47 @@ describe('collectRefusalObservations, when a cut mixes refusal classes', () => {
     ])
 
     expect(observations[0]?.truePositive).toBe(true)
+  })
+})
+
+describe('refusalClasses', () => {
+  it('names the distinct classes behind a run’s refusals', () => {
+    const classes = refusalClasses([
+      {
+        proposal: '0xa',
+        ledger: ledgerWith('error', '0xaaa: contract-unidentified'),
+      },
+      {
+        proposal: '0xb',
+        ledger: ledgerWith('fail', 'AcrossFacetV3: downgrade'),
+      },
+      {
+        proposal: '0xc',
+        ledger: ledgerWith('error', '0xccc: contract-unidentified'),
+      },
+    ])
+
+    expect([...classes].sort()).toEqual(['contract-unidentified', 'downgrade'])
+  })
+
+  it('reports one class when the chain can only refuse one way', () => {
+    const classes = refusalClasses([
+      {
+        proposal: '0xa',
+        ledger: ledgerWith('error', '0xaaa: contract-unidentified'),
+      },
+      {
+        proposal: '0xb',
+        ledger: ledgerWith('error', '0xbbb: contract-unidentified'),
+      },
+    ])
+
+    expect(classes).toHaveLength(1)
+  })
+
+  it('counts no class for a run with no refusals', () => {
+    expect(
+      refusalClasses([{ proposal: '0xa', ledger: ledgerWith('pass', '1.0.0') }])
+    ).toEqual([])
   })
 })
