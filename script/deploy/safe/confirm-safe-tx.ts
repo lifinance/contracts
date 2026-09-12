@@ -174,11 +174,8 @@ const recordEveryCheck = (
  * actionable carries no proposal for this operator. Left unrecorded it rolls up
  * as missing and hard-blocks a run on which nothing was wrong.
  *
- * `not-applicable` on `A-LOCAL`, never a pass: the run read its input and found
- * nothing to compare, which is a verified fact about the network but not a
- * verified proposal. Recorded as a pass it satisfied the verified counter, and a
- * run whose every network was skipped closed `ALL CHECKS GREEN — 10/10 network
- * results verified` with a pending proposal on one of them.
+ * `not-applicable` on `A-LOCAL`, never a pass: nothing on this network was
+ * compared, so the row must satisfy no verified counter.
  *
  * Only for outcomes that answered. A read that *failed* has not established
  * anything and belongs in `recordCouldNotGrade` — mixing the two is how a fully
@@ -1188,11 +1185,11 @@ const processTxs = async (
 
   // One row per network, written once every proposal on it has been graded and
   // reduced worst-first. A `ready` network always carries at least one proposal,
-  // so the empty branch is the unreachable case made explicit rather than left
-  // to roll up as a missing row and block the run.
+  // so the empty branch records a broken invariant — unverified, never a network
+  // the run established had nothing on it.
   if (checkLedger) {
     if (proposalChecks.length === 0)
-      recordNothingToGrade(network, 'the prepared network carried no proposal')
+      recordCouldNotGrade(network, 'the prepared network carried no proposal')
     else
       for (const result of worstResultPerCheck(proposalChecks))
         recordCheck(checkLedger, result)

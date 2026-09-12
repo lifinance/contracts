@@ -353,7 +353,7 @@ describe('targetStateCheckResult', () => {
 
 describe('worstResultPerCheck', () => {
   const resultWith = (
-    status: 'pass' | 'fail' | 'error' | 'needs-ack',
+    status: 'pass' | 'fail' | 'error' | 'needs-ack' | 'not-applicable',
     anchor: 'A-LOCAL' | 'A-MAIN' | 'A-MONGO' = 'A-LOCAL'
   ) => ({
     checkId: TARGET_STATE_CHECK_ID,
@@ -412,6 +412,26 @@ describe('worstResultPerCheck', () => {
 
   it('returns nothing for a network that graded nothing', () => {
     expect(worstResultPerCheck([])).toEqual([])
+  })
+
+  // A status `SEVERITY` does not list gets -1 from `indexOf`, which ranks it
+  // ahead of `fail` — so dropping the entry is a silent inversion, not a type
+  // error. Both orders, because the reducer keeps the row it already holds on a
+  // tie and a one-sided case passes against the inverted ranking.
+  it('never lets a proposal with nothing to grade displace a finding', () => {
+    const skipped = resultWith('not-applicable')
+
+    expect(
+      worstResultPerCheck([resultWith('fail', 'A-MAIN'), skipped])[0]?.status
+    ).toBe('fail')
+    expect(
+      worstResultPerCheck([skipped, resultWith('fail', 'A-MAIN')])[0]?.status
+    ).toBe('fail')
+    expect(
+      worstResultPerCheck([skipped, resultWith('error', 'A-MONGO')])[0]?.status
+    ).toBe('error')
+    // Paired present: with nothing beside it, the skipped row is still the row.
+    expect(worstResultPerCheck([skipped])[0]?.status).toBe('not-applicable')
   })
 })
 

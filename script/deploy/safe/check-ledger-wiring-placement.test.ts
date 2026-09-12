@@ -127,9 +127,9 @@ describe('one row per network, not one per proposal', () => {
     expect(body).toContain('proposalChecks.push(')
 
     // Position, not just presence. Below the operator's own `continue` the push
-    // is skipped for a declined proposal, and a network whose only proposal was
-    // declined then reaches `proposalChecks.length === 0` and records a pass —
-    // a green row for a real proposal nothing graded.
+    // is skipped for a declined proposal, so a network whose only proposal was
+    // declined reaches `proposalChecks.length === 0` and that proposal's own
+    // grade never reaches the ledger.
     const graded = body.indexOf('proposalChecks.push(')
     const declined = body.indexOf("if (action === 'Do Nothing') continue")
 
@@ -155,6 +155,18 @@ describe('one row per network, not one per proposal', () => {
     // before the one surviving row is written.
     expect(reduce).toBeGreaterThan(end)
     expect(SOURCE.slice(end)).toContain('recordCheck(checkLedger, result)')
+  })
+
+  it('records a prepared network with no proposal as unverified', () => {
+    // A `ready` network always carries at least one proposal, so this branch is
+    // a broken invariant rather than an outcome — `recordNothingToGrade` would
+    // file it as a network the run positively established had nothing on it.
+    const empty = SOURCE.indexOf('if (proposalChecks.length === 0)')
+    expect(empty).toBeGreaterThan(-1)
+    const branch = SOURCE.slice(empty, SOURCE.indexOf('else', empty))
+
+    expect(branch).toContain('recordCouldNotGrade(')
+    expect(branch).not.toContain('recordNothingToGrade(')
   })
 })
 
@@ -226,10 +238,9 @@ describe('a network the run skipped does not block it', () => {
    * directory green while reinstating the spurious hard block it exists to
    * prevent.
    *
-   * `not-applicable` rather than `pass`: a pass is a verified network result and
-   * counts toward the verified coverage, so recording one for a network nothing
-   * was graded on is what closed a real run `10/10 network results verified`
-   * with a pending proposal untouched on it.
+   * `not-applicable` rather than `pass`: a pass counts toward the verified
+   * coverage, so a network nothing was graded on would be counted as one this
+   * run verified.
    */
   const RECORDERS = [
     [
@@ -269,8 +280,7 @@ describe('the verdict stays withheld', () => {
   it('does not render the ledger', () => {
     // Only a `pass` counts toward the verified coverage while every status a
     // correct Add/Replace cut produces is `needs-ack`, so a correct rollout
-    // grades 0/N and a run that graded nothing grades green. EXSC-994 owns
-    // fixing that before any of it is printed.
+    // grades 0/N. EXSC-994 owns fixing that before any of it is printed.
     //
     // `summariseLedger` is pinned alongside the renderer because it is where
     // the inversion lives: the render is a thin wrapper over it, this file
