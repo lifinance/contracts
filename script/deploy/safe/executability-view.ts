@@ -172,11 +172,20 @@ const relativePath = (finding: IExecutabilityFinding, path: string): string =>
 const withoutPathPrefix = (detail: string, path: string): string =>
   detail.startsWith(`${path}`) ? detail.slice(path.length).trimStart() : detail
 
-/** Colours the first line only; a continuation carries no reset of its own. */
+/**
+ * Opens and closes the colour on every line, not once around the block.
+ *
+ * A terminal resets at the escape, not at the wrap, so a span opened on the
+ * first line and closed at the end of it leaves every continuation plain — and
+ * a finding that is red for one line and uncoloured for the next three reads as
+ * a red item followed by three unrelated ones. Colour carries the meaning in
+ * this view, so it has to survive the wrap.
+ *
+ * This is the second attempt. The first closed the span on line one and left
+ * the continuations bare, which fixed a stray reset by giving up the colour.
+ */
 const paint = (lines: readonly string[], colour: string): string[] =>
-  lines.map((line, position) =>
-    position === 0 ? `${colour}${line}${RESET}` : line
-  )
+  lines.map((line) => `${colour}${line}${RESET}`)
 
 const renderCall = (call: IExecutabilityCall): string[] => {
   const style = OUTCOME_STYLE.get(call.outcome) ?? {

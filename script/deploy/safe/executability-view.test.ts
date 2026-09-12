@@ -512,3 +512,66 @@ describe('condensing what the collector already summarised', () => {
     }
   })
 })
+
+describe('colour survives a wrap', () => {
+  /** A finding long enough to take four lines at the panel width. */
+  const wrapping = (): readonly string[] =>
+    executabilityPanel(
+      verdict({
+        refuses: true,
+        calls: [
+          call({
+            caller: undefined,
+            modelled: false,
+            outcome: 'would-revert',
+            findings: [
+              finding({
+                detail:
+                  'replaces 0xa1f1ce43 with 0xAd3f1634a917924cBb54A0F76e43ca035D2B6BCd, which already serves it on chain, so the cut is a no-op LibDiamond rejects',
+              }),
+            ],
+          }),
+        ],
+      })
+    )
+
+  const opens = (line: string): boolean =>
+    new RegExp(`^${ESC}\\[[0-9;]*m`, 'u').test(line)
+
+  it('colours every line of a wrapped finding, not just the first', () => {
+    const lines = wrapping()
+    const first = lines.findIndex((line) =>
+      stripAnsi(line).includes('replaces 0xa1f1ce43')
+    )
+    // The continuations: everything up to the next drawn block or the end.
+    const continuations = lines
+      .slice(first + 1)
+      .filter((line) => line.trim() !== '')
+
+    expect(first).toBeGreaterThan(-1)
+    // Paired with a present, so this cannot pass on a panel that wrapped to one
+    // line and therefore had no continuation to leave uncoloured.
+    expect(continuations.length).toBeGreaterThan(1)
+    for (const line of continuations) expect(opens(line)).toBe(true)
+  })
+
+  it('colours the continuation of the dim sender line too', () => {
+    const lines = wrapping()
+    const sender = lines.findIndex((line) =>
+      stripAnsi(line).includes('sender not recorded')
+    )
+    const next = lines[sender + 1] ?? ''
+
+    expect(stripAnsi(next)).toContain('alone')
+    expect(next).toContain(`${ESC}[2m`)
+  })
+
+  it('still leaves no reset on a line that was never coloured', () => {
+    const opener = new RegExp(`${ESC}\\[[1-9][0-9]*m`, 'u')
+    expect(
+      wrapping().filter(
+        (line) => line.includes(`${ESC}[0m`) && !opener.test(line)
+      )
+    ).toEqual([])
+  })
+})
