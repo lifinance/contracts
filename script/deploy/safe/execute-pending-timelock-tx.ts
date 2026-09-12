@@ -715,7 +715,7 @@ async function alertBlockedOps(
             } catch (error) {
               consola.warn(
                 `[${networkName}] Failed to send blocked-op notification:`,
-                error
+                guardErrorDetail(error)
               )
             }
           // Stamped regardless of Slack success: the console/CI log already
@@ -1028,7 +1028,7 @@ async function processNetwork(
   } catch (error) {
     consola.error(
       `[${network.name}] Error processing network ${network.name}:`,
-      error
+      guardErrorDetail(error)
     )
 
     return {
@@ -1221,7 +1221,7 @@ async function getPendingOperations(
             } catch (error) {
               consola.warn(
                 'Failed to send reconciled-execution notification:',
-                error
+                guardErrorDetail(error)
               )
             }
           continue
@@ -1455,7 +1455,7 @@ async function handleRevertedExecution(
   } catch (error) {
     consola.error(
       `${networkPrefix} Failed to alert the CI notifications channel about ${operation.id}:`,
-      error
+      guardErrorDetail(error)
     )
   }
 }
@@ -1562,7 +1562,7 @@ async function revalidateFoldedRemovalsOrAbort(
     if (removeHint.kind === 'none') return 'ok'
     consola.warn(
       `${networkPrefix} ⚠️ Could not open parked-tasks queue to revalidate Remove cut(s); refusing execute (row left queued, next run retries):`,
-      error
+      guardErrorDetail(error)
     )
     await alertFailure(
       new Error('parked-tasks queue unreachable for Remove revalidation')
@@ -1652,7 +1652,7 @@ async function revalidateFoldedRemovalsOrAbort(
     // Loupe/RPC blip — refuse this run but leave queued for retry.
     consola.error(
       `${networkPrefix} ❌ Pre-execute removal revalidation failed — refusing execute (row left queued, next run retries):`,
-      error
+      guardErrorDetail(error)
     )
     await alertFailure(error)
     return 'retry'
