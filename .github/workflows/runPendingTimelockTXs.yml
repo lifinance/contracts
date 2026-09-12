@@ -39,7 +39,14 @@
 #         budget. The script throws if it has that alert to send and this is unset.)
 #     * secrets.MONGODB_URI (non-sensitive MongoDB connection string; the script reads queued
 #         timelock ops from the timelock-operations.queue collection. Rows are written by
-#         confirm-safe-tx.ts when a Safe tx scheduling a timelock op is mined.)
+#         confirm-safe-tx.ts when a Safe tx scheduling a timelock op is mined. The
+#         pre-broadcast gate also reads timelock-operations.signed-sets from the same cluster.)
+#     * PRE_BROADCAST_GATE_ENFORCE is deliberately NOT set here. Unset, the pre-broadcast
+#         integrity gate runs in shadow mode: it logs its verdict, sends nothing to Slack, and
+#         the operation still executes. Setting it to "true" makes refusals binding AND turns
+#         on the gate's alerting. Both wait on the same evidence: a HOLD refuses the broadcast,
+#         so the gate has to show it does not HOLD on honest traffic before an unattended cron
+#         is allowed to act on it.
 # - Known limitations:
 #     * Job timeout caps runtime; very large multi-network runs may need a higher value
 
@@ -77,7 +84,7 @@ jobs:
           persist-credentials: false # no git writes needed; avoid leaving GITHUB_TOKEN in .git/config
 
       - name: Install Foundry
-        uses: foundry-rs/foundry-toolchain@8b0419c685ef46cb79ec93fbdc131174afceb730 # v1.6
+        uses: ./.github/actions/setup-foundry
 
       - name: Setup Bun
         uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2.1.2
