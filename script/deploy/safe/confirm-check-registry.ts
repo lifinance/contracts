@@ -312,6 +312,9 @@ const SEVERITY: readonly ICheckResult['status'][] = [
   'error',
   'needs-ack',
   'pass',
+  // Listed rather than left out: a status this array omits gets -1 from
+  // `indexOf`, which ranks it ahead of `fail`.
+  'not-applicable',
 ]
 
 const worstOf = (
@@ -638,6 +641,20 @@ export interface IProposalCheckVerdicts {
   executabilityOutOfScope?: string
   /** Absent when no quorum read was made. */
   rpcQuorum: IRpcQuorumVerdict | undefined
+  /**
+   * What the run read at each declared storage authority, and where each
+   * expectation came from.
+   *
+   * Absent means the read was never made, which blocks: gate G exists to
+   * refuse a proposal whose authorities could not be shown to match, and a
+   * silent absence would be the one way to get past it.
+   */
+  storageAuthority:
+    | {
+        entries: readonly ISignedAuthorityEntry[]
+        anchors: ReadonlyMap<string, ICheckResult['anchor']>
+      }
+    | undefined
 }
 
 const unresolved = (
@@ -741,6 +758,18 @@ export const proposalCheckResults = (
 
   return [
     ...integrityResults(verdicts.integrity, network),
+    verdicts.storageAuthority
+      ? storageAuthorityCheckResult(
+          verdicts.storageAuthority.entries,
+          network,
+          verdicts.storageAuthority.anchors
+        )
+      : unresolved(
+          STORAGE_AUTHORITY_CHECK_ID,
+          network,
+          EVERY_AUTHORITY_MATCHES,
+          'no storage-authority read was made for this proposal'
+        ),
     targetStateCheckResult(verdicts.targetState, network),
     verdicts.executability
       ? executabilityCheckResult(verdicts.executability, network)

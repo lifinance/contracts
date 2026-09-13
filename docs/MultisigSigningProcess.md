@@ -449,8 +449,39 @@ a count + contract + network line only if the render fails.
 `bun confirm-safe-tx` = tunnel + typechain build +
 `script/deploy/safe/confirm-safe-tx.ts`. **Ledger is the default signer**
 (`--ledger=false` falls back to env keys), with a blind-signing fail-fast
-(`checkBlindSigningEnabled` in `ledger.ts`). Per pending transaction the
-signer sees:
+(`checkBlindSigningEnabled` in `ledger.ts`).
+
+**Before any proposal is read**, the run resolves the preconditions every check
+on a network shares (`signer-preflight.ts`): the endpoint variable is set, the
+endpoint answers, and it answers for the right chain. A network failing any of
+them is **refused** — named once under a `CANNOT START` block with its cause and
+its remedy, and left out of the ledger's denominator entirely. It contributes no
+check rows, because a check that could not start has nothing to report and
+listing ten of them buries the one line that can be acted on. This is not a
+gate: the gate letters describe the proposal and red means do not sign, which an
+unset variable is not.
+
+The probes run concurrently, each bounded by `PREFLIGHT_PROBE_TIMEOUT_MS`
+carried as an `AbortSignal`, so several unreachable networks cost one budget
+rather than one each. Reads go through every endpoint the network declares —
+`ETH_NODE_URI_<NETWORK>` plus `ETH_NODE_URI_<NETWORK>_FALLBACKS` — which is the
+same set the executability gate reads through, so a healthy spare rescues a
+network whose primary is sick instead of the preflight and the gates disagreeing
+about whether it is reachable.
+
+If no network can start, the run exits with `PREFLIGHT_EXIT_CODE` (78). Two
+things to know about that code: it also fires on a partial run where some
+networks were refused and others were signed, and nothing parses it today.
+
+Two limits are deliberate and worth stating. The probe calls `eth_chainId`,
+which is the most permissive method a node serves, so a rate-limited or
+method-restricted endpoint passes the preflight and then fails every `eth_call`
+behind it — this closes one cause of mass-unverified rows, not the class. And an
+explicit `--rpc-url` does not excuse an unset endpoint variable: the chain is
+resolved through `getViemChainForNetworkName` before the override is read, and
+that resolve needs the variable.
+
+Per pending transaction the signer sees:
 
 1. **Decoded calldata** via `formatDecodedTxDataForDisplay`
    (`script/deploy/safe/safe-decode-utils.ts`): batch params, per-call target

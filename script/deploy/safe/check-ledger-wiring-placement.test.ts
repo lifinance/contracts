@@ -306,9 +306,9 @@ describe('one row per network, not one per proposal', () => {
     expect(body).toContain('proposalChecks.push(')
 
     // Position, not just presence. Below the operator's own `continue` the push
-    // is skipped for a declined proposal, and a network whose only proposal was
-    // declined then reaches `proposalChecks.length === 0` and records a pass —
-    // a green row for a real proposal nothing graded.
+    // is skipped for a declined proposal, so a network whose only proposal was
+    // declined reaches `proposalChecks.length === 0` and that proposal's own
+    // grade never reaches the ledger.
     const graded = body.indexOf('proposalChecks.push(')
     const declined = body.indexOf("if (action === 'Do Nothing') continue")
 
@@ -371,6 +371,18 @@ describe('one row per network, not one per proposal', () => {
     // before the one surviving row is written.
     expect(reduce).toBeGreaterThan(end)
     expect(SOURCE.slice(end)).toContain('recordCheck(checkLedger, result)')
+  })
+
+  it('records a prepared network with no proposal as unverified', () => {
+    // A `ready` network always carries at least one proposal, so this branch is
+    // a broken invariant rather than an outcome — `recordNothingToGrade` would
+    // file it as a network the run positively established had nothing on it.
+    const empty = SOURCE.indexOf('if (proposalChecks.length === 0)')
+    expect(empty).toBeGreaterThan(-1)
+    const branch = SOURCE.slice(empty, SOURCE.indexOf('else', empty))
+
+    expect(branch).toContain('recordCouldNotGrade(')
+    expect(branch).not.toContain('recordNothingToGrade(')
   })
 })
 
@@ -441,9 +453,17 @@ describe('a network the run skipped does not block it', () => {
    * status free — flipping `recordNothingToGrade` to `error` kept the whole
    * directory green while reinstating the spurious hard block it exists to
    * prevent.
+   *
+   * `not-applicable` rather than `pass`: a pass counts toward the verified
+   * coverage, so a network nothing was graded on would be counted as one this
+   * run verified.
    */
   const RECORDERS = [
-    ['const recordNothingToGrade = (', "status: 'pass'", "anchor: 'A-LOCAL'"],
+    [
+      'const recordNothingToGrade = (',
+      "status: 'not-applicable'",
+      "anchor: 'A-LOCAL'",
+    ],
     [
       'const recordCouldNotGrade = (',
       "status: 'error'",
@@ -451,7 +471,7 @@ describe('a network the run skipped does not block it', () => {
     ],
   ] as const
 
-  it('writes a verified row for one and an unverified row for the other', () => {
+  it('writes an ungraded row for one and an unverified row for the other', () => {
     for (const [declaration, status, anchor] of RECORDERS) {
       const helper = SOURCE.indexOf(declaration)
       expect(helper).toBeGreaterThan(-1)
@@ -580,4 +600,67 @@ describe('each gate that owns a ledger row hands the recorder its verdict', () =
       expect(fromEvaluator.length).toBe(assignments.length)
     })
   }
+})
+
+/**
+ * Gate G has to be graded before the signer is asked to sign.
+ *
+ * The storage-authority row used to be pushed from inside `recordSignedSet`,
+ * which runs after the signature is stored. A row recorded there can describe
+ * what was signed but can no longer refuse it, and the run-level ledger then
+ * carried no gate-G result at decision time at all.
+ *
+ * Asserted as placement rather than as a decision because the decision is
+ * already driven in `confirm-check-registry.test.ts`; what that cannot see is
+ * *when* the call happens.
+ */
+describe('gate G is graded before the signature, not after it', () => {
+  /** A named function declaration's body text, from the tree rather than a window. */
+  const bodyOfFunction = (name: string): string => {
+    let found: Node | undefined
+
+    const visit = (node: Node): void => {
+      if (
+        found === undefined &&
+        isFunctionDeclaration(node) &&
+        node.name?.getText(TREE) === name
+      )
+        found = node
+      else forEachChild(node, visit)
+    }
+    forEachChild(TREE, visit)
+
+    // Guarded: an unfound name yields an empty body, which would satisfy every
+    // negative assertion below while asserting nothing at all.
+    expect(found).toBeDefined()
+    return (found as Node).getText(TREE)
+  }
+
+  it('does not grade the authorities from the post-signature recorder', () => {
+    const body = bodyOfFunction('recordSignedSet')
+
+    // The positive half, so this cannot pass by the function having been
+    // renamed or emptied rather than by the grading having moved out of it.
+    expect(body).toContain('persistSignedSetRecord(record)')
+
+    expect(body).not.toContain('storageAuthorityCheckResult')
+    expect(body).not.toContain('proposalChecks.push')
+  })
+
+  it('reads the set inside the proposal loop, where a refusal is still available', () => {
+    const { body } = proposalLoop()
+
+    expect(body).toContain('observeSetForProposal(')
+    // The read reaching the recorder is what makes it a graded row rather than
+    // an observation nobody asked for.
+    expect(body).toContain('storageAuthority: observedSet')
+  })
+
+  it('keeps the observation reachable from both sides, read once', () => {
+    // Two call sites — the pre-signature grading and the post-signature
+    // persistence — over one cache, so moving the grading earlier did not buy a
+    // second round of chain reads per proposal.
+    expect(countOf(/observeSetForProposal\(/g)).toBeGreaterThanOrEqual(3)
+    expect(SOURCE).toContain('observedSets.get(safeTxHash)')
+  })
 })
