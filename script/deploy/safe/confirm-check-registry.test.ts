@@ -1609,8 +1609,9 @@ describe('gate letters', () => {
 
     for (const definition of CONFIRM_CHECK_DEFINITIONS)
       expect(named).toContain(definition.checkId)
-    // The codehash gate refuses inside the integrity asserts rather than
-    // through a ledger row, so nothing else would notice it losing its name.
+    // Pinned by name as well as through the roster loop: this gate's refusal
+    // lives outside the ledger, so a run that dropped its row would still
+    // block signing and no other test would notice the name was gone.
     expect(named).toContain(CODEHASH_CHECK_ID)
   })
 })
