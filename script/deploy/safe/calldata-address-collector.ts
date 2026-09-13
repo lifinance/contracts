@@ -22,9 +22,11 @@ import {
 
 import {
   carriesAnySelectorAligned,
-  collectDiamondCutCalls,
   collectLeafCalls,
+  diamondCutCallsIn,
+  type ICollectedLeafCalls,
   type IDiamondCutCall,
+  type ILeafCall,
 } from '../shared/diamond-cut-calls'
 
 import {
@@ -66,13 +68,12 @@ const REGISTER_PERIPHERY_SELECTOR = toFunctionSelector(
  * unreadable rather than skipped — a registration nobody could read is a
  * registration nobody graded.
  *
- * @param calldatas - the proposal's top-level calls, in the order they are sent
+ * @param leaves - what the proposal's single walk reached
  * @returns The references, and the identifiers of registrations that could not be read.
  */
 const peripheryReferences = (
-  calldatas: readonly `0x${string}`[]
+  leaves: readonly ILeafCall[]
 ): { references: IAddressReference[]; unreadable: string[] } => {
-  const { leaves } = collectLeafCalls(calldatas)
   const references: IAddressReference[] = []
   const unreadable: string[] = []
   const seen = new Map<number, number>()
@@ -156,12 +157,12 @@ const referencesOfCall = (
 export const collectAddressReferences = (
   calldatas: readonly `0x${string}`[]
 ): { references: IAddressReference[]; undecodable: string[] } => {
-  const { calls, undecodable } = collectDiamondCutCalls(calldatas)
+  const walked: ICollectedLeafCalls = collectLeafCalls(calldatas)
+  const { calls, undecodable } = diamondCutCallsIn(walked)
   const seen = new Map<number, number>()
 
-  const periphery = peripheryReferences(calldatas)
-  const references: IAddressReference[] = [...periphery.references]
-  const unreadable: string[] = [...periphery.unreadable]
+  const references: IAddressReference[] = []
+  const unreadable: string[] = []
 
   for (const call of calls) {
     const ordinal = seen.get(call.callIndex) ?? 0
@@ -170,6 +171,10 @@ export const collectAddressReferences = (
     references.push(...perCall.references)
     unreadable.push(...perCall.unreadable)
   }
+
+  const periphery = peripheryReferences(walked.leaves)
+  references.push(...periphery.references)
+  unreadable.push(...periphery.unreadable)
 
   return {
     references,

@@ -261,8 +261,8 @@ describe('periphery registrations are collected with the name they bind', () => 
         registeredName: 'Patcher',
       },
     ])
-    // The cut in the same envelope is still collected, so adding the periphery
-    // walk did not cost the walk that was already there.
+    // Both walks read the same envelope, so a registration beside a cut must
+    // not cost the cut.
     expect(
       references.some(
         (reference) => reference.role === AddressRoleEnum.FacetAdd
