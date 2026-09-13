@@ -1777,4 +1777,36 @@ describe('the codehash gate on the run-level ledger', () => {
 
     expect(summariseLedger(ledger).hardBlocked).toBe(true)
   })
+
+  // The refusal this gate drives lives outside the ledger, so a run whose only
+  // disagreement is a codehash mismatch is the case where the ledger is the
+  // signer's sole warning before the choice. A row the run does not count
+  // leaves the closing verdict free to read green over a proposal that will be
+  // refused the moment Sign is pressed.
+  it('hard-blocks the run on a target it compared and found different', () => {
+    const ledger = runLedger()
+    recordInto(
+      ledger,
+      verdicts({
+        codehash: codehashGate({
+          blocksSigning: true,
+          targets: [
+            {
+              address: '0x00000000000000000000000000000000000000f1',
+              verdict: 'MISMATCH',
+              reason: 'bytecode is not from any attested build',
+              matchedLineages: [],
+              excludedByteCount: 0,
+            },
+          ],
+        }),
+      })
+    )
+
+    const rollup = rollUpChecks(ledger).find(
+      (entry) => entry.checkId === CODEHASH_CHECK_ID
+    )
+    expect(rollup?.green).toBe(false)
+    expect(summariseLedger(ledger).hardBlocked).toBe(true)
+  })
 })
