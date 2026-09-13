@@ -787,15 +787,6 @@ export interface IBucketedResult {
    */
   docUrl?: string
   /**
-   * The subject alone, for the collapsed PASSED run.
-   *
-   * A passed check asks nothing of the signer, so the sentence stating what it
-   * asserted is worth less there than getting the whole run onto two lines that
-   * are taken in at once. Every other bucket keeps the full title, where the
-   * assertion is the point.
-   */
-  shortTitle?: string
-  /**
    * Lines printed under this check, already indented by whoever produced them.
    *
    * Where a check states what it compared against — the ref a target state was
@@ -830,35 +821,17 @@ export const renderCheckGroups = (
   for (const bucket of BUCKET_ORDER) {
     const entries = grouped.get(bucket)
     if (!entries?.length) continue
+    // A passed gate asks nothing of the signer, and the manifest above states
+    // its verdict and its write-up on one line. Everything this section could
+    // add is evidence for a verdict nobody is being asked to weigh — including
+    // the simulation panel, which is worth its twelve lines only on the run
+    // where a call does not execute.
+    if (bucket === 'passed') continue
     const style = BUCKET_STYLE.get(bucket)
     if (!style) continue
 
-    // The passed bucket prints only notes, so on the run where no passed check
-    // carries one it prints nothing — and a heading over nothing reads as a
-    // section whose contents went missing.
-    const withNotes =
-      bucket === 'passed'
-        ? entries.filter((entry) => entry.notes?.length)
-        : entries
-    if (!withNotes.length) continue
-
     out.push('')
     out.push(`  ${style.colour}${BOLD}${style.heading}${RESET}`)
-
-    if (bucket === 'passed') {
-      // Only what the manifest above cannot carry. The gate's letter, subject,
-      // verdict and write-up are all on its manifest row, so listing them again
-      // under a heading asks the signer to read the same roster twice; a note
-      // is per-check evidence that has no column.
-      for (const entry of withNotes) {
-        const title = entry.definition
-          ? gateLabel(entry.definition)
-          : entry.result.checkId
-        out.push(`    ${style.colour}${style.glyph}${RESET} ${title}`)
-        out.push(...(entry.notes ?? []).flatMap(wrapNote))
-      }
-      continue
-    }
 
     let first = true
     for (const {
