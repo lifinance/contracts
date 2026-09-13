@@ -16,14 +16,15 @@ import { join } from 'node:path'
 
 import {
   checkResultKey,
+  gateLabel,
   type ICheckLedger,
   type ICheckResult,
 } from './check-ledger'
+import { ALL_GATE_DEFINITIONS } from './confirm-check-registry'
 
 /** Why the roster names a gate, so an entry can be retired on evidence. */
 export interface IRosteredGate {
   readonly checkId: string
-  readonly title: string
   /** Where the expectation comes from — a ticket, a merged module, a design doc. */
   readonly source: string
 }
@@ -39,47 +40,42 @@ export interface IRosteredGate {
 export const REHEARSAL_GATE_ROSTER: readonly IRosteredGate[] = [
   {
     checkId: 'INT-SAFE-ADDRESS',
-    title: 'Safe address matches the configured one',
     source: 'confirm-integrity-asserts.ts, mirrored by EXSC-994',
   },
   {
     checkId: 'INT-SAFE-TX-HASH',
-    title: 'Recomputed safeTxHash matches the stored one',
     source: 'confirm-integrity-asserts.ts, mirrored by EXSC-994',
   },
   {
     checkId: 'INT-SIGNATURES',
-    title: 'Stored signatures resolve to current owners',
     source: 'confirm-integrity-asserts.ts, mirrored by EXSC-994',
   },
   {
     checkId: 'INT-FIXED-FIELDS',
-    title: 'Fixed Safe tx fields carry their required values',
     source: 'confirm-integrity-asserts.ts, mirrored by EXSC-994',
   },
   {
     checkId: 'INT-TARGET',
-    title: 'Target address is the diamond or timelock it claims',
     source: 'confirm-integrity-asserts.ts, mirrored by EXSC-994',
   },
   {
     checkId: 'INT-TIMELOCK-DELAY',
-    title: 'Scheduled delay is at least the timelock minimum',
     source: 'confirm-integrity-asserts.ts, mirrored by EXSC-994',
   },
   {
+    checkId: 'storage-authority',
+    source: 'confirm-check-registry.ts (merged)',
+  },
+  {
     checkId: 'target-state',
-    title: 'Facet version matches the declared target state',
     source: 'confirm-check-registry.ts (merged)',
   },
   {
     checkId: 'executability',
-    title: 'The proposal would execute rather than revert',
     source: 'EXSC-994',
   },
   {
     checkId: 'rpc-quorum',
-    title: 'Chain reads agreed across independent providers',
     source: 'EXSC-994',
   },
 ]
@@ -123,12 +119,30 @@ const presenceOf = (
  * @param run.rowCounts - rows each check recorded, keyed by check id
  * @returns one row per gate, rostered ones first, in roster order
  */
+/**
+ * What a rostered gate is called, from the registry rather than from here.
+ *
+ * The roster used to carry its own wording, which made it a third place a gate
+ * is named — and the one nobody edits when a title changes, so the rehearsal
+ * report kept printing names the signer's screen had already stopped using.
+ *
+ * @param checkId - The gate's id.
+ * @returns `Gate X · Subject`, or the id when nothing names it.
+ */
+const rosterTitle = (checkId: string): string => {
+  const definition = ALL_GATE_DEFINITIONS.find(
+    (candidate) => candidate.checkId === checkId
+  )
+  return definition ? gateLabel(definition) : checkId
+}
+
 export const buildGateReport = (run: {
   registered: readonly string[]
   rowCounts: Readonly<Record<string, number>>
 }): readonly IGateReportRow[] => {
   const rostered = REHEARSAL_GATE_ROSTER.map((gate) => ({
     ...gate,
+    title: rosterTitle(gate.checkId),
     rows: run.rowCounts[gate.checkId] ?? 0,
     presence: presenceOf(
       run.registered,
@@ -143,7 +157,7 @@ export const buildGateReport = (run: {
     .filter((checkId) => !rosteredIds.has(checkId))
     .map((checkId) => ({
       checkId,
-      title: 'Registered by the run; not on the rehearsal roster',
+      title: `${rosterTitle(checkId)} — not on the rehearsal roster`,
       source: 'unrostered',
       rows: run.rowCounts[checkId] ?? 0,
       presence: presenceOf(

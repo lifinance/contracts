@@ -10,6 +10,7 @@ import {
 } from 'bun:test'
 
 import { createCheckLedger, recordCheck } from './check-ledger'
+import { ALL_GATE_DEFINITIONS } from './confirm-check-registry'
 import {
   REHEARSAL_GATE_ROSTER,
   buildGateReport,
@@ -83,6 +84,23 @@ describe('renderGateReport', () => {
   })
 })
 
+describe('the gate roster', () => {
+  it('names every rostered gate from the registry, never from itself', () => {
+    const named = new Map(ALL_GATE_DEFINITIONS.map((one) => [one.checkId, one]))
+
+    for (const gate of REHEARSAL_GATE_ROSTER)
+      expect(named.has(gate.checkId)).toBe(true)
+
+    const report = buildGateReport({ registered: [], rowCounts: {} })
+    for (const row of report)
+      expect(row.title).toBe(
+        `Gate ${named.get(row.checkId)?.gate} \u00b7 ${
+          named.get(row.checkId)?.title
+        }`
+      )
+  })
+})
+
 describe('summariseSignerWorkload', () => {
   const ledger = (rows: [string, string, string][]) => {
     const built = createCheckLedger({
@@ -92,13 +110,15 @@ describe('summariseSignerWorkload', () => {
           checkId: 'INT-SAFE-TX-HASH',
           section: 'Integrity',
           checkClass: 'integrity',
-          title: 'Recomputed safeTxHash matches the stored one',
+          gate: 'B',
+          title: 'Safe tx hash',
         },
         {
           checkId: 'target-state',
           section: 'Intent',
           checkClass: 'semantic',
-          title: 'Facet version matches the declared target state',
+          gate: 'H',
+          title: 'Facet version',
         },
       ],
     })
