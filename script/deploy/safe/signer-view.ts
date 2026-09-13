@@ -11,7 +11,7 @@
  */
 
 import type { ICheckDefinition, ICheckResult } from './check-ledger'
-import { gateLabel } from './check-ledger'
+import { gateLabel, isAcknowledgeable } from './check-ledger'
 
 const ESC = String.fromCharCode(27)
 const RESET = `${ESC}[0m`
@@ -100,14 +100,24 @@ const BUCKET_ORDER: readonly CheckBucket[] = [
  * @param notApplicable - True when the proposal gave this check nothing to do.
  * @returns The bucket the row prints under.
  */
-export const bucketOf = (
-  status: string,
-  notApplicable = false
-): CheckBucket => {
-  if (notApplicable) return 'n/a'
-  if (status === 'pass') return 'passed'
-  if (status === 'fail') return 'wrong'
-  if (status === 'needs-ack') return 'ack'
+/**
+ * Which section a row prints under.
+ *
+ * Takes the whole entry rather than a status, because the section has to be
+ * the one the run will act on and that is decided by `status` × `checkClass`,
+ * not by `status` alone. A semantic `fail` is acknowledgeable — the run offers
+ * Sign — so printing it under "the proposal is wrong, do not sign" told the
+ * signer the opposite of what happened next.
+ *
+ * @param entry - The result, its definition, and why it had nothing to do.
+ * @returns The bucket whose heading matches the run's own decision.
+ */
+export const bucketOf = (entry: IBucketedResult): CheckBucket => {
+  const { result } = entry
+  if (entry.notApplicable) return 'n/a'
+  if (result.status === 'pass') return 'passed'
+  if (result.status === 'fail' || result.status === 'needs-ack')
+    return isAcknowledgeable(entry.definition, result) ? 'ack' : 'wrong'
   // Anything this view does not recognise is an unmade reading, never a pass:
   // a status it cannot name is a status it cannot vouch for.
   return 'unchecked'
@@ -340,7 +350,7 @@ export const renderCheckGroups = (
 ): string[] => {
   const grouped = new Map<CheckBucket, IBucketedResult[]>()
   for (const entry of results) {
-    const bucket = bucketOf(entry.result.status, Boolean(entry.notApplicable))
+    const bucket = bucketOf(entry)
     const list = grouped.get(bucket)
     if (list) list.push(entry)
     else grouped.set(bucket, [entry])
@@ -475,10 +485,7 @@ export const renderProposalOutcome = (
 ): string[] => {
   const inBucket = (want: CheckBucket): string[] =>
     results
-      .filter(
-        (entry) =>
-          bucketOf(entry.result.status, Boolean(entry.notApplicable)) === want
-      )
+      .filter((entry) => bucketOf(entry) === want)
       .map((entry) =>
         entry.definition
           ? `Gate ${entry.definition.gate}`
@@ -531,7 +538,7 @@ export const renderProposalOutcome = (
 export const checkSummary = (results: readonly IBucketedResult[]): string => {
   const counts = new Map<CheckBucket, number>()
   for (const entry of results) {
-    const bucket = bucketOf(entry.result.status, Boolean(entry.notApplicable))
+    const bucket = bucketOf(entry)
     counts.set(bucket, (counts.get(bucket) ?? 0) + 1)
   }
   const parts: string[] = []
