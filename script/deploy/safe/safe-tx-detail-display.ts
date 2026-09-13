@@ -49,6 +49,16 @@ const GREEN = '\u001b[32m'
 const RED = '\u001b[31m'
 const YELLOW = '\u001b[33m'
 const CYAN = '\u001b[36m'
+const BOLD = '\u001b[1m'
+const RESET = '\u001b[0m'
+
+/** Drawn under any operation that is not a plain `Call`. */
+const OPERATION_ALARM: readonly string[] = [
+  `    ${BOLD}${RED}${'▄'.repeat(62)}${RESET}`,
+  `    ${BOLD}${RED}  ⛔  NOT A PLAIN CALL — the target's code runs inside this Safe,${RESET}`,
+  `    ${BOLD}${RED}      with its storage, its owners and its funds.${RESET}`,
+  `    ${BOLD}${RED}${'▀'.repeat(62)}${RESET}`,
+]
 
 /** Width of the label column shared with the provenance lines. */
 const LABEL_WIDTH = 17
@@ -94,6 +104,14 @@ export interface ISafeTxDetailInput {
    * Tron's base58 is not reported as invalid on the one network that stores it.
    */
   readonly network: string
+  /**
+   * The Safe this proposal would be signed against, as the signing client is
+   * pointed at it. Shown because a signer comparing a proposal against an
+   * out-of-band message has no other way to see which Safe they are about to
+   * commit — and a row claiming a different one is exactly what
+   * `INT-SAFE-ADDRESS` exists to catch.
+   */
+  readonly safeAddress: unknown
   readonly nonce: unknown
   /**
    * SGR parameter for the nonce. A closed set rather than a string: this is
@@ -114,6 +132,13 @@ export interface ISafeTxDetailInput {
   readonly value: unknown
   /** Pre-rendered operation, already sanitised by `describeOperationValue`. */
   readonly operationLabel: Printable
+  /**
+   * Whether the signed struct is a plain `Call`. Anything else is drawn as an
+   * alarm rather than as a word: the label alone sits at the same weight as
+   * `Call`, one row below a green tick belonging to the decoded calldata, and
+   * that is the arrangement a signer skims past (F1).
+   */
+  readonly operationIsCall: boolean
   readonly data: unknown
   /** The proposer as stored. */
   readonly proposer: unknown
@@ -121,6 +146,8 @@ export interface ISafeTxDetailInput {
   readonly signatureCount: number
   readonly threshold: number
   readonly canExecute: boolean
+  /** Replaces the block's own heading; an empty string drops it entirely. */
+  readonly heading?: string
   readonly parkedTaskRefs?: readonly IParkedTaskRef[]
   readonly provenance?: IProposalProvenance
 }
@@ -374,15 +401,27 @@ function parkedLines(refs: readonly IParkedTaskRef[]): string[] {
  * @returns The lines to print, in order.
  */
 export function buildSafeTxDetailLines(input: ISafeTxDetailInput): string[] {
+  const heading = input.heading ?? 'Safe Transaction Details:'
   const lines = [
-    'Safe Transaction Details:',
+    ...(heading === '' ? [] : [heading]),
+    detailLine(
+      'Safe',
+      formattedAddressField(input.safeAddress, input.formatAddress)
+    ),
     `${detailLine(
       'Nonce',
       storedField(input.nonce, `\u001b[${input.nonceColor}m`)
     )}${input.nonceWarning}`,
     detailLine('To', toLine(input)),
     detailLine('Value', storedField(input.value, GREEN)),
-    detailLine('Operation', color(GREEN, input.operationLabel)),
+    detailLine(
+      'Operation',
+      color(
+        input.operationIsCall ? GREEN : `${BOLD}${RED}`,
+        input.operationLabel
+      )
+    ),
+    ...(input.operationIsCall ? [] : OPERATION_ALARM),
     // The one field left unbounded: it is the payload the signature covers and
     // the only place a signer can read it in full.
     detailLine('Data', storedField(input.data, GREEN, UNBOUNDED)),
