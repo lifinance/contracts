@@ -262,9 +262,10 @@ const recordEveryCheck = (
  *
  * The denominator is fixed before the run can learn that a network it listed as
  * actionable carries no proposal for this operator. Left unrecorded it rolls up
- * as missing and hard-blocks a run on which nothing was wrong. A pass on
- * `A-LOCAL` is the reading `no-diamond-cut` already gets: the run read its input
- * and found nothing to compare, which is a verified fact about this network.
+ * as missing and hard-blocks a run on which nothing was wrong.
+ *
+ * `not-applicable` on `A-LOCAL`, never a pass: nothing on this network was
+ * compared, so the row must satisfy no verified counter.
  *
  * Only for outcomes that answered. A read that *failed* has not established
  * anything and belongs in `recordCouldNotGrade` — mixing the two is how a fully
@@ -274,7 +275,7 @@ const recordEveryCheck = (
  */
 const recordNothingToGrade = (network: string, reason: string): void =>
   recordEveryCheck(network, {
-    status: 'pass',
+    status: 'not-applicable',
     actual: `no proposal was graded on ${network} — ${reason}`,
     anchor: 'A-LOCAL',
   })
@@ -1591,11 +1592,11 @@ const processTxs = async (
 
   // One row per network, written once every proposal on it has been graded and
   // reduced worst-first. A `ready` network always carries at least one proposal,
-  // so the empty branch is the unreachable case made explicit rather than left
-  // to roll up as a missing row and block the run.
+  // so the empty branch records a broken invariant — unverified, never a network
+  // the run established had nothing on it.
   if (checkLedger) {
     if (proposalChecks.length === 0)
-      recordNothingToGrade(network, 'the prepared network carried no proposal')
+      recordCouldNotGrade(network, 'the prepared network carried no proposal')
     else
       for (const result of worstResultPerCheck(proposalChecks))
         recordCheck(checkLedger, result)

@@ -312,6 +312,9 @@ const SEVERITY: readonly ICheckResult['status'][] = [
   'error',
   'needs-ack',
   'pass',
+  // Listed rather than left out: a status this array omits gets -1 from
+  // `indexOf`, which ranks it ahead of `fail`.
+  'not-applicable',
 ]
 
 const worstOf = (
