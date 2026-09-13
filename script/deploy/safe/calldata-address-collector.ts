@@ -26,6 +26,7 @@ import {
   type IDeploymentIndex,
   type IDeploymentIndexEntry,
 } from './calldata-address-check'
+import type { IPreBroadcastAuthority } from './prebroadcast-authorities'
 
 /**
  * `LibDiamond.FacetCutAction` to the role the gate grades it in. An action
@@ -148,6 +149,30 @@ export const installedAddresses = (
       )
       .map((reference) => reference.address.toLowerCase())
   )
+
+/**
+ * The authority observations gate G may grade, out of everything that was read.
+ *
+ * The reader observes every address the calldata names, because the record it
+ * writes is a forensic trail and the pre-broadcast gate re-reads all of them to
+ * catch an authority that moved during the delay window. This gate asks the
+ * narrower R2.6 question, so it is handed the narrower set — and the narrowing
+ * lives here, as a value a test can produce, rather than inside the CLI where
+ * nothing can observe it.
+ *
+ * @param authorities - Every declared authority the run read.
+ * @param references - Every address reference the calldata yielded.
+ * @returns The observations whose contract this proposal installs.
+ */
+export const authoritiesOfInstalled = (
+  authorities: readonly IPreBroadcastAuthority[],
+  references: readonly IAddressReference[]
+): readonly IPreBroadcastAuthority[] => {
+  const installed = installedAddresses(references)
+  return authorities.filter((authority) =>
+    installed.has(authority.contractAddress.toLowerCase())
+  )
+}
 
 /**
  * Wraps deployment records as the index the gate may decide against.

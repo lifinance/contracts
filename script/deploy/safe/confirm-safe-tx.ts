@@ -44,9 +44,9 @@ import {
   type IDeploymentIndexEntry,
 } from './calldata-address-check'
 import {
+  authoritiesOfInstalled,
   buildDeploymentIndex,
   collectAddressReferences,
-  installedAddresses,
 } from './calldata-address-collector'
 import {
   createCheckLedger,
@@ -1284,15 +1284,12 @@ const processTxs = async (
       tx.safeTransaction.data.data as Hex | undefined
     )
 
-    // R2.6's subjects: the contracts this proposal puts into service. The
-    // observation covers every address the calldata names — the record it
-    // writes is a forensic trail, and the pre-broadcast gate re-reads all of
-    // them to catch an authority that moved during the delay window. Gate G
-    // asks the narrower question, so it grades the narrower set.
-    const installed = installedAddresses(references)
-    const installedAuthorities = (
-      observedSet?.observed.authorities ?? []
-    ).filter((authority) => installed.has(authority.contractAddress))
+    // R2.6's subjects: the contracts this proposal puts into service, out of
+    // every address the observation read.
+    const installedAuthorities = authoritiesOfInstalled(
+      observedSet?.observed.authorities ?? [],
+      references
+    )
 
     proposalChecks.push(
       ...proposalCheckResults({
