@@ -66,7 +66,7 @@ export const CHECK_FIXED_FIELDS = 'INT-FIXED-FIELDS'
 export const CHECK_TARGET = 'INT-TARGET'
 export const CHECK_TIMELOCK_DELAY = 'INT-TIMELOCK-DELAY'
 
-const SECTION = 'proposal integrity'
+const SECTION = 'Proposal'
 
 /** Why an absent run refuses, stated identically wherever that case is reported. */
 const UNEVALUATED_REASON =
