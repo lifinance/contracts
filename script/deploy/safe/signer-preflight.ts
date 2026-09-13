@@ -1,22 +1,16 @@
 /**
- * What has to be true before a network can be checked at all.
+ * Decides which networks a confirmation run may grade at all, by resolving the
+ * preconditions every check on a network shares. Import it from a run that is
+ * about to grade proposals; a precondition of one check belongs in that check's
+ * own unverified reason instead.
  *
- * A precondition every check shares is not a check. One unset
- * `ETH_NODE_URI_<NETWORK>` used to produce a ledger of ten unverified rows, each
- * telling the signer to re-run a check that cannot run, above a single stack
- * trace naming the variable — advice that loops forever, for a proposal nothing
- * had read. The rule this module exists to hold: a precondition shared by every
- * check is a preflight, and a precondition of one check is that check's own
- * unverified reason.
- *
- * A refused network is therefore never graded. It contributes no rows, it is
- * left out of the ledger's denominator, and it is named once with the cause and
- * the remedy. That is also why this is not a gate: the gate letters describe the
- * proposal, and red in the signer view means do not sign. An unset variable is
- * neither.
+ * A refused network is never graded: it contributes no rows and stays out of the
+ * ledger's denominator. It is not a gate — the gate letters describe the
+ * proposal and red means do not sign, which an unset variable is not.
  */
 
-import { redactUrls } from '../../utils/redactUrls'
+import { redactErrorReason } from '../../utils/redactUrls'
+import { sanitizeProvenanceText } from '../shared/git-provenance'
 
 /**
  * The preflight prints before the signer view exists, so it owns its width
@@ -57,12 +51,14 @@ export interface IPreflightVerdict {
 /**
  * The reads the preflight needs, as narrow as they can be made.
  *
- * `endpointConfigured` returns a boolean and `chainIdOf` a number: neither can
- * hand back the endpoint itself. A provider URL carries an API key in its query
- * string, and this module's whole output is printed — so the URL must not be
- * able to reach a finding even by accident. The node's own error text is
- * redacted on the way in for the same reason: viem embeds the URL it called in
- * every message.
+ * `endpointConfigured` returns a boolean and `chainIdOf` a number, so no
+ * dependency can hand an endpoint back: a provider URL carries an API key and
+ * this module's whole output is printed. The node's own error text is the one
+ * value that arrives unbounded, so it goes through `redactErrorReason` — viem
+ * embeds the URL it called, and the response body behind it, in every message.
+ * That strips `scheme://…` tokens and caps the length; a bare hostname in an
+ * error is not a URL to it, so a provider that carries its credential in the
+ * subdomain is redacted only by the cap.
  */
 export interface IPreflightDeps {
   endpointConfigured: (network: string) => boolean
@@ -73,10 +69,21 @@ export interface IPreflightDeps {
   envVarName: (network: string) => string
 }
 
+/**
+ * A node's error text, made safe to print.
+ *
+ * Sanitised before it is redacted, so a control character cannot split a
+ * `scheme://` token past the redactor, and because the text is whatever the
+ * provider's response body held: ANSI escapes in it would repaint the very
+ * refusal that reports them.
+ *
+ * @param error - Whatever the endpoint read threw.
+ * @returns One line, control-free, endpoint-free and length-capped.
+ */
 const reason = (error: unknown): string =>
-  redactUrls(error instanceof Error ? error.message : String(error))
-    .replace(/\s+/gu, ' ')
-    .trim()
+  redactErrorReason(
+    sanitizeProvenanceText(error instanceof Error ? error.message : error)
+  )
 
 /**
  * Resolves every network's preconditions in one pass.
@@ -89,7 +96,7 @@ const reason = (error: unknown): string =>
  * @param deps - The reads to make, none of which may return an endpoint.
  * @returns Which networks may start, which are refused, and why.
  */
-export const preflight = async (
+export const networkPreflight = async (
   networks: readonly string[],
   deps: IPreflightDeps
 ): Promise<IPreflightVerdict> => {
@@ -143,16 +150,18 @@ export const preflight = async (
 }
 
 /**
- * The refusal block, printed before anything else the run would say.
+ * The refusal block, printed before any check result or ownership output.
  *
- * One line per refused network, never one per check it did not run. The checks
- * are not the news — a check that could not start has nothing to report, and
- * listing them buries the one line that can be acted on.
+ * One row per refused network, never one per check it did not run: a check that
+ * could not start has nothing to report, and listing them buries the line that
+ * can be acted on.
  *
- * @param verdict - What {@link preflight} decided.
+ * @param verdict - What {@link networkPreflight} decided.
  * @returns Lines to print, or nothing when every network can start.
  */
-export const renderPreflight = (verdict: IPreflightVerdict): string[] => {
+export const renderNetworkPreflight = (
+  verdict: IPreflightVerdict
+): string[] => {
   if (verdict.findings.length === 0) return []
 
   const wrap = (text: string, indent: string): string[] => {
