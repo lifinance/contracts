@@ -69,4 +69,17 @@ describe('buildReadOnlyClient', () => {
 
     expect(client.transport.fetchOptions?.signal).toBe(signal)
   })
+
+  it('carries the abort signal on the configured path too, not only an override', () => {
+    // The assertion above covers the `rpcUrl` branch, which builds its own
+    // transport. This covers the branch that runs when no `--rpc-url` is given —
+    // the default for every real confirmation run, and the one the preflight's
+    // budget actually depends on. Dropping `options` from the
+    // `getFallbackTransportForChain` call bounded nothing and broke no test
+    // until this existed.
+    const signal = AbortSignal.timeout(1_000)
+    const client = buildReadOnlyClient(NETWORK, undefined, { signal })
+
+    expect(client.transport.fetchOptions?.signal).toBe(signal)
+  })
 })
