@@ -48,6 +48,7 @@ import {
   buildDeploymentIndex,
   collectAddressReferences,
 } from './calldata-address-collector'
+import { buildCalldataEffectLines } from './calldata-effect-lines'
 import {
   createCheckLedger,
   recordCheck,
@@ -141,10 +142,7 @@ import {
   createCodeReader,
   createPinnedBlock,
 } from './rpc-quorum-collector'
-import {
-  formatDecodedTxDataForDisplay,
-  getTargetName,
-} from './safe-decode-utils'
+import { getTargetName } from './safe-decode-utils'
 import {
   buildCalldataFootnote,
   buildSafeTxDetailLines,
@@ -914,15 +912,16 @@ const processTxs = async (
     consola.log(buildSafeTxDetailLines(detailInput).join('\n'))
 
     if (tx.safeTx.data?.data)
-      await formatDecodedTxDataForDisplay(tx.safeTx.data.data as Hex, {
-        chainId: chain.id,
-        network,
-        // The decode is the body of THE CALLDATA DOES, so it is indented to
-        // that block rather than to the identity fields above it. Two of these
-        // columns pay for consola's own level prefix, which lands on the first
-        // line and would otherwise shift that line alone out of the block.
-        indent: '      ',
-      })
+      consola.log(
+        (
+          await buildCalldataEffectLines(tx.safeTx.data.data, {
+            network,
+            // The body of THE CALLDATA DOES, drawn at that block's own column.
+            indent: '      ',
+            target: tx.safeTx.data.to,
+          })
+        ).join('\n')
+      )
 
     consola.log(buildCalldataFootnote(detailInput).join('\n'))
     consola.log(CLAIM_QUESTION.join('\n'))
