@@ -90,6 +90,14 @@ export interface IDeploymentIndexEntry {
   network: string
   version: string
   address: string
+  /**
+   * When the contract was deployed, not when the row was written. The two
+   * differ: rows backfilled in 2025 carry 2023 deploy times, so ordering on the
+   * write time would rank a backfilled first deployment above the redeploy that
+   * superseded it. Absent on an entry a caller assembled without one, which
+   * leaves the name-anchored lookup unable to say which record is current.
+   */
+  timestamp?: Date | string
 }
 
 /**
@@ -112,6 +120,14 @@ export interface IDeploymentIndex {
    * narrowed its query.
    */
   queried: readonly string[]
+  /**
+   * The contract names the store was asked about, lowercase, for the same
+   * reason `queried` lists addresses: a name absent from a store that was never
+   * asked about it is not a name nobody deployed. Absent here means no name was
+   * looked up, so every name-anchored reference reports that rather than
+   * resolving against entries that were fetched for some other question.
+   */
+  queriedNames?: readonly string[]
   entries: readonly IDeploymentIndexEntry[]
 }
 
@@ -121,6 +137,20 @@ export interface IAddressReference {
   role: AddressRoleEnum
   /** Where this was found, e.g. `call[0].scheduleBatch[1].diamondCut.cuts[0]`. */
   path: string
+  /**
+   * The registry name a `registerPeripheryContract` call binds this address to.
+   *
+   * This is a lookup key, not an anchor, and the distinction is what keeps it
+   * inside the rule `expectations` states. The proposer writes the name, so the
+   * name cannot be what the address is checked against. What the address is
+   * checked against is the record's own answer to "which address is currently
+   * deployed under this name on this network" — and that answer comes from the
+   * record, which was written before the proposal existed. Reversing the two
+   * matters: checking instead that the record's name for this address equals
+   * the calldata's name passes a stale address, because the superseded
+   * deployment is still in the record under the same name.
+   */
+  registeredName?: string
 }
 
 /** The identity an address must have, according to something the proposer does not write. */
@@ -204,10 +234,19 @@ const WARN_ONLY_ROLES: ReadonlySet<AddressRoleEnum> = new Set([
   AddressRoleEnum.FacetRemove,
 ])
 
-/** Roles where the zero address is the required value rather than a mistake. */
+/**
+ * Roles where the zero address is the required value rather than a mistake.
+ *
+ * `registerPeripheryContract(name, address(0))` unregisters the name, and
+ * [docs/DeploymentLogs.md](../../../docs/DeploymentLogs.md) names that call as
+ * the cleanup proposal a deprecated periphery contract's registry residue is
+ * input for. Refusing it would block a documented flow, and the removal it
+ * performs is subtractive, which T2 does not block on.
+ */
 const ZERO_LEGAL_ROLES: ReadonlySet<AddressRoleEnum> = new Set([
   AddressRoleEnum.CutInit,
   AddressRoleEnum.FacetRemove,
+  AddressRoleEnum.PeripheryRegistration,
 ])
 
 const CONTRADICTING_GRADES: ReadonlySet<AddressGradeEnum> = new Set([
@@ -336,6 +375,149 @@ const normalizeExpectations = (
   return { identities, errors }
 }
 
+const deployedAt = (entry: IDeploymentIndexEntry): number => {
+  const at = new Date(entry.timestamp ?? Number.NaN).getTime()
+  return Number.isNaN(at) ? Number.NaN : at
+}
+
+/**
+ * The record's current deployment under a name on a network.
+ *
+ * `undecided` names why there is no single answer, and is never merged into
+ * "no entry": a record that cannot say which of two deployments is current has
+ * not said the address is wrong, and grading it as a mismatch would refuse a
+ * correct proposal on the record's own ambiguity. Real data carries both shapes
+ * — an entry with no usable deploy time, and two entries sharing the newest one.
+ *
+ * @param entries - every record the store holds
+ * @param name - the registry name the calldata binds the address to
+ * @param network - the network the proposal executes on
+ * @returns The current entry, or why the record could not name one.
+ */
+const currentUnderName = (
+  entries: readonly IDeploymentIndexEntry[],
+  name: string,
+  network: string
+): { entry?: IDeploymentIndexEntry; undecided?: string } => {
+  const wanted = name.trim().toLowerCase()
+  const onNetwork = entries.filter(
+    (entry) =>
+      entry.contractName.trim().toLowerCase() === wanted &&
+      entry.network.trim().toLowerCase() === network.trim().toLowerCase()
+  )
+
+  if (onNetwork.length === 0) return {}
+
+  const undated = onNetwork.filter((entry) => Number.isNaN(deployedAt(entry)))
+  if (undated.length > 0)
+    return {
+      undecided: `${undated.length} of the ${onNetwork.length} records for "${name}" on ${network} carry no usable deploy time, so which one is current is not decided`,
+    }
+
+  const newest = Math.max(...onNetwork.map(deployedAt))
+  const latest = onNetwork.filter((entry) => deployedAt(entry) === newest)
+  const addresses = new Set(
+    latest.map((entry) => entry.address.trim().toLowerCase())
+  )
+
+  if (addresses.size > 1)
+    return {
+      undecided: `the record holds ${
+        addresses.size
+      } different addresses for "${name}" on ${network} at the same newest deploy time (${latest
+        .map(describeEntry)
+        .join(', ')}), so which one is current is not decided`,
+    }
+
+  return { entry: latest[0] }
+}
+
+/**
+ * Grades an address against the record's current deployment under the name the
+ * calldata registers it as.
+ *
+ * Reached only once the address itself has resolved to this network, so a
+ * disagreement here is specifically "the record has this name pointing
+ * somewhere else", not "this address is unknown".
+ *
+ * @param reference - the reference being graded, carrying its registry name
+ * @param base - the partial finding the caller has already assembled
+ * @param onNetwork - the record's entries for this address on this network
+ * @param input - the network and the rest of what is being judged
+ * @param index - the entries and the names they were fetched for
+ * @returns The finding for a name-anchored reference.
+ */
+const gradeAgainstName = (
+  reference: IAddressReference,
+  base: Omit<IAddressFinding, 'grade' | 'detail'>,
+  onNetwork: readonly IDeploymentIndexEntry[],
+  input: ICalldataAddressInput,
+  index: IDeploymentIndex
+): IAddressFinding => {
+  const name = reference.registeredName ?? ''
+  const address = reference.address.trim().toLowerCase()
+
+  if (
+    !(index.queriedNames ?? []).some(
+      (queried) => queried.trim().toLowerCase() === name.trim().toLowerCase()
+    )
+  )
+    return {
+      ...base,
+      grade: AddressGradeEnum.NotQueried,
+      detail: `${reference.path} (${reference.address}) registers "${name}", and the record was never asked what it currently holds under that name, so its absence proves nothing`,
+    }
+
+  const { entry, undecided } = currentUnderName(
+    index.entries,
+    name,
+    input.network
+  )
+
+  if (undecided !== undefined)
+    return {
+      ...base,
+      grade: AddressGradeEnum.IdentityUnchecked,
+      detail: `${reference.path} (${reference.address}) registers "${name}", and ${undecided}`,
+    }
+
+  if (entry === undefined)
+    return {
+      ...base,
+      grade: AddressGradeEnum.NameMismatch,
+      detail: `${reference.path} (${
+        reference.address
+      }) registers "${name}", and the record holds no ${name} on ${
+        input.network
+      } at all — it has this address as ${onNetwork
+        .map(describeEntry)
+        .join(', ')}`,
+    }
+
+  if (entry.address.trim().toLowerCase() !== address)
+    return {
+      ...base,
+      grade: AddressGradeEnum.NameMismatch,
+      detail: `${reference.path} registers "${name}" as ${
+        reference.address
+      }, and the most recent ${name} the record has on ${input.network} is ${
+        entry.address
+      } (${describeEntry(entry)}) — this address is ${onNetwork
+        .map(describeEntry)
+        .join(', ')}`,
+    }
+
+  return {
+    ...base,
+    grade: AddressGradeEnum.Resolved,
+    detail: `${reference.path} registers "${name}" as ${
+      reference.address
+    }, which is the most recent ${name} the record has on ${
+      input.network
+    } (${describeEntry(entry)})`,
+  }
+}
+
 const gradeReference = (
   reference: IAddressReference,
   input: ICalldataAddressInput,
@@ -405,6 +587,18 @@ const gradeReference = (
         input.network
       } — the record has it as ${candidates.map(describeEntry).join(', ')}`,
     }
+
+  // The name the calldata registers pins this address harder than any
+  // `expectations` entry could, so it decides rather than being one more check
+  // layered on top.
+  if (reference.registeredName !== undefined)
+    return gradeAgainstName(
+      reference,
+      { ...base, candidates },
+      onNetwork,
+      input,
+      index
+    )
 
   if (expected === undefined)
     return {

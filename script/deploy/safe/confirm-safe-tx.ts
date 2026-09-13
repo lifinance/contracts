@@ -45,6 +45,7 @@ import {
 import {
   buildDeploymentIndex,
   collectAddressReferences,
+  referencedNames,
 } from './calldata-address-collector'
 import {
   createCheckLedger,
@@ -1214,7 +1215,8 @@ const processTxs = async (
         },
         buildDeploymentIndex(
           records,
-          references.map((reference) => reference.address)
+          references.map((reference) => reference.address),
+          referencedNames(references)
         )
       )
       renderCalldataAddresses(calldataAddresses).forEach((line) =>

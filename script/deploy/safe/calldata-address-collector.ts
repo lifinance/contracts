@@ -14,7 +14,16 @@
  */
 
 import {
+  decodeFunctionData,
+  parseAbi,
+  toFunctionSelector,
+  type Hex,
+} from 'viem'
+
+import {
+  carriesAnySelectorAligned,
   collectDiamondCutCalls,
+  collectLeafCalls,
   type IDiamondCutCall,
 } from '../shared/diamond-cut-calls'
 
@@ -37,6 +46,73 @@ const ROLE_BY_ACTION: Readonly<Record<number, AddressRoleEnum>> = {
   0: AddressRoleEnum.FacetAdd,
   1: AddressRoleEnum.FacetReplace,
   2: AddressRoleEnum.FacetRemove,
+}
+
+const REGISTER_PERIPHERY_ABI = parseAbi([
+  'function registerPeripheryContract(string,address)',
+])
+
+const REGISTER_PERIPHERY_SELECTOR = toFunctionSelector(
+  'registerPeripheryContract(string,address)'
+).toLowerCase() as Hex
+
+/**
+ * The periphery registrations a proposal's calls reach.
+ *
+ * The name travels with the address because the address alone cannot be graded:
+ * what the record is asked is which address it currently holds under that name,
+ * and without the name there is no question to ask. A call whose selector says
+ * `registerPeripheryContract` but whose arguments do not decode is reported as
+ * unreadable rather than skipped — a registration nobody could read is a
+ * registration nobody graded.
+ *
+ * @param calldatas - the proposal's top-level calls, in the order they are sent
+ * @returns The references, and the identifiers of registrations that could not be read.
+ */
+const peripheryReferences = (
+  calldatas: readonly `0x${string}`[]
+): { references: IAddressReference[]; unreadable: string[] } => {
+  const { leaves } = collectLeafCalls(calldatas)
+  const references: IAddressReference[] = []
+  const unreadable: string[] = []
+  const seen = new Map<number, number>()
+
+  for (const leaf of leaves) {
+    if (leaf.selector !== REGISTER_PERIPHERY_SELECTOR) {
+      // A leaf this walk could not open, which could be carrying a registration.
+      // `collectLeafCalls` reports the envelopes it failed on; this covers the
+      // ones it never recognised as envelopes at all.
+      if (carriesAnySelectorAligned(leaf.data, [REGISTER_PERIPHERY_SELECTOR]))
+        unreadable.push(
+          `call[${leaf.callIndex}] (carries a registerPeripheryContract selector this could not read through)`
+        )
+      continue
+    }
+
+    const ordinal = seen.get(leaf.callIndex) ?? 0
+    seen.set(leaf.callIndex, ordinal + 1)
+    const path = `call[${leaf.callIndex}].registerPeripheryContract[${ordinal}]`
+
+    let args
+    try {
+      ;({ args } = decodeFunctionData({
+        abi: REGISTER_PERIPHERY_ABI,
+        data: leaf.data,
+      }))
+    } catch {
+      unreadable.push(path)
+      continue
+    }
+
+    references.push({
+      address: args[1] as string,
+      role: AddressRoleEnum.PeripheryRegistration,
+      path,
+      registeredName: args[0] as string,
+    })
+  }
+
+  return { references, unreadable }
 }
 
 const referencesOfCall = (
@@ -83,8 +159,9 @@ export const collectAddressReferences = (
   const { calls, undecodable } = collectDiamondCutCalls(calldatas)
   const seen = new Map<number, number>()
 
-  const references: IAddressReference[] = []
-  const unreadable: string[] = []
+  const periphery = peripheryReferences(calldatas)
+  const references: IAddressReference[] = [...periphery.references]
+  const unreadable: string[] = [...periphery.unreadable]
 
   for (const call of calls) {
     const ordinal = seen.get(call.callIndex) ?? 0
@@ -104,6 +181,22 @@ export const collectAddressReferences = (
 }
 
 /**
+ * The contract names a set of references needs the record to answer for.
+ *
+ * @param references - what `collectAddressReferences` recovered
+ * @returns Each distinct registry name, in the order first referenced.
+ */
+export const referencedNames = (
+  references: readonly IAddressReference[]
+): string[] => [
+  ...new Set(
+    references
+      .map((reference) => reference.registeredName)
+      .filter((name): name is string => name !== undefined)
+  ),
+]
+
+/**
  * Wraps deployment records as the index the gate may decide against.
  *
  * The source names the deploy log because that is the only source this gate may
@@ -116,12 +209,17 @@ export const collectAddressReferences = (
  * @param queried - The addresses the log was asked about, so an absence from
  * `entries` means "not deployed" rather than "not looked up". Ignored when
  * `records` is undefined, since nothing was asked.
+ * @param queriedNames - The contract names the log was asked about, for the
+ * same reason and with the same consequence: a name-anchored reference whose
+ * name is not here reports that the record was never asked, rather than reading
+ * an unasked question as an answer.
  * @param unavailableReason - Why the log could not be read.
  * @returns The index `evaluateCalldataAddresses` grades against.
  */
 export const buildDeploymentIndex = (
   records: readonly IDeploymentIndexEntry[] | undefined,
   queried: readonly string[],
+  queriedNames: readonly string[] = [],
   unavailableReason?: string
 ): IDeploymentIndex =>
   records === undefined
@@ -131,11 +229,13 @@ export const buildDeploymentIndex = (
         unavailableReason:
           unavailableReason ?? 'the deployment record could not be reached',
         queried: [],
+        queriedNames: [],
         entries: [],
       }
     : {
         source: DeploymentIndexSourceEnum.DeploymentRecord,
         available: true,
         queried: queried.map((address) => address.trim().toLowerCase()),
+        queriedNames: queriedNames.map((name) => name.trim().toLowerCase()),
         entries: records,
       }
