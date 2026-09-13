@@ -519,6 +519,44 @@ describe('the report is printed whatever the ledger holds', () => {
   })
 })
 
+/** A named function declaration's body text, from the tree rather than a window. */
+const bodyOfFunction = (name: string): string => {
+  let found: Node | undefined
+
+  const visit = (node: Node): void => {
+    if (
+      found === undefined &&
+      isFunctionDeclaration(node) &&
+      node.name?.getText(TREE) === name
+    )
+      found = node
+    else forEachChild(node, visit)
+  }
+  forEachChild(TREE, visit)
+
+  // Guarded: an unfound name yields an empty body, which would satisfy every
+  // negative assertion resting on it while asserting nothing at all.
+  expect(found).toBeDefined()
+  return (found as Node).getText(TREE)
+}
+
+/**
+ * Everything done once per proposal before the signer is asked anything: the
+ * loop body, plus the evidence function the loop calls to take the proposal's
+ * chain reads.
+ *
+ * Those reads moved into `computeProposalEvidence` so the next proposal's can
+ * start while this one is on screen. They are still taken once per proposal and
+ * still while a refusal is available — the loop takes the bundle above every
+ * display and every prompt, and a bundle prepared ahead is re-validated before
+ * it is used. What they are no longer is *in source order inside the loop*,
+ * which is all this widening gives up. The narrower questions — that nothing in
+ * the loop records, that the push sits above the operator's own `continue` —
+ * keep the narrow window.
+ */
+const perProposal = (): string =>
+  `${proposalLoop().body}\n${bodyOfFunction('computeProposalEvidence')}`
+
 /**
  * The argument object handed to `proposalCheckResults`, brace-matched from the
  * call rather than sliced by a character count, so a field inserted near its
@@ -568,7 +606,7 @@ describe('each gate that owns a ledger row hands the recorder its verdict', () =
 
   for (const { gate, reader, evaluator, field } of collected) {
     it(`collects the ${gate} verdict and passes it to the recorder`, () => {
-      const { body } = proposalLoop()
+      const body = perProposal()
 
       expect(body).toContain(reader)
       expect(body).toContain(evaluator)
@@ -580,7 +618,7 @@ describe('each gate that owns a ledger row hands the recorder its verdict', () =
       // unchecked one as an error. A `catch` that assigned a plausible verdict
       // instead would turn "nobody asked" into "the chain agreed" — the
       // false-green path the collectors exist to close.
-      const { body } = proposalLoop()
+      const body = perProposal()
       // Every assignment form, compound included: `rpcQuorum ||= <verdict>`
       // in the catch is exactly how a fabricated green gets in, and a bare-`=`
       // pattern does not see it.
@@ -615,27 +653,6 @@ describe('each gate that owns a ledger row hands the recorder its verdict', () =
  * *when* the call happens.
  */
 describe('gate G is graded before the signature, not after it', () => {
-  /** A named function declaration's body text, from the tree rather than a window. */
-  const bodyOfFunction = (name: string): string => {
-    let found: Node | undefined
-
-    const visit = (node: Node): void => {
-      if (
-        found === undefined &&
-        isFunctionDeclaration(node) &&
-        node.name?.getText(TREE) === name
-      )
-        found = node
-      else forEachChild(node, visit)
-    }
-    forEachChild(TREE, visit)
-
-    // Guarded: an unfound name yields an empty body, which would satisfy every
-    // negative assertion below while asserting nothing at all.
-    expect(found).toBeDefined()
-    return (found as Node).getText(TREE)
-  }
-
   it('does not grade the authorities from the post-signature recorder', () => {
     const body = bodyOfFunction('recordSignedSet')
 
@@ -647,8 +664,8 @@ describe('gate G is graded before the signature, not after it', () => {
     expect(body).not.toContain('proposalChecks.push')
   })
 
-  it('reads the set inside the proposal loop, where a refusal is still available', () => {
-    const { body } = proposalLoop()
+  it('reads the set per proposal, where a refusal is still available', () => {
+    const body = perProposal()
 
     expect(body).toContain('observeSetForProposal(')
     // The read reaching the recorder is what makes it a graded row rather than

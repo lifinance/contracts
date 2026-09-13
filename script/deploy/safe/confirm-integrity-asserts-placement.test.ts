@@ -149,9 +149,7 @@ describe('the run cannot survive into the next proposal', () => {
   })
 
   it('leaves the run absent when the assertions throw', () => {
-    const evaluation = SOURCE.indexOf(
-      'integrityRun = await runIntegrityAsserts('
-    )
+    const evaluation = SOURCE.indexOf('integrity = await runIntegrityAsserts(')
     expect(evaluation).toBeGreaterThan(-1)
 
     // Bounded by the catch's own delimiters rather than by a character count:
@@ -167,33 +165,38 @@ describe('the run cannot survive into the next proposal', () => {
     const closes = SOURCE.indexOf('\n    }\n', opens)
     expect(closes).toBeGreaterThan(opens)
     const handler = SOURCE.slice(opens, closes)
-    expect(handler).toContain('integrityRun = undefined')
+    expect(handler).toContain('integrity = undefined')
+
+    // The blocking state reaches the loop under the name the two funnels
+    // refuse on. A bundle whose assertions threw must not arrive as anything
+    // else.
+    expect(SOURCE).toContain('integrityRun = evidence.value.integrity')
   })
 })
 
 describe('the evaluation is placed where it swallows nothing', () => {
-  it('runs after the codehash gate is rendered and before the acknowledgement keys', () => {
-    const codehashRender = SOURCE.indexOf(
-      'renderCodehashSignGate(codehashGate)'
-    )
-    const evaluation = SOURCE.indexOf(
-      'integrityRun = await runIntegrityAsserts('
-    )
+  it('runs after the codehash gate and before the acknowledgement keys', () => {
+    // Both verdicts are produced in `computeProposalEvidence`, in this order,
+    // and both are adopted in the loop above the keys the acknowledgement is
+    // built from. Anchored on the evaluation rather than on the codehash
+    // render, which the loop now does after adopting both.
+    const codehashEvaluation = SOURCE.indexOf('await evaluateCodehashSignGate(')
+    const evaluation = SOURCE.indexOf('integrity = await runIntegrityAsserts(')
+    const adopted = SOURCE.indexOf('integrityRun = evidence.value.integrity')
     const ackKeys = SOURCE.indexOf(
       'const acknowledgementKey = buildAcknowledgementKey({'
     )
-    expect(codehashRender).toBeGreaterThan(-1)
-    expect(evaluation).toBeGreaterThan(codehashRender)
-    expect(ackKeys).toBeGreaterThan(evaluation)
+    expect(codehashEvaluation).toBeGreaterThan(-1)
+    expect(evaluation).toBeGreaterThan(codehashEvaluation)
+    expect(adopted).toBeGreaterThan(-1)
+    expect(ackKeys).toBeGreaterThan(adopted)
   })
 
   // The last leg is anchored on the ledger write rather than the prompt that
   // precedes it, so the ordering holds whether acknowledgement is prompted for
   // or implicit in the action choice.
   it('leaves the action prompt, the nonce gate and the acknowledgement in that order', () => {
-    const evaluation = SOURCE.indexOf(
-      'integrityRun = await runIntegrityAsserts('
-    )
+    const evaluation = SOURCE.indexOf('integrity = await runIntegrityAsserts(')
     const actionPrompt = SOURCE.indexOf(
       "action = await consola.prompt('Select action:'",
       evaluation
@@ -248,9 +251,7 @@ describe('the evaluation is placed where it swallows nothing', () => {
   })
 
   it('reads the signed struct, never the stored row, for every field it keys on', () => {
-    const evaluation = SOURCE.indexOf(
-      'integrityRun = await runIntegrityAsserts('
-    )
+    const evaluation = SOURCE.indexOf('integrity = await runIntegrityAsserts(')
     // Guarded: unfound, the window widens to the rest of the file and the two
     // negative assertions below stop being about this call at all.
     const depsAt = SOURCE.indexOf('createIntegrityAssertDeps({', evaluation)

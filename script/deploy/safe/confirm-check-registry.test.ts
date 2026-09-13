@@ -758,6 +758,41 @@ describe('proposalCheckResults', () => {
     ])
   })
 
+  // The bundle `confirm-safe-tx.ts` falls back to when a proposal's chain reads
+  // throw — the background prefetch's failure path included. Every verdict
+  // absent, and the codehash gate blocking with the reason on it.
+  it('a proposal whose reads all failed owes every row, and blocks', () => {
+    const ledger = runLedger()
+    const why = 'the proposal’s chain reads could not be made — rpc exploded'
+    recordInto(
+      ledger,
+      verdicts({
+        integrity: undefined,
+        codehash: {
+          ...codehashGate(),
+          evaluated: true,
+          blocksSigning: true,
+          refusals: [why],
+          summary: why,
+        },
+        executability: undefined,
+        rpcQuorum: undefined,
+        storageAuthority: undefined,
+      })
+    )
+
+    const recorded = new Set(ledger.results.map((result) => result.checkId))
+    for (const definition of CONFIRM_CHECK_DEFINITIONS)
+      expect(recorded).toContain(definition.checkId)
+
+    // The point of the fallback: a read that failed is a row that could not be
+    // made, never a row nobody asked for. An absent row rolls up as a check the
+    // run was never owed, which is how a failed prefetch would go unnoticed.
+    const verdict = summariseLedger(ledger)
+    expect(verdict.totals.missing).toBe(0)
+    expect(verdict.hardBlocked).toBe(true)
+  })
+
   it('a clean proposal clears the ledger', () => {
     const ledger = runLedger()
     recordInto(ledger, verdicts())

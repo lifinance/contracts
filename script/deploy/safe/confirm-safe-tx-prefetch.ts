@@ -1,7 +1,14 @@
 /**
- * Network preparation and prefetch queue for confirm-safe-tx.
- * Loads Safe clients, reconciles pending rows, and augments txs off the hot path
- * so the next network is ready while the operator reviews the current one.
+ * Prefetching for confirm-safe-tx, at both granularities.
+ *
+ * Network: loads Safe clients, reconciles pending rows and augments txs off the
+ * hot path, so the next network is ready while the operator reviews the current
+ * one. Proposal: a generic single-slot queue the run uses to take the next
+ * proposal's chain reads while the signer reads this one.
+ *
+ * Both are anchored rather than trusted — a prefetched result is re-checked
+ * against the state it was prepared under and discarded if that moved, so
+ * prefetching never turns a fresh read into a stale one.
  */
 
 import { isTronNetworkKey } from '@lifi/tron-devkit'
@@ -374,5 +381,182 @@ export class ConfirmSafeTxPrefetchQueue {
       ...params,
       startupReconciledKeys: new Set<string>(),
     })
+  }
+}
+
+export type DeferredLogLevel = 'info' | 'warn' | 'error'
+
+export interface IDeferredLine {
+  level: DeferredLogLevel
+  message: string
+}
+
+/**
+ * A console the prefetch writes to instead of the terminal.
+ *
+ * Without it a background prepare's warnings land in the middle of the proposal
+ * the signer is currently reading, attached to nothing — and a warning about
+ * another proposal, printed under this one's verdicts, is worse than no
+ * warning.
+ */
+export interface IDeferredLogger {
+  info: (message: string) => void
+  warn: (message: string) => void
+  error: (message: string) => void
+  readonly lines: readonly IDeferredLine[]
+}
+
+export const createDeferredLogger = (): IDeferredLogger => {
+  const lines: IDeferredLine[] = []
+  const push =
+    (level: DeferredLogLevel) =>
+    (message: string): void => {
+      lines.push({ level, message })
+    }
+  return {
+    info: push('info'),
+    warn: push('warn'),
+    error: push('error'),
+    lines,
+  }
+}
+
+export interface IPrefetchedEvidence<T> {
+  value: T
+  /** False when the value was computed inline, whether or not a prefetch ran. */
+  prefetched: boolean
+  /** How long ago the prefetched reads were started; 0 for an inline value. */
+  ageMs: number
+  /** Why a prefetched value was thrown away, when one was. */
+  discarded?: string
+}
+
+/**
+ * Prefetches one proposal's chain reads while the signer reads the previous
+ * proposal.
+ *
+ * Keyed on whatever identifies a proposal to the caller, compared by identity:
+ * the document itself keys it unambiguously, where two rows carrying one
+ * `safeTxHash` could not.
+ *
+ * One slot, so at most one proposal is ever prepared ahead. The win is the
+ * interval in which a human is reading; depth beyond that buys nothing and
+ * widens the window in which a prefetched read can go stale.
+ *
+ * The anchor is what makes this semantics-preserving. It is resolved once
+ * before the reads start and again before they are handed over, and the
+ * prefetch is used only if the two agree — so a value is served only when
+ * nothing it rests on moved while it sat in the slot. An anchor that cannot be
+ * resolved at either end is not an agreement: the value is discarded and
+ * recomputed inline, which is what the signer would have got without a
+ * prefetch at all.
+ */
+export class ProposalEvidencePrefetchQueue<TKey, TValue> {
+  private slot:
+    | {
+        key: TKey
+        startedAt: number
+        promise: Promise<{ anchor: string | undefined; value: TValue }>
+      }
+    | undefined
+
+  /**
+   * @param onFailure - Turns an unexpected throw into a value. A prefetch that
+   * threw must still hand the caller something every check can be graded from:
+   * a check that reports nothing is absent from the run's ledger, which reads
+   * as a check that was never owed rather than as one that could not be made.
+   */
+  public constructor(private readonly onFailure: (error: unknown) => TValue) {}
+
+  /**
+   * Starts preparing `key` in the background, replacing whatever was queued.
+   */
+  public schedule(
+    key: TKey,
+    compute: () => Promise<TValue>,
+    resolveAnchor: () => Promise<string | undefined>
+  ): void {
+    if (this.slot?.key === key) return
+    this.slot = {
+      key,
+      startedAt: Date.now(),
+      promise: this.runBackground(compute, resolveAnchor),
+    }
+  }
+
+  private runBackground(
+    compute: () => Promise<TValue>,
+    resolveAnchor: () => Promise<string | undefined>
+  ): Promise<{ anchor: string | undefined; value: TValue }> {
+    // The anchor is read before the work, not after: a read taken while the
+    // anchor was moving must not be able to present itself as one taken after
+    // it settled.
+    return (async () => {
+      const anchor = await resolveAnchor()
+      return { anchor, value: await compute() }
+    })().catch((error: unknown) => ({
+      anchor: undefined,
+      value: this.onFailure(error),
+    }))
+  }
+
+  /**
+   * Returns `key`'s evidence, using the queued prefetch only when the anchor
+   * still agrees with the one it was prepared under.
+   */
+  public async take(
+    key: TKey,
+    compute: () => Promise<TValue>,
+    resolveAnchor: () => Promise<string | undefined>
+  ): Promise<IPrefetchedEvidence<TValue>> {
+    const slot = this.slot
+    this.slot = undefined
+
+    if (!slot || slot.key !== key)
+      return {
+        value: await this.runInline(compute),
+        prefetched: false,
+        ageMs: 0,
+      }
+
+    const prepared = await slot.promise
+    const discarded = await this.staleReason(prepared.anchor, resolveAnchor)
+    if (discarded)
+      return {
+        value: await this.runInline(compute),
+        prefetched: false,
+        ageMs: 0,
+        discarded,
+      }
+
+    return {
+      value: prepared.value,
+      prefetched: true,
+      ageMs: Date.now() - slot.startedAt,
+    }
+  }
+
+  private async staleReason(
+    preparedAnchor: string | undefined,
+    resolveAnchor: () => Promise<string | undefined>
+  ): Promise<string | undefined> {
+    if (preparedAnchor === undefined)
+      return 'the prefetch could not record what state it read against'
+
+    const current = await resolveAnchor().catch(() => undefined)
+    if (current === undefined)
+      return 'the state the prefetch read against could not be re-read'
+    if (current !== preparedAnchor)
+      return `the state moved (${preparedAnchor} → ${current}) while the prefetch sat unused`
+
+    return undefined
+  }
+
+  private async runInline(compute: () => Promise<TValue>): Promise<TValue> {
+    try {
+      return await compute()
+    } catch (error: unknown) {
+      return this.onFailure(error)
+    }
   }
 }

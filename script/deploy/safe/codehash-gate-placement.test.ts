@@ -190,7 +190,8 @@ describe('the codehash refusal is in the one funnel every sign path uses', () =>
   it('starts each proposal in the blocking state rather than the last verdict', () => {
     const loopHeader = SOURCE.indexOf('for (const tx of initialTxs')
     const reset = SOURCE.indexOf('codehashGate = blockingUnevaluatedGate()')
-    const evaluation = SOURCE.indexOf('await evaluateCodehashSignGate(')
+    const taken = SOURCE.indexOf('await evidencePrefetch.take(')
+    const adopted = SOURCE.indexOf('codehashGate = evidence.value.codehash')
 
     expect(loopHeader).toBeGreaterThan(-1)
     // Inside the per-proposal loop, not hoisted above it: hoisted, the reset
@@ -198,7 +199,19 @@ describe('the codehash refusal is in the one funnel every sign path uses', () =>
     // while an assertion that only ordered reset before evaluation would still
     // pass.
     expect(reset).toBeGreaterThan(loopHeader)
-    expect(evaluation).toBeGreaterThan(reset)
+
+    // The evaluation itself now sits in `computeProposalEvidence`, above the
+    // loop, so that the next proposal's can run while this one is on screen.
+    // What has to stay ordered is that the reset is overwritten by *this*
+    // proposal's own verdict and by nothing else: the bundle is taken after the
+    // reset, and the gate is assigned out of that bundle.
+    expect(taken).toBeGreaterThan(reset)
+    expect(adopted).toBeGreaterThan(taken)
+
+    // Keyed on this proposal, and built from this proposal's row. A bundle
+    // taken under another key would be the previous verdict by another route.
+    expect(SOURCE).toContain('() => computeProposalEvidence(tx),')
+    expect(SOURCE).toContain('await evaluateCodehashSignGate(')
   })
 
   // Which transaction the gate judges is not asserted here. (The number of
