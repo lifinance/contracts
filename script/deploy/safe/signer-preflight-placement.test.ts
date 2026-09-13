@@ -29,7 +29,7 @@ const CONFIRM_SCRIPT = path.join(
   'confirm-safe-tx.ts'
 )
 
-const PREFLIGHT_CALL = 'const preflightVerdict = await preflight('
+const PREFLIGHT_CALL = 'const preflightVerdict = await networkPreflight('
 const LEDGER_CREATED = 'checkLedger = createCheckLedger({'
 const OWNERSHIP_FILTER = 'await getNetworksWithActionableTransactions('
 const EARLY_RETURN = 'if (preflightVerdict.startable.length === 0) {'
