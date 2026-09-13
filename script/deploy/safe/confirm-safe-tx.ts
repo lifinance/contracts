@@ -433,13 +433,14 @@ const processTxs = async (
   // reflects that yet.
   let broadcastsMade = 0
 
-  // The proposal's codehash verdict, re-evaluated per proposal below and read
-  // by the signer through `createGatedSigner`. It starts blocking so a proposal
-  // whose evaluation never ran cannot be signed on last proposal's answer.
+  // The proposal's codehash verdict, taken per proposal from that proposal's
+  // evidence bundle and read by the signer through `createGatedSigner`. It
+  // starts blocking so a proposal whose evaluation never ran cannot be signed
+  // on last proposal's answer.
   let codehashGate: ICodehashSignGate = blockingUnevaluatedGate()
 
-  // The proposal's integrity verdict, re-run per proposal below. Absent is the
-  // blocking state: `assertIntegrityAssertsAllowSigning` refuses an undefined
+  // The proposal's integrity verdict, taken per proposal from that proposal's
+  // evidence bundle. Absent is the blocking state: `assertIntegrityAssertsAllowSigning` refuses an undefined
   // run, so a proposal whose assertions never ran cannot be signed on the last
   // proposal's answer — and the run carries the transaction it graded, which
   // that refusal compares against the one reaching the signer.
@@ -874,11 +875,18 @@ const processTxs = async (
   /**
    * The bundle a proposal gets when the reads could not be made at all.
    *
-   * Every field is in its blocking state rather than absent: the registry owes
-   * a row for each of these checks, and `proposalCheckResults` turns an absent
-   * verdict into an `unresolved` row — a check that could not be made, which
-   * blocks — while a bundle that never arrived would produce no row at all and
-   * roll up as a check the run was never asked for.
+   * Every field is absent, which is what the registry reads as "this check
+   * could not be made": `proposalCheckResults` turns each one into an
+   * `unresolved` row that blocks, while a bundle that never arrived would
+   * produce no row at all and roll up as a check the run was never asked for.
+   *
+   * `rpcQuorum` is the exception, and deliberately so. An unmade quorum read
+   * records `needs-ack` rather than `error` — the gate reports on endpoint
+   * redundancy and must not block a run on the fleet's missing spare endpoints
+   * — so an unreadable bundle leaves one acknowledgeable row among ten
+   * blocking ones. Distinguishing "the bundle was unreadable" from "no quorum
+   * read was configured" here would let it block too; it is not worth a second
+   * shape when the other ten already refuse.
    */
   const unreadableEvidence = (error: unknown): IProposalEvidence => {
     const why = `the proposal's chain reads could not be made — ${printableField(
@@ -911,6 +919,11 @@ const processTxs = async (
    * when the proposal they belong to is displayed, because a warning about the
    * next proposal, printed under this one's verdicts, describes nothing the
    * signer is looking at.
+   *
+   * That holds for what this function says, not for what the shared helpers it
+   * calls say — `getFallbackTransportForChain` and `SafeClient`'s own read
+   * errors write to the console directly, and they have call sites that are not
+   * this run.
    */
   async function computeProposalEvidence(
     tx: IAugmentedSafeTxDocument

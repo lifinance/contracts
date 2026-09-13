@@ -200,11 +200,12 @@ describe('the codehash refusal is in the one funnel every sign path uses', () =>
     // pass.
     expect(reset).toBeGreaterThan(loopHeader)
 
-    // The evaluation itself now sits in `computeProposalEvidence`, above the
-    // loop, so that the next proposal's can run while this one is on screen.
-    // What has to stay ordered is that the reset is overwritten by *this*
-    // proposal's own verdict and by nothing else: the bundle is taken after the
-    // reset, and the gate is assigned out of that bundle.
+    // The evaluation sits in `computeProposalEvidence`, above the loop, so the
+    // next proposal's can run while this one is on screen — which is why the
+    // ordering cannot be asked of the evaluation's own position. What must stay
+    // ordered is that the reset is overwritten by *this* proposal's verdict and
+    // by nothing else: the bundle is taken after the reset, and the gate is
+    // assigned out of that bundle.
     expect(taken).toBeGreaterThan(reset)
     expect(adopted).toBeGreaterThan(taken)
 

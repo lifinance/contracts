@@ -132,6 +132,11 @@ describe('a prefetch is discarded rather than presented as current', () => {
 
     expect(taken.prefetched).toBe(false)
     expect(state.runs).toBe(2)
+    // The reason, not just the recompute. Without it this test passes with the
+    // `preparedAnchor === undefined` branch deleted — an unset anchor compares
+    // unequal to any string, so the discard happens either way and only the
+    // diagnosis is lost. Asserting the message is what makes the branch covered.
+    expect(taken.discarded).toContain('could not record what state it read')
   })
 
   it('recomputes when re-reading the anchor throws', async () => {
@@ -222,24 +227,43 @@ describe('the queue is wired to something that actually moves', () => {
     ].join('')
     expect(SOURCE).toContain(anchor)
 
-    // The counter has to be bumped, and bumped before the call that puts the
+    // The bump must be unconditional and adjacent to the call that puts the
     // transaction on the wire: a broadcast that throws may still have reached
     // the chain, and a prefetch taken against the state before it is stale
     // either way. An anchor wired to a counter nothing increments matches
     // forever, which is the same as having no anchor at all.
-    const bumped = SOURCE.indexOf('broadcastsMade++')
-    const broadcast = SOURCE.indexOf('safeClient.executeTransaction(')
+    //
+    // Matched as the two statements together rather than as two positions in
+    // the file. An ordering assertion over `indexOf` is satisfied by a bump
+    // that never runs — `if (false) broadcastsMade++` sits at a lower index
+    // just the same — and that mutation was left green by the version of this
+    // test that only compared positions.
+    expect(SOURCE).toMatch(
+      /\n +broadcastsMade\+\+\n +const exec = await safeClient\.executeTransaction\(/u
+    )
 
-    expect(bumped).toBeGreaterThan(-1)
-    expect(broadcast).toBeGreaterThan(bumped)
+    // One route to the wire, so the statement above covers every broadcast this
+    // run makes. A second call site would be a second route, bumping nothing.
+    expect([
+      ...SOURCE.matchAll(/safeClient\.executeTransaction\(/gu),
+    ]).toHaveLength(1)
   })
 
   it('prepares and re-validates against the same anchor', () => {
-    // Two call sites, one resolver. A prefetch prepared under one anchor and
-    // checked against another would agree by accident or never agree at all.
-    expect([
-      ...SOURCE.matchAll(/resolveEvidenceAnchor\s*\n?\s*\)/gu),
-    ]).toHaveLength(2)
+    // One resolver reaching both call sites — the schedule and the take — by
+    // being the same identifier passed to each. A prefetch prepared under one
+    // anchor and checked against another would agree by accident or never agree
+    // at all.
+    //
+    // Asserted as the two call shapes rather than as a count of the name: a
+    // bare occurrence count is satisfied by any mention and breaks on
+    // reformatting, which makes it fail for reasons that are not this one.
+    expect(SOURCE).toMatch(
+      /evidencePrefetch\.take\(\s*tx,\s*\(\) => computeProposalEvidence\(tx\),\s*resolveEvidenceAnchor\s*\)/u
+    )
+    expect(SOURCE).toMatch(
+      /evidencePrefetch\.schedule\(\s*nextTx,\s*\(\) => computeProposalEvidence\(nextTx\),\s*resolveEvidenceAnchor\s*\)/u
+    )
   })
 
   it('writes no line to the terminal from inside the evidence function', () => {
@@ -261,10 +285,18 @@ describe('the queue is wired to something that actually moves', () => {
     ])
       expect(body).toContain(read)
 
-    // Everything the reads say is carried on the bundle and printed when the
-    // proposal it belongs to is displayed. A direct `consola` call here prints
-    // the next proposal's warning under this one's verdicts, where it reads as
-    // being about the proposal on screen.
+    // Everything this function itself says is carried on the bundle and
+    // printed when the proposal it belongs to is displayed. A direct `consola`
+    // call here prints the next proposal's warning under this one's verdicts,
+    // where it reads as being about the proposal on screen.
+    //
+    // Scope, stated because the assertion cannot express it: this covers the
+    // function's own writes, not those of the shared helpers it calls.
+    // `getFallbackTransportForChain` warns about unusable endpoints on its own
+    // console, and `SafeClient.getNonce` logs before it rethrows — so a
+    // prefetch can still print through them. Those helpers have call sites
+    // outside this run and threading a sink through them is a wider change than
+    // this one.
     expect(body).not.toContain('consola.')
   })
 
