@@ -17,12 +17,13 @@
 import { join } from 'path'
 
 import {
+  afterEach,
   describe,
   expect,
   it,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
-import { keccak256, type Hex } from 'viem'
+import { keccak256, type Chain, type Hex } from 'viem'
 
 import type { ImmutableReferences } from '../codehash/immutable-offsets'
 import { normalizeRuntimeCode } from '../codehash/rebuild-attestations'
@@ -30,6 +31,7 @@ import { normalizeRuntimeCode } from '../codehash/rebuild-attestations'
 import {
   createForgeRebuildRunner,
   createImmutableReferencesResolver,
+  createDeployedCodeReader,
   createRecordReader,
   createRuntimeCodeObserver,
   createToolchainScopeResolver,
@@ -732,5 +734,121 @@ describe('createImmutableReferencesResolver refuses several lineages', () => {
       'per lineage'
     )
     expect(builds).toEqual([])
+  })
+})
+
+describe('createDeployedCodeReader', () => {
+  const PRIMARY = 'https://primary.example/rpc'
+  const SECOND = 'https://second.example/rpc'
+  const THIRD = 'https://third.example/rpc'
+  const ADDRESS = '0x1111111111111111111111111111111111111111'
+
+  const chainWith = (http: string[]): Chain =>
+    ({
+      id: 1,
+      name: 'test',
+      nativeCurrency: { name: 'E', symbol: 'E', decimals: 18 },
+      rpcUrls: { default: { http } },
+    } as Chain)
+
+  const originalFetch = globalThis.fetch
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch
+  })
+
+  /**
+   * Answers each JSON-RPC method per host. `code` undefined marks the host
+   * down, so a test can fail one endpoint without failing the rest.
+   */
+  const stub = (byHost: Record<string, string | undefined>): void => {
+    globalThis.fetch = (async (
+      input: RequestInfo | URL,
+      init?: RequestInit
+    ) => {
+      const url = String(input)
+      const host = Object.keys(byHost).find((h) => url.startsWith(h))
+      const code = host ? byHost[host] : undefined
+      if (code === undefined) {
+        const error = new Error('HTTP request failed: 503')
+        error.name = 'HttpRequestError'
+        throw error
+      }
+
+      const body = JSON.parse(String(init?.body ?? '{}')) as {
+        method?: string
+        id?: number
+      }
+      const result =
+        body.method === 'eth_chainId'
+          ? '0x1'
+          : body.method === 'eth_getBlockByNumber'
+          ? { number: '0x64', hash: `0x${'ab'.repeat(32)}` }
+          : code
+
+      return new Response(
+        JSON.stringify({ jsonrpc: '2.0', id: body.id ?? 1, result }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    }) as typeof fetch
+  }
+
+  it('takes the primary answer when the primary answers', async () => {
+    stub({ [PRIMARY]: '0xfeed', [SECOND]: '0xbad' })
+    const read = createDeployedCodeReader(() => chainWith([PRIMARY, SECOND]))
+
+    expect(await read(ADDRESS, 'arbitrum')).toBe('0xfeed')
+  })
+
+  // The security property. A single fallback must not be able to decide the
+  // gate that refuses a signature: a stale or hostile endpoint returning the
+  // expected bytes would otherwise pass code that is not on chain.
+  it('refuses a lone fallback answer when the primary is down', async () => {
+    stub({ [PRIMARY]: undefined, [SECOND]: '0xfeed' })
+    const read = createDeployedCodeReader(() => chainWith([PRIMARY, SECOND]))
+
+    let threw = false
+    try {
+      await read(ADDRESS, 'arbitrum')
+    } catch {
+      threw = true
+    }
+    expect(threw).toBe(true)
+  })
+
+  it('accepts a fallback answer two independent providers agree on', async () => {
+    stub({ [PRIMARY]: undefined, [SECOND]: '0xfeed', [THIRD]: '0xfeed' })
+    const read = createDeployedCodeReader(() =>
+      chainWith([PRIMARY, SECOND, THIRD])
+    )
+
+    expect(await read(ADDRESS, 'arbitrum')).toBe('0xfeed')
+  })
+
+  // Disagreement is the case the corroboration exists for.
+  it('refuses when the fallbacks disagree', async () => {
+    stub({ [PRIMARY]: undefined, [SECOND]: '0xfeed', [THIRD]: '0xdead' })
+    const read = createDeployedCodeReader(() =>
+      chainWith([PRIMARY, SECOND, THIRD])
+    )
+
+    let threw = false
+    try {
+      await read(ADDRESS, 'arbitrum')
+    } catch {
+      threw = true
+    }
+    expect(threw).toBe(true)
+  })
+
+  it('resolves the chain for the network it is asked about', async () => {
+    stub({ [PRIMARY]: '0xfeed' })
+    const asked: string[] = []
+    await createDeployedCodeReader((n) => {
+      asked.push(n)
+      return chainWith([PRIMARY])
+    })(ADDRESS, 'arbitrum')
+
+    expect(asked).toEqual(['arbitrum'])
   })
 })

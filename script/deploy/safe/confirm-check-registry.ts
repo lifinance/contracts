@@ -1,25 +1,32 @@
 /**
  * Maps each sign-time gate's own verdict onto a `check-ledger` row.
  *
- * The gates were built as independent modules, each printing its own block. The
- * ledger is where they become one verdict, so the translation lives here rather
- * than in `check-ledger.ts` (which must not know about any particular gate) or
- * in the gates themselves (which must stay usable without a ledger).
+ * The translation lives here rather than in `check-ledger.ts` (which must not
+ * know about any particular gate) or in the gates themselves (which must stay
+ * usable without a ledger).
  *
  * Every mapping names the anchor the verdict actually rests on, so `recordCheck`
  * coerces a `pass` claimed on a reporting-only anchor to `error`. That backstop
- * only covers the record-derived rows; the two mappings that can emit a green
- * sit on `A-LOCAL`, which decides, so what actually guards them is the
- * cross-check against `STATUSES_CLEARED_TO_PROCEED`.
+ * reaches only the reporting-only anchors; a green on `A-LOCAL` or `A-CHAIN` is
+ * not coerced, so each mapping that can emit one carries its own guard — the
+ * target state's is the cross-check against `STATUSES_CLEARED_TO_PROCEED`.
  */
 
 import type { ICheckDefinition, ICheckResult } from './check-ledger'
+import {
+  CHECK_TIMELOCK_DELAY,
+  INTEGRITY_CHECKS_ALWAYS,
+  INTEGRITY_CHECK_DEFINITIONS,
+  type IIntegrityAssertRun,
+} from './confirm-integrity-asserts'
+import type { IExecutabilityVerdict } from './executability-simulation'
 import type {
   ITargetStateFinding,
   ITargetStateVerdict,
   TargetStateStatus,
 } from './pinned-target-state'
 import type { IPreBroadcastAuthority } from './prebroadcast-authorities'
+import { MIN_INDEPENDENT_PROVIDERS, type IRpcQuorumVerdict } from './rpc-quorum'
 import type { ISignedAuthorityEntry } from './signed-set-record'
 
 export const TARGET_STATE_CHECK_ID = 'target-state'
@@ -39,12 +46,6 @@ export const STORAGE_AUTHORITY_CHECK: ICheckDefinition = {
   checkClass: 'integrity',
   title: 'Storage authorities match what main declares',
 }
-
-/** Every check `confirm-safe-tx.ts` registers on the run's ledger. */
-export const CONFIRM_CHECK_DEFINITIONS: readonly ICheckDefinition[] = [
-  TARGET_STATE_CHECK,
-  STORAGE_AUTHORITY_CHECK,
-]
 
 /**
  * Where each authority's expectation came from, as an anchor.
@@ -431,4 +432,346 @@ export const worstResultPerCheck = (
   }
 
   return [...worst.values()]
+}
+
+export const EXECUTABILITY_CHECK_ID = 'executability'
+
+export const EXECUTABILITY_CHECK: ICheckDefinition = {
+  checkId: EXECUTABILITY_CHECK_ID,
+  section: 'Execution',
+  // Semantic, not integrity: a `Predicted` finding rests on chain state as it
+  // was read, and a queue that moves under it turns the answer over. An
+  // integrity class would hard-block a legitimate proposal on a stale read with
+  // no way for the signer to say so.
+  checkClass: 'semantic',
+  title: 'The proposal would execute rather than revert',
+}
+
+export const RPC_QUORUM_CHECK_ID = 'rpc-quorum'
+
+export const RPC_QUORUM_CHECK: ICheckDefinition = {
+  checkId: RPC_QUORUM_CHECK_ID,
+  section: 'Evidence',
+  checkClass: 'semantic',
+  title: 'Chain reads agreed across independent providers',
+}
+
+/**
+ * The integrity ids this registry mirrors onto the run-level ledger.
+ *
+ * One list, read by both the registration below and the recorder further down.
+ * Two independent copies would let a check be registered here and never
+ * answered for, and a registered check with no row is counted missing and
+ * blocks — with no type error and no failing test to say why.
+ */
+const MIRRORED_INTEGRITY_CHECKS: readonly string[] = [
+  ...INTEGRITY_CHECKS_ALWAYS,
+  CHECK_TIMELOCK_DELAY,
+]
+
+/**
+ * Every check `confirm-safe-tx.ts` registers on the run's ledger, in the order
+ * a signer reads them: what this proposal *is*, then what it *changes*, then
+ * whether it would *execute*, then how good the evidence for all of it was.
+ *
+ * The integrity checks are the same definitions `runIntegrityAsserts` registers
+ * on its own per-proposal ledger, reused rather than restated: a second copy
+ * would let the two drift in class, and `checkClass` is the field that decides
+ * whether a mismatch can be acknowledged.
+ *
+ * `INT-TIMELOCK-DELAY` is registered here unconditionally even though
+ * `runIntegrityAsserts` registers it only for a payload that is a schedule or
+ * could not be decoded. A registered
+ * check that never reports is counted missing and blocks, so the recorder below
+ * has to answer for it on every proposal — which it does, with a pass on
+ * `A-LOCAL` when the calldata was read and found not to be a schedule.
+ */
+export const CONFIRM_CHECK_DEFINITIONS: readonly ICheckDefinition[] = [
+  ...MIRRORED_INTEGRITY_CHECKS.map((checkId) => {
+    const definition = INTEGRITY_CHECK_DEFINITIONS[checkId]
+    if (!definition)
+      throw new Error(`CONFIRM_CHECK_DEFINITIONS: no definition for ${checkId}`)
+    return definition
+  }),
+  STORAGE_AUTHORITY_CHECK,
+  TARGET_STATE_CHECK,
+  EXECUTABILITY_CHECK,
+  RPC_QUORUM_CHECK,
+]
+
+/**
+ * How an executability verdict reaches the ledger.
+ *
+ * `error` is read before `refuses` for the same reason `toCancelDecisionExecutability`
+ * orders them that way: a simulation that could not be made has not established
+ * that the proposal reverts, and reporting it as a mismatch would put a
+ * disagreement on the ledger that nothing observed.
+ *
+ * @param verdict - What `evaluateExecutability` decided.
+ * @param network - The network the verdict is about.
+ * @returns The row to hand to `recordCheck`.
+ */
+export const executabilityCheckResult = (
+  verdict: IExecutabilityVerdict,
+  network: string
+): ICheckResult => {
+  if (verdict.error)
+    return {
+      checkId: EXECUTABILITY_CHECK_ID,
+      network,
+      status: 'error',
+      expected: 'every payload simulated against the state it will execute in',
+      actual: verdict.errors.join(' ') || 'the simulation could not be made',
+      anchor: 'A-UNRESOLVED',
+    }
+
+  if (verdict.refuses)
+    return {
+      checkId: EXECUTABILITY_CHECK_ID,
+      network,
+      status: 'fail',
+      expected: 'no payload reverts',
+      actual: verdict.reason,
+      anchor: 'A-CHAIN',
+    }
+
+  // A payload the simulator has no revert model for was not simulated, so the
+  // run has no evidence about it. Recording that as the same green as a fully
+  // simulated proposal is how partial coverage reads as verified, so it is an
+  // acknowledgement on the anchor that decided nothing instead.
+  if (verdict.notSimulated.length > 0)
+    return {
+      checkId: EXECUTABILITY_CHECK_ID,
+      network,
+      status: 'needs-ack',
+      expected: 'every payload simulated against the state it will execute in',
+      actual: `no revert found in the payloads that were simulated; ${verdict.notSimulated.length} payload(s) have no revert model`,
+      anchor: 'A-UNRESOLVED',
+    }
+
+  return {
+    checkId: EXECUTABILITY_CHECK_ID,
+    network,
+    status: 'pass',
+    expected: 'no payload reverts',
+    actual: 'no revert found in any payload',
+    anchor: 'A-CHAIN',
+  }
+}
+
+/**
+ * How a quorum verdict reaches the ledger.
+ *
+ * Report-only: this check never records a `fail`. Its hard-block has an
+ * infrastructure precondition — two independent providers on every production
+ * chain — that this repo does not meet, and a fleet where a substantial share of
+ * networks are still single-endpoint would turn missing redundancy into a
+ * refusal to sign. So a quorum that was not reached is recorded as an acknowledgement,
+ * which puts it on the signer's screen without blocking the run.
+ *
+ * The branch keys on `reachesQuorum`, never on the status text, which is what
+ * keeps `agreed-absent` out of the pass its name shares a prefix with: the
+ * providers did agree there, and what they agreed on is that nothing is at the
+ * address, so `evaluateRpcQuorum` leaves `reachesQuorum` false and the row is an
+ * acknowledgement.
+ *
+ * @param verdict - What `evaluateRpcQuorum` decided.
+ * @param network - The network the read was made on.
+ * @returns The row to hand to `recordCheck`.
+ */
+export const rpcQuorumCheckResult = (
+  verdict: IRpcQuorumVerdict,
+  network: string
+): ICheckResult => {
+  const expected = `${verdict.quorum} independent providers agreeing`
+  const actual = `${verdict.agreeingProviders} of ${verdict.independentProviders} agreed (${verdict.status})`
+
+  if (verdict.reachesQuorum)
+    return {
+      checkId: RPC_QUORUM_CHECK_ID,
+      network,
+      status: 'pass',
+      expected,
+      actual,
+      anchor: 'A-CHAIN',
+    }
+
+  return {
+    checkId: RPC_QUORUM_CHECK_ID,
+    network,
+    status: 'needs-ack',
+    expected,
+    actual,
+    // No quorum on the value the caller asked about: the providers disagreed,
+    // there were not enough of them, or they agreed the value is empty, which
+    // is agreement without the fact an integrity read wanted.
+    anchor: 'A-UNRESOLVED',
+    // Keyed on providers, worded as providers. `independentProviders` collapses
+    // endpoints that share an upstream, so a network with three endpoints from
+    // one provider still counts as one — telling that operator they have one
+    // *endpoint* sends them to re-run a command that would change nothing.
+    detail:
+      verdict.independentProviders < MIN_INDEPENDENT_PROVIDERS
+        ? `${verdict.detail} — ${verdict.independentProviders} independent provider(s) across ${verdict.endpointsConsulted} configured endpoint(s); a second provider is needed, which "bun fetch-rpcs" picks up where MongoDB holds one`
+        : verdict.detail,
+  }
+}
+
+/** Every verdict one proposal produced, as the recorder below reads them. */
+export interface IProposalCheckVerdicts {
+  network: string
+  /** Absent when the assertions never ran, which is itself a blocking state. */
+  integrity: IIntegrityAssertRun | undefined
+  targetState: ITargetStateVerdict
+  /** Absent when the simulation was never attempted. */
+  executability: IExecutabilityVerdict | undefined
+  /**
+   * Why this network is outside the simulator's declared scope, when it is.
+   *
+   * Distinct from an absent verdict on a network the simulator does cover: that
+   * is a read which should have happened and did not, so it is unverified and
+   * blocks. A chain the EVM simulator was never written for — Tron, reached
+   * through its own executor — is a known limit, so the signer is asked to
+   * acknowledge that it was not simulated rather than being refused a signature
+   * the simulator was never going to authorise.
+   */
+  executabilityOutOfScope?: string
+  /** Absent when no quorum read was made. */
+  rpcQuorum: IRpcQuorumVerdict | undefined
+}
+
+const unresolved = (
+  checkId: string,
+  network: string,
+  expected: string,
+  actual: string
+): ICheckResult => ({
+  checkId,
+  network,
+  status: 'error',
+  expected,
+  actual,
+  anchor: 'A-UNRESOLVED',
+})
+
+/**
+ * Mirrors one proposal's integrity run onto the run-level ledger.
+ *
+ * `runIntegrityAsserts` keeps its own single-network ledger because the refusal
+ * it drives is a statement about one transaction, and it must not be widened by
+ * a sibling proposal's rows. The run-level ledger needs the same verdicts to
+ * compose a report that covers them, so they are mirrored rather than moved —
+ * the rows carry the statuses and anchors that run already decided, never a
+ * re-derivation of them.
+ *
+ * A check the run did not register gets a row here regardless, because the
+ * run-level ledger registered it and a registered check with no row is counted
+ * missing and blocks. The only such check is the timelock delay, and the reason
+ * it did not run is that the calldata was read and found not to be a schedule —
+ * a verified fact about this proposal, so a pass on `A-LOCAL`, the same way
+ * `no-diamond-cut` is a pass rather than an absence.
+ */
+const integrityResults = (
+  run: IIntegrityAssertRun | undefined,
+  network: string
+): ICheckResult[] => {
+  const registered = MIRRORED_INTEGRITY_CHECKS
+
+  if (!run)
+    return registered.map((checkId) =>
+      unresolved(
+        checkId,
+        network,
+        'the proposal integrity assertions ran',
+        'the assertions produced no run for this proposal'
+      )
+    )
+
+  const byCheckId = new Map<string, ICheckResult>()
+  for (const result of run.ledger.results) byCheckId.set(result.checkId, result)
+
+  return registered.map((checkId) => {
+    const recorded = byCheckId.get(checkId)
+    if (recorded) return { ...recorded, network }
+
+    // Only when the assertions never registered the delay check, which is how
+    // they say the calldata was read and found not to be a schedule. Registered
+    // with no row means the assertion did not finish, and the two are opposite
+    // facts: `run.registered` is what separates them.
+    if (
+      checkId === CHECK_TIMELOCK_DELAY &&
+      !run.registered.includes(CHECK_TIMELOCK_DELAY)
+    )
+      return {
+        checkId,
+        network,
+        status: 'pass' as const,
+        expected: "a schedule's delay is at least the timelock's live minimum",
+        actual: 'this proposal carries no timelock schedule',
+        anchor: 'A-LOCAL' as const,
+      }
+
+    return unresolved(
+      checkId,
+      network,
+      'the assertion reported for this proposal',
+      'the run registered this check and recorded no result for it'
+    )
+  })
+}
+
+/**
+ * Every sign-time verdict for one proposal, in the order a signer reads them.
+ *
+ * Produces rows rather than recording them: a ledger row is denominated per
+ * network, so the caller collects these across the network's proposals and
+ * reduces them with `worstResultPerCheck` before recording. Recording here
+ * would let a later proposal's `pass` supersede an earlier one's `error`.
+ *
+ * One ordered step, so the sequence *is* the report's order and a test can pin
+ * it by reading the rows back.
+ *
+ * @param verdicts - What each gate decided for this proposal.
+ * @returns One row per registered check, in reading order.
+ */
+export const proposalCheckResults = (
+  verdicts: IProposalCheckVerdicts
+): ICheckResult[] => {
+  const { network } = verdicts
+
+  return [
+    ...integrityResults(verdicts.integrity, network),
+    targetStateCheckResult(verdicts.targetState, network),
+    verdicts.executability
+      ? executabilityCheckResult(verdicts.executability, network)
+      : verdicts.executabilityOutOfScope
+      ? {
+          checkId: EXECUTABILITY_CHECK_ID,
+          network,
+          status: 'needs-ack',
+          expected:
+            'every payload simulated against the state it will execute in',
+          actual: verdicts.executabilityOutOfScope,
+          anchor: 'A-UNRESOLVED',
+        }
+      : unresolved(
+          EXECUTABILITY_CHECK_ID,
+          network,
+          'every payload simulated against the state it will execute in',
+          'no simulation was attempted for this proposal'
+        ),
+    verdicts.rpcQuorum
+      ? rpcQuorumCheckResult(verdicts.rpcQuorum, network)
+      : {
+          checkId: RPC_QUORUM_CHECK_ID,
+          network,
+          // Report-only, so an unmade read is an acknowledgement and not the
+          // `error` every other unmade check here records: this gate must not
+          // block a run on the fleet's missing endpoint redundancy.
+          status: 'needs-ack',
+          expected: `${MIN_INDEPENDENT_PROVIDERS} independent providers agreeing`,
+          actual: 'no quorum read was made for this proposal',
+          anchor: 'A-UNRESOLVED',
+        },
+  ]
 }
