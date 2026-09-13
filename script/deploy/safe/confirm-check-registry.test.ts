@@ -57,7 +57,8 @@ import type { IPreBroadcastAuthority } from './prebroadcast-authorities'
 import { renderCheckLedger } from './render-check-ledger'
 import type { IRpcQuorumVerdict, TQuorumStatus } from './rpc-quorum'
 import type { ISignedAuthorityEntry } from './signed-set-record'
-import { MANIFEST_TITLE_WIDTH } from './signer-view'
+import { manifestTitleWidth } from './signer-view'
+import { CHECK_DOCS } from './signer-zones'
 
 const FACET = '0x1111111111111111111111111111111111111111'
 
@@ -1602,7 +1603,9 @@ describe('gate letters', () => {
 
   it('fit the column they are printed in', () => {
     for (const definition of ALL_GATE_DEFINITIONS)
-      expect(definition.title.length).toBeLessThanOrEqual(MANIFEST_TITLE_WIDTH)
+      expect(definition.title.length).toBeLessThanOrEqual(
+        manifestTitleWidth(ALL_GATE_DEFINITIONS, CHECK_DOCS)
+      )
   })
 
   it('covers every registered gate, and the ones that block elsewhere', () => {
