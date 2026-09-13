@@ -185,6 +185,7 @@ import {
   checkSummary,
   PROPOSAL_SEPARATOR,
   renderCheckGroups,
+  renderGateManifest,
   renderProposalOutcome,
   renderTodos,
   zoneHeading,
@@ -1250,6 +1251,18 @@ const processTxs = async (
         'WHAT WAS CHECKED FOR YOU',
         checkSummary(signerCheckRows)
       ).join('\n')
+    )
+    // The roster first, then the rows that ask something of the signer. The
+    // sections say what to read; only the manifest says what there was to read,
+    // which is what makes a gate that reported nothing visible at all.
+    consola.log(
+      renderGateManifest({
+        entries: signerCheckRows,
+        roster: ALL_GATE_DEFINITIONS,
+        mustReport: new Set(
+          CONFIRM_CHECK_DEFINITIONS.map((definition) => definition.checkId)
+        ),
+      }).join('\n')
     )
     consola.log(renderCheckGroups(signerCheckRows).join('\n'))
     // Per-finding detail under the row that reduced them: the ledger holds one
