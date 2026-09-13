@@ -31,7 +31,8 @@ const ledgerWith = (
         checkId: 'target-state',
         section: 'Intent',
         checkClass: 'semantic',
-        title: 'Facet version matches the declared target state',
+        gate: 'H',
+        title: 'Facet version',
       },
     ],
   })
@@ -224,7 +225,8 @@ describe('comparePasses, when the second pass records a row the first lacks', ()
           checkId: 'target-state',
           section: 'Intent',
           checkClass: 'semantic',
-          title: 'Facet version matches the declared target state',
+          gate: 'H',
+          title: 'Facet version',
         },
       ],
     })
@@ -378,7 +380,8 @@ describe('gradeCorruptionProbe, on rows the mutation cannot reach', () => {
           checkId: 'target-state',
           section: 'Intent',
           checkClass: 'semantic',
-          title: 'Facet version matches the declared target state',
+          gate: 'H',
+          title: 'Facet version',
         },
       ],
     })
