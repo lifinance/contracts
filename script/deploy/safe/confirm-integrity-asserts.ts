@@ -1234,13 +1234,16 @@ export const renderIntegrityAsserts = (
 
   // The checks a proposal did not register at all, named rather than implied:
   // a delay assertion that had nothing to say and one that was skipped by a
-  // bug look identical in a report that only lists what ran.
+  // bug look identical in a report that only lists what ran. Worded as the
+  // ledger words it, not as a fourth synonym: a signer who has learned that
+  // `NOT APPLICABLE` means "nothing here to check" should not have to learn a
+  // second phrase for the same fact one panel further down.
   const notApplicable = Object.keys(INTEGRITY_CHECK_DEFINITIONS).filter(
     (checkId) => !run.registered.includes(checkId)
   )
   if (notApplicable.length > 0)
     lines.push(
-      `        \u001b[36m· NO CLAIM\u001b[0m not registered for this proposal: ${notApplicable.join(
+      `        \u001b[36m· NOT APPLICABLE\u001b[0m this proposal gave these checks nothing to do: ${notApplicable.join(
         ', '
       )}`
     )

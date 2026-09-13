@@ -84,7 +84,7 @@ describe('renderCheckLedger', () => {
     const section = lines.filter((line) => line.includes('Integrity'))
 
     expect(section).toHaveLength(1)
-    expect(section[0]).toContain('1/1 checks green')
+    expect(section[0]).toContain('1/1 applicable checks green')
     expect(section[0]).toContain('2/2')
     expect(section[0]).toContain(GREEN)
     expect(lines.some((line) => line.includes('mainnet'))).toBe(false)
@@ -461,7 +461,7 @@ describe('renderCheckLedger', () => {
     const lines = renderCheckLedger(ledger)
     const section = lines.find((line) => line.includes('Integrity')) as string
 
-    expect(section).toContain('1/2 checks green')
+    expect(section).toContain('1/2 applicable checks green')
     expect(section).toContain('1/2 network results verified')
     expect(
       lines.filter((line) => line.includes('codehash-immutables'))
@@ -1035,14 +1035,33 @@ describe('a check that graded nothing beside one that graded', () => {
     return ledger
   }
 
-  it('does not close green while one of the checks graded nothing', () => {
-    const verdict = renderCheckLedger(mixed()).at(-1) as string
+  // The closing line and the section line four rows above it are read as one
+  // sentence, so they must divide by the same thing. This pins the pair, not
+  // either number alone: a change that teaches one of them to discount a gate
+  // that stood down and not the other puts two different counts of "a check"
+  // on one screen, which is the confusion the whole not-applicable verdict
+  // exists to remove.
+  it('closes on the same denominator the section line printed', () => {
+    const lines = renderCheckLedger(mixed())
+    const section = lines.find((line) => line.includes('Integrity')) as string
+    const verdict = lines.at(-1) as string
 
-    // The section line above it reads `1/2 checks green`, so a closing line
-    // claiming every check is green contradicts the report it closes.
-    expect(verdict).not.toContain('ALL CHECKS GREEN')
-    expect(verdict).not.toContain(GREEN)
-    expect(verdict).toContain('1/2 checks green')
+    expect(section).toContain('1/1 applicable checks green')
+    expect(section).toContain('1 gate not applicable')
+    expect(verdict).toContain('1/1 applicable checks')
+    // The word a run with a real shortfall earns, and this run has none.
+    expect(verdict).not.toContain('COVERAGE INCOMPLETE')
+  })
+
+  // Paired absence: the same shape, but the gate graded nothing because the
+  // network never answered. That is a hole, and it must still read as one.
+  it('still reports a shortfall when a check graded nothing with no answer', () => {
+    const ledger = ledgerOf(['arbitrum'], [CODEHASH, AUTHORITY])
+    recordCheck(ledger, result({ network: 'arbitrum' }))
+
+    const verdict = renderCheckLedger(ledger).at(-1) as string
+
+    expect(verdict).not.toContain('ALL APPLICABLE CHECKS GREEN')
   })
 
   it('expands the check that graded nothing rather than suppressing it', () => {
@@ -1054,6 +1073,24 @@ describe('a check that graded nothing beside one that graded', () => {
     // Named, but never with a count over an empty set.
     expect(authority[0]).not.toMatch(/\d+\/\d+/)
     expect(authority[0]).toContain('nothing to grade')
+  })
+
+  // The header line says a gate stood down; only the row under it says why,
+  // and the why is the thing a signer opened the report to read. Suppressing
+  // this row is what made "not applicable" and "not run" indistinguishable on
+  // screen even once the ledger told them apart.
+  it('prints the reason the gate stood down, not just that it did', () => {
+    const row = renderCheckLedger(mixed()).find((line) =>
+      line.includes('no proposal was graded on arbitrum')
+    ) as string
+
+    expect(row).toBeDefined()
+    expect(row).toContain('NOT APPLICABLE')
+    expect(row).toContain('no action')
+    // Paired absence: a row that needs nothing must not carry the vocabulary
+    // of one that does.
+    expect(row).not.toContain('UNVERIFIED')
+    expect(row).not.toContain('do not sign')
   })
 
   it('still closes green when every check graded something', () => {

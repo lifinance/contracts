@@ -13,6 +13,7 @@
  */
 
 import type { ICheckDefinition, ICheckResult } from './check-ledger'
+import type { ICodehashSignGate } from './codehash-sign-gate'
 import {
   CHECK_TIMELOCK_DELAY,
   INTEGRITY_CHECKS_ALWAYS,
@@ -235,8 +236,14 @@ export const ORDERING_HOLDS =
   'no installed version behind what origin/main declares'
 export const EVERY_ELEMENT_COMPARED =
   'every installed element compared against origin/main'
+/** Why the delay gate stood down, as the signer reads it under "observed". */
+export const NO_TIMELOCK_SCHEDULE =
+  'this proposal carries no timelock schedule, so there is no delay to compare'
 export const NOTHING_TO_COMPARE =
   'a cut that installs nothing requiring a version comparison'
+/** Why this gate stood down, as the signer reads it under "observed". */
+export const NOTHING_INSTALLED_TO_COMPARE =
+  'this proposal installs no facet code, so there is no version to compare'
 
 /**
  * How each graded status reaches the ledger.
@@ -278,12 +285,13 @@ const STATUS_MAPPING: Readonly<Record<TargetStateStatus, IStatusMapping>> = {
   },
   // The removal branch returns before the anchor is read at all, so there is no
   // claim on `origin/main` to make — the same shape as `no-diamond-cut` below.
-  removal: { status: 'pass', anchor: 'A-LOCAL', expected: NOTHING_TO_COMPARE },
-  // No cut to grade. A pass on `A-LOCAL` rather than a skipped row: the
-  // calldata was read and found to install nothing, which is a verified fact
-  // about this proposal, not an absence of evidence.
+  removal: {
+    status: 'not-applicable',
+    anchor: 'A-LOCAL',
+    expected: NOTHING_TO_COMPARE,
+  },
   'no-diamond-cut': {
-    status: 'pass',
+    status: 'not-applicable',
     anchor: 'A-LOCAL',
     expected: NOTHING_TO_COMPARE,
   },
@@ -342,6 +350,18 @@ const STATUS_MAPPING: Readonly<Record<TargetStateStatus, IStatusMapping>> = {
  * read this order at all — `STATUSES_CLEARED_TO_PROCEED` grades each finding
  * separately.
  */
+/**
+ * The statuses that mean this row compared nothing.
+ *
+ * A set rather than a `!== 'pass'` test: `not-applicable` is not a finding a
+ * signer has to read, and listing it beside `pass` is what keeps it out of the
+ * `failing` list that drives `actual` and `detail`.
+ */
+const GRADED_NOTHING: ReadonlySet<ICheckResult['status']> = new Set([
+  'pass',
+  'not-applicable',
+])
+
 const SEVERITY: readonly ICheckResult['status'][] = [
   'fail',
   'error',
@@ -392,7 +412,11 @@ export const targetStateCheckResult = (
         'no finding was produced for this proposal, so no element was compared against the pinned target state',
     }
 
-  let status: ICheckResult['status'] = 'pass'
+  // Seeded at the weakest status in `SEVERITY`, not at `pass`: `worstOf` keeps
+  // the lower-ranked side, so a `pass` seed would outrank every finding that
+  // maps to `not-applicable` and a cut installing nothing would reduce to a
+  // green row claiming a comparison that never happened.
+  let status: ICheckResult['status'] = 'not-applicable'
   // Replaced by the first finding, since every mapped status outranks the seed.
   // `A-UNRESOLVED` rather than `A-MAIN` so the unreachable case still describes
   // a row nothing decided.
@@ -421,7 +445,7 @@ export const targetStateCheckResult = (
   }
 
   const failing = verdict.findings.filter(
-    (finding) => STATUS_MAPPING[finding.status].status !== 'pass'
+    (finding) => !GRADED_NOTHING.has(STATUS_MAPPING[finding.status].status)
   )
 
   return {
@@ -429,9 +453,15 @@ export const targetStateCheckResult = (
     network,
     status,
     expected,
-    actual: (failing.length ? failing : verdict.findings)
-      .map(describe)
-      .join('; '),
+    // Every finding said "nothing to compare", so the row is the reason rather
+    // than a list of element names: `actual` is what a signer reads to learn
+    // why a gate stood down, and `FacetX: removal` does not say it.
+    actual:
+      status === 'not-applicable'
+        ? NOTHING_INSTALLED_TO_COMPARE
+        : (failing.length ? failing : verdict.findings)
+            .map(describe)
+            .join('; '),
     anchor,
     ...(failing.length && detail ? { detail } : {}),
   }
@@ -472,6 +502,92 @@ export const worstResultPerCheck = (
   return [...worst.values()]
 }
 
+export const EVERY_TARGET_ATTESTED =
+  'every address this cut installs carrying bytecode an attested build produces'
+/** Why this gate stood down, as the signer reads it under "observed". */
+export const NOTHING_INSTALLED_TO_HASH =
+  'this proposal installs no facet code, so there is no bytecode to compare'
+
+/**
+ * How the codehash gate reaches the ledger.
+ *
+ * Reporting only. The refusal this gate drives stays in
+ * `assertCodehashSignGateAllowsSigning`, which every sign path funnels through;
+ * this row exists so the gate is accounted for in the same book as the other
+ * ten, and a bug here can make the report wrong but can never make an unsigned
+ * proposal signable.
+ *
+ * `madeNoClaim` is two different facts and is split on `unopened`, never on the
+ * summary sentence: a payload read to the end that contains no cut has nothing
+ * to check, and a payload whose frames would not open has not been checked. The
+ * second is the case a proposer can manufacture, so it errors on
+ * `A-UNRESOLVED` and blocks — the same input Gate G already refuses on, which
+ * is what makes this row a second lock on that door rather than a new one.
+ *
+ * @param gate - The evaluated gate for this proposal.
+ * @param network - The network the gate judged against.
+ * @returns The row to hand to `recordCheck`.
+ */
+export const codehashCheckResult = (
+  gate: ICodehashSignGate,
+  network: string
+): ICheckResult => {
+  if (!gate.evaluated)
+    return unresolved(
+      CODEHASH_CHECK_ID,
+      network,
+      EVERY_TARGET_ATTESTED,
+      gate.summary || 'the codehash gate produced no verdict for this proposal'
+    )
+
+  if (gate.madeNoClaim)
+    return gate.unopened && gate.unopened.length > 0
+      ? unresolved(
+          CODEHASH_CHECK_ID,
+          network,
+          EVERY_TARGET_ATTESTED,
+          `this decoder could not open ${gate.unopened.join(
+            ', '
+          )}, so whether this proposal installs code is unknown`
+        )
+      : {
+          checkId: CODEHASH_CHECK_ID,
+          network,
+          status: 'not-applicable',
+          expected: EVERY_TARGET_ATTESTED,
+          actual: NOTHING_INSTALLED_TO_HASH,
+          anchor: 'A-LOCAL',
+        }
+
+  if (gate.blocksSigning)
+    return {
+      checkId: CODEHASH_CHECK_ID,
+      network,
+      // A refusal is not a codehash disagreement — it is the cut being
+      // malformed, or the gate being unable to judge it. Only a target the
+      // gate did compare and found different is a mismatch.
+      status: gate.refusals.length > 0 ? 'error' : 'fail',
+      expected: EVERY_TARGET_ATTESTED,
+      actual: gate.refusals.length
+        ? gate.refusals.join(' ')
+        : gate.targets
+            .filter((target) => target.verdict !== 'MATCH')
+            .map((target) => `${target.address}: ${target.verdict}`)
+            .join('; '),
+      anchor: gate.refusals.length > 0 ? 'A-UNRESOLVED' : 'A-AUDIT',
+      ...(gate.summary ? { detail: gate.summary } : {}),
+    }
+
+  return {
+    checkId: CODEHASH_CHECK_ID,
+    network,
+    status: 'pass',
+    expected: EVERY_TARGET_ATTESTED,
+    actual: `${gate.targets.length} installed address(es) match an attested build`,
+    anchor: 'A-AUDIT',
+  }
+}
+
 export const EXECUTABILITY_CHECK_ID = 'executability'
 
 export const EXECUTABILITY_CHECK: ICheckDefinition = {
@@ -499,13 +615,12 @@ export const RPC_QUORUM_CHECK: ICheckDefinition = {
 export const CODEHASH_CHECK_ID = 'codehash'
 
 /**
- * Named here but deliberately absent from `CONFIRM_CHECK_DEFINITIONS`.
+ * The eleventh registered gate.
  *
- * The codehash gate refuses inside `confirm-integrity-asserts` rather than
- * through a ledger row, so registering it would add a coverage denominator
- * nothing answers for and block every run. It still needs a letter and a
- * subject: a harness that cannot run it prints it as not-applicable, and a row
- * with no definition renders as `Gate undefined`.
+ * Its refusal stays in `assertCodehashSignGateAllowsSigning`, which every sign
+ * path funnels through; the ledger row reports that verdict rather than
+ * deciding it. Registered all the same, so the roster a signer's footer counts
+ * is the one book every gate is accounted for in.
  */
 export const CODEHASH_CHECK: ICheckDefinition = {
   checkId: CODEHASH_CHECK_ID,
@@ -552,6 +667,7 @@ export const CONFIRM_CHECK_DEFINITIONS: readonly ICheckDefinition[] = [
       throw new Error(`CONFIRM_CHECK_DEFINITIONS: no definition for ${checkId}`)
     return definition
   }),
+  CODEHASH_CHECK,
   STORAGE_AUTHORITY_CHECK,
   TARGET_STATE_CHECK,
   EXECUTABILITY_CHECK,
@@ -567,7 +683,6 @@ export const CONFIRM_CHECK_DEFINITIONS: readonly ICheckDefinition[] = [
  */
 export const ALL_GATE_DEFINITIONS: readonly ICheckDefinition[] = [
   ...CONFIRM_CHECK_DEFINITIONS,
-  CODEHASH_CHECK,
 ]
 
 /**
@@ -722,6 +837,16 @@ export interface IProposalCheckVerdicts {
   /** Absent when no quorum read was made. */
   rpcQuorum: IRpcQuorumVerdict | undefined
   /**
+   * The codehash gate's verdict for this proposal.
+   *
+   * Required, not optional: the gate is evaluated for every proposal and the
+   * caller starts each one at `blockingUnevaluatedGate()`, so there is no path
+   * on which it is legitimately absent — and an optional field would let a
+   * caller that forgot to pass it produce a report with a silent hole where the
+   * eleventh gate should be.
+   */
+  codehash: ICodehashSignGate
+  /**
    * What the run read at each declared storage authority, and where each
    * expectation came from.
    *
@@ -774,8 +899,8 @@ const unresolved = (
  * run-level ledger registered it and a registered check with no row is counted
  * missing and blocks. The only such check is the timelock delay, and the reason
  * it did not run is that the calldata was read and found not to be a schedule —
- * a verified fact about this proposal, so a pass on `A-LOCAL`, the same way
- * `no-diamond-cut` is a pass rather than an absence.
+ * so the row is `not-applicable` with that reason on it. Not a pass: nothing
+ * was compared, and a pass would put the row in the verified numerator.
  */
 const integrityResults = (
   run: IIntegrityAssertRun | undefined,
@@ -811,9 +936,9 @@ const integrityResults = (
       return {
         checkId,
         network,
-        status: 'pass' as const,
+        status: 'not-applicable' as const,
         expected: "a schedule's delay is at least the timelock's live minimum",
-        actual: 'this proposal carries no timelock schedule',
+        actual: NO_TIMELOCK_SCHEDULE,
         anchor: 'A-LOCAL' as const,
       }
 
@@ -847,6 +972,7 @@ export const proposalCheckResults = (
 
   return [
     ...integrityResults(verdicts.integrity, network),
+    codehashCheckResult(verdicts.codehash, network),
     verdicts.storageAuthority
       ? verdicts.storageAuthority.scopeUnreadable?.length
         ? unresolved(
