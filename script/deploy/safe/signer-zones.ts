@@ -32,19 +32,6 @@ import { highlightHashRuns } from './ledger-flex-preview'
 import type { IBucketedResult, ITodo } from './signer-view'
 
 /**
- * The same gate, for the collapsed PASSED run.
- *
- * Dropped to `A Safe address` because that run joins its entries with the same
- * middle dot `gateLabel` puts between the letter and the subject, and a reader
- * cannot tell which dots separate gates from which sit inside one.
- *
- * @param definition - The gate being named.
- * @returns `X Subject`.
- */
-const passedRunLabel = (definition: ICheckDefinition): string =>
-  `${definition.gate} ${definition.title}`
-
-/**
  * Where each check is written up, by `checkId`.
  *
  * Empty, and the rows render without a link until it is filled: a slot rather
@@ -178,13 +165,6 @@ export const signerChecks = (input: {
     definition: input.definitions.get(result.checkId),
     ...(CHECK_DOCS.get(result.checkId)
       ? { docUrl: CHECK_DOCS.get(result.checkId) }
-      : {}),
-    ...(input.definitions.has(result.checkId)
-      ? {
-          shortTitle: passedRunLabel(
-            input.definitions.get(result.checkId) as ICheckDefinition
-          ),
-        }
       : {}),
     ...(input.notes?.get(result.checkId)
       ? { notes: input.notes.get(result.checkId) }

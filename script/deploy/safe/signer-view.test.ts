@@ -119,19 +119,17 @@ describe('bucketOf', () => {
 })
 
 describe('renderCheckGroups', () => {
-  // The passed check carries a note: a passed gate whose whole content is on
-  // its manifest row prints nothing here, so without one the PASSED bucket is
-  // absent and the two tests below would be asserting against an empty section.
   const mixed: IBucketedResult[] = [
     entry('INT-SAFE-ADDRESS', 'fail'),
     entry('rpc-quorum', 'error'),
-    entry('INT-TARGET', 'pass', { notes: ['      read at refs/heads/main'] }),
+    entry('INT-TARGET', 'pass'),
     entry('codehash', 'pass', { notApplicable: 'no diamondCut here' }),
   ]
 
-  it('gives every bucket its own glyph, so none is told apart by wording alone', () => {
+  it('gives every bucket it prints its own glyph, so none is told apart by wording alone', () => {
     const plain = renderCheckGroups(mixed).map(stripAnsi).join('\n')
-    const glyphs = ['⛔', '?', '✅', '·']
+    // No tick: the passed bucket is not printed here at all — see below.
+    const glyphs = ['⛔', '?', '·']
 
     for (const glyph of glyphs) expect(plain).toContain(glyph)
     expect(new Set(glyphs).size).toBe(glyphs.length)
@@ -155,65 +153,52 @@ describe('renderCheckGroups', () => {
     const at = (needle: string): number => plain.indexOf(needle)
 
     expect(at('THE PROPOSAL IS WRONG')).toBeLessThan(at('COULD NOT BE CHECKED'))
-    expect(at('COULD NOT BE CHECKED')).toBeLessThan(at('PASSED'))
-    expect(at('PASSED')).toBeLessThan(at('NOT APPLICABLE'))
+    expect(at('COULD NOT BE CHECKED')).toBeLessThan(at('NOT APPLICABLE'))
   })
 
-  // The gate manifest above states every gate's letter, subject, verdict and
-  // write-up, so a passed gate repeated here is the same roster read twice.
-  // What it cannot carry is a note: per-check evidence with no column.
-  it('gives a passed gate a line only for what the manifest cannot carry', () => {
-    const noted = entry('INT-TARGET', 'pass', {
-      notes: ['      read at refs/heads/main'],
-    })
-    const bare = entry('INT-SAFE-TX-HASH', 'pass')
-
-    const withNote = renderCheckGroups([noted]).map(stripAnsi).join('\n')
-    const withoutNote = renderCheckGroups([bare]).map(stripAnsi).join('\n')
-
-    expect(withNote).toContain('read at refs/heads/main')
-    expect(withNote).toContain('title for INT-TARGET')
-    // Paired with the present above: the bucket is gone entirely, not merely
-    // rendered without its note.
-    expect(withoutNote).not.toContain('PASSED')
-    expect(withoutNote).not.toContain('title for INT-SAFE-TX-HASH')
-  })
-
-  it('does not repeat a passed gate write-up the manifest already carries', () => {
-    const plain = renderCheckGroups([
+  // A passed gate asks nothing of the signer and the manifest above already
+  // states its verdict and its write-up, so this section says nothing about it
+  // at all — not its title, not its link, and not the evidence behind a verdict
+  // nobody is being asked to weigh.
+  it('says nothing at all about a gate that passed', () => {
+    const lines = renderCheckGroups([
       entry('INT-TARGET', 'pass', {
         docUrl: 'https://example.invalid/gate-e',
-        notes: ['      read at refs/heads/main'],
+        notes: ['      Simulation: SUCCESSFUL — 2 of 2 calls would execute'],
+      }),
+    ])
+
+    expect(lines).toEqual([])
+  })
+
+  // The other direction, which is what makes the silence above safe: the same
+  // note on a gate the signer must act on still reaches them.
+  it('keeps the evidence on a gate that is not passed', () => {
+    const plain = renderCheckGroups([
+      entry('INT-TARGET', 'needs-ack', {
+        definition: definition(
+          'INT-TARGET',
+          'title for INT-TARGET',
+          'semantic'
+        ),
+        docUrl: 'https://example.invalid/gate-e',
+        notes: ['      Simulation: SUCCESSFUL — 2 of 2 calls would execute'],
       }),
     ])
       .map(stripAnsi)
       .join('\n')
 
-    expect(plain).not.toContain('https://example.invalid/gate-e')
-    // Paired with a present, so this cannot pass on a gate that rendered no
-    // line at all.
-    expect(plain).toContain('read at refs/heads/main')
-  })
-
-  it('keeps the full title for a check with no short label', () => {
-    const plain = renderCheckGroups([
-      entry('codehash', 'pass', { notes: ['      nothing to report'] }),
-    ])
-      .map(stripAnsi)
-      .join('\n')
-
-    expect(plain).toContain('title for codehash')
+    expect(plain).toContain('2 of 2 calls would execute')
+    expect(plain).toContain('https://example.invalid/gate-e')
   })
 
   it('omits a bucket nothing landed in', () => {
-    const plain = renderCheckGroups([
-      entry('INT-TARGET', 'pass', { notes: ['      read at refs/heads/main'] }),
-    ])
+    const plain = renderCheckGroups([entry('INT-SAFE-ADDRESS', 'fail')])
       .map(stripAnsi)
       .join('\n')
 
-    expect(plain).toContain('PASSED')
-    expect(plain).not.toContain('THE PROPOSAL IS WRONG')
+    expect(plain).toContain('THE PROPOSAL IS WRONG')
+    expect(plain).not.toContain('COULD NOT BE CHECKED')
     expect(plain).not.toContain('NOT APPLICABLE')
   })
 
@@ -231,14 +216,13 @@ describe('renderCheckGroups', () => {
     expect(plain).not.toContain('observed')
   })
 
-  it('keeps a collapsed pass run inside the view width', () => {
+  it('keeps a long run of printed checks inside the view width', () => {
     const many = Array.from({ length: 12 }, (_, i) =>
-      entry(`CHECK-${i}`, 'pass', { notes: [`      note for check ${i}`] })
+      entry(`CHECK-${i}`, 'error', { notes: [`      note for check ${i}`] })
     )
     const lines = renderCheckGroups(many).map(stripAnsi)
 
-    // Without this the loop below runs over an empty list: a passed gate with
-    // no note prints nothing at all now.
+    // Without this the loop below runs over an empty list.
     expect(lines.length).toBeGreaterThan(12)
     for (const line of lines)
       expect(line.length).toBeLessThanOrEqual(VIEW_WIDTH)
@@ -542,19 +526,6 @@ describe('a check with a write-up to point at', () => {
 })
 
 describe('check notes', () => {
-  it('keeps a passed check’s note under its own line', () => {
-    const plain = renderCheckGroups([
-      entry('target-state', 'pass', {
-        notes: ['    Expected state:  read from origin/main'],
-      }),
-    ])
-      .map(stripAnsi)
-      .join('\n')
-
-    expect(plain).toContain('title for target-state')
-    expect(plain).toContain('Expected state:  read from origin/main')
-  })
-
   it('prints a note under the check it belongs to', () => {
     const plain = renderCheckGroups([
       entry('target-state', 'fail', { notes: ['    read from origin/main'] }),
