@@ -80,9 +80,15 @@ const linesFor = (overrides: Partial<ISafeTxDetailInput>): string[] => {
  * which side of it a name landed on.
  */
 const targetLine = (lines: string[]): string => {
-  const index = lines.findIndex((line) => line.trimStart().startsWith('— '))
+  const opens = (line: string): boolean => line.trimStart().startsWith('— ')
+  const index = lines.findIndex(opens)
   if (index < 0) throw new Error(`no target line in:\n${lines.join('\n')}`)
-  return lines.slice(index, index + 2).join('\n')
+  // Bounded by the next line that opens its own fragment — the calldata
+  // footnote — rather than by a line count. How many lines the target takes is
+  // decided by measured width, so a fixed slice either drops a continuation or
+  // swallows the footnote as soon as the view's width changes.
+  const next = lines.findIndex((line, at) => at > index && opens(line))
+  return lines.slice(index, next < 0 ? undefined : next).join('\n')
 }
 
 /**
@@ -822,11 +828,25 @@ describe('the zone renders as one block, byte for byte', () => {
         })
       )
     ).toBe(
-      [
-        '      \u2014 \u001b[32mCall\u001b[0m to \u001b[32m0x11f1022cA6AdEF6400e5677528a80d49a069C00c\u001b[0m \u00b7 value \u001b[32m0\u001b[0m',
-        '        \u001b[33m(LiFiDiamond)\u001b[0m \u00b7 \u001b[36mhttps://etherscan.io/address/0x11\u001b[0m',
-      ].join('\n')
+      '      \u2014 \u001b[32mCall\u001b[0m to \u001b[32m0x11f1022cA6AdEF6400e5677528a80d49a069C00c\u001b[0m \u00b7 value \u001b[32m0\u001b[0m \u00b7 \u001b[33m(LiFiDiamond)\u001b[0m \u00b7 \u001b[36mhttps://etherscan.io/address/0x11\u001b[0m'
     )
+  })
+
+  it('breaks to a continuation line rather than folding a URL in two', () => {
+    // The one fold this block must never make. Paired with the case above,
+    // which fits on one line: without a fixture that overflows, widening the
+    // view silently retires the whole continuation path rather than covering
+    // it.
+    const url = `https://etherscan.io/address/${'0'.repeat(60)}`
+    const lines = targetLine(
+      linesFor({
+        toTargetName: `(${'Very'.repeat(10)}LongDiamondName)`,
+        explorerUrlFor: () => url,
+      })
+    ).split('\n')
+
+    expect(lines.length).toBeGreaterThan(1)
+    expect(lines.some((line) => line.includes(url))).toBe(true)
   })
 
   it('renders the parked-cleanup block in its existing shape', () => {

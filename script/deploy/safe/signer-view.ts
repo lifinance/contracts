@@ -22,8 +22,17 @@ const GREEN = `${ESC}[32m`
 const YELLOW = `${ESC}[33m`
 const BLUE = `${ESC}[36m`
 
-/** Terminal columns the zones are drawn to. */
-export const VIEW_WIDTH = 76
+/**
+ * Terminal columns the zones are drawn to.
+ *
+ * Wide rather than the 76 a terminal is guaranteed to have, because the fold
+ * this view fights is not the terminal's — it is this width's. At 76 a claim
+ * sentence, a provenance line and an explorer URL each wrapped onto a second
+ * line, and the rules separating the three zones were shorter than the text
+ * they were meant to divide. The one thing the width must never do is fold an
+ * address or a URL mid-token, and every folding path here places tokens whole.
+ */
+export const VIEW_WIDTH = 140
 
 /**
  * What a signer is being asked to do about a result.

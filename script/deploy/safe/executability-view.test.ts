@@ -527,7 +527,7 @@ describe('colour survives a wrap', () => {
             findings: [
               finding({
                 detail:
-                  'replaces 0xa1f1ce43 with 0xAd3f1634a917924cBb54A0F76e43ca035D2B6BCd, which already serves it on chain, so the cut is a no-op LibDiamond rejects',
+                  'replaces 0xa1f1ce43 with 0xAd3f1634a917924cBb54A0F76e43ca035D2B6BCd, which already serves it on chain, so the cut is a no-op LibDiamond rejects; the same facet is named again at cuts[1] with action Add for 0x1794958f, a selector LiFiDiamond already routes to 0x18C85B940c29ECC3c210Ea40a5B6d91F5aeE2803, so that cut reverts for the opposite reason',
               }),
             ],
           }),
@@ -555,15 +555,19 @@ describe('colour survives a wrap', () => {
     for (const line of continuations) expect(opens(line)).toBe(true)
   })
 
-  it('colours the continuation of the dim sender line too', () => {
+  it('paints the dim sender line, however many lines it takes', () => {
+    // Not asserted on a continuation any more: the sender line is built from
+    // two bounded literals and a shortened address, so at this view's width it
+    // cannot wrap and a test pinned to its second line would pin a shape
+    // production can no longer produce. The continuation property itself is
+    // held by the finding above, which shares `paint` and `wrap` with this.
     const lines = wrapping()
-    const sender = lines.findIndex((line) =>
+    const painted = lines.filter((line) =>
       stripAnsi(line).includes('sender not recorded')
     )
-    const next = lines[sender + 1] ?? ''
 
-    expect(stripAnsi(next)).toContain('alone')
-    expect(next).toContain(`${ESC}[2m`)
+    expect(painted.length).toBe(1)
+    for (const line of painted) expect(line).toContain(`${ESC}[2m`)
   })
 
   it('still leaves no reset on a line that was never coloured', () => {
