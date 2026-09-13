@@ -28,10 +28,14 @@ const YELLOW = `${ESC}[33m`
  */
 const VALUE_COLUMN = 8 + 'expected'.length + 2
 
-const definition = (checkId: string, title: string): ICheckDefinition => ({
+const definition = (
+  checkId: string,
+  title: string,
+  checkClass: ICheckDefinition['checkClass'] = 'integrity'
+): ICheckDefinition => ({
   checkId,
   section: 'section',
-  checkClass: 'integrity',
+  checkClass,
   gate: 'X',
   title,
 })
@@ -62,24 +66,52 @@ const entry = (
 })
 
 describe('bucketOf', () => {
+  const at = (
+    status: string,
+    checkClass: ICheckDefinition['checkClass'] = 'integrity',
+    notApplicable?: string
+  ): IBucketedResult => ({
+    definition: definition('some-check', 'title', checkClass),
+    result: result('some-check', status),
+    ...(notApplicable ? { notApplicable } : {}),
+  })
+
   it('separates a proposal that is wrong from a check that could not run', () => {
-    expect(bucketOf('fail')).toBe('wrong')
-    expect(bucketOf('error')).toBe('unchecked')
+    expect(bucketOf(at('fail'))).toBe('wrong')
+    expect(bucketOf(at('error'))).toBe('unchecked')
   })
 
   it('reads an unrecognised status as unchecked, never as passed', () => {
-    expect(bucketOf('constructor')).toBe('unchecked')
-    expect(bucketOf('toString')).toBe('unchecked')
-    expect(bucketOf('')).toBe('unchecked')
+    expect(bucketOf(at('constructor'))).toBe('unchecked')
+    expect(bucketOf(at('toString'))).toBe('unchecked')
+    expect(bucketOf(at(''))).toBe('unchecked')
   })
 
   // Applicability is a property of the proposal, not of the result, so it has
   // to override every status — including a `pass` recorded by a check that had
   // nothing to look at.
   it('puts a check with nothing to do under not-applicable, whatever its status', () => {
-    expect(bucketOf('pass', true)).toBe('n/a')
-    expect(bucketOf('fail', true)).toBe('n/a')
-    expect(bucketOf('error', true)).toBe('n/a')
+    expect(bucketOf(at('pass', 'integrity', 'nothing here'))).toBe('n/a')
+    expect(bucketOf(at('fail', 'integrity', 'nothing here'))).toBe('n/a')
+    expect(bucketOf(at('error', 'integrity', 'nothing here'))).toBe('n/a')
+  })
+
+  // The heading has to name what the run will do. `summariseLedger` sorts a
+  // semantic mismatch into `requiresAcknowledgement` and offers Sign, so
+  // printing it under "the proposal is wrong — do not sign" told the signer the
+  // opposite of what happened next. Observed on seven of eleven rehearsal
+  // proposals, all of them gate I.
+  it('puts an acknowledgeable mismatch under ack, not under wrong', () => {
+    expect(bucketOf(at('fail', 'semantic'))).toBe('ack')
+    expect(bucketOf(at('needs-ack', 'semantic'))).toBe('ack')
+  })
+
+  // The other direction, which fails dangerously: an integrity check has no
+  // acknowledgement path at all, so a row that asked to be acknowledged would
+  // be inviting a signature the run will not take.
+  it('keeps an integrity mismatch under wrong, however it is graded', () => {
+    expect(bucketOf(at('fail', 'integrity'))).toBe('wrong')
+    expect(bucketOf(at('needs-ack', 'integrity'))).toBe('wrong')
   })
 })
 
@@ -367,7 +399,14 @@ describe('a value that disagrees with its expectation', () => {
   })
 
   it('marks an acknowledgeable mismatch in its own colour, never in red', () => {
-    const line = lineWith(entry('target-state', 'needs-ack'), 'observed')
+    // Semantic deliberately: an acknowledgeable mismatch is one the run will
+    // let a signer acknowledge, and only a semantic check can be one.
+    const line = lineWith(
+      entry('target-state', 'needs-ack', {
+        definition: definition('target-state', 'title', 'semantic'),
+      }),
+      'observed'
+    )
 
     expect(line).toContain(`${YELLOW}observed value`)
     expect(line).not.toContain(RED)

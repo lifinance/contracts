@@ -120,7 +120,9 @@ describe('integrityResults', () => {
     const { results } = integrityResults(undefined)
 
     expect(results).toHaveLength(1)
-    expect(bucketOf(results[0]?.status ?? '')).toBe('unchecked')
+    expect(
+      bucketOf({ result: results[0] as ICheckResult, definition: undefined })
+    ).toBe('unchecked')
   })
 
   it('calls a check that was registered and answered nothing unverified', () => {

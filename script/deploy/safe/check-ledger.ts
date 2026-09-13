@@ -324,6 +324,39 @@ const survivesIntegrityRefusal = (
   definition.undecidableIsAcknowledgeable === true &&
   ACKNOWLEDGEABLE_REPORTING_ANCHORS.has(result.anchor)
 
+/**
+ * Whether a recorded non-pass result has an acknowledgement path — the same
+ * question `summariseLedger` answers when it sorts a result into `blocking` or
+ * `requiresAcknowledgement`.
+ *
+ * Exported so a renderer can put a row under the heading the run will actually
+ * act on, rather than deciding from `status` alone. Deciding from status alone
+ * put a **semantic `fail`** — acknowledgeable, and the common case, since a
+ * reverting simulation grades that way — under "the proposal is wrong, do not
+ * sign", and the run then offered Sign. A signer who is told not to sign and is
+ * immediately offered the choice learns to read past the heading.
+ *
+ * Triage relaxation is deliberately not consulted: a relaxed result also
+ * proceeds, but it is a property of the run's profile rather than of the check,
+ * and a renderer showing a row as acknowledgeable because a profile was passed
+ * would be describing the invocation, not the proposal.
+ *
+ * @param definition - The check's registration, or `undefined` when the ledger
+ * does not know it — which is never vouched for.
+ * @param result - The recorded result, after `recordCheck` coerced its status.
+ * @returns True when the run would offer an acknowledgement for this result.
+ */
+export const isAcknowledgeable = (
+  definition: ICheckDefinition | undefined,
+  result: Pick<ICheckResult, 'status' | 'anchor'>
+): boolean => {
+  if (result.status !== 'fail' && result.status !== 'needs-ack') return false
+  if (!definition) return false
+  if (definition.checkClass !== 'integrity') return true
+
+  return survivesIntegrityRefusal(definition, result)
+}
+
 function coerceStatus(
   result: ICheckResult,
   definition: ICheckDefinition
