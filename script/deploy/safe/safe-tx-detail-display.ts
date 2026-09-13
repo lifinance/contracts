@@ -55,7 +55,7 @@ const RESET = '\u001b[0m'
 const EMPTY = trustedMarkup('')
 
 /** The signer view's width. Imported by value to keep this module standalone. */
-const VIEW_WIDTH = 76
+const VIEW_WIDTH = 140
 
 /**
  * How wide a rendered fragment is on screen.
@@ -425,8 +425,7 @@ export const signatureTally = (
 export const CLAIM_QUESTION: readonly string[] = [
   '',
   `  ${BOLD}DO THESE TWO DESCRIBE THE SAME CHANGE?${RESET}`,
-  "      If not, stop. Nothing below this line checks the proposer's words",
-  '      against the payload — only you can.',
+  "      If not, stop. Nothing below this line checks the proposer's words against the payload — only you can.",
 ]
 
 /**

@@ -403,9 +403,18 @@ describe('formatClaimLines — untrusted text cannot forge the prompt', () => {
     )
     const text = plain(lines)
 
-    // Reason, the attribution folded across two, and the ticket — the forged
-    // separators added none of their own.
-    expect(lines).toHaveLength(4)
+    // Against a control carrying the same words with the separators already
+    // spaces: the claim is that the separators added no lines of their own, and
+    // a literal count states it only for whatever width the view happens to be
+    // at — the two folded across two lines at 76 and fold into one at 140.
+    const control = formatClaimLines(
+      buildProvenance({
+        proposerHandle: forged.split(LSEP).join(' '),
+        dirtyTreeScoped: ['src/Facets/Evil.sol'],
+      })
+    )
+
+    expect(lines).toHaveLength(control.length)
     expect(text).not.toContain(LSEP)
     // The forged text stays inert words on the line it was injected into, and
     // the real working-tree verdict is the one the module computed.

@@ -45,7 +45,7 @@ const sanitizeField = (value: unknown): string =>
 /** Indent of every line inside the claim block. */
 const CLAIM_INDENT = '      '
 /** The signer view's width; the block is folded to it. */
-const CLAIM_WIDTH = 76
+const CLAIM_WIDTH = 140
 
 /**
  * Folds one claim line to the view's width.

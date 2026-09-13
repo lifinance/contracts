@@ -863,7 +863,8 @@ describe('a pre-formatted note, folded into the view', () => {
     // A single span folds into per-word spans, which is the difference this
     // test needs in order to fail when escapes are counted as columns.
     const words =
-      'alpha beta gamma delta epsilon zeta eta theta iota kappa lambda'
+      'alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu nu ' +
+      'xi omicron pi rho sigma tau upsilon phi chi psi omega digamma'
     const painted = `        ${RED_CODE}${words}${RESET_CODE}`
 
     // The preconditions, asserted rather than assumed: the line fits the view
