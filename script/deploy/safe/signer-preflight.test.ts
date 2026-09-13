@@ -220,3 +220,59 @@ describe('PREFLIGHT_WIDTH', () => {
     expect(PREFLIGHT_WIDTH).toBe(76)
   })
 })
+
+describe('probing several networks', () => {
+  /**
+   * Deps whose probe takes a per-network delay. `answers` overrides what an
+   * endpoint claims without replacing the timing — an override that replaced
+   * `chainIdOf` would remove the delays and leave the ordering assertion below
+   * unable to tell input order from completion order.
+   */
+  const slowDeps = (
+    delays: Record<string, number>,
+    answers: Record<string, number> = {}
+  ): IPreflightDeps & { peak: { value: number } } => {
+    let inFlight = 0
+    const peak = { value: 0 }
+    return {
+      ...deps({
+        chainIdOf: async (network) => {
+          inFlight += 1
+          peak.value = Math.max(peak.value, inFlight)
+          await new Promise((resolve) =>
+            setTimeout(resolve, delays[network] ?? 0)
+          )
+          inFlight -= 1
+          return answers[network] ?? (network === 'arbitrum' ? 42161 : 137)
+        },
+      }),
+      peak,
+    }
+  }
+
+  // Serially, an offline laptop costs the whole timeout budget per network
+  // before the first line prints.
+  it('probes them together rather than one after another', async () => {
+    const probe = slowDeps({ arbitrum: 20, polygon: 20, optimism: 20 })
+
+    await networkPreflight(['arbitrum', 'polygon', 'optimism'], probe)
+
+    expect(probe.peak.value).toBe(3)
+  })
+
+  // Whichever endpoint answers first must not decide what the signer reads
+  // first: the order is the one they asked for. Both are refused for the same
+  // reason, so only their positions differ.
+  it('reports in the order the networks were given, not the order they answered', async () => {
+    const verdict = await networkPreflight(
+      ['arbitrum', 'polygon'],
+      slowDeps({ arbitrum: 30, polygon: 0 }, { arbitrum: 1, polygon: 1 })
+    )
+
+    expect(verdict.refused).toEqual(['arbitrum', 'polygon'])
+    expect(verdict.findings.map((finding) => finding.network)).toEqual([
+      'arbitrum',
+      'polygon',
+    ])
+  })
+})
