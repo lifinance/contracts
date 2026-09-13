@@ -449,7 +449,9 @@ function getDiamondAbi(): Abi | undefined {
  * Resolves a function selector to the matching ABI item from diamond.json (Diamond ABI).
  * Used to decode payloads dynamically instead of hardcoding selectors.
  */
-function getDiamondAbiItemForSelector(selector: string): Abi[number] | null {
+export function getDiamondAbiItemForSelector(
+  selector: string
+): Abi[number] | null {
   const abi = getDiamondAbi()
   if (!abi) return null
   const normalizedSelector = selector.toLowerCase()
@@ -822,7 +824,7 @@ export async function decodeTransactionData(
   }
 }
 
-function getAbiForKnownFunction(functionName: string): Abi | null {
+export function getAbiForKnownFunction(functionName: string): Abi | null {
   const name = functionName.split('(')[0]?.trim() ?? functionName
   switch (name) {
     case 'diamondCut':

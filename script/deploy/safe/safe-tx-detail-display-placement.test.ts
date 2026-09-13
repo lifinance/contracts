@@ -75,7 +75,7 @@ describe('smoke check: the shape of the call into the detail block', () => {
   it('closes the comparison after the decode, not before it', () => {
     // The question is the point of the two blocks above it; printed before the
     // decoded calldata it asks the signer to compare something not yet shown.
-    const decode = CONFIRM.indexOf('formatDecodedTxDataForDisplay(')
+    const decode = CONFIRM.indexOf('buildCalldataEffectLines(')
     const footnote = CONFIRM.indexOf('buildCalldataFootnote(detailInput)')
     const question = CONFIRM.indexOf("CLAIM_QUESTION.join('\\n')")
 
