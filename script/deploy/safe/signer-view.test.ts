@@ -694,6 +694,22 @@ describe('renderGateManifest', () => {
     return found
   }
 
+  it('clears a gate that ran and found nothing to grade, and still blocks on one it could not read', () => {
+    // Both rows reach the same fall-through in `bucketOf`, and only one of them
+    // may be read as cleared. Asserted together because the fix for the first
+    // is a relaxation: pinning `n/a` alone would pass just as well if every
+    // unnamed status stopped blocking.
+    const lines = render([
+      entry('c-check', 'not-applicable'),
+      entry('d-check', 'error'),
+    ])
+
+    expect(rowFor(lines, 'C')).toContain('n/a')
+    expect(rowFor(lines, 'C')).not.toContain('BLOCKS')
+    expect(rowFor(lines, 'D')).toContain('UNCHECKED')
+    expect(rowFor(lines, 'D')).toContain('BLOCKS')
+  })
+
   it('prints one row per gate on the roster, results or not', () => {
     const lines = render([entry('a-check', 'pass')])
     for (const definition of ROSTER)
