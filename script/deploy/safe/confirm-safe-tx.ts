@@ -185,13 +185,16 @@ import {
   checkSummary,
   PROPOSAL_SEPARATOR,
   renderCheckGroups,
+  renderDeferredTodos,
   renderGateManifest,
   renderProposalOutcome,
   renderTodos,
+  TODOS_DEFERRED_SUMMARY,
   zoneHeading,
 } from './signer-view'
 import {
   integrityResults,
+  opensDeviceScreens,
   signerChecks,
   signerTodos,
   viewDefinitions,
@@ -1273,25 +1276,13 @@ const processTxs = async (
     // Carries no ledger row, so it has no grouped row to print under.
     calldataAddressLines.forEach((line) => consola.log(line))
 
-    consola.log(zoneHeading(3, 'WHAT ONLY YOU CAN DO').join('\n'))
+    // The slot, not the checklist. What goes in it is printed further down, once
+    // an action has been chosen and every interlock that could still abort the
+    // run has had its turn.
     consola.log(
-      renderTodos(
-        signerTodos({
-          ...(deviceHash ? { deviceHash } : {}),
-          ...(deviceHash
-            ? {
-                storedHash: !storedIsHash
-                  ? ('unreadable' as const)
-                  : storedHash.toLowerCase() !== deviceHash.toLowerCase()
-                  ? ('disagrees' as const)
-                  : ('agrees' as const),
-              }
-            : {}),
-          devicePanel,
-          ...(devicePanelNote ? { devicePanelNote } : {}),
-        })
-      ).join('\n')
+      zoneHeading(3, 'WHAT ONLY YOU CAN DO', TODOS_DEFERRED_SUMMARY).join('\n')
     )
+    consola.log(renderDeferredTodos().join('\n'))
 
     const integrity = evaluateProposalIntegrity({ nonceStatus })
     // Said before the action prompt, not after it: a verdict the operator can no
@@ -1545,6 +1536,33 @@ const processTxs = async (
       nonceCurrent: integrity.ok,
       acknowledged,
     })
+
+    // Zone 3, held back from the decision screen and printed here instead: after
+    // the nonce and expected-state interlocks, which can still end the run, and
+    // immediately before the device is touched. A signer comparing a hash
+    // against a Ledger wants it at the foot of the scrollback, not above thirty
+    // rows of gate output they have scrolled past since.
+    if (opensDeviceScreens(action)) {
+      consola.log(zoneHeading(3, 'WHAT ONLY YOU CAN DO').join('\n'))
+      consola.log(
+        renderTodos(
+          signerTodos({
+            ...(deviceHash ? { deviceHash } : {}),
+            ...(deviceHash
+              ? {
+                  storedHash: !storedIsHash
+                    ? ('unreadable' as const)
+                    : storedHash.toLowerCase() !== deviceHash.toLowerCase()
+                    ? ('disagrees' as const)
+                    : ('agrees' as const),
+                }
+              : {}),
+            devicePanel,
+            ...(devicePanelNote ? { devicePanelNote } : {}),
+          })
+        ).join('\n')
+      )
+    }
 
     if (action === 'Sign')
       try {

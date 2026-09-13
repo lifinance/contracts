@@ -347,10 +347,11 @@ export const zoneHeading = (
 /**
  * What separates one proposal from the next in a run.
  *
- * A run walks several proposals and each one ends on a checklist, so without a
- * break the next proposal's zone 1 reads as more of the previous one's zone 3 —
- * and the field a signer is comparing against an out-of-band message is then the
- * wrong proposal's.
+ * A run walks several proposals and each one ends wherever the signer's choice
+ * left it — on the action prompt, or on the device checklist below it — so
+ * without a break the next proposal's zone 1 reads as more of the previous
+ * one's, and the field a signer is comparing against an out-of-band message is
+ * then the wrong proposal's.
  */
 export const PROPOSAL_SEPARATOR: readonly string[] = (() => {
   const banner = ' END OF PROPOSAL '
@@ -818,6 +819,29 @@ export interface ITodo {
   lines?: readonly string[]
 }
 
+/** Pinned beside zone 3's heading while the checklist is still withheld. */
+export const TODOS_DEFERRED_SUMMARY = 'after you choose to sign'
+
+/**
+ * Zone 3's placeholder, printed in its slot on the decision screen.
+ *
+ * The checklist itself is withheld until the signer picks an action that ends
+ * on a device, because a run that stops at `Do Nothing` never needed it and the
+ * panel is thirty lines of device art between zone 2 and the prompt the
+ * decision is made at. The heading still prints: a zone that silently is not
+ * there is the same failure as a gate that reports nothing and is simply absent
+ * from the page, and a signer who has read this screen before would otherwise
+ * be looking for a hash that never appears.
+ *
+ * @returns The placeholder body, without the heading.
+ */
+export const renderDeferredTodos = (): string[] => [
+  '',
+  `  ${DIM}The hash to compare and the device screens print once you choose an${RESET}`,
+  `  ${DIM}action that signs — they are the last thing before the device, not${RESET}`,
+  `  ${DIM}input to the decision you are making here.${RESET}`,
+]
+
 /**
  * Zone 3 — what the machine cannot do for the signer.
  *
@@ -851,9 +875,9 @@ export const renderTodos = (todos: readonly ITodo[]): string[] => {
  * What this proposal's gates add up to, in one sentence, before the prompt.
  *
  * The buckets above already say it row by row, but a signer who has scrolled
- * past twelve rows and a device panel is deciding from whatever is on screen
- * when the prompt appears — so the conclusion is restated where the decision is
- * actually made, naming the gates it rests on.
+ * past twelve rows is deciding from whatever is on screen when the prompt
+ * appears — so the conclusion is restated where the decision is actually made,
+ * naming the gates it rests on.
  *
  * @param results - The proposal's bucketed rows.
  * @returns Lines, already coloured.
