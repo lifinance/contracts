@@ -88,19 +88,6 @@ const BUCKET_ORDER: readonly CheckBucket[] = [
 ]
 
 /**
- * Which bucket a result belongs in.
- *
- * `notApplicable` is a separate argument rather than a status, because there is
- * no such status: whether a check has anything to say is a property of the
- * proposal (no diamondCut, so no bytecode to vouch for), while `status` records
- * how the check that did run came out. Folding the two loses the distinction
- * between "nothing to check" and "could not check", which are opposite news.
- *
- * @param status - The recorded status.
- * @param notApplicable - True when the proposal gave this check nothing to do.
- * @returns The bucket the row prints under.
- */
-/**
  * Which section a row prints under.
  *
  * Takes the whole entry rather than a status, because the section has to be
