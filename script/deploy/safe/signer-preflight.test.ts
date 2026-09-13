@@ -3,7 +3,6 @@ import { describe, expect, it } from 'bun:test'
 
 import {
   PREFLIGHT_EXIT_CODE,
-  PROBE_TIMEOUT_MS,
   PREFLIGHT_WIDTH,
   networkPreflight,
   renderNetworkPreflight,
@@ -219,78 +218,5 @@ describe('PREFLIGHT_WIDTH', () => {
     // The wrap assertion above reads this constant, so pinning the symbol alone
     // would let a widened value carry that assertion along with it.
     expect(PREFLIGHT_WIDTH).toBe(76)
-  })
-})
-
-describe('the probe does not make an operator wait network by network', () => {
-  /** A `chainIdOf` that never settles, so only the timeout can end the probe. */
-  const hangs = (): IPreflightDeps['chainIdOf'] => () =>
-    new Promise<number>(() => undefined)
-
-  it('probes every network at once rather than one after another', async () => {
-    let live = 0
-    let peak = 0
-
-    const verdict = await networkPreflight(
-      ['arbitrum', 'polygon', 'mainnet'],
-      deps({
-        endpointConfigured: () => true,
-        expectedChainId: () => 1,
-        chainIdOf: async () => {
-          live += 1
-          peak = Math.max(peak, live)
-          await new Promise((resolve) => setTimeout(resolve, 20))
-          live -= 1
-          return 1
-        },
-      })
-    )
-
-    // Serially this peaks at 1 however long each probe takes, so the assertion
-    // observes the concurrency itself rather than a wall-clock time that a slow
-    // machine could satisfy either way.
-    expect(peak).toBe(3)
-    expect(verdict.startable).toEqual(['arbitrum', 'polygon', 'mainnet'])
-  })
-
-  it('refuses an endpoint that never answers, instead of waiting on it forever', async () => {
-    const verdict = await networkPreflight(
-      ['arbitrum'],
-      deps({ chainIdOf: hangs() })
-    )
-
-    expect(verdict.refused).toEqual(['arbitrum'])
-    expect(verdict.findings[0]?.detail).toContain(
-      `no answer within ${PROBE_TIMEOUT_MS}ms`
-    )
-  })
-
-  it('keeps the caller order in findings however the probes settle', async () => {
-    // The refusals are reported in the order the run was asked for, not the
-    // order the endpoints happened to fail in — which parallelism otherwise
-    // makes non-deterministic.
-    const verdict = await networkPreflight(
-      ['arbitrum', 'polygon'],
-      deps({
-        endpointConfigured: () => true,
-        chainIdOf: async (network) => {
-          if (network === 'arbitrum')
-            await new Promise((resolve) => setTimeout(resolve, 30))
-          return 999
-        },
-      })
-    )
-
-    expect(verdict.refused).toEqual(['arbitrum', 'polygon'])
-    expect(verdict.findings.map((finding) => finding.network)).toEqual([
-      'arbitrum',
-      'polygon',
-    ])
-  })
-
-  it('pins the probe budget by value, so a change to it cannot pass unseen', () => {
-    // The refusal assertion above reads this constant, so pinning the symbol
-    // alone would let a widened budget carry that assertion along with it.
-    expect(PROBE_TIMEOUT_MS).toBe(5000)
   })
 })

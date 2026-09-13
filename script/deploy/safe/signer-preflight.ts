@@ -86,41 +86,6 @@ const reason = (error: unknown): string =>
   )
 
 /**
- * How long one endpoint probe may take before it counts as no answer.
- *
- * A chain id is a single round trip, and it is the first one this run makes. An
- * endpoint that cannot answer it inside this budget is not one the rest of the
- * run could have read anything from either, so waiting longer buys nothing.
- *
- * Explicit because viem's default is long enough that several unreachable
- * networks print nothing for minutes. The refusal was correct and arrived
- * looking like a hang, which is the one reading that makes an operator kill the
- * run and lose the reason.
- */
-export const PROBE_TIMEOUT_MS = 5000
-
-/** Rejects after `PROBE_TIMEOUT_MS`, clearing its timer whichever side wins. */
-const withProbeTimeout = async (probe: Promise<number>): Promise<number> => {
-  let timer: ReturnType<typeof setTimeout> | undefined
-
-  try {
-    return await Promise.race([
-      probe,
-      new Promise<number>((_resolve, reject) => {
-        timer = setTimeout(
-          () => reject(new Error(`no answer within ${PROBE_TIMEOUT_MS}ms`)),
-          PROBE_TIMEOUT_MS
-        )
-      }),
-    ])
-  } finally {
-    // Cleared on both paths: a pending timer holds the process open after the
-    // run would otherwise have exited.
-    if (timer !== undefined) clearTimeout(timer)
-  }
-}
-
-/**
  * Resolves every network's preconditions in one pass.
  *
  * Every network is probed even after one has failed: a signer who discovers
@@ -139,42 +104,10 @@ export const networkPreflight = async (
   const startable: string[] = []
   const refused: string[] = []
 
-  // Probed in parallel, then read back in the caller's order. Serially, a run
-  // waits for each dead endpoint in turn before it reaches the next, so the
-  // time to the refusal grows with the number of networks that cannot answer —
-  // exactly the case the preflight exists to report quickly.
-  const probes = await Promise.all(
-    networks.map(
-      async (
-        network
-      ): Promise<
-        | { network: string; outcome: 'unset' }
-        | { network: string; outcome: 'answered'; answered: number }
-        | { network: string; outcome: 'threw'; error: unknown }
-      > => {
-        if (!deps.endpointConfigured(network))
-          return { network, outcome: 'unset' }
-
-        try {
-          return {
-            network,
-            outcome: 'answered',
-            answered: await withProbeTimeout(
-              Promise.resolve(deps.chainIdOf(network))
-            ),
-          }
-        } catch (error) {
-          return { network, outcome: 'threw', error }
-        }
-      }
-    )
-  )
-
-  for (const probe of probes) {
-    const { network } = probe
+  for (const network of networks) {
     const variable = deps.envVarName(network)
 
-    if (probe.outcome === 'unset') {
+    if (!deps.endpointConfigured(network)) {
       refused.push(network)
       findings.push({
         network,
@@ -184,26 +117,27 @@ export const networkPreflight = async (
       continue
     }
 
-    if (probe.outcome === 'threw') {
+    let answered: number
+    try {
+      answered = await deps.chainIdOf(network)
+    } catch (error) {
       refused.push(network)
       findings.push({
         network,
-        detail: `the endpoint in ${variable} did not answer: ${reason(
-          probe.error
-        )}`,
+        detail: `the endpoint in ${variable} did not answer: ${reason(error)}`,
         remedy: `check that the endpoint is reachable, then start over`,
       })
       continue
     }
 
     const expected = deps.expectedChainId(network)
-    if (probe.answered !== expected) {
+    if (answered !== expected) {
       refused.push(network)
       findings.push({
         network,
         // The dangerous case: every read after this one would answer
         // truthfully, about the wrong chain.
-        detail: `the endpoint in ${variable} answered chain id ${probe.answered}, and ${network} is ${expected}`,
+        detail: `the endpoint in ${variable} answered chain id ${answered}, and ${network} is ${expected}`,
         remedy: `point ${variable} at ${network} and start over`,
       })
       continue
