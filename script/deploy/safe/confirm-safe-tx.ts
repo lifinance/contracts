@@ -187,6 +187,7 @@ import {
 import {
   networkPreflight,
   PREFLIGHT_EXIT_CODE,
+  PREFLIGHT_PROBE_TIMEOUT_MS,
   renderNetworkPreflight,
 } from './signer-preflight'
 import {
@@ -1899,11 +1900,17 @@ const main = defineCommand({
       // read as "not actionable", a true statement with a false explanation, so
       // the refusal has to be printed before it speaks.
       const preflightVerdict = await networkPreflight(candidateNetworks, {
+        // `--rpc-url` cannot stand in for the variable: `buildReadOnlyClient`
+        // resolves the chain before it looks at the override, and that resolve
+        // is what needs the variable. Treating the flag as configuration here
+        // let the run report a missing variable as an endpoint that did not
+        // answer, and send the signer to check a host nothing had contacted.
         endpointConfigured: (network) =>
-          Boolean(args.rpcUrl?.trim()) ||
           Boolean(process.env[getRPCEnvVarName(network)]?.trim()),
         chainIdOf: (network) =>
-          buildReadOnlyClient(network, args.rpcUrl).getChainId(),
+          buildReadOnlyClient(network, args.rpcUrl, {
+            signal: AbortSignal.timeout(PREFLIGHT_PROBE_TIMEOUT_MS),
+          }).getChainId(),
         expectedChainId: (network) =>
           networksData[network.toLowerCase() as keyof typeof networksData]
             .chainId,
