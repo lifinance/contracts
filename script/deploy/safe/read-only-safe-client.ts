@@ -5,6 +5,7 @@
 import { createPublicClient, http, type PublicClient } from 'viem'
 
 import {
+  getFallbackTransportForChain,
   getTransportConfigFromRpcUrl,
   getViemChainForNetworkName,
 } from '../../utils/viemScriptHelpers'
@@ -37,5 +38,44 @@ export function buildReadOnlyClient(
       ...(retryCount !== undefined ? { retryCount } : {}),
       ...(retryDelay !== undefined ? { retryDelay } : {}),
     }),
+  }) as PublicClient
+}
+
+/**
+ * A read-only client that reads through a network's fallback endpoints.
+ *
+ * `getViemChainForNetworkName` returns `rpcUrls.default.http` as
+ * `[primary, ...ETH_NODE_URI_<N>_FALLBACKS]`; `buildReadOnlyClient` takes only
+ * the first. That is the right shape for a caller that wants one named
+ * endpoint, and the wrong one for the confirmation walk: its executability gate
+ * already reads through the whole list via `getFallbackTransportForChain`, so a
+ * dead primary made the preflight refuse a network whose fallbacks were healthy
+ * and whose other gates would have read it fine. 75 of the 87 networks that
+ * have a primary also declare fallbacks, so that disagreement is the common
+ * case rather than the corner.
+ *
+ * Kept separate from `buildReadOnlyClient` rather than folded into it: that
+ * builder is also used by `reconcile.ts` and `safe-utils.ts`, and this change
+ * is scoped to the signing walk, where the preflight and the checks it gates
+ * have to agree.
+ *
+ * An explicit `rpcUrl` is the operator naming one endpoint, so it is honoured
+ * alone — the fallbacks are configuration this run was told to bypass.
+ *
+ * @param network - The network to read.
+ * @param rpcUrl - An explicit endpoint that replaces the configured list.
+ * @returns A client that fails over across the network's declared endpoints.
+ */
+export function buildFallbackReadClient(
+  network: string,
+  rpcUrl?: string
+): PublicClient {
+  if (rpcUrl?.trim()) return buildReadOnlyClient(network, rpcUrl)
+
+  const chain = getViemChainForNetworkName(network)
+
+  return createPublicClient({
+    chain,
+    transport: getFallbackTransportForChain(chain),
   }) as PublicClient
 }
