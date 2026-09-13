@@ -4,12 +4,12 @@
  * Import this from any script that runs pre-signing checks; it turns a ledger
  * from `check-ledger.ts` into the lines a signer reads. One line per section,
  * expanded per network only where a section is not green, and a single closing
- * verdict.
+ * verdict — or that closing verdict alone, when the run graded nothing.
  *
  * Every count is printed as `N/N` against the networks that were graded, always
  * beside the count of those that had nothing to grade. A result that could not
  * run is labelled `UNVERIFIED`, never folded into a green line, and a run that
- * graded nothing closes `NOTHING TO REVIEW` with no verified count at all —
+ * graded nothing prints that one `NOTHING TO REVIEW` line and nothing else —
  * the states a signer must not be able to confuse.
  */
 
@@ -380,7 +380,7 @@ function renderVerdict(
  *
  * @param ledger - The run's ledger.
  * @param options - `triageProfile` applies the T2-narrowed relaxation before rendering.
- * @returns The header, one line per section plus the expanded non-green rows, and the verdict last.
+ * @returns The header, one line per section plus the expanded non-green rows, and the verdict last — or the closing line alone when the run graded nothing.
  */
 export function renderCheckLedger(
   ledger: ICheckLedger,
@@ -388,6 +388,13 @@ export function renderCheckLedger(
 ): string[] {
   const rollups = rollUpChecks(ledger)
   const verdict = summariseLedger(ledger, options)
+
+  // Every section, and every check under it, can only report the same `nothing
+  // to grade` the closing line already carries. `nothingGraded` is false the
+  // moment any result was recorded, an unverified or a missing one included, so
+  // no report that has something to say is silenced here.
+  if (verdict.nothingGraded) return [renderNothingToReview(rollups)]
+
   const relaxed = new Set(
     verdict.relaxed.map((result) =>
       checkResultKey(result.checkId, result.network)

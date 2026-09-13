@@ -825,16 +825,58 @@ describe('a run that graded nothing', () => {
     expect(verdict).toContain('nothing actionable was left')
   })
 
-  it('does not mark the section green either', () => {
-    const section = renderCheckLedger(vacuous()).filter((line) =>
-      line.includes('Integrity')
-    )
+  it('prints the closing line and nothing else', () => {
+    const lines = renderCheckLedger(vacuous())
 
-    expect(section).toHaveLength(1)
-    expect(section[0]).not.toContain(GREEN)
-    expect(section[0]).not.toContain('checks green')
-    expect(section[0]).not.toMatch(/\d+\/\d+ network results verified/)
-    expect(section[0]).toContain('not applicable')
+    expect(lines).toHaveLength(1)
+    expect(lines[0]).toContain('NOTHING TO REVIEW')
+    expect(lines.join('\n')).not.toContain('Check Ledger')
+    expect(lines.join('\n')).not.toContain('Integrity')
+    expect(lines.join('\n')).not.toContain('codehash')
+  })
+
+  it('prints the closing line alone across a fleet, not just one network', () => {
+    // The shape a fleet run reaches this state in, and the reason the row here
+    // is the not-an-owner one: the signer who loaded the wrong key sees this
+    // line and nothing else, on every network at once.
+    const networks = ['mainnet', 'arbitrum', 'polygon']
+    const ledger = ledgerOf(networks, [CODEHASH, AUTHORITY])
+    for (const network of networks)
+      for (const checkId of ['codehash', 'authority'])
+        recordCheck(
+          ledger,
+          result({
+            checkId,
+            network,
+            status: 'not-applicable',
+            expected:
+              'every proposal this run would sign graded before signing',
+            actual: `no proposal was graded on ${network} — the signer is not an owner of this Safe, so nothing here can be signed`,
+            anchor: 'A-LOCAL',
+          })
+        )
+
+    const lines = renderCheckLedger(ledger)
+
+    expect(lines).toHaveLength(1)
+    expect(lines[0]).toContain('NOTHING TO REVIEW')
+    expect(lines[0]).toContain('3 networks had nothing to grade')
+    expect(lines[0]).toContain('is not an owner of this Safe')
+  })
+
+  it('still prints the report once one network graded', () => {
+    // A network that dropped out is a row inside the report, never a reason to
+    // suppress it: the whole report is owed as soon as anything was graded.
+    const ledger = ledgerOf(['mainnet', 'arbitrum'], [CODEHASH])
+    recordCheck(ledger, result({ network: 'mainnet', status: 'fail' }))
+    recordCheck(ledger, result(nothingToGrade('arbitrum')))
+
+    const lines = renderCheckLedger(ledger)
+
+    expect(lines[0]).toContain('Check Ledger')
+    expect(lines.filter((line) => line.includes('Integrity'))).toHaveLength(1)
+    expect(lines.filter((line) => line.includes('codehash'))).toHaveLength(1)
+    expect(lines.join('\n')).toContain('mainnet')
   })
 
   it('still closes an all-green run with the green verdict', () => {
@@ -880,9 +922,8 @@ describe('a run that graded nothing', () => {
   })
 
   it('counts the skipped networks, not the rows they produced', () => {
-    // One network, two checks: the section and the verdict have to agree with
-    // the closing line's `1 network had nothing to grade` rather than report
-    // the two check×network rows behind it as two networks.
+    // One network, two checks: the closing line has to report one network with
+    // nothing to grade rather than the two check×network rows behind it.
     const ledger = ledgerOf(['arbitrum'], [CODEHASH, AUTHORITY])
     recordCheck(ledger, result(nothingToGrade('arbitrum')))
     recordCheck(
@@ -892,9 +933,6 @@ describe('a run that graded nothing', () => {
 
     const lines = renderCheckLedger(ledger)
 
-    expect(lines.filter((line) => line.includes('Integrity'))[0]).toContain(
-      '1 network not applicable'
-    )
     expect(lines.at(-1)).toContain('1 network had nothing to grade')
     expect(lines.at(-1)).not.toContain('2 network')
   })
