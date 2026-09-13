@@ -1899,8 +1899,13 @@ const main = defineCommand({
       // read as "not actionable", a true statement with a false explanation, so
       // the refusal has to be printed before it speaks.
       const preflightVerdict = await networkPreflight(candidateNetworks, {
+        // `args.rpcUrl` deliberately does not excuse an unset variable:
+        // `buildReadOnlyClient` resolves the chain through
+        // `getViemChainForNetworkName` before it ever reads the override, and
+        // that throws on the unset variable. Treating the override as
+        // configuration here produced a refusal naming the wrong cause and a
+        // remedy for an endpoint that was never contacted.
         endpointConfigured: (network) =>
-          Boolean(args.rpcUrl?.trim()) ||
           Boolean(process.env[getRPCEnvVarName(network)]?.trim()),
         chainIdOf: (network) =>
           buildReadOnlyClient(network, args.rpcUrl).getChainId(),
