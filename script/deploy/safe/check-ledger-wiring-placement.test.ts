@@ -601,3 +601,66 @@ describe('each gate that owns a ledger row hands the recorder its verdict', () =
     })
   }
 })
+
+/**
+ * Gate G has to be graded before the signer is asked to sign.
+ *
+ * The storage-authority row used to be pushed from inside `recordSignedSet`,
+ * which runs after the signature is stored. A row recorded there can describe
+ * what was signed but can no longer refuse it, and the run-level ledger then
+ * carried no gate-G result at decision time at all.
+ *
+ * Asserted as placement rather than as a decision because the decision is
+ * already driven in `confirm-check-registry.test.ts`; what that cannot see is
+ * *when* the call happens.
+ */
+describe('gate G is graded before the signature, not after it', () => {
+  /** A named function declaration's body text, from the tree rather than a window. */
+  const bodyOfFunction = (name: string): string => {
+    let found: Node | undefined
+
+    const visit = (node: Node): void => {
+      if (
+        found === undefined &&
+        isFunctionDeclaration(node) &&
+        node.name?.getText(TREE) === name
+      )
+        found = node
+      else forEachChild(node, visit)
+    }
+    forEachChild(TREE, visit)
+
+    // Guarded: an unfound name yields an empty body, which would satisfy every
+    // negative assertion below while asserting nothing at all.
+    expect(found).toBeDefined()
+    return (found as Node).getText(TREE)
+  }
+
+  it('does not grade the authorities from the post-signature recorder', () => {
+    const body = bodyOfFunction('recordSignedSet')
+
+    // The positive half, so this cannot pass by the function having been
+    // renamed or emptied rather than by the grading having moved out of it.
+    expect(body).toContain('persistSignedSetRecord(record)')
+
+    expect(body).not.toContain('storageAuthorityCheckResult')
+    expect(body).not.toContain('proposalChecks.push')
+  })
+
+  it('reads the set inside the proposal loop, where a refusal is still available', () => {
+    const { body } = proposalLoop()
+
+    expect(body).toContain('observeSetForProposal(')
+    // The read reaching the recorder is what makes it a graded row rather than
+    // an observation nobody asked for.
+    expect(body).toContain('storageAuthority: observedSet')
+  })
+
+  it('keeps the observation reachable from both sides, read once', () => {
+    // Two call sites — the pre-signature grading and the post-signature
+    // persistence — over one cache, so moving the grading earlier did not buy a
+    // second round of chain reads per proposal.
+    expect(countOf(/observeSetForProposal\(/g)).toBeGreaterThanOrEqual(3)
+    expect(SOURCE).toContain('observedSets.get(safeTxHash)')
+  })
+})

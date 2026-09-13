@@ -72,7 +72,6 @@ import {
   authorityExpectationAnchors,
   CONFIRM_CHECK_DEFINITIONS,
   proposalCheckResults,
-  storageAuthorityCheckResult,
   worstResultPerCheck,
 } from './confirm-check-registry'
 import {
@@ -472,27 +471,39 @@ const processTxs = async (
   }
 
   /**
-   * Records what this machine saw at every address in the signed calldata
-   * (WP-6.1 / R3.1): the address→codehash set plus the declared storage
-   * authorities.
+   * What one proposal's calldata declares, read once and kept.
    *
-   * A G6 reconstruction trail, not a check — nothing here can refuse a
-   * signature, and the pre-broadcast gate never reads these values back. Every
-   * failure is therefore a warning: the gate alerts on a record that never
-   * landed, and blocking here would turn a write error into a signing outage.
+   * Split out of `recordSignedSet` because gate G has to be graded before the
+   * signer is asked to sign. A row recorded after the signature can describe
+   * what was signed; it can no longer refuse it. The persistence half still
+   * runs after signing and reads this cache rather than the chain again.
+   *
+   * `undefined` means nothing was read — the calldata was not a schedule
+   * batch, the chain is outside the gate's coverage, or the read threw. Every
+   * one of those leaves the ledger without a graded row, which blocks. That is
+   * the same outcome as before this was moved, deliberately: this change moves
+   * when gate G is graded, not what it decides.
    */
-  async function recordSignedSet(
-    txDoc: ISafeTxMongoDocument,
-    signedTx: ISafeTransaction
-  ): Promise<void> {
-    const callData = signedTx.data.data as Hex | undefined
-    if (!callData || !isScheduleBatchCalldata(callData)) return
+  interface IObservedSet {
+    operationId: Hex
+    observed: Awaited<ReturnType<typeof observeCalldata>>
+  }
+  const observedSets = new Map<string, IObservedSet>()
+
+  async function observeSetForProposal(
+    safeTxHash: string,
+    callData: Hex | undefined
+  ): Promise<IObservedSet | undefined> {
+    const cached = observedSets.get(safeTxHash)
+    if (cached) return cached
+
+    if (!callData || !isScheduleBatchCalldata(callData)) return undefined
 
     if (resolveGateCoverage(networkKey) === 'uncovered-tron') {
       consola.info(
-        "Sign-time set not recorded: reading code on this chain is outside the gate's coverage (EXSC-954)"
+        "Sign-time set not read: reading code on this chain is outside the gate's coverage (EXSC-954)"
       )
-      return
+      return undefined
     }
 
     try {
@@ -525,35 +536,55 @@ const processTxs = async (
         }
       )
 
+      const observedSet: IObservedSet = { operationId, observed }
+      observedSets.set(safeTxHash, observedSet)
+      return observedSet
+    } catch (error) {
+      consola.warn(
+        'Could not read the sign-time set; gate G has nothing to grade and will block:',
+        redactUrls(error instanceof Error ? error.message : String(error))
+      )
+      return undefined
+    }
+  }
+
+  /**
+   * Persists what this machine saw at every address in the signed calldata
+   * (WP-6.1 / R3.1): the address→codehash set plus the declared storage
+   * authorities.
+   *
+   * A G6 reconstruction trail. The grading half moved to
+   * `observeSetForProposal`, which runs before the signer decides; what is left
+   * here cannot refuse a signature, so every failure is a warning. Blocking
+   * here would turn a write error into a signing outage.
+   */
+  async function recordSignedSet(
+    txDoc: ISafeTxMongoDocument,
+    signedTx: ISafeTransaction
+  ): Promise<void> {
+    const callData = signedTx.data.data as Hex | undefined
+    const observedSet = await observeSetForProposal(txDoc.safeTxHash, callData)
+    if (!observedSet) return
+
+    try {
       const record = buildSignedSetRecord(
         {
-          operationId,
+          operationId: observedSet.operationId,
           network: networkKey,
           chainId: chain.id,
           safeTxHash: txDoc.safeTxHash,
           signer: signerAddress,
           derivedFromCommit: getGitCommit(),
-          codehashes: toSignedCodehashEntries(observed.targets),
-          authorities: toSignedAuthorityEntries(observed.authorities),
+          codehashes: toSignedCodehashEntries(observedSet.observed.targets),
+          authorities: toSignedAuthorityEntries(
+            observedSet.observed.authorities
+          ),
         },
         new Date()
       )
 
       consola.info(formatSignedSetForDisplay(record).join('\n'))
       await persistSignedSetRecord(record)
-
-      // Accumulated, not recorded: this runs once per proposal while a ledger
-      // row is denominated per network, and `rollUpChecks` only lets a `fail`
-      // block supersession — so a later clean proposal would erase an earlier
-      // proposal's unread authority with no trace.
-      if (checkLedger)
-        proposalChecks.push(
-          storageAuthorityCheckResult(
-            record.authorities,
-            networkKey,
-            authorityExpectationAnchors(observed.authorities)
-          )
-        )
     } catch (error) {
       consola.warn(
         'Could not record the sign-time set (the pre-broadcast gate re-derives without it and will alert on the gap):',
@@ -1241,9 +1272,27 @@ const processTxs = async (
       )
     }
 
+    // Read before the signer is asked to decide. The same call inside
+    // `recordSignedSet` runs after the signature, where a refusal is no
+    // longer available; the cache makes the second call free.
+    const observedSet = await observeSetForProposal(
+      tx.safeTxHash,
+      tx.safeTransaction.data.data as Hex | undefined
+    )
+
     proposalChecks.push(
       ...proposalCheckResults({
         network,
+        storageAuthority: observedSet
+          ? {
+              entries: toSignedAuthorityEntries(
+                observedSet.observed.authorities
+              ),
+              anchors: authorityExpectationAnchors(
+                observedSet.observed.authorities
+              ),
+            }
+          : undefined,
         integrity: integrityRun,
         targetState,
         executability,
