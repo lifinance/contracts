@@ -10,17 +10,23 @@ import {
   type ICheckLedger,
   type ICheckResult,
 } from './check-ledger'
+import type { ICodehashSignGate } from './codehash-sign-gate'
 import {
   authorityExpectationAnchors,
+  CODEHASH_CHECK_ID,
   CONFIRM_CHECK_DEFINITIONS,
   EVERY_ELEMENT_COMPARED,
   EXECUTABILITY_CHECK_ID,
+  NO_TIMELOCK_SCHEDULE,
+  NOTHING_INSTALLED_TO_COMPARE,
+  NOTHING_INSTALLED_TO_HASH,
   NOTHING_TO_COMPARE,
   ORDERING_HOLDS,
   RPC_QUORUM_CHECK_ID,
   STORAGE_AUTHORITY_CHECK_ID,
   TARGET_STATE_CHECK,
   TARGET_STATE_CHECK_ID,
+  codehashCheckResult,
   executabilityCheckResult,
   proposalCheckResults,
   rpcQuorumCheckResult,
@@ -207,8 +213,33 @@ describe('targetStateCheckResult', () => {
       'mainnet'
     )
 
-    expect(result.status).toBe('pass')
+    expect(result.status).toBe('not-applicable')
     expect(result.anchor).toBe('A-LOCAL')
+    expect(result.actual).toBe(NOTHING_INSTALLED_TO_COMPARE)
+  })
+
+  // The seed `targetStateCheckResult` starts at is the weakest status, so a
+  // finding that installs nothing cannot outrank one that does. Without this a
+  // cut pairing a removal with an upgrade reduced to the removal's row and the
+  // upgrade was never reported.
+  it('lets an installing element outrank a removal in the same cut', () => {
+    const result = targetStateCheckResult(
+      verdictOf([finding('removal'), finding('not-previously-targeted')]),
+      'mainnet'
+    )
+
+    expect(result.status).toBe('needs-ack')
+    expect(result.actual).not.toBe(NOTHING_INSTALLED_TO_COMPARE)
+  })
+
+  it('reduces to a mismatch when a removal is paired with a downgrade', () => {
+    const result = targetStateCheckResult(
+      verdictOf([finding('removal'), finding('downgrade')]),
+      'mainnet'
+    )
+
+    expect(result.status).toBe('fail')
+    expect(result.anchor).toBe('A-MAIN')
   })
 
   // The whole point of the anchor column: a status derived from the deployment
@@ -370,7 +401,7 @@ describe('targetStateCheckResult', () => {
       // ask for an acknowledgement rather than claiming an anchor they do not
       // have — but nothing about it may block.
       if (verdict.cleared)
-        expect(['pass', 'needs-ack']).toContain(result.status)
+        expect(['pass', 'needs-ack', 'not-applicable']).toContain(result.status)
       // …and one that did not clear must never arrive as something a signer can
       // wave through, or as a pass.
       else expect(['fail', 'error']).toContain(result.status)
@@ -470,7 +501,10 @@ describe('the registry is usable by the ledger it feeds', () => {
     )
 
     expect(stored.checkId).toBe(TARGET_STATE_CHECK_ID)
-    expect(stored.status).toBe('pass')
+    // Not a pass: a removal installs nothing, so no version was compared and
+    // the row must not reach the verified numerator.
+    expect(stored.status).toBe('not-applicable')
+    expect(stored.actual).toBe(NOTHING_INSTALLED_TO_COMPARE)
   })
 
   // recordCheck coerces a pass on a reporting-only anchor to error. Proven
@@ -822,11 +856,39 @@ const cleanAuthorities = (): {
   anchors: new Map([['LiFiDiamond.pauserWallet()', 'A-LOCAL' as const]]),
 })
 
+/**
+ * A codehash gate that judged one installed address and found it attested.
+ *
+ * The default is a gate that *graded* something, so a test that does not
+ * mention gate K still exercises the branch where it reports a real
+ * comparison. A fixture defaulting to "nothing to check" would make every one
+ * of these cases agree with a gate that had been skipped entirely.
+ */
+const codehashGate = (
+  overrides: Partial<ICodehashSignGate> = {}
+): ICodehashSignGate => ({
+  blocksSigning: false,
+  evaluated: true,
+  refusals: [],
+  targets: [
+    {
+      address: '0x00000000000000000000000000000000000000f1',
+      verdict: 'MATCH',
+      reason: 'bytecode reproduced from an attested build',
+      matchedLineages: ['lineage-1'],
+      excludedByteCount: 0,
+    },
+  ],
+  summary: 'every target matched',
+  ...overrides,
+})
+
 const verdicts = (
   overrides: Partial<IProposalCheckVerdicts> = {}
 ): IProposalCheckVerdicts => ({
   network: NETWORK,
   integrity: integrityRun({ includeTimelockDelay: true }),
+  codehash: codehashGate(),
   targetState: cleanTargetState,
   executability: executabilityVerdict(),
   rpcQuorum: quorumVerdict(),
@@ -869,6 +931,7 @@ describe('proposalCheckResults', () => {
     expect(ledger.results.map((result) => result.checkId)).toEqual([
       ...INTEGRITY_CHECKS_ALWAYS,
       CHECK_TIMELOCK_DELAY,
+      CODEHASH_CHECK_ID,
       STORAGE_AUTHORITY_CHECK_ID,
       TARGET_STATE_CHECK_ID,
       EXECUTABILITY_CHECK_ID,
@@ -923,10 +986,11 @@ describe('integrity verdicts reaching the run-level ledger', () => {
       ).toBe('error')
   })
 
-  // A check with nothing to judge that *read* its evidence passes on the anchor
-  // it read; one that could not open the envelope errors. The delay check is
-  // the former, and `run.registered` is the only thing that says which it is.
-  it('a proposal carrying no schedule passes the delay check on A-LOCAL', () => {
+  // A check with nothing to judge that *read* its evidence stands down on the
+  // anchor it read; one that could not open the envelope errors. The delay
+  // check is the former, and `run.registered` is the only thing that says
+  // which it is.
+  it('a proposal carrying no schedule makes the delay check not applicable', () => {
     const ledger = runLedger()
     recordInto(
       ledger,
@@ -936,9 +1000,19 @@ describe('integrity verdicts reaching the run-level ledger', () => {
     const row = ledger.results.find(
       (result) => result.checkId === CHECK_TIMELOCK_DELAY
     )
-    expect(row?.status).toBe('pass')
+    expect(row?.status).toBe('not-applicable')
     expect(row?.anchor).toBe('A-LOCAL')
+    expect(row?.actual).toBe(NO_TIMELOCK_SCHEDULE)
     expect(summariseLedger(ledger).hardBlocked).toBe(false)
+
+    // Paired present: standing down must cost the verified count, or it is a
+    // pass wearing a different word.
+    const rollup = rollUpChecks(ledger).find(
+      (entry) => entry.checkId === CHECK_TIMELOCK_DELAY
+    )
+    expect(rollup?.graded).toBe(0)
+    expect(rollup?.passed).toBe(0)
+    expect(rollup?.green).toBe(false)
   })
 
   it('a registered delay check that never reported errors instead', () => {
@@ -1356,5 +1430,145 @@ describe('the primitive that makes an unmade check blocking', () => {
         (entry) => entry.checkId === CHECK_TIMELOCK_DELAY
       )
     ).toBe(true)
+  })
+})
+
+describe('codehashCheckResult', () => {
+  const gate = (
+    overrides: Partial<ICodehashSignGate> = {}
+  ): ICodehashSignGate => codehashGate(overrides)
+
+  it('passes on the attested set when every installed address matched', () => {
+    const result = codehashCheckResult(gate(), NETWORK)
+
+    expect(result.status).toBe('pass')
+    expect(result.anchor).toBe('A-AUDIT')
+  })
+
+  // The two halves of `madeNoClaim`, which is the whole reason `unopened` is
+  // carried structurally. Read off the summary sentence instead, and a payload
+  // nobody could open renders as a gate with nothing to do.
+  it('stands down when a fully-read payload installs no code', () => {
+    const result = codehashCheckResult(
+      gate({ madeNoClaim: true, targets: [], unopened: [] }),
+      NETWORK
+    )
+
+    expect(result.status).toBe('not-applicable')
+    expect(result.actual).toBe(NOTHING_INSTALLED_TO_HASH)
+    expect(result.anchor).toBe('A-LOCAL')
+  })
+
+  it('refuses, never stands down, when a frame would not open', () => {
+    const result = codehashCheckResult(
+      gate({
+        madeNoClaim: true,
+        targets: [],
+        unopened: ['0xdeadbeef (a cut entry could not be read)'],
+      }),
+      NETWORK
+    )
+
+    expect(result.status).toBe('error')
+    expect(result.anchor).toBe('A-UNRESOLVED')
+    expect(result.actual).toContain('0xdeadbeef')
+  })
+
+  it('reports a target the gate compared and found different as a mismatch', () => {
+    const result = codehashCheckResult(
+      gate({
+        blocksSigning: true,
+        targets: [
+          {
+            address: '0x00000000000000000000000000000000000000f1',
+            verdict: 'MISMATCH',
+            reason: 'bytecode is not from any attested build',
+            matchedLineages: [],
+            excludedByteCount: 0,
+          },
+        ],
+      }),
+      NETWORK
+    )
+
+    expect(result.status).toBe('fail')
+    expect(result.anchor).toBe('A-AUDIT')
+    expect(result.actual).toContain('MISMATCH')
+  })
+
+  // A refusal is not a codehash disagreement: the cut was malformed or the gate
+  // could not judge it. Filing it as a mismatch would put a disagreement on the
+  // ledger that nothing observed.
+  it('reports a refusal as unverified rather than as a mismatch', () => {
+    const result = codehashCheckResult(
+      gate({
+        blocksSigning: true,
+        refusals: ['the cut is malformed'],
+        targets: [],
+      }),
+      NETWORK
+    )
+
+    expect(result.status).toBe('error')
+    expect(result.anchor).toBe('A-UNRESOLVED')
+  })
+
+  it('refuses a gate that never reached a verdict at all', () => {
+    const result = codehashCheckResult(
+      gate({ evaluated: false, targets: [], summary: '' }),
+      NETWORK
+    )
+
+    expect(result.status).toBe('error')
+    expect(result.anchor).toBe('A-UNRESOLVED')
+  })
+})
+
+describe('the codehash gate on the run-level ledger', () => {
+  it('is on the roster, so the run accounts for eleven gates in one book', () => {
+    expect(
+      CONFIRM_CHECK_DEFINITIONS.map((definition) => definition.checkId)
+    ).toContain(CODEHASH_CHECK_ID)
+    expect(CONFIRM_CHECK_DEFINITIONS).toHaveLength(11)
+  })
+
+  it('costs the verified count when it stands down', () => {
+    const ledger = runLedger()
+    recordInto(
+      ledger,
+      verdicts({
+        codehash: codehashGate({
+          madeNoClaim: true,
+          targets: [],
+          unopened: [],
+        }),
+      })
+    )
+
+    const rollup = rollUpChecks(ledger).find(
+      (entry) => entry.checkId === CODEHASH_CHECK_ID
+    )
+    expect(rollup?.graded).toBe(0)
+    expect(rollup?.passed).toBe(0)
+    expect(rollup?.green).toBe(false)
+    // Paired present: standing down must not block either, or a Remove would
+    // be unsignable.
+    expect(summariseLedger(ledger).hardBlocked).toBe(false)
+  })
+
+  it('hard-blocks the run when the gate could not open the payload', () => {
+    const ledger = runLedger()
+    recordInto(
+      ledger,
+      verdicts({
+        codehash: codehashGate({
+          madeNoClaim: true,
+          targets: [],
+          unopened: ['call[0]'],
+        }),
+      })
+    )
+
+    expect(summariseLedger(ledger).hardBlocked).toBe(true)
   })
 })

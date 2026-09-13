@@ -989,7 +989,10 @@ describe('what the signer sees before the prompt', () => {
     expect(lines).toContain('PASS')
     // The delay check had nothing to say, and says so rather than being absent.
     expect(lines).toContain(CHECK_TIMELOCK_DELAY)
-    expect(lines).toContain('NO CLAIM')
+    expect(lines).toContain('NOT APPLICABLE')
+    // The same words the check ledger uses one panel down. A second synonym
+    // here teaches a signer that the two panels mean different things.
+    expect(lines).not.toContain('NO CLAIM')
   })
 
   it('prints the expected and actual values of a blocking check', async () => {

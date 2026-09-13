@@ -1304,6 +1304,9 @@ const processTxs = async (
             }
           : undefined,
         integrity: integrityRun,
+        // The gate object this proposal was judged on, not a re-derivation of
+        // it: the row must report the same verdict the refusal below acts on.
+        codehash: codehashGate,
         targetState,
         executability,
         // Only a chain the simulator was never written for is out of scope. An
