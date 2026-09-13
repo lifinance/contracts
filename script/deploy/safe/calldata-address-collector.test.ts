@@ -246,12 +246,22 @@ describe('installedAddresses', () => {
   // The whole point of the set: a Remove installs nothing, so it contributes no
   // subject and gate G has nothing to read. The diamond being cut into is not
   // in the set either — it is not installed by this proposal.
-  it('is empty for a cut that only removes', () => {
+  it('is empty for the cut a removal is actually written as', () => {
     expect([
       ...installedAddresses([
         reference(AddressRoleEnum.FacetRemove, ZERO_ADDRESS),
         reference(AddressRoleEnum.CutInit, ZERO_ADDRESS),
       ]),
+    ]).toEqual([])
+  })
+
+  // The role is what decides, not the zero address that usually accompanies it.
+  // `LibDiamond` requires zero in a removal's facet slot, so a non-zero one is
+  // a cut that will revert — and a gate that read it as an install would be
+  // reading the slot rather than the action.
+  it('drops a removal that names a non-zero address', () => {
+    expect([
+      ...installedAddresses([reference(AddressRoleEnum.FacetRemove, FACET)]),
     ]).toEqual([])
   })
 
