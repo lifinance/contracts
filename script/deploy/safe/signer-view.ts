@@ -102,6 +102,11 @@ const BUCKET_ORDER: readonly CheckBucket[] = [
 export const bucketOf = (entry: IBucketedResult): CheckBucket => {
   const { result } = entry
   if (entry.notApplicable) return 'n/a'
+  // A check that ran and established there was nothing to grade, which is a
+  // different thing from `notApplicable` above — that one never registered.
+  // `summariseLedger` already keeps this status out of `blocking`, so falling
+  // through to `unchecked` printed BLOCKS over a gate the run had cleared.
+  if (result.status === 'not-applicable') return 'n/a'
   if (result.status === 'pass') return 'passed'
   if (result.status === 'fail' || result.status === 'needs-ack')
     return isAcknowledgeable(entry.definition, result) ? 'ack' : 'wrong'
@@ -131,6 +136,7 @@ const MANIFEST_WORD: ReadonlyMap<string, string> = new Map([
   ['pass', 'ok'],
   ['fail', 'WRONG'],
   ['needs-ack', 'ASKS YOU'],
+  ['not-applicable', 'n/a'],
 ])
 
 /** A status this view cannot name is an unmade reading, never a pass. */
@@ -192,6 +198,16 @@ const MANIFEST_FIXED =
   1 +
   MANIFEST_BLOCKS_WIDTH +
   2
+
+/**
+ * Columns a gate title may occupy before the dot leader collapses.
+ *
+ * Exported so the titles can be pinned against the column they are printed in
+ * rather than against a number written down twice: the titles state their
+ * assertion, so they sit close enough to the limit that a reworded one can
+ * cross it.
+ */
+export const MANIFEST_TITLE_WIDTH = VIEW_WIDTH - MANIFEST_FIXED - 1
 
 export interface IGateManifestInput {
   /** Every result this run produced, in any order. */

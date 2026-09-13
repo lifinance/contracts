@@ -37,7 +37,7 @@ export const TARGET_STATE_CHECK: ICheckDefinition = {
   section: 'Intent',
   checkClass: 'semantic',
   gate: 'H',
-  title: 'Facet version',
+  title: 'Contract version matches target state',
 }
 
 export const STORAGE_AUTHORITY_CHECK_ID = 'storage-authority'
@@ -599,7 +599,7 @@ export const EXECUTABILITY_CHECK: ICheckDefinition = {
   // no way for the signer to say so.
   checkClass: 'semantic',
   gate: 'I',
-  title: 'Calldata simulation',
+  title: 'Transaction / calldata would not revert',
 }
 
 export const RPC_QUORUM_CHECK_ID = 'rpc-quorum'
@@ -609,7 +609,7 @@ export const RPC_QUORUM_CHECK: ICheckDefinition = {
   section: 'Evidence',
   checkClass: 'semantic',
   gate: 'J',
-  title: 'Provider agreement',
+  title: 'Independent RPCs agree',
 }
 
 export const CODEHASH_CHECK_ID = 'codehash'
@@ -627,7 +627,7 @@ export const CODEHASH_CHECK: ICheckDefinition = {
   section: 'Deployed state',
   checkClass: 'integrity',
   gate: 'K',
-  title: 'Deployed bytecode',
+  title: "Facet bytecode matches main's build",
 }
 
 /**
