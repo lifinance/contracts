@@ -70,11 +70,11 @@ const BUCKET_STYLE: ReadonlyMap<CheckBucket, IBucketStyle> = new Map([
     'ack',
     {
       heading: 'NEEDS YOUR ACKNOWLEDGEMENT',
-      glyph: '⚠',
+      glyph: '⚠️',
       colour: YELLOW,
     },
   ],
-  ['passed', { heading: 'PASSED', glyph: '✓', colour: GREEN }],
+  ['passed', { heading: 'PASSED', glyph: '✅', colour: GREEN }],
   ['n/a', { heading: 'NOT APPLICABLE', glyph: '·', colour: DIM }],
 ])
 
@@ -149,30 +149,49 @@ const SILENT = { glyph: '!', word: 'NO RESULT', colour: YELLOW } as const
 /**
  * Glyphs that occupy two terminal columns rather than one.
  *
- * `⛔` is emoji-presentation. The manifest is the only place in this view where
- * a glyph sits in an aligned column, so the width is paid here rather than by
- * giving the table its own glyph vocabulary: the same gate showing one mark in
- * the table and a different one in the section below it is a worse defect than
- * a column that has to measure its own glyphs.
+ * The three verdicts a signer acts on are emoji-presentation, so that the mark
+ * carries the verdict at a glance rather than the word beside it having to.
+ * The manifest is the only place in this view where a glyph sits in an aligned
+ * column, so the width is paid here rather than by giving the table its own
+ * glyph vocabulary: the same gate showing one mark in the table and a different
+ * one in the section below it is a worse defect than a column that has to
+ * measure its own glyphs.
  */
-const WIDE_GLYPHS: ReadonlySet<string> = new Set(['⛔'])
+const WIDE_GLYPHS: ReadonlySet<string> = new Set(['⛔', '⚠️', '✅'])
 
-/** A glyph padded to a two-column cell, so every row's letter starts level. */
+/** Columns the manifest's glyph cell occupies, widest glyph plus a separator. */
+const GLYPH_CELL_WIDTH = 3
+
+/**
+ * A glyph padded to a fixed cell, so every row's letter starts level.
+ *
+ * The separating column is inside the cell rather than written after it: an
+ * emoji already fills two columns, so a cell sized to the glyph alone puts the
+ * gate letter hard against the mark on exactly the rows a signer reads first.
+ */
 const glyphCell = (glyph: string): string =>
-  WIDE_GLYPHS.has(glyph) ? glyph : `${glyph} `
+  `${glyph}${' '.repeat(GLYPH_CELL_WIDTH - (WIDE_GLYPHS.has(glyph) ? 2 : 1))}`
 
 /**
  * Columns the manifest spends on everything that is not the gate's title.
  *
  * Derived rather than written down so the dot leader cannot drift out of the
- * view when a column is widened: two of margin, the two-column glyph cell, a
- * space, the letter, two spaces, then the verdict word and the disposition with
- * a space each side.
+ * view when a column is widened: two of margin, the glyph cell, a space, the
+ * letter, two spaces, then the verdict word and the disposition with a space
+ * each side.
  */
 const MANIFEST_WORD_WIDTH = 10
 const MANIFEST_BLOCKS_WIDTH = 6
 const MANIFEST_FIXED =
-  2 + 2 + 1 + 1 + 2 + MANIFEST_WORD_WIDTH + 1 + MANIFEST_BLOCKS_WIDTH + 2
+  2 +
+  GLYPH_CELL_WIDTH +
+  1 +
+  1 +
+  2 +
+  MANIFEST_WORD_WIDTH +
+  1 +
+  MANIFEST_BLOCKS_WIDTH +
+  2
 
 export interface IGateManifestInput {
   /** Every result this run produced, in any order. */
@@ -286,7 +305,9 @@ export const renderGateManifest = (input: IGateManifestInput): string[] => {
   for (const entry of input.entries)
     if (!input.roster.some((d) => d.checkId === entry.result.checkId))
       out.push(
-        `  ${RED}? ${RESET}${BOLD}?${RESET}  ${entry.result.checkId} ${RED}— this result names no gate on the roster${RESET}`
+        `  ${RED}${glyphCell('?')}${RESET}${BOLD}?${RESET}  ${
+          entry.result.checkId
+        } ${RED}— this result names no gate on the roster${RESET}`
       )
 
   out.push('')

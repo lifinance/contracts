@@ -128,7 +128,7 @@ describe('renderCheckGroups', () => {
 
   it('gives every bucket its own glyph, so none is told apart by wording alone', () => {
     const plain = renderCheckGroups(mixed).map(stripAnsi).join('\n')
-    const glyphs = ['⛔', '?', '✓', '·']
+    const glyphs = ['⛔', '?', '✅', '·']
 
     for (const glyph of glyphs) expect(plain).toContain(glyph)
     expect(new Set(glyphs).size).toBe(glyphs.length)
@@ -165,7 +165,7 @@ describe('renderCheckGroups', () => {
     ]
     const lines = renderCheckGroups(passed)
       .map(stripAnsi)
-      .filter((line) => line.trimStart().startsWith('✓'))
+      .filter((line) => line.trimStart().startsWith('✅'))
 
     expect(lines).toHaveLength(passed.length)
     for (const line of lines) expect(line).toContain('title for')
@@ -640,11 +640,20 @@ describe('a pair of values compared character by character', () => {
  * Terminal columns a string occupies.
  *
  * `String.length` counts UTF-16 units, which is not what a signer sees: `⛔` is
- * one unit and two columns. A width assertion written against `.length` passes
- * on a row that runs a column past the view.
+ * one unit and two columns, and `⚠️` is two units and two columns. A width
+ * assertion written against `.length` passes on a row that runs a column past
+ * the view.
+ *
+ * Spelled out here rather than imported from the view: a width check that
+ * measures with the same table the view pads with agrees with it by
+ * construction, including when both are wrong.
  */
+const WIDE_GLYPHS: ReadonlySet<string> = new Set(['⛔', '✅', '⚠'])
 const displayWidth = (text: string): number =>
-  [...text].reduce((n, ch) => n + (ch === '⛔' ? 2 : 1), 0)
+  [...text].reduce(
+    (n, ch) => (ch === '\uFE0F' ? n : n + (WIDE_GLYPHS.has(ch) ? 2 : 1)),
+    0
+  )
 
 describe('renderGateManifest', () => {
   const gate = (
