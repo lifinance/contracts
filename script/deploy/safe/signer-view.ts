@@ -191,16 +191,32 @@ const glyphCell = (glyph: string): string =>
  */
 const MANIFEST_WORD_WIDTH = 10
 const MANIFEST_BLOCKS_WIDTH = 6
+/** The letter's cell, sized to its own header plus a separating column. */
+const MANIFEST_GATE_WIDTH = 5
 const MANIFEST_FIXED =
   2 +
   GLYPH_CELL_WIDTH +
+  MANIFEST_GATE_WIDTH +
   1 +
-  1 +
-  2 +
   MANIFEST_WORD_WIDTH +
   1 +
   MANIFEST_BLOCKS_WIDTH +
   2
+
+/**
+ * What each column holds, over the columns themselves.
+ *
+ * The glyph gets none: it is the same mark the bucket headings below already
+ * name, and a word over it would be the only header describing something the
+ * reader can already read.
+ */
+const MANIFEST_HEADERS = {
+  gate: 'GATE',
+  title: 'WHAT IT ASSERTS',
+  word: 'RESULT',
+  blocks: 'ACTION',
+  link: 'WRITE-UP',
+} as const
 
 export interface IGateManifestInput {
   /** Every result this run produced, in any order. */
@@ -220,6 +236,17 @@ export interface IGateManifestInput {
    * that must report would make every run block on a check that is working.
    */
   mustReport: ReadonlySet<string>
+  /**
+   * Where each gate is written up, by `checkId`.
+   *
+   * Keyed off the roster rather than off the results, so the gate that reported
+   * nothing — the row this table exists to make visible — still carries the
+   * link a signer needs in order to find out what it was supposed to do.
+   *
+   * Passed in rather than imported: this module knows how the zones are drawn
+   * and nothing about which checks exist.
+   */
+  docUrls?: ReadonlyMap<string, string>
 }
 
 /**
@@ -239,10 +266,41 @@ export const renderGateManifest = (input: IGateManifestInput): string[] => {
   const byCheckId = new Map(
     input.entries.map((entry) => [entry.result.checkId, entry])
   )
-  const titleWidth = Math.max(0, VIEW_WIDTH - MANIFEST_FIXED)
+  // Sized to the longest link actually on the roster, not to a written-down
+  // number: the column is absent entirely until the write-ups exist, and a
+  // reserved width would take those columns from the dot leader for nothing.
+  const linkWidth = Math.max(
+    0,
+    ...input.roster.map(
+      (definition) => input.docUrls?.get(definition.checkId)?.length ?? 0
+    ),
+    input.docUrls?.size ? MANIFEST_HEADERS.link.length : 0
+  )
+  const titleWidth = Math.max(
+    0,
+    VIEW_WIDTH - MANIFEST_FIXED - (linkWidth ? linkWidth + 1 : 0)
+  )
   const out: string[] = []
   let reported = 0
   let silent = 0
+
+  // A link column only aligns if what precedes it is padded rather than
+  // trimmed, so a row's trailing whitespace is cut only when nothing follows.
+  const endRow = (row: string, link: string): string =>
+    link ? `${row} ${BLUE}${link}${RESET}` : row.trimEnd()
+
+  out.push(
+    `${DIM}${' '.repeat(2 + GLYPH_CELL_WIDTH)}` +
+      `${MANIFEST_HEADERS.gate.padEnd(MANIFEST_GATE_WIDTH)}` +
+      `${MANIFEST_HEADERS.title.padEnd(titleWidth)} ` +
+      `${MANIFEST_HEADERS.word.padEnd(MANIFEST_WORD_WIDTH)} ` +
+      `${
+        linkWidth
+          ? `${MANIFEST_HEADERS.blocks.padEnd(MANIFEST_BLOCKS_WIDTH)} ` +
+            MANIFEST_HEADERS.link
+          : MANIFEST_HEADERS.blocks
+      }${RESET}`.trimEnd()
+  )
 
   for (const definition of input.roster) {
     const entry = byCheckId.get(definition.checkId)
@@ -291,19 +349,24 @@ export const renderGateManifest = (input: IGateManifestInput): string[] => {
     // disposition otherwise keeps the separating space, and half the table
     // ships trailing whitespace into whatever the run is piped into.
     out.push(
-      (
+      endRow(
         `  ${colour}${glyphCell(glyph)}${RESET}${BOLD}${
           definition.gate
-        }${RESET}  ` +
-        `${definition.title} ${DIM}${dots}${RESET} ` +
-        // Padded outside the colour: inside it the row ends in a reset code
-        // rather than a space, so `trimEnd` cannot see the padding and every
-        // row without a disposition ships trailing whitespace.
-        `${colour}${word}${RESET}${' '.repeat(
-          Math.max(0, MANIFEST_WORD_WIDTH - word.length)
-        )} ` +
-        disposition
-      ).trimEnd()
+        }${RESET}${' '.repeat(
+          Math.max(0, MANIFEST_GATE_WIDTH - definition.gate.length)
+        )}` +
+          `${definition.title} ${DIM}${dots}${RESET} ` +
+          // Padded outside the colour: inside it the row ends in a reset code
+          // rather than a space, so `trimEnd` cannot see the padding and every
+          // row without a disposition ships trailing whitespace.
+          `${colour}${word}${RESET}${' '.repeat(
+            Math.max(0, MANIFEST_WORD_WIDTH - word.length)
+          )} ` +
+          `${disposition}${' '.repeat(
+            Math.max(0, MANIFEST_BLOCKS_WIDTH - visibleWidth(disposition))
+          )}`,
+        input.docUrls?.get(definition.checkId) ?? ''
+      )
     )
   }
 
@@ -739,22 +802,28 @@ export const renderCheckGroups = (
     const style = BUCKET_STYLE.get(bucket)
     if (!style) continue
 
+    // The passed bucket prints only notes, so on the run where no passed check
+    // carries one it prints nothing — and a heading over nothing reads as a
+    // section whose contents went missing.
+    const withNotes =
+      bucket === 'passed'
+        ? entries.filter((entry) => entry.notes?.length)
+        : entries
+    if (!withNotes.length) continue
+
     out.push('')
     out.push(`  ${style.colour}${BOLD}${style.heading}${RESET}`)
 
     if (bucket === 'passed') {
-      // One line per gate, not a run: a signer checking that a particular gate
-      // ran has to find it, and a name inside a wrapped list of names is the
-      // one arrangement that cannot be scanned down.
-      for (const entry of entries) {
+      // Only what the manifest above cannot carry. The gate's letter, subject,
+      // verdict and write-up are all on its manifest row, so listing them again
+      // under a heading asks the signer to read the same roster twice; a note
+      // is per-check evidence that has no column.
+      for (const entry of withNotes) {
         const title = entry.definition
           ? gateLabel(entry.definition)
           : entry.result.checkId
-        out.push(
-          `    ${style.colour}${style.glyph}${RESET} ${title}${
-            entry.docUrl ? ` ${BLUE}${entry.docUrl}${RESET}` : ''
-          }`
-        )
+        out.push(`    ${style.colour}${style.glyph}${RESET} ${title}`)
         out.push(...(entry.notes ?? []).flatMap(wrapNote))
       }
       continue

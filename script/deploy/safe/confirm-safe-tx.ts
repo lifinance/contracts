@@ -198,6 +198,7 @@ import {
   zoneHeading,
 } from './signer-view'
 import {
+  CHECK_DOCS,
   integrityResults,
   opensDeviceScreens,
   signerChecks,
@@ -1291,6 +1292,7 @@ const processTxs = async (
         mustReport: new Set(
           CONFIRM_CHECK_DEFINITIONS.map((definition) => definition.checkId)
         ),
+        docUrls: CHECK_DOCS,
       }).join('\n')
     )
     consola.log(renderCheckGroups(signerCheckRows).join('\n'))

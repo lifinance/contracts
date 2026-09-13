@@ -119,10 +119,13 @@ describe('bucketOf', () => {
 })
 
 describe('renderCheckGroups', () => {
+  // The passed check carries a note: a passed gate whose whole content is on
+  // its manifest row prints nothing here, so without one the PASSED bucket is
+  // absent and the two tests below would be asserting against an empty section.
   const mixed: IBucketedResult[] = [
     entry('INT-SAFE-ADDRESS', 'fail'),
     entry('rpc-quorum', 'error'),
-    entry('INT-TARGET', 'pass'),
+    entry('INT-TARGET', 'pass', { notes: ['      read at refs/heads/main'] }),
     entry('codehash', 'pass', { notApplicable: 'no diamondCut here' }),
   ]
 
@@ -156,33 +159,46 @@ describe('renderCheckGroups', () => {
     expect(at('PASSED')).toBeLessThan(at('NOT APPLICABLE'))
   })
 
-  it('gives every passed gate its own line', () => {
-    const passed = [
-      entry('INT-SAFE-TX-HASH', 'pass'),
-      entry('INT-FIXED-FIELDS', 'pass'),
-      entry('INT-TARGET', 'pass'),
-      entry('target-state', 'pass'),
-    ]
-    const lines = renderCheckGroups(passed)
-      .map(stripAnsi)
-      .filter((line) => line.trimStart().startsWith('✅'))
+  // The gate manifest above states every gate's letter, subject, verdict and
+  // write-up, so a passed gate repeated here is the same roster read twice.
+  // What it cannot carry is a note: per-check evidence with no column.
+  it('gives a passed gate a line only for what the manifest cannot carry', () => {
+    const noted = entry('INT-TARGET', 'pass', {
+      notes: ['      read at refs/heads/main'],
+    })
+    const bare = entry('INT-SAFE-TX-HASH', 'pass')
 
-    expect(lines).toHaveLength(passed.length)
-    for (const line of lines) expect(line).toContain('title for')
+    const withNote = renderCheckGroups([noted]).map(stripAnsi).join('\n')
+    const withoutNote = renderCheckGroups([bare]).map(stripAnsi).join('\n')
+
+    expect(withNote).toContain('read at refs/heads/main')
+    expect(withNote).toContain('title for INT-TARGET')
+    // Paired with the present above: the bucket is gone entirely, not merely
+    // rendered without its note.
+    expect(withoutNote).not.toContain('PASSED')
+    expect(withoutNote).not.toContain('title for INT-SAFE-TX-HASH')
   })
 
-  it('points a passed gate at its write-up too', () => {
+  it('does not repeat a passed gate write-up the manifest already carries', () => {
     const plain = renderCheckGroups([
-      entry('INT-TARGET', 'pass', { docUrl: 'https://example.invalid/gate-e' }),
+      entry('INT-TARGET', 'pass', {
+        docUrl: 'https://example.invalid/gate-e',
+        notes: ['      read at refs/heads/main'],
+      }),
     ])
       .map(stripAnsi)
       .join('\n')
 
-    expect(plain).toContain('https://example.invalid/gate-e')
+    expect(plain).not.toContain('https://example.invalid/gate-e')
+    // Paired with a present, so this cannot pass on a gate that rendered no
+    // line at all.
+    expect(plain).toContain('read at refs/heads/main')
   })
 
   it('keeps the full title for a check with no short label', () => {
-    const plain = renderCheckGroups([entry('codehash', 'pass')])
+    const plain = renderCheckGroups([
+      entry('codehash', 'pass', { notes: ['      nothing to report'] }),
+    ])
       .map(stripAnsi)
       .join('\n')
 
@@ -190,7 +206,9 @@ describe('renderCheckGroups', () => {
   })
 
   it('omits a bucket nothing landed in', () => {
-    const plain = renderCheckGroups([entry('INT-TARGET', 'pass')])
+    const plain = renderCheckGroups([
+      entry('INT-TARGET', 'pass', { notes: ['      read at refs/heads/main'] }),
+    ])
       .map(stripAnsi)
       .join('\n')
 
@@ -215,10 +233,13 @@ describe('renderCheckGroups', () => {
 
   it('keeps a collapsed pass run inside the view width', () => {
     const many = Array.from({ length: 12 }, (_, i) =>
-      entry(`CHECK-${i}`, 'pass')
+      entry(`CHECK-${i}`, 'pass', { notes: [`      note for check ${i}`] })
     )
     const lines = renderCheckGroups(many).map(stripAnsi)
 
+    // Without this the loop below runs over an empty list: a passed gate with
+    // no note prints nothing at all now.
+    expect(lines.length).toBeGreaterThan(12)
     for (const line of lines)
       expect(line.length).toBeLessThanOrEqual(VIEW_WIDTH)
   })
@@ -694,6 +715,93 @@ describe('renderGateManifest', () => {
     return found
   }
 
+  const DOCS: ReadonlyMap<string, string> = new Map([
+    ['a-check', 'https://example.invalid/gate-a'],
+    ['b-check', 'https://example.invalid/gate-b'],
+    ['c-check', 'https://example.invalid/gate-c'],
+    ['d-check', 'https://example.invalid/gate-d'],
+    ['k-check', 'https://example.invalid/gate-k'],
+  ])
+
+  const renderWithDocs = (entries: IBucketedResult[]): string[] =>
+    renderGateManifest({
+      entries,
+      roster: ROSTER,
+      mustReport: OWED,
+      docUrls: DOCS,
+    }).map(stripAnsi)
+
+  describe('the columns name themselves', () => {
+    it('heads every column but the glyph, which the bucket headings name', () => {
+      const header = renderWithDocs([entry('a-check', 'pass')])[0] as string
+
+      for (const label of ['GATE', 'WHAT IT ASSERTS', 'RESULT', 'ACTION'])
+        expect(header).toContain(label)
+      // The glyph column is the one deliberately left unheaded.
+      expect(header.trimStart().startsWith('GATE')).toBe(true)
+    })
+
+    // Measured from the gate letter, never from the start of the line. An
+    // emoji is two terminal columns and one or two JavaScript characters
+    // depending on whether it carries a variation selector, so a string index
+    // taken across the glyph cell reports rows as ragged that a terminal draws
+    // level — and reports them level when a narrow glyph made them ragged.
+    const fromLetter = (line: string, letter: string, needle: string): number =>
+      line.indexOf(needle) - line.indexOf(letter)
+
+    it('starts the header on the same column as the letters under it', () => {
+      // Gate K's glyph is the narrow `·` — one column and one character — so
+      // this one row can be measured from the start of the line honestly.
+      const lines = renderWithDocs([entry('a-check', 'pass')])
+      const header = lines[0] as string
+
+      expect(header.indexOf('GATE')).toBe(rowFor(lines, 'K').indexOf('K'))
+    })
+
+    it('aligns every write-up on the column its header opens', () => {
+      const lines = renderWithDocs([
+        entry('a-check', 'pass'),
+        entry('d-check', 'fail', { definition: ROSTER[3] as ICheckDefinition }),
+        entry('k-check', 'fail'),
+      ])
+
+      // Across a passed row, an acknowledgeable one carrying `yours` and a
+      // blocking one carrying `BLOCKS`: the dispositions are what make the
+      // column ragged if they are trimmed rather than padded.
+      const columns = new Set(
+        ['A', 'D', 'K'].map((letter) =>
+          fromLetter(rowFor(lines, letter), letter, 'https://example.invalid/')
+        )
+      )
+
+      expect(columns.size).toBe(1)
+      expect([...columns][0]).toBe(
+        fromLetter(lines[0] as string, 'GATE', 'WRITE-UP')
+      )
+    })
+
+    it('gives a gate that reported nothing its write-up too', () => {
+      // The row this table exists to make visible. It has no result, so it has
+      // no entry to carry a link, and the link has to come off the roster.
+      const row = rowFor(renderWithDocs([entry('a-check', 'pass')]), 'B')
+
+      expect(row).toContain('NO RESULT')
+      expect(row).toContain('https://example.invalid/gate-b')
+    })
+
+    it('spends no columns on a write-up column that would be empty', () => {
+      const withDocs = renderWithDocs([entry('a-check', 'pass')])
+      const without = render([entry('a-check', 'pass')])
+
+      expect(without[0]).not.toContain('WRITE-UP')
+      // The columns the link would have taken go back to the dot leader, so
+      // the verdict word sits further right than it does beside a link column.
+      expect(fromLetter(rowFor(without, 'A'), 'A', 'ok')).toBeGreaterThan(
+        fromLetter(rowFor(withDocs, 'A'), 'A', 'ok')
+      )
+    })
+  })
+
   it('prints one row per gate on the roster, results or not', () => {
     const lines = render([entry('a-check', 'pass')])
     for (const definition of ROSTER)
@@ -786,6 +894,37 @@ describe('renderGateManifest', () => {
       entry('b-check', 'fail'),
       entry('d-check', 'needs-ack'),
     ])
+    for (const line of lines)
+      expect(displayWidth(line)).toBeLessThanOrEqual(VIEW_WIDTH)
+  })
+
+  it('keeps every row inside the view width once a link column is drawn', () => {
+    // At the real write-ups' length, not the short stand-ins above: the link
+    // column is what the title field is narrowed to make room for, so a column
+    // sized to its header rather than to its contents overflows by the whole
+    // difference and only a full-length URL shows it.
+    const realistic = new Map(
+      [...DOCS.keys()].map((checkId) => [
+        checkId,
+        `https://app.notion.com/p/${'0123456789abcdef'.repeat(2)}`,
+      ])
+    )
+    const lines = renderGateManifest({
+      entries: [
+        entry('a-check', 'pass'),
+        entry('b-check', 'fail'),
+        entry('d-check', 'needs-ack'),
+      ],
+      roster: ROSTER,
+      mustReport: OWED,
+      docUrls: realistic,
+    }).map(stripAnsi)
+
+    // Paired with a present: a render that dropped the links entirely would
+    // fit the view trivially.
+    expect(lines.some((line) => line.includes('https://app.notion.com'))).toBe(
+      true
+    )
     for (const line of lines)
       expect(displayWidth(line)).toBeLessThanOrEqual(VIEW_WIDTH)
   })
