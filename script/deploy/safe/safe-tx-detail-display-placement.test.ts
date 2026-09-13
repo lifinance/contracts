@@ -54,7 +54,9 @@ describe('smoke check: the shape of the call into the detail block', () => {
 
   it('builds the block in one place and prints what it returns', () => {
     expect(CONFIRM).toContain('const detailLines = buildSafeTxDetailLines({')
-    expect(CONFIRM).toContain("consola.info(detailLines.join('\\n'))")
+    // `log`, not `info`: consola's level prefix lands on the first line of a
+    // multi-line string and shifts that line alone out of the block's column.
+    expect(CONFIRM).toContain("consola.log(detailLines.join('\\n'))")
     // An inline push would add a line without passing through the builder.
     expect(CONFIRM).not.toContain('detailLines.push')
   })

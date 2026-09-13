@@ -22,14 +22,16 @@ const CODEHASH: ICheckDefinition = {
   checkId: 'codehash',
   section: 'Integrity',
   checkClass: 'integrity',
-  title: 'Deployed codehash matches the attested build',
+  gate: 'X',
+  title: 'Deployed codehash',
 }
 
 const TARGET_STATE: ICheckDefinition = {
   checkId: 'target-state',
   section: 'Intent',
   checkClass: 'semantic',
-  title: 'Facet version matches the declared target state',
+  gate: 'Y',
+  title: 'Facet version',
 }
 
 const ledgerOf = (
@@ -770,5 +772,81 @@ describe('the superseded mismatch survives more than one retry', () => {
     expect(rowFor(renderCheckLedger(forged), 'mainnet')).not.toContain(
       'an earlier attempt disagreed'
     )
+  })
+})
+
+describe('unverified rows that all rest on one cause', () => {
+  const NO_ENDPOINT = 'ETH_NODE_URI_ARBITRUM is not set'
+
+  const unverified = (checkId: string, detail: string): ICheckResult =>
+    result({
+      checkId,
+      network: 'arbitrum',
+      status: 'error',
+      expected: 'a reading',
+      actual: 'nothing could be read',
+      anchor: 'A-UNRESOLVED',
+      detail,
+    })
+
+  it('names the cause once, above the rows it explains', () => {
+    const ledger = ledgerOf(['arbitrum'])
+    recordCheck(ledger, unverified('codehash', NO_ENDPOINT))
+    recordCheck(ledger, unverified('target-state', NO_ENDPOINT))
+
+    const lines = renderCheckLedger(ledger)
+    const banner = lines.findIndex((line) => line.includes(NO_ENDPOINT))
+    const firstRow = lines.findIndex((line) => line.includes('UNVERIFIED'))
+
+    expect(banner).toBeGreaterThan(-1)
+    expect(banner).toBeLessThan(firstRow)
+    expect(lines[banner]).toContain('2 unverified results')
+    // The advice the old report gave ten times over, contradicted once.
+    expect(lines[banner]).toContain('will not change the answer')
+  })
+
+  it('stays quiet when the rows do not share a cause', () => {
+    const ledger = ledgerOf(['arbitrum'])
+    recordCheck(ledger, unverified('codehash', NO_ENDPOINT))
+    recordCheck(ledger, unverified('target-state', 'the store was unreachable'))
+
+    expect(
+      renderCheckLedger(ledger).filter((line) =>
+        line.includes('will not change the answer')
+      )
+    ).toHaveLength(0)
+  })
+
+  it('stays quiet when something also disagreed', () => {
+    // Two problems, not one. A banner naming the environment would send the
+    // signer to fix a thing that was never the whole story.
+    const ledger = ledgerOf(['arbitrum'])
+    recordCheck(ledger, unverified('codehash', NO_ENDPOINT))
+    recordCheck(
+      ledger,
+      result({
+        checkId: 'target-state',
+        network: 'arbitrum',
+        status: 'fail',
+        anchor: 'A-MAIN',
+      })
+    )
+
+    expect(
+      renderCheckLedger(ledger).filter((line) =>
+        line.includes('will not change the answer')
+      )
+    ).toHaveLength(0)
+  })
+
+  it('stays quiet for a single unverified row, which its own action covers', () => {
+    const ledger = ledgerOf(['arbitrum'], [CODEHASH])
+    recordCheck(ledger, unverified('codehash', NO_ENDPOINT))
+
+    expect(
+      renderCheckLedger(ledger).filter((line) =>
+        line.includes('will not change the answer')
+      )
+    ).toHaveLength(0)
   })
 })

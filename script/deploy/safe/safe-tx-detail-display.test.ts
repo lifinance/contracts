@@ -42,6 +42,7 @@ const expectNoTerminalControl = (lines: string[]): void => {
 /** A row with nothing hostile in it. Every field is the shape Mongo stores. */
 const benign: ISafeTxDetailInput = {
   network: 'mainnet',
+  safeAddress: '0x1a9C8182C09F50C8318d769245beA52c32BE35BC',
   nonce: '31',
   nonceColor: '32',
   nonceWarning: trustedMarkup(''),
@@ -51,6 +52,7 @@ const benign: ISafeTxDetailInput = {
   explorerUrlFor: () => '',
   value: '0',
   operationLabel: trustedMarkup('Call'),
+  operationIsCall: true,
   data: '0xdeadbeef',
   proposer: '0x5c19DE04c40f9F8Ed9F0Fe6a5cEb84E5C8a5b31E',
   safeTxHash:
@@ -845,6 +847,7 @@ describe('a normal proposal renders exactly as it does today', () => {
     expect(buildSafeTxDetailLines(benign).join('\n')).toBe(
       [
         'Safe Transaction Details:',
+        '    Safe:            [32m0x1a9C8182C09F50C8318d769245beA52c32BE35BC[0m',
         '    Nonce:           \u001b[32m31\u001b[0m',
         '    To:              \u001b[32m0x11f1022cA6AdEF6400e5677528a80d49a069C00c\u001b[0m',
         '    Value:           \u001b[32m0\u001b[0m',
@@ -857,6 +860,34 @@ describe('a normal proposal renders exactly as it does today', () => {
         '    Provenance:      \u001b[33m— not recorded (proposal predates provenance capture) —\u001b[0m',
       ].join('\n')
     )
+  })
+
+  it('drops its own heading when the caller names the block', () => {
+    const [first] = buildSafeTxDetailLines({ ...benign, heading: '' })
+
+    expect(first).toContain('Safe:')
+  })
+
+  it('draws an operation that is not a Call as an alarm, not as a word', () => {
+    const lines = buildSafeTxDetailLines({
+      ...benign,
+      operationLabel: trustedMarkup('DelegateCall'),
+      operationIsCall: false,
+    }).join('\n')
+
+    expect(lines).toContain('NOT A PLAIN CALL')
+    // The label itself has to change weight too: an alarm under a green word
+    // reads as a warning about something else on the screen.
+    expect(lines).toContain('[1m[31mDelegateCall')
+  })
+
+  it('renders the Safe address through the same funnel as every stored field', () => {
+    const lines = buildSafeTxDetailLines({
+      ...benign,
+      safeAddress: '0x1a9C[31m8182',
+    }).join('\n')
+
+    expect(lines).toContain('sanitised for display')
   })
 
   it('keeps the nonce warning, explorer suffix and ready mark verbatim', () => {

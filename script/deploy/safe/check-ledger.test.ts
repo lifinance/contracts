@@ -22,14 +22,16 @@ const CODEHASH: ICheckDefinition = {
   checkId: 'codehash',
   section: 'Integrity',
   checkClass: 'integrity',
-  title: 'Deployed codehash matches the attested build',
+  gate: 'X',
+  title: 'Deployed codehash',
 }
 
 const TARGET_STATE: ICheckDefinition = {
   checkId: 'target-state',
   section: 'Intent',
   checkClass: 'semantic',
-  title: 'Facet version matches the declared target state',
+  gate: 'Y',
+  title: 'Facet version',
 }
 
 const ledgerOf = (
@@ -1038,5 +1040,109 @@ describe('nothing that would soften the verdict may erase a mismatch', () => {
 
     expect(rollup?.errored).toBe(1)
     expect(rollup?.unverified).toBe(1)
+  })
+})
+
+describe('undecidableIsAcknowledgeable', () => {
+  // A gate that reads live state against an expectation the proposer writes can
+  // neither decide a green nor honestly refuse: the operator has no way to make
+  // a record-sourced expectation into a repo-sourced one. The opt-in gives that
+  // one case a signer to answer it, and nothing else.
+  const AUTHORITIES: ICheckDefinition = {
+    checkId: 'storage-authority',
+    section: 'Deployed state',
+    checkClass: 'integrity',
+    gate: 'Z',
+    title: 'Storage authorities',
+    undecidableIsAcknowledgeable: true,
+  }
+
+  const row = (over: Partial<ICheckResult> = {}): ICheckResult => ({
+    checkId: 'storage-authority',
+    network: 'mainnet',
+    status: 'needs-ack',
+    expected: 'the address main declares',
+    actual: 'the address main declares',
+    anchor: 'A-MONGO',
+    ...over,
+  })
+
+  const verdictOf = (
+    definition: ICheckDefinition,
+    over: Partial<ICheckResult> = {}
+  ) => {
+    const ledger = ledgerOf(['mainnet'], [definition])
+    recordCheck(ledger, row(over))
+    return summariseLedger(ledger)
+  }
+
+  it('keeps needs-ack on an integrity check whose anchor only reports', () => {
+    const ledger = ledgerOf(['mainnet'], [AUTHORITIES])
+
+    expect(recordCheck(ledger, row()).status).toBe('needs-ack')
+
+    const verdict = verdictOf(AUTHORITIES)
+    expect(verdict.hardBlocked).toBe(false)
+    expect(verdict.requiresAcknowledgement).toHaveLength(1)
+  })
+
+  it('does nothing without the flag', () => {
+    const { undecidableIsAcknowledgeable: _optIn, ...plain } = AUTHORITIES
+
+    expect(verdictOf(plain).hardBlocked).toBe(true)
+  })
+
+  it('refuses the exemption on A-UNRESOLVED, where nothing answered', () => {
+    const ledger = ledgerOf(['mainnet'], [AUTHORITIES])
+
+    expect(recordCheck(ledger, row({ anchor: 'A-UNRESOLVED' })).status).toBe(
+      'fail'
+    )
+    expect(verdictOf(AUTHORITIES, { anchor: 'A-UNRESOLVED' }).hardBlocked).toBe(
+      true
+    )
+  })
+
+  it('refuses the exemption on an anchor that could have decided', () => {
+    // `A-LOCAL` can grade a pass, so a `needs-ack` on it is not an undecidable
+    // expectation — it is an integrity check asking to be clicked through.
+    expect(verdictOf(AUTHORITIES, { anchor: 'A-LOCAL' }).hardBlocked).toBe(true)
+  })
+
+  it('leaves a real mismatch hard-blocking, on the same anchor', () => {
+    const verdict = verdictOf(AUTHORITIES, {
+      status: 'fail',
+      actual: '0xattacker',
+    })
+
+    expect(verdict.hardBlocked).toBe(true)
+    expect(verdict.requiresAcknowledgement).toHaveLength(0)
+  })
+
+  it('is not what reclassifying the check as semantic would do', () => {
+    // The measured false green this flag exists to avoid: `semantic` sends the
+    // mismatch to acknowledgement too, turning a storage-authority swap into a
+    // prompt.
+    const asSemantic = verdictOf(
+      { ...AUTHORITIES, checkClass: 'semantic' },
+      { status: 'fail', actual: '0xattacker' }
+    )
+
+    expect(asSemantic.hardBlocked).toBe(false)
+    expect(asSemantic.requiresAcknowledgement).toHaveLength(1)
+  })
+
+  it('moves the ledger digest, so it cannot be added off the record', () => {
+    const { undecidableIsAcknowledgeable: _optIn, ...plain } = AUTHORITIES
+    const attest = (definition: ICheckDefinition) => {
+      const ledger = ledgerOf(['mainnet'], [definition])
+      recordCheck(ledger, row({ status: 'pass', anchor: 'A-CHAIN' }))
+      return buildReviewAttestation(ledger, {
+        reviewer: 'signer-1',
+        reviewedAt: '2026-09-13T00:00:00.000Z',
+      }).ledgerDigest
+    }
+
+    expect(attest(AUTHORITIES)).not.toBe(attest(plain))
   })
 })
