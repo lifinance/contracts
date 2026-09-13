@@ -343,7 +343,7 @@ export const renderGateManifest = (input: IGateManifestInput): string[] => {
     const disposition = blocks
       ? `${RED}BLOCKS${RESET}`
       : yours
-      ? `${YELLOW}yours${RESET}`
+      ? `${YELLOW}REVIEW${RESET}`
       : ''
     // Trimmed over the whole row, not the last fragment: a gate with no
     // disposition otherwise keeps the separating space, and half the table

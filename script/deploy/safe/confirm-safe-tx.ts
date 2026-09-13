@@ -143,7 +143,7 @@ import {
 } from './rpc-quorum-collector'
 import { getTargetName } from './safe-decode-utils'
 import {
-  buildCalldataFootnote,
+  buildCalldataTarget,
   buildSafeTxDetailLines,
   CLAIM_QUESTION,
   signatureTally,
@@ -864,6 +864,7 @@ const processTxs = async (
     }
 
     consola.log(buildSafeTxDetailLines(detailInput).join('\n'))
+    consola.log(buildCalldataTarget(detailInput).join('\n'))
 
     if (tx.safeTx.data?.data)
       consola.log(
@@ -877,7 +878,6 @@ const processTxs = async (
         ).join('\n')
       )
 
-    consola.log(buildCalldataFootnote(detailInput).join('\n'))
     consola.log(CLAIM_QUESTION.join('\n'))
 
     let targetState: ITargetStateVerdict

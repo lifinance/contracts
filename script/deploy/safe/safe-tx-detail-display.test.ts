@@ -7,7 +7,7 @@ import {
 
 import { trustedMarkup } from './printable-field'
 import {
-  buildCalldataFootnote,
+  buildCalldataTarget,
   buildSafeTxDetailLines,
   signatureTally,
   type ISafeTxDetailInput,
@@ -21,7 +21,7 @@ import {
  * where a sanitiser that started passing SGR through would fail.
  */
 const HOSTILE_GOLDENS: Record<string, string> = {
-  data: '      — \u001b[32m[2J[H[32mfake\u001b[0m\u001b[33m ⚠ sanitised for display — stored 16, printable 13\u001b[0m',
+  data: '      raw calldata: \u001b[32m[2J[H[32mfake\u001b[0m\u001b[33m ⚠ sanitised for display — stored 16, printable 13\u001b[0m',
 }
 
 /** Anything outside the colour codes this module writes itself. */
@@ -68,7 +68,7 @@ const HOSTILE =
  */
 const linesFor = (overrides: Partial<ISafeTxDetailInput>): string[] => {
   const input = { ...benign, ...overrides }
-  return [...buildSafeTxDetailLines(input), ...buildCalldataFootnote(input)]
+  return [...buildSafeTxDetailLines(input), ...buildCalldataTarget(input)]
 }
 
 /**
@@ -80,14 +80,17 @@ const linesFor = (overrides: Partial<ISafeTxDetailInput>): string[] => {
  * which side of it a name landed on.
  */
 const targetLine = (lines: string[]): string => {
-  const opens = (line: string): boolean => line.trimStart().startsWith('— ')
-  const index = lines.findIndex(opens)
+  const index = lines.findIndex((line) =>
+    line.trimStart().startsWith('Target: ')
+  )
   if (index < 0) throw new Error(`no target line in:\n${lines.join('\n')}`)
-  // Bounded by the next line that opens its own fragment — the calldata
-  // footnote — rather than by a line count. How many lines the target takes is
-  // decided by measured width, so a fixed slice either drops a continuation or
-  // swallows the footnote as soon as the view's width changes.
-  const next = lines.findIndex((line, at) => at > index && opens(line))
+  // Bounded by the raw calldata line rather than by a line count. How many
+  // lines the target takes is decided by measured width, so a fixed slice
+  // either drops a continuation or swallows the hex as soon as the view's
+  // width changes.
+  const next = lines.findIndex(
+    (line, at) => at > index && line.trimStart().startsWith('raw calldata: ')
+  )
   return lines.slice(index, next < 0 ? undefined : next).join('\n')
 }
 
@@ -100,9 +103,9 @@ const targetLine = (lines: string[]): string => {
  */
 const ADDRESS_FIELDS = [['to', (lines: string[]) => targetLine(lines)]] as const
 
-/** The line under the target, carrying the value and the target's name. */
+/** The line carrying the value — beside the target, or folded under it. */
 const valueLine = (lines: string[]): string => {
-  const found = lines.find((line) => line.trimStart().startsWith('value '))
+  const found = lines.find((line) => line.includes('msg.value: '))
   if (!found) throw new Error(`no value line in:\n${lines.join('\n')}`)
   return found
 }
@@ -114,11 +117,21 @@ const parkedLine = (lines: string[]): string => {
   return found
 }
 
-/** The calldata footnote: the last line opening with an em dash. */
+/**
+ * The zone with the payload on the screen.
+ *
+ * The calldata is printed only under `--raw`, so every assertion about how a
+ * stored value is disclosed has to ask for the mode that renders it — the field
+ * is otherwise absent, and an assertion on an absent line proves nothing.
+ */
+const rawLinesFor = (overrides: Partial<ISafeTxDetailInput>): string[] =>
+  linesFor({ ...overrides, showRawCalldata: true })
+
+/** The raw calldata, which is on the screen only under `--raw`. */
 const calldataFootnote = (lines: string[]): string => {
-  const found = [...lines]
-    .reverse()
-    .find((line) => line.trimStart().startsWith('— '))
+  const found = lines.find((line) =>
+    line.trimStart().startsWith('raw calldata: ')
+  )
   if (!found) throw new Error(`no calldata line in:\n${lines.join('\n')}`)
   return found
 }
@@ -136,9 +149,8 @@ describe('no proposer-controlled field can drive the signer’s terminal', () =>
   ]
 
   /**
-   * The calldata is a fingerprint unless `--raw` is given, and a fingerprint
-   * renders a length rather than the stored text — so the field whose escapes
-   * this asserts on is only on the screen in raw mode.
+   * The calldata is on the screen only under `--raw`, so that is the only mode
+   * in which the field whose escapes this asserts on is rendered at all.
    */
   const rawIfCalldata = (field: string): Partial<ISafeTxDetailInput> =>
     field === 'data' ? { showRawCalldata: true } : {}
@@ -194,14 +206,14 @@ describe('no proposer-controlled field can drive the signer’s terminal', () =>
 
 describe('a hostile row is disclosed, not quietly cleaned', () => {
   it('marks a field whose stored value is not what is shown', () => {
-    const line = calldataFootnote(linesFor({ data: HOSTILE }))
+    const line = calldataFootnote(rawLinesFor({ data: HOSTILE }))
 
     expect(line).toContain('sanitised for display')
   })
 
   it('reports both lengths, so two rows that render alike stay distinct', () => {
-    const zeroWidth = calldataFootnote(linesFor({ data: '0x1\u200b2' }))
-    const plain = calldataFootnote(linesFor({ data: '0x12' }))
+    const zeroWidth = calldataFootnote(rawLinesFor({ data: '0x1\u200b2' }))
+    const plain = calldataFootnote(rawLinesFor({ data: '0x12' }))
 
     expect(zeroWidth).toContain('stored 5, printable 4')
     expect(plain).not.toContain('sanitised for display')
@@ -214,13 +226,13 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
     // neither is stripped and the stored/shown lengths agree — the value is
     // still not what it looks like.
     for (const hidden of ['0x1\u200d2', '0x1\u31642', '0x1\uffa02'])
-      expect(calldataFootnote(linesFor({ data: hidden }))).toContain(
+      expect(calldataFootnote(rawLinesFor({ data: hidden }))).toContain(
         '1 invisible character among 5 printable'
       )
 
-    expect(calldataFootnote(linesFor({ data: '0x1\u200d\u31642' }))).toContain(
-      '2 invisible characters among 6 printable'
-    )
+    expect(
+      calldataFootnote(rawLinesFor({ data: '0x1\u200d\u31642' }))
+    ).toContain('2 invisible characters among 6 printable')
   })
 
   it('still marks a hostile value after the network formatter runs', () => {
@@ -241,7 +253,7 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
   it('reports a stripped character and a surviving invisible one together', () => {
     // Either alone is disclosed; a value carrying both must not have the
     // second silenced by the first.
-    const line = calldataFootnote(linesFor({ data: '0x1\r\u200d2' }))
+    const line = calldataFootnote(rawLinesFor({ data: '0x1\r\u200d2' }))
 
     expect(line).toContain('sanitised for display')
     expect(line).toContain('invisible character')
@@ -566,16 +578,16 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
   it('keeps a missing field visibly missing', () => {
     // Rendering it blank would make a row with no `data` — still cast to Hex
     // and signed — read exactly like one carrying `0x`.
-    expect(calldataFootnote(linesFor({ data: undefined }))).toContain(
+    expect(calldataFootnote(rawLinesFor({ data: undefined }))).toContain(
       'undefined'
     )
-    expect(calldataFootnote(linesFor({ data: null }))).toContain('null')
+    expect(calldataFootnote(rawLinesFor({ data: null }))).toContain('null')
   })
 
   it('puts the notice outside the value\u2019s colour, never inside it', () => {
     // Inside, a notice would render in the value's green and read as part of
     // the value rather than as a warning about it.
-    const line = calldataFootnote(linesFor({ data: HOSTILE }))
+    const line = calldataFootnote(rawLinesFor({ data: HOSTILE }))
     expect(line.indexOf('\u001b[0m')).toBeLessThan(
       line.indexOf('sanitised for display')
     )
@@ -586,7 +598,7 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
     // A two-emoji value is two characters to a reader and four units to
     // `.length`; the number exists for the reader.
     const line = calldataFootnote(
-      linesFor({ data: '\u{1f600}\u{1f600}\u0007' })
+      rawLinesFor({ data: '\u{1f600}\u{1f600}\u0007' })
     )
     expect(line).toContain('stored 3, printable 2')
   })
@@ -606,21 +618,21 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
       [{}, 'stored as an object, not a string'],
       [new Date(0), 'stored as an object, not a string'],
     ] as const)
-      expect(calldataFootnote(linesFor({ data: value as never }))).toContain(
+      expect(calldataFootnote(rawLinesFor({ data: value as never }))).toContain(
         expected
       )
 
     // `typeof null` is 'object'; a stored null renders as "null" and is not a
     // malformed container.
-    expect(calldataFootnote(linesFor({ data: null }))).not.toContain(
+    expect(calldataFootnote(rawLinesFor({ data: null }))).not.toContain(
       'not a string'
     )
     // A stored empty string is legitimate and stays unremarked.
-    expect(calldataFootnote(linesFor({ data: '' }))).not.toContain('⚠')
+    expect(calldataFootnote(rawLinesFor({ data: '' }))).not.toContain('⚠')
   })
 
   it('separates two remarks so neither reads as part of the other', () => {
-    const line = calldataFootnote(linesFor({ data: ['0x1‍'] }))
+    const line = calldataFootnote(rawLinesFor({ data: ['0x1‍'] }))
 
     expect(line).toContain('; ')
     expect(line).toContain('stored as an array, not a string')
@@ -630,18 +642,18 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
   it('counts invisibles among the printable text, not the stored value', () => {
     // U+200B is stripped, so reporting it as surviving would be a false alarm
     // about a character the reader is not being shown.
-    expect(calldataFootnote(linesFor({ data: '0x1​2' }))).not.toContain(
+    expect(calldataFootnote(rawLinesFor({ data: '0x1​2' }))).not.toContain(
       'invisible character'
     )
     // And in code points: two emoji plus a joiner is three characters.
     expect(
-      calldataFootnote(linesFor({ data: '\u{1f600}\u{1f600}‍' }))
+      calldataFootnote(rawLinesFor({ data: '\u{1f600}\u{1f600}‍' }))
     ).toContain('among 3 printable')
   })
 
   it('marks a value that cannot be coerced at all', () => {
     const line = calldataFootnote(
-      linesFor({
+      rawLinesFor({
         data: {
           toString() {
             throw new Error('nope')
@@ -775,8 +787,7 @@ describe('the zone renders as one block, byte for byte', () => {
         '\u001b[33m      \u2014 not recorded (proposal predates provenance capture)\u001b[0m',
         '',
         '  \u001b[1mTHE CALLDATA DOES\u001b[0m',
-        '      \u2014 \u001b[32mCall\u001b[0m to \u001b[32m0x11f1022cA6AdEF6400e5677528a80d49a069C00c\u001b[0m \u00b7 value \u001b[32m0\u001b[0m',
-        '      \u2014 \u001b[32m8 hex chars\u001b[0m, starts \u001b[36m0xdeadbeef\u001b[0m \u00b7 --raw for the full hex',
+        '      Target: \u001b[32m0x11f1022cA6AdEF6400e5677528a80d49a069C00c\u001b[0m   -   msg.value: \u001b[32m0\u001b[0m',
       ].join('\n')
     )
   })
@@ -828,7 +839,7 @@ describe('the zone renders as one block, byte for byte', () => {
         })
       )
     ).toBe(
-      '      \u2014 \u001b[32mCall\u001b[0m to \u001b[32m0x11f1022cA6AdEF6400e5677528a80d49a069C00c\u001b[0m \u00b7 value \u001b[32m0\u001b[0m \u00b7 \u001b[33m(LiFiDiamond)\u001b[0m \u00b7 \u001b[36mhttps://etherscan.io/address/0x11\u001b[0m'
+      '      Target: \u001b[32m0x11f1022cA6AdEF6400e5677528a80d49a069C00c\u001b[0m   -   msg.value: \u001b[32m0\u001b[0m \u00b7 \u001b[33m(LiFiDiamond)\u001b[0m \u00b7 \u001b[36mhttps://etherscan.io/address/0x11\u001b[0m'
     )
   })
 
@@ -903,27 +914,30 @@ describe('the signature tally is short enough for the heading', () => {
 })
 
 describe('the calldata is reachable in full, one flag away', () => {
-  it('states a length measured on the printable text, not the stored value', () => {
-    // A row padded with invisibles would otherwise report the length it claims
-    // rather than the length a reader would have had to scroll past.
-    const line = calldataFootnote(linesFor({ data: '0xdead\u200bbeef' }))
+  it('prints nothing about the payload unless --raw asked for it', () => {
+    // A length and a first word are not something a signer can check anything
+    // against, and the decode below names the function those four bytes select.
+    const lines = linesFor({ data: '0xdead\u200bbeef' })
 
-    // Eight, not the nine the stored value's length would give.
-    expect(line).toContain('8 hex chars')
+    expect(lines.some((line) => line.includes('raw calldata: '))).toBe(false)
+    expect(lines.join('\n')).not.toContain('hex chars')
+    expect(lines.join('\n')).not.toContain('deadbeef')
+  })
+
+  it('discloses what it had to repair in the payload it prints', () => {
+    const line = calldataFootnote(
+      linesFor({ data: '0xdead\u200bbeef', showRawCalldata: true })
+    )
+
     expect(line).toContain('sanitised for display — stored 11, printable 10')
   })
 
-  it('shows a value that is not calldata rather than measuring it', () => {
-    // `asPrintable` stands a sentinel in for a field it cannot render, and a
-    // length taken from the sentinel measures the placeholder.
-    const line = calldataFootnote(linesFor({ data: 'not-hex-at-all' }))
+  it('shows a value that is not calldata as stored', () => {
+    const line = calldataFootnote(
+      linesFor({ data: 'not-hex-at-all', showRawCalldata: true })
+    )
 
-    expect(line).not.toContain('hex chars')
     expect(line).toContain('not-hex-at-all')
-  })
-
-  it('names the flag that prints it, so the omission is recoverable', () => {
-    expect(calldataFootnote(linesFor({}))).toContain('--raw')
   })
 })
 
@@ -984,21 +998,18 @@ describe('the block is total — no row shape costs the operator the run', () =>
 })
 
 describe('a row needs no escape sequence to scroll the prompt away', () => {
-  it('states the calldata’s size rather than printing it', () => {
-    // The wall of hex used to disclose its own size by filling the screen.
-    // A stated count carries that disclosure without costing the twenty-odd
-    // lines above the claim a signer is here to weigh.
+  it('keeps a wall of hex off the screen entirely', () => {
+    // The twenty-odd lines above the claim are what a signer is here to weigh,
+    // and 10,000 characters of hex scroll every one of them away.
     const calldata = `0x${'ab'.repeat(5_000)}`
-    expect(calldataFootnote(linesFor({ data: calldata }))).toBe(
-      `      — \u001b[32m10000 hex chars\u001b[0m, starts \u001b[36m0xabababab\u001b[0m · --raw for the full hex`
-    )
+    expect(linesFor({ data: calldata }).join('\n')).not.toContain('abababab')
   })
 
   it('leaves the calldata whole under --raw — it is the payload under signature', () => {
     const calldata = `0x${'ab'.repeat(5_000)}`
-    expect(
-      calldataFootnote(linesFor({ data: calldata, showRawCalldata: true }))
-    ).toBe(`      — \u001b[32m${calldata}\u001b[0m`)
+    expect(calldataFootnote(rawLinesFor({ data: calldata }))).toBe(
+      `      raw calldata: \u001b[32m${calldata}\u001b[0m`
+    )
   })
 
   it('bounds the number of parked refs, not only each one’s length', () => {
