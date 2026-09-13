@@ -84,3 +84,35 @@ describe('preflight placement in confirm-safe-tx', () => {
     expect(tail).toContain('Not covered by the verdict above')
   })
 })
+
+describe('what the preflight treats as a configured endpoint', () => {
+  let source: string
+
+  beforeAll(() => {
+    source = fs.readFileSync(CONFIRM_SCRIPT, 'utf8')
+  })
+
+  // `--rpc-url` cannot stand in for the variable: the chain is resolved before
+  // the override is read, and that resolve is what needs the variable. Treating
+  // the flag as configuration reported a missing variable as an endpoint that
+  // did not answer.
+  it('does not let --rpc-url stand in for the endpoint variable', () => {
+    const deps = source.slice(
+      source.indexOf('const preflightVerdict = await networkPreflight('),
+      source.indexOf('refusedNetworks = [...preflightVerdict.refused]')
+    )
+    const configured = deps.slice(
+      deps.indexOf('endpointConfigured:'),
+      deps.indexOf('chainIdOf:')
+    )
+
+    expect(configured).toContain('process.env[getRPCEnvVarName(network)]')
+    expect(configured).not.toContain('args.rpcUrl')
+  })
+
+  // An endpoint that never answers costs viem's whole retry budget otherwise,
+  // once per network.
+  it('bounds the probe with a timeout', () => {
+    expect(source).toContain('AbortSignal.timeout(PREFLIGHT_PROBE_TIMEOUT_MS)')
+  })
+})

@@ -132,7 +132,7 @@ import {
   viemGateReaders,
 } from './prebroadcast-gate'
 import { printableField, trustedMarkup } from './printable-field'
-import { buildFallbackReadClient } from './read-only-safe-client'
+import { buildReadOnlyClient } from './read-only-safe-client'
 import { reconcileAllSubmittedSafeTxs } from './reconcile'
 import { renderCheckLedger } from './render-check-ledger'
 import { evaluateRpcQuorum, type IRpcQuorumVerdict } from './rpc-quorum'
@@ -184,6 +184,7 @@ import {
 import {
   networkPreflight,
   PREFLIGHT_EXIT_CODE,
+  PREFLIGHT_PROBE_TIMEOUT_MS,
   renderNetworkPreflight,
 } from './signer-preflight'
 import {
@@ -530,7 +531,7 @@ const processTxs = async (
       // chain object is built from the network's configured RPC env var,
       // which `getViemChainForNetworkName` throws without, so the record is
       // always the run's own view.
-      const publicClient = buildFallbackReadClient(networkKey, rpcUrl)
+      const publicClient = buildReadOnlyClient(networkKey, rpcUrl)
       const observed = await observeCalldata(
         {
           operationId,
@@ -1936,16 +1937,17 @@ const main = defineCommand({
       // read as "not actionable", a true statement with a false explanation, so
       // the refusal has to be printed before it speaks.
       const preflightVerdict = await networkPreflight(candidateNetworks, {
-        // `args.rpcUrl` deliberately does not excuse an unset variable:
-        // `buildFallbackReadClient` resolves the chain through
-        // `getViemChainForNetworkName` before it ever reads the override, and
-        // that throws on the unset variable. Treating the override as
-        // configuration here produced a refusal naming the wrong cause and a
-        // remedy for an endpoint that was never contacted.
+        // `--rpc-url` cannot stand in for the variable: `buildReadOnlyClient`
+        // resolves the chain before it looks at the override, and that resolve
+        // is what needs the variable. Treating the flag as configuration here
+        // let the run report a missing variable as an endpoint that did not
+        // answer, and send the signer to check a host nothing had contacted.
         endpointConfigured: (network) =>
           Boolean(process.env[getRPCEnvVarName(network)]?.trim()),
         chainIdOf: (network) =>
-          buildFallbackReadClient(network, args.rpcUrl).getChainId(),
+          buildReadOnlyClient(network, args.rpcUrl, {
+            signal: AbortSignal.timeout(PREFLIGHT_PROBE_TIMEOUT_MS),
+          }).getChainId(),
         expectedChainId: (network) =>
           networksData[network.toLowerCase() as keyof typeof networksData]
             .chainId,

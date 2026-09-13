@@ -3,7 +3,6 @@ import { describe, expect, it } from 'bun:test'
 
 import {
   PREFLIGHT_EXIT_CODE,
-  PROBE_TIMEOUT_MS,
   PREFLIGHT_WIDTH,
   networkPreflight,
   renderNetworkPreflight,
@@ -222,63 +221,52 @@ describe('PREFLIGHT_WIDTH', () => {
   })
 })
 
-describe('the probe does not make an operator wait network by network', () => {
-  /** A `chainIdOf` that never settles, so only the timeout can end the probe. */
-  const hangs = (): IPreflightDeps['chainIdOf'] => () =>
-    new Promise<number>(() => undefined)
-
-  it('probes every network at once rather than one after another', async () => {
-    let live = 0
-    let peak = 0
-
-    const verdict = await networkPreflight(
-      ['arbitrum', 'polygon', 'mainnet'],
-      deps({
-        endpointConfigured: () => true,
-        expectedChainId: () => 1,
-        chainIdOf: async () => {
-          live += 1
-          peak = Math.max(peak, live)
-          await new Promise((resolve) => setTimeout(resolve, 20))
-          live -= 1
-          return 1
+describe('probing several networks', () => {
+  /**
+   * Deps whose probe takes a per-network delay. `answers` overrides what an
+   * endpoint claims without replacing the timing — an override that replaced
+   * `chainIdOf` would remove the delays and leave the ordering assertion below
+   * unable to tell input order from completion order.
+   */
+  const slowDeps = (
+    delays: Record<string, number>,
+    answers: Record<string, number> = {}
+  ): IPreflightDeps & { peak: { value: number } } => {
+    let inFlight = 0
+    const peak = { value: 0 }
+    return {
+      ...deps({
+        chainIdOf: async (network) => {
+          inFlight += 1
+          peak.value = Math.max(peak.value, inFlight)
+          await new Promise((resolve) =>
+            setTimeout(resolve, delays[network] ?? 0)
+          )
+          inFlight -= 1
+          return answers[network] ?? (network === 'arbitrum' ? 42161 : 137)
         },
-      })
-    )
+      }),
+      peak,
+    }
+  }
 
-    // Serially this peaks at 1 however long each probe takes, so the assertion
-    // observes the concurrency itself rather than a wall-clock time that a slow
-    // machine could satisfy either way.
-    expect(peak).toBe(3)
-    expect(verdict.startable).toEqual(['arbitrum', 'polygon', 'mainnet'])
+  // Serially, an offline laptop costs the whole timeout budget per network
+  // before the first line prints.
+  it('probes them together rather than one after another', async () => {
+    const probe = slowDeps({ arbitrum: 20, polygon: 20, optimism: 20 })
+
+    await networkPreflight(['arbitrum', 'polygon', 'optimism'], probe)
+
+    expect(probe.peak.value).toBe(3)
   })
 
-  it('refuses an endpoint that never answers, instead of waiting on it forever', async () => {
-    const verdict = await networkPreflight(
-      ['arbitrum'],
-      deps({ chainIdOf: hangs() })
-    )
-
-    expect(verdict.refused).toEqual(['arbitrum'])
-    expect(verdict.findings[0]?.detail).toContain(
-      `no answer within ${PROBE_TIMEOUT_MS}ms`
-    )
-  })
-
-  it('keeps the caller order in findings however the probes settle', async () => {
-    // The refusals are reported in the order the run was asked for, not the
-    // order the endpoints happened to fail in — which parallelism otherwise
-    // makes non-deterministic.
+  // Whichever endpoint answers first must not decide what the signer reads
+  // first: the order is the one they asked for. Both are refused for the same
+  // reason, so only their positions differ.
+  it('reports in the order the networks were given, not the order they answered', async () => {
     const verdict = await networkPreflight(
       ['arbitrum', 'polygon'],
-      deps({
-        endpointConfigured: () => true,
-        chainIdOf: async (network) => {
-          if (network === 'arbitrum')
-            await new Promise((resolve) => setTimeout(resolve, 30))
-          return 999
-        },
-      })
+      slowDeps({ arbitrum: 30, polygon: 0 }, { arbitrum: 1, polygon: 1 })
     )
 
     expect(verdict.refused).toEqual(['arbitrum', 'polygon'])
@@ -286,11 +274,5 @@ describe('the probe does not make an operator wait network by network', () => {
       'arbitrum',
       'polygon',
     ])
-  })
-
-  it('pins the probe budget by value, so a change to it cannot pass unseen', () => {
-    // The refusal assertion above reads this constant, so pinning the symbol
-    // alone would let a widened budget carry that assertion along with it.
-    expect(PROBE_TIMEOUT_MS).toBe(5000)
   })
 })

@@ -1,89 +1,85 @@
 /**
- * Which endpoints each read-only client actually reads through.
+ * Pins which endpoints a read-only client reads through.
  *
- * The distinction is the whole point of there being two builders, and it is
- * invisible in every other test: both return a `PublicClient` and both answer
- * the same calls. Asserted on `transport.type`, which is the one place the
- * difference surfaces without a network.
- *
- * The environment is set rather than deleted and restored by value: `delete`
- * makes bun resolve the variable from the loaded `.env` again, which would make
- * these assertions depend on whatever this machine happens to have configured.
+ * These reads decide whether a network can be signed at all, so reading them
+ * through the primary alone made a network with a throttled primary and a
+ * healthy spare unusable while the executability gate read it fine.
  */
+// eslint-disable-next-line import/no-unresolved
+import { afterEach, beforeEach, describe, expect, it } from 'bun:test'
 
-import {
-  afterEach,
-  beforeEach,
-  describe,
-  expect,
-  it,
-  // eslint-disable-next-line import/no-unresolved
-} from 'bun:test'
+import { getRPCEnvVarName, getRPCFallbacksEnvVarName } from '../../utils/utils'
 
-import {
-  buildFallbackReadClient,
-  buildReadOnlyClient,
-} from './read-only-safe-client'
+import { buildReadOnlyClient } from './read-only-safe-client'
 
 const NETWORK = 'arbitrum'
-const PRIMARY = 'https://primary.invalid/rpc'
-const FALLBACKS =
-  'https://fallback-one.invalid/rpc,https://fallback-two.invalid/rpc'
-const EXPLICIT = 'https://explicit.invalid/rpc'
+const PRIMARY = getRPCEnvVarName(NETWORK)
+const FALLBACKS = getRPCFallbacksEnvVarName(NETWORK)
 
-const PRIMARY_VAR = `ETH_NODE_URI_${NETWORK.toUpperCase()}`
-const FALLBACKS_VAR = `${PRIMARY_VAR}_FALLBACKS`
+/**
+ * Dummy endpoints, never contacted: every assertion below is about the
+ * transport the client was built with, so nothing here makes a request.
+ */
+const PRIMARY_URL = 'https://primary.invalid/rpc'
+const SPARE_URL = 'https://spare.invalid/rpc'
+const OVERRIDE_URL = 'https://override.invalid/rpc'
 
-describe('buildFallbackReadClient', () => {
-  let priorPrimary: string | undefined
-  let priorFallbacks: string | undefined
+const saved: Record<string, string | undefined> = {}
 
-  beforeEach(() => {
-    priorPrimary = process.env[PRIMARY_VAR]
-    priorFallbacks = process.env[FALLBACKS_VAR]
-    process.env[PRIMARY_VAR] = PRIMARY
-    process.env[FALLBACKS_VAR] = FALLBACKS
+beforeEach(() => {
+  saved[PRIMARY] = process.env[PRIMARY]
+  saved[FALLBACKS] = process.env[FALLBACKS]
+  process.env[PRIMARY] = PRIMARY_URL
+  process.env[FALLBACKS] = ''
+})
+
+afterEach(() => {
+  for (const name of [PRIMARY, FALLBACKS]) {
+    const original = saved[name]
+    // Restored to a dummy rather than unset when there was nothing to restore:
+    // deleting one of these names hands the child the real value from `.env`.
+    process.env[name] = original ?? PRIMARY_URL
+  }
+})
+
+describe('buildReadOnlyClient', () => {
+  it('reads through every configured endpoint, not just the primary', () => {
+    process.env[FALLBACKS] = SPARE_URL
+
+    expect(buildReadOnlyClient(NETWORK).transport.key).toBe('fallback')
   })
 
-  afterEach(() => {
-    process.env[PRIMARY_VAR] = priorPrimary ?? ''
-    process.env[FALLBACKS_VAR] = priorFallbacks ?? ''
+  it('uses a plain transport when the network has only one endpoint', () => {
+    expect(buildReadOnlyClient(NETWORK).transport.key).toBe('http')
   })
 
-  it('reads through the fallbacks, where buildReadOnlyClient reads only the primary', () => {
-    // Both halves, so this cannot pass by the fallback builder having quietly
-    // become the same thing as the other one.
-    expect(buildFallbackReadClient(NETWORK).transport.type).toBe('fallback')
-    expect(buildReadOnlyClient(NETWORK).transport.type).toBe('http')
+  // An override is the caller naming one endpoint on purpose; widening it to
+  // the configured set would read somewhere the caller did not ask for.
+  it('honours an explicit override instead of the configured set', () => {
+    process.env[FALLBACKS] = SPARE_URL
+    const client = buildReadOnlyClient(NETWORK, OVERRIDE_URL)
+
+    expect(client.transport.key).toBe('http')
+    expect(client.transport.url).toBe(OVERRIDE_URL)
   })
 
-  it('honours an explicit endpoint alone, bypassing the configured fallbacks', () => {
-    // An operator naming one endpoint is telling the run to read that one, so
-    // failing over to the configured list would ignore the instruction.
-    expect(buildFallbackReadClient(NETWORK, EXPLICIT).transport.type).toBe(
-      'http'
-    )
+  it('carries a caller-supplied abort signal onto the requests it makes', () => {
+    const signal = AbortSignal.timeout(1_000)
+    const client = buildReadOnlyClient(NETWORK, OVERRIDE_URL, { signal })
+
+    expect(client.transport.fetchOptions?.signal).toBe(signal)
   })
 
-  it('still builds a usable client when no fallbacks are configured', () => {
-    process.env[FALLBACKS_VAR] = ''
+  it('carries the abort signal on the configured path too, not only an override', () => {
+    // The assertion above covers the `rpcUrl` branch, which builds its own
+    // transport. This covers the branch that runs when no `--rpc-url` is given —
+    // the default for every real confirmation run, and the one the preflight's
+    // budget actually depends on. Dropping `options` from the
+    // `getFallbackTransportForChain` call bounded nothing and broke no test
+    // until this existed.
+    const signal = AbortSignal.timeout(1_000)
+    const client = buildReadOnlyClient(NETWORK, undefined, { signal })
 
-    // A one-endpoint network is not an error, and it is not wrapped either:
-    // `getFallbackTransportForChain` returns the single transport rather than a
-    // failover around it. The property that matters is that the preflight can
-    // still probe such a network at all.
-    expect(buildFallbackReadClient(NETWORK).transport.type).toBe('http')
-  })
-
-  it('throws rather than reading an unconfigured network', () => {
-    process.env[PRIMARY_VAR] = ''
-    process.env[FALLBACKS_VAR] = ''
-
-    // The refusal the preflight turns into "the variable is not set". Pinned
-    // because the alternative — a client with no endpoint — would fail later,
-    // per read, as a network problem rather than a configuration one.
-    expect(() => buildFallbackReadClient(NETWORK)).toThrow(
-      new RegExp(PRIMARY_VAR, 'u')
-    )
+    expect(client.transport.fetchOptions?.signal).toBe(signal)
   })
 })

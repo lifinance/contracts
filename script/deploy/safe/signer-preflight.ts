@@ -31,6 +31,17 @@ const RED = `${ESC}[31m`
  */
 export const PREFLIGHT_EXIT_CODE = 78
 
+/**
+ * How long one network's endpoint has to answer `eth_chainId`, retries
+ * included.
+ *
+ * Short because the probe is the cheapest call a node serves and the common
+ * failure is a laptop with no route at all: viem's untouched retry budget spent
+ * ~41s per unreachable network, which a signer waits through before the screen
+ * says anything.
+ */
+export const PREFLIGHT_PROBE_TIMEOUT_MS = 5_000
+
 export interface IPreconditionFinding {
   /** The network this is about; preconditions are resolved per network. */
   network: string
@@ -85,47 +96,53 @@ const reason = (error: unknown): string =>
     sanitizeProvenanceText(error instanceof Error ? error.message : error)
   )
 
-/**
- * How long one endpoint probe may take before it counts as no answer.
- *
- * A chain id is a single round trip, and it is the first one this run makes. An
- * endpoint that cannot answer it inside this budget is not one the rest of the
- * run could have read anything from either, so waiting longer buys nothing.
- *
- * Explicit because viem's default is long enough that several unreachable
- * networks print nothing for minutes. The refusal was correct and arrived
- * looking like a hang, which is the one reading that makes an operator kill the
- * run and lose the reason.
- */
-export const PROBE_TIMEOUT_MS = 5000
+/** What one network's probe concluded, before the verdict is assembled in order. */
+const resolveOne = async (
+  network: string,
+  deps: IPreflightDeps
+): Promise<IPreconditionFinding | undefined> => {
+  const variable = deps.envVarName(network)
 
-/** Rejects after `PROBE_TIMEOUT_MS`, clearing its timer whichever side wins. */
-const withProbeTimeout = async (probe: Promise<number>): Promise<number> => {
-  let timer: ReturnType<typeof setTimeout> | undefined
+  if (!deps.endpointConfigured(network))
+    return {
+      network,
+      detail: `${variable} is not set, so nothing here could be read`,
+      remedy: `set ${variable} and start over`,
+    }
 
+  let answered: number
   try {
-    return await Promise.race([
-      probe,
-      new Promise<number>((_resolve, reject) => {
-        timer = setTimeout(
-          () => reject(new Error(`no answer within ${PROBE_TIMEOUT_MS}ms`)),
-          PROBE_TIMEOUT_MS
-        )
-      }),
-    ])
-  } finally {
-    // Cleared on both paths: a pending timer holds the process open after the
-    // run would otherwise have exited.
-    if (timer !== undefined) clearTimeout(timer)
+    answered = await deps.chainIdOf(network)
+  } catch (error) {
+    return {
+      network,
+      detail: `the endpoint in ${variable} did not answer: ${reason(error)}`,
+      remedy: `check that the endpoint is reachable, then start over`,
+    }
   }
+
+  const expected = deps.expectedChainId(network)
+  if (answered !== expected)
+    return {
+      network,
+      // The dangerous case: every read after this one would answer truthfully,
+      // about the wrong chain.
+      detail: `the endpoint in ${variable} answered chain id ${answered}, and ${network} is ${expected}`,
+      remedy: `point ${variable} at ${network} and start over`,
+    }
+
+  return undefined
 }
 
 /**
  * Resolves every network's preconditions in one pass.
  *
- * Every network is probed even after one has failed: a signer who discovers
- * three environment problems across three runs is the same defect this module
- * closes, arriving one round trip at a time.
+ * Probed together rather than one after another, because the common cause is a
+ * laptop that is offline and every probe then has to time out: serially that is
+ * the whole timeout budget per network before the first line prints, which is
+ * the opposite of reporting every environment problem at once. Findings are
+ * assembled in the order the networks were given, so the output does not depend
+ * on which endpoint answered first.
  *
  * @param networks - The networks the run was asked to confirm.
  * @param deps - The reads to make, none of which may return an endpoint.
@@ -135,82 +152,22 @@ export const networkPreflight = async (
   networks: readonly string[],
   deps: IPreflightDeps
 ): Promise<IPreflightVerdict> => {
+  const probed = await Promise.all(
+    networks.map(async (network) => ({
+      network,
+      finding: await resolveOne(network, deps),
+    }))
+  )
+
   const findings: IPreconditionFinding[] = []
   const startable: string[] = []
   const refused: string[] = []
 
-  // Probed in parallel, then read back in the caller's order. Serially, a run
-  // waits for each dead endpoint in turn before it reaches the next, so the
-  // time to the refusal grows with the number of networks that cannot answer —
-  // exactly the case the preflight exists to report quickly.
-  const probes = await Promise.all(
-    networks.map(
-      async (
-        network
-      ): Promise<
-        | { network: string; outcome: 'unset' }
-        | { network: string; outcome: 'answered'; answered: number }
-        | { network: string; outcome: 'threw'; error: unknown }
-      > => {
-        if (!deps.endpointConfigured(network))
-          return { network, outcome: 'unset' }
-
-        try {
-          return {
-            network,
-            outcome: 'answered',
-            answered: await withProbeTimeout(
-              Promise.resolve(deps.chainIdOf(network))
-            ),
-          }
-        } catch (error) {
-          return { network, outcome: 'threw', error }
-        }
-      }
-    )
-  )
-
-  for (const probe of probes) {
-    const { network } = probe
-    const variable = deps.envVarName(network)
-
-    if (probe.outcome === 'unset') {
+  for (const { network, finding } of probed)
+    if (finding) {
       refused.push(network)
-      findings.push({
-        network,
-        detail: `${variable} is not set, so nothing here could be read`,
-        remedy: `set ${variable} and start over`,
-      })
-      continue
-    }
-
-    if (probe.outcome === 'threw') {
-      refused.push(network)
-      findings.push({
-        network,
-        detail: `the endpoint in ${variable} did not answer: ${reason(
-          probe.error
-        )}`,
-        remedy: `check that the endpoint is reachable, then start over`,
-      })
-      continue
-    }
-
-    const expected = deps.expectedChainId(network)
-    if (probe.answered !== expected) {
-      refused.push(network)
-      findings.push({
-        network,
-        // The dangerous case: every read after this one would answer
-        // truthfully, about the wrong chain.
-        detail: `the endpoint in ${variable} answered chain id ${probe.answered}, and ${network} is ${expected}`,
-        remedy: `point ${variable} at ${network} and start over`,
-      })
-      continue
-    }
-
-    startable.push(network)
-  }
+      findings.push(finding)
+    } else startable.push(network)
 
   return { findings, startable, refused }
 }
