@@ -11,7 +11,7 @@ import {
   it,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
-import { encodeFunctionData, type Address, type Hex } from 'viem'
+import { encodeFunctionData, parseAbi, type Address, type Hex } from 'viem'
 
 import { DIAMOND_CUT_ABI, ZERO_ADDRESS } from '../shared/constants'
 
@@ -23,6 +23,7 @@ import {
 import {
   buildDeploymentIndex,
   collectAddressReferences,
+  referencedNames,
 } from './calldata-address-collector'
 import {
   TIMELOCK_SCHEDULE_BATCH_ABI,
@@ -135,7 +136,7 @@ describe('collectAddressReferences', () => {
 
 describe('buildDeploymentIndex', () => {
   it('an unreachable record is unavailable, never an empty one', () => {
-    const index = buildDeploymentIndex(undefined, [FACET], 'tunnel is down')
+    const index = buildDeploymentIndex(undefined, [FACET], [], 'tunnel is down')
 
     expect(index.available).toBe(false)
     expect(index.unavailableReason).toContain('tunnel')
@@ -203,5 +204,145 @@ describe('buildDeploymentIndex', () => {
     )
 
     expect(verdict.refuses).toBe(true)
+  })
+})
+
+const PERIPHERY = '0x2222222222222222222222222222222222222222' as Address
+
+const REGISTER_PERIPHERY_ABI = parseAbi([
+  'function registerPeripheryContract(string,address)',
+])
+
+const register = (name: string, address: Address): Hex =>
+  encodeFunctionData({
+    abi: REGISTER_PERIPHERY_ABI,
+    functionName: 'registerPeripheryContract',
+    args: [name, address],
+  })
+
+describe('periphery registrations are collected with the name they bind', () => {
+  it('finds a registration sent directly', () => {
+    const { references, undecodable } = collectAddressReferences([
+      register('Executor', PERIPHERY),
+    ])
+
+    expect(undecodable).toEqual([])
+    expect(references).toEqual([
+      {
+        address: PERIPHERY,
+        role: AddressRoleEnum.PeripheryRegistration,
+        path: 'call[0].registerPeripheryContract[0]',
+        registeredName: 'Executor',
+      },
+    ])
+  })
+
+  it('finds one wrapped in a timelock batch, beside a cut', () => {
+    const { references, undecodable } = collectAddressReferences([
+      scheduleBatch(
+        [DIAMOND, DIAMOND],
+        [
+          cut([{ facetAddress: FACET, action: 0 }]),
+          register('Patcher', PERIPHERY),
+        ]
+      ),
+    ])
+
+    expect(undecodable).toEqual([])
+    expect(
+      references.filter(
+        (reference) => reference.role === AddressRoleEnum.PeripheryRegistration
+      )
+    ).toEqual([
+      {
+        address: PERIPHERY,
+        role: AddressRoleEnum.PeripheryRegistration,
+        path: 'call[0].registerPeripheryContract[0]',
+        registeredName: 'Patcher',
+      },
+    ])
+    // The cut in the same envelope is still collected, so adding the periphery
+    // walk did not cost the walk that was already there.
+    expect(
+      references.some(
+        (reference) => reference.role === AddressRoleEnum.FacetAdd
+      )
+    ).toBe(true)
+  })
+
+  it('numbers several registrations in one envelope', () => {
+    const { references } = collectAddressReferences([
+      scheduleBatch(
+        [DIAMOND, DIAMOND],
+        [register('Executor', PERIPHERY), register('Patcher', FACET)]
+      ),
+    ])
+
+    expect(
+      references
+        .filter(
+          (reference) =>
+            reference.role === AddressRoleEnum.PeripheryRegistration
+        )
+        .map((reference) => reference.path)
+    ).toEqual([
+      'call[0].registerPeripheryContract[0]',
+      'call[0].registerPeripheryContract[1]',
+    ])
+  })
+
+  it('names each distinct registry name the record has to answer for', () => {
+    const { references } = collectAddressReferences([
+      scheduleBatch(
+        [DIAMOND, DIAMOND],
+        [register('Executor', PERIPHERY), register('Executor', FACET)]
+      ),
+    ])
+
+    expect(referencedNames(references)).toEqual(['Executor'])
+  })
+
+  it('reports a registration hidden inside an envelope it cannot open', () => {
+    // A `multiSend`-shaped wrapper is not unwrapped, so the registration inside
+    // it is never graded. Reporting it is what stops the envelope being a bypass.
+    const hidden = ('0xdeadbeef' +
+      register('Executor', PERIPHERY).slice(2)) as Hex
+    const { references, undecodable } = collectAddressReferences([hidden])
+
+    expect(references).toEqual([])
+    expect(undecodable.join(' ')).toContain('registerPeripheryContract')
+  })
+
+  it('refuses a collected registration the record has superseded', () => {
+    const { references } = collectAddressReferences([
+      register('Executor', PERIPHERY),
+    ])
+
+    const verdict = evaluateCalldataAddresses(
+      { network: 'mainnet', references },
+      buildDeploymentIndex(
+        [
+          {
+            contractName: 'Executor',
+            network: 'mainnet',
+            version: '2.0.0',
+            address: PERIPHERY,
+            timestamp: '2023-07-27 16:43:51',
+          },
+          {
+            contractName: 'Executor',
+            network: 'mainnet',
+            version: '2.1.0',
+            address: FACET,
+            timestamp: '2025-09-09 16:50:17',
+          },
+        ],
+        references.map((reference) => reference.address),
+        referencedNames(references)
+      )
+    )
+
+    expect(verdict.refuses).toBe(true)
+    expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.NameMismatch)
   })
 })

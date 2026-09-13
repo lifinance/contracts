@@ -73,7 +73,10 @@ const realProductionEntries = ((): IDeploymentIndexEntry[] => {
   const entries: IDeploymentIndexEntry[] = []
   const log = deploymentLogExport as unknown as Record<
     string,
-    Record<string, Record<string, Record<string, { ADDRESS?: string }[]>>>
+    Record<
+      string,
+      Record<string, Record<string, { ADDRESS?: string; TIMESTAMP?: string }[]>>
+    >
   >
   for (const [contractName, byNetwork] of Object.entries(log))
     for (const [network, byEnvironment] of Object.entries(byNetwork))
@@ -87,6 +90,11 @@ const realProductionEntries = ((): IDeploymentIndexEntry[] => {
               network,
               version,
               address: row.ADDRESS,
+              // `2023-07-27 16:43:51` as the export writes it; `Date` reads it
+              // as local time, which is uniform across these and so orders them.
+              ...(row.TIMESTAMP === undefined
+                ? {}
+                : { timestamp: row.TIMESTAMP }),
             })
   return entries
 })()
@@ -119,11 +127,13 @@ const repoFileEntries = ((): IDeploymentIndexEntry[] => {
 
 const recordIndex = (
   addresses: readonly string[],
-  entries: readonly IDeploymentIndexEntry[] = realProductionEntries
+  entries: readonly IDeploymentIndexEntry[] = realProductionEntries,
+  queriedNames: readonly string[] = []
 ): IDeploymentIndex => ({
   source: DeploymentIndexSourceEnum.DeploymentRecord,
   available: true,
   queried: addresses.map((address) => address.toLowerCase()),
+  queriedNames: queriedNames.map((name) => name.toLowerCase()),
   entries,
 })
 
@@ -698,7 +708,10 @@ describe('the zero address, by role', () => {
     expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.IllegalZero)
   })
 
-  it('refuses it as a periphery registration', () => {
+  it('reads it as the unregistration a periphery registration means by it', () => {
+    // `registerPeripheryContract(name, address(0))` unregisters the name, which
+    // docs/DeploymentLogs.md names as the cleanup proposal for a deprecated
+    // contract's registry residue. Refusing it would block a documented flow.
     const verdict = evaluateCalldataAddresses(
       {
         network: 'mainnet',
@@ -706,15 +719,17 @@ describe('the zero address, by role', () => {
           {
             address: '0x0000000000000000000000000000000000000000',
             role: AddressRoleEnum.PeripheryRegistration,
-            path: 'call[0].registerPeripheryContract',
+            path: 'call[0].registerPeripheryContract[0]',
+            registeredName: 'Executor',
           },
         ],
       },
       recordIndex(['0x0000000000000000000000000000000000000000'])
     )
 
-    expect(verdict.refuses).toBe(true)
-    expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.IllegalZero)
+    expect(verdict.refuses).toBe(false)
+    expect(verdict.error).toBe(false)
+    expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.NotApplicable)
   })
 })
 
@@ -944,5 +959,182 @@ describe('the index shape the record satisfies', () => {
     )
 
     expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.Resolved)
+  })
+})
+
+/**
+ * Every address below is a real mainnet `Executor` the committed export carries,
+ * with the export's own deploy times. The three of them are what makes the
+ * name anchor testable on real data rather than on a fixture: the superseded
+ * ones are genuine `Executor` records on the same network, so a check that
+ * graded the address alone would pass them, and only the question "which
+ * Executor is current" separates them from the one a proposal should register.
+ */
+const EXECUTOR_MAINNET_CURRENT = '0xd9B2Da9C45b118e4e93A004FB1452bCDB6cC0E88'
+const EXECUTOR_MAINNET_SUPERSEDED = '0x2dfaDAB8266483beD9Fd9A292Ce56596a2D1378D'
+
+const registers = (
+  address: string,
+  name = 'Executor',
+  path = 'call[0].registerPeripheryContract[0]'
+): IAddressReference => ({
+  address,
+  role: AddressRoleEnum.PeripheryRegistration,
+  path,
+  registeredName: name,
+})
+
+describe('periphery registrations are graded against the name the record holds', () => {
+  it('resolves the Executor the record currently has on mainnet', () => {
+    const verdict = evaluateCalldataAddresses(
+      {
+        network: 'mainnet',
+        references: [registers(EXECUTOR_MAINNET_CURRENT)],
+      },
+      recordIndex([EXECUTOR_MAINNET_CURRENT], realProductionEntries, [
+        'Executor',
+      ])
+    )
+
+    expect(verdict.refuses).toBe(false)
+    expect(verdict.error).toBe(false)
+    expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.Resolved)
+  })
+
+  it('refuses a superseded Executor the record still holds under that name', () => {
+    const verdict = evaluateCalldataAddresses(
+      {
+        network: 'mainnet',
+        references: [registers(EXECUTOR_MAINNET_SUPERSEDED)],
+      },
+      recordIndex([EXECUTOR_MAINNET_SUPERSEDED], realProductionEntries, [
+        'Executor',
+      ])
+    )
+
+    expect(verdict.refuses).toBe(true)
+    expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.NameMismatch)
+    expect(verdict.reason).toContain(EXECUTOR_MAINNET_CURRENT)
+  })
+
+  it('is the name check, not the address check, that separates the two', () => {
+    // Both addresses are real mainnet Executors, so the address-side grading
+    // that ran before this change cannot tell them apart. If this ever fails,
+    // the refusal above is coming from something other than the name anchor.
+    const superseded = evaluateCalldataAddresses(
+      {
+        network: 'mainnet',
+        references: [
+          {
+            address: EXECUTOR_MAINNET_SUPERSEDED,
+            role: AddressRoleEnum.FacetAdd,
+            path: 'call[0].cuts[0]',
+          },
+        ],
+      },
+      recordIndex([EXECUTOR_MAINNET_SUPERSEDED])
+    )
+
+    expect(superseded.refuses).toBe(false)
+    expect(superseded.findings[0]?.grade).toBe(
+      AddressGradeEnum.IdentityUnchecked
+    )
+  })
+
+  it('refuses an address the record does not hold under that name at all', () => {
+    const verdict = evaluateCalldataAddresses(
+      {
+        network: 'mainnet',
+        references: [registers(EXECUTOR_MAINNET_CURRENT, 'FeeCollector')],
+      },
+      recordIndex([EXECUTOR_MAINNET_CURRENT], realProductionEntries, [
+        'FeeCollector',
+      ])
+    )
+
+    expect(verdict.refuses).toBe(true)
+    expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.NameMismatch)
+  })
+
+  it('cannot decide when the record was never asked about the name', () => {
+    const verdict = evaluateCalldataAddresses(
+      {
+        network: 'mainnet',
+        references: [registers(EXECUTOR_MAINNET_CURRENT)],
+      },
+      recordIndex([EXECUTOR_MAINNET_CURRENT])
+    )
+
+    expect(verdict.refuses).toBe(false)
+    expect(verdict.error).toBe(true)
+    expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.NotQueried)
+  })
+
+  it('cannot decide when two records share the newest deploy time', () => {
+    // The real shape this guards: production carries a Permit2Proxy pair on
+    // `abstract` logged at the same second under different versions. Picking
+    // either would decide a refusal on which one the record listed first.
+    const tie: IDeploymentIndexEntry[] = [
+      {
+        contractName: 'Permit2Proxy',
+        network: 'mainnet',
+        version: '1.0.3',
+        address: EXECUTOR_MAINNET_SUPERSEDED,
+        timestamp: '2025-07-03 09:54:45',
+      },
+      {
+        contractName: 'Permit2Proxy',
+        network: 'mainnet',
+        version: '1.0.4',
+        address: EXECUTOR_MAINNET_CURRENT,
+        timestamp: '2025-07-03 09:54:45',
+      },
+    ]
+
+    const verdict = evaluateCalldataAddresses(
+      {
+        network: 'mainnet',
+        references: [registers(EXECUTOR_MAINNET_CURRENT, 'Permit2Proxy')],
+      },
+      recordIndex([EXECUTOR_MAINNET_CURRENT], tie, ['Permit2Proxy'])
+    )
+
+    expect(verdict.refuses).toBe(false)
+    expect(verdict.error).toBe(true)
+    expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.IdentityUnchecked)
+  })
+
+  it('cannot decide when a record under the name carries no deploy time', () => {
+    const undated: IDeploymentIndexEntry[] = [
+      {
+        contractName: 'Executor',
+        network: 'mainnet',
+        version: '2.1.0',
+        address: EXECUTOR_MAINNET_CURRENT,
+      },
+    ]
+
+    const verdict = evaluateCalldataAddresses(
+      { network: 'mainnet', references: [registers(EXECUTOR_MAINNET_CURRENT)] },
+      recordIndex([EXECUTOR_MAINNET_CURRENT], undated, ['Executor'])
+    )
+
+    expect(verdict.error).toBe(true)
+    expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.IdentityUnchecked)
+  })
+
+  it('refuses a current Executor proposed on the wrong network', () => {
+    const verdict = evaluateCalldataAddresses(
+      {
+        network: 'polygon',
+        references: [registers(EXECUTOR_MAINNET_CURRENT)],
+      },
+      recordIndex([EXECUTOR_MAINNET_CURRENT], realProductionEntries, [
+        'Executor',
+      ])
+    )
+
+    expect(verdict.refuses).toBe(true)
+    expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.WrongNetwork)
   })
 })
