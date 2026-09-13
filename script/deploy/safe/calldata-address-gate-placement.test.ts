@@ -103,8 +103,20 @@ describe('the calldata address check surfaces before the signing decision', () =
     // Anchored on the verdict, not on any one gate's name: however a refusal
     // were spelled, it has to read `calldataAddresses` to reach one.
     const consumed = guarded
-      .replace('const calldataAddresses = evaluateCalldataAddresses(', '')
+      .replace('calldataAddresses = evaluateCalldataAddresses(', '')
+      // The one conditional the verdict is allowed to appear in, matched with
+      // the render attached: it decides whether there is anything to print, and
+      // a refusal spelled `if (calldataAddresses)` followed by anything else
+      // does not match this and survives into the assertion below.
+      .replace(
+        'if (calldataAddresses)\n      renderCalldataAddresses(calldataAddresses)',
+        ''
+      )
       .replace('renderCalldataAddresses(calldataAddresses)', '')
+      // Carried on the evidence bundle and unpacked in the loop: two mentions
+      // that move the verdict from where it is graded to where it is printed,
+      // and read it at neither end.
+      .replace(/^\s*calldataAddresses,$/gmu, '')
 
     expect(guarded).toContain('renderCalldataAddresses(calldataAddresses)')
     expect(consumed).not.toContain('calldataAddresses')
