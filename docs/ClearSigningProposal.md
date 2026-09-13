@@ -23,32 +23,15 @@ All non-packed variants share the standard `ILiFi.BridgeData` struct:
   "intent": "Bridge via <Bridge>",
   "interpolatedIntent": "Bridge {_bridgeData.minAmount} via <Bridge> to chain {_bridgeData.destinationChainId} for {_bridgeData.receiver}",
   "fields": [
-    {
-      "path": "_bridgeData.minAmount",
-      "label": "Amount to Bridge",
-      "format": "tokenAmount",
-      "params": { "tokenPath": "_bridgeData.sendingAssetId" },
-      "visible": "always"
-    },
-    {
-      "path": "_bridgeData.destinationChainId",
-      "label": "Destination Chain",
-      "format": "raw",
-      "visible": "always"
-    },
-    {
-      "path": "_bridgeData.receiver",
-      "label": "Recipient",
-      "format": "addressName",
-      "params": { "types": ["eoa", "contract"], "sources": ["local", "ens"] },
-      "visible": "always"
-    }
+    { "path": "_bridgeData.minAmount",          "label": "Amount to Bridge",   "format": "tokenAmount", "params": { "tokenPath": "_bridgeData.sendingAssetId" }, "visible": "always" },
+    { "path": "_bridgeData.destinationChainId", "label": "Destination Chain", "format": "raw",         "visible": "always" },
+    { "path": "_bridgeData.receiver",           "label": "Recipient",         "format": "addressName", "params": { "types": ["eoa","contract"], "sources": ["local","ens"] }, "visible": "always" },
     /* hidden plumbing: transactionId, bridge, integrator, referrer, hasSourceSwaps, hasDestinationCall */
   ]
 }
 ```
 
-Reads on a hardware wallet as one sentence: _"Bridge 100 USDC via Across to chain 137 for vitalik.eth"_.
+Reads on a hardware wallet as one sentence: *"Bridge 100 USDC via Across to chain 137 for vitalik.eth"*.
 
 Note the bridge name (`<Bridge>`) is a literal substituted at descriptor-generation time, not a `{path}` placeholder resolved by the wallet — it's constant per selector and doesn't change between transactions.
 
@@ -57,12 +40,7 @@ Note the bridge name (`<Bridge>`) is a literal substituted at descriptor-generat
 For most bridges the on-chain recipient is `_bridgeData.receiver`, so the standard `Recipient` field is the whole story. A number of bridges credit funds on the destination chain to a **bridge-specific** struct field instead, and `_bridgeData.receiver` is then a sentinel (`NON_EVM_ADDRESS`) or an intermediary contract. For those, the generator appends an extra **always-visible** field sourced from the bridge-specific field, e.g. for AcrossV4:
 
 ```json
-{
-  "path": "_acrossData.receiverAddress",
-  "label": "Across Recipient",
-  "format": "raw",
-  "visible": "always"
-}
+{ "path": "_acrossData.receiverAddress", "label": "Across Recipient", "format": "raw", "visible": "always" }
 ```
 
 The extra field is `bytes`/`bytes32` (it may hold a non-EVM address such as a Solana pubkey), and ERC-7730 v2 `addressName` only accepts `address` — there is no `bytes32`→EVM-address formatter — so the honest rendering is `raw` (hex). `interpolatedIntent` intentionally stays on `_bridgeData.receiver`: for the dominant EVM path it resolves to a trusted name/ENS, and the raw field carries the ground truth for the rest. The mapping is **strict-by-default**: if a referenced struct component is renamed or retyped, the generator fails and blocks CI rather than emit a dead display path.
@@ -109,13 +87,13 @@ These selectors are still resolved by name in the Safe signing CLI: `script/depl
 
 The `display.formats` entries carried over from the registry descriptor, re-authored with `interpolatedIntent` added. Pattern:
 
-| Variant                                              | `interpolatedIntent`                                                                                                                                                                                                                               |
-| ---------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `SingleV3ERC20ToERC20` / `SingleV3ERC20ToNative`     | `Swap {_swapData.fromAmount} for at least {_minAmountOut} to {_receiver}`                                                                                                                                                                          |
-| `SingleV3NativeToERC20`                              | `Swap {@.value} for at least {_minAmountOut} to {_receiver}`                                                                                                                                                                                       |
-| `MultipleV3ERC20ToERC20` / `MultipleV3ERC20ToNative` | `Swap {_swapData.[0].fromAmount} for at least {_minAmountOut} to {_receiver}`                                                                                                                                                                      |
-| `MultipleV3NativeToERC20`                            | `Swap {@.value} for at least {_minAmountOut} to {_receiver}`                                                                                                                                                                                       |
-| `swapTokensGeneric`                                  | `Swap {_swapData.[0].fromAmount} for at least {_minAmount} to {_receiver}` (note: this signature uses `_minAmount`, not `_minAmountOut`; the function is no longer in the diamond, so the generator emits no entry and the registry keeps its own) |
+| Variant | `interpolatedIntent` |
+|---|---|
+| `SingleV3ERC20ToERC20` / `SingleV3ERC20ToNative` | `Swap {_swapData.fromAmount} for at least {_minAmountOut} to {_receiver}` |
+| `SingleV3NativeToERC20` | `Swap {@.value} for at least {_minAmountOut} to {_receiver}` |
+| `MultipleV3ERC20ToERC20` / `MultipleV3ERC20ToNative` | `Swap {_swapData.[0].fromAmount} for at least {_minAmountOut} to {_receiver}` |
+| `MultipleV3NativeToERC20` | `Swap {@.value} for at least {_minAmountOut} to {_receiver}` |
+| `swapTokensGeneric` | `Swap {_swapData.[0].fromAmount} for at least {_minAmount} to {_receiver}` (note: this signature uses `_minAmount`, not `_minAmountOut`; the function is no longer in the diamond, so the generator emits no entry and the registry keeps its own) |
 
 ## Conventions & deliberate choices
 
@@ -124,7 +102,6 @@ The `display.formats` entries carried over from the registry descriptor, re-auth
 3. **`destinationChainId` as `raw`, deliberately not `chainId`** — `chainId` is the format that renders an EIP-155 id as a network name, and it is the obvious choice here, but it cannot be used: it resolves through public EIP-155 chain lists that mislabel LI.FI chains. Chain `999` is HyperEVM to us and resolves to "Wanchain Testnet"; `1337` is HyperCore and resolves to "Geth Testnet" — both mainnet destinations shown to a signer as testnets. Only 7 of 30 ids tested render identically across the two ERC-7730 reference implementations. The spec defines `chainId` over EIP-155 reference values only, with no fallback (unlike `tokenAmount` and `nft`) and no pinned name source, so the rendering of this field is not something the descriptor can bound. A wrong network name is worse than a number here, so it stays raw until that is settled upstream (EXSC-838).
 
    A LI.FI-authored `format: enum` map was the natural alternative and does not work either: the on-device ENUM_VALUE struct encodes an entry value in a single byte taken from the enum key, so no chain id above 255 is representable and `erc7730 calldata` silently drops the entire descriptor.
-
 4. **All `BridgeData` plumbing fields hidden** (`transactionId`, `bridge` (free-text), `integrator`, `referrer`, `hasSourceSwaps`, `hasDestinationCall`) — these carry no user-facing decision content.
 5. **Swap-data array tail hidden** — for `swapAndStart*` we hide `_swapData.[].callData`, `callTo`, `approveTo`, `requiresDeposit` since they're opaque to a non-technical signer. The aggregate effect is captured by `_bridgeData.minAmount`.
 
@@ -152,38 +129,6 @@ bunx tsx tasks/buildClearSigningProposal.ts
 ```
 
 The generator is strict-by-default: any user-facing function it cannot confidently template (unrecognized prefix, struct shape mismatch with `LiFi.BridgeData` / `LibSwap.SwapData`, or `swapTokens*` variant without a hardcoded template) makes it exit non-zero with a per-function "reason + fix" message. The CI gate (see [`verifyClearSigning.yml`](../.github/workflows/verifyClearSigning.yml)) wires this exit code into the PR-merge gate.
-
-## Test fixtures (`testsv2`)
-
-The registry requires one test case per `display.formats` entry — it derives the selector of each format and looks for it in the calldata of the fixture at `registry/lifi/testsv2/calldata-LIFIDiamond.tests.json`. A descriptor with an uncovered format fails the registry's `Check test coverage` job, so the fixture has to travel with the descriptor on every sync.
-
-[`tasks/generateClearSigningTests.ts`](../tasks/generateClearSigningTests.ts) builds it: for each format it encodes calldata from the signature, wraps it in an **unsigned** transaction (the registry's runners don't verify signatures) and emits a test case. Values come from templates for `_bridgeData`, `_swapData` and the top-level `swapTokens*` parameters; everything else is derived from the ABI type, since only displayed fields affect the rendered screen.
-
-Two invariants the generator enforces, both of which produce fixtures that pass every runner while asserting nothing if violated:
-
-- **No displayed field may render a zero value.** A `Non-EVM Recipient: 0x0…0` fixture is worthless. `--check` catches this statically and runs in `verifyClearSigning.yml`, so a new `BRIDGE_EXTRA_RECEIVERS` entry fails our PR rather than reaching the registry.
-- **No expectation may stay `PENDING`.** Expectations come from the reference runner, so a new format needs a render pass before it can be published.
-
-Regenerating after a descriptor change, including that render pass:
-
-```bash
-# 1. first pass — cases without expectations
-bunx tsx tasks/generateClearSigningTests.ts --descriptor <descriptor> --existing <fixture> \
-  --out /tmp/tests.json --allowPending
-
-# 2. render them (Node >= 22)
-git clone https://github.com/sourcifyeth/clear-signing-test-runner && cd clear-signing-test-runner
-npm ci && npm run build && node dist/cli.js /tmp/tests.json --output /tmp/results.json --verbose
-
-# 3. fill the expectations in, then READ them — a snapshot of whatever the
-#    renderer emitted asserts nothing
-bunx tsx tasks/generateClearSigningTests.ts --descriptor <descriptor> --existing <fixture> \
-  --out /tmp/tests.json --results /tmp/results.json
-```
-
-Existing cases are kept verbatim — they carry real transactions and reviewed expectations — and only uncovered selectors are generated. `--results` never overwrites a block that is not `PENDING`: if the runner disagrees with a reviewed expectation, that is a finding to investigate, not something to overwrite.
-
-The registry stores these prettier-formatted at `printWidth: 120`. Prettier keeps an object expanded if its input was, so the generator's indented output must be minified before formatting (`jq -c . file | prettier --parser json --print-width 120`) or the fixture carries a whole-file reformat diff. The sync workflow does this.
 
 ## Validating the proposal locally
 

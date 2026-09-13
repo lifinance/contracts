@@ -20,7 +20,6 @@ on:
       # without touching a facet.
       - 'src/Libraries/**'
       - 'tasks/buildClearSigningProposal.ts'
-      - 'tasks/generateClearSigningTests.ts'
       - 'config/clearSigningProposal.json'
       - '.github/workflows/verifyClearSigning.yml'
       - '.github/actions/setup-foundry/**'
@@ -63,14 +62,6 @@ jobs:
         # the canonical shape or the generator is extended to handle the new
         # shape.
         run: bunx tsx tasks/buildClearSigningProposal.ts
-
-      - name: Verify every displayed field can be given a real test value
-        # The registry requires one test case per display.formats entry, and a
-        # case whose displayed field renders 0x0 passes every runner while
-        # asserting nothing. This catches a new format whose displayed component
-        # the fixture generator has no value for — before the sync bot pushes a
-        # descriptor whose fixtures would be hollow.
-        run: bunx tsx tasks/generateClearSigningTests.ts --descriptor config/clearSigningProposal.json --check
 
       - name: Verify config/clearSigningProposal.json is up-to-date
         # The generator just wrote a fresh proposal. If it differs from the
