@@ -561,3 +561,74 @@ describe('a reason a check had nothing to do', () => {
     )
   })
 })
+
+describe('a pair of values compared character by character', () => {
+  const HASH =
+    '0x8c7e2e6b9edf4f60207d48d7eba1bf5f29667ada41df1c0e6bda53217f334b92'
+
+  const rendered = (expected: string, actual: string): string[] =>
+    renderCheckGroups([
+      entry('safe-tx-hash', 'fail', {
+        result: result('safe-tx-hash', 'fail', { expected, actual }),
+      }),
+    ]).flatMap((line) => stripAnsi(line).split('\n'))
+
+  it('marks the one character that differs, under the column it is in', () => {
+    const lines = rendered(HASH, `${HASH.slice(0, -1)}0`)
+    const carets = lines.find((line) => line.trim().startsWith('^'))
+
+    expect(carets).toBeDefined()
+    // The caret sits under the last character, which is the one that changed —
+    // asserted as a column, because a caret row that is merely present would
+    // pass while pointing at the wrong character.
+    const observed = lines.find((line) =>
+      line.includes(`${HASH.slice(0, -1)}0`)
+    )
+    expect(observed).toBeDefined()
+    expect((carets as string).indexOf('^')).toBe(
+      (observed as string).length - 1
+    )
+  })
+
+  it('marks every differing character, not only the first', () => {
+    const tampered = `0x0${HASH.slice(3, -1)}0`
+    const carets = rendered(HASH, tampered).find((line) =>
+      line.trim().startsWith('^')
+    )
+
+    expect((carets ?? '').split('^').length - 1).toBe(2)
+  })
+
+  it('keeps the pair inside the view, where the labelled form did not', () => {
+    // A bytes32 is 66 characters; under an eight-column indent and a ten-column
+    // label it was 84. Pulled back to the margin it is 74.
+    for (const line of rendered(HASH, `${HASH.slice(0, -1)}0`))
+      expect(line.length).toBeLessThanOrEqual(VIEW_WIDTH)
+  })
+
+  it('prints the values adjacent, because comparing them is the task', () => {
+    const lines = rendered(HASH, `${HASH.slice(0, -1)}0`)
+    const first = lines.findIndex((line) => line.includes(HASH))
+    const second = lines.findIndex((line) =>
+      line.includes(`${HASH.slice(0, -1)}0`)
+    )
+
+    expect(first).toBeGreaterThan(-1)
+    expect(second).toBe(first + 1)
+  })
+
+  // The negative half. A caret row under values of different lengths points at
+  // a column that means nothing, and prose reads better under its label.
+  it('does not use the pair form for values of different lengths', () => {
+    const lines = rendered(HASH, HASH.slice(0, -4))
+
+    expect(lines.some((line) => line.trim().startsWith('^'))).toBe(false)
+    expect(lines.some((line) => line.includes('expected'))).toBe(true)
+  })
+
+  it('does not use the pair form for prose', () => {
+    const lines = rendered('every signature recovers', 'nothing recovered here')
+
+    expect(lines.some((line) => line.trim().startsWith('^'))).toBe(false)
+  })
+})

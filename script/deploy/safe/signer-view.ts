@@ -236,26 +236,106 @@ const wrapValue = (
   const hang = `${indent}${' '.repeat(label.length)}`
   const paint = (text: string): string =>
     colour ? `${colour}${text}${RESET}` : text
-  const budget = Math.max(20, VIEW_WIDTH - hang.length)
-  const out: string[] = []
-  let line = ''
 
-  for (const raw of value.split(/\s+/u).filter(Boolean)) {
-    const word = elideUnreadable(raw)
-    const next = line ? `${line} ${word}` : word
-    // A single word longer than the budget still goes on its own line: breaking
-    // it would split an address or a hash into two unsearchable halves.
-    if (next.length > budget && line) {
-      out.push(line)
-      line = word
-    } else line = next
+  const words = value
+    .split(/\s+/u)
+    .filter(Boolean)
+    .map((raw) => elideUnreadable(raw))
+
+  const fold = (budget: number): string[] => {
+    const out: string[] = []
+    let line = ''
+    for (const word of words) {
+      const next = line ? `${line} ${word}` : word
+      // A single word longer than the budget still goes on its own line:
+      // breaking it would split an address or a hash into two unsearchable
+      // halves.
+      if (next.length > budget && line) {
+        out.push(line)
+        line = word
+      } else line = next
+    }
+    if (line) out.push(line)
+    return out
   }
-  if (line) out.push(line)
+
+  const hangingBudget = Math.max(20, VIEW_WIDTH - hang.length)
+
+  // A word that cannot fit beside its label takes the label's line back.
+  //
+  // A bytes32 is 66 characters and `LONGEST_READABLE_WORD` is 66, so it is
+  // never elided — correctly, since comparing it is the whole job. Under an
+  // eight-column indent and a ten-column label the budget is 58, so it hung off
+  // the view at 84 columns. Dropping the label to its own line buys back
+  // exactly the label's width, which is what makes a hash fit, and it puts the
+  // two values in the same column so the eye can run down them.
+  if (words.some((word) => word.length > hangingBudget)) {
+    const fullBudget = Math.max(20, VIEW_WIDTH - indent.length)
+
+    return [
+      `${indent}${label.trimEnd()}`,
+      ...fold(fullBudget).map((text) => `${indent}${paint(text)}`),
+    ]
+  }
+
+  const out = fold(hangingBudget)
   if (out.length === 0) return [`${indent}${label}`]
 
   return out.map((text, position) =>
     position === 0 ? `${indent}${label}${paint(text)}` : `${hang}${paint(text)}`
   )
+}
+
+/**
+ * Two values a signer has to compare character by character, stacked.
+ *
+ * A bytes32 is 66 characters and the view is 76 wide, so the pair cannot sit
+ * under a labelled column at any useful indent — and wrapping is the one thing
+ * that must not happen to a string about to be checked against a device screen.
+ * So the values are pulled back to the margin, printed adjacent because
+ * comparing them is the task, with the labels pointing inwards at the pair and
+ * a caret row doing the comparison the signer was otherwise going to do by eye.
+ *
+ * The tamper this exists for changes one character of a 66-character hash, and
+ * the old arrangement printed the two 84-column strings four rows apart.
+ *
+ * @param expected - What the check required.
+ * @param actual - What it observed.
+ * @param colour - The mismatch colour, applied to the observed value.
+ * @param indent - The column the pair is printed at.
+ * @returns The stacked pair, or nothing when this shape does not apply.
+ */
+const hashPair = (
+  expected: string,
+  actual: string,
+  colour: string,
+  indent = '        '
+): string[] => {
+  const budget = Math.max(20, VIEW_WIDTH - indent.length)
+  const single = (value: string): boolean =>
+    value.trim().length > 0 && !/\s/u.test(value.trim())
+
+  // Only a pair of unbreakable tokens of one length: a caret row under values
+  // of different lengths points at a column that means nothing, and a value
+  // with spaces in it is prose, which reads better under its label.
+  if (!single(expected) || !single(actual)) return []
+  const left = expected.trim()
+  const right = actual.trim()
+  if (left.length !== right.length) return []
+  if (left.length > budget) return []
+  if (left === right) return []
+
+  let carets = ''
+  for (let index = 0; index < left.length; index += 1)
+    carets += left[index] === right[index] ? ' ' : '^'
+
+  return [
+    `${indent}${DIM}expected ↓${RESET}`,
+    `${indent}${left}`,
+    `${indent}${colour ? `${colour}${right}${RESET}` : right}`,
+    `${indent}${RED}${carets.replace(/\s+$/u, '')}${RESET}`,
+    `${indent}${DIM}observed ↑  carets mark every character that differs${RESET}`,
+  ]
 }
 
 /**
@@ -414,14 +494,25 @@ export const renderCheckGroups = (
           docUrl ? ` ${BLUE}${docUrl}${RESET}` : ''
         }`
       )
-      out.push(...wrapValue(valueLabel('expected'), result.expected))
-      out.push(
-        ...wrapValue(
-          valueLabel('observed'),
-          result.actual,
-          mismatchColour(bucket, result)
-        )
+      // The pair form when both values are one unbreakable token of the same
+      // length — a hash against a hash. Everything else reads better under its
+      // label.
+      const pair = hashPair(
+        result.expected,
+        result.actual,
+        mismatchColour(bucket, result)
       )
+      if (pair.length) out.push(...pair)
+      else {
+        out.push(...wrapValue(valueLabel('expected'), result.expected))
+        out.push(
+          ...wrapValue(
+            valueLabel('observed'),
+            result.actual,
+            mismatchColour(bucket, result)
+          )
+        )
+      }
       if (result.detail)
         out.push(
           ...wrapValue('→ ', result.detail).map(
