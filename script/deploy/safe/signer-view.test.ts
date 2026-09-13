@@ -8,6 +8,7 @@ import {
   PROPOSAL_SEPARATOR,
   renderCheckGroups,
   renderFields,
+  renderGateManifest,
   renderTodos,
   VIEW_WIDTH,
   zoneHeading,
@@ -630,5 +631,164 @@ describe('a pair of values compared character by character', () => {
     const lines = rendered('every signature recovers', 'nothing recovered here')
 
     expect(lines.some((line) => line.trim().startsWith('^'))).toBe(false)
+  })
+})
+
+/**
+ * Terminal columns a string occupies.
+ *
+ * `String.length` counts UTF-16 units, which is not what a signer sees: `⛔` is
+ * one unit and two columns. A width assertion written against `.length` passes
+ * on a row that runs a column past the view.
+ */
+const displayWidth = (text: string): number =>
+  [...text].reduce((n, ch) => n + (ch === '⛔' ? 2 : 1), 0)
+
+describe('renderGateManifest', () => {
+  const gate = (
+    letter: string,
+    checkId: string,
+    title: string,
+    checkClass: ICheckDefinition['checkClass'] = 'integrity'
+  ): ICheckDefinition => ({
+    checkId,
+    section: 'section',
+    checkClass,
+    gate: letter,
+    title,
+  })
+
+  const ROSTER: ICheckDefinition[] = [
+    gate('A', 'a-check', 'Safe address'),
+    gate('B', 'b-check', 'Owner signatures'),
+    gate('C', 'c-check', 'Storage authorities'),
+    gate('D', 'd-check', 'Calldata simulation', 'semantic'),
+    gate('K', 'k-check', 'Deployed bytecode'),
+  ]
+  // Every gate but K owes a result: K has a letter and no ledger denominator,
+  // the same way the codehash gate does in the registry.
+  const OWED = new Set(['a-check', 'b-check', 'c-check', 'd-check'])
+
+  const render = (entries: IBucketedResult[]): string[] =>
+    renderGateManifest({ entries, roster: ROSTER, mustReport: OWED }).map(
+      stripAnsi
+    )
+
+  const rowFor = (lines: string[], letter: string): string => {
+    const found = lines.find((line) =>
+      new RegExp(`^\\s+\\S+\\s*${letter}\\s`, 'u').test(line)
+    )
+    if (!found)
+      throw new Error(`no manifest row for gate ${letter}: ${lines.join('|')}`)
+    return found
+  }
+
+  it('prints one row per gate on the roster, results or not', () => {
+    const lines = render([entry('a-check', 'pass')])
+    for (const definition of ROSTER)
+      expect(rowFor(lines, definition.gate)).toContain(definition.title)
+  })
+
+  it('reads a gate that owed a result and gave none as NO RESULT, never as a pass', () => {
+    const lines = render([entry('a-check', 'pass')])
+    const row = rowFor(lines, 'C')
+    expect(row).toContain('NO RESULT')
+    expect(row).toContain('BLOCKS')
+    // The present half of the pair: the gate that *did* pass says so, so a
+    // renderer that printed "ok" everywhere would fail the line above rather
+    // than satisfy both.
+    expect(rowFor(lines, 'A')).toContain('ok')
+    expect(row).not.toContain('ok')
+  })
+
+  it('does not call a gate silent when it never owed a result', () => {
+    // Every gate that owes a result gives one, so K is the only row without
+    // one. "silent" appearing at all would mean K had been counted.
+    const lines = render([
+      entry('a-check', 'pass'),
+      entry('b-check', 'pass'),
+      entry('c-check', 'pass'),
+      entry('d-check', 'pass'),
+    ])
+    const row = rowFor(lines, 'K')
+    expect(row).not.toContain('NO RESULT')
+    expect(row).not.toContain('BLOCKS')
+    expect(lines.at(-1)).not.toContain('silent')
+    // And the present half: a gate that does owe one and withholds it is
+    // counted, so the assertion above is not simply unreachable.
+    expect(render([entry('a-check', 'pass')]).at(-1)).toContain('3 silent')
+  })
+
+  it('counts the roster, what owes a result, and what reported', () => {
+    const tally = render([
+      entry('a-check', 'pass'),
+      entry('b-check', 'pass'),
+      entry('c-check', 'pass'),
+      entry('d-check', 'pass'),
+    ]).at(-1)
+    expect(tally).toContain('5 gates')
+    expect(tally).toContain('4 owe a result')
+    expect(tally).toContain('4 reported')
+    expect(tally).not.toContain('silent')
+  })
+
+  it('separates a mismatch that blocks from one the run will let you acknowledge', () => {
+    const lines = render([
+      entry('b-check', 'fail'),
+      entry('d-check', 'fail', {
+        definition: gate('D', 'd-check', 'Calldata simulation', 'semantic'),
+      }),
+    ])
+    // Same status, opposite disposition: the integrity gate has no
+    // acknowledgement path and the semantic one does. This is the distinction
+    // the sections were getting wrong before `isAcknowledgeable`.
+    expect(rowFor(lines, 'B')).toContain('WRONG')
+    expect(rowFor(lines, 'B')).toContain('BLOCKS')
+    expect(rowFor(lines, 'D')).toContain('WRONG')
+    expect(rowFor(lines, 'D')).toContain('yours')
+    expect(rowFor(lines, 'D')).not.toContain('BLOCKS')
+  })
+
+  it('surfaces a result that names no gate on the roster', () => {
+    const lines = render([entry('a-check', 'pass'), entry('stranger', 'fail')])
+    const orphan = lines.find((line) => line.includes('stranger'))
+    expect(orphan).toBeDefined()
+    expect(orphan).toContain('no gate on the roster')
+  })
+
+  it('ends no row in whitespace', () => {
+    // The verdict column is padded to a fixed width, and the padding used to
+    // sit inside the colour codes — so a row with no disposition ended in a
+    // reset rather than a space and `trimEnd` could not reach it. Every run
+    // piped to a file or pasted into Slack carried it.
+    const lines = render([
+      entry('a-check', 'pass'),
+      entry('b-check', 'fail'),
+      entry('d-check', 'needs-ack'),
+    ])
+    for (const line of lines) expect(line).toBe(line.trimEnd())
+  })
+
+  it('keeps every row inside the view width', () => {
+    const lines = render([
+      entry('a-check', 'pass'),
+      entry('b-check', 'fail'),
+      entry('d-check', 'needs-ack'),
+    ])
+    for (const line of lines)
+      expect(displayWidth(line)).toBeLessThanOrEqual(VIEW_WIDTH)
+  })
+
+  it('starts every gate letter in the same column, wide glyph or not', () => {
+    // The blocking row carries the two-column stop sign and the passing row a
+    // one-column tick. `indexOf` would compare UTF-16 offsets, which is not the
+    // unit the reader sees: `⛔` is one code unit and two terminal columns, so
+    // the two rows differ by one there and line up on screen.
+    const lines = render([entry('a-check', 'pass'), entry('b-check', 'fail')])
+    const columnOf = (letter: string): number => {
+      const row = rowFor(lines, letter)
+      return displayWidth(row.slice(0, row.indexOf(letter)))
+    }
+    expect(columnOf('A')).toBe(columnOf('B'))
   })
 })

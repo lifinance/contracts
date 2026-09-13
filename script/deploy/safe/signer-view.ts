@@ -126,6 +126,193 @@ export const bucketOf = (entry: IBucketedResult): CheckBucket => {
 const rule = (char: string): string => char.repeat(VIEW_WIDTH)
 
 /**
+ * What the gate *found*, as the word its manifest row carries.
+ *
+ * Keyed on the status rather than on the bucket, because the row states two
+ * different things and the bucket only answers one of them. The glyph and the
+ * last column say what the signer can do about it — the run's own decision,
+ * `status` × `checkClass`. This says what was observed. A semantic mismatch is
+ * acknowledgeable *and* the proposal really does disagree, so it reads `WRONG`
+ * under a glyph that offers a way through; collapsing both onto the bucket
+ * printed `ASKS YOU` over a payload that reverts.
+ *
+ * A word rather than a glyph alone, because this output is read piped to a file
+ * and pasted into Slack at least as often as it is read in a terminal, and
+ * colour is the first thing both of those lose.
+ */
+const MANIFEST_WORD: ReadonlyMap<string, string> = new Map([
+  ['pass', 'ok'],
+  ['fail', 'WRONG'],
+  ['needs-ack', 'ASKS YOU'],
+])
+
+/** A status this view cannot name is an unmade reading, never a pass. */
+const MANIFEST_UNCHECKED = 'UNCHECKED'
+
+/**
+ * What a gate on the roster that produced no result reads as.
+ *
+ * Not a bucket: every `CheckBucket` describes a result, and the whole point of
+ * this row is that there is none. `summariseLedger` counts a registered check
+ * with no row as missing and blocks on it, so the word has to be as loud as the
+ * ones that do have a result behind them.
+ */
+const SILENT = { glyph: '!', word: 'NO RESULT', colour: YELLOW } as const
+
+/**
+ * Glyphs that occupy two terminal columns rather than one.
+ *
+ * `⛔` is emoji-presentation. The manifest is the only place in this view where
+ * a glyph sits in an aligned column, so the width is paid here rather than by
+ * giving the table its own glyph vocabulary: the same gate showing one mark in
+ * the table and a different one in the section below it is a worse defect than
+ * a column that has to measure its own glyphs.
+ */
+const WIDE_GLYPHS: ReadonlySet<string> = new Set(['⛔'])
+
+/** A glyph padded to a two-column cell, so every row's letter starts level. */
+const glyphCell = (glyph: string): string =>
+  WIDE_GLYPHS.has(glyph) ? glyph : `${glyph} `
+
+/**
+ * Columns the manifest spends on everything that is not the gate's title.
+ *
+ * Derived rather than written down so the dot leader cannot drift out of the
+ * view when a column is widened: two of margin, the two-column glyph cell, a
+ * space, the letter, two spaces, then the verdict word and the disposition with
+ * a space each side.
+ */
+const MANIFEST_WORD_WIDTH = 10
+const MANIFEST_BLOCKS_WIDTH = 6
+const MANIFEST_FIXED =
+  2 + 2 + 1 + 1 + 2 + MANIFEST_WORD_WIDTH + 1 + MANIFEST_BLOCKS_WIDTH + 2
+
+export interface IGateManifestInput {
+  /** Every result this run produced, in any order. */
+  entries: readonly IBucketedResult[]
+  /**
+   * Every gate the view can name, in the order the manifest prints them.
+   *
+   * Passed in rather than built here, so the roster the signer counts is the
+   * same constant the run registers its checks from and the two cannot drift.
+   */
+  roster: readonly ICheckDefinition[]
+  /**
+   * The gates that owe this run a result.
+   *
+   * A subset of `roster`, because a gate can have a letter and a subject
+   * without having a ledger denominator — the codehash gate refuses inside the
+   * integrity asserts rather than through a row. Counting it among the gates
+   * that must report would make every run block on a check that is working.
+   */
+  mustReport: ReadonlySet<string>
+}
+
+/**
+ * Zone 2's opening table: every gate the run can name, one line each, always.
+ *
+ * The sections below answer "what should I read first". This answers "what was
+ * there to check at all", which nothing in the view answered before: it renders
+ * the *roster* and joins the results onto it, so a gate that reported nothing
+ * occupies a line saying `NO RESULT` instead of silently not being on the page.
+ * That is not hypothetical — `storage-authority` produced no row on any of the
+ * eleven rehearsal proposals, and no screen said so.
+ *
+ * @param input - The results, the roster, and which gates owe a result.
+ * @returns The table and its tally, one line per gate on the roster.
+ */
+export const renderGateManifest = (input: IGateManifestInput): string[] => {
+  const byCheckId = new Map(
+    input.entries.map((entry) => [entry.result.checkId, entry])
+  )
+  const titleWidth = Math.max(0, VIEW_WIDTH - MANIFEST_FIXED)
+  const out: string[] = []
+  let reported = 0
+  let silent = 0
+
+  for (const definition of input.roster) {
+    const entry = byCheckId.get(definition.checkId)
+    const owed = input.mustReport.has(definition.checkId)
+
+    const [glyph, colour, word] = ((): [string, string, string] => {
+      if (entry) {
+        const bucket = bucketOf(entry)
+        const style = BUCKET_STYLE.get(bucket)
+        return [
+          style?.glyph ?? '?',
+          style?.colour ?? '',
+          entry.notApplicable
+            ? 'n/a'
+            : MANIFEST_WORD.get(entry.result.status) ?? MANIFEST_UNCHECKED,
+        ]
+      }
+      // A gate with no result: blocking when it owed one, and merely absent
+      // when it never did.
+      return owed
+        ? [SILENT.glyph, SILENT.colour, SILENT.word]
+        : ['·', DIM, 'not run']
+    })()
+
+    if (owed) {
+      if (entry) reported += 1
+      else silent += 1
+    }
+
+    // Blocking is a property of the run's decision, not of the glyph: a gate
+    // that owed a result and gave none blocks even though it has no status.
+    const blocks = entry
+      ? bucketOf(entry) === 'wrong' || bucketOf(entry) === 'unchecked'
+      : owed
+    const yours = entry ? bucketOf(entry) === 'ack' : false
+
+    const dots = '.'.repeat(
+      Math.max(2, titleWidth - definition.title.length - 1)
+    )
+    const disposition = blocks
+      ? `${RED}BLOCKS${RESET}`
+      : yours
+      ? `${YELLOW}yours${RESET}`
+      : ''
+    // Trimmed over the whole row, not the last fragment: a gate with no
+    // disposition otherwise keeps the separating space, and half the table
+    // ships trailing whitespace into whatever the run is piped into.
+    out.push(
+      (
+        `  ${colour}${glyphCell(glyph)}${RESET}${BOLD}${
+          definition.gate
+        }${RESET}  ` +
+        `${definition.title} ${DIM}${dots}${RESET} ` +
+        // Padded outside the colour: inside it the row ends in a reset code
+        // rather than a space, so `trimEnd` cannot see the padding and every
+        // row without a disposition ships trailing whitespace.
+        `${colour}${word}${RESET}${' '.repeat(
+          Math.max(0, MANIFEST_WORD_WIDTH - word.length)
+        )} ` +
+        disposition
+      ).trimEnd()
+    )
+  }
+
+  // A result the roster cannot name still has to reach the screen. It would
+  // otherwise be counted by the ledger and invisible on the page, which is the
+  // same hole the roster exists to close, one level along.
+  for (const entry of input.entries)
+    if (!input.roster.some((d) => d.checkId === entry.result.checkId))
+      out.push(
+        `  ${RED}? ${RESET}${BOLD}?${RESET}  ${entry.result.checkId} ${RED}— this result names no gate on the roster${RESET}`
+      )
+
+  out.push('')
+  out.push(
+    `  ${input.roster.length} gates · ${input.mustReport.size} owe a result · ` +
+      `${reported} reported${
+        silent ? ` · ${YELLOW}${silent} silent${RESET}` : ''
+      }`
+  )
+  return out
+}
+
+/**
  * A zone heading.
  *
  * @param index - 1, 2 or 3; printed so the three read as one sequence.
