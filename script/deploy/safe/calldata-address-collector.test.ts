@@ -19,10 +19,12 @@ import {
   AddressGradeEnum,
   AddressRoleEnum,
   evaluateCalldataAddresses,
+  type IAddressReference,
 } from './calldata-address-check'
 import {
   buildDeploymentIndex,
   collectAddressReferences,
+  installedAddresses,
 } from './calldata-address-collector'
 import {
   TIMELOCK_SCHEDULE_BATCH_ABI,
@@ -203,5 +205,64 @@ describe('buildDeploymentIndex', () => {
     )
 
     expect(verdict.refuses).toBe(true)
+  })
+})
+
+describe('installedAddresses', () => {
+  const FACET = '0x00000000000000000000000000000000000000a1'
+  const INIT = '0x00000000000000000000000000000000000000b2'
+
+  const reference = (
+    role: AddressRoleEnum,
+    address: string
+  ): IAddressReference => ({ address, role, path: `call[0].cuts[0]` })
+
+  it('holds the address of a facet being added', () => {
+    expect([
+      ...installedAddresses([reference(AddressRoleEnum.FacetAdd, FACET)]),
+    ]).toEqual([FACET])
+  })
+
+  it('holds the address of a facet being replaced', () => {
+    expect([
+      ...installedAddresses([reference(AddressRoleEnum.FacetReplace, FACET)]),
+    ]).toEqual([FACET])
+  })
+
+  it('holds an init target, whose code runs against the diamond storage', () => {
+    expect([
+      ...installedAddresses([reference(AddressRoleEnum.CutInit, INIT)]),
+    ]).toEqual([INIT])
+  })
+
+  it('holds a contract being registered as periphery', () => {
+    expect([
+      ...installedAddresses([
+        reference(AddressRoleEnum.PeripheryRegistration, FACET),
+      ]),
+    ]).toEqual([FACET])
+  })
+
+  // The whole point of the set: a Remove installs nothing, so it contributes no
+  // subject and gate G has nothing to read. The diamond being cut into is not
+  // in the set either — it is not installed by this proposal.
+  it('is empty for a cut that only removes', () => {
+    expect([
+      ...installedAddresses([
+        reference(AddressRoleEnum.FacetRemove, ZERO_ADDRESS),
+        reference(AddressRoleEnum.CutInit, ZERO_ADDRESS),
+      ]),
+    ]).toEqual([])
+  })
+
+  it('lowercases, so a checksummed reference matches a read address', () => {
+    expect([
+      ...installedAddresses([
+        reference(
+          AddressRoleEnum.FacetAdd,
+          '0x00000000000000000000000000000000000000A1'
+        ),
+      ]),
+    ]).toEqual([FACET])
   })
 })

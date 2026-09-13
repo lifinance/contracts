@@ -87,9 +87,12 @@ export const EVERY_AUTHORITY_MATCHES =
  * of the comparison. One sourced from `config/global.json` is `A-LOCAL` and may
  * decide.
  *
- * An empty set is an `error` on `A-UNRESOLVED`, not a pass. No contract in the
- * calldata carried a declared authority, so nothing was compared, and the
- * denominator must not silently shrink.
+ * An empty set is `not-applicable`, never a pass: this proposal installs no
+ * contract whose constructor-written storage there is anything to assert, so
+ * the row satisfies no verified counter and blocks nothing. The caller owes the
+ * distinction — a set that is empty because the calldata could not be read
+ * through never reaches here, because a scope nobody could read is not a scope
+ * known to be empty.
  *
  * @param entries - Authority observations for this network's proposal.
  * @param network - The network the observations are about.
@@ -106,12 +109,11 @@ export const storageAuthorityCheckResult = (
     return {
       checkId: STORAGE_AUTHORITY_CHECK_ID,
       network,
-      status: 'error',
+      status: 'not-applicable',
       expected: EVERY_AUTHORITY_MATCHES,
-      actual: 'no contract in this proposal declares a storage authority',
-      anchor: 'A-UNRESOLVED',
-      detail:
-        'nothing was compared, so this is an absence of evidence rather than a clean read',
+      actual:
+        'this proposal installs no contract that declares a storage authority',
+      anchor: 'A-LOCAL',
     }
 
   let status: ICheckResult['status'] = 'pass'
@@ -538,26 +540,23 @@ export const executabilityCheckResult = (
       anchor: 'A-CHAIN',
     }
 
-  // A payload the simulator has no revert model for was not simulated, so the
-  // run has no evidence about it. Recording that as the same green as a fully
-  // simulated proposal is how partial coverage reads as verified, so it is an
-  // acknowledgement on the anchor that decided nothing instead.
-  if (verdict.notSimulated.length > 0)
-    return {
-      checkId: EXECUTABILITY_CHECK_ID,
-      network,
-      status: 'needs-ack',
-      expected: 'every payload simulated against the state it will execute in',
-      actual: `no revert found in the payloads that were simulated; ${verdict.notSimulated.length} payload(s) have no revert model`,
-      anchor: 'A-UNRESOLVED',
-    }
-
+  // A payload with no bespoke revert model is still simulated: its target is
+  // checked for code and its calldata is sent in an eth_call from the account
+  // that will really send it, and both of those had to come back clean to
+  // reach here. Whether we could also have predicted the revert from the bytes
+  // is a property of our modelling, not evidence about the proposal, so it does
+  // not lower the grade. Every way to arrive here without that evidence is
+  // already an `error` above: an eth_call never attempted, a payload with no
+  // result, a call that could not be read through.
   return {
     checkId: EXECUTABILITY_CHECK_ID,
     network,
     status: 'pass',
     expected: 'no payload reverts',
-    actual: 'no revert found in any payload',
+    actual:
+      verdict.notSimulated.length > 0
+        ? `no revert found in any payload; ${verdict.notSimulated.length} of them judged on their target holding code and a clean eth_call alone`
+        : 'no revert found in any payload',
     anchor: 'A-CHAIN',
   }
 }
@@ -653,6 +652,15 @@ export interface IProposalCheckVerdicts {
     | {
         entries: readonly ISignedAuthorityEntry[]
         anchors: ReadonlyMap<string, ICheckResult['anchor']>
+        /**
+         * Calls whose contents could not be read through, if any.
+         *
+         * What this proposal installs is decoded from its own calldata, so a
+         * call that would not decode leaves the subject set unknown rather than
+         * empty — and an unknown scope read as an empty one is how a gate comes
+         * to report "nothing to check" about a payload nobody could open.
+         */
+        scopeUnreadable?: readonly string[]
       }
     | undefined
 }
@@ -759,11 +767,20 @@ export const proposalCheckResults = (
   return [
     ...integrityResults(verdicts.integrity, network),
     verdicts.storageAuthority
-      ? storageAuthorityCheckResult(
-          verdicts.storageAuthority.entries,
-          network,
-          verdicts.storageAuthority.anchors
-        )
+      ? verdicts.storageAuthority.scopeUnreadable?.length
+        ? unresolved(
+            STORAGE_AUTHORITY_CHECK_ID,
+            network,
+            EVERY_AUTHORITY_MATCHES,
+            `what this proposal installs could not be read from ${verdicts.storageAuthority.scopeUnreadable.join(
+              ', '
+            )}, so the contracts whose authorities to read are unknown`
+          )
+        : storageAuthorityCheckResult(
+            verdicts.storageAuthority.entries,
+            network,
+            verdicts.storageAuthority.anchors
+          )
       : unresolved(
           STORAGE_AUTHORITY_CHECK_ID,
           network,

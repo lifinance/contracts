@@ -13,6 +13,7 @@
  * that it cannot name is not.
  */
 
+import { ZERO_ADDRESS } from '../shared/constants'
 import {
   collectDiamondCutCalls,
   type IDiamondCutCall,
@@ -102,6 +103,51 @@ export const collectAddressReferences = (
     ],
   }
 }
+
+/**
+ * Roles in which an address is code this proposal puts into service.
+ *
+ * Keyed by role rather than by action number so a role added to
+ * `AddressRoleEnum` has to be classified here before it compiles into the set.
+ * `FacetRemove` is the one deliberate omission: a removal takes code out, and
+ * `LibDiamond` requires the zero address in that slot anyway.
+ */
+const INSTALLING_ROLES: ReadonlySet<AddressRoleEnum> = new Set([
+  AddressRoleEnum.FacetAdd,
+  AddressRoleEnum.FacetReplace,
+  AddressRoleEnum.CutInit,
+  AddressRoleEnum.PeripheryRegistration,
+])
+
+/**
+ * The contracts a proposal installs, as lowercased addresses.
+ *
+ * This is the subject set for the storage-authority gate (R2.6), which exists
+ * because constructor args written to storage are invisible to both bytecode
+ * layers. It follows that the gate has subjects only where code is being put
+ * into service: a cut that only removes installs nothing, and neither the
+ * diamond being cut into nor any other address the calldata merely mentions is
+ * a subject — their storage is not what this proposal is introducing.
+ *
+ * The zero address is dropped rather than filtered by the caller: it is what
+ * `LibDiamond` requires in a removal's facet slot and what a cut with no
+ * initialiser carries, so it is an absence of an address, never one to read.
+ *
+ * @param references - Every address reference the proposal's calldata yielded.
+ * @returns The addresses being installed, lowercased and deduplicated.
+ */
+export const installedAddresses = (
+  references: readonly IAddressReference[]
+): ReadonlySet<string> =>
+  new Set(
+    references
+      .filter(
+        (reference) =>
+          INSTALLING_ROLES.has(reference.role) &&
+          reference.address.toLowerCase() !== ZERO_ADDRESS.toLowerCase()
+      )
+      .map((reference) => reference.address.toLowerCase())
+  )
 
 /**
  * Wraps deployment records as the index the gate may decide against.
