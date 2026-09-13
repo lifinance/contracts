@@ -92,10 +92,11 @@ export interface IDeploymentIndexEntry {
   address: string
   /**
    * When the contract was deployed, not when the row was written. The two
-   * differ: rows backfilled in 2025 carry 2023 deploy times, so ordering on the
-   * write time would rank a backfilled first deployment above the redeploy that
-   * superseded it. Absent on an entry a caller assembled without one, which
-   * leaves the name-anchored lookup unable to say which record is current.
+   * differ across 1,679 production rows, written in 2025 and carrying 2023 or
+   * 2024 deploy times, so ordering on the write time would rank a backfilled
+   * first deployment above the redeploy that superseded it. Absent on an entry
+   * a caller assembled without one, which leaves the name-anchored lookup
+   * unable to say which record is current.
    */
   timestamp?: Date | string
 }
@@ -169,7 +170,10 @@ export interface ICalldataAddressInput {
    * Identities keyed by address in any case, from an anchor the proposer does
    * not control. Never from the calldata being judged: an expectation derived
    * from the proposal cannot contradict it. A refusal-bearing reference with no
-   * identity here errors, so this is required rather than an enrichment.
+   * identity here errors, so this is required rather than an enrichment —
+   * except for a reference carrying {@link IAddressReference.registeredName},
+   * which is anchored by the record's own answer for that name and never
+   * consults this map.
    *
    * No committed file supplies this yet — `_targetState.json` holds no addresses
    * and the selector registry maps selectors to signatures — so the wiring
@@ -375,9 +379,29 @@ const normalizeExpectations = (
   return { identities, errors }
 }
 
+/** `2023-07-27 16:43:51` / `2023-07-27T16:43:51` — a wall clock naming no zone. */
+const ZONELESS = /^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d+)?$/
+
+/**
+ * When the record says a contract was deployed, as a UTC instant.
+ *
+ * A zone-less timestamp is read as UTC rather than left to `Date`, which would
+ * read it in whichever zone the signer's machine runs. Two signers would then
+ * order the same two records differently — seven hours apart between a laptop
+ * on UTC+7 and a CI runner on UTC — and reach opposite verdicts on identical
+ * calldata and an identical record.
+ *
+ * @param entry - the record whose deploy time is wanted
+ * @returns Milliseconds since the epoch, or `NaN` when there is no usable time.
+ */
 const deployedAt = (entry: IDeploymentIndexEntry): number => {
-  const at = new Date(entry.timestamp ?? Number.NaN).getTime()
-  return Number.isNaN(at) ? Number.NaN : at
+  const { timestamp } = entry
+  if (timestamp === undefined) return Number.NaN
+  if (timestamp instanceof Date) return timestamp.getTime()
+  const text = timestamp.trim()
+  return new Date(
+    ZONELESS.test(text) ? `${text.replace(' ', 'T')}Z` : text
+  ).getTime()
 }
 
 /**
@@ -385,9 +409,16 @@ const deployedAt = (entry: IDeploymentIndexEntry): number => {
  *
  * `undecided` names why there is no single answer, and is never merged into
  * "no entry": a record that cannot say which of two deployments is current has
- * not said the address is wrong, and grading it as a mismatch would refuse a
- * correct proposal on the record's own ambiguity. Real data carries both shapes
- * — an entry with no usable deploy time, and two entries sharing the newest one.
+ * not said the address is wrong, and naming it a mismatch would put the blame
+ * for the record's own ambiguity on the address. It is not the lenient outcome
+ * either — for a refusal-bearing role an undecided answer errors, which stops a
+ * signature just as a mismatch does; what differs is which of the two the
+ * signer is told to go and fix.
+ *
+ * Of the two shapes, only the tie is attested in the record today: one group,
+ * `Permit2Proxy` on `abstract`, holds two versions at the same second. No
+ * production row is missing a deploy time, so the undated branch guards a shape
+ * the record could take rather than one it takes.
  *
  * @param entries - every record the store holds
  * @param name - the registry name the calldata binds the address to
@@ -494,6 +525,11 @@ const gradeAgainstName = (
         .join(', ')}`,
     }
 
+  // Re-registering a superseded deployment — the rollback path when a fresh
+  // periphery contract turns out broken — reads as a mismatch here, because the
+  // record's most recent under the name is the contract being rolled back. The
+  // gate reports rather than blocks, so it costs a line the signer has to
+  // overrule; promoting it to a block would need an anchor for that intent.
   if (entry.address.trim().toLowerCase() !== address)
     return {
       ...base,

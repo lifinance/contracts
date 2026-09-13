@@ -709,9 +709,6 @@ describe('the zero address, by role', () => {
   })
 
   it('reads it as the unregistration a periphery registration means by it', () => {
-    // `registerPeripheryContract(name, address(0))` unregisters the name, which
-    // docs/DeploymentLogs.md names as the cleanup proposal for a deprecated
-    // contract's registry residue. Refusing it would block a documented flow.
     const verdict = evaluateCalldataAddresses(
       {
         network: 'mainnet',
@@ -1018,9 +1015,9 @@ describe('periphery registrations are graded against the name the record holds',
   })
 
   it('is the name check, not the address check, that separates the two', () => {
-    // Both addresses are real mainnet Executors, so the address-side grading
-    // that ran before this change cannot tell them apart. If this ever fails,
-    // the refusal above is coming from something other than the name anchor.
+    // Both addresses are real mainnet Executors, so grading the address alone
+    // cannot tell them apart. If this ever fails, the refusal above is coming
+    // from something other than the name anchor.
     const superseded = evaluateCalldataAddresses(
       {
         network: 'mainnet',
@@ -1136,5 +1133,69 @@ describe('periphery registrations are graded against the name the record holds',
 
     expect(verdict.refuses).toBe(true)
     expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.WrongNetwork)
+  })
+
+  it('orders a zone-less deploy time against a zoned one the same way everywhere', () => {
+    // The export writes `2025-07-03 09:54:45` and Mongo writes an instant, so
+    // one group can hold both spellings. Read as a local wall clock, the
+    // zone-less one shifts by the signer's own offset — seven hours on a UTC+7
+    // laptop against a UTC runner — which is enough to swap which record is
+    // newest and hand two signers opposite verdicts on identical input.
+    const mixed: IDeploymentIndexEntry[] = [
+      {
+        contractName: 'Executor',
+        network: 'mainnet',
+        version: '2.0.0',
+        address: EXECUTOR_MAINNET_SUPERSEDED,
+        timestamp: '2025-09-09 12:00:00',
+      },
+      {
+        contractName: 'Executor',
+        network: 'mainnet',
+        version: '2.1.0',
+        address: EXECUTOR_MAINNET_CURRENT,
+        timestamp: new Date('2025-09-09T15:00:00Z'),
+      },
+    ]
+
+    const verdict = evaluateCalldataAddresses(
+      { network: 'mainnet', references: [registers(EXECUTOR_MAINNET_CURRENT)] },
+      recordIndex([EXECUTOR_MAINNET_CURRENT], mixed, ['Executor'])
+    )
+
+    expect(verdict.refuses).toBe(false)
+    expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.Resolved)
+  })
+
+  it('orders it the same way when the zone-less record is the newer one', () => {
+    // The mirror of the case above, and it is needed: a positive offset moves a
+    // zone-less time earlier and a negative one moves it later, so a single
+    // direction leaves the bug invisible to every signer on the other side of
+    // UTC. Here the zone-less record is current, and reading it locally would
+    // hand the title to the zoned one instead.
+    const mixed: IDeploymentIndexEntry[] = [
+      {
+        contractName: 'Executor',
+        network: 'mainnet',
+        version: '2.0.0',
+        address: EXECUTOR_MAINNET_SUPERSEDED,
+        timestamp: new Date('2025-09-09T15:00:00Z'),
+      },
+      {
+        contractName: 'Executor',
+        network: 'mainnet',
+        version: '2.1.0',
+        address: EXECUTOR_MAINNET_CURRENT,
+        timestamp: '2025-09-09 18:00:00',
+      },
+    ]
+
+    const verdict = evaluateCalldataAddresses(
+      { network: 'mainnet', references: [registers(EXECUTOR_MAINNET_CURRENT)] },
+      recordIndex([EXECUTOR_MAINNET_CURRENT], mixed, ['Executor'])
+    )
+
+    expect(verdict.refuses).toBe(false)
+    expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.Resolved)
   })
 })

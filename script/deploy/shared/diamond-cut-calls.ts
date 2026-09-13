@@ -303,8 +303,24 @@ export const collectLeafCalls = (
 export const collectDiamondCutCalls = (
   calldatas: readonly Hex[],
   context?: IDiamondCutCallContext
-): ICollectedDiamondCuts => {
-  const { leaves, undecodable: unopened } = collectLeafCalls(calldatas, context)
+): ICollectedDiamondCuts =>
+  diamondCutCallsIn(collectLeafCalls(calldatas, context))
+
+/**
+ * The `diamondCut` calls among leaves already walked.
+ *
+ * Split from {@link collectDiamondCutCalls} so a caller that also reads the
+ * leaves for something else walks the proposal once and reads both answers off
+ * the same traversal, rather than running a second one that could be handed
+ * different arguments and disagree about what the proposal contains.
+ *
+ * @param collected - what {@link collectLeafCalls} returned
+ * @returns The decoded cuts, plus the indices this could not read through.
+ */
+export const diamondCutCallsIn = ({
+  leaves,
+  undecodable: unopened,
+}: ICollectedLeafCalls): ICollectedDiamondCuts => {
   const calls: IDiamondCutCall[] = []
   const undecodable = new Set<number>(unopened)
 
@@ -343,5 +359,7 @@ export const collectDiamondCutCalls = (
     })
   }
 
-  return { calls, undecodable: [...undecodable] }
+  // Ascending, because the single pre-split walk could only discover these in
+  // top-level order and a caller's message should not reorder with the split.
+  return { calls, undecodable: [...undecodable].sort((a, b) => a - b) }
 }
