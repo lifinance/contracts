@@ -752,7 +752,7 @@ describe('renderGateManifest', () => {
         entry('k-check', 'fail'),
       ])
 
-      // Across a passed row, an acknowledgeable one carrying `yours` and a
+      // Across a passed row, an acknowledgeable one carrying `REVIEW` and a
       // blocking one carrying `BLOCKS`: the dispositions are what make the
       // column ragged if they are trimmed rather than padded.
       const columns = new Set(
@@ -851,7 +851,7 @@ describe('renderGateManifest', () => {
     expect(rowFor(lines, 'B')).toContain('WRONG')
     expect(rowFor(lines, 'B')).toContain('BLOCKS')
     expect(rowFor(lines, 'D')).toContain('WRONG')
-    expect(rowFor(lines, 'D')).toContain('yours')
+    expect(rowFor(lines, 'D')).toContain('REVIEW')
     expect(rowFor(lines, 'D')).not.toContain('BLOCKS')
   })
 

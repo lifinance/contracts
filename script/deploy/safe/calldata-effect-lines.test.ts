@@ -123,21 +123,27 @@ describe('buildCalldataEffectLines — the block is returned, not printed', () =
 })
 
 describe('buildCalldataEffectLines — the summarised effect', () => {
-  it('summarises a removal in one line', async () => {
+  it('names the function and its selector before summarising it', async () => {
     const [first] = plain(await render(diamondCut(2, zeroAddress)))
-    expect(first).toContain('Remove 2 functions from ')
+    expect(first).toContain('diamondCut [0x1f931c1c] on ')
     expect(first).toContain(DIAMOND)
   })
 
+  it('summarises a removal without naming a facet it is not cutting in', async () => {
+    const lines = plain(await render(diamondCut(2, zeroAddress)))
+    expect(lines.join('\n')).toContain('Remove 2 functions')
+    expect(lines.join('\n')).not.toContain('→')
+  })
+
   it('summarises an addition towards the facet it adds', async () => {
-    const [first] = plain(await render(diamondCut(0)))
-    expect(first).toContain('Add 2 functions → ')
-    expect(first).toContain(FACET)
+    const lines = plain(await render(diamondCut(0))).join('\n')
+    expect(lines).toContain('Add 2 functions → ')
+    expect(lines).toContain(FACET)
   })
 
   it('counts one function in the singular', async () => {
-    const [first] = plain(await render(diamondCut(1, FACET, ['0xa1f1ce43'])))
-    expect(first).toContain('Replace 1 function → ')
+    const lines = plain(await render(diamondCut(1, FACET, ['0xa1f1ce43'])))
+    expect(lines.join('\n')).toContain('Replace 1 function → ')
   })
 
   it('lists the selectors under the summary', async () => {
@@ -148,17 +154,17 @@ describe('buildCalldataEffectLines — the summarised effect', () => {
 
 describe('buildCalldataEffectLines — a proposer-controlled field is never syntax', () => {
   it('quotes a diamondCut action outside the closed set instead of reading it as a verb', async () => {
-    const [first] = plain(await render(diamondCut(7)))
-    expect(first).toContain('action "7" on 2 functions → ')
+    const lines = plain(await render(diamondCut(7))).join('\n')
+    expect(lines).toContain('action "7" on 2 functions → ')
     // Ungraded: naming what 7 is not is zone 2's verdict, not this section's.
-    expect(first).not.toContain('invalid')
-    expect(first).not.toContain('unknown action')
+    expect(lines).not.toContain('invalid')
+    expect(lines).not.toContain('unknown action')
   })
 
   it('never lets a decoded action supply the verb', async () => {
     for (const action of [3, 7, 255]) {
-      const [first] = plain(await render(diamondCut(action)))
-      expect(first).toContain(`action "${action}"`)
+      const lines = plain(await render(diamondCut(action))).join('\n')
+      expect(lines).toContain(`action "${action}"`)
     }
   })
 
@@ -179,34 +185,27 @@ describe('buildCalldataEffectLines — a proposer-controlled field is never synt
   })
 })
 
-describe('buildCalldataEffectLines — collapsed fields are named, never dropped', () => {
-  it('names the salt it stops printing', async () => {
-    const lines = plain(await render(scheduleBatch(diamondCut(1), 10_800n)))
-    const roster = lines.find((line) => line.includes('not shown:'))
-    expect(roster).toBeDefined()
-    expect(roster).toContain('salt (per-proposal entropy)')
-  })
-
-  it('prints no salt value', async () => {
+describe('buildCalldataEffectLines — what it declines to print', () => {
+  it('prints no salt at all', async () => {
+    // Per-proposal entropy that makes the operation id unique. A signer has
+    // nothing to compare it to, and no value of it is wrong.
     const lines = plain(await render(scheduleBatch(diamondCut(1), 10_800n)))
     expect(lines.join('\n')).not.toContain('00000000000000aa')
   })
 
-  it('names a zero predecessor as collapsed rather than printing it', async () => {
+  it('says nothing about a zero predecessor', async () => {
     const lines = plain(await render(scheduleBatch(diamondCut(1), 10_800n)))
-    const roster = lines.find((line) => line.includes('not shown:'))
-    expect(roster).toContain('predecessor (zero)')
-    expect(lines.join('\n')).not.toContain('ordered behind operation')
+    expect(lines.join('\n')).not.toContain('predecessor')
+    expect(lines.join('\n')).not.toContain('ordered behind')
   })
 
-  it('prints a non-zero predecessor instead of collapsing it', async () => {
+  it('prints a non-zero predecessor, which is the case that means something', async () => {
     const predecessor = `0x${'ab'.repeat(32)}` as `0x${string}`
     const lines = plain(
       await render(scheduleBatch(diamondCut(1), 10_800n, predecessor))
-    )
-    expect(lines.join('\n')).toContain('ordered behind operation')
-    const roster = lines.find((line) => line.includes('not shown:'))
-    expect(roster).not.toContain('predecessor')
+    ).join('\n')
+    expect(lines).toContain('ordered behind operation')
+    expect(lines).toContain(predecessor)
   })
 
   it('counts the selectors it holds back', async () => {
@@ -260,7 +259,7 @@ describe('buildCalldataEffectLines — zone 1 reporting on its own output', () =
     // The registry answers this selector from a 4byte-style collision name, so
     // the call is named but nothing decodes its body.
     const lines = plain(await render('0xdeadbeef')).join('\n')
-    expect(lines).toContain('calls "')
+    expect(lines).toContain('[0xdeadbeef]')
     expect(lines).toContain('ARGUMENTS COULD NOT BE DECODED')
   })
 
@@ -378,9 +377,9 @@ describe('buildCalldataEffectLines — the remaining known calls', () => {
         })
       )
     ).join('\n')
+    expect(lines).toContain('schedule [')
     expect(lines).toContain('Replace 2 functions → ')
     expect(lines).toContain('delay 10800s (3h)')
-    expect(lines).toContain('call value (zero)')
   })
 
   it('states a non-zero call value instead of collapsing it', async () => {
@@ -393,9 +392,7 @@ describe('buildCalldataEffectLines — the remaining known calls', () => {
         })
       )
     )
-    expect(lines.join('\n')).toContain('— value 7')
-    const roster = lines.find((line) => line.includes('not shown:'))
-    expect(roster).not.toContain('value')
+    expect(lines.join('\n')).toContain('value 7')
   })
 
   it('decodes the init call a diamondCut carries', async () => {
@@ -427,7 +424,7 @@ describe('buildCalldataEffectLines — the remaining known calls', () => {
         })
       )
     ).join('\n')
-    expect(lines).toContain('calls "setOwner"')
+    expect(lines).toContain('setOwner [')
     expect(lines).toContain('[0]: ')
     expect(lines).toContain(FACET)
   })

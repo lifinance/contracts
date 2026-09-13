@@ -429,35 +429,16 @@ export const CLAIM_QUESTION: readonly string[] = [
 ]
 
 /**
- * The calldata, in full under `--raw` and as a fingerprint otherwise.
+ * The calldata in full, and only when `--raw` asked for it.
  *
- * The fingerprint is measured on the sanitised text, so a row padded with
- * invisibles reports the length a reader would have had to scroll past rather
- * than the length it claims.
+ * Nothing is printed otherwise. A fingerprint of a payload — its length and
+ * first four bytes — is not something a signer can check anything against, and
+ * the decode below already names the function those four bytes select.
  */
-const calldataLine = (input: ISafeTxDetailInput): string => {
-  if (input.showRawCalldata === true)
-    return `      — ${storedField(input.data, GREEN, UNBOUNDED)}`
-
-  const { text, notice } = asPrintable(input.data, UNBOUNDED)
-
-  // A value that is not calldata is shown rather than measured. `asPrintable`
-  // stands a sentinel in for a field it could not render, and a length taken
-  // from that sentinel would report "12 hex chars, starts unrenderab" — a
-  // measurement of the placeholder, printed where the payload goes.
-  if (!/^0x[0-9a-fA-F]*$/u.test(text))
-    return `      — ${storedField(input.data, GREEN, UNBOUNDED)}`
-
-  const body = text.slice(2)
-  const head = text.slice(0, 10)
-  return `      — ${concatPrintable(
-    color(GREEN, trustedMarkup(`${body.length} hex chars`)),
-    trustedMarkup(', starts '),
-    color(CYAN, asPrintable(head).text),
-    trustedMarkup(notice),
-    trustedMarkup(' · --raw for the full hex')
-  )}`
-}
+const rawCalldataLines = (input: ISafeTxDetailInput): string[] =>
+  input.showRawCalldata === true
+    ? [`      raw calldata: ${storedField(input.data, GREEN, UNBOUNDED)}`]
+    : []
 
 /**
  * A block heading inside zone 1.
@@ -469,35 +450,38 @@ const blockHeading = (title: string, first = false): string[] =>
   first ? [`  ${BOLD}${title}${RESET}`] : ['', `  ${BOLD}${title}${RESET}`]
 
 /**
- * What the payload is, printed under the decode rather than over it.
+ * Where the payload lands, printed above the decode.
  *
- * The decode is the answer to "what does this do"; the envelope is where it
- * lands and how big it is. Both were labelled rows above the claim, where they
- * were read before the thing they qualify.
+ * The target is the first thing the block says: everything under it describes a
+ * call to this address, so reading the decode first means reading it without
+ * knowing what it is aimed at. The operation is named only when it is not a
+ * plain `Call` — the delegatecall caveat printed above depends on it, and on
+ * the 11-of-11 routine case the word carries nothing.
  * @param input - The same input the block above was built from.
- * @returns The footnote lines, in order.
+ * @returns The target lines, in order, followed by the raw hex under `--raw`.
  */
-export function buildCalldataFootnote(input: ISafeTxDetailInput): string[] {
+export function buildCalldataTarget(input: ISafeTxDetailInput): string[] {
   const { head, decorations } = targetParts(input)
 
   const opening = concatPrintable(
-    trustedMarkup('— '),
-    color(
-      input.operationIsCall ? GREEN : `${BOLD}${RED}`,
-      input.operationLabel
-    ),
-    trustedMarkup(' to '),
-    head
+    trustedMarkup('Target: '),
+    head,
+    input.operationIsCall
+      ? EMPTY
+      : concatPrintable(
+          trustedMarkup(' — '),
+          color(`${BOLD}${RED}`, input.operationLabel)
+        )
   )
   const value = concatPrintable(
-    trustedMarkup('value '),
+    trustedMarkup('msg.value: '),
     storedField(input.value, GREEN)
   )
 
-  // Laid out by measured width rather than by a fixed shape: the operation is
-  // 4 characters or 12, the address 42 or a base58 string, and a name may or
-  // may not be there. Each fragment is placed whole — a fold inside an address
-  // or a URL is the one fold this block must never make.
+  // Laid out by measured width rather than by a fixed shape: the address is 42
+  // characters or a base58 string, and a name may or may not be there. Each
+  // fragment is placed whole — a fold inside an address or a URL is the one
+  // fold this block must never make.
   const lines: string[] = [`      ${opening}`]
   const fits = (line: string, addition: Printable): boolean =>
     visibleWidth(line) + 1 + visibleWidth(addition) <= VIEW_WIDTH
@@ -517,10 +501,10 @@ export function buildCalldataFootnote(input: ISafeTxDetailInput): string[] {
     lines.push(`${indent}${addition}`)
   }
 
-  append(value, ' · ')
+  append(value, '   -   ')
   for (const decoration of decorations) append(decoration, ' · ')
 
-  lines.push(calldataLine(input))
+  lines.push(...rawCalldataLines(input))
   return lines
 }
 

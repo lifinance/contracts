@@ -312,35 +312,48 @@ async function effectLines(
     ]
 
   const { functionName, args } = decoded
+  const called = calledFunction(functionName, hex)
   if (args === undefined)
     return [
-      `${pre}${color(BLUE, trustedMarkup('calls '))}${quoted(
-        functionName,
-        BLUE
-      )}`,
+      `${pre}${called}`,
       cannotRead(pre, '  ARGUMENTS COULD NOT BE DECODED'),
       `${pre}  ${rawPreview(data)}`,
     ]
 
   switch (bareName(functionName)) {
     case 'scheduleBatch':
-      return scheduleBatchLines(args, context, pre)
+      return scheduleBatchLines(args, called, context, pre)
     case 'schedule':
-      return scheduleLines(args, context, pre)
+      return scheduleLines(args, called, context, pre)
     case 'diamondCut':
-      return diamondCutLines(args, context, pre)
+      return diamondCutLines(args, called, context, pre)
     case 'batchSetContractSelectorWhitelist':
-      return whitelistLines(args, context, pre)
+      return whitelistLines(args, called, context, pre)
     case 'registerPeripheryContract':
-      return registerPeripheryLines(args, context, pre)
+      return registerPeripheryLines(args, called, context, pre)
     case 'grantRole':
     case 'revokeRole':
     case 'renounceRole':
-      return roleChangeLines(functionName, args, context, pre)
+      return roleChangeLines(functionName, args, called, context, pre)
     default:
       return genericCallLines(functionName, args, hex, context, pre)
   }
 }
+
+/**
+ * The function this calldata invokes, named and with its selector.
+ *
+ * Every summarising line opens with this. The name is what the signer is
+ * looking for and the selector is the part of the payload that chose it, so a
+ * name resolved from a registry can be checked against the four bytes it claims
+ * to decode rather than taken on trust. The name is sanitised: it can come from
+ * a third-party 4byte lookup keyed on a selector the proposer wrote.
+ */
+const calledFunction = (functionName: string, data: Hex): Printable =>
+  concatPrintable(
+    color(BLUE, asPrintable(bareName(functionName)).text),
+    color(GREY, trustedMarkup(` [${asPrintable(data.slice(0, 10)).text}]`))
+  )
 
 /** The function name without its argument list. */
 const bareName = (functionName: string): string =>
@@ -416,69 +429,51 @@ function delayClause(delay: unknown): Printable {
   )
 }
 
-/**
- * The fields this block stops printing, named rather than dropped.
- *
- * A layout that simply omits a routine value renders a proposal whose
- * predecessor was checked and found zero identically to one where nobody
- * looked. The roster is what makes the hiding safe, so it is built from what
- * was actually collapsed on this row.
- */
-const collapsedLine = (pre: string, collapsed: string[]): string[] =>
-  collapsed.length === 0
-    ? []
-    : [
-        `${pre}${color(
-          GREY,
-          trustedMarkup(`— not shown: ${collapsed.join(', ')}`)
-        )}`,
-      ]
-
 const isZeroWord = (value: unknown): boolean =>
   /^0x0{1,64}$/u.test(String(value ?? ''))
 
 /**
- * The timelock the call travels through, and what it leaves unprinted.
+ * The timelock header a scheduled call sits under.
  *
- * `salt` never reaches a line at all — it is per-proposal entropy that makes
- * the operation id unique, and a signer has nothing to compare it to — so it is
- * not a parameter here, only a roster entry. `predecessor` earns a line of its
- * own exactly when it is non-zero, which is when this operation is ordered
- * behind another one.
+ * `salt` never reaches a line: it is per-proposal entropy that makes the
+ * operation id unique, and a signer has nothing to compare it to. `predecessor`
+ * earns a line of its own exactly when it is non-zero, which is when this
+ * operation is ordered behind another one — the zero case is the whole of what
+ * it has to say, and saying it costs a line on every honest proposal.
  */
-function timelockEnvelopeLines(
+const timelockHeader = (
   pre: string,
-  verb: string,
+  called: Printable,
   operations: number,
-  predecessor: unknown,
-  delay: unknown,
-  extraCollapsed: string[]
-): string[] {
-  const lines = [
-    `${pre}${color(
-      GREY,
-      trustedMarkup(`— ${verb} through the timelock · `)
-    )}${delayClause(delay)}${color(
-      GREY,
-      trustedMarkup(` · ${plural(operations, 'operation')}`)
-    )}`,
-  ]
+  delay: unknown
+): string =>
+  `${pre}${called}${color(GREY, trustedMarkup(' · '))}${delayClause(
+    delay
+  )}${color(GREY, trustedMarkup(` · ${plural(operations, 'operation')}`))}`
 
-  const collapsed = ['salt (per-proposal entropy)', ...extraCollapsed]
-  if (isZeroWord(predecessor)) collapsed.push('predecessor (zero)')
-  else
-    lines.push(
-      `${pre}${color(
-        GREY,
-        trustedMarkup('— ordered behind operation ')
-      )}${storedField(predecessor, GREEN)}`
-    )
-  lines.push(...collapsedLine(pre, collapsed))
-  return lines
-}
+const predecessorLines = (pre: string, predecessor: unknown): string[] =>
+  isZeroWord(predecessor)
+    ? []
+    : [
+        `${pre}${color(
+          GREY,
+          trustedMarkup('ordered behind operation ')
+        )}${storedField(predecessor, GREEN)}`,
+      ]
+
+const valueLine = (pre: string, value: unknown): string[] =>
+  isZeroValue(value)
+    ? []
+    : [
+        `${pre}${color(GREY, trustedMarkup('value '))}${storedField(
+          value,
+          GREEN
+        )}`,
+      ]
 
 async function scheduleBatchLines(
   args: readonly unknown[],
+  called: Printable,
   context: ICalldataEffectContext,
   pre: string
 ): Promise<string[]> {
@@ -498,7 +493,7 @@ async function scheduleBatchLines(
     ]
 
   const count = Math.max(targets.length, values.length, payloads.length)
-  const lines: string[] = []
+  const lines = [timelockHeader(pre, called, count, delay)]
   if (targets.length !== values.length || values.length !== payloads.length)
     lines.push(
       cannotRead(
@@ -506,12 +501,12 @@ async function scheduleBatchLines(
         `the three arrays disagree on length — targets ${targets.length}, values ${values.length}, payloads ${payloads.length}`
       )
     )
+  lines.push(...predecessorLines(`${pre}  `, predecessor))
 
   const shown = Math.min(count, MAX_CALLS_SHOWN)
-  const nonZeroValues: number[] = []
   for (let i = 0; i < shown; i++) {
     const label = count === 1 ? '' : `[${String(i).padStart(2, '0')}] `
-    const callPre = `${pre}${' '.repeat(label.length)}`
+    const callPre = `${pre}  ${' '.repeat(label.length)}`
     const call = await effectLines(
       payloads[i],
       { ...context, target: targets[i] },
@@ -522,64 +517,33 @@ async function scheduleBatchLines(
     lines.push(
       ...call.map((line, index) =>
         index === 0 && label !== ''
-          ? `${pre}${color(GREY, trustedMarkup(label))}${line.slice(
+          ? `${pre}  ${color(GREY, trustedMarkup(label))}${line.slice(
               callPre.length
             )}`
           : line
       )
     )
-    if (!isZeroValue(values[i])) {
-      nonZeroValues.push(i)
-      lines.push(
-        `${callPre}${color(GREY, trustedMarkup('— value '))}${storedField(
-          values[i],
-          GREEN
-        )}`
-      )
-    }
+    lines.push(...valueLine(`${callPre}  `, values[i]))
   }
-  lines.push(...withheldLine(pre, count - shown, count, 'call'))
-
-  lines.push(
-    ...timelockEnvelopeLines(
-      pre,
-      'scheduled',
-      count,
-      predecessor,
-      delay,
-      nonZeroValues.length === 0 ? ['per-call value (zero)'] : []
-    )
-  )
+  lines.push(...withheldLine(`${pre}  `, count - shown, count, 'call'))
   return lines
 }
 
 async function scheduleLines(
   args: readonly unknown[],
+  called: Printable,
   context: ICalldataEffectContext,
   pre: string
 ): Promise<string[]> {
   if (args.length < 6)
     return [cannotRead(pre, 'SCHEDULE ARGUMENTS COULD NOT BE READ')]
   const [target, value, payload, predecessor, , delay] = args
-  const lines = await effectLines(payload, { ...context, target }, pre)
-  const zeroValue = isZeroValue(value)
-  if (!zeroValue)
-    lines.push(
-      `${pre}${color(GREY, trustedMarkup('— value '))}${storedField(
-        value,
-        GREEN
-      )}`
-    )
+  const lines = [timelockHeader(pre, called, 1, delay)]
+  lines.push(...predecessorLines(`${pre}  `, predecessor))
   lines.push(
-    ...timelockEnvelopeLines(
-      pre,
-      'scheduled',
-      1,
-      predecessor,
-      delay,
-      zeroValue ? ['call value (zero)'] : []
-    )
+    ...(await effectLines(payload, { ...context, target }, `${pre}  `))
   )
+  lines.push(...valueLine(`${pre}    `, value))
   return lines
 }
 
@@ -592,15 +556,17 @@ const isZeroValue = (value: unknown): boolean => {
 
 async function diamondCutLines(
   args: readonly unknown[],
+  called: Printable,
   context: ICalldataEffectContext,
   pre: string
 ): Promise<string[]> {
   const modifications = args[0]
   if (!Array.isArray(modifications))
     return [
+      `${pre}${called}`,
       cannotRead(
         pre,
-        'DIAMONDCUT ARGUMENTS COULD NOT BE READ — the cut list is not an array'
+        '  DIAMONDCUT ARGUMENTS COULD NOT BE READ — the cut list is not an array'
       ),
     ]
 
@@ -624,11 +590,17 @@ async function diamondCutLines(
       ? await resolveSelectorsViaFourByte(unknown)
       : new Map<string, string>()
 
-  const lines: string[] = []
+  const lines = addressLines(
+    pre,
+    concatPrintable(called, trustedMarkup(' on ')),
+    target,
+    NO_LINK
+  )
+  const cutPre = `${pre}  `
   for (const modification of modifications) {
     if (!Array.isArray(modification)) {
       lines.push(
-        cannotRead(pre, 'a cut entry could not be read — it is not a triple')
+        cannotRead(cutPre, 'a cut entry could not be read — it is not a triple')
       )
       continue
     }
@@ -644,12 +616,7 @@ async function diamondCutLines(
 
     if (verb === 'Remove') {
       lines.push(
-        ...addressLines(
-          pre,
-          trustedMarkup(`Remove ${functions} from `),
-          target,
-          NO_LINK
-        )
+        `${cutPre}${color(BLUE, trustedMarkup(`Remove ${functions}`))}`
       )
     } else {
       const facet = await renderAddress(context.network, facetAddress)
@@ -671,27 +638,20 @@ async function diamondCutLines(
           : trustedMarkup(`${verb} ${functions} → `)
       lines.push(
         ...addressLines(
-          pre,
+          cutPre,
           concatPrintable(
             opening,
             name
               ? concatPrintable(color(BLUE, name), trustedMarkup(' @ '))
               : EMPTY
           ),
-          facet,
-          NO_LINK
+          facet
         )
       )
-      lines.push(
-        ...addressLines(`${pre}  `, trustedMarkup('on '), target, NO_LINK)
-      )
-      // Below the target rather than beside the facet: the two lines above are
-      // one sentence — what is being cut in, and where — and a 70-character URL
-      // between them separates the halves.
-      if (facet.url !== undefined) lines.push(`${pre}  ${facet.url}`)
     }
 
     if (!Array.isArray(selectors)) continue
+    const selectorPre = `${cutPre}  `
     const shown = selectors.slice(0, MAX_SELECTORS_SHOWN)
     for (const selector of shown) {
       const normalised = normalizeDiamondCutSelector(selector)
@@ -703,7 +663,7 @@ async function diamondCutLines(
       // only a signature, so that arm still renders one.
       const named = info?.name ?? fourByte.get(normalised)
       lines.push(
-        `${pre}  ${color(CYAN, asPrintable(normalised).text)}  ${
+        `${selectorPre}${color(CYAN, asPrintable(normalised).text)}  ${
           named
             ? storedField(named, BLUE)
             : color(GREY, trustedMarkup('no name for this selector'))
@@ -712,7 +672,7 @@ async function diamondCutLines(
     }
     lines.push(
       ...withheldLine(
-        `${pre}  `,
+        selectorPre,
         selectors.length - shown.length,
         selectors.length,
         'selector'
@@ -729,7 +689,9 @@ async function diamondCutLines(
     !isEmptyCalldata(initCalldata)
   ) {
     const init = await renderAddress(context.network, initAddress)
-    lines.push(...addressLines(pre, trustedMarkup('then calls '), init))
+    lines.push(
+      ...addressLines(cutPre, trustedMarkup('then calls '), init, NO_LINK)
+    )
     lines.push(
       ...(await effectLines(
         initCalldata,
@@ -776,15 +738,17 @@ function facetContractName(
 
 async function whitelistLines(
   args: readonly unknown[],
+  called: Printable,
   context: ICalldataEffectContext,
   pre: string
 ): Promise<string[]> {
   const [contracts, selectors, whitelisted] = args
   if (!Array.isArray(contracts) || !Array.isArray(selectors))
     return [
+      `${pre}${called}`,
       cannotRead(
         pre,
-        'WHITELIST ARGUMENTS COULD NOT BE READ — contracts and selectors are not both arrays'
+        '  WHITELIST ARGUMENTS COULD NOT BE READ — contracts and selectors are not both arrays'
       ),
     ]
 
@@ -810,8 +774,8 @@ async function whitelistLines(
           trustedMarkup(' on ')
         )
   const count = Math.max(contracts.length, selectors.length)
-  lines.push(
-    `${pre}${verb}${color(
+  lines.unshift(
+    `${pre}${called}${color(GREY, trustedMarkup(' · '))}${verb}${color(
       BLUE,
       trustedMarkup(plural(count, 'contract/selector pair'))
     )}`
@@ -831,18 +795,24 @@ async function whitelistLines(
 
 async function registerPeripheryLines(
   args: readonly unknown[],
+  called: Printable,
   context: ICalldataEffectContext,
   pre: string
 ): Promise<string[]> {
   if (args.length < 2)
     return [
-      cannotRead(pre, 'REGISTERPERIPHERYCONTRACT ARGUMENTS COULD NOT BE READ'),
+      `${pre}${called}`,
+      cannotRead(
+        pre,
+        '  REGISTERPERIPHERYCONTRACT ARGUMENTS COULD NOT BE READ'
+      ),
     ]
   const address = await renderAddress(context.network, args[1])
   return addressLines(
     pre,
     concatPrintable(
-      trustedMarkup('register periphery '),
+      called,
+      color(GREY, trustedMarkup(' · register periphery ')),
       quoted(args[0], GREEN),
       trustedMarkup(' → ')
     ),
@@ -860,11 +830,15 @@ const ROLE_VERBS: Readonly<Record<string, string>> = {
 async function roleChangeLines(
   functionName: string,
   args: readonly unknown[],
+  called: Printable,
   context: ICalldataEffectContext,
   pre: string
 ): Promise<string[]> {
   if (args.length < 2)
-    return [cannotRead(pre, 'ROLE CHANGE ARGUMENTS COULD NOT BE READ')]
+    return [
+      `${pre}${called}`,
+      cannotRead(pre, '  ROLE CHANGE ARGUMENTS COULD NOT BE READ'),
+    ]
   const verb = ROLE_VERBS[bareName(functionName)] ?? 'change'
   const roleHash = String(args[0] ?? '')
   const roleName = getRoleName(roleHash)
@@ -896,12 +870,7 @@ function genericCallLines(
   context: ICalldataEffectContext,
   pre: string
 ): string[] {
-  const lines = [
-    `${pre}${color(BLUE, trustedMarkup('calls '))}${quoted(
-      functionName,
-      BLUE
-    )}`,
-  ]
+  const lines = [`${pre}${calledFunction(functionName, data)}`]
   if (args.length === 0) {
     lines.push(`${pre}  ${color(GREY, trustedMarkup('no arguments'))}`)
     return lines

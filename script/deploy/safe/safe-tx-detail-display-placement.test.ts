@@ -66,22 +66,24 @@ describe('smoke check: the shape of the call into the detail block', () => {
       "consola.log(buildSafeTxDetailLines(detailInput).join('\\n'))"
     )
     expect(CONFIRM).toContain(
-      "consola.log(buildCalldataFootnote(detailInput).join('\\n'))"
+      "consola.log(buildCalldataTarget(detailInput).join('\\n'))"
     )
     // An inline push would add a line without passing through the builder.
     expect(CONFIRM).not.toContain('detailLines.push')
   })
 
-  it('closes the comparison after the decode, not before it', () => {
-    // The question is the point of the two blocks above it; printed before the
-    // decoded calldata it asks the signer to compare something not yet shown.
+  it('names the target before the decode and closes the comparison after it', () => {
+    // The decode describes a call to the target, so printing it first asks the
+    // signer to read what happens without knowing where. The question is the
+    // point of the blocks above it, so it comes last: printed earlier it asks
+    // for a comparison against something not yet shown.
+    const target = CONFIRM.indexOf('buildCalldataTarget(detailInput)')
     const decode = CONFIRM.indexOf('buildCalldataEffectLines(')
-    const footnote = CONFIRM.indexOf('buildCalldataFootnote(detailInput)')
     const question = CONFIRM.indexOf("CLAIM_QUESTION.join('\\n')")
 
-    expect(decode).toBeGreaterThan(-1)
-    expect(footnote).toBeGreaterThan(decode)
-    expect(question).toBeGreaterThan(footnote)
+    expect(target).toBeGreaterThan(-1)
+    expect(decode).toBeGreaterThan(target)
+    expect(question).toBeGreaterThan(decode)
   })
 
   it('prints the parsed nonce in the mismatch warnings', () => {
