@@ -545,14 +545,14 @@ const bodyOfFunction = (name: string): string => {
  * loop body, plus the evidence function the loop calls to take the proposal's
  * chain reads.
  *
- * Those reads moved into `computeProposalEvidence` so the next proposal's can
- * start while this one is on screen. They are still taken once per proposal and
- * still while a refusal is available — the loop takes the bundle above every
- * display and every prompt, and a bundle prepared ahead is re-validated before
- * it is used. What they are no longer is *in source order inside the loop*,
- * which is all this widening gives up. The narrower questions — that nothing in
- * the loop records, that the push sits above the operator's own `continue` —
- * keep the narrow window.
+ * The reads sit in `computeProposalEvidence` so the next proposal's can start
+ * while this one is on screen. They are still taken once per proposal and still
+ * while a refusal is available — the loop takes the bundle above every display
+ * and every prompt, and a bundle prepared ahead is re-validated before it is
+ * used. What they are not is *in source order inside the loop*, which is all
+ * this widening gives up. The narrower questions — that nothing in the loop
+ * records, that the push sits above the operator's own `continue` — keep the
+ * narrow window.
  */
 const perProposal = (): string =>
   `${proposalLoop().body}\n${bodyOfFunction('computeProposalEvidence')}`

@@ -178,8 +178,9 @@ describe('the evaluation is placed where it swallows nothing', () => {
   it('runs after the codehash gate and before the acknowledgement keys', () => {
     // Both verdicts are produced in `computeProposalEvidence`, in this order,
     // and both are adopted in the loop above the keys the acknowledgement is
-    // built from. Anchored on the evaluation rather than on the codehash
-    // render, which the loop now does after adopting both.
+    // built from. Anchored on the codehash evaluation rather than on its render,
+    // which the loop does after adopting both verdicts and so says nothing about
+    // the order they were produced in.
     const codehashEvaluation = SOURCE.indexOf('await evaluateCodehashSignGate(')
     const evaluation = SOURCE.indexOf('integrity = await runIntegrityAsserts(')
     const adopted = SOURCE.indexOf('integrityRun = evidence.value.integrity')

@@ -402,13 +402,14 @@ const processTxs = async (
   // reflects that yet.
   let broadcastsMade = 0
 
-  // The proposal's codehash verdict, re-evaluated per proposal below and read
-  // by the signer through `createGatedSigner`. It starts blocking so a proposal
-  // whose evaluation never ran cannot be signed on last proposal's answer.
+  // The proposal's codehash verdict, taken per proposal from that proposal's
+  // evidence bundle and read by the signer through `createGatedSigner`. It
+  // starts blocking so a proposal whose evaluation never ran cannot be signed
+  // on last proposal's answer.
   let codehashGate: ICodehashSignGate = blockingUnevaluatedGate()
 
-  // The proposal's integrity verdict, re-run per proposal below. Absent is the
-  // blocking state: `assertIntegrityAssertsAllowSigning` refuses an undefined
+  // The proposal's integrity verdict, taken per proposal from that proposal's
+  // evidence bundle. Absent is the blocking state: `assertIntegrityAssertsAllowSigning` refuses an undefined
   // run, so a proposal whose assertions never ran cannot be signed on the last
   // proposal's answer — and the run carries the transaction it graded, which
   // that refusal compares against the one reaching the signer.
