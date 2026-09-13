@@ -7,7 +7,9 @@ import {
 
 import { trustedMarkup } from './printable-field'
 import {
+  buildCalldataFootnote,
   buildSafeTxDetailLines,
+  describeSignatureState,
   type ISafeTxDetailInput,
 } from './safe-tx-detail-display'
 
@@ -19,9 +21,8 @@ import {
  * where a sanitiser that started passing SGR through would fail.
  */
 const HOSTILE_GOLDENS: Record<string, string> = {
-  'Data:':
-    '    Data:            \u001b[32m[2J[H[32mfake\u001b[0m\u001b[33m ⚠ sanitised for display — stored 16, printable 13\u001b[0m',
-  'Proposer:':
+  data: '      — \u001b[32m[2J[H[32mfake\u001b[0m\u001b[33m ⚠ sanitised for display — stored 16, printable 13\u001b[0m',
+  proposer:
     '    Proposer:        \u001b[32m[2J[H[32mfake\u001b[0m\u001b[33m ⚠ sanitised for display — stored 16, printable 13\u001b[0m',
 }
 
@@ -69,8 +70,66 @@ const benign: ISafeTxDetailInput = {
 const HOSTILE =
   '\u001b[2J\u001b[H\u009b31m\u009d0;evil\u0007\u001b]8;;https://evil.example\u0007click\u001b]8;;\u0007\u2028fake line'
 
-const linesFor = (overrides: Partial<ISafeTxDetailInput>): string[] =>
-  buildSafeTxDetailLines({ ...benign, ...overrides })
+/**
+ * The whole of zone 1 as a signer sees it.
+ *
+ * The block and its footnote are separate exports because the decoded calldata
+ * is written to the console between them, but every property asserted here is a
+ * property of the zone, so the tests read it as one.
+ */
+const linesFor = (overrides: Partial<ISafeTxDetailInput>): string[] => {
+  const input = { ...benign, ...overrides }
+  return [...buildSafeTxDetailLines(input), ...buildCalldataFootnote(input)]
+}
+
+/**
+ * The envelope: the line naming the target, and the one continuing it.
+ *
+ * Returned as one string because they are one statement — the target, then its
+ * value and the decorations the repository adds. A fold between them is a
+ * layout detail, and an assertion about the target should not have to know
+ * which side of it a name landed on.
+ */
+const targetLine = (lines: string[]): string => {
+  const index = lines.findIndex((line) => line.trimStart().startsWith('— '))
+  if (index < 0) throw new Error(`no target line in:\n${lines.join('\n')}`)
+  return lines.slice(index, index + 2).join('\n')
+}
+
+/**
+ * The two lines rendering a stored address, and how each is found.
+ *
+ * The target moved under the calldata heading and the proposer stayed in the
+ * identity block, so the pair is named once here rather than by every test that
+ * asserts the same property of both.
+ */
+const ADDRESS_FIELDS = [
+  ['to', (lines: string[]) => targetLine(lines)],
+  ['proposer', (lines: string[]) => lineStartingWith(lines, 'Proposer:')],
+] as const
+
+/** The line under the target, carrying the value and the target's name. */
+const valueLine = (lines: string[]): string => {
+  const found = lines.find((line) => line.trimStart().startsWith('value '))
+  if (!found) throw new Error(`no value line in:\n${lines.join('\n')}`)
+  return found
+}
+
+/** The parked-cleanup line, found by its arrow rather than by its position. */
+const parkedLine = (lines: string[]): string => {
+  const found = lines.find((line) => line.includes(' \u2192 '))
+  if (!found) throw new Error(`no parked line in:\n${lines.join('\n')}`)
+  return found
+}
+
+/** The calldata footnote: the last line opening with an em dash. */
+const calldataFootnote = (lines: string[]): string => {
+  const found = [...lines]
+    .reverse()
+    .find((line) => line.trimStart().startsWith('— '))
+  if (!found) throw new Error(`no calldata line in:\n${lines.join('\n')}`)
+  return found
+}
 
 const lineStartingWith = (lines: string[], label: string): string => {
   const found = lines.find((line) => line.trimStart().startsWith(label))
@@ -84,23 +143,33 @@ describe('no proposer-controlled field can drive the signer’s terminal', () =>
   // the block sanitises, and the wider type also admitted the two callbacks.
   const cases: {
     field: 'data' | 'safeTxHash' | 'proposer' | 'to' | 'nonce' | 'value'
-    label: string
+    find: (lines: string[]) => string
   }[] = [
-    { field: 'data', label: 'Data:' },
-    { field: 'safeTxHash', label: 'Safe Tx Hash:' },
-    { field: 'proposer', label: 'Proposer:' },
-    { field: 'to', label: 'To:' },
-    { field: 'nonce', label: 'Nonce:' },
-    { field: 'value', label: 'Value:' },
+    { field: 'data', find: calldataFootnote },
+    { field: 'safeTxHash', find: (l) => lineStartingWith(l, 'Safe Tx Hash:') },
+    { field: 'proposer', find: (l) => lineStartingWith(l, 'Proposer:') },
+    { field: 'to', find: targetLine },
+    { field: 'nonce', find: (l) => lineStartingWith(l, 'Nonce:') },
+    { field: 'value', find: valueLine },
   ]
 
-  for (const { field, label } of cases)
+  /**
+   * The calldata is a fingerprint unless `--raw` is given, and a fingerprint
+   * renders a length rather than the stored text — so the field whose escapes
+   * this asserts on is only on the screen in raw mode.
+   */
+  const rawIfCalldata = (field: string): Partial<ISafeTxDetailInput> =>
+    field === 'data' ? { showRawCalldata: true } : {}
+
+  for (const { field, find } of cases)
     it(`strips every terminal-driving character from ${String(field)}`, () => {
-      const line = lineStartingWith(linesFor({ [field]: HOSTILE }), label)
+      const line = find(linesFor({ ...rawIfCalldata(field), [field]: HOSTILE }))
 
       // The colour codes this module writes are the only escapes permitted;
-      // anything the row contributed has to be gone from what is left.
-      expect(stripOwnColours(line).match(TERMINAL_DRIVING)).toBeNull()
+      // anything the row contributed has to be gone from what is left. Split
+      // first: the target renders across two lines, and the join is the test's
+      // own newline rather than one the module wrote.
+      expectNoTerminalControl(line.split('\n'))
       // Paired present: the field is still rendered, not silently dropped.
       expect(line).toContain('fake line')
     })
@@ -108,9 +177,13 @@ describe('no proposer-controlled field can drive the signer’s terminal', () =>
   it('lets no escape from the row survive, byte for byte', () => {
     // An SGR payload specifically: the structural checks cannot see one.
     const sgr = '\u001b[2J\u001b[H\u001b[32mfake'
-    for (const [label, expected] of Object.entries(HOSTILE_GOLDENS)) {
-      const field = label === 'Data:' ? 'data' : 'proposer'
-      expect(lineStartingWith(linesFor({ [field]: sgr }), label)).toBe(expected)
+    for (const [key, expected] of Object.entries(HOSTILE_GOLDENS)) {
+      const lines = linesFor({ [key]: sgr, showRawCalldata: key === 'data' })
+      const line =
+        key === 'data'
+          ? calldataFootnote(lines)
+          : lineStartingWith(lines, 'Proposer:')
+      expect(line).toBe(expected)
     }
   })
 
@@ -118,7 +191,9 @@ describe('no proposer-controlled field can drive the signer’s terminal', () =>
     const lines = linesFor({
       parkedTaskRefs: [{ facet: HOSTILE, prUrl: HOSTILE }],
     })
-    const parked = lines.filter((line) => line.startsWith('        '))
+    const parked = lines.filter(
+      (line) => line.startsWith('        ') && !line.includes('value ')
+    )
 
     expect(parked).toHaveLength(1)
     expect(stripOwnColours(parked[0] ?? '').match(TERMINAL_DRIVING)).toBeNull()
@@ -141,17 +216,14 @@ describe('no proposer-controlled field can drive the signer’s terminal', () =>
 
 describe('a hostile row is disclosed, not quietly cleaned', () => {
   it('marks a field whose stored value is not what is shown', () => {
-    const line = lineStartingWith(linesFor({ data: HOSTILE }), 'Data:')
+    const line = calldataFootnote(linesFor({ data: HOSTILE }))
 
     expect(line).toContain('sanitised for display')
   })
 
   it('reports both lengths, so two rows that render alike stay distinct', () => {
-    const zeroWidth = lineStartingWith(
-      linesFor({ data: '0x1\u200b2' }),
-      'Data:'
-    )
-    const plain = lineStartingWith(linesFor({ data: '0x12' }), 'Data:')
+    const zeroWidth = calldataFootnote(linesFor({ data: '0x1\u200b2' }))
+    const plain = calldataFootnote(linesFor({ data: '0x12' }))
 
     expect(zeroWidth).toContain('stored 5, printable 4')
     expect(plain).not.toContain('sanitised for display')
@@ -164,29 +236,24 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
     // neither is stripped and the stored/shown lengths agree — the value is
     // still not what it looks like.
     for (const hidden of ['0x1\u200d2', '0x1\u31642', '0x1\uffa02'])
-      expect(lineStartingWith(linesFor({ data: hidden }), 'Data:')).toContain(
+      expect(calldataFootnote(linesFor({ data: hidden }))).toContain(
         '1 invisible character among 5 printable'
       )
 
-    expect(
-      lineStartingWith(linesFor({ data: '0x1\u200d\u31642' }), 'Data:')
-    ).toContain('2 invisible characters among 6 printable')
+    expect(calldataFootnote(linesFor({ data: '0x1\u200d\u31642' }))).toContain(
+      '2 invisible characters among 6 printable'
+    )
   })
 
   it('still marks a hostile value after the network formatter runs', () => {
     // The formatter is applied to the sanitised text, so a value that needed
     // sanitising must still say so on the address lines.
-    for (const [field, label] of [
-      ['to', 'To:'],
-      ['proposer', 'Proposer:'],
-    ] as const) {
-      const line = lineStartingWith(
-        buildSafeTxDetailLines({
-          ...benign,
+    for (const [field, find] of ADDRESS_FIELDS) {
+      const line = find(
+        linesFor({
           [field]: '0x1\u200b2',
           formatAddress: (address: string) => `${address} (0x41…)`,
-        }),
-        label
+        })
       )
       expect(line).toContain('stored 5, printable 4')
       expect(line).toContain('(0x41…)')
@@ -196,7 +263,7 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
   it('reports a stripped character and a surviving invisible one together', () => {
     // Either alone is disclosed; a value carrying both must not have the
     // second silenced by the first.
-    const line = lineStartingWith(linesFor({ data: '0x1\r\u200d2' }), 'Data:')
+    const line = calldataFootnote(linesFor({ data: '0x1\r\u200d2' }))
 
     expect(line).toContain('sanitised for display')
     expect(line).toContain('invisible character')
@@ -206,16 +273,16 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
     // The callbacks receive a sanitised address, but what reaches the line is
     // their return value, so one that reached for the stored row instead would
     // render it raw.
-    const line = lineStartingWith(
-      buildSafeTxDetailLines({
-        ...benign,
+    const line = targetLine(
+      linesFor({
         formatAddress: () => '0xBAD\u001b[2J\u001b[Hfake',
         explorerUrlFor: () => 'https://x/\u001b[2Jevil',
-      }),
-      'To:'
+      })
     )
 
-    expect(stripOwnColours(line).match(TERMINAL_DRIVING)).toBeNull()
+    // Per line: the target renders across two, and joining them for the
+    // assertion would introduce a newline the module never wrote.
+    expectNoTerminalControl(line.split('\n'))
     expect(line).toContain('fake')
   })
 
@@ -223,14 +290,12 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
     // Sanitising a corrupt address can yield a valid one — a zero-width space
     // inside the hex just disappears — and naming that would present a corrupt
     // row as a known contract with a working link.
-    const repaired = lineStartingWith(
-      buildSafeTxDetailLines({
-        ...benign,
+    const repaired = targetLine(
+      linesFor({
         to: '0x11f1022cA6AdEF6400e5677528a80\u200bd49a069C00c',
         toTargetName: '(LiFiDiamond)',
         explorerUrlFor: () => 'https://etherscan.io/address/0x11',
-      }),
-      'To:'
+      })
     )
 
     expect(repaired).not.toContain('(LiFiDiamond)')
@@ -242,24 +307,20 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
 
     // Nothing is claimed when there was no name to withhold.
     expect(
-      lineStartingWith(
-        buildSafeTxDetailLines({
-          ...benign,
+      targetLine(
+        linesFor({
           to: `${benign.to as string}\u200d`,
           toTargetName: '',
-        }),
-        'To:'
+        })
       )
     ).not.toContain('withheld')
 
     // The same row without the zero-width space keeps both.
-    const clean = lineStartingWith(
-      buildSafeTxDetailLines({
-        ...benign,
+    const clean = targetLine(
+      linesFor({
         toTargetName: '(LiFiDiamond)',
         explorerUrlFor: () => 'https://etherscan.io/address/0x11',
-      }),
-      'To:'
+      })
     )
     expect(clean).toContain('(LiFiDiamond)')
     expect(clean).toContain('etherscan')
@@ -270,15 +331,13 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
     // does, so identity alone cannot gate the link: the network formatter
     // passes an unrecognised shape through and the explorer builder
     // interpolates whatever it is handed.
-    const line = lineStartingWith(
-      buildSafeTxDetailLines({
-        ...benign,
+    const line = targetLine(
+      linesFor({
         to: 'this-is-not-an-address',
         toTargetName: '(LiFiDiamond)',
         explorerUrlFor: (address: string) =>
           `https://etherscan.io/address/${address}`,
-      }),
-      'To:'
+      })
     )
 
     expect(line).toContain('this-is-not-an-address')
@@ -291,15 +350,13 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
     // The realistic corruption, and the one the name and link were vouching
     // for: 39 hex digits reads as an address to anyone scanning the prompt, so
     // a check loose enough to accept "hex-shaped" would pass it.
-    const line = lineStartingWith(
-      buildSafeTxDetailLines({
-        ...benign,
+    const line = targetLine(
+      linesFor({
         to: `0x${'1'.repeat(39)}`,
         toTargetName: '(LiFiDiamond)',
         explorerUrlFor: (address: string) =>
           `https://etherscan.io/address/${address}`,
-      }),
-      'To:'
+      })
     )
 
     expect(line).not.toContain('etherscan')
@@ -313,15 +370,13 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
     // address would. A hex-only check would call this signable row "not a
     // valid address" one line above the sign prompt, which is the notice that
     // must never cry wolf.
-    const line = lineStartingWith(
-      buildSafeTxDetailLines({
-        ...benign,
+    const line = targetLine(
+      linesFor({
         network: 'tron',
         to: 'TXYZopYRdj2D9XRtbG411XZZ3kM5VkAeBf',
         toTargetName: '(LiFiDiamond)',
         explorerUrlFor: (address: string) => `https://tronscan.org/${address}`,
-      }),
-      'To:'
+      })
     )
 
     expect(line).not.toContain('not a valid address')
@@ -333,15 +388,13 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
     // A `T…` prefix is not an address by itself, so the refusing branch has to
     // stay reachable on Tron too — the network that accepts base58 is the one
     // where the notice would otherwise be absent for every shape.
-    const line = lineStartingWith(
-      buildSafeTxDetailLines({
-        ...benign,
+    const line = targetLine(
+      linesFor({
         network: 'tron',
         to: 'Tnot-an-address',
         toTargetName: '(LiFiDiamond)',
         explorerUrlFor: (address: string) => `https://tronscan.org/${address}`,
-      }),
-      'To:'
+      })
     )
 
     expect(line).toContain('not a valid address')
@@ -353,14 +406,12 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
     // Trimming the ends cannot change which address this is, and the name is
     // the strongest confirmation the signer gets that the target is the
     // contract they expect.
-    const line = lineStartingWith(
-      buildSafeTxDetailLines({
-        ...benign,
+    const line = targetLine(
+      linesFor({
         to: `  ${benign.to as string}  `,
         toTargetName: '(LiFiDiamond)',
         explorerUrlFor: () => 'https://etherscan.io/address/0x11',
-      }),
-      'To:'
+      })
     )
 
     expect(line).toContain('(LiFiDiamond)')
@@ -372,14 +423,12 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
   it('drops the name and link for an invisible character the sanitiser keeps', () => {
     // The stripped case is covered above; this is the branch where stored and
     // printable have the same length, so a change-detector would miss it.
-    const line = lineStartingWith(
-      buildSafeTxDetailLines({
-        ...benign,
+    const line = targetLine(
+      linesFor({
         to: `${benign.to as string}‍`,
         toTargetName: '(LiFiDiamond)',
         explorerUrlFor: () => 'https://etherscan.io/address/0x11',
-      }),
-      'To:'
+      })
     )
 
     expect(line).not.toContain('(LiFiDiamond)')
@@ -388,9 +437,8 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
   })
 
   it('drops the name and link for a target that cannot be coerced', () => {
-    const line = lineStartingWith(
-      buildSafeTxDetailLines({
-        ...benign,
+    const line = targetLine(
+      linesFor({
         to: {
           toString() {
             throw new Error('nope')
@@ -398,8 +446,7 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
         },
         toTargetName: '(LiFiDiamond)',
         explorerUrlFor: () => 'https://etherscan.io/address/0x11',
-      }),
-      'To:'
+      })
     )
 
     expect(line).not.toContain('(LiFiDiamond)')
@@ -412,14 +459,12 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
     // silently is not enough: the line still shows the signer a target, so it
     // has to say why that target carries neither a name nor a link.
     for (const to of [undefined, 42, true]) {
-      const line = lineStartingWith(
-        buildSafeTxDetailLines({
-          ...benign,
+      const line = targetLine(
+        linesFor({
           to,
           toTargetName: '(LiFiDiamond)',
           explorerUrlFor: () => 'https://etherscan.io/address/0x11',
-        }),
-        'To:'
+        })
       )
 
       expect(line).not.toContain('(LiFiDiamond)')
@@ -431,16 +476,14 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
   it('shows no name or link beside an address that would not render', () => {
     // A formatter that throws used to yield an empty fragment, leaving the
     // name and the link describing nothing at all.
-    const line = lineStartingWith(
-      buildSafeTxDetailLines({
-        ...benign,
+    const line = targetLine(
+      linesFor({
         toTargetName: '(LiFiDiamond)',
         explorerUrlFor: () => 'https://etherscan.io/address/0x11',
         formatAddress: () => {
           throw new Error('no codec for this network')
         },
-      }),
-      'To:'
+      })
     )
 
     expect(line).not.toContain('(LiFiDiamond)')
@@ -454,10 +497,7 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
     // `formattedAddressField` has its own call into the formatter; covering
     // only the target's would leave this one unobserved.
     const line = lineStartingWith(
-      buildSafeTxDetailLines({
-        ...benign,
-        formatAddress: () => '0xP\u001b[2Jwiped',
-      }),
+      linesFor({ formatAddress: () => '0xP\u001b[2Jwiped' }),
       'Proposer:'
     )
 
@@ -466,15 +506,13 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
   })
 
   it('sanitises the target name, which is a string the caller composes', () => {
-    const line = lineStartingWith(
-      buildSafeTxDetailLines({
-        ...benign,
+    const line = targetLine(
+      linesFor({
         toTargetName: '(LiFiDiamond)\u001b[2J',
-      }),
-      'To:'
+      })
     )
 
-    expect(stripOwnColours(line).match(TERMINAL_DRIVING)).toBeNull()
+    expectNoTerminalControl(line.split('\n'))
     expect(line).toContain('(LiFiDiamond)')
   })
 
@@ -483,8 +521,7 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
     // the silent-blank behaviour survive on this line after it was fixed on
     // the other.
     const line = lineStartingWith(
-      buildSafeTxDetailLines({
-        ...benign,
+      linesFor({
         formatAddress: () => {
           throw new Error('no codec for this network')
         },
@@ -501,13 +538,8 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
     // An empty stored value renders empty because it is empty; a renderer
     // notice there would name the wrong cause and add a line the display
     // never had.
-    for (const [field, label] of [
-      ['to', 'To:'],
-      ['proposer', 'Proposer:'],
-    ] as const)
-      expect(lineStartingWith(linesFor({ [field]: '' }), label)).not.toContain(
-        'shown unformatted'
-      )
+    for (const [field, find] of ADDRESS_FIELDS)
+      expect(find(linesFor({ [field]: '' }))).not.toContain('shown unformatted')
   })
 
   it('hands the formatter and the explorer the sanitised text, not the row', () => {
@@ -515,14 +547,12 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
     // unsanitised string on the line as the address, under a notice still
     // claiming it had been sanitised.
     const padded = `  ${benign.to as string}  `
-    const line = lineStartingWith(
-      buildSafeTxDetailLines({
-        ...benign,
+    const line = targetLine(
+      linesFor({
         to: padded,
         formatAddress: (address: string) => `fmt${address.length}`,
         explorerUrlFor: (address: string) => `https://x/url${address.length}`,
-      }),
-      'To:'
+      })
     )
 
     // Distinct markers, or the formatter's output alone satisfies both halves
@@ -571,35 +601,29 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
 
     // And the block still renders — swallowing the line would pass the
     // assertions above while losing the field the signer is checking.
-    expect(
-      lineStartingWith(
-        buildSafeTxDetailLines({ ...benign, formatAddress: () => throwing }),
-        'To:'
-      )
-    ).toContain(benign.to as string)
+    expect(targetLine(linesFor({ formatAddress: () => throwing }))).toContain(
+      benign.to as string
+    )
   })
 
   it('renders no explorer link for a target that sanitises to nothing', () => {
-    const line = lineStartingWith(
+    const line = targetLine(
       linesFor({
         to: ' ',
         explorerUrlFor: () => 'https://etherscan.io/address/',
-      }),
-      'To:'
+      })
     )
 
     expect(line).not.toContain('etherscan')
   })
 
   it('keeps the unformatted-address warning outside the value\u2019s colour', () => {
-    const line = lineStartingWith(
-      buildSafeTxDetailLines({
-        ...benign,
+    const line = targetLine(
+      linesFor({
         formatAddress: () => {
           throw new Error('no codec')
         },
-      }),
-      'To:'
+      })
     )
 
     expect(line).toContain('\u001b[33m \u26a0 shown unformatted')
@@ -609,11 +633,8 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
   })
 
   it('puts the notice outside the colour on the address lines too', () => {
-    for (const [field, label] of [
-      ['to', 'To:'],
-      ['proposer', 'Proposer:'],
-    ] as const) {
-      const line = lineStartingWith(linesFor({ [field]: '0x1\u00072' }), label)
+    for (const [field, find] of ADDRESS_FIELDS) {
+      const line = find(linesFor({ [field]: '0x1\u00072' }))
       expect(line.indexOf('\u001b[0m')).toBeLessThan(
         line.indexOf('sanitised for display')
       )
@@ -623,18 +644,16 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
   it('keeps a missing field visibly missing', () => {
     // Rendering it blank would make a row with no `data` — still cast to Hex
     // and signed — read exactly like one carrying `0x`.
-    expect(lineStartingWith(linesFor({ data: undefined }), 'Data:')).toContain(
+    expect(calldataFootnote(linesFor({ data: undefined }))).toContain(
       'undefined'
     )
-    expect(lineStartingWith(linesFor({ data: null }), 'Data:')).toContain(
-      'null'
-    )
+    expect(calldataFootnote(linesFor({ data: null }))).toContain('null')
   })
 
   it('puts the notice outside the value\u2019s colour, never inside it', () => {
     // Inside, a notice would render in the value's green and read as part of
     // the value rather than as a warning about it.
-    const line = lineStartingWith(linesFor({ data: HOSTILE }), 'Data:')
+    const line = calldataFootnote(linesFor({ data: HOSTILE }))
     expect(line.indexOf('\u001b[0m')).toBeLessThan(
       line.indexOf('sanitised for display')
     )
@@ -644,9 +663,8 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
   it('counts length in code points, not UTF-16 units', () => {
     // A two-emoji value is two characters to a reader and four units to
     // `.length`; the number exists for the reader.
-    const line = lineStartingWith(
-      linesFor({ data: '\u{1f600}\u{1f600}\u0007' }),
-      'Data:'
+    const line = calldataFootnote(
+      linesFor({ data: '\u{1f600}\u{1f600}\u0007' })
     )
     expect(line).toContain('stored 3, printable 2')
   })
@@ -669,21 +687,21 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
       [{}, 'stored as an object, not a string'],
       [new Date(0), 'stored as an object, not a string'],
     ] as const)
-      expect(
-        lineStartingWith(linesFor({ data: value as never }), 'Data:')
-      ).toContain(expected)
+      expect(calldataFootnote(linesFor({ data: value as never }))).toContain(
+        expected
+      )
 
     // `typeof null` is 'object'; a stored null renders as "null" and is not a
     // malformed container.
-    expect(lineStartingWith(linesFor({ data: null }), 'Data:')).not.toContain(
+    expect(calldataFootnote(linesFor({ data: null }))).not.toContain(
       'not a string'
     )
     // A stored empty string is legitimate and stays unremarked.
-    expect(lineStartingWith(linesFor({ data: '' }), 'Data:')).not.toContain('⚠')
+    expect(calldataFootnote(linesFor({ data: '' }))).not.toContain('⚠')
   })
 
   it('separates two remarks so neither reads as part of the other', () => {
-    const line = lineStartingWith(linesFor({ data: ['0x1‍'] }), 'Data:')
+    const line = calldataFootnote(linesFor({ data: ['0x1‍'] }))
 
     expect(line).toContain('; ')
     expect(line).toContain('stored as an array, not a string')
@@ -693,25 +711,24 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
   it('counts invisibles among the printable text, not the stored value', () => {
     // U+200B is stripped, so reporting it as surviving would be a false alarm
     // about a character the reader is not being shown.
-    expect(
-      lineStartingWith(linesFor({ data: '0x1​2' }), 'Data:')
-    ).not.toContain('invisible character')
+    expect(calldataFootnote(linesFor({ data: '0x1​2' }))).not.toContain(
+      'invisible character'
+    )
     // And in code points: two emoji plus a joiner is three characters.
     expect(
-      lineStartingWith(linesFor({ data: '\u{1f600}\u{1f600}‍' }), 'Data:')
+      calldataFootnote(linesFor({ data: '\u{1f600}\u{1f600}‍' }))
     ).toContain('among 3 printable')
   })
 
   it('marks a value that cannot be coerced at all', () => {
-    const line = lineStartingWith(
+    const line = calldataFootnote(
       linesFor({
         data: {
           toString() {
             throw new Error('nope')
           },
         },
-      }),
-      'Data:'
+      })
     )
 
     expect(line).toContain('unrenderable')
@@ -724,8 +741,7 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
     // The target line's placement is asserted above; one shared constant does
     // not mean both call sites emit it in the right place.
     const line = lineStartingWith(
-      buildSafeTxDetailLines({
-        ...benign,
+      linesFor({
         formatAddress: () => {
           throw new Error('no codec')
         },
@@ -739,7 +755,7 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
   })
 
   it('renders the provenance it is given, not a fresh absence', () => {
-    // `formatProvenanceLines` has its own suite; what is unobserved here is the
+    // `formatClaimLines` has its own suite; what is unobserved here is the
     // wiring. Dropping the argument would make every proposal read "not
     // recorded" and hide the commit, branch and dirty-tree disclosure.
     const lines = buildSafeTxDetailLines({
@@ -767,7 +783,7 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
 
   it('degrades to a line for a half-migrated provenance row', () => {
     // Two containment layers, and the messages name which one fired:
-    // `formatProvenanceLines` says "block could not be rendered", this module's
+    // `formatClaimLines` says "block could not be rendered", this module's
     // own catch says "could not be rendered". A plain thrown Error is handled
     // there; the shapes below are not.
     const lines = buildSafeTxDetailLines({
@@ -779,7 +795,7 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
       } as never,
     })
 
-    // Handled by `formatProvenanceLines` itself.
+    // Handled by `formatClaimLines` itself.
     expect(lines.join('\n')).toContain('block could not be rendered')
 
     // And these are not: it stringifies what was thrown to build that message,
@@ -833,7 +849,7 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
     )
 
     // The rest of the block survives a broken provenance row.
-    expect(lines.some((line) => line.includes('Data:'))).toBe(true)
+    expect(lines.some((line) => line.includes('Safe Tx Hash:'))).toBe(true)
   })
 
   it('leaves a benign field unmarked', () => {
@@ -842,22 +858,24 @@ describe('a hostile row is disclosed, not quietly cleaned', () => {
   })
 })
 
-describe('a normal proposal renders exactly as it does today', () => {
-  it('is byte-identical to the block the signer already reads', () => {
-    expect(buildSafeTxDetailLines(benign).join('\n')).toBe(
+describe('the zone renders as one block, byte for byte', () => {
+  it('pins every line a signer reads on a routine proposal', () => {
+    expect(linesFor({}).join('\n')).toBe(
       [
         'Safe Transaction Details:',
-        '    Safe:            [32m0x1a9C8182C09F50C8318d769245beA52c32BE35BC[0m',
+        '    Safe:            \u001b[32m0x1a9C8182C09F50C8318d769245beA52c32BE35BC\u001b[0m',
         '    Nonce:           \u001b[32m31\u001b[0m',
-        '    To:              \u001b[32m0x11f1022cA6AdEF6400e5677528a80d49a069C00c\u001b[0m',
-        '    Value:           \u001b[32m0\u001b[0m',
-        '    Operation:       \u001b[32mCall\u001b[0m',
-        '    Data:            \u001b[32m0xdeadbeef\u001b[0m',
+        '    Signatures:      \u001b[32m1 of 3 \u00b7 yours would be the 2nd of 3\u001b[0m',
         '    Proposer:        \u001b[32m0x5c19DE04c40f9F8Ed9F0Fe6a5cEb84E5C8a5b31E\u001b[0m',
         '    Safe Tx Hash:    \u001b[36m0x7c6d5e4f3a2b1908172635445362718091a2b3c4d5e6f708192a3b4c5d6e7f80\u001b[0m',
-        '    Signatures:      \u001b[32m1/3\u001b[0m required',
-        '    Execution Ready: \u001b[31m✗\u001b[0m',
-        '    Provenance:      \u001b[33m— not recorded (proposal predates provenance capture) —\u001b[0m',
+        '',
+        '  \u001b[1mTHE PROPOSER SAYS\u001b[0m',
+        '\u001b[33m      \u2014 not recorded (proposal predates provenance capture)\u001b[0m',
+        '',
+        '  \u001b[1mTHE CALLDATA DOES\u001b[0m',
+        '      \u2014 \u001b[32mCall\u001b[0m to \u001b[32m0x11f1022cA6AdEF6400e5677528a80d49a069C00c\u001b[0m',
+        '        value \u001b[32m0\u001b[0m',
+        '      \u2014 \u001b[32m8 hex chars\u001b[0m, starts \u001b[36m0xdeadbeef\u001b[0m \u00b7 --raw for the full hex',
       ].join('\n')
     )
   })
@@ -868,17 +886,34 @@ describe('a normal proposal renders exactly as it does today', () => {
     expect(first).toContain('Safe:')
   })
 
-  it('draws an operation that is not a Call as an alarm, not as a word', () => {
-    const lines = buildSafeTxDetailLines({
-      ...benign,
+  it('states an operation that is not a Call without grading it', () => {
+    const lines = linesFor({
       operationLabel: trustedMarkup('DelegateCall'),
       operationIsCall: false,
     }).join('\n')
 
-    expect(lines).toContain('NOT A PLAIN CALL')
-    // The label itself has to change weight too: an alarm under a green word
-    // reads as a warning about something else on the screen.
-    expect(lines).toContain('[1m[31mDelegateCall')
+    // No alarm here any more: gate D grades the operation and
+    // `assertProposalOperationPermitted` refuses it. Zone 1 stating the verdict
+    // as well is the mixing this layout exists to end.
+    expect(lines).not.toContain('NOT A PLAIN CALL')
+    // The weight still changes, because the word itself is the statement.
+    expect(lines).toContain('\u001b[1m\u001b[31mDelegateCall')
+  })
+
+  it('says the decode describes a call a delegatecall will not make', () => {
+    // Without this, everything under THE CALLDATA DOES is a false statement:
+    // a delegatecall runs the target's own code, whatever the selector says.
+    const lines = linesFor({
+      operationLabel: trustedMarkup('DelegateCall'),
+      operationIsCall: false,
+    }).join('\n')
+
+    expect(lines).toContain('A delegatecall will')
+    expect(lines).toContain("it runs the target's own code instead")
+  })
+
+  it('says nothing of the kind on a plain Call', () => {
+    expect(linesFor({}).join('\n')).not.toContain('delegatecall')
   })
 
   it('renders the Safe address through the same funnel as every stored field', () => {
@@ -890,38 +925,45 @@ describe('a normal proposal renders exactly as it does today', () => {
     expect(lines).toContain('sanitised for display')
   })
 
-  it('keeps the nonce warning, explorer suffix and ready mark verbatim', () => {
-    const lines = buildSafeTxDetailLines({
-      ...benign,
+  it('keeps the nonce warning and explorer suffix verbatim', () => {
+    const lines = linesFor({
       nonceColor: '31',
-      nonceWarning: trustedMarkup(' \u001b[31m✗ STALE\u001b[0m'),
+      nonceWarning: trustedMarkup(' \u001b[31m\u2717 STALE\u001b[0m'),
       explorerUrlFor: () => 'https://etherscan.io/address/0x11',
       canExecute: true,
+      signatureCount: 3,
     })
 
     expect(lineStartingWith(lines, 'Nonce:')).toBe(
-      '    Nonce:           \u001b[31m31\u001b[0m \u001b[31m✗ STALE\u001b[0m'
+      '    Nonce:           [31m31[0m [31m✗ STALE[0m'
     )
-    expect(lineStartingWith(lines, 'To:')).toBe(
-      '    To:              \u001b[32m0x11f1022cA6AdEF6400e5677528a80d49a069C00c \u001b[36mhttps://etherscan.io/address/0x11\u001b[0m\u001b[0m'
+    expect(targetLine(lines)).toBe(
+      [
+        '      — [32mCall[0m to [32m0x11f1022cA6AdEF6400e5677528a80d49a069C00c[0m',
+        '        value [32m0[0m · [36mhttps://etherscan.io/address/0x11[0m',
+      ].join('\n')
     )
-    expect(lineStartingWith(lines, 'Execution Ready:')).toBe(
-      '    Execution Ready: \u001b[32m✓\u001b[0m'
+    // `Execution Ready` is gone: it restated the signature line as a tick,
+    // and that line now says what being executable means for this signer.
+    expect(lines.join('\n')).not.toContain('Execution Ready')
+    expect(lineStartingWith(lines, 'Signatures:')).toContain(
+      'already executable, yours is not needed'
     )
   })
 
   it('places the target name and explorer link inside the target colour', () => {
     expect(
-      lineStartingWith(
-        buildSafeTxDetailLines({
-          ...benign,
+      targetLine(
+        linesFor({
           toTargetName: '(LiFiDiamond)',
           explorerUrlFor: () => 'https://etherscan.io/address/0x11',
-        }),
-        'To:'
+        })
       )
     ).toBe(
-      '    To:              \u001b[32m0x11f1022cA6AdEF6400e5677528a80d49a069C00c \u001b[33m(LiFiDiamond)\u001b[0m \u001b[36mhttps://etherscan.io/address/0x11\u001b[0m\u001b[0m'
+      [
+        '      — \u001b[32mCall\u001b[0m to \u001b[32m0x11f1022cA6AdEF6400e5677528a80d49a069C00c\u001b[0m',
+        '        value \u001b[32m0\u001b[0m · \u001b[33m(LiFiDiamond)\u001b[0m  \u001b[36mhttps://etherscan.io/address/0x11\u001b[0m',
+      ].join('\n')
     )
   })
 
@@ -952,6 +994,66 @@ describe('a normal proposal renders exactly as it does today', () => {
   })
 })
 
+describe('the signature line says what this signature would do', () => {
+  // Pinned by value rather than by calling `describeSignatureState` again: an
+  // assertion that recomputes the sentence moves with any mutation of it.
+  const cases: [number, number, string][] = [
+    [0, 3, 'none yet · yours would be the 1st of 3'],
+    [1, 3, '1 of 3 · yours would be the 2nd of 3'],
+    [2, 3, '2 of 3 · yours would be the last, making it executable'],
+    [3, 3, '3 of 3 · already executable, yours is not needed'],
+    // Above the threshold, which a row can carry: still not asking for one.
+    [4, 3, '4 of 3 · already executable, yours is not needed'],
+    // On a 1-of-1 the first signature is also the last, and saying so matters
+    // more than the "none yet" phrasing the zero case otherwise takes.
+    [0, 1, '0 of 1 · yours would be the last, making it executable'],
+  ]
+
+  for (const [count, threshold, expected] of cases)
+    it(`describes ${count} of ${threshold}`, () => {
+      expect(describeSignatureState(count, threshold)).toBe(expected)
+    })
+
+  it('uses the ordinal the number takes, not the digit plus "th"', () => {
+    // 11th, 12th and 13th are the three every hand-rolled ordinal gets wrong.
+    expect(describeSignatureState(10, 20)).toContain('the 11th of 20')
+    expect(describeSignatureState(11, 20)).toContain('the 12th of 20')
+    expect(describeSignatureState(20, 30)).toContain('the 21st of 30')
+  })
+
+  it('replaces the execution-ready tick rather than sitting beside it', () => {
+    const lines = linesFor({ signatureCount: 3, canExecute: true }).join('\n')
+
+    expect(lines).not.toContain('Execution Ready')
+    expect(lines).toContain('already executable, yours is not needed')
+  })
+})
+
+describe('the calldata is reachable in full, one flag away', () => {
+  it('states a length measured on the printable text, not the stored value', () => {
+    // A row padded with invisibles would otherwise report the length it claims
+    // rather than the length a reader would have had to scroll past.
+    const line = calldataFootnote(linesFor({ data: '0xdead\u200bbeef' }))
+
+    // Eight, not the nine the stored value's length would give.
+    expect(line).toContain('8 hex chars')
+    expect(line).toContain('sanitised for display — stored 11, printable 10')
+  })
+
+  it('shows a value that is not calldata rather than measuring it', () => {
+    // `asPrintable` stands a sentinel in for a field it cannot render, and a
+    // length taken from the sentinel measures the placeholder.
+    const line = calldataFootnote(linesFor({ data: 'not-hex-at-all' }))
+
+    expect(line).not.toContain('hex chars')
+    expect(line).toContain('not-hex-at-all')
+  })
+
+  it('names the flag that prints it, so the omission is recoverable', () => {
+    expect(calldataFootnote(linesFor({}))).toContain('--raw')
+  })
+})
+
 describe('the block is total — no row shape costs the operator the run', () => {
   it('renders a row whose fields are absent', () => {
     const lines = buildSafeTxDetailLines({
@@ -972,9 +1074,8 @@ describe('the block is total — no row shape costs the operator the run', () =>
       },
     }
 
-    const line = lineStartingWith(
-      buildSafeTxDetailLines({ ...benign, data: throwing }),
-      'Data:'
+    const line = calldataFootnote(
+      linesFor({ data: throwing, showRawCalldata: true })
     )
 
     expect(line).toContain('unrenderable')
@@ -1029,11 +1130,21 @@ describe('a row needs no escape sequence to scroll the prompt away', () => {
     expect(line.length).toBe(208)
   })
 
-  it('leaves the calldata whole — it is the payload under signature', () => {
+  it('states the calldata’s size rather than printing it', () => {
+    // The wall of hex used to disclose its own size by filling the screen.
+    // A stated count carries that disclosure without costing the twenty-odd
+    // lines above the claim a signer is here to weigh.
     const calldata = `0x${'ab'.repeat(5_000)}`
-    expect(lineStartingWith(linesFor({ data: calldata }), 'Data:')).toBe(
-      `    Data:            \u001b[32m${calldata}\u001b[0m`
+    expect(calldataFootnote(linesFor({ data: calldata }))).toBe(
+      `      — \u001b[32m10000 hex chars\u001b[0m, starts \u001b[36m0xabababab\u001b[0m · --raw for the full hex`
     )
+  })
+
+  it('leaves the calldata whole under --raw — it is the payload under signature', () => {
+    const calldata = `0x${'ab'.repeat(5_000)}`
+    expect(
+      calldataFootnote(linesFor({ data: calldata, showRawCalldata: true }))
+    ).toBe(`      — \u001b[32m${calldata}\u001b[0m`)
   })
 
   it('bounds the number of parked refs, not only each one’s length', () => {
@@ -1074,7 +1185,7 @@ describe('a facet name drawn identically to another is disclosed', () => {
       ],
     })
 
-    expect(lines[lines.length - 2]).toBe(
+    expect(parkedLine(lines)).toBe(
       '        \u001b[32mAcr\u043essFacetV3\u001b[0m\u001b[33m ⚠ 1 non-ASCII character — a letter here can be drawn identically to an ASCII one\u001b[0m → \u001b[36mhttps://github.com/lifinance/contracts/pull/1\u001b[0m'
     )
   })
@@ -1089,18 +1200,17 @@ describe('a facet name drawn identically to another is disclosed', () => {
       ],
     })
 
-    expect(lines[lines.length - 2]).toBe(
+    expect(parkedLine(lines)).toBe(
       '        \u001b[32mAcrossFacetV3\u001b[0m → \u001b[36mhttps://github.com/lifinance/contracts/pull/1\u001b[0m'
     )
   })
 
   it('withholds the target name for a homoglyph address', () => {
-    const line = lineStartingWith(
+    const line = targetLine(
       linesFor({
         to: '0x11f1022cA6AdEF6400e5677528a80d49a069C0\u043ec',
         toTargetName: '(LiFiDiamond)',
-      }),
-      'To:'
+      })
     )
 
     expect(line).toContain('target name withheld')
