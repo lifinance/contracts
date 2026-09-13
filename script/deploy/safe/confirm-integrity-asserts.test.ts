@@ -29,6 +29,7 @@ import {
 } from 'viem'
 import { privateKeyToAccount } from 'viem/accounts'
 
+import type { ICheckLedger, ILedgerVerdict } from './check-ledger'
 import { proposalKeyOf } from './codehash-sign-gate'
 import {
   CHECK_FIXED_FIELDS,
@@ -44,6 +45,7 @@ import {
   runIntegrityAsserts,
   type IIntegrityAssertDeps,
   type IIntegrityAssertInput,
+  type IIntegrityAssertRun,
 } from './confirm-integrity-asserts'
 import {
   TIMELOCK_SCHEDULE_ABI,
@@ -1009,9 +1011,9 @@ describe('what the signer sees before the prompt', () => {
   })
 
   it('prints a status it does not recognise as unverified, never as a pass', async () => {
-    // `recordCheck` refuses a status outside the four, so this state cannot be
-    // reached through the module's own path — only by a rehydrated document or
-    // a direct push into the results log, which is exactly what is built here.
+    // `recordCheck` refuses a status the ledger does not define, so this state
+    // cannot be reached through the module's own path — only by a rehydrated
+    // document or a direct push into the results log, built here.
     // Left untested, the renderer's fallback would be code nothing had ever
     // exercised, sitting on the one path where being wrong prints green.
     const run = await runIntegrityAsserts(makeInput(), makeDeps())
@@ -1033,5 +1035,68 @@ describe('what the signer sees before the prompt', () => {
     // prototype chain, and must not read as a pass.
     expect(lines).not.toContain('PASS')
     expect(lines).not.toContain('Object')
+  })
+})
+
+describe('a run that graded nothing cannot authorise a signature', () => {
+  // Built as a literal rather than driven through `runIntegrityAsserts`: no
+  // assertion returns `not-applicable` today, so the only way to reach the
+  // state the verdict already models is to state it. The point of the test is
+  // that the refusal does not depend on an assertion ever learning to.
+  const runThatGraded = (
+    overrides: Partial<ILedgerVerdict> = {}
+  ): IIntegrityAssertRun => ({
+    ledger: {
+      checks: new Map(),
+      expectedNetworks: [],
+      results: [],
+    } satisfies ICheckLedger,
+    verdict: {
+      hardBlocked: false,
+      nothingGraded: false,
+      blocking: [],
+      requiresAcknowledgement: [],
+      relaxed: [],
+      totals: {
+        pass: 1,
+        fail: 0,
+        error: 0,
+        needsAck: 0,
+        missing: 0,
+        notApplicable: 0,
+      },
+      ...overrides,
+    },
+    registered: [],
+    gradedKey: 'proposal-under-test',
+  })
+
+  it('refuses when every result was not-applicable, though nothing blocked', () => {
+    const run = runThatGraded({
+      nothingGraded: true,
+      totals: {
+        pass: 0,
+        fail: 0,
+        error: 0,
+        needsAck: 0,
+        missing: 0,
+        notApplicable: 3,
+      },
+    })
+
+    // The precondition, stated so a future change that makes this run block for
+    // some other reason cannot pass this test while the term under test is gone.
+    expect(run.verdict.hardBlocked).toBe(false)
+
+    expect(() =>
+      assertIntegrityAssertsAllowSigning(run, run.gradedKey)
+    ).toThrow(/no graded result at all/u)
+  })
+
+  it('still lets a run that graded something through', () => {
+    const run = runThatGraded()
+    expect(() =>
+      assertIntegrityAssertsAllowSigning(run, run.gradedKey)
+    ).not.toThrow()
   })
 })

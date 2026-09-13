@@ -28,6 +28,7 @@ import networksData from '../../../config/networks.json'
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { getDeployments } from '../../utils/deploymentHelpers'
 import { redactUrls } from '../../utils/redactUrls'
+import { getRPCEnvVarName } from '../../utils/utils'
 import {
   buildExplorerAddressUrl,
   getFallbackTransportForChain,
@@ -73,7 +74,6 @@ import {
   CONFIRM_CHECK_DEFINITIONS,
   EXECUTABILITY_CHECK_ID,
   proposalCheckResults,
-  storageAuthorityCheckResult,
   worstResultPerCheck,
 } from './confirm-check-registry'
 import {
@@ -182,6 +182,11 @@ import {
   toSignedCodehashEntries,
 } from './signed-set-record'
 import {
+  networkPreflight,
+  PREFLIGHT_EXIT_CODE,
+  renderNetworkPreflight,
+} from './signer-preflight'
+import {
   checkSummary,
   PROPOSAL_SEPARATOR,
   renderCheckGroups,
@@ -250,6 +255,12 @@ const readDeploymentRecords = async (): Promise<
 // a status any row below claims is a status a signer is shown.
 let checkLedger: ICheckLedger | undefined
 
+// Networks the preflight refused, kept out of the ledger's denominator and
+// therefore invisible to its verdict. Held here so the end of the run can say
+// the coverage was short: a ledger that is green for the networks it graded
+// must not read as a green run when a network was never graded at all.
+let refusedNetworks: string[] = []
+
 const recordEveryCheck = (
   network: string,
   row: Pick<ICheckResult, 'status' | 'actual' | 'anchor'>
@@ -273,9 +284,10 @@ const recordEveryCheck = (
  *
  * The denominator is fixed before the run can learn that a network it listed as
  * actionable carries no proposal for this operator. Left unrecorded it rolls up
- * as missing and hard-blocks a run on which nothing was wrong. A pass on
- * `A-LOCAL` is the reading `no-diamond-cut` already gets: the run read its input
- * and found nothing to compare, which is a verified fact about this network.
+ * as missing and hard-blocks a run on which nothing was wrong.
+ *
+ * `not-applicable` on `A-LOCAL`, never a pass: nothing on this network was
+ * compared, so the row must satisfy no verified counter.
  *
  * Only for outcomes that answered. A read that *failed* has not established
  * anything and belongs in `recordCouldNotGrade` — mixing the two is how a fully
@@ -285,7 +297,7 @@ const recordEveryCheck = (
  */
 const recordNothingToGrade = (network: string, reason: string): void =>
   recordEveryCheck(network, {
-    status: 'pass',
+    status: 'not-applicable',
     actual: `no proposal was graded on ${network} — ${reason}`,
     anchor: 'A-LOCAL',
   })
@@ -470,27 +482,39 @@ const processTxs = async (
   }
 
   /**
-   * Records what this machine saw at every address in the signed calldata
-   * (WP-6.1 / R3.1): the address→codehash set plus the declared storage
-   * authorities.
+   * What one proposal's calldata declares, read once and kept.
    *
-   * A G6 reconstruction trail, not a check — nothing here can refuse a
-   * signature, and the pre-broadcast gate never reads these values back. Every
-   * failure is therefore a warning: the gate alerts on a record that never
-   * landed, and blocking here would turn a write error into a signing outage.
+   * Split out of `recordSignedSet` because gate G has to be graded before the
+   * signer is asked to sign. A row recorded after the signature can describe
+   * what was signed; it can no longer refuse it. The persistence half still
+   * runs after signing and reads this cache rather than the chain again.
+   *
+   * `undefined` means nothing was read — the calldata was not a schedule
+   * batch, the chain is outside the gate's coverage, or the read threw. Every
+   * one of those leaves the ledger without a graded row, which blocks. That is
+   * the same outcome as before this was moved, deliberately: this change moves
+   * when gate G is graded, not what it decides.
    */
-  async function recordSignedSet(
-    txDoc: ISafeTxMongoDocument,
-    signedTx: ISafeTransaction
-  ): Promise<void> {
-    const callData = signedTx.data.data as Hex | undefined
-    if (!callData || !isScheduleBatchCalldata(callData)) return
+  interface IObservedSet {
+    operationId: Hex
+    observed: Awaited<ReturnType<typeof observeCalldata>>
+  }
+  const observedSets = new Map<string, IObservedSet>()
+
+  async function observeSetForProposal(
+    safeTxHash: string,
+    callData: Hex | undefined
+  ): Promise<IObservedSet | undefined> {
+    const cached = observedSets.get(safeTxHash)
+    if (cached) return cached
+
+    if (!callData || !isScheduleBatchCalldata(callData)) return undefined
 
     if (resolveGateCoverage(networkKey) === 'uncovered-tron') {
       consola.info(
-        "Sign-time set not recorded: reading code on this chain is outside the gate's coverage (EXSC-954)"
+        "Sign-time set not read: reading code on this chain is outside the gate's coverage (EXSC-954)"
       )
-      return
+      return undefined
     }
 
     try {
@@ -523,35 +547,55 @@ const processTxs = async (
         }
       )
 
+      const observedSet: IObservedSet = { operationId, observed }
+      observedSets.set(safeTxHash, observedSet)
+      return observedSet
+    } catch (error) {
+      consola.warn(
+        'Could not read the sign-time set; gate G has nothing to grade and will block:',
+        redactUrls(error instanceof Error ? error.message : String(error))
+      )
+      return undefined
+    }
+  }
+
+  /**
+   * Persists what this machine saw at every address in the signed calldata
+   * (WP-6.1 / R3.1): the address→codehash set plus the declared storage
+   * authorities.
+   *
+   * A G6 reconstruction trail. The grading half moved to
+   * `observeSetForProposal`, which runs before the signer decides; what is left
+   * here cannot refuse a signature, so every failure is a warning. Blocking
+   * here would turn a write error into a signing outage.
+   */
+  async function recordSignedSet(
+    txDoc: ISafeTxMongoDocument,
+    signedTx: ISafeTransaction
+  ): Promise<void> {
+    const callData = signedTx.data.data as Hex | undefined
+    const observedSet = await observeSetForProposal(txDoc.safeTxHash, callData)
+    if (!observedSet) return
+
+    try {
       const record = buildSignedSetRecord(
         {
-          operationId,
+          operationId: observedSet.operationId,
           network: networkKey,
           chainId: chain.id,
           safeTxHash: txDoc.safeTxHash,
           signer: signerAddress,
           derivedFromCommit: getGitCommit(),
-          codehashes: toSignedCodehashEntries(observed.targets),
-          authorities: toSignedAuthorityEntries(observed.authorities),
+          codehashes: toSignedCodehashEntries(observedSet.observed.targets),
+          authorities: toSignedAuthorityEntries(
+            observedSet.observed.authorities
+          ),
         },
         new Date()
       )
 
       consola.info(formatSignedSetForDisplay(record).join('\n'))
       await persistSignedSetRecord(record)
-
-      // Accumulated, not recorded: this runs once per proposal while a ledger
-      // row is denominated per network, and `rollUpChecks` only lets a `fail`
-      // block supersession — so a later clean proposal would erase an earlier
-      // proposal's unread authority with no trace.
-      if (checkLedger)
-        proposalChecks.push(
-          storageAuthorityCheckResult(
-            record.authorities,
-            networkKey,
-            authorityExpectationAnchors(observed.authorities)
-          )
-        )
     } catch (error) {
       consola.warn(
         'Could not record the sign-time set (the pre-broadcast gate re-derives without it and will alert on the gap):',
@@ -1207,8 +1251,24 @@ const processTxs = async (
       )
     }
 
+    // Read before the signer is asked to decide. The same call inside
+    // `recordSignedSet` runs after the signature, where a refusal is no
+    // longer available; the cache makes the second call free.
+    const observedSet = await observeSetForProposal(
+      tx.safeTxHash,
+      tx.safeTransaction.data.data as Hex | undefined
+    )
+
     const proposalResults = proposalCheckResults({
       network,
+      storageAuthority: observedSet
+        ? {
+            entries: toSignedAuthorityEntries(observedSet.observed.authorities),
+            anchors: authorityExpectationAnchors(
+              observedSet.observed.authorities
+            ),
+          }
+        : undefined,
       integrity: integrityRun,
       targetState,
       executability,
@@ -1630,11 +1690,11 @@ const processTxs = async (
 
   // One row per network, written once every proposal on it has been graded and
   // reduced worst-first. A `ready` network always carries at least one proposal,
-  // so the empty branch is the unreachable case made explicit rather than left
-  // to roll up as a missing row and block the run.
+  // so the empty branch records a broken invariant — unverified, never a network
+  // the run established had nothing on it.
   if (checkLedger) {
     if (proposalChecks.length === 0)
-      recordNothingToGrade(network, 'the prepared network carried no proposal')
+      recordCouldNotGrade(network, 'the prepared network carried no proposal')
     else
       for (const result of worstResultPerCheck(proposalChecks))
         recordCheck(checkLedger, result)
@@ -1837,6 +1897,7 @@ const main = defineCommand({
       }
 
       let networks: string[]
+      let candidateNetworks: string[]
 
       if (args.network) {
         // If a specific network is provided, validate it exists and is active
@@ -1848,13 +1909,14 @@ const main = defineCommand({
         if (networkConfig.status !== 'active')
           throw new Error(`Network ${args.network} is not active`)
 
-        networks = [args.network]
+        candidateNetworks = [args.network]
       } else {
         // First, get all networks with pending transactions (for informational purposes)
-        const allNetworksWithPendingTxs =
-          await getNetworksWithPendingTransactions(pendingTransactions)
+        candidateNetworks = await getNetworksWithPendingTransactions(
+          pendingTransactions
+        )
 
-        if (allNetworksWithPendingTxs.length === 0) {
+        if (candidateNetworks.length === 0) {
           consola.info('No networks have pending transactions')
           await mongoClient.close(true)
           return
@@ -1862,17 +1924,54 @@ const main = defineCommand({
 
         consola.info(
           `Found pending transactions on ${
-            allNetworksWithPendingTxs.length
-          } network(s): ${allNetworksWithPendingTxs.join(', ')}`
+            candidateNetworks.length
+          } network(s): ${candidateNetworks.join(', ')}`
         )
+      }
+
+      // Before the ownership reads and before a ledger exists, so a network
+      // that cannot be graded is named once with its cause instead of becoming
+      // a column of unverified checks. `getNetworksWithActionableTransactions`
+      // still probes it — it derives its own network list — but reports a failed
+      // read as "not actionable", a true statement with a false explanation, so
+      // the refusal has to be printed before it speaks.
+      const preflightVerdict = await networkPreflight(candidateNetworks, {
+        endpointConfigured: (network) =>
+          Boolean(args.rpcUrl?.trim()) ||
+          Boolean(process.env[getRPCEnvVarName(network)]?.trim()),
+        chainIdOf: (network) =>
+          buildReadOnlyClient(network, args.rpcUrl).getChainId(),
+        expectedChainId: (network) =>
+          networksData[network.toLowerCase() as keyof typeof networksData]
+            .chainId,
+        envVarName: getRPCEnvVarName,
+      })
+      refusedNetworks = [...preflightVerdict.refused]
+      renderNetworkPreflight(preflightVerdict).forEach((line) =>
+        consola.log(line)
+      )
+
+      if (preflightVerdict.startable.length === 0) {
+        process.exitCode = PREFLIGHT_EXIT_CODE
+        await mongoClient.close(true)
+        return
+      }
+
+      if (args.network) networks = [...preflightVerdict.startable]
+      else {
+        const startableWithPendingTxs = preflightVerdict.startable
         consola.info(`Checking ownership for signer: ${signerAddress}`)
 
-        // Filter to only networks where the user can take action (is a Safe owner)
-        networks = await getNetworksWithActionableTransactions(
-          pendingTransactions,
-          signerAddress,
-          args.rpcUrl
-        )
+        // Filtered to the networks the preflight cleared, so a refused one
+        // cannot reach `networks` — and therefore the ledger — as "not a Safe
+        // owner", which is what its failed ownership read would otherwise say.
+        networks = (
+          await getNetworksWithActionableTransactions(
+            pendingTransactions,
+            signerAddress,
+            args.rpcUrl
+          )
+        ).filter((network) => preflightVerdict.startable.includes(network))
 
         if (networks.length === 0) {
           consola.info(
@@ -1884,8 +1983,8 @@ const main = defineCommand({
         }
 
         // Show which networks are actionable
-        if (networks.length < allNetworksWithPendingTxs.length) {
-          const nonActionableNetworks = allNetworksWithPendingTxs.filter(
+        if (networks.length < startableWithPendingTxs.length) {
+          const nonActionableNetworks = startableWithPendingTxs.filter(
             (n) => !networks.includes(n)
           )
           consola.info(
@@ -1901,8 +2000,10 @@ const main = defineCommand({
             )}`
           )
         } else {
+          // "this run can check", not "with pending transactions": the refused
+          // networks were dropped above and counted in the block that named them.
           consola.info(
-            `You can take action on all ${networks.length} network(s) with pending transactions`
+            `You can take action on all ${networks.length} network(s) this run can check`
           )
         }
       }
@@ -2058,6 +2159,18 @@ const main = defineCommand({
       // signer never sees is worse than no check at all.
       if (checkLedger)
         renderCheckLedger(checkLedger).forEach((line) => consola.info(line))
+
+      // After the ledger, because it is about what the ledger does not cover.
+      // The refused networks are absent from its denominator, so its verdict is
+      // about the networks that could be graded and says nothing about these.
+      if (refusedNetworks.length > 0) {
+        consola.error(
+          `Not covered by the verdict above: ${refusedNetworks.join(
+            ', '
+          )} — the run could not start there, so nothing on those networks was checked.`
+        )
+        process.exitCode = PREFLIGHT_EXIT_CODE
+      }
 
       if (networkOutcomes.length > 0) {
         consola.info('=== Change Review Summary ===')

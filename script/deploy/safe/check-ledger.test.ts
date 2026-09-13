@@ -322,6 +322,7 @@ describe('summariseLedger', () => {
       error: 0,
       needsAck: 0,
       missing: 1,
+      notApplicable: 0,
     })
   })
 })
@@ -549,6 +550,7 @@ describe('buildReviewAttestation', () => {
         checkId: 'codehash',
         checkClass: 'integrity',
         expected: 2,
+        notApplicable: 0,
         passed: 1,
         failed: 1,
         needsAck: 0,
@@ -859,6 +861,7 @@ describe('a result that reached the log without recordCheck', () => {
       error: 0,
       needsAck: 0,
       missing: 0,
+      notApplicable: 0,
     })
   })
 
@@ -1144,5 +1147,170 @@ describe('undecidableIsAcknowledgeable', () => {
     }
 
     expect(attest(AUTHORITIES)).not.toBe(attest(plain))
+  })
+})
+
+describe('a network that had nothing to grade', () => {
+  /**
+   * The row `confirm-safe-tx.ts` writes for a network it positively established
+   * carries no proposal for this signer — a pending proposal the signer has
+   * already signed is the case that produced it in production.
+   */
+  const nothingToGrade = (network: string): Partial<ICheckResult> => ({
+    network,
+    status: 'not-applicable',
+    expected: 'every proposal this run would sign graded before signing',
+    actual: `no proposal was graded on ${network} — nothing actionable was left once the network was prepared`,
+    anchor: 'A-LOCAL',
+  })
+
+  it('is recorded as its own state, not as a pass', () => {
+    const ledger = ledgerOf(['mainnet'], [CODEHASH])
+
+    recordCheck(ledger, result(nothingToGrade('mainnet')))
+
+    expect(ledger.results.map((entry) => entry.status)).toEqual([
+      'not-applicable',
+    ])
+  })
+
+  it('satisfies no verified counter', () => {
+    const ledger = ledgerOf(['mainnet'], [CODEHASH])
+    recordCheck(ledger, result(nothingToGrade('mainnet')))
+
+    const [rollup] = rollUpChecks(ledger)
+
+    expect(rollup?.passed).toBe(0)
+    expect(rollup?.notApplicable).toBe(1)
+    // The denominator the verified count is measured against, so `0/0` is what
+    // a vacuous check reads as rather than a full house.
+    expect(rollup?.graded).toBe(0)
+    expect(rollup?.green).toBe(false)
+  })
+
+  it('leaves the run unblocked while saying nothing was verified', () => {
+    const ledger = ledgerOf(['mainnet'], [CODEHASH])
+    recordCheck(ledger, result(nothingToGrade('mainnet')))
+
+    const verdict = summariseLedger(ledger)
+
+    // Unblocked because nothing was wrong, and `nothingGraded` because nothing
+    // was right either: the two facts a single boolean cannot carry.
+    expect(verdict.hardBlocked).toBe(false)
+    expect(verdict.nothingGraded).toBe(true)
+    expect(verdict.totals.pass).toBe(0)
+    expect(verdict.totals.notApplicable).toBe(1)
+    expect(verdict.requiresAcknowledgement).toHaveLength(0)
+  })
+
+  it('does not suppress the verdict of a run that did grade something', () => {
+    const ledger = ledgerOf(['mainnet', 'polygon'], [CODEHASH])
+    recordCheck(ledger, result({ network: 'mainnet' }))
+    recordCheck(ledger, result({ network: 'polygon' }))
+
+    const verdict = summariseLedger(ledger)
+    const [rollup] = rollUpChecks(ledger)
+
+    expect(verdict.nothingGraded).toBe(false)
+    expect(verdict.totals.pass).toBe(2)
+    expect(verdict.totals.notApplicable).toBe(0)
+    expect(rollup?.graded).toBe(2)
+    expect(rollup?.green).toBe(true)
+  })
+
+  it('measures the graded networks against themselves, not against the fleet', () => {
+    const ledger = ledgerOf(['mainnet', 'polygon'], [CODEHASH])
+    recordCheck(ledger, result({ network: 'mainnet' }))
+    recordCheck(ledger, result(nothingToGrade('polygon')))
+
+    const [rollup] = rollUpChecks(ledger)
+
+    expect(rollup?.passed).toBe(1)
+    expect(rollup?.graded).toBe(1)
+    expect(rollup?.notApplicable).toBe(1)
+    // Still the declared denominator, so the shrink is recoverable from the
+    // rollup rather than lost.
+    expect(rollup?.expected).toBe(2)
+    expect(rollup?.green).toBe(true)
+    expect(summariseLedger(ledger).nothingGraded).toBe(false)
+  })
+
+  it('never erases a mismatch the same network already recorded', () => {
+    const ledger = ledgerOf(['mainnet'], [CODEHASH])
+    recordCheck(ledger, result({ status: 'fail', actual: '0xbbb' }))
+    recordCheck(ledger, result(nothingToGrade('mainnet')))
+
+    const [rollup] = rollUpChecks(ledger)
+    const verdict = summariseLedger(ledger)
+
+    expect(rollup?.failed).toBe(1)
+    expect(rollup?.notApplicable).toBe(0)
+    expect(verdict.hardBlocked).toBe(true)
+    expect(verdict.nothingGraded).toBe(false)
+  })
+
+  it('never erases a result the same network could not grade', () => {
+    const ledger = ledgerOf(['mainnet'], [CODEHASH])
+    recordCheck(
+      ledger,
+      result({ status: 'error', actual: 'unread', detail: 'rpc down' })
+    )
+    recordCheck(ledger, result(nothingToGrade('mainnet')))
+
+    const [rollup] = rollUpChecks(ledger)
+    const verdict = summariseLedger(ledger)
+
+    expect(rollup?.errored).toBe(1)
+    expect(rollup?.notApplicable).toBe(0)
+    expect(verdict.hardBlocked).toBe(true)
+    expect(verdict.totals.error).toBe(1)
+  })
+
+  it('never erases an acknowledgement the same network is owed', () => {
+    const ledger = ledgerOf(['mainnet'], [TARGET_STATE])
+    recordCheck(
+      ledger,
+      result({ checkId: 'target-state', status: 'needs-ack' })
+    )
+    recordCheck(
+      ledger,
+      result({ ...nothingToGrade('mainnet'), checkId: 'target-state' })
+    )
+
+    const [rollup] = rollUpChecks(ledger)
+    const verdict = summariseLedger(ledger)
+
+    expect(rollup?.needsAck).toBe(1)
+    expect(rollup?.notApplicable).toBe(0)
+    expect(verdict.requiresAcknowledgement).toHaveLength(1)
+    expect(verdict.nothingGraded).toBe(false)
+  })
+
+  it('is itself superseded by a result that did grade the network', () => {
+    // The paired positive: the guard protects what was graded, so it must not
+    // freeze a network the run went on to reach.
+    const ledger = ledgerOf(['mainnet'], [CODEHASH])
+    recordCheck(ledger, result(nothingToGrade('mainnet')))
+    recordCheck(ledger, result({ status: 'pass' }))
+
+    const [rollup] = rollUpChecks(ledger)
+
+    expect(rollup?.passed).toBe(1)
+    expect(rollup?.notApplicable).toBe(0)
+    expect(rollup?.green).toBe(true)
+  })
+
+  it('is recorded in the attestation as a check that went ungraded', () => {
+    const ledger = ledgerOf(['mainnet'], [CODEHASH])
+    recordCheck(ledger, result(nothingToGrade('mainnet')))
+
+    const [attested] = buildReviewAttestation(ledger, {
+      reviewer: '0xsigner',
+      reviewedAt: '2026-09-13T00:00:00.000Z',
+    }).checks
+
+    expect(attested?.passed).toBe(0)
+    expect(attested?.notApplicable).toBe(1)
+    expect(attested?.green).toBe(false)
   })
 })

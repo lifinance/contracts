@@ -51,6 +51,7 @@ import {
 import type { IPreBroadcastAuthority } from './prebroadcast-authorities'
 import { renderCheckLedger } from './render-check-ledger'
 import type { IRpcQuorumVerdict, TQuorumStatus } from './rpc-quorum'
+import type { ISignedAuthorityEntry } from './signed-set-record'
 
 const FACET = '0x1111111111111111111111111111111111111111'
 
@@ -385,7 +386,7 @@ describe('targetStateCheckResult', () => {
 
 describe('worstResultPerCheck', () => {
   const resultWith = (
-    status: 'pass' | 'fail' | 'error' | 'needs-ack',
+    status: 'pass' | 'fail' | 'error' | 'needs-ack' | 'not-applicable',
     anchor: 'A-LOCAL' | 'A-MAIN' | 'A-MONGO' = 'A-LOCAL'
   ) => ({
     checkId: TARGET_STATE_CHECK_ID,
@@ -444,6 +445,26 @@ describe('worstResultPerCheck', () => {
 
   it('returns nothing for a network that graded nothing', () => {
     expect(worstResultPerCheck([])).toEqual([])
+  })
+
+  // A status `SEVERITY` does not list gets -1 from `indexOf`, which ranks it
+  // ahead of `fail` — so dropping the entry is a silent inversion, not a type
+  // error. Both orders, because the reducer keeps the row it already holds on a
+  // tie and a one-sided case passes against the inverted ranking.
+  it('never lets a proposal with nothing to grade displace a finding', () => {
+    const skipped = resultWith('not-applicable')
+
+    expect(
+      worstResultPerCheck([resultWith('fail', 'A-MAIN'), skipped])[0]?.status
+    ).toBe('fail')
+    expect(
+      worstResultPerCheck([skipped, resultWith('fail', 'A-MAIN')])[0]?.status
+    ).toBe('fail')
+    expect(
+      worstResultPerCheck([skipped, resultWith('error', 'A-MONGO')])[0]?.status
+    ).toBe('error')
+    // Paired present: with nothing beside it, the skipped row is still the row.
+    expect(worstResultPerCheck([skipped])[0]?.status).toBe('not-applicable')
   })
 })
 
@@ -596,6 +617,29 @@ const runLedger = () =>
     checks: [...CONFIRM_CHECK_DEFINITIONS],
   })
 
+/**
+ * A storage-authority read that matched, sourced from `config/global.json`.
+ *
+ * Named `A-LOCAL` rather than left to default: a repo file the proposer's
+ * branch cannot change without review is the only anchor gate G may pass on,
+ * so a fixture anchored anywhere else would grade these tests on a weaker
+ * expectation than the CLI uses.
+ */
+const cleanAuthorities = (): {
+  entries: readonly ISignedAuthorityEntry[]
+  anchors: ReadonlyMap<string, ICheckResult['anchor']>
+} => ({
+  entries: [
+    {
+      label: 'LiFiDiamond.pauserWallet()',
+      liveValue: '0x00000000000000000000000000000000000000b2',
+      expectedValue: '0x00000000000000000000000000000000000000b2',
+      readError: undefined,
+    },
+  ],
+  anchors: new Map([['LiFiDiamond.pauserWallet()', 'A-LOCAL' as const]]),
+})
+
 const verdicts = (
   overrides: Partial<IProposalCheckVerdicts> = {}
 ): IProposalCheckVerdicts => ({
@@ -604,6 +648,7 @@ const verdicts = (
   targetState: cleanTargetState,
   executability: executabilityVerdict(),
   rpcQuorum: quorumVerdict(),
+  storageAuthority: cleanAuthorities(),
   ...overrides,
 })
 
@@ -642,6 +687,7 @@ describe('proposalCheckResults', () => {
     expect(ledger.results.map((result) => result.checkId)).toEqual([
       ...INTEGRITY_CHECKS_ALWAYS,
       CHECK_TIMELOCK_DELAY,
+      STORAGE_AUTHORITY_CHECK_ID,
       TARGET_STATE_CHECK_ID,
       EXECUTABILITY_CHECK_ID,
       RPC_QUORUM_CHECK_ID,
@@ -1001,8 +1047,11 @@ describe('the verdict the run now closes on', () => {
     const passed = rollups.reduce((sum, rollup) => sum + rollup.passed, 0)
 
     expect(passed).toBeGreaterThan(rollups.length / 2)
-    expect(stripColor(renderCheckLedger(ledger).at(-1) ?? '')).not.toContain(
-      `0/${rollups.length} network results verified`
+    // Anchored on a digit boundary: `not.toContain('0/10 …')` is satisfied by
+    // "10/10 …" as well, so the plain substring form stopped asserting
+    // anything the moment this ledger reached ten rollups.
+    expect(stripColor(renderCheckLedger(ledger).at(-1) ?? '')).not.toMatch(
+      new RegExp(`(^|[^0-9])0/${rollups.length} network results verified`, 'u')
     )
   })
 

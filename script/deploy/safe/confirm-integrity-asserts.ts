@@ -94,9 +94,14 @@ const STATUS_BUCKETS: ReadonlyMap<
   ['fail', { word: 'MISMATCH', glyph: '⛔', colour: '31' }],
   ['error', { word: 'UNVERIFIED', glyph: '✗', colour: '31' }],
   ['needs-ack', { word: 'NEEDS REVIEW', glyph: '⚠', colour: '33' }],
+  ['not-applicable', { word: 'NOT APPLICABLE', glyph: '·', colour: '36' }],
 ])
 
-/** A status no bucket names is unverified, which is the reading that blocks. */
+/**
+ * A status no bucket names renders as unverified. This only chooses how a row
+ * prints — `assertIntegrityAssertsAllowSigning` is what refuses, and it reads
+ * the verdict, never this table.
+ */
 const UNKNOWN_STATUS_BUCKET = {
   word: 'UNVERIFIED',
   glyph: '✗',
@@ -1262,14 +1267,24 @@ export const assertIntegrityAssertsAllowSigning = (
   // A verdict about another transaction is not a pass, so this decides
   // independently of `hardBlocked` — and an absent run decides on its own,
   // which is what makes "the assertions never ran" fail closed.
+  //
+  // `nothingGraded` is read here for the same reason: `hardBlocked` only
+  // answers "did anything object". A run that graded nothing has nothing to
+  // object with, so without this term it arrives here indistinguishable from
+  // a clean pass.
   const mismatched = run?.gradedKey !== key
-  if (run && !mismatched && !run.verdict.hardBlocked) return
+  const gradedNothing = run !== undefined && run.verdict.nothingGraded
+  if (run && !mismatched && !run.verdict.hardBlocked && !gradedNothing) return
 
   const substitution = mismatched
     ? [
         run === undefined
           ? UNEVALUATED_REASON
           : `The integrity verdict is about a different transaction than the one now being signed — it graded ${run.gradedKey} and this is ${key}. A verdict only ever speaks for one transaction.`,
+      ]
+    : gradedNothing
+    ? [
+        'The integrity assertions recorded no graded result at all, so nothing about this transaction was established. An empty verdict is not a pass.',
       ]
     : []
 
