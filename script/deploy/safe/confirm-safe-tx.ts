@@ -131,7 +131,7 @@ import {
   resolveGateCoverage,
   viemGateReaders,
 } from './prebroadcast-gate'
-import { printableField, trustedMarkup } from './printable-field'
+import { asPrintable, printableField, trustedMarkup } from './printable-field'
 import { buildReadOnlyClient } from './read-only-safe-client'
 import { reconcileAllSubmittedSafeTxs } from './reconcile'
 import { renderCheckLedger } from './render-check-ledger'
@@ -149,6 +149,7 @@ import {
   buildCalldataFootnote,
   buildSafeTxDetailLines,
   CLAIM_QUESTION,
+  signatureTally,
   type ISafeTxDetailInput,
 } from './safe-tx-detail-display'
 import {
@@ -405,6 +406,10 @@ const processTxs = async (
   consola.info('-'.repeat(80))
   consola.info('Chain:', chain.name)
   consola.info('Signer:', signerAddress)
+  // Once per network rather than on every proposal: it is the same Safe for the
+  // whole run, and `INT-SAFE-ADDRESS` grades each row against it. Config-derived
+  // — this is the Safe the client is pointed at, never the one a row claims.
+  consola.info('Safe:  ', safeAddress)
 
   // The proposal's codehash verdict, re-evaluated per proposal below and read
   // by the signer through `createGatedSigner`. It starts blocking so a proposal
@@ -844,8 +849,6 @@ const processTxs = async (
       network
     )
 
-    const nonceColor =
-      nonceStatus === 'current' ? '32' : nonceStatus === 'stale' ? '31' : '33'
     // Only show nonce warning if the tx can be executed — irrelevant while still collecting signatures
     // `trustedMarkup`: both readings are a chain-read `bigint`, and the strings
     // carry colour codes of their own that sanitising would strip.
@@ -864,23 +867,25 @@ const processTxs = async (
     // The verb follows the row, not the menu: a row already carrying the
     // threshold is executed without this signer being asked for a signature at
     // all, so asking them to check it "before signing" names the wrong act.
+    //
+    // The nonce is sanitised before it reaches the heading, which pads itself
+    // from the string's length: an escape sequence in a stored nonce would be
+    // measured as width and silently shift the rule it sits between.
+    const { text: headingNonce } = asPrintable(tx.safeTx.data.nonce)
     consola.log(
       zoneHeading(
         1,
         `WHAT YOU ARE BEING ASKED TO ${tx.canExecute ? 'EXECUTE' : 'SIGN'}`,
-        network
+        `${network} · nonce ${headingNonce} · ${signatureTally(
+          tx.safeTransaction.signatures.size,
+          tx.threshold
+        )}`
       ).join('\n')
     )
 
     const detailInput: ISafeTxDetailInput = {
       network,
       heading: '',
-      // The Safe the client is pointed at, not the one the row claims: the row's
-      // claim is what `INT-SAFE-ADDRESS` grades, and displaying it here would
-      // show a signer the Safe a proposer chose to name.
-      safeAddress,
-      nonce: tx.safeTx.data.nonce,
-      nonceColor,
       nonceWarning,
       to: tx.safeTx.data.to,
       toTargetName: targetName,
@@ -900,11 +905,6 @@ const processTxs = async (
       ),
       operationIsCall: tx.safeTransaction.data.operation === 0,
       data: tx.safeTx.data.data,
-      proposer: tx.proposer,
-      safeTxHash: tx.safeTxHash,
-      signatureCount: tx.safeTransaction.signatures.size,
-      threshold: tx.threshold,
-      canExecute: tx.canExecute,
       showRawCalldata,
       parkedTaskRefs: tx.parkedTaskRefs,
       provenance: tx.provenance,

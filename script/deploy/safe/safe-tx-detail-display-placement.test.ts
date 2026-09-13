@@ -43,13 +43,16 @@ const CONFIRM = readFileSync(
 )
 
 describe('smoke check: the shape of the call into the detail block', () => {
-  it('appears to pass the target and proposer straight off the row', () => {
-    // Pre-sanitising either one here would not be safer, it would be worse:
-    // the block compares what it was given against what it can print to decide
-    // whether to warn, so a value cleaned on the way in is a value it reports
-    // as clean.
+  it('appears to pass the target straight off the row', () => {
+    // Pre-sanitising it here would not be safer, it would be worse: the block
+    // compares what it was given against what it can print to decide whether to
+    // warn, so a value cleaned on the way in is a value it reports as clean.
+    //
+    // The proposer used to be passed the same way. Zone 1 no longer renders it:
+    // gate C grades the stored signatures against the owner set, which is the
+    // question the address was standing in for.
     expect(CONFIRM).toContain('to: tx.safeTx.data.to,')
-    expect(CONFIRM).toContain('proposer: tx.proposer,')
+    expect(CONFIRM).not.toContain('proposer: tx.proposer,')
   })
 
   it('builds the block in one place and prints what it returns', () => {
