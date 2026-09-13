@@ -207,8 +207,7 @@ export interface IGateManifestInput {
    * The gates that owe this run a result.
    *
    * A subset of `roster`, because a gate can have a letter and a subject
-   * without having a ledger denominator — the codehash gate refuses inside the
-   * integrity asserts rather than through a row. Counting it among the gates
+   * without having a ledger denominator. Counting such a gate among the ones
    * that must report would make every run block on a check that is working.
    */
   mustReport: ReadonlySet<string>
