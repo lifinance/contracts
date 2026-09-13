@@ -16,6 +16,8 @@ import {
 } from './signer-view'
 
 const ESC = String.fromCharCode(27)
+const RESET_CODE = `${String.fromCharCode(27)}[0m`
+
 const stripAnsi = (s: string): string =>
   s.replace(new RegExp(`${ESC}\\[[0-9;]*m`, 'g'), '')
 const RED = `${ESC}[31m`
@@ -790,5 +792,90 @@ describe('renderGateManifest', () => {
       return displayWidth(row.slice(0, row.indexOf(letter)))
     }
     expect(columnOf('A')).toBe(columnOf('B'))
+  })
+})
+
+describe('a pre-formatted note, folded into the view', () => {
+  const RED_CODE = `${String.fromCharCode(27)}[31m`
+  const SGR_ALL = new RegExp(`${String.fromCharCode(27)}\\[([0-9;]*)m`, 'gu')
+
+  /** True when a line ends with no SGR still open. */
+  const closesCleanly = (line: string): boolean => {
+    let open = 0
+    SGR_ALL.lastIndex = 0
+    let match = SGR_ALL.exec(line)
+    while (match) {
+      if (match[1] === '0' || match[1] === '') open = 0
+      else open += 1
+      match = SGR_ALL.exec(line)
+    }
+    return open === 0
+  }
+
+  const LONG =
+    'cuts[0].selectors[0] — replaces 0xa1f1ce43 with 0xAd3f1634a917924cBb54A0F76e43ca035D2B6BCd, which already serves it on chain, so the cut is a no-op LibDiamond rejects'
+
+  const withNote = (note: string): string[] =>
+    renderCheckGroups([
+      entry('executability', 'fail', {
+        definition: definition(
+          'executability',
+          'Calldata simulation',
+          'semantic'
+        ),
+        notes: [note],
+      }),
+    ]).flatMap((line) => line.split('\n'))
+
+  it('folds a note that would otherwise run off the view', () => {
+    // The executability panel builds these pre-indented and hands them over. A
+    // single one of them measured 188 columns against a 76-column view.
+    for (const line of withNote(`        ${LONG}`))
+      expect(stripAnsi(line).length).toBeLessThanOrEqual(VIEW_WIDTH)
+  })
+
+  it('leaves a note that already fits exactly as it was', () => {
+    const short = '        Simulation: FAILED'
+
+    expect(withNote(short)).toContain(short)
+  })
+
+  it('keeps each folded line closing its own colour', () => {
+    // A span carried across a break bleeds into the next line's indent; one
+    // dropped at a break loses the colour. Neither is visible in a width check.
+    for (const line of withNote(`        ${RED_CODE}${LONG}${RESET_CODE}`))
+      expect(closesCleanly(line)).toBe(true)
+  })
+
+  it('measures width without the escapes, which cost no columns', () => {
+    // One span across the whole line, not a colour per word: a per-word
+    // painted line is a fixed point of the folder — it re-emits exactly what
+    // it read — so folding it is identity and the assertion observes nothing.
+    // A single span folds into per-word spans, which is the difference this
+    // test needs in order to fail when escapes are counted as columns.
+    const words =
+      'alpha beta gamma delta epsilon zeta eta theta iota kappa lambda'
+    const painted = `        ${RED_CODE}${words}${RESET_CODE}`
+
+    // The preconditions, asserted rather than assumed: the line fits the view
+    // by visible width and does not fit it by byte length.
+    expect(stripAnsi(painted).length).toBeLessThanOrEqual(VIEW_WIDTH)
+    expect(painted.length).toBeGreaterThan(VIEW_WIDTH)
+
+    expect(withNote(painted)).toContain(painted)
+  })
+
+  it('hangs continuations past the note own indent, so it reads as one item', () => {
+    // Matched on fragments of the note itself rather than one phrase: where
+    // the fold lands is an implementation detail, and a filter pinned to a
+    // phrase that happens to straddle a break silently matches nothing.
+    const noteLines = withNote(`        ${LONG}`).filter((line) =>
+      /cuts\[0\]|0xAd3f|LibDiamond/u.test(stripAnsi(line))
+    )
+
+    expect(noteLines.length).toBeGreaterThan(1)
+    expect(stripAnsi(noteLines[0] as string).match(/^ */u)?.[0]).toHaveLength(8)
+    for (const line of noteLines.slice(1))
+      expect(stripAnsi(line).match(/^ */u)?.[0]).toHaveLength(10)
   })
 })

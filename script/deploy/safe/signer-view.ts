@@ -385,6 +385,98 @@ const elideUnreadable = (word: string): string =>
     ? word
     : `${word.slice(0, 24)}…(${word.length} chars)`
 
+/** An SGR sequence occupies no columns, so width is measured without them. */
+const SGR = new RegExp(`${ESC}\\[[0-9;]*m`, 'gu')
+
+const visibleWidth = (text: string): number => text.replace(SGR, '').length
+
+/**
+ * A pre-formatted note, folded into the view without breaking its colour.
+ *
+ * Notes arrive built elsewhere — the executability panel and the target-state
+ * lines — already indented and already carrying their own glyphs and SGR
+ * sequences. They were pushed through untouched, which is how a 188-column line
+ * reached a 76-column view: a single unwrapped note takes every row under it out
+ * of alignment, which is the whole reason the rest of this module wraps.
+ *
+ * Width is measured without the escapes, because an escape costs no columns and
+ * counting it would fold a line that fits. Each word is re-emitted with the
+ * codes that were active when it was read and closed again after it, rather than
+ * a colour span being carried across a line break: a span left open at a break
+ * bleeds into the indent of the next line, and one closed at a break silently
+ * loses its colour. Per-word emission is more bytes on the wire and cannot get
+ * either wrong.
+ *
+ * Continuations hang two columns past the note's own indent, so a folded note
+ * still reads as one item rather than as two.
+ *
+ * @param line - One note line, as its producer formatted it.
+ * @returns The line, or the folded lines that replace it.
+ */
+const wrapNote = (line: string): string[] => {
+  if (visibleWidth(line) <= VIEW_WIDTH) return [line]
+
+  const plain = line.replace(SGR, '')
+  const indent = /^ */u.exec(plain)?.[0] ?? ''
+  const hang = `${indent}  `
+
+  const tokens: { word: string; codes: string }[] = []
+  let codes = ''
+  let word = ''
+  let index = 0
+
+  while (index < line.length) {
+    SGR.lastIndex = index
+    const match = SGR.exec(line)
+
+    if (match && match.index === index) {
+      if (word) {
+        tokens.push({ word, codes })
+        word = ''
+      }
+      codes = match[0] === RESET ? '' : `${codes}${match[0]}`
+      index += match[0].length
+      continue
+    }
+
+    const char = line[index] as string
+    if (/\s/u.test(char)) {
+      if (word) {
+        tokens.push({ word, codes })
+        word = ''
+      }
+    } else word += char
+    index += 1
+  }
+  if (word) tokens.push({ word, codes })
+
+  const out: string[] = []
+  let current = ''
+  let width = 0
+  let prefix = indent
+
+  const flush = (): void => {
+    if (current) out.push(`${prefix}${current}`)
+    current = ''
+    width = 0
+    prefix = hang
+  }
+
+  for (const token of tokens) {
+    const need = width === 0 ? token.word.length : token.word.length + 1
+    // A word longer than the line still goes on its own: breaking it would
+    // split an address or a selector into two unsearchable halves.
+    if (width > 0 && prefix.length + width + need > VIEW_WIDTH) flush()
+    current += `${width === 0 ? '' : ' '}${token.codes}${token.word}${
+      token.codes ? RESET : ''
+    }`
+    width += need
+  }
+  flush()
+
+  return out.length > 0 ? out : [line]
+}
+
 /**
  * One `expected`/`observed`/detail value, as lines that stay inside the view.
  *
@@ -633,7 +725,7 @@ export const renderCheckGroups = (
             entry.docUrl ? ` ${BLUE}${entry.docUrl}${RESET}` : ''
           }`
         )
-        out.push(...(entry.notes ?? []))
+        out.push(...(entry.notes ?? []).flatMap(wrapNote))
       }
       continue
     }
@@ -660,7 +752,7 @@ export const renderCheckGroups = (
             '    '
           ).map((line) => `${style.colour}${line}${RESET}`)
         )
-        out.push(...(notes ?? []))
+        out.push(...(notes ?? []).flatMap(wrapNote))
         continue
       }
       out.push(
@@ -693,7 +785,7 @@ export const renderCheckGroups = (
             (line) => `${BLUE}${line}${RESET}`
           )
         )
-      out.push(...(notes ?? []))
+      out.push(...(notes ?? []).flatMap(wrapNote))
     }
   }
   return out
