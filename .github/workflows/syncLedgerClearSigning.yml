@@ -106,6 +106,7 @@ jobs:
           LEDGER_FORK: ${{ secrets.LEDGER_FORK || 'lifinance/clear-signing-erc7730-registry' }} # optional override
           LEDGER_UPSTREAM: ethereum/clear-signing-erc7730-registry # Ethereum Foundation-hosted (migrated from LedgerHQ in 2026)
           LEDGER_FILE_PATH: registry/lifi/calldata-LIFIDiamond.json
+          LEDGER_TESTS_PATH: registry/lifi/testsv2/calldata-LIFIDiamond.tests.json
           SYNC_BRANCH: sync/lifi-clear-signing
           PR_TITLE: 'lifi: sync calldata-LIFIDiamond.json (deployments + display.formats)'
           # Dry-run only applies on workflow_dispatch. Cron + push triggers always
@@ -165,6 +166,24 @@ jobs:
           echo -e "\033[32mFormatting ${LEDGER_FILE_PATH} with erc7730 (registry canonical formatter)...\033[0m"
           erc7730 format "ledger-registry/${LEDGER_FILE_PATH}"
 
+          # The registry fails a descriptor whose display.formats entries are not
+          # each exercised by a test case, so the fixture has to travel with the
+          # descriptor. Existing cases are kept verbatim: they carry real
+          # transactions and expectations a reviewer has already signed off.
+          echo -e "\033[32mGenerating ${LEDGER_TESTS_PATH} (one case per display.formats entry)...\033[0m"
+          bunx tsx tasks/generateClearSigningTests.ts \
+            --descriptor "ledger-registry/${LEDGER_FILE_PATH}" \
+            --existing "ledger-registry/${LEDGER_TESTS_PATH}" \
+            --out /tmp/lifi-tests.json
+
+          # The registry stores these prettier-formatted at printWidth 120.
+          # Prettier keeps an object expanded if its input was, so the generator's
+          # indented output has to be minified first for prettier to re-compact
+          # it — without this the fixture carries a whole-file reformat diff.
+          jq -c . /tmp/lifi-tests.json > /tmp/lifi-tests.min.json
+          bunx prettier --parser json --print-width 120 /tmp/lifi-tests.min.json \
+            > "ledger-registry/${LEDGER_TESTS_PATH}"
+
           cd ledger-registry
           if [ -z "$(git status --porcelain)" ]; then
             echo -e "\033[32mNo changes detected. Nothing to sync.\033[0m"
@@ -182,13 +201,13 @@ jobs:
             # lines, which sends SIGPIPE to `git diff` and fails the step.
             # First-run dry-runs have a multi-thousand-line diff (one block per
             # display.formats entry), so this matters in practice.
-            git --no-pager diff -- "${LEDGER_FILE_PATH}" | sed -n '1,200p'
+            git --no-pager diff -- "${LEDGER_FILE_PATH}" "${LEDGER_TESTS_PATH}" | sed -n '1,200p'
             echo ""
             echo -e "\033[33m[dry-run] Skipping commit/push/PR-create/Slack. Done.\033[0m"
             exit 0
           fi
 
-          git add "${LEDGER_FILE_PATH}"
+          git add "${LEDGER_FILE_PATH}" "${LEDGER_TESTS_PATH}"
           git -c user.name="lifi-action-bot" -c user.email="lifi-action-bot@users.noreply.github.com" \
             commit -m "${PR_TITLE}" -m "Auto-generated from lifinance/contracts (deployments and display.formats from config/clearSigningProposal.json; deprecated context.contract.abi stripped)."
 
