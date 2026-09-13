@@ -219,6 +219,53 @@ export const signerChecks = (input: {
   return rows
 }
 
+/**
+ * The prompt options whose next step is a Ledger message screen.
+ *
+ * Zone 3 draws the EIP-712 message flow — "Review message", the hash, "Sign
+ * message?" — so it is the screen set of a *signature*, not of a broadcast. The
+ * execute-only options either spend a raw key (`PRIVATE_KEY_PRODUCTION`) or, on
+ * a Ledger-backed run, put a transaction on the device rather than a message,
+ * and neither is what this zone reproduces.
+ */
+export const DEVICE_SIGNING_ACTIONS: ReadonlySet<string> = new Set([
+  'Sign',
+  'Sign & Execute',
+  'Sign and Execute With Deployer',
+])
+
+/**
+ * The prompt options that reach no device screen at all.
+ *
+ * Held as its own set rather than inferred as the complement of the one above,
+ * so that an option added to the prompt lands in neither and is caught —
+ * `signer-actions.test.ts` reads the options straight out of the spine and
+ * fails on any it cannot place.
+ */
+export const NON_DEVICE_ACTIONS: ReadonlySet<string> = new Set([
+  'Do Nothing',
+  'Execute',
+  'Execute with Deployer',
+])
+
+/**
+ * Whether this action ends on a device screen the signer has to compare.
+ *
+ * An action in neither set is treated as one that does. Zone 3 printed where it
+ * was not needed is noise; zone 3 missing where it was needed is a signer
+ * approving a hash on a device with nothing on screen to check it against, so
+ * the unclassified case resolves towards the instructions rather than away from
+ * them.
+ *
+ * @param action - The option the signer picked at the prompt.
+ * @returns Whether zone 3's device instructions apply to it.
+ */
+export const opensDeviceScreens = (action: string): boolean => {
+  if (DEVICE_SIGNING_ACTIONS.has(action)) return true
+  if (NON_DEVICE_ACTIONS.has(action)) return false
+  return true
+}
+
 export interface ISignerTodoInput {
   /** The hash the Safe contract computes, when it could be computed. */
   deviceHash?: string
