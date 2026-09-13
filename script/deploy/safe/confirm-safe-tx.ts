@@ -131,7 +131,7 @@ import {
   viemGateReaders,
 } from './prebroadcast-gate'
 import { printableField, trustedMarkup } from './printable-field'
-import { buildReadOnlyClient } from './read-only-safe-client'
+import { buildFallbackReadClient } from './read-only-safe-client'
 import { reconcileAllSubmittedSafeTxs } from './reconcile'
 import { renderCheckLedger } from './render-check-ledger'
 import {
@@ -519,7 +519,7 @@ const processTxs = async (
       // chain object is built from the network's configured RPC env var,
       // which `getViemChainForNetworkName` throws without, so the record is
       // always the run's own view.
-      const publicClient = buildReadOnlyClient(networkKey, rpcUrl)
+      const publicClient = buildFallbackReadClient(networkKey, rpcUrl)
       const observed = await observeCalldata(
         {
           operationId,
@@ -1900,7 +1900,7 @@ const main = defineCommand({
       // the refusal has to be printed before it speaks.
       const preflightVerdict = await networkPreflight(candidateNetworks, {
         // `args.rpcUrl` deliberately does not excuse an unset variable:
-        // `buildReadOnlyClient` resolves the chain through
+        // `buildFallbackReadClient` resolves the chain through
         // `getViemChainForNetworkName` before it ever reads the override, and
         // that throws on the unset variable. Treating the override as
         // configuration here produced a refusal naming the wrong cause and a
@@ -1908,7 +1908,7 @@ const main = defineCommand({
         endpointConfigured: (network) =>
           Boolean(process.env[getRPCEnvVarName(network)]?.trim()),
         chainIdOf: (network) =>
-          buildReadOnlyClient(network, args.rpcUrl).getChainId(),
+          buildFallbackReadClient(network, args.rpcUrl).getChainId(),
         expectedChainId: (network) =>
           networksData[network.toLowerCase() as keyof typeof networksData]
             .chainId,
