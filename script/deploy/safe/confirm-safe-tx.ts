@@ -100,7 +100,6 @@ import {
 import {
   describeOperationValue,
   evaluateDelegateCallGate,
-  renderDelegateCallGate,
 } from './delegatecall-gate'
 import {
   collectExecutabilityInput,
@@ -145,7 +144,12 @@ import {
   formatDecodedTxDataForDisplay,
   getTargetName,
 } from './safe-decode-utils'
-import { buildSafeTxDetailLines } from './safe-tx-detail-display'
+import {
+  buildCalldataFootnote,
+  buildSafeTxDetailLines,
+  CLAIM_QUESTION,
+  type ISafeTxDetailInput,
+} from './safe-tx-detail-display'
 import {
   parseAccountIndex,
   canExecuteWithNonceStatus,
@@ -362,6 +366,14 @@ const processTxs = async (
   rpcUrl: string | undefined,
   prepared: IConfirmSafeTxNetworkContext
 ) => {
+  // Read from argv rather than from the parsed args, for the reason
+  // `cli-flags.ts` documents: citty hands `--raw=false` back as the string
+  // 'false'. Absent means off, which is the shorter block.
+  const showRawCalldata = readBooleanFlag(process.argv, {
+    camel: 'raw',
+    kebab: 'raw',
+  })
+
   const {
     network,
     networkKey,
@@ -803,7 +815,18 @@ const processTxs = async (
     // normalises an absent operation to Call, so those two copies can disagree.
     const operationVerdict = evaluateDelegateCallGate(tx.safeTransaction.data)
 
-    const detailLines = buildSafeTxDetailLines({
+    // The verb follows the row, not the menu: a row already carrying the
+    // threshold is executed without this signer being asked for a signature at
+    // all, so asking them to check it "before signing" names the wrong act.
+    consola.log(
+      zoneHeading(
+        1,
+        `WHAT YOU ARE BEING ASKED TO ${tx.canExecute ? 'EXECUTE' : 'SIGN'}`,
+        network
+      ).join('\n')
+    )
+
+    const detailInput: ISafeTxDetailInput = {
       network,
       heading: '',
       // The Safe the client is pointed at, not the one the row claims: the row's
@@ -836,23 +859,26 @@ const processTxs = async (
       signatureCount: tx.safeTransaction.signatures.size,
       threshold: tx.threshold,
       canExecute: tx.canExecute,
+      showRawCalldata,
       parkedTaskRefs: tx.parkedTaskRefs,
       provenance: tx.provenance,
-    })
+    }
 
-    consola.log(detailLines.join('\n'))
-    for (const line of renderDelegateCallGate(operationVerdict))
-      consola.log(line)
+    consola.log(buildSafeTxDetailLines(detailInput).join('\n'))
 
     if (tx.safeTx.data?.data)
       await formatDecodedTxDataForDisplay(tx.safeTx.data.data as Hex, {
         chainId: chain.id,
         network,
-        // The block prints through consola's own prefix, so its lines start two
-        // columns right of the fields above; the indent puts them back in one
-        // column with the rest of the zone.
-        indent: '  ',
+        // The decode is the body of THE CALLDATA DOES, so it is indented to
+        // that block rather than to the identity fields above it. Two of these
+        // columns pay for consola's own level prefix, which lands on the first
+        // line and would otherwise shift that line alone out of the block.
+        indent: '      ',
       })
+
+    consola.log(buildCalldataFootnote(detailInput).join('\n'))
+    consola.log(CLAIM_QUESTION.join('\n'))
 
     let targetState: ITargetStateVerdict
     try {
@@ -1713,6 +1739,14 @@ const main = defineCommand({
     derivationPath: {
       type: 'string',
       description: 'Custom derivation path for Ledger (overrides ledgerLive)',
+      required: false,
+    },
+    // No `default`: the value is read from argv by `readBooleanFlag`, and a
+    // citty default would shadow what the caller actually passed.
+    raw: {
+      type: 'boolean',
+      description:
+        'Print the full calldata hex instead of its length and first four bytes',
       required: false,
     },
   },

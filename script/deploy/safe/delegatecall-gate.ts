@@ -23,7 +23,13 @@ const DELEGATE_CALL = 1
 export interface IDelegateCallVerdict {
   /** True when this proposal must not be signed or executed. */
   readonly refuses: boolean
-  /** One line a signer can act on. Empty only when nothing is refused. */
+  /**
+   * One line a signer can act on. Empty only when nothing is refused.
+   *
+   * Reaches a signer through the error `assertProposalOperationPermitted`
+   * throws. Zone 1 no longer prints it: it states the operation and leaves the
+   * verdict to gate D, which grades the same field in zone 2.
+   */
   readonly reason: string
 }
 
@@ -137,20 +143,6 @@ export const evaluateDelegateCallGate = (
     )}, and only the number 0 (Call) may be signed. A delegatecall runs its target against this Safe's own storage, so a value that is not exactly Call cannot be assumed to be one — a 1 or a 0 of the wrong type included, which nothing in this repository writes. Refusing.`,
   }
 }
-
-const RED = `${String.fromCharCode(27)}[31m`
-const RESET = `${String.fromCharCode(27)}[0m`
-
-/**
- * The lines a signer sees. Empty for a plain call — silence is reserved for
- * "there was nothing to refuse", so an operator never learns to scroll past it.
- * @param verdict - what `evaluateDelegateCallGate` decided
- * @returns Zero or more display lines
- */
-export const renderDelegateCallGate = (
-  verdict: IDelegateCallVerdict
-): string[] =>
-  verdict.refuses ? [`${RED}⛔ REFUSED ${verdict.reason}${RESET}`] : []
 
 /**
  * Throws unless the proposal may be signed **or executed**.

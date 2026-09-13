@@ -42,7 +42,7 @@ import {
   trustedMarkup,
   UNBOUNDED,
 } from './printable-field'
-import { formatProvenanceLines } from './provenance-display'
+import { formatClaimLines } from './provenance-display'
 import { type IProposalProvenance } from './safe-utils'
 
 const GREEN = '\u001b[32m'
@@ -51,14 +51,6 @@ const YELLOW = '\u001b[33m'
 const CYAN = '\u001b[36m'
 const BOLD = '\u001b[1m'
 const RESET = '\u001b[0m'
-
-/** Drawn under any operation that is not a plain `Call`. */
-const OPERATION_ALARM: readonly string[] = [
-  `    ${BOLD}${RED}${'▄'.repeat(62)}${RESET}`,
-  `    ${BOLD}${RED}  ⛔  NOT A PLAIN CALL — the target's code runs inside this Safe,${RESET}`,
-  `    ${BOLD}${RED}      with its storage, its owners and its funds.${RESET}`,
-  `    ${BOLD}${RED}${'▀'.repeat(62)}${RESET}`,
-]
 
 /** Width of the label column shared with the provenance lines. */
 const LABEL_WIDTH = 17
@@ -133,13 +125,26 @@ export interface ISafeTxDetailInput {
   /** Pre-rendered operation, already sanitised by `describeOperationValue`. */
   readonly operationLabel: Printable
   /**
-   * Whether the signed struct is a plain `Call`. Anything else is drawn as an
-   * alarm rather than as a word: the label alone sits at the same weight as
-   * `Call`, one row below a green tick belonging to the decoded calldata, and
-   * that is the arrangement a signer skims past (F1).
+   * Whether the signed struct is a plain `Call`.
+   *
+   * Decides how the operation is painted on the envelope line, and whether the
+   * block says that the decode below it describes a call that will not happen.
+   * It no longer draws an alarm: gate D grades the operation and
+   * `assertProposalOperationPermitted` refuses it, and zone 1 stating what zone
+   * 2 is about to judge is the mixing this layout exists to end.
    */
   readonly operationIsCall: boolean
   readonly data: unknown
+  /**
+   * Whether `--raw` was given, printing the calldata in full.
+   *
+   * Off, the block states its length and first four bytes instead. The length
+   * was previously disclosed by the hex's own visual mass — a wall of it reads
+   * as one — and a stated character count carries that disclosure without
+   * costing the twenty-odd lines above the claim a signer is here to weigh.
+   * The payload stays readable in full, one flag away.
+   */
+  readonly showRawCalldata?: boolean
   /** The proposer as stored. */
   readonly proposer: unknown
   readonly safeTxHash: unknown
@@ -300,7 +305,21 @@ const isAddressForNetwork = (network: string, text: string): boolean => {
  * `formatTimelockScheduleBatch` gates its own `target=` on the same call, so
  * both address checks answer to one rule.
  */
-function toLine(input: ISafeTxDetailInput): Printable {
+/**
+ * The target, split where the line may fold.
+ *
+ * `head` is the address and everything that qualifies it — notices included,
+ * which must never be separated from the value they are about. `decorations`
+ * is what the repository adds: the deployment record's name and the explorer
+ * link, neither of which changes what is signed, so a fold before them loses
+ * nothing.
+ */
+interface ITargetParts {
+  readonly head: Printable
+  readonly decorations: Printable
+}
+
+function targetParts(input: ISafeTxDetailInput): ITargetParts {
   const { text, identityPreserved, notice } = asPrintable(input.to)
   const { shown, failed } = renderAddress(text, input.formatAddress)
   const addressShaped = isAddressForNetwork(input.network, text)
@@ -310,19 +329,9 @@ function toLine(input: ISafeTxDetailInput): Printable {
   const targetName = resolvable
     ? printableFragment(() => input.toTargetName)
     : undefined
-  const name =
-    targetName === undefined
-      ? EMPTY
-      : concatPrintable(trustedMarkup(' '), color(YELLOW, targetName))
-
   const url = resolvable
     ? printableFragment(() => input.explorerUrlFor(text))
     : undefined
-  const link =
-    url === undefined
-      ? EMPTY
-      : concatPrintable(trustedMarkup(' '), color(CYAN, url))
-
   // Keyed on the notice rather than on `identityPreserved`, which is false both
   // for a value the sanitiser repaired and for one that was never a string —
   // and the second of those is the case this says out loud. An empty notice is
@@ -353,13 +362,31 @@ function toLine(input: ISafeTxDetailInput): Printable {
         )
       : EMPTY
 
-  return concatPrintable(
-    color(GREEN, concatPrintable(shown, name, link)),
-    trustedMarkup(notice),
-    failed ? FRAGMENT_UNRENDERABLE : EMPTY,
-    notAnAddress,
-    withheld
-  )
+  // Built from the undecorated fragments rather than from the pre-spaced ones
+  // the single-line form used: on a line of their own that space is an indent
+  // nobody asked for. Each keeps its own colour — painting by position gives a
+  // link the name's colour on a target the records could not name.
+  const parts = [
+    targetName === undefined ? undefined : color(YELLOW, targetName),
+    url === undefined ? undefined : color(CYAN, url),
+  ].filter((part): part is Printable => part !== undefined)
+
+  return {
+    head: concatPrintable(
+      color(GREEN, shown),
+      trustedMarkup(notice),
+      failed ? FRAGMENT_UNRENDERABLE : EMPTY,
+      notAnAddress,
+      withheld
+    ),
+    decorations:
+      parts.length === 0
+        ? EMPTY
+        : concatPrintable(
+            parts[0] as Printable,
+            ...(parts[1] === undefined ? [] : [trustedMarkup('  '), parts[1]])
+          ),
+  }
 }
 
 /**
@@ -396,9 +423,135 @@ function parkedLines(refs: readonly IParkedTaskRef[]): string[] {
 }
 
 /**
+ * The queue position, as a sentence.
+ *
+ * Arithmetic on the row, not a verdict about the proposal: whether the
+ * threshold is met decides what the signer is being asked *for*, which is zone
+ * 1's subject. `canExecute` used to be printed beside this as a tick; it is
+ * this sentence restated, so it is no longer shown.
+ * @param signatureCount - Signatures already stored on the row.
+ * @param threshold - Signatures the Safe requires.
+ * @returns One sentence naming what this signer's signature would do.
+ */
+export const describeSignatureState = (
+  signatureCount: number,
+  threshold: number
+): string => {
+  const ordinal = (n: number): string => {
+    const tens = n % 100
+    if (tens >= 11 && tens <= 13) return `${n}th`
+    const suffix = { 1: 'st', 2: 'nd', 3: 'rd' }[n % 10] ?? 'th'
+    return `${n}${suffix}`
+  }
+
+  if (signatureCount >= threshold)
+    return `${signatureCount} of ${threshold} · already executable, yours is not needed`
+  const next = ordinal(signatureCount + 1)
+  // No ordinal in this one: which number it is matters less than that it is the
+  // one that makes the proposal executable, and naming both overruns the width.
+  if (signatureCount + 1 === threshold)
+    return `${signatureCount} of ${threshold} · yours would be the last, making it executable`
+  if (signatureCount === 0)
+    return `none yet · yours would be the 1st of ${threshold}`
+  return `${signatureCount} of ${threshold} · yours would be the ${next} of ${threshold}`
+}
+
+/**
+ * The question the two blocks above it exist to pose.
+ *
+ * Printed after the decoded calldata rather than with the block, because the
+ * decode is written straight to the console by `formatDecodedTxDataForDisplay`
+ * and the question has to close the comparison, not open it.
+ */
+export const CLAIM_QUESTION: readonly string[] = [
+  '',
+  `  ${BOLD}DO THESE TWO DESCRIBE THE SAME CHANGE?${RESET}`,
+  "      If not, stop. Nothing below this line checks the proposer's words",
+  '      against the payload — only you can.',
+]
+
+/**
+ * The calldata, in full under `--raw` and as a fingerprint otherwise.
+ *
+ * The fingerprint is measured on the sanitised text, so a row padded with
+ * invisibles reports the length a reader would have had to scroll past rather
+ * than the length it claims.
+ */
+const calldataLine = (input: ISafeTxDetailInput): string => {
+  if (input.showRawCalldata === true)
+    return `      — ${storedField(input.data, GREEN, UNBOUNDED)}`
+
+  const { text, notice } = asPrintable(input.data, UNBOUNDED)
+
+  // A value that is not calldata is shown rather than measured. `asPrintable`
+  // stands a sentinel in for a field it could not render, and a length taken
+  // from that sentinel would report "12 hex chars, starts unrenderab" — a
+  // measurement of the placeholder, printed where the payload goes.
+  if (!/^0x[0-9a-fA-F]*$/u.test(text))
+    return `      — ${storedField(input.data, GREEN, UNBOUNDED)}`
+
+  const body = text.slice(2)
+  const head = text.slice(0, 10)
+  return `      — ${concatPrintable(
+    color(GREEN, trustedMarkup(`${body.length} hex chars`)),
+    trustedMarkup(', starts '),
+    color(CYAN, asPrintable(head).text),
+    trustedMarkup(notice),
+    trustedMarkup(' · --raw for the full hex')
+  )}`
+}
+
+/** A block heading inside zone 1. */
+const blockHeading = (title: string): string[] => [
+  '',
+  `  ${BOLD}${title}${RESET}`,
+]
+
+/**
+ * What the payload is, printed under the decode rather than over it.
+ *
+ * The decode is the answer to "what does this do"; the envelope is where it
+ * lands and how big it is. Both were labelled rows above the claim, where they
+ * were read before the thing they qualify.
+ * @param input - The same input the block above was built from.
+ * @returns The footnote lines, in order.
+ */
+export function buildCalldataFootnote(input: ISafeTxDetailInput): string[] {
+  const { head, decorations } = targetParts(input)
+  // The value and the target's decorations share the continuation line: a
+  // 42-character address plus an operation already fills the first one, and a
+  // fold that lands inside the address is the one fold this line must not make.
+  const continuation = concatPrintable(
+    trustedMarkup('value '),
+    storedField(input.value, GREEN),
+    String(decorations) === '' ? EMPTY : trustedMarkup(' · '),
+    decorations
+  )
+
+  return [
+    `      ${concatPrintable(
+      trustedMarkup('— '),
+      color(
+        input.operationIsCall ? GREEN : `${BOLD}${RED}`,
+        input.operationLabel
+      ),
+      trustedMarkup(' to '),
+      head
+    )}`,
+    `        ${continuation}`,
+    calldataLine(input),
+  ]
+}
+
+/**
  * Formats the Safe transaction detail block for the signing prompt.
+ *
+ * Zone 1 states what is being asked for; zone 2 grades it. Nothing here carries
+ * a verdict — the operation is named rather than alarmed (gate D grades it and
+ * `assertProposalOperationPermitted` refuses it), and the nonce warning stays
+ * only because it is the queue state this block is about.
  * @param input - Stored row fields plus the fragments the caller pre-rendered.
- * @returns The lines to print, in order.
+ * @returns The lines to print, in order, ending on the calldata heading.
  */
 export function buildSafeTxDetailLines(input: ISafeTxDetailInput): string[] {
   const heading = input.heading ?? 'Safe Transaction Details:'
@@ -412,41 +565,69 @@ export function buildSafeTxDetailLines(input: ISafeTxDetailInput): string[] {
       'Nonce',
       storedField(input.nonce, `\u001b[${input.nonceColor}m`)
     )}${input.nonceWarning}`,
-    detailLine('To', toLine(input)),
-    detailLine('Value', storedField(input.value, GREEN)),
     detailLine(
-      'Operation',
+      'Signatures',
       color(
-        input.operationIsCall ? GREEN : `${BOLD}${RED}`,
-        input.operationLabel
+        GREEN,
+        trustedMarkup(
+          describeSignatureState(input.signatureCount, input.threshold)
+        )
       )
     ),
-    ...(input.operationIsCall ? [] : OPERATION_ALARM),
-    // The one field left unbounded: it is the payload the signature covers and
-    // the only place a signer can read it in full.
-    detailLine('Data', storedField(input.data, GREEN, UNBOUNDED)),
+    // Kept as an address rather than folded into the claim's handle: the
+    // handle names a person, this names the key that wrote the row, and gate C
+    // grades the stored signatures against the owner set rather than against
+    // either.
     detailLine(
       'Proposer',
       formattedAddressField(input.proposer, input.formatAddress)
     ),
     detailLine('Safe Tx Hash', storedField(input.safeTxHash, CYAN)),
-    detailLine(
-      'Signatures',
-      concatPrintable(
-        color(
-          GREEN,
-          trustedMarkup(`${input.signatureCount}/${input.threshold}`)
-        ),
-        trustedMarkup(' required')
-      )
-    ),
-    detailLine(
-      'Execution Ready',
-      input.canExecute
-        ? color(GREEN, trustedMarkup('✓'))
-        : color(RED, trustedMarkup('✗'))
-    ),
   ]
+
+  lines.push(...blockHeading('THE PROPOSER SAYS'))
+
+  // Load-bearing, not belt-and-braces. `formatClaimLines` handles its own
+  // failures by stringifying what was thrown, so a thrown value that cannot be
+  // stringified — a null-prototype object, one whose `toString` throws — makes
+  // its handler throw a second time and escape. This catch is the last thing
+  // before `processTxs`, which has no per-network catch, so an escape here
+  // costs the operator every network left in the run.
+  try {
+    lines.push(...formatClaimLines(input.provenance))
+  } catch (error) {
+    lines.push(
+      `      ${color(
+        YELLOW,
+        concatPrintable(
+          trustedMarkup('— UNKNOWN — the claim could not be rendered: '),
+          describeThrown(error)
+        )
+      )}`
+    )
+  }
+
+  lines.push(...blockHeading('THE CALLDATA DOES'))
+
+  // The decode below is built from this payload, and on anything but a Call it
+  // describes a call that will not happen: a delegatecall runs the target's own
+  // code. Stated here rather than left to zone 2, because without it the block
+  // under this heading is a false statement about what the payload does.
+  if (!input.operationIsCall)
+    lines.push(
+      ...[
+        `      ${color(
+          YELLOW,
+          trustedMarkup(
+            'the calldata is dressed as the call below. A delegatecall will'
+          )
+        )}`,
+        `      ${color(
+          YELLOW,
+          trustedMarkup("not run it — it runs the target's own code instead:")
+        )}`,
+      ]
+    )
 
   // `Array.isArray`, not a length check: a stored document with a `length`
   // property satisfies the latter and then throws on `for...of`, which escapes
@@ -454,29 +635,6 @@ export function buildSafeTxDetailLines(input: ISafeTxDetailInput): string[] {
   // cost the operator every network left in the run.
   if (Array.isArray(input.parkedTaskRefs) && input.parkedTaskRefs.length > 0)
     lines.push(...parkedLines(input.parkedTaskRefs))
-
-  // Load-bearing, not belt-and-braces. `formatProvenanceLines` handles its own
-  // failures by stringifying what was thrown, so a thrown value that cannot be
-  // stringified — a null-prototype object, one whose `toString` throws — makes
-  // its handler throw a second time and escape. This catch is the last thing
-  // before `processTxs`, which has no per-network catch, so an escape here
-  // costs the operator every network left in the run.
-  try {
-    lines.push(...formatProvenanceLines(input.provenance))
-  } catch (error) {
-    lines.push(
-      detailLine(
-        'Provenance',
-        color(
-          YELLOW,
-          concatPrintable(
-            trustedMarkup('UNKNOWN — could not be rendered: '),
-            describeThrown(error)
-          )
-        )
-      )
-    )
-  }
 
   return lines
 }

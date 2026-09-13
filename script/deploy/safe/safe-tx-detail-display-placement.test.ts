@@ -53,12 +53,32 @@ describe('smoke check: the shape of the call into the detail block', () => {
   })
 
   it('builds the block in one place and prints what it returns', () => {
-    expect(CONFIRM).toContain('const detailLines = buildSafeTxDetailLines({')
+    // One input object, read by the block and by the footnote that closes it:
+    // two literals would let the two halves of the zone describe different
+    // proposals, which is the failure the shared const exists to prevent.
+    expect(CONFIRM).toContain('const detailInput: ISafeTxDetailInput = {')
     // `log`, not `info`: consola's level prefix lands on the first line of a
     // multi-line string and shifts that line alone out of the block's column.
-    expect(CONFIRM).toContain("consola.log(detailLines.join('\\n'))")
+    expect(CONFIRM).toContain(
+      "consola.log(buildSafeTxDetailLines(detailInput).join('\\n'))"
+    )
+    expect(CONFIRM).toContain(
+      "consola.log(buildCalldataFootnote(detailInput).join('\\n'))"
+    )
     // An inline push would add a line without passing through the builder.
     expect(CONFIRM).not.toContain('detailLines.push')
+  })
+
+  it('closes the comparison after the decode, not before it', () => {
+    // The question is the point of the two blocks above it; printed before the
+    // decoded calldata it asks the signer to compare something not yet shown.
+    const decode = CONFIRM.indexOf('formatDecodedTxDataForDisplay(')
+    const footnote = CONFIRM.indexOf('buildCalldataFootnote(detailInput)')
+    const question = CONFIRM.indexOf("CLAIM_QUESTION.join('\\n')")
+
+    expect(decode).toBeGreaterThan(-1)
+    expect(footnote).toBeGreaterThan(decode)
+    expect(question).toBeGreaterThan(footnote)
   })
 
   it('prints the parsed nonce in the mismatch warnings', () => {
