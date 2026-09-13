@@ -85,6 +85,14 @@ export const DECLARED_STORAGE_AUTHORITIES: Readonly<
 export interface IPreBroadcastAuthority {
   /** Identifies the value for the operator, e.g. `LiFiDiamond.owner`. */
   label: string
+  /**
+   * The contract the getter was called on, lowercased.
+   *
+   * Carried because the label names the contract and not the address, and the
+   * sign-time gate has to decide per address whether this proposal installs the
+   * contract at all — a question a name cannot answer.
+   */
+  contractAddress: string
   /** Live on-chain value, lowercased; undefined when the read failed. */
   liveValue: string | undefined
   /** Value `main` declares, lowercased; undefined when it declares none. */

@@ -787,22 +787,58 @@ describe('executabilityCheckResult', () => {
     expect(result.anchor).toBe('A-CHAIN')
   })
 
-  it('grades partial simulation coverage an acknowledgement, not a pass', () => {
-    // The paired directions: a clean run with nothing left unsimulated is the
-    // pass above, and one payload without a revert model is coverage the run
-    // does not have, so it cannot share that row.
+  it('passes a payload with no revert model that simulated clean, and says so', () => {
+    // The model predicts a revert from the calldata; it is not what establishes
+    // one. This payload's target was read for code and its eth_call came back
+    // clean from the account that will send it, which is the whole question
+    // this gate asks — so it passes, on a row that still says what it rested on.
     const result = executabilityCheckResult(
-      executabilityVerdict({ notSimulated: ['call[0].diamondCut[0]'] }),
+      executabilityVerdict({ notSimulated: ['call[0].scheduled[0]'] }),
       NETWORK
     )
 
-    expect(result.status).toBe('needs-ack')
+    expect(result.status).toBe('pass')
+    expect(result.anchor).toBe('A-CHAIN')
+    expect(result.actual).toContain('a clean eth_call alone')
+  })
+
+  // The other direction of the same change: relaxing the grade must not turn a
+  // payload nothing observed into a pass. Each of these arrives with an empty
+  // `notSimulated`, so none of them is caught by the branch above.
+  it.each([
+    [
+      'an eth_call that was never attempted',
+      ['No payload in this proposal was simulated with eth_call'],
+    ],
+    [
+      'a payload with no eth_call result',
+      ['call[0].scheduled[1] has no eth_call result'],
+    ],
+    [
+      'a call that could not be read through',
+      ['call[0] could not be read all the way through'],
+    ],
+  ])('still refuses to pass %s', (_case, errors) => {
+    const result = executabilityCheckResult(
+      executabilityVerdict({ error: true, errors }),
+      NETWORK
+    )
+
+    expect(result.status).toBe('error')
     expect(result.anchor).toBe('A-UNRESOLVED')
-    expect(result.actual).toContain('judged on a live eth_call alone')
-    // The row has to say what the acknowledgement is for: the screen shows
-    // those calls with a succeeding eth_call beside them, so "nothing reverted"
-    // on its own reads as a pass a signer is being asked to confirm twice.
-    expect(result.detail).toContain('no revert model covers these payloads')
+  })
+
+  it('still refuses a target that holds no code, model or not', () => {
+    const result = executabilityCheckResult(
+      executabilityVerdict({
+        refuses: true,
+        notSimulated: ['call[0].scheduled[0]'],
+        reason: 'call[0].scheduled[0] targets 0xbeef, which holds no code',
+      }),
+      NETWORK
+    )
+
+    expect(result.status).toBe('fail')
   })
 
   it('grades a proposal that would revert a mismatch', () => {
@@ -1142,6 +1178,7 @@ describe('the primitive that makes an unmade check blocking', () => {
 })
 
 describe('storageAuthorityCheckResult', () => {
+  const DIAMOND = '0x0000000000000000000000000000000000000d1a'
   const TIMELOCK = '0x00000000000000000000000000000000000000a1'
   const PAUSER = '0x00000000000000000000000000000000000000b2'
   const ATTACKER = '0x00000000000000000000000000000000000000ee'
@@ -1150,6 +1187,7 @@ describe('storageAuthorityCheckResult', () => {
     overrides: Partial<IPreBroadcastAuthority> = {}
   ): IPreBroadcastAuthority => ({
     label: 'LiFiDiamond.pauserWallet()',
+    contractAddress: DIAMOND,
     liveValue: PAUSER,
     expectedValue: PAUSER,
     expectationSource: 'globalConfig',
@@ -1314,11 +1352,6 @@ describe('storageAuthorityCheckResult', () => {
       expectHardBlock(verdictFor([unread]))
     })
 
-    it('no contract in the proposal declaring an authority at all', () => {
-      expect(resultFor([]).status).toBe('error')
-      expectHardBlock(verdictFor([]))
-    })
-
     it('an expectation of unknown provenance, even when every value matched', () => {
       // An anchor map that does not name the label is `A-UNRESOLVED`: nothing
       // said where the expectation came from, so there is nothing to take on.
@@ -1347,11 +1380,52 @@ describe('storageAuthorityCheckResult', () => {
     })
   })
 
-  it('errors on an empty set rather than passing on nothing', () => {
+  // A proposal that installs nothing — a cut that only removes, a setter on a
+  // contract already live — has no constructor-written storage to assert, which
+  // is the only thing R2.6 put this gate here for. Not-applicable rather than a
+  // pass: nothing was checked, so it must satisfy no verified counter.
+  it('is not applicable when the proposal installs nothing', () => {
     const result = resultFor([])
-    expect(result.status).toBe('error')
-    expect(result.anchor).toBe('A-UNRESOLVED')
-    expect(result.actual).toContain('no contract')
+    expect(result.status).toBe('not-applicable')
+    expect(result.anchor).toBe('A-LOCAL')
+    expect(result.actual).toContain('installs no contract')
+  })
+
+  it('does not block a run on a proposal that installs nothing', () => {
+    const ledger = runLedger()
+    recordInto(
+      ledger,
+      verdicts({ storageAuthority: { entries: [], anchors: new Map() } })
+    )
+
+    const row = ledger.results.find(
+      (result) => result.checkId === STORAGE_AUTHORITY_CHECK_ID
+    )
+    expect(row?.status).toBe('not-applicable')
+    expect(summariseLedger(ledger).hardBlocked).toBe(false)
+  })
+
+  // The pairing that keeps the relaxation above honest: an empty set means
+  // "installs nothing" only when the calldata was read all the way through.
+  it('blocks when the calldata that says what is installed would not decode', () => {
+    const ledger = runLedger()
+    recordInto(
+      ledger,
+      verdicts({
+        storageAuthority: {
+          entries: [],
+          anchors: new Map(),
+          scopeUnreadable: ['call[0]'],
+        },
+      })
+    )
+
+    const row = ledger.results.find(
+      (result) => result.checkId === STORAGE_AUTHORITY_CHECK_ID
+    )
+    expect(row?.status).toBe('error')
+    expect(row?.actual).toContain('call[0]')
+    expect(summariseLedger(ledger).hardBlocked).toBe(true)
   })
 
   it('lets a mismatch decide over a failed read in the same set', () => {
@@ -1371,6 +1445,7 @@ describe('authorityExpectationAnchors', () => {
     const anchors = authorityExpectationAnchors([
       {
         label: 'a',
+        contractAddress: '0x0000000000000000000000000000000000000d1a',
         liveValue: '0x1',
         expectedValue: '0x1',
         expectationSource: 'globalConfig',
@@ -1378,6 +1453,7 @@ describe('authorityExpectationAnchors', () => {
       },
       {
         label: 'b',
+        contractAddress: '0x0000000000000000000000000000000000000d1a',
         liveValue: '0x1',
         expectedValue: '0x1',
         expectationSource: 'deployments',

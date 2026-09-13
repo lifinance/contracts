@@ -88,4 +88,25 @@ describe('the calldata address check surfaces before the signing decision', () =
       /Calldata addresses: the check could not be run[\s\S]*?redactUrls\(/u
     )
   })
+
+  it('renders the verdict without gating on it', () => {
+    // The record this grades is written by the proposing machine, and no anchor
+    // supplies the identities to grade against, so refusing here would block on
+    // data the proposer controls. Pinned rather than left to the comment beside
+    // the call: the check carries no ledger row, so a gate wired in here leaves
+    // the rest of the suite green.
+    const guarded = CONFIRM.slice(
+      CONFIRM.indexOf('collectAddressReferences('),
+      CONFIRM.indexOf(ACTION_PROMPT)
+    )
+
+    // Anchored on the verdict, not on any one gate's name: however a refusal
+    // were spelled, it has to read `calldataAddresses` to reach one.
+    const consumed = guarded
+      .replace('const calldataAddresses = evaluateCalldataAddresses(', '')
+      .replace('renderCalldataAddresses(calldataAddresses)', '')
+
+    expect(guarded).toContain('renderCalldataAddresses(calldataAddresses)')
+    expect(consumed).not.toContain('calldataAddresses')
+  })
 })

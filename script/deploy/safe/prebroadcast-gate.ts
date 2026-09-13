@@ -211,6 +211,7 @@ const observeAuthorities = async (
         )
         rows.push({
           label,
+          contractAddress: address,
           liveValue: liveValue.trim().toLowerCase(),
           expectedValue,
           expectationSource: authority.source.from,
@@ -219,6 +220,7 @@ const observeAuthorities = async (
       } catch (error) {
         rows.push({
           label,
+          contractAddress: address,
           liveValue: undefined,
           expectedValue,
           expectationSource: authority.source.from,

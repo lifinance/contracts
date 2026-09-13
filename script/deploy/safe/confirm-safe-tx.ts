@@ -44,6 +44,7 @@ import {
   type IDeploymentIndexEntry,
 } from './calldata-address-check'
 import {
+  authoritiesOfInstalled,
   buildDeploymentIndex,
   collectAddressReferences,
 } from './calldata-address-collector'
@@ -1229,12 +1230,14 @@ const processTxs = async (
     // proposer who controls that machine. It carries no ledger row because the
     // only anchor it could rest on reports rather than decides — see
     // `check-ledger.ts`'s reporting-only anchors.
+    // Hoisted out of the try below because gate G reads it too: it is a pure
+    // decode of the proposal's own calldata, and only the record lookup under
+    // it can fail.
+    const { references, undecodable } = collectAddressReferences(
+      tx.safeTransaction.data.data ? [tx.safeTransaction.data.data as Hex] : []
+    )
+
     try {
-      const { references, undecodable } = collectAddressReferences(
-        tx.safeTransaction.data.data
-          ? [tx.safeTransaction.data.data as Hex]
-          : []
-      )
       const records = await readDeploymentRecords()
       const calldataAddresses = evaluateCalldataAddresses(
         {
@@ -1264,14 +1267,20 @@ const processTxs = async (
       tx.safeTransaction.data.data as Hex | undefined
     )
 
+    // R2.6's subjects: the contracts this proposal puts into service, out of
+    // every address the observation read.
+    const installedAuthorities = authoritiesOfInstalled(
+      observedSet?.observed.authorities ?? [],
+      references
+    )
+
     const proposalResults = proposalCheckResults({
       network,
       storageAuthority: observedSet
         ? {
-            entries: toSignedAuthorityEntries(observedSet.observed.authorities),
-            anchors: authorityExpectationAnchors(
-              observedSet.observed.authorities
-            ),
+            entries: toSignedAuthorityEntries(installedAuthorities),
+            anchors: authorityExpectationAnchors(installedAuthorities),
+            ...(undecodable.length > 0 ? { scopeUnreadable: undecodable } : {}),
           }
         : undefined,
       integrity: integrityRun,

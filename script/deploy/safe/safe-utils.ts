@@ -2612,6 +2612,27 @@ export async function getNetworksWithPendingTransactions(
 }
 
 /**
+ * Picks the Safe the ownership scan reads, mirroring
+ * `prepareConfirmSafeTxNetwork`: the address `networks.json` names wins, and the
+ * proposal document's claim is only the fallback for a network that names none.
+ * The document's field is proposer-controlled, so letting it answer here would
+ * let one row naming a foreign Safe decide whether its whole network is offered
+ * at all — before the integrity assertions that exist to refuse that row ever
+ * run.
+ * @param network - Network the pending rows belong to
+ * @param documentSafeAddress - Safe address claimed by the network's first row
+ * @returns The Safe to read owners and threshold from, or undefined when
+ * neither source names one
+ */
+export function resolveOwnershipScanSafeAddress(
+  network: string,
+  documentSafeAddress?: string
+): Address | undefined {
+  const configured = networks[network.toLowerCase()]?.safeAddress
+  return (configured || documentSafeAddress || undefined) as Address | undefined
+}
+
+/**
  * Gets networks where the user can take action (is a Safe owner AND has actionable transactions).
  * Ownership is read from the chain with a read-only client, so no signer material is needed here.
  * @param pendingTransactions - MongoDB collection
@@ -2648,18 +2669,21 @@ export async function getNetworksWithActionableTransactions(
         return { network, actionable: false, reason: 'no_pending_txs' }
       }
 
-      // Use the Safe address from the transaction document (not networks.json)
-      // This matches the behavior in processTxs
-      const txSafeAddress = networkTxs[0]?.safeAddress as Address
-      if (!txSafeAddress) {
-        consola.debug(`No Safe address in transaction document for ${network}`)
+      const scanSafeAddress = resolveOwnershipScanSafeAddress(
+        network,
+        networkTxs[0]?.safeAddress
+      )
+      if (!scanSafeAddress) {
+        consola.debug(
+          `Neither networks.json nor the pending rows name a Safe for ${network}`
+        )
         return { network, actionable: false, reason: 'no_safe_address_in_tx' }
       }
 
       const publicClient = buildReadOnlyClient(network, rpcUrl)
       const normalizedSafeAddress = normalizeAddressForNetwork(
         network,
-        txSafeAddress
+        scanSafeAddress
       )
 
       let owners: Address[]
@@ -2687,7 +2711,7 @@ export async function getNetworksWithActionableTransactions(
       const isOwner = isAddressASafeOwner(owners, signerAddress)
       if (!isOwner) {
         consola.warn(
-          `[${network}] ⚠️  Signer ${signerAddress} is not an owner of Safe ${txSafeAddress}`
+          `[${network}] ⚠️  Signer ${signerAddress} is not an owner of Safe ${scanSafeAddress}`
         )
         consola.warn(`[${network}]    Safe owners: ${owners.join(', ')}`)
         return { network, actionable: false, reason: 'not_owner' }
