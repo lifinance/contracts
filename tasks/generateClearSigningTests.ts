@@ -121,6 +121,11 @@ interface ITestCase {
   expected: Record<string, unknown>
 }
 
+interface IDataProvider {
+  tokens?: Record<string, unknown>
+  [key: string]: unknown
+}
+
 /**
  * Builds a zero value for an ABI type.
  *
@@ -278,22 +283,16 @@ function readDiamondAddress(
 }
 
 /**
- * Reads the selectors already exercised by a fixture file.
+ * The selector a test case exercises.
  *
  * Mirrors how the registry's own coverage check reads a fixture: the selector is
  * the first four bytes of the transaction's calldata.
  */
-function coveredSelectors(fixturePath: string): Set<string> {
-  const covered = new Set<string>()
-  if (!fs.existsSync(fixturePath)) return covered
+function selectorOf(test: ITestCase): string | undefined {
+  if (typeof test.rawTx !== 'string') return undefined
+  const { data } = parseTransaction(test.rawTx as `0x${string}`)
 
-  const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8'))
-  for (const test of fixture.tests ?? []) {
-    if (typeof test.rawTx !== 'string') continue
-    const { data } = parseTransaction(test.rawTx as `0x${string}`)
-    if (data) covered.add(data.slice(0, 10).toLowerCase())
-  }
-  return covered
+  return data?.slice(0, 10).toLowerCase()
 }
 
 function readExistingTests(fixturePath: string): ITestCase[] {
@@ -302,33 +301,78 @@ function readExistingTests(fixturePath: string): ITestCase[] {
   return JSON.parse(fs.readFileSync(fixturePath, 'utf8')).tests ?? []
 }
 
+function readDataProvider(fixturePath?: string): IDataProvider {
+  if (!fixturePath || !fs.existsSync(fixturePath)) return {}
+
+  return JSON.parse(fs.readFileSync(fixturePath, 'utf8')).dataProvider ?? {}
+}
+
 /**
  * Merges the generated token metadata into the existing dataProvider.
  *
  * Existing entries win: a hand-written test renders symbols and decimals from
  * this block, so dropping or redefining one silently changes what that test
- * asserts.
+ * asserts. The overlay contributes the tokens its carried-forward cases need.
  */
-function mergeDataProvider(fixturePath?: string): Record<string, unknown> {
-  const generated = { tokens: DATA_PROVIDER_TOKENS }
-  if (!fixturePath || !fs.existsSync(fixturePath)) return generated
-
-  const existing =
-    JSON.parse(fs.readFileSync(fixturePath, 'utf8')).dataProvider ?? {}
+function mergeDataProvider(
+  fixturePath?: string,
+  overlayPath?: string
+): IDataProvider {
+  const existing = readDataProvider(fixturePath)
 
   // Append rather than merge, so existing entries keep both their values and
   // their position — a reordered token table is diff noise a reviewer must read.
-  const tokens: Record<string, unknown> = { ...(existing.tokens ?? {}) }
-  for (const [address, metadata] of Object.entries(DATA_PROVIDER_TOKENS))
-    if (!(address in tokens)) tokens[address] = metadata
+  const tokens: Record<string, unknown> = { ...existing.tokens }
+  const sources = [readDataProvider(overlayPath).tokens, DATA_PROVIDER_TOKENS]
+  for (const source of sources)
+    for (const [address, metadata] of Object.entries(source ?? {}))
+      if (!(address in tokens)) tokens[address] = metadata
 
   return { ...existing, tokens }
+}
+
+/**
+ * Merges the overlay's cases into the primary fixture's, keyed by selector.
+ *
+ * The sync branch is recreated from upstream on every run, so without this the
+ * generator would regenerate a format covered only there as PENDING and the
+ * sync would dead-end on every run until the upstream PR merges.
+ *
+ * The overlay wins where both cover a selector. It is the upstream PR's own
+ * head, so it carries any edit a reviewer made there, and it was rendered
+ * against the descriptor this run is pushing — upstream's copy can predate a
+ * label change and assert labels the new descriptor no longer emits. Order
+ * follows the primary fixture, with the overlay's extra cases appended.
+ */
+function mergeCases(existing: ITestCase[], overlay: ITestCase[]): ITestCase[] {
+  const bySelector = new Map<string, ITestCase>()
+  for (const test of overlay) {
+    const selector = selectorOf(test)
+    if (selector && !bySelector.has(selector)) bySelector.set(selector, test)
+  }
+
+  const taken = new Set<string>()
+  const merged = existing.map((test) => {
+    const selector = selectorOf(test)
+    if (!selector || taken.has(selector)) return test
+
+    const replacement = bySelector.get(selector)
+    if (replacement) taken.add(selector)
+
+    return replacement ?? test
+  })
+
+  for (const [selector, test] of bySelector)
+    if (!taken.has(selector)) merged.push(test)
+
+  return merged
 }
 
 function buildFixture(
   descriptorPath: string,
   chainId: number,
-  existingPath?: string
+  existingPath?: string,
+  overlayPath?: string
 ) {
   const descriptor = JSON.parse(fs.readFileSync(descriptorPath, 'utf8'))
   const formats: Record<string, IDescriptorFormat> =
@@ -337,10 +381,15 @@ function buildFixture(
 
   // Hand-written fixtures carry real transactions and reviewed expectations;
   // generate only what they do not already cover.
-  const covered = existingPath
-    ? coveredSelectors(existingPath)
-    : new Set<string>()
-  const tests: ITestCase[] = existingPath ? readExistingTests(existingPath) : []
+  const existing = existingPath ? readExistingTests(existingPath) : []
+  const overlay = overlayPath ? readExistingTests(overlayPath) : []
+  const tests = overlay.length ? mergeCases(existing, overlay) : existing
+
+  const covered = new Set<string>()
+  for (const test of tests) {
+    const selector = selectorOf(test)
+    if (selector) covered.add(selector)
+  }
 
   for (const [formatKey, format] of Object.entries(formats)) {
     const selector = toFunctionSelector(`function ${formatKey}`).toLowerCase()
@@ -364,7 +413,7 @@ function buildFixture(
   return {
     $schema: '../../../specs/erc7730-tests-v2.schema.json',
     descriptor: '../calldata-LIFIDiamond.json',
-    dataProvider: mergeDataProvider(existingPath),
+    dataProvider: mergeDataProvider(existingPath, overlayPath),
     tests,
   }
 }
@@ -464,25 +513,27 @@ function checkVisibleFields(
     for (const field of format.fields ?? []) {
       if ((field.visible ?? 'always') === 'never') continue
 
-      // `@.` paths read the transaction envelope, not calldata. Only `value` is
-      // modelled; any other envelope path is a field the generator has no way
-      // to populate, so flag it rather than let it render empty.
+      // `@.` paths read the transaction envelope, not calldata. A visible
+      // `@.value` is what makes nativeValueFor() encode NATIVE_VALUE, so it is
+      // covered by construction; any other envelope path is a field the
+      // generator has no way to populate.
       if (field.path.startsWith('@.')) {
-        if (field.path !== '@.value') {
+        if (field.path !== '@.value')
           problems.push(
             `${abiItem.name}: "${field.label}" (${field.path}) has no generated value — extend buildRawTx()`
-          )
-          continue
-        }
-        if (nativeValueFor(format) === 0n)
-          problems.push(
-            `${abiItem.name}: "${field.label}" (${field.path}) would render as 0`
           )
         continue
       }
 
+      // `undefined` means the path did not resolve at all — a renamed parameter
+      // or a shape resolvePath() does not walk. It is not a zero value, so
+      // isZeroish() would wave it through the very check meant to catch it.
       const value = resolvePath(args, abiItem.inputs, field.path)
-      if (isZeroish(value))
+      if (value === undefined)
+        problems.push(
+          `${abiItem.name}: "${field.label}" (${field.path}) does not resolve against the generated arguments`
+        )
+      else if (isZeroish(value))
         problems.push(
           `${abiItem.name}: "${field.label}" (${field.path}) would render as ${value}`
         )
@@ -541,6 +592,11 @@ const main = defineCommand({
       description:
         'Optional fixture whose test cases are kept as-is; only uncovered selectors are generated',
     },
+    overlay: {
+      type: 'string',
+      description:
+        'Optional second fixture; supplies cases for selectors --existing does not cover, for reviewed cases not yet merged upstream',
+    },
   },
   run({ args }) {
     if (args.check) {
@@ -549,9 +605,11 @@ const main = defineCommand({
 
       if (problems.length) {
         console.error(
-          `\n${problems.length} displayed field(s) would render a zero value. In ` +
-            'tasks/generateClearSigningTests.ts: add a struct component to RECIPIENT_COMPONENTS, ' +
-            'a parameter to the templates, or an envelope field to buildRawTx().'
+          `\n${problems.length} displayed field(s) would render nothing a test can ` +
+            'assert. In tasks/generateClearSigningTests.ts: add a struct component to ' +
+            'RECIPIENT_COMPONENTS, a parameter to the templates, an envelope field to ' +
+            'buildRawTx(), or — for a path that does not resolve — teach resolvePath() ' +
+            'the shape it walks.'
         )
         process.exit(1)
       }
@@ -562,7 +620,12 @@ const main = defineCommand({
     if (!args.out) throw new Error('--out is required unless --check is set')
 
     const chainId = Number(args.chainId ?? 1)
-    const fixture = buildFixture(args.descriptor, chainId, args.existing)
+    const fixture = buildFixture(
+      args.descriptor,
+      chainId,
+      args.existing,
+      args.overlay
+    )
 
     let applied = 0
     if (args.results) applied = applyResults(fixture, args.results)
@@ -591,9 +654,9 @@ const main = defineCommand({
       console.info(
         `Filled in ${applied} expected block(s) from ${args.results}`
       )
-    else
+    else if (pending.length)
       console.info(
-        'Expectations are PENDING — run the reference runner, then re-run with --results'
+        `${pending.length} expectation(s) are PENDING — run the reference runner, then re-run with --results`
       )
   },
 })

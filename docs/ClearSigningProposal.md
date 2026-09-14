@@ -186,6 +186,10 @@ bunx tsx tasks/generateClearSigningTests.ts --descriptor "$REGISTRY/registry/lif
 
 Existing cases are kept verbatim — they carry real transactions and reviewed expectations — and only uncovered selectors are generated. `--results` never overwrites a block that is not `PENDING`: if the runner disagrees with a reviewed expectation, that is a finding to investigate, not something to overwrite.
 
+Commit the reviewed fixture to the fork's sync branch (`sync/lifi-clear-signing`) — that branch is the head of the upstream PR, so the case reaches review alongside the descriptor that introduced the format. The sync recreates that branch from upstream on every run, so `--existing` sees upstream's copy, not the branch's; the branch's own copy is read off `origin/sync/lifi-clear-signing` first and replayed through `--overlay`, which is what makes a case committed there survive until the PR merges.
+
+`--overlay` wins where both fixtures cover a selector. Upstream's copy is the merged one, but it was rendered against whatever descriptor was current when it merged — a sync that renames a label leaves it asserting labels the new descriptor no longer emits — while the sync branch's copy tracks the descriptor being pushed and carries any edit a reviewer made on the PR. Neither copy can be re-rendered automatically, so a descriptor change that alters an **already-covered** format still needs a manual pass through the loop above; the generator preserves reviewed expectations rather than guessing at new ones.
+
 The registry stores these prettier-formatted at `printWidth: 120`. Prettier keeps an object expanded if its input was, so the generator's indented output must be minified before formatting (`jq -c . file | prettier --parser json --print-width 120`) or the fixture carries a whole-file reformat diff. The sync workflow does this.
 
 ## Validating the proposal locally
