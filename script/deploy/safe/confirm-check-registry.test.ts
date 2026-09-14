@@ -10,12 +10,15 @@ import {
   type ICheckLedger,
 } from './check-ledger'
 import {
+  authorityExpectationAnchors,
   CONFIRM_CHECK_DEFINITIONS,
   EVERY_ELEMENT_COMPARED,
   EXECUTABILITY_CHECK_ID,
   NOTHING_TO_COMPARE,
   ORDERING_HOLDS,
   RPC_QUORUM_CHECK_ID,
+  STORAGE_AUTHORITY_CHECK_ID,
+  storageAuthorityCheckResult,
   TARGET_STATE_CHECK,
   TARGET_STATE_CHECK_ID,
   executabilityCheckResult,
@@ -38,6 +41,7 @@ import {
   type ITargetStateVerdict,
   type TargetStateStatus,
 } from './pinned-target-state'
+import type { IPreBroadcastAuthority } from './prebroadcast-authorities'
 import { renderCheckLedger } from './render-check-ledger'
 import type { IRpcQuorumVerdict, TQuorumStatus } from './rpc-quorum'
 
@@ -497,6 +501,17 @@ describe('the registry is usable by the ledger it feeds', () => {
 
 const NETWORK = 'arbitrum'
 
+/** One authority whose expectation is a repo file, so the row may grade green. */
+const cleanAuthorities: IPreBroadcastAuthority[] = [
+  {
+    label: 'LiFiDiamond.pauserWallet()',
+    liveValue: '0x00000000000000000000000000000000000000b2',
+    expectedValue: '0x00000000000000000000000000000000000000b2',
+    expectationSource: 'globalConfig',
+    readError: undefined,
+  },
+]
+
 // `no-diamond-cut` rather than `matches-main`: a version that matches origin/main
 // is graded from the deployment record and is an acknowledgement, so using it here
 // would make every assertion about the gates this PR adds fail on someone else's row.
@@ -604,7 +619,20 @@ const recordInto = (
   ledger: ICheckLedger,
   ...proposals: IProposalCheckVerdicts[]
 ): void => {
-  const rows = proposals.flatMap((verdict) => proposalCheckResults(verdict))
+  const rows = [
+    ...proposals.flatMap((verdict) => proposalCheckResults(verdict)),
+    // `storage-authority` is registered in CONFIRM_CHECK_DEFINITIONS but is not
+    // one of `proposalCheckResults`' rows — the CLI produces it separately and
+    // pushes it onto the same per-proposal array. Recorded here for the same
+    // reason: a registered check nothing produces is `missing`, which blocks,
+    // so a helper that skipped it would report every run as blocked and make
+    // the assertions below about the wrong thing.
+    storageAuthorityCheckResult(
+      cleanAuthorities,
+      NETWORK,
+      authorityExpectationAnchors(cleanAuthorities)
+    ),
+  ]
   for (const row of worstResultPerCheck(rows)) recordCheck(ledger, row)
 }
 
@@ -633,6 +661,7 @@ describe('proposalCheckResults', () => {
       TARGET_STATE_CHECK_ID,
       EXECUTABILITY_CHECK_ID,
       RPC_QUORUM_CHECK_ID,
+      STORAGE_AUTHORITY_CHECK_ID,
     ])
   })
 
@@ -985,9 +1014,14 @@ describe('the verdict the run now closes on', () => {
     const passed = rollups.reduce((sum, rollup) => sum + rollup.passed, 0)
 
     expect(passed).toBeGreaterThan(rollups.length / 2)
-    expect(stripColor(renderCheckLedger(ledger).at(-1) ?? '')).not.toContain(
-      `0/${rollups.length} network results verified`
+    // Anchored on the whole count, not on `not.toContain('0/N …')`: once N
+    // reaches two digits that substring is inside the correct answer, so the
+    // assertion would fail on `10/10` — the greenest line it can render.
+    const closing = stripColor(renderCheckLedger(ledger).at(-1) ?? '')
+    expect(closing).toContain(
+      `${passed}/${rollups.length} network results verified`
     )
+    expect(passed).toBeGreaterThan(0)
   })
 
   // The other half of that asymmetry: a run that graded nothing must not close
@@ -1073,5 +1107,149 @@ describe('the primitive that makes an unmade check blocking', () => {
         (entry) => entry.checkId === CHECK_TIMELOCK_DELAY
       )
     ).toBe(true)
+  })
+})
+
+describe('storageAuthorityCheckResult', () => {
+  const TIMELOCK = '0x00000000000000000000000000000000000000a1'
+  const PAUSER = '0x00000000000000000000000000000000000000b2'
+  const ATTACKER = '0x00000000000000000000000000000000000000ee'
+
+  const entry = (
+    overrides: Partial<IPreBroadcastAuthority> = {}
+  ): IPreBroadcastAuthority => ({
+    label: 'LiFiDiamond.pauserWallet()',
+    liveValue: PAUSER,
+    expectedValue: PAUSER,
+    expectationSource: 'globalConfig',
+    readError: undefined,
+    ...overrides,
+  })
+
+  const resultFor = (entries: IPreBroadcastAuthority[]) =>
+    storageAuthorityCheckResult(
+      entries,
+      'mainnet',
+      authorityExpectationAnchors(entries)
+    )
+
+  it('passes on A-LOCAL when the expectation comes from a repo file', () => {
+    const result = resultFor([entry()])
+    expect(result.status).toBe('pass')
+    expect(result.anchor).toBe('A-LOCAL')
+    expect(result.checkId).toBe(STORAGE_AUTHORITY_CHECK_ID)
+  })
+
+  it('fails when the live value is not what main declares', () => {
+    const result = resultFor([entry({ liveValue: ATTACKER })])
+    expect(result.status).toBe('fail')
+    expect(result.actual).toContain(ATTACKER)
+    expect(result.actual).toContain(PAUSER)
+  })
+
+  it('errors, rather than passing, on a value it could not read', () => {
+    const result = resultFor([
+      entry({ liveValue: undefined, readError: 'node unreachable' }),
+    ])
+    expect(result.status).toBe('error')
+    expect(result.anchor).toBe('A-UNRESOLVED')
+    expect(result.actual).toContain('NOT READ')
+  })
+
+  it('errors when main declares nothing to judge the live value against', () => {
+    const result = resultFor([entry({ expectedValue: undefined })])
+    expect(result.status).toBe('error')
+  })
+
+  describe('an expectation the proposer writes may report but not decide', () => {
+    it('anchors a deployment-record expectation on A-MONGO even when it matches', () => {
+      const result = resultFor([
+        entry({
+          label: 'LiFiDiamond.owner()',
+          liveValue: TIMELOCK,
+          expectedValue: TIMELOCK,
+          expectationSource: 'deployments',
+        }),
+      ])
+      expect(result.status).toBe('pass')
+      expect(result.anchor).toBe('A-MONGO')
+    })
+
+    it('takes the weaker anchor when one of two expectations is proposer-written', () => {
+      const result = resultFor([
+        entry(),
+        entry({
+          label: 'LiFiDiamond.owner()',
+          liveValue: TIMELOCK,
+          expectedValue: TIMELOCK,
+          expectationSource: 'deployments',
+        }),
+      ])
+      expect(result.anchor).toBe('A-MONGO')
+    })
+
+    it('is coerced away from a green by the ledger itself', () => {
+      // The point of the anchor: recordCheck refuses a pass claimed on an
+      // anchor the proposer controls, so this row cannot grade the run green
+      // on a value the proposer supplied one side of.
+      const ledger = createCheckLedger({
+        checks: [...CONFIRM_CHECK_DEFINITIONS],
+        expectedNetworks: ['mainnet'],
+      })
+      recordCheck(
+        ledger,
+        resultFor([
+          entry({
+            label: 'LiFiDiamond.owner()',
+            liveValue: TIMELOCK,
+            expectedValue: TIMELOCK,
+            expectationSource: 'deployments',
+          }),
+        ])
+      )
+      const rendered = renderCheckLedger(ledger)
+      expect(JSON.stringify(rendered)).not.toContain('"status":"pass"')
+    })
+  })
+
+  it('errors on an empty set rather than passing on nothing', () => {
+    const result = resultFor([])
+    expect(result.status).toBe('error')
+    expect(result.anchor).toBe('A-UNRESOLVED')
+    expect(result.actual).toContain('no contract')
+  })
+
+  it('lets a mismatch decide over a failed read in the same set', () => {
+    const result = resultFor([
+      entry({ liveValue: undefined, readError: 'node unreachable' }),
+      entry({ label: 'LiFiDiamond.owner()', liveValue: ATTACKER }),
+    ])
+    expect(result.status).toBe('fail')
+    // Both are still named, so the read failure is not hidden by the mismatch.
+    expect(result.actual).toContain('NOT READ')
+    expect(result.actual).toContain(ATTACKER)
+  })
+})
+
+describe('authorityExpectationAnchors', () => {
+  it('maps the global config to a deciding anchor and the record to a reporting one', () => {
+    const anchors = authorityExpectationAnchors([
+      {
+        label: 'a',
+        liveValue: '0x1',
+        expectedValue: '0x1',
+        expectationSource: 'globalConfig',
+        readError: undefined,
+      },
+      {
+        label: 'b',
+        liveValue: '0x1',
+        expectedValue: '0x1',
+        expectationSource: 'deployments',
+        readError: undefined,
+      },
+    ])
+    expect(anchors.get('a')).toBe('A-LOCAL')
+    expect(anchors.get('b')).toBe('A-MONGO')
   })
 })

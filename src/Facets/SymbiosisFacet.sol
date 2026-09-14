@@ -319,6 +319,10 @@ contract SymbiosisFacet is
             );
         }
 
+        // Known limitation (EXSC-927): the swap calldata below is quoted against minAmount as it
+        // arrived in calldata, while the amount passed is the realized swap output. A favorable
+        // source swap therefore leaves the surplus in the MetaRouter, unrefunded. Acknowledged
+        // and accepted; to be addressed when this facet is next redeployed.
         symbiosisMetaRouter.metaRoute{ value: nativeAssetAmount }(
             ISymbiosisMetaRouter.MetaRouteTransaction(
                 _symbiosisData.firstSwapCalldata,

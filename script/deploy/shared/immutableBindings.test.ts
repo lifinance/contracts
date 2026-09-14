@@ -165,6 +165,8 @@ describe('collectImmutableBindingChecks', () => {
         keyInConfigFile: '.a',
         resolvedKeyInConfigFile: '.a',
         expectedAddress: null,
+        zeroAddressAllowed: false,
+        configFileLoaded: false,
       },
     ])
   })
@@ -204,6 +206,154 @@ describe('collectImmutableBindingChecks', () => {
     )
     expect(check?.getter).toBe('DLN_SOURCE')
     expect(check?.legacyGetters).toEqual(['dlnSource'])
+  })
+
+  it('carries allowToDeployWithZeroAddress as zeroAddressAllowed', () => {
+    // The flag is the only record that a zero read is deliberate rather than drift; a collector
+    // that drops it forces every consumer to re-open the registry to find out.
+    const checks = collectImmutableBindingChecks(
+      'mainnet',
+      'production',
+      {
+        Optional: {
+          configData: {
+            _a: {
+              configFileName: 'across.json',
+              keyInConfigFile: '.<NETWORK>.acrossSpokePool',
+              allowToDeployWithZeroAddress: 'true',
+              getter: 'A',
+            },
+          },
+        },
+        Required: {
+          configData: {
+            _b: {
+              configFileName: 'across.json',
+              keyInConfigFile: '.<NETWORK>.acrossSpokePool',
+              allowToDeployWithZeroAddress: 'false',
+              getter: 'B',
+            },
+          },
+        },
+        Unstated: {
+          configData: {
+            _c: {
+              configFileName: 'across.json',
+              keyInConfigFile: '.<NETWORK>.acrossSpokePool',
+              getter: 'C',
+            },
+          },
+        },
+      },
+      load
+    )
+
+    expect(checks.map((c) => [c.contractName, c.zeroAddressAllowed])).toEqual([
+      ['Optional', true],
+      ['Required', false],
+      ['Unstated', false],
+    ])
+  })
+
+  it('distinguishes an unreadable config file from a key that file does not carry', () => {
+    // Both resolve to a null expectedAddress, but only the second one proves the deployment used
+    // the zero default — treating an unreadable file the same way would assert zero fleet-wide
+    // on nothing more than a missing file.
+    const registry: Record<string, IDeployRequirementEntry> = {
+      Missing: {
+        configData: {
+          _a: {
+            configFileName: 'missing.json',
+            keyInConfigFile: '.a',
+            getter: 'A',
+          },
+        },
+      },
+      Absent: {
+        configData: {
+          _a: {
+            configFileName: 'across.json',
+            keyInConfigFile: '.<NETWORK>.notAKey',
+            getter: 'A',
+          },
+        },
+      },
+    }
+
+    const checks = collectImmutableBindingChecks(
+      'mainnet',
+      'production',
+      registry,
+      load
+    )
+
+    expect(
+      checks.map((c) => [c.contractName, c.configFileLoaded, c.expectedAddress])
+    ).toEqual([
+      ['Absent', true, null],
+      ['Missing', false, null],
+    ])
+  })
+
+  it('does not count a config file that parsed to a non-object as loaded', () => {
+    // Valid JSON that is not an object carries no keys, so every lookup in it resolves to null.
+    // Counting it as loaded turns a corrupted file into a fleet-wide "the value is zero" claim.
+    const checks = collectImmutableBindingChecks(
+      'mainnet',
+      'production',
+      {
+        Scalar: {
+          configData: {
+            _a: {
+              configFileName: 'scalar.json',
+              keyInConfigFile: '.a',
+              allowToDeployWithZeroAddress: 'true',
+              getter: 'A',
+            },
+          },
+        },
+        Listy: {
+          configData: {
+            _a: {
+              configFileName: 'listy.json',
+              keyInConfigFile: '.a',
+              allowToDeployWithZeroAddress: 'true',
+              getter: 'A',
+            },
+          },
+        },
+      },
+      (name: string) => (name === 'scalar.json' ? false : [])
+    )
+
+    expect(checks.map((c) => [c.contractName, c.configFileLoaded])).toEqual([
+      ['Listy', false],
+      ['Scalar', false],
+    ])
+  })
+
+  it('resolves no expectation at all from a config file it did not load', () => {
+    // A numeric path segment indexes a list, so a file that is one can still answer a key. That
+    // pairs a value the caller is told not to trust with a flag saying the file is unusable.
+    const checks = collectImmutableBindingChecks(
+      'mainnet',
+      'production',
+      {
+        Indexed: {
+          configData: {
+            _a: {
+              configFileName: 'listy.json',
+              keyInConfigFile: '.0',
+              getter: 'A',
+            },
+          },
+        },
+      },
+      () => ['0x1111111111111111111111111111111111111111']
+    )
+
+    expect(checks[0]?.configFileLoaded).toBe(false)
+    expect(checks[0]?.expectedAddress).toBeNull()
   })
 
   it('skips an entry without configData', () => {

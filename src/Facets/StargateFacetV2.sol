@@ -153,6 +153,12 @@ contract StargateFacetV2 is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
         // update amount in sendParams
         _stargateData.sendParams.amountLD = _bridgeData.minAmount;
 
+        // Known limitation (EXSC-927): `amountLD` is refreshed above, but
+        // `sendParams.minAmountLD` still carries the destination floor quoted against the
+        // pre-swap amount, so a favorable source swap leaves the delivery guarantee looser than
+        // quoted. No funds are stranded - the full realized amount bridges. Acknowledged and
+        // accepted; to be addressed when this facet is next redeployed.
+
         // execute call to Stargate router
         IStargate(routerAddress).sendToken{ value: msgValue }(
             _stargateData.sendParams,

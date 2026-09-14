@@ -154,7 +154,7 @@
   "arc": {
     "name": "arc",
     "chainId": 5042,
-    "nativeAddress": "0x3600000000000000000000000000000000000000",
+    "nativeAddress": "0x0000000000000000000000000000000000000000",
     "nativeCurrency": "USDC",
     "wrappedNativeAddress": "0x0000000000000000000000000000000000000001",
     "status": "active",
@@ -170,7 +170,7 @@
     "targetEvmVersion": "cancun",
     "create3Factory": "0xDe367507f70A1f57a7203bD7A88ced24A79fb53d",
     "castSendAsync": true,
-    "devNotes": "Native gas asset is USDC, exposed via the ERC20 predeploy at 0x3600000000000000000000000000000000000000 (nativeAddress); wrappedNativeAddress is a dummy because the native path is not activated. TokenWrapper is intentionally not deployed (nothing to wrap) and is exempted in CORE_PERIPHERY_EXEMPTIONS (EXSC-786)."
+    "devNotes": "Gas is paid in USDC under standard EVM accounting, so the native asset is spendable and is identified by the 0x0 sentinel like on any other chain. The ERC20 predeploy at 0x3600000000000000000000000000000000000000 is an optional ERC20 view over that same asset, not the native identifier — do not set it as nativeAddress: GenericSwapFacetV3 binds this value immutably, the live facet holds 0x0, and binding the predeploy instead would disable the positive-slippage refund in _returnPositiveSlippageERC20 (EXSC-1015). wrappedNativeAddress is a dummy because the native path is not activated. TokenWrapper is intentionally not deployed (nothing to wrap) and is exempted in CORE_PERIPHERY_EXEMPTIONS (EXSC-786)."
   },
   "avalanche": {
     "name": "avalanche",
@@ -1172,8 +1172,8 @@
   "stable": {
     "name": "stable",
     "chainId": 988,
-    "nativeAddress": "0x0000000000000000000000000000000000001000",
-    "nativeCurrency": "gUSDT",
+    "nativeAddress": "0x779Ded0c9e1022225f8E0630b35a9b54bE713736",
+    "nativeCurrency": "USDT0",
     "wrappedNativeAddress": "0x779Ded0c9e1022225f8E0630b35a9b54bE713736",
     "status": "active",
     "type": "mainnet",
