@@ -75,6 +75,7 @@ import {
   getLocalSelectorInfo,
   resolveSelectorsViaFourByte,
 } from './selector-registry'
+import { getSignTimeTransportConfig } from './sign-time-transport'
 import {
   TIMELOCK_OPERATION_STATE_ABI,
   TIMELOCK_ZERO_PREDECESSOR,
@@ -546,13 +547,19 @@ export class SafeClient {
     let chain: Chain | undefined = undefined
 
     if (typeof provider === 'string') {
+      // Reads only, and an operator waits on every one of them — this client is
+      // built before the signer is shown a network list. The endpoint's own
+      // retry profile is a broadcast budget: TronGrid's 8 retries on a 2s
+      // exponential backoff is ~10 minutes for one read, and `tronshasta`'s
+      // primary is a TronGrid host. The wallet transport below keeps that
+      // profile, because a broadcast is what it was written for.
       const { url, fetchOptions, retryCount, retryDelay } =
-        getTransportConfigFromRpcUrl(provider)
+        getSignTimeTransportConfig(provider)
       publicClient = createPublicClient({
         transport: http(url, {
           ...(fetchOptions ? { fetchOptions } : {}),
-          ...(retryCount !== undefined ? { retryCount } : {}),
-          ...(retryDelay !== undefined ? { retryDelay } : {}),
+          retryCount,
+          retryDelay,
         }),
       })
     } else {

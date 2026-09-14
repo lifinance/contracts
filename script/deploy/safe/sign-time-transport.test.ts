@@ -136,4 +136,24 @@ describe('sign-time reads carry the cap', () => {
       // sitting next to it, which is the state this change started from.
       expect(source).not.toContain('getTransportConfigFromRpcUrl')
     })
+
+  // `safe-utils.ts` gets its own row rather than joining the list above: the
+  // blanket "no raw helper anywhere in the file" assertion is wrong here, because
+  // this file legitimately keeps it for the transports that broadcast.
+  it('safe-utils.ts caps the client that reads, not the one that sends', () => {
+    const source = readFileSync(join(import.meta.dir, 'safe-utils.ts'), 'utf8')
+
+    const publicClientRead = source.indexOf(
+      'getSignTimeTransportConfig(provider)'
+    )
+    expect(publicClientRead).toBeGreaterThan(-1)
+
+    // The wallet transport is built after it, from the same `provider`, and must
+    // still carry the endpoint's own profile — a broadcast is what that budget
+    // was written for, and capping it would cut a send's retries.
+    const walletTransport = source.indexOf(
+      'getTransportConfigFromRpcUrl(provider)'
+    )
+    expect(walletTransport).toBeGreaterThan(publicClientRead)
+  })
 })
