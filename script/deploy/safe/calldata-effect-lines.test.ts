@@ -220,25 +220,21 @@ describe('buildCalldataEffectLines — what it declines to print', () => {
   })
 })
 
-describe('buildCalldataEffectLines — the delay is stated, not graded', () => {
-  it('states a three-hour delay in seconds and in units', async () => {
-    const lines = plain(await render(scheduleBatch(diamondCut(1), 10_800n)))
-    expect(lines.join('\n')).toContain('delay 10800s (3h)')
-  })
+describe('buildCalldataEffectLines — the timelock envelope', () => {
+  // The delay and the operation count left this line: the delay is read live
+  // from the chain and refused by gate F, and the operation count is restated
+  // by the indexed calls under it. Pinned as an absence so the clause cannot
+  // drift back in unnoticed, with a present beside it — the envelope's own call
+  // is still named.
+  it('states the scheduling call without the delay or a count beside it', async () => {
+    const lines = plain(
+      await render(scheduleBatch(diamondCut(1), 10_800n))
+    ).join('\n')
 
-  it('states a sixty-second delay without ranking it', async () => {
-    const lines = plain(await render(scheduleBatch(diamondCut(1), 60n))).join(
-      '\n'
-    )
-    expect(lines).toContain('delay 60s (1m)')
-    expect(lines).not.toContain('below')
-    expect(lines).not.toContain('config')
-    expect(lines).not.toContain('⚠ delay')
-  })
-
-  it('states a delay no unit divides in seconds alone', async () => {
-    const lines = plain(await render(scheduleBatch(diamondCut(1), 61n)))
-    expect(lines.join('\n')).toContain('delay 61s')
+    expect(lines).toContain('scheduleBatch [')
+    expect(lines).not.toContain('delay')
+    expect(lines).not.toContain('10800')
+    expect(lines).not.toContain('operation')
   })
 })
 
@@ -296,13 +292,11 @@ describe('buildCalldataEffectLines — batches', () => {
     const lines = plain(await render(data)).join('\n')
     expect(lines).toContain('[00] ')
     expect(lines).toContain('[01] ')
-    expect(lines).toContain('2 operations')
   })
 
   it('does not index a single-call batch', async () => {
     const lines = plain(await render(scheduleBatch(diamondCut(1), 10_800n)))
     expect(lines.join('\n')).not.toContain('[00]')
-    expect(lines.join('\n')).toContain('1 operation')
   })
 })
 
@@ -379,7 +373,6 @@ describe('buildCalldataEffectLines — the remaining known calls', () => {
     ).join('\n')
     expect(lines).toContain('schedule [')
     expect(lines).toContain('Replace 2 functions → ')
-    expect(lines).toContain('delay 10800s (3h)')
   })
 
   it('states a non-zero call value instead of collapsing it', async () => {

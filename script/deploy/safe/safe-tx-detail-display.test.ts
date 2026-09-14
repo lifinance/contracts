@@ -839,7 +839,7 @@ describe('the zone renders as one block, byte for byte', () => {
         })
       )
     ).toBe(
-      '      Target: \u001b[32m0x11f1022cA6AdEF6400e5677528a80d49a069C00c\u001b[0m   -   msg.value: \u001b[32m0\u001b[0m \u00b7 \u001b[33m(LiFiDiamond)\u001b[0m \u00b7 \u001b[36mhttps://etherscan.io/address/0x11\u001b[0m'
+      '      Target: \u001b[32m0x11f1022cA6AdEF6400e5677528a80d49a069C00c\u001b[0m \u001b[33m(LiFiDiamond)\u001b[0m   -   msg.value: \u001b[32m0\u001b[0m \u00b7 \u001b[36mhttps://etherscan.io/address/0x11\u001b[0m'
     )
   })
 

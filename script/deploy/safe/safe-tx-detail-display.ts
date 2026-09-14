@@ -345,16 +345,22 @@ function targetParts(input: ISafeTxDetailInput): ITargetParts {
   // the single-line form used: on a line of their own that space is an indent
   // nobody asked for. Each keeps its own colour — painting by position gives a
   // link the name's colour on a target the records could not name.
-  const parts = [
-    targetName === undefined ? undefined : color(YELLOW, targetName),
-    url === undefined ? undefined : color(CYAN, url),
-  ].filter((part): part is Printable => part !== undefined)
+  const parts = [url === undefined ? undefined : color(CYAN, url)].filter(
+    (part): part is Printable => part !== undefined
+  )
 
   return {
+    // The name rides with the address rather than trailing the fields after
+    // it. It is what actually decides the target — the 42 characters are the
+    // citation — so a reader who has to cross `msg.value` to reach it reads the
+    // hex first and the meaning second.
     head: concatPrintable(
       color(GREEN, shown),
       trustedMarkup(notice),
       failed ? FRAGMENT_UNRENDERABLE : EMPTY,
+      targetName === undefined
+        ? EMPTY
+        : concatPrintable(trustedMarkup(' '), color(YELLOW, targetName)),
       notAnAddress,
       withheld
     ),
