@@ -31,6 +31,11 @@ const RECIPIENT_COMPONENTS = new Set([
   'receiver',
 ])
 
+// The native-in swapTokens* formats display `@.value` — the amount the user
+// sends — rather than a calldata parameter. Encoding the default 0 would make
+// those fixtures assert "Amount to send: 0 ETH".
+const NATIVE_VALUE = 2_098_039_615_199_859n
+
 // Tokens referenced by the generated calldata. The runner resolves symbol and
 // decimals from here, so fixtures need no network access.
 const USDC = '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48'
@@ -216,10 +221,26 @@ function buildArg(param: AbiParameter, isSwapVariant: boolean): unknown {
   return defaultForType(param)
 }
 
+/**
+ * The transaction value a format needs, in wei.
+ *
+ * Only `@.value` reaches a screen from the transaction envelope; every other
+ * displayed path resolves into calldata.
+ */
+function nativeValueFor(format: IDescriptorFormat): bigint {
+  const displaysValue = (format.fields ?? []).some(
+    (field) =>
+      field.path === '@.value' && (field.visible ?? 'always') !== 'never'
+  )
+
+  return displaysValue ? NATIVE_VALUE : 0n
+}
+
 function buildRawTx(
   formatKey: string,
   diamond: string,
-  chainId: number
+  chainId: number,
+  value: bigint
 ): string {
   const abiItem = parseAbiItem(`function ${formatKey}`) as AbiFunction
   const isSwapVariant = abiItem.name.startsWith('swapAndStart')
@@ -233,7 +254,7 @@ function buildRawTx(
     chainId,
     type: 'eip1559',
     to: diamond as `0x${string}`,
-    value: 0n,
+    value,
     nonce: 622,
     gas: 2_000_000n,
     maxFeePerGas: 495_000_000n,
@@ -310,7 +331,8 @@ function buildFixture(
   existingPath?: string
 ) {
   const descriptor = JSON.parse(fs.readFileSync(descriptorPath, 'utf8'))
-  const formats: Record<string, unknown> = descriptor?.display?.formats ?? {}
+  const formats: Record<string, IDescriptorFormat> =
+    descriptor?.display?.formats ?? {}
   const diamond = readDiamondAddress(descriptor, chainId)
 
   // Hand-written fixtures carry real transactions and reviewed expectations;
@@ -320,14 +342,14 @@ function buildFixture(
     : new Set<string>()
   const tests: ITestCase[] = existingPath ? readExistingTests(existingPath) : []
 
-  for (const formatKey of Object.keys(formats)) {
+  for (const [formatKey, format] of Object.entries(formats)) {
     const selector = toFunctionSelector(`function ${formatKey}`).toLowerCase()
     if (covered.has(selector)) continue
 
     const abiItem = parseAbiItem(`function ${formatKey}`) as AbiFunction
     let rawTx: string
     try {
-      rawTx = buildRawTx(formatKey, diamond, chainId)
+      rawTx = buildRawTx(formatKey, diamond, chainId, nativeValueFor(format))
     } catch (error) {
       throw new Error(`${abiItem.name}: ${(error as Error).message}`)
     }
@@ -441,7 +463,23 @@ function checkVisibleFields(
 
     for (const field of format.fields ?? []) {
       if ((field.visible ?? 'always') === 'never') continue
-      if (field.path.startsWith('@.')) continue
+
+      // `@.` paths read the transaction envelope, not calldata. Only `value` is
+      // modelled; any other envelope path is a field the generator has no way
+      // to populate, so flag it rather than let it render empty.
+      if (field.path.startsWith('@.')) {
+        if (field.path !== '@.value') {
+          problems.push(
+            `${abiItem.name}: "${field.label}" (${field.path}) has no generated value — extend buildRawTx()`
+          )
+          continue
+        }
+        if (nativeValueFor(format) === 0n)
+          problems.push(
+            `${abiItem.name}: "${field.label}" (${field.path}) would render as 0`
+          )
+        continue
+      }
 
       const value = resolvePath(args, abiItem.inputs, field.path)
       if (isZeroish(value))
@@ -511,8 +549,9 @@ const main = defineCommand({
 
       if (problems.length) {
         console.error(
-          `\n${problems.length} displayed field(s) would render a zero value. Add the component to ` +
-            'RECIPIENT_COMPONENTS in tasks/generateClearSigningTests.ts, or give it a template value.'
+          `\n${problems.length} displayed field(s) would render a zero value. In ` +
+            'tasks/generateClearSigningTests.ts: add a struct component to RECIPIENT_COMPONENTS, ' +
+            'a parameter to the templates, or an envelope field to buildRawTx().'
         )
         process.exit(1)
       }

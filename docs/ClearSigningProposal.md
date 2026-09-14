@@ -161,24 +161,27 @@ The registry requires one test case per `display.formats` entry — it derives t
 
 Two invariants the generator enforces, both of which produce fixtures that pass every runner while asserting nothing if violated:
 
-- **No displayed field may render a zero value.** A `Non-EVM Recipient: 0x0…0` fixture is worthless. `--check` catches this statically and runs in `verifyClearSigning.yml`, so a new `BRIDGE_EXTRA_RECEIVERS` entry fails our PR rather than reaching the registry.
+- **No displayed field may render a zero value.** A `Non-EVM Recipient: 0x0…0` fixture is worthless. `--check` catches this statically and runs in `verifyClearSigning.yml`, so a new `BRIDGE_EXTRA_RECEIVERS` entry fails our PR rather than reaching the registry. This covers the transaction envelope too: the native-in `swapTokens*` formats display `@.value` rather than a parameter, so those cases are encoded with a non-zero value and `--check` rejects any other `@.` path, which the generator has no way to populate.
 - **No expectation may stay `PENDING`.** Expectations come from the reference runner, so a new format needs a render pass before it can be published.
 
-Regenerating after a descriptor change, including that render pass:
+Regenerating after a descriptor change, including that render pass. The runner resolves the fixture's `descriptor` and `$schema` relative to the fixture's own directory and walks up from there to find the registry root, so write the fixture to its real path inside a registry working copy — rendering a copy in `/tmp` fails to resolve the descriptor:
 
 ```bash
+REGISTRY=<path to a clone of clear-signing-erc7730-registry>
+FIXTURE="$REGISTRY/registry/lifi/testsv2/calldata-LIFIDiamond.tests.json"
+
 # 1. first pass — cases without expectations
-bunx tsx tasks/generateClearSigningTests.ts --descriptor <descriptor> --existing <fixture> \
-  --out /tmp/tests.json --allowPending
+bunx tsx tasks/generateClearSigningTests.ts --descriptor "$REGISTRY/registry/lifi/calldata-LIFIDiamond.json" \
+  --existing "$FIXTURE" --out "$FIXTURE" --allowPending
 
 # 2. render them (Node >= 22)
 git clone https://github.com/sourcifyeth/clear-signing-test-runner && cd clear-signing-test-runner
-npm ci && npm run build && node dist/cli.js /tmp/tests.json --output /tmp/results.json --verbose
+npm ci && npm run build && node dist/cli.js "$FIXTURE" --output /tmp/results.json --verbose
 
 # 3. fill the expectations in, then READ them — a snapshot of whatever the
 #    renderer emitted asserts nothing
-bunx tsx tasks/generateClearSigningTests.ts --descriptor <descriptor> --existing <fixture> \
-  --out /tmp/tests.json --results /tmp/results.json
+bunx tsx tasks/generateClearSigningTests.ts --descriptor "$REGISTRY/registry/lifi/calldata-LIFIDiamond.json" \
+  --existing "$FIXTURE" --out "$FIXTURE" --results /tmp/results.json
 ```
 
 Existing cases are kept verbatim — they carry real transactions and reviewed expectations — and only uncovered selectors are generated. `--results` never overwrites a block that is not `PENDING`: if the runner disagrees with a reviewed expectation, that is a finding to investigate, not something to overwrite.
