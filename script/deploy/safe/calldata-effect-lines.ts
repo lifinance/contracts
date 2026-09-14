@@ -64,9 +64,10 @@ import {
 const GREEN = '[32m'
 const RED = '[31m'
 const YELLOW = '[33m'
-const BLUE = '[34m'
+const BLUE = '[94m'
 const CYAN = '[36m'
 const GREY = '[90m'
+const BOLD = '[1m'
 
 const EMPTY = trustedMarkup('')
 
@@ -99,6 +100,20 @@ const DIAMOND_CUT_VERBS: Readonly<Record<number, string>> = {
   0: 'Add',
   1: 'Replace',
   2: 'Remove',
+}
+
+/**
+ * The colour each verb is painted in, keyed off the same closed map.
+ *
+ * Off the map, never off the payload: an action this module cannot name gets
+ * no colour either, so a proposal cannot choose how loudly it is drawn. Bold,
+ * because the verb is the one word on the line a signer scans for and it sits
+ * among the greys and blues the surrounding fields use.
+ */
+const DIAMOND_CUT_VERB_COLOURS: Readonly<Record<string, string>> = {
+  Add: `${BOLD}${GREEN}`,
+  Replace: `${BOLD}${YELLOW}`,
+  Remove: `${BOLD}${RED}`,
 }
 
 /** Renders a stored value inside `code`, with its notice outside the colour. */
@@ -401,34 +416,6 @@ async function decodeCall(
   return functionName === undefined ? undefined : { functionName }
 }
 
-/** The delay in the units a signer reads, alongside the value the row holds. */
-function delayClause(delay: unknown): Printable {
-  const seconds =
-    typeof delay === 'bigint'
-      ? delay
-      : typeof delay === 'number' && Number.isSafeInteger(delay)
-      ? BigInt(delay)
-      : undefined
-  if (seconds === undefined)
-    return concatPrintable(
-      trustedMarkup('delay '),
-      storedField(delay, GREEN),
-      trustedMarkup(' (not a number of seconds)')
-    )
-
-  const units: [bigint, string][] = [
-    [86_400n, 'd'],
-    [3_600n, 'h'],
-    [60n, 'm'],
-  ]
-  const unit = units.find(([size]) => seconds >= size && seconds % size === 0n)
-  const human = unit ? ` (${seconds / unit[0]}${unit[1]})` : ''
-  return concatPrintable(
-    trustedMarkup('delay '),
-    color(GREEN, trustedMarkup(`${seconds}s${human}`))
-  )
-}
-
 const isZeroWord = (value: unknown): boolean =>
   /^0x0{1,64}$/u.test(String(value ?? ''))
 
@@ -441,15 +428,8 @@ const isZeroWord = (value: unknown): boolean =>
  * operation is ordered behind another one — the zero case is the whole of what
  * it has to say, and saying it costs a line on every honest proposal.
  */
-const timelockHeader = (
-  pre: string,
-  called: Printable,
-  operations: number,
-  delay: unknown
-): string =>
-  `${pre}${called}${color(GREY, trustedMarkup(' · '))}${delayClause(
-    delay
-  )}${color(GREY, trustedMarkup(` · ${plural(operations, 'operation')}`))}`
+const timelockHeader = (pre: string, called: Printable): string =>
+  `${pre}${called}`
 
 const predecessorLines = (pre: string, predecessor: unknown): string[] =>
   isZeroWord(predecessor)
@@ -479,7 +459,7 @@ async function scheduleBatchLines(
 ): Promise<string[]> {
   if (args.length < 6)
     return [cannotRead(pre, 'SCHEDULEBATCH ARGUMENTS COULD NOT BE READ')]
-  const [targets, values, payloads, predecessor, , delay] = args
+  const [targets, values, payloads, predecessor] = args
   if (
     !Array.isArray(targets) ||
     !Array.isArray(values) ||
@@ -493,7 +473,7 @@ async function scheduleBatchLines(
     ]
 
   const count = Math.max(targets.length, values.length, payloads.length)
-  const lines = [timelockHeader(pre, called, count, delay)]
+  const lines = [timelockHeader(pre, called)]
   if (targets.length !== values.length || values.length !== payloads.length)
     lines.push(
       cannotRead(
@@ -537,8 +517,8 @@ async function scheduleLines(
 ): Promise<string[]> {
   if (args.length < 6)
     return [cannotRead(pre, 'SCHEDULE ARGUMENTS COULD NOT BE READ')]
-  const [target, value, payload, predecessor, , delay] = args
-  const lines = [timelockHeader(pre, called, 1, delay)]
+  const [target, value, payload, predecessor] = args
+  const lines = [timelockHeader(pre, called)]
   lines.push(...predecessorLines(`${pre}  `, predecessor))
   lines.push(
     ...(await effectLines(payload, { ...context, target }, `${pre}  `))
@@ -616,7 +596,10 @@ async function diamondCutLines(
 
     if (verb === 'Remove') {
       lines.push(
-        `${cutPre}${color(BLUE, trustedMarkup(`Remove ${functions}`))}`
+        `${cutPre}${color(
+          DIAMOND_CUT_VERB_COLOURS['Remove'] as string,
+          trustedMarkup('Remove')
+        )} ${color(BLUE, trustedMarkup(functions))}`
       )
     } else {
       const facet = await renderAddress(context.network, facetAddress)
@@ -635,7 +618,14 @@ async function diamondCutLines(
               quoted(actionValue, GREEN),
               trustedMarkup(` on ${functions} → `)
             )
-          : trustedMarkup(`${verb} ${functions} → `)
+          : concatPrintable(
+              color(
+                DIAMOND_CUT_VERB_COLOURS[verb] ?? BLUE,
+                trustedMarkup(verb)
+              ),
+              color(BLUE, trustedMarkup(` ${functions}`)),
+              trustedMarkup(' → ')
+            )
       lines.push(
         ...addressLines(
           cutPre,
