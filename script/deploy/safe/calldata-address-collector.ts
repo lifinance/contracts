@@ -24,6 +24,7 @@ import {
   carriesAnySelectorAligned,
   collectLeafCalls,
   diamondCutCallsIn,
+  DIAMOND_CUT_SELECTOR,
   type ICollectedLeafCalls,
   type IDiamondCutCall,
   type ILeafCall,
@@ -59,6 +60,21 @@ const REGISTER_PERIPHERY_SELECTOR = toFunctionSelector(
 ).toLowerCase() as Hex
 
 /**
+ * The selectors a reader in this module opens and decides on itself.
+ *
+ * The aligned-selector scan below exists for leaves nothing opened, so it must
+ * not run on these: a cut that adds, replaces or removes
+ * `PeripheryRegistryFacet` lists that facet's selectors in its `bytes4[]`, one
+ * of which is `registerPeripheryContract` — byte-aligned by construction. A
+ * cut installing it is a core-facet shape (`config/global.json`), so scanning
+ * one the other reader decoded cleanly calls a read call unreadable.
+ */
+const HANDLED_SELECTORS: readonly string[] = [
+  DIAMOND_CUT_SELECTOR,
+  REGISTER_PERIPHERY_SELECTOR,
+]
+
+/**
  * The periphery registrations a proposal's calls reach.
  *
  * The name travels with the address because the address alone cannot be graded:
@@ -83,7 +99,10 @@ const peripheryReferences = (
       // A leaf this walk could not open, which could be carrying a registration.
       // `collectLeafCalls` reports the envelopes it failed on; this covers the
       // ones it never recognised as envelopes at all.
-      if (carriesAnySelectorAligned(leaf.data, [REGISTER_PERIPHERY_SELECTOR]))
+      if (
+        !HANDLED_SELECTORS.includes(leaf.selector) &&
+        carriesAnySelectorAligned(leaf.data, [REGISTER_PERIPHERY_SELECTOR])
+      )
         unreadable.push(
           `call[${leaf.callIndex}] (carries a registerPeripheryContract selector this could not read through)`
         )
@@ -144,6 +163,17 @@ const referencesOfCall = (
     role: AddressRoleEnum.CutInit,
     path: `${path}.init`,
   })
+
+  // The walk stops at the cut, so a registration carried in its init calldata
+  // is reached by no reader that could grade the address it names — and the
+  // scan above no longer sees cut leaves, which is where this one would
+  // otherwise have been caught.
+  if (
+    carriesAnySelectorAligned(call.initCalldata, [REGISTER_PERIPHERY_SELECTOR])
+  )
+    unreadable.push(
+      `${path}.init (carries a registerPeripheryContract selector this could not read through)`
+    )
 
   return { references, unreadable }
 }

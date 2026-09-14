@@ -346,3 +346,47 @@ describe('periphery registrations are collected with the name they bind', () => 
     expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.NameMismatch)
   })
 })
+
+describe('the aligned-selector scan runs only where no reader looked', () => {
+  const REGISTER_PERIPHERY_SELECTOR = '0x5c2ed36a' as Hex
+
+  const cutCarrying = (selectors: Hex[], initCalldata: Hex): Hex =>
+    encodeFunctionData({
+      abi: DIAMOND_CUT_ABI,
+      functionName: 'diamondCut',
+      args: [
+        [{ facetAddress: FACET, action: 0, functionSelectors: selectors }],
+        initCalldata === '0x' ? (ZERO_ADDRESS as Address) : DIAMOND,
+        initCalldata,
+      ],
+    })
+
+  it('reads a cut that installs PeripheryRegistryFacet without calling it unreadable', () => {
+    // The facet's own selector list contains `registerPeripheryContract`,
+    // byte-aligned by construction. `PeripheryRegistryFacet` is a core facet,
+    // so scanning a cut the other reader had just decoded reported every
+    // new-network onboarding as both read and unreadable.
+    const { references, undecodable } = collectAddressReferences([
+      cutCarrying([REGISTER_PERIPHERY_SELECTOR, '0xaabbccdd' as Hex], '0x'),
+    ])
+
+    expect(undecodable).toEqual([])
+    expect(
+      references.some(
+        (reference) => reference.role === AddressRoleEnum.FacetAdd
+      )
+    ).toBe(true)
+  })
+
+  it('still reports a registration carried in a cut init calldata', () => {
+    // The walk stops at the cut, so nothing opens its init calldata — the one
+    // hiding place the blanket scan above used to cover.
+    const { undecodable } = collectAddressReferences([
+      cutCarrying(['0xaabbccdd' as Hex], register('Executor', PERIPHERY)),
+    ])
+
+    expect(undecodable).toEqual([
+      'call[0].diamondCut[0].init (carries a registerPeripheryContract selector this could not read through)',
+    ])
+  })
+})
