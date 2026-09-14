@@ -4,10 +4,9 @@
 
 import { createPublicClient, http, type PublicClient } from 'viem'
 
-import {
-  getTransportConfigFromRpcUrl,
-  getViemChainForNetworkName,
-} from '../../utils/viemScriptHelpers'
+import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
+
+import { getSignTimeTransportConfig } from './sign-time-transport'
 
 /** Builds a read-only viem client for a network, honoring an optional RPC override. */
 export function buildReadOnlyClient(
@@ -22,7 +21,7 @@ export function buildReadOnlyClient(
   // surfacing as a failed read.
   const endpointUrl = rpcUrl ?? chain.rpcUrls.default.http[0]
   const { url, fetchOptions, retryCount, retryDelay } = endpointUrl
-    ? getTransportConfigFromRpcUrl(endpointUrl)
+    ? getSignTimeTransportConfig(endpointUrl)
     : {
         url: undefined,
         fetchOptions: undefined,

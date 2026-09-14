@@ -3,6 +3,9 @@
 # - Triggers: push-to-main on deployment/proposal-relevant paths (fast path), a monthly cron safety net, and manual workflow_dispatch (with optional dry_run). Facet changes are covered transitively: `verifyClearSigning.yml` forces `config/clearSigningProposal.json` to be regenerated in the same PR, so a facet change that alters any format shows up as a change to that file.
 # - Key behaviors: clones our fork (`lifinance/clear-signing-erc7730-registry`, originally forked from LedgerHQ, now tracking the EF-hosted registry), regenerates the JSON with merged `display.formats`, normalizes it with the registry's own `erc7730 format` so the diff carries only real changes (not formatting churn), pushes a branch to the fork, creates/updates a PR upstream, and posts the PR link to Slack.
 # - Trust model: this workflow assumes `config/clearSigningProposal.json` is current against the on-chain diamond, which is enforced at PR-merge time by `verifyClearSigning.yml`. If that gate is bypassed, the proposal may be stale.
+# - Test fixtures: the reviewed testsv2 fixture is `config/clearSigningTests.json` in THIS repo, and the registry copy is an output of it. The sync never reads the registry's own copy, so the sync branch — recreated from upstream and force-pushed on every run — carries no state, and an upstream edit to the fixture is replaced rather than merged (visible as a diff in the sync PR; the repo copy is the thing to change).
+# - Failure mode "N format(s) have no expectation yet": the descriptor gained a format `config/clearSigningTests.json` does not cover, and the generator refuses to invent an expectation for it — a fabricated one would fail the registry's own runners. The sync is meant to stop here; it is NOT fixed by re-running. Remedy: run the render loop in docs/ClearSigningProposal.md ("Test fixtures"), read what the reference runner produced, and commit the reviewed fixture to `config/clearSigningTests.json` in a normal PR to this repo. The next sync then finds every format covered and proceeds. For a format WE propose this is now caught at PR time by `verifyClearSigning.yml`, so reaching it here means the format came from upstream.
+# - Every failure of this job posts to Slack. It runs unattended (push-to-main and a monthly cron), so a red run that notified nobody would leave the registry descriptor silently frozen.
 # - Note: The ERC-7730 registry moved from `LedgerHQ/clear-signing-erc7730-registry` to `ethereum/clear-signing-erc7730-registry` (Ethereum Foundation now hosts it). The fork retains its original name; only the upstream remote target changed.
 # - Upstream-only: guarded to lifinance/contracts because forks that sync this file (contracts-tron) lack `LEDGER_SYNC_TOKEN`/Slack secrets and must not push to the EF registry.
 
@@ -27,8 +30,12 @@ on:
       - 'deployments/**' # new deployment addresses
       - 'config/networks.json' # chain metadata used by deployments resolver
       - 'config/clearSigningProposal.json' # the display.formats source of truth
+      - 'config/clearSigningTests.json' # the reviewed testsv2 fixture
       - 'tasks/generateLedgerClearSigning.ts'
       - 'tasks/buildClearSigningProposal.ts'
+      # Changes what the registry fixture contains, so a merged generator fix
+      # has to resync rather than wait for an unrelated path to trigger a run.
+      - 'tasks/generateClearSigningTests.ts'
       - '.github/workflows/syncLedgerClearSigning.yml'
 
 permissions:
@@ -106,6 +113,8 @@ jobs:
           LEDGER_FORK: ${{ secrets.LEDGER_FORK || 'lifinance/clear-signing-erc7730-registry' }} # optional override
           LEDGER_UPSTREAM: ethereum/clear-signing-erc7730-registry # Ethereum Foundation-hosted (migrated from LedgerHQ in 2026)
           LEDGER_FILE_PATH: registry/lifi/calldata-LIFIDiamond.json
+          LEDGER_TESTS_PATH: registry/lifi/testsv2/calldata-LIFIDiamond.tests.json
+          LOCAL_TESTS_PATH: config/clearSigningTests.json # reviewed source of truth, see below
           SYNC_BRANCH: sync/lifi-clear-signing
           PR_TITLE: 'lifi: sync calldata-LIFIDiamond.json (deployments + display.formats)'
           # Dry-run only applies on workflow_dispatch. Cron + push triggers always
@@ -165,6 +174,37 @@ jobs:
           echo -e "\033[32mFormatting ${LEDGER_FILE_PATH} with erc7730 (registry canonical formatter)...\033[0m"
           erc7730 format "ledger-registry/${LEDGER_FILE_PATH}"
 
+          # The registry fails a descriptor whose display.formats entries are not
+          # each exercised by a test case, so the fixture has to travel with the
+          # descriptor. The reviewed fixture lives in THIS repo, not in the
+          # registry: `config/clearSigningTests.json` is the source of truth, its
+          # cases are kept verbatim, and the registry copy is an output. Reading
+          # the registry's own copy instead would make a mutable branch on the
+          # fork the carrier of reviewed state (deletable, and force-pushed on
+          # every run) and would let the sync silently revert an upstream edit.
+          # `verifyClearSigning.yml` runs this same check on PRs, but only against
+          # `config/clearSigningProposal.json`. The merged descriptor also carries
+          # formats the registry preserves and we never proposed, whose displayed
+          # fields our templates may have no value for; this is the only place
+          # they can be checked, because PR CI cannot see upstream.
+          echo -e "\033[32mChecking displayed fields of the merged descriptor...\033[0m"
+          bunx tsx tasks/generateClearSigningTests.ts \
+            --descriptor "ledger-registry/${LEDGER_FILE_PATH}" --check
+
+          echo -e "\033[32mGenerating ${LEDGER_TESTS_PATH} from ${LOCAL_TESTS_PATH}...\033[0m"
+          bunx tsx tasks/generateClearSigningTests.ts \
+            --descriptor "ledger-registry/${LEDGER_FILE_PATH}" \
+            --existing "${LOCAL_TESTS_PATH}" \
+            --out /tmp/lifi-tests.json
+
+          # The registry stores these prettier-formatted at printWidth 120.
+          # Prettier keeps an object expanded if its input was, so the generator's
+          # indented output has to be minified first for prettier to re-compact
+          # it — without this the fixture carries a whole-file reformat diff.
+          jq -c . /tmp/lifi-tests.json > /tmp/lifi-tests.min.json
+          bunx prettier --parser json --print-width 120 /tmp/lifi-tests.min.json \
+            > "ledger-registry/${LEDGER_TESTS_PATH}"
+
           cd ledger-registry
           if [ -z "$(git status --porcelain)" ]; then
             echo -e "\033[32mNo changes detected. Nothing to sync.\033[0m"
@@ -182,13 +222,13 @@ jobs:
             # lines, which sends SIGPIPE to `git diff` and fails the step.
             # First-run dry-runs have a multi-thousand-line diff (one block per
             # display.formats entry), so this matters in practice.
-            git --no-pager diff -- "${LEDGER_FILE_PATH}" | sed -n '1,200p'
+            git --no-pager diff -- "${LEDGER_FILE_PATH}" "${LEDGER_TESTS_PATH}" | sed -n '1,200p'
             echo ""
             echo -e "\033[33m[dry-run] Skipping commit/push/PR-create/Slack. Done.\033[0m"
             exit 0
           fi
 
-          git add "${LEDGER_FILE_PATH}"
+          git add "${LEDGER_FILE_PATH}" "${LEDGER_TESTS_PATH}"
           git -c user.name="lifi-action-bot" -c user.email="lifi-action-bot@users.noreply.github.com" \
             commit -m "${PR_TITLE}" -m "Auto-generated from lifinance/contracts (deployments and display.formats from config/clearSigningProposal.json; deprecated context.contract.abi stripped)."
 
@@ -286,3 +326,26 @@ jobs:
           curl -fsS -X POST -H 'Content-Type: application/json' \
             -d "${payload}" "${SLACK_WEBHOOK_SC_GENERAL}" >/dev/null
           echo "Slack notified."
+
+      - name: Notify Slack when the sync fails
+        # The success notification above is gated on `pr_was_created`, so a run
+        # that dies before opening a PR sets no output and says nothing anywhere.
+        # This job runs unattended on push-to-main and a monthly cron; without
+        # this step its most likely failure — a format with no expectation —
+        # is a red run in a workflow list nobody reads. A manual run is excluded:
+        # whoever dispatched it is already looking at the result.
+        if: failure() && github.event_name != 'workflow_dispatch'
+        env:
+          SLACK_WEBHOOK_SC_GENERAL: ${{ secrets.SLACK_WEBHOOK_SC_GENERAL }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SLACK_WEBHOOK_SC_GENERAL:-}" ]; then
+            echo "SLACK_WEBHOOK_SC_GENERAL not set — skipping notification."
+            exit 0
+          fi
+          payload=$(jq -nc --arg run "${RUN_URL}" \
+            '{text: "🚨 ERC-7730 clear-signing sync failed — the registry descriptor is no longer being updated: \($run)"}')
+          curl -fsS -X POST -H 'Content-Type: application/json' \
+            -d "${payload}" "${SLACK_WEBHOOK_SC_GENERAL}" >/dev/null
+          echo "Slack notified of failure."

@@ -547,8 +547,8 @@ export const CONFIRM_CHECK_DEFINITIONS: readonly ICheckDefinition[] = [
       throw new Error(`CONFIRM_CHECK_DEFINITIONS: no definition for ${checkId}`)
     return definition
   }),
-  STORAGE_AUTHORITY_CHECK,
   TARGET_STATE_CHECK,
+  STORAGE_AUTHORITY_CHECK,
   EXECUTABILITY_CHECK,
   RPC_QUORUM_CHECK,
 ]

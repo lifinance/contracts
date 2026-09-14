@@ -612,11 +612,35 @@ const verdicts = (
  * worst-first across the network's proposals, then record. Going through the
  * same reducer keeps these tests honest about the shape the call site uses.
  */
+/** One authority whose expectation is a repo file, so the row may grade green. */
+const cleanAuthorities: IPreBroadcastAuthority[] = [
+  {
+    label: 'LiFiDiamond.pauserWallet()',
+    liveValue: '0x00000000000000000000000000000000000000b2',
+    expectedValue: '0x00000000000000000000000000000000000000b2',
+    expectationSource: 'globalConfig',
+    readError: undefined,
+  },
+]
+
 const recordInto = (
   ledger: ICheckLedger,
   ...proposals: IProposalCheckVerdicts[]
 ): void => {
-  const rows = proposals.flatMap((verdict) => proposalCheckResults(verdict))
+  const rows = [
+    ...proposals.flatMap((verdict) => proposalCheckResults(verdict)),
+    // `storage-authority` is registered in CONFIRM_CHECK_DEFINITIONS but is not
+    // one of `proposalCheckResults`' rows — the CLI produces it separately and
+    // pushes it onto the same per-proposal array. Recorded here for the same
+    // reason: a registered check nothing produces is `missing`, which blocks,
+    // so a helper that skipped it would report every run as blocked and make
+    // the assertions below about the wrong thing.
+    storageAuthorityCheckResult(
+      cleanAuthorities,
+      NETWORK,
+      authorityExpectationAnchors(cleanAuthorities)
+    ),
+  ]
   for (const row of worstResultPerCheck(rows)) recordCheck(ledger, row)
 }
 
@@ -645,6 +669,7 @@ describe('proposalCheckResults', () => {
       TARGET_STATE_CHECK_ID,
       EXECUTABILITY_CHECK_ID,
       RPC_QUORUM_CHECK_ID,
+      STORAGE_AUTHORITY_CHECK_ID,
     ])
   })
 
@@ -1001,8 +1026,12 @@ describe('the verdict the run now closes on', () => {
     const passed = rollups.reduce((sum, rollup) => sum + rollup.passed, 0)
 
     expect(passed).toBeGreaterThan(rollups.length / 2)
-    expect(stripColor(renderCheckLedger(ledger).at(-1) ?? '')).not.toContain(
-      `0/${rollups.length} network results verified`
+    // Anchored on the whole count, not on `not.toContain('0/N …')`: once N
+    // reaches two digits that substring is inside the correct answer, so the
+    // assertion would fail on `10/10` — the greenest line it can render.
+    const closing = stripColor(renderCheckLedger(ledger).at(-1) ?? '')
+    expect(closing).toContain(
+      `${passed}/${rollups.length} network results verified`
     )
   })
 

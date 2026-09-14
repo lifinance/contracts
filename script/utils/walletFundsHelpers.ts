@@ -208,11 +208,16 @@ export interface IGasAssetChain {
 
 /**
  * True when a chain has no spendable native gas asset because gas is paid in an ERC-20:
- * either an explicit gas-token predeploy (arc — `nativeAddress` is a real contract) or
- * the tempo-style model (`nativeCurrency: "N/A"`, gas paid via `feeTokenAddress`, and a
- * `0x0` native sentinel that would otherwise slip past an address-only check). A plain
- * native value transfer (`send`) and the native leg of a bridge/swap are meaningless on
- * such chains, so callers refuse them locally instead of relying on a remote API error.
+ * either a `nativeAddress` pointing at a real gas-token contract, or the tempo-style model
+ * (`nativeCurrency: "N/A"`, gas paid via `feeTokenAddress`, and a `0x0` native sentinel that
+ * would otherwise slip past an address-only check). A plain native value transfer (`send`)
+ * and the native leg of a bridge/swap are meaningless on such chains, so callers refuse them
+ * locally instead of relying on a remote API error.
+ *
+ * @remarks arc pays gas in USDC but is deliberately NOT such a chain: it keeps standard EVM
+ * accounting, so its native asset is spendable and its `nativeAddress` is the `0x0` sentinel.
+ * The ERC20 predeploy at `0x36…00` is a view over that same asset, not a separate gas token
+ * (EXSC-1015).
  */
 export function chainUsesErc20Gas(net: IGasAssetChain): boolean {
   if (net.feeTokenAddress) return true

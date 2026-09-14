@@ -31,7 +31,6 @@ import { redactUrls } from '../../utils/redactUrls'
 import {
   buildExplorerAddressUrl,
   getFallbackTransportForChain,
-  getTransportConfigFromRpcUrl,
 } from '../../utils/viemScriptHelpers'
 import { createDefaultCache } from '../shared/deployment-cache'
 import { getGitCommit, sanitizeProvenanceText } from '../shared/git-provenance'
@@ -140,6 +139,7 @@ import {
   collectProviderObservations,
   createCodeReader,
   createPinnedBlock,
+  ENDPOINT_READ_BUDGET_MS,
 } from './rpc-quorum-collector'
 import { getTargetName } from './safe-decode-utils'
 import {
@@ -177,6 +177,7 @@ import {
   type SafeNonceStatus,
   type SafeTxStatus,
 } from './safe-utils'
+import { getSignTimeTransportConfig } from './sign-time-transport'
 import {
   buildSignedSetRecord,
   formatSignedSetForDisplay,
@@ -1073,12 +1074,12 @@ const processTxs = async (
         const overrideTransports = overrideEndpoints.flatMap((endpointUrl) => {
           try {
             const { url, fetchOptions, retryCount, retryDelay } =
-              getTransportConfigFromRpcUrl(endpointUrl)
+              getSignTimeTransportConfig(endpointUrl)
             return [
               http(url, {
                 ...(fetchOptions ? { fetchOptions } : {}),
-                ...(retryCount !== undefined ? { retryCount } : {}),
-                ...(retryDelay !== undefined ? { retryDelay } : {}),
+                retryCount,
+                retryDelay,
               }),
             ]
           } catch (error) {
@@ -1123,22 +1124,22 @@ const processTxs = async (
         // the payload's own answer has to be read endpoint by endpoint instead.
         //
         // Built through the same transport config the rest of the run uses, not
-        // from the bare URL: that is where an endpoint's auth headers and retry
-        // policy come from, and a simulator missing them fails to authenticate
-        // on every endpoint — which this gate would then read as a proposal
-        // nobody could simulate rather than as its own misconfiguration.
+        // from the bare URL: that is where an endpoint's auth headers come
+        // from, and a simulator missing them fails to authenticate on every
+        // endpoint — which this gate would then read as a proposal nobody could
+        // simulate rather than as its own misconfiguration.
         const simulators = [...overrideEndpoints, ...endpoints].flatMap(
           (endpointUrl) => {
             try {
               const { url, fetchOptions, retryCount, retryDelay } =
-                getTransportConfigFromRpcUrl(endpointUrl)
+                getSignTimeTransportConfig(endpointUrl)
               return [
                 createPublicClient({
                   chain,
                   transport: http(url, {
                     ...(fetchOptions ? { fetchOptions } : {}),
-                    ...(retryCount !== undefined ? { retryCount } : {}),
-                    ...(retryDelay !== undefined ? { retryDelay } : {}),
+                    retryCount,
+                    retryDelay,
                   }),
                 }),
               ]
@@ -1191,6 +1192,7 @@ const processTxs = async (
             createCodeReader(
               quorumTarget,
               chain.id,
+              ENDPOINT_READ_BUDGET_MS,
               createPinnedBlock(endpoints, chain.id)
             )
           )
