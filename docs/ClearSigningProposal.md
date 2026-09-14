@@ -163,25 +163,37 @@ Two invariants the generator enforces, both of which produce fixtures that pass 
 
 - **No displayed field may render a zero value.** A `Non-EVM Recipient: 0x0…0` fixture is worthless. `--check` catches this statically and runs in `verifyClearSigning.yml`, so a new `BRIDGE_EXTRA_RECEIVERS` entry fails our PR rather than reaching the registry. This covers the transaction envelope too: the native-in `swapTokens*` formats display `@.value` rather than a parameter, so those cases are encoded with a non-zero value and `--check` rejects any other `@.` path, which the generator has no way to populate.
 - **No expectation may stay `PENDING`.** Expectations come from the reference runner, so a new format needs a render pass before it can be published.
+- **No format may go without a case.** `--check --tests config/clearSigningTests.json` verifies the reviewed fixture covers every format in the proposal, and runs in `verifyClearSigning.yml`. Without it the missing case is not a PR failure at all: the sync is the first thing to notice, after merge, unattended. The sync also runs the zero-value half of `--check` against the merged descriptor, which is the only place formats the registry preserves but we never proposed can be checked — PR CI cannot see upstream.
 
 **The reviewed fixture lives in this repo**, at [`config/clearSigningTests.json`](../config/clearSigningTests.json). The registry copy is an output of it: the sync reads the repo file, writes the registry path, and never reads the registry's own copy back. So the fixture is reviewed through a normal PR here, alongside the proposal change that made it necessary, and no state is carried on the fork's sync branch — a branch that is recreated from upstream and force-pushed on every run, and that anyone may delete. The cost is that an edit made directly on the registry is replaced rather than merged; it shows up as a diff in the sync PR, and the fix is to make the same change here.
 
 Regenerating after a descriptor change, including the render pass. The runner resolves the fixture's `descriptor` and `$schema` relative to the fixture's own directory and walks up from there to find the registry root, so the fixture has to be staged at its real path inside a registry working copy to be rendered — rendering the repo copy in place fails to resolve the descriptor:
 
 ```bash
-REGISTRY=<path to a clone of clear-signing-erc7730-registry>
-DESCRIPTOR="$REGISTRY/registry/lifi/calldata-LIFIDiamond.json"
-STAGED="$REGISTRY/registry/lifi/testsv2/calldata-LIFIDiamond.tests.json"
+# Run every step from the root of this repo. The registry clone has to live
+# inside it: generateLedgerClearSigning.ts refuses to write outside the working
+# directory. `ledger-registry/` is gitignored and is the path the sync uses too.
+git clone https://github.com/ethereum/clear-signing-erc7730-registry ledger-registry
+DESCRIPTOR=ledger-registry/registry/lifi/calldata-LIFIDiamond.json
+STAGED=ledger-registry/registry/lifi/testsv2/calldata-LIFIDiamond.tests.json
 
-# 1. stage the repo fixture at its registry path, new cases without expectations
+# 1. merge this repo's display.formats into the clone's descriptor. Skipping this
+#    step fails silently rather than loudly: the clone carries only the formats
+#    upstream already has, so the format you came to render is absent, nothing is
+#    generated for it, and the loop finishes green having written back exactly
+#    what you started with. The next sync is what fails.
+bunx tsx tasks/generateLedgerClearSigning.ts --ledgerFilePath "$DESCRIPTOR"
+
+# 2. stage the repo fixture at its registry path, new cases without expectations
 bunx tsx tasks/generateClearSigningTests.ts --descriptor "$DESCRIPTOR" \
   --existing config/clearSigningTests.json --out "$STAGED" --allowPending
 
-# 2. render them (Node >= 22)
-git clone https://github.com/sourcifyeth/clear-signing-test-runner && cd clear-signing-test-runner
-npm ci && npm run build && node dist/cli.js "$STAGED" --output /tmp/results.json --verbose
+# 3. render them (Node >= 22)
+git clone https://github.com/sourcifyeth/clear-signing-test-runner /tmp/cs-runner
+(cd /tmp/cs-runner && npm ci && npm run build)
+node /tmp/cs-runner/dist/cli.js "$STAGED" --output /tmp/results.json --verbose
 
-# 3. fill the expectations in, then READ them — a snapshot of whatever the
+# 4. fill the expectations in, then READ them — a snapshot of whatever the
 #    renderer emitted asserts nothing — and write back to the repo copy
 bunx tsx tasks/generateClearSigningTests.ts --descriptor "$DESCRIPTOR" \
   --existing "$STAGED" --out config/clearSigningTests.json --results /tmp/results.json

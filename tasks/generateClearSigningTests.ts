@@ -418,7 +418,9 @@ function applyResults(
 }
 
 function isZeroish(value: unknown): boolean {
-  if (value === 0n || value === '') return true
+  if (value === 0n || value === 0 || value === false || value === '')
+    return true
+  if (Array.isArray(value)) return value.length === 0
   if (typeof value !== 'string') return false
 
   return /^0x0*$/i.test(value) || value.toLowerCase() === ZERO_ADDRESS
@@ -500,6 +502,38 @@ function checkVisibleFields(
   return problems
 }
 
+/**
+ * Fails when a format has no test case in the reviewed fixture.
+ *
+ * The registry rejects a descriptor whose formats are not each exercised by a
+ * case, and the sync builds the registry fixture from the repo's copy without
+ * inventing expectations. So an uncovered format does not fail the PR that
+ * introduces it — it fails the next sync, after merge, in a workflow nobody is
+ * watching. This check moves that failure back to the PR.
+ */
+function checkCoverage(
+  formats: Record<string, IDescriptorFormat>,
+  testsPath: string
+): string[] {
+  if (!fs.existsSync(testsPath))
+    throw new Error(`--tests ${testsPath} does not exist`)
+
+  const covered = new Set<string>()
+  for (const test of readExistingTests(testsPath)) {
+    const selector = selectorOf(test)
+    if (selector) covered.add(selector)
+  }
+
+  const problems: string[] = []
+  for (const formatKey of Object.keys(formats)) {
+    const selector = toFunctionSelector(`function ${formatKey}`).toLowerCase()
+    if (!covered.has(selector))
+      problems.push(`${formatKey} (${selector}) has no test case`)
+  }
+
+  return problems
+}
+
 function readFormats(sourcePath: string): Record<string, IDescriptorFormat> {
   const source = JSON.parse(fs.readFileSync(sourcePath, 'utf8'))
 
@@ -550,23 +584,46 @@ const main = defineCommand({
       description:
         'Optional fixture whose test cases are kept as-is; only uncovered selectors are generated',
     },
+    tests: {
+      type: 'string',
+      description:
+        'With --check: also verify this fixture has a test case for every format',
+    },
   },
   run({ args }) {
     if (args.check) {
-      const problems = checkVisibleFields(readFormats(args.descriptor))
-      for (const problem of problems) console.error(`  ✗ ${problem}`)
+      const formats = readFormats(args.descriptor)
+      const fieldProblems = checkVisibleFields(formats)
+      const coverageProblems = args.tests
+        ? checkCoverage(formats, args.tests)
+        : []
 
-      if (problems.length) {
+      for (const problem of [...fieldProblems, ...coverageProblems])
+        console.error(`  ✗ ${problem}`)
+
+      if (fieldProblems.length)
         console.error(
-          `\n${problems.length} displayed field(s) would render nothing a test can ` +
+          `\n${fieldProblems.length} displayed field(s) would render nothing a test can ` +
             'assert. In tasks/generateClearSigningTests.ts: add a struct component to ' +
             'RECIPIENT_COMPONENTS, a parameter to the templates, an envelope field to ' +
             'buildRawTx(), or — for a path that does not resolve — teach resolvePath() ' +
             'the shape it walks.'
         )
-        process.exit(1)
-      }
+
+      if (coverageProblems.length)
+        console.error(
+          `\n${coverageProblems.length} format(s) have no reviewed test case in ` +
+            `${args.tests}. The registry rejects a descriptor whose formats are not each ` +
+            'exercised, and the sync will not invent an expectation — so left unfixed this ' +
+            'fails the next sync after merge, not this PR. Remedy: run the render loop in ' +
+            'docs/ClearSigningProposal.md ("Test fixtures") and commit the result.'
+        )
+
+      if (fieldProblems.length || coverageProblems.length) process.exit(1)
+
       console.info('✓ every displayed field renders a real value')
+      if (args.tests)
+        console.info(`✓ every format has a test case in ${args.tests}`)
       return
     }
 
