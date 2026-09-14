@@ -118,7 +118,15 @@ interface IRenderedCase {
 interface ITestCase {
   description: string
   rawTx: string
-  expected: Record<string, unknown>
+  expected: IExpectation
+}
+
+interface IExpectation {
+  intent?: string
+  interpolatedIntent?: string
+  owner?: string
+  fields?: Array<{ label: string; value: unknown }>
+  [key: string]: unknown
 }
 
 interface IDataProvider {
@@ -513,14 +521,27 @@ function checkVisibleFields(
   return problems
 }
 
+/** The labels a format puts on screen, in the order the descriptor lists them. */
+function displayedLabels(format: IDescriptorFormat): string[] {
+  return (format.fields ?? [])
+    .filter((field) => (field.visible ?? 'always') !== 'never')
+    .map((field) => field.label)
+}
+
 /**
- * Fails when a format has no test case in the reviewed fixture.
+ * Fails when a format has no test case, or when its case asserts stale labels.
  *
  * The registry rejects a descriptor whose formats are not each exercised by a
  * case, and the sync builds the registry fixture from the repo's copy without
  * inventing expectations. So an uncovered format does not fail the PR that
  * introduces it — it fails the next sync, after merge, in a workflow nobody is
  * watching. This check moves that failure back to the PR.
+ *
+ * Coverage alone is not enough: a case is generated once and then never
+ * revisited, so renaming a label in the descriptor leaves its case asserting a
+ * label the descriptor no longer emits, and nothing re-renders it. Both sides
+ * are in-repo at PR time, so the labels are compared here. Values are not —
+ * only the reference renderer can produce those.
  */
 function checkCoverage(
   formats: Record<string, IDescriptorFormat>,
@@ -529,17 +550,34 @@ function checkCoverage(
   if (!fs.existsSync(testsPath))
     throw new Error(`--tests ${testsPath} does not exist`)
 
-  const covered = new Set<string>()
+  const covered = new Map<string, ITestCase>()
   for (const test of readExistingTests(testsPath)) {
     const selector = selectorOf(test)
-    if (selector) covered.add(selector)
+    if (selector) covered.set(selector, test)
   }
 
   const problems: string[] = []
-  for (const formatKey of Object.keys(formats)) {
+  for (const [formatKey, format] of Object.entries(formats)) {
     const selector = toFunctionSelector(`function ${formatKey}`).toLowerCase()
-    if (!covered.has(selector))
+    const test = covered.get(selector)
+    if (!test) {
       problems.push(`${formatKey} (${selector}) has no test case`)
+      continue
+    }
+
+    // A PENDING case has no rendered labels yet, so there is nothing to drift.
+    if (test.expected.intent === PENDING_INTENT) continue
+
+    const displayed = displayedLabels(format)
+    const asserted = (test.expected.fields ?? []).map((field) => field.label)
+    if (JSON.stringify(displayed) !== JSON.stringify(asserted))
+      problems.push(
+        `${formatKey} (${selector}): fixture asserts [${asserted.join(
+          ', '
+        )}], descriptor displays [${displayed.join(
+          ', '
+        )}] — re-render this case`
+      )
   }
 
   return problems
@@ -623,18 +661,22 @@ const main = defineCommand({
 
       if (coverageProblems.length)
         console.error(
-          `\n${coverageProblems.length} format(s) have no reviewed test case in ` +
-            `${args.tests}. The registry rejects a descriptor whose formats are not each ` +
-            'exercised, and the sync will not invent an expectation — so left unfixed this ' +
-            'fails the next sync after merge, not this PR. Remedy: run the render loop in ' +
-            'docs/ClearSigningProposal.md ("Test fixtures") and commit the result.'
+          `\n${coverageProblems.length} format(s) are not correctly exercised by ` +
+            `${args.tests} — each either has no reviewed test case or has one asserting ` +
+            'labels the descriptor no longer emits. The registry rejects a descriptor whose ' +
+            'formats are not each exercised, and the sync will not invent or re-render an ' +
+            'expectation — so left unfixed this fails the next sync after merge, not this ' +
+            'PR. Remedy: run the render loop in docs/ClearSigningProposal.md ' +
+            '("Test fixtures") and commit the result.'
         )
 
       if (fieldProblems.length || coverageProblems.length) process.exit(1)
 
       console.info('✓ every displayed field renders a real value')
       if (args.tests)
-        console.info(`✓ every format has a test case in ${args.tests}`)
+        console.info(
+          `✓ every format has a test case in ${args.tests}, asserting current labels`
+        )
       return
     }
 

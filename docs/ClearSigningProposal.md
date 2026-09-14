@@ -201,7 +201,9 @@ bunx tsx tasks/generateClearSigningTests.ts --descriptor "$DESCRIPTOR" \
 
 Commit the result here. Existing cases are kept verbatim — they carry real transactions and reviewed expectations — and only uncovered selectors are generated. `--results` never overwrites a block that is not `PENDING`: if the runner disagrees with a reviewed expectation, that is a finding to investigate, not something to overwrite.
 
-Note what this does **not** do: a descriptor change that alters an **already-covered** format leaves that case's expectation untouched, so a renamed label can leave the fixture asserting a label the descriptor no longer emits. The generator preserves reviewed expectations rather than guessing at new ones, and it cannot re-render without the reference runner — so that case needs a deliberate pass through the loop above, and nothing flags it automatically.
+Note what this does **not** do: a descriptor change that alters an **already-covered** format leaves that case's expectation untouched. The generator preserves reviewed expectations rather than guessing at new ones, and it cannot re-render without the reference runner — so that case needs a deliberate pass through the loop above.
+
+`--check --tests` catches the common half of that automatically: for every covered format it compares the descriptor's displayed labels, in order, against the case's `expected.fields[*].label` and fails on a mismatch. Both sides are in-repo, so a renamed label fails the PR that renames it rather than the sync after merge. **Value** drift is still unguarded — only the reference runner can say what a field renders to — so a template change that alters a value while keeping its label needs the deliberate pass.
 
 The registry stores these prettier-formatted at `printWidth: 120`. Prettier keeps an object expanded if its input was, so the generator's indented output must be minified before formatting (`jq -c . file | prettier --parser json --print-width 120`) or the fixture carries a whole-file reformat diff. The sync workflow does this.
 
@@ -223,8 +225,11 @@ src/Facets/** changes in a PR
 verifyClearSigning.yml (BLOCKING):
   - runs buildClearSigningProposal.ts in strict mode
   - git diff --exit-code config/clearSigningProposal.json
+  - runs generateClearSigningTests.ts --check --tests: every format has a
+    reviewed case, no displayed field renders a zero value, and no case
+    asserts a label the descriptor no longer emits
   - rejects any entry with no fields
-  → PR merges only if all three pass
+  → PR merges only if all four pass
   │
   ▼ (merged to main)
 syncLedgerClearSigning.yml (push to main touching deployments/ or the
