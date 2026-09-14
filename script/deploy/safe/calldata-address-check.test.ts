@@ -146,6 +146,14 @@ const facetAdd = (
   path,
 })
 
+/** `registerPeripheryContract(name, address(0))` — the deregistration call. */
+const unregister = (registeredName: string): IAddressReference => ({
+  address: '0x0000000000000000000000000000000000000000',
+  role: AddressRoleEnum.PeripheryRegistration,
+  path: 'call[0].registerPeripheryContract[0]',
+  registeredName,
+})
+
 const expectations = (
   ...pairs: [string, IExpectedIdentity][]
 ): ReadonlyMap<string, IExpectedIdentity> =>
@@ -712,21 +720,76 @@ describe('the zero address, by role', () => {
     const verdict = evaluateCalldataAddresses(
       {
         network: 'mainnet',
+        references: [unregister('Executor')],
+      },
+      recordIndex(
+        ['0x0000000000000000000000000000000000000000'],
+        realProductionEntries,
+        ['Executor']
+      )
+    )
+
+    expect(verdict.refuses).toBe(false)
+    expect(verdict.error).toBe(false)
+    expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.NotApplicable)
+    // Zero says nothing here — the name is the whole payload, so the signer is
+    // told what the name they are deleting currently answers to.
+    expect(verdict.findings[0]?.detail).toContain(
+      '0xd9B2Da9C45b118e4e93A004FB1452bCDB6cC0E88'
+    )
+    expect(verdict.findings[0]?.detail).not.toContain('required value')
+  })
+
+  it('says the record holds nothing under the name an unregistration misspells', () => {
+    const verdict = evaluateCalldataAddresses(
+      {
+        network: 'mainnet',
+        references: [unregister('Exectuor')],
+      },
+      recordIndex(
+        ['0x0000000000000000000000000000000000000000'],
+        realProductionEntries,
+        ['Exectuor']
+      )
+    )
+
+    // Reported, not refused: registry entries predating the deploy log hold
+    // nothing under their name either, so this cannot separate a typo from a
+    // legitimate cleanup — only hand the signer both halves.
+    expect(verdict.refuses).toBe(false)
+    expect(verdict.error).toBe(false)
+    expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.NotApplicable)
+    expect(verdict.findings[0]?.detail).toContain(
+      'the record holds nothing under "Exectuor" on mainnet'
+    )
+  })
+
+  it('does not claim the record is silent on a name it was never asked about', () => {
+    const verdict = evaluateCalldataAddresses(
+      { network: 'mainnet', references: [unregister('Executor')] },
+      recordIndex(['0x0000000000000000000000000000000000000000'])
+    )
+
+    expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.NotApplicable)
+    expect(verdict.findings[0]?.detail).toContain('never asked')
+  })
+
+  it('keeps naming zero the required value where LibDiamond requires it', () => {
+    const verdict = evaluateCalldataAddresses(
+      {
+        network: 'mainnet',
         references: [
           {
             address: '0x0000000000000000000000000000000000000000',
-            role: AddressRoleEnum.PeripheryRegistration,
-            path: 'call[0].registerPeripheryContract[0]',
-            registeredName: 'Executor',
+            role: AddressRoleEnum.FacetRemove,
+            path: 'call[0].cuts[0]',
           },
         ],
       },
       recordIndex(['0x0000000000000000000000000000000000000000'])
     )
 
-    expect(verdict.refuses).toBe(false)
-    expect(verdict.error).toBe(false)
-    expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.NotApplicable)
+    expect(verdict.findings[0]?.detail).toContain('required value')
   })
 })
 

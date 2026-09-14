@@ -80,7 +80,7 @@ export enum AddressGradeEnum {
   Malformed = 'malformed',
   /** The zero address in a role that must carry a contract. */
   IllegalZero = 'illegal-zero',
-  /** The zero address in the only role where it is the required value. */
+  /** The zero address in a role where it is a legal value. */
   NotApplicable = 'not-applicable',
 }
 
@@ -245,7 +245,7 @@ const WARN_ONLY_ROLES: ReadonlySet<AddressRoleEnum> = new Set([
 ])
 
 /**
- * Roles where the zero address is the required value rather than a mistake.
+ * Roles where the zero address is a legal value rather than a mistake.
  *
  * `registerPeripheryContract(name, address(0))` unregisters the name, and
  * [docs/DeploymentLogs.md](../../../docs/DeploymentLogs.md) names that call as
@@ -557,6 +557,60 @@ const gradeAgainstName = (
   }
 }
 
+/**
+ * What a zero address means in a role that allows it — which is not one thing.
+ *
+ * For `FacetRemove` and `CutInit` zero is the value `LibDiamond` requires, and
+ * the address is the whole payload. For a periphery registration it is neither:
+ * zero is legal beside every non-zero address, and the *name* is what says what
+ * the call does — `registerPeripheryContract(name, address(0))` unregisters
+ * `name`. A typo there deletes nothing and leaves exactly the residue the
+ * cleanup proposal in
+ * [docs/DeploymentLogs.md](../../../docs/DeploymentLogs.md) exists to remove,
+ * so it is the one shape where the name is worth everything and the address
+ * nothing.
+ *
+ * What the record holds under the name is therefore reported and deliberately
+ * not graded a mismatch: registry entries predating the deploy log hold no
+ * record under their name either, so "nothing answers to this name" does not
+ * separate a typo from a legitimate cleanup. The signer is handed the name and
+ * whatever answers to it.
+ *
+ * @param reference - the zero-address reference being graded
+ * @param input - the network the proposal executes on
+ * @param index - the entries and the names they were fetched for
+ * @returns The detail line for a legal zero.
+ */
+const describeLegalZero = (
+  reference: IAddressReference,
+  input: ICalldataAddressInput,
+  index: IDeploymentIndex
+): string => {
+  if (reference.role !== AddressRoleEnum.PeripheryRegistration)
+    return `${reference.path} is the zero address, which is the required value for ${reference.role}`
+
+  const name = reference.registeredName ?? ''
+  const head = `${reference.path} unregisters "${name}" by registering the zero address, which is legal in this role`
+
+  if (!(index.queriedNames ?? []).includes(name))
+    return `${head}, and the record was never asked what it currently holds under that name, so nothing here says the name is spelled as it was registered`
+
+  const { entry, undecided } = currentUnderName(
+    index.entries,
+    name,
+    input.network
+  )
+
+  if (undecided !== undefined) return `${head}, and ${undecided}`
+
+  if (entry === undefined)
+    return `${head}, but the record holds nothing under "${name}" on ${input.network} — an unregistration of a name nothing answers to removes nothing, so check the spelling against the name it was registered under`
+
+  return `${head}, and the record currently holds ${
+    entry.address
+  } under that name (${describeEntry(entry)})`
+}
+
 const gradeReference = (
   reference: IAddressReference,
   input: ICalldataAddressInput,
@@ -584,7 +638,7 @@ const gradeReference = (
       ? {
           ...base,
           grade: AddressGradeEnum.NotApplicable,
-          detail: `${reference.path} is the zero address, which is the required value for ${reference.role}`,
+          detail: describeLegalZero(reference, input, index),
         }
       : {
           ...base,
