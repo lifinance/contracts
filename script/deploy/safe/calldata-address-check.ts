@@ -521,7 +521,7 @@ const gradeAgainstName = (
       grade: AddressGradeEnum.NameMismatch,
       detail: `${reference.path} (${
         reference.address
-      }) registers "${name}", and the record holds no ${name} on ${
+      }) registers "${name}", and the record holds nothing under "${name}" on ${
         input.network
       } at all — it has this address as ${onNetwork
         .map(describeEntry)
