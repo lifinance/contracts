@@ -299,7 +299,10 @@ describe('one row per network, not one per proposal', () => {
   it('grades every proposal inside the loop', () => {
     const { body } = proposalLoop()
 
-    expect(body).toContain('targetStateCheckResult(targetState, network)')
+    // Every gate's verdict for this proposal, produced in one ordered step and
+    // pushed rather than recorded. The order itself is pinned in
+    // `confirm-check-registry.test.ts` over the rows, not over this source.
+    expect(body).toContain('proposalCheckResults({')
     expect(body).toContain('proposalChecks.push(')
 
     // Position, not just presence. Below the operator's own `continue` the push
@@ -469,19 +472,112 @@ describe('a network the run skipped does not block it', () => {
   })
 })
 
-describe('the verdict stays withheld', () => {
-  it('does not render the ledger', () => {
-    // Only a `pass` counts toward the verified coverage while every status a
-    // correct Add/Replace cut produces is `needs-ack`, so a correct rollout
-    // grades 0/N and a run that graded nothing grades green. EXSC-994 owns
-    // fixing that before any of it is printed.
-    //
-    // `summariseLedger` is pinned alongside the renderer because it is where
-    // the inversion lives: the render is a thin wrapper over it, this file
-    // already imports from that module, and printing its verdict directly
-    // would restore the display without naming the renderer at all.
-    expect(SOURCE).not.toMatch(
-      /renderCheckLedger|render-check-ledger|summariseLedger/
-    )
+describe('the report is printed whatever the ledger holds', () => {
+  it('renders in the finally block, after the signing decisions', () => {
+    const finallyBlock = SOURCE.indexOf('} finally {')
+    const render = SOURCE.indexOf('renderCheckLedger(checkLedger)')
+
+    expect(finallyBlock).toBeGreaterThan(-1)
+    // An aborted run is where the report matters most, so it cannot sit on the
+    // happy path.
+    expect(render).toBeGreaterThan(finallyBlock)
   })
+
+  it('is not suppressed for a run that recorded nothing', () => {
+    // A ledger with no results renders a BLOCKED verdict counting every
+    // expected network as an unverified result, which is the single most
+    // important report there is; the old guard hid it for exactly the runs that
+    // aborted before the first proposal.
+    //
+    // Asserted as a shape rather than as one spelling: pinning the literal
+    // `checkLedger.results.length` leaves `checkLedger?.results?.length` free,
+    // which restores the suppression and reads as a tidy-up in review.
+    expect(SOURCE).not.toMatch(/checkLedger\s*\??\.\s*results\s*\??\.\s*length/)
+
+    // The paired positive — the guard is the existence check and nothing else.
+    expect(SOURCE).toMatch(/if \(checkLedger\)\s*\n\s*renderCheckLedger\(/)
+  })
+})
+
+/**
+ * The argument object handed to `proposalCheckResults`, brace-matched from the
+ * call rather than sliced by a character count, so a field inserted near its
+ * top cannot push another out of the window.
+ */
+const recorderArguments = (): string => {
+  const { body } = proposalLoop()
+  const open = body.indexOf('proposalCheckResults({')
+
+  expect(open).toBeGreaterThan(-1)
+
+  let depth = 0
+  const from = body.indexOf('{', open)
+  for (let i = from; i < body.length; i++) {
+    if (body[i] === '{') depth++
+    else if (body[i] === '}' && --depth === 0) return body.slice(from, i)
+  }
+
+  throw new Error('recorderArguments: unbalanced argument object')
+}
+
+describe('each gate that owns a ledger row hands the recorder its verdict', () => {
+  /**
+   * The gates whose verdict is collected in the loop, by the reader that
+   * produces it, the evaluator that grades it and the field it arrives under.
+   *
+   * Every field of `IProposalCheckVerdicts` is a required key, so omitting one
+   * is a type error and not what this pins. What it pins is a field that is
+   * present and fed something other than the gate's own verdict: the row then
+   * falls through to the unresolved branch and records an `error`, so the run
+   * blocks for an evidence reason and the gate still reads as wired.
+   */
+  const collected = [
+    {
+      gate: 'executability',
+      reader: 'collectExecutabilityInput(',
+      evaluator: 'evaluateExecutability(',
+      field: 'executability',
+    },
+    {
+      gate: 'rpc quorum',
+      reader: 'collectProviderObservations(',
+      evaluator: 'evaluateRpcQuorum(',
+      field: 'rpcQuorum',
+    },
+  ]
+
+  for (const { gate, reader, evaluator, field } of collected) {
+    it(`collects the ${gate} verdict and passes it to the recorder`, () => {
+      const { body } = proposalLoop()
+
+      expect(body).toContain(reader)
+      expect(body).toContain(evaluator)
+      expect(recorderArguments()).toContain(`${field},`)
+    })
+
+    it(`leaves a failed ${gate} read absent rather than defaulting it`, () => {
+      // The decision modules grade an absent observation as unchecked and an
+      // unchecked one as an error. A `catch` that assigned a plausible verdict
+      // instead would turn "nobody asked" into "the chain agreed" — the
+      // false-green path the collectors exist to close.
+      const { body } = proposalLoop()
+      // Every assignment form, compound included: `rpcQuorum ||= <verdict>`
+      // in the catch is exactly how a fabricated green gets in, and a bare-`=`
+      // pattern does not see it.
+      const assignments =
+        body.match(
+          new RegExp(`\\b${field}\\s*(?:\\?\\?|\\|\\||&&)?=(?!=)`, 'gu')
+        ) ?? []
+      const fromEvaluator =
+        body.match(
+          new RegExp(
+            `\\b${field}\\s*=\\s*${evaluator.replace('(', '\\(')}`,
+            'gu'
+          )
+        ) ?? []
+
+      expect(assignments.length).toBeGreaterThan(0)
+      expect(fromEvaluator.length).toBe(assignments.length)
+    })
+  }
 })
