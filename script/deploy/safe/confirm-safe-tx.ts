@@ -1021,6 +1021,9 @@ const processTxs = async (
         )}`
       )
     }
+    // The run-level ledger mirrors these verdicts, but renders in the `finally`
+    // block after every signature. This is the only place they reach the signer
+    // before the signing decision, so it stays despite the duplication.
     renderIntegrityAsserts(integrityRun).forEach((line) => consola.info(line))
 
     // The remaining sign-time gates, run below the verdicts they are recorded
