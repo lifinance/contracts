@@ -155,7 +155,7 @@ The generator is strict-by-default: any user-facing function it cannot confident
 
 ## Test fixtures (`testsv2`)
 
-The registry requires one test case per `display.formats` entry — it derives the selector of each format and looks for it in the calldata of the fixture at `registry/lifi/testsv2/calldata-LIFIDiamond.tests.json`. A descriptor with an uncovered format fails the registry's `Check test coverage` job, so the fixture has to travel with the descriptor on every sync.
+The registry requires one test case per `display.formats` entry — it derives the selector of each format and looks for it in the calldata of the fixture at `registry/lifi/testsv2/calldata-LIFIDiamond.tests.json`. A descriptor with an uncovered format fails the registry's `Check test coverage` job, so the fixture has to travel with the descriptor on every sync. Our reviewed copy is [`config/clearSigningTests.json`](../config/clearSigningTests.json).
 
 [`tasks/generateClearSigningTests.ts`](../tasks/generateClearSigningTests.ts) builds it: for each format it encodes calldata from the signature, wraps it in an **unsigned** transaction (the registry's runners don't verify signatures) and emits a test case. Values come from templates for `_bridgeData`, `_swapData` and the top-level `swapTokens*` parameters; everything else is derived from the ABI type, since only displayed fields affect the rendered screen.
 
@@ -164,31 +164,32 @@ Two invariants the generator enforces, both of which produce fixtures that pass 
 - **No displayed field may render a zero value.** A `Non-EVM Recipient: 0x0…0` fixture is worthless. `--check` catches this statically and runs in `verifyClearSigning.yml`, so a new `BRIDGE_EXTRA_RECEIVERS` entry fails our PR rather than reaching the registry. This covers the transaction envelope too: the native-in `swapTokens*` formats display `@.value` rather than a parameter, so those cases are encoded with a non-zero value and `--check` rejects any other `@.` path, which the generator has no way to populate.
 - **No expectation may stay `PENDING`.** Expectations come from the reference runner, so a new format needs a render pass before it can be published.
 
-Regenerating after a descriptor change, including that render pass. The runner resolves the fixture's `descriptor` and `$schema` relative to the fixture's own directory and walks up from there to find the registry root, so write the fixture to its real path inside a registry working copy — rendering a copy in `/tmp` fails to resolve the descriptor:
+**The reviewed fixture lives in this repo**, at [`config/clearSigningTests.json`](../config/clearSigningTests.json). The registry copy is an output of it: the sync reads the repo file, writes the registry path, and never reads the registry's own copy back. So the fixture is reviewed through a normal PR here, alongside the proposal change that made it necessary, and no state is carried on the fork's sync branch — a branch that is recreated from upstream and force-pushed on every run, and that anyone may delete. The cost is that an edit made directly on the registry is replaced rather than merged; it shows up as a diff in the sync PR, and the fix is to make the same change here.
+
+Regenerating after a descriptor change, including the render pass. The runner resolves the fixture's `descriptor` and `$schema` relative to the fixture's own directory and walks up from there to find the registry root, so the fixture has to be staged at its real path inside a registry working copy to be rendered — rendering the repo copy in place fails to resolve the descriptor:
 
 ```bash
 REGISTRY=<path to a clone of clear-signing-erc7730-registry>
-FIXTURE="$REGISTRY/registry/lifi/testsv2/calldata-LIFIDiamond.tests.json"
+DESCRIPTOR="$REGISTRY/registry/lifi/calldata-LIFIDiamond.json"
+STAGED="$REGISTRY/registry/lifi/testsv2/calldata-LIFIDiamond.tests.json"
 
-# 1. first pass — cases without expectations
-bunx tsx tasks/generateClearSigningTests.ts --descriptor "$REGISTRY/registry/lifi/calldata-LIFIDiamond.json" \
-  --existing "$FIXTURE" --out "$FIXTURE" --allowPending
+# 1. stage the repo fixture at its registry path, new cases without expectations
+bunx tsx tasks/generateClearSigningTests.ts --descriptor "$DESCRIPTOR" \
+  --existing config/clearSigningTests.json --out "$STAGED" --allowPending
 
 # 2. render them (Node >= 22)
 git clone https://github.com/sourcifyeth/clear-signing-test-runner && cd clear-signing-test-runner
-npm ci && npm run build && node dist/cli.js "$FIXTURE" --output /tmp/results.json --verbose
+npm ci && npm run build && node dist/cli.js "$STAGED" --output /tmp/results.json --verbose
 
 # 3. fill the expectations in, then READ them — a snapshot of whatever the
-#    renderer emitted asserts nothing
-bunx tsx tasks/generateClearSigningTests.ts --descriptor "$REGISTRY/registry/lifi/calldata-LIFIDiamond.json" \
-  --existing "$FIXTURE" --out "$FIXTURE" --results /tmp/results.json
+#    renderer emitted asserts nothing — and write back to the repo copy
+bunx tsx tasks/generateClearSigningTests.ts --descriptor "$DESCRIPTOR" \
+  --existing "$STAGED" --out config/clearSigningTests.json --results /tmp/results.json
 ```
 
-Existing cases are kept verbatim — they carry real transactions and reviewed expectations — and only uncovered selectors are generated. `--results` never overwrites a block that is not `PENDING`: if the runner disagrees with a reviewed expectation, that is a finding to investigate, not something to overwrite.
+Commit the result here. Existing cases are kept verbatim — they carry real transactions and reviewed expectations — and only uncovered selectors are generated. `--results` never overwrites a block that is not `PENDING`: if the runner disagrees with a reviewed expectation, that is a finding to investigate, not something to overwrite.
 
-Commit the reviewed fixture to the fork's sync branch (`sync/lifi-clear-signing`) — that branch is the head of the upstream PR, so the case reaches review alongside the descriptor that introduced the format. The sync recreates that branch from upstream on every run, so `--existing` sees upstream's copy, not the branch's; the branch's own copy is read off `origin/sync/lifi-clear-signing` first and replayed through `--overlay`, which is what makes a case committed there survive until the PR merges.
-
-`--overlay` wins where both fixtures cover a selector. Upstream's copy is the merged one, but it was rendered against whatever descriptor was current when it merged — a sync that renames a label leaves it asserting labels the new descriptor no longer emits — while the sync branch's copy tracks the descriptor being pushed and carries any edit a reviewer made on the PR. Neither copy can be re-rendered automatically, so a descriptor change that alters an **already-covered** format still needs a manual pass through the loop above; the generator preserves reviewed expectations rather than guessing at new ones.
+Note what this does **not** do: a descriptor change that alters an **already-covered** format leaves that case's expectation untouched, so a renamed label can leave the fixture asserting a label the descriptor no longer emits. The generator preserves reviewed expectations rather than guessing at new ones, and it cannot re-render without the reference runner — so that case needs a deliberate pass through the loop above, and nothing flags it automatically.
 
 The registry stores these prettier-formatted at `printWidth: 120`. Prettier keeps an object expanded if its input was, so the generator's indented output must be minified before formatting (`jq -c . file | prettier --parser json --print-width 120`) or the fixture carries a whole-file reformat diff. The sync workflow does this.
 

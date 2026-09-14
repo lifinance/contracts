@@ -3,8 +3,8 @@
 # - Triggers: push-to-main on deployment/proposal-relevant paths (fast path), a monthly cron safety net, and manual workflow_dispatch (with optional dry_run). Facet changes are covered transitively: `verifyClearSigning.yml` forces `config/clearSigningProposal.json` to be regenerated in the same PR, so a facet change that alters any format shows up as a change to that file.
 # - Key behaviors: clones our fork (`lifinance/clear-signing-erc7730-registry`, originally forked from LedgerHQ, now tracking the EF-hosted registry), regenerates the JSON with merged `display.formats`, normalizes it with the registry's own `erc7730 format` so the diff carries only real changes (not formatting churn), pushes a branch to the fork, creates/updates a PR upstream, and posts the PR link to Slack.
 # - Trust model: this workflow assumes `config/clearSigningProposal.json` is current against the on-chain diamond, which is enforced at PR-merge time by `verifyClearSigning.yml`. If that gate is bypassed, the proposal may be stale.
-# - Test fixtures: the sync branch is recreated from upstream's default branch on every run, so `--existing` always reads UPSTREAM's copy of the fixture, never the fork's. A case reviewed for a format upstream has not merged yet would therefore be lost, so the branch's own copy is read off `origin/${SYNC_BRANCH}` (untouched by the reset) and passed as `--overlay`. The overlay wins where both cover a selector: that branch is the upstream PR's own head, so it carries any edit a reviewer made there, and it was rendered against the descriptor this run is pushing — upstream's copy can predate a label change and assert labels the new descriptor no longer emits.
-# - Failure mode "N format(s) have no expectation yet": the descriptor gained a format that neither upstream's fixture nor the sync branch covers, and the generator refuses to invent an expectation for it — a fabricated one would fail the registry's own runners. The sync is meant to stop here; it is NOT fixed by re-running. Remedy: run the render loop in docs/ClearSigningProposal.md ("Test fixtures") against a registry working copy, read what the reference runner produced, and commit the reviewed fixture to the fork's sync branch. The `--overlay` read above is what makes that commit survive the next run's reset, so the following sync finds every format covered and proceeds.
+# - Test fixtures: the reviewed testsv2 fixture is `config/clearSigningTests.json` in THIS repo, and the registry copy is an output of it. The sync never reads the registry's own copy, so the sync branch — recreated from upstream and force-pushed on every run — carries no state, and an upstream edit to the fixture is replaced rather than merged (visible as a diff in the sync PR; the repo copy is the thing to change).
+# - Failure mode "N format(s) have no expectation yet": the descriptor gained a format `config/clearSigningTests.json` does not cover, and the generator refuses to invent an expectation for it — a fabricated one would fail the registry's own runners. The sync is meant to stop here; it is NOT fixed by re-running. Remedy: run the render loop in docs/ClearSigningProposal.md ("Test fixtures"), read what the reference runner produced, and commit the reviewed fixture to `config/clearSigningTests.json` in a normal PR to this repo. The next sync then finds every format covered and proceeds.
 # - Note: The ERC-7730 registry moved from `LedgerHQ/clear-signing-erc7730-registry` to `ethereum/clear-signing-erc7730-registry` (Ethereum Foundation now hosts it). The fork retains its original name; only the upstream remote target changed.
 # - Upstream-only: guarded to lifinance/contracts because forks that sync this file (contracts-tron) lack `LEDGER_SYNC_TOKEN`/Slack secrets and must not push to the EF registry.
 
@@ -29,6 +29,7 @@ on:
       - 'deployments/**' # new deployment addresses
       - 'config/networks.json' # chain metadata used by deployments resolver
       - 'config/clearSigningProposal.json' # the display.formats source of truth
+      - 'config/clearSigningTests.json' # the reviewed testsv2 fixture
       - 'tasks/generateLedgerClearSigning.ts'
       - 'tasks/buildClearSigningProposal.ts'
       - '.github/workflows/syncLedgerClearSigning.yml'
@@ -109,6 +110,7 @@ jobs:
           LEDGER_UPSTREAM: ethereum/clear-signing-erc7730-registry # Ethereum Foundation-hosted (migrated from LedgerHQ in 2026)
           LEDGER_FILE_PATH: registry/lifi/calldata-LIFIDiamond.json
           LEDGER_TESTS_PATH: registry/lifi/testsv2/calldata-LIFIDiamond.tests.json
+          LOCAL_TESTS_PATH: config/clearSigningTests.json # reviewed source of truth, see below
           SYNC_BRANCH: sync/lifi-clear-signing
           PR_TITLE: 'lifi: sync calldata-LIFIDiamond.json (deployments + display.formats)'
           # Dry-run only applies on workflow_dispatch. Cron + push triggers always
@@ -152,19 +154,6 @@ jobs:
           echo -e "\033[32mUpstream default branch: ${UPSTREAM_DEFAULT_BRANCH}\033[0m"
 
           git checkout -B "${SYNC_BRANCH}" "upstream/${UPSTREAM_DEFAULT_BRANCH}"
-
-          # That reset makes the working tree upstream's, so a case reviewed for
-          # a format upstream has not merged yet exists only on the sync branch.
-          # Read it off the remote ref (untouched by the reset) and pass it as
-          # --overlay, or the generator regenerates that format as PENDING and
-          # the sync dead-ends on every run until the upstream PR merges.
-          IN_FLIGHT_TESTS=/tmp/lifi-tests-in-flight.json
-          if git cat-file -e "origin/${SYNC_BRANCH}:${LEDGER_TESTS_PATH}" 2>/dev/null; then
-            git show "origin/${SYNC_BRANCH}:${LEDGER_TESTS_PATH}" > "${IN_FLIGHT_TESTS}"
-            echo -e "\033[32mCarrying forward reviewed cases from origin/${SYNC_BRANCH}\033[0m"
-          else
-            echo '{"tests":[]}' > "${IN_FLIGHT_TESTS}"
-          fi
           cd ..
 
           echo -e "\033[32mRegenerating ${LEDGER_FILE_PATH} (deployments + display.formats merge; deprecated abi stripped; metadata preserved)...\033[0m"
@@ -183,13 +172,16 @@ jobs:
 
           # The registry fails a descriptor whose display.formats entries are not
           # each exercised by a test case, so the fixture has to travel with the
-          # descriptor. Existing cases are kept verbatim: they carry real
-          # transactions and expectations a reviewer has already signed off.
-          echo -e "\033[32mGenerating ${LEDGER_TESTS_PATH} (one case per display.formats entry)...\033[0m"
+          # descriptor. The reviewed fixture lives in THIS repo, not in the
+          # registry: `config/clearSigningTests.json` is the source of truth, its
+          # cases are kept verbatim, and the registry copy is an output. Reading
+          # the registry's own copy instead would make a mutable branch on the
+          # fork the carrier of reviewed state (deletable, and force-pushed on
+          # every run) and would let the sync silently revert an upstream edit.
+          echo -e "\033[32mGenerating ${LEDGER_TESTS_PATH} from ${LOCAL_TESTS_PATH}...\033[0m"
           bunx tsx tasks/generateClearSigningTests.ts \
             --descriptor "ledger-registry/${LEDGER_FILE_PATH}" \
-            --existing "ledger-registry/${LEDGER_TESTS_PATH}" \
-            --overlay "${IN_FLIGHT_TESTS}" \
+            --existing "${LOCAL_TESTS_PATH}" \
             --out /tmp/lifi-tests.json
 
           # The registry stores these prettier-formatted at printWidth 120.
