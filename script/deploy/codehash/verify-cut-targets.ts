@@ -34,6 +34,14 @@ export interface ITargetVerdict {
    * layer 2 has checked their values, so it must not render as plain green.
    */
   excludedByteCount: number
+  /**
+   * Bytes layer 2 compared against a declared expectation and found to hold it.
+   *
+   * Carried separately from the verdict because zero is two different facts —
+   * a contract with no immutables, and one whose immutables were checked — and
+   * a signer reading a clean MATCH is owed the difference.
+   */
+  pricedByteCount: number
 }
 
 export interface IGateReport {
@@ -176,6 +184,7 @@ const judge = async (
     reason: comparison.reason,
     matchedLineages: comparison.matchedLineages,
     excludedByteCount: comparison.excludedByteCount,
+    pricedByteCount: 0,
   }
 }
 
@@ -215,6 +224,7 @@ const complete = async (
     reason: `${masked} ${why}, so this is not yet a match of the deployed code.`,
     matchedLineages: comparison.matchedLineages,
     excludedByteCount: comparison.excludedByteCount,
+    pricedByteCount: 0,
   })
 
   let pricing: ImmutablePricing
@@ -245,6 +255,7 @@ const complete = async (
         .join('; ')}.`,
       matchedLineages: comparison.matchedLineages,
       excludedByteCount: comparison.excludedByteCount,
+      pricedByteCount: pricing.pricedByteCount,
     }
 
   if (pricing.unpricedByteCount > 0)
@@ -264,6 +275,7 @@ const complete = async (
     matchedLineages: comparison.matchedLineages,
     // Nothing was left uncompared, so a renderer has no qualifier to add.
     excludedByteCount: 0,
+    pricedByteCount: pricing.pricedByteCount,
   }
 }
 
@@ -277,6 +289,7 @@ const unreadable = (address: string, why: string): ITargetVerdict => ({
   reason: `${address}: ${why}`,
   matchedLineages: [],
   excludedByteCount: 0,
+  pricedByteCount: 0,
 })
 
 /**
@@ -299,9 +312,14 @@ const summarise = (
   const bad = targets.filter((t) => t.verdict !== 'MATCH')
   if (bad.length === 0) {
     const masked = targets.reduce((n, t) => n + t.excludedByteCount, 0)
+    const priced = targets.reduce((n, t) => n + t.pricedByteCount, 0)
+    // Silence would collapse "this code holds no immutables" into "its
+    // immutables were checked", which are the two ways to reach a clean MATCH.
     const caveat =
       masked > 0
         ? ` ${masked} bytes were excluded as immutables and are not covered by this result — their values still need checking.`
+        : priced > 0
+        ? ` ${priced} bytes holding immutables were compared against the values this repo declares for them.`
         : ''
     // Not "matches main": the rebuild is at the commit each deployment record
     // names, and D3 has the verifier assert that commit's presence rather than

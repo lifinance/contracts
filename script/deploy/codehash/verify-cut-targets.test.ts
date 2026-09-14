@@ -307,6 +307,19 @@ describe('verifyCutTargets', () => {
     // The qualifier goes with the refusal: nothing is left for a renderer to
     // warn about.
     expect(report.targets[0]?.excludedByteCount).toBe(0)
+    expect(report.summary).toMatch(/96 bytes holding immutables were compared/)
+  })
+
+  it('says nothing about immutables for a contract that has none', async () => {
+    // The paired negative for the line above: a clean MATCH reached without
+    // layer 2 must not claim a check that never happened.
+    const report = await verifyCutTargets(
+      { cuts: [add(A)], init: ZERO, network: 'mainnet' },
+      deps()
+    )
+
+    expect(report.targets[0]?.verdict).toBe('MATCH')
+    expect(report.summary).not.toMatch(/immutables/)
   })
 
   it('reports MISMATCH, not grey, when a slot holds something config does not declare', async () => {
