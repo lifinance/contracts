@@ -514,6 +514,20 @@ const processTxs = async (
     operationId: Hex
     observed: Awaited<ReturnType<typeof observeCalldata>>
   }
+  // Survives a prefetch discard, unlike every other verdict in the bundle.
+  //
+  // When the anchor moves, `computeProposalEvidence` re-runs and every gate is
+  // recomputed — except this one, which returns its earlier entry. That is safe
+  // only because of what a Safe execution does here: it executes
+  // `scheduleBatch`, which enqueues a timelock operation and changes neither
+  // the code nor the storage authorities at the addresses this reads. The
+  // observation is therefore the same before and after, and re-reading it would
+  // buy nothing.
+  //
+  // The assumption is stated because it is the one that would fail first: a
+  // proposal that mutated the diamond directly rather than scheduling would
+  // leave this entry describing pre-execution state, and gate G would grade the
+  // next proposal against it. Re-reading on discard is the fix if that day comes.
   const observedSets = new Map<string, IObservedSet>()
 
   async function observeSetForProposal(
