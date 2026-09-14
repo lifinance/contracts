@@ -70,7 +70,7 @@ describe('the calldata address check surfaces before the signing decision', () =
     const packed = CONFIRM.replace(/\s+/gu, '')
 
     expect(packed).toContain(
-      'buildDeploymentIndex(records,references.map((reference)=>reference.address))'
+      'buildDeploymentIndex(records,references.map((reference)=>reference.address),referencedNames(references))'
     )
   })
 
