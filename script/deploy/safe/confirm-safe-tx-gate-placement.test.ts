@@ -85,14 +85,19 @@ describe('target-state gate placement in confirm-safe-tx', () => {
     const callSites = [...source.matchAll(/(?<![$\w])http\(([^,)]*)/gu)]
 
     expect(callSites.length).toBeGreaterThan(0)
-    // `url` is `getTransportConfigFromRpcUrl`'s output; a bare `http()` takes
+    // `url` is the resolved transport config's output; a bare `http()` takes
     // the chain's own default and carries no endpoint of ours.
     for (const [, argument] of callSites)
       expect(argument?.trim() ?? '').toMatch(/^(url)?$/u)
   })
 
-  it('passes every endpoint through the shared transport config first', () => {
-    expect(source.indexOf('getTransportConfigFromRpcUrl(')).toBeGreaterThan(-1)
+  // Through the sign-time wrapper specifically, not `getTransportConfigFromRpcUrl`
+  // directly: every read in this file happens while a signer waits, and the raw
+  // helper forwards the endpoint's own retry profile — TronGrid's is 8 retries
+  // on a 2s exponential backoff, minutes of wall clock for one read.
+  it('passes every endpoint through the sign-time transport config first', () => {
+    expect(source.indexOf('getSignTimeTransportConfig(')).toBeGreaterThan(-1)
+    expect(source.indexOf('getTransportConfigFromRpcUrl(')).toBe(-1)
   })
 
   // Gate G grades the contracts this proposal installs, while the observation

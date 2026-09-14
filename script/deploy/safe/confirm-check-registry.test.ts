@@ -1375,11 +1375,15 @@ describe('the verdict the run now closes on', () => {
     const passed = rollups.reduce((sum, rollup) => sum + rollup.passed, 0)
 
     expect(passed).toBeGreaterThan(rollups.length / 2)
-    // Anchored on a digit boundary: `not.toContain('0/10 …')` is satisfied by
-    // "10/10 …" as well, so the plain substring form stopped asserting
-    // anything the moment this ledger reached ten rollups.
-    expect(stripColor(renderCheckLedger(ledger).at(-1) ?? '')).not.toMatch(
-      new RegExp(`(^|[^0-9])0/${rollups.length} network results verified`, 'u')
+    // Anchored on the whole count, not on `not.toContain('0/N …')`: once N
+    // reaches two digits that substring is inside the correct answer, so the
+    // assertion would fail on `10/10` — the greenest line it can render. The
+    // denominator is the applicable rows, not every registered check: a gate
+    // that stood down is not a result the run failed to verify.
+    const applicable = rollups.filter((rollup) => rollup.graded > 0)
+    const closing = stripColor(renderCheckLedger(ledger).at(-1) ?? '')
+    expect(closing).toContain(
+      `${passed}/${applicable.length} network results verified`
     )
   })
 

@@ -32,7 +32,6 @@ import { getRPCEnvVarName } from '../../utils/utils'
 import {
   buildExplorerAddressUrl,
   getFallbackTransportForChain,
-  getTransportConfigFromRpcUrl,
 } from '../../utils/viemScriptHelpers'
 import { createDefaultCache } from '../shared/deployment-cache'
 import { getGitCommit, sanitizeProvenanceText } from '../shared/git-provenance'
@@ -185,6 +184,7 @@ import {
   type SafeNonceStatus,
   type SafeTxStatus,
 } from './safe-utils'
+import { getSignTimeTransportConfig } from './sign-time-transport'
 import {
   buildSignedSetRecord,
   formatSignedSetForDisplay,
@@ -1019,12 +1019,12 @@ const processTxs = async (
         const overrideTransports = overrideEndpoints.flatMap((endpointUrl) => {
           try {
             const { url, fetchOptions, retryCount, retryDelay } =
-              getTransportConfigFromRpcUrl(endpointUrl)
+              getSignTimeTransportConfig(endpointUrl)
             return [
               http(url, {
                 ...(fetchOptions ? { fetchOptions } : {}),
-                ...(retryCount !== undefined ? { retryCount } : {}),
-                ...(retryDelay !== undefined ? { retryDelay } : {}),
+                retryCount,
+                retryDelay,
               }),
             ]
           } catch (error) {
@@ -1077,14 +1077,14 @@ const processTxs = async (
           (endpointUrl) => {
             try {
               const { url, fetchOptions, retryCount, retryDelay } =
-                getTransportConfigFromRpcUrl(endpointUrl)
+                getSignTimeTransportConfig(endpointUrl)
               return [
                 createPublicClient({
                   chain,
                   transport: http(url, {
                     ...(fetchOptions ? { fetchOptions } : {}),
-                    ...(retryCount !== undefined ? { retryCount } : {}),
-                    ...(retryDelay !== undefined ? { retryDelay } : {}),
+                    retryCount,
+                    retryDelay,
                   }),
                 }),
               ]

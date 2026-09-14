@@ -26,10 +26,7 @@ import { createPublicClient, http, type Address, type Chain } from 'viem'
 
 import { EnvironmentEnum } from '../../common/types'
 import { redactUrls } from '../../utils/redactUrls'
-import {
-  getTransportConfigFromRpcUrl,
-  getViemChainForNetworkName,
-} from '../../utils/viemScriptHelpers'
+import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 import type { ILineageScope, IObservedCode } from '../codehash/attested-set'
 import { readMetadataTrailer } from '../codehash/bytecode-trailer'
 import {
@@ -67,6 +64,7 @@ import {
   collectProviderObservations,
   createCodeReader,
 } from './rpc-quorum-collector'
+import { getSignTimeTransportConfig } from './sign-time-transport'
 
 /** A full commit SHA and nothing else: this value reaches a path and git argv. */
 const FULL_SHA = /^[0-9a-f]{40}$/
@@ -614,8 +612,12 @@ export interface ISignTimeCodehashDeps extends IVerifyCutDeps {
  * block. Agreeing that there is no code at all is agreement too, and is
  * returned as such — the gate is what grades that against the rebuild.
  *
- * Never worse than reading the primary alone: where that blocked, this either
- * blocks the same way or proceeds on corroborated agreement.
+ * On the answer itself this is never worse than reading the primary alone:
+ * where that blocked, this either blocks the same way or proceeds on
+ * corroborated agreement. On patience it is deliberately less: the primary is
+ * read on the sign-time retry budget rather than the endpoint's own, so a
+ * network whose only endpoint is throttled reaches the block sooner instead of
+ * holding the signature for the ten minutes TronGrid's profile would spend.
  *
  * @param resolveChain - Resolves a network name to its viem chain; injectable for tests.
  * @returns A reader from `(address, network)` to the code at that address, `0x` when none.
@@ -632,13 +634,13 @@ export const createDeployedCodeReader =
     if (primary)
       try {
         const { url, fetchOptions, retryCount, retryDelay } =
-          getTransportConfigFromRpcUrl(primary)
+          getSignTimeTransportConfig(primary)
         const client = createPublicClient({
           chain,
           transport: http(url, {
             ...(fetchOptions ? { fetchOptions } : {}),
-            ...(retryCount !== undefined ? { retryCount } : {}),
-            ...(retryDelay !== undefined ? { retryDelay } : {}),
+            retryCount,
+            retryDelay,
           }),
         })
         return (await client.getCode({ address: address as Address })) ?? '0x'

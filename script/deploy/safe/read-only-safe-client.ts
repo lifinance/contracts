@@ -6,9 +6,10 @@ import { createPublicClient, http, type PublicClient } from 'viem'
 
 import {
   getFallbackTransportForChain,
-  getTransportConfigFromRpcUrl,
   getViemChainForNetworkName,
 } from '../../utils/viemScriptHelpers'
+
+import { getSignTimeTransportConfig } from './sign-time-transport'
 
 /**
  * Builds a read-only viem client for a network, honoring an optional RPC
@@ -21,10 +22,10 @@ import {
  * unusable while the gates read it fine, and a signer cannot act on a network
  * the run disagrees with itself about.
  *
- * `getFallbackTransportForChain` builds each endpoint through
- * `getTransportConfigFromRpcUrl`, which is what keeps a `user:pass@` endpoint
- * authenticated: viem's own branch is `if (url.username)`, so a password-only
- * endpoint would be queried unauthenticated and answer 401.
+ * Either path resolves the endpoint's own credentials into headers, which is
+ * what keeps a `user:pass@` endpoint authenticated: viem's own branch is
+ * `if (url.username)`, so a password-only endpoint would be queried
+ * unauthenticated and answer 401.
  *
  * @param network - The network key, as `config/networks.json` spells it.
  * @param rpcUrl - One endpoint to use instead of the configured set.
@@ -39,7 +40,6 @@ export function buildReadOnlyClient(
   options?: { signal?: AbortSignal }
 ): PublicClient {
   const chain = getViemChainForNetworkName(network)
-
   if (!rpcUrl)
     return createPublicClient({
       chain,
@@ -47,7 +47,7 @@ export function buildReadOnlyClient(
     }) as PublicClient
 
   const { url, fetchOptions, retryCount, retryDelay } =
-    getTransportConfigFromRpcUrl(rpcUrl)
+    getSignTimeTransportConfig(rpcUrl)
   const mergedFetchOptions = {
     ...(fetchOptions ?? {}),
     ...(options?.signal ? { signal: options.signal } : {}),
