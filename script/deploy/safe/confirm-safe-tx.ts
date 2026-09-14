@@ -44,6 +44,7 @@ import {
 import {
   buildDeploymentIndex,
   collectAddressReferences,
+  referencedNames,
 } from './calldata-address-collector'
 import { buildCalldataEffectLines } from './calldata-effect-lines'
 import {
@@ -1227,7 +1228,8 @@ const processTxs = async (
         },
         buildDeploymentIndex(
           records,
-          references.map((reference) => reference.address)
+          references.map((reference) => reference.address),
+          referencedNames(references)
         )
       )
       calldataAddressLines = renderCalldataAddresses(calldataAddresses)

@@ -25,7 +25,7 @@ export const DIAMOND_CUT_SELECTOR = toFunctionSelector(
 ).toLowerCase() as Hex
 
 /**
- * Whether the cut selector appears in `data` on a byte boundary.
+ * Whether a selector appears in `data` on a byte boundary.
  *
  * Alignment is necessary but not sufficient: only an even offset can be a
  * selector, yet an address or other argument can carry the same four bytes at
@@ -34,15 +34,30 @@ export const DIAMOND_CUT_SELECTOR = toFunctionSelector(
  * @param data - calldata to search
  * @returns Whether the four bytes occur at an even offset.
  */
-const carriesCutSelectorAligned = (data: Hex): boolean => {
+const carriesSelectorAligned = (data: Hex, selector: Hex): boolean => {
   const body = data.slice(2).toLowerCase()
-  const needle = DIAMOND_CUT_SELECTOR.slice(2)
+  const needle = selector.slice(2).toLowerCase()
   for (
     let at = body.indexOf(needle);
     at !== -1;
     at = body.indexOf(needle, at + 1)
   )
     if (at % 2 === 0) return true
+  return false
+}
+
+/**
+ * Whether any of `selectors` appears in `data` on a byte boundary.
+ * @param data - calldata to search
+ * @param selectors - the selectors the caller would have wanted to read
+ * @returns Whether at least one occurs at an even offset.
+ */
+export const carriesAnySelectorAligned = (
+  data: Hex,
+  selectors: Iterable<Hex>
+): boolean => {
+  for (const selector of selectors)
+    if (carriesSelectorAligned(data, selector)) return true
   return false
 }
 
@@ -165,6 +180,14 @@ const decodeSchedule = (data: Hex): readonly IUnwrappedCall[] => {
   return [{ payload: args[2] as Hex, target: getAddress(args[0] as Address) }]
 }
 
+/*
+ * Two walkers, deliberately: `collectLeafCalls` reports a leaf's own bytes and
+ * selector, which is what an address reader needs, while
+ * `collectScheduledCalls` reports the payload with the caller the target will
+ * see, which is what the simulator sends. Folding them together would make each
+ * consumer carry the other's fields.
+ */
+
 /** The decoder for a timelock envelope, or nothing when this is not one. */
 const unwrapperFor = (
   selector: string
@@ -279,21 +302,55 @@ export const collectScheduledCalls = (
   return { calls, undecodable: [...undecodable] }
 }
 
+/** One call reached at the bottom of a proposal's envelopes. */
+export interface ILeafCall {
+  /** Index of the top-level call this leaf was reached from. */
+  callIndex: number
+  /** The leaf's own calldata, as it will reach `target`. */
+  data: Hex
+  /** Lowercased four-byte selector of `data`, or `'0x'` when it carries none. */
+  selector: string
+  /** How many envelopes were opened to reach it; 0 for a top-level call. */
+  depth: number
+  /** The address this leaf is sent to, when the caller supplied the targets. */
+  target?: Address
+  /** The account the leaf sees as `msg.sender`, under the same condition. */
+  caller?: Address
+}
+
+/** Every leaf a proposal's calls reach, and the calls that hid one. */
+export interface ICollectedLeafCalls {
+  leaves: ILeafCall[]
+  /**
+   * Indices of top-level calls carrying an envelope this could not open —
+   * arguments that do not decode, nesting past {@link MAX_UNWRAP_DEPTH}, or
+   * input that is not well-formed calldata.
+   */
+  undecodable: number[]
+}
+
 /**
- * Reads every `diamondCut` a proposal's calls would reach, unwrapping timelock
- * envelopes on the way down.
+ * Reads every call a proposal reaches, unwrapping the timelock envelopes on the
+ * way down and stopping at anything that is not one.
+ *
+ * The envelope set lives here alone, so a check that has to see through a
+ * proposal reads it from this one walk rather than growing a second traversal
+ * that would silently stop seeing through the next envelope kind added here.
+ * What it does *not* judge is whether an unopened envelope mattered: a leaf
+ * whose selector a caller does not handle is still returned, and the caller
+ * decides whether its own selectors could be hiding in there
+ * ({@link carriesAnySelectorAligned}). A walk that guessed would have to know
+ * every caller's selectors.
+ *
  * @param calldatas - the proposal's calls, in the order they were passed
- * @param context - The target and sender to stamp on every call, when the
- * caller knows them. Absent, each result leaves both fields unset rather than
- * naming an address nothing observed.
- * @returns The decoded cuts, plus the indices of calls this could not read
- * through.
+ * @param context - the target and sender to stamp on each leaf, when known
+ * @returns Every leaf reached, plus the calls that could not be opened.
  */
-export const collectDiamondCutCalls = (
+export const collectLeafCalls = (
   calldatas: readonly Hex[],
   context?: IDiamondCutCallContext
-): ICollectedDiamondCuts => {
-  const calls: IDiamondCutCall[] = []
+): ICollectedLeafCalls => {
+  const leaves: ILeafCall[] = []
   const undecodable = new Set<number>()
 
   const walk = (
@@ -305,27 +362,12 @@ export const collectDiamondCutCalls = (
   ): void => {
     const selector = data.slice(0, 10).toLowerCase()
 
-    if (selector === DIAMOND_CUT_SELECTOR) {
-      let decoded
-      try {
-        decoded = decodeCut(data)
-      } catch {
-        undecodable.add(index)
-        return
-      }
-      calls.push({
-        callIndex: index,
-        cuts: decoded.cuts,
-        init: decoded.init,
-        initCalldata: decoded.initCalldata,
-        raw: data,
-        ...(target === undefined ? {} : { target }),
-        ...(caller === undefined ? {} : { caller }),
-      })
-      return
-    }
-
-    const unwrap = unwrapperFor(selector)
+    const unwrap =
+      selector === TIMELOCK_SCHEDULE_BATCH_SELECTOR.toLowerCase()
+        ? decodeScheduleBatch
+        : selector === TIMELOCK_SCHEDULE_SELECTOR.toLowerCase()
+        ? decodeSchedule
+        : undefined
 
     if (unwrap) {
       if (depth >= MAX_UNWRAP_DEPTH) {
@@ -340,24 +382,21 @@ export const collectDiamondCutCalls = (
         return
       }
       // The envelope's own address becomes `msg.sender` for everything it
-      // carries: a timelock batch executes its calls itself, so a cut reached
+      // carries: a timelock batch executes its calls itself, so a call reached
       // this way is owner-gated against the timelock, never against the Safe.
       for (const inner of payloads)
         walk(inner.payload, index, depth + 1, inner.target, target)
       return
     }
 
-    // An envelope this cannot open. Only the wrappers above are unwrapped, so
-    // any other — `multiSend`, a bespoke batcher — hides whatever it carries. A
-    // call is refused on its own bytes, never on its siblings': a batch pairing
-    // one readable cut with one unreadable envelope must not pass because the
-    // readable half decoded.
-    //
-    // The reach of this is exactly "the selector, verbatim and byte-aligned".
-    // An envelope that splits or transforms it — two `bytes2` halves reassembled
-    // on chain, a payload rebuilt from a perturbed copy — is not caught, and
-    // needs a bespoke batcher the Safe would have to be pointed at.
-    if (carriesCutSelectorAligned(data)) undecodable.add(index)
+    leaves.push({
+      callIndex: index,
+      data,
+      selector,
+      depth,
+      ...(target === undefined ? {} : { target }),
+      ...(caller === undefined ? {} : { caller }),
+    })
   }
 
   calldatas.forEach((data, index) => {
@@ -370,5 +409,79 @@ export const collectDiamondCutCalls = (
     else walk(data, index, 0, context?.targets[index], context?.caller)
   })
 
-  return { calls, undecodable: [...undecodable] }
+  return { leaves, undecodable: [...undecodable] }
+}
+
+/**
+ * Reads every `diamondCut` a proposal's calls would reach, unwrapping timelock
+ * envelopes on the way down.
+ * @param calldatas - the proposal's calls, in the order they were passed
+ * @param context - The target and sender to stamp on every call, when the
+ * caller knows them. Absent, each result leaves both fields unset rather than
+ * naming an address nothing observed.
+ * @returns The decoded cuts, plus the indices of calls this could not read
+ * through.
+ */
+export const collectDiamondCutCalls = (
+  calldatas: readonly Hex[],
+  context?: IDiamondCutCallContext
+): ICollectedDiamondCuts =>
+  diamondCutCallsIn(collectLeafCalls(calldatas, context))
+
+/**
+ * The `diamondCut` calls among leaves already walked.
+ *
+ * Split from {@link collectDiamondCutCalls} so a caller that also reads the
+ * leaves for something else walks the proposal once and reads both answers off
+ * the same traversal, rather than running a second one that could be handed
+ * different arguments and disagree about what the proposal contains.
+ *
+ * @param collected - what {@link collectLeafCalls} returned
+ * @returns The decoded cuts, plus the indices this could not read through.
+ */
+export const diamondCutCallsIn = ({
+  leaves,
+  undecodable: unopened,
+}: ICollectedLeafCalls): ICollectedDiamondCuts => {
+  const calls: IDiamondCutCall[] = []
+  const undecodable = new Set<number>(unopened)
+
+  for (const leaf of leaves) {
+    if (leaf.selector !== DIAMOND_CUT_SELECTOR) {
+      // An envelope this cannot open. Only the timelock wrappers are unwrapped,
+      // so any other — `multiSend`, a bespoke batcher — hides whatever it
+      // carries. A call is refused on its own bytes, never on its siblings': a
+      // batch pairing one readable cut with one unreadable envelope must not
+      // pass because the readable half decoded.
+      //
+      // The reach of this is exactly "the selector, verbatim and byte-aligned".
+      // An envelope that splits or transforms it — two `bytes2` halves
+      // reassembled on chain, a payload rebuilt from a perturbed copy — is not
+      // caught, and needs a bespoke batcher the Safe would have to be pointed at.
+      if (carriesAnySelectorAligned(leaf.data, [DIAMOND_CUT_SELECTOR]))
+        undecodable.add(leaf.callIndex)
+      continue
+    }
+
+    let decoded
+    try {
+      decoded = decodeCut(leaf.data)
+    } catch {
+      undecodable.add(leaf.callIndex)
+      continue
+    }
+    calls.push({
+      callIndex: leaf.callIndex,
+      cuts: decoded.cuts,
+      init: decoded.init,
+      initCalldata: decoded.initCalldata,
+      raw: leaf.data,
+      ...(leaf.target === undefined ? {} : { target: leaf.target }),
+      ...(leaf.caller === undefined ? {} : { caller: leaf.caller }),
+    })
+  }
+
+  // Ascending, because the single pre-split walk could only discover these in
+  // top-level order and a caller's message should not reorder with the split.
+  return { calls, undecodable: [...undecodable].sort((a, b) => a - b) }
 }
