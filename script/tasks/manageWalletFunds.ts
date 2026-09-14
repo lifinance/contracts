@@ -568,8 +568,8 @@ async function runSend(
   const net = requireNetwork(networkName)
 
   // send is a plain native value transfer. On chains whose gas asset is an ERC-20
-  // (arc's predeploy, or tempo's "no native currency" model), a value transfer would
-  // move the wrong thing — or nothing — so refuse.
+  // (tempo's "no native currency" model, or a nativeAddress naming a real gas token),
+  // a value transfer would move the wrong thing — or nothing — so refuse.
   if (chainUsesErc20Gas(net))
     throw new Error(
       `send does not support ERC-20-gas chains like "${networkName}" (gas is paid in an ` +
