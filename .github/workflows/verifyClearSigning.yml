@@ -1,11 +1,12 @@
 # Verify Clear-Signing Proposal is Current
 # - Purpose: block PRs that change facets / the generator / the proposal JSON without keeping `config/clearSigningProposal.json` in sync with the generator's output. Also blocks PRs that introduce a user-facing function the generator can't template.
-# - Triggers: pull_request on src/Facets/**, src/Libraries/** (the structs the templates resolve paths into), tasks/buildClearSigningProposal.ts, config/clearSigningProposal.json, the workflow itself,
+# - Triggers: pull_request on src/Facets/**, src/Libraries/** (the structs the templates resolve paths into), tasks/buildClearSigningProposal.ts, tasks/generateClearSigningTests.ts, config/clearSigningProposal.json, config/clearSigningTests.json, the workflow itself,
 #   and the shared foundry setup action + .foundry-version its toolchain comes from
 # - Key behaviors: builds forge artifacts, runs `tasks/buildClearSigningProposal.ts` (strict-by-default; exits non-zero on unrecognized or shape-mismatched functions), then `git diff --exit-code` on the committed JSON
 # - Failure modes (and remedy):
 #     - Generator exited non-zero: a user-facing function doesn't match a template. Either align the facet's struct shape with LiFi.BridgeData / LibSwap.SwapData, or extend the generator (`tasks/buildClearSigningProposal.ts`) to handle the new shape.
 #     - Diff non-empty: `config/clearSigningProposal.json` is stale relative to the generator's current output. Run `bunx tsx tasks/buildClearSigningProposal.ts` locally and commit the result.
+#     - "N format(s) have no reviewed test case": a format has no case in `config/clearSigningTests.json`, which the sync generates the registry fixture from. Run the render loop in docs/ClearSigningProposal.md ("Test fixtures") and commit the result. Caught here rather than in the sync, where the failure is after merge and unattended.
 # - Note: this workflow is the human-in-the-loop. The auto-sync workflow (`syncLedgerClearSigning.yml`) trusts that this gate has passed before main.
 
 name: Verify Clear-Signing Proposal
@@ -20,7 +21,11 @@ on:
       # without touching a facet.
       - 'src/Libraries/**'
       - 'tasks/buildClearSigningProposal.ts'
+      - 'tasks/generateClearSigningTests.ts'
       - 'config/clearSigningProposal.json'
+      # The reviewed testsv2 fixture. The PR that commits it is the documented
+      # remedy for an uncovered format, so it has to run this gate itself.
+      - 'config/clearSigningTests.json'
       - '.github/workflows/verifyClearSigning.yml'
       - '.github/actions/setup-foundry/**'
       - '.foundry-version'
@@ -64,8 +69,11 @@ jobs:
         run: bunx tsx tasks/buildClearSigningProposal.ts
 
       - name: Verify config/clearSigningProposal.json is up-to-date
-        # The generator just wrote a fresh proposal. If it differs from the
-        # committed copy, the PR forgot to regenerate after a relevant change.
+        # Runs before the test-case gate: a stale proposal is the cheaper of the
+        # two remedies (re-run one generator vs. re-render cases through the
+        # reference runner), and it is usually the cause of the other. The
+        # generator just wrote a fresh proposal. If it differs from the committed
+        # copy, the PR forgot to regenerate after a relevant change.
         # `--exit-code` makes `git diff` return non-zero on any diff; the
         # explicit verbose diff in the error path gives the dev a copy-pasteable
         # remedy.
@@ -78,6 +86,19 @@ jobs:
             exit 1
           fi
           echo -e "\033[32m✓ proposal is current\033[0m"
+
+      - name: Verify every format has a test case that asserts something
+        # Three invariants, all of which otherwise fail after merge rather than here:
+        #   - a case whose displayed field renders 0x0 passes every runner while
+        #     asserting nothing, so a new format whose displayed component the
+        #     generator has no value for must fail this PR;
+        #   - the sync builds the registry fixture from config/clearSigningTests.json
+        #     and refuses to invent an expectation, so a format with no reviewed
+        #     case there kills the next push-to-main sync — a workflow whose
+        #     failure nobody is watching for;
+        #   - a case is generated once and never revisited, so a renamed label
+        #     leaves its case asserting a label the descriptor no longer emits.
+        run: bunx tsx tasks/generateClearSigningTests.ts --descriptor config/clearSigningProposal.json --check --tests config/clearSigningTests.json
 
       - name: Verify every display.formats entry has renderable fields
         # A format with no `fields` renders only a title in the wallet (no amount,
