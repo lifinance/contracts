@@ -127,6 +127,17 @@ interface IDataProvider {
 }
 
 /**
+ * Own-property test that does not walk the prototype.
+ *
+ * `key in obj` would resolve a parameter or component named `toString`,
+ * `valueOf` or `constructor` to an inherited member. `Object.hasOwn` is ES2022
+ * and the repo targets es2020, so this is the equivalent.
+ */
+function hasOwn(obj: object, key: string): boolean {
+  return Object.prototype.hasOwnProperty.call(obj, key)
+}
+
+/**
  * Builds a zero value for an ABI type.
  *
  * Undisplayed arguments only need to encode, so deriving them from the type
@@ -199,7 +210,7 @@ function fromTemplate(
 ): Record<string, unknown> {
   const value = defaultForTuple(param)
   for (const key of Object.keys(value))
-    if (key in template) value[key] = template[key]
+    if (hasOwn(template, key)) value[key] = template[key]
 
   return value
 }
@@ -220,7 +231,7 @@ function buildArg(param: AbiParameter, isSwapVariant: boolean): unknown {
     return param.type.endsWith(']') ? [value] : value
   }
 
-  if (param.name && param.name in TOP_LEVEL_ARGS)
+  if (param.name && hasOwn(TOP_LEVEL_ARGS, param.name))
     return TOP_LEVEL_ARGS[param.name]
 
   return defaultForType(param)
@@ -324,7 +335,7 @@ function mergeDataProvider(fixturePath?: string): IDataProvider {
   // their position — a reordered token table is diff noise a reviewer must read.
   const tokens: Record<string, unknown> = { ...existing.tokens }
   for (const [address, metadata] of Object.entries(DATA_PROVIDER_TOKENS))
-    if (!(address in tokens)) tokens[address] = metadata
+    if (!hasOwn(tokens, address)) tokens[address] = metadata
 
   return { ...existing, tokens }
 }
