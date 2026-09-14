@@ -363,10 +363,15 @@ async function effectLines(
  * name resolved from a registry can be checked against the four bytes it claims
  * to decode rather than taken on trust. The name is sanitised: it can come from
  * a third-party 4byte lookup keyed on a selector the proposer wrote.
+ *
+ * Bold and uncoloured, which is the one weight nothing else on these lines
+ * uses: the addresses, facet names and selector names around it are all
+ * coloured, so a fourth colour would have joined them rather than separated
+ * this from them.
  */
 const calledFunction = (functionName: string, data: Hex): Printable =>
   concatPrintable(
-    color(BLUE, asPrintable(bareName(functionName)).text),
+    color(BOLD, asPrintable(bareName(functionName)).text),
     color(GREY, trustedMarkup(` [${asPrintable(data.slice(0, 10)).text}]`))
   )
 
