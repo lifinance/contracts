@@ -22,6 +22,12 @@ import { createDefaultCache } from '../shared/deployment-cache'
 import { sanitizeProvenanceText } from '../shared/git-provenance'
 import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
 
+import {
+  createCheckLedger,
+  recordCheck,
+  type ICheckLedger,
+  type ICheckResult,
+} from './check-ledger'
 import { readBooleanFlag, readValueFlag } from './cli-flags'
 import {
   assertCodehashSignGateAllowsSigning,
@@ -37,6 +43,18 @@ import {
   createSignTimeCodehashDeps,
   type ISignTimeCodehashDeps,
 } from './codehash-sign-gate-deps'
+import {
+  CONFIRM_CHECK_DEFINITIONS,
+  targetStateCheckResult,
+  worstResultPerCheck,
+} from './confirm-check-registry'
+import {
+  assertIntegrityAssertsAllowSigning,
+  createIntegrityAssertDeps,
+  renderIntegrityAsserts,
+  runIntegrityAsserts,
+  type IIntegrityAssertRun,
+} from './confirm-integrity-asserts'
 import {
   buildAcknowledgementKey,
   buildProposalKey,
@@ -72,6 +90,7 @@ import {
   formatTargetStateLines,
   type ITargetStateVerdict,
 } from './pinned-target-state'
+import { printableField, trustedMarkup } from './printable-field'
 import { reconcileAllSubmittedSafeTxs } from './reconcile'
 import {
   formatDecodedTxDataForDisplay,
@@ -118,6 +137,75 @@ const getCodehashDeps = (): ISignTimeCodehashDeps => {
   codehashDeps ??= createSignTimeCodehashDeps()
   return codehashDeps
 }
+
+// Created once the run's network set is known, because the ledger's
+// denominator is that set: a check that never ran on a network must show as a
+// missing row rather than shrink the total it is measured against.
+//
+// Composed, never read. Only a `pass` counts toward the verified coverage, and
+// every status a correct Add/Replace cut produces is `needs-ack` whose
+// acknowledgement lands in `acknowledgementLedger` — so a correct rollout would
+// grade 0/N. EXSC-994 settles the verdict before anything reads these rows, so
+// what the comments below say a row does to one describes that consumer.
+let checkLedger: ICheckLedger | undefined
+
+const recordEveryCheck = (
+  network: string,
+  row: Pick<ICheckResult, 'status' | 'actual' | 'anchor'>
+): void => {
+  if (!checkLedger) return
+
+  for (const definition of CONFIRM_CHECK_DEFINITIONS)
+    recordCheck(checkLedger, {
+      checkId: definition.checkId,
+      network,
+      // Quantified over the proposals this run would sign, which is empty on
+      // every branch that reaches `recordNothingToGrade` — a network can carry
+      // pending transactions and still offer this signer nothing to act on.
+      expected: 'every proposal this run would sign graded before signing',
+      ...row,
+    })
+}
+
+/**
+ * Records a network the run positively established had nothing to grade.
+ *
+ * The denominator is fixed before the run can learn that a network it listed as
+ * actionable carries no proposal for this operator. Left unrecorded it rolls up
+ * as missing and hard-blocks a run on which nothing was wrong. A pass on
+ * `A-LOCAL` is the reading `no-diamond-cut` already gets: the run read its input
+ * and found nothing to compare, which is a verified fact about this network.
+ *
+ * Only for outcomes that answered. A read that *failed* has not established
+ * anything and belongs in `recordCouldNotGrade` — mixing the two is how a fully
+ * green run comes to verify nothing.
+ * @param network - The network that carried no proposal.
+ * @param reason - What the run established instead, shown on the row.
+ */
+const recordNothingToGrade = (network: string, reason: string): void =>
+  recordEveryCheck(network, {
+    status: 'pass',
+    actual: `no proposal was graded on ${network} — ${reason}`,
+    anchor: 'A-LOCAL',
+  })
+
+/**
+ * Records a network the run could not reach a verdict on at all.
+ *
+ * Distinct from `recordNothingToGrade` in exactly the way `check-ledger.ts`'s
+ * header requires: a check that could not run is not a check that passed. The
+ * row is unverified, so the verdict blocks and names the network — which is the
+ * correct outcome for an infrastructure failure, and costs nothing operationally
+ * because this ledger reports rather than gates.
+ * @param network - The network that could not be graded.
+ * @param reason - What failed, shown on the row.
+ */
+const recordCouldNotGrade = (network: string, reason: string): void =>
+  recordEveryCheck(network, {
+    status: 'error',
+    actual: `nothing could be graded on ${network} — ${reason}`,
+    anchor: 'A-UNRESOLVED',
+  })
 
 // Acknowledgements roll up across networks so a fleet-wide rollout counts once;
 // the operator's chosen action is never remembered.
@@ -176,6 +264,7 @@ const processTxs = async (
     chain,
     safeAddress,
     txSafeAddress,
+    configuredSafeAddress,
     signerAddress,
     txs: initialTxs,
     onChainNonce,
@@ -190,6 +279,13 @@ const processTxs = async (
   // by the signer through `createGatedSigner`. It starts blocking so a proposal
   // whose evaluation never ran cannot be signed on last proposal's answer.
   let codehashGate: ICodehashSignGate = blockingUnevaluatedGate()
+
+  // The proposal's integrity verdict, re-run per proposal below. Absent is the
+  // blocking state: `assertIntegrityAssertsAllowSigning` refuses an undefined
+  // run, so a proposal whose assertions never ran cannot be signed on the last
+  // proposal's answer — and the run carries the transaction it graded, which
+  // that refusal compares against the one reaching the signer.
+  let integrityRun: IIntegrityAssertRun | undefined
 
   /**
    * Signs a SafeTransaction.
@@ -213,6 +309,15 @@ const processTxs = async (
     // against it rather than merely being non-blocking.
     keyOf: (safeTransaction) => proposalKeyOf(safeTransaction.data),
     sign: async (safeTransaction, client = safe) => {
+      // After the codehash refusal `createGatedSigner` has already run, never
+      // before it: placed first this would swallow that refusal, and the
+      // codehash verdict is the more specific answer of the two. Still ahead of
+      // every statement of this body, so nothing signs before it.
+      assertIntegrityAssertsAllowSigning(
+        integrityRun,
+        proposalKeyOf(safeTransaction.data)
+      )
+
       consola.info('Signing transaction')
       try {
         const signedTx = await client.signTransaction(safeTransaction)
@@ -246,8 +351,14 @@ const processTxs = async (
       }
     )
     if (result.matchedCount === 0)
+      // The hash comes off the stored row and is never compared to anything on
+      // this path. It prints after signing, so it cannot corrupt the decision —
+      // but it can repaint a success line over a real failure to persist, which
+      // hides that the signature was never stored.
       throw new Error(
-        `MongoDB update matched 0 rows for safeTxHash ${txDoc.safeTxHash}. ` +
+        `MongoDB update matched 0 rows for safeTxHash ${printableField(
+          txDoc.safeTxHash
+        )}. ` +
           `A duplicate row with the same hash may exist under a different status (e.g. reverted).`
       )
     consola.success('Transaction signed and stored in MongoDB')
@@ -283,6 +394,15 @@ const processTxs = async (
     // them by construction, and the sign-then-execute paths simply assert twice.
     assertCodehashSignGateAllowsSigning(
       codehashGate,
+      proposalKeyOf(safeTransaction.data)
+    )
+
+    // The same route-disjoint pair, for the same reason: a proposal already at
+    // threshold reaches the chain from here without the sign funnel being
+    // consulted. Ordered after the codehash refusal so that one still reports
+    // first, and before anything this function broadcasts.
+    assertIntegrityAssertsAllowSigning(
+      integrityRun,
       proposalKeyOf(safeTransaction.data)
     )
 
@@ -412,6 +532,13 @@ const processTxs = async (
     }
   }
 
+  // Every proposal's ledger rows, accumulated rather than recorded as they are
+  // graded. A ledger row is denominated per network while proposals are graded
+  // one by one, and `rollUpChecks` reads two records for one (check, network)
+  // pair as a retry — so recording per proposal lets the last proposal's verdict
+  // stand for the whole network, and a clean one erase an earlier refusal.
+  const proposalChecks: ICheckResult[] = []
+
   // Sort transactions by nonce in ascending order to process them in sequence
   // Track expected nonce so sequential executions within a single run work correctly
   let expectedNonce = onChainNonce
@@ -432,6 +559,7 @@ const processTxs = async (
         : 'future'
 
     codehashGate = blockingUnevaluatedGate()
+    integrityRun = undefined
 
     consola.info('-'.repeat(80))
     consola.info('Transaction Details:')
@@ -465,14 +593,18 @@ const processTxs = async (
     const nonceColor =
       nonceStatus === 'current' ? '32' : nonceStatus === 'stale' ? '31' : '33'
     // Only show nonce warning if the tx can be executed — irrelevant while still collecting signatures
-    const nonceWarning =
+    // `trustedMarkup`: both readings are a chain-read `bigint`, and the strings
+    // carry colour codes of their own that sanitising would strip.
+    const nonceWarning = trustedMarkup(
       nonceStatus === 'stale'
         ? ` \u001b[31m✗ STALE — on-chain nonce is ${expectedNonce}, this proposal's nonce was already used\u001b[0m`
         : nonceStatus === 'future' && tx.canExecute
         ? ` \u001b[33m⚠ on-chain nonce is ${expectedNonce} — cannot execute yet\u001b[0m`
         : ''
+    )
 
     const detailLines = buildSafeTxDetailLines({
+      network,
       nonce: tx.safeTx.data.nonce,
       nonceColor,
       nonceWarning,
@@ -481,14 +613,17 @@ const processTxs = async (
       formatAddress,
       explorerUrlFor,
       value: tx.safeTx.data.value,
-      operationLabel:
+      // `trustedMarkup`: two literals, and a value `describeOperationValue`
+      // has already sanitised and bounded.
+      operationLabel: trustedMarkup(
         tx.safeTransaction.data.operation === 0
           ? 'Call'
           : tx.safeTransaction.data.operation === 1
           ? 'DelegateCall'
           : `not Call (${describeOperationValue(
               tx.safeTransaction.data.operation
-            )})`,
+            )})`
+      ),
       data: tx.safeTx.data.data,
       proposer: tx.proposer,
       safeTxHash: tx.safeTxHash,
@@ -517,6 +652,7 @@ const processTxs = async (
     // Target-state lines are graded here, not inside the sanitising detail
     // block: they are computed verdicts, not stored proposer-controlled fields.
     for (const line of formatTargetStateLines(targetState)) consola.info(line)
+    proposalChecks.push(targetStateCheckResult(targetState, network))
 
     // The struct the signature covers, never the stored row: createTransaction
     // normalises an absent operation to Call, so those two copies can disagree.
@@ -541,9 +677,9 @@ const processTxs = async (
         deviceHash = await safe.getTransactionHash(tx.safeTransaction)
       } catch (error) {
         consola.warn(
-          `Could not compute the Safe transaction hash on ${network} — the Ledger screens cannot be previewed: ${
+          `Could not compute the Safe transaction hash on ${network} — the Ledger screens cannot be previewed: ${printableField(
             error instanceof Error ? error.message : error
-          }`
+          )}`
         )
       }
     if (verificationDisplay === 'filmstrip')
@@ -553,7 +689,7 @@ const processTxs = async (
           verifyingContract: safeAddress,
           to: tx.safeTransaction.data.to,
           value: String(tx.safeTransaction.data.value),
-          data: tx.safeTx.data.data as Hex,
+          data: tx.safeTx.data.data,
         })
         consola.info(
           [
@@ -642,6 +778,66 @@ const processTxs = async (
       }
     }
     renderCodehashSignGate(codehashGate).forEach((line) => consola.info(line))
+
+    // Nothing between the top of this iteration and this point returns or
+    // continues, which is what lets the run happen here without swallowing a
+    // check that would otherwise have decided first.
+    //
+    // Only the verdict is produced here; the refusal lives in the two funnels,
+    // because dropping the Sign option instead would hide which assertion
+    // refused.
+    try {
+      integrityRun = await runIntegrityAsserts(
+        {
+          network,
+          chainId: chain.id,
+          clientSafeAddress: safeAddress,
+          ...(configuredSafeAddress ? { configuredSafeAddress } : {}),
+          documentSafeAddress: tx.safeAddress,
+          documentSafeTxHash: tx.safeTxHash,
+          // Cast, not read through the interface: the check that refuses a
+          // field outside the signed struct exists precisely for keys the
+          // interface does not declare, and reading it as the declared type
+          // would hand the assertion a shape in which they cannot appear.
+          storedTxData: (tx.safeTx.data ?? {}) as unknown as Record<
+            string,
+            unknown
+          >,
+          storedSignatures: Object.values(tx.safeTx.signatures ?? {}),
+          // The signed struct throughout, never the stored row: the row is what
+          // is displayed, and a check that keys on it verifies the description
+          // rather than the transaction.
+          // These five fields must reach the module exactly as
+          // `proposalKeyOf(safeTransaction.data)` in the funnels reads them: the
+          // graded key is derived from them and compared against that one, and
+          // `proposalKeyOf` reads an absent payload as the empty string. A
+          // default substituted here disagrees with it and refuses every
+          // proposal carrying no calldata. An unusable payload is for the
+          // assertions to refuse, not for this call site to repair.
+          to: tx.safeTransaction.data.to,
+          data: tx.safeTransaction.data.data,
+          signedValue: String(tx.safeTransaction.data.value),
+          signedOperation: tx.safeTransaction.data.operation ?? 0,
+          signedNonce: Number(tx.safeTransaction.data.nonce),
+        },
+        createIntegrityAssertDeps({
+          network,
+          safe,
+          safeTx: tx.safeTransaction,
+        })
+      )
+    } catch (error) {
+      // Left undefined, which is the blocking state. "The assertions could not
+      // run" and "the assertions passed" are the two things they exist to keep
+      // apart, so a thrown lookup must not read as the second.
+      integrityRun = undefined
+      consola.error(
+        `    Proposal integrity: the assertions could not be run — ${printableField(
+          error instanceof Error ? error.message : error
+        )}`
+      )
+    }
+    renderIntegrityAsserts(integrityRun).forEach((line) => consola.info(line))
 
     const integrity = evaluateProposalIntegrity({ nonceStatus })
     // Said before the action prompt, not after it: a verdict the operator can no
@@ -985,6 +1181,18 @@ const processTxs = async (
         consola.error('Error executing with deployer:', error)
       }
   }
+
+  // One row per network, written once every proposal on it has been graded and
+  // reduced worst-first. A `ready` network always carries at least one proposal,
+  // so the empty branch is the unreachable case made explicit rather than left
+  // to roll up as a missing row and block the run.
+  if (checkLedger) {
+    if (proposalChecks.length === 0)
+      recordNothingToGrade(network, 'the prepared network carried no proposal')
+    else
+      for (const result of worstResultPerCheck(proposalChecks))
+        recordCheck(checkLedger, result)
+  }
 }
 
 /**
@@ -1285,12 +1493,22 @@ const main = defineCommand({
           })
       }
 
+      checkLedger = createCheckLedger({
+        expectedNetworks: networks.filter((network): network is string =>
+          Boolean(network)
+        ),
+        checks: [...CONFIRM_CHECK_DEFINITIONS],
+      })
+
       for (let i = 0; i < networks.length; i++) {
         const network = networks[i]
         if (!network) continue
 
         const networkTxs = txsByNetwork[network.toLowerCase()]
-        if (!networkTxs || networkTxs.length === 0) continue
+        if (!networkTxs || networkTxs.length === 0) {
+          recordNothingToGrade(network, 'no pending transaction was fetched')
+          continue
+        }
 
         networksAttempted.add(network)
 
@@ -1320,6 +1538,10 @@ const main = defineCommand({
             break
           case 'nothing-actionable':
             consola.success(`No actionable pending transactions on ${network}`)
+            recordNothingToGrade(
+              network,
+              'nothing actionable was left once the network was prepared'
+            )
             break
           case 'not-owner':
             consola.error(
@@ -1327,10 +1549,18 @@ const main = defineCommand({
             )
             consola.error(`  Signer: ${prepared.signerAddress}`)
             consola.error(`  Owners: ${prepared.owners.join(', ')}`)
+            recordNothingToGrade(
+              network,
+              'the signer is not an owner of this Safe, so nothing here can be signed'
+            )
             break
           case 'owner-check-failed':
             consola.error(
               `[${network}] Failed to check Safe ownership — skipping this network: ${prepared.error}`
+            )
+            recordCouldNotGrade(
+              network,
+              'the Safe ownership read failed, so ownership could not be established'
             )
             break
           case 'read-failed':

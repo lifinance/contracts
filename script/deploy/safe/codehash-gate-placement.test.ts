@@ -10,23 +10,27 @@
  * obvious way to reintroduce the bug fails them: a second signing call site
  * anywhere in the file, or a funnel that no longer wraps the gate.
  *
- * The order the checks run in, at the point the gate was inserted, written down
- * before inserting it:
+ * The order the checks run in, kept current so it can be used to place the
+ * next one:
  *
  * 1. nonce status for the proposal
- * 2. `formatDecodedTxDataForDisplay` — the calldata the gate then judges
- * 3. detail lines, parked-cleanup refs, provenance
- * 4. the Ledger verification display (filmstrip or hash-compare)
- * 5. **the codehash gate** — evaluated and displayed here
- * 6. `evaluateProposalIntegrity`, the fingerprint and the two keys
- * 7. the pre-prompt `networkOutcomes.push`
- * 8. the action prompt, then `continue` on "Do Nothing"
- * 9. the nonce gate on execute actions, then `continue` on stale/unreachable
- * 10. the acknowledgement prompt, then `continue` on "No"
- * 11. `recordAcknowledgement`
- * 12. the sign and execute branches
+ * 2. per-proposal reset of the codehash gate and of the integrity run
+ * 3. `formatDecodedTxDataForDisplay` — the calldata the gate then judges
+ * 4. detail lines, parked-cleanup refs, provenance
+ * 5. the target-state verdict — evaluated and displayed; its refusal is at 14
+ * 6. the delegatecall gate
+ * 7. the Ledger verification display (filmstrip or hash-compare)
+ * 8. **the codehash gate** — evaluated and displayed here
+ * 9. the integrity assertions — run and displayed
+ * 10. `evaluateProposalIntegrity`, the fingerprint and the two keys
+ * 11. the pre-prompt `networkOutcomes.push`
+ * 12. the action prompt, then `continue` on "Do Nothing"
+ * 13. the nonce gate on execute actions, then `continue` on stale/unreachable
+ * 14. the target-state refusal, then `continue` when it did not clear
+ * 15. `recordAcknowledgement`
+ * 16. the sign and execute branches
  *
- * Nothing in 1-4 returns or continues, so inserting at 5 swallows no existing
+ * Nothing in 1-7 returns or continues, so the gate at 8 swallows no existing
  * check; and the refusal itself goes first inside the signer, where nothing
  * precedes it at all.
  */
@@ -48,18 +52,50 @@ const SOURCE = readFileSync(join(import.meta.dir, 'confirm-safe-tx.ts'), 'utf8')
  * expose. Narrowing this to `signTransaction` would let a future
  * `safe.signTransactionWithHash(tx)` satisfy the assertion below.
  */
-const CLIENT_SIGN_CALLS =
-  /\w+\.(?:signTransaction|signTransactionWithHash|signHash|signTypedData|signMessage)\(/g
+const SIGN_METHODS =
+  'signTransaction|signTransactionWithHash|signHash|signTypedData|signMessage'
+
+const CLIENT_SIGN_CALLS = new RegExp(`\\w+\\.(?:${SIGN_METHODS})\\(`, 'gu')
+
+/**
+ * The same methods reached by any spelling `CLIENT_SIGN_CALLS`/`EXECUTE_CALLS`
+ * cannot see, because those require a bare `\w+` receiver immediately before
+ * the dot: a cast or call receiver (`(x as SafeClient).signTransaction(`,
+ * `foo().signHash(`), optional chaining (`x?.executeTransaction(`), computed
+ * access in any quote style, and a reference detached from its receiver
+ * (`const b = safeClient.executeTransaction` — later `b.call(...)`).
+ *
+ * A separate pattern rather than a widened `CLIENT_SIGN_CALLS`, so the
+ * exhaustive assertion below keeps comparing against readable call text. Every
+ * one of these compiles and survives prettier unchanged, and a cast is the
+ * natural shape at the Safe/Tron seam — so an ungated route could be added in
+ * one of the forms the check cannot see. Line-broken and spaced-out dots are
+ * deliberately not covered: prettier collapses them before they can be
+ * committed.
+ */
+const ANY_ROUTE = `${SIGN_METHODS}|executeTransaction`
+
+const EXOTIC_RECEIVER_CALLS = new RegExp(
+  // cast / call receiver, and optional chaining on any receiver
+  `[)\\]]\\s*\\??\\.\\s*(?:${ANY_ROUTE})\\(` +
+    `|\\w\\s*\\?\\.\\s*(?:${ANY_ROUTE})\\(` +
+    // computed access, single/double/backtick
+    `|\\[\\s*['"\`](?:${ANY_ROUTE})['"\`]\\s*\\]\\s*\\(` +
+    // the method named but not called — a reference that can be invoked later
+    `|\\.\\s*(?:${ANY_ROUTE})\\s*(?![(\\w])`,
+  'gu'
+)
 
 /**
  * The one call that broadcasts. Execution needs no signature of ours, so it
  * cannot be covered by the sign funnel.
  *
- * Any receiver, as `CLIENT_SIGN_CALLS` already does: bound to `safeClient.` it
- * could not see a later `safe.executeTransaction(` or
+ * Any identifier receiver, as `CLIENT_SIGN_CALLS` already does: bound to
+ * `safeClient.` it could not see a later `safe.executeTransaction(` or
  * `deployerSafe.executeTransaction(` at all, so the assertion below stayed
  * green over exactly the ungated route it exists to catch. Both those receivers
- * are in scope in this file, so it was not a hypothetical.
+ * are in scope in this file, so it was not a hypothetical. Receivers that are
+ * not identifiers are covered by `EXOTIC_RECEIVER_CALLS`.
  */
 const EXECUTE_CALLS = /\w+\.executeTransaction\(/g
 
@@ -83,12 +119,21 @@ describe('the codehash refusal is in the one funnel every sign path uses', () =>
     // call in it.
     expect(signing.length).toBeGreaterThan(0)
     expect(signing).toEqual(['client.signTransaction('])
+    expect(matches(EXOTIC_RECEIVER_CALLS)).toEqual([])
 
-    const funnelBody = SOURCE.slice(
-      SOURCE.indexOf('createGatedSigner<'),
-      SOURCE.indexOf('  /**\n   * Persists a signed Safe tx')
+    // Ends at the signer's own closing `})`, not at the next declaration and
+    // not at that declaration's docstring. Prose meant rewording a comment
+    // widened the window to the whole file; the next declaration still leaves
+    // the gap between the two as somewhere a signing helper can sit, be reached
+    // from an ungated branch, and still be counted as inside the funnel. Both
+    // ends guarded.
+    const bodyStart = SOURCE.indexOf('createGatedSigner<')
+    expect(bodyStart).toBeGreaterThan(-1)
+    const bodyEnd = SOURCE.indexOf('\n  })\n', bodyStart)
+    expect(bodyEnd).toBeGreaterThan(bodyStart)
+    expect(SOURCE.slice(bodyStart, bodyEnd)).toContain(
+      'client.signTransaction('
     )
-    expect(funnelBody).toContain('client.signTransaction(')
   })
 
   it('routes every sign path through the funnel, including the deployer step', () => {
@@ -115,10 +160,19 @@ describe('the codehash refusal is in the one funnel every sign path uses', () =>
     expect(executing).toEqual(['safeClient.executeTransaction('])
 
     // …and it lives inside the one local helper every execute branch calls.
-    const funnelBody = SOURCE.slice(
-      SOURCE.indexOf('async function executeTransaction('),
-      SOURCE.indexOf('async function executeTransaction(') + 1600
-    )
+    //
+    // Bounded by the helper's own dedented closing brace rather than by a
+    // character count: a fixed window silently stops covering the tail of the
+    // function the first time anything is inserted near its top, and then
+    // reports the broadcast as missing rather than as ungated. Both ends are
+    // guarded, because an unfound delimiter widens the window to the rest of
+    // the file instead of narrowing it, and the assertions then hold on text
+    // outside the helper.
+    const funnelStart = SOURCE.indexOf('async function executeTransaction(')
+    expect(funnelStart).toBeGreaterThan(-1)
+    const funnelEnd = SOURCE.indexOf('\n  }\n', funnelStart)
+    expect(funnelEnd).toBeGreaterThan(funnelStart)
+    const funnelBody = SOURCE.slice(funnelStart, funnelEnd)
     expect(funnelBody).toContain('safeClient.executeTransaction(')
     expect(funnelBody).toContain('assertCodehashSignGateAllowsSigning')
 

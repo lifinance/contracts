@@ -63,6 +63,7 @@ import {
   evaluateDelegateCallGate,
 } from './delegatecall-gate'
 import { getDeployedFacetVersionFromLog } from './facet-version-utils'
+import { printableField } from './printable-field'
 import {
   firstSupplied,
   formatReasonWarning,
@@ -3052,8 +3053,10 @@ function displayFacetVersionInfo(
     network,
     facetAddressCandidates
   )
+  // The deployment cache is refreshed from MongoDB, so a version string is
+  // remote row text reaching the signer's prompt, not a repo constant.
   const deployedDisplay = deployedVersion
-    ? `[34m${deployedVersion}[0m`
+    ? `[34m${printableField(deployedVersion)}[0m`
     : `[33munknown (address not found in deployment log)[0m`
 
   consola.info(`${pre}Facet Version (to be added): ${deployedDisplay}`)
@@ -3201,7 +3204,9 @@ export async function decodeDiamondCut(
         const fourByteName = fourByteResolved.get(normalizedSelector)
         if (fourByteName)
           consola.info(
-            `${pre}Function: \u001b[34m${fourByteName}\u001b[0m [${selector}] \u001b[90m(4byte.sourcify.dev)\u001b[0m`
+            `${pre}Function: \u001b[34m${printableField(
+              fourByteName
+            )}\u001b[0m [${selector}] \u001b[90m(4byte.sourcify.dev)\u001b[0m`
           )
         else consola.warn(`${pre}Unknown function [${selector}]`)
       }

@@ -177,8 +177,12 @@ const spawnCli = (options: {
   // unroutable host rather than removed. An earlier version of this probe
   // inherited the real store and queued a proposal on a production Safe, which
   // takes a real nonce and blocks the queue behind it.
-  delete env.PRIVATE_KEY
-  delete env.PRIVATE_KEY_PRODUCTION
+  // Deleted, not set to a malformed value: `cwd` is the mkdtempSync fixture repo,
+  // which has no env file for bun to re-load, and four cases below assert the
+  // key-absent message that a malformed value would replace.
+  delete env.PRIVATE_KEY // spawn-env: child cwd has no .env
+  delete env.PRIVATE_KEY_PRODUCTION // spawn-env: child cwd has no .env
+  delete env.SAFE_SIGNER_PRIVATE_KEY // spawn-env: child cwd has no .env
   // Deliberately malformed rather than merely unroutable: the driver spends its
   // 30 s server-selection budget on an unreachable host, where a URI it cannot
   // parse throws on construction, so a probe that gets past the gate dies at

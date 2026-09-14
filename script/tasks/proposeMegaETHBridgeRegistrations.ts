@@ -32,15 +32,13 @@ import {
 } from 'viem'
 
 import { EnvironmentEnum } from '../common/types'
+import { proposeSafeTx } from '../deploy/safe/propose-safe-tx'
 import {
-  OperationTypeEnum,
   getNextNonce,
   getPrivateKey,
   getSafeMongoCollection,
   initializeSafeClient,
-  isAddressASafeOwner,
   pickTimelockSalt,
-  storeTransactionInMongoDB,
 } from '../deploy/safe/safe-utils'
 import { encodeTimelockScheduleBatch } from '../deploy/safe/timelock-abi'
 import {
@@ -207,13 +205,6 @@ async function proposeToSafe(params: {
       rpcUrl
     )
 
-    const owners = await safe.getOwners()
-    if (!isAddressASafeOwner(owners, safe.account.address)) {
-      throw new Error(
-        `Signer ${safe.account.address} is not an owner of Safe ${safeAddress} on ${network}`
-      )
-    }
-
     const nextNonce = await getNextNonce(
       pendingTransactions,
       safeAddress,
@@ -222,38 +213,19 @@ async function proposeToSafe(params: {
       await safe.getNonce()
     )
 
-    const safeTransaction = await safe.createTransaction({
-      transactions: [
-        {
-          to,
-          value: 0n,
-          data: calldata,
-          operation: OperationTypeEnum.Call,
-          nonce: nextNonce,
-        },
-      ],
+    const { safeTxHash, stored } = await proposeSafeTx({
+      safe,
+      network,
+      chainId: chain.id,
+      safeAddress,
+      pendingTransactions,
+      payload: { kind: 'call', to, data: calldata, nonce: nextNonce },
     })
 
-    const signedTx = await safe.signTransaction(safeTransaction)
-    const safeTxHash = await safe.getTransactionHash(signedTx)
-
-    const result = await storeTransactionInMongoDB(
-      pendingTransactions,
-      safeAddress,
-      network,
-      chain.id,
-      signedTx,
-      safeTxHash,
-      safe.account.address
-    )
-
-    if (result === null) {
+    if (!stored) {
       consola.info(`[${network}] ℹ️ Proposal already exists - skipping insert`)
       return
     }
-
-    if (!result.acknowledged)
-      throw new Error(`[${network}] MongoDB insert was not acknowledged`)
 
     consola.success(`[${network}] ✅ Proposed Safe tx ${safeTxHash}`)
   } finally {

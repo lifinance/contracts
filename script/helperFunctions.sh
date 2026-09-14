@@ -1203,7 +1203,7 @@ function saveDiamondPeriphery() {
   echoDebug "ENVIRONMENT=$ENVIRONMENT"
   echoDebug "USE_MUTABLE_DIAMOND=$USE_MUTABLE_DIAMOND"
   echoDebug "FILE_SUFFIX=$FILE_SUFFIX"
-  echoDebug "RPC_URL=$RPC_URL"
+  echoDebug "RPC_URL=$(redactRpcUrl "$RPC_URL")"
   echoDebug "DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
   echoDebug "DIAMOND_FILE=$DIAMOND_FILE"
 
@@ -2202,6 +2202,13 @@ function redactVerifyCmd() {
   done
 
   printf '%s\n' "$OUTPUT"
+}
+
+# Endpoint URLs carry the provider key in the path or query, so the value must never reach a log
+# line verbatim. Only a scheme-bearing URL is matched, mirroring the TypeScript redactUrls().
+# Callers that need the URL itself — getRPCUrl returns it on stdout — must not use this.
+function redactRpcUrl() {
+  printf '%s' "${1:-}" | sed -E 's#[a-zA-Z][a-zA-Z0-9+.-]*://[^[:space:]]+#[redacted-url]#g'
 }
 
 function verifyContract() {
@@ -4178,6 +4185,68 @@ function getPrivateKey() {
   fi
 }
 
+# Runs the production deploy gate for calldata that is broadcast straight to the
+# target instead of proposed to a Safe. The funnel gate in
+# `script/deploy/shared/funnel-deploy-gate.ts` runs inside the proposal funnels,
+# which this route never enters, so without this a
+# `SEND_PROPOSALS_DIRECTLY_TO_DIAMOND` bring-up window installs unmerged code on
+# a mainnet diamond unchecked.
+#
+# `getPrivateKey` hands out the production key for every ENVIRONMENT that does
+# not contain "staging", so matching the exact string keeps the gate at least as
+# broad as the key it protects.
+#
+# On a Tron mainnet the CLI reads the deployment log with the EVM address reader,
+# so a cut there is refused as unattributable rather than compared: the Tron log
+# stores base58 and the converter needs a live TronWeb. No caller encodes a
+# diamondCut through this helper today, so that refusal is unreachable — if one
+# ever reaches it, the fix is the reader `propose-to-safe-tron.ts` already passes
+# to `createFunnelGateDeps`, not a carve-out here.
+#
+# Usage: assertDirectBroadcastCalldataGate NETWORK ENVIRONMENT CALLDATA
+# Returns: 0 to continue, 1 to refuse. Never exits.
+function assertDirectBroadcastCalldataGate() {
+  local NETWORK="$1"
+  local ENVIRONMENT="$2"
+  local CALLDATA="$3"
+
+  if [[ "$ENVIRONMENT" == "staging" ]]; then
+    echo "[info] direct-broadcast deploy gate skipped: staging environment"
+    return 0
+  fi
+
+  # Deploying an unmerged facet to a testnet is how it gets validated before its
+  # audit, and no mainnet Safe or production key is involved.
+  if isTestnetNetwork "$NETWORK"; then
+    echo "[info] direct-broadcast deploy gate skipped: $NETWORK is a testnet"
+    return 0
+  fi
+
+  # Only stdout is captured, and only the token's own line counts as consent:
+  # CALLDATA and NETWORK come from the caller, so no stdout line may consist
+  # solely of what they carry. Diagnostics keep streaming on stderr.
+  local GATE_STDOUT
+  if ! GATE_STDOUT=$(bunx tsx ./script/deploy/shared/assert-direct-broadcast-gate.ts --network "$NETWORK" --calldata "$CALLDATA"); then
+    if [[ -n "$GATE_STDOUT" ]]; then
+      printf '%s\n' "$GATE_STDOUT"
+    fi
+    error "Direct-broadcast deploy gate failed for $NETWORK - aborting before anything is broadcast"
+    return 1
+  fi
+  if [[ -n "$GATE_STDOUT" ]]; then
+    printf '%s\n' "$GATE_STDOUT"
+  fi
+
+  # Exit 0 is not consent: a CLI that never ran also exits 0 and prints nothing.
+  if ! printf '%s\n' "$GATE_STDOUT" | grep -Fxq "DIRECT_BROADCAST_GATE_ALLOWED"; then
+    error "Direct-broadcast deploy gate produced no allow token - aborting before anything is broadcast"
+    return 1
+  fi
+
+  echo "[info] direct-broadcast deploy gate passed"
+  return 0
+}
+
 # Send or propose transaction
 # - SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true: send directly to target (e.g. new production networks before ownership transfer)
 # - Testnet (networks.json type=testnet): send directly; testnet diamonds are EOA-owned with no Safe/Timelock
@@ -4258,6 +4327,10 @@ function sendOrPropose() {
   if [[ "$ENVIRONMENT" != "production" ]] \
      || [[ "${SEND_PROPOSALS_DIRECTLY_TO_DIAMOND:-}" == "true" ]] \
      || isTestnetNetwork "$NETWORK"; then
+    # Disjoint from the funnel gate by construction: a proposal is gated on its
+    # calldata inside propose-to-safe.ts, and only the route that never reaches
+    # it is gated here.
+    assertDirectBroadcastCalldataGate "$NETWORK" "$ENVIRONMENT" "${CALLDATAS[0]}" || return 1
     universalCast "sendRaw" "$NETWORK" "$ENVIRONMENT" "$TARGET" "${CALLDATAS[0]}" "$PRIVATE_KEY_OVERRIDE" || return $?
     return 0
   fi
@@ -5072,9 +5145,9 @@ function executeAndCapture() {
 
   # Debug: Show what we captured
   echoDebug "=== RAW_RETURN_DATA (stdout) ==="
-  echoDebug "$RAW_RETURN_DATA"
+  echoDebug "$(redactRpcUrl "$RAW_RETURN_DATA")"
   echoDebug "=== STDERR_CONTENT (stderr) ==="
-  echoDebug "$STDERR_CONTENT"
+  echoDebug "$(redactRpcUrl "$STDERR_CONTENT")"
 
   # Extract JSON if requested
   if [[ "$EXTRACT_JSON" == "true" ]]; then
@@ -5144,10 +5217,10 @@ function parseExecuteCommandResult() {
     if [[ "$RETURN_CODE" -ne 0 ]]; then
       error "$ERROR_MESSAGE (exit code: $RETURN_CODE)"
       if [[ -n "$STDERR_CONTENT" ]]; then
-        error "stderr: $STDERR_CONTENT"
+        error "stderr: $(redactRpcUrl "$STDERR_CONTENT")"
       fi
       if [[ -n "$RAW_RETURN_DATA" ]]; then
-        echoDebug "stdout: $RAW_RETURN_DATA"
+        echoDebug "stdout: $(redactRpcUrl "$RAW_RETURN_DATA")"
       fi
 
       case "$ON_ERROR_ACTION" in
@@ -5293,7 +5366,7 @@ function handleForgeScriptError() {
       warning "forge script returned exit code 0 but with unexpected/empty return data${NETWORK_MSG}${ATTEMPT_MSG}"
     fi
     if [[ -n "${STDERR_CONTENT:-}" ]]; then
-      error "stderr: ${STDERR_CONTENT}"
+      error "stderr: $(redactRpcUrl "${STDERR_CONTENT}")"
     fi
     if [[ -z "${RAW_RETURN_DATA:-}" || "${RAW_RETURN_DATA:-}" == "" ]]; then
       warning "No JSON output received. This usually indicates a connection/RPC error."
@@ -6065,7 +6138,7 @@ function estimatePauseCost() {
       return 2
     fi
     if [[ $ATTEMPT -ge $ESTIMATE_MAX_ATTEMPTS ]]; then
-      error "estimatePauseCost: cast estimate failed for $NETWORK after $ESTIMATE_MAX_ATTEMPTS attempts: ${CAST_ERR:-non-numeric gas estimate ($GAS_ESTIMATE)}" >&2
+      error "estimatePauseCost: cast estimate failed for $NETWORK after $ESTIMATE_MAX_ATTEMPTS attempts: $(redactRpcUrl "${CAST_ERR:-non-numeric gas estimate ($GAS_ESTIMATE)}")" >&2
       return 1
     fi
     sleep "$ESTIMATE_RETRY_SLEEP_SECONDS"

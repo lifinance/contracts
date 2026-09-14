@@ -21,6 +21,8 @@ module.exports = {
     'plugin:import/recommended', // provides the base import rules
     'plugin:import/typescript', // provides the typescript-specific import rules
     'prettier',
+    // Safe-proposal funnel fence; also run on its own by `bun lint:funnel`
+    './.eslintrc.funnel-fence.cjs',
   ],
   rules: {
     // General JavaScript rules

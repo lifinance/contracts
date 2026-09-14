@@ -13,6 +13,7 @@ import { consola } from 'consola'
 
 import { EnvironmentEnum } from '../../common/types'
 import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
+import { redactUrls } from '../../utils/redactUrls'
 import { getEnvVar, getEnvironment } from '../../utils/utils'
 import { flagIsOn, readOptOutFlag } from '../safe/cli-flags'
 
@@ -109,7 +110,7 @@ async function transferOwnershipToTimelock(options: {
       consola.info('   Using provided current owner private key')
 
     consola.info(`   Deployments file: deployments/${deploymentFileName}`)
-    consola.info(` Connected to: ${fullHost}`)
+    consola.info(` Connected to: ${redactUrls(fullHost)}`)
     consola.info(`👛 Current owner (signer): ${tronWeb.defaultAddress.base58}`)
     consola.info(`🔷 LiFiDiamond: ${diamondAddress}`)
     const timelockBase58 = formatAddressForNetworkCliDisplay(

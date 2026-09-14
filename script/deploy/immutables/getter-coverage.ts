@@ -57,18 +57,20 @@ export interface IDeclaredImmutableGetter {
  * `script/deploy/immutables/` already covers it: recording a binding as exempt is a decision
  * about what goes unverified, and needs the same approval as changing the checker.
  *
- * The list may only shrink. The gate fails on an entry that has since been annotated or whose
- * getter no longer exists, so it cannot quietly accumulate and misrepresent how much of the
- * fleet is verified. Annotating the binding is always the preferred fix; add an entry here only
- * when no config file holds a value to compare against.
+ * The gate fails on an entry with no reason, one that has since been annotated, and one whose
+ * getter no longer exists, so the list cannot quietly accumulate and misrepresent how much of
+ * the fleet is verified. Annotating the binding is always the preferred fix; add an entry here
+ * only when no config file holds a value to compare against, or when the invariant cannot
+ * express the expectation — in which case the reason names the blocking ticket, which review
+ * enforces rather than the gate.
  */
 export const EXEMPTIONS_PATH = 'script/deploy/immutables/getter-exemptions.json'
 
 /**
  * Reads the recorded exemptions.
  *
- * An unreadable list is not an empty one: every exempt getter would report as unaccounted, which
- * is loud and fail-closed, so it is left to the caller's error handling rather than defaulted.
+ * An unreadable list defaults to no exemptions rather than throwing: every exempt getter then
+ * reports as unaccounted, which is loud and fail-closed.
  *
  * @param path - repo-relative path; defaults to {@link EXEMPTIONS_PATH}.
  * @returns getter key to the reason it is not checked.
@@ -170,7 +172,7 @@ export const verifyGetterCoverage = (
   for (const key of Object.keys(exemptions).sort()) {
     if (annotated.has(key))
       errors.push(
-        `${key} is exempted but now annotated. Drop the exemption — the list may only shrink.`
+        `${key} is exempted but now annotated. Drop the exemption — an annotated binding is verified, so the reason no longer holds.`
       )
     else if (!declaredKeys.has(key))
       errors.push(

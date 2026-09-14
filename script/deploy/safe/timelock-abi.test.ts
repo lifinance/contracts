@@ -9,6 +9,8 @@ import { decodeFunctionData, type Address, type Hex } from 'viem'
 import {
   TIMELOCK_SCHEDULE_BATCH_ABI,
   TIMELOCK_SCHEDULE_BATCH_SELECTOR,
+  TIMELOCK_SCHEDULE_SELECTOR,
+  carriesTimelockScheduleSelector,
   classifyTimelockOperation,
   deriveTimelockSalt,
   encodeTimelockScheduleBatch,
@@ -308,5 +310,64 @@ describe('classifyTimelockOperation', () => {
   it('reads anything above 1 as pending', () => {
     expect(classifyTimelockOperation(2n)).toBe('pending')
     expect(classifyTimelockOperation(1_800_000_000n)).toBe('pending')
+  })
+})
+
+describe('carriesTimelockScheduleSelector', () => {
+  const batchAtOffsetZero = encodeTimelockScheduleBatch(
+    [DIAMOND],
+    [REMOVE_CALLDATA],
+    SALT,
+    0n
+  )
+
+  it('finds the batch selector a caller already ruled out at offset zero', () => {
+    expect(carriesTimelockScheduleSelector(batchAtOffsetZero)).toBe(true)
+  })
+
+  it('finds the singular schedule selector too', () => {
+    expect(
+      carriesTimelockScheduleSelector(`${TIMELOCK_SCHEDULE_SELECTOR}00` as Hex)
+    ).toBe(true)
+  })
+
+  it('finds a selector nested inside an envelope, which is what it is for', () => {
+    // The real case: some outer call whose argument bytes carry a schedule the
+    // outer decoder never opens.
+    const nested = `0xaabbccdd${'00'.repeat(
+      28
+    )}${TIMELOCK_SCHEDULE_BATCH_SELECTOR.slice(2)}${'00'.repeat(4)}` as Hex
+    expect(carriesTimelockScheduleSelector(nested)).toBe(true)
+  })
+
+  it('says no to calldata carrying neither selector', () => {
+    // The paired absence: without this, every assertion above passes against a
+    // function that simply returns true.
+    expect(carriesTimelockScheduleSelector('0xdeadbeef' as Hex)).toBe(false)
+    expect(carriesTimelockScheduleSelector('0x' as Hex)).toBe(false)
+    expect(carriesTimelockScheduleSelector(REMOVE_CALLDATA)).toBe(false)
+  })
+
+  it('ignores a match that is not on a byte boundary', () => {
+    // Shifted by one nibble, the same four bytes are not those four bytes. This
+    // is the property that keeps the scan from matching arbitrary nibble runs.
+    const needle = TIMELOCK_SCHEDULE_BATCH_SELECTOR.slice(2)
+    const misaligned = `0x0${needle}0` as Hex
+    expect(misaligned.slice(2).indexOf(needle)).toBe(1)
+    expect(carriesTimelockScheduleSelector(misaligned)).toBe(false)
+  })
+
+  it('still matches a selector sitting in an argument slot — refuse, not prove', () => {
+    // Alignment narrows the false-positive class without closing it, exactly as
+    // the helper's docblock says. Pinned so the acknowledged imprecision is a
+    // tested property rather than a claim: a hit is grounds to refuse, never
+    // evidence of intent.
+    const asArgument = encodeTimelockScheduleBatch(
+      [DIAMOND],
+      [TIMELOCK_SCHEDULE_SELECTOR as Hex],
+      SALT,
+      0n
+    )
+    expect(carriesTimelockScheduleSelector(asArgument)).toBe(true)
   })
 })

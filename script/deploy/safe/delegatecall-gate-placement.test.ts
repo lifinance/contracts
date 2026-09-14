@@ -103,10 +103,16 @@ describe('the operation refusal sits on every operation-bearing route of the cli
     // Counted rather than matched against one spelling: barring only
     // `String(...)` would pass on the more natural way the bug comes back,
     // interpolating the field directly. Every read of it must be a comparison
-    // against a literal or the sanitiser call.
+    // against a literal, the sanitiser call, or the raw handover to a check.
+    //
+    // That third form is permitted because it is not a display at all: what may
+    // report is not what may decide, and a check keying on an operation
+    // normalised for the screen would be checking the description instead of
+    // the transaction. It is pinned to the one destination field it feeds, so a
+    // later read cannot inherit the exemption merely by being raw.
     const reads = packed.match(/tx\.safeTransaction\.data\.operation/gu) ?? []
     const permitted = packed.match(
-      /tx\.safeTransaction\.data\.operation===\d|describeOperationValue\(tx\.safeTransaction\.data\.operation\)/gu
+      /tx\.safeTransaction\.data\.operation===\d|describeOperationValue\(tx\.safeTransaction\.data\.operation\)|signedOperation:tx\.safeTransaction\.data\.operation\?\?0/gu
     )
     expect(reads.length).toBeGreaterThan(0)
     expect(permitted?.length).toBe(reads.length)

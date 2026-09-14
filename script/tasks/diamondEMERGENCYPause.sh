@@ -146,7 +146,7 @@ function handleNetwork() {
   echoDebug "in function handleNetwork"
   echoDebug "NETWORK=$NETWORK"
   echoDebug "ACTION=$ACTION"
-  echoDebug "RPC_URL=$RPC_URL"
+  echoDebug "RPC_URL=$(redactRpcUrl "$RPC_URL")"
   echoDebug "DIAMOND_ADDRESS=$DIAMOND_ADDRESS"
   echoDebug "FACET_CONTRACT_NAME=$FACET_CONTRACT_NAME"
   echoDebug "BLACKLIST=$BLACKLIST"
@@ -171,7 +171,7 @@ function handleNetwork() {
         return 0
     else
         # Handle other RPC or network errors
-        error "[network: $NETWORK] RPC or network error while checking if diamond is paused: $RESPONSE"
+        error "[network: $NETWORK] RPC or network error while checking if diamond is paused: $(redactRpcUrl "$RESPONSE")"
     fi
   fi
 

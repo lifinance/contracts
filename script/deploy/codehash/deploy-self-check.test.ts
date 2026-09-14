@@ -23,6 +23,7 @@ const BRANCH_HASH = `0x${'ab'.repeat(32)}`
 
 const ATTESTED: IAttestedBuild[] = [
   {
+    provenance: 'A-LOCAL',
     lineage: 'upstream london',
     solcVersion: '0.8.17',
     maskedHash: MAIN_HASH,

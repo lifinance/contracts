@@ -16,6 +16,10 @@ import {
   mock,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
+import { consola } from 'consola'
+
+import type { INetworkInfo } from '../common/types'
+import { EnvironmentEnum } from '../common/types'
 
 // Capture the real fs exports BEFORE mock.module replaces the registry entry,
 // otherwise the passthrough below would recurse into the mock itself.
@@ -41,9 +45,11 @@ mock.module('fs', () => ({
 }))
 
 const {
+  displayNetworkInfo,
   getContractAddress,
   getFacetSelectors,
   getFoundryDefaultOptimizerRuns,
+  node_url,
 } = await import('./utils')
 
 type NetworkArg = Parameters<typeof getContractAddress>[0]
@@ -157,5 +163,61 @@ describe('getFacetSelectors path guard', () => {
     await expect(getFacetSelectors('/etc/passwd')).rejects.toThrow(
       /Invalid facet name/
     )
+  })
+})
+
+describe('endpoint redaction', () => {
+  // A dRPC-shaped endpoint: the provider key rides in the query string, so any print of
+  // this string is a live credential.
+  const KEYED_URL =
+    'https://lb.drpc.org/ogrpc?network=tron&dkey=SYNTHETIC-NOT-REAL-abc123'
+
+  it('keeps the endpoint out of the network info box', () => {
+    const realBox = consola.box
+    let captured = ''
+    consola.box = ((arg: { message: string }) => {
+      captured = arg.message
+    }) as typeof consola.box
+
+    try {
+      displayNetworkInfo(
+        { address: '0x0', balance: '0', block: 0 } as unknown as INetworkInfo,
+        EnvironmentEnum.production,
+        KEYED_URL
+      )
+    } finally {
+      consola.box = realBox
+    }
+
+    expect(captured).not.toContain('dkey')
+    expect(captured).toContain('[redacted-url]')
+    // the mainnet/shasta split reads the raw argument, so redacting the print must not move it
+    expect(captured).toContain('Network: Mainnet')
+  })
+
+  it('keeps the endpoint out of the unsubstituted-template error', () => {
+    const previousUri = process.env.ETH_NODE_URI
+    const previousNetworkUri = process.env.ETH_NODE_URI_TESTNET
+    delete process.env.ETH_NODE_URI_TESTNET // spawn-env: in-process; set, node_url returns early and the assertion never runs
+    process.env.ETH_NODE_URI =
+      'https://lb.drpc.org/ogrpc?chain={{chain}}&dkey=SYNTHETIC-NOT-REAL-abc123'
+
+    try {
+      let message = ''
+      try {
+        node_url('testnet')
+      } catch (error) {
+        message = (error as Error).message
+      }
+      expect(message).toContain('[redacted-url]')
+      expect(message).not.toContain('dkey')
+    } finally {
+      if (previousUri !== undefined) process.env.ETH_NODE_URI = previousUri
+      else {
+        delete process.env.ETH_NODE_URI // spawn-env: in-process restore
+      }
+      if (previousNetworkUri !== undefined)
+        process.env.ETH_NODE_URI_TESTNET = previousNetworkUri
+    }
   })
 })

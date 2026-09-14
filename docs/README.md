@@ -87,6 +87,7 @@
 ## Processes
 
 - [Multisig Signing Process — deploy → propose → sign → execute](./MultisigSigningProcess.md)
+- [Signing Fallback Runbook — the pinned escape commit](./SigningFallbackRunbook.md)
 - [Facet Removal Reconciliation](./FacetRemovalReconciliation.md)
 - [Deferred Diamond-Cleanup Queue](./DeferredDiamondCleanupQueue.md)
 - [Wallet-rotation skill suite — design & architecture](./wallet-rotation-skill-suite.md)

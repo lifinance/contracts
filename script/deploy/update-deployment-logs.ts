@@ -37,6 +37,7 @@ import {
   mongoEq,
   RecordTransformer,
 } from './shared/mongo-log-utils'
+import { codehashFromArgs } from './shared/record-codehash'
 
 // Interface for index specifications with old names
 interface IIndexSpec {
@@ -678,6 +679,28 @@ const addCommand = defineCommand({
       description: 'EVM version',
       required: false,
     },
+    codehash: {
+      type: 'string',
+      description:
+        'keccak of the exact runtime bytes observed at the address after the deploy',
+      required: false,
+    },
+    'masked-codehash': {
+      type: 'string',
+      description:
+        'keccak of those bytes after the metadata trailer came off and immutables were masked',
+      required: false,
+    },
+    'code-byte-length': {
+      type: 'string',
+      description: 'Runtime code length as deployed, before any stripping',
+      required: false,
+    },
+    'masked-byte-count': {
+      type: 'string',
+      description: 'Bytes excluded from the masked codehash as immutables',
+      required: false,
+    },
     dryRun: {
       type: 'boolean',
       // Every sibling flag here is kebab-cased, so `--dry-run` is the spelling a
@@ -702,6 +725,23 @@ const addCommand = defineCommand({
       consola.error('Verified must be either "true" or "false"')
       process.exit(1)
     }
+
+    const asString = (value: unknown): string | undefined =>
+      typeof value === 'string' ? value : undefined
+    const codehashDecision = codehashFromArgs({
+      codehash: asString(args.codehash),
+      'masked-codehash': asString(args['masked-codehash']),
+      'code-byte-length': asString(args['code-byte-length']),
+      'masked-byte-count': asString(args['masked-byte-count']),
+    })
+    // Info on stdout, and a zero exit: this runs after the deploy, and
+    // `logContractDeploymentInfo` discards stderr unless DEBUG is set and reads
+    // any non-zero status as "the record did not land" — so an error here would
+    // abort the deploy over a field it never asked for, with the reason hidden.
+    if (codehashDecision.requested && !codehashDecision.recordable)
+      consola.info(
+        `Not recording a codehash: ${codehashDecision.reason}. The rest of the record is still being written.`
+      )
 
     const { captureErrors, ...provenanceFields } = captureRecordProvenance()
     // Info, not warn: `logContractDeploymentInfo` runs this command with
@@ -729,6 +769,9 @@ const addCommand = defineCommand({
           ? args['zk-solc-version']
           : '',
       ...provenanceFields,
+      ...(codehashDecision.requested && codehashDecision.recordable
+        ? { codehash: codehashDecision.codehash }
+        : {}),
       createdAt: new Date(),
       updatedAt: new Date(),
       contractNetworkKey: `${args.contract}-${args.network}`,

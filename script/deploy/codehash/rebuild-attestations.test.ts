@@ -27,6 +27,7 @@ import {
 } from 'bun:test'
 import { keccak256 } from 'viem'
 
+import { gradeMatchProvenance } from './attestation-provenance'
 import {
   compareToAttestedSet,
   type IAttestedBuild,
@@ -487,6 +488,22 @@ describe('the real fleet decides which lineage masks and which pins', () => {
     }
 
     expect(pinned.sort()).toEqual(zk.sort())
+  })
+
+  it('attests every rebuild as A-LOCAL, and none of them is presentable as attested', async () => {
+    // A rebuild this host produced is the fallback state, never the CI claim.
+    // Asserted on the real producer over the real config: with the value only
+    // ever written in one struct literal and read nowhere else in the suite,
+    // flipping it to A-CI would otherwise leave every test green and label the
+    // host's own builds as CI-attested.
+    for (const network of active) {
+      const build = await buildFor(network)
+
+      expect(build.provenance).toBe('A-LOCAL')
+      expect(gradeMatchProvenance([build], [build]).presentableAsAttested).toBe(
+        false
+      )
+    }
   })
 })
 

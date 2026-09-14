@@ -79,6 +79,24 @@ This command processes a PDF audit report and automatically:
   - **ALWAYS** warn user to verify by clicking the URL
   - Display as clickable link in summary output
   - If commit hash is "n/a", skip URL generation
+- **Post-remediation ([CONV:AUDIT-PIN])**:
+  - `auditCommitHash` = scope commit **A** from the report (what was sent).
+  - If findings were fixed afterwards, also set `finalCommitHash` = post-remediation
+    commit **D** the auditor signed off on (same report, addendum, or confirmation).
+  - The content gate pins to `finalCommitHash` when present, else `auditCommitHash`.
+  - Ask the user for D when the PDF only names A and remediations happened.
+  - Always a **new** log entry — never edit a pre-remediation row. Same PDF path may be reused.
+
+### QA checklist (audit-log PRs)
+
+When reviewing a PR that only (or mainly) adds audit log/report entries, verify and
+**quote evidence** (page/snippet/sha) — do not rubber-stamp:
+
+1. Report scope commit equals `auditCommitHash` (or documented `n/a` reason).
+2. If remediations exist: report/addendum/`Fixed in #` support `finalCommitHash` = D.
+3. If the report only has A and finding fixes B/C/D: `finalCommitHash` is the tree that
+   contains all fixes (not “latest by clock” unless that is also the signed-off tree).
+4. Fail closed if remediations happened and `finalCommitHash` is missing from the log.
 
 ## Execution Steps
 

@@ -58,6 +58,7 @@ const observed = (over: Partial<IObservedCode> = {}): IObservedCode => ({
 })
 
 const attested = (over: Partial<IAttestedBuild> = {}): IAttestedBuild => ({
+  provenance: 'A-LOCAL',
   lineage:
     'AcrossFacet@1.0.0 rebuilt at abc123def (default: solc 0.8.29, cancun)',
   solcVersion: '0.8.29',

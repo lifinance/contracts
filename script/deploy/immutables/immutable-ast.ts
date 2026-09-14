@@ -31,6 +31,12 @@ export interface IImmutableDeclaration {
   contract: string
   /** 1-indexed line the declaration sits on. */
   line: number
+  /**
+   * The AST node's own id, which is the key Foundry's `immutableReferences`
+   * uses. Only meaningful within the compilation that assigned it, so a
+   * consumer must take both from one build. Absent when the AST omitted it.
+   */
+  astId?: number
   /** The declared type, e.g. `address`, `uint256`, `contract IGasZip`. */
   type: string
   /** As written; undefined when the declaration omits it. */
@@ -116,6 +122,7 @@ const lineAt = (starts: number[], byteOffset: number): number => {
 }
 
 interface IAstVariable {
+  id?: number
   nodeType?: string
   mutability?: string
   name?: string
@@ -184,6 +191,7 @@ export const readImmutableDeclarations = (
           line: Number.isFinite(byteOffset) ? lineAt(starts, byteOffset) : 0,
           type: member.typeDescriptions?.typeString ?? 'unknown',
           name: member.name,
+          ...(typeof member.id === 'number' ? { astId: member.id } : {}),
           ...(member.visibility && VISIBILITIES.has(member.visibility)
             ? {
                 visibility: member.visibility as

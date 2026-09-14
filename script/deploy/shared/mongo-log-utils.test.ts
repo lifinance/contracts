@@ -249,6 +249,35 @@ describe('buildDeploymentUpsert', () => {
 
     expect(update.$setOnInsert).toEqual({ createdAt: now })
   })
+
+  it('carries a recorded codehash into the update as one group', () => {
+    const codehash = {
+      // pre-commit-checker: not a secret
+      hash: `0x${'1'.repeat(64)}`,
+      // pre-commit-checker: not a secret
+      maskedHash: `0x${'2'.repeat(64)}`,
+      byteLength: 7390,
+      maskedByteCount: 480,
+    }
+
+    const { update } = buildDeploymentUpsert({ ...record, codehash }, now)
+
+    expect(update.$set.codehash).toEqual(codehash)
+  })
+
+  /**
+   * `$set: { codehash: undefined }` would reach the driver as a null and erase
+   * what a run that did observe the code had stored, so the key has to be
+   * absent as an own property. Asserted on the update's own keys rather than
+   * through JSON, which erases an undefined value and would pass either way.
+   */
+  it('writes no codehash key for a record that carries none', () => {
+    const { update } = buildDeploymentUpsert(record, now)
+
+    expect(Object.keys(update.$set).includes('codehash')).toBe(false)
+    // Paired positive: the absence above must not pass on an empty update.
+    expect(Object.keys(update.$set).includes('contractName')).toBe(true)
+  })
 })
 
 describe('describeDirtyTree', () => {

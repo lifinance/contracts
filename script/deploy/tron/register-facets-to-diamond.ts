@@ -15,6 +15,7 @@ import { consola } from 'consola'
 
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
+import { redactUrls } from '../../utils/redactUrls'
 import { getEnvironment, updateDiamondJsonBatch } from '../../utils/utils'
 import { flagIsOn } from '../safe/cli-flags'
 
@@ -360,7 +361,7 @@ async function registerFacetsToDiamond(
       privateKey,
     })
 
-    consola.info(` Connected to: ${fullHost}`)
+    consola.info(` Connected to: ${redactUrls(fullHost)}`)
     consola.info(`👛 Deployer: ${tronWeb.defaultAddress.base58}`)
 
     // 3. Get LiFiDiamond contract

@@ -1576,8 +1576,8 @@ async function readAddressGetter(
     // parseTronAddressOutput returns the last non-diagnostic line, so unexpected tooling output
     // that still exits 0 would arrive here as a "value". Throwing keeps that an unverified
     // warning instead of an error-severity mismatch against a line of prose.
-    // A zero address in any encoding is a real answer the caller must report as an error, so
-    // it passes the shape check; anything else non-base58 is unusable output.
+    // A zero address in any encoding is a real answer for the caller to judge, so it passes the
+    // shape check; anything else non-base58 is unusable output.
     if (
       !isZeroAddressValue(parsed) &&
       (!parsed.startsWith('T') || parsed.length !== 34)
@@ -2229,7 +2229,17 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         // Not present on this chain — nothing to compare.
         if (!address) continue
 
-        if (!check.expectedAddress) {
+        // `allowToDeployWithZeroAddress` makes a zero binding a declared value rather than drift,
+        // so an explicit zero is an expectation to assert. An absent key is one too: whichever
+        // overload the deploy script used, no deploy can have produced a non-zero binding from a
+        // key config does not carry. A config file that could not be read states neither.
+        const expectsZeroAddress =
+          check.zeroAddressAllowed &&
+          check.configFileLoaded &&
+          (check.expectedAddress === null ||
+            isZeroAddressValue(check.expectedAddress))
+
+        if (!check.expectedAddress && !expectsZeroAddress) {
           ctx.logWarn(
             `${check.contractName} is deployed but ${check.configFileName} has no ${check.resolvedKeyInConfigFile} value for this network — cannot verify ${check.getter}()`
           )
@@ -2240,18 +2250,21 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         // only known to be non-empty strings, so a malformed one throws here — folding that
         // into the read's catch would report a broken config entry as an unverified binding
         // and let this error-severity check pass on exactly the drift it exists to catch.
-        let expectedValue: string
-        try {
-          expectedValue =
-            ctx.isTron && tronWeb
-              ? ensureTronAddress(check.expectedAddress, tronWeb)
-              : getAddress(check.expectedAddress as Address)
-        } catch {
-          ctx.logError(
-            `${check.configFileName} ${check.resolvedKeyInConfigFile} is not a valid address (${check.expectedAddress}), so ${check.contractName}.${check.getter}() cannot be verified`
-          )
-          continue
-        }
+        // A zero expectation skips normalization: `isZeroAddressValue` already answers in every
+        // encoding a read can return, including both Tron ones.
+        let expectedValue: string | null = null
+        if (!expectsZeroAddress)
+          try {
+            expectedValue =
+              ctx.isTron && tronWeb
+                ? ensureTronAddress(check.expectedAddress as string, tronWeb)
+                : getAddress(check.expectedAddress as Address)
+          } catch {
+            ctx.logError(
+              `${check.configFileName} ${check.resolvedKeyInConfigFile} is not a valid address (${check.expectedAddress}), so ${check.contractName}.${check.getter}() cannot be verified`
+            )
+            continue
+          }
 
         try {
           const { value: onChainValue, getterUsed } = await readBindingValue(
@@ -2264,7 +2277,21 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
           // build they differ, and the reader needs to know which contract version was read.
           const readLabel = `${check.contractName}.${getterUsed}()`
 
-          if (isZeroAddressValue(onChainValue))
+          const bindingIsZero = isZeroAddressValue(onChainValue)
+
+          if (expectsZeroAddress && bindingIsZero)
+            consola.success(
+              `${readLabel} is the zero address, as ${check.configFileName} declares`
+            )
+          else if (expectsZeroAddress)
+            ctx.logError(
+              `${readLabel} is ${onChainValue} but ${
+                check.expectedAddress === null
+                  ? `${check.configFileName} carries no ${check.resolvedKeyInConfigFile} value for this network`
+                  : `${check.configFileName} ${check.resolvedKeyInConfigFile} is the zero address`
+              }`
+            )
+          else if (bindingIsZero)
             ctx.logError(
               `${readLabel} is the zero address, expected ${expectedValue} from ${check.configFileName} ${check.resolvedKeyInConfigFile}`
             )

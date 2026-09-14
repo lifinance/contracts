@@ -38,7 +38,8 @@ paths:
   - `@author LI.FI (https://li.fi)`
   - `@notice` - must describe what the contract/interface contains and its purpose
   - `@custom:version X.Y.Z`
-- NatSpec must appear directly above the `contract`/`interface` keyword — no blank line between the closing `*/` and the declaration.
+- Use **`///` line NatSpec** (and `//` for non-NatSpec). Do **not** use `/* … */` or `/** … */` in LI.FI-owned contracts (`src/Facets/**`, owned periphery/helpers/libraries/errors). Vendor/copied interfaces may keep upstream block comments.
+- NatSpec must appear directly above the `contract`/`interface` keyword — no blank line between the last `///` line and the declaration.
 - Public/external functions require NatSpec including params/returns.
 - For pure test/script scaffolding keep headers minimal but retain SPDX/pragma.
 
