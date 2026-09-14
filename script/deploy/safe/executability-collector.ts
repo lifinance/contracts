@@ -31,7 +31,10 @@ import { redactUrls } from '../../utils/redactUrls'
 import { ZERO_ADDRESS } from '../shared/constants'
 import {
   collectDiamondCutCalls,
+  collectScheduledCalls,
+  DIAMOND_CUT_SELECTOR,
   type IDiamondCutCall,
+  type IScheduledCall,
 } from '../shared/diamond-cut-calls'
 
 import type {
@@ -109,21 +112,10 @@ const pathOf = (call: IDiamondCutCall, ordinal: number): string =>
  * which is the honest answer, whereas dropping it would leave the verdict
  * silent about a call the proposal really makes.
  */
-const buildPayloads = (
+const buildCutPayloads = (
   input: ICollectExecutabilityInput,
   calls: readonly IDiamondCutCall[]
 ): TSimulatedPayload[] => {
-  if (calls.length === 0)
-    return [
-      {
-        kind: 'opaque',
-        path: 'call[0]',
-        description: 'an unrecognised function',
-        target: input.to,
-        calldataLength: Math.max(0, (input.data.length - 2) / 2),
-      },
-    ]
-
   const seen = new Map<number, number>()
 
   return calls.map((call) => {
@@ -146,6 +138,136 @@ const buildPayloads = (
       initCalldata: call.initCalldata,
     }
   })
+}
+
+/** One `eth_call` the simulation makes, keyed by the payload's path. */
+interface ISimulatedCall {
+  from: string
+  to: string
+  data: Hex
+}
+
+/**
+ * Names a leaf so the operator can tell a scheduled call from a direct one.
+ *
+ * A call reached through an envelope is not the call the Safe sends, and a path
+ * that did not say so would report a revert against a payload the proposal
+ * appears — from its own calldata — never to make.
+ */
+const leafPath = (call: IScheduledCall, ordinal: number): string =>
+  call.depth === 0
+    ? `call[${call.callIndex}]`
+    : `call[${call.callIndex}].scheduled[${ordinal}]`
+
+/**
+ * Turns a proposal's calldata into the payloads the simulation walks, and the
+ * `eth_call` each of them is answered by.
+ *
+ * Every call the proposal really makes gets a payload: each cut, each other
+ * leaf reached by opening the timelock's envelopes, and — when an envelope was
+ * opened at all — the envelope itself, because `schedule` can be refused on its
+ * own (an operation already queued, a Safe without the proposer role) while
+ * everything inside it would have executed.
+ *
+ * The `from` is the leaf's own caller, so an owner-gated function scheduled
+ * through the timelock is simulated as the timelock rather than as the Safe.
+ * Simulated as the Safe it reverts on the ownership check, which is a fact
+ * about the wrong sender and not about the proposal.
+ */
+const buildPayloads = (
+  input: ICollectExecutabilityInput,
+  calls: readonly IDiamondCutCall[],
+  leaves: readonly IScheduledCall[]
+): {
+  payloads: TSimulatedPayload[]
+  simulation: Map<string, ISimulatedCall>
+} => {
+  const payloads = buildCutPayloads(input, calls)
+  const simulation = new Map<string, ISimulatedCall>()
+
+  for (const [at, payload] of payloads.entries()) {
+    const call = calls[at]
+    if (payload.kind === 'diamond-cut' && call)
+      simulation.set(payload.path, {
+        from: payload.caller,
+        to: payload.diamond,
+        // The cut's own bytes, replayed against the diamond. The proposal's
+        // top-level calldata would only schedule it, and simulating that says
+        // nothing about whether the cut itself executes.
+        data: call.raw,
+      })
+  }
+
+  const seen = new Map<number, number>()
+  let opened = false
+
+  for (const leaf of leaves) {
+    const ordinal = seen.get(leaf.callIndex) ?? 0
+    seen.set(leaf.callIndex, ordinal + 1)
+    if (leaf.depth > 0) opened = true
+
+    // A cut already has a payload of its own, graded against far more than its
+    // eth_call outcome. A second, opaque one would simulate the same bytes
+    // twice and report the same revert as two findings.
+    if (leaf.payload.slice(0, 10).toLowerCase() === DIAMOND_CUT_SELECTOR)
+      continue
+
+    const path = leafPath(leaf, ordinal)
+    const target = leaf.target ?? input.to
+    payloads.push({
+      kind: 'opaque',
+      path,
+      description:
+        leaf.depth === 0
+          ? 'an unrecognised function'
+          : 'an unrecognised function the timelock would send',
+      target,
+      calldataLength: Math.max(0, (leaf.payload.length - 2) / 2),
+      ...(leaf.caller ? { caller: leaf.caller } : {}),
+    })
+    simulation.set(path, {
+      from: leaf.caller ?? input.safeAddress,
+      to: target,
+      data: leaf.payload,
+    })
+  }
+
+  if (opened) {
+    const path = 'call[0].schedule'
+    payloads.push({
+      kind: 'opaque',
+      path,
+      description: 'the timelock envelope this proposal schedules',
+      target: input.to,
+      calldataLength: Math.max(0, (input.data.length - 2) / 2),
+    })
+    simulation.set(path, {
+      from: input.safeAddress,
+      to: input.to,
+      data: input.data,
+    })
+  }
+
+  // Nothing was readable at all — no cut, and no leaf the walker could reach.
+  // The top-level call still has to be reported, or the verdict is silent about
+  // a call the proposal really makes.
+  if (payloads.length === 0) {
+    const path = 'call[0]'
+    payloads.push({
+      kind: 'opaque',
+      path,
+      description: 'an unrecognised function',
+      target: input.to,
+      calldataLength: Math.max(0, (input.data.length - 2) / 2),
+    })
+    simulation.set(path, {
+      from: input.safeAddress,
+      to: input.to,
+      data: input.data,
+    })
+  }
+
+  return { payloads, simulation }
 }
 
 /**
@@ -274,31 +396,13 @@ const readObservations = async (
  * proposal's revert would refuse a correct rollout.
  */
 const runStaticCalls = async (
-  input: ICollectExecutabilityInput,
-  payloads: readonly TSimulatedPayload[],
-  calls: readonly IDiamondCutCall[],
+  simulation: ReadonlyMap<string, ISimulatedCall>,
   reader: IExecutabilityChainReader
 ): Promise<IExecutabilityInput['staticCalls']> => {
-  const simulated = payloads.map((payload, at) => {
-    const call = calls[at]
-    if (payload.kind === 'diamond-cut' && call)
-      return {
-        path: payload.path,
-        from: payload.caller,
-        to: payload.diamond,
-        // The cut's own bytes, replayed against the diamond. The proposal's
-        // top-level calldata would only schedule it, and simulating that says
-        // nothing about whether the cut itself executes.
-        data: call.raw,
-      }
-
-    return {
-      path: payload.path,
-      from: input.safeAddress,
-      to: input.to,
-      data: input.data,
-    }
-  })
+  const simulated = [...simulation.entries()].map(([path, call]) => ({
+    path,
+    ...call,
+  }))
 
   const results = await Promise.all(
     simulated.map(async (call): Promise<IStaticCallObservation> => {
@@ -334,14 +438,15 @@ export const collectExecutabilityInput = async (
   input: ICollectExecutabilityInput,
   reader: IExecutabilityChainReader
 ): Promise<IExecutabilityInput> => {
-  const { calls, undecodable } = collectDiamondCutCalls([input.data], {
-    targets: [input.to],
-    caller: input.safeAddress,
-  })
+  const context = { targets: [input.to], caller: input.safeAddress }
+  const { calls, undecodable } = collectDiamondCutCalls([input.data], context)
+  const leaves = collectScheduledCalls([input.data], context)
 
-  const payloads = buildPayloads(input, calls)
+  const unreadable = [...new Set([...undecodable, ...leaves.undecodable])]
+
+  const { payloads, simulation } = buildPayloads(input, calls, leaves.calls)
   const observations = await readObservations(payloads, reader)
-  const staticCalls = await runStaticCalls(input, payloads, calls, reader)
+  const staticCalls = await runStaticCalls(simulation, reader)
 
   return {
     network: input.network,
@@ -349,10 +454,11 @@ export const collectExecutabilityInput = async (
     observations,
     staticCalls,
     ...(input.nonce ? { nonce: input.nonce } : {}),
-    // `collectDiamondCutCalls` reports the indices of the proposal's own calls;
-    // the verdict names them the way its other paths are named.
-    ...(undecodable.length > 0
-      ? { undecodable: undecodable.map((index) => `call[${index}]`) }
+    // Both walkers, because they stop at different things: one cannot read a
+    // cut, the other cannot open an envelope, and either leaves the simulation
+    // grading fewer calls than the proposal makes.
+    ...(unreadable.length > 0
+      ? { undecodable: unreadable.map((index) => `call[${index}]`) }
       : {}),
   }
 }
@@ -385,6 +491,63 @@ const isEndpointUnavailable = (error: unknown): boolean => {
   return /HTTP request failed|fetch failed|socket hang up|ECONNREFUSED|ECONNRESET|ETIMEDOUT|EAI_AGAIN|network (?:error|request failed)|timed out|timeout|too many requests|rate ?limit|service unavailable|bad gateway|gateway timeout|\b(?:429|500|502|503|504)\b/iu.test(
     message
   )
+}
+
+const ECHOED_BLOCK =
+  /^(?:raw call arguments|request arguments|contract call):$/iu
+const LIBRARY_VERSION = /^version:/iu
+const DETAILS_PREFIX = /^details:\s*(.*)$/iu
+const NODE_REVERT_PREFIX = /^execution reverted:?\s*/iu
+
+/**
+ * Reduces an RPC error to the part the signer cannot already see.
+ *
+ * viem formats a call failure as a multi-paragraph report whose middle section
+ * re-prints the payload verbatim — the same `to` and `data` zone 1 shows above
+ * it. Carried through, that pushes the revert reason several hundred characters
+ * down inside a red block, which is where a signer stops reading.
+ *
+ * @param message - The error message as the transport threw it.
+ * @returns The summary, or the original when nothing was recognised to drop.
+ */
+export const summariseRpcError = (message: string): string => {
+  const kept: string[] = []
+  let inEchoedBlock = false
+
+  for (const line of message.split('\n')) {
+    const trimmed = line.trim()
+
+    if (ECHOED_BLOCK.test(trimmed)) {
+      inEchoedBlock = true
+      continue
+    }
+
+    // An echoed block runs until the next unindented line, so a blank line
+    // inside it does not end it.
+    if (inEchoedBlock) {
+      if (trimmed === '' || line !== trimmed) continue
+      inEchoedBlock = false
+    }
+
+    if (trimmed === '' || LIBRARY_VERSION.test(trimmed)) continue
+
+    kept.push(trimmed)
+  }
+
+  const surviving = kept.filter((line, index) => {
+    const payload = DETAILS_PREFIX.exec(line)?.[1]
+    if (payload === undefined) return true
+
+    // viem's `Details:` is the node's own string, which for a named revert is
+    // the reason the line above already states. Kept, it reads as a second
+    // finding; dropped when it adds a word, it would be the only place the
+    // reason appears — so it survives on whether it says anything new.
+    const bare = payload.replace(NODE_REVERT_PREFIX, '').trim()
+    const rest = kept.filter((_, other) => other !== index).join(' ')
+    return !rest.toLowerCase().includes(bare.toLowerCase())
+  })
+
+  return surviving.length > 0 ? surviving.join(' ') : message.trim()
 }
 
 /**
@@ -441,9 +604,16 @@ export const createExecutabilityChainReader = (
     // the one outcome this whole gate exists to prevent.
     let lastError: string | undefined
 
+    // `account`, which is what viem names the sender. Passing `from` compiles —
+    // the object is a variable, so excess-property checking does not see it —
+    // and is then dropped, so every payload simulated as the zero address and
+    // every owner-gated call reverted on its ownership check whatever the
+    // proposal did.
+    const { from, ...rest } = call
+
     for (const simulator of simulators)
       try {
-        await simulator.call(call)
+        await simulator.call({ account: from, ...rest })
         return { outcome: 'succeeded' }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
@@ -455,7 +625,10 @@ export const createExecutabilityChainReader = (
         // an execution failure the first one really saw. An invalid opcode and
         // an out-of-gas both arrive wrapped without the word "revert".
         if (!isEndpointUnavailable(error))
-          return { outcome: 'reverted', revertReason: redactUrls(message) }
+          return {
+            outcome: 'reverted',
+            revertReason: redactUrls(summariseRpcError(message)),
+          }
 
         lastError = message
       }
@@ -463,7 +636,9 @@ export const createExecutabilityChainReader = (
     return {
       outcome: 'errored',
       errorReason: redactUrls(
-        lastError ?? 'no endpoint was available to simulate this payload'
+        lastError === undefined
+          ? 'no endpoint was available to simulate this payload'
+          : summariseRpcError(lastError)
       ),
     }
   },

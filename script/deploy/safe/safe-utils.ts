@@ -2878,7 +2878,7 @@ export async function getNetworksWithActionableTransactions(
  * @param address - Contract address
  * @returns Contract name if found, otherwise "Unknown"
  */
-function getContractNameFromNetworkDeployments(
+export function getContractNameFromNetworkDeployments(
   network: string,
   address: string
 ): string {
@@ -2910,7 +2910,7 @@ function getContractNameFromNetworkDeployments(
  *   facet, or exactly one artifact is the smallest strict superset of the facet's selectors. Otherwise
  *   "Unknown" (including multiple exact matches or a tie for smallest superset).
  */
-function getContractNameFromSelectorsInOut(
+export function getContractNameFromSelectorsInOut(
   selectors: (string | Uint8Array)[]
 ): string {
   const projectRoot = process.cwd()
@@ -2983,7 +2983,7 @@ function getContractNameFromSelectorsInOut(
  * Normalizes a diamondCut selector entry (hex string or byte array) to a
  * lowercase 0x-prefixed string for map lookups.
  */
-function normalizeDiamondCutSelector(selector: unknown): string {
+export function normalizeDiamondCutSelector(selector: unknown): string {
   if (typeof selector === 'string')
     return (
       selector.startsWith('0x') ? selector : `0x${selector}`
@@ -3002,7 +3002,7 @@ let cachedDiamondSelectorMap:
  * Creates a mapping of function selectors to function names from diamond ABI
  * @returns Map of selector to function info
  */
-async function createSelectorMap(): Promise<Map<
+export async function createSelectorMap(): Promise<Map<
   string,
   { name: string; signature: string }
 > | null> {

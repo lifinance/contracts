@@ -2,14 +2,66 @@
  * Read-only viem clients for Safe contract queries without a signing wallet.
  */
 
-import { createPublicClient, http, type PublicClient } from 'viem'
-
 import {
-  getFallbackTransportForChain,
-  getViemChainForNetworkName,
-} from '../../utils/viemScriptHelpers'
+  createPublicClient,
+  fallback,
+  http,
+  type PublicClient,
+  type Transport,
+} from 'viem'
+
+import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 
 import { getSignTimeTransportConfig } from './sign-time-transport'
+
+/**
+ * Builds one capped transport per endpoint, in the chain's priority order.
+ *
+ * `getFallbackTransportForChain` would fan out too, but it keeps each
+ * endpoint's own retry profile — TronGrid's is 8 retries on a 2s exponential
+ * backoff, which is minutes of sleep on a read the signer is waiting for. The
+ * fan-out and the sign-time cap are both required here, and no shared helper
+ * carries both.
+ *
+ * @param endpoints - The endpoints to try, in priority order.
+ * @param options - `signal` bounds every request each transport makes.
+ * @returns A single transport when only one endpoint is usable, else a fallback over all of them.
+ * @throws When no endpoint is usable, which the caller records as a failed read.
+ */
+const buildCappedFallbackTransport = (
+  endpoints: readonly string[],
+  options?: { signal?: AbortSignal }
+): Transport => {
+  const transports = endpoints.flatMap((endpointUrl) => {
+    let config: ReturnType<typeof getSignTimeTransportConfig>
+    try {
+      config = getSignTimeTransportConfig(endpointUrl)
+    } catch {
+      // An endpoint this chain cannot use, which the remaining ones are there
+      // to cover. Letting one of them abort the chain takes down a network
+      // whose other endpoints are healthy.
+      return []
+    }
+    const { url, fetchOptions, retryCount, retryDelay } = config
+    const mergedFetchOptions = {
+      ...(fetchOptions ?? {}),
+      ...(options?.signal ? { signal: options.signal } : {}),
+    }
+    return [
+      http(url, {
+        ...(Object.keys(mergedFetchOptions).length
+          ? { fetchOptions: mergedFetchOptions }
+          : {}),
+        retryCount,
+        retryDelay,
+      }),
+    ]
+  })
+
+  const [only] = transports
+  if (!only) throw new Error('no usable RPC endpoint')
+  return transports.length === 1 ? only : fallback(transports)
+}
 
 /**
  * Builds a read-only viem client for a network, honoring an optional RPC
@@ -40,27 +92,12 @@ export function buildReadOnlyClient(
   options?: { signal?: AbortSignal }
 ): PublicClient {
   const chain = getViemChainForNetworkName(network)
-  if (!rpcUrl)
-    return createPublicClient({
-      chain,
-      transport: getFallbackTransportForChain(chain, options),
-    }) as PublicClient
-
-  const { url, fetchOptions, retryCount, retryDelay } =
-    getSignTimeTransportConfig(rpcUrl)
-  const mergedFetchOptions = {
-    ...(fetchOptions ?? {}),
-    ...(options?.signal ? { signal: options.signal } : {}),
-  }
 
   return createPublicClient({
     chain,
-    transport: http(url, {
-      ...(Object.keys(mergedFetchOptions).length
-        ? { fetchOptions: mergedFetchOptions }
-        : {}),
-      ...(retryCount !== undefined ? { retryCount } : {}),
-      ...(retryDelay !== undefined ? { retryDelay } : {}),
-    }),
+    transport: buildCappedFallbackTransport(
+      rpcUrl ? [rpcUrl] : chain.rpcUrls.default.http,
+      options
+    ),
   }) as PublicClient
 }

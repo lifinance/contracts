@@ -36,16 +36,23 @@ export const TARGET_STATE_CHECK: ICheckDefinition = {
   checkId: TARGET_STATE_CHECK_ID,
   section: 'Intent',
   checkClass: 'semantic',
-  title: 'Facet version matches the declared target state',
+  gate: 'H',
+  title: 'Facet version',
 }
 
 export const STORAGE_AUTHORITY_CHECK_ID = 'storage-authority'
 
 export const STORAGE_AUTHORITY_CHECK: ICheckDefinition = {
   checkId: STORAGE_AUTHORITY_CHECK_ID,
-  section: 'Integrity',
+  section: 'Deployed state',
   checkClass: 'integrity',
-  title: 'Storage authorities match what main declares',
+  gate: 'G',
+  title: 'Storage authorities',
+  // Every diamond cut carries `LiFiDiamond.owner`, whose expectation comes from
+  // the deployment record — so without this the one gate that reads live
+  // authorities refuses every honest proposal, and the remedy it prints cannot
+  // be followed. A mismatch is untouched and still hard-blocks.
+  undecidableIsAcknowledgeable: true,
 }
 
 /**
@@ -53,9 +60,9 @@ export const STORAGE_AUTHORITY_CHECK: ICheckDefinition = {
  *
  * `config/global.json` is a repo file the proposer's branch cannot change
  * without review, so it may decide a pass. The deployment record is written by
- * the proposer, so it may only report — the ledger coerces a `pass` on it to
- * `error`, which is the correct reading of "the value matched the one we were
- * handed".
+ * the proposer, so it may only report: a match against it means no more than
+ * "the value matched the one we were handed", which is for the signer to
+ * accept rather than for the gate to grade green.
  *
  * @param authorities - Observation rows from `observeCalldata`.
  * @returns Label → anchor, for `storageAuthorityCheckResult`.
@@ -82,11 +89,15 @@ export const EVERY_AUTHORITY_MATCHES =
  * The comparison is a live chain read against a declaration in `main`, so the
  * live side is `A-CHAIN` — but the row is anchored on the weaker of the two,
  * because a comparison is only as good as its expectation. An authority whose
- * expected value comes from the deployment record is `A-MONGO`, which the
- * ledger treats as reporting-only and so coerces to `error` rather than letting
- * it grade green: the proposer writes that record and therefore owns one side
- * of the comparison. One sourced from `config/global.json` is `A-LOCAL` and may
- * decide.
+ * expected value comes from the deployment record is `A-MONGO`: the proposer
+ * writes that record and therefore owns one side of the comparison, so an
+ * all-matched row on it grades `needs-ack` rather than green, naming the labels
+ * whose expectation it rests on. One sourced from `config/global.json` is
+ * `A-LOCAL` and may decide.
+ *
+ * Only the all-matched case is acknowledgeable. A live value that disagrees, a
+ * read that failed and an expectation of unknown provenance all keep the
+ * integrity class's hard block.
  *
  * An empty set is `not-applicable`, never a pass: this proposal installs no
  * contract whose constructor-written storage there is anything to assert, so
@@ -159,13 +170,28 @@ export const storageAuthorityCheckResult = (
 
   // Every entry passed, so no single finding set the anchor. The row still must
   // not claim `A-CHAIN` when an expectation it compared against was
-  // proposer-written, so it takes the weakest anchor in the set.
-  if (failing.length === 0)
+  // proposer-written, so it takes the weakest anchor in the set. `A-UNRESOLVED`
+  // is decided before `A-MONGO` rather than by whichever comes last in calldata
+  // order, because the acknowledgement below turns on that answer.
+  const recordSourced: string[] = []
+  if (failing.length === 0) {
+    let unresolved = false
     for (const entry of entries) {
       const entryAnchor = expectationAnchors.get(entry.label) ?? 'A-UNRESOLVED'
-      if (entryAnchor === 'A-MONGO' || entryAnchor === 'A-UNRESOLVED')
-        anchor = entryAnchor
+      if (entryAnchor === 'A-UNRESOLVED') unresolved = true
+      else if (entryAnchor === 'A-MONGO') recordSourced.push(entry.label)
     }
+    if (unresolved) anchor = 'A-UNRESOLVED'
+    else if (recordSourced.length > 0) anchor = 'A-MONGO'
+  }
+
+  // `A-MONGO` and nothing else. The record is proposer-written, so the row may
+  // not grade green — but every value was read live and matched, and the signer
+  // can be told exactly which expectations rest on the record and take them on.
+  // `A-UNRESOLVED` is the case where nothing answered, so there is nothing to
+  // take on and it keeps blocking.
+  const acknowledgeable = status === 'pass' && anchor === 'A-MONGO'
+  if (acknowledgeable) status = 'needs-ack'
 
   return {
     checkId: STORAGE_AUTHORITY_CHECK_ID,
@@ -176,6 +202,13 @@ export const storageAuthorityCheckResult = (
       ? failing.join('; ')
       : `${entries.length} declared authority value(s) match config`,
     anchor,
+    ...(acknowledgeable
+      ? {
+          detail: `read live and matched, but the expected value came from the deployment record the proposer writes: ${recordSourced.join(
+            ', '
+          )}`,
+        }
+      : {}),
   }
 }
 
@@ -469,15 +502,6 @@ export const worstResultPerCheck = (
   return [...worst.values()]
 }
 
-export const CODEHASH_CHECK_ID = 'codehash'
-
-export const CODEHASH_CHECK: ICheckDefinition = {
-  checkId: CODEHASH_CHECK_ID,
-  section: 'Integrity',
-  checkClass: 'integrity',
-  title: 'Installed bytecode matches the attested build',
-}
-
 export const EVERY_TARGET_ATTESTED =
   'every address this cut installs carrying bytecode an attested build produces'
 /** Why this gate stood down, as the signer reads it under "observed". */
@@ -574,7 +598,8 @@ export const EXECUTABILITY_CHECK: ICheckDefinition = {
   // integrity class would hard-block a legitimate proposal on a stale read with
   // no way for the signer to say so.
   checkClass: 'semantic',
-  title: 'The proposal would execute rather than revert',
+  gate: 'I',
+  title: 'Calldata simulation',
 }
 
 export const RPC_QUORUM_CHECK_ID = 'rpc-quorum'
@@ -583,7 +608,26 @@ export const RPC_QUORUM_CHECK: ICheckDefinition = {
   checkId: RPC_QUORUM_CHECK_ID,
   section: 'Evidence',
   checkClass: 'semantic',
-  title: 'Chain reads agreed across independent providers',
+  gate: 'J',
+  title: 'Provider agreement',
+}
+
+export const CODEHASH_CHECK_ID = 'codehash'
+
+/**
+ * Registered, and answered for by `codehashCheckResult`.
+ *
+ * The gate also refuses inside `confirm-integrity-asserts`, outside the ledger.
+ * That refusal is why it needs a letter and a subject of its own: a harness
+ * that cannot run it prints it as not-applicable, and a row with no definition
+ * renders as `Gate undefined`.
+ */
+export const CODEHASH_CHECK: ICheckDefinition = {
+  checkId: CODEHASH_CHECK_ID,
+  section: 'Deployed state',
+  checkClass: 'integrity',
+  gate: 'K',
+  title: 'Deployed bytecode',
 }
 
 /**
@@ -631,6 +675,22 @@ export const CONFIRM_CHECK_DEFINITIONS: readonly ICheckDefinition[] = [
 ]
 
 /**
+ * Every gate this repo has a name for, registered or not.
+ *
+ * The naming authority, so the letters stay unique across gates that never
+ * share a ledger: `CONFIRM_CHECK_DEFINITIONS` is the subset a run must answer
+ * for, and anything a view might have to name belongs here too.
+ */
+export const ALL_GATE_DEFINITIONS: readonly ICheckDefinition[] = [
+  ...new Map(
+    [...CONFIRM_CHECK_DEFINITIONS, CODEHASH_CHECK].map((definition) => [
+      definition.checkId,
+      definition,
+    ])
+  ).values(),
+]
+
+/**
  * How an executability verdict reaches the ledger.
  *
  * `error` is read before `refuses` for the same reason `toCancelDecisionExecutability`
@@ -656,15 +716,30 @@ export const executabilityCheckResult = (
       anchor: 'A-UNRESOLVED',
     }
 
-  if (verdict.refuses)
+  if (verdict.refuses) {
+    // Which calls, not every reason: a row's `actual` is one value a signer
+    // compares against `expected` and the ledger stores verbatim, and
+    // `verdict.reason` is the whole finding list joined — including whatever
+    // the node echoed back, which for viem is the entire calldata. The reasons
+    // are not lost: `assertProposalWouldExecute` still refuses with the full
+    // `reason`, and the signer view prints one section per call.
+    const reverting = verdict.calls
+      .filter((call) => call.outcome === 'would-revert')
+      .map((call) => call.path)
+
     return {
       checkId: EXECUTABILITY_CHECK_ID,
       network,
       status: 'fail',
       expected: 'no payload reverts',
-      actual: verdict.reason,
+      actual: reverting.length
+        ? `${reverting.length} of ${
+            verdict.calls.length
+          } call(s) would revert: ${reverting.join(', ')}`
+        : verdict.reason,
       anchor: 'A-CHAIN',
     }
+  }
 
   // A payload with no bespoke revert model is still simulated: its target is
   // checked for code and its calldata is sent in an eth_call from the account

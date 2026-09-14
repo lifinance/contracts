@@ -112,6 +112,14 @@ describe('the calldata address check surfaces before the signing decision', () =
         'if (calldataAddresses)\n      renderCalldataAddresses(calldataAddresses)',
         ''
       )
+      // The same allowance for the shape the evidence bundle produces: the
+      // verdict arrives already graded, so the only decision left here is
+      // whether there is anything to print. Matched with the render attached
+      // for the same reason as the `if` above.
+      .replace(
+        'calldataAddresses\n      ? renderCalldataAddresses(calldataAddresses)\n      : []',
+        ''
+      )
       .replace('renderCalldataAddresses(calldataAddresses)', '')
       // Carried on the evidence bundle and unpacked in the loop: two mentions
       // that move the verdict from where it is graded to where it is printed,

@@ -49,6 +49,7 @@ import {
   buildDeploymentIndex,
   collectAddressReferences,
 } from './calldata-address-collector'
+import { buildCalldataEffectLines } from './calldata-effect-lines'
 import {
   createCheckLedger,
   recordCheck,
@@ -71,15 +72,16 @@ import {
   type ISignTimeCodehashDeps,
 } from './codehash-sign-gate-deps'
 import {
+  ALL_GATE_DEFINITIONS,
   authorityExpectationAnchors,
   CONFIRM_CHECK_DEFINITIONS,
+  EXECUTABILITY_CHECK_ID,
   proposalCheckResults,
   worstResultPerCheck,
 } from './confirm-check-registry'
 import {
   assertIntegrityAssertsAllowSigning,
   createIntegrityAssertDeps,
-  renderIntegrityAsserts,
   runIntegrityAsserts,
   type IIntegrityAssertRun,
 } from './confirm-integrity-asserts'
@@ -105,7 +107,6 @@ import {
 import {
   describeOperationValue,
   evaluateDelegateCallGate,
-  renderDelegateCallGate,
 } from './delegatecall-gate'
 import {
   collectExecutabilityInput,
@@ -113,9 +114,9 @@ import {
 } from './executability-collector'
 import {
   evaluateExecutability,
-  renderExecutability,
   type IExecutabilityVerdict,
 } from './executability-simulation'
+import { executabilityNotes } from './executability-view'
 import type { ILedgerAccountResult } from './ledger'
 import {
   LEDGER_FLEX_HASH_NOTE,
@@ -136,25 +137,25 @@ import {
   resolveGateCoverage,
   viemGateReaders,
 } from './prebroadcast-gate'
-import { printableField, trustedMarkup } from './printable-field'
+import { asPrintable, printableField, trustedMarkup } from './printable-field'
 import { buildReadOnlyClient } from './read-only-safe-client'
 import { reconcileAllSubmittedSafeTxs } from './reconcile'
 import { renderCheckLedger } from './render-check-ledger'
+import { evaluateRpcQuorum, type IRpcQuorumVerdict } from './rpc-quorum'
 import {
-  evaluateRpcQuorum,
-  renderRpcQuorum,
-  type IRpcQuorumVerdict,
-} from './rpc-quorum'
-import {
-  codeReadLabel,
   collectProviderObservations,
   createCodeReader,
+  createPinnedBlock,
+  ENDPOINT_READ_BUDGET_MS,
 } from './rpc-quorum-collector'
+import { getTargetName } from './safe-decode-utils'
 import {
-  formatDecodedTxDataForDisplay,
-  getTargetName,
-} from './safe-decode-utils'
-import { buildSafeTxDetailLines } from './safe-tx-detail-display'
+  buildCalldataTarget,
+  buildSafeTxDetailLines,
+  CLAIM_QUESTION,
+  signatureTally,
+  type ISafeTxDetailInput,
+} from './safe-tx-detail-display'
 import {
   parseAccountIndex,
   canExecuteWithNonceStatus,
@@ -198,6 +199,25 @@ import {
   PREFLIGHT_PROBE_TIMEOUT_MS,
   renderNetworkPreflight,
 } from './signer-preflight'
+import {
+  checkSummary,
+  PROPOSAL_SEPARATOR,
+  renderCheckGroups,
+  renderDeferredTodos,
+  renderGateManifest,
+  renderProposalOutcome,
+  renderTodos,
+  TODOS_DEFERRED_SUMMARY,
+  zoneHeading,
+} from './signer-view'
+import {
+  CHECK_DOCS,
+  integrityResults,
+  opensDeviceScreens,
+  signerChecks,
+  signerTodos,
+  viewDefinitions,
+} from './signer-zones'
 import {
   computeOperationIdBatch,
   decodeScheduleBatch,
@@ -378,6 +398,14 @@ const processTxs = async (
   rpcUrl: string | undefined,
   prepared: IConfirmSafeTxNetworkContext
 ) => {
+  // Read from argv rather than from the parsed args, for the reason
+  // `cli-flags.ts` documents: citty hands `--raw=false` back as the string
+  // 'false'. Absent means off, which is the shorter block.
+  const showRawCalldata = readBooleanFlag(process.argv, {
+    camel: 'raw',
+    kebab: 'raw',
+  })
+
   const {
     network,
     networkKey,
@@ -395,6 +423,10 @@ const processTxs = async (
   consola.info('-'.repeat(80))
   consola.info('Chain:', chain.name)
   consola.info('Signer:', signerAddress)
+  // Once per network rather than on every proposal: it is the same Safe for the
+  // whole run, and `INT-SAFE-ADDRESS` grades each row against it. Config-derived
+  // — this is the Safe the client is pointed at, never the one a row claims.
+  consola.info('Safe:  ', safeAddress)
 
   // How many transactions this run has put on the wire for this Safe. Read by
   // the prefetch anchor: a broadcast moves the state every prefetched read was
@@ -1134,7 +1166,12 @@ const processTxs = async (
         rpcQuorum = evaluateRpcQuorum(
           await collectProviderObservations(
             endpoints,
-            createCodeReader(quorumTarget, chain.id)
+            createCodeReader(
+              quorumTarget,
+              chain.id,
+              ENDPOINT_READ_BUDGET_MS,
+              createPinnedBlock(endpoints, chain.id)
+            )
           )
         )
       } catch (error) {
@@ -1253,6 +1290,11 @@ const processTxs = async (
   // stand for the whole network, and a clean one erase an earlier refusal.
   const proposalChecks: ICheckResult[] = []
 
+  // A run walks several proposals and each one ends on a checklist, so the
+  // separator is what keeps the next proposal's fields from reading as more of
+  // the previous one's instructions.
+  let proposalIndex = 0
+
   // Sort transactions by nonce in ascending order to process them in sequence.
   // In place, so the loop below and `nextProposal` cannot disagree about which
   // proposal follows which.
@@ -1291,16 +1333,7 @@ const processTxs = async (
 
     codehashGate = blockingUnevaluatedGate()
     integrityRun = undefined
-
-    consola.info('-'.repeat(80))
-    consola.info('Transaction Details:')
-    consola.info('-'.repeat(80))
-
-    if (tx.safeTx.data?.data)
-      await formatDecodedTxDataForDisplay(tx.safeTx.data.data as Hex, {
-        chainId: chain.id,
-        network,
-      })
+    if (proposalIndex++ > 0) consola.log(PROPOSAL_SEPARATOR.join('\n'))
 
     // The block sanitises the stored addresses itself, so it can report a row
     // that needed it. These only decide how a clean address is displayed.
@@ -1321,23 +1354,43 @@ const processTxs = async (
       network
     )
 
-    const nonceColor =
-      nonceStatus === 'current' ? '32' : nonceStatus === 'stale' ? '31' : '33'
     // Only show nonce warning if the tx can be executed — irrelevant while still collecting signatures
     // `trustedMarkup`: both readings are a chain-read `bigint`, and the strings
     // carry colour codes of their own that sanitising would strip.
     const nonceWarning = trustedMarkup(
       nonceStatus === 'stale'
-        ? ` \u001b[31m✗ STALE — on-chain nonce is ${expectedNonce}, this proposal's nonce was already used\u001b[0m`
+        ? ` [31m✗ STALE — on-chain nonce is ${expectedNonce}, this proposal's nonce was already used[0m`
         : nonceStatus === 'future' && tx.canExecute
-        ? ` \u001b[33m⚠ on-chain nonce is ${expectedNonce} — cannot execute yet\u001b[0m`
+        ? ` [33m⚠ on-chain nonce is ${expectedNonce} — cannot execute yet[0m`
         : ''
     )
 
-    const detailLines = buildSafeTxDetailLines({
+    // The struct the signature covers, never the stored row: createTransaction
+    // normalises an absent operation to Call, so those two copies can disagree.
+    const operationVerdict = evaluateDelegateCallGate(tx.safeTransaction.data)
+
+    // The verb follows the row, not the menu: a row already carrying the
+    // threshold is executed without this signer being asked for a signature at
+    // all, so asking them to check it "before signing" names the wrong act.
+    //
+    // The nonce is sanitised before it reaches the heading, which pads itself
+    // from the string's length: an escape sequence in a stored nonce would be
+    // measured as width and silently shift the rule it sits between.
+    const { text: headingNonce } = asPrintable(tx.safeTx.data.nonce)
+    consola.log(
+      zoneHeading(
+        1,
+        `WHAT YOU ARE BEING ASKED TO ${tx.canExecute ? 'EXECUTE' : 'SIGN'}`,
+        `${network} · nonce ${headingNonce} · ${signatureTally(
+          tx.safeTransaction.signatures.size,
+          tx.threshold
+        )}`
+      ).join('\n')
+    )
+
+    const detailInput: ISafeTxDetailInput = {
       network,
-      nonce: tx.safeTx.data.nonce,
-      nonceColor,
+      heading: '',
       nonceWarning,
       to: tx.safeTx.data.to,
       toTargetName: targetName,
@@ -1355,15 +1408,29 @@ const processTxs = async (
               tx.safeTransaction.data.operation
             )})`
       ),
+      operationIsCall: tx.safeTransaction.data.operation === 0,
       data: tx.safeTx.data.data,
-      proposer: tx.proposer,
-      safeTxHash: tx.safeTxHash,
-      signatureCount: tx.safeTransaction.signatures.size,
-      threshold: tx.threshold,
-      canExecute: tx.canExecute,
+      showRawCalldata,
       parkedTaskRefs: tx.parkedTaskRefs,
       provenance: tx.provenance,
-    })
+    }
+
+    consola.log(buildSafeTxDetailLines(detailInput).join('\n'))
+    consola.log(buildCalldataTarget(detailInput).join('\n'))
+
+    if (tx.safeTx.data?.data)
+      consola.log(
+        (
+          await buildCalldataEffectLines(tx.safeTx.data.data, {
+            network,
+            // The body of THE CALLDATA DOES, drawn at that block's own column.
+            indent: '      ',
+            target: tx.safeTx.data.to,
+          })
+        ).join('\n')
+      )
+
+    consola.log(CLAIM_QUESTION.join('\n'))
 
     let targetState: ITargetStateVerdict
     try {
@@ -1379,16 +1446,6 @@ const processTxs = async (
         error instanceof Error ? error.message : String(error)
       )
     }
-    consola.info(detailLines.join('\n'))
-    // Target-state lines are graded here, not inside the sanitising detail
-    // block: they are computed verdicts, not stored proposer-controlled fields.
-    for (const line of formatTargetStateLines(targetState)) consola.info(line)
-
-    // The struct the signature covers, never the stored row: createTransaction
-    // normalises an absent operation to Call, so those two copies can disagree.
-    const operationVerdict = evaluateDelegateCallGate(tx.safeTransaction.data)
-    for (const line of renderDelegateCallGate(operationVerdict))
-      consola.info(line)
 
     // A display error must never block signing.
     const verificationDisplay = resolveSignerVerificationDisplay(
@@ -1412,75 +1469,35 @@ const processTxs = async (
           )}`
         )
       }
+
+    let devicePanel: string[] = []
+    let devicePanelNote: string | undefined
     if (verificationDisplay === 'filmstrip')
       try {
-        const filmstrip = renderLedgerFlexFlow({
+        devicePanel = renderLedgerFlexFlow({
           chainId: chain.id,
           verifyingContract: safeAddress,
           to: tx.safeTransaction.data.to,
           value: String(tx.safeTransaction.data.value),
           data: tx.safeTx.data.data,
         })
-        consola.info(
-          [
-            'Ledger Flex — verify these screens against your device (screens 5–8 are gas params / nonce, not security-relevant):',
-            ...filmstrip,
-            LEDGER_FLEX_WRAP_NOTE,
-          ].join('\n')
-        )
+        devicePanelNote = LEDGER_FLEX_WRAP_NOTE
       } catch (error) {
         consola.debug(`Ledger Flex filmstrip skipped: ${error}`)
       }
-    else if (verificationDisplay === 'hash-compare') {
-      // Report-only, and it names only the computed value: the stored hash is
-      // proposer-written text and is not echoed a second time here.
-      if (deviceHash) {
-        const stored = tx.safeTxHash
-        const storedIsHash =
-          typeof stored === 'string' && /^0x[0-9a-f]{64}$/i.test(stored)
-        if (!storedIsHash)
-          consola.warn(
-            `This proposal carries no readable stored hash. Your device will show \u001b[36m${deviceHash}\u001b[0m — compare that one.`
-          )
-        else if (stored.toLowerCase() !== deviceHash.toLowerCase())
-          consola.warn(
-            `The hash stored on this proposal is not the hash the Safe computes from it. Your device will show \u001b[36m${deviceHash}\u001b[0m — compare that one.`
-          )
+    else if (verificationDisplay === 'hash-compare' && deviceHash)
+      try {
+        devicePanel = renderLedgerFlexHashFlow({ hash: deviceHash })
+        devicePanelNote = LEDGER_FLEX_HASH_NOTE
+      } catch (error) {
+        consola.warn(`Ledger Flex hash screens could not be drawn: ${error}`)
       }
 
-      let flow: string[] = []
-      if (deviceHash)
-        try {
-          flow = [
-            'Ledger — hash mode. Your device will show these three screens:',
-            ...renderLedgerFlexHashFlow({ hash: deviceHash }),
-            LEDGER_FLEX_HASH_NOTE,
-          ]
-        } catch (error) {
-          consola.warn(`Ledger Flex hash screens could not be drawn: ${error}`)
-        }
-
-      consola.info(
-        (flow.length
-          ? [
-              ...flow,
-              'That hash is read from the Safe contract, not from the proposal row — the',
-              'proposer controls that field. Reading it here still proves nothing about',
-              'intent: the authority is the hash in the out-of-band message from the',
-              'proposer. Compare 16 characters, 8 from each end — four-and-four is',
-              'grindable by whoever wrote the payload.',
-            ]
-          : [
-              'Ledger — the device shows one message screen holding the Safe transaction hash.',
-              'It could not be previewed here (see the warning above), so compare the device',
-              'screen directly against the hash in the out-of-band message from the proposer:',
-              '16 characters, 8 from each end — four-and-four is grindable by whoever wrote',
-              'the payload. The hash stored on the proposal row is not the authority; the',
-              'proposer controls it alongside the calldata.',
-            ]
-        ).join('\n')
-      )
-    }
+    // Report-only, and it names only the computed value: the stored hash is
+    // proposer-written text and is not echoed a second time here.
+    const storedHash = tx.safeTxHash
+    const storedIsHash =
+      typeof storedHash === 'string' && /^0x[0-9a-f]{64}$/i.test(storedHash)
 
     // Every chain read this proposal is graded on, in one step. Served from
     // the prefetch taken while the previous proposal was on screen only while
@@ -1525,22 +1542,14 @@ const processTxs = async (
       observedSet,
     } = evidence.value
 
-    renderCodehashSignGate(codehashGate).forEach((line) => consola.info(line))
-    renderIntegrityAsserts(integrityRun).forEach((line) => consola.info(line))
-
-    if (executability)
-      renderExecutability(executability).forEach((line) => consola.info(line))
-
-    const quorumTarget = tx.safeTransaction.data.to as Address
-    if (rpcQuorum)
-      renderRpcQuorum(rpcQuorum, codeReadLabel(quorumTarget, network)).forEach(
-        (line) => consola.info(line)
-      )
-
-    if (calldataAddresses)
-      renderCalldataAddresses(calldataAddresses).forEach((line) =>
-        consola.info(line)
-      )
+    // Rendered here and printed in zone 2: the gate's own block carries
+    // per-address detail no single ledger row holds — the reason, and the
+    // immutable bytes a verdict does not cover.
+    const codehashLines = renderCodehashSignGate(codehashGate)
+    // Carries no ledger row, so it has no grouped row to print under.
+    const calldataAddressLines = calldataAddresses
+      ? renderCalldataAddresses(calldataAddresses)
+      : []
 
     // R2.6's subjects: the contracts this proposal puts into service, out of
     // every address the observation read.
@@ -1549,35 +1558,89 @@ const processTxs = async (
       references
     )
 
-    proposalChecks.push(
-      ...proposalCheckResults({
-        network,
-        storageAuthority: observedSet
-          ? {
-              entries: toSignedAuthorityEntries(installedAuthorities),
-              anchors: authorityExpectationAnchors(installedAuthorities),
-              ...(undecodable.length > 0
-                ? { scopeUnreadable: undecodable }
-                : {}),
-            }
-          : undefined,
-        integrity: integrityRun,
-        // The gate object this proposal was judged on, not a re-derivation of
-        // it: the row must report the same verdict the refusal below acts on.
-        codehash: codehashGate,
-        targetState,
-        executability,
-        // Only a chain the simulator was never written for is out of scope. An
-        // EVM network it does cover but could not reach is a read that should
-        // have happened and did not, so it is left to record as unverified.
-        ...(isTronNetworkKey(network)
-          ? {
-              executabilityOutOfScope: `${network} is executed through its own chain executor, which the EVM simulator does not cover`,
-            }
-          : {}),
-        rpcQuorum,
-      })
+    const proposalResults = proposalCheckResults({
+      network,
+      storageAuthority: observedSet
+        ? {
+            entries: toSignedAuthorityEntries(installedAuthorities),
+            anchors: authorityExpectationAnchors(installedAuthorities),
+            ...(undecodable.length > 0 ? { scopeUnreadable: undecodable } : {}),
+          }
+        : undefined,
+      integrity: integrityRun,
+      // The gate object this proposal was judged on, not a re-derivation of
+      // it: the row must report the same verdict the refusal below acts on.
+      codehash: codehashGate,
+      targetState,
+      executability,
+      // Only a chain the simulator was never written for is out of scope. An
+      // EVM network it does cover but could not reach is a read that should
+      // have happened and did not, so it is left to record as unverified.
+      ...(isTronNetworkKey(network)
+        ? {
+            executabilityOutOfScope: `${network} is executed through its own chain executor, which the EVM simulator does not cover`,
+          }
+        : {}),
+      rpcQuorum,
+    })
+    proposalChecks.push(...proposalResults)
+
+    // Every check the run graded, as one report. The gates each print well on
+    // their own, and five of them in a row is how the signer learned to scroll
+    // past all five.
+    const signerCheckRows = signerChecks({
+      results: proposalResults,
+      notApplicable: integrityResults(integrityRun).notApplicable,
+      // The simulation answers once per payload and a ledger row holds one
+      // verdict, so the breakdown goes in as a note: the row keeps the single
+      // answer the ledger and the refusal messages are written against, and the
+      // signer still sees which call it was that would revert.
+      ...(executability
+        ? {
+            notes: new Map([
+              [EXECUTABILITY_CHECK_ID, executabilityNotes(executability)],
+            ]),
+          }
+        : {}),
+      definitions: viewDefinitions(ALL_GATE_DEFINITIONS),
+    })
+
+    consola.log(
+      zoneHeading(
+        2,
+        'WHAT WAS CHECKED FOR YOU',
+        checkSummary(signerCheckRows)
+      ).join('\n')
     )
+    // The roster first, then the rows that ask something of the signer. The
+    // sections say what to read; only the manifest says what there was to read,
+    // which is what makes a gate that reported nothing visible at all.
+    consola.log(
+      renderGateManifest({
+        entries: signerCheckRows,
+        roster: ALL_GATE_DEFINITIONS,
+        mustReport: new Set(
+          CONFIRM_CHECK_DEFINITIONS.map((definition) => definition.checkId)
+        ),
+        docUrls: CHECK_DOCS,
+      }).join('\n')
+    )
+    consola.log(renderCheckGroups(signerCheckRows).join('\n'))
+    // Per-finding detail under the row that reduced them: the ledger holds one
+    // verdict per proposal, and a cut installing several facets has one line
+    // per element to show.
+    for (const line of formatTargetStateLines(targetState)) consola.log(line)
+    codehashLines.forEach((line) => consola.log(line))
+    // Carries no ledger row, so it has no grouped row to print under.
+    calldataAddressLines.forEach((line) => consola.log(line))
+
+    // The slot, not the checklist. What goes in it is printed further down, once
+    // an action has been chosen and every interlock that could still abort the
+    // run has had its turn.
+    consola.log(
+      zoneHeading(3, 'WHAT ONLY YOU CAN DO', TODOS_DEFERRED_SUMMARY).join('\n')
+    )
+    consola.log(renderDeferredTodos().join('\n'))
 
     const integrity = evaluateProposalIntegrity({ nonceStatus })
     // Said before the action prompt, not after it: a verdict the operator can no
@@ -1619,6 +1682,11 @@ const processTxs = async (
       nonceCurrent: integrity.ok,
       acknowledged: false,
     })
+
+    // Restated here rather than left to the rows above: by the time the prompt
+    // appears the signer has scrolled past every gate, the calldata and the
+    // device panel, and this is the screen the decision is made on.
+    consola.log(renderProposalOutcome(signerCheckRows).join('\n'))
 
     // Determine available actions based on signature status
     // Execute options are offered regardless of nonce status; the nonce gate runs
@@ -1827,6 +1895,33 @@ const processTxs = async (
       acknowledged,
     })
 
+    // Zone 3, held back from the decision screen and printed here instead: after
+    // the nonce and expected-state interlocks, which can still end the run, and
+    // immediately before the device is touched. A signer comparing a hash
+    // against a Ledger wants it at the foot of the scrollback, not above thirty
+    // rows of gate output they have scrolled past since.
+    if (opensDeviceScreens(action)) {
+      consola.log(zoneHeading(3, 'WHAT ONLY YOU CAN DO').join('\n'))
+      consola.log(
+        renderTodos(
+          signerTodos({
+            ...(deviceHash ? { deviceHash } : {}),
+            ...(deviceHash
+              ? {
+                  storedHash: !storedIsHash
+                    ? ('unreadable' as const)
+                    : storedHash.toLowerCase() !== deviceHash.toLowerCase()
+                    ? ('disagrees' as const)
+                    : ('agrees' as const),
+                }
+              : {}),
+            devicePanel,
+            ...(devicePanelNote ? { devicePanelNote } : {}),
+          })
+        ).join('\n')
+      )
+    }
+
     if (action === 'Sign')
       try {
         const safeTransaction = tx.safeTransaction
@@ -1976,6 +2071,14 @@ const main = defineCommand({
     derivationPath: {
       type: 'string',
       description: 'Custom derivation path for Ledger (overrides ledgerLive)',
+      required: false,
+    },
+    // No `default`: the value is read from argv by `readBooleanFlag`, and a
+    // citty default would shadow what the caller actually passed.
+    raw: {
+      type: 'boolean',
+      description:
+        'Print the full calldata hex instead of its length and first four bytes',
       required: false,
     },
   },

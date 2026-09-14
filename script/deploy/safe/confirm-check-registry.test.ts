@@ -12,6 +12,7 @@ import {
 } from './check-ledger'
 import type { ICodehashSignGate } from './codehash-sign-gate'
 import {
+  ALL_GATE_DEFINITIONS,
   authorityExpectationAnchors,
   CODEHASH_CHECK_ID,
   CONFIRM_CHECK_DEFINITIONS,
@@ -41,7 +42,10 @@ import {
   INTEGRITY_CHECK_DEFINITIONS,
   type IIntegrityAssertRun,
 } from './confirm-integrity-asserts'
-import type { IExecutabilityVerdict } from './executability-simulation'
+import type {
+  IExecutabilityCall,
+  IExecutabilityVerdict,
+} from './executability-simulation'
 import {
   STATUSES_CLEARED_TO_PROCEED,
   type ITargetStateFinding,
@@ -618,7 +622,11 @@ describe('storageAuthorityCheckResult', () => {
           expectationSource: 'deployments',
         }),
       ])
-      expect(result.status).toBe('pass')
+      // A match the proposer supplied one side of is something the signer
+      // answers, not something the run may claim: every diamond cut carries
+      // `LiFiDiamond.owner`, so grading this a refusal would block every honest
+      // proposal and grading it a pass would verify the proposer's own word.
+      expect(result.status).toBe('needs-ack')
       expect(result.anchor).toBe('A-MONGO')
     })
 
@@ -762,6 +770,7 @@ const executabilityVerdict = (
   errors: [],
   warnings: [],
   notSimulated: [],
+  calls: [],
   reason: '',
   ...overrides,
 })
@@ -1644,5 +1653,131 @@ describe('the codehash gate on the run-level ledger', () => {
     )
     expect(rollup?.green).toBe(false)
     expect(summariseLedger(ledger).hardBlocked).toBe(true)
+  })
+})
+
+describe('authorityExpectationAnchors', () => {
+  it('maps the global config to a deciding anchor and the record to a reporting one', () => {
+    const anchors = authorityExpectationAnchors([
+      {
+        label: 'a',
+        contractAddress: '0x00000000000000000000000000000000000000a1',
+        liveValue: '0x1',
+        expectedValue: '0x1',
+        expectationSource: 'globalConfig',
+        readError: undefined,
+      },
+      {
+        label: 'b',
+        contractAddress: '0x00000000000000000000000000000000000000b2',
+        liveValue: '0x1',
+        expectedValue: '0x1',
+        expectationSource: 'deployments',
+        readError: undefined,
+      },
+    ])
+    expect(anchors.get('a')).toBe('A-LOCAL')
+    expect(anchors.get('b')).toBe('A-MONGO')
+  })
+})
+
+describe('the row a reverting simulation writes to the ledger', () => {
+  const reverting = (path: string): IExecutabilityCall => ({
+    path,
+    description: 'diamondCut',
+    target: '0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE',
+    modelled: true,
+    simulation: 'reverted',
+    findings: [],
+    outcome: 'would-revert',
+  })
+
+  it('names the calls rather than carrying the whole finding list', () => {
+    const result = executabilityCheckResult(
+      executabilityVerdict({
+        refuses: true,
+        reason: `blocking — eth_call reverted. Raw Call Arguments: data: 0x${'0'.repeat(
+          600
+        )}`,
+        calls: [
+          reverting('call[0].schedule'),
+          { ...reverting('call[1]'), outcome: 'would-execute' },
+        ],
+      }),
+      NETWORK
+    )
+
+    expect(result.actual).toContain('1 of 2 call(s) would revert')
+    expect(result.actual).toContain('call[0].schedule')
+    expect(result.actual).not.toContain('Raw Call Arguments')
+    expect(result.actual.length).toBeLessThan(120)
+  })
+
+  it('falls back to the full reason when no call was marked reverting', () => {
+    // A refusal can come from a nonce or funding finding, which belongs to the
+    // proposal rather than to any call — summarising those as "0 calls" would
+    // report a blocked proposal as having nothing wrong with it.
+    const result = executabilityCheckResult(
+      executabilityVerdict({
+        refuses: true,
+        reason: 'another pending proposal sits at nonce 31',
+        calls: [{ ...reverting('call[0]'), outcome: 'would-execute' }],
+      }),
+      NETWORK
+    )
+
+    expect(result.actual).toBe('another pending proposal sits at nonce 31')
+  })
+})
+
+describe('gate letters', () => {
+  // Over every gate the repo names, not just the registered ones: a gate that
+  // never reaches a ledger still reaches a screen, and a letter it shares with
+  // a registered gate is read by a signer as the same gate.
+  it('are one uppercase letter, unique across every named gate', () => {
+    const letters = ALL_GATE_DEFINITIONS.map((definition) => definition.gate)
+
+    expect(letters.length).toBeGreaterThan(CONFIRM_CHECK_DEFINITIONS.length - 1)
+    for (const letter of letters) expect(letter).toMatch(/^[A-Z]$/u)
+    expect(new Set(letters).size).toBe(letters.length)
+  })
+
+  it('name a subject rather than restate the assertion', () => {
+    for (const definition of ALL_GATE_DEFINITIONS)
+      expect(definition.title.split(/\s+/u).length).toBeLessThanOrEqual(3)
+  })
+
+  it('covers every registered gate, and the ones that block elsewhere', () => {
+    const named = new Set(ALL_GATE_DEFINITIONS.map((one) => one.checkId))
+
+    for (const definition of CONFIRM_CHECK_DEFINITIONS)
+      expect(named).toContain(definition.checkId)
+    // Pinned by name as well as through the roster loop: this gate's refusal
+    // lives outside the ledger, so a run that dropped its row would still
+    // block signing and no other test would notice the name was gone.
+    expect(named).toContain(CODEHASH_CHECK_ID)
+  })
+})
+
+describe('section headings', () => {
+  // `renderCheckLedger` groups on the exact string, so two headings a signer
+  // reads as the same subject render as two adjacent near-identical lines with
+  // nothing to tell them apart. A name containing another is the shape that
+  // produced it: `Integrity` alongside `proposal integrity`.
+  it('are distinct, and none contains another', () => {
+    const sections = [
+      ...new Set(
+        ALL_GATE_DEFINITIONS.map((definition) =>
+          definition.section.trim().toLowerCase()
+        )
+      ),
+    ]
+
+    expect(sections.length).toBeGreaterThan(1)
+    for (const section of sections) {
+      expect(section).not.toBe('')
+      for (const other of sections)
+        if (other !== section) expect(other).not.toContain(section)
+    }
   })
 })

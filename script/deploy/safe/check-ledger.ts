@@ -68,6 +68,18 @@ const REPORTING_ONLY_ANCHORS: ReadonlySet<AnchorId> = new Set<AnchorId>([
   'A-UNRESOLVED',
 ])
 
+/**
+ * The reporting-only anchors a signer can be asked to take on.
+ *
+ * Narrower than `REPORTING_ONLY_ANCHORS` on purpose. `A-MONGO` and
+ * `A-PROPOSAL` name a source that answered and whose provenance the row can
+ * state, so there is something a human can decide to trust. `A-UNRESOLVED`
+ * means nothing answered, which leaves nothing to decide about — it keeps
+ * blocking even on a check that opted in below.
+ */
+const ACKNOWLEDGEABLE_REPORTING_ANCHORS: ReadonlySet<AnchorId> =
+  new Set<AnchorId>(['A-MONGO', 'A-PROPOSAL'])
+
 /** Every status a result may carry, for validating a value that bypassed the type. */
 const CHECK_STATUSES: ReadonlySet<string> = new Set<CheckStatus>([
   'pass',
@@ -94,8 +106,48 @@ export interface ICheckDefinition {
   /** Groups checks into the one-line-per-section report. */
   section: string
   checkClass: CheckClass
+  /**
+   * The letter a signer refers to this gate by, unique across the registry.
+   *
+   * A signer asking anyone else about a refusal needs a handle short enough to
+   * say out loud; `checkId` is not it, and the title moves whenever the wording
+   * is improved.
+   */
+  gate: string
+  /**
+   * The subject of the gate, not the assertion it makes.
+   *
+   * Phrased as a name because the row's glyph already carries the verdict: a
+   * title written as a statement ("the hashes are equal") reads as true under a
+   * red glyph meaning the opposite, which is what the `expected`/`observed`
+   * pair beneath it is there to say.
+   */
   title: string
+  /**
+   * Opts this check into grading `needs-ack` when its expectation rests on an
+   * anchor that reports rather than decides, instead of the `fail` the
+   * integrity class gives every other unacknowledgeable status.
+   *
+   * Scoped to that one case, and never to a mismatch: a live value that
+   * disagrees with what the repo declares still hard-blocks. That is the whole
+   * difference from reclassifying the check as `semantic`, which would send the
+   * mismatch to the acknowledgement path too.
+   */
+  undecidableIsAcknowledgeable?: boolean
 }
+
+/**
+ * How every renderer names a gate.
+ *
+ * One function rather than a format string per view, so the letter a signer
+ * quotes cannot differ between the run-level ledger, the signer view and a
+ * refusal message.
+ *
+ * @param definition - The gate being named.
+ * @returns `Gate X · Subject`.
+ */
+export const gateLabel = (definition: ICheckDefinition): string =>
+  `Gate ${definition.gate} · ${definition.title}`
 
 export interface ICheckResult {
   /**
@@ -252,11 +304,68 @@ export const recordCheck = (
   return stored
 }
 
+/**
+ * Whether one `needs-ack` survives the integrity class's blanket refusal.
+ *
+ * Both halves are re-read wherever the refusal is applied rather than trusted
+ * from an earlier coercion, so a result that entered the log some other way
+ * cannot carry the exemption it was never granted.
+ *
+ * @param definition - The gate the result belongs to.
+ * @param result - The status and anchor being judged.
+ * @returns True only for an opted-in check whose expectation rests on a
+ * reporting anchor that answered.
+ */
+const survivesIntegrityRefusal = (
+  definition: ICheckDefinition,
+  result: Pick<ICheckResult, 'status' | 'anchor'>
+): boolean =>
+  result.status === 'needs-ack' &&
+  definition.undecidableIsAcknowledgeable === true &&
+  ACKNOWLEDGEABLE_REPORTING_ANCHORS.has(result.anchor)
+
+/**
+ * Whether a recorded non-pass result has an acknowledgement path — the same
+ * question `summariseLedger` answers when it sorts a result into `blocking` or
+ * `requiresAcknowledgement`.
+ *
+ * Exported so a renderer can put a row under the heading the run will actually
+ * act on, rather than deciding from `status` alone. Deciding from status alone
+ * put a **semantic `fail`** — acknowledgeable, and the common case, since a
+ * reverting simulation grades that way — under "the proposal is wrong, do not
+ * sign", and the run then offered Sign. A signer who is told not to sign and is
+ * immediately offered the choice learns to read past the heading.
+ *
+ * Triage relaxation is deliberately not consulted: a relaxed result also
+ * proceeds, but it is a property of the run's profile rather than of the check,
+ * and a renderer showing a row as acknowledgeable because a profile was passed
+ * would be describing the invocation, not the proposal.
+ *
+ * @param definition - The check's registration, or `undefined` when the ledger
+ * does not know it — which is never vouched for.
+ * @param result - The recorded result, after `recordCheck` coerced its status.
+ * @returns True when the run would offer an acknowledgement for this result.
+ */
+export const isAcknowledgeable = (
+  definition: ICheckDefinition | undefined,
+  result: Pick<ICheckResult, 'status' | 'anchor'>
+): boolean => {
+  if (result.status !== 'fail' && result.status !== 'needs-ack') return false
+  if (!definition) return false
+  if (definition.checkClass !== 'integrity') return true
+
+  return survivesIntegrityRefusal(definition, result)
+}
+
 function coerceStatus(
   result: ICheckResult,
   definition: ICheckDefinition
 ): ICheckResult {
-  if (result.status === 'needs-ack' && definition.checkClass === 'integrity')
+  if (
+    result.status === 'needs-ack' &&
+    definition.checkClass === 'integrity' &&
+    !survivesIntegrityRefusal(definition, result)
+  )
     return {
       ...result,
       status: 'fail',
@@ -621,7 +730,10 @@ export const summariseLedger = (
       if (result.status === 'fail') totals.fail += 1
       else totals.needsAck += 1
 
-      if (rollup.checkClass === 'integrity') {
+      if (
+        rollup.checkClass === 'integrity' &&
+        !survivesIntegrityRefusal(rollup, result)
+      ) {
         blocking.push({
           checkId: result.checkId,
           network: result.network,
@@ -759,9 +871,13 @@ export const buildReviewAttestation = (
     definition.checkId,
     definition.checkClass,
     definition.section,
+    definition.gate,
     // The only text saying what is being checked, so relabelling a check must
     // move the digest.
     definition.title,
+    // Second field that decides whether a non-pass blocks, so it is digested
+    // for the same reason the class is.
+    definition.undecidableIsAcknowledgeable === true ? 'ack-undecidable' : '',
   ])
   const byJson = (left: string[], right: string[]): number =>
     JSON.stringify(left) < JSON.stringify(right) ? -1 : 1
