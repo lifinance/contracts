@@ -341,31 +341,66 @@ function mergeDataProvider(
  * The overlay wins where both cover a selector. It is the upstream PR's own
  * head, so it carries any edit a reviewer made there, and it was rendered
  * against the descriptor this run is pushing — upstream's copy can predate a
- * label change and assert labels the new descriptor no longer emits. Order
- * follows the primary fixture, with the overlay's extra cases appended.
+ * label change and assert labels the new descriptor no longer emits.
+ *
+ * A selector may carry more than one case: the registry needs only one per
+ * format, but a reviewer can cover the same format with several scenarios. So
+ * cases move as whole per-selector groups — the overlay's group replaces the
+ * primary's in the primary's position, and neither side's extras are dropped.
  */
-function mergeCases(existing: ITestCase[], overlay: ITestCase[]): ITestCase[] {
-  const bySelector = new Map<string, ITestCase>()
-  for (const test of overlay) {
+function groupBySelector(tests: ITestCase[]): {
+  groups: Map<string, ITestCase[]>
+  unkeyed: ITestCase[]
+} {
+  const groups = new Map<string, ITestCase[]>()
+
+  // A case with no calldata (a plain transfer) exercises no selector, so the
+  // overlay cannot address it. Carry it through rather than drop it.
+  const unkeyed: ITestCase[] = []
+
+  for (const test of tests) {
     const selector = selectorOf(test)
-    if (selector && !bySelector.has(selector)) bySelector.set(selector, test)
+    if (!selector) {
+      unkeyed.push(test)
+      continue
+    }
+
+    const group = groups.get(selector)
+    if (group) group.push(test)
+    else groups.set(selector, [test])
   }
 
-  const taken = new Set<string>()
-  const merged = existing.map((test) => {
+  return { groups, unkeyed }
+}
+
+function mergeCases(existing: ITestCase[], overlay: ITestCase[]): ITestCase[] {
+  const { groups: overlayGroups, unkeyed } = groupBySelector(overlay)
+
+  const merged: ITestCase[] = []
+  const replaced = new Set<string>()
+  for (const test of existing) {
     const selector = selectorOf(test)
-    if (!selector || taken.has(selector)) return test
+    const replacement = selector ? overlayGroups.get(selector) : undefined
+    if (!selector || !replacement) {
+      merged.push(test)
+      continue
+    }
 
-    const replacement = bySelector.get(selector)
-    if (replacement) taken.add(selector)
+    // The overlay's whole group lands where the primary's group started; the
+    // primary's remaining cases for that selector are what it supersedes.
+    if (replaced.has(selector)) continue
+    replaced.add(selector)
+    merged.push(...replacement)
+  }
 
-    return replacement ?? test
-  })
+  for (const [selector, group] of overlayGroups)
+    if (!replaced.has(selector)) merged.push(...group)
 
-  for (const [selector, test] of bySelector)
-    if (!taken.has(selector)) merged.push(test)
+  // An unkeyed case can only be matched by description. Without that guard one
+  // the previous run already carried forward would be appended a second time.
+  const seen = new Set(merged.map((test) => test.description))
 
-  return merged
+  return merged.concat(unkeyed.filter((test) => !seen.has(test.description)))
 }
 
 function buildFixture(
