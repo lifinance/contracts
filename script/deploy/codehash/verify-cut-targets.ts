@@ -14,10 +14,12 @@ import {
   compareToAttestedSet,
   type CodehashVerdict,
   type IAttestedBuild,
+  type ICodehashComparison,
   type ILineageScope,
   type IObservedCode,
 } from './attested-set'
 import { classifyCut, type IFacetCutEntry } from './cut-classification'
+import type { ImmutablePricing } from './immutable-expectations'
 
 export interface ITargetVerdict {
   /** Checksummed. */
@@ -58,6 +60,14 @@ export interface IVerifyCutDeps {
     address: string,
     network: string
   ) => Promise<IAttestedBuild[]>
+  /**
+   * Layer 2: what the bytes this comparison had to mask actually hold.
+   *
+   * Consulted only for an address that already matched an attested build, so it
+   * can complete a verdict and can never create one. A refusal leaves layer 1's
+   * masked verdict exactly as it was.
+   */
+  price: (address: string, network: string) => Promise<ImmutablePricing>
 }
 
 /**
@@ -158,13 +168,7 @@ const judge = async (
   // This grades grey rather than red: nothing was found wrong, it was not looked
   // at. Layer 2 supplies the missing check and lifts this.
   if (comparison.verdict === 'MATCH' && comparison.excludedByteCount > 0)
-    return {
-      address,
-      verdict: 'UNVERIFIABLE',
-      reason: `${address}: the code outside its immutables matches an attested build, but ${comparison.excludedByteCount} bytes holding immutables were not compared and no immutable check has run, so this is not yet a match of the deployed code.`,
-      matchedLineages: comparison.matchedLineages,
-      excludedByteCount: comparison.excludedByteCount,
-    }
+    return complete(address, network, comparison, deps)
 
   return {
     address,
@@ -172,6 +176,94 @@ const judge = async (
     reason: comparison.reason,
     matchedLineages: comparison.matchedLineages,
     excludedByteCount: comparison.excludedByteCount,
+  }
+}
+
+/**
+ * Finishes a MATCH whose masked bytes layer 2 can account for.
+ *
+ * A MATCH over the unmasked bytes says the code is a build of ours; it says
+ * nothing about the values spliced into it, which is the half a tampered
+ * deployment lives in. So this upgrades only when every masked byte was priced
+ * against an expectation this repo declares — `unpricedByteCount` at zero with
+ * no disagreement — and reports what is missing otherwise.
+ *
+ * A disagreeing slot is a MISMATCH and not an UNVERIFIABLE: the value was read,
+ * compared, and found to be something other than what `config/` declares. That
+ * is a finding, and grading it grey would file it with the things nobody could
+ * check.
+ *
+ * A layer-2 refusal is not a downgrade either. It leaves the verdict exactly
+ * where layer 1 put it, which is where every immutable-carrying contract sat
+ * before this layer had a call site.
+ *
+ * @param address - the target being judged
+ * @param network - the proposal's network
+ * @param comparison - layer 1's verdict, already known to be a masked MATCH
+ * @param deps - carries the layer-2 read
+ */
+const complete = async (
+  address: string,
+  network: string,
+  comparison: ICodehashComparison,
+  deps: IVerifyCutDeps
+): Promise<ITargetVerdict> => {
+  const masked = `${address}: the code outside its immutables matches an attested build, but ${comparison.excludedByteCount} bytes holding immutables`
+  const stillMasked = (why: string): ITargetVerdict => ({
+    address,
+    verdict: 'UNVERIFIABLE',
+    reason: `${masked} ${why}, so this is not yet a match of the deployed code.`,
+    matchedLineages: comparison.matchedLineages,
+    excludedByteCount: comparison.excludedByteCount,
+  })
+
+  let pricing: ImmutablePricing
+  try {
+    pricing = await deps.price(address, network)
+  } catch (error) {
+    // An infrastructure failure in layer 2 must not read as a clean masked
+    // verdict, and must not read as a finding either.
+    return stillMasked(`could not be checked: ${message(error)}`)
+  }
+
+  if (!pricing.decided)
+    return stillMasked(`were not checked: ${pricing.reason}`)
+
+  if (pricing.disagreements.length > 0)
+    return {
+      address,
+      verdict: 'MISMATCH',
+      reason: `${address}: the code matches an attested build, but ${
+        pricing.disagreements.length
+      } of its immutables hold a value this repo does not declare for ${network} — ${pricing.disagreements
+        .map(
+          (one) =>
+            `${one.name} holds ${one.observed}, ${
+              one.origin ?? 'config'
+            } declares ${one.expected ?? 'another value'}`
+        )
+        .join('; ')}.`,
+      matchedLineages: comparison.matchedLineages,
+      excludedByteCount: comparison.excludedByteCount,
+    }
+
+  if (pricing.unpricedByteCount > 0)
+    return stillMasked(
+      `include ${
+        pricing.unpricedByteCount
+      } with no declared expectation to compare against (${pricing.slots
+        .filter((one) => one.status !== 'verified')
+        .map((one) => `${one.name}: ${one.detail ?? one.status}`)
+        .join('; ')})`
+    )
+
+  return {
+    address,
+    verdict: 'MATCH',
+    reason: `${address}: matches an attested build, and all ${comparison.excludedByteCount} bytes holding immutables hold the values this repo declares for ${network}.`,
+    matchedLineages: comparison.matchedLineages,
+    // Nothing was left uncompared, so a renderer has no qualifier to add.
+    excludedByteCount: 0,
   }
 }
 

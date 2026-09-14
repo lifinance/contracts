@@ -19,7 +19,11 @@ import { getAddress } from 'viem'
 
 import type { IAttestedBuild, IObservedCode } from './attested-set'
 import { FacetCutActionEnum } from './cut-classification'
-import { verifyCutTargets } from './verify-cut-targets'
+import type {
+  ImmutablePricing,
+  IPricedImmutables,
+} from './immutable-expectations'
+import { verifyCutTargets, type IVerifyCutDeps } from './verify-cut-targets'
 
 const A = getAddress('0x1111111111111111111111111111111111111111')
 const B = getAddress('0x2222222222222222222222222222222222222222')
@@ -63,11 +67,34 @@ const remove = (facetAddress: string) => ({
 const deps = (overrides?: {
   observe?: (address: string) => Promise<IObservedCode>
   attestationsFor?: (address: string) => Promise<IAttestedBuild[]>
+  price?: (address: string, network: string) => Promise<ImmutablePricing>
   isClosedSet?: boolean
 }) => ({
   scope: () => ({ isClosedSet: overrides?.isClosedSet ?? true }),
   observe: overrides?.observe ?? (async () => observed(HASH)),
   attestationsFor: overrides?.attestationsFor ?? (async () => [attested(HASH)]),
+  // Layer 2 refuses unless a test says otherwise, so every existing expectation
+  // describes the verdict layer 1 reaches on its own.
+  price:
+    overrides?.price ??
+    (async () => ({
+      decided: false as const,
+      reason: 'no layer 2 in this test',
+    })),
+})
+
+/** A layer-2 answer that accounts for `bytes` of masked code. */
+const priced = (
+  bytes: number,
+  over: Partial<Omit<IPricedImmutables, 'decided'>> = {}
+): ImmutablePricing => ({
+  decided: true,
+  slots: [],
+  disagreements: [],
+  pricedByteCount: bytes,
+  unpricedByteCount: 0,
+  disagreeingByteCount: 0,
+  ...over,
 })
 
 describe('verifyCutTargets', () => {
@@ -262,7 +289,101 @@ describe('verifyCutTargets', () => {
     expect(report.targets[0]?.verdict).toBe('UNVERIFIABLE')
     expect(report.blocksSigning).toBe(true)
     expect(report.targets[0]?.reason).toMatch(/96 bytes/)
-    expect(report.targets[0]?.reason).toMatch(/were not compared/)
+    expect(report.targets[0]?.reason).toMatch(/were not checked/)
+  })
+
+  const maskedMatch = (over: { price: IVerifyCutDeps['price'] }) =>
+    verifyCutTargets({ cuts: [add(A)], init: ZERO, network: 'mainnet' }, {
+      ...deps(over),
+      observe: async () => ({ ...observed(HASH), maskedByteCount: 96 }),
+      attestationsFor: async () => [{ ...attested(HASH), rawHash: undefined }],
+    } as IVerifyCutDeps)
+
+  it('reports MATCH once layer 2 has priced every masked byte', async () => {
+    const report = await maskedMatch({ price: async () => priced(96) })
+
+    expect(report.targets[0]?.verdict).toBe('MATCH')
+    expect(report.blocksSigning).toBe(false)
+    // The qualifier goes with the refusal: nothing is left for a renderer to
+    // warn about.
+    expect(report.targets[0]?.excludedByteCount).toBe(0)
+  })
+
+  it('reports MISMATCH, not grey, when a slot holds something config does not declare', async () => {
+    const report = await maskedMatch({
+      price: async () =>
+        priced(64, {
+          unpricedByteCount: 0,
+          disagreeingByteCount: 32,
+          disagreements: [
+            {
+              name: 'SPOKEPOOL',
+              status: 'disagrees',
+              byteCount: 32,
+              observed: `0x${'ee'.repeat(32)}`,
+              expected: `0x${'11'.repeat(32)}`,
+              origin: 'config/across.json.mainnet.spokePool',
+            },
+          ],
+        }),
+    })
+
+    expect(report.targets[0]?.verdict).toBe('MISMATCH')
+    expect(report.blocksSigning).toBe(true)
+    expect(report.targets[0]?.reason).toMatch(/SPOKEPOOL/)
+    expect(report.targets[0]?.reason).toMatch(/across\.json/)
+  })
+
+  it('stays UNVERIFIABLE when a slot has no declared expectation', async () => {
+    // The registry is two slots wide today, so this is the answer almost every
+    // contract gets — and it must not drift into a pass as the file fills.
+    const report = await maskedMatch({
+      price: async () =>
+        priced(64, {
+          unpricedByteCount: 32,
+          slots: [
+            {
+              name: 'EXECUTOR',
+              status: 'undeclared',
+              byteCount: 32,
+              observed: `0x${'22'.repeat(32)}`,
+              detail: 'no registry entry',
+            },
+          ],
+        }),
+    })
+
+    expect(report.targets[0]?.verdict).toBe('UNVERIFIABLE')
+    expect(report.blocksSigning).toBe(true)
+    expect(report.targets[0]?.reason).toMatch(/EXECUTOR/)
+  })
+
+  it('leaves layer 1 alone when layer 2 throws, rather than reading the outage as a finding', async () => {
+    const report = await maskedMatch({
+      price: async () => {
+        throw new Error('mongo is unreachable')
+      },
+    })
+
+    expect(report.targets[0]?.verdict).toBe('UNVERIFIABLE')
+    expect(report.targets[0]?.reason).toMatch(/mongo is unreachable/)
+  })
+
+  it('never consults layer 2 for a MISMATCH, so it cannot upgrade one', async () => {
+    let asked = false
+    const report = await verifyCutTargets(
+      { cuts: [add(A)], init: ZERO, network: 'mainnet' },
+      deps({
+        observe: async () => observed(OTHER),
+        price: async () => {
+          asked = true
+          return priced(96)
+        },
+      })
+    )
+
+    expect(report.targets[0]?.verdict).toBe('MISMATCH')
+    expect(asked).toBe(false)
   })
 
   it('still reports MATCH when nothing was excluded, so the downgrade is not blanket', async () => {

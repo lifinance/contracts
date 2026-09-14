@@ -97,6 +97,7 @@ const deps = (over: Partial<IVerifyCutDeps> = {}): IVerifyCutDeps => ({
   scope: () => ({ isClosedSet: true }),
   observe: async () => observed(),
   attestationsFor: async () => [attested()],
+  price: async () => ({ decided: false, reason: 'no layer 2 in this test' }),
   ...over,
 })
 
