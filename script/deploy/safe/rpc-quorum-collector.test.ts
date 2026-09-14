@@ -210,6 +210,110 @@ describe('createCodeReader', () => {
     expect(Date.now() - started).toBeGreaterThanOrEqual(1_500)
   })
 
+  // The budget is the read's, not each round trip's. This reader makes three —
+  // `eth_chainId`, `eth_getBlockByNumber`, `eth_getCode` — and a per-attempt
+  // timeout bounds each of them separately, so the three multiply and the retry
+  // profile multiplies again. Asserted on the signal's identity rather than on
+  // elapsed wall clock: a 20s test is not a test, and viem mints a fresh signal
+  // per attempt the moment the budget goes back to being `timeout` alone.
+  it('bounds the whole read on one signal, not each round trip', async () => {
+    const signals: (AbortSignal | null | undefined)[] = []
+
+    globalThis.fetch = (async (
+      _input: RequestInfo | URL,
+      init?: RequestInit
+    ): Promise<Response> => {
+      signals.push(init?.signal)
+
+      const body = JSON.parse(String(init?.body ?? '{}')) as {
+        method?: string
+        id?: number
+      }
+      const result =
+        body.method === 'eth_chainId'
+          ? '0x1'
+          : body.method === 'eth_getBlockByNumber'
+          ? { number: '0x64', hash: BLOCK_HASH }
+          : '0xcode'
+
+      return new Response(
+        JSON.stringify({ jsonrpc: '2.0', id: body.id ?? 1, result }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    }) as typeof fetch
+
+    await createCodeReader(ADDRESS, 1)('https://plain.example/rpc')
+
+    // Three round trips, and the same budget across all of them.
+    expect(signals).toHaveLength(3)
+    const [first, second, third] = signals
+    expect(first).toBeInstanceOf(AbortSignal)
+    expect(second).toBe(first ?? null)
+    expect(third).toBe(first ?? null)
+  })
+
+  // The half of the budget that makes it a bound at all: viem's `shouldRetry`
+  // returns false for an `AbortError`, so an endpoint that overruns fails
+  // immediately instead of retrying past the budget it just exhausted.
+  //
+  // The abort is raised here rather than waited for — a 20s test is not a test.
+  // Both names are driven, because `AbortSignal.timeout` raises the one viem
+  // retries and the difference is invisible in a passing read.
+  it.each([
+    ['AbortError', 1],
+    ['TimeoutError', 2],
+  ])('a %s abort costs %i attempt(s)', async (name, expected) => {
+    let attempts = 0
+
+    globalThis.fetch = (async (
+      _input: RequestInfo | URL,
+      _init?: RequestInit
+    ): Promise<Response> => {
+      attempts += 1
+      throw new DOMException('The operation was aborted.', String(name))
+    }) as typeof fetch
+
+    await expectRejects(
+      createCodeReader(ADDRESS, 1)('https://slow.example/rpc'),
+      /abort/i
+    )
+
+    expect(attempts).toBe(expected)
+  })
+
+  // The budget driven for real against an endpoint that never answers, on a
+  // lowered budget because a 20s test is not a test. This is the row that ties
+  // the pair above to this file: `AbortSignal.timeout` names its abort
+  // `TimeoutError`, and the read would then cost the second attempt.
+  it('ends an unanswered read at its budget, without a retry', async () => {
+    let attempts = 0
+
+    globalThis.fetch = (async (
+      _input: RequestInfo | URL,
+      init?: RequestInit
+    ): Promise<Response> => {
+      attempts += 1
+      // Never answers. Rejects only when the read's own budget aborts it,
+      // which is the thing under test.
+      return new Promise((_resolve, reject) => {
+        init?.signal?.addEventListener('abort', () =>
+          reject(init.signal?.reason)
+        )
+      })
+    }) as typeof fetch
+
+    const started = Date.now()
+    await expectRejects(
+      createCodeReader(ADDRESS, 1, 50)('https://silent.example/rpc'),
+      /no answer within 50ms/
+    )
+
+    expect(attempts).toBe(1)
+    // Bounded by the budget, not by three round trips each carrying it, and
+    // not by the retry delay on top.
+    expect(Date.now() - started).toBeLessThan(1_000)
+  })
+
   it('leaves a credential-free endpoint unauthenticated', async () => {
     const seen = recordRequests()
 
