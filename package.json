@@ -61,6 +61,8 @@
     "fast-uri": "3.1.6"
   },
   "scripts": {
+    "attestations:mint": "forge build --ast && bunx tsx tasks/buildAttestationManifest.ts --out out",
+    "attestations:check": "forge build --ast && bunx tsx tasks/buildAttestationManifest.ts --out out --check",
     "abi:generate": "forge clean && forge build --skip script --skip test --skip Base --skip Test --skip '*.t.sol' && bun tasks/generateDiamondABI.ts",
     "abi:generate:incremental": "bun tasks/generateDiamondABI.ts",
     "build:typechain-and-abi": "bun typechain:incremental && bun abi:generate:incremental",
