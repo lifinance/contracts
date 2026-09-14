@@ -27,6 +27,7 @@ import { keccak256, type Chain, type Hex } from 'viem'
 
 import type { ImmutableReferences } from '../codehash/immutable-offsets'
 import { normalizeRuntimeCode } from '../codehash/rebuild-attestations'
+import type { IImmutableDeclaration } from '../immutables/immutable-ast'
 
 import {
   createForgeRebuildRunner,
@@ -267,6 +268,7 @@ describe('createRecordReader', () => {
 describe('createForgeRebuildRunner', () => {
   const artifact = JSON.stringify({
     deployedBytecode: { object: DEPLOYED, immutableReferences: REFS },
+    ast: { absolutePath: 'src/Facets/AccessManagerFacet.sol' },
   })
 
   const runner = (
@@ -278,6 +280,10 @@ describe('createForgeRebuildRunner', () => {
       ) => { ok: boolean; output: string }
       exists?: (path: string) => boolean
       readFile?: (path: string) => string
+      readDeclarations?: (
+        outDir: string,
+        sourceRoot: string
+      ) => readonly IImmutableDeclaration[]
       calls?: unknown[]
     } = {}
   ) => {
@@ -301,6 +307,7 @@ describe('createForgeRebuildRunner', () => {
           }),
         exists: over.exists ?? ((path) => path.endsWith('.json')),
         readFile: over.readFile ?? (() => artifact),
+        readDeclarations: over.readDeclarations ?? (() => []),
       }),
     }
   }
@@ -320,6 +327,86 @@ describe('createForgeRebuildRunner', () => {
 
     expect(built.runtimeHex).toBe(DEPLOYED)
     expect(built.immutableReferences).toEqual(REFS)
+  })
+
+  it('builds with --ast, so the ids keying the offsets come from this compilation', () => {
+    let built = false
+    const calls: unknown[] = []
+    const harness = runner({
+      calls,
+      exists: (path) => (path.endsWith('.json') ? built : true),
+      run: (command, args) => {
+        built = true
+        calls.push({ command, args })
+        return { ok: true, output: '' }
+      },
+    })
+    harness.runner.build(request)
+
+    expect((calls[0] as { args: string[] }).args).toContain('--ast')
+  })
+
+  it("returns the graded contract's declarations, resolved against its own checkout", () => {
+    const seen: { outDir: string; sourceRoot: string }[] = []
+    const built = runner({
+      readDeclarations: (outDir, sourceRoot) => {
+        seen.push({ outDir, sourceRoot })
+        return [
+          {
+            file: 'src/a.sol',
+            contract: 'AccessManagerFacet',
+            line: 4,
+            astId: 8938,
+            type: 'address',
+            name: 'EXECUTOR',
+          },
+          {
+            file: 'src/b.sol',
+            contract: 'SomeOtherFacet',
+            line: 9,
+            astId: 41,
+            type: 'address',
+            name: 'OTHER',
+          },
+        ]
+      },
+    }).runner.build(request)
+
+    expect(built.immutableDeclarations?.map((one) => one.name)).toEqual([
+      'EXECUTOR',
+    ])
+    expect(seen[0]?.sourceRoot).toBe(`/tmp/rebuilds/${'a'.repeat(40)}`)
+    expect(seen[0]?.outDir).toBe(
+      `/tmp/rebuilds/${'a'.repeat(40)}/out-codehash-default`
+    )
+  })
+
+  it('rebuilds an artifact that carries no AST rather than pricing nothing against it', () => {
+    const astless = JSON.stringify({
+      deployedBytecode: { object: DEPLOYED, immutableReferences: REFS },
+    })
+    // The artifact is present throughout, so the missing AST is the only thing
+    // that can make this rebuild.
+    const calls: unknown[] = []
+    const harness = runner({
+      calls,
+      exists: () => true,
+      readFile: () => astless,
+      run: (command, args) => {
+        calls.push({ command, args })
+        return { ok: true, output: '' }
+      },
+    })
+    harness.runner.build(request)
+
+    expect(calls).toHaveLength(1)
+  })
+
+  it('does not rebuild when the artifact on disk already carries its AST', () => {
+    const harness = runner({ exists: (path) => path.endsWith('.json') })
+    harness.runner.build(request)
+
+    expect(harness.calls).toHaveLength(0)
   })
 
   it('checks the commit out in its own worktree, never in the repo it runs from', () => {
@@ -358,6 +445,7 @@ describe('createForgeRebuildRunner', () => {
       },
       exists: (path) => (path.endsWith('.json') ? built : false),
       readFile: () => artifact,
+      readDeclarations: () => [],
     }).build(request)
 
     expect(gitCalls[0]?.slice(0, 3)).toEqual(['worktree', 'add', '--detach'])
@@ -396,6 +484,7 @@ describe('createForgeRebuildRunner', () => {
         run: () => ({ ok: true, output: '' }),
         exists: () => false,
         readFile: () => artifact,
+        readDeclarations: () => [],
       }).build(request)
     ).toThrow(/submodule pins are not clean/)
   })
@@ -416,6 +505,7 @@ describe('createForgeRebuildRunner', () => {
       },
       exists: (path) => !path.endsWith('.json') || built,
       readFile: () => artifact,
+      readDeclarations: () => [],
     })
 
     withRun.build(request)
@@ -438,6 +528,7 @@ describe('createForgeRebuildRunner', () => {
       },
       exists: (path) => (path.endsWith('.json') ? built : true),
       readFile: () => artifact,
+      readDeclarations: () => [],
     })
 
     zk.build({
@@ -474,6 +565,7 @@ describe('createForgeRebuildRunner', () => {
           return path.endsWith('.json') ? built : true
         },
         readFile: () => artifact,
+        readDeclarations: () => [],
       }).build({
         ...request,
         profile: { ...request.profile, ...profile },
@@ -504,6 +596,7 @@ describe('createForgeRebuildRunner', () => {
         }),
         exists: () => false,
         readFile: () => artifact,
+        readDeclarations: () => [],
       }).build(request)
     ).toThrow(/stack too deep/)
   })
@@ -522,6 +615,7 @@ describe('createForgeRebuildRunner', () => {
         }),
         exists: () => false,
         readFile: () => artifact,
+        readDeclarations: () => [],
       }).build(request)
     } catch (error) {
       thrown = error instanceof Error ? error.message : String(error)
@@ -540,6 +634,7 @@ describe('createForgeRebuildRunner', () => {
         run: () => ({ ok: true, output: '' }),
         exists: (path) => !path.endsWith('.json'),
         readFile: () => artifact,
+        readDeclarations: () => [],
       }).build(request)
     ).toThrow(/artifact/)
   })
@@ -548,6 +643,7 @@ describe('createForgeRebuildRunner', () => {
     expect(() =>
       runner({
         readFile: () => JSON.stringify({ deployedBytecode: {} }),
+        readDeclarations: () => [],
       }).runner.build(request)
     ).toThrow(/runtime bytecode/)
   })
@@ -566,6 +662,7 @@ describe('createForgeRebuildRunner', () => {
       },
       exists: (path) => (path.endsWith('.json') ? built : true),
       readFile: () => artifact,
+      readDeclarations: () => [],
     })
 
     cached.build(request)
@@ -586,6 +683,7 @@ describe('createForgeRebuildRunner', () => {
       run: () => ({ ok: true, output: '' }),
       exists: (path) => path.endsWith('.json'),
       readFile: () => artifact,
+      readDeclarations: () => [],
     })
 
     withCleanup.build(request)
@@ -689,6 +787,7 @@ describe('createForgeRebuildRunner refuses a commit it cannot trust', () => {
       run: () => ({ ok: true, output: '' }),
       exists: () => false,
       readFile: () => '{}',
+      readDeclarations: () => [],
     })
 
     expect(() =>

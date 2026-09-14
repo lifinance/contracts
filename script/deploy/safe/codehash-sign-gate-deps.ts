@@ -47,6 +47,11 @@ import {
   type IRebuiltArtifact,
 } from '../codehash/rebuild-attestations'
 import type { IVerifyCutDeps } from '../codehash/verify-cut-targets'
+import {
+  readImmutableDeclarations,
+  type IImmutableDeclaration,
+} from '../immutables/immutable-ast'
+
 
 import { evaluateRpcQuorum } from './rpc-quorum'
 import {
@@ -308,6 +313,38 @@ export interface IForgeRebuildDeps {
   ) => { ok: boolean; output: string }
   exists: (path: string) => boolean
   readFile: (path: string) => string
+  /**
+   * Immutable declarations out of a directory of AST-carrying artifacts,
+   * with repo-relative source paths resolved against `sourceRoot`.
+   */
+  readDeclarations: (
+    outDir: string,
+    sourceRoot: string
+  ) => readonly IImmutableDeclaration[]
+}
+
+/**
+ * Whether an artifact on disk carries the AST layer 2 needs.
+ *
+ * A parse failure answers false rather than throwing: the caller's response is
+ * to rebuild, which is also the right response to an artifact it cannot read.
+ *
+ * @param deps - the file primitives
+ * @param artifactPath - the artifact to inspect
+ * @returns true when an `ast` node is present
+ */
+const carriesAst = (
+  deps: Pick<IForgeRebuildDeps, 'readFile'>,
+  artifactPath: string
+): boolean => {
+  try {
+    return (
+      (JSON.parse(deps.readFile(artifactPath)) as { ast?: unknown }).ast !==
+      undefined
+    )
+  } catch {
+    return false
+  }
 }
 
 /**
@@ -385,7 +422,10 @@ export const createForgeRebuildRunner = (
       `${request.contractName}.json`
     )
 
-    if (!deps.exists(artifactPath)) {
+    // An artifact left by a build that predates `--ast` satisfies an
+    // existence check while carrying no declarations, which would report every
+    // immutable as unpriceable instead of rebuilding. Treat it as absent.
+    if (!deps.exists(artifactPath) || !carriesAst(deps, artifactPath)) {
       // `worktree add --detach` does not populate `lib/`. Without pinning,
       // forge's auto-install clones at tip revisions and the rebuilt runtime
       // cannot match what was deployed — every cut grades MISMATCH.
@@ -410,6 +450,11 @@ export const createForgeRebuildRunner = (
         '--skip',
         'script/**',
         '--offline',
+        // Layer 2 keys the deployment's immutables by AST id, and an id is
+        // only meaningful inside the compilation that assigned it. Emitting
+        // the AST here is what makes the ids and the offsets come from one
+        // build; a second compile to obtain them would not.
+        '--ast',
       ]
       const env: Record<string, string> = {
         FOUNDRY_PROFILE: request.profile.profile,
@@ -444,6 +489,7 @@ export const createForgeRebuildRunner = (
         object?: string
         immutableReferences?: ImmutableReferences
       }
+      ast?: unknown
     }
     try {
       parsed = JSON.parse(deps.readFile(artifactPath))
@@ -461,10 +507,20 @@ export const createForgeRebuildRunner = (
         `the rebuilt artifact for ${request.contractName} carries no runtime bytecode`
       )
 
+    // Read from the build's own output directory and resolved against its own
+    // checkout, so both the ids and the line numbers describe the commit being
+    // graded rather than whatever the operator has checked out.
+    const declarations = deps
+      .readDeclarations(join(checkout, outDir), checkout)
+      .filter((one) => one.contract === request.contractName)
+
     return {
       runtimeHex,
       ...(parsed.deployedBytecode?.immutableReferences
         ? { immutableReferences: parsed.deployedBytecode.immutableReferences }
+        : {}),
+      ...(declarations.length > 0
+        ? { immutableDeclarations: declarations }
         : {}),
     }
   }
@@ -645,6 +701,8 @@ export const createSignTimeCodehashDeps = (overrides?: {
     },
     exists: existsSync,
     readFile: (path) => readFileSync(path, 'utf8'),
+    readDeclarations: (outDir, sourceRoot) =>
+      readImmutableDeclarations(outDir, sourceRoot).declarations,
   })
 
   const recordSource = overrides?.recordSource ?? createMongoRecordSource()

@@ -31,6 +31,8 @@
  */
 import { keccak256, type Hex } from 'viem'
 
+import type { IImmutableDeclaration } from '../immutables/immutable-ast'
+
 import type { IAttestedBuild } from './attested-set'
 import {
   readMetadataTrailer,
@@ -72,6 +74,16 @@ export interface IRebuiltArtifact {
   runtimeHex: string
   /** Foundry's `immutableReferences`; absent for a contract with none. */
   immutableReferences?: ImmutableReferences
+  /**
+   * The contract's immutables as this same compilation's AST declares them.
+   *
+   * From THIS build and no other: `immutableReferences` is keyed by AST id, and
+   * an id identifies a declaration only within the compilation that assigned
+   * it, so declarations taken from a second build may name the wrong slot
+   * without anything looking wrong. Absent for a contract with no immutables,
+   * and absent when the build carried no AST.
+   */
+  immutableDeclarations?: readonly IImmutableDeclaration[]
 }
 
 export interface IAttestationSourceDeps {
