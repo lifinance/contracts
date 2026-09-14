@@ -40,8 +40,13 @@ Ethereum (1) and Base (8453). Verified against that deployment:
   unmapped chain reverts `InvalidChainId()`. At integration time only Ethereum (centrifugeId 1) and
   Base (centrifugeId 2) are mapped, so those two chains are the entire supported corridor.
 - The whole `msg.value` is forwarded to `spoke.crosschainTransferShares`; the bridge keeps nothing.
-- `deJAAA`'s transfer hook permits transfers between arbitrary addresses (freeze-only, not a KYC
-  allowlist), so no whitelisting of the Diamond is required.
+- `deJAAA`'s transfer hook (`FreelyTransferable`) permits transfers between arbitrary addresses, so
+  no whitelisting of the Diamond is required. The name undersells the rest of it: the same
+  `checkERC20Transfer` gates _issuance_ (`from == address(0)`), _deposit claims_, _redeem requests_
+  and _revocations_ on the pool's memberlist, and only then falls through to `return true` for a
+  plain transfer. Bridging is a plain transfer, which is why the Diamond may hold the share
+  mid-flight and the destination receiver needs no onboarding — but an address that is not a pool
+  member still cannot mint or redeem the token it receives.
 - `spoke`, `gateway` and `relayer` are admin-settable on the `TokenBridge` via `file()`, and the
   contract is `Auth` + `Recoverable`. `relayer` is currently unset (`address(0)`) on both chains, so
   overpayment returns to `refundRecipient` rather than to a relayer.

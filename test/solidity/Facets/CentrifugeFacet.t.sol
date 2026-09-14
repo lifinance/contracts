@@ -894,9 +894,11 @@ contract CentrifugeFacetBaseTest is CentrifugeFacetTestBase {
     }
 }
 
-/// @dev deJTRSY is the second deRWA share token registered on both Ethereum and Base with a
-///      permissive (freeze-only) hook, so it is bridgeable through this facet today. Re-running
-///      the whole battery against it proves the facet is not accidentally specific to deJAAA.
+/// @dev deJTRSY is the second deRWA share token registered on both Ethereum and Base whose hook
+///      (`FreelyTransferable`) allows plain transfers between arbitrary addresses - it still gates
+///      issuance and redemption on the pool's memberlist, but bridging is a plain transfer - so it
+///      is bridgeable through this facet today. Re-running the whole battery against it proves the
+///      facet is not accidentally specific to deJAAA.
 address constant ADDRESS_DEJTRSY = 0xA6233014B9b7aaa74f38fa1977ffC7A89642dC72;
 
 contract CentrifugeFacetMainnetDeJtrsyTest is CentrifugeFacetTestBase {
@@ -951,9 +953,12 @@ contract CentrifugeFacetBaseSwapTest is CentrifugeFacetTestBase {
         deal(ADDRESS_USDC, USER_SENDER, MAX_USDC_IN);
     }
 
-    function test_CanBuySharesWithUsdcAndBridgeThem() public {
-        delete swapData;
-        swapData.push(
+    function _buildUsdcToShareSwap()
+        private
+        view
+        returns (LibSwap.SwapData memory)
+    {
+        return
             LibSwap.SwapData({
                 callTo: address(SLIPSTREAM_ROUTER),
                 approveTo: address(SLIPSTREAM_ROUTER),
@@ -974,8 +979,12 @@ contract CentrifugeFacetBaseSwapTest is CentrifugeFacetTestBase {
                     })
                 ),
                 requiresDeposit: true
-            })
-        );
+            });
+    }
+
+    function test_CanBuySharesWithUsdcAndBridgeThem() public {
+        delete swapData;
+        swapData.push(_buildUsdcToShareSwap());
 
         bridgeData.hasSourceSwaps = true;
         bridgeData.minAmount = defaultShareAmount;
@@ -1001,6 +1010,80 @@ contract CentrifugeFacetBaseSwapTest is CentrifugeFacetTestBase {
         assertEq(usdc.balanceOf(USER_SENDER), 0);
         // the USDC the swap did not need comes back to the leftover receiver, never to msg.sender
         assertGt(usdc.balanceOf(USER_REFUND), refundUsdcBefore);
+        assertEq(usdc.balanceOf(address(diamond)), 0);
+        assertEq(shareToken.balanceOf(address(diamond)), 0);
+        assertEq(address(diamond).balance, 0);
+    }
+
+    /// @dev The swap entrypoint deliberately omits the `nativeFee <= msg.value` check the
+    ///      non-swap one carries, because the fee may be bought by the swaps themselves. This
+    ///      is that case: no native is sent at all, a USDC -> native step funds the fee, and
+    ///      `_depositAndSwap`'s nativeReserve holds it in the diamond for `send` instead of
+    ///      sweeping it out as a leftover intermediate asset.
+    function test_CanSwapAndBridgeWhenNativeFeeIsFundedByPreSwap() public {
+        uint256 nativeFee = validCentrifugeData.nativeFee;
+
+        centrifugeFacet.addAllowedContractSelector(
+            address(uniswap),
+            uniswap.swapTokensForExactETH.selector
+        );
+
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_USDC;
+        path[1] = ADDRESS_WRAPPED_NATIVE;
+        uint256 usdcForFee = uniswap.getAmountsIn(nativeFee, path)[0];
+        uint256 totalUsdcIn = MAX_USDC_IN + usdcForFee;
+
+        deal(ADDRESS_USDC, USER_SENDER, totalUsdcIn);
+
+        delete swapData;
+        // the fee-funding step has to go first: the last swap must output the bridged share
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: address(uniswap),
+                approveTo: address(uniswap),
+                sendingAssetId: ADDRESS_USDC,
+                receivingAssetId: address(0),
+                fromAmount: usdcForFee,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapTokensForExactETH.selector,
+                    nativeFee,
+                    usdcForFee,
+                    path,
+                    _facetTestContractAddress,
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
+        swapData.push(_buildUsdcToShareSwap());
+
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.minAmount = defaultShareAmount;
+
+        vm.startPrank(USER_SENDER);
+
+        usdc.approve(_facetTestContractAddress, totalUsdcIn);
+
+        vm.expectEmit(true, true, true, true, address(TOKEN_BRIDGE));
+        emit Send(
+            ADDRESS_SHARE_TOKEN,
+            address(diamond),
+            destinationChainId,
+            bytes32(bytes20(USER_RECEIVER)),
+            defaultShareAmount,
+            USER_REFUND
+        );
+
+        // no native sent at all - the messaging fee is paid out of the first swap's output
+        centrifugeFacet.swapAndStartBridgeTokensViaCentrifuge{ value: 0 }(
+            bridgeData,
+            swapData,
+            validCentrifugeData
+        );
+
+        vm.stopPrank();
+
         assertEq(usdc.balanceOf(address(diamond)), 0);
         assertEq(shareToken.balanceOf(address(diamond)), 0);
         assertEq(address(diamond).balance, 0);
