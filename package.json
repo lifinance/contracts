@@ -44,7 +44,7 @@
     "solhint": "^5.0.5",
     "solhint-plugin-prettier": "^0.0.5",
     "tsc-files": "^1.1.4",
-    "tsx": "4.21.0",
+    "tsx": "4.23.13",
     "typechain": "^8.0.0",
     "typescript": "^5.4.5"
   },
@@ -61,6 +61,8 @@
     "fast-uri": "3.1.6"
   },
   "scripts": {
+    "attestations:mint": "forge build --ast && bunx tsx tasks/buildAttestationManifest.ts --out out",
+    "attestations:check": "forge build --ast && bunx tsx tasks/buildAttestationManifest.ts --out out --check",
     "abi:generate": "forge clean && forge build --skip script --skip test --skip Base --skip Test --skip '*.t.sol' && bun tasks/generateDiamondABI.ts",
     "abi:generate:incremental": "bun tasks/generateDiamondABI.ts",
     "build:typechain-and-abi": "bun typechain:incremental && bun abi:generate:incremental",
@@ -78,6 +80,7 @@
     "detect-evm-version": "bunx tsx ./script/deploy/detect-evm-version.ts",
     "execute": "node ./_scripts.js run",
     "execute-timelock": "bash script/deploy/safe/with-safe-tunnel.sh && bun typechain && bunx tsx ./script/deploy/safe/execute-pending-timelock-tx.ts",
+    "false-refusal-budget": "bunx tsx ./script/deploy/codehash/false-refusal-budget.cli.ts",
     "fetch-rpcs": "bunx tsx ./script/mongoDb/fetch-rpcs.ts",
     "flatten": "forge flatten --output",
     "format": "prettier --check \"**/*.{ts,js,sol}\"",

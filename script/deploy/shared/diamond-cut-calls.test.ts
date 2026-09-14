@@ -21,6 +21,7 @@ const FACET_A = '0x1111111111111111111111111111111111111111' as Address
 const FACET_B = '0x2222222222222222222222222222222222222222' as Address
 const DIAMOND = '0x3333333333333333333333333333333333333333' as Address
 const TIMELOCK = '0x4444444444444444444444444444444444444444' as Address
+const SAFE = '0x5555555555555555555555555555555555555555' as Address
 
 const SELECTORS = ['0xaabbccdd', '0x11223344'] as Hex[]
 
@@ -81,21 +82,30 @@ const unknownWrapper = (payload: Hex): Hex =>
 
 describe('collectDiamondCutCalls', () => {
   it('keeps the action of every entry, Remove included', () => {
-    const result = collectDiamondCutCalls([
-      cut([
-        { facetAddress: FACET_A, action: 1 },
-        { facetAddress: ZERO_ADDRESS as Address, action: 2 },
-      ]),
+    const payload = cut([
+      { facetAddress: FACET_A, action: 1 },
+      { facetAddress: ZERO_ADDRESS as Address, action: 2 },
     ])
+    const result = collectDiamondCutCalls([payload])
     expect(result.undecodable).toEqual([])
     expect(result.calls).toEqual([
       {
         callIndex: 0,
         cuts: [
-          { facetAddress: FACET_A, action: 1 },
-          { facetAddress: ZERO_ADDRESS, action: 2 },
+          {
+            facetAddress: FACET_A,
+            action: 1,
+            selectors: ['0xaabbccdd', '0x11223344'],
+          },
+          {
+            facetAddress: ZERO_ADDRESS,
+            action: 2,
+            selectors: ['0xaabbccdd', '0x11223344'],
+          },
         ],
         init: ZERO_ADDRESS,
+        initCalldata: '0x',
+        raw: payload,
       },
     ])
   })
@@ -173,5 +183,72 @@ describe('collectDiamondCutCalls', () => {
     const result = collectDiamondCutCalls([transferOwnership])
     expect(result.calls).toEqual([])
     expect(result.undecodable).toEqual([])
+  })
+})
+
+describe('what a cut carries beyond its facet addresses', () => {
+  const INIT = '0x1417141714171417141714171417141714171417' as Address
+
+  // `initCalldata` decides whether an init delegatecall is graded at all, and
+  // the empty string is what a dropped field returns, so the payload has to be
+  // asserted as a value and not merely as present.
+  it('carries the init payload, not just the init target', () => {
+    const payload = cut([{ facetAddress: FACET_A, action: 0 }], INIT)
+    const { calls } = collectDiamondCutCalls([payload])
+
+    expect(calls[0]?.init).toBe(INIT)
+    expect(calls[0]?.initCalldata).toBe('0xdeadbeef')
+  })
+
+  // The singular `schedule` envelope carries one target, and losing it makes a
+  // cut read as executing against the timelock rather than the diamond.
+  it('recovers the target through a singular schedule envelope', () => {
+    const inner = cut([{ facetAddress: FACET_A, action: 1 }])
+    const { calls } = collectDiamondCutCalls([schedule(DIAMOND, inner)], {
+      targets: [TIMELOCK],
+      caller: SAFE,
+    })
+
+    expect(calls[0]?.target).toBe(DIAMOND)
+    expect(calls[0]?.caller).toBe(TIMELOCK)
+    expect(calls[0]?.raw).toBe(inner)
+  })
+
+  it('recovers the target through a batch envelope', () => {
+    const inner = cut([{ facetAddress: FACET_B, action: 0 }])
+    const { calls } = collectDiamondCutCalls(
+      [scheduleBatch([DIAMOND], [inner])],
+      { targets: [TIMELOCK], caller: SAFE }
+    )
+
+    expect(calls[0]?.target).toBe(DIAMOND)
+    expect(calls[0]?.caller).toBe(TIMELOCK)
+  })
+
+  // A caller that hands in bare calldata cannot be told where it was sent, and
+  // inventing an address would put one into a verdict that nothing observed.
+  it('leaves target and caller absent when no context is supplied', () => {
+    const { calls } = collectDiamondCutCalls([
+      cut([{ facetAddress: FACET_A, action: 0 }]),
+    ])
+
+    // The paired present: absent fields on a cut that was never decoded would
+    // satisfy the two assertions below without the behaviour existing.
+    expect(calls).toHaveLength(1)
+    expect(calls[0]?.cuts.map((entry) => entry.facetAddress)).toEqual([FACET_A])
+    expect(calls[0]?.target).toBeUndefined()
+    expect(calls[0]?.caller).toBeUndefined()
+  })
+
+  it('a direct cut executes against its own target, sent by the Safe', () => {
+    const payload = cut([{ facetAddress: FACET_A, action: 0 }])
+    const { calls } = collectDiamondCutCalls([payload], {
+      targets: [DIAMOND],
+      caller: SAFE,
+    })
+
+    expect(calls[0]?.target).toBe(DIAMOND)
+    expect(calls[0]?.caller).toBe(SAFE)
+    expect(calls[0]?.raw).toBe(payload)
   })
 })

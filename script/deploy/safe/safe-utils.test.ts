@@ -22,8 +22,10 @@ import {
   describe,
   expect,
   it,
+  spyOn,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
+import { consola } from 'consola'
 import { type Collection, type InsertOneResult, type ObjectId } from 'mongodb'
 import {
   decodeFunctionData,
@@ -31,6 +33,7 @@ import {
   encodeAbiParameters,
   hashMessage,
   recoverAddress,
+  toFunctionSelector,
   type Address,
   type Hex,
 } from 'viem'
@@ -1051,6 +1054,79 @@ describe('decodeDiamondCut selector resolution', () => {
       )
       expect(fetchCalls).toBeLessThanOrEqual(1)
     } finally {
+      globalThis.fetch = originalFetch
+      if (originalCachePath === undefined)
+        delete process.env.SELECTOR_SIGNATURE_CACHE_PATH
+      else process.env.SELECTOR_SIGNATURE_CACHE_PATH = originalCachePath
+      const { unlinkSync } = await import('fs')
+      try {
+        unlinkSync(testCachePath)
+      } catch {
+        // never written — nothing to clean up
+      }
+    }
+  })
+
+  it('renders a hostile 4byte-supplied name inert on the Function line', async () => {
+    // The proposer picks the selector, so they pick which 4byte answer is
+    // fetched, and the only requirement on that answer is that it hashes back
+    // to the selector — which a signature carrying escape sequences does as
+    // readily as one that does not. So the selector here is derived FROM the
+    // hostile signature: a stub returning a name that does not hash back is
+    // dropped upstream, and the test would then be observing nothing.
+    const { decodeDiamondCut } = await import('./safe-utils')
+    const HOSTILE =
+      'evil\u001b[2J\u001b[H  To:  0x0000000000000000000000000000000000000001  ()'
+    const selector = toFunctionSelector(HOSTILE)
+    const originalCachePath = process.env.SELECTOR_SIGNATURE_CACHE_PATH
+    const testCachePath = `${
+      process.env.TMPDIR ?? '/tmp'
+    }/selector-cache-hostile-${Date.now()}.json`
+    process.env.SELECTOR_SIGNATURE_CACHE_PATH = testCachePath
+    const originalFetch = globalThis.fetch
+    globalThis.fetch = (async () =>
+      new Response(
+        JSON.stringify({
+          ok: true,
+          result: { function: { [selector]: [{ name: HOSTILE }] }, event: {} },
+        })
+      )) as unknown as typeof fetch
+    const infoSpy = spyOn(consola, 'info').mockImplementation(
+      (() => {}) as never
+    )
+    const warnSpy = spyOn(consola, 'warn').mockImplementation(
+      (() => {}) as never
+    )
+    try {
+      await decodeDiamondCut(
+        {
+          functionName: 'diamondCut',
+          args: [
+            [['0x1111111111111111111111111111111111111111', 0, [selector]]],
+            '0x0000000000000000000000000000000000000000',
+            '0x',
+          ],
+        },
+        1
+      )
+      const lines = [...infoSpy.mock.calls, ...warnSpy.mock.calls].map((call) =>
+        String(call[0])
+      )
+      const fnLine = lines.find((line) => line.includes('Function:'))
+
+      // Present: the name did reach a line, so this is not observing an
+      // upstream drop.
+      expect(fnLine).toContain('evil')
+      // Absent: no control character survived, once the module's own colour
+      // codes are discounted.
+      expect(
+        // eslint-disable-next-line no-control-regex -- discounting the module's own colour codes is the point
+        fnLine?.replace(/\u001b\[\d+m/gu, '').match(/[\p{Cc}\p{Cf}]/u)
+      ).toBeNull()
+      expect(fnLine).toContain('sanitised for display')
+    } finally {
+      infoSpy.mockRestore()
+      warnSpy.mockRestore()
       globalThis.fetch = originalFetch
       if (originalCachePath === undefined)
         delete process.env.SELECTOR_SIGNATURE_CACHE_PATH

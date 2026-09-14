@@ -186,6 +186,11 @@ contract DeBridgeDlnFacet is
                 giveTokenAddress: _bridgeData.sendingAssetId,
                 giveAmount: _bridgeData.minAmount,
                 takeTokenAddress: _deBridgeData.receivingAssetId,
+                // Known limitation (EXSC-927): `takeAmount` is the solver's payout instruction,
+                // quoted against minAmount as it arrived in calldata, while `giveAmount` above is
+                // the realized swap output. A favorable source swap is captured by the solver
+                // rather than passed to the receiver. Acknowledged and accepted; to be addressed
+                // when this facet is next redeployed.
                 takeAmount: _deBridgeData.minAmountOut,
                 takeChainId: getDeBridgeChainId(
                     _bridgeData.destinationChainId

@@ -76,3 +76,8 @@ test/solidity/TestPlayground.t.sol
 .direnv/
 
 config/whitelist.staging.json
+
+# local clone of the ERC-7730 registry, used by the test-fixture render loop
+# in docs/ClearSigningProposal.md (must live inside the repo — the generator
+# will not write outside the working directory)
+/ledger-registry/

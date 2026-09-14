@@ -73,4 +73,30 @@ describe('target-state gate placement in confirm-safe-tx', () => {
       expect(source.indexOf(GATE)).toBeLessThan(at)
     }
   })
+
+  // Enumerated over every `http(` in the file rather than asserted against the
+  // spelling one bypass happened to use. viem lifts `user:pass@` out of a URL
+  // itself but its branch is `if (url.username)`, so a password-only endpoint
+  // handed to `http()` bare is queried unauthenticated and answers 401 — which
+  // this CLI records as chain state that could not be read. Two of these were
+  // added and fixed separately on one PR, so the next one is worth catching by
+  // shape.
+  it('builds no transport from a raw endpoint URL', () => {
+    const callSites = [...source.matchAll(/(?<![$\w])http\(([^,)]*)/gu)]
+
+    expect(callSites.length).toBeGreaterThan(0)
+    // `url` is the resolved transport config's output; a bare `http()` takes
+    // the chain's own default and carries no endpoint of ours.
+    for (const [, argument] of callSites)
+      expect(argument?.trim() ?? '').toMatch(/^(url)?$/u)
+  })
+
+  // Through the sign-time wrapper specifically, not `getTransportConfigFromRpcUrl`
+  // directly: every read in this file happens while a signer waits, and the raw
+  // helper forwards the endpoint's own retry profile — TronGrid's is 8 retries
+  // on a 2s exponential backoff, minutes of wall clock for one read.
+  it('passes every endpoint through the sign-time transport config first', () => {
+    expect(source.indexOf('getSignTimeTransportConfig(')).toBeGreaterThan(-1)
+    expect(source.indexOf('getTransportConfigFromRpcUrl(')).toBe(-1)
+  })
 })

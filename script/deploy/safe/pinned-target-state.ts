@@ -113,8 +113,12 @@ export type TargetStateStatus =
  *
  * Named by what may proceed, so a status added later refuses until it is
  * admitted here deliberately.
+ *
+ * Exported so the ledger mapping can be cross-checked against it rather than
+ * against a copy: a test that restates the set proves only that the copy agrees
+ * with itself, and stays green while the two drift.
  */
-const STATUSES_CLEARED_TO_PROCEED: ReadonlySet<TargetStateStatus> =
+export const STATUSES_CLEARED_TO_PROCEED: ReadonlySet<TargetStateStatus> =
   new Set<TargetStateStatus>([
     'no-diamond-cut',
     'removal',

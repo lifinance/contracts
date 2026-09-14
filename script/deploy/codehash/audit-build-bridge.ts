@@ -203,7 +203,7 @@ const describeCompilerSet = (set: {
  * compiler mismatch over `Cancun` against `cancun` is a false red on a build
  * that matches. `lineage-scope.ts` normalises the same field the same way.
  */
-const sameVersionText = (a: string, b: string): boolean =>
+export const sameVersionText = (a: string, b: string): boolean =>
   a.trim().toLowerCase() === b.trim().toLowerCase()
 
 /**

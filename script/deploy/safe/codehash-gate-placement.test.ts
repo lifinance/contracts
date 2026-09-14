@@ -22,17 +22,22 @@
  * 7. the Ledger verification display (filmstrip or hash-compare)
  * 8. **the codehash gate** — evaluated and displayed here
  * 9. the integrity assertions — run and displayed
- * 10. `evaluateProposalIntegrity`, the fingerprint and the two keys
- * 11. the pre-prompt `networkOutcomes.push`
- * 12. the action prompt, then `continue` on "Do Nothing"
- * 13. the nonce gate on execute actions, then `continue` on stale/unreachable
- * 14. the target-state refusal, then `continue` when it did not clear
- * 15. `recordAcknowledgement`
- * 16. the sign and execute branches
+ * 10. the executability simulation, the RPC quorum read and the calldata
+ *     address check — each evaluated and displayed
+ * 11. `proposalCheckResults` — the ledger-bearing verdicts above, collected
+ *     for the run ledger; the calldata address check is displayed only
+ * 12. `evaluateProposalIntegrity`, the fingerprint and the two keys
+ * 13. the pre-prompt `networkOutcomes.push`
+ * 14. the action prompt, then `continue` on "Do Nothing"
+ * 15. the nonce gate on execute actions, then `continue` on stale/unreachable
+ * 16. the target-state refusal, then `continue` when it did not clear
+ * 17. `recordAcknowledgement`
+ * 18. the sign and execute branches
  *
  * Nothing in 1-7 returns or continues, so the gate at 8 swallows no existing
  * check; and the refusal itself goes first inside the signer, where nothing
- * precedes it at all.
+ * precedes it at all. 10 and 11 are likewise straight-line: the gates there
+ * report onto the ledger and refuse nothing themselves.
  */
 
 import { readFileSync } from 'fs'

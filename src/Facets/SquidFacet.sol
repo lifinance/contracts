@@ -149,6 +149,12 @@ contract SquidFacet is ILiFi, ReentrancyGuard, SwapperV2, Validatable {
             );
         }
 
+        // Known limitation (EXSC-927): for CallBridge and CallBridgeCall, `sourceCalls` is quoted
+        // against minAmount as it arrived in calldata while the amount deposited is the realized
+        // swap output, leaving the surplus in the Squid multicall unrefunded. BridgeCall is
+        // unaffected - it carries no source calls. Acknowledged and accepted; to be addressed
+        // when this facet is next redeployed.
+
         // make the call to Squid router based on RouteType
         if (_squidData.routeType == RouteType.BridgeCall) {
             _bridgeCall(context);
