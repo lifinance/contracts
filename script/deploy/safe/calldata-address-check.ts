@@ -122,11 +122,17 @@ export interface IDeploymentIndex {
    */
   queried: readonly string[]
   /**
-   * The contract names the store was asked about, lowercase, for the same
+   * The contract names the store was asked about, verbatim, for the same
    * reason `queried` lists addresses: a name absent from a store that was never
    * asked about it is not a name nobody deployed. Absent here means no name was
    * looked up, so every name-anchored reference reports that rather than
    * resolving against entries that were fetched for some other question.
+   *
+   * Verbatim rather than folded, because `PeripheryRegistryFacet` stores
+   * `mapping(string => address)` and writes `s.contracts[_name]` unnormalised —
+   * so `executor` and `Executor` are two different registry slots, and matching
+   * them together would report a registration that lands on neither the name
+   * the record knows nor the one the diamond already serves.
    */
   queriedNames?: readonly string[]
   entries: readonly IDeploymentIndexEntry[]
@@ -430,10 +436,11 @@ const currentUnderName = (
   name: string,
   network: string
 ): { entry?: IDeploymentIndexEntry; undecided?: string } => {
-  const wanted = name.trim().toLowerCase()
+  // The name is compared byte for byte: it is a mapping key on chain, not a
+  // label. The network is not — it comes from repo config rather than calldata.
   const onNetwork = entries.filter(
     (entry) =>
-      entry.contractName.trim().toLowerCase() === wanted &&
+      entry.contractName === name &&
       entry.network.trim().toLowerCase() === network.trim().toLowerCase()
   )
 
@@ -488,11 +495,7 @@ const gradeAgainstName = (
   const name = reference.registeredName ?? ''
   const address = reference.address.trim().toLowerCase()
 
-  if (
-    !(index.queriedNames ?? []).some(
-      (queried) => queried.trim().toLowerCase() === name.trim().toLowerCase()
-    )
-  )
+  if (!(index.queriedNames ?? []).includes(name))
     return {
       ...base,
       grade: AddressGradeEnum.NotQueried,

@@ -133,7 +133,7 @@ const recordIndex = (
   source: DeploymentIndexSourceEnum.DeploymentRecord,
   available: true,
   queried: addresses.map((address) => address.toLowerCase()),
-  queriedNames: queriedNames.map((name) => name.toLowerCase()),
+  queriedNames: [...queriedNames],
   entries,
 })
 
@@ -1165,6 +1165,27 @@ describe('periphery registrations are graded against the name the record holds',
 
     expect(verdict.refuses).toBe(false)
     expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.Resolved)
+  })
+
+  it('does not read a case-variant name as the name the record knows', () => {
+    // `PeripheryRegistryFacet` writes `s.contracts[_name]` on a
+    // `mapping(string => address)` with no normalisation, so "executor" is a
+    // different registry slot from "Executor": this call would leave the name
+    // the diamond actually serves untouched. Folding the two together would
+    // show the signer a green line for a registration that changes nothing.
+    const verdict = evaluateCalldataAddresses(
+      {
+        network: 'mainnet',
+        references: [registers(EXECUTOR_MAINNET_CURRENT, 'executor')],
+      },
+      recordIndex([EXECUTOR_MAINNET_CURRENT], realProductionEntries, [
+        'executor',
+      ])
+    )
+
+    expect(verdict.findings[0]?.grade).not.toBe(AddressGradeEnum.Resolved)
+    expect(verdict.refuses).toBe(true)
+    expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.NameMismatch)
   })
 
   it('orders it the same way when the zone-less record is the newer one', () => {

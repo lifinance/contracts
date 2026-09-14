@@ -214,10 +214,11 @@ export const referencedNames = (
  * @param queried - The addresses the log was asked about, so an absence from
  * `entries` means "not deployed" rather than "not looked up". Ignored when
  * `records` is undefined, since nothing was asked.
- * @param queriedNames - The contract names the log was asked about, for the
- * same reason and with the same consequence: a name-anchored reference whose
- * name is not here reports that the record was never asked, rather than reading
- * an unasked question as an answer.
+ * @param queriedNames - The contract names the log was asked about, verbatim,
+ * for the same reason and with the same consequence: a name-anchored reference
+ * whose name is not here reports that the record was never asked, rather than
+ * reading an unasked question as an answer. Not folded — a registry name is a
+ * mapping key on chain, so case is part of its identity.
  * @param unavailableReason - Why the log could not be read.
  * @returns The index `evaluateCalldataAddresses` grades against.
  */
@@ -241,6 +242,6 @@ export const buildDeploymentIndex = (
         source: DeploymentIndexSourceEnum.DeploymentRecord,
         available: true,
         queried: queried.map((address) => address.trim().toLowerCase()),
-        queriedNames: queriedNames.map((name) => name.trim().toLowerCase()),
+        queriedNames: [...queriedNames],
         entries: records,
       }
