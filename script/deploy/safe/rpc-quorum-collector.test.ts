@@ -15,6 +15,7 @@ import {
 
 import { evaluateRpcQuorum } from './rpc-quorum'
 import {
+  ENDPOINT_READ_BUDGET_MS,
   codeReadLabel,
   collectProviderObservations,
   createCodeReader,
@@ -312,6 +313,76 @@ describe('createCodeReader', () => {
     // Bounded by the budget, not by three round trips each carrying it, and
     // not by the retry delay on top.
     expect(Date.now() - started).toBeLessThan(1_000)
+  })
+
+  // Pinned by value, not by the symbol. Every other test in this file passes
+  // an explicit budget, so the default the fan-out actually runs on is observed
+  // nowhere else: it could be raised to ten minutes with the file green.
+  it('bounds an endpoint read at twenty seconds by default', () => {
+    expect(ENDPOINT_READ_BUDGET_MS).toBe(20_000)
+  })
+
+  // The budget is a bound the endpoint cannot extend. viem honours a
+  // `Retry-After` header verbatim and its retry wait is only interruptible by
+  // the signal `buildRequest` gets — which `createTransport` never supplies —
+  // so a transport-level retry lets a throttled endpoint name how long the
+  // signer waits. `collectProviderObservations` is a `Promise.all`, so one
+  // endpoint answering `Retry-After: 600` would hold the whole fan-out.
+  it('does not let a Retry-After header extend the budget', async () => {
+    let attempts = 0
+
+    globalThis.fetch = (async (
+      _input: RequestInfo | URL,
+      _init?: RequestInit
+    ): Promise<Response> => {
+      attempts += 1
+      return new Response('rate limited', {
+        status: 429,
+        headers: { 'Content-Type': 'text/plain', 'Retry-After': '30' },
+      })
+    }) as typeof fetch
+
+    const started = Date.now()
+    await expectRejects(
+      // Below ENDPOINT_RETRY_DELAY_MS, so the retry is refused rather than
+      // started: the deadline cannot absorb the wait.
+      createCodeReader(ADDRESS, 1, 200)('https://throttled.example/rpc'),
+      /429/
+    )
+    const elapsed = Date.now() - started
+
+    expect(attempts).toBe(1)
+    // Not 30s. The header is the endpoint's request, not this read's budget.
+    expect(elapsed).toBeLessThan(5_000)
+  })
+
+  // The other side of the same rule: with room in the budget the retry is
+  // taken, so the guard above is a deadline check and not a disabled retry.
+  it('still retries a 429 when the budget can absorb the wait', async () => {
+    let attempts = 0
+
+    globalThis.fetch = (async (
+      _input: RequestInfo | URL,
+      _init?: RequestInit
+    ): Promise<Response> => {
+      attempts += 1
+      return new Response('rate limited', {
+        status: 429,
+        headers: { 'Content-Type': 'text/plain', 'Retry-After': '30' },
+      })
+    }) as typeof fetch
+
+    const started = Date.now()
+    await expectRejects(
+      createCodeReader(ADDRESS, 1, 30_000)('https://throttled.example/rpc'),
+      /429/
+    )
+    const elapsed = Date.now() - started
+
+    expect(attempts).toBe(2)
+    // The module's own spacing, not the 30s the endpoint asked for.
+    expect(elapsed).toBeGreaterThanOrEqual(1_500)
+    expect(elapsed).toBeLessThan(10_000)
   })
 
   it('leaves a credential-free endpoint unauthenticated', async () => {

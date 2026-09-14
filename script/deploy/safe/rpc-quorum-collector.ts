@@ -27,22 +27,28 @@ import type { IProviderObservation } from './rpc-quorum'
  * this reader makes three round trips per endpoint — `getChainId`, `getBlock`,
  * `getCode`. A per-attempt timeout bounds each of those separately, so the
  * three multiply and the retry profile multiplies again; the budget is
- * therefore carried on one `AbortSignal` per endpoint instead, which viem
- * honours for the whole read and does not retry past.
+ * therefore carried on one `AbortSignal` per endpoint instead, and the retry
+ * below refuses to start a wait the deadline cannot absorb.
  *
  * Generous for a single round trip, deliberately: a slow-but-honest endpoint
  * dropped from the fan-out costs a provider the verdict counts, and below
  * `MIN_INDEPENDENT_PROVIDERS` that turns agreement into a refusal to sign.
  */
-const ENDPOINT_READ_BUDGET_MS = 20_000
+export const ENDPOINT_READ_BUDGET_MS = 20_000
 
 /**
- * One retry per endpoint: viem's default of 3 for most of the fleet, and
- * TronGrid's 8 where the shared transport config carries its profile.
+ * One retry per endpoint, run here rather than by viem.
+ *
+ * viem's retry wait is only interruptible by the signal `buildRequest` receives,
+ * and `createTransport` never passes one, so a transport-level retry sleeps
+ * outside any budget this module can set. Worse, viem honours a `Retry-After`
+ * header verbatim, which hands the endpoint control of how long the signer
+ * waits: a 429 answering `Retry-After: 600` holds the whole `Promise.all` for
+ * ten minutes on a 20-second budget. So the transport is built with retries
+ * off and the one retry is taken below, where the deadline is visible.
  *
  * A quorum read wants a snapshot of who answers now, and an endpoint needing
- * nine attempts is a non-answer the verdict already grades as one. The budget
- * above is the hard bound; this keeps a single 429 from spending it.
+ * more attempts than this is a non-answer the verdict already grades as one.
  */
 const ENDPOINT_RETRY_COUNT = 1
 
@@ -50,8 +56,7 @@ const ENDPOINT_RETRY_COUNT = 1
  * 2 seconds between the two attempts, rather than viem's 150 ms default.
  *
  * The retry exists for a throttled endpoint, and 150 ms after a 429 is still
- * inside the window that produced it — a retry that fast is decorative. The
- * wait is spent inside the budget above, not on top of it.
+ * inside the window that produced it — a retry that fast is decorative.
  */
 const ENDPOINT_RETRY_DELAY_MS = 2_000
 
@@ -127,6 +132,9 @@ export const codeReadLabel = (address: Address, network: string): string =>
  * @param chainId - The chain the endpoints serve, so a misrouted endpoint fails loudly.
  * @param budgetMs - The whole-read budget; lowered by tests, which cannot wait out the default.
  * @returns A reader for {@link collectProviderObservations}.
+ * @throws `AbortError` when the read outlives `budgetMs`, the endpoint's own failure when it
+ *   answers something unusable, and a plain error when it serves a different chain. Every one
+ *   of these is recorded as that endpoint's `error` observation by the collector.
  */
 export const createCodeReader =
   (
@@ -155,9 +163,10 @@ export const createCodeReader =
     //
     // Not `AbortSignal.timeout`, which aborts with a `TimeoutError`: viem's
     // `isAbortError` matches `AbortError` alone, so a timeout abort is retried
-    // and the read outlives the budget by a retry delay. Aborting with that
-    // name is what makes the budget a bound rather than a first estimate.
+    // and the read outlives the budget. Aborting with that name is what makes
+    // the budget a bound rather than a first estimate.
     const controller = new AbortController()
+    const deadline = Date.now() + budgetMs
     const budget = setTimeout(
       () =>
         controller.abort(
@@ -170,30 +179,51 @@ export const createCodeReader =
       const client = createPublicClient({
         transport: http(url, {
           timeout: budgetMs,
-          retryCount: ENDPOINT_RETRY_COUNT,
-          retryDelay: ENDPOINT_RETRY_DELAY_MS,
+          // Retries are taken below, not here — see ENDPOINT_RETRY_COUNT.
+          retryCount: 0,
           fetchOptions: { ...fetchOptions, signal: controller.signal },
         }),
       })
 
-      const observed = await client.getChainId()
-      if (observed !== chainId)
-        throw new Error(
-          `endpoint reports chain ${observed}, expected ${chainId}`
-        )
+      const readOnce = async (): Promise<IEndpointRead> => {
+        const observed = await client.getChainId()
+        if (observed !== chainId)
+          throw new Error(
+            `endpoint reports chain ${observed}, expected ${chainId}`
+          )
 
-      const block = await client.getBlock()
-      const code = await client.getCode({ address, blockNumber: block.number })
+        const block = await client.getBlock()
+        const code = await client.getCode({
+          address,
+          blockNumber: block.number,
+        })
 
-      return {
-        // `'0x'` is the answer, not a default: viem resolves `getCode` to
-        // `undefined` for an address that holds no code, and an endpoint that
-        // could not answer at all throws and is recorded as an `error`
-        // observation instead of reaching this return.
-        value: code ?? '0x',
-        blockNumber: block.number,
-        blockHash: block.hash,
+        return {
+          // `'0x'` is the answer, not a default: viem resolves `getCode` to
+          // `undefined` for an address that holds no code, and an endpoint that
+          // could not answer at all throws and is recorded as an `error`
+          // observation instead of reaching this return.
+          value: code ?? '0x',
+          blockNumber: block.number,
+          blockHash: block.hash,
+        }
       }
+
+      for (let attempt = 0; ; attempt += 1)
+        try {
+          return await readOnce()
+        } catch (error) {
+          // The budget firing is the answer, not something to retry through.
+          if (error instanceof Error && error.name === 'AbortError') throw error
+          if (attempt >= ENDPOINT_RETRY_COUNT) throw error
+          // Started only when the deadline can absorb the wait *and* leave the
+          // retry something to run in; otherwise this endpoint's last act would
+          // be to sleep, which is the first attempt's failure reported late.
+          if (deadline - Date.now() <= ENDPOINT_RETRY_DELAY_MS) throw error
+          await new Promise((resolve) =>
+            setTimeout(resolve, ENDPOINT_RETRY_DELAY_MS)
+          )
+        }
     } finally {
       // A pending timer keeps the process alive after the fan-out has its
       // answer, which on a CLI is a run that will not exit.

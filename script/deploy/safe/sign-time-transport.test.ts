@@ -28,12 +28,15 @@ import {
 } from './sign-time-transport'
 
 /**
- * Read from the fleet's own config rather than written out here.
+ * Read from `networks.json` rather than written out here, because both TronGrid
+ * hosts are values in `.env` and the pre-commit secret scanner refuses to see
+ * those in committed source.
  *
- * Both TronGrid hosts are values in `.env`, which the pre-commit secret scanner
- * refuses to see in committed source — and this is the stronger assertion
- * anyway: it pins the profile against the endpoint a signer is really pointed
- * at, not against a URL chosen to make the test pass.
+ * This is not the endpoint a signer reads from. `getViemChainForNetworkName`
+ * builds `chain.rpcUrls` from `ETH_NODE_URI_<NETWORK>` and its `_FALLBACKS`,
+ * never from this field, and which of those carry a TronGrid host differs per
+ * operator's `.env`. So the row below establishes that the profile the cap
+ * removes is real and current, not that any particular read meets it.
  */
 const TRONGRID_RPC = (networksConfig as Record<string, { rpcUrl?: string }>)
   .tron?.rpcUrl

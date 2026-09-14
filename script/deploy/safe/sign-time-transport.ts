@@ -1,16 +1,7 @@
 /**
  * The retry budget a read made at sign time is allowed to spend.
  *
- * `getTransportConfigFromRpcUrl` forwards each endpoint's own retry profile,
- * which is written for the deploy and broadcast paths: TronGrid's is 8 retries
- * on a 2s exponential backoff, and viem's delay is `~~(1 << count) * retryDelay`,
- * so a throttled TronGrid primary spends 2+4+…+256 = 510s of sleep plus nine
- * attempts at the transport timeout — roughly ten minutes for one `eth_getCode`.
- * A signer sits in front of these reads, and the codehash gate is the one that
- * refuses a signature, so an endpoint that needs nine attempts has to become a
- * non-answer quickly rather than a stall.
- *
- * Use this wherever a read happens while the operator waits. The deploy and
+ * Import this wherever a read happens while the operator waits; the deploy and
  * broadcast paths keep the endpoint's own profile, which is what it was tuned for.
  */
 
@@ -42,6 +33,16 @@ export const SIGN_TIME_RETRY_DELAY_MS = 1_000
  * endpoint — the rewritten URL and the credential and API-key headers, without
  * which a password-only endpoint answers 401 and that 401 is recorded as the
  * provider's answer — and replaces only the retry profile.
+ *
+ * That profile is written for the deploy and broadcast paths: TronGrid's is 8
+ * retries on a 2s exponential backoff, and viem's delay is
+ * `~~(1 << count) * retryDelay`, so a throttled TronGrid primary spends
+ * 2+4+…+256 = 510s of sleep plus nine attempts at the transport timeout —
+ * roughly ten minutes for one `eth_getCode`, with the codehash gate's signature
+ * refusal waiting behind it.
+ *
+ * The replacement is unconditional, not TronGrid-only: every network's
+ * sign-time reads get this budget in place of viem's own 3 retries at 150ms.
  *
  * @param rpcUrl - The endpoint to read from.
  * @returns The transport config, with the retry profile capped.
