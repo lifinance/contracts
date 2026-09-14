@@ -90,8 +90,8 @@ const realProductionEntries = ((): IDeploymentIndexEntry[] => {
               network,
               version,
               address: row.ADDRESS,
-              // `2023-07-27 16:43:51` as the export writes it; `Date` reads it
-              // as local time, which is uniform across these and so orders them.
+              // `2023-07-27 16:43:51` as the export writes it — the zone-less
+              // shape `deployedAt` reads as UTC.
               ...(row.TIMESTAMP === undefined
                 ? {}
                 : { timestamp: row.TIMESTAMP }),
@@ -764,6 +764,37 @@ describe('the zero address, by role', () => {
     )
   })
 
+  it('says the record cannot name what an unregistration would delete', () => {
+    const tied: IDeploymentIndexEntry[] = [
+      {
+        contractName: 'Permit2Proxy',
+        network: 'mainnet',
+        version: '1.0.0',
+        address: '0x1111111111111111111111111111111111111111',
+        timestamp: '2023-07-27 16:43:51',
+      },
+      {
+        contractName: 'Permit2Proxy',
+        network: 'mainnet',
+        version: '1.0.1',
+        address: '0x2222222222222222222222222222222222222222',
+        timestamp: '2023-07-27 16:43:51',
+      },
+    ]
+
+    const verdict = evaluateCalldataAddresses(
+      { network: 'mainnet', references: [unregister('Permit2Proxy')] },
+      recordIndex(['0x0000000000000000000000000000000000000000'], tied, [
+        'Permit2Proxy',
+      ])
+    )
+
+    expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.NotApplicable)
+    expect(verdict.findings[0]?.detail).toContain(
+      'which one is current is not decided'
+    )
+  })
+
   it('does not claim the record is silent on a name it was never asked about', () => {
     const verdict = evaluateCalldataAddresses(
       { network: 'mainnet', references: [unregister('Executor')] },
@@ -969,6 +1000,25 @@ describe('renderCalldataAddresses', () => {
     expect(lines.join('\n')).toContain('REFUSED')
     expect(lines.join('\n')).toContain(MAINNET_ONLY_FACET)
     expect(lines.join('\n')).toContain('not on arbitrum')
+  })
+
+  it('prints what an unregistration deletes, which no other grade would surface', () => {
+    const lines = renderCalldataAddresses(
+      evaluateCalldataAddresses(
+        { network: 'mainnet', references: [unregister('Executor')] },
+        recordIndex(
+          ['0x0000000000000000000000000000000000000000'],
+          realProductionEntries,
+          ['Executor']
+        )
+      )
+    )
+
+    expect(lines.join('\n')).toContain('unregisters "Executor"')
+    expect(lines.join('\n')).toContain(
+      '0xd9B2Da9C45b118e4e93A004FB1452bCDB6cC0E88'
+    )
+    expect(lines.join('\n')).not.toContain('REFUSED')
   })
 
   it('distinguishes a check that could not run from one that passed', () => {

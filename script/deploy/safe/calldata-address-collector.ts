@@ -69,7 +69,7 @@ const REGISTER_PERIPHERY_SELECTOR = toFunctionSelector(
  * cut installing it is a core-facet shape (`config/global.json`), so scanning
  * one the other reader decoded cleanly calls a read call unreadable.
  */
-const HANDLED_SELECTORS: readonly string[] = [
+const HANDLED_SELECTORS: readonly Hex[] = [
   DIAMOND_CUT_SELECTOR,
   REGISTER_PERIPHERY_SELECTOR,
 ]
@@ -95,19 +95,19 @@ const peripheryReferences = (
   const seen = new Map<number, number>()
 
   for (const leaf of leaves) {
-    if (leaf.selector !== REGISTER_PERIPHERY_SELECTOR) {
-      // A leaf this walk could not open, which could be carrying a registration.
+    if (!HANDLED_SELECTORS.includes(leaf.selector as Hex)) {
+      // A leaf nothing here opens, which could be carrying a registration.
       // `collectLeafCalls` reports the envelopes it failed on; this covers the
       // ones it never recognised as envelopes at all.
-      if (
-        !HANDLED_SELECTORS.includes(leaf.selector) &&
-        carriesAnySelectorAligned(leaf.data, [REGISTER_PERIPHERY_SELECTOR])
-      )
+      if (carriesAnySelectorAligned(leaf.data, [REGISTER_PERIPHERY_SELECTOR]))
         unreadable.push(
           `call[${leaf.callIndex}] (carries a registerPeripheryContract selector this could not read through)`
         )
       continue
     }
+
+    // A cut, which `diamondCutCallsIn` reads and reports on instead.
+    if (leaf.selector !== REGISTER_PERIPHERY_SELECTOR) continue
 
     const ordinal = seen.get(leaf.callIndex) ?? 0
     seen.set(leaf.callIndex, ordinal + 1)
@@ -164,10 +164,9 @@ const referencesOfCall = (
     path: `${path}.init`,
   })
 
-  // The walk stops at the cut, so a registration carried in its init calldata
-  // is reached by no reader that could grade the address it names — and the
-  // scan above no longer sees cut leaves, which is where this one would
-  // otherwise have been caught.
+  // A cut's init calldata is not a leaf: the walk does not open it and the scan
+  // above only sees leaves, so a registration carried here reaches no reader
+  // that could grade the address it names.
   if (
     carriesAnySelectorAligned(call.initCalldata, [REGISTER_PERIPHERY_SELECTOR])
   )

@@ -894,6 +894,15 @@ export const renderCalldataAddresses = (
       REFUSAL_BEARING_ROLES.has(finding.reference.role)
     )
       lines.push(`${REFUSED} ${finding.detail}`)
+    // An unregistration deletes a registry entry on an argument this gate
+    // cannot anchor — the name. Every other grade reaches the signer through
+    // `refusing` or `warnings`; this one has neither, so without a line of its
+    // own the only thing that reads the name would print nothing.
+    else if (
+      finding.grade === AddressGradeEnum.NotApplicable &&
+      finding.reference.role === AddressRoleEnum.PeripheryRegistration
+    )
+      lines.push(`${WARN} ${finding.detail}`)
 
   for (const message of verdict.warnings) lines.push(`${WARN} ${message}`)
 
