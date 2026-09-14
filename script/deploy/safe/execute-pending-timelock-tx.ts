@@ -16,6 +16,7 @@ import type { Collection, UpdateFilter } from 'mongodb'
 import type { Address, Hex, PublicClient } from 'viem'
 import { encodeFunctionData, formatEther, parseAbi } from 'viem'
 
+import globalConfig from '../../../config/global.json'
 import data from '../../../config/networks.json'
 import {
   EnvironmentEnum,
@@ -44,10 +45,26 @@ import {
 } from './diamondRemovalDiff'
 import { createChainCaller } from './executors/create-chain-caller'
 import {
+  guardErrorDetail,
+  publishableGuardError,
+} from './guard-error-redaction'
+import {
   getParkedTasksCollection,
   listParkedTasksBySafeTxHash,
 } from './parked-tasks'
+import {
+  buildGateGapAlert,
+  buildShadowRefusalAlert,
+  isPreBroadcastGateEnforcing,
+  PRE_BROADCAST_GATE_ENFORCE_ENV,
+  resolveGateCoverage,
+  runPreBroadcastGate,
+  unverifiedGateOutcome,
+  viemGateReaders,
+  viemScheduledAtReader,
+} from './prebroadcast-gate'
 import { formatTimelockScheduleBatch } from './safe-decode-utils'
+import { fetchSignedSetRecord } from './signed-set-record'
 import {
   classifyPrefetchResults,
   fetchPendingForNetworks,
@@ -698,7 +715,7 @@ async function alertBlockedOps(
             } catch (error) {
               consola.warn(
                 `[${networkName}] Failed to send blocked-op notification:`,
-                error
+                guardErrorDetail(error)
               )
             }
           // Stamped regardless of Slack success: the console/CI log already
@@ -1011,7 +1028,7 @@ async function processNetwork(
   } catch (error) {
     consola.error(
       `[${network.name}] Error processing network ${network.name}:`,
-      error
+      guardErrorDetail(error)
     )
 
     return {
@@ -1204,7 +1221,7 @@ async function getPendingOperations(
             } catch (error) {
               consola.warn(
                 'Failed to send reconciled-execution notification:',
-                error
+                guardErrorDetail(error)
               )
             }
           continue
@@ -1243,7 +1260,13 @@ async function getPendingOperations(
         }
 
         const baseOp: Omit<ITimelockOperation, 'functionName'> = {
-          id: opId,
+          // The stored id, not the `opId` derived above — the two are equal by
+          // trust check 1, so this changes no value. It changes where the
+          // pre-broadcast gate's id comes from: the gate compares this field
+          // against the chain's hash of these same parameters, and sourcing it
+          // from the derivation makes that comparison depend on trust check 1
+          // still standing upstream for its meaning.
+          id: row.operationId,
           index: 0n,
           predecessor,
           delay,
@@ -1432,7 +1455,7 @@ async function handleRevertedExecution(
   } catch (error) {
     consola.error(
       `${networkPrefix} Failed to alert the CI notifications channel about ${operation.id}:`,
-      error
+      guardErrorDetail(error)
     )
   }
 }
@@ -1518,7 +1541,7 @@ async function revalidateFoldedRemovalsOrAbort(
   if (!operation.safeTxHash) return 'ok'
 
   const alertFailure = async (error: unknown): Promise<void> => {
-    if (!isDryRun) await notifyFailure(error)
+    if (!isDryRun) await notifyFailure(publishableGuardError(error))
   }
 
   let parked: Awaited<ReturnType<typeof listParkedTasksBySafeTxHash>>
@@ -1539,7 +1562,7 @@ async function revalidateFoldedRemovalsOrAbort(
     if (removeHint.kind === 'none') return 'ok'
     consola.warn(
       `${networkPrefix} ⚠️ Could not open parked-tasks queue to revalidate Remove cut(s); refusing execute (row left queued, next run retries):`,
-      error
+      guardErrorDetail(error)
     )
     await alertFailure(
       new Error('parked-tasks queue unreachable for Remove revalidation')
@@ -1629,7 +1652,7 @@ async function revalidateFoldedRemovalsOrAbort(
     // Loupe/RPC blip — refuse this run but leave queued for retry.
     consola.error(
       `${networkPrefix} ❌ Pre-execute removal revalidation failed — refusing execute (row left queued, next run retries):`,
-      error
+      guardErrorDetail(error)
     )
     await alertFailure(error)
     return 'retry'
@@ -1657,6 +1680,213 @@ async function revalidateFoldedRemovalsOrAbort(
     await blockTimelockOp(networkName, operation.id, reason, networkPrefix)
   await alertFailure(new Error(`${reason}. ${remediation}`))
   return 'blocked'
+}
+
+/**
+ * Pre-broadcast integrity gate (WP-6.1). Re-derives, from `main` and live chain
+ * state alone, whether the storage authorities that can redirect the contracts
+ * this operation touches still match config, and whether the timelock holds a
+ * schedule entry under the id being executed.
+ *
+ * Runs before the interactive prompt so an operator is never asked to authorise
+ * a broadcast the gate is about to refuse, and before the folded-removal guard
+ * because that guard reasons about a diamond whose authorities it assumes are
+ * ours — an owner that has moved makes its verdict meaningless.
+ *
+ * Only binding when {@link isPreBroadcastGateEnforcing} says so. In shadow mode
+ * — the default — a refusal is logged, nothing is sent to Slack, and the
+ * operation still executes, because a `HOLD` refuses the broadcast and an
+ * authority read that fails intermittently would otherwise stop honest rollouts
+ * fleet-wide. That holds for every way the gate can decline to clear an
+ * operation, a refusal and a throw alike: shadow mode always returns `ok`.
+ *
+ * When enforcing, verdicts map onto the existing {@link GuardOutcome} states: a
+ * proven failure is durable and flips the row to `blocked`; anything unverified
+ * leaves it `queued` so the next tick retries, and is never escalated on our
+ * behalf.
+ *
+ * @returns See {@link GuardOutcome}.
+ */
+async function enforcePreBroadcastGateOrAbort(
+  operation: ITimelockOperation,
+  networkName: string,
+  networkPrefix: string,
+  isDryRun: boolean,
+  notifyFailure: (error: unknown) => Promise<void>,
+  publicClient: PublicClient,
+  timelockAddress: Address,
+  slackNotifier?: SlackNotifier
+): Promise<GuardOutcome> {
+  // Shadow mode is log-only. The webhook this would post to is the one carrying
+  // blocked-operation and revert-threshold escalations, which a human is
+  // expected to act on; a gate that cannot stop anything must not compete with
+  // them. Every operation queued before this shipped has no sign-time record,
+  // so on the first rollouts after merge the gap alert fires on every honest
+  // operation on every chain — alert fatigue on that channel is expensive to
+  // undo, and the gate is advisory precisely because it has not earned it yet.
+  // Turning enforcement on turns the alerting on with it.
+  const mayAlert = (): boolean =>
+    !isDryRun &&
+    slackNotifier !== undefined &&
+    isPreBroadcastGateEnforcing(process.env)
+
+  // A gap is not a failure, so it must not travel the failure path — that would
+  // report an operation as failed while it goes on to execute. It still has to
+  // leave the process; see buildGateGapAlert.
+  const alertGap = async (gaps: readonly string[]): Promise<void> => {
+    const message = buildGateGapAlert({
+      network: networkName,
+      operationId: operation.id,
+      gaps,
+    })
+    if (!message || !mayAlert()) return
+    await slackNotifier?.sendNotificationWithRetry({ text: message })
+  }
+
+  if (resolveGateCoverage(networkName) === 'uncovered-tron') {
+    const gap = `the gate does not cover this chain — no authority verdict was produced for ${operation.id} (EXSC-954)`
+    consola.warn(`${networkPrefix} ⚠️  Pre-broadcast integrity gate: ${gap}`)
+    await alertGap([gap])
+    return 'ok'
+  }
+
+  const alertShadowRefusal = async (
+    disposition: string,
+    findings: readonly string[]
+  ): Promise<void> => {
+    const message = buildShadowRefusalAlert({
+      network: networkName,
+      operationId: operation.id,
+      disposition,
+      findings,
+    })
+    if (!message || !mayAlert()) return
+    await slackNotifier?.sendNotificationWithRetry({ text: message })
+  }
+
+  const alertFailure = async (error: unknown): Promise<void> => {
+    if (!isDryRun) await notifyFailure(publishableGuardError(error))
+  }
+
+  // Shadow mode reports what could not be checked and clears the operation,
+  // exactly as the uncovered-chain path does; see {@link unverifiedGateOutcome}
+  // for why a throw must not refuse here. A throw out of an alert is caught at
+  // the call site rather than relied upon not to happen.
+  const abortUnverified = async (
+    gap: string,
+    error: unknown
+  ): Promise<GuardOutcome> => {
+    if (unverifiedGateOutcome(process.env) === 'ok') {
+      consola.warn(
+        `${networkPrefix} 🕶️  Shadow mode: ${gap} — reporting only, the gate will not stop this operation.`,
+        guardErrorDetail(error)
+      )
+      await alertGap([`${gap} for ${operation.id}`])
+      return 'ok'
+    }
+    consola.error(
+      `${networkPrefix} ❌ Pre-broadcast gate: ${gap} — refusing execute (row left queued, next run retries):`,
+      guardErrorDetail(error)
+    )
+    await alertFailure(error)
+    return 'retry'
+  }
+
+  let deployments: Record<string, unknown>
+  try {
+    deployments = (await getDeployments(
+      networkName as SupportedChain,
+      EnvironmentEnum.production
+    )) as unknown as Record<string, unknown>
+  } catch (error) {
+    return await abortUnverified(
+      'the deployment record could not be read, so no verdict was produced',
+      error
+    )
+  }
+
+  // A record that could not be looked up is not a record that is absent. The
+  // gate alerts on the second; this path reports the first as a gap in what
+  // could be checked, so a store outage never reads as a hole in the audit
+  // trail that may not exist.
+  let signTimeRecord: unknown
+  try {
+    signTimeRecord = await fetchSignedSetRecord(networkName, operation.id)
+  } catch (error) {
+    return await abortUnverified(
+      'the sign-time record store could not be read, so no verdict was produced',
+      error
+    )
+  }
+
+  // A throw escaping here leaves `executeOperation` by a path that returns no
+  // outcome, records no status and sends no alert — the row left mid-flight
+  // with nobody told, which is worse than either verdict.
+  let result: Awaited<ReturnType<typeof runPreBroadcastGate>>
+  try {
+    result = await runPreBroadcastGate(
+      {
+        operationId: operation.id,
+        targets: operation.targets,
+        payloads: operation.payloads,
+      },
+      {
+        ...viemGateReaders(publicClient),
+        deployments,
+        globalConfig: globalConfig as unknown as Record<string, unknown>,
+        signTimeRecord,
+        readScheduledAt: viemScheduledAtReader(
+          publicClient,
+          timelockAddress,
+          operation.id as Hex
+        ),
+      }
+    )
+  } catch (error) {
+    return await abortUnverified(
+      'the gate could not run, so no verdict was produced',
+      error
+    )
+  }
+
+  for (const alert of result.alerts)
+    consola.warn(`${networkPrefix} ⚠️  ${alert}`)
+
+  // `blocksBroadcast`, not the disposition string: a disposition added later
+  // must refuse by default, and only the set that flag comes from decides that.
+  if (!result.blocksBroadcast) {
+    consola.info(`${networkPrefix} ✅ Pre-broadcast gate: ${result.reason}`)
+    await alertGap(result.alerts)
+    return 'ok'
+  }
+
+  const headline =
+    result.disposition === 'BLOCK'
+      ? 'Pre-broadcast gate REFUSED — a storage authority this operation would touch is not what main describes, or the timelock has nothing scheduled under this id'
+      : 'Pre-broadcast gate could not verify this operation — refusing execute (row left queued, next run retries)'
+  consola.error(`${networkPrefix} ❌ ${headline}`)
+  for (const finding of result.findings)
+    consola.error(`${networkPrefix}    · ${finding}`)
+
+  const reason = `pre-broadcast gate ${result.disposition}: ${result.reason}`
+
+  if (!isPreBroadcastGateEnforcing(process.env)) {
+    consola.warn(
+      `${networkPrefix} 🕶️  Shadow mode: reporting only, the operation will execute. Set ${PRE_BROADCAST_GATE_ENFORCE_ENV}=true to make this refusal binding.`
+    )
+    await alertShadowRefusal(result.disposition, result.findings)
+    return 'ok'
+  }
+
+  if (result.disposition === 'BLOCK') {
+    if (!isDryRun)
+      await blockTimelockOp(networkName, operation.id, reason, networkPrefix)
+    await alertFailure(new Error(reason))
+    return 'blocked'
+  }
+
+  await alertFailure(new Error(reason))
+  return 'retry'
 }
 
 async function executeOperation(
@@ -1721,11 +1951,41 @@ async function executeOperation(
     decodeContext
   )
 
+  // Ahead of the prompt on purpose: an operator must see the integrity verdict
+  // before choosing, and must not be offered Execute against a refusal. Reject
+  // stays offered, because a refused operation is exactly one a human may want
+  // to cancel.
+  // The guard is total by construction rather than by statement order: every
+  // path inside it returns a GuardOutcome, but that rests on the alert calls
+  // being unable to throw, which is a property of `sendNotificationWithRetry`'s
+  // default argument in another module. Catching here makes the contract hold
+  // whatever that module does, instead of resting on a promise a regex over
+  // this file cannot check.
+  const gate = networkName
+    ? await enforcePreBroadcastGateOrAbort(
+        operation,
+        networkName,
+        networkPrefix,
+        isDryRun,
+        notifyFailure,
+        publicClient,
+        timelockAddress,
+        slackNotifier
+      ).catch((error: unknown) => {
+        consola.error(
+          `${networkPrefix} ❌ Pre-broadcast gate threw outside its own handling:`,
+          guardErrorDetail(error)
+        )
+        return unverifiedGateOutcome(process.env)
+      })
+    : 'ok'
+
   // If interactive mode, show choice prompt
   if (interactive) {
     const action = await consola.prompt('Select action:', {
       type: 'select',
-      options: ['Execute', 'Reject', 'Skip'],
+      options:
+        gate === 'ok' ? ['Execute', 'Reject', 'Skip'] : ['Reject', 'Skip'],
     })
 
     if (action === 'Skip') {
@@ -1748,6 +2008,11 @@ async function executeOperation(
 
     // If action === 'Execute', continue with execution below
   }
+
+  // Enforced here rather than at the gate call above, so a non-interactive run
+  // and an operator who chose Execute hit the same refusal, and it lands before
+  // both the dry-run simulate and the broadcast.
+  if (gate !== 'ok') return 'failed'
 
   // Pre-execute re-validation for folded parked removals. Under the fold a
   // stale Remove would either silently delete a live selector (re-pointed) or
@@ -1946,10 +2211,10 @@ async function executeOperation(
   } catch (error) {
     consola.error(
       `${networkPrefix} Failed to execute operation ${operation.id}:`,
-      error
+      guardErrorDetail(error)
     )
 
-    if (!isDryRun) await notifyFailure(error)
+    if (!isDryRun) await notifyFailure(publishableGuardError(error))
 
     return 'failed'
   }
