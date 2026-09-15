@@ -160,6 +160,12 @@ describe('resolveExpectedAuthority', () => {
     ).toBe(TIMELOCK)
   })
 
+  it('resolves the zero address without consulting either source', () => {
+    expect(resolveExpectedAuthority({ from: 'zeroAddress' }, {}, {})).toBe(
+      '0x0000000000000000000000000000000000000000'
+    )
+  })
+
   it('resolves an expectation declared in the global config', () => {
     expect(
       resolveExpectedAuthority(

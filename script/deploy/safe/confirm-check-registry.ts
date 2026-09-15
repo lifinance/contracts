@@ -39,20 +39,26 @@ export const TARGET_STATE_CHECK: ICheckDefinition = {
   title: 'Facet version matches the declared target state',
 }
 
+/** Persisted in signed-set records, so it does not follow the title. */
 export const STORAGE_AUTHORITY_CHECK_ID = 'storage-authority'
 
 export const STORAGE_AUTHORITY_CHECK: ICheckDefinition = {
   checkId: STORAGE_AUTHORITY_CHECK_ID,
   section: 'Integrity',
   checkClass: 'integrity',
-  title: 'Storage authorities match what main declares',
+  title: 'Contract ownership',
 }
+
+const DECIDING_EXPECTATION_SOURCES: ReadonlySet<
+  IPreBroadcastAuthority['expectationSource']
+> = new Set(['globalConfig', 'zeroAddress'])
 
 /**
  * Where each authority's expectation came from, as an anchor.
  *
  * `config/global.json` is a repo file the proposer's branch cannot change
- * without review, so it may decide a pass. The deployment record is written by
+ * without review, so it may decide a pass, and so may the zero address, which
+ * is written here and read from nowhere. The deployment record is written by
  * the proposer, so it may only report — the ledger coerces a `pass` on it to
  * `error`, which is the correct reading of "the value matched the one we were
  * handed".
@@ -66,14 +72,14 @@ export const authorityExpectationAnchors = (
   new Map(
     authorities.map((authority) => [
       authority.label,
-      authority.expectationSource === 'globalConfig'
+      DECIDING_EXPECTATION_SOURCES.has(authority.expectationSource)
         ? ('A-LOCAL' as const)
         : ('A-MONGO' as const),
     ])
   )
 
-export const EVERY_AUTHORITY_MATCHES =
-  'every declared storage authority holding the address main declares'
+export const EVERY_INSTALLED_CONTRACT_OWNED =
+  'every contract this installs owned by the wallet main declares'
 
 /**
  * Reduces a network's storage-authority observations to the one row the ledger
@@ -111,9 +117,8 @@ export const storageAuthorityCheckResult = (
       checkId: STORAGE_AUTHORITY_CHECK_ID,
       network,
       status: 'not-applicable',
-      expected: EVERY_AUTHORITY_MATCHES,
-      actual:
-        'this proposal installs no contract that declares a storage authority',
+      expected: EVERY_INSTALLED_CONTRACT_OWNED,
+      actual: 'this proposal installs no contract whose owner main declares',
       anchor: 'A-LOCAL',
     }
 
@@ -171,7 +176,7 @@ export const storageAuthorityCheckResult = (
     checkId: STORAGE_AUTHORITY_CHECK_ID,
     network,
     status,
-    expected: EVERY_AUTHORITY_MATCHES,
+    expected: EVERY_INSTALLED_CONTRACT_OWNED,
     actual: failing.length
       ? failing.join('; ')
       : `${entries.length} declared authority value(s) match config`,
@@ -908,7 +913,7 @@ export const proposalCheckResults = (
         ? unresolved(
             STORAGE_AUTHORITY_CHECK_ID,
             network,
-            EVERY_AUTHORITY_MATCHES,
+            EVERY_INSTALLED_CONTRACT_OWNED,
             `what this proposal installs could not be read from ${verdicts.storageAuthority.scopeUnreadable.join(
               ', '
             )}, so the contracts whose authorities to read are unknown`
@@ -921,7 +926,7 @@ export const proposalCheckResults = (
       : unresolved(
           STORAGE_AUTHORITY_CHECK_ID,
           network,
-          EVERY_AUTHORITY_MATCHES,
+          EVERY_INSTALLED_CONTRACT_OWNED,
           'no storage-authority read was made for this proposal'
         ),
     targetStateCheckResult(verdicts.targetState, network),
