@@ -48,6 +48,14 @@
       "0xcf934e2402a5e072928a39a956964eb8f2b5b79c"
     ]
   },
+  "arc": {
+    "chainId": 5042,
+    "acrossSpokePool": "0x9b4A302A548c7e313c2b74C461db7b84d3074A84",
+    "spokePoolPeriphery": "0x0000000000000000000000000000000000000000",
+    "sponsoredOftSrcPeriphery": "0x0000000000000000000000000000000000000000",
+    "sponsoredCctpSrcPeriphery": "0x0000000000000000000000000000000000000000",
+    "tokensToApprove": []
+  },
   "base": {
     "chainId": 8453,
     "acrossSpokePool": "0x09aea4b2242abC8bb4BB78D537A67a245A7bEC64",
