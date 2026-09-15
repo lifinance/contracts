@@ -54,6 +54,8 @@
  * send the alerts.
  */
 
+import { fileURLToPath } from 'node:url'
+
 import 'dotenv/config'
 
 import { defineCommand, runMain } from 'citty'
@@ -1348,4 +1350,9 @@ const main = defineCommand({
 
 // Guard so importing the pure decisions (reconcile-parked-tasks.test.ts) does not
 // launch the CLI; runs only when executed directly (mirrors list-timelock-queue.ts).
-if (import.meta.main) runMain(main)
+// Not `import.meta.main`: undefined under `tsx` on Node < 22.23, where
+// `--cancel-deprecated --yes` would exit 0 having cancelled nothing
+// ([CONV:NODE-RUNTIME-APIS]).
+const isEntrypoint = process.argv[1] === fileURLToPath(import.meta.url)
+
+if (isEntrypoint) runMain(main)

@@ -1,5 +1,6 @@
 #!/usr/bin/env bun
 import * as fs from 'fs'
+import { fileURLToPath } from 'node:url'
 import * as path from 'path'
 
 import {
@@ -368,6 +369,11 @@ const main = defineCommand({
   },
 })
 
-if (import.meta.main) runMain(main)
+// Not `import.meta.main`: undefined under `tsx` on Node < 22.23, where a
+// `--step` invocation would exit 0 having transferred nothing, reading as a
+// completed handover ([CONV:NODE-RUNTIME-APIS]).
+const isEntrypoint = process.argv[1] === fileURLToPath(import.meta.url)
+
+if (isEntrypoint) runMain(main)
 
 export { transferOwnershipToTimelock }

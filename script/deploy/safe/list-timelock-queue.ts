@@ -13,6 +13,8 @@
  * unreachable). The cluster is the non-sensitive one — no VPN required.
  */
 
+import { fileURLToPath } from 'node:url'
+
 import 'dotenv/config'
 
 import { defineCommand, runMain } from 'citty'
@@ -506,4 +508,10 @@ const cmd = defineCommand({
   },
 })
 
-if (import.meta.main) runMain(cmd)
+// Not `import.meta.main`: it is undefined under `tsx` on Node < 22.23, which
+// `engines` still permits, and the CLI would then exit 0 having listed nothing —
+// indistinguishable from an empty queue to /finish-rollout's gate
+// ([CONV:NODE-RUNTIME-APIS]).
+const isEntrypoint = process.argv[1] === fileURLToPath(import.meta.url)
+
+if (isEntrypoint) runMain(cmd)
