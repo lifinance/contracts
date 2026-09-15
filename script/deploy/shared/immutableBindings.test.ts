@@ -625,6 +625,39 @@ describe('getterSinceVersion', () => {
     expect(checks.map((c) => c.getterSinceVersion)).toEqual(['1.0.1', null])
   })
 
+  it('reads a version that is not a string as no annotation at all', () => {
+    // deployRequirements.json is type-asserted, not validated, so a version written unquoted
+    // arrives as a number. Ordering it would throw where the whole module returns "unknown",
+    // and a throw here fails an error-severity invariant instead of keeping the binding checked.
+    const checks = collectImmutableBindingChecks(
+      'mainnet',
+      'production',
+      {
+        Added: {
+          configData: {
+            _a: {
+              configFileName: 'across.json',
+              keyInConfigFile: '.<NETWORK>.acrossSpokePool',
+              getter: 'NEW_GETTER',
+              getterSinceVersion: 1.01 as unknown as string,
+            },
+          },
+        },
+      },
+      load
+    )
+
+    expect(checks[0]?.getterSinceVersion).toBeNull()
+    expect(
+      liveVersionPredatingGetter(
+        checks[0] as IImmutableBindingCheck,
+        OLD,
+        'mainnet',
+        LOG
+      )
+    ).toBeNull()
+  })
+
   it('annotates the GenericSwapFacetV3 getter that 16 production chains predate', () => {
     // NATIVE_ADDRESS arrived with the _nativeAddress constructor arg in v1.0.1; every v1.0.0
     // deployment reverts the read, which is a pending upgrade rather than a broken binding.

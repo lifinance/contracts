@@ -248,6 +248,8 @@ describe('verifyGetterSinceVersions', () => {
     // annotation nobody notices is dead weight in a file that decides what goes unverified.
     expect(verify('1.0')).toHaveLength(1)
     expect(verify('1.0.2-tron')[0]).toContain('major.minor.patch')
+    // Written unquoted in JSON it arrives as a number, whatever the type says.
+    expect(verify(1.0 as unknown as string)[0]).toContain('quoted')
   })
 
   it('rejects a version annotated on an entry with no getter to read', () => {

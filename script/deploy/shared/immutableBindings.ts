@@ -309,7 +309,14 @@ export function collectImmutableBindingChecks(
         argName,
         getter: configData.getter,
         legacyGetters: configData.legacyGetters ?? [],
-        getterSinceVersion: configData.getterSinceVersion ?? null,
+        // Typed, not trusted: deployRequirements.json is asserted rather than validated, and a
+        // version written unquoted arrives as a number that the ordering would throw on. A
+        // non-string reads as no annotation, which keeps the binding checked; the gate is what
+        // tells the author their annotation is inert.
+        getterSinceVersion:
+          typeof configData.getterSinceVersion === 'string'
+            ? configData.getterSinceVersion
+            : null,
         configFileName: configData.configFileName,
         keyInConfigFile: configData.keyInConfigFile,
         resolvedKeyInConfigFile: substituteConfigKeyPlaceholders(

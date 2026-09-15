@@ -234,9 +234,13 @@ export const verifyGetterSinceVersions = (
         )
         continue
       }
-      if (!SEMANTIC_VERSION.test(since)) {
+      // typeof, not just the pattern: a version written unquoted is a number, and relying on
+      // the regex to coerce it would make the gate's answer depend on how JSON spells it.
+      if (typeof since !== 'string' || !SEMANTIC_VERSION.test(since)) {
         errors.push(
-          `${where} sets getterSinceVersion '${since}', which is not a major.minor.patch version. The check cannot order it, so it would leave the binding checked and the annotation inert.`
+          `${where} sets getterSinceVersion '${String(
+            since
+          )}', which is not a quoted major.minor.patch version. The check cannot order it, so it would leave the binding checked and the annotation inert.`
         )
         continue
       }
