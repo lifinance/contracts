@@ -29,7 +29,7 @@ permissions: {}
 # runs stop burning runner minutes. cancel-in-progress is scoped to pull_request events so
 # post-merge runs on main and manual workflow_dispatch runs always complete and keep their signal.
 concurrency:
-  group: markdownlint-${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
+  group: ${{ github.workflow }}-${{ github.event_name }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
