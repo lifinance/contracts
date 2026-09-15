@@ -40,6 +40,7 @@ struct UnitData {
 ```
 
 The EIP-712 domain separator uses:
+
 - Name: "LI.FI Unit Facet"
 - Version: "1"
 - ChainId: Current blockchain chain ID
@@ -73,6 +74,7 @@ Some methods accept a `BridgeData _bridgeData` parameter.
 This parameter is strictly for analytics purposes. It's used to emit events that we can later track and index in our subgraphs and provide data on how our contracts are being used. `BridgeData` and the events we can emit can be found [here](../src/Interfaces/ILiFi.sol).
 
 **Unit-specific requirements**:
+
 - `sendingAssetId` must be zero address (native token)
 - `destinationChainId` must be `LIFI_CHAIN_ID_HYPERCORE`
 - `receiver` must match `unitData.depositAddress`
