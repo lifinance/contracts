@@ -680,6 +680,12 @@ export const CONFIRM_CHECK_DEFINITIONS: readonly ICheckDefinition[] = [
  * The naming authority, so the letters stay unique across gates that never
  * share a ledger: `CONFIRM_CHECK_DEFINITIONS` is the subset a run must answer
  * for, and anything a view might have to name belongs here too.
+ *
+ * Keyed by `checkId` rather than concatenated, because a gate named here may
+ * also be registered — the codehash gate refuses outside the ledger today and
+ * is expected to gain a row. Appending it would then list it twice and give the
+ * roster two entries sharing one letter, which the manifest renders as two
+ * gates and the uniqueness check below reads as a collision.
  */
 export const ALL_GATE_DEFINITIONS: readonly ICheckDefinition[] = [
   ...new Map(
