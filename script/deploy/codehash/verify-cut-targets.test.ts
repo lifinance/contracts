@@ -348,8 +348,8 @@ describe('verifyCutTargets', () => {
   })
 
   it('stays UNVERIFIABLE when a slot has no declared expectation', async () => {
-    // The registry is two slots wide today, so this is the answer almost every
-    // contract gets — and it must not drift into a pass as the file fills.
+    // The answer every contract still gets for a slot no entry covers, which
+    // the registry being full makes rarer rather than impossible.
     const report = await maskedMatch({
       price: async () =>
         priced(64, {
