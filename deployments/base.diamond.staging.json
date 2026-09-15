@@ -92,6 +92,10 @@
       "0x4024f93ac23e00EfC85371fe0a69922C82EbdF88": {
         "Name": "EcoFacet",
         "Version": "2.0.0"
+      },
+      "0x2C5F02b087F719c74D715a2771Fb908ec08F9D72": {
+        "Name": "CentrifugeFacet",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
