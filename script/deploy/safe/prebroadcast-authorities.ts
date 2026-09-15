@@ -65,10 +65,12 @@ export interface IDeclaredAuthority {
  * `TransferrableOwnership` holds `owner` and `pendingOwner` in storage rather
  * than as immutables, so two deployments differing only in who controls them
  * are byte-identical and the immutable layer of the codehash gate cannot tell
- * them apart. Each `owner` expectation is the `_owner` constructor requirement
- * `deployRequirements.json` declares for that contract, read from the same
- * `config/global.json` key; `prebroadcast-authorities.coverage.test` fails when
- * a periphery contract is left unclassified here.
+ * them apart. Each `owner` expectation is the `config/global.json` key that
+ * contract's `Deploy<name>.s.sol` passes as `_owner` — the script, not
+ * `deployRequirements.json`, decides what a fresh deployment is constructed
+ * with, and the two disagree on `FeeCollector`. `prebroadcast-authorities.coverage.test`
+ * pins the table against the scripts and fails when a periphery contract is
+ * left unclassified here.
  *
  * `pendingOwner` is expected to be zero because a non-zero one lets its holder
  * claim the contract after this proposal executes.
@@ -109,6 +111,10 @@ export const DECLARED_STORAGE_AUTHORITIES: Readonly<
     { getter: 'pendingOwner', source: { from: 'zeroAddress' } },
   ],
   GasZipPeriphery: [
+    { getter: 'owner', source: { from: 'globalConfig', key: 'refundWallet' } },
+    { getter: 'pendingOwner', source: { from: 'zeroAddress' } },
+  ],
+  LiFiDEXAggregator: [
     { getter: 'owner', source: { from: 'globalConfig', key: 'refundWallet' } },
     { getter: 'pendingOwner', source: { from: 'zeroAddress' } },
   ],

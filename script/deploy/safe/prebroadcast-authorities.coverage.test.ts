@@ -17,16 +17,26 @@ const OWNERSHIP_BASES = ['TransferrableOwnership', 'WithdrawablePeriphery']
 
 /**
  * Periphery carrying an owner that this gate deliberately does not assert, and
- * why.
+ * why. Empty on purpose: every owner-bearing periphery contract is asserted.
+ * An entry here is checked below against its deploy script, so a reason that
+ * stops being true fails rather than quietly parking the contract.
  */
-const NOT_ASSERTED: Readonly<Record<string, string>> = {
-  LiFiDEXAggregator:
-    'deployRequirements.json declares no _owner for it, so main states no expectation to compare against',
-}
+const NOT_ASSERTED: Readonly<Record<string, string>> = {}
 
 /** Periphery with no owner to assert. Cross-checked against the source below. */
 const NO_OWNER: Readonly<Record<string, string>> = {
   Patcher: 'holds no ownership state',
+}
+
+/** The `config/global.json` keys a contract's deploy script passes as `_owner`. */
+const ownerKeysInDeployScript = (name: string): string[] => {
+  const script = join(DEPLOY_SCRIPTS_DIR, `Deploy${name}.s.sol`)
+  if (!existsSync(script)) return []
+  return [
+    ...readFileSync(script, 'utf8').matchAll(/\.readAddress\(\s*"\.(\w+)"/g),
+  ]
+    .map((match) => match[1] ?? '')
+    .filter((key) => /wallet|owner/i.test(key))
 }
 
 const peripheryNames = (): string[] =>
@@ -63,6 +73,15 @@ describe('DECLARED_STORAGE_AUTHORITIES coverage', () => {
       NO_OWNER[name] !== undefined,
     ].filter(Boolean)
     expect(classifications).toHaveLength(1)
+  })
+
+  it.each(
+    Object.keys(NOT_ASSERTED).length > 0
+      ? Object.keys(NOT_ASSERTED)
+      : ['(none)']
+  )('has nothing to assert on %s', (name) => {
+    if (name === '(none)') return
+    expect(ownerKeysInDeployScript(name)).toEqual([])
   })
 
   it.each(Object.keys(NO_OWNER))('confirms %s holds no owner', (name) => {
