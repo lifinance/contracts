@@ -3481,28 +3481,30 @@ describe('safe-config asserts the owner set both ways', () => {
 
 describe('immutable-bindings-match-config version-aware skip', () => {
   const ZERO = '0x0000000000000000000000000000000000000000'
-  /** GenericSwapFacetV3 v1.0.0 — deployed before NATIVE_ADDRESS existed. */
-  const V1_0_0 = '0x31a9b1835864706Af10103b31Ea2b79bdb995F5F'
-  /** GenericSwapFacetV3 v1.0.2 on mainnet — exposes the getter. */
-  const V1_0_2 = '0x8C9dBA771220Ed09580b77F0765e7153fbDE7790'
+  const FACET = '0x31a9b1835864706Af10103b31Ea2b79bdb995F5F'
 
   const invariant = HEALTH_CHECK_INVARIANTS.find(
     (i) => i.name === 'immutable-bindings-match-config'
   ) as IHealthCheckInvariant
 
-  /** GenericSwapFacetV3 live at `facet`, whose NATIVE_ADDRESS() reverts as a v1.0.0 build does. */
-  function makeVersionCtx(
-    networkLower: string,
-    facet: string
-  ): { ctx: IHealthCheckContext; calls: string[] } {
+  const logAt = (version: string): Record<string, unknown> => ({
+    [FACET]: { Name: 'GenericSwapFacetV3', Version: version },
+  })
+
+  /** GenericSwapFacetV3 live at FACET, whose NATIVE_ADDRESS() reverts as a v1.0.0 build does. */
+  function makeVersionCtx(diamondFacetLog: Record<string, unknown>): {
+    ctx: IHealthCheckContext
+    calls: string[]
+  } {
     const calls: string[] = []
     const ctx = Object.assign(makeCtx(), {
-      networkLower,
-      diamondAddress: facet,
-      deployedContracts: { GenericSwapFacetV3: facet },
+      networkLower: 'mainnet',
+      diamondAddress: FACET,
+      deployedContracts: { GenericSwapFacetV3: FACET },
       coreFacetsToCheck: [],
       nonCoreFacets: ['GenericSwapFacetV3'],
-      onChainFacets: [{ address: facet, selectors: ['0xffffffff'] }],
+      onChainFacets: [{ address: FACET, selectors: ['0xffffffff'] }],
+      diamondFacetLog,
       publicClient: {
         readContract: async ({ functionName }: { functionName: string }) => {
           if (functionName === 'getPeripheryContract') return ZERO
@@ -3515,14 +3517,14 @@ describe('immutable-bindings-match-config version-aware skip', () => {
   }
 
   it('has a precondition: the annotation names the version that introduced the getter', () => {
-    const check = collectImmutableBindingChecks('arbitrum', 'production').find(
+    const check = collectImmutableBindingChecks('mainnet', 'production').find(
       (c) => c.contractName === 'GenericSwapFacetV3'
     )
     expect(check?.getterSinceVersion).toBe('1.0.1')
   })
 
   it('does not read a build that predates the getter, and does not warn about it', async () => {
-    const { ctx, calls } = makeVersionCtx('arbitrum', V1_0_0)
+    const { ctx, calls } = makeVersionCtx(logAt('1.0.0'))
 
     await invariant.run(ctx)
 
@@ -3534,7 +3536,7 @@ describe('immutable-bindings-match-config version-aware skip', () => {
   it('still warns when a build new enough to expose the getter reverts', async () => {
     // The skip is scoped to builds that provably cannot answer. A newer one that reverts is a
     // real coverage hole and has to stay visible.
-    const { ctx, calls } = makeVersionCtx('mainnet', V1_0_2)
+    const { ctx, calls } = makeVersionCtx(logAt('1.0.2'))
 
     await invariant.run(ctx)
 
@@ -3548,10 +3550,7 @@ describe('immutable-bindings-match-config version-aware skip', () => {
 
   it('still warns when the deploy log cannot name the live version', async () => {
     // An address the log does not record is no evidence the getter is absent.
-    const { ctx, calls } = makeVersionCtx(
-      'arbitrum',
-      '0x0000000000000000000000000000000000000009'
-    )
+    const { ctx, calls } = makeVersionCtx({})
 
     await invariant.run(ctx)
 

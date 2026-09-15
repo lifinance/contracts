@@ -324,47 +324,37 @@ export function collectImmutableBindingChecks(
     )
   )
 }
-
 /** The shape every contract version in this repo takes; anything else this cannot order. */
 const CONTRACT_VERSION_PATTERN = /^\d+\.\d+\.\d+$/
 
 /**
- * Split a `major.minor.patch` version into its numeric parts.
+ * Whether `version` precedes `floor`, comparing major, then minor, then patch numerically.
  *
- * @param value - version as written in a deployment log or in the registry
- * @returns the three parts, or null when the string is not a three-part numeric version
+ * @remarks Anything that is not a three-part numeric version answers false, and either side can
+ *   be one: the diamond log leaves a version blank for facets it could not identify, and a
+ *   registry annotation is hand-written. False is the safe direction — it keeps the binding
+ *   checked, where an invented ordering would silently exempt it from the very comparison this
+ *   module exists to set up.
+ * @param version - version as a deployment log records it
+ * @param floor - version to order it against
+ * @returns true only when both parse and `version` is the older one
  */
-function parseContractVersion(value: string): number[] | null {
-  const trimmed = value.trim()
-  if (!CONTRACT_VERSION_PATTERN.test(trimmed)) return null
-  return trimmed.split('.').map(Number)
-}
+function isVersionBelow(version: string, floor: string): boolean {
+  const versionTrimmed = version.trim()
+  const floorTrimmed = floor.trim()
+  if (
+    !CONTRACT_VERSION_PATTERN.test(versionTrimmed) ||
+    !CONTRACT_VERSION_PATTERN.test(floorTrimmed)
+  )
+    return false
 
-/**
- * Order two contract versions.
- *
- * @remarks Returns null rather than guessing when either side is unparseable. Both sides can be:
- *   the diamond log leaves a version blank for facets it could not identify, and a registry
- *   annotation is hand-written. An invented ordering for either would silently exempt a binding
- *   from the check that exists to compare it.
- * @param left - version to order
- * @param right - version to order against
- * @returns negative when `left` precedes `right`, zero when equal, positive when it follows, or
- *   null when either is not a three-part numeric version
- */
-export function compareContractVersions(
-  left: string,
-  right: string
-): number | null {
-  const leftParts = parseContractVersion(left)
-  const rightParts = parseContractVersion(right)
-  if (leftParts === null || rightParts === null) return null
-
+  const versionParts = versionTrimmed.split('.').map(Number)
+  const floorParts = floorTrimmed.split('.').map(Number)
   for (let index = 0; index < 3; index++) {
-    const difference = (leftParts[index] ?? 0) - (rightParts[index] ?? 0)
-    if (difference !== 0) return difference
+    const difference = (versionParts[index] ?? 0) - (floorParts[index] ?? 0)
+    if (difference !== 0) return difference < 0
   }
-  return 0
+  return false
 }
 
 /** The `LiFiDiamond.Facets` section of `deployments/<network>.diamond.json`, keyed by address. */
@@ -373,49 +363,49 @@ export type DiamondFacetLog = Record<
   { Name?: string; Version?: string }
 >
 
-/** Network keys compose into a path, so anything outside this shape is refused outright. */
-function isValidNetworkName(name: string): boolean {
-  return /^[A-Za-z0-9_-]+$/.test(name)
+/** `deployments/<network>.diamond.json`, in the two shapes its consumers read. */
+export interface IDiamondLog {
+  Facets?: DiamondFacetLog
+  Periphery?: Record<string, string>
 }
 
-/** Memoized per network: a fleet run reads each diamond log once, not once per check. */
-const diamondFacetLogCache = new Map<string, DiamondFacetLog | null>()
+/** Memoized per network: a fleet run reads each diamond log once, not once per consumer. */
+const diamondLogCache = new Map<string, IDiamondLog | null>()
 
 /**
- * Read the facets a network's diamond log records, keyed by the address each is registered at.
+ * Read a network's diamond log — the diamond's own record of what it currently serves.
  *
- * @remarks This log is the diamond's own record of what it serves, so it names a version for
- *   every registered facet — including chains the master deployment log has not caught up with.
- *   It has no equivalent for periphery, which it stores as bare name-to-address pairs.
+ * @remarks Facets are recorded with a version each, including on chains the master deployment log
+ *   has not caught up with; periphery is stored as bare name-to-address pairs and carries no
+ *   version at all. An unreadable or absent log costs coverage, never the run.
  * @param networkLower - canonical lowercase network key
- * @returns the facet section, or null when the log is missing or does not parse
+ * @returns the `LiFiDiamond` section, or null when the log is missing or does not parse
  */
-export function loadDiamondFacetLogFromDisk(
-  networkLower: string
-): DiamondFacetLog | null {
-  const cached = diamondFacetLogCache.get(networkLower)
+export function loadDiamondLog(networkLower: string): IDiamondLog | null {
+  const cached = diamondLogCache.get(networkLower)
   if (cached !== undefined) return cached
 
-  const resolved = readDiamondFacetLog(networkLower)
-  diamondFacetLogCache.set(networkLower, resolved)
+  const resolved = readDiamondLog(networkLower)
+  diamondLogCache.set(networkLower, resolved)
   return resolved
 }
 
-/** The uncached read behind {@link loadDiamondFacetLogFromDisk}. */
-function readDiamondFacetLog(networkLower: string): DiamondFacetLog | null {
-  if (!isValidNetworkName(networkLower)) return null
+/** The uncached read behind {@link loadDiamondLog}. */
+function readDiamondLog(networkLower: string): IDiamondLog | null {
+  // Network keys compose into a path, so anything outside this shape is refused outright.
+  if (!/^[A-Za-z0-9_-]+$/.test(networkLower)) return null
 
   const deploymentsDir = resolve(process.cwd(), 'deployments')
-  const path = resolve(deploymentsDir, `${networkLower}.diamond.json`)
-  const relativeToDir = relative(deploymentsDir, path)
+  const logPath = resolve(deploymentsDir, `${networkLower}.diamond.json`)
+  const relativeToDir = relative(deploymentsDir, logPath)
   if (relativeToDir.startsWith('..') || isAbsolute(relativeToDir)) return null
 
-  if (!existsSync(path)) return null
+  if (!existsSync(logPath)) return null
   try {
-    const parsed = JSON.parse(readFileSync(path, 'utf8')) as {
-      LiFiDiamond?: { Facets?: DiamondFacetLog }
+    const parsed = JSON.parse(readFileSync(logPath, 'utf8')) as {
+      LiFiDiamond?: IDiamondLog
     }
-    return parsed.LiFiDiamond?.Facets ?? null
+    return parsed.LiFiDiamond ?? null
   } catch {
     return null
   }
@@ -445,14 +435,14 @@ function addressesMatch(left: string, right: string): boolean {
  * @param contractName - Solidity contract identifier, as the log names it
  * @param networkLower - canonical lowercase network key
  * @param address - the registered address, hex or Tron base58
- * @param log - log override, for tests; defaults to reading `deployments/`
+ * @param log - facet-log override, for tests; defaults to reading `deployments/`
  * @returns the registered version, or null when the log records no usable one for that address
  */
 export function resolveRegisteredFacetVersion(
   contractName: string,
   networkLower: string,
   address: string,
-  log: DiamondFacetLog | null = loadDiamondFacetLogFromDisk(networkLower)
+  log: DiamondFacetLog | null = loadDiamondLog(networkLower)?.Facets ?? null
 ): string | null {
   if (log === null) return null
 
@@ -463,4 +453,37 @@ export function resolveRegisteredFacetVersion(
     return typeof version === 'string' && version.trim() !== '' ? version : null
   }
   return null
+}
+
+/**
+ * Whether the build live at `address` predates the version that first exposed the check's getter.
+ *
+ * @remarks Only an annotated check can answer this, and only against a version the network's
+ *   diamond log records — which is facets only; periphery is not versioned there. Every unknown
+ *   resolves to false: an unrecorded address or an unparseable version is no evidence the getter
+ *   is absent, and treating it as such would exempt exactly the bindings this check compares.
+ * @param check - the binding check, carrying `getterSinceVersion` when annotated
+ * @param address - the live address the read would target
+ * @param networkLower - canonical lowercase network key
+ * @param log - facet-log override, for tests; defaults to reading `deployments/`
+ * @returns true only when the live version is known and older than the annotated one
+ */
+export function livePredatesGetter(
+  check: IImmutableBindingCheck,
+  address: string,
+  networkLower: string,
+  log?: DiamondFacetLog | null
+): boolean {
+  if (check.getterSinceVersion === null) return false
+
+  const liveVersion = resolveRegisteredFacetVersion(
+    check.contractName,
+    networkLower,
+    address,
+    log
+  )
+  return (
+    liveVersion !== null &&
+    isVersionBelow(liveVersion, check.getterSinceVersion)
+  )
 }

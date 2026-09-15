@@ -9,12 +9,12 @@ import {
 
 import {
   collectImmutableBindingChecks,
-  compareContractVersions,
   isFacetContract,
   isValidConfigFileName,
   isZeroAddressValue,
   loadConfigFileFromDisk,
-  loadDiamondFacetLogFromDisk,
+  livePredatesGetter,
+  loadDiamondLog,
   resolveConfigValue,
   resolveRegisteredFacetVersion,
   resolveExpectedAddress,
@@ -22,6 +22,7 @@ import {
   TRON_ZERO_ADDRESS_BASE58,
   type DiamondFacetLog,
   type IDeployRequirementEntry,
+  type IImmutableBindingCheck,
 } from './immutableBindings'
 
 const SPOKE = '0x1111111111111111111111111111111111111111'
@@ -635,44 +636,21 @@ describe('getterSinceVersion', () => {
   })
 })
 
-describe('compareContractVersions', () => {
-  it('orders by major, then minor, then patch', () => {
-    expect(compareContractVersions('1.0.0', '1.0.1')).toBeLessThan(0)
-    expect(compareContractVersions('1.0.2', '1.1.0')).toBeLessThan(0)
-    expect(compareContractVersions('2.0.0', '1.9.9')).toBeGreaterThan(0)
-    expect(compareContractVersions('1.0.1', '1.0.1')).toBe(0)
-  })
+const OLD = '0x31a9b1835864706Af10103b31Ea2b79bdb995F5F'
+const NEW = '0x8C9dBA771220Ed09580b77F0765e7153fbDE7790'
+const TRON = 'TLDz16QnvAN8pDS7GhNCimwVhYGHrsjZjz'
 
-  it('compares parts numerically rather than as text', () => {
-    expect(compareContractVersions('1.10.0', '1.9.0')).toBeGreaterThan(0)
-  })
-
-  it('refuses to order anything that is not a three-part numeric version', () => {
-    // A mistyped annotation must not order against anything: inventing a result would silently
-    // exempt the binding from the check rather than leaving it checked.
-    expect(compareContractVersions('1.0', '1.0.0')).toBeNull()
-    expect(compareContractVersions('1.0.2-tron', '1.0.2')).toBeNull()
-    expect(
-      compareContractVersions('[error] could not find src', '1.0.0')
-    ).toBeNull()
-  })
-})
+const LOG: DiamondFacetLog = {
+  [OLD]: { Name: 'GenericSwapFacetV3', Version: '1.0.0' },
+  [NEW]: { Name: 'GenericSwapFacetV3', Version: '1.0.2' },
+  [TRON]: { Name: 'GenericSwapFacetV3', Version: '1.0.2' },
+  '0x0000000000000000000000000000000000000002': {
+    Name: 'DiamondCutFacet',
+    Version: '',
+  },
+}
 
 describe('resolveRegisteredFacetVersion', () => {
-  const OLD = '0x31a9b1835864706Af10103b31Ea2b79bdb995F5F'
-  const NEW = '0x8C9dBA771220Ed09580b77F0765e7153fbDE7790'
-  const TRON = 'TLDz16QnvAN8pDS7GhNCimwVhYGHrsjZjz'
-
-  const LOG: DiamondFacetLog = {
-    [OLD]: { Name: 'GenericSwapFacetV3', Version: '1.0.0' },
-    [NEW]: { Name: 'GenericSwapFacetV3', Version: '1.0.2' },
-    [TRON]: { Name: 'GenericSwapFacetV3', Version: '1.0.2' },
-    '0x0000000000000000000000000000000000000002': {
-      Name: 'DiamondCutFacet',
-      Version: '',
-    },
-  }
-
   it('resolves the version registered at an address', () => {
     expect(
       resolveRegisteredFacetVersion('GenericSwapFacetV3', 'mainnet', OLD, LOG)
@@ -735,17 +713,84 @@ describe('resolveRegisteredFacetVersion', () => {
       resolveRegisteredFacetVersion('GenericSwapFacetV3', 'mainnet', OLD, null)
     ).toBeNull()
   })
+})
 
+describe('loadDiamondLog', () => {
   it('refuses a network name that could escape the deployments directory', () => {
-    expect(loadDiamondFacetLogFromDisk('../../etc/passwd')).toBeNull()
+    expect(loadDiamondLog('../../etc/passwd')).toBeNull()
   })
 
-  it('reads the real diamond logs, where arbitrum still serves v1.0.0', () => {
+  it('reports null for a network that has no diamond log', () => {
+    expect(loadDiamondLog('not-a-network')).toBeNull()
+  })
+
+  it('reads both sections of a real diamond log', () => {
+    // Deliberately a shape assertion and not a version one: the fleet upgrades, and a test
+    // pinned to today's live build would go red on exactly the rollout this module waits for.
+    const log = loadDiamondLog('mainnet')
     expect(
-      resolveRegisteredFacetVersion('GenericSwapFacetV3', 'arbitrum', OLD)
-    ).toBe('1.0.0')
+      Object.values(log?.Facets ?? {}).every(
+        (entry) => typeof entry.Name === 'string'
+      )
+    ).toBe(true)
+    expect(Object.keys(log?.Facets ?? {}).length).toBeGreaterThan(0)
+    expect(Object.keys(log?.Periphery ?? {}).length).toBeGreaterThan(0)
+  })
+})
+
+describe('livePredatesGetter', () => {
+  const check = (getterSinceVersion: string | null): IImmutableBindingCheck =>
+    ({
+      contractName: 'GenericSwapFacetV3',
+      getterSinceVersion,
+    } as IImmutableBindingCheck)
+
+  it('reports a build older than the version that introduced the getter', () => {
+    expect(livePredatesGetter(check('1.0.1'), OLD, 'mainnet', LOG)).toBe(true)
+  })
+
+  it('leaves a build that is at or past that version to be read', () => {
+    expect(livePredatesGetter(check('1.0.2'), NEW, 'mainnet', LOG)).toBe(false)
+    expect(livePredatesGetter(check('1.0.1'), NEW, 'mainnet', LOG)).toBe(false)
+  })
+
+  it('orders version parts numerically rather than as text', () => {
+    const log: DiamondFacetLog = {
+      [OLD]: { Name: 'GenericSwapFacetV3', Version: '1.9.0' },
+      [NEW]: { Name: 'GenericSwapFacetV3', Version: '1.10.0' },
+    }
+    expect(livePredatesGetter(check('1.10.0'), OLD, 'mainnet', log)).toBe(true)
+    expect(livePredatesGetter(check('1.9.0'), NEW, 'mainnet', log)).toBe(false)
+  })
+
+  it('reads an unannotated check, an unrecorded address and a blank version', () => {
+    // None of the three is evidence the getter is absent, so all three stay checked.
+    expect(livePredatesGetter(check(null), OLD, 'mainnet', LOG)).toBe(false)
     expect(
-      resolveRegisteredFacetVersion('GenericSwapFacetV3', 'mainnet', NEW)
-    ).toBe('1.0.2')
+      livePredatesGetter(
+        check('1.0.1'),
+        '0x0000000000000000000000000000000000000001',
+        'mainnet',
+        LOG
+      )
+    ).toBe(false)
+    expect(
+      livePredatesGetter(
+        check('1.0.1'),
+        '0x0000000000000000000000000000000000000002',
+        'mainnet',
+        LOG
+      )
+    ).toBe(false)
+  })
+
+  it('reads anything it cannot order, on either side', () => {
+    // A mistyped annotation or a log entry like `1.0.2-tron` must leave the binding checked
+    // rather than invent an ordering that exempts it.
+    const log: DiamondFacetLog = {
+      [OLD]: { Name: 'GenericSwapFacetV3', Version: '1.0.2-tron' },
+    }
+    expect(livePredatesGetter(check('1.0.1'), OLD, 'mainnet', log)).toBe(false)
+    expect(livePredatesGetter(check('1.1'), OLD, 'mainnet', LOG)).toBe(false)
   })
 })

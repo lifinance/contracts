@@ -58,11 +58,12 @@ import { sanitizeProvenanceText } from './shared/git-provenance'
 import { getCorePeriphery } from './shared/globalContractLists'
 import {
   collectImmutableBindingChecks,
-  compareContractVersions,
   isFacetContract,
   isZeroAddressValue,
-  resolveRegisteredFacetVersion,
+  livePredatesGetter,
+  loadDiamondLog,
   TRON_ZERO_ADDRESS_BASE58,
+  type DiamondFacetLog,
   type IImmutableBindingCheck,
 } from './shared/immutableBindings'
 import { isRateLimitError } from './shared/rateLimit'
@@ -166,6 +167,12 @@ export interface IHealthCheckContext {
    * (the default); injectable so the registry/log sync check is testable without fixture files.
    */
   diamondLogPeripheryNames?: string[]
+  /**
+   * Facet address → name and version, from `deployments/<network>.diamond.json`. Undefined = read
+   * from disk (the default); injectable so the version-aware skip is testable without pinning a
+   * test to whatever version the fleet happens to be running.
+   */
+  diamondFacetLog?: DiamondFacetLog
   /**
    * Facet name → compiled selector set, used to identify an on-chain facet the deploy log cannot
    * name. Undefined = read from the build output (the default); injectable so both invariants
@@ -1184,11 +1191,6 @@ async function readPeripheryRegistryUncached(
   return address === zeroAddress ? null : getAddress(address)
 }
 
-/** Network keys compose into a path, so anything outside this shape is refused outright. */
-function isValidNetworkName(name: string): boolean {
-  return /^[A-Za-z0-9_-]+$/.test(name)
-}
-
 /**
  * Read the periphery names recorded in `deployments/<network>.diamond.json`.
  *
@@ -1200,22 +1202,7 @@ function isValidNetworkName(name: string): boolean {
  * @returns the recorded periphery names, or an empty list when the log cannot be read
  */
 function loadDiamondLogPeripheryNames(networkLower: string): string[] {
-  if (!isValidNetworkName(networkLower)) return []
-  const deploymentsDir = path.resolve(process.cwd(), 'deployments')
-  const logPath = path.resolve(deploymentsDir, `${networkLower}.diamond.json`)
-  const relativeToDir = path.relative(deploymentsDir, logPath)
-  if (relativeToDir.startsWith('..') || path.isAbsolute(relativeToDir))
-    return []
-  if (!existsSync(logPath)) return []
-
-  try {
-    const parsed = JSON.parse(readFileSync(logPath, 'utf8')) as {
-      LiFiDiamond?: { Periphery?: Record<string, string> }
-    }
-    return Object.keys(parsed.LiFiDiamond?.Periphery ?? {})
-  } catch {
-    return []
-  }
+  return Object.keys(loadDiamondLog(networkLower)?.Periphery ?? {})
 }
 
 /**
@@ -1637,39 +1624,6 @@ async function readBindingValue(
       }
     throw error
   }
-}
-
-/**
- * Whether the build live at `address` predates the version that first exposed the check's getter.
- *
- * @remarks Only an annotated check can answer this, and only against a version the network's
- *   diamond log records — which is facets only; periphery is not versioned there. Every unknown
- *   resolves to false: an unrecorded address or an unparseable version is no evidence the getter
- *   is absent, and treating it as such would exempt exactly the bindings this check compares.
- * @param check - the binding check, carrying `getterSinceVersion` when annotated
- * @param address - the live address the read would target
- * @param ctx - the network's health-check context
- * @returns true only when the live version is known and older than the annotated one
- */
-function livePredatesGetter(
-  check: IImmutableBindingCheck,
-  address: string,
-  ctx: IHealthCheckContext
-): boolean {
-  if (check.getterSinceVersion === null) return false
-
-  const liveVersion = resolveRegisteredFacetVersion(
-    check.contractName,
-    ctx.networkLower,
-    address
-  )
-  if (liveVersion === null) return false
-
-  const ordering = compareContractVersions(
-    liveVersion,
-    check.getterSinceVersion
-  )
-  return ordering !== null && ordering < 0
 }
 
 /**
@@ -2267,7 +2221,15 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         // A build from before the getter existed can only revert, and naming that an unverified
         // binding describes a pending upgrade rather than anything wrong with this chain's
         // config. Skip silently; the coverage it costs is recovered by the upgrade itself.
-        if (livePredatesGetter(check, address, ctx)) continue
+        if (
+          livePredatesGetter(
+            check,
+            address,
+            ctx.networkLower,
+            ctx.diamondFacetLog
+          )
+        )
+          continue
 
         // `allowToDeployWithZeroAddress` makes a zero binding a declared value rather than drift,
         // so an explicit zero is an expectation to assert. An absent key is one too: whichever
