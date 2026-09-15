@@ -9,14 +9,18 @@ import {
 
 import {
   collectImmutableBindingChecks,
+  compareContractVersions,
   isFacetContract,
   isValidConfigFileName,
   isZeroAddressValue,
   loadConfigFileFromDisk,
+  loadDiamondFacetLogFromDisk,
   resolveConfigValue,
+  resolveRegisteredFacetVersion,
   resolveExpectedAddress,
   substituteConfigKeyPlaceholders,
   TRON_ZERO_ADDRESS_BASE58,
+  type DiamondFacetLog,
   type IDeployRequirementEntry,
 } from './immutableBindings'
 
@@ -161,6 +165,7 @@ describe('collectImmutableBindingChecks', () => {
         argName: '_a',
         getter: 'a',
         legacyGetters: [],
+        getterSinceVersion: null,
         configFileName: 'missing.json',
         keyInConfigFile: '.a',
         resolvedKeyInConfigFile: '.a',
@@ -585,5 +590,162 @@ describe('resolveExpectedAddress network-scoped override', () => {
         'production'
       )
     ).toEqual({ keyUsed: '.OIFOutputSettlerSimple', expectedAddress: null })
+  })
+})
+
+describe('getterSinceVersion', () => {
+  const load = (name: string): unknown =>
+    name === 'across.json' ? { mainnet: { acrossSpokePool: SPOKE } } : null
+
+  it('carries the annotation through, defaulting to null', () => {
+    const checks = collectImmutableBindingChecks(
+      'mainnet',
+      'production',
+      {
+        Added: {
+          configData: {
+            _a: {
+              configFileName: 'across.json',
+              keyInConfigFile: '.<NETWORK>.acrossSpokePool',
+              getter: 'NEW_GETTER',
+              getterSinceVersion: '1.0.1',
+            },
+            _b: {
+              configFileName: 'across.json',
+              keyInConfigFile: '.<NETWORK>.acrossSpokePool',
+              getter: 'ALWAYS_THERE',
+            },
+          },
+        },
+      },
+      load
+    )
+
+    expect(checks.map((c) => c.getterSinceVersion)).toEqual(['1.0.1', null])
+  })
+
+  it('annotates the GenericSwapFacetV3 getter that 16 production chains predate', () => {
+    // NATIVE_ADDRESS arrived with the _nativeAddress constructor arg in v1.0.1; every v1.0.0
+    // deployment reverts the read, which is a pending upgrade rather than a broken binding.
+    const check = collectImmutableBindingChecks('mainnet', 'production').find(
+      (c) => c.contractName === 'GenericSwapFacetV3'
+    )
+    expect(check?.getter).toBe('NATIVE_ADDRESS')
+    expect(check?.getterSinceVersion).toBe('1.0.1')
+  })
+})
+
+describe('compareContractVersions', () => {
+  it('orders by major, then minor, then patch', () => {
+    expect(compareContractVersions('1.0.0', '1.0.1')).toBeLessThan(0)
+    expect(compareContractVersions('1.0.2', '1.1.0')).toBeLessThan(0)
+    expect(compareContractVersions('2.0.0', '1.9.9')).toBeGreaterThan(0)
+    expect(compareContractVersions('1.0.1', '1.0.1')).toBe(0)
+  })
+
+  it('compares parts numerically rather than as text', () => {
+    expect(compareContractVersions('1.10.0', '1.9.0')).toBeGreaterThan(0)
+  })
+
+  it('refuses to order anything that is not a three-part numeric version', () => {
+    // A mistyped annotation must not order against anything: inventing a result would silently
+    // exempt the binding from the check rather than leaving it checked.
+    expect(compareContractVersions('1.0', '1.0.0')).toBeNull()
+    expect(compareContractVersions('1.0.2-tron', '1.0.2')).toBeNull()
+    expect(
+      compareContractVersions('[error] could not find src', '1.0.0')
+    ).toBeNull()
+  })
+})
+
+describe('resolveRegisteredFacetVersion', () => {
+  const OLD = '0x31a9b1835864706Af10103b31Ea2b79bdb995F5F'
+  const NEW = '0x8C9dBA771220Ed09580b77F0765e7153fbDE7790'
+  const TRON = 'TLDz16QnvAN8pDS7GhNCimwVhYGHrsjZjz'
+
+  const LOG: DiamondFacetLog = {
+    [OLD]: { Name: 'GenericSwapFacetV3', Version: '1.0.0' },
+    [NEW]: { Name: 'GenericSwapFacetV3', Version: '1.0.2' },
+    [TRON]: { Name: 'GenericSwapFacetV3', Version: '1.0.2' },
+    '0x0000000000000000000000000000000000000002': {
+      Name: 'DiamondCutFacet',
+      Version: '',
+    },
+  }
+
+  it('resolves the version registered at an address', () => {
+    expect(
+      resolveRegisteredFacetVersion('GenericSwapFacetV3', 'mainnet', OLD, LOG)
+    ).toBe('1.0.0')
+    expect(
+      resolveRegisteredFacetVersion('GenericSwapFacetV3', 'mainnet', NEW, LOG)
+    ).toBe('1.0.2')
+  })
+
+  it('ignores checksum casing on hex addresses', () => {
+    expect(
+      resolveRegisteredFacetVersion(
+        'GenericSwapFacetV3',
+        'mainnet',
+        OLD.toLowerCase(),
+        LOG
+      )
+    ).toBe('1.0.0')
+  })
+
+  it('matches Tron base58 exactly, where case carries information', () => {
+    expect(
+      resolveRegisteredFacetVersion('GenericSwapFacetV3', 'tron', TRON, LOG)
+    ).toBe('1.0.2')
+    expect(
+      resolveRegisteredFacetVersion(
+        'GenericSwapFacetV3',
+        'tron',
+        TRON.toLowerCase(),
+        LOG
+      )
+    ).toBeNull()
+  })
+
+  it('refuses to answer from an entry naming a different contract', () => {
+    // A reassigned log line would otherwise hand back a version read off the wrong build.
+    expect(
+      resolveRegisteredFacetVersion('AcrossFacetV4', 'mainnet', OLD, LOG)
+    ).toBeNull()
+  })
+
+  it('reports null for an unrecorded address, a blank version and an unreadable log', () => {
+    expect(
+      resolveRegisteredFacetVersion(
+        'GenericSwapFacetV3',
+        'mainnet',
+        '0x0000000000000000000000000000000000000001',
+        LOG
+      )
+    ).toBeNull()
+    expect(
+      resolveRegisteredFacetVersion(
+        'DiamondCutFacet',
+        'mainnet',
+        '0x0000000000000000000000000000000000000002',
+        LOG
+      )
+    ).toBeNull()
+    expect(
+      resolveRegisteredFacetVersion('GenericSwapFacetV3', 'mainnet', OLD, null)
+    ).toBeNull()
+  })
+
+  it('refuses a network name that could escape the deployments directory', () => {
+    expect(loadDiamondFacetLogFromDisk('../../etc/passwd')).toBeNull()
+  })
+
+  it('reads the real diamond logs, where arbitrum still serves v1.0.0', () => {
+    expect(
+      resolveRegisteredFacetVersion('GenericSwapFacetV3', 'arbitrum', OLD)
+    ).toBe('1.0.0')
+    expect(
+      resolveRegisteredFacetVersion('GenericSwapFacetV3', 'mainnet', NEW)
+    ).toBe('1.0.2')
   })
 })

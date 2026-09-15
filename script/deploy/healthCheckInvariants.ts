@@ -58,8 +58,10 @@ import { sanitizeProvenanceText } from './shared/git-provenance'
 import { getCorePeriphery } from './shared/globalContractLists'
 import {
   collectImmutableBindingChecks,
+  compareContractVersions,
   isFacetContract,
   isZeroAddressValue,
+  resolveRegisteredFacetVersion,
   TRON_ZERO_ADDRESS_BASE58,
   type IImmutableBindingCheck,
 } from './shared/immutableBindings'
@@ -1638,6 +1640,39 @@ async function readBindingValue(
 }
 
 /**
+ * Whether the build live at `address` predates the version that first exposed the check's getter.
+ *
+ * @remarks Only an annotated check can answer this, and only against a version the network's
+ *   diamond log records — which is facets only; periphery is not versioned there. Every unknown
+ *   resolves to false: an unrecorded address or an unparseable version is no evidence the getter
+ *   is absent, and treating it as such would exempt exactly the bindings this check compares.
+ * @param check - the binding check, carrying `getterSinceVersion` when annotated
+ * @param address - the live address the read would target
+ * @param ctx - the network's health-check context
+ * @returns true only when the live version is known and older than the annotated one
+ */
+function livePredatesGetter(
+  check: IImmutableBindingCheck,
+  address: string,
+  ctx: IHealthCheckContext
+): boolean {
+  if (check.getterSinceVersion === null) return false
+
+  const liveVersion = resolveRegisteredFacetVersion(
+    check.contractName,
+    ctx.networkLower,
+    address
+  )
+  if (liveVersion === null) return false
+
+  const ordering = compareContractVersions(
+    liveVersion,
+    check.getterSinceVersion
+  )
+  return ordering !== null && ordering < 0
+}
+
+/**
  * Resolve the address whose immutable bindings should be checked, or undefined when the contract
  * is not in use on this network.
  *
@@ -2228,6 +2263,11 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         )
         // Not present on this chain — nothing to compare.
         if (!address) continue
+
+        // A build from before the getter existed can only revert, and naming that an unverified
+        // binding describes a pending upgrade rather than anything wrong with this chain's
+        // config. Skip silently; the coverage it costs is recovered by the upgrade itself.
+        if (livePredatesGetter(check, address, ctx)) continue
 
         // `allowToDeployWithZeroAddress` makes a zero binding a declared value rather than drift,
         // so an explicit zero is an expectation to assert. An absent key is one too: whichever
