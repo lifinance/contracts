@@ -8,22 +8,30 @@ import {
   summariseLedger,
   type CheckStatus,
   type ICheckLedger,
+  type ICheckResult,
 } from './check-ledger'
+import type { ICodehashSignGate } from './codehash-sign-gate'
 import {
+  ALL_GATE_DEFINITIONS,
   authorityExpectationAnchors,
+  CODEHASH_CHECK_ID,
   CONFIRM_CHECK_DEFINITIONS,
   EVERY_ELEMENT_COMPARED,
   EXECUTABILITY_CHECK_ID,
+  NO_TIMELOCK_SCHEDULE,
+  NOTHING_INSTALLED_TO_COMPARE,
+  NOTHING_INSTALLED_TO_HASH,
   NOTHING_TO_COMPARE,
   ORDERING_HOLDS,
   RPC_QUORUM_CHECK_ID,
   STORAGE_AUTHORITY_CHECK_ID,
-  storageAuthorityCheckResult,
   TARGET_STATE_CHECK,
   TARGET_STATE_CHECK_ID,
+  codehashCheckResult,
   executabilityCheckResult,
   proposalCheckResults,
   rpcQuorumCheckResult,
+  storageAuthorityCheckResult,
   targetStateCheckResult,
   worstResultPerCheck,
   type IProposalCheckVerdicts,
@@ -34,7 +42,10 @@ import {
   INTEGRITY_CHECK_DEFINITIONS,
   type IIntegrityAssertRun,
 } from './confirm-integrity-asserts'
-import type { IExecutabilityVerdict } from './executability-simulation'
+import type {
+  IExecutabilityCall,
+  IExecutabilityVerdict,
+} from './executability-simulation'
 import {
   STATUSES_CLEARED_TO_PROCEED,
   type ITargetStateFinding,
@@ -44,6 +55,7 @@ import {
 import type { IPreBroadcastAuthority } from './prebroadcast-authorities'
 import { renderCheckLedger } from './render-check-ledger'
 import type { IRpcQuorumVerdict, TQuorumStatus } from './rpc-quorum'
+import type { ISignedAuthorityEntry } from './signed-set-record'
 
 const FACET = '0x1111111111111111111111111111111111111111'
 
@@ -205,8 +217,33 @@ describe('targetStateCheckResult', () => {
       'mainnet'
     )
 
-    expect(result.status).toBe('pass')
+    expect(result.status).toBe('not-applicable')
     expect(result.anchor).toBe('A-LOCAL')
+    expect(result.actual).toBe(NOTHING_INSTALLED_TO_COMPARE)
+  })
+
+  // The seed `targetStateCheckResult` starts at is the weakest status, so a
+  // finding that installs nothing cannot outrank one that does. Without this a
+  // cut pairing a removal with an upgrade reduced to the removal's row and the
+  // upgrade was never reported.
+  it('lets an installing element outrank a removal in the same cut', () => {
+    const result = targetStateCheckResult(
+      verdictOf([finding('removal'), finding('not-previously-targeted')]),
+      'mainnet'
+    )
+
+    expect(result.status).toBe('needs-ack')
+    expect(result.actual).not.toBe(NOTHING_INSTALLED_TO_COMPARE)
+  })
+
+  it('reduces to a mismatch when a removal is paired with a downgrade', () => {
+    const result = targetStateCheckResult(
+      verdictOf([finding('removal'), finding('downgrade')]),
+      'mainnet'
+    )
+
+    expect(result.status).toBe('fail')
+    expect(result.anchor).toBe('A-MAIN')
   })
 
   // The whole point of the anchor column: a status derived from the deployment
@@ -368,7 +405,7 @@ describe('targetStateCheckResult', () => {
       // ask for an acknowledgement rather than claiming an anchor they do not
       // have — but nothing about it may block.
       if (verdict.cleared)
-        expect(['pass', 'needs-ack']).toContain(result.status)
+        expect(['pass', 'needs-ack', 'not-applicable']).toContain(result.status)
       // …and one that did not clear must never arrive as something a signer can
       // wave through, or as a pass.
       else expect(['fail', 'error']).toContain(result.status)
@@ -378,7 +415,7 @@ describe('targetStateCheckResult', () => {
 
 describe('worstResultPerCheck', () => {
   const resultWith = (
-    status: 'pass' | 'fail' | 'error' | 'needs-ack',
+    status: 'pass' | 'fail' | 'error' | 'needs-ack' | 'not-applicable',
     anchor: 'A-LOCAL' | 'A-MAIN' | 'A-MONGO' = 'A-LOCAL'
   ) => ({
     checkId: TARGET_STATE_CHECK_ID,
@@ -438,6 +475,26 @@ describe('worstResultPerCheck', () => {
   it('returns nothing for a network that graded nothing', () => {
     expect(worstResultPerCheck([])).toEqual([])
   })
+
+  // A status `SEVERITY` does not list gets -1 from `indexOf`, which ranks it
+  // ahead of `fail` — so dropping the entry is a silent inversion, not a type
+  // error. Both orders, because the reducer keeps the row it already holds on a
+  // tie and a one-sided case passes against the inverted ranking.
+  it('never lets a proposal with nothing to grade displace a finding', () => {
+    const skipped = resultWith('not-applicable')
+
+    expect(
+      worstResultPerCheck([resultWith('fail', 'A-MAIN'), skipped])[0]?.status
+    ).toBe('fail')
+    expect(
+      worstResultPerCheck([skipped, resultWith('fail', 'A-MAIN')])[0]?.status
+    ).toBe('fail')
+    expect(
+      worstResultPerCheck([skipped, resultWith('error', 'A-MONGO')])[0]?.status
+    ).toBe('error')
+    // Paired present: with nothing beside it, the skipped row is still the row.
+    expect(worstResultPerCheck([skipped])[0]?.status).toBe('not-applicable')
+  })
 })
 
 describe('the registry is usable by the ledger it feeds', () => {
@@ -448,7 +505,10 @@ describe('the registry is usable by the ledger it feeds', () => {
     )
 
     expect(stored.checkId).toBe(TARGET_STATE_CHECK_ID)
-    expect(stored.status).toBe('pass')
+    // Not a pass: a removal installs nothing, so no version was compared and
+    // the row must not reach the verified numerator.
+    expect(stored.status).toBe('not-applicable')
+    expect(stored.actual).toBe(NOTHING_INSTALLED_TO_COMPARE)
   })
 
   // recordCheck coerces a pass on a reporting-only anchor to error. Proven
@@ -499,18 +559,200 @@ describe('the registry is usable by the ledger it feeds', () => {
   })
 })
 
-const NETWORK = 'arbitrum'
+describe('storageAuthorityCheckResult', () => {
+  const DIAMOND = '0x0000000000000000000000000000000000000d1a'
+  const TIMELOCK = '0x00000000000000000000000000000000000000a1'
+  const PAUSER = '0x00000000000000000000000000000000000000b2'
+  const ATTACKER = '0x00000000000000000000000000000000000000ee'
 
-/** One authority whose expectation is a repo file, so the row may grade green. */
-const cleanAuthorities: IPreBroadcastAuthority[] = [
-  {
+  const entry = (
+    overrides: Partial<IPreBroadcastAuthority> = {}
+  ): IPreBroadcastAuthority => ({
     label: 'LiFiDiamond.pauserWallet()',
-    liveValue: '0x00000000000000000000000000000000000000b2',
-    expectedValue: '0x00000000000000000000000000000000000000b2',
+    contractAddress: DIAMOND,
+    liveValue: PAUSER,
+    expectedValue: PAUSER,
     expectationSource: 'globalConfig',
     readError: undefined,
-  },
-]
+    ...overrides,
+  })
+
+  const resultFor = (entries: IPreBroadcastAuthority[]) =>
+    storageAuthorityCheckResult(
+      entries,
+      'mainnet',
+      authorityExpectationAnchors(entries)
+    )
+
+  it('passes on A-LOCAL when the expectation comes from a repo file', () => {
+    const result = resultFor([entry()])
+    expect(result.status).toBe('pass')
+    expect(result.anchor).toBe('A-LOCAL')
+    expect(result.checkId).toBe(STORAGE_AUTHORITY_CHECK_ID)
+  })
+
+  it('fails when the live value is not what main declares', () => {
+    const result = resultFor([entry({ liveValue: ATTACKER })])
+    expect(result.status).toBe('fail')
+    expect(result.actual).toContain(ATTACKER)
+    expect(result.actual).toContain(PAUSER)
+  })
+
+  it('errors, rather than passing, on a value it could not read', () => {
+    const result = resultFor([
+      entry({ liveValue: undefined, readError: 'node unreachable' }),
+    ])
+    expect(result.status).toBe('error')
+    expect(result.anchor).toBe('A-UNRESOLVED')
+    expect(result.actual).toContain('NOT READ')
+  })
+
+  it('errors when main declares nothing to judge the live value against', () => {
+    const result = resultFor([entry({ expectedValue: undefined })])
+    expect(result.status).toBe('error')
+  })
+
+  describe('an expectation the proposer writes may report but not decide', () => {
+    it('anchors a deployment-record expectation on A-MONGO even when it matches', () => {
+      const result = resultFor([
+        entry({
+          label: 'LiFiDiamond.owner()',
+          liveValue: TIMELOCK,
+          expectedValue: TIMELOCK,
+          expectationSource: 'deployments',
+        }),
+      ])
+      // A match the proposer supplied one side of is something the signer
+      // answers, not something the run may claim: every diamond cut carries
+      // `LiFiDiamond.owner`, so grading this a refusal would block every honest
+      // proposal and grading it a pass would verify the proposer's own word.
+      expect(result.status).toBe('needs-ack')
+      expect(result.anchor).toBe('A-MONGO')
+    })
+
+    it('takes the weaker anchor when one of two expectations is proposer-written', () => {
+      const result = resultFor([
+        entry(),
+        entry({
+          label: 'LiFiDiamond.owner()',
+          liveValue: TIMELOCK,
+          expectedValue: TIMELOCK,
+          expectationSource: 'deployments',
+        }),
+      ])
+      expect(result.anchor).toBe('A-MONGO')
+    })
+
+    it('is coerced away from a green by the ledger itself', () => {
+      // The point of the anchor: recordCheck refuses a pass claimed on an
+      // anchor the proposer controls, so this row cannot grade the run green
+      // on a value the proposer supplied one side of.
+      const ledger = createCheckLedger({
+        checks: [...CONFIRM_CHECK_DEFINITIONS],
+        expectedNetworks: ['mainnet'],
+      })
+      recordCheck(
+        ledger,
+        resultFor([
+          entry({
+            label: 'LiFiDiamond.owner()',
+            liveValue: TIMELOCK,
+            expectedValue: TIMELOCK,
+            expectationSource: 'deployments',
+          }),
+        ])
+      )
+      const rendered = renderCheckLedger(ledger)
+      expect(JSON.stringify(rendered)).not.toContain('"status":"pass"')
+    })
+  })
+
+  // A proposal that installs nothing — a cut that only removes, a setter on a
+  // contract already live — has no constructor-written storage to assert, which
+  // is the only thing R2.6 put this gate here for. Not-applicable rather than a
+  // pass: nothing was checked, so it must satisfy no verified counter.
+  it('is not applicable when the proposal installs nothing', () => {
+    const result = resultFor([])
+    expect(result.status).toBe('not-applicable')
+    expect(result.anchor).toBe('A-LOCAL')
+    expect(result.actual).toContain('installs no contract')
+  })
+
+  it('does not block a run on a proposal that installs nothing', () => {
+    const ledger = runLedger()
+    recordInto(
+      ledger,
+      verdicts({ storageAuthority: { entries: [], anchors: new Map() } })
+    )
+
+    const row = ledger.results.find(
+      (result) => result.checkId === STORAGE_AUTHORITY_CHECK_ID
+    )
+    expect(row?.status).toBe('not-applicable')
+    expect(summariseLedger(ledger).hardBlocked).toBe(false)
+  })
+
+  // The pairing that keeps the relaxation above honest: an empty set means
+  // "installs nothing" only when the calldata was read all the way through.
+  it('blocks when the calldata that says what is installed would not decode', () => {
+    const ledger = runLedger()
+    recordInto(
+      ledger,
+      verdicts({
+        storageAuthority: {
+          entries: [],
+          anchors: new Map(),
+          scopeUnreadable: ['call[0]'],
+        },
+      })
+    )
+
+    const row = ledger.results.find(
+      (result) => result.checkId === STORAGE_AUTHORITY_CHECK_ID
+    )
+    expect(row?.status).toBe('error')
+    expect(row?.actual).toContain('call[0]')
+    expect(summariseLedger(ledger).hardBlocked).toBe(true)
+  })
+
+  it('lets a mismatch decide over a failed read in the same set', () => {
+    const result = resultFor([
+      entry({ liveValue: undefined, readError: 'node unreachable' }),
+      entry({ label: 'LiFiDiamond.owner()', liveValue: ATTACKER }),
+    ])
+    expect(result.status).toBe('fail')
+    // Both are still named, so the read failure is not hidden by the mismatch.
+    expect(result.actual).toContain('NOT READ')
+    expect(result.actual).toContain(ATTACKER)
+  })
+})
+
+describe('authorityExpectationAnchors', () => {
+  it('maps the global config to a deciding anchor and the record to a reporting one', () => {
+    const anchors = authorityExpectationAnchors([
+      {
+        label: 'a',
+        contractAddress: '0x0000000000000000000000000000000000000d1a',
+        liveValue: '0x1',
+        expectedValue: '0x1',
+        expectationSource: 'globalConfig',
+        readError: undefined,
+      },
+      {
+        label: 'b',
+        contractAddress: '0x0000000000000000000000000000000000000d1a',
+        liveValue: '0x1',
+        expectedValue: '0x1',
+        expectationSource: 'deployments',
+        readError: undefined,
+      },
+    ])
+    expect(anchors.get('a')).toBe('A-LOCAL')
+    expect(anchors.get('b')).toBe('A-MONGO')
+  })
+})
+
+const NETWORK = 'arbitrum'
 
 // `no-diamond-cut` rather than `matches-main`: a version that matches origin/main
 // is graded from the deployment record and is an acknowledgement, so using it here
@@ -528,6 +770,7 @@ const executabilityVerdict = (
   errors: [],
   warnings: [],
   notSimulated: [],
+  calls: [],
   reason: '',
   ...overrides,
 })
@@ -599,14 +842,67 @@ const runLedger = () =>
     checks: [...CONFIRM_CHECK_DEFINITIONS],
   })
 
+/**
+ * A storage-authority read that matched, sourced from `config/global.json`.
+ *
+ * Named `A-LOCAL` rather than left to default: a repo file the proposer's
+ * branch cannot change without review is the only anchor gate G may pass on,
+ * so a fixture anchored anywhere else would grade these tests on a weaker
+ * expectation than the CLI uses.
+ */
+const cleanAuthorities = (): {
+  entries: readonly ISignedAuthorityEntry[]
+  anchors: ReadonlyMap<string, ICheckResult['anchor']>
+} => ({
+  entries: [
+    {
+      label: 'LiFiDiamond.pauserWallet()',
+      liveValue: '0x00000000000000000000000000000000000000b2',
+      expectedValue: '0x00000000000000000000000000000000000000b2',
+      readError: undefined,
+    },
+  ],
+  anchors: new Map([['LiFiDiamond.pauserWallet()', 'A-LOCAL' as const]]),
+})
+
+/**
+ * A codehash gate that judged one installed address and found it attested.
+ *
+ * The default is a gate that *graded* something, so a test that does not
+ * mention gate K still exercises the branch where it reports a real
+ * comparison. A fixture defaulting to "nothing to check" would make every one
+ * of these cases agree with a gate that had been skipped entirely.
+ */
+const codehashGate = (
+  overrides: Partial<ICodehashSignGate> = {}
+): ICodehashSignGate => ({
+  blocksSigning: false,
+  evaluated: true,
+  refusals: [],
+  targets: [
+    {
+      address: '0x00000000000000000000000000000000000000f1',
+      verdict: 'MATCH',
+      reason: 'bytecode reproduced from an attested build',
+      matchedLineages: ['lineage-1'],
+      excludedByteCount: 0,
+      pricedByteCount: 0,
+    },
+  ],
+  summary: 'every target matched',
+  ...overrides,
+})
+
 const verdicts = (
   overrides: Partial<IProposalCheckVerdicts> = {}
 ): IProposalCheckVerdicts => ({
   network: NETWORK,
   integrity: integrityRun({ includeTimelockDelay: true }),
+  codehash: codehashGate(),
   targetState: cleanTargetState,
   executability: executabilityVerdict(),
   rpcQuorum: quorumVerdict(),
+  storageAuthority: cleanAuthorities(),
   ...overrides,
 })
 
@@ -619,20 +915,7 @@ const recordInto = (
   ledger: ICheckLedger,
   ...proposals: IProposalCheckVerdicts[]
 ): void => {
-  const rows = [
-    ...proposals.flatMap((verdict) => proposalCheckResults(verdict)),
-    // `storage-authority` is registered in CONFIRM_CHECK_DEFINITIONS but is not
-    // one of `proposalCheckResults`' rows — the CLI produces it separately and
-    // pushes it onto the same per-proposal array. Recorded here for the same
-    // reason: a registered check nothing produces is `missing`, which blocks,
-    // so a helper that skipped it would report every run as blocked and make
-    // the assertions below about the wrong thing.
-    storageAuthorityCheckResult(
-      cleanAuthorities,
-      NETWORK,
-      authorityExpectationAnchors(cleanAuthorities)
-    ),
-  ]
+  const rows = proposals.flatMap((verdict) => proposalCheckResults(verdict))
   for (const row of worstResultPerCheck(rows)) recordCheck(ledger, row)
 }
 
@@ -658,11 +941,47 @@ describe('proposalCheckResults', () => {
     expect(ledger.results.map((result) => result.checkId)).toEqual([
       ...INTEGRITY_CHECKS_ALWAYS,
       CHECK_TIMELOCK_DELAY,
+      CODEHASH_CHECK_ID,
+      STORAGE_AUTHORITY_CHECK_ID,
       TARGET_STATE_CHECK_ID,
       EXECUTABILITY_CHECK_ID,
       RPC_QUORUM_CHECK_ID,
-      STORAGE_AUTHORITY_CHECK_ID,
     ])
+  })
+
+  // The bundle `confirm-safe-tx.ts` falls back to when a proposal's chain reads
+  // throw — the background prefetch's failure path included. Every verdict
+  // absent, and the codehash gate blocking with the reason on it.
+  it('a proposal whose reads all failed owes every row, and blocks', () => {
+    const ledger = runLedger()
+    const why = 'the proposal’s chain reads could not be made — rpc exploded'
+    recordInto(
+      ledger,
+      verdicts({
+        integrity: undefined,
+        codehash: {
+          ...codehashGate(),
+          evaluated: true,
+          blocksSigning: true,
+          refusals: [why],
+          summary: why,
+        },
+        executability: undefined,
+        rpcQuorum: undefined,
+        storageAuthority: undefined,
+      })
+    )
+
+    const recorded = new Set(ledger.results.map((result) => result.checkId))
+    for (const definition of CONFIRM_CHECK_DEFINITIONS)
+      expect(recorded).toContain(definition.checkId)
+
+    // The point of the fallback: a read that failed is a row that could not be
+    // made, never a row nobody asked for. An absent row rolls up as a check the
+    // run was never owed, which is how a failed prefetch would go unnoticed.
+    const verdict = summariseLedger(ledger)
+    expect(verdict.totals.missing).toBe(0)
+    expect(verdict.hardBlocked).toBe(true)
   })
 
   it('a clean proposal clears the ledger', () => {
@@ -712,10 +1031,11 @@ describe('integrity verdicts reaching the run-level ledger', () => {
       ).toBe('error')
   })
 
-  // A check with nothing to judge that *read* its evidence passes on the anchor
-  // it read; one that could not open the envelope errors. The delay check is
-  // the former, and `run.registered` is the only thing that says which it is.
-  it('a proposal carrying no schedule passes the delay check on A-LOCAL', () => {
+  // A check with nothing to judge that *read* its evidence stands down on the
+  // anchor it read; one that could not open the envelope errors. The delay
+  // check is the former, and `run.registered` is the only thing that says
+  // which it is.
+  it('a proposal carrying no schedule makes the delay check not applicable', () => {
     const ledger = runLedger()
     recordInto(
       ledger,
@@ -725,9 +1045,19 @@ describe('integrity verdicts reaching the run-level ledger', () => {
     const row = ledger.results.find(
       (result) => result.checkId === CHECK_TIMELOCK_DELAY
     )
-    expect(row?.status).toBe('pass')
+    expect(row?.status).toBe('not-applicable')
     expect(row?.anchor).toBe('A-LOCAL')
+    expect(row?.actual).toBe(NO_TIMELOCK_SCHEDULE)
     expect(summariseLedger(ledger).hardBlocked).toBe(false)
+
+    // Paired present: standing down must cost the verified count, or it is a
+    // pass wearing a different word.
+    const rollup = rollUpChecks(ledger).find(
+      (entry) => entry.checkId === CHECK_TIMELOCK_DELAY
+    )
+    expect(rollup?.graded).toBe(0)
+    expect(rollup?.passed).toBe(0)
+    expect(rollup?.green).toBe(false)
   })
 
   it('a registered delay check that never reported errors instead', () => {
@@ -758,18 +1088,58 @@ describe('executabilityCheckResult', () => {
     expect(result.anchor).toBe('A-CHAIN')
   })
 
-  it('grades partial simulation coverage an acknowledgement, not a pass', () => {
-    // The paired directions: a clean run with nothing left unsimulated is the
-    // pass above, and one payload without a revert model is coverage the run
-    // does not have, so it cannot share that row.
+  it('passes a payload with no revert model that simulated clean, and says so', () => {
+    // The model predicts a revert from the calldata; it is not what establishes
+    // one. This payload's target was read for code and its eth_call came back
+    // clean from the account that will send it, which is the whole question
+    // this gate asks — so it passes, on a row that still says what it rested on.
     const result = executabilityCheckResult(
-      executabilityVerdict({ notSimulated: ['call[0].diamondCut[0]'] }),
+      executabilityVerdict({ notSimulated: ['call[0].scheduled[0]'] }),
       NETWORK
     )
 
-    expect(result.status).toBe('needs-ack')
+    expect(result.status).toBe('pass')
+    expect(result.anchor).toBe('A-CHAIN')
+    expect(result.actual).toContain('a clean eth_call alone')
+  })
+
+  // The other direction of the same change: relaxing the grade must not turn a
+  // payload nothing observed into a pass. Each of these arrives with an empty
+  // `notSimulated`, so none of them is caught by the branch above.
+  it.each([
+    [
+      'an eth_call that was never attempted',
+      ['No payload in this proposal was simulated with eth_call'],
+    ],
+    [
+      'a payload with no eth_call result',
+      ['call[0].scheduled[1] has no eth_call result'],
+    ],
+    [
+      'a call that could not be read through',
+      ['call[0] could not be read all the way through'],
+    ],
+  ])('still refuses to pass %s', (_case, errors) => {
+    const result = executabilityCheckResult(
+      executabilityVerdict({ error: true, errors }),
+      NETWORK
+    )
+
+    expect(result.status).toBe('error')
     expect(result.anchor).toBe('A-UNRESOLVED')
-    expect(result.actual).toContain('1 payload(s) have no revert model')
+  })
+
+  it('still refuses a target that holds no code, model or not', () => {
+    const result = executabilityCheckResult(
+      executabilityVerdict({
+        refuses: true,
+        notSimulated: ['call[0].scheduled[0]'],
+        reason: 'call[0].scheduled[0] targets 0xbeef, which holds no code',
+      }),
+      NETWORK
+    )
+
+    expect(result.status).toBe('fail')
   })
 
   it('grades a proposal that would revert a mismatch', () => {
@@ -1016,12 +1386,14 @@ describe('the verdict the run now closes on', () => {
     expect(passed).toBeGreaterThan(rollups.length / 2)
     // Anchored on the whole count, not on `not.toContain('0/N …')`: once N
     // reaches two digits that substring is inside the correct answer, so the
-    // assertion would fail on `10/10` — the greenest line it can render.
+    // assertion would fail on `10/10` — the greenest line it can render. The
+    // denominator is the applicable rows, not every registered check: a gate
+    // that stood down is not a result the run failed to verify.
+    const applicable = rollups.filter((rollup) => rollup.graded > 0)
     const closing = stripColor(renderCheckLedger(ledger).at(-1) ?? '')
     expect(closing).toContain(
-      `${passed}/${rollups.length} network results verified`
+      `${passed}/${applicable.length} network results verified`
     )
-    expect(passed).toBeGreaterThan(0)
   })
 
   // The other half of that asymmetry: a run that graded nothing must not close
@@ -1110,124 +1482,177 @@ describe('the primitive that makes an unmade check blocking', () => {
   })
 })
 
-describe('storageAuthorityCheckResult', () => {
-  const TIMELOCK = '0x00000000000000000000000000000000000000a1'
-  const PAUSER = '0x00000000000000000000000000000000000000b2'
-  const ATTACKER = '0x00000000000000000000000000000000000000ee'
+describe('codehashCheckResult', () => {
+  const gate = (
+    overrides: Partial<ICodehashSignGate> = {}
+  ): ICodehashSignGate => codehashGate(overrides)
 
-  const entry = (
-    overrides: Partial<IPreBroadcastAuthority> = {}
-  ): IPreBroadcastAuthority => ({
-    label: 'LiFiDiamond.pauserWallet()',
-    liveValue: PAUSER,
-    expectedValue: PAUSER,
-    expectationSource: 'globalConfig',
-    readError: undefined,
-    ...overrides,
+  it('passes on the attested set when every installed address matched', () => {
+    const result = codehashCheckResult(gate(), NETWORK)
+
+    expect(result.status).toBe('pass')
+    expect(result.anchor).toBe('A-AUDIT')
   })
 
-  const resultFor = (entries: IPreBroadcastAuthority[]) =>
-    storageAuthorityCheckResult(
-      entries,
-      'mainnet',
-      authorityExpectationAnchors(entries)
+  // The two halves of `madeNoClaim`, which is the whole reason `unopened` is
+  // carried structurally. Read off the summary sentence instead, and a payload
+  // nobody could open renders as a gate with nothing to do.
+  it('stands down when a fully-read payload installs no code', () => {
+    const result = codehashCheckResult(
+      gate({ madeNoClaim: true, targets: [], unopened: [] }),
+      NETWORK
     )
 
-  it('passes on A-LOCAL when the expectation comes from a repo file', () => {
-    const result = resultFor([entry()])
-    expect(result.status).toBe('pass')
+    expect(result.status).toBe('not-applicable')
+    expect(result.actual).toBe(NOTHING_INSTALLED_TO_HASH)
     expect(result.anchor).toBe('A-LOCAL')
-    expect(result.checkId).toBe(STORAGE_AUTHORITY_CHECK_ID)
   })
 
-  it('fails when the live value is not what main declares', () => {
-    const result = resultFor([entry({ liveValue: ATTACKER })])
-    expect(result.status).toBe('fail')
-    expect(result.actual).toContain(ATTACKER)
-    expect(result.actual).toContain(PAUSER)
-  })
+  it('refuses, never stands down, when a frame would not open', () => {
+    const result = codehashCheckResult(
+      gate({
+        madeNoClaim: true,
+        targets: [],
+        unopened: ['0xdeadbeef (a cut entry could not be read)'],
+      }),
+      NETWORK
+    )
 
-  it('errors, rather than passing, on a value it could not read', () => {
-    const result = resultFor([
-      entry({ liveValue: undefined, readError: 'node unreachable' }),
-    ])
     expect(result.status).toBe('error')
     expect(result.anchor).toBe('A-UNRESOLVED')
-    expect(result.actual).toContain('NOT READ')
+    expect(result.actual).toContain('0xdeadbeef')
   })
 
-  it('errors when main declares nothing to judge the live value against', () => {
-    const result = resultFor([entry({ expectedValue: undefined })])
+  it('reports a target the gate compared and found different as a mismatch', () => {
+    const result = codehashCheckResult(
+      gate({
+        blocksSigning: true,
+        targets: [
+          {
+            address: '0x00000000000000000000000000000000000000f1',
+            verdict: 'MISMATCH',
+            reason: 'bytecode is not from any attested build',
+            matchedLineages: [],
+            excludedByteCount: 0,
+            pricedByteCount: 0,
+          },
+        ],
+      }),
+      NETWORK
+    )
+
+    expect(result.status).toBe('fail')
+    expect(result.anchor).toBe('A-AUDIT')
+    expect(result.actual).toContain('MISMATCH')
+  })
+
+  // A refusal is not a codehash disagreement: the cut was malformed or the gate
+  // could not judge it. Filing it as a mismatch would put a disagreement on the
+  // ledger that nothing observed.
+  it('reports a refusal as unverified rather than as a mismatch', () => {
+    const result = codehashCheckResult(
+      gate({
+        blocksSigning: true,
+        refusals: ['the cut is malformed'],
+        targets: [],
+      }),
+      NETWORK
+    )
+
     expect(result.status).toBe('error')
+    expect(result.anchor).toBe('A-UNRESOLVED')
   })
 
-  describe('an expectation the proposer writes may report but not decide', () => {
-    it('anchors a deployment-record expectation on A-MONGO even when it matches', () => {
-      const result = resultFor([
-        entry({
-          label: 'LiFiDiamond.owner()',
-          liveValue: TIMELOCK,
-          expectedValue: TIMELOCK,
-          expectationSource: 'deployments',
-        }),
-      ])
-      expect(result.status).toBe('pass')
-      expect(result.anchor).toBe('A-MONGO')
-    })
+  it('refuses a gate that never reached a verdict at all', () => {
+    const result = codehashCheckResult(
+      gate({ evaluated: false, targets: [], summary: '' }),
+      NETWORK
+    )
 
-    it('takes the weaker anchor when one of two expectations is proposer-written', () => {
-      const result = resultFor([
-        entry(),
-        entry({
-          label: 'LiFiDiamond.owner()',
-          liveValue: TIMELOCK,
-          expectedValue: TIMELOCK,
-          expectationSource: 'deployments',
-        }),
-      ])
-      expect(result.anchor).toBe('A-MONGO')
-    })
+    expect(result.status).toBe('error')
+    expect(result.anchor).toBe('A-UNRESOLVED')
+  })
+})
 
-    it('is coerced away from a green by the ledger itself', () => {
-      // The point of the anchor: recordCheck refuses a pass claimed on an
-      // anchor the proposer controls, so this row cannot grade the run green
-      // on a value the proposer supplied one side of.
-      const ledger = createCheckLedger({
-        checks: [...CONFIRM_CHECK_DEFINITIONS],
-        expectedNetworks: ['mainnet'],
+describe('the codehash gate on the run-level ledger', () => {
+  it('is on the roster, so the run accounts for eleven gates in one book', () => {
+    expect(
+      CONFIRM_CHECK_DEFINITIONS.map((definition) => definition.checkId)
+    ).toContain(CODEHASH_CHECK_ID)
+    expect(CONFIRM_CHECK_DEFINITIONS).toHaveLength(11)
+  })
+
+  it('costs the verified count when it stands down', () => {
+    const ledger = runLedger()
+    recordInto(
+      ledger,
+      verdicts({
+        codehash: codehashGate({
+          madeNoClaim: true,
+          targets: [],
+          unopened: [],
+        }),
       })
-      recordCheck(
-        ledger,
-        resultFor([
-          entry({
-            label: 'LiFiDiamond.owner()',
-            liveValue: TIMELOCK,
-            expectedValue: TIMELOCK,
-            expectationSource: 'deployments',
-          }),
-        ])
-      )
-      const rendered = renderCheckLedger(ledger)
-      expect(JSON.stringify(rendered)).not.toContain('"status":"pass"')
-    })
+    )
+
+    const rollup = rollUpChecks(ledger).find(
+      (entry) => entry.checkId === CODEHASH_CHECK_ID
+    )
+    expect(rollup?.graded).toBe(0)
+    expect(rollup?.passed).toBe(0)
+    expect(rollup?.green).toBe(false)
+    // Paired present: standing down must not block either, or a Remove would
+    // be unsignable.
+    expect(summariseLedger(ledger).hardBlocked).toBe(false)
   })
 
-  it('errors on an empty set rather than passing on nothing', () => {
-    const result = resultFor([])
-    expect(result.status).toBe('error')
-    expect(result.anchor).toBe('A-UNRESOLVED')
-    expect(result.actual).toContain('no contract')
+  it('hard-blocks the run when the gate could not open the payload', () => {
+    const ledger = runLedger()
+    recordInto(
+      ledger,
+      verdicts({
+        codehash: codehashGate({
+          madeNoClaim: true,
+          targets: [],
+          unopened: ['call[0]'],
+        }),
+      })
+    )
+
+    expect(summariseLedger(ledger).hardBlocked).toBe(true)
   })
 
-  it('lets a mismatch decide over a failed read in the same set', () => {
-    const result = resultFor([
-      entry({ liveValue: undefined, readError: 'node unreachable' }),
-      entry({ label: 'LiFiDiamond.owner()', liveValue: ATTACKER }),
-    ])
-    expect(result.status).toBe('fail')
-    // Both are still named, so the read failure is not hidden by the mismatch.
-    expect(result.actual).toContain('NOT READ')
-    expect(result.actual).toContain(ATTACKER)
+  // The refusal this gate drives lives outside the ledger, so a run whose only
+  // disagreement is a codehash mismatch is the case where the ledger is the
+  // signer's sole warning before the choice. A row the run does not count
+  // leaves the closing verdict free to read green over a proposal that will be
+  // refused the moment Sign is pressed.
+  it('hard-blocks the run on a target it compared and found different', () => {
+    const ledger = runLedger()
+    recordInto(
+      ledger,
+      verdicts({
+        codehash: codehashGate({
+          blocksSigning: true,
+          targets: [
+            {
+              address: '0x00000000000000000000000000000000000000f1',
+              verdict: 'MISMATCH',
+              reason: 'bytecode is not from any attested build',
+              matchedLineages: [],
+              excludedByteCount: 0,
+              pricedByteCount: 0,
+            },
+          ],
+        }),
+      })
+    )
+
+    const rollup = rollUpChecks(ledger).find(
+      (entry) => entry.checkId === CODEHASH_CHECK_ID
+    )
+    expect(rollup?.green).toBe(false)
+    expect(summariseLedger(ledger).hardBlocked).toBe(true)
   })
 })
 
@@ -1236,6 +1661,7 @@ describe('authorityExpectationAnchors', () => {
     const anchors = authorityExpectationAnchors([
       {
         label: 'a',
+        contractAddress: '0x00000000000000000000000000000000000000a1',
         liveValue: '0x1',
         expectedValue: '0x1',
         expectationSource: 'globalConfig',
@@ -1243,6 +1669,7 @@ describe('authorityExpectationAnchors', () => {
       },
       {
         label: 'b',
+        contractAddress: '0x00000000000000000000000000000000000000b2',
         liveValue: '0x1',
         expectedValue: '0x1',
         expectationSource: 'deployments',
@@ -1251,5 +1678,106 @@ describe('authorityExpectationAnchors', () => {
     ])
     expect(anchors.get('a')).toBe('A-LOCAL')
     expect(anchors.get('b')).toBe('A-MONGO')
+  })
+})
+
+describe('the row a reverting simulation writes to the ledger', () => {
+  const reverting = (path: string): IExecutabilityCall => ({
+    path,
+    description: 'diamondCut',
+    target: '0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE',
+    modelled: true,
+    simulation: 'reverted',
+    findings: [],
+    outcome: 'would-revert',
+  })
+
+  it('names the calls rather than carrying the whole finding list', () => {
+    const result = executabilityCheckResult(
+      executabilityVerdict({
+        refuses: true,
+        reason: `blocking — eth_call reverted. Raw Call Arguments: data: 0x${'0'.repeat(
+          600
+        )}`,
+        calls: [
+          reverting('call[0].schedule'),
+          { ...reverting('call[1]'), outcome: 'would-execute' },
+        ],
+      }),
+      NETWORK
+    )
+
+    expect(result.actual).toContain('1 of 2 call(s) would revert')
+    expect(result.actual).toContain('call[0].schedule')
+    expect(result.actual).not.toContain('Raw Call Arguments')
+    expect(result.actual.length).toBeLessThan(120)
+  })
+
+  it('falls back to the full reason when no call was marked reverting', () => {
+    // A refusal can come from a nonce or funding finding, which belongs to the
+    // proposal rather than to any call — summarising those as "0 calls" would
+    // report a blocked proposal as having nothing wrong with it.
+    const result = executabilityCheckResult(
+      executabilityVerdict({
+        refuses: true,
+        reason: 'another pending proposal sits at nonce 31',
+        calls: [{ ...reverting('call[0]'), outcome: 'would-execute' }],
+      }),
+      NETWORK
+    )
+
+    expect(result.actual).toBe('another pending proposal sits at nonce 31')
+  })
+})
+
+describe('gate letters', () => {
+  // Over every gate the repo names, not just the registered ones: a gate that
+  // never reaches a ledger still reaches a screen, and a letter it shares with
+  // a registered gate is read by a signer as the same gate.
+  it('are one uppercase letter, unique across every named gate', () => {
+    const letters = ALL_GATE_DEFINITIONS.map((definition) => definition.gate)
+
+    expect(letters.length).toBeGreaterThan(CONFIRM_CHECK_DEFINITIONS.length - 1)
+    for (const letter of letters) expect(letter).toMatch(/^[A-Z]$/u)
+    expect(new Set(letters).size).toBe(letters.length)
+  })
+
+  it('name a subject rather than restate the assertion', () => {
+    for (const definition of ALL_GATE_DEFINITIONS)
+      expect(definition.title.split(/\s+/u).length).toBeLessThanOrEqual(3)
+  })
+
+  it('covers every registered gate, and the ones that block elsewhere', () => {
+    const named = new Set(ALL_GATE_DEFINITIONS.map((one) => one.checkId))
+
+    for (const definition of CONFIRM_CHECK_DEFINITIONS)
+      expect(named).toContain(definition.checkId)
+    // Pinned by name as well as through the roster loop: this gate's refusal
+    // lives outside the ledger, so a run that dropped its row would still
+    // block signing and no other test would notice the name was gone.
+    expect(named).toContain(CODEHASH_CHECK_ID)
+  })
+})
+
+describe('section headings', () => {
+  // `renderCheckLedger` groups on the exact string, so two headings a signer
+  // reads as the same subject render as two adjacent near-identical lines with
+  // nothing to tell them apart. A name containing another is the shape that
+  // produced it: `Integrity` alongside `proposal integrity`.
+  it('are distinct, and none contains another', () => {
+    const sections = [
+      ...new Set(
+        ALL_GATE_DEFINITIONS.map((definition) =>
+          definition.section.trim().toLowerCase()
+        )
+      ),
+    ]
+
+    expect(sections.length).toBeGreaterThan(1)
+    for (const section of sections) {
+      expect(section).not.toBe('')
+      for (const other of sections)
+        if (other !== section) expect(other).not.toContain(section)
+    }
   })
 })

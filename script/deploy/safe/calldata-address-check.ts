@@ -923,21 +923,3 @@ export const renderCalldataAddresses = (
 
   return lines
 }
-
-/**
- * Throws unless every address the calldata references is accounted for.
- *
- * Separate from the evaluation so that a call site cannot reduce the verdict to
- * a boolean and then forget to read it.
- * @param verdict - what `evaluateCalldataAddresses` decided
- * @throws When an address contradicts the record, or the check could not decide
- */
-export const assertCalldataAddressesResolve = (
-  verdict: ICalldataAddressVerdict
-): void => {
-  if (!verdict.refuses && !verdict.error) return
-
-  throw new Error(
-    `Calldata address check: this transaction will not be signed. ${verdict.reason} Nothing has been signed.`
-  )
-}

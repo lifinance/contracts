@@ -449,8 +449,39 @@ a count + contract + network line only if the render fails.
 `bun confirm-safe-tx` = tunnel + typechain build +
 `script/deploy/safe/confirm-safe-tx.ts`. **Ledger is the default signer**
 (`--ledger=false` falls back to env keys), with a blind-signing fail-fast
-(`checkBlindSigningEnabled` in `ledger.ts`). Per pending transaction the
-signer sees:
+(`checkBlindSigningEnabled` in `ledger.ts`).
+
+**Before any proposal is read**, the run resolves the preconditions every check
+on a network shares (`signer-preflight.ts`): the endpoint variable is set, the
+endpoint answers, and it answers for the right chain. A network failing any of
+them is **refused** — named once under a `CANNOT START` block with its cause and
+its remedy, and left out of the ledger's denominator entirely. It contributes no
+check rows, because a check that could not start has nothing to report and
+listing ten of them buries the one line that can be acted on. This is not a
+gate: the gate letters describe the proposal and red means do not sign, which an
+unset variable is not.
+
+The probes run concurrently, each bounded by `PREFLIGHT_PROBE_TIMEOUT_MS`
+carried as an `AbortSignal`, so several unreachable networks cost one budget
+rather than one each. Reads go through every endpoint the network declares —
+`ETH_NODE_URI_<NETWORK>` plus `ETH_NODE_URI_<NETWORK>_FALLBACKS` — which is the
+same set the executability gate reads through, so a healthy spare rescues a
+network whose primary is sick instead of the preflight and the gates disagreeing
+about whether it is reachable.
+
+If no network can start, the run exits with `PREFLIGHT_EXIT_CODE` (78). Two
+things to know about that code: it also fires on a partial run where some
+networks were refused and others were signed, and nothing parses it today.
+
+Two limits are deliberate and worth stating. The probe calls `eth_chainId`,
+which is the most permissive method a node serves, so a rate-limited or
+method-restricted endpoint passes the preflight and then fails every `eth_call`
+behind it — this closes one cause of mass-unverified rows, not the class. And an
+explicit `--rpc-url` does not excuse an unset endpoint variable: the chain is
+resolved through `getViemChainForNetworkName` before the override is read, and
+that resolve needs the variable.
+
+Per pending transaction the signer sees:
 
 1. **Decoded calldata** via `formatDecodedTxDataForDisplay`
    (`script/deploy/safe/safe-decode-utils.ts`): batch params, per-call target
@@ -614,6 +645,7 @@ parked tasks are reconciled weekly by `reconcileParkedTasks.yml`.
 | Propose | In-flight nonce uniqueness per Safe: concurrent proposers may still derive the same nonce, but only one insert survives (partial unique index over `pending` + `submitted`, compared case-insensitively so the Tron and EVM spellings of one Safe collide). The guarantee is **absent** if the index could not be built — in-flight rows already sharing a nonce, or a role without `createIndex` — and the build warns in both cases. Nothing is ever dropped, so a pre-`_ci` index from an earlier build stays as a weaker, redundant constraint | Block insert, re-run required | `unique_inflight_safe_nonce_ci` index in `safe-utils.ts`; diagnose with `report-nonce-collisions.ts` (read-only) |
 | Propose | Removal safety: protected-facet allowlist, live-selector hold-back, fail-closed diffs | Block + alert | `diamondRemovalDiff.ts`, `drain-parked-tasks.ts` |
 | Propose | Production: each facet the cut installs must have its `src/` import closure match `origin/main`, else open PR + audit-log commit freeze (audit log read from `main`); judged on the working tree, so a checkout on `main` is not exempt; testnets are not gated, and there is no environment exemption | Block (prod non-testnet facet **additions and replacements**, on every path that reaches either funnel, the bash `sendOrPropose` included, plus the TypeScript `sendOrPropose` which carries the same call inline — periphery registration, emergency pause and removals install no facet code and are out of scope) | `funnel-deploy-gate.ts` in `propose-to-safe.ts` / `propose-to-safe-tron.ts`, deciding through `script/deploy/github/verify-approvals.ts`; verdict cached per run by `deploy-gate-cache.ts`, passes only (PR #2128, #2286, EXSC-929). **Caveat on Tron:** cut proposals are run from a `contracts-tron` checkout ([TronFork.md](./TronFork.md)), and the gate compares whatever working tree it is run in against *that* checkout's `origin/main` and audit log — not `lifinance/contracts` main |
+| Confirm | **Before any proposal is read**: the preconditions every check on a network shares — `ETH_NODE_URI_<NETWORK>` is set, the endpoint answers `eth_chainId`, and it answers for that network's chain id. Probed concurrently, each bounded by `PREFLIGHT_PROBE_TIMEOUT_MS` carried as an `AbortSignal`, so several unreachable networks cost one budget rather than one each. Reads go through every endpoint the network declares (primary plus `ETH_NODE_URI_<NETWORK>_FALLBACKS`) — the same set the executability gate reads through, so a healthy spare rescues a network whose primary is sick instead of the preflight and the gates disagreeing about whether it is reachable. A refused network is named once under a `CANNOT START` block with its cause and its remedy and is left out of the ledger's denominator entirely: it contributes no check rows, because a check that could not start has nothing to report and listing ten of them buries the one line that can be acted on. **Not a gate** — the gate letters describe the proposal and red means do not sign, which an unset variable is not. One limit worth knowing: `eth_chainId` is the most permissive method a node serves, so a rate-limited or method-restricted endpoint clears the preflight and then fails every `eth_call` behind it — this closes one cause of mass-unverified rows, not the class | Refuse network; exit `PREFLIGHT_EXIT_CODE` (78, `EX_CONFIG`) when none can start. The same code is set on a partial run where some networks were refused and others signed; nothing parses it today | `signer-preflight.ts` (`networkPreflight` / `renderNetworkPreflight`), called from `confirm-safe-tx.ts` before the proposal loop |
 | Confirm | Signer must be an owner; network must be active; threshold and nonce read on-chain per Safe | Block / skip | `confirm-safe-tx.ts`, `safe-utils.ts` |
 | Confirm | `operation` must be exactly `Call` (0). A DelegateCall, or any other value, on the signed struct is refused before `SafeClient` signs or broadcasts — decoded calldata is not consulted. Sign/Execute options are hidden | Block | `delegatecall-gate.ts`, `SafeClient.signTransaction` / `executeTransaction` |
 | Confirm | Ledger blind-signing enabled, fail-fast before any review | Block | `checkBlindSigningEnabled` in `ledger.ts` |

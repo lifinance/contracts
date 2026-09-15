@@ -66,6 +66,16 @@ export interface ICodehashSignGate {
    * lands here, and rendering it green claimed the bytes had been read.
    */
   madeNoClaim?: boolean
+  /**
+   * The frames the decoder could not open, when it could not open any.
+   *
+   * Carried structurally because it is the field that separates the two things
+   * `madeNoClaim` covers: a payload read to the end that contains no cut, and a
+   * payload nobody could read. The first has nothing to check and the second
+   * has not been checked, and a consumer that told them apart by reading
+   * `summary` would be deciding on a sentence the proposer's calldata shapes.
+   */
+  unopened?: readonly string[]
 }
 
 /**
@@ -280,6 +290,7 @@ export const evaluateCodehashSignGate = async (
       refusals: [],
       targets: [],
       madeNoClaim: true,
+      unopened: collected.unopened,
       summary:
         collected.unopened.length > 0
           ? `No diamondCut was decoded, but this decoder could not open ${collected.unopened.join(

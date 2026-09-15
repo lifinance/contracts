@@ -88,4 +88,45 @@ describe('the calldata address check surfaces before the signing decision', () =
       /Calldata addresses: the check could not be run[\s\S]*?redactUrls\(/u
     )
   })
+
+  it('renders the verdict without gating on it', () => {
+    // The record this grades is written by the proposing machine, and no anchor
+    // supplies the identities to grade against, so refusing here would block on
+    // data the proposer controls. Pinned rather than left to the comment beside
+    // the call: the check carries no ledger row, so a gate wired in here leaves
+    // the rest of the suite green.
+    const guarded = CONFIRM.slice(
+      CONFIRM.indexOf('collectAddressReferences('),
+      CONFIRM.indexOf(ACTION_PROMPT)
+    )
+
+    // Anchored on the verdict, not on any one gate's name: however a refusal
+    // were spelled, it has to read `calldataAddresses` to reach one.
+    const consumed = guarded
+      .replace('calldataAddresses = evaluateCalldataAddresses(', '')
+      // The one conditional the verdict is allowed to appear in, matched with
+      // the render attached: it decides whether there is anything to print, and
+      // a refusal spelled `if (calldataAddresses)` followed by anything else
+      // does not match this and survives into the assertion below.
+      .replace(
+        'if (calldataAddresses)\n      renderCalldataAddresses(calldataAddresses)',
+        ''
+      )
+      // The same allowance for the shape the evidence bundle produces: the
+      // verdict arrives already graded, so the only decision left here is
+      // whether there is anything to print. Matched with the render attached
+      // for the same reason as the `if` above.
+      .replace(
+        'calldataAddresses\n      ? renderCalldataAddresses(calldataAddresses)\n      : []',
+        ''
+      )
+      .replace('renderCalldataAddresses(calldataAddresses)', '')
+      // Carried on the evidence bundle and unpacked in the loop: two mentions
+      // that move the verdict from where it is graded to where it is printed,
+      // and read it at neither end.
+      .replace(/^\s*calldataAddresses,$/gmu, '')
+
+    expect(guarded).toContain('renderCalldataAddresses(calldataAddresses)')
+    expect(consumed).not.toContain('calldataAddresses')
+  })
 })

@@ -26,7 +26,6 @@ import {
   AddressGradeEnum,
   AddressRoleEnum,
   DeploymentIndexSourceEnum,
-  assertCalldataAddressesResolve,
   evaluateCalldataAddresses,
   renderCalldataAddresses,
   type IAddressReference,
@@ -190,7 +189,6 @@ describe('evaluateCalldataAddresses against the real deployment record', () => {
       AddressGradeEnum.Resolved,
       AddressGradeEnum.Resolved,
     ])
-    expect(() => assertCalldataAddressesResolve(verdict)).not.toThrow()
   })
 
   it('refuses an address the record holds nowhere', () => {
@@ -212,9 +210,6 @@ describe('evaluateCalldataAddresses against the real deployment record', () => {
     expect(verdict.refuses).toBe(true)
     expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.Unknown)
     expect(verdict.reason).toContain('no deployment record on any network')
-    expect(() => assertCalldataAddressesResolve(verdict)).toThrow(
-      /will not be signed/
-    )
   })
 
   it('refuses a real address deployed on another network', () => {
@@ -273,9 +268,6 @@ describe('evaluateCalldataAddresses against the real deployment record', () => {
     expect(verdict.refuses).toBe(false)
     expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.IdentityUnchecked)
     expect(verdict.errors.join(' ')).toContain('reported and not verified')
-    expect(() => assertCalldataAddressesResolve(verdict)).toThrow(
-      /will not be signed/
-    )
   })
 
   it('reports rather than verifies the identity of a removal target', () => {
@@ -300,7 +292,6 @@ describe('evaluateCalldataAddresses against the real deployment record', () => {
     expect(verdict.error).toBe(false)
     expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.IdentityUnchecked)
     expect(verdict.warnings.join(' ')).toContain('reported and not verified')
-    expect(() => assertCalldataAddressesResolve(verdict)).not.toThrow()
   })
 })
 
@@ -418,9 +409,6 @@ describe('the expectations map is checked before it is trusted', () => {
     expect(verdict.errors.join(' ')).toContain(
       'keyed with "CBridgeFacet", which is not a 20-byte hex address'
     )
-    expect(() => assertCalldataAddressesResolve(verdict)).toThrow(
-      /will not be signed/
-    )
   })
 
   it('errors when two keys for one address disagree about its identity', () => {
@@ -465,9 +453,6 @@ describe('the source of the entries is itself judged', () => {
     expect(verdict.error).toBe(true)
     expect(verdict.refuses).toBe(false)
     expect(verdict.errors.join(' ')).toContain('merges to main only after')
-    expect(() => assertCalldataAddressesResolve(verdict)).toThrow(
-      /will not be signed/
-    )
   })
 
   it('will not decide on the deployment-log export, which omits recent contracts', () => {
@@ -512,9 +497,6 @@ describe('the source of the entries is itself judged', () => {
     expect(verdict.error).toBe(true)
     expect(verdict.errors.join(' ')).toContain(
       '"attested-build-index" is not a source this check has a provenance argument for'
-    )
-    expect(() => assertCalldataAddressesResolve(verdict)).toThrow(
-      /will not be signed/
     )
   })
 
@@ -614,9 +596,6 @@ describe('a question that cannot be answered is not answered yes', () => {
     expect(verdict.refuses).toBe(false)
     expect(verdict.errors.join(' ')).toContain('timed out')
     expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.NotQueried)
-    expect(() => assertCalldataAddressesResolve(verdict)).toThrow(
-      /will not be signed/
-    )
   })
 
   it('errors on an address the store was never asked about, rather than calling it unknown', () => {
@@ -649,7 +628,6 @@ describe('a question that cannot be answered is not answered yes', () => {
     expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.Resolved)
     expect(verdict.error).toBe(true)
     expect(verdict.errors.join(' ')).toContain('may reference others')
-    expect(() => assertCalldataAddressesResolve(verdict)).toThrow()
   })
 
   it('refuses a value that is not an address instead of skipping it', () => {
@@ -882,7 +860,6 @@ describe('removals warn where installs refuse', () => {
     expect(verdict.errors).toHaveLength(0)
     expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.NotQueried)
     expect(verdict.warnings.join(' ')).toContain('never looked up')
-    expect(() => assertCalldataAddressesResolve(verdict)).not.toThrow()
   })
 
   it('errors on a role it has no refusal policy for, rather than warning', () => {
@@ -907,9 +884,6 @@ describe('removals warn where installs refuse', () => {
     expect(verdict.warnings).toHaveLength(0)
     expect(verdict.errors.join(' ')).toContain(
       'is in role "timelock-admin-grant", which this check has no refusal policy for'
-    )
-    expect(() => assertCalldataAddressesResolve(verdict)).toThrow(
-      /will not be signed/
     )
   })
 

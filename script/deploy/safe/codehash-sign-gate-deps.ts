@@ -29,6 +29,11 @@ import { redactUrls } from '../../utils/redactUrls'
 import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 import type { ILineageScope, IObservedCode } from '../codehash/attested-set'
 import { readMetadataTrailer } from '../codehash/bytecode-trailer'
+import {
+  observeEvmImmutables,
+  priceImmutables,
+  type ImmutablePricing,
+} from '../codehash/immutable-expectations'
 import type { ImmutableReferences } from '../codehash/immutable-offsets'
 import {
   deriveToolchainScope,
@@ -44,6 +49,15 @@ import {
   type IRebuiltArtifact,
 } from '../codehash/rebuild-attestations'
 import type { IVerifyCutDeps } from '../codehash/verify-cut-targets'
+import {
+  readImmutableDeclarations,
+  type IImmutableDeclaration,
+} from '../immutables/immutable-ast'
+import type {
+  DeployRequirements,
+  IImmutableEntry,
+} from '../immutables/registry-schema'
+import { mergeRequirements } from '../immutables/verify-immutable-registry'
 
 import { evaluateRpcQuorum } from './rpc-quorum'
 import {
@@ -306,6 +320,38 @@ export interface IForgeRebuildDeps {
   ) => { ok: boolean; output: string }
   exists: (path: string) => boolean
   readFile: (path: string) => string
+  /**
+   * Immutable declarations out of a directory of AST-carrying artifacts,
+   * with repo-relative source paths resolved against `sourceRoot`.
+   */
+  readDeclarations: (
+    outDir: string,
+    sourceRoot: string
+  ) => readonly IImmutableDeclaration[]
+}
+
+/**
+ * Whether an artifact on disk carries the AST layer 2 needs.
+ *
+ * A parse failure answers false rather than throwing: the caller's response is
+ * to rebuild, which is also the right response to an artifact it cannot read.
+ *
+ * @param deps - the file primitives
+ * @param artifactPath - the artifact to inspect
+ * @returns true when an `ast` node is present
+ */
+const carriesAst = (
+  deps: Pick<IForgeRebuildDeps, 'readFile'>,
+  artifactPath: string
+): boolean => {
+  try {
+    return (
+      (JSON.parse(deps.readFile(artifactPath)) as { ast?: unknown }).ast !==
+      undefined
+    )
+  } catch {
+    return false
+  }
 }
 
 /**
@@ -383,7 +429,10 @@ export const createForgeRebuildRunner = (
       `${request.contractName}.json`
     )
 
-    if (!deps.exists(artifactPath)) {
+    // An artifact left by a build that predates `--ast` satisfies an
+    // existence check while carrying no declarations, which would report every
+    // immutable as unpriceable instead of rebuilding. Treat it as absent.
+    if (!deps.exists(artifactPath) || !carriesAst(deps, artifactPath)) {
       // `worktree add --detach` does not populate `lib/`. Without pinning,
       // forge's auto-install clones at tip revisions and the rebuilt runtime
       // cannot match what was deployed — every cut grades MISMATCH.
@@ -408,6 +457,11 @@ export const createForgeRebuildRunner = (
         '--skip',
         'script/**',
         '--offline',
+        // Layer 2 keys the deployment's immutables by AST id, and an id is
+        // only meaningful inside the compilation that assigned it. Emitting
+        // the AST here is what makes the ids and the offsets come from one
+        // build; a second compile to obtain them would not.
+        '--ast',
       ]
       const env: Record<string, string> = {
         FOUNDRY_PROFILE: request.profile.profile,
@@ -442,6 +496,7 @@ export const createForgeRebuildRunner = (
         object?: string
         immutableReferences?: ImmutableReferences
       }
+      ast?: unknown
     }
     try {
       parsed = JSON.parse(deps.readFile(artifactPath))
@@ -459,10 +514,20 @@ export const createForgeRebuildRunner = (
         `the rebuilt artifact for ${request.contractName} carries no runtime bytecode`
       )
 
+    // Read from the build's own output directory and resolved against its own
+    // checkout, so both the ids and the line numbers describe the commit being
+    // graded rather than whatever the operator has checked out.
+    const declarations = deps
+      .readDeclarations(join(checkout, outDir), checkout)
+      .filter((one) => one.contract === request.contractName)
+
     return {
       runtimeHex,
       ...(parsed.deployedBytecode?.immutableReferences
         ? { immutableReferences: parsed.deployedBytecode.immutableReferences }
+        : {}),
+      ...(declarations.length > 0
+        ? { immutableDeclarations: declarations }
         : {}),
     }
   }
@@ -647,6 +712,8 @@ export const createSignTimeCodehashDeps = (overrides?: {
     },
     exists: existsSync,
     readFile: (path) => readFileSync(path, 'utf8'),
+    readDeclarations: (outDir, sourceRoot) =>
+      readImmutableDeclarations(outDir, sourceRoot).declarations,
   })
 
   const recordSource = overrides?.recordSource ?? createMongoRecordSource()
@@ -675,9 +742,22 @@ export const createSignTimeCodehashDeps = (overrides?: {
     readDeployedCode: createDeployedCodeReader(),
   })
 
+  // Same record read, same rebuild cache and same chain read as the observer,
+  // so layer 2 prices the bytes layer 1 masked rather than a second reading of
+  // them. The expectations are the one input taken from somewhere else: this
+  // checkout, which is the anchor the proposer does not reach.
+  const price = createImmutablePricer({
+    readRecord,
+    scopeFor,
+    build: rebuild.build,
+    readDeployedCode: createDeployedCodeReader(),
+    loadRequirements: loadImmutableExpectations,
+  })
+
   return {
     scope: (network: string): ILineageScope => scopeFor(network),
     observe,
+    price,
     attestationsFor: attestations.attestationsFor,
     close: async (): Promise<void> => {
       rebuild.cleanup()
@@ -757,4 +837,129 @@ const closeMongoRecordSource = async (): Promise<void> => {
   const open = client
   client = undefined
   await open.close(true).catch(() => undefined)
+}
+
+/**
+ * `deployRequirements.json` joined with `immutableRegistry.json`, from the
+ * checkout the signer is running in.
+ *
+ * Read fresh on each call rather than cached at module load: a signing session
+ * outlives a `git pull`, and an expectation set from before one is not the one
+ * the operator believes they are checking against.
+ *
+ * @returns The merged requirements layer 2 resolves expectations through
+ */
+const loadImmutableExpectations = (): DeployRequirements =>
+  mergeRequirements(
+    JSON.parse(
+      readFileSync('script/deploy/resources/deployRequirements.json', 'utf8')
+    ) as DeployRequirements,
+    JSON.parse(
+      readFileSync('script/deploy/resources/immutableRegistry.json', 'utf8')
+    ) as Record<string, Record<string, IImmutableEntry>>
+  )
+
+/**
+ * Prices the bytes layer 1 masked, for one address on one network.
+ *
+ * Every input comes from a side the proposer does not control: the runtime code
+ * from the chain, the offsets and declarations from a rebuild of the commit the
+ * record names, and the expectations from `immutableRegistry.json` plus
+ * `deployRequirements.json` plus `config/` **in the operator's own checkout**.
+ * The rebuild's checkout sits at a commit the proposer influences, so reading
+ * the expectations from there would let a proposal declare what it should be
+ * compared against.
+ *
+ * `production` for the same reason {@link createMongoRecordSource} uses it: this
+ * judges proposals against a production Safe, and a staging config describes a
+ * different deploy.
+ *
+ * Refusing is the normal answer for anything it cannot establish — no record, no
+ * commit, no immutables in the artifact — because layer 1's masked verdict then
+ * stands exactly as it did before this layer ran. Nothing here can turn a
+ * refusal into a pass.
+ *
+ * @param deps - the record read, the toolchain scope, the rebuild, the chain read and the config source
+ * @returns The `price` dependency of `verifyCutTargets`
+ */
+export const createImmutablePricer = (deps: {
+  readRecord: (
+    address: string,
+    network: string
+  ) => Promise<IDeploymentRecordRef | undefined>
+  scopeFor: (network: string) => IToolchainScope
+  build: (request: IRebuildRequest) => IRebuiltArtifact
+  readDeployedCode: (address: string, network: string) => Promise<string>
+  loadRequirements: () => DeployRequirements
+}): ((address: string, network: string) => Promise<ImmutablePricing>) => {
+  return async (
+    address: string,
+    network: string
+  ): Promise<ImmutablePricing> => {
+    const record = await deps.readRecord(address, network)
+    if (!record)
+      return {
+        decided: false,
+        reason: `the deployment record says nothing about ${address} on ${network}, so there is no contract whose immutables could be looked up`,
+      }
+
+    const commit = record.gitCommitHash.trim()
+    if (commit === '' || commit === UNKNOWN_COMMIT)
+      return {
+        decided: false,
+        reason: `the record for ${record.contractName} at ${address} carries no commit, so no build of it can supply the offsets its immutables sit at`,
+      }
+
+    const profiles = deps.scopeFor(network).profiles
+    if (profiles.length !== 1)
+      return {
+        decided: false,
+        reason: `${network} resolves to ${profiles.length} build profiles, and immutable offsets are per lineage, so there is no single build to read them from`,
+      }
+
+    const profile = profiles[0]
+    if (!profile)
+      return {
+        decided: false,
+        reason: `${network} resolves to no build profile, so there is no build to read immutable offsets from`,
+      }
+
+    const artifact = deps.build({
+      contractName: record.contractName,
+      commit,
+      profile,
+    })
+
+    // Both come from that one build, which is what makes the ids line up. A
+    // contract with no immutables reaches here with neither, and its masked
+    // count is zero, so layer 1 never needed this layer for it.
+    if (!artifact.immutableReferences || !artifact.immutableDeclarations)
+      return {
+        decided: false,
+        reason: `the rebuild of ${record.contractName} at ${commit.slice(
+          0,
+          9
+        )} reports no immutables, so the bytes masked in the deployed code cannot be named`,
+      }
+
+    const code = await deps.readDeployedCode(address, network)
+    const observed = observeEvmImmutables(
+      code,
+      artifact.immutableReferences,
+      artifact.immutableDeclarations
+    )
+    // Discriminated on the property the ok branch carries, matching how
+    // `immutable-expectations` narrows the same union.
+    if (!('ok' in observed)) return observed
+
+    return priceImmutables(
+      {
+        contractName: record.contractName,
+        observed: observed.observed,
+        network,
+        environment: EnvironmentEnum.production,
+      },
+      deps.loadRequirements()
+    )
+  }
 }

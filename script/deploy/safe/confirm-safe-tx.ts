@@ -28,6 +28,7 @@ import networksData from '../../../config/networks.json'
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { getDeployments } from '../../utils/deploymentHelpers'
 import { redactUrls } from '../../utils/redactUrls'
+import { getRPCEnvVarName } from '../../utils/utils'
 import {
   buildExplorerAddressUrl,
   getFallbackTransportForChain,
@@ -39,13 +40,17 @@ import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
 import {
   evaluateCalldataAddresses,
   renderCalldataAddresses,
+  type IAddressReference,
+  type ICalldataAddressVerdict,
   type IDeploymentIndexEntry,
 } from './calldata-address-check'
 import {
+  authoritiesOfInstalled,
   buildDeploymentIndex,
   collectAddressReferences,
   referencedNames,
 } from './calldata-address-collector'
+import { buildCalldataEffectLines } from './calldata-effect-lines'
 import {
   createCheckLedger,
   recordCheck,
@@ -68,16 +73,16 @@ import {
   type ISignTimeCodehashDeps,
 } from './codehash-sign-gate-deps'
 import {
+  ALL_GATE_DEFINITIONS,
   authorityExpectationAnchors,
   CONFIRM_CHECK_DEFINITIONS,
+  EXECUTABILITY_CHECK_ID,
   proposalCheckResults,
-  storageAuthorityCheckResult,
   worstResultPerCheck,
 } from './confirm-check-registry'
 import {
   assertIntegrityAssertsAllowSigning,
   createIntegrityAssertDeps,
-  renderIntegrityAsserts,
   runIntegrityAsserts,
   type IIntegrityAssertRun,
 } from './confirm-integrity-asserts'
@@ -94,12 +99,15 @@ import {
 } from './confirm-safe-tx-ack'
 import {
   ConfirmSafeTxPrefetchQueue,
+  createDeferredLogger,
+  ProposalEvidencePrefetchQueue,
   type IConfirmSafeTxNetworkContext,
+  type IDeferredLine,
+  type IPrefetchedEvidence,
 } from './confirm-safe-tx-prefetch'
 import {
   describeOperationValue,
   evaluateDelegateCallGate,
-  renderDelegateCallGate,
 } from './delegatecall-gate'
 import {
   collectExecutabilityInput,
@@ -107,9 +115,9 @@ import {
 } from './executability-collector'
 import {
   evaluateExecutability,
-  renderExecutability,
   type IExecutabilityVerdict,
 } from './executability-simulation'
+import { executabilityNotes } from './executability-view'
 import type { ILedgerAccountResult } from './ledger'
 import {
   LEDGER_FLEX_HASH_NOTE,
@@ -130,25 +138,25 @@ import {
   resolveGateCoverage,
   viemGateReaders,
 } from './prebroadcast-gate'
-import { printableField, trustedMarkup } from './printable-field'
+import { asPrintable, printableField, trustedMarkup } from './printable-field'
 import { buildReadOnlyClient } from './read-only-safe-client'
 import { reconcileAllSubmittedSafeTxs } from './reconcile'
 import { renderCheckLedger } from './render-check-ledger'
+import { evaluateRpcQuorum, type IRpcQuorumVerdict } from './rpc-quorum'
 import {
-  evaluateRpcQuorum,
-  renderRpcQuorum,
-  type IRpcQuorumVerdict,
-} from './rpc-quorum'
-import {
-  codeReadLabel,
   collectProviderObservations,
   createCodeReader,
+  createPinnedBlock,
+  ENDPOINT_READ_BUDGET_MS,
 } from './rpc-quorum-collector'
+import { getTargetName } from './safe-decode-utils'
 import {
-  formatDecodedTxDataForDisplay,
-  getTargetName,
-} from './safe-decode-utils'
-import { buildSafeTxDetailLines } from './safe-tx-detail-display'
+  buildCalldataTarget,
+  buildSafeTxDetailLines,
+  CLAIM_QUESTION,
+  signatureTally,
+  type ISafeTxDetailInput,
+} from './safe-tx-detail-display'
 import {
   parseAccountIndex,
   canExecuteWithNonceStatus,
@@ -170,6 +178,7 @@ import {
   serializeSafeTxForMongo,
   shouldShowSignAndExecuteWithDeployer,
   wouldMeetThreshold,
+  type IAugmentedSafeTxDocument,
   type ISafeTransaction,
   type ISafeTxDocument,
   type ISafeTxMongoDocument,
@@ -185,6 +194,31 @@ import {
   toSignedAuthorityEntries,
   toSignedCodehashEntries,
 } from './signed-set-record'
+import {
+  networkPreflight,
+  PREFLIGHT_EXIT_CODE,
+  PREFLIGHT_PROBE_TIMEOUT_MS,
+  renderNetworkPreflight,
+} from './signer-preflight'
+import {
+  checkSummary,
+  PROPOSAL_SEPARATOR,
+  renderCheckGroups,
+  renderDeferredTodos,
+  renderGateManifest,
+  renderProposalOutcome,
+  renderTodos,
+  TODOS_DEFERRED_SUMMARY,
+  zoneHeading,
+} from './signer-view'
+import {
+  CHECK_DOCS,
+  integrityResults,
+  opensDeviceScreens,
+  signerChecks,
+  signerTodos,
+  viewDefinitions,
+} from './signer-zones'
 import {
   computeOperationIdBatch,
   decodeScheduleBatch,
@@ -206,19 +240,31 @@ const getCodehashDeps = (): ISignTimeCodehashDeps => {
 // One read of the deploy log per run, shared by every proposal: the log is the
 // only source written before a proposal exists, and re-reading it per proposal
 // would re-fetch the whole fleet on a fleet-wide rollout.
-let deploymentRecords: IDeploymentIndexEntry[] | undefined
-let deploymentRecordsRead = false
+//
+// Held as the read in flight rather than as a flag beside the result: a second
+// caller arriving while the first is still awaiting passes a flag check and
+// reads the not-yet-assigned records as "the log is unavailable", which grades
+// every address as one nobody deployed. Proposals are prepared concurrently, so
+// that second caller exists.
+let deploymentRecordsRead:
+  | Promise<IDeploymentIndexEntry[] | undefined>
+  | undefined
 const readDeploymentRecords = async (): Promise<
   IDeploymentIndexEntry[] | undefined
 > => {
-  if (deploymentRecordsRead) return deploymentRecords
-  deploymentRecordsRead = true
+  deploymentRecordsRead ??= loadDeploymentRecords()
+  return deploymentRecordsRead
+}
+
+const loadDeploymentRecords = async (): Promise<
+  IDeploymentIndexEntry[] | undefined
+> => {
   if (!process.env.MONGODB_URI) return undefined
 
   try {
     // Same config the run's warm refresh uses, so this reads that cache rather
     // than re-fetching the fleet.
-    deploymentRecords = await createDefaultCache({
+    return await createDefaultCache({
       mongoUri: process.env.MONGODB_URI,
       databaseName: 'contract-deployments',
       batchSize: 100,
@@ -226,10 +272,8 @@ const readDeploymentRecords = async (): Promise<
   } catch {
     // Left undefined, which the index reports as unavailable. An empty record
     // read as available would grade every address as one nobody deployed.
-    deploymentRecords = undefined
+    return undefined
   }
-
-  return deploymentRecords
 }
 
 // Created once the run's network set is known, because the ledger's
@@ -239,6 +283,12 @@ const readDeploymentRecords = async (): Promise<
 // Read once, at the end of the run: the verdict is rendered from these rows, so
 // a status any row below claims is a status a signer is shown.
 let checkLedger: ICheckLedger | undefined
+
+// Networks the preflight refused, kept out of the ledger's denominator and
+// therefore invisible to its verdict. Held here so the end of the run can say
+// the coverage was short: a ledger that is green for the networks it graded
+// must not read as a green run when a network was never graded at all.
+let refusedNetworks: string[] = []
 
 const recordEveryCheck = (
   network: string,
@@ -263,9 +313,10 @@ const recordEveryCheck = (
  *
  * The denominator is fixed before the run can learn that a network it listed as
  * actionable carries no proposal for this operator. Left unrecorded it rolls up
- * as missing and hard-blocks a run on which nothing was wrong. A pass on
- * `A-LOCAL` is the reading `no-diamond-cut` already gets: the run read its input
- * and found nothing to compare, which is a verified fact about this network.
+ * as missing and hard-blocks a run on which nothing was wrong.
+ *
+ * `not-applicable` on `A-LOCAL`, never a pass: nothing on this network was
+ * compared, so the row must satisfy no verified counter.
  *
  * Only for outcomes that answered. A read that *failed* has not established
  * anything and belongs in `recordCouldNotGrade` — mixing the two is how a fully
@@ -275,7 +326,7 @@ const recordEveryCheck = (
  */
 const recordNothingToGrade = (network: string, reason: string): void =>
   recordEveryCheck(network, {
-    status: 'pass',
+    status: 'not-applicable',
     actual: `no proposal was graded on ${network} — ${reason}`,
     anchor: 'A-LOCAL',
   })
@@ -348,6 +399,14 @@ const processTxs = async (
   rpcUrl: string | undefined,
   prepared: IConfirmSafeTxNetworkContext
 ) => {
+  // Read from argv rather than from the parsed args, for the reason
+  // `cli-flags.ts` documents: citty hands `--raw=false` back as the string
+  // 'false'. Absent means off, which is the shorter block.
+  const showRawCalldata = readBooleanFlag(process.argv, {
+    camel: 'raw',
+    kebab: 'raw',
+  })
+
   const {
     network,
     networkKey,
@@ -365,14 +424,25 @@ const processTxs = async (
   consola.info('-'.repeat(80))
   consola.info('Chain:', chain.name)
   consola.info('Signer:', signerAddress)
+  // Once per network rather than on every proposal: it is the same Safe for the
+  // whole run, and `INT-SAFE-ADDRESS` grades each row against it. Config-derived
+  // — this is the Safe the client is pointed at, never the one a row claims.
+  consola.info('Safe:  ', safeAddress)
 
-  // The proposal's codehash verdict, re-evaluated per proposal below and read
-  // by the signer through `createGatedSigner`. It starts blocking so a proposal
-  // whose evaluation never ran cannot be signed on last proposal's answer.
+  // How many transactions this run has put on the wire for this Safe. Read by
+  // the prefetch anchor: a broadcast moves the state every prefetched read was
+  // taken against, and it moves it whether or not the Safe's nonce read
+  // reflects that yet.
+  let broadcastsMade = 0
+
+  // The proposal's codehash verdict, taken per proposal from that proposal's
+  // evidence bundle and read by the signer through `createGatedSigner`. It
+  // starts blocking so a proposal whose evaluation never ran cannot be signed
+  // on last proposal's answer.
   let codehashGate: ICodehashSignGate = blockingUnevaluatedGate()
 
-  // The proposal's integrity verdict, re-run per proposal below. Absent is the
-  // blocking state: `assertIntegrityAssertsAllowSigning` refuses an undefined
+  // The proposal's integrity verdict, taken per proposal from that proposal's
+  // evidence bundle. Absent is the blocking state: `assertIntegrityAssertsAllowSigning` refuses an undefined
   // run, so a proposal whose assertions never ran cannot be signed on the last
   // proposal's answer — and the run carries the transaction it graded, which
   // that refusal compares against the one reaching the signer.
@@ -460,27 +530,59 @@ const processTxs = async (
   }
 
   /**
-   * Records what this machine saw at every address in the signed calldata
-   * (WP-6.1 / R3.1): the address→codehash set plus the declared storage
-   * authorities.
+   * What one proposal's calldata declares, read once and kept.
    *
-   * A G6 reconstruction trail, not a check — nothing here can refuse a
-   * signature, and the pre-broadcast gate never reads these values back. Every
-   * failure is therefore a warning: the gate alerts on a record that never
-   * landed, and blocking here would turn a write error into a signing outage.
+   * Split out of `recordSignedSet` because gate G has to be graded before the
+   * signer is asked to sign. A row recorded after the signature can describe
+   * what was signed; it can no longer refuse it. The persistence half still
+   * runs after signing and reads this cache rather than the chain again.
+   *
+   * `undefined` means nothing was read — the calldata was not a schedule
+   * batch, the chain is outside the gate's coverage, or the read threw. Every
+   * one of those leaves the ledger without a graded row, which blocks. That is
+   * the same outcome as before this was moved, deliberately: this change moves
+   * when gate G is graded, not what it decides.
    */
-  async function recordSignedSet(
-    txDoc: ISafeTxMongoDocument,
-    signedTx: ISafeTransaction
-  ): Promise<void> {
-    const callData = signedTx.data.data as Hex | undefined
-    if (!callData || !isScheduleBatchCalldata(callData)) return
+  interface IObservedSet {
+    operationId: Hex
+    observed: Awaited<ReturnType<typeof observeCalldata>>
+  }
+  // Survives a prefetch discard, unlike every other verdict in the bundle.
+  //
+  // When the anchor moves, `computeProposalEvidence` re-runs and every gate is
+  // recomputed — except this one, which returns its earlier entry. That is safe
+  // only because of what a Safe execution does here: it executes
+  // `scheduleBatch`, which enqueues a timelock operation and changes neither
+  // the code nor the storage authorities at the addresses this reads. The
+  // observation is therefore the same before and after, and re-reading it would
+  // buy nothing.
+  //
+  // The assumption is stated because it is the one that would fail first: a
+  // proposal that mutated the diamond directly rather than scheduling would
+  // leave this entry describing pre-execution state, and gate G would grade the
+  // next proposal against it. Re-reading on discard is the fix if that day comes.
+  const observedSets = new Map<string, IObservedSet>()
+
+  async function observeSetForProposal(
+    safeTxHash: string,
+    callData: Hex | undefined,
+    // Defaults to the terminal; the prefetch passes a deferred console so a
+    // line about the next proposal cannot print under this one.
+    log: {
+      info: (message: string) => void
+      warn: (message: string) => void
+    } = consola
+  ): Promise<IObservedSet | undefined> {
+    const cached = observedSets.get(safeTxHash)
+    if (cached) return cached
+
+    if (!callData || !isScheduleBatchCalldata(callData)) return undefined
 
     if (resolveGateCoverage(networkKey) === 'uncovered-tron') {
-      consola.info(
-        "Sign-time set not recorded: reading code on this chain is outside the gate's coverage (EXSC-954)"
+      log.info(
+        "Sign-time set not read: reading code on this chain is outside the gate's coverage (EXSC-954)"
       )
-      return
+      return undefined
     }
 
     try {
@@ -513,35 +615,56 @@ const processTxs = async (
         }
       )
 
+      const observedSet: IObservedSet = { operationId, observed }
+      observedSets.set(safeTxHash, observedSet)
+      return observedSet
+    } catch (error) {
+      log.warn(
+        `Could not read the sign-time set; gate G has nothing to grade and will block: ${redactUrls(
+          error instanceof Error ? error.message : String(error)
+        )}`
+      )
+      return undefined
+    }
+  }
+
+  /**
+   * Persists what this machine saw at every address in the signed calldata
+   * (WP-6.1 / R3.1): the address→codehash set plus the declared storage
+   * authorities.
+   *
+   * A G6 reconstruction trail. The grading half moved to
+   * `observeSetForProposal`, which runs before the signer decides; what is left
+   * here cannot refuse a signature, so every failure is a warning. Blocking
+   * here would turn a write error into a signing outage.
+   */
+  async function recordSignedSet(
+    txDoc: ISafeTxMongoDocument,
+    signedTx: ISafeTransaction
+  ): Promise<void> {
+    const callData = signedTx.data.data as Hex | undefined
+    const observedSet = await observeSetForProposal(txDoc.safeTxHash, callData)
+    if (!observedSet) return
+
+    try {
       const record = buildSignedSetRecord(
         {
-          operationId,
+          operationId: observedSet.operationId,
           network: networkKey,
           chainId: chain.id,
           safeTxHash: txDoc.safeTxHash,
           signer: signerAddress,
           derivedFromCommit: getGitCommit(),
-          codehashes: toSignedCodehashEntries(observed.targets),
-          authorities: toSignedAuthorityEntries(observed.authorities),
+          codehashes: toSignedCodehashEntries(observedSet.observed.targets),
+          authorities: toSignedAuthorityEntries(
+            observedSet.observed.authorities
+          ),
         },
         new Date()
       )
 
       consola.info(formatSignedSetForDisplay(record).join('\n'))
       await persistSignedSetRecord(record)
-
-      // Accumulated, not recorded: this runs once per proposal while a ledger
-      // row is denominated per network, and `rollUpChecks` only lets a `fail`
-      // block supersession — so a later clean proposal would erase an earlier
-      // proposal's unread authority with no trace.
-      if (checkLedger)
-        proposalChecks.push(
-          storageAuthorityCheckResult(
-            record.authorities,
-            networkKey,
-            authorityExpectationAnchors(observed.authorities)
-          )
-        )
     } catch (error) {
       consola.warn(
         'Could not record the sign-time set (the pre-broadcast gate re-derives without it and will alert on the gap):',
@@ -601,6 +724,10 @@ const processTxs = async (
 
       // Execute the transaction on-chain (timeout/polling handled in safeClient)
       consola.info('Submitting execution transaction to blockchain...')
+      // Counted before the call, not after it: a broadcast that throws may
+      // still have reached the chain, and a prefetch taken against the state
+      // before it must be discarded either way.
+      broadcastsMade++
       const exec = await safeClient.executeTransaction(safeTransaction)
       const executionHash = exec.hash
 
@@ -718,224 +845,110 @@ const processTxs = async (
     }
   }
 
-  // Every proposal's ledger rows, accumulated rather than recorded as they are
-  // graded. A ledger row is denominated per network while proposals are graded
-  // one by one, and `rollUpChecks` reads two records for one (check, network)
-  // pair as a retry — so recording per proposal lets the last proposal's verdict
-  // stand for the whole network, and a clean one erase an earlier refusal.
-  const proposalChecks: ICheckResult[] = []
+  // The per-network reads every proposal's simulation and quorum gate shares.
+  // Hoisted out of the proposal loop so a prefetched proposal reads the same
+  // endpoint list the inline path would have.
+  const endpoints = chain.rpcUrls.default.http
+  const primaryEndpoint = rpcUrl ?? endpoints[0]
 
-  // Sort transactions by nonce in ascending order to process them in sequence
-  // Track expected nonce so sequential executions within a single run work correctly
-  let expectedNonce = onChainNonce
-  for (const tx of initialTxs.sort((a, b) => {
-    if (a.safeTx.data.nonce < b.safeTx.data.nonce) return -1
-    if (a.safeTx.data.nonce > b.safeTx.data.nonce) return 1
-    return 0
-  })) {
-    // Recompute nonce status dynamically — expectedNonce advances after each successful execution
-    const txNonce = BigInt(tx.safeTx.data.nonce)
-    // 'stale': nonce already used on-chain (proposal was created with a wrong/old nonce, e.g. due to stale RPC)
-    // 'future': nonce not yet reachable (a lower-nonce proposal must execute first)
-    const nonceStatus: SafeNonceStatus =
-      txNonce === expectedNonce
-        ? 'current'
-        : txNonce < expectedNonce
-        ? 'stale'
-        : 'future'
+  // Two different reasons not to simulate, graded differently below. Tron is
+  // reached through its own executor rather than `eth_call`, so the EVM
+  // simulator does not cover it at all — a declared limit, recorded as an
+  // acknowledgement. A network it does cover but has no endpoint for is a
+  // read that should have happened and did not, which stays unverified.
+  const evmSimulatable = !isTronNetworkKey(network) && Boolean(primaryEndpoint)
 
-    codehashGate = blockingUnevaluatedGate()
-    integrityRun = undefined
+  /**
+   * One proposal's chain-read evidence: every verdict that costs a read, and
+   * nothing that depends on what the signer does.
+   *
+   * The split is the carry-forward decision, stated once here rather than
+   * per gate. A signature is stored against one proposal's row and changes no
+   * chain state, so a bundle read before it remains true after it — which is
+   * what makes prefetching the next proposal worth anything. A broadcast does
+   * change chain state, and so invalidates every bundle read before it; the
+   * anchor below carries the run's own broadcasts, so those bundles are
+   * discarded rather than reused.
+   *
+   * Everything that reads the signature set or the signer's position in the
+   * queue — the option list, `canExecute`, the nonce interlocks — is left out
+   * and recomputed in the loop, where it is cheap and where it has to be
+   * current.
+   */
+  interface IProposalEvidence {
+    codehash: ICodehashSignGate
+    integrity: IIntegrityAssertRun | undefined
+    executability: IExecutabilityVerdict | undefined
+    rpcQuorum: IRpcQuorumVerdict | undefined
+    calldataAddresses: ICalldataAddressVerdict | undefined
+    observedSet: IObservedSet | undefined
+    references: IAddressReference[]
+    undecodable: string[]
+    /** What the reads said, held back until this proposal is on screen. */
+    lines: readonly IDeferredLine[]
+  }
 
-    consola.info('-'.repeat(80))
-    consola.info('Transaction Details:')
-    consola.info('-'.repeat(80))
-
-    if (tx.safeTx.data?.data)
-      await formatDecodedTxDataForDisplay(tx.safeTx.data.data as Hex, {
-        chainId: chain.id,
-        network,
-      })
-
-    // The block sanitises the stored addresses itself, so it can report a row
-    // that needed it. These only decide how a clean address is displayed.
-    const formatAddress = (address: string): string =>
-      `${formatAddressForNetworkCliDisplay(
-        network,
-        address as Address
-      )}${tronHexSuffix(network, address as Address)}`
-    const explorerUrlFor = (address: string): string =>
-      buildExplorerAddressUrl(network.toLowerCase(), address as Address) ?? ''
-
-    // Looked up on the sanitised address: the record keys are repository
-    // configuration, so a match names a contract this repo deployed. The block
-    // decides whether to show the name — it refuses for an address it had to
-    // repair, since sanitising a corrupt one can yield a valid one.
-    const targetName = await getTargetName(
-      sanitizeProvenanceText(tx.safeTx.data.to) as Address,
-      network
-    )
-
-    const nonceColor =
-      nonceStatus === 'current' ? '32' : nonceStatus === 'stale' ? '31' : '33'
-    // Only show nonce warning if the tx can be executed — irrelevant while still collecting signatures
-    // `trustedMarkup`: both readings are a chain-read `bigint`, and the strings
-    // carry colour codes of their own that sanitising would strip.
-    const nonceWarning = trustedMarkup(
-      nonceStatus === 'stale'
-        ? ` \u001b[31m✗ STALE — on-chain nonce is ${expectedNonce}, this proposal's nonce was already used\u001b[0m`
-        : nonceStatus === 'future' && tx.canExecute
-        ? ` \u001b[33m⚠ on-chain nonce is ${expectedNonce} — cannot execute yet\u001b[0m`
-        : ''
-    )
-
-    const detailLines = buildSafeTxDetailLines({
-      network,
-      nonce: tx.safeTx.data.nonce,
-      nonceColor,
-      nonceWarning,
-      to: tx.safeTx.data.to,
-      toTargetName: targetName,
-      formatAddress,
-      explorerUrlFor,
-      value: tx.safeTx.data.value,
-      // `trustedMarkup`: two literals, and a value `describeOperationValue`
-      // has already sanitised and bounded.
-      operationLabel: trustedMarkup(
-        tx.safeTransaction.data.operation === 0
-          ? 'Call'
-          : tx.safeTransaction.data.operation === 1
-          ? 'DelegateCall'
-          : `not Call (${describeOperationValue(
-              tx.safeTransaction.data.operation
-            )})`
-      ),
-      data: tx.safeTx.data.data,
-      proposer: tx.proposer,
-      safeTxHash: tx.safeTxHash,
-      signatureCount: tx.safeTransaction.signatures.size,
-      threshold: tx.threshold,
-      canExecute: tx.canExecute,
-      parkedTaskRefs: tx.parkedTaskRefs,
-      provenance: tx.provenance,
-    })
-
-    let targetState: ITargetStateVerdict
-    try {
-      targetState = evaluateTargetStateIntent(
-        tx.safeTx.data?.data ? [tx.safeTx.data.data as Hex] : [],
-        network,
-        createTargetStateDeps(network, {
-          readPinnedState: readPinnedTargetState,
-        })
-      )
-    } catch (error) {
-      targetState = blockedByEvaluationError(
-        error instanceof Error ? error.message : String(error)
-      )
+  /**
+   * The bundle a proposal gets when the reads could not be made at all.
+   *
+   * Every field is absent, which is what the registry reads as "this check
+   * could not be made": `proposalCheckResults` turns each one into an
+   * `unresolved` row that blocks, while a bundle that never arrived would
+   * produce no row at all and roll up as a check the run was never asked for.
+   *
+   * `rpcQuorum` is the exception, and deliberately so. An unmade quorum read
+   * records `needs-ack` rather than `error` — the gate reports on endpoint
+   * redundancy and must not block a run on the fleet's missing spare endpoints
+   * — so an unreadable bundle leaves one acknowledgeable row among ten
+   * blocking ones. Distinguishing "the bundle was unreadable" from "no quorum
+   * read was configured" here would let it block too; it is not worth a second
+   * shape when the other ten already refuse.
+   */
+  const unreadableEvidence = (error: unknown): IProposalEvidence => {
+    const why = `the proposal's chain reads could not be made — ${printableField(
+      redactUrls(error instanceof Error ? error.message : String(error))
+    )}`
+    return {
+      codehash: {
+        ...blockingUnevaluatedGate(),
+        evaluated: true,
+        refusals: [why],
+        summary: why,
+      },
+      integrity: undefined,
+      executability: undefined,
+      rpcQuorum: undefined,
+      calldataAddresses: undefined,
+      observedSet: undefined,
+      references: [],
+      undecodable: [],
+      lines: [{ level: 'error', message: why }],
     }
-    consola.info(detailLines.join('\n'))
-    // Target-state lines are graded here, not inside the sanitising detail
-    // block: they are computed verdicts, not stored proposer-controlled fields.
-    for (const line of formatTargetStateLines(targetState)) consola.info(line)
+  }
 
-    // The struct the signature covers, never the stored row: createTransaction
-    // normalises an absent operation to Call, so those two copies can disagree.
-    const operationVerdict = evaluateDelegateCallGate(tx.safeTransaction.data)
-    for (const line of renderDelegateCallGate(operationVerdict))
-      consola.info(line)
+  /**
+   * Takes every chain read one proposal is graded on.
+   *
+   * Each gate keeps its own failure handling, so one unreachable endpoint
+   * leaves that gate unverified rather than emptying the bundle. Nothing here
+   * writes to the terminal: the lines are carried on the bundle and printed
+   * when the proposal they belong to is displayed, because a warning about the
+   * next proposal, printed under this one's verdicts, describes nothing the
+   * signer is looking at.
+   *
+   * That holds for what this function says, not for what the shared helpers it
+   * calls say — `getFallbackTransportForChain` and `SafeClient`'s own read
+   * errors write to the console directly, and they have call sites that are not
+   * this run.
+   */
+  async function computeProposalEvidence(
+    tx: IAugmentedSafeTxDocument
+  ): Promise<IProposalEvidence> {
+    const log = createDeferredLogger()
 
-    // A display error must never block signing.
-    const verificationDisplay = resolveSignerVerificationDisplay(
-      resolveSafeSigningMode(process.env),
-      isTronNetworkKey(network),
-      tx.safeTx.data.data
-    )
-
-    // The hash the device will be asked to sign, computed by the Safe contract
-    // from the normalised struct. Never the stored `safeTxHash`: the proposer
-    // writes that field, so previewing it would show the operator a picture of
-    // what the proposer CLAIMS the device will display.
-    let deviceHash: Hex | undefined
-    if (verificationDisplay === 'hash-compare')
-      try {
-        deviceHash = await safe.getTransactionHash(tx.safeTransaction)
-      } catch (error) {
-        consola.warn(
-          `Could not compute the Safe transaction hash on ${network} — the Ledger screens cannot be previewed: ${printableField(
-            redactUrls(error instanceof Error ? error.message : String(error))
-          )}`
-        )
-      }
-    if (verificationDisplay === 'filmstrip')
-      try {
-        const filmstrip = renderLedgerFlexFlow({
-          chainId: chain.id,
-          verifyingContract: safeAddress,
-          to: tx.safeTransaction.data.to,
-          value: String(tx.safeTransaction.data.value),
-          data: tx.safeTx.data.data,
-        })
-        consola.info(
-          [
-            'Ledger Flex — verify these screens against your device (screens 5–8 are gas params / nonce, not security-relevant):',
-            ...filmstrip,
-            LEDGER_FLEX_WRAP_NOTE,
-          ].join('\n')
-        )
-      } catch (error) {
-        consola.debug(`Ledger Flex filmstrip skipped: ${error}`)
-      }
-    else if (verificationDisplay === 'hash-compare') {
-      // Report-only, and it names only the computed value: the stored hash is
-      // proposer-written text and is not echoed a second time here.
-      if (deviceHash) {
-        const stored = tx.safeTxHash
-        const storedIsHash =
-          typeof stored === 'string' && /^0x[0-9a-f]{64}$/i.test(stored)
-        if (!storedIsHash)
-          consola.warn(
-            `This proposal carries no readable stored hash. Your device will show \u001b[36m${deviceHash}\u001b[0m — compare that one.`
-          )
-        else if (stored.toLowerCase() !== deviceHash.toLowerCase())
-          consola.warn(
-            `The hash stored on this proposal is not the hash the Safe computes from it. Your device will show \u001b[36m${deviceHash}\u001b[0m — compare that one.`
-          )
-      }
-
-      let flow: string[] = []
-      if (deviceHash)
-        try {
-          flow = [
-            'Ledger — hash mode. Your device will show these three screens:',
-            ...renderLedgerFlexHashFlow({ hash: deviceHash }),
-            LEDGER_FLEX_HASH_NOTE,
-          ]
-        } catch (error) {
-          consola.warn(`Ledger Flex hash screens could not be drawn: ${error}`)
-        }
-
-      consola.info(
-        (flow.length
-          ? [
-              ...flow,
-              'That hash is read from the Safe contract, not from the proposal row — the',
-              'proposer controls that field. Reading it here still proves nothing about',
-              'intent: the authority is the hash in the out-of-band message from the',
-              'proposer. Compare 16 characters, 8 from each end — four-and-four is',
-              'grindable by whoever wrote the payload.',
-            ]
-          : [
-              'Ledger — the device shows one message screen holding the Safe transaction hash.',
-              'It could not be previewed here (see the warning above), so compare the device',
-              'screen directly against the hash in the out-of-band message from the proposer:',
-              '16 characters, 8 from each end — four-and-four is grindable by whoever wrote',
-              'the payload. The hash stored on the proposal row is not the authority; the',
-              'proposer controls it alongside the calldata.',
-            ]
-        ).join('\n')
-      )
-    }
+    let codehash: ICodehashSignGate = blockingUnevaluatedGate()
+    let integrity: IIntegrityAssertRun | undefined
+    let calldataAddresses: ICalldataAddressVerdict | undefined
 
     // The struct itself reaches the gate, which reads its calldata when it
     // judges; the verdict is then bound to that transaction, so it cannot
@@ -945,7 +958,7 @@ const processTxs = async (
     // specific proposal is unsignable, which is the same reason the nonce gate
     // runs after the choice.
     try {
-      codehashGate = await evaluateCodehashSignGate(
+      codehash = await evaluateCodehashSignGate(
         gateInputFor(tx, networkKey),
         getCodehashDeps
       )
@@ -955,24 +968,16 @@ const processTxs = async (
       const why = `the codehash gate could not be evaluated — ${
         error instanceof Error ? error.message : String(error)
       }`
-      codehashGate = {
+      codehash = {
         ...blockingUnevaluatedGate(),
         evaluated: true,
         refusals: [why],
         summary: why,
       }
     }
-    renderCodehashSignGate(codehashGate).forEach((line) => consola.info(line))
 
-    // Nothing between the top of this iteration and this point returns or
-    // continues, which is what lets the run happen here without swallowing a
-    // check that would otherwise have decided first.
-    //
-    // Only the verdict is produced here; the refusal lives in the two funnels,
-    // because dropping the Sign option instead would hide which assertion
-    // refused.
     try {
-      integrityRun = await runIntegrityAsserts(
+      integrity = await runIntegrityAsserts(
         {
           network,
           chainId: chain.id,
@@ -1015,30 +1020,13 @@ const processTxs = async (
       // Left undefined, which is the blocking state. "The assertions could not
       // run" and "the assertions passed" are the two things they exist to keep
       // apart, so a thrown lookup must not read as the second.
-      integrityRun = undefined
-      consola.error(
+      integrity = undefined
+      log.error(
         `    Proposal integrity: the assertions could not be run — ${printableField(
           redactUrls(error instanceof Error ? error.message : String(error))
         )}`
       )
     }
-    // The run-level ledger mirrors these verdicts, but renders in the `finally`
-    // block after every signature. This is the only place they reach the signer
-    // before the signing decision, so it stays despite the duplication.
-    renderIntegrityAsserts(integrityRun).forEach((line) => consola.info(line))
-
-    // The remaining sign-time gates, run below the verdicts they are recorded
-    // beside so one ordered step hands the recorder all of them.
-    const endpoints = chain.rpcUrls.default.http
-    const primaryEndpoint = rpcUrl ?? endpoints[0]
-
-    // Two different reasons not to simulate, graded differently below. Tron is
-    // reached through its own executor rather than `eth_call`, so the EVM
-    // simulator does not cover it at all — a declared limit, recorded as an
-    // acknowledgement. A network it does cover but has no endpoint for is a
-    // read that should have happened and did not, which stays unverified.
-    const evmSimulatable =
-      !isTronNetworkKey(network) && Boolean(primaryEndpoint)
 
     let executability: IExecutabilityVerdict | undefined
     if (evmSimulatable && primaryEndpoint)
@@ -1073,7 +1061,7 @@ const processTxs = async (
               }),
             ]
           } catch (error) {
-            consola.warn(
+            log.warn(
               `    Executability: the supplied --rpcUrl cannot be used on ${network} — ${redactUrls(
                 error instanceof Error ? error.message : String(error)
               )}`
@@ -1087,7 +1075,7 @@ const processTxs = async (
           chainTransport = getFallbackTransportForChain(chain)
         } catch (error) {
           if (overrideTransports.length === 0) throw error
-          consola.warn(
+          log.warn(
             `    Executability: no endpoint from the chain config is usable on ${network}; simulating through the supplied override alone — ${redactUrls(
               error instanceof Error ? error.message : String(error)
             )}`
@@ -1114,10 +1102,10 @@ const processTxs = async (
         // the payload's own answer has to be read endpoint by endpoint instead.
         //
         // Built through the same transport config the rest of the run uses, not
-        // from the bare URL: that is where an endpoint's auth headers come
-        // from, and a simulator missing them fails to authenticate on every
-        // endpoint — which this gate would then read as a proposal nobody could
-        // simulate rather than as its own misconfiguration.
+        // from the bare URL: that is where an endpoint's auth headers and retry
+        // policy come from, and a simulator missing them fails to authenticate
+        // on every endpoint — which this gate would then read as a proposal
+        // nobody could simulate rather than as its own misconfiguration.
         const simulators = [...overrideEndpoints, ...endpoints].flatMap(
           (endpointUrl) => {
             try {
@@ -1165,15 +1153,12 @@ const processTxs = async (
         // Left undefined, which the ledger records as unverified and blocks on.
         // A thrown collection is not a simulation that found nothing wrong, and
         // every configured endpoint was already tried before reaching here.
-        consola.error(
+        log.error(
           `    Executability: this proposal could not be simulated on ${network}, so it is UNVERIFIED — investigate before signing: ${redactUrls(
             error instanceof Error ? error.message : String(error)
           )}`
         )
       }
-
-    if (executability)
-      renderExecutability(executability).forEach((line) => consola.info(line))
 
     const quorumTarget = tx.safeTransaction.data.to as Address
     let rpcQuorum: IRpcQuorumVerdict | undefined
@@ -1182,35 +1167,37 @@ const processTxs = async (
         rpcQuorum = evaluateRpcQuorum(
           await collectProviderObservations(
             endpoints,
-            createCodeReader(quorumTarget, chain.id)
+            createCodeReader(
+              quorumTarget,
+              chain.id,
+              ENDPOINT_READ_BUDGET_MS,
+              createPinnedBlock(endpoints, chain.id)
+            )
           )
         )
       } catch (error) {
-        consola.warn(
+        log.warn(
           `    RPC quorum: the read could not be made — ${redactUrls(
             error instanceof Error ? error.message : String(error)
           )}`
         )
       }
 
-    if (rpcQuorum)
-      renderRpcQuorum(rpcQuorum, codeReadLabel(quorumTarget, network)).forEach(
-        (line) => consola.info(line)
-      )
-
     // Report-only and never gated on: the record is written by the deploying
     // machine, so this catches the typo and the address nobody deployed, not a
     // proposer who controls that machine. It carries no ledger row because the
     // only anchor it could rest on reports rather than decides — see
     // `check-ledger.ts`'s reporting-only anchors.
+    // Hoisted out of the try below because gate G reads it too: it is a pure
+    // decode of the proposal's own calldata, and only the record lookup under
+    // it can fail.
+    const { references, undecodable } = collectAddressReferences(
+      tx.safeTransaction.data.data ? [tx.safeTransaction.data.data as Hex] : []
+    )
+
     try {
-      const { references, undecodable } = collectAddressReferences(
-        tx.safeTransaction.data.data
-          ? [tx.safeTransaction.data.data as Hex]
-          : []
-      )
       const records = await readDeploymentRecords()
-      const calldataAddresses = evaluateCalldataAddresses(
+      calldataAddresses = evaluateCalldataAddresses(
         {
           network,
           references,
@@ -1222,34 +1209,440 @@ const processTxs = async (
           referencedNames(references)
         )
       )
-      renderCalldataAddresses(calldataAddresses).forEach((line) =>
-        consola.info(line)
-      )
     } catch (error) {
-      consola.warn(
+      log.warn(
         `    Calldata addresses: the check could not be run — ${redactUrls(
           error instanceof Error ? error.message : String(error)
         )}`
       )
     }
 
-    proposalChecks.push(
-      ...proposalCheckResults({
-        network,
-        integrity: integrityRun,
-        targetState,
-        executability,
-        // Only a chain the simulator was never written for is out of scope. An
-        // EVM network it does cover but could not reach is a read that should
-        // have happened and did not, so it is left to record as unverified.
-        ...(isTronNetworkKey(network)
-          ? {
-              executabilityOutOfScope: `${network} is executed through its own chain executor, which the EVM simulator does not cover`,
-            }
-          : {}),
-        rpcQuorum,
-      })
+    // Read before the signer is asked to decide. The same call inside
+    // `recordSignedSet` runs after the signature, where a refusal is no
+    // longer available; the cache makes the second call free.
+    const observedSet = await observeSetForProposal(
+      tx.safeTxHash,
+      tx.safeTransaction.data.data as Hex | undefined,
+      log
     )
+
+    return {
+      codehash,
+      integrity,
+      executability,
+      rpcQuorum,
+      calldataAddresses,
+      observedSet,
+      references,
+      undecodable,
+      lines: log.lines,
+    }
+  }
+
+  /**
+   * What a prefetched bundle must still be true against when it is used.
+   *
+   * The Safe's own nonce, plus a counter this run bumps before every broadcast
+   * it makes. The nonce catches another signer executing on this Safe while
+   * the operator read; the counter catches this run's own execution, which
+   * moves chain state whatever the nonce read then says. An unreadable nonce
+   * resolves to nothing, which never matches — the bundle is recomputed
+   * instead of being served against state nobody could confirm.
+   */
+  const resolveEvidenceAnchor = async (): Promise<string | undefined> => {
+    try {
+      return `${broadcastsMade}:${await safe.getNonce()}`
+    } catch {
+      return undefined
+    }
+  }
+
+  const evidencePrefetch = new ProposalEvidencePrefetchQueue<
+    IAugmentedSafeTxDocument,
+    IProposalEvidence
+  >((error) => unreadableEvidence(error))
+
+  /**
+   * Says where a proposal's evidence came from and how old it is.
+   *
+   * A verdict read minutes ago and shown as current is the thing this whole
+   * gate set exists to prevent, so a served prefetch names its age even though
+   * it was re-validated, and a discarded one names why it was thrown away.
+   */
+  const describeEvidenceProvenance = (
+    taken: IPrefetchedEvidence<IProposalEvidence>
+  ): string[] => {
+    if (taken.prefetched)
+      return [
+        `Chain reads for this proposal were taken ${Math.round(
+          taken.ageMs / 1000
+        )}s ago, while the previous proposal was on screen. Re-validated just now: the Safe's nonce is unchanged and this run has broadcast nothing since.`,
+      ]
+    if (taken.discarded)
+      return [
+        `Chain reads for this proposal were re-taken just now: ${taken.discarded}.`,
+      ]
+    return []
+  }
+
+  // Every proposal's ledger rows, accumulated rather than recorded as they are
+  // graded. A ledger row is denominated per network while proposals are graded
+  // one by one, and `rollUpChecks` reads two records for one (check, network)
+  // pair as a retry — so recording per proposal lets the last proposal's verdict
+  // stand for the whole network, and a clean one erase an earlier refusal.
+  const proposalChecks: ICheckResult[] = []
+
+  // A run walks several proposals and each one ends on a checklist, so the
+  // separator is what keeps the next proposal's fields from reading as more of
+  // the previous one's instructions.
+  let proposalIndex = 0
+
+  // Sort transactions by nonce in ascending order to process them in sequence.
+  // In place, so the loop below and `nextProposal` cannot disagree about which
+  // proposal follows which.
+  const orderedTxs = initialTxs.sort((a, b) => {
+    if (a.safeTx.data.nonce < b.safeTx.data.nonce) return -1
+    if (a.safeTx.data.nonce > b.safeTx.data.nonce) return 1
+    return 0
+  })
+
+  // Which proposal the signer reaches next, so its reads can be started while
+  // this one is being read. Keyed on the document rather than on its hash:
+  // position in the queue is a fact about this array, and two rows carrying
+  // one hash must not be able to decide it.
+  const nextProposal = new Map<
+    IAugmentedSafeTxDocument,
+    IAugmentedSafeTxDocument
+  >()
+  orderedTxs.forEach((proposal, index) => {
+    const next = orderedTxs[index + 1]
+    if (next) nextProposal.set(proposal, next)
+  })
+
+  // Track expected nonce so sequential executions within a single run work correctly
+  let expectedNonce = onChainNonce
+  for (const tx of initialTxs) {
+    // Recompute nonce status dynamically — expectedNonce advances after each successful execution
+    const txNonce = BigInt(tx.safeTx.data.nonce)
+    // 'stale': nonce already used on-chain (proposal was created with a wrong/old nonce, e.g. due to stale RPC)
+    // 'future': nonce not yet reachable (a lower-nonce proposal must execute first)
+    const nonceStatus: SafeNonceStatus =
+      txNonce === expectedNonce
+        ? 'current'
+        : txNonce < expectedNonce
+        ? 'stale'
+        : 'future'
+
+    codehashGate = blockingUnevaluatedGate()
+    integrityRun = undefined
+    if (proposalIndex++ > 0) consola.log(PROPOSAL_SEPARATOR.join('\n'))
+
+    // The block sanitises the stored addresses itself, so it can report a row
+    // that needed it. These only decide how a clean address is displayed.
+    const formatAddress = (address: string): string =>
+      `${formatAddressForNetworkCliDisplay(
+        network,
+        address as Address
+      )}${tronHexSuffix(network, address as Address)}`
+    const explorerUrlFor = (address: string): string =>
+      buildExplorerAddressUrl(network.toLowerCase(), address as Address) ?? ''
+
+    // Looked up on the sanitised address: the record keys are repository
+    // configuration, so a match names a contract this repo deployed. The block
+    // decides whether to show the name — it refuses for an address it had to
+    // repair, since sanitising a corrupt one can yield a valid one.
+    const targetName = await getTargetName(
+      sanitizeProvenanceText(tx.safeTx.data.to) as Address,
+      network
+    )
+
+    // Only show nonce warning if the tx can be executed — irrelevant while still collecting signatures
+    // `trustedMarkup`: both readings are a chain-read `bigint`, and the strings
+    // carry colour codes of their own that sanitising would strip.
+    const nonceWarning = trustedMarkup(
+      nonceStatus === 'stale'
+        ? ` [31m✗ STALE — on-chain nonce is ${expectedNonce}, this proposal's nonce was already used[0m`
+        : nonceStatus === 'future' && tx.canExecute
+        ? ` [33m⚠ on-chain nonce is ${expectedNonce} — cannot execute yet[0m`
+        : ''
+    )
+
+    // The struct the signature covers, never the stored row: createTransaction
+    // normalises an absent operation to Call, so those two copies can disagree.
+    const operationVerdict = evaluateDelegateCallGate(tx.safeTransaction.data)
+
+    // The verb follows the row, not the menu: a row already carrying the
+    // threshold is executed without this signer being asked for a signature at
+    // all, so asking them to check it "before signing" names the wrong act.
+    //
+    // The nonce is sanitised before it reaches the heading, which pads itself
+    // from the string's length: an escape sequence in a stored nonce would be
+    // measured as width and silently shift the rule it sits between.
+    const { text: headingNonce } = asPrintable(tx.safeTx.data.nonce)
+    consola.log(
+      zoneHeading(
+        1,
+        `WHAT YOU ARE BEING ASKED TO ${tx.canExecute ? 'EXECUTE' : 'SIGN'}`,
+        `${network} · nonce ${headingNonce} · ${signatureTally(
+          tx.safeTransaction.signatures.size,
+          tx.threshold
+        )}`
+      ).join('\n')
+    )
+
+    const detailInput: ISafeTxDetailInput = {
+      network,
+      heading: '',
+      nonceWarning,
+      to: tx.safeTx.data.to,
+      toTargetName: targetName,
+      formatAddress,
+      explorerUrlFor,
+      value: tx.safeTx.data.value,
+      // `trustedMarkup`: two literals, and a value `describeOperationValue`
+      // has already sanitised and bounded.
+      operationLabel: trustedMarkup(
+        tx.safeTransaction.data.operation === 0
+          ? 'Call'
+          : tx.safeTransaction.data.operation === 1
+          ? 'DelegateCall'
+          : `not Call (${describeOperationValue(
+              tx.safeTransaction.data.operation
+            )})`
+      ),
+      operationIsCall: tx.safeTransaction.data.operation === 0,
+      data: tx.safeTx.data.data,
+      showRawCalldata,
+      parkedTaskRefs: tx.parkedTaskRefs,
+      provenance: tx.provenance,
+    }
+
+    consola.log(buildSafeTxDetailLines(detailInput).join('\n'))
+    consola.log(buildCalldataTarget(detailInput).join('\n'))
+
+    if (tx.safeTx.data?.data)
+      consola.log(
+        (
+          await buildCalldataEffectLines(tx.safeTx.data.data, {
+            network,
+            // The body of THE CALLDATA DOES, drawn at that block's own column.
+            indent: '      ',
+            target: tx.safeTx.data.to,
+          })
+        ).join('\n')
+      )
+
+    consola.log(CLAIM_QUESTION.join('\n'))
+
+    let targetState: ITargetStateVerdict
+    try {
+      targetState = evaluateTargetStateIntent(
+        tx.safeTx.data?.data ? [tx.safeTx.data.data as Hex] : [],
+        network,
+        createTargetStateDeps(network, {
+          readPinnedState: readPinnedTargetState,
+        })
+      )
+    } catch (error) {
+      targetState = blockedByEvaluationError(
+        error instanceof Error ? error.message : String(error)
+      )
+    }
+
+    // A display error must never block signing.
+    const verificationDisplay = resolveSignerVerificationDisplay(
+      resolveSafeSigningMode(process.env),
+      isTronNetworkKey(network),
+      tx.safeTx.data.data
+    )
+
+    // The hash the device will be asked to sign, computed by the Safe contract
+    // from the normalised struct. Never the stored `safeTxHash`: the proposer
+    // writes that field, so previewing it would show the operator a picture of
+    // what the proposer CLAIMS the device will display.
+    let deviceHash: Hex | undefined
+    if (verificationDisplay === 'hash-compare')
+      try {
+        deviceHash = await safe.getTransactionHash(tx.safeTransaction)
+      } catch (error) {
+        consola.warn(
+          `Could not compute the Safe transaction hash on ${network} — the Ledger screens cannot be previewed: ${printableField(
+            redactUrls(error instanceof Error ? error.message : String(error))
+          )}`
+        )
+      }
+
+    let devicePanel: string[] = []
+    let devicePanelNote: string | undefined
+    if (verificationDisplay === 'filmstrip')
+      try {
+        devicePanel = renderLedgerFlexFlow({
+          chainId: chain.id,
+          verifyingContract: safeAddress,
+          to: tx.safeTransaction.data.to,
+          value: String(tx.safeTransaction.data.value),
+          data: tx.safeTx.data.data,
+        })
+        devicePanelNote = LEDGER_FLEX_WRAP_NOTE
+      } catch (error) {
+        consola.debug(`Ledger Flex filmstrip skipped: ${error}`)
+      }
+    else if (verificationDisplay === 'hash-compare' && deviceHash)
+      try {
+        devicePanel = renderLedgerFlexHashFlow({ hash: deviceHash })
+        devicePanelNote = LEDGER_FLEX_HASH_NOTE
+      } catch (error) {
+        consola.warn(`Ledger Flex hash screens could not be drawn: ${error}`)
+      }
+
+    // Report-only, and it names only the computed value: the stored hash is
+    // proposer-written text and is not echoed a second time here.
+    const storedHash = tx.safeTxHash
+    const storedIsHash =
+      typeof storedHash === 'string' && /^0x[0-9a-f]{64}$/i.test(storedHash)
+
+    // Every chain read this proposal is graded on, in one step. Served from
+    // the prefetch taken while the previous proposal was on screen only while
+    // the anchor still agrees, and re-taken here otherwise — so what is
+    // displayed below is evidence about the state this proposal would be
+    // signed against, never about a state it has left.
+    const evidence = await evidencePrefetch.take(
+      tx,
+      () => computeProposalEvidence(tx),
+      resolveEvidenceAnchor
+    )
+
+    // The next proposal's reads start before this one is displayed: the
+    // interval in which a human reads is the only one in which the machine has
+    // nothing else to do. One proposal ahead and no further — the win is that
+    // interval, and depth past it only widens the window a read can go stale
+    // in.
+    const nextTx = nextProposal.get(tx)
+    if (nextTx)
+      evidencePrefetch.schedule(
+        nextTx,
+        () => computeProposalEvidence(nextTx),
+        resolveEvidenceAnchor
+      )
+
+    // The reads' own lines first, in the order they were produced, then where
+    // the reads came from — both above the verdicts they explain.
+    for (const line of evidence.value.lines)
+      if (line.level === 'error') consola.error(line.message)
+      else if (line.level === 'warn') consola.warn(line.message)
+      else consola.info(line.message)
+    for (const line of describeEvidenceProvenance(evidence)) consola.info(line)
+
+    codehashGate = evidence.value.codehash
+    integrityRun = evidence.value.integrity
+    const {
+      executability,
+      rpcQuorum,
+      calldataAddresses,
+      references,
+      undecodable,
+      observedSet,
+    } = evidence.value
+
+    // Rendered here and printed in zone 2: the gate's own block carries
+    // per-address detail no single ledger row holds — the reason, and the
+    // immutable bytes a verdict does not cover.
+    const codehashLines = renderCodehashSignGate(codehashGate)
+    // Carries no ledger row, so it has no grouped row to print under.
+    const calldataAddressLines = calldataAddresses
+      ? renderCalldataAddresses(calldataAddresses)
+      : []
+
+    // R2.6's subjects: the contracts this proposal puts into service, out of
+    // every address the observation read.
+    const installedAuthorities = authoritiesOfInstalled(
+      observedSet?.observed.authorities ?? [],
+      references
+    )
+
+    const proposalResults = proposalCheckResults({
+      network,
+      storageAuthority: observedSet
+        ? {
+            entries: toSignedAuthorityEntries(installedAuthorities),
+            anchors: authorityExpectationAnchors(installedAuthorities),
+            ...(undecodable.length > 0 ? { scopeUnreadable: undecodable } : {}),
+          }
+        : undefined,
+      integrity: integrityRun,
+      // The gate object this proposal was judged on, not a re-derivation of
+      // it: the row must report the same verdict the refusal below acts on.
+      codehash: codehashGate,
+      targetState,
+      executability,
+      // Only a chain the simulator was never written for is out of scope. An
+      // EVM network it does cover but could not reach is a read that should
+      // have happened and did not, so it is left to record as unverified.
+      ...(isTronNetworkKey(network)
+        ? {
+            executabilityOutOfScope: `${network} is executed through its own chain executor, which the EVM simulator does not cover`,
+          }
+        : {}),
+      rpcQuorum,
+    })
+    proposalChecks.push(...proposalResults)
+
+    // Every check the run graded, as one report. The gates each print well on
+    // their own, and five of them in a row is how the signer learned to scroll
+    // past all five.
+    const signerCheckRows = signerChecks({
+      results: proposalResults,
+      notApplicable: integrityResults(integrityRun).notApplicable,
+      // The simulation answers once per payload and a ledger row holds one
+      // verdict, so the breakdown goes in as a note: the row keeps the single
+      // answer the ledger and the refusal messages are written against, and the
+      // signer still sees which call it was that would revert.
+      ...(executability
+        ? {
+            notes: new Map([
+              [EXECUTABILITY_CHECK_ID, executabilityNotes(executability)],
+            ]),
+          }
+        : {}),
+      definitions: viewDefinitions(ALL_GATE_DEFINITIONS),
+    })
+
+    consola.log(
+      zoneHeading(
+        2,
+        'WHAT WAS CHECKED FOR YOU',
+        checkSummary(signerCheckRows)
+      ).join('\n')
+    )
+    // The roster first, then the rows that ask something of the signer. The
+    // sections say what to read; only the manifest says what there was to read,
+    // which is what makes a gate that reported nothing visible at all.
+    consola.log(
+      renderGateManifest({
+        entries: signerCheckRows,
+        roster: ALL_GATE_DEFINITIONS,
+        mustReport: new Set(
+          CONFIRM_CHECK_DEFINITIONS.map((definition) => definition.checkId)
+        ),
+        docUrls: CHECK_DOCS,
+      }).join('\n')
+    )
+    consola.log(renderCheckGroups(signerCheckRows).join('\n'))
+    // Per-finding detail under the row that reduced them: the ledger holds one
+    // verdict per proposal, and a cut installing several facets has one line
+    // per element to show.
+    for (const line of formatTargetStateLines(targetState)) consola.log(line)
+    codehashLines.forEach((line) => consola.log(line))
+    // Carries no ledger row, so it has no grouped row to print under.
+    calldataAddressLines.forEach((line) => consola.log(line))
+
+    // The slot, not the checklist. What goes in it is printed further down, once
+    // an action has been chosen and every interlock that could still abort the
+    // run has had its turn.
+    consola.log(
+      zoneHeading(3, 'WHAT ONLY YOU CAN DO', TODOS_DEFERRED_SUMMARY).join('\n')
+    )
+    consola.log(renderDeferredTodos().join('\n'))
 
     const integrity = evaluateProposalIntegrity({ nonceStatus })
     // Said before the action prompt, not after it: a verdict the operator can no
@@ -1291,6 +1684,11 @@ const processTxs = async (
       nonceCurrent: integrity.ok,
       acknowledged: false,
     })
+
+    // Restated here rather than left to the rows above: by the time the prompt
+    // appears the signer has scrolled past every gate, the calldata and the
+    // device panel, and this is the screen the decision is made on.
+    consola.log(renderProposalOutcome(signerCheckRows).join('\n'))
 
     // Determine available actions based on signature status
     // Execute options are offered regardless of nonce status; the nonce gate runs
@@ -1499,6 +1897,33 @@ const processTxs = async (
       acknowledged,
     })
 
+    // Zone 3, held back from the decision screen and printed here instead: after
+    // the nonce and expected-state interlocks, which can still end the run, and
+    // immediately before the device is touched. A signer comparing a hash
+    // against a Ledger wants it at the foot of the scrollback, not above thirty
+    // rows of gate output they have scrolled past since.
+    if (opensDeviceScreens(action)) {
+      consola.log(zoneHeading(3, 'WHAT ONLY YOU CAN DO').join('\n'))
+      consola.log(
+        renderTodos(
+          signerTodos({
+            ...(deviceHash ? { deviceHash } : {}),
+            ...(deviceHash
+              ? {
+                  storedHash: !storedIsHash
+                    ? ('unreadable' as const)
+                    : storedHash.toLowerCase() !== deviceHash.toLowerCase()
+                    ? ('disagrees' as const)
+                    : ('agrees' as const),
+                }
+              : {}),
+            devicePanel,
+            ...(devicePanelNote ? { devicePanelNote } : {}),
+          })
+        ).join('\n')
+      )
+    }
+
     if (action === 'Sign')
       try {
         const safeTransaction = tx.safeTransaction
@@ -1596,11 +2021,11 @@ const processTxs = async (
 
   // One row per network, written once every proposal on it has been graded and
   // reduced worst-first. A `ready` network always carries at least one proposal,
-  // so the empty branch is the unreachable case made explicit rather than left
-  // to roll up as a missing row and block the run.
+  // so the empty branch records a broken invariant — unverified, never a network
+  // the run established had nothing on it.
   if (checkLedger) {
     if (proposalChecks.length === 0)
-      recordNothingToGrade(network, 'the prepared network carried no proposal')
+      recordCouldNotGrade(network, 'the prepared network carried no proposal')
     else
       for (const result of worstResultPerCheck(proposalChecks))
         recordCheck(checkLedger, result)
@@ -1648,6 +2073,14 @@ const main = defineCommand({
     derivationPath: {
       type: 'string',
       description: 'Custom derivation path for Ledger (overrides ledgerLive)',
+      required: false,
+    },
+    // No `default`: the value is read from argv by `readBooleanFlag`, and a
+    // citty default would shadow what the caller actually passed.
+    raw: {
+      type: 'boolean',
+      description:
+        'Print the full calldata hex instead of its length and first four bytes',
       required: false,
     },
   },
@@ -1803,6 +2236,7 @@ const main = defineCommand({
       }
 
       let networks: string[]
+      let candidateNetworks: string[]
 
       if (args.network) {
         // If a specific network is provided, validate it exists and is active
@@ -1814,13 +2248,14 @@ const main = defineCommand({
         if (networkConfig.status !== 'active')
           throw new Error(`Network ${args.network} is not active`)
 
-        networks = [args.network]
+        candidateNetworks = [args.network]
       } else {
         // First, get all networks with pending transactions (for informational purposes)
-        const allNetworksWithPendingTxs =
-          await getNetworksWithPendingTransactions(pendingTransactions)
+        candidateNetworks = await getNetworksWithPendingTransactions(
+          pendingTransactions
+        )
 
-        if (allNetworksWithPendingTxs.length === 0) {
+        if (candidateNetworks.length === 0) {
           consola.info('No networks have pending transactions')
           await mongoClient.close(true)
           return
@@ -1828,17 +2263,60 @@ const main = defineCommand({
 
         consola.info(
           `Found pending transactions on ${
-            allNetworksWithPendingTxs.length
-          } network(s): ${allNetworksWithPendingTxs.join(', ')}`
+            candidateNetworks.length
+          } network(s): ${candidateNetworks.join(', ')}`
         )
+      }
+
+      // Before the ownership reads and before a ledger exists, so a network
+      // that cannot be graded is named once with its cause instead of becoming
+      // a column of unverified checks. `getNetworksWithActionableTransactions`
+      // still probes it — it derives its own network list — but reports a failed
+      // read as "not actionable", a true statement with a false explanation, so
+      // the refusal has to be printed before it speaks.
+      const preflightVerdict = await networkPreflight(candidateNetworks, {
+        // `--rpc-url` cannot stand in for the variable: `buildReadOnlyClient`
+        // resolves the chain before it looks at the override, and that resolve
+        // is what needs the variable. Treating the flag as configuration here
+        // let the run report a missing variable as an endpoint that did not
+        // answer, and send the signer to check a host nothing had contacted.
+        endpointConfigured: (network) =>
+          Boolean(process.env[getRPCEnvVarName(network)]?.trim()),
+        chainIdOf: (network) =>
+          buildReadOnlyClient(network, args.rpcUrl, {
+            signal: AbortSignal.timeout(PREFLIGHT_PROBE_TIMEOUT_MS),
+          }).getChainId(),
+        expectedChainId: (network) =>
+          networksData[network.toLowerCase() as keyof typeof networksData]
+            .chainId,
+        envVarName: getRPCEnvVarName,
+      })
+      refusedNetworks = [...preflightVerdict.refused]
+      renderNetworkPreflight(preflightVerdict).forEach((line) =>
+        consola.log(line)
+      )
+
+      if (preflightVerdict.startable.length === 0) {
+        process.exitCode = PREFLIGHT_EXIT_CODE
+        await mongoClient.close(true)
+        return
+      }
+
+      if (args.network) networks = [...preflightVerdict.startable]
+      else {
+        const startableWithPendingTxs = preflightVerdict.startable
         consola.info(`Checking ownership for signer: ${signerAddress}`)
 
-        // Filter to only networks where the user can take action (is a Safe owner)
-        networks = await getNetworksWithActionableTransactions(
-          pendingTransactions,
-          signerAddress,
-          args.rpcUrl
-        )
+        // Filtered to the networks the preflight cleared, so a refused one
+        // cannot reach `networks` — and therefore the ledger — as "not a Safe
+        // owner", which is what its failed ownership read would otherwise say.
+        networks = (
+          await getNetworksWithActionableTransactions(
+            pendingTransactions,
+            signerAddress,
+            args.rpcUrl
+          )
+        ).filter((network) => preflightVerdict.startable.includes(network))
 
         if (networks.length === 0) {
           consola.info(
@@ -1850,8 +2328,8 @@ const main = defineCommand({
         }
 
         // Show which networks are actionable
-        if (networks.length < allNetworksWithPendingTxs.length) {
-          const nonActionableNetworks = allNetworksWithPendingTxs.filter(
+        if (networks.length < startableWithPendingTxs.length) {
+          const nonActionableNetworks = startableWithPendingTxs.filter(
             (n) => !networks.includes(n)
           )
           consola.info(
@@ -1867,8 +2345,10 @@ const main = defineCommand({
             )}`
           )
         } else {
+          // "this run can check", not "with pending transactions": the refused
+          // networks were dropped above and counted in the block that named them.
           consola.info(
-            `You can take action on all ${networks.length} network(s) with pending transactions`
+            `You can take action on all ${networks.length} network(s) this run can check`
           )
         }
       }
@@ -2024,6 +2504,18 @@ const main = defineCommand({
       // signer never sees is worse than no check at all.
       if (checkLedger)
         renderCheckLedger(checkLedger).forEach((line) => consola.info(line))
+
+      // After the ledger, because it is about what the ledger does not cover.
+      // The refused networks are absent from its denominator, so its verdict is
+      // about the networks that could be graded and says nothing about these.
+      if (refusedNetworks.length > 0) {
+        consola.error(
+          `Not covered by the verdict above: ${refusedNetworks.join(
+            ', '
+          )} — the run could not start there, so nothing on those networks was checked.`
+        )
+        process.exitCode = PREFLIGHT_EXIT_CODE
+      }
 
       if (networkOutcomes.length > 0) {
         consola.info('=== Change Review Summary ===')

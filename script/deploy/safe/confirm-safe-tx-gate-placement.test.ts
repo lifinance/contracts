@@ -99,4 +99,22 @@ describe('target-state gate placement in confirm-safe-tx', () => {
     expect(source.indexOf('getSignTimeTransportConfig(')).toBeGreaterThan(-1)
     expect(source.indexOf('getTransportConfigFromRpcUrl(')).toBe(-1)
   })
+
+  // Gate G grades the contracts this proposal installs, while the observation
+  // it is built from reads every address the calldata names — for the record
+  // and for the pre-broadcast re-read. Handing the wide set to the gate is how
+  // it comes to ask about a diamond's owner on a proposal that only removes a
+  // facet from it, and the two sets are one expression apart in this file.
+  // Asserted against what the grading call is handed, not against the file as a
+  // whole: the record writer is the one place that legitimately keeps every
+  // address it observed.
+  it('grades gate G on the narrowed set, never the whole observation', () => {
+    const at = source.indexOf('proposalCheckResults({')
+    expect(at).toBeGreaterThan(-1)
+    const call = source.slice(at, source.indexOf('\n      })', at))
+
+    expect(call).toContain('installedAuthorities')
+    expect(call).not.toContain('observed.authorities')
+    expect(source.indexOf('authoritiesOfInstalled(')).toBeLessThan(at)
+  })
 })

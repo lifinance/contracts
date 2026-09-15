@@ -8,7 +8,9 @@
  *
  * A check that could not run is not a check that passed: it is recorded as
  * `error`, counted as unverified, and the verdict comes back blocked with no
- * acknowledgement path.
+ * acknowledgement path. A check that had nothing to grade is neither: it is
+ * recorded as `not-applicable`, counted outside both numerator and denominator,
+ * and a run made only of those closes as having reviewed nothing.
  */
 
 import { keccak256, stringToHex, type Hex } from 'viem'
@@ -17,8 +19,18 @@ import { keccak256, stringToHex, type Hex } from 'viem'
  * `error` means the check could not run — unreachable store, failed RPC,
  * unreadable anchor. It is never a synonym for `fail`, which is a real
  * mismatch, and never collapses into `pass`.
+ *
+ * `not-applicable` means the run established there was nothing here to grade —
+ * a network whose only pending proposal this signer had already signed. It does
+ * not block, because nothing is wrong, and it never counts as verified, because
+ * nothing was checked.
  */
-export type CheckStatus = 'pass' | 'fail' | 'error' | 'needs-ack'
+export type CheckStatus =
+  | 'pass'
+  | 'fail'
+  | 'error'
+  | 'needs-ack'
+  | 'not-applicable'
 
 /**
  * `integrity` checks answer "is the code/authority what it claims to be" and
@@ -56,12 +68,25 @@ const REPORTING_ONLY_ANCHORS: ReadonlySet<AnchorId> = new Set<AnchorId>([
   'A-UNRESOLVED',
 ])
 
+/**
+ * The reporting-only anchors a signer can be asked to take on.
+ *
+ * Narrower than `REPORTING_ONLY_ANCHORS` on purpose. `A-MONGO` and
+ * `A-PROPOSAL` name a source that answered and whose provenance the row can
+ * state, so there is something a human can decide to trust. `A-UNRESOLVED`
+ * means nothing answered, which leaves nothing to decide about — it keeps
+ * blocking even on a check that opted in below.
+ */
+const ACKNOWLEDGEABLE_REPORTING_ANCHORS: ReadonlySet<AnchorId> =
+  new Set<AnchorId>(['A-MONGO', 'A-PROPOSAL'])
+
 /** Every status a result may carry, for validating a value that bypassed the type. */
 const CHECK_STATUSES: ReadonlySet<string> = new Set<CheckStatus>([
   'pass',
   'fail',
   'error',
   'needs-ack',
+  'not-applicable',
 ])
 
 /** Every anchor a result may name, for validating a value that bypassed the type. */
@@ -81,8 +106,48 @@ export interface ICheckDefinition {
   /** Groups checks into the one-line-per-section report. */
   section: string
   checkClass: CheckClass
+  /**
+   * The letter a signer refers to this gate by, unique across the registry.
+   *
+   * A signer asking anyone else about a refusal needs a handle short enough to
+   * say out loud; `checkId` is not it, and the title moves whenever the wording
+   * is improved.
+   */
+  gate: string
+  /**
+   * The subject of the gate, not the assertion it makes.
+   *
+   * Phrased as a name because the row's glyph already carries the verdict: a
+   * title written as a statement ("the hashes are equal") reads as true under a
+   * red glyph meaning the opposite, which is what the `expected`/`observed`
+   * pair beneath it is there to say.
+   */
   title: string
+  /**
+   * Opts this check into grading `needs-ack` when its expectation rests on an
+   * anchor that reports rather than decides, instead of the `fail` the
+   * integrity class gives every other unacknowledgeable status.
+   *
+   * Scoped to that one case, and never to a mismatch: a live value that
+   * disagrees with what the repo declares still hard-blocks. That is the whole
+   * difference from reclassifying the check as `semantic`, which would send the
+   * mismatch to the acknowledgement path too.
+   */
+  undecidableIsAcknowledgeable?: boolean
 }
+
+/**
+ * How every renderer names a gate.
+ *
+ * One function rather than a format string per view, so the letter a signer
+ * quotes cannot differ between the run-level ledger, the signer view and a
+ * refusal message.
+ *
+ * @param definition - The gate being named.
+ * @returns `Gate X · Subject`.
+ */
+export const gateLabel = (definition: ICheckDefinition): string =>
+  `Gate ${definition.gate} · ${definition.title}`
 
 export interface ICheckResult {
   /**
@@ -198,8 +263,8 @@ export const createCheckLedger = (init: {
 }
 
 /**
- * Records one check's outcome on one network, coercing the two statuses that
- * would otherwise overstate what was verified.
+ * Records one check's outcome on one network, coercing the statuses that would
+ * otherwise overstate what was verified.
  *
  * A `pass` whose anchor can only report is stored as `error`, and a `needs-ack`
  * on an integrity check is stored as `fail`. Both rules live here rather than in
@@ -239,11 +304,68 @@ export const recordCheck = (
   return stored
 }
 
+/**
+ * Whether one `needs-ack` survives the integrity class's blanket refusal.
+ *
+ * Both halves are re-read wherever the refusal is applied rather than trusted
+ * from an earlier coercion, so a result that entered the log some other way
+ * cannot carry the exemption it was never granted.
+ *
+ * @param definition - The gate the result belongs to.
+ * @param result - The status and anchor being judged.
+ * @returns True only for an opted-in check whose expectation rests on a
+ * reporting anchor that answered.
+ */
+const survivesIntegrityRefusal = (
+  definition: ICheckDefinition,
+  result: Pick<ICheckResult, 'status' | 'anchor'>
+): boolean =>
+  result.status === 'needs-ack' &&
+  definition.undecidableIsAcknowledgeable === true &&
+  ACKNOWLEDGEABLE_REPORTING_ANCHORS.has(result.anchor)
+
+/**
+ * Whether a recorded non-pass result has an acknowledgement path — the same
+ * question `summariseLedger` answers when it sorts a result into `blocking` or
+ * `requiresAcknowledgement`.
+ *
+ * Exported so a renderer can put a row under the heading the run will actually
+ * act on, rather than deciding from `status` alone. Deciding from status alone
+ * put a **semantic `fail`** — acknowledgeable, and the common case, since a
+ * reverting simulation grades that way — under "the proposal is wrong, do not
+ * sign", and the run then offered Sign. A signer who is told not to sign and is
+ * immediately offered the choice learns to read past the heading.
+ *
+ * Triage relaxation is deliberately not consulted: a relaxed result also
+ * proceeds, but it is a property of the run's profile rather than of the check,
+ * and a renderer showing a row as acknowledgeable because a profile was passed
+ * would be describing the invocation, not the proposal.
+ *
+ * @param definition - The check's registration, or `undefined` when the ledger
+ * does not know it — which is never vouched for.
+ * @param result - The recorded result, after `recordCheck` coerced its status.
+ * @returns True when the run would offer an acknowledgement for this result.
+ */
+export const isAcknowledgeable = (
+  definition: ICheckDefinition | undefined,
+  result: Pick<ICheckResult, 'status' | 'anchor'>
+): boolean => {
+  if (result.status !== 'fail' && result.status !== 'needs-ack') return false
+  if (!definition) return false
+  if (definition.checkClass !== 'integrity') return true
+
+  return survivesIntegrityRefusal(definition, result)
+}
+
 function coerceStatus(
   result: ICheckResult,
   definition: ICheckDefinition
 ): ICheckResult {
-  if (result.status === 'needs-ack' && definition.checkClass === 'integrity')
+  if (
+    result.status === 'needs-ack' &&
+    definition.checkClass === 'integrity' &&
+    !survivesIntegrityRefusal(definition, result)
+  )
     return {
       ...result,
       status: 'fail',
@@ -274,8 +396,15 @@ function coerceStatus(
 }
 
 export interface ICheckRollup extends ICheckDefinition {
-  /** The coverage denominator: how many networks this check had to answer for. */
+  /** The declared denominator: how many networks this check had to answer for. */
   expected: number
+  /** Networks that had nothing for this check to grade. */
+  notApplicable: number
+  /**
+   * The coverage denominator `passed` is measured against: `expected` less the
+   * networks that had nothing to grade.
+   */
+  graded: number
   passed: number
   failed: number
   errored: number
@@ -298,9 +427,9 @@ export interface ICheckRollup extends ICheckDefinition {
  * reported — a check that ran nowhere is the most important row in the report
  * and must not be absent from it. Where a check reported twice for one network
  * the last entry wins, so a run may record a provisional result and supersede
- * it; the one exception is a mismatch, which nothing that would soften the
- * verdict may erase — only another mismatch, or an `error`, which blocks the
- * same way.
+ * it; the exceptions are a mismatch, which only another mismatch or an `error`
+ * may replace, and any finding at all, which a `not-applicable` may never
+ * remove from the denominator.
  *
  * The status coercions are re-applied here rather than trusted from write time,
  * so a result that reached the log some other way — a rehydrated document, a
@@ -313,6 +442,7 @@ export const rollUpChecks = (ledger: ICheckLedger): ICheckRollup[] =>
   [...ledger.checks.values()].map((definition) => {
     const latest = new Map<string, ICheckResult>()
     const mismatched = new Set<string>()
+    const withFinding = new Set<string>()
     // What each network's last disagreement was, kept for the whole run: the
     // note belongs to the network, not to whichever row happens to be displaced,
     // so it survives any number of failed retries.
@@ -330,6 +460,12 @@ export const rollUpChecks = (ledger: ICheckLedger): ICheckRollup[] =>
       // below or absent.
       const { supersededMismatch: _incoming, ...clean } = raw
       const result = coerceStatus(clean as ICheckResult, definition)
+      if (
+        result.status === 'fail' ||
+        result.status === 'error' ||
+        result.status === 'needs-ack'
+      )
+        withFinding.add(result.network)
       if (result.status === 'fail') {
         mismatched.add(result.network)
         lastMismatch.set(
@@ -354,6 +490,13 @@ export const rollUpChecks = (ledger: ICheckLedger): ICheckRollup[] =>
       )
         continue
 
+      // A later "there was nothing to grade" does not supersede a finding, it
+      // deletes it: the network leaves the coverage denominator, so nothing
+      // records that the check disagreed, could not run, or is owed an
+      // acknowledgement there.
+      if (result.status === 'not-applicable' && withFinding.has(result.network))
+        continue
+
       // One row per network is what the verdict needs, and it cannot hold both
       // "it disagreed" and "the retry could not run". The surviving row carries
       // the disagreement it replaced so neither fact is lost.
@@ -376,7 +519,12 @@ export const rollUpChecks = (ledger: ICheckLedger): ICheckRollup[] =>
 
     const expected = ledger.expectedNetworks.length
     const passed = countOf('pass')
-    // Anything outside the four statuses counts here, because that is how the
+    const notApplicable = countOf('not-applicable')
+    // A network that reported nothing at all stays in here, so it still rolls
+    // up as missing and blocks; only a network that positively answered "there
+    // was nothing to grade" leaves the denominator.
+    const graded = expected - notApplicable
+    // Anything outside this module's statuses counts here, because that is how the
     // verdict grades it — otherwise such a status sits in the denominator and in
     // no numerator.
     const errored = results.filter(
@@ -390,13 +538,16 @@ export const rollUpChecks = (ledger: ICheckLedger): ICheckRollup[] =>
     return {
       ...definition,
       expected,
+      notApplicable,
+      graded,
       passed,
       failed: countOf('fail'),
       errored,
       needsAck: countOf('needs-ack'),
       missing: missingNetworks.length,
       unverified: errored + missingNetworks.length,
-      green: expected > 0 && passed === expected,
+      // `passed === graded` is `0 === 0` for a check that graded nothing.
+      green: graded > 0 && passed === graded,
       anchors: [...new Set(results.map((result) => result.anchor))].sort(),
       missingNetworks,
       results,
@@ -468,11 +619,22 @@ export interface ILedgerTotals {
   error: number
   needsAck: number
   missing: number
+  /** Results the run established there was nothing to grade for. */
+  notApplicable: number
 }
 
 export interface ILedgerVerdict {
   /** True when something blocks with no acknowledgement path available. */
   hardBlocked: boolean
+  /**
+   * True when no result was graded at all — every one of them was
+   * `not-applicable`.
+   *
+   * Carried separately from `hardBlocked` because the two answer different
+   * questions, and a consumer reading only "nothing blocks" would read a run
+   * that reviewed nothing as a run that reviewed everything.
+   */
+  nothingGraded: boolean
   blocking: IBlockingResult[]
   /** Semantic non-passes a human may acknowledge; the caller must ask before proceeding. */
   requiresAcknowledgement: ICheckResult[]
@@ -490,10 +652,15 @@ export interface ILedgerVerdict {
  * acknowledgement path at all. Only a semantic non-pass is acknowledgeable, and
  * triage can drop one on a subtractive op alone.
  *
- * A status outside the four is treated as unverified and blocks. `recordCheck`
- * refuses one, so this is only reachable by a result that entered the log some
- * other way — and the safe reading of a status nothing recognises is that
- * nothing was verified.
+ * `not-applicable` blocks nothing and is owed to nobody, so it lands in its own
+ * total and in `nothingGraded`. It is the one status that is neither a finding
+ * nor a verification, which is why a caller reading `hardBlocked` alone cannot
+ * tell a clear run from an empty one.
+ *
+ * A status this module does not define is treated as unverified and blocks.
+ * `recordCheck` refuses one, so this is only reachable by a result that entered
+ * the log some other way — and the safe reading of a status nothing recognises
+ * is that nothing was verified.
  * @param ledger - The run's ledger.
  * @param options - `triageProfile` enables the narrowed relaxation.
  * @returns The verdict, the blocking rows, what awaits acknowledgement, and the totals.
@@ -502,10 +669,9 @@ export const summariseLedger = (
   ledger: ICheckLedger,
   options: { triageProfile?: OpProfile } = {}
 ): ILedgerVerdict => {
-  // A ledger that verified nothing is not a clear result, and `passed ===
-  // expected` is `0 === 0`. The factory refuses to build one, but every
-  // consumer here takes a plain `ICheckLedger`, which a rehydrated document or
-  // a direct push reaches without passing the factory.
+  // The factory refuses to build one, but every consumer here takes a plain
+  // `ICheckLedger`, which a rehydrated document or a direct push reaches
+  // without passing the factory.
   if (ledger.checks.size === 0 || ledger.expectedNetworks.length === 0)
     throw new Error(
       `Refusing to summarise a ledger that verifies nothing: ${ledger.checks.size} checks over ${ledger.expectedNetworks.length} networks. A verdict about no results is not a pass, and reporting one as green is the failure this ledger exists to prevent.`
@@ -520,12 +686,22 @@ export const summariseLedger = (
     error: 0,
     needsAck: 0,
     missing: 0,
+    notApplicable: 0,
   }
 
   for (const rollup of rollUpChecks(ledger)) {
     for (const result of rollup.results) {
       if (result.status === 'pass') {
         totals.pass += 1
+        continue
+      }
+
+      // Ahead of the unrecognised-status branch and of the acknowledgement
+      // fall-through below: a status that lands in neither numerator would be
+      // graded by whichever branch happens to catch it, and the one under this
+      // would file it as awaiting a human acknowledgement that nobody owes.
+      if (result.status === 'not-applicable') {
+        totals.notApplicable += 1
         continue
       }
 
@@ -554,7 +730,10 @@ export const summariseLedger = (
       if (result.status === 'fail') totals.fail += 1
       else totals.needsAck += 1
 
-      if (rollup.checkClass === 'integrity') {
+      if (
+        rollup.checkClass === 'integrity' &&
+        !survivesIntegrityRefusal(rollup, result)
+      ) {
         blocking.push({
           checkId: result.checkId,
           network: result.network,
@@ -595,6 +774,16 @@ export const summariseLedger = (
 
   return {
     hardBlocked: blocking.length > 0,
+    // Every result the run graded, whichever way it graded it, plus the ones it
+    // never recorded — so this is false the moment anything at all was looked
+    // at, and cannot mask a run that had both skipped and graded networks.
+    nothingGraded:
+      totals.pass +
+        totals.fail +
+        totals.error +
+        totals.needsAck +
+        totals.missing ===
+      0,
     blocking,
     requiresAcknowledgement,
     relaxed,
@@ -606,6 +795,8 @@ export interface IReviewAttestationCheck {
   checkId: string
   checkClass: CheckClass
   expected: number
+  /** Without it, a check that graded nothing reads as one that graded and failed. */
+  notApplicable: number
   passed: number
   failed: number
   needsAck: number
@@ -680,9 +871,13 @@ export const buildReviewAttestation = (
     definition.checkId,
     definition.checkClass,
     definition.section,
+    definition.gate,
     // The only text saying what is being checked, so relabelling a check must
     // move the digest.
     definition.title,
+    // Second field that decides whether a non-pass blocks, so it is digested
+    // for the same reason the class is.
+    definition.undecidableIsAcknowledgeable === true ? 'ack-undecidable' : '',
   ])
   const byJson = (left: string[], right: string[]): number =>
     JSON.stringify(left) < JSON.stringify(right) ? -1 : 1
@@ -714,6 +909,7 @@ export const buildReviewAttestation = (
       checkId: rollup.checkId,
       checkClass: rollup.checkClass,
       expected: rollup.expected,
+      notApplicable: rollup.notApplicable,
       passed: rollup.passed,
       failed: rollup.failed,
       needsAck: rollup.needsAck,

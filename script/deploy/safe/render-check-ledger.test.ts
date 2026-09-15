@@ -22,14 +22,25 @@ const CODEHASH: ICheckDefinition = {
   checkId: 'codehash',
   section: 'Integrity',
   checkClass: 'integrity',
-  title: 'Deployed codehash matches the attested build',
+  gate: 'X',
+  title: 'Deployed codehash',
 }
 
 const TARGET_STATE: ICheckDefinition = {
   checkId: 'target-state',
   section: 'Intent',
   checkClass: 'semantic',
-  title: 'Facet version matches the declared target state',
+  gate: 'Y',
+  title: 'Facet version',
+}
+
+/** A second check in `CODEHASH`'s section, so a section can be partly green. */
+const AUTHORITY: ICheckDefinition = {
+  checkId: 'authority',
+  section: 'Integrity',
+  checkClass: 'integrity',
+  gate: 'Z',
+  title: 'Timelock owns the diamond',
 }
 
 const ledgerOf = (
@@ -73,7 +84,7 @@ describe('renderCheckLedger', () => {
     const section = lines.filter((line) => line.includes('Integrity'))
 
     expect(section).toHaveLength(1)
-    expect(section[0]).toContain('1/1 checks green')
+    expect(section[0]).toContain('1/1 applicable checks green')
     expect(section[0]).toContain('2/2')
     expect(section[0]).toContain(GREEN)
     expect(lines.some((line) => line.includes('mainnet'))).toBe(false)
@@ -450,7 +461,7 @@ describe('renderCheckLedger', () => {
     const lines = renderCheckLedger(ledger)
     const section = lines.find((line) => line.includes('Integrity')) as string
 
-    expect(section).toContain('1/2 checks green')
+    expect(section).toContain('1/2 applicable checks green')
     expect(section).toContain('1/2 network results verified')
     expect(
       lines.filter((line) => line.includes('codehash-immutables'))
@@ -500,8 +511,8 @@ describe('what the ledger must never soften or hide', () => {
 
   it('refuses to summarise a ledger that verified nothing', () => {
     // `createCheckLedger` guards this, but every consumer takes a plain
-    // `ICheckLedger`, so a rehydrated document reached the verdict with
-    // `passed === expected` as `0 === 0` and rendered ALL CHECKS GREEN.
+    // `ICheckLedger`, so a rehydrated document reaches the verdict with an empty
+    // network set and every count over it is a count over nothing.
     const empty = {
       expectedNetworks: [],
       checks: new Map([[CODEHASH.checkId, CODEHASH]]),
@@ -770,5 +781,327 @@ describe('the superseded mismatch survives more than one retry', () => {
     expect(rowFor(renderCheckLedger(forged), 'mainnet')).not.toContain(
       'an earlier attempt disagreed'
     )
+  })
+})
+
+describe('a run that graded nothing', () => {
+  /**
+   * The row `confirm-safe-tx.ts` writes for a network it positively established
+   * carries no proposal for this signer — a pending proposal the signer has
+   * already signed is the case that produces it.
+   */
+  const nothingToGrade = (network: string): Partial<ICheckResult> => ({
+    network,
+    status: 'not-applicable',
+    expected: 'every proposal this run would sign graded before signing',
+    actual: `no proposal was graded on ${network} — nothing actionable was left once the network was prepared`,
+    anchor: 'A-LOCAL',
+  })
+
+  const vacuous = (): ICheckLedger => {
+    const ledger = ledgerOf(['arbitrum'], [CODEHASH])
+    recordCheck(ledger, result(nothingToGrade('arbitrum')))
+
+    return ledger
+  }
+
+  it('does not close with a green verdict', () => {
+    const verdict = renderCheckLedger(vacuous()).at(-1) as string
+
+    expect(verdict).not.toContain('ALL CHECKS GREEN')
+    expect(verdict).not.toContain(GREEN)
+  })
+
+  it('prints no verified count at all, rather than a vacuous one', () => {
+    // `1/1 network results verified` over a set of size zero is the claim that
+    // produced the defect, and `0/0` is the same claim in a quieter font.
+    expect(renderCheckLedger(vacuous()).at(-1) as string).not.toMatch(
+      /\d+\/\d+ network results verified/
+    )
+  })
+
+  it('names the skipped networks and why they were skipped', () => {
+    const verdict = renderCheckLedger(vacuous()).at(-1) as string
+
+    expect(verdict).toContain('NOTHING TO REVIEW')
+    expect(verdict).toContain('1 network')
+    expect(verdict).toContain('nothing actionable was left')
+  })
+
+  it('prints the closing line and nothing else', () => {
+    const lines = renderCheckLedger(vacuous())
+
+    expect(lines).toHaveLength(1)
+    expect(lines[0]).toContain('NOTHING TO REVIEW')
+    expect(lines.join('\n')).not.toContain('Check Ledger')
+    expect(lines.join('\n')).not.toContain('Integrity')
+    expect(lines.join('\n')).not.toContain('codehash')
+  })
+
+  it('prints the closing line alone across a fleet, not just one network', () => {
+    // The shape a fleet run reaches this state in, and the reason the row here
+    // is the not-an-owner one: the signer who loaded the wrong key sees this
+    // line and nothing else, on every network at once.
+    const networks = ['mainnet', 'arbitrum', 'polygon']
+    const ledger = ledgerOf(networks, [CODEHASH, AUTHORITY])
+    for (const network of networks)
+      for (const checkId of ['codehash', 'authority'])
+        recordCheck(
+          ledger,
+          result({
+            checkId,
+            network,
+            status: 'not-applicable',
+            expected:
+              'every proposal this run would sign graded before signing',
+            actual: `no proposal was graded on ${network} — the signer is not an owner of this Safe, so nothing here can be signed`,
+            anchor: 'A-LOCAL',
+          })
+        )
+
+    const lines = renderCheckLedger(ledger)
+
+    expect(lines).toHaveLength(1)
+    expect(lines[0]).toContain('NOTHING TO REVIEW')
+    expect(lines[0]).toContain('3 networks had nothing to grade')
+    expect(lines[0]).toContain('is not an owner of this Safe')
+  })
+
+  it('still prints the report once one network graded', () => {
+    // A network that dropped out is a row inside the report, never a reason to
+    // suppress it: the whole report is owed as soon as anything was graded.
+    const ledger = ledgerOf(['mainnet', 'arbitrum'], [CODEHASH])
+    recordCheck(ledger, result({ network: 'mainnet', status: 'fail' }))
+    recordCheck(ledger, result(nothingToGrade('arbitrum')))
+
+    const lines = renderCheckLedger(ledger)
+
+    expect(lines[0]).toContain('Check Ledger')
+    expect(lines.filter((line) => line.includes('Integrity'))).toHaveLength(1)
+    expect(lines.filter((line) => line.includes('codehash'))).toHaveLength(1)
+    expect(lines.join('\n')).toContain('mainnet')
+  })
+
+  it('still closes an all-green run with the green verdict', () => {
+    const ledger = ledgerOf(['mainnet', 'polygon'], [CODEHASH])
+    recordCheck(ledger, result({ network: 'mainnet' }))
+    recordCheck(ledger, result({ network: 'polygon' }))
+
+    const verdict = renderCheckLedger(ledger).at(-1) as string
+
+    expect(verdict).toContain('ALL CHECKS GREEN')
+    expect(verdict).toContain('2/2 network results verified')
+    expect(verdict).toContain(GREEN)
+  })
+
+  it('still blocks when a graded network failed beside a skipped one', () => {
+    const ledger = ledgerOf(['mainnet', 'arbitrum'], [CODEHASH])
+    recordCheck(ledger, result({ network: 'mainnet', status: 'fail' }))
+    recordCheck(ledger, result(nothingToGrade('arbitrum')))
+
+    const verdict = renderCheckLedger(ledger).at(-1) as string
+
+    expect(verdict).toContain('VERDICT: BLOCKED')
+    expect(verdict).not.toContain('NOTHING TO REVIEW')
+    expect(verdict).toContain(RED)
+  })
+
+  it('keeps a skipped network out of the verified count of a mixed run', () => {
+    const ledger = ledgerOf(['mainnet', 'arbitrum'], [CODEHASH])
+    recordCheck(ledger, result({ network: 'mainnet' }))
+    recordCheck(ledger, result(nothingToGrade('arbitrum')))
+
+    const lines = renderCheckLedger(ledger)
+    const section = lines.filter((line) => line.includes('Integrity'))
+
+    // One network graded, one verified — never `2/2`, which reads the skipped
+    // network as one this run checked.
+    expect(section[0]).toContain('1/1 network results verified')
+    expect(section[0]).toContain('1 network not applicable')
+    expect(section[0]).not.toContain('2/2')
+    expect(lines.at(-1)).toContain('1/1 network results verified')
+    expect(lines.at(-1)).toContain('1 network not applicable')
+    expect(lines.at(-1)).not.toContain('2/2')
+  })
+
+  it('counts the skipped networks, not the rows they produced', () => {
+    // One network, two checks: the closing line has to report one network with
+    // nothing to grade rather than the two check×network rows behind it.
+    const ledger = ledgerOf(['arbitrum'], [CODEHASH, AUTHORITY])
+    recordCheck(ledger, result(nothingToGrade('arbitrum')))
+    recordCheck(
+      ledger,
+      result({ ...nothingToGrade('arbitrum'), checkId: 'authority' })
+    )
+
+    const lines = renderCheckLedger(ledger)
+
+    expect(lines.at(-1)).toContain('1 network had nothing to grade')
+    expect(lines.at(-1)).not.toContain('2 network')
+  })
+})
+
+describe('a check that graded nothing beside one that graded', () => {
+  const mixed = (): ICheckLedger => {
+    const ledger = ledgerOf(['arbitrum'], [CODEHASH, AUTHORITY])
+    recordCheck(ledger, result({ network: 'arbitrum' }))
+    recordCheck(
+      ledger,
+      result({
+        checkId: 'authority',
+        network: 'arbitrum',
+        status: 'not-applicable',
+        actual: 'no proposal was graded on arbitrum',
+        anchor: 'A-LOCAL',
+      })
+    )
+
+    return ledger
+  }
+
+  // The closing line and the section line four rows above it are read as one
+  // sentence, so they must divide by the same thing. This pins the pair, not
+  // either number alone: a change that teaches one of them to discount a gate
+  // that stood down and not the other puts two different counts of "a check"
+  // on one screen, which is the confusion the whole not-applicable verdict
+  // exists to remove.
+  it('closes on the same denominator the section line printed', () => {
+    const lines = renderCheckLedger(mixed())
+    const section = lines.find((line) => line.includes('Integrity')) as string
+    const verdict = lines.at(-1) as string
+
+    expect(section).toContain('1/1 applicable checks green')
+    expect(section).toContain('1 gate not applicable')
+    expect(verdict).toContain('1/1 applicable checks')
+    // The word a run with a real shortfall earns, and this run has none.
+    expect(verdict).not.toContain('COVERAGE INCOMPLETE')
+  })
+
+  // Paired absence: the same shape, but the gate graded nothing because the
+  // network never answered. That is a hole, and it must still read as one.
+  it('still reports a shortfall when a check graded nothing with no answer', () => {
+    const ledger = ledgerOf(['arbitrum'], [CODEHASH, AUTHORITY])
+    recordCheck(ledger, result({ network: 'arbitrum' }))
+
+    const verdict = renderCheckLedger(ledger).at(-1) as string
+
+    expect(verdict).not.toContain('ALL APPLICABLE CHECKS GREEN')
+  })
+
+  it('expands the check that graded nothing rather than suppressing it', () => {
+    const authority = renderCheckLedger(mixed()).filter((line) =>
+      line.includes('Timelock owns the diamond')
+    )
+
+    expect(authority).toHaveLength(1)
+    // Named, but never with a count over an empty set.
+    expect(authority[0]).not.toMatch(/\d+\/\d+/)
+    expect(authority[0]).toContain('nothing to grade')
+  })
+
+  // The header line says a gate stood down; only the row under it says why,
+  // and the why is the thing a signer opened the report to read. Suppressing
+  // this row is what made "not applicable" and "not run" indistinguishable on
+  // screen even once the ledger told them apart.
+  it('prints the reason the gate stood down, not just that it did', () => {
+    const row = renderCheckLedger(mixed()).find((line) =>
+      line.includes('no proposal was graded on arbitrum')
+    ) as string
+
+    expect(row).toBeDefined()
+    expect(row).toContain('NOT APPLICABLE')
+    expect(row).toContain('no action')
+    // Paired absence: a row that needs nothing must not carry the vocabulary
+    // of one that does.
+    expect(row).not.toContain('UNVERIFIED')
+    expect(row).not.toContain('do not sign')
+  })
+
+  it('still closes green when every check graded something', () => {
+    const ledger = ledgerOf(['arbitrum'], [CODEHASH, AUTHORITY])
+    recordCheck(ledger, result({ network: 'arbitrum' }))
+    recordCheck(ledger, result({ checkId: 'authority', network: 'arbitrum' }))
+
+    const verdict = renderCheckLedger(ledger).at(-1) as string
+
+    expect(verdict).toContain('ALL CHECKS GREEN')
+    expect(verdict).toContain('2/2 checks')
+    expect(verdict).toContain(GREEN)
+  })
+})
+
+describe('unverified rows that all rest on one cause', () => {
+  const NO_ENDPOINT = 'ETH_NODE_URI_ARBITRUM is not set'
+
+  const unverified = (checkId: string, detail: string): ICheckResult =>
+    result({
+      checkId,
+      network: 'arbitrum',
+      status: 'error',
+      expected: 'a reading',
+      actual: 'nothing could be read',
+      anchor: 'A-UNRESOLVED',
+      detail,
+    })
+
+  it('names the cause once, above the rows it explains', () => {
+    const ledger = ledgerOf(['arbitrum'])
+    recordCheck(ledger, unverified('codehash', NO_ENDPOINT))
+    recordCheck(ledger, unverified('target-state', NO_ENDPOINT))
+
+    const lines = renderCheckLedger(ledger)
+    const banner = lines.findIndex((line) => line.includes(NO_ENDPOINT))
+    const firstRow = lines.findIndex((line) => line.includes('UNVERIFIED'))
+
+    expect(banner).toBeGreaterThan(-1)
+    expect(banner).toBeLessThan(firstRow)
+    expect(lines[banner]).toContain('2 unverified results')
+    // The advice the old report gave ten times over, contradicted once.
+    expect(lines[banner]).toContain('will not change the answer')
+  })
+
+  it('stays quiet when the rows do not share a cause', () => {
+    const ledger = ledgerOf(['arbitrum'])
+    recordCheck(ledger, unverified('codehash', NO_ENDPOINT))
+    recordCheck(ledger, unverified('target-state', 'the store was unreachable'))
+
+    expect(
+      renderCheckLedger(ledger).filter((line) =>
+        line.includes('will not change the answer')
+      )
+    ).toHaveLength(0)
+  })
+
+  it('stays quiet when something also disagreed', () => {
+    // Two problems, not one. A banner naming the environment would send the
+    // signer to fix a thing that was never the whole story.
+    const ledger = ledgerOf(['arbitrum'])
+    recordCheck(ledger, unverified('codehash', NO_ENDPOINT))
+    recordCheck(
+      ledger,
+      result({
+        checkId: 'target-state',
+        network: 'arbitrum',
+        status: 'fail',
+        anchor: 'A-MAIN',
+      })
+    )
+
+    expect(
+      renderCheckLedger(ledger).filter((line) =>
+        line.includes('will not change the answer')
+      )
+    ).toHaveLength(0)
+  })
+
+  it('stays quiet for a single unverified row, which its own action covers', () => {
+    const ledger = ledgerOf(['arbitrum'], [CODEHASH])
+    recordCheck(ledger, unverified('codehash', NO_ENDPOINT))
+
+    expect(
+      renderCheckLedger(ledger).filter((line) =>
+        line.includes('will not change the answer')
+      )
+    ).toHaveLength(0)
   })
 })
