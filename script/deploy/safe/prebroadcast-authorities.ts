@@ -95,11 +95,17 @@ export const DECLARED_STORAGE_AUTHORITIES: Readonly<
     { getter: 'pendingOwner', source: { from: 'zeroAddress' } },
   ],
   FeeCollector: [
-    { getter: 'owner', source: { from: 'globalConfig', key: 'withdrawWallet' } },
+    {
+      getter: 'owner',
+      source: { from: 'globalConfig', key: 'withdrawWallet' },
+    },
     { getter: 'pendingOwner', source: { from: 'zeroAddress' } },
   ],
   FeeForwarder: [
-    { getter: 'owner', source: { from: 'globalConfig', key: 'withdrawWallet' } },
+    {
+      getter: 'owner',
+      source: { from: 'globalConfig', key: 'withdrawWallet' },
+    },
     { getter: 'pendingOwner', source: { from: 'zeroAddress' } },
   ],
   GasZipPeriphery: [

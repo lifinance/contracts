@@ -1,7 +1,8 @@
-// eslint-disable-next-line import/no-unresolved
-import { describe, expect, it } from 'bun:test'
 import { readdirSync, readFileSync } from 'fs'
 import { join } from 'path'
+
+// eslint-disable-next-line import/no-unresolved
+import { describe, expect, it } from 'bun:test'
 
 import {
   DECLARED_STORAGE_AUTHORITIES,
@@ -71,9 +72,11 @@ describe('DECLARED_STORAGE_AUTHORITIES coverage', () => {
     expect(mentionsOwnershipBase(name)).toBe(false)
   })
 
-  it.each(Object.keys(DECLARED_STORAGE_AUTHORITIES).filter((name) =>
-    periphery.includes(name)
-  ))('reads both ownership slots on %s', (name) => {
+  it.each(
+    Object.keys(DECLARED_STORAGE_AUTHORITIES).filter((name) =>
+      periphery.includes(name)
+    )
+  )('reads both ownership slots on %s', (name) => {
     const getters = (DECLARED_STORAGE_AUTHORITIES[name] ?? []).map(
       (authority) => authority.getter
     )
