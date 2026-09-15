@@ -216,8 +216,8 @@
   },
   "LiFiDEXAggregator": {
     "BENTO_BOX": {
-      "source": "unverifiable",
-      "reason": "LiFiDEXAggregator's only configData entry is _privilegedUser; the BentoBox address is passed by the deploy script from its own per-network source and no configData key names it. Adding one makes this config.",
+      "source": "derived",
+      "rule": "address(0). DeployLiFiDEXAggregator.s.sol passes the literal, as the upstream RouteProcessor4 deployment does; no config file carries a BentoBox address.",
       "authorityBearing": true
     }
   },
@@ -446,7 +446,7 @@
     },
     "CONVERTER": {
       "source": "derived",
-      "rule": "_converter when it is non-zero, otherwise _wrappedToken — so it is config/tokenconverters.json .<NETWORK>.converterAddress on a network that has one, and the wrapped token's own address on one that does not."
+      "rule": "_converter when it is non-zero, otherwise _wrappedToken \u2014 so it is config/tokenconverters.json .<NETWORK>.converterAddress on a network that has one, and the wrapped token's own address on one that does not."
     },
     "USE_CONVERTER": {
       "source": "derived",
@@ -460,7 +460,7 @@
   "UnitFacet": {
     "BACKEND_SIGNER": {
       "source": "unverifiable",
-      "reason": "UnitFacet has no deployRequirements entry at all, so no configData key names the backend signer. global.json .backendSigner.<ENVIRONMENT> is the value the deploy script uses; adding that entry makes this config.",
+      "reason": "UnitFacet has no deployRequirements entry at all, so no configData key names the backend signer. config/unit.json .<ENVIRONMENT>.backendSigner is the value the deploy script uses \u2014 note the key order is environment first, unlike global.json's .backendSigner.<ENVIRONMENT> that the other backend-signer facets use. Adding that entry makes this config.",
       "authorityBearing": true
     }
   }
