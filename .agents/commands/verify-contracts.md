@@ -58,18 +58,25 @@ The on-chain loop relies on three sources already being correct for `NETWORK`. V
 **Key fact: blockscout and sourcify match RUNTIME bytecode, so constructor args are NOT required — pass `""`.** (etherscan-type verifiers can need them; the helper skips invalid/empty args safely either way.)
 
 ```bash
-source .env
+source .env                # stays in the outer shell — Step 5's TS scripts read MONGODB_URI
+export NETWORK=<network>
+export ENVIRONMENT=production   # "staging" for a staging deploy — Steps 5-6 reuse this
+
+bash <<'BASH'
 source script/helperFunctions.sh
 
-NETWORK=<network>
-ENVIRONMENT=production   # set to "staging" for a staging deploy — Step 5 reuses this
 DEPLOYMENTS="deployments/${NETWORK}.json"
-
 while IFS=$'\t' read -r CONTRACT ADDRESS; do
   echo "Verifying ${CONTRACT} @ ${ADDRESS}"
   verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" ""
 done < <(jq -r 'to_entries[] | "\(.key)\t\(.value)"' "$DEPLOYMENTS")
+BASH
 ```
+
+Why the `bash` heredoc: `script/helperFunctions.sh` is bash (`${!VAR}` indirect expansion,
+`read -ra`) and dies on those under the zsh this session runs. `NETWORK`/`ENVIRONMENT` are
+exported rather than set inside the heredoc so Steps 5-6 still see them in the outer shell.
+Run from the repo root — the helper sources `.env` and its siblings by relative path.
 
 Why the direct loop and not the menu: `script/scriptMaster.sh` option 8 (`verifyAllUnverifiedContractsInLogFile`) does both the on-chain verify and the Mongo write-back — but only for entries in the **local** `deployments/_deployments_log_file.json` cache, which for a freshly-deployed network is usually empty or stale. The direct loop over the deployment JSON is the reliable path; Step 5 covers the write-back it skips.
 
