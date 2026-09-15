@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from 'fs'
+import { existsSync, readdirSync, readFileSync } from 'fs'
 import { join } from 'path'
 
 // eslint-disable-next-line import/no-unresolved
@@ -10,10 +10,7 @@ import {
 } from './prebroadcast-authorities'
 
 const PERIPHERY_DIR = join(import.meta.dir, '../../../src/Periphery')
-const REQUIREMENTS = join(
-  import.meta.dir,
-  '../resources/deployRequirements.json'
-)
+const DEPLOY_SCRIPTS_DIR = join(import.meta.dir, '../facets')
 
 /** Base contracts that put `owner` and `pendingOwner` into a contract's storage. */
 const OWNERSHIP_BASES = ['TransferrableOwnership', 'WithdrawablePeriphery']
@@ -84,27 +81,37 @@ describe('DECLARED_STORAGE_AUTHORITIES coverage', () => {
     expect(getters).toContain('pendingOwner')
   })
 
-  it('takes every owner expectation from the contract’s own deploy requirement', () => {
-    const requirements = JSON.parse(
-      readFileSync(REQUIREMENTS, 'utf8')
-    ) as Record<
-      string,
-      { configData?: Record<string, { keyInConfigFile?: string }> }
-    >
-
+  /**
+   * The deploy script, not `deployRequirements.json`, is what actually decides
+   * the owner a fresh deployment is constructed with. The two disagree — the
+   * requirement file says FeeCollector takes `.withdrawWallet` while
+   * `DeployFeeCollector.s.sol` passes `.feeCollectorOwner`, and the live fleet
+   * follows the script — so this pins the table against the script.
+   */
+  it('takes every owner expectation from the contract\u2019s deploy script', () => {
     const compared: string[] = []
-    for (const name of periphery) {
-      const declared = requirements[name]?.configData?._owner?.keyInConfigFile
-      if (declared === undefined) continue
+
+    for (const name of Object.keys(DECLARED_STORAGE_AUTHORITIES)) {
+      const script = join(DEPLOY_SCRIPTS_DIR, `Deploy${name}.s.sol`)
+      if (!existsSync(script)) continue
+
+      const keys = [
+        ...readFileSync(script, 'utf8').matchAll(
+          /\.readAddress\(\s*"\.(\w+)"/g
+        ),
+      ]
+        .map((match) => match[1])
+        .filter((key) => /wallet|owner/i.test(key ?? ''))
+      if (keys.length === 0) continue
 
       const source: AuthorityExpectationSource | undefined = (
         DECLARED_STORAGE_AUTHORITIES[name] ?? []
       ).find((authority) => authority.getter === 'owner')?.source
 
-      expect(source).toEqual({
-        from: 'globalConfig',
-        key: declared.replace(/^\./, ''),
-      })
+      expect(source?.from).toBe('globalConfig')
+      expect(keys).toContain(
+        source?.from === 'globalConfig' ? source.key : undefined
+      )
       compared.push(name)
     }
 

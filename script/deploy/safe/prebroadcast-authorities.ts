@@ -97,7 +97,7 @@ export const DECLARED_STORAGE_AUTHORITIES: Readonly<
   FeeCollector: [
     {
       getter: 'owner',
-      source: { from: 'globalConfig', key: 'withdrawWallet' },
+      source: { from: 'globalConfig', key: 'feeCollectorOwner' },
     },
     { getter: 'pendingOwner', source: { from: 'zeroAddress' } },
   ],
