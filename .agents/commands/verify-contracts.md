@@ -58,7 +58,7 @@ The on-chain loop relies on three sources already being correct for `NETWORK`. V
 **Key fact: blockscout and sourcify match RUNTIME bytecode, so constructor args are NOT required — pass `""`.** (etherscan-type verifiers can need them; the helper skips invalid/empty args safely either way.)
 
 ```bash
-source .env                # stays in the outer shell — Step 5's TS scripts read MONGODB_URI
+set -a; source .env; set +a   # `set -a` exports, so Step 5's `bunx tsx` children see MONGODB_URI
 export NETWORK=<network>
 export ENVIRONMENT=production   # "staging" for a staging deploy — Steps 5-6 reuse this
 
@@ -80,6 +80,10 @@ BASH
 Why the `bash` heredoc: `script/helperFunctions.sh` is bash (`${!VAR}` indirect expansion,
 `read -ra`) and dies on those under the zsh this session runs. `NETWORK`/`ENVIRONMENT` are
 exported rather than set inside the heredoc so Steps 5-6 still see them in the outer shell.
+Why `set -a` around `source .env`: plain `source` defines shell variables, which a child
+process does not inherit — Step 5's TS scripts import no `dotenv`, so they read `MONGODB_URI`
+from the environment or die. Sourcing the helper used to do this for you (it wraps its own
+`.env` read the same way), but it now runs inside the heredoc, so the outer shell has to.
 Run from the repo root — the helper sources `.env` and its siblings by relative path.
 `verifyContract` returns 1 per failed contract, and a loop's status is only its last
 iteration's, so the failures are counted and re-raised at the end — otherwise one contract
