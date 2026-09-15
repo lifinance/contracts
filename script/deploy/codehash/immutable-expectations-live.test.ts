@@ -24,7 +24,6 @@ import { mergeRequirements } from '../immutables/verify-immutable-registry'
 
 import { priceImmutables } from './immutable-expectations'
 
-
 const requirements = mergeRequirements(
   JSON.parse(
     readFileSync('script/deploy/resources/deployRequirements.json', 'utf8')
@@ -79,8 +78,9 @@ describe('layer 2 against the repo’s own expectation files', () => {
   })
 
   it('leaves a contract the registry does not declare unpriced, never verified', () => {
-    // The registry is two slots wide, so this is what the fleet gets today. It
-    // is the reading that must not drift into a pass as entries are added.
+    // `EXECUTOR` is not a slot EmergencyPauseFacet declares, so this stands in
+    // for an immutable that lands in src/ before anyone files an entry for it —
+    // the reading that must not drift into a pass now that the registry is full.
     const result = priceImmutables(
       {
         contractName: 'EmergencyPauseFacet',
