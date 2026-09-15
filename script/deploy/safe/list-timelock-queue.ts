@@ -13,8 +13,6 @@
  * unreachable). The cluster is the non-sensitive one — no VPN required.
  */
 
-import { fileURLToPath } from 'node:url'
-
 import 'dotenv/config'
 
 import { defineCommand, runMain } from 'citty'
@@ -22,6 +20,7 @@ import { consola } from 'consola'
 import type { Filter } from 'mongodb'
 import { createPublicClient, http, parseAbi } from 'viem'
 
+import { isEntrypoint } from '../../utils/is-entrypoint'
 import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 
 import { flagIsOn } from './cli-flags'
@@ -508,10 +507,6 @@ const cmd = defineCommand({
   },
 })
 
-// Not `import.meta.main`: it is undefined under `tsx` on Node < 22.23, which
-// `engines` still permits, and the CLI would then exit 0 having listed nothing —
-// indistinguishable from an empty queue to /finish-rollout's gate
-// ([CONV:NODE-RUNTIME-APIS]).
-const isEntrypoint = process.argv[1] === fileURLToPath(import.meta.url)
-
-if (isEntrypoint) runMain(cmd)
+// A guard that wrongly answers false exits 0 having listed nothing, which
+// /finish-rollout's gate cannot tell from an empty queue ([CONV:NODE-RUNTIME-APIS]).
+if (isEntrypoint(import.meta.url)) runMain(cmd)

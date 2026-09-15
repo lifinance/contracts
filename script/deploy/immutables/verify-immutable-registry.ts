@@ -9,9 +9,10 @@
 
 import { execFileSync } from 'child_process'
 import { readFileSync } from 'fs'
-import { fileURLToPath } from 'node:url'
 
 import { consola } from 'consola'
+
+import { isEntrypoint } from '../../utils/is-entrypoint'
 
 import {
   collectAnnotatedGetterKeys,
@@ -196,9 +197,6 @@ const main = (): void => {
   else consola.success('every immutable in src/ has a registry entry')
 }
 
-// Not `import.meta.main`: undefined under `tsx` on Node < 22.23, where this CI
-// gate would exit 0 having verified nothing — and its own tests spawn
-// `bunx tsx`, so they fail there ([CONV:NODE-RUNTIME-APIS]).
-const isEntrypoint = process.argv[1] === fileURLToPath(import.meta.url)
-
-if (isEntrypoint) main()
+// A guard that wrongly answers false lets this CI gate exit 0 having verified
+// nothing; its own tests spawn `bunx tsx` ([CONV:NODE-RUNTIME-APIS]).
+if (isEntrypoint(import.meta.url)) main()

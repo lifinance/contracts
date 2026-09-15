@@ -1,6 +1,5 @@
 #!/usr/bin/env bun
 import * as fs from 'fs'
-import { fileURLToPath } from 'node:url'
 import * as path from 'path'
 
 import {
@@ -14,6 +13,7 @@ import { consola } from 'consola'
 
 import { EnvironmentEnum } from '../../common/types'
 import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
+import { isEntrypoint } from '../../utils/is-entrypoint'
 import { redactUrls } from '../../utils/redactUrls'
 import { getEnvVar, getEnvironment } from '../../utils/utils'
 import { flagIsOn, readOptOutFlag } from '../safe/cli-flags'
@@ -369,11 +369,8 @@ const main = defineCommand({
   },
 })
 
-// Not `import.meta.main`: undefined under `tsx` on Node < 22.23, where a
-// `--step` invocation would exit 0 having transferred nothing, reading as a
-// completed handover ([CONV:NODE-RUNTIME-APIS]).
-const isEntrypoint = process.argv[1] === fileURLToPath(import.meta.url)
-
-if (isEntrypoint) runMain(main)
+// A guard that wrongly answers false lets a `--step` invocation exit 0 having
+// transferred nothing, reading as a completed handover ([CONV:NODE-RUNTIME-APIS]).
+if (isEntrypoint(import.meta.url)) runMain(main)
 
 export { transferOwnershipToTimelock }
