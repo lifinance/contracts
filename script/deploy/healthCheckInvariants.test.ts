@@ -3533,6 +3533,28 @@ describe('immutable-bindings-match-config version-aware skip', () => {
     expect(ctx.warnings).toEqual([])
   })
 
+  it('narrates the skip, since every other outcome for a live contract is narrated', async () => {
+    // Asserted on rendered output: a contract that is live here and simply vanishes from the
+    // run log is the one reading of this the log must not leave open.
+    const { ctx } = makeVersionCtx(logAt('1.0.0'))
+    const printed: string[] = []
+    const info = consola.info
+    consola.info = ((message: unknown) => {
+      printed.push(String(message))
+    }) as typeof consola.info
+    try {
+      await invariant.run(ctx)
+    } finally {
+      consola.info = info
+    }
+
+    expect(
+      printed.some((line) =>
+        line.includes('GenericSwapFacetV3.NATIVE_ADDRESS() not read')
+      )
+    ).toBe(true)
+  })
+
   it('still warns when a build new enough to expose the getter reverts', async () => {
     // The skip is scoped to builds that provably cannot answer. A newer one that reverts is a
     // real coverage hole and has to stay visible.

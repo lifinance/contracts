@@ -2220,7 +2220,9 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
 
         // A build from before the getter existed can only revert, and naming that an unverified
         // binding describes a pending upgrade rather than anything wrong with this chain's
-        // config. Skip silently; the coverage it costs is recovered by the upgrade itself.
+        // config. The coverage it costs is recovered by the upgrade itself, so this is narrated
+        // rather than reported: the contract is live here, and every other outcome for a live
+        // contract says something, so dropping it from the log entirely is what would confuse.
         if (
           livePredatesGetter(
             check,
@@ -2228,8 +2230,12 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
             ctx.networkLower,
             ctx.diamondFacetLog
           )
-        )
+        ) {
+          consola.info(
+            `${check.contractName}.${check.getter}() not read: the build live at ${address} predates it`
+          )
           continue
+        }
 
         // `allowToDeployWithZeroAddress` makes a zero binding a declared value rather than drift,
         // so an explicit zero is an expectation to assert. An absent key is one too: whichever
