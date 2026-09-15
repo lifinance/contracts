@@ -11,7 +11,8 @@
  *
  * Also exposes the two classifiers a caller needs before it can compare safely: whether a
  * contract is a facet (facets and periphery resolve their live address differently) and whether a
- * value is the zero address in any of the encodings a read can return.
+ * value is the zero address in any of the encodings a read can return, plus the version lookup
+ * that tells a caller whether the live build is old enough to have no such getter at all.
  */
 import { existsSync, readFileSync } from 'fs'
 import { isAbsolute, relative, resolve } from 'path'
@@ -37,6 +38,17 @@ export interface IDeployRequirementConfigData {
    * the fleet still exposes `DeBridgeDlnFacet.dlnSource()` rather than `DLN_SOURCE()`.
    */
   legacyGetters?: string[]
+  /**
+   * The contract version that first made this binding readable under any of the names above. A
+   * build older than that has no such function, so the read can only revert — reporting it as an
+   * unverified binding describes a pending upgrade, not a hole in this check. Omit whenever the
+   * value has always been readable.
+   *
+   * Alongside `legacyGetters` it still means "under any of these names", never the version of a
+   * rename: annotating a rename here would stop checking the older builds that the legacy name
+   * answers for, which is the opposite of what those entries exist to do.
+   */
+  getterSinceVersion?: string
 }
 
 /** The subset of a `deployRequirements.json` entry this module consumes. */
@@ -51,6 +63,11 @@ export interface IImmutableBindingCheck {
   getter: string
   /** Earlier names of `getter`, tried only when the current one is absent from the live build. */
   legacyGetters: string[]
+  /**
+   * {@link IDeployRequirementConfigData.getterSinceVersion}, or null when the annotation is
+   * absent — in which case every live build is expected to answer the read.
+   */
+  getterSinceVersion: string | null
   configFileName: string
   keyInConfigFile: string
   /**
@@ -292,6 +309,14 @@ export function collectImmutableBindingChecks(
         argName,
         getter: configData.getter,
         legacyGetters: configData.legacyGetters ?? [],
+        // Typed, not trusted: deployRequirements.json is asserted rather than validated, and a
+        // version written unquoted arrives as a number that the ordering would throw on. A
+        // non-string reads as no annotation, which keeps the binding checked; the gate is what
+        // tells the author their annotation is inert.
+        getterSinceVersion:
+          typeof configData.getterSinceVersion === 'string'
+            ? configData.getterSinceVersion
+            : null,
         configFileName: configData.configFileName,
         keyInConfigFile: configData.keyInConfigFile,
         resolvedKeyInConfigFile: substituteConfigKeyPlaceholders(
@@ -310,4 +335,185 @@ export function collectImmutableBindingChecks(
       `${b.contractName}.${b.argName}`
     )
   )
+}
+/** The shape every contract version in this repo takes; anything else this cannot order. */
+const CONTRACT_VERSION_PATTERN = /^\d+\.\d+\.\d+$/
+
+/**
+ * Whether `version` precedes `floor`, comparing major, then minor, then patch numerically.
+ *
+ * @remarks Anything that is not a three-part numeric version answers false, and either side can
+ *   be one: the diamond log leaves a version blank for facets it could not identify, and a
+ *   registry annotation is hand-written. False is the safe direction — it keeps the binding
+ *   checked, where an invented ordering would silently exempt it from the very comparison this
+ *   module exists to set up.
+ * @param version - version as a deployment log records it
+ * @param floor - version to order it against
+ * @returns true only when both parse and `version` is the older one
+ */
+function isVersionBelow(version: string, floor: string): boolean {
+  const versionTrimmed = version.trim()
+  const floorTrimmed = floor.trim()
+  if (
+    !CONTRACT_VERSION_PATTERN.test(versionTrimmed) ||
+    !CONTRACT_VERSION_PATTERN.test(floorTrimmed)
+  )
+    return false
+
+  const versionParts = versionTrimmed.split('.').map(Number)
+  const floorParts = floorTrimmed.split('.').map(Number)
+  for (let index = 0; index < 3; index++) {
+    const difference = (versionParts[index] ?? 0) - (floorParts[index] ?? 0)
+    if (difference !== 0) return difference < 0
+  }
+  return false
+}
+
+/** The `LiFiDiamond.Facets` section of `deployments/<network>.diamond.json`, keyed by address. */
+export type DiamondFacetLog = Record<
+  string,
+  { Name?: string; Version?: string }
+>
+
+/** `deployments/<network>.diamond.json`, in the two shapes its consumers read. */
+export interface IDiamondLog {
+  Facets?: DiamondFacetLog
+  Periphery?: Record<string, string>
+}
+
+/**
+ * Memoized by resolved path rather than by network name: a run that changes directory must not
+ * be served a miss cached against the directory it was in. A fleet run still reads each log once.
+ */
+const diamondLogCache = new Map<string, IDiamondLog | null>()
+
+/**
+ * Read a network's diamond log — the diamond's own record of what it currently serves.
+ *
+ * @remarks Facets are recorded with a version each, including on chains the master deployment log
+ *   has not caught up with; periphery is stored as bare name-to-address pairs and carries no
+ *   version at all. An unreadable or absent log costs coverage, never the run.
+ * @param networkLower - canonical lowercase network key
+ * @returns the `LiFiDiamond` section, or null when the log is missing or does not parse
+ */
+export function loadDiamondLog(networkLower: string): IDiamondLog | null {
+  const logPath = resolveDiamondLogPath(networkLower)
+  if (logPath === null) return null
+
+  const cached = diamondLogCache.get(logPath)
+  if (cached !== undefined) return cached
+
+  const resolved = readDiamondLog(logPath)
+  diamondLogCache.set(logPath, resolved)
+  return resolved
+}
+
+/**
+ * Where a network's diamond log would be, or null when the name could not name one.
+ *
+ * @remarks Network keys compose into a path, so anything outside the shape a key takes — and
+ *   anything that resolves outside `deployments/` — is refused before the read.
+ */
+function resolveDiamondLogPath(networkLower: string): string | null {
+  if (!/^[A-Za-z0-9_-]+$/.test(networkLower)) return null
+
+  const deploymentsDir = resolve(process.cwd(), 'deployments')
+  const logPath = resolve(deploymentsDir, `${networkLower}.diamond.json`)
+  const relativeToDir = relative(deploymentsDir, logPath)
+  if (relativeToDir.startsWith('..') || isAbsolute(relativeToDir)) return null
+  return logPath
+}
+
+/** The uncached read behind {@link loadDiamondLog}. */
+function readDiamondLog(logPath: string): IDiamondLog | null {
+  if (!existsSync(logPath)) return null
+  try {
+    const parsed = JSON.parse(readFileSync(logPath, 'utf8')) as {
+      LiFiDiamond?: IDiamondLog
+    }
+    return parsed.LiFiDiamond ?? null
+  } catch {
+    return null
+  }
+}
+
+/**
+ * Whether two addresses denote the same contract.
+ *
+ * @remarks Hex compares case-insensitively because a log and a chain read disagree on checksum
+ *   casing. Tron's base58 does not: case carries information there, and lowercasing it would let
+ *   two distinct addresses compare equal.
+ */
+function addressesMatch(left: string, right: string): boolean {
+  const leftTrimmed = left.trim()
+  const rightTrimmed = right.trim()
+  if (leftTrimmed.startsWith('0x') && rightTrimmed.startsWith('0x'))
+    return leftTrimmed.toLowerCase() === rightTrimmed.toLowerCase()
+  return leftTrimmed === rightTrimmed
+}
+
+/**
+ * Resolve which version of a facet the diamond has registered at an address.
+ *
+ * @remarks The log entry must also name the contract the caller asked about. Keying by address
+ *   alone would answer from a record that has since been reassigned to another facet, and a
+ *   version read off the wrong contract is worse than no version at all.
+ * @param contractName - Solidity contract identifier, as the log names it
+ * @param networkLower - canonical lowercase network key
+ * @param address - the registered address, hex or Tron base58
+ * @param log - facet-log override, for tests; defaults to reading `deployments/`
+ * @returns the registered version, or null when the log records no usable one for that address
+ */
+export function resolveRegisteredFacetVersion(
+  contractName: string,
+  networkLower: string,
+  address: string,
+  log: DiamondFacetLog | null = loadDiamondLog(networkLower)?.Facets ?? null
+): string | null {
+  if (log === null) return null
+
+  for (const [loggedAddress, entry] of Object.entries(log)) {
+    if (!addressesMatch(loggedAddress, address)) continue
+    if (entry?.Name !== contractName) continue
+    const version = entry.Version
+    return typeof version === 'string' && version.trim() !== '' ? version : null
+  }
+  return null
+}
+
+/**
+ * The version live at `address`, when it predates the version that first exposed the check's
+ * getter — that is, when the read could only revert.
+ *
+ * @remarks Only an annotated check can answer this, and only against a version the network's
+ *   diamond log records — which is facets only; periphery is not versioned there. Every unknown
+ *   answers null: an unrecorded address or an unparseable version on either side is no evidence
+ *   the getter is absent, and treating it as such would exempt exactly the bindings this check
+ *   compares. The version comes back rather than a bare flag so the caller can say which build
+ *   it declined to read.
+ * @param check - the binding check, carrying `getterSinceVersion` when annotated
+ * @param address - the live address the read would target
+ * @param networkLower - canonical lowercase network key
+ * @param log - facet-log override, for tests; defaults to reading `deployments/`
+ * @returns the live version when it is known to predate the getter, otherwise null
+ */
+export function liveVersionPredatingGetter(
+  check: IImmutableBindingCheck,
+  address: string,
+  networkLower: string,
+  log?: DiamondFacetLog | null
+): string | null {
+  if (check.getterSinceVersion === null) return null
+
+  const liveVersion = resolveRegisteredFacetVersion(
+    check.contractName,
+    networkLower,
+    address,
+    log
+  )
+  if (liveVersion === null) return null
+
+  return isVersionBelow(liveVersion, check.getterSinceVersion)
+    ? liveVersion
+    : null
 }

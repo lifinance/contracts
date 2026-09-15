@@ -16,6 +16,7 @@ import {
   collectAnnotatedGetterKeys,
   readGetterExemptions,
   verifyGetterCoverage,
+  verifyGetterSinceVersions,
 } from './getter-coverage'
 import {
   buildAst,
@@ -152,13 +153,21 @@ const main = (): void => {
   // Same enumeration, a second question: is every public immutable address getter either
   // checked by `immutable-bindings-match-config` or recorded as exempt? Run here rather than in
   // its own job because it needs exactly the AST this one already built.
-  const coverageErrors = verifyGetterCoverage(
-    declarations,
-    readGetterExemptions(),
-    collectAnnotatedGetterKeys(
-      requirements as Parameters<typeof collectAnnotatedGetterKeys>[0]
-    )
-  )
+  const coverageErrors = [
+    ...verifyGetterCoverage(
+      declarations,
+      readGetterExemptions(),
+      collectAnnotatedGetterKeys(
+        requirements as Parameters<typeof collectAnnotatedGetterKeys>[0]
+      )
+    ),
+    // Same annotations, a third question: is each one reachable? A getterSinceVersion ahead of
+    // the contract's own version exempts the binding on every chain, and does it silently.
+    ...verifyGetterSinceVersions(
+      requirements as Parameters<typeof verifyGetterSinceVersions>[0],
+      declarations
+    ),
+  ]
 
   consola.info(
     `${declarations.length} immutables declared in src/; ${
