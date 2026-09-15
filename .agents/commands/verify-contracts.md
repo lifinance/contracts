@@ -58,18 +58,37 @@ The on-chain loop relies on three sources already being correct for `NETWORK`. V
 **Key fact: blockscout and sourcify match RUNTIME bytecode, so constructor args are NOT required — pass `""`.** (etherscan-type verifiers can need them; the helper skips invalid/empty args safely either way.)
 
 ```bash
-source .env
+set -a; source .env; set +a   # `set -a` exports, so Step 5's `bunx tsx` children see MONGODB_URI
+export NETWORK=<network>
+export ENVIRONMENT=production   # "staging" for a staging deploy — Steps 5-6 reuse this
+
+bash <<'BASH'
 source script/helperFunctions.sh
 
-NETWORK=<network>
-ENVIRONMENT=production   # set to "staging" for a staging deploy — Step 5 reuses this
 DEPLOYMENTS="deployments/${NETWORK}.json"
-
+FAILED=0
 while IFS=$'\t' read -r CONTRACT ADDRESS; do
   echo "Verifying ${CONTRACT} @ ${ADDRESS}"
-  verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" ""
+  verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "" ||
+    { echo "FAILED: ${CONTRACT} @ ${ADDRESS}"; FAILED=$((FAILED + 1)); }
 done < <(jq -r 'to_entries[] | "\(.key)\t\(.value)"' "$DEPLOYMENTS")
+
+[ "$FAILED" -eq 0 ] || { echo "${FAILED} contract(s) failed verification"; exit 1; }
+BASH
 ```
+
+Why the `bash` heredoc: `script/helperFunctions.sh` is bash (`${!VAR}` indirect expansion,
+`read -ra`) and dies on those under the zsh this session runs. `NETWORK`/`ENVIRONMENT` are
+exported rather than set inside the heredoc so Steps 5-6 still see them in the outer shell.
+Why `set -a` around `source .env`: plain `source` defines shell variables, which a child
+process does not inherit — Step 5's TS scripts import no `dotenv`, so they read `MONGODB_URI`
+from the environment or die. Sourcing the helper used to do this for you (it wraps its own
+`.env` read the same way), but it now runs inside the heredoc, so the outer shell has to.
+Run from the repo root — the helper sources `.env` and its siblings by relative path.
+`verifyContract` returns 1 per failed contract, and a loop's status is only its last
+iteration's, so the failures are counted and re-raised at the end — otherwise one contract
+failing early and a later one succeeding would exit 0 on an incomplete verification. The
+count survives the loop because the input is a process substitution, not a pipe.
 
 Why the direct loop and not the menu: `script/scriptMaster.sh` option 8 (`verifyAllUnverifiedContractsInLogFile`) does both the on-chain verify and the Mongo write-back — but only for entries in the **local** `deployments/_deployments_log_file.json` cache, which for a freshly-deployed network is usually empty or stale. The direct loop over the deployment JSON is the reliable path; Step 5 covers the write-back it skips.
 
