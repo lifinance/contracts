@@ -29,6 +29,7 @@ const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
 export type AuthorityExpectationSource =
   | { from: 'deployments'; contractName: string }
   | { from: 'globalConfig'; key: string }
+  | { from: 'zeroAddress' }
 
 /**
  * The getters the gate can call. Kept beside the table below so a getter
@@ -37,6 +38,7 @@ export type AuthorityExpectationSource =
  */
 export const AUTHORITY_ABI = parseAbi([
   'function owner() view returns (address)',
+  'function pendingOwner() view returns (address)',
   'function pauserWallet() view returns (address)',
 ])
 
@@ -59,6 +61,19 @@ export interface IDeclaredAuthority {
  * from this table contributes no authority row and produces no finding, so the
  * gate's PROCEED covers only the authorities named here — absence of a row is
  * not evidence that a contract's authorities were checked.
+ *
+ * `TransferrableOwnership` holds `owner` and `pendingOwner` in storage rather
+ * than as immutables, so two deployments differing only in who controls them
+ * are byte-identical and the immutable layer of the codehash gate cannot tell
+ * them apart. Each `owner` expectation is the `config/global.json` key that
+ * contract's `Deploy<name>.s.sol` passes as `_owner` — the script, not
+ * `deployRequirements.json`, decides what a fresh deployment is constructed
+ * with, and the two disagree on `FeeCollector`. `prebroadcast-authorities.coverage.test`
+ * pins the table against the scripts and fails when a periphery contract is
+ * left unclassified here.
+ *
+ * `pendingOwner` is expected to be zero because a non-zero one lets its holder
+ * claim the contract after this proposal executes.
  */
 export const DECLARED_STORAGE_AUTHORITIES: Readonly<
   Record<string, readonly IDeclaredAuthority[]>
@@ -74,10 +89,70 @@ export const DECLARED_STORAGE_AUTHORITIES: Readonly<
     },
   ],
   ERC20Proxy: [
+    { getter: 'owner', source: { from: 'globalConfig', key: 'refundWallet' } },
+    { getter: 'pendingOwner', source: { from: 'zeroAddress' } },
+  ],
+  Executor: [
+    { getter: 'owner', source: { from: 'globalConfig', key: 'refundWallet' } },
+    { getter: 'pendingOwner', source: { from: 'zeroAddress' } },
+  ],
+  FeeCollector: [
     {
       getter: 'owner',
-      source: { from: 'globalConfig', key: 'refundWallet' },
+      source: { from: 'globalConfig', key: 'feeCollectorOwner' },
     },
+    { getter: 'pendingOwner', source: { from: 'zeroAddress' } },
+  ],
+  FeeForwarder: [
+    {
+      getter: 'owner',
+      source: { from: 'globalConfig', key: 'withdrawWallet' },
+    },
+    { getter: 'pendingOwner', source: { from: 'zeroAddress' } },
+  ],
+  GasZipPeriphery: [
+    { getter: 'owner', source: { from: 'globalConfig', key: 'refundWallet' } },
+    { getter: 'pendingOwner', source: { from: 'zeroAddress' } },
+  ],
+  LiFiDEXAggregator: [
+    { getter: 'owner', source: { from: 'globalConfig', key: 'refundWallet' } },
+    { getter: 'pendingOwner', source: { from: 'zeroAddress' } },
+  ],
+  LidoWrapper: [
+    { getter: 'owner', source: { from: 'globalConfig', key: 'refundWallet' } },
+    { getter: 'pendingOwner', source: { from: 'zeroAddress' } },
+  ],
+  OutputValidator: [
+    { getter: 'owner', source: { from: 'globalConfig', key: 'refundWallet' } },
+    { getter: 'pendingOwner', source: { from: 'zeroAddress' } },
+  ],
+  Permit2Proxy: [
+    { getter: 'owner', source: { from: 'globalConfig', key: 'refundWallet' } },
+    { getter: 'pendingOwner', source: { from: 'zeroAddress' } },
+  ],
+  ReceiverAcrossV3: [
+    { getter: 'owner', source: { from: 'globalConfig', key: 'refundWallet' } },
+    { getter: 'pendingOwner', source: { from: 'zeroAddress' } },
+  ],
+  ReceiverAcrossV4: [
+    { getter: 'owner', source: { from: 'globalConfig', key: 'refundWallet' } },
+    { getter: 'pendingOwner', source: { from: 'zeroAddress' } },
+  ],
+  ReceiverChainflip: [
+    { getter: 'owner', source: { from: 'globalConfig', key: 'refundWallet' } },
+    { getter: 'pendingOwner', source: { from: 'zeroAddress' } },
+  ],
+  ReceiverOIF: [
+    { getter: 'owner', source: { from: 'globalConfig', key: 'refundWallet' } },
+    { getter: 'pendingOwner', source: { from: 'zeroAddress' } },
+  ],
+  ReceiverStargateV2: [
+    { getter: 'owner', source: { from: 'globalConfig', key: 'refundWallet' } },
+    { getter: 'pendingOwner', source: { from: 'zeroAddress' } },
+  ],
+  TokenWrapper: [
+    { getter: 'owner', source: { from: 'globalConfig', key: 'refundWallet' } },
+    { getter: 'pendingOwner', source: { from: 'zeroAddress' } },
   ],
 }
 
@@ -198,6 +273,7 @@ export const resolveExpectedAuthority = (
   deployments: Record<string, unknown>,
   globalConfig: Record<string, unknown>
 ): string | undefined => {
+  if (source.from === 'zeroAddress') return ZERO_ADDRESS
   const raw =
     source.from === 'deployments'
       ? deployments[source.contractName]
