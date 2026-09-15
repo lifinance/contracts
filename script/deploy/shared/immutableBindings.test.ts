@@ -13,7 +13,7 @@ import {
   isValidConfigFileName,
   isZeroAddressValue,
   loadConfigFileFromDisk,
-  livePredatesGetter,
+  liveVersionPredatingGetter,
   loadDiamondLog,
   resolveConfigValue,
   resolveRegisteredFacetVersion,
@@ -738,20 +738,27 @@ describe('loadDiamondLog', () => {
   })
 })
 
-describe('livePredatesGetter', () => {
+describe('liveVersionPredatingGetter', () => {
   const check = (getterSinceVersion: string | null): IImmutableBindingCheck =>
     ({
       contractName: 'GenericSwapFacetV3',
       getterSinceVersion,
     } as IImmutableBindingCheck)
 
-  it('reports a build older than the version that introduced the getter', () => {
-    expect(livePredatesGetter(check('1.0.1'), OLD, 'mainnet', LOG)).toBe(true)
+  it('names the live version of a build older than the one that introduced the getter', () => {
+    // The version comes back rather than a flag so the run log can say which build it skipped.
+    expect(
+      liveVersionPredatingGetter(check('1.0.1'), OLD, 'mainnet', LOG)
+    ).toBe('1.0.0')
   })
 
   it('leaves a build that is at or past that version to be read', () => {
-    expect(livePredatesGetter(check('1.0.2'), NEW, 'mainnet', LOG)).toBe(false)
-    expect(livePredatesGetter(check('1.0.1'), NEW, 'mainnet', LOG)).toBe(false)
+    expect(
+      liveVersionPredatingGetter(check('1.0.2'), NEW, 'mainnet', LOG)
+    ).toBeNull()
+    expect(
+      liveVersionPredatingGetter(check('1.0.1'), NEW, 'mainnet', LOG)
+    ).toBeNull()
   })
 
   it('orders version parts numerically rather than as text', () => {
@@ -759,29 +766,35 @@ describe('livePredatesGetter', () => {
       [OLD]: { Name: 'GenericSwapFacetV3', Version: '1.9.0' },
       [NEW]: { Name: 'GenericSwapFacetV3', Version: '1.10.0' },
     }
-    expect(livePredatesGetter(check('1.10.0'), OLD, 'mainnet', log)).toBe(true)
-    expect(livePredatesGetter(check('1.9.0'), NEW, 'mainnet', log)).toBe(false)
+    expect(
+      liveVersionPredatingGetter(check('1.10.0'), OLD, 'mainnet', log)
+    ).toBe('1.9.0')
+    expect(
+      liveVersionPredatingGetter(check('1.9.0'), NEW, 'mainnet', log)
+    ).toBeNull()
   })
 
   it('reads an unannotated check, an unrecorded address and a blank version', () => {
     // None of the three is evidence the getter is absent, so all three stay checked.
-    expect(livePredatesGetter(check(null), OLD, 'mainnet', LOG)).toBe(false)
     expect(
-      livePredatesGetter(
+      liveVersionPredatingGetter(check(null), OLD, 'mainnet', LOG)
+    ).toBeNull()
+    expect(
+      liveVersionPredatingGetter(
         check('1.0.1'),
         '0x0000000000000000000000000000000000000001',
         'mainnet',
         LOG
       )
-    ).toBe(false)
+    ).toBeNull()
     expect(
-      livePredatesGetter(
+      liveVersionPredatingGetter(
         check('1.0.1'),
         '0x0000000000000000000000000000000000000002',
         'mainnet',
         LOG
       )
-    ).toBe(false)
+    ).toBeNull()
   })
 
   it('reads anything it cannot order, on either side', () => {
@@ -790,7 +803,11 @@ describe('livePredatesGetter', () => {
     const log: DiamondFacetLog = {
       [OLD]: { Name: 'GenericSwapFacetV3', Version: '1.0.2-tron' },
     }
-    expect(livePredatesGetter(check('1.0.1'), OLD, 'mainnet', log)).toBe(false)
-    expect(livePredatesGetter(check('1.1'), OLD, 'mainnet', LOG)).toBe(false)
+    expect(
+      liveVersionPredatingGetter(check('1.0.1'), OLD, 'mainnet', log)
+    ).toBeNull()
+    expect(
+      liveVersionPredatingGetter(check('1.1'), OLD, 'mainnet', LOG)
+    ).toBeNull()
   })
 })

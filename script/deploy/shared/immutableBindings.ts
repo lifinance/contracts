@@ -39,9 +39,14 @@ export interface IDeployRequirementConfigData {
    */
   legacyGetters?: string[]
   /**
-   * The contract version that first exposed `getter`. A build older than this has no such
-   * function, so the read can only revert — reporting that as an unverified binding describes a
-   * pending upgrade, not a hole in this check. Omit whenever the getter has always been there.
+   * The contract version that first made this binding readable under any of the names above. A
+   * build older than that has no such function, so the read can only revert — reporting it as an
+   * unverified binding describes a pending upgrade, not a hole in this check. Omit whenever the
+   * value has always been readable.
+   *
+   * Alongside `legacyGetters` it still means "under any of these names", never the version of a
+   * rename: annotating a rename here would stop checking the older builds that the legacy name
+   * answers for, which is the opposite of what those entries exist to do.
    */
   getterSinceVersion?: string
 }
@@ -369,7 +374,10 @@ export interface IDiamondLog {
   Periphery?: Record<string, string>
 }
 
-/** Memoized per network: a fleet run reads each diamond log once, not once per consumer. */
+/**
+ * Memoized by resolved path rather than by network name: a run that changes directory must not
+ * be served a miss cached against the directory it was in. A fleet run still reads each log once.
+ */
 const diamondLogCache = new Map<string, IDiamondLog | null>()
 
 /**
@@ -382,24 +390,35 @@ const diamondLogCache = new Map<string, IDiamondLog | null>()
  * @returns the `LiFiDiamond` section, or null when the log is missing or does not parse
  */
 export function loadDiamondLog(networkLower: string): IDiamondLog | null {
-  const cached = diamondLogCache.get(networkLower)
+  const logPath = resolveDiamondLogPath(networkLower)
+  if (logPath === null) return null
+
+  const cached = diamondLogCache.get(logPath)
   if (cached !== undefined) return cached
 
-  const resolved = readDiamondLog(networkLower)
-  diamondLogCache.set(networkLower, resolved)
+  const resolved = readDiamondLog(logPath)
+  diamondLogCache.set(logPath, resolved)
   return resolved
 }
 
-/** The uncached read behind {@link loadDiamondLog}. */
-function readDiamondLog(networkLower: string): IDiamondLog | null {
-  // Network keys compose into a path, so anything outside this shape is refused outright.
+/**
+ * Where a network's diamond log would be, or null when the name could not name one.
+ *
+ * @remarks Network keys compose into a path, so anything outside the shape a key takes — and
+ *   anything that resolves outside `deployments/` — is refused before the read.
+ */
+function resolveDiamondLogPath(networkLower: string): string | null {
   if (!/^[A-Za-z0-9_-]+$/.test(networkLower)) return null
 
   const deploymentsDir = resolve(process.cwd(), 'deployments')
   const logPath = resolve(deploymentsDir, `${networkLower}.diamond.json`)
   const relativeToDir = relative(deploymentsDir, logPath)
   if (relativeToDir.startsWith('..') || isAbsolute(relativeToDir)) return null
+  return logPath
+}
 
+/** The uncached read behind {@link loadDiamondLog}. */
+function readDiamondLog(logPath: string): IDiamondLog | null {
   if (!existsSync(logPath)) return null
   try {
     const parsed = JSON.parse(readFileSync(logPath, 'utf8')) as {
@@ -456,25 +475,28 @@ export function resolveRegisteredFacetVersion(
 }
 
 /**
- * Whether the build live at `address` predates the version that first exposed the check's getter.
+ * The version live at `address`, when it predates the version that first exposed the check's
+ * getter — that is, when the read could only revert.
  *
  * @remarks Only an annotated check can answer this, and only against a version the network's
  *   diamond log records — which is facets only; periphery is not versioned there. Every unknown
- *   resolves to false: an unrecorded address or an unparseable version is no evidence the getter
- *   is absent, and treating it as such would exempt exactly the bindings this check compares.
+ *   answers null: an unrecorded address or an unparseable version on either side is no evidence
+ *   the getter is absent, and treating it as such would exempt exactly the bindings this check
+ *   compares. The version comes back rather than a bare flag so the caller can say which build
+ *   it declined to read.
  * @param check - the binding check, carrying `getterSinceVersion` when annotated
  * @param address - the live address the read would target
  * @param networkLower - canonical lowercase network key
  * @param log - facet-log override, for tests; defaults to reading `deployments/`
- * @returns true only when the live version is known and older than the annotated one
+ * @returns the live version when it is known to predate the getter, otherwise null
  */
-export function livePredatesGetter(
+export function liveVersionPredatingGetter(
   check: IImmutableBindingCheck,
   address: string,
   networkLower: string,
   log?: DiamondFacetLog | null
-): boolean {
-  if (check.getterSinceVersion === null) return false
+): string | null {
+  if (check.getterSinceVersion === null) return null
 
   const liveVersion = resolveRegisteredFacetVersion(
     check.contractName,
@@ -482,8 +504,9 @@ export function livePredatesGetter(
     address,
     log
   )
-  return (
-    liveVersion !== null &&
-    isVersionBelow(liveVersion, check.getterSinceVersion)
-  )
+  if (liveVersion === null) return null
+
+  return isVersionBelow(liveVersion, check.getterSinceVersion)
+    ? liveVersion
+    : null
 }

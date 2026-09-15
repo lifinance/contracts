@@ -60,7 +60,7 @@ import {
   collectImmutableBindingChecks,
   isFacetContract,
   isZeroAddressValue,
-  livePredatesGetter,
+  liveVersionPredatingGetter,
   loadDiamondLog,
   TRON_ZERO_ADDRESS_BASE58,
   type DiamondFacetLog,
@@ -2223,16 +2223,15 @@ export const HEALTH_CHECK_INVARIANTS: IHealthCheckInvariant[] = [
         // config. The coverage it costs is recovered by the upgrade itself, so this is narrated
         // rather than reported: the contract is live here, and every other outcome for a live
         // contract says something, so dropping it from the log entirely is what would confuse.
-        if (
-          livePredatesGetter(
-            check,
-            address,
-            ctx.networkLower,
-            ctx.diamondFacetLog
-          )
-        ) {
+        const versionPredatingGetter = liveVersionPredatingGetter(
+          check,
+          address,
+          ctx.networkLower,
+          ctx.diamondFacetLog
+        )
+        if (versionPredatingGetter !== null) {
           consola.info(
-            `${check.contractName}.${check.getter}() not read: the build live at ${address} predates it`
+            `${check.contractName}.${check.getter}() not read: ${address} is v${versionPredatingGetter}, and the getter arrived in v${check.getterSinceVersion}`
           )
           continue
         }
