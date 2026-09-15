@@ -66,10 +66,14 @@ bash <<'BASH'
 source script/helperFunctions.sh
 
 DEPLOYMENTS="deployments/${NETWORK}.json"
+FAILED=0
 while IFS=$'\t' read -r CONTRACT ADDRESS; do
   echo "Verifying ${CONTRACT} @ ${ADDRESS}"
-  verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" ""
+  verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "" ||
+    { echo "FAILED: ${CONTRACT} @ ${ADDRESS}"; FAILED=$((FAILED + 1)); }
 done < <(jq -r 'to_entries[] | "\(.key)\t\(.value)"' "$DEPLOYMENTS")
+
+[ "$FAILED" -eq 0 ] || { echo "${FAILED} contract(s) failed verification"; exit 1; }
 BASH
 ```
 
@@ -77,6 +81,10 @@ Why the `bash` heredoc: `script/helperFunctions.sh` is bash (`${!VAR}` indirect 
 `read -ra`) and dies on those under the zsh this session runs. `NETWORK`/`ENVIRONMENT` are
 exported rather than set inside the heredoc so Steps 5-6 still see them in the outer shell.
 Run from the repo root — the helper sources `.env` and its siblings by relative path.
+`verifyContract` returns 1 per failed contract, and a loop's status is only its last
+iteration's, so the failures are counted and re-raised at the end — otherwise one contract
+failing early and a later one succeeding would exit 0 on an incomplete verification. The
+count survives the loop because the input is a process substitution, not a pipe.
 
 Why the direct loop and not the menu: `script/scriptMaster.sh` option 8 (`verifyAllUnverifiedContractsInLogFile`) does both the on-chain verify and the Mongo write-back — but only for entries in the **local** `deployments/_deployments_log_file.json` cache, which for a freshly-deployed network is usually empty or stale. The direct loop over the deployment JSON is the reliable path; Step 5 covers the write-back it skips.
 
