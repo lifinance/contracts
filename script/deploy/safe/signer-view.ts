@@ -97,6 +97,22 @@ const BUCKET_ORDER: readonly CheckBucket[] = [
 ]
 
 /**
+ * Statuses that say the gate had nothing to grade, rather than that it failed
+ * to grade.
+ *
+ * Matched against a set of strings rather than against the `CheckStatus` union,
+ * because the ledger's vocabulary is the wider of the two: a gate can record a
+ * status this view's checkout does not declare, and the catch-all below reads
+ * one it cannot name as an unmade reading. That default is right for a status
+ * nothing defines and wrong for one the ledger grades outside both numerators —
+ * it turns a gate that correctly stood down into a stop sign the signer cannot
+ * clear, on every proposal that installs nothing.
+ */
+const NOTHING_TO_GRADE_STATUSES: ReadonlySet<string> = new Set([
+  'not-applicable',
+])
+
+/**
  * Which section a row prints under.
  *
  * Takes the whole entry rather than a status, because the section has to be
@@ -111,6 +127,7 @@ const BUCKET_ORDER: readonly CheckBucket[] = [
 export const bucketOf = (entry: IBucketedResult): CheckBucket => {
   const { result } = entry
   if (entry.notApplicable) return 'n/a'
+  if (NOTHING_TO_GRADE_STATUSES.has(result.status)) return 'n/a'
   if (result.status === 'pass') return 'passed'
   if (result.status === 'fail' || result.status === 'needs-ack')
     return isAcknowledgeable(entry.definition, result) ? 'ack' : 'wrong'
@@ -140,6 +157,7 @@ const MANIFEST_WORD: ReadonlyMap<string, string> = new Map([
   ['pass', 'ok'],
   ['fail', 'WRONG'],
   ['needs-ack', 'ASKS YOU'],
+  ['not-applicable', 'n/a'],
 ])
 
 /** A status this view cannot name is an unmade reading, never a pass. */

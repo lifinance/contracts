@@ -6,6 +6,8 @@ import {
   ALL_GATE_DEFINITIONS,
   CODEHASH_CHECK_ID,
   CONFIRM_CHECK_DEFINITIONS,
+  STORAGE_AUTHORITY_CHECK_ID,
+  TARGET_STATE_CHECK_ID,
 } from './confirm-check-registry'
 import { bucketOf, renderProposalOutcome } from './signer-view'
 import { signerChecks, viewDefinitions } from './signer-zones'
@@ -118,5 +120,44 @@ describe('the closing verdict counts the codehash gate', () => {
     const outcome = outcomeFor(unevaluated)
     expect(outcome).not.toContain('Every gate passed')
     expect(outcome).toContain('could not be checked')
+  })
+})
+
+/**
+ * The gates a subtractive proposal leaves nothing for.
+ *
+ * A removal-only cut installs no version to compare against `origin/main` and
+ * no contract whose constructor-written authorities there is anything to read,
+ * so both gates record that they had nothing to grade. The sentence printed
+ * over the prompt is the last thing a signer reads, and it has to distinguish
+ * that from the two gates having failed to run.
+ */
+describe('the closing verdict on a proposal that installs nothing', () => {
+  const standingDown = (): ICheckResult[] => [
+    ...CONFIRM_CHECK_DEFINITIONS.filter(
+      (definition) =>
+        definition.checkId !== CODEHASH_CHECK_ID &&
+        definition.checkId !== TARGET_STATE_CHECK_ID &&
+        definition.checkId !== STORAGE_AUTHORITY_CHECK_ID
+    ).map((definition) => row(definition.checkId, 'pass')),
+    row(CODEHASH_CHECK_ID, 'pass'),
+    row(TARGET_STATE_CHECK_ID, 'not-applicable' as ICheckResult['status']),
+    row(STORAGE_AUTHORITY_CHECK_ID, 'not-applicable' as ICheckResult['status']),
+  ]
+
+  it('reaches green rather than blaming the signer for an unmade reading', () => {
+    const outcome = stripAnsi(
+      renderProposalOutcome(
+        signerChecks({
+          results: standingDown(),
+          definitions: viewDefinitions(ALL_GATE_DEFINITIONS),
+        })
+      ).join('\n')
+    )
+
+    expect(outcome).toContain('Every gate passed')
+    expect(outcome).not.toContain('could not be checked')
+    expect(outcome).not.toContain('Gate G')
+    expect(outcome).not.toContain('Gate H')
   })
 })

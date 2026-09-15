@@ -116,6 +116,16 @@ describe('bucketOf', () => {
     expect(bucketOf(at('fail', 'integrity'))).toBe('wrong')
     expect(bucketOf(at('needs-ack', 'integrity'))).toBe('wrong')
   })
+
+  // A status the ledger grades outside both numerators, which a gate uses to
+  // say it stood down: a removal-only cut installs no version to compare and
+  // no constructor-written authority to read. The view's catch-all treats an
+  // unknown status as an unmade reading, so without this a gate that correctly
+  // had nothing to do prints as the signer's environment being broken.
+  it('reads a gate that had nothing to grade as not applicable, not as unchecked', () => {
+    expect(bucketOf(at('not-applicable'))).toBe('n/a')
+    expect(bucketOf(at('not-applicable', 'semantic'))).toBe('n/a')
+  })
 })
 
 describe('renderCheckGroups', () => {
@@ -252,6 +262,12 @@ describe('checkSummary', () => {
 
   it('names no bucket that is empty', () => {
     expect(checkSummary([entry('a', 'pass')])).toBe('1 passed')
+  })
+
+  it('counts a gate with nothing to grade apart from one that could not be', () => {
+    expect(
+      checkSummary([entry('a', 'pass'), entry('b', 'not-applicable')])
+    ).toBe('1 passed · 1 n/a')
   })
 })
 
@@ -837,6 +853,33 @@ describe('renderGateManifest', () => {
     expect(rowFor(lines, 'D')).toContain('WRONG')
     expect(rowFor(lines, 'D')).toContain('REVIEW')
     expect(rowFor(lines, 'D')).not.toContain('BLOCKS')
+  })
+
+  it('lets a gate that had nothing to grade stand down instead of blocking', () => {
+    const lines = render([
+      entry('a-check', 'pass'),
+      entry('b-check', 'pass'),
+      entry('c-check', 'not-applicable'),
+      entry('d-check', 'pass'),
+    ])
+    const row = rowFor(lines, 'C')
+    expect(row).toContain('n/a')
+    expect(row).not.toContain('UNCHECKED')
+    expect(row).not.toContain('BLOCKS')
+    // A gate that stood down still reported, so it is neither silent nor
+    // missing from the denominator.
+    expect(lines.at(-1)).toContain('4 reported')
+    expect(lines.at(-1)).not.toContain('silent')
+    // The present half: a gate that genuinely could not run still blocks, so
+    // the assertions above are not a renderer that stopped blocking at all.
+    const stopped = render([
+      entry('a-check', 'pass'),
+      entry('b-check', 'pass'),
+      entry('c-check', 'error'),
+      entry('d-check', 'pass'),
+    ])
+    expect(rowFor(stopped, 'C')).toContain('UNCHECKED')
+    expect(rowFor(stopped, 'C')).toContain('BLOCKS')
   })
 
   it('surfaces a result that names no gate on the roster', () => {
