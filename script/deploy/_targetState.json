@@ -2286,7 +2286,10 @@
         "OutputValidator": "1.0.0",
         "Permit2Proxy": "1.0.4",
         "PolymerCCTPFacet": "3.0.0",
-        "ReceiverOIF": "1.0.0"
+        "ReceiverOIF": "1.0.0",
+        "AcrossFacetV4": "1.0.0",
+        "ReceiverAcrossV4": "1.0.0",
+        "RelayDepositoryFacet": "1.0.0"
       }
     }
   },
