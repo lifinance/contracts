@@ -643,10 +643,9 @@ describe('each gate that owns a ledger row hands the recorder its verdict', () =
 /**
  * Gate G has to be graded before the signer is asked to sign.
  *
- * The storage-authority row used to be pushed from inside `recordSignedSet`,
- * which runs after the signature is stored. A row recorded there can describe
- * what was signed but can no longer refuse it, and the run-level ledger then
- * carried no gate-G result at decision time at all.
+ * A row pushed from `recordSignedSet` would run after the signature is stored,
+ * where it can describe what was signed but can no longer refuse it — leaving
+ * the run-level ledger with no gate-G result at decision time.
  *
  * Asserted as placement rather than as a decision because the decision is
  * already driven in `confirm-check-registry.test.ts`; what that cannot see is
