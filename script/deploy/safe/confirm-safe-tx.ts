@@ -93,8 +93,8 @@ import {
   createAcknowledgementLedger,
   evaluateProposalIntegrity,
   recordAcknowledgement,
-  renderChangeRollup,
-  rollUpByChange,
+  renderQueueSummary,
+  rollUpQueue,
   type INetworkOutcome,
 } from './confirm-safe-tx-ack'
 import {
@@ -1673,17 +1673,39 @@ const processTxs = async (
       fingerprint,
     })
 
-    // Recorded before the prompts so a proposal skipped, aborted or refused
-    // still counts towards the run's N/N; a later push for the same proposal
-    // key supersedes this one.
-    networkOutcomes.push({
-      network,
-      proposalKey,
-      acknowledgementKey,
-      fingerprint,
-      nonceCurrent: integrity.ok,
-      acknowledged: false,
-    })
+    /**
+     * Records where this proposal stands, superseding any earlier record of it.
+     *
+     * Every path out of this iteration calls it, including the ones that
+     * `continue` past the prompts: the summary counts the queue, so a proposal
+     * the run refused has to be in it, and has to say it was refused.
+     *
+     * @param update - What this call observed; everything else is the state the proposal was fetched in.
+     */
+    const recordProposalOutcome = (
+      update: Partial<INetworkOutcome> = {}
+    ): void => {
+      networkOutcomes.push({
+        network,
+        proposalKey,
+        acknowledgementKey,
+        fingerprint,
+        signatures: tx.safeTransaction.signatures.size,
+        threshold: tx.threshold,
+        nonceCurrent: integrity.ok,
+        alreadySigned: tx.hasSignedAlready,
+        signedThisRun: false,
+        executedThisRun: false,
+        // A refused operation leaves `Do Nothing` as the only option, so the
+        // proposal is blocked from here on whatever the operator picks.
+        blocked: operationVerdict.refuses,
+        ...update,
+      })
+    }
+
+    // Recorded before the prompts so a proposal skipped, aborted or refused is
+    // still in the queue the summary reports; a later call supersedes this one.
+    recordProposalOutcome()
 
     // Restated here rather than left to the rows above: by the time the prompt
     // appears the signer has scrolled past every gate, the calldata and the
@@ -1791,6 +1813,7 @@ const processTxs = async (
       consola.error('='.repeat(80))
       consola.error('')
       consola.info('Execution aborted — proposal is stale')
+      recordProposalOutcome({ blocked: true })
       continue
     }
 
@@ -1843,6 +1866,7 @@ const processTxs = async (
           '  If the configured RPC is known to report an out-of-date on-chain nonce, re-run with ALLOW_FUTURE_NONCE_EXECUTION=true.'
         )
         consola.info('Execution aborted — proposal nonce is not reachable yet')
+        recordProposalOutcome({ blocked: true })
         continue
       }
 
@@ -1877,25 +1901,22 @@ const processTxs = async (
         consola.error(line)
       consola.error('='.repeat(80))
       consola.error('')
+      recordProposalOutcome({ blocked: true })
       continue
     }
 
-    // The ledger refuses to store an acknowledgement for a proposal whose nonce
-    // check failed, so the summary must report what the ledger accepted rather
-    // than that the operator acted.
-    const acknowledged = recordAcknowledgement(acknowledgementLedger, {
+    recordAcknowledgement(acknowledgementLedger, {
       acknowledgementKey,
       proposalKey,
       integrityOk: integrity.ok,
     })
-    networkOutcomes.push({
-      network,
-      proposalKey,
-      acknowledgementKey,
-      fingerprint,
-      nonceCurrent: integrity.ok,
-      acknowledged,
-    })
+
+    // What the run did to this proposal, as observed rather than as chosen: a
+    // sign path that throws is caught below, and the summary must not report a
+    // signature that never reached the store.
+    let signedThisRun = false
+    let executedThisRun = false
+    let signatures = tx.safeTransaction.signatures.size
 
     // Zone 3, held back from the decision screen and printed here instead: after
     // the nonce and expected-state interlocks, which can still end the run, and
@@ -1929,6 +1950,8 @@ const processTxs = async (
         const safeTransaction = tx.safeTransaction
         const signedTx = await signTransaction(safeTransaction)
         await persistSignedSafeTx(tx, signedTx)
+        signedThisRun = true
+        signatures = signedTx.signatures.size
       } catch (error) {
         consola.error('Error signing transaction:', error)
       }
@@ -1938,7 +1961,12 @@ const processTxs = async (
         const safeTransaction = tx.safeTransaction
         const signedTx = await signTransaction(safeTransaction)
         await persistSignedSafeTx(tx, signedTx)
-        if (await executeTransaction(signedTx, tx)) expectedNonce++
+        signedThisRun = true
+        signatures = signedTx.signatures.size
+        if (await executeTransaction(signedTx, tx)) {
+          executedThisRun = true
+          expectedNonce++
+        }
       } catch (error) {
         consola.error('Error signing and executing transaction:', error)
       }
@@ -1951,6 +1979,8 @@ const processTxs = async (
 
         // Step 2: Update MongoDB with current user's signature
         await persistSignedSafeTx(tx, signedTx)
+        signedThisRun = true
+        signatures = signedTx.signatures.size
 
         // Step 3: Initialize deployer Safe client
         consola.info('Initializing deployer wallet...')
@@ -1976,6 +2006,7 @@ const processTxs = async (
           // Update MongoDB with deployer's signature
           await persistSignedSafeTx(tx, deployerSignedTx)
           finalTx = deployerSignedTx
+          signatures = deployerSignedTx.signatures.size
         } else
           consola.info(
             'Deployer has already signed - proceeding to execution...'
@@ -1983,7 +2014,10 @@ const processTxs = async (
 
         // Step 5: Execute with deployer using shared executeTransaction function
         consola.info('Executing transaction with deployer wallet...')
-        if (await executeTransaction(finalTx, tx, deployerSafe)) expectedNonce++
+        if (await executeTransaction(finalTx, tx, deployerSafe)) {
+          executedThisRun = true
+          expectedNonce++
+        }
       } catch (error) {
         consola.error(
           'Error signing and executing transaction with deployer:',
@@ -1993,7 +2027,10 @@ const processTxs = async (
 
     if (action === 'Execute')
       try {
-        if (await executeTransaction(tx.safeTransaction, tx)) expectedNonce++
+        if (await executeTransaction(tx.safeTransaction, tx)) {
+          executedThisRun = true
+          expectedNonce++
+        }
       } catch (error) {
         consola.error('Error executing transaction:', error)
       }
@@ -2012,11 +2049,15 @@ const processTxs = async (
           txSafeAddress
         )
         consola.info('Executing transaction with deployer wallet...')
-        if (await executeTransaction(safeTransaction, tx, deployerSafe))
+        if (await executeTransaction(safeTransaction, tx, deployerSafe)) {
+          executedThisRun = true
           expectedNonce++
+        }
       } catch (error) {
         consola.error('Error executing with deployer:', error)
       }
+
+    recordProposalOutcome({ signatures, signedThisRun, executedThisRun })
   }
 
   // One row per network, written once every proposal on it has been graded and
@@ -2490,13 +2531,13 @@ const main = defineCommand({
       // Both summaries print here, together and last. In `finally` because an
       // aborted run is where they matter most, and after the transport close so
       // a write failure here cannot leave the Ledger open. Together because a
-      // review summary shown without the execution failures beside it reads as
+      // queue summary shown without the execution failures beside it reads as
       // if the run succeeded.
       const executionsFailed =
         globalFailedExecutions.length > 0 || globalTimeoutExecutions.length > 0
 
-      // Ahead of the change summary: the ledger says what was verified, and the
-      // roll-up below only counts what the operator acted on. Withheld while
+      // Ahead of the queue summary: the ledger says what was verified, and the
+      // table below only says where each proposal now stands. Withheld while
       // target-state was the only row — every real cut graded `needs-ack`, so a
       // correct rollout closed `0/N verified`. With the integrity, executability
       // and quorum rows beside it a clean proposal now closes mostly verified,
@@ -2518,18 +2559,15 @@ const main = defineCommand({
       }
 
       if (networkOutcomes.length > 0) {
-        consola.info('=== Change Review Summary ===')
-        const covered = new Set(networkOutcomes.map((o) => o.network)).size
-        if (covered < networksAttempted.size)
+        const summary = rollUpQueue(networkOutcomes)
+        if (summary.networks < networksAttempted.size)
           consola.warn(
-            `Covers ${covered} of ${networksAttempted.size} networks attempted — the rest produced no reviewable proposal (not an owner, ownership read failed, or nothing actionable). Per-change counts below are out of the covered networks, not the fleet.`
+            `Covers ${summary.networks} of ${networksAttempted.size} networks attempted — the rest produced no reviewable proposal (not an owner, ownership read failed, or nothing actionable). The table below counts the covered networks, not the fleet.`
           )
-        renderChangeRollup(rollUpByChange(networkOutcomes)).forEach((line) =>
-          consola.info(line)
-        )
+        renderQueueSummary(summary).forEach((line) => consola.info(line))
         if (executionsFailed)
           consola.warn(
-            'Counts above cover review and nonce state only — executions failed this run, see below.'
+            'An execution failed this run — it is not counted as executed above, and the proposal is still queued. Details below.'
           )
       }
 
