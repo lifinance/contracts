@@ -76,9 +76,9 @@ const renderFailing = (
     .join('\n')
 
 describe('gate naming', () => {
-  it('heads a row with the gate letter and its subject', () => {
+  it('heads a row with the gate letter and its title', () => {
     expect(renderFailing(CHECK_SIGNATURES)).toContain(
-      'Gate C \u00b7 Owner signatures'
+      'Gate C \u00b7 Has signatures of current owners (only)'
     )
   })
 
@@ -96,11 +96,12 @@ describe('gate naming', () => {
     ).toContain('Gate I \u00b7 Calldata simulation')
   })
 
-  it('never states the assertion in the row a red glyph heads', () => {
+  it('heads a failing row with the gate letter and its title too', () => {
     const rendered = renderFailing(CHECK_SAFE_TX_HASH)
 
-    expect(rendered).toContain('Gate B \u00b7 Safe tx hash')
-    expect(rendered).not.toContain('equals the stored one')
+    expect(rendered).toContain(
+      'Gate B \u00b7 Stored tx hash matches recomputed'
+    )
   })
 
   it('gives every definition a unique single-letter gate', () => {
@@ -168,7 +169,7 @@ describe('signerChecks', () => {
     const rendered = renderCheckGroups(rows).map(stripAnsi).join('\n')
 
     expect(rendered).toContain('NOT APPLICABLE')
-    expect(rendered).toContain('not a timelock schedule')
+    expect(rendered.replace(/\s+/gu, ' ')).toContain('not a timelock schedule')
     expect(rendered).not.toContain('PASSED')
   })
 
@@ -267,9 +268,9 @@ describe('a device note carrying its own line breaks', () => {
 })
 
 describe('the Safe-address check', () => {
-  it('is named as a gate, not as a claim about the proposal', () => {
+  it('is headed by its gate letter and title', () => {
     expect(renderFailing(CHECK_SAFE_ADDRESS)).toContain(
-      'Gate A \u00b7 Safe address'
+      'Gate A \u00b7 Safe matches networks.json'
     )
   })
 })

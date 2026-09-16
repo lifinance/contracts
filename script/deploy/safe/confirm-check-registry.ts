@@ -37,7 +37,7 @@ export const TARGET_STATE_CHECK: ICheckDefinition = {
   section: 'Intent',
   checkClass: 'semantic',
   gate: 'H',
-  title: 'Facet version',
+  title: 'Contract version matches target state',
 }
 
 /** Persisted in signed-set records, so it does not follow the title. */
@@ -48,7 +48,7 @@ export const STORAGE_AUTHORITY_CHECK: ICheckDefinition = {
   section: 'Deployed state',
   checkClass: 'integrity',
   gate: 'G',
-  title: 'Contract ownership',
+  title: 'Live owner matches what main declares',
   // Every diamond cut carries `LiFiDiamond.owner`, whose expectation comes from
   // the deployment record — so without this the one gate that reads live
   // authorities refuses every honest proposal, and the remedy it prints cannot
@@ -698,7 +698,7 @@ export const EXECUTABILITY_CHECK: ICheckDefinition = {
   // no way for the signer to say so.
   checkClass: 'semantic',
   gate: 'I',
-  title: 'Calldata simulation',
+  title: 'Transaction / calldata would not revert',
 }
 
 export const RPC_QUORUM_CHECK_ID = 'rpc-quorum'
@@ -708,7 +708,7 @@ export const RPC_QUORUM_CHECK: ICheckDefinition = {
   section: 'Evidence',
   checkClass: 'semantic',
   gate: 'J',
-  title: 'Provider agreement',
+  title: 'Independent RPCs agree',
 }
 
 export const CODEHASH_CHECK_ID = 'codehash'
@@ -726,7 +726,7 @@ export const CODEHASH_CHECK: ICheckDefinition = {
   section: 'Deployed state',
   checkClass: 'integrity',
   gate: 'K',
-  title: 'Deployed bytecode',
+  title: "Facet bytecode matches main's build",
 }
 
 /**

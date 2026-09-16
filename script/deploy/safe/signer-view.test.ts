@@ -774,7 +774,7 @@ describe('renderGateManifest', () => {
 
       expect(columns.size).toBe(1)
       expect([...columns][0]).toBe(
-        fromLetter(lines[0] as string, 'GATE', 'WRITE-UP')
+        fromLetter(lines[0] as string, 'GATE', 'GATE DOCUMENTATION')
       )
     })
 
@@ -791,7 +791,7 @@ describe('renderGateManifest', () => {
       const withDocs = renderWithDocs([entry('a-check', 'pass')])
       const without = render([entry('a-check', 'pass')])
 
-      expect(without[0]).not.toContain('WRITE-UP')
+      expect(without[0]).not.toContain('GATE DOCUMENTATION')
       // The columns the link would have taken go back to the dot leader, so
       // the verdict word sits further right than it does beside a link column.
       expect(fromLetter(rowFor(without, 'A'), 'A', 'ok')).toBeGreaterThan(

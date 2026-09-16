@@ -148,7 +148,8 @@ export const STATUSES_THAT_CONSULTED_NOTHING: ReadonlySet<TargetStateStatus> =
  * registry, which imports this module; `confirm-check-registry.test.ts` holds
  * the two to the same string.
  */
-export const TARGET_STATE_GATE_HEADING = 'Gate H · Facet version'
+export const TARGET_STATE_GATE_HEADING =
+  'Gate H · Contract version matches target state'
 
 /** One graded element of a proposal. */
 export interface ITargetStateFinding {

@@ -64,6 +64,8 @@ import type { IPreBroadcastAuthority } from './prebroadcast-authorities'
 import { renderCheckLedger } from './render-check-ledger'
 import type { IRpcQuorumVerdict, TQuorumStatus } from './rpc-quorum'
 import type { ISignedAuthorityEntry } from './signed-set-record'
+import { manifestTitleWidth } from './signer-view'
+import { CHECK_DOCS } from './signer-zones'
 
 const FACET = '0x1111111111111111111111111111111111111111'
 
@@ -1956,9 +1958,16 @@ describe('gate letters', () => {
     expect(new Set(letters).size).toBe(letters.length)
   })
 
-  it('name a subject rather than restate the assertion', () => {
+  it('fit the column they are printed in, beside the write-up links', () => {
+    // Measured against the real links, not against the bare table: they take
+    // their columns from the title's, so a title that fits without them can
+    // still collapse the dot leader on the view a signer actually reads.
+    const width = manifestTitleWidth(
+      Math.max(...[...CHECK_DOCS.values()].map((url) => url.length))
+    )
+
     for (const definition of ALL_GATE_DEFINITIONS)
-      expect(definition.title.split(/\s+/u).length).toBeLessThanOrEqual(3)
+      expect(definition.title.length).toBeLessThanOrEqual(width)
   })
 
   it('covers every registered gate, and the ones that block elsewhere', () => {

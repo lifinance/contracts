@@ -323,12 +323,13 @@ export const evaluateCodehashSignGate = async (
  * The heading this block prints under.
  *
  * The gate's own letter and title, not a name of its own: a block headed
- * "Codehash gate" sits under a manifest that lists the same gate as "Gate K ·
- * Deployed bytecode", so nothing on the page connects the two. Declared here
+ * "Codehash gate" sits under a manifest that lists the same gate by its letter
+ * and its assertion, so nothing on the page connects the two. Declared here
  * rather than imported from the registry, which imports this module;
  * `confirm-check-registry.test.ts` holds the two to the same string.
  */
-export const CODEHASH_GATE_HEADING = 'Gate K · Deployed bytecode'
+export const CODEHASH_GATE_HEADING =
+  "Gate K · Facet bytecode matches main's build"
 
 /**
  * Whether the gate reached no per-address verdict and refused nothing.

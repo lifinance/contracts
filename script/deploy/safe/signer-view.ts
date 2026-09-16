@@ -242,8 +242,23 @@ const MANIFEST_HEADERS = {
   title: 'WHAT IT ASSERTS',
   word: 'RESULT',
   blocks: 'ACTION',
-  link: 'WRITE-UP',
+  link: 'GATE DOCUMENTATION',
 } as const
+
+/**
+ * Columns a gate title may occupy before the dot leader collapses.
+ *
+ * Exported so the titles can be pinned against the column they are printed in
+ * rather than against a number written down twice: the titles state their
+ * assertion, so they sit close enough to the limit that a reworded one can
+ * cross it. Takes the link column's width because the write-up links take
+ * their columns from this one, so the roster only fits if it fits beside them.
+ *
+ * @param linkWidth - Columns the write-up column occupies, 0 when absent.
+ * @returns The columns left for a title.
+ */
+export const manifestTitleWidth = (linkWidth: number): number =>
+  Math.max(0, VIEW_WIDTH - MANIFEST_FIXED - (linkWidth ? linkWidth + 1 : 0))
 
 export interface IGateManifestInput {
   /** Every result this run produced, in any order. */
@@ -303,10 +318,7 @@ export const renderGateManifest = (input: IGateManifestInput): string[] => {
     ),
     input.docUrls?.size ? MANIFEST_HEADERS.link.length : 0
   )
-  const titleWidth = Math.max(
-    0,
-    VIEW_WIDTH - MANIFEST_FIXED - (linkWidth ? linkWidth + 1 : 0)
-  )
+  const titleWidth = manifestTitleWidth(linkWidth)
   const out: string[] = []
   let reported = 0
   let silent = 0
