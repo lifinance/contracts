@@ -142,17 +142,24 @@ jobs:
           while IFS= read -r FILE_PATH; do
             echo "Now checking contract: $FILE_PATH"
 
-            ##### Extract version tag from file
-            VERSION_TAG=$(grep -E '^/// @custom:version' "$FILE_PATH" | head -1 || true)
-            VERSION=$(echo "$VERSION_TAG" | sed -E 's/^\/\/\/ @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*$/\1/' | tr -d '\n\r' || true)
+            ##### Extract version tag from file. One grammar, shared with the audit gate's
+            ##### TypeScript (script/deploy/shared/contract-version.ts) so coverage is never
+            ##### looked up for a different version than content is compared at.
+            VERSION=$(bash script/utils/extract-contract-version.sh "$FILE_PATH") && VERSION_STATUS=0 || VERSION_STATUS=$?
 
             ##### Extract the filename without extension
             FILENAME=$(basename "$FILE_PATH" .sol)
 
             ##### Check if a version tag exists in the contract file
-            if [[ -z "$VERSION_TAG" ]]; then
+            if [[ $VERSION_STATUS -eq 2 ]]; then
               echo -e "\033[31mFile does not contain a version tag\033[0m"
               MISSING_VERSION_TAG+=("$FILE_PATH")
+            elif [[ $VERSION_STATUS -ne 0 ]]; then
+              ##### the tag carries a value that is not a version. Refused rather than
+              ##### truncated to its well-formed prefix, which would label the contract
+              ##### as a version nobody wrote. The seam printed the reason on stderr.
+              echo -e "\033[31mAborting: '$VERSION' in $FILE_PATH is not a version.\033[0m"
+              exit 1
             else
               echo -e "\033[32mFile contains a custom:version tag\033[0m"
 
@@ -197,8 +204,14 @@ jobs:
                   echo "--------------------"
                   echo "Checking if version was updated..."
 
-                  OLD_FILE_CONTENT=$(git show "$MERGE_BASE:${FILE_PATH}" 2>/dev/null || echo "")
-                  OLD_VERSION=$(echo "$OLD_FILE_CONTENT" | grep -E '^/// @custom:version' | sed -E 's/^\/\/\/ @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*$/\1/')
+                  ##### Same seam as above, against the file as it was at the merge base.
+                  ##### An absent or unreadable version there reads as empty and falls through
+                  ##### to the new-file default below: the old state is history this PR cannot
+                  ##### fix, and the version being merged is gated on its own terms.
+                  OLD_FILE=$(mktemp)
+                  git show "$MERGE_BASE:${FILE_PATH}" > "$OLD_FILE" 2>/dev/null || true
+                  OLD_VERSION=$(bash script/utils/extract-contract-version.sh "$OLD_FILE") || OLD_VERSION=""
+                  rm -f "$OLD_FILE"
 
                   # If there was no old version line in the diff, it's a new file.
                   # We set a default old version to ensure the comparison works correctly.
@@ -536,12 +549,13 @@ jobs:
           while IFS= read -r FILE; do
             echo "-----------"
             echo "now checking file $FILE"
-            ##### load contract version
-            VERSION=$(sed -nE 's/^\/\/\/ @custom:version ([0-9]+\.[0-9]+\.[0-9]+).*/\1/p' "$FILE" | head -1)
+            ##### load contract version through the same seam the version-control job and
+            ##### the audit gate's TypeScript read, so all three agree on what the version is
+            VERSION=$(bash script/utils/extract-contract-version.sh "$FILE") && VERSION_STATUS=0 || VERSION_STATUS=$?
 
             ##### make sure that contract version was extracted successfully
-            if [[ -z $VERSION ]]; then
-              echo -e "\033[31mCould not find version of contract $FILE. This should not happen. Please check the Github action code. Aborting now.\033[0m"
+            if [[ $VERSION_STATUS -ne 0 ]]; then
+              echo -e "\033[31mCould not read a valid version from contract $FILE. Aborting now.\033[0m"
               exit 1
             fi
 

@@ -3,6 +3,8 @@ import path from 'path'
 
 import { config } from 'dotenv'
 
+import { readContractVersion } from '../deploy/shared/contract-version'
+
 import { getNetworkConfig } from './utils'
 
 config()
@@ -45,12 +47,22 @@ async function updateDeploymentLogs(network: string) {
           continue
         }
 
-        // Extract version from source code
-        const sourceCode = data.result[0].SourceCode
-        const versionMatch = sourceCode.match(
-          /\/\/\/\s*@custom:version\s*([\d.]+)/
+        // Extract version from source code. An explorer returns a single-file
+        // contract as plain source but a multi-file one as a JSON bundle whose
+        // newlines are escaped, and the tag is only at the start of a line in the
+        // first shape — so unescape before reading rather than reporting every
+        // multi-file contract as versionless.
+        const sourceCode = (data.result[0].SourceCode as string).replace(
+          /\\r\\n|\\n/gu,
+          '\n'
         )
-        let version = versionMatch ? versionMatch[1] : null
+        const read = readContractVersion(sourceCode)
+        let version = read.kind === 'ok' ? read.version : null
+
+        if (read.kind === 'malformed')
+          console.log(
+            `${contractName}: '${read.raw}' is not a version. Assuming 1.0.0`
+          )
 
         if (!version) {
           console.log(

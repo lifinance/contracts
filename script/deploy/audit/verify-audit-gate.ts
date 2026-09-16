@@ -16,8 +16,9 @@ import { readFileSync } from 'node:fs'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 
+import { readContractVersion } from '../shared/contract-version'
+
 import {
-  extractContractVersion,
   parseContractList,
   resolveContractSource,
   runAuditGate,
@@ -39,21 +40,25 @@ const readContracts = (
 
   return paths.map((path) => {
     const source = reader.readFile(path)
-    const version = source ? extractContractVersion(source) : undefined
+    const read = source
+      ? readContractVersion(source)
+      : ({ kind: 'missing' } as const)
 
     // Refused here rather than allowed through: with no version the gate cannot
     // look up coverage, and the resulting "no audit found" would read as an
     // unaudited contract instead of a malformed one. Exited rather than thrown —
     // `runMain` turns a throw into exit 1, which delivers the gate-doesn't-know
     // condition as a mismatch, the exact collapse these codes exist to prevent.
-    if (!version) {
+    if (read.kind !== 'ok') {
       consola.error(
-        `could not read a @custom:version from ${path} at ${headTreeish}`
+        read.kind === 'malformed'
+          ? `'${read.raw}' in ${path} at ${headTreeish} is not a @custom:version (expected MAJOR.MINOR.PATCH with an optional lowercase -suffix)`
+          : `could not read a @custom:version from ${path} at ${headTreeish}`
       )
       process.exit(EXIT_ERROR)
     }
 
-    return { path, version }
+    return { path, version: read.version }
   })
 }
 

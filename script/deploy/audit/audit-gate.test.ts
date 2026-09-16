@@ -13,7 +13,6 @@ import type { Hex } from 'viem'
 import {
   collectEntriesForContract,
   contractNameFromPath,
-  extractContractVersion,
   resolveContractSource,
   runAuditGate,
   type ClosureAtResult,
@@ -408,45 +407,6 @@ describe('runAuditGate', () => {
 
     expect(report.verdict).toBe('pass')
     expect(report.blocked).toBe(false)
-  })
-})
-
-describe('extractContractVersion', () => {
-  it('reads the anchored natspec tag', () => {
-    expect(
-      extractContractVersion('/// @custom:version 1.2.3\ncontract Foo {}')
-    ).toBe('1.2.3')
-  })
-
-  it('finds the tag below a licence header and pragma', () => {
-    const source = [
-      '// SPDX-License-Identifier: LGPL-3.0-only',
-      'pragma solidity ^0.8.17;',
-      '',
-      '/// @title Foo Facet',
-      '/// @custom:version 2.0.1',
-      'contract FooFacet {}',
-    ].join('\n')
-
-    expect(extractContractVersion(source)).toBe('2.0.1')
-  })
-
-  it('returns undefined when the tag is absent, rather than guessing a default', () => {
-    expect(extractContractVersion('contract Foo {}')).toBeUndefined()
-  })
-
-  it('ignores a mention that is not at the start of a line', () => {
-    expect(
-      extractContractVersion('contract Foo {} // @custom:version 9.9.9')
-    ).toBeUndefined()
-  })
-
-  it('takes the first declaration when a file somehow carries two', () => {
-    expect(
-      extractContractVersion(
-        '/// @custom:version 1.0.0\n/// @custom:version 2.0.0\n'
-      )
-    ).toBe('1.0.0')
   })
 })
 

@@ -17,6 +17,7 @@
 
 import { readFileSync } from 'fs'
 
+import { readContractVersion } from '../shared/contract-version'
 import {
   compareContractVersions,
   isOrderableContractVersion,
@@ -267,14 +268,17 @@ export const verifyGetterSinceVersions = (
       }
 
       const { file, source } = resolved
-      const declared = extractDeclaredVersion(source)
-      if (declared === undefined) {
+      const read = readContractVersion(source)
+      if (read.kind !== 'ok') {
         errors.push(
-          `${where} sets getterSinceVersion '${since}' but ${file} declares no @custom:version to check it against.`
+          read.kind === 'malformed'
+            ? `${where} sets getterSinceVersion '${since}' but ${file} declares '${read.raw}', which is not a version it can be checked against.`
+            : `${where} sets getterSinceVersion '${since}' but ${file} declares no @custom:version to check it against.`
         )
         continue
       }
 
+      const declared = read.version
       const order = compareContractVersions(since, declared)
       if (order !== null && order > 0)
         errors.push(
@@ -284,10 +288,6 @@ export const verifyGetterSinceVersions = (
 
   return errors
 }
-
-/** The contract's own `@custom:version` tag, which is what a deployed build reports. */
-const extractDeclaredVersion = (source: string): string | undefined =>
-  /^\/\/\/\s*@custom:version\s+(\d+\.\d+\.\d+)/m.exec(source)?.[1]
 
 /**
  * Locate the source that declares `contractName`, preferring the AST's own answer.
