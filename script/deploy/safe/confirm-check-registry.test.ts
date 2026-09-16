@@ -349,6 +349,10 @@ describe('targetStateCheckResult', () => {
   // signer reads has to carry both of them — a requirement sentence under
   // "expected" and a status name under "observed" leave them to hunt for the
   // numbers in the detail line.
+  //
+  // Each side names where it was read, spelled out here rather than imported:
+  // an assertion built from the constant it checks moves with any edit to it,
+  // and the one thing this row must never do is let the two provenances swap.
   it('prints the two versions for a row that compared one element', () => {
     for (const status of ALL_STATUSES) {
       if (EXPECTED_SENTENCE[status] !== VERSION_PAIR) continue
@@ -367,7 +371,11 @@ describe('targetStateCheckResult', () => {
         status,
         expected: result.expected,
         actual: result.actual,
-      }).toEqual({ status, expected: 'v1.0.1', actual: 'v1.0.0' })
+      }).toEqual({
+        status,
+        expected: 'v1.0.1 (from the target state on origin/main)',
+        actual: 'v1.0.0 (from the deployment record)',
+      })
 
       // The pair displaced the element's name from `actual`, so the row's own
       // detail has to carry it: the run-wide ledger and the proposal card print
@@ -478,8 +486,8 @@ describe('targetStateCheckResult', () => {
       'mainnet'
     )
 
-    expect(expected).toBe('v1.0.1')
-    expect(actual).toBe('v1.0.0')
+    expect(expected).toBe('v1.0.1 (from the target state on origin/main)')
+    expect(actual).toBe('v1.0.0 (from the deployment record)')
   })
 
   it('lets the worst finding decide the row, and reports its anchor', () => {

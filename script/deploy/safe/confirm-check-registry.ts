@@ -409,6 +409,16 @@ const describe = (finding: ITargetStateFinding): string => {
  * the only cue the signer gets — the bucket it prints under blames their
  * environment, and a malformed version string is the proposer's.
  */
+/**
+ * Where each side of the version pair was read.
+ *
+ * Named on the value rather than left to the anchor column, which this view does
+ * not print: without them the row is two numbers, and a signer cannot tell which
+ * one the proposer wrote.
+ */
+export const MAIN_VERSION_SOURCE = 'from the target state on origin/main'
+export const PROPOSED_VERSION_SOURCE = 'from the deployment record'
+
 const COMPARED_BOTH_VERSIONS: ReadonlySet<TargetStateStatus> = new Set([
   'matches-main',
   'ahead-of-main',
@@ -423,8 +433,9 @@ const COMPARED_BOTH_VERSIONS: ReadonlySet<TargetStateStatus> = new Set([
  * proposer's: the expectation is what `origin/main` declares, the observation is
  * what the deployment record the proposer writes says the proposed address is.
  * That is the comparison this gate exists to make, so the signer reads the two
- * versions rather than a sentence about them — and `hashPair` in the signer view
- * then marks the character that differs.
+ * versions rather than a sentence about them — each naming where it was read,
+ * because which side the proposer controls is the whole reason this row asks for
+ * an acknowledgement rather than passing.
  *
  * Only for a row that graded exactly one element. `expected` has to hold for the
  * whole row, and a row covering two facets cannot name one facet's version
@@ -452,8 +463,8 @@ const comparedVersions = (
   if (!only.mainVersion || !only.proposedVersion || !only.contractName)
     return null
   return {
-    expected: `v${only.mainVersion}`,
-    actual: `v${only.proposedVersion}`,
+    expected: `v${only.mainVersion} (${MAIN_VERSION_SOURCE})`,
+    actual: `v${only.proposedVersion} (${PROPOSED_VERSION_SOURCE})`,
     contractName: only.contractName,
   }
 }

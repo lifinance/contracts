@@ -844,29 +844,24 @@ export const renderCheckGroups = (
       if (!first) out.push('')
       first = false
       const title = definition ? gateLabel(definition) : result.checkId
-      // A gate with nothing to grade has no pair to compare: its `expected` is
-      // the boilerplate no proposal ever fails, and its `actual` is already the
-      // sentence saying why it stood down.
+      // A gate with nothing to grade puts the reason in `actual`.
       const standDownReason =
         notApplicable ??
         (bucket === 'n/a'
           ? result.actual.trim() || NOTHING_TO_GRADE_UNSTATED
           : undefined)
-      if (standDownReason) {
-        out.push(
-          ...wrapValue(
-            `${style.glyph} `,
-            `${title} — ${standDownReason}`,
-            '',
-            '    '
-          ).map((line) => `${style.colour}${line}${RESET}`)
-        )
-        out.push(...(notes ?? []).flatMap(wrapNote))
-        continue
-      }
       out.push(
         `    ${style.colour}${style.glyph}${RESET} ${BOLD}${title}${RESET}`
       )
+      // No `expected`/`observed` pair: the gate's `expected` is boilerplate no
+      // proposal can fail, and a pair invites a comparison that means nothing.
+      // The title line above is the same one every other row prints, so a
+      // signer skimming the left edge reads one shape rather than two.
+      if (standDownReason) {
+        out.push(...wrapValue('', standDownReason, DIM))
+        out.push(...(notes ?? []).flatMap(wrapNote))
+        continue
+      }
       // The pair form when both values are one unbreakable token of the same
       // length — a hash against a hash. Everything else reads better under its
       // label.

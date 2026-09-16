@@ -1072,7 +1072,7 @@ describe('a gate that graded nothing', () => {
       },
     ]).flatMap((line) => stripAnsi(line).split('\n'))
 
-  it('says why in one line instead of an expected/observed pair', () => {
+  it('says why, without an expected/observed pair', () => {
     const plain = stoodDown().join('\n')
 
     expect(plain).toContain(
@@ -1080,6 +1080,37 @@ describe('a gate that graded nothing', () => {
     )
     expect(plain).not.toContain('expected')
     expect(plain).not.toContain('observed')
+  })
+
+  // The reason is the only thing that differs from a graded row. A stood-down
+  // gate used to print its glyph, its title and its reason as one run-on line,
+  // so the section read as two kinds of row and the eye lost the titles it was
+  // scanning for. Asserted against a graded row rather than against a literal:
+  // the shared shape is the property, and one written out twice drifts.
+  it('prints its title on the same shape of line as a graded row', () => {
+    const rowFor = (status: string): string[] =>
+      renderCheckGroups([
+        {
+          definition: definition('codehash', 'Deployed bytecode'),
+          result: result('codehash', status, {
+            expected:
+              'every address this cut installs carrying attested bytecode',
+            actual:
+              'this proposal installs no facet code, so there is no bytecode to compare',
+          }),
+        },
+      ])
+    const titleLineOf = (lines: readonly string[]): string =>
+      lines.find((line) => stripAnsi(line).includes('Deployed bytecode')) ?? ''
+
+    const graded = titleLineOf(rowFor('fail'))
+    const stood = titleLineOf(rowFor('not-applicable'))
+
+    // Bold, and carrying nothing but its glyph and its title: the reason moved
+    // to the line underneath, the column a graded row prints its values in.
+    expect(stripAnsi(stood)).toBe(stripAnsi(graded).replace('⛔', '·'))
+    expect(stood).toContain('\u001b[1m')
+    expect(stripAnsi(stood)).not.toContain('no facet code')
   })
 
   it('does not repeat the write-up link the manifest already carries', () => {
