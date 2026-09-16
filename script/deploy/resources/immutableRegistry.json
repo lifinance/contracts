@@ -114,15 +114,15 @@
       "authorityBearing": true
     },
     "BACKEND_SIGNER": {
-      "source": "unverifiable",
-      "reason": "EcoFacet has no deployRequirements configData entry for the backend signer, so there is no declared value to compare against. Add one pointing at global.json .backendSigner.<ENVIRONMENT>, as AcrossV4SwapFacet, LayerSwapFacet, NEARIntentsFacet and SymbiosisFacet already do, and reclassify as config.",
+      "source": "config",
+      "configData": "_backendSigner",
       "authorityBearing": true
     }
   },
   "EmergencyPauseFacet": {
     "pauserWallet": {
-      "source": "unverifiable",
-      "reason": "EmergencyPauseFacet has no deployRequirements entry at all, so no configData key names the pauser wallet. global.json .pauserWallet is the value the deploy script uses; adding that entry makes this config.",
+      "source": "config",
+      "configData": "_pauserWallet",
       "authorityBearing": true
     },
     "_emergencyPauseFacetAddress": {
@@ -459,8 +459,8 @@
   },
   "UnitFacet": {
     "BACKEND_SIGNER": {
-      "source": "unverifiable",
-      "reason": "UnitFacet has no deployRequirements entry at all, so no configData key names the backend signer. config/unit.json .<ENVIRONMENT>.backendSigner is the value the deploy script uses \u2014 note the key order is environment first, unlike global.json's .backendSigner.<ENVIRONMENT> that the other backend-signer facets use. Adding that entry makes this config.",
+      "source": "config",
+      "configData": "_backendSigner",
       "authorityBearing": true
     }
   }
