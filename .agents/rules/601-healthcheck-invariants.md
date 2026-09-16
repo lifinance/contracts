@@ -45,8 +45,11 @@ invariant must be added, adjusted, or removed. Use this checklist:
   `legacyGetters` when the fleet still runs builds from before the getter was renamed —
   without it, the binding silently reports as unverified on every older chain. Add
   `getterSinceVersion` when the bound value did not exist at all in an older build, naming the
-  contract version that first made it readable: those chains can only revert, so the check
-  declines the read and narrates it instead of warning. The `verify-immutable-registry` gate
+  contract version that first made it readable: the check still reads those chains and only
+  declines to report the revert it gets back, narrating it instead. The annotation decides how a
+  failure reads, never whether the chain is asked — the version comes from the diamond log, which
+  records what this repo built at cut time rather than chain truth, so a build that answers is
+  compared either way. The `verify-immutable-registry` gate
   holds it against the contract's own `@custom:version`, because an annotation ahead of the real
   version would exempt the binding on every chain at once. A
   `keyInConfigFile` with no `<NETWORK>` placeholder is a fleet-wide default: the check

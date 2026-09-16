@@ -3479,9 +3479,10 @@ describe('safe-config asserts the owner set both ways', () => {
   })
 })
 
-describe('immutable-bindings-match-config version-aware skip', () => {
+describe('immutable-bindings-match-config classifies a pre-getter revert', () => {
   const ZERO = '0x0000000000000000000000000000000000000000'
   const FACET = '0x31a9b1835864706Af10103b31Ea2b79bdb995F5F'
+  const REVERT = 'The contract function "NATIVE_ADDRESS" reverted.'
 
   const invariant = HEALTH_CHECK_INVARIANTS.find(
     (i) => i.name === 'immutable-bindings-match-config'
@@ -3491,8 +3492,14 @@ describe('immutable-bindings-match-config version-aware skip', () => {
     [FACET]: { Name: 'GenericSwapFacetV3', Version: version },
   })
 
-  /** GenericSwapFacetV3 live at FACET, whose NATIVE_ADDRESS() reverts as a v1.0.0 build does. */
-  function makeVersionCtx(diamondFacetLog: Record<string, unknown>): {
+  /**
+   * GenericSwapFacetV3 live at FACET, with `answer` deciding what its NATIVE_ADDRESS() does:
+   * a string is returned, an Error is thrown. The default is the revert a v1.0.0 build gives.
+   */
+  function makeVersionCtx(
+    diamondFacetLog: Record<string, unknown>,
+    answer: string | Error = new Error(REVERT)
+  ): {
     ctx: IHealthCheckContext
     calls: string[]
   } {
@@ -3509,7 +3516,8 @@ describe('immutable-bindings-match-config version-aware skip', () => {
         readContract: async ({ functionName }: { functionName: string }) => {
           if (functionName === 'getPeripheryContract') return ZERO
           calls.push(functionName)
-          throw new Error('The contract function "NATIVE_ADDRESS" reverted.')
+          if (answer instanceof Error) throw answer
+          return answer
         },
       },
     } as unknown as IHealthCheckContext)
@@ -3523,17 +3531,52 @@ describe('immutable-bindings-match-config version-aware skip', () => {
     expect(check?.getterSinceVersion).toBe('1.0.1')
   })
 
-  it('does not read a build that predates the getter, and does not warn about it', async () => {
+  it('reads the build anyway, and does not report the revert it then gets', async () => {
+    // Read, not skipped: the log's version is this repo's own record of the cut, so it decides
+    // how a failure reads, never whether the chain gets asked.
     const { ctx, calls } = makeVersionCtx(logAt('1.0.0'))
 
     await invariant.run(ctx)
 
-    expect(calls).toEqual([])
+    expect(calls).toEqual(['NATIVE_ADDRESS'])
     expect(ctx.errors).toEqual([])
     expect(ctx.warnings).toEqual([])
   })
 
-  it('narrates the skip, since every other outcome for a live contract is narrated', async () => {
+  it('compares a build the log calls pre-getter when it answers regardless', async () => {
+    // The case skipping the read would have buried: `Version` is written from the working tree
+    // at cut time, so a stale checkout can label a live address older than its bytecode. The
+    // binding is still drift, and still an error.
+    const { ctx, calls } = makeVersionCtx(
+      logAt('1.0.0'),
+      '0x1111111111111111111111111111111111111111'
+    )
+
+    await invariant.run(ctx)
+
+    expect(calls).toEqual(['NATIVE_ADDRESS'])
+    expect(
+      ctx.errors.some((e) => e.includes('GenericSwapFacetV3.NATIVE_ADDRESS()'))
+    ).toBe(true)
+  })
+
+  it('still warns when a pre-getter build fails to answer for any other reason', async () => {
+    // A node that did not answer is not a build that cannot. Only a revert is reclassified.
+    const { ctx } = makeVersionCtx(
+      logAt('1.0.0'),
+      new Error('HTTP request failed. Status: 503')
+    )
+
+    await invariant.run(ctx)
+
+    expect(
+      ctx.warnings.some((w) =>
+        w.includes('GenericSwapFacetV3.NATIVE_ADDRESS() left unverified')
+      )
+    ).toBe(true)
+  })
+
+  it('narrates the unreported revert, since every other outcome for a live contract is narrated', async () => {
     // Asserted on rendered output: a contract that is live here and simply vanishes from the
     // run log is the one reading of this the log must not leave open.
     const { ctx } = makeVersionCtx(logAt('1.0.0'))
@@ -3550,14 +3593,14 @@ describe('immutable-bindings-match-config version-aware skip', () => {
 
     expect(
       printed.some((line) =>
-        line.includes('GenericSwapFacetV3.NATIVE_ADDRESS() not read')
+        line.includes('GenericSwapFacetV3.NATIVE_ADDRESS() reverted')
       )
     ).toBe(true)
   })
 
   it('still warns when a build new enough to expose the getter reverts', async () => {
-    // The skip is scoped to builds that provably cannot answer. A newer one that reverts is a
-    // real coverage hole and has to stay visible.
+    // The reclassification is scoped to builds that provably cannot answer. A newer one that
+    // reverts is a real coverage hole and has to stay visible.
     const { ctx, calls } = makeVersionCtx(logAt('1.0.2'))
 
     await invariant.run(ctx)
