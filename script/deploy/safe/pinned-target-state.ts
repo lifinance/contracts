@@ -127,6 +127,29 @@ export const STATUSES_CLEARED_TO_PROCEED: ReadonlySet<TargetStateStatus> =
     'ahead-of-main',
   ])
 
+/**
+ * The statuses whose finding never reached `origin/main` at all.
+ *
+ * A removal returns before the anchor is read, and a payload with no cut in it
+ * never gets that far either. Both leave this block with a provenance line
+ * naming a file the run did not open, over findings saying there was nothing to
+ * compare — which is the gate's own stand-down, already printed as its row.
+ *
+ * Named by what consulted nothing rather than by what may proceed: the two sets
+ * are not the same, and `matches-main` belongs only to the second.
+ */
+export const STATUSES_THAT_CONSULTED_NOTHING: ReadonlySet<TargetStateStatus> =
+  new Set<TargetStateStatus>(['no-diamond-cut', 'removal'])
+
+/**
+ * The heading this block prints under.
+ *
+ * The gate's own letter and title. Declared here rather than imported from the
+ * registry, which imports this module; `confirm-check-registry.test.ts` holds
+ * the two to the same string.
+ */
+export const TARGET_STATE_GATE_HEADING = 'Gate H · Facet version'
+
 /** One graded element of a proposal. */
 export interface ITargetStateFinding {
   status: TargetStateStatus
@@ -590,6 +613,14 @@ export const formatTargetStateLines = (
     'pinned-state-unavailable': 'EXPECTED STATE UNAVAILABLE',
   }
 
+  // Nothing here was measured against the anchor, so there is no provenance to
+  // state and no comparison to show. A mixed cut — one facet removed, another
+  // installed — still prints, and still lists the removal.
+  if (
+    verdict.findings.every((f) => STATUSES_THAT_CONSULTED_NOTHING.has(f.status))
+  )
+    return []
+
   const ordered = [
     ...verdict.findings.filter(
       (f) => !STATUSES_CLEARED_TO_PROCEED.has(f.status)
@@ -599,15 +630,21 @@ export const formatTargetStateLines = (
     ),
   ]
 
+  // A blank line first, and findings in the same column as the provenance line.
+  // Flush against the gate rows above and indented two columns shallower than
+  // the line they sit under, the findings read as belonging to whichever row
+  // the block happened to follow.
   return [
-    `    Expected state:  read from ${PINNED_REF}:${TARGET_STATE_REPO_PATH} (this checkout is not consulted)`,
+    '',
+    `    ${TARGET_STATE_GATE_HEADING}`,
+    `        read from ${PINNED_REF}:${TARGET_STATE_REPO_PATH} (this checkout is not consulted)`,
     ...ordered.map((finding) => {
       const who = finding.contractName ?? finding.facetAddress ?? 'proposal'
       const fleet =
         finding.crossFleetCount === null
           ? ''
           : ` [${finding.crossFleetCount} network(s) already declare this contract at this version]`
-      return `      ${label[finding.status]} — ${who}: ${
+      return `        ${label[finding.status]} — ${who}: ${
         finding.detail
       }${fleet}`
     }),

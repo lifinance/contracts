@@ -28,6 +28,7 @@ import {
   blockingUnevaluatedGate,
   createGatedSigner,
   evaluateCodehashSignGate,
+  CODEHASH_GATE_HEADING,
   renderCodehashSignGate,
   unevaluatedCodehashSignGate,
 } from './codehash-sign-gate'
@@ -535,6 +536,11 @@ describe('the render distinguishes every bucket, including the two that are not 
     // no cut and no refusal, and that was printed as `✓ MATCH` — an affirmative
     // claim about bytes nobody read. "We found no cut" and "we checked the cut
     // and it is clean" must not look the same to someone skimming glyphs.
+    //
+    // Said by standing down rather than by a line of its own: the gate's ledger
+    // row carries the sentence, under NOT APPLICABLE and in the manifest, which
+    // is where a signer counts the gates. `codehashCheckResult` in
+    // `confirm-check-registry.test.ts` is what holds that row to it.
     const lines = renderCodehashSignGate({
       blocksSigning: false,
       evaluated: true,
@@ -546,7 +552,45 @@ describe('the render distinguishes every bucket, including the two that are not 
 
     expect(lines.join('\n')).not.toContain('MATCH')
     expect(marks(lines)).not.toContain('32|✓')
-    expect(lines.join('\n')).toContain('NO CLAIM')
+    expect(lines).toEqual([])
+  })
+
+  // A removal carries a cut, so `madeNoClaim` is false, and installs no code,
+  // so there is no target. It reached the block as a bare heading over one
+  // NO CLAIM line that repeated the ledger row in different words.
+  it('stands down on a cut it opened and found no code in', () => {
+    expect(
+      renderCodehashSignGate({
+        blocksSigning: false,
+        evaluated: true,
+        refusals: [],
+        targets: [],
+        summary: 'this cut installs no facet code',
+      })
+    ).toEqual([])
+  })
+
+  it('heads the block with the gate the manifest names, when it has something to say', () => {
+    const lines = renderCodehashSignGate({
+      blocksSigning: false,
+      evaluated: true,
+      refusals: [],
+      targets: [
+        {
+          address: FACET,
+          verdict: 'MATCH',
+          reason: 'matches an attested build',
+          matchedLineages: ['main@abc1234'],
+          excludedByteCount: 0,
+          pricedByteCount: 0,
+        },
+      ],
+      summary: 'ok',
+    })
+
+    expect(lines[0]).toBe('')
+    expect(lines[1]).toContain(CODEHASH_GATE_HEADING)
+    expect(lines.join('\n')).not.toContain('Codehash gate:')
   })
 
   it('still renders a verified match as a green tick, so the rule is not blanket', () => {

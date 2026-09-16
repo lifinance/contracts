@@ -33,6 +33,7 @@ import {
   describeTargetStateUnavailable,
   evaluateTargetStateIntent,
   formatTargetStateLines,
+  TARGET_STATE_GATE_HEADING,
   PINNED_FETCH_REFSPEC,
   readDeclaredVersion,
   TARGET_STATE_REPO_PATH,
@@ -391,9 +392,17 @@ describe('formatTargetStateLines', () => {
       deps({ deployed: { contractName: 'AcrossFacetV3', version: '1.1.0' } })
     )
     const lines = formatTargetStateLines(verdict)
-    expect(lines[0]).toContain(`origin/main:${TARGET_STATE_REPO_PATH}`)
-    expect(lines[1]).toContain('DOWNGRADE')
-    expect(lines[2]).toContain('REMOVAL')
+    const at = (text: string): number =>
+      lines.findIndex((line) => line.includes(text))
+
+    // Order, not offsets: the block opens on its gate, then says where it read
+    // from, then lists findings worst first. Pinned by index it moved every
+    // time a line was added above it.
+    expect(lines[0]).toBe('')
+    expect(at(TARGET_STATE_GATE_HEADING)).toBe(1)
+    expect(at(`origin/main:${TARGET_STATE_REPO_PATH}`)).toBe(2)
+    expect(at('DOWNGRADE')).toBeLessThan(at('REMOVAL'))
+    expect(at('REMOVAL')).toBeGreaterThan(-1)
   })
 
   it('prints the cross-fleet count for a first-time add', () => {
@@ -402,9 +411,53 @@ describe('formatTargetStateLines', () => {
       'optimism',
       deps({ deployed: { contractName: 'NewFacet', version: '2.0.0' } })
     )
-    expect(formatTargetStateLines(verdict)[1]).toContain(
+    expect(formatTargetStateLines(verdict).join('\n')).toContain(
       '[2 network(s) already declare this contract at this version]'
     )
+  })
+
+  // A removal returns before the anchor is read, so the block stated where a
+  // target state had been read from under a proposal that never read one, over
+  // a single line repeating the gate's own stand-down — all of it below the
+  // gate rows, under no heading naming the gate it belonged to.
+  it('says nothing when no element of the cut was graded against main', () => {
+    const verdict = evaluateTargetStateIntent(
+      [cut([{ facetAddress: ZERO_ADDRESS as Address, action: 2 }])],
+      'optimism',
+      deps({ deployed: { contractName: 'AcrossFacetV3', version: '1.1.0' } })
+    )
+
+    expect(verdict.findings.map((f) => f.status)).toEqual(['removal'])
+    expect(formatTargetStateLines(verdict)).toEqual([])
+  })
+
+  it('says nothing when the proposal carries no cut at all', () => {
+    expect(
+      formatTargetStateLines(
+        evaluateTargetStateIntent([], 'optimism', deps({}))
+      )
+    ).toEqual([])
+  })
+
+  // The paired positive for the two above: a cut that removes one facet and
+  // installs another did reach main, so the block prints — and it still lists
+  // the removal, which on a mixed cut is a fact the signer has not been told
+  // anywhere else.
+  it('still lists an ungraded element beside one that was graded', () => {
+    const verdict = evaluateTargetStateIntent(
+      [
+        cut([
+          { facetAddress: ZERO_ADDRESS as Address, action: 2 },
+          { facetAddress: FACET, action: 0 },
+        ]),
+      ],
+      'optimism',
+      deps({ deployed: { contractName: 'NewFacet', version: '2.0.0' } })
+    )
+    const plain = formatTargetStateLines(verdict).join('\n')
+
+    expect(plain).toContain('REMOVAL')
+    expect(plain).toContain(`origin/main:${TARGET_STATE_REPO_PATH}`)
   })
 })
 

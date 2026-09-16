@@ -319,6 +319,33 @@ export const evaluateCodehashSignGate = async (
   }
 }
 
+/**
+ * The heading this block prints under.
+ *
+ * The gate's own letter and title, not a name of its own: a block headed
+ * "Codehash gate" sits under a manifest that lists the same gate as "Gate K ·
+ * Deployed bytecode", so nothing on the page connects the two. Declared here
+ * rather than imported from the registry, which imports this module;
+ * `confirm-check-registry.test.ts` holds the two to the same string.
+ */
+export const CODEHASH_GATE_HEADING = 'Gate K · Deployed bytecode'
+
+/**
+ * Whether the gate reached no per-address verdict and refused nothing.
+ *
+ * Covers both the payload with no cut in it and the cut that installs no code —
+ * a removal, whose every facet address is zero. Both leave this block with
+ * nothing but the sentence the ledger row carries.
+ *
+ * @param gate - The evaluated gate.
+ * @returns True when the gate judged nothing and blocks nothing.
+ */
+const nothingWasJudged = (gate: ICodehashSignGate): boolean =>
+  gate.evaluated &&
+  !gate.blocksSigning &&
+  gate.targets.length === 0 &&
+  gate.refusals.length === 0
+
 /** Glyph, colour and word are all different per bucket, on purpose. */
 const BUCKETS = {
   MATCH: { glyph: '✓', colour: '32' },
@@ -343,7 +370,14 @@ export const renderCodehashSignGate = (gate: ICodehashSignGate): string[] => {
   // refusal a signer then hits has no explanation on screen.
   if (!gate.evaluated && !gate.blocksSigning) return []
 
-  const lines = ['    Codehash gate:']
+  // A gate that compared nothing has one sentence to say, and its ledger row
+  // already says it under NOT APPLICABLE — where it is also counted in the
+  // manifest, which a free-standing block never was. Printed here as well it
+  // was the same fact twice, in two wordings, under a heading that named no
+  // gate the signer had seen.
+  if (nothingWasJudged(gate)) return []
+
+  const lines = ['', `    ${CODEHASH_GATE_HEADING}`]
 
   // A different glyph from MISMATCH's, or the rule this file states — that no
   // two buckets differ by only one of word, glyph and colour — is broken by its
@@ -365,13 +399,6 @@ export const renderCodehashSignGate = (gate: ICodehashSignGate): string[] => {
         `            \u001b[33m${target.excludedByteCount} bytes were excluded as immutables and are not covered by this verdict — their values still need checking.\u001b[0m`
       )
   }
-
-  // Deliberately neither green nor MATCH. "We found no cut" and "we checked the
-  // cut and it is clean" are different facts, and a signer skimming glyphs
-  // cannot tell them apart if both are a green tick — which is how an envelope
-  // this decoder could not open was rendered as an affirmative pass.
-  if (gate.evaluated && gate.targets.length === 0 && gate.refusals.length === 0)
-    lines.push(`        \u001b[36m· NO CLAIM\u001b[0m ${gate.summary}`)
 
   return lines
 }

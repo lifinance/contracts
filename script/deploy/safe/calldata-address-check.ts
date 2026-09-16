@@ -876,8 +876,9 @@ const OK = `${ESC}[32m✓${ESC}[0m`
  * A verdict with nothing to say still prints a line, because silence would make
  * "the check found nothing wrong" and "the check was never wired" look
  * identical from the terminal. A proposal that references no address at all
- * gets a different line from one whose addresses resolved, so that the count of
- * verified addresses is never zero on a line claiming verification.
+ * gets a different line from one whose addresses resolved, and so does one
+ * whose every address is a legal zero, so that the count of verified addresses
+ * is never zero on a line claiming verification.
  * @param verdict - what `evaluateCalldataAddresses` decided
  * @returns One or more display lines
  */
@@ -907,19 +908,34 @@ export const renderCalldataAddresses = (
   for (const message of verdict.warnings) lines.push(`${WARN} ${message}`)
 
   if (!verdict.refuses && !verdict.error) {
+    // The denominator is what the record was asked about, not what the calldata
+    // carried. A zero in a role where zero is the legal value — the facet
+    // address of a removal, an absent `_init` — is never looked up, so counting
+    // it turned a removal into "0 of 2 calldata addresses resolved": a green
+    // tick reporting a verification that did not happen.
+    const lookedUp = verdict.findings.filter(
+      (finding) => finding.grade !== AddressGradeEnum.NotApplicable
+    )
     if (verdict.findings.length === 0)
       lines.push(
         `${OK} Calldata address check skipped: no call in this proposal references an address.`
       )
+    else if (lookedUp.length === 0)
+      lines.push(
+        `${OK} Calldata address check: no address in this proposal needed a deployment-record lookup — every one is a zero its call allows.`
+      )
     else {
-      const resolved = verdict.findings.filter(
+      const resolved = lookedUp.filter(
         (finding) => finding.grade === AddressGradeEnum.Resolved
       ).length
       lines.push(
-        `${OK} ${resolved} of ${verdict.findings.length} calldata addresses resolved to the deployment record with the expected name and version.`
+        `${OK} ${resolved} of ${lookedUp.length} calldata addresses resolved to the deployment record with the expected name and version.`
       )
     }
   }
 
-  return lines
+  // Indented into the section that carries it, under a blank line. At the
+  // margin and flush against the row above, the block read as more of the gate
+  // it happened to follow rather than as a check of its own.
+  return ['', ...lines.map((line) => `    ${line}`)]
 }

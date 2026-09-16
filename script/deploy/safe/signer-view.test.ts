@@ -1042,3 +1042,57 @@ describe('a pre-formatted note, folded into the view', () => {
       expect(stripAnsi(line).match(/^ */u)?.[0]).toHaveLength(10)
   })
 })
+
+describe('a gate that graded nothing', () => {
+  // Gates G, H and K reach the view as a *result* whose status is
+  // `not-applicable` rather than through `notApplicable`, because they did run
+  // and decided there was nothing to grade. That path used to print the full
+  // expected/observed pair, so a signer read four lines to learn the gate had
+  // stood down — and the "expected" half is boilerplate no proposal ever fails.
+  const stoodDown = (): string[] =>
+    renderCheckGroups([
+      {
+        definition: definition('codehash', 'Deployed bytecode'),
+        docUrl: 'https://example.invalid/codehash',
+        result: result('codehash', 'not-applicable', {
+          expected:
+            'every address this cut installs carrying attested bytecode',
+          actual:
+            'this proposal installs no facet code, so there is no bytecode to compare',
+        }),
+      },
+    ]).flatMap((line) => stripAnsi(line).split('\n'))
+
+  it('says why in one line instead of an expected/observed pair', () => {
+    const plain = stoodDown().join('\n')
+
+    expect(plain).toContain(
+      'this proposal installs no facet code, so there is no bytecode to compare'
+    )
+    expect(plain).not.toContain('expected')
+    expect(plain).not.toContain('observed')
+  })
+
+  it('keeps the write-up link a signer would follow to learn what it grades', () => {
+    expect(stoodDown().join('\n')).toContain('https://example.invalid/codehash')
+  })
+})
+
+describe('a stood-down gate that did not say why', () => {
+  it('still prints a sentence rather than a bare title', () => {
+    const plain = renderCheckGroups([
+      {
+        definition: definition('codehash', 'Deployed bytecode'),
+        result: result('codehash', 'not-applicable', {
+          expected: 'boilerplate',
+          actual: '   ',
+        }),
+      },
+    ])
+      .map(stripAnsi)
+      .join('\n')
+
+    expect(plain).toContain('reported nothing to grade')
+    expect(plain).not.toContain('boilerplate')
+  })
+})
