@@ -658,9 +658,12 @@ export async function updateDiamondJson(
       try {
         version = await getContractVersion(facetName)
       } catch {
-        version = '1.0.0' // Default version if not found
+        // Recorded blank rather than guessed, the way the bash writer does it: the health check
+        // reads this field to decide whether a build is too old to expose a getter, so a guessed
+        // 1.0.0 can exempt a binding from a check that should have failed.
+        version = ''
         consola.warn(
-          `Could not determine version for ${facetName}, using default: ${version}`
+          `Could not determine version for ${facetName}; recording it blank rather than guessing`
         )
       }
 
@@ -758,9 +761,11 @@ export async function updateDiamondJsonBatch(
         try {
           version = await getContractVersion(entry.name)
         } catch {
-          version = '1.0.0'
+          // Blank, not guessed — see updateDiamondJson: a guessed version is read back by the
+          // health check as evidence about what the deployed build can answer.
+          version = ''
           consola.warn(
-            `Could not determine version for ${entry.name}, using default: ${version}`
+            `Could not determine version for ${entry.name}; recording it blank rather than guessing`
           )
         }
 

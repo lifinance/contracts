@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "description": "LI.FI is a cross-chain bridge aggregation protocol",
   "engines": {
-    "node": ">= 12.18.0"
+    "node": "^18.18.0 || >=20.0.0"
   },
   "type": "module",
   "packageManager": "bun@1.3.13",
@@ -35,7 +35,7 @@
     "ethers": "^5.7.0",
     "husky": "^8.0.1",
     "lint-staged": "^13.2.3",
-    "markdownlint-cli2": "^0.23.0",
+    "markdownlint-cli2": "0.23.2",
     "node-gyp": "^10.2.0",
     "patch-package": "^6.4.7",
     "plop": "^3.1.2",
@@ -52,13 +52,14 @@
     "handlebars": "4.7.9",
     "protobufjs": "7.5.5",
     "socks": "2.8.9",
-    "axios": "1.18.1",
+    "axios": "1.20.0",
     "smol-toml": "1.7.1",
     "validator": "13.15.26",
     "lodash": "4.17.23",
     "katex": "0.18.2",
     "ws": "8.21.1",
-    "fast-uri": "3.1.6"
+    "fast-uri": "3.1.6",
+    "ip-address": "10.6.0"
   },
   "scripts": {
     "attestations:mint": "forge build --ast && bunx tsx tasks/buildAttestationManifest.ts --out out",
@@ -92,8 +93,8 @@
     "lint:sol": "solhint \"src/**/*.sol\"",
     "lint:sol:fix": "solhint \"src/**/*.sol\" --fix",
     "lint:funnel": "eslint --no-eslintrc -c ./.eslintrc.funnel-fence.cjs --no-inline-config --ext .ts,.tsx,.mts,.cts,.js,.mjs,.cjs .",
-    "lint:md": "markdownlint-cli2 \"**/*.md\"",
-    "lint:md:fix": "markdownlint-cli2 --fix \"**/*.md\"",
+    "lint:md": "bunx --no-install --bun markdownlint-cli2 \"**/*.md\"",
+    "lint:md:fix": "bunx --no-install --bun markdownlint-cli2 --fix \"**/*.md\"",
     "lint:fix": "bun lint:js:fix && bun lint:sol:fix",
     "lint": "bun lint:js && bun lint:sol",
     "mongo-logs:sync": "bun script/deploy/update-deployment-logs.ts sync",
@@ -136,7 +137,7 @@
     "@lifi/tron-devkit": "^1.0.1",
     "@safe-global/safe-deployments": "^1.37.32",
     "@uniswap/permit2-sdk": "^1.3.0",
-    "axios": "1.18.1",
+    "axios": "1.20.0",
     "chalk": "5.6.2",
     "citty": "^0.1.6",
     "consola": "^3.2.3",
@@ -156,7 +157,7 @@
       "bash -c 'if [ \"$#\" -gt 0 ]; then output=$(bunx solhint --noPrompt \"$@\" 2>&1); ret=$?; if echo \"$output\" | grep -q \"No files to lint!\"; then exit 0; else echo \"$output\"; exit $ret; fi; else exit 0; fi # If no lintable files, exit silently to avoid commit errors' _"
     ],
     "*.md": [
-      "markdownlint-cli2 --fix"
+      "bunx --no-install --bun markdownlint-cli2 --fix"
     ]
   }
 }
