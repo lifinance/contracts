@@ -1335,6 +1335,12 @@
           "visible": "always"
         },
         {
+          "path": "_nearData.destinationAsset",
+          "label": "Destination Asset",
+          "format": "raw",
+          "visible": "always"
+        },
+        {
           "path": "_bridgeData.transactionId",
           "label": "Transaction Id",
           "visible": "never"
@@ -4067,6 +4073,12 @@
         {
           "path": "_nearData.nonEVMReceiver",
           "label": "Non-EVM Recipient",
+          "format": "raw",
+          "visible": "always"
+        },
+        {
+          "path": "_nearData.destinationAsset",
+          "label": "Destination Asset",
           "format": "raw",
           "visible": "always"
         },
