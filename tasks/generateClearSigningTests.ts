@@ -24,12 +24,21 @@ const PENDING_INTENT = 'PENDING'
 const NON_EVM_RECEIVER =
   '0x7c9e6679a2b1c4f0d38e4b5a6c7d8e9f0a1b2c3d4e5f60718293a4b5c6d7e8f9'
 
-const RECIPIENT_COMPONENTS = new Set([
-  'receiverAddress',
-  'recipient',
-  'nonEVMReceiver',
-  'receiver',
-])
+// NEARIntents displays the signed destination asset (`Destination Asset`).
+// Left-padded USDC, matching TEST_DESTINATION_ASSET in the facet tests.
+const NEAR_DESTINATION_ASSET =
+  '0x000000000000000000000000a0b86991c6218b36c1d19d4a2e9eb0ce3606eb48'
+
+// Displayed bytes/bytes32 struct components and the value each renders with. A
+// component missing here falls back to the type default — 0x0 — and fails
+// --check the moment a field displays it.
+const DISPLAYED_COMPONENT_VALUES: Record<string, string> = {
+  receiverAddress: NON_EVM_RECEIVER,
+  recipient: NON_EVM_RECEIVER,
+  nonEVMReceiver: NON_EVM_RECEIVER,
+  receiver: NON_EVM_RECEIVER,
+  destinationAsset: NEAR_DESTINATION_ASSET,
+}
 
 // The native-in swapTokens* formats display `@.value` — the amount the user
 // sends — rather than a calldata parameter. Encoding the default 0 would make
@@ -178,18 +187,17 @@ function defaultForType(param: AbiParameter): unknown {
 }
 
 /**
- * Returns the stand-in destination for a displayed bridge-specific recipient.
+ * Returns the stand-in value for a displayed bridge-specific component.
  *
  * Only `bytes`/`bytes32` components qualify: an address-typed recipient already
  * renders as an address, and the EVM receiver comes from the bridgeData template.
  */
-function recipientOverride(component: AbiParameter): string | undefined {
-  if (!component.name || !RECIPIENT_COMPONENTS.has(component.name))
-    return undefined
+function componentOverride(component: AbiParameter): string | undefined {
+  if (!component.name) return undefined
   if (component.type !== 'bytes32' && component.type !== 'bytes')
     return undefined
 
-  return NON_EVM_RECEIVER
+  return DISPLAYED_COMPONENT_VALUES[component.name]
 }
 
 function defaultForTuple(param: AbiParameter): Record<string, unknown> {
@@ -201,7 +209,7 @@ function defaultForTuple(param: AbiParameter): Record<string, unknown> {
     if (!component.name)
       throw new Error(`unnamed component in tuple "${param.name}"`)
     value[component.name] =
-      recipientOverride(component) ?? defaultForType(component)
+      componentOverride(component) ?? defaultForType(component)
   }
   return value
 }
@@ -477,7 +485,7 @@ function resolvePath(
  *
  * A fixture that asserts `Non-EVM Recipient: 0x0…0` passes every runner and
  * tests nothing, so a new displayed component has to be given a value in
- * RECIPIENT_COMPONENTS (or a template) before it reaches the registry.
+ * DISPLAYED_COMPONENT_VALUES (or a template) before it reaches the registry.
  */
 function checkVisibleFields(
   formats: Record<string, IDescriptorFormat>
@@ -654,7 +662,7 @@ const main = defineCommand({
         console.error(
           `\n${fieldProblems.length} displayed field(s) would render nothing a test can ` +
             'assert. In tasks/generateClearSigningTests.ts: add a struct component to ' +
-            'RECIPIENT_COMPONENTS, a parameter to the templates, an envelope field to ' +
+            'DISPLAYED_COMPONENT_VALUES, a parameter to the templates, an envelope field to ' +
             'buildRawTx(), or — for a path that does not resolve — teach resolvePath() ' +
             'the shape it walks.'
         )
