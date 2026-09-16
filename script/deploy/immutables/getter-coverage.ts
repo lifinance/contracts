@@ -17,6 +17,10 @@
 
 import { readFileSync } from 'fs'
 
+import {
+  compareContractVersions,
+  isOrderableContractVersion,
+} from '../shared/immutableBindings'
 import type { IDeployRequirementEntry } from '../shared/immutableBindings'
 
 import type { IImmutableDeclaration } from './immutable-ast'
@@ -236,7 +240,7 @@ export const verifyGetterSinceVersions = (
       }
       // typeof, not just the pattern: a version written unquoted is a number, and relying on
       // the regex to coerce it would make the gate's answer depend on how JSON spells it.
-      if (typeof since !== 'string' || !SEMANTIC_VERSION.test(since)) {
+      if (typeof since !== 'string' || !isOrderableContractVersion(since)) {
         errors.push(
           `${where} sets getterSinceVersion '${String(
             since
@@ -245,12 +249,25 @@ export const verifyGetterSinceVersions = (
         continue
       }
 
-      const file = fileOf.get(contractName)
-      if (file === undefined) continue
+      // Not `fileOf` alone: declarations are keyed by the contract that declares the variable, so
+      // a getter backed by an immutable declared in a base contract has no entry here. Falling
+      // back to the gated trees resolves that; failing to resolve at all is reported rather than
+      // skipped, because this is the one annotation failure that exempts a binding on every chain
+      // at once, and a `continue` here would let it ship ungated.
+      const resolved = resolveContractSource(contractName, fileOf, readSource)
+      if (resolved === null) {
+        errors.push(
+          `${where} sets getterSinceVersion '${since}' but no readable source for ${contractName} was found — neither the file the AST names as declaring its immutables nor ${GATED_SOURCE_DIRECTORIES.map(
+            (directory) => `${directory}${contractName}.sol`
+          ).join(
+            ', '
+          )} could be read. The annotation cannot be held against the version it orders against.`
+        )
+        continue
+      }
 
-      const source = readSource(file)
-      const declared =
-        source === null ? undefined : extractDeclaredVersion(source)
+      const { file, source } = resolved
+      const declared = extractDeclaredVersion(source)
       if (declared === undefined) {
         errors.push(
           `${where} sets getterSinceVersion '${since}' but ${file} declares no @custom:version to check it against.`
@@ -258,7 +275,8 @@ export const verifyGetterSinceVersions = (
         continue
       }
 
-      if (compareVersions(since, declared) > 0)
+      const order = compareContractVersions(since, declared)
+      if (order !== null && order > 0)
         errors.push(
           `${where} sets getterSinceVersion '${since}', ahead of the '${declared}' ${contractName} declares. No deployed build can reach it, so every chain would read as too old and the binding would go unverified everywhere.`
         )
@@ -267,20 +285,33 @@ export const verifyGetterSinceVersions = (
   return errors
 }
 
-/** The shape of a version in this repo; anything else cannot be ordered. */
-const SEMANTIC_VERSION = /^\d+\.\d+\.\d+$/
-
 /** The contract's own `@custom:version` tag, which is what a deployed build reports. */
 const extractDeclaredVersion = (source: string): string | undefined =>
   /^\/\/\/\s*@custom:version\s+(\d+\.\d+\.\d+)/m.exec(source)?.[1]
 
-/** Orders two versions already known to match {@link SEMANTIC_VERSION}. */
-const compareVersions = (left: string, right: string): number => {
-  const leftParts = left.split('.').map(Number)
-  const rightParts = right.split('.').map(Number)
-  for (let index = 0; index < 3; index++) {
-    const difference = (leftParts[index] ?? 0) - (rightParts[index] ?? 0)
-    if (difference !== 0) return difference
+/**
+ * Locate the source that declares `contractName`, preferring the AST's own answer.
+ *
+ * @param contractName - the `deployRequirements.json` key, which is the Solidity contract name
+ * @param fileOf - contract to declaring file, from the AST enumeration
+ * @param readSource - reads a repo-relative source file, or returns null when it cannot
+ * @returns the file and its contents, or null when neither the AST nor the gated trees name one
+ */
+const resolveContractSource = (
+  contractName: string,
+  fileOf: ReadonlyMap<string, string>,
+  readSource: (file: string) => string | null
+): { file: string; source: string } | null => {
+  const declaredIn = fileOf.get(contractName)
+  if (declaredIn !== undefined) {
+    const source = readSource(declaredIn)
+    if (source !== null) return { file: declaredIn, source }
   }
-  return 0
+
+  for (const directory of GATED_SOURCE_DIRECTORIES) {
+    const candidate = `${directory}${contractName}.sol`
+    const source = readSource(candidate)
+    if (source !== null) return { file: candidate, source }
+  }
+  return null
 }

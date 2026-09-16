@@ -340,33 +340,62 @@ export function collectImmutableBindingChecks(
 const CONTRACT_VERSION_PATTERN = /^\d+\.\d+\.\d+$/
 
 /**
- * Whether `version` precedes `floor`, comparing major, then minor, then patch numerically.
+ * Whether this module can order `value` against another version at all.
  *
- * @remarks Anything that is not a three-part numeric version answers false, and either side can
- *   be one: the diamond log leaves a version blank for facets it could not identify, and a
- *   registry annotation is hand-written. False is the safe direction — it keeps the binding
- *   checked, where an invented ordering would silently exempt it from the very comparison this
- *   module exists to set up.
+ * @remarks Exported so the registry gate rejects exactly the annotations the invariant would be
+ *   unable to order, rather than deciding orderability for itself. The two answers have to agree:
+ *   an annotation the gate accepts and the invariant cannot order is an inert annotation that
+ *   passed CI, and one the gate rejects but the invariant would have ordered is a false alarm.
+ * @param value - a version from a deployment log or a registry annotation
+ * @returns true when {@link compareContractVersions} will return a number for it
+ */
+export function isOrderableContractVersion(value: string): boolean {
+  return CONTRACT_VERSION_PATTERN.test(value.trim())
+}
+
+/**
+ * Order two contract versions by major, then minor, then patch numerically.
+ *
+ * @remarks Null when either side is not orderable, and either side can be one: the diamond log
+ *   leaves a version blank for facets it could not identify, and a registry annotation is
+ *   hand-written. Callers must treat null as "no ordering", never as equality — for the invariant
+ *   that means keeping the binding checked, where an invented ordering would silently exempt it
+ *   from the very comparison this module exists to set up.
+ * @param left - the version to order
+ * @param right - the version to order it against
+ * @returns negative when `left` is older, positive when newer, 0 when equal, null when unorderable
+ */
+export function compareContractVersions(
+  left: string,
+  right: string
+): number | null {
+  const leftTrimmed = left.trim()
+  const rightTrimmed = right.trim()
+  if (
+    !isOrderableContractVersion(leftTrimmed) ||
+    !isOrderableContractVersion(rightTrimmed)
+  )
+    return null
+
+  const leftParts = leftTrimmed.split('.').map(Number)
+  const rightParts = rightTrimmed.split('.').map(Number)
+  for (let index = 0; index < 3; index++) {
+    const difference = (leftParts[index] ?? 0) - (rightParts[index] ?? 0)
+    if (difference !== 0) return difference
+  }
+  return 0
+}
+
+/**
+ * Whether `version` precedes `floor`.
+ *
  * @param version - version as a deployment log records it
  * @param floor - version to order it against
  * @returns true only when both parse and `version` is the older one
  */
 function isVersionBelow(version: string, floor: string): boolean {
-  const versionTrimmed = version.trim()
-  const floorTrimmed = floor.trim()
-  if (
-    !CONTRACT_VERSION_PATTERN.test(versionTrimmed) ||
-    !CONTRACT_VERSION_PATTERN.test(floorTrimmed)
-  )
-    return false
-
-  const versionParts = versionTrimmed.split('.').map(Number)
-  const floorParts = floorTrimmed.split('.').map(Number)
-  for (let index = 0; index < 3; index++) {
-    const difference = (versionParts[index] ?? 0) - (floorParts[index] ?? 0)
-    if (difference !== 0) return difference < 0
-  }
-  return false
+  const order = compareContractVersions(version, floor)
+  return order !== null && order < 0
 }
 
 /** The `LiFiDiamond.Facets` section of `deployments/<network>.diamond.json`, keyed by address. */
@@ -483,14 +512,14 @@ export function resolveRegisteredFacetVersion(
 
 /**
  * The version live at `address`, when it predates the version that first exposed the check's
- * getter — that is, when the read could only revert.
+ * getter — that is, when a revert from that read is explained by the build's age.
  *
  * @remarks Only an annotated check can answer this, and only against a version the network's
  *   diamond log records — which is facets only; periphery is not versioned there. Every unknown
  *   answers null: an unrecorded address or an unparseable version on either side is no evidence
  *   the getter is absent, and treating it as such would exempt exactly the bindings this check
  *   compares. The version comes back rather than a bare flag so the caller can say which build
- *   it declined to read.
+ *   explained the revert it declined to report.
  * @param check - the binding check, carrying `getterSinceVersion` when annotated
  * @param address - the live address the read would target
  * @param networkLower - canonical lowercase network key

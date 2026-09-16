@@ -275,23 +275,24 @@ describe('verifyGetterSinceVersions', () => {
     expect(
       verify('1.0.1', 'SPOKEPOOL', 'contract SampleFacet {}')[0]
     ).toContain('no @custom:version')
-    expect(verify('1.0.1', 'SPOKEPOOL', null)).toHaveLength(1)
+    expect(verify('1.0.1', 'SPOKEPOOL', null)[0]).toContain(
+      'no readable source for SampleFacet was found'
+    )
   })
 
   it('passes on the annotations the repo actually carries today', () => {
     // GenericSwapFacetV3 is the only one so far: NATIVE_ADDRESS arrived in 1.0.1, and the
     // contract is at 2.0.0. This is the assertion that fails if someone annotates a version
     // that does not exist.
-    const declarations = Object.keys(deployRequirements).map((contract) =>
-      declaration({
-        contract,
-        file: `src/Facets/${contract}.sol`,
-      })
-    )
+    //
+    // No declarations: the gate itself passes the AST's, which are not available here without a
+    // build, and fabricating `src/Facets/<key>.sol` for every registry key would put a periphery
+    // entry under the wrong tree and fail this for a reason unrelated to its annotation. Passing
+    // none exercises the same resolution a periphery or inherited-immutable entry falls back to.
     expect(
       verifyGetterSinceVersions(
         deployRequirements as Record<string, IDeployRequirementEntry>,
-        declarations,
+        [],
         (file) => {
           try {
             return readFileSync(file, 'utf8')
@@ -301,5 +302,58 @@ describe('verifyGetterSinceVersions', () => {
         }
       )
     ).toEqual([])
+  })
+
+  it('resolves a periphery contract, which lives outside src/Facets', () => {
+    // The fabricated-path bug this test exists to prevent: Permit2Proxy is a real annotated-able
+    // entry under src/Periphery, and resolution has to find it there.
+    expect(
+      verifyGetterSinceVersions(
+        {
+          Permit2Proxy: {
+            configData: {
+              _permit2: {
+                configFileName: 'permit2Proxy.json',
+                keyInConfigFile: '.<NETWORK>',
+                getter: 'PERMIT2',
+                getterSinceVersion: '1.0.0',
+              },
+            },
+          },
+        },
+        [],
+        (file) => {
+          try {
+            return readFileSync(file, 'utf8')
+          } catch {
+            return null
+          }
+        }
+      )
+    ).toEqual([])
+  })
+
+  it('reports an annotated contract whose source cannot be located at all', () => {
+    // The one branch that used to fail open. An annotation ahead of the real version exempts the
+    // binding on every chain at once, so a contract the gate cannot resolve is reported, never
+    // waved through.
+    const errors = verifyGetterSinceVersions(
+      {
+        RenamedFacet: {
+          configData: {
+            _spokePool: {
+              configFileName: 'across.json',
+              keyInConfigFile: '.<NETWORK>.acrossSpokePool',
+              getter: 'SPOKEPOOL',
+              getterSinceVersion: '1.0.1',
+            },
+          },
+        },
+      },
+      [],
+      () => null
+    )
+    expect(errors).toHaveLength(1)
+    expect(errors[0]).toContain('no readable source for RenamedFacet was found')
   })
 })
