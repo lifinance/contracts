@@ -6,6 +6,7 @@
 
 import {
   mkdtempSync,
+  rmSync,
   symlinkSync,
   mkdirSync,
   writeFileSync,
@@ -16,6 +17,7 @@ import { join, relative } from 'node:path'
 import { pathToFileURL } from 'node:url'
 
 import {
+  afterAll,
   afterEach,
   beforeAll,
   describe,
@@ -26,6 +28,7 @@ import {
 
 import { isEntrypoint } from './is-entrypoint'
 
+let root: string
 let realDir: string
 let modulePath: string
 let moduleUrl: string
@@ -38,7 +41,7 @@ const originalArgv1 = process.argv[1]
 beforeAll(() => {
   // realpathSync: on macOS the tmp root is itself a symlink, which would otherwise make every
   // case here look like the symlink case and hide a regression in the plain-path one.
-  const root = realpathSync(mkdtempSync(join(tmpdir(), 'is-entrypoint-')))
+  root = realpathSync(mkdtempSync(join(tmpdir(), 'is-entrypoint-')))
 
   realDir = join(root, 'real')
   mkdirSync(realDir)
@@ -60,6 +63,12 @@ beforeAll(() => {
 afterEach(() => {
   if (originalArgv1 === undefined) delete process.argv[1]
   else process.argv[1] = originalArgv1
+})
+
+// The fixture is immutable and shared by every case, so it is built once; without this the
+// symlinked tree survives each run and accumulates in the system temp directory.
+afterAll(() => {
+  rmSync(root, { recursive: true, force: true })
 })
 
 describe('isEntrypoint', () => {

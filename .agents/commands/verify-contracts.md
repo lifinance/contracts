@@ -85,12 +85,16 @@ bash <<'BASH'
 source script/helperFunctions.sh
 
 DEPLOYMENTS="deployments/${NETWORK}.json"
+CONTRACTS=$(jq -r 'to_entries[] | "\(.key)\t\(.value)"' "$DEPLOYMENTS") ||
+  { echo "Cannot read ${DEPLOYMENTS} — missing or not valid JSON"; exit 1; }
+[ -n "$CONTRACTS" ] || { echo "${DEPLOYMENTS} lists no contracts"; exit 1; }
+
 FAILED=0
 while IFS=$'\t' read -r CONTRACT ADDRESS; do
   echo "Verifying ${CONTRACT} @ ${ADDRESS}"
   verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "" ||
     { echo "FAILED: ${CONTRACT} @ ${ADDRESS}"; FAILED=$((FAILED + 1)); }
-done < <(jq -r 'to_entries[] | "\(.key)\t\(.value)"' "$DEPLOYMENTS")
+done <<< "$CONTRACTS"
 
 [ "$FAILED" -eq 0 ] || { echo "${FAILED} contract(s) failed verification"; exit 1; }
 BASH
@@ -107,7 +111,13 @@ Run from the repo root — the helper sources `.env` and its siblings by relativ
 `verifyContract` returns 1 per failed contract, and a loop's status is only its last
 iteration's, so the failures are counted and re-raised at the end — otherwise one contract
 failing early and a later one succeeding would exit 0 on an incomplete verification. The
-count survives the loop because the input is a process substitution, not a pipe.
+count survives the loop because the input is a here-string, not a pipe.
+Why `jq` runs into a variable first rather than feeding the loop from `< <(jq …)`: a process
+substitution discards `jq`'s exit status, so a missing or malformed `deployments/<network>.json`
+gives the loop nothing to read, leaves `FAILED` at 0 and exits 0 having verified nothing — the
+same false success the network gate above prevents. A command substitution propagates the
+status, and the emptiness check catches the valid-but-empty `{}` that a clean `jq` still
+allows through.
 Why the `DO_NOT_VERIFY_IN_THESE_NETWORKS` check is a separate command and not a `case` inside
 the verify heredoc: `verifyContract` returns 1 for an excluded network too
 (`script/helperFunctions.sh`), which the counter cannot tell from a real failure — without the
