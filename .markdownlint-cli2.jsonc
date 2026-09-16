@@ -41,8 +41,12 @@
   // markdownlint-cli2 UNIONS config globs with CLI args, so a non-empty `globs` here would
   // widen every caller's scope — notably lint-staged, which must stay limited to staged files.
   "globs": [],
+  // Globs here are anchored at this file's directory, so only a leading `**/` matches nested
+  // copies. Without it, a clone using the repo's `.claude/worktrees/` layout lints other
+  // sessions' checkouts — and `lint:md:fix` shares this glob and *writes* into them.
   "ignores": [
-    "node_modules/**",
+    "**/node_modules/**",
+    ".claude/worktrees/**",
     "lib/**",
     "out/**",
     "cache/**",

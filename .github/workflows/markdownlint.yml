@@ -9,6 +9,9 @@
 #   to node via the bin shebang, so the Node version is pinned explicitly rather than
 #   inherited from whatever the runner image happens to ship
 # - hard-fails the job on any violation (heading hierarchy, fence/list spacing, empty links, etc.)
+# - known limitations: `lint all markdown files` is not in the `main protection` ruleset's
+#   required status checks, so a red run does not block a merge today — the gate is advisory
+#   until a repo admin registers it
 
 name: markdownlint
 
