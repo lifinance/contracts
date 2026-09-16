@@ -23,6 +23,7 @@ import {
   getAddress,
   parseAbi,
   type Address,
+  type CallParameters,
   type Hex,
   type PublicClient,
 } from 'viem'
@@ -447,7 +448,11 @@ export const createExecutabilityChainReader = (
     // first caller check it meets — a red row on every proposal the timelock
     // gates, which is indistinguishable from the real reverts this gate exists
     // to catch.
-    const request = { account: call.from, to: call.to, data: call.data }
+    const request: CallParameters = {
+      account: call.from,
+      to: call.to,
+      data: call.data,
+    }
 
     for (const simulator of simulators)
       try {

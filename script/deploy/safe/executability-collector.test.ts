@@ -542,19 +542,25 @@ describe('the sender a payload is simulated from', () => {
    * stubs elsewhere in this file receive whatever object the reader hands
    * them, so they cannot see a key viem would drop on its way to the wire —
    * which is the whole failure this pins.
+   *
+   * Retries are off so the failover test's throwing transport fails once
+   * rather than three times over a second of backoff.
    */
   const capturingClient = (
     captured: { params?: Record<string, unknown> },
     answer: () => unknown = () => '0x'
   ): PublicClient =>
     createPublicClient({
-      transport: custom({
-        request: async ({ method, params }) => {
-          if (method !== 'eth_call') return '0x1'
-          captured.params = (params as Record<string, unknown>[])[0]
-          return answer()
+      transport: custom(
+        {
+          request: async ({ method, params }) => {
+            if (method !== 'eth_call') return '0x1'
+            captured.params = (params as Record<string, unknown>[])[0]
+            return answer()
+          },
         },
-      }),
+        { retryCount: 0 }
+      ),
     }) as unknown as PublicClient
 
   it('reaches the node as the account the payload will really be sent from', async () => {
