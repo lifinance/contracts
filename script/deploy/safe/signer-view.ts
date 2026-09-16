@@ -775,14 +775,6 @@ export interface IBucketedResult {
   /** Why the proposal gave this check nothing to do, when it did not. */
   notApplicable?: string
   /**
-   * Where this check is written up, when there is somewhere to point at.
-   *
-   * A signer reading "the target is an address this checkout can name" at two
-   * in the morning needs somewhere to go that is not the source. Absent until
-   * the write-ups exist; a row without one prints exactly as it did before.
-   */
-  docUrl?: string
-  /**
    * Lines printed under this check, already indented by whoever produced them.
    *
    * Where a check states what it compared against — the ref a target state was
@@ -830,13 +822,11 @@ export const renderCheckGroups = (
     out.push(`  ${style.colour}${BOLD}${style.heading}${RESET}`)
 
     let first = true
-    for (const {
-      result,
-      definition,
-      notApplicable,
-      docUrl,
-      notes,
-    } of entries) {
+    // The write-up link is not repeated here. Every gate on the roster carries
+    // it in the manifest above, so a second copy per row is the same URL twice
+    // on one screen, and a line the eye has to skip on every row that asks for
+    // something.
+    for (const { result, definition, notApplicable, notes } of entries) {
       // Between gates only: a leading blank would double the one this bucket's
       // heading already printed.
       if (!first) out.push('')
@@ -844,8 +834,7 @@ export const renderCheckGroups = (
       const title = definition ? gateLabel(definition) : result.checkId
       // A gate with nothing to grade has no pair to compare: its `expected` is
       // the boilerplate no proposal ever fails, and its `actual` is already the
-      // sentence saying why it stood down. Printed as a pair the two read as a
-      // comparison the signer is being asked to make.
+      // sentence saying why it stood down.
       const standDownReason =
         notApplicable ??
         (bucket === 'n/a'
@@ -858,16 +847,13 @@ export const renderCheckGroups = (
             `${title} — ${standDownReason}`,
             '',
             '    '
-          ).map((line) => `${style.colour}${line}${RESET}`),
-          ...(docUrl ? [`      ${BLUE}${docUrl}${RESET}`] : [])
+          ).map((line) => `${style.colour}${line}${RESET}`)
         )
         out.push(...(notes ?? []).flatMap(wrapNote))
         continue
       }
       out.push(
-        `    ${style.colour}${style.glyph}${RESET} ${BOLD}${title}${RESET}${
-          docUrl ? ` ${BLUE}${docUrl}${RESET}` : ''
-        }`
+        `    ${style.colour}${style.glyph}${RESET} ${BOLD}${title}${RESET}`
       )
       // The pair form when both values are one unbreakable token of the same
       // length — a hash against a hash. Everything else reads better under its

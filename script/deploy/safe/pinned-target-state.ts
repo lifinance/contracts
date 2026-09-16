@@ -630,10 +630,9 @@ export const formatTargetStateLines = (
     ),
   ]
 
-  // A blank line first, and findings in the same column as the provenance line.
-  // Flush against the gate rows above and indented two columns shallower than
-  // the line they sit under, the findings read as belonging to whichever row
-  // the block happened to follow.
+  // The blank line and the shared column are what mark this as its own block:
+  // flush against the gate rows above, its findings belong to whichever row
+  // they happen to follow.
   return [
     '',
     `    ${TARGET_STATE_GATE_HEADING}`,

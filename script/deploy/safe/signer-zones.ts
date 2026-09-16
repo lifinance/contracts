@@ -163,9 +163,6 @@ export const signerChecks = (input: {
   const rows: IBucketedResult[] = input.results.map((result) => ({
     result,
     definition: input.definitions.get(result.checkId),
-    ...(CHECK_DOCS.get(result.checkId)
-      ? { docUrl: CHECK_DOCS.get(result.checkId) }
-      : {}),
     ...(input.notes?.get(result.checkId)
       ? { notes: input.notes.get(result.checkId) }
       : {}),

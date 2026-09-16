@@ -911,8 +911,7 @@ export const renderCalldataAddresses = (
     // The denominator is what the record was asked about, not what the calldata
     // carried. A zero in a role where zero is the legal value — the facet
     // address of a removal, an absent `_init` — is never looked up, so counting
-    // it turned a removal into "0 of 2 calldata addresses resolved": a green
-    // tick reporting a verification that did not happen.
+    // it puts a verification that did not happen behind a green tick.
     const lookedUp = verdict.findings.filter(
       (finding) => finding.grade !== AddressGradeEnum.NotApplicable
     )
@@ -934,8 +933,7 @@ export const renderCalldataAddresses = (
     }
   }
 
-  // Indented into the section that carries it, under a blank line. At the
-  // margin and flush against the row above, the block read as more of the gate
-  // it happened to follow rather than as a check of its own.
+  // The blank line and the indent are what make this a block of its own rather
+  // than a continuation of whichever gate row precedes it.
   return ['', ...lines.map((line) => `    ${line}`)]
 }

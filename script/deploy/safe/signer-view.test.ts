@@ -173,7 +173,6 @@ describe('renderCheckGroups', () => {
   it('says nothing at all about a gate that passed', () => {
     const lines = renderCheckGroups([
       entry('INT-TARGET', 'pass', {
-        docUrl: 'https://example.invalid/gate-e',
         notes: ['      Simulation: SUCCESSFUL — 2 of 2 calls would execute'],
       }),
     ])
@@ -191,7 +190,6 @@ describe('renderCheckGroups', () => {
           'title for INT-TARGET',
           'semantic'
         ),
-        docUrl: 'https://example.invalid/gate-e',
         notes: ['      Simulation: SUCCESSFUL — 2 of 2 calls would execute'],
       }),
     ])
@@ -199,7 +197,7 @@ describe('renderCheckGroups', () => {
       .join('\n')
 
     expect(plain).toContain('2 of 2 calls would execute')
-    expect(plain).toContain('https://example.invalid/gate-e')
+    expect(plain).toContain('Gate X · title for INT-TARGET')
   })
 
   it('omits a bucket nothing landed in', () => {
@@ -519,25 +517,38 @@ describe('the head of a check row', () => {
 })
 
 describe('a check with a write-up to point at', () => {
-  it('prints the link beside the gate name, and nothing when there is none', () => {
-    const [withLink, withoutLink] = [
-      { docUrl: 'https://example.invalid/checks/x' },
-      {},
-    ].map((extra) =>
-      renderCheckGroups([
-        {
-          definition: definition('x', 'A check'),
-          result: result('x', 'fail'),
-          ...extra,
-        },
-      ])
-        .map(stripAnsi)
-        .join('\n')
-    )
+  // The manifest carries the link for every gate on the roster, so a row that
+  // printed it again put the same URL on screen twice — once in the table the
+  // signer counts gates in, once on the row under it.
+  it('leaves the link to the manifest rather than repeating it per row', () => {
+    const plain = renderCheckGroups([
+      {
+        definition: definition('x', 'A check'),
+        result: result('x', 'fail'),
+      },
+    ])
+      .map(stripAnsi)
+      .join('\n')
 
-    expect(withLink).toContain('A check https://example.invalid/checks/x')
-    expect(withoutLink).toContain('A check')
-    expect(withoutLink).not.toContain('https://')
+    expect(plain).toContain('A check')
+    expect(plain).not.toContain('https://')
+  })
+
+  // The paired positive: the manifest is where the link has to survive, or
+  // removing it from the rows takes it off the page entirely.
+  it('still prints it in the manifest', () => {
+    const plain = renderGateManifest({
+      entries: [
+        { definition: definition('x', 'A check'), result: result('x', 'fail') },
+      ],
+      roster: [definition('x', 'A check')],
+      mustReport: new Set(['x']),
+      docUrls: new Map([['x', 'https://example.invalid/checks/x']]),
+    })
+      .map(stripAnsi)
+      .join('\n')
+
+    expect(plain).toContain('https://example.invalid/checks/x')
   })
 })
 
@@ -1046,14 +1057,12 @@ describe('a pre-formatted note, folded into the view', () => {
 describe('a gate that graded nothing', () => {
   // Gates G, H and K reach the view as a *result* whose status is
   // `not-applicable` rather than through `notApplicable`, because they did run
-  // and decided there was nothing to grade. That path used to print the full
-  // expected/observed pair, so a signer read four lines to learn the gate had
-  // stood down — and the "expected" half is boilerplate no proposal ever fails.
+  // and decided there was nothing to grade. Their `expected` is boilerplate no
+  // proposal can fail, so a pair invites a comparison that means nothing.
   const stoodDown = (): string[] =>
     renderCheckGroups([
       {
         definition: definition('codehash', 'Deployed bytecode'),
-        docUrl: 'https://example.invalid/codehash',
         result: result('codehash', 'not-applicable', {
           expected:
             'every address this cut installs carrying attested bytecode',
@@ -1073,8 +1082,8 @@ describe('a gate that graded nothing', () => {
     expect(plain).not.toContain('observed')
   })
 
-  it('keeps the write-up link a signer would follow to learn what it grades', () => {
-    expect(stoodDown().join('\n')).toContain('https://example.invalid/codehash')
+  it('does not repeat the write-up link the manifest already carries', () => {
+    expect(stoodDown().join('\n')).not.toContain('https://')
   })
 })
 

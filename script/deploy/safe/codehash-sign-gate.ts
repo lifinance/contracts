@@ -371,10 +371,8 @@ export const renderCodehashSignGate = (gate: ICodehashSignGate): string[] => {
   if (!gate.evaluated && !gate.blocksSigning) return []
 
   // A gate that compared nothing has one sentence to say, and its ledger row
-  // already says it under NOT APPLICABLE — where it is also counted in the
-  // manifest, which a free-standing block never was. Printed here as well it
-  // was the same fact twice, in two wordings, under a heading that named no
-  // gate the signer had seen.
+  // already says it under NOT APPLICABLE — where the manifest also counts it,
+  // which a free-standing block is not.
   if (nothingWasJudged(gate)) return []
 
   const lines = ['', `    ${CODEHASH_GATE_HEADING}`]
