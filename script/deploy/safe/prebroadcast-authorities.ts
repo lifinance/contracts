@@ -28,6 +28,7 @@ const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
  */
 export type AuthorityExpectationSource =
   | { from: 'deployments'; contractName: string }
+  | { from: 'pinnedDeployments'; contractName: string }
   | { from: 'globalConfig'; key: string }
   | { from: 'zeroAddress' }
 
@@ -81,7 +82,10 @@ export const DECLARED_STORAGE_AUTHORITIES: Readonly<
   LiFiDiamond: [
     {
       getter: 'owner',
-      source: { from: 'deployments', contractName: 'LiFiTimelockController' },
+      source: {
+        from: 'pinnedDeployments',
+        contractName: 'LiFiTimelockController',
+      },
     },
     {
       getter: 'pauserWallet',
@@ -271,12 +275,15 @@ export const buildAddressNameIndex = (
 export const resolveExpectedAuthority = (
   source: AuthorityExpectationSource,
   deployments: Record<string, unknown>,
-  globalConfig: Record<string, unknown>
+  globalConfig: Record<string, unknown>,
+  pinnedDeployments?: Record<string, unknown>
 ): string | undefined => {
   if (source.from === 'zeroAddress') return ZERO_ADDRESS
   const raw =
     source.from === 'deployments'
       ? deployments[source.contractName]
+      : source.from === 'pinnedDeployments'
+      ? pinnedDeployments?.[source.contractName]
       : globalConfig[source.key]
   if (typeof raw !== 'string') return undefined
   const address = raw.trim().toLowerCase()

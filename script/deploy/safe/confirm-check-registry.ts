@@ -58,9 +58,27 @@ export const STORAGE_AUTHORITY_CHECK: ICheckDefinition = {
   undecidableIsAcknowledgeable: true,
 }
 
-const DECIDING_EXPECTATION_SOURCES: ReadonlySet<
-  IPreBroadcastAuthority['expectationSource']
-> = new Set(['globalConfig', 'zeroAddress'])
+/**
+ * The anchor each expectation source rests on.
+ *
+ * A Map rather than a predicate, because the sources that may decide do not all
+ * rest on the same thing: `config/global.json` and the zero address are written
+ * in this repo, while the timelock address is read at `origin/main`. Reporting
+ * that distinction is the whole point of the anchor — a row that claimed
+ * `A-LOCAL` for a value fetched from a remote would overstate what was checked.
+ *
+ * The deployment record as the branch has it stays `A-MONGO`: a proposer can
+ * write it, so it may report and never decide.
+ */
+const EXPECTATION_ANCHORS: ReadonlyMap<
+  IPreBroadcastAuthority['expectationSource'],
+  ICheckResult['anchor']
+> = new Map([
+  ['globalConfig', 'A-LOCAL'],
+  ['zeroAddress', 'A-LOCAL'],
+  ['pinnedDeployments', 'A-MAIN'],
+  ['deployments', 'A-MONGO'],
+] as const)
 
 /**
  * Where each authority's expectation came from, as an anchor.
@@ -81,9 +99,8 @@ export const authorityExpectationAnchors = (
   new Map(
     authorities.map((authority) => [
       authority.label,
-      DECIDING_EXPECTATION_SOURCES.has(authority.expectationSource)
-        ? ('A-LOCAL' as const)
-        : ('A-MONGO' as const),
+      EXPECTATION_ANCHORS.get(authority.expectationSource) ??
+        ('A-UNRESOLVED' as const),
     ])
   )
 
