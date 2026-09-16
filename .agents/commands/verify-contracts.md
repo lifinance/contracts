@@ -65,6 +65,13 @@ export ENVIRONMENT=production   # "staging" for a staging deploy — Steps 5-6 r
 bash <<'BASH'
 source script/helperFunctions.sh
 
+case ",${DO_NOT_VERIFY_IN_THESE_NETWORKS:-}," in
+*,"$NETWORK",*)
+  echo "${NETWORK} is in DO_NOT_VERIFY_IN_THESE_NETWORKS — nothing to verify, skip Steps 4-6"
+  exit 0
+  ;;
+esac
+
 DEPLOYMENTS="deployments/${NETWORK}.json"
 FAILED=0
 while IFS=$'\t' read -r CONTRACT ADDRESS; do
@@ -89,6 +96,11 @@ Run from the repo root — the helper sources `.env` and its siblings by relativ
 iteration's, so the failures are counted and re-raised at the end — otherwise one contract
 failing early and a later one succeeding would exit 0 on an incomplete verification. The
 count survives the loop because the input is a process substitution, not a pipe.
+Why the `DO_NOT_VERIFY_IN_THESE_NETWORKS` check runs before the loop: `verifyContract`
+returns 1 for an excluded network too (`script/helperFunctions.sh`), which the counter cannot
+tell from a real failure — without the short-circuit, `gnosis` (shipped in `.env.example`)
+reports every contract as failed. Steps 5-6 are skipped along with it: nothing was verified
+on-chain, so writing `verified:true` to Mongo would be a false claim.
 
 Why the direct loop and not the menu: `script/scriptMaster.sh` option 8 (`verifyAllUnverifiedContractsInLogFile`) does both the on-chain verify and the Mongo write-back — but only for entries in the **local** `deployments/_deployments_log_file.json` cache, which for a freshly-deployed network is usually empty or stale. The direct loop over the deployment JSON is the reliable path; Step 5 covers the write-back it skips.
 
