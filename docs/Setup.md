@@ -7,7 +7,7 @@ only the quick-start; this is the full guide.
 
 ## Prerequisites
 
-- Node.js (v18 or later)
+- Node.js (`nvm use` picks the recommended version from `.nvmrc`; minimum is 18.18)
 - Bun (latest version)
 - Foundry (pinned via `.foundry-version`)
 - Git
