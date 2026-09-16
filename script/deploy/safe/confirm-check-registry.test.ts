@@ -1729,6 +1729,77 @@ describe('codehashCheckResult', () => {
     expect(result.actual).toContain('MISMATCH')
   })
 
+  // A status name under "observed" sends the signer to the detail line for the
+  // sentence that says what is wrong. One refused target can state it in place;
+  // the address it belongs to is the thing that moves out.
+  it('states why a single refusal refused, and leaves its address to the detail', () => {
+    const address = '0x00000000000000000000000000000000000000f1'
+    const result = codehashCheckResult(
+      gate({
+        blocksSigning: true,
+        summary: 'This cut will not be signed. It is UNVERIFIABLE.',
+        targets: [
+          {
+            address,
+            verdict: 'UNVERIFIABLE',
+            reason:
+              'no attested build is available for this contract, so nothing can be compared',
+            matchedLineages: [],
+            excludedByteCount: 0,
+            pricedByteCount: 0,
+          },
+        ],
+      }),
+      NETWORK
+    )
+
+    expect(result.actual).toBe(
+      'UNVERIFIABLE — no attested build is available for this contract, so nothing can be compared'
+    )
+    expect(result.actual).not.toContain(address)
+    expect(result.detail).toContain(address)
+    // The gate's own summary would state the same sentence a second time.
+    expect(result.detail).not.toContain('will not be signed')
+  })
+
+  // Two reasons cannot both be stated in one value without being false about
+  // one of them, so the pair keeps the per-address list — and each keeps its own
+  // verdict word, which a summed one would lose.
+  it('lists each address when more than one target was refused', () => {
+    const result = codehashCheckResult(
+      gate({
+        blocksSigning: true,
+        summary: 'This cut will not be signed. Two addresses refused.',
+        targets: [
+          {
+            address: '0x00000000000000000000000000000000000000f1',
+            verdict: 'UNVERIFIABLE',
+            reason: 'no attested build is available',
+            matchedLineages: [],
+            excludedByteCount: 0,
+            pricedByteCount: 0,
+          },
+          {
+            address: '0x00000000000000000000000000000000000000f2',
+            verdict: 'MISMATCH',
+            reason: 'bytecode is not from any attested build',
+            matchedLineages: [],
+            excludedByteCount: 0,
+            pricedByteCount: 0,
+          },
+        ],
+      }),
+      NETWORK
+    )
+
+    expect(result.actual).toBe(
+      '0x00000000000000000000000000000000000000f1: UNVERIFIABLE; 0x00000000000000000000000000000000000000f2: MISMATCH'
+    )
+    expect(result.detail).toBe(
+      'This cut will not be signed. Two addresses refused.'
+    )
+  })
+
   // A refusal is not a codehash disagreement: the cut was malformed or the gate
   // could not judge it. Filing it as a mismatch would put a disagreement on the
   // ledger that nothing observed.

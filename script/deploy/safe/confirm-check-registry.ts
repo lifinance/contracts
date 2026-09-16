@@ -12,6 +12,8 @@
  * target state's is the cross-check against `STATUSES_CLEARED_TO_PROCEED`.
  */
 
+import type { ITargetVerdict } from '../codehash/verify-cut-targets'
+
 import type { ICheckDefinition, ICheckResult } from './check-ledger'
 import type { ICodehashSignGate } from './codehash-sign-gate'
 import {
@@ -604,6 +606,45 @@ export const NOTHING_INSTALLED_TO_HASH =
   'this proposal installs no facet code, so there is no bytecode to compare'
 
 /**
+ * What the row states under "observed" and "→" when the gate refused a target.
+ *
+ * A single refusal states why, not just that: `0x…: UNVERIFIABLE` is a status
+ * name, and a signer reading it has to go to the detail line for the sentence
+ * that says what to do about it. The address moves to the detail, which the
+ * summary would otherwise spend on the same sentence a second time.
+ *
+ * Several refusals keep the per-address list and the gate's own summary, which
+ * states each one. A single value cannot carry two reasons without being false
+ * about one of them, and the verdict word stays per address either way: a
+ * MISMATCH and an UNVERIFIABLE in one cut are different facts and must not
+ * average into one.
+ *
+ * @param targets - Every target the gate judged.
+ * @param summary - The gate's own summary, for the rows that still need it.
+ * @returns The `actual` and `detail` of the row.
+ */
+const refusedTargets = (
+  targets: readonly ITargetVerdict[],
+  summary: string
+): { actual: string; detail?: string } => {
+  const refused = targets.filter((target) => target.verdict !== 'MATCH')
+  const [only] = refused
+
+  if (refused.length === 1 && only)
+    return {
+      actual: `${only.verdict} — ${only.reason}`,
+      detail: `the address this refers to is ${only.address}`,
+    }
+
+  return {
+    actual: refused
+      .map((target) => `${target.address}: ${target.verdict}`)
+      .join('; '),
+    ...(summary ? { detail: summary } : {}),
+  }
+}
+
+/**
  * How the codehash gate reaches the ledger.
  *
  * Reporting only. The refusal this gate drives stays in
@@ -663,14 +704,13 @@ export const codehashCheckResult = (
       // gate did compare and found different is a mismatch.
       status: gate.refusals.length > 0 ? 'error' : 'fail',
       expected: EVERY_TARGET_ATTESTED,
-      actual: gate.refusals.length
-        ? gate.refusals.join(' ')
-        : gate.targets
-            .filter((target) => target.verdict !== 'MATCH')
-            .map((target) => `${target.address}: ${target.verdict}`)
-            .join('; '),
       anchor: gate.refusals.length > 0 ? 'A-UNRESOLVED' : 'A-AUDIT',
-      ...(gate.summary ? { detail: gate.summary } : {}),
+      ...(gate.refusals.length
+        ? {
+            actual: gate.refusals.join(' '),
+            ...(gate.summary ? { detail: gate.summary } : {}),
+          }
+        : refusedTargets(gate.targets, gate.summary)),
     }
 
   // A cut this gate did open and found no code in — a removal, whose every
