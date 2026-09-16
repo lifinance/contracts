@@ -44,6 +44,17 @@ export interface IObservedCode {
   /** keccak of the exact deployed bytes. */
   rawHash: string
   /**
+   * The exact deployed bytes this observation was built from, so layer 2 can
+   * price the bytes layer 1 masked rather than fetching them again. Two reads
+   * of one address can answer from different endpoints at different blocks,
+   * and layer 1 masks the immutables, so a second read is the only thing
+   * standing behind the values nobody else checks.
+   *
+   * Optional because a caller that only needs a comparison has no use for it.
+   * A consumer that would otherwise trust it must refuse when it is absent.
+   */
+  runtimeCode?: string
+  /**
    * How many bytes were excluded from `maskedHash` as immutables. A MATCH says
    * nothing about them, so a caller that has not run layer 2 must not render an
    * unqualified green.

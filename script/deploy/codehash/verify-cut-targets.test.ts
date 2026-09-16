@@ -67,7 +67,11 @@ const remove = (facetAddress: string) => ({
 const deps = (overrides?: {
   observe?: (address: string) => Promise<IObservedCode>
   attestationsFor?: (address: string) => Promise<IAttestedBuild[]>
-  price?: (address: string, network: string) => Promise<ImmutablePricing>
+  price?: (
+    address: string,
+    network: string,
+    runtimeCode: string
+  ) => Promise<ImmutablePricing>
   isClosedSet?: boolean
 }) => ({
   scope: () => ({ isClosedSet: overrides?.isClosedSet ?? true }),
@@ -292,12 +296,53 @@ describe('verifyCutTargets', () => {
     expect(report.targets[0]?.reason).toMatch(/were not checked/)
   })
 
+  const DEPLOYED = '0xfeed'
+
   const maskedMatch = (over: { price: IVerifyCutDeps['price'] }) =>
     verifyCutTargets({ cuts: [add(A)], init: ZERO, network: 'mainnet' }, {
       ...deps(over),
-      observe: async () => ({ ...observed(HASH), maskedByteCount: 96 }),
+      observe: async () => ({
+        ...observed(HASH),
+        maskedByteCount: 96,
+        runtimeCode: DEPLOYED,
+      }),
       attestationsFor: async () => [{ ...attested(HASH), rawHash: undefined }],
     } as IVerifyCutDeps)
+
+  it('prices the bytes the comparison was built from, not a second read', async () => {
+    let seen: string | undefined
+    const report = await maskedMatch({
+      price: async (_address, _network, runtimeCode) => {
+        seen = runtimeCode
+        return priced(96)
+      },
+    })
+
+    // The whole point of the parameter: layer 1 masked these bytes and vouches
+    // for nothing in them, so layer 2 grading a different reading would leave
+    // the only check of the immutables resting on evidence layer 1 never saw.
+    expect(seen).toBe(DEPLOYED)
+    expect(report.targets[0]?.verdict).toBe('MATCH')
+  })
+
+  it('will not upgrade an observation that carries no bytes to price', async () => {
+    const report = await verifyCutTargets(
+      { cuts: [add(A)], init: ZERO, network: 'mainnet' },
+      {
+        ...deps({ price: async () => priced(96) }),
+        // No `runtimeCode`, as every pre-layer-2 producer of an observation
+        // leaves it.
+        observe: async () => ({ ...observed(HASH), maskedByteCount: 96 }),
+        attestationsFor: async () => [
+          { ...attested(HASH), rawHash: undefined },
+        ],
+      } as IVerifyCutDeps
+    )
+
+    expect(report.targets[0]?.verdict).toBe('UNVERIFIABLE')
+    expect(report.blocksSigning).toBe(true)
+    expect(report.targets[0]?.reason).toMatch(/did not carry the bytes/u)
+  })
 
   it('reports MATCH once layer 2 has priced every masked byte', async () => {
     const report = await maskedMatch({ price: async () => priced(96) })

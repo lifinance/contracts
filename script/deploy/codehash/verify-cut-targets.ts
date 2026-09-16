@@ -75,7 +75,11 @@ export interface IVerifyCutDeps {
    * can complete a verdict and can never create one. A refusal leaves layer 1's
    * masked verdict exactly as it was.
    */
-  price: (address: string, network: string) => Promise<ImmutablePricing>
+  price: (
+    address: string,
+    network: string,
+    runtimeCode: string
+  ) => Promise<ImmutablePricing>
 }
 
 /**
@@ -176,7 +180,7 @@ const judge = async (
   // This grades grey rather than red: nothing was found wrong, it was not looked
   // at. Layer 2 supplies the missing check and lifts this.
   if (comparison.verdict === 'MATCH' && comparison.excludedByteCount > 0)
-    return complete(address, network, comparison, deps)
+    return complete(address, network, comparison, deps, code.runtimeCode)
 
   return {
     address,
@@ -210,12 +214,17 @@ const judge = async (
  * @param network - the proposal's network
  * @param comparison - layer 1's verdict, already known to be a masked MATCH
  * @param deps - carries the layer-2 read
+ * @param runtimeCode - the bytes layer 1 hashed. Layer 2 must price these and
+ *   not a second read of the address: the masked bytes are the half layer 1
+ *   makes no claim about, so a reading that disagreed with this one would put
+ *   the only check of them on evidence the comparison never saw.
  */
 const complete = async (
   address: string,
   network: string,
   comparison: ICodehashComparison,
-  deps: IVerifyCutDeps
+  deps: IVerifyCutDeps,
+  runtimeCode: string | undefined
 ): Promise<ITargetVerdict> => {
   const masked = `${address}: the code outside its immutables matches an attested build, but ${comparison.excludedByteCount} bytes holding immutables`
   const stillMasked = (why: string): ITargetVerdict => ({
@@ -227,9 +236,14 @@ const complete = async (
     pricedByteCount: 0,
   })
 
+  if (runtimeCode === undefined)
+    return stillMasked(
+      'were not checked: this observation did not carry the bytes it was built from, and pricing a second read of the address would check bytes the comparison never saw'
+    )
+
   let pricing: ImmutablePricing
   try {
-    pricing = await deps.price(address, network)
+    pricing = await deps.price(address, network, runtimeCode)
   } catch (error) {
     // An infrastructure failure in layer 2 must not read as a clean masked
     // verdict, and must not read as a finding either.

@@ -194,6 +194,7 @@ export const createRuntimeCodeObserver = (
       rawHash: normalized.rawHash,
       rawByteLength: normalized.rawByteLength,
       maskedByteCount: normalized.maskedByteCount,
+      runtimeCode: code,
       // Proposer-controlled, and consulted by the comparison only where the
       // legitimate set is open. Carried so a reason can name it, never to
       // decide anything on a closed set.
@@ -742,15 +743,15 @@ export const createSignTimeCodehashDeps = (overrides?: {
     readDeployedCode: createDeployedCodeReader(),
   })
 
-  // Same record read, same rebuild cache and same chain read as the observer,
-  // so layer 2 prices the bytes layer 1 masked rather than a second reading of
-  // them. The expectations are the one input taken from somewhere else: this
-  // checkout, which is the anchor the proposer does not reach.
+  // Same record read and same rebuild cache as the observer, and the deployed
+  // bytes are handed over by the observer rather than fetched again, so the two
+  // layers cannot grade different readings of one address. The expectations are
+  // the one input taken from somewhere else: this checkout, which is the anchor
+  // the proposer does not reach.
   const price = createImmutablePricer({
     readRecord,
     scopeFor,
     build: rebuild.build,
-    readDeployedCode: createDeployedCodeReader(),
     loadRequirements: loadImmutableExpectations,
   })
 
@@ -889,12 +890,16 @@ export const createImmutablePricer = (deps: {
   ) => Promise<IDeploymentRecordRef | undefined>
   scopeFor: (network: string) => IToolchainScope
   build: (request: IRebuildRequest) => IRebuiltArtifact
-  readDeployedCode: (address: string, network: string) => Promise<string>
   loadRequirements: () => DeployRequirements
-}): ((address: string, network: string) => Promise<ImmutablePricing>) => {
+}): ((
+  address: string,
+  network: string,
+  runtimeCode: string
+) => Promise<ImmutablePricing>) => {
   return async (
     address: string,
-    network: string
+    network: string,
+    runtimeCode: string
   ): Promise<ImmutablePricing> => {
     const record = await deps.readRecord(address, network)
     if (!record)
@@ -942,9 +947,8 @@ export const createImmutablePricer = (deps: {
         )} reports no immutables, so the bytes masked in the deployed code cannot be named`,
       }
 
-    const code = await deps.readDeployedCode(address, network)
     const observed = observeEvmImmutables(
-      code,
+      runtimeCode,
       artifact.immutableReferences,
       artifact.immutableDeclarations
     )
