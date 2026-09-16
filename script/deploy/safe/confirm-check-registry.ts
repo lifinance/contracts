@@ -48,7 +48,7 @@ export const STORAGE_AUTHORITY_CHECK: ICheckDefinition = {
   section: 'Deployed state',
   checkClass: 'integrity',
   gate: 'G',
-  title: 'Live owner matches what main declares',
+  title: 'Contract owner matches what main declares',
   // Every diamond cut carries `LiFiDiamond.owner`, whose expectation comes from
   // the deployment record — so without this the one gate that reads live
   // authorities refuses every honest proposal, and the remedy it prints cannot
