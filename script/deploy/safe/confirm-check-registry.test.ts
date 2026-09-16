@@ -919,6 +919,32 @@ const recordInto = (
   for (const row of worstResultPerCheck(rows)) recordCheck(ledger, row)
 }
 
+describe('authorityExpectationAnchors', () => {
+  const row = (
+    label: string,
+    expectationSource: IPreBroadcastAuthority['expectationSource']
+  ): IPreBroadcastAuthority => ({
+    label,
+    contractAddress: '0x00000000000000000000000000000000000000aa',
+    liveValue: undefined,
+    expectedValue: undefined,
+    expectationSource,
+    readError: undefined,
+  })
+
+  it('separates the sources that may decide from the one that may only report', () => {
+    const anchors = authorityExpectationAnchors([
+      row('FeeCollector.owner', 'globalConfig'),
+      row('FeeCollector.pendingOwner', 'zeroAddress'),
+      row('LiFiDiamond.owner', 'deployments'),
+    ])
+
+    expect(anchors.get('FeeCollector.owner')).toBe('A-LOCAL')
+    expect(anchors.get('FeeCollector.pendingOwner')).toBe('A-LOCAL')
+    expect(anchors.get('LiFiDiamond.owner')).toBe('A-MONGO')
+  })
+})
+
 describe('proposalCheckResults', () => {
   it('records every registered check, so none is counted missing', () => {
     const ledger = runLedger()

@@ -40,6 +40,7 @@ export const TARGET_STATE_CHECK: ICheckDefinition = {
   title: 'Facet version',
 }
 
+/** Persisted in signed-set records, so it does not follow the title. */
 export const STORAGE_AUTHORITY_CHECK_ID = 'storage-authority'
 
 export const STORAGE_AUTHORITY_CHECK: ICheckDefinition = {
@@ -47,7 +48,7 @@ export const STORAGE_AUTHORITY_CHECK: ICheckDefinition = {
   section: 'Deployed state',
   checkClass: 'integrity',
   gate: 'G',
-  title: 'Storage authorities',
+  title: 'Contract ownership',
   // Every diamond cut carries `LiFiDiamond.owner`, whose expectation comes from
   // the deployment record — so without this the one gate that reads live
   // authorities refuses every honest proposal, and the remedy it prints cannot
@@ -55,11 +56,16 @@ export const STORAGE_AUTHORITY_CHECK: ICheckDefinition = {
   undecidableIsAcknowledgeable: true,
 }
 
+const DECIDING_EXPECTATION_SOURCES: ReadonlySet<
+  IPreBroadcastAuthority['expectationSource']
+> = new Set(['globalConfig', 'zeroAddress'])
+
 /**
  * Where each authority's expectation came from, as an anchor.
  *
  * `config/global.json` is a repo file the proposer's branch cannot change
- * without review, so it may decide a pass. The deployment record is written by
+ * without review, so it may decide a pass, and so may the zero address, which
+ * is written here and read from nowhere. The deployment record is written by
  * the proposer, so it may only report: a match against it means no more than
  * "the value matched the one we were handed", which is for the signer to
  * accept rather than for the gate to grade green.
@@ -73,14 +79,14 @@ export const authorityExpectationAnchors = (
   new Map(
     authorities.map((authority) => [
       authority.label,
-      authority.expectationSource === 'globalConfig'
+      DECIDING_EXPECTATION_SOURCES.has(authority.expectationSource)
         ? ('A-LOCAL' as const)
         : ('A-MONGO' as const),
     ])
   )
 
-export const EVERY_AUTHORITY_MATCHES =
-  'every declared storage authority holding the address main declares'
+export const EVERY_INSTALLED_CONTRACT_OWNED =
+  'every contract this installs owned by the wallet main declares'
 
 /**
  * Reduces a network's storage-authority observations to the one row the ledger
@@ -122,9 +128,8 @@ export const storageAuthorityCheckResult = (
       checkId: STORAGE_AUTHORITY_CHECK_ID,
       network,
       status: 'not-applicable',
-      expected: EVERY_AUTHORITY_MATCHES,
-      actual:
-        'this proposal installs no contract that declares a storage authority',
+      expected: EVERY_INSTALLED_CONTRACT_OWNED,
+      actual: 'this proposal installs no contract whose owner main declares',
       anchor: 'A-LOCAL',
     }
 
@@ -197,7 +202,7 @@ export const storageAuthorityCheckResult = (
     checkId: STORAGE_AUTHORITY_CHECK_ID,
     network,
     status,
-    expected: EVERY_AUTHORITY_MATCHES,
+    expected: EVERY_INSTALLED_CONTRACT_OWNED,
     actual: failing.length
       ? failing.join('; ')
       : `${entries.length} declared authority value(s) match config`,
@@ -989,7 +994,7 @@ export const proposalCheckResults = (
         ? unresolved(
             STORAGE_AUTHORITY_CHECK_ID,
             network,
-            EVERY_AUTHORITY_MATCHES,
+            EVERY_INSTALLED_CONTRACT_OWNED,
             `what this proposal installs could not be read from ${verdicts.storageAuthority.scopeUnreadable.join(
               ', '
             )}, so the contracts whose authorities to read are unknown`
@@ -1002,7 +1007,7 @@ export const proposalCheckResults = (
       : unresolved(
           STORAGE_AUTHORITY_CHECK_ID,
           network,
-          EVERY_AUTHORITY_MATCHES,
+          EVERY_INSTALLED_CONTRACT_OWNED,
           'no storage-authority read was made for this proposal'
         ),
     targetStateCheckResult(verdicts.targetState, network),
