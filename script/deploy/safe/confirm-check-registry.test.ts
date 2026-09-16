@@ -89,9 +89,14 @@ const EMITTED_SHAPE: Record<TargetStateStatus, Partial<ITargetStateFinding>> = {
   'unrecognised-cut-action': { ...BLANK, facetAddress: FACET },
   'pinned-state-unavailable': { ...BLANK, facetAddress: FACET },
   'deployment-record-ambiguous': { ...BLANK, facetAddress: FACET },
-  // Resolved to an address but never to a name, so no version either — and
-  // `main`'s is never read, because there is no name to read it by.
-  'contract-unidentified': { ...BLANK, facetAddress: FACET },
+  // Resolved to an address but never to a name, so `main`'s version is never
+  // read — there is no name to read it by. The record's own version does reach
+  // this finding, when the record carries a version under a blank name.
+  'contract-unidentified': {
+    ...BLANK,
+    facetAddress: FACET,
+    proposedVersion: '9.9.9',
+  },
   // `origin/main` declared nothing — the only status carrying a fleet count.
   'not-previously-targeted': { mainVersion: null, crossFleetCount: 3 },
   // The record carried no version to compare against main's.
@@ -301,7 +306,9 @@ describe('targetStateCheckResult', () => {
     'matches-main': VERSION_PAIR,
     'ahead-of-main': VERSION_PAIR,
     downgrade: VERSION_PAIR,
-    'version-not-comparable': VERSION_PAIR,
+    // Carries both versions, but they were never ordered, so the row keeps the
+    // status name rather than a pair that would read as a comparison.
+    'version-not-comparable': ORDERING_HOLDS,
     // `origin/main` declared nothing, so there is no second version to print.
     'not-previously-targeted': ORDERING_HOLDS,
     removal: NOTHING_TO_COMPARE,
@@ -389,6 +396,23 @@ describe('targetStateCheckResult', () => {
 
     expect(expected).toBe(EVERY_ELEMENT_COMPARED)
     expect(actual).toContain('deployment-record-ambiguous')
+  })
+
+  // Both versions resolved, so the field test alone would print them — but they
+  // were never ordered, and two versions side by side read as a comparison.
+  it('keeps the status name when the two versions were not ordered', () => {
+    const { expected, actual } = targetStateCheckResult(
+      verdictOf([
+        finding('version-not-comparable', {
+          mainVersion: '1.0.0',
+          proposedVersion: '1.0',
+        }),
+      ]),
+      'mainnet'
+    )
+
+    expect(expected).toBe(ORDERING_HOLDS)
+    expect(actual).toContain('version-not-comparable')
   })
 
   // The version the record carries is the one side the proposer writes. A row

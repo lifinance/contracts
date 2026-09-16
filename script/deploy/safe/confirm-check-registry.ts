@@ -393,12 +393,19 @@ const describe = (finding: ITargetStateFinding): string => {
   return `${name}: ${finding.status}`
 }
 
-/** The statuses `evaluateTargetStateIntent` pushes from its `shared` object. */
+/**
+ * The statuses whose two versions were successfully ordered.
+ *
+ * `version-not-comparable` is deliberately absent, though it too carries both:
+ * a pair printed alone reads as a comparison, and that status exists precisely
+ * because the two could not be compared. Its row keeps the status name, which is
+ * the only cue the signer gets — the bucket it prints under blames their
+ * environment, and a malformed version string is the proposer's.
+ */
 const COMPARED_BOTH_VERSIONS: ReadonlySet<TargetStateStatus> = new Set([
   'matches-main',
   'ahead-of-main',
   'downgrade',
-  'version-not-comparable',
 ])
 
 /**

@@ -408,29 +408,33 @@ export const evaluateTargetStateIntent = (
       crossFleetCount: null,
     }
 
+    // Each detail names the contract, because the ledger row these four reduce
+    // to carries the two versions and nothing else — on the run-wide ledger and
+    // in the proposal card, the detail is the only place the element they belong
+    // to is written down.
     if (order === null)
       findings.push({
         ...shared,
         status: 'version-not-comparable',
-        detail: `v${proposedVersion} and the declared v${mainVersion} are not both major.minor.patch, so which is newer cannot be established.`,
+        detail: `${contractName} v${proposedVersion} and the declared v${mainVersion} are not both major.minor.patch, so which is newer cannot be established.`,
       })
     else if (order < 0)
       findings.push({
         ...shared,
         status: 'downgrade',
-        detail: `v${proposedVersion} is OLDER than the v${mainVersion} ${PINNED_REF} declares on ${network} — this cut would move the diamond backwards.`,
+        detail: `${contractName} v${proposedVersion} is OLDER than the v${mainVersion} ${PINNED_REF} declares on ${network} — this cut would move the diamond backwards.`,
       })
     else if (order === 0)
       findings.push({
         ...shared,
         status: 'matches-main',
-        detail: `v${proposedVersion} matches the version ${PINNED_REF} declares on ${network}.`,
+        detail: `${contractName} v${proposedVersion} matches the version ${PINNED_REF} declares on ${network}.`,
       })
     else
       findings.push({
         ...shared,
         status: 'ahead-of-main',
-        detail: `v${proposedVersion} is newer than the v${mainVersion} ${PINNED_REF} declares on ${network}.`,
+        detail: `${contractName} v${proposedVersion} is newer than the v${mainVersion} ${PINNED_REF} declares on ${network}.`,
       })
   }
 
