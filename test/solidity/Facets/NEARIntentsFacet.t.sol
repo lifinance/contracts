@@ -10,11 +10,12 @@ import { InvalidReceiver, InvalidAmount, InformationMismatch, InvalidConfig, Inv
 error QuoteAlreadyConsumed();
 error QuoteExpired();
 error InvalidSignature();
+error InvalidDestinationAsset();
 
 /// @title TestNEARIntentsFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Test contract wrapper for NEARIntentsFacet
-/// @custom:version 1.0.0
+/// @custom:version 1.1.0
 contract TestNEARIntentsFacet is NEARIntentsFacet, TestWhitelistManagerBase {
     constructor(address _backendSigner) NEARIntentsFacet(_backendSigner) {}
 
@@ -35,7 +36,7 @@ contract TestNEARIntentsFacet is NEARIntentsFacet, TestWhitelistManagerBase {
 /// @title NEARIntentsFacetTest
 /// @author LI.FI (https://li.fi)
 /// @notice Test suite for NEARIntentsFacet
-/// @custom:version 1.0.0
+/// @custom:version 1.1.0
 contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
     TestNEARIntentsFacet internal nearIntentsFacet;
 
@@ -47,13 +48,18 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
         address sendingAssetId,
         uint256 amount,
         uint256 deadline,
-        uint256 minAmountOut
+        uint256 minAmountOut,
+        bytes32 destinationAsset
     );
 
     // Test constants
     bytes32 internal constant TEST_QUOTE_ID = keccak256("test-quote-1");
     address internal constant TEST_DEPOSIT_ADDRESS =
         0x0000000000000000000000000000000000000DeA;
+    /// @dev Destination asset of the reference quote: USDC on the destination chain,
+    ///      left-padded to 32 bytes exactly as the backend encodes it.
+    bytes32 internal constant TEST_DESTINATION_ASSET =
+        bytes32(uint256(uint160(0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48)));
 
     NEARIntentsFacet.NEARIntentsData internal validNearData;
 
@@ -85,6 +91,7 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
         nearIntentsFacet = TestNEARIntentsFacet(address(diamond));
         nearIntentsVerifyingContract = address(nearIntentsFacet);
         nearIntentsRefundRecipient = USER_SENDER;
+        nearIntentsDestinationAsset = TEST_DESTINATION_ASSET;
 
         // Setup whitelist for swaps
         nearIntentsFacet.addAllowedContractSelector(
@@ -286,7 +293,8 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
             bridgeData.sendingAssetId,
             bridgeData.minAmount,
             validNearData.deadline,
-            validNearData.minAmountOut
+            validNearData.minAmountOut,
+            validNearData.destinationAsset
         );
 
         vm.expectEmit(true, true, true, true, address(diamond));
@@ -340,7 +348,8 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
             bridgeData.sendingAssetId,
             bridgeData.minAmount,
             validNearData.deadline,
-            validNearData.minAmountOut
+            validNearData.minAmountOut,
+            validNearData.destinationAsset
         );
 
         vm.expectEmit(true, true, true, true, address(diamond));
@@ -531,7 +540,8 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
             bridgeData.sendingAssetId,
             bridgeData.minAmount,
             validNearData.deadline,
-            validNearData.minAmountOut
+            validNearData.minAmountOut,
+            validNearData.destinationAsset
         );
 
         vm.expectEmit(true, true, true, true, address(diamond));
@@ -569,7 +579,8 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
             bridgeData.sendingAssetId,
             bridgeData.minAmount,
             validNearData.deadline,
-            validNearData.minAmountOut
+            validNearData.minAmountOut,
+            validNearData.destinationAsset
         );
 
         vm.expectEmit(true, true, true, true, address(diamond));
@@ -611,7 +622,8 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
             bridgeData.sendingAssetId,
             bridgeData.minAmount,
             validNearData.deadline,
-            validNearData.minAmountOut
+            validNearData.minAmountOut,
+            validNearData.destinationAsset
         );
 
         vm.expectEmit(true, true, true, true, address(diamond));
@@ -639,7 +651,8 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
             bridgeData.sendingAssetId,
             bridgeData.minAmount,
             validNearData.deadline,
-            validNearData.minAmountOut
+            validNearData.minAmountOut,
+            validNearData.destinationAsset
         );
 
         vm.expectEmit(true, true, true, true, address(diamond));
@@ -671,7 +684,8 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
             bridgeData.sendingAssetId,
             bridgeData.minAmount,
             newNearData.deadline,
-            newNearData.minAmountOut
+            newNearData.minAmountOut,
+            newNearData.destinationAsset
         );
 
         vm.expectEmit(true, true, true, true, address(diamond));
@@ -775,7 +789,8 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
             bridgeData.sendingAssetId,
             bridgeData.minAmount,
             validNearData.deadline,
-            validNearData.minAmountOut
+            validNearData.minAmountOut,
+            validNearData.destinationAsset
         );
 
         // Expect special non-EVM event
@@ -834,7 +849,8 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
             bridgeData.sendingAssetId,
             bridgeData.minAmount,
             validNearData.deadline,
-            validNearData.minAmountOut
+            validNearData.minAmountOut,
+            validNearData.destinationAsset
         );
 
         // Expect special non-EVM event
@@ -974,7 +990,8 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
             bridgeData.sendingAssetId,
             bridgeData.minAmount,
             customNearData.deadline,
-            customNearData.minAmountOut
+            customNearData.minAmountOut,
+            customNearData.destinationAsset
         );
 
         nearIntentsFacet.swapAndStartBridgeTokensViaNEARIntents(
@@ -1027,7 +1044,8 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
             bridgeData.sendingAssetId,
             bridgeData.minAmount,
             validNearData.deadline,
-            validNearData.minAmountOut
+            validNearData.minAmountOut,
+            validNearData.destinationAsset
         );
 
         // Expect special non-EVM event
@@ -1049,5 +1067,249 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
 
         assertEq(TEST_DEPOSIT_ADDRESS.balance, depositBalanceBefore + 1 ether);
         assertTrue(nearIntentsFacet.isQuoteConsumed(validNearData.quoteId));
+    }
+
+    /// Destination Asset Tests ///
+
+    function test_CanSwapAndBridgeWithDestinationAsset() public {
+        bridgeData.hasSourceSwaps = true;
+        setDefaultSwapDataSingleDAItoUSDC();
+
+        validNearData = _generateValidNearData(
+            TEST_DEPOSIT_ADDRESS,
+            bridgeData,
+            block.chainid,
+            TEST_QUOTE_ID,
+            990 * 10 ** 6
+        );
+
+        vm.startPrank(USER_SENDER);
+        dai.approve(address(diamond), swapData[0].fromAmount);
+
+        uint256 depositBalanceBefore = usdc.balanceOf(TEST_DEPOSIT_ADDRESS);
+
+        vm.expectEmit(true, true, true, true, address(diamond));
+        emit NEARIntentsBridgeStarted(
+            bridgeData.transactionId,
+            validNearData.quoteId,
+            validNearData.depositAddress,
+            bridgeData.sendingAssetId,
+            bridgeData.minAmount,
+            validNearData.deadline,
+            validNearData.minAmountOut,
+            TEST_DESTINATION_ASSET
+        );
+
+        nearIntentsFacet.swapAndStartBridgeTokensViaNEARIntents(
+            bridgeData,
+            swapData,
+            validNearData
+        );
+        vm.stopPrank();
+
+        assertEq(
+            usdc.balanceOf(TEST_DEPOSIT_ADDRESS),
+            depositBalanceBefore + bridgeData.minAmount
+        );
+        assertTrue(nearIntentsFacet.isQuoteConsumed(validNearData.quoteId));
+    }
+
+    /// @dev Pins the on-chain typehash constant to the literal EIP-712 type string,
+    ///      including the position of `destinationAsset`. A reordered or stale constant
+    ///      makes the facet reject this signature.
+    function test_AcceptsSignatureOverLiteralPayloadTypeString() public {
+        bytes32 typeHash = keccak256(
+            "NEARIntentsPayload(bytes32 transactionId,uint256 minAmount,bytes32 receiver,address depositAddress,uint256 destinationChainId,address sendingAssetId,uint256 deadline,bytes32 quoteId,uint256 minAmountOut,bytes32 destinationAsset)"
+        );
+        uint256 deadline = block.timestamp + 1 hours;
+        uint256 minAmountOut = 990 * 10 ** 6;
+
+        bytes32 structHash = keccak256(
+            abi.encode(
+                typeHash,
+                bridgeData.transactionId,
+                bridgeData.minAmount,
+                bytes32(uint256(uint160(bridgeData.receiver))),
+                TEST_DEPOSIT_ADDRESS,
+                bridgeData.destinationChainId,
+                bridgeData.sendingAssetId,
+                deadline,
+                TEST_QUOTE_ID,
+                minAmountOut,
+                TEST_DESTINATION_ASSET
+            )
+        );
+
+        validNearData = NEARIntentsFacet.NEARIntentsData({
+            nonEVMReceiver: bytes32(0),
+            destinationAsset: TEST_DESTINATION_ASSET,
+            depositAddress: TEST_DEPOSIT_ADDRESS,
+            quoteId: TEST_QUOTE_ID,
+            deadline: deadline,
+            minAmountOut: minAmountOut,
+            refundRecipient: USER_SENDER,
+            signature: _signDigest(
+                backendSignerPrivateKey,
+                _digest(_buildDomainSeparator(block.chainid), structHash)
+            )
+        });
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(diamond), bridgeData.minAmount);
+
+        nearIntentsFacet.startBridgeTokensViaNEARIntents(
+            bridgeData,
+            validNearData
+        );
+        vm.stopPrank();
+
+        assertTrue(nearIntentsFacet.isQuoteConsumed(TEST_QUOTE_ID));
+    }
+
+    /// @dev A v1.0.0 signature commits to every field except `destinationAsset`, so a
+    ///      solver could settle the quote in any asset. v1.1.0 must reject it.
+    function testRevert_InvalidSignatureOverLegacyPayloadWithoutDestinationAsset()
+        public
+    {
+        uint256 deadline = block.timestamp + 1 hours;
+        uint256 minAmountOut = 990 * 10 ** 6;
+
+        bytes32 legacyStructHash = keccak256(
+            abi.encode(
+                keccak256(
+                    "NEARIntentsPayload(bytes32 transactionId,uint256 minAmount,bytes32 receiver,address depositAddress,uint256 destinationChainId,address sendingAssetId,uint256 deadline,bytes32 quoteId,uint256 minAmountOut)"
+                ),
+                bridgeData.transactionId,
+                bridgeData.minAmount,
+                bytes32(uint256(uint160(bridgeData.receiver))),
+                TEST_DEPOSIT_ADDRESS,
+                bridgeData.destinationChainId,
+                bridgeData.sendingAssetId,
+                deadline,
+                TEST_QUOTE_ID,
+                minAmountOut
+            )
+        );
+
+        validNearData = NEARIntentsFacet.NEARIntentsData({
+            nonEVMReceiver: bytes32(0),
+            destinationAsset: TEST_DESTINATION_ASSET,
+            depositAddress: TEST_DEPOSIT_ADDRESS,
+            quoteId: TEST_QUOTE_ID,
+            deadline: deadline,
+            minAmountOut: minAmountOut,
+            refundRecipient: USER_SENDER,
+            signature: _signDigest(
+                backendSignerPrivateKey,
+                _digest(_buildDomainSeparator(block.chainid), legacyStructHash)
+            )
+        });
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(diamond), bridgeData.minAmount);
+
+        vm.expectRevert(InvalidSignature.selector);
+
+        nearIntentsFacet.startBridgeTokensViaNEARIntents(
+            bridgeData,
+            validNearData
+        );
+        vm.stopPrank();
+    }
+
+    function testRevert_InvalidDestinationAsset() public {
+        nearIntentsDestinationAsset = bytes32(0);
+        validNearData = _generateValidNearData(
+            TEST_DEPOSIT_ADDRESS,
+            bridgeData,
+            block.chainid,
+            TEST_QUOTE_ID,
+            990 * 10 ** 6
+        );
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(diamond), bridgeData.minAmount);
+
+        vm.expectRevert(InvalidDestinationAsset.selector);
+
+        nearIntentsFacet.startBridgeTokensViaNEARIntents(
+            bridgeData,
+            validNearData
+        );
+        vm.stopPrank();
+    }
+
+    function testRevert_InvalidDestinationAssetOnSwapEntrypoint() public {
+        bridgeData.hasSourceSwaps = true;
+        setDefaultSwapDataSingleDAItoUSDC();
+
+        nearIntentsDestinationAsset = bytes32(0);
+        validNearData = _generateValidNearData(
+            TEST_DEPOSIT_ADDRESS,
+            bridgeData,
+            block.chainid,
+            TEST_QUOTE_ID,
+            990 * 10 ** 6
+        );
+
+        vm.startPrank(USER_SENDER);
+        dai.approve(address(diamond), swapData[0].fromAmount);
+
+        vm.expectRevert(InvalidDestinationAsset.selector);
+
+        nearIntentsFacet.swapAndStartBridgeTokensViaNEARIntents(
+            bridgeData,
+            swapData,
+            validNearData
+        );
+        vm.stopPrank();
+    }
+
+    function testRevert_InvalidSignatureOnTamperedDestinationAsset() public {
+        // solver swaps the destination asset for a worthless token it controls
+        validNearData.destinationAsset = bytes32(
+            uint256(uint160(address(0xBADA55)))
+        );
+
+        vm.startPrank(USER_SENDER);
+        usdc.approve(address(diamond), bridgeData.minAmount);
+
+        vm.expectRevert(InvalidSignature.selector);
+
+        nearIntentsFacet.startBridgeTokensViaNEARIntents(
+            bridgeData,
+            validNearData
+        );
+        vm.stopPrank();
+    }
+
+    function testRevert_InvalidSignatureOnTamperedDestinationAssetOnSwapEntrypoint()
+        public
+    {
+        bridgeData.hasSourceSwaps = true;
+        setDefaultSwapDataSingleDAItoUSDC();
+
+        validNearData = _generateValidNearData(
+            TEST_DEPOSIT_ADDRESS,
+            bridgeData,
+            block.chainid,
+            TEST_QUOTE_ID,
+            990 * 10 ** 6
+        );
+        validNearData.destinationAsset = bytes32(
+            uint256(uint160(address(0xBADA55)))
+        );
+
+        vm.startPrank(USER_SENDER);
+        dai.approve(address(diamond), swapData[0].fromAmount);
+
+        vm.expectRevert(InvalidSignature.selector);
+
+        nearIntentsFacet.swapAndStartBridgeTokensViaNEARIntents(
+            bridgeData,
+            swapData,
+            validNearData
+        );
+        vm.stopPrank();
     }
 }
