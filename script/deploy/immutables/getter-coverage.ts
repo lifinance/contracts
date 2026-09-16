@@ -279,7 +279,12 @@ export const verifyGetterSinceVersions = (
       }
 
       const declared = read.version
-      const order = compareContractVersions(since, declared)
+      // Ordered on the release the version is built on, not the whole string: a
+      // fork overlay declares 2.1.3-tron, which `compareContractVersions` cannot
+      // order at all. Passing the version itself would return null here and turn
+      // this guard off wherever a suffix is in use — silently, and only on the
+      // fork, which is the one place a mislabelled binding is hardest to spot.
+      const order = compareContractVersions(since, read.base)
       if (order !== null && order > 0)
         errors.push(
           `${where} sets getterSinceVersion '${since}', ahead of the '${declared}' ${contractName} declares. No deployed build can reach it, so every chain would read as too old and the binding would go unverified everywhere.`

@@ -1584,12 +1584,21 @@ function getCurrentContractVersion() {
     return 1
   fi
 
-  # Search for "@custom:version" in the file and store the first result in the variable
-  local VERSION=$(grep "@custom:version" "$FILEPATH" | cut -d ' ' -f 3)
+  # Read through the shared seam so a deploy names the contract the same version CI
+  # gates it on. Its own grep matched the tag anywhere on a line, so a mention inside
+  # code ("// @custom:version 9.9.9") could yield a field that is not a version at all.
+  local GIT_ROOT
+  GIT_ROOT="$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
+  local VERSION
+  VERSION=$(bash "$GIT_ROOT/script/utils/extract-contract-version.sh" "$FILEPATH" 2>/dev/null) && local STATUS=0 || local STATUS=$?
 
-  # Check if VERSION is empty
-  if [ -z "$VERSION" ]; then
+  if [ "$STATUS" -eq 2 ]; then
     error "'@custom:version' string not found in $FILEPATH"
+    return 1
+  fi
+
+  if [ "$STATUS" -ne 0 ]; then
+    error "'$VERSION' in $FILEPATH is not a version (expected MAJOR.MINOR.PATCH with an optional lowercase -suffix)"
     return 1
   fi
 

@@ -31,39 +31,50 @@ const CASES: {
   {
     name: 'a bare release version',
     source: '/// @custom:version 1.0.0\ncontract Foo {}\n',
-    expected: { kind: 'ok', version: '1.0.0' },
+    expected: { kind: 'ok', version: '1.0.0', base: '1.0.0' },
   },
   {
     name: 'a fork overlay version',
     source: '/// @custom:version 2.1.3-tron\ncontract LibAsset {}\n',
-    expected: { kind: 'ok', version: '2.1.3-tron' },
+    expected: { kind: 'ok', version: '2.1.3-tron', base: '2.1.3' },
   },
   {
     name: 'a multi-digit minor',
     source: '/// @custom:version 1.12.0\n',
-    expected: { kind: 'ok', version: '1.12.0' },
+    expected: { kind: 'ok', version: '1.12.0', base: '1.12.0' },
   },
   {
     name: 'a dotted prerelease suffix',
     source: '/// @custom:version 2.0.0-rc.1\n',
-    expected: { kind: 'ok', version: '2.0.0-rc.1' },
+    expected: { kind: 'ok', version: '2.0.0-rc.1', base: '2.0.0' },
+  },
+  {
+    // docs/TronFork.md: a redeploy of the same overlay takes -tron-r2, -tron-r3.
+    name: 'a fork overlay revision',
+    source: '/// @custom:version 2.1.3-tron-r2\n',
+    expected: { kind: 'ok', version: '2.1.3-tron-r2', base: '2.1.3' },
+  },
+  {
+    name: 'a tag whose value is only whitespace',
+    source: '/// @custom:version   \ncontract Foo {}\n',
+    expected: { kind: 'missing' },
   },
   {
     name: 'a tag below other natspec',
     source:
       '/// @title Foo\n/// @author LI.FI (https://li.fi)\n/// @custom:version 3.1.0\n',
-    expected: { kind: 'ok', version: '3.1.0' },
+    expected: { kind: 'ok', version: '3.1.0', base: '3.1.0' },
   },
   {
     name: 'the first of several tags (one file, two interfaces)',
     source:
       '/// @custom:version 1.0.0\n\ninterface A {}\n\n/// @custom:version 2.0.0\n',
-    expected: { kind: 'ok', version: '1.0.0' },
+    expected: { kind: 'ok', version: '1.0.0', base: '1.0.0' },
   },
   {
     name: 'a CRLF line ending',
     source: '/// @custom:version 1.0.1\r\ncontract Foo {}\r\n',
-    expected: { kind: 'ok', version: '1.0.1' },
+    expected: { kind: 'ok', version: '1.0.1', base: '1.0.1' },
   },
   {
     name: 'no tag at all',
@@ -135,11 +146,21 @@ describe('readContractVersion', () => {
 })
 
 /**
+ * The verdict as the seam can express it: an exit code plus the version itself.
+ * `base` is a convenience this module derives for callers that order versions,
+ * so it has no counterpart on the bash side.
+ */
+type SeamVerdict =
+  | { kind: 'ok'; version: string }
+  | { kind: 'missing' }
+  | { kind: 'malformed'; raw: string }
+
+/**
  * Runs the bash seam against a source string and maps its exit code back onto
  * the same shape, so the two implementations are compared as verdicts rather
  * than as text.
  */
-const runSeam = (source: string): ReturnType<typeof readContractVersion> => {
+const runSeam = (source: string): SeamVerdict => {
   const dir = mkdtempSync(join(tmpdir(), 'contract-version-'))
   try {
     const file = join(dir, 'Foo.sol')
@@ -165,10 +186,16 @@ const runSeam = (source: string): ReturnType<typeof readContractVersion> => {
   }
 }
 
+/** Drops `base`, so parity is asserted on what both sides actually decide. */
+const asSeamVerdict = (
+  read: ReturnType<typeof readContractVersion>
+): SeamVerdict =>
+  read.kind === 'ok' ? { kind: 'ok', version: read.version } : read
+
 describe(`${SEAM} agrees with readContractVersion`, () => {
   for (const { name, source, expected } of CASES)
     it(`reads ${name}`, () => {
-      expect(runSeam(source)).toEqual(expected)
+      expect(runSeam(source)).toEqual(asSeamVerdict(expected))
     })
 })
 

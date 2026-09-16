@@ -21,7 +21,9 @@
 
 set -euo pipefail
 
-VERSION_GRAMMAR='^[0-9]+\.[0-9]+\.[0-9]+(-[a-z0-9]+(\.[a-z0-9]+)*)?$'
+# MAJOR.MINOR.PATCH with an optional lowercase suffix whose segments are separated
+# by '.' or '-': a fork overlay is 2.1.3-tron, and its redeploys 2.1.3-tron-r2 etc.
+VERSION_GRAMMAR='^[0-9]+\.[0-9]+\.[0-9]+(-[a-z0-9]+([.-][a-z0-9]+)*)?$'
 
 FILE_PATH="${1:-}"
 
@@ -46,6 +48,12 @@ RAW=$(echo "$TAG_LINE" |
   sed -E 's|^///[[:space:]]+@custom:version[[:space:]]+||' |
   tr -d '\r' |
   sed -E 's/[[:space:]]+$//')
+
+# A tag whose value is only whitespace carries no version to judge, so it reads as
+# absent rather than as a malformed one — the same verdict the TypeScript reaches.
+if [[ -z "$RAW" ]]; then
+  exit 2
+fi
 
 if [[ ! "$RAW" =~ $VERSION_GRAMMAR ]]; then
   echo "$RAW"

@@ -243,6 +243,17 @@ describe('verifyGetterSinceVersions', () => {
     ).toHaveLength(1)
   })
 
+  it('orders a suffixed declared version by the release it is built on', () => {
+    // A fork overlay declares 2.0.0-tron, its redeploys 2.0.0-tron-r2. Neither can be
+    // ordered as a whole string, and reading that as "cannot order" would switch this
+    // guard off on the fork — silently, and only there.
+    const overlay = '/// @custom:version 2.0.0-tron-r2\ncontract SampleFacet {}'
+    expect(verify('3.0.0', 'SPOKEPOOL', overlay)[0]).toContain(
+      "ahead of the '2.0.0-tron-r2'"
+    )
+    expect(verify('2.0.0', 'SPOKEPOOL', overlay)).toEqual([])
+  })
+
   it('rejects an annotation the check could never order', () => {
     // Unparseable leaves the binding checked, so it is not dangerous — but it is inert, and an
     // annotation nobody notices is dead weight in a file that decides what goes unverified.

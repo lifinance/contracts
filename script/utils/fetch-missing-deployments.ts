@@ -57,16 +57,14 @@ async function updateDeploymentLogs(network: string) {
           '\n'
         )
         const read = readContractVersion(sourceCode)
-        let version = read.kind === 'ok' ? read.version : null
+        let version: string
 
-        if (read.kind === 'malformed')
+        if (read.kind === 'ok') version = read.version
+        else {
           console.log(
-            `${contractName}: '${read.raw}' is not a version. Assuming 1.0.0`
-          )
-
-        if (!version) {
-          console.log(
-            `Skipping ${contractName}: No version found. Assuming 1.0.0`
+            read.kind === 'malformed'
+              ? `${contractName}: '${read.raw}' is not a version. Assuming 1.0.0`
+              : `${contractName}: No version found. Assuming 1.0.0`
           )
           version = '1.0.0'
         }
