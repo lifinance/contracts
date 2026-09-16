@@ -4,16 +4,21 @@ import { describe, expect, it } from 'bun:test'
 import {
   createCheckLedger,
   recordCheck,
+  gateLabel,
   rollUpChecks,
   summariseLedger,
   type CheckStatus,
   type ICheckLedger,
   type ICheckResult,
 } from './check-ledger'
-import type { ICodehashSignGate } from './codehash-sign-gate'
+import {
+  CODEHASH_GATE_HEADING,
+  type ICodehashSignGate,
+} from './codehash-sign-gate'
 import {
   ALL_GATE_DEFINITIONS,
   authorityExpectationAnchors,
+  CODEHASH_CHECK,
   CODEHASH_CHECK_ID,
   CONFIRM_CHECK_DEFINITIONS,
   EVERY_ELEMENT_COMPARED,
@@ -31,6 +36,7 @@ import {
   executabilityCheckResult,
   proposalCheckResults,
   rpcQuorumCheckResult,
+  STATUS_MAPPING,
   storageAuthorityCheckResult,
   targetStateCheckResult,
   worstResultPerCheck,
@@ -48,6 +54,8 @@ import type {
 } from './executability-simulation'
 import {
   STATUSES_CLEARED_TO_PROCEED,
+  STATUSES_THAT_CONSULTED_NOTHING,
+  TARGET_STATE_GATE_HEADING,
   type ITargetStateFinding,
   type ITargetStateVerdict,
   type TargetStateStatus,
@@ -1597,6 +1605,47 @@ describe('codehashCheckResult', () => {
 
     expect(result.status).toBe('error')
     expect(result.anchor).toBe('A-UNRESOLVED')
+  })
+
+  // A removal cut carries a `diamondCut`, so `madeNoClaim` is false, and it
+  // installs no bytecode, so the gate compares nothing. Graded as a pass that
+  // read "0 installed address(es) match an attested build" — a green row for a
+  // gate that vouched for nothing, beside a detail block saying NO CLAIM.
+  it('stands down when a cut it did open installs no code', () => {
+    const result = codehashCheckResult(gate({ targets: [] }), NETWORK)
+
+    expect(result.status).toBe('not-applicable')
+    expect(result.actual).toBe(NOTHING_INSTALLED_TO_HASH)
+    expect(result.anchor).toBe('A-LOCAL')
+  })
+})
+
+describe("the target-state block's heading and scope", () => {
+  it('is the same label the manifest lists the gate under', () => {
+    expect(TARGET_STATE_GATE_HEADING).toBe(gateLabel(TARGET_STATE_CHECK))
+  })
+
+  // The block stands down on exactly the statuses the ledger stands the gate
+  // down on. Drift either way is a page that contradicts itself: a detail block
+  // over a row saying there was nothing to grade, or a graded row with no
+  // detail under it.
+  it('stands down on exactly the statuses the ledger grades as not-applicable', () => {
+    const notApplicable = Object.entries(STATUS_MAPPING)
+      .filter(([, mapping]) => mapping.status === 'not-applicable')
+      .map(([status]) => status)
+
+    expect(new Set(notApplicable)).toEqual(
+      new Set(STATUSES_THAT_CONSULTED_NOTHING)
+    )
+  })
+})
+
+describe("the codehash block's heading", () => {
+  // Two declarations of one string, because the registry imports the gate and
+  // the gate must not import the registry back. A block headed anything else
+  // names a gate the manifest above it does not list.
+  it('is the same label the manifest lists the gate under', () => {
+    expect(CODEHASH_GATE_HEADING).toBe(gateLabel(CODEHASH_CHECK))
   })
 })
 

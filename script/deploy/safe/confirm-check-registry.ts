@@ -267,7 +267,14 @@ export const NOTHING_INSTALLED_TO_COMPARE =
  * Keyed exhaustively so a status added to `TargetStateStatus` fails to compile
  * here rather than falling through to a default that would grade it green.
  */
-const STATUS_MAPPING: Readonly<Record<TargetStateStatus, IStatusMapping>> = {
+/**
+ * Exported so the detail block's stand-down set can be checked against this map
+ * rather than against a restatement of it: two copies of one rule agree with
+ * each other while both drift from the page.
+ */
+export const STATUS_MAPPING: Readonly<
+  Record<TargetStateStatus, IStatusMapping>
+> = {
   'matches-main': {
     status: 'needs-ack',
     anchor: 'A-MONGO',
@@ -581,6 +588,21 @@ export const codehashCheckResult = (
             .join('; '),
       anchor: gate.refusals.length > 0 ? 'A-UNRESOLVED' : 'A-AUDIT',
       ...(gate.summary ? { detail: gate.summary } : {}),
+    }
+
+  // A cut this gate did open and found no code in — a removal, whose every
+  // facet address is zero. `madeNoClaim` does not cover it: that is the payload
+  // with no cut at all. Left on the `pass` below it graded as "0 installed
+  // address(es) match an attested build", which is a green row satisfying a
+  // verified counter on the strength of nothing.
+  if (gate.targets.length === 0)
+    return {
+      checkId: CODEHASH_CHECK_ID,
+      network,
+      status: 'not-applicable',
+      expected: EVERY_TARGET_ATTESTED,
+      actual: NOTHING_INSTALLED_TO_HASH,
+      anchor: 'A-LOCAL',
     }
 
   return {

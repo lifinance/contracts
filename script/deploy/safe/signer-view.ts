@@ -113,6 +113,15 @@ const NOTHING_TO_GRADE_STATUSES: ReadonlySet<string> = new Set([
 ])
 
 /**
+ * What a stood-down gate says when it did not say why.
+ *
+ * Never blank: a row printing only its title reads as a gate that reported
+ * nothing, which is the one thing the manifest above exists to make visible.
+ */
+const NOTHING_TO_GRADE_UNSTATED =
+  'this gate reported nothing to grade and did not say what it looked for'
+
+/**
  * Which section a row prints under.
  *
  * Takes the whole entry rather than a status, because the section has to be
@@ -833,14 +842,24 @@ export const renderCheckGroups = (
       if (!first) out.push('')
       first = false
       const title = definition ? gateLabel(definition) : result.checkId
-      if (notApplicable) {
+      // A gate with nothing to grade has no pair to compare: its `expected` is
+      // the boilerplate no proposal ever fails, and its `actual` is already the
+      // sentence saying why it stood down. Printed as a pair the two read as a
+      // comparison the signer is being asked to make.
+      const standDownReason =
+        notApplicable ??
+        (bucket === 'n/a'
+          ? result.actual.trim() || NOTHING_TO_GRADE_UNSTATED
+          : undefined)
+      if (standDownReason) {
         out.push(
           ...wrapValue(
             `${style.glyph} `,
-            `${title} — ${notApplicable}`,
+            `${title} — ${standDownReason}`,
             '',
             '    '
-          ).map((line) => `${style.colour}${line}${RESET}`)
+          ).map((line) => `${style.colour}${line}${RESET}`),
+          ...(docUrl ? [`      ${BLUE}${docUrl}${RESET}`] : [])
         )
         out.push(...(notes ?? []).flatMap(wrapNote))
         continue

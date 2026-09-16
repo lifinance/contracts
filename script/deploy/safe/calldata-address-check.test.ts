@@ -136,6 +136,8 @@ const recordIndex = (
   entries,
 })
 
+const ZERO = '0x0000000000000000000000000000000000000000'
+
 const facetAdd = (
   address: string,
   path = 'call[0].cuts[0]'
@@ -147,7 +149,7 @@ const facetAdd = (
 
 /** `registerPeripheryContract(name, address(0))` — the deregistration call. */
 const unregister = (registeredName: string): IAddressReference => ({
-  address: '0x0000000000000000000000000000000000000000',
+  address: ZERO,
   role: AddressRoleEnum.PeripheryRegistration,
   path: 'call[0].registerPeripheryContract[0]',
   registeredName,
@@ -945,8 +947,8 @@ describe('renderCalldataAddresses', () => {
       )
     )
 
-    expect(lines).toHaveLength(1)
-    expect(lines[0]).toContain('1 of 1')
+    expect(lines).toHaveLength(2)
+    expect(lines[1]).toContain('1 of 1')
   })
 
   it('says nothing needed resolving rather than ticking zero of zero', () => {
@@ -957,9 +959,9 @@ describe('renderCalldataAddresses', () => {
       )
     )
 
-    expect(lines).toHaveLength(1)
-    expect(lines[0]).toMatch(
-      /^\S+ Calldata address check skipped: no call in this proposal references an address\.$/
+    expect(lines).toHaveLength(2)
+    expect(lines[1]).toMatch(
+      /^ {4}\S+ Calldata address check skipped: no call in this proposal references an address\.$/
     )
   })
 
@@ -993,6 +995,66 @@ describe('renderCalldataAddresses', () => {
       '0xd9B2Da9C45b118e4e93A004FB1452bCDB6cC0E88'
     )
     expect(lines.join('\n')).not.toContain('REFUSED')
+  })
+
+  // What a facet removal is: a zero facet address and a zero `_init`, both
+  // legal, neither looked up. Counted in the denominator they produced
+  // "✓ 0 of 2 calldata addresses resolved to the deployment record" — a green
+  // tick on a verification that never happened, under a proposal that installs
+  // nothing to verify.
+  it('does not tally an address it never looked up', () => {
+    const lines = renderCalldataAddresses(
+      evaluateCalldataAddresses(
+        {
+          network: 'mainnet',
+          references: [
+            {
+              address: ZERO,
+              role: AddressRoleEnum.FacetRemove,
+              path: 'call[0].cuts[0]',
+            },
+            {
+              address: ZERO,
+              role: AddressRoleEnum.CutInit,
+              path: 'call[0]._init',
+            },
+          ],
+        },
+        recordIndex([])
+      )
+    )
+
+    expect(lines.join('\n')).not.toContain('0 of 2')
+    expect(lines.join('\n')).not.toContain('resolved to the deployment record')
+    expect(lines.join('\n')).toContain('no address in this proposal')
+  })
+
+  // The paired positive: the exclusion must not swallow a real lookup that sits
+  // beside a legal zero. A cut that removes one facet and installs another has
+  // one address to resolve, and the line has to say one.
+  it('still tallies the addresses it did look up beside a legal zero', () => {
+    const lines = renderCalldataAddresses(
+      evaluateCalldataAddresses(
+        {
+          network: 'mainnet',
+          references: [
+            {
+              address: ZERO,
+              role: AddressRoleEnum.FacetRemove,
+              path: 'call[0].cuts[0]',
+            },
+            facetAdd(MAINNET_ONLY_FACET, 'call[0].cuts[1]'),
+          ],
+          expectations: expectations([
+            MAINNET_ONLY_FACET,
+            { contractName: 'CBridgeFacet', version: '1.0.0' },
+          ]),
+        },
+        recordIndex([MAINNET_ONLY_FACET])
+      )
+    )
+
+    expect(lines.join('\n')).toContain('1 of 1')
   })
 
   it('distinguishes a check that could not run from one that passed', () => {
