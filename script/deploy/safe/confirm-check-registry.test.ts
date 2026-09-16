@@ -67,6 +67,15 @@ import type { ISignedAuthorityEntry } from './signed-set-record'
 
 const FACET = '0x1111111111111111111111111111111111111111'
 
+/** `pinned-target-state.ts`'s own `blank`, which seven statuses are pushed from. */
+const BLANK: Partial<ITargetStateFinding> = {
+  facetAddress: null,
+  contractName: null,
+  proposedVersion: null,
+  mainVersion: null,
+  crossFleetCount: null,
+}
+
 /**
  * The field shape `evaluateTargetStateIntent` actually emits for each status.
  *
@@ -79,16 +88,23 @@ const FACET = '0x1111111111111111111111111111111111111111'
  * that branch's `if (!mainVersion)` guarantees it cannot have.
  */
 const EMITTED_SHAPE: Record<TargetStateStatus, Partial<ITargetStateFinding>> = {
-  // Pushed from `blank`: no address either, since there is no cut element.
-  'no-diamond-cut': { facetAddress: null, contractName: null },
-  'calldata-not-readable': { facetAddress: null, contractName: null },
+  // Pushed from `blank`: no address either, since there is no cut element, and
+  // neither version, since nothing was looked up.
+  'no-diamond-cut': BLANK,
+  'calldata-not-readable': BLANK,
   // Pushed from `blank` with the cut's address, before anything is resolved.
-  removal: { contractName: null },
-  'unrecognised-cut-action': { contractName: null },
-  'pinned-state-unavailable': { contractName: null },
-  'deployment-record-ambiguous': { contractName: null },
-  // Resolved to an address but never to a name, so no version either.
-  'contract-unidentified': { contractName: null, proposedVersion: null },
+  removal: { ...BLANK, facetAddress: FACET },
+  'unrecognised-cut-action': { ...BLANK, facetAddress: FACET },
+  'pinned-state-unavailable': { ...BLANK, facetAddress: FACET },
+  'deployment-record-ambiguous': { ...BLANK, facetAddress: FACET },
+  // Resolved to an address but never to a name, so `main`'s version is never
+  // read — there is no name to read it by. The record's own version does reach
+  // this finding, when the record carries a version under a blank name.
+  'contract-unidentified': {
+    ...BLANK,
+    facetAddress: FACET,
+    proposedVersion: '9.9.9',
+  },
   // `origin/main` declared nothing — the only status carrying a fleet count.
   'not-previously-targeted': { mainVersion: null, crossFleetCount: 3 },
   // The record carried no version to compare against main's.
@@ -274,6 +290,15 @@ describe('targetStateCheckResult', () => {
   })
 
   /**
+   * The statuses that reach the ledger with both versions resolved, and so
+   * print the pair instead of a sentence.
+   *
+   * Their row is asserted separately below, against versions that differ, so
+   * the two sides cannot be swapped without a failure.
+   */
+  const VERSION_PAIR = Symbol('the two versions, not a sentence')
+
+  /**
    * The exact sentence each status must put in `expected`.
    *
    * Asserted against the module's own constants rather than restated copies,
@@ -282,12 +307,18 @@ describe('targetStateCheckResult', () => {
    * not tell the two non-comparing sentences apart, so swapping them stayed
    * green.
    */
-  const EXPECTED_SENTENCE: Record<TargetStateStatus, string> = {
-    'matches-main': ORDERING_HOLDS,
-    'ahead-of-main': ORDERING_HOLDS,
-    'not-previously-targeted': ORDERING_HOLDS,
-    downgrade: ORDERING_HOLDS,
+  const EXPECTED_SENTENCE: Record<
+    TargetStateStatus,
+    string | typeof VERSION_PAIR
+  > = {
+    'matches-main': VERSION_PAIR,
+    'ahead-of-main': VERSION_PAIR,
+    downgrade: VERSION_PAIR,
+    // Carries both versions, but they were never ordered, so the row keeps the
+    // status name rather than a pair that would read as a comparison.
     'version-not-comparable': ORDERING_HOLDS,
+    // `origin/main` declared nothing, so there is no second version to print.
+    'not-previously-targeted': ORDERING_HOLDS,
     removal: NOTHING_TO_COMPARE,
     'no-diamond-cut': NOTHING_TO_COMPARE,
     'proposed-version-unresolved': EVERY_ELEMENT_COMPARED,
@@ -300,16 +331,116 @@ describe('targetStateCheckResult', () => {
 
   it('states a requirement for every status, not a diagnosis', () => {
     for (const status of ALL_STATUSES) {
+      const sentence = EXPECTED_SENTENCE[status]
+      if (sentence === VERSION_PAIR) continue
+
       const { expected } = targetStateCheckResult(
         verdictOf([finding(status)]),
         'mainnet'
       )
 
-      expect({ status, expected }).toEqual({
-        status,
-        expected: EXPECTED_SENTENCE[status],
-      })
+      expect({ status, expected }).toEqual({ status, expected: sentence })
     }
+  })
+
+  // The gate's whole question is which of two versions is newer, so the row a
+  // signer reads has to carry both of them — a requirement sentence under
+  // "expected" and a status name under "observed" leave them to hunt for the
+  // numbers in the detail line.
+  it('prints the two versions for a row that compared one element', () => {
+    for (const status of ALL_STATUSES) {
+      if (EXPECTED_SENTENCE[status] !== VERSION_PAIR) continue
+
+      const result = targetStateCheckResult(
+        verdictOf([
+          finding(status, { mainVersion: '1.0.1', proposedVersion: '1.0.0' }),
+        ]),
+        'mainnet'
+      )
+
+      // Asserted as a pair, and keyed by the finding's status so a failure names
+      // it: asserting only `expected` stays green when both sides print what
+      // `origin/main` declares.
+      expect({
+        status,
+        expected: result.expected,
+        actual: result.actual,
+      }).toEqual({ status, expected: 'v1.0.1', actual: 'v1.0.0' })
+
+      // The pair displaced the element's name from `actual`, so the row's own
+      // detail has to carry it: the run-wide ledger and the proposal card print
+      // a row without its findings beside it.
+      expect(result.detail).toContain('AcrossFacet')
+    }
+  })
+
+  // One row covers the whole network, so a version printed on it is a claim
+  // about every element the cut installs. Two facets cannot share one.
+  it('falls back to the requirement when a second element was graded', () => {
+    const result = targetStateCheckResult(
+      verdictOf([
+        finding('downgrade', {
+          mainVersion: '1.0.1',
+          proposedVersion: '1.0.0',
+        }),
+        finding('contract-unidentified'),
+      ]),
+      'mainnet'
+    )
+
+    expect(result.expected).toBe(ORDERING_HOLDS)
+    expect(result.actual).toContain('contract-unidentified')
+    expect(result.actual).toContain('downgrade')
+  })
+
+  // The allow-list, not the two fields: a finding pushed from `blank` carries no
+  // version today, so only a row that never compared but arrives carrying one
+  // can tell whether the pair is gated on the comparison or on the fields.
+  it('prints no pair for a status that never reached the comparison', () => {
+    const { expected, actual } = targetStateCheckResult(
+      verdictOf([
+        finding('deployment-record-ambiguous', {
+          mainVersion: '1.0.1',
+          proposedVersion: '1.0.0',
+        }),
+      ]),
+      'mainnet'
+    )
+
+    expect(expected).toBe(EVERY_ELEMENT_COMPARED)
+    expect(actual).toContain('deployment-record-ambiguous')
+  })
+
+  // Both versions resolved, so the field test alone would print them — but they
+  // were never ordered, and two versions side by side read as a comparison.
+  it('keeps the status name when the two versions were not ordered', () => {
+    const { expected, actual } = targetStateCheckResult(
+      verdictOf([
+        finding('version-not-comparable', {
+          mainVersion: '1.0.0',
+          proposedVersion: '1.0',
+        }),
+      ]),
+      'mainnet'
+    )
+
+    expect(expected).toBe(ORDERING_HOLDS)
+    expect(actual).toContain('version-not-comparable')
+  })
+
+  // The version the record carries is the one side the proposer writes. A row
+  // that has only that side has compared nothing, and printing it under
+  // "expected" would dress the proposer's own number as the anchor's.
+  it('states the requirement when only one side resolved', () => {
+    const { expected, actual } = targetStateCheckResult(
+      verdictOf([
+        finding('not-previously-targeted', { proposedVersion: '1.0.0' }),
+      ]),
+      'mainnet'
+    )
+
+    expect(expected).toBe(ORDERING_HOLDS)
+    expect(actual).toContain('not-previously-targeted')
   })
 
   // The canonical rollout cut: add a new facet and replace a live one in the
@@ -332,13 +463,21 @@ describe('targetStateCheckResult', () => {
 
   it('moves expected with the finding that decided the row', () => {
     // `removal` alone claims nothing to compare; the downgrade outranks it and
-    // the row must then stand on the ordering that actually failed.
-    const { expected } = targetStateCheckResult(
-      verdictOf([finding('removal'), finding('downgrade')]),
+    // the row must then stand on the ordering that actually failed. A removal
+    // graded nothing, so it does not cost the row its version pair either.
+    const { expected, actual } = targetStateCheckResult(
+      verdictOf([
+        finding('removal'),
+        finding('downgrade', {
+          mainVersion: '1.0.1',
+          proposedVersion: '1.0.0',
+        }),
+      ]),
       'mainnet'
     )
 
-    expect(expected).toBe(ORDERING_HOLDS)
+    expect(expected).toBe('v1.0.1')
+    expect(actual).toBe('v1.0.0')
   })
 
   it('lets the worst finding decide the row, and reports its anchor', () => {

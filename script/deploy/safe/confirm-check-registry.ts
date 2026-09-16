@@ -236,6 +236,11 @@ interface IStatusMapping {
  * carries two elements. It also makes the reduction below safe: findings of
  * equal rank keep the first in calldata order, which only ever costs
  * specificity when both sentences are requirements.
+ *
+ * A row that compared exactly one element prints that element's declared
+ * version instead — see `comparedVersions`. A version is the same requirement
+ * stated exactly, and only the single-element case can state it without being
+ * false about a second facet.
  */
 export const ORDERING_HOLDS =
   'no installed version behind what origin/main declares'
@@ -396,6 +401,64 @@ const describe = (finding: ITargetStateFinding): string => {
 }
 
 /**
+ * The statuses whose two versions were successfully ordered.
+ *
+ * `version-not-comparable` is deliberately absent, though it too carries both:
+ * a pair printed alone reads as a comparison, and that status exists precisely
+ * because the two could not be compared. Its row keeps the status name, which is
+ * the only cue the signer gets — the bucket it prints under blames their
+ * environment, and a malformed version string is the proposer's.
+ */
+const COMPARED_BOTH_VERSIONS: ReadonlySet<TargetStateStatus> = new Set([
+  'matches-main',
+  'ahead-of-main',
+  'downgrade',
+])
+
+/**
+ * The version pair a row prints under "expected" and "observed", when it has
+ * one to print.
+ *
+ * The two sides come from different places and only one of them is the
+ * proposer's: the expectation is what `origin/main` declares, the observation is
+ * what the deployment record the proposer writes says the proposed address is.
+ * That is the comparison this gate exists to make, so the signer reads the two
+ * versions rather than a sentence about them — and `hashPair` in the signer view
+ * then marks the character that differs.
+ *
+ * Only for a row that graded exactly one element. `expected` has to hold for the
+ * whole row, and a row covering two facets cannot name one facet's version
+ * without being false about the other.
+ *
+ * Which statuses qualify is an allow-list, not a test that both fields are
+ * populated: a `contract-unidentified` finding carries the record's version
+ * under a blank name, and reading a version off one would print a number no
+ * comparison produced as though it had been compared.
+ *
+ * The name comes back with the pair because the pair displaces it. `actual` used
+ * to carry it, and the surfaces that print a row without its findings beside it
+ * — the run-wide ledger, the proposal card, a superseded-attempt note — have
+ * nowhere else to read which element the two versions belong to.
+ *
+ * @param graded - The findings this row was graded on.
+ * @returns The pair and the element it belongs to, or nothing when the row must state its requirement instead.
+ */
+const comparedVersions = (
+  graded: readonly ITargetStateFinding[]
+): { expected: string; actual: string; contractName: string } | null => {
+  if (graded.length !== 1) return null
+  const [only] = graded
+  if (!only || !COMPARED_BOTH_VERSIONS.has(only.status)) return null
+  if (!only.mainVersion || !only.proposedVersion || !only.contractName)
+    return null
+  return {
+    expected: `v${only.mainVersion}`,
+    actual: `v${only.proposedVersion}`,
+    contractName: only.contractName,
+  }
+}
+
+/**
  * Reduces a network's target-state verdict to the single row the ledger holds.
  *
  * One row per network is the ledger's shape, so a proposal grading several
@@ -403,6 +466,9 @@ const describe = (finding: ITargetStateFinding): string => {
  * printed by `formatTargetStateLines`. A verdict with no findings at all is an
  * `error` on `A-UNRESOLVED` rather than a pass — nothing was graded, and the
  * denominator must not silently shrink.
+ *
+ * Where the row graded a single element, `comparedVersions` replaces the
+ * requirement sentence and the status list with the two versions themselves.
  *
  * @param verdict - The network's graded verdict.
  * @param network - The network the verdict is about.
@@ -460,22 +526,28 @@ export const targetStateCheckResult = (
     (finding) => !GRADED_NOTHING.has(STATUS_MAPPING[finding.status].status)
   )
 
+  const versions = comparedVersions(failing)
+  const listed =
+    status === 'not-applicable'
+      ? // Every finding said "nothing to compare", so the row is the reason
+        // rather than a list of element names: `actual` is what a signer reads
+        // to learn why a gate stood down, and `FacetX: removal` does not say it.
+        NOTHING_INSTALLED_TO_COMPARE
+      : (failing.length ? failing : verdict.findings).map(describe).join('; ')
+
   return {
     checkId: TARGET_STATE_CHECK_ID,
     network,
     status,
-    expected,
-    // Every finding said "nothing to compare", so the row is the reason rather
-    // than a list of element names: `actual` is what a signer reads to learn
-    // why a gate stood down, and `FacetX: removal` does not say it.
-    actual:
-      status === 'not-applicable'
-        ? NOTHING_INSTALLED_TO_COMPARE
-        : (failing.length ? failing : verdict.findings)
-            .map(describe)
-            .join('; '),
+    expected: versions?.expected ?? expected,
+    actual: versions?.actual ?? listed,
     anchor,
-    ...(failing.length && detail ? { detail } : {}),
+    // The name is prefixed here rather than written into the finding's own
+    // detail, which `formatTargetStateLines` already prints under the element's
+    // name — there it would read twice.
+    ...(failing.length && detail
+      ? { detail: versions ? `${versions.contractName}: ${detail}` : detail }
+      : {}),
   }
 }
 
