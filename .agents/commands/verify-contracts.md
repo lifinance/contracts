@@ -61,16 +61,28 @@ The on-chain loop relies on three sources already being correct for `NETWORK`. V
 set -a; source .env; set +a   # `set -a` exports, so Step 5's `bunx tsx` children see MONGODB_URI
 export NETWORK=<network>
 export ENVIRONMENT=production   # "staging" for a staging deploy — Steps 5-6 reuse this
+```
 
+Then run the exclusion gate as its own command. **A non-zero exit here means STOP: skip Steps
+4, 5 and 6 entirely and report the network as excluded.** Do not continue to the verify loop.
+
+```bash
 bash <<'BASH'
-source script/helperFunctions.sh
-
 case ",${DO_NOT_VERIFY_IN_THESE_NETWORKS:-}," in
 *,"$NETWORK",*)
-  echo "${NETWORK} is in DO_NOT_VERIFY_IN_THESE_NETWORKS — nothing to verify, skip Steps 4-6"
-  exit 0
+  echo "STOP: ${NETWORK} is in DO_NOT_VERIFY_IN_THESE_NETWORKS — nothing to verify. Skip Steps 4-6."
+  exit 1
   ;;
 esac
+echo "${NETWORK} is not excluded — proceed with the verify loop"
+BASH
+```
+
+Only once that gate exits 0, run the loop:
+
+```bash
+bash <<'BASH'
+source script/helperFunctions.sh
 
 DEPLOYMENTS="deployments/${NETWORK}.json"
 FAILED=0
@@ -96,11 +108,15 @@ Run from the repo root — the helper sources `.env` and its siblings by relativ
 iteration's, so the failures are counted and re-raised at the end — otherwise one contract
 failing early and a later one succeeding would exit 0 on an incomplete verification. The
 count survives the loop because the input is a process substitution, not a pipe.
-Why the `DO_NOT_VERIFY_IN_THESE_NETWORKS` check runs before the loop: `verifyContract`
-returns 1 for an excluded network too (`script/helperFunctions.sh`), which the counter cannot
-tell from a real failure — without the short-circuit, `gnosis` (shipped in `.env.example`)
-reports every contract as failed. Steps 5-6 are skipped along with it: nothing was verified
-on-chain, so writing `verified:true` to Mongo would be a false claim.
+Why the `DO_NOT_VERIFY_IN_THESE_NETWORKS` check is a separate command and not a `case` inside
+the verify heredoc: `verifyContract` returns 1 for an excluded network too
+(`script/helperFunctions.sh`), which the counter cannot tell from a real failure — without the
+short-circuit, `gnosis` (shipped in `.env.example`) reports every contract as failed. But an
+`exit` inside the heredoc only ends that child shell, so a gate spelled `exit 0` there hands
+back a *successful* block and Step 5 goes on to write `verified:true` for a network where no
+`verifyContract` call ever ran — the exact silent-false-result failure this command exists to
+prevent. Standalone and exiting non-zero, the gate cannot be walked past: skipping Steps 4-6
+is the whole point, since nothing was verified on-chain and the Mongo flag would be a lie.
 
 Why the direct loop and not the menu: `script/scriptMaster.sh` option 8 (`verifyAllUnverifiedContractsInLogFile`) does both the on-chain verify and the Mongo write-back — but only for entries in the **local** `deployments/_deployments_log_file.json` cache, which for a freshly-deployed network is usually empty or stale. The direct loop over the deployment JSON is the reliable path; Step 5 covers the write-back it skips.
 

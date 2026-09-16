@@ -1,10 +1,14 @@
 /**
  * Tells a module whether it is the file the user actually executed.
  *
- * The obvious spelling, `import.meta.main`, is Bun-only: under `tsx` it is `undefined` on
- * Node below 22.23, which `engines` still permits. A CLI guarded on it then exits 0 having
- * done nothing, which to an operator is indistinguishable from a real empty result — an
- * empty timelock queue, a completed cancellation, a finished ownership handover.
+ * The obvious spelling, `import.meta.main`, is unusable here. Node does implement it (22.18+),
+ * but `tsx` drops it for `.ts` entry modules: measured `undefined` under the pinned tsx
+ * 4.23.13 on Node 18.20.8, 22.23.2 and 26.8.1 alike. The loader decides this, not the Node
+ * version — the same tsx reports `true` for a `.mjs` entry, as does a bare `node file.ts` on
+ * Node 24+. Since every CLI here is a `.ts` file run through `bunx tsx`, a guard spelled
+ * `import.meta.main` never fires on any Node: it exits 0 having done nothing, which to an
+ * operator is indistinguishable from a real empty result — an empty timelock queue, a
+ * completed cancellation, a finished ownership handover.
  *
  * The plain `process.argv[1] === fileURLToPath(import.meta.url)` compare that
  * [CONV:NODE-RUNTIME-APIS] prescribes trades that for a quieter version of the same bug:
