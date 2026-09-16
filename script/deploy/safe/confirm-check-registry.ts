@@ -423,24 +423,31 @@ const COMPARED_BOTH_VERSIONS: ReadonlySet<TargetStateStatus> = new Set([
  * whole row, and a row covering two facets cannot name one facet's version
  * without being false about the other.
  *
- * Which statuses qualify is an allow-list of the four that reach the ledger from
- * the comparison itself, not a test that both fields are populated: every other
- * status is pushed from a blank finding, and reading a version off one would
- * print a number no comparison produced as though it had been compared.
+ * Which statuses qualify is an allow-list, not a test that both fields are
+ * populated: a `contract-unidentified` finding carries the record's version
+ * under a blank name, and reading a version off one would print a number no
+ * comparison produced as though it had been compared.
+ *
+ * The name comes back with the pair because the pair displaces it. `actual` used
+ * to carry it, and the surfaces that print a row without its findings beside it
+ * — the run-wide ledger, the proposal card, a superseded-attempt note — have
+ * nowhere else to read which element the two versions belong to.
  *
  * @param graded - The findings this row was graded on.
- * @returns The pair to print, or nothing when the row must state its requirement instead.
+ * @returns The pair and the element it belongs to, or nothing when the row must state its requirement instead.
  */
 const comparedVersions = (
   graded: readonly ITargetStateFinding[]
-): { expected: string; actual: string } | null => {
+): { expected: string; actual: string; contractName: string } | null => {
   if (graded.length !== 1) return null
   const [only] = graded
   if (!only || !COMPARED_BOTH_VERSIONS.has(only.status)) return null
-  if (!only.mainVersion || !only.proposedVersion) return null
+  if (!only.mainVersion || !only.proposedVersion || !only.contractName)
+    return null
   return {
     expected: `v${only.mainVersion}`,
     actual: `v${only.proposedVersion}`,
+    contractName: only.contractName,
   }
 }
 
@@ -528,7 +535,12 @@ export const targetStateCheckResult = (
     expected: versions?.expected ?? expected,
     actual: versions?.actual ?? listed,
     anchor,
-    ...(failing.length && detail ? { detail } : {}),
+    // The name is prefixed here rather than written into the finding's own
+    // detail, which `formatTargetStateLines` already prints under the element's
+    // name — there it would read twice.
+    ...(failing.length && detail
+      ? { detail: versions ? `${versions.contractName}: ${detail}` : detail }
+      : {}),
   }
 }
 

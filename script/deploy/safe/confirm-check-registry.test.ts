@@ -358,6 +358,11 @@ describe('targetStateCheckResult', () => {
         expected: result.expected,
         actual: result.actual,
       }).toEqual({ status, expected: 'v1.0.1', actual: 'v1.0.0' })
+
+      // The pair displaced the element's name from `actual`, so the row's own
+      // detail has to carry it: the run-wide ledger and the proposal card print
+      // a row without its findings beside it.
+      expect(result.detail).toContain('AcrossFacet')
     }
   })
 
