@@ -28,6 +28,7 @@ import {
   blockedByEvaluationError,
   compareSemanticVersions,
   countNetworksDeclaring,
+  createPinnedBlobReader,
   createPinnedTargetStateReader,
   createTargetStateDeps,
   describeTargetStateUnavailable,
@@ -855,5 +856,101 @@ describe('createTargetStateDeps', () => {
       contractName: 'AcrossFacetV3',
       version: '1.4.0',
     })
+  })
+})
+
+describe('createPinnedBlobReader', () => {
+  const okGit = (
+    blobs: Record<string, string>
+  ): { git: IPinnedStateGit; counts: { fetch: number; show: number } } => {
+    const counts = { fetch: 0, show: 0 }
+    return {
+      counts,
+      git: {
+        remoteUrl: () => 'git@github.com:lifinance/contracts.git',
+        fetch: () => {
+          counts.fetch += 1
+        },
+        show: (revSpec) => {
+          counts.show += 1
+          const blob = blobs[revSpec.split(':')[1] ?? '']
+          if (blob === undefined) throw new Error('no such path')
+          return blob
+        },
+      },
+    }
+  }
+
+  it('fetches once however many paths it is asked for', () => {
+    const { git, counts } = okGit({
+      'a.json': '{"a":1}',
+      'b.json': '{"b":2}',
+    })
+    const read = createPinnedBlobReader({ repoRoot: '/repo', git })
+
+    expect(read('a.json')).toEqual({ ok: true, value: { a: 1 } })
+    expect(read('b.json')).toEqual({ ok: true, value: { b: 2 } })
+    expect(counts.fetch).toBe(1)
+    expect(counts.show).toBe(2)
+  })
+
+  it('reads each path once and serves the rest from cache', () => {
+    const { git, counts } = okGit({ 'a.json': '{"a":1}' })
+    const read = createPinnedBlobReader({ repoRoot: '/repo', git })
+
+    read('a.json')
+    read('a.json')
+    expect(counts.show).toBe(1)
+  })
+
+  it('keeps one unreadable path from condemning another', () => {
+    const { git } = okGit({ 'b.json': '{"b":2}' })
+    const read = createPinnedBlobReader({ repoRoot: '/repo', git })
+
+    expect(read('missing.json')).toEqual({
+      ok: false,
+      reason: 'blob-unreadable',
+    })
+    expect(read('b.json')).toEqual({ ok: true, value: { b: 2 } })
+  })
+
+  it('retries a fetch that failed rather than pinning every later read to it', () => {
+    let failing = true
+    const git: IPinnedStateGit = {
+      remoteUrl: () => 'git@github.com:lifinance/contracts.git',
+      fetch: () => {
+        if (failing) throw new Error('transient')
+      },
+      show: () => '{"a":1}',
+    }
+    const read = createPinnedBlobReader({ repoRoot: '/repo', git })
+
+    expect(read('a.json')).toEqual({ ok: false, reason: 'fetch-failed' })
+    failing = false
+    expect(read('a.json')).toEqual({ ok: true, value: { a: 1 } })
+  })
+
+  it('never fetches from a remote that is not the contracts repo', () => {
+    let fetched = 0
+    const git: IPinnedStateGit = {
+      remoteUrl: () => 'git@github.com:attacker/contracts.git',
+      fetch: () => {
+        fetched += 1
+      },
+      show: () => '{"a":1}',
+    }
+    const read = createPinnedBlobReader({ repoRoot: '/repo', git })
+
+    expect(read('a.json')).toEqual({ ok: false, reason: 'remote-unexpected' })
+    expect(read('b.json')).toEqual({ ok: false, reason: 'remote-unexpected' })
+    expect(fetched).toBe(0)
+  })
+
+  it('refuses a blob that is not a JSON object', () => {
+    const { git } = okGit({ 'a.json': '[1,2,3]', 'b.json': 'not json' })
+    const read = createPinnedBlobReader({ repoRoot: '/repo', git })
+
+    expect(read('a.json')).toEqual({ ok: false, reason: 'invalid-shape' })
+    expect(read('b.json')).toEqual({ ok: false, reason: 'invalid-shape' })
   })
 })

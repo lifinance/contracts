@@ -71,17 +71,21 @@ export type PinnedTargetState = Record<
   Record<string, Record<string, Record<string, unknown>>>
 >
 
+export type PinnedReadFailure =
+  | 'fetch-failed'
+  | 'remote-unreadable'
+  | 'remote-unexpected'
+  | 'blob-unreadable'
+  | 'invalid-shape'
+
 export type PinnedTargetStateRead =
   | { ok: true; state: PinnedTargetState }
-  | {
-      ok: false
-      reason:
-        | 'fetch-failed'
-        | 'remote-unreadable'
-        | 'remote-unexpected'
-        | 'blob-unreadable'
-        | 'invalid-shape'
-    }
+  | { ok: false; reason: PinnedReadFailure }
+
+/** Any JSON object read at the pinned ref. */
+export type PinnedJsonRead =
+  | { ok: true; value: Record<string, unknown> }
+  | { ok: false; reason: PinnedReadFailure }
 
 /** `LibDiamond.FacetCutAction`. */
 const CUT_ACTION_ADD = 0
@@ -496,6 +500,94 @@ const defaultGit = (repoRoot: string): IPinnedStateGit => ({
 })
 
 /**
+ * Builds a reader for JSON blobs as `origin/main` has them.
+ *
+ * One reader verifies the remote and fetches once, then reads and caches each
+ * path it is asked for. Shared rather than one reader per file so a fleet run
+ * touching one blob per network still costs a single fetch — and, more to the
+ * point, so the remote check that decides whether anything here may grade a
+ * pass exists in exactly one place.
+ *
+ * @param options - repository root and git seam; both default to this checkout
+ * @returns A reader taking a repo-relative path, returning its parsed object or
+ * why it could not be read.
+ */
+export const createPinnedBlobReader = (options?: {
+  repoRoot?: string
+  git?: IPinnedStateGit
+}): ((repoPath: string) => PinnedJsonRead) => {
+  const repoRoot = options?.repoRoot ?? REPO_ROOT
+  const git = options?.git ?? defaultGit(repoRoot)
+  const blobs = new Map<string, PinnedJsonRead>()
+  let fetched: PinnedReadFailure | 'ok' | undefined
+
+  const ensureFetched = (): PinnedReadFailure | 'ok' => {
+    if (fetched === 'ok' || fetched === 'remote-unexpected') return fetched
+
+    let remote: string
+    try {
+      remote = git.remoteUrl()
+    } catch {
+      // Not memoized, for the same reason a failed fetch is not: an exec that
+      // could not run says nothing about what the remote is.
+      return 'remote-unreadable'
+    }
+    if (!EXPECTED_REMOTE_URL.test(remote.trim())) {
+      fetched = 'remote-unexpected'
+      return fetched
+    }
+
+    try {
+      git.fetch()
+    } catch {
+      // A transient fetch must not pin the rest of the process to a refusal —
+      // the sibling cache reader in facet-version-utils.ts makes the same call.
+      return 'fetch-failed'
+    }
+
+    fetched = 'ok'
+    return fetched
+  }
+
+  return (repoPath: string): PinnedJsonRead => {
+    const cached = blobs.get(repoPath)
+    if (cached) return cached
+
+    const ready = ensureFetched()
+    if (ready !== 'ok') {
+      if (ready === 'remote-unexpected')
+        blobs.set(repoPath, { ok: false, reason: ready })
+      return { ok: false, reason: ready }
+    }
+
+    let raw: string
+    try {
+      raw = git.show(`${PINNED_READ_REF}:${repoPath}`)
+    } catch {
+      const failed = { ok: false, reason: 'blob-unreadable' } as const
+      blobs.set(repoPath, failed)
+      return failed
+    }
+
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(raw)
+    } catch {
+      const failed = { ok: false, reason: 'invalid-shape' } as const
+      blobs.set(repoPath, failed)
+      return failed
+    }
+
+    const read: PinnedJsonRead =
+      typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)
+        ? { ok: false, reason: 'invalid-shape' }
+        : { ok: true, value: parsed as Record<string, unknown> }
+    blobs.set(repoPath, read)
+    return read
+  }
+}
+
+/**
  * Builds the pinned read: one `git fetch` per process, then the target state as
  * `origin/main` has it.
  *
@@ -508,55 +600,12 @@ export const createPinnedTargetStateReader = (options?: {
   repoRoot?: string
   git?: IPinnedStateGit
 }): (() => PinnedTargetStateRead) => {
-  const repoRoot = options?.repoRoot ?? REPO_ROOT
-  const git = options?.git ?? defaultGit(repoRoot)
-  let memo: PinnedTargetStateRead | undefined
-
+  const readBlob = createPinnedBlobReader(options)
   return () => {
-    if (memo) return memo
-
-    let remote: string
-    try {
-      remote = git.remoteUrl()
-    } catch {
-      // Not memoized, for the same reason a failed fetch is not: an exec that
-      // could not run says nothing about what the remote is.
-      return { ok: false, reason: 'remote-unreadable' }
-    }
-    if (!EXPECTED_REMOTE_URL.test(remote.trim())) {
-      memo = { ok: false, reason: 'remote-unexpected' }
-      return memo
-    }
-
-    try {
-      git.fetch()
-    } catch {
-      // A transient fetch must not pin the rest of the process to a refusal —
-      // the sibling cache reader in facet-version-utils.ts makes the same call.
-      return { ok: false, reason: 'fetch-failed' }
-    }
-
-    let raw: string
-    try {
-      raw = git.show(`${PINNED_READ_REF}:${TARGET_STATE_REPO_PATH}`)
-    } catch {
-      memo = { ok: false, reason: 'blob-unreadable' }
-      return memo
-    }
-
-    let parsed: unknown
-    try {
-      parsed = JSON.parse(raw)
-    } catch {
-      memo = { ok: false, reason: 'invalid-shape' }
-      return memo
-    }
-
-    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed))
-      memo = { ok: false, reason: 'invalid-shape' }
-    else memo = { ok: true, state: parsed as PinnedTargetState }
-
-    return memo
+    const read = readBlob(TARGET_STATE_REPO_PATH)
+    return read.ok
+      ? { ok: true, state: read.value as PinnedTargetState }
+      : { ok: false, reason: read.reason }
   }
 }
 
