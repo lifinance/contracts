@@ -12,6 +12,7 @@ import type { ICheckDefinition, ICheckResult } from './check-ledger'
 import { rollUpChecks } from './check-ledger'
 import {
   CODEHASH_CHECK_ID,
+  IMMUTABLES_CHECK_ID,
   EXECUTABILITY_CHECK_ID,
   RPC_QUORUM_CHECK_ID,
   STORAGE_AUTHORITY_CHECK_ID,
@@ -81,6 +82,10 @@ export const CHECK_DOCS: ReadonlyMap<string, string> = new Map([
   [
     CODEHASH_CHECK_ID,
     'https://app.notion.com/p/3d9f0ff14ac7814db989e4e1091f255b',
+  ],
+  [
+    IMMUTABLES_CHECK_ID,
+    'https://app.notion.com/p/3def0ff14ac78143a355f93f8fce2bc1',
   ],
 ])
 
