@@ -53,6 +53,7 @@ export type AnchorId =
   | 'A-MONGO'
   | 'A-PROPOSAL'
   | 'A-ASSUMED'
+  | 'A-DOCUMENTED'
   | 'A-UNRESOLVED'
 
 /**
@@ -63,13 +64,17 @@ export type AnchorId =
  * unverified result — never a pass. `A-ASSUMED` is the case where every value
  * came from a source that does decide, but the correspondence between a value
  * and the thing it is supposed to be is one the compiler never confirmed — so
- * what the values agree with is not established either. `A-UNRESOLVED` is the
- * case where nothing answered at all.
+ * what the values agree with is not established either. `A-DOCUMENTED` is the
+ * case where this repo states in writing that it derives no expectation for the
+ * thing being checked: the statement is local and reviewed, but it is a record
+ * of a gap rather than a value to compare against. `A-UNRESOLVED` is the case
+ * where nothing answered at all.
  */
 const REPORTING_ONLY_ANCHORS: ReadonlySet<AnchorId> = new Set<AnchorId>([
   'A-MONGO',
   'A-PROPOSAL',
   'A-ASSUMED',
+  'A-DOCUMENTED',
   'A-UNRESOLVED',
 ])
 
@@ -78,13 +83,14 @@ const REPORTING_ONLY_ANCHORS: ReadonlySet<AnchorId> = new Set<AnchorId>([
  *
  * Narrower than `REPORTING_ONLY_ANCHORS` on purpose. `A-MONGO` and
  * `A-PROPOSAL` name a source that answered and whose provenance the row can
- * state, and `A-ASSUMED` names the assumption itself, so in each case there is
+ * state, `A-ASSUMED` names the assumption itself, and `A-DOCUMENTED` names a
+ * reviewed statement of what is not checked, so in each case there is
  * something a human can decide to trust. `A-UNRESOLVED`
  * means nothing answered, which leaves nothing to decide about — it keeps
  * blocking even on a check that opted in below.
  */
 const ACKNOWLEDGEABLE_REPORTING_ANCHORS: ReadonlySet<AnchorId> =
-  new Set<AnchorId>(['A-MONGO', 'A-PROPOSAL', 'A-ASSUMED'])
+  new Set<AnchorId>(['A-MONGO', 'A-PROPOSAL', 'A-ASSUMED', 'A-DOCUMENTED'])
 
 /** Every status a result may carry, for validating a value that bypassed the type. */
 const CHECK_STATUSES: ReadonlySet<string> = new Set<CheckStatus>([
@@ -105,6 +111,7 @@ const ANCHOR_IDS: ReadonlySet<string> = new Set<AnchorId>([
   'A-MONGO',
   'A-PROPOSAL',
   'A-ASSUMED',
+  'A-DOCUMENTED',
   'A-UNRESOLVED',
 ])
 

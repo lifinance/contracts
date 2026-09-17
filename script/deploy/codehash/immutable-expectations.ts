@@ -22,7 +22,11 @@
  */
 
 import type { IImmutableDeclaration } from '../immutables/immutable-ast'
-import type { DeployRequirements } from '../immutables/registry-schema'
+import type {
+  DeployRequirements,
+  IImmutableEntry,
+  ImmutableEvaluator,
+} from '../immutables/registry-schema'
 import type { IDeployRequirementConfigData } from '../shared/immutableBindings'
 import {
   loadConfigFileFromDisk,
@@ -61,12 +65,27 @@ export interface IObservedImmutable {
   byteCount: number
 }
 
-/** What this layer could establish about one immutable. */
+/**
+ * What this layer could establish about one immutable.
+ *
+ * `acknowledgeable` and `undeclared` are both gaps, and they are deliberately
+ * not one status. A slot the registry declares as derived, unchecked or
+ * unverifiable carries a written reason someone reviewed; an undeclared slot is
+ * one nobody noticed. Only the first is something a signer can be shown and
+ * asked to take on — the second must keep blocking, because there is no
+ * statement to take on.
+ *
+ * `unpriceable` stays the hard-blocking gap for a declaration that exists but
+ * does not resolve: config-sourced with nothing in `config/` for this network,
+ * an entry naming a key the contract does not carry, an expectation that cannot
+ * be expressed in the slot's encoding.
+ */
 export type ImmutableStatus =
   | 'verified'
   | 'disagrees'
   | 'undeclared'
   | 'unpriceable'
+  | 'acknowledgeable'
 
 export interface IGradedImmutable {
   name: string
@@ -100,15 +119,27 @@ export interface IPricedImmutables {
   pricedByteCount: number
   /**
    * Bytes with no expectation behind them: undeclared or unpriceable slots.
+   *
+   * Excludes `acknowledgeable`, which is counted on its own below. A caller
+   * that blocks on this alone would let a reviewed gap through unseen, so the
+   * two counters must both be consulted.
    */
   unpricedByteCount: number
   /**
+   * Bytes of slots the registry declares as a reviewed gap, with its reason.
+   *
+   * Separate from `unpricedByteCount` because the two have different remedies:
+   * this one is a statement a signer can be shown and asked to take on, and the
+   * other is a hole nobody has written anything about.
+   */
+  acknowledgeableByteCount: number
+  /**
    * Bytes of slots holding something other than what the registry declares.
    *
-   * Its own counter because the three sum to what layer 1 masked, and folding it
-   * into either of the others loses that: a tampered slot is neither priced nor
-   * missing an expectation. Retiring layer 1's `excludedByteCount` needs this
-   * and `unpricedByteCount` both at zero.
+   * Its own counter because the four sum to what layer 1 masked, and folding it
+   * into any of the others loses that: a tampered slot is neither priced nor
+   * missing an expectation. Retiring layer 1's `excludedByteCount` outright
+   * needs every counter but `pricedByteCount` at zero.
    */
   disagreeingByteCount: number
 }
@@ -338,14 +369,96 @@ const declaredAddress = (
   return { address: expectedAddress, origin }
 }
 
+/** Where `chainIdEquals` reads a network's chain id. */
+const NETWORKS_FILE = 'networks.json'
+
+const REGISTRY_ORIGIN = 'script/deploy/resources/immutableRegistry.json'
+
+/**
+ * The chain id `config/networks.json` gives a network.
+ *
+ * @param network - Network the deployment lives on.
+ * @param loadConfigFile - Config loader, injectable for tests.
+ * @returns The id, or why none could be read.
+ */
+const declaredChainId = (
+  network: string,
+  loadConfigFile: (fileName: string) => unknown
+): { chainId: number } | { reason: string } => {
+  const networks = loadConfigFile(NETWORKS_FILE) as
+    | Record<string, { chainId?: unknown }>
+    | undefined
+  const chainId = networks?.[network]?.chainId
+  return typeof chainId === 'number' && Number.isSafeInteger(chainId)
+    ? { chainId }
+    : {
+        reason: `config/${NETWORKS_FILE} gives ${network} no usable chainId, so a chain-id comparison has nothing to resolve against`,
+      }
+}
+
+/**
+ * Computes what a `derived` immutable must hold, from the evaluator its registry
+ * entry declares.
+ *
+ * Returns `undefined` for an entry with no evaluator, which is the reviewed gap
+ * the acknowledgement path exists for — distinct from an evaluator that is
+ * present and could not resolve, which is a hole in a declaration that claims to
+ * be complete and so stays hard-blocking.
+ *
+ * @param entry - The registry entry, already known to be `derived`.
+ * @param where - `Contract.immutable`, for the message.
+ * @param address - The address being graded, when the caller carries it.
+ * @param network - Network the deployment lives on.
+ * @param loadConfigFile - Config loader, injectable for tests.
+ * @returns The expected value unpadded plus its origin, why it could not be
+ * computed, or undefined when the entry declares no evaluator.
+ */
+const derivedExpectation = (
+  entry: IImmutableEntry,
+  where: string,
+  address: string | undefined,
+  network: string,
+  loadConfigFile: (fileName: string) => unknown
+): { value: string; origin: string } | { reason: string } | undefined => {
+  const evaluator = entry.evaluator as ImmutableEvaluator | undefined
+  if (evaluator === undefined) return undefined
+
+  if (evaluator.kind === 'selfAddress')
+    return address === undefined
+      ? {
+          reason: `${where} is the deployment's own address, but this caller did not supply the address being graded`,
+        }
+      : { value: address, origin: 'the address being graded' }
+
+  if (evaluator.kind === 'chainIdEquals') {
+    const declared = declaredChainId(network, loadConfigFile)
+    if ('reason' in declared) return declared
+    return {
+      value: declared.chainId === evaluator.chainId ? '0x01' : '0x00',
+      origin: `config/${NETWORKS_FILE}.${network}.chainId == ${evaluator.chainId}`,
+    }
+  }
+
+  const literal = evaluator.value
+  const digits = literal.startsWith('0x')
+    ? strip0x(literal)
+    : BigInt(literal).toString(16)
+  return {
+    value: `0x${digits.length % 2 === 0 ? digits : `0${digits}`}`,
+    origin: `${REGISTRY_ORIGIN} ${where}`,
+  }
+}
+
 /**
  * Grades every immutable a deployment holds against the registry's expectation.
  *
  * Each slot is answered on its own, so a contract whose one undeclared immutable
  * sits beside four declared ones still gets credit for the four. A slot the
- * registry declares as `config` is compared; one it declares `derived`,
- * `unchecked` or `unverifiable`, and one it does not declare at all, is reported
- * unpriced with its reason.
+ * registry declares as `config`, or as `derived` with an evaluator, is compared.
+ * One declared `derived` without an evaluator, `unchecked` or `unverifiable`
+ * grades `acknowledgeable` and carries the registry's own words. One the
+ * registry does not declare at all, or whose declaration does not resolve,
+ * stays unpriced.
  *
  * @param input - The contract, its observed immutables, and the network to resolve for.
  * @param requirements - `deployRequirements.json` including its registry sections.
@@ -358,6 +471,14 @@ export const priceImmutables = (
     observed: readonly IObservedImmutable[]
     network: string
     environment: string
+    /**
+     * The address whose code was read, for a `selfAddress` evaluator.
+     *
+     * Optional so a caller with no address still grades every other slot. A
+     * `selfAddress` slot then reports unpriceable and keeps blocking, rather
+     * than resolving against something that is not the deployment.
+     */
+    address?: string
   },
   requirements: DeployRequirements,
   loadConfigFile: (fileName: string) => unknown = loadConfigFileFromDisk
@@ -400,19 +521,62 @@ export const priceImmutables = (
       continue
     }
 
+    const where = `${contractName}.${one.name}`
+
     if (entry.source !== 'config') {
+      const computed =
+        entry.source === 'derived'
+          ? derivedExpectation(
+              entry,
+              where,
+              input.address,
+              network,
+              loadConfigFile
+            )
+          : undefined
+
+      if (computed !== undefined) {
+        if ('reason' in computed) {
+          slots.push({
+            ...base,
+            status: 'unpriceable',
+            detail: computed.reason,
+          })
+          continue
+        }
+        const derived = paddedToSlot(computed.value, one.slotByteCount)
+        if ('fault' in derived) {
+          slots.push({
+            ...base,
+            status: 'unpriceable',
+            origin: computed.origin,
+            detail: `${computed.origin} cannot be compared against ${one.name}: ${derived.fault}`,
+          })
+          continue
+        }
+        slots.push({
+          ...base,
+          status: derived.value === base.observed ? 'verified' : 'disagrees',
+          expected: derived.value,
+          origin: computed.origin,
+        })
+        continue
+      }
+
       const stated =
         typeof entry.rule === 'string' && entry.rule.trim() !== ''
           ? entry.rule
           : typeof entry.reason === 'string' && entry.reason.trim() !== ''
           ? entry.reason
-          : 'the registry gives no rule or reason'
+          : undefined
+      // Without a rule or a reason the entry states nothing, so there is
+      // nothing for a signer to take on and it is not acknowledgeable.
       slots.push({
         ...base,
-        status: 'unpriceable',
-        detail: `${contractName}.${one.name} is ${String(
-          entry.source
-        )}: ${stated}`,
+        status: stated === undefined ? 'unpriceable' : 'acknowledgeable',
+        detail: `${where} is ${String(entry.source)}: ${
+          stated ?? 'the registry gives no rule or reason'
+        }`,
       })
       continue
     }
@@ -475,6 +639,7 @@ export const priceImmutables = (
     disagreements: slots.filter((slot) => slot.status === 'disagrees'),
     pricedByteCount: byteTotal('verified'),
     unpricedByteCount: byteTotal('undeclared', 'unpriceable'),
+    acknowledgeableByteCount: byteTotal('acknowledgeable'),
     disagreeingByteCount: byteTotal('disagrees'),
   }
 }

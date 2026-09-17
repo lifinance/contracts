@@ -1004,6 +1004,7 @@ export const createOffCodeImmutablesReader = (deps: {
           observed: observed.observed,
           network,
           environment: EnvironmentEnum.production,
+          address,
         },
         deps.loadRequirements()
       ),
@@ -1310,6 +1311,7 @@ export const createImmutablePricer = (deps: {
         observed: observed.observed,
         network,
         environment: EnvironmentEnum.production,
+        address,
       },
       deps.loadRequirements()
     )

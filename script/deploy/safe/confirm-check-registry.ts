@@ -842,6 +842,7 @@ const IMMUTABLE_VERDICT_ORDER: readonly ImmutableVerdictStatus[] = [
   'disagrees',
   'unreadable',
   'unpriced',
+  'documented',
   'assumed',
   'verified',
   'none',
@@ -948,6 +949,17 @@ export const immutablesCheckResult = (
       expected: EVERY_IMMUTABLE_DECLARED,
       actual: `${found.length} address(es) whose values agree under a slot ordering the compiler did not confirm`,
       anchor: 'A-ASSUMED',
+      detail,
+    }
+
+  if (worst === 'documented')
+    return {
+      checkId: IMMUTABLES_CHECK_ID,
+      network,
+      status: 'needs-ack',
+      expected: EVERY_IMMUTABLE_DECLARED,
+      actual: `${found.length} address(es) holding an immutable this repo states it derives no expectation for`,
+      anchor: 'A-DOCUMENTED',
       detail,
     }
 

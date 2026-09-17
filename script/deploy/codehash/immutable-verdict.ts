@@ -25,6 +25,9 @@ import type {
  * - `verified` — every slot holds what this repo declares for it.
  * - `disagrees` — a slot holds something else. Blocks everywhere.
  * - `unpriced` — a slot was read and this repo declares no expectation for it.
+ * - `documented` — the only slots without an expectation are ones the registry
+ *   declares unverifiable or derived-but-not-computed, each with a written
+ *   reason. A reviewed gap, not an unnoticed one.
  * - `assumed` — every value was read from a trusted source and agrees, but the
  *   slot-to-name mapping is not one the compiler confirmed.
  * - `unreadable` — nothing about the values could be established.
@@ -34,6 +37,7 @@ export type ImmutableVerdictStatus =
   | 'verified'
   | 'disagrees'
   | 'unpriced'
+  | 'documented'
   | 'assumed'
   | 'unreadable'
 
@@ -109,10 +113,12 @@ const table = (
 /**
  * Grades the values of a contract whose immutables are inlined in its code.
  *
- * Every outcome is decidable here, so none of them is acknowledgeable: the
- * value was read out of the bytes gate K hashed, and the expectation came from
- * this checkout. A slot with no expectation is graded as unchecked rather than
- * as passing, because those are the two facts this gate exists to keep apart.
+ * The value is read out of the bytes gate K hashed and the expectation comes
+ * from this checkout, so an outcome here is undecidable only where this repo
+ * says so itself. A slot with no expectation is graded as unchecked rather than
+ * as passing, because those are the two facts this gate exists to keep apart —
+ * and `documented` is kept apart from `unpriced` for the same reason: a gap
+ * someone reviewed and wrote down is not a gap nobody noticed.
  *
  * @param address - The target the verdict is about.
  * @param network - The network the expectations were resolved for.
@@ -144,6 +150,17 @@ export const gradeInlinedImmutables = (
         pricing.unpricedByteCount
       } bytes of its immutables have no declared expectation to compare against — ${table(
         pricing.slots.filter((slot) => slot.status !== 'verified'),
+        undefined
+      )}.`,
+    }
+
+  if (pricing.acknowledgeableByteCount > 0)
+    return {
+      status: 'documented',
+      detail: `${address}: ${
+        pricing.acknowledgeableByteCount
+      } bytes of its immutables are ones this repo states in writing it derives no expectation for, and every other value holds what it declares for ${network} — ${table(
+        pricing.slots,
         undefined
       )}.`,
     }
