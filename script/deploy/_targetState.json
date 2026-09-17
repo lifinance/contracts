@@ -2289,7 +2289,10 @@
         "ReceiverOIF": "1.0.0",
         "AcrossFacetV4": "1.0.0",
         "ReceiverAcrossV4": "1.0.0",
-        "RelayDepositoryFacet": "1.0.0"
+        "RelayDepositoryFacet": "1.0.0",
+        "EcoFacet": "2.0.0",
+        "GardenFacet": "1.0.0",
+        "SymbiosisFacet": "2.0.0"
       }
     }
   },

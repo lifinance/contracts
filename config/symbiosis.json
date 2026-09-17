@@ -23,6 +23,10 @@
     "metaRouter": "0xcE8f24A58D85eD5c5A6824f7be1F8d4711A0eb4C",
     "gateway": "0xAdB2d3b711Bb8d8Ea92ff70292c466140432c278"
   },
+  "arc": {
+    "metaRouter": "0xcE8f24A58D85eD5c5A6824f7be1F8d4711A0eb4C",
+    "gateway": "0xcE8f24A58D85eD5c5A6824f7be1F8d4711A0eb4C"
+  },
   "avalanche": {
     "metaRouter": "0x6F0f6393e45fE0E7215906B6f9cfeFf53EA139cf",
     "gateway": "0x4cfA66497Fa84D739a0f785FBcEe9196f1C64e4a"
