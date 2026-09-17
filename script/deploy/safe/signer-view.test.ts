@@ -561,13 +561,16 @@ describe('a check with a write-up to point at', () => {
       ],
       roster: [definition('x', 'A check')],
       mustReport: new Set(['x']),
-      reportOnly: [
-        { title: 'Calldata addresses', note: 'cannot decide a pass' },
-      ],
+      reportOnly: [{ title: 'Calldata addresses' }],
     }).map(stripAnsi)
     const plain = lines.join('\n')
+    const row = lines.find((l) => l.includes('Calldata addresses')) ?? ''
 
-    expect(plain).toContain('Calldata addresses — cannot decide a pass')
+    expect(row).toContain('report')
+    // The column that says a row can stop the run, on the row that cannot —
+    // and the padding that column would leave behind it.
+    expect(row).not.toContain('BLOCKS')
+    expect(row).toBe(row.trimEnd())
     expect(plain).toContain('1 gates')
     expect(plain).toContain('1 report-only')
     expect(

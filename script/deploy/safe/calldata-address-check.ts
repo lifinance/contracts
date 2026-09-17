@@ -879,12 +879,11 @@ const OK = `${ESC}[32m✓${ESC}[0m`
  * distinguishing feature is that it appears after the roster rather than on it,
  * which reads as an omission rather than as a class.
  */
-export const REPORT_ONLY_HEADING = `${ESC}[2mREPORT-ONLY · not a gate · nothing here blocks signing${ESC}[0m`
+export const REPORT_ONLY_HEADING = `${ESC}[2mREPORT-ONLY · not a gate · the deployment record may report, never decide, so nothing below blocks signing${ESC}[0m`
 
 /** How the gate manifest names this check, so the roster and the block agree. */
 export const CALLDATA_ADDRESS_MANIFEST_ENTRY = {
   title: 'Calldata addresses match the deployment record',
-  note: 'report-only: the record is written by the deploying machine, so it catches a mistake and cannot decide a pass',
 } as const
 
 /**

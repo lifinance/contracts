@@ -300,7 +300,7 @@ export interface IGateManifestInput {
    * roster exists to close, and the one a signer resolves by assuming the
    * block below belongs to whichever gate it followed.
    */
-  reportOnly?: readonly { title: string; note: string }[]
+  reportOnly?: readonly { title: string }[]
 }
 
 /**
@@ -435,11 +435,24 @@ export const renderGateManifest = (input: IGateManifestInput): string[] => {
   // Below the gates and dimmed, because the distinction the signer has to keep
   // is which rows can stop a signature, and a report-only row rendered in the
   // gate column would have to be read to be told apart from one that can.
+  // The same columns as a gate row, because a row that broke the table's
+  // alignment would read as something the renderer failed to place rather than
+  // as a check with no letter. Why it cannot decide is said once, by the block
+  // it heads, not restated in a column this table has no room for.
   for (const check of input.reportOnly ?? [])
     out.push(
-      `  ${DIM}${glyphCell('·')}${' '.repeat(MANIFEST_GATE_WIDTH)}${
-        check.title
-      } — ${check.note}${RESET}`
+      endRow(
+        `  ${DIM}${glyphCell('·')}${' '.repeat(MANIFEST_GATE_WIDTH)}${
+          check.title
+        } ${'.'.repeat(Math.max(2, titleWidth - check.title.length - 1))} ` +
+          // Closed before the padding rather than after it, so `endRow` can see
+          // the trailing spaces it is there to trim: a row that ends in a reset
+          // code ships the ACTION column's width into whatever this is piped
+          // into. There is never a disposition here — that column is what a row
+          // that can stop the run uses.
+          `report${RESET}`,
+        ''
+      )
     )
 
   out.push('')
