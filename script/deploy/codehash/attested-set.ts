@@ -77,6 +77,8 @@ export interface ILineageScope {
    * bytecode, which the proposer controls.
    */
   isClosedSet: boolean
+  /** As `IToolchainScope` defines it, which is where it is derived. */
+  holdsImmutablesOffCode?: boolean
 }
 
 export type CodehashVerdict = 'MATCH' | 'MISMATCH' | 'UNVERIFIABLE'
@@ -179,9 +181,10 @@ export const compareToAttestedSet = (
 
   if (exact.length > 0) {
     const matchedLineages = exact.map((build) => build.lineage)
-    // A build that pins exact bytes was compared byte for byte, immutables
-    // included, so nothing was excluded on that path however many bytes are
-    // masked.
+    // A build that pins exact bytes was compared byte for byte, so nothing was
+    // excluded on that path however many bytes are masked. That covers inlined
+    // immutables and says nothing about a chain holding them elsewhere, where
+    // zero excluded bytes and zero checked values are the same number.
     const excludedByteCount = exact.some((build) => build.rawHash !== undefined)
       ? 0
       : observed.maskedByteCount

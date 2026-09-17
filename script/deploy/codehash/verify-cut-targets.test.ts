@@ -525,3 +525,67 @@ describe('verifyCutTargets', () => {
     expect(report.summary).toContain('64')
   })
 })
+
+/**
+ * A zkEVM MATCH masks nothing and checks nothing: the immutables are not in the
+ * code to mask, so zero excluded bytes is not the same claim it is elsewhere.
+ */
+describe('verifyCutTargets on a chain holding immutables off-code', () => {
+  const zkDeps = (over: Partial<IVerifyCutDeps> = {}) =>
+    ({
+      ...deps(),
+      scope: () => ({ isClosedSet: true, holdsImmutablesOffCode: true }),
+      // The shape `normalizeRuntimeCode` produces for a zk lineage: an exact
+      // hash pinned and nothing masked, because there is nothing to mask.
+      observe: async () => ({
+        ...observed(HASH),
+        maskedByteCount: 0,
+        runtimeCode: '0xfeed',
+      }),
+      attestationsFor: async () => ({ builds: [attested(HASH)] }),
+      ...over,
+    } as IVerifyCutDeps)
+
+  const zkReport = (over: Partial<IVerifyCutDeps> = {}) =>
+    verifyCutTargets(
+      { cuts: [add(A)], init: ZERO, network: 'zksync' },
+      zkDeps(over)
+    )
+
+  it('does not call a layer-1 match a match of the deployed code', async () => {
+    const report = await zkReport()
+
+    expect(report.targets[0]?.verdict).toBe('UNVERIFIABLE')
+    expect(report.blocksSigning).toBe(true)
+  })
+
+  it('names where the unchecked values live, and counts no masked bytes', async () => {
+    const report = await zkReport()
+
+    expect(report.targets[0]?.reason).toMatch(/ImmutableSimulator/u)
+    // The EVM sentence is built from the masked count. There are none here, so
+    // reusing it would tell the signer "0 bytes were not checked".
+    expect(report.targets[0]?.reason).not.toMatch(/\b0 bytes\b/u)
+  })
+
+  it('never renders the unqualified green', async () => {
+    const report = await zkReport()
+
+    expect(report.summary).not.toMatch(
+      /Every address this cut installs matches a rebuild/u
+    )
+  })
+
+  it('leaves a chain that inlines its immutables exactly as it was', async () => {
+    const report = await verifyCutTargets(
+      { cuts: [add(A)], init: ZERO, network: 'mainnet' },
+      {
+        ...deps(),
+        scope: () => ({ isClosedSet: true, holdsImmutablesOffCode: false }),
+      } as IVerifyCutDeps
+    )
+
+    expect(report.targets[0]?.verdict).toBe('MATCH')
+    expect(report.blocksSigning).toBe(false)
+  })
+})

@@ -131,6 +131,7 @@ describe('createRuntimeCodeObserver', () => {
     createRuntimeCodeObserver({
       scopeFor: () => ({
         isClosedSet: true,
+        holdsImmutablesOffCode: false,
         profiles: (over.profiles ?? [
           { profile: 'default', solcVersion: '0.8.29', evmVersion: 'cancun' },
         ]) as never,
@@ -170,6 +171,7 @@ describe('createRuntimeCodeObserver', () => {
     const zk = createRuntimeCodeObserver({
       scopeFor: () => ({
         isClosedSet: true,
+        holdsImmutablesOffCode: false,
         profiles: [
           {
             profile: 'zksync',
@@ -710,7 +712,11 @@ describe('createImmutableReferencesResolver', () => {
   ) =>
     createImmutableReferencesResolver({
       readRecord: async () => record,
-      scopeFor: () => ({ isClosedSet: true, profiles: [PROFILE] }),
+      scopeFor: () => ({
+        isClosedSet: true,
+        holdsImmutablesOffCode: false,
+        profiles: [PROFILE],
+      }),
       build: (request) => {
         builds.push(request.commit)
         return { runtimeHex: DEPLOYED, immutableReferences: REFS }
@@ -818,6 +824,7 @@ describe('createImmutableReferencesResolver refuses several lineages', () => {
       }),
       scopeFor: () => ({
         isClosedSet: true,
+        holdsImmutablesOffCode: false,
         profiles: [
           { profile: 'default', solcVersion: '0.8.29', evmVersion: 'cancun' },
           { profile: 'other', solcVersion: '0.8.29', evmVersion: 'cancun' },

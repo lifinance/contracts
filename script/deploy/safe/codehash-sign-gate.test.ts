@@ -474,6 +474,19 @@ describe('renderCodehashSignGate', () => {
       )
     ).join('\n')
 
+  it('does not print a byte caveat for a chain whose immutables are off-code', async () => {
+    // Its verdict carries zero excluded bytes, because none were excluded. The
+    // caveat line is keyed off that count, so it must stay silent rather than
+    // announce "0 bytes" over the contracts it cannot vouch for.
+    const rendered = await render({
+      scope: () => ({ isClosedSet: true, holdsImmutablesOffCode: true }),
+    })
+
+    expect(rendered).toContain('UNVERIFIABLE')
+    expect(rendered).toContain('ImmutableSimulator')
+    expect(rendered).not.toContain('bytes were excluded as immutables')
+  })
+
   it('renders MATCH, MISMATCH and UNVERIFIABLE as three distinct buckets', async () => {
     const match = await render({})
     const mismatch = await render({
