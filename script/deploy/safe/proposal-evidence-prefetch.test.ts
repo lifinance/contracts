@@ -45,6 +45,74 @@ const counted = (id: string) => {
   }
 }
 
+/**
+ * The number the whole prefetch is justified by: how long the caller blocked.
+ *
+ * Driven against a compute with a real delay rather than an instant one — an
+ * instant compute reports ~0ms on every path, so an assertion over it cannot
+ * tell a prefetch that saved the wait from one that never ran.
+ */
+describe('the wait is measured on every path', () => {
+  const SLOW_MS = 120
+
+  const slow = (id: string) => async (): Promise<Evidence> => {
+    await new Promise((resolve) => setTimeout(resolve, SLOW_MS))
+    return { id }
+  }
+
+  it('reports the full cost of the reads when nothing was prepared ahead', async () => {
+    const queue = makeQueue()
+    const taken = await queue.take('b', slow('b'), anchorOf('0:7'))
+
+    expect(taken.prefetched).toBe(false)
+    // The baseline: with no prefetch, the caller waits for the reads.
+    expect(taken.waitedMs).toBeGreaterThanOrEqual(SLOW_MS - 20)
+  })
+
+  it('reports almost no wait when the prefetch had already finished', async () => {
+    // The baseline first, measured rather than assumed: the win is a
+    // comparison, and an absolute bound like `waitedMs < 120` is satisfied by a
+    // `waitedMs` hard-coded to zero — which is exactly the regression that
+    // would make every other line here lie.
+    const baseline = await makeQueue().take('a', slow('a'), anchorOf('0:7'))
+
+    const queue = makeQueue()
+    queue.schedule('b', slow('b'), anchorOf('0:7'))
+    // The interval a signer spends reading the previous proposal.
+    await new Promise((resolve) => setTimeout(resolve, SLOW_MS * 3))
+
+    const taken = await queue.take('b', slow('b'), anchorOf('0:7'))
+
+    expect(taken.prefetched).toBe(true)
+    expect(taken.ageMs).toBeGreaterThanOrEqual(SLOW_MS)
+    // The win, against what the same reads cost with nothing prepared ahead.
+    expect(baseline.waitedMs).toBeGreaterThanOrEqual(SLOW_MS - 20)
+    expect(taken.waitedMs).toBeLessThan(baseline.waitedMs / 2)
+  })
+
+  it('still reports a wait when the prefetch had not finished in time', async () => {
+    const queue = makeQueue()
+    queue.schedule('b', slow('b'), anchorOf('0:7'))
+    // The signer answered immediately, so the prefetch is still running and the
+    // caller pays whatever is left of it. This is the case the line exists to
+    // make visible: prefetched, and still slow.
+    const taken = await queue.take('b', slow('b'), anchorOf('0:7'))
+
+    expect(taken.prefetched).toBe(true)
+    expect(taken.waitedMs).toBeGreaterThan(20)
+  })
+
+  it('charges a discard for the recompute it forced', async () => {
+    const queue = makeQueue()
+    queue.schedule('b', slow('b'), anchorOf('0:7'))
+    const taken = await queue.take('b', slow('b'), anchorOf('1:9'))
+
+    expect(taken.discarded).toBeDefined()
+    // A discard is not free, and the line that reports it says so.
+    expect(taken.waitedMs).toBeGreaterThanOrEqual(SLOW_MS - 20)
+  })
+})
+
 describe('a scheduled proposal is served from the prefetch', () => {
   it('does not recompute when the anchor still agrees', async () => {
     const queue = makeQueue()
