@@ -280,9 +280,9 @@ describe('a reason belongs to the ticket it was stated for', () => {
   const OTHER = 'https://linear.app/lifi-linear/issue/EXSC-9999'
 
   // The rollout this shell ran first left its reason exported. The resolver
-  // hands a supplied reason straight back, so offering it here would put the
-  // first rollout's reason on this one's proposals, where a signer reads it.
-  it('does not offer a reason stated for a different ticket', () => {
+  // hands a supplied reason straight back, so keeping it would put the first
+  // rollout's reason on this one's proposals, where a signer reads it.
+  it('drops a reason stated for a different ticket', () => {
     const result = callHelper(['production', 'gnosis'], {
       stubEchoesReasonFor: OTHER,
       env: {
@@ -296,6 +296,55 @@ describe('a reason belongs to the ticket it was stated for', () => {
     expect(result.ticket).toBe(OTHER)
     expect(result.reason).toBe('')
     expect(result.reasonMirror).toBe('')
+    expect(result.output).toContain('was stated for')
+  })
+
+  // The ordinary rollout, and the one CI and an agent run: nothing has been
+  // stamped yet, so there is no earlier ticket the exported reason could
+  // belong to. Scoping must not turn the first run into a reasonless one.
+  it('keeps a reason on a run that nothing has stamped yet', () => {
+    const result = callHelper(['production', 'gnosis'], {
+      stubEchoesReasonFor: URL,
+      env: {
+        SAFE_PROPOSAL_TICKET: URL,
+        SAFE_PROPOSAL_REASON: 'roll out FeeForwarder v2.0.0',
+      },
+    })
+    expect(result.rc).toBe(0)
+    expect(result.reason).toBe('roll out FeeForwarder v2.0.0')
+    expect(result.reasonMirror).toBe('roll out FeeForwarder v2.0.0')
+  })
+
+  // Stating a new reason is how an operator moves to the next rollout, so it
+  // wins over the stamp rather than being read as the previous one's.
+  it('keeps a reason the operator restated for this run', () => {
+    const result = callHelper(['production', 'gnosis'], {
+      stubEchoesReasonFor: OTHER,
+      env: {
+        SAFE_PROPOSAL_TICKET: OTHER,
+        SAFE_PROPOSAL_REASON: 'deploy the receiver on arbitrum',
+        RESOLVED_SAFE_PROPOSAL_REASON: 'roll out FeeForwarder v2.0.0',
+        RESOLVED_SAFE_PROPOSAL_REASON_TICKET: URL,
+      },
+    })
+    expect(result.rc).toBe(0)
+    expect(result.reason).toBe('deploy the receiver on arbitrum')
+  })
+
+  // The stamp is canonical and what the operator exports need not be, so the
+  // two are only ever compared after the resolver has canonicalized the run's.
+  it('keeps the reason when the same ticket is supplied in raw form', () => {
+    const result = callHelper(['production', 'gnosis'], {
+      stubEchoesReasonFor: URL,
+      env: {
+        SAFE_PROPOSAL_TICKET: 'EXSC-1034',
+        SAFE_PROPOSAL_REASON: 'roll out FeeForwarder v2.0.0',
+        RESOLVED_SAFE_PROPOSAL_REASON: 'roll out FeeForwarder v2.0.0',
+        RESOLVED_SAFE_PROPOSAL_REASON_TICKET: URL,
+      },
+    })
+    expect(result.rc).toBe(0)
+    expect(result.reason).toBe('roll out FeeForwarder v2.0.0')
   })
 
   // The case the mirror exists for: a worker re-sourced .env, which blanks

@@ -4310,14 +4310,7 @@ function assertProposalTicketForRun() {
   # than exported here, so an inherited one is validated like any other supplied
   # value instead of trusted.
   local SUPPLIED="${SAFE_PROPOSAL_TICKET:-${RESOLVED_SAFE_PROPOSAL_TICKET:-}}"
-  # A reason belongs to the ticket it was stated for, so it is offered to the
-  # resolver only while this run is still that ticket. The resolver returns a
-  # supplied reason unchanged and never asks again, so without this a second
-  # rollout in the same shell labels its proposals with the first one's reason.
-  local SUPPLIED_REASON=""
-  if [[ "${RESOLVED_SAFE_PROPOSAL_REASON_TICKET:-}" == "$SUPPLIED" ]]; then
-    SUPPLIED_REASON="${SAFE_PROPOSAL_REASON:-${RESOLVED_SAFE_PROPOSAL_REASON:-}}"
-  fi
+  local SUPPLIED_REASON="${SAFE_PROPOSAL_REASON:-${RESOLVED_SAFE_PROPOSAL_REASON:-}}"
 
   local PREFLIGHT
   if ! PREFLIGHT=$(SAFE_PROPOSAL_TICKET="$SUPPLIED" SAFE_PROPOSAL_REASON="$SUPPLIED_REASON" bunx tsx script/deploy/safe/deploy-ticket-preflight.cli.ts); then
@@ -4343,6 +4336,20 @@ function assertProposalTicketForRun() {
 
   export SAFE_PROPOSAL_TICKET="$TICKET"
   export RESOLVED_SAFE_PROPOSAL_TICKET="$TICKET"
+
+  # A reason belongs to the ticket it was stated for, and the resolver hands a
+  # supplied one back unchanged, so a previous rollout's reason would otherwise
+  # label this one's proposals. Only the mirror is dropped, and only once this
+  # run turns out to be a different ticket: a reason the operator stated for
+  # this run differs from the mirror, and an unstamped one was never scoped.
+  if [[ -n "$REASON" &&
+    "$REASON" == "${RESOLVED_SAFE_PROPOSAL_REASON:-}" &&
+    -n "${RESOLVED_SAFE_PROPOSAL_REASON_TICKET:-}" &&
+    "${RESOLVED_SAFE_PROPOSAL_REASON_TICKET}" != "$TICKET" ]]; then
+    warning "the reason exported in this shell was stated for ${RESOLVED_SAFE_PROPOSAL_REASON_TICKET}, not for $TICKET - dropping it"
+    REASON=""
+  fi
+
   # The reason is warn-only until its adoption trigger fires, so an empty one
   # exports nothing and the proposal path emits its own warning.
   if [[ -n "$REASON" ]]; then
