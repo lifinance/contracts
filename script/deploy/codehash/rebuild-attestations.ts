@@ -27,7 +27,8 @@
  * infrastructure failure into a clean-looking grey — so an unreachable record
  * store, an unfetchable commit and a failed compile each surface as an
  * {@link AttestationSourceError}, while a record that is genuinely silent about
- * an address returns the empty set.
+ * an address returns the empty set — carrying the reason it is empty, so the
+ * two silences a signer can meet stay distinguishable on the row itself.
  */
 import { keccak256, type Hex } from 'viem'
 
@@ -46,6 +47,7 @@ import {
 import { frameFault, strip0x } from './hex'
 import { maskImmutables, type ImmutableReferences } from './immutable-offsets'
 import type { IBuildProfile, IToolchainScope } from './lineage-scope'
+import type { IAttestationLookup } from './verify-cut-targets'
 
 /**
  * What `getCurrentGitCommitHash()` writes when it cannot read a commit. It is a
@@ -324,7 +326,7 @@ export interface IAttestationSource {
   attestationsFor: (
     address: string,
     network: string
-  ) => Promise<IAttestedBuild[]>
+  ) => Promise<IAttestationLookup>
 }
 
 /**
@@ -394,7 +396,8 @@ export const createAttestationSource = (
       return {
         kind: 'unattestable',
         stage: 'no-record',
-        reason: `${address} on ${network}: the deployment record says nothing about this address, so there is no contract identity to rebuild.`,
+        reason:
+          'no attested build is available: the production deployment record says nothing about this address, so nothing names which contract to rebuild',
       }
 
     const commit = record.gitCommitHash.trim()
@@ -402,7 +405,7 @@ export const createAttestationSource = (
       return {
         kind: 'unattestable',
         stage: 'no-commit',
-        reason: `${address} on ${network}: the record for ${record.contractName}@${record.version} carries no commit, so there is no source to rebuild from.`,
+        reason: `no attested build is available: the deployment record names ${record.contractName}@${record.version} but carries no commit, so there is no source to rebuild it from`,
       }
 
     const availability = ensureCommitAvailable(commit, { git: deps.git })
@@ -483,10 +486,15 @@ export const createAttestationSource = (
     attestationsFor: async (
       address: string,
       network: string
-    ): Promise<IAttestedBuild[]> => {
+    ): Promise<IAttestationLookup> => {
       const resolution = await resolve(address, network)
-      if (resolution.kind === 'built') return resolution.builds
-      if (resolution.kind === 'unattestable') return []
+      if (resolution.kind === 'built') return { builds: resolution.builds }
+      // The reason travels with the empty set. Dropping it is what left a
+      // signer with "no attested build is available for this contract" for two
+      // conditions with different remedies — an address the record never heard
+      // of, and a record too old to carry the commit its code was built from.
+      if (resolution.kind === 'unattestable')
+        return { builds: [], absence: resolution.reason }
       throw new AttestationSourceError(resolution.stage, resolution.reason)
     },
   }

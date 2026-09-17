@@ -97,7 +97,7 @@ const wrapped = (payloads: Hex[]): Hex =>
 const deps = (over: Partial<IVerifyCutDeps> = {}): IVerifyCutDeps => ({
   scope: () => ({ isClosedSet: true }),
   observe: async () => observed(),
-  attestationsFor: async () => [attested()],
+  attestationsFor: async () => ({ builds: [attested()] }),
   price: async () => ({ decided: false, reason: 'no layer 2 in this test' }),
   ...over,
 })
@@ -347,9 +347,9 @@ describe('evaluateCodehashSignGate', () => {
       await gateInput(wrapped([cutCalldata()]), NETWORK),
       () =>
         deps({
-          attestationsFor: async () => [
-            attested({ maskedHash: `0x${'99'.repeat(32)}` }),
-          ],
+          attestationsFor: async () => ({
+            builds: [attested({ maskedHash: `0x${'99'.repeat(32)}` })],
+          }),
         })
     )
 
@@ -477,9 +477,9 @@ describe('renderCodehashSignGate', () => {
   it('renders MATCH, MISMATCH and UNVERIFIABLE as three distinct buckets', async () => {
     const match = await render({})
     const mismatch = await render({
-      attestationsFor: async () => [
-        attested({ maskedHash: `0x${'99'.repeat(32)}` }),
-      ],
+      attestationsFor: async () => ({
+        builds: [attested({ maskedHash: `0x${'99'.repeat(32)}` })],
+      }),
     })
     const unverifiable = await render({
       attestationsFor: async () => {
@@ -879,9 +879,9 @@ describe('assertCodehashSignGateAllowsSigning', () => {
       await gateInput(wrapped([cutCalldata()]), NETWORK),
       () =>
         deps({
-          attestationsFor: async () => [
-            attested({ maskedHash: `0x${'99'.repeat(32)}` }),
-          ],
+          attestationsFor: async () => ({
+            builds: [attested({ maskedHash: `0x${'99'.repeat(32)}` })],
+          }),
         })
     )
 

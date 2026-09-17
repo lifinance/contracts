@@ -55,6 +55,26 @@ export interface IGateReport {
   summary: string
 }
 
+/**
+ * What an attestation lookup answered, set and reason together.
+ *
+ * An empty set is two different facts — nothing is recorded about the address,
+ * or a record names a contract but no commit to rebuild it from — and a signer
+ * reading "no attested build is available" cannot tell which, though the two
+ * have different remedies. The reason travels with the set rather than through
+ * a second call, because a second read of a mutable source is how the set
+ * judged and the sentence explaining it come apart.
+ */
+export interface IAttestationLookup {
+  builds: IAttestedBuild[]
+  /**
+   * Why `builds` is empty, as a clause the row prints after the verdict word.
+   * The address is not part of it: the row states that separately, and a
+   * sentence that repeats it spends the line the signer reads twice.
+   */
+  absence?: string
+}
+
 export interface IVerifyCutDeps {
   /**
    * Which toolchains this network's code may legitimately have been built with.
@@ -67,7 +87,7 @@ export interface IVerifyCutDeps {
   attestationsFor: (
     address: string,
     network: string
-  ) => Promise<IAttestedBuild[]>
+  ) => Promise<IAttestationLookup>
   /**
    * Layer 2: what the bytes this comparison had to mask actually hold.
    *
@@ -139,7 +159,7 @@ const judge = async (
   scope: ILineageScope,
   deps: IVerifyCutDeps
 ): Promise<ITargetVerdict> => {
-  let attested: IAttestedBuild[]
+  let attested: IAttestationLookup
   try {
     attested = await deps.attestationsFor(address, network)
   } catch (error) {
@@ -165,7 +185,12 @@ const judge = async (
     )
   }
 
-  const comparison = compareToAttestedSet(code, attested, scope)
+  const comparison = compareToAttestedSet(
+    code,
+    attested.builds,
+    scope,
+    attested.absence
+  )
 
   // `attested-set` states this as a rendering instruction — a MATCH says nothing
   // about masked bytes, so a caller that has not run layer 2 "must not render an

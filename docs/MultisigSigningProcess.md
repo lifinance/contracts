@@ -533,7 +533,11 @@ Per pending transaction the signer sees:
    no attested build. Both stop the signature; neither is ever a pass, because
    "we could not check" and "we checked and it is fine" are the pair this gate
    exists to keep apart. Worth knowing when reading a grey line: it means the
-   check did not conclude, not necessarily that a rebuild is missing.
+   check did not conclude, not necessarily that a rebuild is missing. A grey
+   line for a missing rebuild says which of the two reasons it is — the
+   deployment record is silent about the address, or it names the contract but
+   carries no commit to rebuild from — because those are fixed by different
+   people.
 
    Three limits are put on screen rather than hidden. A hash match with bytes
    excluded as immutables renders grey rather than green, until the
