@@ -119,6 +119,7 @@ const sourceWith = (
     readRecord: async () => RECORD,
     toolchainScope: () => ({
       isClosedSet: true,
+      holdsImmutablesOffCode: false,
       profiles: [profileNamed('default')],
     }),
     build: (request: IRebuildRequest): IRebuiltArtifact => {
@@ -387,6 +388,7 @@ describe('createAttestationSource — the set it returns', () => {
     const { source, requests } = sourceWith({
       toolchainScope: () => ({
         isClosedSet: true,
+        holdsImmutablesOffCode: false,
         profiles: [profileNamed('default'), profileNamed('solc_floor')],
       }),
     })
@@ -439,6 +441,7 @@ describe('createAttestationSource — the set it returns', () => {
       runtime: ZK_RUNTIME,
       toolchainScope: () => ({
         isClosedSet: true,
+        holdsImmutablesOffCode: false,
         profiles: [profileNamed('zksync')],
       }),
     })
@@ -603,6 +606,7 @@ describe('createAttestationSource — the per-run cache', () => {
     const { source, requests } = sourceWith({
       toolchainScope: () => ({
         isClosedSet: true,
+        holdsImmutablesOffCode: false,
         profiles: [profileNamed('default'), profileNamed('solc_floor')],
       }),
     })

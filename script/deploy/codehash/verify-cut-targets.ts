@@ -204,6 +204,12 @@ const judge = async (
   // No threshold is invented, because any excluded byte is an uncompared byte.
   // This grades grey rather than red: nothing was found wrong, it was not looked
   // at. Layer 2 supplies the missing check and lifts this.
+  // A chain that keeps immutables out of the runtime code reaches here with
+  // nothing masked and everything still unchecked, so the masked count alone
+  // cannot decide whether layer 1's MATCH is the whole answer.
+  if (comparison.verdict === 'MATCH' && scope.holdsImmutablesOffCode === true)
+    return offCodeImmutables(address, comparison)
+
   if (comparison.verdict === 'MATCH' && comparison.excludedByteCount > 0)
     return complete(address, network, comparison, deps, code.runtimeCode)
 
@@ -216,6 +222,40 @@ const judge = async (
     pricedByteCount: 0,
   }
 }
+
+/**
+ * Grades a MATCH on a chain whose immutables are not in the code it matched.
+ *
+ * zkEVM stores them in `ImmutableSimulator` rather than inlining them, so the
+ * comparison excluded nothing and still says nothing about the values a
+ * tampered deployment lives in. Layer 2 cannot supply them yet: the zk
+ * toolchain emits neither `deployedBytecode` nor an AST, so no build of the
+ * recorded commit can name the simulator's slots, and reading them by assumed
+ * ordinal would compare one immutable against another's expectation — which
+ * passes.
+ *
+ * So this grades grey for the same reason a masked EVM MATCH does: nothing was
+ * found wrong, it was not looked at. The previous behaviour was the one thing
+ * that is not available — an unqualified green over bytes nobody read.
+ *
+ * @param address - the target being judged
+ * @param comparison - layer 1's verdict, already known to be a MATCH
+ */
+const offCodeImmutables = (
+  address: string,
+  comparison: ICodehashComparison
+): ITargetVerdict => ({
+  address,
+  verdict: 'UNVERIFIABLE',
+  reason: `${address}: its code matches an attested build, but this chain holds its immutables in ImmutableSimulator rather than in that code, and nothing here reads them — so the values the deployment runs on are unchecked and this is not yet a match of the deployed contract.`,
+  matchedLineages: comparison.matchedLineages,
+  // Layer 1 masked nothing, and it was right not to: on this chain the excluded
+  // bytes are real codegen. The gap is not in the bytes, so it is not counted
+  // in them either — a renderer that qualified by this number would print "0
+  // bytes were excluded" over the very contracts it cannot vouch for.
+  excludedByteCount: 0,
+  pricedByteCount: 0,
+})
 
 /**
  * Finishes a MATCH whose masked bytes layer 2 can account for.

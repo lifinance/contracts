@@ -525,3 +525,71 @@ describe('verifyCutTargets', () => {
     expect(report.summary).toContain('64')
   })
 })
+
+/**
+ * zkEVM reaches a clean layer-1 MATCH with nothing masked, because its
+ * immutables are not in the runtime code to mask — they live in
+ * `ImmutableSimulator`. Keying the layer-2 handoff off the masked count alone
+ * therefore skipped the whole family, and the MATCH rendered exactly like a
+ * contract holding no immutables at all: the collapse `summarise` says must not
+ * happen, on three active networks.
+ *
+ * Layer 2 cannot run here yet — the zk toolchain emits neither `deployedBytecode`
+ * nor an AST, so nothing can name the simulator's slots. What the gate can stop
+ * doing is claiming the values were covered.
+ */
+describe('verifyCutTargets on a chain holding immutables off-code', () => {
+  const zkDeps = (over: Partial<IVerifyCutDeps> = {}) =>
+    ({
+      ...deps(),
+      scope: () => ({ isClosedSet: true, holdsImmutablesOffCode: true }),
+      observe: async () => ({ ...observed(HASH), runtimeCode: '0xfeed' }),
+      attestationsFor: async () => ({
+        builds: [{ ...attested(HASH), rawHash: undefined }],
+      }),
+      ...over,
+    } as IVerifyCutDeps)
+
+  const zkReport = (over: Partial<IVerifyCutDeps> = {}) =>
+    verifyCutTargets(
+      { cuts: [add(A)], init: ZERO, network: 'zksync' },
+      zkDeps(over)
+    )
+
+  it('does not call a layer-1 match a match of the deployed code', async () => {
+    const report = await zkReport()
+
+    expect(report.targets[0]?.verdict).toBe('UNVERIFIABLE')
+    expect(report.blocksSigning).toBe(true)
+  })
+
+  it('names where the unchecked values live, and counts no masked bytes', async () => {
+    const report = await zkReport()
+
+    expect(report.targets[0]?.reason).toMatch(/ImmutableSimulator/u)
+    // The EVM sentence is built from the masked count. There are none here, so
+    // reusing it would tell the signer "0 bytes were not checked".
+    expect(report.targets[0]?.reason).not.toMatch(/\b0 bytes\b/u)
+  })
+
+  it('never renders the unqualified green', async () => {
+    const report = await zkReport()
+
+    expect(report.summary).not.toMatch(
+      /Every address this cut installs matches a rebuild/u
+    )
+  })
+
+  it('leaves a chain that inlines its immutables exactly as it was', async () => {
+    const report = await verifyCutTargets(
+      { cuts: [add(A)], init: ZERO, network: 'mainnet' },
+      {
+        ...deps(),
+        scope: () => ({ isClosedSet: true, holdsImmutablesOffCode: false }),
+      } as IVerifyCutDeps
+    )
+
+    expect(report.targets[0]?.verdict).toBe('MATCH')
+    expect(report.blocksSigning).toBe(false)
+  })
+})

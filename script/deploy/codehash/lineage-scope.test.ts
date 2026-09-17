@@ -128,6 +128,16 @@ describe('deriveToolchainScope', () => {
       expect(scope.isClosedSet).toBe(true)
       expect(scope.profiles.map((p) => p.profile)).toEqual([ZK_PROFILE])
       expect(scope.profiles[0]?.zksolcVersion).toBe('1.5.15')
+      // The flag the codehash gate keys its immutable handling off. These
+      // chains store immutables in `ImmutableSimulator`, so a code comparison
+      // excludes nothing and still leaves every value unchecked.
+      expect(scope.holdsImmutablesOffCode).toBe(true)
+    }
+  })
+
+  it('marks an EVM network as inlining its immutables', () => {
+    for (const evm of ['mainnet', 'arbitrum', 'base']) {
+      expect(scopeOf(evm).holdsImmutablesOffCode).toBe(false)
     }
   })
 
@@ -233,7 +243,11 @@ describe('deriveToolchainScope', () => {
     // change threads observed bytecode in here, this fails to compile and this
     // assertion is the note explaining why that is deliberate.
     const scope = scopeOf('mainnet')
-    expect(Object.keys(scope).sort()).toEqual(['isClosedSet', 'profiles'])
+    expect(Object.keys(scope).sort()).toEqual([
+      'holdsImmutablesOffCode',
+      'isClosedSet',
+      'profiles',
+    ])
   })
 
   describe('the whole real fleet, so a config change cannot quietly open the set', () => {

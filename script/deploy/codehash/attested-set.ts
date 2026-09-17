@@ -77,6 +77,16 @@ export interface ILineageScope {
    * bytecode, which the proposer controls.
    */
   isClosedSet: boolean
+  /**
+   * True when this network keeps immutables outside the runtime code, so a code
+   * comparison excludes nothing yet still leaves their values unchecked. zkEVM
+   * holds them in `ImmutableSimulator`; EVM and Tron inline them, and there the
+   * masked byte count already says the same thing.
+   *
+   * Derive it from repo configuration, for the reason {@link isClosedSet} gives:
+   * bytecode that carries no sign of its own platform cannot be asked.
+   */
+  holdsImmutablesOffCode?: boolean
 }
 
 export type CodehashVerdict = 'MATCH' | 'MISMATCH' | 'UNVERIFIABLE'
@@ -179,9 +189,10 @@ export const compareToAttestedSet = (
 
   if (exact.length > 0) {
     const matchedLineages = exact.map((build) => build.lineage)
-    // A build that pins exact bytes was compared byte for byte, immutables
-    // included, so nothing was excluded on that path however many bytes are
-    // masked.
+    // A build that pins exact bytes was compared byte for byte, so nothing was
+    // excluded on that path however many bytes are masked. That covers inlined
+    // immutables and says nothing about a chain holding them elsewhere, where
+    // zero excluded bytes and zero checked values are the same number.
     const excludedByteCount = exact.some((build) => build.rawHash !== undefined)
       ? 0
       : observed.maskedByteCount
