@@ -20,10 +20,11 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
+import { readContractVersion } from '../shared/contract-version'
+
 const REPO_ROOT = path.join(import.meta.dir, '..', '..', '..')
 const TASK = 'tasks/buildAttestationManifest.ts'
 const SOURCE_DIRS = ['src', 'src/Facets', 'src/Periphery', 'src/Security']
-const VERSION_RE = /@custom:version\s+(\S+)/
 
 /**
  * The first contract the mint would look for, found the way the mint finds it.
@@ -39,7 +40,7 @@ const firstVersionedContract = (): { name: string; file: string } => {
     for (const entry of fs.readdirSync(abs).sort()) {
       if (!entry.endsWith('.sol')) continue
       const source = fs.readFileSync(path.join(abs, entry), 'utf8')
-      if (VERSION_RE.test(source))
+      if (readContractVersion(source).kind === 'ok')
         return { name: entry.replace(/\.sol$/, ''), file: entry }
     }
   }
