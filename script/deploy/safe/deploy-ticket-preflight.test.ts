@@ -15,8 +15,10 @@ import {
 } from 'bun:test'
 
 import {
+  DEPLOY_REASON_PROMPT,
   branchTicketCandidate,
   deployTicketRefusal,
+  resolveDeployReason,
   resolveDeployTicket,
 } from './deploy-ticket-preflight'
 import { MISSING_TICKET_MESSAGE } from './proposal-intent'
@@ -226,5 +228,71 @@ describe('resolveDeployTicket with an operator to ask', () => {
         })
       )
     ).toContain('not a Linear issue link')
+  })
+})
+
+describe('resolveDeployReason', () => {
+  it('takes the inherited reason without asking', async () => {
+    const asked: string[] = []
+    expect(
+      await resolveDeployReason({
+        envReason: '  whitelist sync stage 4c  ',
+        interactive: true,
+        ask: async (question) => {
+          asked.push(question)
+          return 'typed instead'
+        },
+      })
+    ).toBe('whitelist sync stage 4c')
+    expect(asked).toHaveLength(0)
+  })
+
+  it('asks when the run inherited none', async () => {
+    const asked: string[] = []
+    expect(
+      await resolveDeployReason({
+        interactive: true,
+        ask: async (question) => {
+          asked.push(question)
+          return 'rehearsing the sign-time gates'
+        },
+      })
+    ).toBe('rehearsing the sign-time gates')
+    expect(asked).toEqual([DEPLOY_REASON_PROMPT])
+  })
+
+  // The ticket refuses here; the reason must not, or the measured adoption
+  // trigger it is waiting on would be flipped by the pre-flight instead.
+  it('yields nothing rather than refusing an unattended run', async () => {
+    expect(await resolveDeployReason({ interactive: false })).toBeUndefined()
+  })
+
+  it('treats a skipped prompt as no reason', async () => {
+    expect(
+      await resolveDeployReason({
+        interactive: true,
+        ask: async () => '   ',
+      })
+    ).toBeUndefined()
+  })
+
+  // A reason of only invisible code points would satisfy the adoption counter
+  // while telling a signer nothing, so it must not count as supplied.
+  it('treats an invisible reason as no reason', async () => {
+    expect(
+      await resolveDeployReason({
+        envReason: '\u200d\u0301',
+        interactive: false,
+      })
+    ).toBeUndefined()
+  })
+
+  it('collapses a multi-line reason so the two-line protocol holds', async () => {
+    expect(
+      await resolveDeployReason({
+        envReason: 'first line\nsecond line',
+        interactive: false,
+      })
+    ).toBe('first line second line')
   })
 })

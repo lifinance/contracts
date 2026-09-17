@@ -3,7 +3,11 @@
  * run spends anything. Used by the bash deploy chain through
  * `assertProposalTicketForRun`.
  */
-import { MISSING_TICKET_MESSAGE, parseTicketLink } from './proposal-intent'
+import {
+  MISSING_TICKET_MESSAGE,
+  normalizeProposalReason,
+  parseTicketLink,
+} from './proposal-intent'
 
 /**
  * A Linear issue id at the start of a branch name or of a path segment, which
@@ -89,4 +93,38 @@ export const resolveDeployTicket = async (
   const parsed = parseTicketLink(answer)
   if (!parsed.ok) throw new Error(parsed.message)
   return parsed.url
+}
+
+/** What the reason resolver needs, so a test supplies it without a terminal. */
+export interface IDeployReasonInput {
+  /** `SAFE_PROPOSAL_REASON` as the run inherited it. */
+  envReason?: string
+  /** Whether a human is there to answer, on the same terms as the ticket. */
+  interactive: boolean
+  /** Asks the operator; only consulted when `interactive`. */
+  ask?: (question: string) => Promise<string>
+}
+
+/** The question asked when a run carries no reason yet. */
+export const DEPLOY_REASON_PROMPT =
+  'One line on why this is being proposed now (Enter to skip): '
+
+/**
+ * Resolves the one-line reason this run's proposals will carry.
+ *
+ * Asked beside the ticket but never refused: the reason is being rolled out on
+ * the measured trigger `REASON_FLIP_WINDOW` counts, and refusing here would flip
+ * it ahead of that trigger. Asking before the run spends anything is what makes
+ * a stated reason the normal case, which is the condition the trigger reads.
+ *
+ * @param input - the environment value and how to ask
+ * @returns The normalized line, or undefined when the run carries none
+ */
+export const resolveDeployReason = async (
+  input: IDeployReasonInput
+): Promise<string | undefined> => {
+  const supplied = normalizeProposalReason(input.envReason)
+  if (supplied !== undefined) return supplied
+  if (!input.interactive || !input.ask) return undefined
+  return normalizeProposalReason(await input.ask(DEPLOY_REASON_PROMPT))
 }

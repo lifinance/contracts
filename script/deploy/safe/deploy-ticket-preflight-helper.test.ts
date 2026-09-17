@@ -51,13 +51,15 @@ const callHelper = (
     stubExit?: number
     env?: Record<string, string>
   } = {}
-): { rc: number; ticket: string; output: string } => {
+): { rc: number; ticket: string; reason: string; output: string } => {
   const env: Record<string, string> = {
     ...(process.env as Record<string, string>),
     // The post-clobber state a worker starts from, and the state a fresh run
     // starts from: set empty either way so neither decides a case by accident.
     SAFE_PROPOSAL_TICKET: '',
     RESOLVED_SAFE_PROPOSAL_TICKET: '',
+    SAFE_PROPOSAL_REASON: '',
+    RESOLVED_SAFE_PROPOSAL_REASON: '',
     ...(options.env ?? {}),
   }
   delete env.NODE_ENV
@@ -73,7 +75,8 @@ const callHelper = (
       `source script/helperFunctions.sh >/dev/null 2>&1
        assertProposalTicketForRun ${args.map((a) => `"${a}"`).join(' ')}
        echo "RC=$?"
-       echo "TICKET=[$SAFE_PROPOSAL_TICKET]"`,
+       echo "TICKET=[$SAFE_PROPOSAL_TICKET]"
+       echo "REASON=[$SAFE_PROPOSAL_REASON]"`,
     ],
     {
       cwd: REPO_ROOT,
@@ -94,6 +97,7 @@ const callHelper = (
   return {
     rc: Number(/RC=(\d+)/.exec(output)?.[1] ?? NaN),
     ticket: /TICKET=\[(.*)\]/.exec(output)?.[1] ?? '',
+    reason: /REASON=\[(.*)\]/.exec(output)?.[1] ?? '',
     output,
   }
 }
@@ -198,5 +202,27 @@ describe('when the helper asks nothing at all', () => {
 
     expect(result.rc).toBe(0)
     expect(result.ticket).toBe(URL)
+  })
+})
+
+describe('assertProposalTicketForRun reason line', () => {
+  it('exports the reason the pre-flight printed on line 2', () => {
+    const result = callHelper(['production', 'gnosis'], {
+      stubStdout: `${URL}\nrehearsing the sign-time gates\n`,
+    })
+    expect(result.rc).toBe(0)
+    expect(result.ticket).toBe(URL)
+    expect(result.reason).toBe('rehearsing the sign-time gates')
+  })
+
+  // The ticket is what blocks; a pre-flight that collected no reason still has
+  // to hand the run its ticket rather than failing or exporting a blank line.
+  it('keeps the ticket when line 2 is empty', () => {
+    const result = callHelper(['production', 'gnosis'], {
+      stubStdout: `${URL}\n\n`,
+    })
+    expect(result.rc).toBe(0)
+    expect(result.ticket).toBe(URL)
+    expect(result.reason).toBe('')
   })
 })

@@ -4310,12 +4310,21 @@ function assertProposalTicketForRun() {
   # than exported here, so an inherited one is validated like any other supplied
   # value instead of trusted.
   local SUPPLIED="${SAFE_PROPOSAL_TICKET:-${RESOLVED_SAFE_PROPOSAL_TICKET:-}}"
+  local SUPPLIED_REASON="${SAFE_PROPOSAL_REASON:-${RESOLVED_SAFE_PROPOSAL_REASON:-}}"
 
-  local TICKET
-  if ! TICKET=$(SAFE_PROPOSAL_TICKET="$SUPPLIED" bunx tsx script/deploy/safe/deploy-ticket-preflight.cli.ts); then
+  local PREFLIGHT
+  if ! PREFLIGHT=$(SAFE_PROPOSAL_TICKET="$SUPPLIED" SAFE_PROPOSAL_REASON="$SUPPLIED_REASON" bunx tsx script/deploy/safe/deploy-ticket-preflight.cli.ts); then
     error "this run would propose to a Safe and has no Linear ticket - nothing has been deployed"
     return 1
   fi
+
+  # Line 1 is the ticket, line 2 the reason. Read positionally rather than with
+  # `read -r`, which stops at the first line and would need the reason's empty
+  # case handled separately; command substitution has already dropped the
+  # trailing newline, so a reasonless run leaves line 2 empty.
+  local TICKET REASON
+  TICKET=$(printf '%s\n' "$PREFLIGHT" | sed -n '1p')
+  REASON=$(printf '%s\n' "$PREFLIGHT" | sed -n '2p')
 
   # Exit 0 is not consent, as assertDirectBroadcastCalldataGate says above: a CLI
   # that never ran also exits 0 and prints nothing. The issue URL is this one's
@@ -4327,7 +4336,15 @@ function assertProposalTicketForRun() {
 
   export SAFE_PROPOSAL_TICKET="$TICKET"
   export RESOLVED_SAFE_PROPOSAL_TICKET="$TICKET"
-  echo "[info] proposals from this run will carry $TICKET"
+  # The reason is warn-only until its adoption trigger fires, so an empty one
+  # exports nothing and the proposal path emits its own warning.
+  if [[ -n "$REASON" ]]; then
+    export SAFE_PROPOSAL_REASON="$REASON"
+    export RESOLVED_SAFE_PROPOSAL_REASON="$REASON"
+    echo "[info] proposals from this run will carry $TICKET - $REASON"
+  else
+    echo "[info] proposals from this run will carry $TICKET"
+  fi
   return 0
 }
 

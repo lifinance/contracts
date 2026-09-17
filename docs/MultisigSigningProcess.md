@@ -239,6 +239,17 @@ in the question and in the refusal, and is never accepted on its own:
 lifted off a branch name expands into a URL for an issue that does not exist,
 and an anchor taken on one keypress is worse than a refusal.
 
+The same pre-flight collects the one-line reason, and treats it differently: it
+is asked for beside the ticket but never refused. The reason is on the measured
+adoption trigger `REASON_FLIP_WINDOW` counts, so refusing a reasonless run here
+would flip it ahead of that trigger; asking before the run spends anything is
+what makes a stated reason the normal case the trigger reads. A collected reason
+is exported as `SAFE_PROPOSAL_REASON` and mirrored as
+`RESOLVED_SAFE_PROPOSAL_REASON`, for the same reason the ticket is. The CLI
+prints the ticket on line 1 and the reason on line 2, empty when there is none —
+`normalizeProposalReason` collapses all whitespace, so a reason cannot itself
+span two lines.
+
 `SAFE_PROPOSAL_TICKET` is the channel every path reads; `--ticket` is offered by
 `propose-to-safe.ts`, `propose-to-safe-tron.ts`, `unpauseAllDiamonds.ts` and
 `add-safe-owners-and-threshold.ts`, and by no other route. Plenty of scripts
