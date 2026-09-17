@@ -4247,6 +4247,86 @@ function assertDirectBroadcastCalldataGate() {
   return 0
 }
 
+# sendsDirectly: Whether a call on this network/environment bypasses the Safe.
+# The three clauses that decide "direct send" rather than "propose to the Safe",
+# named once so a gate elsewhere cannot drift from the route it is guarding
+# ([CONV:ROUTING-PREDICATE]).
+#
+# Usage: sendsDirectly NETWORK ENVIRONMENT
+#   NETWORK     - target network name
+#   ENVIRONMENT - "production" or "staging"
+#
+# Returns: 0 when the call is sent directly, 1 when it is proposed to the Safe
+function sendsDirectly() {
+  local NETWORK="$1"
+  local ENVIRONMENT="$2"
+
+  [[ "$ENVIRONMENT" != "production" ]] \
+    || [[ "${SEND_PROPOSALS_DIRECTLY_TO_DIAMOND:-}" == "true" ]] \
+    || isTestnetNetwork "$NETWORK"
+}
+
+# assertProposalTicketForRun: Resolve the Linear ticket this run's proposals will
+# carry, before anything is compiled or broadcast.
+#
+# The requirement itself lives in storeTransactionInMongoDB, which no propose
+# route can bypass — but that runs once the contract is already on chain, so a
+# rollout started without the variable pays a deployment to learn it is missing.
+# Resolving it here turns that into one message.
+#
+# Exported rather than returned, so every network of a multi-network run carries
+# the same ticket, and marked done so the per-contract deploy path does not ask
+# again inside a run that already resolved one.
+#
+# Usage: assertProposalTicketForRun ENVIRONMENT NETWORK...
+#   ENVIRONMENT - "production" or "staging"
+#   NETWORK...  - every network this run will touch
+#
+# Routing/Behavior:
+#   - No network proposes (staging, testnet-only, direct-to-diamond): no ticket
+#     is required and nothing is asked
+#   - SAFE_PROPOSAL_TICKET already set: validated, and refused here if malformed
+#   - Unset with a terminal attached: the operator is asked, the branch's issue
+#     id offered as the default
+#   - Unset with no terminal (CI, an agent, a piped run): refused
+#
+# Returns: 0 with SAFE_PROPOSAL_TICKET exported, 1 when no ticket could be resolved
+function assertProposalTicketForRun() {
+  local ENVIRONMENT="$1"
+  shift
+  local NETWORKS=("$@")
+
+  if [[ "${PROPOSAL_TICKET_PREFLIGHT_DONE:-}" == "true" ]]; then
+    return 0
+  fi
+
+  local NETWORK
+  local PROPOSES="false"
+  for NETWORK in "${NETWORKS[@]}"; do
+    if ! sendsDirectly "$NETWORK" "$ENVIRONMENT"; then
+      PROPOSES="true"
+      break
+    fi
+  done
+
+  if [[ "$PROPOSES" != "true" ]]; then
+    return 0
+  fi
+
+  # Not `local TICKET=$(...)`: `local` succeeds on its own, so it would swallow
+  # the CLI's exit code and hand the run an empty ticket.
+  local TICKET
+  if ! TICKET=$(bunx tsx script/deploy/safe/deploy-ticket-preflight.cli.ts); then
+    error "this run would propose to a Safe and has no Linear ticket - nothing has been deployed"
+    return 1
+  fi
+
+  export SAFE_PROPOSAL_TICKET="$TICKET"
+  export PROPOSAL_TICKET_PREFLIGHT_DONE="true"
+  echo "[info] proposals from this run will carry $TICKET"
+  return 0
+}
+
 # Send or propose transaction
 # - SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true: send directly to target (e.g. new production networks before ownership transfer)
 # - Testnet (networks.json type=testnet): send directly; testnet diamonds are EOA-owned with no Safe/Timelock
@@ -4314,19 +4394,14 @@ function sendOrPropose() {
   # exactly that route; sequential fan-out on the other routes would be untested
   # dead generality, so fail loudly instead of improvising semantics here.
   if [[ ${#CALLDATAS[@]} -gt 1 ]]; then
-    if [[ "$TIMELOCK" != "true" ]] \
-       || [[ "$ENVIRONMENT" != "production" ]] \
-       || [[ "${SEND_PROPOSALS_DIRECTLY_TO_DIAMOND:-}" == "true" ]] \
-       || isTestnetNetwork "$NETWORK"; then
+    if [[ "$TIMELOCK" != "true" ]] || sendsDirectly "$NETWORK" "$ENVIRONMENT"; then
       error "sendOrPropose: multiple calldatas are only supported on the propose-with-timelock route (production + timelock)"
       return 1
     fi
   fi
 
   # Non-production, testnet, or direct-to-diamond: send directly for all networks
-  if [[ "$ENVIRONMENT" != "production" ]] \
-     || [[ "${SEND_PROPOSALS_DIRECTLY_TO_DIAMOND:-}" == "true" ]] \
-     || isTestnetNetwork "$NETWORK"; then
+  if sendsDirectly "$NETWORK" "$ENVIRONMENT"; then
     # Disjoint from the funnel gate by construction: a proposal is gated on its
     # calldata inside propose-to-safe.ts, and only the route that never reaches
     # it is gated here.

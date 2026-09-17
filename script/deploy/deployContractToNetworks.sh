@@ -328,6 +328,13 @@ function deployContractToNetworks() {
     exit 1
   fi
 
+  # Ahead of the group builds, so a rollout with no ticket costs one message
+  # rather than a compile and the first network's deployment. The per-contract
+  # path asks again only if this did not resolve one.
+  if ! assertProposalTicketForRun "$TARGET_ENVIRONMENT" "${TARGET_NETWORKS[@]}"; then
+    exit 1
+  fi
+
   echo ""
   echo "[info] deploying $TARGET_CONTRACT v$TARGET_VERSION to ${#TARGET_NETWORKS[@]} network(s) in $TARGET_ENVIRONMENT environment"
   echo "[info] deployer address: $(getDeployerAddress "" "$TARGET_ENVIRONMENT")"

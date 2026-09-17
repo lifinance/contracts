@@ -212,6 +212,25 @@ rather than a signature or a device confirmation per network. Those pre-checks
 run only on the branches that actually propose; a staging or testnet-only run, a
 `--check` audit and a `--dryRun` need no ticket.
 
+The bash deploy chain pays more than a signature for a late refusal, so its
+pre-check sits earlier still. `assertProposalTicketForRun`
+(`script/helperFunctions.sh`) runs in `deployContractToNetworks.sh` before the
+group builds and in `deploySingleContract.sh` before the network's build, and
+exports the resolved `SAFE_PROPOSAL_TICKET` so every network of a rollout
+carries one ticket and is asked at most once. Without it a rollout compiles,
+broadcasts, writes a deployment record and attempts explorer verification before
+the funnel refuses — a deployment spent on a missing environment variable. It
+asks only when a network on the run would propose, which is the same
+`sendsDirectly` predicate `sendOrPropose` routes on.
+
+With no ticket exported and a terminal attached, the operator is asked and the
+issue id in the branch name is offered as the default; with no terminal — CI, an
+agent-driven rollout, a piped run — the run is refused rather than left waiting
+on a prompt nobody will answer. The branch id is never attached on its own: a
+deploy branch usually names the code ticket rather than the rollout being
+deployed, and a well-formed wrong anchor reads as intent that was captured,
+which is worse than none.
+
 `SAFE_PROPOSAL_TICKET` is the channel every path reads; `--ticket` is offered by
 `propose-to-safe.ts`, `propose-to-safe-tron.ts`, `unpauseAllDiamonds.ts` and
 `add-safe-owners-and-threshold.ts`, and by no other route. Plenty of scripts
@@ -609,7 +628,7 @@ parked tasks are reconciled weekly by `reconcileParkedTasks.yml`.
 | Propose | Nonce safety: override collision checks, auto-nonce clamped to on-chain | Block / auto-correct | `propose-to-safe.ts`, `getNextNonce` in `safe-utils.ts` |
 | Propose | Duplicate-intent dedup (partial unique index on pending rows) | Block insert | `computeProposalIntentHash` + index in `safe-utils.ts` |
 | Propose | Timelock-wrapped proposals dedup on every EVM path: the `scheduleBatch` salt is derived from the action (chain, timelock, targets, payloads, attempt) instead of the clock, so re-proposing the same wrapped work yields the same salt while that candidate is still free. The timelock is asked whether that operation id exists — **pending blocks** (the proposal duplicates work already scheduled and not executed), **executed** advances to the next deterministic salt so a legitimate repeat does not revert after signing, and 16 taken attempts refuse. Same salt is not the same calldata: `minDelay` is also a `scheduleBatch` argument, so **Safe intent dedup** (`computeProposalIntentHash`) does not apply across an `updateDelay`, nor across `wrapWithTimelockSchedule`'s `getMinDelay` fallback (the task scripts have no fallback — a failed read throws). The **timelock** check is unaffected: `hashOperationBatch` hashes targets, values, payloads, predecessor and salt only, so the pending/executed states still hold across a delay change. **The Tron proposal path still uses a clock salt** and is not covered | Block (pending) / auto-advance (executed) / refuse after 16 | `pickTimelockSalt` in `safe-utils.ts` + `deriveTimelockSalt` in `timelock-abi.ts`; reached via `wrapWithTimelockSchedule` (from `propose-to-safe.ts` and `cleanUpProdDiamond.ts`) and directly from the five `script/tasks/propose{AllBridge,PolymerCCTP,Frax,DeBridgeDln,MegaETHBridge}*.ts` batch builders |
-| Propose | Every proposal carries a Linear issue link, from `--ticket` or `SAFE_PROPOSAL_TICKET`. The shape is validated, so a non-Linear or malformed URL is refused rather than recorded as "a link". Checked before the insert, so a refused proposal is never created and claims no nonce | Block insert | `resolveProposalIntent` in `proposal-intent.ts`, called from `storeTransactionInMongoDB` |
+| Propose | Every proposal carries a Linear issue link, from `--ticket` or `SAFE_PROPOSAL_TICKET`. The shape is validated, so a non-Linear or malformed URL is refused rather than recorded as "a link". Checked before the insert, so a refused proposal is never created and claims no nonce, and resolved by `assertProposalTicketForRun` before a deploy run's first build so the refusal does not cost a deployment | Block insert | `resolveProposalIntent` in `proposal-intent.ts`, called from `storeTransactionInMongoDB` |
 | Propose | One-line reason (`--reason` / `SAFE_PROPOSAL_REASON`). Optional, warned once per process — OQ3 flips it to mandatory once the warning has fired zero times across 30 consecutive proposals | Warn | `proposal-intent.ts`; read the trigger with `report-reason-adoption.ts` (read-only) |
 | Propose | In-flight nonce uniqueness per Safe: concurrent proposers may still derive the same nonce, but only one insert survives (partial unique index over `pending` + `submitted`, compared case-insensitively so the Tron and EVM spellings of one Safe collide). The guarantee is **absent** if the index could not be built — in-flight rows already sharing a nonce, or a role without `createIndex` — and the build warns in both cases. Nothing is ever dropped, so a pre-`_ci` index from an earlier build stays as a weaker, redundant constraint | Block insert, re-run required | `unique_inflight_safe_nonce_ci` index in `safe-utils.ts`; diagnose with `report-nonce-collisions.ts` (read-only) |
 | Propose | Removal safety: protected-facet allowlist, live-selector hold-back, fail-closed diffs | Block + alert | `diamondRemovalDiff.ts`, `drain-parked-tasks.ts` |
