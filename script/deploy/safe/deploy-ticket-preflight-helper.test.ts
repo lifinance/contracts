@@ -8,7 +8,7 @@
  * real `bunx` replaced by a stub that produces the output under test.
  */
 
-import { chmodSync, mkdtempSync, writeFileSync } from 'fs'
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 
@@ -69,10 +69,11 @@ const callHelper = (
     ...(options.env ?? {}),
   }
   delete env.NODE_ENV
-  if (options.stubStdout !== undefined || options.stubExit !== undefined)
-    env.PATH = `${bunxStub(options.stubStdout ?? '', options.stubExit ?? 0)}:${
-      env.PATH ?? ''
-    }`
+  let stub: string | undefined
+  if (options.stubStdout !== undefined || options.stubExit !== undefined) {
+    stub = bunxStub(options.stubStdout ?? '', options.stubExit ?? 0)
+    env.PATH = `${stub}:${env.PATH ?? ''}`
+  }
 
   const result = Bun.spawnSync(
     [
@@ -94,6 +95,8 @@ const callHelper = (
       stderr: 'pipe',
     }
   )
+
+  if (stub !== undefined) rmSync(stub, { recursive: true, force: true })
 
   const output = `${result.stdout.toString()}${result.stderr.toString()}`
   if (result.signalCode !== null && result.signalCode !== undefined)
@@ -234,15 +237,17 @@ describe('assertProposalTicketForRun reason line', () => {
     expect(result.reason).toBe('')
   })
 
-  // A second rollout in the same shell inherits the first one's exports. The
-  // pre-flight was offered that reason and returned none, so carrying it would
-  // label these proposals with the previous rollout's reason.
-  it('drops a previous rollout reason when the pre-flight returns none', () => {
+  // The pre-flight's verdict is what the run carries: when it resolves no
+  // reason, an inherited one must not stand behind its back. This is the
+  // helper's half only — today's resolver echoes a non-empty inherited reason
+  // straight back, so a previous rollout's reason still reaches this run's
+  // proposals through line 2, which this test does not and cannot cover.
+  it('clears both reason names when the pre-flight resolves none', () => {
     const result = callHelper(['production', 'gnosis'], {
       stubStdout: `${URL}\n\n`,
       env: {
-        SAFE_PROPOSAL_REASON: 'the previous rollout',
-        RESOLVED_SAFE_PROPOSAL_REASON: 'the previous rollout',
+        SAFE_PROPOSAL_REASON: 'an earlier reason',
+        RESOLVED_SAFE_PROPOSAL_REASON: 'an earlier reason',
       },
     })
     expect(result.rc).toBe(0)
