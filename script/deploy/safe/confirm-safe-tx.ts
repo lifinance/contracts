@@ -895,6 +895,14 @@ const processTxs = async (
     undecodable: string[]
     /** What the reads said, held back until this proposal is on screen. */
     lines: readonly IDeferredLine[]
+    /**
+     * Milliseconds each read cost, in the order they ran.
+     *
+     * Carried so a wait has an address. "The reads took 18s" says the prefetch
+     * is not covering them; it does not say whether to give the window more
+     * time or to stop prefetching the one read that dominates it.
+     */
+    timings: ReadonlyArray<{ stage: string; ms: number }>
   }
 
   /**
@@ -932,6 +940,7 @@ const processTxs = async (
       references: [],
       undecodable: [],
       lines: [{ level: 'error', message: why }],
+      timings: [],
     }
   }
 
@@ -954,6 +963,19 @@ const processTxs = async (
     tx: IAugmentedSafeTxDocument
   ): Promise<IProposalEvidence> {
     const log = createDeferredLogger()
+
+    // Measured between the reads rather than around them. Wrapping each call
+    // re-spells it, and six placement guards pin those spellings to keep the
+    // gates where they can still refuse — instrumentation does not get to
+    // rewrite them. Each read below catches its own failure, so control reaches
+    // the next mark whether the read answered or threw.
+    const timings: { stage: string; ms: number }[] = []
+    let lastMark = Date.now()
+    const mark = (stage: string): void => {
+      const now = Date.now()
+      timings.push({ stage, ms: now - lastMark })
+      lastMark = now
+    }
 
     let codehash: ICodehashSignGate = blockingUnevaluatedGate()
     let integrity: IIntegrityAssertRun | undefined
@@ -984,6 +1006,8 @@ const processTxs = async (
         summary: why,
       }
     }
+
+    mark('codehash gate')
 
     try {
       integrity = await runIntegrityAsserts(
@@ -1036,6 +1060,8 @@ const processTxs = async (
         )}`
       )
     }
+
+    mark('integrity asserts')
 
     let executability: IExecutabilityVerdict | undefined
     if (evmSimulatable && primaryEndpoint)
@@ -1169,6 +1195,8 @@ const processTxs = async (
         )
       }
 
+    mark('executability simulation')
+
     const quorumTarget = tx.safeTransaction.data.to as Address
     let rpcQuorum: IRpcQuorumVerdict | undefined
     if (evmSimulatable && endpoints.length > 0)
@@ -1191,6 +1219,8 @@ const processTxs = async (
           )}`
         )
       }
+
+    mark('rpc quorum')
 
     // Report-only and never gated on: the record is written by the deploying
     // machine, so this catches the typo and the address nobody deployed, not a
@@ -1226,6 +1256,8 @@ const processTxs = async (
       )
     }
 
+    mark('calldata addresses')
+
     // Read before the signer is asked to decide. The same call inside
     // `recordSignedSet` runs after the signature, where a refusal is no
     // longer available; the cache makes the second call free.
@@ -1234,6 +1266,8 @@ const processTxs = async (
       tx.safeTransaction.data.data as Hex | undefined,
       log
     )
+
+    mark('sign-time set')
 
     return {
       codehash,
@@ -1245,6 +1279,7 @@ const processTxs = async (
       references,
       undecodable,
       lines: log.lines,
+      timings,
     }
   }
 
@@ -1271,27 +1306,73 @@ const processTxs = async (
     IProposalEvidence
   >((error) => unreadableEvidence(error))
 
+  const seconds = (ms: number): string => (ms / 1000).toFixed(1)
+
+  // Above this, a proposal's reads cost enough that where the time went is
+  // worth a line. Below it the breakdown prints under every proposal and says
+  // nothing a signer can act on.
+  const SLOW_EVIDENCE_MS = 2000
+
   /**
-   * Says where a proposal's evidence came from and how old it is.
+   * Says where a proposal's evidence came from, how old it is, and what waiting
+   * for it cost here.
    *
    * A verdict read minutes ago and shown as current is the thing this whole
    * gate set exists to prevent, so a served prefetch names its age even though
    * it was re-validated, and a discarded one names why it was thrown away.
+   *
+   * Every path carries its wait, the inline one included, which used to print
+   * nothing. Whether preparing one proposal ahead earns its correctness surface
+   * is a question about wall time, and it cannot be answered from a transcript
+   * that records the wait only where the answer was already good: a served
+   * bundle that still cost nine seconds and an inline read that cost eighteen
+   * are both verdicts on the prefetch, and the silent path hid the second.
    */
   const describeEvidenceProvenance = (
     taken: IPrefetchedEvidence<IProposalEvidence>
   ): string[] => {
     if (taken.prefetched)
       return [
-        `Chain reads for this proposal were taken ${Math.round(
-          taken.ageMs / 1000
-        )}s ago, while the previous proposal was on screen. Re-validated just now: the Safe's nonce is unchanged and this run has broadcast nothing since.`,
+        `Chain reads for this proposal were taken ${seconds(
+          taken.ageMs
+        )}s ago, while the previous proposal was on screen, and you waited ${seconds(
+          taken.waitedMs
+        )}s for them here. Re-validated just now: the Safe's nonce is unchanged and this run has broadcast nothing since.`,
       ]
     if (taken.discarded)
       return [
-        `Chain reads for this proposal were re-taken just now: ${taken.discarded}.`,
+        `Chain reads for this proposal were re-taken just now, costing ${seconds(
+          taken.waitedMs
+        )}s: ${taken.discarded}.`,
       ]
-    return []
+    return [
+      `Chain reads for this proposal took ${seconds(
+        taken.waitedMs
+      )}s, with nothing prepared ahead of it.`,
+    ]
+  }
+
+  /**
+   * Which reads a wait was actually spent in, worst first.
+   *
+   * Printed only when there was a wait worth explaining. A breakdown under
+   * every proposal is noise a signer learns to skip, and what the reads cost is
+   * only interesting on the runs where the cost was paid — so this appears
+   * exactly when there is something to diagnose. Without it a slow run says
+   * only that it was slow, which does not distinguish "give the window more
+   * time" from "stop prefetching the one read that dominates it".
+   */
+  const describeEvidenceCost = (
+    taken: IPrefetchedEvidence<IProposalEvidence>
+  ): string[] => {
+    if (taken.waitedMs < SLOW_EVIDENCE_MS) return []
+
+    const slowest = [...taken.value.timings]
+      .filter((entry) => entry.ms >= 100)
+      .sort((a, b) => b.ms - a.ms)
+      .map((entry) => `${entry.stage} ${seconds(entry.ms)}s`)
+
+    return slowest.length > 0 ? [`  Spent in: ${slowest.join(' · ')}`] : []
   }
 
   // Every proposal's ledger rows, accumulated rather than recorded as they are
@@ -1541,6 +1622,7 @@ const processTxs = async (
       else if (line.level === 'warn') consola.warn(line.message)
       else consola.info(line.message)
     for (const line of describeEvidenceProvenance(evidence)) consola.info(line)
+    for (const line of describeEvidenceCost(evidence)) consola.info(line)
 
     codehashGate = evidence.value.codehash
     integrityRun = evidence.value.integrity

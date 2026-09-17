@@ -427,6 +427,17 @@ export interface IPrefetchedEvidence<T> {
   prefetched: boolean
   /** How long ago the prefetched reads were started; 0 for an inline value. */
   ageMs: number
+  /**
+   * How long the caller actually blocked here.
+   *
+   * The only number that says whether the prefetch bought anything. Served
+   * against a finished prefetch it is ~0; served against one still running it
+   * is whatever was left of it, which is the signal that the interval the
+   * signer spent reading was shorter than the reads take. On the inline paths
+   * it is the full cost of the reads — the baseline the other two are worth
+   * comparing against.
+   */
+  waitedMs: number
   /** Why a prefetched value was thrown away, when one was. */
   discarded?: string
 }
@@ -511,12 +522,16 @@ export class ProposalEvidencePrefetchQueue<TKey, TValue> {
   ): Promise<IPrefetchedEvidence<TValue>> {
     const slot = this.slot
     this.slot = undefined
+    // Every return below reports the wall time from here, so the three paths
+    // are measured the same way and can be compared against each other.
+    const enteredAt = Date.now()
 
     if (!slot || slot.key !== key)
       return {
         value: await this.runInline(compute),
         prefetched: false,
         ageMs: 0,
+        waitedMs: Date.now() - enteredAt,
       }
 
     const prepared = await slot.promise
@@ -526,6 +541,7 @@ export class ProposalEvidencePrefetchQueue<TKey, TValue> {
         value: await this.runInline(compute),
         prefetched: false,
         ageMs: 0,
+        waitedMs: Date.now() - enteredAt,
         discarded,
       }
 
@@ -533,6 +549,7 @@ export class ProposalEvidencePrefetchQueue<TKey, TValue> {
       value: prepared.value,
       prefetched: true,
       ageMs: Date.now() - slot.startedAt,
+      waitedMs: Date.now() - enteredAt,
     }
   }
 
