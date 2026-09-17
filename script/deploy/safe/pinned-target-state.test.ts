@@ -634,6 +634,12 @@ describe('the committed target state is gradeable', () => {
     ).toEqual([])
   })
 
+  // Deliberately reads the working tree while production reads `origin/main`. The two
+  // differ only for a checkout that is behind, and what this asserts is THIS commit's own
+  // consistency — a PR deleting a contract's source without dropping its target-state
+  // entry is exactly the drift that would make the real gate refuse, and this commit is
+  // what becomes `origin/main`. Using the pinned reader here would instead cost a network
+  // fetch and ~200 `git show` calls per run.
   it('resolves every production entry to a comparable expected version', () => {
     const readSource = (contractName: string) =>
       workingTreeSourceVersion(contractName)
@@ -675,7 +681,9 @@ const workingTreeSourceVersion = (
   return { ok: false, detail: `no source for ${contractName}` }
 }
 
-describe('the gate fires on the committed target state', () => {
+// Only the `latest` path — the committed file carries no pins today, so matches-pin and
+// pinned-mismatch are exercised on fixtures above and cannot be proven here.
+describe('the gate fires on the committed target state (latest path)', () => {
   const state = committedTargetState as PinnedTargetState
   // A contract the committed file really declares on a real network, resolved
   // from the file rather than named here, so the case cannot rot into a no-op.
@@ -731,8 +739,14 @@ describe('createPinnedSourceVersionReader', () => {
   let origin: string
   let clone: string
 
+  // stderr ignored for the same reason defaultGit.show ignores it: this suite probes
+  // paths that are meant to be absent, and each miss would otherwise print a raw `fatal:`.
   const git = (cwd: string, args: string[]): string =>
-    execFileSync('git', args, { cwd, encoding: 'utf8' })
+    execFileSync('git', args, {
+      cwd,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    })
 
   const CANONICAL_REMOTE = 'git@github.com:lifinance/contracts.git'
   const realGit = (cwd: string): IPinnedStateGit => ({
@@ -823,6 +837,27 @@ describe('createPinnedSourceVersionReader', () => {
 
     expect(read()('AFacet')).toEqual({ ok: true, version: '1.2.0' })
     git(clone, ['checkout', '-q', 'main'])
+  })
+
+  // One fetch per reader, not one per contract: a proposal naming several facets
+  // asks this reader once per name.
+  it('fetches once however many contracts it is asked for', () => {
+    let fetches = 0
+    const counting = createPinnedSourceVersionReader({
+      repoRoot: clone,
+      git: {
+        ...realGit(clone),
+        fetch: () => {
+          fetches++
+          git(clone, ['fetch', '--quiet', 'origin', PINNED_FETCH_REFSPEC])
+        },
+      },
+    })
+    counting('AFacet')
+    counting('APeriphery')
+    counting('SuffixFacet')
+    counting('DeletedFacet')
+    expect(fetches).toBe(1)
   })
 
   it('refuses when the remote is not lifinance/contracts', () => {

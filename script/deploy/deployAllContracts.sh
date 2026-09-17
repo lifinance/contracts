@@ -159,10 +159,13 @@ deployAllContracts() {
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 2: Deploy core facets"
 
     # deploy core facets
-    deployCoreFacets "$NETWORK" "$ENVIRONMENT"
-    echo ""
-
-    echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 2 completed"
+    if deployCoreFacets "$NETWORK" "$ENVIRONMENT"; then
+      echo ""
+      echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 2 completed"
+    else
+      echo ""
+      warning "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 2 did NOT complete: at least one core facet was not deployed - re-run this stage before continuing"
+    fi
   fi
 
   # Stage 3: Deploy diamond and update with core facets

@@ -570,6 +570,11 @@ const defaultGit = (repoRoot: string): IPinnedStateGit => ({
     execFileSync('git', ['show', revSpec], {
       cwd: repoRoot,
       encoding: 'utf8',
+      // A source lookup tries each candidate directory in turn, so a miss is routine
+      // rather than an incident; without this every miss prints a raw `fatal:` into the
+      // signer's terminal mid-ceremony. The throw still carries the failure.
+      stdio: ['ignore', 'pipe', 'ignore'],
+      timeout: 60_000, // 60 seconds — matches the other git seams
       maxBuffer: 16 * 1024 * 1024, // 16 MB — the target state is ~74 KB today
     }),
 })
@@ -686,6 +691,9 @@ export const createPinnedSourceVersionReader = (options?: {
   const repoRoot = options?.repoRoot ?? REPO_ROOT
   const git = options?.git ?? defaultGit(repoRoot)
   const memo = new Map<string, SourceVersionRead>()
+  // Held across contracts, not just across repeat reads of one: a proposal naming
+  // several facets would otherwise fetch once per name.
+  let anchored: ReturnType<typeof verifyRemoteAndFetch> | undefined
 
   return (contractName) => {
     const cached = memo.get(contractName)
@@ -701,7 +709,9 @@ export const createPinnedSourceVersionReader = (options?: {
           memoizable: true,
         }
 
-      const anchored = verifyRemoteAndFetch(git)
+      // A refusal that could change within the process is retried rather than held.
+      if (!anchored || (!anchored.ok && !anchored.memoizable))
+        anchored = verifyRemoteAndFetch(git)
       if (!anchored.ok)
         return {
           read: {

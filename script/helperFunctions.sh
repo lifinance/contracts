@@ -3025,6 +3025,15 @@ function assertTargetStateVersionAllowed() {
   local ENVIRONMENT="$3"
   local DIAMOND_NAME="${4:-LiFiDiamond}"
 
+  # Asserted before the lookup, because the lookup cannot report it: its `exit 1` on a
+  # missing file kills only the `$( )` subshell, so an unreadable target state arrives
+  # here indistinguishable from "not declared" — and this guard would wave it through.
+  # A guard that cannot read its own input must refuse, not allow.
+  if [[ -z "$TARGET_STATE_PATH" || ! -f "$TARGET_STATE_PATH" ]]; then
+    error "cannot read the target state at '${TARGET_STATE_PATH:-<TARGET_STATE_PATH unset>}', so a version pin for $CONTRACT on $NETWORK cannot be checked. Deploy blocked."
+    return 1
+  fi
+
   local TARGET_VERSION
   TARGET_VERSION=$(findContractVersionInTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_NAME")
 
@@ -3041,7 +3050,11 @@ function assertTargetStateVersionAllowed() {
   local CURRENT_VERSION
   CURRENT_VERSION=$(getCurrentContractVersion "$CONTRACT")
 
-  if [[ "$TARGET_VERSION" == "$CURRENT_VERSION" ]]; then
+  # Ordering is defined on MAJOR.MINOR.PATCH only, so a suffixed tag (2.1.3-tron) is
+  # compared on its base — the same reduction the sign-time gate applies. Without it a
+  # pin, which is always bare, could never match a suffixed build and would refuse the
+  # deploy it was written to permit.
+  if [[ "$TARGET_VERSION" == "${CURRENT_VERSION%%-*}" ]]; then
     return 0
   fi
 
@@ -4453,19 +4466,6 @@ function checkDeployRequirements() {
     done
   fi
   return 0
-}
-function isVersionTag() {
-  # read function arguments into variable
-  local STRING=$1
-
-  # define version tag pattern
-  local PATTERN="^[0-9]+\.[0-9]+\.[0-9]+$"
-
-  if [[ $STRING =~ $PATTERN ]]; then
-    return 0
-  else
-    return 1
-  fi
 }
 
 # >>>>>> helpers for executing commands with stdout/stderr capture

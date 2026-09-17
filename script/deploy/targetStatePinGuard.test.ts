@@ -76,7 +76,9 @@ beforeAll(() => {
             FollowsRepo: 'latest',
             PinnedToCurrent: '2.0.0',
             PinnedToOlder: '1.0.0',
+            SuffixedBuild: '2.1.3',
           },
+          LiFiDiamondImmutable: { OnlyOnImmutable: '1.0.0' },
         },
       },
     })
@@ -98,17 +100,25 @@ afterAll(() => {
  * @param currentVersion - the version the repo is at
  * @returns the guard's exit code, as `rc=<n>`
  */
-const run = (contract: string, currentVersion: string): string => {
-  const harness = join(workDir, `harness-${contract}-${currentVersion}.sh`)
+const run = (
+  contract: string,
+  currentVersion: string,
+  diamond = 'LiFiDiamond',
+  statePath: string = targetStatePath
+): string => {
+  const harness = join(
+    workDir,
+    `harness-${contract}-${currentVersion}-${diamond}-${statePath.length}.sh`
+  )
   writeFileSync(
     harness,
     `
-    TARGET_STATE_PATH="${targetStatePath}"
+    TARGET_STATE_PATH="${statePath}"
     TARGET_STATE_VERSION_LATEST="latest"
     error() { echo "[error] $*"; }
     getCurrentContractVersion() { echo "${currentVersion}"; }
     source "${functionsPath}"
-    assertTargetStateVersionAllowed "${contract}" mainnet production LiFiDiamond >/dev/null
+    assertTargetStateVersionAllowed "${contract}" mainnet production ${diamond} >/dev/null
     echo "rc=$?"
   `
   )
@@ -123,6 +133,36 @@ const run = (contract: string, currentVersion: string): string => {
 // helperFunctions.sh and in pinned-target-state.ts. Nothing else ties the two together,
 // and a drift is silent in the worst direction — bash would read `latest` as a version
 // pin and refuse every deploy of every declared contract.
+// The guard itself takes the diamond as an argument, so a unit test of it passes
+// whatever the call site is wrong about. These assert the wiring instead: the original
+// defect was deploySingleContract resolving the diamond from the CONTRACT's own name,
+// which sends every facet and periphery contract to the LiFiDiamond block and silently
+// skips a LiFiDiamondImmutable pin.
+describe("the guard is wired to the caller's diamond", () => {
+  it('deploySingleContract prefers the diamond it was passed', () => {
+    const source = readFileSync(
+      join(REPO_ROOT, 'script', 'deploy', 'deploySingleContract.sh'),
+      'utf8'
+    )
+    expect(source).toContain(
+      // Bash parameter expansion, quoted from the script — not a JS template literal.
+      // eslint-disable-next-line no-template-curly-in-string
+      'assertTargetStateVersionAllowed "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "${TARGET_DIAMOND_NAME:-$DIAMOND_TYPE}"'
+    )
+    expect(source).toContain('local TARGET_DIAMOND_NAME="$6"')
+  })
+
+  it('deployPeripheryContracts passes its diamond through', () => {
+    const source = readFileSync(
+      join(REPO_ROOT, 'script', 'deploy', 'deployPeripheryContracts.sh'),
+      'utf8'
+    )
+    expect(source).toContain(
+      'deploySingleContract "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$CURRENT_VERSION" false "$DIAMOND_CONTRACT_NAME"'
+    )
+  })
+})
+
 describe('the latest sentinel', () => {
   it('is spelled the same in bash and in TypeScript', () => {
     const helpers = readFileSync(
@@ -159,5 +199,40 @@ describe('assertTargetStateVersionAllowed', () => {
   // deployed here, which is not the guard's refusal to make.
   it('allows a contract the network does not declare', () => {
     expect(run('NotDeclared', '2.0.0')).toBe('rc=0')
+  })
+
+  // A pin is written bare, but @custom:version may carry a suffix (2.1.3-tron). Without
+  // reducing to the base, such a build could never satisfy any pin.
+  it('matches a pin against the base of a suffixed repo version', () => {
+    expect(run('SuffixedBuild', '2.1.3-tron')).toBe('rc=0')
+  })
+
+  it('still blocks a suffixed build whose base differs from the pin', () => {
+    expect(run('SuffixedBuild', '2.2.0-tron')).toBe('rc=1')
+  })
+
+  // The diamond the contract is being deployed FOR decides which block is read. Reading
+  // the wrong one silently skips the pin, since a facet has no entry under the other
+  // diamond and an absent entry is allowed.
+  it('reads the pin from the diamond it was given', () => {
+    expect(run('OnlyOnImmutable', '2.0.0', 'LiFiDiamondImmutable')).toBe('rc=1')
+  })
+
+  it("does not apply another diamond's pin", () => {
+    expect(run('OnlyOnImmutable', '2.0.0', 'LiFiDiamond')).toBe('rc=0')
+  })
+
+  // findContractVersionInTargetState `exit 1`s on a missing file, which inside `$( )`
+  // kills only the subshell — so without an explicit check the guard cannot tell
+  // "unreadable" from "not declared" and waves the deploy through. A guard that cannot
+  // read its input must refuse.
+  it('blocks when the target state file is missing', () => {
+    expect(
+      run('FollowsRepo', '2.0.0', 'LiFiDiamond', join(workDir, 'gone.json'))
+    ).toBe('rc=1')
+  })
+
+  it('blocks when TARGET_STATE_PATH is unset', () => {
+    expect(run('FollowsRepo', '2.0.0', 'LiFiDiamond', '')).toBe('rc=1')
   })
 })

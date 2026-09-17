@@ -37,6 +37,8 @@ deployCoreFacets() {
   local GAS_ZIP_CHAIN_ID
   GAS_ZIP_CHAIN_ID=$(getValueFromJSONFile "$NETWORKS_JSON_FILE_PATH" "$NETWORK.gasZipChainId")
 
+  local REFUSED=()
+
   # loop through all contracts
   for CONTRACT in "${FACETS_ARRAY[@]}"; do
     # skip GasZipFacet if network has no GasZip support
@@ -48,8 +50,19 @@ deployCoreFacets() {
     local CURRENT_VERSION=$(getCurrentContractVersion "$CONTRACT")
 
     # call deploy script for current contract
-    deploySingleContract "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$CURRENT_VERSION" "false"
+    # Collected rather than ignored, for the same reason the periphery loop collects: a
+    # core facet that was refused (a version pin, or any other failure) is not deployed,
+    # and a stage that returns 0 anyway hides it until the health check reports it missing.
+    if ! deploySingleContract "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$CURRENT_VERSION" "false"; then
+      REFUSED+=("$CONTRACT")
+    fi
   done
+
+  if [[ ${#REFUSED[@]} -gt 0 ]]; then
+    error "these core facets were not deployed: ${REFUSED[*]}"
+    return 1
+  fi
+
   echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< core facets deployed (please check for warnings)"
   echo ""
   return 0

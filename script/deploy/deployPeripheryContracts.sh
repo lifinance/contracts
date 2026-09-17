@@ -61,7 +61,7 @@ deployPeripheryContracts() {
       # refusal is collected rather than ignored: a contract target state declares but
       # nothing deployed is exactly what every health check then reports as missing, and
       # a run that returns 0 hides it.
-      if ! deploySingleContract "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$CURRENT_VERSION"; then
+      if ! deploySingleContract "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$CURRENT_VERSION" false "$DIAMOND_CONTRACT_NAME"; then
         REFUSED+=("$CONTRACT")
       fi
     fi

@@ -2,7 +2,7 @@
 
 # deploys a single contract
 # should be called like this:
-# $(deploySingleContract "Executor" "BSC" "staging" "1.0.0" true)
+# $(deploySingleContract "Executor" "BSC" "staging" "1.0.0" true "LiFiDiamond")
 deploySingleContract() {
   # load helper functions
   source script/helperFunctions.sh
@@ -15,6 +15,8 @@ deploySingleContract() {
   local ENVIRONMENT="$3"
   local VERSION="$4"
   local EXIT_ON_ERROR="$5"
+  # the diamond this contract is being deployed for, when the caller knows it
+  local TARGET_DIAMOND_NAME="$6"
 
   # load env variables
   source .env
@@ -175,7 +177,12 @@ deploySingleContract() {
 
   # Asserted here rather than in the callers: every deploy path funnels through this
   # function, so a pin cannot be bypassed by entering from another script.
-  if ! assertTargetStateVersionAllowed "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$DIAMOND_TYPE"; then
+  #
+  # The caller's diamond decides which target-state block to read, NOT DIAMOND_TYPE:
+  # that is derived from the contract's own name, so every facet and periphery contract
+  # resolves to "LiFiDiamond" whichever diamond it is really being deployed for, and a
+  # pin under LiFiDiamondImmutable would never be looked up at all.
+  if ! assertTargetStateVersionAllowed "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "${TARGET_DIAMOND_NAME:-$DIAMOND_TYPE}"; then
     if [[ -z "$EXIT_ON_ERROR" || "$EXIT_ON_ERROR" == "false" ]]; then
       return 1
     else
