@@ -23,7 +23,7 @@ value says which version that network is allowed to run.
 | Value | Meaning |
 | --- | --- |
 | `"latest"` | This network follows the repo — whatever `@custom:version` the contract carries on `main`. **The normal case.** |
-| `"1.2.0"` | A **pin**: this exact version must be here, and no other version may be deployed or installed on this chain. |
+| `"1.2.0"` | A **pin**: this exact version must be here. Any deploy of a different version on this chain is refused, and in production so is any Safe proposal that would install one. |
 
 A pin is read as _"this version must be here"_, never as _"this is what happens to be
 deployed"_. A contract that is simply not rolled out here yet is `latest`, not a pin at its
@@ -71,6 +71,12 @@ These read `Object.keys` and ignore the value entirely.
   be bypassed by entering from another script.
 - The sign-time target-state gate, `script/deploy/safe/pinned-target-state.ts`
   ([docs/MultisigSigningProcess.md](./MultisigSigningProcess.md)).
+
+**Known gap.** Both consumers sit on the *deploy* and the *production proposal* paths. A
+direct `diamondUpdateFacet` / `diamondUpdatePeriphery` cut — the staging and testnet route,
+where `SEND_PROPOSALS_DIRECTLY_TO_DIAMOND` broadcasts without a Safe — installs an
+already-deployed address and consults the target state nowhere. A pin does not stop that
+route today.
 
 ## How the sign-time gate grades a proposal
 
