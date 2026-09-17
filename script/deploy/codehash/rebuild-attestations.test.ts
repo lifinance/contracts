@@ -237,7 +237,12 @@ describe('createAttestationSource — the four outcomes stay four', () => {
     expect(resolution.kind).toBe('unattestable')
     if (resolution.kind !== 'unattestable') return
     expect(resolution.stage).toBe('no-record')
-    expect(await source.attestationsFor(ADDRESS, 'mainnet')).toEqual([])
+    // The empty set and the reason for it travel together: the seam is the only
+    // place the sentence a signer reads can still come from.
+    const lookup = await source.attestationsFor(ADDRESS, 'mainnet')
+    expect(lookup.builds).toEqual([])
+    expect(lookup.absence).toMatch(/says nothing about this address/)
+    expect(lookup.absence).not.toMatch(/carries no commit/)
   })
 
   it('reports a record with no commit as unattestable, not as an error', async () => {
@@ -253,6 +258,16 @@ describe('createAttestationSource — the four outcomes stay four', () => {
       expect(resolution.kind).toBe('unattestable')
       if (resolution.kind !== 'unattestable') return
       expect(resolution.stage).toBe('no-commit')
+
+      // Named, and named as this case rather than the other: a signer whose row
+      // says only "no attested build is available" cannot tell a record that
+      // predates the commit field from an address the record never heard of,
+      // and the two are fixed by different people.
+      const lookup = await source.attestationsFor(ADDRESS, 'mainnet')
+      expect(lookup.builds).toEqual([])
+      expect(lookup.absence).toContain('AccessManagerFacet@2.0.0')
+      expect(lookup.absence).toMatch(/carries no commit/)
+      expect(lookup.absence).not.toMatch(/says nothing about this address/)
     }
   })
 
@@ -466,7 +481,7 @@ describe('the real fleet decides which lineage masks and which pins', () => {
       toolchainScope: () =>
         deriveToolchainScope(network, { networks, profiles }),
     })
-    const [build] = await source.attestationsFor(ADDRESS, network)
+    const [build] = (await source.attestationsFor(ADDRESS, network)).builds
     if (!build) throw new Error(`${network} produced no attested build`)
     return build
   }
@@ -628,7 +643,7 @@ describe('falsification — the attested set against real observed code', () => 
       toolchainScope: () =>
         deriveToolchainScope(network, { networks, profiles }),
     })
-    return source.attestationsFor(ADDRESS, network)
+    return (await source.attestationsFor(ADDRESS, network)).builds
   }
 
   it('stays silent on the code it rebuilt', async () => {

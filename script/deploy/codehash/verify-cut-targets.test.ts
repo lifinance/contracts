@@ -23,7 +23,11 @@ import type {
   ImmutablePricing,
   IPricedImmutables,
 } from './immutable-expectations'
-import { verifyCutTargets, type IVerifyCutDeps } from './verify-cut-targets'
+import {
+  verifyCutTargets,
+  type IAttestationLookup,
+  type IVerifyCutDeps,
+} from './verify-cut-targets'
 
 const A = getAddress('0x1111111111111111111111111111111111111111')
 const B = getAddress('0x2222222222222222222222222222222222222222')
@@ -66,7 +70,7 @@ const remove = (facetAddress: string) => ({
 
 const deps = (overrides?: {
   observe?: (address: string) => Promise<IObservedCode>
-  attestationsFor?: (address: string) => Promise<IAttestedBuild[]>
+  attestationsFor?: (address: string) => Promise<IAttestationLookup>
   price?: (
     address: string,
     network: string,
@@ -76,7 +80,8 @@ const deps = (overrides?: {
 }) => ({
   scope: () => ({ isClosedSet: overrides?.isClosedSet ?? true }),
   observe: overrides?.observe ?? (async () => observed(HASH)),
-  attestationsFor: overrides?.attestationsFor ?? (async () => [attested(HASH)]),
+  attestationsFor:
+    overrides?.attestationsFor ?? (async () => ({ builds: [attested(HASH)] })),
   // Layer 2 refuses unless a test says otherwise, so every existing expectation
   // describes the verdict layer 1 reaches on its own.
   price:
@@ -131,12 +136,54 @@ describe('verifyCutTargets', () => {
     // a signer told "red" are being asked different questions.
     const report = await verifyCutTargets(
       { cuts: [add(A)], init: ZERO, network: 'mainnet' },
-      deps({ attestationsFor: async () => [], isClosedSet: false })
+      deps({
+        attestationsFor: async () => ({ builds: [] }),
+        isClosedSet: false,
+      })
     )
 
     expect(report.blocksSigning).toBe(true)
     expect(report.targets[0]?.verdict).toBe('UNVERIFIABLE')
     expect(report.targets[0]?.verdict).not.toBe('MISMATCH')
+  })
+
+  it('says why the attested set is empty when the lookup knows', async () => {
+    const report = await verifyCutTargets(
+      { cuts: [add(A)], init: ZERO, network: 'mainnet' },
+      deps({
+        attestationsFor: async () => ({
+          builds: [],
+          absence:
+            'the deployment record names Foo@1.0.0 but carries no commit',
+        }),
+        isClosedSet: false,
+      })
+    )
+
+    expect(report.targets[0]?.verdict).toBe('UNVERIFIABLE')
+    expect(report.targets[0]?.reason).toBe(
+      'the deployment record names Foo@1.0.0 but carries no commit'
+    )
+    // Still the same refusal. A sentence that explains an empty set must not
+    // also soften it.
+    expect(report.blocksSigning).toBe(true)
+  })
+
+  it('falls back to the bare sentence when the lookup gives no reason', async () => {
+    // The pair for the test above: without it, a lookup that stopped supplying
+    // a reason would leave that assertion passing against a hardcoded string.
+    const report = await verifyCutTargets(
+      { cuts: [add(A)], init: ZERO, network: 'mainnet' },
+      deps({
+        attestationsFor: async () => ({ builds: [] }),
+        isClosedSet: false,
+      })
+    )
+
+    expect(report.targets[0]?.verdict).toBe('UNVERIFIABLE')
+    expect(report.targets[0]?.reason).toBe(
+      'no attested build is available for this contract, so nothing can be compared'
+    )
   })
 
   it('never consults the chain for an address it does not gate', async () => {
@@ -284,9 +331,9 @@ describe('verifyCutTargets', () => {
       { cuts: [add(A)], init: ZERO, network: 'mainnet' },
       deps({
         observe: async () => ({ ...observed(HASH), maskedByteCount: 96 }),
-        attestationsFor: async () => [
-          { ...attested(HASH), rawHash: undefined },
-        ],
+        attestationsFor: async () => ({
+          builds: [{ ...attested(HASH), rawHash: undefined }],
+        }),
       })
     )
 
@@ -306,7 +353,9 @@ describe('verifyCutTargets', () => {
         maskedByteCount: 96,
         runtimeCode: DEPLOYED,
       }),
-      attestationsFor: async () => [{ ...attested(HASH), rawHash: undefined }],
+      attestationsFor: async () => ({
+        builds: [{ ...attested(HASH), rawHash: undefined }],
+      }),
     } as IVerifyCutDeps)
 
   it('prices the bytes the comparison was built from, not a second read', async () => {
@@ -333,9 +382,9 @@ describe('verifyCutTargets', () => {
         // No `runtimeCode`, as every pre-layer-2 producer of an observation
         // leaves it.
         observe: async () => ({ ...observed(HASH), maskedByteCount: 96 }),
-        attestationsFor: async () => [
-          { ...attested(HASH), rawHash: undefined },
-        ],
+        attestationsFor: async () => ({
+          builds: [{ ...attested(HASH), rawHash: undefined }],
+        }),
       } as IVerifyCutDeps
     )
 
@@ -465,9 +514,9 @@ describe('verifyCutTargets', () => {
       { cuts: [add(A)], init: ZERO, network: 'mainnet' },
       deps({
         observe: async () => ({ ...observed(HASH), maskedByteCount: 64 }),
-        attestationsFor: async () => [
-          { ...attested(HASH), rawHash: undefined },
-        ],
+        attestationsFor: async () => ({
+          builds: [{ ...attested(HASH), rawHash: undefined }],
+        }),
       })
     )
 

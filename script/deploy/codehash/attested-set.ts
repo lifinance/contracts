@@ -153,12 +153,16 @@ const blocked = (
  * @param observed - The code found on chain, already stripped and masked.
  * @param attested - Every attested build for this contract. Order is irrelevant.
  * @param scope - Whether `attested` is the complete set of legitimate builds.
+ * @param absenceReason - Why `attested` is empty, when the lookup knows. Read
+ * only on the empty set, and only to say why: an empty set blocks whatever the
+ * sentence says, so nothing here can move a verdict.
  * @returns The verdict, the lineages that matched, and why.
  */
 export const compareToAttestedSet = (
   observed: IObservedCode,
   attested: IAttestedBuild[],
-  scope: ILineageScope
+  scope: ILineageScope,
+  absenceReason?: string
 ): ICodehashComparison => {
   const target = normalizeHash(observed.maskedHash)
   const sameCode = attested.filter(
@@ -233,7 +237,8 @@ export const compareToAttestedSet = (
   if (attested.length === 0)
     return blocked(
       'UNVERIFIABLE',
-      'no attested build is available for this contract, so nothing can be compared',
+      absenceReason ??
+        'no attested build is available for this contract, so nothing can be compared',
       observed.maskedByteCount
     )
 
