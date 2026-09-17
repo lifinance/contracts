@@ -1335,7 +1335,7 @@ const processTxs = async (
       return [
         `Chain reads for this proposal were taken ${seconds(
           taken.ageMs
-        )}s ago, while the previous proposal was on screen, and you waited ${seconds(
+        )}s ago, while you were reading, and you waited ${seconds(
           taken.waitedMs
         )}s for them here. Re-validated just now: the Safe's nonce is unchanged and this run has broadcast nothing since.`,
       ]
@@ -1426,6 +1426,18 @@ const processTxs = async (
     codehashGate = blockingUnevaluatedGate()
     integrityRun = undefined
     if (proposalIndex++ > 0) consola.log(PROPOSAL_SEPARATOR.join('\n'))
+
+    // This proposal's own reads, started before its first zone is drawn. The
+    // slot already holds it from the previous iteration in every case but the
+    // first, where scheduling here is what puts the rebuild and the chain reads
+    // alongside the interval the signer spends reading what they are signing —
+    // rather than in front of it, which is where the whole minute a cold
+    // codehash rebuild costs used to land.
+    evidencePrefetch.schedule(
+      tx,
+      () => computeProposalEvidence(tx),
+      resolveEvidenceAnchor
+    )
 
     // The block sanitises the stored addresses itself, so it can report a row
     // that needed it. These only decide how a clean address is displayed.
@@ -1591,11 +1603,11 @@ const processTxs = async (
     const storedIsHash =
       typeof storedHash === 'string' && /^0x[0-9a-f]{64}$/i.test(storedHash)
 
-    // Every chain read this proposal is graded on, in one step. Served from
-    // the prefetch taken while the previous proposal was on screen only while
-    // the anchor still agrees, and re-taken here otherwise — so what is
-    // displayed below is evidence about the state this proposal would be
-    // signed against, never about a state it has left.
+    // Every chain read this proposal is graded on, in one step. Served from the
+    // prefetch started while the signer was reading only while the anchor still
+    // agrees, and re-taken here otherwise — so what is displayed below is
+    // evidence about the state this proposal would be signed against, never
+    // about a state it has left.
     const evidence = await evidencePrefetch.take(
       tx,
       () => computeProposalEvidence(tx),

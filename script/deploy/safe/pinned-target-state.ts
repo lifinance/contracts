@@ -22,6 +22,7 @@ import {
   resolveDeployedContractByAddress,
   type DeployedContractLookup,
 } from './facet-version-utils'
+import { GATE_BODY_INDENT, GATE_TITLE_INDENT } from './signer-view'
 
 // Resolved from this module rather than `process.cwd()`: the anchor has to be
 // this repository's `origin/main` no matter which directory the reviewer ran the
@@ -640,7 +641,43 @@ export const createTargetStateDeps = (
 })
 
 /**
- * Renders a verdict for the signer, one line per finding.
+ * Collapses findings that would print as the same sentence.
+ *
+ * One cut installs a facet through as many elements as it has actions — a
+ * `Replace` for the selectors already routed and an `Add` for the new ones —
+ * and each is graded separately, which is correct: the grading is per element
+ * and `cleared` must stay a statement about all of them. What it is not is two
+ * facts, and printing the same version comparison twice reads as one, so a
+ * signer looks for the difference between them.
+ *
+ * Keyed on what is displayed rather than on the element, so two findings only
+ * collapse when nothing on screen would have told them apart.
+ *
+ * @param findings - graded findings, in display order
+ * @returns The same findings with later exact repeats dropped
+ */
+const dedupeLines = (
+  findings: readonly ITargetStateFinding[]
+): ITargetStateFinding[] => {
+  const seen = new Set<string>()
+  return findings.filter((finding) => {
+    const key = [
+      finding.status,
+      finding.facetAddress,
+      finding.contractName,
+      finding.proposedVersion,
+      finding.mainVersion,
+      finding.crossFleetCount,
+      finding.detail,
+    ].join('|')
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+/**
+ * Renders a verdict for the signer, one line per distinct finding.
  * @param verdict - output of {@link evaluateTargetStateIntent}
  * @returns Display lines, blocking findings first
  */
@@ -685,15 +722,15 @@ export const formatTargetStateLines = (
   // they happen to follow.
   return [
     '',
-    `    ${TARGET_STATE_GATE_HEADING}`,
-    `        read from ${PINNED_REF}:${TARGET_STATE_REPO_PATH} (this checkout is not consulted)`,
-    ...ordered.map((finding) => {
+    `${GATE_TITLE_INDENT}${TARGET_STATE_GATE_HEADING}`,
+    `${GATE_BODY_INDENT}read from ${PINNED_REF}:${TARGET_STATE_REPO_PATH} (this checkout is not consulted)`,
+    ...dedupeLines(ordered).map((finding) => {
       const who = finding.contractName ?? finding.facetAddress ?? 'proposal'
       const fleet =
         finding.crossFleetCount === null
           ? ''
           : ` [${finding.crossFleetCount} network(s) already declare this contract at this version]`
-      return `        ${label[finding.status]} — ${who}: ${
+      return `${GATE_BODY_INDENT}${label[finding.status]} — ${who}: ${
         finding.detail
       }${fleet}`
     }),

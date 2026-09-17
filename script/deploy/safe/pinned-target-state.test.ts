@@ -406,6 +406,28 @@ describe('formatTargetStateLines', () => {
     expect(at('REMOVAL')).toBeGreaterThan(-1)
   })
 
+  // A cut that replaces the selectors already routed and adds the new ones
+  // grades one facet through two elements, and both reach the same sentence.
+  // Printed twice, a signer reads two facts and looks for the difference.
+  it('states one facet at one version once, however many elements install it', () => {
+    const verdict = evaluateTargetStateIntent(
+      [
+        cut([
+          { facetAddress: FACET, action: 1 },
+          { facetAddress: FACET, action: 0 },
+        ]),
+      ],
+      'optimism',
+      deps({ deployed: { contractName: 'AcrossFacetV3', version: '2.0.0' } })
+    )
+    const named = formatTargetStateLines(verdict).filter((line) =>
+      line.includes('AcrossFacetV3')
+    )
+
+    expect(verdict.findings).toHaveLength(2)
+    expect(named).toHaveLength(1)
+  })
+
   it('prints the cross-fleet count for a first-time add', () => {
     const verdict = evaluateTargetStateIntent(
       [cut([{ facetAddress: FACET, action: 0 }])],

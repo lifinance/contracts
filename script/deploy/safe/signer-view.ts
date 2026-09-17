@@ -35,6 +35,21 @@ const BLUE = `${ESC}[36m`
 export const VIEW_WIDTH = 140
 
 /**
+ * The columns a gate's name and its body are drawn at.
+ *
+ * A bucket row spells the name column as a glyph and a space after a four-space
+ * indent; the blocks that print their own detail under a gate — the target
+ * state, the codehash verdicts — carry no glyph and so have to spell the column
+ * itself. Each one that spelled its own drifted from the rows it sits among,
+ * which is what these two exist to stop.
+ */
+export const GATE_TITLE_INDENT = '      '
+export const GATE_BODY_INDENT = '        '
+
+/** What a bucket row's glyph and the space after it occupy, left of the name. */
+const GATE_GLYPH_INDENT = ' '.repeat(GATE_TITLE_INDENT.length - 2)
+
+/**
  * What a signer is being asked to do about a result.
  *
  * Keyed off `status` rather than off which module produced the row, because a
@@ -668,7 +683,7 @@ const wrapValue = (
   label: string,
   value: string,
   colour = '',
-  indent = '        '
+  indent = GATE_BODY_INDENT
 ): string[] => {
   const hang = `${indent}${' '.repeat(label.length)}`
   const paint = (text: string): string =>
@@ -746,7 +761,7 @@ const hashPair = (
   expected: string,
   actual: string,
   colour: string,
-  indent = '        '
+  indent = GATE_BODY_INDENT
 ): string[] => {
   const budget = Math.max(20, VIEW_WIDTH - indent.length)
   const single = (value: string): boolean =>
@@ -890,7 +905,7 @@ export const renderCheckGroups = (
           ? result.actual.trim() || NOTHING_TO_GRADE_UNSTATED
           : undefined)
       out.push(
-        `    ${style.colour}${style.glyph}${RESET} ${BOLD}${title}${RESET}`
+        `${GATE_GLYPH_INDENT}${style.colour}${style.glyph}${RESET} ${BOLD}${title}${RESET}`
       )
       // No `expected`/`observed` pair: the gate's `expected` is boilerplate no
       // proposal can fail, and a pair invites a comparison that means nothing.

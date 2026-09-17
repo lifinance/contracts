@@ -14,6 +14,8 @@
  * masking path at all.
  */
 
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
+import { tmpdir } from 'os'
 import { join } from 'path'
 
 import {
@@ -36,6 +38,7 @@ import {
   createRecordReader,
   createRuntimeCodeObserver,
   createToolchainScopeResolver,
+  createArtifactCache,
   defaultCheckoutRoot,
   readToolchainConfig,
 } from './codehash-sign-gate-deps'
@@ -284,6 +287,10 @@ describe('createForgeRebuildRunner', () => {
         outDir: string,
         sourceRoot: string
       ) => readonly IImmutableDeclaration[]
+      artifactCache?: {
+        restore: (key: string, outDir: string) => boolean
+        save: (key: string, outDir: string) => void
+      }
       calls?: unknown[]
     } = {}
   ) => {
@@ -308,6 +315,7 @@ describe('createForgeRebuildRunner', () => {
         exists: over.exists ?? ((path) => path.endsWith('.json')),
         readFile: over.readFile ?? (() => artifact),
         readDeclarations: over.readDeclarations ?? (() => []),
+        ...(over.artifactCache ? { artifactCache: over.artifactCache } : {}),
       }),
     }
   }
@@ -327,6 +335,66 @@ describe('createForgeRebuildRunner', () => {
 
     expect(built.runtimeHex).toBe(DEPLOYED)
     expect(built.immutableReferences).toEqual(REFS)
+  })
+
+  // A cold compile of the whole tree is the minute a signer waits before zone 2
+  // appears, and the checkout it lands in dies with the process — so the same
+  // commit was recompiled from scratch once per signing session.
+  it('takes a cached build instead of compiling, and does not init submodules for it', () => {
+    let restored = false
+    const calls: unknown[] = []
+    const harness = runner({
+      calls,
+      exists: (path) => (path.endsWith('.json') ? restored : true),
+      artifactCache: {
+        restore: () => {
+          restored = true
+          return true
+        },
+        save: () => undefined,
+      },
+    })
+
+    const built = harness.runner.build(request)
+
+    expect(built.runtimeHex).toBe(DEPLOYED)
+    expect(calls).toHaveLength(0)
+    expect(harness.gitCalls.some(([verb]) => verb === 'submodule')).toBe(false)
+  })
+
+  it('keys the cache on the commit and the profile, and saves what it built', () => {
+    const saved: string[] = []
+    const harness = runner({
+      exists: (path) => !path.endsWith('.json'),
+      artifactCache: { restore: () => false, save: (key) => saved.push(key) },
+    })
+
+    // `exists` reports the artifact absent throughout, which the runner treats
+    // as a build that produced nothing — the throw is what proves the save is
+    // reached only for an artifact this run can vouch for.
+    expect(() => harness.runner.build(request)).toThrow('produced no artifact')
+    expect(saved).toHaveLength(0)
+
+    let compiled = false
+    const ok = runner({
+      exists: (path) => (path.endsWith('.json') ? compiled : true),
+      run: () => {
+        compiled = true
+        return { ok: true, output: '' }
+      },
+      artifactCache: { restore: () => false, save: (key) => saved.push(key) },
+    })
+    ok.runner.build(request)
+    compiled = false
+    ok.runner.build({
+      ...request,
+      profile: { ...request.profile, profile: 'zksync' },
+    })
+
+    expect(saved).toEqual([
+      `${'a'.repeat(40)}-out-codehash-default`,
+      `${'a'.repeat(40)}-out-codehash-zksync`,
+    ])
   })
 
   it('builds with --ast, so the ids keying the offsets come from this compilation', () => {
@@ -949,5 +1017,54 @@ describe('createDeployedCodeReader', () => {
     })(ADDRESS, 'arbitrum')
 
     expect(asked).toEqual(['arbitrum'])
+  })
+})
+
+describe('createArtifactCache', () => {
+  const roots: string[] = []
+  const tempRoot = (): string => {
+    const root = mkdtempSync(join(tmpdir(), 'codehash-artifact-cache-'))
+    roots.push(root)
+    return root
+  }
+
+  afterEach(() => {
+    for (const root of roots.splice(0))
+      rmSync(root, { recursive: true, force: true })
+  })
+
+  it('serves a later run the build an earlier one made', () => {
+    const cache = createArtifactCache(tempRoot())
+    const built = tempRoot()
+    mkdirSync(join(built, 'AccessManagerFacet.sol'), { recursive: true })
+    writeFileSync(
+      join(built, 'AccessManagerFacet.sol', 'AccessManagerFacet.json'),
+      '{"deployedBytecode":{"object":"0xdead"}}'
+    )
+
+    cache.save('commit-out-codehash-default', built)
+    const restoredInto = join(tempRoot(), 'out-codehash-default')
+
+    expect(cache.restore('commit-out-codehash-default', restoredInto)).toBe(
+      true
+    )
+    expect(
+      readFileSync(
+        join(restoredInto, 'AccessManagerFacet.sol', 'AccessManagerFacet.json'),
+        'utf8'
+      )
+    ).toContain('0xdead')
+  })
+
+  // The gate must reach "build it again", never "the gate could not run": every
+  // way the cache can fail is an optimisation missing, not a signing outage.
+  it('reports a miss rather than throwing, for a key and a source it cannot read', () => {
+    const cache = createArtifactCache(tempRoot())
+
+    expect(cache.restore('nothing-was-ever-saved-here', tempRoot())).toBe(false)
+    expect(() =>
+      cache.save('unbuilt', join(tmpdir(), 'no-such-build-directory-here'))
+    ).not.toThrow()
+    expect(cache.restore('unbuilt', tempRoot())).toBe(false)
   })
 })

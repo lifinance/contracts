@@ -13,6 +13,7 @@ import {
 } from './check-ledger'
 import {
   CODEHASH_GATE_HEADING,
+  renderCodehashSignGate,
   type ICodehashSignGate,
 } from './codehash-sign-gate'
 import {
@@ -53,6 +54,7 @@ import type {
   IExecutabilityVerdict,
 } from './executability-simulation'
 import {
+  formatTargetStateLines,
   STATUSES_CLEARED_TO_PROCEED,
   STATUSES_THAT_CONSULTED_NOTHING,
   TARGET_STATE_GATE_HEADING,
@@ -64,7 +66,12 @@ import type { IPreBroadcastAuthority } from './prebroadcast-authorities'
 import { renderCheckLedger } from './render-check-ledger'
 import type { IRpcQuorumVerdict, TQuorumStatus } from './rpc-quorum'
 import type { ISignedAuthorityEntry } from './signed-set-record'
-import { manifestTitleWidth } from './signer-view'
+import {
+  GATE_BODY_INDENT,
+  GATE_TITLE_INDENT,
+  manifestTitleWidth,
+  renderCheckGroups,
+} from './signer-view'
 import { CHECK_DOCS } from './signer-zones'
 
 const FACET = '0x1111111111111111111111111111111111111111'
@@ -2081,5 +2088,60 @@ describe('section headings', () => {
       for (const other of sections)
         if (other !== section) expect(other).not.toContain(section)
     }
+  })
+})
+
+describe('gate blocks share one column', () => {
+  // Three modules draw a gate's name: the bucket rows, and the two blocks that
+  // print their own per-finding detail. Each one spelled its own indent, and
+  // zone 2 shipped with the target state and the codehash verdicts two columns
+  // left of every row they sit among.
+  it('puts every gate name and every gate body at the same indent', () => {
+    const nameColumn = (line: string): number =>
+      /^ */u.exec(stripColor(line))?.[0].length ?? 0
+
+    const bucketRow = renderCheckGroups([
+      {
+        result: {
+          checkId: TARGET_STATE_CHECK_ID,
+          network: 'mainnet',
+          status: 'not-applicable',
+          expected: '',
+          actual: 'this proposal installs nothing this gate grades',
+          anchor: 'A-CI',
+        },
+        definition: TARGET_STATE_CHECK,
+      },
+    ])
+    const rowTitle = bucketRow.find((line) =>
+      stripColor(line).includes(gateLabel(TARGET_STATE_CHECK))
+    )
+    const rowBody = bucketRow.find((line) =>
+      stripColor(line).includes('installs nothing')
+    )
+
+    const targetState = formatTargetStateLines(
+      verdictOf([finding('ahead-of-main')])
+    )
+    const codehash = renderCodehashSignGate(codehashGate())
+
+    // The glyph, not the name, is what a bucket row puts in the two columns the
+    // other blocks leave blank — so the names line up and the bodies do too.
+    expect(nameColumn(rowTitle ?? '')).toBe(GATE_TITLE_INDENT.length - 2)
+    expect(
+      stripColor(rowTitle ?? '').indexOf(gateLabel(TARGET_STATE_CHECK))
+    ).toBe(GATE_TITLE_INDENT.length)
+    for (const line of [
+      targetState.find((one) => one.includes(TARGET_STATE_GATE_HEADING)),
+      codehash.find((one) => one.includes(CODEHASH_GATE_HEADING)),
+    ])
+      expect(nameColumn(line ?? '')).toBe(GATE_TITLE_INDENT.length)
+
+    for (const line of [
+      rowBody,
+      targetState.find((one) => stripColor(one).includes('read from')),
+      codehash.find((one) => stripColor(one).includes('MATCH')),
+    ])
+      expect(nameColumn(line ?? '')).toBe(GATE_BODY_INDENT.length)
   })
 })

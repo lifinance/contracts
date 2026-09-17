@@ -32,6 +32,7 @@ import {
 
 import { collectDiamondCutTargets } from './safe-decode-utils'
 import { isSignedStruct, type ISignedSafeTransaction } from './safe-utils'
+import { GATE_BODY_INDENT, GATE_TITLE_INDENT } from './signer-view'
 
 export interface ICodehashSignGate {
   /**
@@ -376,26 +377,30 @@ export const renderCodehashSignGate = (gate: ICodehashSignGate): string[] => {
   // which a free-standing block is not.
   if (nothingWasJudged(gate)) return []
 
-  const lines = ['', `    ${CODEHASH_GATE_HEADING}`]
+  const lines = ['', `${GATE_TITLE_INDENT}${CODEHASH_GATE_HEADING}`]
+  // The per-address reasons hang one step inside their verdict line.
+  const reasonIndent = `${GATE_BODY_INDENT}    `
 
   // A different glyph from MISMATCH's, or the rule this file states — that no
   // two buckets differ by only one of word, glyph and colour — is broken by its
   // own renderer. Both are blocking red, so this is legibility, not safety.
   if (!gate.evaluated)
-    lines.push(`        \u001b[31m⛔ REFUSED\u001b[0m ${gate.summary}`)
+    lines.push(
+      `${GATE_BODY_INDENT}\u001b[31m⛔ REFUSED\u001b[0m ${gate.summary}`
+    )
 
   for (const refusal of gate.refusals)
-    lines.push(`        \u001b[31m⛔ REFUSED\u001b[0m ${refusal}`)
+    lines.push(`${GATE_BODY_INDENT}\u001b[31m⛔ REFUSED\u001b[0m ${refusal}`)
 
   for (const target of gate.targets) {
     const bucket = BUCKETS[target.verdict]
     lines.push(
-      `        \u001b[${bucket.colour}m${bucket.glyph} ${target.verdict}\u001b[0m ${target.address}`
+      `${GATE_BODY_INDENT}\u001b[${bucket.colour}m${bucket.glyph} ${target.verdict}\u001b[0m ${target.address}`
     )
-    lines.push(`            ${target.reason}`)
+    lines.push(`${reasonIndent}${target.reason}`)
     if (target.excludedByteCount > 0)
       lines.push(
-        `            \u001b[33m${target.excludedByteCount} bytes were excluded as immutables and are not covered by this verdict — their values still need checking.\u001b[0m`
+        `${reasonIndent}\u001b[33m${target.excludedByteCount} bytes were excluded as immutables and are not covered by this verdict — their values still need checking.\u001b[0m`
       )
   }
 

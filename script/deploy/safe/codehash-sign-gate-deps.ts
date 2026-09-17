@@ -16,7 +16,14 @@
  */
 
 import { spawnSync } from 'child_process'
-import { existsSync, mkdirSync, readFileSync, rmSync } from 'fs'
+import {
+  cpSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  rmSync,
+} from 'fs'
 import { tmpdir } from 'os'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
@@ -329,6 +336,21 @@ export interface IForgeRebuildDeps {
     outDir: string,
     sourceRoot: string
   ) => readonly IImmutableDeclaration[]
+  /**
+   * Where a build survives between runs, keyed on commit and profile.
+   *
+   * Optional because nothing about the gate's verdict depends on it: a miss on
+   * both calls is the behaviour without a cache at all, which is what the tests
+   * that omit it exercise. Both sides are best-effort and must not throw — a
+   * cache that cannot be read is a slow run, and a cache that makes the gate
+   * fail is a signing outage.
+   */
+  artifactCache?: {
+    /** Puts a cached build at `outDir`. Returns false when it holds none. */
+    restore: (key: string, outDir: string) => boolean
+    /** Keeps `outDir` for the next run. */
+    save: (key: string, outDir: string) => void
+  }
 }
 
 /**
@@ -433,7 +455,17 @@ export const createForgeRebuildRunner = (
     // An artifact left by a build that predates `--ast` satisfies an
     // existence check while carrying no declarations, which would report every
     // immutable as unpriceable instead of rebuilding. Treat it as absent.
-    if (!deps.exists(artifactPath) || !carriesAst(deps, artifactPath)) {
+    const usable = (): boolean =>
+      deps.exists(artifactPath) && carriesAst(deps, artifactPath)
+
+    // A build this machine already made of this commit under this profile. The
+    // checkout is per process and its output dies with the run, so without this
+    // every signing session recompiles the same tree from cold — which is the
+    // whole of the minute a signer waits before the checks appear.
+    const cacheKey = `${request.commit}-${outDir}`
+    if (!usable()) deps.artifactCache?.restore(cacheKey, join(checkout, outDir))
+
+    if (!usable()) {
       // `worktree add --detach` does not populate `lib/`. Without pinning,
       // forge's auto-install clones at tip revisions and the rebuilt runtime
       // cannot match what was deployed — every cut grades MISMATCH.
@@ -490,6 +522,11 @@ export const createForgeRebuildRunner = (
             9
           )} reported success but produced no artifact at ${artifactPath}`
         )
+
+      // Only a build this run made and can vouch for. Keyed on the commit and
+      // the profile, which is what determines the output — a key that named
+      // neither would serve one commit's bytecode as another's.
+      if (usable()) deps.artifactCache?.save(cacheKey, join(checkout, outDir))
     }
 
     let parsed: {
@@ -584,6 +621,65 @@ const memoisePerTarget = <T>(
 export const defaultCheckoutRoot = (pid = process.pid): string =>
   join(tmpdir(), `lifi-codehash-rebuilds-${pid}`)
 
+/**
+ * Where a rebuild's artifacts outlive the checkout that produced them.
+ *
+ * Shared across runs, unlike {@link defaultCheckoutRoot}: a build is a pure
+ * function of the commit and the profile, both of which are in the key, so one
+ * run's output is another's answer. What must not be shared is the git
+ * worktree — that is what `close()` removes, and what the per-process root
+ * keeps one run from deleting under another.
+ *
+ * Artifacts only. Nothing here is trusted as evidence: the gate re-reads the
+ * bytecode out of the restored artifact and compares it against the chain, so a
+ * tampered cache produces a MISMATCH and blocks, never a false match.
+ */
+export const defaultArtifactCacheRoot = (): string =>
+  join(tmpdir(), 'lifi-codehash-artifacts')
+
+/**
+ * The cross-run artifact store, as the rebuild runner consumes it.
+ *
+ * Both sides swallow their failures. A cache is an optimisation on a path that
+ * decides whether a signature may be taken, so every way it can go wrong has to
+ * end in "build it again", never in a gate that could not run.
+ *
+ * @param root - where cached builds live
+ * @returns The `artifactCache` dependency
+ */
+export const createArtifactCache = (
+  root: string = defaultArtifactCacheRoot()
+): NonNullable<IForgeRebuildDeps['artifactCache']> => ({
+  restore: (key, outDir) => {
+    const cached = join(root, key)
+    try {
+      if (!existsSync(cached)) return false
+      cpSync(cached, outDir, { recursive: true })
+      return true
+    } catch {
+      return false
+    }
+  },
+  save: (key, outDir) => {
+    // Staged under this process and moved into place in one step, so a run that
+    // dies mid-copy cannot leave a half-written build where the next run reads
+    // a whole one. The rename loses to whichever process got there first, and
+    // losing is fine — both copies are builds of the same commit.
+    const staged = join(root, `.staging-${process.pid}-${key}`)
+    try {
+      mkdirSync(root, { recursive: true })
+      cpSync(outDir, staged, { recursive: true })
+      renameSync(staged, join(root, key))
+    } catch {
+      try {
+        rmSync(staged, { recursive: true, force: true })
+      } catch {
+        // Disk, not correctness, and the next save overwrites the staging path.
+      }
+    }
+  },
+})
+
 export interface ISignTimeCodehashDeps extends IVerifyCutDeps {
   /** Releases the record store and removes the rebuild checkouts. */
   close: () => Promise<void>
@@ -675,6 +771,7 @@ export const createDeployedCodeReader =
 export const createSignTimeCodehashDeps = (overrides?: {
   recordSource?: IRecordSource
   checkoutRoot?: string
+  artifactCacheRoot?: string
 }): ISignTimeCodehashDeps => {
   const scopeFor = createToolchainScopeResolver(readToolchainConfig())
   // Outside the repo: a `git worktree` under the checkout would show up as an
@@ -715,6 +812,7 @@ export const createSignTimeCodehashDeps = (overrides?: {
     readFile: (path) => readFileSync(path, 'utf8'),
     readDeclarations: (outDir, sourceRoot) =>
       readImmutableDeclarations(outDir, sourceRoot).declarations,
+    artifactCache: createArtifactCache(overrides?.artifactCacheRoot),
   })
 
   const recordSource = overrides?.recordSource ?? createMongoRecordSource()
