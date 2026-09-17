@@ -141,16 +141,32 @@ describe('what the helper does once a ticket has been resolved', () => {
   it('restores a ticket a worker re-sourcing the env file blanked', () => {
     // The failure this exists for: `.env.example` ships a blank
     // SAFE_PROPOSAL_TICKET line, so a worker's `source .env` empties the
-    // exported value. A stub that cannot succeed proves the restore came from
-    // the mirror rather than from asking again.
+    // exported value. The stub echoes what it was handed, so the assertion
+    // rests on the restored value having reached the resolver — a mirror that
+    // was read but not restored leaves the stub with nothing to echo.
     const result = callHelper(['production', 'gnosis'], {
-      stubStdout: '',
-      stubExit: 1,
+      stubStdout: '$SAFE_PROPOSAL_TICKET',
       env: { RESOLVED_SAFE_PROPOSAL_TICKET: URL },
     })
 
     expect(result.rc).toBe(0)
     expect(result.ticket).toBe(URL)
+  })
+
+  it('does not trust an inherited mirror, it re-resolves it', () => {
+    // An inherited RESOLVED_SAFE_PROPOSAL_TICKET is not evidence: a stale or
+    // malformed one would otherwise be exported unchecked. The stub refuses, so
+    // a fast path that skipped resolution would pass this and the guard below
+    // never run.
+    const result = callHelper(['production', 'gnosis'], {
+      stubStdout: 'not-a-linear-url',
+      env: {
+        RESOLVED_SAFE_PROPOSAL_TICKET: 'https://example.com/issue/EXSC-1',
+      },
+    })
+
+    expect(result.rc).toBe(1)
+    expect(result.ticket).toBe('')
   })
 })
 

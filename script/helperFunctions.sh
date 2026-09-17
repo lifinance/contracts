@@ -4289,15 +4289,6 @@ function assertProposalTicketForRun() {
   shift
   local NETWORKS=("$@")
 
-  # Carried in a name .env does not define: every worker re-sources it, and
-  # .env.example ships a blank SAFE_PROPOSAL_TICKET line, so the exported value
-  # is wiped in the child while an "already asked" marker would survive - a run
-  # that reports success and then refuses per network at the store.
-  if [[ -n "${RESOLVED_SAFE_PROPOSAL_TICKET:-}" ]]; then
-    export SAFE_PROPOSAL_TICKET="$RESOLVED_SAFE_PROPOSAL_TICKET"
-    return 0
-  fi
-
   local NETWORK
   local PROPOSES="false"
   for NETWORK in "${NETWORKS[@]}"; do
@@ -4313,8 +4304,15 @@ function assertProposalTicketForRun() {
 
   # Not `local TICKET=$(...)`: `local` succeeds on its own, so it would swallow
   # the CLI's exit code and hand the run an empty ticket.
+  # The mirror is carried in a name .env does not define: every worker
+  # re-sources it, and .env.example ships a blank SAFE_PROPOSAL_TICKET line, so
+  # the exported value is wiped in the child. Offered to the resolver rather
+  # than exported here, so an inherited one is validated like any other supplied
+  # value instead of trusted.
+  local SUPPLIED="${SAFE_PROPOSAL_TICKET:-${RESOLVED_SAFE_PROPOSAL_TICKET:-}}"
+
   local TICKET
-  if ! TICKET=$(bunx tsx script/deploy/safe/deploy-ticket-preflight.cli.ts); then
+  if ! TICKET=$(SAFE_PROPOSAL_TICKET="$SUPPLIED" bunx tsx script/deploy/safe/deploy-ticket-preflight.cli.ts); then
     error "this run would propose to a Safe and has no Linear ticket - nothing has been deployed"
     return 1
   fi

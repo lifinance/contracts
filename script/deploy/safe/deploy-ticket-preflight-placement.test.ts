@@ -24,6 +24,7 @@ import {
   chmodSync,
   existsSync,
   mkdtempSync,
+  rmSync,
   symlinkSync,
   writeFileSync,
 } from 'fs'
@@ -137,10 +138,11 @@ const run = (args: string[]): { output: string; refused: boolean } => {
   withholdCredentials(env)
   env.PATH = `${toolchainShim()}:${env.PATH ?? ''}`
 
+  const root = sandbox()
   const result = Bun.spawnSync(
     ['bash', join('script', 'deploy', 'deployContractToNetworks.sh'), ...args],
     {
-      cwd: sandbox(),
+      cwd: root,
       env,
       timeout: TIMEOUT_MS,
       // Closed, so a regression that reaches an interactive prompt fails the
@@ -151,6 +153,9 @@ const run = (args: string[]): { output: string; refused: boolean } => {
       stderr: 'pipe',
     }
   )
+
+  // Symlinked entries are removed as links, never followed into the checkout.
+  rmSync(root, { recursive: true, force: true })
 
   const output = `${result.stdout.toString()}${result.stderr.toString()}`
   // A killed child is not a result: without this, "the marker did not appear"
