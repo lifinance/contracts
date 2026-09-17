@@ -286,9 +286,34 @@ describe('getFacetAddressFromDiamondLog', () => {
     })
   })
 
-  it('returns null when the log is unparseable rather than throwing', async () => {
+  // Reading a corrupt log as "absent" would plan a first-registration cut, which
+  // drops the Remove entries whenever the new selectors miss the old ones
+  // entirely — the exact failure the upgrade planner exists to prevent.
+  it('throws when the log exists but cannot be parsed', async () => {
     await withDiamondLog('{ not json', async () => {
-      expect(await getFacetAddressFromDiamondLog('tron', 'EcoFacet')).toBeNull()
+      // eslint-disable-next-line @typescript-eslint/await-thenable -- expect().rejects is thenable at runtime
+      await expect(
+        getFacetAddressFromDiamondLog('tron', 'EcoFacet')
+      ).rejects.toThrow(/Could not parse .*tron\.diamond\.json/)
     })
+  })
+
+  it('propagates a read failure that is not a missing file', async () => {
+    const root = realFs.mkdtempSync(join(tmpdir(), 'diamond-log-'))
+    const previousCwd = process.cwd()
+    try {
+      // A directory where the log belongs: readFile fails with EISDIR, not ENOENT.
+      realFs.mkdirSync(join(root, 'deployments', 'tron.diamond.json'), {
+        recursive: true,
+      })
+      process.chdir(root)
+      // eslint-disable-next-line @typescript-eslint/await-thenable -- expect().rejects is thenable at runtime
+      await expect(
+        getFacetAddressFromDiamondLog('tron', 'EcoFacet')
+      ).rejects.toThrow(/EISDIR|illegal operation on a directory/i)
+    } finally {
+      process.chdir(previousCwd)
+      realFs.rmSync(root, { recursive: true, force: true })
+    }
   })
 })

@@ -709,13 +709,26 @@ export async function getFacetAddressFromDiamondLog(
     if (relativePath.startsWith('..') || isAbsolute(relativePath))
       throw new Error(`Invalid network name: ${network}`)
 
+    let contents: string
+    try {
+      contents = await readFile(diamondJsonPath, 'utf8')
+    } catch (error) {
+      // Absent at this root — try the next one.
+      if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') continue
+      throw error
+    }
+
+    // A log that exists but cannot be read is not the same as no log: reporting
+    // it as absent would plan a first-registration cut, which silently drops the
+    // Remove entries whenever the new selectors miss the old ones entirely.
     let facets: Record<string, { Name?: string }>
     try {
-      const parsed = JSON.parse(await readFile(diamondJsonPath, 'utf8'))
+      const parsed = JSON.parse(contents)
       facets = parsed?.LiFiDiamond?.Facets ?? {}
-    } catch {
-      // Absent or unparseable at this root — try the next one.
-      continue
+    } catch (error) {
+      throw new Error(
+        `Could not parse ${diamondJsonPath}: ${(error as Error).message}`
+      )
     }
 
     for (const [address, entry] of Object.entries(facets))
