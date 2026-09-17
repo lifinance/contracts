@@ -16,6 +16,23 @@ paths:
 - Variable names: all uppercase (e.g., `NETWORK`, `CONTRACT_ADDRESS`).
 - Provide usage/help text; clear exit codes; document TODOs/limits succinctly; keep indentation and naming consistent.
 
+### Export a ticket before any production deploy [CONV:DEPLOY-TICKET]
+
+Every Safe proposal must carry a Linear issue link, so a production deploy on a network with a
+Safe needs one before it starts:
+
+```bash
+export SAFE_PROPOSAL_TICKET="EXSC-1034"   # or the full https://linear.app/... URL
+export SAFE_PROPOSAL_REASON="one line on why this is being proposed now"  # optional
+```
+
+`assertProposalTicketForRun` resolves it before the first build and refuses a run that has none.
+A run with no terminal — CI, an agent, anything piped — cannot be asked, so it is refused rather
+than prompted: **an agent must export the variable itself, never rely on being asked.** Take the
+id from the ticket the work belongs to; do not infer it from the branch name, which is a hint the
+tooling shows and deliberately does not accept on its own. Staging, testnet-only and
+direct-to-diamond runs create no proposal and need no ticket.
+
 ## Key Helper Functions [CONV:BASH-HELPERS]
 
 ### Network Abstraction Helpers
