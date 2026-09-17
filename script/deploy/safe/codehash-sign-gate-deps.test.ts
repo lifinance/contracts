@@ -286,6 +286,35 @@ describe('createForgeRebuildRunner', () => {
    */
   const zkArtifact = JSON.stringify({ bytecode: { object: DEPLOYED } })
 
+  const PINNED_ZK_RELEASE = 'v0.0.32'
+
+  /** Only the section the pin reader walks, in the shape `foundry.toml` carries it. */
+  const pinnedToml = [
+    '[external.zksync]',
+    'zksolc = "1.5.15"',
+    `foundry_zksync = "${PINNED_ZK_RELEASE}"`,
+    '',
+  ].join('\n')
+
+  /** What the pinned binary prints, verbatim. */
+  const zkVersionOutput = `forge Version: 1.3.5-foundry-zksync-${PINNED_ZK_RELEASE}\nCommit SHA: 742672d7d51ed77b434bffb03804a59a760ce5fe`
+
+  const readZkFiles =
+    (artifactJson: string) =>
+    (path: string): string =>
+      path.endsWith('foundry.toml') ? pinnedToml : artifactJson
+
+  const zkRequest = {
+    contractName: 'AccessManagerFacet',
+    commit: 'a'.repeat(40),
+    profile: {
+      profile: 'zksync',
+      solcVersion: '0.8.29',
+      evmVersion: 'cancun',
+      zksolcVersion: '1.5.15',
+    },
+  }
+
   const runner = (
     over: {
       run?: (
@@ -618,28 +647,128 @@ describe('createForgeRebuildRunner', () => {
       checkoutRoot: '/tmp/rebuilds',
       git: () => '',
       run: (command, args, options) => {
+        if (args[0] === '--version')
+          return { ok: true, output: zkVersionOutput }
         seen = { command, args, env: options.env }
         built = true
         return { ok: true, output: '' }
       },
       exists: (path) => (path.endsWith('.json') ? built : true),
-      readFile: () => zkArtifact,
+      readFile: readZkFiles(zkArtifact),
       readDeclarations: () => [],
     })
 
-    zk.build({
-      ...request,
-      profile: {
-        ...request.profile,
-        profile: 'zksync',
-        zksolcVersion: '1.5.15',
-      },
-    })
+    zk.build(zkRequest)
 
     expect(seen.command).toContain('foundry-zksync')
     expect(seen.args).toContain('--zksync')
     expect(seen.env.FOUNDRY_ZKSYNC).toContain('1.5.15')
     expect(seen.env.FOUNDRY_PROFILE).toBe('zksync')
+  })
+
+  describe('zk toolchain preflight', () => {
+    const zkRunner = (over: {
+      exists?: (path: string) => boolean
+      readFile?: (path: string) => string
+      version?: { ok: boolean; output: string }
+      onBuild?: () => void
+    }) =>
+      createForgeRebuildRunner({
+        repoRoot: '/repo',
+        checkoutRoot: '/tmp/rebuilds',
+        git: () => '',
+        run: (_command, args) => {
+          if (args[0] === '--version')
+            return over.version ?? { ok: true, output: zkVersionOutput }
+          over.onBuild?.()
+          return { ok: true, output: '' }
+        },
+        exists: over.exists ?? ((path) => !path.endsWith('.json')),
+        readFile: over.readFile ?? readZkFiles(zkArtifact),
+        readDeclarations: () => [],
+      })
+
+    it('refuses when the untracked foundry-zksync binary is absent', () => {
+      let compiled = false
+      expect(() =>
+        zkRunner({
+          exists: (path) => !path.endsWith('.json') && !path.endsWith('forge'),
+          onBuild: () => {
+            compiled = true
+          },
+        }).build(zkRequest)
+      ).toThrow(/toolchain problem, not a codehash verdict/)
+      expect(compiled).toBe(false)
+    })
+
+    it('names the install path a signer can act on', () => {
+      expect(() =>
+        zkRunner({
+          exists: (path) => !path.endsWith('.json') && !path.endsWith('forge'),
+        }).build(zkRequest)
+      ).toThrow(/source script\/helperFunctions\.sh && install_foundry_zksync/)
+    })
+
+    it('refuses a binary that is not the pinned release', () => {
+      expect(() =>
+        zkRunner({
+          version: {
+            ok: true,
+            output: 'forge Version: 1.3.5-foundry-zksync-v0.0.31',
+          },
+        }).build(zkRequest)
+      ).toThrow(/foundry-zksync v0\.0\.31 but foundry\.toml pins v0\.0\.32/)
+    })
+
+    it('refuses a binary whose version it cannot read', () => {
+      expect(() =>
+        zkRunner({ version: { ok: false, output: 'bad CPU type' } }).build(
+          zkRequest
+        )
+      ).toThrow(/did not report a foundry-zksync release/)
+    })
+
+    it('refuses when foundry.toml pins no release to hold the rebuild to', () => {
+      expect(() =>
+        zkRunner({
+          readFile: (path) =>
+            path.endsWith('foundry.toml')
+              ? '[external.zksync]\nzksolc = "1.5.15"\n'
+              : zkArtifact,
+        }).build(zkRequest)
+      ).toThrow(/pins no foundry_zksync release/)
+    })
+
+    it('reads the pin from the section it lives in, not from anywhere in the file', () => {
+      expect(() =>
+        zkRunner({
+          readFile: (path) =>
+            path.endsWith('foundry.toml')
+              ? '[profile.zksync]\nfoundry_zksync = "v0.0.32"\n\n[external.zksync]\nzksolc = "1.5.15"\n'
+              : zkArtifact,
+        }).build(zkRequest)
+      ).toThrow(/pins no foundry_zksync release/)
+    })
+
+    it('leaves a vanilla forge build unchecked', () => {
+      const probed: string[][] = []
+      let built = false
+      createForgeRebuildRunner({
+        repoRoot: '/repo',
+        checkoutRoot: '/tmp/rebuilds',
+        git: () => '',
+        run: (_command, args) => {
+          probed.push(args)
+          built = true
+          return { ok: true, output: '' }
+        },
+        exists: (path) => (path.endsWith('.json') ? built : true),
+        readFile: () => artifact,
+        readDeclarations: () => [],
+      }).build(request)
+
+      expect(probed.every((args) => args[0] === 'build')).toBe(true)
+    })
   })
 
   it('keeps each profile in its own output directory', () => {
@@ -652,7 +781,9 @@ describe('createForgeRebuildRunner', () => {
         repoRoot: '/repo',
         checkoutRoot: '/tmp/rebuilds',
         git: () => '',
-        run: () => {
+        run: (_command, args) => {
+          if (args[0] === '--version')
+            return { ok: true, output: zkVersionOutput }
           built = true
           return { ok: true, output: '' }
         },
@@ -660,8 +791,9 @@ describe('createForgeRebuildRunner', () => {
           paths.push(path)
           return path.endsWith('.json') ? built : true
         },
-        readFile: () =>
-          profile.zksolcVersion === undefined ? artifact : zkArtifact,
+        readFile: readZkFiles(
+          profile.zksolcVersion === undefined ? artifact : zkArtifact
+        ),
         readDeclarations: () => [],
       }).build({
         ...request,
