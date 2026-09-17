@@ -948,9 +948,127 @@ describe('renderCalldataAddresses', () => {
       )
     )
 
-    expect(lines).toHaveLength(3)
+    expect(lines).toHaveLength(4)
     expect(lines[1]).toContain(REPORT_ONLY_HEADING)
-    expect(lines[2]).toContain('1 of 1')
+    // The address and what it had to be, above the tally that counts it. A
+    // signer comparing one address against the proposal has nothing to read a
+    // count against.
+    expect(lines[2]).toContain(MAINNET_ONLY_FACET)
+    expect(lines[2]).toContain('CBridgeFacet@1.0.0')
+    expect(lines[2]).toContain('call[0].cuts[0]')
+    expect(lines[3]).toContain('1 of 1')
+  })
+
+  // A tally over a proposal that installs several facets says how many were
+  // looked up and names none of them, so the one thing a signer can act on —
+  // is *this* address the contract it claims — is the one thing it withholds.
+  it('names every address it resolved, not only how many', () => {
+    const plain = renderCalldataAddresses(
+      evaluateCalldataAddresses(
+        {
+          network: 'mainnet',
+          references: [
+            facetAdd(MAINNET_ONLY_FACET, 'call[0].cuts[0]'),
+            facetAdd(FLEET_WIDE_FACET, 'call[0].cuts[1]'),
+          ],
+          expectations: expectations(
+            [MAINNET_ONLY_FACET, { contractName: 'CBridgeFacet' }],
+            [FLEET_WIDE_FACET, { contractName: 'DexManagerFacet' }]
+          ),
+        },
+        recordIndex([MAINNET_ONLY_FACET, FLEET_WIDE_FACET])
+      )
+    ).join('\n')
+
+    for (const address of [MAINNET_ONLY_FACET, FLEET_WIDE_FACET])
+      expect(plain).toContain(address)
+    expect(plain).toContain('call[0].cuts[0]')
+    expect(plain).toContain('call[0].cuts[1]')
+    expect(plain).toContain('2 of 2')
+  })
+
+  // The addresses a clean verdict never looked up are the ones whose line the
+  // summary cannot carry: it says every one was a legal zero, and which call
+  // slot each sat in is what says the cut removes what it claims to.
+  it('names each address it deliberately did not look up', () => {
+    const plain = renderCalldataAddresses(
+      evaluateCalldataAddresses(
+        {
+          network: 'mainnet',
+          references: [
+            {
+              address: ZERO,
+              role: AddressRoleEnum.FacetRemove,
+              path: 'call[0].cuts[0]',
+            },
+            {
+              address: ZERO,
+              role: AddressRoleEnum.CutInit,
+              path: 'call[0]._init',
+            },
+          ],
+        },
+        recordIndex([])
+      )
+    ).join('\n')
+
+    expect(plain).toContain('call[0].cuts[0] is the zero address')
+    expect(plain).toContain('call[0]._init is the zero address')
+    expect(plain).toContain('facet-remove')
+    expect(plain).toContain('cut-init')
+  })
+
+  // The mixed proposal, where naming only the refusal would leave the signer
+  // unable to tell an unchecked address from a checked one.
+  it('still names the addresses that resolved when another one refuses', () => {
+    // The same typo class the refusal cases above use: one hex digit changed,
+    // which the record holds no deployment for.
+    const typo = FLEET_WIDE_FACET.replace(/9$/, 'a')
+    expect(typo).not.toBe(FLEET_WIDE_FACET)
+    expect(
+      realProductionEntries.some(
+        (entry) => entry.address.toLowerCase() === typo.toLowerCase()
+      )
+    ).toBe(false)
+    const plain = renderCalldataAddresses(
+      evaluateCalldataAddresses(
+        {
+          network: 'mainnet',
+          references: [
+            facetAdd(MAINNET_ONLY_FACET, 'call[0].cuts[0]'),
+            facetAdd(typo, 'call[0].cuts[1]'),
+          ],
+          expectations: expectations([
+            MAINNET_ONLY_FACET,
+            { contractName: 'CBridgeFacet' },
+          ]),
+        },
+        recordIndex([MAINNET_ONLY_FACET, typo])
+      )
+    ).join('\n')
+
+    expect(plain).toContain('REFUSED')
+    expect(plain).toContain(MAINNET_ONLY_FACET)
+    expect(plain).toContain('CBridgeFacet')
+  })
+
+  // Each grade reaches the page through exactly one path — `errors`,
+  // `warnings`, the refusal, or the per-address line — and a second line for
+  // the same finding would read as two findings about one address.
+  it('prints a finding once, however many paths could carry it', () => {
+    const lines = renderCalldataAddresses(
+      evaluateCalldataAddresses(
+        {
+          network: 'mainnet',
+          references: [facetAdd(MAINNET_ONLY_FACET, 'call[0].cuts[0]')],
+        },
+        recordIndex([MAINNET_ONLY_FACET])
+      )
+    )
+
+    expect(
+      lines.filter((line) => line.includes('call[0].cuts[0]'))
+    ).toHaveLength(1)
   })
 
   it('says nothing needed resolving rather than ticking zero of zero', () => {

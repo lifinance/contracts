@@ -869,6 +869,15 @@ const REFUSED = `${ESC}[31m⛔ REFUSED${ESC}[0m`
 const CANNOT_CHECK = `${ESC}[31m⛔ CANNOT CHECK${ESC}[0m`
 const WARN = `${ESC}[33m⚠${ESC}[0m`
 const OK = `${ESC}[32m✓${ESC}[0m`
+/**
+ * One address, said to have been looked at.
+ *
+ * Dim rather than green: the tick belongs to the summary, which is the one line
+ * a signer who is not auditing an address has to read, and a column of ticks
+ * under it would compete with it for exactly the attention the summary is
+ * there to spend once.
+ */
+const VERIFIED = `${ESC}[2m·${ESC}[0m`
 
 /**
  * What the block says about itself before it says anything about the proposal.
@@ -920,6 +929,18 @@ export const renderCalldataAddresses = (
       finding.reference.role === AddressRoleEnum.PeripheryRegistration
     )
       lines.push(`${WARN} ${finding.detail}`)
+    // The two grades that reach the signer through no other path. A tally is
+    // not a statement about an address: "3 of 3 resolved" names neither which
+    // three nor what each was required to be, so a signer who wants to check
+    // one of them against the proposal has nothing to compare. Every other
+    // grade is already spoken for — by `errors` above, by `warnings` below, or
+    // by the refusal — so listing these two adds a line per address without
+    // printing any of them twice.
+    else if (
+      finding.grade === AddressGradeEnum.Resolved ||
+      finding.grade === AddressGradeEnum.NotApplicable
+    )
+      lines.push(`${VERIFIED} ${finding.detail}`)
 
   for (const message of verdict.warnings) lines.push(`${WARN} ${message}`)
 
