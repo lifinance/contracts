@@ -250,6 +250,13 @@ prints the ticket on line 1 and the reason on line 2, empty when there is none â
 `normalizeProposalReason` collapses all whitespace, so a reason cannot itself
 span two lines.
 
+A reason is stated for one ticket, so it is stamped with the ticket it was
+collected for as `RESOLVED_SAFE_PROPOSAL_REASON_TICKET`. A later rollout in the
+same shell that resolves a different ticket has the inherited reason dropped,
+with a warning naming both tickets, rather than labelling its proposals with the
+previous rollout's reason. Stating a new reason carries it as normal, as does
+re-exporting the same text after that warning.
+
 `SAFE_PROPOSAL_TICKET` is the channel every path reads; `--ticket` is offered by
 `propose-to-safe.ts`, `propose-to-safe-tron.ts`, `unpauseAllDiamonds.ts` and
 `add-safe-owners-and-threshold.ts`, and by no other route. Plenty of scripts
