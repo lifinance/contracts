@@ -162,7 +162,10 @@ export interface INormalizedCode {
   rawByteLength: number
   /** keccak after the trailer came off and immutables were zeroed. */
   maskedHash: string
-  /** Bytes excluded as immutables. Always 0 on zkEVM, which inlines none. */
+  /**
+   * Bytes excluded as immutables. Always 0 on zkEVM, which inlines none — so
+   * there it is not a statement that the immutables were covered.
+   */
   maskedByteCount: number
 }
 

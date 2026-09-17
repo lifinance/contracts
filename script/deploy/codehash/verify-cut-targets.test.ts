@@ -527,26 +527,22 @@ describe('verifyCutTargets', () => {
 })
 
 /**
- * zkEVM reaches a clean layer-1 MATCH with nothing masked, because its
- * immutables are not in the runtime code to mask — they live in
- * `ImmutableSimulator`. Keying the layer-2 handoff off the masked count alone
- * therefore skipped the whole family, and the MATCH rendered exactly like a
- * contract holding no immutables at all: the collapse `summarise` says must not
- * happen, on three active networks.
- *
- * Layer 2 cannot run here yet — the zk toolchain emits neither `deployedBytecode`
- * nor an AST, so nothing can name the simulator's slots. What the gate can stop
- * doing is claiming the values were covered.
+ * A zkEVM MATCH masks nothing and checks nothing: the immutables are not in the
+ * code to mask, so zero excluded bytes is not the same claim it is elsewhere.
  */
 describe('verifyCutTargets on a chain holding immutables off-code', () => {
   const zkDeps = (over: Partial<IVerifyCutDeps> = {}) =>
     ({
       ...deps(),
       scope: () => ({ isClosedSet: true, holdsImmutablesOffCode: true }),
-      observe: async () => ({ ...observed(HASH), runtimeCode: '0xfeed' }),
-      attestationsFor: async () => ({
-        builds: [{ ...attested(HASH), rawHash: undefined }],
+      // The shape `normalizeRuntimeCode` produces for a zk lineage: an exact
+      // hash pinned and nothing masked, because there is nothing to mask.
+      observe: async () => ({
+        ...observed(HASH),
+        maskedByteCount: 0,
+        runtimeCode: '0xfeed',
       }),
+      attestationsFor: async () => ({ builds: [attested(HASH)] }),
       ...over,
     } as IVerifyCutDeps)
 

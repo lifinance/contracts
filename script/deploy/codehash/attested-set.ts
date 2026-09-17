@@ -77,15 +77,7 @@ export interface ILineageScope {
    * bytecode, which the proposer controls.
    */
   isClosedSet: boolean
-  /**
-   * True when this network keeps immutables outside the runtime code, so a code
-   * comparison excludes nothing yet still leaves their values unchecked. zkEVM
-   * holds them in `ImmutableSimulator`; EVM and Tron inline them, and there the
-   * masked byte count already says the same thing.
-   *
-   * Derive it from repo configuration, for the reason {@link isClosedSet} gives:
-   * bytecode that carries no sign of its own platform cannot be asked.
-   */
+  /** As `IToolchainScope` defines it, which is where it is derived. */
   holdsImmutablesOffCode?: boolean
 }
 

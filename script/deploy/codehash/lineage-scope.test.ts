@@ -128,9 +128,6 @@ describe('deriveToolchainScope', () => {
       expect(scope.isClosedSet).toBe(true)
       expect(scope.profiles.map((p) => p.profile)).toEqual([ZK_PROFILE])
       expect(scope.profiles[0]?.zksolcVersion).toBe('1.5.15')
-      // The flag the codehash gate keys its immutable handling off. These
-      // chains store immutables in `ImmutableSimulator`, so a code comparison
-      // excludes nothing and still leaves every value unchecked.
       expect(scope.holdsImmutablesOffCode).toBe(true)
     }
   })
