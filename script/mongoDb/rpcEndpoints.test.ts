@@ -13,6 +13,7 @@ import {
   findEndpointIndex,
   findUncredentialedPrimaries,
   hasApiCredentials,
+  isPublicPrimaryActionable,
   hostOf,
   lowestPriorityFor,
   normalizeRpcUrlForNetwork,
@@ -180,11 +181,51 @@ describe('findUncredentialedPrimaries', () => {
     expect(flagged).toEqual([])
   })
 
+  it('skips a chain the caller does not consider actionable', () => {
+    const flagged = findUncredentialedPrimaries(
+      {
+        ETH_NODE_URI_ETHERLINK: [{ url: KEYLESS_PROVIDER, priority: 4 }],
+        ETH_NODE_URI_DEPRECATED: [{ url: KEYLESS_PUBLIC, priority: 1 }],
+      },
+      (network) => network === 'ETH_NODE_URI_ETHERLINK'
+    )
+    expect(flagged.map(({ network }) => network)).toEqual([
+      'ETH_NODE_URI_ETHERLINK',
+    ])
+  })
+
   it('never exposes the credential-bearing part of a url', () => {
     const flagged = findUncredentialedPrimaries({
       ETH_NODE_URI_TEST: [{ url: 'https://rpc.example.invalid/', priority: 1 }],
     })
     expect(flagged[0]?.host).toBe('rpc.example.invalid')
+  })
+})
+
+describe('isPublicPrimaryActionable', () => {
+  const NETWORKS = {
+    arbitrum: { status: 'active', type: 'mainnet' },
+    arctestnet: { status: 'active', type: 'testnet' },
+    localanvil: { status: 'inactive', type: 'testnet' },
+    vana: { status: 'active', type: 'mainnet' },
+  }
+
+  it('reports an active mainnet', () => {
+    expect(isPublicPrimaryActionable('arbitrum', NETWORKS)).toBe(true)
+  })
+
+  it('stays silent on a chain networks.json does not list', () => {
+    expect(isPublicPrimaryActionable('sophon', NETWORKS)).toBe(false)
+    expect(isPublicPrimaryActionable(undefined, NETWORKS)).toBe(false)
+  })
+
+  it('stays silent on testnets and inactive networks', () => {
+    expect(isPublicPrimaryActionable('arctestnet', NETWORKS)).toBe(false)
+    expect(isPublicPrimaryActionable('localanvil', NETWORKS)).toBe(false)
+  })
+
+  it('stays silent on a network no provider we hold a key with serves', () => {
+    expect(isPublicPrimaryActionable('vana', NETWORKS)).toBe(false)
   })
 })
 
