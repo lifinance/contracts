@@ -7,6 +7,8 @@
  * The path-guard tests pin behavior against real `deployments/` files.
  */
 import * as fs from 'fs'
+import { tmpdir } from 'os'
+import { join } from 'path'
 
 import {
   afterEach,
@@ -47,6 +49,7 @@ mock.module('fs', () => ({
 const {
   displayNetworkInfo,
   getContractAddress,
+  getFacetAddressFromDiamondLog,
   getFacetSelectors,
   getFoundryDefaultOptimizerRuns,
   node_url,
@@ -219,5 +222,73 @@ describe('endpoint redaction', () => {
       if (previousNetworkUri !== undefined)
         process.env.ETH_NODE_URI_TESTNET = previousNetworkUri
     }
+  })
+})
+
+describe('getFacetAddressFromDiamondLog', () => {
+  const LOG = JSON.stringify({
+    LiFiDiamond: {
+      Facets: {
+        TG6586TTEv664XWSD875tMk6yDuwedphpW: {
+          Name: 'EcoFacet',
+          Version: '1.1.0',
+        },
+        TR15epdwXG9kBXtEBnF5bv6kSYRY5w6mXY: {
+          Name: 'AllBridgeFacet',
+          Version: '2.2.0',
+        },
+      },
+    },
+  })
+
+  /** Runs `assertions` from a throwaway repo root holding (or missing) a diamond log. */
+  const withDiamondLog = async (
+    contents: string | undefined,
+    assertions: () => Promise<void>
+  ) => {
+    const root = realFs.mkdtempSync(join(tmpdir(), 'diamond-log-'))
+    const previousCwd = process.cwd()
+    try {
+      realFs.mkdirSync(join(root, 'deployments'))
+      if (contents !== undefined)
+        realFs.writeFileSync(
+          join(root, 'deployments', 'tron.diamond.json'),
+          contents
+        )
+      process.chdir(root)
+      await assertions()
+    } finally {
+      process.chdir(previousCwd)
+      realFs.rmSync(root, { recursive: true, force: true })
+    }
+  }
+
+  it('resolves the recorded address by facet name', async () => {
+    await withDiamondLog(LOG, async () => {
+      expect(await getFacetAddressFromDiamondLog('tron', 'EcoFacet')).toBe(
+        'TG6586TTEv664XWSD875tMk6yDuwedphpW'
+      )
+    })
+  })
+
+  // Every miss has to read as "first registration" — never as a wrong removal target.
+  it('returns null for a facet the log does not carry', async () => {
+    await withDiamondLog(LOG, async () => {
+      expect(
+        await getFacetAddressFromDiamondLog('tron', 'MayanFacet')
+      ).toBeNull()
+    })
+  })
+
+  it('returns null when the log is absent', async () => {
+    await withDiamondLog(undefined, async () => {
+      expect(await getFacetAddressFromDiamondLog('tron', 'EcoFacet')).toBeNull()
+    })
+  })
+
+  it('returns null when the log is unparseable rather than throwing', async () => {
+    await withDiamondLog('{ not json', async () => {
+      expect(await getFacetAddressFromDiamondLog('tron', 'EcoFacet')).toBeNull()
+    })
   })
 })

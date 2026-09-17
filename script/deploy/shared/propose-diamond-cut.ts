@@ -6,11 +6,21 @@
  * without creating cycles back through utils.ts.
  */
 
-import { isTronNetworkKey } from '@lifi/tron-devkit'
+import {
+  getTronWebCodecOnlyForNetwork,
+  isTronNetworkKey,
+  tronAddressToHex,
+} from '@lifi/tron-devkit'
 import { consola } from 'consola'
 import { encodeFunctionData, type Address, type Hex } from 'viem'
 
-import { getFacetSelectors } from '../../utils/utils'
+import {
+  getEnvVar,
+  getFacetAddressFromDiamondLog,
+  getFacetSelectors,
+  getRPCEnvVarName,
+} from '../../utils/utils'
+import { buildFacetCuts, planSelectorCuts } from '../tron/facet-upgrade-cut'
 import type { TronTvmNetworkName } from '../tron/types'
 
 import { DIAMOND_CUT_ABI, ZERO_ADDRESS } from './constants'
@@ -96,13 +106,133 @@ export async function encodeDiamondCutCalldata(
 }
 
 /**
+ * Encode a `diamondCut` that installs a facet over whatever the diamond routes
+ * today: Add for selectors it does not serve, Replace for the ones the outgoing
+ * facet serves, Remove for the ones the new version dropped.
+ *
+ * Reads the live loupe, so it needs a network — Tron only, since that is where
+ * every caller of {@link proposeDiamondCut} runs. A first registration
+ * (no diamond-log entry for the facet) reduces to the plain Add cut.
+ *
+ * @param facetName - Facet whose selectors are read from the Forge artifact
+ * @param facetAddressHex - Newly deployed facet (EVM hex form)
+ * @param network - Tron network key
+ * @param diamondAddress - Diamond, base58
+ * @param options - Same `init`/`excludeSelectors` as {@link encodeDiamondCutCalldata}
+ * @throws When a selector is served by a facet that is not the outgoing one —
+ *   an Add would revert at execution, and taking it over silently would strand
+ *   the other facet's remaining selectors
+ */
+export async function encodeFacetUpgradeCutCalldata(
+  facetName: string,
+  facetAddressHex: Address,
+  network: TronTvmNetworkName,
+  diamondAddress: string,
+  options: {
+    init?: IDiamondCutInit
+    excludeSelectors?: string[]
+  } = {}
+): Promise<Hex> {
+  // Dynamic, like the proposer imports below: the loupe reads pull in the Tron
+  // deploy stack, which an EVM cut never needs.
+  const { readFacetAddress, readRegisteredSelectors } = await import(
+    '../tron/diamond-loupe-reads'
+  )
+
+  const newSelectors = await getFacetSelectors(
+    facetName,
+    options.excludeSelectors ?? []
+  )
+  if (newSelectors.length === 0)
+    throw new Error(
+      `No selectors left to register for ${facetName} after applying ${
+        options.excludeSelectors?.length ?? 0
+      } exclusion(s)`
+    )
+
+  const rpcUrl = getEnvVar(getRPCEnvVarName(network))
+  const codec = getTronWebCodecOnlyForNetwork(network)
+  const toHex = (base58: string): Address =>
+    (tronAddressToHex(codec, base58) as Address).toLowerCase() as Address
+
+  const outgoingBase58 = await getFacetAddressFromDiamondLog(network, facetName)
+  const outgoingHex = outgoingBase58 ? toHex(outgoingBase58) : null
+
+  const registered =
+    outgoingBase58 && outgoingHex !== facetAddressHex.toLowerCase()
+      ? await readRegisteredSelectors(diamondAddress, outgoingBase58, rpcUrl)
+      : []
+
+  if (outgoingBase58 && registered.length === 0)
+    consola.warn(
+      `${facetName} is logged at ${outgoingBase58} but serves no selectors on ${diamondAddress} — proposing a plain add cut`
+    )
+
+  const plan = planSelectorCuts(newSelectors, registered)
+
+  // Every remaining Add must be unrouted. One served by a third facet would
+  // revert LibDiamond's add path after the timelock delay.
+  for (const selector of plan.add) {
+    const holder = await readFacetAddress(
+      diamondAddress,
+      selector,
+      rpcUrl,
+      network
+    )
+    if (holder.toLowerCase() !== ZERO_ADDRESS)
+      throw new Error(
+        `Selector ${selector} of ${facetName} is already served by ${holder}, which is not the outgoing ${
+          outgoingBase58 ?? 'facet'
+        } — resolve the collision before proposing`
+      )
+  }
+
+  const cuts = buildFacetCuts(plan, facetAddressHex)
+  if (cuts.length === 0)
+    throw new Error(
+      `${facetName} at ${facetAddressHex} is already what the diamond routes — nothing to cut`
+    )
+
+  consola.info(
+    `Encoding diamondCut for ${facetName}: ${plan.add.length} added, ${plan.replace.length} replaced, ${plan.remove.length} removed`
+  )
+  if (plan.remove.length > 0)
+    consola.info(
+      `  - removing ${plan.remove.join(', ')} from ${outgoingBase58}`
+    )
+
+  if (options.init) {
+    if (options.init.initCalldata === '0x')
+      throw new Error(
+        'init.initCalldata is empty (0x); omit `init` entirely instead — the diamond skips the delegatecall when calldata is empty, so the initializer would never run'
+      )
+
+    consola.info(`  + post-cut init via ${options.init.initAddress}`)
+  }
+
+  return encodeFunctionData({
+    abi: DIAMOND_CUT_ABI,
+    functionName: 'diamondCut',
+    args: [
+      cuts,
+      options.init?.initAddress ?? (ZERO_ADDRESS as Address),
+      options.init?.initCalldata ?? ('0x' as Hex),
+    ],
+  })
+}
+
+/**
  * Encode a diamondCut and propose it to Safe via Timelock.
  * Routes to the correct propose script based on network (Tron vs EVM).
  *
- * The optional `init`/`excludeSelectors` pass straight through to
- * {@link encodeDiamondCutCalldata}, so the initializer rides inside the cut
- * itself — one timelock operation, no window in which the facet is live but
- * uninitialised.
+ * On Tron the cut is planned against the live loupe by
+ * {@link encodeFacetUpgradeCutCalldata}, so an upgrade replaces and removes
+ * what it has to; an Add-only cut would revert on the first unchanged selector
+ * and leave the superseded version routable.
+ *
+ * The optional `init`/`excludeSelectors` pass straight through, so the
+ * initializer rides inside the cut itself — one timelock operation, no window
+ * in which the facet is live but uninitialised.
  */
 export async function proposeDiamondCut(options: {
   facetName: string
@@ -113,11 +243,19 @@ export async function proposeDiamondCut(options: {
   init?: IDiamondCutInit
   excludeSelectors?: string[]
 }): Promise<void> {
-  const calldata = await encodeDiamondCutCalldata(
-    options.facetName,
-    options.facetAddressHex,
-    { init: options.init, excludeSelectors: options.excludeSelectors }
-  )
+  const calldata = isTronNetworkKey(options.network)
+    ? await encodeFacetUpgradeCutCalldata(
+        options.facetName,
+        options.facetAddressHex,
+        options.network as TronTvmNetworkName,
+        options.diamondAddress,
+        { init: options.init, excludeSelectors: options.excludeSelectors }
+      )
+    : await encodeDiamondCutCalldata(
+        options.facetName,
+        options.facetAddressHex,
+        { init: options.init, excludeSelectors: options.excludeSelectors }
+      )
 
   if (isTronNetworkKey(options.network)) {
     const { runPropose } = await import('../tron/propose-to-safe-tron')

@@ -6,6 +6,7 @@
 import 'dotenv/config'
 
 import { readFileSync } from 'fs'
+import { readFile } from 'node:fs/promises'
 import { dirname, isAbsolute, relative, resolve } from 'path'
 import { fileURLToPath } from 'url'
 
@@ -684,6 +685,44 @@ export async function updateDiamondJson(
     consola.error(`Failed to update ${network}.diamond.json:`, error.message)
     // Don't throw - this is not critical for the deployment
   }
+}
+
+/**
+ * Reads the address `<network>.diamond.json` records for a facet name.
+ *
+ * The diamond log is the only place a facet's *identity* survives a redeploy:
+ * on-chain a diamond knows addresses and selectors, never names. An upgrade
+ * resolves the outgoing facet by name here, then asks the loupe what that
+ * address still serves.
+ * @param network - The network name
+ * @param facetName - The facet name as recorded, e.g. `EcoFacet`
+ * @returns The recorded address (base58 on Tron), or null when the log has no entry
+ */
+export async function getFacetAddressFromDiamondLog(
+  network: NetworkKey,
+  facetName: string
+): Promise<string | null> {
+  for (const root of getDeploymentRoots()) {
+    const base = resolve(root, 'deployments')
+    const diamondJsonPath = resolve(base, `${network}.diamond.json`)
+    const relativePath = relative(base, diamondJsonPath)
+    if (relativePath.startsWith('..') || isAbsolute(relativePath))
+      throw new Error(`Invalid network name: ${network}`)
+
+    let facets: Record<string, { Name?: string }>
+    try {
+      const parsed = JSON.parse(await readFile(diamondJsonPath, 'utf8'))
+      facets = parsed?.LiFiDiamond?.Facets ?? {}
+    } catch {
+      // Absent or unparseable at this root — try the next one.
+      continue
+    }
+
+    for (const [address, entry] of Object.entries(facets))
+      if (entry?.Name === facetName) return address
+  }
+
+  return null
 }
 
 /**
