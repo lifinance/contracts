@@ -28,6 +28,7 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
+import { branchTicketCandidate } from './deploy-ticket-preflight'
 import { withholdCredentials } from './spawn-env'
 
 const REFUSAL = 'No Linear ticket supplied'
@@ -118,7 +119,7 @@ describe('the deploy driver resolves a ticket before it builds', () => {
     })
       .stdout.toString()
       .trim()
-    if (!/(?:^|[/_-])[A-Za-z]{2,6}-\d{1,6}(?=[-_/]|$)/.test(branch)) return
+    if (branchTicketCandidate(branch) === undefined) return
 
     expect(
       run(['CalldataVerificationFacet', 'gnosis', '--production']).output

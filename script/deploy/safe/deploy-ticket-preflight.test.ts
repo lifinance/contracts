@@ -66,12 +66,29 @@ describe('branchTicketCandidate', () => {
     expect(branchTicketCandidate(undefined)).toBeUndefined()
   })
 
-  it('does not invent an id out of a dated branch suffix', () => {
-    // The case that decides the team-key class: a looser one reads this as
-    // DEPLOYTEST-0917, which parseTicketLink accepts and expands into a URL for
-    // an issue that does not exist. A well-formed wrong answer is worse than
-    // none, because the operator has no reason to doubt it.
-    expect(branchTicketCandidate('signing2-deploytest-0917')).toBeUndefined()
+  it.each([
+    // Real branches from this repo, each read as a well-formed id by a pattern
+    // not anchored to the start of a path segment. `parseTicketLink` expands
+    // any of them into a URL for an issue that does not exist, so the anchor is
+    // what keeps them out.
+    'signing2-deploytest-0917',
+    'deploy-LDA-1-10-0-to-hyperevm',
+    'deploy-network-xdc-2',
+    'claude/signing2-ui-ux-0913',
+  ])('offers nothing for %s', (branch) => {
+    expect(branchTicketCandidate(branch)).toBeUndefined()
+  })
+
+  it('still mis-reads a branch that opens with a word-number pair', () => {
+    // Pinned as known residue rather than claimed fixed: this real branch names
+    // LF-11862 at its end and the anchor takes PERMIT-2 at its start. The hint
+    // is advisory — nothing accepts it without the operator typing an id — so
+    // the residue costs a misleading suggestion, not a wrong anchor. Anchoring
+    // harder (requiring a `/`) would silence the hint on every branch named
+    // after its ticket, which is most of them.
+    expect(branchTicketCandidate('permit-2-trusted-forwarder-lf-11862')).toBe(
+      'PERMIT-2'
+    )
   })
 
   it('takes the first id when a branch names more than one', () => {
@@ -155,20 +172,26 @@ describe('resolveDeployTicket with nobody to ask', () => {
 })
 
 describe('resolveDeployTicket with an operator to ask', () => {
-  it('offers the branch candidate as the default, and an empty answer takes it', async () => {
+  it('shows the branch id in the question without answering for the operator', async () => {
+    // The hint is worth showing and must never be accepted on its own:
+    // parseTicketLink validates shape and asks Linear nothing, so a wrong id
+    // taken on one keypress anchors every proposal in the rollout to an issue
+    // that does not exist.
     const asked: string[] = []
-    const url = await resolveDeployTicket({
-      branch: 'daniel/exsc-1034-title',
-      interactive: true,
-      ask: async (question) => {
-        asked.push(question)
-        return '\n'
-      },
-    })
+    const refusal = await refusalFrom(() =>
+      resolveDeployTicket({
+        branch: 'daniel/exsc-1034-title',
+        interactive: true,
+        ask: async (question) => {
+          asked.push(question)
+          return '\n'
+        },
+      })
+    )
 
-    expect(url).toBe(URL_1034)
     expect(asked).toHaveLength(1)
-    expect(asked[0]).toContain('[EXSC-1034]')
+    expect(asked[0]).toContain('EXSC-1034')
+    expect(refusal).toContain(MISSING_TICKET_MESSAGE)
   })
 
   it('takes what was typed over the default', async () => {
@@ -181,7 +204,7 @@ describe('resolveDeployTicket with an operator to ask', () => {
     ).toBe('https://linear.app/lifi-linear/issue/EXSC-686')
   })
 
-  it('refuses an empty answer when there is no default to fall back on', async () => {
+  it('refuses an empty answer on a branch that hints at nothing', async () => {
     expect(
       await refusalFrom(() =>
         resolveDeployTicket({

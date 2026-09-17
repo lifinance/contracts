@@ -215,21 +215,29 @@ run only on the branches that actually propose; a staging or testnet-only run, a
 The bash deploy chain pays more than a signature for a late refusal, so its
 pre-check sits earlier still. `assertProposalTicketForRun`
 (`script/helperFunctions.sh`) runs in `deployContractToNetworks.sh` before the
-group builds and in `deploySingleContract.sh` before the network's build, and
-exports the resolved `SAFE_PROPOSAL_TICKET` so every network of a rollout
-carries one ticket and is asked at most once. Without it a rollout compiles,
-broadcasts, writes a deployment record and attempts explorer verification before
-the funnel refuses — a deployment spent on a missing environment variable. It
-asks only when a network on the run would propose, which is the same
-`sendsDirectly` predicate `sendOrPropose` routes on.
+group builds and in `deploySingleContract.sh` before the network's build.
+Without it a rollout compiles, broadcasts, writes a deployment record and
+attempts explorer verification before the funnel refuses — a deployment spent on
+a missing environment variable. It asks only when a network on the run would
+propose, through `sendsDirectly`, the predicate `sendOrPropose` routes on.
 
-With no ticket exported and a terminal attached, the operator is asked and the
-issue id in the branch name is offered as the default; with no terminal — CI, an
-agent-driven rollout, a piped run — the run is refused rather than left waiting
-on a prompt nobody will answer. The branch id is never attached on its own: a
-deploy branch usually names the code ticket rather than the rollout being
-deployed, and a well-formed wrong anchor reads as intent that was captured,
-which is worse than none.
+The resolved value is exported twice, as `SAFE_PROPOSAL_TICKET` for the propose
+scripts and as `RESOLVED_SAFE_PROPOSAL_TICKET` for the rest of the run. The
+second is not redundant: every worker re-`source`s the env file, and
+`.env.example` ships a blank `SAFE_PROPOSAL_TICKET` line, so on any checkout
+derived from it the exported ticket is wiped in the child — a name the env file
+does not define is what survives. The CLI's output is checked for a Linear issue
+URL rather than trusted, because exit 0 is also what a CLI that never ran
+returns.
+
+With no ticket exported and a terminal attached the operator is asked; with no
+terminal — CI, an agent-driven rollout, a piped run — the run is refused rather
+than left waiting on a prompt nobody will answer, so an agent supplies the
+variable itself ([CONV:DEPLOY-TICKET]). The issue id in the branch name is shown
+in the question and in the refusal, and is never accepted on its own:
+`parseTicketLink` validates a link's shape and asks Linear nothing, so a key
+lifted off a branch name expands into a URL for an issue that does not exist,
+and an anchor taken on one keypress is worse than a refusal.
 
 `SAFE_PROPOSAL_TICKET` is the channel every path reads; `--ticket` is offered by
 `propose-to-safe.ts`, `propose-to-safe-tron.ts`, `unpauseAllDiamonds.ts` and

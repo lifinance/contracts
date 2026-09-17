@@ -87,12 +87,9 @@ deploySingleContract() {
     echo ""
   fi
 
-  # The Linear ticket every proposal must carry, resolved before the build for
-  # the same reason the record check above is: the requirement is enforced when
-  # the proposal is stored, which is after the contract is on chain, so a run
-  # missing it would pay a deployment to find out. A run that proposes nothing
-  # is not asked, and one whose caller already resolved a ticket is not asked
-  # twice.
+  # Resolved before the build for the same reason the record check above is: the
+  # ticket is enforced when the proposal is stored, which is after the contract
+  # is on chain.
   if ! assertProposalTicketForRun "$ENVIRONMENT" "$NETWORK"; then
     if [[ -z "$EXIT_ON_ERROR" || "$EXIT_ON_ERROR" == "false" ]]; then
       return 1

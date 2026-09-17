@@ -1,4 +1,3 @@
-#!/usr/bin/env bun
 /**
  * Prints the Linear issue URL a deploy run's proposals will carry, or refuses.
  *
@@ -9,7 +8,11 @@
 import { execFileSync } from 'child_process'
 import { createInterface } from 'readline'
 
-import { resolveDeployTicket } from './deploy-ticket-preflight'
+import {
+  branchTicketCandidate,
+  deployTicketRefusal,
+  resolveDeployTicket,
+} from './deploy-ticket-preflight'
 
 /** @returns the checked-out branch, or undefined on a detached HEAD or outside a repo */
 const currentBranch = (): string | undefined => {
@@ -24,27 +27,41 @@ const currentBranch = (): string | undefined => {
   }
 }
 
-// A prompt nobody is there to answer is worse than a refusal: it hangs an
-// unattended rollout instead of failing it, so the terminal test decides which
-// of the two this run gets.
-const interactive = process.stdin.isTTY === true
+// Both streams, because a prompt nobody is there to answer — or that nobody can
+// see — hangs an unattended rollout instead of failing it. One caller runs the
+// deploy chain with `2>/dev/null`, which would swallow the question while stdin
+// stayed a terminal.
+const interactive =
+  process.stdin.isTTY === true && process.stderr.isTTY === true
+
+const branch = currentBranch()
+const candidate = branchTicketCandidate(branch)
 
 try {
   const url = await resolveDeployTicket({
     envTicket: process.env.SAFE_PROPOSAL_TICKET,
-    branch: currentBranch(),
+    branch,
     interactive,
     // The callback form rather than `readline/promises`, whose subpath the
     // repo's TypeScript resolution does not see.
+    // The callback form rather than `readline/promises`, whose subpath the
+    // repo's TypeScript resolution does not see. `close` has to settle it too:
+    // on Ctrl-D the question's callback never fires, and an unsettled promise
+    // hangs the deploy chain rather than refusing it.
     ask: (question) =>
-      new Promise((resolve) => {
+      new Promise((resolve, reject) => {
         const rl = createInterface({
           input: process.stdin,
           output: process.stderr,
         })
+        let answered = false
         rl.question(question, (answer) => {
+          answered = true
           rl.close()
           resolve(answer)
+        })
+        rl.on('close', () => {
+          if (!answered) reject(new Error(deployTicketRefusal(candidate)))
         })
       }),
   })

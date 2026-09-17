@@ -4248,13 +4248,14 @@ function assertDirectBroadcastCalldataGate() {
 }
 
 # sendsDirectly: Whether a call on this network/environment bypasses the Safe.
-# The three clauses that decide "direct send" rather than "propose to the Safe",
-# named once so a gate elsewhere cannot drift from the route it is guarding
+# The three clauses that decide "direct send" rather than "propose to the Safe"
 # ([CONV:ROUTING-PREDICATE]).
 #
 # Usage: sendsDirectly NETWORK ENVIRONMENT
 #   NETWORK     - target network name
 #   ENVIRONMENT - "production" or "staging"
+#
+# Example: sendsDirectly "arbitrum" "production"
 #
 # Returns: 0 when the call is sent directly, 1 when it is proposed to the Safe
 function sendsDirectly() {
@@ -4269,15 +4270,6 @@ function sendsDirectly() {
 # assertProposalTicketForRun: Resolve the Linear ticket this run's proposals will
 # carry, before anything is compiled or broadcast.
 #
-# The requirement itself lives in storeTransactionInMongoDB, which no propose
-# route can bypass — but that runs once the contract is already on chain, so a
-# rollout started without the variable pays a deployment to learn it is missing.
-# Resolving it here turns that into one message.
-#
-# Exported rather than returned, so every network of a multi-network run carries
-# the same ticket, and marked done so the per-contract deploy path does not ask
-# again inside a run that already resolved one.
-#
 # Usage: assertProposalTicketForRun ENVIRONMENT NETWORK...
 #   ENVIRONMENT - "production" or "staging"
 #   NETWORK...  - every network this run will touch
@@ -4286,9 +4278,10 @@ function sendsDirectly() {
 #   - No network proposes (staging, testnet-only, direct-to-diamond): no ticket
 #     is required and nothing is asked
 #   - SAFE_PROPOSAL_TICKET already set: validated, and refused here if malformed
-#   - Unset with a terminal attached: the operator is asked, the branch's issue
-#     id offered as the default
+#   - Unset with a terminal attached: the operator is asked
 #   - Unset with no terminal (CI, an agent, a piped run): refused
+#
+# Example: assertProposalTicketForRun "production" "arbitrum" "base"
 #
 # Returns: 0 with SAFE_PROPOSAL_TICKET exported, 1 when no ticket could be resolved
 function assertProposalTicketForRun() {
@@ -4296,7 +4289,12 @@ function assertProposalTicketForRun() {
   shift
   local NETWORKS=("$@")
 
-  if [[ "${PROPOSAL_TICKET_PREFLIGHT_DONE:-}" == "true" ]]; then
+  # Carried in a name .env does not define: every worker re-sources it, and
+  # .env.example ships a blank SAFE_PROPOSAL_TICKET line, so the exported value
+  # is wiped in the child while an "already asked" marker would survive - a run
+  # that reports success and then refuses per network at the store.
+  if [[ -n "${RESOLVED_SAFE_PROPOSAL_TICKET:-}" ]]; then
+    export SAFE_PROPOSAL_TICKET="$RESOLVED_SAFE_PROPOSAL_TICKET"
     return 0
   fi
 
@@ -4321,8 +4319,16 @@ function assertProposalTicketForRun() {
     return 1
   fi
 
+  # Exit 0 is not consent, as assertDirectBroadcastCalldataGate says above: a CLI
+  # that never ran also exits 0 and prints nothing. The issue URL is this one's
+  # allow token, so it is checked rather than trusted.
+  if [[ "$TICKET" != https://linear.app/* ]]; then
+    error "the ticket pre-flight produced no Linear issue URL - aborting before anything is deployed"
+    return 1
+  fi
+
   export SAFE_PROPOSAL_TICKET="$TICKET"
-  export PROPOSAL_TICKET_PREFLIGHT_DONE="true"
+  export RESOLVED_SAFE_PROPOSAL_TICKET="$TICKET"
   echo "[info] proposals from this run will carry $TICKET"
   return 0
 }
