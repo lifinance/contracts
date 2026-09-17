@@ -1,8 +1,11 @@
 // eslint-disable-next-line import/no-unresolved
 import { describe, expect, it } from 'bun:test'
 
+import type { ITargetVerdict } from '../codehash/verify-cut-targets'
+
 import {
   createCheckLedger,
+  isAcknowledgeable,
   recordCheck,
   gateLabel,
   rollUpChecks,
@@ -21,6 +24,9 @@ import {
   authorityExpectationAnchors,
   CODEHASH_CHECK,
   CODEHASH_CHECK_ID,
+  IMMUTABLES_CHECK,
+  IMMUTABLES_CHECK_ID,
+  immutablesCheckResult,
   CONFIRM_CHECK_DEFINITIONS,
   EVERY_ELEMENT_COMPARED,
   EXECUTABILITY_CHECK_ID,
@@ -1051,6 +1057,7 @@ const codehashGate = (
       matchedLineages: ['lineage-1'],
       excludedByteCount: 0,
       pricedByteCount: 0,
+      immutables: { status: 'none', detail: 'declares no immutables' },
     },
   ],
   summary: 'every target matched',
@@ -1132,6 +1139,7 @@ describe('proposalCheckResults', () => {
       ...INTEGRITY_CHECKS_ALWAYS,
       CHECK_TIMELOCK_DELAY,
       CODEHASH_CHECK_ID,
+      IMMUTABLES_CHECK_ID,
       STORAGE_AUTHORITY_CHECK_ID,
       TARGET_STATE_CHECK_ID,
       EXECUTABILITY_CHECK_ID,
@@ -1725,6 +1733,7 @@ describe('codehashCheckResult', () => {
             matchedLineages: [],
             excludedByteCount: 0,
             pricedByteCount: 0,
+            immutables: { status: 'none', detail: 'declares no immutables' },
           },
         ],
       }),
@@ -1754,6 +1763,7 @@ describe('codehashCheckResult', () => {
             matchedLineages: [],
             excludedByteCount: 0,
             pricedByteCount: 0,
+            immutables: { status: 'none', detail: 'declares no immutables' },
           },
         ],
       }),
@@ -1785,6 +1795,7 @@ describe('codehashCheckResult', () => {
             matchedLineages: [],
             excludedByteCount: 0,
             pricedByteCount: 0,
+            immutables: { status: 'none', detail: 'declares no immutables' },
           },
           {
             address: '0x00000000000000000000000000000000000000f2',
@@ -1793,6 +1804,7 @@ describe('codehashCheckResult', () => {
             matchedLineages: [],
             excludedByteCount: 0,
             pricedByteCount: 0,
+            immutables: { status: 'none', detail: 'declares no immutables' },
           },
         ],
       }),
@@ -1877,11 +1889,11 @@ describe("the codehash block's heading", () => {
 })
 
 describe('the codehash gate on the run-level ledger', () => {
-  it('is on the roster, so the run accounts for eleven gates in one book', () => {
+  it('is on the roster, so the run accounts for twelve gates in one book', () => {
     expect(
       CONFIRM_CHECK_DEFINITIONS.map((definition) => definition.checkId)
     ).toContain(CODEHASH_CHECK_ID)
-    expect(CONFIRM_CHECK_DEFINITIONS).toHaveLength(11)
+    expect(CONFIRM_CHECK_DEFINITIONS).toHaveLength(12)
   })
 
   it('costs the verified count when it stands down', () => {
@@ -1944,6 +1956,7 @@ describe('the codehash gate on the run-level ledger', () => {
               matchedLineages: [],
               excludedByteCount: 0,
               pricedByteCount: 0,
+              immutables: { status: 'none', detail: 'declares no immutables' },
             },
           ],
         }),
@@ -2143,5 +2156,139 @@ describe('gate blocks share one column', () => {
       codehash.find((one) => stripColor(one).includes('MATCH')),
     ])
       expect(nameColumn(line ?? '')).toBe(GATE_BODY_INDENT.length)
+  })
+})
+
+/**
+ * Gate L, which answers for the half a codehash comparison cannot reach.
+ *
+ * The split exists so a chain that cannot decide the value question does not
+ * lose the bytecode question with it — so the tests that matter most are the
+ * two ends: an assumed mapping is acknowledgeable, and a disagreeing value is
+ * not, on any chain.
+ */
+describe('immutablesCheckResult', () => {
+  const target = (
+    immutables: ITargetVerdict['immutables']
+  ): ICodehashSignGate =>
+    codehashGate({
+      targets: [
+        {
+          address: '0x00000000000000000000000000000000000000f1',
+          verdict: 'MATCH',
+          reason: 'bytecode reproduced from an attested build',
+          matchedLineages: ['lineage-1'],
+          excludedByteCount: 0,
+          pricedByteCount: 0,
+          immutables,
+        },
+      ],
+    })
+
+  it('passes on this checkout when every value matched what config declares', () => {
+    const result = immutablesCheckResult(
+      target({ status: 'verified', detail: 'gasZipRouter holds 0x22…' }),
+      NETWORK
+    )
+
+    expect(result.status).toBe('pass')
+    expect(result.anchor).toBe('A-LOCAL')
+  })
+
+  it('stands down when nothing installed declares an immutable', () => {
+    const result = immutablesCheckResult(
+      target({ status: 'none', detail: 'declares no immutables' }),
+      NETWORK
+    )
+
+    expect(result.status).toBe('not-applicable')
+  })
+
+  it('asks for an acknowledgement when only the slot mapping is assumed', () => {
+    const result = immutablesCheckResult(
+      target({ status: 'assumed', detail: 'slot 0 gasZipRouter: …' }),
+      NETWORK
+    )
+
+    expect(result.status).toBe('needs-ack')
+    expect(result.anchor).toBe('A-ASSUMED')
+    expect(result.detail).toContain('slot 0 gasZipRouter')
+  })
+
+  it('fails on a disagreeing value, which has no acknowledgement path', () => {
+    const result = immutablesCheckResult(
+      target({ status: 'disagrees', detail: 'gasZipRouter holds 0x33…' }),
+      NETWORK
+    )
+
+    expect(result.status).toBe('fail')
+    expect(isAcknowledgeable(IMMUTABLES_CHECK, result)).toBe(false)
+  })
+
+  it('records a value nobody established as an error, not a failure', () => {
+    // "we could not check" and "we checked and it disagrees" are two different
+    // remedies, and both block.
+    const result = immutablesCheckResult(
+      target({ status: 'unreadable', detail: 'the simulator was unreachable' }),
+      NETWORK
+    )
+
+    expect(result.status).toBe('error')
+    expect(result.anchor).toBe('A-UNRESOLVED')
+  })
+
+  it('reports the least-established address, not the best one', () => {
+    const gate = codehashGate({
+      targets: [
+        {
+          address: '0x00000000000000000000000000000000000000f1',
+          verdict: 'MATCH',
+          reason: 'ok',
+          matchedLineages: ['lineage-1'],
+          excludedByteCount: 0,
+          pricedByteCount: 0,
+          immutables: { status: 'verified', detail: 'all good' },
+        },
+        {
+          address: '0x00000000000000000000000000000000000000f2',
+          verdict: 'MATCH',
+          reason: 'ok',
+          matchedLineages: ['lineage-1'],
+          excludedByteCount: 0,
+          pricedByteCount: 0,
+          immutables: { status: 'disagrees', detail: 'holds another value' },
+        },
+      ],
+    })
+
+    expect(immutablesCheckResult(gate, NETWORK).status).toBe('fail')
+  })
+
+  it('refuses when the gate never ran, rather than standing down', () => {
+    const result = immutablesCheckResult(
+      codehashGate({ evaluated: false, summary: 'the gate did not run' }),
+      NETWORK
+    )
+
+    expect(result.status).toBe('error')
+    expect(result.anchor).toBe('A-UNRESOLVED')
+  })
+
+  it('opts into the acknowledgement path for the assumed mapping only', () => {
+    expect(IMMUTABLES_CHECK.checkClass).toBe('integrity')
+    expect(IMMUTABLES_CHECK.undecidableIsAcknowledgeable).toBe(true)
+    expect(
+      isAcknowledgeable(IMMUTABLES_CHECK, {
+        status: 'needs-ack',
+        anchor: 'A-ASSUMED',
+      })
+    ).toBe(true)
+    // A `needs-ack` claimed on an anchor that answered nothing still blocks.
+    expect(
+      isAcknowledgeable(IMMUTABLES_CHECK, {
+        status: 'needs-ack',
+        anchor: 'A-UNRESOLVED',
+      })
+    ).toBe(false)
   })
 })

@@ -233,6 +233,54 @@ export const observeEvmImmutables = (
   return { ok: true, observed }
 }
 
+/** Width of one `ImmutableSimulator` slot, which holds whole words only. */
+const SIMULATOR_SLOT_BYTES = 32
+
+/**
+ * Names the values a simulator read returned, for the same pricing the inlined
+ * path goes through.
+ *
+ * The slot widths are the platform's, not the artifact's: EraVM stores every
+ * immutable as one whole word whatever it was declared as, so there is no
+ * `immutableReferences` to take a width from and no second copy to count. The
+ * naming is the caller's — {@link zkImmutableOrdinals} derived it — and this
+ * function neither checks nor improves it.
+ *
+ * @param values - Declared name → the word the simulator holds, `0x`-prefixed.
+ * @returns One observation per name, or why none can be reported.
+ */
+export const observeZkImmutables = (
+  values: Record<string, string>
+): { ok: true; observed: IObservedImmutable[] } | IPricingRefused => {
+  const names = Object.keys(values)
+  if (names.length === 0)
+    return refused(
+      'the simulator read returned no values, so there is nothing to compare against what this repo declares'
+    )
+
+  const observed: IObservedImmutable[] = []
+  for (const name of names) {
+    const value = values[name] as string
+    const fault = frameFault(value, `the value read for ${name}`)
+    if (fault) return refused(fault)
+    if (strip0x(value).length / 2 !== SIMULATOR_SLOT_BYTES)
+      return refused(
+        `the value read for ${name} is ${
+          strip0x(value).length / 2
+        } bytes, and a simulator slot holds exactly ${SIMULATOR_SLOT_BYTES} — so the read did not return one slot and no value it produced can be attributed to a name`
+      )
+
+    observed.push({
+      name,
+      value,
+      slotByteCount: SIMULATOR_SLOT_BYTES,
+      byteCount: SIMULATOR_SLOT_BYTES,
+    })
+  }
+
+  return { ok: true, observed }
+}
+
 /**
  * The expected value of one config-sourced immutable.
  *

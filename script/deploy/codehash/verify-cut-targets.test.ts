@@ -93,6 +93,11 @@ const deps = (overrides?: {
       decided: false as const,
       reason: 'no layer 2 in this test',
     })),
+  readOffCodeImmutables: async () => ({
+    declared: 'some' as const,
+    pricing: { decided: false as const, reason: 'no gate L in this test' },
+    slotByName: {},
+  }),
 })
 
 /** A layer-2 answer that accounts for `bytes` of masked code. */
@@ -530,8 +535,9 @@ describe('verifyCutTargets', () => {
 })
 
 /**
- * A zkEVM MATCH masks nothing and checks nothing: the immutables are not in the
- * code to mask, so zero excluded bytes is not the same claim it is elsewhere.
+ * A zkEVM MATCH masks nothing, because the immutables are not in the code to
+ * mask. The bytecode claim still stands on its own; the value claim is gate L's
+ * and is carried beside it.
  */
 describe('verifyCutTargets on a chain holding immutables off-code', () => {
   const zkDeps = (over: Partial<IVerifyCutDeps> = {}) =>
@@ -555,28 +561,97 @@ describe('verifyCutTargets on a chain holding immutables off-code', () => {
       zkDeps(over)
     )
 
-  it('does not call a layer-1 match a match of the deployed code', async () => {
+  const zkPriced =
+    (
+      slots: IPricedImmutables['slots'],
+      over: Partial<Omit<IPricedImmutables, 'decided' | 'slots'>> = {}
+    ): IVerifyCutDeps['readOffCodeImmutables'] =>
+    async () => ({
+      declared: 'some',
+      pricing: {
+        decided: true,
+        slots,
+        disagreements: slots.filter((one) => one.status === 'disagrees'),
+        pricedByteCount: 32,
+        unpricedByteCount: 0,
+        disagreeingByteCount: 0,
+        ...over,
+      },
+      slotByName: { gasZip: 0 },
+    })
+
+  const verifiedSlot = {
+    name: 'gasZip',
+    status: 'verified' as const,
+    byteCount: 32,
+    observed: `0x${'0'.repeat(24)}${'22'.repeat(20)}`,
+    expected: `0x${'0'.repeat(24)}${'22'.repeat(20)}`,
+    origin: 'config/networks.json.zksync.gasZip',
+  }
+
+  it('lets the bytecode claim stand on a chain that cannot answer for values', async () => {
+    // The whole point of splitting the gates: the code IS a build of ours, and
+    // a chain unable to answer the second question must not lose the first.
     const report = await zkReport()
 
-    expect(report.targets[0]?.verdict).toBe('UNVERIFIABLE')
-    expect(report.blocksSigning).toBe(true)
+    expect(report.targets[0]?.verdict).toBe('MATCH')
+    expect(report.blocksSigning).toBe(false)
   })
 
-  it('names where the unchecked values live, and counts no masked bytes', async () => {
-    const report = await zkReport()
+  it('reports the values as assumed, naming the slot each came from', async () => {
+    const report = await zkReport({
+      readOffCodeImmutables: zkPriced([verifiedSlot]),
+    })
 
-    expect(report.targets[0]?.reason).toMatch(/ImmutableSimulator/u)
-    // The EVM sentence is built from the masked count. There are none here, so
-    // reusing it would tell the signer "0 bytes were not checked".
-    expect(report.targets[0]?.reason).not.toMatch(/\b0 bytes\b/u)
-  })
-
-  it('never renders the unqualified green', async () => {
-    const report = await zkReport()
-
-    expect(report.summary).not.toMatch(
-      /Every address this cut installs matches a rebuild/u
+    expect(report.targets[0]?.immutables.status).toBe('assumed')
+    expect(report.targets[0]?.immutables.detail).toContain('slot 0 gasZip')
+    expect(report.targets[0]?.immutables.detail).toContain(
+      'the order the contract declares them in'
     )
+  })
+
+  it('hard-blocks a disagreeing value even though the mapping is assumed', async () => {
+    const report = await zkReport({
+      readOffCodeImmutables: zkPriced([
+        {
+          ...verifiedSlot,
+          status: 'disagrees',
+          observed: `0x${'0'.repeat(24)}${'33'.repeat(20)}`,
+        },
+      ]),
+    })
+
+    expect(report.targets[0]?.immutables.status).toBe('disagrees')
+  })
+
+  it('reports no immutables to check when the contract declares none', async () => {
+    const report = await zkReport({
+      readOffCodeImmutables: async () => ({ declared: 'none' }),
+    })
+
+    expect(report.targets[0]?.immutables.status).toBe('none')
+  })
+
+  it('does not let a failed simulator read read as a clean value claim', async () => {
+    const report = await zkReport({
+      readOffCodeImmutables: async () => {
+        throw new Error('ImmutableSimulator unreachable')
+      },
+    })
+
+    expect(report.targets[0]?.verdict).toBe('MATCH')
+    expect(report.targets[0]?.immutables.status).toBe('unreadable')
+    expect(report.targets[0]?.immutables.detail).toContain('unreachable')
+  })
+
+  it('counts no priced bytes, because layer 1 masked none', async () => {
+    const report = await zkReport({
+      readOffCodeImmutables: zkPriced([verifiedSlot]),
+    })
+
+    // The summary qualifies itself with this number. Counting simulator words
+    // in it would print a confirmation of a mapping nothing confirmed.
+    expect(report.targets[0]?.pricedByteCount).toBe(0)
   })
 
   it('leaves a chain that inlines its immutables exactly as it was', async () => {
@@ -590,5 +665,6 @@ describe('verifyCutTargets on a chain holding immutables off-code', () => {
 
     expect(report.targets[0]?.verdict).toBe('MATCH')
     expect(report.blocksSigning).toBe(false)
+    expect(report.targets[0]?.immutables.status).toBe('none')
   })
 })

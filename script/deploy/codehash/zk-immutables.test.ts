@@ -17,7 +17,11 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
-import { IMMUTABLE_SIMULATOR_ADDRESS, readZkImmutables } from './zk-immutables'
+import {
+  IMMUTABLE_SIMULATOR_ADDRESS,
+  readZkImmutables,
+  zkImmutableOrdinals,
+} from './zk-immutables'
 
 const DIAMOND = '0x1111111111111111111111111111111111111111'
 const WORD = (hex: string) => `0x${hex.padStart(64, '0')}`
@@ -139,5 +143,90 @@ describe('readZkImmutables', () => {
     expect(IMMUTABLE_SIMULATOR_ADDRESS).toBe(
       '0x0000000000000000000000000000000000008005'
     )
+  })
+})
+
+/**
+ * The numbering itself, which is the half the compiler does not record. It is
+ * derived from declaration order and every refusal below is a shape where that
+ * order does not determine an index — the alternative being a silent shift that
+ * checks one immutable's value against another's expectation.
+ */
+describe('zkImmutableOrdinals', () => {
+  const declared = (name: string, line: number, contract = 'GasZipFacet') => ({
+    file: 'src/Facets/GasZipFacet.sol',
+    contract,
+    line,
+    type: 'address',
+    name,
+  })
+
+  it('numbers a contract from zero, in the order it declares them', () => {
+    const numbered = zkImmutableOrdinals([
+      declared('backendSigner', 41),
+      declared('gasZipRouter', 22),
+    ])
+
+    expect(numbered).toEqual({
+      ok: true,
+      ordinals: { gasZipRouter: 0, backendSigner: 1 },
+    })
+  })
+
+  it('refuses an empty set rather than returning an empty numbering', () => {
+    const numbered = zkImmutableOrdinals([])
+
+    expect(numbered.ok).toBe(false)
+  })
+
+  it('refuses two declarations recorded at one line', () => {
+    // Declaration order is the whole basis of the numbering, and two entries
+    // sharing a line are not ordered by it — either could take the other slot.
+    const numbered = zkImmutableOrdinals([
+      declared('gasZipRouter', 22),
+      declared('backendSigner', 22),
+    ])
+
+    expect(numbered.ok).toBe(false)
+  })
+
+  it('refuses a name declared twice', () => {
+    const numbered = zkImmutableOrdinals([
+      declared('gasZipRouter', 22),
+      declared('gasZipRouter', 41),
+    ])
+
+    expect(numbered.ok).toBe(false)
+  })
+
+  it('refuses declarations spanning more than one contract', () => {
+    // Each contract is indexed from its own zero, so numbering them together
+    // gives one contract's slot to the other's name.
+    const numbered = zkImmutableOrdinals([
+      declared('gasZipRouter', 22),
+      declared('otherThing', 41, 'SomeOtherFacet'),
+    ])
+
+    expect(numbered.ok).toBe(false)
+  })
+
+  it('feeds readZkImmutables the index it addresses the simulator by', async () => {
+    const asked: number[] = []
+    const read = await readZkImmutables({
+      address: DIAMOND,
+      ordinals: (
+        zkImmutableOrdinals([
+          declared('backendSigner', 41),
+          declared('gasZipRouter', 22),
+        ]) as { ok: true; ordinals: Record<string, number> }
+      ).ordinals,
+      getImmutable: async (_address, index) => {
+        asked.push(index)
+        return WORD('01')
+      },
+    })
+
+    expect(read.ok).toBe(true)
+    expect(asked).toEqual([0, 32])
   })
 })

@@ -23,7 +23,11 @@ import realRequirements from '../resources/deployRequirements.json'
 import realRegistry from '../resources/immutableRegistry.json'
 
 import type { IObservedImmutable } from './immutable-expectations'
-import { observeEvmImmutables, priceImmutables } from './immutable-expectations'
+import {
+  observeEvmImmutables,
+  observeZkImmutables,
+  priceImmutables,
+} from './immutable-expectations'
 
 const SPOKE_POOL = '0xe35e9842fceaCA96570B734083f4a58e8F7C5f2A'
 const WRAPPED_NATIVE = '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1'
@@ -602,5 +606,52 @@ describe('priceImmutables', () => {
 
     expect(result.slots[0]?.status).toBe('undeclared')
     expect(result.unpricedByteCount).toBe(64)
+  })
+})
+
+/**
+ * The zk half of the same boundary. There is no artifact to take a width from —
+ * EraVM stores every immutable as one whole word — so the only framing question
+ * is whether the read returned exactly that.
+ */
+describe('observeZkImmutables', () => {
+  const WORD = `0x${'00'.repeat(12)}${'22'.repeat(20)}`
+
+  it('reports one whole-word observation per name', () => {
+    const observed = observeZkImmutables({ gasZipRouter: WORD })
+
+    expect(observed).toEqual({
+      ok: true,
+      observed: [
+        {
+          name: 'gasZipRouter',
+          value: WORD,
+          slotByteCount: 32,
+          byteCount: 32,
+        },
+      ],
+    })
+  })
+
+  it('refuses an empty read rather than pricing nothing', () => {
+    // An empty set priced cleanly would report "every immutable holds what
+    // config declares" about a read that returned nothing.
+    const observed = observeZkImmutables({})
+
+    expect(observed).toEqual({ decided: false, reason: expect.any(String) })
+  })
+
+  it('refuses a value that is not one 32-byte word', () => {
+    const observed = observeZkImmutables({
+      gasZipRouter: `0x${'22'.repeat(20)}`,
+    })
+
+    expect(observed).toMatchObject({ decided: false })
+  })
+
+  it('refuses a value that is not hex', () => {
+    const observed = observeZkImmutables({ gasZipRouter: 'not-a-word' })
+
+    expect(observed).toMatchObject({ decided: false })
   })
 })
