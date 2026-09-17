@@ -127,7 +127,10 @@
     },
     "_emergencyPauseFacetAddress": {
       "source": "derived",
-      "rule": "address(this) at construction, so it equals the deployment's own address."
+      "rule": "address(this) at construction, so it equals the deployment's own address.",
+      "evaluator": {
+        "kind": "selfAddress"
+      }
     }
   },
   "FraxFacet": {
@@ -218,7 +221,11 @@
     "BENTO_BOX": {
       "source": "derived",
       "rule": "address(0). DeployLiFiDEXAggregator.s.sol passes the literal, as the upstream RouteProcessor4 deployment does; no config file carries a BentoBox address.",
-      "authorityBearing": true
+      "authorityBearing": true,
+      "evaluator": {
+        "kind": "literal",
+        "value": "0x0000000000000000000000000000000000000000"
+      }
     }
   },
   "LiFiIntentEscrowFacetV2": {
@@ -274,7 +281,11 @@
     },
     "PERMIT_WITH_WITNESS_TYPEHASH": {
       "source": "derived",
-      "rule": "keccak256(PermitHash._PERMIT_TRANSFER_FROM_WITNESS_TYPEHASH_STUB ++ WITNESS_TYPE_STRING), both compile-time constants, so the value is fixed for a given source revision and carries no per-network input."
+      "rule": "keccak256(PermitHash._PERMIT_TRANSFER_FROM_WITNESS_TYPEHASH_STUB ++ WITNESS_TYPE_STRING), both compile-time constants, so the value is fixed for a given source revision and carries no per-network input.",
+      "evaluator": {
+        "kind": "literal",
+        "value": "0x8d1c580daffeed15ffec12c37a2feb02e6296bcf4fa4de7ae85a3fdf033edc82"
+      }
     }
   },
   "PolygonBridgeFacet": {
@@ -370,7 +381,11 @@
     },
     "recoverGas": {
       "source": "derived",
-      "rule": "The gas stipend DeployReceiverStargateV2.s.sol passes as a literal (100000). It is a gas budget, not an address, and no config file carries it."
+      "rule": "The gas stipend DeployReceiverStargateV2.s.sol passes as a literal (100000). It is a gas budget, not an address, and no config file carries it.",
+      "evaluator": {
+        "kind": "literal",
+        "value": "100000"
+      }
     }
   },
   "RelayDepositoryFacet": {
@@ -402,7 +417,11 @@
     },
     "IS_HUB": {
       "source": "derived",
-      "rule": "block.chainid == ARBITRUM_CHAIN_ID at construction, so it is true on Arbitrum and false everywhere else."
+      "rule": "block.chainid == ARBITRUM_CHAIN_ID at construction, so it is true on Arbitrum and false everywhere else.",
+      "evaluator": {
+        "kind": "chainIdEquals",
+        "chainId": 42161
+      }
     }
   },
   "SymbiosisFacet": {

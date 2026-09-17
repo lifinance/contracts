@@ -37,13 +37,14 @@ const slot = (over: Partial<IGradedImmutable> = {}): IGradedImmutable => ({
 
 const priced = (
   slots: IGradedImmutable[],
-  over: { unpricedByteCount?: number } = {}
+  over: { unpricedByteCount?: number; acknowledgeableByteCount?: number } = {}
 ) => ({
   decided: true as const,
   slots,
   disagreements: slots.filter((one) => one.status === 'disagrees'),
   pricedByteCount: 32,
   unpricedByteCount: 0,
+  acknowledgeableByteCount: 0,
   disagreeingByteCount: 0,
   ...over,
 })
@@ -80,6 +81,47 @@ describe('gradeInlinedImmutables', () => {
 
     expect(verdict.status).toBe('unpriced')
     expect(verdict.detail).toContain('no registry entry')
+  })
+
+  it('grades a gap the registry states in writing as documented, not unpriced', () => {
+    const verdict = gradeInlinedImmutables(
+      ADDRESS,
+      'mainnet',
+      priced(
+        [
+          slot(),
+          slot({
+            status: 'acknowledgeable',
+            detail: 'is unverifiable: read from the deployment log',
+          }),
+        ],
+        { acknowledgeableByteCount: 32 }
+      )
+    )
+
+    expect(verdict.status).toBe('documented')
+    expect(verdict.detail).toContain('deployment log')
+  })
+
+  it('keeps an unnoticed gap blocking even beside a stated one', () => {
+    // The two must not average: an acknowledgement offered here would have a
+    // signer take on the one slot nobody wrote anything about.
+    const verdict = gradeInlinedImmutables(
+      ADDRESS,
+      'mainnet',
+      priced(
+        [
+          slot({ status: 'undeclared', detail: 'has no registry entry' }),
+          slot({
+            status: 'acknowledgeable',
+            detail: 'is unverifiable: a reason',
+          }),
+        ],
+        { unpricedByteCount: 32, acknowledgeableByteCount: 32 }
+      )
+    )
+
+    expect(verdict.status).toBe('unpriced')
   })
 
   it('carries a refusal through as unreadable, never as a finding', () => {

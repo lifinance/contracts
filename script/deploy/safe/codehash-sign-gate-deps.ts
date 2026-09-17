@@ -393,6 +393,104 @@ const carriesAst = (
   }
 }
 
+const EXTERNAL_ZKSYNC_SECTION = /^\s*\[external\.zksync\]\s*$/
+const TOML_SECTION = /^\s*\[[^\]]+\]\s*$/
+const FOUNDRY_ZKSYNC_PIN = /^\s*foundry_zksync\s*=\s*['"]([^'"]+)['"]/
+
+/** Same shape `install_foundry_zksync` compares against: `vX.Y.Z` and `nightly-<sha>` alike. */
+const REPORTED_ZK_RELEASE = /foundry-zksync-(\S+)/
+
+/**
+ * How an operator installs the pinned release. Verified by sourcing the script:
+ * `install_foundry_zksync` is a shell function, so it exists only after the source.
+ */
+const ZK_INSTALL_HINT =
+  'run `source script/helperFunctions.sh && install_foundry_zksync` in the repository root'
+
+/**
+ * The foundry-zksync release pinned in `foundry.toml` `[external.zksync]`.
+ *
+ * `parseBuildProfiles` reads the neighbouring `zksolc` key but not this one, and
+ * neither pin can live in a profile table — vanilla forge warns on an unknown
+ * `zksync` key — so the section has to be walked directly.
+ *
+ * @param toml - contents of `foundry.toml`
+ * @returns The pinned release tag, or undefined when the section does not pin one
+ */
+const parseFoundryZksyncPin = (toml: string): string | undefined => {
+  let inSection = false
+  for (const line of toml.split('\n')) {
+    if (EXTERNAL_ZKSYNC_SECTION.test(line)) {
+      inSection = true
+      continue
+    }
+    if (TOML_SECTION.test(line)) {
+      inSection = false
+      continue
+    }
+    if (!inSection) continue
+    const pin = FOUNDRY_ZKSYNC_PIN.exec(line)
+    if (pin) return pin[1]
+  }
+  return undefined
+}
+
+/**
+ * Refuses a zk rebuild unless the binary about to compile is the pinned release.
+ *
+ * `foundry-zksync/` is untracked, so a fresh clone or worktree has none at all.
+ * Without this the spawn fails inside the build and surfaces as "the attested
+ * build could not be produced", which reads to a signer as a fact about the
+ * deployment rather than about their machine. A binary that is present but off
+ * the pin is worse: it compiles, produces different bytecode and grades an
+ * honest deployment MISMATCH.
+ *
+ * Mirrors `assertZkToolchainOrFail` (`script/deploy/shared/assertZkToolchain.sh`)
+ * on the bash deploy path. Only the observed leg is mirrored: the zksolc request
+ * is built by this module from the same pin it would be compared against.
+ *
+ * @param deps - the file and process primitives, and the repo to read the pin from
+ * @param command - the foundry-zksync forge this build would invoke
+ * @throws when the binary is absent, unreadable, or off the pin
+ */
+const assertZkToolchainPinned = (
+  deps: Pick<IForgeRebuildDeps, 'repoRoot' | 'run' | 'exists' | 'readFile'>,
+  command: string
+): void => {
+  const refusal = (why: string): Error =>
+    new Error(
+      `zkEVM toolchain problem, not a codehash verdict: ${why}. Nothing about the deployment has been established — to make this checkable, ${ZK_INSTALL_HINT}.`
+    )
+
+  const pin = parseFoundryZksyncPin(
+    deps.readFile(join(deps.repoRoot, 'foundry.toml'))
+  )
+  if (pin === undefined)
+    throw refusal(
+      'foundry.toml [external.zksync] pins no foundry_zksync release, so there is nothing to hold the rebuild to'
+    )
+
+  if (!deps.exists(command))
+    throw refusal(`no foundry-zksync forge at ${command}`)
+
+  const probe = deps.run(command, ['--version'], {
+    cwd: deps.repoRoot,
+    env: {},
+  })
+  const reported = REPORTED_ZK_RELEASE.exec(probe.output)?.[1]
+  if (!probe.ok || reported === undefined)
+    throw refusal(
+      `\`${command} --version\` did not report a foundry-zksync release: ${redactUrls(
+        probe.output
+      )}`
+    )
+
+  if (reported !== pin)
+    throw refusal(
+      `${command} is foundry-zksync ${reported} but foundry.toml pins ${pin}, and a rebuild under the wrong release would not reproduce the deployed bytecode`
+    )
+}
+
 /**
  * Refuses a rebuild whose `lib/` pins do not match the commit's `.gitmodules`.
  *
@@ -502,6 +600,7 @@ export const createForgeRebuildRunner = (
       const command = isZk
         ? join(deps.repoRoot, 'foundry-zksync', 'forge')
         : 'forge'
+      if (isZk) assertZkToolchainPinned(deps, command)
       // `test`/`script` are forge aliases for `.t.sol`/`.s.sol` only; the
       // path globs match `[profile.solc_floor]` and skip the whole trees.
       // `--offline` refuses forge's auto-install so a missing pin cannot be
@@ -1004,6 +1103,7 @@ export const createOffCodeImmutablesReader = (deps: {
           observed: observed.observed,
           network,
           environment: EnvironmentEnum.production,
+          address,
         },
         deps.loadRequirements()
       ),
@@ -1310,6 +1410,7 @@ export const createImmutablePricer = (deps: {
         observed: observed.observed,
         network,
         environment: EnvironmentEnum.production,
+        address,
       },
       deps.loadRequirements()
     )

@@ -2215,6 +2215,53 @@ describe('immutablesCheckResult', () => {
     expect(result.detail).toContain('slot 0 gasZipRouter')
   })
 
+  it('asks for an acknowledgement when the only gap is one the registry states', () => {
+    const result = immutablesCheckResult(
+      target({
+        status: 'documented',
+        detail: 'LIFI_DIAMOND: read from the deployment log — unchecked',
+      }),
+      NETWORK
+    )
+
+    expect(result.status).toBe('needs-ack')
+    expect(result.anchor).toBe('A-DOCUMENTED')
+    expect(isAcknowledgeable(IMMUTABLES_CHECK, result)).toBe(true)
+    // The signer is taking on a stated reason, so it must reach the row.
+    expect(result.detail).toContain('deployment log')
+  })
+
+  it('keeps a slot nobody declared blocking, even beside a stated gap', () => {
+    const result = immutablesCheckResult(
+      codehashGate({
+        targets: [
+          {
+            address: '0x00000000000000000000000000000000000000f1',
+            verdict: 'MATCH',
+            reason: 'ok',
+            matchedLineages: ['lineage-1'],
+            excludedByteCount: 0,
+            pricedByteCount: 0,
+            immutables: { status: 'documented', detail: 'a stated gap' },
+          },
+          {
+            address: '0x00000000000000000000000000000000000000f2',
+            verdict: 'MATCH',
+            reason: 'ok',
+            matchedLineages: ['lineage-1'],
+            excludedByteCount: 0,
+            pricedByteCount: 0,
+            immutables: { status: 'unpriced', detail: 'EXECUTOR: no entry' },
+          },
+        ],
+      }),
+      NETWORK
+    )
+
+    expect(result.status).toBe('error')
+    expect(isAcknowledgeable(IMMUTABLES_CHECK, result)).toBe(false)
+  })
+
   it('fails on a disagreeing value, which has no acknowledgement path', () => {
     const result = immutablesCheckResult(
       target({ status: 'disagrees', detail: 'gasZipRouter holds 0x33…' }),

@@ -12,9 +12,10 @@
  * Only the observation is synthesised, which is the correct side to synthesise:
  * it stands for the deployed bytecode, the one input a proposer controls.
  */
-import { readFileSync } from 'fs'
+import { readFileSync, readdirSync } from 'fs'
 
 import { describe, expect, it } from 'bun:test' // eslint-disable-line import/no-unresolved
+import { keccak256, toHex } from 'viem'
 
 import type {
   DeployRequirements,
@@ -96,5 +97,133 @@ describe('layer 2 against the repo’s own expectation files', () => {
     expect(result.unpricedByteCount).toBe(32)
     expect(result.pricedByteCount).toBe(0)
     expect(result.slots[0]?.status).toBe('undeclared')
+  })
+})
+
+/**
+ * The repo's own registry against the addresses actually in `deployments/`.
+ *
+ * The fixtured cases above prove the grading; these prove the blast radius of
+ * the files on disk, which is the thing a signer meets. Each case names a
+ * contract deployed across most of the fleet, so a registry edit that returns
+ * it to the hard-blocking path fails here rather than at signing time.
+ *
+ * `slot32` stands in for the deployed bytecode only. Every expectation — the
+ * address, the chain id, the literal — comes from the repo.
+ */
+describe('layer 2 across the deployments this repo records', () => {
+  const deployed = (network: string): Record<string, string> =>
+    JSON.parse(readFileSync(`deployments/${network}.json`, 'utf8')) as Record<
+      string,
+      string
+    >
+
+  const graded = (
+    contractName: string,
+    name: string,
+    network: string,
+    observedValue: string
+  ) => {
+    const result = priceImmutables(
+      {
+        contractName,
+        observed: [slot(name, observedValue)],
+        network,
+        environment: 'production',
+        address: deployed(network)[contractName] ?? '',
+      },
+      requirements
+    )
+    if (!result.decided) throw new Error(result.reason)
+    return result.slots[0]
+  }
+
+  it('verifies EmergencyPauseFacet against its own recorded address across the fleet', () => {
+    const networks = readdirSync('deployments').filter(
+      (file) =>
+        file.endsWith('.json') &&
+        !file.includes('.diamond.') &&
+        !file.includes('.staging.') &&
+        !file.startsWith('_') &&
+        deployed(file.replace(/\.json$/, '')).EmergencyPauseFacet?.startsWith(
+          '0x'
+        ) === true
+    )
+    expect(networks.length).toBeGreaterThan(50)
+
+    for (const file of networks) {
+      const network = file.replace(/\.json$/, '')
+      const address = deployed(network).EmergencyPauseFacet as string
+      const slotted = graded(
+        'EmergencyPauseFacet',
+        '_emergencyPauseFacetAddress',
+        network,
+        address
+      )
+      expect(`${network}:${slotted?.status}`).toBe(`${network}:verified`)
+    }
+  })
+
+  it('verifies SupersetFacet.IS_HUB true on Arbitrum and false on a spoke', () => {
+    expect(graded('SupersetFacet', 'IS_HUB', 'arbitrum', '0x01')?.status).toBe(
+      'verified'
+    )
+    expect(graded('SupersetFacet', 'IS_HUB', 'base', '0x00')?.status).toBe(
+      'verified'
+    )
+    expect(graded('SupersetFacet', 'IS_HUB', 'base', '0x01')?.status).toBe(
+      'disagrees'
+    )
+  })
+
+  it('holds the Permit2Proxy typehash literal to what the source hashes to', () => {
+    const stub =
+      'PermitWitnessTransferFrom(TokenPermissions permitted,address spender,uint256 nonce,uint256 deadline,'
+    const witness = readFileSync('src/Periphery/Permit2Proxy.sol', 'utf8')
+      .split('WITNESS_TYPE_STRING =')[1]
+      ?.split(';')[0]
+      ?.match(/"([^"]*)"/u)?.[1]
+    expect(witness).toBeDefined()
+
+    const expected = keccak256(toHex(`${stub}${witness ?? ''}`))
+    expect(
+      graded(
+        'Permit2Proxy',
+        'PERMIT_WITH_WITNESS_TYPEHASH',
+        'mainnet',
+        expected
+      )?.status
+    ).toBe('verified')
+  })
+
+  it('does not vouch for a Tron address it cannot express in a slot', () => {
+    const slotted = graded(
+      'EmergencyPauseFacet',
+      '_emergencyPauseFacetAddress',
+      'tron',
+      `0x${'11'.repeat(32)}`
+    )
+
+    expect(slotted?.status).toBe('unpriceable')
+    expect(slotted?.detail).toMatch(/base58/u)
+  })
+
+  it('separates a reviewed gap from an undeclared one on the same contract', () => {
+    expect(
+      graded(
+        'Permit2Proxy',
+        'LIFI_DIAMOND',
+        'mainnet',
+        '0x5c7BCd6E7De5423a257D81B442095A1a6ced35C5'
+      )?.status
+    ).toBe('acknowledgeable')
+    expect(
+      graded(
+        'Permit2Proxy',
+        'NOT_AN_IMMUTABLE',
+        'mainnet',
+        '0x5c7BCd6E7De5423a257D81B442095A1a6ced35C5'
+      )?.status
+    ).toBe('undeclared')
   })
 })

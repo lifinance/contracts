@@ -529,7 +529,13 @@ Per pending transaction the signer sees:
    (`facet-version-utils.ts`).
 2. **Safe transaction details** — nonce (current/stale/future coloring), `to`
    + resolved name, raw data, proposer, stored `safeTxHash`, signature count
-   vs threshold, drain origin-PR links where present, and the
+   vs threshold, the proposal's **claim block** (`formatClaimLines` in
+   `provenance-display.ts`, placed by `safe-tx-detail-display.ts`): the stated
+   reason, the proposer handle and actor, the commit and branch with their push
+   state and the working-tree paths that differed, the PR link and the ticket
+   link. Each absence is its own line rather than a dropped one — a row stored
+   before capture existed reads "not recorded", never clean. Then drain
+   origin-PR links where present, and the
    **target-state verdict** read at `origin/main` (`pinned-target-state.ts`),
    which refuses a downgrade before any signature or broadcast.
 3. The value to verify on the device, which depends on the signing mode. In the
@@ -577,14 +583,22 @@ Per pending transaction the signer sees:
    carries no commit to rebuild from — because those are fixed by different
    people.
 
-   Three limits are put on screen rather than hidden. A hash match whose
-   immutables have not been priced renders grey rather than green — whether
-   because bytes were excluded as immutables, or because the chain keeps them
-   outside the runtime code, as zkEVM does. Calldata this decoder
+   Two limits are put on screen rather than hidden. Calldata this decoder
    cannot open makes **no claim** — it names the frames it could not read
    instead of reporting a pass. And calldata that decodes to no cut at all is
    outside its scope and says so; a proposal with empty calldata prints no gate
    line, because there is nothing to judge.
+
+   The immutable values this gate does not speak for are **gate L**'s subject,
+   graded per address and per network so that a chain unable to answer for them
+   no longer loses the code claim as well. Where they are inlined they are
+   priced against what this checkout declares. On a network
+   `config/networks.json` marks `isZkEVM` (`abstract`, `lens`, `zksync`) the
+   compiler writes them to `ImmutableSimulator` instead, indexed by declaration
+   ordinal, and the signer is shown the name, slot, declared and observed value
+   to confirm — the compiler records no slot-to-name mapping, so that ordering
+   is what the `A-ASSUMED` anchor stands for: it may report, never decide a
+   green. A value that *disagrees* hard-blocks on every chain.
 
 5. **The proposal-integrity assertions** (`confirm-integrity-asserts.ts`),
    asking of each proposal whether it is what its own record claims. The Safe's
@@ -620,7 +634,20 @@ Per pending transaction the signer sees:
    uses, immediately after it: one covering every signing route, one every
    broadcast route, both ahead of the irreversible step.
 
-6. The action prompt: `Do Nothing` / `Sign` / `Sign & Execute` /
+6. **Three rows that report and never refuse.** The storage authority of every
+   contract the cut installs, read live and compared with what `main` declares
+   (gate G, `prebroadcast-gate.ts`); the executability simulation of every
+   payload the proposal carries, replayed with `eth_call` from the account that
+   will really send it (gate I, `executability-simulation.ts`); and how many
+   independent providers agreed on the sign-time reads (gate J,
+   `rpc-quorum.ts`). All three land on the `check-ledger.ts` ledger through
+   `confirm-check-registry.ts` and print in this proposal's check rows, but the
+   ledger's own verdict renders after the whole run — so a red row colours the
+   closing verdict and stops nothing. The two chain carve-outs sit here: on Tron
+   gate G reads no code at all, because the read needs a TronWeb client this
+   path does not carry (EXSC-954), and gate I is outside the EVM simulator's
+   scope. Each says so on its row instead of grading.
+7. The action prompt: `Do Nothing` / `Sign` / `Sign & Execute` /
    `Sign and Execute With Deployer` / `Execute with Deployer`. The two
    deployer variants are the usual choice — see §2 on why the deployer
    wallet broadcasts. Selecting an action is itself the review
@@ -649,7 +676,9 @@ the hash on-chain, validates and concatenates signatures sorted by signer
 `GAS_ESTIMATE_MULTIPLIER`, with a fixed fallback that still broadcasts on
 estimation failure (`executors/gas-with-fallback.ts`). `safeTxGas` is 0, so an
 inner-call failure reverts top-level without consuming the Safe nonce.
-**Nothing simulates the transaction before signatures exist.**
+**Nothing simulates `execTransaction` itself before signatures exist** — the
+sign-time executability check (§4.3) replays the payloads the proposal carries,
+not the Safe call wrapping them.
 
 **Timelock leg:** if the executed calldata is a `scheduleBatch`,
 `enqueueTimelockOpIfApplicable` (`timelock-queue.ts`) upserts a row into
@@ -692,11 +721,13 @@ parked tasks are reconciled weekly by `reconcileParkedTasks.yml`.
 | Confirm | Signer must be an owner; network must be active; threshold and nonce read on-chain per Safe | Block / skip | `confirm-safe-tx.ts`, `safe-utils.ts` |
 | Confirm | `operation` must be exactly `Call` (0). A DelegateCall, or any other value, on the signed struct is refused before `SafeClient` signs or broadcasts — decoded calldata is not consulted. Sign/Execute options are hidden | Block | `delegatecall-gate.ts`, `SafeClient.signTransaction` / `executeTransaction` |
 | Confirm | Ledger blind-signing enabled, fail-fast before any review | Block | `checkBlindSigningEnabled` in `ledger.ts` |
-| Confirm | Sign-time codehash gate: every address a decoded `diamondCut` installs — `Add`/`Replace` targets plus a non-zero `_init` — must match a local rebuild at the commit its production deployment record names, under the toolchain that network's `foundry.toml` profile pins. **Not** an ancestry check against `main` — per D3 the referenced commit need only be present and fetchable, so this row is anchored differently from the Propose row above it. MATCH passes; MISMATCH and UNVERIFIABLE both block and stay distinct. A removal-only cut carrying `_init` is refused rather than gated. A MATCH whose immutables have not been priced is downgraded to UNVERIFIABLE: either bytes were excluded as immutables, or the network keeps them outside the runtime code (zkEVM writes them to `ImmutableSimulator`, so nothing is excluded and nothing is checked). Calldata the decoder cannot open makes **no claim** rather than reporting a pass. Asserted on both the sign and the execute route, not only at signature time — a proposal already at threshold is broadcast through a different funnel. Infrastructure failures block too, in two places: one that stops any verdict being reached (config unreadable) is a refusal, while one that stops a single address being judged (RPC or attestation store unreachable) is that address's `UNVERIFIABLE` verdict | Block | `codehash-sign-gate.ts` + `codehash-sign-gate-deps.ts` in `confirm-safe-tx.ts`, deciding through `script/deploy/codehash/` (EXSC-906) |
+| Confirm | Sign-time codehash gate: every address a decoded `diamondCut` installs — `Add`/`Replace` targets plus a non-zero `_init` — must match a local rebuild at the commit its production deployment record names, under the toolchain that network's `foundry.toml` profile pins. **Not** an ancestry check against `main` — per D3 the referenced commit need only be present and fetchable, so this row is anchored differently from the Propose row above it. MATCH passes; MISMATCH and UNVERIFIABLE both block and stay distinct. A removal-only cut carrying `_init` is refused rather than gated. Immutable values are not this gate’s subject — gate L grades them separately, so a chain that cannot answer for them does not lose the code claim too. Calldata the decoder cannot open makes **no claim** rather than reporting a pass. Asserted on both the sign and the execute route, not only at signature time — a proposal already at threshold is broadcast through a different funnel. Infrastructure failures block too, in two places: one that stops any verdict being reached (config unreadable) is a refusal, while one that stops a single address being judged (RPC or attestation store unreachable) is that address's `UNVERIFIABLE` verdict | Block | `codehash-sign-gate.ts` + `codehash-sign-gate-deps.ts` in `confirm-safe-tx.ts`, deciding through `script/deploy/codehash/` (EXSC-906) |
 | Confirm | Full calldata decode: diamond cut, scheduleBatch, whitelist, periphery, roles; per-selector name resolution | Display / warn only | `safe-decode-utils.ts` (`formatDecodedTxDataForDisplay`) |
 | Confirm | To-be-added facet version, resolved from the deployment record (the MongoDB mirror under `.cache/`, which the deploy script writes before proposing) | Display only | `facet-version-utils.ts`, `safe-utils.ts` |
 | Confirm | Target state graded against `origin/main`, never the reviewer's checkout: the anchor is `git show origin/main:script/deploy/_targetState.json` after a fresh fetch of an explicit `+refs/heads/main:refs/remotes/origin/main` (git updates that ref only opportunistically, so a clone without a covering refspec would otherwise read a stale anchor with no error), read through `refs/remotes/origin/main` in full rather than the short name, which git resolves through tags and heads first, so a tag a proposer's clone carries cannot shadow the fetched ref. `origin` must be `github.com/lifinance/contracts` or the read refuses — a fork remote would let a proposer author the expected state; the URL is taken from `git remote get-url`, which applies any `insteadOf` rewrite and so reports where a fetch would really go. Which branch the reviewer happens to be on cannot change a verdict. Graded per case, not as one equality — an **upgrade of a facet `main` already targets** refuses a downgrade, a version pair that cannot be ordered, and a proposed version no deployment record resolves; a **first-time add** has no entry on `main` by construction (the target-state PR merges only after execution, so gating on it would deadlock) and is labeled "not previously targeted" with the count of networks already declaring that contract at that version, without blocking — intent there rests on the linked ticket and PR; a **removal** is reported only. The statuses that may proceed are named, so an unrecognised cut action, a cut whose calldata cannot be read, a facet address no deployment record names on that network (the same address on another chain is deliberately not consulted — the mirror carries one address as two different contracts across networks), a deployment record that contradicts itself about which contract or version an address is (the `(network, address)` pair is not unique in that cache — six such pairs today, two at genuinely different versions), an anchor read through the wrong remote, and an anchor that could not be refreshed all refuse. | Block (downgrade / unorderable / unresolved / unidentified / ambiguous record / unreadable / anchor unavailable) / label (first-time add) / report (removal) | `pinned-target-state.ts` + `diamond-cut-calls.ts`, gated in `confirm-safe-tx.ts` after the nonce gates and before the acknowledgement is recorded (EXSC-704). Each verdict also lands on a run-level `check-ledger.ts` ledger via `confirm-check-registry.ts` (`checkId: target-state`, section `Intent`, class `semantic`), reduced worst-first to one row per network. The run renders that ledger's verdict last, after the signing decisions. Only a `pass` counts toward the verified coverage, and a correct `Add`/`Replace` cut grades `needs-ack` on the target-state row, so a clean rollout closes as an acknowledgement rather than fully green (EXSC-993, EXSC-994) |
 | Confirm | Proposal integrity on the pending row: the `safeTxHash` recomputed from the signed struct, the Safe the proposal is against vs `config/networks.json`, every stored signature recovered against the recomputed hash (never the stored one, which the proposer writes), the fields the hash omits, the target, and the timelock delay. Each refusal carries a named anchor — `A-LOCAL` local data, `A-CHAIN` an on-chain read, `A-MONGO` the deployment record, `A-PROPOSAL` the proposal document, `A-UNRESOLVED` nothing to compare against — so the display says which assertion refused and on what evidence. An empty stored signature set refuses rather than passing: every writer stores a signature with the row, so an empty set is a row that lost them, not one awaiting them. Asserted on both the sign and the execute route, and the verdict is keyed to one transaction, so a run left over from the previous proposal cannot authorise this one. **Caveat on a Safe migration:** the check compares the proposal's Safe against the configured one, and `propose-to-safe.ts --safeAddress` deliberately proposes to a different Safe (granting `TIMELOCK_ADMIN_ROLE` to the new Safe from the old one, `playgroundHelpers.sh`). Flip `config/networks.json` to the new Safe **after** that proposal is signed and executed, or the migration proposal is unsignable | Block | `confirm-integrity-asserts.ts` (`runIntegrityAsserts` / `renderIntegrityAsserts`) on the `check-ledger.ts` result model, gated in `confirm-safe-tx.ts` after the codehash gate (EXSC-700) |
+| Confirm | Immutable values: for every address the cut installs, each immutable compared against what this checkout declares for that network. `not-applicable` where the contract declares none; priced from the bytes where they are inlined; on zkEVM read from `ImmutableSimulator` by declaration ordinal and put to the signer as a name/slot/declared/observed table to confirm, under the `A-ASSUMED` anchor — the compiler records no slot-to-name mapping, so that ordering may report but never decide a green. A value that **disagrees** hard-blocks on every chain; a slot with no declared expectation is `unpriced`, which the integrity class also blocks | Report (ledger row `immutables`, integrity class, `undecidableIsAcknowledgeable`). Like the other ledger rows it renders after the run’s signing decisions, so it colours the closing verdict rather than refusing a signature | `script/deploy/codehash/immutable-verdict.ts` + `zk-immutables.ts`, recorded via `confirm-check-registry.ts` (`immutablesCheckResult`, gate L) |
+| Confirm | Storage authority: for every contract the cut installs, the owner read live on chain against the value `main` declares. What may decide a pass depends on where the expectation came from — `config/global.json`, the zero address and a value pinned at `origin/main` may; the deployment record may only report, so an all-matched row resting on it grades `needs-ack` and names the labels it rests on. An empty set is `not-applicable`, never a pass, and a scope that could not be read is not a scope known to be empty. Only `scheduleBatch` calldata is observed. **Tron is out of coverage entirely** — the read needs a TronWeb client this path does not carry, so the run prints the gap instead of a verdict (EXSC-954) | Report (ledger row `storage-authority`, integrity class: a mismatch, a failed read and an expectation of unknown provenance all keep the hard block, and only the all-matched case is acknowledgeable). The ledger renders after the run's signing decisions, so the row colours the closing verdict rather than refusing a signature | `prebroadcast-gate.ts` (`observeCalldata`) + `prebroadcast-authorities.ts`, recorded via `confirm-check-registry.ts` (`storageAuthorityCheckResult`, gate G) |
 | Confirm | Executability simulation of every payload the proposal carries, against the state it will execute in: the cut's own bytes are replayed with `eth_call` from the account that will really send them — the timelock for anything reached by unwrapping one of its envelopes, the Safe for a direct call — because every `diamondCut` is owner-gated and a call made from anyone else reverts for a reason the proposal is not responsible for. Graded alongside the diamond's own reads: which facet serves each selector, whether every facet and `_init` target holds code, and who the diamond reports as owner. A read that could not be made is left absent, never defaulted, and an absent read is reported as unchecked rather than as agreement. Tron is outside the EVM simulator's scope and is recorded as such; an EVM network it covers but could not reach stays unverified. | Report (ledger row `executability`; a simulated result is anchored `A-CHAIN`, one that could not be simulated `A-UNRESOLVED`). Reporting only: the run-level ledger renders after the whole run, i.e. after every signing decision, so a mismatch or an unmade simulation shows in the closing verdict (`BLOCKED` for an unmade one) and refuses nothing. `assertProposalWouldExecute` exists and is deliberately not called | `executability-simulation.ts` + `executability-collector.ts`, recorded via `confirm-check-registry.ts` (EXSC-697, wired EXSC-994) |
 | Confirm | RPC quorum on the sign-time read: the same value is read from every endpoint the signer's environment holds for the network (`ETH_NODE_URI_<NET>` plus its `_FALLBACKS`, materialised by `script/mongoDb/fetch-rpcs.ts` from MongoDB `blockchain-configs.RpcEndpoints`), at a named block, and the verdict says how many independent providers agreed. An operator who has not run that fetch sees one endpoint and a shortfall on every network, whatever Mongo holds. **Report-only.** The hard-block needs two independent providers on every production chain, and a substantial share are still single-endpoint, so enforcing it fleet-wide would turn missing redundancy into a refusal to sign; a shortfall is recorded as an acknowledgement instead. | Report (ledger row `rpc-quorum`; a reached quorum is anchored `A-CHAIN`, a shortfall or an unmade read `A-UNRESOLVED`, with an acknowledgement on either) | `rpc-quorum.ts` + `rpc-quorum-collector.ts` (EXSC-870, wired EXSC-994) |
 | Confirm | Calldata address check: every address a proposal references — `Add`/`Replace` targets, removal targets, the `_init` delegatecall target, and the address argument of every `registerPeripheryContract`, including ones reached by unwrapping a timelock envelope — resolved against the deployment record, with the role deciding whether failing to account for it is a refusal or a warning. A mistake-catcher, not a lie-catcher: the record is written by the deploying machine, so this catches the typo, the address copied from another chain, and the contract nobody deployed. A periphery registration is graded differently from the rest: the name it binds is a lookup key, not an expectation — the record answers which address it currently holds under that name on that network (most recent by deploy time), and a tie or an undated record leaves that undecided rather than guessed. `registerPeripheryContract(name, address(0))` unregisters the name and is read as that rather than refused, per the cleanup proposal [docs/DeploymentLogs.md](DeploymentLogs.md) describes — printed with the record's answer for the name beside it (the address it currently holds, or that it holds nothing, or that it cannot decide), since on that call the name is the whole payload. Carries **no ledger row** — its only decidable source is the deploy log, which the ledger treats as reporting-only, and outside the periphery role no committed file supplies the address→identity expectations an anchor would need. | Display / warn only | `calldata-address-check.ts` + `calldata-address-collector.ts` (EXSC-699, wired EXSC-994, periphery EXSC-1018) |
@@ -715,8 +746,11 @@ parked tasks are reconciled weekly by `reconcileParkedTasks.yml`.
 
 Honest list — the tooling displays these, but does **not** machine-assert them:
 
-- **Intent.** No description, PR link (drain excepted), or human identity on
-  the proposal — the signer matches calldata against Slack/PR context.
+- **Intent.** The provenance block carries the stated reason, the proposer, the
+  branch, the PR and the ticket, and the signing prompt prints it (§4.3) — but
+  nothing checks that any of it describes the calldata, and a row stored before
+  capture existed carries none of it. The signer still matches calldata against
+  Slack/PR context.
 - **First-time adds and removals.** A facet `main` already targets is graded
   mechanically and a downgrade refuses, but a contract with no entry on `main`
   has no anchor to grade against, and a removal has none either. Both are
@@ -749,8 +783,10 @@ Honest list — the tooling displays these, but does **not** machine-assert them
   clipped says so separately, naming how much is off screen. Note the counts
   cover everything that survived sanitising, including any part past a clip —
   those characters are still covered by the signature.
-- **Execution outcome.** No simulation at review or sign time; the first
-  signal is the broadcast itself.
+- **Execution outcome.** The payloads are simulated at sign time (gate I), but
+  that row reports only and renders after the signing decision, and Tron is
+  outside its scope. Nothing simulates the Safe's own `execTransaction`, so for
+  that leg the broadcast is still the first signal.
 - **Bytecode of anything a cut does not install.** The sign-time codehash gate
   (§4.3) machine-asserts the facet addresses and `_init` target of a decoded
   `diamondCut` and nothing else — a fee change, a role grant or an ordinary
@@ -857,13 +893,16 @@ space is one the attestation no longer covers. That is what the PR-time
 
 Design themes under discussion. Nothing below exists in the repo today:
 
-- **Provenance on proposals** — attach human identity, git commit/branch, and
-  a PR link/description to each proposal, shown at signing.
-- **Executability simulation** — simulate the Safe transaction and its inner
-  timelock payload before signatures are collected.
-- **Bytecode ↔ audit attestation** — verify the deployed bytecode/commit
-  against the audited commit in `audit/auditLog.json` at signing time,
-  instead of inferring "audited" from the version string. (Propose-time
+- **Bytecode ↔ audit attestation** — assert at signing time that the commit a
+  deployment was built from is the commit `audit/auditLog.json` records as
+  audited, and that both compiled the same source closure under a vetted
+  compiler set, instead of inferring "audited" from the version string. The
+  sign-time codehash gate (§4.3) anchors bytecode to the commit the *deployment
+  record* names and consults no audit at all.
+  `script/deploy/codehash/audit-build-bridge.ts` holds the coverage logic and
+  the vetted-compiler map this would decide through, and nothing calls it;
+  `script/deploy/audit/verify-audit-gate.ts` is a PR-time check run by
+  `versionControlAndAuditCheck.yml`, not a sign-time one. (The propose-time
   source-file freeze in the proposal funnel is a different check already
-  described in §4.2 / §5 — it is not bytecode attestation, and it judges
-  source files rather than the deployed bytes.)
+  described in §4.2 / §5 — it judges source files against `main` rather than
+  the deployed bytes.)

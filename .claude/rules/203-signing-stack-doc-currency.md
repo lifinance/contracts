@@ -1,0 +1,1 @@
+../../.agents/rules/203-signing-stack-doc-currency.md
