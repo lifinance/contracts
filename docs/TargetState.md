@@ -46,9 +46,10 @@ installing an older build means checking out the ref that carries it.
 - **A new network** gets a full block of `"latest"` entries.
 - **Pinning a network** replaces `"latest"` with a version, deliberately, in its own PR.
 
-`scriptMaster.sh` use case 6 edits entries in bulk and defaults to `"latest"`; use case 3
-seeds a new network with `"latest"` throughout. There is no generator and no spreadsheet —
-the file is edited in the repo and reviewed as a diff.
+`scriptMaster.sh` use case **6) Add or update contract entries in \_targetState.json** edits
+entries in bulk and defaults to `"latest"`; its option **3) Add a new network with all
+(not-excluded) contracts** seeds a whole network with `"latest"`. There is no generator and no
+spreadsheet — the file is edited in the repo and reviewed as a diff.
 
 ## Who reads it
 
@@ -78,7 +79,7 @@ proposer's branch.
 
 | Entry | Expected version | Cut installs it | Cut installs something else |
 | --- | --- | --- | --- |
-| `"latest"` | `@custom:version` at `origin/main` | `matches-main` — clears | older → `downgrade`, **blocks** |
+| `"latest"` | `@custom:version` at `origin/main` | `matches-main` — clears | older → `downgrade`, **blocks**; newer → `ahead-of-main`, clears |
 | a pin | the pinned version | `matches-pin` — clears | `pinned-mismatch`, **blocks** |
 | contract absent | — | `not-previously-targeted` — clears, labelled | same |
 | source deleted at `origin/main` | unresolvable | — | `expected-version-unresolved`, **blocks** |

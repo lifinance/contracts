@@ -21,6 +21,8 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
+import { TARGET_STATE_VERSION_LATEST } from './safe/pinned-target-state'
+
 const REPO_ROOT = join(import.meta.dir, '..', '..')
 
 let workDir: string
@@ -116,6 +118,23 @@ const run = (contract: string, currentVersion: string): string => {
     env: { ...process.env, REPO_ROOT },
   }).trim()
 }
+
+// The sentinel is spelled once per language: `TARGET_STATE_VERSION_LATEST` in
+// helperFunctions.sh and in pinned-target-state.ts. Nothing else ties the two together,
+// and a drift is silent in the worst direction — bash would read `latest` as a version
+// pin and refuse every deploy of every declared contract.
+describe('the latest sentinel', () => {
+  it('is spelled the same in bash and in TypeScript', () => {
+    const helpers = readFileSync(
+      join(REPO_ROOT, 'script', 'helperFunctions.sh'),
+      'utf8'
+    )
+    const declared = /^TARGET_STATE_VERSION_LATEST="([^"]+)"$/m.exec(
+      helpers
+    )?.[1]
+    expect(declared).toBe(TARGET_STATE_VERSION_LATEST)
+  })
+})
 
 describe('assertTargetStateVersionAllowed', () => {
   it('allows a network that follows the repo', () => {
