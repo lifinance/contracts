@@ -65,9 +65,9 @@
         "Name": "EmergencyPauseFacet",
         "Version": "1.0.1"
       },
-      "0x5Ba87C691637AfA9216Be198b87508429DfE975E": {
+      "0x019f30c78535FAAAf19199A64E17E8FEC8C25181": {
         "Name": "EcoFacet",
-        "Version": "1.1.0"
+        "Version": "2.0.0"
       },
       "0xf18E7d025BdB3e0DD952Cc9b20A977f6E296DF45": {
         "Name": "LiFiIntentEscrowFacetV2",
@@ -80,8 +80,8 @@
       "FeeCollector": "0xF048e5816B0C7951AC179f656C5B86e5a79Bd7b5",
       "FeeForwarder": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
       "GasZipPeriphery": "0x1e5637e6bE93D50bB8eFa70D219d06291dcF5284",
-      "LiFiDEXAggregator": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0x6140b987d6B51Fd75b66C3B07733Beb5167c42fc",
       "OutputValidator": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80",
       "Patcher": "",
       "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",

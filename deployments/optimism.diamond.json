@@ -17,9 +17,9 @@
         "Name": "LayerSwapFacet",
         "Version": "1.0.0"
       },
-      "0x5Ba87C691637AfA9216Be198b87508429DfE975E": {
+      "0x019f30c78535FAAAf19199A64E17E8FEC8C25181": {
         "Name": "EcoFacet",
-        "Version": "1.1.0"
+        "Version": "2.0.0"
       },
       "0x77A13abB679A0DAFB4435D1Fa4cCC95D1ab51cfc": {
         "Name": "AccessManagerFacet",
@@ -124,8 +124,8 @@
       "FeeCollector": "0x271970eE66c03c9D62d8e8c718b9841f2Ea7D817",
       "FeeForwarder": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
       "GasZipPeriphery": "0x363d698649cd04f9692Ab86e8365b227c1ee859d",
-      "LiFiDEXAggregator": "0xdEE54e0fC8b28b6b80fdb11fC74B9329A4de5220",
       "LidoWrapper": "0x071e340577Ad1123cF72fe098BF0b5E62a7ae07E",
+      "LiFiDEXAggregator": "0xdEE54e0fC8b28b6b80fdb11fC74B9329A4de5220",
       "OutputValidator": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80",
       "Patcher": "",
       "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",

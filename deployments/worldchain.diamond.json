@@ -41,9 +41,9 @@
         "Name": "GenericSwapFacetV3",
         "Version": "1.0.1"
       },
-      "0x5Ba87C691637AfA9216Be198b87508429DfE975E": {
+      "0x019f30c78535FAAAf19199A64E17E8FEC8C25181": {
         "Name": "EcoFacet",
-        "Version": "1.1.0"
+        "Version": "2.0.0"
       },
       "0x1feB868BF64AdC552E051fB7387681F78b988a81": {
         "Name": "CalldataVerificationFacet",
@@ -88,8 +88,8 @@
       "FeeCollector": "0x50D5a8aCFAe13Dceb217E9a071F6c6Bd5bDB4155",
       "FeeForwarder": "0xCE40449B773a3E6E5e769ADb4e567179d4828cbd",
       "GasZipPeriphery": "0x363d698649cd04f9692Ab86e8365b227c1ee859d",
-      "LiFiDEXAggregator": "0x2321F1a63A683a1F3634Dbe1CbA0d657D5F56d54",
       "LidoWrapper": "",
+      "LiFiDEXAggregator": "0x2321F1a63A683a1F3634Dbe1CbA0d657D5F56d54",
       "OutputValidator": "0xFafE4c4CEc5Ed070A4aFDc0f92826c5Ba276Cb80",
       "Patcher": "",
       "Permit2Proxy": "0x89c6340B1a1f4b25D36cd8B063D49045caF3f818",
