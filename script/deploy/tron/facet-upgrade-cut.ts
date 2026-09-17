@@ -61,6 +61,34 @@ export function planSelectorCuts(
 }
 
 /**
+ * Fails when a selector planned as an Add is already routed somewhere.
+ *
+ * LibDiamond reverts an Add for a registered selector, and that only surfaces
+ * once the timelock delay has elapsed. Taking the selector over as a Replace
+ * instead would strand the rest of the holder's selectors on a facet the
+ * upgrade never accounted for, so this refuses at proposal time.
+ * @param add - Selectors the plan intends to add
+ * @param facetName - Facet being installed, for the message
+ * @param outgoingLabel - The outgoing facet's address, or a stand-in when none is known
+ * @param resolveHolder - Reads which facet the diamond routes a selector to
+ * @throws When any selector resolves to a non-zero facet
+ */
+export async function assertAddsAreUnrouted(
+  add: readonly Hex[],
+  facetName: string,
+  outgoingLabel: string,
+  resolveHolder: (selector: Hex) => Promise<Address>
+): Promise<void> {
+  for (const selector of add) {
+    const holder = await resolveHolder(selector)
+    if (holder.toLowerCase() !== ZERO_ADDRESS)
+      throw new Error(
+        `Selector ${selector} of ${facetName} is already served by ${holder}, which is not the outgoing ${outgoingLabel} — resolve the collision before proposing`
+      )
+  }
+}
+
+/**
  * Builds the `diamondCut` entries for a plan, skipping empty ones — LibDiamond
  * reverts on a cut entry that carries no selectors.
  * @param plan - Add / Replace / Remove sets

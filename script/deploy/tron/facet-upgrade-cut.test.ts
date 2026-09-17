@@ -11,12 +11,32 @@ import {
   it,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
-import type { Address } from 'viem'
+import type { Address, Hex } from 'viem'
 
-import { buildFacetCuts, planSelectorCuts } from './facet-upgrade-cut'
+import {
+  assertAddsAreUnrouted,
+  buildFacetCuts,
+  planSelectorCuts,
+} from './facet-upgrade-cut'
 
 const NEW_FACET = '0x1111111111111111111111111111111111111111' as Address
 const ZERO = '0x0000000000000000000000000000000000000000'
+
+/** Per [CONV:TEST-ASSERT-REJECTS] — `expect().rejects` is not a real Promise. */
+async function expectRejects(
+  promise: Promise<unknown>,
+  match: RegExp | string
+): Promise<void> {
+  let error: Error | undefined
+  try {
+    await promise
+  } catch (caught) {
+    error = caught as Error
+  }
+  expect(error).toBeInstanceOf(Error)
+  if (match instanceof RegExp) expect(error?.message).toMatch(match)
+  else expect(error?.message).toContain(match)
+}
 
 describe('planSelectorCuts', () => {
   it('splits an upgrade into add, replace and remove', () => {
@@ -99,5 +119,84 @@ describe('buildFacetCuts', () => {
     expect(
       buildFacetCuts({ add: [], replace: [], remove: [] }, NEW_FACET)
     ).toEqual([])
+  })
+})
+
+describe('assertAddsAreUnrouted', () => {
+  const OTHER_FACET = '0x2222222222222222222222222222222222222222' as Address
+  const OUTGOING = 'TG6586TTEv664XWSD875tMk6yDuwedphpW'
+
+  it('passes when the diamond routes none of the added selectors', async () => {
+    const asked: Hex[] = []
+
+    await assertAddsAreUnrouted(
+      ['0xbff90b61', '0x762aea18'],
+      'EcoFacet',
+      OUTGOING,
+      async (selector) => {
+        asked.push(selector)
+        return ZERO as Address
+      }
+    )
+
+    expect(asked).toEqual(['0xbff90b61', '0x762aea18'])
+  })
+
+  // The add would revert LibDiamond after the timelock delay, and silently
+  // replacing instead would strand the holder's other selectors.
+  it('throws naming the selector, the holder and the outgoing facet', async () => {
+    await expectRejects(
+      assertAddsAreUnrouted(
+        ['0xbff90b61'],
+        'EcoFacet',
+        OUTGOING,
+        async () => OTHER_FACET
+      ),
+      `Selector 0xbff90b61 of EcoFacet is already served by ${OTHER_FACET}, which is not the outgoing ${OUTGOING} — resolve the collision before proposing`
+    )
+  })
+
+  it('stops at the first collision instead of reading the rest', async () => {
+    let reads = 0
+
+    await expectRejects(
+      assertAddsAreUnrouted(
+        ['0xbff90b61', '0x762aea18'],
+        'EcoFacet',
+        OUTGOING,
+        async () => {
+          reads += 1
+          return OTHER_FACET
+        }
+      ),
+      /already served by/
+    )
+    expect(reads).toBe(1)
+  })
+
+  it('reads nothing for a replace-only upgrade', async () => {
+    let reads = 0
+
+    await assertAddsAreUnrouted([], 'EcoFacet', OUTGOING, async () => {
+      reads += 1
+      return ZERO as Address
+    })
+
+    expect(reads).toBe(0)
+  })
+
+  // The loupe returns a checksummed address; the zero comparison is lowercased.
+  it('treats a checksummed holder as a collision', async () => {
+    const checksummed = '0xAaBbCcDdEeFf00112233445566778899AaBbCcDd' as Address
+
+    await expectRejects(
+      assertAddsAreUnrouted(
+        ['0xbff90b61'],
+        'EcoFacet',
+        'facet',
+        async () => checksummed
+      ),
+      `already served by ${checksummed}`
+    )
   })
 })

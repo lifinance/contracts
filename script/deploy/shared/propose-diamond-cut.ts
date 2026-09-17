@@ -20,7 +20,11 @@ import {
   getFacetSelectors,
   getRPCEnvVarName,
 } from '../../utils/utils'
-import { buildFacetCuts, planSelectorCuts } from '../tron/facet-upgrade-cut'
+import {
+  assertAddsAreUnrouted,
+  buildFacetCuts,
+  planSelectorCuts,
+} from '../tron/facet-upgrade-cut'
 import type { TronTvmNetworkName } from '../tron/types'
 
 import { DIAMOND_CUT_ABI, ZERO_ADDRESS } from './constants'
@@ -170,22 +174,12 @@ export async function encodeFacetUpgradeCutCalldata(
 
   const plan = planSelectorCuts(newSelectors, registered)
 
-  // Every remaining Add must be unrouted. One served by a third facet would
-  // revert LibDiamond's add path after the timelock delay.
-  for (const selector of plan.add) {
-    const holder = await readFacetAddress(
-      diamondAddress,
-      selector,
-      rpcUrl,
-      network
-    )
-    if (holder.toLowerCase() !== ZERO_ADDRESS)
-      throw new Error(
-        `Selector ${selector} of ${facetName} is already served by ${holder}, which is not the outgoing ${
-          outgoingBase58 ?? 'facet'
-        } — resolve the collision before proposing`
-      )
-  }
+  await assertAddsAreUnrouted(
+    plan.add,
+    facetName,
+    outgoingBase58 ?? 'facet',
+    (selector) => readFacetAddress(diamondAddress, selector, rpcUrl, network)
+  )
 
   const cuts = buildFacetCuts(plan, facetAddressHex)
   if (cuts.length === 0)

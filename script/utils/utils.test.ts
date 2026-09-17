@@ -57,6 +57,22 @@ const {
 
 type NetworkArg = Parameters<typeof getContractAddress>[0]
 
+/** Per [CONV:TEST-ASSERT-REJECTS] — `expect().rejects` is not a real Promise. */
+async function expectRejects(
+  promise: Promise<unknown>,
+  match: RegExp | string
+): Promise<void> {
+  let error: Error | undefined
+  try {
+    await promise
+  } catch (caught) {
+    error = caught as Error
+  }
+  expect(error).toBeInstanceOf(Error)
+  if (match instanceof RegExp) expect(error?.message).toMatch(match)
+  else expect(error?.message).toContain(match)
+}
+
 afterEach(() => {
   mockedFoundryToml = undefined
 })
@@ -134,17 +150,17 @@ optimizer_runs = 200
 
 describe('getContractAddress path guard', () => {
   it('throws on a network name with parent-directory traversal', async () => {
-    // eslint-disable-next-line @typescript-eslint/await-thenable -- expect().rejects is thenable at runtime
-    await expect(
-      getContractAddress('../../evil' as NetworkArg, 'LiFiDiamond')
-    ).rejects.toThrow(/Invalid network name/)
+    await expectRejects(
+      getContractAddress('../../evil' as NetworkArg, 'LiFiDiamond'),
+      /Invalid network name/
+    )
   })
 
   it('throws on a network name escaping deployments/ into the repo root', async () => {
-    // eslint-disable-next-line @typescript-eslint/await-thenable -- expect().rejects is thenable at runtime
-    await expect(
-      getContractAddress('../foundry' as NetworkArg, 'LiFiDiamond')
-    ).rejects.toThrow(/Invalid network name/)
+    await expectRejects(
+      getContractAddress('../foundry' as NetworkArg, 'LiFiDiamond'),
+      /Invalid network name/
+    )
   })
 
   it('resolves a real network from the live deployments file', async () => {
@@ -155,17 +171,11 @@ describe('getContractAddress path guard', () => {
 
 describe('getFacetSelectors path guard', () => {
   it('throws on a facet name with parent-directory traversal', async () => {
-    // eslint-disable-next-line @typescript-eslint/await-thenable -- expect().rejects is thenable at runtime
-    await expect(getFacetSelectors('../../evil')).rejects.toThrow(
-      /Invalid facet name/
-    )
+    await expectRejects(getFacetSelectors('../../evil'), /Invalid facet name/)
   })
 
   it('throws on an absolute-path facet name', async () => {
-    // eslint-disable-next-line @typescript-eslint/await-thenable -- expect().rejects is thenable at runtime
-    await expect(getFacetSelectors('/etc/passwd')).rejects.toThrow(
-      /Invalid facet name/
-    )
+    await expectRejects(getFacetSelectors('/etc/passwd'), /Invalid facet name/)
   })
 })
 
@@ -291,10 +301,10 @@ describe('getFacetAddressFromDiamondLog', () => {
   // entirely — the exact failure the upgrade planner exists to prevent.
   it('throws when the log exists but cannot be parsed', async () => {
     await withDiamondLog('{ not json', async () => {
-      // eslint-disable-next-line @typescript-eslint/await-thenable -- expect().rejects is thenable at runtime
-      await expect(
-        getFacetAddressFromDiamondLog('tron', 'EcoFacet')
-      ).rejects.toThrow(/Could not parse .*tron\.diamond\.json/)
+      await expectRejects(
+        getFacetAddressFromDiamondLog('tron', 'EcoFacet'),
+        /Could not parse .*tron\.diamond\.json/
+      )
     })
   })
 
@@ -307,10 +317,10 @@ describe('getFacetAddressFromDiamondLog', () => {
         recursive: true,
       })
       process.chdir(root)
-      // eslint-disable-next-line @typescript-eslint/await-thenable -- expect().rejects is thenable at runtime
-      await expect(
-        getFacetAddressFromDiamondLog('tron', 'EcoFacet')
-      ).rejects.toThrow(/EISDIR|illegal operation on a directory/i)
+      await expectRejects(
+        getFacetAddressFromDiamondLog('tron', 'EcoFacet'),
+        /EISDIR|illegal operation on a directory/i
+      )
     } finally {
       process.chdir(previousCwd)
       realFs.rmSync(root, { recursive: true, force: true })
