@@ -19,6 +19,7 @@ import type {
   IGradedImmutable,
   ImmutablePricing,
 } from './immutable-expectations'
+import { IMMUTABLE_SIMULATOR_ADDRESS } from './zk-immutables'
 
 /**
  * - `none` — the contract declares no immutables, so there is nothing to grade.
@@ -176,6 +177,10 @@ export const gradeInlinedImmutables = (
  * @param read - What the simulator read established, with its slot numbering.
  * @returns The verdict gate L records for this address.
  */
+/** A 32-byte word of zeroes, whatever casing or padding it arrived in. */
+const isZeroWord = (value: string): boolean =>
+  /^0x0*$/u.test(value.trim().toLowerCase())
+
 export const gradeAssumedImmutables = (
   address: string,
   network: string,
@@ -196,11 +201,32 @@ export const gradeAssumedImmutables = (
       )}. Slots are numbered from declaration order, so a disagreement can also mean the numbering is wrong; either way this is not the deployment this repo describes.`,
     }
 
+  // `ImmutableSimulator.getImmutable` reverts for nothing — an address that
+  // registered no immutables, and an index past the end of one that did, both
+  // answer zero. So a zero carries no evidence that the slot was ever written,
+  // and a set of them is indistinguishable from reading the wrong address.
+  const zeros = pricing.slots.filter((one) => isZeroWord(one.observed))
+  if (zeros.length === pricing.slots.length)
+    return immutablesUnreadable(
+      address,
+      `every slot read zero, which is also what ${IMMUTABLE_SIMULATOR_ADDRESS} answers for an address that registered no immutables at all, so this read establishes nothing about ${address}`
+    )
+
   return {
     status: 'assumed',
     detail: `${address}: this chain keeps its immutables in ImmutableSimulator, and each value below was read from it and compared against what config declares for ${network}. Which slot belongs to which name is taken from the order the contract declares them in — the compiler records no such mapping, and a constructor assigning them in another order would shift every slot. Confirming this row confirms that ordering as well as the values: ${table(
       pricing.slots,
       slotByName
-    )}.`,
+    )}.${
+      zeros.length > 0
+        ? ` Not confirmed by this read: ${zeros
+            .map((one) => one.name)
+            .join(
+              ', '
+            )} — each holds zero, which the simulator also returns for a slot nothing ever wrote, so agreement there is not evidence. Check ${
+            zeros.length === 1 ? 'it' : 'them'
+          } against the contract's own getter.`
+        : ''
+    }`,
   }
 }

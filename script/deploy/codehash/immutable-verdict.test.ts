@@ -112,6 +112,49 @@ describe('gradeAssumedImmutables', () => {
     expect(verdict.detail).toContain('the order the contract declares them in')
   })
 
+  const ZERO = `0x${'00'.repeat(32)}`
+
+  it('refuses when every slot read zero, which is what an address holding no immutables also returns', async () => {
+    // `ImmutableSimulator.getImmutable` reverts for nothing: a dead EOA and an
+    // out-of-range index both answer zero. Verified against live zksync.
+    const verdict = gradeAssumedImmutables(
+      ADDRESS,
+      'zksync',
+      read({
+        declared: 'some',
+        pricing: priced([
+          slot({ observed: ZERO, expected: ZERO }),
+          slot({ name: 'other', observed: ZERO, expected: ZERO }),
+        ]),
+        slotByName: { gasZipRouter: 0, other: 32 },
+      })
+    )
+
+    expect(verdict.status).toBe('unreadable')
+    expect(verdict.detail).toMatch(/zero/iu)
+  })
+
+  it('does not offer a zero-valued slot as confirmed, even beside a corroborating one', () => {
+    // A non-zero slot proves the address registered immutables, so the mapping
+    // is corroborated — but a zero slot still holds the one value that carries
+    // no evidence of its own, so it must not read as checked.
+    const verdict = gradeAssumedImmutables(
+      ADDRESS,
+      'zksync',
+      read({
+        declared: 'some',
+        pricing: priced([
+          slot(),
+          slot({ name: 'unset', observed: ZERO, expected: ZERO }),
+        ]),
+        slotByName: { gasZipRouter: 0, unset: 32 },
+      })
+    )
+
+    expect(verdict.status).toBe('assumed')
+    expect(verdict.detail).toMatch(/unset[^.]*not confirmed|unset.*zero/iu)
+  })
+
   it('hard-blocks a disagreement rather than offering it for acknowledgement', () => {
     // The whole point of the split: only the undecidable mapping is
     // acknowledgeable, and a value read and found different is not that.
