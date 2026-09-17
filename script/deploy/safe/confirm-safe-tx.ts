@@ -127,6 +127,7 @@ import {
 } from './ledger-flex-preview'
 import {
   blockedByEvaluationError,
+  createPinnedBlobReader,
   createPinnedTargetStateReader,
   createTargetStateDeps,
   evaluateTargetStateIntent,
@@ -356,6 +357,9 @@ const networkOutcomes: INetworkOutcome[] = []
 
 // One fetch and one blob read for the whole run, however many networks it covers.
 const readPinnedTargetState = createPinnedTargetStateReader()
+
+// Shares this process's single fetch with the target-state read above.
+const readPinnedBlob = createPinnedBlobReader()
 
 // Networks the run tried to process. A network can be attempted and still
 // contribute no outcome (not an owner, ownership read failed, nothing
@@ -611,6 +615,10 @@ const processTxs = async (
             networkKey as SupportedChain,
             EnvironmentEnum.production
           )) as unknown as Record<string, unknown>,
+          ...(() => {
+            const pinned = readPinnedBlob(`deployments/${networkKey}.json`)
+            return pinned.ok ? { pinnedDeployments: pinned.value } : {}
+          })(),
           globalConfig: globalConfig as unknown as Record<string, unknown>,
         }
       )
