@@ -11,7 +11,7 @@ import {
   it,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
-import type { Address, Hex } from 'viem'
+import { getAddress, type Address, type Hex } from 'viem'
 
 import {
   assertAddsAreUnrouted,
@@ -187,7 +187,7 @@ describe('assertAddsAreUnrouted', () => {
 
   // The loupe returns a checksummed address; the zero comparison is lowercased.
   it('treats a checksummed holder as a collision', async () => {
-    const checksummed = '0xAaBbCcDdEeFf00112233445566778899AaBbCcDd' as Address
+    const checksummed = getAddress('0xaabbccddeeff00112233445566778899aabbccdd')
 
     await expectRejects(
       assertAddsAreUnrouted(
