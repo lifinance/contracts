@@ -871,6 +871,23 @@ const WARN = `${ESC}[33m⚠${ESC}[0m`
 const OK = `${ESC}[32m✓${ESC}[0m`
 
 /**
+ * What the block says about itself before it says anything about the proposal.
+ *
+ * The lines below carry the same glyphs the gate rows do — a `⛔` here reads
+ * exactly like a `⛔` on gate K — while the deployment record may only report,
+ * so none of them stops a signature. Without the heading the block's only
+ * distinguishing feature is that it appears after the roster rather than on it,
+ * which reads as an omission rather than as a class.
+ */
+export const REPORT_ONLY_HEADING = `${ESC}[2mREPORT-ONLY · not a gate · nothing here blocks signing${ESC}[0m`
+
+/** How the gate manifest names this check, so the roster and the block agree. */
+export const CALLDATA_ADDRESS_MANIFEST_ENTRY = {
+  title: 'Calldata addresses match the deployment record',
+  note: 'report-only: the record is written by the deploying machine, so it catches a mistake and cannot decide a pass',
+} as const
+
+/**
  * The lines a signer sees.
  *
  * A verdict with nothing to say still prints a line, because silence would make
@@ -917,7 +934,11 @@ export const renderCalldataAddresses = (
     )
     if (verdict.findings.length === 0)
       lines.push(
-        `${OK} Calldata address check skipped: no call in this proposal references an address.`
+        // Not "references no address": a whitelist proposal references one in
+        // every call, and the extractor collects none of them because a DEX is
+        // not a contract the deploy log has ever heard of. A signer reading the
+        // shorter sentence takes a tick over addresses nothing graded.
+        `${OK} Calldata address check skipped: this proposal references no address in a role this check grades — a facet cut, a cut's \`_init\`, or a periphery registration.`
       )
     else if (lookedUp.length === 0)
       lines.push(
@@ -935,5 +956,5 @@ export const renderCalldataAddresses = (
 
   // The blank line and the indent are what make this a block of its own rather
   // than a continuation of whichever gate row precedes it.
-  return ['', ...lines.map((line) => `    ${line}`)]
+  return ['', `  ${REPORT_ONLY_HEADING}`, ...lines.map((line) => `    ${line}`)]
 }

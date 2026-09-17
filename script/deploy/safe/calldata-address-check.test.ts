@@ -28,6 +28,7 @@ import {
   DeploymentIndexSourceEnum,
   evaluateCalldataAddresses,
   renderCalldataAddresses,
+  REPORT_ONLY_HEADING,
   type IAddressReference,
   type IDeploymentIndex,
   type IDeploymentIndexEntry,
@@ -947,8 +948,9 @@ describe('renderCalldataAddresses', () => {
       )
     )
 
-    expect(lines).toHaveLength(2)
-    expect(lines[1]).toContain('1 of 1')
+    expect(lines).toHaveLength(3)
+    expect(lines[1]).toContain(REPORT_ONLY_HEADING)
+    expect(lines[2]).toContain('1 of 1')
   })
 
   it('says nothing needed resolving rather than ticking zero of zero', () => {
@@ -959,10 +961,15 @@ describe('renderCalldataAddresses', () => {
       )
     )
 
-    expect(lines).toHaveLength(2)
-    expect(lines[1]).toMatch(
-      /^ {4}\S+ Calldata address check skipped: no call in this proposal references an address\.$/
+    expect(lines).toHaveLength(3)
+    // The claim is about the roles this check grades, not about the proposal
+    // carrying no address: a whitelist proposal carries one in every call and
+    // reaches here with no reference collected, and the wider sentence would
+    // put a tick over addresses nothing looked at.
+    expect(lines[2]).toMatch(
+      /^ {4}\S+ Calldata address check skipped: this proposal references no address in a role this check grades — a facet cut, a cut's `_init`, or a periphery registration\.$/
     )
+    expect(lines[2]).not.toContain('references an address.')
   })
 
   it('names the refused address and the record it contradicts', () => {
@@ -976,6 +983,9 @@ describe('renderCalldataAddresses', () => {
     expect(lines.join('\n')).toContain('REFUSED')
     expect(lines.join('\n')).toContain(MAINNET_ONLY_FACET)
     expect(lines.join('\n')).toContain('not on arbitrum')
+    // The path the heading is for: a `⛔` here is the same glyph gate K refuses
+    // with, and this one does not block, so the block has to say so above it.
+    expect(lines[1]).toContain(REPORT_ONLY_HEADING)
   })
 
   it('prints what an unregistration deletes, which no other grade would surface', () => {

@@ -38,6 +38,7 @@ import { getGitCommit, sanitizeProvenanceText } from '../shared/git-provenance'
 import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
 
 import {
+  CALLDATA_ADDRESS_MANIFEST_ENTRY,
   evaluateCalldataAddresses,
   renderCalldataAddresses,
   type IAddressReference,
@@ -1633,6 +1634,7 @@ const processTxs = async (
           CONFIRM_CHECK_DEFINITIONS.map((definition) => definition.checkId)
         ),
         docUrls: CHECK_DOCS,
+        reportOnly: [CALLDATA_ADDRESS_MANIFEST_ENTRY],
       }).join('\n')
     )
     consola.log(renderCheckGroups(signerCheckRows).join('\n'))

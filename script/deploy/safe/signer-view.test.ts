@@ -550,6 +550,46 @@ describe('a check with a write-up to point at', () => {
 
     expect(plain).toContain('https://example.invalid/checks/x')
   })
+
+  // The calldata address check prints a block below the roster and has no
+  // letter, so before it was listed here the manifest said "1 gate" while the
+  // page showed two blocks, and the second one read as the first one's detail.
+  it('lists a report-only check below the gates without counting it as one', () => {
+    const lines = renderGateManifest({
+      entries: [
+        { definition: definition('x', 'A check'), result: result('x', 'fail') },
+      ],
+      roster: [definition('x', 'A check')],
+      mustReport: new Set(['x']),
+      reportOnly: [
+        { title: 'Calldata addresses', note: 'cannot decide a pass' },
+      ],
+    }).map(stripAnsi)
+    const plain = lines.join('\n')
+
+    expect(plain).toContain('Calldata addresses — cannot decide a pass')
+    expect(plain).toContain('1 gates')
+    expect(plain).toContain('1 report-only')
+    expect(
+      lines.findIndex((l) => l.includes('Calldata addresses'))
+    ).toBeGreaterThan(lines.findIndex((l) => l.includes('A check')))
+  })
+
+  // The paired absence: a run with nothing report-only must not grow an empty
+  // row or a tally fragment counting zero of them.
+  it('says nothing about report-only checks when there are none', () => {
+    const plain = renderGateManifest({
+      entries: [
+        { definition: definition('x', 'A check'), result: result('x', 'fail') },
+      ],
+      roster: [definition('x', 'A check')],
+      mustReport: new Set(['x']),
+    })
+      .map(stripAnsi)
+      .join('\n')
+
+    expect(plain).not.toContain('report-only')
+  })
 })
 
 describe('check notes', () => {

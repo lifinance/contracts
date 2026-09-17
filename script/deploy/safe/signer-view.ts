@@ -289,6 +289,18 @@ export interface IGateManifestInput {
    * and nothing about which checks exist.
    */
   docUrls?: ReadonlyMap<string, string>
+  /**
+   * Checks that print below the roster and decide nothing, titled as they title
+   * themselves.
+   *
+   * Not on `roster`, because a letter is what the view calls a gate and these
+   * may never pass: their evidence is the deployment record, which
+   * `check-ledger.ts` lets report but never decide. Listed all the same — a
+   * check the manifest omits and the page then shows is the same hole the
+   * roster exists to close, and the one a signer resolves by assuming the
+   * block below belongs to whichever gate it followed.
+   */
+  reportOnly?: readonly { title: string; note: string }[]
 }
 
 /**
@@ -420,11 +432,25 @@ export const renderGateManifest = (input: IGateManifestInput): string[] => {
         } ${RED}— this result names no gate on the roster${RESET}`
       )
 
+  // Below the gates and dimmed, because the distinction the signer has to keep
+  // is which rows can stop a signature, and a report-only row rendered in the
+  // gate column would have to be read to be told apart from one that can.
+  for (const check of input.reportOnly ?? [])
+    out.push(
+      `  ${DIM}${glyphCell('·')}${' '.repeat(MANIFEST_GATE_WIDTH)}${
+        check.title
+      } — ${check.note}${RESET}`
+    )
+
   out.push('')
   out.push(
     `  ${input.roster.length} gates · ${input.mustReport.size} owe a result · ` +
       `${reported} reported${
         silent ? ` · ${YELLOW}${silent} silent${RESET}` : ''
+      }${
+        input.reportOnly?.length
+          ? ` ${DIM}· ${input.reportOnly.length} report-only${RESET}`
+          : ''
       }`
   )
   return out
