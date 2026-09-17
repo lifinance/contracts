@@ -56,9 +56,9 @@ const ATTESTED: IAttestedBuild[] = [
 ]
 
 /** The network's legitimate toolchains are fully enumerated in ATTESTED. */
-const CLOSED = { isClosedSet: true }
+const CLOSED = { isClosedSet: true, holdsImmutablesOffCode: false }
 /** They are not — e.g. a zkEVM network, whose trailer this repo cannot yet read. */
-const OPEN = { isClosedSet: false }
+const OPEN = { isClosedSet: false, holdsImmutablesOffCode: false }
 
 describe('compareToAttestedSet', () => {
   it('accepts a build from any attested lineage, not one privileged profile', () => {

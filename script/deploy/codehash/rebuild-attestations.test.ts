@@ -119,6 +119,7 @@ const sourceWith = (
     readRecord: async () => RECORD,
     toolchainScope: () => ({
       isClosedSet: true,
+      holdsImmutablesOffCode: false,
       profiles: [profileNamed('default')],
     }),
     build: (request: IRebuildRequest): IRebuiltArtifact => {
@@ -387,6 +388,7 @@ describe('createAttestationSource — the set it returns', () => {
     const { source, requests } = sourceWith({
       toolchainScope: () => ({
         isClosedSet: true,
+        holdsImmutablesOffCode: false,
         profiles: [profileNamed('default'), profileNamed('solc_floor')],
       }),
     })
@@ -439,6 +441,7 @@ describe('createAttestationSource — the set it returns', () => {
       runtime: ZK_RUNTIME,
       toolchainScope: () => ({
         isClosedSet: true,
+        holdsImmutablesOffCode: false,
         profiles: [profileNamed('zksync')],
       }),
     })
@@ -603,6 +606,7 @@ describe('createAttestationSource — the per-run cache', () => {
     const { source, requests } = sourceWith({
       toolchainScope: () => ({
         isClosedSet: true,
+        holdsImmutablesOffCode: false,
         profiles: [profileNamed('default'), profileNamed('solc_floor')],
       }),
     })
@@ -650,7 +654,7 @@ describe('falsification — the attested set against real observed code', () => 
     const verdict = compareToAttestedSet(
       observe(EVM_RUNTIME, false),
       await attest(EVM_RUNTIME, 'mainnet'),
-      { isClosedSet: true }
+      { isClosedSet: true, holdsImmutablesOffCode: false }
     )
 
     expect(verdict.verdict).toBe('MATCH')
@@ -672,7 +676,7 @@ describe('falsification — the attested set against real observed code', () => 
     const verdict = compareToAttestedSet(
       observe(tampered, false),
       await attest(EVM_RUNTIME, 'mainnet'),
-      { isClosedSet: true }
+      { isClosedSet: true, holdsImmutablesOffCode: false }
     )
 
     expect(verdict.verdict).toBe('MISMATCH')
@@ -695,6 +699,7 @@ describe('falsification — the attested set against real observed code', () => 
 
     const verdict = compareToAttestedSet(observed, attested, {
       isClosedSet: true,
+      holdsImmutablesOffCode: false,
     })
 
     expect(verdict.verdict).toBe('MISMATCH')
@@ -711,7 +716,7 @@ describe('falsification — the attested set against real observed code', () => 
     const verdict = compareToAttestedSet(
       observe(drifted, false),
       await attest(EVM_RUNTIME, 'mainnet'),
-      { isClosedSet: true }
+      { isClosedSet: true, holdsImmutablesOffCode: false }
     )
 
     expect(verdict.verdict).toBe('MATCH')
@@ -726,7 +731,7 @@ describe('falsification — the attested set against real observed code', () => 
     const verdict = compareToAttestedSet(
       observe(oldFork, true),
       await attest(ZK_RUNTIME, 'zksync'),
-      { isClosedSet: true }
+      { isClosedSet: true, holdsImmutablesOffCode: false }
     )
 
     expect(verdict.verdict).toBe('MISMATCH')
@@ -737,7 +742,7 @@ describe('falsification — the attested set against real observed code', () => 
     const verdict = compareToAttestedSet(
       observe(ZK_RUNTIME, true),
       await attest(ZK_RUNTIME, 'zksync'),
-      { isClosedSet: true }
+      { isClosedSet: true, holdsImmutablesOffCode: false }
     )
 
     expect(verdict.verdict).toBe('MATCH')

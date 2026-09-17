@@ -79,6 +79,12 @@ const FULL_SHA = /^[0-9a-f]{40}$/
 /** What the record writer stores when it could not read a commit. */
 const UNKNOWN_COMMIT = 'UNKNOWN'
 
+/**
+ * Where foundry-zksync writes artifacts. Fixed: it honours neither `--out` nor
+ * the profile's `out`, and exposes no flag of its own to redirect it.
+ */
+const ZK_OUT_DIR = 'zkout'
+
 /** Repo root, resolved from this module so a caller's cwd cannot change it. */
 const REPO_ROOT = join(
   dirname(fileURLToPath(import.meta.url)),
@@ -444,7 +450,11 @@ export const createForgeRebuildRunner = (
       created.add(checkout)
     }
 
-    const outDir = `out-codehash-${request.profile.profile}`
+    // The zk toolchain writes to `zkout/` and ignores `--out`, so the path the
+    // artifact is read from has to follow the toolchain rather than the flag.
+    // It still sits inside this commit's checkout, so it stays per-commit.
+    const isZk = request.profile.zksolcVersion !== undefined
+    const outDir = isZk ? ZK_OUT_DIR : `out-codehash-${request.profile.profile}`
     const artifactPath = join(
       checkout,
       outDir,
@@ -455,14 +465,21 @@ export const createForgeRebuildRunner = (
     // An artifact left by a build that predates `--ast` satisfies an
     // existence check while carrying no declarations, which would report every
     // immutable as unpriceable instead of rebuilding. Treat it as absent.
+    // zksolc emits no AST at all, so requiring one there would rebuild on every
+    // call and never be satisfied. It costs only layer 2, which cannot name a
+    // simulator slot without it either way.
     const usable = (): boolean =>
-      deps.exists(artifactPath) && carriesAst(deps, artifactPath)
+      deps.exists(artifactPath) && (isZk || carriesAst(deps, artifactPath))
 
     // A build this machine already made of this commit under this profile. The
     // checkout is per process and its output dies with the run, so without this
     // every signing session recompiles the same tree from cold — which is the
     // whole of the minute a signer waits before the checks appear.
-    const cacheKey = `${request.commit}-${outDir}`
+    //
+    // The profile is in the key as well as the directory it writes to: the zk
+    // toolchain sends every profile to `zkout`, so a key spelled from the
+    // directory alone would serve one zksolc version's build as another's.
+    const cacheKey = `${request.commit}-${request.profile.profile}-${outDir}`
     if (!usable()) deps.artifactCache?.restore(cacheKey, join(checkout, outDir))
 
     if (!usable()) {
@@ -472,7 +489,6 @@ export const createForgeRebuildRunner = (
       deps.git(['-C', checkout, 'submodule', 'update', '--init', '--recursive'])
       assertSubmodulesPinned(deps.git, checkout)
 
-      const isZk = request.profile.zksolcVersion !== undefined
       const command = isZk
         ? join(deps.repoRoot, 'foundry-zksync', 'forge')
         : 'forge'
@@ -482,9 +498,7 @@ export const createForgeRebuildRunner = (
       // silently substituted mid-build.
       const args = [
         'build',
-        '--out',
-        outDir,
-        ...(isZk ? ['--zksync'] : []),
+        ...(isZk ? ['--zksync'] : ['--out', outDir]),
         '--skip',
         'test/**',
         '--skip',
@@ -534,6 +548,7 @@ export const createForgeRebuildRunner = (
         object?: string
         immutableReferences?: ImmutableReferences
       }
+      bytecode?: { object?: string }
       ast?: unknown
     }
     try {
@@ -546,7 +561,13 @@ export const createForgeRebuildRunner = (
       )
     }
 
-    const runtimeHex = parsed.deployedBytecode?.object
+    // EraVM has no constructor/runtime split: what it stores at the address is
+    // the whole `bytecode.object`, and the artifact carries no
+    // `deployedBytecode` at all. Confirmed byte-for-byte against the deployed
+    // `FraxFacet` on zksync.
+    const runtimeHex = isZk
+      ? parsed.bytecode?.object
+      : parsed.deployedBytecode?.object
     if (!runtimeHex || runtimeHex === '0x')
       throw new Error(
         `the rebuilt artifact for ${request.contractName} carries no runtime bytecode`

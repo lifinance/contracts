@@ -32,14 +32,17 @@ export interface ITargetVerdict {
   /**
    * Bytes excluded as immutables. Nonzero means a MATCH is incomplete until
    * layer 2 has checked their values, so it must not render as plain green.
+   * Zero does not mean the converse: a chain holding immutables outside the
+   * runtime code excludes nothing and has checked nothing.
    */
   excludedByteCount: number
   /**
    * Bytes layer 2 compared against a declared expectation and found to hold it.
    *
-   * Carried separately from the verdict because zero is two different facts —
-   * a contract with no immutables, and one whose immutables were checked — and
-   * a signer reading a clean MATCH is owed the difference.
+   * Carried separately from the verdict because zero is three different facts —
+   * a contract with no immutables, one whose immutables were checked, and one
+   * holding them where this layer cannot read them — and a signer reading a
+   * clean MATCH is owed the difference. Only the first two reach a MATCH.
    */
   pricedByteCount: number
 }
@@ -204,6 +207,13 @@ const judge = async (
   // No threshold is invented, because any excluded byte is an uncompared byte.
   // This grades grey rather than red: nothing was found wrong, it was not looked
   // at. Layer 2 supplies the missing check and lifts this.
+  //
+  // Both branches below answer that instruction. The masked count decides it
+  // only where immutables are inlined; a chain holding them elsewhere reaches a
+  // MATCH with nothing masked and nothing checked, so it is asked first.
+  if (comparison.verdict === 'MATCH' && scope.holdsImmutablesOffCode)
+    return offCodeImmutables(address, comparison)
+
   if (comparison.verdict === 'MATCH' && comparison.excludedByteCount > 0)
     return complete(address, network, comparison, deps, code.runtimeCode)
 
@@ -216,6 +226,39 @@ const judge = async (
     pricedByteCount: 0,
   }
 }
+
+/**
+ * Grades a MATCH on a chain whose immutables are not in the code it matched.
+ *
+ * zkEVM stores them in `ImmutableSimulator` rather than inlining them, so the
+ * comparison excluded nothing and still says nothing about the values a
+ * tampered deployment lives in. `readZkImmutables` can fetch the values; what
+ * is missing is the map from slot to name. The zk toolchain emits neither
+ * `deployedBytecode` nor an AST, so no build of the recorded commit can say
+ * which immutable a slot holds, and reading by assumed ordinal would compare
+ * one immutable against another's expectation — which passes.
+ *
+ * So this grades grey for the same reason a masked EVM MATCH does: nothing was
+ * found wrong, it was not looked at.
+ *
+ * @param address - the target being judged
+ * @param comparison - layer 1's verdict, already known to be a MATCH
+ */
+const offCodeImmutables = (
+  address: string,
+  comparison: ICodehashComparison
+): ITargetVerdict => ({
+  address,
+  verdict: 'UNVERIFIABLE',
+  reason: `${address}: its code matches an attested build, but this chain holds its immutables in ImmutableSimulator rather than in that code, and nothing here reads them — so the values the deployment runs on are unchecked and this is not yet a match of the deployed contract.`,
+  matchedLineages: comparison.matchedLineages,
+  // Layer 1 masked nothing, and it was right not to: on this chain the excluded
+  // bytes are real codegen. The gap is not in the bytes, so it is not counted
+  // in them either — a renderer that qualified by this number would print "0
+  // bytes were excluded" over the very contracts it cannot vouch for.
+  excludedByteCount: 0,
+  pricedByteCount: 0,
+})
 
 /**
  * Finishes a MATCH whose masked bytes layer 2 can account for.

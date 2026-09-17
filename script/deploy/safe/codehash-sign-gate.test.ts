@@ -95,7 +95,7 @@ const wrapped = (payloads: Hex[]): Hex =>
   })
 
 const deps = (over: Partial<IVerifyCutDeps> = {}): IVerifyCutDeps => ({
-  scope: () => ({ isClosedSet: true }),
+  scope: () => ({ isClosedSet: true, holdsImmutablesOffCode: false }),
   observe: async () => observed(),
   attestationsFor: async () => ({ builds: [attested()] }),
   price: async () => ({ decided: false, reason: 'no layer 2 in this test' }),
@@ -295,7 +295,7 @@ describe('evaluateCodehashSignGate', () => {
         deps({
           scope: (network: string) => {
             asked.push(network)
-            return { isClosedSet: true }
+            return { isClosedSet: true, holdsImmutablesOffCode: false }
           },
         })
     )
@@ -473,6 +473,19 @@ describe('renderCodehashSignGate', () => {
         () => deps(over)
       )
     ).join('\n')
+
+  it('does not print a byte caveat for a chain whose immutables are off-code', async () => {
+    // Its verdict carries zero excluded bytes, because none were excluded. The
+    // caveat line is keyed off that count, so it must stay silent rather than
+    // announce "0 bytes" over the contracts it cannot vouch for.
+    const rendered = await render({
+      scope: () => ({ isClosedSet: true, holdsImmutablesOffCode: true }),
+    })
+
+    expect(rendered).toContain('UNVERIFIABLE')
+    expect(rendered).toContain('ImmutableSimulator')
+    expect(rendered).not.toContain('bytes were excluded as immutables')
+  })
 
   it('renders MATCH, MISMATCH and UNVERIFIABLE as three distinct buckets', async () => {
     const match = await render({})

@@ -134,6 +134,7 @@ describe('createRuntimeCodeObserver', () => {
     createRuntimeCodeObserver({
       scopeFor: () => ({
         isClosedSet: true,
+        holdsImmutablesOffCode: false,
         profiles: (over.profiles ?? [
           { profile: 'default', solcVersion: '0.8.29', evmVersion: 'cancun' },
         ]) as never,
@@ -173,6 +174,7 @@ describe('createRuntimeCodeObserver', () => {
     const zk = createRuntimeCodeObserver({
       scopeFor: () => ({
         isClosedSet: true,
+        holdsImmutablesOffCode: false,
         profiles: [
           {
             profile: 'zksync',
@@ -273,6 +275,13 @@ describe('createForgeRebuildRunner', () => {
     deployedBytecode: { object: DEPLOYED, immutableReferences: REFS },
     ast: { absolutePath: 'src/Facets/AccessManagerFacet.sol' },
   })
+
+  /**
+   * What zksolc actually emits: the whole contract under `bytecode`, with no
+   * `deployedBytecode` and no `ast`. Verified against every artifact under
+   * `zkout/`, and byte-for-byte against the deployed `FraxFacet` on zksync.
+   */
+  const zkArtifact = JSON.stringify({ bytecode: { object: DEPLOYED } })
 
   const runner = (
     over: {
@@ -382,18 +391,34 @@ describe('createForgeRebuildRunner', () => {
         compiled = true
         return { ok: true, output: '' }
       },
+      // Both spellings, so the one build here stands in for either toolchain:
+      // zksolc writes the runtime under `bytecode`, everything else under
+      // `deployedBytecode`.
+      readFile: () =>
+        JSON.stringify({
+          bytecode: { object: DEPLOYED },
+          deployedBytecode: { object: DEPLOYED, immutableReferences: REFS },
+          ast: { absolutePath: 'src/Facets/AccessManagerFacet.sol' },
+        }),
       artifactCache: { restore: () => false, save: (key) => saved.push(key) },
     })
     ok.runner.build(request)
     compiled = false
+    // A real zk profile, which writes to the fixed `zkout` whatever it is
+    // called — so the profile has to be in the key rather than only in the
+    // directory the key is spelled from.
     ok.runner.build({
       ...request,
-      profile: { ...request.profile, profile: 'zksync' },
+      profile: {
+        ...request.profile,
+        profile: 'zksync',
+        zksolcVersion: '1.5.15',
+      },
     })
 
     expect(saved).toEqual([
-      `${'a'.repeat(40)}-out-codehash-default`,
-      `${'a'.repeat(40)}-out-codehash-zksync`,
+      `${'a'.repeat(40)}-default-out-codehash-default`,
+      `${'a'.repeat(40)}-zksync-zkout`,
     ])
   })
 
@@ -595,7 +620,7 @@ describe('createForgeRebuildRunner', () => {
         return { ok: true, output: '' }
       },
       exists: (path) => (path.endsWith('.json') ? built : true),
-      readFile: () => artifact,
+      readFile: () => zkArtifact,
       readDeclarations: () => [],
     })
 
@@ -632,7 +657,8 @@ describe('createForgeRebuildRunner', () => {
           paths.push(path)
           return path.endsWith('.json') ? built : true
         },
-        readFile: () => artifact,
+        readFile: () =>
+          profile.zksolcVersion === undefined ? artifact : zkArtifact,
         readDeclarations: () => [],
       }).build({
         ...request,
@@ -647,7 +673,9 @@ describe('createForgeRebuildRunner', () => {
     // Two non-zk profiles share `out/` in foundry's own layout, and this runner
     // builds several profiles inside one checkout, so a shared directory would
     // hand the second profile the first one's artifact.
-    expect(zk[0]).toContain('zksync')
+    // zk is not profile-named: foundry-zksync ignores `--out` and always writes
+    // `zkout/`, so the runner must read there or find nothing.
+    expect(zk[0]).toContain('zkout')
     expect(floor[0]).toContain('solc_floor')
     expect(zk[0]).not.toBe(floor[0])
   })
@@ -778,7 +806,11 @@ describe('createImmutableReferencesResolver', () => {
   ) =>
     createImmutableReferencesResolver({
       readRecord: async () => record,
-      scopeFor: () => ({ isClosedSet: true, profiles: [PROFILE] }),
+      scopeFor: () => ({
+        isClosedSet: true,
+        holdsImmutablesOffCode: false,
+        profiles: [PROFILE],
+      }),
       build: (request) => {
         builds.push(request.commit)
         return { runtimeHex: DEPLOYED, immutableReferences: REFS }
@@ -886,6 +918,7 @@ describe('createImmutableReferencesResolver refuses several lineages', () => {
       }),
       scopeFor: () => ({
         isClosedSet: true,
+        holdsImmutablesOffCode: false,
         profiles: [
           { profile: 'default', solcVersion: '0.8.29', evmVersion: 'cancun' },
           { profile: 'other', solcVersion: '0.8.29', evmVersion: 'cancun' },
