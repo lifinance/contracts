@@ -101,7 +101,7 @@ If a core contract genuinely cannot exist on this chain (e.g. `TokenWrapper` whe
 2. Permit2 no code → not adding to permit2Proxy.json (omit this network); do not edit global.json.
 3. Gas.zip router no code → verify address or do not add.
 4. Bridge address no code → do not add until correct address; check docs or column 65.
-5. Target state → tell user to run scriptMaster use case 10 (do not run from command).
+5. Target state → add the network block with every contract set to `"latest"` (scriptMaster use case 6 → 3, or by hand).
 6. Deployer/pauser zero or low balance → fund with native token before deploy; include balances in output.
 7. **Changing `config/whitelist.json` is not allowed** — do not add or edit the new network there; whitelist is managed separately.
 
@@ -112,7 +112,7 @@ If a core contract genuinely cannot exist on this chain (e.g. `TokenWrapper` whe
 - [ ] Collect/validate inputs; confirm multicall and (if used) Permit2, Gas.zip router have code; run deployer/pauser balance check; summarize and get user confirm.
 - [ ] Add network to networks.json (alphabetical).
 - [ ] Add RPC + etherscan to foundry.toml; remind ETH_NODE_URI in .env.
-- [ ] Tell user to run scriptMaster use case 10 for target state (do not run parsing from command).
+- [ ] Target-state block added for the new network, every contract `"latest"` (never a version — a version is a deliberate pin).
 - [ ] Permit2: add to permit2Proxy.json if has code; if no code, omit this network from permit2Proxy.json only (do not edit global.json).
 - [ ] Gas.zip: add to gaszip.json + networks.json if available; if not, set gasZipChainId = 0 in networks.json and omit from gaszip.json only (do not edit global.json).
 - [ ] Bridges: for each indicated, add to bridge config and validate addresses with cast code.

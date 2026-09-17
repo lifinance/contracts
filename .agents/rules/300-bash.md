@@ -110,7 +110,6 @@ background jobs and aggregate after `wait`.
   "any failures?", "any CRITICAL?") from the collected results **after** `wait`, never from
   inside the loop.
 - Copy an existing pattern rather than reinventing the throttle/wait/merge plumbing:
-  - `processNetworkLine` worker + throttle + `wait` (`helperFunctions.sh`)
   - `( … > "$FILE" ) &` → `wait` → merge per-item files (`helperFunctions.sh`)
   - `executeNetworkInGroup` (`multiNetworkExecution.sh`)
 

@@ -575,13 +575,17 @@ const defaultGit = (repoRoot: string): IPinnedStateGit => ({
 })
 
 /**
- * Builds the pinned read: one `git fetch` per process, then the target state as
- * `origin/main` has it.
+ * Establishes that the anchor may be trusted, and refreshes it.
  *
- * The result is memoized so a fleet run of 70 networks costs one fetch and one
- * blob read.
- * @param options - repository root and git seam; both default to this checkout
- * @returns A reader returning the pinned state, or why it could not be read
+ * Shared by every pinned read so the remote check exists in exactly one place: a
+ * reader that skipped it would take its answer from whatever repository `origin`
+ * happens to point at.
+ *
+ * `memoizable` separates a refusal that will not change within the process (this
+ * clone's `origin` is the wrong repository) from one that might (an exec that
+ * could not run), so a caller never caches a transient failure.
+ * @param git - the git seam to read and fetch through
+ * @returns That the ref is refreshed, or why it is not and whether to cache that
  */
 const verifyRemoteAndFetch = (
   git: IPinnedStateGit
@@ -615,6 +619,15 @@ export type PinnedReadFailure = Exclude<
   { ok: true }
 >['reason']
 
+/**
+ * Builds the pinned read: one `git fetch` per process, then the target state as
+ * `origin/main` has it.
+ *
+ * The result is memoized so a fleet run of 70 networks costs one fetch and one
+ * blob read.
+ * @param options - repository root and git seam; both default to this checkout
+ * @returns A reader returning the pinned state, or why it could not be read
+ */
 export const createPinnedTargetStateReader = (options?: {
   repoRoot?: string
   git?: IPinnedStateGit
