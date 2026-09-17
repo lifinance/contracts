@@ -1001,6 +1001,18 @@ export const createImmutableSimulatorReader = (
 }
 
 /**
+ * What this checkout's AST says about one contract.
+ *
+ * An empty {@link declarations} means "declares no immutables" only when
+ * {@link covered} is true; otherwise it means the enumeration never reached that
+ * contract, which is not a fact about the deployment at all.
+ */
+export interface ILocalImmutableDeclarations {
+  covered: boolean
+  declarations: readonly IImmutableDeclaration[]
+}
+
+/**
  * The immutables `src/` declares, from the checkout the signer is running in.
  *
  * Not from the rebuild of the recorded commit, which is where the EVM path gets
@@ -1019,16 +1031,24 @@ export const createImmutableSimulatorReader = (
  * Built once per run and only when a zk target is actually reached, because it
  * compiles the whole of `src/`.
  *
- * @returns A resolver from contract name to its own immutable declarations.
+ * @returns A resolver from contract name to its own immutable declarations, and
+ * to whether the enumeration covered that contract at all.
  */
 export const createLocalImmutableDeclarations = (
-  read: () => readonly IImmutableDeclaration[] = () =>
-    readImmutableDeclarations(buildAst()).declarations
-): ((contractName: string) => readonly IImmutableDeclaration[]) => {
-  let all: readonly IImmutableDeclaration[] | undefined
-  return (contractName: string): readonly IImmutableDeclaration[] => {
+  read: () => {
+    declarations: readonly IImmutableDeclaration[]
+    contracts: ReadonlySet<string>
+  } = () => readImmutableDeclarations(buildAst())
+): ((contractName: string) => ILocalImmutableDeclarations) => {
+  let all: ReturnType<typeof read> | undefined
+  return (contractName: string): ILocalImmutableDeclarations => {
     all ??= read()
-    return all.filter((one) => one.contract === contractName)
+    return {
+      covered: all.contracts.has(contractName),
+      declarations: all.declarations.filter(
+        (one) => one.contract === contractName
+      ),
+    }
   }
 }
 
@@ -1053,7 +1073,7 @@ export const createOffCodeImmutablesReader = (deps: {
     address: string,
     network: string
   ) => Promise<IDeploymentRecordRef | undefined>
-  declarationsFor: (contractName: string) => readonly IImmutableDeclaration[]
+  declarationsFor: (contractName: string) => ILocalImmutableDeclarations
   getImmutable: (
     network: string,
     address: string,
@@ -1077,7 +1097,17 @@ export const createOffCodeImmutablesReader = (deps: {
         `the deployment record says nothing about ${address} on ${network}, so there is no contract whose immutables could be looked up`
       )
 
-    const declarations = deps.declarationsFor(record.contractName)
+    const local = deps.declarationsFor(record.contractName)
+    // "I found nothing" is not "there is nothing": a contract this checkout
+    // never compiled — renamed or deleted since the deployment, or an AST build
+    // that produced no artifacts at all — contributes the same empty list as one
+    // that genuinely declares no immutables, and grading that as `none` passes a
+    // contract whose values were never looked at.
+    if (!local.covered)
+      return refused(
+        `no AST from this checkout covers ${record.contractName}, so whether it declares immutables was never established — this tree does not compile that contract`
+      )
+    const { declarations } = local
     if (declarations.length === 0) return { declared: 'none' }
 
     const numbered = zkImmutableOrdinals(declarations)

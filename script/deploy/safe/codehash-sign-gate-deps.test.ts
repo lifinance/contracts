@@ -29,7 +29,10 @@ import { keccak256, type Chain, type Hex } from 'viem'
 
 import type { ImmutableReferences } from '../codehash/immutable-offsets'
 import { normalizeRuntimeCode } from '../codehash/rebuild-attestations'
-import type { IImmutableDeclaration } from '../immutables/immutable-ast'
+import {
+  readImmutableDeclarations,
+  type IImmutableDeclaration,
+} from '../immutables/immutable-ast'
 
 import {
   createForgeRebuildRunner,
@@ -1261,6 +1264,7 @@ describe('createOffCodeImmutablesReader', () => {
   const reader = (over: {
     record?: { contractName: string; version: string; gitCommitHash: string }
     declarations?: readonly IImmutableDeclaration[]
+    covered?: boolean
     getImmutable?: (
       network: string,
       address: string,
@@ -1274,7 +1278,10 @@ describe('createOffCodeImmutablesReader', () => {
           version: '1.0.0',
           gitCommitHash: 'a'.repeat(40),
         },
-      declarationsFor: () => over.declarations ?? [declaration('router', 22)],
+      declarationsFor: () => ({
+        covered: over.covered ?? true,
+        declarations: over.declarations ?? [declaration('router', 22)],
+      }),
       getImmutable: over.getImmutable ?? (async () => WORD),
       loadRequirements: () => ({}),
     })
@@ -1283,6 +1290,19 @@ describe('createOffCodeImmutablesReader', () => {
     const read = await reader({ declarations: [] })(ADDRESS, 'zksync')
 
     expect(read).toEqual({ declared: 'none' })
+  })
+
+  it('refuses when this checkout never compiled the recorded contract', async () => {
+    // The same empty list a contract with no immutables produces. Grading it
+    // `none` would pass a deployment whose values were never looked at.
+    const read = await reader({ covered: false, declarations: [] })(
+      ADDRESS,
+      'zksync'
+    )
+
+    if (read.declared === 'some' && !read.pricing.decided)
+      expect(read.pricing.reason).toContain('no AST from this checkout covers')
+    else throw new Error('expected a refusal')
   })
 
   it('prices the value the simulator returned, and names its slot', async () => {
@@ -1316,7 +1336,10 @@ describe('createOffCodeImmutablesReader', () => {
   it('refuses rather than pricing when the record says nothing', async () => {
     const read = await createOffCodeImmutablesReader({
       readRecord: async () => undefined,
-      declarationsFor: () => [declaration('router', 22)],
+      declarationsFor: () => ({
+        covered: true,
+        declarations: [declaration('router', 22)],
+      }),
       getImmutable: async () => WORD,
       loadRequirements: () => ({}),
     })(ADDRESS, 'zksync')
@@ -1356,31 +1379,58 @@ describe('createLocalImmutableDeclarations', () => {
     let builds = 0
     const declarationsFor = createLocalImmutableDeclarations(() => {
       builds += 1
-      return [
-        {
-          file: 'src/Facets/GasZipFacet.sol',
-          contract: 'GasZipFacet',
-          line: 22,
-          type: 'address',
-          name: 'router',
-        },
-        {
-          file: 'src/Facets/OtherFacet.sol',
-          contract: 'OtherFacet',
-          line: 10,
-          type: 'address',
-          name: 'other',
-        },
-      ]
+      return {
+        declarations: [
+          {
+            file: 'src/Facets/GasZipFacet.sol',
+            contract: 'GasZipFacet',
+            line: 22,
+            type: 'address',
+            name: 'router',
+          },
+          {
+            file: 'src/Facets/OtherFacet.sol',
+            contract: 'OtherFacet',
+            line: 10,
+            type: 'address',
+            name: 'other',
+          },
+        ],
+        contracts: new Set(['GasZipFacet', 'OtherFacet', 'QuietFacet']),
+      }
     })
 
-    expect(declarationsFor('GasZipFacet').map((one) => one.name)).toEqual([
-      'router',
-    ])
-    expect(declarationsFor('OtherFacet').map((one) => one.name)).toEqual([
-      'other',
-    ])
+    expect(
+      declarationsFor('GasZipFacet').declarations.map((one) => one.name)
+    ).toEqual(['router'])
+    expect(
+      declarationsFor('OtherFacet').declarations.map((one) => one.name)
+    ).toEqual(['other'])
     expect(builds).toBe(1)
+  })
+
+  it('separates a contract the AST covered from one it never saw', () => {
+    const declarationsFor = createLocalImmutableDeclarations(() => ({
+      declarations: [],
+      contracts: new Set(['QuietFacet']),
+    }))
+
+    expect(declarationsFor('QuietFacet')).toEqual({
+      covered: true,
+      declarations: [],
+    })
+    expect(declarationsFor('RenamedSinceDeployFacet')).toEqual({
+      covered: false,
+      declarations: [],
+    })
+  })
+
+  it('covers nothing when the AST build produced no readable artifacts', () => {
+    const declarationsFor = createLocalImmutableDeclarations(() =>
+      readImmutableDeclarations(join(tmpdir(), 'codehash-no-such-ast-out'))
+    )
+
+    expect(declarationsFor('GasZipFacet').covered).toBe(false)
   })
 })
 

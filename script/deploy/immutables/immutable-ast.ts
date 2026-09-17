@@ -153,14 +153,21 @@ const VISIBILITIES = new Set(['public', 'private', 'internal'])
  * @param sourceRoot - Directory the AST's repo-relative paths resolve against. A build of another
  * checkout records the same paths as this one, so resolving them against the process cwd reports
  * the line a declaration sits on in THIS tree while naming a declaration from that one.
- * @returns The declarations, and the set of source files an AST was actually found for.
+ * @returns The declarations, the set of source files an AST was actually found for, and the
+ * contracts those ASTs define. The last is what lets a caller tell a contract that was read and
+ * declares no immutables from one the enumeration never covered: both contribute no declarations.
  */
 export const readImmutableDeclarations = (
   outDir: string = AST_OUT_DIR,
   sourceRoot = '.'
-): { declarations: IImmutableDeclaration[]; sourceFiles: Set<string> } => {
+): {
+  declarations: IImmutableDeclaration[]
+  sourceFiles: Set<string>
+  contracts: Set<string>
+} => {
   const byPosition = new Map<string, IImmutableDeclaration>()
   const sourceFiles = new Set<string>()
+  const contracts = new Set<string>()
   const offsetsByFile = new Map<string, number[]>()
 
   for (const artifactPath of artifactFiles(outDir)) {
@@ -177,6 +184,7 @@ export const readImmutableDeclarations = (
 
     for (const node of artifact.ast?.nodes ?? []) {
       if (node.nodeType !== 'ContractDefinition') continue
+      if (node.name) contracts.add(node.name)
       for (const member of node.nodes ?? []) {
         if (member.nodeType !== 'VariableDeclaration') continue
         if (member.mutability !== 'immutable') continue
@@ -212,7 +220,7 @@ export const readImmutableDeclarations = (
   const declarations = [...byPosition.values()].sort(
     (a, b) => a.file.localeCompare(b.file) || a.line - b.line
   )
-  return { declarations, sourceFiles }
+  return { declarations, sourceFiles, contracts }
 }
 
 /**
