@@ -15,6 +15,8 @@ import {
 import {
   BaseError,
   CallExecutionError,
+  createPublicClient,
+  custom,
   encodeFunctionData,
   ExecutionRevertedError,
   parseAbi,
@@ -719,5 +721,72 @@ describe('summariseRpcError and viem’s Details line', () => {
     )
 
     expect(summary).toContain('out of gas')
+  })
+})
+
+describe('the sender a payload is simulated from', () => {
+  /**
+   * Drives a real viem client rather than a stub with a `call` method. The
+   * stubs elsewhere in this file receive whatever object the reader hands
+   * them, so they cannot see a key viem would drop on its way to the wire —
+   * which is the whole failure this pins.
+   *
+   * Retries are off so the failover test's throwing transport fails once
+   * rather than three times over a second of backoff.
+   */
+  const capturingClient = (
+    captured: { params?: Record<string, unknown> },
+    answer: () => unknown = () => '0x'
+  ): PublicClient =>
+    createPublicClient({
+      transport: custom(
+        {
+          request: async ({ method, params }) => {
+            if (method !== 'eth_call') return '0x1'
+            captured.params = (params as Record<string, unknown>[])[0]
+            return answer()
+          },
+        },
+        { retryCount: 0 }
+      ),
+    }) as unknown as PublicClient
+
+  it('reaches the node as the account the payload will really be sent from', async () => {
+    const captured: { params?: Record<string, unknown> } = {}
+    const reader = createExecutabilityChainReader(capturingClient(captured))
+
+    await reader.staticCall({ from: SAFE, to: TIMELOCK, data: '0xdeadbeef' })
+
+    expect(captured.params?.from).toBe(SAFE)
+    expect(captured.params?.to).toBe(TIMELOCK)
+    expect(captured.params?.data).toBe('0xdeadbeef')
+  })
+
+  it('never simulates from the zero address, which no caller gate admits', async () => {
+    const captured: { params?: Record<string, unknown> } = {}
+    const reader = createExecutabilityChainReader(capturingClient(captured))
+
+    await reader.staticCall({ from: SAFE, to: TIMELOCK, data: '0x' as Hex })
+
+    expect(captured.params?.from).toBeDefined()
+    expect(captured.params?.from).not.toBe(ZERO_ADDRESS)
+  })
+
+  it('carries the sender to every endpoint it fails over to', async () => {
+    const first: { params?: Record<string, unknown> } = {}
+    const second: { params?: Record<string, unknown> } = {}
+    const unreachable = capturingClient(first, () => {
+      throw new Error('fetch failed')
+    })
+    const reachable = capturingClient(second)
+
+    const reader = createExecutabilityChainReader(unreachable, [
+      unreachable,
+      reachable,
+    ])
+    await reader.staticCall({ from: SAFE, to: TIMELOCK, data: '0x' as Hex })
+
+    expect(first.params?.from).toBe(SAFE)
+    expect(second.params?.from).toBe(SAFE)
   })
 })

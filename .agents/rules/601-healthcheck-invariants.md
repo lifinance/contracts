@@ -43,7 +43,15 @@ invariant must be added, adjusted, or removed. Use this checklist:
   against config on every chain. Nest the key **inside** the arg object: the deploy-time
   consumer iterates `configData | keys[]`, so a sibling key there breaks deploys. Add
   `legacyGetters` when the fleet still runs builds from before the getter was renamed —
-  without it, the binding silently reports as unverified on every older chain. A
+  without it, the binding silently reports as unverified on every older chain. Add
+  `getterSinceVersion` when the bound value did not exist at all in an older build, naming the
+  contract version that first made it readable: the check still reads those chains and only
+  declines to report the revert it gets back, narrating it instead. The annotation decides how a
+  failure reads, never whether the chain is asked — the version comes from the diamond log, which
+  records what this repo built at cut time rather than chain truth, so a build that answers is
+  compared either way. The `verify-immutable-registry` gate
+  holds it against the contract's own `@custom:version`, because an annotation ahead of the real
+  version would exempt the binding on every chain at once. A
   `keyInConfigFile` with no `<NETWORK>` placeholder is a fleet-wide default: the check
   prefers a `.<network>`-prefixed form of the same key wherever the config file defines one,
   so a chain whose counterparty lives under its own block (Tron's under `.tron`) is compared

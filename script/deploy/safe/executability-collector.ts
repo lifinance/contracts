@@ -23,6 +23,7 @@ import {
   getAddress,
   parseAbi,
   type Address,
+  type CallParameters,
   type Hex,
   type PublicClient,
 } from 'viem'
@@ -604,16 +605,21 @@ export const createExecutabilityChainReader = (
     // the one outcome this whole gate exists to prevent.
     let lastError: string | undefined
 
-    // `account`, which is what viem names the sender. Passing `from` compiles —
-    // the object is a variable, so excess-property checking does not see it —
-    // and is then dropped, so every payload simulated as the zero address and
-    // every owner-gated call reverted on its ownership check whatever the
-    // proposal did.
-    const { from, ...rest } = call
+    // viem names the sender `account`; `from` is not one of its call
+    // parameters, so passing it through sends `eth_call` with no sender at
+    // all. Every payload would then simulate as address(0) and revert on the
+    // first caller check it meets — a red row on every proposal the timelock
+    // gates, which is indistinguishable from the real reverts this gate exists
+    // to catch.
+    const request: CallParameters = {
+      account: call.from,
+      to: call.to,
+      data: call.data,
+    }
 
     for (const simulator of simulators)
       try {
-        await simulator.call({ account: from, ...rest })
+        await simulator.call(request)
         return { outcome: 'succeeded' }
       } catch (error) {
         const message = error instanceof Error ? error.message : String(error)
