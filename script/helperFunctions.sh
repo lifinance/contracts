@@ -4310,7 +4310,14 @@ function assertProposalTicketForRun() {
   # than exported here, so an inherited one is validated like any other supplied
   # value instead of trusted.
   local SUPPLIED="${SAFE_PROPOSAL_TICKET:-${RESOLVED_SAFE_PROPOSAL_TICKET:-}}"
-  local SUPPLIED_REASON="${SAFE_PROPOSAL_REASON:-${RESOLVED_SAFE_PROPOSAL_REASON:-}}"
+  # A reason belongs to the ticket it was stated for, so it is offered to the
+  # resolver only while this run is still that ticket. The resolver returns a
+  # supplied reason unchanged and never asks again, so without this a second
+  # rollout in the same shell labels its proposals with the first one's reason.
+  local SUPPLIED_REASON=""
+  if [[ "${RESOLVED_SAFE_PROPOSAL_REASON_TICKET:-}" == "$SUPPLIED" ]]; then
+    SUPPLIED_REASON="${SAFE_PROPOSAL_REASON:-${RESOLVED_SAFE_PROPOSAL_REASON:-}}"
+  fi
 
   local PREFLIGHT
   if ! PREFLIGHT=$(SAFE_PROPOSAL_TICKET="$SUPPLIED" SAFE_PROPOSAL_REASON="$SUPPLIED_REASON" bunx tsx script/deploy/safe/deploy-ticket-preflight.cli.ts); then
@@ -4341,13 +4348,13 @@ function assertProposalTicketForRun() {
   if [[ -n "$REASON" ]]; then
     export SAFE_PROPOSAL_REASON="$REASON"
     export RESOLVED_SAFE_PROPOSAL_REASON="$REASON"
+    export RESOLVED_SAFE_PROPOSAL_REASON_TICKET="$TICKET"
     echo "[info] proposals from this run will carry $TICKET - $REASON"
   else
     # The pre-flight resolved no reason, so an inherited one must not stand
-    # behind its verdict. This does not close the carry-over on its own: the
-    # resolver returns a non-empty inherited reason unchanged, so that one
-    # arrives on line 2 and is exported above as if this run had stated it.
-    unset SAFE_PROPOSAL_REASON RESOLVED_SAFE_PROPOSAL_REASON
+    # behind its verdict.
+    unset SAFE_PROPOSAL_REASON RESOLVED_SAFE_PROPOSAL_REASON \
+      RESOLVED_SAFE_PROPOSAL_REASON_TICKET
     echo "[info] proposals from this run will carry $TICKET"
   fi
   return 0

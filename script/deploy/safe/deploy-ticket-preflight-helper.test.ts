@@ -38,6 +38,26 @@ const bunxStub = (stdout: string, code = 0): string => {
 }
 
 /**
+ * A `bunx` that answers the way the real resolver does with a reason it was
+ * given: `resolveDeployReason` returns a supplied reason unchanged and never
+ * asks again, so line 2 is whatever reached the CLI. Used for the cases that
+ * turn on what the helper offers it, which a fixed-output stub cannot show.
+ *
+ * @param ticket - the issue URL the stub resolves to
+ * @returns the directory to prepend to PATH
+ */
+const echoingBunxStub = (ticket: string): string => {
+  const dir = mkdtempSync(join(tmpdir(), 'ticket-helper-stub-'))
+  const path = join(dir, 'bunx')
+  writeFileSync(
+    path,
+    `#!/bin/sh\nprintf '%s\\n%s\\n' "${ticket}" "$SAFE_PROPOSAL_REASON"\n`
+  )
+  chmodSync(path, 0o755)
+  return dir
+}
+
+/**
  * Runs the real helper and reports what the caller would see.
  *
  * @param args - the helper's arguments, environment first
@@ -49,6 +69,7 @@ const callHelper = (
   options: {
     stubStdout?: string
     stubExit?: number
+    stubEchoesReasonFor?: string
     env?: Record<string, string>
   } = {}
 ): {
@@ -70,10 +91,11 @@ const callHelper = (
   }
   delete env.NODE_ENV
   let stub: string | undefined
-  if (options.stubStdout !== undefined || options.stubExit !== undefined) {
+  if (options.stubEchoesReasonFor !== undefined)
+    stub = echoingBunxStub(options.stubEchoesReasonFor)
+  else if (options.stubStdout !== undefined || options.stubExit !== undefined)
     stub = bunxStub(options.stubStdout ?? '', options.stubExit ?? 0)
-    env.PATH = `${stub}:${env.PATH ?? ''}`
-  }
+  if (stub !== undefined) env.PATH = `${stub}:${env.PATH ?? ''}`
 
   const result = Bun.spawnSync(
     [
@@ -238,10 +260,7 @@ describe('assertProposalTicketForRun reason line', () => {
   })
 
   // The pre-flight's verdict is what the run carries: when it resolves no
-  // reason, an inherited one must not stand behind its back. This is the
-  // helper's half only — today's resolver echoes a non-empty inherited reason
-  // straight back, so a previous rollout's reason still reaches this run's
-  // proposals through line 2, which this test does not and cannot cover.
+  // reason, an inherited one must not stand behind its back.
   it('clears both reason names when the pre-flight resolves none', () => {
     const result = callHelper(['production', 'gnosis'], {
       stubStdout: `${URL}\n\n`,
@@ -254,5 +273,47 @@ describe('assertProposalTicketForRun reason line', () => {
     expect(result.ticket).toBe(URL)
     expect(result.reason).toBe('')
     expect(result.reasonMirror).toBe('')
+  })
+})
+
+describe('a reason belongs to the ticket it was stated for', () => {
+  const OTHER = 'https://linear.app/lifi-linear/issue/EXSC-9999'
+
+  // The rollout this shell ran first left its reason exported. The resolver
+  // hands a supplied reason straight back, so offering it here would put the
+  // first rollout's reason on this one's proposals, where a signer reads it.
+  it('does not offer a reason stated for a different ticket', () => {
+    const result = callHelper(['production', 'gnosis'], {
+      stubEchoesReasonFor: OTHER,
+      env: {
+        SAFE_PROPOSAL_TICKET: OTHER,
+        SAFE_PROPOSAL_REASON: 'roll out FeeForwarder v2.0.0',
+        RESOLVED_SAFE_PROPOSAL_REASON: 'roll out FeeForwarder v2.0.0',
+        RESOLVED_SAFE_PROPOSAL_REASON_TICKET: URL,
+      },
+    })
+    expect(result.rc).toBe(0)
+    expect(result.ticket).toBe(OTHER)
+    expect(result.reason).toBe('')
+    expect(result.reasonMirror).toBe('')
+  })
+
+  // The case the mirror exists for: a worker re-sourced .env, which blanks
+  // SAFE_PROPOSAL_REASON, and the run is still the ticket that stated it.
+  it('carries the reason to a worker whose env file blanked it', () => {
+    const result = callHelper(['production', 'gnosis'], {
+      stubEchoesReasonFor: URL,
+      env: {
+        SAFE_PROPOSAL_TICKET: '',
+        RESOLVED_SAFE_PROPOSAL_TICKET: URL,
+        SAFE_PROPOSAL_REASON: '',
+        RESOLVED_SAFE_PROPOSAL_REASON: 'roll out FeeForwarder v2.0.0',
+        RESOLVED_SAFE_PROPOSAL_REASON_TICKET: URL,
+      },
+    })
+    expect(result.rc).toBe(0)
+    expect(result.ticket).toBe(URL)
+    expect(result.reason).toBe('roll out FeeForwarder v2.0.0')
+    expect(result.reasonMirror).toBe('roll out FeeForwarder v2.0.0')
   })
 })
