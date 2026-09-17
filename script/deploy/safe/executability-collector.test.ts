@@ -789,4 +789,40 @@ describe('the sender a payload is simulated from', () => {
     expect(first.params?.from).toBe(SAFE)
     expect(second.params?.from).toBe(SAFE)
   })
+
+  // The two halves of the sender only meet here. The tests above pin what the
+  // collector decides each payload's caller is, against a stub; the ones before
+  // them pin that a caller handed to the reader reaches the wire. Neither sees a
+  // collector that decided correctly and a reader that then sent every payload
+  // from one address.
+  it('sends each payload from its own caller, not one sender for all', async () => {
+    const seen: Record<string, unknown>[] = []
+    const client = createPublicClient({
+      transport: custom(
+        {
+          request: async ({ method, params }) => {
+            if (method !== 'eth_call') return '0x1'
+            const [request] = params as [Record<string, unknown>]
+            seen.push(request)
+            return '0x'
+          },
+        },
+        { retryCount: 0 }
+      ),
+    }) as unknown as PublicClient
+    const inner = cut()
+
+    await collectExecutabilityInput(
+      {
+        network: 'arbitrum',
+        safeAddress: SAFE,
+        to: TIMELOCK,
+        data: scheduleBatch([DIAMOND], [inner]),
+      },
+      createExecutabilityChainReader(client)
+    )
+
+    expect(seen.find((call) => call.data === inner)?.from).toBe(TIMELOCK)
+    expect(seen.find((call) => call.to === TIMELOCK)?.from).toBe(SAFE)
+  })
 })
