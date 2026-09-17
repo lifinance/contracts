@@ -1597,6 +1597,14 @@ function getCurrentContractVersion() {
     return 1
   fi
 
+  # The existence check above is not the same instant as the read: a file removed
+  # in between comes back as status 1 with nothing on stdout, and calling that
+  # "not a version" would send a caller looking at the tag rather than the file.
+  if [ "$STATUS" -eq 1 ]; then
+    error "could not read $FILEPATH"
+    return 1
+  fi
+
   if [ "$STATUS" -ne 0 ]; then
     error "'$VERSION' in $FILEPATH is not a version (expected MAJOR.MINOR.PATCH with an optional lowercase -suffix)"
     return 1

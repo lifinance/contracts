@@ -103,3 +103,37 @@ describe('the mint refuses to publish a manifest short by a profile conflict', (
     expect(output).not.toContain(`Skipped`)
   })
 })
+
+describe('the mint refuses a version it cannot read', () => {
+  let root: string
+
+  afterEach(() => {
+    fs.rmSync(root, { recursive: true, force: true })
+  })
+
+  /**
+   * Run against a source tree of our own, because the check under test is
+   * whether a malformed version stops the mint, and every contract in this
+   * repo declares a well-formed one.
+   */
+  it('names the file and the value instead of minting under a prefix', () => {
+    root = fs.mkdtempSync(path.join(tmpdir(), 'mint-version-'))
+    fs.mkdirSync(path.join(root, 'src'))
+    fs.writeFileSync(
+      path.join(root, 'src', 'Foo.sol'),
+      '/// @custom:version 2.1.3.4\ncontract Foo {}\n'
+    )
+
+    const result = spawnSync(
+      'bunx',
+      ['tsx', path.join(REPO_ROOT, TASK), '--out', root, '--check'],
+      { cwd: root, encoding: 'utf8' }
+    )
+    const output = `${result.stdout ?? ''}${result.stderr ?? ''}`
+
+    expect(result.status).not.toBe(0)
+    // `2.1.3.4` is the value the old grammar would have truncated to `2.1.3`
+    // and filed a build under, so the message has to carry it whole.
+    expect(output).toContain(`src/Foo.sol declares "2.1.3.4"`)
+  })
+})

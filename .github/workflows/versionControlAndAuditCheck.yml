@@ -214,8 +214,17 @@ jobs:
                   ##### fix, and the version being merged is gated on its own terms.
                   OLD_FILE=$(mktemp)
                   git show "$MERGE_BASE:${FILE_PATH}" > "$OLD_FILE" 2>/dev/null || true
-                  OLD_VERSION=$(bash script/utils/extract-contract-version.sh "$OLD_FILE") || OLD_VERSION=""
+                  OLD_VERSION=$(bash script/utils/extract-contract-version.sh "$OLD_FILE") && OLD_VERSION_STATUS=0 || OLD_VERSION_STATUS=$?
                   rm -f "$OLD_FILE"
+
+                  ##### A malformed version at the merge base is not the same as an absent one:
+                  ##### defaulting it to 0.0.0 would read as a new contract, and every version
+                  ##### differs from 0.0.0, so an audit-relevant change could ship without the
+                  ##### bump this step exists to require.
+                  if [[ $OLD_VERSION_STATUS -eq 3 ]]; then
+                    echo -e "\033[31mAborting: '$OLD_VERSION' at the merge base of ${FILE_PATH} is not a version.\033[0m"
+                    exit 1
+                  fi
 
                   # If there was no old version line in the diff, it's a new file.
                   # We set a default old version to ensure the comparison works correctly.
