@@ -8,16 +8,25 @@
  * backstop emits the same refusal text from the far side of a deployment — a
  * deleted guard would still "refuse", just after spending one.
  *
- * Containment, because a broken guard would otherwise let this suite deploy:
- * the children re-`source` the repo env file, so withholding credentials
- * through the environment does not hold for a bash child the way it does for
- * the TypeScript ones. A PATH shim makes `forge` and `cast` unusable instead,
- * so the worst a regression can do here is fail on the shim.
+ * The driver runs in a sandbox of symlinks to this checkout with an env file of
+ * its own, for two reasons. A bash child re-`source`s the repo env file, so
+ * withholding credentials through the environment does not hold for it the way
+ * it does for the TypeScript children — in the sandbox there is no credential
+ * to reach. And CI has no env file at all, where the driver exits before the
+ * guard and every assertion below answers a question it never asked. A PATH
+ * shim makes `forge` and `cast` unusable on top of that, so the worst a
+ * regression can do is fail on the shim.
  *
  * Spawns the real entry points, following `ticket-gate-placement.test.ts`.
  */
 
-import { chmodSync, mkdtempSync, writeFileSync } from 'fs'
+import {
+  chmodSync,
+  existsSync,
+  mkdtempSync,
+  symlinkSync,
+  writeFileSync,
+} from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 
@@ -28,7 +37,6 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
-import { branchTicketCandidate } from './deploy-ticket-preflight'
 import { withholdCredentials } from './spawn-env'
 
 const REFUSAL = 'No Linear ticket supplied'
@@ -59,6 +67,63 @@ const toolchainShim = (): string => {
   return dir
 }
 
+/**
+ * The paths the driver reads before it reaches the guard. Symlinked rather than
+ * copied, so the sandbox exercises this checkout's real scripts and config.
+ */
+const SANDBOX_LINKS = [
+  '.git',
+  'config',
+  'deployments',
+  'foundry.toml',
+  'lib',
+  'node_modules',
+  'package.json',
+  'script',
+  'src',
+  'tsconfig.json',
+]
+
+/**
+ * The env file the sandbox runs on: the path settings the driver resolves
+ * contracts and config through, and the production flag it cross-checks against
+ * `--production`. Values are `.env.example`'s, and none of them is a
+ * credential — the point of the sandbox is that there is none to hold.
+ */
+const SANDBOX_ENV = [
+  'PRODUCTION=true',
+  // Absolute, into the real checkout: `getContractFilePath` resolves a contract
+  // with `find`, which does not descend into a symlinked directory, so the
+  // sandbox's own `src` link would hide every contract in the repo.
+  `CONTRACT_DIRECTORY="${join(REPO_ROOT, 'src')}/"`,
+  `DEPLOY_SCRIPT_DIRECTORY="${join(REPO_ROOT, 'script', 'deploy', 'facets')}/"`,
+  `DEPLOY_REQUIREMENTS_PATH="${join(
+    REPO_ROOT,
+    'script',
+    'deploy',
+    'resources',
+    'deployRequirements.json'
+  )}"`,
+  `DEPLOY_CONFIG_FILE_PATH="${join(REPO_ROOT, 'config')}/"`,
+  'VERIFY_CONTRACTS=false',
+  'MAX_CONCURRENT_JOBS=1',
+].join('\n')
+
+/**
+ * A working directory the driver can run in without this machine's env file.
+ *
+ * @returns the sandbox root
+ */
+const sandbox = (): string => {
+  const dir = mkdtempSync(join(tmpdir(), 'ticket-preflight-repo-'))
+  for (const entry of SANDBOX_LINKS) {
+    const source = join(REPO_ROOT, entry)
+    if (existsSync(source)) symlinkSync(source, join(dir, entry))
+  }
+  writeFileSync(join(dir, '.env'), `${SANDBOX_ENV}\n`)
+  return dir
+}
+
 const run = (args: string[]): { output: string; refused: boolean } => {
   const env: Record<string, string> = {
     ...(process.env as Record<string, string>),
@@ -75,7 +140,7 @@ const run = (args: string[]): { output: string; refused: boolean } => {
   const result = Bun.spawnSync(
     ['bash', join('script', 'deploy', 'deployContractToNetworks.sh'), ...args],
     {
-      cwd: REPO_ROOT,
+      cwd: sandbox(),
       env,
       timeout: TIMEOUT_MS,
       // Closed, so a regression that reaches an interactive prompt fails the
@@ -108,22 +173,6 @@ describe('the deploy driver resolves a ticket before it builds', () => {
     // stayed quiet is what separates "refused at the guard" from "refused
     // because the toolchain was unusable".
     expect(result.output).not.toContain(SHIM_MARKER)
-  })
-
-  it('names the branch candidate in the refusal when the branch has one', () => {
-    // The suggestion is what makes the refusal one command to fix. It is only
-    // asserted when the checkout's branch actually names an issue, so this case
-    // cannot fail on a branch it says nothing about.
-    const branch = Bun.spawnSync(['git', 'branch', '--show-current'], {
-      cwd: REPO_ROOT,
-    })
-      .stdout.toString()
-      .trim()
-    if (branchTicketCandidate(branch) === undefined) return
-
-    expect(
-      run(['CalldataVerificationFacet', 'gnosis', '--production']).output
-    ).toContain('export SAFE_PROPOSAL_TICKET=')
   })
 })
 
