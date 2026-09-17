@@ -46,7 +46,9 @@ Insert new network **alphabetically** (mainnet first, then A–Z). Fields: name,
 
 ## Step 4: Target state
 
-Do **not** run target state parsing from the command. Tell the user to add the new network to the production target state spreadsheet (if needed), then run **`./script/scriptMaster.sh`** → use case **10) Create updated target state from Google Docs** → **2) One specific network** → select the new network. `_targetState.json` is updated by that script; do not edit it manually.
+Add the new network to `script/deploy/_targetState.json` — the block of contracts that should be deployed on it, each with the value `"latest"`. Either run **`./script/scriptMaster.sh`** → use case **6) Add or update contract entries in \_targetState.json** → **3) Add a new network with all (not-excluded) contracts**, which writes `"latest"` throughout, or add the block by hand and mirror an existing network of the same shape.
+
+Write `"latest"`, never a version: the version a network runs comes from `@custom:version`, and a concrete value is a deliberate pin that blocks every deploy of a different version on that chain. See [docs/TargetState.md](../../docs/TargetState.md).
 
 ---
 
@@ -85,7 +87,7 @@ For other bridges, open the corresponding `config/<bridge>.json` and follow any 
 
 ## Step 8: Health check
 
-No per-network work in the normal case. Both health-check workflows share one invariant registry (`script/deploy/healthCheckInvariants.ts`) that derives what to enforce from `config/global.json`, `_targetState.json` and the deploy logs, so a new network is fully checked as soon as it is in config. `healthCheckForNewNetworkDeployment.yml` runs it on the onboarding PR (hard-failing without a `_targetState.json` entry and a `deployments/<network>.json`); the daily sweep covers it from then on.
+No per-network work in the normal case. Both health-check workflows share one invariant registry (`script/deploy/healthCheckInvariants.ts`) that derives what to enforce from `config/global.json`, the contract names in `_targetState.json` and the deploy logs, so a new network is fully checked as soon as it is in config. `healthCheckForNewNetworkDeployment.yml` runs it on the onboarding PR (hard-failing without a `_targetState.json` entry and a `deployments/<network>.json`); the daily sweep covers it from then on.
 
 Two fields set in earlier steps change what runs: `gasZipChainId: 0` skips the GasZip invariants, and `safeAddress` drives `safe-config`. On a chain with no native asset (`nativeCurrency: "N/A"`) also set `feeTokenAddress`, or `pauser-funded` cannot read a gas balance and only warns.
 
@@ -128,5 +130,5 @@ If a core contract genuinely cannot exist on this chain (e.g. `TokenWrapper` whe
 | `config/gaszip.json` | New router entry **only if** Gas.zip available on this network; omit if not. |
 | `config/global.json` | **Do not edit** for Permit2/GasZip — keep coreFacets/corePeriphery unchanged; omissions are per-network via the above files. |
 | `config/<bridge>.json` | New network per indicated bridge (validate addresses). |
-| `script/deploy/_targetState.json` | User runs scriptMaster use case 10; do not edit manually. |
+| `script/deploy/_targetState.json` | New network block, every contract `"latest"` (scriptMaster use case 6 → 3, or by hand). |
 | `config/whitelist.json` | **Do not edit** — changing whitelist.json is not allowed; whitelist is managed separately. |

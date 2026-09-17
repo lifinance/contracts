@@ -111,15 +111,13 @@ scriptMaster() {
       "1) Deploy one specific contract to one network" \
       "2) Deploy one specific contract to all (not-excluded) networks (=new contract)" \
       "3) Deploy all contracts to one selected network (=new network)" \
-      "4) Deploy all (missing) contracts for all networks (actual vs. target) - NOT YET ACTIVATED" \
-      "5) Execute a script" \
-      "6) EMERGENCY >> Remove a facet or pause the whole diamond" \
-      "7) Batch update _targetState.json file" \
-      "8) Verify all unverified contracts" \
-      "9) Review deploy status (vs. target state)" \
-      "10) Create updated target state from Google Docs (STAGING or PRODUCTION)" \
-      "11) Update diamond log(s)" \
-      "12) Remove facets or periphery from diamond"
+      "4) Execute a script" \
+      "5) EMERGENCY >> Remove a facet or pause the whole diamond" \
+      "6) Add or update contract entries in _targetState.json" \
+      "7) Verify all unverified contracts" \
+      "8) Review deploy status (vs. target state)" \
+      "9) Update diamond log(s)" \
+      "10) Remove facets or periphery from diamond"
   )
 
   #---------------------------------------------------------------------------------------------------------------------
@@ -273,23 +271,8 @@ scriptMaster() {
     playNotificationSound
 
   #---------------------------------------------------------------------------------------------------------------------
-  # use case 4: Deploy all (missing) contracts for all networks (actual vs. target)
+  # use case 4: Execute a script
   elif [[ "$SELECTION" == "4)"* ]]; then
-    echo ""
-    echo "[info] selected use case: Deploy all (missing) contracts for all networks"
-
-    error "this use case is not yet implemented"
-    exit 1
-
-    #TODO: activate once log and target state are populated
-    # go through each entry in target state and check if contract is deployed in correct version
-    # updateAllContractsToTargetState
-
-    playNotificationSound
-
-  #---------------------------------------------------------------------------------------------------------------------
-  # use case 5: Execute a script
-  elif [[ "$SELECTION" == "5)"* ]]; then
     echo ""
     # Task scripts come in two flavors:
     # - *.sh: sourced functions (called via eval <functionName>)
@@ -315,8 +298,8 @@ scriptMaster() {
     fi
 
   #---------------------------------------------------------------------------------------------------------------------
-  # use case 6: EMERGENCY >> Remove a facet or pause the whole diamond
-  elif [[ "$SELECTION" == "6)"* ]]; then
+  # use case 5: EMERGENCY >> Remove a facet or pause the whole diamond
+  elif [[ "$SELECTION" == "5)"* ]]; then
     echo ""
     echo "[info] selected use case: EMERGENCY >> Remove a facet or pause the whole diamond ⚠️"
 
@@ -326,10 +309,10 @@ scriptMaster() {
     playNotificationSound
 
   #---------------------------------------------------------------------------------------------------------------------
-  # use case 6: Update _targetState.json file
-  elif [[ "$SELECTION" == "7)"* ]]; then
+  # use case 6: Add or update contract entries in _targetState.json
+  elif [[ "$SELECTION" == "6)"* ]]; then
     echo ""
-    echo "[info] selected use case: Batch update _targetState.json file"
+    echo "[info] selected use case: Add or update contract entries in _targetState.json"
 
     # ask user to select a diamond type for which to update contract versions
     echo "[info] Please select for which diamond type you want to update contract version(s):"
@@ -383,16 +366,13 @@ scriptMaster() {
       echo ""
       echo "[info] selected contract: $SELECTED_CONTRACT"
 
-      # get current contract version
-      CURRENT_VERSION=$(getCurrentContractVersion "$SELECTED_CONTRACT")
-
-      # ask user which version to update to
+      # ask whether the contract follows the repo or is pinned on these networks
       echo ""
-      echo "Please enter the new contract version or just press enter to use current contract version ($CURRENT_VERSION):"
+      echo "Please enter a version to pin these networks to, or just press enter for '$TARGET_STATE_VERSION_LATEST' (follow the repo's @custom:version - the normal case):"
       read NEW_VERSION
 
       # determine the version
-      USE_VERSION="${NEW_VERSION:-$CURRENT_VERSION}"
+      USE_VERSION="${NEW_VERSION:-$TARGET_STATE_VERSION_LATEST}"
       echo "[info] selected version: $USE_VERSION"
 
       echo ""
@@ -435,8 +415,9 @@ scriptMaster() {
 
       # ask user which version to update to
       echo ""
-      echo "Please enter the new contract version (current contract version=$CURRENT_VERSION):"
+      echo "Please enter a version to pin these networks to, or just press enter for '$TARGET_STATE_VERSION_LATEST' (repo is at $CURRENT_VERSION):"
       read NEW_VERSION
+      NEW_VERSION="${NEW_VERSION:-$TARGET_STATE_VERSION_LATEST}"
 
       echo ""
       echo "[info] now updating $SELECTED_CONTRACT to version $NEW_VERSION "
@@ -487,48 +468,22 @@ scriptMaster() {
       exit 1
     fi
     echo ""
-    echo "[info] ...Batch update _targetState.json file successfully completed"
+    echo "[info] ..._targetState.json successfully updated"
 
   #---------------------------------------------------------------------------------------------------------------------
-  # use case 8: Verify all unverified contracts
-  elif [[ "$SELECTION" == "8)"* ]]; then
+  # use case 7: Verify all unverified contracts
+  elif [[ "$SELECTION" == "7)"* ]]; then
     verifyAllUnverifiedContractsInLogFile
     playNotificationSound
 
   #---------------------------------------------------------------------------------------------------------------------
-  # use case 9: Review deploy status (vs. target state)
-  elif [[ "$SELECTION" == "9)"* ]]; then
+  # use case 8: Review deploy status (vs. target state)
+  elif [[ "$SELECTION" == "8)"* ]]; then
     printDeploymentsStatusV2 "$ENVIRONMENT"
 
   #---------------------------------------------------------------------------------------------------------------------
-  # use case 10: Create updated target state from Google Docs
-  elif [[ "$SELECTION" == "10)"* ]]; then
-    # ask user if target state should be updated for all networks or one specific network
-    echo "Would you like to update target state for all networks or one specific network?"
-    SELECTION_NETWORK=$(
-      gum choose \
-        "1) All networks" \
-        "2) One specific network (selection in next screen)"
-    )
-    echo "[info] selected option: $SELECTION_NETWORK"
-
-    if [[ "$SELECTION_NETWORK" == "1)"* ]]; then
-      # call parse target state function for all networks
-      parseTargetStateGoogleSpreadsheet "$ENVIRONMENT"
-    else
-      checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
-      # get user-selected network from list
-      local NETWORK=$(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH" | gum filter --placeholder "Network")
-
-      echo "[info] selected network: $NETWORK"
-
-      # call parse target state function for specific network
-      parseTargetStateGoogleSpreadsheet "$ENVIRONMENT" "$NETWORK"
-    fi
-
-  #---------------------------------------------------------------------------------------------------------------------
-  # use case 11: Update all diamond log files
-  elif [[ "$SELECTION" == "11)"* ]]; then
+  # use case 9: Update all diamond log files
+  elif [[ "$SELECTION" == "9)"* ]]; then
     # ask user if logs should be updated only for one network or for all networks
     echo "Would you like to update all networks or one specific network?"
     SELECTION_NETWORK=$(
@@ -560,8 +515,8 @@ scriptMaster() {
       updateDiamondLogs "$ENVIRONMENT" "$NETWORK"
     fi
   #---------------------------------------------------------------------------------------------------------------------
-  # use case 12: Remove facets or periphery from diamond
-  elif [[ "$SELECTION" == "12)"* ]]; then
+  # use case 10: Remove facets or periphery from diamond
+  elif [[ "$SELECTION" == "10)"* ]]; then
     bunx tsx script/tasks/cleanUpProdDiamond.ts
 
   else

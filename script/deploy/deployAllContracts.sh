@@ -245,6 +245,11 @@ deployAllContracts() {
         if [[ $? -ne 0 ]]; then
           echo "[info] No matching entry found in target state file for NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, CONTRACT=$FACET_NAME >> no deployment needed"
         else
+          # deployFacetAndAddToDiamond resolves an empty version to the repo's current one
+          if [[ "$TARGET_VERSION" == "$TARGET_STATE_VERSION_LATEST" ]]; then
+            TARGET_VERSION=""
+          fi
+
           # deploy facet and add to diamond
           deployFacetAndAddToDiamond "$NETWORK" "$ENVIRONMENT" "$FACET_NAME" "$DIAMOND_CONTRACT_NAME" "$TARGET_VERSION"
         fi
@@ -261,9 +266,11 @@ deployAllContracts() {
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 6: Deploy periphery contracts"
 
     # deploy periphery
-    deployPeripheryContracts "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
-
-    echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 6 completed"
+    if deployPeripheryContracts "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"; then
+      echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 6 completed"
+    else
+      warning "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 6 did NOT complete: at least one periphery contract was not deployed - re-run this stage before continuing"
+    fi
   fi
 
   # Stage 7: Add periphery to diamond

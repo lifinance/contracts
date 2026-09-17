@@ -252,6 +252,29 @@ const STATUS_MAPPING: Readonly<Record<TargetStateStatus, IStatusMapping>> = {
     anchor: 'A-LOCAL',
     expected: NOTHING_TO_COMPARE,
   },
+  // A pin matched. Anchored A-MAIN rather than A-MONGO: what decided this row is
+  // the version `main` pins, not the deployment record the proposed version came
+  // from.
+  'matches-pin': {
+    status: 'needs-ack',
+    anchor: 'A-MAIN',
+    expected: ORDERING_HOLDS,
+  },
+  // A deliberate pin contradicted. A fail, not an acknowledgement: the pin says
+  // this network is held back on purpose, and clicking past it is how a pin stops
+  // meaning anything.
+  'pinned-mismatch': {
+    status: 'fail',
+    anchor: 'A-MAIN',
+    expected: ORDERING_HOLDS,
+  },
+  // The network follows the repo but the repo's version could not be read at the
+  // pinned ref, so no comparison was made.
+  'expected-version-unresolved': {
+    status: 'error',
+    anchor: 'A-UNRESOLVED',
+    expected: EVERY_ELEMENT_COMPARED,
+  },
   downgrade: { status: 'fail', anchor: 'A-MAIN', expected: ORDERING_HOLDS },
   // Ordering was attempted and the pair could not be ordered, so this one did
   // reach the comparison.

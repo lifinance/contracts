@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url'
 import { formatAddressForNetworkCliDisplay } from '@lifi/tron-devkit'
 import { type Hex } from 'viem'
 
+import { readContractVersion } from '../shared/contract-version'
 import { collectDiamondCutCalls } from '../shared/diamond-cut-calls'
 
 import {
@@ -65,6 +66,20 @@ const EXPECTED_REMOTE_URL =
 const TARGET_STATE_ENVIRONMENT = 'production'
 const TARGET_STATE_DIAMOND = 'LiFiDiamond'
 
+/**
+ * The target-state value meaning "follow the repo".
+ *
+ * A network declaring this expects whatever `@custom:version` says at
+ * {@link PINNED_REF}; any other value is a pin that holds the network back.
+ */
+export const TARGET_STATE_VERSION_LATEST = 'latest'
+
+/** Where a contract's source may live, in the order `getContractVersion` looks. */
+const SOURCE_DIRS = ['src', 'src/Facets', 'src/Periphery', 'src/Security']
+
+/** Solidity-style contract name, so a read stays inside `src/`. */
+const CONTRACT_NAME_RE = /^[A-Za-z_][A-Za-z0-9_]*$/
+
 /** `network → environment → diamond → contract → version`, as `main` declares it. */
 export type PinnedTargetState = Record<
   string,
@@ -99,6 +114,9 @@ export type TargetStateStatus =
   | 'not-previously-targeted'
   | 'matches-main'
   | 'ahead-of-main'
+  | 'matches-pin'
+  | 'pinned-mismatch'
+  | 'expected-version-unresolved'
   | 'downgrade'
   | 'version-not-comparable'
   | 'proposed-version-unresolved'
@@ -125,6 +143,7 @@ export const STATUSES_CLEARED_TO_PROCEED: ReadonlySet<TargetStateStatus> =
     'not-previously-targeted',
     'matches-main',
     'ahead-of-main',
+    'matches-pin',
   ])
 
 /** One graded element of a proposal. */
@@ -191,29 +210,77 @@ export const readDeclaredVersion = (
 }
 
 /**
- * Counts the networks whose pinned target state declares a contract at a version.
+ * Counts the networks whose pinned target state declares a contract at all.
  *
  * Corroboration for a first-time add, which by construction has no entry of its
- * own on `main`: a version already declared across the fleet is a rollout, one
- * declared nowhere is a genuinely new build.
+ * own on `main`: a contract already declared across the fleet is a rollout
+ * reaching one more chain, one declared nowhere is a genuinely new build.
+ *
+ * @remarks Counts membership rather than a matching version. Since versions read
+ *   `latest` fleet-wide, a version-matched count would report 0 everywhere and be
+ *   read as "no corroboration" when it means "nobody pins this".
  * @param state - the pinned target state
  * @param contractName - contract name as the target state spells it
- * @param version - version to count
- * @returns How many networks declare that contract at that version
+ * @returns How many networks declare that contract
  */
 export const countNetworksDeclaring = (
   state: PinnedTargetState,
-  contractName: string,
-  version: string
+  contractName: string
 ): number =>
   Object.keys(state).filter(
-    (network) => readDeclaredVersion(state, network, contractName) === version
+    (network) => readDeclaredVersion(state, network, contractName) !== null
   ).length
 
-/** The two reads this check needs, injectable so the policy is testable. */
+/** What `origin/main` expects of one contract on one network. */
+export type ExpectedVersion =
+  /** No entry: the contract is not declared for this network. */
+  | { kind: 'absent' }
+  /** The network is pinned to this exact version. */
+  | { kind: 'pin'; version: string }
+  /** The network follows the repo, which is at this version. */
+  | { kind: 'latest'; version: string }
+  /** The network follows the repo, but the repo's version could not be read. */
+  | { kind: 'unresolved'; detail: string }
+
+/**
+ * Resolves what {@link PINNED_REF} expects, for one contract on one network.
+ *
+ * A declared semver is a pin and is returned as written. `latest` delegates to
+ * the contract's `@custom:version` **at the same pinned ref** — never this
+ * checkout, which the proposer controls.
+ * @param state - the pinned target state
+ * @param network - network the proposal targets
+ * @param contractName - contract name as the target state spells it
+ * @param readSourceVersion - reads a contract's version at the pinned ref
+ * @returns What the network expects, or why it could not be established
+ */
+export const resolveExpectedVersion = (
+  state: PinnedTargetState,
+  network: string,
+  contractName: string,
+  readSourceVersion: (contractName: string) => SourceVersionRead
+): ExpectedVersion => {
+  const declared = readDeclaredVersion(state, network, contractName)
+  if (declared === null) return { kind: 'absent' }
+  if (declared !== TARGET_STATE_VERSION_LATEST)
+    return { kind: 'pin', version: declared }
+
+  const read = readSourceVersion(contractName)
+  if (read.ok) return { kind: 'latest', version: read.version }
+  return { kind: 'unresolved', detail: read.detail }
+}
+
+/** A contract's `@custom:version` at the pinned ref, or why it is not available. */
+export type SourceVersionRead =
+  | { ok: true; version: string }
+  | { ok: false; detail: string }
+
+/** The reads this check needs, injectable so the policy is testable. */
 export interface ITargetStateDeps {
   /** The expected state, read at {@link PINNED_REF}. */
   readPinnedState: () => PinnedTargetStateRead
+  /** A contract's `@custom:version`, read at {@link PINNED_REF}. */
+  readSourceVersion: (contractName: string) => SourceVersionRead
   /** What the deployment record says a facet address is. */
   resolveDeployed: (facetAddress: string) => DeployedContractLookup
 }
@@ -369,22 +436,39 @@ export const evaluateTargetStateIntent = (
       continue
     }
 
-    const mainVersion = readDeclaredVersion(read.state, network, contractName)
+    const expected = resolveExpectedVersion(
+      read.state,
+      network,
+      contractName,
+      deps.readSourceVersion
+    )
 
-    if (!mainVersion) {
+    if (expected.kind === 'absent') {
       findings.push({
         facetAddress,
         contractName,
         proposedVersion,
         mainVersion: null,
-        crossFleetCount: proposedVersion
-          ? countNetworksDeclaring(read.state, contractName, proposedVersion)
-          : null,
+        crossFleetCount: countNetworksDeclaring(read.state, contractName),
         status: 'not-previously-targeted',
-        detail: `${contractName} is not previously targeted on ${network} in ${PINNED_REF} — expected for a first deployment, since the target-state update merges only after execution. Intent rests on the linked ticket and PR.`,
+        detail: `${contractName} is not declared for ${network} in ${PINNED_REF} — expected for a first deployment, since the target-state update merges only after execution. Intent rests on the linked ticket and PR.`,
       })
       continue
     }
+
+    if (expected.kind === 'unresolved') {
+      findings.push({
+        ...blank,
+        facetAddress,
+        contractName,
+        proposedVersion,
+        status: 'expected-version-unresolved',
+        detail: `${network} follows the repo for ${contractName}, but ${expected.detail} — with no expected version, a downgrade cannot be ruled out.`,
+      })
+      continue
+    }
+
+    const mainVersion = expected.version
 
     if (!proposedVersion) {
       findings.push({
@@ -395,6 +479,25 @@ export const evaluateTargetStateIntent = (
         crossFleetCount: null,
         status: 'proposed-version-unresolved',
         detail: `${PINNED_REF} declares ${contractName} at v${mainVersion} on ${network}, but its deployment record carries no version, so a downgrade cannot be ruled out. Remedy: backfill the version on that MongoDB deployment record — the blank is in the record, not in the cut.`,
+      })
+      continue
+    }
+
+    // A pin is a deliberate statement that this network is held back, so it is
+    // graded as equality rather than as an ordering: "newer than the pin" is
+    // still not what the pin asked for.
+    if (expected.kind === 'pin') {
+      const matches = proposedVersion === mainVersion
+      findings.push({
+        facetAddress,
+        contractName,
+        proposedVersion,
+        mainVersion,
+        crossFleetCount: null,
+        status: matches ? 'matches-pin' : 'pinned-mismatch',
+        detail: matches
+          ? `v${proposedVersion} matches the v${mainVersion} ${PINNED_REF} pins ${contractName} to on ${network}.`
+          : `${PINNED_REF} pins ${contractName} to v${mainVersion} on ${network}, but this cut installs v${proposedVersion}. Either the pin is stale or the proposal is wrong — both are fixed by a PR to main, not here.`,
       })
       continue
     }
@@ -480,6 +583,38 @@ const defaultGit = (repoRoot: string): IPinnedStateGit => ({
  * @param options - repository root and git seam; both default to this checkout
  * @returns A reader returning the pinned state, or why it could not be read
  */
+const verifyRemoteAndFetch = (
+  git: IPinnedStateGit
+):
+  | { ok: true }
+  | { ok: false; reason: PinnedReadFailure; memoizable: boolean } => {
+  let remote: string
+  try {
+    remote = git.remoteUrl()
+  } catch {
+    // Not memoizable, for the same reason a failed fetch is not: an exec that
+    // could not run says nothing about what the remote is.
+    return { ok: false, reason: 'remote-unreadable', memoizable: false }
+  }
+  if (!EXPECTED_REMOTE_URL.test(remote.trim()))
+    return { ok: false, reason: 'remote-unexpected', memoizable: true }
+
+  try {
+    git.fetch()
+  } catch {
+    // A transient fetch must not pin the rest of the process to a refusal —
+    // the sibling cache reader in facet-version-utils.ts makes the same call.
+    return { ok: false, reason: 'fetch-failed', memoizable: false }
+  }
+  return { ok: true }
+}
+
+/** The ways a pinned read can fail. */
+export type PinnedReadFailure = Exclude<
+  PinnedTargetStateRead,
+  { ok: true }
+>['reason']
+
 export const createPinnedTargetStateReader = (options?: {
   repoRoot?: string
   git?: IPinnedStateGit
@@ -491,25 +626,11 @@ export const createPinnedTargetStateReader = (options?: {
   return () => {
     if (memo) return memo
 
-    let remote: string
-    try {
-      remote = git.remoteUrl()
-    } catch {
-      // Not memoized, for the same reason a failed fetch is not: an exec that
-      // could not run says nothing about what the remote is.
-      return { ok: false, reason: 'remote-unreadable' }
-    }
-    if (!EXPECTED_REMOTE_URL.test(remote.trim())) {
-      memo = { ok: false, reason: 'remote-unexpected' }
-      return memo
-    }
-
-    try {
-      git.fetch()
-    } catch {
-      // A transient fetch must not pin the rest of the process to a refusal —
-      // the sibling cache reader in facet-version-utils.ts makes the same call.
-      return { ok: false, reason: 'fetch-failed' }
+    const anchored = verifyRemoteAndFetch(git)
+    if (!anchored.ok) {
+      const failure = { ok: false as const, reason: anchored.reason }
+      if (anchored.memoizable) memo = failure
+      return failure
     }
 
     let raw: string
@@ -537,6 +658,89 @@ export const createPinnedTargetStateReader = (options?: {
 }
 
 /**
+ * Builds the source-version read: a contract's `@custom:version` at {@link PINNED_REF}.
+ *
+ * Shares the remote check and fetch with the target-state reader rather than
+ * taking a tree-ish of its own — a reader that accepted any ref would let a
+ * proposer's clone author the version this check grades against.
+ * @param options - repository root and git seam; both default to this checkout
+ * @returns A reader taking a contract name, returning its version or why not
+ */
+export const createPinnedSourceVersionReader = (options?: {
+  repoRoot?: string
+  git?: IPinnedStateGit
+}): ((contractName: string) => SourceVersionRead) => {
+  const repoRoot = options?.repoRoot ?? REPO_ROOT
+  const git = options?.git ?? defaultGit(repoRoot)
+  const memo = new Map<string, SourceVersionRead>()
+
+  return (contractName) => {
+    const cached = memo.get(contractName)
+    if (cached) return cached
+
+    const resolve = (): { read: SourceVersionRead; memoizable: boolean } => {
+      if (!CONTRACT_NAME_RE.test(contractName))
+        return {
+          read: {
+            ok: false,
+            detail: `'${contractName}' is not a Solidity identifier, so no source path can be built for it`,
+          },
+          memoizable: true,
+        }
+
+      const anchored = verifyRemoteAndFetch(git)
+      if (!anchored.ok)
+        return {
+          read: {
+            ok: false,
+            detail: describeTargetStateUnavailable(anchored.reason),
+          },
+          memoizable: anchored.memoizable,
+        }
+
+      for (const dir of SOURCE_DIRS) {
+        let source: string
+        try {
+          source = git.show(`${PINNED_READ_REF}:${dir}/${contractName}.sol`)
+        } catch {
+          continue
+        }
+        const read = readContractVersion(source)
+        if (read.kind === 'ok')
+          return { read: { ok: true, version: read.base }, memoizable: true }
+        // A file that exists but carries no usable tag is this contract's
+        // answer, not a reason to keep looking in the other directories.
+        return {
+          read: {
+            ok: false,
+            detail:
+              read.kind === 'malformed'
+                ? `'${read.raw}' in ${dir}/${contractName}.sol at ${PINNED_REF} is not a @custom:version`
+                : `${dir}/${contractName}.sol at ${PINNED_REF} carries no @custom:version`,
+          },
+          memoizable: true,
+        }
+      }
+
+      return {
+        read: {
+          ok: false,
+          detail: `no source for ${contractName} at ${PINNED_REF} (looked in ${SOURCE_DIRS.join(
+            ', '
+          )}) — a contract whose source was deleted cannot be graded`,
+        },
+        memoizable: true,
+      }
+    }
+
+    // An unreachable remote must not turn the rest of a fleet run into refusals.
+    const { read, memoizable } = resolve()
+    if (memoizable) memo.set(contractName, read)
+    return read
+  }
+}
+
+/**
  * The production reads: `origin/main` for the expected version, the deployment
  * record for the proposed one.
  *
@@ -551,10 +755,13 @@ export const createTargetStateDeps = (
   network: string,
   options?: {
     readPinnedState?: () => PinnedTargetStateRead
+    readSourceVersion?: (contractName: string) => SourceVersionRead
     cacheRootDir?: string
   }
 ): ITargetStateDeps => ({
   readPinnedState: options?.readPinnedState ?? createPinnedTargetStateReader(),
+  readSourceVersion:
+    options?.readSourceVersion ?? createPinnedSourceVersionReader(),
   resolveDeployed: (facetAddress) =>
     resolveDeployedContractByAddress(
       network,
@@ -580,6 +787,9 @@ export const formatTargetStateLines = (
     'not-previously-targeted': 'NOT PREVIOUSLY TARGETED',
     'matches-main': 'matches main',
     'ahead-of-main': 'upgrade',
+    'matches-pin': 'matches pin',
+    'pinned-mismatch': 'PINNED VERSION MISMATCH',
+    'expected-version-unresolved': 'EXPECTED VERSION UNRESOLVED',
     downgrade: 'DOWNGRADE',
     'version-not-comparable': 'UNEXPECTED VERSION',
     'proposed-version-unresolved': 'PROPOSED VERSION UNRESOLVED',
@@ -606,7 +816,7 @@ export const formatTargetStateLines = (
       const fleet =
         finding.crossFleetCount === null
           ? ''
-          : ` [${finding.crossFleetCount} network(s) already declare this contract at this version]`
+          : ` [${finding.crossFleetCount} network(s) declare this contract]`
       return `      ${label[finding.status]} — ${who}: ${
         finding.detail
       }${fleet}`

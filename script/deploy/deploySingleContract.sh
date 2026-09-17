@@ -173,6 +173,16 @@ deploySingleContract() {
     DIAMOND_TYPE="LiFiDiamond"
   fi
 
+  # Asserted here rather than in the callers: every deploy path funnels through this
+  # function, so a pin cannot be bypassed by entering from another script.
+  if ! assertTargetStateVersionAllowed "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$DIAMOND_TYPE"; then
+    if [[ -z "$EXIT_ON_ERROR" || "$EXIT_ON_ERROR" == "false" ]]; then
+      return 1
+    else
+      exit 1
+    fi
+  fi
+
   GAS_ESTIMATE_MULTIPLIER="${GAS_ESTIMATE_MULTIPLIER:-130}" # this is foundry's default value
 
   # logging for debug purposes
