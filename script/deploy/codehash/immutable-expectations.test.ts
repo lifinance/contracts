@@ -399,6 +399,51 @@ describe('priceImmutables', () => {
     expect(result.unpricedByteCount).toBe(64)
   })
 
+  it('expects zero where config has no value and zero may be deployed', () => {
+    const zeroAllowed: DeployRequirements = {
+      AcrossFacet: {
+        ...REQUIREMENTS.AcrossFacet,
+        configData: {
+          ...REQUIREMENTS.AcrossFacet?.configData,
+          _spokePool: {
+            configFileName: 'across.json',
+            keyInConfigFile: '.<NETWORK>.acrossSpokePool',
+            allowToDeployWithZeroAddress: 'true',
+          },
+        },
+      },
+    }
+    const observed = (value: string): IObservedImmutable[] => [
+      { name: 'spokePool', value, slotByteCount: 32, byteCount: 64 },
+    ]
+    const zeroSlot = `0x${'0'.repeat(64)}`
+
+    const verified = price(observed(zeroSlot), zeroAllowed, 'aurora')
+    if (!verified.decided) throw new Error(verified.reason)
+    expect(verified.slots[0]?.status).toBe('verified')
+    expect(verified.slots[0]?.origin).toContain('absent for aurora')
+    expect(verified.pricedByteCount).toBe(64)
+
+    const filled = price(observed(slot(SPOKE_POOL)), zeroAllowed, 'aurora')
+    if (!filled.decided) throw new Error(filled.reason)
+    expect(filled.slots[0]?.status).toBe('disagrees')
+
+    // A config file that could not be read states nothing about this network,
+    // so the allowance has no absence to turn into an expectation.
+    const unreadable = priceImmutables(
+      {
+        contractName: 'AcrossFacet',
+        observed: observed(zeroSlot),
+        network: 'aurora',
+        environment: 'production',
+      },
+      zeroAllowed,
+      () => null
+    )
+    if (!unreadable.decided) throw new Error(unreadable.reason)
+    expect(unreadable.slots[0]?.status).toBe('unpriceable')
+  })
+
   it('does not pass a config label the contract does not carry', () => {
     const result = price(
       [
@@ -736,7 +781,10 @@ describe('priceImmutables on a derived immutable with an evaluator', () => {
 
   it('resolves chainIdEquals to true on the named chain and false elsewhere', () => {
     const CONFIG_WITH_IDS = {
-      'networks.json': { arbitrum: { chainId: 42161 }, base: { chainId: 8453 } },
+      'networks.json': {
+        arbitrum: { chainId: 42161 },
+        base: { chainId: 8453 },
+      },
     }
     const onChain = (network: string, value: string) =>
       priceImmutables(
