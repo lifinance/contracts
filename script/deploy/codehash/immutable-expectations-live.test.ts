@@ -208,6 +208,44 @@ describe('layer 2 across the deployments this repo records', () => {
     expect(slotted?.detail).toMatch(/base58/u)
   })
 
+  it('expects zero where config omits a key the requirement lets deploy zero', () => {
+    expect(
+      graded('SymbiosisFacet', 'onchainSwapV3', 'zksync', `0x${'0'.repeat(40)}`)
+        ?.status
+    ).toBe('verified')
+    expect(
+      graded(
+        'SymbiosisFacet',
+        'onchainSwapV3',
+        'zksync',
+        '0x00000000000000000000000000000000deadbeef'
+      )?.status
+    ).toBe('disagrees')
+  })
+
+  it('keeps blocking an absent key the requirement does not let deploy zero', () => {
+    const slotted = graded(
+      'AcrossFacet',
+      'spokePool',
+      'abstract',
+      `0x${'0'.repeat(40)}`
+    )
+
+    expect(slotted?.status).toBe('unpriceable')
+    expect(slotted?.detail).toMatch(/has no value for abstract/u)
+  })
+
+  it('compares against the address config carries, zero allowance or not', () => {
+    expect(
+      graded(
+        'SymbiosisFacet',
+        'onchainSwapV3',
+        'mainnet',
+        `0x${'0'.repeat(40)}`
+      )?.status
+    ).toBe('disagrees')
+  })
+
   it('separates a reviewed gap from an undeclared one on the same contract', () => {
     expect(
       graded(

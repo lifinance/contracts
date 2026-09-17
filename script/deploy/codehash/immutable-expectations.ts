@@ -315,6 +315,11 @@ export const observeZkImmutables = (
 /**
  * The expected value of one config-sourced immutable.
  *
+ * An absent key resolves to the zero address when the deploy requirement sets
+ * `allowToDeployWithZeroAddress`, and has no expectation otherwise: only the
+ * first is a chain where the value is declared to be absent rather than one
+ * nobody has filled in yet.
+ *
  * @param label - The `configData` key the registry entry names.
  * @param configData - The contract's `configData` section.
  * @param network - Network the deployment lives on.
@@ -350,8 +355,13 @@ const declaredAddress = (
       reason: `configData key '${label}' names no key within config/${entry.configFileName}`,
     }
 
+  const config = loadConfigFile(entry.configFileName)
+  // Anything but a plain object states nothing about this network, and a
+  // numeric path segment would index a list into an expectation.
+  const configFileLoaded =
+    typeof config === 'object' && config !== null && !Array.isArray(config)
   const { keyUsed, expectedAddress } = resolveExpectedAddress(
-    loadConfigFile(entry.configFileName),
+    configFileLoaded ? config : null,
     entry.keyInConfigFile,
     network,
     environment
@@ -363,8 +373,18 @@ const declaredAddress = (
   )
   const origin = `config/${entry.configFileName}${readableKey}`
 
-  if (expectedAddress === null)
+  if (expectedAddress === null) {
+    // No deploy can have produced a non-zero binding from a key config does not
+    // carry, so where the requirement permits the zero address the absence is
+    // itself the expectation. A config file that could not be read states
+    // neither, which is why the load has to have succeeded.
+    if (configFileLoaded && entry.allowToDeployWithZeroAddress === 'true')
+      return {
+        address: ZERO_ADDRESS,
+        origin: `${origin} (absent for ${network}; ${REQUIREMENTS_ORIGIN} allows the zero address here)`,
+      }
     return { reason: `${origin} has no value for ${network}` }
+  }
 
   return { address: expectedAddress, origin }
 }
@@ -373,6 +393,10 @@ const declaredAddress = (
 const NETWORKS_FILE = 'networks.json'
 
 const REGISTRY_ORIGIN = 'script/deploy/resources/immutableRegistry.json'
+
+const REQUIREMENTS_ORIGIN = 'script/deploy/resources/deployRequirements.json'
+
+const ZERO_ADDRESS = `0x${'0'.repeat(40)}`
 
 /**
  * The chain id `config/networks.json` gives a network.
