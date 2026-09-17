@@ -95,7 +95,7 @@ const wrapped = (payloads: Hex[]): Hex =>
   })
 
 const deps = (over: Partial<IVerifyCutDeps> = {}): IVerifyCutDeps => ({
-  scope: () => ({ isClosedSet: true }),
+  scope: () => ({ isClosedSet: true, holdsImmutablesOffCode: false }),
   observe: async () => observed(),
   attestationsFor: async () => ({ builds: [attested()] }),
   price: async () => ({ decided: false, reason: 'no layer 2 in this test' }),
@@ -295,7 +295,7 @@ describe('evaluateCodehashSignGate', () => {
         deps({
           scope: (network: string) => {
             asked.push(network)
-            return { isClosedSet: true }
+            return { isClosedSet: true, holdsImmutablesOffCode: false }
           },
         })
     )

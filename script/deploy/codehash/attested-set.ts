@@ -77,8 +77,14 @@ export interface ILineageScope {
    * bytecode, which the proposer controls.
    */
   isClosedSet: boolean
-  /** As `IToolchainScope` defines it, which is where it is derived. */
-  holdsImmutablesOffCode?: boolean
+  /**
+   * As `IToolchainScope` defines it, which is where it is derived.
+   *
+   * Required, not optional: the guard that reads it is dormant until zk
+   * attestations resolve, so a scope built without it would skip that guard
+   * silently and hand a signer a green over immutables nobody read.
+   */
+  holdsImmutablesOffCode: boolean
 }
 
 export type CodehashVerdict = 'MATCH' | 'MISMATCH' | 'UNVERIFIABLE'

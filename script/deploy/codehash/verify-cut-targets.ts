@@ -211,7 +211,7 @@ const judge = async (
   // Both branches below answer that instruction. The masked count decides it
   // only where immutables are inlined; a chain holding them elsewhere reaches a
   // MATCH with nothing masked and nothing checked, so it is asked first.
-  if (comparison.verdict === 'MATCH' && scope.holdsImmutablesOffCode === true)
+  if (comparison.verdict === 'MATCH' && scope.holdsImmutablesOffCode)
     return offCodeImmutables(address, comparison)
 
   if (comparison.verdict === 'MATCH' && comparison.excludedByteCount > 0)

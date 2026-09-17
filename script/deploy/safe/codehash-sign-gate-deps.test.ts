@@ -273,6 +273,13 @@ describe('createForgeRebuildRunner', () => {
     ast: { absolutePath: 'src/Facets/AccessManagerFacet.sol' },
   })
 
+  /**
+   * What zksolc actually emits: the whole contract under `bytecode`, with no
+   * `deployedBytecode` and no `ast`. Verified against every artifact under
+   * `zkout/`, and byte-for-byte against the deployed `FraxFacet` on zksync.
+   */
+  const zkArtifact = JSON.stringify({ bytecode: { object: DEPLOYED } })
+
   const runner = (
     over: {
       run?: (
@@ -529,7 +536,7 @@ describe('createForgeRebuildRunner', () => {
         return { ok: true, output: '' }
       },
       exists: (path) => (path.endsWith('.json') ? built : true),
-      readFile: () => artifact,
+      readFile: () => zkArtifact,
       readDeclarations: () => [],
     })
 
@@ -566,7 +573,8 @@ describe('createForgeRebuildRunner', () => {
           paths.push(path)
           return path.endsWith('.json') ? built : true
         },
-        readFile: () => artifact,
+        readFile: () =>
+          profile.zksolcVersion === undefined ? artifact : zkArtifact,
         readDeclarations: () => [],
       }).build({
         ...request,
@@ -581,7 +589,9 @@ describe('createForgeRebuildRunner', () => {
     // Two non-zk profiles share `out/` in foundry's own layout, and this runner
     // builds several profiles inside one checkout, so a shared directory would
     // hand the second profile the first one's artifact.
-    expect(zk[0]).toContain('zksync')
+    // zk is not profile-named: foundry-zksync ignores `--out` and always writes
+    // `zkout/`, so the runner must read there or find nothing.
+    expect(zk[0]).toContain('zkout')
     expect(floor[0]).toContain('solc_floor')
     expect(zk[0]).not.toBe(floor[0])
   })

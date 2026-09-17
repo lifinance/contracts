@@ -654,7 +654,7 @@ describe('falsification — the attested set against real observed code', () => 
     const verdict = compareToAttestedSet(
       observe(EVM_RUNTIME, false),
       await attest(EVM_RUNTIME, 'mainnet'),
-      { isClosedSet: true }
+      { isClosedSet: true, holdsImmutablesOffCode: false }
     )
 
     expect(verdict.verdict).toBe('MATCH')
@@ -676,7 +676,7 @@ describe('falsification — the attested set against real observed code', () => 
     const verdict = compareToAttestedSet(
       observe(tampered, false),
       await attest(EVM_RUNTIME, 'mainnet'),
-      { isClosedSet: true }
+      { isClosedSet: true, holdsImmutablesOffCode: false }
     )
 
     expect(verdict.verdict).toBe('MISMATCH')
@@ -699,6 +699,7 @@ describe('falsification — the attested set against real observed code', () => 
 
     const verdict = compareToAttestedSet(observed, attested, {
       isClosedSet: true,
+      holdsImmutablesOffCode: false,
     })
 
     expect(verdict.verdict).toBe('MISMATCH')
@@ -715,7 +716,7 @@ describe('falsification — the attested set against real observed code', () => 
     const verdict = compareToAttestedSet(
       observe(drifted, false),
       await attest(EVM_RUNTIME, 'mainnet'),
-      { isClosedSet: true }
+      { isClosedSet: true, holdsImmutablesOffCode: false }
     )
 
     expect(verdict.verdict).toBe('MATCH')
@@ -730,7 +731,7 @@ describe('falsification — the attested set against real observed code', () => 
     const verdict = compareToAttestedSet(
       observe(oldFork, true),
       await attest(ZK_RUNTIME, 'zksync'),
-      { isClosedSet: true }
+      { isClosedSet: true, holdsImmutablesOffCode: false }
     )
 
     expect(verdict.verdict).toBe('MISMATCH')
@@ -741,7 +742,7 @@ describe('falsification — the attested set against real observed code', () => 
     const verdict = compareToAttestedSet(
       observe(ZK_RUNTIME, true),
       await attest(ZK_RUNTIME, 'zksync'),
-      { isClosedSet: true }
+      { isClosedSet: true, holdsImmutablesOffCode: false }
     )
 
     expect(verdict.verdict).toBe('MATCH')

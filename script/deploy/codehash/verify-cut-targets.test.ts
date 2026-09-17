@@ -78,7 +78,10 @@ const deps = (overrides?: {
   ) => Promise<ImmutablePricing>
   isClosedSet?: boolean
 }) => ({
-  scope: () => ({ isClosedSet: overrides?.isClosedSet ?? true }),
+  scope: () => ({
+    isClosedSet: overrides?.isClosedSet ?? true,
+    holdsImmutablesOffCode: false,
+  }),
   observe: overrides?.observe ?? (async () => observed(HASH)),
   attestationsFor:
     overrides?.attestationsFor ?? (async () => ({ builds: [attested(HASH)] })),
@@ -310,7 +313,7 @@ describe('verifyCutTargets', () => {
         ...deps(),
         scope: (network: string) => {
           asked.push(network)
-          return { isClosedSet: true }
+          return { isClosedSet: true, holdsImmutablesOffCode: false }
         },
       }
     )
