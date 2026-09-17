@@ -112,9 +112,14 @@ that's now. Regenerate it from on-chain state:
 
 ```bash
 gh pr checkout <N>
-source script/helperFunctions.sh
-updateDiamondLogs "production" "<network>"   # once per impacted network
+# once per impacted network
+bash -c 'source script/helperFunctions.sh && updateDiamondLogs "production" "<network>"'
 ```
+
+`script/helperFunctions.sh` is bash (`${!VAR}` indirect expansion, `read -ra`), so
+sourcing it from the zsh this session runs dies on bashisms and ends in
+`[error] [<network>] Failed to generate valid diamond JSON` — a false failure that reads
+exactly like the contradiction case below. Run it through `bash -c` from the repo root.
 
 The diff MUST show the new contract/version in each impacted `<net>.diamond.json` — this is a
 second, independent execution proof. If it doesn't, that contradicts Phase 2: stop, flag,

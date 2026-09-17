@@ -12,6 +12,8 @@ import { readFileSync } from 'fs'
 
 import { consola } from 'consola'
 
+import { isEntrypoint } from '../../utils/is-entrypoint'
+
 import {
   collectAnnotatedGetterKeys,
   readGetterExemptions,
@@ -204,4 +206,6 @@ const main = (): void => {
   else consola.success('every immutable in src/ has a registry entry')
 }
 
-if (import.meta.main) main()
+// A guard that wrongly answers false lets this CI gate exit 0 having verified
+// nothing; its own tests spawn `bunx tsx` ([CONV:NODE-RUNTIME-APIS]).
+if (isEntrypoint(import.meta.url)) main()
