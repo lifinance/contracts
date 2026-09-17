@@ -419,19 +419,24 @@ describe('createForgeRebuildRunner', () => {
     let compiled = false
     const ok = runner({
       exists: (path) => (path.endsWith('.json') ? compiled : true),
-      run: () => {
+      run: (_command, args) => {
+        // The zk leg of this case runs the pinned-release check first, which
+        // spawns the binary before any build.
+        if (args.includes('--version'))
+          return { ok: true, output: zkVersionOutput }
         compiled = true
         return { ok: true, output: '' }
       },
       // Both spellings, so the one build here stands in for either toolchain:
       // zksolc writes the runtime under `bytecode`, everything else under
       // `deployedBytecode`.
-      readFile: () =>
+      readFile: readZkFiles(
         JSON.stringify({
           bytecode: { object: DEPLOYED },
           deployedBytecode: { object: DEPLOYED, immutableReferences: REFS },
           ast: { absolutePath: 'src/Facets/AccessManagerFacet.sol' },
-        }),
+        })
+      ),
       artifactCache: { restore: () => false, save: (key) => saved.push(key) },
     })
     ok.runner.build(request)
