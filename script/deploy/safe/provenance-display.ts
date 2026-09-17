@@ -23,6 +23,8 @@ const DIRTY_PATHS_SHOWN = 3
 const GREEN = '\u001b[32m'
 const RED = '\u001b[31m'
 const YELLOW = '\u001b[33m'
+/** The colour every other link on the signer view is painted. */
+const CYAN = '\u001b[36m'
 const RESET = '\u001b[0m'
 
 const color = (code: string, text: string): string => `${code}${text}${RESET}`
@@ -75,6 +77,7 @@ const foldClaim = (text: string, indent: string): string[] => {
  * being *bad*. What is painted is whether the line is a measurement (`ok`), a
  * sentinel standing in for one (`unknown`), or a measurement that came back
  * carrying something the signer has to see — a dirty tree, an unpushed commit.
+ * The two link lines are outside this scale: they are painted as links.
  */
 type Certainty = 'measured' | 'unknown' | 'carries'
 
@@ -94,12 +97,22 @@ const CERTAINTY_COLOUR: Record<Certainty, string> = {
 const claimLine = (
   value: string,
   certainty: Certainty = 'measured'
-): string[] => {
-  const code = CERTAINTY_COLOUR[certainty]
-  return foldClaim(`— ${value}`, CLAIM_INDENT).map((line) =>
+): string[] => paintedClaimLine(value, CERTAINTY_COLOUR[certainty])
+
+/**
+ * A claim line carrying a URL.
+ *
+ * Painted as a link rather than by certainty: the explorer link and the gate
+ * documentation links elsewhere on the signer view are cyan, and a reader who
+ * has learned that cyan is where a link goes should not have to relearn it in
+ * this one block.
+ */
+const linkLine = (value: string): string[] => paintedClaimLine(value, CYAN)
+
+const paintedClaimLine = (value: string, code: string): string[] =>
+  foldClaim(`— ${value}`, CLAIM_INDENT).map((line) =>
     code ? color(code, line) : line
   )
-}
 
 type WorkingTreeUnverified = 'capture-incomplete' | 'unreadable' | undefined
 
@@ -241,7 +254,7 @@ export function formatClaimLines(provenance?: IProposalProvenance): string[] {
     // is only clickable through an OSC-8 escape, which is a link whose target
     // the reader cannot see — on this screen the host has to stay readable.
     const prUrl = sanitize(provenance.prUrl)
-    if (prUrl) lines.push(...claimLine(prUrl, 'measured'))
+    if (prUrl) lines.push(...linkLine(prUrl))
 
     // Always shown, present or not: an absent link means a row predating the
     // requirement or a hand-edited document — both things a signer should see
@@ -249,7 +262,7 @@ export function formatClaimLines(provenance?: IProposalProvenance): string[] {
     const ticketUrl = sanitize(provenance.ticketUrl)
     lines.push(
       ...(ticketUrl
-        ? claimLine(ticketUrl, 'measured')
+        ? linkLine(ticketUrl)
         : claimLine('no ticket recorded', 'unknown'))
     )
 

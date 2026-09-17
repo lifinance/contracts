@@ -9,7 +9,9 @@
  * The block states; it does not grade. Colour distinguishes a measurement
  * (uncoloured) from a sentinel standing in for one (yellow) and from a
  * measurement carrying something the signer has to see (red) — never a verdict
- * on the proposal, which is zone 2's to give.
+ * on the proposal, which is zone 2's to give. The two link lines sit outside
+ * that scale and are cyan, which is what a link is everywhere else on the
+ * signer view.
  */
 
 import {
@@ -34,6 +36,7 @@ const ANSI_PATTERN = new RegExp(`${String.fromCharCode(27)}\\[\\d+m`, 'gu')
 // "we do not know this" (yellow); the module keeps these private on purpose.
 const GREEN = `${String.fromCharCode(27)}[32m`
 const YELLOW = `${String.fromCharCode(27)}[33m`
+const CYAN = `${String.fromCharCode(27)}[36m`
 
 /**
  * The block as one line, with the folds undone.
@@ -87,6 +90,25 @@ describe('formatClaimLines — the ticket link', () => {
         })
       )
     ).toContain('      — https://linear.app/lifi-linear/issue/EXSC-694')
+  })
+
+  it('paints both links the cyan every other link on the view uses', () => {
+    const lines = formatClaimLines(
+      buildProvenance({
+        prUrl: 'https://github.com/lifinance/contracts/pull/2324',
+        ticketUrl: 'https://linear.app/lifi-linear/issue/EXSC-686',
+      })
+    )
+    const linkLines = lines.filter((line) => line.includes('https://'))
+
+    expect(linkLines).toHaveLength(2)
+    for (const line of linkLines) expect(line.startsWith(CYAN)).toBe(true)
+
+    // The attribution line above them keeps the certainty scale: a fix that
+    // painted the whole block cyan would pass the loop above.
+    const attribution = lines.find((line) => line.includes('@ feat/exsc-692'))
+    expect(attribution).toBeDefined()
+    expect(attribution).not.toContain(CYAN)
   })
 
   it('says so when a pre-WP-1.2 row has none, rather than omitting the line', () => {
