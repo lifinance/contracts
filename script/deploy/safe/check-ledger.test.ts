@@ -123,6 +123,18 @@ describe('recordCheck', () => {
     }
   })
 
+  it('refuses to let an assumed correspondence produce a pass', () => {
+    // Every value behind `A-ASSUMED` came from a source that decides. What is
+    // assumed is which value answers for which name, so what the values agree
+    // with is not established either, and a pass would claim it was.
+    const ledger = ledgerOf(['mainnet'])
+
+    const stored = recordCheck(ledger, result({ anchor: 'A-ASSUMED' }))
+
+    expect(stored.status).toBe('error')
+    expect(stored.detail).toMatch(/cannot decide a pass/)
+  })
+
   it('leaves a non-pass from a non-authoritative anchor as recorded', () => {
     const ledger = ledgerOf(['mainnet'])
 

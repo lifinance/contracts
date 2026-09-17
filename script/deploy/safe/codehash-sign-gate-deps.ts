@@ -31,10 +31,12 @@ import type { ILineageScope, IObservedCode } from '../codehash/attested-set'
 import { readMetadataTrailer } from '../codehash/bytecode-trailer'
 import {
   observeEvmImmutables,
+  observeZkImmutables,
   priceImmutables,
   type ImmutablePricing,
 } from '../codehash/immutable-expectations'
 import type { ImmutableReferences } from '../codehash/immutable-offsets'
+import type { IOffCodeImmutables } from '../codehash/immutable-verdict'
 import {
   deriveToolchainScope,
   parseBuildProfiles,
@@ -50,6 +52,12 @@ import {
 } from '../codehash/rebuild-attestations'
 import type { IVerifyCutDeps } from '../codehash/verify-cut-targets'
 import {
+  readZkImmutables,
+  zkImmutableOrdinals,
+  IMMUTABLE_SIMULATOR_ADDRESS,
+} from '../codehash/zk-immutables'
+import {
+  buildAst,
   readImmutableDeclarations,
   type IImmutableDeclaration,
 } from '../immutables/immutable-ast'
@@ -63,6 +71,8 @@ import { evaluateRpcQuorum } from './rpc-quorum'
 import {
   collectProviderObservations,
   createCodeReader,
+  createPinnedBlock,
+  createPinnedValueReader,
 } from './rpc-quorum-collector'
 import { getSignTimeTransportConfig } from './sign-time-transport'
 
@@ -692,6 +702,219 @@ export const createDeployedCodeReader =
     )
   }
 
+/** The one function of `ImmutableSimulator` this reads. */
+const IMMUTABLE_SIMULATOR_ABI = [
+  {
+    type: 'function',
+    name: 'getImmutable',
+    stateMutability: 'view',
+    inputs: [
+      { name: '_dest', type: 'address' },
+      { name: '_index', type: 'uint256' },
+    ],
+    outputs: [{ name: '', type: 'bytes32' }],
+  },
+] as const
+
+/**
+ * Reads one immutable out of `ImmutableSimulator`, on the same terms as the
+ * code read this gate already trusts.
+ *
+ * Trusted anchor, so the fallbacks never decide alone: the primary answers and
+ * its answer stands, and only when it cannot do the remaining endpoints get the
+ * question, under the same quorum. A value nobody could read is an error and
+ * never a zero — zero is a value an immutable legitimately holds, and
+ * defaulting to it would compare a failed read against a config entry that
+ * happens to be unset and call the pair a match.
+ *
+ * @param resolveChain - Resolves a network name to its viem chain; injectable for tests.
+ * @returns A reader from `(network, address, index)` to the 32-byte word held there.
+ * @throws When the primary is unavailable and the fallbacks do not agree.
+ */
+export const createImmutableSimulatorReader = (
+  resolveChain: (network: string) => Chain = getViemChainForNetworkName
+): ((network: string, address: string, index: number) => Promise<string>) => {
+  const pins = new Map<string, () => Promise<bigint>>()
+
+  return async (network, address, index) => {
+    const chain = resolveChain(network)
+    const [primary, ...fallbacks] = chain.rpcUrls.default.http
+
+    if (primary)
+      try {
+        const { url, fetchOptions, retryCount, retryDelay } =
+          getSignTimeTransportConfig(primary)
+        const client = createPublicClient({
+          chain,
+          transport: http(url, {
+            ...(fetchOptions ? { fetchOptions } : {}),
+            retryCount,
+            retryDelay,
+          }),
+        })
+        return await client.readContract({
+          address: IMMUTABLE_SIMULATOR_ADDRESS as Address,
+          abi: IMMUTABLE_SIMULATOR_ABI,
+          functionName: 'getImmutable',
+          args: [address as Address, BigInt(index)],
+        })
+      } catch (error) {
+        if (fallbacks.length === 0) throw error
+      }
+
+    if (fallbacks.length === 0)
+      throw new Error(
+        `No RPC endpoint is configured for ${network}, so slot ${index} of ${address} could not be read from ${IMMUTABLE_SIMULATOR_ADDRESS}`
+      )
+
+    // One pin per network for every slot of every address, because a fan-out
+    // that picks its own head per call reads each slot at a different block and
+    // the quorum grades that as unaligned rather than as agreement.
+    let pinnedBlock = pins.get(network)
+    if (!pinnedBlock) {
+      pinnedBlock = createPinnedBlock(fallbacks, chain.id)
+      pins.set(network, pinnedBlock)
+    }
+
+    const verdict = evaluateRpcQuorum(
+      await collectProviderObservations(
+        fallbacks,
+        createPinnedValueReader(
+          chain.id,
+          async (client, blockNumber) =>
+            client.readContract({
+              address: IMMUTABLE_SIMULATOR_ADDRESS as Address,
+              abi: IMMUTABLE_SIMULATOR_ABI,
+              functionName: 'getImmutable',
+              args: [address as Address, BigInt(index)],
+              blockNumber,
+            }),
+          undefined,
+          pinnedBlock
+        )
+      )
+    )
+
+    if (verdict.reachesQuorum && verdict.agreedValue !== undefined)
+      return verdict.agreedValue
+
+    throw new Error(
+      `The primary RPC for ${network} could not answer and its fallbacks did not agree on slot ${index} of ${address} (${verdict.status}), so nothing here is verified`
+    )
+  }
+}
+
+/**
+ * The immutables `src/` declares, from the checkout the signer is running in.
+ *
+ * Not from the rebuild of the recorded commit, which is where the EVM path gets
+ * them: zksolc emits no AST, so the zk rebuild cannot supply them, and a
+ * vanilla-solc `--ast` build of that commit is a second full compile nobody has
+ * already paid for. The operator's own tree is the cheaper source AND the
+ * anchor a proposer does not reach, which is why the row it feeds is A-LOCAL
+ * in provenance even though it is graded under A-ASSUMED.
+ *
+ * What it costs: a checkout at a different commit from the deployment declares
+ * a different set, and a declaration added or removed since shifts every
+ * ordinal after it. That reads as a disagreement rather than as a pass, and the
+ * table the signer confirms names the slots — but it is the reason this result
+ * is confirmed rather than believed.
+ *
+ * Built once per run and only when a zk target is actually reached, because it
+ * compiles the whole of `src/`.
+ *
+ * @returns A resolver from contract name to its own immutable declarations.
+ */
+export const createLocalImmutableDeclarations = (
+  read: () => readonly IImmutableDeclaration[] = () =>
+    readImmutableDeclarations(buildAst()).declarations
+): ((contractName: string) => readonly IImmutableDeclaration[]) => {
+  let all: readonly IImmutableDeclaration[] | undefined
+  return (contractName: string): readonly IImmutableDeclaration[] => {
+    all ??= read()
+    return all.filter((one) => one.contract === contractName)
+  }
+}
+
+/**
+ * Reads and prices the immutables of a contract that keeps them off its code.
+ *
+ * Every value comes from the chain and every expectation from this checkout, so
+ * the pricing is exactly the one the inlined path performs. What it cannot take
+ * from either side is which slot belongs to which name — see
+ * {@link zkImmutableOrdinals} — so gate L grades the result as assumed and puts
+ * the table to the signer.
+ *
+ * Refusing is the normal answer for anything it cannot establish, and it is
+ * carried as an undecided pricing rather than thrown: gate L reports "the
+ * values were not established", which is a different row from "they disagree".
+ *
+ * @param deps - the record read, the local declarations, the simulator read and the config source
+ * @returns The `readOffCodeImmutables` dependency of `verifyCutTargets`
+ */
+export const createOffCodeImmutablesReader = (deps: {
+  readRecord: (
+    address: string,
+    network: string
+  ) => Promise<IDeploymentRecordRef | undefined>
+  declarationsFor: (contractName: string) => readonly IImmutableDeclaration[]
+  getImmutable: (
+    network: string,
+    address: string,
+    index: number
+  ) => Promise<string>
+  loadRequirements: () => DeployRequirements
+}): ((address: string, network: string) => Promise<IOffCodeImmutables>) => {
+  const refused = (reason: string): IOffCodeImmutables => ({
+    declared: 'some',
+    pricing: { decided: false, reason },
+    slotByName: {},
+  })
+
+  return async (
+    address: string,
+    network: string
+  ): Promise<IOffCodeImmutables> => {
+    const record = await deps.readRecord(address, network)
+    if (!record)
+      return refused(
+        `the deployment record says nothing about ${address} on ${network}, so there is no contract whose immutables could be looked up`
+      )
+
+    const declarations = deps.declarationsFor(record.contractName)
+    if (declarations.length === 0) return { declared: 'none' }
+
+    const numbered = zkImmutableOrdinals(declarations)
+    if (!numbered.ok) return refused(numbered.reason)
+
+    const read = await readZkImmutables({
+      address,
+      ordinals: numbered.ordinals,
+      getImmutable: (target, index) =>
+        deps.getImmutable(network, target, index),
+    })
+    if (!read.ok) return refused(read.reason)
+
+    const observed = observeZkImmutables(read.values)
+    if (!('ok' in observed))
+      return { declared: 'some', pricing: observed, slotByName: {} }
+
+    return {
+      declared: 'some',
+      pricing: priceImmutables(
+        {
+          contractName: record.contractName,
+          observed: observed.observed,
+          network,
+          environment: EnvironmentEnum.production,
+        },
+        deps.loadRequirements()
+      ),
+      slotByName: numbered.ordinals,
+    }
+  }
+}
+
 export const createSignTimeCodehashDeps = (overrides?: {
   recordSource?: IRecordSource
   checkoutRoot?: string
@@ -779,6 +1002,12 @@ export const createSignTimeCodehashDeps = (overrides?: {
     scope: (network: string): ILineageScope => scopeFor(network),
     observe,
     price,
+    readOffCodeImmutables: createOffCodeImmutablesReader({
+      readRecord,
+      declarationsFor: createLocalImmutableDeclarations(),
+      getImmutable: createImmutableSimulatorReader(),
+      loadRequirements: loadImmutableExpectations,
+    }),
     attestationsFor: attestations.attestationsFor,
     close: async (): Promise<void> => {
       rebuild.cleanup()

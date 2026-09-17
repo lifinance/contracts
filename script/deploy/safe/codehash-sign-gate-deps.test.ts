@@ -31,6 +31,9 @@ import type { IImmutableDeclaration } from '../immutables/immutable-ast'
 
 import {
   createForgeRebuildRunner,
+  createImmutableSimulatorReader,
+  createLocalImmutableDeclarations,
+  createOffCodeImmutablesReader,
   createImmutableReferencesResolver,
   createDeployedCodeReader,
   createRecordReader,
@@ -966,5 +969,196 @@ describe('createDeployedCodeReader', () => {
     })(ADDRESS, 'arbitrum')
 
     expect(asked).toEqual(['arbitrum'])
+  })
+
+  // The same read discipline over `ImmutableSimulator`, which gate L trusts on
+  // exactly the same terms: it decides whether a signer is asked to confirm a
+  // value, so one endpoint may not decide it alone.
+  describe('createImmutableSimulatorReader', () => {
+    const WORD = `0x${'00'.repeat(12)}${'22'.repeat(20)}`
+
+    it('takes the primary answer when the primary answers', async () => {
+      stub({ [PRIMARY]: WORD, [SECOND]: `0x${'33'.repeat(32)}` })
+      const read = createImmutableSimulatorReader(() =>
+        chainWith([PRIMARY, SECOND])
+      )
+
+      expect(await read('arbitrum', ADDRESS, 0)).toBe(WORD)
+    })
+
+    it('refuses a lone fallback answer when the primary is down', async () => {
+      stub({ [PRIMARY]: undefined, [SECOND]: WORD })
+      const read = createImmutableSimulatorReader(() =>
+        chainWith([PRIMARY, SECOND])
+      )
+
+      let threw = false
+      try {
+        await read('arbitrum', ADDRESS, 0)
+      } catch {
+        threw = true
+      }
+      expect(threw).toBe(true)
+    })
+
+    it('rejects rather than returning a zero when nothing could be read', async () => {
+      // Zero is a value an immutable legitimately holds, so a failed read that
+      // resolved to it would be compared against an unset config entry and
+      // reported as agreement.
+      stub({})
+      const read = createImmutableSimulatorReader(() => chainWith([PRIMARY]))
+
+      let threw = false
+      try {
+        await read('arbitrum', ADDRESS, 0)
+      } catch {
+        threw = true
+      }
+      expect(threw).toBe(true)
+    })
+  })
+})
+
+/**
+ * The zk half of layer 2, which reads the values out of a system contract
+ * rather than out of the code. Every refusal below leaves gate L reporting "the
+ * values were not established", which is a different row from "they disagree" —
+ * so nothing here may collapse into a pricing that decided.
+ */
+describe('createOffCodeImmutablesReader', () => {
+  const ADDRESS = '0x1111111111111111111111111111111111111111'
+  const WORD = `0x${'00'.repeat(12)}${'22'.repeat(20)}`
+
+  const declaration = (name: string, line: number): IImmutableDeclaration => ({
+    file: 'src/Facets/GasZipFacet.sol',
+    contract: 'GasZipFacet',
+    line,
+    type: 'address',
+    name,
+  })
+
+  const reader = (over: {
+    record?: { contractName: string; version: string; gitCommitHash: string }
+    declarations?: readonly IImmutableDeclaration[]
+    getImmutable?: (
+      network: string,
+      address: string,
+      index: number
+    ) => Promise<string>
+  }) =>
+    createOffCodeImmutablesReader({
+      readRecord: async () =>
+        over.record ?? {
+          contractName: 'GasZipFacet',
+          version: '1.0.0',
+          gitCommitHash: 'a'.repeat(40),
+        },
+      declarationsFor: () => over.declarations ?? [declaration('router', 22)],
+      getImmutable: over.getImmutable ?? (async () => WORD),
+      loadRequirements: () => ({}),
+    })
+
+  it('reports a contract declaring no immutables as nothing to grade', async () => {
+    const read = await reader({ declarations: [] })(ADDRESS, 'zksync')
+
+    expect(read).toEqual({ declared: 'none' })
+  })
+
+  it('prices the value the simulator returned, and names its slot', async () => {
+    const read = await reader({})(ADDRESS, 'zksync')
+
+    expect(read).toMatchObject({
+      declared: 'some',
+      slotByName: { router: 0 },
+    })
+    if (read.declared === 'some' && read.pricing.decided)
+      expect(read.pricing.slots[0]?.observed).toBe(WORD)
+    else throw new Error('expected a decided pricing')
+  })
+
+  it('addresses the simulator by ordinal scaled to a whole word', async () => {
+    const asked: number[] = []
+    await reader({
+      declarations: [
+        declaration('backendSigner', 41),
+        declaration('router', 22),
+      ],
+      getImmutable: async (_network, _address, index) => {
+        asked.push(index)
+        return WORD
+      },
+    })(ADDRESS, 'zksync')
+
+    expect(asked).toEqual([0, 32])
+  })
+
+  it('refuses rather than pricing when the record says nothing', async () => {
+    const read = await createOffCodeImmutablesReader({
+      readRecord: async () => undefined,
+      declarationsFor: () => [declaration('router', 22)],
+      getImmutable: async () => WORD,
+      loadRequirements: () => ({}),
+    })(ADDRESS, 'zksync')
+
+    expect(read).toMatchObject({ declared: 'some' })
+    if (read.declared === 'some') expect(read.pricing.decided).toBe(false)
+  })
+
+  it('refuses rather than defaulting when a slot could not be read', async () => {
+    // Zero is a value an immutable legitimately holds, so a failed read that
+    // defaulted to it would compare against an unset config entry and match.
+    const read = await reader({
+      getImmutable: async () => {
+        throw new Error('ImmutableSimulator unreachable')
+      },
+    })(ADDRESS, 'zksync')
+
+    if (read.declared === 'some' && !read.pricing.decided)
+      expect(read.pricing.reason).toContain('unreachable')
+    else throw new Error('expected a refusal')
+  })
+
+  it('refuses when declaration order does not determine a numbering', async () => {
+    const read = await reader({
+      declarations: [declaration('router', 22), declaration('signer', 22)],
+    })(ADDRESS, 'zksync')
+
+    if (read.declared === 'some') expect(read.pricing.decided).toBe(false)
+    else throw new Error('expected a refusal')
+  })
+})
+
+describe('createLocalImmutableDeclarations', () => {
+  it('compiles once and answers every contract from that one read', () => {
+    // It builds the whole of `src/`, so a second call per target would put a
+    // full compile on each address a cut installs.
+    let builds = 0
+    const declarationsFor = createLocalImmutableDeclarations(() => {
+      builds += 1
+      return [
+        {
+          file: 'src/Facets/GasZipFacet.sol',
+          contract: 'GasZipFacet',
+          line: 22,
+          type: 'address',
+          name: 'router',
+        },
+        {
+          file: 'src/Facets/OtherFacet.sol',
+          contract: 'OtherFacet',
+          line: 10,
+          type: 'address',
+          name: 'other',
+        },
+      ]
+    })
+
+    expect(declarationsFor('GasZipFacet').map((one) => one.name)).toEqual([
+      'router',
+    ])
+    expect(declarationsFor('OtherFacet').map((one) => one.name)).toEqual([
+      'other',
+    ])
+    expect(builds).toBe(1)
   })
 })

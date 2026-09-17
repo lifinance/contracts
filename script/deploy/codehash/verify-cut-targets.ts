@@ -20,6 +20,14 @@ import {
 } from './attested-set'
 import { classifyCut, type IFacetCutEntry } from './cut-classification'
 import type { ImmutablePricing } from './immutable-expectations'
+import {
+  gradeAssumedImmutables,
+  gradeInlinedImmutables,
+  immutablesUnreadable,
+  noImmutables,
+  type IImmutableVerdict,
+  type IOffCodeImmutables,
+} from './immutable-verdict'
 
 export interface ITargetVerdict {
   /** Checksummed. */
@@ -45,6 +53,14 @@ export interface ITargetVerdict {
    * clean MATCH is owed the difference. Only the first two reach a MATCH.
    */
   pricedByteCount: number
+  /**
+   * Gate L's answer for this address: what its immutables were found to hold.
+   *
+   * Beside the verdict rather than folded into it. The bytecode claim is
+   * answerable on every chain and the value claim is not, so a chain that
+   * cannot answer the second must not thereby lose the first.
+   */
+  immutables: IImmutableVerdict
 }
 
 export interface IGateReport {
@@ -103,6 +119,19 @@ export interface IVerifyCutDeps {
     network: string,
     runtimeCode: string
   ) => Promise<ImmutablePricing>
+  /**
+   * Gate L on a chain that keeps immutables out of the runtime code: the values
+   * the simulator holds, graded against config, and the slot each was read
+   * from.
+   *
+   * Only reached for an address that already matched an attested build, for the
+   * same reason `price` is: a value read out of code nobody vouched for says
+   * nothing about the deployment this repo describes.
+   */
+  readOffCodeImmutables: (
+    address: string,
+    network: string
+  ) => Promise<IOffCodeImmutables>
 }
 
 /**
@@ -212,7 +241,7 @@ const judge = async (
   // only where immutables are inlined; a chain holding them elsewhere reaches a
   // MATCH with nothing masked and nothing checked, so it is asked first.
   if (comparison.verdict === 'MATCH' && scope.holdsImmutablesOffCode)
-    return offCodeImmutables(address, comparison)
+    return offCode(address, network, comparison, deps)
 
   if (comparison.verdict === 'MATCH' && comparison.excludedByteCount > 0)
     return complete(address, network, comparison, deps, code.runtimeCode)
@@ -224,41 +253,67 @@ const judge = async (
     matchedLineages: comparison.matchedLineages,
     excludedByteCount: comparison.excludedByteCount,
     pricedByteCount: 0,
+    immutables:
+      comparison.verdict === 'MATCH'
+        ? // Nothing was masked on a chain that inlines them, so there was
+          // nothing to mask: the build carries no immutables.
+          noImmutables(address)
+        : immutablesUnreadable(
+            address,
+            `its code is ${comparison.verdict} against the attested set, so there is no deployment of ours whose values could be compared`
+          ),
   }
 }
 
 /**
- * Grades a MATCH on a chain whose immutables are not in the code it matched.
+ * Completes a MATCH on a chain that keeps its immutables out of the code.
  *
- * zkEVM stores them in `ImmutableSimulator` rather than inlining them, so the
- * comparison excluded nothing and still says nothing about the values a
- * tampered deployment lives in. `readZkImmutables` can fetch the values; what
- * is missing is the map from slot to name. The zk toolchain emits neither
- * `deployedBytecode` nor an AST, so no build of the recorded commit can say
- * which immutable a slot holds, and reading by assumed ordinal would compare
- * one immutable against another's expectation — which passes.
- *
- * So this grades grey for the same reason a masked EVM MATCH does: nothing was
- * found wrong, it was not looked at.
+ * The comparison masked nothing and was right not to: on EraVM the excluded
+ * bytes of an EVM build are real codegen, and the values live in
+ * `ImmutableSimulator` instead. So the bytecode claim stands as layer 1 made it
+ * — this is our build — and the value claim is gate L's, answered here and
+ * carried beside the verdict rather than inside it.
  *
  * @param address - the target being judged
+ * @param network - the proposal's network
  * @param comparison - layer 1's verdict, already known to be a MATCH
+ * @param deps - carries the simulator read
  */
-const offCodeImmutables = (
+const offCode = async (
   address: string,
-  comparison: ICodehashComparison
-): ITargetVerdict => ({
-  address,
-  verdict: 'UNVERIFIABLE',
-  reason: `${address}: its code matches an attested build, but this chain holds its immutables in ImmutableSimulator rather than in that code, and nothing here reads them — so the values the deployment runs on are unchecked and this is not yet a match of the deployed contract.`,
-  matchedLineages: comparison.matchedLineages,
-  // Layer 1 masked nothing, and it was right not to: on this chain the excluded
-  // bytes are real codegen. The gap is not in the bytes, so it is not counted
-  // in them either — a renderer that qualified by this number would print "0
-  // bytes were excluded" over the very contracts it cannot vouch for.
-  excludedByteCount: 0,
-  pricedByteCount: 0,
-})
+  network: string,
+  comparison: ICodehashComparison,
+  deps: IVerifyCutDeps
+): Promise<ITargetVerdict> => {
+  let read: IOffCodeImmutables
+  try {
+    read = await deps.readOffCodeImmutables(address, network)
+  } catch (error) {
+    return {
+      address,
+      verdict: comparison.verdict,
+      reason: comparison.reason,
+      matchedLineages: comparison.matchedLineages,
+      excludedByteCount: comparison.excludedByteCount,
+      pricedByteCount: 0,
+      immutables: immutablesUnreadable(address, message(error)),
+    }
+  }
+
+  const immutables = gradeAssumedImmutables(address, network, read)
+  return {
+    address,
+    verdict: comparison.verdict,
+    reason: comparison.reason,
+    matchedLineages: comparison.matchedLineages,
+    excludedByteCount: comparison.excludedByteCount,
+    // Layer 1 masked nothing here, so there is nothing for a byte count to
+    // retire — and the count is what gate K's summary qualifies itself with,
+    // which must not read as a confirmation of an assumed mapping.
+    pricedByteCount: 0,
+    immutables,
+  }
+}
 
 /**
  * Finishes a MATCH whose masked bytes layer 2 can account for.
@@ -295,18 +350,26 @@ const complete = async (
   runtimeCode: string | undefined
 ): Promise<ITargetVerdict> => {
   const masked = `${address}: the code outside its immutables matches an attested build, but ${comparison.excludedByteCount} bytes holding immutables`
-  const stillMasked = (why: string): ITargetVerdict => ({
+  const stillMasked = (
+    why: string,
+    immutables: IImmutableVerdict
+  ): ITargetVerdict => ({
     address,
     verdict: 'UNVERIFIABLE',
     reason: `${masked} ${why}, so this is not yet a match of the deployed code.`,
     matchedLineages: comparison.matchedLineages,
     excludedByteCount: comparison.excludedByteCount,
     pricedByteCount: 0,
+    immutables,
   })
 
   if (runtimeCode === undefined)
     return stillMasked(
-      'were not checked: this observation did not carry the bytes it was built from, and pricing a second read of the address would check bytes the comparison never saw'
+      'were not checked: this observation did not carry the bytes it was built from, and pricing a second read of the address would check bytes the comparison never saw',
+      immutablesUnreadable(
+        address,
+        'the observation carried no bytes to read them out of'
+      )
     )
 
   let pricing: ImmutablePricing
@@ -315,11 +378,17 @@ const complete = async (
   } catch (error) {
     // An infrastructure failure in layer 2 must not read as a clean masked
     // verdict, and must not read as a finding either.
-    return stillMasked(`could not be checked: ${message(error)}`)
+    return stillMasked(
+      `could not be checked: ${message(error)}`,
+      immutablesUnreadable(address, message(error))
+    )
   }
 
   if (!pricing.decided)
-    return stillMasked(`were not checked: ${pricing.reason}`)
+    return stillMasked(
+      `were not checked: ${pricing.reason}`,
+      immutablesUnreadable(address, pricing.reason)
+    )
 
   if (pricing.disagreements.length > 0)
     return {
@@ -338,6 +407,7 @@ const complete = async (
       matchedLineages: comparison.matchedLineages,
       excludedByteCount: comparison.excludedByteCount,
       pricedByteCount: pricing.pricedByteCount,
+      immutables: gradeInlinedImmutables(address, network, pricing),
     }
 
   if (pricing.unpricedByteCount > 0)
@@ -347,7 +417,8 @@ const complete = async (
       } with no declared expectation to compare against (${pricing.slots
         .filter((one) => one.status !== 'verified')
         .map((one) => `${one.name}: ${one.detail ?? one.status}`)
-        .join('; ')})`
+        .join('; ')})`,
+      gradeInlinedImmutables(address, network, pricing)
     )
 
   return {
@@ -358,6 +429,7 @@ const complete = async (
     // Nothing was left uncompared, so a renderer has no qualifier to add.
     excludedByteCount: 0,
     pricedByteCount: pricing.pricedByteCount,
+    immutables: gradeInlinedImmutables(address, network, pricing),
   }
 }
 
@@ -372,6 +444,7 @@ const unreadable = (address: string, why: string): ITargetVerdict => ({
   matchedLineages: [],
   excludedByteCount: 0,
   pricedByteCount: 0,
+  immutables: immutablesUnreadable(address, why),
 })
 
 /**

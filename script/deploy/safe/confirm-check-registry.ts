@@ -12,6 +12,7 @@
  * target state's is the cross-check against `STATUSES_CLEARED_TO_PROCEED`.
  */
 
+import type { ImmutableVerdictStatus } from '../codehash/immutable-verdict'
 import type { ITargetVerdict } from '../codehash/verify-cut-targets'
 
 import type { ICheckDefinition, ICheckResult } from './check-ledger'
@@ -797,6 +798,179 @@ export const CODEHASH_CHECK: ICheckDefinition = {
   title: "Facet bytecode matches main's build",
 }
 
+export const IMMUTABLES_CHECK_ID = 'immutables'
+
+/**
+ * Whether a deployment runs on the values this repo declares for it.
+ *
+ * Separate from gate K because the two claims are not answerable in the same
+ * places. Whether the code is ours is decidable on every chain; whether the
+ * values spliced into it are the declared ones is decidable from the bytes only
+ * where the compiler inlines them. One verdict carrying both would cost a chain
+ * the first claim for want of the second.
+ *
+ * `undecidableIsAcknowledgeable` reaches exactly one case: a chain whose
+ * immutables sit in a system contract, where every value is read from a source
+ * that decides but the mapping from slot to name is derived rather than
+ * recorded. The row then states the derived table and asks a human to confirm
+ * it. A value that DISAGREES is never that case and hard-blocks everywhere.
+ */
+export const IMMUTABLES_CHECK: ICheckDefinition = {
+  checkId: IMMUTABLES_CHECK_ID,
+  section: 'Deployed state',
+  checkClass: 'integrity',
+  gate: 'L',
+  title: 'Immutable values match what config declares',
+  undecidableIsAcknowledgeable: true,
+}
+
+const EVERY_IMMUTABLE_DECLARED =
+  'every immutable holds the value config declares'
+
+const NO_IMMUTABLES_TO_CHECK =
+  'nothing this proposal installs declares an immutable'
+
+/**
+ * The worst thing gate L found across the addresses one cut installs.
+ *
+ * Ordered by how little is established rather than by severity of consequence:
+ * a disagreement is a finding, and everything below it is a check that did not
+ * happen. A run reporting the best of several addresses would let one clean
+ * facet answer for another whose values nobody read.
+ */
+const IMMUTABLE_VERDICT_ORDER: readonly ImmutableVerdictStatus[] = [
+  'disagrees',
+  'unreadable',
+  'unpriced',
+  'assumed',
+  'verified',
+  'none',
+]
+
+/**
+ * How gate L reaches the ledger.
+ *
+ * Shares the codehash gate's evaluation, because the values are read for the
+ * addresses that gate judged: an address whose code matched nothing has no
+ * deployment of ours whose values could be compared, and grading its immutables
+ * separately would put a second verdict on a contract this repo does not claim.
+ *
+ * @param gate - The evaluated codehash gate for this proposal.
+ * @param network - The network the gate judged against.
+ * @returns The row to hand to `recordCheck`.
+ */
+export const immutablesCheckResult = (
+  gate: ICodehashSignGate,
+  network: string
+): ICheckResult => {
+  if (!gate.evaluated)
+    return unresolved(
+      IMMUTABLES_CHECK_ID,
+      network,
+      EVERY_IMMUTABLE_DECLARED,
+      gate.summary || 'the codehash gate produced no verdict for this proposal'
+    )
+
+  if (gate.madeNoClaim)
+    return gate.unopened && gate.unopened.length > 0
+      ? unresolved(
+          IMMUTABLES_CHECK_ID,
+          network,
+          EVERY_IMMUTABLE_DECLARED,
+          `this decoder could not open ${gate.unopened.join(
+            ', '
+          )}, so whether this proposal installs code carrying immutables is unknown`
+        )
+      : {
+          checkId: IMMUTABLES_CHECK_ID,
+          network,
+          status: 'not-applicable',
+          expected: EVERY_IMMUTABLE_DECLARED,
+          actual: NO_IMMUTABLES_TO_CHECK,
+          anchor: 'A-LOCAL',
+        }
+
+  if (gate.refusals.length > 0)
+    return unresolved(
+      IMMUTABLES_CHECK_ID,
+      network,
+      EVERY_IMMUTABLE_DECLARED,
+      gate.refusals.join(' ')
+    )
+
+  if (gate.targets.length === 0)
+    return {
+      checkId: IMMUTABLES_CHECK_ID,
+      network,
+      status: 'not-applicable',
+      expected: EVERY_IMMUTABLE_DECLARED,
+      actual: NO_IMMUTABLES_TO_CHECK,
+      anchor: 'A-LOCAL',
+    }
+
+  const worst = IMMUTABLE_VERDICT_ORDER.find((status) =>
+    gate.targets.some((target) => target.immutables.status === status)
+  )
+  const found = gate.targets.filter(
+    (target) => target.immutables.status === worst
+  )
+  const detail = found.map((target) => target.immutables.detail).join(' ')
+
+  if (worst === 'disagrees')
+    return {
+      checkId: IMMUTABLES_CHECK_ID,
+      network,
+      status: 'fail',
+      expected: EVERY_IMMUTABLE_DECLARED,
+      actual: `${found.length} address(es) hold an immutable this repo does not declare for ${network}`,
+      anchor: 'A-LOCAL',
+      detail,
+    }
+
+  if (worst === 'unreadable' || worst === 'unpriced')
+    return {
+      checkId: IMMUTABLES_CHECK_ID,
+      network,
+      // Not `fail`: nothing disagreed, the values were never established. The
+      // integrity class blocks either way, and the two are different remedies.
+      status: 'error',
+      expected: EVERY_IMMUTABLE_DECLARED,
+      actual: `${found.length} address(es) whose immutable values this run did not establish`,
+      anchor: 'A-UNRESOLVED',
+      detail,
+    }
+
+  if (worst === 'assumed')
+    return {
+      checkId: IMMUTABLES_CHECK_ID,
+      network,
+      status: 'needs-ack',
+      expected: EVERY_IMMUTABLE_DECLARED,
+      actual: `${found.length} address(es) whose values agree under a slot ordering the compiler did not confirm`,
+      anchor: 'A-ASSUMED',
+      detail,
+    }
+
+  if (worst === 'verified')
+    return {
+      checkId: IMMUTABLES_CHECK_ID,
+      network,
+      status: 'pass',
+      expected: EVERY_IMMUTABLE_DECLARED,
+      actual: `${found.length} address(es) hold the immutable values this repo declares`,
+      anchor: 'A-LOCAL',
+    }
+
+  return {
+    checkId: IMMUTABLES_CHECK_ID,
+    network,
+    status: 'not-applicable',
+    expected: EVERY_IMMUTABLE_DECLARED,
+    actual: NO_IMMUTABLES_TO_CHECK,
+    anchor: 'A-LOCAL',
+  }
+}
+
 /**
  * The integrity ids this registry mirrors onto the run-level ledger.
  *
@@ -835,6 +1009,7 @@ export const CONFIRM_CHECK_DEFINITIONS: readonly ICheckDefinition[] = [
     return definition
   }),
   CODEHASH_CHECK,
+  IMMUTABLES_CHECK,
   STORAGE_AUTHORITY_CHECK,
   TARGET_STATE_CHECK,
   EXECUTABILITY_CHECK,
@@ -856,10 +1031,9 @@ export const CONFIRM_CHECK_DEFINITIONS: readonly ICheckDefinition[] = [
  */
 export const ALL_GATE_DEFINITIONS: readonly ICheckDefinition[] = [
   ...new Map(
-    [...CONFIRM_CHECK_DEFINITIONS, CODEHASH_CHECK].map((definition) => [
-      definition.checkId,
-      definition,
-    ])
+    [...CONFIRM_CHECK_DEFINITIONS, CODEHASH_CHECK, IMMUTABLES_CHECK].map(
+      (definition) => [definition.checkId, definition]
+    )
   ).values(),
 ]
 
@@ -1151,6 +1325,7 @@ export const proposalCheckResults = (
   return [
     ...integrityResults(verdicts.integrity, network),
     codehashCheckResult(verdicts.codehash, network),
+    immutablesCheckResult(verdicts.codehash, network),
     verdicts.storageAuthority
       ? verdicts.storageAuthority.scopeUnreadable?.length
         ? unresolved(

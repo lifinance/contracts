@@ -99,6 +99,7 @@ const deps = (over: Partial<IVerifyCutDeps> = {}): IVerifyCutDeps => ({
   observe: async () => observed(),
   attestationsFor: async () => ({ builds: [attested()] }),
   price: async () => ({ decided: false, reason: 'no layer 2 in this test' }),
+  readOffCodeImmutables: async () => ({ declared: 'none' }),
   ...over,
 })
 
@@ -477,13 +478,12 @@ describe('renderCodehashSignGate', () => {
   it('does not print a byte caveat for a chain whose immutables are off-code', async () => {
     // Its verdict carries zero excluded bytes, because none were excluded. The
     // caveat line is keyed off that count, so it must stay silent rather than
-    // announce "0 bytes" over the contracts it cannot vouch for.
+    // announce "0 bytes" over a contract whose values gate L answers for.
     const rendered = await render({
       scope: () => ({ isClosedSet: true, holdsImmutablesOffCode: true }),
     })
 
-    expect(rendered).toContain('UNVERIFIABLE')
-    expect(rendered).toContain('ImmutableSimulator')
+    expect(rendered).toContain('MATCH')
     expect(rendered).not.toContain('bytes were excluded as immutables')
   })
 
@@ -596,6 +596,7 @@ describe('the render distinguishes every bucket, including the two that are not 
           matchedLineages: ['main@abc1234'],
           excludedByteCount: 0,
           pricedByteCount: 0,
+          immutables: { status: 'none', detail: 'declares no immutables' },
         },
       ],
       summary: 'ok',
@@ -621,6 +622,7 @@ describe('the render distinguishes every bucket, including the two that are not 
           matchedLineages: ['main@abc1234'],
           excludedByteCount: 0,
           pricedByteCount: 0,
+          immutables: { status: 'none', detail: 'declares no immutables' },
         },
       ],
       summary: 'ok',
@@ -651,6 +653,7 @@ describe('the render distinguishes every bucket, including the two that are not 
           matchedLineages: [],
           excludedByteCount: 0,
           pricedByteCount: 0,
+          immutables: { status: 'none', detail: 'declares no immutables' },
         },
       ],
       summary: 'mismatch',

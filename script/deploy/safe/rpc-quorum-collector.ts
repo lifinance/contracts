@@ -183,15 +183,17 @@ export const createPinnedBlock = (
 }
 
 /**
- * Reads the code at one address, at a named block, from a single endpoint.
+ * Reads one value from a single endpoint, at a named block.
  *
- * Every provider is asked for the same block when a pin is supplied, so a
- * difference in the value means a disagreement rather than the passage of time.
- * The block is still fetched per endpoint at that height, so its hash is each
- * provider's own and a fork between them is still visible.
+ * The value read is the caller's — this owns the endpoint discipline every
+ * fan-out needs and decides nothing about what is worth agreeing on. Every
+ * provider is asked for the same block when a pin is supplied, so a difference
+ * in the value means a disagreement rather than the passage of time. The block
+ * is still fetched per endpoint at that height, so its hash is each provider's
+ * own and a fork between them is still visible.
  *
- * @param address - The address whose code is read.
  * @param chainId - The chain the endpoints serve, so a misrouted endpoint fails loudly.
+ * @param read - Reads the value from one client at one block.
  * @param budgetMs - The whole-read budget; lowered by tests, which cannot wait out the default.
  * @param pinnedBlock - The shared height, from {@link createPinnedBlock}.
  * @returns A reader for {@link collectProviderObservations}.
@@ -199,10 +201,13 @@ export const createPinnedBlock = (
  *   answers something unusable, and a plain error when it serves a different chain. Every one
  *   of these is recorded as that endpoint's `error` observation by the collector.
  */
-export const createCodeReader =
+export const createPinnedValueReader =
   (
-    address: Address,
     chainId: number,
+    read: (
+      client: ReturnType<typeof createPublicClient>,
+      blockNumber: bigint
+    ) => Promise<string>,
     budgetMs: number = ENDPOINT_READ_BUDGET_MS,
     pinnedBlock?: () => Promise<bigint>
   ): TEndpointReader =>
@@ -219,7 +224,7 @@ export const createCodeReader =
     // observation the verdict already grades, not the answer.
     const { url, fetchOptions } = getTransportConfigFromRpcUrl(endpointUrl)
 
-    // One signal for the three round trips below, so the budget bounds the read
+    // One signal for the round trips below, so the budget bounds the read
     // rather than each attempt within it — viem passes a supplied
     // `fetchOptions.signal` straight to the request in place of its own
     // per-attempt one. Merged into `fetchOptions`, never replacing it: that
@@ -265,17 +270,9 @@ export const createCodeReader =
           at === undefined
             ? await client.getBlock()
             : await client.getBlock({ blockNumber: at })
-        const code = await client.getCode({
-          address,
-          blockNumber: block.number,
-        })
 
         return {
-          // `'0x'` is the answer, not a default: viem resolves `getCode` to
-          // `undefined` for an address that holds no code, and an endpoint that
-          // could not answer at all throws and is recorded as an `error`
-          // observation instead of reaching this return.
-          value: code ?? '0x',
+          value: await read(client, block.number),
           blockNumber: block.number,
           blockHash: block.hash,
         }
@@ -302,3 +299,30 @@ export const createCodeReader =
       clearTimeout(budget)
     }
   }
+
+/**
+ * Reads the code at one address, at a named block, from a single endpoint.
+ *
+ * @param address - The address whose code is read.
+ * @param chainId - The chain the endpoints serve, so a misrouted endpoint fails loudly.
+ * @param budgetMs - The whole-read budget; lowered by tests, which cannot wait out the default.
+ * @param pinnedBlock - The shared height, from {@link createPinnedBlock}.
+ * @returns A reader for {@link collectProviderObservations}.
+ */
+export const createCodeReader = (
+  address: Address,
+  chainId: number,
+  budgetMs: number = ENDPOINT_READ_BUDGET_MS,
+  pinnedBlock?: () => Promise<bigint>
+): TEndpointReader =>
+  createPinnedValueReader(
+    chainId,
+    async (client, blockNumber) =>
+      // `'0x'` is the answer, not a default: viem resolves `getCode` to
+      // `undefined` for an address that holds no code, and an endpoint that
+      // could not answer at all throws and is recorded as an `error`
+      // observation instead of reaching this return.
+      (await client.getCode({ address, blockNumber })) ?? '0x',
+    budgetMs,
+    pinnedBlock
+  )
