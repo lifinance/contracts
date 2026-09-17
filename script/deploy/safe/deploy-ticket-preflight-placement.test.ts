@@ -136,7 +136,8 @@ const run = (args: string[]): { output: string; refused: boolean } => {
   // in the child leaves this standing.
   env.SAFE_PROPOSAL_TICKET = ''
   withholdCredentials(env)
-  env.PATH = `${toolchainShim()}:${env.PATH ?? ''}`
+  const shim = toolchainShim()
+  env.PATH = `${shim}:${env.PATH ?? ''}`
 
   const root = sandbox()
   const result = Bun.spawnSync(
@@ -156,6 +157,7 @@ const run = (args: string[]): { output: string; refused: boolean } => {
 
   // Symlinked entries are removed as links, never followed into the checkout.
   rmSync(root, { recursive: true, force: true })
+  rmSync(shim, { recursive: true, force: true })
 
   const output = `${result.stdout.toString()}${result.stderr.toString()}`
   // A killed child is not a result: without this, "the marker did not appear"

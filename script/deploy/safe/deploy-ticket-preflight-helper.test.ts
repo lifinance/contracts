@@ -51,7 +51,13 @@ const callHelper = (
     stubExit?: number
     env?: Record<string, string>
   } = {}
-): { rc: number; ticket: string; reason: string; output: string } => {
+): {
+  rc: number
+  ticket: string
+  reason: string
+  reasonMirror: string
+  output: string
+} => {
   const env: Record<string, string> = {
     ...(process.env as Record<string, string>),
     // The post-clobber state a worker starts from, and the state a fresh run
@@ -76,7 +82,8 @@ const callHelper = (
        assertProposalTicketForRun ${args.map((a) => `"${a}"`).join(' ')}
        echo "RC=$?"
        echo "TICKET=[$SAFE_PROPOSAL_TICKET]"
-       echo "REASON=[$SAFE_PROPOSAL_REASON]"`,
+       echo "REASON=[$SAFE_PROPOSAL_REASON]"
+       echo "REASON_MIRROR=[$RESOLVED_SAFE_PROPOSAL_REASON]"`,
     ],
     {
       cwd: REPO_ROOT,
@@ -98,6 +105,7 @@ const callHelper = (
     rc: Number(/RC=(\d+)/.exec(output)?.[1] ?? NaN),
     ticket: /TICKET=\[(.*)\]/.exec(output)?.[1] ?? '',
     reason: /REASON=\[(.*)\]/.exec(output)?.[1] ?? '',
+    reasonMirror: /REASON_MIRROR=\[(.*)\]/.exec(output)?.[1] ?? '',
     output,
   }
 }
@@ -224,5 +232,22 @@ describe('assertProposalTicketForRun reason line', () => {
     expect(result.rc).toBe(0)
     expect(result.ticket).toBe(URL)
     expect(result.reason).toBe('')
+  })
+
+  // A second rollout in the same shell inherits the first one's exports. The
+  // pre-flight was offered that reason and returned none, so carrying it would
+  // label these proposals with the previous rollout's reason.
+  it('drops a previous rollout reason when the pre-flight returns none', () => {
+    const result = callHelper(['production', 'gnosis'], {
+      stubStdout: `${URL}\n\n`,
+      env: {
+        SAFE_PROPOSAL_REASON: 'the previous rollout',
+        RESOLVED_SAFE_PROPOSAL_REASON: 'the previous rollout',
+      },
+    })
+    expect(result.rc).toBe(0)
+    expect(result.ticket).toBe(URL)
+    expect(result.reason).toBe('')
+    expect(result.reasonMirror).toBe('')
   })
 })

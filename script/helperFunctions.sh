@@ -4343,6 +4343,10 @@ function assertProposalTicketForRun() {
     export RESOLVED_SAFE_PROPOSAL_REASON="$REASON"
     echo "[info] proposals from this run will carry $TICKET - $REASON"
   else
+    # The resolver was offered the inherited reason and returned none, so
+    # anything still exported belongs to an earlier rollout in this shell and
+    # would attach that reason to this run's proposals.
+    unset SAFE_PROPOSAL_REASON RESOLVED_SAFE_PROPOSAL_REASON
     echo "[info] proposals from this run will carry $TICKET"
   fi
   return 0
