@@ -72,8 +72,8 @@ for a london or zkEVM network is not what `main` would have produced for that ch
 | zkevm | `isZkEVM` is `true` (`zksync`, `abstract`, `lens`) | `FOUNDRY_PROFILE=zksync ./foundry-zksync/forge build --zksync --skip test` | `./out/zksync` (the zkSync profile default; omit the env var if the build wrote there) |
 
 Use a dedicated `-o` directory for london and cancun so the two solc pins do not overwrite each
-other. Do not use `FOUNDRY_PROFILE=solc_floor` to run `forge script`: that profile skips
-`script/**`. It is fine for producing london facet artifacts only.
+other. `FOUNDRY_PROFILE=london forge build -o /path/to/main-london/out` produces the same london
+artifacts, since that profile pins the same pair and inherits everything else from the default.
 
 ## Example
 

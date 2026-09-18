@@ -336,11 +336,11 @@ describe('VETTED_COMPILER_SETS', () => {
     // written through the map itself would move with any edit to it.
     expect(Object.keys(VETTED_COMPILER_SETS).sort()).toEqual([
       'default',
-      'solc_floor',
+      'london',
       'zksync',
     ])
     expect(VETTED_COMPILER_SETS.default?.solcVersion).toBe('0.8.29')
-    expect(VETTED_COMPILER_SETS.solc_floor?.solcVersion).toBe('0.8.17')
+    expect(VETTED_COMPILER_SETS.london?.solcVersion).toBe('0.8.17')
     expect(VETTED_COMPILER_SETS.zksync?.zk?.zksolcVersion).toBe('1.5.15')
     for (const set of Object.values(VETTED_COMPILER_SETS))
       expect(set.vettedOn).toMatch(/^\d{4}-\d{2}-\d{2}$/u)

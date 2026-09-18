@@ -212,7 +212,7 @@ export const manifestEntryFrom = (
     }
 
   // `profile` is the caller's claim about the tree; this is the build's own
-  // account. They can disagree: `solc_floor` declares no `out`, so a floor
+  // account. They can disagree: `london` declares no `out`, so a floor
   // build lands in the default profile's tree and mints under the wrong label.
   const builtFor = hashedSettings['evmVersion']
   if (typeof builtFor !== 'string')
