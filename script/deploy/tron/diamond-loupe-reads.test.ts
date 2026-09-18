@@ -83,6 +83,19 @@ describe('readFacetRouting', () => {
     )
   })
 
+  // A short table is worse than no table: the dropped facet's selectors read as
+  // unrouted, pass the collision guard as Adds, and revert at execution.
+  it('refuses a table with a row the parser could not read', async () => {
+    const stub = stubCaller(
+      `[[${ECO_FACET} [0x0ff754ea]] [${OWNERSHIP_FACET} [zzzz]]]`
+    )
+
+    await expectRejects(
+      readFacetRouting(DIAMOND, 'rpc', stub.call),
+      `returned facet rows the parser could not read: ${OWNERSHIP_FACET}`
+    )
+  })
+
   it('refuses output whose shape the parser does not match', async () => {
     await expectRejects(
       readFacetRouting(

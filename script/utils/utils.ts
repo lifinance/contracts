@@ -739,10 +739,12 @@ export async function getFacetAddressFromDiamondLog(
       )
     }
 
+    // Arrays are the same failure wearing an object's typeof: every writer here
+    // keys Facets by address, so a list shape reads as "nothing recorded".
     const facets = parsed?.LiFiDiamond?.Facets
-    if (!facets || typeof facets !== 'object')
+    if (!facets || typeof facets !== 'object' || Array.isArray(facets))
       throw new Error(
-        `${diamondJsonPath} has no LiFiDiamond.Facets section — the log is malformed, not empty`
+        `${diamondJsonPath} has no LiFiDiamond.Facets object — the log is malformed, not empty`
       )
 
     for (const [address, entry] of Object.entries(facets))

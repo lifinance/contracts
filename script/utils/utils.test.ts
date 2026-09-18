@@ -314,9 +314,23 @@ describe('getFacetAddressFromDiamondLog', () => {
     await withDiamondLog(JSON.stringify({ LiFiDiamond: {} }), async () => {
       await expectRejects(
         getFacetAddressFromDiamondLog('tron', 'EcoFacet'),
-        /has no LiFiDiamond\.Facets section/
+        /has no LiFiDiamond\.Facets object/
       )
     })
+  })
+
+  // `typeof [] === 'object'`, so a list shape clears the object check and then
+  // yields no entries — "nothing recorded" again, by a different route.
+  it('throws when the facet section is an array', async () => {
+    await withDiamondLog(
+      JSON.stringify({ LiFiDiamond: { Facets: [] } }),
+      async () => {
+        await expectRejects(
+          getFacetAddressFromDiamondLog('tron', 'EcoFacet'),
+          /has no LiFiDiamond\.Facets object/
+        )
+      }
+    )
   })
 
   it('accepts a log whose facet section is genuinely empty', async () => {

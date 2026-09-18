@@ -53,6 +53,22 @@ export async function readFacetRouting(
       `The loupe on ${diamondAddress} reported no facets — the call failed, or troncast printed a shape the parser does not match`
     )
 
+  // The parser skips a row it cannot match and hands back the rest, and a short
+  // table is more dangerous than no table: the missing facet's selectors look
+  // unrouted, so they pass the collision guard as Adds and revert
+  // FunctionAlreadyExists once the timelock delay has elapsed. Every row the
+  // output opens has to survive the parse.
+  const parsedFacets = new Set(parsed.map(([facet]) => facet))
+  const dropped = [...output.matchAll(/\[(T[A-Za-z0-9]{33})[\s\]]/g)]
+    .map(([, facet]) => facet as string)
+    .filter((facet) => !parsedFacets.has(facet))
+  if (dropped.length > 0)
+    throw new Error(
+      `The loupe on ${diamondAddress} returned facet rows the parser could not read: ${[
+        ...new Set(dropped),
+      ].join(', ')}`
+    )
+
   return parsed.map(([facet, selectors]) => ({
     facet,
     selectors: selectors.map(normalizeSelector),
