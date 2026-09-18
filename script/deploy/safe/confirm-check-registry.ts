@@ -223,9 +223,10 @@ export const NOTHING_TO_COMPARE =
  * on `origin/main` alone. The anchor stays in the ledger vocabulary for checks
  * that read main without consulting the record.
  *
- * The three unresolvable statuses reach `A-UNRESOLVED` because nothing
- * answered at all: an action that is not Add, Replace or Remove, calldata that
- * could not be read, or an anchor that could not be reached.
+ * The four unresolvable statuses reach `A-UNRESOLVED` because nothing answered
+ * at all: an action that is not Add, Replace or Remove, calldata that could not
+ * be read, an anchor that could not be reached, or a `latest` entry whose source
+ * version the anchor did not yield.
  *
  * Keyed exhaustively so a status added to `TargetStateStatus` fails to compile
  * here rather than falling through to a default that would grade it green.
