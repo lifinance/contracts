@@ -151,9 +151,12 @@ export const normalizeRepoUrl = (remoteUrl: string): string => {
 
   // A trailing dot is the same host; left alone it splits the identity in two.
   const host = parsed.host.toLowerCase().replace(/\.$/, '')
+  // Slashes first: a remote spelled `…/contracts.git/` is one git clones from,
+  // and stripping the suffix before the trailing slash leaves `.git` in the
+  // identity, which then matches nothing.
   const path = parsed.path
-    .replace(/\.git$/i, '')
     .replace(/^\/+|\/+$/g, '')
+    .replace(/\.git$/i, '')
     .toLowerCase()
 
   const identity = `${HOST_ALIASES.get(host) ?? host}/${path}`
@@ -185,19 +188,24 @@ export const REPO_CONTRACTS_TRON = 'github.com/lifinance/contracts-tron'
 /**
  * Schemes a gate may read a remote over.
  *
- * `http` and `git` are excluded rather than merely discouraged: a gate fetches
- * the commit it compares against over this same remote, so on a cleartext
- * scheme an on-path attacker serves both the content and the SHA that is
- * supposed to anchor it, and the comparison certifies the attacker's tree.
+ * Narrower than {@link ALLOWED_SCHEMES}, which says what git can fetch over:
+ * a cleartext remote carries no evidence that what came back is what the
+ * repository holds, and the commit a gate compares against arrives over it.
  */
 const AUTHENTICATED_SCHEMES = new Set(['https', 'ssh'])
 
 /**
- * Whether a remote may be trusted to supply a gate's comparison point.
+ * Whether a remote names a repository a gate may take its comparison point from.
  *
  * `origin` is whatever the clone happens to point at, so a ref alone does not
  * establish where its content came from: against a fork remote a proposer can
  * author the very state the gate grades them against.
+ *
+ * What this settles is the URL, not the transport. A gate runs on the
+ * proposer's own machine, where `GIT_SSH_COMMAND` or a `git` earlier on `PATH`
+ * reaches a different repository while `git remote get-url` still reports this
+ * one — so read a `true` as "the clone is not pointed somewhere else", never as
+ * proof of what the fetch returned.
  * @param remoteUrl - output of `git remote get-url origin`
  * @param allowedRepos - identities as {@link normalizeRepoUrl} returns them
  * @returns `true` only for an authenticated scheme naming one of those repositories

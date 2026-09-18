@@ -335,6 +335,8 @@ describe('isTrustedRemote', () => {
     'https://github.com/lifinance/contracts.git',
     'https://github.com/lifinance/contracts',
     'https://github.com/lifinance/contracts/',
+    'https://github.com/lifinance/contracts.git/',
+    'git@github.com:lifinance/contracts.git/',
     '  git@github.com:lifinance/contracts.git\n',
     'git@github.com:LIFinance/Contracts.git',
   ])('accepts the canonical repository spelled %s', (url) => {
@@ -366,8 +368,8 @@ describe('isTrustedRemote', () => {
     expect(isTrustedRemote(url, anchorOnly)).toBe(false)
   })
 
-  // Tron cut proposals run from the fork, so the deploy gate admits it while
-  // the target-state anchor does not - the two lists are not interchangeable.
+  // The caller's list is the whole policy, so the same fork URL has to come out
+  // differently for two callers; a helper that consulted a constant could not.
   it('separates the fork from the anchor by the list it is passed', () => {
     const tron = 'git@github.com:lifinance/contracts-tron.git'
 

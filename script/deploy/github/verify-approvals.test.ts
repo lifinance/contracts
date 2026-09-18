@@ -900,10 +900,10 @@ describe('main ref resolution', () => {
   // `origin` is whatever the clone points at, and everything below reads main
   // *through* it: against a fork the proposer authors the main they are compared
   // against, and on a cleartext remote an on-path attacker serves both the tree
-  // and the SHA anchoring it. Neither case injects the seam, so both prove the
-  // check is wired into resolveMainRef and fires before the network calls -
-  // which is what keeps them offline. Without it these URLs would reach
-  // `ls-remote` and fail with "Cannot reach origin" instead.
+  // and the SHA anchoring it. Neither case injects the seam, and each pins the
+  // refusal's own wording rather than any failure: reaching `ls-remote` would
+  // report "Cannot reach origin", so these pass only while the check sits ahead
+  // of the network calls, which is also what keeps them offline.
   it.each([
     ['a fork', 'git@github.com:evil/fork.git'],
     ['a cleartext origin', 'http://github.com/lifinance/contracts.git'],

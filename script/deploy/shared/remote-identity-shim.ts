@@ -7,9 +7,11 @@
  * `readRemoteUrl`; this is the same seam for the ones that spawn a real CLI,
  * where no argument crosses the process boundary.
  *
- * Only the identity read is stubbed. Fetch and `ls-remote` still resolve through
- * the fixture's real configured URL, so those tests stay offline and a remote
- * the test breaks on purpose still fails the way it did before.
+ * Only `git remote get-url origin` is answered. Fetch and `ls-remote` still
+ * resolve through the fixture's real configured URL, so those tests stay
+ * offline and a remote the test breaks on purpose still fails the way it did
+ * before. A test that wants to assert on the repository identity a child
+ * *records* cannot use this, because that read goes through the same command.
  *
  * Nothing under a CLI entry point imports this.
  */
@@ -41,7 +43,7 @@ export const installRemoteIdentityShim = (repoRoot: string): string => {
   writeFileSync(
     shim,
     `#!/bin/sh
-if [ "$1" = "remote" ] && [ "$2" = "get-url" ]; then
+if [ "$#" = 3 ] && [ "$1" = "remote" ] && [ "$2" = "get-url" ] && [ "$3" = "origin" ]; then
   echo "${SHIMMED_REMOTE}"
   exit 0
 fi

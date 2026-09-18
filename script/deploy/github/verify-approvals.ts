@@ -329,12 +329,12 @@ const resolveMainRef = (
     )
 
   // Ordered after the ref check and before the first network call: everything
-  // below reads main *through* this remote, so a fork or a cleartext origin
-  // would have the proposer supply the main they are being compared against.
+  // below reads main *through* this remote, so a fork origin would have the
+  // proposer supply the main they are being compared against.
   const remoteUrl = readRemoteUrl().trim()
-  // Kept apart the way the target-state anchor keeps them apart: a remote that
-  // could not be read is a different operator problem from one that names
-  // another repository. Neither message quotes the URL, which can carry a token.
+  // An unreadable remote and one naming another repository are different
+  // operator problems with different fixes, so they are not merged into one
+  // message. Neither message quotes the URL, which can carry a token.
   if (remoteUrl === '')
     throw new Error(
       `Cannot read this checkout's \`${REMOTE}\` remote, so it cannot be established that ${MAIN_REF} is the merged main this gate compares against.`
@@ -343,7 +343,7 @@ const resolveMainRef = (
     throw new Error(
       `This checkout's \`${REMOTE}\` is not ${ALLOWED_GATE_REPOS.join(
         ' or '
-      )} over https or SSH, so ${MAIN_REF} is not the merged main this gate compares against. Re-run from a clone of one of those repositories.`
+      )} over https or SSH, so ${MAIN_REF} is not the merged main this gate compares against. Re-run from a clone of one of those repositories — note that an \`ssh\` config host alias reaches git as the alias, so spell the remote with \`github.com\`.`
     )
 
   const remote = git(
