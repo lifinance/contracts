@@ -251,7 +251,7 @@ export const describeTargetStateUnavailable = (
   if (reason === 'remote-unreadable')
     return `could not read this clone's \`origin\` remote, so it cannot be established that the anchor would come from ${REPO_CONTRACTS}.`
   if (reason === 'remote-unexpected')
-    return `this clone's \`origin\` is not ${REPO_CONTRACTS} — the anchor would be read from a repository the proposer could control. Re-run from a clone whose origin is ${REPO_CONTRACTS}.`
+    return `this clone's \`origin\` is not ${REPO_CONTRACTS} over https or SSH — the anchor would be read from a repository the proposer could control, or over a scheme that carries no evidence of what that repository holds. Re-run from a clone whose origin is ${REPO_CONTRACTS} over https or SSH.`
   if (reason === 'blob-unreadable')
     return `could not read ${PINNED_REF}:${TARGET_STATE_REPO_PATH} — the ref or the file is missing from this clone.`
   return `${PINNED_REF}:${TARGET_STATE_REPO_PATH} did not parse as a target-state object.`

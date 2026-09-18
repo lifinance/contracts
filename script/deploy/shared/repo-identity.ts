@@ -151,12 +151,13 @@ export const normalizeRepoUrl = (remoteUrl: string): string => {
 
   // A trailing dot is the same host; left alone it splits the identity in two.
   const host = parsed.host.toLowerCase().replace(/\.$/, '')
-  // Slashes first: a remote spelled `…/contracts.git/` is one git clones from,
-  // and stripping the suffix before the trailing slash leaves `.git` in the
-  // identity, which then matches nothing.
+  // Both spellings git clones from have to land on the same identity, and each
+  // strip can expose what the other was meant to remove: `…/contracts.git/`
+  // hides the suffix behind a slash, `…/contracts/.git` leaves one behind.
   const path = parsed.path
     .replace(/^\/+|\/+$/g, '')
     .replace(/\.git$/i, '')
+    .replace(/\/+$/, '')
     .toLowerCase()
 
   const identity = `${HOST_ALIASES.get(host) ?? host}/${path}`
