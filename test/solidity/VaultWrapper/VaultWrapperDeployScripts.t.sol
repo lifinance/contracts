@@ -22,6 +22,7 @@ import { VaultWrapperFactoryDeployer } from "test/solidity/VaultWrapper/VaultWra
 ///         factory (adapter approval, allowlist, fee bounds, default split).
 contract VaultWrapperDeployScriptsTest is Test {
     uint256 internal constant MIN_DELAY = 48 hours;
+    string internal constant SALT_PREFIX = "vw-test";
     uint16 internal constant TEST_SPLIT_BPS = 7000;
 
     uint256 internal deployerPk = uint256(keccak256("vw-deployer"));
@@ -49,8 +50,7 @@ contract VaultWrapperDeployScriptsTest is Test {
 
         (factory, timelock, beacon, impl, adapter) = deployScript.deploySystem(
             _config(multisig),
-            deployerPk,
-            "vw-test"
+            deployerPk
         );
     }
 
@@ -88,11 +88,7 @@ contract VaultWrapperDeployScriptsTest is Test {
             UpgradeableBeacon beacon2,
             LiFiVaultWrapper impl2,
             ERC4626Adapter adapter2
-        ) = deployScript.deploySystem(
-                _config(multisig),
-                deployerPk,
-                "vw-test"
-            );
+        ) = deployScript.deploySystem(_config(multisig), deployerPk);
 
         assertEq(address(factory2), address(factory));
         assertEq(address(timelock2), address(timelock));
@@ -104,7 +100,7 @@ contract VaultWrapperDeployScriptsTest is Test {
     function testRevert_DeploySystemOnZeroMultisig() public {
         vm.expectRevert(DeployLiFiVaultWrapperFactory.ZeroMultisig.selector);
 
-        deployScript.deploySystem(_config(address(0)), deployerPk, "other");
+        deployScript.deploySystem(_config(address(0)), deployerPk);
     }
 
     function testRevert_DeploySystemWiringMismatchOnStaleRedeploy() public {
@@ -123,7 +119,7 @@ contract VaultWrapperDeployScriptsTest is Test {
             )
         );
 
-        deployScript.deploySystem(changed, deployerPk, "vw-test");
+        deployScript.deploySystem(changed, deployerPk);
     }
 
     function test_ConfigBatch_SchedulesAndApplies() public {
@@ -239,6 +235,8 @@ contract VaultWrapperDeployScriptsTest is Test {
         returns (DeployLiFiVaultWrapperFactory.DeployConfig memory cfg)
     {
         cfg.create3Factory = ICREATE3Factory(address(create3));
+        cfg.timelockDelaySeconds = MIN_DELAY;
+        cfg.deploySalt = SALT_PREFIX;
         cfg.multisig = _multisig;
         cfg.emergencyPauser = pauser;
         cfg.onboardingManager = onboarder;
