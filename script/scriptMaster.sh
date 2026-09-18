@@ -31,6 +31,9 @@ scriptMaster() {
   echo "[info] loading required resources and compiling contracts"
 
   # load env variables
+  # Before `source .env`: the env file blanks what the caller exported.
+  # shellcheck disable=SC1091
+  source script/deploy/shared/captureProposalIntent.sh
   source .env
 
   # load deploy script & helper functions

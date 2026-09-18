@@ -87,6 +87,17 @@ deploySingleContract() {
     echo ""
   fi
 
+  # Resolved before the build for the same reason the record check above is: the
+  # ticket is enforced when the proposal is stored, which is after the contract
+  # is on chain.
+  if ! assertProposalTicketForRun "$ENVIRONMENT" "$NETWORK"; then
+    if [[ -z "$EXIT_ON_ERROR" || "$EXIT_ON_ERROR" == "false" ]]; then
+      return 1
+    else
+      exit 1
+    fi
+  fi
+
   FILE_EXTENSION=".s.sol"
 
   # Handle ZkEVM Chains

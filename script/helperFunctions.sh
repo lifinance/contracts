@@ -8,6 +8,11 @@
 # files usually use `KEY=value` without `export`, so those would be invisible to children.
 # `set -a` (allexport) marks every assignment as exported until `set +a`; we limit that
 # to this file read so later `source`d scripts do not export unrelated locals by default.
+
+# Before `source .env`: the env file blanks what the caller exported.
+# shellcheck disable=SC1091
+source script/deploy/shared/captureProposalIntent.sh
+
 set -a
 source .env
 set +a
@@ -4264,6 +4269,126 @@ function assertDirectBroadcastCalldataGate() {
   return 0
 }
 
+# sendsDirectly: Whether a call on this network/environment bypasses the Safe.
+# The three clauses that decide "direct send" rather than "propose to the Safe"
+# ([CONV:ROUTING-PREDICATE]).
+#
+# Usage: sendsDirectly NETWORK ENVIRONMENT
+#   NETWORK     - target network name
+#   ENVIRONMENT - "production" or "staging"
+#
+# Example: sendsDirectly "arbitrum" "production"
+#
+# Returns: 0 when the call is sent directly, 1 when it is proposed to the Safe
+function sendsDirectly() {
+  local NETWORK="$1"
+  local ENVIRONMENT="$2"
+
+  [[ "$ENVIRONMENT" != "production" ]] \
+    || [[ "${SEND_PROPOSALS_DIRECTLY_TO_DIAMOND:-}" == "true" ]] \
+    || isTestnetNetwork "$NETWORK"
+}
+
+# assertProposalTicketForRun: Resolve the Linear ticket this run's proposals will
+# carry, before anything is compiled or broadcast.
+#
+# Usage: assertProposalTicketForRun ENVIRONMENT NETWORK...
+#   ENVIRONMENT - "production" or "staging"
+#   NETWORK...  - every network this run will touch
+#
+# Routing/Behavior:
+#   - No network proposes (staging, testnet-only, direct-to-diamond): no ticket
+#     is required and nothing is asked
+#   - SAFE_PROPOSAL_TICKET already set: validated, and refused here if malformed
+#   - Unset with a terminal attached: the operator is asked
+#   - Unset with no terminal (CI, an agent, a piped run): refused
+#
+# Example: assertProposalTicketForRun "production" "arbitrum" "base"
+#
+# Returns: 0 with SAFE_PROPOSAL_TICKET exported, 1 when no ticket could be resolved
+function assertProposalTicketForRun() {
+  local ENVIRONMENT="$1"
+  shift
+  local NETWORKS=("$@")
+
+  local NETWORK
+  local PROPOSES="false"
+  for NETWORK in "${NETWORKS[@]}"; do
+    if ! sendsDirectly "$NETWORK" "$ENVIRONMENT"; then
+      PROPOSES="true"
+      break
+    fi
+  done
+
+  if [[ "$PROPOSES" != "true" ]]; then
+    return 0
+  fi
+
+  # Not `local TICKET=$(...)`: `local` succeeds on its own, so it would swallow
+  # the CLI's exit code and hand the run an empty ticket.
+  # The mirror is carried in a name .env does not define: every worker
+  # re-sources it, and .env.example ships a blank SAFE_PROPOSAL_TICKET line, so
+  # the exported value is wiped in the child. Offered to the resolver rather
+  # than exported here, so an inherited one is validated like any other supplied
+  # value instead of trusted.
+  local SUPPLIED="${SAFE_PROPOSAL_TICKET:-${RESOLVED_SAFE_PROPOSAL_TICKET:-}}"
+  local SUPPLIED_REASON="${SAFE_PROPOSAL_REASON:-${RESOLVED_SAFE_PROPOSAL_REASON:-}}"
+
+  local PREFLIGHT
+  if ! PREFLIGHT=$(SAFE_PROPOSAL_TICKET="$SUPPLIED" SAFE_PROPOSAL_REASON="$SUPPLIED_REASON" bunx tsx script/deploy/safe/deploy-ticket-preflight.cli.ts); then
+    error "this run would propose to a Safe and has no Linear ticket - nothing has been deployed"
+    return 1
+  fi
+
+  # Line 1 is the ticket, line 2 the reason. Read positionally rather than with
+  # `read -r`, which stops at the first line and would need the reason's empty
+  # case handled separately; command substitution has already dropped the
+  # trailing newline, so a reasonless run leaves line 2 empty.
+  local TICKET REASON
+  TICKET=$(printf '%s\n' "$PREFLIGHT" | sed -n '1p')
+  REASON=$(printf '%s\n' "$PREFLIGHT" | sed -n '2p')
+
+  # Exit 0 is not consent, as assertDirectBroadcastCalldataGate says above: a CLI
+  # that never ran also exits 0 and prints nothing. The issue URL is this one's
+  # allow token, so it is checked rather than trusted.
+  if [[ "$TICKET" != https://linear.app/* ]]; then
+    error "the ticket pre-flight produced no Linear issue URL - aborting before anything is deployed"
+    return 1
+  fi
+
+  export SAFE_PROPOSAL_TICKET="$TICKET"
+  export RESOLVED_SAFE_PROPOSAL_TICKET="$TICKET"
+
+  # A reason belongs to the ticket it was stated for, and the resolver hands a
+  # supplied one back unchanged, so a previous rollout's reason would otherwise
+  # label this one's proposals. Only the mirror is dropped, and only once this
+  # run turns out to be a different ticket: a reason the operator stated for
+  # this run differs from the mirror, and an unstamped one was never scoped.
+  if [[ -n "$REASON" &&
+    "$REASON" == "${RESOLVED_SAFE_PROPOSAL_REASON:-}" &&
+    -n "${RESOLVED_SAFE_PROPOSAL_REASON_TICKET:-}" &&
+    "${RESOLVED_SAFE_PROPOSAL_REASON_TICKET}" != "$TICKET" ]]; then
+    warning "the reason exported in this shell was stated for ${RESOLVED_SAFE_PROPOSAL_REASON_TICKET}, not for $TICKET - dropping it"
+    REASON=""
+  fi
+
+  # The reason is warn-only until its adoption trigger fires, so an empty one
+  # exports nothing and the proposal path emits its own warning.
+  if [[ -n "$REASON" ]]; then
+    export SAFE_PROPOSAL_REASON="$REASON"
+    export RESOLVED_SAFE_PROPOSAL_REASON="$REASON"
+    export RESOLVED_SAFE_PROPOSAL_REASON_TICKET="$TICKET"
+    echo "[info] proposals from this run will carry $TICKET - $REASON"
+  else
+    # The pre-flight resolved no reason, so an inherited one must not stand
+    # behind its verdict.
+    unset SAFE_PROPOSAL_REASON RESOLVED_SAFE_PROPOSAL_REASON \
+      RESOLVED_SAFE_PROPOSAL_REASON_TICKET
+    echo "[info] proposals from this run will carry $TICKET"
+  fi
+  return 0
+}
+
 # Send or propose transaction
 # - SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true: send directly to target (e.g. new production networks before ownership transfer)
 # - Testnet (networks.json type=testnet): send directly; testnet diamonds are EOA-owned with no Safe/Timelock
@@ -4331,19 +4456,14 @@ function sendOrPropose() {
   # exactly that route; sequential fan-out on the other routes would be untested
   # dead generality, so fail loudly instead of improvising semantics here.
   if [[ ${#CALLDATAS[@]} -gt 1 ]]; then
-    if [[ "$TIMELOCK" != "true" ]] \
-       || [[ "$ENVIRONMENT" != "production" ]] \
-       || [[ "${SEND_PROPOSALS_DIRECTLY_TO_DIAMOND:-}" == "true" ]] \
-       || isTestnetNetwork "$NETWORK"; then
+    if [[ "$TIMELOCK" != "true" ]] || sendsDirectly "$NETWORK" "$ENVIRONMENT"; then
       error "sendOrPropose: multiple calldatas are only supported on the propose-with-timelock route (production + timelock)"
       return 1
     fi
   fi
 
   # Non-production, testnet, or direct-to-diamond: send directly for all networks
-  if [[ "$ENVIRONMENT" != "production" ]] \
-     || [[ "${SEND_PROPOSALS_DIRECTLY_TO_DIAMOND:-}" == "true" ]] \
-     || isTestnetNetwork "$NETWORK"; then
+  if sendsDirectly "$NETWORK" "$ENVIRONMENT"; then
     # Disjoint from the funnel gate by construction: a proposal is gated on its
     # calldata inside propose-to-safe.ts, and only the route that never reaches
     # it is gated here.
