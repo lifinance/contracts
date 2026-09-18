@@ -63,9 +63,13 @@ const ZKSOLC = /^\s*zksolc\s*=\s*['"]([^'"]+)['"]/
  * downstream exists to catch. Only profiles pinning BOTH versions are returned —
  * a profile that pins neither (`ci`, the `fuzz` sub-tables) is not a lineage.
  * @param toml - contents of `foundry.toml`
+ * @param options.inheritFromDefault - complete a profile that pins exactly one
+ * of the two versions from `[profile.default]`, as forge itself resolves it. A
+ * profile pinning neither stays excluded either way.
  */
 export const parseBuildProfiles = (
-  toml: string
+  toml: string,
+  options: { inheritFromDefault?: boolean } = {}
 ): Record<string, IBuildProfile> => {
   const found: Record<string, IBuildProfile> = {}
   let current: string | undefined
@@ -96,7 +100,17 @@ export const parseBuildProfiles = (
     if (evm) (partial[current] as { evm?: string }).evm = evm[1]
   }
 
-  for (const [profile, pair] of Object.entries(partial)) {
+  const fallback = partial['default']
+  for (const [profile, declared] of Object.entries(partial)) {
+    const pair =
+      options.inheritFromDefault === true &&
+      profile !== 'default' &&
+      (declared.solc !== undefined || declared.evm !== undefined)
+        ? {
+            solc: declared.solc ?? fallback?.solc,
+            evm: declared.evm ?? fallback?.evm,
+          }
+        : declared
     if (pair.solc === undefined || pair.evm === undefined) continue
     found[profile] = {
       profile,
