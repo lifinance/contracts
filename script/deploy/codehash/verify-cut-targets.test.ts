@@ -110,6 +110,7 @@ const priced = (
   disagreements: [],
   pricedByteCount: bytes,
   unpricedByteCount: 0,
+  acknowledgeableByteCount: 0,
   disagreeingByteCount: 0,
   ...over,
 })
@@ -574,6 +575,7 @@ describe('verifyCutTargets on a chain holding immutables off-code', () => {
         disagreements: slots.filter((one) => one.status === 'disagrees'),
         pricedByteCount: 32,
         unpricedByteCount: 0,
+        acknowledgeableByteCount: 0,
         disagreeingByteCount: 0,
         ...over,
       },
