@@ -407,6 +407,15 @@ const BRIDGE_EXTRA_RECEIVERS: Record<string, IExtraReceiver> = {
     type: 'bytes32',
     label: 'GasZip Recipient',
   },
+  M0: {
+    // The OrderBook only ever sees this field; M0Facet enforces equality with
+    // `_bridgeData.receiver` on EVM destinations and requires it non-zero on
+    // non-EVM ones, so it is populated in every branch.
+    paramName: '_m0Data',
+    component: 'receiverAddress',
+    type: 'bytes32',
+    label: 'M0 Recipient',
+  },
   // TYPE-B: nonEVMReceiver-style field, only set on non-EVM transfers (0x0 on EVM).
   Mayan: {
     paramName: '_mayanData',
