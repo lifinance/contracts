@@ -159,10 +159,14 @@ deployAllContracts() {
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 2: Deploy core facets"
 
     # deploy core facets
-    deployCoreFacets "$NETWORK" "$ENVIRONMENT"
-    echo ""
-
-    echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 2 completed"
+    if deployCoreFacets "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"; then
+      echo ""
+      echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 2 completed"
+    else
+      echo ""
+      warning "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 2 did NOT complete: at least one core facet was not deployed - re-run this stage before continuing"
+      return 1
+    fi
   fi
 
   # Stage 3: Deploy diamond and update with core facets
@@ -235,6 +239,10 @@ deployAllContracts() {
 
     local EXCLUDED_FACETS_REGEXP="^($(echo "$CORE_FACETS_OUTPUT" | xargs | tr ' ' '|'))$"
 
+    # A bootstrap run that stopped at the first refusal cost one operator cycle per
+    # broken facet.
+    local REFUSED_FACETS=()
+
     # loop through facet contract names
     for FACET_NAME in $(getContractNamesInFolder "$FACETS_PATH"); do
       if ! [[ "$FACET_NAME" =~ $EXCLUDED_FACETS_REGEXP ]]; then
@@ -245,11 +253,23 @@ deployAllContracts() {
         if [[ $? -ne 0 ]]; then
           echo "[info] No matching entry found in target state file for NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, CONTRACT=$FACET_NAME >> no deployment needed"
         else
+          # deployFacetAndAddToDiamond resolves an empty version to the repo's current one
+          if [[ "$TARGET_VERSION" == "$TARGET_STATE_VERSION_LATEST" ]]; then
+            TARGET_VERSION=""
+          fi
+
           # deploy facet and add to diamond
-          deployFacetAndAddToDiamond "$NETWORK" "$ENVIRONMENT" "$FACET_NAME" "$DIAMOND_CONTRACT_NAME" "$TARGET_VERSION"
+          if ! deployFacetAndAddToDiamond "$NETWORK" "$ENVIRONMENT" "$FACET_NAME" "$DIAMOND_CONTRACT_NAME" "$TARGET_VERSION"; then
+            REFUSED_FACETS+=("$FACET_NAME")
+          fi
         fi
       fi
     done
+    if [[ ${#REFUSED_FACETS[@]} -gt 0 ]]; then
+      warning "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 5 did NOT complete: these facets were not deployed and added: ${REFUSED_FACETS[*]} - re-run this stage before continuing"
+      return 1
+    fi
+
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< non-core facets part completed"
 
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 5 completed"
@@ -261,9 +281,12 @@ deployAllContracts() {
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 6: Deploy periphery contracts"
 
     # deploy periphery
-    deployPeripheryContracts "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"
-
-    echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 6 completed"
+    if deployPeripheryContracts "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"; then
+      echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 6 completed"
+    else
+      warning "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 6 did NOT complete: at least one periphery contract was not deployed - re-run this stage before continuing"
+      return 1
+    fi
   fi
 
   # Stage 7: Add periphery to diamond

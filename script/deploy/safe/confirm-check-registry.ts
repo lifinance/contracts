@@ -198,6 +198,10 @@ interface IStatusMapping {
  */
 export const ORDERING_HOLDS =
   'no installed version behind what origin/main declares'
+// A pin is graded as equality, not as an ordering — a version NEWER than the pin is
+// refused too — so the row must not tell the signer an ordering was asserted.
+export const VERSION_MATCHES_PIN =
+  'the installed version is exactly the one origin/main pins for this network'
 export const EVERY_ELEMENT_COMPARED =
   'every installed element compared against origin/main'
 export const NOTHING_TO_COMPARE =
@@ -208,14 +212,21 @@ export const NOTHING_TO_COMPARE =
  *
  * Split by the anchor each status rests on, not by whether it is cleared to
  * proceed. Every status that had to resolve the proposed version through the
- * deployment record is `A-MONGO` — including the three that then compared it
- * against `origin/main`, because the proposer writes that record and so owns
- * one side of the comparison. `A-MONGO` cannot decide a pass, so those three
- * ask a human instead, which a `semantic` check may legitimately do.
+ * deployment record is `A-MONGO` — including the ones that then compared it
+ * against `origin/main` or against a pin, because the proposer writes that
+ * record and so owns one side of the comparison. `A-MONGO` cannot decide a
+ * pass, so those ask a human instead, which a `semantic` check may legitimately
+ * do.
  *
- * The three unresolvable statuses reach `A-UNRESOLVED` because nothing
- * answered at all: an action that is not Add, Replace or Remove, calldata that
- * could not be read, or an anchor that could not be reached.
+ * No status here is `A-MAIN`, and that is not an oversight: every comparison
+ * this check makes has the proposed version on one side, so none of them rests
+ * on `origin/main` alone. The anchor remains in the ledger vocabulary, which no
+ * check produces today, alongside `A-AUDIT`.
+ *
+ * The four unresolvable statuses reach `A-UNRESOLVED` because nothing answered
+ * at all: an action that is not Add, Replace or Remove, calldata that could not
+ * be read, an anchor that could not be reached, or a `latest` entry whose source
+ * version the anchor did not yield.
  *
  * Keyed exhaustively so a status added to `TargetStateStatus` fails to compile
  * here rather than falling through to a default that would grade it green.
@@ -252,7 +263,30 @@ const STATUS_MAPPING: Readonly<Record<TargetStateStatus, IStatusMapping>> = {
     anchor: 'A-LOCAL',
     expected: NOTHING_TO_COMPARE,
   },
-  downgrade: { status: 'fail', anchor: 'A-MAIN', expected: ORDERING_HOLDS },
+  // A pin matched. `A-MONGO` although the pin itself comes from `main`: the
+  // version it was compared against was resolved through the proposer-written
+  // deployment record, and the anchor names the weakest evidence the row rests on.
+  'matches-pin': {
+    status: 'needs-ack',
+    anchor: 'A-MONGO',
+    expected: VERSION_MATCHES_PIN,
+  },
+  // A deliberate pin contradicted. A fail, not an acknowledgement: the pin says
+  // this network is held back on purpose, and clicking past it is how a pin stops
+  // meaning anything.
+  'pinned-mismatch': {
+    status: 'fail',
+    anchor: 'A-MONGO',
+    expected: VERSION_MATCHES_PIN,
+  },
+  // The network follows the repo but the repo's version could not be read at the
+  // pinned ref, so no comparison was made.
+  'expected-version-unresolved': {
+    status: 'error',
+    anchor: 'A-UNRESOLVED',
+    expected: EVERY_ELEMENT_COMPARED,
+  },
+  downgrade: { status: 'fail', anchor: 'A-MONGO', expected: ORDERING_HOLDS },
   // Ordering was attempted and the pair could not be ordered, so this one did
   // reach the comparison.
   'version-not-comparable': {
