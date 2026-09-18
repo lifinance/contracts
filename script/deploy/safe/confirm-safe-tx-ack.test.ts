@@ -17,8 +17,8 @@ import {
   createAcknowledgementLedger,
   evaluateProposalIntegrity,
   recordAcknowledgement,
-  renderChangeRollup,
-  rollUpByChange,
+  renderQueueSummary,
+  rollUpQueue,
   type IAcknowledgementLedger,
   type INetworkOutcome,
 } from './confirm-safe-tx-ack'
@@ -364,86 +364,242 @@ describe('acknowledgement ledger', () => {
   })
 })
 
-describe('rollUpByChange', () => {
+describe('rollUpQueue / renderQueueSummary', () => {
   const fingerprint = computeChangeFingerprint('0xdeadbeef')
   const KEY = effectKey(DIAMOND_A, fingerprint)
 
   const outcome = (
     chainId: number,
-    nonceCurrent: boolean
+    over: Partial<INetworkOutcome> = {}
   ): INetworkOutcome => ({
     network: `net-${chainId}`,
     proposalKey: buildProposalKey({ to: DIAMOND_A, chainId, nonce: 1 }),
     acknowledgementKey: KEY,
     fingerprint,
-    nonceCurrent,
-    acknowledged: true,
+    signatures: 1,
+    threshold: 3,
+    nonceCurrent: true,
+    signedThisRun: false,
+    executedThisRun: false,
+    blocked: false,
+    alreadySigned: false,
+    ...over,
   })
 
-  it('renders N/N and reads complete when every network passed and was acted on', () => {
-    const rollups = rollUpByChange(
-      Array.from({ length: 57 }, (_, i) => outcome(i + 1, true))
+  const fleet = (
+    count: number,
+    over: Partial<INetworkOutcome> = {},
+    offset = 0
+  ): INetworkOutcome[] =>
+    Array.from({ length: count }, (_, i) => outcome(offset + i + 1, over))
+
+  /**
+   * The cell of `row` sitting under `label` in `header`.
+   *
+   * Reads the row at the character span the header label occupies, so a column
+   * that drifts out from under its own heading fails — a row asserted by token
+   * order alone stays green through exactly that defect.
+   *
+   * @param header - The column-header line.
+   * @param row - A row line from the same table.
+   * @param label - The column heading to read under.
+   * @returns The trimmed cell text.
+   */
+  const cellUnder = (header: string, row: string, label: string): string => {
+    const end = header.indexOf(label) + label.length
+    expect(header.indexOf(label)).toBeGreaterThan(-1)
+    // Columns are right-aligned, so the cell ends where its heading ends and
+    // starts after the previous column's gap.
+    return (
+      row
+        .slice(0, end)
+        .trimEnd()
+        .split(/\s{2,}/)
+        .at(-1) ?? ''
     )
+  }
 
-    expect(rollups[0]?.networks).toBe(57)
-    expect(rollups[0]?.noncesUsable).toBe(57)
-    expect(rollups[0]?.complete).toBe(true)
-    expect(renderChangeRollup(rollups)[0]).toContain('57/57')
-    expect(renderChangeRollup(rollups)[0]?.startsWith('✓')).toBe(true)
-  })
+  const table = (outcomes: INetworkOutcome[]) => {
+    const lines = renderQueueSummary(rollUpQueue(outcomes))
+    const [heading, , header, ...rest] = lines as [
+      string,
+      string,
+      string,
+      ...string[]
+    ]
+    return {
+      lines,
+      heading,
+      header,
+      rows: rest.slice(0, -1),
+      footer: rest.at(-1) ?? '',
+    }
+  }
 
-  it('cannot render 56/57 as complete', () => {
-    const rollups = rollUpByChange(
-      Array.from({ length: 57 }, (_, i) => outcome(i + 1, i !== 56))
-    )
-    const line = renderChangeRollup(rollups)[0] ?? ''
-
-    expect(rollups[0]?.noncesUsable).toBe(56)
-    expect(rollups[0]?.networks).toBe(57)
-    expect(rollups[0]?.complete).toBe(false)
-    expect(rollups[0]?.staleNetworks).toEqual(['net-57'])
-    expect(line).toContain('56/57')
-    expect(line).toContain('stale nonce on net-57')
-    expect(line.startsWith('✗')).toBe(true)
-  })
-
-  it('is not complete when a network was never acted on, even with every nonce usable', () => {
-    const rollups = rollUpByChange([
-      outcome(1, true),
-      { ...outcome(2, true), acknowledged: false },
+  it('buckets a fleet rollout by signatures held, in one row', () => {
+    const summary = rollUpQueue([
+      ...fleet(40, { signatures: 1 }),
+      ...fleet(17, { signatures: 2 }, 40),
     ])
-    const line = renderChangeRollup(rollups)[0] ?? ''
 
-    expect(rollups[0]?.noncesUsable).toBe(2)
-    expect(rollups[0]?.acknowledged).toBe(1)
-    expect(rollups[0]?.complete).toBe(false)
-    expect(line.startsWith('✗')).toBe(true)
-    expect(line).toContain('acted on 1/2')
+    expect(summary.rollups.length).toBe(1)
+    expect(summary.proposals).toBe(57)
+    expect(summary.networks).toBe(57)
+    expect(summary.rollups[0]?.bySignatureCount.get(1)).toBe(40)
+    expect(summary.rollups[0]?.bySignatureCount.get(2)).toBe(17)
+    expect(summary.rollups[0]?.ready).toBe(0)
   })
 
-  it('counts one network once even if it is revisited', () => {
-    expect(
-      rollUpByChange([outcome(1, true), outcome(1, true)])[0]?.networks
-    ).toBe(1)
+  it('moves a proposal at threshold out of the buckets and into ready', () => {
+    const summary = rollUpQueue([
+      ...fleet(2, { signatures: 1 }),
+      ...fleet(3, { signatures: 3 }, 2),
+    ])
+    const rollup = summary.rollups[0]
+
+    expect(rollup?.ready).toBe(3)
+    expect(rollup?.bySignatureCount.get(3)).toBeUndefined()
+    expect(rollup?.bySignatureCount.get(1)).toBe(2)
+  })
+
+  it('leaves an executed proposal out of both the buckets and ready', () => {
+    const summary = rollUpQueue([
+      outcome(1, { signatures: 3, signedThisRun: true, executedThisRun: true }),
+      outcome(2, { signatures: 1 }),
+    ])
+    const rollup = summary.rollups[0]
+    const bucketed = [...(rollup?.bySignatureCount.values() ?? [])].reduce(
+      (sum, count) => sum + count,
+      0
+    )
+
+    expect(rollup?.executed).toBe(1)
+    expect(rollup?.ready).toBe(0)
+    // Every proposal is in exactly one of buckets / ready / executed; the
+    // literal is the outcome count above, so a rollup that lost one fails.
+    expect(bucketed + (rollup?.ready ?? 0) + (rollup?.executed ?? 0)).toBe(2)
+    expect(rollup?.proposals).toBe(2)
+  })
+
+  it('counts a Sign & Execute as both signed and executed', () => {
+    const summary = rollUpQueue([
+      outcome(1, { signatures: 3, signedThisRun: true, executedThisRun: true }),
+    ])
+
+    expect(summary.signed).toBe(1)
+    expect(summary.executed).toBe(1)
+  })
+
+  it('separates a signature added this run from one already on the proposal', () => {
+    const summary = rollUpQueue([
+      outcome(1, { signedThisRun: true, alreadySigned: false }),
+      outcome(2, { signedThisRun: false, alreadySigned: true }),
+      // Already mine and signed again in this run is one signature, not two
+      // columns' worth: `already` is what this run did not have to do.
+      outcome(3, { signedThisRun: true, alreadySigned: true }),
+    ])
+
+    expect(summary.rollups[0]?.signed).toBe(2)
+    expect(summary.rollups[0]?.already).toBe(1)
+  })
+
+  it('counts a blocked proposal in its signature bucket, not out of the queue', () => {
+    const summary = rollUpQueue([outcome(1, { signatures: 2, blocked: true })])
+
+    expect(summary.blocked).toBe(1)
+    expect(summary.rollups[0]?.bySignatureCount.get(2)).toBe(1)
   })
 
   it('lets a later entry for the same proposal supersede the provisional one', () => {
-    const rollups = rollUpByChange([
-      { ...outcome(1, true), acknowledged: false },
-      { ...outcome(1, true), acknowledged: true },
+    const summary = rollUpQueue([
+      outcome(1, { blocked: true, signatures: 1 }),
+      outcome(1, { signedThisRun: true, signatures: 2 }),
     ])
 
-    expect(rollups[0]?.networks).toBe(1)
-    expect(rollups[0]?.acknowledged).toBe(1)
+    expect(summary.proposals).toBe(1)
+    expect(summary.blocked).toBe(0)
+    expect(summary.signed).toBe(1)
+    expect(summary.rollups[0]?.bySignatureCount.get(2)).toBe(1)
   })
 
-  it('keeps distinct effects in distinct rollups', () => {
+  it('keeps distinct effects in distinct rows', () => {
     const other: INetworkOutcome = {
-      ...outcome(1, true),
+      ...outcome(1),
       acknowledgementKey: effectKey(DIAMOND_B, fingerprint),
+      proposalKey: buildProposalKey({ to: DIAMOND_B, chainId: 1, nonce: 1 }),
     }
 
-    expect(rollUpByChange([outcome(1, true), other]).length).toBe(2)
+    expect(rollUpQueue([outcome(1), other]).rollups.length).toBe(2)
+  })
+
+  it('renders each count under its own heading', () => {
+    const { header, rows, heading } = table([
+      ...fleet(40, { signatures: 1 }),
+      ...fleet(17, { signatures: 2, signedThisRun: true }, 40),
+    ])
+    const row = rows[0] ?? ''
+
+    expect(heading).toContain('Pending proposal queue')
+    expect(cellUnder(header, row, 'proposals')).toBe('57')
+    expect(cellUnder(header, row, '1')).toBe('40')
+    expect(cellUnder(header, row, '2')).toBe('17')
+    expect(cellUnder(header, row, 'signed')).toBe('17')
+  })
+
+  it('prints a column only when a row has something to put in it', () => {
+    const quiet = table(fleet(3, { signatures: 1 }))
+    const loud = table([
+      ...fleet(3, { signatures: 1 }),
+      outcome(9, { signatures: 1, blocked: true }),
+    ])
+
+    expect(quiet.header).not.toContain('blocked')
+    expect(loud.header).toContain('blocked')
+    expect(cellUnder(loud.header, loud.rows[0] ?? '', 'blocked')).toBe('1')
+  })
+
+  it('prints an empty cell as a dot, never as a zero', () => {
+    const { header, rows } = table([
+      outcome(1, { signatures: 1 }),
+      outcome(2, { signatures: 1, blocked: true }),
+      // A second change with nothing blocked, so its `blocked` cell is empty.
+      {
+        ...outcome(3, { signatures: 1 }),
+        acknowledgementKey: effectKey(DIAMOND_B, fingerprint),
+        proposalKey: buildProposalKey({ to: DIAMOND_B, chainId: 3, nonce: 1 }),
+      },
+    ])
+
+    expect(cellUnder(header, rows[1] ?? '', 'blocked')).toBe('·')
+    // Cells only — the payload column is hex and carries zeroes of its own.
+    expect((rows[1] ?? '').split(/\s{2,}/).slice(2)).not.toContain('0')
+  })
+
+  it('states in the footer what the run did, including the zeroes', () => {
+    const { footer } = table([
+      ...fleet(2, { signatures: 1 }),
+      outcome(9, { signatures: 3, signedThisRun: true }),
+    ])
+
+    expect(footer).toContain('3 pending at run start')
+    expect(footer).toContain('1 at threshold')
+    expect(footer).toContain('signed 1')
+    expect(footer).toContain('executed 0')
+  })
+
+  it('names the stale nonces in the footer only when there are some', () => {
+    const clean = table(fleet(2, { signatures: 1 }))
+    const stale = table([
+      ...fleet(2, { signatures: 1 }),
+      outcome(9, { signatures: 1, nonceCurrent: false }),
+    ])
+
+    expect(clean.footer).not.toContain('stale')
+    expect(stale.footer).toContain('1 on a stale nonce')
+  })
+
+  it('renders nothing at all when the run saw no proposal', () => {
+    expect(renderQueueSummary(rollUpQueue([]))).toEqual([])
   })
 })
 

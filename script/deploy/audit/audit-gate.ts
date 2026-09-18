@@ -76,24 +76,6 @@ export const contractNameFromPath = (path: string): string =>
   (path.split('/').pop() ?? path).replace(/\.sol$/, '')
 
 /**
- * Mirrors the `@custom:version` extraction in `versionControlAndAuditCheck.yml`
- * exactly — anchored, three numeric components. The two must agree: the workflow
- * looks up audit coverage by version while the gate compares content at that
- * same version, and a disagreement would check one version's audits against
- * another version's source.
- *
- * `getContractVersion()` in `script/deploy/shared/` is not reusable here: it
- * resolves a contract *name* by guessing among `src/`, `src/Facets/` and
- * friends, so two same-named contracts collapse, and it reads the working tree
- * rather than a tree-ish.
- *
- * @param source - Solidity source text.
- * @returns the declared version, or undefined when the tag is absent.
- */
-export const extractContractVersion = (source: string): string | undefined =>
-  /^\/\/\/\s*@custom:version\s+(\d+\.\d+\.\d+)/m.exec(source)?.[1]
-
-/**
  * Splits the version-control step's contract list.
  *
  * That step writes comma-separated; a hand-run invocation is far more readable

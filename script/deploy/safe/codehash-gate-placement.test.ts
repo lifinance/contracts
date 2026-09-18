@@ -22,17 +22,22 @@
  * 7. the Ledger verification display (filmstrip or hash-compare)
  * 8. **the codehash gate** — evaluated and displayed here
  * 9. the integrity assertions — run and displayed
- * 10. `evaluateProposalIntegrity`, the fingerprint and the two keys
- * 11. the pre-prompt `networkOutcomes.push`
- * 12. the action prompt, then `continue` on "Do Nothing"
- * 13. the nonce gate on execute actions, then `continue` on stale/unreachable
- * 14. the target-state refusal, then `continue` when it did not clear
- * 15. `recordAcknowledgement`
- * 16. the sign and execute branches
+ * 10. the executability simulation, the RPC quorum read and the calldata
+ *     address check — each evaluated and displayed
+ * 11. `proposalCheckResults` — the ledger-bearing verdicts above, collected
+ *     for the run ledger; the calldata address check is displayed only
+ * 12. `evaluateProposalIntegrity`, the fingerprint and the two keys
+ * 13. the pre-prompt `networkOutcomes.push`
+ * 14. the action prompt, then `continue` on "Do Nothing"
+ * 15. the nonce gate on execute actions, then `continue` on stale/unreachable
+ * 16. the target-state refusal, then `continue` when it did not clear
+ * 17. `recordAcknowledgement`
+ * 18. the sign and execute branches
  *
  * Nothing in 1-7 returns or continues, so the gate at 8 swallows no existing
  * check; and the refusal itself goes first inside the signer, where nothing
- * precedes it at all.
+ * precedes it at all. 10 and 11 are likewise straight-line: the gates there
+ * report onto the ledger and refuse nothing themselves.
  */
 
 import { readFileSync } from 'fs'
@@ -185,7 +190,8 @@ describe('the codehash refusal is in the one funnel every sign path uses', () =>
   it('starts each proposal in the blocking state rather than the last verdict', () => {
     const loopHeader = SOURCE.indexOf('for (const tx of initialTxs')
     const reset = SOURCE.indexOf('codehashGate = blockingUnevaluatedGate()')
-    const evaluation = SOURCE.indexOf('await evaluateCodehashSignGate(')
+    const taken = SOURCE.indexOf('await evidencePrefetch.take(')
+    const adopted = SOURCE.indexOf('codehashGate = evidence.value.codehash')
 
     expect(loopHeader).toBeGreaterThan(-1)
     // Inside the per-proposal loop, not hoisted above it: hoisted, the reset
@@ -193,7 +199,20 @@ describe('the codehash refusal is in the one funnel every sign path uses', () =>
     // while an assertion that only ordered reset before evaluation would still
     // pass.
     expect(reset).toBeGreaterThan(loopHeader)
-    expect(evaluation).toBeGreaterThan(reset)
+
+    // The evaluation sits in `computeProposalEvidence`, above the loop, so the
+    // next proposal's can run while this one is on screen — which is why the
+    // ordering cannot be asked of the evaluation's own position. What must stay
+    // ordered is that the reset is overwritten by *this* proposal's verdict and
+    // by nothing else: the bundle is taken after the reset, and the gate is
+    // assigned out of that bundle.
+    expect(taken).toBeGreaterThan(reset)
+    expect(adopted).toBeGreaterThan(taken)
+
+    // Keyed on this proposal, and built from this proposal's row. A bundle
+    // taken under another key would be the previous verdict by another route.
+    expect(SOURCE).toContain('() => computeProposalEvidence(tx),')
+    expect(SOURCE).toContain('await evaluateCodehashSignGate(')
   })
 
   // Which transaction the gate judges is not asserted here. (The number of

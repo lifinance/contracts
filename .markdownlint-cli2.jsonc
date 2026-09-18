@@ -37,12 +37,16 @@
   // Intentionally empty — callers pass the files to lint via positional CLI args.
   //   - `bun lint:md` / `lint:md:fix` pass `**/*.md` for full-repo runs (see package.json)
   //   - `lint-staged` passes individual staged files
-  //   - CI passes only the PR's changed files (see .github/workflows/markdownlint.yml)
-  // markdownlint-cli2 UNIONS config globs with CLI args, so any non-empty `globs` here
-  // would cause CI to lint the whole repo on every PR that touches a .md file.
+  //   - CI runs `bun lint:md`, i.e. the same full-repo glob (see .github/workflows/markdownlint.yml)
+  // markdownlint-cli2 UNIONS config globs with CLI args, so a non-empty `globs` here would
+  // widen every caller's scope — notably lint-staged, which must stay limited to staged files.
   "globs": [],
+  // Globs here are anchored at this file's directory, so only a leading `**/` matches nested
+  // copies. Without it, a clone using the repo's `.claude/worktrees/` layout lints other
+  // sessions' checkouts — and `lint:md:fix` shares this glob and *writes* into them.
   "ignores": [
-    "node_modules/**",
+    "**/node_modules/**",
+    ".claude/worktrees/**",
     "lib/**",
     "out/**",
     "cache/**",

@@ -166,6 +166,10 @@ export interface IWhitelistConfig {
 /**
  * Target state JSON structure for health checks
  * Maps network names to their production/staging deployment states
+ *
+ * @remarks The value is `"latest"` (follow the repo's `@custom:version`) unless the network
+ *   is deliberately pinned to a semver. Membership is the statement the key makes; consumers
+ *   that ask "which contracts belong on this chain" read the keys and ignore the value.
  */
 export type TargetState = Record<
   string,

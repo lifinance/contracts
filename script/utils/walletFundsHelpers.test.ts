@@ -204,7 +204,7 @@ describe('chainUsesErc20Gas', () => {
     ).toBe(false)
     expect(chainUsesErc20Gas({ nativeAddress: NATIVE_SENTINEL })).toBe(false)
   })
-  it('true for an ERC-20 gas-token predeploy (arc-style)', () => {
+  it('true when nativeAddress names a real gas-token contract', () => {
     expect(
       chainUsesErc20Gas({
         nativeCurrency: 'USDC',

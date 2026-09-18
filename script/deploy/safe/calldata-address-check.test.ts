@@ -26,9 +26,9 @@ import {
   AddressGradeEnum,
   AddressRoleEnum,
   DeploymentIndexSourceEnum,
-  assertCalldataAddressesResolve,
   evaluateCalldataAddresses,
   renderCalldataAddresses,
+  REPORT_ONLY_HEADING,
   type IAddressReference,
   type IDeploymentIndex,
   type IDeploymentIndexEntry,
@@ -73,7 +73,10 @@ const realProductionEntries = ((): IDeploymentIndexEntry[] => {
   const entries: IDeploymentIndexEntry[] = []
   const log = deploymentLogExport as unknown as Record<
     string,
-    Record<string, Record<string, Record<string, { ADDRESS?: string }[]>>>
+    Record<
+      string,
+      Record<string, Record<string, { ADDRESS?: string; TIMESTAMP?: string }[]>>
+    >
   >
   for (const [contractName, byNetwork] of Object.entries(log))
     for (const [network, byEnvironment] of Object.entries(byNetwork))
@@ -87,6 +90,11 @@ const realProductionEntries = ((): IDeploymentIndexEntry[] => {
               network,
               version,
               address: row.ADDRESS,
+              // `2023-07-27 16:43:51` as the export writes it — the zone-less
+              // shape `deployedAt` reads as UTC.
+              ...(row.TIMESTAMP === undefined
+                ? {}
+                : { timestamp: row.TIMESTAMP }),
             })
   return entries
 })()
@@ -119,13 +127,17 @@ const repoFileEntries = ((): IDeploymentIndexEntry[] => {
 
 const recordIndex = (
   addresses: readonly string[],
-  entries: readonly IDeploymentIndexEntry[] = realProductionEntries
+  entries: readonly IDeploymentIndexEntry[] = realProductionEntries,
+  queriedNames: readonly string[] = []
 ): IDeploymentIndex => ({
   source: DeploymentIndexSourceEnum.DeploymentRecord,
   available: true,
   queried: addresses.map((address) => address.toLowerCase()),
+  queriedNames: [...queriedNames],
   entries,
 })
+
+const ZERO = '0x0000000000000000000000000000000000000000'
 
 const facetAdd = (
   address: string,
@@ -134,6 +146,14 @@ const facetAdd = (
   address,
   role: AddressRoleEnum.FacetAdd,
   path,
+})
+
+/** `registerPeripheryContract(name, address(0))` — the deregistration call. */
+const unregister = (registeredName: string): IAddressReference => ({
+  address: ZERO,
+  role: AddressRoleEnum.PeripheryRegistration,
+  path: 'call[0].registerPeripheryContract[0]',
+  registeredName,
 })
 
 const expectations = (
@@ -172,7 +192,6 @@ describe('evaluateCalldataAddresses against the real deployment record', () => {
       AddressGradeEnum.Resolved,
       AddressGradeEnum.Resolved,
     ])
-    expect(() => assertCalldataAddressesResolve(verdict)).not.toThrow()
   })
 
   it('refuses an address the record holds nowhere', () => {
@@ -194,9 +213,6 @@ describe('evaluateCalldataAddresses against the real deployment record', () => {
     expect(verdict.refuses).toBe(true)
     expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.Unknown)
     expect(verdict.reason).toContain('no deployment record on any network')
-    expect(() => assertCalldataAddressesResolve(verdict)).toThrow(
-      /will not be signed/
-    )
   })
 
   it('refuses a real address deployed on another network', () => {
@@ -255,9 +271,6 @@ describe('evaluateCalldataAddresses against the real deployment record', () => {
     expect(verdict.refuses).toBe(false)
     expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.IdentityUnchecked)
     expect(verdict.errors.join(' ')).toContain('reported and not verified')
-    expect(() => assertCalldataAddressesResolve(verdict)).toThrow(
-      /will not be signed/
-    )
   })
 
   it('reports rather than verifies the identity of a removal target', () => {
@@ -282,7 +295,6 @@ describe('evaluateCalldataAddresses against the real deployment record', () => {
     expect(verdict.error).toBe(false)
     expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.IdentityUnchecked)
     expect(verdict.warnings.join(' ')).toContain('reported and not verified')
-    expect(() => assertCalldataAddressesResolve(verdict)).not.toThrow()
   })
 })
 
@@ -400,9 +412,6 @@ describe('the expectations map is checked before it is trusted', () => {
     expect(verdict.errors.join(' ')).toContain(
       'keyed with "CBridgeFacet", which is not a 20-byte hex address'
     )
-    expect(() => assertCalldataAddressesResolve(verdict)).toThrow(
-      /will not be signed/
-    )
   })
 
   it('errors when two keys for one address disagree about its identity', () => {
@@ -447,9 +456,6 @@ describe('the source of the entries is itself judged', () => {
     expect(verdict.error).toBe(true)
     expect(verdict.refuses).toBe(false)
     expect(verdict.errors.join(' ')).toContain('merges to main only after')
-    expect(() => assertCalldataAddressesResolve(verdict)).toThrow(
-      /will not be signed/
-    )
   })
 
   it('will not decide on the deployment-log export, which omits recent contracts', () => {
@@ -494,9 +500,6 @@ describe('the source of the entries is itself judged', () => {
     expect(verdict.error).toBe(true)
     expect(verdict.errors.join(' ')).toContain(
       '"attested-build-index" is not a source this check has a provenance argument for'
-    )
-    expect(() => assertCalldataAddressesResolve(verdict)).toThrow(
-      /will not be signed/
     )
   })
 
@@ -596,9 +599,6 @@ describe('a question that cannot be answered is not answered yes', () => {
     expect(verdict.refuses).toBe(false)
     expect(verdict.errors.join(' ')).toContain('timed out')
     expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.NotQueried)
-    expect(() => assertCalldataAddressesResolve(verdict)).toThrow(
-      /will not be signed/
-    )
   })
 
   it('errors on an address the store was never asked about, rather than calling it unknown', () => {
@@ -631,7 +631,6 @@ describe('a question that cannot be answered is not answered yes', () => {
     expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.Resolved)
     expect(verdict.error).toBe(true)
     expect(verdict.errors.join(' ')).toContain('may reference others')
-    expect(() => assertCalldataAddressesResolve(verdict)).toThrow()
   })
 
   it('refuses a value that is not an address instead of skipping it', () => {
@@ -698,23 +697,111 @@ describe('the zero address, by role', () => {
     expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.IllegalZero)
   })
 
-  it('refuses it as a periphery registration', () => {
+  it('reads it as the unregistration a periphery registration means by it', () => {
+    const verdict = evaluateCalldataAddresses(
+      {
+        network: 'mainnet',
+        references: [unregister('Executor')],
+      },
+      recordIndex(
+        ['0x0000000000000000000000000000000000000000'],
+        realProductionEntries,
+        ['Executor']
+      )
+    )
+
+    expect(verdict.refuses).toBe(false)
+    expect(verdict.error).toBe(false)
+    expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.NotApplicable)
+    // Zero says nothing here — the name is the whole payload, so the signer is
+    // told what the name they are deleting currently answers to.
+    expect(verdict.findings[0]?.detail).toContain(
+      '0xd9B2Da9C45b118e4e93A004FB1452bCDB6cC0E88'
+    )
+    expect(verdict.findings[0]?.detail).not.toContain('required value')
+  })
+
+  it('says the record holds nothing under the name an unregistration misspells', () => {
+    const verdict = evaluateCalldataAddresses(
+      {
+        network: 'mainnet',
+        references: [unregister('Exectuor')],
+      },
+      recordIndex(
+        ['0x0000000000000000000000000000000000000000'],
+        realProductionEntries,
+        ['Exectuor']
+      )
+    )
+
+    // Reported, not refused: registry entries predating the deploy log hold
+    // nothing under their name either, so this cannot separate a typo from a
+    // legitimate cleanup — only hand the signer both halves.
+    expect(verdict.refuses).toBe(false)
+    expect(verdict.error).toBe(false)
+    expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.NotApplicable)
+    expect(verdict.findings[0]?.detail).toContain(
+      'the record holds nothing under "Exectuor" on mainnet'
+    )
+  })
+
+  it('says the record cannot name what an unregistration would delete', () => {
+    const tied: IDeploymentIndexEntry[] = [
+      {
+        contractName: 'Permit2Proxy',
+        network: 'mainnet',
+        version: '1.0.0',
+        address: '0x1111111111111111111111111111111111111111',
+        timestamp: '2023-07-27 16:43:51',
+      },
+      {
+        contractName: 'Permit2Proxy',
+        network: 'mainnet',
+        version: '1.0.1',
+        address: '0x2222222222222222222222222222222222222222',
+        timestamp: '2023-07-27 16:43:51',
+      },
+    ]
+
+    const verdict = evaluateCalldataAddresses(
+      { network: 'mainnet', references: [unregister('Permit2Proxy')] },
+      recordIndex(['0x0000000000000000000000000000000000000000'], tied, [
+        'Permit2Proxy',
+      ])
+    )
+
+    expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.NotApplicable)
+    expect(verdict.findings[0]?.detail).toContain(
+      'which one is current is not decided'
+    )
+  })
+
+  it('does not claim the record is silent on a name it was never asked about', () => {
+    const verdict = evaluateCalldataAddresses(
+      { network: 'mainnet', references: [unregister('Executor')] },
+      recordIndex(['0x0000000000000000000000000000000000000000'])
+    )
+
+    expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.NotApplicable)
+    expect(verdict.findings[0]?.detail).toContain('never asked')
+  })
+
+  it('keeps naming zero the required value where LibDiamond requires it', () => {
     const verdict = evaluateCalldataAddresses(
       {
         network: 'mainnet',
         references: [
           {
             address: '0x0000000000000000000000000000000000000000',
-            role: AddressRoleEnum.PeripheryRegistration,
-            path: 'call[0].registerPeripheryContract',
+            role: AddressRoleEnum.FacetRemove,
+            path: 'call[0].cuts[0]',
           },
         ],
       },
       recordIndex(['0x0000000000000000000000000000000000000000'])
     )
 
-    expect(verdict.refuses).toBe(true)
-    expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.IllegalZero)
+    expect(verdict.findings[0]?.detail).toContain('required value')
   })
 })
 
@@ -776,7 +863,6 @@ describe('removals warn where installs refuse', () => {
     expect(verdict.errors).toHaveLength(0)
     expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.NotQueried)
     expect(verdict.warnings.join(' ')).toContain('never looked up')
-    expect(() => assertCalldataAddressesResolve(verdict)).not.toThrow()
   })
 
   it('errors on a role it has no refusal policy for, rather than warning', () => {
@@ -801,9 +887,6 @@ describe('removals warn where installs refuse', () => {
     expect(verdict.warnings).toHaveLength(0)
     expect(verdict.errors.join(' ')).toContain(
       'is in role "timelock-admin-grant", which this check has no refusal policy for'
-    )
-    expect(() => assertCalldataAddressesResolve(verdict)).toThrow(
-      /will not be signed/
     )
   })
 
@@ -865,8 +948,127 @@ describe('renderCalldataAddresses', () => {
       )
     )
 
-    expect(lines).toHaveLength(1)
-    expect(lines[0]).toContain('1 of 1')
+    expect(lines).toHaveLength(4)
+    expect(lines[1]).toContain(REPORT_ONLY_HEADING)
+    // The address and what it had to be, above the tally that counts it. A
+    // signer comparing one address against the proposal has nothing to read a
+    // count against.
+    expect(lines[2]).toContain(MAINNET_ONLY_FACET)
+    expect(lines[2]).toContain('CBridgeFacet@1.0.0')
+    expect(lines[2]).toContain('call[0].cuts[0]')
+    expect(lines[3]).toContain('1 of 1')
+  })
+
+  // A tally over a proposal that installs several facets says how many were
+  // looked up and names none of them, so the one thing a signer can act on —
+  // is *this* address the contract it claims — is the one thing it withholds.
+  it('names every address it resolved, not only how many', () => {
+    const plain = renderCalldataAddresses(
+      evaluateCalldataAddresses(
+        {
+          network: 'mainnet',
+          references: [
+            facetAdd(MAINNET_ONLY_FACET, 'call[0].cuts[0]'),
+            facetAdd(FLEET_WIDE_FACET, 'call[0].cuts[1]'),
+          ],
+          expectations: expectations(
+            [MAINNET_ONLY_FACET, { contractName: 'CBridgeFacet' }],
+            [FLEET_WIDE_FACET, { contractName: 'DexManagerFacet' }]
+          ),
+        },
+        recordIndex([MAINNET_ONLY_FACET, FLEET_WIDE_FACET])
+      )
+    ).join('\n')
+
+    for (const address of [MAINNET_ONLY_FACET, FLEET_WIDE_FACET])
+      expect(plain).toContain(address)
+    expect(plain).toContain('call[0].cuts[0]')
+    expect(plain).toContain('call[0].cuts[1]')
+    expect(plain).toContain('2 of 2')
+  })
+
+  // The addresses a clean verdict never looked up are the ones whose line the
+  // summary cannot carry: it says every one was a legal zero, and which call
+  // slot each sat in is what says the cut removes what it claims to.
+  it('names each address it deliberately did not look up', () => {
+    const plain = renderCalldataAddresses(
+      evaluateCalldataAddresses(
+        {
+          network: 'mainnet',
+          references: [
+            {
+              address: ZERO,
+              role: AddressRoleEnum.FacetRemove,
+              path: 'call[0].cuts[0]',
+            },
+            {
+              address: ZERO,
+              role: AddressRoleEnum.CutInit,
+              path: 'call[0]._init',
+            },
+          ],
+        },
+        recordIndex([])
+      )
+    ).join('\n')
+
+    expect(plain).toContain('call[0].cuts[0] is the zero address')
+    expect(plain).toContain('call[0]._init is the zero address')
+    expect(plain).toContain('facet-remove')
+    expect(plain).toContain('cut-init')
+  })
+
+  // The mixed proposal, where naming only the refusal would leave the signer
+  // unable to tell an unchecked address from a checked one.
+  it('still names the addresses that resolved when another one refuses', () => {
+    // The same typo class the refusal cases above use: one hex digit changed,
+    // which the record holds no deployment for.
+    const typo = FLEET_WIDE_FACET.replace(/9$/, 'a')
+    expect(typo).not.toBe(FLEET_WIDE_FACET)
+    expect(
+      realProductionEntries.some(
+        (entry) => entry.address.toLowerCase() === typo.toLowerCase()
+      )
+    ).toBe(false)
+    const plain = renderCalldataAddresses(
+      evaluateCalldataAddresses(
+        {
+          network: 'mainnet',
+          references: [
+            facetAdd(MAINNET_ONLY_FACET, 'call[0].cuts[0]'),
+            facetAdd(typo, 'call[0].cuts[1]'),
+          ],
+          expectations: expectations([
+            MAINNET_ONLY_FACET,
+            { contractName: 'CBridgeFacet' },
+          ]),
+        },
+        recordIndex([MAINNET_ONLY_FACET, typo])
+      )
+    ).join('\n')
+
+    expect(plain).toContain('REFUSED')
+    expect(plain).toContain(MAINNET_ONLY_FACET)
+    expect(plain).toContain('CBridgeFacet')
+  })
+
+  // Each grade reaches the page through exactly one path — `errors`,
+  // `warnings`, the refusal, or the per-address line — and a second line for
+  // the same finding would read as two findings about one address.
+  it('prints a finding once, however many paths could carry it', () => {
+    const lines = renderCalldataAddresses(
+      evaluateCalldataAddresses(
+        {
+          network: 'mainnet',
+          references: [facetAdd(MAINNET_ONLY_FACET, 'call[0].cuts[0]')],
+        },
+        recordIndex([MAINNET_ONLY_FACET])
+      )
+    )
+
+    expect(
+      lines.filter((line) => line.includes('call[0].cuts[0]'))
+    ).toHaveLength(1)
   })
 
   it('says nothing needed resolving rather than ticking zero of zero', () => {
@@ -877,10 +1079,15 @@ describe('renderCalldataAddresses', () => {
       )
     )
 
-    expect(lines).toHaveLength(1)
-    expect(lines[0]).toMatch(
-      /^\S+ Calldata address check skipped: no call in this proposal references an address\.$/
+    expect(lines).toHaveLength(3)
+    // The claim is about the roles this check grades, not about the proposal
+    // carrying no address: a whitelist proposal carries one in every call and
+    // reaches here with no reference collected, and the wider sentence would
+    // put a tick over addresses nothing looked at.
+    expect(lines[2]).toMatch(
+      /^ {4}\S+ Calldata address check skipped: this proposal references no address in a role this check grades — a facet cut, a cut's `_init`, or a periphery registration\.$/
     )
+    expect(lines[2]).not.toContain('references an address.')
   })
 
   it('names the refused address and the record it contradicts', () => {
@@ -894,6 +1101,88 @@ describe('renderCalldataAddresses', () => {
     expect(lines.join('\n')).toContain('REFUSED')
     expect(lines.join('\n')).toContain(MAINNET_ONLY_FACET)
     expect(lines.join('\n')).toContain('not on arbitrum')
+    // The path the heading is for: a `⛔` here is the same glyph gate K refuses
+    // with, and this one does not block, so the block has to say so above it.
+    expect(lines[1]).toContain(REPORT_ONLY_HEADING)
+  })
+
+  it('prints what an unregistration deletes, which no other grade would surface', () => {
+    const lines = renderCalldataAddresses(
+      evaluateCalldataAddresses(
+        { network: 'mainnet', references: [unregister('Executor')] },
+        recordIndex(
+          ['0x0000000000000000000000000000000000000000'],
+          realProductionEntries,
+          ['Executor']
+        )
+      )
+    )
+
+    expect(lines.join('\n')).toContain('unregisters "Executor"')
+    expect(lines.join('\n')).toContain(
+      '0xd9B2Da9C45b118e4e93A004FB1452bCDB6cC0E88'
+    )
+    expect(lines.join('\n')).not.toContain('REFUSED')
+  })
+
+  // What a facet removal is: a zero facet address and a zero `_init`, both
+  // legal, neither looked up. Counted in the denominator they produced
+  // "✓ 0 of 2 calldata addresses resolved to the deployment record" — a green
+  // tick on a verification that never happened, under a proposal that installs
+  // nothing to verify.
+  it('does not tally an address it never looked up', () => {
+    const lines = renderCalldataAddresses(
+      evaluateCalldataAddresses(
+        {
+          network: 'mainnet',
+          references: [
+            {
+              address: ZERO,
+              role: AddressRoleEnum.FacetRemove,
+              path: 'call[0].cuts[0]',
+            },
+            {
+              address: ZERO,
+              role: AddressRoleEnum.CutInit,
+              path: 'call[0]._init',
+            },
+          ],
+        },
+        recordIndex([])
+      )
+    )
+
+    expect(lines.join('\n')).not.toContain('0 of 2')
+    expect(lines.join('\n')).not.toContain('resolved to the deployment record')
+    expect(lines.join('\n')).toContain('no address in this proposal')
+  })
+
+  // The paired positive: the exclusion must not swallow a real lookup that sits
+  // beside a legal zero. A cut that removes one facet and installs another has
+  // one address to resolve, and the line has to say one.
+  it('still tallies the addresses it did look up beside a legal zero', () => {
+    const lines = renderCalldataAddresses(
+      evaluateCalldataAddresses(
+        {
+          network: 'mainnet',
+          references: [
+            {
+              address: ZERO,
+              role: AddressRoleEnum.FacetRemove,
+              path: 'call[0].cuts[0]',
+            },
+            facetAdd(MAINNET_ONLY_FACET, 'call[0].cuts[1]'),
+          ],
+          expectations: expectations([
+            MAINNET_ONLY_FACET,
+            { contractName: 'CBridgeFacet', version: '1.0.0' },
+          ]),
+        },
+        recordIndex([MAINNET_ONLY_FACET])
+      )
+    )
+
+    expect(lines.join('\n')).toContain('1 of 1')
   })
 
   it('distinguishes a check that could not run from one that passed', () => {
@@ -912,6 +1201,10 @@ describe('renderCalldataAddresses', () => {
 
     expect(lines.join('\n')).toContain('CANNOT CHECK')
     expect(lines.join('\n')).not.toContain('resolved to the deployment record')
+    // Report-only, so never the red stop sign a blocking gate uses, and never
+    // an emoji, whose cell width differs per terminal.
+    expect(lines.join('\n')).not.toContain('\u26d4')
+    expect(lines.join('\n')).not.toContain('\u001b[31m')
   })
 })
 
@@ -943,6 +1236,268 @@ describe('the index shape the record satisfies', () => {
       recordIndex([MAINNET_ONLY_FACET], [entry])
     )
 
+    expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.Resolved)
+  })
+})
+
+/**
+ * Every address below is a real mainnet `Executor` the committed export carries,
+ * with the export's own deploy times. The three of them are what makes the
+ * name anchor testable on real data rather than on a fixture: the superseded
+ * ones are genuine `Executor` records on the same network, so a check that
+ * graded the address alone would pass them, and only the question "which
+ * Executor is current" separates them from the one a proposal should register.
+ */
+const EXECUTOR_MAINNET_CURRENT = '0xd9B2Da9C45b118e4e93A004FB1452bCDB6cC0E88'
+const EXECUTOR_MAINNET_SUPERSEDED = '0x2dfaDAB8266483beD9Fd9A292Ce56596a2D1378D'
+
+const registers = (
+  address: string,
+  name = 'Executor',
+  path = 'call[0].registerPeripheryContract[0]'
+): IAddressReference => ({
+  address,
+  role: AddressRoleEnum.PeripheryRegistration,
+  path,
+  registeredName: name,
+})
+
+describe('periphery registrations are graded against the name the record holds', () => {
+  it('resolves the Executor the record currently has on mainnet', () => {
+    const verdict = evaluateCalldataAddresses(
+      {
+        network: 'mainnet',
+        references: [registers(EXECUTOR_MAINNET_CURRENT)],
+      },
+      recordIndex([EXECUTOR_MAINNET_CURRENT], realProductionEntries, [
+        'Executor',
+      ])
+    )
+
+    expect(verdict.refuses).toBe(false)
+    expect(verdict.error).toBe(false)
+    expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.Resolved)
+  })
+
+  it('refuses a superseded Executor the record still holds under that name', () => {
+    const verdict = evaluateCalldataAddresses(
+      {
+        network: 'mainnet',
+        references: [registers(EXECUTOR_MAINNET_SUPERSEDED)],
+      },
+      recordIndex([EXECUTOR_MAINNET_SUPERSEDED], realProductionEntries, [
+        'Executor',
+      ])
+    )
+
+    expect(verdict.refuses).toBe(true)
+    expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.NameMismatch)
+    expect(verdict.reason).toContain(EXECUTOR_MAINNET_CURRENT)
+  })
+
+  it('is the name check, not the address check, that separates the two', () => {
+    // Both addresses are real mainnet Executors, so grading the address alone
+    // cannot tell them apart. If this ever fails, the refusal above is coming
+    // from something other than the name anchor.
+    const superseded = evaluateCalldataAddresses(
+      {
+        network: 'mainnet',
+        references: [
+          {
+            address: EXECUTOR_MAINNET_SUPERSEDED,
+            role: AddressRoleEnum.FacetAdd,
+            path: 'call[0].cuts[0]',
+          },
+        ],
+      },
+      recordIndex([EXECUTOR_MAINNET_SUPERSEDED])
+    )
+
+    expect(superseded.refuses).toBe(false)
+    expect(superseded.findings[0]?.grade).toBe(
+      AddressGradeEnum.IdentityUnchecked
+    )
+  })
+
+  it('refuses an address the record does not hold under that name at all', () => {
+    const verdict = evaluateCalldataAddresses(
+      {
+        network: 'mainnet',
+        references: [registers(EXECUTOR_MAINNET_CURRENT, 'FeeCollector')],
+      },
+      recordIndex([EXECUTOR_MAINNET_CURRENT], realProductionEntries, [
+        'FeeCollector',
+      ])
+    )
+
+    expect(verdict.refuses).toBe(true)
+    expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.NameMismatch)
+  })
+
+  it('cannot decide when the record was never asked about the name', () => {
+    const verdict = evaluateCalldataAddresses(
+      {
+        network: 'mainnet',
+        references: [registers(EXECUTOR_MAINNET_CURRENT)],
+      },
+      recordIndex([EXECUTOR_MAINNET_CURRENT])
+    )
+
+    expect(verdict.refuses).toBe(false)
+    expect(verdict.error).toBe(true)
+    expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.NotQueried)
+  })
+
+  it('cannot decide when two records share the newest deploy time', () => {
+    // The real shape this guards: production carries a Permit2Proxy pair on
+    // `abstract` logged at the same second under different versions. Picking
+    // either would decide a refusal on which one the record listed first.
+    const tie: IDeploymentIndexEntry[] = [
+      {
+        contractName: 'Permit2Proxy',
+        network: 'mainnet',
+        version: '1.0.3',
+        address: EXECUTOR_MAINNET_SUPERSEDED,
+        timestamp: '2025-07-03 09:54:45',
+      },
+      {
+        contractName: 'Permit2Proxy',
+        network: 'mainnet',
+        version: '1.0.4',
+        address: EXECUTOR_MAINNET_CURRENT,
+        timestamp: '2025-07-03 09:54:45',
+      },
+    ]
+
+    const verdict = evaluateCalldataAddresses(
+      {
+        network: 'mainnet',
+        references: [registers(EXECUTOR_MAINNET_CURRENT, 'Permit2Proxy')],
+      },
+      recordIndex([EXECUTOR_MAINNET_CURRENT], tie, ['Permit2Proxy'])
+    )
+
+    expect(verdict.refuses).toBe(false)
+    expect(verdict.error).toBe(true)
+    expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.IdentityUnchecked)
+  })
+
+  it('cannot decide when a record under the name carries no deploy time', () => {
+    const undated: IDeploymentIndexEntry[] = [
+      {
+        contractName: 'Executor',
+        network: 'mainnet',
+        version: '2.1.0',
+        address: EXECUTOR_MAINNET_CURRENT,
+      },
+    ]
+
+    const verdict = evaluateCalldataAddresses(
+      { network: 'mainnet', references: [registers(EXECUTOR_MAINNET_CURRENT)] },
+      recordIndex([EXECUTOR_MAINNET_CURRENT], undated, ['Executor'])
+    )
+
+    expect(verdict.error).toBe(true)
+    expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.IdentityUnchecked)
+  })
+
+  it('refuses a current Executor proposed on the wrong network', () => {
+    const verdict = evaluateCalldataAddresses(
+      {
+        network: 'polygon',
+        references: [registers(EXECUTOR_MAINNET_CURRENT)],
+      },
+      recordIndex([EXECUTOR_MAINNET_CURRENT], realProductionEntries, [
+        'Executor',
+      ])
+    )
+
+    expect(verdict.refuses).toBe(true)
+    expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.WrongNetwork)
+  })
+
+  it('orders a zone-less deploy time against a zoned one the same way everywhere', () => {
+    // The export writes `2025-07-03 09:54:45` and Mongo writes an instant, so
+    // one group can hold both spellings. Read as a local wall clock, the
+    // zone-less one shifts by the signer's own offset — seven hours on a UTC+7
+    // laptop against a UTC runner — which is enough to swap which record is
+    // newest and hand two signers opposite verdicts on identical input.
+    const mixed: IDeploymentIndexEntry[] = [
+      {
+        contractName: 'Executor',
+        network: 'mainnet',
+        version: '2.0.0',
+        address: EXECUTOR_MAINNET_SUPERSEDED,
+        timestamp: '2025-09-09 12:00:00',
+      },
+      {
+        contractName: 'Executor',
+        network: 'mainnet',
+        version: '2.1.0',
+        address: EXECUTOR_MAINNET_CURRENT,
+        timestamp: new Date('2025-09-09T15:00:00Z'),
+      },
+    ]
+
+    const verdict = evaluateCalldataAddresses(
+      { network: 'mainnet', references: [registers(EXECUTOR_MAINNET_CURRENT)] },
+      recordIndex([EXECUTOR_MAINNET_CURRENT], mixed, ['Executor'])
+    )
+
+    expect(verdict.refuses).toBe(false)
+    expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.Resolved)
+  })
+
+  it('does not read a case-variant name as the name the record knows', () => {
+    // `PeripheryRegistryFacet` writes `s.contracts[_name]` on a
+    // `mapping(string => address)` with no normalisation, so "executor" is a
+    // different registry slot from "Executor": this call would leave the name
+    // the diamond actually serves untouched. Folding the two together would
+    // show the signer a green line for a registration that changes nothing.
+    const verdict = evaluateCalldataAddresses(
+      {
+        network: 'mainnet',
+        references: [registers(EXECUTOR_MAINNET_CURRENT, 'executor')],
+      },
+      recordIndex([EXECUTOR_MAINNET_CURRENT], realProductionEntries, [
+        'executor',
+      ])
+    )
+
+    expect(verdict.findings[0]?.grade).not.toBe(AddressGradeEnum.Resolved)
+    expect(verdict.refuses).toBe(true)
+    expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.NameMismatch)
+  })
+
+  it('orders it the same way when the zone-less record is the newer one', () => {
+    // The mirror of the case above, and it is needed: a positive offset moves a
+    // zone-less time earlier and a negative one moves it later, so a single
+    // direction leaves the bug invisible to every signer on the other side of
+    // UTC. Here the zone-less record is current, and reading it locally would
+    // hand the title to the zoned one instead.
+    const mixed: IDeploymentIndexEntry[] = [
+      {
+        contractName: 'Executor',
+        network: 'mainnet',
+        version: '2.0.0',
+        address: EXECUTOR_MAINNET_SUPERSEDED,
+        timestamp: new Date('2025-09-09T15:00:00Z'),
+      },
+      {
+        contractName: 'Executor',
+        network: 'mainnet',
+        version: '2.1.0',
+        address: EXECUTOR_MAINNET_CURRENT,
+        timestamp: '2025-09-09 18:00:00',
+      },
+    ]
+
+    const verdict = evaluateCalldataAddresses(
+      { network: 'mainnet', references: [registers(EXECUTOR_MAINNET_CURRENT)] },
+      recordIndex([EXECUTOR_MAINNET_CURRENT], mixed, ['Executor'])
+    )
+
+    expect(verdict.refuses).toBe(false)
     expect(verdict.findings[0]?.grade).toBe(AddressGradeEnum.Resolved)
   })
 })
