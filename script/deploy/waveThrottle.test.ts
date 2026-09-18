@@ -1,0 +1,91 @@
+/**
+ * Regression tests for the concurrency throttle in `launchDeployWave`
+ * (`script/deploy/deployContractToNetworks.sh`).
+ *
+ * The throttle counted `$(jobs | wc -l)`. `jobs` inside `$(...)` runs in a subshell, so it
+ * prints a copy of the table and exits without the parent ever reaping: once no job is running
+ * the count pins at 1 rather than falling to 0. At a concurrency of 1 the condition is then
+ * permanently true and the loop spins forever — EXSC-1038's `MAX_CONCURRENT_JOBS=1` repro, and
+ * the deadlock the first test covers. Measured against the pre-fix throttle, a wave of three
+ * networks times out with one of three results written.
+ *
+ * Above 1 the old count was accurate while jobs were in flight (the stale entry only appears
+ * once none is running), so the second test passes either way. It is a guard on the limit being
+ * honoured, not a regression test. `jobs -rp` lists running jobs only, which is accurate from a
+ * subshell.
+ */
+import { execFileSync } from 'child_process'
+import { join } from 'path'
+
+import {
+  describe,
+  expect,
+  it,
+  // eslint-disable-next-line import/no-unresolved
+} from 'bun:test'
+
+const REPO_ROOT = join(import.meta.dir, '..', '..')
+
+const DEFS = [
+  ['script/deploy/deployContractToNetworks.sh', 'launchDeployWave'],
+  ['script/deploy/deployContractToNetworks.sh', 'reportStalledWave'],
+  ['script/helperFunctions.sh', 'prefixNetworkOutput'],
+]
+  .map(
+    // -E, not BRE: BSD sed has no `\\?`, so a basic-regex extraction silently matches nothing
+    ([file, fn]) => `sed -nE '/^(function )?${fn}\\(\\) \\{/,/^\\}/p' ${file}`
+  )
+  .join('\n')
+
+/**
+ * Run a wave of one-second workers and report how long it took.
+ *
+ * @param concurrency - networks allowed to run at once
+ * @param networks - how many networks make up the wave
+ * @returns seconds elapsed, and the count of workers that wrote a result
+ */
+function runWave(
+  concurrency: number,
+  networks: number
+): { elapsed: number; results: number } {
+  const names = Array.from({ length: networks }, (_, i) => `net${i}`).join(' ')
+  const script = `
+    eval "$(${DEFS})"
+    warning() { printf '[warning] %s\\n' "$1"; }
+    deployToNetworkWorker() { sleep 1; echo "OK" >"$5/$1"; }
+    RESULT_DIR=$(mktemp -d)
+    START=$SECONDS
+    launchDeployWave ${concurrency} production SomeFacet 1.0.0 "$RESULT_DIR" ${names}
+    echo "ELAPSED:$((SECONDS - START))"
+    echo "RESULTS:$(find "$RESULT_DIR" -type f | wc -l | tr -d ' ')"
+    rm -rf "$RESULT_DIR"
+  `
+  const output = execFileSync('bash', ['-c', script, 'harness'], {
+    cwd: REPO_ROOT,
+    encoding: 'utf8',
+    timeout: 60_000,
+  })
+  return {
+    elapsed: Number(/ELAPSED:(\d+)/.exec(output)?.[1]),
+    results: Number(/RESULTS:(\d+)/.exec(output)?.[1]),
+  }
+}
+
+describe('launchDeployWave throttle', () => {
+  it('runs a wave at a concurrency of 1 instead of deadlocking', () => {
+    const { elapsed, results } = runWave(1, 3)
+
+    expect(results).toBe(3)
+    // one at a time: three 1s workers cannot finish in less than 3s
+    expect(elapsed).toBeGreaterThanOrEqual(3)
+  }, 60_000)
+
+  it('holds the wave to the configured concurrency', () => {
+    const { elapsed, results } = runWave(2, 4)
+
+    expect(results).toBe(4)
+    // two at a time: two batches of 1s, neither unthrottled (1s) nor serialised (4s)
+    expect(elapsed).toBeGreaterThanOrEqual(2)
+    expect(elapsed).toBeLessThan(4)
+  }, 60_000)
+})

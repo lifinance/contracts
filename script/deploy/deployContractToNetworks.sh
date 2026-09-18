@@ -183,7 +183,7 @@ function launchDeployWave() {
 
   for WAVE_NETWORK in "${WAVE_NETWORKS[@]}"; do
     # throttle: wait for a free slot before launching the next network
-    while [[ $(jobs | wc -l) -ge $WAVE_CONCURRENCY ]]; do
+    while [[ $(jobs -rp | wc -l) -ge $WAVE_CONCURRENCY ]]; do
       sleep 1
     done
     # </dev/null makes the no-stdin guarantee explicit - the sourced framework must

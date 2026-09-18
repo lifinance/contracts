@@ -197,7 +197,7 @@ function launchProposeWave() {
   fi
 
   for WAVE_NETWORK in "${WAVE_NETWORKS[@]}"; do
-    while [[ $(jobs | wc -l) -ge $WAVE_CONCURRENCY ]]; do
+    while [[ $(jobs -rp | wc -l) -ge $WAVE_CONCURRENCY ]]; do
       sleep 1
     done
     proposeToNetworkWorker "$WAVE_NETWORK" "$WAVE_ENVIRONMENT" "$WAVE_CONTRACT" "$WAVE_RESULT_DIR" </dev/null 2>&1 | prefixNetworkOutput "$WAVE_NETWORK" &

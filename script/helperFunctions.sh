@@ -1077,7 +1077,7 @@ function saveDiamondFacets() {
     fi
 
     # throttle background jobs
-    while [[ $(jobs | wc -l | tr -d ' ') -ge $CONCURRENCY ]]; do
+    while [[ $(jobs -rp | wc -l | tr -d ' ') -ge $CONCURRENCY ]]; do
       sleep 0.1
     done
 
@@ -1242,7 +1242,7 @@ function saveDiamondPeriphery() {
   # resolve each periphery address in parallel and write to temp files
   for CONTRACT in ${PERIPHERY_CONTRACTS}; do
     # throttle background jobs; for Tron wait 2s between dispatches to respect RPC rate limits
-    while [[ $(jobs | wc -l | tr -d ' ') -ge $CONCURRENCY ]]; do
+    while [[ $(jobs -rp | wc -l | tr -d ' ') -ge $CONCURRENCY ]]; do
       if isTronNetwork "$NETWORK"; then sleep 2; else sleep 0.1; fi
     done
 
