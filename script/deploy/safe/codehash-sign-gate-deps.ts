@@ -224,6 +224,12 @@ export const createRuntimeCodeObserver = (
       ...(trailer.present && trailer.solcVersion
         ? { solcVersion: trailer.solcVersion }
         : {}),
+      // Also proposer-written, and compared rather than believed: an attested
+      // build that records a triple requires this one to equal it, so a forged
+      // value can only move a verdict towards MISMATCH.
+      ...(trailer.present && trailer.toolchain
+        ? { toolchain: trailer.toolchain }
+        : {}),
     }
   }
 }

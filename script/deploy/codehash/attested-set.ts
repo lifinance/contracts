@@ -6,6 +6,7 @@
  * build, never equality against one record- or network-derived profile.
  */
 
+import type { IToolchainVersions } from './bytecode-trailer'
 import { normalizeHash } from './hex'
 
 /**
@@ -34,6 +35,15 @@ export interface IAttestedBuild {
    * normalised form alone. Pass it when the attestation pins exact bytes.
    */
   rawHash: string | undefined
+  /**
+   * The zksolc/solc/LLVM triple this build's own trailer records, or undefined
+   * for a lineage whose trailer carries no triple.
+   *
+   * Compared unmasked, which is the whole point of carrying it: the triple is
+   * the one axis trailer-stripping hides on a zksolc lineage, and a fork bump
+   * moves codegen without moving anything the normalised hash looks at.
+   */
+  toolchain?: IToolchainVersions
 }
 
 /** What was actually found at the address, normalised the same way. */
@@ -65,6 +75,12 @@ export interface IObservedCode {
    * it. Absent when no version can be read.
    */
   solcVersion?: string
+  /**
+   * The triple the deployed code's own trailer records. Proposer-written like
+   * {@link solcVersion}, and compared rather than believed: it can only move a
+   * verdict from MATCH to MISMATCH.
+   */
+  toolchain?: IToolchainVersions
 }
 
 /** How completely the attested set describes what this contract may be. */
@@ -114,6 +130,32 @@ export interface ICodehashComparison {
   blocksSigning: boolean
 }
 
+/**
+ * Whether the deployed code's toolchain triple is the one a build records.
+ *
+ * An attestation without a triple imposes nothing, so an EVM lineage compares
+ * as it always did. An attestation with one requires the deployed code to carry
+ * the same triple: a missing or differing triple is a disagreement, never a
+ * pass, because the whole reason the triple is read is that stripping the
+ * trailer hides it.
+ *
+ * @param attested - the triple the attested build's own trailer records
+ * @param observed - the triple the deployed code's trailer records
+ */
+const toolchainAgrees = (
+  attested: IToolchainVersions | undefined,
+  observed: IToolchainVersions | undefined
+): boolean =>
+  attested === undefined ||
+  (observed !== undefined &&
+    attested.zksolcVersion === observed.zksolcVersion &&
+    attested.solcVersion === observed.solcVersion &&
+    attested.llvmVersion === observed.llvmVersion)
+
+/** Names a triple the way a signer reads it in a verdict. */
+const describeToolchain = (toolchain: IToolchainVersions): string =>
+  `zksolc ${toolchain.zksolcVersion}, solc ${toolchain.solcVersion}, llvm ${toolchain.llvmVersion}`
+
 const blocked = (
   verdict: 'MISMATCH' | 'UNVERIFIABLE',
   reason: string,
@@ -152,6 +194,16 @@ const blocked = (
  * then reads as a MISMATCH, which is the reason stripping exists. The caller
  * states which it wants; this module does not choose.
  *
+ * `toolchain` is the narrower instrument for what a zksolc lineage needs from
+ * that pin. The triple lives only in the trailer, so stripping hides a fork
+ * bump — but pinning the whole trailer to recover it also pins the metadata
+ * digest beside it, and on a zksolc build that digest is a function of the
+ * whole compilation unit rather than the contract's own import closure.
+ * Measured on lens: one commit, one toolchain, byte-identical codegen, two
+ * digests, because one build compiled 244 sources and the other 175. Comparing
+ * the triple keeps the guarantee without making the verdict depend on a build
+ * invocation nothing records.
+ *
  * Known limitation, and the reason `scope` exists: with an open set, the only
  * thing distinguishing "we never built that toolchain" from "this is not our
  * code" is the compiler version in the deployed trailer, which the proposer
@@ -179,7 +231,10 @@ export const compareToAttestedSet = (
   const sameLength = sameCode.filter(
     (build) => build.rawByteLength === observed.rawByteLength
   )
-  const exact = sameLength.filter(
+  const sameToolchain = sameLength.filter((build) =>
+    toolchainAgrees(build.toolchain, observed.toolchain)
+  )
+  const exact = sameToolchain.filter(
     (build) =>
       build.rawHash === undefined ||
       normalizeHash(build.rawHash) === normalizeHash(observed.rawHash)
@@ -211,16 +266,39 @@ export const compareToAttestedSet = (
     }
   }
 
+  // A triple disagreement is its own finding and has to be said as one. The
+  // codegen a fork bump moves is invisible to every other comparison here, so a
+  // signer reading "the bytes differ somewhere" would be pointed away from the
+  // only thing that did differ.
+  // An empty `sameToolchain` means every build here records a triple — one that
+  // records none imposes nothing and would have stayed in — so the build named
+  // is one that actually disagreed.
+  const disagreeing = sameLength.find((build) => build.toolchain !== undefined)
+  if (sameToolchain.length === 0 && disagreeing?.toolchain)
+    return blocked(
+      'MISMATCH',
+      `the deployed code matches the attested build from ${
+        disagreeing.lineage
+      } everywhere the normalised comparison looks, but reports ${
+        observed.toolchain
+          ? describeToolchain(observed.toolchain)
+          : 'no toolchain triple'
+      } where that build was produced by ${describeToolchain(
+        disagreeing.toolchain
+      )}`,
+      observed.maskedByteCount
+    )
+
   // Only reachable for an attestation that pins exact bytes: the code agrees
   // everywhere the normalised comparison looks, and the bytes it does not look
   // at do not. Those are the metadata trailer AND any masked immutables, so
   // naming only the trailer would point a signer at the harmless half.
-  if (sameLength.length > 0)
+  if (sameToolchain.length > 0)
     return blocked(
       'MISMATCH',
       observed.maskedByteCount === 0
-        ? `the deployed code is identical to the attested build from ${sameLength[0]?.lineage} outside its metadata trailer, and that trailer's bytes differ from the attested ones`
-        : `the deployed code is identical to the attested build from ${sameLength[0]?.lineage} where the normalised comparison looks, but its exact bytes differ: the difference is in the metadata trailer, in the ${observed.maskedByteCount} bytes holding immutables, or in both`,
+        ? `the deployed code is identical to the attested build from ${sameToolchain[0]?.lineage} outside its metadata trailer, and that trailer's bytes differ from the attested ones`
+        : `the deployed code is identical to the attested build from ${sameToolchain[0]?.lineage} where the normalised comparison looks, but its exact bytes differ: the difference is in the metadata trailer, in the ${observed.maskedByteCount} bytes holding immutables, or in both`,
       observed.maskedByteCount
     )
 

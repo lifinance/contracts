@@ -33,6 +33,7 @@ import {
   type IAttestedBuild,
   type IObservedCode,
 } from './attested-set'
+import { readMetadataTrailer } from './bytecode-trailer'
 import {
   parseBuildProfiles,
   deriveToolchainScope,
@@ -88,6 +89,13 @@ const ZK_TRAILER =
 const ZK_TRAILER_OLD_FORK = ZK_TRAILER.replace(
   Buffer.from('llvm:1.0.2', 'utf8').toString('hex'),
   Buffer.from('llvm:1.0.1', 'utf8').toString('hex')
+)
+
+/** The same triple under a different IPFS digest, as lens produced it. */
+const ZK_TRAILER_DRIFTED_DIGEST = ZK_TRAILER.replace(
+  // pre-commit-checker: not a secret — the IPFS digest inside public bytecode
+  'abababababababababababababababababababababababababababababababab',
+  '5307700aafeb322d0a2e6aef8df96cc005e1ab6e9764a662ae4be09fc2b9e839'
 )
 
 const IMMUTABLE_HEX = 'de'.repeat(32)
@@ -430,12 +438,15 @@ describe('createAttestationSource — the set it returns', () => {
     )
   })
 
-  it('leaves rawHash unpinned on an EVM lineage and pins it on zkEVM', async () => {
+  it('carries the toolchain triple a zkEVM build records, and pins no raw bytes', async () => {
     const { source: evm } = sourceWith()
     const evmResolution = await evm.resolve(ADDRESS, 'mainnet')
     expect(evmResolution.kind).toBe('built')
     if (evmResolution.kind !== 'built') return
     expect(evmResolution.builds[0]?.rawHash).toBeUndefined()
+    // An EVM trailer has no triple to record, so there is nothing to impose —
+    // and imposing an absent one would refuse every EVM lineage.
+    expect(evmResolution.builds[0]?.toolchain).toBeUndefined()
 
     const { source: zk } = sourceWith({
       runtime: ZK_RUNTIME,
@@ -448,11 +459,16 @@ describe('createAttestationSource — the set it returns', () => {
     const zkResolution = await zk.resolve(ADDRESS, 'zksync')
     expect(zkResolution.kind).toBe('built')
     if (zkResolution.kind !== 'built') return
-    // D19(b): the solc-fork/LLVM sub-version lives in the trailer, so masking it
-    // away is what makes fork drift invisible. Pinning compares it unmasked.
-    expect(zkResolution.builds[0]?.rawHash).toBe(
-      keccak256(ZK_RUNTIME as `0x${string}`)
-    )
+    // D19(b): the solc-fork/LLVM sub-version lives only in the trailer, so
+    // stripping is what makes fork drift invisible. Carrying the triple is what
+    // puts it back into the comparison — the whole trailer is not pinned,
+    // because the digest beside it moves for reasons codegen does not.
+    expect(zkResolution.builds[0]?.rawHash).toBeUndefined()
+    expect(zkResolution.builds[0]?.toolchain).toEqual({
+      zksolcVersion: '1.5.15',
+      solcVersion: '0.8.29',
+      llvmVersion: '1.0.2',
+    })
     expect(zkResolution.builds[0]?.lineage).toMatch(/llvm 1\.0\.2/)
   })
 
@@ -489,15 +505,15 @@ describe('the real fleet decides which lineage masks and which pins', () => {
     return build
   }
 
-  it('pins the exact bytes on exactly the zkEVM networks', async () => {
-    // The zk discriminator is the profile's zksolc pin, so this asserts the
-    // branch that decides masking against every active network in the real
-    // config rather than against the two the fixtures name.
+  it('pins the exact bytes on no network, zkEVM included', async () => {
+    // Asserted over every active network in the real config rather than the two
+    // the fixtures name. A digest sits beside the version in both trailers, and
+    // on a zksolc build it answers to the compilation unit the invocation chose,
+    // so any pin here reds honest deployments — which is what it did on lens.
     expect(active.length).toBeGreaterThan(60)
-    const zk = active.filter((n) => networks[n]?.isZkEVM)
-    // Paired with the assertion below: with no zk network in the config, an
-    // implementation that never pinned would satisfy it vacuously.
-    expect(zk.length).toBeGreaterThan(0)
+    // Without a zk network in the config this would hold vacuously, and the
+    // lineage it is about is the zk one.
+    expect(active.filter((n) => networks[n]?.isZkEVM).length).toBeGreaterThan(0)
 
     const pinned: string[] = []
     for (const network of active) {
@@ -505,7 +521,7 @@ describe('the real fleet decides which lineage masks and which pins', () => {
       if (build.rawHash !== undefined) pinned.push(network)
     }
 
-    expect(pinned.sort()).toEqual(zk.sort())
+    expect(pinned).toEqual([])
   })
 
   it('attests every rebuild as A-LOCAL, and none of them is presentable as attested', async () => {
@@ -626,11 +642,21 @@ describe('falsification — the attested set against real observed code', () => 
       isZk,
     })
     if (!normalized.ok) throw new Error(normalized.reason)
+    // Mirrors `createRuntimeCodeObserver`, trailer reads included: an observation
+    // assembled without them compares on fewer fields than the gate does, and a
+    // falsification suite that blinds itself to a field cannot fire on it.
+    const trailer = readMetadataTrailer(runtimeHex)
     return {
       maskedHash: normalized.maskedHash,
       rawByteLength: normalized.rawByteLength,
       rawHash: normalized.rawHash,
       maskedByteCount: normalized.maskedByteCount,
+      ...(trailer.present && trailer.solcVersion
+        ? { solcVersion: trailer.solcVersion }
+        : {}),
+      ...(trailer.present && trailer.toolchain
+        ? { toolchain: trailer.toolchain }
+        : {}),
     }
   }
 
@@ -724,7 +750,7 @@ describe('falsification — the attested set against real observed code', () => 
 
   it('fires on a zkEVM fork drift the EVM lineage would have tolerated', async () => {
     // Measured on `LayerSwapFacet`: llvm 1.0.1 vs 1.0.2, 33 bytes differing,
-    // all inside the trailer. D19(b) says pin, so this must block.
+    // all inside the trailer. D19(b) says this must block.
     const oldFork = `0x${CODE_BODY}${ZK_TRAILER_OLD_FORK}`
     expect(oldFork.length).toBe(ZK_RUNTIME.length)
 
@@ -735,7 +761,28 @@ describe('falsification — the attested set against real observed code', () => 
     )
 
     expect(verdict.verdict).toBe('MISMATCH')
-    expect(verdict.reason).toMatch(/metadata trailer/)
+    // The fork is named, not just "the bytes differ": it is the only thing that
+    // did differ, and it is the axis no other comparison here can see.
+    expect(verdict.reason).toMatch(/llvm 1\.0\.1/)
+  })
+
+  it('tolerates a metadata digest that moved under an unchanged zkEVM toolchain', async () => {
+    // What the rebuild actually produces: a zksolc metadata digest is a function
+    // of the whole compilation unit, so the gate's own `--skip` flags move it
+    // while the triple and every byte of codegen stay put. Measured on lens,
+    // where this graded a correct deployment MISMATCH.
+    const drifted = `0x${CODE_BODY}${ZK_TRAILER_DRIFTED_DIGEST}`
+    expect(drifted).not.toBe(ZK_RUNTIME)
+    expect(drifted.length).toBe(ZK_RUNTIME.length)
+
+    const verdict = compareToAttestedSet(
+      observe(drifted, true),
+      await attest(ZK_RUNTIME, 'zksync'),
+      { isClosedSet: true, holdsImmutablesOffCode: false }
+    )
+
+    expect(verdict.verdict).toBe('MATCH')
+    expect(verdict.blocksSigning).toBe(false)
   })
 
   it('stays silent on the zkEVM code it rebuilt', async () => {

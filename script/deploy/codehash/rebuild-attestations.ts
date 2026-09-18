@@ -270,14 +270,19 @@ const describeLineage = (
 /**
  * Turns one rebuilt artifact into an attestation.
  *
- * `rawHash` is pinned on zkEVM and left unpinned elsewhere, and that is the
- * whole D19(b) decision in one line. The solc-fork/LLVM sub-version a zksolc
- * build was produced by lives only in the metadata trailer, so stripping the
- * trailer is precisely what makes fork drift invisible — measured on
+ * `toolchain` carries the D19(b) decision. The solc-fork/LLVM sub-version a
+ * zksolc build was produced by lives only in the metadata trailer, so stripping
+ * the trailer is precisely what makes fork drift invisible — measured on
  * `LayerSwapFacet`, where a 1.0.1→1.0.2 bump moved 33 trailer bytes and no
- * codegen. On EVM the trailer holds an IPFS digest of the source layout, which
- * moves for a changed comment, and pinning it there would block on drift that
- * cannot change behaviour.
+ * codegen. So the triple is carried and compared on its own.
+ *
+ * `rawHash` stays unpinned on every lineage, zkEVM included. Both trailers hold
+ * an IPFS digest beside the version, and a digest moves for things that cannot
+ * change behaviour: on EVM a changed comment or file path, and on zkEVM the
+ * size of the compilation unit as well, which the build invocation sets rather
+ * than the source. Pinning it on zkEVM graded honest deploys rogue fleet-wide,
+ * because no rebuild here reproduces the invocation a deploy used and nothing
+ * records what that was.
  *
  * @param record - the record's contract identity
  * @param commit - the commit rebuilt at
@@ -305,6 +310,10 @@ const attestationFrom = (
   // fallback because 63 of 2,094 fleet slots carry no trailer at all.
   const solcVersion =
     (trailer.present ? trailer.solcVersion : undefined) ?? profile.solcVersion
+  // Only a triple this build actually recorded. Falling back to the profile's
+  // zksolc pin would state two of the three versions and leave the LLVM fork —
+  // the one axis nothing but the trailer pins — silently uncompared.
+  const toolchain = trailer.present ? trailer.toolchain : undefined
 
   return {
     ok: true,
@@ -314,7 +323,8 @@ const attestationFrom = (
       solcVersion,
       maskedHash: normalized.maskedHash,
       rawByteLength: normalized.rawByteLength,
-      rawHash: isZk ? normalized.rawHash : undefined,
+      rawHash: undefined,
+      ...(toolchain ? { toolchain } : {}),
     },
   }
 }
