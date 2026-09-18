@@ -204,6 +204,14 @@ const targetStateLedger = () =>
   })
 
 const ESC = String.fromCharCode(27)
+/** The closing verdict, however many lines it folded onto. */
+const closingVerdict = (lines: string[]): string => {
+  const fromEnd = [...lines]
+    .reverse()
+    .findIndex((line) => stripColor(line).startsWith('VERDICT:'))
+  return lines.slice(lines.length - 1 - fromEnd).join(' ')
+}
+
 const stripColor = (line: string): string =>
   line.replace(new RegExp(`${ESC}\\[[0-9;]*m`, 'g'), '')
 
@@ -643,6 +651,18 @@ describe('worstResultPerCheck', () => {
     expect(reduced[0]?.actual).toBe('first proposal')
   })
 
+  // The row the signer sees is one proposal's finding standing for the whole
+  // network, so it has to keep saying which proposal that was.
+  it('keeps the nonce of the proposal whose finding won', () => {
+    const reduced = worstResultPerCheck([
+      { ...resultWith('pass'), proposalNonce: '37' },
+      { ...resultWith('error', 'A-MONGO'), proposalNonce: '38' },
+    ])
+
+    expect(reduced).toHaveLength(1)
+    expect(reduced[0]?.proposalNonce).toBe('38')
+  })
+
   it('returns nothing for a network that graded nothing', () => {
     expect(worstResultPerCheck([])).toEqual([])
   })
@@ -723,7 +743,7 @@ describe('the registry is usable by the ledger it feeds', () => {
       )
     )
 
-    const verdict = stripColor(renderCheckLedger(ledger).at(-1) ?? '')
+    const verdict = stripColor(closingVerdict(renderCheckLedger(ledger)))
 
     expect(verdict).toContain('ACKNOWLEDGEMENT REQUIRED')
     expect(verdict).not.toContain('ALL CHECKS GREEN')
@@ -1551,6 +1571,54 @@ describe('a shortfall the signer can act on', () => {
     expect(result.detail).toContain('1 independent provider(s)')
     expect(result.detail).toContain('3 configured endpoint(s)')
     expect(result.detail).not.toMatch(/only 1 endpoint\(s\) are configured/u)
+    // The action leads and the command follows as its own sentence; the
+    // verdict's diagnosis is not repeated ahead of either.
+    expect(result.detail).toMatch(/^add a second independent RPC provider/u)
+    expect(result.detail).not.toContain('an unopposed answer')
+  })
+
+  // A status code is a name for the reader of the source. On the screen the
+  // same fact has to be a sentence, or the signer has to go and look it up.
+  it('states the shortfall in words, never as a status code', () => {
+    const statuses: TQuorumStatus[] = [
+      'agreed-absent',
+      'disagreement',
+      'fork-divergence',
+      'heights-not-aligned',
+      'insufficient-providers',
+      'insufficient-responses',
+      'no-responses',
+      'provider-identity-unverifiable',
+      'quorum-misconfigured',
+    ]
+
+    for (const status of statuses) {
+      const result = rpcQuorumCheckResult(
+        quorumVerdict({
+          status,
+          reachesQuorum: false,
+          agreeingProviders: 0,
+          independentProviders: 2,
+        }),
+        NETWORK
+      )
+
+      expect(result.actual).toStartWith('0 of 2 agreed — ')
+      expect(result.actual).not.toContain(status)
+      expect(result.actual).not.toMatch(/\([a-z-]+\)/u)
+    }
+
+    expect(
+      rpcQuorumCheckResult(
+        quorumVerdict({
+          status: 'provider-identity-unverifiable',
+          reachesQuorum: false,
+          agreeingProviders: 0,
+          independentProviders: 0,
+        }),
+        NETWORK
+      ).actual
+    ).toBe('0 of 0 agreed — the providers could not be told apart')
   })
 
   // A disagreement between providers that are all present is a different
@@ -1589,7 +1657,7 @@ describe('the verdict the run now closes on', () => {
     // denominator is the applicable rows, not every registered check: a gate
     // that stood down is not a result the run failed to verify.
     const applicable = rollups.filter((rollup) => rollup.graded > 0)
-    const closing = stripColor(renderCheckLedger(ledger).at(-1) ?? '')
+    const closing = stripColor(closingVerdict(renderCheckLedger(ledger)))
     expect(closing).toContain(
       `${passed}/${applicable.length} network results verified`
     )
@@ -1604,7 +1672,7 @@ describe('the verdict the run now closes on', () => {
       verdicts({ integrity: undefined, executability: undefined })
     )
 
-    const verdict = stripColor(renderCheckLedger(ledger).at(-1) ?? '')
+    const verdict = stripColor(closingVerdict(renderCheckLedger(ledger)))
     expect(verdict).toContain('BLOCKED')
     expect(verdict).not.toContain('ALL CHECKS GREEN')
   })

@@ -304,6 +304,11 @@ describe('one row per network, not one per proposal', () => {
     // `confirm-check-registry.test.ts` over the rows, not over this source.
     expect(body).toContain('proposalCheckResults({')
     expect(body).toContain('proposalChecks.push(')
+    // Pushed carrying the proposal's nonce: the reduced row this feeds stands
+    // for the whole network and has to say which proposal it is quoting.
+    expect(body).toMatch(
+      /proposalChecks\.push\([^;]*proposalNonce: headingNonce/u
+    )
 
     // Position, not just presence. Below the operator's own `continue` the push
     // is skipped for a declined proposal, so a network whose only proposal was

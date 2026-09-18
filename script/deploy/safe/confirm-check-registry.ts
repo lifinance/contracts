@@ -31,7 +31,11 @@ import {
   type TargetStateStatus,
 } from './pinned-target-state'
 import type { IPreBroadcastAuthority } from './prebroadcast-authorities'
-import { MIN_INDEPENDENT_PROVIDERS, type IRpcQuorumVerdict } from './rpc-quorum'
+import {
+  describeQuorumStatus,
+  MIN_INDEPENDENT_PROVIDERS,
+  type IRpcQuorumVerdict,
+} from './rpc-quorum'
 import type { ISignedAuthorityEntry } from './signed-set-record'
 
 export const TARGET_STATE_CHECK_ID = 'target-state'
@@ -1176,7 +1180,7 @@ export const rpcQuorumCheckResult = (
   network: string
 ): ICheckResult => {
   const expected = `${verdict.quorum} independent providers agreeing`
-  const actual = `${verdict.agreeingProviders} of ${verdict.independentProviders} agreed (${verdict.status})`
+  const agreed = `${verdict.agreeingProviders} of ${verdict.independentProviders} agreed`
 
   if (verdict.reachesQuorum)
     return {
@@ -1184,7 +1188,7 @@ export const rpcQuorumCheckResult = (
       network,
       status: 'pass',
       expected,
-      actual,
+      actual: agreed,
       anchor: 'A-CHAIN',
     }
 
@@ -1193,7 +1197,7 @@ export const rpcQuorumCheckResult = (
     network,
     status: 'needs-ack',
     expected,
-    actual,
+    actual: `${agreed} — ${describeQuorumStatus(verdict.status)}`,
     // No quorum on the value the caller asked about: the providers disagreed,
     // there were not enough of them, or they agreed the value is empty, which
     // is agreement without the fact an integrity read wanted.
@@ -1204,7 +1208,7 @@ export const rpcQuorumCheckResult = (
     // *endpoint* sends them to re-run a command that would change nothing.
     detail:
       verdict.independentProviders < MIN_INDEPENDENT_PROVIDERS
-        ? `${verdict.detail} — ${verdict.independentProviders} independent provider(s) across ${verdict.endpointsConsulted} configured endpoint(s); a second provider is needed, which "bun fetch-rpcs" picks up where MongoDB holds one`
+        ? `add a second independent RPC provider for this network: ${verdict.independentProviders} independent provider(s) across ${verdict.endpointsConsulted} configured endpoint(s) is below the quorum of ${verdict.quorum}. "bun fetch-rpcs" picks one up where MongoDB holds one`
         : verdict.detail,
   }
 }

@@ -67,11 +67,51 @@ const result = (over: Partial<ICheckResult> = {}): ICheckResult => ({
  * wrong row — or several — the moment a test uses real names.
  */
 const rowFor = (lines: string[], network: string): string => {
-  const matches = lines.filter((line) =>
-    new RegExp(`^\\u001b\\[\\d+m {6}${network}\\s`).test(line)
-  )
-  expect(matches).toHaveLength(1)
-  return matches[0] as string
+  const header = new RegExp(`^\\u001b\\[\\d+m {6}${network}\\s`)
+  const starts = lines.flatMap((line, at) => (header.test(line) ? [at] : []))
+  expect(starts).toHaveLength(1)
+  const start = starts[0] as number
+
+  // The header plus every value and remedy line indented under it.
+  const block = [lines[start] as string]
+  for (const line of lines.slice(start + 1)) {
+    if (!/^ {8}/.test(stripColor(line))) break
+    block.push(line)
+  }
+  return block.join('\n')
+}
+
+const ESC = String.fromCharCode(27)
+const stripColor = (line: string): string =>
+  line.replace(new RegExp(`${ESC}[[][0-9;]*m`, 'g'), '')
+
+/** The closing verdict, however many lines it folded onto. */
+const verdictOf = (lines: string[]): string => {
+  const fromEnd = [...lines]
+    .reverse()
+    .findIndex((line) => stripColor(line).startsWith('VERDICT:'))
+  const start = fromEnd === -1 ? -1 : lines.length - 1 - fromEnd
+  expect(start).toBeGreaterThan(-1)
+  return lines.slice(start).join(' ')
+}
+
+/** The whole report is the closing verdict: its first line and its folds. */
+const closingOnly = (lines: string[]): string => {
+  expect(stripColor(lines[0] ?? '')).toStartWith('VERDICT: ')
+  for (const line of lines.slice(1)) expect(stripColor(line)).toMatch(/^ {9}\S/)
+  return lines.join(' ')
+}
+
+/** The shared-cause banner, however many lines it folded onto. */
+const bannerOf = (lines: string[]): { at: number; text: string } => {
+  const at = lines.findIndex((line) => line.includes('⚠'))
+  expect(at).toBeGreaterThan(-1)
+  const block = [lines[at] as string]
+  for (const line of lines.slice(at + 1)) {
+    if (!/^ {4}\S/.test(stripColor(line))) break
+    block.push(line)
+  }
+  return { at, text: block.join(' ') }
 }
 
 describe('renderCheckLedger', () => {
@@ -89,7 +129,7 @@ describe('renderCheckLedger', () => {
     expect(section[0]).toContain(GREEN)
     expect(lines.some((line) => line.includes('mainnet'))).toBe(false)
     expect(lines.some((line) => line.includes('polygon'))).toBe(false)
-    expect(lines.at(-1)).toContain('ALL CHECKS GREEN')
+    expect(verdictOf(lines)).toContain('ALL CHECKS GREEN')
   })
 
   it('expands only the non-green rows of a non-green check', () => {
@@ -105,9 +145,8 @@ describe('renderCheckLedger', () => {
     expect(lines.some((line) => line.includes('mainnet'))).toBe(false)
     const row = rowFor(lines, 'polygon')
     expect(row).toContain('MISMATCH')
-    expect(row).toContain('expected 0xaaa')
-    expect(row).toContain('actual 0xbbb')
-    expect(row).toContain('A-CI')
+    expect(row).toContain('expected  0xaaa')
+    expect(row).toContain('observed  0xbbb')
     expect(row).toContain(RED)
   })
 
@@ -145,9 +184,9 @@ describe('renderCheckLedger', () => {
     expect(errorRow).toContain(YELLOW)
 
     const checkLine = lines.find((line) => line.includes('codehash'))
-    expect(checkLine).toContain('pass 1/3')
-    expect(checkLine).toContain('fail 1')
-    expect(checkLine).toContain('unverified 1')
+    expect(checkLine).toContain('1/3 network results verified')
+    expect(checkLine).toContain('1 mismatch')
+    expect(checkLine).toContain('1 unverified')
     expect(checkLine).not.toContain('✓')
   })
 
@@ -190,11 +229,11 @@ describe('renderCheckLedger', () => {
     const checkLine = lines.find((line) => line.includes('codehash'))
     const section = lines.find((line) => line.includes('Integrity'))
 
-    expect(checkLine).toContain('pass 56/57')
-    expect(checkLine).toContain('unverified 1')
+    expect(checkLine).toContain('56/57 network results verified')
+    expect(checkLine).toContain('1 unverified')
     expect(section).not.toContain('✓')
     expect(section).not.toContain(GREEN)
-    expect(lines.at(-1)).toContain('BLOCKED')
+    expect(verdictOf(lines)).toContain('BLOCKED')
   })
 
   it('names a network that reported nothing rather than omitting it', () => {
@@ -205,14 +244,14 @@ describe('renderCheckLedger', () => {
 
     expect(row).toContain('UNVERIFIED')
     expect(row).toContain('no result recorded')
-    expect(row).toContain('A-UNRESOLVED')
+    expect(row).toContain('→ re-run this check')
   })
 
   it('blocks on an integrity FAIL and says the ack path does not exist', () => {
     const ledger = ledgerOf(['mainnet'], [CODEHASH])
     recordCheck(ledger, result({ status: 'fail', actual: '0xbbb' }))
 
-    const verdict = renderCheckLedger(ledger).at(-1) as string
+    const verdict = verdictOf(renderCheckLedger(ledger))
 
     expect(verdict).toContain('BLOCKED')
     expect(verdict).toContain('1 blocking')
@@ -227,7 +266,7 @@ describe('renderCheckLedger', () => {
       result({ checkId: 'target-state', status: 'fail', actual: '1.0.1' })
     )
 
-    const verdict = renderCheckLedger(ledger).at(-1) as string
+    const verdict = verdictOf(renderCheckLedger(ledger))
 
     expect(verdict).toContain('ACKNOWLEDGEMENT REQUIRED')
     expect(verdict).not.toContain('BLOCKED')
@@ -248,9 +287,9 @@ describe('renderCheckLedger', () => {
     const row = rowFor(lines, 'mainnet')
 
     expect(row).toContain('relaxed by triage')
-    expect(lines.at(-1)).toContain('NO BLOCKING RESULT')
-    expect(lines.at(-1)).toContain('1 relaxed by triage')
-    expect(lines.at(-1)).not.toContain('BLOCKED —')
+    expect(verdictOf(lines)).toContain('NO BLOCKING RESULT')
+    expect(verdictOf(lines)).toContain('1 relaxed by triage')
+    expect(verdictOf(lines)).not.toContain('BLOCKED —')
   })
 
   it('keeps a semantic MISMATCH out of triage and off the do-not-sign line', () => {
@@ -269,7 +308,7 @@ describe('renderCheckLedger', () => {
     // row must not tell the signer the opposite.
     expect(row).not.toContain('do not sign')
     expect(row).toContain('→ review the disagreement')
-    expect(lines.at(-1)).toContain('ACKNOWLEDGEMENT REQUIRED')
+    expect(verdictOf(lines)).toContain('ACKNOWLEDGEMENT REQUIRED')
   })
 
   it('tells the signer not to sign only on an integrity mismatch', () => {
@@ -297,7 +336,7 @@ describe('renderCheckLedger', () => {
 
     expect(row).toContain('NEEDS REVIEW · relaxed by triage')
     expect(row).not.toContain('→ review the change')
-    expect(lines.at(-1)).toContain('1 relaxed by triage')
+    expect(verdictOf(lines)).toContain('1 relaxed by triage')
   })
 
   it('keeps blocking an integrity FAIL under --triage', () => {
@@ -306,7 +345,7 @@ describe('renderCheckLedger', () => {
 
     const lines = renderCheckLedger(ledger, { triageProfile: 'subtractive' })
 
-    expect(lines.at(-1)).toContain('BLOCKED')
+    expect(verdictOf(lines)).toContain('BLOCKED')
     expect(rowFor(lines, 'mainnet')).not.toContain('relaxed by triage')
   })
 
@@ -325,7 +364,13 @@ describe('renderCheckLedger', () => {
 
     expect(row).not.toContain('\u001b[32mfake pass')
     expect(row).toContain('[32mfake pass second line')
-    expect(row.split('\n')).toHaveLength(1)
+    // The value's own line break was folded into a space, so it stays on the
+    // observed line instead of opening a line of its own.
+    const observed = row
+      .split('\n')
+      .filter((line) => line.includes('fake pass'))
+    expect(observed).toHaveLength(1)
+    expect(observed[0]).toContain('observed  [32mfake pass second line')
   })
 
   it('reports one section line per section, in check-registration order', () => {
@@ -379,7 +424,7 @@ describe('renderCheckLedger', () => {
     expect(() => rowFor(lines, 'arbitrumnova')).toThrow()
   })
 
-  it('sanitizes the check id, the title and the anchor, not only the values', () => {
+  it('sanitizes the title, not only the values', () => {
     const ledger = ledgerOf(
       ['mainnet'],
       [
@@ -395,13 +440,13 @@ describe('renderCheckLedger', () => {
       result({ checkId: '\u001b[32mcodehash', status: 'fail', actual: '0xbbb' })
     )
 
-    const checkLine = renderCheckLedger(ledger).find((line) =>
-      line.includes('codehash')
-    ) as string
+    const lines = renderCheckLedger(ledger)
+    const checkLine = lines.find((line) => line.includes('all green')) as string
 
-    expect(checkLine).toContain('[32mcodehash')
-    expect(checkLine).not.toContain('\u001b[32mcodehash')
-    expect(checkLine).not.toContain('\u001b[32mall green')
+    expect(checkLine).toContain('[32mall green')
+    expect(checkLine).not.toContain('[32mall green')
+    // The id is for the source, not the screen: it is printed nowhere.
+    expect(lines.some((line) => line.includes('codehash'))).toBe(false)
   })
 
   it('names an outstanding acknowledgement on the section line', () => {
@@ -444,7 +489,12 @@ describe('renderCheckLedger', () => {
       expectedNetworks: ['mainnet'],
       checks: [
         CODEHASH,
-        { ...CODEHASH, checkId: 'codehash-immutables', checkClass: 'semantic' },
+        {
+          ...CODEHASH,
+          checkId: 'codehash-immutables',
+          checkClass: 'semantic',
+          title: 'Immutable values',
+        },
       ],
     })
 
@@ -464,9 +514,9 @@ describe('renderCheckLedger', () => {
     expect(section).toContain('1/2 applicable checks green')
     expect(section).toContain('1/2 network results verified')
     expect(
-      lines.filter((line) => line.includes('codehash-immutables'))
+      lines.filter((line) => line.includes('Immutable values'))
     ).toHaveLength(1)
-    expect(lines.some((line) => line.includes('✗ codehash —'))).toBe(false)
+    expect(lines.some((line) => line.includes('Deployed codehash'))).toBe(false)
   })
 
   it('opens with a header naming the coverage denominator', () => {
@@ -503,7 +553,7 @@ describe('what the ledger must never soften or hide', () => {
 
     const lines = renderCheckLedger(ledger, { triageProfile: 'subtractive' })
 
-    expect(lines.at(-1)).not.toContain('NO BLOCKING RESULT')
+    expect(verdictOf(lines)).not.toContain('NO BLOCKING RESULT')
     expect(rowFor(lines, 'mainnet')).not.toContain('relaxed by triage')
     // Paired presence: the mismatch is still reported, not merely un-relaxed.
     expect(rowFor(lines, 'mainnet')).toContain('MISMATCH')
@@ -566,9 +616,11 @@ describe('what the ledger must never soften or hide', () => {
     expect(section).not.toContain('blocking')
   })
 
-  it('sanitises the anchor on the check line, not only on the expanded row', () => {
+  it('prints no anchor, injected or not', () => {
     // `recordCheck` validates the anchor against ANCHOR_IDS, so an injected one
-    // is only reachable through the rehydration path.
+    // is only reachable through the rehydration path. The anchor names a
+    // source for the reader of the source, so the screen carries neither it
+    // nor anything smuggled in through it.
     const esc = String.fromCharCode(27)
     const rehydrated = {
       expectedNetworks: ['mainnet'],
@@ -583,12 +635,11 @@ describe('what the ledger must never soften or hide', () => {
     } as unknown as ICheckLedger
 
     const lines = renderCheckLedger(rehydrated)
-    const checkLine = lines.find((line) => line.includes('anchors'))
 
-    expect(checkLine).not.toContain(`${esc}[32m`)
-    // Paired presence: the anchor is still named, so a signer can still see
-    // which anchor the row came from.
-    expect(checkLine).toContain('A-CI')
+    expect(lines.some((line) => line.includes(`${esc}[32mGREEN`))).toBe(false)
+    expect(lines.some((line) => line.includes('A-CI'))).toBe(false)
+    // Paired presence: the row itself is still there to be read.
+    expect(rowFor(lines, 'mainnet')).toContain('observed  0xbbb')
   })
 
   it('sanitises every field a foreign value reaches the terminal through', () => {
@@ -629,7 +680,7 @@ describe('the closing line always carries the coverage figure', () => {
       result({ network: 'polygon', status: 'fail', actual: '0xbbb' })
     )
 
-    const verdict = renderCheckLedger(ledger).at(-1) ?? ''
+    const verdict = verdictOf(renderCheckLedger(ledger))
 
     expect(verdict).toContain('BLOCKED')
     expect(verdict).toContain('1/2 network results verified')
@@ -649,7 +700,7 @@ describe('the closing line always carries the coverage figure', () => {
       })
     )
 
-    const verdict = renderCheckLedger(ledger).at(-1) ?? ''
+    const verdict = verdictOf(renderCheckLedger(ledger))
 
     expect(verdict).toContain('ACKNOWLEDGEMENT REQUIRED')
     expect(verdict).toContain('1/2 network results verified')
@@ -667,8 +718,9 @@ describe('the closing line always carries the coverage figure', () => {
       })
     )
 
-    const verdict =
-      renderCheckLedger(ledger, { triageProfile: 'subtractive' }).at(-1) ?? ''
+    const verdict = verdictOf(
+      renderCheckLedger(ledger, { triageProfile: 'subtractive' })
+    )
 
     expect(verdict).toContain('NO BLOCKING RESULT')
     expect(verdict).toContain('1/2 network results verified')
@@ -806,7 +858,7 @@ describe('a run that graded nothing', () => {
   }
 
   it('does not close with a green verdict', () => {
-    const verdict = renderCheckLedger(vacuous()).at(-1) as string
+    const verdict = verdictOf(renderCheckLedger(vacuous()))
 
     expect(verdict).not.toContain('ALL CHECKS GREEN')
     expect(verdict).not.toContain(GREEN)
@@ -815,13 +867,13 @@ describe('a run that graded nothing', () => {
   it('prints no verified count at all, rather than a vacuous one', () => {
     // `1/1 network results verified` over a set of size zero is the claim that
     // produced the defect, and `0/0` is the same claim in a quieter font.
-    expect(renderCheckLedger(vacuous()).at(-1) as string).not.toMatch(
+    expect(verdictOf(renderCheckLedger(vacuous()))).not.toMatch(
       /\d+\/\d+ network results verified/
     )
   })
 
   it('names the skipped networks and why they were skipped', () => {
-    const verdict = renderCheckLedger(vacuous()).at(-1) as string
+    const verdict = verdictOf(renderCheckLedger(vacuous()))
 
     expect(verdict).toContain('NOTHING TO REVIEW')
     expect(verdict).toContain('1 network')
@@ -830,12 +882,12 @@ describe('a run that graded nothing', () => {
 
   it('prints the closing line and nothing else', () => {
     const lines = renderCheckLedger(vacuous())
+    const closing = closingOnly(lines)
 
-    expect(lines).toHaveLength(1)
-    expect(lines[0]).toContain('NOTHING TO REVIEW')
-    expect(lines.join('\n')).not.toContain('Check Ledger')
-    expect(lines.join('\n')).not.toContain('Integrity')
-    expect(lines.join('\n')).not.toContain('codehash')
+    expect(closing).toContain('NOTHING TO REVIEW')
+    expect(closing).not.toContain('Check Ledger')
+    expect(closing).not.toContain('Integrity')
+    expect(closing).not.toContain('codehash')
   })
 
   it('prints the closing line alone across a fleet, not just one network', () => {
@@ -859,12 +911,11 @@ describe('a run that graded nothing', () => {
           })
         )
 
-    const lines = renderCheckLedger(ledger)
+    const closing = closingOnly(renderCheckLedger(ledger))
 
-    expect(lines).toHaveLength(1)
-    expect(lines[0]).toContain('NOTHING TO REVIEW')
-    expect(lines[0]).toContain('3 networks had nothing to grade')
-    expect(lines[0]).toContain('is not an owner of this Safe')
+    expect(closing).toContain('NOTHING TO REVIEW')
+    expect(closing).toContain('3 networks had nothing to grade')
+    expect(closing).toContain('is not an owner of this Safe')
   })
 
   it('still prints the report once one network graded', () => {
@@ -887,7 +938,7 @@ describe('a run that graded nothing', () => {
     recordCheck(ledger, result({ network: 'mainnet' }))
     recordCheck(ledger, result({ network: 'polygon' }))
 
-    const verdict = renderCheckLedger(ledger).at(-1) as string
+    const verdict = verdictOf(renderCheckLedger(ledger))
 
     expect(verdict).toContain('ALL CHECKS GREEN')
     expect(verdict).toContain('2/2 network results verified')
@@ -899,7 +950,7 @@ describe('a run that graded nothing', () => {
     recordCheck(ledger, result({ network: 'mainnet', status: 'fail' }))
     recordCheck(ledger, result(nothingToGrade('arbitrum')))
 
-    const verdict = renderCheckLedger(ledger).at(-1) as string
+    const verdict = verdictOf(renderCheckLedger(ledger))
 
     expect(verdict).toContain('VERDICT: BLOCKED')
     expect(verdict).not.toContain('NOTHING TO REVIEW')
@@ -919,9 +970,9 @@ describe('a run that graded nothing', () => {
     expect(section[0]).toContain('1/1 network results verified')
     expect(section[0]).toContain('1 network not applicable')
     expect(section[0]).not.toContain('2/2')
-    expect(lines.at(-1)).toContain('1/1 network results verified')
-    expect(lines.at(-1)).toContain('1 network not applicable')
-    expect(lines.at(-1)).not.toContain('2/2')
+    expect(verdictOf(lines)).toContain('1/1 network results verified')
+    expect(verdictOf(lines)).toContain('1 network not applicable')
+    expect(verdictOf(lines)).not.toContain('2/2')
   })
 
   it('counts the skipped networks, not the rows they produced', () => {
@@ -936,8 +987,8 @@ describe('a run that graded nothing', () => {
 
     const lines = renderCheckLedger(ledger)
 
-    expect(lines.at(-1)).toContain('1 network had nothing to grade')
-    expect(lines.at(-1)).not.toContain('2 network')
+    expect(verdictOf(lines)).toContain('1 network had nothing to grade')
+    expect(verdictOf(lines)).not.toContain('2 network')
   })
 })
 
@@ -968,7 +1019,7 @@ describe('a check that graded nothing beside one that graded', () => {
   it('closes on the same denominator the section line printed', () => {
     const lines = renderCheckLedger(mixed())
     const section = lines.find((line) => line.includes('Integrity')) as string
-    const verdict = lines.at(-1) as string
+    const verdict = verdictOf(lines)
 
     expect(section).toContain('1/1 applicable checks green')
     expect(section).toContain('1 gate not applicable')
@@ -983,7 +1034,7 @@ describe('a check that graded nothing beside one that graded', () => {
     const ledger = ledgerOf(['arbitrum'], [CODEHASH, AUTHORITY])
     recordCheck(ledger, result({ network: 'arbitrum' }))
 
-    const verdict = renderCheckLedger(ledger).at(-1) as string
+    const verdict = verdictOf(renderCheckLedger(ledger))
 
     expect(verdict).not.toContain('ALL APPLICABLE CHECKS GREEN')
   })
@@ -1010,7 +1061,8 @@ describe('a check that graded nothing beside one that graded', () => {
 
     expect(row).toBeDefined()
     expect(row).toContain('NOT APPLICABLE')
-    expect(row).toContain('no action')
+    // One line, reason included, and no remedy: there is nothing to do.
+    expect(row).not.toContain('→')
     // Paired absence: a row that needs nothing must not carry the vocabulary
     // of one that does.
     expect(row).not.toContain('UNVERIFIED')
@@ -1022,7 +1074,7 @@ describe('a check that graded nothing beside one that graded', () => {
     recordCheck(ledger, result({ network: 'arbitrum' }))
     recordCheck(ledger, result({ checkId: 'authority', network: 'arbitrum' }))
 
-    const verdict = renderCheckLedger(ledger).at(-1) as string
+    const verdict = verdictOf(renderCheckLedger(ledger))
 
     expect(verdict).toContain('ALL CHECKS GREEN')
     expect(verdict).toContain('2/2 checks')
@@ -1050,14 +1102,14 @@ describe('unverified rows that all rest on one cause', () => {
     recordCheck(ledger, unverified('target-state', NO_ENDPOINT))
 
     const lines = renderCheckLedger(ledger)
-    const banner = lines.findIndex((line) => line.includes(NO_ENDPOINT))
+    const banner = bannerOf(lines)
     const firstRow = lines.findIndex((line) => line.includes('UNVERIFIED'))
 
-    expect(banner).toBeGreaterThan(-1)
-    expect(banner).toBeLessThan(firstRow)
-    expect(lines[banner]).toContain('2 unverified results')
+    expect(banner.at).toBeLessThan(firstRow)
+    expect(banner.text).toContain(NO_ENDPOINT)
+    expect(banner.text).toContain('2 unverified results')
     // The advice the old report gave ten times over, contradicted once.
-    expect(lines[banner]).toContain('will not change the answer')
+    expect(banner.text).toContain('will not change the answer')
   })
 
   it('still names the cause when a row beside them graded nothing', () => {
@@ -1079,11 +1131,9 @@ describe('unverified rows that all rest on one cause', () => {
       })
     )
 
-    const banner = renderCheckLedger(ledger).find((line) =>
-      line.includes('will not change the answer')
-    )
+    const banner = bannerOf(renderCheckLedger(ledger)).text
 
-    expect(banner).toBeDefined()
+    expect(banner).toContain('will not change the answer')
     expect(banner).toContain('2 unverified results')
   })
 
@@ -1130,5 +1180,188 @@ describe('unverified rows that all rest on one cause', () => {
         line.includes('will not change the answer')
       )
     ).toHaveLength(0)
+  })
+})
+
+describe('a ledger a signer can read without the source', () => {
+  const plain = stripColor
+
+  const IMMUTABLES: ICheckDefinition = {
+    checkId: 'immutables',
+    section: 'Deployed state',
+    checkClass: 'integrity',
+    gate: 'L',
+    title: 'Immutable values match what config declares',
+  }
+  const STORAGE: ICheckDefinition = {
+    checkId: 'storage-authority',
+    section: 'Deployed state',
+    checkClass: 'semantic',
+    gate: 'G',
+    title: 'Contract config matches what main declares',
+  }
+  const QUORUM: ICheckDefinition = {
+    checkId: 'rpc-quorum',
+    section: 'Evidence',
+    checkClass: 'semantic',
+    gate: 'J',
+    title: 'Independent RPCs agree',
+  }
+
+  /**
+   * One network, two proposals already reduced worst-first: the codehash row
+   * is nonce 37's finding, the rest belong to nonce 38.
+   */
+  const fixture = (): ICheckLedger => {
+    const ledger = ledgerOf(['gnosis'], [CODEHASH, IMMUTABLES, STORAGE, QUORUM])
+    recordCheck(
+      ledger,
+      result({
+        network: 'gnosis',
+        status: 'fail',
+        expected:
+          'every address this proposal installs carrying bytecode an attested build produces',
+        actual: `UNVERIFIABLE — no attested build is available: the deployment record names CalldataVerificationFacet@1.1.0 at 0x${'ab'.repeat(
+          20
+        )} but no CI artefact, local build or audit log carries a bytecode for that version, so the installed code has nothing to be compared against and the target cannot be graded either way`,
+        anchor: 'A-AUDIT',
+        detail: `the address this refers to is 0x${'ab'.repeat(20)}`,
+        proposalNonce: '37',
+      })
+    )
+    recordCheck(
+      ledger,
+      result({
+        checkId: 'immutables',
+        network: 'gnosis',
+        status: 'error',
+        expected: 'every immutable holds the value config declares',
+        actual: 'the immutable layout could not be read',
+        anchor: 'A-UNRESOLVED',
+        proposalNonce: '38',
+      })
+    )
+    recordCheck(
+      ledger,
+      result({
+        checkId: 'storage-authority',
+        network: 'gnosis',
+        status: 'not-applicable',
+        expected: 'nothing to compare',
+        actual:
+          'this proposal installs no contract whose authorities main declares',
+        anchor: 'A-LOCAL',
+        proposalNonce: '38',
+      })
+    )
+    recordCheck(
+      ledger,
+      result({
+        checkId: 'rpc-quorum',
+        network: 'gnosis',
+        status: 'needs-ack',
+        expected: '2 independent providers agreeing',
+        actual: '0 of 0 agreed — the providers could not be told apart',
+        anchor: 'A-UNRESOLVED',
+        detail:
+          'an endpoint names its host as a bare IP address, which cannot be shown independent of a hostname endpoint that may resolve to it: give every endpoint a hostname, or declare a providerId so the endpoints are counted as one',
+        proposalNonce: '38',
+      })
+    )
+    return ledger
+  }
+
+  const isRowHeader = (line: string): boolean =>
+    /^ {6}\S/u.test(line) && !/^ {8}/u.test(line)
+
+  /** Every line under one gate's title line, header first. */
+  const rowBlock = (lines: string[], gate: string): string[] => {
+    const start = lines.findIndex((line) =>
+      plain(line).includes(`Gate ${gate} ·`)
+    )
+    expect(start).toBeGreaterThan(-1)
+    const block: string[] = []
+    for (const line of lines.slice(start + 1)) {
+      if (/^ {2}\S/u.test(plain(line)) || !plain(line).startsWith(' ')) break
+      block.push(line)
+    }
+    return block
+  }
+
+  it('prints no identifier a signer would have to look up', () => {
+    for (const line of renderCheckLedger(fixture()).map(plain)) {
+      expect(line).not.toMatch(/\[[a-z-]+\]/u)
+      expect(line).not.toMatch(/A-[A-Z]+/u)
+      expect(line).not.toMatch(/\([a-z-]+\)/u)
+      expect(line).not.toMatch(/\banchors?\b/u)
+    }
+  })
+
+  it('keeps every line inside the view width', () => {
+    for (const line of renderCheckLedger(fixture()))
+      expect(plain(line).length).toBeLessThanOrEqual(140)
+    // A fold lands between phrases, never between a count and its noun.
+    for (const line of renderCheckLedger(fixture()))
+      expect(plain(line)).not.toMatch(/ · \d+$/u)
+  })
+
+  it('names the gate by its label alone, in bold', () => {
+    const lines = renderCheckLedger(fixture())
+    const gate = lines.find((line) =>
+      plain(line).includes('Gate X · Deployed codehash')
+    ) as string
+
+    expect(gate).toContain('[1mGate X · Deployed codehash')
+    expect(plain(gate)).not.toContain('codehash]')
+  })
+
+  it('stacks expected and observed on their own lines, then one remedy', () => {
+    const lines = renderCheckLedger(fixture())
+
+    for (const gate of ['X', 'L', 'J']) {
+      const block = rowBlock(lines, gate).map(plain)
+      expect(block.filter(isRowHeader)).toHaveLength(1)
+      expect(
+        block.filter((line) => /^ {8}expected {2}\S/u.test(line))
+      ).toHaveLength(1)
+      expect(
+        block.filter((line) => /^ {8}observed {2}\S/u.test(line))
+      ).toHaveLength(1)
+      expect(block.filter((line) => /^ {8}→ /u.test(line))).toHaveLength(1)
+    }
+  })
+
+  it('says which proposal a reduced row speaks for', () => {
+    const lines = renderCheckLedger(fixture())
+
+    expect(plain(rowBlock(lines, 'X')[0] as string)).toContain('nonce 37')
+    expect(plain(rowBlock(lines, 'L')[0] as string)).toContain('nonce 38')
+  })
+
+  it('renders a gate that stood down as one line with its reason and no remedy', () => {
+    const block = rowBlock(renderCheckLedger(fixture()), 'G').map(plain)
+
+    expect(block).toHaveLength(1)
+    expect(block[0]).toContain('NOT APPLICABLE')
+    expect(block[0]).toContain('installs no contract whose authorities')
+    expect(block[0]).not.toContain('→')
+  })
+
+  it('wraps a long observed value under its label instead of running off', () => {
+    const block = rowBlock(renderCheckLedger(fixture()), 'X').map(plain)
+    const observed = block.findIndex((line) => /^ {8}observed {2}/u.test(line))
+
+    expect(observed).toBeGreaterThan(-1)
+    // Longer than one line, so a continuation hangs under the value column.
+    expect(block[observed + 1]).toMatch(/^ {18}\S/u)
+    expect(block.join(' ')).toContain('cannot be graded either way')
+  })
+
+  it('closes on the verdict, unchanged in meaning', () => {
+    const last = plain(verdictOf(renderCheckLedger(fixture())))
+
+    expect(last).toMatch(
+      /^VERDICT: BLOCKED — 2 blocking results \(1 unverified, 1 integrity mismatch\)/u
+    )
   })
 })

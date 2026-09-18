@@ -182,6 +182,14 @@ export interface ICheckResult {
   anchor: AnchorId
   /** The next action for a non-green row, or why a status was coerced. */
   detail?: string
+  /**
+   * The proposal this result was graded on, when a network carried several.
+   *
+   * A ledger row is one per network, reduced worst-first across the network's
+   * proposals, so without this the row cannot say which proposal's finding it
+   * is showing.
+   */
+  proposalNonce?: string
 }
 
 export interface ICheckLedger {
@@ -484,7 +492,7 @@ export const rollUpChecks = (ledger: ICheckLedger): ICheckRollup[] =>
         mismatched.add(result.network)
         lastMismatch.set(
           result.network,
-          `an earlier attempt disagreed: expected ${result.expected}, observed ${result.actual} (anchor ${result.anchor})`
+          `an earlier attempt disagreed: expected ${result.expected}, observed ${result.actual}`
         )
       }
 

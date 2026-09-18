@@ -3,8 +3,10 @@
  *
  * Import this from any script that runs pre-signing checks; it turns a ledger
  * from `check-ledger.ts` into the lines a signer reads. One line per section,
- * expanded per network only where a section is not green, and a single closing
- * verdict — or that closing verdict alone, when the run graded nothing.
+ * expanded per network only where a section is not green — each such row as
+ * `expected` and `observed` on their own lines and one `→` remedy — and a
+ * single closing verdict, or that closing verdict alone when the run graded
+ * nothing. Every line folds at the signer view's width.
  *
  * Every count is printed as `N/N` against the networks that were graded, always
  * beside the count of those that had nothing to grade. A result that could not
@@ -27,19 +29,103 @@ import {
   type ILedgerVerdict,
   type OpProfile,
 } from './check-ledger'
+import { VIEW_WIDTH } from './signer-view'
 
+const ESC = '\u001b'
 const GREEN = '\u001b[32m'
 const RED = '\u001b[31m'
 const YELLOW = '\u001b[33m'
 const CYAN = '\u001b[36m'
+const BOLD = '\u001b[1m'
 const RESET = '\u001b[0m'
 
 /** Width of the network column in an expanded row. */
 const NETWORK_WIDTH = 16
 /** Width of the section column, so the counts line up down the report. */
 const SECTION_WIDTH = 22
+/** The ledger shares a terminal with the signer view, so it folds at the same column. */
+const LEDGER_WIDTH = VIEW_WIDTH
+const ROW_INDENT = '      '
+const VALUE_INDENT = '        '
+/** `expected` and `observed` padded to one column, so the two values stack. */
+const VALUE_LABEL_WIDTH = 10
+const VERDICT_HANG = ' '.repeat('VERDICT: '.length)
 
 const color = (code: string, text: string): string => `${code}${text}${RESET}`
+
+const SGR = new RegExp(`${ESC}[[][0-9;]*m`, 'gu')
+const visibleWidth = (text: string): number => text.replace(SGR, '').length
+
+/** Separates the phrases of a summary line; a fold prefers to land on it. */
+const PHRASE_SEPARATOR = ' · '
+
+/**
+ * Folds a value under a hanging indent, never inside a word: an address or a
+ * hash split across two lines cannot be searched for, so a word longer than the
+ * budget takes a line of its own. A phrase that fits on a line of its own is
+ * moved there whole rather than split, so a count is never parted from its noun.
+ *
+ * @param prefix - Printed once, ahead of the first line.
+ * @param value - The text to fold; its whitespace runs are already single spaces.
+ * @param hang - The indent of every continuation line; defaults to the prefix's width.
+ * @returns At least one line, each within the ledger width where its words allow.
+ */
+const wrap = (
+  prefix: string,
+  value: string,
+  hang = ' '.repeat(visibleWidth(prefix))
+): string[] => {
+  const folded: string[] = []
+  let line = ''
+  let budget = LEDGER_WIDTH - visibleWidth(prefix)
+  const fold = (): void => {
+    folded.push(line)
+    line = ''
+    budget = LEDGER_WIDTH - hang.length
+  }
+
+  for (const phrase of value.split(PHRASE_SEPARATOR)) {
+    if (
+      line &&
+      `${line}${PHRASE_SEPARATOR}${phrase}`.length > budget &&
+      phrase.length <= LEDGER_WIDTH - hang.length
+    )
+      fold()
+
+    let separator = line ? PHRASE_SEPARATOR : ''
+    for (const word of phrase.split(' ').filter(Boolean)) {
+      const next = `${line}${separator}${word}`
+      if (line && next.length > budget) {
+        fold()
+        line = word
+      } else line = next
+      separator = ' '
+    }
+  }
+  if (line) folded.push(line)
+
+  if (folded.length === 0) return [prefix.trimEnd()]
+  return folded.map((text, position) =>
+    position === 0 ? `${prefix}${text}` : `${hang}${text}`
+  )
+}
+
+const valueLines = (label: string, value: string): string[] =>
+  wrap(`${VALUE_INDENT}${label.padEnd(VALUE_LABEL_WIDTH)}`, clean(value))
+
+/**
+ * Re-folds one coloured line, keeping its colour on every piece.
+ *
+ * @param line - A line of the form `<code>text<reset>`, as `color` builds it.
+ * @param hang - The indent of the continuation lines.
+ * @returns The line, or the folded lines that replace it.
+ */
+const refold = (line: string, hang: string): string[] => {
+  const code = line.startsWith(ESC) ? line.slice(0, line.indexOf('m') + 1) : ''
+  return wrap('', line.replace(SGR, ''), hang).map((text) =>
+    code ? color(code, text) : text
+  )
+}
 
 /**
  * Everything rendered here is a value some other machine reported — a chain, a
@@ -59,12 +145,11 @@ const ROW_LABEL: Record<RowKind, string> = {
   'not-applicable': 'NOT APPLICABLE',
 }
 
-const ROW_ACTION: Record<RowKind, string> = {
-  fail: 'do not sign — the observed value disagrees with the anchor',
+const ROW_ACTION: Record<Exclude<RowKind, 'not-applicable'>, string> = {
+  fail: 'do not sign — what was observed is not what was expected',
   error: 'retry the check — an unverified check has no acknowledgement path',
   'needs-ack': 'review the change and acknowledge it',
   missing: 're-run this check on this network before signing',
-  'not-applicable': 'no action — this proposal gave the check nothing to do',
 }
 
 /**
@@ -134,8 +219,11 @@ const RELAXED_LABEL = 'relaxed by triage'
 const RELAXED_ACTION =
   'no action — a subtractive-op triage dropped the acknowledgement'
 
-const plural = (count: number, noun: string): string =>
-  `${count} ${noun}${count === 1 ? '' : 's'}`
+const plural = (count: number, noun: string, many = `${noun}s`): string =>
+  `${count} ${count === 1 ? noun : many}`
+
+const needReview = (count: number): string =>
+  `${count} ${count === 1 ? 'needs' : 'need'} review`
 
 /**
  * The networks a set of checks had nothing to grade on.
@@ -166,26 +254,47 @@ const skippedNetworks = (rollups: readonly ICheckRollup[]): Set<string> =>
       .map((result) => result.network)
   )
 
-function renderRow(
-  network: string,
-  kind: RowKind,
-  facts: string[],
-  options: { detail?: string; relaxed?: boolean; checkClass?: CheckClass } = {}
-): string {
-  const trailer = options.detail ? ` · ${clean(options.detail)}` : ''
-  const action =
-    kind === 'fail' && options.checkClass === 'semantic'
-      ? SEMANTIC_FAIL_ACTION
-      : ROW_ACTION[kind]
+interface IRow {
+  network: string
+  kind: RowKind
+  expected?: string
+  observed?: string
+  /** The check's own next step, printed after the generic action. */
+  detail?: string
+  relaxed?: boolean
+  proposalNonce?: string
+  checkClass?: CheckClass
+}
 
-  return color(
-    options.relaxed ? YELLOW : ROW_COLOR[kind],
-    `      ${clean(network).padEnd(NETWORK_WIDTH)}${ROW_LABEL[kind]}${
-      options.relaxed ? ` · ${RELAXED_LABEL}` : ''
-    }  ${facts.filter(Boolean).join(' · ')}${trailer}  → ${
-      options.relaxed ? RELAXED_ACTION : action
-    }`
-  )
+function renderRow(row: IRow): string[] {
+  const paint = (line: string): string =>
+    color(row.relaxed ? YELLOW : ROW_COLOR[row.kind], line)
+  const header = `${ROW_INDENT}${clean(row.network).padEnd(NETWORK_WIDTH)}${
+    ROW_LABEL[row.kind]
+  }${row.relaxed ? ` · ${RELAXED_LABEL}` : ''}${
+    row.proposalNonce === undefined
+      ? ''
+      : ` · nonce ${clean(row.proposalNonce)}`
+  }`
+
+  if (row.kind === 'not-applicable')
+    return wrap(`${header}  `, clean(row.observed ?? '')).map(paint)
+
+  const action = row.relaxed
+    ? RELAXED_ACTION
+    : row.kind === 'fail' && row.checkClass === 'semantic'
+    ? SEMANTIC_FAIL_ACTION
+    : ROW_ACTION[row.kind]
+  const remedy = row.detail ? `${action} · ${clean(row.detail)}` : action
+
+  return [
+    paint(header),
+    ...(row.expected === undefined ? [] : valueLines('expected', row.expected)),
+    ...(row.observed === undefined
+      ? []
+      : valueLines('observed', row.observed).map(paint)),
+    ...wrap(`${VALUE_INDENT}→ `, remedy).map(paint),
+  ]
 }
 
 function rowKind(result: ICheckResult): RowKind {
@@ -210,29 +319,34 @@ function renderCheck(
   const counts = [
     nothingGraded
       ? 'nothing to grade'
-      : `pass ${rollup.passed}/${rollup.graded}`,
-    rollup.failed > 0 ? `fail ${rollup.failed}` : '',
-    rollup.needsAck > 0 ? `needs review ${rollup.needsAck}` : '',
-    rollup.unverified > 0 ? `unverified ${rollup.unverified}` : '',
+      : `${rollup.passed}/${rollup.graded} network results verified`,
+    rollup.failed > 0 ? plural(rollup.failed, 'mismatch', 'mismatches') : '',
+    rollup.needsAck > 0 ? needReview(rollup.needsAck) : '',
+    rollup.unverified > 0 ? `${rollup.unverified} unverified` : '',
     // Printed whenever the denominator above is smaller than the declared one,
-    // so `pass 1/1` on a two-network run can never be read as full coverage.
+    // so `1/1` on a two-network run can never be read as full coverage.
     rollup.notApplicable > 0
       ? `${plural(rollup.notApplicable, 'network')} not applicable`
       : '',
-    `anchors ${clean(rollup.anchors.join(', ')) || 'none'}`,
   ]
     .filter(Boolean)
     .join(' · ')
 
+  const code = nothingGraded ? CYAN : rollup.failed > 0 ? RED : YELLOW
+  const label = clean(gateLabel(rollup))
+  // Neither tick nor cross for a check with nothing to grade, for the same
+  // reason the section line carries neither.
+  const [title = '', ...overflow] = wrap(
+    `  ${nothingGraded ? '·' : '✗'} ${label}  `,
+    counts,
+    '    '
+  )
   const lines = [
     color(
-      nothingGraded ? CYAN : rollup.failed > 0 ? RED : YELLOW,
-      // Neither tick nor cross for a check with nothing to grade, for the same
-      // reason the section line carries neither.
-      `  ${nothingGraded ? '·' : '✗'} ${clean(gateLabel(rollup))} [${clean(
-        rollup.checkId
-      )}]  ${counts}`
+      code,
+      title.replace(label, () => `${BOLD}${label}${RESET}${code}`)
     ),
+    ...overflow.map((line) => color(code, line)),
   ]
 
   for (const result of rollup.results) {
@@ -246,37 +360,39 @@ function renderCheck(
     if (result.status === 'not-applicable') {
       if (nothingGraded)
         lines.push(
-          renderRow(result.network, 'not-applicable', [clean(result.actual)])
+          ...renderRow({
+            network: result.network,
+            kind: 'not-applicable',
+            observed: result.actual,
+          })
         )
       continue
     }
 
     lines.push(
-      renderRow(
-        result.network,
-        rowKind(result),
-        [
-          `expected ${clean(result.expected)}`,
-          `actual ${clean(result.actual)}`,
-          `anchor ${clean(result.anchor)}`,
-          // The disagreement this row replaced, when it replaced one. Without
-          // it the row reads as a plain retry of a network that has already
-          // disagreed once.
-          ...(result.supersededMismatch === undefined
-            ? []
-            : [clean(result.supersededMismatch)]),
-        ],
-        {
-          ...(result.detail === undefined ? {} : { detail: result.detail }),
-          relaxed: relaxed.has(checkResultKey(result.checkId, result.network)),
-          checkClass: rollup.checkClass,
-        }
-      )
+      ...renderRow({
+        network: result.network,
+        kind: rowKind(result),
+        expected: result.expected,
+        // The disagreement this row replaced travels with the observation.
+        // Without it the row reads as a plain retry of a network that has
+        // already disagreed once.
+        observed:
+          result.supersededMismatch === undefined
+            ? result.actual
+            : `${result.actual} · ${result.supersededMismatch}`,
+        ...(result.detail === undefined ? {} : { detail: result.detail }),
+        ...(result.proposalNonce === undefined
+          ? {}
+          : { proposalNonce: result.proposalNonce }),
+        relaxed: relaxed.has(checkResultKey(result.checkId, result.network)),
+        checkClass: rollup.checkClass,
+      })
     )
   }
 
   for (const network of rollup.missingNetworks)
-    lines.push(renderRow(network, 'missing', ['anchor A-UNRESOLVED']))
+    lines.push(...renderRow({ network, kind: 'missing' }))
 
   return lines
 }
@@ -322,9 +438,9 @@ function renderSection(
             ? `${plural(inapplicable, 'gate')} not applicable`
             : '',
           `${passed}/${graded} network results verified`,
-          mismatched > 0 ? `${mismatched} mismatch` : '',
+          mismatched > 0 ? plural(mismatched, 'mismatch', 'mismatches') : '',
           unverified > 0 ? `${unverified} unverified` : '',
-          needsAck > 0 ? `${needsAck} needs review` : '',
+          needsAck > 0 ? needReview(needsAck) : '',
           notApplicable > 0
             ? `${plural(notApplicable, 'network')} not applicable`
             : '',
@@ -333,17 +449,22 @@ function renderSection(
     .filter(Boolean)
     .join(' · ')
 
-  const lines = [
-    color(
-      nothingGraded ? CYAN : allGreen ? GREEN : mismatched > 0 ? RED : YELLOW,
-      // Neither tick nor cross: a section with nothing to grade is not a
-      // success, and marking it as a failure would send a signer hunting for a
-      // problem that is not there.
-      `${nothingGraded ? '·' : allGreen ? '✓' : '✗'} ${clean(section).padEnd(
-        SECTION_WIDTH
-      )}${summary}`
-    ),
-  ]
+  const code = nothingGraded
+    ? CYAN
+    : allGreen
+    ? GREEN
+    : mismatched > 0
+    ? RED
+    : YELLOW
+  // Neither tick nor cross: a section with nothing to grade is not a
+  // success, and marking it as a failure would send a signer hunting for a
+  // problem that is not there.
+  const lines = wrap(
+    `${nothingGraded ? '·' : allGreen ? '✓' : '✗'} ${clean(section).padEnd(
+      SECTION_WIDTH
+    )}`,
+    summary
+  ).map((line) => color(code, line))
 
   // A green check is fully described by the section line. Naming its networks
   // there would put 71 rows between the signer and the rows that need them.
@@ -499,7 +620,8 @@ export function renderCheckLedger(
   // to grade` the closing line already carries. `nothingGraded` is false the
   // moment any result was recorded, an unverified or a missing one included, so
   // no report that has something to say is silenced here.
-  if (verdict.nothingGraded) return [renderNothingToReview(rollups)]
+  if (verdict.nothingGraded)
+    return refold(renderNothingToReview(rollups), VERDICT_HANG)
 
   const relaxed = new Set(
     verdict.relaxed.map((result) =>
@@ -527,21 +649,22 @@ export function renderCheckLedger(
   const cause = sharedUnverifiedCause(rollups)
   if (cause)
     lines.push(
-      color(
-        YELLOW,
-        `  ⚠ ${plural(
+      ...wrap(
+        '  ⚠ ',
+        `${plural(
           cause.rows,
           'unverified result'
         )} below, all for one reason: ${
           cause.detail
-        }. Fix that and re-run; retrying the checks on their own will not change the answer.`
-      )
+        }. Fix that and re-run; retrying the checks on their own will not change the answer.`,
+        '    '
+      ).map((line) => color(YELLOW, line))
     )
 
   for (const [section, sectionRollups] of sections)
     lines.push(...renderSection(section, sectionRollups, relaxed))
 
-  lines.push(renderVerdict(verdict, rollups))
+  lines.push(...refold(renderVerdict(verdict, rollups), VERDICT_HANG))
 
   return lines
 }

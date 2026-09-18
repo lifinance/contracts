@@ -1691,7 +1691,9 @@ const processTxs = async (
         : {}),
       rpcQuorum,
     })
-    proposalChecks.push(...proposalResults)
+    proposalChecks.push(
+      ...proposalResults.map((row) => ({ ...row, proposalNonce: headingNonce }))
+    )
 
     // Every check the run graded, as one report. The gates each print well on
     // their own, and five of them in a row is how the signer learned to scroll

@@ -76,6 +76,28 @@ export type TQuorumStatus =
   | 'quorum-misconfigured'
 
 /**
+ * How a quorum status reads on a signer's screen.
+ *
+ * @param status - The status to describe.
+ * @returns A short clause with no status code in it.
+ */
+export const describeQuorumStatus = (status: TQuorumStatus): string =>
+  QUORUM_STATUS_IN_WORDS[status]
+
+const QUORUM_STATUS_IN_WORDS: Record<TQuorumStatus, string> = {
+  agreed: 'the providers agree',
+  'agreed-absent': 'the providers agree there is nothing at this location',
+  disagreement: 'the providers returned different values for the same block',
+  'fork-divergence': 'the providers are not on the same chain',
+  'heights-not-aligned': 'the providers answered from different blocks',
+  'insufficient-providers': 'too few independent providers were consulted',
+  'insufficient-responses': 'too few providers answered',
+  'no-responses': 'no provider answered',
+  'provider-identity-unverifiable': 'the providers could not be told apart',
+  'quorum-misconfigured': 'the quorum setting is below the minimum',
+}
+
+/**
  * One provider's answer to the read.
  *
  * `blockNumber` and `blockHash` are mandatory on a successful observation: two
