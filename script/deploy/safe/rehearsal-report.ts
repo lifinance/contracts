@@ -68,6 +68,21 @@ export const REHEARSAL_GATE_ROSTER: readonly IRosteredGate[] = [
     source: 'confirm-integrity-asserts.ts, mirrored by EXSC-994',
   },
   {
+    checkId: 'codehash',
+    title: 'Installed bytecode matches the attested build',
+    source: 'confirm-check-registry.ts (merged, gate K)',
+  },
+  {
+    checkId: 'immutables',
+    title: 'Immutable values match what config declares',
+    source: 'confirm-check-registry.ts (merged, gate L)',
+  },
+  {
+    checkId: 'storage-authority',
+    title: 'Contract config matches what main declares',
+    source: 'confirm-check-registry.ts (merged, gate G)',
+  },
+  {
     checkId: 'target-state',
     title: 'Facet version matches the declared target state',
     source: 'confirm-check-registry.ts (merged)',

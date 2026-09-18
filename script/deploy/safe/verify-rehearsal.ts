@@ -37,6 +37,7 @@ import {
 import { readBooleanFlag } from './cli-flags'
 import {
   CONFIRM_CHECK_DEFINITIONS,
+  TARGET_STATE_CHECK_ID,
   targetStateCheckResult,
 } from './confirm-check-registry'
 import {
@@ -52,6 +53,7 @@ import {
   verdictsAreActionable,
   renderSignerWorkload,
   summariseSignerWorkload,
+  type IGateReportRow,
 } from './rehearsal-report'
 import {
   collectRefusalObservations,
@@ -167,6 +169,15 @@ const corruptCalldata = (calldata: Hex): Hex => {
 }
 
 /**
+ * The check ids `runGateChain` records: the gates this rehearsal has wired.
+ *
+ * The ledger registers exactly these, so a recorder added to the chain without
+ * an entry here throws on its first row instead of rendering as a gate that
+ * never ran.
+ */
+export const REHEARSED_CHECK_IDS: readonly string[] = [TARGET_STATE_CHECK_ID]
+
+/**
  * Runs every merged gate over one proposal and returns its ledger.
  *
  * Only `target-state` is wired on this commit; the rest of the roster is
@@ -180,7 +191,9 @@ function runGateChain(
 ): ICheckLedger {
   const ledger = createCheckLedger({
     expectedNetworks: [network],
-    checks: [...CONFIRM_CHECK_DEFINITIONS],
+    checks: CONFIRM_CHECK_DEFINITIONS.filter((check) =>
+      REHEARSED_CHECK_IDS.includes(check.checkId)
+    ),
   })
 
   const raw = doc.safeTx?.data?.data as Hex | undefined
@@ -195,6 +208,20 @@ function runGateChain(
 
   return ledger
 }
+
+/**
+ * Grades the roster against what this rehearsal wired, not what the repo has.
+ *
+ * @param pass - one graded pass over the corpus
+ * @returns one row per rostered gate, absent ones naming their expected source
+ */
+export const buildRehearsalGateReport = (
+  pass: readonly IRehearsalPassEntry[]
+): readonly IGateReportRow[] =>
+  buildGateReport({
+    registered: REHEARSED_CHECK_IDS,
+    rowCounts: rowCountsByCheck(pass),
+  })
 
 const main = defineCommand({
   meta: {
@@ -394,12 +421,7 @@ const main = defineCommand({
         )
 
       consola.info(
-        `\nGate roster\n${renderGateReport(
-          buildGateReport({
-            registered: CONFIRM_CHECK_DEFINITIONS.map((check) => check.checkId),
-            rowCounts: rowCountsByCheck(first),
-          })
-        )}`
+        `\nGate roster\n${renderGateReport(buildRehearsalGateReport(first))}`
       )
 
       if (args.corrupt) {
