@@ -16,6 +16,7 @@ import {
   EXECUTABILITY_CHECK_ID,
   NOTHING_TO_COMPARE,
   ORDERING_HOLDS,
+  VERSION_MATCHES_PIN,
   RPC_QUORUM_CHECK_ID,
   STORAGE_AUTHORITY_CHECK_ID,
   storageAuthorityCheckResult,
@@ -78,6 +79,12 @@ const EMITTED_SHAPE: Record<TargetStateStatus, Partial<ITargetStateFinding>> = {
   'ahead-of-main': {},
   downgrade: {},
   'version-not-comparable': {},
+  // A pin: both versions resolved, and the pin branch never carries a fleet count.
+  'matches-pin': {},
+  'pinned-mismatch': {},
+  // `origin/main` says `latest` but its source version could not be read, so there is
+  // nothing to compare the proposal against.
+  'expected-version-unresolved': { mainVersion: null },
 }
 
 const finding = (
@@ -116,6 +123,9 @@ const STATUS_KEYS: Record<TargetStateStatus, true> = {
   'unrecognised-cut-action': true,
   'calldata-not-readable': true,
   'pinned-state-unavailable': true,
+  'matches-pin': true,
+  'pinned-mismatch': true,
+  'expected-version-unresolved': true,
 }
 
 const ALL_STATUSES = Object.keys(STATUS_KEYS) as TargetStateStatus[]
@@ -243,6 +253,10 @@ describe('targetStateCheckResult', () => {
     'not-previously-targeted': ORDERING_HOLDS,
     downgrade: ORDERING_HOLDS,
     'version-not-comparable': ORDERING_HOLDS,
+    // A pin is asserted as equality, not as an ordering.
+    'matches-pin': VERSION_MATCHES_PIN,
+    'pinned-mismatch': VERSION_MATCHES_PIN,
+    'expected-version-unresolved': EVERY_ELEMENT_COMPARED,
     removal: NOTHING_TO_COMPARE,
     'no-diamond-cut': NOTHING_TO_COMPARE,
     'proposed-version-unresolved': EVERY_ELEMENT_COMPARED,

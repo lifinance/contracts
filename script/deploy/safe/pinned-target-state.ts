@@ -548,14 +548,8 @@ export interface IPinnedStateGit {
   remoteUrl: () => string
   fetch: () => void
   show: (revSpec: string) => string
-  /**
-   * Resolves a ref to the commit it points at.
-   *
-   * Optional so an existing seam keeps working; without it the anchor falls back to
-   * the ref name, which is what this used to read and is still coherent within a
-   * single reader.
-   */
-  revParse?: (ref: string) => string
+  /** Resolves a ref to the commit it points at. */
+  revParse: (ref: string) => string
 }
 
 const defaultGit = (repoRoot: string): IPinnedStateGit => ({
@@ -674,14 +668,18 @@ export const createPinnedAnchor = (options?: {
       return failure
     }
 
-    let revision = PINNED_READ_REF
+    let revision: string
     try {
-      revision = git.revParse?.(PINNED_READ_REF)?.trim() || PINNED_READ_REF
+      revision = git.revParse(PINNED_READ_REF).trim()
     } catch {
-      // The ref itself still names the fetched commit; only the cross-reader
-      // guarantee is weakened, and that is not worth refusing a signature over.
-      revision = PINNED_READ_REF
+      // Refused rather than fallen back to the ref name. The ref can move under a
+      // concurrent fetch, so reading it twice is not one commit — and callers now rely
+      // on this being one commit. A ref that was just fetched but cannot be resolved is
+      // odd enough to stop on.
+      return { ok: false, reason: 'fetch-failed' }
     }
+    if (!revision) return { ok: false, reason: 'fetch-failed' }
+
     memo = { ok: true, revision }
     return memo
   }
@@ -842,13 +840,21 @@ export const createTargetStateDeps = (
   options?: {
     readPinnedState?: () => PinnedTargetStateRead
     readSourceVersion?: (contractName: string) => SourceVersionRead
+    /**
+     * The anchor both reads resolve against.
+     *
+     * Passed in by a caller that also builds its own `readPinnedState`, so the two
+     * reads cannot end up on different commits — overriding one reader while the other
+     * silently anchors itself is exactly how the straddle comes back.
+     */
+    anchor?: PinnedAnchor
     cacheRootDir?: string
   }
 ): ITargetStateDeps => ({
   ...(() => {
     // One anchor for both reads, so the target state and the source version always
     // come from the same commit.
-    const anchor = createPinnedAnchor()
+    const anchor = options?.anchor ?? createPinnedAnchor()
     return {
       readPinnedState:
         options?.readPinnedState ?? createPinnedTargetStateReader({ anchor }),

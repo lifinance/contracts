@@ -756,6 +756,7 @@ describe('createPinnedSourceVersionReader', () => {
       git(cwd, ['fetch', '--quiet', 'origin', PINNED_FETCH_REFSPEC])
     },
     show: (revSpec) => git(cwd, ['show', revSpec]),
+    revParse: (ref) => git(cwd, ['rev-parse', ref]),
   })
 
   const write = (rel: string, body: string): void => {
@@ -876,6 +877,50 @@ describe('createPinnedSourceVersionReader', () => {
   })
 })
 
+// The first attempt at the shared anchor reached only the tests: confirm-safe-tx.ts built
+// its own reader and passed it as an override, so createTargetStateDeps anchored the SOURCE
+// read to a second, freshly-created anchor — per network, on a fleet run lasting hours.
+// These assert the production wiring itself, since a unit test of the factory cannot see it.
+describe('the production wiring shares one anchor', () => {
+  const source = fs.readFileSync(
+    path.join(REPO_ROOT_DIR, 'script/deploy/safe/confirm-safe-tx.ts'),
+    'utf8'
+  )
+
+  it('builds one anchor for the whole run', () => {
+    expect(source).toContain('const pinnedAnchor = createPinnedAnchor()')
+    expect(source).toContain(
+      'const readPinnedTargetState = createPinnedTargetStateReader({\n  anchor: pinnedAnchor,\n})'
+    )
+  })
+
+  // Asserted as one block, not as two separate substrings: `anchor: pinnedAnchor,` also
+  // appears where the state reader is built, so a looser check stays green even when the
+  // deps call has lost it — which is precisely the bug this is here to catch.
+  it('hands that same anchor to the deps, not only the state reader', () => {
+    expect(source).toContain(
+      `createTargetStateDeps(network, {
+          readPinnedState: readPinnedTargetState,
+          anchor: pinnedAnchor,
+        })`
+    )
+  })
+
+  // Overriding one reader while the other anchors itself is exactly how the straddle
+  // returns, so the option has to exist and be honoured.
+  it('createTargetStateDeps honours an injected anchor for the source read', () => {
+    let anchorCalls = 0
+    const deps = createTargetStateDeps('mainnet', {
+      anchor: () => {
+        anchorCalls++
+        return { ok: false, reason: 'remote-unexpected' }
+      },
+    })
+    deps.readSourceVersion('AnyFacet')
+    expect(anchorCalls).toBeGreaterThan(0)
+  })
+})
+
 describe('the anchor is one commit for both reads', () => {
   let origin: string
   let clone: string
@@ -961,6 +1006,10 @@ describe('the anchor is one commit for both reads', () => {
     git(author, ['add', '-A'])
     git(author, ['commit', '-m', 'bump on main'])
     git(author, ['push', 'origin', 'main'])
+    // Move this clone's own refs/remotes/origin/main forward too. Without it the test
+    // cannot tell a stored SHA from a stored ref name — the ref would still resolve to
+    // the old commit and the assertion would hold for the wrong reason.
+    seam.fetch()
 
     // The source read must still see the commit the anchor pinned, not the new tip.
     expect(readSource('AFacet')).toEqual({ ok: true, version: '1.0.0' })
@@ -987,6 +1036,7 @@ describe('createPinnedTargetStateReader', () => {
       git(cwd, ['fetch', '--quiet', 'origin', PINNED_FETCH_REFSPEC])
     },
     show: (revSpec) => git(cwd, ['show', revSpec]),
+    revParse: (ref) => git(cwd, ['rev-parse', ref]),
   })
 
   beforeAll(() => {
@@ -1063,6 +1113,7 @@ describe('createPinnedTargetStateReader', () => {
           shows++
           return git(clone, ['show', revSpec])
         },
+        revParse: (ref) => git(clone, ['rev-parse', ref]),
       },
     })
     reader()
@@ -1077,6 +1128,9 @@ describe('createPinnedTargetStateReader', () => {
         remoteUrl: () => CANONICAL_REMOTE,
         fetch: () => {
           throw new Error('no route to host')
+        },
+        revParse: () => {
+          throw new Error('must not be reached')
         },
         show: () => {
           throw new Error('must not be reached')
@@ -1097,6 +1151,7 @@ describe('createPinnedTargetStateReader', () => {
           if (fetches === 1) throw new Error('no route to host')
         },
         show: (revSpec) => git(clone, ['show', revSpec]),
+        revParse: (ref) => git(clone, ['rev-parse', ref]),
       },
     })
     expect(reader()).toEqual({ ok: false, reason: 'fetch-failed' })
@@ -1113,6 +1168,7 @@ describe('createPinnedTargetStateReader', () => {
         show: () => {
           throw new Error('does not exist in origin/main')
         },
+        revParse: (ref) => git(clone, ['rev-parse', ref]),
       },
     })()
     expect(read).toEqual({ ok: false, reason: 'blob-unreadable' })
@@ -1130,6 +1186,9 @@ describe('createPinnedTargetStateReader', () => {
           git: {
             remoteUrl: () => url,
             fetch: () => {
+              throw new Error('must not be reached')
+            },
+            revParse: () => {
               throw new Error('must not be reached')
             },
             show: () => {
@@ -1291,6 +1350,7 @@ describe('createPinnedTargetStateReader', () => {
             remoteUrl: () => CANONICAL_REMOTE,
             fetch: () => undefined,
             show: () => raw,
+            revParse: (ref) => git(clone, ['rev-parse', ref]),
           },
         })()
       ).toEqual({ ok: false, reason: 'invalid-shape' })
