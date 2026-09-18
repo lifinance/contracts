@@ -5,8 +5,8 @@ name: Protect security-critical code/system
 # - protects any git actions in the folder .github/workflows/*
 # - protects the pre-commit checker script stored in .husky/pre-commit
 # - protects the frozen emergency-pause break-glass logic in script/emergency/*
-# - protects the immutables gate (script/deploy/immutables/*), whose checker and
-#   exemption list decide which immutables go unverified
+# - protects the immutables gate (script/deploy/immutables/*): its checker, and the
+#   getter exemptions recorded beside it, which decide which bindings go unchecked
 
 on:
   pull_request_review:
@@ -62,8 +62,8 @@ jobs:
             ##### the approval that guards changing it. The matcher below is pure string
             ##### matching, so a path that no longer exists is still safe to test.
             ##### check for github actions, pre-commit checker, emergency-pause break-glass paths,
-            ##### and the immutables gate, whose checker and exemption list decide which
-            ##### immutables go unverified (EXSC-869, D20)
+            ##### and the immutables gate — its checker, plus the getter exemptions
+            ##### recorded beside it (EXSC-869, D20)
             if echo "$FILE" | grep -iE '^\.github/|^\.husky/pre-commit|^script/emergency/|^script/deploy/immutables/'; then
               ##### modified git action found
               PROTECTED_FILES="${PROTECTED_FILES}${FILE}"$'\n'
