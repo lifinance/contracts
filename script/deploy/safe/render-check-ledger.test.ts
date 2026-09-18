@@ -13,6 +13,7 @@ import {
   type ICheckResult,
 } from './check-ledger'
 import { renderCheckLedger } from './render-check-ledger'
+import { VIEW_WIDTH } from './signer-view'
 
 const GREEN = '\u001b[32m'
 const RED = '\u001b[31m'
@@ -1298,8 +1299,10 @@ describe('a ledger a signer can read without the source', () => {
   })
 
   it('keeps every line inside the view width', () => {
+    // consola prefixes every line with a glyph and a space, so the renderer
+    // has two columns fewer than the view.
     for (const line of renderCheckLedger(fixture()))
-      expect(plain(line).length).toBeLessThanOrEqual(140)
+      expect(plain(line).length).toBeLessThanOrEqual(VIEW_WIDTH - 2)
     // A fold lands between phrases, never between a count and its noun.
     for (const line of renderCheckLedger(fixture()))
       expect(plain(line)).not.toMatch(/ · \d+$/u)

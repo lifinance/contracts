@@ -44,7 +44,9 @@ const NETWORK_WIDTH = 16
 /** Width of the section column, so the counts line up down the report. */
 const SECTION_WIDTH = 22
 /** The ledger shares a terminal with the signer view, so it folds at the same column. */
-const LEDGER_WIDTH = VIEW_WIDTH
+// consola prefixes every line with a glyph and a space, so a line folded to
+// the full view width still wraps on the terminal's edge.
+const LEDGER_WIDTH = VIEW_WIDTH - 2
 const ROW_INDENT = '      '
 const VALUE_INDENT = '        '
 /** `expected` and `observed` padded to one column, so the two values stack. */

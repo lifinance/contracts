@@ -1266,6 +1266,16 @@ describe('renderGateDetail', () => {
     expect(lines.join(' ')).toContain('DOWNGRADE')
   })
 
+  // The grouped rows and the manifest print the gate title in bold; a plain
+  // title here is the one place on the screen where the same words weigh less.
+  it('prints each block heading in bold, like every other gate title', () => {
+    const [, heading, body] = renderGateDetail([
+      ['      Gate H · version', '        one finding'],
+    ])
+    expect(heading).toContain('\u001b[1mGate H · version')
+    expect(body).not.toContain('\u001b[1m')
+  })
+
   it('puts a heading above the blocks, so the last bucket does not adopt them', () => {
     // The bug this closes: the blocks printed straight after the buckets, and
     // the last bucket is NOT APPLICABLE, so gate H's needs-acknowledgement

@@ -68,6 +68,12 @@ describe('target-state gate placement in confirm-safe-tx', () => {
     expect(source.split('formatTargetStateLines(').length - 1).toBe(1)
   })
 
+  // The provenance sentence is built as one line and printed through consola,
+  // which does not wrap; on a real run it reached 206 columns.
+  it('folds the evidence provenance lines to the view width', () => {
+    expect(source).toContain('foldLines(describeEvidenceProvenance(evidence))')
+  })
+
   it('sits after the pre-existing nonce gate, which it must not swallow', () => {
     expect(source.indexOf(NONCE_GATE)).toBeGreaterThan(-1)
     expect(source.indexOf(GATE)).toBeGreaterThan(source.indexOf(NONCE_GATE))

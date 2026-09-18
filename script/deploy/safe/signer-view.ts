@@ -61,6 +61,15 @@ const GATE_GLYPH_INDENT = ' '.repeat(GATE_TITLE_INDENT.length - 2)
  */
 export const GATE_DETAIL_HEADING = `${DIM}GATE DETAIL · element by element, for the gates that reported above${ESC}[0m`
 
+const GATE_TITLE_LINE = /^(\s*)(Gate [A-Z] · .*)$/u
+
+/** A block heading in the weight the manifest and the grouped rows give a title. */
+const emboldenGateTitle = (line: string): string => {
+  if (line.includes(BOLD)) return line
+  const match = GATE_TITLE_LINE.exec(line.replace(SGR, ''))
+  return match ? `${match[1]}${BOLD}${match[2]}${RESET}` : line
+}
+
 /**
  * Puts the per-gate detail blocks behind their heading, or prints nothing.
  *
@@ -74,7 +83,7 @@ export const GATE_DETAIL_HEADING = `${DIM}GATE DETAIL · element by element, for
 export const renderGateDetail = (
   blocks: readonly (readonly string[])[]
 ): string[] => {
-  const lines = foldLines(blocks.flat())
+  const lines = foldLines(blocks.flat()).map(emboldenGateTitle)
   return lines.length > 0 ? [GATE_DETAIL_HEADING, ...lines] : []
 }
 

@@ -1641,7 +1641,8 @@ const processTxs = async (
       if (line.level === 'error') consola.error(line.message)
       else if (line.level === 'warn') consola.warn(line.message)
       else consola.info(line.message)
-    for (const line of describeEvidenceProvenance(evidence)) consola.info(line)
+    for (const line of foldLines(describeEvidenceProvenance(evidence)))
+      consola.info(line)
     for (const line of describeEvidenceCost(evidence)) consola.info(line)
 
     codehashGate = evidence.value.codehash
