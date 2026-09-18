@@ -34,7 +34,7 @@ runs = 32
 # unseeded, so a wider input space is still explored outside CI.
 seed = '0x1'
 
-# The build every london-EVM network is deployed with, selected via FOUNDRY_PROFILE=london
+# The build every london-EVM network is deployed with, selected via FOUNDRY_PROFILE=solc_floor
 # by the grouped deploy runners, and the compiler pair the sign-time codehash rebuild and
 # .github/workflows/solc-floor-build.yml compile under.
 # - solc 0.8.17 is the floor every src/ file pins via `pragma solidity ^0.8.17`; the floor
@@ -45,7 +45,11 @@ seed = '0x1'
 #   the codegen production actually ships (no via_ir). No `skip` here: the deploy runners
 #   need script/** compiled under this profile, so the floor workflow passes its skips on
 #   the command line instead.
-[profile.london]
+# - Do not rename this section. The sign-time rebuild resolves a network's profile by name
+#   against this file but builds a checkout at the deployment commit; a name that does not
+#   exist there makes forge fall back to [profile.default] with a warning and exit 0, so
+#   every london slot older than the rename grades MISMATCH.
+[profile.solc_floor]
 solc_version = '0.8.17'
 evm_version = 'london'
 

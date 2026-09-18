@@ -346,7 +346,7 @@ const assertSubmodulesPinned = (
  * checked out rather than what was deployed.
  *
  * Each profile gets its own output directory. Foundry puts `default` and
- * `london` in the same `out/`, and one run can need both — a fleet rollout
+ * `solc_floor` in the same `out/`, and one run can need both — a fleet rollout
  * covering a cancun network and a london one — so a shared directory would hand
  * the second profile the first one's artifact.
  *
@@ -395,8 +395,7 @@ export const createForgeRebuildRunner = (
         ? join(deps.repoRoot, 'foundry-zksync', 'forge')
         : 'forge'
       // `test`/`script` are forge aliases for `.t.sol`/`.s.sol` only; the
-      // path globs skip the whole trees. Only src/ is attested, and test/ trips
-      // the legacy pipeline's "stack too deep" under the london pin.
+      // path globs match `[profile.solc_floor]` and skip the whole trees.
       // `--offline` refuses forge's auto-install so a missing pin cannot be
       // silently substituted mid-build.
       const args = [

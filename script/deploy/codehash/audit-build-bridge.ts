@@ -74,7 +74,7 @@ export const VETTED_COMPILER_SETS: Readonly<
     evmVersion: 'cancun',
     vettedOn: '2026-09-09',
   },
-  london: {
+  solc_floor: {
     solcVersion: '0.8.17',
     evmVersion: 'london',
     vettedOn: '2026-09-09',

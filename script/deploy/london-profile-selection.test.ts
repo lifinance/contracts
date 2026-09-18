@@ -27,16 +27,30 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
-import { parseBuildProfiles } from './codehash/lineage-scope'
+import {
+  deriveToolchainScope,
+  parseBuildProfiles,
+} from './codehash/lineage-scope'
 import { withholdCredentials } from './safe/spawn-env'
 
 const REPO_ROOT = join(import.meta.dir, '..', '..')
+const NETWORKS = JSON.parse(
+  readFileSync(join(REPO_ROOT, 'config', 'networks.json'), 'utf8')
+) as Record<string, { targetEvmVersion: string; isZkEVM: boolean }>
 const FOUNDRY_TOML = readFileSync(join(REPO_ROOT, 'foundry.toml'), 'utf8')
 const PROFILES = parseBuildProfiles(FOUNDRY_TOML)
 const FORGE_VERSION = readFileSync(
   join(REPO_ROOT, '.foundry-version'),
   'utf8'
 ).trim()
+
+/**
+ * The literal the runners export and the sign-time rebuild resolves by name.
+ * Spelled out rather than read from a constant, because the value is what the
+ * rebuild needs to find in a checkout at an older commit — a rename that both
+ * sides follow would leave every test green and every london slot MISMATCH.
+ */
+const LONDON_PROFILE = 'solc_floor'
 
 /** A london-EVM mainnet, so the getters take their non-zk branch. */
 const LONDON_NETWORK = 'fuse'
@@ -177,12 +191,14 @@ const REPORT_GETTERS = [
   `echo "EVM=$(getEvmVersion ${LONDON_NETWORK})"`,
 ]
 
-const london = PROFILES['london']
+const london = PROFILES[LONDON_PROFILE]
 const fallback = PROFILES['default']
 if (london === undefined || fallback === undefined)
-  throw new Error('foundry.toml must pin both a london and a default profile')
+  throw new Error(
+    `foundry.toml must pin both [profile.${LONDON_PROFILE}] and a default profile`
+  )
 
-describe('[profile.london] in foundry.toml', () => {
+describe(`[profile.${LONDON_PROFILE}] in foundry.toml`, () => {
   it('pins the pair the london group needs and nothing else', () => {
     // The evm name is what puts a network in the london group; the solc pin
     // has to differ from the default's or the getters below could pass by
@@ -193,7 +209,7 @@ describe('[profile.london] in foundry.toml', () => {
     // Any further key — `skip` above all — would stop the deploy scripts under
     // this profile from compiling, or drift its codegen from the default's.
     const body = FOUNDRY_TOML.split(/\n(?=\[)/).find((section) =>
-      section.startsWith('[profile.london]')
+      section.startsWith(`[profile.${LONDON_PROFILE}]`)
     )
     expect(body).toBeDefined()
     const keys = (body ?? '')
@@ -206,9 +222,9 @@ describe('[profile.london] in foundry.toml', () => {
 })
 
 describe('getSolcVersion / getEvmVersion read the active profile', () => {
-  it('report the london pair when FOUNDRY_PROFILE=london', () => {
+  it(`reports the london pair when FOUNDRY_PROFILE=${LONDON_PROFILE}`, () => {
     const output = run(makeSandbox(), [...SOURCE_HELPERS, ...REPORT_GETTERS], {
-      FOUNDRY_PROFILE: 'london',
+      FOUNDRY_PROFILE: LONDON_PROFILE,
     })
 
     expect(output).toContain(`SOLC=${london.solcVersion}`)
@@ -239,7 +255,7 @@ describe('prepareGroupBuild', () => {
     `echo "PROFILE_AFTER=\${FOUNDRY_PROFILE-${UNSET}}"`,
   ]
 
-  it('builds the london group under FOUNDRY_PROFILE=london and leaves foundry.toml committed', () => {
+  it(`builds the london group under FOUNDRY_PROFILE=${LONDON_PROFILE} and leaves foundry.toml committed`, () => {
     const sandbox = makeSandbox()
 
     const output = run(sandbox, [
@@ -252,10 +268,12 @@ describe('prepareGroupBuild', () => {
     expect(sandbox.foundryTomlStatus()).toBe('')
     expect(
       sandbox.forgeCalls().filter((call) => call.startsWith('forge build'))
-    ).toEqual([expect.stringMatching(/ FOUNDRY_PROFILE=london$/)])
+    ).toEqual([
+      expect.stringMatching(new RegExp(` FOUNDRY_PROFILE=${LONDON_PROFILE}$`)),
+    ])
     // Workers launched after this inherit the exporting shell's environment,
     // so the profile has to still be set once the helper returns.
-    expect(output).toContain('PROFILE_AFTER=london')
+    expect(output).toContain(`PROFILE_AFTER=${LONDON_PROFILE}`)
   })
 
   it('builds the cancun group with the profile cleared, even right after a london group', () => {
@@ -275,7 +293,7 @@ describe('prepareGroupBuild', () => {
         .forgeCalls()
         .filter((call) => call.startsWith('forge build'))
         .map((call) => call.split(' FOUNDRY_PROFILE=')[1])
-    ).toEqual(['london', UNSET])
+    ).toEqual([LONDON_PROFILE, UNSET])
     expect(output).toContain(`PROFILE_AFTER=${UNSET}`)
   })
 
@@ -285,7 +303,7 @@ describe('prepareGroupBuild', () => {
     run(
       sandbox,
       [...SOURCE_HELPERS, 'prepareGroupBuild "$GROUP_CANCUN" true'],
-      { FOUNDRY_PROFILE: 'london' }
+      { FOUNDRY_PROFILE: LONDON_PROFILE }
     )
 
     expect(
@@ -303,7 +321,7 @@ describe('prepareGroupBuild', () => {
         'prepareGroupBuild "$GROUP_ZKEVM" true',
         ...REPORT_STATE,
       ],
-      { FOUNDRY_PROFILE: 'london' }
+      { FOUNDRY_PROFILE: LONDON_PROFILE }
     )
 
     expect(output).toContain('RC=0')
@@ -312,6 +330,32 @@ describe('prepareGroupBuild', () => {
     // pin surviving into it derives the CREATE2 salt from bytecode no other
     // chain in the wave was built with.
     expect(output).toContain(`PROFILE_AFTER=${UNSET}`)
+  })
+
+  it('refuses the london group when foundry.toml has no such profile', () => {
+    const sandbox = makeSandbox()
+    const toml = join(sandbox.root, 'foundry.toml')
+    writeFileSync(
+      toml,
+      readFileSync(toml, 'utf8').replace(
+        `[profile.${LONDON_PROFILE}]`,
+        '[profile.renamed_away]'
+      )
+    )
+
+    const output = run(sandbox, [
+      ...SOURCE_HELPERS,
+      'prepareGroupBuild "$GROUP_LONDON" true',
+      ...REPORT_STATE,
+    ])
+
+    expect(output).toContain('RC=1')
+    expect(output).toContain(`[profile.${LONDON_PROFILE}]`)
+    // The paired present: the refusal lands before the build, so forge never
+    // got the chance to fall back to [profile.default] and exit 0.
+    expect(
+      sandbox.forgeCalls().filter((call) => call.startsWith('forge build'))
+    ).toEqual([])
   })
 
   // `declare -F a b c` returns 1 when ANY name is missing, so one call cannot
@@ -330,4 +374,25 @@ describe('prepareGroupBuild', () => {
 
       expect(output).toContain('DECLARED_RC=1')
     })
+})
+
+describe('the deploy side and the sign-time rebuild agree on the profile name', () => {
+  it('resolves the london network to the profile the runners export', () => {
+    // The rebuild takes this name from today's foundry.toml and hands it to a
+    // forge run inside a checkout at the deployment commit. Renaming the
+    // section moves this resolution with it and leaves the older checkouts
+    // behind, where forge answers the unknown name with [profile.default].
+    const row = NETWORKS[LONDON_NETWORK]
+    if (row === undefined)
+      throw new Error(`config/networks.json has no "${LONDON_NETWORK}" row`)
+
+    const scope = deriveToolchainScope(LONDON_NETWORK, {
+      networks: { [LONDON_NETWORK]: row },
+      profiles: PROFILES,
+    })
+
+    expect(scope.profiles.map((profile) => profile.profile)).toEqual([
+      LONDON_PROFILE,
+    ])
+  })
 })

@@ -1,6 +1,6 @@
 # - Verify Floor-Compiler Build
 # - Compiles the deployed contracts (src/) with the minimum pragma compiler (solc 0.8.17)
-#   via the `london` profile in foundry.toml (every src/ file pins `pragma solidity ^0.8.17`).
+#   via the `solc_floor` profile in foundry.toml (every src/ file pins `pragma solidity ^0.8.17`).
 # - Catches PRs that introduce syntax/features requiring a newer solc: the default profile
 #   pins 0.8.29, so such code would otherwise compile green and silently raise the real floor.
 # - Path-gated: the build job runs only when files that can affect src/ compilation change.
@@ -92,10 +92,10 @@ jobs:
         run: forge install
 
       - name: Build src/ with floor compiler (solc 0.8.17)
-        # The `london` profile pins solc 0.8.17 + evm london. A failure here means a src/
+        # The `solc_floor` profile pins solc 0.8.17 + evm london. A failure here means a src/
         # contract uses a language/syntax feature newer than the `^0.8.17` floor it declares.
         env:
-          FOUNDRY_PROFILE: london
+          FOUNDRY_PROFILE: solc_floor
         run: forge build --skip 'test/**' --skip 'script/**'
 
   solc-floor-build-required:

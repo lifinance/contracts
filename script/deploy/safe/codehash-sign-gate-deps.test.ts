@@ -77,7 +77,7 @@ describe('readToolchainConfig', () => {
     expect(Object.keys(config.networks).length).toBeGreaterThan(50)
     expect(config.profiles.default?.solcVersion).toBe('0.8.29')
     expect(config.profiles.default?.evmVersion).toBe('cancun')
-    expect(config.profiles.london?.solcVersion).toBe('0.8.17')
+    expect(config.profiles.solc_floor?.solcVersion).toBe('0.8.17')
     expect(config.profiles.zksync?.zksolcVersion).toBeDefined()
   })
 })
@@ -92,10 +92,10 @@ describe('createToolchainScopeResolver', () => {
     expect(scope.profiles.map((p) => p.profile)).toEqual(['default'])
   })
 
-  it('resolves a london network to the london profile', () => {
+  it('resolves a london network to the floor profile', () => {
     const scope = resolve('tron')
 
-    expect(scope.profiles.map((p) => p.profile)).toEqual(['london'])
+    expect(scope.profiles.map((p) => p.profile)).toEqual(['solc_floor'])
   })
 
   it('resolves a zkEVM network to the zksolc profile', () => {
@@ -482,13 +482,13 @@ describe('createForgeRebuildRunner', () => {
     }
 
     const zk = seen({ profile: 'zksync', zksolcVersion: '1.5.15' })
-    const floor = seen({ profile: 'london' })
+    const floor = seen({ profile: 'solc_floor' })
 
     // Two non-zk profiles share `out/` in foundry's own layout, and this runner
     // builds several profiles inside one checkout, so a shared directory would
     // hand the second profile the first one's artifact.
     expect(zk[0]).toContain('zksync')
-    expect(floor[0]).toContain('london')
+    expect(floor[0]).toContain('solc_floor')
     expect(zk[0]).not.toBe(floor[0])
   })
 

@@ -372,7 +372,7 @@ describe('createAttestationSource — the set it returns', () => {
     const { source, requests } = sourceWith({
       toolchainScope: () => ({
         isClosedSet: true,
-        profiles: [profileNamed('default'), profileNamed('london')],
+        profiles: [profileNamed('default'), profileNamed('solc_floor')],
       }),
     })
 
@@ -382,12 +382,12 @@ describe('createAttestationSource — the set it returns', () => {
     expect(resolution.builds).toHaveLength(2)
     expect(requests.map((r) => r.profile.profile)).toEqual([
       'default',
-      'london',
+      'solc_floor',
     ])
     expect(requests.every((r) => r.commit === SHA)).toBe(true)
     expect(resolution.builds.map((b) => b.lineage)).toEqual([
       expect.stringContaining('default'),
-      expect.stringContaining('london'),
+      expect.stringContaining('solc_floor'),
     ])
   })
 
@@ -588,7 +588,7 @@ describe('createAttestationSource — the per-run cache', () => {
     const { source, requests } = sourceWith({
       toolchainScope: () => ({
         isClosedSet: true,
-        profiles: [profileNamed('default'), profileNamed('london')],
+        profiles: [profileNamed('default'), profileNamed('solc_floor')],
       }),
     })
 

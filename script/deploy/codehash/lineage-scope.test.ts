@@ -41,7 +41,7 @@ describe('parseBuildProfiles — read from the real foundry.toml, not a fixture'
     // Hardcoding these would drift the moment a profile is retuned, which is the
     // failure this whole gate exists to catch one layer down.
     expect(Object.keys(profiles).sort()).toEqual(
-      ['default', 'london', ZK_PROFILE].sort()
+      ['default', 'solc_floor', ZK_PROFILE].sort()
     )
   })
 
@@ -57,7 +57,7 @@ describe('parseBuildProfiles — read from the real foundry.toml, not a fixture'
       solcVersion: '0.8.29',
       evmVersion: 'cancun',
     })
-    expect(profiles.london).toMatchObject({
+    expect(profiles.solc_floor).toMatchObject({
       solcVersion: '0.8.17',
       evmVersion: 'london',
     })
@@ -94,7 +94,7 @@ describe('a renamed zk profile fails loudly instead of leaking', () => {
           readFileSync(join(REPO_ROOT, 'foundry.toml'), 'utf8')
         )
       ).sort()
-    ).toEqual(['default', 'london', ZK_PROFILE].sort())
+    ).toEqual(['default', 'solc_floor', ZK_PROFILE].sort())
   })
 })
 
@@ -108,14 +108,14 @@ describe('deriveToolchainScope', () => {
     expect(scope.profiles.map((p) => p.profile)).toEqual(['default'])
   })
 
-  it('closes the set for a london network via the london profile', () => {
+  it('closes the set for a london network via solc_floor', () => {
     const london = Object.keys(networks).find(
       (n) => networks[n]?.targetEvmVersion === 'london'
     )
     expect(london).toBeDefined()
     const scope = scopeOf(london as string)
     expect(scope.isClosedSet).toBe(true)
-    expect(scope.profiles.map((p) => p.profile)).toEqual(['london'])
+    expect(scope.profiles.map((p) => p.profile)).toEqual(['solc_floor'])
   })
 
   it('closes the set for a zkEVM mainnet rather than falling back to open', () => {

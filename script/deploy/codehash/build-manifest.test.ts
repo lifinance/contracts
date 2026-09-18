@@ -377,10 +377,10 @@ describe('serialiseManifest', () => {
 
   it('records only the profiles it was minted under', () => {
     const parsed = JSON.parse(
-      serialiseManifest(['default', 'london'], [entryFor(keyFor(), CODE_A)])
+      serialiseManifest(['default', 'solc_floor'], [entryFor(keyFor(), CODE_A)])
     ) as IBuildManifest
 
-    expect(parsed.coveredProfiles).toEqual(['default', 'london'])
+    expect(parsed.coveredProfiles).toEqual(['default', 'solc_floor'])
   })
 
   it('orders entries by contract name, not by the length-prefixed key', () => {
@@ -437,12 +437,12 @@ describe('serialiseManifest', () => {
     const a = entryFor(key, CODE_A, DEFAULT_PROFILE)
     const b = entryFor(key, CODE_A, {
       ...DEFAULT_PROFILE,
-      profile: 'london',
+      profile: 'solc_floor',
     })
 
     expect(serialiseAttestationKey(a.key)).toBe(serialiseAttestationKey(b.key))
-    expect(serialiseManifest(['default', 'london'], [a, b])).toBe(
-      serialiseManifest(['default', 'london'], [b, a])
+    expect(serialiseManifest(['default', 'solc_floor'], [a, b])).toBe(
+      serialiseManifest(['default', 'solc_floor'], [b, a])
     )
   })
 })

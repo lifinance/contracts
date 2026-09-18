@@ -30,7 +30,7 @@ GROUP_ZKEVM="zkevm"
 GROUP_CANCUN="cancun"
 
 # foundry.toml profile the london group builds under; cancun is the default profile
-PROFILE_LONDON="london"
+PROFILE_LONDON="solc_floor"
 
 # getNetworkEvmVersion NETWORK -> echoes the network's targetEvmVersion.
 function getNetworkEvmVersion() {
@@ -202,6 +202,13 @@ function prepareGroupBuild() {
 
     case "$GROUP" in
         "$GROUP_LONDON")
+            # forge falls back to [profile.default] with a warning and exit 0 when the
+            # named section is absent, so an unchecked export would ship a cancun build
+            # to a london chain on a green run.
+            if ! grep -q "^\[profile\.$PROFILE_LONDON\]" foundry.toml; then
+                error "foundry.toml has no [profile.$PROFILE_LONDON] section - refusing to build the London EVM group, because forge would silently fall back to [profile.default]"
+                return 1
+            fi
             export FOUNDRY_PROFILE="$PROFILE_LONDON"
             logWithTimestamp "Running forge build for London EVM group (FOUNDRY_PROFILE=$FOUNDRY_PROFILE)..."
             ;;

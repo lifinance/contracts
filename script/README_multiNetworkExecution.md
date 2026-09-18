@@ -20,7 +20,7 @@ The system automatically groups networks by their EVM version and zkEVM status, 
 **Important Note**: The solc version is derived from `targetEvmVersion` in `networks.json` — there is no separate solc field to configure:
 
 - Cancun EVM networks → solc 0.8.29 via `[profile.default]` (executed first)
-- London EVM networks → solc 0.8.17 via `[profile.london]`
+- London EVM networks → solc 0.8.17 via `[profile.solc_floor]`
 - zkEVM networks → use existing profile.zksync
   - Deploy scripts automatically use the zksync profile for zkEVM networks
   - zkEVM networks always execute sequentially for proper resource management
@@ -170,7 +170,7 @@ The system reads `networks.json` to determine:
 
 **Note**: The solc version is derived from `targetEvmVersion` — there is no separate solc field:
 
-- London EVM → solc 0.8.17 via `[profile.london]`
+- London EVM → solc 0.8.17 via `[profile.solc_floor]`
 - Cancun EVM → solc 0.8.29 via `[profile.default]`
 - zkEVM networks (`isZkEVM: true`) → zksolc via `[profile.zksync]`
 
@@ -178,7 +178,7 @@ The system reads `networks.json` to determine:
 
 1. **Group 1 (Cancun)**: Clear `FOUNDRY_PROFILE` → Recompile → Execute networks in parallel
 2. **Group 2 (zkEVM)**: Execute networks sequentially (zkEVM compilation handled by deploy scripts)
-3. **Group 3 (London)**: Export `FOUNDRY_PROFILE=london` → Recompile → Execute networks in parallel
+3. **Group 3 (London)**: Export `FOUNDRY_PROFILE=solc_floor` → Recompile → Execute networks in parallel
 4. **Show summary** of results
 
 ### 3. Progress Tracking
@@ -221,7 +221,7 @@ Each network must have these properties:
 The system expects these profiles in `foundry.toml`:
 
 - `[profile.default]` - Cancun networks
-- `[profile.london]` - London networks (solc 0.8.17 / evm london, everything else inherited from default)
+- `[profile.solc_floor]` - London networks (solc 0.8.17 / evm london, everything else inherited from default)
 - `[profile.zksync]` - zkEVM networks
 
 ## Integration with Existing Code
@@ -251,7 +251,7 @@ The new system integrates with existing functions:
 [2024-01-15 10:30:35] [zksync] ✅ SUCCESS: Operation completed successfully
 [2024-01-15 10:30:35] Group zkevm execution completed. Failed networks: 0
 [2024-01-15 10:30:35] Group: london (3 networks): mainnet arbitrum base
-[2024-01-15 10:30:35] Running forge build for London EVM group (FOUNDRY_PROFILE=london)...
+[2024-01-15 10:30:35] Running forge build for London EVM group (FOUNDRY_PROFILE=solc_floor)...
 [2024-01-15 10:30:35] Recompiling contracts for group: london
 [2024-01-15 10:30:40] [mainnet] 🔄 IN PROGRESS: Operation started
 [2024-01-15 10:30:40] [arbitrum] 🔄 IN PROGRESS: Operation started
@@ -274,7 +274,7 @@ The new system integrates with existing functions:
 
 2. **"Failed to prepare the build for group ..."**
 
-   - Ensure `foundry.toml` declares the group's profile (`[profile.london]` for london)
+   - Ensure `foundry.toml` declares the group's profile (`[profile.solc_floor]` for london)
    - Check that the file exists and is not corrupted
 
 3. **"Failed to compile contracts"**
