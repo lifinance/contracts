@@ -15,7 +15,6 @@
 import { type IShadowObservation } from '../codehash/false-refusal-budget'
 
 import { checkResultKey, type ICheckLedger } from './check-ledger'
-import { NOTHING_TO_COMPARE } from './confirm-check-registry'
 
 /** One proposal's ledger, as one pass graded it. */
 export interface IRehearsalPassEntry {
@@ -325,8 +324,8 @@ const HARD_REFUSING_STATUSES: ReadonlySet<string> = new Set(['fail', 'error'])
  *
  * Two exclusions, both because the row cannot answer the question. A row that
  * already refused proves nothing by refusing again. A row the gate graded as
- * having no cut to compare cannot be made to refuse at all: damaging a payload
- * that is not a diamond cut leaves it not a diamond cut, so demanding a refusal
+ * not applicable cannot be made to refuse at all: damaging a payload that
+ * installs nothing to compare leaves it installing nothing, so demanding a refusal
  * from it makes the probe permanently red for a reason that is about the corpus
  * rather than about the chain.
  */
@@ -338,7 +337,7 @@ const gradedPopulation = (
     for (const result of outcomesOf(entry.ledger).values()) {
       // Already stopped on the bytes, so refusing again proves nothing.
       if (HARD_REFUSING_STATUSES.has(result.status)) continue
-      if (result.expected === NOTHING_TO_COMPARE) continue
+      if (result.status === 'not-applicable') continue
       slots.push(`${entry.proposal}/${result.checkId}/${result.network}`)
     }
   return slots

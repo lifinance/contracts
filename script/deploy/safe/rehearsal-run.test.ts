@@ -10,7 +10,7 @@ import {
   recordCheck,
   type ICheckLedger,
 } from './check-ledger'
-import { NOTHING_TO_COMPARE } from './confirm-check-registry'
+import { EVERY_TARGET_ATTESTED } from './confirm-check-registry'
 import {
   collectRefusalObservations,
   comparePasses,
@@ -388,9 +388,9 @@ describe('gradeCorruptionProbe, on rows the mutation cannot reach', () => {
     recordCheck(built, {
       checkId: 'target-state',
       network: 'tron',
-      status: 'pass',
-      expected: NOTHING_TO_COMPARE,
-      actual: 'unnamed element: no-diamond-cut',
+      status: 'not-applicable',
+      expected: EVERY_TARGET_ATTESTED,
+      actual: 'nothing installed to hash',
       anchor: 'A-LOCAL',
     })
     return built
