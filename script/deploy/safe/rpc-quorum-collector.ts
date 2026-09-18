@@ -179,7 +179,11 @@ export const createPinnedBlock = (
     return lowest
   }
 
-  return () => (pinned ??= resolve())
+  return () =>
+    (pinned ??= resolve().catch((error: unknown) => {
+      pinned = undefined
+      throw error
+    }))
 }
 
 /**
