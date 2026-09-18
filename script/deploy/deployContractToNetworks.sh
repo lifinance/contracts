@@ -119,17 +119,24 @@ function killProcessTree() {
 # disagree on what `-g` selects. The STAT column is the other half of the answer -
 # a process in D or T state is stuck, not working.
 #
-# Usage: reportStalledWave SECONDS_WAITED
-#   SECONDS_WAITED - how long the wave has been waiting
+# `comm=` (executable only), never `command=`: a live `cast send` carries
+# `--private-key` and an `--rpc-url` with the provider key embedded in its
+# arguments, so printing argv would write both into every deploy log
+# ([CONV:REDACT-RPC-URL]). The executable name answers the question this report
+# asks - whether any deploy work is still running. To go deeper on one entry,
+# read its argv by pid, out of band.
+#
+# Usage: reportStalledWave SECONDS_ELAPSED
+#   SECONDS_ELAPSED - how long the wave has been running, measured from its start
 #
 # Returns: 0
 function reportStalledWave() {
-  local SECONDS_WAITED="$1"
+  local SECONDS_ELAPSED="$1"
   local PGID
   PGID=$(ps -o pgid= -p $$ 2>/dev/null | tr -d ' ')
-  warning "wave still running ${SECONDS_WAITED}s after its last output - processes alive in this run:"
-  echo "    PID   PGID   PPID STAT ELAPSED COMMAND"
-  ps -eo pid=,pgid=,ppid=,stat=,etime=,command= 2>/dev/null |
+  warning "wave has been running ${SECONDS_ELAPSED}s - processes still alive in this run:"
+  echo "    PID   PGID   PPID STAT ELAPSED EXECUTABLE"
+  ps -eo pid=,pgid=,ppid=,stat=,etime=,comm= 2>/dev/null |
     awk -v PGID="$PGID" '$2 == PGID' | sed 's/^/  /'
   warning "no forge/cast/bun above means the wave is held open by a leftover child, not by work still in progress"
 }
@@ -181,6 +188,15 @@ function launchDeployWave() {
   local WAVE_NETWORKS=("$@")
   local WAVE_NETWORK
 
+  # resolved before the first worker launches: a zero, negative or non-numeric
+  # value reads as 0 in the comparison below and would fire the report on every
+  # poll, five times a second, for the whole wave
+  local STALL_REPORT_AFTER="${WAVE_STALL_REPORT_SECONDS:-600}"
+  if [[ ! "$STALL_REPORT_AFTER" =~ ^[1-9][0-9]*$ ]]; then
+    error "WAVE_STALL_REPORT_SECONDS must be a positive integer (check your .env) - got '$STALL_REPORT_AFTER'"
+    exit 1
+  fi
+
   for WAVE_NETWORK in "${WAVE_NETWORKS[@]}"; do
     # throttle: wait for a free slot before launching the next network
     while [[ $(jobs -rp | wc -l) -ge $WAVE_CONCURRENCY ]]; do
@@ -197,18 +213,17 @@ function launchDeployWave() {
   # wait for every network in this wave before the caller repoints foundry.toml.
   # polled rather than a bare `wait` so a wave that stops finishing says what is
   # still holding it open, instead of looking the same as one still working
-  local STALL_REPORT_AFTER=${WAVE_STALL_REPORT_SECONDS:-600}
   local WAVE_START=$SECONDS
   local NEXT_REPORT=$STALL_REPORT_AFTER
-  local WAITED
+  local ELAPSED
   # short poll so a wave that finishes quickly is not held up by the poll itself
   while [[ -n "$(jobs -rp)" ]]; do
     sleep 0.2
-    WAITED=$((SECONDS - WAVE_START))
+    ELAPSED=$((SECONDS - WAVE_START))
     # re-check: a wave that finished during the sleep above is not stalled
-    if [[ $WAITED -ge $NEXT_REPORT && -n "$(jobs -rp)" ]]; then
-      reportStalledWave "$WAITED"
-      NEXT_REPORT=$((WAITED + STALL_REPORT_AFTER))
+    if [[ $ELAPSED -ge $NEXT_REPORT && -n "$(jobs -rp)" ]]; then
+      reportStalledWave "$ELAPSED"
+      NEXT_REPORT=$((ELAPSED + STALL_REPORT_AFTER))
     fi
   done
   wait

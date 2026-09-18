@@ -13,6 +13,12 @@
  * once none is running), so the second test passes either way. It is a guard on the limit being
  * honoured, not a regression test. `jobs -rp` lists running jobs only, which is accurate from a
  * subshell.
+ *
+ * Concurrency is proved by counting workers that are actually running at the same time, not by
+ * wall-clock elapsed: a loaded host makes a correct wave slow, so an elapsed upper bound would
+ * fail on a healthy throttle. Each worker drops a marker file and samples how many exist; the
+ * peak of those samples can never exceed true simultaneity, which makes `peak <= limit`
+ * flake-free. The elapsed assertions are lower bounds only, which slowness cannot break.
  */
 import { execFileSync } from 'child_process'
 import { join } from 'path'
@@ -38,27 +44,42 @@ const DEFS = [
   .join('\n')
 
 /**
- * Run a wave of one-second workers and report how long it took.
+ * Run a wave of one-second workers, each of which records how many workers were running
+ * alongside it.
  *
  * @param concurrency - networks allowed to run at once
  * @param networks - how many networks make up the wave
- * @returns seconds elapsed, and the count of workers that wrote a result
+ * @returns seconds elapsed, results written, and the peak simultaneous worker count
  */
 function runWave(
   concurrency: number,
   networks: number
-): { elapsed: number; results: number } {
+): { elapsed: number; results: number; peak: number } {
   const names = Array.from({ length: networks }, (_, i) => `net${i}`).join(' ')
   const script = `
-    eval "$(${DEFS})"
+    source <(
+${DEFS}
+    )
     warning() { printf '[warning] %s\\n' "$1"; }
-    deployToNetworkWorker() { sleep 1; echo "OK" >"$5/$1"; }
+    error() { printf '[error] %s\\n' "$1"; }
+    RUN_DIR=$(mktemp -d)
     RESULT_DIR=$(mktemp -d)
+    # sampled twice so a worker that starts just before its neighbour still observes the overlap
+    deployToNetworkWorker() {
+      MARKER=$(mktemp "$RUN_DIR/running.XXXXXX")
+      find "$RUN_DIR" -name 'running.*' | wc -l | tr -d ' ' >>"$RUN_DIR/samples"
+      sleep 0.5
+      find "$RUN_DIR" -name 'running.*' | wc -l | tr -d ' ' >>"$RUN_DIR/samples"
+      sleep 0.5
+      rm -f "$MARKER"
+      echo "OK" >"$5/$1"
+    }
     START=$SECONDS
     launchDeployWave ${concurrency} production SomeFacet 1.0.0 "$RESULT_DIR" ${names}
     echo "ELAPSED:$((SECONDS - START))"
     echo "RESULTS:$(find "$RESULT_DIR" -type f | wc -l | tr -d ' ')"
-    rm -rf "$RESULT_DIR"
+    echo "PEAK:$(sort -n "$RUN_DIR/samples" | tail -1)"
+    rm -rf "$RESULT_DIR" "$RUN_DIR"
   `
   const output = execFileSync('bash', ['-c', script, 'harness'], {
     cwd: REPO_ROOT,
@@ -68,24 +89,26 @@ function runWave(
   return {
     elapsed: Number(/ELAPSED:(\d+)/.exec(output)?.[1]),
     results: Number(/RESULTS:(\d+)/.exec(output)?.[1]),
+    peak: Number(/PEAK:(\d+)/.exec(output)?.[1]),
   }
 }
 
 describe('launchDeployWave throttle', () => {
   it('runs a wave at a concurrency of 1 instead of deadlocking', () => {
-    const { elapsed, results } = runWave(1, 3)
+    const { elapsed, results, peak } = runWave(1, 3)
 
     expect(results).toBe(3)
-    // one at a time: three 1s workers cannot finish in less than 3s
+    expect(peak).toBe(1)
+    // one at a time: three 1s workers cannot finish in under 3s
     expect(elapsed).toBeGreaterThanOrEqual(3)
   }, 60_000)
 
   it('holds the wave to the configured concurrency', () => {
-    const { elapsed, results } = runWave(2, 4)
+    const { elapsed, results, peak } = runWave(2, 4)
 
     expect(results).toBe(4)
-    // two at a time: two batches of 1s, neither unthrottled (1s) nor serialised (4s)
+    expect(peak).toBe(2)
+    // two at a time: four 1s workers cannot finish in under 2s
     expect(elapsed).toBeGreaterThanOrEqual(2)
-    expect(elapsed).toBeLessThan(4)
   }, 60_000)
 })
