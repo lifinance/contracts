@@ -246,6 +246,19 @@ const judge = async (
   if (comparison.verdict === 'MATCH' && comparison.excludedByteCount > 0)
     return complete(address, network, comparison, deps, code.runtimeCode)
 
+  if (comparison.verdict === 'MATCH')
+    return {
+      address,
+      verdict: comparison.verdict,
+      reason: comparison.reason,
+      matchedLineages: comparison.matchedLineages,
+      excludedByteCount: comparison.excludedByteCount,
+      pricedByteCount: 0,
+      // Nothing was masked on a chain that inlines them, so there was nothing
+      // to mask: the build carries no immutables.
+      immutables: noImmutables(address),
+    }
+
   return {
     address,
     verdict: comparison.verdict,
@@ -253,15 +266,58 @@ const judge = async (
     matchedLineages: comparison.matchedLineages,
     excludedByteCount: comparison.excludedByteCount,
     pricedByteCount: 0,
-    immutables:
-      comparison.verdict === 'MATCH'
-        ? // Nothing was masked on a chain that inlines them, so there was
-          // nothing to mask: the build carries no immutables.
-          noImmutables(address)
-        : immutablesUnreadable(
-            address,
-            `its code is ${comparison.verdict} against the attested set, so there is no deployment of ours whose values could be compared`
-          ),
+    immutables: await immutablesBesideABlockedVerdict(
+      address,
+      network,
+      comparison.verdict,
+      scope,
+      deps
+    ),
+  }
+}
+
+/**
+ * What gate L can still say once layer 1 has blocked.
+ *
+ * Whether a contract declares immutables is a fact about the contract, not
+ * about whether the deployed code matched, so a layer-1 block must not take the
+ * value question down with it: a contract that declares none has no values to
+ * establish whatever layer 1 concluded.
+ *
+ * Only whether it declares any is taken from the reader. Any pricing computed
+ * alongside is discarded — those values were read off a deployment layer 1 has
+ * just refused to vouch for, so reporting them as checked would answer gate L
+ * about a contract that may not be ours.
+ *
+ * Inlined lineages keep the unestablished answer. There the count comes from the
+ * masking refs, which are absent — indistinguishable from zero — whenever the
+ * record or its commit could not be read, so a zero is not evidence that the
+ * contract declares none.
+ *
+ * @param address - the target layer 1 blocked
+ * @param network - the proposal's network
+ * @param verdict - layer 1's verdict, for the sentence a signer reads
+ * @param scope - decides whether the declaration read can be trusted here
+ * @param deps - carries the declaration read
+ */
+const immutablesBesideABlockedVerdict = async (
+  address: string,
+  network: string,
+  verdict: CodehashVerdict,
+  scope: ILineageScope,
+  deps: IVerifyCutDeps
+): Promise<IImmutableVerdict> => {
+  const unestablished = immutablesUnreadable(
+    address,
+    `its code is ${verdict} against the attested set, so there is no deployment of ours whose values could be compared`
+  )
+  if (!scope.holdsImmutablesOffCode) return unestablished
+
+  try {
+    const read = await deps.readOffCodeImmutables(address, network)
+    return read.declared === 'none' ? noImmutables(address) : unestablished
+  } catch {
+    return unestablished
   }
 }
 

@@ -110,6 +110,7 @@ const priced = (
   disagreements: [],
   pricedByteCount: bytes,
   unpricedByteCount: 0,
+  acknowledgeableByteCount: 0,
   disagreeingByteCount: 0,
   ...over,
 })
@@ -574,6 +575,7 @@ describe('verifyCutTargets on a chain holding immutables off-code', () => {
         disagreements: slots.filter((one) => one.status === 'disagrees'),
         pricedByteCount: 32,
         unpricedByteCount: 0,
+        acknowledgeableByteCount: 0,
         disagreeingByteCount: 0,
         ...over,
       },
@@ -652,6 +654,64 @@ describe('verifyCutTargets on a chain holding immutables off-code', () => {
     // The summary qualifies itself with this number. Counting simulator words
     // in it would print a confirmation of a mapping nothing confirmed.
     expect(report.targets[0]?.pricedByteCount).toBe(0)
+  })
+
+  it('still answers the value question when layer 1 has blocked', async () => {
+    // What lens produced: gate K blocked, and gate L reported the values
+    // unestablished for a facet that declares none — an unanswerable row about
+    // immutables that do not exist. The declaration set is a fact about the
+    // contract, not about how the bytecode comparison came out.
+    const report = await zkReport({
+      attestationsFor: async () => ({ builds: [attested(OTHER)] }),
+      readOffCodeImmutables: async () => ({ declared: 'none' }),
+    })
+
+    expect(report.targets[0]?.verdict).toBe('MISMATCH')
+    expect(report.blocksSigning).toBe(true)
+    expect(report.targets[0]?.immutables.status).toBe('none')
+  })
+
+  it('keeps the values unestablished on a block when the contract declares some', async () => {
+    // Those values were read off a deployment layer 1 has just refused to vouch
+    // for, so reporting the pricing would answer gate L about a contract that
+    // may not be ours.
+    const report = await zkReport({
+      attestationsFor: async () => ({ builds: [attested(OTHER)] }),
+      readOffCodeImmutables: zkPriced([verifiedSlot]),
+    })
+
+    expect(report.targets[0]?.verdict).toBe('MISMATCH')
+    expect(report.targets[0]?.immutables.status).toBe('unreadable')
+  })
+
+  it('keeps the values unestablished on a block whose declarations it cannot read', async () => {
+    const report = await zkReport({
+      attestationsFor: async () => ({ builds: [attested(OTHER)] }),
+      readOffCodeImmutables: async () => {
+        throw new Error('ImmutableSimulator unreachable')
+      },
+    })
+
+    expect(report.targets[0]?.verdict).toBe('MISMATCH')
+    expect(report.targets[0]?.immutables.status).toBe('unreadable')
+  })
+
+  it('does not extend the same relief to an inlining chain', async () => {
+    // There the count comes from the masking refs, which are absent — and so
+    // read as zero — whenever the record or its commit could not be read. A
+    // zero there is not evidence that the contract declares none.
+    const report = await verifyCutTargets(
+      { cuts: [add(A)], init: ZERO, network: 'mainnet' },
+      {
+        ...deps({
+          attestationsFor: async () => ({ builds: [attested(OTHER)] }),
+        }),
+        scope: () => ({ isClosedSet: true, holdsImmutablesOffCode: false }),
+      } as IVerifyCutDeps
+    )
+
+    expect(report.targets[0]?.verdict).toBe('MISMATCH')
+    expect(report.targets[0]?.immutables.status).toBe('unreadable')
   })
 
   it('leaves a chain that inlines its immutables exactly as it was', async () => {
