@@ -1616,8 +1616,8 @@
       "key": {
         "contractName": "NEARIntentsFacet",
         "sourceId": "src/Facets/NEARIntentsFacet.sol",
-        "version": "1.0.0",
-        "closureHash": "0xb003df307a8d14d36172107796e27b0c124c989500eb5cc5228f04020dfa68c1",
+        "version": "1.1.0",
+        "closureHash": "0x64ce8d7efc2434b37cb104e4c817de484627f7ad743b498557a3a1bacb87582e",
         "settingsHash": "0x48fde5cb6f411b0f8c9ca1c32f840873d478a053cb4a617a579eae3f3f641c71",
         "settingsSource": "artifact",
         "solcVersion": "0.8.29+commit.ab55807c"
@@ -1637,12 +1637,12 @@
           }
         }
       },
-      "maskedHash": "0xec993daef8bd054b5e1eda8ba7d7d05ab6c2b32dd67c6da9e06e739501286c66",
-      "lineage": "NEARIntentsFacet@1.0.0 (default: solc 0.8.29, cancun)",
-      "rawByteLength": 9034,
+      "maskedHash": "0x5df45a2c8d7659d9cc29b85c8dd67d8c8e9d7bd54fa2e857a3ed351c10da5541",
+      "lineage": "NEARIntentsFacet@1.1.0 (default: solc 0.8.29, cancun)",
+      "rawByteLength": 9216,
       "immutableOffsets": [
         {
-          "start": 2777,
+          "start": 2908,
           "length": 32
         }
       ]

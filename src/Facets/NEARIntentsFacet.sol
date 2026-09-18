@@ -17,7 +17,7 @@ import { InvalidConfig, InvalidNonEVMReceiver } from "../Errors/GenericErrors.so
 /// @notice WARNING: This facet does NOT support fee-on-transfer tokens (e.g., SafeMoon, PAXG).
 ///         Using such tokens will result in the quote ID being consumed without proper bridging,
 ///         as the contract does not validate destination balances after transfer.
-/// @custom:version 1.0.0
+/// @custom:version 1.1.0
 contract NEARIntentsFacet is
     ILiFi,
     ReentrancyGuard,
@@ -31,9 +31,9 @@ contract NEARIntentsFacet is
     bytes32 internal constant NAMESPACE =
         keccak256("com.lifi.facets.nearintents");
 
-    // EIP-712 typehash for NEARIntentsPayload: keccak256("NEARIntentsPayload(bytes32 transactionId,uint256 minAmount,bytes32 receiver,address depositAddress,uint256 destinationChainId,address sendingAssetId,uint256 deadline,bytes32 quoteId,uint256 minAmountOut)");
+    // EIP-712 typehash for NEARIntentsPayload: keccak256("NEARIntentsPayload(bytes32 transactionId,uint256 minAmount,bytes32 receiver,address depositAddress,uint256 destinationChainId,address sendingAssetId,uint256 deadline,bytes32 quoteId,uint256 minAmountOut,bytes32 destinationAsset)");
     bytes32 private constant NEARINTENTS_PAYLOAD_TYPEHASH =
-        0x26e3f312476209e792e713eef13bd95c5da5292aba26e299c7d8e7c647d7903e;
+        0xd47b984fe59451779b58ef224d6378bc43a15258040d557d281c397748692cdb;
 
     /// @notice The address of the backend signer that is authorized to sign the NEARIntentsPayload
     address internal immutable BACKEND_SIGNER;
@@ -42,6 +42,14 @@ contract NEARIntentsFacet is
 
     /// @notice NEAR Intents specific parameters
     /// @param nonEVMReceiver Set only if bridging to non-EVM chain (e.g., NEAR account ID) - receiver field per convention
+    /// @param destinationAsset The asset the quote settles in on the destination chain, as bytes32.
+    ///        For an EVM destination: the ERC20 token address left-padded to 32 bytes
+    ///        (`bytes32(uint256(uint160(token)))`), native represented by the non-zero native
+    ///        sentinel `0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE` padded the same way.
+    ///        For a non-EVM destination: the same bytes32 codec used for `nonEVMReceiver` on that VM.
+    ///        The facet does not interpret this value; it only binds it into the backend signature so
+    ///        that the destination asset a 1Click quote settles in is committed to in calldata and
+    ///        cannot be swapped behind `quoteId`. Must be non-zero.
     /// @param depositAddress EVM address to send tokens (from Bridge API) - receiver field per convention
     /// @param quoteId Unique identifier from 1Click API quote response
     /// @param deadline Unix timestamp when quote expires (refunds begin if unfulfilled)
@@ -50,6 +58,7 @@ contract NEARIntentsFacet is
     /// @param signature The signature of the NEARIntentsPayload signed by the backend signer using EIP-712 standard
     struct NEARIntentsData {
         bytes32 nonEVMReceiver;
+        bytes32 destinationAsset;
         address depositAddress;
         bytes32 quoteId;
         uint256 deadline;
@@ -77,6 +86,7 @@ contract NEARIntentsFacet is
     /// @param amount Amount being bridged
     /// @param deadline Quote expiration timestamp
     /// @param minAmountOut Minimum amount expected on destination chain (slippage protection from NEAR Intents)
+    /// @param destinationAsset Destination asset the quote settles in, as bytes32 (see `NEARIntentsData`)
     event NEARIntentsBridgeStarted(
         bytes32 indexed transactionId,
         bytes32 indexed quoteId,
@@ -84,7 +94,8 @@ contract NEARIntentsFacet is
         address sendingAssetId,
         uint256 amount,
         uint256 deadline,
-        uint256 minAmountOut
+        uint256 minAmountOut,
+        bytes32 destinationAsset
     );
 
     /// Errors ///
@@ -97,6 +108,9 @@ contract NEARIntentsFacet is
 
     /// @notice Thrown when the signature is invalid
     error InvalidSignature();
+
+    /// @notice Thrown when the destination asset is not set
+    error InvalidDestinationAsset();
 
     /// Constructor ///
 
@@ -128,6 +142,11 @@ contract NEARIntentsFacet is
         // Ensure quote hasn't expired
         if (block.timestamp > _nearData.deadline) {
             revert QuoteExpired();
+        }
+
+        // Ensure the signed destination asset is set
+        if (_nearData.destinationAsset == bytes32(0)) {
+            revert InvalidDestinationAsset();
         }
 
         // Ensure nonEVMReceiver is not empty when bridging to non-EVM chain
@@ -253,7 +272,8 @@ contract NEARIntentsFacet is
             _bridgeData.sendingAssetId,
             _bridgeData.minAmount,
             _nearData.deadline,
-            _nearData.minAmountOut
+            _nearData.minAmountOut,
+            _nearData.destinationAsset
         );
 
         // Emit special event if bridging to non-EVM chain
@@ -291,7 +311,8 @@ contract NEARIntentsFacet is
                 _bridgeData.sendingAssetId,
                 _nearData.deadline,
                 _nearData.quoteId,
-                _nearData.minAmountOut
+                _nearData.minAmountOut,
+                _nearData.destinationAsset
             )
         );
 
