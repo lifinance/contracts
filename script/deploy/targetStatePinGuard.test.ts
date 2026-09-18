@@ -244,8 +244,19 @@ describe('a refused deploy stops deployAllContracts', () => {
   })
 
   // Stage 5 stops the run, but only after trying every facet: returning on the first
-  // refusal cost one operator cycle per broken facet on a bootstrap.
-  it('names every refused facet, so stage 5 reports them in one pass', () => {
+  // refusal cost one operator cycle per broken facet on a bootstrap. Asserted on the loop
+  // body rather than on the report below it, which survives a return inside the loop.
+  it('leaves the non-core facet loop only after every facet was attempted', () => {
+    const loopStart = source.indexOf(
+      'for FACET_NAME in $(getContractNamesInFolder "$FACETS_PATH"); do'
+    )
+    expect(loopStart).toBeGreaterThan(-1)
+    const loopEnd = source.indexOf('\n    done', loopStart)
+    expect(loopEnd).toBeGreaterThan(loopStart)
+    const loopBody = source.slice(loopStart, loopEnd)
+
+    expect(loopBody).toContain('REFUSED_FACETS+=("$FACET_NAME")')
+    expect(loopBody).not.toMatch(/\breturn\b/u)
     expect(source).toMatch(
       /STAGE 5 did NOT complete:[^\n]*\$\{REFUSED_FACETS\[\*\]\}/u
     )
