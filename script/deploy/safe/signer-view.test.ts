@@ -8,6 +8,7 @@ import {
   PROPOSAL_SEPARATOR,
   renderCheckGroups,
   renderFields,
+  renderGateDetail,
   renderGateManifest,
   renderTodos,
   VIEW_WIDTH,
@@ -1177,5 +1178,31 @@ describe('a stood-down gate that did not say why', () => {
 
     expect(plain).toContain('reported nothing to grade')
     expect(plain).not.toContain('boilerplate')
+  })
+})
+
+describe('renderGateDetail', () => {
+  it('puts a heading above the blocks, so the last bucket does not adopt them', () => {
+    // The bug this closes: the blocks printed straight after the buckets, and
+    // the last bucket is NOT APPLICABLE, so gate H's needs-acknowledgement
+    // detail read as a not-applicable row.
+    const plain = renderGateDetail([
+      ['Gate H · version'],
+      ['Gate K · bytecode'],
+    ])
+      .map(stripAnsi)
+      .join('\n')
+
+    expect(plain).toContain('GATE DETAIL')
+    expect(plain.indexOf('GATE DETAIL')).toBeLessThan(
+      plain.indexOf('Gate H · version')
+    )
+    expect(plain).toContain('Gate K · bytecode')
+  })
+
+  it('prints nothing at all when no gate has detail to add', () => {
+    // Otherwise a heading stands over an empty region, which reads as a section
+    // whose contents failed to render.
+    expect(renderGateDetail([[], []])).toEqual([])
   })
 })

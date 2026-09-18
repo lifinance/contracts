@@ -105,8 +105,8 @@ export const authorityExpectationAnchors = (
     ])
   )
 
-export const EVERY_INSTALLED_CONTRACT_OWNED =
-  'every contract this installs owned by the wallet main declares'
+export const EVERY_INSTALLED_CONTRACT_AUTHORISED =
+  'every contract this installs holding the authorities main declares'
 
 /**
  * Reduces a network's storage-authority observations to the one row the ledger
@@ -148,8 +148,9 @@ export const storageAuthorityCheckResult = (
       checkId: STORAGE_AUTHORITY_CHECK_ID,
       network,
       status: 'not-applicable',
-      expected: EVERY_INSTALLED_CONTRACT_OWNED,
-      actual: 'this proposal installs no contract whose owner main declares',
+      expected: EVERY_INSTALLED_CONTRACT_AUTHORISED,
+      actual:
+        'this proposal installs no contract whose authorities main declares',
       anchor: 'A-LOCAL',
     }
 
@@ -222,7 +223,7 @@ export const storageAuthorityCheckResult = (
     checkId: STORAGE_AUTHORITY_CHECK_ID,
     network,
     status,
-    expected: EVERY_INSTALLED_CONTRACT_OWNED,
+    expected: EVERY_INSTALLED_CONTRACT_AUTHORISED,
     actual: failing.length
       ? failing.join('; ')
       : `${entries.length} declared authority value(s) match config`,
@@ -767,7 +768,7 @@ export const EXECUTABILITY_CHECK: ICheckDefinition = {
   // no way for the signer to say so.
   checkClass: 'semantic',
   gate: 'I',
-  title: 'Transaction / calldata would not revert',
+  title: 'Transaction and calldata do not revert',
 }
 
 export const RPC_QUORUM_CHECK_ID = 'rpc-quorum'
@@ -795,7 +796,7 @@ export const CODEHASH_CHECK: ICheckDefinition = {
   section: 'Deployed state',
   checkClass: 'integrity',
   gate: 'K',
-  title: "Facet bytecode matches main's build",
+  title: 'Installed bytecode matches the attested build',
 }
 
 export const IMMUTABLES_CHECK_ID = 'immutables'
@@ -1343,7 +1344,7 @@ export const proposalCheckResults = (
         ? unresolved(
             STORAGE_AUTHORITY_CHECK_ID,
             network,
-            EVERY_INSTALLED_CONTRACT_OWNED,
+            EVERY_INSTALLED_CONTRACT_AUTHORISED,
             `what this proposal installs could not be read from ${verdicts.storageAuthority.scopeUnreadable.join(
               ', '
             )}, so the contracts whose authorities to read are unknown`
@@ -1356,7 +1357,7 @@ export const proposalCheckResults = (
       : unresolved(
           STORAGE_AUTHORITY_CHECK_ID,
           network,
-          EVERY_INSTALLED_CONTRACT_OWNED,
+          EVERY_INSTALLED_CONTRACT_AUTHORISED,
           'no storage-authority read was made for this proposal'
         ),
     targetStateCheckResult(verdicts.targetState, network),

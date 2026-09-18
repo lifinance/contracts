@@ -352,7 +352,7 @@ export const evaluateCodehashSignGate = async (
  * `confirm-check-registry.test.ts` holds the two to the same string.
  */
 export const CODEHASH_GATE_HEADING =
-  "Gate K · Facet bytecode matches main's build"
+  'Gate K · Installed bytecode matches the attested build'
 
 /**
  * Whether the gate reached no per-address verdict and refused nothing.

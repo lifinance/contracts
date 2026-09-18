@@ -205,6 +205,7 @@ import {
 import {
   checkSummary,
   PROPOSAL_SEPARATOR,
+  renderGateDetail,
   renderCheckGroups,
   renderDeferredTodos,
   renderGateManifest,
@@ -1735,8 +1736,10 @@ const processTxs = async (
     // Per-finding detail under the row that reduced them: the ledger holds one
     // verdict per proposal, and a cut installing several facets has one line
     // per element to show.
-    for (const line of formatTargetStateLines(targetState)) consola.log(line)
-    codehashLines.forEach((line) => consola.log(line))
+    renderGateDetail([
+      formatTargetStateLines(targetState),
+      codehashLines,
+    ]).forEach((line) => consola.log(line))
     // Carries no ledger row, so it has no grouped row to print under.
     calldataAddressLines.forEach((line) => consola.log(line))
 

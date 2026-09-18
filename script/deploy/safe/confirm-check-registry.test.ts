@@ -2057,6 +2057,25 @@ describe('gate letters', () => {
     expect(new Set(letters).size).toBe(letters.length)
   })
 
+  it('read as the assertion the column header promises', () => {
+    // The column is headed "WHAT IT ASSERTS", so a title has to be a claim that
+    // is true when the gate passes. The four shapes refused here are the ones
+    // the roster actually drifted into — a parenthetical qualifier, a
+    // comma-spliced pair of noun phrases, an alternation, and the conditional
+    // mood — and each leaves the reader with something that is not an assertion.
+    //
+    // No regex decides that a sentence is a well-formed clause, and this does
+    // not claim to: it pins the shapes a reviewer has had to catch by eye, so a
+    // new title can still be poorly worded in a way nothing here sees.
+    for (const { gate, title } of ALL_GATE_DEFINITIONS) {
+      expect(title, `gate ${gate}`).toMatch(/^[A-Z]/u)
+      expect(title, `gate ${gate}`).not.toMatch(/[(),]|\s\/\s/u)
+      expect(title, `gate ${gate}`).not.toMatch(
+        /\b(?:would|should|must|can)\b/u
+      )
+    }
+  })
+
   it('fit the column they are printed in, beside the write-up links', () => {
     // Measured against the real links, not against the bare table: they take
     // their columns from the title's, so a title that fits without them can

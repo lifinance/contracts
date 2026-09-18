@@ -50,6 +50,35 @@ export const GATE_BODY_INDENT = '        '
 const GATE_GLYPH_INDENT = ' '.repeat(GATE_TITLE_INDENT.length - 2)
 
 /**
+ * What the per-gate detail blocks say about themselves before the first one.
+ *
+ * They print after the buckets, so without a boundary the first of them reads
+ * as one more entry under whichever bucket printed last — and that is
+ * `NOT APPLICABLE`, which says the opposite of what a block explaining a
+ * needs-acknowledgement row exists to say. The reasoning is already written
+ * down for `REPORT_ONLY_HEADING`; the blocks a gate does own were left without
+ * it.
+ */
+export const GATE_DETAIL_HEADING = `${DIM}GATE DETAIL · element by element, for the gates that reported above${ESC}[0m`
+
+/**
+ * Puts the per-gate detail blocks behind their heading, or prints nothing.
+ *
+ * Takes the blocks already built rather than building them, so the modules that
+ * know how to format a gate's findings stay where they are and this stays a
+ * pure function of what they returned.
+ *
+ * @param blocks - one array of lines per gate, empty for a gate with nothing to add
+ * @returns The heading followed by every line, or nothing when no gate spoke.
+ */
+export const renderGateDetail = (
+  blocks: readonly (readonly string[])[]
+): string[] => {
+  const lines = blocks.flat()
+  return lines.length > 0 ? [GATE_DETAIL_HEADING, ...lines] : []
+}
+
+/**
  * What a signer is being asked to do about a result.
  *
  * Keyed off `status` rather than off which module produced the row, because a

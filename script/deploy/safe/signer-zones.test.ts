@@ -78,7 +78,7 @@ const renderFailing = (
 describe('gate naming', () => {
   it('heads a row with the gate letter and its title', () => {
     expect(renderFailing(CHECK_SIGNATURES)).toContain(
-      'Gate C \u00b7 Has signatures of current owners (only)'
+      'Gate C \u00b7 Every signature is from a distinct current owner'
     )
   })
 
@@ -100,7 +100,7 @@ describe('gate naming', () => {
     const rendered = renderFailing(CHECK_SAFE_TX_HASH)
 
     expect(rendered).toContain(
-      'Gate B \u00b7 Stored tx hash matches recomputed'
+      'Gate B \u00b7 Stored tx hash matches the recomputed one'
     )
   })
 
