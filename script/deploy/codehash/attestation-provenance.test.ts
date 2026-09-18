@@ -133,7 +133,7 @@ describe('the grading agrees with the comparison it grades', () => {
         maskedByteCount: 0,
       },
       all,
-      { isClosedSet: true }
+      { isClosedSet: true, holdsImmutablesOffCode: false }
     )
 
     expect(comparison.verdict).toBe('MATCH')
@@ -166,7 +166,7 @@ describe('the grading agrees with the comparison it grades', () => {
         maskedByteCount: 0,
       },
       all,
-      { isClosedSet: true }
+      { isClosedSet: true, holdsImmutablesOffCode: false }
     )
 
     expect(comparison.verdict).toBe('MATCH')

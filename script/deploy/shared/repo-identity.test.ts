@@ -15,7 +15,10 @@ import {
 
 import { getCurrentRepo, provenanceUpdate } from './mongo-log-utils'
 import {
+  REPO_CONTRACTS,
+  REPO_CONTRACTS_TRON,
   REPO_UNKNOWN,
+  isTrustedRemote,
   normalizeRepoUrl,
   readRepoIdentity,
   type GitRunner,
@@ -313,5 +316,67 @@ describe('provenanceUpdate', () => {
 
     expect(update.set).toHaveProperty('gitCommitHash', hash)
     expect(update.setOnInsert).not.toHaveProperty('gitCommitHash')
+  })
+})
+
+describe('isTrustedRemote', () => {
+  const anchorOnly = [REPO_CONTRACTS]
+  const gateRepos = [REPO_CONTRACTS, REPO_CONTRACTS_TRON]
+
+  // Every spelling a developer can end up with: a plain clone, GitHub's
+  // SSH-over-443 for networks that block port 22, and either with the `.git`
+  // suffix or without. Refusing one of these locks someone out of proposing.
+  it.each([
+    'git@github.com:lifinance/contracts.git',
+    'git@github.com:lifinance/contracts',
+    'ssh://git@github.com/lifinance/contracts.git',
+    'ssh://git@ssh.github.com:443/lifinance/contracts.git',
+    'git@ssh.github.com:lifinance/contracts.git',
+    'https://github.com/lifinance/contracts.git',
+    'https://github.com/lifinance/contracts',
+    'https://github.com/lifinance/contracts/',
+    'https://github.com/lifinance/contracts.git/',
+    'git@github.com:lifinance/contracts.git/',
+    'https://github.com/lifinance/contracts/.git',
+    'git@github.com:lifinance/contracts/.git',
+    'ssh://git@github.com/lifinance/contracts/.git',
+    '  git@github.com:lifinance/contracts.git\n',
+    'git@github.com:LIFinance/Contracts.git',
+  ])('accepts the canonical repository spelled %s', (url) => {
+    expect(isTrustedRemote(url, anchorOnly)).toBe(true)
+  })
+
+  it.each([
+    ['a fork of the repository', 'git@github.com:evil/contracts.git'],
+    ['a fork under the real owner', 'git@github.com:lifinance/contracts-x.git'],
+    ['an https fork', 'https://github.com/evil/contracts.git'],
+    // The gate fetches the commit it compares against over this same remote.
+    ['a cleartext origin', 'http://github.com/lifinance/contracts.git'],
+    [
+      'the unauthenticated git protocol',
+      'git://github.com/lifinance/contracts.git',
+    ],
+    [
+      'a host that merely starts the same',
+      'https://github.com.evil.io/lifinance/contracts',
+    ],
+    ['another forge', 'git@gitlab.com:lifinance/contracts.git'],
+    [
+      'a path that climbs out',
+      'https://github.com/lifinance/contracts/../../evil/contracts',
+    ],
+    ['a local clone', '/tmp/some-bare-repo'],
+    ['nothing at all', ''],
+  ])('refuses %s', (_label, url) => {
+    expect(isTrustedRemote(url, anchorOnly)).toBe(false)
+  })
+
+  // The caller's list is the whole policy, so the same fork URL has to come out
+  // differently for two callers; a helper that consulted a constant could not.
+  it('separates the fork from the anchor by the list it is passed', () => {
+    const tron = 'git@github.com:lifinance/contracts-tron.git'
+
+    expect(isTrustedRemote(tron, gateRepos)).toBe(true)
+    expect(isTrustedRemote(tron, anchorOnly)).toBe(false)
   })
 })

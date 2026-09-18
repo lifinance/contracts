@@ -119,6 +119,15 @@ export interface IOpaquePayload {
   target: string
   /** Bytes of calldata. Zero means a plain value transfer. */
   calldataLength: number
+  /**
+   * The account the target sees as `msg.sender`, when it is not the Safe.
+   *
+   * Present on anything reached by opening a timelock envelope: that call is
+   * sent by the timelock once the delay expires, and an owner-gated function
+   * simulated from the Safe reverts for a reason the proposal is not
+   * responsible for.
+   */
+  caller?: string
 }
 
 export type TSimulatedPayload = IDiamondCutPayload | IOpaquePayload
@@ -241,6 +250,44 @@ export interface IExecutabilityFinding {
   blocking: boolean
 }
 
+/** How one payload came out. */
+export type TCallOutcome =
+  /** Nothing found against it, and every question about it was answered. */
+  | 'would-execute'
+  /** A blocking finding, or an `eth_call` the node reverted. */
+  | 'would-revert'
+  /** A question this run could not answer, so the payload has no verdict. */
+  | 'unknown'
+
+/**
+ * One payload, with everything decided about it.
+ *
+ * Denormalised out of `findings` deliberately: a payload that simulated
+ * cleanly produces no finding, so a reader grouping `findings` by path cannot
+ * tell a call that passed from a call nobody looked at. This is where both the
+ * payload list and the `eth_call` results are in hand, so the join happens once
+ * here rather than in each renderer.
+ */
+export interface IExecutabilityCall {
+  /** Where this call sits, e.g. `call[0].diamondCut[0]`. */
+  path: string
+  /** What the call does, for a heading — `diamondCut`, `scheduleBatch`, … */
+  description: string
+  /** The address the call is made to. */
+  target: string
+  /** The account the target sees as `msg.sender`. */
+  caller?: string
+  /** False for a payload Tier-0 has no revert model for. */
+  modelled: boolean
+  /** What `eth_call` said; `none` when no result reached this payload. */
+  simulation: IStaticCallObservation['outcome'] | 'none'
+  /** The node's revert or error text, unabridged. */
+  simulationDetail?: string
+  /** Every finding this payload produced. */
+  findings: readonly IExecutabilityFinding[]
+  outcome: TCallOutcome
+}
+
 /** The decision. */
 export interface IExecutabilityVerdict {
   /** True when this proposal must not be signed: it would not execute. */
@@ -254,6 +301,8 @@ export interface IExecutabilityVerdict {
   warnings: readonly string[]
   /** Payload paths Tier-0 has no revert model for. */
   notSimulated: readonly string[]
+  /** Every payload, in execution order, with what was decided about each. */
+  calls: readonly IExecutabilityCall[]
   /** One line a signer can act on. Empty only when nothing is refused or errored. */
   reason: string
 }
@@ -785,8 +834,29 @@ export const evaluateExecutability = (
   /** Selectors this proposal has already moved, per diamond, across payloads. */
   const amendedByDiamond = new Map<string, Map<string, IAmendedSelector>>()
 
+  /**
+   * Mutable while the loop below decides each payload, because the loop reaches
+   * its answer through `continue`: a record pushed on entry and filled in place
+   * ends up holding whichever branch ran, while one assembled per branch would
+   * have to be pushed from each of them and is silently absent from the one
+   * that gets forgotten.
+   */
+  const calls: IExecutabilityCall[] = []
+
   for (const payload of input.payloads) {
     const here: IExecutabilityFinding[] = []
+    const record: IExecutabilityCall = {
+      path: payload.path,
+      description:
+        payload.kind === 'diamond-cut' ? 'diamondCut' : payload.description,
+      target: payload.kind === 'diamond-cut' ? payload.diamond : payload.target,
+      ...(payload.caller ? { caller: payload.caller } : {}),
+      modelled: payload.kind === 'diamond-cut',
+      simulation: 'none',
+      findings: here,
+      outcome: 'would-execute',
+    }
+    calls.push(record)
 
     if (payload.kind === 'diamond-cut') {
       for (const cut of payload.cuts) here.push(...gradeCutShape(cut))
@@ -809,9 +879,13 @@ export const evaluateExecutability = (
     }
 
     findings.push(...here)
+    if (here.some((finding) => finding.blocking))
+      record.outcome = 'would-revert'
+
     const call = byPath.get(payload.path)
 
     if (call === undefined) {
+      record.outcome = 'unknown'
       if (input.staticCalls.attempted)
         errors.push(
           `${payload.path} has no eth_call result, so it was not simulated even though the other payloads were.`
@@ -819,7 +893,11 @@ export const evaluateExecutability = (
       continue
     }
 
+    record.simulation = call.outcome
+
     if (call.outcome === 'errored') {
+      record.outcome = 'unknown'
+      if (call.errorReason) record.simulationDetail = call.errorReason
       errors.push(
         `eth_call of ${payload.path} could not be made${
           call.errorReason ? `: ${call.errorReason}` : ''
@@ -829,7 +907,9 @@ export const evaluateExecutability = (
     }
 
     if (call.outcome === 'reverted') {
-      findings.push({
+      record.outcome = 'would-revert'
+      if (call.revertReason) record.simulationDetail = call.revertReason
+      const reverted: IExecutabilityFinding = {
         code: ExecutabilityFindingEnum.StaticCallReverted,
         certainty: RevertCertaintyEnum.Predicted,
         path: payload.path,
@@ -837,7 +917,12 @@ export const evaluateExecutability = (
           call.revertReason ? ` with ${call.revertReason}` : ' without a reason'
         }`,
         blocking: true,
-      })
+      }
+      // Onto both: `here` is the record's own list and was already copied into
+      // `findings` above, so appending to it alone would leave the verdict's
+      // flat list without the one finding that refused this payload.
+      here.push(reverted)
+      findings.push(reverted)
       continue
     }
 
@@ -854,7 +939,8 @@ export const evaluateExecutability = (
         finding.certainty === RevertCertaintyEnum.Proven &&
         finding.composed !== true
     )
-    if (provenHere.length > 0)
+    if (provenHere.length > 0) {
+      record.outcome = 'unknown'
       errors.push(
         `eth_call of ${payload.path} from ${call.from} succeeded, while ${
           provenHere.length
@@ -864,6 +950,7 @@ export const evaluateExecutability = (
             ', '
           )}. The simulation and the calldata disagree, so neither is reported as the answer.`
       )
+    }
   }
 
   if (input.nonce) findings.push(...gradeNonce(input.nonce))
@@ -888,6 +975,7 @@ export const evaluateExecutability = (
       .filter((finding) => !finding.blocking)
       .map((finding) => finding.detail),
     notSimulated,
+    calls,
     reason: refuses
       ? `This proposal would not execute on ${input.network}: ${
           blocking.length

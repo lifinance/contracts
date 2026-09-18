@@ -31,14 +31,17 @@ import {
   compareSemanticVersions,
   countNetworksDeclaring,
   createPinnedAnchor,
+  createPinnedBlobReader,
   createPinnedSourceVersionReader,
   createPinnedTargetStateReader,
   createTargetStateDeps,
   describeTargetStateUnavailable,
   evaluateTargetStateIntent,
   formatTargetStateLines,
+  TARGET_STATE_GATE_HEADING,
   PINNED_FETCH_REFSPEC,
   readDeclaredVersion,
+  renderTargetStateRefusal,
   resolveExpectedVersion,
   TARGET_STATE_REPO_PATH,
   TARGET_STATE_VERSION_LATEST,
@@ -578,6 +581,31 @@ describe('blockedByEvaluationError', () => {
   })
 })
 
+describe('renderTargetStateRefusal', () => {
+  it('names the gate and points at its findings without repeating them', () => {
+    const verdict = evaluateTargetStateIntent(
+      [
+        cut([
+          { facetAddress: ZERO_ADDRESS as Address, action: 2 },
+          { facetAddress: FACET, action: 1 },
+        ]),
+      ],
+      'optimism',
+      deps({ deployed: { contractName: 'AcrossFacetV3', version: '1.1.0' } })
+    )
+    expect(verdict.cleared).toBe(false)
+    const text = renderTargetStateRefusal(verdict).join('\n')
+    expect(text).toContain(TARGET_STATE_GATE_HEADING)
+    expect(text).toContain('NOT SIGNING')
+    expect(text).toContain('1 finding')
+    // The detail belongs to the section-2 block, which is where this sends the
+    // reader; a second copy here is the same fact twice on one screen.
+    expect(text).not.toContain('OLDER')
+    expect(text).not.toContain('AcrossFacetV3')
+    expect(text).toContain('WHAT WAS CHECKED FOR YOU')
+  })
+})
+
 describe('formatTargetStateLines', () => {
   it('names the pinned source and puts a refusal before a pass', () => {
     const verdict = evaluateTargetStateIntent(
@@ -591,9 +619,39 @@ describe('formatTargetStateLines', () => {
       deps({ deployed: { contractName: 'AcrossFacetV3', version: '1.1.0' } })
     )
     const lines = formatTargetStateLines(verdict)
-    expect(lines[0]).toContain(`origin/main:${TARGET_STATE_REPO_PATH}`)
-    expect(lines[1]).toContain('DOWNGRADE')
-    expect(lines[2]).toContain('REMOVAL')
+    const at = (text: string): number =>
+      lines.findIndex((line) => line.includes(text))
+
+    // Order, not offsets: the block opens on its gate, then says where it read
+    // from, then lists findings worst first. Pinned by index it moved every
+    // time a line was added above it.
+    expect(lines[0]).toBe('')
+    expect(at(TARGET_STATE_GATE_HEADING)).toBe(1)
+    expect(at(`origin/main:${TARGET_STATE_REPO_PATH}`)).toBe(2)
+    expect(at('DOWNGRADE')).toBeLessThan(at('REMOVAL'))
+    expect(at('REMOVAL')).toBeGreaterThan(-1)
+  })
+
+  // A cut that replaces the selectors already routed and adds the new ones
+  // grades one facet through two elements, and both reach the same sentence.
+  // Printed twice, a signer reads two facts and looks for the difference.
+  it('states one facet at one version once, however many elements install it', () => {
+    const verdict = evaluateTargetStateIntent(
+      [
+        cut([
+          { facetAddress: FACET, action: 1 },
+          { facetAddress: FACET, action: 0 },
+        ]),
+      ],
+      'optimism',
+      deps({ deployed: { contractName: 'AcrossFacetV3', version: '2.0.0' } })
+    )
+    const named = formatTargetStateLines(verdict).filter((line) =>
+      line.includes('AcrossFacetV3')
+    )
+
+    expect(verdict.findings).toHaveLength(2)
+    expect(named).toHaveLength(1)
   })
 
   it('prints the cross-fleet count for a first-time add', () => {
@@ -602,9 +660,53 @@ describe('formatTargetStateLines', () => {
       'optimism',
       deps({ deployed: { contractName: 'NewFacet', version: '2.0.0' } })
     )
-    expect(formatTargetStateLines(verdict)[1]).toContain(
+    expect(formatTargetStateLines(verdict).join('\n')).toContain(
       '[2 network(s) declare this contract]'
     )
+  })
+
+  // A removal returns before the anchor is read, so the block stated where a
+  // target state had been read from under a proposal that never read one, over
+  // a single line repeating the gate's own stand-down — all of it below the
+  // gate rows, under no heading naming the gate it belonged to.
+  it('says nothing when no element of the cut was graded against main', () => {
+    const verdict = evaluateTargetStateIntent(
+      [cut([{ facetAddress: ZERO_ADDRESS as Address, action: 2 }])],
+      'optimism',
+      deps({ deployed: { contractName: 'AcrossFacetV3', version: '1.1.0' } })
+    )
+
+    expect(verdict.findings.map((f) => f.status)).toEqual(['removal'])
+    expect(formatTargetStateLines(verdict)).toEqual([])
+  })
+
+  it('says nothing when the proposal carries no cut at all', () => {
+    expect(
+      formatTargetStateLines(
+        evaluateTargetStateIntent([], 'optimism', deps({}))
+      )
+    ).toEqual([])
+  })
+
+  // The paired positive for the two above: a cut that removes one facet and
+  // installs another did reach main, so the block prints — and it still lists
+  // the removal, which on a mixed cut is a fact the signer has not been told
+  // anywhere else.
+  it('still lists an ungraded element beside one that was graded', () => {
+    const verdict = evaluateTargetStateIntent(
+      [
+        cut([
+          { facetAddress: ZERO_ADDRESS as Address, action: 2 },
+          { facetAddress: FACET, action: 0 },
+        ]),
+      ],
+      'optimism',
+      deps({ deployed: { contractName: 'NewFacet', version: '2.0.0' } })
+    )
+    const plain = formatTargetStateLines(verdict).join('\n')
+
+    expect(plain).toContain('REMOVAL')
+    expect(plain).toContain(`origin/main:${TARGET_STATE_REPO_PATH}`)
   })
 })
 
@@ -1499,5 +1601,104 @@ describe('createTargetStateDeps', () => {
       contractName: 'AcrossFacetV3',
       version: '1.4.0',
     })
+  })
+})
+
+describe('createPinnedBlobReader', () => {
+  const okGit = (
+    blobs: Record<string, string>
+  ): { git: IPinnedStateGit; counts: { fetch: number; show: number } } => {
+    const counts = { fetch: 0, show: 0 }
+    return {
+      counts,
+      git: {
+        remoteUrl: () => 'git@github.com:lifinance/contracts.git',
+        fetch: () => {
+          counts.fetch += 1
+        },
+        revParse: () => 'abc1234\n',
+        show: (revSpec) => {
+          counts.show += 1
+          const blob = blobs[revSpec.split(':')[1] ?? '']
+          if (blob === undefined) throw new Error('no such path')
+          return blob
+        },
+      },
+    }
+  }
+
+  it('fetches once however many paths it is asked for', () => {
+    const { git, counts } = okGit({
+      'a.json': '{"a":1}',
+      'b.json': '{"b":2}',
+    })
+    const read = createPinnedBlobReader({ repoRoot: '/repo', git })
+
+    expect(read('a.json')).toEqual({ ok: true, value: { a: 1 } })
+    expect(read('b.json')).toEqual({ ok: true, value: { b: 2 } })
+    expect(counts.fetch).toBe(1)
+    expect(counts.show).toBe(2)
+  })
+
+  it('reads each path once and serves the rest from cache', () => {
+    const { git, counts } = okGit({ 'a.json': '{"a":1}' })
+    const read = createPinnedBlobReader({ repoRoot: '/repo', git })
+
+    read('a.json')
+    read('a.json')
+    expect(counts.show).toBe(1)
+  })
+
+  it('keeps one unreadable path from condemning another', () => {
+    const { git } = okGit({ 'b.json': '{"b":2}' })
+    const read = createPinnedBlobReader({ repoRoot: '/repo', git })
+
+    expect(read('missing.json')).toEqual({
+      ok: false,
+      reason: 'blob-unreadable',
+    })
+    expect(read('b.json')).toEqual({ ok: true, value: { b: 2 } })
+  })
+
+  it('retries a fetch that failed rather than pinning every later read to it', () => {
+    let failing = true
+    const git: IPinnedStateGit = {
+      remoteUrl: () => 'git@github.com:lifinance/contracts.git',
+      fetch: () => {
+        if (failing) throw new Error('transient')
+      },
+      revParse: () => 'abc1234\n',
+      show: () => '{"a":1}',
+    }
+    const read = createPinnedBlobReader({ repoRoot: '/repo', git })
+
+    expect(read('a.json')).toEqual({ ok: false, reason: 'fetch-failed' })
+    failing = false
+    expect(read('a.json')).toEqual({ ok: true, value: { a: 1 } })
+  })
+
+  it('never fetches from a remote that is not the contracts repo', () => {
+    let fetched = 0
+    const git: IPinnedStateGit = {
+      remoteUrl: () => 'git@github.com:attacker/contracts.git',
+      fetch: () => {
+        fetched += 1
+      },
+      revParse: () => 'abc1234\n',
+      show: () => '{"a":1}',
+    }
+    const read = createPinnedBlobReader({ repoRoot: '/repo', git })
+
+    expect(read('a.json')).toEqual({ ok: false, reason: 'remote-unexpected' })
+    expect(read('b.json')).toEqual({ ok: false, reason: 'remote-unexpected' })
+    expect(fetched).toBe(0)
+  })
+
+  it('refuses a blob that is not a JSON object', () => {
+    const { git } = okGit({ 'a.json': '[1,2,3]', 'b.json': 'not json' })
+    const read = createPinnedBlobReader({ repoRoot: '/repo', git })
+
+    expect(read('a.json')).toEqual({ ok: false, reason: 'invalid-shape' })
+    expect(read('b.json')).toEqual({ ok: false, reason: 'invalid-shape' })
   })
 })

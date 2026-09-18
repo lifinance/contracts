@@ -32,7 +32,7 @@ const ATTESTED: IAttestedBuild[] = [
   },
 ]
 
-const CLOSED = { isClosedSet: true }
+const CLOSED = { isClosedSet: true, holdsImmutablesOffCode: false }
 
 const onChain = (over: Partial<IObservedCode> = {}): IObservedCode => ({
   maskedHash: MAIN_HASH,
@@ -304,7 +304,7 @@ describe('the remedy has to match the verdict', () => {
 })
 
 describe('the remedy on an open lineage set', () => {
-  const OPEN = { isClosedSet: false }
+  const OPEN = { isClosedSet: false, holdsImmutablesOffCode: false }
 
   it.each([
     ['an unattested compiler version', { solcVersion: '0.8.29' }],

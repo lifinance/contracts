@@ -395,3 +395,65 @@ describe('validateRegistryShape', () => {
     ])
   })
 })
+
+/**
+ * The evaluator is what turns a written-down gap into a compared value, so a
+ * malformed one must error rather than be ignored: an ignored evaluator returns
+ * the slot to the acknowledgement path, where a signer is asked to take on a
+ * gap the registry believes it has closed.
+ */
+describe('validateImmutableRegistry on a derived evaluator', () => {
+  const withEvaluator = (entry: Record<string, unknown>) =>
+    validateImmutableRegistry([declared('spokePool')], {
+      AcrossFacet: {
+        configData: CONFIG_DATA,
+        immutables: { spokePool: entry },
+      },
+    })
+
+  it.each([
+    ['selfAddress', { kind: 'selfAddress' }],
+    ['chainIdEquals', { kind: 'chainIdEquals', chainId: 42161 }],
+    ['a hex literal', { kind: 'literal', value: `0x${'ab'.repeat(32)}` }],
+    ['a decimal literal', { kind: 'literal', value: '100000' }],
+  ])('accepts %s', (_label, evaluator) => {
+    expect(
+      withEvaluator({ source: 'derived', rule: 'a rule', evaluator }).errors
+    ).toEqual([])
+  })
+
+  it.each([
+    ['an unknown kind', { kind: 'blockNumber' }],
+    ['a missing kind', { chainId: 1 }],
+    ['a string chainId', { kind: 'chainIdEquals', chainId: '42161' }],
+    ['a zero chainId', { kind: 'chainIdEquals', chainId: 0 }],
+    ['odd-length hex', { kind: 'literal', value: '0xabc' }],
+    ['a non-numeric literal', { kind: 'literal', value: 'the zero address' }],
+    ['a numeric literal value', { kind: 'literal', value: 100000 }],
+  ])('errors on %s', (_label, evaluator) => {
+    expect(
+      withEvaluator({ source: 'derived', rule: 'a rule', evaluator }).errors
+    ).toHaveLength(1)
+  })
+
+  it('errors on an evaluator that is not an object', () => {
+    expect(
+      withEvaluator({
+        source: 'derived',
+        rule: 'a rule',
+        evaluator: 'selfAddress',
+      }).errors
+    ).toHaveLength(1)
+  })
+
+  it('errors when a source other than derived carries one', () => {
+    const result = withEvaluator({
+      source: 'unverifiable',
+      reason: 'a reason',
+      evaluator: { kind: 'selfAddress' },
+    })
+
+    expect(result.errors).toHaveLength(1)
+    expect(result.errors[0]).toMatch(/derived/u)
+  })
+})

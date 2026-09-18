@@ -35,6 +35,7 @@ import type { IDeploymentRecord } from '../shared/mongo-log-utils'
 
 import {
   createCheckLedger,
+  gateLabel,
   recordCheck,
   rollUpChecks,
   summariseLedger,
@@ -65,7 +66,7 @@ export const CHECK_FIXED_FIELDS = 'INT-FIXED-FIELDS'
 export const CHECK_TARGET = 'INT-TARGET'
 export const CHECK_TIMELOCK_DELAY = 'INT-TIMELOCK-DELAY'
 
-const SECTION = 'proposal integrity'
+const SECTION = 'Proposal'
 
 /** Why an absent run refuses, stated identically wherever that case is reported. */
 const UNEVALUATED_REASON =
@@ -93,9 +94,14 @@ const STATUS_BUCKETS: ReadonlyMap<
   ['fail', { word: 'MISMATCH', glyph: '⛔', colour: '31' }],
   ['error', { word: 'UNVERIFIED', glyph: '✗', colour: '31' }],
   ['needs-ack', { word: 'NEEDS REVIEW', glyph: '⚠', colour: '33' }],
+  ['not-applicable', { word: 'NOT APPLICABLE', glyph: '·', colour: '36' }],
 ])
 
-/** A status no bucket names is unverified, which is the reading that blocks. */
+/**
+ * A status no bucket names renders as unverified. This only chooses how a row
+ * prints — `assertIntegrityAssertsAllowSigning` is what refuses, and it reads
+ * the verdict, never this table.
+ */
 const UNKNOWN_STATUS_BUCKET = {
   word: 'UNVERIFIED',
   glyph: '✗',
@@ -537,7 +543,7 @@ async function assertSignatures(
       actual: '0 stored signatures',
       anchor: 'A-PROPOSAL',
       detail:
-        'every writer stores a signature with the row, so an empty set is a row that lost its signatures rather than one awaiting them, and there is nothing to recover against the recomputed hash',
+        'propose-to-safe.ts signs and stores one signature with every row it writes, and refuses a signer who is not a Safe owner — so an empty set is a row something else wrote, not a row awaiting its first signature, and there is nothing to recover against the recomputed hash',
     }
 
   // Recovered against the recomputed hash, never the stored one: the stored hash
@@ -943,37 +949,43 @@ export const INTEGRITY_CHECK_DEFINITIONS: Record<string, ICheckDefinition> = {
     checkId: CHECK_SAFE_ADDRESS,
     section: SECTION,
     checkClass: 'integrity',
-    title: 'The proposal is against the Safe config names for this network',
+    gate: 'A',
+    title: 'Safe matches networks.json',
   },
   [CHECK_SAFE_TX_HASH]: {
     checkId: CHECK_SAFE_TX_HASH,
     section: SECTION,
     checkClass: 'integrity',
-    title: "The Safe's own hash of this transaction equals the stored one",
+    gate: 'B',
+    title: 'Stored tx hash matches the recomputed one',
   },
   [CHECK_SIGNATURES]: {
     checkId: CHECK_SIGNATURES,
     section: SECTION,
     checkClass: 'integrity',
-    title: 'Every stored signature recovers to a current Safe owner',
+    gate: 'C',
+    title: 'Every signature is from a distinct current owner',
   },
   [CHECK_FIXED_FIELDS]: {
     checkId: CHECK_FIXED_FIELDS,
     section: SECTION,
     checkClass: 'integrity',
-    title: 'The signed struct is a Call whose omitted fields are all zero',
+    gate: 'D',
+    title: 'Call is plain and every field is signed',
   },
   [CHECK_TARGET]: {
     checkId: CHECK_TARGET,
     section: SECTION,
     checkClass: 'integrity',
-    title: 'The target is an address this checkout can name',
+    gate: 'E',
+    title: 'Target is a known deployed address',
   },
   [CHECK_TIMELOCK_DELAY]: {
     checkId: CHECK_TIMELOCK_DELAY,
     section: SECTION,
     checkClass: 'integrity',
-    title: "A schedule's delay is at least the timelock's live minimum",
+    gate: 'F',
+    title: 'Delay meets the agreed minimum',
   },
 }
 
@@ -1198,7 +1210,9 @@ export const renderIntegrityAsserts = (
     // row of its own to print.
     if (results.length === 0) {
       lines.push(
-        `        \u001b[31m⛔ NOT RUN\u001b[0m ${check.title} [${check.checkId}]`
+        `        \u001b[31m⛔ NOT RUN\u001b[0m ${gateLabel(check)} [${
+          check.checkId
+        }]`
       )
       continue
     }
@@ -1206,7 +1220,9 @@ export const renderIntegrityAsserts = (
     for (const result of results) {
       const bucket = STATUS_BUCKETS.get(result.status) ?? UNKNOWN_STATUS_BUCKET
       lines.push(
-        `        \u001b[${bucket.colour}m${bucket.glyph} ${bucket.word}\u001b[0m ${check.title} [${check.checkId}] (${result.anchor})`
+        `        \u001b[${bucket.colour}m${bucket.glyph} ${
+          bucket.word
+        }\u001b[0m ${gateLabel(check)} [${check.checkId}] (${result.anchor})`
       )
       if (result.status !== 'pass') {
         lines.push(`            expected ${result.expected}`)
@@ -1218,13 +1234,16 @@ export const renderIntegrityAsserts = (
 
   // The checks a proposal did not register at all, named rather than implied:
   // a delay assertion that had nothing to say and one that was skipped by a
-  // bug look identical in a report that only lists what ran.
+  // bug look identical in a report that only lists what ran. Worded as the
+  // ledger words it, not as a fourth synonym: a signer who has learned that
+  // `NOT APPLICABLE` means "nothing here to check" should not have to learn a
+  // second phrase for the same fact one panel further down.
   const notApplicable = Object.keys(INTEGRITY_CHECK_DEFINITIONS).filter(
     (checkId) => !run.registered.includes(checkId)
   )
   if (notApplicable.length > 0)
     lines.push(
-      `        \u001b[36m· NO CLAIM\u001b[0m not registered for this proposal: ${notApplicable.join(
+      `        \u001b[36m· NOT APPLICABLE\u001b[0m this proposal gave these checks nothing to do: ${notApplicable.join(
         ', '
       )}`
     )
@@ -1251,14 +1270,24 @@ export const assertIntegrityAssertsAllowSigning = (
   // A verdict about another transaction is not a pass, so this decides
   // independently of `hardBlocked` — and an absent run decides on its own,
   // which is what makes "the assertions never ran" fail closed.
+  //
+  // `nothingGraded` is read here for the same reason: `hardBlocked` only
+  // answers "did anything object". A run that graded nothing has nothing to
+  // object with, so without this term it arrives here indistinguishable from
+  // a clean pass.
   const mismatched = run?.gradedKey !== key
-  if (run && !mismatched && !run.verdict.hardBlocked) return
+  const gradedNothing = run !== undefined && run.verdict.nothingGraded
+  if (run && !mismatched && !run.verdict.hardBlocked && !gradedNothing) return
 
   const substitution = mismatched
     ? [
         run === undefined
           ? UNEVALUATED_REASON
           : `The integrity verdict is about a different transaction than the one now being signed — it graded ${run.gradedKey} and this is ${key}. A verdict only ever speaks for one transaction.`,
+      ]
+    : gradedNothing
+    ? [
+        'The integrity assertions recorded no graded result at all, so nothing about this transaction was established. An empty verdict is not a pass.',
       ]
     : []
 
