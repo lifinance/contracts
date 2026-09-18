@@ -100,6 +100,17 @@ deploySingleContract() {
     fi
   fi
 
+  # The record's compiler pair is what the sign-time rebuild compiles under; an empty
+  # one cannot be rebuilt. Checked before the build for the same reason.
+  if ! getSolcVersion "$NETWORK" >/dev/null || ! getEvmVersion "$NETWORK" >/dev/null; then
+    error "cannot resolve the compiler pair for $NETWORK from foundry.toml - refusing to deploy"
+    if [[ -z "$EXIT_ON_ERROR" || "$EXIT_ON_ERROR" == "false" ]]; then
+      return 1
+    else
+      exit 1
+    fi
+  fi
+
   FILE_EXTENSION=".s.sol"
 
   # Handle ZkEVM Chains

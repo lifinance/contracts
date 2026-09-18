@@ -612,34 +612,59 @@ function getContractNamesFromNetworkDeploymentFile() {
 # leaves out is read from [profile.default], which is how forge itself resolves it.
 #
 # Usage: getFoundryProfileValue KEY
-#   KEY - a quoted scalar key such as solc_version or evm_version
+#   KEY - a scalar key such as solc_version or evm_version
 #
-# Returns: the unquoted value on stdout; empty when neither profile declares KEY
+# Returns: 0 with the unquoted value on stdout; 1 with the reason on stderr (stdout stays
+#          empty, callers capture it) when KEY is missing, the toml file does not exist, or
+#          neither profile declares KEY
 # Example: getFoundryProfileValue "solc_version"
 function getFoundryProfileValue() {
   local KEY="$1"
+  local TOML_FILE="${FOUNDRY_TOML_FILE_PATH:-foundry.toml}"
   local PROFILE
   local VALUE
+
+  if [[ -z "$KEY" ]]; then
+    error "getFoundryProfileValue: KEY is required" >&2
+    return 1
+  fi
+  if [[ ! -f "$TOML_FILE" ]]; then
+    error "foundry.toml not found at $TOML_FILE" >&2
+    return 1
+  fi
+
   for PROFILE in "${FOUNDRY_PROFILE:-default}" default; do
-    VALUE=$(awk -v SECTION="[profile.$PROFILE]" -v KEY="$KEY" -v QUOTES="'\"" '
-      $1 == SECTION { ACTIVE = 1; next }
-      /^\[/ { ACTIVE = 0 }
-      ACTIVE && $1 == KEY { split($0, QUOTED, "[" QUOTES "]"); print QUOTED[2]; exit }
-    ' foundry.toml)
+    VALUE=$(awk -v section="[profile.$PROFILE]" -v key="$KEY" -v quotes="'\"" '
+      $1 == section { active = 1; next }
+      /^\[/ { active = 0 }
+      active && $0 ~ "^[[:space:]]*" key "[[:space:]]*=" {
+        sub("^[^=]*=[[:space:]]*", "")
+        if ($0 ~ "^[" quotes "]") {
+          sub("^[" quotes "]", "")
+          sub("[" quotes "].*$", "")
+        } else {
+          sub("[[:space:]]*#.*$", "")
+          sub("[[:space:]]+$", "")
+        }
+        print
+        exit
+      }
+    ' "$TOML_FILE")
     if [[ -n "$VALUE" ]]; then
       echo "$VALUE"
       return 0
     fi
   done
-  echo ""
+
+  error "neither [profile.${FOUNDRY_PROFILE:-default}] nor [profile.default] in $TOML_FILE declares $KEY" >&2
+  return 1
 }
 
 function getSolcVersion() {
   local NETWORK="$1"
 
   if isZkEvmNetwork "$NETWORK"; then
-    # Extract from zksync profile
-    grep -A 10 "^\[profile\.zksync\]" foundry.toml | grep "solc_version" | cut -d "'" -f 2
+    FOUNDRY_PROFILE=zksync getFoundryProfileValue "solc_version"
   else
     getFoundryProfileValue "solc_version"
   fi
@@ -1973,9 +1998,11 @@ function verifyContract() {
       return 1
     fi
 
-    # Set environment variable for zkEVM
-    export FOUNDRY_PROFILE=zksync
+    # Scoped to this command: an exported profile would outlive the call and decide
+    # the compiler the next network's build and deployment record use.
     VERIFY_CMD=(
+      "env"
+      "FOUNDRY_PROFILE=zksync"
       "./foundry-zksync/forge"
       "verify-contract"
       "--zksync"
