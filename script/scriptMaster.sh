@@ -12,7 +12,6 @@
 # - create function that checks if contract is deployed (get bytecode, predict address, check bytecode at address)
 # - return master log to store all deployments (and return latest when inquired)
 # - add use case to only remove a facet
-# - check if use case 4 will also check if a contract is added to diamond already
 # - create use case to deploy and add all periphery (or check if target state use case covers it)
 # - merging two branches with deployments in same network (does it cause merge-conflicts?)
 
@@ -111,13 +110,13 @@ scriptMaster() {
       "1) Deploy one specific contract to one network" \
       "2) Deploy one specific contract to all (not-excluded) networks (=new contract)" \
       "3) Deploy all contracts to one selected network (=new network)" \
-      "4) Execute a script" \
-      "5) EMERGENCY >> Remove a facet or pause the whole diamond" \
-      "6) Add or update contract entries in _targetState.json" \
-      "7) Verify all unverified contracts" \
-      "8) Review deploy status (vs. target state)" \
-      "9) Update diamond log(s)" \
-      "10) Remove facets or periphery from diamond"
+      "5) Execute a script" \
+      "6) EMERGENCY >> Remove a facet or pause the whole diamond" \
+      "7) Add or update contract entries in _targetState.json" \
+      "8) Verify all unverified contracts" \
+      "9) Review deploy status (vs. target state)" \
+      "11) Update diamond log(s)" \
+      "12) Remove facets or periphery from diamond"
   )
 
   #---------------------------------------------------------------------------------------------------------------------
@@ -271,8 +270,8 @@ scriptMaster() {
     playNotificationSound
 
   #---------------------------------------------------------------------------------------------------------------------
-  # use case 4: Execute a script
-  elif [[ "$SELECTION" == "4)"* ]]; then
+  # use case 5: Execute a script
+  elif [[ "$SELECTION" == "5)"* ]]; then
     echo ""
     # Task scripts come in two flavors:
     # - *.sh: sourced functions (called via eval <functionName>)
@@ -298,8 +297,8 @@ scriptMaster() {
     fi
 
   #---------------------------------------------------------------------------------------------------------------------
-  # use case 5: EMERGENCY >> Remove a facet or pause the whole diamond
-  elif [[ "$SELECTION" == "5)"* ]]; then
+  # use case 6: EMERGENCY >> Remove a facet or pause the whole diamond
+  elif [[ "$SELECTION" == "6)"* ]]; then
     echo ""
     echo "[info] selected use case: EMERGENCY >> Remove a facet or pause the whole diamond ⚠️"
 
@@ -309,8 +308,8 @@ scriptMaster() {
     playNotificationSound
 
   #---------------------------------------------------------------------------------------------------------------------
-  # use case 6: Add or update contract entries in _targetState.json
-  elif [[ "$SELECTION" == "6)"* ]]; then
+  # use case 7: Add or update contract entries in _targetState.json
+  elif [[ "$SELECTION" == "7)"* ]]; then
     echo ""
     echo "[info] selected use case: Add or update contract entries in _targetState.json"
 
@@ -471,19 +470,19 @@ scriptMaster() {
     echo "[info] ..._targetState.json successfully updated"
 
   #---------------------------------------------------------------------------------------------------------------------
-  # use case 7: Verify all unverified contracts
-  elif [[ "$SELECTION" == "7)"* ]]; then
+  # use case 8: Verify all unverified contracts
+  elif [[ "$SELECTION" == "8)"* ]]; then
     verifyAllUnverifiedContractsInLogFile
     playNotificationSound
 
   #---------------------------------------------------------------------------------------------------------------------
-  # use case 8: Review deploy status (vs. target state)
-  elif [[ "$SELECTION" == "8)"* ]]; then
+  # use case 9: Review deploy status (vs. target state)
+  elif [[ "$SELECTION" == "9)"* ]]; then
     printDeploymentsStatusV2 "$ENVIRONMENT"
 
   #---------------------------------------------------------------------------------------------------------------------
-  # use case 9: Update all diamond log files
-  elif [[ "$SELECTION" == "9)"* ]]; then
+  # use case 11: Update all diamond log files
+  elif [[ "$SELECTION" == "11)"* ]]; then
     # ask user if logs should be updated only for one network or for all networks
     echo "Would you like to update all networks or one specific network?"
     SELECTION_NETWORK=$(
@@ -515,8 +514,8 @@ scriptMaster() {
       updateDiamondLogs "$ENVIRONMENT" "$NETWORK"
     fi
   #---------------------------------------------------------------------------------------------------------------------
-  # use case 10: Remove facets or periphery from diamond
-  elif [[ "$SELECTION" == "10)"* ]]; then
+  # use case 12: Remove facets or periphery from diamond
+  elif [[ "$SELECTION" == "12)"* ]]; then
     bunx tsx script/tasks/cleanUpProdDiamond.ts
 
   else

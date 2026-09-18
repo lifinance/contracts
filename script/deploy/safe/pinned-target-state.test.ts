@@ -136,10 +136,14 @@ describe('compareSemanticVersions', () => {
     expect(compareSemanticVersions('1.2.3', '1.2.3')).toBe(0)
   })
 
+  it('compares deployment-record build suffixes by their base version', () => {
+    expect(compareSemanticVersions('1.2.3-tron', '1.2.3')).toBe(0)
+    expect(compareSemanticVersions('1.2.4-zksync', '1.2.3')).toBeGreaterThan(0)
+  })
+
   it('does not compare a version that is not major.minor.patch', () => {
     expect(compareSemanticVersions('1.2', '1.2.0')).toBeNull()
     expect(compareSemanticVersions('1.2.0', 'v1.2.0')).toBeNull()
-    expect(compareSemanticVersions('1.2.0-rc1', '1.2.0')).toBeNull()
   })
 })
 
@@ -489,6 +493,18 @@ describe('evaluateTargetStateIntent — a pinned network', () => {
       [cut([{ facetAddress: FACET, action: 1 }])],
       'optimism',
       deps({ deployed: { contractName: 'PinnedFacet', version: '1.2.0' } })
+    )
+    expect(verdict.cleared).toBe(true)
+    expect(verdict.findings[0]?.status).toBe('matches-pin')
+  })
+
+  it('clears a suffixed deployment record whose base matches the pin', () => {
+    const verdict = evaluateTargetStateIntent(
+      [cut([{ facetAddress: FACET, action: 1 }])],
+      'optimism',
+      deps({
+        deployed: { contractName: 'PinnedFacet', version: '1.2.0-tron' },
+      })
     )
     expect(verdict.cleared).toBe(true)
     expect(verdict.findings[0]?.status).toBe('matches-pin')

@@ -156,7 +156,7 @@ export interface ITargetStateFinding {
   proposedVersion: string | null
   /** Version `origin/main` declares for this contract on this network. */
   mainVersion: string | null
-  /** Networks whose pinned target state already declares this contract at `proposedVersion`. */
+  /** Networks whose pinned target state declares this contract. */
   crossFleetCount: number | null
   detail: string
 }
@@ -180,8 +180,8 @@ export const compareSemanticVersions = (
   left: string,
   right: string
 ): number | null => {
-  const a = SEMVER.exec(left.trim())
-  const b = SEMVER.exec(right.trim())
+  const a = SEMVER.exec(baseSemanticVersion(left))
+  const b = SEMVER.exec(baseSemanticVersion(right))
   if (!a || !b) return null
   for (let part = 1; part <= 3; part++) {
     const diff = Number(a[part]) - Number(b[part])
@@ -189,6 +189,14 @@ export const compareSemanticVersions = (
   }
   return 0
 }
+
+/**
+ * Removes a deployment-record build suffix before target-state comparison.
+ * @param version - version as source or a deployment record stores it
+ * @returns The `major.minor.patch` portion, or the original value when unsuffixed
+ */
+export const baseSemanticVersion = (version: string): string =>
+  version.trim().split('-', 1)[0] ?? ''
 
 /**
  * Reads the version `main` declares for one contract on one network.
@@ -487,7 +495,9 @@ export const evaluateTargetStateIntent = (
     // graded as equality rather than as an ordering: "newer than the pin" is
     // still not what the pin asked for.
     if (expected.kind === 'pin') {
-      const matches = proposedVersion === mainVersion
+      const matches =
+        baseSemanticVersion(proposedVersion) ===
+        baseSemanticVersion(mainVersion)
       findings.push({
         facetAddress,
         contractName,
@@ -645,8 +655,7 @@ export type PinnedAnchor = () =>
  * read with a newer source version, which is a combination that never existed on main
  * and whose verdict belongs to neither snapshot.
  *
- * Falls back to the ref name when the seam cannot resolve it, which is no worse than
- * reading the ref directly.
+ * Refuses when the fetched ref cannot be resolved to an immutable commit.
  * @param options - repository root and git seam; both default to this checkout
  * @returns A memoized resolver for the commit to read, or why it is unavailable
  */

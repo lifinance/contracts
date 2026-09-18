@@ -161,6 +161,35 @@ describe("the guard is wired to the caller's diamond", () => {
       'deploySingleContract "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$CURRENT_VERSION" false "$DIAMOND_CONTRACT_NAME"'
     )
   })
+
+  it('deployCoreFacets passes its diamond through', () => {
+    const source = readFileSync(
+      join(REPO_ROOT, 'script', 'deploy', 'deployCoreFacets.sh'),
+      'utf8'
+    )
+    expect(source).toContain(
+      'deploySingleContract "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$CURRENT_VERSION" "false" "$DIAMOND_CONTRACT_NAME"'
+    )
+  })
+})
+
+describe('a refused deploy stops deployAllContracts', () => {
+  const source = readFileSync(
+    join(REPO_ROOT, 'script', 'deploy', 'deployAllContracts.sh'),
+    'utf8'
+  )
+
+  it('stops before wiring core facets after stage 2 fails', () => {
+    expect(source).toMatch(/STAGE 2 did NOT complete:[^\n]+\n\s+return 1/)
+  })
+
+  it('stops after a non-core facet is refused', () => {
+    expect(source).toMatch(/STAGE 5 did NOT complete:[^\n]+\n\s+return 1/)
+  })
+
+  it('stops before periphery registration after stage 6 fails', () => {
+    expect(source).toMatch(/STAGE 6 did NOT complete:[^\n]+\n\s+return 1/)
+  })
 })
 
 describe('the latest sentinel', () => {

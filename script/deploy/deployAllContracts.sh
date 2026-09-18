@@ -159,12 +159,13 @@ deployAllContracts() {
     echo "[info] >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> STAGE 2: Deploy core facets"
 
     # deploy core facets
-    if deployCoreFacets "$NETWORK" "$ENVIRONMENT"; then
+    if deployCoreFacets "$NETWORK" "$ENVIRONMENT" "$DIAMOND_CONTRACT_NAME"; then
       echo ""
       echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 2 completed"
     else
       echo ""
       warning "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 2 did NOT complete: at least one core facet was not deployed - re-run this stage before continuing"
+      return 1
     fi
   fi
 
@@ -254,7 +255,10 @@ deployAllContracts() {
           fi
 
           # deploy facet and add to diamond
-          deployFacetAndAddToDiamond "$NETWORK" "$ENVIRONMENT" "$FACET_NAME" "$DIAMOND_CONTRACT_NAME" "$TARGET_VERSION"
+          if ! deployFacetAndAddToDiamond "$NETWORK" "$ENVIRONMENT" "$FACET_NAME" "$DIAMOND_CONTRACT_NAME" "$TARGET_VERSION"; then
+            warning "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 5 did NOT complete: $FACET_NAME was not deployed and added - re-run this stage before continuing"
+            return 1
+          fi
         fi
       fi
     done
@@ -273,6 +277,7 @@ deployAllContracts() {
       echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 6 completed"
     else
       warning "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 6 did NOT complete: at least one periphery contract was not deployed - re-run this stage before continuing"
+      return 1
     fi
   fi
 

@@ -4214,7 +4214,7 @@ function printDeploymentsStatusV2() {
   printf "+-------------------------- ENVIRONMENT: %-10s ---------------------------+\n" "$ENVIRONMENT"
   echo "+--------------------------------------+-------------------+-------------------+"
   echo "|                                      |      mutable      |     immutable     |"
-  echo "|      Contract (latest version)       | target : deployed | target : deployed |"
+  echo "|       Contract (source version)      | policy : deployed | policy : deployed |"
   echo "+--------------------------------------+-------------------+-------------------+"
 
   echo "" >"$OUTPUT_FILE_PATH"
@@ -4226,7 +4226,7 @@ function printDeploymentsStatusV2() {
   printf "+-------------------------- ENVIRONMENT: %-10s ---------------------------+\n" "$ENVIRONMENT" >>"$OUTPUT_FILE_PATH"
   echo "+--------------------------------------+-------------------+-------------------+" >>"$OUTPUT_FILE_PATH"
   echo "|                                      |      mutable      |     immutable     |" >>"$OUTPUT_FILE_PATH"
-  echo "|      Contract (latest version)       | target : deployed | target : deployed |" >>"$OUTPUT_FILE_PATH"
+  echo "|       Contract (source version)      | policy : deployed | policy : deployed |" >>"$OUTPUT_FILE_PATH"
   echo "+--------------------------------------+-------------------+-------------------+" >>"$OUTPUT_FILE_PATH"
 
   # Check if target state FILE exists
@@ -4327,14 +4327,22 @@ function printDeploymentsStatusV2() {
         COLOR_CODE_1=$NC
         COLOR_CODE_2=$NC
         if [[ "$TARGET_ENTRY_1" != *"-"* && "$DEPLOYED_ENTRY_1" != *"-"* ]]; then
-          if [[ "$TARGET_ENTRY_1" == "$DEPLOYED_ENTRY_1" ]]; then
+          EXPECTED_VERSION_1="$TARGET_ENTRY_1"
+          if [[ "$EXPECTED_VERSION_1" == "$TARGET_STATE_VERSION_LATEST" ]]; then
+            EXPECTED_VERSION_1="${CURRENT_VERSION%%-*}"
+          fi
+          if [[ "$EXPECTED_VERSION_1" == "${DEPLOYED_ENTRY_1%%-*}" ]]; then
             COLOR_CODE_1=$GREEN
           else
             COLOR_CODE_1=$RED
           fi
         fi
         if [[ "$TARGET_ENTRY_2" != *"-"* && "$DEPLOYED_ENTRY_2" != *"-"* ]]; then
-          if [[ "$TARGET_ENTRY_2" == "$DEPLOYED_ENTRY_2" ]]; then
+          EXPECTED_VERSION_2="$TARGET_ENTRY_2"
+          if [[ "$EXPECTED_VERSION_2" == "$TARGET_STATE_VERSION_LATEST" ]]; then
+            EXPECTED_VERSION_2="${CURRENT_VERSION%%-*}"
+          fi
+          if [[ "$EXPECTED_VERSION_2" == "${DEPLOYED_ENTRY_2%%-*}" ]]; then
             COLOR_CODE_2=$GREEN
           else
             COLOR_CODE_2=$RED
