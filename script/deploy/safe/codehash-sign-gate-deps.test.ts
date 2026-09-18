@@ -46,6 +46,7 @@ import {
   createToolchainScopeResolver,
   createArtifactCache,
   defaultCheckoutRoot,
+  loadImmutableExpectations,
   readToolchainConfig,
 } from './codehash-sign-gate-deps'
 
@@ -934,6 +935,22 @@ describe('createForgeRebuildRunner', () => {
   })
 })
 
+describe('loadImmutableExpectations', () => {
+  it('reads the expectation files from the repo regardless of cwd', () => {
+    const originalCwd = process.cwd()
+    const elsewhere = mkdtempSync(join(tmpdir(), 'expectations-cwd-'))
+    let requirements
+    try {
+      process.chdir(elsewhere)
+      requirements = loadImmutableExpectations()
+    } finally {
+      process.chdir(originalCwd)
+      rmSync(elsewhere, { recursive: true, force: true })
+    }
+
+    expect(Object.keys(requirements).length).toBeGreaterThan(0)
+  })
+})
 describe('createImmutableReferencesResolver', () => {
   const PROFILE = {
     profile: 'default',

@@ -1334,13 +1334,31 @@ const closeMongoRecordSource = async (): Promise<void> => {
  *
  * @returns The merged requirements layer 2 resolves expectations through
  */
-const loadImmutableExpectations = (): DeployRequirements =>
+export const loadImmutableExpectations = (): DeployRequirements =>
   mergeRequirements(
     JSON.parse(
-      readFileSync('script/deploy/resources/deployRequirements.json', 'utf8')
+      readFileSync(
+        join(
+          REPO_ROOT,
+          'script',
+          'deploy',
+          'resources',
+          'deployRequirements.json'
+        ),
+        'utf8'
+      )
     ) as DeployRequirements,
     JSON.parse(
-      readFileSync('script/deploy/resources/immutableRegistry.json', 'utf8')
+      readFileSync(
+        join(
+          REPO_ROOT,
+          'script',
+          'deploy',
+          'resources',
+          'immutableRegistry.json'
+        ),
+        'utf8'
+      )
     ) as Record<string, Record<string, IImmutableEntry>>
   )
 
