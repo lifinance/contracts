@@ -211,7 +211,7 @@ validateEnv
 # Progress tracking file - will be set based on action type
 PROGRESS_TRACKING_FILE=""
 
-# Group / solc / evm_version constants live in
+# Group and profile constants live in
 # script/deploy/resources/deployGroupingHelpers.sh (sourced above).
 
 # =============================================================================
@@ -1536,6 +1536,10 @@ _global_interrupt_handler() {
 
     logWithTimestamp "✅ All processes terminated"
 
+    # This file is sourced, so an exported group profile would outlive the run
+    # and decide the compiler of the operator's next deploy.
+    unset FOUNDRY_PROFILE
+
     # Clean up progress tracking
     cleanupProgressTracking 2>/dev/null || true
 
@@ -2271,7 +2275,7 @@ function executeNetworksByGroup() {
 
     local overall_success=true
 
-    # Execute groups sequentially: Cancun → zkEVM (same config) → London (needs recompilation)
+    # Execute groups sequentially: Cancun → zkEVM → London; each group selects its own build profile
     if [[ ${#cancun_networks[@]} -gt 0 ]]; then
         if isGroupComplete "${cancun_networks[@]}"; then
             echo ""
@@ -2325,6 +2329,10 @@ function executeNetworksByGroup() {
             echo ""
         fi
     fi
+
+    # This file is sourced, so the london group's exported profile would outlive the
+    # run and decide the compiler of the operator's next deploy.
+    unset FOUNDRY_PROFILE
 
     # Clean up PID tracking file
     rm -f "$GLOBAL_PID_TRACKING_FILE" 2>/dev/null || true

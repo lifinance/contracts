@@ -406,6 +406,8 @@ function proposeContractToNetworks() {
   [[ "$NEEDS_WHITELIST" == "true" ]] && echo "[info] diamond-called periphery — will sync allowlist on OK networks after registration"
   echo "[info] up to $MAX_CONCURRENT_JOBS concurrent network(s) per EVM group; zkEVM runs sequentially"
 
+  # Removed explicitly on every exit path rather than by an EXIT trap: the summary
+  # reads it after the waves.
   local RESULT_DIR
   if ! RESULT_DIR=$(mktemp -d); then
     error "failed to create worker result directory - aborting"
@@ -437,6 +439,13 @@ function proposeContractToNetworks() {
   if [[ ${#ZKEVM_NETWORKS[@]} -gt 0 ]]; then
     echo ""
     echo "[info] === zkevm group ==="
+    # Clears a profile the london wave exported; the zk workers derive the CREATE2 salt
+    # from a plain `forge build`, which would otherwise compile under it.
+    if ! prepareGroupBuild "$GROUP_ZKEVM" true; then
+      error "zkevm group preparation failed"
+      rm -rf "$RESULT_DIR"
+      exit 1
+    fi
     if ! install_foundry_zksync; then
       error "failed to install foundry-zksync"
       rm -rf "$RESULT_DIR"
@@ -490,6 +499,9 @@ function proposeContractToNetworks() {
   if [[ "$NEEDS_WHITELIST" == "true" && ${#SUCCEEDED_NETWORKS[@]} -gt 0 ]]; then
     echo ""
     echo "[info] syncing diamond-called periphery allowlist on OK networks..."
+    # The sync builds and simulates per network itself; a profile left over from the
+    # last wave must not decide its compiler.
+    unset FOUNDRY_PROFILE
     local WL_ARGS=("${SUCCEEDED_NETWORKS[@]}")
     if [[ "$PRODUCTION_FLAG" == "true" ]]; then
       WL_ARGS+=(--production)

@@ -388,6 +388,12 @@ function deployContractToNetworks() {
   if [[ ${#ZKEVM_NETWORKS[@]} -gt 0 ]]; then
     echo ""
     echo "[info] === zkevm group: installing foundry-zksync + building, then deploying ${#ZKEVM_NETWORKS[@]} network(s) sequentially ==="
+    # Clears a profile the london wave exported; the zk workers derive the CREATE2 salt
+    # from a plain `forge build`, which would otherwise compile under it.
+    if ! prepareGroupBuild "$GROUP_ZKEVM" true; then
+      error "zkevm group preparation failed - aborting before deploying any zkEVM network"
+      exit 1
+    fi
     if ! install_foundry_zksync; then
       error "failed to install foundry-zksync - aborting before deploying any zkEVM network"
       exit 1

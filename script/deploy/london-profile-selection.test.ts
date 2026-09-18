@@ -396,3 +396,107 @@ describe('the deploy side and the sign-time rebuild agree on the profile name', 
     ])
   })
 })
+
+describe('getFoundryProfileValue', () => {
+  const REPORT = (call: string) => [
+    `${call} >value.txt 2>error.txt`,
+    'echo "RC=$?"',
+    'echo "VALUE=$(cat value.txt)"',
+    'echo "ERROR=$(cat error.txt)"',
+  ]
+
+  it('reads a key written without spaces around the equals sign', () => {
+    const sandbox = makeSandbox()
+    const toml = join(sandbox.root, 'foundry.toml')
+    const spaced = `solc_version = '${london.solcVersion}'`
+    const before = readFileSync(toml, 'utf8')
+    expect(before).toContain(spaced)
+    writeFileSync(
+      toml,
+      before.replace(spaced, `solc_version='${london.solcVersion}'`)
+    )
+
+    const output = run(
+      sandbox,
+      [...SOURCE_HELPERS, ...REPORT('getFoundryProfileValue solc_version')],
+      { FOUNDRY_PROFILE: LONDON_PROFILE }
+    )
+
+    // A miss here would fall through to [profile.default] and report its pin.
+    expect(output).toContain('RC=0')
+    expect(output).toContain(`VALUE=${london.solcVersion}`)
+    expect(london.solcVersion).not.toBe(fallback.solcVersion)
+  })
+
+  it('refuses, and prints nothing, when neither profile declares the key', () => {
+    const output = run(makeSandbox(), [
+      ...SOURCE_HELPERS,
+      ...REPORT('getFoundryProfileValue no_such_key'),
+    ])
+
+    expect(output).toContain('RC=1')
+    expect(output).toContain('VALUE=\n')
+    expect(output).toContain('declares no_such_key')
+  })
+
+  it('refuses when the toml file FOUNDRY_TOML_FILE_PATH names does not exist', () => {
+    const output = run(makeSandbox(), [
+      ...SOURCE_HELPERS,
+      ...REPORT(
+        'FOUNDRY_TOML_FILE_PATH=/nonexistent/foundry.toml getFoundryProfileValue solc_version'
+      ),
+    ])
+
+    expect(output).toContain('RC=1')
+    expect(output).toContain('VALUE=\n')
+    expect(output).toContain('not found at /nonexistent/foundry.toml')
+  })
+})
+
+/**
+ * The zkevm branch of prepareGroupBuild clears the profile, but only when a
+ * runner calls it: the two production runners build zk inline, so the call has
+ * to sit in each zkevm wave itself, before the wave is launched.
+ */
+describe('every runner clears the group profile before its zkevm wave', () => {
+  const source = (path: string): string =>
+    readFileSync(join(REPO_ROOT, path), 'utf8')
+
+  it.each([
+    ['script/deploy/deployContractToNetworks.sh', 'launchDeployWave 1 '],
+    ['script/tasks/proposeContractToNetworks.sh', 'launchProposeWave 1 '],
+  ])(
+    '%s calls prepareGroupBuild zkevm inside the zkevm wave',
+    (path, launch) => {
+      const text = source(path)
+      const start = text.indexOf('=== zkevm group')
+      const end = text.indexOf(launch, start)
+      expect(start).toBeGreaterThan(-1)
+      expect(end).toBeGreaterThan(start)
+
+      expect(text.slice(start, end)).toContain(
+        'prepareGroupBuild "$GROUP_ZKEVM" true'
+      )
+    }
+  )
+
+  it('multiNetworkExecution.sh clears the profile on both of its exits, because it is sourced', () => {
+    const text = source('script/multiNetworkExecution.sh')
+    const handler = text.slice(
+      text.indexOf('_global_interrupt_handler() {'),
+      text.indexOf('exit 130')
+    )
+    const groupRun = text.slice(
+      text.indexOf('function executeNetworksByGroup()'),
+      text.indexOf('Generating final execution summary')
+    )
+    expect(handler.length).toBeGreaterThan(0)
+    expect(groupRun.length).toBeGreaterThan(0)
+
+    expect(handler).toContain('unset FOUNDRY_PROFILE')
+    // After the london group, which runs last and exports the profile.
+    const londonDone = groupRun.indexOf('London EVM group completed')
+    expect(londonDone).toBeGreaterThan(-1)
+    expect(groupRun.slice(londonDone)).toContain('unset FOUNDRY_PROFILE')
+  })
+})
