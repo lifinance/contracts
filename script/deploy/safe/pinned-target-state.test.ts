@@ -1244,6 +1244,34 @@ describe('createPinnedTargetStateReader', () => {
       ).toEqual({ ok: false, reason: 'remote-unexpected' })
   })
 
+  // The repository is the right one; the transport is not. A fetch over cleartext
+  // is the attacker's to rewrite, and the anchor SHA comes from that same fetch,
+  // so nothing downstream can tell the difference.
+  it('refuses the canonical repo over cleartext http', () => {
+    for (const url of [
+      'http://github.com/lifinance/contracts.git',
+      'http://github.com/lifinance/contracts',
+      'http://git@github.com:80/lifinance/contracts.git',
+    ])
+      expect(
+        createPinnedTargetStateReader({
+          repoRoot: clone,
+          git: {
+            remoteUrl: () => url,
+            fetch: () => {
+              throw new Error('must not be reached')
+            },
+            revParse: () => {
+              throw new Error('must not be reached')
+            },
+            show: () => {
+              throw new Error('must not be reached')
+            },
+          },
+        })()
+      ).toEqual({ ok: false, reason: 'remote-unexpected' })
+  })
+
   it('reports a remote it could not read as unreadable, not as the wrong remote', () => {
     let reads = 0
     const reader = createPinnedTargetStateReader({

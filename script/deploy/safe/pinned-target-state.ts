@@ -60,8 +60,10 @@ export const PINNED_FETCH_REFSPEC = '+refs/heads/main:refs/remotes/origin/main'
 // establish where the anchor came from: a fork remote would let a proposer author
 // the expected state. ssh.github.com and an explicit port are admitted because
 // they are GitHub's own SSH-over-443 spelling, which a restricted network needs.
+// `http://` is not: the anchor SHA comes from that same fetch, so an on-path
+// attacker could serve both the state and the version it is compared against.
 const EXPECTED_REMOTE_URL =
-  /^(?:https?:\/\/(?:[^@/]+@)?github\.com(?::\d+)?\/|ssh:\/\/(?:[^@/]+@)?(?:ssh\.)?github\.com(?::\d+)?\/|(?:[^@/]+@)?(?:ssh\.)?github\.com:)lifinance\/contracts(?:\.git)?\/?$/i
+  /^(?:https:\/\/(?:[^@/]+@)?github\.com(?::\d+)?\/|ssh:\/\/(?:[^@/]+@)?(?:ssh\.)?github\.com(?::\d+)?\/|(?:[^@/]+@)?(?:ssh\.)?github\.com:)lifinance\/contracts(?:\.git)?\/?$/i
 
 const TARGET_STATE_ENVIRONMENT = 'production'
 const TARGET_STATE_DIAMOND = 'LiFiDiamond'
