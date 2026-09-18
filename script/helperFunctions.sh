@@ -2261,8 +2261,8 @@ function verifyContract() {
   local ARGS=$4
   # Optional toolchain overrides (positional $5-$7). When set (non-zkEVM only),
   # they pin forge verify-contract to the toolchain a contract was BUILT with,
-  # so re-verifying an older contract does not recompile against the current
-  # foundry.toml (which may have moved to a different EVM-version group).
+  # so re-verifying an older contract does not recompile against whichever
+  # profile happens to be active now.
   local SOLC_VERSION_OVERRIDE="${5:-}"
   local EVM_VERSION_OVERRIDE="${6:-}"
   local OPTIMIZER_RUNS_OVERRIDE="${7:-}"
@@ -3440,7 +3440,7 @@ function success() {
 #   MESSAGE - Text to log
 #
 # Returns: Writes "[YYYY-MM-DD HH:MM:SS] MESSAGE" to stdout.
-# Example: logWithTimestamp "Backed up foundry.toml"
+# Example: logWithTimestamp "Running forge build for London EVM group..."
 function logWithTimestamp() {
   local MESSAGE="$1"
   local TIMESTAMP

@@ -170,14 +170,19 @@ function groupNetworksByExecutionGroup() {
 # GROUP BUILD SELECTION
 # =============================================================================
 
-# prepareGroupBuild GROUP [STRICT]
-#   Exports the foundry profile GROUP builds and deploys under, then builds.
-#   Selecting the profile through the environment keeps foundry.toml identical
-#   to the commit, which the tree-reproducibility guard requires of a production
-#   deploy. The export outlives this call on purpose: the deploy workers a caller
-#   launches next inherit it. STRICT="true" makes a failed `forge build` return
-#   non-zero (callers that must not deploy against a stale artifact set it); the
-#   default keeps the original tolerant behavior for the playground runner.
+# prepareGroupBuild: Selects the foundry profile GROUP builds and deploys under, then builds.
+# Selecting the profile through the environment keeps foundry.toml identical to the commit,
+# which the tree-reproducibility guard requires of a production deploy. The exported profile
+# outlives this call on purpose: the deploy workers a caller launches next inherit it.
+#
+# Usage: prepareGroupBuild GROUP [STRICT]
+#   GROUP  - one of $GROUP_LONDON, $GROUP_CANCUN, $GROUP_ZKEVM
+#   STRICT - "true" makes a failed `forge build` return non-zero; anything else keeps the
+#            tolerant behavior the playground runner relies on (default: false)
+#
+# Returns: 0 on success, 1 on an unknown group, a missing group, or (STRICT only) a failed
+#          foundry version check or build
+# Example: prepareGroupBuild "$GROUP_LONDON" true
 function prepareGroupBuild() {
     local GROUP="${1:-}"
     local STRICT="${2:-false}"
@@ -210,7 +215,9 @@ function prepareGroupBuild() {
             # zkEVM networks use the [profile.zksync] section; zksolc is pinned in foundry.toml [external.zksync] and exported via FOUNDRY_ZKSYNC (see helperFunctions.sh)
             # No standard forge build needed for zkEVM - compilation handled by deploy scripts.
             # out/ is nonetheless required to derive the CREATE2 deploy salt; deploySingleContract's
-            # zk path ensures it per contract (ensureStandardArtifactForSalt).
+            # zk path ensures it per contract (ensureStandardArtifactForSalt) with a plain `forge
+            # build`, so a profile left over from an earlier group would decide that salt's bytecode.
+            unset FOUNDRY_PROFILE
             return 0
             ;;
         *)

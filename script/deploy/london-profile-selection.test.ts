@@ -293,13 +293,41 @@ describe('prepareGroupBuild', () => {
     ).toEqual([expect.stringMatching(new RegExp(` FOUNDRY_PROFILE=${UNSET}$`))])
   })
 
-  it('does not know a backup to restore, because nothing is rewritten any more', () => {
-    const output = run(makeSandbox(), [
-      ...SOURCE_HELPERS,
-      'declare -F backupFoundryToml restoreFoundryToml updateFoundryTomlForGroup',
-      'echo "DECLARED_RC=$?"',
-    ])
+  it('clears a profile the operator shell exported before the zkevm group', () => {
+    const sandbox = makeSandbox()
 
-    expect(output).toContain('DECLARED_RC=1')
+    const output = run(
+      sandbox,
+      [
+        ...SOURCE_HELPERS,
+        'prepareGroupBuild "$GROUP_ZKEVM" true',
+        ...REPORT_STATE,
+      ],
+      { FOUNDRY_PROFILE: 'london' }
+    )
+
+    expect(output).toContain('RC=0')
+    // The zk builds carry their own inline FOUNDRY_PROFILE=zksync, but
+    // ensureStandardArtifactForSalt's plain `forge build` does not: a london
+    // pin surviving into it derives the CREATE2 salt from bytecode no other
+    // chain in the wave was built with.
+    expect(output).toContain(`PROFILE_AFTER=${UNSET}`)
   })
+
+  // `declare -F a b c` returns 1 when ANY name is missing, so one call cannot
+  // tell a fully removed set from a partially reintroduced one.
+  for (const removed of [
+    'backupFoundryToml',
+    'restoreFoundryToml',
+    'updateFoundryTomlForGroup',
+  ])
+    it(`does not define ${removed}`, () => {
+      const output = run(makeSandbox(), [
+        ...SOURCE_HELPERS,
+        `declare -F ${removed}`,
+        'echo "DECLARED_RC=$?"',
+      ])
+
+      expect(output).toContain('DECLARED_RC=1')
+    })
 })

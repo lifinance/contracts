@@ -352,8 +352,6 @@ function deployContractToNetworks() {
     exit 1
   fi
 
-  # Removed on any exit - normal, error, or the SIGINT/SIGTERM handler's `exit 1`,
-  # which also triggers this EXIT trap.
   trap 'rm -rf "$RESULT_DIR"' EXIT
 
   # London wave: solc 0.8.17 / evm_version london, deployed in parallel.

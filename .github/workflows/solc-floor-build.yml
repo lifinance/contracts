@@ -7,9 +7,8 @@
 #   A `solc-floor-build-required` aggregator job always reports a final status so this
 #   workflow can stay a required check on `main` branch protection even when the build
 #   job is skipped (see `.agents/rules/500-github-actions.md`).
-# - test/script are skipped on the command line (they trip the legacy pipeline's "stack too
-#   deep", a codegen limit unrelated to floor-feature detection); the profile itself carries
-#   no skip because the deploy runners compile script/** under it.
+# - Only src/ has to honour the floor, so test/script are skipped on the command line. The
+#   profile itself carries no skip because the deploy runners compile script/** under it.
 
 name: Verify Floor-Compiler Build
 on:
