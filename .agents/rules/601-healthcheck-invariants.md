@@ -21,8 +21,10 @@ wallets/timelock, whitelist synced). Those invariants live as a single declarati
 scope, run() }` descriptor to that array; it is a registry edit, not bespoke control flow.
 
 When you add, remove, or change a facet or periphery contract (including adding/removing
-it from `script/deploy/_targetState.json`), review the registry and decide whether an
-invariant must be added, adjusted, or removed. Use this checklist:
+it from `script/deploy/_targetState.json` — see
+[docs/TargetState.md](../../docs/TargetState.md) for how entries are written), review the
+registry and decide whether an invariant must be added, adjusted, or removed. Use this
+checklist:
 
 - **Facet added** → deployment + registration is already covered generically by the
   `facets-registered` invariant plus the target-state facet lists. Add a bespoke invariant
@@ -88,10 +90,14 @@ JSDoc on exports, `bunx eslint` + `bunx tsc-files --noEmit`).
 ## Intent-aware invariants, chain-only generators ([CONV:HEALTHCHECK-INTENT])
 
 Several invariants compare on-chain reality against a _desired_ state that a merged PR
-already records — `_targetState.json` for `facets-registered` and `periphery-registered`,
-`config/whitelist.json` for the whitelist pair checks, a deleted source file for
-`no-stale-registered-facets`. Between that merge and the multisig operation acting on it the
-two legitimately disagree, and the remediation is "wait", not "fix".
+already records — the **contract names** in `_targetState.json` for `facets-registered` and
+`periphery-registered`, `config/whitelist.json` for the whitelist pair checks, a deleted
+source file for `no-stale-registered-facets`. Between that merge and the multisig operation
+acting on it the two legitimately disagree, and the remediation is "wait", not "fix".
+
+Only the keys are read. A target-state value is `latest` (follow the repo) or a deliberate
+version pin, and no health-check invariant consults it — membership is what the file states
+to them ([docs/TargetState.md](../../docs/TargetState.md)).
 
 Invariants may consult operator intent to resolve that window and report the finding as
 **expected-pending** instead of a failure:

@@ -16,6 +16,29 @@ paths:
 - Variable names: all uppercase (e.g., `NETWORK`, `CONTRACT_ADDRESS`).
 - Provide usage/help text; clear exit codes; document TODOs/limits succinctly; keep indentation and naming consistent.
 
+### Export a ticket before any production deploy [CONV:DEPLOY-TICKET]
+
+Every Safe proposal must carry a Linear issue link, so a production deploy on a network with a
+Safe needs one before it starts:
+
+```bash
+export SAFE_PROPOSAL_TICKET="EXSC-1034"   # or the full https://linear.app/... URL
+export SAFE_PROPOSAL_REASON="one line on why this is being proposed now"  # optional
+```
+
+`assertProposalTicketForRun` resolves it before the first build and refuses a run that has none.
+A run with no terminal — CI, an agent, anything piped — cannot be asked, so it is refused rather
+than prompted: **an agent must export the variable itself, never rely on being asked.** Take the
+id from the ticket the work belongs to; do not infer it from the branch name, which is a hint the
+tooling shows and deliberately does not accept on its own. Staging, testnet-only and
+direct-to-diamond runs create no proposal and need no ticket.
+
+A plain `export` is enough from any shell: `script/deploy/shared/captureProposalIntent.sh`
+mirrors both variables into names `.env` does not define, so the blank lines `.env.example`
+ships for them do not overwrite what the caller set. An entry point that can reach a Safe
+proposal must source it **before its first `source .env`** — after that the env file has
+already won, and every non-interactive run is refused.
+
 ## Key Helper Functions [CONV:BASH-HELPERS]
 
 ### Network Abstraction Helpers
@@ -110,7 +133,6 @@ background jobs and aggregate after `wait`.
   "any failures?", "any CRITICAL?") from the collected results **after** `wait`, never from
   inside the loop.
 - Copy an existing pattern rather than reinventing the throttle/wait/merge plumbing:
-  - `processNetworkLine` worker + throttle + `wait` (`helperFunctions.sh`)
   - `( … > "$FILE" ) &` → `wait` → merge per-item files (`helperFunctions.sh`)
   - `executeNetworkInGroup` (`multiNetworkExecution.sh`)
 

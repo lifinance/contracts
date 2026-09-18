@@ -8,6 +8,11 @@
 # files usually use `KEY=value` without `export`, so those would be invisible to children.
 # `set -a` (allexport) marks every assignment as exported until `set +a`; we limit that
 # to this file read so later `source`d scripts do not export unrelated locals by default.
+
+# Before `source .env`: the env file blanks what the caller exported.
+# shellcheck disable=SC1091
+source script/deploy/shared/captureProposalIntent.sh
+
 set -a
 source .env
 set +a
@@ -21,6 +26,13 @@ source script/deploy/shared/assertZkToolchain.sh
 
 ZERO_ADDRESS=0x0000000000000000000000000000000000000000
 TRON_ZERO_ADDRESS_BASE58=T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb
+
+# Target state value meaning "follow the repo's @custom:version". Any other value is a pin
+# that holds this network back and blocks a deploy of a different version.
+# A JSON null cannot serve here: findContractVersionInTargetState reads it as an absent
+# entry, which would drop the contract from deployment while the health check still expects
+# it from the key.
+TARGET_STATE_VERSION_LATEST="latest"
 
 # zksolc version pin for foundry-zksync, defined in foundry.toml [external.zksync].
 # Passed to foundry-zksync via env because a real `zksync` key in any profile makes
@@ -1758,366 +1770,6 @@ function getOptimizerRuns() {
   echo "$VERSION"
 
 }
-function removeExistingEntriesFromTargetStateJSON() {
-  local file="$1"
-  local value="$2"
-
-  # Check if the file exists
-  if [ ! -f "$file" ]; then
-    error "file not found: $file"
-    return 1
-  fi
-
-  # Remove staging entries on level 2
-  jq "map_values(del(.$value))" "$file" >"$file.tmp" && mv "$file.tmp" "$file"
-
-  if [ $? -eq 0 ]; then
-    echo "[info] existing '$value' entries removed successfully from target state file ($file)"
-    return 0
-  else
-    error "failed to remove entries with value '$value'."
-    rm "$temp_file" >/dev/null 2>&1
-    return 1
-  fi
-
-}
-function parseTargetStateGoogleSpreadsheet() {
-  # Function: parseTargetStateGoogleSpreadsheet
-  # Description: Parses Google Spreadsheet and updates target state JSON file (parallelized version)
-  # Arguments:
-  #   $1 - ENVIRONMENT: The environment to process (e.g., "production", "staging")
-  #   $2 - NETWORK: (Optional) Specific network to update. If provided, only updates that network.
-  # Returns:
-  #   None - updates the target state JSON file
-  # Example:
-  #   parseTargetStateGoogleSpreadsheet "production"                    # Update all networks
-  #   parseTargetStateGoogleSpreadsheet "production" "mainnet"         # Update only mainnet
-
-  # read function arguments into variables
-  local ENVIRONMENT="$1"
-  local SPECIFIC_NETWORK="$2"
-
-  # Check if MAX_CONCURRENT_JOBS is configured
-  if [[ -z $MAX_CONCURRENT_JOBS ]]; then
-    error "Your .env file is missing the key MAX_CONCURRENT_JOBS. Please add it and run this script again."
-    exit 1
-  fi
-
-  # ensure spreadsheet ID is available
-  if [[ "$ENVIRONMENT" == "production" ]]; then
-    # check if config contains spreadsheet ID
-    if [[ -z "$TARGET_STATE_SPREADSHEET_ID_PRODUCTION" ]]; then
-      error "your .env file is missing key 'TARGET_STATE_SPREADSHEET_ID_PRODUCTION'. Please add it."
-      exit 1
-    else
-      # construct spreadsheet URL
-      SPREADSHEET_URL="https://docs.google.com/spreadsheets/d/${TARGET_STATE_SPREADSHEET_ID_PRODUCTION}"
-      EXPORT_PARAMS="/export?exportFormat=csv"
-    fi
-  elif [[ "$ENVIRONMENT" == "staging" ]]; then
-    # check if config contains spreadsheet ID
-    if [[ -z "$TARGET_STATE_SPREADSHEET_ID_STAGING" ]]; then
-      error "your .env file is missing key 'TARGET_STATE_SPREADSHEET_ID_STAGING'. Please add it."
-      exit 1
-    else
-      # construct spreadsheet URL
-      SPREADSHEET_URL="https://docs.google.com/spreadsheets/d/${TARGET_STATE_SPREADSHEET_ID_STAGING}"
-      EXPORT_PARAMS="/export?exportFormat=csv"
-    fi
-  else
-    error "an unexpected ENVIRONMENT value was passed to parseTargetStateGoogleSpreadsheet: ($ENVIRONMENT). Script cannot continue."
-    exit 1
-  fi
-
-  # load google sheets into CSV file
-  CSV_FILE_PATH="newTest.csv"
-  curl -L "$SPREADSHEET_URL""$EXPORT_PARAMS" -o $CSV_FILE_PATH 2>/dev/null
-
-  if [[ -n "$SPECIFIC_NETWORK" ]]; then
-    echo "Updating $ENVIRONMENT target state for network '$SPECIFIC_NETWORK' from this Google sheet now: $SPREADSHEET_URL"
-    echo "Using parallel processing with max $MAX_CONCURRENT_JOBS concurrent jobs"
-    echo ""
-
-    # Remove only the specific network from target state
-    removeNetworkFromTargetStateJSON "$TARGET_STATE_PATH" "$ENVIRONMENT" "$SPECIFIC_NETWORK"
-  else
-    echo "Updating $ENVIRONMENT target state from this Google sheet now: $SPREADSHEET_URL"
-    echo "Using parallel processing with max $MAX_CONCURRENT_JOBS concurrent jobs"
-    echo ""
-
-    # remove existing entries from target state JSON file
-    removeExistingEntriesFromTargetStateJSON "$TARGET_STATE_PATH" "$ENVIRONMENT"
-  fi
-
-  # make sure existing entries were removed properly (to prevent corrupted target state)
-  if [[ $? -ne 0 ]]; then
-    error "unable to remove existing $ENVIRONMENT values from target state file ($TARGET_STATE_PATH). Cannot proceed."
-    exit 1
-  fi
-
-  # Parse the CSV to extract contract names and network data
-  local CONTRACTS_ARRAY=()
-  local NETWORK_LINES=()
-  local NETWORKS_START_AT_LINE=0
-  local FACETS_STARTS_AT_COLUMN=3
-
-  # First pass: extract contract names and collect network lines
-  local LINE_NUMBER=0
-  while IFS= read -r LINE; do
-    ((LINE_NUMBER++))
-
-    # find and store the row that contains all the contract names
-    if [[ "$LINE" == *"Blue = Periphery"* ]]; then
-      STRING_TO_REMOVE='  Blue = Periphery",EXAMPLE,,'
-      CONTRACTS_LINE=$(echo "$LINE" | sed "s/^${STRING_TO_REMOVE}//")
-
-      # Split the line by comma into an array
-      IFS=',' read -ra LINE_ARRAY <<<"$CONTRACTS_LINE"
-
-      # Create an iterable array that only contains facet names
-      for ((i = 0; i < ${#LINE_ARRAY[@]}; i += 2)); do
-        CONTRACT_NAME=${LINE_ARRAY[i]}
-        CONTRACTS_ARRAY+=("$CONTRACT_NAME")
-      done
-    fi
-
-    # find row with the first network ('mainnet')
-    if [[ "$NETWORKS_START_AT_LINE" == 0 && $LINE == "mainnet"* ]]; then
-      NETWORKS_START_AT_LINE=$LINE_NUMBER
-    fi
-
-    # collect network lines for parallel processing
-    if [[ $NETWORKS_START_AT_LINE != 0 && $((LINE_NUMBER)) -ge "$NETWORKS_START_AT_LINE" ]]; then
-      NETWORK=$(echo "$LINE" | cut -d',' -f1)
-
-      if [[ "$NETWORK" == "<placeholder>" ]]; then
-        continue
-      fi
-
-      if [[ "$NETWORK" == "DEACTIVATED" ]]; then
-        break
-      fi
-
-      if [[ ! -z "$NETWORK" ]]; then
-        # If specific network is requested, only process that network
-        if [[ -n "$SPECIFIC_NETWORK" && "$NETWORK" != "$SPECIFIC_NETWORK" ]]; then
-          continue
-        fi
-        NETWORK_LINES+=("$LINE")
-      fi
-    fi
-  done <"$CSV_FILE_PATH"
-
-  if [[ -n "$SPECIFIC_NETWORK" ]]; then
-    echo "Found ${#NETWORK_LINES[@]} matching networks for '$SPECIFIC_NETWORK'"
-  else
-    echo "Found ${#NETWORK_LINES[@]} networks to process"
-  fi
-  echo "Found ${#CONTRACTS_ARRAY[@]} contracts to process"
-  echo ""
-
-  # Create temporary directory for parallel processing
-  local TEMP_DIR=$(mktemp -d)
-  trap 'rm -rf "$TEMP_DIR"' EXIT
-
-  # Process networks in parallel with concurrency control
-  for LINE in "${NETWORK_LINES[@]}"; do
-    # Extract network name
-    NETWORK=$(echo "$LINE" | cut -d',' -f1)
-
-    # Wait if we've reached the maximum number of concurrent jobs
-    while [[ $(jobs | wc -l) -ge $MAX_CONCURRENT_JOBS ]]; do
-      sleep 1
-    done
-
-    # Start processing this network in background
-    processNetworkLine "$NETWORK" "$LINE" "$ENVIRONMENT" "$TEMP_DIR" "$FACETS_STARTS_AT_COLUMN" "$(printf '%s\n' "${CONTRACTS_ARRAY[@]}")" &
-  done
-
-  # Wait for all background jobs and check for failures
-  wait
-  if [ $? -ne 0 ]; then
-    error "One or more network processing jobs failed"
-    rm -rf "$TEMP_DIR"
-    return 1
-  fi
-
-  echo ""
-  echo "All network processing completed. Merging results..."
-
-  # Merge all temporary JSON files into the main target state file
-  mergeNetworkResults "$TEMP_DIR" "$TARGET_STATE_PATH" "$ENVIRONMENT"
-
-  # Clean up temporary directory
-  rm -rf "$TEMP_DIR"
-
-  # delete CSV file
-  rm $CSV_FILE_PATH
-
-  echo "Processing completed successfully!"
-  return 0
-}
-
-function processNetworkLine() {
-  # Function: processNetworkLine
-  # Description: Processes a single network line from the CSV in parallel
-  # Arguments:
-  #   $1 - NETWORK: The network name
-  #   $2 - LINE: The CSV line for this network
-  #   $3 - ENVIRONMENT: The environment
-  #   $4 - TEMP_DIR: Temporary directory for output
-  #   $5 - FACETS_STARTS_AT_COLUMN: Starting column for facets
-  #   $6 - CONTRACTS_ARRAY: Array of contract names (newline-separated)
-
-  local NETWORK="$1"
-  local LINE="$2"
-  local ENVIRONMENT="$3"
-  local TEMP_DIR="$4"
-  local FACETS_STARTS_AT_COLUMN="$5"
-  local CONTRACTS_ARRAY_STR="$6"
-
-  # Convert contracts array string back to array
-  IFS=$'\n' read -d '' -r -a CONTRACTS_ARRAY <<<"$CONTRACTS_ARRAY_STR"
-
-  echo "[$NETWORK] Starting processing..."
-
-  # Create temporary JSON file for this network
-  local NETWORK_JSON_FILE="$TEMP_DIR/${NETWORK}.json"
-  echo "{}" >"$NETWORK_JSON_FILE"
-
-  # Split the line by comma into an array
-  IFS=',' read -ra LINE_ARRAY <<<"$LINE"
-
-  local CONTRACT_INDEX=0
-  # iterate through the array (start with index to skip network name and EXAMPLE columns)
-  for ((INDEX = "$FACETS_STARTS_AT_COLUMN"; INDEX < ${#LINE_ARRAY[@]}; INDEX += 1)); do
-    # read cell value and current contract into variables
-    local CELL_VALUE=${LINE_ARRAY[$INDEX]}
-    local CONTRACT=${CONTRACTS_ARRAY[$CONTRACT_INDEX]}
-
-    # increase facet index for next iteration
-    if ((INDEX % 2 == 0)); then
-      ((CONTRACT_INDEX += 1))
-    fi
-
-    # skip the iteration if the contract is empty or placeholder
-    if [[ -z "$CONTRACT" || "$CONTRACT" == "<placeholder>" ]]; then
-      continue
-    fi
-
-    # skip the iteration if the cell value is empty
-    if [[ -z "$CELL_VALUE" ]]; then
-      continue
-    fi
-
-    # end the loop if contract is empty (=reached the end of the facet columns)
-    if [[ "$CONTRACT" == "END" ]]; then
-      break
-    fi
-
-    # determine diamond type based on odd/even column index
-    if ((INDEX % 2 == 0)); then
-      local DIAMOND_TYPE="LiFiDiamondImmutable"
-    else
-      local DIAMOND_TYPE="LiFiDiamond"
-    fi
-
-    # get current contract version and save in variable
-    local CURRENT_VERSION=$(getCurrentContractVersion "$CONTRACT")
-
-    # make sure version was returned properly
-    if [[ -z "$CURRENT_VERSION" ]]; then
-      warning "[$NETWORK] Warning: could not find current contract version for contract $CONTRACT" >&2
-    fi
-
-    # check if cell value is "latest" >> find version
-    if [[ "$CELL_VALUE" == "latest" ]]; then
-
-      # echo warning that sheet needs to be updated
-      echo "[$NETWORK] Warning: the latest version for contract $CONTRACT is $CURRENT_VERSION. Please update this for network $NETWORK in the Google sheet" >&2
-
-      # use current version for target state
-      local VERSION=$CURRENT_VERSION
-    else
-      # check if cell value looks like a version tag
-      if isVersionTag "$CELL_VALUE"; then
-        # check if current version in repo is higher than version in target state
-        if [[ "$CURRENT_VERSION" != "$CELL_VALUE" ]]; then
-          echo "[$NETWORK] Warning: Requested version ($CELL_VALUE) of $CONTRACT differs from current version ($CURRENT_VERSION). Update target state file?" >&2
-        fi
-
-        # store cell value as target version
-        local VERSION=$CELL_VALUE
-      else
-        continue
-      fi
-    fi
-
-    # Add to network-specific JSON file
-    addContractVersionToNetworkJSON "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_TYPE" "$VERSION" "$NETWORK_JSON_FILE"
-  done
-
-  echo "[$NETWORK] Processing completed"
-}
-
-function addContractVersionToNetworkJSON() {
-  # Function: addContractVersionToNetworkJSON
-  # Description: Adds a contract version to a network-specific JSON file
-  # Arguments:
-  #   $1 - NETWORK: The network name
-  #   $2 - ENVIRONMENT: The environment
-  #   $3 - CONTRACT: The contract name
-  #   $4 - DIAMOND_TYPE: The diamond type
-  #   $5 - VERSION: The version
-  #   $6 - JSON_FILE: The JSON file to update
-
-  local NETWORK="$1"
-  local ENVIRONMENT="$2"
-  local CONTRACT="$3"
-  local DIAMOND_TYPE="$4"
-  local VERSION="$5"
-  local JSON_FILE="$6"
-
-  # Use jq to add the contract version to the network JSON file
-  jq --arg NETWORK "$NETWORK" \
-    --arg ENVIRONMENT "$ENVIRONMENT" \
-    --arg CONTRACT "$CONTRACT" \
-    --arg DIAMOND_TYPE "$DIAMOND_TYPE" \
-    --arg VERSION "$VERSION" \
-    '
-       .[$NETWORK]                 //= {}
-       | .[$NETWORK][$ENVIRONMENT] //= {}
-       | .[$NETWORK][$ENVIRONMENT][$DIAMOND_TYPE] //= {}
-       | .[$NETWORK][$ENVIRONMENT][$DIAMOND_TYPE][$CONTRACT] = $VERSION
-     ' \
-    "$JSON_FILE" >"${JSON_FILE}.tmp" && mv "${JSON_FILE}.tmp" "$JSON_FILE"
-}
-
-function mergeNetworkResults() {
-  # Function: mergeNetworkResults
-  # Description: Merges all network-specific JSON files into the main target state file
-  # Arguments:
-  #   $1 - TEMP_DIR: Directory containing network JSON files
-  #   $2 - TARGET_STATE_PATH: Path to the main target state file
-  #   $3 - ENVIRONMENT: The environment
-
-  local TEMP_DIR="$1"
-  local TARGET_STATE_PATH="$2"
-  local ENVIRONMENT="$3"
-
-  # Start with the existing target state file
-  local MERGED_JSON="$TARGET_STATE_PATH"
-
-  # Merge each network JSON file
-  for NETWORK_JSON in "$TEMP_DIR"/*.json; do
-    if [[ -f "$NETWORK_JSON" ]]; then
-      # Merge this network's data into the main target state file
-      jq -s '.[0] * .[1]' "$MERGED_JSON" "$NETWORK_JSON" >"${MERGED_JSON}.tmp" && mv "${MERGED_JSON}.tmp" "$MERGED_JSON"
-    fi
-  done
-
-  echo "All network results merged into $TARGET_STATE_PATH"
-}
 
 # ensureStandardArtifactForSalt: Make sure the standard build artifact a deploy salt is derived
 # from exists, building it if necessary.
@@ -2850,223 +2502,6 @@ function confirmOwnershipTransfer() {
 }
 # <<<<< writing to blockchain & verification
 
-function updateAllContractsToTargetState() {
-  # Check if target state FILE exists
-  if [ ! -f "$TARGET_STATE_PATH" ]; then
-    error "target state FILE does not exist in path $TARGET_STATE_PATH"
-    exit 1
-  fi
-
-  echo ""
-  echo "[info] now comparing target state to actual deployed contracts"
-
-  # initiate counter
-  local COUNTER=0
-
-  # Read top-level keys into an array
-  NETWORKS=($(jq -r 'keys[]' "$TARGET_STATE_PATH"))
-
-  # Loop through the array of top-level keys
-  for NETWORK in "${NETWORKS[@]}"; do
-    echo "[info] current network: $NETWORK"
-
-    # Read ENVIRONMENT keys for the network
-    ENVIRONMENTS=($(jq -r ".${NETWORK} | keys[]" "$TARGET_STATE_PATH"))
-
-    # Loop through the array of second-level keys
-    for ENVIRONMENT in "${ENVIRONMENTS[@]}"; do
-      echo "[info]  current environment: $ENVIRONMENT"
-
-      # Read diamond name keys for the network
-      DIAMOND_NAMES=($(jq -r ".${NETWORK}.${ENVIRONMENT} | keys[]" "$TARGET_STATE_PATH"))
-
-      # go through all diamond names
-      for DIAMOND_NAME in "${DIAMOND_NAMES[@]}"; do
-        echo "[info]   current diamond type: $DIAMOND_NAME"
-        echo ""
-        echo "[info]    current contract $DIAMOND_NAME: "
-
-        DIAMOND_DEPLOYMENT_REQUIRED=false
-
-        # get address of current diamond
-        DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_NAME")
-
-        # extract diamond target version
-        DIAMOND_TARGET_VERSION=$(findContractVersionInTargetState "$NETWORK" "$ENVIRONMENT" "$DIAMOND_NAME" "$DIAMOND_NAME")
-
-        # check if diamond address was found (if not, deploy first since it's needed for the rest)
-        if [[ "$?" -ne 0 ]]; then
-          echo ""
-          echo "[info]     diamond address not found - need to deploy diamond first"
-
-          # deploy diamond contract
-          deploySingleContract "$DIAMOND_NAME" "$NETWORK" "$ENVIRONMENT" "$TARGET_VERSION" "true" 2>/dev/null
-
-          # check if last command was executed successfully, otherwise exit script with error message
-          checkFailure $? "deploy contract $DIAMOND_NAME to network $NETWORK"
-
-          # get new diamond address from log
-          DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_NAME")
-
-          echo "[info]     diamond contract deployed to $DIAMOND_ADDRESS - deploying core facets now"
-          echo ""
-
-          # deploy and add core facets
-          echo ""
-          deployCoreFacets "$NETWORK" "$ENVIRONMENT" 2>/dev/null
-
-          # check if last command was executed successfully, otherwise exit script with error message
-          checkFailure $? "deploy core facets to network $NETWORK"
-          echo "[info]     core facets deployed - updating $DIAMOND_NAME now"
-
-          # update diamond with core facets
-          echo ""
-          diamondUpdateFacet "$NETWORK" "$ENVIRONMENT" "$DIAMOND_NAME" "UpdateCoreFacets" false 2>/dev/null
-
-          # check if last command was executed successfully, otherwise exit script with error message
-          checkFailure $? "update core facets in $DIAMOND_NAME on network $NETWORK"
-          echo "[info]     core facets added to $DIAMOND_NAME"
-        else
-          # check if diamond matches current version
-          # (need to do that first, otherwise facets might be updated to old diamond before diamond gets updated)
-          # check version of known diamond
-          KNOWN_VERSION=$(getContractVersionFromMasterLog "$NETWORK" "$ENVIRONMENT" "$DIAMOND_NAME" "$DIAMOND_ADDRESS")
-
-          # check result
-          if [[ "$?" -ne 0 ]]; then
-            # no version available > needs to be deployed
-            echo "[info]     could not extract current version from log file for $DIAMOND_NAME with address $DIAMOND_ADDRESS" # TODO: remove
-            DIAMOND_DEPLOYMENT_REQUIRED=true
-          else
-            # match with target version
-            if [[ ! "$KNOWN_VERSION" == "$DIAMOND_TARGET_VERSION" ]]; then
-              echo "[info]     $DIAMOND_NAME versions do not match (current version=$KNOWN_VERSION, target version=$DIAMOND_TARGET_VERSION)" # TODO: remove
-              DIAMOND_DEPLOYMENT_REQUIRED=true
-            else
-              echo "[info]     $DIAMOND_NAME  is already deployed in target version ($TARGET_VERSION)"
-            fi
-          fi
-        fi
-
-        # check if diamond deployment is required and deploy, if needed
-        if [[ "$DIAMOND_DEPLOYMENT_REQUIRED" == "true" ]]; then
-          # TODO: activate
-          #deploySingleContract "$DIAMOND_NAME" "$NETWORK" "$ENVIRONMENT" "$TARGET_VERSION" "true" 2>/dev/null
-          DIAMOND_ADDRESS=$(getContractAddressFromDeploymentLogs "$NETWORK" "$ENVIRONMENT" "$DIAMOND_NAME")
-
-          echo "[info]     $DIAMOND_NAME deployed to address $DIAMOND_ADDRESS"
-        fi
-
-        # ensure that diamond address is now available
-        if [[ -z $DIAMOND_ADDRESS ]]; then
-          error "    failed to deploy diamond (or get its address) - cannot continue. Please run script again."
-          exit 1
-        fi
-        DEPLOYMENT_REQUIRED=false
-
-        # Read contract keys for the network
-        CONTRACTS=($(jq -r ".${NETWORK}.${ENVIRONMENT}.${DIAMOND_NAME} | keys[]" "$TARGET_STATE_PATH"))
-
-        echo ""
-
-        # go through all contracts
-        for CONTRACT in "${CONTRACTS[@]}"; do
-          DEPLOYMENT_REQUIRED=false
-
-          # skip for LiFiDiamond contracts (since they have already been checked above)
-          if [[ "$CONTRACT" == *"LiFiDiamond"* ]]; then
-            continue
-          fi
-
-          echo "[info]    current contract $CONTRACT: "
-
-          # get values of current entry
-          TARGET_VERSION=$(cat "$TARGET_STATE_PATH" | jq --arg CONTRACT "$CONTRACT" --arg NETWORK "$NETWORK" --arg ENVIRONMENT "$ENVIRONMENT" --arg DIAMOND_NAME "$DIAMOND_NAME" '.[$NETWORK][$ENVIRONMENT][$DIAMOND_NAME][$CONTRACT]')
-          # remove "
-          TARGET_VERSION=$(echo "$TARGET_VERSION" | sed 's/^"//;s/"$//')
-
-          # determine contract type (periphery or facet)
-          if [[ "$CONTRACT" == *"Facet"* ]]; then
-            CONTRACT_TYPE="Facet"
-          else
-            CONTRACT_TYPE="Periphery"
-          fi
-
-          if [[ "$CONTRACT_TYPE" == "Facet" ]]; then
-            # case: facet contract
-            # check if current contract is known by diamond
-            CONTRACT_INFO=$(getContractInfoFromDiamondDeploymentLogByName "$NETWORK" "$ENVIRONMENT" "$DIAMOND_NAME" "$CONTRACT")
-
-            # check result
-            if [[ "$?" -ne 0 ]]; then
-              # not known by diamond > needs to be deployed
-              DEPLOYMENT_REQUIRED=true
-            else
-              # known by diamond
-              # extract version
-              #ADDRESS=$(echo "$CONTRACT_INFO" | jq -r 'keys[]' ) # TODO: remove
-              KNOWN_VERSION=$(echo "$CONTRACT_INFO" | jq -r '.[].Version // empty')
-
-              # Empty/unknown deployed version must not be treated as up-to-date
-              if [[ -z "$KNOWN_VERSION" || "$KNOWN_VERSION" == "null" ]]; then
-                echo "[info]     unknown deployed version for $CONTRACT; deployment check required" # TODO: remove
-                DEPLOYMENT_REQUIRED=true
-              elif [[ ! "$KNOWN_VERSION" == "$TARGET_VERSION" ]]; then
-                echo "[info]     versions do not match ($TARGET_VERSION!=$KNOWN_VERSION)" # TODO: remove
-                DEPLOYMENT_REQUIRED=true
-              else
-                echo "[info]     contract $CONTRACT is already deployed in target version ($TARGET_VERSION)"
-              fi
-            fi
-
-          elif [[ "$CONTRACT_TYPE" == "Periphery" ]]; then
-            # case: periphery contract
-            # check if current contract is known by diamond
-            KNOWN_ADDRESS=$(getPeripheryAddressFromDiamond "$NETWORK" "$DIAMOND_ADDRESS" "$CONTRACT")
-
-            # check result
-            if [[ "$?" -ne 0 ]]; then
-              # not known by diamond > needs to be deployed
-              DEPLOYMENT_REQUIRED=true
-            else
-              # check version of known address
-              KNOWN_VERSION=$(getContractVersionFromMasterLog "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$KNOWN_ADDRESS")
-
-              # check result
-              if [[ "$?" -ne 0 ]]; then
-                # not known by diamond > needs to be deployed
-                echo "[info]     versions do not match ($TARGET_VERSION!=$KNOWN_VERSION)" # TODO: remove
-                DEPLOYMENT_REQUIRED=true
-              else
-                # match with target version
-                if [[ ! "$KNOWN_VERSION" == "$TARGET_VERSION" ]]; then
-                  echo "[info]     versions do not match ($TARGET_VERSION!=$KNOWN_VERSION)" # TODO: remove
-                  DEPLOYMENT_REQUIRED=true
-                else
-                  echo "[info]     contract $CONTRACT is already deployed in target version ($TARGET_VERSION)"
-                fi
-              fi
-            fi
-          fi
-
-          if [[ "$DEPLOYMENT_REQUIRED" == "true" ]]; then
-            echo "[info]     now deploying $CONTRACT and adding it to $DIAMOND_NAME"
-            # TODO: activate
-            #deployAndAddContractToDiamond "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_NAME" "$TARGET_VERSION" 2>/dev/null
-            if [[ "$?" -eq 0 ]]; then
-              echo "[info]     $CONTRACT successfully deployed and added to $DIAMOND_NAME"
-            else
-              error "   $CONTRACT was not successfully deployed and added to $DIAMOND_NAME - please investigate and try again"
-            fi
-          fi
-          echo ""
-        done
-      done
-    done
-  done
-
-  echo "[info] done (updated contracts: $COUNTER)"
-} # TODO: WIP
 function getAddressOfDeployedContractFromDeploymentsFiles() {
   # read function arguments into variables
   NETWORK=$1
@@ -3575,13 +3010,10 @@ function addNewNetworkWithAllIncludedContractsInLatestVersions() {
 
   # go through all contracts
   for CONTRACT in ${ALL_CONTRACTS[*]}; do
-    # get current contract version
-    CURRENT_VERSION=$(getCurrentContractVersion "$CONTRACT")
-
     # add to target state json
-    addContractVersionToTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_NAME" "$CURRENT_VERSION" true
+    addContractVersionToTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_NAME" "$TARGET_STATE_VERSION_LATEST" true
     if [ $? -ne 0 ]; then
-      error "could not add contract version to target state for NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, CONTRACT=$CONTRACT, DIAMOND_NAME=$DIAMOND_NAME, VERSION=$CURRENT_VERSION"
+      error "could not add contract to target state for NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, CONTRACT=$CONTRACT, DIAMOND_NAME=$DIAMOND_NAME"
     fi
   done
 }
@@ -3615,6 +3047,60 @@ function findContractVersionInTargetState() {
     echo "[info] No matching entry found in target state file for NETWORK=$NETWORK, ENVIRONMENT=$ENVIRONMENT, CONTRACT=$CONTRACT"
     return 1
   fi
+}
+function assertTargetStateVersionAllowed() {
+  # read function arguments into variables
+  local CONTRACT="$1"
+  local NETWORK="$2"
+  local ENVIRONMENT="$3"
+  local DIAMOND_NAME="${4:-LiFiDiamond}"
+
+  # Asserted before the lookup, because the lookup cannot report it: its `exit 1` on a
+  # missing file kills only the `$( )` subshell, so an unreadable target state arrives
+  # here indistinguishable from "not declared" — and this guard would wave it through.
+  # A guard that cannot read its own input must refuse, not allow.
+  if [[ -z "$TARGET_STATE_PATH" || ! -f "$TARGET_STATE_PATH" ]]; then
+    error "cannot read the target state at '${TARGET_STATE_PATH:-<TARGET_STATE_PATH unset>}', so a version pin for $CONTRACT on $NETWORK cannot be checked. Deploy blocked."
+    return 1
+  fi
+
+  local TARGET_VERSION
+  TARGET_VERSION=$(findContractVersionInTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_NAME")
+
+  # no entry means the contract is not declared for this network - membership is decided by
+  # the callers, so nothing to assert here
+  if [[ $? -ne 0 ]]; then
+    return 0
+  fi
+
+  if [[ "$TARGET_VERSION" == "$TARGET_STATE_VERSION_LATEST" ]]; then
+    return 0
+  fi
+
+  local CURRENT_VERSION
+  CURRENT_VERSION=$(getCurrentContractVersion "$CONTRACT")
+
+  # `error` writes to stdout, so a contract whose source is missing or untagged leaves its
+  # diagnosis in CURRENT_VERSION. The refusal below would then quote that text as the
+  # repo's version and send the operator to the pin rather than to the unreadable source.
+  if [[ $? -ne 0 ]]; then
+    error "cannot read the current version of $CONTRACT, so the target-state pin $TARGET_VERSION on $NETWORK/$ENVIRONMENT cannot be checked. Deploy blocked. The version read reported: $CURRENT_VERSION"
+    return 1
+  fi
+
+  # Ordering is defined on MAJOR.MINOR.PATCH only, so a suffixed tag (2.1.3-tron) is
+  # compared on its base — on both sides, the same reduction the sign-time gate applies.
+  # Reducing only the repo's side would make a suffixed pin refuse every deploy, that of
+  # its own version included.
+  if [[ "${TARGET_VERSION%%-*}" == "${CURRENT_VERSION%%-*}" ]]; then
+    return 0
+  fi
+
+  # A pin can only hold a network back, never select an older build: deploySingleContract
+  # always compiles what the repo currently has. Deploying here would silently install
+  # $CURRENT_VERSION on a network that asked for $TARGET_VERSION.
+  error "target state pins $CONTRACT to $TARGET_VERSION on $NETWORK/$ENVIRONMENT but this repo is at $CURRENT_VERSION. Deploy blocked. Either check out $TARGET_VERSION, or change the pin in $TARGET_STATE_PATH to '$TARGET_STATE_VERSION_LATEST' (or to $CURRENT_VERSION) if the network should follow the repo."
+  return 1
 }
 # <<<<<< Reading and manipulation of target state JSON file
 
@@ -4289,6 +3775,126 @@ function assertDirectBroadcastCalldataGate() {
   return 0
 }
 
+# sendsDirectly: Whether a call on this network/environment bypasses the Safe.
+# The three clauses that decide "direct send" rather than "propose to the Safe"
+# ([CONV:ROUTING-PREDICATE]).
+#
+# Usage: sendsDirectly NETWORK ENVIRONMENT
+#   NETWORK     - target network name
+#   ENVIRONMENT - "production" or "staging"
+#
+# Example: sendsDirectly "arbitrum" "production"
+#
+# Returns: 0 when the call is sent directly, 1 when it is proposed to the Safe
+function sendsDirectly() {
+  local NETWORK="$1"
+  local ENVIRONMENT="$2"
+
+  [[ "$ENVIRONMENT" != "production" ]] \
+    || [[ "${SEND_PROPOSALS_DIRECTLY_TO_DIAMOND:-}" == "true" ]] \
+    || isTestnetNetwork "$NETWORK"
+}
+
+# assertProposalTicketForRun: Resolve the Linear ticket this run's proposals will
+# carry, before anything is compiled or broadcast.
+#
+# Usage: assertProposalTicketForRun ENVIRONMENT NETWORK...
+#   ENVIRONMENT - "production" or "staging"
+#   NETWORK...  - every network this run will touch
+#
+# Routing/Behavior:
+#   - No network proposes (staging, testnet-only, direct-to-diamond): no ticket
+#     is required and nothing is asked
+#   - SAFE_PROPOSAL_TICKET already set: validated, and refused here if malformed
+#   - Unset with a terminal attached: the operator is asked
+#   - Unset with no terminal (CI, an agent, a piped run): refused
+#
+# Example: assertProposalTicketForRun "production" "arbitrum" "base"
+#
+# Returns: 0 with SAFE_PROPOSAL_TICKET exported, 1 when no ticket could be resolved
+function assertProposalTicketForRun() {
+  local ENVIRONMENT="$1"
+  shift
+  local NETWORKS=("$@")
+
+  local NETWORK
+  local PROPOSES="false"
+  for NETWORK in "${NETWORKS[@]}"; do
+    if ! sendsDirectly "$NETWORK" "$ENVIRONMENT"; then
+      PROPOSES="true"
+      break
+    fi
+  done
+
+  if [[ "$PROPOSES" != "true" ]]; then
+    return 0
+  fi
+
+  # Not `local TICKET=$(...)`: `local` succeeds on its own, so it would swallow
+  # the CLI's exit code and hand the run an empty ticket.
+  # The mirror is carried in a name .env does not define: every worker
+  # re-sources it, and .env.example ships a blank SAFE_PROPOSAL_TICKET line, so
+  # the exported value is wiped in the child. Offered to the resolver rather
+  # than exported here, so an inherited one is validated like any other supplied
+  # value instead of trusted.
+  local SUPPLIED="${SAFE_PROPOSAL_TICKET:-${RESOLVED_SAFE_PROPOSAL_TICKET:-}}"
+  local SUPPLIED_REASON="${SAFE_PROPOSAL_REASON:-${RESOLVED_SAFE_PROPOSAL_REASON:-}}"
+
+  local PREFLIGHT
+  if ! PREFLIGHT=$(SAFE_PROPOSAL_TICKET="$SUPPLIED" SAFE_PROPOSAL_REASON="$SUPPLIED_REASON" bunx tsx script/deploy/safe/deploy-ticket-preflight.cli.ts); then
+    error "this run would propose to a Safe and has no Linear ticket - nothing has been deployed"
+    return 1
+  fi
+
+  # Line 1 is the ticket, line 2 the reason. Read positionally rather than with
+  # `read -r`, which stops at the first line and would need the reason's empty
+  # case handled separately; command substitution has already dropped the
+  # trailing newline, so a reasonless run leaves line 2 empty.
+  local TICKET REASON
+  TICKET=$(printf '%s\n' "$PREFLIGHT" | sed -n '1p')
+  REASON=$(printf '%s\n' "$PREFLIGHT" | sed -n '2p')
+
+  # Exit 0 is not consent, as assertDirectBroadcastCalldataGate says above: a CLI
+  # that never ran also exits 0 and prints nothing. The issue URL is this one's
+  # allow token, so it is checked rather than trusted.
+  if [[ "$TICKET" != https://linear.app/* ]]; then
+    error "the ticket pre-flight produced no Linear issue URL - aborting before anything is deployed"
+    return 1
+  fi
+
+  export SAFE_PROPOSAL_TICKET="$TICKET"
+  export RESOLVED_SAFE_PROPOSAL_TICKET="$TICKET"
+
+  # A reason belongs to the ticket it was stated for, and the resolver hands a
+  # supplied one back unchanged, so a previous rollout's reason would otherwise
+  # label this one's proposals. Only the mirror is dropped, and only once this
+  # run turns out to be a different ticket: a reason the operator stated for
+  # this run differs from the mirror, and an unstamped one was never scoped.
+  if [[ -n "$REASON" &&
+    "$REASON" == "${RESOLVED_SAFE_PROPOSAL_REASON:-}" &&
+    -n "${RESOLVED_SAFE_PROPOSAL_REASON_TICKET:-}" &&
+    "${RESOLVED_SAFE_PROPOSAL_REASON_TICKET}" != "$TICKET" ]]; then
+    warning "the reason exported in this shell was stated for ${RESOLVED_SAFE_PROPOSAL_REASON_TICKET}, not for $TICKET - dropping it"
+    REASON=""
+  fi
+
+  # The reason is warn-only until its adoption trigger fires, so an empty one
+  # exports nothing and the proposal path emits its own warning.
+  if [[ -n "$REASON" ]]; then
+    export SAFE_PROPOSAL_REASON="$REASON"
+    export RESOLVED_SAFE_PROPOSAL_REASON="$REASON"
+    export RESOLVED_SAFE_PROPOSAL_REASON_TICKET="$TICKET"
+    echo "[info] proposals from this run will carry $TICKET - $REASON"
+  else
+    # The pre-flight resolved no reason, so an inherited one must not stand
+    # behind its verdict.
+    unset SAFE_PROPOSAL_REASON RESOLVED_SAFE_PROPOSAL_REASON \
+      RESOLVED_SAFE_PROPOSAL_REASON_TICKET
+    echo "[info] proposals from this run will carry $TICKET"
+  fi
+  return 0
+}
+
 # Send or propose transaction
 # - SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true: send directly to target (e.g. new production networks before ownership transfer)
 # - Testnet (networks.json type=testnet): send directly; testnet diamonds are EOA-owned with no Safe/Timelock
@@ -4356,19 +3962,14 @@ function sendOrPropose() {
   # exactly that route; sequential fan-out on the other routes would be untested
   # dead generality, so fail loudly instead of improvising semantics here.
   if [[ ${#CALLDATAS[@]} -gt 1 ]]; then
-    if [[ "$TIMELOCK" != "true" ]] \
-       || [[ "$ENVIRONMENT" != "production" ]] \
-       || [[ "${SEND_PROPOSALS_DIRECTLY_TO_DIAMOND:-}" == "true" ]] \
-       || isTestnetNetwork "$NETWORK"; then
+    if [[ "$TIMELOCK" != "true" ]] || sendsDirectly "$NETWORK" "$ENVIRONMENT"; then
       error "sendOrPropose: multiple calldatas are only supported on the propose-with-timelock route (production + timelock)"
       return 1
     fi
   fi
 
   # Non-production, testnet, or direct-to-diamond: send directly for all networks
-  if [[ "$ENVIRONMENT" != "production" ]] \
-     || [[ "${SEND_PROPOSALS_DIRECTLY_TO_DIAMOND:-}" == "true" ]] \
-     || isTestnetNetwork "$NETWORK"; then
+  if sendsDirectly "$NETWORK" "$ENVIRONMENT"; then
     # Disjoint from the funnel gate by construction: a proposal is gated on its
     # calldata inside propose-to-safe.ts, and only the route that never reaches
     # it is gated here.
@@ -4751,79 +4352,6 @@ transferContractOwnership() {
   fi
 }
 
-function printDeploymentsStatus() {
-  # read function arguments into variables
-  ENVIRONMENT="$1"
-  echo ""
-  echo "+--------------------------------------+------------+------------+-----------+"
-  printf "+------------------------- ENVIRONMENT: %-10s --------------------------+\n" "$ENVIRONMENT"
-  echo "+--------------------------------------+-----------+-------------+-----------+"
-  echo "|                                      |  target   |   target    |           |"
-  echo "|       Facet (latest version)         | (mutable) | (immutable) |  current  |"
-  echo "+--------------------------------------+-----------+-------------+-----------+"
-
-  # Check if target state FILE exists
-  if [ ! -f "$TARGET_STATE_PATH" ]; then
-    error "target state FILE does not exist in path $TARGET_STATE_PATH"
-    exit 1
-  fi
-
-  # get an arrqay with all contracts (sorted: diamonds, coreFacets, nonCoreFacets, periphery)
-  local ALL_CONTRACTS=$(getAllContractNames "false")
-
-  # get a list of all networks
-  local NETWORKS=$(getAllNetworksArray)
-
-  # define column width for table
-  FACET_COLUMN_WIDTH=38
-  TARGET_COLUMN_WIDTH=11
-  CURRENT_COLUMN_WIDTH=10
-
-  # go through all contracts
-  for CONTRACT in ${ALL_CONTRACTS[*]}; do
-    # get current contract version
-    CURRENT_VERSION=$(getCurrentContractVersion "$CONTRACT")
-    printf "|%-${FACET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s| %-${CURRENT_COLUMN_WIDTH}s|\n" " $CONTRACT ($CURRENT_VERSION)" "" "" ""
-
-    for NETWORK in ${NETWORKS[*]}; do
-      PRINTED=false
-      #echo "  NETWORK: $NETWORK"
-
-      # get highest deployed version from master log
-      HIGHEST_VERSION_DEPLOYED=$(getHighestDeployedContractVersionFromMasterLog "$NETWORK" "$ENVIRONMENT" "$CONTRACT")
-      RETURN_CODE3=$?
-
-      # check if contract has entry in target state
-      TARGET_VERSION_DIAMOND=$(findContractVersionInTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "LiFiDiamond")
-      RETURN_CODE1=$?
-      TARGET_VERSION_DIAMOND_IMMUTABLE=$(findContractVersionInTargetState "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "LiFiDiamondImmutable")
-      RETURN_CODE2=$?
-
-      if [ "$RETURN_CODE1" -eq 0 ]; then
-        TARGET_ENTRY_1=$TARGET_VERSION_DIAMOND
-      else
-        TARGET_ENTRY_1=""
-      fi
-
-      if [ "$RETURN_CODE2" -eq 0 ]; then
-        TARGET_ENTRY_2=$TARGET_VERSION_DIAMOND_IMMUTABLE
-      else
-        TARGET_ENTRY_2=""
-      fi
-
-      if [[ "$RETURN_CODE1" -eq 0 || "$RETURN_CODE2" -eq 0 ]]; then
-        #echo "TARGET_VERSION_DIAMOND: $TARGET_VERSION_DIAMOND"
-        printf "|%-${FACET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s| %-${CURRENT_COLUMN_WIDTH}s|\n" "  -$NETWORK" "  $TARGET_ENTRY_1" "  $TARGET_ENTRY_2" "  $HIGHEST_VERSION_DEPLOYED"
-      fi
-
-    done
-
-    printf "|%-${FACET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s| %-${TARGET_COLUMN_WIDTH}s| %-${CURRENT_COLUMN_WIDTH}s|\n" "" "" "" ""
-
-  done
-  echo "+--------------------------------------+------------+------------+-----------+"
-  return 0
-}
 function printDeploymentsStatusV2() {
   # read function arguments into variables
   ENVIRONMENT="$1"
@@ -4839,7 +4367,7 @@ function printDeploymentsStatusV2() {
   printf "+-------------------------- ENVIRONMENT: %-10s ---------------------------+\n" "$ENVIRONMENT"
   echo "+--------------------------------------+-------------------+-------------------+"
   echo "|                                      |      mutable      |     immutable     |"
-  echo "|      Contract (latest version)       | target : deployed | target : deployed |"
+  echo "|       Contract (source version)      | policy : deployed | policy : deployed |"
   echo "+--------------------------------------+-------------------+-------------------+"
 
   echo "" >"$OUTPUT_FILE_PATH"
@@ -4851,7 +4379,7 @@ function printDeploymentsStatusV2() {
   printf "+-------------------------- ENVIRONMENT: %-10s ---------------------------+\n" "$ENVIRONMENT" >>"$OUTPUT_FILE_PATH"
   echo "+--------------------------------------+-------------------+-------------------+" >>"$OUTPUT_FILE_PATH"
   echo "|                                      |      mutable      |     immutable     |" >>"$OUTPUT_FILE_PATH"
-  echo "|      Contract (latest version)       | target : deployed | target : deployed |" >>"$OUTPUT_FILE_PATH"
+  echo "|       Contract (source version)      | policy : deployed | policy : deployed |" >>"$OUTPUT_FILE_PATH"
   echo "+--------------------------------------+-------------------+-------------------+" >>"$OUTPUT_FILE_PATH"
 
   # Check if target state FILE exists
@@ -4952,14 +4480,22 @@ function printDeploymentsStatusV2() {
         COLOR_CODE_1=$NC
         COLOR_CODE_2=$NC
         if [[ "$TARGET_ENTRY_1" != *"-"* && "$DEPLOYED_ENTRY_1" != *"-"* ]]; then
-          if [[ "$TARGET_ENTRY_1" == "$DEPLOYED_ENTRY_1" ]]; then
+          EXPECTED_VERSION_1="$TARGET_ENTRY_1"
+          if [[ "$EXPECTED_VERSION_1" == "$TARGET_STATE_VERSION_LATEST" ]]; then
+            EXPECTED_VERSION_1="${CURRENT_VERSION%%-*}"
+          fi
+          if [[ "$EXPECTED_VERSION_1" == "${DEPLOYED_ENTRY_1%%-*}" ]]; then
             COLOR_CODE_1=$GREEN
           else
             COLOR_CODE_1=$RED
           fi
         fi
         if [[ "$TARGET_ENTRY_2" != *"-"* && "$DEPLOYED_ENTRY_2" != *"-"* ]]; then
-          if [[ "$TARGET_ENTRY_2" == "$DEPLOYED_ENTRY_2" ]]; then
+          EXPECTED_VERSION_2="$TARGET_ENTRY_2"
+          if [[ "$EXPECTED_VERSION_2" == "$TARGET_STATE_VERSION_LATEST" ]]; then
+            EXPECTED_VERSION_2="${CURRENT_VERSION%%-*}"
+          fi
+          if [[ "$EXPECTED_VERSION_2" == "${DEPLOYED_ENTRY_2%%-*}" ]]; then
             COLOR_CODE_2=$GREEN
           else
             COLOR_CODE_2=$RED
@@ -5091,19 +4627,6 @@ function checkDeployRequirements() {
     done
   fi
   return 0
-}
-function isVersionTag() {
-  # read function arguments into variable
-  local STRING=$1
-
-  # define version tag pattern
-  local PATTERN="^[0-9]+\.[0-9]+\.[0-9]+$"
-
-  if [[ $STRING =~ $PATTERN ]]; then
-    return 0
-  else
-    return 1
-  fi
 }
 
 # >>>>>> helpers for executing commands with stdout/stderr capture
@@ -6069,43 +5592,6 @@ getContractDeploymentStatusSummary() {
 
   echo "=========================================="
 }
-
-function removeNetworkFromTargetStateJSON() {
-  # Function: removeNetworkFromTargetStateJSON
-  # Description: Removes a specific network from the target state JSON file for a given environment
-  # Arguments:
-  #   $1 - FILE_PATH: Path to the target state JSON file
-  #   $2 - ENVIRONMENT: The environment (e.g., "production", "staging")
-  #   $3 - NETWORK: The specific network to remove
-  # Returns:
-  #   None - updates the target state JSON file
-  # Example:
-  #   removeNetworkFromTargetStateJSON "script/deploy/_targetState.json" "production" "mainnet"
-
-  # read function arguments into variables
-  local FILE_PATH="$1"
-  local ENVIRONMENT="$2"
-  local NETWORK="$3"
-
-  # Check if the file exists
-  if [ ! -f "$FILE_PATH" ]; then
-    error "file not found: $FILE_PATH"
-    return 1
-  fi
-
-  # remove the specific network for the specified environment from the target state JSON file
-  jq --arg NETWORK "$NETWORK" --arg ENVIRONMENT "$ENVIRONMENT" 'del(.[$NETWORK][$ENVIRONMENT])' "$FILE_PATH" >"$FILE_PATH.tmp" && mv "$FILE_PATH.tmp" "$FILE_PATH"
-
-  if [ $? -eq 0 ]; then
-    echo "[info] existing '$NETWORK' entries for '$ENVIRONMENT' removed successfully from target state file ($FILE_PATH)"
-    return 0
-  else
-    error "failed to remove entries for network '$NETWORK' in environment '$ENVIRONMENT'."
-    rm "$FILE_PATH.tmp" >/dev/null 2>&1
-    return 1
-  fi
-}
-
 # estimatePauseCost: echo the wei cost of one pauseDiamond() (gasEstimate × gasPrice) for the
 # production LiFiDiamond on NETWORK. EVM only; optional PAUSER_ADDRESS overrides the --from
 # (defaults to config/global.json .pauserWallet).

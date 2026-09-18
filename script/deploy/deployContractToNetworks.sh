@@ -328,6 +328,12 @@ function deployContractToNetworks() {
     exit 1
   fi
 
+  # Ahead of the group builds, so a rollout with no ticket costs one message
+  # rather than a compile and the first network's deployment.
+  if ! assertProposalTicketForRun "$TARGET_ENVIRONMENT" "${TARGET_NETWORKS[@]}"; then
+    exit 1
+  fi
+
   echo ""
   echo "[info] deploying $TARGET_CONTRACT v$TARGET_VERSION to ${#TARGET_NETWORKS[@]} network(s) in $TARGET_ENVIRONMENT environment"
   echo "[info] deployer address: $(getDeployerAddress "" "$TARGET_ENVIRONMENT")"
@@ -450,6 +456,9 @@ if [[ ! -f ".env" ]]; then
 fi
 
 # load env + deploy framework (same set as scriptMaster.sh)
+# Before `source .env`: the env file blanks what the caller exported.
+# shellcheck disable=SC1091
+source script/deploy/shared/captureProposalIntent.sh
 # shellcheck disable=SC1091
 source .env
 # shellcheck disable=SC1091
