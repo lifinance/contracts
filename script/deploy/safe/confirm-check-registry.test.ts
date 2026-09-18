@@ -1721,6 +1721,26 @@ describe('codehashCheckResult', () => {
     expect(result.actual).toContain('0xdeadbeef')
   })
 
+  it('stands down on a known non-installing call, naming the function', () => {
+    for (const fn of ['updateDelay', 'changeThreshold']) {
+      const result = codehashCheckResult(
+        gate({
+          madeNoClaim: true,
+          targets: [],
+          unopened: [],
+          knownCalls: [fn],
+        }),
+        NETWORK
+      )
+
+      expect(result.status).toBe('not-applicable')
+      expect(result.anchor).toBe('A-LOCAL')
+      expect(result.actual).toContain(fn)
+      expect(result.actual).toContain('no bytecode to compare')
+      expect(result.actual).not.toMatch(/could not open/)
+    }
+  })
+
   it('reports a target the gate compared and found different as a mismatch', () => {
     const result = codehashCheckResult(
       gate({
@@ -2221,6 +2241,40 @@ describe('immutablesCheckResult', () => {
     )
 
     expect(result.status).toBe('not-applicable')
+  })
+
+  it('stands down on a known non-installing call, naming the function', () => {
+    for (const fn of ['updateDelay', 'changeThreshold']) {
+      const result = immutablesCheckResult(
+        codehashGate({
+          madeNoClaim: true,
+          targets: [],
+          unopened: [],
+          knownCalls: [fn],
+        }),
+        NETWORK
+      )
+
+      expect(result.status).toBe('not-applicable')
+      expect(result.anchor).toBe('A-LOCAL')
+      expect(result.actual).toContain(fn)
+      expect(result.actual).toContain('no immutables to read')
+    }
+  })
+
+  it('refuses, never stands down, when a frame would not open', () => {
+    const result = immutablesCheckResult(
+      codehashGate({
+        madeNoClaim: true,
+        targets: [],
+        unopened: ['0xdeadbeef'],
+      }),
+      NETWORK
+    )
+
+    expect(result.status).toBe('error')
+    expect(result.anchor).toBe('A-UNRESOLVED')
+    expect(result.actual).toMatch(/could not open 0xdeadbeef/)
   })
 
   it('asks for an acknowledgement when only the slot mapping is assumed', () => {

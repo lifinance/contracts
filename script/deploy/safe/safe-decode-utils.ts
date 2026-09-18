@@ -11,13 +11,14 @@ import * as path from 'path'
 
 import { formatAddressForNetworkCliDisplay } from '@lifi/tron-devkit'
 import { consola } from 'consola'
-import type { Abi, Address, Hex } from 'viem'
+import type { Abi, AbiParameter, Address, Hex } from 'viem'
 import {
   bytesToHex,
   decodeFunctionData,
   getAddress,
   keccak256,
   parseAbi,
+  parseAbiItem,
   stringToHex,
   toFunctionSelector,
 } from 'viem'
@@ -714,6 +715,12 @@ const ABI_SCHEDULE_BATCH = parseAbi([
 const ABI_SCHEDULE_SINGLE = parseAbi([
   'function schedule(address,uint256,bytes,bytes32,bytes32,uint256)',
 ])
+const ABI_EXECUTE_BATCH = parseAbi([
+  'function executeBatch(address[],uint256[],bytes[],bytes32,bytes32)',
+])
+const ABI_EXECUTE_SINGLE = parseAbi([
+  'function execute(address,uint256,bytes,bytes32,bytes32)',
+])
 const ABI_BATCH_SET_CONTRACT_SELECTOR_WHITELIST = parseAbi([
   'function batchSetContractSelectorWhitelist(address[],bytes4[],bool)',
 ])
@@ -1146,6 +1153,19 @@ export interface ICollectedDiamondCuts {
    * second may be rendered as an affirmative pass.
    */
   unopened: string[]
+  /**
+   * Function names of frames the local selector registry resolved and that
+   * install nothing, in the order the calldata carries them.
+   *
+   * "Known" is the repo's own registry (diamond.json, the clear-signing
+   * formats, whitelist.json, the well-known Timelock/Safe signatures) — the
+   * same source section 1 renders from, and never the 4byte network fallback,
+   * because a directory hit proves nothing about what a call installs. A known
+   * signature that declares a dynamic `bytes` argument is still `unopened`
+   * unless this decoder walks it as an envelope: that argument is where a frame
+   * hides, and only a frame this decoder opened may be vouched for.
+   */
+  knownCalls: string[]
 }
 
 const selectorOf = (abi: Abi): string =>
@@ -1158,6 +1178,8 @@ const selectorOf = (abi: Abi): string =>
 const DIAMOND_CUT_SELECTOR = selectorOf(ABI_DIAMOND_CUT).toLowerCase()
 const SCHEDULE_BATCH_SELECTOR = selectorOf(ABI_SCHEDULE_BATCH).toLowerCase()
 const SCHEDULE_SINGLE_SELECTOR = selectorOf(ABI_SCHEDULE_SINGLE).toLowerCase()
+const EXECUTE_BATCH_SELECTOR = selectorOf(ABI_EXECUTE_BATCH).toLowerCase()
+const EXECUTE_SINGLE_SELECTOR = selectorOf(ABI_EXECUTE_SINGLE).toLowerCase()
 const REGISTER_PERIPHERY_SELECTOR = selectorOf(
   ABI_REGISTER_PERIPHERY_CONTRACT
 ).toLowerCase()
@@ -1165,29 +1187,32 @@ const REGISTER_PERIPHERY_SELECTOR = selectorOf(
 /** Deep enough for the envelopes in use, shallow enough to bound the walk. */
 const MAX_ENVELOPE_DEPTH = 4
 
-/**
- * Selectors this module can decode on its own. Membership is what separates
- * "a call whose arguments happen to contain four bytes" from "an envelope we
- * cannot see inside".
- */
-const DECODABLE_SELECTORS = new Set(
-  (
-    [
-      ...ABI_DIAMOND_CUT,
-      ...ABI_SCHEDULE_BATCH,
-      ...ABI_SCHEDULE_SINGLE,
-      ...ABI_BATCH_SET_CONTRACT_SELECTOR_WHITELIST,
-      ...ABI_REGISTER_PERIPHERY_CONTRACT,
-      ...ABI_ACCESS_CONTROL_ROLE,
-    ] as Abi
+const carriesDynamicBytes = (params: readonly AbiParameter[]): boolean =>
+  params.some(
+    (param) =>
+      /^bytes(\[\d*\])*$/.test(param.type) ||
+      ('components' in param && carriesDynamicBytes(param.components))
   )
-    .filter((item) => item.type === 'function')
-    .map((item) =>
-      toFunctionSelector(
-        item as Parameters<typeof toFunctionSelector>[0]
-      ).toLowerCase()
-    )
-)
+
+/**
+ * The name of a call the local registry knows and whose arguments cannot hold
+ * a frame, or undefined when the selector must stay on the unopened path.
+ *
+ * @param selector - the lower-cased 4-byte selector of a frame
+ */
+const knownNonInstallingCall = (selector: string): string | undefined => {
+  const local = getLocalSelectorInfo(selector)
+  if (!local) return undefined
+  let inputs: readonly AbiParameter[]
+  try {
+    const item = parseAbiItem(`function ${local.signature}`)
+    if (item.type !== 'function') return undefined
+    inputs = item.inputs
+  } catch {
+    return undefined
+  }
+  return carriesDynamicBytes(inputs) ? undefined : local.name
+}
 
 const asHex = (value: unknown): Hex =>
   typeof value === 'string'
@@ -1256,7 +1281,7 @@ export const collectDiamondCutTargets = (
   const calls: IDiamondCutCall[] = []
   const registrations: IPeripheryRegistration[] = []
   if (!data || data === '0x')
-    return { calls, registrations, refusals: [], unopened: [] }
+    return { calls, registrations, refusals: [], unopened: [], knownCalls: [] }
 
   const hex = data.toLowerCase()
   if (!/^0x([0-9a-f]{2})*$/.test(hex))
@@ -1264,6 +1289,7 @@ export const collectDiamondCutTargets = (
       calls: [],
       registrations: [],
       unopened: [],
+      knownCalls: [],
       refusals: [
         `This proposal's calldata is not well-formed hex (${
           data.length
@@ -1276,6 +1302,7 @@ export const collectDiamondCutTargets = (
 
   // Frames this decoder could not open, so the refusal below can say so.
   const unopened: string[] = []
+  const knownCalls: string[] = []
 
   const walk = (payload: string, depth: number): void => {
     // An empty payload is a legitimate value-only entry in a batch, not a
@@ -1349,6 +1376,32 @@ export const collectDiamondCutTargets = (
       return
     }
 
+    if (selector === EXECUTE_BATCH_SELECTOR) {
+      let decoded
+      try {
+        decoded = decodeFunctionData({ abi: ABI_EXECUTE_BATCH, data: framed })
+      } catch (error) {
+        unopened.push(`${selector} (${message(error)})`)
+        return
+      }
+      const payloads = Array.isArray(decoded.args?.[2]) ? decoded.args[2] : []
+      for (const nested of payloads)
+        walk(asHex(nested).toLowerCase(), depth + 1)
+      return
+    }
+
+    if (selector === EXECUTE_SINGLE_SELECTOR) {
+      let decoded
+      try {
+        decoded = decodeFunctionData({ abi: ABI_EXECUTE_SINGLE, data: framed })
+      } catch (error) {
+        unopened.push(`${selector} (${message(error)})`)
+        return
+      }
+      walk(asHex(decoded.args?.[2]).toLowerCase(), depth + 1)
+      return
+    }
+
     if (selector === REGISTER_PERIPHERY_SELECTOR) {
       let decoded
       try {
@@ -1372,10 +1425,15 @@ export const collectDiamondCutTargets = (
       return
     }
 
-    // Known and carrying no nested calldata: a role change, a whitelist entry.
-    // Its arguments may hold the four bytes of the diamondCut selector without
-    // hiding a cut, which is why membership here and not the byte scan decides.
-    if (DECODABLE_SELECTORS.has(selector)) return
+    // Known and carrying no nested calldata: a role change, a whitelist entry,
+    // a delay update. Its arguments may hold the four bytes of the diamondCut
+    // selector without hiding a cut, which is why the registry and not the
+    // byte scan decides.
+    const known = knownNonInstallingCall(selector)
+    if (known) {
+      knownCalls.push(known)
+      return
+    }
 
     unopened.push(selector)
   }
@@ -1394,7 +1452,7 @@ export const collectDiamondCutTargets = (
         ]
       : []
 
-  return { calls, registrations, refusals, unopened }
+  return { calls, registrations, refusals, unopened, knownCalls }
 }
 
 /**

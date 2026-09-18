@@ -625,6 +625,26 @@ export const NOTHING_INSTALLED_TO_HASH =
   'this proposal installs no contract code, so there is no bytecode to compare'
 
 /**
+ * The stand-down sentence for a proposal whose every call the decoder resolved
+ * and found non-installing, naming what it does instead.
+ *
+ * @param knownCalls - Function names the decoder resolved.
+ * @param nothingToCheck - What the gate has none of, as the row's tail.
+ * @param fallback - The sentence when no call was resolved.
+ * @returns The `actual` of the row.
+ */
+const standsDownOver = (
+  knownCalls: readonly string[] | undefined,
+  nothingToCheck: string,
+  fallback: string
+): string =>
+  knownCalls && knownCalls.length > 0
+    ? `this proposal calls ${knownCalls.join(
+        ', '
+      )} and installs no code, so there ${nothingToCheck}`
+    : fallback
+
+/**
  * What the row states under "observed" and "→" when the gate refused a target.
  *
  * A single refusal states why, not just that: `0x…: UNVERIFIABLE` is a status
@@ -710,7 +730,11 @@ export const codehashCheckResult = (
           network,
           status: 'not-applicable',
           expected: EVERY_TARGET_ATTESTED,
-          actual: NOTHING_INSTALLED_TO_HASH,
+          actual: standsDownOver(
+            gate.knownCalls,
+            'is no bytecode to compare',
+            NOTHING_INSTALLED_TO_HASH
+          ),
           anchor: 'A-LOCAL',
         }
 
@@ -888,7 +912,11 @@ export const immutablesCheckResult = (
           network,
           status: 'not-applicable',
           expected: EVERY_IMMUTABLE_DECLARED,
-          actual: NO_IMMUTABLES_TO_CHECK,
+          actual: standsDownOver(
+            gate.knownCalls,
+            'are no immutables to read',
+            NO_IMMUTABLES_TO_CHECK
+          ),
           anchor: 'A-LOCAL',
         }
 

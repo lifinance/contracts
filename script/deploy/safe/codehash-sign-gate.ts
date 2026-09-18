@@ -79,6 +79,11 @@ export interface ICodehashSignGate {
    * `summary` would be deciding on a sentence the proposer's calldata shapes.
    */
   unopened?: readonly string[]
+  /**
+   * Function names of the calls the decoder resolved and found to install
+   * nothing, so a gate standing down can say what the proposal does instead.
+   */
+  knownCalls?: readonly string[]
 }
 
 /**
@@ -314,11 +319,16 @@ export const evaluateCodehashSignGate = async (
       targets: [],
       madeNoClaim: true,
       unopened: collected.unopened,
+      knownCalls: collected.knownCalls,
       summary:
         collected.unopened.length > 0
           ? `Nothing installing code was decoded, but this decoder could not open ${collected.unopened.join(
               ', '
             )} — so it cannot state whether an installation is present. Nothing here has been verified.`
+          : collected.knownCalls.length > 0
+          ? `This proposal calls ${collected.knownCalls.join(
+              ', '
+            )} and installs no code, so there is no installed bytecode to vouch for. This gate makes no claim about the rest of the proposal.`
           : 'No diamondCut and no periphery registration was decoded from this calldata, so there is no installed bytecode to vouch for. This gate makes no claim about the rest of the proposal.',
     }
 

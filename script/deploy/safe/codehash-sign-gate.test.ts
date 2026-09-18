@@ -744,6 +744,27 @@ describe('the render distinguishes every bucket, including the two that are not 
     expect(gate.summary).not.toMatch(/could not open/)
     expect(gate.madeNoClaim).toBeUndefined()
   })
+
+  it('stands down on a governance call the decoder knows, naming it', async () => {
+    // Section 1 decodes `updateDelay` with its argument; the gate must not then
+    // tell the signer the same selector could not be opened.
+    const updateDelay = encodeFunctionData({
+      abi: parseAbi(['function updateDelay(uint256)']),
+      functionName: 'updateDelay',
+      args: [600n],
+    })
+    const gate = await evaluateCodehashSignGate(
+      await gateInput(wrapped([updateDelay]), NETWORK),
+      () => deps()
+    )
+
+    expect(gate.madeNoClaim).toBe(true)
+    expect(gate.blocksSigning).toBe(false)
+    expect(gate.unopened).toEqual([])
+    expect(gate.knownCalls).toEqual(['updateDelay'])
+    expect(gate.summary).toContain('updateDelay')
+    expect(gate.summary).not.toMatch(/could not open/)
+  })
 })
 
 describe('a verdict is about specific bytes', () => {

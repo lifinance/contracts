@@ -14,7 +14,13 @@ import {
   it,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
-import { encodeFunctionData, getAddress, parseAbi, type Hex } from 'viem'
+import {
+  encodeFunctionData,
+  getAddress,
+  parseAbi,
+  toFunctionSelector,
+  type Hex,
+} from 'viem'
 
 import { FacetCutActionEnum } from '../codehash/cut-classification'
 
@@ -54,6 +60,33 @@ const cutCalldata = (
       ]) as never,
       init as `0x${string}`,
       initCalldata,
+    ],
+  })
+
+const updateDelayCalldata = (delay: bigint): Hex =>
+  encodeFunctionData({
+    abi: parseAbi(['function updateDelay(uint256)']),
+    functionName: 'updateDelay',
+    args: [delay],
+  })
+
+const changeThresholdCalldata = (threshold: bigint): Hex =>
+  encodeFunctionData({
+    abi: parseAbi(['function changeThreshold(uint256)']),
+    functionName: 'changeThreshold',
+    args: [threshold],
+  })
+
+const executeCalldata = (payload: Hex): Hex =>
+  encodeFunctionData({
+    abi: parseAbi(['function execute(address,uint256,bytes,bytes32,bytes32)']),
+    functionName: 'execute',
+    args: [
+      DIAMOND as `0x${string}`,
+      0n,
+      payload,
+      `0x${'00'.repeat(32)}` as Hex,
+      `0x${'11'.repeat(32)}` as Hex,
     ],
   })
 
@@ -158,6 +191,7 @@ describe('collectDiamondCutTargets', () => {
       registrations: [],
       refusals: [],
       unopened: [],
+      knownCalls: [],
     })
   })
 
@@ -237,6 +271,65 @@ describe('collectDiamondCutTargets', () => {
 
     expect(collected.calls).toHaveLength(1)
     expect(collected.unopened).toEqual([])
+  })
+
+  it('names a timelock call the registry knows instead of reporting it unopened', () => {
+    const collected = collectDiamondCutTargets(
+      scheduleBatch([updateDelayCalldata(600n)], [TIMELOCK])
+    )
+
+    expect(collected.calls).toEqual([])
+    expect(collected.refusals).toEqual([])
+    expect(collected.unopened).toEqual([])
+    expect(collected.knownCalls).toEqual(['updateDelay'])
+  })
+
+  it('names a Safe self-call the registry knows instead of reporting it unopened', () => {
+    const collected = collectDiamondCutTargets(changeThresholdCalldata(2n))
+
+    expect(collected.unopened).toEqual([])
+    expect(collected.knownCalls).toEqual(['changeThreshold'])
+  })
+
+  it('keeps a selector no local source knows on the unopened path', () => {
+    const collected = collectDiamondCutTargets(
+      scheduleBatch(['0xdeadbeef00000000' as Hex])
+    )
+
+    expect(collected.unopened).toEqual(['0xdeadbeef'])
+    expect(collected.knownCalls).toEqual([])
+  })
+
+  it('keeps a known signature that carries a bytes argument on the unopened path', () => {
+    // Known to the registry, but a `bytes` argument is where an envelope holds
+    // a frame, and only a frame this decoder opened may be vouched for.
+    const selector = toFunctionSelector(
+      'startBridgeTokensViaAcrossV4NativeMin((bytes8,bytes32,bytes32,uint64,bytes32,uint256,bytes32,uint32,uint32,uint32,bytes))'
+    )
+    const collected = collectDiamondCutTargets(
+      `${selector}${'00'.repeat(64)}` as Hex
+    )
+
+    expect(collected.unopened).toEqual([selector])
+    expect(collected.knownCalls).toEqual([])
+  })
+
+  it('walks the timelock execute envelope like the schedule one', () => {
+    const cut = cutCalldata(
+      [[FACET_A, FacetCutActionEnum.Add, [SELECTOR_A]]],
+      ZERO
+    )
+
+    const gated = collectDiamondCutTargets(executeCalldata(cut))
+    expect(gated.calls).toHaveLength(1)
+    expect(gated.unopened).toEqual([])
+
+    const governance = collectDiamondCutTargets(
+      executeCalldata(updateDelayCalldata(600n))
+    )
+    expect(governance.calls).toEqual([])
+    expect(governance.unopened).toEqual([])
+    expect(governance.knownCalls).toEqual(['updateDelay'])
   })
 
   it('refuses calldata that hides a cut inside an envelope it cannot decode', () => {
