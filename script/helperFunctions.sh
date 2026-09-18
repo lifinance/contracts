@@ -1077,7 +1077,7 @@ function saveDiamondFacets() {
     fi
 
     # throttle background jobs
-    while [[ $(jobs | wc -l | tr -d ' ') -ge $CONCURRENCY ]]; do
+    while [[ $(jobs -rp | wc -l | tr -d ' ') -ge $CONCURRENCY ]]; do
       sleep 0.1
     done
 
@@ -1242,7 +1242,7 @@ function saveDiamondPeriphery() {
   # resolve each periphery address in parallel and write to temp files
   for CONTRACT in ${PERIPHERY_CONTRACTS}; do
     # throttle background jobs; for Tron wait 2s between dispatches to respect RPC rate limits
-    while [[ $(jobs | wc -l | tr -d ' ') -ge $CONCURRENCY ]]; do
+    while [[ $(jobs -rp | wc -l | tr -d ' ') -ge $CONCURRENCY ]]; do
       if isTronNetwork "$NETWORK"; then sleep 2; else sleep 0.1; fi
     done
 
@@ -2873,6 +2873,31 @@ function logNetworkResult() {
   local TIMESTAMP
   TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S') || return 1
   printf '[%s] [%s] %s: %s\n' "$TIMESTAMP" "$NETWORK" "$STATUS" "$MESSAGE"
+}
+# prefixNetworkOutput: Tag each line of a background worker's output with its network.
+# Reads stdin until EOF, so it is used as the consumer of a pipeline.
+#
+# Prefer this over `| sed "s/^/[$NETWORK] /"`: sed block-buffers when its stdout is
+# not a tty, so a worker's whole output lands at once when it exits, and a wedged
+# run looks identical to a working one in a redirected log (EXSC-1038). The
+# builtins below write one line as soon as it is read.
+#
+# Usage: someNetworkWorker ARGS... | prefixNetworkOutput NETWORK
+#   NETWORK - Network name to prefix each line with
+#
+# Returns: 0. Writes "[NETWORK] LINE" to stdout, one write per input line.
+# Example: deployToNetworkWorker "$NETWORK" ... 2>&1 | prefixNetworkOutput "$NETWORK"
+function prefixNetworkOutput() {
+  local NETWORK="$1"
+  local LINE
+  while IFS= read -r LINE; do
+    printf '[%s] %s\n' "$NETWORK" "$LINE"
+  done
+  # a worker killed mid-line leaves text with no trailing newline: read reports
+  # failure for it but still assigns it, so emit it instead of dropping it
+  if [[ -n "${LINE:-}" ]]; then
+    printf '[%s] %s\n' "$NETWORK" "$LINE"
+  fi
 }
 # <<<<< output to console
 

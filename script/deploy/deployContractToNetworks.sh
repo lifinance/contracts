@@ -105,6 +105,42 @@ function killProcessTree() {
   kill -CONT "$ROOT_PID" 2>/dev/null
 }
 
+# reportStalledWave: Report what is still alive in a wave that has outlived its
+# expected runtime, then let it keep running. Nothing here kills anything.
+#
+# A wave is backgrounded pipelines, so it cannot finish until each output reader
+# sees EOF, which needs every holder of that pipe's write end to close it - a
+# child outliving its worker keeps the wave open with no deploy left to do
+# (EXSC-1038).
+#
+# Listed by process group rather than by walking children: such a child is
+# orphaned the moment its worker exits, so `pgrep -P` can no longer reach it,
+# while its process group survives reparenting. `ps -eo` because BSD and GNU `ps`
+# disagree on what `-g` selects. The STAT column is the other half of the answer -
+# a process in D or T state is stuck, not working.
+#
+# `comm=` (executable only), never `command=`: a live `cast send` carries
+# `--private-key` and an `--rpc-url` with the provider key embedded in its
+# arguments, so printing argv would write both into every deploy log
+# ([CONV:REDACT-RPC-URL]). The executable name answers the question this report
+# asks - whether any deploy work is still running. To go deeper on one entry,
+# read its argv by pid, out of band.
+#
+# Usage: reportStalledWave SECONDS_ELAPSED
+#   SECONDS_ELAPSED - how long the wave has been running, measured from its start
+#
+# Returns: 0
+function reportStalledWave() {
+  local SECONDS_ELAPSED="$1"
+  local PGID
+  PGID=$(ps -o pgid= -p $$ 2>/dev/null | tr -d ' ')
+  warning "wave has been running ${SECONDS_ELAPSED}s - processes still alive in this run:"
+  echo "    PID   PGID   PPID STAT ELAPSED EXECUTABLE"
+  ps -eo pid=,pgid=,ppid=,stat=,etime=,comm= 2>/dev/null |
+    awk -v PGID="$PGID" '$2 == PGID' | sed 's/^/  /'
+  warning "no forge/cast/bun above means the wave is held open by a leftover child, not by work still in progress"
+}
+
 # abortInFlightDeployments: SIGINT/SIGTERM handler. cleanupBackgroundJobs' flat
 # `pkill -P $$` would only reach the worker subshells and orphan their forge/bun
 # grandchildren, which would keep broadcasting transactions (unrecorded in the
@@ -152,19 +188,44 @@ function launchDeployWave() {
   local WAVE_NETWORKS=("$@")
   local WAVE_NETWORK
 
+  # resolved before the first worker launches: a zero, negative or non-numeric
+  # value reads as 0 in the comparison below and would fire the report on every
+  # poll, five times a second, for the whole wave
+  local STALL_REPORT_AFTER="${WAVE_STALL_REPORT_SECONDS:-600}"
+  if [[ ! "$STALL_REPORT_AFTER" =~ ^[1-9][0-9]*$ ]]; then
+    error "WAVE_STALL_REPORT_SECONDS must be a positive integer (check your .env) - got '$STALL_REPORT_AFTER'"
+    exit 1
+  fi
+
   for WAVE_NETWORK in "${WAVE_NETWORKS[@]}"; do
     # throttle: wait for a free slot before launching the next network
-    while [[ $(jobs | wc -l) -ge $WAVE_CONCURRENCY ]]; do
+    while [[ $(jobs -rp | wc -l) -ge $WAVE_CONCURRENCY ]]; do
       sleep 1
     done
     # </dev/null makes the no-stdin guarantee explicit - the sourced framework must
-    # never block on an interactive prompt inside a background worker; sed attributes
-    # every line of framework output to its network, since concurrent workers'
-    # otherwise-unprefixed logs interleave on the shared terminal
-    deployToNetworkWorker "$WAVE_NETWORK" "$WAVE_ENVIRONMENT" "$WAVE_CONTRACT" "$WAVE_VERSION" "$WAVE_RESULT_DIR" </dev/null 2>&1 | sed "s/^/[$WAVE_NETWORK] /" &
+    # never block on an interactive prompt inside a background worker;
+    # prefixNetworkOutput attributes every line of framework output to its network,
+    # since concurrent workers' otherwise-unprefixed logs interleave on the shared
+    # terminal, and streams it unbuffered so a stalled worker stops producing output
+    deployToNetworkWorker "$WAVE_NETWORK" "$WAVE_ENVIRONMENT" "$WAVE_CONTRACT" "$WAVE_VERSION" "$WAVE_RESULT_DIR" </dev/null 2>&1 | prefixNetworkOutput "$WAVE_NETWORK" &
   done
 
-  # wait for every network in this wave before the caller repoints foundry.toml
+  # wait for every network in this wave before the caller repoints foundry.toml.
+  # polled rather than a bare `wait` so a wave that stops finishing says what is
+  # still holding it open, instead of looking the same as one still working
+  local WAVE_START=$SECONDS
+  local NEXT_REPORT=$STALL_REPORT_AFTER
+  local ELAPSED
+  # short poll so a wave that finishes quickly is not held up by the poll itself
+  while [[ -n "$(jobs -rp)" ]]; do
+    sleep 0.2
+    ELAPSED=$((SECONDS - WAVE_START))
+    # re-check: a wave that finished during the sleep above is not stalled
+    if [[ $ELAPSED -ge $NEXT_REPORT && -n "$(jobs -rp)" ]]; then
+      reportStalledWave "$ELAPSED"
+      NEXT_REPORT=$((ELAPSED + STALL_REPORT_AFTER))
+    fi
+  done
   wait
 }
 
