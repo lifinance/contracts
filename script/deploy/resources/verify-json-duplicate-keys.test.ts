@@ -115,7 +115,7 @@ describe('verify-json-duplicate-keys CLI', () => {
     const { exitCode, output } = run([join(scratch, 'absent.json')])
 
     expect(exitCode).toBe(2)
-    expect(output).toContain('Could not read the paths to scan')
+    expect(output).toContain('Could not read')
   })
 
   it('errors rather than passing when the paths hold no JSON file', () => {
@@ -124,9 +124,62 @@ describe('verify-json-duplicate-keys CLI', () => {
       const { exitCode, output } = run([empty])
 
       expect(exitCode).toBe(2)
-      expect(output).toContain('Nothing was verified')
+      expect(output).toContain('Nothing about it was verified')
     } finally {
       rmSync(empty, { recursive: true, force: true })
+    }
+  })
+
+  it('errors on a path that yields nothing even when another path yields files', () => {
+    // The overall count is non-zero here, so only a per-path check catches it.
+    // A mistyped or symlinked entry in the workflow's list would otherwise ride
+    // along on its neighbours and read as verified.
+    const empty = mkdtempSync(join(tmpdir(), 'json-duplicate-keys-empty2-'))
+    try {
+      const { exitCode, output } = run([cleanFile, empty])
+
+      expect(exitCode).toBe(2)
+      expect(output).toContain(empty)
+    } finally {
+      rmSync(empty, { recursive: true, force: true })
+    }
+  })
+
+  it('errors on a symlinked directory instead of reporting success over nothing', () => {
+    const real = mkdtempSync(join(tmpdir(), 'json-duplicate-keys-real-'))
+    const parent = mkdtempSync(join(tmpdir(), 'json-duplicate-keys-parent-'))
+    try {
+      writeFileSync(join(real, 'duplicate.json'), DUPLICATE)
+      const link = join(parent, 'linked')
+      symlinkSync(real, link)
+
+      // The jsonlint step follows such a link and would scan the duplicate, so
+      // passing here would be a silent divergence between the two steps.
+      const { exitCode } = run([link])
+      expect(exitCode).toBe(2)
+
+      expect(run([real]).exitCode).toBe(1)
+    } finally {
+      rmSync(real, { recursive: true, force: true })
+      rmSync(parent, { recursive: true, force: true })
+    }
+  })
+
+  it('errors rather than crashing on malformed JSON', () => {
+    // Its own directory: dropping a malformed file into `scratch` would change
+    // what the directory-walk case above scans, and silently make it pass for
+    // the wrong reason.
+    const broken = mkdtempSync(join(tmpdir(), 'json-duplicate-keys-broken-'))
+    try {
+      const malformed = join(broken, 'malformed.json')
+      writeFileSync(malformed, '{"a\\q": 1}')
+
+      const { exitCode, output } = run([malformed])
+
+      expect(exitCode).toBe(2)
+      expect(output).toContain('could not be scanned')
+    } finally {
+      rmSync(broken, { recursive: true, force: true })
     }
   })
 })

@@ -23,9 +23,10 @@ const EXIT_ERROR = 2
 /**
  * Expands the given paths into the JSON files to scan.
  *
- * Skips symlinks the way the JSON checker's own `find` does: a link is resolved
- * outside the checked set, so scanning it would report on a file this repo does
- * not necessarily own.
+ * Skips every symlink, file or directory: a link resolves outside the checked
+ * set, so scanning it would report on a file this repo does not necessarily own.
+ * The jsonlint step follows a symlinked directory instead, so the caller checks
+ * that each path it passes actually yielded files.
  *
  * @param paths - Files or directories, relative to the working directory.
  * @returns Every `.json` file reached, depth-first, in directory order.
@@ -68,26 +69,41 @@ const main = defineCommand({
     // `paths`; reading `paths` alone would scan the first argument only.
     const targets = args._ as string[]
 
-    let files: string[]
-    try {
-      files = collectJsonFiles(targets)
-    } catch (error) {
-      consola.error(`Could not read the paths to scan: ${String(error)}`)
-      process.exit(EXIT_ERROR)
-    }
+    const files: string[] = []
+    for (const target of targets) {
+      let reached: string[]
+      try {
+        reached = collectJsonFiles([target])
+      } catch (error) {
+        consola.error(`Could not read ${target}: ${String(error)}`)
+        process.exit(EXIT_ERROR)
+      }
 
-    if (files.length === 0) {
-      consola.error(
-        `No JSON files found under ${targets.join(', ')}. Nothing was verified.`
-      )
-      process.exit(EXIT_ERROR)
+      // Per path, not just overall: a path that is a symlink, or a directory
+      // holding no JSON, contributes nothing, and the other paths' files would
+      // otherwise let the run report success over a set it never looked at.
+      if (reached.length === 0) {
+        consola.error(
+          `${target} yielded no JSON file to scan. Nothing about it was verified.`
+        )
+        process.exit(EXIT_ERROR)
+      }
+
+      files.push(...reached)
     }
 
     const messages: string[] = []
     for (const file of files) {
       const text = readFileSync(file, 'utf8')
-      for (const duplicate of findDuplicateKeys(text))
-        messages.push(formatDuplicateKey(file, duplicate))
+      try {
+        for (const duplicate of findDuplicateKeys(text))
+          messages.push(formatDuplicateKey(file, duplicate))
+      } catch (error) {
+        // Malformed JSON: jsonlint refuses it in the same job before this runs,
+        // so reaching here means the two path lists have drifted apart.
+        consola.error(`${file} could not be scanned: ${String(error)}`)
+        process.exit(EXIT_ERROR)
+      }
     }
 
     if (messages.length > 0) {

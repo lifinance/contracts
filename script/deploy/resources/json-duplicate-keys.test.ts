@@ -92,9 +92,10 @@ describe('findDuplicateKeys', () => {
   })
 
   /**
-   * The shape `deployRequirements.json` actually held: one contract keyed twice,
-   * where the losing copy was the only place a requirement was declared. Parsing
-   * it is what a gate reading the file does, and it sees 1 key, not 2.
+   * A contract keyed twice in a deploy-requirements file, where the losing copy
+   * is the only place a requirement is declared. `JSON.parse` sees one key, so
+   * the assertions below pin both what a gate reading the file gets and what the
+   * scanner reports.
    */
   it('flags the contract-declared-twice shape, which JSON.parse reports as one key', () => {
     const file = [

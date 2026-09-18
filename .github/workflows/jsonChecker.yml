@@ -114,11 +114,14 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Check for duplicate JSON keys
-        ##### Same paths as the jsonlint step above; keep the two lists in sync.
+        ##### The jsonlint step's paths, plus the two directories whose JSON
+        ##### carries deploy expectations: there a dropped key degrades to an
+        ##### authoring warning, so nothing else would report it.
         run: |
           bunx tsx ./script/deploy/resources/verify-json-duplicate-keys.ts \
             config \
             deployments \
             audit/auditLog.json \
             script/deploy/_targetState.json \
-            script/deploy/resources/deployRequirements.json
+            script/deploy/resources \
+            script/deploy/immutables
