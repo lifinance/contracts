@@ -5,11 +5,13 @@ import { consola } from 'consola'
 import { config } from 'dotenv'
 import { MongoClient } from 'mongodb'
 
+import networks from '../../config/networks.json'
 import { getRPCEnvVarName } from '../utils/utils'
 
 import {
   buildEnvLines,
   findUncredentialedPrimaries,
+  isPublicPrimaryActionable,
   selectEndpoints,
   type IRpcEndpoint,
 } from './rpcEndpoints'
@@ -52,17 +54,29 @@ async function fetchRpcEndpoints(environment: string): Promise<{
   }
 }
 
+/** Network name per `config/networks.json`, keyed by the env var its RPC URL is written to. */
+const NETWORK_NAME_BY_ENV_VAR = new Map(
+  Object.keys(networks).map((name) => [getRPCEnvVarName(name), name])
+)
+
 /**
  * Surface chains whose primary endpoint carries no provider credentials.
  *
  * A shared public endpoint answers a handful of calls and then rate-limits, which reads
  * downstream as chain drift rather than as throttling — so promoting one to primary has to be
  * visible when the env file is written, not once a fleet sweep goes red.
+ *
+ * Only the mainnets this repo operates are reported: every endpoint is still written to the env
+ * file, but a chain this repo has deprecated, never onboarded, or cannot buy a keyed endpoint for
+ * would warn on every run with nothing to do about it, which is how the actionable ones get
+ * skimmed past.
  */
 function reportUncredentialedPrimaries(endpointsByEnvVar: {
   [network: string]: IRpcEndpoint[]
 }) {
-  const flagged = findUncredentialedPrimaries(endpointsByEnvVar)
+  const flagged = findUncredentialedPrimaries(endpointsByEnvVar, (envVar) =>
+    isPublicPrimaryActionable(NETWORK_NAME_BY_ENV_VAR.get(envVar), networks)
+  )
   if (!flagged.length) return
 
   consola.warn(
@@ -93,8 +107,6 @@ async function mergeEndpointsIntoEnv(environment: string) {
         'Failed to fetch from MongoDB, falling back to networks.json:',
         error
       )
-      // Fall back to networks.json
-      const networks = (await import('../../config/networks.json')).default
       newEndpoints = Object.entries(networks).reduce(
         (acc, [networkName, config]) => {
           const envVar = getRPCEnvVarName(networkName)

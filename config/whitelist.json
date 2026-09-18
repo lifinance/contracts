@@ -4419,6 +4419,14 @@
             }
           }
         ],
+        "arc": [
+          {
+            "address": "0x48a097df16c7844a33b1c3d11ab353457846e13f",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
         "kaia": [
           {
             "address": "0xb4fe60cd05a3e68668007cee83ddfd9a50a45b36",

@@ -77,12 +77,16 @@ describe('the operation refusal sits on every operation-bearing route of the cli
     ).toBeLessThan(EXECUTE_METHOD.indexOf('chainExecutor.executeTransaction'))
   })
 
-  it('shows the refusal on the signed struct before the action prompt', () => {
+  it('judges the signed struct before the action prompt', () => {
     expect(CONFIRM).toContain(
       'evaluateDelegateCallGate(tx.safeTransaction.data)'
     )
-    expect(CONFIRM).toContain('renderDelegateCallGate(operationVerdict)')
-
+    // The verdict is no longer *printed* in zone 1. It reaches the signer as
+    // gate D, which is in `INTEGRITY_CHECKS_ALWAYS` and so renders on every
+    // proposal, and zone 1 states the operation on the envelope line beside a
+    // caveat that the decode below it describes a call a delegatecall will not
+    // make. What must still hold here is the ordering: the evaluation happens
+    // before the signer is asked to choose.
     const prompt = CONFIRM.indexOf("consola.prompt('Select action:'")
     const evaluation = CONFIRM.indexOf(
       'evaluateDelegateCallGate(tx.safeTransaction.data)'

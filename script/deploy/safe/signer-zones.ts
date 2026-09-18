@@ -1,0 +1,343 @@
+/**
+ * Feeds `signer-view.ts` from the verdicts a confirmation run actually holds.
+ *
+ * `signer-view.ts` knows how the three zones are drawn and nothing about which
+ * checks exist; the modules that produce verdicts know their own subject and
+ * nothing about the view. The translation is here so neither has to grow a
+ * dependency on the other, and so a check added to the run reaches the view by
+ * appearing in `results` rather than by editing a renderer.
+ */
+
+import type { ICheckDefinition, ICheckResult } from './check-ledger'
+import { rollUpChecks } from './check-ledger'
+import {
+  CODEHASH_CHECK_ID,
+  IMMUTABLES_CHECK_ID,
+  EXECUTABILITY_CHECK_ID,
+  RPC_QUORUM_CHECK_ID,
+  STORAGE_AUTHORITY_CHECK_ID,
+  TARGET_STATE_CHECK,
+  TARGET_STATE_CHECK_ID,
+} from './confirm-check-registry'
+import {
+  CHECK_FIXED_FIELDS,
+  CHECK_SAFE_ADDRESS,
+  CHECK_SAFE_TX_HASH,
+  CHECK_SIGNATURES,
+  CHECK_TARGET,
+  CHECK_TIMELOCK_DELAY,
+  INTEGRITY_CHECK_DEFINITIONS,
+  type IIntegrityAssertRun,
+} from './confirm-integrity-asserts'
+import { highlightHashRuns } from './ledger-flex-preview'
+import type { IBucketedResult, ITodo } from './signer-view'
+
+/**
+ * Where each check is written up, by `checkId`.
+ *
+ * Empty, and the rows render without a link until it is filled: a slot rather
+ * than a placeholder, because a link to a page that does not exist teaches a
+ * signer that the links are not worth following. `checkId` is stable across the
+ * ledger, the refusal messages and this view, so filling it is one entry per
+ * check and nothing else has to change.
+ */
+export const CHECK_DOCS: ReadonlyMap<string, string> = new Map([
+  [
+    CHECK_SAFE_ADDRESS,
+    'https://app.notion.com/p/3d9f0ff14ac78153b0c0df82ff579007',
+  ],
+  [
+    CHECK_SAFE_TX_HASH,
+    'https://app.notion.com/p/3d9f0ff14ac7813fa8f9e03ad3de5402',
+  ],
+  [
+    CHECK_SIGNATURES,
+    'https://app.notion.com/p/3d9f0ff14ac78181a4b2c9cffcb335fb',
+  ],
+  [
+    CHECK_FIXED_FIELDS,
+    'https://app.notion.com/p/3d9f0ff14ac7816e8eb1ebd82755e797',
+  ],
+  [CHECK_TARGET, 'https://app.notion.com/p/3d9f0ff14ac78181ab94d6c43d84c526'],
+  [
+    CHECK_TIMELOCK_DELAY,
+    'https://app.notion.com/p/3d9f0ff14ac7818e9d52edf131a9a254',
+  ],
+  [
+    STORAGE_AUTHORITY_CHECK_ID,
+    'https://app.notion.com/p/3d9f0ff14ac7818da0aeeb61f3c8bb85',
+  ],
+  [
+    TARGET_STATE_CHECK_ID,
+    'https://app.notion.com/p/3d9f0ff14ac7811287a5ce1cb50ba400',
+  ],
+  [
+    EXECUTABILITY_CHECK_ID,
+    'https://app.notion.com/p/3d9f0ff14ac7819faef6d001baa7355a',
+  ],
+  [
+    RPC_QUORUM_CHECK_ID,
+    'https://app.notion.com/p/3d9f0ff14ac7816f9f91cc85cdd16f81',
+  ],
+  [
+    CODEHASH_CHECK_ID,
+    'https://app.notion.com/p/3d9f0ff14ac7814db989e4e1091f255b',
+  ],
+  [
+    IMMUTABLES_CHECK_ID,
+    'https://app.notion.com/p/3def0ff14ac78143a355f93f8fce2bc1',
+  ],
+])
+
+/** Every definition the signer view can name, by check id. */
+export const viewDefinitions = (
+  extra: readonly ICheckDefinition[] = []
+): ReadonlyMap<string, ICheckDefinition> => {
+  const all = [
+    ...Object.values(INTEGRITY_CHECK_DEFINITIONS),
+    TARGET_STATE_CHECK,
+    ...extra,
+  ]
+  return new Map(all.map((definition) => [definition.checkId, definition]))
+}
+
+/** A run that never produced a verdict, as the one row that says so. */
+const UNEVALUATED: ICheckResult = {
+  checkId: 'proposal-integrity',
+  network: '',
+  status: 'error',
+  expected: 'every integrity assertion answered for this proposal',
+  actual: 'the assertions produced no verdict at all',
+  anchor: 'A-UNRESOLVED',
+  detail:
+    'nothing here permits signing this proposal — investigate why the assertions could not run',
+}
+
+/** What the integrity run contributes to zone 2, graded as the ledger grades it. */
+export const integrityResults = (
+  run: IIntegrityAssertRun | undefined
+): {
+  results: ICheckResult[]
+  notApplicable: Map<string, string>
+} => {
+  const notApplicable = new Map<string, string>()
+  if (!run) return { results: [UNEVALUATED], notApplicable }
+
+  // Rolled up rather than read off `ledger.results`: the roll-up is where a
+  // status the grading rules would downgrade is downgraded, so the raw log can
+  // still show a pass the ledger does not accept.
+  const results: ICheckResult[] = []
+  for (const check of rollUpChecks(run.ledger))
+    if (check.results.length === 0)
+      results.push({
+        checkId: check.checkId,
+        network: '',
+        status: 'error',
+        expected: 'a verdict from a check this proposal registered',
+        actual: 'the check was registered and produced no result',
+        anchor: 'A-UNRESOLVED',
+      })
+    else results.push(...check.results)
+
+  for (const definition of Object.values(INTEGRITY_CHECK_DEFINITIONS))
+    if (!run.registered.includes(definition.checkId))
+      notApplicable.set(
+        definition.checkId,
+        definition.checkId === CHECK_TIMELOCK_DELAY
+          ? 'this proposal is not a timelock schedule, so there is no delay to check'
+          : 'this proposal gave the check nothing to answer for'
+      )
+
+  return { results, notApplicable }
+}
+
+/** What a later proposal's gate J row says instead of its paragraph. */
+export const RPC_QUORUM_REPEAT_POINTER =
+  'same as the first proposal on this network, printed above'
+
+const sameVerdict = (left: ICheckResult, right: ICheckResult): boolean =>
+  left.status === right.status &&
+  left.expected === right.expected &&
+  left.actual === right.actual &&
+  left.detail === right.detail
+
+/**
+ * Zone 2's rows, in the order the results were produced.
+ *
+ * `notApplicable` is carried alongside the results rather than encoded in one,
+ * because a check with nothing to answer for produced no result to encode it
+ * in — and a fabricated row would have to claim a status, which is the
+ * conflation `bucketOf` exists to prevent.
+ */
+export const signerChecks = (input: {
+  results: readonly ICheckResult[]
+  notApplicable?: ReadonlyMap<string, string>
+  notes?: ReadonlyMap<string, readonly string[]>
+  /**
+   * The quorum result whose paragraph this network's screen already carries.
+   *
+   * The quorum read is made per proposal, so the paragraph is only pointed at
+   * when this proposal's verdict repeats that one word for word; a read that
+   * came back different prints in full.
+   */
+  rpcQuorumShown?: ICheckResult
+  definitions: ReadonlyMap<string, ICheckDefinition>
+}): IBucketedResult[] => {
+  const rows: IBucketedResult[] = input.results.map((result) => ({
+    result,
+    definition: input.definitions.get(result.checkId),
+    ...(input.notes?.get(result.checkId)
+      ? { notes: input.notes.get(result.checkId) }
+      : {}),
+    ...(result.checkId === RPC_QUORUM_CHECK_ID &&
+    input.rpcQuorumShown &&
+    sameVerdict(input.rpcQuorumShown, result)
+      ? { detailElsewhere: RPC_QUORUM_REPEAT_POINTER }
+      : {}),
+  }))
+
+  // A check that answered is not a check with nothing to answer for, whatever
+  // it answered. A caller can legitimately supply both — the registry grades an
+  // unregistered delay check as a pass on what it read, while the run that
+  // registered nothing knows why — and printing both puts one check in two
+  // buckets, which is precisely the reading the grouping exists to prevent.
+  const answered = new Set(input.results.map((result) => result.checkId))
+
+  for (const [checkId, reason] of input.notApplicable ?? [])
+    if (!answered.has(checkId))
+      rows.push({
+        definition: input.definitions.get(checkId),
+        notApplicable: reason,
+        ...(input.notes?.get(checkId)
+          ? { notes: input.notes.get(checkId) }
+          : {}),
+        result: {
+          checkId,
+          network: '',
+          status: 'pass',
+          expected: '',
+          actual: '',
+          anchor: 'A-LOCAL',
+        },
+      })
+
+  return rows
+}
+
+/**
+ * The prompt options whose next step is a Ledger message screen.
+ *
+ * Zone 3 draws the EIP-712 message flow — "Review message", the hash, "Sign
+ * message?" — so it is the screen set of a *signature*, not of a broadcast. The
+ * execute-only options either spend a raw key (`PRIVATE_KEY_PRODUCTION`) or, on
+ * a Ledger-backed run, put a transaction on the device rather than a message,
+ * and neither is what this zone reproduces.
+ */
+export const DEVICE_SIGNING_ACTIONS: ReadonlySet<string> = new Set([
+  'Sign',
+  'Sign & Execute',
+  'Sign and Execute With Deployer',
+])
+
+/**
+ * The prompt options that reach no device screen at all.
+ *
+ * Held as its own set rather than inferred as the complement of the one above,
+ * so that an option added to the prompt lands in neither and is caught —
+ * `signer-actions.test.ts` reads the options straight out of the spine and
+ * fails on any it cannot place.
+ */
+export const NON_DEVICE_ACTIONS: ReadonlySet<string> = new Set([
+  'Do Nothing',
+  'Execute',
+  'Execute with Deployer',
+])
+
+/**
+ * Whether this action ends on a device screen the signer has to compare.
+ *
+ * An action in neither set is treated as one that does. Zone 3 printed where it
+ * was not needed is noise; zone 3 missing where it was needed is a signer
+ * approving a hash on a device with nothing on screen to check it against, so
+ * the unclassified case resolves towards the instructions rather than away from
+ * them.
+ *
+ * @param action - The option the signer picked at the prompt.
+ * @returns Whether zone 3's device instructions apply to it.
+ */
+export const opensDeviceScreens = (action: string): boolean => {
+  if (DEVICE_SIGNING_ACTIONS.has(action)) return true
+  if (NON_DEVICE_ACTIONS.has(action)) return false
+  return true
+}
+
+export interface ISignerTodoInput {
+  /** The hash the Safe contract computes, when it could be computed. */
+  deviceHash?: string
+  /** How the stored hash compares, when there is a computed hash to compare to. */
+  storedHash?: 'agrees' | 'unreadable' | 'disagrees'
+  /** The device screens, already drawn. */
+  devicePanel?: readonly string[]
+  /** A note printed under the panel, such as the wrapping caveat. */
+  devicePanelNote?: string
+}
+
+/**
+ * Why the stored hash is not the thing to compare against is stated, once,
+ * because a signer looking at a row that shows both will otherwise compare the
+ * two values in front of them. The 2^32 arithmetic behind eight-and-eight is
+ * not: it justifies a constant nobody on this screen can change.
+ */
+const HASH_AUTHORITY = [
+  'Compare against the hash the proposer sent you directly — not against the',
+  'hash stored on this row, which the proposer also wrote.',
+]
+
+/**
+ * Zone 3, in the order the steps are performed.
+ *
+ * The hash comparison comes first because it is the only step that can still
+ * refuse the transaction; the device panel is there to be compared against once
+ * the signer already knows which hash is the right one.
+ */
+export const signerTodos = (input: ISignerTodoInput): ITodo[] => {
+  const hashLines = input.deviceHash
+    ? [
+        `Your device will show  ${highlightHashRuns(input.deviceHash)}`,
+        ...(input.storedHash === 'disagrees'
+          ? [
+              '[33m⚠ the hash stored on this proposal is not the hash the Safe computes from it[0m',
+            ]
+          : []),
+        ...(input.storedHash === 'unreadable'
+          ? ['[33m⚠ this proposal carries no readable stored hash[0m']
+          : []),
+        ...HASH_AUTHORITY,
+      ]
+    : [
+        '[33m⚠ the hash could not be computed here, so it is not previewed[0m',
+        'Compare the screen on your device against the message the proposer sent you.',
+        ...HASH_AUTHORITY,
+      ]
+
+  const todos: ITodo[] = [
+    {
+      text: 'Compare the hash against the message the proposer sent you directly',
+      lines: hashLines,
+    },
+  ]
+
+  if (input.devicePanel?.length)
+    todos.push({
+      text: 'Check every screen your device shows against these',
+      lines: [
+        ...input.devicePanel,
+        // Split, because the renderer indents per element: a note carrying its
+        // own newlines gets its first line placed and the rest left at the
+        // margin, which reads as the panel having ended a line early.
+        ...(input.devicePanelNote?.split('\n') ?? []),
+      ],
+    })
+
+  return todos
+}

@@ -19,6 +19,7 @@ import {
   codeReadLabel,
   collectProviderObservations,
   createCodeReader,
+  createPinnedBlock,
 } from './rpc-quorum-collector'
 
 /** A real 32-byte block hash: the shape a provider actually returns. */
@@ -419,6 +420,59 @@ describe('createCodeReader', () => {
   })
 })
 
+describe('createPinnedBlock', () => {
+  const originalFetch = globalThis.fetch
+
+  afterEach(() => {
+    globalThis.fetch = originalFetch
+  })
+
+  /** An endpoint that reports the wrong chain until `healthyAfter` probes have been made. */
+  const chainThatRecovers = (healthyAfter: number): (() => number) => {
+    let probes = 0
+    globalThis.fetch = (async (
+      _input: RequestInfo | URL,
+      init?: RequestInit
+    ) => {
+      const body = JSON.parse(String(init?.body ?? '{}')) as {
+        method?: string
+        id?: number
+      }
+      if (body.method === 'eth_chainId') probes += 1
+      const result =
+        body.method === 'eth_chainId'
+          ? probes > healthyAfter
+            ? '0x1'
+            : '0x2'
+          : '0x64'
+      return new Response(
+        JSON.stringify({ jsonrpc: '2.0', id: body.id ?? 1, result }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    }) as typeof fetch
+    return () => probes
+  }
+
+  it('re-probes after a failed pin instead of replaying the rejection', async () => {
+    const probes = chainThatRecovers(1)
+    const pinnedBlock = createPinnedBlock(['https://one.example/rpc'], 1)
+
+    await expectRejects(pinnedBlock(), /no endpoint reported a block height/)
+    expect(probes()).toBe(1)
+
+    expect(await pinnedBlock()).toBe(100n)
+    expect(probes()).toBe(2)
+  })
+
+  it('keeps a fulfilled pin rather than probing again', async () => {
+    const probes = chainThatRecovers(0)
+    const pinnedBlock = createPinnedBlock(['https://one.example/rpc'], 1)
+
+    expect(await pinnedBlock()).toBe(100n)
+    expect(await pinnedBlock()).toBe(100n)
+    expect(probes()).toBe(1)
+  })
+})
 describe('codeReadLabel', () => {
   it('names what was read and where, for the operator line', () => {
     const label = codeReadLabel(

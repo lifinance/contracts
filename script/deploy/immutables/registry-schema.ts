@@ -29,12 +29,35 @@ export type ImmutableSource =
   | 'unchecked'
   | 'unverifiable'
 
+/**
+ * How a `derived` immutable's expected value is computed at sign time.
+ *
+ * `rule` states the derivation for a human; this states it in the terms layer 2
+ * can execute. The two are kept apart because a rule nobody has taught the
+ * verifier to compute is still worth writing down, and an entry that carried
+ * only the executable form would leave the reviewed gap unwritten.
+ */
+export type ImmutableEvaluator =
+  | { kind: 'selfAddress' }
+  | { kind: 'chainIdEquals'; chainId: number }
+  | { kind: 'literal'; value: string }
+
+export type ImmutableEvaluatorKind = ImmutableEvaluator['kind']
+
+export const EVALUATOR_KINDS: readonly ImmutableEvaluatorKind[] = [
+  'selfAddress',
+  'chainIdEquals',
+  'literal',
+]
+
 export interface IImmutableEntry {
   source?: unknown
   /** For `config`: the `configData` key under the same contract. */
   configData?: unknown
   /** For `derived`: how the value is computed. */
   rule?: unknown
+  /** For `derived`: the same derivation in a form layer 2 can execute. */
+  evaluator?: unknown
   /** For `unchecked` and `unverifiable`: why, in a sentence. */
   reason?: unknown
   /** Flags an immutable that carries authority, for the drift report. */
@@ -106,6 +129,71 @@ export const validateRegistryShape = (registry: unknown): string[] => {
         )
     }
   )
+}
+
+/** Decimal or `0x`-prefixed hexadecimal, whole bytes in the hex case. */
+const LITERAL = /^(0x([0-9a-fA-F]{2})+|[0-9]+)$/
+
+/**
+ * Checks one entry's `evaluator`, which is what turns a reviewed gap into a
+ * compared value.
+ *
+ * A malformed evaluator is an error rather than an ignored field: silently
+ * dropping it returns the slot to the acknowledgement path, where a signer is
+ * asked to take on a gap the registry believed it had closed.
+ *
+ * @param where - `Contract.immutable`, for the message.
+ * @param source - The entry's validated source.
+ * @param entry - The entry being checked.
+ * @returns One error per fault, none when there is no evaluator.
+ */
+const validateEvaluator = (
+  where: string,
+  source: ImmutableSource,
+  entry: IImmutableEntry
+): string[] => {
+  if (entry.evaluator === undefined) return []
+
+  if (source !== 'derived')
+    return [
+      `${where} is ${source} but carries an evaluator. Only a derived immutable has a value to compute.`,
+    ]
+
+  if (!plainObject(entry.evaluator))
+    return [`${where} has an evaluator that is not an object.`]
+
+  const evaluator = entry.evaluator as Record<string, unknown>
+  const kind = evaluator.kind
+  if (!EVALUATOR_KINDS.includes(kind as ImmutableEvaluatorKind))
+    return [
+      `${where} has evaluator kind '${String(
+        kind
+      )}', which is not one of ${EVALUATOR_KINDS.join(', ')}.`,
+    ]
+
+  if (kind === 'chainIdEquals') {
+    const chainId = evaluator.chainId
+    return typeof chainId === 'number' &&
+      Number.isSafeInteger(chainId) &&
+      chainId > 0
+      ? []
+      : [
+          `${where} compares against chainId '${String(
+            chainId
+          )}', which is not a positive integer.`,
+        ]
+  }
+
+  if (kind === 'literal')
+    return typeof evaluator.value === 'string' && LITERAL.test(evaluator.value)
+      ? []
+      : [
+          `${where} declares literal '${String(
+            evaluator.value
+          )}', which is neither decimal nor whole-byte hexadecimal.`,
+        ]
+
+  return []
 }
 
 /**
@@ -204,6 +292,8 @@ export const validateImmutableRegistry = (
 
       if (source === 'derived' && !nonEmptyString(entry.rule))
         errors.push(`${where} is derived but gives no rule for the value.`)
+
+      errors.push(...validateEvaluator(where, source as ImmutableSource, entry))
 
       if (
         (source === 'unchecked' || source === 'unverifiable') &&

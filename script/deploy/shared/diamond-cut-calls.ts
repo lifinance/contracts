@@ -180,6 +180,128 @@ const decodeSchedule = (data: Hex): readonly IUnwrappedCall[] => {
   return [{ payload: args[2] as Hex, target: getAddress(args[0] as Address) }]
 }
 
+/*
+ * Two walkers, deliberately: `collectLeafCalls` reports a leaf's own bytes and
+ * selector, which is what an address reader needs, while
+ * `collectScheduledCalls` reports the payload with the caller the target will
+ * see, which is what the simulator sends. Folding them together would make each
+ * consumer carry the other's fields.
+ */
+
+/** The decoder for a timelock envelope, or nothing when this is not one. */
+const unwrapperFor = (
+  selector: string
+): ((data: Hex) => readonly IUnwrappedCall[]) | undefined =>
+  selector === TIMELOCK_SCHEDULE_BATCH_SELECTOR.toLowerCase()
+    ? decodeScheduleBatch
+    : selector === TIMELOCK_SCHEDULE_SELECTOR.toLowerCase()
+    ? decodeSchedule
+    : undefined
+
+/** One call a proposal really makes, after every timelock envelope is opened. */
+export interface IScheduledCall {
+  /** Index of the top-level call this was reached from. */
+  callIndex: number
+  /** The calldata as it will reach {@link IScheduledCall.target}. */
+  payload: Hex
+  target?: Address
+  /**
+   * The account the target sees as `msg.sender`: the Safe for a direct call,
+   * the timelock for anything reached by opening one of its envelopes.
+   */
+  caller?: Address
+  /** How many envelopes were opened to reach it. Zero is the top-level call. */
+  depth: number
+}
+
+export interface ICollectedScheduledCalls {
+  calls: IScheduledCall[]
+  undecodable: number[]
+}
+
+/**
+ * Every call a proposal would make, whatever its selector.
+ *
+ * `collectDiamondCutCalls` answers the narrower question — it stops at a cut
+ * and reports nothing about the rest — which is right for the checks that grade
+ * cuts and wrong for a simulator. A `registerPeripheryContract` scheduled
+ * through the timelock is owner-gated exactly as a cut is, and simulating the
+ * proposal's own top-level calldata only proves the timelock would accept the
+ * schedule: the call that has to work is the inner one, sent by the timelock in
+ * two days' time.
+ *
+ * Kept beside the cut walker rather than folded into it: four checks read that
+ * one, and widening what it returns would change what each of them grades.
+ *
+ * @param calldatas - The proposal's top-level calls, in order.
+ * @param context - Where each top-level call is sent, and who sends it.
+ * @returns Every leaf call reached, plus the indices of calls that could not be
+ * read through.
+ */
+export const collectScheduledCalls = (
+  calldatas: readonly Hex[],
+  context?: IDiamondCutCallContext
+): ICollectedScheduledCalls => {
+  const calls: IScheduledCall[] = []
+  const undecodable = new Set<number>()
+
+  const walk = (
+    data: Hex,
+    index: number,
+    depth: number,
+    target: Address | undefined,
+    caller: Address | undefined
+  ): void => {
+    const unwrap = unwrapperFor(data.slice(0, 10).toLowerCase())
+
+    if (!unwrap) {
+      calls.push({
+        callIndex: index,
+        payload: data,
+        depth,
+        ...(target === undefined ? {} : { target }),
+        ...(caller === undefined ? {} : { caller }),
+      })
+      return
+    }
+
+    if (depth >= MAX_UNWRAP_DEPTH) {
+      undecodable.add(index)
+      return
+    }
+
+    let payloads
+    try {
+      payloads = unwrap(data)
+    } catch {
+      undecodable.add(index)
+      return
+    }
+
+    // An envelope carrying nothing is reported rather than dropped: a schedule
+    // with an empty batch is a proposal that spends a threshold of signatures
+    // to do nothing, and a walker that returned no leaves for it would leave
+    // the simulation with nothing to say about the whole proposal.
+    if (payloads.length === 0) {
+      undecodable.add(index)
+      return
+    }
+
+    // The envelope's own address becomes `msg.sender` for everything it
+    // carries.
+    for (const inner of payloads)
+      walk(inner.payload, index, depth + 1, inner.target, target)
+  }
+
+  calldatas.forEach((data, index) => {
+    if (!isHex(data, { strict: true }) || data.length % 2 !== 0)
+      undecodable.add(index)
+    else walk(data, index, 0, context?.targets[index], context?.caller)
+  })
+
+  return { calls, undecodable: [...undecodable] }
+}
+
 /** One call reached at the bottom of a proposal's envelopes. */
 export interface ILeafCall {
   /** Index of the top-level call this leaf was reached from. */

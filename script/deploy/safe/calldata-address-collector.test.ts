@@ -19,12 +19,16 @@ import {
   AddressGradeEnum,
   AddressRoleEnum,
   evaluateCalldataAddresses,
+  type IAddressReference,
 } from './calldata-address-check'
 import {
+  authoritiesOfInstalled,
   buildDeploymentIndex,
   collectAddressReferences,
+  installedAddresses,
   referencedNames,
 } from './calldata-address-collector'
+import type { IPreBroadcastAuthority } from './prebroadcast-authorities'
 import {
   TIMELOCK_SCHEDULE_BATCH_ABI,
   TIMELOCK_ZERO_PREDECESSOR,
@@ -204,6 +208,152 @@ describe('buildDeploymentIndex', () => {
     )
 
     expect(verdict.refuses).toBe(true)
+  })
+})
+
+describe('installedAddresses', () => {
+  const FACET = '0x00000000000000000000000000000000000000a1'
+  const INIT = '0x00000000000000000000000000000000000000b2'
+
+  const reference = (
+    role: AddressRoleEnum,
+    address: string
+  ): IAddressReference => ({ address, role, path: `call[0].cuts[0]` })
+
+  it('holds the address of a facet being added', () => {
+    expect([
+      ...installedAddresses([reference(AddressRoleEnum.FacetAdd, FACET)]),
+    ]).toEqual([FACET])
+  })
+
+  it('holds the address of a facet being replaced', () => {
+    expect([
+      ...installedAddresses([reference(AddressRoleEnum.FacetReplace, FACET)]),
+    ]).toEqual([FACET])
+  })
+
+  it('holds an init target, whose code runs against the diamond storage', () => {
+    expect([
+      ...installedAddresses([reference(AddressRoleEnum.CutInit, INIT)]),
+    ]).toEqual([INIT])
+  })
+
+  it('holds a contract being registered as periphery', () => {
+    expect([
+      ...installedAddresses([
+        reference(AddressRoleEnum.PeripheryRegistration, FACET),
+      ]),
+    ]).toEqual([FACET])
+  })
+
+  // The whole point of the set: a Remove installs nothing, so it contributes no
+  // subject and gate G has nothing to read. The diamond being cut into is not
+  // in the set either — it is not installed by this proposal.
+  it('is empty for the cut a removal is actually written as', () => {
+    expect([
+      ...installedAddresses([
+        reference(AddressRoleEnum.FacetRemove, ZERO_ADDRESS),
+        reference(AddressRoleEnum.CutInit, ZERO_ADDRESS),
+      ]),
+    ]).toEqual([])
+  })
+
+  // The role is what decides, not the zero address that usually accompanies it.
+  // `LibDiamond` requires zero in a removal's facet slot, so a non-zero one is
+  // a cut that will revert — and a gate that read it as an install would be
+  // reading the slot rather than the action.
+  it('drops a removal that names a non-zero address', () => {
+    expect([
+      ...installedAddresses([reference(AddressRoleEnum.FacetRemove, FACET)]),
+    ]).toEqual([])
+  })
+
+  it('lowercases, so a checksummed reference matches a read address', () => {
+    expect([
+      ...installedAddresses([
+        reference(
+          AddressRoleEnum.FacetAdd,
+          '0x00000000000000000000000000000000000000A1'
+        ),
+      ]),
+    ]).toEqual([FACET])
+  })
+})
+
+describe('authoritiesOfInstalled', () => {
+  const DIAMOND = '0x0000000000000000000000000000000000000d1a'
+  const NEW_FACET = '0x00000000000000000000000000000000000000a1'
+
+  const authority = (
+    contractAddress: string,
+    label: string
+  ): IPreBroadcastAuthority => ({
+    label,
+    contractAddress,
+    liveValue: '0x1',
+    expectedValue: '0x1',
+    expectationSource: 'globalConfig',
+    readError: undefined,
+  })
+
+  const removeOnly = [
+    {
+      address: ZERO_ADDRESS,
+      role: AddressRoleEnum.FacetRemove,
+      path: 'call[0].cuts[0]',
+    },
+  ]
+
+  // The case that sent this gate asking about a diamond's owner on a proposal
+  // that removes a facet from it: the diamond is what the cut is applied to,
+  // never what the cut installs.
+  it('drops the diamond being cut into, on a cut that only removes', () => {
+    expect(
+      authoritiesOfInstalled(
+        [
+          authority(DIAMOND, 'LiFiDiamond.owner()'),
+          authority(DIAMOND, 'LiFiDiamond.pauserWallet()'),
+        ],
+        removeOnly
+      )
+    ).toEqual([])
+  })
+
+  // The direction that keeps the narrowing honest: an address this proposal
+  // does install stays a subject, so the gate is narrowed and not disabled.
+  it('keeps an authority on a contract the proposal installs', () => {
+    const subject = authority(NEW_FACET, 'ERC20Proxy.owner()')
+
+    expect(
+      authoritiesOfInstalled(
+        [subject, authority(DIAMOND, 'LiFiDiamond.owner()')],
+        [
+          {
+            address: NEW_FACET,
+            role: AddressRoleEnum.PeripheryRegistration,
+            path: 'call[0]',
+          },
+          ...removeOnly,
+        ]
+      )
+    ).toEqual([subject])
+  })
+
+  it('matches a checksummed reference against a lowercased read address', () => {
+    const subject = authority(NEW_FACET, 'ERC20Proxy.owner()')
+
+    expect(
+      authoritiesOfInstalled(
+        [subject],
+        [
+          {
+            address: '0x00000000000000000000000000000000000000A1',
+            role: AddressRoleEnum.FacetAdd,
+            path: 'call[0].cuts[0]',
+          },
+        ]
+      )
+    ).toEqual([subject])
   })
 })
 

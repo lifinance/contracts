@@ -22,8 +22,15 @@ import type { DeployRequirements } from '../immutables/registry-schema'
 import realRequirements from '../resources/deployRequirements.json'
 import realRegistry from '../resources/immutableRegistry.json'
 
-import type { IObservedImmutable } from './immutable-expectations'
-import { observeEvmImmutables, priceImmutables } from './immutable-expectations'
+import type {
+  IObservedImmutable,
+  IPricedImmutables,
+} from './immutable-expectations'
+import {
+  observeEvmImmutables,
+  observeZkImmutables,
+  priceImmutables,
+} from './immutable-expectations'
 
 const SPOKE_POOL = '0xe35e9842fceaCA96570B734083f4a58e8F7C5f2A'
 const WRAPPED_NATIVE = '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1'
@@ -313,7 +320,7 @@ describe('priceImmutables', () => {
     expect(result.slots[1]?.detail).toContain('no registry entry')
   })
 
-  it('prices a derived immutable as unaccounted for, never as a pass', () => {
+  it('grades a derived immutable with a rule but no evaluator as acknowledgeable', () => {
     const result = price(
       [
         {
@@ -336,13 +343,14 @@ describe('priceImmutables', () => {
     )
     if (!result.decided) throw new Error(result.reason)
 
-    expect(result.slots[0]?.status).toBe('unpriceable')
+    expect(result.slots[0]?.status).toBe('acknowledgeable')
     expect(result.slots[0]?.detail).toContain('block.chainid')
     expect(result.pricedByteCount).toBe(0)
-    expect(result.unpricedByteCount).toBe(32)
+    expect(result.unpricedByteCount).toBe(0)
+    expect(result.acknowledgeableByteCount).toBe(32)
   })
 
-  it('prices an explicitly exempted immutable with the reason it was exempted', () => {
+  it('grades an explicitly exempted immutable acknowledgeable, with its reason', () => {
     const result = price(
       [
         {
@@ -365,9 +373,10 @@ describe('priceImmutables', () => {
     )
     if (!result.decided) throw new Error(result.reason)
 
-    expect(result.slots[0]?.status).toBe('unpriceable')
+    expect(result.slots[0]?.status).toBe('acknowledgeable')
     expect(result.slots[0]?.detail).toContain('holds no authority')
-    expect(result.unpricedByteCount).toBe(32)
+    expect(result.unpricedByteCount).toBe(0)
+    expect(result.acknowledgeableByteCount).toBe(32)
   })
 
   it('does not pass a config-sourced slot config has no value for', () => {
@@ -388,6 +397,51 @@ describe('priceImmutables', () => {
     expect(result.slots[0]?.status).toBe('unpriceable')
     expect(result.slots[0]?.detail).toContain('has no value for aurora')
     expect(result.unpricedByteCount).toBe(64)
+  })
+
+  it('expects zero where config has no value and zero may be deployed', () => {
+    const zeroAllowed: DeployRequirements = {
+      AcrossFacet: {
+        ...REQUIREMENTS.AcrossFacet,
+        configData: {
+          ...REQUIREMENTS.AcrossFacet?.configData,
+          _spokePool: {
+            configFileName: 'across.json',
+            keyInConfigFile: '.<NETWORK>.acrossSpokePool',
+            allowToDeployWithZeroAddress: 'true',
+          },
+        },
+      },
+    }
+    const observed = (value: string): IObservedImmutable[] => [
+      { name: 'spokePool', value, slotByteCount: 32, byteCount: 64 },
+    ]
+    const zeroSlot = `0x${'0'.repeat(64)}`
+
+    const verified = price(observed(zeroSlot), zeroAllowed, 'aurora')
+    if (!verified.decided) throw new Error(verified.reason)
+    expect(verified.slots[0]?.status).toBe('verified')
+    expect(verified.slots[0]?.origin).toContain('absent for aurora')
+    expect(verified.pricedByteCount).toBe(64)
+
+    const filled = price(observed(slot(SPOKE_POOL)), zeroAllowed, 'aurora')
+    if (!filled.decided) throw new Error(filled.reason)
+    expect(filled.slots[0]?.status).toBe('disagrees')
+
+    // A config file that could not be read states nothing about this network,
+    // so the allowance has no absence to turn into an expectation.
+    const unreadable = priceImmutables(
+      {
+        contractName: 'AcrossFacet',
+        observed: observed(zeroSlot),
+        network: 'aurora',
+        environment: 'production',
+      },
+      zeroAllowed,
+      () => null
+    )
+    if (!unreadable.decided) throw new Error(unreadable.reason)
+    expect(unreadable.slots[0]?.status).toBe('unpriceable')
   })
 
   it('does not pass a config label the contract does not carry', () => {
@@ -602,5 +656,204 @@ describe('priceImmutables', () => {
 
     expect(result.slots[0]?.status).toBe('undeclared')
     expect(result.unpricedByteCount).toBe(64)
+  })
+})
+
+/**
+ * The zk half of the same boundary. There is no artifact to take a width from —
+ * EraVM stores every immutable as one whole word — so the only framing question
+ * is whether the read returned exactly that.
+ */
+describe('observeZkImmutables', () => {
+  const WORD = `0x${'00'.repeat(12)}${'22'.repeat(20)}`
+
+  it('reports one whole-word observation per name', () => {
+    const observed = observeZkImmutables({ gasZipRouter: WORD })
+
+    expect(observed).toEqual({
+      ok: true,
+      observed: [
+        {
+          name: 'gasZipRouter',
+          value: WORD,
+          slotByteCount: 32,
+          byteCount: 32,
+        },
+      ],
+    })
+  })
+
+  it('refuses an empty read rather than pricing nothing', () => {
+    // An empty set priced cleanly would report "every immutable holds what
+    // config declares" about a read that returned nothing.
+    const observed = observeZkImmutables({})
+
+    expect(observed).toEqual({ decided: false, reason: expect.any(String) })
+  })
+
+  it('refuses a value that is not one 32-byte word', () => {
+    const observed = observeZkImmutables({
+      gasZipRouter: `0x${'22'.repeat(20)}`,
+    })
+
+    expect(observed).toMatchObject({ decided: false })
+  })
+
+  it('refuses a value that is not hex', () => {
+    const observed = observeZkImmutables({ gasZipRouter: 'not-a-word' })
+
+    expect(observed).toMatchObject({ decided: false })
+  })
+})
+
+/**
+ * A `derived` entry that carries an evaluator is compared like a config-sourced
+ * one. The point of the kind is that the gap it closes is a real comparison and
+ * not an acknowledgement, so each case asserts the status and not just that the
+ * slot stopped blocking.
+ */
+describe('priceImmutables on a derived immutable with an evaluator', () => {
+  const SELF = '0x1234567890AbcdEF1234567890aBcdef12345678'
+
+  const withEvaluator = (
+    evaluator: unknown,
+    value: string,
+    network = 'arbitrum',
+    address?: string
+  ) =>
+    priceImmutables(
+      {
+        contractName: 'AcrossFacet',
+        observed: [
+          { name: 'wrappedNative', value, slotByteCount: 32, byteCount: 32 },
+        ],
+        network,
+        environment: 'production',
+        ...(address ? { address } : {}),
+      },
+      {
+        AcrossFacet: {
+          immutables: {
+            wrappedNative: { source: 'derived', rule: 'a rule', evaluator },
+          },
+        },
+      },
+      loader
+    )
+
+  it('verifies selfAddress against the address being graded', () => {
+    const result = withEvaluator(
+      { kind: 'selfAddress' },
+      slot(SELF),
+      'arbitrum',
+      SELF
+    )
+    if (!result.decided) throw new Error(result.reason)
+
+    expect(result.slots[0]?.status).toBe('verified')
+    expect(result.pricedByteCount).toBe(32)
+  })
+
+  it('calls selfAddress a disagreement when the slot holds another address', () => {
+    const result = withEvaluator(
+      { kind: 'selfAddress' },
+      slot(SPOKE_POOL),
+      'arbitrum',
+      SELF
+    )
+    if (!result.decided) throw new Error(result.reason)
+
+    expect(result.disagreements.map((one) => one.name)).toEqual([
+      'wrappedNative',
+    ])
+  })
+
+  it('keeps selfAddress blocking when no address was supplied', () => {
+    const result = withEvaluator({ kind: 'selfAddress' }, slot(SELF))
+    if (!result.decided) throw new Error(result.reason)
+
+    // Not acknowledgeable: the registry claims this one is computable, so a
+    // caller that cannot compute it has a hole, not a reviewed exemption.
+    expect(result.slots[0]?.status).toBe('unpriceable')
+    expect(result.unpricedByteCount).toBe(32)
+    expect(result.acknowledgeableByteCount).toBe(0)
+  })
+
+  it('resolves chainIdEquals to true on the named chain and false elsewhere', () => {
+    const CONFIG_WITH_IDS = {
+      'networks.json': {
+        arbitrum: { chainId: 42161 },
+        base: { chainId: 8453 },
+      },
+    }
+    const onChain = (network: string, value: string) =>
+      priceImmutables(
+        {
+          contractName: 'AcrossFacet',
+          observed: [
+            { name: 'wrappedNative', value, slotByteCount: 32, byteCount: 32 },
+          ],
+          network,
+          environment: 'production',
+        },
+        {
+          AcrossFacet: {
+            immutables: {
+              wrappedNative: {
+                source: 'derived',
+                rule: 'a rule',
+                evaluator: { kind: 'chainIdEquals', chainId: 42161 },
+              },
+            },
+          },
+        },
+        (fileName) =>
+          (CONFIG_WITH_IDS as Record<string, unknown>)[fileName] ?? null
+      )
+
+    const hub = onChain('arbitrum', `0x${'00'.repeat(31)}01`)
+    const spoke = onChain('base', `0x${'00'.repeat(32)}`)
+    if (!hub.decided || !spoke.decided) throw new Error('refused')
+
+    expect(hub.slots[0]?.status).toBe('verified')
+    expect(spoke.slots[0]?.status).toBe('verified')
+    expect(
+      onChain('arbitrum', `0x${'00'.repeat(32)}`).decided &&
+        (onChain('arbitrum', `0x${'00'.repeat(32)}`) as IPricedImmutables)
+          .slots[0]?.status
+    ).toBe('disagrees')
+  })
+
+  it('keeps chainIdEquals blocking when networks.json gives no chain id', () => {
+    const result = withEvaluator(
+      { kind: 'chainIdEquals', chainId: 42161 },
+      `0x${'00'.repeat(32)}`,
+      'nowhere'
+    )
+    if (!result.decided) throw new Error(result.reason)
+
+    expect(result.slots[0]?.status).toBe('unpriceable')
+    expect(result.acknowledgeableByteCount).toBe(0)
+  })
+
+  it('left-pads a decimal literal into the slot', () => {
+    const result = withEvaluator(
+      { kind: 'literal', value: '100000' },
+      `0x${'00'.repeat(29)}0186a0`
+    )
+    if (!result.decided) throw new Error(result.reason)
+
+    expect(result.slots[0]?.status).toBe('verified')
+    expect(result.slots[0]?.expected).toBe(`0x${'00'.repeat(29)}0186a0`)
+  })
+
+  it('compares a hex literal as written', () => {
+    const result = withEvaluator(
+      { kind: 'literal', value: `0x${'11'.repeat(32)}` },
+      `0x${'11'.repeat(32)}`
+    )
+    if (!result.decided) throw new Error(result.reason)
+
+    expect(result.slots[0]?.status).toBe('verified')
   })
 })

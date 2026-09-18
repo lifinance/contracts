@@ -195,7 +195,8 @@
       "_portal": {
         "configFileName": "eco.json",
         "keyInConfigFile": ".<NETWORK>.portal",
-        "allowToDeployWithZeroAddress": "false"
+        "allowToDeployWithZeroAddress": "false",
+        "getter": "PORTAL"
       },
       "_backendSigner": {
         "configFileName": "global.json",
@@ -828,16 +829,6 @@
       }
     }
   },
-  "EcoFacet": {
-    "configData": {
-      "_portal": {
-        "configFileName": "eco.json",
-        "keyInConfigFile": ".<NETWORK>.portal",
-        "allowToDeployWithZeroAddress": "false",
-        "getter": "PORTAL"
-      }
-    }
-  },
   "LidoWrapper": {
     "configData": {
       "_stETHAddress": {
@@ -866,6 +857,24 @@
         "keyInConfigFile": ".bridges.<NETWORK>.bridge",
         "allowToDeployWithZeroAddress": "false",
         "getter": "MAYAN"
+      }
+    }
+  },
+  "UnitFacet": {
+    "configData": {
+      "_backendSigner": {
+        "configFileName": "unit.json",
+        "keyInConfigFile": ".<ENVIRONMENT>.backendSigner",
+        "allowToDeployWithZeroAddress": "false"
+      }
+    }
+  },
+  "EmergencyPauseFacet": {
+    "configData": {
+      "_pauserWallet": {
+        "configFileName": "global.json",
+        "keyInConfigFile": ".pauserWallet",
+        "allowToDeployWithZeroAddress": "false"
       }
     }
   }

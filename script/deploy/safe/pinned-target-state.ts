@@ -18,11 +18,13 @@ import { type Hex } from 'viem'
 
 import { readContractVersion } from '../shared/contract-version'
 import { collectDiamondCutCalls } from '../shared/diamond-cut-calls'
+import { isTrustedRemote, REPO_CONTRACTS } from '../shared/repo-identity'
 
 import {
   resolveDeployedContractByAddress,
   type DeployedContractLookup,
 } from './facet-version-utils'
+import { GATE_BODY_INDENT, GATE_TITLE_INDENT } from './signer-view'
 
 // Resolved from this module rather than `process.cwd()`: the anchor has to be
 // this repository's `origin/main` no matter which directory the reviewer ran the
@@ -43,9 +45,6 @@ export const PINNED_REF = 'origin/main'
 // the clone would be read instead of the ref the fetch just wrote.
 const PINNED_READ_REF = 'refs/remotes/origin/main'
 
-/** The repository the anchor must come from. */
-export const EXPECTED_REMOTE_REPO = 'github.com/lifinance/contracts'
-
 /**
  * The refspec the anchor is fetched with.
  *
@@ -55,15 +54,6 @@ export const EXPECTED_REMOTE_REPO = 'github.com/lifinance/contracts'
  * error.
  */
 export const PINNED_FETCH_REFSPEC = '+refs/heads/main:refs/remotes/origin/main'
-
-// `origin` is whatever the clone happens to point at, so the ref alone does not
-// establish where the anchor came from: a fork remote would let a proposer author
-// the expected state. ssh.github.com and an explicit port are admitted because
-// they are GitHub's own SSH-over-443 spelling, which a restricted network needs.
-// `http://` is not: the anchor SHA comes from that same fetch, so an on-path
-// attacker could serve both the state and the version it is compared against.
-const EXPECTED_REMOTE_URL =
-  /^(?:https:\/\/(?:[^@/]+@)?github\.com(?::\d+)?\/|ssh:\/\/(?:[^@/]+@)?(?:ssh\.)?github\.com(?::\d+)?\/|(?:[^@/]+@)?(?:ssh\.)?github\.com:)lifinance\/contracts(?:\.git)?\/?$/i
 
 const TARGET_STATE_ENVIRONMENT = 'production'
 const TARGET_STATE_DIAMOND = 'LiFiDiamond'
@@ -88,18 +78,22 @@ export type PinnedTargetState = Record<
   Record<string, Record<string, Record<string, unknown>>>
 >
 
+export type PinnedReadFailure =
+  | 'fetch-failed'
+  | 'revision-unresolvable'
+  | 'remote-unreadable'
+  | 'remote-unexpected'
+  | 'blob-unreadable'
+  | 'invalid-shape'
+
 export type PinnedTargetStateRead =
   | { ok: true; state: PinnedTargetState }
-  | {
-      ok: false
-      reason:
-        | 'fetch-failed'
-        | 'revision-unresolvable'
-        | 'remote-unreadable'
-        | 'remote-unexpected'
-        | 'blob-unreadable'
-        | 'invalid-shape'
-    }
+  | { ok: false; reason: PinnedReadFailure }
+
+/** Any JSON object read at the pinned ref. */
+export type PinnedJsonRead =
+  | { ok: true; value: Record<string, unknown> }
+  | { ok: false; reason: PinnedReadFailure }
 
 /** `LibDiamond.FacetCutAction`. */
 const CUT_ACTION_ADD = 0
@@ -148,6 +142,30 @@ export const STATUSES_CLEARED_TO_PROCEED: ReadonlySet<TargetStateStatus> =
     'ahead-of-main',
     'matches-pin',
   ])
+
+/**
+ * The statuses whose finding never reached `origin/main` at all.
+ *
+ * A removal returns before the anchor is read, and a payload with no cut in it
+ * never gets that far either. Both leave this block with a provenance line
+ * naming a file the run did not open, over findings saying there was nothing to
+ * compare — which is the gate's own stand-down, already printed as its row.
+ *
+ * Named by what consulted nothing rather than by what may proceed: the two sets
+ * are not the same, and `matches-main` belongs only to the second.
+ */
+export const STATUSES_THAT_CONSULTED_NOTHING: ReadonlySet<TargetStateStatus> =
+  new Set<TargetStateStatus>(['no-diamond-cut', 'removal'])
+
+/**
+ * The heading this block prints under.
+ *
+ * The gate's own letter and title. Declared here rather than imported from the
+ * registry, which imports this module; `confirm-check-registry.test.ts` holds
+ * the two to the same string.
+ */
+export const TARGET_STATE_GATE_HEADING =
+  'Gate H · Contract version matches target state'
 
 /** One graded element of a proposal. */
 export interface ITargetStateFinding {
@@ -309,9 +327,9 @@ export const describeTargetStateUnavailable = (
   if (reason === 'revision-unresolvable')
     return `refreshed ${PINNED_REF} but could not resolve it to a commit. The remote is reachable, so this is a fault in this clone's refs rather than the network: check \`git rev-parse ${PINNED_REF}\` and re-run.`
   if (reason === 'remote-unreadable')
-    return `could not read this clone's \`origin\` remote, so it cannot be established that the anchor would come from ${EXPECTED_REMOTE_REPO}.`
+    return `could not read this clone's \`origin\` remote, so it cannot be established that the anchor would come from ${REPO_CONTRACTS}.`
   if (reason === 'remote-unexpected')
-    return `this clone's \`origin\` is not ${EXPECTED_REMOTE_REPO} over https or SSH — the anchor would be read from a repository, or across a connection, that the proposer could control. Re-run from a clone whose origin is https://${EXPECTED_REMOTE_REPO} or its SSH spelling.`
+    return `this clone's \`origin\` is not ${REPO_CONTRACTS} over https or SSH — the anchor would be read from a repository the proposer could control, or over a scheme that carries no evidence of what that repository holds. Re-run from a clone whose origin is ${REPO_CONTRACTS} over https or SSH.`
   if (reason === 'blob-unreadable')
     return `could not read ${PINNED_REF}:${TARGET_STATE_REPO_PATH} — the ref or the file is missing from this clone.`
   return `${PINNED_REF}:${TARGET_STATE_REPO_PATH} did not parse as a target-state object.`
@@ -628,7 +646,7 @@ const verifyRemoteAndFetch = (
     // could not run says nothing about what the remote is.
     return { ok: false, reason: 'remote-unreadable', memoizable: false }
   }
-  if (!EXPECTED_REMOTE_URL.test(remote.trim()))
+  if (!isTrustedRemote(remote, [REPO_CONTRACTS]))
     return { ok: false, reason: 'remote-unexpected', memoizable: true }
 
   try {
@@ -640,12 +658,6 @@ const verifyRemoteAndFetch = (
   }
   return { ok: true }
 }
-
-/** The ways a pinned read can fail. */
-export type PinnedReadFailure = Exclude<
-  PinnedTargetStateRead,
-  { ok: true }
->['reason']
 
 /** A verified, fetched `origin/main`, pinned to the commit every read resolves against. */
 export type PinnedAnchor = () =>
@@ -708,6 +720,68 @@ export const createPinnedAnchor = (options?: {
 }
 
 /**
+ * Builds a reader for JSON blobs as `origin/main` has them.
+ *
+ * One reader resolves the anchor once, then reads and caches each path it is
+ * asked for. Shared rather than one reader per file so a fleet run touching one
+ * blob per network still costs a single fetch — and so every blob it hands back
+ * comes from the one commit {@link createPinnedAnchor} pinned, never from two
+ * sides of a merge.
+ *
+ * @param options - repository root, git seam and anchor; all default to this checkout
+ * @returns A reader taking a repo-relative path, returning its parsed object or
+ * why it could not be read.
+ */
+export const createPinnedBlobReader = (options?: {
+  repoRoot?: string
+  git?: IPinnedStateGit
+  anchor?: PinnedAnchor
+}): ((repoPath: string) => PinnedJsonRead) => {
+  const repoRoot = options?.repoRoot ?? REPO_ROOT
+  const git = options?.git ?? defaultGit(repoRoot)
+  const anchor = options?.anchor ?? createPinnedAnchor({ repoRoot, git })
+  const blobs = new Map<string, PinnedJsonRead>()
+
+  return (repoPath: string): PinnedJsonRead => {
+    const cached = blobs.get(repoPath)
+    if (cached) return cached
+
+    const anchored = anchor()
+    if (!anchored.ok) {
+      // A refusal that cannot change within the process is the only one worth holding.
+      if (anchored.reason === 'remote-unexpected')
+        blobs.set(repoPath, { ok: false, reason: anchored.reason })
+      return { ok: false, reason: anchored.reason }
+    }
+
+    let raw: string
+    try {
+      raw = git.show(`${anchored.revision}:${repoPath}`)
+    } catch {
+      const failed = { ok: false, reason: 'blob-unreadable' } as const
+      blobs.set(repoPath, failed)
+      return failed
+    }
+
+    let parsed: unknown
+    try {
+      parsed = JSON.parse(raw)
+    } catch {
+      const failed = { ok: false, reason: 'invalid-shape' } as const
+      blobs.set(repoPath, failed)
+      return failed
+    }
+
+    const read: PinnedJsonRead =
+      typeof parsed !== 'object' || parsed === null || Array.isArray(parsed)
+        ? { ok: false, reason: 'invalid-shape' }
+        : { ok: true, value: parsed as Record<string, unknown> }
+    blobs.set(repoPath, read)
+    return read
+  }
+}
+
+/**
  * Builds the pinned read: one `git fetch` per process, then the target state as
  * `origin/main` has it.
  *
@@ -721,43 +795,12 @@ export const createPinnedTargetStateReader = (options?: {
   git?: IPinnedStateGit
   anchor?: PinnedAnchor
 }): (() => PinnedTargetStateRead) => {
-  const repoRoot = options?.repoRoot ?? REPO_ROOT
-  const git = options?.git ?? defaultGit(repoRoot)
-  const anchor = options?.anchor ?? createPinnedAnchor({ repoRoot, git })
-  let memo: PinnedTargetStateRead | undefined
-
+  const readBlob = createPinnedBlobReader(options)
   return () => {
-    if (memo) return memo
-
-    const anchored = anchor()
-    if (!anchored.ok) {
-      const failure = { ok: false as const, reason: anchored.reason }
-      // A refusal that cannot change within the process is the only one worth holding.
-      if (anchored.reason === 'remote-unexpected') memo = failure
-      return failure
-    }
-
-    let raw: string
-    try {
-      raw = git.show(`${anchored.revision}:${TARGET_STATE_REPO_PATH}`)
-    } catch {
-      memo = { ok: false, reason: 'blob-unreadable' }
-      return memo
-    }
-
-    let parsed: unknown
-    try {
-      parsed = JSON.parse(raw)
-    } catch {
-      memo = { ok: false, reason: 'invalid-shape' }
-      return memo
-    }
-
-    if (typeof parsed !== 'object' || parsed === null || Array.isArray(parsed))
-      memo = { ok: false, reason: 'invalid-shape' }
-    else memo = { ok: true, state: parsed as PinnedTargetState }
-
-    return memo
+    const read = readBlob(TARGET_STATE_REPO_PATH)
+    return read.ok
+      ? { ok: true, state: read.value as PinnedTargetState }
+      : { ok: false, reason: read.reason }
   }
 }
 
@@ -897,31 +940,78 @@ export const createTargetStateDeps = (
 })
 
 /**
- * Renders a verdict for the signer, one line per finding.
+ * Collapses findings that would print as the same sentence.
+ *
+ * One cut installs a facet through as many elements as it has actions — a
+ * `Replace` for the selectors already routed and an `Add` for the new ones —
+ * and each is graded separately, which is correct: the grading is per element
+ * and `cleared` must stay a statement about all of them. What it is not is two
+ * facts, and printing the same version comparison twice reads as one, so a
+ * signer looks for the difference between them.
+ *
+ * Keyed on what is displayed rather than on the element, so two findings only
+ * collapse when nothing on screen would have told them apart.
+ *
+ * @param findings - graded findings, in display order
+ * @returns The same findings with later exact repeats dropped
+ */
+const dedupeLines = (
+  findings: readonly ITargetStateFinding[]
+): ITargetStateFinding[] => {
+  const seen = new Set<string>()
+  return findings.filter((finding) => {
+    const key = [
+      finding.status,
+      finding.facetAddress,
+      finding.contractName,
+      finding.proposedVersion,
+      finding.mainVersion,
+      finding.crossFleetCount,
+      finding.detail,
+    ].join('|')
+    if (seen.has(key)) return false
+    seen.add(key)
+    return true
+  })
+}
+
+/** The words each status prints under, on the row and in the detail block. */
+export const TARGET_STATE_STATUS_LABEL: Record<TargetStateStatus, string> = {
+  'no-diamond-cut': 'n/a',
+  removal: 'REMOVAL (warn)',
+  'not-previously-targeted': 'NOT PREVIOUSLY TARGETED',
+  'matches-main': 'matches main',
+  'ahead-of-main': 'upgrade',
+  'matches-pin': 'matches pin',
+  'pinned-mismatch': 'PINNED VERSION MISMATCH',
+  'expected-version-unresolved': 'EXPECTED VERSION UNRESOLVED',
+  downgrade: 'DOWNGRADE',
+  'version-not-comparable': 'UNEXPECTED VERSION',
+  'proposed-version-unresolved': 'PROPOSED VERSION UNRESOLVED',
+  'contract-unidentified': 'CONTRACT UNIDENTIFIED',
+  'deployment-record-ambiguous': 'DEPLOYMENT RECORD AMBIGUOUS',
+  'unrecognised-cut-action': 'UNRECOGNISED CUT ACTION',
+  'calldata-not-readable': 'CUT NOT READABLE',
+  'pinned-state-unavailable': 'EXPECTED STATE UNAVAILABLE',
+}
+
+/**
+ * Renders a verdict for the signer, one line per distinct finding.
  * @param verdict - output of {@link evaluateTargetStateIntent}
  * @returns Display lines, blocking findings first
  */
 export const formatTargetStateLines = (
   verdict: ITargetStateVerdict
 ): string[] => {
-  const label: Record<TargetStateStatus, string> = {
-    'no-diamond-cut': 'n/a',
-    removal: 'REMOVAL (warn)',
-    'not-previously-targeted': 'NOT PREVIOUSLY TARGETED',
-    'matches-main': 'matches main',
-    'ahead-of-main': 'upgrade',
-    'matches-pin': 'matches pin',
-    'pinned-mismatch': 'PINNED VERSION MISMATCH',
-    'expected-version-unresolved': 'EXPECTED VERSION UNRESOLVED',
-    downgrade: 'DOWNGRADE',
-    'version-not-comparable': 'UNEXPECTED VERSION',
-    'proposed-version-unresolved': 'PROPOSED VERSION UNRESOLVED',
-    'contract-unidentified': 'CONTRACT UNIDENTIFIED',
-    'deployment-record-ambiguous': 'DEPLOYMENT RECORD AMBIGUOUS',
-    'unrecognised-cut-action': 'UNRECOGNISED CUT ACTION',
-    'calldata-not-readable': 'CUT NOT READABLE',
-    'pinned-state-unavailable': 'EXPECTED STATE UNAVAILABLE',
-  }
+  const label = TARGET_STATE_STATUS_LABEL
+
+  // Nothing here was measured against the anchor, so there is no provenance to
+  // state and no comparison to show. A mixed cut — one facet removed, another
+  // installed — still prints, and still lists the removal.
+  if (
+    verdict.findings.every((f) => STATUSES_THAT_CONSULTED_NOTHING.has(f.status))
+  )
+    return []
 
   const ordered = [
     ...verdict.findings.filter(
@@ -932,18 +1022,53 @@ export const formatTargetStateLines = (
     ),
   ]
 
+  const listed = dedupeLines(ordered)
+
+  // The blank line and the shared column are what mark this as its own block:
+  // flush against the gate rows above, its findings belong to whichever row
+  // they happen to follow.
   return [
-    `    Expected state:  read from ${PINNED_REF}:${TARGET_STATE_REPO_PATH} (this checkout is not consulted)`,
-    ...ordered.map((finding) => {
+    '',
+    `${GATE_TITLE_INDENT}${TARGET_STATE_GATE_HEADING}`,
+    `${GATE_BODY_INDENT}read from ${PINNED_REF}:${TARGET_STATE_REPO_PATH} (this checkout is not consulted)`,
+    ...listed.map((finding) => {
       const who = finding.contractName ?? finding.facetAddress ?? 'proposal'
       const fleet =
         finding.crossFleetCount === null
           ? ''
           : ` [${finding.crossFleetCount} network(s) declare this contract]`
-      return `      ${label[finding.status]} — ${who}: ${
+      return `${GATE_BODY_INDENT}${label[finding.status]} — ${who}: ${
         finding.detail
       }${fleet}`
     }),
+  ]
+}
+
+/**
+ * The banner printed when gate H refuses a proposal and the run skips it.
+ *
+ * Points at the section-2 block rather than restating it: the findings are
+ * already on screen under the gate's own row, and a second copy is the same
+ * fact twice with an invitation to look for the difference.
+ * @param verdict - the refusing output of {@link evaluateTargetStateIntent}
+ * @returns Banner lines for the error channel
+ */
+export const renderTargetStateRefusal = (
+  verdict: ITargetStateVerdict
+): string[] => {
+  const refusing = verdict.findings.filter(
+    (finding) => !STATUSES_CLEARED_TO_PROCEED.has(finding.status)
+  ).length
+  const rule = '='.repeat(80)
+  return [
+    '',
+    rule,
+    `✗  ${TARGET_STATE_GATE_HEADING} — refused, NOT SIGNING OR EXECUTING`,
+    `   ${refusing} finding${
+      refusing === 1 ? '' : 's'
+    } listed under "2 · WHAT WAS CHECKED FOR YOU" above; this proposal is skipped.`,
+    rule,
+    '',
   ]
 }
 

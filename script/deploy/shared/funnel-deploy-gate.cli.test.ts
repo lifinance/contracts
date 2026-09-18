@@ -34,6 +34,7 @@ import { encodeFunctionData, type Address, type Hex } from 'viem'
 import { generatePrivateKey } from 'viem/accounts'
 
 import { DIAMOND_CUT_ABI, ZERO_ADDRESS } from './constants'
+import { installRemoteIdentityShim, SHIM_BIN_DIR } from './remote-identity-shim'
 
 const FACET = 'AllBridgeFacet'
 const FACET_PATH = `src/Facets/${FACET}.sol`
@@ -115,6 +116,8 @@ const makeRepo = (diverge: boolean): string => {
       `// SPDX-License-Identifier: LGPL-3.0-only\n/// @custom:version 1.0.0\ncontract ${FACET} { uint256 public unreviewed; }\n`
     )
 
+  installRemoteIdentityShim(repoRoot)
+
   return repoRoot
 }
 
@@ -194,6 +197,7 @@ const spawnCli = (options: {
   // the Tron funnel checks the ticket before the gate, so a probe without one
   // would never reach the gate at all
   env.SAFE_PROPOSAL_TICKET = 'EXSC-929'
+  env.PATH = `${join(options.repoRoot, SHIM_BIN_DIR)}:${env.PATH ?? ''}`
 
   const result = spawnSync('bun', [options.cli, ...options.args], {
     cwd: options.repoRoot,
