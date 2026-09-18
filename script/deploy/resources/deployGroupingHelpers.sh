@@ -166,6 +166,79 @@ function groupNetworksByExecutionGroup() {
         '{london: $london, zkevm: $zkevm, cancun: $cancun, invalid: $invalid}'
 }
 
+# assertLondonProfileDeclared: Refuses to export $PROFILE_LONDON when foundry.toml has no
+# such section. forge falls back to [profile.default] with a warning and exit 0 when the
+# named section is absent, so an unchecked export would ship a cancun build to a london
+# chain on a green run.
+#
+# Usage: assertLondonProfileDeclared
+#
+# Returns: 0 when the section exists, 1 with an error otherwise
+function assertLondonProfileDeclared() {
+    if ! grep -q "^\[profile\.$PROFILE_LONDON\]" "${FOUNDRY_TOML_FILE_PATH:-foundry.toml}"; then
+        error "foundry.toml has no [profile.$PROFILE_LONDON] section - refusing to build for a london network, because forge would silently fall back to [profile.default]"
+        return 1
+    fi
+}
+
+# selectFoundryProfileForNetwork: Makes FOUNDRY_PROFILE fit a single deploy to NETWORK.
+# The direct entry points run no group build, so the profile forge compiles under is
+# whatever the shell holds; a shell holding none would compile a london network's
+# contract under [profile.default] and ship cancun opcodes to it.
+#
+# Usage: selectFoundryProfileForNetwork NETWORK
+#   NETWORK - the network the next deploy targets
+#
+# Routing/Behavior:
+#   - zkEVM network: nothing is selected; the zk build names its profile inline
+#   - FOUNDRY_PROFILE unset, or exported by an earlier call of this function in the
+#     same shell: exported as $PROFILE_LONDON for a london network, left unset for a
+#     cancun one
+#   - FOUNDRY_PROFILE exported by anything else (a group build, the operator's shell):
+#     kept, and refused when its evm_version is not the network's targetEvmVersion
+#
+# Returns: 0 with FOUNDRY_PROFILE fitting NETWORK, 1 when the network's EVM version
+#          cannot be read, the london section is missing, or the exported profile
+#          builds for another EVM version
+# Example: selectFoundryProfileForNetwork "fuse"
+function selectFoundryProfileForNetwork() {
+    local NETWORK="${1:-}"
+
+    if [[ -z "$NETWORK" ]]; then
+        error "Network name is required"
+        return 1
+    fi
+
+    if isZkEvmNetwork "$NETWORK"; then
+        return 0
+    fi
+
+    local TARGET_EVM_VERSION
+    TARGET_EVM_VERSION=$(getNetworkEvmVersion "$NETWORK") || return 1
+
+    # scriptMaster deploys one contract to every network in a single loop, so a
+    # profile this function exported for the previous network is re-selected rather
+    # than read as the operator's choice.
+    if [[ -n "${FOUNDRY_PROFILE_SELECTED_FOR_NETWORK:-}" ]]; then
+        unset FOUNDRY_PROFILE
+    fi
+
+    if [[ -z "${FOUNDRY_PROFILE:-}" ]]; then
+        if [[ "$TARGET_EVM_VERSION" == "$GROUP_LONDON" ]]; then
+            assertLondonProfileDeclared || return 1
+            export FOUNDRY_PROFILE="$PROFILE_LONDON"
+        fi
+        FOUNDRY_PROFILE_SELECTED_FOR_NETWORK="$NETWORK"
+    fi
+
+    local ACTIVE_EVM_VERSION
+    ACTIVE_EVM_VERSION=$(getEvmVersion "$NETWORK") || return 1
+    if [[ "$ACTIVE_EVM_VERSION" != "$TARGET_EVM_VERSION" ]]; then
+        error "FOUNDRY_PROFILE=${FOUNDRY_PROFILE:-default} builds for evm $ACTIVE_EVM_VERSION but $NETWORK targets $TARGET_EVM_VERSION - refusing to deploy; unset FOUNDRY_PROFILE to let the network select its profile"
+        return 1
+    fi
+}
+
 # =============================================================================
 # GROUP BUILD SELECTION
 # =============================================================================
@@ -205,13 +278,7 @@ function prepareGroupBuild() {
 
     case "$GROUP" in
         "$GROUP_LONDON")
-            # forge falls back to [profile.default] with a warning and exit 0 when the
-            # named section is absent, so an unchecked export would ship a cancun build
-            # to a london chain on a green run.
-            if ! grep -q "^\[profile\.$PROFILE_LONDON\]" foundry.toml; then
-                error "foundry.toml has no [profile.$PROFILE_LONDON] section - refusing to build the London EVM group, because forge would silently fall back to [profile.default]"
-                return 1
-            fi
+            assertLondonProfileDeclared || return 1
             export FOUNDRY_PROFILE="$PROFILE_LONDON"
             logWithTimestamp "Running forge build for London EVM group (FOUNDRY_PROFILE=$FOUNDRY_PROFILE)..."
             ;;

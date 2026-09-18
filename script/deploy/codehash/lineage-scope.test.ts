@@ -36,6 +36,51 @@ const profiles = parseBuildProfiles(
   readFileSync(join(REPO_ROOT, 'foundry.toml'), 'utf8')
 )
 
+describe('parseBuildProfiles with inheritFromDefault', () => {
+  const TOML = [
+    '[profile.default]',
+    "solc_version = '0.8.29'",
+    "evm_version = 'cancun'",
+    '[profile.ci]',
+    '[profile.ci.fuzz]',
+    'runs = 32',
+    '[profile.only_evm]',
+    "evm_version = 'london'",
+    '[profile.only_solc]',
+    "solc_version = '0.8.17'",
+    '',
+  ].join('\n')
+
+  it('fills the half a profile leaves out from [profile.default], as forge does', () => {
+    const inherited = parseBuildProfiles(TOML, { inheritFromDefault: true })
+
+    expect(inherited.only_evm).toMatchObject({
+      solcVersion: '0.8.29',
+      evmVersion: 'london',
+    })
+    expect(inherited.only_solc).toMatchObject({
+      solcVersion: '0.8.17',
+      evmVersion: 'cancun',
+    })
+  })
+
+  it('still leaves out a profile that declares neither key', () => {
+    // `ci` inherits the whole default pair, but it is not a compiler profile:
+    // admitting it would make every default-pair lookup ambiguous.
+    const inherited = parseBuildProfiles(TOML, { inheritFromDefault: true })
+
+    expect(inherited.ci).toBeUndefined()
+    expect(inherited.default).toBeDefined()
+  })
+
+  it('is off unless asked for', () => {
+    const strict = parseBuildProfiles(TOML)
+
+    expect(strict.only_evm).toBeUndefined()
+    expect(strict.only_solc).toBeUndefined()
+  })
+})
+
 describe('parseBuildProfiles — read from the real foundry.toml, not a fixture', () => {
   it('finds every profile that pins a compiler pair', () => {
     // Hardcoding these would drift the moment a profile is retuned, which is the

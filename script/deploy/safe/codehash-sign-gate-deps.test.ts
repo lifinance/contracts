@@ -729,6 +729,73 @@ describe('createForgeRebuildRunner', () => {
       expect(harness.env).toEqual([])
     })
 
+    /**
+     * Forge fills a key a profile leaves out from [profile.default], so a
+     * checkout can spell the london pair as one line. Each edit is asserted to
+     * have changed the file, or a case would test the unedited toml.
+     */
+    const edit = (toml: string, from: string, to: string): string => {
+      expect(toml).toContain(from)
+      return toml.replace(from, to)
+    }
+    const withoutLondonSolc = edit(
+      CHECKOUT_TOML,
+      "[profile.solc_floor]\nsolc_version = '0.8.17'\n",
+      '[profile.solc_floor]\n'
+    )
+    /** [profile.default] on 0.8.17, [profile.solc_floor] declaring only evm_version. */
+    const inheritsSolc = edit(
+      withoutLondonSolc,
+      "solc_version = '0.8.29'",
+      "solc_version = '0.8.17'"
+    )
+
+    it('resolves a profile that declares only evm_version and inherits the solc pin', () => {
+      const harness = buildWithToml(inheritsSolc)
+
+      harness.build()
+
+      expect(harness.env.map((env) => env.FOUNDRY_PROFILE)).toEqual([
+        'solc_floor',
+      ])
+    })
+
+    it('resolves a profile that declares only solc_version and inherits the evm version', () => {
+      const inheritsEvm = edit(
+        edit(
+          CHECKOUT_TOML,
+          "solc_version = '0.8.17'\nevm_version = 'london'\n",
+          "solc_version = '0.8.17'\n"
+        ),
+        "evm_version = 'cancun'",
+        "evm_version = 'london'"
+      )
+      const harness = buildWithToml(inheritsEvm)
+
+      harness.build()
+
+      expect(harness.env.map((env) => env.FOUNDRY_PROFILE)).toEqual([
+        'solc_floor',
+      ])
+    })
+
+    it('refuses when the inherited half does not complete the requested pair', () => {
+      // solc_floor inherits the default's 0.8.29 here, so it pins 0.8.29/london.
+      const harness = buildWithToml(withoutLondonSolc)
+
+      expect(() => harness.build()).toThrow(/declares no profile pinning/)
+      expect(harness.env).toEqual([])
+    })
+
+    it('refuses two profiles that inherit their way to the same pair', () => {
+      const harness = buildWithToml(
+        `${inheritsSolc}\n[profile.also_london]\nevm_version = 'london'\n`
+      )
+
+      expect(() => harness.build()).toThrow(/declares 2 profiles pinning/)
+      expect(harness.env).toEqual([])
+    })
+
     it('does not admit the zk profile as a cancun lineage for a non-zk request', () => {
       // [profile.zksync] pins the default pair too; without the zksolc pin it
       // would read as a plain cancun profile and make the match ambiguous.
