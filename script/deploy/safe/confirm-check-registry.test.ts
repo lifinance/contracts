@@ -209,18 +209,18 @@ describe('targetStateCheckResult', () => {
     }
   })
 
-  // A pin is decided by the version `origin/main` pins, so it wears `A-MAIN` — but it is
-  // still an acknowledgement, never a silent green: the proposed side comes from the
-  // proposer-written deployment record. Without this, downgrading `matches-pin` to a
+  // A matched pin is an acknowledgement, never a silent green, and it is anchored on the
+  // record rather than on main: the proposed side it compared the pin against comes from
+  // the proposer-written deployment record. Without this, downgrading `matches-pin` to a
   // `pass` on `A-LOCAL` passes the whole suite.
-  it('grades a matched pin as an acknowledgement anchored on main', () => {
+  it('grades a matched pin as an acknowledgement anchored on the deployment record', () => {
     const result = targetStateCheckResult(
       verdictOf([finding('matches-pin')]),
       'mainnet'
     )
 
     expect(result.status).toBe('needs-ack')
-    expect(result.anchor).toBe('A-MAIN')
+    expect(result.anchor).toBe('A-MONGO')
   })
 
   it('grades a contradicted pin as a failure anchored on main', () => {

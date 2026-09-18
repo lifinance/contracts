@@ -87,6 +87,16 @@ covered for decoded `diamondCut` calls by the sign-time gate. The gate does not 
 state to `registerPeripheryContract`; that proposal is covered by the deployment-record and
 codehash checks instead.
 
+**Re-entering a deploy run against a live network.** `deployAllContracts` stages 5 and 6
+attempt every facet and periphery contract the network declares, whatever version is already
+deployed — the pin is the only thing that can refuse, and after the migration to `latest`
+there are no pins. Before the migration a periphery contract was deployed only where the
+declared version differed from the repo's, so stage 6 skipped most of them. Entering a run at
+stage 5 or 6 against a network that already has deployments therefore redeploys and
+re-registers the whole declared set, not just what has drifted. That is the intended
+semantic — a network should hold what it declares — but it is not a no-op, so pick the start
+stage deliberately rather than restarting a failed run from the beginning.
+
 ## How the sign-time gate grades a proposal
 
 The expected version is read at `origin/main` — never the reviewer's checkout, and never the

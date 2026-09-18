@@ -243,6 +243,14 @@ describe('a refused deploy stops deployAllContracts', () => {
     expect(source).toMatch(/STAGE 5 did NOT complete:[^\n]+\n\s+return 1/)
   })
 
+  // Stage 5 stops the run, but only after trying every facet: returning on the first
+  // refusal cost one operator cycle per broken facet on a bootstrap.
+  it('names every refused facet, so stage 5 reports them in one pass', () => {
+    expect(source).toMatch(
+      /STAGE 5 did NOT complete:[^\n]*\$\{REFUSED_FACETS\[\*\]\}/u
+    )
+  })
+
   it('stops before periphery registration after stage 6 fails', () => {
     expect(source).toMatch(/STAGE 6 did NOT complete:[^\n]+\n\s+return 1/)
   })

@@ -239,6 +239,11 @@ deployAllContracts() {
 
     local EXCLUDED_FACETS_REGEXP="^($(echo "$CORE_FACETS_OUTPUT" | xargs | tr ' ' '|'))$"
 
+    # Refusals are collected rather than returned on: a bootstrap run that stops at the
+    # first refusal costs one operator cycle per broken facet, and stages 2 and 6 already
+    # attempt every contract before reporting. The run still stops before stage 6.
+    local REFUSED_FACETS=()
+
     # loop through facet contract names
     for FACET_NAME in $(getContractNamesInFolder "$FACETS_PATH"); do
       if ! [[ "$FACET_NAME" =~ $EXCLUDED_FACETS_REGEXP ]]; then
@@ -256,12 +261,16 @@ deployAllContracts() {
 
           # deploy facet and add to diamond
           if ! deployFacetAndAddToDiamond "$NETWORK" "$ENVIRONMENT" "$FACET_NAME" "$DIAMOND_CONTRACT_NAME" "$TARGET_VERSION"; then
-            warning "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 5 did NOT complete: $FACET_NAME was not deployed and added - re-run this stage before continuing"
-            return 1
+            REFUSED_FACETS+=("$FACET_NAME")
           fi
         fi
       fi
     done
+    if [[ ${#REFUSED_FACETS[@]} -gt 0 ]]; then
+      warning "<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 5 did NOT complete: these facets were not deployed and added: ${REFUSED_FACETS[*]} - re-run this stage before continuing"
+      return 1
+    fi
+
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< non-core facets part completed"
 
     echo "[info] <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<< STAGE 5 completed"

@@ -256,12 +256,14 @@ const STATUS_MAPPING: Readonly<Record<TargetStateStatus, IStatusMapping>> = {
     anchor: 'A-LOCAL',
     expected: NOTHING_TO_COMPARE,
   },
-  // A pin matched. Anchored A-MAIN rather than A-MONGO: what decided this row is
-  // the version `main` pins, not the deployment record the proposed version came
-  // from.
+  // A pin matched. `A-MONGO` although the pin itself comes from `main`: the
+  // version it was compared against was resolved through the proposer-written
+  // deployment record, which is what the anchor names. The two failing pin and
+  // ordering statuses below keep `A-MAIN` because an anchor only governs what may
+  // decide a pass.
   'matches-pin': {
     status: 'needs-ack',
-    anchor: 'A-MAIN',
+    anchor: 'A-MONGO',
     expected: VERSION_MATCHES_PIN,
   },
   // A deliberate pin contradicted. A fail, not an acknowledgement: the pin says
