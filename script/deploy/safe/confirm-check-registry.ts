@@ -212,10 +212,16 @@ export const NOTHING_TO_COMPARE =
  *
  * Split by the anchor each status rests on, not by whether it is cleared to
  * proceed. Every status that had to resolve the proposed version through the
- * deployment record is `A-MONGO` — including the three that then compared it
- * against `origin/main`, because the proposer writes that record and so owns
- * one side of the comparison. `A-MONGO` cannot decide a pass, so those three
- * ask a human instead, which a `semantic` check may legitimately do.
+ * deployment record is `A-MONGO` — including the ones that then compared it
+ * against `origin/main` or against a pin, because the proposer writes that
+ * record and so owns one side of the comparison. `A-MONGO` cannot decide a
+ * pass, so those ask a human instead, which a `semantic` check may legitimately
+ * do.
+ *
+ * No status here is `A-MAIN`, and that is not an oversight: every comparison
+ * this check makes has the proposed version on one side, so none of them rests
+ * on `origin/main` alone. The anchor stays in the ledger vocabulary for checks
+ * that read main without consulting the record.
  *
  * The three unresolvable statuses reach `A-UNRESOLVED` because nothing
  * answered at all: an action that is not Add, Replace or Remove, calldata that
@@ -258,9 +264,7 @@ const STATUS_MAPPING: Readonly<Record<TargetStateStatus, IStatusMapping>> = {
   },
   // A pin matched. `A-MONGO` although the pin itself comes from `main`: the
   // version it was compared against was resolved through the proposer-written
-  // deployment record, which is what the anchor names. The two failing pin and
-  // ordering statuses below keep `A-MAIN` because an anchor only governs what may
-  // decide a pass.
+  // deployment record, and the anchor names the weakest evidence the row rests on.
   'matches-pin': {
     status: 'needs-ack',
     anchor: 'A-MONGO',
@@ -271,7 +275,7 @@ const STATUS_MAPPING: Readonly<Record<TargetStateStatus, IStatusMapping>> = {
   // meaning anything.
   'pinned-mismatch': {
     status: 'fail',
-    anchor: 'A-MAIN',
+    anchor: 'A-MONGO',
     expected: VERSION_MATCHES_PIN,
   },
   // The network follows the repo but the repo's version could not be read at the
@@ -281,7 +285,7 @@ const STATUS_MAPPING: Readonly<Record<TargetStateStatus, IStatusMapping>> = {
     anchor: 'A-UNRESOLVED',
     expected: EVERY_ELEMENT_COMPARED,
   },
-  downgrade: { status: 'fail', anchor: 'A-MAIN', expected: ORDERING_HOLDS },
+  downgrade: { status: 'fail', anchor: 'A-MONGO', expected: ORDERING_HOLDS },
   // Ordering was attempted and the pair could not be ordered, so this one did
   // reach the comparison.
   'version-not-comparable': {

@@ -185,7 +185,7 @@ describe('targetStateCheckResult', () => {
     )
 
     expect(result.status).toBe('fail')
-    expect(result.anchor).toBe('A-MAIN')
+    expect(result.anchor).toBe('A-MONGO')
   })
 
   // All three are reached only after the deployment record supplied the
@@ -209,6 +209,21 @@ describe('targetStateCheckResult', () => {
     }
   })
 
+  // The rule above holds for every status, not only the three that ask for an
+  // acknowledgement: each comparison this check makes has the proposed version on one
+  // side, and that side comes from the record. A status reintroducing `A-MAIN` would be
+  // claiming evidence the row never had.
+  it('leaves A-MAIN unused across every status', () => {
+    const anchors = ALL_STATUSES.map(
+      (status) =>
+        targetStateCheckResult(verdictOf([finding(status)]), 'mainnet').anchor
+    )
+
+    expect(anchors).not.toContain('A-MAIN')
+    // Not vacuous: the statuses do reach several different anchors.
+    expect(new Set(anchors).size).toBeGreaterThan(1)
+  })
+
   // A matched pin is an acknowledgement, never a silent green, and it is anchored on the
   // record rather than on main: the proposed side it compared the pin against comes from
   // the proposer-written deployment record. Without this, downgrading `matches-pin` to a
@@ -223,14 +238,14 @@ describe('targetStateCheckResult', () => {
     expect(result.anchor).toBe('A-MONGO')
   })
 
-  it('grades a contradicted pin as a failure anchored on main', () => {
+  it('grades a contradicted pin as a failure anchored on the record', () => {
     const result = targetStateCheckResult(
       verdictOf([finding('pinned-mismatch')]),
       'mainnet'
     )
 
     expect(result.status).toBe('fail')
-    expect(result.anchor).toBe('A-MAIN')
+    expect(result.anchor).toBe('A-MONGO')
   })
 
   // `latest` with an unreadable source version compared nothing, so it must not be
@@ -357,7 +372,7 @@ describe('targetStateCheckResult', () => {
     )
 
     expect(result.status).toBe('fail')
-    expect(result.anchor).toBe('A-MAIN')
+    expect(result.anchor).toBe('A-MONGO')
     expect(result.actual).toContain('GenericSwapFacetV3')
     // A passing finding must not pad the row into looking mostly fine.
     expect(result.actual).not.toContain('removal')
