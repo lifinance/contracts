@@ -20,6 +20,7 @@
  * Spawns the real entry points, following `ticket-gate-placement.test.ts`.
  */
 
+import { execFileSync } from 'child_process'
 import {
   chmodSync,
   existsSync,
@@ -214,6 +215,10 @@ describe("the caller's ticket outranks the env file", () => {
 
     expect(result.refused).toBe(false)
     expect(result.output).toContain(PAST_THE_GUARD)
+    // Naming the ticket, not just the absence of a refusal: a run that adopted
+    // some other ticket — an inherited mirror, say — also gets past the guard
+    // and prints the marker, and would satisfy the two assertions above.
+    expect(result.output).toContain('issue/EXSC-1034')
   })
 
   it('carries an exported reason through the same clobber', () => {
@@ -257,6 +262,71 @@ describe('the single-contract entry point resolves a ticket before it builds', (
 
     expect(guard).toBeLessThan(lineOf(/forge build /))
     expect(guard).toBeLessThan(lineOf(/^\s*executeAndParse /))
+  })
+})
+
+describe('every entry point captures before the env file', () => {
+  // The miss this pins: the capture has to sit above an entry point's own
+  // `source .env`, and each of these starts its own process, so none of them
+  // inherits one from a parent. `syncWhitelistToNetworks.sh` shipped the bug
+  // this way — a live Safe-proposal path whose ordering nothing checked.
+  //
+  // Listed rather than discovered: the entry points differ in shape (a
+  // `BASH_SOURCE` guard, top-level statements, a `main` call at the bottom), and
+  // every heuristic that covers one shape silently drops another. The sweep
+  // below is the backstop that catches a new file this list forgets.
+  const ENTRY_POINTS = [
+    'script/helperFunctions.sh',
+    'script/scriptMaster.sh',
+    'script/deploy/deployContractToNetworks.sh',
+    'script/tasks/proposeContractToNetworks.sh',
+    'script/tasks/syncWhitelistToNetworks.sh',
+  ]
+
+  const orderIn = (file: string): { capture: number; env: number } => {
+    const lines = readFileSync(join(REPO_ROOT, file), 'utf8').split('\n')
+    return {
+      capture: lines.findIndex((line) =>
+        line.includes('captureProposalIntent.sh')
+      ),
+      env: lines.findIndex((line) => /^\s*source \.env\s*$/.test(line)),
+    }
+  }
+
+  it.each(ENTRY_POINTS)('%s captures first', (file) => {
+    const { capture, env } = orderIn(file)
+
+    expect(env).toBeGreaterThan(-1)
+    expect(capture).toBeGreaterThan(-1)
+    expect(capture).toBeLessThan(env)
+  })
+
+  it('has no direct-exec script that sources the env file uncaptured', () => {
+    const guarded = execFileSync(
+      'git',
+      [
+        'grep',
+        '-l',
+        '-E',
+        'BASH_SOURCE\\[0\\]}" == "\\$\\{0}"',
+        '--',
+        'script',
+      ],
+      { cwd: REPO_ROOT, encoding: 'utf8' }
+    )
+      .trim()
+      .split('\n')
+      .filter(Boolean)
+
+    // Zero matches would let this pass by checking nothing.
+    expect(guarded.length).toBeGreaterThan(0)
+
+    for (const file of guarded) {
+      const { capture, env } = orderIn(file)
+      if (env === -1) continue
+      expect(capture).toBeGreaterThan(-1)
+      expect(capture).toBeLessThan(env)
+    }
   })
 })
 
