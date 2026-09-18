@@ -122,7 +122,6 @@ const deps = (options: {
     (options.deployed
       ? {
           kind: 'resolved',
-          recordedOn: 'network' as const,
           ...options.deployed,
         }
       : { kind: 'unrecorded' }),
@@ -718,7 +717,6 @@ describe('the gate fires on the committed target state (latest path)', () => {
       kind: 'resolved',
       contractName: subject?.[0] ?? 'unknown',
       version: proposedVersion,
-      recordedOn: 'network' as const,
     }),
   })
 
