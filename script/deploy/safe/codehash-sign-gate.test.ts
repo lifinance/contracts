@@ -14,7 +14,7 @@ import {
   it,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
-import { encodeFunctionData, getAddress, type Hex } from 'viem'
+import { encodeFunctionData, getAddress, parseAbi, type Hex } from 'viem'
 
 import type { IAttestedBuild, IObservedCode } from '../codehash/attested-set'
 import { FacetCutActionEnum } from '../codehash/cut-classification'
@@ -78,6 +78,13 @@ const cutCalldata = (facet = FACET, action = FacetCutActionEnum.Add): Hex =>
       ZERO as `0x${string}`,
       '0x',
     ],
+  })
+
+const registerCalldata = (address = OTHER, name = 'Executor'): Hex =>
+  encodeFunctionData({
+    abi: parseAbi(['function registerPeripheryContract(string,address)']),
+    functionName: 'registerPeripheryContract',
+    args: [name, address as `0x${string}`],
   })
 
 const wrapped = (payloads: Hex[]): Hex =>
@@ -678,6 +685,52 @@ describe('the render distinguishes every bucket, including the two that are not 
     expect(gate.summary).toContain('0xdeadbeef')
     expect(gate.summary).toMatch(/could not open/)
     expect(gate.madeNoClaim).toBe(true)
+  })
+
+  it('judges a periphery registration instead of standing down', async () => {
+    // The vacuous green this closes: a proposal installing periphery carries no
+    // `diamondCut`, so the gate reported "installs no facet code" — literally
+    // true, and read as "nothing to check here" for a contract going live.
+    const seen: string[] = []
+    const gate = await evaluateCodehashSignGate(
+      await gateInput(wrapped([registerCalldata()]), NETWORK),
+      () =>
+        deps({
+          observe: async (address) => {
+            seen.push(address)
+            return observed()
+          },
+        })
+    )
+
+    expect(seen).toEqual([getAddress(OTHER)])
+    expect(gate.madeNoClaim).toBeUndefined()
+    expect(gate.targets.map((one) => one.address)).toEqual([getAddress(OTHER)])
+    expect(gate.targets[0]?.verdict).toBe('MATCH')
+    expect(gate.blocksSigning).toBe(false)
+  })
+
+  it('blocks a registration whose code matches no attested build', async () => {
+    const gate = await evaluateCodehashSignGate(
+      await gateInput(wrapped([registerCalldata()]), NETWORK),
+      () => deps({ attestationsFor: async () => ({ builds: [] }) })
+    )
+
+    expect(gate.blocksSigning).toBe(true)
+    expect(gate.targets[0]?.verdict).toBe('UNVERIFIABLE')
+  })
+
+  it('judges a cut and a registration carried in one batch', async () => {
+    const gate = await evaluateCodehashSignGate(
+      await gateInput(wrapped([cutCalldata(), registerCalldata()]), NETWORK),
+      () => deps()
+    )
+
+    expect(gate.targets.map((one) => one.address)).toEqual([
+      getAddress(FACET),
+      getAddress(OTHER),
+    ])
+    expect(gate.blocksSigning).toBe(false)
   })
 
   it('does not claim an unopened frame for an ordinary decodable cut', async () => {

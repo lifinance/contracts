@@ -1115,9 +1115,25 @@ export interface IDiamondCutCall {
   init: string
 }
 
+/** One `registerPeripheryContract` call recovered from a proposal's calldata. */
+export interface IPeripheryRegistration {
+  /** The name the registry would hold the address under. */
+  name: string
+  /** Checksummed address the registration installs. */
+  address: string
+}
+
 export interface ICollectedDiamondCuts {
   /** Every `diamondCut` found, in the order the calldata carries them. */
   calls: IDiamondCutCall[]
+  /**
+   * Every periphery registration found, in the order the calldata carries them.
+   *
+   * Carried beside the cuts rather than among them: a registration performs no
+   * `FacetCut`, so a collector reporting only cuts leaves the one address such
+   * a proposal installs ungated while the gate renders not-applicable.
+   */
+  registrations: IPeripheryRegistration[]
   /**
    * Reasons the calldata must not be signed whatever any codehash result says.
    * Populated when a cut is present in bytes this module cannot decode.
@@ -1142,6 +1158,9 @@ const selectorOf = (abi: Abi): string =>
 const DIAMOND_CUT_SELECTOR = selectorOf(ABI_DIAMOND_CUT).toLowerCase()
 const SCHEDULE_BATCH_SELECTOR = selectorOf(ABI_SCHEDULE_BATCH).toLowerCase()
 const SCHEDULE_SINGLE_SELECTOR = selectorOf(ABI_SCHEDULE_SINGLE).toLowerCase()
+const REGISTER_PERIPHERY_SELECTOR = selectorOf(
+  ABI_REGISTER_PERIPHERY_CONTRACT
+).toLowerCase()
 
 /** Deep enough for the envelopes in use, shallow enough to bound the walk. */
 const MAX_ENVELOPE_DEPTH = 4
@@ -1204,7 +1223,9 @@ const readCutEntry = (entry: unknown): IFacetCutEntry | undefined => {
 }
 
 /**
- * Recovers every `diamondCut` a proposal's calldata would perform.
+ * Recovers every contract a proposal's calldata would install: each
+ * `diamondCut` it would perform, and each `registerPeripheryContract` it
+ * carries.
  *
  * The cut is decoded with {@link ABI_DIAMOND_CUT}, the same ABI the display path
  * renders from, so the structure vouched for and the structure shown are one
@@ -1226,18 +1247,22 @@ const readCutEntry = (entry: unknown): IFacetCutEntry | undefined => {
  * than about the outer selector.
  *
  * @param data - the proposal's calldata, `0x`-prefixed
- * @returns The cuts found, and any reason the calldata must not be signed
+ * @returns The cuts and registrations found, and any reason the calldata must
+ *   not be signed
  */
 export const collectDiamondCutTargets = (
   data: Hex | undefined
 ): ICollectedDiamondCuts => {
   const calls: IDiamondCutCall[] = []
-  if (!data || data === '0x') return { calls, refusals: [], unopened: [] }
+  const registrations: IPeripheryRegistration[] = []
+  if (!data || data === '0x')
+    return { calls, registrations, refusals: [], unopened: [] }
 
   const hex = data.toLowerCase()
   if (!/^0x([0-9a-f]{2})*$/.test(hex))
     return {
       calls: [],
+      registrations: [],
       unopened: [],
       refusals: [
         `This proposal's calldata is not well-formed hex (${
@@ -1324,10 +1349,32 @@ export const collectDiamondCutTargets = (
       return
     }
 
-    // Known and carrying no nested calldata: a role change, a whitelist entry,
-    // a periphery registration. Its arguments may hold the four bytes of the
-    // diamondCut selector without hiding a cut, which is why membership here
-    // and not the byte scan decides.
+    if (selector === REGISTER_PERIPHERY_SELECTOR) {
+      let decoded
+      try {
+        decoded = decodeFunctionData({
+          abi: ABI_REGISTER_PERIPHERY_CONTRACT,
+          data: framed,
+        })
+      } catch (error) {
+        unopened.push(`${selector} (${message(error)})`)
+        return
+      }
+      const [name, address] = decoded.args ?? []
+      let checksummed: string
+      try {
+        checksummed = getAddress(String(address) as `0x${string}`)
+      } catch {
+        unopened.push(`${selector} (its registered address is not an address)`)
+        return
+      }
+      registrations.push({ name: String(name), address: checksummed })
+      return
+    }
+
+    // Known and carrying no nested calldata: a role change, a whitelist entry.
+    // Its arguments may hold the four bytes of the diamondCut selector without
+    // hiding a cut, which is why membership here and not the byte scan decides.
     if (DECODABLE_SELECTORS.has(selector)) return
 
     unopened.push(selector)
@@ -1347,7 +1394,7 @@ export const collectDiamondCutTargets = (
         ]
       : []
 
-  return { calls, refusals, unopened }
+  return { calls, registrations, refusals, unopened }
 }
 
 /**
