@@ -243,22 +243,72 @@ describe('a refused deploy stops deployAllContracts', () => {
     expect(source).toMatch(/STAGE 5 did NOT complete:[^\n]+\n\s+return 1/)
   })
 
-  // Asserted on the loop body, not on the report below it: that report survives a
-  // return inside the loop, so it cannot tell the two behaviours apart.
-  it('leaves the non-core facet loop only after every facet was attempted', () => {
-    const loopStart = source.indexOf(
-      'for FACET_NAME in $(getContractNamesInFolder "$FACETS_PATH"); do'
-    )
-    expect(loopStart).toBeGreaterThan(-1)
-    const loopEnd = source.indexOf('\n    done', loopStart)
-    expect(loopEnd).toBeGreaterThan(loopStart)
-    const loopBody = source.slice(loopStart, loopEnd)
+  // Run rather than read: a grep over the loop body cannot tell `return` from `break`,
+  // `continue 2` or `exit`, and cannot see the threshold below it at all — both of which
+  // reverted this stage to stopping on the first refusal with the suite still green.
+  const runStageFive = (refusing: string[], facets: string[]): string => {
+    const start = source.indexOf('    # prepare regExp to exclude core facets')
+    const end = source.indexOf('STAGE 5 completed')
+    if (start === -1 || end === -1)
+      throw new Error(
+        'stage 5 no longer has the markers this test slices between'
+      )
+    const block = source.slice(start, source.lastIndexOf('\n', end))
 
-    expect(loopBody).toContain('REFUSED_FACETS+=("$FACET_NAME")')
-    expect(loopBody).not.toMatch(/\breturn\b/u)
-    expect(source).toMatch(
-      /STAGE 5 did NOT complete:[^\n]*\$\{REFUSED_FACETS\[\*\]\}/u
+    const harness = join(workDir, `stage5-${refusing.join('_') || 'none'}.sh`)
+    writeFileSync(
+      harness,
+      `
+      CONTRACT_DIRECTORY="src/"
+      NETWORK=mainnet
+      ENVIRONMENT=production
+      DIAMOND_CONTRACT_NAME=LiFiDiamond
+      TARGET_STATE_VERSION_LATEST="latest"
+      getCoreFacetsArray() { echo "CoreFacetA"; }
+      checkFailure() { :; }
+      getContractNamesInFolder() { echo "${facets.join(' ')}"; }
+      findContractVersionInTargetState() { echo latest; return 0; }
+      warning() { echo "[warning] $*"; }
+      deployFacetAndAddToDiamond() {
+        echo "attempted $3"
+        case " ${refusing.join(' ')} " in *" $3 "*) return 1 ;; esac
+        return 0
+      }
+      stageFive() {
+${block}
+        return 0
+      }
+      stageFive
+      echo "rc=$?"
+    `
     )
+    return execFileSync('bash', [harness], {
+      cwd: workDir,
+      encoding: 'utf8',
+    }).trim()
+  }
+
+  it('attempts every facet and stops the run when any one is refused', () => {
+    const output = runStageFive(
+      ['FacetBad'],
+      ['FacetGood', 'FacetBad', 'FacetGood2']
+    )
+
+    // Every facet attempted, including the one after the refusal.
+    expect(output).toContain('attempted FacetGood')
+    expect(output).toContain('attempted FacetBad')
+    expect(output).toContain('attempted FacetGood2')
+    // A single refusal is enough to stop the run before stage 6.
+    expect(output).toContain('rc=1')
+    expect(output).toContain('FacetBad')
+  })
+
+  it('completes the stage when nothing is refused', () => {
+    const output = runStageFive([], ['FacetGood', 'FacetGood2'])
+
+    expect(output).toContain('attempted FacetGood2')
+    expect(output).toContain('rc=0')
+    expect(output).not.toContain('did NOT complete')
   })
 
   it('stops before periphery registration after stage 6 fails', () => {

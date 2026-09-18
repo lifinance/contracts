@@ -220,8 +220,8 @@ export const NOTHING_TO_COMPARE =
  *
  * No status here is `A-MAIN`, and that is not an oversight: every comparison
  * this check makes has the proposed version on one side, so none of them rests
- * on `origin/main` alone. The anchor stays in the ledger vocabulary for checks
- * that read main without consulting the record.
+ * on `origin/main` alone. The anchor remains in the ledger vocabulary, which no
+ * check produces today, alongside `A-AUDIT`.
  *
  * The four unresolvable statuses reach `A-UNRESOLVED` because nothing answered
  * at all: an action that is not Add, Replace or Remove, calldata that could not
