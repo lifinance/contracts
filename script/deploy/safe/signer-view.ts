@@ -74,7 +74,7 @@ export const GATE_DETAIL_HEADING = `${DIM}GATE DETAIL · element by element, for
 export const renderGateDetail = (
   blocks: readonly (readonly string[])[]
 ): string[] => {
-  const lines = blocks.flat()
+  const lines = foldLines(blocks.flat())
   return lines.length > 0 ? [GATE_DETAIL_HEADING, ...lines] : []
 }
 
@@ -107,7 +107,7 @@ const BUCKET_STYLE: ReadonlyMap<CheckBucket, IBucketStyle> = new Map([
     'wrong',
     {
       heading: 'THE PROPOSAL IS WRONG — do not sign',
-      glyph: '⛔',
+      glyph: '✗',
       colour: RED,
     },
   ],
@@ -123,11 +123,11 @@ const BUCKET_STYLE: ReadonlyMap<CheckBucket, IBucketStyle> = new Map([
     'ack',
     {
       heading: 'NEEDS YOUR ACKNOWLEDGEMENT',
-      glyph: '⚠️',
+      glyph: '⚠',
       colour: YELLOW,
     },
   ],
-  ['passed', { heading: 'PASSED', glyph: '✅', colour: GREEN }],
+  ['passed', { heading: 'PASSED', glyph: '✓', colour: GREEN }],
   ['n/a', { heading: 'NOT APPLICABLE', glyph: '·', colour: DIM }],
 ])
 
@@ -237,7 +237,6 @@ const SILENT = { glyph: '!', word: 'NO RESULT', colour: YELLOW } as const
  * one in the section below it is a worse defect than a column that has to
  * measure its own glyphs.
  */
-const WIDE_GLYPHS: ReadonlySet<string> = new Set(['⛔', '⚠️', '✅'])
 
 /** Columns the manifest's glyph cell occupies, widest glyph plus a separator. */
 const GLYPH_CELL_WIDTH = 3
@@ -245,12 +244,14 @@ const GLYPH_CELL_WIDTH = 3
 /**
  * A glyph padded to a fixed cell, so every row's letter starts level.
  *
- * The separating column is inside the cell rather than written after it: an
- * emoji already fills two columns, so a cell sized to the glyph alone puts the
- * gate letter hard against the mark on exactly the rows a signer reads first.
+ * Every glyph is a single-width text symbol on purpose. An emoji is one cell
+ * wide in one terminal and two in the next, so a column laid out after it
+ * lands in a different place per terminal — which is how the letter column
+ * came to sit flush against the glyph in one emulator and a space away in
+ * another.
  */
 const glyphCell = (glyph: string): string =>
-  `${glyph}${' '.repeat(GLYPH_CELL_WIDTH - (WIDE_GLYPHS.has(glyph) ? 2 : 1))}`
+  `${glyph}${' '.repeat(GLYPH_CELL_WIDTH - 1)}`
 
 /**
  * Columns the manifest spends on everything that is not the gate's title.
@@ -450,7 +451,7 @@ export const renderGateManifest = (input: IGateManifestInput): string[] => {
         }${RESET}${' '.repeat(
           Math.max(0, MANIFEST_GATE_WIDTH - definition.gate.length)
         )}` +
-          `${definition.title} ${DIM}${dots}${RESET} ` +
+          `${BOLD}${definition.title}${RESET} ${DIM}${dots}${RESET} ` +
           // Padded outside the colour: inside it the row ends in a reset code
           // rather than a space, so `trimEnd` cannot see the padding and every
           // row without a disposition ships trailing whitespace.
@@ -628,6 +629,15 @@ const visibleWidth = (text: string): number => text.replace(SGR, '').length
  * @param line - One note line, as its producer formatted it.
  * @returns The line, or the folded lines that replace it.
  */
+/**
+ * Folds pre-formatted lines to the view width, keeping each line's own indent.
+ *
+ * @param lines - Lines built by another module, possibly wider than the view.
+ * @returns The same lines, wrapped where they overran.
+ */
+export const foldLines = (lines: readonly string[]): string[] =>
+  lines.flatMap(wrapNote)
+
 const wrapNote = (line: string): string[] => {
   if (visibleWidth(line) <= VIEW_WIDTH) return [line]
 

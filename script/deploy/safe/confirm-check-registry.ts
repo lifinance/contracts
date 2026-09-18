@@ -24,10 +24,11 @@ import {
   type IIntegrityAssertRun,
 } from './confirm-integrity-asserts'
 import type { IExecutabilityVerdict } from './executability-simulation'
-import type {
-  ITargetStateFinding,
-  ITargetStateVerdict,
-  TargetStateStatus,
+import {
+  type ITargetStateFinding,
+  type ITargetStateVerdict,
+  TARGET_STATE_STATUS_LABEL,
+  type TargetStateStatus,
 } from './pinned-target-state'
 import type { IPreBroadcastAuthority } from './prebroadcast-authorities'
 import { MIN_INDEPENDENT_PROVIDERS, type IRpcQuorumVerdict } from './rpc-quorum'
@@ -418,7 +419,7 @@ const worstOf = (
 
 const describe = (finding: ITargetStateFinding): string => {
   const name = finding.contractName ?? finding.facetAddress ?? 'unnamed element'
-  return `${name}: ${finding.status}`
+  return `${name}: ${TARGET_STATE_STATUS_LABEL[finding.status]}`
 }
 
 /**

@@ -204,6 +204,7 @@ import {
   renderNetworkPreflight,
 } from './signer-preflight'
 import {
+  foldLines,
   checkSummary,
   PROPOSAL_SEPARATOR,
   renderGateDetail,
@@ -1742,7 +1743,7 @@ const processTxs = async (
       codehashLines,
     ]).forEach((line) => consola.log(line))
     // Carries no ledger row, so it has no grouped row to print under.
-    calldataAddressLines.forEach((line) => consola.log(line))
+    foldLines(calldataAddressLines).forEach((line) => consola.log(line))
 
     // The slot, not the checklist. What goes in it is printed further down, once
     // an action has been chosen and every interlock that could still abort the

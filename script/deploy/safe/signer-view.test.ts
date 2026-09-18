@@ -140,7 +140,7 @@ describe('renderCheckGroups', () => {
   it('gives every bucket it prints its own glyph, so none is told apart by wording alone', () => {
     const plain = renderCheckGroups(mixed).map(stripAnsi).join('\n')
     // No tick: the passed bucket is not printed here at all — see below.
-    const glyphs = ['⛔', '?', '·']
+    const glyphs = ['✗', '?', '·']
 
     for (const glyph of glyphs) expect(plain).toContain(glyph)
     expect(new Set(glyphs).size).toBe(glyphs.length)
@@ -155,7 +155,7 @@ describe('renderCheckGroups', () => {
       .join('\n')
 
     expect(onlyUnchecked).toContain('?')
-    expect(onlyUnchecked).not.toContain('⛔')
+    expect(onlyUnchecked).not.toContain('✗')
     expect(onlyUnchecked.toLowerCase()).toContain('your environment')
   })
 
@@ -773,6 +773,42 @@ describe('renderGateManifest', () => {
       docUrls: DOCS,
     }).map(stripAnsi)
 
+  // An emoji renders one cell wide in one terminal and two in the next, so a
+  // column laid out after it lands in a different place per terminal. Every
+  // glyph is a single-width text symbol, and the letter column proves it.
+  it('uses single-width glyphs, so the letter column is level in any terminal', () => {
+    const raw = renderGateManifest({
+      entries: [
+        entry('a-check', 'pass'),
+        entry('b-check', 'fail'),
+        entry('c-check', 'needs-ack'),
+        entry('d-check', 'error'),
+      ],
+      roster: ROSTER,
+      mustReport: OWED,
+    })
+    const emoji = /[\u{1F000}-\u{1FFFF}✅❌⛔]/u
+    const variationSelector = String.fromCharCode(0xfe0f)
+    for (const line of raw) {
+      expect(line).not.toMatch(emoji)
+      expect(line).not.toContain(variationSelector)
+    }
+
+    const columns = ['A', 'B', 'C', 'D'].map((letter) =>
+      stripAnsi(rowFor(raw.map(stripAnsi), letter)).indexOf(` ${letter} `)
+    )
+    expect(new Set(columns).size).toBe(1)
+  })
+
+  it('prints the title in bold, the same weight the grouped rows give it', () => {
+    const [, row] = renderGateManifest({
+      entries: [entry('a-check', 'pass')],
+      roster: ROSTER,
+      mustReport: OWED,
+    })
+    expect(row).toContain('[1mSafe address')
+  })
+
   describe('the columns name themselves', () => {
     it('heads every column but the glyph, which the bucket headings name', () => {
       const header = renderWithDocs([entry('a-check', 'pass')])[0] as string
@@ -1152,7 +1188,7 @@ describe('a gate that graded nothing', () => {
 
     // Bold, and carrying nothing but its glyph and its title: the reason moved
     // to the line underneath, the column a graded row prints its values in.
-    expect(stripAnsi(stood)).toBe(stripAnsi(graded).replace('⛔', '·'))
+    expect(stripAnsi(stood)).toBe(stripAnsi(graded).replace('✗', '·'))
     expect(stood).toContain('\u001b[1m')
     expect(stripAnsi(stood)).not.toContain('no facet code')
   })
@@ -1182,6 +1218,21 @@ describe('a stood-down gate that did not say why', () => {
 })
 
 describe('renderGateDetail', () => {
+  // The blocks arrive pre-formatted from the gate modules; a 200-column
+  // finding pushed through untouched is how a detail line came to wrap on the
+  // terminal's own edge, mid-word, with the timestamp column lost.
+  it('folds a block line that exceeds the view width', () => {
+    const long = `        DOWNGRADE — ${'word '.repeat(45)}`
+    const lines = renderGateDetail([['      Gate H · version', long]]).map(
+      stripAnsi
+    )
+
+    expect(lines.length).toBeGreaterThan(3)
+    for (const line of lines)
+      expect(line.length).toBeLessThanOrEqual(VIEW_WIDTH)
+    expect(lines.join(' ')).toContain('DOWNGRADE')
+  })
+
   it('puts a heading above the blocks, so the last bucket does not adopt them', () => {
     // The bug this closes: the blocks printed straight after the buckets, and
     // the last bucket is NOT APPLICABLE, so gate H's needs-acknowledgement

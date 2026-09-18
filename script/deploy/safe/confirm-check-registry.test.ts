@@ -412,8 +412,9 @@ describe('targetStateCheckResult', () => {
     )
 
     expect(result.expected).toBe(ORDERING_HOLDS)
-    expect(result.actual).toContain('contract-unidentified')
-    expect(result.actual).toContain('downgrade')
+    expect(result.actual).toContain('CONTRACT UNIDENTIFIED')
+    expect(result.actual).not.toMatch(/: [a-z]+-[a-z]+/u)
+    expect(result.actual).toContain('DOWNGRADE')
   })
 
   // The allow-list, not the two fields: a finding pushed from `blank` carries no
@@ -431,7 +432,7 @@ describe('targetStateCheckResult', () => {
     )
 
     expect(expected).toBe(EVERY_ELEMENT_COMPARED)
-    expect(actual).toContain('deployment-record-ambiguous')
+    expect(actual).toContain('DEPLOYMENT RECORD AMBIGUOUS')
   })
 
   // Both versions resolved, so the field test alone would print them — but they
@@ -448,7 +449,7 @@ describe('targetStateCheckResult', () => {
     )
 
     expect(expected).toBe(ORDERING_HOLDS)
-    expect(actual).toContain('version-not-comparable')
+    expect(actual).toContain('UNEXPECTED VERSION')
   })
 
   // The version the record carries is the one side the proposer writes. A row
@@ -463,7 +464,7 @@ describe('targetStateCheckResult', () => {
     )
 
     expect(expected).toBe(ORDERING_HOLDS)
-    expect(actual).toContain('not-previously-targeted')
+    expect(actual).toContain('NOT PREVIOUSLY TARGETED')
   })
 
   // The canonical rollout cut: add a new facet and replace a live one in the

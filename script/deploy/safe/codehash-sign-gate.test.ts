@@ -112,7 +112,7 @@ const deps = (over: Partial<IVerifyCutDeps> = {}): IVerifyCutDeps => ({
 
 /** The verdict glyph a rendered bucket leads with. */
 const glyph = (rendered: string): string => {
-  const found = /[✓✗?!⚠]/.exec(rendered)
+  const found = /[✓✗×?!⚠]/.exec(rendered)
   return found?.[0] ?? ''
 }
 

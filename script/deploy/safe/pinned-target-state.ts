@@ -676,6 +676,23 @@ const dedupeLines = (
   })
 }
 
+/** The words each status prints under, on the row and in the detail block. */
+export const TARGET_STATE_STATUS_LABEL: Record<TargetStateStatus, string> = {
+  'no-diamond-cut': 'n/a',
+  removal: 'REMOVAL (warn)',
+  'not-previously-targeted': 'NOT PREVIOUSLY TARGETED',
+  'matches-main': 'matches main',
+  'ahead-of-main': 'upgrade',
+  downgrade: 'DOWNGRADE',
+  'version-not-comparable': 'UNEXPECTED VERSION',
+  'proposed-version-unresolved': 'PROPOSED VERSION UNRESOLVED',
+  'contract-unidentified': 'CONTRACT UNIDENTIFIED',
+  'deployment-record-ambiguous': 'DEPLOYMENT RECORD AMBIGUOUS',
+  'unrecognised-cut-action': 'UNRECOGNISED CUT ACTION',
+  'calldata-not-readable': 'CUT NOT READABLE',
+  'pinned-state-unavailable': 'EXPECTED STATE UNAVAILABLE',
+}
+
 /**
  * Renders a verdict for the signer, one line per distinct finding.
  * @param verdict - output of {@link evaluateTargetStateIntent}
@@ -684,21 +701,7 @@ const dedupeLines = (
 export const formatTargetStateLines = (
   verdict: ITargetStateVerdict
 ): string[] => {
-  const label: Record<TargetStateStatus, string> = {
-    'no-diamond-cut': 'n/a',
-    removal: 'REMOVAL (warn)',
-    'not-previously-targeted': 'NOT PREVIOUSLY TARGETED',
-    'matches-main': 'matches main',
-    'ahead-of-main': 'upgrade',
-    downgrade: 'DOWNGRADE',
-    'version-not-comparable': 'UNEXPECTED VERSION',
-    'proposed-version-unresolved': 'PROPOSED VERSION UNRESOLVED',
-    'contract-unidentified': 'CONTRACT UNIDENTIFIED',
-    'deployment-record-ambiguous': 'DEPLOYMENT RECORD AMBIGUOUS',
-    'unrecognised-cut-action': 'UNRECOGNISED CUT ACTION',
-    'calldata-not-readable': 'CUT NOT READABLE',
-    'pinned-state-unavailable': 'EXPECTED STATE UNAVAILABLE',
-  }
+  const label = TARGET_STATE_STATUS_LABEL
 
   // Nothing here was measured against the anchor, so there is no provenance to
   // state and no comparison to show. A mixed cut — one facet removed, another
@@ -717,6 +720,8 @@ export const formatTargetStateLines = (
     ),
   ]
 
+  const listed = dedupeLines(ordered)
+
   // The blank line and the shared column are what mark this as its own block:
   // flush against the gate rows above, its findings belong to whichever row
   // they happen to follow.
@@ -724,7 +729,7 @@ export const formatTargetStateLines = (
     '',
     `${GATE_TITLE_INDENT}${TARGET_STATE_GATE_HEADING}`,
     `${GATE_BODY_INDENT}read from ${PINNED_REF}:${TARGET_STATE_REPO_PATH} (this checkout is not consulted)`,
-    ...dedupeLines(ordered).map((finding) => {
+    ...listed.map((finding) => {
       const who = finding.contractName ?? finding.facetAddress ?? 'proposal'
       const fleet =
         finding.crossFleetCount === null

@@ -865,8 +865,10 @@ export const evaluateCalldataAddresses = (
 }
 
 const ESC = String.fromCharCode(27)
-const REFUSED = `${ESC}[31m⛔ REFUSED${ESC}[0m`
-const CANNOT_CHECK = `${ESC}[31m⛔ CANNOT CHECK${ESC}[0m`
+const REFUSED = `${ESC}[31m× REFUSED${ESC}[0m`
+// Amber, not red: the record may report and never decide, so a check it could
+// not run is a gap in the report, not a refusal.
+const CANNOT_CHECK = `${ESC}[33m⚠ CANNOT CHECK${ESC}[0m`
 const WARN = `${ESC}[33m⚠${ESC}[0m`
 const OK = `${ESC}[32m✓${ESC}[0m`
 /**
@@ -882,8 +884,8 @@ const VERIFIED = `${ESC}[2m·${ESC}[0m`
 /**
  * What the block says about itself before it says anything about the proposal.
  *
- * The lines below carry the same glyphs the gate rows do — a `⛔` here reads
- * exactly like a `⛔` on gate K — while the deployment record may only report,
+ * The lines below carry the same glyphs the gate rows do — a `×` here reads
+ * exactly like a `×` on gate K — while the deployment record may only report,
  * so none of them stops a signature. Without the heading the block's only
  * distinguishing feature is that it appears after the roster rather than on it,
  * which reads as an omission rather than as a class.

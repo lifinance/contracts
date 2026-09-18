@@ -1201,6 +1201,10 @@ describe('renderCalldataAddresses', () => {
 
     expect(lines.join('\n')).toContain('CANNOT CHECK')
     expect(lines.join('\n')).not.toContain('resolved to the deployment record')
+    // Report-only, so never the red stop sign a blocking gate uses, and never
+    // an emoji, whose cell width differs per terminal.
+    expect(lines.join('\n')).not.toContain('\u26d4')
+    expect(lines.join('\n')).not.toContain('\u001b[31m')
   })
 })
 

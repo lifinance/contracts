@@ -418,11 +418,11 @@ export const renderCodehashSignGate = (gate: ICodehashSignGate): string[] => {
   // own renderer. Both are blocking red, so this is legibility, not safety.
   if (!gate.evaluated)
     lines.push(
-      `${GATE_BODY_INDENT}\u001b[31m⛔ REFUSED\u001b[0m ${gate.summary}`
+      `${GATE_BODY_INDENT}\u001b[31m× REFUSED\u001b[0m ${gate.summary}`
     )
 
   for (const refusal of gate.refusals)
-    lines.push(`${GATE_BODY_INDENT}\u001b[31m⛔ REFUSED\u001b[0m ${refusal}`)
+    lines.push(`${GATE_BODY_INDENT}\u001b[31m× REFUSED\u001b[0m ${refusal}`)
 
   for (const target of gate.targets) {
     const bucket = BUCKETS[target.verdict]
