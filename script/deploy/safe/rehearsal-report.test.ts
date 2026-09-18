@@ -9,7 +9,11 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 
-import { createCheckLedger, recordCheck } from './check-ledger'
+import {
+  createCheckLedger,
+  recordCheck,
+  type CheckStatus,
+} from './check-ledger'
 import {
   REHEARSAL_GATE_ROSTER,
   buildGateReport,
@@ -108,7 +112,7 @@ describe('summariseSignerWorkload', () => {
       recordCheck(built, {
         checkId,
         network,
-        status: status as 'pass' | 'fail' | 'error' | 'needs-ack',
+        status: status as CheckStatus,
         expected: 'e',
         actual: 'a',
         anchor: 'A-LOCAL',
@@ -143,6 +147,21 @@ describe('summariseSignerWorkload', () => {
     ])
 
     expect(workload.blocked).toBe(1)
+    expect(workload.needsYou).toHaveLength(0)
+  })
+
+  it('counts a row that graded nothing in neither bucket', () => {
+    // Nothing was refused and nothing was decided, so calling it blocked
+    // would tell the signer a run with nothing to grade is stuck.
+    const workload = summariseSignerWorkload([
+      {
+        proposal: '0xabc',
+        ledger: ledger([['target-state', 'tron', 'not-applicable']]),
+      },
+    ])
+
+    expect(workload.blocked).toBe(0)
+    expect(workload.settled).toBe(0)
     expect(workload.needsYou).toHaveLength(0)
   })
 })

@@ -214,7 +214,8 @@ export interface ISignerWorkload {
  *
  * `blocked` is deliberately not merged into `needsYou`: a refusal is not a
  * question put to the signer, and presenting it as one invites clicking
- * through it.
+ * through it. A `not-applicable` row is in neither count: nothing was
+ * graded, so nothing was decided and nothing refused.
  *
  * @param pass - one pass's per-proposal ledgers
  * @returns the counts, and every row still waiting on a person
@@ -244,7 +245,7 @@ export const summariseSignerWorkload = (
           actual: result.actual,
         })
       else if (result.status === 'pass') settled += 1
-      else blocked += 1
+      else if (result.status !== 'not-applicable') blocked += 1
   }
 
   return { settled, blocked, needsYou }
