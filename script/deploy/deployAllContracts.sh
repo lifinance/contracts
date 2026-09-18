@@ -239,9 +239,8 @@ deployAllContracts() {
 
     local EXCLUDED_FACETS_REGEXP="^($(echo "$CORE_FACETS_OUTPUT" | xargs | tr ' ' '|'))$"
 
-    # Refusals are collected rather than returned on: a bootstrap run that stops at the
-    # first refusal costs one operator cycle per broken facet, and stages 2 and 6 already
-    # attempt every contract before reporting. The run still stops before stage 6.
+    # A bootstrap run that stopped at the first refusal cost one operator cycle per
+    # broken facet.
     local REFUSED_FACETS=()
 
     # loop through facet contract names

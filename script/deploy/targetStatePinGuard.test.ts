@@ -243,9 +243,8 @@ describe('a refused deploy stops deployAllContracts', () => {
     expect(source).toMatch(/STAGE 5 did NOT complete:[^\n]+\n\s+return 1/)
   })
 
-  // Stage 5 stops the run, but only after trying every facet: returning on the first
-  // refusal cost one operator cycle per broken facet on a bootstrap. Asserted on the loop
-  // body rather than on the report below it, which survives a return inside the loop.
+  // Asserted on the loop body, not on the report below it: that report survives a
+  // return inside the loop, so it cannot tell the two behaviours apart.
   it('leaves the non-core facet loop only after every facet was attempted', () => {
     const loopStart = source.indexOf(
       'for FACET_NAME in $(getContractNamesInFolder "$FACETS_PATH"); do'
@@ -311,9 +310,8 @@ describe('assertTargetStateVersionAllowed', () => {
     expect(run('SuffixedBuild', '2.1.3-tron')).toBe('rc=0')
   })
 
-  // The reduction applies to the pin too: docs/TargetState.md states both sides are
-  // compared by their base, and reducing only the repo's side made a suffixed pin refuse
-  // the deploy of its own version.
+  // A pin is reduced to its base like the repo's version is, so a suffixed pin does not
+  // refuse the deploy of its own version.
   it('matches a suffixed pin against the same base', () => {
     expect(run('PinnedToSuffixed', '2.1.3-tron')).toBe('rc=0')
     expect(run('PinnedToSuffixed', '2.1.3')).toBe('rc=0')

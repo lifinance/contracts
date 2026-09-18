@@ -89,13 +89,15 @@ codehash checks instead.
 
 **Re-entering a deploy run against a live network.** `deployAllContracts` stages 5 and 6
 attempt every facet and periphery contract the network declares, whatever version is already
-deployed — the pin is the only thing that can refuse, and after the migration to `latest`
-there are no pins. Before the migration a periphery contract was deployed only where the
-declared version differed from the repo's, so stage 6 skipped most of them. Entering a run at
-stage 5 or 6 against a network that already has deployments therefore redeploys and
-re-registers the whole declared set, not just what has drifted. That is the intended
-semantic — a network should hold what it declares — but it is not a no-op, so pick the start
-stage deliberately rather than restarting a failed run from the beginning.
+deployed; on the version gate only a pin can refuse, and after the migration to `latest`
+there are no pins. Before the migration, stage 6 deployed a periphery contract only where the
+declared version equalled the repo's and skipped the rest with a warning, so an entry whose
+declared version had fallen behind the repo was never touched. Entering a run at stage 5 or 6
+against a network that already has deployments therefore attempts and re-registers the whole
+declared set rather than only what has drifted. CREATE3 derives the address from the bytecode,
+so an unchanged contract resolves to the address it already has and no deployment is
+broadcast — but registration is re-proposed either way, which on a production diamond is a
+Safe transaction per contract.
 
 ## How the sign-time gate grades a proposal
 
