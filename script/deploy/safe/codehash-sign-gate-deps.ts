@@ -33,6 +33,7 @@ import type { ImmutableReferences } from '../codehash/immutable-offsets'
 import {
   deriveToolchainScope,
   parseBuildProfiles,
+  ZK_PROFILE,
   type IBuildProfile,
   type IToolchainScope,
 } from '../codehash/lineage-scope'
@@ -338,12 +339,86 @@ const assertSubmodulesPinned = (
 }
 
 /**
+ * Names the profile in a checkout's own `foundry.toml` that pins the requested
+ * compiler pair.
+ *
+ * The request carries a profile from HEAD's `foundry.toml`, but the build runs
+ * at the deployment commit, whose file may spell the same pair under another
+ * name or not declare it at all. Forge answers an unknown `FOUNDRY_PROFILE`
+ * with `[profile.default]`, a warning and exit 0, so passing HEAD's name through
+ * unchecked would rebuild a london deployment as cancun and grade it MISMATCH.
+ *
+ * A non-zk pair is matched by its versions, so either spelling of the london
+ * profile resolves. The zk profile is matched by name: its zksolc pin attaches
+ * by name in `parseBuildProfiles`, and older commits carry no pin at all.
+ *
+ * @param deps - the file primitive the runner reads the checkout with
+ * @param checkout - absolute path of the detached worktree
+ * @param requested - HEAD's profile for the lineage being rebuilt
+ * @returns The profile name to export as `FOUNDRY_PROFILE` in that checkout
+ * @throws when the checkout declares no such pair, or more than one profile for it
+ */
+const resolveCheckoutProfile = (
+  deps: Pick<IForgeRebuildDeps, 'readFile'>,
+  checkout: string,
+  requested: IBuildProfile
+): string => {
+  const tomlPath = join(checkout, 'foundry.toml')
+  let toml: string
+  try {
+    toml = deps.readFile(tomlPath)
+  } catch (error) {
+    throw new Error(
+      `refusing to rebuild at ${checkout}: its foundry.toml could not be read (${
+        error instanceof Error ? error.message : String(error)
+      }), so nothing says which profile pins solc ${
+        requested.solcVersion
+      } / evm ${requested.evmVersion} there.`
+    )
+  }
+  const profiles = parseBuildProfiles(toml)
+
+  if (requested.zksolcVersion !== undefined) {
+    if (profiles[ZK_PROFILE] !== undefined) return ZK_PROFILE
+    throw new Error(
+      `refusing to rebuild at ${checkout}: its foundry.toml declares no [profile.${ZK_PROFILE}], so forge would build the zk lineage under [profile.default] with a warning and exit 0.`
+    )
+  }
+
+  const matching = Object.values(profiles).filter(
+    (candidate) =>
+      candidate.profile !== ZK_PROFILE &&
+      candidate.zksolcVersion === undefined &&
+      candidate.solcVersion === requested.solcVersion &&
+      candidate.evmVersion === requested.evmVersion
+  )
+  if (matching.length === 1) return (matching[0] as IBuildProfile).profile
+  const pair = `solc ${requested.solcVersion} / evm ${requested.evmVersion}`
+  if (matching.length === 0)
+    throw new Error(
+      `refusing to rebuild at ${checkout}: its foundry.toml declares no profile pinning ${pair} (HEAD calls it "${requested.profile}"), so forge would build under [profile.default] with a warning and exit 0 and the comparison would run against the wrong compiler.`
+    )
+  throw new Error(
+    `refusing to rebuild at ${checkout}: its foundry.toml declares ${
+      matching.length
+    } profiles pinning ${pair} (${matching
+      .map((candidate) => candidate.profile)
+      .join(
+        ', '
+      )}), so the one the deployment was built with cannot be told apart.`
+  )
+}
+
+/**
  * Compiles one contract at one commit under one profile.
  *
  * The commit is built in its own detached checkout, never in the tree the
  * signer is running from: a signing session must not be able to move the
  * operator's working tree, and a build in place would compile whatever is
  * checked out rather than what was deployed.
+ *
+ * `FOUNDRY_PROFILE` is the name the checkout's own `foundry.toml` gives the
+ * requested compiler pair (`resolveCheckoutProfile`), not HEAD's.
  *
  * Each profile gets its own output directory. Foundry puts `default` and
  * `solc_floor` in the same `out/`, and one run can need both — a fleet rollout
@@ -390,12 +465,17 @@ export const createForgeRebuildRunner = (
       deps.git(['-C', checkout, 'submodule', 'update', '--init', '--recursive'])
       assertSubmodulesPinned(deps.git, checkout)
 
+      const checkoutProfile = resolveCheckoutProfile(
+        deps,
+        checkout,
+        request.profile
+      )
       const isZk = request.profile.zksolcVersion !== undefined
       const command = isZk
         ? join(deps.repoRoot, 'foundry-zksync', 'forge')
         : 'forge'
       // `test`/`script` are forge aliases for `.t.sol`/`.s.sol` only; the
-      // path globs match `[profile.solc_floor]` and skip the whole trees.
+      // path globs skip the whole trees. Only src/ is attested.
       // `--offline` refuses forge's auto-install so a missing pin cannot be
       // silently substituted mid-build.
       const args = [
@@ -410,7 +490,7 @@ export const createForgeRebuildRunner = (
         '--offline',
       ]
       const env: Record<string, string> = {
-        FOUNDRY_PROFILE: request.profile.profile,
+        FOUNDRY_PROFILE: checkoutProfile,
         ...(isZk
           ? {
               FOUNDRY_ZKSYNC: `{ zksolc = "${request.profile.zksolcVersion}" }`,
