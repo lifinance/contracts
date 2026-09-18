@@ -143,6 +143,7 @@ export interface IVerifyCutDeps {
  * @param input.cuts - the decoded `FacetCut[]`
  * @param input.init - the cut's `_init` target
  * @param input.network - which network the proposal is for
+ * @param input.registrations - addresses `registerPeripheryContract` installs
  * @param deps - scope, chain read and attestation lookup
  * @returns Per-address verdicts and whether the signature may proceed
  */
@@ -151,16 +152,21 @@ export const verifyCutTargets = async (
     cuts: readonly IFacetCutEntry[]
     init: string
     network: string
+    registrations?: readonly string[]
   },
   deps: IVerifyCutDeps
 ): Promise<IGateReport> => {
-  const classified = classifyCut({ cuts: input.cuts, init: input.init })
+  const classified = classifyCut({
+    cuts: input.cuts,
+    init: input.init,
+    registrations: input.registrations,
+  })
   if (classified.refusals.length > 0)
     return {
       blocksSigning: true,
       refusals: classified.refusals,
       targets: [],
-      summary: `This cut will not be signed: ${classified.refusals.join(' ')}`,
+      summary: `This call will not be signed: ${classified.refusals.join(' ')}`,
     }
 
   const scope = deps.scope(input.network)
@@ -511,14 +517,14 @@ const message = (error: unknown): string =>
 
 /**
  * @param targets - the per-address verdicts
- * @param installsNothing - true when the cut gated no address at all
+ * @param installsNothing - true when nothing judged here gated an address
  */
 const summarise = (
   targets: ITargetVerdict[],
   installsNothing: boolean
 ): string => {
   if (installsNothing)
-    return 'This cut installs no facet code, so there is no bytecode to vouch for.'
+    return 'This call installs no contract code, so there is no bytecode to vouch for.'
 
   const bad = targets.filter((t) => t.verdict !== 'MATCH')
   if (bad.length === 0) {
@@ -535,12 +541,12 @@ const summarise = (
     // Not "matches main": the rebuild is at the commit each deployment record
     // names, and D3 has the verifier assert that commit's presence rather than
     // its ancestry. Saying main would promise the signer a check nobody runs.
-    return `Every address this cut installs matches a rebuild at the commit its deployment record names. Whether that commit is on main is not checked.${caveat}`
+    return `Every address this call installs matches a rebuild at the commit its deployment record names. Whether that commit is on main is not checked.${caveat}`
   }
 
   // The verdict word is carried per address rather than summed, so a MISMATCH
   // and an UNVERIFIABLE in one cut do not average into a single colour.
-  return `This cut will not be signed. ${bad
+  return `This call will not be signed. ${bad
     .map((t) => `${t.address} is ${t.verdict}: ${t.reason}`)
     .join(' ')}`
 }

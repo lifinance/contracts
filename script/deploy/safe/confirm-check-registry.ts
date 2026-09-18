@@ -51,7 +51,7 @@ export const STORAGE_AUTHORITY_CHECK: ICheckDefinition = {
   section: 'Deployed state',
   checkClass: 'integrity',
   gate: 'G',
-  title: 'Contract owner matches what main declares',
+  title: 'Contract config matches what main declares',
   // Every diamond cut carries `LiFiDiamond.owner`, whose expectation comes from
   // the deployment record — so without this the one gate that reads live
   // authorities refuses every honest proposal, and the remedy it prints cannot
@@ -618,10 +618,10 @@ export const worstResultPerCheck = (
 }
 
 export const EVERY_TARGET_ATTESTED =
-  'every address this cut installs carrying bytecode an attested build produces'
+  'every address this proposal installs carrying bytecode an attested build produces'
 /** Why this gate stood down, as the signer reads it under "observed". */
 export const NOTHING_INSTALLED_TO_HASH =
-  'this proposal installs no facet code, so there is no bytecode to compare'
+  'this proposal installs no contract code, so there is no bytecode to compare'
 
 /**
  * What the row states under "observed" and "→" when the gate refused a target.
@@ -731,9 +731,9 @@ export const codehashCheckResult = (
         : refusedTargets(gate.targets, gate.summary)),
     }
 
-  // A cut this gate did open and found no code in — a removal, whose every
+  // Something this gate did open and found no code in — a removal, whose every
   // facet address is zero. `madeNoClaim` does not cover it: that is the payload
-  // with no cut at all. Left on the `pass` below it graded as "0 installed
+  // that installs nothing at all. Left on the `pass` below it graded as "0 installed
   // address(es) match an attested build", which is a green row satisfying a
   // verified counter on the strength of nothing.
   if (gate.targets.length === 0)

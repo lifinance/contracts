@@ -24,11 +24,13 @@
 
 import type { Hex } from 'viem'
 
+import type { IFacetCutEntry } from '../codehash/cut-classification'
 import {
   verifyCutTargets,
   type ITargetVerdict,
   type IVerifyCutDeps,
 } from '../codehash/verify-cut-targets'
+import { ZERO_ADDRESS } from '../shared/constants'
 
 import { collectDiamondCutTargets } from './safe-decode-utils'
 import { isSignedStruct, type ISignedSafeTransaction } from './safe-utils'
@@ -62,8 +64,8 @@ export interface ICodehashSignGate {
   /** The whole outcome as a signer should read it. */
   summary: string
   /**
-   * True when the gate reached no verdict about anything — no cut was found and
-   * nothing was refused. It is NOT a pass: an envelope this decoder cannot open
+   * True when the gate reached no verdict about anything — no cut and no
+   * periphery registration was found, and nothing was refused. It is NOT a pass: an envelope this decoder cannot open
    * lands here, and rendering it green claimed the bytes had been read.
    */
   madeNoClaim?: boolean
@@ -71,8 +73,8 @@ export interface ICodehashSignGate {
    * The frames the decoder could not open, when it could not open any.
    *
    * Carried structurally because it is the field that separates the two things
-   * `madeNoClaim` covers: a payload read to the end that contains no cut, and a
-   * payload nobody could read. The first has nothing to check and the second
+   * `madeNoClaim` covers: a payload read to the end that installs nothing, and
+   * a payload nobody could read. The first has nothing to check and the second
    * has not been checked, and a consumer that told them apart by reading
    * `summary` would be deciding on a sentence the proposer's calldata shapes.
    */
@@ -83,7 +85,7 @@ export interface ICodehashSignGate {
  * The state every proposal starts in, and the one a failed evaluation stays in.
  *
  * `blocksSigning` is false and `evaluated` is false together: a proposal that
- * installs no facet code is the common case and must remain signable. A caller
+ * installs no contract code is the common case and must remain signable. A caller
  * that needs "we never got as far as looking" to block spreads this and sets
  * `blocksSigning`, which is what the confirmation flow does per proposal.
  */
@@ -106,7 +108,7 @@ export const blockingUnevaluatedGate = (): ICodehashSignGate => ({
   ...unevaluatedCodehashSignGate(),
   blocksSigning: true,
   summary:
-    'the codehash gate did not run for this proposal, so what this cut installs was never checked',
+    'the codehash gate did not run for this proposal, so what it installs was never checked',
 })
 
 /**
@@ -252,13 +254,33 @@ export const evaluateCodehashSignGate = async (
   // re-derived.
   let anyCutBlocks = false
 
-  // Every cut is judged even when a frame was already refused: a batch pairing
-  // one readable cut with one unreadable frame must show both, or the readable
-  // half renders green beside a hole.
-  for (const call of collected.calls)
+  // A registration performs no `FacetCut`, so it is judged as an installation of
+  // its own rather than folded into one: the addresses are gated the same way,
+  // but nothing about a registration may justify a cut's `_init`.
+  const installations: {
+    cuts: IFacetCutEntry[]
+    init: string
+    registrations?: readonly string[]
+  }[] = [...collected.calls]
+  if (collected.registrations.length > 0)
+    installations.push({
+      cuts: [],
+      init: ZERO_ADDRESS,
+      registrations: collected.registrations.map((one) => one.address),
+    })
+
+  // Every installation is judged even when a frame was already refused: a batch
+  // pairing one readable cut with one unreadable frame must show both, or the
+  // readable half renders green beside a hole.
+  for (const call of installations)
     try {
       const report = await verifyCutTargets(
-        { cuts: call.cuts, init: call.init, network },
+        {
+          cuts: call.cuts,
+          init: call.init,
+          network,
+          ...(call.registrations ? { registrations: call.registrations } : {}),
+        },
         resolveDeps()
       )
       refusals.push(...report.refusals)
@@ -271,18 +293,18 @@ export const evaluateCodehashSignGate = async (
       // be resolved is the real case. It blocks: "we could not check" is the
       // one thing that must never render as a pass.
       refusals.push(
-        `The codehash gate could not be evaluated for this cut: ${message(
+        `The codehash gate could not be evaluated for this call: ${message(
           error
         )}`
       )
       summaries.push(
-        `This cut will not be signed: the codehash gate could not be evaluated — ${message(
+        `This call will not be signed: the codehash gate could not be evaluated — ${message(
           error
         )}`
       )
     }
 
-  if (collected.calls.length === 0 && refusals.length === 0)
+  if (installations.length === 0 && refusals.length === 0)
     return {
       gradedKey: proposalKeyOf(input.struct.data),
       gradedData: data,
@@ -294,10 +316,10 @@ export const evaluateCodehashSignGate = async (
       unopened: collected.unopened,
       summary:
         collected.unopened.length > 0
-          ? `No diamondCut was decoded, but this decoder could not open ${collected.unopened.join(
+          ? `Nothing installing code was decoded, but this decoder could not open ${collected.unopened.join(
               ', '
-            )} — so it cannot state whether a cut is present. Nothing here has been verified.`
-          : 'No diamondCut was decoded from this calldata, so there is no facet bytecode to vouch for. This gate makes no claim about the rest of the proposal.',
+            )} — so it cannot state whether an installation is present. Nothing here has been verified.`
+          : 'No diamondCut and no periphery registration was decoded from this calldata, so there is no installed bytecode to vouch for. This gate makes no claim about the rest of the proposal.',
     }
 
   return {

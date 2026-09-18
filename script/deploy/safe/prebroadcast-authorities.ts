@@ -75,10 +75,25 @@ export interface IDeclaredAuthority {
  *
  * `pendingOwner` is expected to be zero because a non-zero one lets its holder
  * claim the contract after this proposal executes.
+ *
+ * The coverage test's universe is `src/Periphery`, so a facet carrying storage
+ * authority — `AcrossFacetPackedV4` is the one in the table — is not enumerated
+ * and its absence would not have failed anything.
  */
 export const DECLARED_STORAGE_AUTHORITIES: Readonly<
   Record<string, readonly IDeclaredAuthority[]>
 > = {
+  // A facet rather than periphery, and the only one here: it inherits
+  // `TransferrableOwnership` and exposes `executeCallAndWithdraw`, an arbitrary
+  // call gated on nothing but `owner`. No `owner` row, because
+  // `DeployAcrossFacetPackedV4.s.sol` constructs it with the deployer rather
+  // than a `config/global.json` wallet, so this repo declares no value to
+  // compare one against; the live fleet holds a retired deployer address, which
+  // an invented expectation would hard-block every proposal over. The pending
+  // slot is asserted because zero is the invariant whoever owns it.
+  AcrossFacetPackedV4: [
+    { getter: 'pendingOwner', source: { from: 'zeroAddress' } },
+  ],
   LiFiDiamond: [
     {
       getter: 'owner',

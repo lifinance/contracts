@@ -14,7 +14,7 @@ import {
   it,
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
-import { encodeFunctionData, getAddress, type Hex } from 'viem'
+import { encodeFunctionData, getAddress, parseAbi, type Hex } from 'viem'
 
 import { FacetCutActionEnum } from '../codehash/cut-classification'
 
@@ -29,6 +29,14 @@ const DIAMOND = '0x4444444444444444444444444444444444444444'
 const TIMELOCK = '0x5555555555555555555555555555555555555555'
 const SELECTOR_A = '0xaabbccdd'
 const SELECTOR_B = '0x11223344'
+const PERIPHERY = '0x6666666666666666666666666666666666666666'
+
+const registerCalldata = (name: string, address: string): Hex =>
+  encodeFunctionData({
+    abi: parseAbi(['function registerPeripheryContract(string,address)']),
+    functionName: 'registerPeripheryContract',
+    args: [name, address as `0x${string}`],
+  })
 
 const cutCalldata = (
   entries: [string, number, string[]][],
@@ -147,9 +155,38 @@ describe('collectDiamondCutTargets', () => {
     // which is how `unopened` was caught being discarded rather than surfaced.
     expect(collectDiamondCutTargets('0x')).toEqual({
       calls: [],
+      registrations: [],
       refusals: [],
       unopened: [],
     })
+  })
+
+  it('recovers a periphery registration as an installation of its own', () => {
+    const collected = collectDiamondCutTargets(
+      registerCalldata('Executor', PERIPHERY.toUpperCase().replace('0X', '0x'))
+    )
+
+    expect(collected.calls).toEqual([])
+    expect(collected.registrations).toEqual([
+      { name: 'Executor', address: getAddress(PERIPHERY) },
+    ])
+    expect(collected.refusals).toEqual([])
+    expect(collected.unopened).toEqual([])
+  })
+
+  it('recovers a registration through the timelock envelope', () => {
+    const collected = collectDiamondCutTargets(
+      scheduleBatch([
+        cutCalldata([[FACET_A, FacetCutActionEnum.Add, [SELECTOR_A]]], ZERO),
+        registerCalldata('Receiver', PERIPHERY),
+      ])
+    )
+
+    expect(collected.calls).toHaveLength(1)
+    expect(collected.registrations).toEqual([
+      { name: 'Receiver', address: getAddress(PERIPHERY) },
+    ])
+    expect(collected.unopened).toEqual([])
   })
 
   it('reports a frame it could not open even when no cut selector is present', () => {
