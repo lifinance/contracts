@@ -48,7 +48,7 @@ const TOML = [
   "solc_version = '0.8.29'",
   "evm_version = 'cancun'",
   '',
-  '[profile.solc_floor]',
+  '[profile.london]',
   "solc_version = '0.8.17'",
   "evm_version = 'london'",
 ].join('\n')
@@ -856,12 +856,12 @@ describe('false-GREEN probe — the widening vector the MayanFacet fix would ope
    * record-supplied profile to the call changes nothing about the answer.
    */
   it('offers a network only the lineage its config names, never one merely pinned', () => {
-    // `solc_floor` IS pinned and IS a legitimate lineage for the fleet: it is
+    // `london` IS pinned and IS a legitimate lineage for the fleet: it is
     // the pair the largest class of attested slots reproduces under. What
     // decides whether this network is graded against it is the network row, and
     // nothing else. A fix reading foundry.toml at the record's own commit would
     // hand that decision to whoever chose the commit.
-    expect(Object.keys(profiles)).toContain('solc_floor')
+    expect(Object.keys(profiles)).toContain('london')
 
     const scope = deriveToolchainScope('somechain', {
       networks: { somechain: { targetEvmVersion: 'cancun', isZkEVM: false } },
@@ -872,12 +872,12 @@ describe('false-GREEN probe — the widening vector the MayanFacet fix would ope
 
     // The paired present: the same available profile IS offered to the network
     // whose row names it, so the assertion above is about the row and not
-    // about `solc_floor` being unreachable everywhere.
+    // about `london` being unreachable everywhere.
     const london = deriveToolchainScope('oldchain', {
       networks: { oldchain: { targetEvmVersion: 'london', isZkEVM: false } },
       profiles,
     })
-    expect(london.profiles.map((p) => p.profile)).toEqual(['solc_floor'])
+    expect(london.profiles.map((p) => p.profile)).toEqual(['london'])
   })
 
   it('still refuses a slot whose record names a lineage the network does not', () => {

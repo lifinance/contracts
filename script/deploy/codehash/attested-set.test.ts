@@ -1,6 +1,6 @@
 /**
  * Fixtures are measured on this repo's own artifacts: `AccessManagerFacet` built
- * at the default profile (solc 0.8.29 / cancun, 1423 bytes) and at `solc_floor`
+ * at the default profile (solc 0.8.29 / cancun, 1423 bytes) and at `london`
  * (solc 0.8.17 / london, 1440 bytes), each stripped of its metadata trailer and
  * hashed. Provenance and the raw bytes are in `bytecode-trailer.test.ts`.
  */

@@ -136,7 +136,9 @@ describe('stripMetadataTrailer', () => {
  * - LONDON_TAIL: at 67922f138, `FOUNDRY_PROFILE=solc_floor forge build --out
  *   out-floor --contracts src/Facets/AccessManagerFacet.sol` — solc 0.8.17 /
  *   london, the floor every `src/` file pins, built in CI by
- *   `solc-floor-build.yml`. The profile does not redirect `out` itself.
+ *   `solc-floor-build.yml`. The profile does not redirect `out` itself. That
+ *   pin is named `london` at HEAD, so re-running the command verbatim needs
+ *   the commit it names.
  *
  * The code differs because 0.8.29 emits PUSH0 (`5f`) where 0.8.17 has to spell
  * out `6000`; a lineage difference is not a cosmetic one.
