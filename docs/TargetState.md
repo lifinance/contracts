@@ -72,11 +72,12 @@ These read `Object.keys` and ignore the value entirely.
 - The sign-time target-state gate, `script/deploy/safe/pinned-target-state.ts`
   ([docs/MultisigSigningProcess.md](./MultisigSigningProcess.md)).
 
-**Known gap.** Both consumers sit on the *deploy* and the *production proposal* paths. A
-direct `diamondUpdateFacet` / `diamondUpdatePeriphery` cut — the staging and testnet route,
-where `SEND_PROPOSALS_DIRECTLY_TO_DIAMOND` broadcasts without a Safe — installs an
-already-deployed address and consults the target state nowhere. A pin does not stop that
-route today.
+**Where a pin deliberately does not reach.** Both consumers sit on the *deploy* path and the
+*production proposal* path. A direct `diamondUpdateFacet` / `diamondUpdatePeriphery` cut —
+the staging and testnet route, where `SEND_PROPOSALS_DIRECTLY_TO_DIAMOND` broadcasts without
+a Safe — installs an already-deployed address and is not checked against the target state.
+That is intended: staging and testnet diamonds are meant to be movable, and production is
+covered by the sign-time gate.
 
 ## How the sign-time gate grades a proposal
 
