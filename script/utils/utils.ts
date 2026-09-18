@@ -694,6 +694,12 @@ export async function updateDiamondJson(
  * on-chain a diamond knows addresses and selectors, never names. An upgrade
  * resolves the outgoing facet by name here, then asks the loupe what that
  * address still serves.
+ *
+ * Reads `<network>.diamond.json` only — the same file the three
+ * `updateDiamondJson*` writers produce, and the only diamond log Tron has.
+ * EVM networks also carry a `<network>.diamond.staging.json`, written by the
+ * Foundry deploy path; a caller that needs it has to teach this helper about
+ * the environment first.
  * @param network - The network name
  * @param facetName - The facet name as recorded, e.g. `EcoFacet`
  * @returns The recorded address (base58 on Tron), or null when the log has no entry
@@ -720,16 +726,24 @@ export async function getFacetAddressFromDiamondLog(
 
     // A log that exists but cannot be read is not the same as no log: reporting
     // it as absent would plan a first-registration cut, which silently drops the
-    // Remove entries whenever the new selectors miss the old ones entirely.
-    let facets: Record<string, { Name?: string }>
+    // Remove entries whenever the new selectors miss the old ones entirely. The
+    // same goes for a log that parses but carries no facet section at all — an
+    // empty `Facets` object genuinely means "nothing recorded", a missing one
+    // means the file is not the shape every writer here produces.
+    let parsed: { LiFiDiamond?: { Facets?: Record<string, { Name?: string }> } }
     try {
-      const parsed = JSON.parse(contents)
-      facets = parsed?.LiFiDiamond?.Facets ?? {}
+      parsed = JSON.parse(contents)
     } catch (error) {
       throw new Error(
         `Could not parse ${diamondJsonPath}: ${(error as Error).message}`
       )
     }
+
+    const facets = parsed?.LiFiDiamond?.Facets
+    if (!facets || typeof facets !== 'object')
+      throw new Error(
+        `${diamondJsonPath} has no LiFiDiamond.Facets section — the log is malformed, not empty`
+      )
 
     for (const [address, entry] of Object.entries(facets))
       if (entry?.Name === facetName) return address

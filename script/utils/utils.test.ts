@@ -308,6 +308,28 @@ describe('getFacetAddressFromDiamondLog', () => {
     })
   })
 
+  // Same reasoning one step further in: a log that parses but carries no facet
+  // section is not a log that records nothing.
+  it('throws when the log has no LiFiDiamond.Facets section', async () => {
+    await withDiamondLog(JSON.stringify({ LiFiDiamond: {} }), async () => {
+      await expectRejects(
+        getFacetAddressFromDiamondLog('tron', 'EcoFacet'),
+        /has no LiFiDiamond\.Facets section/
+      )
+    })
+  })
+
+  it('accepts a log whose facet section is genuinely empty', async () => {
+    await withDiamondLog(
+      JSON.stringify({ LiFiDiamond: { Facets: {} } }),
+      async () => {
+        expect(
+          await getFacetAddressFromDiamondLog('tron', 'EcoFacet')
+        ).toBeNull()
+      }
+    )
+  })
+
   it('propagates a read failure that is not a missing file', async () => {
     const root = realFs.mkdtempSync(join(tmpdir(), 'diamond-log-'))
     const previousCwd = process.cwd()
