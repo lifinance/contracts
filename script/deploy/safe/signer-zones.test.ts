@@ -8,6 +8,7 @@ import {
   type ICheckDefinition,
   type ICheckResult,
 } from './check-ledger'
+import { RPC_QUORUM_CHECK, RPC_QUORUM_CHECK_ID } from './confirm-check-registry'
 import {
   CHECK_SAFE_ADDRESS,
   CHECK_SAFE_TX_HASH,
@@ -16,9 +17,15 @@ import {
   INTEGRITY_CHECK_DEFINITIONS,
   type IIntegrityAssertRun,
 } from './confirm-integrity-asserts'
-import { bucketOf, renderCheckGroups } from './signer-view'
+import {
+  bucketOf,
+  checkSummary,
+  renderCheckGroups,
+  type IBucketedResult,
+} from './signer-view'
 import {
   integrityResults,
+  RPC_QUORUM_REPEAT_POINTER,
   signerChecks,
   signerTodos,
   viewDefinitions,
@@ -272,5 +279,100 @@ describe('the Safe-address check', () => {
     expect(renderFailing(CHECK_SAFE_ADDRESS)).toContain(
       'Gate A \u00b7 Safe matches networks.json'
     )
+  })
+})
+
+describe("gate J's paragraph, printed once per network", () => {
+  const quorum = (overrides: Partial<ICheckResult> = {}): ICheckResult => ({
+    checkId: RPC_QUORUM_CHECK_ID,
+    network: NETWORK,
+    status: 'needs-ack',
+    expected: '2 independent providers agreeing',
+    actual: '0 of 0 agreed (provider-identity-unverifiable)',
+    anchor: 'A-UNRESOLVED',
+    detail: 'give every endpoint a hostname',
+    ...overrides,
+  })
+
+  const render = (
+    rows: readonly Parameters<typeof renderCheckGroups>[0][number][]
+  ): string => renderCheckGroups(rows).map(stripAnsi).join('\n')
+
+  it('prints the expected/observed paragraph when nothing was shown before', () => {
+    const rows = signerChecks({
+      results: [quorum()],
+      definitions: viewDefinitions([RPC_QUORUM_CHECK]),
+    })
+    const rendered = render(rows)
+
+    expect(rendered).toContain('Gate J · Independent RPCs agree')
+    expect(rendered).toContain('2 independent providers agreeing')
+    expect(rendered).toContain('provider-identity-unverifiable')
+    expect(rendered).toContain('give every endpoint a hostname')
+    expect(rendered).not.toContain(RPC_QUORUM_REPEAT_POINTER)
+  })
+
+  it('points a later proposal at the first when the verdict repeats word for word', () => {
+    const rows = signerChecks({
+      results: [quorum()],
+      rpcQuorumShown: quorum(),
+      definitions: viewDefinitions([RPC_QUORUM_CHECK]),
+    })
+    const rendered = render(rows)
+
+    expect(rendered).toContain('Gate J · Independent RPCs agree')
+    expect(rendered).toContain(RPC_QUORUM_REPEAT_POINTER)
+    expect(rendered).not.toContain('2 independent providers agreeing')
+    expect(rendered).not.toContain('provider-identity-unverifiable')
+    expect(rendered).not.toContain('give every endpoint a hostname')
+  })
+
+  it('keeps the verdict, the bucket and the count while the paragraph goes', () => {
+    const rows = signerChecks({
+      results: [quorum()],
+      rpcQuorumShown: quorum(),
+      definitions: viewDefinitions([RPC_QUORUM_CHECK]),
+    })
+
+    expect(rows).toHaveLength(1)
+    expect(rows[0]?.result.status).toBe('needs-ack')
+    expect(bucketOf(rows[0] as IBucketedResult)).toBe('ack')
+    expect(checkSummary(rows)).toBe('1 to acknowledge')
+    expect(render(rows)).toContain('NEEDS YOUR ACKNOWLEDGEMENT')
+  })
+
+  it('prints the paragraph again when this proposal read something else', () => {
+    const rows = signerChecks({
+      results: [quorum({ actual: '1 of 2 agreed (disagreement)' })],
+      rpcQuorumShown: quorum(),
+      definitions: viewDefinitions([RPC_QUORUM_CHECK]),
+    })
+    const rendered = render(rows)
+
+    expect(rendered).toContain('1 of 2 agreed (disagreement)')
+    expect(rendered).toContain('2 independent providers agreeing')
+    expect(rendered).not.toContain(RPC_QUORUM_REPEAT_POINTER)
+  })
+
+  it("leaves every other gate's paragraph alone", () => {
+    const rows = signerChecks({
+      results: [
+        {
+          checkId: CHECK_SAFE_ADDRESS,
+          network: NETWORK,
+          status: 'fail',
+          expected: 'the declared value',
+          actual: 'something else',
+          anchor: 'A-CHAIN',
+        },
+      ],
+      rpcQuorumShown: quorum(),
+      definitions: viewDefinitions([RPC_QUORUM_CHECK]),
+    })
+    const rendered = render(rows)
+
+    expect(rendered).toContain('the declared value')
+    expect(rendered).toContain('something else')
+    expect(rendered).not.toContain(RPC_QUORUM_REPEAT_POINTER)
   })
 })

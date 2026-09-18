@@ -887,6 +887,13 @@ export interface IBucketedResult {
    * so it survives the check landing in the collapsed PASSED run.
    */
   notes?: readonly string[]
+  /**
+   * One line saying where this check's paragraph already is on the screen.
+   *
+   * Printed in place of the expected/observed pair, never in place of the
+   * verdict: the row keeps its status, its bucket and its place in the counts.
+   */
+  detailElsewhere?: string
 }
 
 /**
@@ -931,7 +938,13 @@ export const renderCheckGroups = (
     // it in the manifest above, so a second copy per row is the same URL twice
     // on one screen, and a line the eye has to skip on every row that asks for
     // something.
-    for (const { result, definition, notApplicable, notes } of entries) {
+    for (const {
+      result,
+      definition,
+      notApplicable,
+      notes,
+      detailElsewhere,
+    } of entries) {
       // Between gates only: a leading blank would double the one this bucket's
       // heading already printed.
       if (!first) out.push('')
@@ -940,6 +953,7 @@ export const renderCheckGroups = (
       // A gate with nothing to grade puts the reason in `actual`.
       const standDownReason =
         notApplicable ??
+        detailElsewhere ??
         (bucket === 'n/a'
           ? result.actual.trim() || NOTHING_TO_GRADE_UNSTATED
           : undefined)

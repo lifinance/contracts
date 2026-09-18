@@ -151,6 +151,16 @@ export const integrityResults = (
   return { results, notApplicable }
 }
 
+/** What a later proposal's gate J row says instead of its paragraph. */
+export const RPC_QUORUM_REPEAT_POINTER =
+  'same as the first proposal on this network, printed above'
+
+const sameVerdict = (left: ICheckResult, right: ICheckResult): boolean =>
+  left.status === right.status &&
+  left.expected === right.expected &&
+  left.actual === right.actual &&
+  left.detail === right.detail
+
 /**
  * Zone 2's rows, in the order the results were produced.
  *
@@ -163,6 +173,14 @@ export const signerChecks = (input: {
   results: readonly ICheckResult[]
   notApplicable?: ReadonlyMap<string, string>
   notes?: ReadonlyMap<string, readonly string[]>
+  /**
+   * The quorum result whose paragraph this network's screen already carries.
+   *
+   * The quorum read is made per proposal, so the paragraph is only pointed at
+   * when this proposal's verdict repeats that one word for word; a read that
+   * came back different prints in full.
+   */
+  rpcQuorumShown?: ICheckResult
   definitions: ReadonlyMap<string, ICheckDefinition>
 }): IBucketedResult[] => {
   const rows: IBucketedResult[] = input.results.map((result) => ({
@@ -170,6 +188,11 @@ export const signerChecks = (input: {
     definition: input.definitions.get(result.checkId),
     ...(input.notes?.get(result.checkId)
       ? { notes: input.notes.get(result.checkId) }
+      : {}),
+    ...(result.checkId === RPC_QUORUM_CHECK_ID &&
+    input.rpcQuorumShown &&
+    sameVerdict(input.rpcQuorumShown, result)
+      ? { detailElsewhere: RPC_QUORUM_REPEAT_POINTER }
       : {}),
   }))
 

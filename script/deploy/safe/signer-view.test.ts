@@ -628,6 +628,39 @@ describe('a reason a check had nothing to do', () => {
   })
 })
 
+describe('a check whose paragraph is already on the screen', () => {
+  it('prints its title and the pointer, and nothing it would repeat', () => {
+    const lines = renderCheckGroups([
+      entry('rpc-quorum', 'needs-ack', {
+        detailElsewhere: 'same as the first proposal on this network',
+        result: result('rpc-quorum', 'needs-ack', {
+          detail: 'add a second independent RPC provider',
+        }),
+      }),
+    ]).map(stripAnsi)
+    const plain = lines.join('\n')
+
+    expect(plain).toContain('title for rpc-quorum')
+    expect(plain).toContain('same as the first proposal on this network')
+    expect(plain).not.toContain('expected value')
+    expect(plain).not.toContain('observed value')
+    expect(plain).not.toContain('add a second independent RPC provider')
+  })
+
+  it('keeps its bucket, so the heading counts and the summary do not move', () => {
+    const pointed = entry('rpc-quorum', 'needs-ack', {
+      definition: definition('rpc-quorum', 'title for rpc-quorum', 'semantic'),
+      detailElsewhere: 'same as the first proposal on this network',
+    })
+
+    expect(bucketOf(pointed)).toBe('ack')
+    expect(checkSummary([pointed])).toBe('1 to acknowledge')
+    expect(renderCheckGroups([pointed]).map(stripAnsi).join('\n')).toContain(
+      'NEEDS YOUR ACKNOWLEDGEMENT'
+    )
+  })
+})
+
 describe('a pair of values compared character by character', () => {
   const HASH =
     '0x8c7e2e6b9edf4f60207d48d7eba1bf5f29667ada41df1c0e6bda53217f334b92'

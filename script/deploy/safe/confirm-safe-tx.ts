@@ -79,6 +79,7 @@ import {
   CONFIRM_CHECK_DEFINITIONS,
   EXECUTABILITY_CHECK_ID,
   proposalCheckResults,
+  RPC_QUORUM_CHECK_ID,
   worstResultPerCheck,
 } from './confirm-check-registry'
 import {
@@ -1412,6 +1413,10 @@ const processTxs = async (
     if (next) nextProposal.set(proposal, next)
   })
 
+  // Once per network, not per proposal: the second proposal's gate J row points
+  // at this paragraph instead of repeating it.
+  let shownRpcQuorum: ICheckResult | undefined
+
   // Track expected nonce so sequential executions within a single run work correctly
   let expectedNonce = onChainNonce
   for (const tx of initialTxs) {
@@ -1712,6 +1717,7 @@ const processTxs = async (
             ]),
           }
         : {}),
+      rpcQuorumShown: shownRpcQuorum,
       definitions: viewDefinitions(ALL_GATE_DEFINITIONS),
     })
 
@@ -1737,6 +1743,9 @@ const processTxs = async (
       }).join('\n')
     )
     consola.log(renderCheckGroups(signerCheckRows).join('\n'))
+    shownRpcQuorum ??= proposalResults.find(
+      (row) => row.checkId === RPC_QUORUM_CHECK_ID
+    )
     // Per-finding detail under the row that reduced them: the ledger holds one
     // verdict per proposal, and a cut installing several facets has one line
     // per element to show.
