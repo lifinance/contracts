@@ -1137,6 +1137,35 @@ describe('createPinnedTargetStateReader', () => {
     expect(shows).toBe(1)
   })
 
+  // A rev-parse failure is NOT a network fault — the fetch already succeeded — so it gets
+  // its own reason and remedy, and it is memoized: retrying a condition the clone cannot
+  // resolve would re-fetch once per network per contract on a fleet run.
+  it('reports an unresolvable revision distinctly, and only resolves it once', () => {
+    let fetches = 0
+    const anchor = createPinnedAnchor({
+      repoRoot: clone,
+      git: {
+        remoteUrl: () => CANONICAL_REMOTE,
+        fetch: () => {
+          fetches++
+        },
+        revParse: () => {
+          throw new Error('bad ref')
+        },
+        show: () => {
+          throw new Error('must not be reached')
+        },
+      },
+    })
+
+    for (let call = 0; call < 5; call++)
+      expect(anchor()).toEqual({ ok: false, reason: 'revision-unresolvable' })
+    expect(fetches).toBe(1)
+    expect(describeTargetStateUnavailable('revision-unresolvable')).toContain(
+      'rather than the network'
+    )
+  })
+
   it('reports a failed fetch rather than reading a stale local ref', () => {
     const read = createPinnedTargetStateReader({
       repoRoot: clone,

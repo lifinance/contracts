@@ -92,6 +92,7 @@ export type PinnedTargetStateRead =
       ok: false
       reason:
         | 'fetch-failed'
+        | 'revision-unresolvable'
         | 'remote-unreadable'
         | 'remote-unexpected'
         | 'blob-unreadable'
@@ -303,6 +304,8 @@ export const describeTargetStateUnavailable = (
 ): string => {
   if (reason === 'fetch-failed')
     return `could not refresh ${PINNED_REF} — the expected version can only come from the remote, and a stale local copy is not an anchor. Restore network access to the git remote and re-run.`
+  if (reason === 'revision-unresolvable')
+    return `refreshed ${PINNED_REF} but could not resolve it to a commit. The remote is reachable, so this is a fault in this clone's refs rather than the network: check \`git rev-parse ${PINNED_REF}\` and re-run.`
   if (reason === 'remote-unreadable')
     return `could not read this clone's \`origin\` remote, so it cannot be established that the anchor would come from ${EXPECTED_REMOTE_REPO}.`
   if (reason === 'remote-unexpected')
@@ -668,7 +671,9 @@ export const createPinnedAnchor = (options?: {
   let memo: ReturnType<PinnedAnchor> | undefined
 
   return () => {
-    if (memo?.ok) return memo
+    // Failures are memoized only when they cannot change within the process, so a
+    // stored one is as final as a success.
+    if (memo) return memo
 
     const anchored = verifyRemoteAndFetch(git)
     if (!anchored.ok) {
@@ -681,13 +686,19 @@ export const createPinnedAnchor = (options?: {
     try {
       revision = git.revParse(PINNED_READ_REF).trim()
     } catch {
-      // Refused rather than fallen back to the ref name. The ref can move under a
-      // concurrent fetch, so reading it twice is not one commit — and callers now rely
-      // on this being one commit. A ref that was just fetched but cannot be resolved is
-      // odd enough to stop on.
-      return { ok: false, reason: 'fetch-failed' }
+      revision = ''
     }
-    if (!revision) return { ok: false, reason: 'fetch-failed' }
+    // Refused rather than fallen back to the ref name. The ref can move under a
+    // concurrent fetch, so reading it twice is not one commit — and callers now rely on
+    // this being one commit.
+    //
+    // Memoized, unlike the fetch failures: the fetch already succeeded, so this is a
+    // property of the clone and not a transient network fault. Retrying it would re-fetch
+    // once per network per contract for a condition that cannot resolve itself.
+    if (!revision) {
+      memo = { ok: false, reason: 'revision-unresolvable' }
+      return memo
+    }
 
     memo = { ok: true, revision }
     return memo

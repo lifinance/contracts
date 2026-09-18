@@ -209,6 +209,42 @@ describe('targetStateCheckResult', () => {
     }
   })
 
+  // A pin is decided by the version `origin/main` pins, so it wears `A-MAIN` — but it is
+  // still an acknowledgement, never a silent green: the proposed side comes from the
+  // proposer-written deployment record. Without this, downgrading `matches-pin` to a
+  // `pass` on `A-LOCAL` passes the whole suite.
+  it('grades a matched pin as an acknowledgement anchored on main', () => {
+    const result = targetStateCheckResult(
+      verdictOf([finding('matches-pin')]),
+      'mainnet'
+    )
+
+    expect(result.status).toBe('needs-ack')
+    expect(result.anchor).toBe('A-MAIN')
+  })
+
+  it('grades a contradicted pin as a failure anchored on main', () => {
+    const result = targetStateCheckResult(
+      verdictOf([finding('pinned-mismatch')]),
+      'mainnet'
+    )
+
+    expect(result.status).toBe('fail')
+    expect(result.anchor).toBe('A-MAIN')
+  })
+
+  // `latest` with an unreadable source version compared nothing, so it must not be
+  // reported as agreement with main.
+  it('grades an unresolved expected version as an error', () => {
+    const result = targetStateCheckResult(
+      verdictOf([finding('expected-version-unresolved')]),
+      'mainnet'
+    )
+
+    expect(result.status).toBe('error')
+    expect(result.anchor).toBe('A-UNRESOLVED')
+  })
+
   it('grades a removal against nothing, because it reads no anchor', () => {
     const result = targetStateCheckResult(
       verdictOf([finding('removal')]),
