@@ -101,8 +101,14 @@ jobs:
           validate_json "script/deploy/_targetState.json"
           echo -e "\033[32m_targetState.json validated.\033[0m"
 
-          validate_json "script/deploy/resources/deployRequirements.json"
-          echo -e "\033[32mdeployRequirements.json validated.\033[0m"
+          ##### Whole directories, not just deployRequirements.json: the duplicate-key
+          ##### step below scans both, and it reads key tokens rather than parsing, so
+          ##### a malformed file there passes it. Only jsonlint refuses one.
+          validate_json "script/deploy/resources"
+          echo -e "\033[32mAll files in folder script/deploy/resources/ validated.\033[0m"
+
+          validate_json "script/deploy/immutables"
+          echo -e "\033[32mAll files in folder script/deploy/immutables/ validated.\033[0m"
 
       # Step 5: Reject duplicate keys, which jsonlint accepts
       - name: Set up Bun

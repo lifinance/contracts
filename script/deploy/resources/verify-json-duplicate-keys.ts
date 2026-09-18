@@ -108,8 +108,9 @@ const main = defineCommand({
         for (const duplicate of findDuplicateKeys(text))
           messages.push(formatDuplicateKey(file, duplicate))
       } catch (error) {
-        // Malformed JSON: jsonlint refuses it in the same job before this runs,
-        // so reaching here means the two path lists have drifted apart.
+        // Only a malformed key reaches here: the scan reads key tokens and never
+        // parses, so a truncated document or an unterminated value is invisible
+        // to it. The jsonlint step above is what refuses those, over the same paths.
         consola.error(`${file} could not be scanned: ${String(error)}`)
         process.exit(EXIT_ERROR)
       }
