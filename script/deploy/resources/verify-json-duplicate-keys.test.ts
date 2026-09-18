@@ -10,7 +10,13 @@
  * nothing, rather than as a gate that silently passes every PR.
  */
 
-import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync,
+  mkdtempSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 
@@ -162,6 +168,30 @@ describe('verify-json-duplicate-keys CLI', () => {
     } finally {
       rmSync(real, { recursive: true, force: true })
       rmSync(parent, { recursive: true, force: true })
+    }
+  })
+
+  it('errors rather than crashing when a file cannot be read', () => {
+    const denied = mkdtempSync(join(tmpdir(), 'json-duplicate-keys-denied-'))
+    const unreadable = join(denied, 'unreadable.json')
+    try {
+      writeFileSync(unreadable, DUPLICATE)
+
+      // Scanned while readable first, so the verdict below is the read failing
+      // and not a path the scanner would have rejected either way.
+      expect(run([unreadable]).exitCode).toBe(1)
+
+      chmodSync(unreadable, 0o000)
+      const { exitCode, output } = run([unreadable])
+
+      // Without this the read throws out of the command and citty exits 1 —
+      // the code that means 'duplicates found', on a file nothing scanned.
+      expect(exitCode).toBe(2)
+      expect(output).toContain('could not be read')
+      expect(output).toContain('unreadable.json')
+    } finally {
+      chmodSync(unreadable, 0o600)
+      rmSync(denied, { recursive: true, force: true })
     }
   })
 

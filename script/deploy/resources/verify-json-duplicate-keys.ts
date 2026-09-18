@@ -94,7 +94,16 @@ const main = defineCommand({
 
     const messages: string[] = []
     for (const file of files) {
-      const text = readFileSync(file, 'utf8')
+      let text: string
+      try {
+        text = readFileSync(file, 'utf8')
+      } catch (error) {
+        // Exiting here rather than letting the throw escape: citty would end
+        // the run with 1, the code this gate uses for 'duplicates found'.
+        consola.error(`${file} could not be read: ${String(error)}`)
+        process.exit(EXIT_ERROR)
+      }
+
       try {
         for (const duplicate of findDuplicateKeys(text))
           messages.push(formatDuplicateKey(file, duplicate))
