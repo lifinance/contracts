@@ -4,8 +4,8 @@
 # EVM-version deployment grouping helpers
 # =============================================================================
 # Single source of truth for splitting a set of networks by the toolchain they
-# must be built with, and for pointing foundry.toml at the matching profile
-# before a build.
+# must be built with, and for selecting the foundry profile a group builds and
+# deploys under.
 #
 # Why this exists: contracts compiled for `cancun` embed opcodes (PUSH0, MCOPY,
 # TLOAD/TSTORE) that a `london` chain's VM rejects, and the two solc pins differ
@@ -18,6 +18,7 @@
 #   - script/multiNetworkExecution.sh   (grouped playground runner)
 #   - script/playgroundHelpers.sh       (re-exports getNetworkGroup/...EvmVersion)
 #   - script/deploy/deployContractToNetworks.sh (parallel non-interactive deploy)
+#   - script/tasks/proposeContractToNetworks.sh (parallel Safe proposals)
 #
 # Requires helperFunctions.sh to be sourced first (error, logWithTimestamp,
 # isZkEvmNetwork, NETWORKS_JSON_FILE_PATH).
@@ -28,16 +29,8 @@ GROUP_LONDON="london"
 GROUP_ZKEVM="zkevm"
 GROUP_CANCUN="cancun"
 
-# solc pins per group (must match foundry.toml profiles)
-SOLC_LONDON="0.8.17"
-SOLC_CANCUN="0.8.29"
-
-# evm_version per group
-EVM_LONDON="london"
-EVM_CANCUN="cancun"
-
-# foundry.toml backup file used while a group build temporarily rewrites it
-FOUNDRY_TOML_BACKUP="foundry.toml.backup"
+# foundry.toml profile the london group builds under; cancun is the default profile
+PROFILE_LONDON="london"
 
 # getNetworkEvmVersion NETWORK -> echoes the network's targetEvmVersion.
 function getNetworkEvmVersion() {
@@ -174,100 +167,61 @@ function groupNetworksByExecutionGroup() {
 }
 
 # =============================================================================
-# FOUNDRY.TOML MANAGEMENT
+# GROUP BUILD SELECTION
 # =============================================================================
 
-function backupFoundryToml() {
-    if [[ -f "foundry.toml" ]]; then
-        # Check the copy: without strict mode a failed cp would otherwise report
-        # success, then a group build mutates foundry.toml with no backup to restore.
-        if ! cp "foundry.toml" "$FOUNDRY_TOML_BACKUP"; then
-            error "Failed to back up foundry.toml to $FOUNDRY_TOML_BACKUP"
-            return 1
-        fi
-        logWithTimestamp "Backed up foundry.toml to $FOUNDRY_TOML_BACKUP"
-    else
-        error "foundry.toml not found"
-        return 1
-    fi
-}
-
-function restoreFoundryToml() {
-    if [[ -f "$FOUNDRY_TOML_BACKUP" ]]; then
-        # Only remove the backup once the restore copy has actually succeeded;
-        # deleting it after a failed cp would lose the sole copy of the original.
-        if ! cp "$FOUNDRY_TOML_BACKUP" "foundry.toml"; then
-            error "Failed to restore foundry.toml from $FOUNDRY_TOML_BACKUP - backup kept"
-            return 1
-        fi
-        logWithTimestamp "Restored foundry.toml from $FOUNDRY_TOML_BACKUP"
-        rm "$FOUNDRY_TOML_BACKUP"
-    else
-        # Silently return if backup doesn't exist (expected after restore)
-        return 0
-    fi
-}
-
-# updateFoundryTomlForGroup GROUP [STRICT]
-#   Points [profile.default] at GROUP's solc + evm_version and builds.
-#   STRICT="true" makes a failed `forge build` return non-zero (callers that
-#   must not deploy against a stale artifact set it); the default keeps the
-#   original tolerant behavior for the playground runner.
-function updateFoundryTomlForGroup() {
-    local group="${1:-}"
+# prepareGroupBuild GROUP [STRICT]
+#   Exports the foundry profile GROUP builds and deploys under, then builds.
+#   Selecting the profile through the environment keeps foundry.toml identical
+#   to the commit, which the tree-reproducibility guard requires of a production
+#   deploy. The export outlives this call on purpose: the deploy workers a caller
+#   launches next inherit it. STRICT="true" makes a failed `forge build` return
+#   non-zero (callers that must not deploy against a stale artifact set it); the
+#   default keeps the original tolerant behavior for the playground runner.
+function prepareGroupBuild() {
+    local GROUP="${1:-}"
     local STRICT="${2:-false}"
 
-    if [[ -z "$group" ]]; then
+    if [[ -z "$GROUP" ]]; then
         error "Group is required"
         return 1
     fi
 
-    # Ahead of the sed below, so a refusal cannot leave foundry.toml rewritten for a group
-    # whose build never ran — but only under STRICT. The tolerant mode swallows build
-    # failures for the playground runner and its two callers in multiNetworkExecution.sh
-    # rely on that, so refusing there would abort a whole multi-network group on a
-    # mismatch the per-network gate in deploySingleContract already refuses.
+    # Only under STRICT: the tolerant mode swallows build failures for the playground
+    # runner and its two callers in multiNetworkExecution.sh rely on that, so refusing
+    # there would abort a whole multi-network group on a mismatch the per-network gate
+    # in deploySingleContract already refuses.
     if [[ "$STRICT" == "true" ]] && ! assertFoundryVersionOrFail; then
         return 1
     fi
 
-    case "$group" in
+    case "$GROUP" in
         "$GROUP_LONDON")
-            # Update solc version and EVM version in profile.default section only
-            sed -i.bak "1,/^\[/ s/solc_version = .*/solc_version = '$SOLC_LONDON'/" foundry.toml 2>/dev/null || true
-            sed -i.bak "1,/^\[/ s/evm_version = .*/evm_version = '$EVM_LONDON'/" foundry.toml 2>/dev/null || true
-            rm -f foundry.toml.bak
-            # Build with new solc version (Foundry will detect if recompilation is needed)
-            logWithTimestamp "Running forge build for London EVM group..."
-            if [[ "$STRICT" == "true" ]]; then
-                forge build || { error "forge build failed for $group group"; return 1; }
-            else
-                forge build || true
-            fi
+            export FOUNDRY_PROFILE="$PROFILE_LONDON"
+            logWithTimestamp "Running forge build for London EVM group (FOUNDRY_PROFILE=$FOUNDRY_PROFILE)..."
+            ;;
+        "$GROUP_CANCUN")
+            # A profile exported by a previous group or by the operator's shell must not
+            # reach this build.
+            unset FOUNDRY_PROFILE
+            logWithTimestamp "Running forge build for Cancun EVM group..."
             ;;
         "$GROUP_ZKEVM")
             # zkEVM networks use the [profile.zksync] section; zksolc is pinned in foundry.toml [external.zksync] and exported via FOUNDRY_ZKSYNC (see helperFunctions.sh)
-            # No need to update the main solc_version or evm_version settings
             # No standard forge build needed for zkEVM - compilation handled by deploy scripts.
             # out/ is nonetheless required to derive the CREATE2 deploy salt; deploySingleContract's
             # zk path ensures it per contract (ensureStandardArtifactForSalt).
-            ;;
-        "$GROUP_CANCUN")
-            # Update solc version and EVM version in profile.default section only
-            sed -i.bak "1,/^\[/ s/solc_version = .*/solc_version = '$SOLC_CANCUN'/" foundry.toml 2>/dev/null || true
-            sed -i.bak "1,/^\[/ s/evm_version = .*/evm_version = '$EVM_CANCUN'/" foundry.toml 2>/dev/null || true
-            rm -f foundry.toml.bak
-            # Build with new solc version (Foundry will detect if recompilation is needed)
-            logWithTimestamp "Running forge build for Cancun EVM group..."
-            if [[ "$STRICT" == "true" ]]; then
-                forge build || { error "forge build failed for $group group"; return 1; }
-            else
-                forge build || true
-            fi
+            return 0
             ;;
         *)
-            error "Unknown group: $group"
+            error "Unknown group: $GROUP"
             return 1
             ;;
     esac
+
+    if [[ "$STRICT" == "true" ]]; then
+        forge build || { error "forge build failed for $GROUP group"; return 1; }
+    else
+        forge build || true
+    fi
 }

@@ -595,6 +595,33 @@ function getContractNamesFromNetworkDeploymentFile() {
   return 0
 }
 
+# getFoundryProfileValue: Reads KEY from the foundry.toml profile forge would build with.
+# The active profile is FOUNDRY_PROFILE (default when unset); a key the active profile
+# leaves out is read from [profile.default], which is how forge itself resolves it.
+#
+# Usage: getFoundryProfileValue KEY
+#   KEY - a quoted scalar key such as solc_version or evm_version
+#
+# Returns: the unquoted value on stdout; empty when neither profile declares KEY
+# Example: getFoundryProfileValue "solc_version"
+function getFoundryProfileValue() {
+  local KEY="$1"
+  local PROFILE
+  local VALUE
+  for PROFILE in "${FOUNDRY_PROFILE:-default}" default; do
+    VALUE=$(awk -v SECTION="[profile.$PROFILE]" -v KEY="$KEY" -v QUOTES="'\"" '
+      $1 == SECTION { ACTIVE = 1; next }
+      /^\[/ { ACTIVE = 0 }
+      ACTIVE && $1 == KEY { split($0, QUOTED, "[" QUOTES "]"); print QUOTED[2]; exit }
+    ' foundry.toml)
+    if [[ -n "$VALUE" ]]; then
+      echo "$VALUE"
+      return 0
+    fi
+  done
+  echo ""
+}
+
 function getSolcVersion() {
   local NETWORK="$1"
 
@@ -602,8 +629,7 @@ function getSolcVersion() {
     # Extract from zksync profile
     grep -A 10 "^\[profile\.zksync\]" foundry.toml | grep "solc_version" | cut -d "'" -f 2
   else
-    # Extract from default profile
-    grep -A 10 "^\[profile\.default\]" foundry.toml | grep "solc_version" | cut -d "'" -f 2
+    getFoundryProfileValue "solc_version"
   fi
 }
 
@@ -614,8 +640,7 @@ function getEvmVersion() {
     # For zkEVM networks, return appropriate identifier
     echo "zkevm"
   else
-    # Extract from default profile
-    grep -A 10 "^\[profile\.default\]" foundry.toml | grep "evm_version" | cut -d "'" -f 2
+    getFoundryProfileValue "evm_version"
   fi
 }
 

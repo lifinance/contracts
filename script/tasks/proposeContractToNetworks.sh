@@ -412,18 +412,10 @@ function proposeContractToNetworks() {
     exit 1
   fi
 
-  backupFoundryToml || {
-    error "failed to back up foundry.toml - aborting"
-    rm -rf "$RESULT_DIR"
-    exit 1
-  }
-  # Do not delete RESULT_DIR in EXIT — summary reads it after waves; clean up explicitly.
-  trap 'restoreFoundryToml 2>/dev/null' EXIT
-
   if [[ ${#LONDON_NETWORKS[@]} -gt 0 ]]; then
     echo ""
     echo "[info] === london group ==="
-    if ! updateFoundryTomlForGroup "$GROUP_LONDON" true; then
+    if ! prepareGroupBuild "$GROUP_LONDON" true; then
       error "london group build failed"
       rm -rf "$RESULT_DIR"
       exit 1
@@ -434,7 +426,7 @@ function proposeContractToNetworks() {
   if [[ ${#CANCUN_NETWORKS[@]} -gt 0 ]]; then
     echo ""
     echo "[info] === cancun group ==="
-    if ! updateFoundryTomlForGroup "$GROUP_CANCUN" true; then
+    if ! prepareGroupBuild "$GROUP_CANCUN" true; then
       error "cancun group build failed"
       rm -rf "$RESULT_DIR"
       exit 1
@@ -510,8 +502,6 @@ function proposeContractToNetworks() {
   fi
 
   rm -rf "$RESULT_DIR"
-  trap - EXIT
-  restoreFoundryToml 2>/dev/null
 
   if [[ ${#FAILED_NETWORKS[@]} -gt 0 ]]; then
     exit 1
