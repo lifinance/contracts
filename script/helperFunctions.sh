@@ -3050,11 +3050,19 @@ function assertTargetStateVersionAllowed() {
   local CURRENT_VERSION
   CURRENT_VERSION=$(getCurrentContractVersion "$CONTRACT")
 
+  # `error` writes to stdout, so a contract whose source is missing or untagged leaves its
+  # diagnosis in CURRENT_VERSION. The refusal below would then quote that text as the
+  # repo's version and send the operator to the pin rather than to the unreadable source.
+  if [[ $? -ne 0 ]]; then
+    error "cannot read the current version of $CONTRACT, so the target-state pin $TARGET_VERSION on $NETWORK/$ENVIRONMENT cannot be checked. Deploy blocked. The version read reported: $CURRENT_VERSION"
+    return 1
+  fi
+
   # Ordering is defined on MAJOR.MINOR.PATCH only, so a suffixed tag (2.1.3-tron) is
-  # compared on its base — the same reduction the sign-time gate applies. Without it a
-  # pin, which is always bare, could never match a suffixed build and would refuse the
-  # deploy it was written to permit.
-  if [[ "$TARGET_VERSION" == "${CURRENT_VERSION%%-*}" ]]; then
+  # compared on its base — on both sides, the same reduction the sign-time gate applies.
+  # Reducing only the repo's side would make a suffixed pin refuse every deploy, that of
+  # its own version included.
+  if [[ "${TARGET_VERSION%%-*}" == "${CURRENT_VERSION%%-*}" ]]; then
     return 0
   fi
 

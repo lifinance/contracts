@@ -77,6 +77,7 @@ beforeAll(() => {
             PinnedToCurrent: '2.0.0',
             PinnedToOlder: '1.0.0',
             SuffixedBuild: '2.1.3',
+            PinnedToSuffixed: '2.1.3-tron',
           },
           LiFiDiamondImmutable: { OnlyOnImmutable: '1.0.0' },
         },
@@ -98,17 +99,33 @@ afterAll(() => {
  *
  * @param contract - contract name to assert
  * @param currentVersion - the version the repo is at
- * @returns the guard's exit code, as `rc=<n>`
+ * @param diamond - the diamond block to read the declaration from
+ * @param statePath - the target state the guard reads
+ * @param opts - `versionReadFails` makes the version read report a failure the way the
+ * real one does, on stdout; `capture` returns what the guard printed alongside the code
+ * @returns the guard's exit code, as `rc=<n>`, preceded by its output when captured
  */
 const run = (
   contract: string,
   currentVersion: string,
   diamond = 'LiFiDiamond',
-  statePath: string = targetStatePath
+  statePath: string = targetStatePath,
+  opts: { versionReadFails?: boolean; capture?: boolean } = {}
 ): string => {
+  // The version can be an error message rather than a version, so it is slugged: a
+  // `/` in it would otherwise name a directory that does not exist.
   const harness = join(
     workDir,
-    `harness-${contract}-${currentVersion}-${diamond}-${statePath.length}.sh`
+    `harness-${[
+      contract,
+      currentVersion,
+      diamond,
+      statePath.length,
+      opts.versionReadFails ? 'fails' : 'reads',
+      opts.capture ? 'capture' : 'quiet',
+    ]
+      .join('-')
+      .replace(/[^a-zA-Z0-9.-]/gu, '_')}.sh`
   )
   writeFileSync(
     harness,
@@ -116,9 +133,13 @@ const run = (
     TARGET_STATE_PATH="${statePath}"
     TARGET_STATE_VERSION_LATEST="latest"
     error() { echo "[error] $*"; }
-    getCurrentContractVersion() { echo "${currentVersion}"; }
+    getCurrentContractVersion() { echo "${currentVersion}"; ${
+      opts.versionReadFails ? 'return 1' : 'return 0'
+    }; }
     source "${functionsPath}"
-    assertTargetStateVersionAllowed "${contract}" mainnet production ${diamond} >/dev/null
+    assertTargetStateVersionAllowed "${contract}" mainnet production ${diamond} ${
+      opts.capture ? '' : '>/dev/null'
+    }
     echo "rc=$?"
   `
   )
@@ -269,6 +290,35 @@ describe('assertTargetStateVersionAllowed', () => {
   // reducing to the base, such a build could never satisfy any pin.
   it('matches a pin against the base of a suffixed repo version', () => {
     expect(run('SuffixedBuild', '2.1.3-tron')).toBe('rc=0')
+  })
+
+  // The reduction applies to the pin too: docs/TargetState.md states both sides are
+  // compared by their base, and reducing only the repo's side made a suffixed pin refuse
+  // the deploy of its own version.
+  it('matches a suffixed pin against the same base', () => {
+    expect(run('PinnedToSuffixed', '2.1.3-tron')).toBe('rc=0')
+    expect(run('PinnedToSuffixed', '2.1.3')).toBe('rc=0')
+  })
+
+  it('still blocks a suffixed pin whose base the repo has moved past', () => {
+    expect(run('PinnedToSuffixed', '2.2.0-tron')).toBe('rc=1')
+  })
+
+  // getCurrentContractVersion reports on stdout, so its diagnosis lands in the variable
+  // the refusal quotes as the repo's version.
+  it('refuses a pin it could not read the repo version for, and says which read failed', () => {
+    const output = run(
+      'PinnedToCurrent',
+      "[error] '@custom:version' string not found in src/Facets/X.sol",
+      'LiFiDiamond',
+      targetStatePath,
+      { versionReadFails: true, capture: true }
+    )
+    expect(output).toContain('rc=1')
+    expect(output).toContain(
+      'cannot read the current version of PinnedToCurrent'
+    )
+    expect(output).not.toContain('Either check out')
   })
 
   it('still blocks a suffixed build whose base differs from the pin', () => {
