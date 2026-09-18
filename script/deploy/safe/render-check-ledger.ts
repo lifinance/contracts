@@ -97,7 +97,12 @@ const sharedUnverifiedCause = (
 
   for (const rollup of rollups)
     for (const result of rollup.results) {
-      if (result.status === 'pass' || result.status === 'needs-ack') continue
+      if (
+        result.status === 'pass' ||
+        result.status === 'needs-ack' ||
+        result.status === 'not-applicable'
+      )
+        continue
       if (result.status === 'fail') return undefined
       rows += 1
       details.add(clean(result.detail ?? ''))

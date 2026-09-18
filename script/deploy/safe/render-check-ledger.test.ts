@@ -1060,6 +1060,33 @@ describe('unverified rows that all rest on one cause', () => {
     expect(lines[banner]).toContain('will not change the answer')
   })
 
+  it('still names the cause when a row beside them graded nothing', () => {
+    // A not-applicable row is neither unverified nor a disagreement; it has
+    // no cause to share and must not be counted as an empty second one.
+    const ledger = ledgerOf(['arbitrum'], [CODEHASH, TARGET_STATE, AUTHORITY])
+    recordCheck(ledger, unverified('codehash', NO_ENDPOINT))
+    recordCheck(ledger, unverified('target-state', NO_ENDPOINT))
+    recordCheck(
+      ledger,
+      result({
+        checkId: 'authority',
+        network: 'arbitrum',
+        status: 'not-applicable',
+        expected: 'every installed contract authorised',
+        actual:
+          'this proposal installs no contract whose authorities main declares',
+        anchor: 'A-LOCAL',
+      })
+    )
+
+    const banner = renderCheckLedger(ledger).find((line) =>
+      line.includes('will not change the answer')
+    )
+
+    expect(banner).toBeDefined()
+    expect(banner).toContain('2 unverified results')
+  })
+
   it('stays quiet when the rows do not share a cause', () => {
     const ledger = ledgerOf(['arbitrum'])
     recordCheck(ledger, unverified('codehash', NO_ENDPOINT))
