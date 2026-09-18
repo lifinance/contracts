@@ -1,0 +1,11 @@
+{
+  "mainnet": {
+    "orderBook": "0xe39B012AB3b20E94a9beEa557eB0DE4171D4D3E4"
+  },
+  "base": {
+    "orderBook": "0xe39B012AB3b20E94a9beEa557eB0DE4171D4D3E4"
+  },
+  "arbitrum": {
+    "orderBook": "0xe39B012AB3b20E94a9beEa557eB0DE4171D4D3E4"
+  }
+}
