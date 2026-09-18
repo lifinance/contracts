@@ -1,8 +1,9 @@
 /**
- * Pins how the grouped deploy runners select the london build: by exporting
- * `FOUNDRY_PROFILE` for the london group and clearing it for the cancun group,
- * never by rewriting `foundry.toml` — a rewritten `foundry.toml` is what the
- * tree-reproducibility guard refuses a production deploy over. Each case drives
+ * Pins how the deploy paths select the london build: the grouped runners export
+ * `FOUNDRY_PROFILE` for the london group and clear it for the cancun group, and
+ * a direct deploy selects it from the network — never by rewriting
+ * `foundry.toml`, which is what the tree-reproducibility guard refuses a
+ * production deploy over. Each case drives
  * the real bash helpers inside a throwaway git checkout whose `forge` is a stub
  * that records the profile it was handed, so nothing can be built or broadcast.
  */
@@ -15,6 +16,7 @@ import {
   mkdtempSync,
   readFileSync,
   symlinkSync,
+  unlinkSync,
   writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -54,6 +56,8 @@ const LONDON_PROFILE = 'solc_floor'
 
 /** A london-EVM mainnet, so the getters take their non-zk branch. */
 const LONDON_NETWORK = 'fuse'
+/** A cancun mainnet, which builds under the default profile. */
+const CANCUN_NETWORK = 'base'
 const UNSET = '<unset>'
 
 /** A `.env` the helpers accept, holding only path settings and no credentials. */
@@ -374,6 +378,140 @@ describe('prepareGroupBuild', () => {
 
       expect(output).toContain('DECLARED_RC=1')
     })
+})
+
+/**
+ * The direct entry points (scriptMaster and the deploy*.sh wrappers) run no
+ * group build, so the profile forge compiles under is whatever the shell holds.
+ * Each case drives the real deploySingleContract as far as its first
+ * `forge build`, which the stub records and then fails by leaving no artifact.
+ */
+describe('deploySingleContract selects the profile from the network', () => {
+  const DEPLOY = (network: string): string[] => [
+    ...SOURCE_HELPERS,
+    'source script/deploy/deploySingleContract.sh',
+    `deploySingleContract Executor ${network} staging 1.0.0 false`,
+    'echo "RC=$?"',
+    `echo "PROFILE_AFTER=\${FOUNDRY_PROFILE-${UNSET}}"`,
+    `echo "SOLC=$(getSolcVersion ${network})"`,
+    `echo "EVM=$(getEvmVersion ${network})"`,
+  ]
+  const buildProfiles = (sandbox: ISandbox): string[] =>
+    sandbox
+      .forgeCalls()
+      .filter((call) => call.startsWith('forge build'))
+      .map((call) => call.split(' FOUNDRY_PROFILE=')[1] ?? '')
+  /** No `out/`: the salt derivation then has to run `forge build` itself. */
+  const makeDeploySandbox = (): ISandbox => {
+    const sandbox = makeSandbox()
+    const out = join(sandbox.root, 'out')
+    if (existsSync(out)) unlinkSync(out)
+    return sandbox
+  }
+
+  it('is a pair of one london and one cancun network', () => {
+    expect(NETWORKS[LONDON_NETWORK]?.targetEvmVersion).toBe('london')
+    expect(NETWORKS[CANCUN_NETWORK]?.targetEvmVersion).toBe('cancun')
+  })
+
+  it(`builds a london network under FOUNDRY_PROFILE=${LONDON_PROFILE} when the shell holds none`, () => {
+    const sandbox = makeDeploySandbox()
+
+    const output = run(sandbox, DEPLOY(LONDON_NETWORK))
+
+    expect(output).not.toContain('refusing to deploy')
+    expect(buildProfiles(sandbox)).toEqual([LONDON_PROFILE])
+    expect(output).toContain(`PROFILE_AFTER=${LONDON_PROFILE}`)
+    // The record the deploy would write reads the same profile.
+    expect(output).toContain(`SOLC=${london.solcVersion}`)
+    expect(output).toContain(`EVM=${london.evmVersion}`)
+  })
+
+  it('builds a cancun network under the default profile when the shell holds none', () => {
+    const sandbox = makeDeploySandbox()
+
+    const output = run(sandbox, DEPLOY(CANCUN_NETWORK))
+
+    expect(output).not.toContain('refusing to deploy')
+    expect(buildProfiles(sandbox)).toEqual([UNSET])
+    expect(output).toContain(`PROFILE_AFTER=${UNSET}`)
+    expect(output).toContain(`SOLC=${fallback.solcVersion}`)
+    expect(output).toContain(`EVM=${fallback.evmVersion}`)
+  })
+
+  it('keeps a profile the shell exported when it fits the network', () => {
+    // The grouped runners export the profile before launching their workers.
+    const sandbox = makeDeploySandbox()
+
+    const output = run(sandbox, DEPLOY(LONDON_NETWORK), {
+      FOUNDRY_PROFILE: LONDON_PROFILE,
+    })
+
+    expect(output).not.toContain('refusing to deploy')
+    expect(buildProfiles(sandbox)).toEqual([LONDON_PROFILE])
+  })
+
+  it.each([
+    [LONDON_PROFILE, CANCUN_NETWORK],
+    // `ci` pins no pair, so it resolves to the default's cancun.
+    ['ci', LONDON_NETWORK],
+  ])(
+    'refuses FOUNDRY_PROFILE=%s for %s before any forge build',
+    (profile, network) => {
+      const sandbox = makeDeploySandbox()
+
+      const output = run(sandbox, DEPLOY(network), {
+        FOUNDRY_PROFILE: profile,
+      })
+
+      expect(output).toContain('RC=1\n')
+      expect(output).toContain('refusing to deploy')
+      expect(output).toContain(`FOUNDRY_PROFILE=${profile}`)
+      expect(buildProfiles(sandbox)).toEqual([])
+    }
+  )
+
+  it('re-selects for the next network when it chose the previous profile itself', () => {
+    // scriptMaster deploys one contract to every network in a single loop, so
+    // the london export must not be read as the operator's choice at the next
+    // cancun network.
+    const output = run(makeSandbox(), [
+      ...SOURCE_HELPERS,
+      `selectFoundryProfileForNetwork ${LONDON_NETWORK}`,
+      `echo "PROFILE_BETWEEN=\${FOUNDRY_PROFILE-${UNSET}}"`,
+      `selectFoundryProfileForNetwork ${CANCUN_NETWORK}`,
+      'echo "RC=$?"',
+      `echo "PROFILE_AFTER=\${FOUNDRY_PROFILE-${UNSET}}"`,
+    ])
+
+    expect(output).toContain(`PROFILE_BETWEEN=${LONDON_PROFILE}`)
+    expect(output).toContain('RC=0')
+    expect(output).toContain(`PROFILE_AFTER=${UNSET}`)
+  })
+
+  it('verifies, and does not re-select, a profile a group build exported', () => {
+    const output = run(makeSandbox(), [
+      ...SOURCE_HELPERS,
+      'prepareGroupBuild "$GROUP_LONDON" true',
+      `selectFoundryProfileForNetwork ${CANCUN_NETWORK}`,
+      'echo "RC=$?"',
+      `echo "PROFILE_AFTER=\${FOUNDRY_PROFILE-${UNSET}}"`,
+    ])
+
+    expect(output).toContain('RC=1\n')
+    expect(output).toContain(`PROFILE_AFTER=${LONDON_PROFILE}`)
+  })
+
+  it('selects before the compiler-pair guard, which reads the active profile', () => {
+    const text = readFileSync(
+      join(REPO_ROOT, 'script', 'deploy', 'deploySingleContract.sh'),
+      'utf8'
+    )
+    const select = text.indexOf('selectFoundryProfileForNetwork "$NETWORK"')
+    const guard = text.indexOf('getSolcVersion "$NETWORK" >/dev/null')
+    expect(select).toBeGreaterThan(-1)
+    expect(guard).toBeGreaterThan(select)
+  })
 })
 
 describe('the deploy side and the sign-time rebuild agree on the profile name', () => {
