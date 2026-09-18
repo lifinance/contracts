@@ -125,7 +125,9 @@ describe('target-state gate placement in confirm-safe-tx', () => {
   it('grades gate G on the narrowed set, never the whole observation', () => {
     const at = source.indexOf('proposalCheckResults({')
     expect(at).toBeGreaterThan(-1)
-    const call = source.slice(at, source.indexOf('\n      })', at))
+    const end = source.indexOf('\n      })', at)
+    expect(end).toBeGreaterThan(at)
+    const call = source.slice(at, end)
 
     expect(call).toContain('installedAuthorities')
     expect(call).not.toContain('observed.authorities')
