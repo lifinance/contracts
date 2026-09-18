@@ -84,7 +84,8 @@ describe('readFacetRouting', () => {
   })
 
   // A short table is worse than no table: the dropped facet's selectors read as
-  // unrouted, pass the collision guard as Adds, and revert at execution.
+  // unrouted, pass the collision guard as Adds, and revert at execution. The
+  // shared parser skips what it cannot match, so the whole region is checked.
   it('refuses a table with a row the parser could not read', async () => {
     const stub = stubCaller(
       `[[${ECO_FACET} [0x0ff754ea]] [${OWNERSHIP_FACET} [zzzz]]]`
@@ -92,7 +93,40 @@ describe('readFacetRouting', () => {
 
     await expectRejects(
       readFacetRouting(DIAMOND, 'rpc', stub.call),
-      `returned facet rows the parser could not read: ${OWNERSHIP_FACET}`
+      'returned a facet table this reader will not parse'
+    )
+  })
+
+  it('refuses a table truncated mid-address', async () => {
+    const stub = stubCaller(`[[${ECO_FACET} [0x0ff754ea]] [TVofq5iFi`)
+
+    await expectRejects(
+      readFacetRouting(DIAMOND, 'rpc', stub.call),
+      'returned a facet table this reader will not parse'
+    )
+  })
+
+  it('refuses a table truncated mid-selector-list', async () => {
+    const stub = stubCaller(
+      `[[${ECO_FACET} [0x0ff754ea]] [${OWNERSHIP_FACET} [0x8da5`
+    )
+
+    await expectRejects(
+      readFacetRouting(DIAMOND, 'rpc', stub.call),
+      'returned a facet table this reader will not parse'
+    )
+  })
+
+  // A complete table can still be followed by the call saying something on its
+  // way out, and reading past that is how a partial read looks whole.
+  it('refuses output printed after the table', async () => {
+    const stub = stubCaller(
+      `[[${ECO_FACET} [0x0ff754ea]]] error: connection reset`
+    )
+
+    await expectRejects(
+      readFacetRouting(DIAMOND, 'rpc', stub.call),
+      'printed output after the facet table: error: connection reset'
     )
   })
 
