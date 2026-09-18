@@ -129,9 +129,9 @@ function abortInFlightDeployments() {
 
 # launchDeployWave: Deploy CONTRACT to a set of networks concurrently and block
 # until the whole wave finishes. All networks in a wave share one EVM-version
-# profile (foundry.toml already pointed at it by the caller), so their `forge
+# profile (FOUNDRY_PROFILE already exported by the caller), so their `forge
 # script` runs hit a warm, consistent artifact cache. Sequencing is by wave, not
-# within it: the caller must not mutate foundry.toml again until this returns.
+# within it: the caller must not switch the profile again until this returns.
 #
 # Usage: launchDeployWave CONCURRENCY ENVIRONMENT CONTRACT VERSION RESULT_DIR NETWORK...
 #   CONCURRENCY  - max networks to deploy at once (1 = sequential, e.g. zkEVM)
@@ -164,7 +164,7 @@ function launchDeployWave() {
     deployToNetworkWorker "$WAVE_NETWORK" "$WAVE_ENVIRONMENT" "$WAVE_CONTRACT" "$WAVE_VERSION" "$WAVE_RESULT_DIR" </dev/null 2>&1 | sed "s/^/[$WAVE_NETWORK] /" &
   done
 
-  # wait for every network in this wave before the caller repoints foundry.toml
+  # wait for every network in this wave before the caller switches the profile
   wait
 }
 
@@ -298,7 +298,7 @@ function deployContractToNetworks() {
   # Split the target networks by the toolchain they must be built with: cancun
   # bytecode embeds opcodes (PUSH0/MCOPY/TLOAD) a london chain rejects, and zkEVM
   # needs a different compiler, so each group is built once and shipped its own
-  # artifact (grouping + foundry.toml swap live in deployGroupingHelpers.sh).
+  # artifact (grouping + profile selection live in deployGroupingHelpers.sh).
   local GROUPS_JSON
   GROUPS_JSON=$(groupNetworksByExecutionGroup "${TARGET_NETWORKS[@]}") || {
     error "failed to group networks by EVM version"
@@ -358,21 +358,13 @@ function deployContractToNetworks() {
     exit 1
   fi
 
-  # Each EVM group temporarily rewrites foundry.toml (solc + evm_version) for its
-  # build, so back it up now and restore on any exit - normal, error, or the
-  # SIGINT/SIGTERM handler's `exit 1`, which also triggers this EXIT trap.
-  backupFoundryToml || {
-    error "failed to back up foundry.toml - aborting before any deployment"
-    rm -rf "$RESULT_DIR"
-    exit 1
-  }
-  trap 'restoreFoundryToml 2>/dev/null; rm -rf "$RESULT_DIR"' EXIT
+  trap 'rm -rf "$RESULT_DIR"' EXIT
 
   # London wave: solc 0.8.17 / evm_version london, deployed in parallel.
   if [[ ${#LONDON_NETWORKS[@]} -gt 0 ]]; then
     echo ""
     echo "[info] === london group: building, then deploying ${#LONDON_NETWORKS[@]} network(s) in parallel ==="
-    if ! updateFoundryTomlForGroup "$GROUP_LONDON" true; then
+    if ! prepareGroupBuild "$GROUP_LONDON" true; then
       error "london group build failed - aborting before deploying any london network"
       exit 1
     fi
@@ -383,7 +375,7 @@ function deployContractToNetworks() {
   if [[ ${#CANCUN_NETWORKS[@]} -gt 0 ]]; then
     echo ""
     echo "[info] === cancun group: building, then deploying ${#CANCUN_NETWORKS[@]} network(s) in parallel ==="
-    if ! updateFoundryTomlForGroup "$GROUP_CANCUN" true; then
+    if ! prepareGroupBuild "$GROUP_CANCUN" true; then
       error "cancun group build failed - aborting before deploying any cancun network"
       exit 1
     fi
@@ -392,11 +384,16 @@ function deployContractToNetworks() {
 
   # zkEVM wave: separate compiler plus a shared ./foundry-zksync install and zkout/
   # cache that cannot survive concurrent builds, so install+build once here and
-  # deploy strictly sequentially (concurrency 1). The default-profile foundry.toml
-  # state left by the EVM waves is irrelevant - zk uses [profile.zksync].
+  # deploy strictly sequentially (concurrency 1).
   if [[ ${#ZKEVM_NETWORKS[@]} -gt 0 ]]; then
     echo ""
     echo "[info] === zkevm group: installing foundry-zksync + building, then deploying ${#ZKEVM_NETWORKS[@]} network(s) sequentially ==="
+    # Clears a profile the london wave exported; the zk workers derive the CREATE2 salt
+    # from a plain `forge build`, which would otherwise compile under it.
+    if ! prepareGroupBuild "$GROUP_ZKEVM" true; then
+      error "zkevm group preparation failed - aborting before deploying any zkEVM network"
+      exit 1
+    fi
     if ! install_foundry_zksync; then
       error "failed to install foundry-zksync - aborting before deploying any zkEVM network"
       exit 1
@@ -472,8 +469,8 @@ source script/deploy/shared/captureProposalIntent.sh
 source .env
 # shellcheck disable=SC1091
 source script/helperFunctions.sh
-# EVM-version grouping + foundry.toml management (groupNetworksByExecutionGroup,
-# backup/restore/updateFoundryTomlForGroup, group constants)
+# EVM-version grouping + group build selection (groupNetworksByExecutionGroup,
+# prepareGroupBuild, group constants)
 # shellcheck disable=SC1091
 source script/deploy/resources/deployGroupingHelpers.sh
 # shellcheck disable=SC1091
