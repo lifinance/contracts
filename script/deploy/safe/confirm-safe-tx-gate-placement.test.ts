@@ -54,6 +54,20 @@ describe('target-state gate placement in confirm-safe-tx', () => {
     expect(block).not.toContain('signTransaction')
   })
 
+  // The findings already sit under their gate's row in section 2; a refusal
+  // that lists them again shows the signer the same facts twice and invites a
+  // search for the difference.
+  it('does not print the gate H findings a second time in the refusal', () => {
+    const at = source.indexOf(GATE)
+    expect(at).toBeGreaterThan(-1)
+    const end = source.indexOf('\n    }', at)
+    expect(end).toBeGreaterThan(at)
+    const block = source.slice(at, end)
+    expect(block).not.toContain('formatTargetStateLines(')
+    expect(block).toContain('renderTargetStateRefusal(')
+    expect(source.split('formatTargetStateLines(').length - 1).toBe(1)
+  })
+
   it('sits after the pre-existing nonce gate, which it must not swallow', () => {
     expect(source.indexOf(NONCE_GATE)).toBeGreaterThan(-1)
     expect(source.indexOf(GATE)).toBeGreaterThan(source.indexOf(NONCE_GATE))

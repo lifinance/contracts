@@ -37,6 +37,7 @@ import {
   TARGET_STATE_GATE_HEADING,
   PINNED_FETCH_REFSPEC,
   readDeclaredVersion,
+  renderTargetStateRefusal,
   TARGET_STATE_REPO_PATH,
   type IPinnedStateGit,
   type ITargetStateDeps,
@@ -377,6 +378,31 @@ describe('blockedByEvaluationError', () => {
     const verdict = blockedByEvaluationError('boom')
     expect(verdict.cleared).toBe(false)
     expect(verdict.findings[0]?.detail).toContain('boom')
+  })
+})
+
+describe('renderTargetStateRefusal', () => {
+  it('names the gate and points at its findings without repeating them', () => {
+    const verdict = evaluateTargetStateIntent(
+      [
+        cut([
+          { facetAddress: ZERO_ADDRESS as Address, action: 2 },
+          { facetAddress: FACET, action: 1 },
+        ]),
+      ],
+      'optimism',
+      deps({ deployed: { contractName: 'AcrossFacetV3', version: '1.1.0' } })
+    )
+    expect(verdict.cleared).toBe(false)
+    const text = renderTargetStateRefusal(verdict).join('\n')
+    expect(text).toContain(TARGET_STATE_GATE_HEADING)
+    expect(text).toContain('NOT SIGNING')
+    expect(text).toContain('1 finding')
+    // The detail belongs to the section-2 block, which is where this sends the
+    // reader; a second copy here is the same fact twice on one screen.
+    expect(text).not.toContain('OLDER')
+    expect(text).not.toContain('AcrossFacetV3')
+    expect(text).toContain('WHAT WAS CHECKED FOR YOU')
   })
 })
 

@@ -133,6 +133,7 @@ import {
   createTargetStateDeps,
   evaluateTargetStateIntent,
   formatTargetStateLines,
+  renderTargetStateRefusal,
   type ITargetStateVerdict,
 } from './pinned-target-state'
 import {
@@ -2000,14 +2001,8 @@ const processTxs = async (
     // happened yet at this point. Skipping to the next proposal keeps the rest of
     // the run intact.
     if (!targetState.cleared) {
-      consola.error('')
-      consola.error('='.repeat(80))
-      consola.error('✗  EXPECTED-STATE CHECK FAILED — NOT SIGNING OR EXECUTING')
-      consola.error('='.repeat(80))
-      for (const line of formatTargetStateLines(targetState))
+      for (const line of renderTargetStateRefusal(targetState))
         consola.error(line)
-      consola.error('='.repeat(80))
-      consola.error('')
       recordProposalOutcome({ blocked: true })
       continue
     }

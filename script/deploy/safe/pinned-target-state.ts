@@ -738,6 +738,34 @@ export const formatTargetStateLines = (
 }
 
 /**
+ * The banner printed when gate H refuses a proposal and the run skips it.
+ *
+ * Points at the section-2 block rather than restating it: the findings are
+ * already on screen under the gate's own row, and a second copy is the same
+ * fact twice with an invitation to look for the difference.
+ * @param verdict - the refusing output of {@link evaluateTargetStateIntent}
+ * @returns Banner lines for the error channel
+ */
+export const renderTargetStateRefusal = (
+  verdict: ITargetStateVerdict
+): string[] => {
+  const refusing = verdict.findings.filter(
+    (finding) => !STATUSES_CLEARED_TO_PROCEED.has(finding.status)
+  ).length
+  const rule = '='.repeat(80)
+  return [
+    '',
+    rule,
+    `✗  ${TARGET_STATE_GATE_HEADING} — refused, NOT SIGNING OR EXECUTING`,
+    `   ${refusing} finding${
+      refusing === 1 ? '' : 's'
+    } listed under "2 · WHAT WAS CHECKED FOR YOU" above; this proposal is skipped.`,
+    rule,
+    '',
+  ]
+}
+
+/**
  * A refusing verdict for a check that could not run at all.
  *
  * An evaluation that throws must not read as "nothing to report" — the caller
