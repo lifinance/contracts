@@ -190,7 +190,8 @@ describe('verify-json-duplicate-keys CLI', () => {
       expect(output).toContain('could not be read')
       expect(output).toContain('unreadable.json')
     } finally {
-      chmodSync(unreadable, 0o600)
+      // No chmod back: the file's mode does not block unlink, and restoring it
+      // here would throw over the real failure if the write above was what broke.
       rmSync(denied, { recursive: true, force: true })
     }
   })
