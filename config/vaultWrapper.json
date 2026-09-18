@@ -1,6 +1,8 @@
 {
   "mainnet": {
     "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1",
+    "timelockDelaySeconds": 172800,
+    "deploySalt": "LiFiVaultWrapperV1",
     "multisig": "0xE3C8121DF9b1c5A7d383Ab4923fF848a6510F357",
     "emergencyPauser": "0x0000000000000000000000000000000000000000",
     "onboardingManager": "0x0000000000000000000000000000000000000000",
@@ -14,8 +16,30 @@
     },
     "allowedUnderlyings": []
   },
+  "basedemo": {
+    "create3Factory": "0x93FEC2C00BfE902F733B57c5a6CeeD7CD1384AE1",
+    "timelockDelaySeconds": 10,
+    "deploySalt": "LiFiVaultWrapperDemo-2026-09",
+    "multisig": "0xcf1A07FEd1b622B1d9B80D86DE06D8c43E4fBDdB",
+    "emergencyPauser": "0xcf1A07FEd1b622B1d9B80D86DE06D8c43E4fBDdB",
+    "onboardingManager": "0xcf1A07FEd1b622B1d9B80D86DE06D8c43E4fBDdB",
+    "lifiFeeRecipient": "0xcf1A07FEd1b622B1d9B80D86DE06D8c43E4fBDdB",
+    "defaultIntegratorShareBps": 8000,
+    "feeBounds": {
+      "performance": { "minBps": 0, "maxBps": 5000 },
+      "management": { "minBps": 0, "maxBps": 1000 },
+      "deposit": { "minBps": 0, "maxBps": 2000 },
+      "withdrawal": { "minBps": 0, "maxBps": 2000 }
+    },
+    "allowedUnderlyings": [
+      "0x7BfA7C4f149E7415b73bdeDfe609237e29CBF34A",
+      "0xf42f5795D9ac7e9D757dB633D693cD548Cfd9169"
+    ]
+  },
   "basesepolia": {
     "create3Factory": "0xC82c6745E1fDB81cD67fe05cbe7e5B35dC47ac1B",
+    "timelockDelaySeconds": 172800,
+    "deploySalt": "LiFiVaultWrapperV1",
     "multisig": "0x0000000000000000000000000000000000000000",
     "emergencyPauser": "0x0000000000000000000000000000000000000000",
     "onboardingManager": "0x0000000000000000000000000000000000000000",
