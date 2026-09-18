@@ -239,20 +239,17 @@ The new system integrates with existing functions:
 [2024-01-15 10:30:00] Networks to process: mainnet arbitrum base zksync blast hyperevm
 [2024-01-15 10:30:00] Group: cancun (2 networks): blast hyperevm
 [2024-01-15 10:30:00] Running forge build for Cancun EVM group...
-[2024-01-15 10:30:01] Recompiling contracts for group: cancun
 [2024-01-15 10:30:05] [blast] 🔄 IN PROGRESS: Operation started
 [2024-01-15 10:30:05] [hyperevm] 🔄 IN PROGRESS: Operation started
 [2024-01-15 10:30:15] [blast] ✅ SUCCESS: Operation completed successfully
 [2024-01-15 10:30:16] [hyperevm] ✅ SUCCESS: Operation completed successfully
 [2024-01-15 10:30:17] Group cancun execution completed. Failed networks: 0
 [2024-01-15 10:30:17] Group: zkevm (1 networks): zksync
-[2024-01-15 10:30:17] zkEVM uses [profile.zksync]; build skipped.
 [2024-01-15 10:30:25] [zksync] 🔄 IN PROGRESS: Operation started
 [2024-01-15 10:30:35] [zksync] ✅ SUCCESS: Operation completed successfully
 [2024-01-15 10:30:35] Group zkevm execution completed. Failed networks: 0
 [2024-01-15 10:30:35] Group: london (3 networks): mainnet arbitrum base
 [2024-01-15 10:30:35] Running forge build for London EVM group (FOUNDRY_PROFILE=solc_floor)...
-[2024-01-15 10:30:35] Recompiling contracts for group: london
 [2024-01-15 10:30:40] [mainnet] 🔄 IN PROGRESS: Operation started
 [2024-01-15 10:30:40] [arbitrum] 🔄 IN PROGRESS: Operation started
 [2024-01-15 10:30:40] [base] 🔄 IN PROGRESS: Operation started

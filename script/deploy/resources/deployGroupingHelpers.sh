@@ -173,15 +173,18 @@ function groupNetworksByExecutionGroup() {
 # prepareGroupBuild: Selects the foundry profile GROUP builds and deploys under, then builds.
 # Selecting the profile through the environment keeps foundry.toml identical to the commit,
 # which the tree-reproducibility guard requires of a production deploy. The exported profile
-# outlives this call on purpose: the deploy workers a caller launches next inherit it.
+# outlives this call on purpose: the deploy workers a caller launches next inherit it. The
+# zkevm group only clears the profile and returns without building; its compiler runs inside
+# the deploy scripts.
 #
 # Usage: prepareGroupBuild GROUP [STRICT]
 #   GROUP  - one of $GROUP_LONDON, $GROUP_CANCUN, $GROUP_ZKEVM
 #   STRICT - "true" makes a failed `forge build` return non-zero; anything else keeps the
 #            tolerant behavior the playground runner relies on (default: false)
 #
-# Returns: 0 on success, 1 on an unknown group, a missing group, or (STRICT only) a failed
-#          foundry version check or build
+# Returns: 0 on success (for $GROUP_ZKEVM: after clearing FOUNDRY_PROFILE, no build), 1 on
+#          an unknown group, a missing group, a london group whose profile foundry.toml does
+#          not declare, or (STRICT only) a failed foundry version check or build
 # Example: prepareGroupBuild "$GROUP_LONDON" true
 function prepareGroupBuild() {
     local GROUP="${1:-}"
@@ -194,8 +197,8 @@ function prepareGroupBuild() {
 
     # Only under STRICT: the tolerant mode swallows build failures for the playground
     # runner and its two callers in multiNetworkExecution.sh rely on that, so refusing
-    # there would abort a whole multi-network group on a mismatch the per-network gate
-    # in deploySingleContract already refuses.
+    # there would abort a whole multi-network group; deploySingleContract runs the same
+    # check per network before it deploys.
     if [[ "$STRICT" == "true" ]] && ! assertFoundryVersionOrFail; then
         return 1
     fi
