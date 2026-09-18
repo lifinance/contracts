@@ -26,12 +26,6 @@ import { InvalidContract, InvalidConfig } from "../Errors/GenericErrors.sol";
 /// @custom:version 1.2.1
 contract TokenWrapper is WithdrawablePeriphery {
     address public immutable WRAPPED_TOKEN;
-    /// @dev On zkEVM an immutable is addressed by ordinal and nothing in the
-    ///      artifact records which ordinal is which, so the sign-time gate
-    ///      derives it from this declaration order. The constructor assigns
-    ///      USE_CONVERTER before CONVERTER; keep the declarations in this order
-    ///      when changing them, and re-confirm the slot table if this is
-    ///      redeployed to a zkEVM chain.
     address public immutable CONVERTER;
     bool private immutable USE_CONVERTER;
     uint256 private immutable SWAP_RATIO_MULTIPLIER;
