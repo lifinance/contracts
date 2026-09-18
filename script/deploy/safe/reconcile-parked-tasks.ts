@@ -62,6 +62,7 @@ import { isAddress } from 'viem'
 
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { getDeployments } from '../../utils/deploymentHelpers'
+import { isEntrypoint } from '../../utils/is-entrypoint'
 import { redactErrorReason } from '../../utils/redactUrls'
 import { isUnattendedRun, SlackNotifier } from '../../utils/slack-notifier'
 import { getEnvVar } from '../../utils/utils'
@@ -1347,5 +1348,6 @@ const main = defineCommand({
 })
 
 // Guard so importing the pure decisions (reconcile-parked-tasks.test.ts) does not
-// launch the CLI; runs only when executed directly (mirrors list-timelock-queue.ts).
-if (import.meta.main) runMain(main)
+// launch the CLI. A guard that wrongly answers false lets `--cancel-deprecated --yes`
+// exit 0 having cancelled nothing ([CONV:NODE-RUNTIME-APIS]).
+if (isEntrypoint(import.meta.url)) runMain(main)

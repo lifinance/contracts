@@ -17,6 +17,7 @@
 
 import { readFileSync } from 'fs'
 
+import { readContractVersion } from '../shared/contract-version'
 import {
   compareContractVersions,
   isOrderableContractVersion,
@@ -267,15 +268,23 @@ export const verifyGetterSinceVersions = (
       }
 
       const { file, source } = resolved
-      const declared = extractDeclaredVersion(source)
-      if (declared === undefined) {
+      const read = readContractVersion(source)
+      if (read.kind !== 'ok') {
         errors.push(
-          `${where} sets getterSinceVersion '${since}' but ${file} declares no @custom:version to check it against.`
+          read.kind === 'malformed'
+            ? `${where} sets getterSinceVersion '${since}' but ${file} declares '${read.raw}', which is not a version it can be checked against.`
+            : `${where} sets getterSinceVersion '${since}' but ${file} declares no @custom:version to check it against.`
         )
         continue
       }
 
-      const order = compareContractVersions(since, declared)
+      const declared = read.version
+      // Ordered on the release the version is built on, not the whole string: a
+      // fork overlay declares 2.1.3-tron, which `compareContractVersions` cannot
+      // order at all. Passing the version itself would return null here and turn
+      // this guard off wherever a suffix is in use — silently, and only on the
+      // fork, which is the one place a mislabelled binding is hardest to spot.
+      const order = compareContractVersions(since, read.base)
       if (order !== null && order > 0)
         errors.push(
           `${where} sets getterSinceVersion '${since}', ahead of the '${declared}' ${contractName} declares. No deployed build can reach it, so every chain would read as too old and the binding would go unverified everywhere.`
@@ -284,10 +293,6 @@ export const verifyGetterSinceVersions = (
 
   return errors
 }
-
-/** The contract's own `@custom:version` tag, which is what a deployed build reports. */
-const extractDeclaredVersion = (source: string): string | undefined =>
-  /^\/\/\/\s*@custom:version\s+(\d+\.\d+\.\d+)/m.exec(source)?.[1]
 
 /**
  * Locate the source that declares `contractName`, preferring the AST's own answer.
