@@ -6,6 +6,7 @@
 import 'dotenv/config'
 
 import { readFileSync } from 'fs'
+import { readFile } from 'node:fs/promises'
 import { dirname, isAbsolute, relative, resolve } from 'path'
 import { fileURLToPath } from 'url'
 
@@ -684,6 +685,73 @@ export async function updateDiamondJson(
     consola.error(`Failed to update ${network}.diamond.json:`, error.message)
     // Don't throw - this is not critical for the deployment
   }
+}
+
+/**
+ * Reads the address `<network>.diamond.json` records for a facet name.
+ *
+ * The diamond log is the only place a facet's *identity* survives a redeploy:
+ * on-chain a diamond knows addresses and selectors, never names. An upgrade
+ * resolves the outgoing facet by name here, then asks the loupe what that
+ * address still serves.
+ *
+ * Reads `<network>.diamond.json` only — the same file the three
+ * `updateDiamondJson*` writers produce, and the only diamond log Tron has.
+ * EVM networks also carry a `<network>.diamond.staging.json`, written by the
+ * Foundry deploy path; a caller that needs it has to teach this helper about
+ * the environment first.
+ * @param network - The network name
+ * @param facetName - The facet name as recorded, e.g. `EcoFacet`
+ * @returns The recorded address (base58 on Tron), or null when the log has no entry
+ */
+export async function getFacetAddressFromDiamondLog(
+  network: NetworkKey,
+  facetName: string
+): Promise<string | null> {
+  for (const root of getDeploymentRoots()) {
+    const base = resolve(root, 'deployments')
+    const diamondJsonPath = resolve(base, `${network}.diamond.json`)
+    const relativePath = relative(base, diamondJsonPath)
+    if (relativePath.startsWith('..') || isAbsolute(relativePath))
+      throw new Error(`Invalid network name: ${network}`)
+
+    let contents: string
+    try {
+      contents = await readFile(diamondJsonPath, 'utf8')
+    } catch (error) {
+      // Absent at this root — try the next one.
+      if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') continue
+      throw error
+    }
+
+    // A log that exists but cannot be read is not the same as no log: reporting
+    // it as absent would plan a first-registration cut, which silently drops the
+    // Remove entries whenever the new selectors miss the old ones entirely. The
+    // same goes for a log that parses but carries no facet section at all — an
+    // empty `Facets` object genuinely means "nothing recorded", a missing one
+    // means the file is not the shape every writer here produces.
+    let parsed: { LiFiDiamond?: { Facets?: Record<string, { Name?: string }> } }
+    try {
+      parsed = JSON.parse(contents)
+    } catch (error) {
+      throw new Error(
+        `Could not parse ${diamondJsonPath}: ${(error as Error).message}`
+      )
+    }
+
+    // Arrays are the same failure wearing an object's typeof: every writer here
+    // keys Facets by address, so a list shape reads as "nothing recorded".
+    const facets = parsed?.LiFiDiamond?.Facets
+    if (!facets || typeof facets !== 'object' || Array.isArray(facets))
+      throw new Error(
+        `${diamondJsonPath} has no LiFiDiamond.Facets object — the log is malformed, not empty`
+      )
+
+    for (const [address, entry] of Object.entries(facets))
+      if (entry?.Name === facetName) return address
+  }
+
+  return null
 }
 
 /**
