@@ -32,6 +32,24 @@ export interface ISelectorPlan {
   remove: Hex[]
 }
 
+/** One row of a diamond's routing table, as the loupe's `facets()` returns it. */
+export interface IFacetRoutingEntry {
+  /** Facet address, base58 on Tron. */
+  facet: string
+  /** Selectors the diamond routes there. */
+  selectors: Hex[]
+}
+
+/** The facet an upgrade supersedes, resolved against the live routing table. */
+export interface IOutgoingFacet {
+  /** Address as the diamond log records it, for messages. */
+  label: string
+  /** The same address in EVM hex form. */
+  addressHex: Address
+  /** Selectors the diamond routes there today. */
+  registered: readonly Hex[]
+}
+
 /** Lowercases a selector and gives it a `0x` prefix if it lacks one. */
 const normalize = (selector: string): Hex =>
   (selector.startsWith('0x')
@@ -58,6 +76,49 @@ export function planSelectorCuts(
     replace: wanted.filter((selector) => registeredSet.has(selector)),
     remove: registered.filter((selector) => !wantedSet.has(selector)),
   }
+}
+
+/**
+ * Plans an upgrade against the facet the diamond routes today.
+ *
+ * Wraps {@link planSelectorCuts} with the two cases the raw arithmetic cannot
+ * see: a diamond log the chain disagrees with, and a re-proposal of an address
+ * that is already partly installed.
+ * @param facetName - Facet being installed, for the message
+ * @param newSelectors - Selectors of the facet being installed
+ * @param facetAddressHex - Newly deployed facet, EVM hex
+ * @param outgoing - The superseded facet, or null for a first registration
+ * @returns The Add / Replace / Remove sets
+ * @throws When the log records an outgoing facet the diamond routes nothing to
+ */
+export function planFacetUpgrade(
+  facetName: string,
+  newSelectors: readonly string[],
+  facetAddressHex: Address,
+  outgoing: IOutgoingFacet | null
+): ISelectorPlan {
+  if (!outgoing) return planSelectorCuts(newSelectors, [])
+
+  // Believing the log here would plan every selector as an Add and drop every
+  // Remove — the superseded facet stays routable, which is precisely the bug
+  // this planner exists to prevent. Nothing updates the log on a Tron upgrade,
+  // so a second upgrade through this path is exactly when it happens.
+  if (outgoing.registered.length === 0)
+    throw new Error(
+      `${facetName} is recorded at ${outgoing.label} in the diamond log, but the diamond routes no selector there. ` +
+        `Point that entry at the address the loupe actually serves and re-run — the cut cannot be planned from a log the chain disagrees with.`
+    )
+
+  const plan = planSelectorCuts(newSelectors, outgoing.registered)
+
+  // Re-proposing the address that is already installed: a Replace whose target
+  // already serves the selector reverts FunctionAlreadyExists
+  // (LibDiamond.replaceFunctions), and the selector is already routed where the
+  // cut wants it. Only the selectors that never landed are left to do.
+  if (outgoing.addressHex.toLowerCase() === facetAddressHex.toLowerCase())
+    return { ...plan, replace: [] }
+
+  return plan
 }
 
 /**

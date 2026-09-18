@@ -1,10 +1,10 @@
 /**
- * The loupe reads feeding an upgrade cut, driven through the transport seam so
- * the real troncast parsers stay under test.
+ * The loupe read feeding an upgrade cut, driven through the transport seam so
+ * the real troncast parsing stays under test.
  *
  * What is pinned here is that parsing: `callTronContract` hands back the
  * command echo and TronWeb's diagnostic lines along with the value, and a
- * selector list misread as empty produces a cut that removes nothing — a
+ * routing table misread as empty produces a cut that removes nothing — a
  * silent failure that only surfaces as the old facet still being routable
  * after the cut executes.
  */
@@ -17,15 +17,29 @@ import {
 } from 'bun:test'
 
 import {
-  readFacetAddress,
-  readRegisteredSelectors,
+  readFacetRouting,
   type TronContractCaller,
 } from './diamond-loupe-reads'
 
 const DIAMOND = 'TU3ymitEKCWQFtASkEeHaPb8NfZcJtCHLt'
 const ECO_FACET = 'TG6586TTEv664XWSD875tMk6yDuwedphpW'
-const ECO_FACET_HEX = '0x431d16f24befda1794fa7e94805e326dc32c7674'
-const ZERO_BASE58 = 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb'
+const OWNERSHIP_FACET = 'TVofq5iFiwsDf4M3xcucpV7HCX5M6XpcHW'
+
+/** Per [CONV:TEST-ASSERT-REJECTS] — `expect().rejects` is not a real Promise. */
+async function expectRejects(
+  promise: Promise<unknown>,
+  match: RegExp | string
+): Promise<void> {
+  let error: Error | undefined
+  try {
+    await promise
+  } catch (caught) {
+    error = caught as Error
+  }
+  expect(error).toBeInstanceOf(Error)
+  if (match instanceof RegExp) expect(error?.message).toMatch(match)
+  else expect(error?.message).toContain(match)
+}
 
 /** Records what it was asked and replays `output`, the way troncast prints it. */
 const stubCaller = (
@@ -43,61 +57,40 @@ const stubCaller = (
   }
 }
 
-describe('readRegisteredSelectors', () => {
-  it('reads the selectors past the command echo and diagnostics', async () => {
+describe('readFacetRouting', () => {
+  it('reads the whole table past the command echo and diagnostics', async () => {
     const stub = stubCaller(
       [
         '$ bun run script/troncast/index.ts call …',
-        '⚙ Formatted params: []',
-        '[0x0ff754ea 0x7e56b7b0 0x9e75aa95]',
+        '⚙ Initializing TronWeb...',
+        `[[${ECO_FACET} [0x0ff754ea 0x7e56b7b0]] [${OWNERSHIP_FACET} [0x8da5cb5b]]]`,
       ].join('\n')
     )
 
-    expect(
-      await readRegisteredSelectors(DIAMOND, ECO_FACET, 'rpc', stub.call)
-    ).toEqual(['0x0ff754ea', '0x7e56b7b0', '0x9e75aa95'])
-    expect(stub.asked()).toEqual([
-      'facetFunctionSelectors(address)',
-      [ECO_FACET],
+    expect(await readFacetRouting(DIAMOND, 'rpc', stub.call)).toEqual([
+      { facet: ECO_FACET, selectors: ['0x0ff754ea', '0x7e56b7b0'] },
+      { facet: OWNERSHIP_FACET, selectors: ['0x8da5cb5b'] },
     ])
+    expect(stub.asked()).toEqual(['facets()', []])
   })
 
-  it('returns an empty list for a facet the diamond does not route to', async () => {
-    const stub = stubCaller('⚙ Formatted params: []\n[]')
-
-    expect(
-      await readRegisteredSelectors(DIAMOND, ECO_FACET, 'rpc', stub.call)
-    ).toEqual([])
-  })
-
-  it('prefixes selectors that come back bare', async () => {
-    const stub = stubCaller('[0ff754ea]')
-
-    expect(
-      await readRegisteredSelectors(DIAMOND, ECO_FACET, 'rpc', stub.call)
-    ).toEqual(['0x0ff754ea'])
-  })
-})
-
-describe('readFacetAddress', () => {
-  it('converts the routed facet to EVM hex', async () => {
-    const stub = stubCaller(
-      `⚙ Calling facetAddress on ${DIAMOND}\n${ECO_FACET}`
+  // A live diamond always routes the loupe itself, so nothing at all means the
+  // read failed — believing it would drop every Remove from the cut.
+  it('refuses an empty table rather than reading it as a bare diamond', async () => {
+    await expectRejects(
+      readFacetRouting(DIAMOND, 'rpc', stubCaller('[]').call),
+      `The loupe on ${DIAMOND} reported no facets`
     )
-
-    expect(
-      (
-        await readFacetAddress(DIAMOND, '0x0ff754ea', 'rpc', 'tron', stub.call)
-      ).toLowerCase()
-    ).toBe(ECO_FACET_HEX)
-    expect(stub.asked()).toEqual(['facetAddress(bytes4)', ['0x0ff754ea']])
   })
 
-  it('reports an unrouted selector as the zero address', async () => {
-    const stub = stubCaller(ZERO_BASE58)
-
-    expect(
-      await readFacetAddress(DIAMOND, '0xdeadbeef', 'rpc', 'tron', stub.call)
-    ).toBe('0x0000000000000000000000000000000000000000')
+  it('refuses output whose shape the parser does not match', async () => {
+    await expectRejects(
+      readFacetRouting(
+        DIAMOND,
+        'rpc',
+        stubCaller('Error: connection refused').call
+      ),
+      /reported no facets/
+    )
   })
 })

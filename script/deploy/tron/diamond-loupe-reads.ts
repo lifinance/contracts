@@ -5,19 +5,9 @@
  * tested) so the arithmetic never needs a network to be exercised.
  */
 
-import {
-  getTronWebCodecOnlyForNetwork,
-  tronAddressToHex,
-  type TronTvmNetworkName,
-} from '@lifi/tron-devkit'
-import type { Address, Hex } from 'viem'
-
-import {
-  callTronContract,
-  normalizeSelector,
-  parseTronAddressOutput,
-  parseTroncastArrayOutput,
-} from './tronUtils'
+import type { IFacetRoutingEntry } from './facet-upgrade-cut'
+import { parseTroncastFacetsOutput } from './helpers/parseTroncastFacetsOutput'
+import { callTronContract, normalizeSelector } from './tronUtils'
 
 /**
  * Makes a constant call and returns troncast's raw output. The seam exists so
@@ -27,56 +17,44 @@ import {
 export type TronContractCaller = typeof callTronContract
 
 /**
- * Reads the selectors a diamond currently routes to a facet.
+ * Reads the diamond's whole routing table in one call.
+ *
+ * One `facets()` read answers both questions an upgrade asks — what the
+ * outgoing facet serves, and who holds each selector being added. Asking per
+ * selector instead costs a `bun run troncast` subprocess and a rate-limit
+ * delay each.
  * @param diamondAddress - Diamond, base58
- * @param facetAddress - Facet to look up, base58
  * @param rpcUrl - Tron RPC the loupe is read through
  * @param call - Constant-call transport; defaults to troncast
- * @returns The registered selectors, `0x`-prefixed; empty when the facet serves none
+ * @returns One entry per facet the diamond routes to, selectors `0x`-prefixed
+ * @throws When the loupe yields no facets — see below
  */
-export async function readRegisteredSelectors(
+export async function readFacetRouting(
   diamondAddress: string,
-  facetAddress: string,
   rpcUrl: string,
   call: TronContractCaller = callTronContract
-): Promise<Hex[]> {
+): Promise<IFacetRoutingEntry[]> {
   const output = await call(
     diamondAddress,
-    'facetFunctionSelectors(address)',
-    [facetAddress],
-    'bytes4[]',
+    'facets()',
+    [],
+    '(address,bytes4[])[]',
     rpcUrl
   )
-  return parseTroncastArrayOutput(output).map((selector) =>
-    normalizeSelector(String(selector))
-  )
-}
+  const parsed = parseTroncastFacetsOutput(output)
 
-/**
- * Reads which facet a diamond currently routes a selector to.
- * @param diamondAddress - Diamond, base58
- * @param selector - Function selector
- * @param rpcUrl - Tron RPC the loupe is read through
- * @param network - Network key, for the base58→hex codec
- * @param call - Constant-call transport; defaults to troncast
- * @returns The facet address in EVM hex form; the zero address when unregistered
- */
-export async function readFacetAddress(
-  diamondAddress: string,
-  selector: Hex,
-  rpcUrl: string,
-  network: TronTvmNetworkName,
-  call: TronContractCaller = callTronContract
-): Promise<Address> {
-  const output = await call(
-    diamondAddress,
-    'facetAddress(bytes4)',
-    [selector],
-    'address',
-    rpcUrl
-  )
-  return tronAddressToHex(
-    getTronWebCodecOnlyForNetwork(network),
-    parseTronAddressOutput(output)
-  ) as Address
+  // The parser returns [] both for a diamond that routes nothing — which a live
+  // one never does, it routes the loupe itself — and for output whose shape it
+  // could not match. Reading the second as the first plans every selector as an
+  // Add and drops every Remove, which is the failure this planner exists to
+  // prevent, so an empty table is refused rather than believed.
+  if (parsed.length === 0)
+    throw new Error(
+      `The loupe on ${diamondAddress} reported no facets — the call failed, or troncast printed a shape the parser does not match`
+    )
+
+  return parsed.map(([facet, selectors]) => ({
+    facet,
+    selectors: selectors.map(normalizeSelector),
+  }))
 }

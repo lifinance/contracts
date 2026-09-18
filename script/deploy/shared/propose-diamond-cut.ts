@@ -23,7 +23,7 @@ import {
 import {
   assertAddsAreUnrouted,
   buildFacetCuts,
-  planSelectorCuts,
+  planFacetUpgrade,
 } from '../tron/facet-upgrade-cut'
 import type { TronTvmNetworkName } from '../tron/types'
 
@@ -126,6 +126,8 @@ export async function encodeDiamondCutCalldata(
  * @throws When a selector is served by a facet that is not the outgoing one —
  *   an Add would revert at execution, and taking it over silently would strand
  *   the other facet's remaining selectors
+ * @throws When the diamond log records the facet at an address the loupe routes
+ *   nothing to, which no longer identifies what the upgrade supersedes
  */
 export async function encodeFacetUpgradeCutCalldata(
   facetName: string,
@@ -139,9 +141,7 @@ export async function encodeFacetUpgradeCutCalldata(
 ): Promise<Hex> {
   // Dynamic, like the proposer imports below: the loupe reads pull in the Tron
   // deploy stack, which an EVM cut never needs.
-  const { readFacetAddress, readRegisteredSelectors } = await import(
-    '../tron/diamond-loupe-reads'
-  )
+  const { readFacetRouting } = await import('../tron/diamond-loupe-reads')
 
   const newSelectors = await getFacetSelectors(
     facetName,
@@ -159,26 +159,38 @@ export async function encodeFacetUpgradeCutCalldata(
   const toHex = (base58: string): Address =>
     (tronAddressToHex(codec, base58) as Address).toLowerCase() as Address
 
+  const routing = await readFacetRouting(diamondAddress, rpcUrl)
+  const holderOf = new Map<string, Address>()
+  const selectorsOf = new Map<Address, Hex[]>()
+  for (const entry of routing) {
+    const facetHex = toHex(entry.facet)
+    selectorsOf.set(facetHex, entry.selectors)
+    for (const selector of entry.selectors)
+      holderOf.set(selector.toLowerCase(), facetHex)
+  }
+
   const outgoingBase58 = await getFacetAddressFromDiamondLog(network, facetName)
   const outgoingHex = outgoingBase58 ? toHex(outgoingBase58) : null
 
-  const registered =
-    outgoingBase58 && outgoingHex !== facetAddressHex.toLowerCase()
-      ? await readRegisteredSelectors(diamondAddress, outgoingBase58, rpcUrl)
-      : []
-
-  if (outgoingBase58 && registered.length === 0)
-    consola.warn(
-      `${facetName} is logged at ${outgoingBase58} but serves no selectors on ${diamondAddress} — proposing a plain add cut`
-    )
-
-  const plan = planSelectorCuts(newSelectors, registered)
+  const plan = planFacetUpgrade(
+    facetName,
+    newSelectors,
+    facetAddressHex,
+    outgoingBase58 && outgoingHex
+      ? {
+          label: outgoingBase58,
+          addressHex: outgoingHex,
+          registered: selectorsOf.get(outgoingHex) ?? [],
+        }
+      : null
+  )
 
   await assertAddsAreUnrouted(
     plan.add,
     facetName,
     outgoingBase58 ?? 'facet',
-    (selector) => readFacetAddress(diamondAddress, selector, rpcUrl, network)
+    async (selector) =>
+      holderOf.get(selector.toLowerCase()) ?? (ZERO_ADDRESS as Address)
   )
 
   const cuts = buildFacetCuts(plan, facetAddressHex)

@@ -16,6 +16,7 @@ import { getAddress, type Address, type Hex } from 'viem'
 import {
   assertAddsAreUnrouted,
   buildFacetCuts,
+  planFacetUpgrade,
   planSelectorCuts,
 } from './facet-upgrade-cut'
 
@@ -72,6 +73,94 @@ describe('planSelectorCuts', () => {
 
     expect(plan.add).toEqual(['0xaabbccdd'])
     expect(plan.remove).toEqual(['0xddccbbaa'])
+  })
+})
+
+describe('planFacetUpgrade', () => {
+  const OLD_FACET = '0x3333333333333333333333333333333333333333' as Address
+  const OUTGOING = 'TG6586TTEv664XWSD875tMk6yDuwedphpW'
+
+  const outgoing = (addressHex: Address, registered: Hex[]) => ({
+    label: OUTGOING,
+    addressHex,
+    registered,
+  })
+
+  it('reduces a first registration to a plain add cut', () => {
+    const plan = planFacetUpgrade(
+      'EcoFacet',
+      ['0xbff90b61', '0x762aea18'],
+      NEW_FACET,
+      null
+    )
+
+    expect(plan).toEqual({
+      add: ['0xbff90b61', '0x762aea18'],
+      replace: [],
+      remove: [],
+    })
+  })
+
+  it('replaces and removes against the outgoing facet', () => {
+    const plan = planFacetUpgrade(
+      'EcoFacet',
+      ['0x0ff754ea', '0xbff90b61'],
+      NEW_FACET,
+      outgoing(OLD_FACET, ['0x0ff754ea', '0x7e56b7b0'])
+    )
+
+    expect(plan).toEqual({
+      add: ['0xbff90b61'],
+      replace: ['0x0ff754ea'],
+      remove: ['0x7e56b7b0'],
+    })
+  })
+
+  // Nothing updates the diamond log on a Tron upgrade, so the second upgrade
+  // through this path is exactly when the recorded address is already dead.
+  it('refuses a log entry the diamond routes nothing to', () => {
+    expect(() =>
+      planFacetUpgrade(
+        'EcoFacet',
+        ['0xbff90b61'],
+        NEW_FACET,
+        outgoing(OLD_FACET, [])
+      )
+    ).toThrow(
+      `EcoFacet is recorded at ${OUTGOING} in the diamond log, but the diamond routes no selector there`
+    )
+  })
+
+  // LibDiamond.replaceFunctions reverts FunctionAlreadyExists when the selector
+  // already points at the facet the Replace names.
+  it('drops the replaces when re-proposing the installed address', () => {
+    const plan = planFacetUpgrade(
+      'EcoFacet',
+      ['0x0ff754ea', '0xbff90b61'],
+      NEW_FACET,
+      outgoing(NEW_FACET, ['0x0ff754ea', '0x7e56b7b0'])
+    )
+
+    expect(plan).toEqual({
+      add: ['0xbff90b61'],
+      replace: [],
+      remove: ['0x7e56b7b0'],
+    })
+  })
+
+  // The loupe hands back a checksummed address; the diamond log stores base58,
+  // which converts to lowercase hex.
+  it('matches the installed address regardless of case', () => {
+    const lowercase = '0xaabbccddeeff00112233445566778899aabbccdd' as Address
+
+    const plan = planFacetUpgrade(
+      'EcoFacet',
+      ['0x0ff754ea'],
+      getAddress(lowercase),
+      outgoing(lowercase, ['0x0ff754ea'])
+    )
+
+    expect(plan.replace).toEqual([])
   })
 })
 
