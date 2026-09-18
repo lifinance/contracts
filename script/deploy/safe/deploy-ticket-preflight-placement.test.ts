@@ -24,6 +24,7 @@ import {
   chmodSync,
   existsSync,
   mkdtempSync,
+  readFileSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -108,6 +109,11 @@ const SANDBOX_ENV = [
   `DEPLOY_CONFIG_FILE_PATH="${join(REPO_ROOT, 'config')}/"`,
   'VERIFY_CONTRACTS=false',
   'MAX_CONCURRENT_JOBS=1',
+  // Blank, exactly as `.env.example` ships them and as every checkout derived
+  // from it carries them. Omitting them made the sandbox the one shape where a
+  // caller's exported ticket survives `set -a; source .env`.
+  'SAFE_PROPOSAL_TICKET=',
+  'SAFE_PROPOSAL_REASON=',
 ].join('\n')
 
 /**
@@ -125,16 +131,25 @@ const sandbox = (): string => {
   return dir
 }
 
-const run = (args: string[]): { output: string; refused: boolean } => {
+const run = (
+  args: string[],
+  options: { env?: Record<string, string> } = {}
+): { output: string; refused: boolean } => {
   const env: Record<string, string> = {
     ...(process.env as Record<string, string>),
   }
   // `bun test` sets NODE_ENV=test; this child is exercised as a CLI.
   delete env.NODE_ENV
   // Set empty rather than deleted, so a developer's own exported ticket cannot
-  // decide the cases below. The repo env file defines no ticket, so sourcing it
-  // in the child leaves this standing.
+  // decide the cases below. A case that is about a supplied ticket overrides
+  // this through `options.env`.
   env.SAFE_PROPOSAL_TICKET = ''
+  env.SAFE_PROPOSAL_REASON = ''
+  // The mirrors too: they are the channel that survives the env file, so a
+  // developer's inherited one would otherwise rescue the refusal cases.
+  env.RESOLVED_SAFE_PROPOSAL_TICKET = ''
+  env.RESOLVED_SAFE_PROPOSAL_REASON = ''
+  Object.assign(env, options.env ?? {})
   withholdCredentials(env)
   const shim = toolchainShim()
   env.PATH = `${shim}:${env.PATH ?? ''}`
@@ -180,6 +195,68 @@ describe('the deploy driver resolves a ticket before it builds', () => {
     // stayed quiet is what separates "refused at the guard" from "refused
     // because the toolchain was unusable".
     expect(result.output).not.toContain(SHIM_MARKER)
+  })
+})
+
+describe("the caller's ticket outranks the env file", () => {
+  it('accepts an exported ticket on a checkout whose .env blanks it', () => {
+    // The regression this pins: `set -a; source .env` runs on every entry into
+    // the framework, and a checkout derived from `.env.example` carries a blank
+    // SAFE_PROPOSAL_TICKET line, so a plain export was overwritten before the
+    // guard ever read it. An agent following [CONV:DEPLOY-TICKET] exactly was
+    // refused and told to export what it had already exported.
+    const result = run(
+      ['CalldataVerificationFacet', 'gnosis', '--production'],
+      {
+        env: { SAFE_PROPOSAL_TICKET: 'EXSC-1034' },
+      }
+    )
+
+    expect(result.refused).toBe(false)
+    expect(result.output).toContain(PAST_THE_GUARD)
+  })
+
+  it('carries an exported reason through the same clobber', () => {
+    const result = run(
+      ['CalldataVerificationFacet', 'gnosis', '--production'],
+      {
+        env: {
+          SAFE_PROPOSAL_TICKET: 'EXSC-1034',
+          SAFE_PROPOSAL_REASON: 'roll out FeeForwarder v2.0.0',
+        },
+      }
+    )
+
+    expect(result.refused).toBe(false)
+    expect(result.output).toContain('roll out FeeForwarder v2.0.0')
+  })
+})
+
+describe('the single-contract entry point resolves a ticket before it builds', () => {
+  // Asserted on the source rather than by spawning it. `deploySingleContract`
+  // is a function that re-sources the framework inside its own body, so a
+  // stubbed helper is discarded and any run that got past the guard would
+  // broadcast for real; and its ticket guard sits behind the tree-recordable
+  // and toolchain guards, which a sandbox of symlinks cannot satisfy — a spawn
+  // dies at one of those and its silence would say nothing about this guard.
+  // What is unproven for this entry point is only the guard's position, which
+  // is exactly what the ordering below pins.
+  const source = readFileSync(
+    join(REPO_ROOT, 'script', 'deploy', 'deploySingleContract.sh'),
+    'utf8'
+  ).split('\n')
+  const lineOf = (pattern: RegExp): number => {
+    const index = source.findIndex((line) => pattern.test(line))
+    if (index === -1)
+      throw new Error(`nothing in deploySingleContract.sh matches ${pattern}`)
+    return index
+  }
+
+  it('calls the guard before the first build and the first broadcast', () => {
+    const guard = lineOf(/^\s*if ! assertProposalTicketForRun /)
+
+    expect(guard).toBeLessThan(lineOf(/forge build /))
+    expect(guard).toBeLessThan(lineOf(/^\s*executeAndParse /))
   })
 })
 

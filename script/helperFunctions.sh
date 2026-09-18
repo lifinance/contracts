@@ -8,6 +8,11 @@
 # files usually use `KEY=value` without `export`, so those would be invisible to children.
 # `set -a` (allexport) marks every assignment as exported until `set +a`; we limit that
 # to this file read so later `source`d scripts do not export unrelated locals by default.
+
+# Before `source .env`: the env file blanks what the caller exported.
+# shellcheck disable=SC1091
+source script/deploy/shared/captureProposalIntent.sh
+
 set -a
 source .env
 set +a
