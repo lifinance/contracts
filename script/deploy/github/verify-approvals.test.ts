@@ -74,6 +74,20 @@ function stubDeps(overrides: Partial<IDeployGateDeps> = {}): IDeployGateDeps {
   }
 }
 
+// These suites wire `origin` to a local bare repo so git works offline, which the
+// remote check refuses by design. The URL is the one seam they inject; what the
+// check itself accepts and refuses is covered in repo-identity.test.ts, and its
+// placement ahead of the network calls by the cases at the end of this file.
+const CANONICAL_REMOTE = 'git@github.com:lifinance/contracts.git'
+
+/**
+ * Deps whose remote reads as the canonical repository.
+ * @param repoRoot - repository root
+ * @returns the real deps, with only the `origin` URL substituted
+ */
+const depsForTempRepo = (repoRoot: string): IDeployGateDeps =>
+  createDefaultDeps(repoRoot, { readRemoteUrl: () => CANONICAL_REMOTE })
+
 describe('parseFacetList', () => {
   it('trims entries and drops the blank lines the shell caller appends', () => {
     expect(parseFacetList('AcrossFacet\n  AmarokFacet  \n\n')).toEqual([
@@ -739,7 +753,7 @@ describe('audit log source', () => {
     )
 
     expect(
-      createDefaultDeps(repoRoot).resolveAuditCommitHash('AcrossFacet', '1.0.0')
+      depsForTempRepo(repoRoot).resolveAuditCommitHash('AcrossFacet', '1.0.0')
     ).toBe(MERGED_HASH)
   })
 })
@@ -791,7 +805,7 @@ describe('main ref resolution', () => {
     const repoRoot = mkdtempSync(join(tmpdir(), 'gate-ref-ok-'))
     initWithRemote(repoRoot)
 
-    expect(createDefaultDeps(repoRoot).mainRef).toBe('origin/main')
+    expect(depsForTempRepo(repoRoot).mainRef).toBe('origin/main')
   })
 
   // without this, "matches main" silently means "matches main as of the last fetch"
@@ -812,7 +826,7 @@ describe('main ref resolution', () => {
     runOther('commit', '-qam', 'advance main', '--no-gpg-sign')
     runOther('push', '-q', 'origin', 'main')
 
-    expect(createDefaultDeps(repoRoot).mainRef).toBe('origin/main')
+    expect(depsForTempRepo(repoRoot).mainRef).toBe('origin/main')
     expect(run('rev-parse', 'origin/main').stdout.trim()).not.toBe(stale)
   })
 
@@ -836,7 +850,7 @@ describe('main ref resolution', () => {
     runScratch('commit', '-m', 'unrelated', '--no-gpg-sign')
     runScratch('push', '-q', remote, 'HEAD:refs/backup/main')
 
-    expect(createDefaultDeps(repoRoot).mainRef).toBe('origin/main')
+    expect(depsForTempRepo(repoRoot).mainRef).toBe('origin/main')
     expect(run('rev-parse', 'origin/main').stdout.trim()).toBe(head)
   })
 
@@ -867,7 +881,7 @@ describe('main ref resolution', () => {
       '+refs/heads/other:refs/remotes/origin/other'
     )
 
-    expect(() => createDefaultDeps(repoRoot).mainRef).toThrow(
+    expect(() => depsForTempRepo(repoRoot).mainRef).toThrow(
       'still does not point at'
     )
     expect(run('rev-parse', 'origin/main').stdout.trim()).toBe(stale)
@@ -878,9 +892,60 @@ describe('main ref resolution', () => {
     const run = initWithRemote(repoRoot)
     run('remote', 'set-url', 'origin', join(tmpdir(), 'gate-no-such-remote'))
 
-    expect(() => createDefaultDeps(repoRoot).mainRef).toThrow(
+    expect(() => depsForTempRepo(repoRoot).mainRef).toThrow(
       'Cannot reach origin'
     )
+  })
+
+  // `origin` is whatever the clone points at, and everything below reads main
+  // *through* it: against a fork the proposer authors the main they are compared
+  // against, and on a cleartext remote an on-path attacker serves both the tree
+  // and the SHA anchoring it. Neither case injects the seam, so both prove the
+  // check is wired into resolveMainRef and fires before the network calls -
+  // which is what keeps them offline. Without it these URLs would reach
+  // `ls-remote` and fail with "Cannot reach origin" instead.
+  it.each([
+    ['a fork', 'git@github.com:evil/fork.git'],
+    ['a cleartext origin', 'http://github.com/lifinance/contracts.git'],
+  ])('refuses to compare against main read through %s', (_label, url) => {
+    const repoRoot = mkdtempSync(join(tmpdir(), 'gate-ref-untrusted-'))
+    const run = initWithRemote(repoRoot)
+    run('remote', 'set-url', 'origin', url)
+
+    expect(() => createDefaultDeps(repoRoot).mainRef).toThrow(
+      "This checkout's `origin` is not"
+    )
+  })
+
+  // `git remote remove` drops the tracking refs with it, so the ref check above
+  // would answer first; the reachable shape is a tracking ref that outlives the
+  // remote, which is also what a git that cannot read its own config looks like.
+  // Reported as unreadable rather than as the wrong repository: different fix.
+  it('refuses a checkout with an origin/main it has no origin to check', () => {
+    const repoRoot = mkdtempSync(join(tmpdir(), 'gate-ref-noremote-'))
+    const run = initWithRemote(repoRoot)
+    const head = run('rev-parse', 'origin/main').stdout.trim()
+    run('remote', 'remove', 'origin')
+    run('update-ref', 'refs/remotes/origin/main', head)
+
+    expect(() => createDefaultDeps(repoRoot).mainRef).toThrow(
+      "Cannot read this checkout's `origin` remote"
+    )
+  })
+
+  // Tron cut proposals run from the fork, so it resolves here too.
+  it.each([
+    'git@github.com:lifinance/contracts.git',
+    'ssh://git@ssh.github.com:443/lifinance/contracts.git',
+    'https://github.com/lifinance/contracts',
+    'git@github.com:lifinance/contracts-tron.git',
+  ])('still resolves main for a checkout whose origin is %s', (url) => {
+    const repoRoot = mkdtempSync(join(tmpdir(), 'gate-ref-spelling-'))
+    initWithRemote(repoRoot)
+
+    expect(
+      createDefaultDeps(repoRoot, { readRemoteUrl: () => url }).mainRef
+    ).toBe('origin/main')
   })
 })
 

@@ -17,6 +17,7 @@ import { formatAddressForNetworkCliDisplay } from '@lifi/tron-devkit'
 import { type Hex } from 'viem'
 
 import { collectDiamondCutCalls } from '../shared/diamond-cut-calls'
+import { isTrustedRemote, REPO_CONTRACTS } from '../shared/repo-identity'
 
 import {
   resolveDeployedContractByAddress,
@@ -43,9 +44,6 @@ export const PINNED_REF = 'origin/main'
 // the clone would be read instead of the ref the fetch just wrote.
 const PINNED_READ_REF = 'refs/remotes/origin/main'
 
-/** The repository the anchor must come from. */
-export const EXPECTED_REMOTE_REPO = 'github.com/lifinance/contracts'
-
 /**
  * The refspec the anchor is fetched with.
  *
@@ -55,13 +53,6 @@ export const EXPECTED_REMOTE_REPO = 'github.com/lifinance/contracts'
  * error.
  */
 export const PINNED_FETCH_REFSPEC = '+refs/heads/main:refs/remotes/origin/main'
-
-// `origin` is whatever the clone happens to point at, so the ref alone does not
-// establish where the anchor came from: a fork remote would let a proposer author
-// the expected state. ssh.github.com and an explicit port are admitted because
-// they are GitHub's own SSH-over-443 spelling, which a restricted network needs.
-const EXPECTED_REMOTE_URL =
-  /^(?:https?:\/\/(?:[^@/]+@)?github\.com(?::\d+)?\/|ssh:\/\/(?:[^@/]+@)?(?:ssh\.)?github\.com(?::\d+)?\/|(?:[^@/]+@)?(?:ssh\.)?github\.com:)lifinance\/contracts(?:\.git)?\/?$/i
 
 const TARGET_STATE_ENVIRONMENT = 'production'
 const TARGET_STATE_DIAMOND = 'LiFiDiamond'
@@ -258,9 +249,9 @@ export const describeTargetStateUnavailable = (
   if (reason === 'fetch-failed')
     return `could not refresh ${PINNED_REF} — the expected version can only come from the remote, and a stale local copy is not an anchor. Restore network access to the git remote and re-run.`
   if (reason === 'remote-unreadable')
-    return `could not read this clone's \`origin\` remote, so it cannot be established that the anchor would come from ${EXPECTED_REMOTE_REPO}.`
+    return `could not read this clone's \`origin\` remote, so it cannot be established that the anchor would come from ${REPO_CONTRACTS}.`
   if (reason === 'remote-unexpected')
-    return `this clone's \`origin\` is not ${EXPECTED_REMOTE_REPO} — the anchor would be read from a repository the proposer could control. Re-run from a clone whose origin is ${EXPECTED_REMOTE_REPO}.`
+    return `this clone's \`origin\` is not ${REPO_CONTRACTS} — the anchor would be read from a repository the proposer could control. Re-run from a clone whose origin is ${REPO_CONTRACTS}.`
   if (reason === 'blob-unreadable')
     return `could not read ${PINNED_REF}:${TARGET_STATE_REPO_PATH} — the ref or the file is missing from this clone.`
   return `${PINNED_REF}:${TARGET_STATE_REPO_PATH} did not parse as a target-state object.`
@@ -533,7 +524,7 @@ export const createPinnedBlobReader = (options?: {
       // could not run says nothing about what the remote is.
       return 'remote-unreadable'
     }
-    if (!EXPECTED_REMOTE_URL.test(remote.trim())) {
+    if (!isTrustedRemote(remote, [REPO_CONTRACTS])) {
       fetched = 'remote-unexpected'
       return fetched
     }

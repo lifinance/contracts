@@ -2,6 +2,10 @@
  * Reduces a git remote URL to the repository identity a deployment record
  * stores. Import it wherever a record is written or a recorded repository is
  * compared; the shapes git accepts for one repository are not comparable as-is.
+ *
+ * The gates that read a comparison point out of `origin` decide on the same
+ * identity, through {@link isTrustedRemote} — one parser, so hardening it
+ * hardens every caller at once.
  */
 
 import { spawnSync } from 'node:child_process'
@@ -166,4 +170,51 @@ export const normalizeRepoUrl = (remoteUrl: string): string => {
 export const readRepoIdentity = (runGit: GitRunner = defaultRunner): string => {
   const remoteUrl = runGit(['remote', 'get-url', 'origin'])
   return remoteUrl === undefined ? REPO_UNKNOWN : normalizeRepoUrl(remoteUrl)
+}
+
+/**
+ * Repository identities the signing and deploy gates compare a remote against.
+ *
+ * Tron cut proposals are run from the fork rather than from this repo (see
+ * `docs/TronFork.md`), so the deploy gate has to admit it; the target-state
+ * anchor does not, and passes only {@link REPO_CONTRACTS}.
+ */
+export const REPO_CONTRACTS = 'github.com/lifinance/contracts'
+export const REPO_CONTRACTS_TRON = 'github.com/lifinance/contracts-tron'
+
+/**
+ * Schemes a gate may read a remote over.
+ *
+ * `http` and `git` are excluded rather than merely discouraged: a gate fetches
+ * the commit it compares against over this same remote, so on a cleartext
+ * scheme an on-path attacker serves both the content and the SHA that is
+ * supposed to anchor it, and the comparison certifies the attacker's tree.
+ */
+const AUTHENTICATED_SCHEMES = new Set(['https', 'ssh'])
+
+/**
+ * Whether a remote may be trusted to supply a gate's comparison point.
+ *
+ * `origin` is whatever the clone happens to point at, so a ref alone does not
+ * establish where its content came from: against a fork remote a proposer can
+ * author the very state the gate grades them against.
+ * @param remoteUrl - output of `git remote get-url origin`
+ * @param allowedRepos - identities as {@link normalizeRepoUrl} returns them
+ * @returns `true` only for an authenticated scheme naming one of those repositories
+ */
+export const isTrustedRemote = (
+  remoteUrl: string,
+  allowedRepos: readonly string[]
+): boolean => {
+  const trimmed = remoteUrl.trim()
+  const schemeEnd = trimmed.indexOf('://')
+  // No scheme is the scp-style form, which git fetches over ssh.
+  if (
+    schemeEnd !== -1 &&
+    !AUTHENTICATED_SCHEMES.has(trimmed.slice(0, schemeEnd).toLowerCase())
+  )
+    return false
+
+  const identity = normalizeRepoUrl(trimmed)
+  return identity !== REPO_UNKNOWN && allowedRepos.includes(identity)
 }

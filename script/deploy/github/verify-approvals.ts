@@ -29,6 +29,11 @@ import { consola } from 'consola'
 
 import { EnvironmentEnum } from '../../common/types'
 import { getContractVersion } from '../shared/getContractVersion'
+import {
+  isTrustedRemote,
+  REPO_CONTRACTS,
+  REPO_CONTRACTS_TRON,
+} from '../shared/repo-identity'
 
 import { withVerdictCache } from './deploy-gate-cache'
 
@@ -40,6 +45,8 @@ const AUDIT_LOG_PATH = 'audit/auditLog.json'
 const MAIN_BRANCH = 'main'
 const MAIN_REF = 'origin/main'
 const REMOTE = 'origin'
+// Tron cut proposals run from the fork, not from this repo (docs/TronFork.md).
+const ALLOWED_GATE_REPOS = [REPO_CONTRACTS, REPO_CONTRACTS_TRON]
 const SOURCE_ROOT = 'src/'
 const SOURCE_REMAPPING = 'lifi/' // remappings.txt maps this onto SOURCE_ROOT
 const IMPORT_RE = /import\s+(?:[^'"]*?\bfrom\s+)?['"]([^'"]+)['"]/g
@@ -306,13 +313,37 @@ const git = (
  * remote fails the gate rather than falling back to the local copy — the whole point is
  * that this comparison is against the authoritative main.
  * @param repoRoot - repository root
+ * @param readRemoteUrl - test seam for the `origin` URL; production leaves it unset
  * @returns the remote-tracking ref for main
- * @throws If `origin/main` cannot be resolved, reached, or updated
+ * @throws If `origin` names another repository, or `origin/main` cannot be
+ * resolved, reached, or updated
  */
-const resolveMainRef = (repoRoot: string): string => {
+const resolveMainRef = (
+  repoRoot: string,
+  readRemoteUrl: () => string = () =>
+    git(['remote', 'get-url', REMOTE], repoRoot).stdout
+): string => {
   if (git(['rev-parse', '--verify', MAIN_REF], repoRoot).status !== 0)
     throw new Error(
       `Cannot resolve ${MAIN_REF} in this checkout. Fetch it before deploying.`
+    )
+
+  // Ordered after the ref check and before the first network call: everything
+  // below reads main *through* this remote, so a fork or a cleartext origin
+  // would have the proposer supply the main they are being compared against.
+  const remoteUrl = readRemoteUrl().trim()
+  // Kept apart the way the target-state anchor keeps them apart: a remote that
+  // could not be read is a different operator problem from one that names
+  // another repository. Neither message quotes the URL, which can carry a token.
+  if (remoteUrl === '')
+    throw new Error(
+      `Cannot read this checkout's \`${REMOTE}\` remote, so it cannot be established that ${MAIN_REF} is the merged main this gate compares against.`
+    )
+  if (!isTrustedRemote(remoteUrl, ALLOWED_GATE_REPOS))
+    throw new Error(
+      `This checkout's \`${REMOTE}\` is not ${ALLOWED_GATE_REPOS.join(
+        ' or '
+      )} over https or SSH, so ${MAIN_REF} is not the merged main this gate compares against. Re-run from a clone of one of those repositories.`
     )
 
   const remote = git(
@@ -504,12 +535,17 @@ export interface IDeployGateDeps {
  * `mainRef`, the audit log, and GitHub are resolved lazily so the staging
  * short-circuit never shells out, and a tree that matches `main` never reaches GitHub.
  * @param repoRoot - repository root (working tree that will be compiled)
+ * @param options - test seam for the `origin` URL; production leaves it unset
  * @returns the git / audit-log / GitHub lookups used by the CLI
  */
-export const createDefaultDeps = (repoRoot: string): IDeployGateDeps => {
+export const createDefaultDeps = (
+  repoRoot: string,
+  options?: { readRemoteUrl?: () => string }
+): IDeployGateDeps => {
   let mainRef: string | undefined
   let auditLog: IAuditLogData | undefined
-  const getMainRef = (): string => (mainRef ??= resolveMainRef(repoRoot))
+  const getMainRef = (): string =>
+    (mainRef ??= resolveMainRef(repoRoot, options?.readRemoteUrl))
 
   // one facet's closure overlaps heavily with the next one's, so a fleet rollout would
   // otherwise re-read the same shared libraries once per facet
