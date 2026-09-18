@@ -162,6 +162,41 @@ describe("the guard is wired to the caller's diamond", () => {
     )
   })
 
+  // This route reaches the guard through deployAndAddContractToDiamond rather than
+  // calling deploySingleContract itself, so the wiring holds only if every hop carries
+  // the diamond. The one hop that omits it deploys the diamond itself, where the name
+  // deploySingleContract derives is the right answer.
+  it('deployContractToNetworks carries its diamond down to the guard', () => {
+    expect(
+      readFileSync(
+        join(REPO_ROOT, 'script', 'deploy', 'deployContractToNetworks.sh'),
+        'utf8'
+      )
+    ).toContain(
+      'deployAndAddContractToDiamond "$WORKER_NETWORK" "$WORKER_ENVIRONMENT" "$WORKER_CONTRACT" "LiFiDiamond" "$WORKER_VERSION"'
+    )
+
+    const helpers = readFileSync(
+      join(REPO_ROOT, 'script', 'helperFunctions.sh'),
+      'utf8'
+    )
+    expect(helpers).toContain(
+      'deployFacetAndAddToDiamond "$NETWORK" "$ENVIRONMENT" "$CONTRACT" "$DIAMOND_CONTRACT_NAME" "$VERSION"'
+    )
+    expect(helpers).toContain(
+      'deploySingleContract "$CONTRACT" "$NETWORK" "$ENVIRONMENT" "$VERSION" false "$DIAMOND_CONTRACT_NAME"'
+    )
+
+    expect(
+      readFileSync(
+        join(REPO_ROOT, 'script', 'deploy', 'deployFacetAndAddToDiamond.sh'),
+        'utf8'
+      )
+    ).toContain(
+      'deploySingleContract "$FACET_CONTRACT_NAME" "$NETWORK" "$ENVIRONMENT" "$VERSION" false "$DIAMOND_CONTRACT_NAME"'
+    )
+  })
+
   it('deployCoreFacets passes its diamond through', () => {
     const source = readFileSync(
       join(REPO_ROOT, 'script', 'deploy', 'deployCoreFacets.sh'),
