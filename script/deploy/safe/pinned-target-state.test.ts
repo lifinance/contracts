@@ -1270,6 +1270,12 @@ describe('createPinnedTargetStateReader', () => {
           },
         })()
       ).toEqual({ ok: false, reason: 'remote-unexpected' })
+
+    // The repository named in the refusal is the one the signer already has, so
+    // the remedy is actionable only where it names the transport too.
+    const remedy = describeTargetStateUnavailable('remote-unexpected')
+    expect(remedy).toContain('https')
+    expect(remedy).toContain('SSH')
   })
 
   it('reports a remote it could not read as unreadable, not as the wrong remote', () => {
