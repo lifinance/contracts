@@ -129,6 +129,7 @@ import {
 } from './ledger-flex-preview'
 import {
   blockedByEvaluationError,
+  createPinnedAnchor,
   createPinnedBlobReader,
   createPinnedTargetStateReader,
   createTargetStateDeps,
@@ -360,11 +361,14 @@ const recordCouldNotGrade = (network: string, reason: string): void =>
 const acknowledgementLedger = createAcknowledgementLedger()
 const networkOutcomes: INetworkOutcome[] = []
 
-// One fetch and one blob read for the whole run, however many networks it covers.
-const readPinnedTargetState = createPinnedTargetStateReader()
-
-// Shares this process's single fetch with the target-state read above.
-const readPinnedBlob = createPinnedBlobReader()
+// One verified fetch and one resolved commit for the whole run, however many networks
+// it covers — and shared with the source-version read below, so the target state and the
+// contract version a proposal is graded against always come from the same commit.
+const pinnedAnchor = createPinnedAnchor()
+const readPinnedTargetState = createPinnedTargetStateReader({
+  anchor: pinnedAnchor,
+})
+const readPinnedBlob = createPinnedBlobReader({ anchor: pinnedAnchor })
 
 // Networks the run tried to process. A network can be attempted and still
 // contribute no outcome (not an owner, ownership read failed, nothing
@@ -1551,6 +1555,7 @@ const processTxs = async (
         network,
         createTargetStateDeps(network, {
           readPinnedState: readPinnedTargetState,
+          anchor: pinnedAnchor,
         })
       )
     } catch (error) {

@@ -39,6 +39,7 @@ import {
   STORAGE_AUTHORITY_CHECK_ID,
   TARGET_STATE_CHECK,
   TARGET_STATE_CHECK_ID,
+  VERSION_MATCHES_PIN,
   codehashCheckResult,
   executabilityCheckResult,
   proposalCheckResults,
@@ -129,6 +130,13 @@ const EMITTED_SHAPE: Record<TargetStateStatus, Partial<ITargetStateFinding>> = {
   'ahead-of-main': {},
   downgrade: {},
   'version-not-comparable': {},
+  // A pin grades equality, but it resolves both versions the same way an
+  // ordering does.
+  'matches-pin': {},
+  'pinned-mismatch': {},
+  // The network follows the repo and the repo's version could not be read, so
+  // there is no expectation to compare the record's version against.
+  'expected-version-unresolved': { mainVersion: null },
 }
 
 const finding = (
@@ -167,6 +175,9 @@ const STATUS_KEYS: Record<TargetStateStatus, true> = {
   'unrecognised-cut-action': true,
   'calldata-not-readable': true,
   'pinned-state-unavailable': true,
+  'matches-pin': true,
+  'pinned-mismatch': true,
+  'expected-version-unresolved': true,
 }
 
 const ALL_STATUSES = Object.keys(STATUS_KEYS) as TargetStateStatus[]
@@ -234,7 +245,7 @@ describe('targetStateCheckResult', () => {
     )
 
     expect(result.status).toBe('fail')
-    expect(result.anchor).toBe('A-MAIN')
+    expect(result.anchor).toBe('A-MONGO')
   })
 
   // All three are reached only after the deployment record supplied the
@@ -256,6 +267,57 @@ describe('targetStateCheckResult', () => {
       expect(result.anchor).toBe('A-MONGO')
       expect(result.status).toBe('needs-ack')
     }
+  })
+
+  // The rule above holds for every status, not only the three that ask for an
+  // acknowledgement: each comparison this check makes has the proposed version on one
+  // side, and that side comes from the record. A status reintroducing `A-MAIN` would be
+  // claiming evidence the row never had.
+  it('leaves A-MAIN unused across every status', () => {
+    const anchors = ALL_STATUSES.map(
+      (status) =>
+        targetStateCheckResult(verdictOf([finding(status)]), 'mainnet').anchor
+    )
+
+    expect(anchors).not.toContain('A-MAIN')
+    // Not vacuous: the statuses do reach several different anchors.
+    expect(new Set(anchors).size).toBeGreaterThan(1)
+  })
+
+  // A matched pin is an acknowledgement, never a silent green, and it is anchored on the
+  // record rather than on main: the proposed side it compared the pin against comes from
+  // the proposer-written deployment record. Without this, downgrading `matches-pin` to a
+  // `pass` on `A-LOCAL` passes the whole suite.
+  it('grades a matched pin as an acknowledgement anchored on the deployment record', () => {
+    const result = targetStateCheckResult(
+      verdictOf([finding('matches-pin')]),
+      'mainnet'
+    )
+
+    expect(result.status).toBe('needs-ack')
+    expect(result.anchor).toBe('A-MONGO')
+  })
+
+  it('grades a contradicted pin as a failure anchored on the record', () => {
+    const result = targetStateCheckResult(
+      verdictOf([finding('pinned-mismatch')]),
+      'mainnet'
+    )
+
+    expect(result.status).toBe('fail')
+    expect(result.anchor).toBe('A-MONGO')
+  })
+
+  // `latest` with an unreadable source version compared nothing, so it must not be
+  // reported as agreement with main.
+  it('grades an unresolved expected version as an error', () => {
+    const result = targetStateCheckResult(
+      verdictOf([finding('expected-version-unresolved')]),
+      'mainnet'
+    )
+
+    expect(result.status).toBe('error')
+    expect(result.anchor).toBe('A-UNRESOLVED')
   })
 
   it('grades a removal against nothing, because it reads no anchor', () => {
@@ -290,7 +352,7 @@ describe('targetStateCheckResult', () => {
     )
 
     expect(result.status).toBe('fail')
-    expect(result.anchor).toBe('A-MAIN')
+    expect(result.anchor).toBe('A-MONGO')
   })
 
   // The whole point of the anchor column: a status derived from the deployment
@@ -350,6 +412,11 @@ describe('targetStateCheckResult', () => {
     'unrecognised-cut-action': EVERY_ELEMENT_COMPARED,
     'calldata-not-readable': EVERY_ELEMENT_COMPARED,
     'pinned-state-unavailable': EVERY_ELEMENT_COMPARED,
+    // A pin is graded as equality, so the row states that requirement rather
+    // than the ordering sentence the unpinned statuses carry.
+    'matches-pin': VERSION_MATCHES_PIN,
+    'pinned-mismatch': VERSION_MATCHES_PIN,
+    'expected-version-unresolved': EVERY_ELEMENT_COMPARED,
   }
 
   it('states a requirement for every status, not a diagnosis', () => {
@@ -523,7 +590,7 @@ describe('targetStateCheckResult', () => {
     )
 
     expect(result.status).toBe('fail')
-    expect(result.anchor).toBe('A-MAIN')
+    expect(result.anchor).toBe('A-MONGO')
     expect(result.actual).toContain('GenericSwapFacetV3')
     // A passing finding must not pad the row into looking mostly fine.
     expect(result.actual).not.toContain('removal')

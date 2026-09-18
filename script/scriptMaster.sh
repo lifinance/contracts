@@ -12,7 +12,6 @@
 # - create function that checks if contract is deployed (get bytecode, predict address, check bytecode at address)
 # - return master log to store all deployments (and return latest when inquired)
 # - add use case to only remove a facet
-# - check if use case 4 will also check if a contract is added to diamond already
 # - create use case to deploy and add all periphery (or check if target state use case covers it)
 # - merging two branches with deployments in same network (does it cause merge-conflicts?)
 
@@ -114,13 +113,11 @@ scriptMaster() {
       "1) Deploy one specific contract to one network" \
       "2) Deploy one specific contract to all (not-excluded) networks (=new contract)" \
       "3) Deploy all contracts to one selected network (=new network)" \
-      "4) Deploy all (missing) contracts for all networks (actual vs. target) - NOT YET ACTIVATED" \
       "5) Execute a script" \
       "6) EMERGENCY >> Remove a facet or pause the whole diamond" \
-      "7) Batch update _targetState.json file" \
+      "7) Add or update contract entries in _targetState.json" \
       "8) Verify all unverified contracts" \
       "9) Review deploy status (vs. target state)" \
-      "10) Create updated target state from Google Docs (STAGING or PRODUCTION)" \
       "11) Update diamond log(s)" \
       "12) Remove facets or periphery from diamond"
   )
@@ -276,21 +273,6 @@ scriptMaster() {
     playNotificationSound
 
   #---------------------------------------------------------------------------------------------------------------------
-  # use case 4: Deploy all (missing) contracts for all networks (actual vs. target)
-  elif [[ "$SELECTION" == "4)"* ]]; then
-    echo ""
-    echo "[info] selected use case: Deploy all (missing) contracts for all networks"
-
-    error "this use case is not yet implemented"
-    exit 1
-
-    #TODO: activate once log and target state are populated
-    # go through each entry in target state and check if contract is deployed in correct version
-    # updateAllContractsToTargetState
-
-    playNotificationSound
-
-  #---------------------------------------------------------------------------------------------------------------------
   # use case 5: Execute a script
   elif [[ "$SELECTION" == "5)"* ]]; then
     echo ""
@@ -329,10 +311,10 @@ scriptMaster() {
     playNotificationSound
 
   #---------------------------------------------------------------------------------------------------------------------
-  # use case 6: Update _targetState.json file
+  # use case 7: Add or update contract entries in _targetState.json
   elif [[ "$SELECTION" == "7)"* ]]; then
     echo ""
-    echo "[info] selected use case: Batch update _targetState.json file"
+    echo "[info] selected use case: Add or update contract entries in _targetState.json"
 
     # ask user to select a diamond type for which to update contract versions
     echo "[info] Please select for which diamond type you want to update contract version(s):"
@@ -386,16 +368,13 @@ scriptMaster() {
       echo ""
       echo "[info] selected contract: $SELECTED_CONTRACT"
 
-      # get current contract version
-      CURRENT_VERSION=$(getCurrentContractVersion "$SELECTED_CONTRACT")
-
-      # ask user which version to update to
+      # ask whether the contract follows the repo or is pinned on these networks
       echo ""
-      echo "Please enter the new contract version or just press enter to use current contract version ($CURRENT_VERSION):"
+      echo "Please enter a version to pin these networks to, or just press enter for '$TARGET_STATE_VERSION_LATEST' (follow the repo's @custom:version - the normal case):"
       read NEW_VERSION
 
       # determine the version
-      USE_VERSION="${NEW_VERSION:-$CURRENT_VERSION}"
+      USE_VERSION="${NEW_VERSION:-$TARGET_STATE_VERSION_LATEST}"
       echo "[info] selected version: $USE_VERSION"
 
       echo ""
@@ -438,8 +417,9 @@ scriptMaster() {
 
       # ask user which version to update to
       echo ""
-      echo "Please enter the new contract version (current contract version=$CURRENT_VERSION):"
+      echo "Please enter a version to pin these networks to, or just press enter for '$TARGET_STATE_VERSION_LATEST' (repo is at $CURRENT_VERSION):"
       read NEW_VERSION
+      NEW_VERSION="${NEW_VERSION:-$TARGET_STATE_VERSION_LATEST}"
 
       echo ""
       echo "[info] now updating $SELECTED_CONTRACT to version $NEW_VERSION "
@@ -490,7 +470,7 @@ scriptMaster() {
       exit 1
     fi
     echo ""
-    echo "[info] ...Batch update _targetState.json file successfully completed"
+    echo "[info] ..._targetState.json successfully updated"
 
   #---------------------------------------------------------------------------------------------------------------------
   # use case 8: Verify all unverified contracts
@@ -502,32 +482,6 @@ scriptMaster() {
   # use case 9: Review deploy status (vs. target state)
   elif [[ "$SELECTION" == "9)"* ]]; then
     printDeploymentsStatusV2 "$ENVIRONMENT"
-
-  #---------------------------------------------------------------------------------------------------------------------
-  # use case 10: Create updated target state from Google Docs
-  elif [[ "$SELECTION" == "10)"* ]]; then
-    # ask user if target state should be updated for all networks or one specific network
-    echo "Would you like to update target state for all networks or one specific network?"
-    SELECTION_NETWORK=$(
-      gum choose \
-        "1) All networks" \
-        "2) One specific network (selection in next screen)"
-    )
-    echo "[info] selected option: $SELECTION_NETWORK"
-
-    if [[ "$SELECTION_NETWORK" == "1)"* ]]; then
-      # call parse target state function for all networks
-      parseTargetStateGoogleSpreadsheet "$ENVIRONMENT"
-    else
-      checkNetworksJsonFilePath || checkFailure $? "retrieve NETWORKS_JSON_FILE_PATH"
-      # get user-selected network from list
-      local NETWORK=$(jq -r 'keys[]' "$NETWORKS_JSON_FILE_PATH" | gum filter --placeholder "Network")
-
-      echo "[info] selected network: $NETWORK"
-
-      # call parse target state function for specific network
-      parseTargetStateGoogleSpreadsheet "$ENVIRONMENT" "$NETWORK"
-    fi
 
   #---------------------------------------------------------------------------------------------------------------------
   # use case 11: Update all diamond log files
