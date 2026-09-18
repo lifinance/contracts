@@ -198,6 +198,10 @@ interface IStatusMapping {
  */
 export const ORDERING_HOLDS =
   'no installed version behind what origin/main declares'
+// A pin is graded as equality, not as an ordering — a version NEWER than the pin is
+// refused too — so the row must not tell the signer an ordering was asserted.
+export const VERSION_MATCHES_PIN =
+  'the installed version is exactly the one origin/main pins for this network'
 export const EVERY_ELEMENT_COMPARED =
   'every installed element compared against origin/main'
 export const NOTHING_TO_COMPARE =
@@ -258,7 +262,7 @@ const STATUS_MAPPING: Readonly<Record<TargetStateStatus, IStatusMapping>> = {
   'matches-pin': {
     status: 'needs-ack',
     anchor: 'A-MAIN',
-    expected: ORDERING_HOLDS,
+    expected: VERSION_MATCHES_PIN,
   },
   // A deliberate pin contradicted. A fail, not an acknowledgement: the pin says
   // this network is held back on purpose, and clicking past it is how a pin stops
@@ -266,7 +270,7 @@ const STATUS_MAPPING: Readonly<Record<TargetStateStatus, IStatusMapping>> = {
   'pinned-mismatch': {
     status: 'fail',
     anchor: 'A-MAIN',
-    expected: ORDERING_HOLDS,
+    expected: VERSION_MATCHES_PIN,
   },
   // The network follows the repo but the repo's version could not be read at the
   // pinned ref, so no comparison was made.

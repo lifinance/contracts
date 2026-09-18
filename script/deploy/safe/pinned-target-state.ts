@@ -548,6 +548,14 @@ export interface IPinnedStateGit {
   remoteUrl: () => string
   fetch: () => void
   show: (revSpec: string) => string
+  /**
+   * Resolves a ref to the commit it points at.
+   *
+   * Optional so an existing seam keeps working; without it the anchor falls back to
+   * the ref name, which is what this used to read and is still coherent within a
+   * single reader.
+   */
+  revParse?: (ref: string) => string
 }
 
 const defaultGit = (repoRoot: string): IPinnedStateGit => ({
@@ -566,6 +574,12 @@ const defaultGit = (repoRoot: string): IPinnedStateGit => ({
       timeout: 60_000, // 60 seconds — a hung remote must not hold up a review
     })
   },
+  revParse: (ref) =>
+    execFileSync('git', ['rev-parse', ref], {
+      cwd: repoRoot,
+      encoding: 'utf8',
+      timeout: 60_000,
+    }),
   show: (revSpec) =>
     execFileSync('git', ['show', revSpec], {
       cwd: repoRoot,
@@ -624,6 +638,55 @@ export type PinnedReadFailure = Exclude<
   { ok: true }
 >['reason']
 
+/** A verified, fetched `origin/main`, pinned to the commit every read resolves against. */
+export type PinnedAnchor = () =>
+  | { ok: true; revision: string }
+  | { ok: false; reason: PinnedReadFailure }
+
+/**
+ * Establishes the anchor once and hands back the exact commit to read from.
+ *
+ * Every file this gate grades against must come from ONE commit. Two readers each
+ * resolving `origin/main` for themselves can straddle a merge — an older target state
+ * read with a newer source version, which is a combination that never existed on main
+ * and whose verdict belongs to neither snapshot.
+ *
+ * Falls back to the ref name when the seam cannot resolve it, which is no worse than
+ * reading the ref directly.
+ * @param options - repository root and git seam; both default to this checkout
+ * @returns A memoized resolver for the commit to read, or why it is unavailable
+ */
+export const createPinnedAnchor = (options?: {
+  repoRoot?: string
+  git?: IPinnedStateGit
+}): PinnedAnchor => {
+  const repoRoot = options?.repoRoot ?? REPO_ROOT
+  const git = options?.git ?? defaultGit(repoRoot)
+  let memo: ReturnType<PinnedAnchor> | undefined
+
+  return () => {
+    if (memo?.ok) return memo
+
+    const anchored = verifyRemoteAndFetch(git)
+    if (!anchored.ok) {
+      const failure = { ok: false as const, reason: anchored.reason }
+      if (anchored.memoizable) memo = failure
+      return failure
+    }
+
+    let revision = PINNED_READ_REF
+    try {
+      revision = git.revParse?.(PINNED_READ_REF)?.trim() || PINNED_READ_REF
+    } catch {
+      // The ref itself still names the fetched commit; only the cross-reader
+      // guarantee is weakened, and that is not worth refusing a signature over.
+      revision = PINNED_READ_REF
+    }
+    memo = { ok: true, revision }
+    return memo
+  }
+}
+
 /**
  * Builds the pinned read: one `git fetch` per process, then the target state as
  * `origin/main` has it.
@@ -636,24 +699,27 @@ export type PinnedReadFailure = Exclude<
 export const createPinnedTargetStateReader = (options?: {
   repoRoot?: string
   git?: IPinnedStateGit
+  anchor?: PinnedAnchor
 }): (() => PinnedTargetStateRead) => {
   const repoRoot = options?.repoRoot ?? REPO_ROOT
   const git = options?.git ?? defaultGit(repoRoot)
+  const anchor = options?.anchor ?? createPinnedAnchor({ repoRoot, git })
   let memo: PinnedTargetStateRead | undefined
 
   return () => {
     if (memo) return memo
 
-    const anchored = verifyRemoteAndFetch(git)
+    const anchored = anchor()
     if (!anchored.ok) {
       const failure = { ok: false as const, reason: anchored.reason }
-      if (anchored.memoizable) memo = failure
+      // A refusal that cannot change within the process is the only one worth holding.
+      if (anchored.reason === 'remote-unexpected') memo = failure
       return failure
     }
 
     let raw: string
     try {
-      raw = git.show(`${PINNED_READ_REF}:${TARGET_STATE_REPO_PATH}`)
+      raw = git.show(`${anchored.revision}:${TARGET_STATE_REPO_PATH}`)
     } catch {
       memo = { ok: false, reason: 'blob-unreadable' }
       return memo
@@ -687,13 +753,12 @@ export const createPinnedTargetStateReader = (options?: {
 export const createPinnedSourceVersionReader = (options?: {
   repoRoot?: string
   git?: IPinnedStateGit
+  anchor?: PinnedAnchor
 }): ((contractName: string) => SourceVersionRead) => {
   const repoRoot = options?.repoRoot ?? REPO_ROOT
   const git = options?.git ?? defaultGit(repoRoot)
+  const anchor = options?.anchor ?? createPinnedAnchor({ repoRoot, git })
   const memo = new Map<string, SourceVersionRead>()
-  // Held across contracts, not just across repeat reads of one: a proposal naming
-  // several facets would otherwise fetch once per name.
-  let anchored: ReturnType<typeof verifyRemoteAndFetch> | undefined
 
   return (contractName) => {
     const cached = memo.get(contractName)
@@ -709,22 +774,20 @@ export const createPinnedSourceVersionReader = (options?: {
           memoizable: true,
         }
 
-      // A refusal that could change within the process is retried rather than held.
-      if (!anchored || (!anchored.ok && !anchored.memoizable))
-        anchored = verifyRemoteAndFetch(git)
+      const anchored = anchor()
       if (!anchored.ok)
         return {
           read: {
             ok: false,
             detail: describeTargetStateUnavailable(anchored.reason),
           },
-          memoizable: anchored.memoizable,
+          memoizable: anchored.reason === 'remote-unexpected',
         }
 
       for (const dir of SOURCE_DIRS) {
         let source: string
         try {
-          source = git.show(`${PINNED_READ_REF}:${dir}/${contractName}.sol`)
+          source = git.show(`${anchored.revision}:${dir}/${contractName}.sol`)
         } catch {
           continue
         }
@@ -782,9 +845,18 @@ export const createTargetStateDeps = (
     cacheRootDir?: string
   }
 ): ITargetStateDeps => ({
-  readPinnedState: options?.readPinnedState ?? createPinnedTargetStateReader(),
-  readSourceVersion:
-    options?.readSourceVersion ?? createPinnedSourceVersionReader(),
+  ...(() => {
+    // One anchor for both reads, so the target state and the source version always
+    // come from the same commit.
+    const anchor = createPinnedAnchor()
+    return {
+      readPinnedState:
+        options?.readPinnedState ?? createPinnedTargetStateReader({ anchor }),
+      readSourceVersion:
+        options?.readSourceVersion ??
+        createPinnedSourceVersionReader({ anchor }),
+    }
+  })(),
   resolveDeployed: (facetAddress) =>
     resolveDeployedContractByAddress(
       network,

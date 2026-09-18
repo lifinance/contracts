@@ -30,6 +30,7 @@ import {
   blockedByEvaluationError,
   compareSemanticVersions,
   countNetworksDeclaring,
+  createPinnedAnchor,
   createPinnedSourceVersionReader,
   createPinnedTargetStateReader,
   createTargetStateDeps,
@@ -872,6 +873,98 @@ describe('createPinnedSourceVersionReader', () => {
     expect(result.ok).toBe(false)
     if (result.ok) throw new Error('expected a refusal')
     expect(result.detail).toContain('not github.com/lifinance/contracts')
+  })
+})
+
+describe('the anchor is one commit for both reads', () => {
+  let origin: string
+  let clone: string
+
+  const git = (cwd: string, args: string[]): string =>
+    execFileSync('git', args, {
+      cwd,
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+    })
+
+  const write = (dir: string, rel: string, body: string): void => {
+    const full = path.join(dir, rel)
+    fs.mkdirSync(path.dirname(full), { recursive: true })
+    fs.writeFileSync(full, body)
+  }
+
+  const contract = (version: string): string =>
+    `/// @custom:version ${version}\ncontract Test {}\n`
+
+  const state = (version: string): string =>
+    JSON.stringify({
+      optimism: { production: { LiFiDiamond: { AFacet: version } } },
+    })
+
+  beforeAll(() => {
+    const base = fs.mkdtempSync(path.join(os.tmpdir(), 'pinned-anchor-'))
+    origin = path.join(base, 'origin.git')
+    clone = path.join(base, 'clone')
+    execFileSync('git', ['init', '--bare', '-b', 'main', origin])
+    execFileSync('git', ['clone', origin, clone])
+    git(clone, ['config', 'user.email', 'test@example.com'])
+    git(clone, ['config', 'user.name', 'test'])
+    git(clone, ['config', 'commit.gpgsign', 'false'])
+
+    write(clone, TARGET_STATE_REPO_PATH, state('latest'))
+    write(clone, 'src/Facets/AFacet.sol', contract('1.0.0'))
+    git(clone, ['add', '-A'])
+    git(clone, ['commit', '-m', 'first snapshot'])
+    git(clone, ['push', 'origin', 'main'])
+  })
+
+  afterAll(() => {
+    fs.rmSync(path.dirname(origin), { recursive: true, force: true })
+  })
+
+  // The race CodeRabbit flagged: two readers each resolving origin/main can straddle a
+  // merge and combine an old target state with a new source version — a pairing that
+  // never existed on main. A shared anchor pins both reads to one commit, so a push
+  // landing mid-evaluation cannot be half-seen.
+  it('does not see a merge that lands between the two reads', () => {
+    const seam: IPinnedStateGit = {
+      remoteUrl: () => 'git@github.com:lifinance/contracts.git',
+      fetch: () => {
+        git(clone, ['fetch', '--quiet', 'origin', PINNED_FETCH_REFSPEC])
+      },
+      show: (revSpec) => git(clone, ['show', revSpec]),
+      revParse: (ref) => git(clone, ['rev-parse', ref]),
+    }
+    const anchor = createPinnedAnchor({ repoRoot: clone, git: seam })
+    const readState = createPinnedTargetStateReader({
+      repoRoot: clone,
+      git: seam,
+      anchor,
+    })
+    const readSource = createPinnedSourceVersionReader({
+      repoRoot: clone,
+      git: seam,
+      anchor,
+    })
+
+    // First read establishes the anchor.
+    const before = readState()
+    expect(before.ok).toBe(true)
+
+    // A merge lands on main between the two reads.
+    const author = fs.mkdtempSync(path.join(os.tmpdir(), 'pinned-anchor-push-'))
+    execFileSync('git', ['clone', origin, author], { stdio: 'ignore' })
+    git(author, ['config', 'user.email', 'other@example.com'])
+    git(author, ['config', 'user.name', 'other'])
+    git(author, ['config', 'commit.gpgsign', 'false'])
+    write(author, 'src/Facets/AFacet.sol', contract('2.0.0'))
+    git(author, ['add', '-A'])
+    git(author, ['commit', '-m', 'bump on main'])
+    git(author, ['push', 'origin', 'main'])
+
+    // The source read must still see the commit the anchor pinned, not the new tip.
+    expect(readSource('AFacet')).toEqual({ ok: true, version: '1.0.0' })
+    fs.rmSync(author, { recursive: true, force: true })
   })
 })
 
