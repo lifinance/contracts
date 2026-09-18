@@ -16,9 +16,13 @@
  *
  * Concurrency is proved by counting workers that are actually running at the same time, not by
  * wall-clock elapsed: a loaded host makes a correct wave slow, so an elapsed upper bound would
- * fail on a healthy throttle. Each worker drops a marker file and samples how many exist; the
- * peak of those samples can never exceed true simultaneity, which makes `peak <= limit`
- * flake-free. The elapsed assertions are lower bounds only, which slowness cannot break.
+ * fail on a healthy throttle. Each worker drops a marker file and samples how many exist, so the
+ * peak of those samples can never exceed true simultaneity — `peak <= limit` cannot flake.
+ * Reaching the limit is what would race, since nothing makes a wave saturate, so each worker
+ * first holds at a barrier until the marker count reaches the limit. That turns `peak == limit`
+ * into a deterministic assertion rather than a slow-host coin flip, and keeps the test honest
+ * about a throttle that permits too little rather than too much. The elapsed assertions are
+ * lower bounds only, which slowness cannot break.
  */
 import { execFileSync } from 'child_process'
 import { join } from 'path'
@@ -64,13 +68,20 @@ ${DEFS}
     error() { printf '[error] %s\\n' "$1"; }
     RUN_DIR=$(mktemp -d)
     RESULT_DIR=$(mktemp -d)
-    # sampled twice so a worker that starts just before its neighbour still observes the overlap
+    running() { find "$RUN_DIR" -name 'running.*' | wc -l | tr -d ' '; }
     deployToNetworkWorker() {
       MARKER=$(mktemp "$RUN_DIR/running.XXXXXX")
-      find "$RUN_DIR" -name 'running.*' | wc -l | tr -d ' ' >>"$RUN_DIR/samples"
-      sleep 0.5
-      find "$RUN_DIR" -name 'running.*' | wc -l | tr -d ' ' >>"$RUN_DIR/samples"
-      sleep 0.5
+      # barrier: hold until the wave is saturated, so the sample below observes real
+      # overlap rather than racing the next worker's launch. Bounded, so a throttle
+      # that never saturates fails on the sample with a readable peak instead of
+      # hanging until the harness timeout.
+      SPINS=0
+      while [[ $(running) -lt ${concurrency} && $SPINS -lt 100 ]]; do
+        sleep 0.1
+        SPINS=$((SPINS + 1))
+      done
+      running >>"$RUN_DIR/samples"
+      sleep 1
       rm -f "$MARKER"
       echo "OK" >"$5/$1"
     }
