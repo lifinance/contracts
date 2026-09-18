@@ -8,6 +8,11 @@
 # files usually use `KEY=value` without `export`, so those would be invisible to children.
 # `set -a` (allexport) marks every assignment as exported until `set +a`; we limit that
 # to this file read so later `source`d scripts do not export unrelated locals by default.
+
+# Before `source .env`: the env file blanks what the caller exported.
+# shellcheck disable=SC1091
+source script/deploy/shared/captureProposalIntent.sh
+
 set -a
 source .env
 set +a
@@ -4353,13 +4358,32 @@ function assertProposalTicketForRun() {
 
   export SAFE_PROPOSAL_TICKET="$TICKET"
   export RESOLVED_SAFE_PROPOSAL_TICKET="$TICKET"
+
+  # A reason belongs to the ticket it was stated for, and the resolver hands a
+  # supplied one back unchanged, so a previous rollout's reason would otherwise
+  # label this one's proposals. Only the mirror is dropped, and only once this
+  # run turns out to be a different ticket: a reason the operator stated for
+  # this run differs from the mirror, and an unstamped one was never scoped.
+  if [[ -n "$REASON" &&
+    "$REASON" == "${RESOLVED_SAFE_PROPOSAL_REASON:-}" &&
+    -n "${RESOLVED_SAFE_PROPOSAL_REASON_TICKET:-}" &&
+    "${RESOLVED_SAFE_PROPOSAL_REASON_TICKET}" != "$TICKET" ]]; then
+    warning "the reason exported in this shell was stated for ${RESOLVED_SAFE_PROPOSAL_REASON_TICKET}, not for $TICKET - dropping it"
+    REASON=""
+  fi
+
   # The reason is warn-only until its adoption trigger fires, so an empty one
   # exports nothing and the proposal path emits its own warning.
   if [[ -n "$REASON" ]]; then
     export SAFE_PROPOSAL_REASON="$REASON"
     export RESOLVED_SAFE_PROPOSAL_REASON="$REASON"
+    export RESOLVED_SAFE_PROPOSAL_REASON_TICKET="$TICKET"
     echo "[info] proposals from this run will carry $TICKET - $REASON"
   else
+    # The pre-flight resolved no reason, so an inherited one must not stand
+    # behind its verdict.
+    unset SAFE_PROPOSAL_REASON RESOLVED_SAFE_PROPOSAL_REASON \
+      RESOLVED_SAFE_PROPOSAL_REASON_TICKET
     echo "[info] proposals from this run will carry $TICKET"
   fi
   return 0

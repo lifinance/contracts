@@ -58,18 +58,75 @@ The on-chain loop relies on three sources already being correct for `NETWORK`. V
 **Key fact: blockscout and sourcify match RUNTIME bytecode, so constructor args are NOT required — pass `""`.** (etherscan-type verifiers can need them; the helper skips invalid/empty args safely either way.)
 
 ```bash
-source .env
+set -a; source .env; set +a   # `set -a` exports, so Step 5's `bunx tsx` children see MONGODB_URI
+export NETWORK=<network>
+export ENVIRONMENT=production   # "staging" for a staging deploy — Steps 5-6 reuse this
+```
+
+Then run the exclusion gate as its own command. **A non-zero exit here means STOP: skip Steps
+4, 5 and 6 entirely and report the network as excluded.** Do not continue to the verify loop.
+
+```bash
+bash <<'BASH'
+case ",${DO_NOT_VERIFY_IN_THESE_NETWORKS:-}," in
+*,"$NETWORK",*)
+  echo "STOP: ${NETWORK} is in DO_NOT_VERIFY_IN_THESE_NETWORKS — nothing to verify. Skip Steps 4-6."
+  exit 1
+  ;;
+esac
+echo "${NETWORK} is not excluded — proceed with the verify loop"
+BASH
+```
+
+Only once that gate exits 0, run the loop:
+
+```bash
+bash <<'BASH'
 source script/helperFunctions.sh
 
-NETWORK=<network>
-ENVIRONMENT=production   # set to "staging" for a staging deploy — Step 5 reuses this
 DEPLOYMENTS="deployments/${NETWORK}.json"
+CONTRACTS=$(jq -r 'to_entries[] | "\(.key)\t\(.value)"' "$DEPLOYMENTS") ||
+  { echo "Cannot read ${DEPLOYMENTS} — missing or not valid JSON"; exit 1; }
+[ -n "$CONTRACTS" ] || { echo "${DEPLOYMENTS} lists no contracts"; exit 1; }
 
+FAILED=0
 while IFS=$'\t' read -r CONTRACT ADDRESS; do
   echo "Verifying ${CONTRACT} @ ${ADDRESS}"
-  verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" ""
-done < <(jq -r 'to_entries[] | "\(.key)\t\(.value)"' "$DEPLOYMENTS")
+  verifyContract "$NETWORK" "$CONTRACT" "$ADDRESS" "" ||
+    { echo "FAILED: ${CONTRACT} @ ${ADDRESS}"; FAILED=$((FAILED + 1)); }
+done <<< "$CONTRACTS"
+
+[ "$FAILED" -eq 0 ] || { echo "${FAILED} contract(s) failed verification"; exit 1; }
+BASH
 ```
+
+Why the `bash` heredoc: `script/helperFunctions.sh` is bash (`${!VAR}` indirect expansion,
+`read -ra`) and dies on those under the zsh this session runs. `NETWORK`/`ENVIRONMENT` are
+exported rather than set inside the heredoc so Steps 5-6 still see them in the outer shell.
+Why `set -a` around `source .env`: plain `source` defines shell variables, which a child
+process does not inherit — Step 5's TS scripts import no `dotenv`, so they read `MONGODB_URI`
+from the environment or die. Sourcing the helper used to do this for you (it wraps its own
+`.env` read the same way), but it now runs inside the heredoc, so the outer shell has to.
+Run from the repo root — the helper sources `.env` and its siblings by relative path.
+`verifyContract` returns 1 per failed contract, and a loop's status is only its last
+iteration's, so the failures are counted and re-raised at the end — otherwise one contract
+failing early and a later one succeeding would exit 0 on an incomplete verification. The
+count survives the loop because the input is a here-string, not a pipe.
+Why `jq` runs into a variable first rather than feeding the loop from `< <(jq …)`: a process
+substitution discards `jq`'s exit status, so a missing or malformed `deployments/<network>.json`
+gives the loop nothing to read, leaves `FAILED` at 0 and exits 0 having verified nothing — the
+same false success the network gate above prevents. A command substitution propagates the
+status, and the emptiness check catches the valid-but-empty `{}` that a clean `jq` still
+allows through.
+Why the `DO_NOT_VERIFY_IN_THESE_NETWORKS` check is a separate command and not a `case` inside
+the verify heredoc: `verifyContract` returns 1 for an excluded network too
+(`script/helperFunctions.sh`), which the counter cannot tell from a real failure — without the
+short-circuit, `gnosis` (shipped in `.env.example`) reports every contract as failed. But an
+`exit` inside the heredoc only ends that child shell, so a gate spelled `exit 0` there hands
+back a *successful* block and Step 5 goes on to write `verified:true` for a network where no
+`verifyContract` call ever ran — the exact silent-false-result failure this command exists to
+prevent. Standalone and exiting non-zero, the gate cannot be walked past: skipping Steps 4-6
+is the whole point, since nothing was verified on-chain and the Mongo flag would be a lie.
 
 Why the direct loop and not the menu: `script/scriptMaster.sh` option 8 (`verifyAllUnverifiedContractsInLogFile`) does both the on-chain verify and the Mongo write-back — but only for entries in the **local** `deployments/_deployments_log_file.json` cache, which for a freshly-deployed network is usually empty or stale. The direct loop over the deployment JSON is the reliable path; Step 5 covers the write-back it skips.
 

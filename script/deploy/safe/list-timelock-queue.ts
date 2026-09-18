@@ -20,6 +20,7 @@ import { consola } from 'consola'
 import type { Filter } from 'mongodb'
 import { createPublicClient, http, parseAbi } from 'viem'
 
+import { isEntrypoint } from '../../utils/is-entrypoint'
 import { getViemChainForNetworkName } from '../../utils/viemScriptHelpers'
 
 import { flagIsOn } from './cli-flags'
@@ -506,4 +507,6 @@ const cmd = defineCommand({
   },
 })
 
-if (import.meta.main) runMain(cmd)
+// A guard that wrongly answers false exits 0 having listed nothing, which
+// /finish-rollout's gate cannot tell from an empty queue ([CONV:NODE-RUNTIME-APIS]).
+if (isEntrypoint(import.meta.url)) runMain(cmd)

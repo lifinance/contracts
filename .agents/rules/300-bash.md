@@ -33,6 +33,12 @@ id from the ticket the work belongs to; do not infer it from the branch name, wh
 tooling shows and deliberately does not accept on its own. Staging, testnet-only and
 direct-to-diamond runs create no proposal and need no ticket.
 
+A plain `export` is enough from any shell: `script/deploy/shared/captureProposalIntent.sh`
+mirrors both variables into names `.env` does not define, so the blank lines `.env.example`
+ships for them do not overwrite what the caller set. An entry point that can reach a Safe
+proposal must source it **before its first `source .env`** — after that the env file has
+already won, and every non-interactive run is refused.
+
 ## Key Helper Functions [CONV:BASH-HELPERS]
 
 ### Network Abstraction Helpers

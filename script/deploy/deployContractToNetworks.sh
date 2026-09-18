@@ -465,6 +465,9 @@ if [[ ! -f ".env" ]]; then
 fi
 
 # load env + deploy framework (same set as scriptMaster.sh)
+# Before `source .env`: the env file blanks what the caller exported.
+# shellcheck disable=SC1091
+source script/deploy/shared/captureProposalIntent.sh
 # shellcheck disable=SC1091
 source .env
 # shellcheck disable=SC1091

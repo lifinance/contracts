@@ -8,7 +8,7 @@
  * real `bunx` replaced by a stub that produces the output under test.
  */
 
-import { chmodSync, mkdtempSync, writeFileSync } from 'fs'
+import { chmodSync, mkdtempSync, rmSync, writeFileSync } from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 
@@ -38,6 +38,26 @@ const bunxStub = (stdout: string, code = 0): string => {
 }
 
 /**
+ * A `bunx` that answers the way the real resolver does with a reason it was
+ * given: `resolveDeployReason` returns a supplied reason unchanged and never
+ * asks again, so line 2 is whatever reached the CLI. Used for the cases that
+ * turn on what the helper offers it, which a fixed-output stub cannot show.
+ *
+ * @param ticket - the issue URL the stub resolves to
+ * @returns the directory to prepend to PATH
+ */
+const echoingBunxStub = (ticket: string): string => {
+  const dir = mkdtempSync(join(tmpdir(), 'ticket-helper-stub-'))
+  const path = join(dir, 'bunx')
+  writeFileSync(
+    path,
+    `#!/bin/sh\nprintf '%s\\n%s\\n' "${ticket}" "$SAFE_PROPOSAL_REASON"\n`
+  )
+  chmodSync(path, 0o755)
+  return dir
+}
+
+/**
  * Runs the real helper and reports what the caller would see.
  *
  * @param args - the helper's arguments, environment first
@@ -49,9 +69,16 @@ const callHelper = (
   options: {
     stubStdout?: string
     stubExit?: number
+    stubEchoesReasonFor?: string
     env?: Record<string, string>
   } = {}
-): { rc: number; ticket: string; reason: string; output: string } => {
+): {
+  rc: number
+  ticket: string
+  reason: string
+  reasonMirror: string
+  output: string
+} => {
   const env: Record<string, string> = {
     ...(process.env as Record<string, string>),
     // The post-clobber state a worker starts from, and the state a fresh run
@@ -63,10 +90,12 @@ const callHelper = (
     ...(options.env ?? {}),
   }
   delete env.NODE_ENV
-  if (options.stubStdout !== undefined || options.stubExit !== undefined)
-    env.PATH = `${bunxStub(options.stubStdout ?? '', options.stubExit ?? 0)}:${
-      env.PATH ?? ''
-    }`
+  let stub: string | undefined
+  if (options.stubEchoesReasonFor !== undefined)
+    stub = echoingBunxStub(options.stubEchoesReasonFor)
+  else if (options.stubStdout !== undefined || options.stubExit !== undefined)
+    stub = bunxStub(options.stubStdout ?? '', options.stubExit ?? 0)
+  if (stub !== undefined) env.PATH = `${stub}:${env.PATH ?? ''}`
 
   const result = Bun.spawnSync(
     [
@@ -76,7 +105,8 @@ const callHelper = (
        assertProposalTicketForRun ${args.map((a) => `"${a}"`).join(' ')}
        echo "RC=$?"
        echo "TICKET=[$SAFE_PROPOSAL_TICKET]"
-       echo "REASON=[$SAFE_PROPOSAL_REASON]"`,
+       echo "REASON=[$SAFE_PROPOSAL_REASON]"
+       echo "REASON_MIRROR=[$RESOLVED_SAFE_PROPOSAL_REASON]"`,
     ],
     {
       cwd: REPO_ROOT,
@@ -88,6 +118,8 @@ const callHelper = (
     }
   )
 
+  if (stub !== undefined) rmSync(stub, { recursive: true, force: true })
+
   const output = `${result.stdout.toString()}${result.stderr.toString()}`
   if (result.signalCode !== null && result.signalCode !== undefined)
     throw new Error(
@@ -98,6 +130,7 @@ const callHelper = (
     rc: Number(/RC=(\d+)/.exec(output)?.[1] ?? NaN),
     ticket: /TICKET=\[(.*)\]/.exec(output)?.[1] ?? '',
     reason: /REASON=\[(.*)\]/.exec(output)?.[1] ?? '',
+    reasonMirror: /REASON_MIRROR=\[(.*)\]/.exec(output)?.[1] ?? '',
     output,
   }
 }
@@ -224,5 +257,112 @@ describe('assertProposalTicketForRun reason line', () => {
     expect(result.rc).toBe(0)
     expect(result.ticket).toBe(URL)
     expect(result.reason).toBe('')
+  })
+
+  // The pre-flight's verdict is what the run carries: when it resolves no
+  // reason, an inherited one must not stand behind its back.
+  it('clears both reason names when the pre-flight resolves none', () => {
+    const result = callHelper(['production', 'gnosis'], {
+      stubStdout: `${URL}\n\n`,
+      env: {
+        SAFE_PROPOSAL_REASON: 'an earlier reason',
+        RESOLVED_SAFE_PROPOSAL_REASON: 'an earlier reason',
+      },
+    })
+    expect(result.rc).toBe(0)
+    expect(result.ticket).toBe(URL)
+    expect(result.reason).toBe('')
+    expect(result.reasonMirror).toBe('')
+  })
+})
+
+describe('a reason belongs to the ticket it was stated for', () => {
+  const OTHER = 'https://linear.app/lifi-linear/issue/EXSC-9999'
+
+  // The rollout this shell ran first left its reason exported. The resolver
+  // hands a supplied reason straight back, so keeping it would put the first
+  // rollout's reason on this one's proposals, where a signer reads it.
+  it('drops a reason stated for a different ticket', () => {
+    const result = callHelper(['production', 'gnosis'], {
+      stubEchoesReasonFor: OTHER,
+      env: {
+        SAFE_PROPOSAL_TICKET: OTHER,
+        SAFE_PROPOSAL_REASON: 'roll out FeeForwarder v2.0.0',
+        RESOLVED_SAFE_PROPOSAL_REASON: 'roll out FeeForwarder v2.0.0',
+        RESOLVED_SAFE_PROPOSAL_REASON_TICKET: URL,
+      },
+    })
+    expect(result.rc).toBe(0)
+    expect(result.ticket).toBe(OTHER)
+    expect(result.reason).toBe('')
+    expect(result.reasonMirror).toBe('')
+    expect(result.output).toContain('was stated for')
+  })
+
+  // The ordinary rollout, and the one CI and an agent run: nothing has been
+  // stamped yet, so there is no earlier ticket the exported reason could
+  // belong to. Scoping must not turn the first run into a reasonless one.
+  it('keeps a reason on a run that nothing has stamped yet', () => {
+    const result = callHelper(['production', 'gnosis'], {
+      stubEchoesReasonFor: URL,
+      env: {
+        SAFE_PROPOSAL_TICKET: URL,
+        SAFE_PROPOSAL_REASON: 'roll out FeeForwarder v2.0.0',
+      },
+    })
+    expect(result.rc).toBe(0)
+    expect(result.reason).toBe('roll out FeeForwarder v2.0.0')
+    expect(result.reasonMirror).toBe('roll out FeeForwarder v2.0.0')
+  })
+
+  // Stating a new reason is how an operator moves to the next rollout, so it
+  // wins over the stamp rather than being read as the previous one's.
+  it('keeps a reason the operator restated for this run', () => {
+    const result = callHelper(['production', 'gnosis'], {
+      stubEchoesReasonFor: OTHER,
+      env: {
+        SAFE_PROPOSAL_TICKET: OTHER,
+        SAFE_PROPOSAL_REASON: 'deploy the receiver on arbitrum',
+        RESOLVED_SAFE_PROPOSAL_REASON: 'roll out FeeForwarder v2.0.0',
+        RESOLVED_SAFE_PROPOSAL_REASON_TICKET: URL,
+      },
+    })
+    expect(result.rc).toBe(0)
+    expect(result.reason).toBe('deploy the receiver on arbitrum')
+  })
+
+  // The stamp is canonical and what the operator exports need not be, so the
+  // two are only ever compared after the resolver has canonicalized the run's.
+  it('keeps the reason when the same ticket is supplied in raw form', () => {
+    const result = callHelper(['production', 'gnosis'], {
+      stubEchoesReasonFor: URL,
+      env: {
+        SAFE_PROPOSAL_TICKET: 'EXSC-1034',
+        SAFE_PROPOSAL_REASON: 'roll out FeeForwarder v2.0.0',
+        RESOLVED_SAFE_PROPOSAL_REASON: 'roll out FeeForwarder v2.0.0',
+        RESOLVED_SAFE_PROPOSAL_REASON_TICKET: URL,
+      },
+    })
+    expect(result.rc).toBe(0)
+    expect(result.reason).toBe('roll out FeeForwarder v2.0.0')
+  })
+
+  // The case the mirror exists for: a worker re-sourced .env, which blanks
+  // SAFE_PROPOSAL_REASON, and the run is still the ticket that stated it.
+  it('carries the reason to a worker whose env file blanked it', () => {
+    const result = callHelper(['production', 'gnosis'], {
+      stubEchoesReasonFor: URL,
+      env: {
+        SAFE_PROPOSAL_TICKET: '',
+        RESOLVED_SAFE_PROPOSAL_TICKET: URL,
+        SAFE_PROPOSAL_REASON: '',
+        RESOLVED_SAFE_PROPOSAL_REASON: 'roll out FeeForwarder v2.0.0',
+        RESOLVED_SAFE_PROPOSAL_REASON_TICKET: URL,
+      },
+    })
+    expect(result.rc).toBe(0)
+    expect(result.ticket).toBe(URL)
+    expect(result.reason).toBe('roll out FeeForwarder v2.0.0')
+    expect(result.reasonMirror).toBe('roll out FeeForwarder v2.0.0')
   })
 })
