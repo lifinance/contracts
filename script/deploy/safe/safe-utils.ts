@@ -63,6 +63,7 @@ import {
   evaluateDelegateCallGate,
 } from './delegatecall-gate'
 import { getDeployedFacetVersionFromLog } from './facet-version-utils'
+import { assertStoreCredentialsAreEncrypted } from './mongo-store-transport'
 import { printableField } from './printable-field'
 import {
   firstSupplied,
@@ -2095,7 +2096,8 @@ async function ensureInFlightNonceIndex(
  * tunnel (`lifi-connect prod smart-contracts`); SC_MONGODB_URI must point at the
  * forwarded localhost port.
  * @returns MongoDB client and pendingTransactions collection
- * @throws Error if SC_MONGODB_URI is unset or the database cannot be reached
+ * @throws Error if SC_MONGODB_URI is unset, carries credentials over an
+ *   unencrypted connection, or the database cannot be reached
  */
 export async function getSafeMongoCollection(): Promise<{
   client: MongoClient
@@ -2103,6 +2105,7 @@ export async function getSafeMongoCollection(): Promise<{
 }> {
   if (!process.env.SC_MONGODB_URI)
     throw new Error('SC_MONGODB_URI environment variable is required')
+  assertStoreCredentialsAreEncrypted(process.env.SC_MONGODB_URI)
 
   // The Safe proposal database sits behind the lifi-connect tunnel; fail fast
   // with an actionable message when the tunnel isn't up instead of hanging on

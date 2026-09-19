@@ -31,10 +31,12 @@ export interface IRosteredGate {
 /**
  * Every gate the confirm chain is meant to compose onto the run ledger.
  *
- * Each entry names the source that is meant to register it. An entry whose
- * source has not merged reports `absent` rather than dropping out of the
+ * Each entry names the source that is meant to register it. An entry the
+ * caller did not register reports `absent` rather than dropping out of the
  * report, which is the whole point: a roster that shrank to what is wired
- * would grade a smaller chain green every time one went missing.
+ * would grade a smaller chain green every time one went missing. A merged but
+ * unwired gate therefore still reads `absent`: the status is about the
+ * caller's wiring, not about whether the source exists.
  */
 export const REHEARSAL_GATE_ROSTER: readonly IRosteredGate[] = [
   {
@@ -66,6 +68,21 @@ export const REHEARSAL_GATE_ROSTER: readonly IRosteredGate[] = [
     checkId: 'INT-TIMELOCK-DELAY',
     title: 'Scheduled delay is at least the timelock minimum',
     source: 'confirm-integrity-asserts.ts, mirrored by EXSC-994',
+  },
+  {
+    checkId: 'codehash',
+    title: 'Installed bytecode matches the attested build',
+    source: 'confirm-check-registry.ts (merged)',
+  },
+  {
+    checkId: 'immutables',
+    title: 'Immutable values match what config declares',
+    source: 'confirm-check-registry.ts (merged)',
+  },
+  {
+    checkId: 'storage-authority',
+    title: 'Contract config matches what main declares',
+    source: 'confirm-check-registry.ts (merged)',
   },
   {
     checkId: 'target-state',
