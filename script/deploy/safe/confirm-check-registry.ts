@@ -1357,29 +1357,37 @@ const storageAuthorityAbsenceResult = (
 
   if (absence?.kind === 'not-scheduled') {
     // Only a calldata read to the end and found to install nothing has nothing
-    // here to grade. A cut the decoder could not open, or one that installs
-    // outside a timelock envelope, is something this gate never observed.
-    const installsNothing =
-      codehash.evaluated &&
-      codehash.refusals.length === 0 &&
-      codehash.targets.length === 0 &&
-      !(codehash.unopened && codehash.unopened.length > 0)
-    return installsNothing
-      ? {
-          checkId: STORAGE_AUTHORITY_CHECK_ID,
-          network,
-          status: 'not-applicable',
-          expected: EVERY_INSTALLED_CONTRACT_AUTHORISED,
-          actual:
-            'this proposal schedules no timelock batch and installs no contract, so there is no authority to read',
-          anchor: 'A-LOCAL',
-        }
-      : unresolved(
-          STORAGE_AUTHORITY_CHECK_ID,
-          network,
-          EVERY_INSTALLED_CONTRACT_AUTHORISED,
-          'this proposal installs outside a timelock schedule, which is the only envelope this gate reads, so its authorities were not observed'
-        )
+    // here to grade. Whether it installs is the codehash gate's reading of the
+    // same bytes: one it never judged, refused or could not open leaves the
+    // install set unknown, and one that installs outside a timelock envelope
+    // is something this gate never observed.
+    const installSetUnknown =
+      !codehash.evaluated ||
+      codehash.refusals.length > 0 ||
+      (codehash.unopened !== undefined && codehash.unopened.length > 0)
+    if (installSetUnknown)
+      return unresolved(
+        STORAGE_AUTHORITY_CHECK_ID,
+        network,
+        EVERY_INSTALLED_CONTRACT_AUTHORISED,
+        'this proposal schedules no timelock batch and whether it installs anything could not be established, so no authority was read'
+      )
+    if (codehash.targets.length > 0)
+      return unresolved(
+        STORAGE_AUTHORITY_CHECK_ID,
+        network,
+        EVERY_INSTALLED_CONTRACT_AUTHORISED,
+        'this proposal installs outside a timelock schedule, which is the only envelope this gate reads, so its authorities were not observed'
+      )
+    return {
+      checkId: STORAGE_AUTHORITY_CHECK_ID,
+      network,
+      status: 'not-applicable',
+      expected: EVERY_INSTALLED_CONTRACT_AUTHORISED,
+      actual:
+        'this proposal schedules no timelock batch and installs no contract, so there is no authority to read',
+      anchor: 'A-LOCAL',
+    }
   }
 
   return unresolved(

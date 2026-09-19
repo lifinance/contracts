@@ -1683,6 +1683,36 @@ describe('gate G when no storage-authority read was made', () => {
     expect(summariseLedger(ledger).hardBlocked).toBe(true)
   })
 
+  // Empty calldata never reaches the codehash decoder, and a cut it refused was
+  // never read to the end: neither says the proposal installs nothing, so
+  // neither may stand down.
+  it('blocks an unscheduled proposal whose install set the codehash gate never established', () => {
+    const rows = [
+      codehashGate({ evaluated: false, targets: [] }),
+      codehashGate({
+        targets: [],
+        refusals: ['the cut could not be decoded'],
+        blocksSigning: true,
+      }),
+      codehashGate({ targets: [], madeNoClaim: true, unopened: ['call[0]'] }),
+    ].map((codehash) => {
+      const ledger = runLedger()
+      recordInto(
+        ledger,
+        verdicts({
+          storageAuthority: undefined,
+          storageAuthorityAbsence: { kind: 'not-scheduled' },
+          codehash,
+        })
+      )
+      return rowOf(ledger)
+    })
+    for (const row of rows) {
+      expect(row?.status).toBe('error')
+      expect(row?.actual).toContain('could not be established')
+    }
+  })
+
   // The three absences must stay distinguishable from one another and from
   // the silent absence, which keeps its blocking text.
   it('grades the three absences and the silent one as four different rows', () => {
