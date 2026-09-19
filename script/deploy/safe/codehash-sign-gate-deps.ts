@@ -678,15 +678,17 @@ export const createForgeRebuildRunner = (
       deps.git(['-C', checkout, 'submodule', 'update', '--init', '--recursive'])
       assertSubmodulesPinned(deps.git, checkout)
 
+      const command = isZk
+        ? join(deps.repoRoot, 'foundry-zksync', 'forge')
+        : 'forge'
+      // The pin check first: a missing or off-pin zk toolchain names the drift
+      // precisely, and a profile refusal in front of it would mask that.
+      if (isZk) assertZkToolchainPinned(deps, command)
       const checkoutProfile = resolveCheckoutProfile(
         deps,
         checkout,
         request.profile
       )
-      const command = isZk
-        ? join(deps.repoRoot, 'foundry-zksync', 'forge')
-        : 'forge'
-      if (isZk) assertZkToolchainPinned(deps, command)
       // `test`/`script` are forge aliases for `.t.sol`/`.s.sol` only; the
       // path globs skip the whole trees. Only src/ is attested.
       // `--offline` refuses forge's auto-install so a missing pin cannot be
