@@ -102,12 +102,14 @@ export async function findProposalsAtNonce(
  *
  * @param pendingTransactions - the proposal collection
  * @param slot - the Safe, network and nonce to clear
- * @returns one result per row found, as `deletePendingProposals` reports it
+ * @returns the rows it hunted, and what the delete reported for each row it
+ * offered — both from the one hunt, so a caller grading the outcome is never
+ * comparing two snapshots of a collection that moves under it
  */
 export async function tearDownProposalsAtNonce(
   pendingTransactions: Collection<ISafeTxDocument>,
   slot: IProposalSlot
-): Promise<IDeleteResult[]> {
+): Promise<ITeardownReport> {
   const found = await findProposalsAtNonce(pendingTransactions, slot)
   const deletable = found.filter((doc) => doc.status === DELETABLE_STATUS)
   for (const doc of found)
@@ -120,44 +122,55 @@ export async function tearDownProposalsAtNonce(
         )}, which this teardown does not delete`
       )
 
-  if (deletable.length === 0) return []
+  if (deletable.length === 0) return { found, results: [] }
 
-  return deletePendingProposals(pendingTransactions, {
-    network: slot.network.toLowerCase(),
-    hashes: deletable.map((doc) => doc.safeTxHash),
-    force: false,
-  })
+  return {
+    found,
+    results: await deletePendingProposals(pendingTransactions, {
+      network: slot.network.toLowerCase(),
+      hashes: deletable.map((doc) => doc.safeTxHash),
+      force: false,
+    }),
+  }
+}
+
+/** One hunt, and what the delete made of it. */
+export interface ITeardownReport {
+  readonly found: readonly ISafeTxDocument[]
+  readonly results: readonly IDeleteResult[]
 }
 
 /**
- * The rows a teardown run left holding the nonce.
+ * The rows that may still hold the nonce after a teardown.
  *
- * Two independent ways a row survives, and neither implies the other: a row
- * whose status is not {@link DELETABLE_STATUS} is never handed to the delete at
- * all, and a `skipped-signed` result is one the delete saw and refused.
+ * Anything short of a confirmed removal counts as surviving, because the costs
+ * are not symmetric: a false success stalls every proposal queued behind this
+ * nonce, where a false failure costs a human one look at the log. That makes
+ * two cases deliberate rather than sloppy.
  *
- * `not-found` counts as surviving. It is ambiguous — a concurrent teardown that
+ * `not-found` survives even though it is ambiguous. A concurrent teardown that
  * won the race leaves the slot free, but so does a row the collated hunt
- * matched and the uncollated delete missed, and that one leaves the nonce
- * blocked. The two are indistinguishable from here, and the costs are not
- * symmetric: a false success stalls every proposal queued behind this nonce,
- * where a false failure costs a human one look at the log.
+ * matched and the uncollated `$eq` in `deletePendingProposals` missed — and the
+ * two are indistinguishable from here.
  *
- * @param found - every row the hunt returned for the slot
- * @param results - what the delete reported for the rows it was given
- * @returns the hash of each row that may still hold the nonce
+ * `deleted` survives when nothing was removed. The outcome names the branch the
+ * delete took, not its effect; only `deletedCount` says the row is gone.
+ *
+ * @param report - one hunt and the delete's verdict on it
+ * @returns each surviving row's hash, without repeats
  */
-export function unclearedRows(
-  found: readonly ISafeTxDocument[],
-  results: readonly IDeleteResult[]
-): readonly string[] {
+export function unclearedRows(report: ITeardownReport): readonly string[] {
   return [
-    ...found
-      .filter((doc) => doc.status !== DELETABLE_STATUS)
-      .map((doc) => doc.safeTxHash),
-    ...results
-      .filter((result) => result.outcome !== 'deleted')
-      .map((result) => result.hash),
+    ...new Set([
+      ...report.found
+        .filter((doc) => doc.status !== DELETABLE_STATUS)
+        .map((doc) => doc.safeTxHash),
+      ...report.results
+        .filter(
+          (result) => result.outcome !== 'deleted' || result.deletedCount === 0
+        )
+        .map((result) => result.hash),
+    ]),
   ]
 }
 
@@ -201,19 +214,9 @@ const main = defineCommand({
         return
       }
 
-      const results = await tearDownProposalsAtNonce(pendingTransactions, slot)
-
-      for (const result of results)
-        if (result.outcome !== 'deleted')
-          consola.error(
-            `[${slot.network}] ${printableField(
-              result.hash
-            )} not deleted — ${printableField(result.outcome)}, ${
-              result.sigCount
-            } signature(s)`
-          )
-
-      const uncleared = unclearedRows(found, results)
+      const uncleared = unclearedRows(
+        await tearDownProposalsAtNonce(pendingTransactions, slot)
+      )
       if (uncleared.length > 0) {
         consola.error(
           `nonce ${slot.nonce} may still be held by ${
