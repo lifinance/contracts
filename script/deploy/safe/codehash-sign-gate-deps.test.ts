@@ -680,7 +680,11 @@ describe('createForgeRebuildRunner', () => {
         repoRoot: '/repo',
         checkoutRoot: '/tmp/rebuilds',
         git: () => '',
-        run: (_command, _args, options) => {
+        run: (_command, args, options) => {
+          // The pin check runs ahead of the profile resolution, so a zk
+          // request has to pass it before the toml can be judged.
+          if (args[0] === '--version')
+            return { ok: true, output: zkVersionOutput }
           env.push(options.env)
           return { ok: true, output: '' }
         },
