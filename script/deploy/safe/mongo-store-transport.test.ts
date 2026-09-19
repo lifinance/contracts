@@ -108,6 +108,48 @@ describe('assertStoreCredentialsAreEncrypted', () => {
     ).toThrow(/unencrypted connection/)
   })
 
+  it('refuses a host that merely ends in .sock', () => {
+    expect(() =>
+      assertStoreCredentialsAreEncrypted(`mongodb://${USER}@evil.sock:27017/`)
+    ).toThrow(/unencrypted connection/)
+  })
+
+  it('accepts a percent-encoded unix socket', () => {
+    expect(() =>
+      assertStoreCredentialsAreEncrypted(
+        `mongodb://${USER}@%2Ftmp%2Fmongo.sock/`
+      )
+    ).not.toThrow()
+  })
+
+  it('refuses a 127-prefixed host whose octets are not an address', () => {
+    expect(() =>
+      assertStoreCredentialsAreEncrypted(
+        `mongodb://${USER}@127.999.999.999:27017/`
+      )
+    ).toThrow(/unencrypted connection/)
+  })
+
+  it('accepts the loopback spellings a resolver treats as the same interface', () => {
+    for (const host of [
+      'localhost.',
+      '127.0.0.1',
+      '127.1.2.3',
+      '[::ffff:127.0.0.1]',
+    ])
+      expect(() =>
+        assertStoreCredentialsAreEncrypted(`mongodb://${USER}@${host}:27017/`)
+      ).not.toThrow()
+  })
+
+  it('reads a URI that arrived with surrounding whitespace', () => {
+    expect(() =>
+      assertStoreCredentialsAreEncrypted(
+        `  mongodb://${USER}@localhost:27017/?tls=false\n`
+      )
+    ).not.toThrow()
+  })
+
   it('refuses a URI it cannot parse rather than passing it through unchecked', () => {
     expect(() => assertStoreCredentialsAreEncrypted('not-a-uri')).toThrow(
       /not a MongoDB connection string/
@@ -137,22 +179,46 @@ describe('assertStoreCredentialsAreEncrypted', () => {
 
 /**
  * A guard nobody calls is not a guard. The openers are spread across five files
- * and the next one will be a sixth, so the invariant is pinned against the
- * directory rather than against today's list.
+ * and the next one will be a sixth, so the invariant is pinned against the tree
+ * rather than against today's list.
+ *
+ * The scan is deliberately wider than the five: it walks all of `script/`, it
+ * recognises the driver's static factory and a namespaced constructor as well
+ * as `new MongoClient(`, and it compares positions so that a guard called after
+ * the client is built still counts as unguarded. It cannot recognise an opener
+ * that reaches the variable through a helper, which is the residual gap.
  */
 describe('every SC_MONGODB_URI opener', () => {
+  const CONSTRUCTIONS = [
+    /\bnew MongoClient\(/,
+    /\bnew [A-Za-z_$][\w$]*\.MongoClient\(/,
+    /\bMongoClient\.connect\(/,
+  ]
+
+  const scriptFiles = (directory: string): string[] =>
+    readdirSync(directory, { withFileTypes: true }).flatMap((entry) => {
+      const full = join(directory, entry.name)
+      if (entry.isDirectory()) return scriptFiles(full)
+      return entry.name.endsWith('.ts') && !entry.name.endsWith('.test.ts')
+        ? [full]
+        : []
+    })
+
   it('runs the transport check before constructing its client', () => {
-    const directory = new URL('.', import.meta.url).pathname
-    const unguarded = readdirSync(directory)
-      .filter((name) => name.endsWith('.ts') && !name.endsWith('.test.ts'))
-      .filter((name) => {
-        const source = readFileSync(join(directory, name), 'utf8')
-        return (
-          source.includes('SC_MONGODB_URI') &&
-          source.includes('new MongoClient(') &&
-          !source.includes('assertStoreCredentialsAreEncrypted(')
-        )
-      })
+    const scriptRoot = join(new URL('.', import.meta.url).pathname, '../..')
+
+    const unguarded = scriptFiles(scriptRoot).filter((file) => {
+      const source = readFileSync(file, 'utf8')
+      if (!source.includes('SC_MONGODB_URI')) return false
+
+      const builtAt = CONSTRUCTIONS.map((pattern) =>
+        source.search(pattern)
+      ).filter((index) => index >= 0)
+      if (builtAt.length === 0) return false
+
+      const guardedAt = source.indexOf('assertStoreCredentialsAreEncrypted(')
+      return guardedAt < 0 || guardedAt > Math.min(...builtAt)
+    })
 
     expect(unguarded).toEqual([])
   })

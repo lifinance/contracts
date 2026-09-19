@@ -13,14 +13,17 @@
  * cannot leave the machine cannot be read off it, which is why
  * `docs/Setup.md` pairs the credentialed production URI with `tls=false` —
  * TLS terminates at the tunnel. It is never taken as evidence about the store.
- *
- * Mirrors `getTransportConfigFromRpcUrl` in `script/utils/viemScriptHelpers.ts`,
- * which refuses RPC credentials over `http:` on the same reasoning.
  */
 
 /** The shape a connection string must have before any of it can be trusted. */
 const MONGO_URI =
   /^(mongodb(?:\+srv)?):\/\/(?:([^@/]*)@)?([^/?]+)(?:\/[^?]*)?(?:\?(.*))?$/i
+
+/** An octet, bounded: `127.999.999.999` is not an address and must not read as one. */
+const OCTET = String.raw`(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)`
+const IPV4_LOOPBACK = new RegExp(`^127\\.${OCTET}\\.${OCTET}\\.${OCTET}$`)
+const isIpv4Loopback = (hostname: string): boolean =>
+  IPV4_LOOPBACK.test(hostname)
 
 /** Hosts a packet cannot leave the machine to reach. */
 const isLoopbackHost = (host: string): boolean => {
@@ -33,9 +36,14 @@ const isLoopbackHost = (host: string): boolean => {
     hostname === 'localhost' ||
     hostname === '::1' ||
     hostname === '0:0:0:0:0:0:0:1' ||
-    /^127\.\d{1,3}\.\d{1,3}\.\d{1,3}$/.test(hostname) ||
-    // A unix-domain socket path, percent-encoded as the driver requires.
-    hostname.endsWith('.sock')
+    // Trailing-dot and IPv4-mapped spellings resolve to the same interface, so a
+    // tunnel URI written either way must not be refused.
+    hostname === 'localhost.' ||
+    hostname === '::ffff:127.0.0.1' ||
+    isIpv4Loopback(hostname) ||
+    // A unix-domain socket, which reaches the driver as a percent-encoded path.
+    hostname.startsWith('%2f') ||
+    hostname.startsWith('/')
   )
 }
 
@@ -70,7 +78,7 @@ export function assertStoreCredentialsAreEncrypted(
   uri: string,
   variableName = 'SC_MONGODB_URI'
 ): void {
-  const parsed = MONGO_URI.exec(uri)
+  const parsed = MONGO_URI.exec(uri.trim())
   if (!parsed)
     throw new Error(
       `${variableName} is not a MongoDB connection string, so its transport cannot be checked.`

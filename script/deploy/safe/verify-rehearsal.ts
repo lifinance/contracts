@@ -377,7 +377,7 @@ const main = defineCommand({
         corpus: `${status} proposals on ${networks.join(', ')}`,
         denominator: observations.length,
         coverageNote:
-          'only the gates merged on this commit ran; see the roster below for the rest',
+          'only the gates this rehearsal wired ran; see the roster below for the rest',
         observations,
       })
 

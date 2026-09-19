@@ -2096,7 +2096,8 @@ async function ensureInFlightNonceIndex(
  * tunnel (`lifi-connect prod smart-contracts`); SC_MONGODB_URI must point at the
  * forwarded localhost port.
  * @returns MongoDB client and pendingTransactions collection
- * @throws Error if SC_MONGODB_URI is unset or the database cannot be reached
+ * @throws Error if SC_MONGODB_URI is unset, carries credentials over an
+ *   unencrypted connection, or the database cannot be reached
  */
 export async function getSafeMongoCollection(): Promise<{
   client: MongoClient
