@@ -35,12 +35,7 @@ import {
 const REGISTRY_PATH = 'script/deploy/resources/immutableRegistry.json'
 const REQUIREMENTS_PATH = 'script/deploy/resources/deployRequirements.json'
 
-/**
- * The registry lives in its own file so the InfoSec protection in
- * `protectSecurityRelevantCode.yml` can cover it exactly. Folding it into
- * `deployRequirements.json` would put every routine deploy-requirement edit
- * behind that approval, which is a cost nobody asked for.
- */
+/** The registry file's shape: contract name to its immutable entries. */
 type Registry = Record<string, Record<string, IImmutableEntry>>
 
 const readJson = <T>(path: string): T =>

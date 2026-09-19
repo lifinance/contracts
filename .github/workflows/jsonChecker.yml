@@ -2,6 +2,8 @@
 # - validates JSON syntax of files in config/ and deployments/, plus a fixed set of well-known JSON files
 # - enforces a 5 MB per-file size limit
 # - rejects symlinks so a symlinked file cannot bypass validation
+# - rejects a key declared twice in the same object, which jsonlint accepts and
+#   every parser resolves by keeping only the last copy
 # - known limitations: only the directories and files listed in the workflow are checked; JSON under other paths is not validated here
 
 name: JSON Checker
@@ -99,5 +101,33 @@ jobs:
           validate_json "script/deploy/_targetState.json"
           echo -e "\033[32m_targetState.json validated.\033[0m"
 
-          validate_json "script/deploy/resources/deployRequirements.json"
-          echo -e "\033[32mdeployRequirements.json validated.\033[0m"
+          ##### Whole directories, not just deployRequirements.json: the duplicate-key
+          ##### step below scans both, and it reads key tokens rather than parsing, so
+          ##### a malformed file there passes it. Only jsonlint refuses one.
+          validate_json "script/deploy/resources"
+          echo -e "\033[32mAll files in folder script/deploy/resources/ validated.\033[0m"
+
+          validate_json "script/deploy/immutables"
+          echo -e "\033[32mAll files in folder script/deploy/immutables/ validated.\033[0m"
+
+      # Step 5: Reject duplicate keys, which jsonlint accepts
+      - name: Set up Bun
+        uses: oven-sh/setup-bun@3d267786b128fe76c2f16a390aa2448b815359f3 # v2.1.2
+        with:
+          bun-version-file: package.json
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Check for duplicate JSON keys
+        ##### The jsonlint step's paths, plus the two directories whose JSON
+        ##### carries deploy expectations: there a dropped key degrades to an
+        ##### authoring warning, so nothing else would report it.
+        run: |
+          bunx tsx ./script/deploy/resources/verify-json-duplicate-keys.ts \
+            config \
+            deployments \
+            audit/auditLog.json \
+            script/deploy/_targetState.json \
+            script/deploy/resources \
+            script/deploy/immutables
