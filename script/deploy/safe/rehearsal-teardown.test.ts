@@ -8,6 +8,7 @@ import {
 import {
   findProposalsAtNonce,
   tearDownProposalsAtNonce,
+  unclearedRows,
 } from './rehearsal-teardown'
 import { getNextNonce } from './safe-utils'
 
@@ -228,5 +229,88 @@ describe('the statuses a teardown is allowed to touch', () => {
 
     expect(deleted).toEqual([])
     expect(results).toEqual([])
+  })
+})
+
+describe('what a teardown run leaves behind', () => {
+  it('reports a signed row the delete refused, which still holds the nonce', async () => {
+    const signed = {
+      ...row(31, TRON_SAFE_LOWER),
+      safeTx: { data: { nonce: 31 }, signatures: { a: '0x1', b: '0x2' } },
+    }
+    const rows = [signed]
+    const deleted: string[] = []
+    const collection = {
+      ...fakeCollection(rows),
+      findOne: () => Promise.resolve(rows[0] ?? null),
+      deleteOne: (filter: Record<string, unknown>) => {
+        deleted.push((filter.safeTxHash as { $eq: string }).$eq)
+        return Promise.resolve({ deletedCount: 1 })
+      },
+    }
+    const slot = {
+      network: 'tron',
+      chainId: 728126428,
+      safeAddress: TRON_SAFE_CHECKSUMMED,
+      nonce: 31,
+    }
+
+    const found = await findProposalsAtNonce(collection as never, slot)
+    const results = await tearDownProposalsAtNonce(collection as never, slot)
+
+    expect(deleted).toEqual([])
+    expect(results.map((result) => result.outcome)).toEqual(['skipped-signed'])
+    expect(unclearedRows(found, results)).toEqual(['0xhash31'])
+  })
+
+  it('counts a row the delete could not find, whose slot is unproven', () => {
+    expect(
+      unclearedRows(
+        [],
+        [{ hash: '0xhash31', outcome: 'not-found', sigCount: 0 }]
+      )
+    ).toEqual(['0xhash31'])
+  })
+
+  it('counts a submitted row, which the teardown never offers to the delete', async () => {
+    const rows = [row(31, TRON_SAFE_LOWER, 'submitted')]
+    const collection = {
+      ...fakeCollection(rows),
+      findOne: () => Promise.resolve(rows[0] ?? null),
+      deleteOne: () => Promise.resolve({ deletedCount: 1 }),
+    }
+    const slot = {
+      network: 'tron',
+      chainId: 728126428,
+      safeAddress: TRON_SAFE_CHECKSUMMED,
+      nonce: 31,
+    }
+
+    const found = await findProposalsAtNonce(collection as never, slot)
+    const results = await tearDownProposalsAtNonce(collection as never, slot)
+
+    expect(results).toEqual([])
+    expect(unclearedRows(found, results)).toEqual(['0xhash31'])
+  })
+
+  it('leaves nothing behind when every row was deleted', async () => {
+    const rows = [row(31, TRON_SAFE_LOWER)]
+    const collection = {
+      ...fakeCollection(rows),
+      findOne: () => Promise.resolve(rows[0] ?? null),
+      deleteOne: () => Promise.resolve({ deletedCount: 1 }),
+    }
+    const slot = {
+      network: 'tron',
+      chainId: 728126428,
+      safeAddress: TRON_SAFE_CHECKSUMMED,
+      nonce: 31,
+    }
+
+    const found = await findProposalsAtNonce(collection as never, slot)
+    const results = await tearDownProposalsAtNonce(collection as never, slot)
+
+    expect(results.map((result) => result.outcome)).toEqual(['deleted'])
+    expect(unclearedRows(found, results)).toEqual([])
   })
 })

@@ -129,6 +129,38 @@ export async function tearDownProposalsAtNonce(
   })
 }
 
+/**
+ * The rows a teardown run left holding the nonce.
+ *
+ * Two independent ways a row survives, and neither implies the other: a row
+ * whose status is not {@link DELETABLE_STATUS} is never handed to the delete at
+ * all, and a `skipped-signed` result is one the delete saw and refused.
+ *
+ * `not-found` counts as surviving. It is ambiguous — a concurrent teardown that
+ * won the race leaves the slot free, but so does a row the collated hunt
+ * matched and the uncollated delete missed, and that one leaves the nonce
+ * blocked. The two are indistinguishable from here, and the costs are not
+ * symmetric: a false success stalls every proposal queued behind this nonce,
+ * where a false failure costs a human one look at the log.
+ *
+ * @param found - every row the hunt returned for the slot
+ * @param results - what the delete reported for the rows it was given
+ * @returns the hash of each row that may still hold the nonce
+ */
+export function unclearedRows(
+  found: readonly ISafeTxDocument[],
+  results: readonly IDeleteResult[]
+): readonly string[] {
+  return [
+    ...found
+      .filter((doc) => doc.status !== DELETABLE_STATUS)
+      .map((doc) => doc.safeTxHash),
+    ...results
+      .filter((result) => result.outcome !== 'deleted')
+      .map((result) => result.hash),
+  ]
+}
+
 const main = defineCommand({
   meta: {
     name: 'rehearsal-teardown',
@@ -169,7 +201,27 @@ const main = defineCommand({
         return
       }
 
-      await tearDownProposalsAtNonce(pendingTransactions, slot)
+      const results = await tearDownProposalsAtNonce(pendingTransactions, slot)
+
+      for (const result of results)
+        if (result.outcome !== 'deleted')
+          consola.error(
+            `[${slot.network}] ${printableField(
+              result.hash
+            )} not deleted — ${printableField(result.outcome)}, ${
+              result.sigCount
+            } signature(s)`
+          )
+
+      const uncleared = unclearedRows(found, results)
+      if (uncleared.length > 0) {
+        consola.error(
+          `nonce ${slot.nonce} may still be held by ${
+            uncleared.length
+          } row(s): ${uncleared.map((h) => printableField(h)).join(', ')}`
+        )
+        process.exitCode = 1
+      }
     } finally {
       await client.close(true)
     }
