@@ -539,6 +539,37 @@ describe("a chain outside the gate's coverage", () => {
     expect(noCut.madeNoClaim).toBe(true)
   })
 
+  // The coverage gap must not swallow a cut the classifier refuses: a removal
+  // that delegatecalls an `_init`, or an addition of the zero address, is
+  // judged and refused on Tron like anywhere else.
+  it('does not stand aside from a malformed cut', async () => {
+    const removalWithInit = encodeFunctionData({
+      abi: ABI_DIAMOND_CUT,
+      functionName: 'diamondCut',
+      args: [
+        [
+          [ZERO as `0x${string}`, FacetCutActionEnum.Remove, ['0xaabbccdd']],
+        ] as never,
+        OTHER as `0x${string}`,
+        '0x',
+      ],
+    })
+    const gate = await evaluateCodehashSignGate(
+      await gateInput(removalWithInit, 'tron'),
+      () => deps()
+    )
+    expect(gate.outOfScope).toBeUndefined()
+    expect(gate.blocksSigning).toBe(true)
+    expect(gate.refusals.length).toBeGreaterThan(0)
+
+    const zeroFacetAdd = await evaluateCodehashSignGate(
+      await gateInput(cutCalldata(ZERO, FacetCutActionEnum.Add), 'tron'),
+      () => deps()
+    )
+    expect(zeroFacetAdd.outOfScope).toBeUndefined()
+    expect(zeroFacetAdd.blocksSigning).toBe(true)
+  })
+
   it('still judges the same cut on a covered chain', async () => {
     let asked = false
     await evaluateCodehashSignGate(

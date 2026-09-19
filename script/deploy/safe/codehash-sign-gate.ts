@@ -25,6 +25,7 @@
 import type { Hex } from 'viem'
 
 import {
+  classifyCut,
   FacetCutActionEnum,
   type IFacetCutEntry,
 } from '../codehash/cut-classification'
@@ -272,14 +273,30 @@ export const evaluateCodehashSignGate = async (
             cut.action === FacetCutActionEnum.Replace
         )
     )
-  if (installsSomething && resolveGateCoverage(network) === 'uncovered-tron') {
+  // Only a well-formed cut is the gate's to stand aside from. A frame the
+  // decoder could not open or a cut the classifier refuses (a removal carrying
+  // `_init`, an addition of the zero address) is judged below like anywhere
+  // else, where the refusal still blocks; standing down here would let the
+  // coverage gap swallow it.
+  const cleanlyDecoded =
+    collected.refusals.length === 0 &&
+    collected.unopened.length === 0 &&
+    collected.calls.every(
+      (call) =>
+        classifyCut({ cuts: call.cuts, init: call.init }).refusals.length === 0
+    )
+  if (
+    installsSomething &&
+    cleanlyDecoded &&
+    resolveGateCoverage(network) === 'uncovered-tron'
+  ) {
     const outOfScope = `${network} is built and deployed from the contracts-tron fork with its own toolchain and recorded under base58 addresses, so no attested build here can be compared with the installed code`
     return {
       gradedKey: proposalKeyOf(input.struct.data),
       gradedData: data,
       blocksSigning: false,
       evaluated: true,
-      refusals: [...collected.refusals],
+      refusals: [],
       targets: [],
       outOfScope,
       summary: `This gate compared nothing: ${outOfScope}`,
