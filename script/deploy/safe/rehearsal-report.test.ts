@@ -28,9 +28,11 @@ import {
   summariseSignerWorkload,
   verdictsAreActionable,
 } from './rehearsal-report'
+import { rowCountsByCheck } from './rehearsal-run'
 import {
   REHEARSED_CHECK_IDS,
   buildRehearsalGateReport,
+  runGateChain,
 } from './verify-rehearsal'
 
 const UNREHEARSED_REGISTRY_IDS = CONFIRM_CHECK_DEFINITIONS.map(
@@ -40,7 +42,9 @@ const UNREHEARSED_REGISTRY_IDS = CONFIRM_CHECK_DEFINITIONS.map(
 const rehearsedPass = (recorded: boolean) => {
   const ledger = createCheckLedger({
     expectedNetworks: ['arbitrum'],
-    checks: [TARGET_STATE_CHECK],
+    checks: CONFIRM_CHECK_DEFINITIONS.filter((check) =>
+      REHEARSED_CHECK_IDS.includes(check.checkId)
+    ),
   })
   if (recorded)
     recordCheck(ledger, {
@@ -59,6 +63,40 @@ describe('REHEARSAL_GATE_ROSTER', () => {
     const rostered = REHEARSAL_GATE_ROSTER.map((gate) => gate.checkId)
     for (const check of CONFIRM_CHECK_DEFINITIONS)
       expect(rostered).toContain(check.checkId)
+  })
+})
+
+describe('runGateChain', () => {
+  // No cut to read, so the verdict needs no chain or git access. What is under
+  // test is which gates the ledger carries, not what they decide.
+  const emptyProposal = { safeTx: { data: {} } } as never
+  const unreadablePinnedState = (() => ({
+    ok: false,
+    reason: 'remote-unexpected',
+  })) as never
+
+  it('registers exactly the gates this rehearsal wired', () => {
+    const ledger = runGateChain(
+      emptyProposal,
+      'arbitrum',
+      false,
+      unreadablePinnedState
+    )
+    expect([...ledger.checks.keys()].sort()).toEqual(
+      [...REHEARSED_CHECK_IDS].sort()
+    )
+  })
+
+  it('records a row for the gate it wired', () => {
+    const ledger = runGateChain(
+      emptyProposal,
+      'arbitrum',
+      false,
+      unreadablePinnedState
+    )
+    expect(rowCountsByCheck([{ proposal: '0xabc', ledger }])).toEqual({
+      [TARGET_STATE_CHECK.checkId]: 1,
+    })
   })
 })
 

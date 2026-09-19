@@ -178,12 +178,18 @@ const corruptCalldata = (calldata: Hex): Hex => {
 export const REHEARSED_CHECK_IDS: readonly string[] = [TARGET_STATE_CHECK_ID]
 
 /**
- * Runs every merged gate over one proposal and returns its ledger.
+ * Runs the gates this rehearsal has wired over one proposal, returning its ledger.
  *
  * Only `target-state` is wired on this commit; the rest of the roster is
  * reported absent rather than quietly skipped.
+ *
+ * @param doc - the stored proposal to grade
+ * @param network - the network the proposal belongs to
+ * @param corrupt - whether to damage the calldata first, to probe for a refusal
+ * @param readPinnedState - the pinned target-state reader to grade against
+ * @returns the ledger, registering exactly {@link REHEARSED_CHECK_IDS}
  */
-function runGateChain(
+export function runGateChain(
   doc: ISafeTxDocument,
   network: string,
   corrupt: boolean,
