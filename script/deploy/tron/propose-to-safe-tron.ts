@@ -197,21 +197,20 @@ async function runPropose(options: IProposeToSafeTronOptions) {
     })
 
   let safeTxToBase58: string
-  let safeTxDataHex: Hex
+  let safeTxDataHex: Hex | undefined
+  // The calls a timelock branch will schedule; the calldata is built after
+  // the dry-run return, so a preview never reads the timelock or refuses.
+  let scheduled: { targets: Address[]; payloads: Hex[] } | undefined
   let hashToBase58: string
   let dryRunDescription: string
 
   // branching on the parsed calls rather than the flag lets the compiler see
   // that generic mode has them; the two are set together and cannot disagree
   if (!genericCalls) {
-    safeTxDataHex = encodeTimelockScheduleBatch(
-      [diamondAddressEvm] as Address[],
-      [TRON_DIAMOND_CONFIRM_OWNERSHIP_SELECTOR],
-      await saltFor([diamondAddressEvm] as Address[], [
-        TRON_DIAMOND_CONFIRM_OWNERSHIP_SELECTOR,
-      ]),
-      minDelayBigInt
-    )
+    scheduled = {
+      targets: [diamondAddressEvm] as Address[],
+      payloads: [TRON_DIAMOND_CONFIRM_OWNERSHIP_SELECTOR],
+    }
     safeTxToBase58 = timelockAddressBase58
     hashToBase58 = timelockAddressBase58
     dryRunDescription =
@@ -226,12 +225,7 @@ async function runPropose(options: IProposeToSafeTronOptions) {
       const targetsEvm = targets.map((t) =>
         tronBase58ToEvm20Hex(tronWeb, t)
       ) as Address[]
-      safeTxDataHex = encodeTimelockScheduleBatch(
-        targetsEvm,
-        calldatas,
-        await saltFor(targetsEvm, calldatas),
-        minDelayBigInt
-      )
+      scheduled = { targets: targetsEvm, payloads: calldatas }
       safeTxToBase58 = timelockAddressBase58
       hashToBase58 = timelockAddressBase58
       dryRunDescription = `scheduleBatch(${
@@ -252,6 +246,16 @@ async function runPropose(options: IProposeToSafeTronOptions) {
     consola.info('  data: ' + dryRunDescription)
     return
   }
+
+  if (scheduled)
+    safeTxDataHex = encodeTimelockScheduleBatch(
+      scheduled.targets,
+      scheduled.payloads,
+      await saltFor(scheduled.targets, scheduled.payloads),
+      minDelayBigInt
+    )
+  if (!safeTxDataHex)
+    throw new Error('No transaction calldata was built for this proposal')
 
   // After the dry run, which proposes nothing, and before the Mongo client is
   // opened: the store-time refusal throws past this function's only

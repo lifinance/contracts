@@ -58,7 +58,9 @@ const toBigInt = (value: unknown): bigint => {
  * The timelock reads salt selection needs, through TronWeb.
  *
  * `uint256[]` values are passed as decimal strings: TronWeb encodes a JS
- * number lossily above 2^53 and does not accept a bigint.
+ * number lossily above 2^53 and does not accept a bigint. The `address[]`
+ * targets stay 20-byte `0x` hex: TronWeb's encoder normalises both that and
+ * the `41`-prefixed form itself, and converting first would double-prefix.
  *
  * @param tronWeb - a TronWeb whose `contract()` can reach the timelock
  * @param timelockAddressBase58 - the timelock as `deployments/tron.json` spells it
