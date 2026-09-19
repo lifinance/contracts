@@ -1323,6 +1323,16 @@ export type TStorageAuthorityAbsence =
   | { kind: 'read-failed'; reason: string }
   | { kind: 'not-scheduled' }
 
+/** The codehash gate never judged, refused, or could not open the calldata. */
+const installSetUnknownPerCodehash = (codehash: ICodehashSignGate): boolean =>
+  !codehash.evaluated ||
+  codehash.refusals.length > 0 ||
+  (codehash.unopened !== undefined && codehash.unopened.length > 0)
+
+/** The codehash gate read the calldata to the end and found no installation. */
+const installsNothingPerCodehash = (codehash: ICodehashSignGate): boolean =>
+  !installSetUnknownPerCodehash(codehash) && codehash.targets.length === 0
+
 /**
  * Grades gate G when no observation reached the recorder.
  *
@@ -1342,14 +1352,28 @@ const storageAuthorityAbsenceResult = (
   // signer is asked to take on. An integrity check's `needs-ack` survives only
   // on an anchor a human can decide about.
   if (absence?.kind === 'out-of-scope')
-    return {
-      checkId: STORAGE_AUTHORITY_CHECK_ID,
-      network,
-      status: 'needs-ack',
-      expected: EVERY_INSTALLED_CONTRACT_AUTHORISED,
-      actual: absence.reason,
-      anchor: 'A-DOCUMENTED',
-    }
+    // A proposal that installs nothing has no authority to read on any chain,
+    // so it stands down the way it does everywhere rather than asking the
+    // signer to take on a limit that never applied to it. Whether it installs
+    // is the codehash gate's reading of the same calldata.
+    return installsNothingPerCodehash(codehash)
+      ? {
+          checkId: STORAGE_AUTHORITY_CHECK_ID,
+          network,
+          status: 'not-applicable',
+          expected: EVERY_INSTALLED_CONTRACT_AUTHORISED,
+          actual:
+            'this proposal installs no contract, so there is no authority to read',
+          anchor: 'A-LOCAL',
+        }
+      : {
+          checkId: STORAGE_AUTHORITY_CHECK_ID,
+          network,
+          status: 'needs-ack',
+          expected: EVERY_INSTALLED_CONTRACT_AUTHORISED,
+          actual: absence.reason,
+          anchor: 'A-DOCUMENTED',
+        }
 
   if (absence?.kind === 'read-failed')
     return unresolved(
@@ -1365,11 +1389,7 @@ const storageAuthorityAbsenceResult = (
     // same bytes: one it never judged, refused or could not open leaves the
     // install set unknown, and one that installs outside a timelock envelope
     // is something this gate never observed.
-    const installSetUnknown =
-      !codehash.evaluated ||
-      codehash.refusals.length > 0 ||
-      (codehash.unopened !== undefined && codehash.unopened.length > 0)
-    if (installSetUnknown)
+    if (installSetUnknownPerCodehash(codehash))
       return unresolved(
         STORAGE_AUTHORITY_CHECK_ID,
         network,

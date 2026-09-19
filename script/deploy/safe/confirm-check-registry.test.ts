@@ -1624,6 +1624,26 @@ describe('gate G when no storage-authority read was made', () => {
     ).toContain(STORAGE_AUTHORITY_CHECK_ID)
   })
 
+  // A removal-only or otherwise non-installing proposal on an uncovered chain
+  // has no authority to read, on that chain or any other.
+  it('is not applicable on an uncovered chain when the proposal installs nothing', () => {
+    const ledger = runLedger()
+    recordInto(
+      ledger,
+      verdicts({
+        storageAuthority: undefined,
+        storageAuthorityAbsence: {
+          kind: 'out-of-scope',
+          reason: 'tron is not read',
+        },
+        codehash: codehashGate({ targets: [] }),
+      })
+    )
+    const row = rowOf(ledger)
+    expect(row?.status).toBe('not-applicable')
+    expect(row?.actual).toContain('installs no contract')
+  })
+
   // A read that should have happened and did not is unverified and blocks,
   // and the row says what failed rather than that nothing was attempted.
   it('blocks on a failed read, carrying the failure', () => {
