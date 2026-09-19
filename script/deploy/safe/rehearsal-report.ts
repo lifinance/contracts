@@ -251,8 +251,16 @@ export const summariseSignerWorkload = (
   return { settled, blocked, needsYou }
 }
 
+/** Tasks listed in full before the rest are counted on a line of their own. */
+const SIGNER_TASKS_SHOWN = 10
+
 /**
  * Renders the workload split for a signer.
+ *
+ * Each line names its proposal. A run grades several proposals against the same
+ * roster, so the same `checkId` on the same network recurs across them — and
+ * without the proposal the two render identically, leaving the signer holding a
+ * question with nothing to attach it to.
  *
  * @param workload - the split
  * @returns a short block naming what is settled, what is blocked, and what is left
@@ -263,10 +271,12 @@ export const renderSignerWorkload = (workload: ISignerWorkload): string => {
     `blocked               : ${workload.blocked} row(s) — refused; not yours to wave through`,
     `needs your judgement  : ${workload.needsYou.length} row(s) — acknowledging one IS answering it`,
   ]
-  for (const task of workload.needsYou.slice(0, 10))
+  for (const task of workload.needsYou.slice(0, SIGNER_TASKS_SHOWN))
     lines.push(
-      `  ${task.checkId} on ${task.network}: expected ${task.expected}, observed ${task.actual}`
+      `  ${task.proposal} ${task.checkId} on ${task.network}: expected ${task.expected}, observed ${task.actual}`
     )
+  const undisclosed = workload.needsYou.length - SIGNER_TASKS_SHOWN
+  if (undisclosed > 0) lines.push(`  …and ${undisclosed} more not listed here`)
   return lines.join('\n')
 }
 
