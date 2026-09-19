@@ -754,6 +754,16 @@ export const codehashCheckResult = (
       gate.summary || 'the codehash gate produced no verdict for this proposal'
     )
 
+  if (gate.outOfScope)
+    return {
+      checkId: CODEHASH_CHECK_ID,
+      network,
+      status: 'needs-ack',
+      expected: EVERY_TARGET_ATTESTED,
+      actual: gate.outOfScope,
+      anchor: 'A-DOCUMENTED',
+    }
+
   if (gate.madeNoClaim)
     return gate.unopened && gate.unopened.length > 0
       ? unresolved(
@@ -860,6 +870,11 @@ export const CODEHASH_CHECK: ICheckDefinition = {
   checkClass: 'integrity',
   gate: 'K',
   title: 'Installed bytecode matches the attested build',
+  // Reaches exactly one case: a chain whose code no rebuild here can
+  // reproduce, stated in writing by `resolveGateCoverage` and graded on
+  // `A-DOCUMENTED`. A MISMATCH, an UNVERIFIABLE target and a read that
+  // produced nothing keep their anchors and still hard-block.
+  undecidableIsAcknowledgeable: true,
 }
 
 export const IMMUTABLES_CHECK_ID = 'immutables'
@@ -873,11 +888,12 @@ export const IMMUTABLES_CHECK_ID = 'immutables'
  * where the compiler inlines them. One verdict carrying both would cost a chain
  * the first claim for want of the second.
  *
- * `undecidableIsAcknowledgeable` reaches exactly one case: a chain whose
- * immutables sit in a system contract, where every value is read from a source
- * that decides but the mapping from slot to name is derived rather than
- * recorded. The row then states the derived table and asks a human to confirm
- * it. A value that DISAGREES is never that case and hard-blocks everywhere.
+ * `undecidableIsAcknowledgeable` reaches two cases. A chain whose immutables
+ * sit in a system contract, where every value is read from a source that
+ * decides but the mapping from slot to name is derived rather than recorded:
+ * the row then states the derived table and asks a human to confirm it. And a
+ * chain gate K cannot rebuild for, where the values were never read at all.
+ * A value that DISAGREES is never either case and hard-blocks everywhere.
  */
 export const IMMUTABLES_CHECK: ICheckDefinition = {
   checkId: IMMUTABLES_CHECK_ID,
@@ -935,6 +951,18 @@ export const immutablesCheckResult = (
       EVERY_IMMUTABLE_DECLARED,
       gate.summary || 'the codehash gate produced no verdict for this proposal'
     )
+
+  // The values are read out of the rebuilt code, so a chain gate K cannot
+  // rebuild for leaves nothing to read them from.
+  if (gate.outOfScope)
+    return {
+      checkId: IMMUTABLES_CHECK_ID,
+      network,
+      status: 'needs-ack',
+      expected: EVERY_IMMUTABLE_DECLARED,
+      actual: `${gate.outOfScope}; the immutable values are read out of that rebuild, so they were not established either`,
+      anchor: 'A-DOCUMENTED',
+    }
 
   if (gate.madeNoClaim)
     return gate.unopened && gate.unopened.length > 0

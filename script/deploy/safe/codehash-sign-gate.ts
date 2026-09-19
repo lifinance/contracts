@@ -24,7 +24,11 @@
 
 import type { Hex } from 'viem'
 
-import type { IFacetCutEntry } from '../codehash/cut-classification'
+import {
+  classifyCut,
+  FacetCutActionEnum,
+  type IFacetCutEntry,
+} from '../codehash/cut-classification'
 import {
   verifyCutTargets,
   type ITargetVerdict,
@@ -32,6 +36,7 @@ import {
 } from '../codehash/verify-cut-targets'
 import { ZERO_ADDRESS } from '../shared/constants'
 
+import { resolveGateCoverage } from './prebroadcast-gate'
 import { collectDiamondCutTargets } from './safe-decode-utils'
 import { isSignedStruct, type ISignedSafeTransaction } from './safe-utils'
 import { GATE_BODY_INDENT, GATE_TITLE_INDENT } from './signer-view'
@@ -84,6 +89,17 @@ export interface ICodehashSignGate {
    * nothing, so a gate standing down can say what the proposal does instead.
    */
   knownCalls?: readonly string[]
+  /**
+   * Why this chain is outside what the gate can compare, when it is.
+   *
+   * Set only for a chain whose deployed code no rebuild in this repository can
+   * reproduce — Tron, built and deployed from the contracts-tron fork with its
+   * own toolchain and recorded under base58 addresses. The gate then compared
+   * nothing: `targets` is empty and `blocksSigning` is false, and the ledger
+   * asks the signer to take the documented gap on rather than reporting a
+   * legitimately deployed contract as MISMATCH.
+   */
+  outOfScope?: string
 }
 
 /**
@@ -234,13 +250,63 @@ export const evaluateCodehashSignGate = async (
       gradedData: data,
     }
 
-  const collected = collectDiamondCutTargets(data)
-
   // Normalised here rather than trusted from the caller. `config/networks.json`
   // is keyed lowercase and every lookup below throws on any other spelling, so
   // a caller passing what an operator typed would be refused instead of judged.
   // Lowercasing cannot refuse honest work; rejecting the spelling could.
   const network = input.network.toLowerCase()
+
+  const collected = collectDiamondCutTargets(data)
+
+  // Decided after the decode and before any address is judged: a proposal
+  // that installs nothing has nothing to compare on any chain and stands
+  // down the same way everywhere, while one that does install on a chain the
+  // gate cannot compare on must not turn into a per-address verdict.
+  const installsSomething =
+    collected.registrations.length > 0 ||
+    collected.calls.some(
+      (call) =>
+        call.init !== ZERO_ADDRESS ||
+        call.cuts.some(
+          (cut) =>
+            cut.action === FacetCutActionEnum.Add ||
+            cut.action === FacetCutActionEnum.Replace
+        )
+    )
+  // Only a well-formed cut is the gate's to stand aside from. A frame the
+  // decoder could not open or a cut the classifier refuses (a removal carrying
+  // `_init`, an addition of the zero address) is judged below like anywhere
+  // else, where the refusal still blocks; standing down here would let the
+  // coverage gap swallow it.
+  const cleanlyDecoded =
+    collected.refusals.length === 0 &&
+    collected.unopened.length === 0 &&
+    collected.calls.every(
+      (call) =>
+        classifyCut({ cuts: call.cuts, init: call.init }).refusals.length === 0
+    ) &&
+    classifyCut({
+      cuts: [],
+      init: ZERO_ADDRESS,
+      registrations: collected.registrations.map((one) => one.address),
+    }).refusals.length === 0
+  if (
+    installsSomething &&
+    cleanlyDecoded &&
+    resolveGateCoverage(network) === 'uncovered-tron'
+  ) {
+    const outOfScope = `${network} is built and deployed from the contracts-tron fork with its own toolchain and recorded under base58 addresses, so no attested build here can be compared with the installed code`
+    return {
+      gradedKey: proposalKeyOf(input.struct.data),
+      gradedData: data,
+      blocksSigning: false,
+      evaluated: true,
+      refusals: [],
+      targets: [],
+      outOfScope,
+      summary: `This gate compared nothing: ${outOfScope}`,
+    }
+  }
 
   // Resolved only once a cut is actually present. Building these reads
   // `foundry.toml` and creates a checkout root, either of which can throw, and
@@ -367,9 +433,10 @@ export const CODEHASH_GATE_HEADING =
 /**
  * Whether the gate reached no per-address verdict and refused nothing.
  *
- * Covers both the payload with no cut in it and the cut that installs no code —
- * a removal, whose every facet address is zero. Both leave this block with
- * nothing but the sentence the ledger row carries.
+ * Covers the payload with no cut in it, the cut that installs no code — a
+ * removal, whose every facet address is zero — and a chain the gate cannot
+ * compare on. All three leave this block with nothing but the sentence the
+ * ledger row carries.
  *
  * @param gate - The evaluated gate.
  * @returns True when the gate judged nothing and blocks nothing.

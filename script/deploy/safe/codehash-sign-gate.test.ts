@@ -473,6 +473,130 @@ describe('evaluateCodehashSignGate', () => {
   })
 })
 
+describe("a chain outside the gate's coverage", () => {
+  // Tron: its contracts are built and deployed from the contracts-tron fork and
+  // its records are keyed base58, so no rebuild here can reach MATCH. The gate
+  // says so and stands aside for the signer to acknowledge, rather than
+  // reporting a legitimately deployed contract as MISMATCH.
+  const refusingDeps = (): IVerifyCutDeps => {
+    throw new Error('the rebuild must not run for an uncovered chain')
+  }
+
+  it('stands down naming the chain, without rebuilding anything', async () => {
+    const gate = await evaluateCodehashSignGate(
+      await gateInput(cutCalldata(), 'tron'),
+      refusingDeps
+    )
+    expect(gate.evaluated).toBe(true)
+    expect(gate.blocksSigning).toBe(false)
+    expect(gate.refusals).toEqual([])
+    expect(gate.targets).toEqual([])
+    expect(gate.outOfScope).toContain('tron')
+    expect(gate.summary).toContain('tron')
+  })
+
+  it('is bound to the transaction it was evaluated for', async () => {
+    const input = await gateInput(cutCalldata(), 'tron')
+    const gate = await evaluateCodehashSignGate(input, refusingDeps)
+    expect(() =>
+      assertCodehashSignGateAllowsSigning(
+        gate,
+        proposalKeyOf(input.struct.data)
+      )
+    ).not.toThrow()
+    expect(() =>
+      assertCodehashSignGateAllowsSigning(gate, 'some-other-key')
+    ).toThrow()
+  })
+
+  it('prints no free-standing block; the ledger row carries the verdict', async () => {
+    const gate = await evaluateCodehashSignGate(
+      await gateInput(cutCalldata(), 'tron'),
+      refusingDeps
+    )
+    expect(renderCodehashSignGate(gate)).toEqual([])
+  })
+
+  // A proposal that installs nothing has nothing to compare on any chain, so
+  // it stands down the way it does everywhere else rather than claiming a
+  // limit that never applied to it.
+  it('is not applicable, not out of scope, when the proposal installs nothing', async () => {
+    // A removal reaches the target scan like anywhere else, so it gets the
+    // ordinary fake rather than the one that refuses to be asked at all.
+    const removal = await evaluateCodehashSignGate(
+      await gateInput(cutCalldata(ZERO, FacetCutActionEnum.Remove), 'tron'),
+      () => deps()
+    )
+    expect(removal.outOfScope).toBeUndefined()
+    expect(removal.blocksSigning).toBe(false)
+    expect(removal.targets).toEqual([])
+
+    const noCut = await evaluateCodehashSignGate(
+      await gateInput('0xaabbccdd', 'tron'),
+      refusingDeps
+    )
+    expect(noCut.outOfScope).toBeUndefined()
+    expect(noCut.madeNoClaim).toBe(true)
+  })
+
+  // The coverage gap must not swallow a cut the classifier refuses: a removal
+  // that delegatecalls an `_init`, or an addition of the zero address, is
+  // judged and refused on Tron like anywhere else.
+  it('does not stand aside from a malformed cut', async () => {
+    const removalWithInit = encodeFunctionData({
+      abi: ABI_DIAMOND_CUT,
+      functionName: 'diamondCut',
+      args: [
+        [
+          [ZERO as `0x${string}`, FacetCutActionEnum.Remove, ['0xaabbccdd']],
+        ] as never,
+        OTHER as `0x${string}`,
+        '0x',
+      ],
+    })
+    const gate = await evaluateCodehashSignGate(
+      await gateInput(removalWithInit, 'tron'),
+      () => deps()
+    )
+    expect(gate.outOfScope).toBeUndefined()
+    expect(gate.blocksSigning).toBe(true)
+    expect(gate.refusals.length).toBeGreaterThan(0)
+
+    const zeroFacetAdd = await evaluateCodehashSignGate(
+      await gateInput(cutCalldata(ZERO, FacetCutActionEnum.Add), 'tron'),
+      () => deps()
+    )
+    expect(zeroFacetAdd.outOfScope).toBeUndefined()
+    expect(zeroFacetAdd.blocksSigning).toBe(true)
+
+    // A registration is an installation of its own and is classified too.
+    const zeroRegistration = await evaluateCodehashSignGate(
+      await gateInput(registerCalldata(ZERO), 'tron'),
+      () => deps()
+    )
+    expect(zeroRegistration.outOfScope).toBeUndefined()
+    expect(zeroRegistration.blocksSigning).toBe(true)
+
+    const registration = await evaluateCodehashSignGate(
+      await gateInput(registerCalldata(), 'tron'),
+      refusingDeps
+    )
+    expect(registration.outOfScope).toContain('tron')
+  })
+
+  it('still judges the same cut on a covered chain', async () => {
+    let asked = false
+    await evaluateCodehashSignGate(
+      await gateInput(cutCalldata(), NETWORK),
+      () => {
+        asked = true
+        return deps()
+      }
+    )
+    expect(asked).toBe(true)
+  })
+})
+
 describe('renderCodehashSignGate', () => {
   const render = async (over: Partial<IVerifyCutDeps>): Promise<string> =>
     renderCodehashSignGate(
