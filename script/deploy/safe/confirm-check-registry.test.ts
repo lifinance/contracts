@@ -1608,6 +1608,7 @@ describe('gate G when no storage-authority read was made', () => {
           kind: 'out-of-scope',
           reason:
             'tron is read through TronWeb, which this gate does not carry',
+          installs: true,
         },
       })
     )
@@ -1635,8 +1636,8 @@ describe('gate G when no storage-authority read was made', () => {
         storageAuthorityAbsence: {
           kind: 'out-of-scope',
           reason: 'tron is not read',
+          installs: false,
         },
-        codehash: codehashGate({ targets: [] }),
       })
     )
     const row = rowOf(ledger)
@@ -1737,7 +1738,11 @@ describe('gate G when no storage-authority read was made', () => {
   // the silent absence, which keeps its blocking text.
   it('grades the three absences and the silent one as four different rows', () => {
     const rows = [
-      { kind: 'out-of-scope' as const, reason: 'tron is not read' },
+      {
+        kind: 'out-of-scope' as const,
+        reason: 'tron is not read',
+        installs: true,
+      },
       { kind: 'read-failed' as const, reason: 'timeout' },
       { kind: 'not-scheduled' as const },
       undefined,
@@ -1767,6 +1772,7 @@ describe('gate G when no storage-authority read was made', () => {
         storageAuthorityAbsence: {
           kind: 'out-of-scope',
           reason: 'tron is not read',
+          installs: true,
         },
       })
     )

@@ -33,6 +33,8 @@ import {
   buildExplorerAddressUrl,
   getFallbackTransportForChain,
 } from '../../utils/viemScriptHelpers'
+import { FacetCutActionEnum } from '../codehash/cut-classification'
+import { ZERO_ADDRESS } from '../shared/constants'
 import { createDefaultCache } from '../shared/deployment-cache'
 import { getGitCommit, sanitizeProvenanceText } from '../shared/git-provenance'
 import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
@@ -155,7 +157,7 @@ import {
   createPinnedBlock,
   ENDPOINT_READ_BUDGET_MS,
 } from './rpc-quorum-collector'
-import { getTargetName } from './safe-decode-utils'
+import { collectDiamondCutTargets, getTargetName } from './safe-decode-utils'
 import {
   buildCalldataTarget,
   buildSafeTxDetailLines,
@@ -576,6 +578,24 @@ const processTxs = async (
   // next proposal against it. Re-reading on discard is the fix if that day comes.
   const observedSets = new Map<string, IObservedSet>()
 
+  // Read from the calldata alone: a cut that adds or replaces a facet, sets
+  // an init target, or registers a periphery contract puts code into service.
+  const calldataInstallsSomething = (callData: Hex): boolean => {
+    const collected = collectDiamondCutTargets(callData)
+    return (
+      collected.registrations.length > 0 ||
+      collected.calls.some(
+        (call) =>
+          call.init !== ZERO_ADDRESS ||
+          call.cuts.some(
+            (cut) =>
+              cut.action === FacetCutActionEnum.Add ||
+              cut.action === FacetCutActionEnum.Replace
+          )
+      )
+    )
+  }
+
   /**
    * What one attempt to read the sign-time set produced: the observation, or
    * why there is none. The three absences reach the ledger as different rows,
@@ -604,7 +624,14 @@ const processTxs = async (
     if (resolveGateCoverage(networkKey) === 'uncovered-tron') {
       const reason = `${network} is read through TronWeb, which the storage-authority reader does not carry, so the contracts this proposal installs were not observed`
       log.info(`Sign-time set not read: ${reason}`)
-      return { kind: 'absent', absence: { kind: 'out-of-scope', reason } }
+      return {
+        kind: 'absent',
+        absence: {
+          kind: 'out-of-scope',
+          reason,
+          installs: calldataInstallsSomething(callData),
+        },
+      }
     }
 
     try {

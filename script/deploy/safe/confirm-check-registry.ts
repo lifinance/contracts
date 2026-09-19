@@ -1319,7 +1319,18 @@ export interface IProposalCheckVerdicts {
 }
 
 export type TStorageAuthorityAbsence =
-  | { kind: 'out-of-scope'; reason: string }
+  | {
+      kind: 'out-of-scope'
+      reason: string
+      /**
+       * Whether the calldata installs anything, read from the calldata itself.
+       * A proposal that installs nothing has no authority to read on any chain
+       * and stands down as not applicable; only one that does install asks the
+       * signer to take the coverage gap on. Not read from the codehash gate,
+       * which on the same chain also compared nothing.
+       */
+      installs: boolean
+    }
   | { kind: 'read-failed'; reason: string }
   | { kind: 'not-scheduled' }
 
@@ -1328,10 +1339,6 @@ const installSetUnknownPerCodehash = (codehash: ICodehashSignGate): boolean =>
   !codehash.evaluated ||
   codehash.refusals.length > 0 ||
   (codehash.unopened !== undefined && codehash.unopened.length > 0)
-
-/** The codehash gate read the calldata to the end and found no installation. */
-const installsNothingPerCodehash = (codehash: ICodehashSignGate): boolean =>
-  !installSetUnknownPerCodehash(codehash) && codehash.targets.length === 0
 
 /**
  * Grades gate G when no observation reached the recorder.
@@ -1352,11 +1359,7 @@ const storageAuthorityAbsenceResult = (
   // signer is asked to take on. An integrity check's `needs-ack` survives only
   // on an anchor a human can decide about.
   if (absence?.kind === 'out-of-scope')
-    // A proposal that installs nothing has no authority to read on any chain,
-    // so it stands down the way it does everywhere rather than asking the
-    // signer to take on a limit that never applied to it. Whether it installs
-    // is the codehash gate's reading of the same calldata.
-    return installsNothingPerCodehash(codehash)
+    return !absence.installs
       ? {
           checkId: STORAGE_AUTHORITY_CHECK_ID,
           network,
