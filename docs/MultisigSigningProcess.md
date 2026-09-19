@@ -535,7 +535,11 @@ signer sees:
    because `_init` is delegatecalled in the diamond's own storage context
    whatever the entries describe. It judges the normalised transaction, the same
    struct that gets hashed and signed, so what it vouches for cannot drift from
-   what the device shows.
+   what the device shows. On Tron it compares nothing: the code there is built
+   and deployed from the `contracts-tron` fork with its own toolchain and
+   recorded under base58 addresses, so no rebuild here can reach `MATCH`, and
+   gates K and L each ask for an acknowledgement naming Tron instead of
+   refusing.
 
    Infrastructure failures block as well, and they land in two different places
    depending on how far the gate got. One that stops it reaching any verdict —

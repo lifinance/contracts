@@ -18,6 +18,8 @@ import {
   CODEHASH_GATE_HEADING,
   renderCodehashSignGate,
   type ICodehashSignGate,
+  unevaluatedCodehashSignGate,
+  blockingUnevaluatedGate,
 } from './codehash-sign-gate'
 import {
   ALL_GATE_DEFINITIONS,
@@ -1617,6 +1619,40 @@ describe("gates K and L on a chain outside the codehash gate's coverage", () => 
     )
     expect(asked).toContain(CODEHASH_CHECK_ID)
     expect(asked).toContain(IMMUTABLES_CHECK_ID)
+  })
+
+  // The exemption is keyed on the anchor, so the builder is what keeps it to
+  // one case: every gate shape but the out-of-scope one must grade K as
+  // something other than an acknowledgement.
+  it('asks for an acknowledgement on gate K only through the out-of-scope note', () => {
+    const shapes: ICodehashSignGate[] = [
+      unevaluatedCodehashSignGate(),
+      blockingUnevaluatedGate(),
+      codehashGate(),
+      codehashGate({ targets: [], madeNoClaim: true }),
+      codehashGate({ targets: [], madeNoClaim: true, unopened: ['call[0]'] }),
+      codehashGate({ targets: [] }),
+      codehashGate({ blocksSigning: true, refusals: ['refused'] }),
+      codehashGate({
+        blocksSigning: true,
+        targets: [
+          {
+            address: '0x00000000000000000000000000000000000000f2',
+            verdict: 'MISMATCH',
+            reason: 'differs',
+            matchedLineages: [],
+            excludedByteCount: 0,
+            pricedByteCount: 0,
+            immutables: { status: 'none', detail: '' },
+          },
+        ],
+      }),
+    ]
+    for (const shape of shapes)
+      expect(codehashCheckResult(shape, NETWORK).status).not.toBe('needs-ack')
+    expect(codehashCheckResult(outOfScopeGate(), NETWORK).status).toBe(
+      'needs-ack'
+    )
   })
 
   // The acknowledgement path opened for the documented gap must not widen to

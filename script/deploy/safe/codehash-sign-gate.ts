@@ -255,7 +255,7 @@ export const evaluateCodehashSignGate = async (
   // Decided before the calldata is opened, so nothing below can turn a chain
   // the gate cannot compare into a per-address verdict about it.
   if (resolveGateCoverage(network) === 'uncovered-tron') {
-    const outOfScope = `${network} is built and deployed from the contracts-tron fork with its own toolchain and recorded under base58 addresses, so no attested build in this repository can be compared with the installed code`
+    const outOfScope = `${network} is built and deployed from the contracts-tron fork with its own toolchain and recorded under base58 addresses, so no attested build here can be compared with the installed code`
     return {
       gradedKey: proposalKeyOf(input.struct.data),
       gradedData: data,
@@ -395,9 +395,10 @@ export const CODEHASH_GATE_HEADING =
 /**
  * Whether the gate reached no per-address verdict and refused nothing.
  *
- * Covers both the payload with no cut in it and the cut that installs no code —
- * a removal, whose every facet address is zero. Both leave this block with
- * nothing but the sentence the ledger row carries.
+ * Covers the payload with no cut in it, the cut that installs no code — a
+ * removal, whose every facet address is zero — and a chain the gate cannot
+ * compare on. All three leave this block with nothing but the sentence the
+ * ledger row carries.
  *
  * @param gate - The evaluated gate.
  * @returns True when the gate judged nothing and blocks nothing.
@@ -434,9 +435,8 @@ export const renderCodehashSignGate = (gate: ICodehashSignGate): string[] => {
 
   // A gate that compared nothing has one sentence to say, and its ledger row
   // already says it under NOT APPLICABLE — where the manifest also counts it,
-  // which a free-standing block is not. The same holds for a chain it cannot
-  // compare on, whose row asks for the acknowledgement.
-  if (nothingWasJudged(gate) || gate.outOfScope) return []
+  // which a free-standing block is not.
+  if (nothingWasJudged(gate)) return []
 
   const lines = ['', `${GATE_TITLE_INDENT}${CODEHASH_GATE_HEADING}`]
   // The per-address reasons hang one step inside their verdict line.
