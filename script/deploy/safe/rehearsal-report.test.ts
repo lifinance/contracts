@@ -15,6 +15,7 @@ import {
   type CheckStatus,
 } from './check-ledger'
 import {
+  MAX_SIGNER_TASKS_SHOWN,
   REHEARSAL_GATE_ROSTER,
   buildGateReport,
   checkGradingAnchors,
@@ -285,6 +286,7 @@ describe('renderSignerWorkload', () => {
       .split('\n')
       .filter((line) => line.startsWith('  '))
     expect(taskLines).toHaveLength(2)
+    expect(taskLines.every((line) => line.includes('target-state'))).toBe(true)
     expect(taskLines[0]).not.toBe(taskLines[1])
     expect(rendered).toContain('0xaaa')
     expect(rendered).toContain('0xbbb')
@@ -303,7 +305,11 @@ describe('renderSignerWorkload', () => {
       })),
     })
 
-    expect(rendered).toContain('…and 2 more')
+    const lines = rendered.split('\n')
+    expect(lines.filter((line) => line.startsWith('  '))).toHaveLength(
+      MAX_SIGNER_TASKS_SHOWN
+    )
+    expect(rendered).toContain('2 further row(s) not shown')
   })
 })
 
