@@ -1558,6 +1558,7 @@ describe('a chain the simulator does not cover', () => {
       (result) => result.checkId === EXECUTABILITY_CHECK_ID
     )
     expect(row?.status).toBe('needs-ack')
+    expect(row?.anchor).toBe('A-DOCUMENTED')
     expect(row?.actual).toContain('tron')
 
     const verdict = summariseLedger(ledger)

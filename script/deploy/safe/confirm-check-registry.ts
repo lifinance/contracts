@@ -1447,7 +1447,7 @@ export const proposalCheckResults = (
           expected:
             'every payload simulated against the state it will execute in',
           actual: verdicts.executabilityOutOfScope,
-          anchor: 'A-UNRESOLVED',
+          anchor: 'A-DOCUMENTED',
         }
       : unresolved(
           EXECUTABILITY_CHECK_ID,
