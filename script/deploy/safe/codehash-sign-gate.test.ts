@@ -568,6 +568,20 @@ describe("a chain outside the gate's coverage", () => {
     )
     expect(zeroFacetAdd.outOfScope).toBeUndefined()
     expect(zeroFacetAdd.blocksSigning).toBe(true)
+
+    // A registration is an installation of its own and is classified too.
+    const zeroRegistration = await evaluateCodehashSignGate(
+      await gateInput(registerCalldata(ZERO), 'tron'),
+      () => deps()
+    )
+    expect(zeroRegistration.outOfScope).toBeUndefined()
+    expect(zeroRegistration.blocksSigning).toBe(true)
+
+    const registration = await evaluateCodehashSignGate(
+      await gateInput(registerCalldata(), 'tron'),
+      refusingDeps
+    )
+    expect(registration.outOfScope).toContain('tron')
   })
 
   it('still judges the same cut on a covered chain', async () => {

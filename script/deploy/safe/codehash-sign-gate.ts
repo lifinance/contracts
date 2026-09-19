@@ -284,7 +284,12 @@ export const evaluateCodehashSignGate = async (
     collected.calls.every(
       (call) =>
         classifyCut({ cuts: call.cuts, init: call.init }).refusals.length === 0
-    )
+    ) &&
+    classifyCut({
+      cuts: [],
+      init: ZERO_ADDRESS,
+      registrations: collected.registrations.map((one) => one.address),
+    }).refusals.length === 0
   if (
     installsSomething &&
     cleanlyDecoded &&
