@@ -1282,8 +1282,8 @@ export interface IProposalCheckVerdicts {
    * What the run read at each declared storage authority, and where each
    * expectation came from.
    *
-   * Absent means the read was never made, which blocks: gate G exists to
-   * refuse a proposal whose authorities could not be shown to match, and a
+   * Absent with no reason in `storageAuthorityAbsence` blocks: gate G exists
+   * to refuse a proposal whose authorities could not be shown to match, and a
    * silent absence would be the one way to get past it.
    */
   storageAuthority:
@@ -1305,11 +1305,15 @@ export interface IProposalCheckVerdicts {
    * Why `storageAuthority` is absent, when the caller knows.
    *
    * Three absences that must not grade alike: a chain this gate was never
-   * written to read is a declared limit the signer acknowledges, a read that
-   * failed is unverified and blocks with the failure on the row, and calldata
-   * that schedules no timelock batch gives the gate nothing to observe — which
-   * is nothing to grade only if the codehash gate found nothing installed
-   * either. An absence with no reason keeps the blocking default.
+   * written to read is a declared limit the signer acknowledges, an
+   * observation that could not be made at all (the envelope would not decode,
+   * no client could be built, the deployment file would not load) is
+   * unverified and blocks with the failure on the row, and calldata that
+   * schedules no timelock batch gives the gate nothing to observe — which is
+   * nothing to grade only if the codehash gate found nothing installed
+   * either. An absence with no reason keeps the blocking default. A read that
+   * failed on one address inside an observation that was made is not an
+   * absence: it reaches the row as that address's own unread entry.
    */
   storageAuthorityAbsence?: TStorageAuthorityAbsence
 }

@@ -551,11 +551,10 @@ const processTxs = async (
    * what was signed; it can no longer refuse it. The persistence half still
    * runs after signing and reads this cache rather than the chain again.
    *
-   * `undefined` means nothing was read — the calldata was not a schedule
-   * batch, the chain is outside the gate's coverage, or the read threw. Every
-   * one of those leaves the ledger without a graded row, which blocks. That is
-   * the same outcome as before this was moved, deliberately: this change moves
-   * when gate G is graded, not what it decides.
+   * An absent set carries why it is absent — the calldata was not a schedule
+   * batch, the chain is outside the gate's coverage, or the observation could
+   * not be made — and the ledger grades each of those on its own terms; only a
+   * chain the reader covers whose observation failed still blocks.
    */
   interface IObservedSet {
     operationId: Hex
