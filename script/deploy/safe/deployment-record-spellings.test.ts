@@ -22,13 +22,25 @@ const tronToHex = {
 }
 
 describe('withCalldataSpellings', () => {
-  it('adds a calldata-spelt copy beside each record on the network', () => {
+  it('respells each record on the network the way the calldata does, in place', () => {
     const out = withCalldataSpellings([entry({})], 'tron', tronToHex)
+    expect(out).toHaveLength(1)
+    expect(out?.[0]?.address).toBe('0x7fc2ad654bbe72fef9f46d92a9f51dc10d3b8c7e')
+    expect(out?.[0]?.contractName).toBe('LiFiIntentEscrowFacetV2')
+    expect(out?.[0]?.timestamp).toBe('2026-08-19T07:13:10.755Z')
+  })
+
+  // Two records of one name at one deploy time read as a tie the check cannot
+  // decide, so the respelling must never leave the original beside the copy.
+  it('never yields two spellings of one record', () => {
+    const out = withCalldataSpellings(
+      [entry({}), entry({ version: '1.0.1' })],
+      'tron',
+      tronToHex
+    )
     expect(out).toHaveLength(2)
-    expect(out?.[0]?.address).toBe('TMck2qdZHmsdurz4uE4eNVBt14JHHLeoEB')
-    expect(out?.[1]?.address).toBe('0x7fc2ad654bbe72fef9f46d92a9f51dc10d3b8c7e')
-    expect(out?.[1]?.contractName).toBe('LiFiIntentEscrowFacetV2')
-    expect(out?.[1]?.timestamp).toBe('2026-08-19T07:13:10.755Z')
+    expect(new Set(out?.map((one) => one.address)).size).toBe(1)
+    expect(out?.every((one) => one.address.startsWith('0x'))).toBe(true)
   })
 
   it('leaves records on other networks alone', () => {
@@ -55,7 +67,7 @@ describe('withCalldataSpellings', () => {
     expect(out?.[0]?.address).toBe('not-an-address')
   })
 
-  it('adds nothing when the spelling is already the calldata one', () => {
+  it('keeps the entry count whatever the translator says', () => {
     const out = withCalldataSpellings(
       [entry({ address: '0x7fc2ad654bbe72fef9f46d92a9f51dc10d3b8c7e' })],
       'tron',

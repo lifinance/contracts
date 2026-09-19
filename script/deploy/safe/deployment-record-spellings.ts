@@ -10,17 +10,19 @@ export interface IRecordSpellingTranslator {
 }
 
 /**
- * Adds, beside every record on `network`, a copy spelt the way the calldata
- * spells it, so a lookup by the calldata's address finds the record.
+ * Respells every record on `network` the way the calldata spells addresses,
+ * so a lookup by the calldata's address finds the record.
  *
- * A copy rather than a rewrite: the record's own spelling is what every other
- * reader of the index expects to print, and a translator that cannot read an
- * address leaves that record as it was rather than dropping it.
+ * Respelt in place rather than copied: the index groups records by name and
+ * deploy time to decide which address a name currently holds, and a copy
+ * beside the original would read as two addresses at one time — a tie the
+ * check reports as undecidable. A translator that cannot read an address
+ * leaves that record as it was rather than dropping it.
  *
  * @param records - the deployment entries as read, or undefined when unread
  * @param network - the network the proposal is on
  * @param translator - how that network's record spelling maps to the calldata's
- * @returns The same entries plus the translated copies, in the same order
+ * @returns The same entries, respelt where the translator could, in the same order
  */
 export const withCalldataSpellings = (
   records: readonly IDeploymentIndexEntry[] | undefined,
@@ -29,13 +31,9 @@ export const withCalldataSpellings = (
 ): readonly IDeploymentIndexEntry[] | undefined => {
   if (!records || !translator) return records
   const wanted = network.trim().toLowerCase()
-  const out: IDeploymentIndexEntry[] = []
-  for (const entry of records) {
-    out.push(entry)
-    if (entry.network.trim().toLowerCase() !== wanted) continue
+  return records.map((entry) => {
+    if (entry.network.trim().toLowerCase() !== wanted) return entry
     const spelt = translator.toCalldataSpelling(entry.address)
-    if (spelt && spelt.toLowerCase() !== entry.address.toLowerCase())
-      out.push({ ...entry, address: spelt })
-  }
-  return out
+    return spelt ? { ...entry, address: spelt } : entry
+  })
 }
