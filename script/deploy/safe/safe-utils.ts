@@ -63,6 +63,7 @@ import {
   evaluateDelegateCallGate,
 } from './delegatecall-gate'
 import { getDeployedFacetVersionFromLog } from './facet-version-utils'
+import { assertStoreCredentialsAreEncrypted } from './mongo-store-transport'
 import { printableField } from './printable-field'
 import {
   firstSupplied,
@@ -2103,6 +2104,7 @@ export async function getSafeMongoCollection(): Promise<{
 }> {
   if (!process.env.SC_MONGODB_URI)
     throw new Error('SC_MONGODB_URI environment variable is required')
+  assertStoreCredentialsAreEncrypted(process.env.SC_MONGODB_URI)
 
   // The Safe proposal database sits behind the lifi-connect tunnel; fail fast
   // with an actionable message when the tunnel isn't up instead of hanging on

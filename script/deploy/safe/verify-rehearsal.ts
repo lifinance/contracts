@@ -40,6 +40,7 @@ import {
   TARGET_STATE_CHECK_ID,
   targetStateCheckResult,
 } from './confirm-check-registry'
+import { assertStoreCredentialsAreEncrypted } from './mongo-store-transport'
 import {
   createPinnedTargetStateReader,
   createTargetStateDeps,
@@ -103,6 +104,7 @@ async function openReadOnlyProposalStore(): Promise<{
 }> {
   const uri = process.env.SC_MONGODB_URI
   if (!uri) throw new Error('SC_MONGODB_URI environment variable is required')
+  assertStoreCredentialsAreEncrypted(uri)
 
   const client = new MongoClient(uri, { serverSelectionTimeoutMS: 10_000 })
   await client.connect()
