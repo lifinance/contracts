@@ -213,8 +213,20 @@ function selectFoundryProfileForNetwork() {
         return 0
     fi
 
+    if ! jq -e --arg network "$NETWORK" '.[$network] != null' "$NETWORKS_JSON_FILE_PATH" > /dev/null; then
+        error "Network '$NETWORK' not found in networks.json - refusing to deploy"
+        return 1
+    fi
+
     local TARGET_EVM_VERSION
-    TARGET_EVM_VERSION=$(getNetworkEvmVersion "$NETWORK") || return 1
+    TARGET_EVM_VERSION=$(jq -r --arg network "$NETWORK" '.[$network].targetEvmVersion // empty' "$NETWORKS_JSON_FILE_PATH")
+
+    # A row naming no EVM version states nothing the active profile can contradict.
+    # `localanvil`, which the deploy smoke test drives, is the only such row; every
+    # network that names one still reaches the comparison below.
+    if [[ -z "$TARGET_EVM_VERSION" ]]; then
+        return 0
+    fi
 
     # scriptMaster deploys one contract to every network in a single loop, so a
     # profile this function exported for the previous network is re-selected rather

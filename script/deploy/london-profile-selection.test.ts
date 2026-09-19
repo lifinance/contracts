@@ -54,6 +54,9 @@ const FORGE_VERSION = readFileSync(
  */
 const LONDON_PROFILE = 'solc_floor'
 
+/** The local anvil chain the deploy smoke test drives; its row names no EVM version. */
+const LOCAL_NETWORK = 'localanvil'
+
 /** A london-EVM mainnet, so the getters take their non-zk branch. */
 const LONDON_NETWORK = 'fuse'
 /** A cancun mainnet, which builds under the default profile. */
@@ -500,6 +503,28 @@ describe('deploySingleContract selects the profile from the network', () => {
 
     expect(output).toContain('RC=1\n')
     expect(output).toContain(`PROFILE_AFTER=${LONDON_PROFILE}`)
+  })
+
+  it('accepts a network whose row names no EVM version, and still refuses an unknown one', () => {
+    // `localanvil` is the only row in config/networks.json with an empty
+    // targetEvmVersion, and it is what the deploy smoke test deploys to: a row
+    // that names no version states nothing the active profile can contradict.
+    expect(NETWORKS[LOCAL_NETWORK]?.targetEvmVersion).toBe('')
+
+    const output = run(makeSandbox(), [
+      ...SOURCE_HELPERS,
+      `selectFoundryProfileForNetwork ${LOCAL_NETWORK}`,
+      'echo "LOCAL_RC=$?"',
+      `echo "PROFILE_AFTER=\${FOUNDRY_PROFILE-${UNSET}}"`,
+      'selectFoundryProfileForNetwork nosuchnetwork',
+      'echo "UNKNOWN_RC=$?"',
+    ])
+
+    expect(output).toContain('LOCAL_RC=0')
+    expect(output).toContain(`PROFILE_AFTER=${UNSET}`)
+    // The paired present: skipping the comparison for an unnamed version is not
+    // the same as skipping it for a row that is not there at all.
+    expect(output).toContain('UNKNOWN_RC=1')
   })
 
   it('selects before the compiler-pair guard, which reads the active profile', () => {
