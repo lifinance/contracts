@@ -527,6 +527,35 @@ describe('deploySingleContract selects the profile from the network', () => {
     expect(output).toContain('UNKNOWN_RC=1')
   })
 
+  it('is the only row that skips the comparison, and only by naming the key', () => {
+    // The skip keys on an empty targetEvmVersion, not on the network's name, so
+    // what bounds it is that exactly one row is empty. A second empty row would
+    // deploy under whatever profile the shell holds without anything objecting.
+    const empty = Object.entries(NETWORKS)
+      .filter(([, row]) => row.targetEvmVersion === '')
+      .map(([name]) => name)
+    expect(empty).toEqual([LOCAL_NETWORK])
+
+    // A row missing the key is a config error, not a statement that no version
+    // applies, so it is refused rather than waved through with the other.
+    const sandbox = makeSandbox()
+    const networks = JSON.parse(
+      readFileSync(join(REPO_ROOT, 'config', 'networks.json'), 'utf8')
+    ) as Record<string, Record<string, unknown>>
+    delete networks[LOCAL_NETWORK]?.['targetEvmVersion']
+    const path = join(sandbox.root, 'networks.json')
+    writeFileSync(path, JSON.stringify(networks))
+
+    const output = run(sandbox, [
+      ...SOURCE_HELPERS,
+      `NETWORKS_JSON_FILE_PATH=${path} selectFoundryProfileForNetwork ${LOCAL_NETWORK}`,
+      'echo "MISSING_RC=$?"',
+    ])
+
+    expect(output).toContain('MISSING_RC=1')
+    expect(output).toContain('has no targetEvmVersion')
+  })
+
   it('selects before the compiler-pair guard, which reads the active profile', () => {
     const text = readFileSync(
       join(REPO_ROOT, 'script', 'deploy', 'deploySingleContract.sh'),
