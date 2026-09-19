@@ -517,6 +517,28 @@ describe("a chain outside the gate's coverage", () => {
     expect(renderCodehashSignGate(gate)).toEqual([])
   })
 
+  // A proposal that installs nothing has nothing to compare on any chain, so
+  // it stands down the way it does everywhere else rather than claiming a
+  // limit that never applied to it.
+  it('is not applicable, not out of scope, when the proposal installs nothing', async () => {
+    // A removal reaches the target scan like anywhere else, so it gets the
+    // ordinary fake rather than the one that refuses to be asked at all.
+    const removal = await evaluateCodehashSignGate(
+      await gateInput(cutCalldata(ZERO, FacetCutActionEnum.Remove), 'tron'),
+      () => deps()
+    )
+    expect(removal.outOfScope).toBeUndefined()
+    expect(removal.blocksSigning).toBe(false)
+    expect(removal.targets).toEqual([])
+
+    const noCut = await evaluateCodehashSignGate(
+      await gateInput('0xaabbccdd', 'tron'),
+      refusingDeps
+    )
+    expect(noCut.outOfScope).toBeUndefined()
+    expect(noCut.madeNoClaim).toBe(true)
+  })
+
   it('still judges the same cut on a covered chain', async () => {
     let asked = false
     await evaluateCodehashSignGate(

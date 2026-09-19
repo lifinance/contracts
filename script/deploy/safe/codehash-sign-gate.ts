@@ -24,7 +24,10 @@
 
 import type { Hex } from 'viem'
 
-import type { IFacetCutEntry } from '../codehash/cut-classification'
+import {
+  FacetCutActionEnum,
+  type IFacetCutEntry,
+} from '../codehash/cut-classification'
 import {
   verifyCutTargets,
   type ITargetVerdict,
@@ -252,23 +255,36 @@ export const evaluateCodehashSignGate = async (
   // Lowercasing cannot refuse honest work; rejecting the spelling could.
   const network = input.network.toLowerCase()
 
-  // Decided before the calldata is opened, so nothing below can turn a chain
-  // the gate cannot compare into a per-address verdict about it.
-  if (resolveGateCoverage(network) === 'uncovered-tron') {
+  const collected = collectDiamondCutTargets(data)
+
+  // Decided after the decode and before any address is judged: a proposal
+  // that installs nothing has nothing to compare on any chain and stands
+  // down the same way everywhere, while one that does install on a chain the
+  // gate cannot compare on must not turn into a per-address verdict.
+  const installsSomething =
+    collected.registrations.length > 0 ||
+    collected.calls.some(
+      (call) =>
+        call.init !== ZERO_ADDRESS ||
+        call.cuts.some(
+          (cut) =>
+            cut.action === FacetCutActionEnum.Add ||
+            cut.action === FacetCutActionEnum.Replace
+        )
+    )
+  if (installsSomething && resolveGateCoverage(network) === 'uncovered-tron') {
     const outOfScope = `${network} is built and deployed from the contracts-tron fork with its own toolchain and recorded under base58 addresses, so no attested build here can be compared with the installed code`
     return {
       gradedKey: proposalKeyOf(input.struct.data),
       gradedData: data,
       blocksSigning: false,
       evaluated: true,
-      refusals: [],
+      refusals: [...collected.refusals],
       targets: [],
       outOfScope,
       summary: `This gate compared nothing: ${outOfScope}`,
     }
   }
-
-  const collected = collectDiamondCutTargets(data)
 
   // Resolved only once a cut is actually present. Building these reads
   // `foundry.toml` and creates a checkout root, either of which can throw, and
