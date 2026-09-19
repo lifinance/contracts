@@ -28,6 +28,7 @@ import {
 import { keccak256, type Chain, type Hex } from 'viem'
 
 import type { ImmutableReferences } from '../codehash/immutable-offsets'
+import type { IBuildProfile } from '../codehash/lineage-scope'
 import { normalizeRuntimeCode } from '../codehash/rebuild-attestations'
 import {
   readImmutableDeclarations,
@@ -282,6 +283,23 @@ describe('createForgeRebuildRunner', () => {
     deployedBytecode: { object: DEPLOYED, immutableReferences: REFS },
     ast: { absolutePath: 'src/Facets/AccessManagerFacet.sol' },
   })
+  /** The repo's own `foundry.toml` stands in for the checkout's. */
+  const CHECKOUT_TOML = readFileSync(
+    join(import.meta.dir, '..', '..', '..', 'foundry.toml'),
+    'utf8'
+  )
+  /**
+   * Serves the checkout's `foundry.toml` so the rebuild can resolve its profile
+   * there, and hands every other path (the artifact, the repo root's own toml
+   * that the zk pin is read from) to the reader a test supplies.
+   */
+  const readCheckoutFiles =
+    (readRest: (path: string) => string) =>
+    (path: string): string =>
+      path.startsWith('/tmp/rebuilds/') && path.endsWith('foundry.toml')
+        ? CHECKOUT_TOML
+        : readRest(path)
+  const readCheckoutFile = readCheckoutFiles(() => artifact)
 
   /**
    * What zksolc actually emits: the whole contract under `bytecode`, with no
@@ -303,10 +321,10 @@ describe('createForgeRebuildRunner', () => {
   /** What the pinned binary prints, verbatim. */
   const zkVersionOutput = `forge Version: 1.3.5-foundry-zksync-${PINNED_ZK_RELEASE}\nCommit SHA: 742672d7d51ed77b434bffb03804a59a760ce5fe`
 
-  const readZkFiles =
-    (artifactJson: string) =>
-    (path: string): string =>
+  const readZkFiles = (artifactJson: string): ((path: string) => string) =>
+    readCheckoutFiles((path) =>
       path.endsWith('foundry.toml') ? pinnedToml : artifactJson
+    )
 
   const zkRequest = {
     contractName: 'AccessManagerFacet',
@@ -358,7 +376,7 @@ describe('createForgeRebuildRunner', () => {
             return { ok: true, output: '' }
           }),
         exists: over.exists ?? ((path) => path.endsWith('.json')),
-        readFile: over.readFile ?? (() => artifact),
+        readFile: over.readFile ?? readCheckoutFile,
         readDeclarations: over.readDeclarations ?? (() => []),
         ...(over.artifactCache ? { artifactCache: over.artifactCache } : {}),
       }),
@@ -525,7 +543,7 @@ describe('createForgeRebuildRunner', () => {
     const harness = runner({
       calls,
       exists: () => true,
-      readFile: () => astless,
+      readFile: readCheckoutFiles(() => astless),
       run: (command, args) => {
         calls.push({ command, args })
         return { ok: true, output: '' }
@@ -578,7 +596,7 @@ describe('createForgeRebuildRunner', () => {
         return { ok: true, output: '' }
       },
       exists: (path) => (path.endsWith('.json') ? built : false),
-      readFile: () => artifact,
+      readFile: readCheckoutFile,
       readDeclarations: () => [],
     }).build(request)
 
@@ -617,7 +635,7 @@ describe('createForgeRebuildRunner', () => {
         },
         run: () => ({ ok: true, output: '' }),
         exists: () => false,
-        readFile: () => artifact,
+        readFile: readCheckoutFile,
         readDeclarations: () => [],
       }).build(request)
     ).toThrow(/submodule pins are not clean/)
@@ -638,13 +656,109 @@ describe('createForgeRebuildRunner', () => {
         return { ok: true, output: '' }
       },
       exists: (path) => !path.endsWith('.json') || built,
-      readFile: () => artifact,
+      readFile: readCheckoutFile,
       readDeclarations: () => [],
     })
 
     withRun.build(request)
     expect(built).toBe(true)
     expect(harness.calls).toEqual([])
+  })
+
+  describe('resolves the profile against the checkout, not HEAD', () => {
+    const londonProfile = {
+      profile: 'solc_floor',
+      solcVersion: '0.8.17',
+      evmVersion: 'london',
+    }
+    const buildWithToml = (
+      toml: string,
+      profile: IBuildProfile = londonProfile
+    ): { env: Record<string, string>[]; build: () => void } => {
+      const env: Record<string, string>[] = []
+      const harness = createForgeRebuildRunner({
+        repoRoot: '/repo',
+        checkoutRoot: '/tmp/rebuilds',
+        git: () => '',
+        run: (_command, args, options) => {
+          // The pin check runs ahead of the profile resolution, so a zk
+          // request has to pass it before the toml can be judged.
+          if (args[0] === '--version')
+            return { ok: true, output: zkVersionOutput }
+          env.push(options.env)
+          return { ok: true, output: '' }
+        },
+        exists: (path) => !path.endsWith('.json') || env.length > 0,
+        readFile: (path) => (path.endsWith('foundry.toml') ? toml : artifact),
+        readDeclarations: () => [],
+      })
+      return { env, build: () => harness.build({ ...request, profile }) }
+    }
+
+    it('exports the name the checkout gives the pair when it differs from HEAD', () => {
+      // Two fuse deployments were made from a branch that spelled the london
+      // profile `london`; HEAD spells it `solc_floor`. Both must rebuild.
+      const renamed = CHECKOUT_TOML.replace(
+        '[profile.solc_floor]',
+        '[profile.london]'
+      )
+      expect(renamed).not.toBe(CHECKOUT_TOML)
+      const harness = buildWithToml(renamed)
+
+      harness.build()
+
+      expect(harness.env.map((env) => env.FOUNDRY_PROFILE)).toEqual(['london'])
+    })
+
+    it('exports the HEAD name when the checkout spells it the same', () => {
+      const harness = buildWithToml(CHECKOUT_TOML)
+
+      harness.build()
+
+      expect(harness.env.map((env) => env.FOUNDRY_PROFILE)).toEqual([
+        'solc_floor',
+      ])
+    })
+
+    it('refuses instead of building when no profile in the checkout pins the pair', () => {
+      // forge would answer the unknown name with [profile.default] and exit 0.
+      const withoutLondon = CHECKOUT_TOML.replace(
+        "solc_version = '0.8.17'",
+        "solc_version = '0.8.19'"
+      )
+      expect(withoutLondon).not.toBe(CHECKOUT_TOML)
+      const harness = buildWithToml(withoutLondon)
+
+      expect(() => harness.build()).toThrow(/declares no profile pinning/)
+      expect(harness.env).toEqual([])
+    })
+
+    it('does not admit the zk profile as a cancun lineage for a non-zk request', () => {
+      // [profile.zksync] pins the default pair too; without the zksolc pin it
+      // would read as a plain cancun profile and make the match ambiguous.
+      const unpinnedZk = CHECKOUT_TOML.replace(/^zksolc = .*$/m, '')
+      expect(unpinnedZk).not.toBe(CHECKOUT_TOML)
+      const harness = buildWithToml(unpinnedZk, request.profile)
+
+      harness.build()
+
+      expect(harness.env.map((env) => env.FOUNDRY_PROFILE)).toEqual(['default'])
+    })
+
+    it('refuses a zk rebuild in a checkout without [profile.zksync]', () => {
+      const withoutZk = CHECKOUT_TOML.replace(
+        '[profile.zksync]',
+        '[profile.renamed_away]'
+      ).replace(/^zksolc = .*$/m, '')
+      const harness = buildWithToml(withoutZk, {
+        ...request.profile,
+        profile: 'zksync',
+        zksolcVersion: '1.5.15',
+      })
+
+      expect(() => harness.build()).toThrow(/declares no \[profile\.zksync\]/)
+      expect(harness.env).toEqual([])
+    })
   })
 
   it('builds a zk lineage with the pinned foundry-zksync binary', () => {
@@ -693,7 +807,9 @@ describe('createForgeRebuildRunner', () => {
           return { ok: true, output: '' }
         },
         exists: over.exists ?? ((path) => !path.endsWith('.json')),
-        readFile: over.readFile ?? readZkFiles(zkArtifact),
+        readFile: over.readFile
+          ? readCheckoutFiles(over.readFile)
+          : readZkFiles(zkArtifact),
         readDeclarations: () => [],
       })
 
@@ -772,7 +888,7 @@ describe('createForgeRebuildRunner', () => {
           return { ok: true, output: '' }
         },
         exists: (path) => (path.endsWith('.json') ? built : true),
-        readFile: () => artifact,
+        readFile: readCheckoutFile,
         readDeclarations: () => [],
       }).build(request)
 
@@ -835,7 +951,7 @@ describe('createForgeRebuildRunner', () => {
           output: 'Compiler run failed: stack too deep',
         }),
         exists: () => false,
-        readFile: () => artifact,
+        readFile: readCheckoutFile,
         readDeclarations: () => [],
       }).build(request)
     ).toThrow(/stack too deep/)
@@ -854,7 +970,7 @@ describe('createForgeRebuildRunner', () => {
             'backend error: https://rpc.example.com/ogrpc?dkey=SUPERSECRET',
         }),
         exists: () => false,
-        readFile: () => artifact,
+        readFile: readCheckoutFile,
         readDeclarations: () => [],
       }).build(request)
     } catch (error) {
@@ -873,7 +989,7 @@ describe('createForgeRebuildRunner', () => {
         git: () => '',
         run: () => ({ ok: true, output: '' }),
         exists: (path) => !path.endsWith('.json'),
-        readFile: () => artifact,
+        readFile: readCheckoutFile,
         readDeclarations: () => [],
       }).build(request)
     ).toThrow(/artifact/)
@@ -882,7 +998,10 @@ describe('createForgeRebuildRunner', () => {
   it('throws when the artifact carries no runtime bytecode', () => {
     expect(() =>
       runner({
-        readFile: () => JSON.stringify({ deployedBytecode: {} }),
+        readFile: (path) =>
+          path.endsWith('foundry.toml')
+            ? CHECKOUT_TOML
+            : JSON.stringify({ deployedBytecode: {} }),
         readDeclarations: () => [],
       }).runner.build(request)
     ).toThrow(/runtime bytecode/)
@@ -901,7 +1020,7 @@ describe('createForgeRebuildRunner', () => {
         return { ok: true, output: '' }
       },
       exists: (path) => (path.endsWith('.json') ? built : true),
-      readFile: () => artifact,
+      readFile: readCheckoutFile,
       readDeclarations: () => [],
     })
 
@@ -922,7 +1041,7 @@ describe('createForgeRebuildRunner', () => {
       },
       run: () => ({ ok: true, output: '' }),
       exists: (path) => path.endsWith('.json'),
-      readFile: () => artifact,
+      readFile: readCheckoutFile,
       readDeclarations: () => [],
     })
 

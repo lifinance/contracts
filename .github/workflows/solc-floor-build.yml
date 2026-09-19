@@ -7,8 +7,8 @@
 #   A `solc-floor-build-required` aggregator job always reports a final status so this
 #   workflow can stay a required check on `main` branch protection even when the build
 #   job is skipped (see `.agents/rules/500-github-actions.md`).
-# - The profile skips test/script (they trip the legacy pipeline's "stack too deep", a
-#   codegen limit unrelated to floor-feature detection) and matches production codegen.
+# - Only src/ has to honour the floor, so test/script are skipped on the command line. The
+#   profile itself carries no skip because the deploy runners compile script/** under it.
 
 name: Verify Floor-Compiler Build
 on:
@@ -92,12 +92,11 @@ jobs:
         run: forge install
 
       - name: Build src/ with floor compiler (solc 0.8.17)
-        # The `solc_floor` profile pins solc 0.8.17 + evm london and skips test/script.
-        # A failure here means a src/ contract uses a language/syntax feature newer than
-        # the `^0.8.17` floor it declares.
+        # The `solc_floor` profile pins solc 0.8.17 + evm london. A failure here means a src/
+        # contract uses a language/syntax feature newer than the `^0.8.17` floor it declares.
         env:
           FOUNDRY_PROFILE: solc_floor
-        run: forge build
+        run: forge build --skip 'test/**' --skip 'script/**'
 
   solc-floor-build-required:
     # Aggregator job for branch protection. Reports green when the heavy job
