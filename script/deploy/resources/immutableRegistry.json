@@ -1,16 +1,4 @@
 {
-  "EcoFacet": {
-    "PORTAL": {
-      "source": "config",
-      "configData": "_portal",
-      "authorityBearing": true
-    },
-    "BACKEND_SIGNER": {
-      "source": "config",
-      "configData": "_backendSigner",
-      "authorityBearing": true
-    }
-  },
   "AcrossFacet": {
     "spokePool": {
       "source": "config",
