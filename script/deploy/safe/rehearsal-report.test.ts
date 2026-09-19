@@ -381,6 +381,47 @@ describe('renderSignerWorkload', () => {
     expect(rendered).toContain('needs your judgement  : 1')
     expect(rendered).toContain('EcoFacet: matches-main')
   })
+
+  it('tells apart two tasks that differ only by proposal', () => {
+    const task = {
+      checkId: 'target-state',
+      network: 'tron',
+      expected: 'ordering holds',
+      actual: 'EcoFacet: matches-main',
+    }
+    const rendered = renderSignerWorkload({
+      settled: 0,
+      blocked: 0,
+      needsYou: [
+        { ...task, proposal: '0xaaa' },
+        { ...task, proposal: '0xbbb' },
+      ],
+    })
+
+    const taskLines = rendered
+      .split('\n')
+      .filter((line) => line.startsWith('  '))
+    expect(taskLines).toHaveLength(2)
+    expect(taskLines[0]).not.toBe(taskLines[1])
+    expect(rendered).toContain('0xaaa')
+    expect(rendered).toContain('0xbbb')
+  })
+
+  it('counts the tasks it did not list rather than dropping them silently', () => {
+    const rendered = renderSignerWorkload({
+      settled: 0,
+      blocked: 0,
+      needsYou: Array.from({ length: 12 }, (_, index) => ({
+        proposal: `0x${index}`,
+        checkId: 'target-state',
+        network: 'tron',
+        expected: 'ordering holds',
+        actual: 'EcoFacet: matches-main',
+      })),
+    })
+
+    expect(rendered).toContain('…and 2 more')
+  })
 })
 
 describe('checkGradingAnchors, on a cache that parses but holds nothing usable', () => {
