@@ -8,6 +8,7 @@ import {
 import {
   findProposalsAtNonce,
   tearDownProposalsAtNonce,
+  unclearedRows,
 } from './rehearsal-teardown'
 import { getNextNonce } from './safe-utils'
 
@@ -174,7 +175,7 @@ describe('tearDownProposalsAtNonce', () => {
     })
 
     expect(deleted).toEqual(['0xhash31'])
-    expect(results.map((result) => result.outcome)).toEqual(['deleted'])
+    expect(results.results.map((result) => result.outcome)).toEqual(['deleted'])
   })
 })
 
@@ -227,6 +228,126 @@ describe('the statuses a teardown is allowed to touch', () => {
     })
 
     expect(deleted).toEqual([])
-    expect(results).toEqual([])
+    expect(results.results).toEqual([])
+  })
+})
+
+/**
+ * `safeTx.signatures` as the store holds it: keyed by lowercased signer, each
+ * value an `ISafeSignature`. `countSignatures` only counts keys, but a fixture
+ * shaped as `Record<string, string>` would not catch a future guard that reads
+ * `signer` or `data`.
+ */
+const signaturesOf = (...signers: string[]) =>
+  Object.fromEntries(
+    signers.map((signer) => [signer, { signer, data: `0xsig${signer}` }])
+  )
+
+const teardownCollection = (
+  rows: Record<string, unknown>[],
+  deletedCount = 1
+) => ({
+  ...fakeCollection(rows),
+  findOne: (filter: Record<string, unknown>) =>
+    Promise.resolve(
+      rows.find(
+        (candidate) =>
+          candidate.network ===
+            (filter.network as { $eq: string } | undefined)?.$eq &&
+          candidate.safeTxHash ===
+            (filter.safeTxHash as { $eq: string } | undefined)?.$eq
+      ) ?? null
+    ),
+  deleteOne: () => Promise.resolve({ deletedCount }),
+})
+
+const SLOT = {
+  network: 'tron',
+  chainId: 728126428,
+  safeAddress: TRON_SAFE_CHECKSUMMED,
+  nonce: 31,
+}
+
+describe('what a teardown run leaves behind', () => {
+  it('reports a signed row the delete refused, which still holds the nonce', async () => {
+    const rows = [
+      {
+        ...row(31, TRON_SAFE_LOWER),
+        safeTx: {
+          data: { nonce: 31 },
+          signatures: signaturesOf('0xaaa', '0xbbb'),
+        },
+      },
+    ]
+    const collection = teardownCollection(rows)
+
+    const report = await tearDownProposalsAtNonce(collection as never, SLOT)
+
+    expect(report.results.map((result) => result.outcome)).toEqual([
+      'skipped-signed',
+    ])
+    expect(unclearedRows(report)).toEqual(['0xhash31'])
+  })
+
+  it('counts a delete that reported success but removed nothing', async () => {
+    const rows = [row(31, TRON_SAFE_LOWER)]
+    const collection = teardownCollection(rows, 0)
+
+    const report = await tearDownProposalsAtNonce(collection as never, SLOT)
+
+    expect(report.results.map((result) => result.outcome)).toEqual(['deleted'])
+    expect(unclearedRows(report)).toEqual(['0xhash31'])
+  })
+
+  it('counts a row the delete could not find, whose slot is unproven', () => {
+    expect(
+      unclearedRows({
+        found: [],
+        results: [
+          {
+            hash: '0xhash31',
+            outcome: 'not-found',
+            sigCount: 0,
+            deletedCount: 0,
+          },
+        ],
+      })
+    ).toEqual(['0xhash31'])
+  })
+
+  it('counts a submitted row, which the teardown never offers to the delete', async () => {
+    const rows = [row(31, TRON_SAFE_LOWER, 'submitted')]
+    const collection = teardownCollection(rows)
+
+    const report = await tearDownProposalsAtNonce(collection as never, SLOT)
+
+    expect(report.results).toEqual([])
+    expect(unclearedRows(report)).toEqual(['0xhash31'])
+  })
+
+  it('names a row once when it survives both ways', () => {
+    expect(
+      unclearedRows({
+        found: [{ status: 'submitted', safeTxHash: '0xhash31' } as never],
+        results: [
+          {
+            hash: '0xhash31',
+            outcome: 'skipped-signed',
+            sigCount: 2,
+            deletedCount: 0,
+          },
+        ],
+      })
+    ).toEqual(['0xhash31'])
+  })
+
+  it('leaves nothing behind when every row was deleted', async () => {
+    const rows = [row(31, TRON_SAFE_LOWER)]
+    const collection = teardownCollection(rows)
+
+    const report = await tearDownProposalsAtNonce(collection as never, SLOT)
+
+    expect(report.results.map((result) => result.outcome)).toEqual(['deleted'])
+    expect(unclearedRows(report)).toEqual([])
   })
 })

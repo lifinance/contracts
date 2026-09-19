@@ -15,6 +15,7 @@ import {
   type CheckStatus,
 } from './check-ledger'
 import {
+  MAX_SIGNER_TASKS_SHOWN,
   REHEARSAL_GATE_ROSTER,
   buildGateReport,
   checkGradingAnchors,
@@ -263,6 +264,52 @@ describe('renderSignerWorkload', () => {
     expect(rendered).toContain('blocked               : 2')
     expect(rendered).toContain('needs your judgement  : 1')
     expect(rendered).toContain('EcoFacet: matches-main')
+  })
+
+  it('tells apart two tasks that differ only by proposal', () => {
+    const task = {
+      checkId: 'target-state',
+      network: 'tron',
+      expected: 'ordering holds',
+      actual: 'EcoFacet: matches-main',
+    }
+    const rendered = renderSignerWorkload({
+      settled: 0,
+      blocked: 0,
+      needsYou: [
+        { ...task, proposal: '0xaaa' },
+        { ...task, proposal: '0xbbb' },
+      ],
+    })
+
+    const taskLines = rendered
+      .split('\n')
+      .filter((line) => line.startsWith('  '))
+    expect(taskLines).toHaveLength(2)
+    expect(taskLines.every((line) => line.includes('target-state'))).toBe(true)
+    expect(taskLines[0]).not.toBe(taskLines[1])
+    expect(rendered).toContain('0xaaa')
+    expect(rendered).toContain('0xbbb')
+  })
+
+  it('counts the tasks it did not list rather than dropping them silently', () => {
+    const rendered = renderSignerWorkload({
+      settled: 0,
+      blocked: 0,
+      needsYou: Array.from({ length: 12 }, (_, index) => ({
+        proposal: `0x${index}`,
+        checkId: 'target-state',
+        network: 'tron',
+        expected: 'ordering holds',
+        actual: 'EcoFacet: matches-main',
+      })),
+    })
+
+    const lines = rendered.split('\n')
+    expect(lines.filter((line) => line.startsWith('  '))).toHaveLength(
+      MAX_SIGNER_TASKS_SHOWN
+    )
+    expect(rendered).toContain('2 further row(s) not shown')
   })
 })
 
