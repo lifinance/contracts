@@ -1301,6 +1301,93 @@ export interface IProposalCheckVerdicts {
         scopeUnreadable?: readonly string[]
       }
     | undefined
+  /**
+   * Why `storageAuthority` is absent, when the caller knows.
+   *
+   * Three absences that must not grade alike: a chain this gate was never
+   * written to read is a declared limit the signer acknowledges, a read that
+   * failed is unverified and blocks with the failure on the row, and calldata
+   * that schedules no timelock batch gives the gate nothing to observe — which
+   * is nothing to grade only if the codehash gate found nothing installed
+   * either. An absence with no reason keeps the blocking default.
+   */
+  storageAuthorityAbsence?: TStorageAuthorityAbsence
+}
+
+export type TStorageAuthorityAbsence =
+  | { kind: 'out-of-scope'; reason: string }
+  | { kind: 'read-failed'; reason: string }
+  | { kind: 'not-scheduled' }
+
+/**
+ * Grades gate G when no observation reached the recorder.
+ *
+ * @param absence - why the caller made no read, when it knows
+ * @param codehash - the codehash gate's verdict on the same calldata, which
+ *   decides whether an unscheduled proposal installs anything
+ * @param network - the network the proposal is on
+ * @returns The row to hand to `recordCheck`.
+ */
+const storageAuthorityAbsenceResult = (
+  absence: TStorageAuthorityAbsence | undefined,
+  codehash: ICodehashSignGate,
+  network: string
+): ICheckResult => {
+  // `A-DOCUMENTED`, not `A-UNRESOLVED`: the gap is a reviewed statement of
+  // which chains this gate reads (`resolveGateCoverage`), and that is what the
+  // signer is asked to take on. An integrity check's `needs-ack` survives only
+  // on an anchor a human can decide about.
+  if (absence?.kind === 'out-of-scope')
+    return {
+      checkId: STORAGE_AUTHORITY_CHECK_ID,
+      network,
+      status: 'needs-ack',
+      expected: EVERY_INSTALLED_CONTRACT_AUTHORISED,
+      actual: absence.reason,
+      anchor: 'A-DOCUMENTED',
+    }
+
+  if (absence?.kind === 'read-failed')
+    return unresolved(
+      STORAGE_AUTHORITY_CHECK_ID,
+      network,
+      EVERY_INSTALLED_CONTRACT_AUTHORISED,
+      `the contracts this proposal installs could not be read on ${network}: ${absence.reason}`
+    )
+
+  if (absence?.kind === 'not-scheduled') {
+    // Only a calldata read to the end and found to install nothing has nothing
+    // here to grade. A cut the decoder could not open, or one that installs
+    // outside a timelock envelope, is something this gate never observed.
+    const installsNothing =
+      codehash.evaluated &&
+      codehash.refusals.length === 0 &&
+      codehash.targets.length === 0 &&
+      !(codehash.unopened && codehash.unopened.length > 0)
+    return installsNothing
+      ? {
+          checkId: STORAGE_AUTHORITY_CHECK_ID,
+          network,
+          status: 'not-applicable',
+          expected: EVERY_INSTALLED_CONTRACT_AUTHORISED,
+          actual:
+            'this proposal schedules no timelock batch and installs no contract, so there is no authority to read',
+          anchor: 'A-LOCAL',
+        }
+      : unresolved(
+          STORAGE_AUTHORITY_CHECK_ID,
+          network,
+          EVERY_INSTALLED_CONTRACT_AUTHORISED,
+          'this proposal installs outside a timelock schedule, which is the only envelope this gate reads, so its authorities were not observed'
+        )
+  }
+
+  return unresolved(
+    STORAGE_AUTHORITY_CHECK_ID,
+    network,
+    EVERY_INSTALLED_CONTRACT_AUTHORISED,
+    'no storage-authority read was made for this proposal'
+  )
 }
 
 const unresolved = (
@@ -1421,11 +1508,10 @@ export const proposalCheckResults = (
             network,
             verdicts.storageAuthority.anchors
           )
-      : unresolved(
-          STORAGE_AUTHORITY_CHECK_ID,
-          network,
-          EVERY_INSTALLED_CONTRACT_AUTHORISED,
-          'no storage-authority read was made for this proposal'
+      : storageAuthorityAbsenceResult(
+          verdicts.storageAuthorityAbsence,
+          verdicts.codehash,
+          network
         ),
     targetStateCheckResult(verdicts.targetState, network),
     verdicts.executability
