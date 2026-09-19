@@ -538,10 +538,8 @@ const assertSubmodulesPinned = (
  * unchecked would rebuild a london deployment as cancun and grade it MISMATCH.
  *
  * A non-zk pair is matched by its versions, so either spelling of the london
- * profile resolves, and a profile that pins one version and inherits the other
- * from `[profile.default]` is matched by the pair forge would build with. The
- * zk profile is matched by name: its zksolc pin attaches by name in
- * `parseBuildProfiles`, and older commits carry no pin at all.
+ * profile resolves. The zk profile is matched by name: its zksolc pin attaches
+ * by name in `parseBuildProfiles`, and older commits carry no pin at all.
  *
  * @param deps - the file primitive the runner reads the checkout with
  * @param checkout - absolute path of the detached worktree
@@ -567,7 +565,7 @@ const resolveCheckoutProfile = (
       } / evm ${requested.evmVersion} there.`
     )
   }
-  const profiles = parseBuildProfiles(toml, { inheritFromDefault: true })
+  const profiles = parseBuildProfiles(toml)
 
   if (requested.zksolcVersion !== undefined) {
     if (profiles[ZK_PROFILE] !== undefined) return ZK_PROFILE
@@ -680,15 +678,17 @@ export const createForgeRebuildRunner = (
       deps.git(['-C', checkout, 'submodule', 'update', '--init', '--recursive'])
       assertSubmodulesPinned(deps.git, checkout)
 
+      const command = isZk
+        ? join(deps.repoRoot, 'foundry-zksync', 'forge')
+        : 'forge'
+      // The pin check first: a missing or off-pin zk toolchain names the drift
+      // precisely, and a profile refusal in front of it would mask that.
+      if (isZk) assertZkToolchainPinned(deps, command)
       const checkoutProfile = resolveCheckoutProfile(
         deps,
         checkout,
         request.profile
       )
-      const command = isZk
-        ? join(deps.repoRoot, 'foundry-zksync', 'forge')
-        : 'forge'
-      if (isZk) assertZkToolchainPinned(deps, command)
       // `test`/`script` are forge aliases for `.t.sol`/`.s.sol` only; the
       // path globs skip the whole trees. Only src/ is attested.
       // `--offline` refuses forge's auto-install so a missing pin cannot be
