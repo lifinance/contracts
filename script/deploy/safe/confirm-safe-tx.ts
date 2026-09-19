@@ -1698,6 +1698,9 @@ const processTxs = async (
       ...(isTronNetworkKey(network)
         ? {
             executabilityOutOfScope: `${network} is executed through its own chain executor, which the EVM simulator does not cover`,
+            // TronGrid answers `eth_getCode` only at `latest`, so the pinned
+            // block every provider is held to cannot be asked for there.
+            rpcQuorumOutOfScope: `${network} serves a code read only at the latest block, so its providers cannot be compared at one height`,
           }
         : {}),
       rpcQuorum,
