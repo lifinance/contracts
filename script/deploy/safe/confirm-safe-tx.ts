@@ -33,6 +33,8 @@ import {
   buildExplorerAddressUrl,
   getFallbackTransportForChain,
 } from '../../utils/viemScriptHelpers'
+import { FacetCutActionEnum } from '../codehash/cut-classification'
+import { ZERO_ADDRESS } from '../shared/constants'
 import { createDefaultCache } from '../shared/deployment-cache'
 import { getGitCommit, sanitizeProvenanceText } from '../shared/git-provenance'
 import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
@@ -79,6 +81,7 @@ import {
   CONFIRM_CHECK_DEFINITIONS,
   EXECUTABILITY_CHECK_ID,
   proposalCheckResults,
+  type TStorageAuthorityAbsence,
   RPC_QUORUM_CHECK_ID,
   worstResultPerCheck,
 } from './confirm-check-registry'
@@ -154,7 +157,7 @@ import {
   createPinnedBlock,
   ENDPOINT_READ_BUDGET_MS,
 } from './rpc-quorum-collector'
-import { getTargetName } from './safe-decode-utils'
+import { collectDiamondCutTargets, getTargetName } from './safe-decode-utils'
 import {
   buildCalldataTarget,
   buildSafeTxDetailLines,
@@ -550,11 +553,10 @@ const processTxs = async (
    * what was signed; it can no longer refuse it. The persistence half still
    * runs after signing and reads this cache rather than the chain again.
    *
-   * `undefined` means nothing was read — the calldata was not a schedule
-   * batch, the chain is outside the gate's coverage, or the read threw. Every
-   * one of those leaves the ledger without a graded row, which blocks. That is
-   * the same outcome as before this was moved, deliberately: this change moves
-   * when gate G is graded, not what it decides.
+   * An absent set carries why it is absent — the calldata was not a schedule
+   * batch, the chain is outside the gate's coverage, or the observation could
+   * not be made — and the ledger grades each of those on its own terms; only a
+   * chain the reader covers whose observation failed still blocks.
    */
   interface IObservedSet {
     operationId: Hex
@@ -576,6 +578,33 @@ const processTxs = async (
   // next proposal against it. Re-reading on discard is the fix if that day comes.
   const observedSets = new Map<string, IObservedSet>()
 
+  // Read from the calldata alone: a cut that adds or replaces a facet, sets
+  // an init target, or registers a periphery contract puts code into service.
+  const calldataInstallsSomething = (callData: Hex): boolean => {
+    const collected = collectDiamondCutTargets(callData)
+    return (
+      collected.registrations.length > 0 ||
+      collected.calls.some(
+        (call) =>
+          call.init !== ZERO_ADDRESS ||
+          call.cuts.some(
+            (cut) =>
+              cut.action === FacetCutActionEnum.Add ||
+              cut.action === FacetCutActionEnum.Replace
+          )
+      )
+    )
+  }
+
+  /**
+   * What one attempt to read the sign-time set produced: the observation, or
+   * why there is none. The three absences reach the ledger as different rows,
+   * so they are named here rather than collapsed into `undefined`.
+   */
+  type TSetObservation =
+    | { kind: 'observed'; observation: IObservedSet }
+    | { kind: 'absent'; absence: TStorageAuthorityAbsence }
+
   async function observeSetForProposal(
     safeTxHash: string,
     callData: Hex | undefined,
@@ -585,17 +614,24 @@ const processTxs = async (
       info: (message: string) => void
       warn: (message: string) => void
     } = consola
-  ): Promise<IObservedSet | undefined> {
+  ): Promise<TSetObservation> {
     const cached = observedSets.get(safeTxHash)
-    if (cached) return cached
+    if (cached) return { kind: 'observed', observation: cached }
 
-    if (!callData || !isScheduleBatchCalldata(callData)) return undefined
+    if (!callData || !isScheduleBatchCalldata(callData))
+      return { kind: 'absent', absence: { kind: 'not-scheduled' } }
 
     if (resolveGateCoverage(networkKey) === 'uncovered-tron') {
-      log.info(
-        "Sign-time set not read: reading code on this chain is outside the gate's coverage (EXSC-954)"
-      )
-      return undefined
+      const reason = `${network} is read through TronWeb, which the storage-authority reader does not carry, so the contracts this proposal installs were not observed`
+      log.info(`Sign-time set not read: ${reason}`)
+      return {
+        kind: 'absent',
+        absence: {
+          kind: 'out-of-scope',
+          reason,
+          installs: calldataInstallsSomething(callData),
+        },
+      }
     }
 
     try {
@@ -634,14 +670,15 @@ const processTxs = async (
 
       const observedSet: IObservedSet = { operationId, observed }
       observedSets.set(safeTxHash, observedSet)
-      return observedSet
+      return { kind: 'observed', observation: observedSet }
     } catch (error) {
-      log.warn(
-        `Could not read the sign-time set; gate G has nothing to grade and will block: ${redactUrls(
-          error instanceof Error ? error.message : String(error)
-        )}`
+      const reason = redactUrls(
+        error instanceof Error ? error.message : String(error)
       )
-      return undefined
+      log.warn(
+        `Could not read the sign-time set; gate G has nothing to grade and will block: ${reason}`
+      )
+      return { kind: 'absent', absence: { kind: 'read-failed', reason } }
     }
   }
 
@@ -660,8 +697,9 @@ const processTxs = async (
     signedTx: ISafeTransaction
   ): Promise<void> {
     const callData = signedTx.data.data as Hex | undefined
-    const observedSet = await observeSetForProposal(txDoc.safeTxHash, callData)
-    if (!observedSet) return
+    const read = await observeSetForProposal(txDoc.safeTxHash, callData)
+    if (read.kind !== 'observed') return
+    const observedSet = read.observation
 
     try {
       const record = buildSignedSetRecord(
@@ -899,6 +937,8 @@ const processTxs = async (
     rpcQuorum: IRpcQuorumVerdict | undefined
     calldataAddresses: ICalldataAddressVerdict | undefined
     observedSet: IObservedSet | undefined
+    /** Why `observedSet` is absent, when the read itself said. */
+    storageAuthorityAbsence?: TStorageAuthorityAbsence
     references: IAddressReference[]
     undecodable: string[]
     /** What the reads said, held back until this proposal is on screen. */
@@ -1269,7 +1309,7 @@ const processTxs = async (
     // Read before the signer is asked to decide. The same call inside
     // `recordSignedSet` runs after the signature, where a refusal is no
     // longer available; the cache makes the second call free.
-    const observedSet = await observeSetForProposal(
+    const read = await observeSetForProposal(
       tx.safeTxHash,
       tx.safeTransaction.data.data as Hex | undefined,
       log
@@ -1283,7 +1323,9 @@ const processTxs = async (
       executability,
       rpcQuorum,
       calldataAddresses,
-      observedSet,
+      ...(read.kind === 'observed'
+        ? { observedSet: read.observation }
+        : { observedSet: undefined, storageAuthorityAbsence: read.absence }),
       references,
       undecodable,
       lines: log.lines,
@@ -1659,6 +1701,7 @@ const processTxs = async (
       references,
       undecodable,
       observedSet,
+      storageAuthorityAbsence,
     } = evidence.value
 
     // Rendered here and printed in zone 2: the gate's own block carries
@@ -1686,6 +1729,7 @@ const processTxs = async (
             ...(undecodable.length > 0 ? { scopeUnreadable: undecodable } : {}),
           }
         : undefined,
+      ...(storageAuthorityAbsence ? { storageAuthorityAbsence } : {}),
       integrity: integrityRun,
       // The gate object this proposal was judged on, not a re-derivation of
       // it: the row must report the same verdict the refusal below acts on.
