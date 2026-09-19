@@ -8,7 +8,9 @@
 
 import {
   formatAddressForNetworkCliDisplay,
+  getTronWebCodecOnlyForNetwork,
   isTronNetworkKey,
+  tronBase58ToEvm20Hex,
 } from '@lifi/tron-devkit'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
@@ -111,6 +113,10 @@ import {
   describeOperationValue,
   evaluateDelegateCallGate,
 } from './delegatecall-gate'
+import {
+  withCalldataSpellings,
+  type IRecordSpellingTranslator,
+} from './deployment-record-spellings'
 import {
   collectExecutabilityInput,
   createExecutabilityChainReader,
@@ -862,6 +868,25 @@ const processTxs = async (
     }
   }
 
+  // A Tron deployment record stores base58 while a cut carries 20-byte hex,
+  // so without this every Tron address the record does name reads as one
+  // nobody deployed.
+  const tronRecordTranslator: IRecordSpellingTranslator | undefined =
+    isTronNetworkKey(network)
+      ? (() => {
+          const codec = getTronWebCodecOnlyForNetwork(networkKey)
+          return {
+            toCalldataSpelling: (address: string) => {
+              try {
+                return tronBase58ToEvm20Hex(codec, address).toLowerCase()
+              } catch {
+                return undefined
+              }
+            },
+          }
+        })()
+      : undefined
+
   // The per-network reads every proposal's simulation and quorum gate shares.
   // Hoisted out of the proposal loop so a prefetched proposal reads the same
   // endpoint list the inline path would have.
@@ -1251,7 +1276,7 @@ const processTxs = async (
           ...(undecodable.length > 0 ? { undecodable } : {}),
         },
         buildDeploymentIndex(
-          records,
+          withCalldataSpellings(records, network, tronRecordTranslator),
           references.map((reference) => reference.address),
           referencedNames(references)
         )
