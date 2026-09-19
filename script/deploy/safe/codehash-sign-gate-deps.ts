@@ -538,10 +538,8 @@ const assertSubmodulesPinned = (
  * unchecked would rebuild a london deployment as cancun and grade it MISMATCH.
  *
  * A non-zk pair is matched by its versions, so either spelling of the london
- * profile resolves, and a profile that pins one version and inherits the other
- * from `[profile.default]` is matched by the pair forge would build with. The
- * zk profile is matched by name: its zksolc pin attaches by name in
- * `parseBuildProfiles`, and older commits carry no pin at all.
+ * profile resolves. The zk profile is matched by name: its zksolc pin attaches
+ * by name in `parseBuildProfiles`, and older commits carry no pin at all.
  *
  * @param deps - the file primitive the runner reads the checkout with
  * @param checkout - absolute path of the detached worktree
@@ -567,7 +565,7 @@ const resolveCheckoutProfile = (
       } / evm ${requested.evmVersion} there.`
     )
   }
-  const profiles = parseBuildProfiles(toml, { inheritFromDefault: true })
+  const profiles = parseBuildProfiles(toml)
 
   if (requested.zksolcVersion !== undefined) {
     if (profiles[ZK_PROFILE] !== undefined) return ZK_PROFILE
