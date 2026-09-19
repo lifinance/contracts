@@ -32,6 +32,7 @@ import {
 } from '../codehash/verify-cut-targets'
 import { ZERO_ADDRESS } from '../shared/constants'
 
+import { resolveGateCoverage } from './prebroadcast-gate'
 import { collectDiamondCutTargets } from './safe-decode-utils'
 import { isSignedStruct, type ISignedSafeTransaction } from './safe-utils'
 import { GATE_BODY_INDENT, GATE_TITLE_INDENT } from './signer-view'
@@ -84,6 +85,17 @@ export interface ICodehashSignGate {
    * nothing, so a gate standing down can say what the proposal does instead.
    */
   knownCalls?: readonly string[]
+  /**
+   * Why this chain is outside what the gate can compare, when it is.
+   *
+   * Set only for a chain whose deployed code no rebuild in this repository can
+   * reproduce — Tron, built and deployed from the contracts-tron fork with its
+   * own toolchain and recorded under base58 addresses. The gate then compared
+   * nothing: `targets` is empty and `blocksSigning` is false, and the ledger
+   * asks the signer to take the documented gap on rather than reporting a
+   * legitimately deployed contract as MISMATCH.
+   */
+  outOfScope?: string
 }
 
 /**
@@ -234,13 +246,29 @@ export const evaluateCodehashSignGate = async (
       gradedData: data,
     }
 
-  const collected = collectDiamondCutTargets(data)
-
   // Normalised here rather than trusted from the caller. `config/networks.json`
   // is keyed lowercase and every lookup below throws on any other spelling, so
   // a caller passing what an operator typed would be refused instead of judged.
   // Lowercasing cannot refuse honest work; rejecting the spelling could.
   const network = input.network.toLowerCase()
+
+  // Decided before the calldata is opened, so nothing below can turn a chain
+  // the gate cannot compare into a per-address verdict about it.
+  if (resolveGateCoverage(network) === 'uncovered-tron') {
+    const outOfScope = `${network} is built and deployed from the contracts-tron fork with its own toolchain and recorded under base58 addresses, so no attested build in this repository can be compared with the installed code`
+    return {
+      gradedKey: proposalKeyOf(input.struct.data),
+      gradedData: data,
+      blocksSigning: false,
+      evaluated: true,
+      refusals: [],
+      targets: [],
+      outOfScope,
+      summary: `This gate compared nothing: ${outOfScope}`,
+    }
+  }
+
+  const collected = collectDiamondCutTargets(data)
 
   // Resolved only once a cut is actually present. Building these reads
   // `foundry.toml` and creates a checkout root, either of which can throw, and
@@ -406,8 +434,9 @@ export const renderCodehashSignGate = (gate: ICodehashSignGate): string[] => {
 
   // A gate that compared nothing has one sentence to say, and its ledger row
   // already says it under NOT APPLICABLE — where the manifest also counts it,
-  // which a free-standing block is not.
-  if (nothingWasJudged(gate)) return []
+  // which a free-standing block is not. The same holds for a chain it cannot
+  // compare on, whose row asks for the acknowledgement.
+  if (nothingWasJudged(gate) || gate.outOfScope) return []
 
   const lines = ['', `${GATE_TITLE_INDENT}${CODEHASH_GATE_HEADING}`]
   // The per-address reasons hang one step inside their verdict line.

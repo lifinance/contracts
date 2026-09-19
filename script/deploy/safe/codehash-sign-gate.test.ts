@@ -473,6 +473,63 @@ describe('evaluateCodehashSignGate', () => {
   })
 })
 
+describe("a chain outside the gate's coverage", () => {
+  // Tron: its contracts are built and deployed from the contracts-tron fork and
+  // its records are keyed base58, so no rebuild here can reach MATCH. The gate
+  // says so and stands aside for the signer to acknowledge, rather than
+  // reporting a legitimately deployed contract as MISMATCH.
+  const refusingDeps = (): IVerifyCutDeps => {
+    throw new Error('the rebuild must not run for an uncovered chain')
+  }
+
+  it('stands down naming the chain, without rebuilding anything', async () => {
+    const gate = await evaluateCodehashSignGate(
+      await gateInput(cutCalldata(), 'tron'),
+      refusingDeps
+    )
+    expect(gate.evaluated).toBe(true)
+    expect(gate.blocksSigning).toBe(false)
+    expect(gate.refusals).toEqual([])
+    expect(gate.targets).toEqual([])
+    expect(gate.outOfScope).toContain('tron')
+    expect(gate.summary).toContain('tron')
+  })
+
+  it('is bound to the transaction it was evaluated for', async () => {
+    const input = await gateInput(cutCalldata(), 'tron')
+    const gate = await evaluateCodehashSignGate(input, refusingDeps)
+    expect(() =>
+      assertCodehashSignGateAllowsSigning(
+        gate,
+        proposalKeyOf(input.struct.data)
+      )
+    ).not.toThrow()
+    expect(() =>
+      assertCodehashSignGateAllowsSigning(gate, 'some-other-key')
+    ).toThrow()
+  })
+
+  it('prints no free-standing block; the ledger row carries the verdict', async () => {
+    const gate = await evaluateCodehashSignGate(
+      await gateInput(cutCalldata(), 'tron'),
+      refusingDeps
+    )
+    expect(renderCodehashSignGate(gate)).toEqual([])
+  })
+
+  it('still judges the same cut on a covered chain', async () => {
+    let asked = false
+    await evaluateCodehashSignGate(
+      await gateInput(cutCalldata(), NETWORK),
+      () => {
+        asked = true
+        return deps()
+      }
+    )
+    expect(asked).toBe(true)
+  })
+})
+
 describe('renderCodehashSignGate', () => {
   const render = async (over: Partial<IVerifyCutDeps>): Promise<string> =>
     renderCodehashSignGate(

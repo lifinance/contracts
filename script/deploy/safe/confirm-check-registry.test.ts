@@ -1590,6 +1590,85 @@ describe('a chain the simulator does not cover', () => {
   })
 })
 
+describe("gates K and L on a chain outside the codehash gate's coverage", () => {
+  const outOfScopeGate = () =>
+    codehashGate({
+      targets: [],
+      outOfScope:
+        'tron: code is built and deployed from the contracts-tron fork and no attested build covers TVM, so this gate cannot compare',
+      summary: 'tron is outside this gate',
+    })
+
+  it('acknowledges both rows on the documented gap, naming the chain', () => {
+    const ledger = runLedger()
+    recordInto(ledger, verdicts({ codehash: outOfScopeGate() }))
+
+    for (const checkId of [CODEHASH_CHECK_ID, IMMUTABLES_CHECK_ID]) {
+      const row = ledger.results.find((result) => result.checkId === checkId)
+      expect(row?.status).toBe('needs-ack')
+      expect(row?.anchor).toBe('A-DOCUMENTED')
+      expect(row?.actual).toContain('tron')
+    }
+
+    const verdict = summariseLedger(ledger)
+    expect(verdict.hardBlocked).toBe(false)
+    const asked = verdict.requiresAcknowledgement.map(
+      (result) => result.checkId
+    )
+    expect(asked).toContain(CODEHASH_CHECK_ID)
+    expect(asked).toContain(IMMUTABLES_CHECK_ID)
+  })
+
+  // The acknowledgement path opened for the documented gap must not widen to
+  // a read that simply produced nothing: a K row asking to be acknowledged on
+  // an unresolved anchor is stored as the failure it is.
+  it('does not let an unresolved K row be acknowledged', () => {
+    const ledger = runLedger()
+    const stored = recordCheck(ledger, {
+      checkId: CODEHASH_CHECK_ID,
+      network: NETWORK,
+      status: 'needs-ack',
+      expected: 'x',
+      actual: 'y',
+      anchor: 'A-UNRESOLVED',
+    })
+    expect(stored.status).toBe('fail')
+    expect(summariseLedger(ledger).hardBlocked).toBe(true)
+  })
+
+  // A gate that stood down on one proposal never speaks for another: the
+  // out-of-scope note travels with a verdict that compared nothing, so a
+  // sibling proposal's MISMATCH on the same network still decides the row.
+  it('is out-ranked by a mismatch on a sibling proposal', () => {
+    const ledger = runLedger()
+    recordInto(
+      ledger,
+      verdicts({ codehash: outOfScopeGate() }),
+      verdicts({
+        codehash: codehashGate({
+          blocksSigning: true,
+          targets: [
+            {
+              address: '0x00000000000000000000000000000000000000f2',
+              verdict: 'MISMATCH',
+              reason: 'differs',
+              matchedLineages: [],
+              excludedByteCount: 0,
+              pricedByteCount: 0,
+              immutables: { status: 'none', detail: '' },
+            },
+          ],
+        }),
+      })
+    )
+    const row = ledger.results.find(
+      (result) => result.checkId === CODEHASH_CHECK_ID
+    )
+    expect(row?.status).toBe('fail')
+    expect(summariseLedger(ledger).hardBlocked).toBe(true)
+  })
+})
+
 describe('an integrity check the run registered but never reported', () => {
   // A registered check with no row is counted missing and blocks, so the
   // recorder answers for it — as unverified, never as a pass.
