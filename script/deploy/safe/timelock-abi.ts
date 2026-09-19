@@ -1,3 +1,4 @@
+import { consola } from 'consola'
 import {
   encodeAbiParameters,
   encodeFunctionData,
@@ -218,6 +219,123 @@ export interface ITimelockSaltInput {
  * @param input - the action, plus which attempt this is.
  * @returns a bytes32 salt.
  */
+/**
+ * The two timelock reads salt selection needs, behind whatever client a chain
+ * offers: viem on EVM, TronWeb on Tron.
+ */
+export interface ITimelockOperationReader {
+  hashOperationBatch: (
+    targets: readonly Address[],
+    values: readonly bigint[],
+    payloads: readonly Hex[],
+    predecessor: Hex,
+    salt: Hex
+  ) => Promise<Hex>
+  getTimestamp: (operationId: Hex) => Promise<bigint>
+}
+
+/** How many salts to try before giving up on finding an unused operation id. */
+export const MAX_SALT_ATTEMPTS = 16
+
+export interface IPickTimelockSaltAction {
+  chainId: number
+  timelockAddress: Address
+  targetAddresses: Address[]
+  originalCalldatas: Hex[]
+  /**
+   * The values the caller will schedule. Probing an assumed all-zero array would
+   * ask about a different operation than the one being created, so a taken id
+   * could read as free.
+   */
+  values: bigint[]
+}
+
+/**
+ * Picks the first action-derived salt whose operation the timelock does not
+ * already know.
+ *
+ * OZ's `_schedule` rejects any id it already has a timestamp for, and it keeps
+ * one after execute, so the action's first candidate salt is unusable for an
+ * action that has run before — scheduling it would revert only after signatures
+ * had been collected and the delay had elapsed.
+ *
+ * A pending hit refuses. Advancing past one would schedule the same batch twice
+ * under two operation ids, and the second proposal's intentHash would differ, so
+ * neither the timelock nor the duplicate index would stop a double execution.
+ *
+ * The scan is deterministic given chain state, so two proposers racing on the
+ * same repeat converge on the same salt and stay deduplicated.
+ *
+ * @param action - the action and its chain.
+ * @param reader - the timelock's own `hashOperationBatch` and `getTimestamp`.
+ * @returns the salt to schedule under.
+ * @throws If the timelock cannot be read, or every attempt is already taken.
+ */
+export const pickTimelockSaltWith = async (
+  action: IPickTimelockSaltAction,
+  reader: ITimelockOperationReader
+): Promise<Hex> => {
+  const {
+    chainId,
+    timelockAddress,
+    targetAddresses,
+    originalCalldatas,
+    values,
+  } = action
+
+  // A mismatched length probes an id `scheduleBatch` can never create, so a taken
+  // id reads as free and the revert lands after signatures and the full delay.
+  if (originalCalldatas.length !== targetAddresses.length)
+    throw new Error(
+      `pickTimelockSalt: originalCalldatas (${originalCalldatas.length}) and targetAddresses (${targetAddresses.length}) must have the same length`
+    )
+  if (values.length !== targetAddresses.length)
+    throw new Error(
+      `pickTimelockSalt: values (${values.length}) and targetAddresses (${targetAddresses.length}) must have the same length`
+    )
+
+  for (let attempt = 0; attempt < MAX_SALT_ATTEMPTS; attempt++) {
+    const salt = deriveTimelockSalt({
+      chainId,
+      timelockAddress,
+      targets: targetAddresses,
+      payloads: originalCalldatas,
+      attempt,
+    })
+
+    const operationId = await reader.hashOperationBatch(
+      targetAddresses,
+      values,
+      originalCalldatas,
+      TIMELOCK_ZERO_PREDECESSOR,
+      salt
+    )
+
+    const state = classifyTimelockOperation(
+      await reader.getTimestamp(operationId)
+    )
+
+    if (state === 'unknown') return salt
+
+    if (state === 'pending')
+      throw new Error(
+        `Timelock operation ${operationId} for this exact batch is already scheduled on ${timelockAddress} ` +
+          `and has not executed. This proposal duplicates work already in flight — execute or cancel the ` +
+          `existing operation instead of scheduling a second one. Nothing was proposed.`
+      )
+
+    consola.info(
+      `Timelock operation ${operationId} for this batch has already executed; deriving the next salt.`
+    )
+  }
+
+  throw new Error(
+    `Could not find an unused timelock operation id for this batch after ${MAX_SALT_ATTEMPTS} attempts ` +
+      `on ${timelockAddress}. That means this exact batch has been scheduled ${MAX_SALT_ATTEMPTS} times ` +
+      `already — refusing to schedule rather than guess.`
+  )
+}
+
 export const deriveTimelockSalt = (input: ITimelockSaltInput): Hex =>
   keccak256(
     encodeAbiParameters(

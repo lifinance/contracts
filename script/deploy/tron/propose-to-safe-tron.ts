@@ -54,6 +54,7 @@ import {
   TRON_SAFE_GET_TX_HASH_ABI,
 } from './constants.js'
 import { normalizeTronProposeCalls } from './propose-calls-tron.js'
+import { pickTronTimelockSalt } from './timelock-salt-tron.js'
 import type { IProposeToSafeTronOptions } from './types.js'
 
 async function runPropose(options: IProposeToSafeTronOptions) {
@@ -178,7 +179,22 @@ async function runPropose(options: IProposeToSafeTronOptions) {
     }
   }
 
-  const salt = `0x${Date.now().toString(16).padStart(64, '0')}` as Hex
+  // The same batch re-proposed derives the same salt, so the duplicate-intent
+  // index can see it; the timelock is asked so a repeat of executed work
+  // advances and a repeat of pending work is refused. Only the timelock
+  // branches below need one, so it is picked there.
+  const saltFor = (targetsEvm: Address[], payloads: Hex[]): Promise<Hex> =>
+    pickTronTimelockSalt({
+      tronWeb,
+      chainId,
+      timelockAddressBase58: timelockAddressBase58 as string,
+      timelockAddressEvm: tronBase58ToEvm20Hex(
+        tronWeb,
+        timelockAddressBase58 as string
+      ) as Address,
+      targets: targetsEvm,
+      payloads,
+    })
 
   let safeTxToBase58: string
   let safeTxDataHex: Hex
@@ -191,7 +207,9 @@ async function runPropose(options: IProposeToSafeTronOptions) {
     safeTxDataHex = encodeTimelockScheduleBatch(
       [diamondAddressEvm] as Address[],
       [TRON_DIAMOND_CONFIRM_OWNERSHIP_SELECTOR],
-      salt,
+      await saltFor([diamondAddressEvm] as Address[], [
+        TRON_DIAMOND_CONFIRM_OWNERSHIP_SELECTOR,
+      ]),
       minDelayBigInt
     )
     safeTxToBase58 = timelockAddressBase58
@@ -211,7 +229,7 @@ async function runPropose(options: IProposeToSafeTronOptions) {
       safeTxDataHex = encodeTimelockScheduleBatch(
         targetsEvm,
         calldatas,
-        salt,
+        await saltFor(targetsEvm, calldatas),
         minDelayBigInt
       )
       safeTxToBase58 = timelockAddressBase58
