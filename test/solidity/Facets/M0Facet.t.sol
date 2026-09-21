@@ -240,6 +240,9 @@ contract M0FacetTest is TestBaseFacet {
             orderBookBalanceBefore + bridgeData.minAmount
         );
 
+        // the whole deposit must move into escrow, never linger in the diamond
+        assertEq(usdc.balanceOf(address(diamond)), 0);
+
         OpenedOrder memory opened = _lastOpenedOrder();
         assertEq(opened.funder, address(m0Facet));
         assertEq(opened.sender, validM0Data.orderOwner);
