@@ -1299,11 +1299,6 @@ interface IDeploymentRecordFields {
  * by construction, unlike an address that a human or an older script may have
  * written either way.
  *
- * One query rather than exact-then-fallback: the fallback only ran when the
- * exact tier came back empty, so a corrupt row stored in the other casing sat
- * behind a clean exact match and was never compared against it. Casing is a
- * spelling of one address, not two addresses.
- *
  * A Tron record stores base58 while the cut carries 20-byte hex, so the address
  * as decoded matches nothing there. Those spellings are matched exactly and
  * never case-insensitively: base58check is case-sensitive, so folding case
@@ -1346,11 +1341,10 @@ export const buildRecordQuery = (
  * production collection carries both shapes today: `TCyAJzp…` on tron is
  * AllBridgeFacet 2.1.1 per the diamond log that recorded the cut, while a later
  * backfill row claims 2.1.2 at the same address, and `0x851450…` on metis
- * carries LiFuelFeeCollector and TokenWrapper at once. Sorting by `timestamp`
- * picks the wrong row for tron's TokenWrapper, sorting by version picks the
- * wrong row for AllBridgeFacet, and sorting by `createdAt` picks a
- * blank-version row on three EVM chains. A refusal reaches the signer as
- * `record-unreadable`, which is the honest answer to a store that holds two.
+ * carries LiFuelFeeCollector and TokenWrapper at once. Every caller grades a
+ * refusal fail-closed — `record-unreadable` through `refsFor`, `unestablished`
+ * through the off-code immutables reader, `stillMasked` through the pricer —
+ * so no path reads it as a clean answer.
  *
  * The one collapse is a blank field alongside a filled one: the verification
  * step rewrites the row it just verified and loses `version` on the way

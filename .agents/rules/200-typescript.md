@@ -77,7 +77,7 @@ paths:
 ### Dynamic imports for chain modules
 
 - Applies to **in-repo chain-specific implementation modules** — executors, chain callers, deployers (`script/deploy/safe/executors/tron-caller.ts`, `script/deploy/safe/executors/evm-caller.ts`) — and to any heavy dependency only some code paths need (`script/deploy/safe/ledger.ts`, `viem/accounts`). Load them with `await import('./path')` so a run only evaluates the implementation for the chain it is on. See `script/deploy/safe/executors/create-chain-caller.ts` for the pattern.
-- Import `@lifi/tron-devkit` helpers (`isTronNetworkKey`, the address converters, the chain-ID helpers) at the top level instead. `isTronNetworkKey` is the Tron-vs-EVM branch itself rather than a Tron-only dependency, so it runs on every network — including from synchronous helpers such as `normalizeAddressForNetwork()` that cannot `await`.
+- Import `@lifi/tron-devkit` helpers (`isTronNetworkKey`, the address converters, the chain-ID helpers) at the top level instead. `isTronNetworkKey` is the Tron-vs-EVM branch itself rather than a Tron-only dependency, so it runs on every network — including from synchronous helpers such as `normalizeAddressForNetwork()` that cannot `await`. This does not keep TronWeb out of an EVM-only run: the devkit barrel re-exports `tronWebFactory`, which imports `tronweb` at module scope, so any top-level devkit import loads it. The previous bullet's "only evaluates the implementation for the chain it is on" holds for in-repo modules, not for the devkit.
 
 ### Parallelize independent async work [CONV:PARALLEL-WORK]
 
