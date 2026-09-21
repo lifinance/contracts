@@ -7,6 +7,7 @@
  */
 
 import {
+  evmHexToTronBase58,
   getTronWebCodecOnlyForNetwork,
   isTronNetworkKey,
   tronAddressToHex,
@@ -19,11 +20,15 @@ import {
   getFacetAddressFromDiamondLog,
   getFacetSelectors,
   getRPCEnvVarName,
+  updateDiamondJson,
 } from '../../utils/utils'
 import {
   assertAddsAreUnrouted,
   buildFacetCuts,
+  holderResolver,
+  indexFacetRouting,
   planFacetUpgrade,
+  resolveOutgoingFacet,
 } from '../tron/facet-upgrade-cut'
 import type { TronTvmNetworkName } from '../tron/types'
 
@@ -160,37 +165,23 @@ export async function encodeFacetUpgradeCutCalldata(
     (tronAddressToHex(codec, base58) as Address).toLowerCase() as Address
 
   const routing = await readFacetRouting(diamondAddress, rpcUrl)
-  const holderOf = new Map<string, Address>()
-  const selectorsOf = new Map<Address, Hex[]>()
-  for (const entry of routing) {
-    const facetHex = toHex(entry.facet)
-    selectorsOf.set(facetHex, entry.selectors)
-    for (const selector of entry.selectors)
-      holderOf.set(selector.toLowerCase(), facetHex)
-  }
+  const index = indexFacetRouting(routing, toHex)
 
   const outgoingBase58 = await getFacetAddressFromDiamondLog(network, facetName)
-  const outgoingHex = outgoingBase58 ? toHex(outgoingBase58) : null
+  const outgoing = resolveOutgoingFacet(outgoingBase58, index, toHex)
 
   const plan = planFacetUpgrade(
     facetName,
     newSelectors,
     facetAddressHex,
-    outgoingBase58 && outgoingHex
-      ? {
-          label: outgoingBase58,
-          addressHex: outgoingHex,
-          registered: selectorsOf.get(outgoingHex) ?? [],
-        }
-      : null
+    outgoing
   )
 
   await assertAddsAreUnrouted(
     plan.add,
     facetName,
     outgoingBase58 ?? 'facet',
-    async (selector) =>
-      holderOf.get(selector.toLowerCase()) ?? (ZERO_ADDRESS as Address)
+    holderResolver(index)
   )
 
   const cuts = buildFacetCuts(plan, facetAddressHex)
@@ -236,6 +227,11 @@ export async function encodeFacetUpgradeCutCalldata(
  * what it has to; an Add-only cut would revert on the first unchanged selector
  * and leave the superseded version routable.
  *
+ * A Tron proposal also records the facet in `<network>.diamond.json`, the way
+ * the periphery path does — nothing else writes a facet entry here, and a log
+ * still naming the superseded address leaves the next upgrade with no outgoing
+ * facet to plan against.
+ *
  * The optional `init`/`excludeSelectors` pass straight through, so the
  * initializer rides inside the cut itself — one timelock operation, no window
  * in which the facet is live but uninitialised.
@@ -264,14 +260,32 @@ export async function proposeDiamondCut(options: {
       )
 
   if (isTronNetworkKey(options.network)) {
+    const tvmNetwork = options.network as TronTvmNetworkName
     const { runPropose } = await import('../tron/propose-to-safe-tron')
     await runPropose({
-      network: options.network as TronTvmNetworkName,
+      network: tvmNetwork,
       to: options.diamondAddress,
       calldata,
       timelock: true,
       privateKey: options.privateKey,
     })
+
+    // Record the pending registration, as the periphery path does. Nothing else
+    // writes a facet entry on this path, so leaving the log naming the
+    // superseded address strands the next upgrade: the loupe routes nothing
+    // there and `planFacetUpgrade` refuses rather than hand back an Add-only
+    // cut. The entry is the proposal, not the execution — a proposal that is
+    // rejected instead of executed re-proposes against this same address, which
+    // `planFacetUpgrade` reads as the cut that never landed.
+    await updateDiamondJson(
+      evmHexToTronBase58(
+        getTronWebCodecOnlyForNetwork(tvmNetwork),
+        options.facetAddressHex
+      ),
+      options.facetName,
+      undefined,
+      tvmNetwork
+    )
   } else {
     const { runPropose } = await import('../safe/propose-to-safe')
     await runPropose({
