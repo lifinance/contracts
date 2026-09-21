@@ -45,10 +45,6 @@ Rules reference conventions via `[CONV:*]` anchors that are defined directly wit
 
 All authoring constraints (scoping, size, naming, no-duplication, conventions, cross-references) are enforced automatically by `010-agents-authoring` (activates when editing `.agents/rules/*.md` or `.agents/commands/*.md`).
 
-## Context Management
-
-- `003-context-monitor.md`: Monitors context window usage, warns when approaching limits, and handles information rollover/handoff
-
 ## Adding New Rules
 
 Use `/add-rule-or-skill` as the standard workflow — it covers symlink creation, frontmatter, scoping, and validation.
@@ -98,7 +94,7 @@ Custom commands live in `.agents/commands/` (source of truth) and are symlinked 
 
 Special handling for transaction analysis:
 
-- `600-transaction-analysis.md`: Activation gate (detects natural language queries)
+- `600-transaction-analysis.md`: Routes concrete transaction debugging to `/analyze-tx`
 - `.agents/commands/analyze-tx.md`: Complete analysis workflow, rules, and policies (source of truth)
 
 Users can either use the `/analyze-tx <network> <tx_hash>` command directly or trigger analysis mode through natural language queries (e.g., "analyze this transaction 0x123... on ethereum").
@@ -110,7 +106,6 @@ Users can either use the `/analyze-tx <network> <tx_hash>` command directly or t
 | `000-global-standards.md`     | Project-wide conventions and guardrails                          | ✅ Always   | -                                                                                                             |
 | `001-project-structure.md`    | Project structure and file placement guidance                    | ✅ Always   | -                                                                                                             |
 | `002-architecture.md`         | Core architectural principles (Diamond, separation, governance)  | ✅ Always   | -                                                                                                             |
-| `003-context-monitor.md`      | Context window monitoring and handoff management                 | ✅ Always   | -                                                                                                             |
 | `004-config-structure.md`     | Config JSON structure (key-first vs network-first), required-vs-optional value sparsity, deploy paths | ❌ On match | `config/**/*.json`, `script/deploy/**/*.s.sol`, `script/deploy/resources/deployRequirements.json`             |
 | `010-agents-authoring.md`     | Auto-enforced constraints when editing .agents/ rules or commands | ❌ On match | `.agents/rules/*.md`, `.agents/commands/*.md`                                                                 |
 | `099-finish.md`               | Completion checklist to keep repo green                          | ✅ Always   | -                                                                                                             |
@@ -134,5 +129,5 @@ Users can either use the `/analyze-tx <network> <tx_hash>` command directly or t
 | `501-audits.md`               | Audit log and audit report management                            | ❌ On match | `audit/**/*.json`, `audit/**/*.pdf`, `.github/workflows/**/*audit*.yml`, `.github/workflows/**/*version*.yml` |
 | `502-whitelist-branching.md`  | Whitelist config branching strategy (main branch only)           | ❌ On match | `config/whitelist.json`, `config/composerWhitelist.json`                                                      |
 | `503-sc-feature-pr-lifecycle.md` | Canonical SC feature-PR stage order (peer review → BE integration → audit) and automation mapping | ❌ On match | `src/**/*.sol`, `test/**/*.t.sol`, `audit/**/*.json`, `audit/**/*.pdf`                                        |
-| `600-transaction-analysis.md` | Transaction analysis activation gate                             | ❌ On match | `**/*`                                                                                                        |
+| `600-transaction-analysis.md` | Routes concrete tx debugging to the analyze-tx command           | ❌ On match | `**/*`                                                                                                        |
 | `601-healthcheck-invariants.md` | Keep the declarative health-check invariant registry in sync with facet/periphery changes | ❌ On match | `src/Facets/**/*.sol`, `src/Periphery/**/*.sol`, `script/deploy/_targetState.json`                            |

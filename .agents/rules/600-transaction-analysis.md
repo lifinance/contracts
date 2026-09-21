@@ -1,29 +1,15 @@
 ---
 schema: 1
 scope: workspace
-description: Transaction analysis activation gate
+description: Routes concrete transaction debugging to the analyze-tx command
 globs:
   - '**/*'
 alwaysApply: false
 ---
 
-## Activation Gate
+## Transaction analysis
 
-**Apply ONLY when:**
-
-- User provides tx hash + network name AND asks to analyze/debug that specific transaction
-- Phrases like: "analyze this transaction", "debug this failing tx", "why did this bridge/swap revert?" (or similar variations)
-- User invokes `/analyze-tx` command
-
-**Do NOT apply for:**
-
-- General Solidity/Foundry questions
-- Deployment questions not tied to a single transaction
-- High-level protocol/architecture questions
-- Requests without concrete tx hash
-
-If partially matched (e.g., hash but no network), ask for missing info before entering transaction-analysis mode.
-
-## Transaction Analysis Mode
-
-When activated, use `.agents/commands/analyze-tx.md` for complete workflow, rules, and policies.
+Debugging one concrete on-chain transaction — a tx hash plus its network — runs through
+`.agents/commands/analyze-tx.md`, which holds the full workflow, rules, and policies.
+Ask for the network if only a hash was given. Protocol, deployment, and general Solidity
+questions are not transaction analysis and do not use it.
