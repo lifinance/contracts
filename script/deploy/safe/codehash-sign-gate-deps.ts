@@ -287,8 +287,8 @@ export const createRecordReader = (
     if (!row) return undefined
     return {
       contractName: row.contractName,
-      version: row.version ?? '',
-      gitCommitHash: row.gitCommitHash ?? '',
+      version: text(row.version),
+      gitCommitHash: text(row.gitCommitHash),
     }
   }
 }
@@ -1272,6 +1272,16 @@ const escapeRegexLiteral = (value: string): string =>
   value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 /**
+ * A stored field as trimmed text, whatever the row actually holds.
+ *
+ * Coerced rather than optional-chained: a row storing a number reaches the
+ * signer as `record-unreadable`, which is the unactionable message this
+ * resolver exists to replace, and the store's shape is not ours to assume.
+ */
+const text = (value: unknown): string =>
+  value === undefined || value === null ? '' : String(value).trim()
+
+/**
  * Picks the one record that describes an address, or refuses.
  *
  * There is no "latest wins" here to implement. An address holds one contract
@@ -1315,7 +1325,7 @@ export const resolveDeploymentRecord = <
   // space describes the same deploy, and comparing raw strings would refuse
   // exactly the duplicates this collapses. `version` is optional on the record
   // interface, so a missing one must read as blank rather than throw.
-  const versionOf = (record: T): string => record.version?.trim() ?? ''
+  const versionOf = (record: T): string => text(record.version)
 
   const named = new Set(
     candidates.filter((r) => versionOf(r) !== '').map((r) => r.contractName)
@@ -1340,12 +1350,11 @@ export const resolveDeploymentRecord = <
   if (identities.size > 1) refuse('what is', [...identities])
 
   const commits = new Set(
-    kept.map((r) => r.gitCommitHash?.trim() ?? '').filter((c) => c !== '')
+    kept.map((r) => text(r.gitCommitHash)).filter((c) => c !== '')
   )
   if (commits.size > 1) refuse('which commit built what is', [...commits])
 
-  return (kept.find((r) => (r.gitCommitHash?.trim() ?? '') !== '') ??
-    kept[0]) as T
+  return (kept.find((r) => text(r.gitCommitHash) !== '') ?? kept[0]) as T
 }
 
 /**
@@ -1395,6 +1404,10 @@ const createMongoRecordSource = (): IRecordSource => ({
     // exactly and never case-insensitively: base58check is case-sensitive, so
     // folding case there would match an address that is not the one asked
     // about.
+    //
+    // `\z` rather than `$` on the hex spelling: this is PCRE2, where `$` also
+    // matches before a trailing newline, so `$` would let `<address>\n` answer
+    // for the address.
     const spellings =
       createTronAddressSpellings(network)?.forCalldataAddress(address)
     const matches = await collection
@@ -1403,7 +1416,7 @@ const createMongoRecordSource = (): IRecordSource => ({
         $or: [
           {
             address: {
-              $regex: `^${escapeRegexLiteral(address)}$`,
+              $regex: `^${escapeRegexLiteral(address)}\\z`,
               $options: 'i',
             },
           },

@@ -402,6 +402,31 @@ describe('resolveDeploymentRecord', () => {
     ).toBe(named)
   })
 
+  // Optional chaining defends against an absent field, not against a stored
+  // number, which reached the signer as "could not be read: r.version.trim is
+  // not a function" — the unactionable message this resolver exists to replace.
+  it('coerces a non-string version instead of dying on its type', () => {
+    const numeric = {
+      contractName: 'TokenWrapper',
+      version: 2 as unknown as string,
+    }
+
+    expect(resolveDeploymentRecord([numeric], ADDRESS, 'tron')).toBe(numeric)
+  })
+
+  it('names the conflict when a non-string version disagrees with a real one', () => {
+    expect(() =>
+      resolveDeploymentRecord(
+        [
+          { contractName: 'TokenWrapper', version: 2 as unknown as string },
+          { contractName: 'TokenWrapper', version: '1.1.0' },
+        ],
+        ADDRESS,
+        'tron'
+      )
+    ).toThrow(/TokenWrapper@1\.1\.0/)
+  })
+
   it('refuses a three-row group where only one row dissents', () => {
     expect(() =>
       resolveDeploymentRecord(
