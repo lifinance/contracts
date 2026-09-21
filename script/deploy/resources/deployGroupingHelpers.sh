@@ -32,6 +32,10 @@ GROUP_CANCUN="cancun"
 # foundry.toml profile the london group builds under; cancun is the default profile
 PROFILE_LONDON="solc_floor"
 
+# foundry.toml profile the zk toolchain builds under; named here only so a non-zk deploy can
+# refuse it, since its compiler pair is the default profile's and tells the two apart
+PROFILE_ZKSYNC="zksync"
+
 # getNetworkEvmVersion NETWORK -> echoes the network's targetEvmVersion.
 function getNetworkEvmVersion() {
     local NETWORK="$1"
@@ -211,15 +215,23 @@ function selectFoundryProfileForNetwork() {
     fi
 
     # Nothing is selected for zkEVM, but a profile the previous network in the loop
-    # exported still has to go: deploySingleContract's zk path derives the CREATE2
-    # salt from a plain `forge build` into the standard out/
-    # (ensureStandardArtifactForSalt), and solc_floor writes there too. Left set, it
-    # would decide that bytecode and with it the address. prepareGroupBuild clears it
-    # before the zkevm group for the same reason.
+    # exported still has to go: deploySingleContract's zk path derives the CREATE2 salt
+    # from the standard out/ (ensureStandardArtifactForSalt), and solc_floor writes
+    # there too. Left set, it would decide that rebuild's bytecode and with it the
+    # address. prepareGroupBuild clears it before the zkevm group for the same reason.
     if isZkEvmNetwork "$NETWORK"; then
         unset FOUNDRY_PROFILE
         unset FOUNDRY_PROFILE_SELECTED_FOR_NETWORK
         return 0
+    fi
+
+    # The evm_version comparison below cannot catch this one: [profile.zksync] declares
+    # cancun and solc 0.8.29 like the default profile, so it reads as fitting every cancun
+    # network - while its `script` and `out` keys would send the deploy to the zk script
+    # directory and the zk artifact tree.
+    if [[ "${FOUNDRY_PROFILE:-}" == "$PROFILE_ZKSYNC" ]]; then
+        error "FOUNDRY_PROFILE=$PROFILE_ZKSYNC builds the zkEVM toolchain's script and artifact trees but $NETWORK is not a zkEVM network - refusing to deploy; unset FOUNDRY_PROFILE to let the network select its profile"
+        return 1
     fi
 
     if ! jq -e --arg network "$NETWORK" '.[$network] != null' "$NETWORKS_JSON_FILE_PATH" > /dev/null; then
@@ -239,7 +251,14 @@ function selectFoundryProfileForNetwork() {
     local TARGET_EVM_VERSION
     TARGET_EVM_VERSION=$(jq -r --arg network "$NETWORK" '.[$network].targetEvmVersion' "$NETWORKS_JSON_FILE_PATH")
 
+    # Skipping the comparison is not the same as inheriting: in a scriptMaster-style loop a
+    # profile an earlier network selected would otherwise decide this build, exactly as on
+    # the zkEVM arm above.
     if [[ -z "$TARGET_EVM_VERSION" ]]; then
+        if [[ -n "${FOUNDRY_PROFILE_SELECTED_FOR_NETWORK:-}" ]]; then
+            unset FOUNDRY_PROFILE
+            unset FOUNDRY_PROFILE_SELECTED_FOR_NETWORK
+        fi
         return 0
     fi
 
@@ -319,8 +338,9 @@ function prepareGroupBuild() {
             # zkEVM networks use the [profile.zksync] section; zksolc is pinned in foundry.toml [external.zksync] and exported via FOUNDRY_ZKSYNC (see helperFunctions.sh)
             # No standard forge build needed for zkEVM - compilation handled by deploy scripts.
             # out/ is nonetheless required to derive the CREATE2 deploy salt; deploySingleContract's
-            # zk path ensures it per contract (ensureStandardArtifactForSalt) with a plain `forge
-            # build`, so a profile left over from an earlier group would decide that salt's bytecode.
+            # zk path ensures it per contract (ensureStandardArtifactForSalt), which rebuilds when
+            # the tree on disk was compiled under another profile. Clearing here keeps that rebuild
+            # on the default profile rather than an earlier group's.
             unset FOUNDRY_PROFILE
             return 0
             ;;

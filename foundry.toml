@@ -45,10 +45,10 @@ seed = '0x1'
 #   the codegen production actually ships (no via_ir). No `skip` here: the deploy runners
 #   need script/** compiled under this profile, so the floor workflow passes its skips on
 #   the command line instead.
-# - Do not rename this section. The sign-time rebuild resolves a network's profile by name
-#   against this file but builds a checkout at the deployment commit; a name that does not
-#   exist there makes forge fall back to [profile.default] with a warning and exit 0, so
-#   every london slot older than the rename grades MISMATCH.
+# - Do not declare a second non-zk profile pinning this same solc/evm pair. The sign-time
+#   rebuild resolves a deployment commit's profile by its compiler pair
+#   (`resolveCheckoutProfile`), so a rename here is safe but a duplicate pair is ambiguous
+#   and refuses the rebuild.
 [profile.solc_floor]
 solc_version = '0.8.17'
 evm_version = 'london'

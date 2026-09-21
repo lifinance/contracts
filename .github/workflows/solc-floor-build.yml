@@ -1,14 +1,14 @@
 # - Verify Floor-Compiler Build
-# - Compiles the deployed contracts (src/) with the minimum pragma compiler (solc 0.8.17)
-#   via the `solc_floor` profile in foundry.toml (every src/ file pins `pragma solidity ^0.8.17`).
+# - Compiles src/ and script/ with the minimum pragma compiler (solc 0.8.17) via the
+#   `solc_floor` profile in foundry.toml (every src/ file pins `pragma solidity ^0.8.17`).
 # - Catches PRs that introduce syntax/features requiring a newer solc: the default profile
 #   pins 0.8.29, so such code would otherwise compile green and silently raise the real floor.
-# - Path-gated: the build job runs only when files that can affect src/ compilation change.
+# - Path-gated: the build job runs only when files that can affect that build change.
 #   A `solc-floor-build-required` aggregator job always reports a final status so this
 #   workflow can stay a required check on `main` branch protection even when the build
 #   job is skipped (see `.agents/rules/500-github-actions.md`).
-# - Only src/ has to honour the floor, so test/script are skipped on the command line. The
-#   profile itself carries no skip because the deploy runners compile script/** under it.
+# - script/ is in scope because the london deploy runs a bare `forge build` under this
+#   profile; only test/ is skipped, on the command line rather than in the profile.
 
 name: Verify Floor-Compiler Build
 on:
@@ -57,6 +57,7 @@ jobs:
               - 'foundry.toml'
               - 'remappings.txt'
               - 'src/**'
+              - 'script/**/*.sol'
               - 'lib/**'
               - '.gitmodules'
               - '.github/workflows/solc-floor-build.yml'
@@ -91,12 +92,14 @@ jobs:
       - name: Install forge Dependencies
         run: forge install
 
-      - name: Build src/ with floor compiler (solc 0.8.17)
-        # The `solc_floor` profile pins solc 0.8.17 + evm london. A failure here means a src/
-        # contract uses a language/syntax feature newer than the `^0.8.17` floor it declares.
+      - name: Build with floor compiler (solc 0.8.17)
+        # The `solc_floor` profile pins solc 0.8.17 + evm london. A failure here means a file
+        # uses a language/syntax feature newer than the `^0.8.17` floor it declares.
+        # script/** is compiled too: the london deploy runs a bare `forge build` under this
+        # profile, so a 0.8.18+ feature there breaks production deploys, not just tests.
         env:
           FOUNDRY_PROFILE: solc_floor
-        run: forge build --skip 'test/**' --skip 'script/**'
+        run: forge build --skip 'test/**'
 
   solc-floor-build-required:
     # Aggregator job for branch protection. Reports green when the heavy job

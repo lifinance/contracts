@@ -63,6 +63,8 @@ const LONDON_NETWORK = 'fuse'
 const CANCUN_NETWORK = 'base'
 /** A zkEVM mainnet, which selects no profile of its own. */
 const ZKEVM_NETWORK = 'zksync'
+/** The zk toolchain's profile, which shares the default profile's compiler pair. */
+const ZK_PROFILE = 'zksync'
 const UNSET = '<unset>'
 
 /** A `.env` the helpers accept, holding only path settings and no credentials. */
@@ -460,6 +462,10 @@ describe('deploySingleContract selects the profile from the network', () => {
     [LONDON_PROFILE, CANCUN_NETWORK],
     // `ci` pins no pair, so it resolves to the default's cancun.
     ['ci', LONDON_NETWORK],
+    // The pair guard cannot see this one: [profile.zksync] pins the default's
+    // cancun and 0.8.29, and only its `script`/`out` keys differ.
+    [ZK_PROFILE, CANCUN_NETWORK],
+    [ZK_PROFILE, LONDON_NETWORK],
   ])(
     'refuses FOUNDRY_PROFILE=%s for %s before any forge build',
     (profile, network) => {
@@ -552,6 +558,24 @@ describe('deploySingleContract selects the profile from the network', () => {
     expect(output).toContain('UNKNOWN_RC=1')
   })
 
+  it('does not let the row that names no EVM version inherit the previous profile', () => {
+    // Skipping the comparison is not the same as inheriting: in a scriptMaster
+    // loop the london export would otherwise decide localanvil's build, which
+    // is the asymmetry the zkEVM arm already avoids.
+    const output = run(makeSandbox(), [
+      ...SOURCE_HELPERS,
+      `selectFoundryProfileForNetwork ${LONDON_NETWORK}`,
+      `echo "PROFILE_BETWEEN=\${FOUNDRY_PROFILE-${UNSET}}"`,
+      `selectFoundryProfileForNetwork ${LOCAL_NETWORK}`,
+      'echo "RC=$?"',
+      `echo "PROFILE_AFTER=\${FOUNDRY_PROFILE-${UNSET}}"`,
+    ])
+
+    expect(output).toContain(`PROFILE_BETWEEN=${LONDON_PROFILE}`)
+    expect(output).toContain('RC=0')
+    expect(output).toContain(`PROFILE_AFTER=${UNSET}`)
+  })
+
   it('is the only row that skips the comparison, and only by naming the key', () => {
     // The skip keys on an empty targetEvmVersion, not on the network's name, so
     // what bounds it is that exactly one row is empty. A second empty row would
@@ -590,6 +614,99 @@ describe('deploySingleContract selects the profile from the network', () => {
     const guard = text.indexOf('getSolcVersion "$NETWORK" >/dev/null')
     expect(select).toBeGreaterThan(-1)
     expect(guard).toBeGreaterThan(select)
+  })
+})
+
+describe('ensureStandardArtifactForSalt grades the tree it found', () => {
+  /**
+   * A sandbox with its own writable `out/`, so a case can plant an artifact
+   * recording whichever compiler pair it wants to test against.
+   */
+  const makeArtifactSandbox = (
+    solcVersion: string,
+    evmVersion: string
+  ): ISandbox => {
+    const sandbox = makeSandbox()
+    const out = join(sandbox.root, 'out')
+    if (existsSync(out)) unlinkSync(out)
+    mkdirSync(join(out, 'Executor.sol'), { recursive: true })
+    writeFileSync(
+      join(out, 'Executor.sol', 'Executor.json'),
+      JSON.stringify({
+        bytecode: { object: '0x60' },
+        metadata: {
+          compiler: { version: `${solcVersion}+commit.8df45f5f` },
+          settings: { evmVersion },
+        },
+      })
+    )
+    return sandbox
+  }
+
+  const REPORT = ['ensureStandardArtifactForSalt Executor', 'echo "RC=$?"']
+
+  it('accepts an artifact the active profile would have produced', () => {
+    const sandbox = makeArtifactSandbox(london.solcVersion, london.evmVersion)
+
+    const output = run(sandbox, [...SOURCE_HELPERS, ...REPORT], {
+      FOUNDRY_PROFILE: LONDON_PROFILE,
+    })
+
+    expect(output).toContain('RC=0')
+    expect(
+      sandbox.forgeCalls().filter((call) => call.startsWith('forge build'))
+    ).toEqual([])
+  })
+
+  it('rebuilds a london tree left behind when the salt is derived under the default profile', () => {
+    // The zkEVM wave's case: `london -> zkevm` with no cancun network between
+    // them leaves out/ holding london bytecode, and the CREATE2 salt — with it
+    // the deployed address — would otherwise be derived from it.
+    const sandbox = makeArtifactSandbox(london.solcVersion, london.evmVersion)
+
+    const output = run(sandbox, [...SOURCE_HELPERS, ...REPORT])
+
+    expect(output).toContain('built under another profile')
+    expect(
+      sandbox.forgeCalls().filter((call) => call.startsWith('forge build'))
+    ).toEqual([expect.stringContaining(`FOUNDRY_PROFILE=${UNSET}`)])
+    // The stub forge writes nothing, so the rebuild cannot make the tree fit
+    // and the salt is refused rather than derived from the wrong bytecode.
+    expect(output).toContain('RC=1')
+  })
+
+  it('rebuilds a cancun tree when the london profile is the active one', () => {
+    const sandbox = makeArtifactSandbox(
+      fallback.solcVersion,
+      fallback.evmVersion
+    )
+
+    const output = run(sandbox, [...SOURCE_HELPERS, ...REPORT], {
+      FOUNDRY_PROFILE: LONDON_PROFILE,
+    })
+
+    expect(output).toContain('built under another profile')
+    expect(
+      sandbox.forgeCalls().filter((call) => call.startsWith('forge build'))
+    ).toEqual([expect.stringContaining(`FOUNDRY_PROFILE=${LONDON_PROFILE}`)])
+  })
+
+  it('rebuilds an artifact that records no compiler at all', () => {
+    const sandbox = makeSandbox()
+    const out = join(sandbox.root, 'out')
+    if (existsSync(out)) unlinkSync(out)
+    mkdirSync(join(out, 'Executor.sol'), { recursive: true })
+    writeFileSync(
+      join(out, 'Executor.sol', 'Executor.json'),
+      JSON.stringify({ bytecode: { object: '0x60' } })
+    )
+
+    const output = run(sandbox, [...SOURCE_HELPERS, ...REPORT])
+
+    expect(output).toContain('built under another profile')
+    expect(
+      sandbox.forgeCalls().filter((call) => call.startsWith('forge build'))
+    ).toHaveLength(1)
   })
 })
 

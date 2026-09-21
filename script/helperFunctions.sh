@@ -1796,6 +1796,39 @@ function getOptimizerRuns() {
 
 }
 
+# standardArtifactMatchesActiveProfile: Whether an artifact was built with the compiler the
+# active FOUNDRY_PROFILE declares. Anything unreadable - a missing file, absent metadata, a
+# profile that declares no pin - answers no, because the caller's response is to rebuild and
+# that is also the right response to an artifact nothing can vouch for.
+#
+# Usage: standardArtifactMatchesActiveProfile ARTIFACT_PATH
+#   ARTIFACT_PATH - path of the standard forge artifact to inspect
+#
+# Returns: 0 when the artifact's recorded solc and evm versions are the active profile's, 1 otherwise
+# Example: standardArtifactMatchesActiveProfile "out/FeeForwarder.sol/FeeForwarder.json"
+function standardArtifactMatchesActiveProfile() {
+  local ARTIFACT_PATH="${1:-}"
+
+  if [[ -z "$ARTIFACT_PATH" ]] || [[ ! -f "$ARTIFACT_PATH" ]]; then
+    return 1
+  fi
+
+  local EXPECTED_SOLC EXPECTED_EVM ACTUAL_SOLC ACTUAL_EVM
+  EXPECTED_SOLC=$(getFoundryProfileValue "solc_version" 2>/dev/null) || return 1
+  EXPECTED_EVM=$(getFoundryProfileValue "evm_version" 2>/dev/null) || return 1
+  [[ -n "$EXPECTED_SOLC" && -n "$EXPECTED_EVM" ]] || return 1
+
+  ACTUAL_SOLC=$(jq -r '.metadata.compiler.version // empty' "$ARTIFACT_PATH" 2>/dev/null) || return 1
+  ACTUAL_EVM=$(jq -r '.metadata.settings.evmVersion // empty' "$ARTIFACT_PATH" 2>/dev/null) || return 1
+  [[ -n "$ACTUAL_SOLC" && -n "$ACTUAL_EVM" ]] || return 1
+
+  # solc records itself as `0.8.17+commit.8df45f5f`; foundry.toml pins the version alone.
+  [[ "${ACTUAL_SOLC%%+*}" == "$EXPECTED_SOLC" ]] || return 1
+  [[ "$ACTUAL_EVM" == "$EXPECTED_EVM" ]] || return 1
+
+  return 0
+}
+
 # ensureStandardArtifactForSalt: Make sure the standard build artifact a deploy salt is derived
 # from exists, building it if necessary.
 #
@@ -1810,10 +1843,16 @@ function getOptimizerRuns() {
 # the deploy looks like it stopped for no reason - leaving the salt to be derived from the error
 # text rather than from bytecode.
 #
+# An artifact already on disk is only accepted when its recorded compiler pair matches the
+# active profile's. A grouped deploy leaves the previous group's out/ behind, so a bare
+# existence check would derive a zkEVM or cancun salt - and with it the deployed address -
+# from london bytecode whenever no cancun network ran in between to overwrite the tree.
+#
 # Usage: ensureStandardArtifactForSalt CONTRACT
 #   CONTRACT - Name of the contract whose artifact is required
 #
-# Returns: 0 if the artifact exists or was built; 1 (with an error) if it cannot be produced.
+# Returns: 0 if the artifact exists for the active profile or was built; 1 (with an error) if
+#          it cannot be produced.
 # Example: ensureStandardArtifactForSalt "FeeForwarder"
 function ensureStandardArtifactForSalt() {
   # read function arguments into variables
@@ -1826,7 +1865,7 @@ function ensureStandardArtifactForSalt() {
 
   local ARTIFACT_PATH="out/$CONTRACT.sol/$CONTRACT.json"
 
-  if checkIfFileExists "$ARTIFACT_PATH" >/dev/null; then
+  if standardArtifactMatchesActiveProfile "$ARTIFACT_PATH"; then
     return 0
   fi
 
@@ -1834,7 +1873,7 @@ function ensureStandardArtifactForSalt() {
     return 1
   fi
 
-  echo "[info] standard artifact $ARTIFACT_PATH not found - running 'forge build --skip test' to derive the deploy salt"
+  echo "[info] standard artifact $ARTIFACT_PATH missing or built under another profile - running 'forge build --skip test' to derive the deploy salt"
   if ! forge build --skip test; then
     error "'forge build --skip test' failed - cannot derive the deploy salt for $CONTRACT without $ARTIFACT_PATH"
     return 1
@@ -1842,6 +1881,11 @@ function ensureStandardArtifactForSalt() {
 
   if ! checkIfFileExists "$ARTIFACT_PATH" >/dev/null; then
     error "'forge build --skip test' did not produce $ARTIFACT_PATH - cannot derive the deploy salt for $CONTRACT (is $CONTRACT.sol still present in src/?)"
+    return 1
+  fi
+
+  if ! standardArtifactMatchesActiveProfile "$ARTIFACT_PATH"; then
+    error "$ARTIFACT_PATH was rebuilt but still does not record the compiler pair FOUNDRY_PROFILE=${FOUNDRY_PROFILE:-default} declares - refusing to derive the deploy salt for $CONTRACT from it"
     return 1
   fi
 
