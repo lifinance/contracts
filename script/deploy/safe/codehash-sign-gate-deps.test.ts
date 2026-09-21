@@ -355,6 +355,46 @@ describe('resolveDeploymentRecord', () => {
     ).toBe(versioned)
   })
 
+  // Blankness was judged trimmed while the identity key used the raw string, so
+  // a single space split one deploy into two identities and refused it.
+  it('collapses a whitespace-only version against a blank sibling', () => {
+    const first = row({ contractName: 'PolymerCCTPFacet', version: '  ' })
+
+    expect(
+      resolveDeploymentRecord(
+        [first, row({ contractName: 'PolymerCCTPFacet', version: '' })],
+        ADDRESS,
+        'base'
+      )
+    ).toBe(first)
+  })
+
+  it('does not split one version across rows that pad it differently', () => {
+    const first = row({ version: '2.1.1' })
+
+    expect(
+      resolveDeploymentRecord(
+        [first, row({ version: ' 2.1.1 ' })],
+        ADDRESS,
+        'tron'
+      )
+    ).toBe(first)
+  })
+
+  // `version` is optional on the record interface, and a row omitting it used
+  // to surface at the signer as "could not be read: undefined is not an object".
+  it('treats an absent version as blank rather than throwing', () => {
+    const named = { contractName: 'TokenWrapper', version: '1.1.0' }
+
+    expect(
+      resolveDeploymentRecord(
+        [{ contractName: 'TokenWrapper' }, named],
+        ADDRESS,
+        'tron'
+      )
+    ).toBe(named)
+  })
+
   it('refuses a three-row group where only one row dissents', () => {
     expect(() =>
       resolveDeploymentRecord(
