@@ -152,9 +152,6 @@ const refused = (reason: string): IPricingRefused => ({
   reason,
 })
 
-/** Hex, with or without the prefix. No Tron base58 address can match: 'T' is not a hex digit. */
-const HEX_VALUE = /^(0x)?[0-9a-fA-F]+$/
-
 /**
  * A declared address as the compiler would have inlined it on this network.
  *
@@ -168,18 +165,20 @@ const HEX_VALUE = /^(0x)?[0-9a-fA-F]+$/
  */
 const asInlinedSpelling = (declared: string, network: string): string => {
   const value = declared.trim()
-  if (HEX_VALUE.test(value)) return value
   try {
-    return (
-      createTronAddressSpellings(network)?.toCalldataSpelling(value) ?? value
-    )
+    // Tried before any hex value is passed through: Tron's own `41` prefix is
+    // hex too, and handing those 21 bytes on unchanged would compare a value no
+    // slot can hold instead of the 20 the compiler inlined.
+    const translated =
+      createTronAddressSpellings(network)?.toCalldataSpelling(value)
+    if (translated !== undefined) return translated
   } catch {
     // Infrastructure path, synthetic by necessity: a codec is only unbuildable
     // when the Tron endpoint config is malformed. This module grades a slot
     // unpriceable rather than throwing, and one unbuildable codec is not a
     // reason to abandon every other slot on the contract.
-    return value
   }
+  return value
 }
 
 /**

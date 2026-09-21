@@ -604,6 +604,37 @@ describe('priceImmutables', () => {
     expect(result.disagreeingByteCount).toBe(32)
   })
 
+  it('compares a Tron `41`-prefixed config value against the slot it fills', () => {
+    // Tron's own hex spelling is 21 bytes, which no slot can hold; read as
+    // generic hex it would fault instead of naming the address it names.
+    const result = priceImmutables(
+      {
+        contractName: 'AcrossFacet',
+        observed: [
+          {
+            name: 'wrappedNative',
+            value: slot(TRON_WRAPPED_NATIVE_HEX),
+            slotByteCount: 32,
+            byteCount: 32,
+          },
+        ],
+        network: 'tron',
+        environment: 'production',
+      },
+      REQUIREMENTS,
+      () => ({
+        tron: {
+          wrappedNativeAddress: `41${TRON_WRAPPED_NATIVE_HEX.slice(2)}`,
+        },
+      })
+    )
+    if (!result.decided) throw new Error(result.reason)
+
+    expect(result.slots[0]?.status).toBe('verified')
+    expect(result.disagreements).toEqual([])
+    expect(result.unpricedByteCount).toBe(0)
+  })
+
   it('prices a declared value that config wrote with surrounding whitespace', () => {
     const result = priceImmutables(
       {

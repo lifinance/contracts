@@ -342,6 +342,21 @@ describe('resolveDeploymentRecord', () => {
     ).toThrow(/commit/)
   })
 
+  // `UNKNOWN` is what the record writer stores when it could not read a commit,
+  // and the downstream readers already treat it as absence. Counting it as a
+  // claim would refuse a pair whose one real commit is the rebuild key.
+  it('treats an UNKNOWN commit as absent rather than as a second claim', () => {
+    const unknown = row({ gitCommitHash: 'UNKNOWN' })
+    const withCommit = row({})
+
+    expect(
+      resolveDeploymentRecord([unknown, withCommit], ADDRESS, 'tron')
+    ).toBe(withCommit)
+    expect(
+      resolveDeploymentRecord([withCommit, unknown], ADDRESS, 'tron')
+    ).toBe(withCommit)
+  })
+
   it('prefers the row carrying a commit over a blank sibling, whatever the order', () => {
     const withCommit = row({})
     const blank = row({ gitCommitHash: '' })

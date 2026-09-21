@@ -1403,12 +1403,22 @@ export const resolveDeploymentRecord = <
   // the verification step rewrote, and that row is the one whose commit was
   // actually verified. Comparing only what survives the collapse lets a row
   // that can fill in a version outrank the row that was checked.
+  //
+  // `UNKNOWN` is what the record writer stores when it could not read a commit,
+  // so it is absence of evidence like a blank field is, not a competing claim.
+  // Counting it would refuse a pair whose only real commit is usable, and let
+  // it outrank that commit in the pick below.
+  const namesCommit = (record: T): boolean => {
+    const commit = text(record.gitCommitHash)
+    return commit !== '' && commit !== UNKNOWN_COMMIT
+  }
+
   const commits = new Set(
-    candidates.map((r) => text(r.gitCommitHash)).filter((c) => c !== '')
+    candidates.filter(namesCommit).map((r) => text(r.gitCommitHash))
   )
   if (commits.size > 1) refuse('which commit built what is', [...commits])
 
-  return (kept.find((r) => text(r.gitCommitHash) !== '') ?? kept[0]) as T
+  return (kept.find(namesCommit) ?? kept[0]) as T
 }
 
 /**
