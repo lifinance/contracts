@@ -482,6 +482,24 @@ describe('deploySingleContract selects the profile from the network', () => {
     }
   )
 
+  // The refusal reads the network's row, so it has to come after the row exists:
+  // diagnosing a typo as a profile mismatch sends the operator the wrong way.
+  it('names the unknown network rather than the profile it is holding', () => {
+    const output = run(
+      makeSandbox(),
+      [
+        ...SOURCE_HELPERS,
+        'selectFoundryProfileForNetwork nosuchnetwork',
+        'echo "RC=$?"',
+      ],
+      { FOUNDRY_PROFILE: ZK_PROFILE }
+    )
+
+    expect(output).toContain('RC=1')
+    expect(output).toContain('not found in networks.json')
+    expect(output).not.toContain('is not a zkEVM network')
+  })
+
   it('re-selects for the next network when it chose the previous profile itself', () => {
     // scriptMaster deploys one contract to every network in a single loop, so
     // the london export must not be read as the operator's choice at the next
@@ -689,6 +707,21 @@ describe('ensureStandardArtifactForSalt grades the tree it found', () => {
     expect(
       sandbox.forgeCalls().filter((call) => call.startsWith('forge build'))
     ).toEqual([expect.stringContaining(`FOUNDRY_PROFILE=${LONDON_PROFILE}`)])
+  })
+
+  // [profile.zksync] pins the default profile's pair, so the pair alone would
+  // read the standard tree as one it wrote — and it writes out/zksync instead.
+  it('refuses a profile that writes somewhere other than out/', () => {
+    const sandbox = makeArtifactSandbox(
+      fallback.solcVersion,
+      fallback.evmVersion
+    )
+
+    const output = run(sandbox, [...SOURCE_HELPERS, ...REPORT], {
+      FOUNDRY_PROFILE: ZK_PROFILE,
+    })
+
+    expect(output).toContain('built under another profile')
   })
 
   it('rebuilds an artifact that records no compiler at all', () => {

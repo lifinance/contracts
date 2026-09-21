@@ -32,8 +32,8 @@ GROUP_CANCUN="cancun"
 # foundry.toml profile the london group builds under; cancun is the default profile
 PROFILE_LONDON="solc_floor"
 
-# foundry.toml profile the zk toolchain builds under; named here only so a non-zk deploy can
-# refuse it, since its compiler pair is the default profile's and tells the two apart
+# foundry.toml profile the zk toolchain builds under. Named, because its compiler pair is the
+# default profile's and cannot tell the two apart.
 PROFILE_ZKSYNC="zksync"
 
 # getNetworkEvmVersion NETWORK -> echoes the network's targetEvmVersion.
@@ -225,15 +225,6 @@ function selectFoundryProfileForNetwork() {
         return 0
     fi
 
-    # The evm_version comparison below cannot catch this one: [profile.zksync] declares
-    # cancun and solc 0.8.29 like the default profile, so it reads as fitting every cancun
-    # network - while its `script` and `out` keys would send the deploy to the zk script
-    # directory and the zk artifact tree.
-    if [[ "${FOUNDRY_PROFILE:-}" == "$PROFILE_ZKSYNC" ]]; then
-        error "FOUNDRY_PROFILE=$PROFILE_ZKSYNC builds the zkEVM toolchain's script and artifact trees but $NETWORK is not a zkEVM network - refusing to deploy; unset FOUNDRY_PROFILE to let the network select its profile"
-        return 1
-    fi
-
     if ! jq -e --arg network "$NETWORK" '.[$network] != null' "$NETWORKS_JSON_FILE_PATH" > /dev/null; then
         error "Network '$NETWORK' not found in networks.json - refusing to deploy"
         return 1
@@ -245,6 +236,15 @@ function selectFoundryProfileForNetwork() {
     # statement, so it is refused instead of skipping the comparison below.
     if ! jq -e --arg network "$NETWORK" '.[$network] | has("targetEvmVersion")' "$NETWORKS_JSON_FILE_PATH" > /dev/null; then
         error "Network '$NETWORK' has no targetEvmVersion in networks.json - refusing to deploy"
+        return 1
+    fi
+
+    # The evm_version comparison below cannot catch this one: [profile.zksync] declares
+    # cancun and solc 0.8.29 like the default profile, so it reads as fitting every cancun
+    # network - while its `script` and `out` keys would send the deploy to the zk script
+    # directory and the zk artifact tree.
+    if [[ "${FOUNDRY_PROFILE:-}" == "$PROFILE_ZKSYNC" ]]; then
+        error "FOUNDRY_PROFILE=$PROFILE_ZKSYNC builds the zkEVM toolchain's script and artifact trees but $NETWORK is not a zkEVM network - refusing to deploy; unset FOUNDRY_PROFILE to let the network select its profile"
         return 1
     fi
 

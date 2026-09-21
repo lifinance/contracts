@@ -95,8 +95,6 @@ jobs:
       - name: Build with floor compiler (solc 0.8.17)
         # The `solc_floor` profile pins solc 0.8.17 + evm london. A failure here means a file
         # uses a language/syntax feature newer than the `^0.8.17` floor it declares.
-        # script/** is compiled too: the london deploy runs a bare `forge build` under this
-        # profile, so a 0.8.18+ feature there breaks production deploys, not just tests.
         env:
           FOUNDRY_PROFILE: solc_floor
         run: forge build --skip 'test/**'

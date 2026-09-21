@@ -1797,9 +1797,13 @@ function getOptimizerRuns() {
 }
 
 # standardArtifactMatchesActiveProfile: Whether an artifact was built with the compiler the
-# active FOUNDRY_PROFILE declares. Anything unreadable - a missing file, absent metadata, a
-# profile that declares no pin - answers no, because the caller's response is to rebuild and
-# that is also the right response to an artifact nothing can vouch for.
+# active FOUNDRY_PROFILE declares. Anything unreadable - a missing file, absent metadata -
+# answers no, because the caller's response is to rebuild and that is also the right response
+# to an artifact nothing can vouch for.
+#
+# A profile that redirects `out` elsewhere answers no whatever the artifact records: it never
+# wrote this path, and [profile.zksync] pins the default profile's compiler pair, so the pair
+# alone would read its tree as this one's.
 #
 # Usage: standardArtifactMatchesActiveProfile ARTIFACT_PATH
 #   ARTIFACT_PATH - path of the standard forge artifact to inspect
@@ -1812,6 +1816,10 @@ function standardArtifactMatchesActiveProfile() {
   if [[ -z "$ARTIFACT_PATH" ]] || [[ ! -f "$ARTIFACT_PATH" ]]; then
     return 1
   fi
+
+  local ACTIVE_OUT
+  ACTIVE_OUT=$(getFoundryProfileValue "out" 2>/dev/null) || return 1
+  [[ "$ACTIVE_OUT" == "out" ]] || return 1
 
   local EXPECTED_SOLC EXPECTED_EVM ACTUAL_SOLC ACTUAL_EVM
   EXPECTED_SOLC=$(getFoundryProfileValue "solc_version" 2>/dev/null) || return 1
@@ -1844,9 +1852,9 @@ function standardArtifactMatchesActiveProfile() {
 # text rather than from bytecode.
 #
 # An artifact already on disk is only accepted when its recorded compiler pair matches the
-# active profile's. A grouped deploy leaves the previous group's out/ behind, so a bare
-# existence check would derive a zkEVM or cancun salt - and with it the deployed address -
-# from london bytecode whenever no cancun network ran in between to overwrite the tree.
+# active profile's: a grouped deploy leaves the previous group's out/ behind, and a london
+# tree left there decides the zkEVM salt, and with it the deployed address, whenever no
+# cancun network ran in between to overwrite it.
 #
 # Usage: ensureStandardArtifactForSalt CONTRACT
 #   CONTRACT - Name of the contract whose artifact is required
