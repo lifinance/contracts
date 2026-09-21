@@ -99,6 +99,14 @@ export interface IDeploymentIndexEntry {
    * unable to say which record is current.
    */
   timestamp?: Date | string
+  /**
+   * The spelling the deployment record itself carries, when `address` was
+   * respelt to match the calldata's. Tron is the case: the lookup needs the
+   * record's base58 as 20-byte hex, but base58 is what `deployments/tron.json`
+   * and the explorer show, so a row printing only the hex gives a signer
+   * nothing to cross-check against.
+   */
+  recordSpelling?: string
 }
 
 /**
@@ -310,7 +318,11 @@ const isZero = (value: string): boolean =>
   value.trim().toLowerCase() === ZERO_ADDRESS
 
 const describeEntry = (entry: IDeploymentIndexEntry): string =>
-  `${entry.contractName}@${entry.version || 'unversioned'} on ${entry.network}`
+  `${entry.contractName}@${entry.version || 'unversioned'} on ${entry.network}${
+    entry.recordSpelling && entry.recordSpelling !== entry.address
+      ? `, recorded as ${entry.recordSpelling}`
+      : ''
+  }`
 
 const describeIdentity = (identity: IExpectedIdentity): string =>
   `${identity.contractName}@${identity.version ?? 'any version'}`
