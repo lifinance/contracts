@@ -153,15 +153,19 @@ function launchDeployWave() {
   local WAVE_NETWORK
 
   for WAVE_NETWORK in "${WAVE_NETWORKS[@]}"; do
-    # throttle: wait for a free slot before launching the next network
-    while [[ $(jobs | wc -l) -ge $WAVE_CONCURRENCY ]]; do
+    # throttle: wait for a free slot before launching the next network.
+    # `jobs -rp`, not `jobs`: from a command substitution `jobs` prints a copy of
+    # the table that the parent never reaps, so a finished job stays counted and
+    # a concurrency of 1 (the zkEVM wave) blocks here forever (EXSC-1038)
+    while [[ $(jobs -rp | wc -l) -ge $WAVE_CONCURRENCY ]]; do
       sleep 1
     done
     # </dev/null makes the no-stdin guarantee explicit - the sourced framework must
-    # never block on an interactive prompt inside a background worker; sed attributes
-    # every line of framework output to its network, since concurrent workers'
-    # otherwise-unprefixed logs interleave on the shared terminal
-    deployToNetworkWorker "$WAVE_NETWORK" "$WAVE_ENVIRONMENT" "$WAVE_CONTRACT" "$WAVE_VERSION" "$WAVE_RESULT_DIR" </dev/null 2>&1 | sed "s/^/[$WAVE_NETWORK] /" &
+    # never block on an interactive prompt inside a background worker;
+    # prefixNetworkOutput attributes every line of framework output to its network,
+    # since concurrent workers' otherwise-unprefixed logs interleave on the shared
+    # terminal, and streams it unbuffered so a stalled worker stops producing output
+    deployToNetworkWorker "$WAVE_NETWORK" "$WAVE_ENVIRONMENT" "$WAVE_CONTRACT" "$WAVE_VERSION" "$WAVE_RESULT_DIR" </dev/null 2>&1 | prefixNetworkOutput "$WAVE_NETWORK" &
   done
 
   # wait for every network in this wave before the caller switches the profile
