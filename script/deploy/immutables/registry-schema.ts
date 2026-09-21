@@ -1,10 +1,6 @@
 /**
  * Validates the per-immutable registry in `immutableRegistry.json`.
  *
- * It has its own file so `protectSecurityRelevantCode.yml` can require InfoSec
- * approval for exactly it; folding it into `deployRequirements.json` would put
- * every routine deploy-requirement edit behind that approval too.
- *
  * Import this from the CI gate. It separates two things the gate must not
  * conflate: an immutable nobody has documented yet is a warning, because the
  * authoring pass is still running, while a registry that asserts something false
