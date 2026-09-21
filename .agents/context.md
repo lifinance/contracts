@@ -8,7 +8,7 @@ Solidity ^0.8.17 · Foundry · TypeScript/Bun scripts.
 ```
 .agents/
   rules/*.md      28 rule files (source of truth, symlinked to .cursor/ as .mdc and .claude/ as .md)
-  commands/*.md   32 command files (source of truth, symlinked to .cursor/ and .claude/)
+  commands/*.md   34 command files (source of truth, symlinked to .cursor/ and .claude/)
   hooks/*.sh       post-edit hooks (auto-format + lint feedback)
 ```
 
@@ -33,12 +33,11 @@ are embedded in rule files.
 ## Environment & resource access
 
 Internal resources — the Safe proposal MongoDB (`SC_MONGODB_URI`) and deploy
-infrastructure — are reached through the `lifi-connect` tunnel since the legacy
-VPN was retired. Agents **cannot** perform the interactive/secret steps (browser
-Okta SSO, 1Password credentials, opening a production tunnel). Before doing
-Safe/deploy work that touches these, read `docs/Setup-agents.md` — what an agent
-must not do and how commands differ in a non-interactive shell. Full setup
-(human path) is in `docs/Setup.md`.
+infrastructure — are reached through the `lifi-connect` tunnel. Agents **cannot**
+perform the interactive/secret steps (browser Okta SSO, 1Password credentials,
+opening a production tunnel). Before doing Safe/deploy work that touches these,
+read `docs/Setup-agents.md` — what an agent must not do and how commands differ
+in a non-interactive shell. Full setup (human path) is in `docs/Setup.md`.
 
 ## SC feature-PR lifecycle
 

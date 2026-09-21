@@ -6,7 +6,7 @@ This directory contains rule files (markdown with YAML frontmatter) that guide t
 
 Rules are numbered for ordering by category (**numeric prefixes must be unique**):
 
-- `000-099`: Global/standards rules (always-applied: context monitoring, guardrails, architecture, project structure, final checks)
+- `000-099`: Global/standards rules (always-applied: guardrails, architecture, project structure, final checks)
 - `100-199`: Solidity-related rules (basics, contracts, facets, interfaces, receivers, security, gas, scripts)
 - `200-299`: TypeScript-related rules (scripts, helpers, conventions)
 - `300-399`: Bash-related rules (deployment scripts, shell utilities)
@@ -45,10 +45,6 @@ Rules reference conventions via `[CONV:*]` anchors that are defined directly wit
 
 All authoring constraints (scoping, size, naming, no-duplication, conventions, cross-references) are enforced automatically by `010-agents-authoring` (activates when editing `.agents/rules/*.md` or `.agents/commands/*.md`).
 
-## Context Management
-
-- `003-context-monitor.md`: Monitors context window usage, warns when approaching limits, and handles information rollover/handoff
-
 ## Adding New Rules
 
 Use `/add-rule-or-skill` as the standard workflow — it covers symlink creation, frontmatter, scoping, and validation.
@@ -76,7 +72,7 @@ Custom commands live in `.agents/commands/` (source of truth) and are symlinked 
 | `deprecate-contract.md` | `/deprecate-contract <Name> ...` | Deprecate facet/periphery contracts by removing them from the codebase                  |
 | `deprecate-network.md`  | `/deprecate-network <net> ...`   | Deprecate networks — scrub networks.json, foundry.toml, target state, bridge/integration configs, `CORE_FACET_EXEMPTIONS`, the whitelist (hand-edited) and per-network deploy logs; preserves the master log and comments (never removes) facet chainId mappings |
 | `eip7702-atomic-batch.md` | `/eip7702-atomic-batch --config <path.json> [--broadcast]` | Run calls atomically from an EOA via an EIP-7702 sponsored tx (delegate to Multicall3): a sponsor pays while the EOA only signs — so a gas-starved or compromised/actively-swept key can execute (e.g. `transferOwnership`) with no fundable balance for a sweeper to front-run. Engine: `script/tasks/atomicBatch7702.ts` |
-| `finish-rollout.md` | `/finish-rollout <slack thread link>` | Finish a production rollout after timelock execution — verify (timelock queue + on-chain), dispatch the Timelock Auto Execution workflow if ops are ready-but-unexecuted, close the `#dev-sc-multisig-proposals` thread, sync diamond logs onto the rollout PR, `/pr-ready` → ready → `/post-pr-for-review`. The tail of `multisig-rollout` |
+| `finish-rollout.md` | `/finish-rollout <slack thread link>` | Finish a production rollout after timelock execution — verify (timelock queue + on-chain), dispatch the Timelock Auto Execution workflow if ops are ready-but-unexecuted, close the `#dev-sc-multisig-proposals` thread, sync diamond logs onto the rollout PR, self-review → ready → `/post-pr-for-review`. The tail of `multisig-rollout` |
 | `interact-tron.md` | `/interact-tron <call\|send\|address\|code> ...` | Read/write Tron contract state via `troncast` (the `cast` analog for Tron) — calls, sends, address conversion, bytecode; routing target for EVM skills that hit a Tron network |
 | `manage-wallet-funds.md` | `/manage-wallet-funds <bridge\|swap\|send> --wallet <role\|0x> ...` | Move funds from any `.env` wallet — `bridge`/`swap` route via the LI.FI API (same wallet, autonomous), `send` is a direct native transfer to a different recipient (needs an explicit human `--confirm`); wallet resolved by role or address (EVM) |
 | `move-tron-delegation.md` | `/move-tron-delegation --old-address 0xOLD --new-address 0xNEW [--role dev\|deployer]` | Move Tron staked-resource (energy/bandwidth) delegation from a rotated-out wallet's Tron address to the new one — derive base58 pair, draft the provider (Max) request, verify on Tronscan; delegator-controlled, never signed from our keys |
@@ -90,7 +86,7 @@ Custom commands live in `.agents/commands/` (source of truth) and are symlinked 
 | `rotate-deployer-wallet.md` | `/rotate-deployer-wallet [--new-address 0xNEW] [--check]` | Rotate the SC-owned Deployer wallet (`safeOwners[0]` + Timelock `CANCELLER_ROLE`) end-to-end — bootstrap gas, Safe owner swap + canceller move via `multisig-rollout`, Tron, config PR, key decommission; heaviest-governance rotation |
 | `rotate-dev-wallet.md` | `/rotate-dev-wallet [--new-address 0xNEW] [--check]` | Rotate the SC-owned Dev wallet (staging LiFiDiamond owner) end-to-end — sweep gas, transfer staging ownership, move Tron delegation, config PR, completeness check; lowest-stakes rotation and the reference orchestrator |
 | `rotate-pauser-wallet.md` | `/rotate-pauser-wallet [--new-address 0xNEW] [--check]` | Rotate the SC-owned Pauser EOA — redeploy `EmergencyPauseFacet` with the new pauser (immutable, no setter) and `diamondCut` into every diamond via `deploy-contract`/`multisig-rollout`, sweep old, rotate CI secret, config PR |
-| `sweep-wallet-funds.md` | `/sweep-wallet-funds --new-address 0xNEW [--old-key-env PRIVATE_KEY_PRODUCTION] [--production] [--check]` | Multi-chain native-gas sweep from a rotated-out SC wallet to its replacement via `moveNativeFundsToNewWallet.ts` — dry-run preview, key-derived sender, human-confirmed report; the funding primitive every rotation calls |
+| `sweep-wallet-funds.md` | `/sweep-wallet-funds --new-address 0xNEW [--old-key-env PRIVATE_KEY_PRODUCTION] [--production] [--check]` | Multi-chain native-gas sweep from a rotated-out SC wallet to its replacement via `moveNativeFundsToNewWallet.ts` — read-only balance preview (the script has no dry-run flag), key-derived sender, human-confirmed report; the funding primitive every rotation calls |
 | `update-wallet-config.md` | `/update-wallet-config --role <deployer\|dev\|pauser> --new-address 0xNEW [--production]` | Open the PR that rotates a wallet role in `config/global.json` (EVM field + matching `tronWallets.<role>` base58, Tron address derived + round-trip-checked); config-only, delegates to `/create-pr` |
 | `verify-contracts.md` | `/verify-contracts <network> \| PR #<N>` | Verify a network's deployed contracts on its block explorer and flip the MongoDB `verified` flag for each |
 
@@ -98,7 +94,7 @@ Custom commands live in `.agents/commands/` (source of truth) and are symlinked 
 
 Special handling for transaction analysis:
 
-- `600-transaction-analysis.md`: Activation gate (detects natural language queries)
+- `600-transaction-analysis.md`: Routes concrete transaction debugging to `/analyze-tx`
 - `.agents/commands/analyze-tx.md`: Complete analysis workflow, rules, and policies (source of truth)
 
 Users can either use the `/analyze-tx <network> <tx_hash>` command directly or trigger analysis mode through natural language queries (e.g., "analyze this transaction 0x123... on ethereum").
@@ -110,7 +106,6 @@ Users can either use the `/analyze-tx <network> <tx_hash>` command directly or t
 | `000-global-standards.md`     | Project-wide conventions and guardrails                          | ✅ Always   | -                                                                                                             |
 | `001-project-structure.md`    | Project structure and file placement guidance                    | ✅ Always   | -                                                                                                             |
 | `002-architecture.md`         | Core architectural principles (Diamond, separation, governance)  | ✅ Always   | -                                                                                                             |
-| `003-context-monitor.md`      | Context window monitoring and handoff management                 | ✅ Always   | -                                                                                                             |
 | `004-config-structure.md`     | Config JSON structure (key-first vs network-first), required-vs-optional value sparsity, deploy paths | ❌ On match | `config/**/*.json`, `script/deploy/**/*.s.sol`, `script/deploy/resources/deployRequirements.json`             |
 | `010-agents-authoring.md`     | Auto-enforced constraints when editing .agents/ rules or commands | ❌ On match | `.agents/rules/*.md`, `.agents/commands/*.md`                                                                 |
 | `099-finish.md`               | Completion checklist to keep repo green                          | ✅ Always   | -                                                                                                             |
@@ -134,5 +129,5 @@ Users can either use the `/analyze-tx <network> <tx_hash>` command directly or t
 | `501-audits.md`               | Audit log and audit report management                            | ❌ On match | `audit/**/*.json`, `audit/**/*.pdf`, `.github/workflows/**/*audit*.yml`, `.github/workflows/**/*version*.yml` |
 | `502-whitelist-branching.md`  | Whitelist config branching strategy (main branch only)           | ❌ On match | `config/whitelist.json`, `config/composerWhitelist.json`                                                      |
 | `503-sc-feature-pr-lifecycle.md` | Canonical SC feature-PR stage order (peer review → BE integration → audit) and automation mapping | ❌ On match | `src/**/*.sol`, `test/**/*.t.sol`, `audit/**/*.json`, `audit/**/*.pdf`                                        |
-| `600-transaction-analysis.md` | Transaction analysis activation gate                             | ❌ On match | `**/*`                                                                                                        |
+| `600-transaction-analysis.md` | Routes concrete tx debugging to the analyze-tx command           | ❌ On match | `**/*`                                                                                                        |
 | `601-healthcheck-invariants.md` | Keep the declarative health-check invariant registry in sync with facet/periphery changes | ❌ On match | `src/Facets/**/*.sol`, `src/Periphery/**/*.sol`, `script/deploy/_targetState.json`                            |
