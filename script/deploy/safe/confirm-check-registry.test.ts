@@ -1558,6 +1558,7 @@ describe('a chain the simulator does not cover', () => {
       (result) => result.checkId === EXECUTABILITY_CHECK_ID
     )
     expect(row?.status).toBe('needs-ack')
+    expect(row?.anchor).toBe('A-DOCUMENTED')
     expect(row?.actual).toContain('tron')
 
     const verdict = summariseLedger(ledger)
@@ -1587,6 +1588,251 @@ describe('a chain the simulator does not cover', () => {
         ?.status
     ).toBe('error')
     expect(summariseLedger(ledger).hardBlocked).toBe(true)
+  })
+})
+
+describe('gate G when no storage-authority read was made', () => {
+  const rowOf = (ledger: ICheckLedger) =>
+    ledger.results.find(
+      (result) => result.checkId === STORAGE_AUTHORITY_CHECK_ID
+    )
+
+  // The Tron path: a chain the gate was never written to read is a declared
+  // limit the signer acknowledges, not an infrastructure failure that blocks.
+  it('acknowledges a chain outside its coverage, naming it', () => {
+    const ledger = runLedger()
+    recordInto(
+      ledger,
+      verdicts({
+        storageAuthority: undefined,
+        storageAuthorityAbsence: {
+          kind: 'out-of-scope',
+          reason:
+            'tron is read through TronWeb, which this gate does not carry',
+          installs: true,
+        },
+      })
+    )
+
+    const row = rowOf(ledger)
+    expect(row?.status).toBe('needs-ack')
+    expect(row?.anchor).toBe('A-DOCUMENTED')
+    expect(row?.actual).toContain('tron')
+
+    const verdict = summariseLedger(ledger)
+    expect(verdict.hardBlocked).toBe(false)
+    expect(
+      verdict.requiresAcknowledgement.map((result) => result.checkId)
+    ).toContain(STORAGE_AUTHORITY_CHECK_ID)
+  })
+
+  // A removal-only or otherwise non-installing proposal on an uncovered chain
+  // has no authority to read, on that chain or any other.
+  it('is not applicable on an uncovered chain when the proposal installs nothing', () => {
+    const ledger = runLedger()
+    recordInto(
+      ledger,
+      verdicts({
+        storageAuthority: undefined,
+        storageAuthorityAbsence: {
+          kind: 'out-of-scope',
+          reason: 'tron is not read',
+          installs: false,
+        },
+      })
+    )
+    const row = rowOf(ledger)
+    expect(row?.status).toBe('not-applicable')
+    expect(row?.actual).toContain('installs no contract')
+  })
+
+  // A read that should have happened and did not is unverified and blocks,
+  // and the row says what failed rather than that nothing was attempted.
+  it('blocks on a failed read, carrying the failure', () => {
+    const ledger = runLedger()
+    recordInto(
+      ledger,
+      verdicts({
+        storageAuthority: undefined,
+        storageAuthorityAbsence: {
+          kind: 'read-failed',
+          reason: 'node unreachable at block 12',
+        },
+      })
+    )
+
+    const row = rowOf(ledger)
+    expect(row?.status).toBe('error')
+    expect(row?.actual).toContain('could not be read')
+    expect(row?.actual).toContain('node unreachable at block 12')
+    expect(summariseLedger(ledger).hardBlocked).toBe(true)
+  })
+
+  // Calldata that schedules no timelock batch gives this gate nothing to
+  // read — but only when the codehash gate, which read the same calldata,
+  // found nothing installed either. Otherwise something is installed outside
+  // the envelope this gate observes, and that is unverified.
+  it('is not applicable when the proposal schedules nothing and installs nothing', () => {
+    const ledger = runLedger()
+    recordInto(
+      ledger,
+      verdicts({
+        storageAuthority: undefined,
+        storageAuthorityAbsence: { kind: 'not-scheduled' },
+        codehash: codehashGate({ targets: [], madeNoClaim: true }),
+      })
+    )
+
+    const row = rowOf(ledger)
+    expect(row?.status).toBe('not-applicable')
+    expect(row?.actual).toContain('schedules no timelock batch')
+    expect(summariseLedger(ledger).hardBlocked).toBe(false)
+  })
+
+  it('blocks when the proposal installs code outside a timelock schedule', () => {
+    const ledger = runLedger()
+    recordInto(
+      ledger,
+      verdicts({
+        storageAuthority: undefined,
+        storageAuthorityAbsence: { kind: 'not-scheduled' },
+      })
+    )
+
+    const row = rowOf(ledger)
+    expect(row?.status).toBe('error')
+    expect(row?.actual).toContain('outside a timelock schedule')
+    expect(summariseLedger(ledger).hardBlocked).toBe(true)
+  })
+
+  // Empty calldata never reaches the codehash decoder, and a cut it refused was
+  // never read to the end: neither says the proposal installs nothing, so
+  // neither may stand down.
+  it('blocks an unscheduled proposal whose install set the codehash gate never established', () => {
+    const rows = [
+      codehashGate({ evaluated: false, targets: [] }),
+      codehashGate({
+        targets: [],
+        refusals: ['the cut could not be decoded'],
+        blocksSigning: true,
+      }),
+      codehashGate({ targets: [], madeNoClaim: true, unopened: ['call[0]'] }),
+    ].map((codehash) => {
+      const ledger = runLedger()
+      recordInto(
+        ledger,
+        verdicts({
+          storageAuthority: undefined,
+          storageAuthorityAbsence: { kind: 'not-scheduled' },
+          codehash,
+        })
+      )
+      return rowOf(ledger)
+    })
+    for (const row of rows) {
+      expect(row?.status).toBe('error')
+      expect(row?.actual).toContain('could not be established')
+    }
+  })
+
+  // The three absences must stay distinguishable from one another and from
+  // the silent absence, which keeps its blocking text.
+  it('grades the three absences and the silent one as four different rows', () => {
+    const rows = [
+      {
+        kind: 'out-of-scope' as const,
+        reason: 'tron is not read',
+        installs: true,
+      },
+      { kind: 'read-failed' as const, reason: 'timeout' },
+      { kind: 'not-scheduled' as const },
+      undefined,
+    ].map((absence) => {
+      const ledger = runLedger()
+      recordInto(
+        ledger,
+        verdicts({
+          storageAuthority: undefined,
+          ...(absence ? { storageAuthorityAbsence: absence } : {}),
+          codehash: codehashGate({ targets: [], madeNoClaim: true }),
+        })
+      )
+      const row = rowOf(ledger)
+      return `${row?.status}|${row?.actual}`
+    })
+    expect(new Set(rows).size).toBe(4)
+    expect(rows[3]).toContain('no storage-authority read was made')
+  })
+
+  // An absence note never overrides a read that was actually made.
+  it('does not replace an observation that exists', () => {
+    const ledger = runLedger()
+    recordInto(
+      ledger,
+      verdicts({
+        storageAuthorityAbsence: {
+          kind: 'out-of-scope',
+          reason: 'tron is not read',
+          installs: true,
+        },
+      })
+    )
+    expect(rowOf(ledger)?.status).toBe('pass')
+  })
+})
+
+describe('gate J on a chain whose providers cannot be compared', () => {
+  const rowOf = (ledger: ICheckLedger) =>
+    ledger.results.find((result) => result.checkId === RPC_QUORUM_CHECK_ID)
+
+  // The Tron path: TronGrid rejects `eth_getCode` at a pinned block, so no
+  // two providers can be read at one height. A declared limit the signer
+  // acknowledges, with the chain named, rather than "no read was made".
+  it('acknowledges the documented limit, naming the chain', () => {
+    const ledger = runLedger()
+    recordInto(
+      ledger,
+      verdicts({
+        rpcQuorum: undefined,
+        rpcQuorumOutOfScope:
+          'tron cannot serve a code read at a pinned block, so its providers cannot be compared at one height',
+      })
+    )
+
+    const row = rowOf(ledger)
+    expect(row?.status).toBe('needs-ack')
+    expect(row?.anchor).toBe('A-DOCUMENTED')
+    expect(row?.actual).toContain('tron')
+    expect(row?.actual).not.toContain('no quorum read was made')
+
+    const verdict = summariseLedger(ledger)
+    expect(verdict.hardBlocked).toBe(false)
+    expect(
+      verdict.requiresAcknowledgement.map((result) => result.checkId)
+    ).toContain(RPC_QUORUM_CHECK_ID)
+  })
+
+  // The scope note never replaces a read that was made.
+  it('does not soften a quorum read that ran', () => {
+    const ledger = runLedger()
+    recordInto(
+      ledger,
+      verdicts({
+        rpcQuorumOutOfScope: 'tron cannot be compared at one height',
+      })
+    )
+    expect(rowOf(ledger)?.status).toBe('pass')
+    expect(rowOf(ledger)?.anchor).toBe('A-CHAIN')
+  })
+
+  // An unmade read on a covered chain keeps its own wording, so the two
+  // absences stay apart on the signer's screen.
+  it('keeps the unmade-read row distinct from the documented limit', () => {
+    const ledger = runLedger()
+    recordInto(ledger, verdicts({ rpcQuorum: undefined }))
+    expect(rowOf(ledger)?.status).toBe('needs-ack')
+    expect(rowOf(ledger)?.anchor).toBe('A-UNRESOLVED')
+    expect(rowOf(ledger)?.actual).toContain('no quorum read was made')
   })
 })
 
