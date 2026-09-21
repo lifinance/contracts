@@ -13,7 +13,7 @@ paths:
 
 ### File organization
 
-- **Helpers directory** (`script/deploy/tron/helpers/`): Single-responsibility modules. One concern per file. Prefix with `tron` for Tron-domain wrappers (e.g., `tronPricing.ts`, `tronWebFactory.ts`). Use action-verb names for transformers (`formatAddressForCliDisplay.ts`, `parseTroncastFacetsOutput.ts`).
+- **Helpers directory** (`script/deploy/tron/helpers/`): Single-responsibility modules. One concern per file. Prefix with `tron` for Tron-domain wrappers (e.g., `tronHexSuffix.ts`, `tronscanVerify.ts`). Use action-verb names for transformers (`parseTroncastFacetsOutput.ts`, `coreFacetConstructorArgs.ts`). Shared Tron primitives live in `@lifi/tron-devkit`, not here.
 - **Types**: All Tron-domain interfaces and type aliases in `script/deploy/tron/types.ts`. Follow `I`-prefix convention. Re-export types from helper files when consumers need them.
 - **Constants**: Tron-specific constants (fee limits, energy margins, API timeouts, pricing defaults) in `script/deploy/tron/constants.ts`.
 
@@ -25,8 +25,8 @@ paths:
 
 ### TronWeb creation ([CONV:TRONWEB-FACTORY])
 
-- **Always** use `createTronWeb()` / `createTronWebForTvmNetworkKey()` / `createTronWebReadOnly()` from `script/deploy/tron/helpers/tronWebFactory.ts`. Do NOT construct `new TronWeb(...)` directly outside the factory.
-- **Codec-only instances**: For address conversion without a private key, use `getTronWebCodecOnly()` / `getTronWebCodecOnlyForNetwork()` from `tronWebCodecOnly.ts`. These are cached per-network.
+- **Always** use `createTronWeb()` / `createTronWebForTvmNetworkKey()` / `createTronWebReadOnly()` from `@lifi/tron-devkit`. Do NOT construct `new TronWeb(...)` directly outside the factory.
+- **Codec-only instances**: For address conversion without a private key, use `getTronWebCodecOnlyForNetwork()` from `@lifi/tron-devkit`. These are cached per-network.
 
 ### Address handling ([CONV:TRON-ADDRESS])
 
@@ -53,14 +53,14 @@ paths:
 
 ### RPC configuration
 
-- RPC URLs come from env vars only (`ETH_NODE_URI_TRON` / `ETH_NODE_URI_TRONSHASTA`), resolved via `getTronRPCConfig()` from `tronRpcConfig.ts`.
+- RPC URLs come from env vars only (`ETH_NODE_URI_TRON` / `ETH_NODE_URI_TRONSHASTA`), resolved via `getTronRPCConfig()` from `@lifi/tron-devkit`.
 - TronGrid API key: `TRONGRID_API_KEY` env var, injected as `TRON-PRO-API-KEY` header (never URL param).
-- URL normalization: TronWeb needs native HTTP root (strip `/jsonrpc`); use `tronWebFullHostFromRpcUrl()`.
+- URL normalization: TronWeb needs native HTTP root (strip `/jsonrpc`); use `tronWebFullHostFromRpcUrl()` from `@lifi/tron-devkit`.
 
 ### Network key detection ([CONV:TRON-NETWORK-KEY])
 
-- Use `isTronNetworkKey()` from `script/deploy/shared/tron-network-keys.ts` for all Tron-vs-EVM branching. Do NOT compare chain IDs or network names directly.
-- Use `isTronTvmChainId()` / `getTronNetworkKeyForChainId()` from `script/deploy/tron/helpers/tronTvmChain.ts` when starting from a chain ID.
+- Use `isTronNetworkKey()` from `@lifi/tron-devkit` for all Tron-vs-EVM branching. Do NOT compare chain IDs or network names directly.
+- Use `isTronTvmChainId()` / `getTronNetworkKeyForChainId()` from `@lifi/tron-devkit` when starting from a chain ID.
 
 ### Caching pattern
 
