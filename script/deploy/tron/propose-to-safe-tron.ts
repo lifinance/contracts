@@ -54,6 +54,7 @@ import {
   TRON_SAFE_GET_TX_HASH_ABI,
 } from './constants.js'
 import { normalizeTronProposeCalls } from './propose-calls-tron.js'
+import { pickTronTimelockSalt } from './timelock-salt-tron.js'
 import type { IProposeToSafeTronOptions } from './types.js'
 
 async function runPropose(options: IProposeToSafeTronOptions) {
@@ -178,22 +179,38 @@ async function runPropose(options: IProposeToSafeTronOptions) {
     }
   }
 
-  const salt = `0x${Date.now().toString(16).padStart(64, '0')}` as Hex
+  // The same batch re-proposed derives the same salt, so the duplicate-intent
+  // index can see it; the timelock is asked so a repeat of executed work
+  // advances and a repeat of pending work is refused. Only the timelock
+  // branches below need one, so it is picked there.
+  const saltFor = (targetsEvm: Address[], payloads: Hex[]): Promise<Hex> =>
+    pickTronTimelockSalt({
+      tronWeb,
+      chainId,
+      timelockAddressBase58: timelockAddressBase58 as string,
+      timelockAddressEvm: tronBase58ToEvm20Hex(
+        tronWeb,
+        timelockAddressBase58 as string
+      ) as Address,
+      targets: targetsEvm,
+      payloads,
+    })
 
   let safeTxToBase58: string
-  let safeTxDataHex: Hex
+  let safeTxDataHex: Hex | undefined
+  // The calls a timelock branch will schedule; the calldata is built after
+  // the dry-run return, so a preview never reads the timelock or refuses.
+  let scheduled: { targets: Address[]; payloads: Hex[] } | undefined
   let hashToBase58: string
   let dryRunDescription: string
 
   // branching on the parsed calls rather than the flag lets the compiler see
   // that generic mode has them; the two are set together and cannot disagree
   if (!genericCalls) {
-    safeTxDataHex = encodeTimelockScheduleBatch(
-      [diamondAddressEvm] as Address[],
-      [TRON_DIAMOND_CONFIRM_OWNERSHIP_SELECTOR],
-      salt,
-      minDelayBigInt
-    )
+    scheduled = {
+      targets: [diamondAddressEvm] as Address[],
+      payloads: [TRON_DIAMOND_CONFIRM_OWNERSHIP_SELECTOR],
+    }
     safeTxToBase58 = timelockAddressBase58
     hashToBase58 = timelockAddressBase58
     dryRunDescription =
@@ -208,12 +225,7 @@ async function runPropose(options: IProposeToSafeTronOptions) {
       const targetsEvm = targets.map((t) =>
         tronBase58ToEvm20Hex(tronWeb, t)
       ) as Address[]
-      safeTxDataHex = encodeTimelockScheduleBatch(
-        targetsEvm,
-        calldatas,
-        salt,
-        minDelayBigInt
-      )
+      scheduled = { targets: targetsEvm, payloads: calldatas }
       safeTxToBase58 = timelockAddressBase58
       hashToBase58 = timelockAddressBase58
       dryRunDescription = `scheduleBatch(${
@@ -234,6 +246,16 @@ async function runPropose(options: IProposeToSafeTronOptions) {
     consola.info('  data: ' + dryRunDescription)
     return
   }
+
+  if (scheduled)
+    safeTxDataHex = encodeTimelockScheduleBatch(
+      scheduled.targets,
+      scheduled.payloads,
+      await saltFor(scheduled.targets, scheduled.payloads),
+      minDelayBigInt
+    )
+  if (!safeTxDataHex)
+    throw new Error('No transaction calldata was built for this proposal')
 
   // After the dry run, which proposes nothing, and before the Mongo client is
   // opened: the store-time refusal throws past this function's only
