@@ -15,6 +15,7 @@ import { consola } from 'consola'
 
 import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { getPrivateKeyForEnvironment } from '../../demoScripts/utils/demoScriptHelpers'
+import { isEntrypoint } from '../../utils/is-entrypoint'
 import { redactUrls } from '../../utils/redactUrls'
 import { getEnvironment, updateDiamondJsonBatch } from '../../utils/utils'
 import { flagIsOn } from '../safe/cli-flags'
@@ -652,6 +653,6 @@ const main = defineCommand({
   },
 })
 
-if (import.meta.main) runMain(main)
+if (isEntrypoint(import.meta.url)) runMain(main)
 
 export { registerFacetsToDiamond }

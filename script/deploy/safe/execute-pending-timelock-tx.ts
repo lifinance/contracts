@@ -2445,8 +2445,8 @@ function formatTimeRemaining(seconds: bigint): string {
   return result
 }
 
-// Deliberately unguarded. An `import.meta.main` guard would make this module
-// importable, but should the flag ever read falsy for this entry the scheduled
+// Deliberately unguarded. An `isEntrypoint` guard would make this module
+// importable, but should the guard ever read falsy for this entry the scheduled
 // run exits 0 having executed nothing, indistinguishable from a clean run.
 // Logic that needs test coverage goes into a sibling module instead
 // (timelock-prefetch.ts).

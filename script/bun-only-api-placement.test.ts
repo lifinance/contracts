@@ -11,12 +11,12 @@
  * exemption is precisely why a behavioural test cannot catch this class of bug:
  * under `bun test` the offending line works. Hence a source assertion.
  *
- * Scope is deliberately just `import.meta.dir` — the one member of
- * [CONV:NODE-RUNTIME-APIS] that is broken on every Node version and therefore
- * clean at zero. `import.meta.main` (fires on Node 22.23+/24, silently no-ops
- * below) and `Bun.*` (throws at the call site) still have live uses that are not
- * bugs on a current runtime, so asserting them here would only encode a
- * baseline; they are tracked in EXSC-971.
+ * Scope is deliberately just `import.meta.dir`, the member of
+ * [CONV:NODE-RUNTIME-APIS] that breaks at import time. `import.meta.main` fails
+ * quietly instead and is asserted next door, in
+ * `entrypoint-guard-placement.test.ts`. `Bun.*` throws at the call site and
+ * still has live uses that are not bugs on a current runtime, so asserting it
+ * here would only encode a baseline; it is tracked in EXSC-971.
  */
 
 import { execFileSync } from 'child_process'
@@ -34,9 +34,9 @@ const REPO_ROOT = join(import.meta.dir, '..')
 
 /**
  * Matches a read of the API, not a mention of it — a module documenting the
- * hazard in a comment (as `proposePeripheryWithWhitelist.ts` does for
- * `import.meta.main`) must not be reported as a violation. The lookbehind keeps
- * an unrelated `foo.import.meta.dir` from matching.
+ * hazard in a comment (as `utils/is-entrypoint.ts` does for `import.meta.main`)
+ * must not be reported as a violation. The lookbehind keeps an unrelated
+ * `foo.import.meta.dir` from matching.
  */
 const IMPORT_META_DIR = /(?<!\.)\bimport\s*\.\s*meta\s*\.\s*dir\b/
 

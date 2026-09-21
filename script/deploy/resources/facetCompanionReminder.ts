@@ -15,10 +15,10 @@
  *   bunx tsx script/deploy/resources/facetCompanionReminder.ts <ContractName> <network> <environment>
  * Prints the reminder when a companion is missing, otherwise prints nothing. Always exits 0.
  */
-import { existsSync, readFileSync, realpathSync } from 'fs'
+import { existsSync, readFileSync } from 'fs'
 import { isAbsolute, relative, resolve } from 'path'
-import { fileURLToPath } from 'url'
 
+import { isEntrypoint } from '../../utils/is-entrypoint'
 import { DEPLOYMENT_FILE_SUFFIX } from '../shared/constants'
 import {
   evaluateFacetPeripheryCouplings,
@@ -136,17 +136,4 @@ function runCli(): void {
   if (reminder) console.log(reminder)
 }
 
-/**
- * Run the CLI only when this file is executed directly (bunx tsx ...), not when imported by tests.
- */
-function isDirectRun(): boolean {
-  const entry = process.argv[1]
-  if (!entry) return false
-  try {
-    return realpathSync(entry) === realpathSync(fileURLToPath(import.meta.url))
-  } catch {
-    return false
-  }
-}
-
-if (isDirectRun()) runCli()
+if (isEntrypoint(import.meta.url)) runCli()

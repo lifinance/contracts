@@ -4,10 +4,10 @@
  *
  * Lives outside `execute-pending-timelock-tx.ts` because that module calls
  * `runMain` at module scope and so cannot be imported by tests. Guarding that
- * call with `import.meta.main`, as some siblings in this directory do, would
- * make it importable but is deliberately not done there: should the flag ever
- * read falsy for that entry, the scheduled executor exits 0 having executed
- * nothing, and no observer can tell that apart from a clean run.
+ * call with `isEntrypoint`, as the siblings in this directory do, would make it
+ * importable but is deliberately not done there: should the guard ever read
+ * falsy for that entry, the scheduled executor exits 0 having executed nothing,
+ * and no observer can tell that apart from a clean run.
  */
 
 import { existsSync } from 'fs'
