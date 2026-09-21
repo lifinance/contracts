@@ -1263,18 +1263,6 @@ const escapeRegexLiteral = (value: string): string =>
   value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 /**
- * The production deployment-log collection, connected on first use.
- *
- * Queried directly rather than through `CachedDeploymentQuerier`, whose cache
- * returns stale local records when MongoDB is unreachable. That fallback is
- * right for a report and wrong for a gate: "the record could not be read" and
- * "this is what the record says" are the two facts a gate exists to keep apart,
- * and an outage must reach the signer as an error.
- *
- * `production` and not the operator's environment: this judges proposals
- * against a production Safe, and staging records describe a different deploy.
- */
-/**
  * Picks the one record that describes an address, or refuses.
  *
  * There is no "latest wins" here to implement. An address holds one contract
@@ -1289,17 +1277,23 @@ const escapeRegexLiteral = (value: string): string =>
  * blank-version row on three EVM chains. A refusal reaches the signer as
  * `record-unreadable`, which is the honest answer to a store that holds two.
  *
- * The one collapse is a blank `version` alongside a named one for the same
- * contract: the verification step rewrites the row it just verified and loses
- * the field on the way through, so those two rows are one deploy.
+ * The one collapse is a blank field alongside a filled one: the verification
+ * step rewrites the row it just verified and loses `version` on the way
+ * through, and most rows carry no commit at all, so a blank is absence of
+ * evidence rather than a competing claim. Two *filled* values disagreeing is
+ * the refusal, for the commit as much as for the version — the commit is what
+ * the rebuild is keyed on, so picking between two would choose which source to
+ * attest against. The query is unsorted, so picking either would also vary
+ * between runs on identical data.
  *
  * @param candidates - every record matching the address and network
  * @param address - the address being resolved, for the refusal message
  * @param network - the network being resolved, for the refusal message
  * @returns The single record, or null when there is none
+ * @throws When the surviving records disagree on contract, version or commit
  */
 export const resolveDeploymentRecord = <
-  T extends { contractName: string; version: string }
+  T extends { contractName: string; version: string; gitCommitHash?: string }
 >(
   candidates: T[],
   address: string,
@@ -1314,21 +1308,40 @@ export const resolveDeploymentRecord = <
     (r) => r.version.trim() !== '' || !named.has(r.contractName)
   )
 
-  const identities = new Set(kept.map((r) => `${r.contractName}@${r.version}`))
-  if (identities.size > 1)
+  const refuse = (what: string, values: string[]): never => {
     throw new Error(
-      `the production deployment records disagree about what is at ${address} on ${network}: ${[
-        ...identities,
-      ]
+      `the production deployment records disagree about ${what} at ${address} on ${network}: ${values
         .sort()
         .join(
           ', '
         )}. An address holds one contract, so one of these records is wrong and no ordering of them is a safe guess — fix the records before signing against this address.`
     )
+  }
 
-  return kept[0] as T
+  const identities = new Set(kept.map((r) => `${r.contractName}@${r.version}`))
+  if (identities.size > 1) refuse('what is', [...identities])
+
+  const commits = new Set(
+    kept.map((r) => r.gitCommitHash?.trim() ?? '').filter((c) => c !== '')
+  )
+  if (commits.size > 1) refuse('which commit built what is', [...commits])
+
+  return (kept.find((r) => (r.gitCommitHash?.trim() ?? '') !== '') ??
+    kept[0]) as T
 }
 
+/**
+ * The production deployment-log collection, connected on first use.
+ *
+ * Queried directly rather than through `CachedDeploymentQuerier`, whose cache
+ * returns stale local records when MongoDB is unreachable. That fallback is
+ * right for a report and wrong for a gate: "the record could not be read" and
+ * "this is what the record says" are the two facts a gate exists to keep apart,
+ * and an outage must reach the signer as an error.
+ *
+ * `production` and not the operator's environment: this judges proposals
+ * against a production Safe, and staging records describe a different deploy.
+ */
 const createMongoRecordSource = (): IRecordSource => ({
   findByAddress: async (address, network) => {
     const uri = process.env.MONGODB_URI
