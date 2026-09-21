@@ -216,6 +216,10 @@ describe(`${SEAM} argument handling`, () => {
       { encoding: 'utf8' }
     )
 
-    expect(stdout.trim()).toMatch(/^\d+\.\d+\.\d+$/)
+    // Asserts the grammar, not a suffix-less version: an overlay fork tags this
+    // same contract 2.1.3-tron (docs/TronFork.md).
+    expect(stdout.trim()).toMatch(
+      /^\d+\.\d+\.\d+(?:-[a-z0-9]+(?:[.-][a-z0-9]+)*)?$/
+    )
   })
 })
