@@ -13,7 +13,11 @@
  * site that supplies it.
  */
 
-import { isTronNetworkKey } from '@lifi/tron-devkit'
+import {
+  getTronWebCodecOnlyForNetwork,
+  isTronNetworkKey,
+  tronBase58ToEvm20Hex,
+} from '@lifi/tron-devkit'
 import {
   decodeFunctionData,
   getAddress,
@@ -1029,8 +1033,6 @@ export const createIntegrityAssertDeps = (options: {
     if (!isTronNetworkKey(network.toLowerCase()))
       return indexDeploymentsByAddress(deployments.default ?? deployments)
 
-    const { getTronWebCodecOnlyForNetwork, tronBase58ToEvm20Hex } =
-      await import('@lifi/tron-devkit')
     const tronWeb = getTronWebCodecOnlyForNetwork(network.toLowerCase())
     return indexDeploymentsByAddress(
       deployments.default ?? deployments,

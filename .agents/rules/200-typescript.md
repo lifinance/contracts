@@ -76,8 +76,8 @@ paths:
 
 ### Dynamic imports for chain modules
 
-- **Scope: in-repo chain-specific implementation modules** — executors, chain callers, deployers (`script/deploy/safe/executors/tron-caller.ts`, `evm-caller.ts`). Load these with `await import('./path')` so a run only evaluates the implementation for the chain it is on. See `script/deploy/safe/executors/create-chain-caller.ts` for the pattern. The same applies to any heavy dependency only some code paths need (`./ledger`, `viem/accounts`).
-- **Does NOT apply to `@lifi/tron-devkit`.** Import its helpers (`isTronNetworkKey`, the address converters, the chain-ID helpers) at the top level like any other dependency. Deferring them buys nothing: the package publishes only two entry points, `.` and `./safe`, and `.` eagerly re-exports `TronContractDeployer` and the TronWeb factory, so **any** import of it — static or dynamic — pulls `tronweb` into the process (measured: 10 `tronweb` CJS modules, ~0.9 s, on a bare `import { isTronNetworkKey }`). `isTronNetworkKey` is also the Tron-vs-EVM branch itself rather than a Tron-only dependency: it runs on every network, from synchronous helpers such as `normalizeAddressForNetwork()` that cannot `await`.
+- Applies to **in-repo chain-specific implementation modules** — executors, chain callers, deployers (`script/deploy/safe/executors/tron-caller.ts`, `script/deploy/safe/executors/evm-caller.ts`) — and to any heavy dependency only some code paths need (`script/deploy/safe/ledger.ts`, `viem/accounts`). Load them with `await import('./path')` so a run only evaluates the implementation for the chain it is on. See `script/deploy/safe/executors/create-chain-caller.ts` for the pattern.
+- Import `@lifi/tron-devkit` helpers (`isTronNetworkKey`, the address converters, the chain-ID helpers) at the top level instead. `isTronNetworkKey` is the Tron-vs-EVM branch itself rather than a Tron-only dependency, so it runs on every network — including from synchronous helpers such as `normalizeAddressForNetwork()` that cannot `await`.
 
 ### Parallelize independent async work [CONV:PARALLEL-WORK]
 

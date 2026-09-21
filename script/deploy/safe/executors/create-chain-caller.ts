@@ -30,7 +30,8 @@ export async function createChainCaller(
           'Set PRIVATE_KEY_PRODUCTION in .env.'
       )
 
-    // Lazy-loaded so an EVM run never evaluates the Tron caller and its `@lifi/tron-devkit/safe` broadcast path.
+    // Lazy-loaded to skip the Tron caller's own imports on an EVM run. It does not keep TronWeb
+    // out of the process: the devkit barrel imported at module scope already pulls it in.
     const { TronChainCaller } = await import('./tron-caller')
     return new TronChainCaller(
       params.networkName.toLowerCase() as TronTvmNetworkName,
