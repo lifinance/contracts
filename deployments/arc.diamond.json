@@ -60,6 +60,18 @@
       "0xC8CDF58E4ec70342B3A10bC870f081E34C3D526d": {
         "Name": "RelayDepositoryFacet",
         "Version": "1.0.0"
+      },
+      "0xa385254749E33619a3f494490dDC5d413dC2A126": {
+        "Name": "EcoFacet",
+        "Version": "2.0.0"
+      },
+      "0x6fE64248aecf7a8fC8a11cc63B804Bb75C2BAf04": {
+        "Name": "GardenFacet",
+        "Version": "1.0.0"
+      },
+      "0x69347aE9C155BA6dEba08a1dB2b6eFd76Db377CA": {
+        "Name": "SymbiosisFacet",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {
