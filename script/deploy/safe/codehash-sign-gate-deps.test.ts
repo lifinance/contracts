@@ -35,6 +35,7 @@ import {
 } from '../immutables/immutable-ast'
 
 import {
+  buildRecordQuery,
   createForgeRebuildRunner,
   createImmutableSimulatorReader,
   createLocalImmutableDeclarations,
@@ -1738,5 +1739,192 @@ describe('createArtifactCache', () => {
       cache.save('unbuilt', join(tmpdir(), 'no-such-build-directory-here'))
     ).not.toThrow()
     expect(cache.restore('unbuilt', tempRoot())).toBe(false)
+  })
+})
+
+/**
+ * A real production Tron facet, in the two spellings the lookup has to join:
+ * base58 as the deployment record holds it, checksummed hex as a decoded cut
+ * carries it. Taken from `tron-address-spellings.test.ts`, where the mapping is
+ * corroborated on chain rather than against this repo's own codec.
+ */
+const TRON_BASE58 = 'TNZ3fznhvEssLeovS9Uc7zCLgYjKdNjX9P'
+const TRON_HEX = '0x8A07DD6cA9EA2DcCfF2A0015811C895ac1Abfcc5'
+
+/**
+ * Whether a record would be returned by a filter, over the operators the record
+ * query is built from and no others.
+ *
+ * The query is asserted by running rows through it rather than by reading its
+ * shape: "the base58 branch carries no `$options`" is a fact about this object,
+ * while "a base58 spelled in another case is not found" is the property the
+ * gate depends on. An operator this does not model throws instead of being
+ * ignored, so a filter that grew one cannot be reported as behaving like the
+ * filter that did not.
+ */
+const wouldMatch = (query: object, row: Record<string, string>): boolean =>
+  Object.entries(query).every(([field, condition]) => {
+    if (field === '$or') {
+      if (!Array.isArray(condition)) throw new Error('$or is not a list')
+      return condition.some((branch) => wouldMatch(branch as object, row))
+    }
+    if (field.startsWith('$')) throw new Error(`unmodelled operator ${field}`)
+    if (typeof condition !== 'object' || condition === null)
+      throw new Error(`unmodelled condition on ${field}`)
+
+    const operators = condition as Record<string, unknown>
+    const value = row[field]
+    return Object.entries(operators).every(([operator, operand]) => {
+      switch (operator) {
+        case '$eq':
+          return value === operand
+        case '$in':
+          return (operand as string[]).includes(value ?? '')
+        case '$regex': {
+          const options = operators.$options
+          if (options !== undefined && options !== 'i')
+            throw new Error(`unmodelled regex options ${String(options)}`)
+          return new RegExp(
+            asJsPattern(operand as string),
+            options === 'i' ? 'i' : ''
+          ).test(value ?? '')
+        }
+        case '$options':
+          return true
+        default:
+          throw new Error(`unmodelled operator ${operator}`)
+      }
+    })
+  })
+
+/**
+ * A PCRE2 pattern as the JavaScript engine has to spell it to mean the same.
+ *
+ * Only the two end-of-subject anchors differ here, and they differ the way the
+ * query turns on: PCRE2 `$` also matches before a trailing newline while the
+ * JavaScript `$` does not, and PCRE2 `\z` is the strict one JavaScript spells
+ * `$`. Running the pattern unchanged would read `\z` as a literal `z` and read
+ * a regressed `$` as if it were strict — the assertion would pass against the
+ * bug it exists to catch.
+ */
+const asJsPattern = (pattern: string): string =>
+  pattern.replace(/\\.|[$]/g, (token) =>
+    token === '$' ? '(?=\\n?$)' : token === '\\z' ? '$' : token
+  )
+
+/** The same base58 address with its first lowercase letter upper-cased. */
+const caseFlipped = (base58: string): string => {
+  const letter = [...base58].find((c) => c >= 'a' && c <= 'z')
+  if (!letter) throw new Error('no letter to flip')
+  const at = base58.indexOf(letter)
+  const flipped =
+    base58.slice(0, at) + letter.toUpperCase() + base58.slice(at + 1)
+  if (flipped === base58) throw new Error('flipping changed nothing')
+  return flipped
+}
+
+describe('buildRecordQuery', () => {
+  it('finds the hex spelling whatever case the record was written in', () => {
+    const query = buildRecordQuery(TRON_HEX, 'tron')
+
+    expect(wouldMatch(query, { network: 'tron', address: TRON_HEX })).toBe(true)
+    expect(
+      wouldMatch(query, { network: 'tron', address: TRON_HEX.toLowerCase() })
+    ).toBe(true)
+    expect(
+      wouldMatch(query, {
+        network: 'tron',
+        address: '0x' + TRON_HEX.slice(2).toUpperCase(),
+      })
+    ).toBe(true)
+    expect(
+      wouldMatch(query, {
+        network: 'tron',
+        address: '0x0e07d966239d00a7fb445d4cb06b478a0e538b3b',
+      })
+    ).toBe(false)
+  })
+
+  // base58check is case-sensitive, so a folded comparison answers about an
+  // address nobody asked about.
+  it('finds the base58 spelling exactly, and never case-folded', () => {
+    const query = buildRecordQuery(TRON_HEX, 'tron')
+
+    expect(wouldMatch(query, { network: 'tron', address: TRON_BASE58 })).toBe(
+      true
+    )
+    expect(
+      wouldMatch(query, {
+        network: 'tron',
+        address: caseFlipped(TRON_BASE58),
+      })
+    ).toBe(false)
+    expect(
+      wouldMatch(query, { network: 'tron', address: TRON_BASE58.toUpperCase() })
+    ).toBe(false)
+    expect(
+      wouldMatch(query, { network: 'tron', address: TRON_BASE58.toLowerCase() })
+    ).toBe(false)
+  })
+
+  it('offers no base58 spelling on a network that spells addresses one way', () => {
+    const query = buildRecordQuery(TRON_HEX, 'mainnet')
+
+    expect(
+      wouldMatch(query, { network: 'mainnet', address: TRON_HEX.toLowerCase() })
+    ).toBe(true)
+    expect(
+      wouldMatch(query, { network: 'mainnet', address: TRON_BASE58 })
+    ).toBe(false)
+  })
+
+  // The deploy path writes `network` from the config key, so it is lowercase by
+  // construction and a fold there would widen the lookup for nothing.
+  it('matches the network exactly', () => {
+    const query = buildRecordQuery(TRON_HEX, 'tron')
+
+    expect(wouldMatch(query, { network: 'tron', address: TRON_HEX })).toBe(true)
+    expect(wouldMatch(query, { network: 'Tron', address: TRON_HEX })).toBe(
+      false
+    )
+    expect(
+      wouldMatch(query, { network: 'tronshasta', address: TRON_HEX })
+    ).toBe(false)
+  })
+
+  it('matches the whole address, as a literal', () => {
+    const query = buildRecordQuery(TRON_HEX, 'tron')
+
+    expect(
+      wouldMatch(query, { network: 'tron', address: TRON_HEX + '00' })
+    ).toBe(false)
+    // PCRE2 `$` matches before a trailing newline too, so the anchor has to be
+    // `\z`: a row padded with one is a different stored value.
+    expect(
+      wouldMatch(query, { network: 'tron', address: TRON_HEX + '\n' })
+    ).toBe(false)
+    expect(
+      wouldMatch(query, { network: 'tron', address: '00' + TRON_HEX })
+    ).toBe(false)
+    expect(
+      wouldMatch(buildRecordQuery('0x.a', 'mainnet'), {
+        network: 'mainnet',
+        address: '0xba',
+      })
+    ).toBe(false)
+  })
+
+  // Self-check on the harness above: every assertion here is an observation
+  // made through it, so a filter it silently mis-read would report the gate as
+  // safe.
+  it('is asserted through a matcher that refuses what it cannot model', () => {
+    expect(() =>
+      wouldMatch(
+        { address: { $not: { $eq: TRON_HEX } } },
+        {
+          address: TRON_HEX,
+        }
+      )
+    ).toThrow('unmodelled operator $not')
   })
 })

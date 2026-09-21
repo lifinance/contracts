@@ -28,7 +28,7 @@ import { tmpdir } from 'os'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 
-import { MongoClient } from 'mongodb'
+import { MongoClient, type Filter } from 'mongodb'
 import { createPublicClient, http, type Address, type Chain } from 'viem'
 
 import { EnvironmentEnum } from '../../common/types'
@@ -1281,6 +1281,62 @@ const escapeRegexLiteral = (value: string): string =>
 const text = (value: unknown): string =>
   value === undefined || value === null ? '' : String(value).trim()
 
+/** The fields the gate reads off a production deployment record. */
+interface IDeploymentRecordFields {
+  contractName: string
+  version?: string
+  gitCommitHash?: string
+}
+
+/**
+ * The filter that finds every production record for one address on one network.
+ *
+ * The decoded cut supplies checksummed addresses (`classifyCut` returns
+ * `getAddress`), and records were written in either case over the years, so an
+ * exact match alone can miss on case. Do not "simplify" this by lowercasing one
+ * side: the stored case is not ours to assume. `network` is matched exactly on
+ * purpose — the deploy path writes it from the config key, so it is lowercase
+ * by construction, unlike an address that a human or an older script may have
+ * written either way.
+ *
+ * One query rather than exact-then-fallback: the fallback only ran when the
+ * exact tier came back empty, so a corrupt row stored in the other casing sat
+ * behind a clean exact match and was never compared against it. Casing is a
+ * spelling of one address, not two addresses.
+ *
+ * A Tron record stores base58 while the cut carries 20-byte hex, so the address
+ * as decoded matches nothing there. Those spellings are matched exactly and
+ * never case-insensitively: base58check is case-sensitive, so folding case
+ * there would match an address that is not the one asked about.
+ *
+ * `\z` rather than `$` on the hex spelling: this is PCRE2, where `$` also
+ * matches before a trailing newline, so `$` would let `<address>\n` answer for
+ * the address.
+ *
+ * @param address - the address as the calldata carries it
+ * @param network - key in `config/networks.json`
+ * @returns The filter both spellings are looked up through
+ */
+export const buildRecordQuery = (
+  address: string,
+  network: string
+): Filter<IDeploymentRecordFields> => {
+  const spellings =
+    createTronAddressSpellings(network)?.forCalldataAddress(address)
+  return {
+    network: { $eq: network },
+    $or: [
+      {
+        address: {
+          $regex: `^${escapeRegexLiteral(address)}\\z`,
+          $options: 'i',
+        },
+      },
+      ...(spellings ? [{ address: { $in: spellings } }] : []),
+    ],
+  }
+}
+
 /**
  * Picks the one record that describes an address, or refuses.
  *
@@ -1380,49 +1436,12 @@ const createMongoRecordSource = (): IRecordSource => ({
       client = new MongoClient(uri)
       await client.connect()
     }
-    const collection = client.db('contract-deployments').collection<{
-      contractName: string
-      version?: string
-      gitCommitHash?: string
-    }>(EnvironmentEnum.production)
+    const collection = client
+      .db('contract-deployments')
+      .collection<IDeploymentRecordFields>(EnvironmentEnum.production)
 
-    // The decoded cut supplies checksummed addresses (`classifyCut` returns
-    // `getAddress`), and records were written in either case over the years, so
-    // an exact match alone can miss on case. Do not "simplify" this by
-    // lowercasing one side: the stored case is not ours to assume. `network` is
-    // matched exactly on purpose — the deploy path writes it from the config
-    // key, so it is lowercase by construction, unlike an address that a human
-    // or an older script may have written either way.
-    //
-    // One query rather than exact-then-fallback: the fallback only ran when the
-    // exact tier came back empty, so a corrupt row stored in the other casing
-    // sat behind a clean exact match and was never compared against it. Casing
-    // is a spelling of one address, not two addresses.
-    //
-    // A Tron record stores base58 while the cut carries 20-byte hex, so the
-    // address as decoded matches nothing there. Those spellings are matched
-    // exactly and never case-insensitively: base58check is case-sensitive, so
-    // folding case there would match an address that is not the one asked
-    // about.
-    //
-    // `\z` rather than `$` on the hex spelling: this is PCRE2, where `$` also
-    // matches before a trailing newline, so `$` would let `<address>\n` answer
-    // for the address.
-    const spellings =
-      createTronAddressSpellings(network)?.forCalldataAddress(address)
     const matches = await collection
-      .find({
-        network: { $eq: network },
-        $or: [
-          {
-            address: {
-              $regex: `^${escapeRegexLiteral(address)}\\z`,
-              $options: 'i',
-            },
-          },
-          ...(spellings ? [{ address: { $in: spellings } }] : []),
-        ],
-      })
+      .find(buildRecordQuery(address, network))
       .toArray()
     return resolveDeploymentRecord(matches, address, network)
   },
