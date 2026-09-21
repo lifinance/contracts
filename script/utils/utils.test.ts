@@ -303,7 +303,7 @@ describe('getFacetAddressFromDiamondLog', () => {
     await withDiamondLog('{ not json', async () => {
       await expectRejects(
         getFacetAddressFromDiamondLog('tron', 'EcoFacet'),
-        /Could not parse .*tron\.diamond\.json/
+        /No readable tron\.diamond\.json .*tron\.diamond\.json \(/
       )
     })
   })
@@ -314,7 +314,7 @@ describe('getFacetAddressFromDiamondLog', () => {
     await withDiamondLog(JSON.stringify({ LiFiDiamond: {} }), async () => {
       await expectRejects(
         getFacetAddressFromDiamondLog('tron', 'EcoFacet'),
-        /has no LiFiDiamond\.Facets object/
+        /no LiFiDiamond\.Facets object/
       )
     })
   })
@@ -327,7 +327,7 @@ describe('getFacetAddressFromDiamondLog', () => {
       async () => {
         await expectRejects(
           getFacetAddressFromDiamondLog('tron', 'EcoFacet'),
-          /has no LiFiDiamond\.Facets object/
+          /no LiFiDiamond\.Facets object/
         )
       }
     )
@@ -342,6 +342,69 @@ describe('getFacetAddressFromDiamondLog', () => {
         ).toBeNull()
       }
     )
+  })
+
+  // The deployment roots include the parent workspace, so a file that is not a
+  // diamond log can sit in front of the checkout that owns one. Refusing there
+  // would let an unrelated repo block every Tron upgrade proposal.
+  it('reads past a root whose file is not a diamond log', async () => {
+    const root = realFs.mkdtempSync(join(tmpdir(), 'diamond-log-'))
+    const previousCwd = process.cwd()
+    try {
+      realFs.mkdirSync(join(root, 'deployments'), { recursive: true })
+      realFs.writeFileSync(
+        join(root, 'deployments', 'tron.diamond.json'),
+        JSON.stringify({})
+      )
+      realFs.mkdirSync(join(root, 'contracts', 'deployments'), {
+        recursive: true,
+      })
+      realFs.writeFileSync(
+        join(root, 'contracts', 'deployments', 'tron.diamond.json'),
+        LOG
+      )
+      process.chdir(root)
+
+      expect(await getFacetAddressFromDiamondLog('tron', 'EcoFacet')).toBe(
+        'TG6586TTEv664XWSD875tMk6yDuwedphpW'
+      )
+    } finally {
+      process.chdir(previousCwd)
+      realFs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  // A well-formed log is the answer for its network, so a facet it does not
+  // carry is a first registration — not a cue to go looking in a sibling
+  // checkout, whose entry would name a facet this diamond never routed.
+  it('does not consult a later root once a log answers', async () => {
+    const root = realFs.mkdtempSync(join(tmpdir(), 'diamond-log-'))
+    const previousCwd = process.cwd()
+    try {
+      realFs.mkdirSync(join(root, 'deployments'), { recursive: true })
+      realFs.writeFileSync(join(root, 'deployments', 'tron.diamond.json'), LOG)
+      realFs.mkdirSync(join(root, 'contracts', 'deployments'), {
+        recursive: true,
+      })
+      realFs.writeFileSync(
+        join(root, 'contracts', 'deployments', 'tron.diamond.json'),
+        JSON.stringify({
+          LiFiDiamond: {
+            Facets: {
+              TWd4WrZ9wn84f5x1hZhL4DHvk738ns5jwb: { Name: 'MayanFacet' },
+            },
+          },
+        })
+      )
+      process.chdir(root)
+
+      expect(
+        await getFacetAddressFromDiamondLog('tron', 'MayanFacet')
+      ).toBeNull()
+    } finally {
+      process.chdir(previousCwd)
+      realFs.rmSync(root, { recursive: true, force: true })
+    }
   })
 
   it('propagates a read failure that is not a missing file', async () => {
