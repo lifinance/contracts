@@ -38,6 +38,8 @@ const REPO_ROOT = join(import.meta.dir, '..', '..')
 
 const DEFS = [
   ['script/deploy/deployContractToNetworks.sh', 'launchDeployWave'],
+  ['script/deploy/deployContractToNetworks.sh', 'waitForWaveCapacity'],
+  ['script/deploy/deployContractToNetworks.sh', 'resolveStallReportThreshold'],
   ['script/deploy/deployContractToNetworks.sh', 'reportStalledWave'],
   ['script/helperFunctions.sh', 'prefixNetworkOutput'],
 ]

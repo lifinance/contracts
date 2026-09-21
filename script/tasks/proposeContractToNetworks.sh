@@ -150,7 +150,7 @@ function proposeToNetworkWorker() {
     WORKER_RC=$?
   fi
 
-  # Stream worker logs to the terminal (prefixed by the launcher's sed).
+  # Stream worker logs to the terminal (the launcher tags each line with its network).
   cat "$PROPOSE_LOG"
 
   if grep -qiE 'Proposal already exists|Duplicate pending proposal' "$PROPOSE_LOG"; then

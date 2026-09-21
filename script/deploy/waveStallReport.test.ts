@@ -6,8 +6,12 @@
  * EOF, which needs every holder of that pipe's write end to close it. A child that outlives its
  * worker therefore keeps the whole wave open after the on-chain work is done and no forge or
  * cast is left running — the EXSC-1038 shape. That child is orphaned the instant its worker
- * exits, so the report has to list the process group rather than walk children; a `pgrep -P`
- * walk finds nothing and prints an empty report, which is the failure this pins.
+ * exits, so the report has to reach beyond this script's own children; a `pgrep -P` walk finds
+ * nothing and prints an empty report, which is the failure this pins.
+ *
+ * The wave stalls in two places and both are covered here: the drain that follows the launches,
+ * and the throttle between them, where a wave narrower than it is long spends its launch phase
+ * (every zkEVM network after the first) and where a stall used to go unreported entirely.
  */
 import { execFileSync } from 'child_process'
 import { join } from 'path'
@@ -23,6 +27,8 @@ const REPO_ROOT = join(import.meta.dir, '..', '..')
 
 const DEFS = [
   ['script/deploy/deployContractToNetworks.sh', 'launchDeployWave'],
+  ['script/deploy/deployContractToNetworks.sh', 'waitForWaveCapacity'],
+  ['script/deploy/deployContractToNetworks.sh', 'resolveStallReportThreshold'],
   ['script/deploy/deployContractToNetworks.sh', 'reportStalledWave'],
   ['script/helperFunctions.sh', 'prefixNetworkOutput'],
 ]
@@ -31,6 +37,19 @@ const DEFS = [
     ([file, fn]) => `sed -nE '/^(function )?${fn}\\(\\) \\{/,/^\\}/p' ${file}`
   )
   .join('\n')
+
+/**
+ * The child a worker leaves behind. A copy of `sleep` under its own name, rather than `exec -a
+ * LEFTOVER_CHILD sleep`: the report prints `comm`, which on Linux is the executable's basename
+ * and ignores an argv[0] rewrite, so the rewritten name is visible on macOS only and the
+ * assertion below would pass locally while failing on CI.
+ */
+const LEFTOVER_CHILD = 'leftoverchild'
+
+const LEFTOVER_SETUP = `
+    LEFTOVER_DIR=$(mktemp -d)
+    cp "$(command -v sleep)" "$LEFTOVER_DIR/${LEFTOVER_CHILD}"
+`
 
 /**
  * Run a wave whose worker finishes its "deploy" and then leaves a child alive, so the wave is
@@ -45,15 +64,49 @@ ${DEFS}
     )
     warning() { printf '[warning] %s\\n' "$1"; }
     error() { printf '[error] %s\\n' "$1"; }
+${LEFTOVER_SETUP}
     deployToNetworkWorker() {
       echo "deploying $3 to $1..."
-      ( exec -a LEFTOVER_CHILD sleep ${leftoverSeconds} ) &
+      "$LEFTOVER_DIR/${LEFTOVER_CHILD}" ${leftoverSeconds} &
       echo "OK" >"$5/$1"
     }
     RESULT_DIR=$(mktemp -d)
     WAVE_STALL_REPORT_SECONDS=5 launchDeployWave 10 production SomeFacet 1.0.0 "$RESULT_DIR" sepolia
     echo "RESULT:$(cat "$RESULT_DIR/sepolia")"
-    rm -rf "$RESULT_DIR"
+    rm -rf "$RESULT_DIR" "$LEFTOVER_DIR"
+  `
+  return execFileSync('bash', ['-c', script, 'harness'], {
+    cwd: REPO_ROOT,
+    encoding: 'utf8',
+    timeout: 60_000,
+  })
+}
+
+/**
+ * Run a sequential wave whose first worker leaves a child alive, so the wave stalls while its
+ * remaining networks are still queued behind the throttle, unlaunched.
+ *
+ * @param leftoverSeconds - how long that child outlives the first worker
+ */
+function runStalledLaunchWave(leftoverSeconds: number): string {
+  const script = `
+    source <(
+${DEFS}
+    )
+    warning() { printf '[warning] %s\\n' "$1"; }
+    error() { printf '[error] %s\\n' "$1"; }
+${LEFTOVER_SETUP}
+    deployToNetworkWorker() {
+      echo "deploying $3 to $1..."
+      if [[ "$1" == "net1" ]]; then
+        "$LEFTOVER_DIR/${LEFTOVER_CHILD}" ${leftoverSeconds} &
+      fi
+      echo "OK" >"$5/$1"
+    }
+    RESULT_DIR=$(mktemp -d)
+    WAVE_STALL_REPORT_SECONDS=5 launchDeployWave 1 production SomeFacet 1.0.0 "$RESULT_DIR" net1 net2
+    echo "RESULTS:$(find "$RESULT_DIR" -type f | wc -l | tr -d ' ')"
+    rm -rf "$RESULT_DIR" "$LEFTOVER_DIR"
   `
   return execFileSync('bash', ['-c', script, 'harness'], {
     cwd: REPO_ROOT,
@@ -127,9 +180,29 @@ describe('launchDeployWave stall report', () => {
 
     expect(output).toContain('wave has been running 5s')
     // the orphan a pgrep -P walk cannot reach: reparented to PPID 1, but still in the
-    // run's process group, which is why the report lists by group
-    expect(output).toMatch(/^\s+\d+\s+\d+\s+1\s+\S+\s+\S+\s+LEFTOVER_CHILD$/m)
+    // run's process group, which is why the report reaches past this script's own subtree.
+    // macOS prints the path it was invoked with where Linux prints the basename
+    expect(output).toMatch(
+      new RegExp(
+        `^\\s+\\d+\\s+\\d+\\s+1\\s+\\S+\\s+\\S+\\s+\\S*${LEFTOVER_CHILD}$`,
+        'm'
+      )
+    )
     expect(output).toContain('RESULT:OK')
+  }, 60_000)
+
+  it('reports a stall that strands the wave before its last network launches', () => {
+    // the zkEVM shape: concurrency 1, so net2 cannot launch until net1's pipeline closes, and
+    // the wave is stuck in the throttle rather than in the drain that follows the launches
+    const output = runStalledLaunchWave(12)
+
+    const firstReport = output.indexOf('wave has been running')
+    const secondLaunch = output.indexOf('[net2] deploying')
+    expect(firstReport).toBeGreaterThanOrEqual(0)
+    expect(secondLaunch).toBeGreaterThanOrEqual(0)
+    // the point of the test: reported while still launching, not once the loop was done
+    expect(firstReport).toBeLessThan(secondLaunch)
+    expect(output).toContain('RESULTS:2')
   }, 60_000)
 
   it('stays quiet for a wave that finishes inside the threshold', () => {
