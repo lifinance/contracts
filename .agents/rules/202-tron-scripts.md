@@ -13,7 +13,7 @@ paths:
 
 ### File organization
 
-- **Helpers directory** (`script/deploy/tron/helpers/`): Single-responsibility modules. One concern per file. Prefix with `tron` for Tron-domain wrappers (e.g., `tronHexSuffix.ts`, `tronscanVerify.ts`). Use action-verb names for transformers (`parseTroncastFacetsOutput.ts`, `coreFacetConstructorArgs.ts`). Shared Tron primitives live in `@lifi/tron-devkit`, not here.
+- **Helpers directory** (`script/deploy/tron/helpers/`): Single-responsibility modules. One concern per file. Prefix with `tron` for Tron-domain wrappers (e.g., `tronHexSuffix.ts`, `tronscanVerify.ts`). Use action-verb names for transformers (`parseTroncastFacetsOutput.ts`). Shared Tron primitives live in `@lifi/tron-devkit`, not here.
 - **Types**: All Tron-domain interfaces and type aliases in `script/deploy/tron/types.ts`. Follow `I`-prefix convention. Re-export types from helper files when consumers need them.
 - **Constants**: Tron-specific constants (fee limits, energy margins, API timeouts, pricing defaults) in `script/deploy/tron/constants.ts`.
 
@@ -25,15 +25,15 @@ paths:
 
 ### TronWeb creation ([CONV:TRONWEB-FACTORY])
 
-- **Always** use `createTronWeb()` / `createTronWebForTvmNetworkKey()` / `createTronWebReadOnly()` from `@lifi/tron-devkit`. Do NOT construct `new TronWeb(...)` directly outside the factory.
+- **Always** use `createTronWeb()` / `createTronWebForTvmNetworkKey()` / `createTronWebReadOnly()` from `@lifi/tron-devkit`. Do NOT construct `new TronWeb(...)` directly anywhere in repo code.
 - **Codec-only instances**: For address conversion without a private key, use `getTronWebCodecOnlyForNetwork()` from `@lifi/tron-devkit`. These are cached per-network.
 
 ### Address handling ([CONV:TRON-ADDRESS])
 
 - **Internal representation**: Always viem `Address` (0x-prefixed hex, checksummed).
-- **Tron display/API calls**: Convert to base58 via `evmHexToTronBase58()` from `tronAddressHelpers.ts` only at the point of use.
+- **Tron display/API calls**: Convert to base58 via `evmHexToTronBase58()` from `@lifi/tron-devkit` only at the point of use.
 - **Input normalization**: Use `normalizeAddressForNetwork()` from `script/utils/normalizeAddressStringForViem.ts` for user/config input that may be base58 or hex.
-- **CLI display**: Use `formatAddressForNetworkCliDisplay()` which auto-detects Tron networks and converts accordingly.
+- **CLI display**: Use `formatAddressForNetworkCliDisplay()` from `@lifi/tron-devkit`, which auto-detects Tron networks and converts accordingly.
 
 ### Energy estimation
 
