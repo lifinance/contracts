@@ -13,6 +13,7 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import { MongoClient } from 'mongodb'
 
+import { assertStoreCredentialsAreEncrypted } from './mongo-store-transport'
 import { REASON_FLIP_WINDOW, summarizeReasonAdoption } from './proposal-intent'
 
 const DEFAULT_DB = 'sc_private'
@@ -33,6 +34,7 @@ const main = defineCommand({
   async run({ args }) {
     if (!process.env.SC_MONGODB_URI)
       throw new Error('SC_MONGODB_URI environment variable is required')
+    assertStoreCredentialsAreEncrypted(process.env.SC_MONGODB_URI)
 
     const requested = Number(args.window ?? REASON_FLIP_WINDOW)
     if (!Number.isInteger(requested) || requested < 1)
