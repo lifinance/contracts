@@ -40,6 +40,14 @@ export interface IDeleteResult {
   readonly hash: string
   readonly outcome: DeleteOutcome
   readonly sigCount: number
+  /**
+   * Rows the delete actually removed. `deleted` with a count of 0 is reachable:
+   * `findOne` matches under the collection's collation while `deleteOne` uses an
+   * uncollated `$eq`, so a row stored under a different casing is read and then
+   * missed. A caller asking whether the row is gone must read this, not the
+   * outcome.
+   */
+  readonly deletedCount: number
 }
 
 /**
@@ -63,7 +71,12 @@ export async function deletePendingProposals(
     })
     if (!doc) {
       consola.warn(`[${network}] not found: ${h}`)
-      results.push({ hash: h, outcome: 'not-found', sigCount: 0 })
+      results.push({
+        hash: h,
+        outcome: 'not-found',
+        sigCount: 0,
+        deletedCount: 0,
+      })
       continue
     }
     const sigCount = countSignatures(doc.safeTx?.signatures)
@@ -72,7 +85,12 @@ export async function deletePendingProposals(
       consola.error(
         `[${network}] REFUSING to delete ${h} — signatureCount=${sigCount} (use --force)`
       )
-      results.push({ hash: h, outcome: 'skipped-signed', sigCount })
+      results.push({
+        hash: h,
+        outcome: 'skipped-signed',
+        sigCount,
+        deletedCount: 0,
+      })
       continue
     }
     const res = await pendingTransactions.deleteOne({
@@ -84,7 +102,12 @@ export async function deletePendingProposals(
         nonce
       )}, sigCount=${sigCount}, deletedCount=${res.deletedCount})`
     )
-    results.push({ hash: h, outcome: 'deleted', sigCount })
+    results.push({
+      hash: h,
+      outcome: 'deleted',
+      sigCount,
+      deletedCount: res.deletedCount,
+    })
   }
   return results
 }
