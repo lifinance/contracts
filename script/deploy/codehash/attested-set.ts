@@ -6,6 +6,7 @@
  * build, never equality against one record- or network-derived profile.
  */
 
+import type { IToolchainVersions } from './bytecode-trailer'
 import { normalizeHash } from './hex'
 
 /**
@@ -34,6 +35,15 @@ export interface IAttestedBuild {
    * normalised form alone. Pass it when the attestation pins exact bytes.
    */
   rawHash: string | undefined
+  /**
+   * The zksolc/solc/LLVM triple this build's own trailer records, or undefined
+   * for a lineage whose trailer carries no triple.
+   *
+   * Compared unmasked, which is the whole point of carrying it: the triple is
+   * the one axis trailer-stripping hides on a zksolc lineage, and a fork bump
+   * moves codegen without moving anything the normalised hash looks at.
+   */
+  toolchain?: IToolchainVersions
 }
 
 /** What was actually found at the address, normalised the same way. */
@@ -43,6 +53,17 @@ export interface IObservedCode {
   rawByteLength: number
   /** keccak of the exact deployed bytes. */
   rawHash: string
+  /**
+   * The exact deployed bytes this observation was built from, so layer 2 can
+   * price the bytes layer 1 masked rather than fetching them again. Two reads
+   * of one address can answer from different endpoints at different blocks,
+   * and layer 1 masks the immutables, so a second read is the only thing
+   * standing behind the values nobody else checks.
+   *
+   * Optional because a caller that only needs a comparison has no use for it.
+   * A consumer that would otherwise trust it must refuse when it is absent.
+   */
+  runtimeCode?: string
   /**
    * How many bytes were excluded from `maskedHash` as immutables. A MATCH says
    * nothing about them, so a caller that has not run layer 2 must not render an
@@ -54,6 +75,12 @@ export interface IObservedCode {
    * it. Absent when no version can be read.
    */
   solcVersion?: string
+  /**
+   * The triple the deployed code's own trailer records. Proposer-written like
+   * {@link solcVersion}, and compared rather than believed: it can only move a
+   * verdict from MATCH to MISMATCH.
+   */
+  toolchain?: IToolchainVersions
 }
 
 /** How completely the attested set describes what this contract may be. */
@@ -66,6 +93,14 @@ export interface ILineageScope {
    * bytecode, which the proposer controls.
    */
   isClosedSet: boolean
+  /**
+   * As `IToolchainScope` defines it, which is where it is derived.
+   *
+   * Required, not optional: the guard that reads it is dormant until zk
+   * attestations resolve, so a scope built without it would skip that guard
+   * silently and hand a signer a green over immutables nobody read.
+   */
+  holdsImmutablesOffCode: boolean
 }
 
 export type CodehashVerdict = 'MATCH' | 'MISMATCH' | 'UNVERIFIABLE'
@@ -94,6 +129,32 @@ export interface ICodehashComparison {
   /** True for everything but MATCH. Render the verdict, never this flag. */
   blocksSigning: boolean
 }
+
+/**
+ * Whether the deployed code's toolchain triple is the one a build records.
+ *
+ * An attestation without a triple imposes nothing, so an EVM lineage compares
+ * as it always did. An attestation with one requires the deployed code to carry
+ * the same triple: a missing or differing triple is a disagreement, never a
+ * pass, because the whole reason the triple is read is that stripping the
+ * trailer hides it.
+ *
+ * @param attested - the triple the attested build's own trailer records
+ * @param observed - the triple the deployed code's trailer records
+ */
+const toolchainAgrees = (
+  attested: IToolchainVersions | undefined,
+  observed: IToolchainVersions | undefined
+): boolean =>
+  attested === undefined ||
+  (observed !== undefined &&
+    attested.zksolcVersion === observed.zksolcVersion &&
+    attested.solcVersion === observed.solcVersion &&
+    attested.llvmVersion === observed.llvmVersion)
+
+/** Names a triple the way a signer reads it in a verdict. */
+const describeToolchain = (toolchain: IToolchainVersions): string =>
+  `zksolc ${toolchain.zksolcVersion}, solc ${toolchain.solcVersion}, llvm ${toolchain.llvmVersion}`
 
 const blocked = (
   verdict: 'MISMATCH' | 'UNVERIFIABLE',
@@ -133,6 +194,16 @@ const blocked = (
  * then reads as a MISMATCH, which is the reason stripping exists. The caller
  * states which it wants; this module does not choose.
  *
+ * `toolchain` is the narrower instrument for what a zksolc lineage needs from
+ * that pin. The triple lives only in the trailer, so stripping hides a fork
+ * bump — but pinning the whole trailer to recover it also pins the metadata
+ * digest beside it, and on a zksolc build that digest is a function of the
+ * whole compilation unit rather than the contract's own import closure.
+ * Measured on lens: one commit, one toolchain, byte-identical codegen, two
+ * digests, because one build compiled 244 sources and the other 175. Comparing
+ * the triple keeps the guarantee without making the verdict depend on a build
+ * invocation nothing records.
+ *
  * Known limitation, and the reason `scope` exists: with an open set, the only
  * thing distinguishing "we never built that toolchain" from "this is not our
  * code" is the compiler version in the deployed trailer, which the proposer
@@ -142,12 +213,16 @@ const blocked = (
  * @param observed - The code found on chain, already stripped and masked.
  * @param attested - Every attested build for this contract. Order is irrelevant.
  * @param scope - Whether `attested` is the complete set of legitimate builds.
+ * @param absenceReason - Why `attested` is empty, when the lookup knows. Read
+ * only on the empty set, and only to say why: an empty set blocks whatever the
+ * sentence says, so nothing here can move a verdict.
  * @returns The verdict, the lineages that matched, and why.
  */
 export const compareToAttestedSet = (
   observed: IObservedCode,
   attested: IAttestedBuild[],
-  scope: ILineageScope
+  scope: ILineageScope,
+  absenceReason?: string
 ): ICodehashComparison => {
   const target = normalizeHash(observed.maskedHash)
   const sameCode = attested.filter(
@@ -156,7 +231,10 @@ export const compareToAttestedSet = (
   const sameLength = sameCode.filter(
     (build) => build.rawByteLength === observed.rawByteLength
   )
-  const exact = sameLength.filter(
+  const sameToolchain = sameLength.filter((build) =>
+    toolchainAgrees(build.toolchain, observed.toolchain)
+  )
+  const exact = sameToolchain.filter(
     (build) =>
       build.rawHash === undefined ||
       normalizeHash(build.rawHash) === normalizeHash(observed.rawHash)
@@ -164,9 +242,10 @@ export const compareToAttestedSet = (
 
   if (exact.length > 0) {
     const matchedLineages = exact.map((build) => build.lineage)
-    // A build that pins exact bytes was compared byte for byte, immutables
-    // included, so nothing was excluded on that path however many bytes are
-    // masked.
+    // A build that pins exact bytes was compared byte for byte, so nothing was
+    // excluded on that path however many bytes are masked. That covers inlined
+    // immutables and says nothing about a chain holding them elsewhere, where
+    // zero excluded bytes and zero checked values are the same number.
     const excludedByteCount = exact.some((build) => build.rawHash !== undefined)
       ? 0
       : observed.maskedByteCount
@@ -187,16 +266,39 @@ export const compareToAttestedSet = (
     }
   }
 
+  // A triple disagreement is its own finding and has to be said as one. The
+  // codegen a fork bump moves is invisible to every other comparison here, so a
+  // signer reading "the bytes differ somewhere" would be pointed away from the
+  // only thing that did differ.
+  // An empty `sameToolchain` means every build here records a triple — one that
+  // records none imposes nothing and would have stayed in — so the build named
+  // is one that actually disagreed.
+  const disagreeing = sameLength.find((build) => build.toolchain !== undefined)
+  if (sameToolchain.length === 0 && disagreeing?.toolchain)
+    return blocked(
+      'MISMATCH',
+      `the deployed code matches the attested build from ${
+        disagreeing.lineage
+      } everywhere the normalised comparison looks, but reports ${
+        observed.toolchain
+          ? describeToolchain(observed.toolchain)
+          : 'no toolchain triple'
+      } where that build was produced by ${describeToolchain(
+        disagreeing.toolchain
+      )}`,
+      observed.maskedByteCount
+    )
+
   // Only reachable for an attestation that pins exact bytes: the code agrees
   // everywhere the normalised comparison looks, and the bytes it does not look
   // at do not. Those are the metadata trailer AND any masked immutables, so
   // naming only the trailer would point a signer at the harmless half.
-  if (sameLength.length > 0)
+  if (sameToolchain.length > 0)
     return blocked(
       'MISMATCH',
       observed.maskedByteCount === 0
-        ? `the deployed code is identical to the attested build from ${sameLength[0]?.lineage} outside its metadata trailer, and that trailer's bytes differ from the attested ones`
-        : `the deployed code is identical to the attested build from ${sameLength[0]?.lineage} where the normalised comparison looks, but its exact bytes differ: the difference is in the metadata trailer, in the ${observed.maskedByteCount} bytes holding immutables, or in both`,
+        ? `the deployed code is identical to the attested build from ${sameToolchain[0]?.lineage} outside its metadata trailer, and that trailer's bytes differ from the attested ones`
+        : `the deployed code is identical to the attested build from ${sameToolchain[0]?.lineage} where the normalised comparison looks, but its exact bytes differ: the difference is in the metadata trailer, in the ${observed.maskedByteCount} bytes holding immutables, or in both`,
       observed.maskedByteCount
     )
 
@@ -222,7 +324,8 @@ export const compareToAttestedSet = (
   if (attested.length === 0)
     return blocked(
       'UNVERIFIABLE',
-      'no attested build is available for this contract, so nothing can be compared',
+      absenceReason ??
+        'no attested build is available for this contract, so nothing can be compared',
       observed.maskedByteCount
     )
 

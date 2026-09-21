@@ -13,19 +13,25 @@ import {
   // eslint-disable-next-line import/no-unresolved
 } from 'bun:test'
 import {
+  BaseError,
+  CallExecutionError,
   createPublicClient,
   custom,
   encodeFunctionData,
+  ExecutionRevertedError,
+  parseAbi,
   type Address,
   type Hex,
   type PublicClient,
 } from 'viem'
+import { parseAccount } from 'viem/accounts'
 
 import { DIAMOND_CUT_ABI, ZERO_ADDRESS } from '../shared/constants'
 
 import {
   collectExecutabilityInput,
   createExecutabilityChainReader,
+  summariseRpcError,
   type IExecutabilityChainReader,
 } from './executability-collector'
 import { evaluateExecutability } from './executability-simulation'
@@ -39,6 +45,9 @@ const DIAMOND = '0x3333333333333333333333333333333333333333' as Address
 const TIMELOCK = '0x4444444444444444444444444444444444444444' as Address
 const FACET = '0x1111111111111111111111111111111111111111' as Address
 const SELECTOR = '0xaabbccdd' as Hex
+const REGISTER_ABI = parseAbi([
+  'function registerPeripheryContract(string _name, address _contractAddress)',
+])
 
 const cut = (action = 0): Hex =>
   encodeFunctionData({
@@ -106,12 +115,77 @@ describe('collectExecutabilityInput', () => {
     )
 
     expect(input.staticCalls.attempted).toBe(true)
-    expect(chain.calls).toHaveLength(1)
     expect(chain.calls[0]?.from).toBe(TIMELOCK)
     expect(chain.calls[0]?.to).toBe(DIAMOND)
     // The cut's own bytes, not the scheduling envelope: replaying the envelope
     // would only prove the proposal can be queued.
     expect(chain.calls[0]?.data).toBe(inner)
+
+    // …and the envelope is simulated too, from the Safe. `schedule` can be
+    // refused on its own — an operation already queued, a Safe without the
+    // proposer role — while the call inside it would have executed.
+    expect(chain.calls).toHaveLength(2)
+    expect(chain.calls[1]?.from).toBe(SAFE)
+    expect(chain.calls[1]?.to).toBe(TIMELOCK)
+  })
+
+  // The point of the whole check: an owner-gated call scheduled through the
+  // timelock must be simulated as the timelock. Simulated as the Safe it
+  // reverts on the ownership check, and simulating only the envelope proves
+  // nothing at all — `schedule` succeeds whatever it carries.
+  it('simulates a timelock-wrapped non-cut call from the timelock', async () => {
+    const inner = encodeFunctionData({
+      abi: REGISTER_ABI,
+      functionName: 'registerPeripheryContract',
+      args: ['FeeCollector', FACET],
+    })
+    const chain = reader()
+
+    await collectExecutabilityInput(
+      {
+        network: 'arbitrum',
+        safeAddress: SAFE,
+        to: TIMELOCK,
+        data: scheduleBatch([DIAMOND], [inner]),
+      },
+      chain
+    )
+
+    const scheduled = chain.calls.find((call) => call.data === inner)
+    expect(scheduled).toBeDefined()
+    expect(scheduled?.from).toBe(TIMELOCK)
+    expect(scheduled?.to).toBe(DIAMOND)
+  })
+
+  it('reports a reverting scheduled call as the proposal not executing', async () => {
+    const inner = encodeFunctionData({
+      abi: REGISTER_ABI,
+      functionName: 'registerPeripheryContract',
+      args: ['FeeCollector', FACET],
+    })
+    const chain = reader({
+      staticCall: async (call) => {
+        return call.data === inner
+          ? { outcome: 'reverted' as const, revertReason: 'OnlyContractOwner' }
+          : { outcome: 'succeeded' as const }
+      },
+    })
+    const verdict = evaluateExecutability(
+      await collectExecutabilityInput(
+        {
+          network: 'arbitrum',
+          safeAddress: SAFE,
+          to: TIMELOCK,
+          data: scheduleBatch([DIAMOND], [inner]),
+        },
+        chain
+      )
+    )
+
+    // Before the leaf was unwrapped this proposal came back clean: the only
+    // thing simulated was `scheduleBatch`, which succeeds whatever it carries.
+    expect(verdict.refuses).toBe(true)
+    expect(verdict.reason).toContain('scheduled')
   })
 
   it('simulates a direct cut from the Safe', async () => {
@@ -287,7 +361,9 @@ describe('collectExecutabilityInput', () => {
       chain
     )
 
-    expect(input.payloads).toHaveLength(2)
+    expect(
+      input.payloads.filter((payload) => payload.kind === 'diamond-cut')
+    ).toHaveLength(2)
     expect(input.observations.selectorFacets.size).toBe(0)
   })
 
@@ -374,6 +450,28 @@ describe('createExecutabilityChainReader', () => {
       throw new Error('rpc down')
     },
   } as unknown as PublicClient
+
+  // Asserted against what viem is actually handed, not against what the
+  // collector passed in. viem names the sender `account`; a `from` key compiles
+  // — the argument is a variable, so excess-property checking never sees it —
+  // and is then dropped, so every payload simulated as the zero address and
+  // every owner-gated call reverted on its ownership check whatever the
+  // proposal did. The fake reader the tests above use records whatever it is
+  // given, so it cannot see this: only the real client's parameter name can.
+  it('hands viem the sender under the name viem reads', async () => {
+    const seen: Record<string, unknown>[] = []
+    const reader = createExecutabilityChainReader({
+      call: async (params: Record<string, unknown>) => {
+        seen.push(params)
+        return {}
+      },
+    } as unknown as PublicClient)
+
+    await reader.staticCall({ from: TIMELOCK, to: DIAMOND, data: cut() })
+
+    expect(seen[0]?.['account']).toBe(TIMELOCK)
+    expect(seen[0]?.['from']).toBeUndefined()
+  })
 
   it('reports a failed read as unanswered rather than throwing', async () => {
     const reader = createExecutabilityChainReader(failing)
@@ -536,6 +634,96 @@ describe('simulating across several endpoints', () => {
   })
 })
 
+describe('summariseRpcError', () => {
+  const clientThat = (behaviour: () => Promise<unknown>): PublicClient =>
+    ({ call: behaviour } as unknown as PublicClient)
+
+  const realCallError = (data: Hex): string =>
+    new CallExecutionError(
+      new ExecutionRevertedError({ message: 'execution reverted' }),
+      {
+        account: parseAccount(SAFE),
+        to: DIAMOND,
+        data,
+      }
+    ).message
+
+  it('keeps the revert reason and drops the echoed payload', () => {
+    const data = `0x1f931c1c${'ab'.repeat(300)}` as Hex
+    const summary = summariseRpcError(realCallError(data))
+
+    expect(summary).toContain('Execution reverted for an unknown reason.')
+    expect(summary).not.toContain('Raw Call Arguments')
+    expect(summary).not.toContain('ababab')
+    expect(summary).not.toContain(DIAMOND)
+    expect(summary).not.toContain('viem@')
+    expect(summary).not.toContain('\n')
+  })
+
+  it('leaves a message it recognises nothing to drop in untouched', () => {
+    expect(summariseRpcError('  execution reverted: Ownable  ')).toBe(
+      'execution reverted: Ownable'
+    )
+  })
+
+  it('reports the summary, not the raw report, as the revert reason', async () => {
+    const data = `0x1f931c1c${'ab'.repeat(300)}` as Hex
+    const reverting = clientThat(async () => {
+      throw new CallExecutionError(
+        new ExecutionRevertedError({ message: 'execution reverted' }),
+        { account: parseAccount(SAFE), to: DIAMOND, data }
+      )
+    })
+    const reader = createExecutabilityChainReader(reverting)
+
+    const outcome = await reader.staticCall({ from: SAFE, to: DIAMOND, data })
+
+    expect(outcome.outcome).toBe('reverted')
+    expect(outcome.revertReason).not.toContain('ababab')
+    expect(outcome.revertReason).toContain('Execution reverted')
+  })
+})
+
+describe('summariseRpcError and viem’s Details line', () => {
+  const callError = (inner: Error): string =>
+    new CallExecutionError(inner as never, {
+      account: parseAccount(SAFE),
+      to: DIAMOND,
+      data: `0x1f931c1c${'ab'.repeat(200)}` as Hex,
+    }).message
+
+  it('drops a Details line that only restates the reason', () => {
+    const summary = summariseRpcError(
+      callError(
+        new BaseError(
+          'Execution reverted with reason: TimelockController: insufficient delay.',
+          {
+            details:
+              'execution reverted: TimelockController: insufficient delay',
+          }
+        )
+      )
+    )
+
+    expect(summary).toBe(
+      'Execution reverted with reason: TimelockController: insufficient delay.'
+    )
+    expect(summary).not.toContain('Details:')
+  })
+
+  it('keeps a Details line that says something the reason does not', () => {
+    const summary = summariseRpcError(
+      callError(
+        new BaseError('Execution reverted for an unknown reason.', {
+          details: 'out of gas',
+        })
+      )
+    )
+
+    expect(summary).toContain('out of gas')
+  })
+})
+
 describe('the sender a payload is simulated from', () => {
   /**
    * Drives a real viem client rather than a stub with a `call` method. The
@@ -600,5 +788,41 @@ describe('the sender a payload is simulated from', () => {
 
     expect(first.params?.from).toBe(SAFE)
     expect(second.params?.from).toBe(SAFE)
+  })
+
+  // The two halves of the sender only meet here. The tests above pin what the
+  // collector decides each payload's caller is, against a stub; the ones before
+  // them pin that a caller handed to the reader reaches the wire. Neither sees a
+  // collector that decided correctly and a reader that then sent every payload
+  // from one address.
+  it('sends each payload from its own caller, not one sender for all', async () => {
+    const seen: Record<string, unknown>[] = []
+    const client = createPublicClient({
+      transport: custom(
+        {
+          request: async ({ method, params }) => {
+            if (method !== 'eth_call') return '0x1'
+            const [request] = params as [Record<string, unknown>]
+            seen.push(request)
+            return '0x'
+          },
+        },
+        { retryCount: 0 }
+      ),
+    }) as unknown as PublicClient
+    const inner = cut()
+
+    await collectExecutabilityInput(
+      {
+        network: 'arbitrum',
+        safeAddress: SAFE,
+        to: TIMELOCK,
+        data: scheduleBatch([DIAMOND], [inner]),
+      },
+      createExecutabilityChainReader(client)
+    )
+
+    expect(seen.find((call) => call.data === inner)?.from).toBe(TIMELOCK)
+    expect(seen.find((call) => call.to === TIMELOCK)?.from).toBe(SAFE)
   })
 })

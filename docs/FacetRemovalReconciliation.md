@@ -59,8 +59,10 @@ inferred). `[code]` = read directly this session.
 4. `[code]` Headless facet removal derives selectors from `out/` (breaks for
    deprecated facets) — `cleanUpProdDiamond.ts:227`, `viemScriptHelpers.ts:357`.
 5. `[code]` `_targetState.json` shape: `network → environment → "LiFiDiamond" →
-   {contractName: version}`; facets and periphery are flat siblings; value is a
-   semver string, **not** an address — `script/deploy/safe/facet-version-utils.ts:105`.
+   {contractName: version}`; facets and periphery are flat siblings; the value is
+   `"latest"` or a semver pin, **never** an address, and this engine reads only the
+   keys — `script/deploy/safe/facet-version-utils.ts:105`,
+   [docs/TargetState.md](./TargetState.md).
 6. `[code]` Addresses live in `deployments/<network>.json` /
    `deployments/<network>.staging.json` as a flat `{name: address}` map;
    `getDeployments(network, environment)` returns it — `script/utils/deploymentHelpers.ts:26`,

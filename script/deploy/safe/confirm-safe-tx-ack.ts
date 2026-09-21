@@ -183,26 +183,50 @@ export interface INetworkOutcome {
   proposalKey: string
   acknowledgementKey: Hex
   fingerprint: Hex
+  /** Signatures held *after* whatever this run did, so the table reads as the queue's current state. */
+  signatures: number
+  threshold: number
   nonceCurrent: boolean
-  acknowledged: boolean
+  /** Independent flags rather than one status: a Sign & Execute is both, and a reducer that picks one loses the other. */
+  signedThisRun: boolean
+  executedThisRun: boolean
+  /** The run refused to act — a gate, the expected-state check, or a nonce that cannot reach the chain. */
+  blocked: boolean
+  /** This signer's signature was already on it when the run fetched it. */
+  alreadySigned: boolean
 }
 
-export interface IChangeRollup {
+export interface IQueueRollup {
   acknowledgementKey: Hex
   fingerprint: Hex
+  proposals: number
+  /** Still-queued proposals below their own threshold, keyed by signatures held. */
+  bySignatureCount: Map<number, number>
+  ready: number
+  executed: number
+  signed: number
+  already: number
+  blocked: number
+  stale: number
+}
+
+export interface IQueueSummary {
+  rollups: IQueueRollup[]
+  proposals: number
   networks: number
-  noncesUsable: number
-  acknowledged: number
-  staleNetworks: string[]
-  /** Every proposal for this effect had a usable nonce AND was acted on. */
-  complete: boolean
+  ready: number
+  signed: number
+  executed: number
+  blocked: number
+  stale: number
 }
 
 /**
- * Groups per-network outcomes by effect so the run can report N/N.
+ * Groups per-proposal outcomes by effect, so a fleet rollout is one row.
  *
- * Nonce verdicts are counted per network and never rolled up into a single
- * verdict; only the acknowledgement count rolls up.
+ * Every proposal lands in exactly one of the signature buckets, `ready` or
+ * `executed` — `blocked`, `already` and `stale` annotate those same proposals
+ * and are counted separately, so no column is a partition of another.
  *
  * Callers may push a provisional entry for a proposal and a final one later:
  * within one effect group the last entry for a proposal key wins, so a run can
@@ -213,11 +237,9 @@ export interface IChangeRollup {
  * once per proposal and reusing it for both pushes.
  *
  * @param outcomes - One or more entries per proposal seen, in the order they were seen.
- * @returns One rollup per distinct effect, in first-seen order.
+ * @returns One rollup per distinct effect in first-seen order, plus run totals.
  */
-export const rollUpByChange = (
-  outcomes: INetworkOutcome[]
-): IChangeRollup[] => {
+export const rollUpQueue = (outcomes: INetworkOutcome[]): IQueueSummary => {
   const byEffect = new Map<Hex, Map<string, INetworkOutcome>>()
 
   for (const outcome of outcomes) {
@@ -228,53 +250,210 @@ export const rollUpByChange = (
     byEffect.set(outcome.acknowledgementKey, perProposal)
   }
 
-  return [...byEffect.entries()].map(([acknowledgementKey, perProposal]) => {
-    // A group only exists because an outcome created it, so it is never empty.
-    const [first, ...rest] = [...perProposal.values()] as [
-      INetworkOutcome,
-      ...INetworkOutcome[]
-    ]
-    const entries = [first, ...rest]
-    const noncesUsable = entries.filter((e) => e.nonceCurrent).length
-    const acknowledged = entries.filter((e) => e.acknowledged).length
+  const rollups = [...byEffect.entries()].map(
+    ([acknowledgementKey, perProposal]): IQueueRollup => {
+      // A group only exists because an outcome created it, so it is never empty.
+      const [first, ...rest] = [...perProposal.values()] as [
+        INetworkOutcome,
+        ...INetworkOutcome[]
+      ]
+      const entries = [first, ...rest]
+      const bySignatureCount = new Map<number, number>()
+      let ready = 0
 
-    return {
-      acknowledgementKey,
-      fingerprint: first.fingerprint,
-      networks: entries.length,
-      noncesUsable,
-      acknowledged,
-      staleNetworks: entries
-        .filter((e) => !e.nonceCurrent)
-        .map((e) => e.network),
-      complete:
-        noncesUsable === entries.length && acknowledged === entries.length,
+      for (const entry of entries) {
+        // An executed proposal has left the queue, so it is in neither the
+        // buckets nor `ready` — the columns describe what is still waiting.
+        if (entry.executedThisRun) continue
+        if (entry.signatures >= entry.threshold) {
+          ready += 1
+          continue
+        }
+        bySignatureCount.set(
+          entry.signatures,
+          (bySignatureCount.get(entry.signatures) ?? 0) + 1
+        )
+      }
+
+      return {
+        acknowledgementKey,
+        fingerprint: first.fingerprint,
+        proposals: entries.length,
+        bySignatureCount,
+        ready,
+        executed: entries.filter((e) => e.executedThisRun).length,
+        signed: entries.filter((e) => e.signedThisRun).length,
+        already: entries.filter((e) => e.alreadySigned && !e.signedThisRun)
+          .length,
+        blocked: entries.filter((e) => e.blocked).length,
+        stale: entries.filter((e) => !e.nonceCurrent).length,
+      }
     }
-  })
+  )
+
+  const networks = new Set<string>()
+  for (const perProposal of byEffect.values())
+    for (const entry of perProposal.values()) networks.add(entry.network)
+
+  const total = (pick: (rollup: IQueueRollup) => number): number =>
+    rollups.reduce((sum, rollup) => sum + pick(rollup), 0)
+
+  return {
+    rollups,
+    proposals: total((rollup) => rollup.proposals),
+    networks: networks.size,
+    ready: total((rollup) => rollup.ready),
+    signed: total((rollup) => rollup.signed),
+    executed: total((rollup) => rollup.executed),
+    blocked: total((rollup) => rollup.blocked),
+    stale: total((rollup) => rollup.stale),
+  }
+}
+
+/** Width of the payload column; a 10-character fingerprint plus a gap. */
+const PAYLOAD_WIDTH = 13
+/** Width of every named count column, so the labels are their own ruler. */
+const COUNT_WIDTH = 10
+/** Width of a signature bucket, which is only ever a single-digit header. */
+const BUCKET_WIDTH = 6
+/**
+ * Zero prints as a dot. A grid of `0`s is what made the previous summary
+ * unreadable: the eye should land only on the cells that carry something.
+ */
+const EMPTY_CELL = '·'
+
+const cell = (value: number, width: number): string =>
+  (value === 0 ? EMPTY_CELL : String(value)).padStart(width)
+
+const centre = (label: string, width: number): string => {
+  if (label.length >= width) return label
+  const left = Math.floor((width - label.length) / 2)
+  return ' '.repeat(left) + label + ' '.repeat(width - label.length - left)
+}
+
+const countOf = (count: number, noun: string): string =>
+  `${count} ${noun}${count === 1 ? '' : 's'}`
+
+interface IOptionalColumn {
+  label: string
+  /** `run` columns sit under the "this run" group header; `state` under none. */
+  group: 'run' | 'state'
+  get: (rollup: IQueueRollup) => number
 }
 
 /**
- * Renders the roll-up as printable lines.
+ * Columns that appear only when some row has something to put in them.
  *
- * The counts are named for exactly what they measure — a usable nonce, and a
- * proposal the operator acted on — so the marker is never read as "the run
- * succeeded". `acted on` is deliberately not `reviewed`: acknowledgement is
- * implicit in selecting an action, and nothing here observes a review.
- * Execution outcomes are reported separately by the caller.
- *
- * @param rollups - Rollups from `rollUpByChange`.
- * @returns One line per effect; the tick appears only when both counts are N/N.
+ * A clean single-network run then renders three columns rather than eight, and
+ * a column that is present is a column worth reading.
  */
-export const renderChangeRollup = (rollups: IChangeRollup[]): string[] =>
-  rollups.map((rollup) => {
-    const stale = rollup.staleNetworks.length
-      ? ` · stale nonce on ${rollup.staleNetworks.join(', ')}`
-      : ''
+const OPTIONAL_COLUMNS: IOptionalColumn[] = [
+  { label: 'signed', group: 'run', get: (rollup) => rollup.signed },
+  { label: 'executed', group: 'run', get: (rollup) => rollup.executed },
+  { label: 'already', group: 'state', get: (rollup) => rollup.already },
+  { label: 'blocked', group: 'state', get: (rollup) => rollup.blocked },
+  { label: 'stale', group: 'state', get: (rollup) => rollup.stale },
+]
 
-    return `${rollup.complete ? '✓' : '✗'} payload ${rollup.fingerprint.slice(
-      0,
-      10
-    )} · nonce usable ${rollup.noncesUsable}/${rollup.networks} · acted on ${
-      rollup.acknowledged
-    }/${rollup.networks}${stale}`
-  })
+/**
+ * The contiguous signature-count columns the rows actually need.
+ *
+ * Contiguous rather than only-the-occupied so the header reads as a scale; it
+ * starts at the lowest count seen, because a `0` column of dots on a queue
+ * where everything already carries a signature is noise.
+ *
+ * @param rollups - Every effect's roll-up for this run.
+ * @returns Signature counts to render as columns, ascending; empty if nothing is below threshold.
+ */
+const signatureColumns = (rollups: readonly IQueueRollup[]): number[] => {
+  const counts = rollups.flatMap((rollup) => [
+    ...rollup.bySignatureCount.keys(),
+  ])
+  if (counts.length === 0) return []
+
+  const lowest = Math.min(...counts)
+  return Array.from(
+    { length: Math.max(...counts) - lowest + 1 },
+    (_, index) => lowest + index
+  )
+}
+
+/**
+ * Renders the queue as a table: one row per change, one column per fact.
+ *
+ * The heading says *pending* because that is the whole population the run ever
+ * saw — a proposal already executed or cancelled is never fetched, so nothing
+ * here can be read as a statement about it.
+ *
+ * Counts are named for exactly what they measure. `signed` and `executed` are
+ * what this run did; nothing here observes that a change was *reviewed*.
+ *
+ * @param summary - The roll-up from `rollUpQueue`.
+ * @returns The lines to print, or none when the run saw no proposal at all.
+ */
+export const renderQueueSummary = (summary: IQueueSummary): string[] => {
+  if (summary.rollups.length === 0) return []
+
+  const buckets = signatureColumns(summary.rollups)
+  const optional = OPTIONAL_COLUMNS.filter((column) =>
+    summary.rollups.some((rollup) => column.get(rollup) > 0)
+  )
+  const ordered = [
+    ...optional.filter((column) => column.group === 'run'),
+    ...optional.filter((column) => column.group === 'state'),
+  ]
+
+  const lead =
+    '  ' + 'payload'.padEnd(PAYLOAD_WIDTH) + 'proposals'.padStart(COUNT_WIDTH)
+  const runSpan =
+    optional.filter((column) => column.group === 'run').length * COUNT_WIDTH
+
+  const groupHeader = (
+    ' '.repeat(lead.length) +
+    centre(
+      'signatures collected',
+      buckets.length * BUCKET_WIDTH + COUNT_WIDTH
+    ) +
+    (runSpan > 0 ? centre('this run', runSpan) : '')
+  ).trimEnd()
+
+  const columnHeader =
+    lead +
+    buckets.map((count) => String(count).padStart(BUCKET_WIDTH)).join('') +
+    'ready'.padStart(COUNT_WIDTH) +
+    ordered.map((column) => column.label.padStart(COUNT_WIDTH)).join('')
+
+  const rows = summary.rollups.map(
+    (rollup) =>
+      '  ' +
+      rollup.fingerprint.slice(0, 10).padEnd(PAYLOAD_WIDTH) +
+      String(rollup.proposals).padStart(COUNT_WIDTH) +
+      buckets
+        .map((count) =>
+          cell(rollup.bySignatureCount.get(count) ?? 0, BUCKET_WIDTH)
+        )
+        .join('') +
+      cell(rollup.ready, COUNT_WIDTH) +
+      ordered.map((column) => cell(column.get(rollup), COUNT_WIDTH)).join('')
+  )
+
+  const footer = [
+    `${summary.proposals} pending at run start`,
+    `${summary.ready} at threshold`,
+    `signed ${summary.signed}`,
+    `executed ${summary.executed}`,
+  ]
+  if (summary.blocked > 0) footer.push(`${summary.blocked} blocked`)
+  if (summary.stale > 0) footer.push(`${summary.stale} on a stale nonce`)
+
+  return [
+    `=== Pending proposal queue — ${countOf(
+      summary.proposals,
+      'proposal'
+    )} across ${countOf(summary.networks, 'network')} ===`,
+    groupHeader,
+    columnHeader,
+    ...rows,
+    '  ' + footer.join(' · '),
+  ]
+}

@@ -130,15 +130,52 @@ export function normalizeRpcUrlForNetwork(
   return parsed.toString()
 }
 
-/** Networks whose primary endpoint carries no provider credentials, with that endpoint's host. */
+/**
+ * Networks we accept on a public primary: no provider we hold a key with serves them, so a
+ * warning about them can never be acted on. Checked against dRPC and Alchemy on 2026-09-17;
+ * drop a network from here once either starts serving it.
+ */
+const ACCEPTED_PUBLIC_PRIMARIES = new Set(['nibiru', 'somnia', 'vana'])
+
+/**
+ * Whether a public primary on this network is worth warning about.
+ *
+ * The `RpcEndpoints` collection is shared and outlives this repo's network list: it keeps
+ * endpoints for chains we deprecated and for chains we never onboarded, and neither is ours to
+ * fix. Testnets are equally expected to run on public endpoints. The warning is there to catch a
+ * mainnet we operate resolving to a rate-limited endpoint, so everything else stays silent —
+ * `audit-rpc-priorities` is the unfiltered view.
+ *
+ * @param networkName - Name as `config/networks.json` spells it, or undefined when the
+ * collection carries a chain that file does not list.
+ */
+export function isPublicPrimaryActionable(
+  networkName: string | undefined,
+  networks: Record<string, { status?: string; type?: string }>
+): boolean {
+  if (!networkName) return false
+  if (ACCEPTED_PUBLIC_PRIMARIES.has(networkName)) return false
+
+  const network = networks[networkName]
+  return network?.status === 'active' && network?.type === 'mainnet'
+}
+
+/**
+ * Networks whose primary endpoint carries no provider credentials, with that endpoint's host.
+ *
+ * @param isActionable - Whether a network's public primary is worth reporting. Defaults to
+ * reporting every network, which is what the audit wants.
+ */
 export function findUncredentialedPrimaries(
-  endpointsByNetwork: Record<string, IRpcEndpoint[]>
+  endpointsByNetwork: Record<string, IRpcEndpoint[]>,
+  isActionable: (network: string) => boolean = () => true
 ): { network: string; host: string }[] {
   const flagged: { network: string; host: string }[] = []
 
   for (const [network, endpoints] of Object.entries(endpointsByNetwork)) {
     const primary = endpoints[0]
     if (!primary || hasApiCredentials(primary.url)) continue
+    if (!isActionable(network)) continue
     flagged.push({ network, host: hostOf(primary.url) })
   }
 

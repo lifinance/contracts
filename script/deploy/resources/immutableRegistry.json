@@ -1,4 +1,16 @@
 {
+  "EcoFacet": {
+    "PORTAL": {
+      "source": "config",
+      "configData": "_portal",
+      "authorityBearing": true
+    },
+    "BACKEND_SIGNER": {
+      "source": "config",
+      "configData": "_backendSigner",
+      "authorityBearing": true
+    }
+  },
   "AcrossFacet": {
     "spokePool": {
       "source": "config",
@@ -8,6 +20,467 @@
     "wrappedNative": {
       "source": "config",
       "configData": "_wrappedNativeAddress"
+    }
+  },
+  "AcrossFacetPackedV4": {
+    "SPOKEPOOL": {
+      "source": "config",
+      "configData": "_spokePool",
+      "authorityBearing": true
+    },
+    "WRAPPED_NATIVE": {
+      "source": "config",
+      "configData": "_wrappedNative"
+    }
+  },
+  "AcrossFacetV4": {
+    "SPOKEPOOL": {
+      "source": "config",
+      "configData": "_spokePool",
+      "authorityBearing": true
+    },
+    "WRAPPED_NATIVE": {
+      "source": "config",
+      "configData": "_wrappedNative"
+    }
+  },
+  "AcrossV4SwapFacet": {
+    "SPOKE_POOL_PERIPHERY": {
+      "source": "config",
+      "configData": "_spokePoolPeriphery",
+      "authorityBearing": true
+    },
+    "SPOKE_POOL": {
+      "source": "config",
+      "configData": "_spokePool",
+      "authorityBearing": true
+    },
+    "WRAPPED_NATIVE": {
+      "source": "config",
+      "configData": "_wrappedNative"
+    },
+    "SPONSORED_OFT_SRC_PERIPHERY": {
+      "source": "config",
+      "configData": "_sponsoredOftSrcPeriphery",
+      "authorityBearing": true
+    },
+    "SPONSORED_CCTP_SRC_PERIPHERY": {
+      "source": "config",
+      "configData": "_sponsoredCctpSrcPeriphery",
+      "authorityBearing": true
+    },
+    "BACKEND_SIGNER": {
+      "source": "config",
+      "configData": "_backendSigner",
+      "authorityBearing": true
+    }
+  },
+  "AllBridgeFacet": {
+    "ALLBRIDGE": {
+      "source": "config",
+      "configData": "_allBridge",
+      "authorityBearing": true
+    }
+  },
+  "ArbitrumBridgeFacet": {
+    "gatewayRouter": {
+      "source": "config",
+      "configData": "_gatewayRouter",
+      "authorityBearing": true
+    },
+    "inbox": {
+      "source": "config",
+      "configData": "_inbox",
+      "authorityBearing": true
+    }
+  },
+  "CelerCircleBridgeFacet": {
+    "CIRCLE_BRIDGE_PROXY": {
+      "source": "config",
+      "configData": "_circleBridgeProxy",
+      "authorityBearing": true
+    },
+    "USDC": {
+      "source": "config",
+      "configData": "_usdc"
+    }
+  },
+  "ChainflipFacet": {
+    "CHAINFLIP_VAULT": {
+      "source": "config",
+      "configData": "_chainflipVault",
+      "authorityBearing": true
+    }
+  },
+  "DeBridgeDlnFacet": {
+    "DLN_SOURCE": {
+      "source": "config",
+      "configData": "_dlnSource",
+      "authorityBearing": true
+    }
+  },
+  "EmergencyPauseFacet": {
+    "pauserWallet": {
+      "source": "config",
+      "configData": "_pauserWallet",
+      "authorityBearing": true
+    },
+    "_emergencyPauseFacetAddress": {
+      "source": "derived",
+      "rule": "address(this) at construction, so it equals the deployment's own address.",
+      "evaluator": {
+        "kind": "selfAddress"
+      }
+    }
+  },
+  "FraxFacet": {
+    "FRAX_HOP": {
+      "source": "config",
+      "configData": "_hop",
+      "authorityBearing": true
+    },
+    "FRAX_TIP_FEE_MANAGER": {
+      "source": "config",
+      "configData": "_tipFeeManager",
+      "authorityBearing": true
+    },
+    "FRAX_PATH_USD": {
+      "source": "config",
+      "configData": "_pathUsd"
+    }
+  },
+  "GardenFacet": {
+    "REGISTRY": {
+      "source": "config",
+      "configData": "_htlcRegistry",
+      "authorityBearing": true
+    }
+  },
+  "GasZipFacet": {
+    "GAS_ZIP_ROUTER": {
+      "source": "config",
+      "configData": "_gasZipRouter",
+      "authorityBearing": true
+    }
+  },
+  "GasZipPeriphery": {
+    "GAS_ZIP_ROUTER": {
+      "source": "config",
+      "configData": "_gasZipRouter",
+      "authorityBearing": true
+    },
+    "LIFI_DIAMOND": {
+      "source": "unverifiable",
+      "reason": "The deploy script reads the diamond from deployments/<network>.json .LiFiDiamond, not from config/. Layer 2 resolves config-sourced expectations through configData only, so a deployment-log address has no expression in this registry.",
+      "authorityBearing": true
+    }
+  },
+  "GenericSwapFacetV3": {
+    "NATIVE_ADDRESS": {
+      "source": "config",
+      "configData": "_nativeAddress"
+    }
+  },
+  "GlacisFacet": {
+    "AIRLIFT": {
+      "source": "config",
+      "configData": "_airlift",
+      "authorityBearing": true
+    }
+  },
+  "GnosisBridgeFacet": {
+    "GNOSIS_BRIDGE_ROUTER": {
+      "source": "config",
+      "configData": "_xDaiBridge",
+      "authorityBearing": true
+    }
+  },
+  "LayerSwapFacet": {
+    "LAYERSWAP_DEPOSITORY": {
+      "source": "config",
+      "configData": "_layerSwapDepository",
+      "authorityBearing": true
+    },
+    "BACKEND_SIGNER": {
+      "source": "config",
+      "configData": "_backendSigner",
+      "authorityBearing": true
+    }
+  },
+  "LidoWrapper": {
+    "ST_ETH": {
+      "source": "config",
+      "configData": "_stETHAddress"
+    },
+    "WST_ETH_ADDRESS": {
+      "source": "config",
+      "configData": "_wstETHAddress"
+    }
+  },
+  "LiFiDEXAggregator": {
+    "BENTO_BOX": {
+      "source": "derived",
+      "rule": "address(0). DeployLiFiDEXAggregator.s.sol passes the literal, as the upstream RouteProcessor4 deployment does; no config file carries a BentoBox address.",
+      "authorityBearing": true,
+      "evaluator": {
+        "kind": "literal",
+        "value": "0x0000000000000000000000000000000000000000"
+      }
+    }
+  },
+  "LiFiIntentEscrowFacetV2": {
+    "LIFI_INTENT_ESCROW_SETTLER_V2": {
+      "source": "config",
+      "configData": "_inputSettler",
+      "authorityBearing": true
+    }
+  },
+  "MayanFacet": {
+    "MAYAN": {
+      "source": "config",
+      "configData": "_mayan",
+      "authorityBearing": true
+    }
+  },
+  "NEARIntentsFacet": {
+    "BACKEND_SIGNER": {
+      "source": "config",
+      "configData": "_backendSigner",
+      "authorityBearing": true
+    }
+  },
+  "OmniBridgeFacet": {
+    "foreignOmniBridge": {
+      "source": "config",
+      "configData": "_foreignOmniBridge",
+      "authorityBearing": true
+    },
+    "wethOmniBridge": {
+      "source": "config",
+      "configData": "_wethOmniBridge",
+      "authorityBearing": true
+    }
+  },
+  "PaxosTransitFacet": {
+    "TRANSIT_STATION": {
+      "source": "config",
+      "configData": "_transitStation",
+      "authorityBearing": true
+    }
+  },
+  "Permit2Proxy": {
+    "LIFI_DIAMOND": {
+      "source": "unverifiable",
+      "reason": "The deploy script reads the diamond from deployments/<network>.json .LiFiDiamond, not from config/. Layer 2 resolves config-sourced expectations through configData only, so a deployment-log address has no expression in this registry.",
+      "authorityBearing": true
+    },
+    "PERMIT2": {
+      "source": "config",
+      "configData": "permit2Address",
+      "authorityBearing": true
+    },
+    "PERMIT_WITH_WITNESS_TYPEHASH": {
+      "source": "derived",
+      "rule": "keccak256(PermitHash._PERMIT_TRANSFER_FROM_WITNESS_TYPEHASH_STUB ++ WITNESS_TYPE_STRING), both compile-time constants, so the value is fixed for a given source revision and carries no per-network input.",
+      "evaluator": {
+        "kind": "literal",
+        "value": "0x8d1c580daffeed15ffec12c37a2feb02e6296bcf4fa4de7ae85a3fdf033edc82"
+      }
+    }
+  },
+  "PolygonBridgeFacet": {
+    "rootChainManager": {
+      "source": "config",
+      "configData": "_rootChainManager",
+      "authorityBearing": true
+    },
+    "erc20Predicate": {
+      "source": "config",
+      "configData": "_erc20Predicate",
+      "authorityBearing": true
+    }
+  },
+  "PolymerCCTPFacet": {
+    "TOKEN_MESSENGER": {
+      "source": "config",
+      "configData": "_tokenMessenger",
+      "authorityBearing": true
+    },
+    "USDC": {
+      "source": "config",
+      "configData": "_usdc"
+    },
+    "POLYMER_FEE_RECEIVER": {
+      "source": "config",
+      "configData": "_polymerFeeReceiver"
+    }
+  },
+  "ReceiverAcrossV3": {
+    "executor": {
+      "source": "unverifiable",
+      "reason": "The deploy script reads the Executor from deployments/<network>.json .Executor, which deployRequirements files under contractAddresses rather than configData. Layer 2 resolves expectations through configData only, so a deployment-log address has no expression in this registry.",
+      "authorityBearing": true
+    },
+    "spokepool": {
+      "source": "config",
+      "configData": "_spokepool",
+      "authorityBearing": true
+    }
+  },
+  "ReceiverAcrossV4": {
+    "EXECUTOR": {
+      "source": "unverifiable",
+      "reason": "The deploy script reads the Executor from deployments/<network>.json .Executor, which deployRequirements files under contractAddresses rather than configData. Layer 2 resolves expectations through configData only, so a deployment-log address has no expression in this registry.",
+      "authorityBearing": true
+    },
+    "SPOKEPOOL": {
+      "source": "config",
+      "configData": "_spokepool",
+      "authorityBearing": true
+    }
+  },
+  "ReceiverChainflip": {
+    "executor": {
+      "source": "unverifiable",
+      "reason": "The deploy script reads the Executor from deployments/<network>.json .Executor, which deployRequirements files under contractAddresses rather than configData. Layer 2 resolves expectations through configData only, so a deployment-log address has no expression in this registry.",
+      "authorityBearing": true
+    },
+    "chainflipVault": {
+      "source": "config",
+      "configData": "_chainflipVault",
+      "authorityBearing": true
+    }
+  },
+  "ReceiverOIF": {
+    "EXECUTOR": {
+      "source": "unverifiable",
+      "reason": "The deploy script reads the Executor from deployments/<network>.json .Executor, which deployRequirements files under contractAddresses rather than configData. Layer 2 resolves expectations through configData only, so a deployment-log address has no expression in this registry.",
+      "authorityBearing": true
+    },
+    "OUTPUT_SETTLER": {
+      "source": "config",
+      "configData": "_outputSettler",
+      "authorityBearing": true
+    }
+  },
+  "ReceiverStargateV2": {
+    "executor": {
+      "source": "unverifiable",
+      "reason": "The deploy script reads the Executor from deployments/<network>.json .Executor, which deployRequirements files under contractAddresses rather than configData. Layer 2 resolves expectations through configData only, so a deployment-log address has no expression in this registry.",
+      "authorityBearing": true
+    },
+    "tokenMessaging": {
+      "source": "config",
+      "configData": "_tokenMessaging",
+      "authorityBearing": true
+    },
+    "endpointV2": {
+      "source": "config",
+      "configData": "_endpointV2",
+      "authorityBearing": true
+    },
+    "recoverGas": {
+      "source": "derived",
+      "rule": "The gas stipend DeployReceiverStargateV2.s.sol passes as a literal (100000). It is a gas budget, not an address, and no config file carries it.",
+      "evaluator": {
+        "kind": "literal",
+        "value": "100000"
+      }
+    }
+  },
+  "RelayDepositoryFacet": {
+    "RELAY_DEPOSITORY": {
+      "source": "config",
+      "configData": "_relayDepository",
+      "authorityBearing": true
+    }
+  },
+  "SquidFacet": {
+    "squidRouter": {
+      "source": "config",
+      "configData": "_squidRouter",
+      "authorityBearing": true
+    }
+  },
+  "StargateFacetV2": {
+    "tokenMessaging": {
+      "source": "config",
+      "configData": "_tokenMessaging",
+      "authorityBearing": true
+    }
+  },
+  "SupersetFacet": {
+    "POOL_MANAGER": {
+      "source": "config",
+      "configData": "_poolManager",
+      "authorityBearing": true
+    },
+    "IS_HUB": {
+      "source": "derived",
+      "rule": "block.chainid == ARBITRUM_CHAIN_ID at construction, so it is true on Arbitrum and false everywhere else.",
+      "evaluator": {
+        "kind": "chainIdEquals",
+        "chainId": 42161
+      }
+    }
+  },
+  "SymbiosisFacet": {
+    "symbiosisMetaRouter": {
+      "source": "config",
+      "configData": "_symbiosisMetaRouter",
+      "authorityBearing": true
+    },
+    "symbiosisGateway": {
+      "source": "config",
+      "configData": "_symbiosisGateway",
+      "authorityBearing": true
+    },
+    "onchainSwapV3": {
+      "source": "config",
+      "configData": "_onchainSwapV3",
+      "authorityBearing": true
+    },
+    "onchainSwapV3Gateway": {
+      "source": "config",
+      "configData": "_onchainSwapV3Gateway",
+      "authorityBearing": true
+    },
+    "backendSigner": {
+      "source": "config",
+      "configData": "_backendSigner",
+      "authorityBearing": true
+    }
+  },
+  "ThorSwapFacet": {
+    "thorchainRouter": {
+      "source": "config",
+      "configData": "_thorchainRouter",
+      "authorityBearing": true
+    }
+  },
+  "TokenWrapper": {
+    "WRAPPED_TOKEN": {
+      "source": "config",
+      "configData": "_wrappedToken"
+    },
+    "CONVERTER": {
+      "source": "derived",
+      "rule": "_converter when it is non-zero, otherwise _wrappedToken \u2014 so it is config/tokenconverters.json .<NETWORK>.converterAddress on a network that has one, and the wrapped token's own address on one that does not."
+    },
+    "USE_CONVERTER": {
+      "source": "derived",
+      "rule": "_converter != address(0), i.e. true exactly on networks whose tokenconverters.json entry names a converter."
+    },
+    "SWAP_RATIO_MULTIPLIER": {
+      "source": "derived",
+      "rule": "10 ** IERC20Metadata(_wrappedToken).decimals() when a converter is used, otherwise 1 ether. It is read from the wrapped token at construction, so no config file carries it."
+    }
+  },
+  "UnitFacet": {
+    "BACKEND_SIGNER": {
+      "source": "config",
+      "configData": "_backendSigner",
+      "authorityBearing": true
     }
   }
 }

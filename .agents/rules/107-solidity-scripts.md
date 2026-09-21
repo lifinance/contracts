@@ -13,7 +13,7 @@ paths:
 - Foundry deploy/update script patterns (`Deploy*.s.sol`, `Update*.s.sol`) with JSON config via `stdJson`.
 - Use `DeployScriptBase`/`UpdateScriptBase` patterns: `Deploy*.s.sol` uses `deploy(type(Contract).creationCode)`; only add `getConstructorArgs()` when needed and read from JSON via `stdJson`.
 - Update scripts call `update("{ContractName}")` and override `getExcludes()` to exclude selectors that shouldn't be in the diamond cut (e.g., init functions called via `getCallData()`, storage getters like `spokePool`, inherited ownership functions, or migration functions). Return empty array if nothing to exclude.
-- Keep naming/location under `script/deploy/` (and `zksync/` when relevant); reuse helpers/config files (`deployRequirements.json`, `targetState.json`) instead of new patterns.
+- Keep naming/location under `script/deploy/` (and `zksync/` when relevant); reuse helpers/config files (`deployRequirements.json`, `_targetState.json`) instead of new patterns.
 
 ## ZkSync Script Synchronization
 

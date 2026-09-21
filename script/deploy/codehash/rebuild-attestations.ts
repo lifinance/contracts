@@ -27,9 +27,12 @@
  * infrastructure failure into a clean-looking grey — so an unreachable record
  * store, an unfetchable commit and a failed compile each surface as an
  * {@link AttestationSourceError}, while a record that is genuinely silent about
- * an address returns the empty set.
+ * an address returns the empty set — carrying the reason it is empty, so the
+ * two silences a signer can meet stay distinguishable on the row itself.
  */
 import { keccak256, type Hex } from 'viem'
+
+import type { IImmutableDeclaration } from '../immutables/immutable-ast'
 
 import type { IAttestedBuild } from './attested-set'
 import {
@@ -44,6 +47,7 @@ import {
 import { frameFault, strip0x } from './hex'
 import { maskImmutables, type ImmutableReferences } from './immutable-offsets'
 import type { IBuildProfile, IToolchainScope } from './lineage-scope'
+import type { IAttestationLookup } from './verify-cut-targets'
 
 /**
  * What `getCurrentGitCommitHash()` writes when it cannot read a commit. It is a
@@ -72,6 +76,16 @@ export interface IRebuiltArtifact {
   runtimeHex: string
   /** Foundry's `immutableReferences`; absent for a contract with none. */
   immutableReferences?: ImmutableReferences
+  /**
+   * The contract's immutables as this same compilation's AST declares them.
+   *
+   * From THIS build and no other: `immutableReferences` is keyed by AST id, and
+   * an id identifies a declaration only within the compilation that assigned
+   * it, so declarations taken from a second build may name the wrong slot
+   * without anything looking wrong. Absent for a contract with no immutables,
+   * and absent when the build carried no AST.
+   */
+  immutableDeclarations?: readonly IImmutableDeclaration[]
 }
 
 export interface IAttestationSourceDeps {
@@ -148,7 +162,10 @@ export interface INormalizedCode {
   rawByteLength: number
   /** keccak after the trailer came off and immutables were zeroed. */
   maskedHash: string
-  /** Bytes excluded as immutables. Always 0 on zkEVM, which inlines none. */
+  /**
+   * Bytes excluded as immutables. Always 0 on zkEVM, which inlines none — so
+   * there it is not a statement that the immutables were covered.
+   */
   maskedByteCount: number
 }
 
@@ -253,14 +270,19 @@ const describeLineage = (
 /**
  * Turns one rebuilt artifact into an attestation.
  *
- * `rawHash` is pinned on zkEVM and left unpinned elsewhere, and that is the
- * whole D19(b) decision in one line. The solc-fork/LLVM sub-version a zksolc
- * build was produced by lives only in the metadata trailer, so stripping the
- * trailer is precisely what makes fork drift invisible — measured on
+ * `toolchain` carries the D19(b) decision. The solc-fork/LLVM sub-version a
+ * zksolc build was produced by lives only in the metadata trailer, so stripping
+ * the trailer is precisely what makes fork drift invisible — measured on
  * `LayerSwapFacet`, where a 1.0.1→1.0.2 bump moved 33 trailer bytes and no
- * codegen. On EVM the trailer holds an IPFS digest of the source layout, which
- * moves for a changed comment, and pinning it there would block on drift that
- * cannot change behaviour.
+ * codegen. So the triple is carried and compared on its own.
+ *
+ * `rawHash` stays unpinned on every lineage, zkEVM included. Both trailers hold
+ * an IPFS digest beside the version, and a digest moves for things that cannot
+ * change behaviour: on EVM a changed comment or file path, and on zkEVM the
+ * size of the compilation unit as well, which the build invocation sets rather
+ * than the source. Pinning it on zkEVM graded honest deploys rogue fleet-wide,
+ * because no rebuild here reproduces the invocation a deploy used and nothing
+ * records what that was.
  *
  * @param record - the record's contract identity
  * @param commit - the commit rebuilt at
@@ -288,6 +310,10 @@ const attestationFrom = (
   // fallback because 63 of 2,094 fleet slots carry no trailer at all.
   const solcVersion =
     (trailer.present ? trailer.solcVersion : undefined) ?? profile.solcVersion
+  // Only a triple this build actually recorded. Falling back to the profile's
+  // zksolc pin would state two of the three versions and leave the LLVM fork —
+  // the one axis nothing but the trailer pins — silently uncompared.
+  const toolchain = trailer.present ? trailer.toolchain : undefined
 
   return {
     ok: true,
@@ -297,7 +323,8 @@ const attestationFrom = (
       solcVersion,
       maskedHash: normalized.maskedHash,
       rawByteLength: normalized.rawByteLength,
-      rawHash: isZk ? normalized.rawHash : undefined,
+      rawHash: undefined,
+      ...(toolchain ? { toolchain } : {}),
     },
   }
 }
@@ -312,7 +339,7 @@ export interface IAttestationSource {
   attestationsFor: (
     address: string,
     network: string
-  ) => Promise<IAttestedBuild[]>
+  ) => Promise<IAttestationLookup>
 }
 
 /**
@@ -382,7 +409,8 @@ export const createAttestationSource = (
       return {
         kind: 'unattestable',
         stage: 'no-record',
-        reason: `${address} on ${network}: the deployment record says nothing about this address, so there is no contract identity to rebuild.`,
+        reason:
+          'no attested build is available: the production deployment record says nothing about this address, so nothing names which contract to rebuild',
       }
 
     const commit = record.gitCommitHash.trim()
@@ -390,7 +418,7 @@ export const createAttestationSource = (
       return {
         kind: 'unattestable',
         stage: 'no-commit',
-        reason: `${address} on ${network}: the record for ${record.contractName}@${record.version} carries no commit, so there is no source to rebuild from.`,
+        reason: `no attested build is available: the deployment record names ${record.contractName}@${record.version} but carries no commit, so there is no source to rebuild it from`,
       }
 
     const availability = ensureCommitAvailable(commit, { git: deps.git })
@@ -471,10 +499,15 @@ export const createAttestationSource = (
     attestationsFor: async (
       address: string,
       network: string
-    ): Promise<IAttestedBuild[]> => {
+    ): Promise<IAttestationLookup> => {
       const resolution = await resolve(address, network)
-      if (resolution.kind === 'built') return resolution.builds
-      if (resolution.kind === 'unattestable') return []
+      if (resolution.kind === 'built') return { builds: resolution.builds }
+      // The reason travels with the empty set. Dropping it is what left a
+      // signer with "no attested build is available for this contract" for two
+      // conditions with different remedies — an address the record never heard
+      // of, and a record too old to carry the commit its code was built from.
+      if (resolution.kind === 'unattestable')
+        return { builds: [], absence: resolution.reason }
       throw new AttestationSourceError(resolution.stage, resolution.reason)
     },
   }

@@ -148,7 +148,7 @@ The command performs these steps in order:
 
 8. **Final Reminders**
 
-   - **⚠️ CRITICAL: Update Product Target State Spreadsheet**: Display prominent reminder with link to [Product Target State Spreadsheet](https://docs.google.com/spreadsheets/d/1jX1wfFkSn1s19I_KzMA7vB1kfgGxXUv7kRqwUGJJLF4/edit#gid=0) - user must manually move contract column(s) to deprecated section
+   - **⚠️ CRITICAL: Update Product Target State Spreadsheet**: Display prominent reminder with link to [Product Target State Spreadsheet](https://docs.google.com/spreadsheets/d/1jX1wfFkSn1s19I_KzMA7vB1kfgGxXUv7kRqwUGJJLF4/edit#gid=0) - user must manually move contract column(s) to deprecated section. Product bookkeeping only: nothing reads that sheet into this repo, and `script/deploy/_targetState.json` (edited above) is the source of truth ([docs/TargetState.md](../../docs/TargetState.md))
    - **⚠️ Review codebase search results**: Remind user to carefully review all occurrences found in step 7 and clean up as needed
 
 ## Key Behaviors
@@ -168,6 +168,7 @@ The command performs these steps in order:
 
 - **Facets**: Removed from `LiFiDiamond` key in target state
 - **Periphery**: Removed from root level in target state
+- Only the contract key matters — its value is `latest` or a version pin, and deprecation removes the whole entry either way ([docs/TargetState.md](../../docs/TargetState.md))
 
 ### Test Replacement Strategy (Bridge Facets Only)
 

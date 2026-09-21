@@ -1,10 +1,17 @@
 /**
- * Tests for the signer-facing provenance block (EXSC-693).
+ * Tests for the signer-facing claim block (EXSC-693).
  *
  * The properties that matter are the ones a signer relies on: a legacy row
  * without provenance still renders (and says so), a dirty tree or an unpushed
  * commit is impossible to miss, and a partially written document cannot throw
  * in the middle of a signing session.
+ *
+ * The block states; it does not grade. Colour distinguishes a measurement
+ * (uncoloured) from a sentinel standing in for one (yellow) and from a
+ * measurement carrying something the signer has to see (red) — never a verdict
+ * on the proposal, which is zone 2's to give. The two link lines sit outside
+ * that scale and are cyan, which is what a link is everywhere else on the
+ * signer view.
  */
 
 import {
@@ -17,7 +24,7 @@ import {
 import { PROVENANCE_UNKNOWN } from '../shared/git-provenance'
 
 import { MAX_PROPOSAL_REASON_LENGTH } from './proposal-intent'
-import { formatProvenanceLines } from './provenance-display'
+import { formatClaimLines } from './provenance-display'
 import { type IProposalProvenance } from './safe-utils'
 
 const SHA = '1234567890abcdef1234567890abcdef12345678'
@@ -29,10 +36,22 @@ const ANSI_PATTERN = new RegExp(`${String.fromCharCode(27)}\\[\\d+m`, 'gu')
 // "we do not know this" (yellow); the module keeps these private on purpose.
 const GREEN = `${String.fromCharCode(27)}[32m`
 const YELLOW = `${String.fromCharCode(27)}[33m`
+const CYAN = `${String.fromCharCode(27)}[36m`
+
+/**
+ * The block as one line, with the folds undone.
+ *
+ * The claim block folds to the view's width, so an assertion about what it
+ * says must not also assert where it wrapped. Tests that are about the line
+ * structure itself read `render` instead.
+ */
+function unfolded(provenance?: IProposalProvenance): string {
+  return render(provenance).replace(/\n\s+/gu, ' ')
+}
 
 /** Renders the block as plain text so assertions ignore ANSI colouring. */
 function render(provenance?: IProposalProvenance): string {
-  return formatProvenanceLines(provenance).join('\n').replace(ANSI_PATTERN, '')
+  return formatClaimLines(provenance).join('\n').replace(ANSI_PATTERN, '')
 }
 
 function buildProvenance(
@@ -51,18 +70,18 @@ function buildProvenance(
   }
 }
 
-describe('formatProvenanceLines — legacy rows', () => {
+describe('formatClaimLines — legacy rows', () => {
   it('renders one explicit line when there is no provenance', () => {
-    const lines = formatProvenanceLines(undefined)
+    const lines = formatClaimLines(undefined)
 
     expect(lines).toHaveLength(1)
     expect(render(undefined)).toBe(
-      '    Provenance:      — not recorded (proposal predates provenance capture) —'
+      '      — not recorded (proposal predates provenance capture)'
     )
   })
 })
 
-describe('formatProvenanceLines — the ticket link', () => {
+describe('formatClaimLines — the ticket link', () => {
   it('shows the recorded ticket to the signer', () => {
     expect(
       render(
@@ -70,24 +89,39 @@ describe('formatProvenanceLines — the ticket link', () => {
           ticketUrl: 'https://linear.app/lifi-linear/issue/EXSC-694',
         })
       )
-    ).toContain(
-      '    Ticket:          https://linear.app/lifi-linear/issue/EXSC-694'
+    ).toContain('      — https://linear.app/lifi-linear/issue/EXSC-694')
+  })
+
+  it('paints both links the cyan every other link on the view uses', () => {
+    const lines = formatClaimLines(
+      buildProvenance({
+        prUrl: 'https://github.com/lifinance/contracts/pull/2324',
+        ticketUrl: 'https://linear.app/lifi-linear/issue/EXSC-686',
+      })
     )
+    const linkLines = lines.filter((line) => line.includes('https://'))
+
+    expect(linkLines).toHaveLength(2)
+    for (const line of linkLines) expect(line.startsWith(CYAN)).toBe(true)
+
+    // The attribution line above them keeps the certainty scale: a fix that
+    // painted the whole block cyan would pass the loop above.
+    const attribution = lines.find((line) => line.includes('@ feat/exsc-692'))
+    expect(attribution).toBeDefined()
+    expect(attribution).not.toContain(CYAN)
   })
 
   it('says so when a pre-WP-1.2 row has none, rather than omitting the line', () => {
     // Silently dropping the line makes an unlinked proposal indistinguishable
     // from a linked one at a glance, which is the whole point of showing it.
-    expect(render(buildProvenance({}))).toContain(
-      '    Ticket:          — none recorded —'
-    )
+    expect(render(buildProvenance({}))).toContain('      — no ticket recorded')
   })
 
   it('cannot use the ticket field to forge an extra prompt line', () => {
     const forged = render(
       buildProvenance({
         ticketUrl:
-          'https://linear.app/lifi-linear/issue/EXSC-1\n    Working tree:    clean',
+          'https://linear.app/lifi-linear/issue/EXSC-1\n      — tree clean',
       })
     )
 
@@ -96,15 +130,15 @@ describe('formatProvenanceLines — the ticket link', () => {
     expect(forged.split('\n')).toHaveLength(
       render(buildProvenance({})).split('\n').length
     )
-    expect(forged).toContain(
-      'Ticket:          https://linear.app/lifi-linear/issue/EXSC-1 Working tree: clean'
+    expect(forged.replace(/\n\s+/gu, ' ')).toContain(
+      'https://linear.app/lifi-linear/issue/EXSC-1 — tree clean'
     )
   })
 })
 
-describe('formatProvenanceLines — a healthy proposal', () => {
+describe('formatClaimLines — a healthy proposal', () => {
   it('shows proposer, short commit, branch, PR and reason', () => {
-    const text = render(
+    const text = unfolded(
       buildProvenance({
         prUrl: 'https://github.com/lifinance/contracts/pull/2125',
         reason: 'add AcrossFacetV4 to the whitelist',
@@ -113,30 +147,27 @@ describe('formatProvenanceLines — a healthy proposal', () => {
 
     expect(text).toBe(
       [
-        '    Proposed by:     Alice Example <alice@example.com> (human)',
-        '    Source:          1234567890ab @ feat/exsc-692',
-        '    Working tree:    clean',
-        '    PR:              https://github.com/lifinance/contracts/pull/2125',
-        '    Ticket:          — none recorded —',
-        '    Reason:          add AcrossFacetV4 to the whitelist',
-      ].join('\n')
+        '      "add AcrossFacetV4 to the whitelist"',
+        '— Alice Example <alice@example.com> (human) · 1234567890ab @',
+        'feat/exsc-692 · tree clean',
+        '— https://github.com/lifinance/contracts/pull/2125',
+        '— no ticket recorded',
+      ].join(' ')
     )
   })
 
   it('omits the PR line when no PR was resolved', () => {
-    expect(render(buildProvenance())).not.toContain('PR:')
+    expect(render(buildProvenance())).not.toContain('github.com')
   })
 
   it('flags a missing reason instead of leaving the line blank', () => {
-    expect(render(buildProvenance())).toContain(
-      'Reason:          — none given —'
-    )
+    expect(render(buildProvenance())).toContain('— none given —')
   })
 })
 
-describe('formatProvenanceLines — states that should stop a signer', () => {
+describe('formatClaimLines — states that should stop a signer', () => {
   it('marks a dirty tree with a count and the first three paths', () => {
-    const text = render(
+    const text = unfolded(
       buildProvenance({
         dirtyTreeScoped: [
           'config/whitelist.json',
@@ -148,7 +179,7 @@ describe('formatProvenanceLines — states that should stop a signer', () => {
     )
 
     expect(text).toContain(
-      'Working tree:    ⚠ 4 dirty: config/whitelist.json, src/Facets/A.sol, src/Facets/B.sol, …'
+      '4 dirty: config/whitelist.json, src/Facets/A.sol, src/Facets/B.sol, …'
     )
   })
 
@@ -157,19 +188,19 @@ describe('formatProvenanceLines — states that should stop a signer', () => {
       buildProvenance({ dirtyTreeScoped: ['config/whitelist.json'] })
     )
 
-    expect(text).toContain('Working tree:    ⚠ 1 dirty: config/whitelist.json')
+    expect(text).toContain('1 dirty: config/whitelist.json')
     expect(text).not.toContain('…')
   })
 
   it('marks a truncated dirty list as a lower bound', () => {
-    const text = render(
+    const text = unfolded(
       buildProvenance({
         dirtyTreeScoped: ['a.sol', 'b.sol', 'c.sol'],
         dirtyTreeTruncated: true,
       })
     )
 
-    expect(text).toContain('⚠ 3+ dirty: a.sol, b.sol, c.sol, …')
+    expect(text).toContain('3+ dirty: a.sol, b.sol, c.sol, …')
   })
 
   it('marks a commit that is not on any remote', () => {
@@ -199,9 +230,9 @@ describe('formatProvenanceLines — states that should stop a signer', () => {
       })
     )
 
-    expect(text).toContain('Source:          UNKNOWN @ feat/exsc-692')
+    expect(text).toContain('UNKNOWN @ feat/exsc-692')
     expect(text).toContain(
-      'Capture:         ⚠ incomplete (2): git rev-parse HEAD failed: exit 128'
+      'capture incomplete (2): git rev-parse HEAD failed: exit 128'
     )
   })
 
@@ -217,12 +248,12 @@ describe('formatProvenanceLines — states that should stop a signer', () => {
       })
     )
 
-    expect(text).toContain('Working tree:    UNKNOWN (capture incomplete)')
-    expect(text).not.toContain('Working tree:    clean')
+    expect(text).toContain('tree UNKNOWN (capture incomplete)')
+    expect(text).not.toContain('tree clean')
   })
 
   it('paints the incomplete working-tree line yellow, never green', () => {
-    const [, , workingTree] = formatProvenanceLines(
+    const [, , workingTree] = formatClaimLines(
       buildProvenance({ captureErrors: ['git status --porcelain failed'] })
     )
 
@@ -231,7 +262,7 @@ describe('formatProvenanceLines — states that should stop a signer', () => {
   })
 
   it('paints a sentinel proposer and commit yellow, never green', () => {
-    const [proposedBy, source] = formatProvenanceLines(
+    const [proposedBy, source] = formatClaimLines(
       buildProvenance({
         proposerHandle: PROVENANCE_UNKNOWN,
         gitCommit: PROVENANCE_UNKNOWN,
@@ -244,25 +275,25 @@ describe('formatProvenanceLines — states that should stop a signer', () => {
   })
 })
 
-describe('formatProvenanceLines — malformed rows', () => {
+describe('formatClaimLines — malformed rows', () => {
   it('does not throw when dirtyTreeScoped is missing, and does not call it clean', () => {
     const malformed = buildProvenance()
     delete (malformed as unknown as Record<string, unknown>).dirtyTreeScoped
 
-    expect(() => formatProvenanceLines(malformed)).not.toThrow()
-    expect(render(malformed)).toContain('Working tree:    UNKNOWN (unreadable)')
-    expect(render(malformed)).not.toContain('Working tree:    clean')
+    expect(() => formatClaimLines(malformed)).not.toThrow()
+    expect(render(malformed)).toContain('tree UNKNOWN (unreadable)')
+    expect(render(malformed)).not.toContain('tree clean')
   })
 
   it('falls back to the sentinel for every missing string field', () => {
     const malformed = {} as unknown as IProposalProvenance
 
-    const text = render(malformed)
+    const text = unfolded(malformed)
 
-    expect(text).toContain('Proposed by:     UNKNOWN (UNKNOWN)')
-    expect(text).toContain('Source:          UNKNOWN @ UNKNOWN')
-    expect(text).toContain('Working tree:    UNKNOWN (unreadable)')
-    expect(text).not.toContain('Working tree:    clean')
+    expect(text).toContain('UNKNOWN (UNKNOWN)')
+    expect(text).toContain('UNKNOWN @ UNKNOWN')
+    expect(text).toContain('tree UNKNOWN (unreadable)')
+    expect(text).not.toContain('tree clean')
   })
 
   // A throw here would propagate out of `processTxs`, which has no handler, so
@@ -285,8 +316,8 @@ describe('formatProvenanceLines — malformed rows', () => {
         [field]: value,
       } as unknown as IProposalProvenance
 
-      expect(() => formatProvenanceLines(malformed)).not.toThrow()
-      expect(formatProvenanceLines(malformed).length).toBeGreaterThan(0)
+      expect(() => formatClaimLines(malformed)).not.toThrow()
+      expect(formatClaimLines(malformed).length).toBeGreaterThan(0)
     }
   )
 
@@ -296,8 +327,8 @@ describe('formatProvenanceLines — malformed rows', () => {
       dirtyTreeScoped: 'config/whitelist.json',
     } as unknown as IProposalProvenance
 
-    expect(render(malformed)).toContain('Working tree:    UNKNOWN (unreadable)')
-    expect(render(malformed)).not.toContain('Working tree:    clean')
+    expect(render(malformed)).toContain('tree UNKNOWN (unreadable)')
+    expect(render(malformed)).not.toContain('tree clean')
   })
 
   it('caps a hand-edited over-long reason at the same limit as capture', () => {
@@ -305,9 +336,7 @@ describe('formatProvenanceLines — malformed rows', () => {
       buildProvenance({ reason: 'x'.repeat(MAX_PROPOSAL_REASON_LENGTH + 50) })
     )
 
-    expect(text).toContain(
-      `Reason:          ${'x'.repeat(MAX_PROPOSAL_REASON_LENGTH)}`
-    )
+    expect(text).toContain(`"${'x'.repeat(MAX_PROPOSAL_REASON_LENGTH)}`)
     expect(text).not.toContain('x'.repeat(MAX_PROPOSAL_REASON_LENGTH + 1))
   })
 })
@@ -318,7 +347,7 @@ describe('formatProvenanceLines — malformed rows', () => {
 // prompt (C0/C1 controls), reversing what a path says (bidi overrides), and
 // forging an extra line (line separators). The assertions strip only the
 // module's own colour codes, so anything injected survives to be caught.
-describe('formatProvenanceLines — untrusted text cannot forge the prompt', () => {
+describe('formatClaimLines — untrusted text cannot forge the prompt', () => {
   const ESC = String.fromCharCode(27)
   const CR = String.fromCharCode(13)
   const NUL = String.fromCharCode(0)
@@ -348,7 +377,7 @@ describe('formatProvenanceLines — untrusted text cannot forge the prompt', () 
 
   it('renders an escape sequence and a carriage return inert in the reason', () => {
     const text = plain(
-      formatProvenanceLines(
+      formatClaimLines(
         buildProvenance({
           reason: `benign${ESC}[2J${ESC}[1;32m APPROVED BY SECURITY${CR}Reason: benign`,
         })
@@ -365,7 +394,7 @@ describe('formatProvenanceLines — untrusted text cannot forge the prompt', () 
     const poisoned = `x${ESC}[2J${CR}${NUL}${C1_CSI}${RLO}${FSI}${PDI}${LSEP}${ZWSP}y`
 
     const text = plain(
-      formatProvenanceLines(
+      formatClaimLines(
         buildProvenance({
           proposerHandle: poisoned,
           gitBranch: poisoned,
@@ -388,7 +417,7 @@ describe('formatProvenanceLines — untrusted text cannot forge the prompt', () 
   it('cannot forge an extra prompt line with a line separator', () => {
     const forged = `Alice${LSEP}    Working tree:    clean${LSEP}    Reason:          reviewed by security`
 
-    const lines = formatProvenanceLines(
+    const lines = formatClaimLines(
       buildProvenance({
         proposerHandle: forged,
         dirtyTreeScoped: ['src/Facets/Evil.sol'],
@@ -396,19 +425,31 @@ describe('formatProvenanceLines — untrusted text cannot forge the prompt', () 
     )
     const text = plain(lines)
 
-    // Proposed by / Source / Working tree / Ticket / Reason — nothing extra.
-    expect(lines).toHaveLength(5)
+    // Against a control carrying the same words with the separators already
+    // spaces: the claim is that the separators added no lines of their own, and
+    // a literal count states it only for whatever width the view happens to be
+    // at — the two folded across two lines at 76 and fold into one at 140.
+    const control = formatClaimLines(
+      buildProvenance({
+        proposerHandle: forged.split(LSEP).join(' '),
+        dirtyTreeScoped: ['src/Facets/Evil.sol'],
+      })
+    )
+
+    expect(lines).toHaveLength(control.length)
     expect(text).not.toContain(LSEP)
     // The forged text stays inert words on the line it was injected into, and
     // the real working-tree verdict is the one the module computed.
-    expect(lines[0]).toContain('Alice Working tree: clean Reason: reviewed by')
-    expect(text).toContain('Working tree:    ⚠ 1 dirty: src/Facets/Evil.sol')
-    expect(text).not.toContain('Working tree:    clean')
+    expect(plain(lines).replace(/\n\s+/gu, ' ')).toContain(
+      'Alice Working tree: clean Reason: reviewed by'
+    )
+    expect(text).toContain('1 dirty: src/Facets/Evil.sol')
+    expect(text).not.toContain('tree clean')
   })
 
   it('strips the bidi override that reverses a dirty path', () => {
     const text = plain(
-      formatProvenanceLines(
+      formatClaimLines(
         buildProvenance({ dirtyTreeScoped: [`src/${RLO}gnp.stessa/`] })
       )
     )
@@ -419,7 +460,7 @@ describe('formatProvenanceLines — untrusted text cannot forge the prompt', () 
 
   it('strips zero-width spaces used to hide text from a reader', () => {
     const text = plain(
-      formatProvenanceLines(
+      formatClaimLines(
         buildProvenance({ reason: `dep${ZWSP}recate${ZWSP}d facet` })
       )
     )
@@ -430,7 +471,7 @@ describe('formatProvenanceLines — untrusted text cannot forge the prompt', () 
 
   it('keeps the zero-width joiner so emoji stay one grapheme', () => {
     const text = plain(
-      formatProvenanceLines(
+      formatClaimLines(
         buildProvenance({ reason: 'déployer 日本語 — naïve 👨‍👩‍👧' })
       )
     )

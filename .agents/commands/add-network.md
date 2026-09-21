@@ -46,7 +46,9 @@ Insert new network **alphabetically** (mainnet first, then A–Z). Fields: name,
 
 ## Step 4: Target state
 
-Do **not** run target state parsing from the command. Tell the user to add the new network to the production target state spreadsheet (if needed), then run **`./script/scriptMaster.sh`** → use case **10) Create updated target state from Google Docs** → **2) One specific network** → select the new network. `_targetState.json` is updated by that script; do not edit it manually.
+Add the new network to `script/deploy/_targetState.json` — the block of contracts that should be deployed on it, each with the value `"latest"`. Either run **`./script/scriptMaster.sh`** → use case **7) Add or update contract entries in \_targetState.json** → **3) Add a new network with all (not-excluded) contracts**, which writes `"latest"` throughout, or add the block by hand and mirror an existing network of the same shape.
+
+Write `"latest"`, never a version: the version a network runs comes from `@custom:version`, and a concrete value is a deliberate pin that blocks every deploy of a different version on that chain. See [docs/TargetState.md](../../docs/TargetState.md).
 
 ---
 
@@ -71,6 +73,7 @@ For each bridge indicated (checkbox true or in column 40): get contract address(
 ### Where to get addresses (examples)
 
 - **StargateV2** (`config/stargateV2.json`): The file documents where to obtain addresses.
+
   - **EndpointV2**: `LinkToDeployedToAddresses` in the `endpointV2` object → https://docs.layerzero.network/v2/developers/evm/technical-reference/deployed-contracts. Alternative: if you have a TokenMessaging address, call `endpoint()` on it to get EndpointV2.
   - **TokenMessaging**: `LinkToDeployedToAddresses` in the `tokenMessaging` object → https://stargateprotocol.gitbook.io/stargate/v/v2-developer-docs/technical-reference/mainnet-contracts; alternative: https://github.com/stargate-protocol/stargate-v2/tree/main/packages/stg-evm-v2/deployments.
   - Add the new network key under both `endpointV2` and `tokenMessaging` with the addresses; **verify both have code** with `cast code` before adding.
@@ -85,7 +88,7 @@ For other bridges, open the corresponding `config/<bridge>.json` and follow any 
 
 ## Step 8: Health check
 
-No per-network work in the normal case. Both health-check workflows share one invariant registry (`script/deploy/healthCheckInvariants.ts`) that derives what to enforce from `config/global.json`, `_targetState.json` and the deploy logs, so a new network is fully checked as soon as it is in config. `healthCheckForNewNetworkDeployment.yml` runs it on the onboarding PR (hard-failing without a `_targetState.json` entry and a `deployments/<network>.json`); the daily sweep covers it from then on.
+No per-network work in the normal case. Both health-check workflows share one invariant registry (`script/deploy/healthCheckInvariants.ts`) that derives what to enforce from `config/global.json`, the contract names in `_targetState.json` and the deploy logs, so a new network is fully checked as soon as it is in config. `healthCheckForNewNetworkDeployment.yml` runs it on the onboarding PR (hard-failing without a `_targetState.json` entry and a `deployments/<network>.json`); the daily sweep covers it from then on.
 
 Two fields set in earlier steps change what runs: `gasZipChainId: 0` skips the GasZip invariants, and `safeAddress` drives `safe-config`. On a chain with no native asset (`nativeCurrency: "N/A"`) also set `feeTokenAddress`, or `pauser-funded` cannot read a gas balance and only warns.
 
@@ -99,7 +102,7 @@ If a core contract genuinely cannot exist on this chain (e.g. `TokenWrapper` whe
 2. Permit2 no code → not adding to permit2Proxy.json (omit this network); do not edit global.json.
 3. Gas.zip router no code → verify address or do not add.
 4. Bridge address no code → do not add until correct address; check docs or column 65.
-5. Target state → tell user to run scriptMaster use case 10 (do not run from command).
+5. Target state → add the network block with every contract set to `"latest"` (scriptMaster use case 7 → 3, or by hand).
 6. Deployer/pauser zero or low balance → fund with native token before deploy; include balances in output.
 7. **Changing `config/whitelist.json` is not allowed** — do not add or edit the new network there; whitelist is managed separately.
 
@@ -110,7 +113,7 @@ If a core contract genuinely cannot exist on this chain (e.g. `TokenWrapper` whe
 - [ ] Collect/validate inputs; confirm multicall and (if used) Permit2, Gas.zip router have code; run deployer/pauser balance check; summarize and get user confirm.
 - [ ] Add network to networks.json (alphabetical).
 - [ ] Add RPC + etherscan to foundry.toml; remind ETH_NODE_URI in .env.
-- [ ] Tell user to run scriptMaster use case 10 for target state (do not run parsing from command).
+- [ ] Target-state block added for the new network, every contract `"latest"` (never a version — a version is a deliberate pin).
 - [ ] Permit2: add to permit2Proxy.json if has code; if no code, omit this network from permit2Proxy.json only (do not edit global.json).
 - [ ] Gas.zip: add to gaszip.json + networks.json if available; if not, set gasZipChainId = 0 in networks.json and omit from gaszip.json only (do not edit global.json).
 - [ ] Bridges: for each indicated, add to bridge config and validate addresses with cast code.
@@ -120,13 +123,13 @@ If a core contract genuinely cannot exist on this chain (e.g. `TokenWrapper` whe
 
 ## Files modified
 
-| File | Change |
-|------|--------|
-| `config/networks.json` | New network (alphabetical); set gasZipChainId (or 0) per network. |
-| `foundry.toml` | New RPC + etherscan entry. |
-| `config/permit2Proxy.json` | New entry **only if** Permit2 has code on this network; omit network if no code. |
-| `config/gaszip.json` | New router entry **only if** Gas.zip available on this network; omit if not. |
-| `config/global.json` | **Do not edit** for Permit2/GasZip — keep coreFacets/corePeriphery unchanged; omissions are per-network via the above files. |
-| `config/<bridge>.json` | New network per indicated bridge (validate addresses). |
-| `script/deploy/_targetState.json` | User runs scriptMaster use case 10; do not edit manually. |
-| `config/whitelist.json` | **Do not edit** — changing whitelist.json is not allowed; whitelist is managed separately. |
+| File                              | Change                                                                                                                       |
+| --------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| `config/networks.json`            | New network (alphabetical); set gasZipChainId (or 0) per network.                                                            |
+| `foundry.toml`                    | New RPC + etherscan entry.                                                                                                   |
+| `config/permit2Proxy.json`        | New entry **only if** Permit2 has code on this network; omit network if no code.                                             |
+| `config/gaszip.json`              | New router entry **only if** Gas.zip available on this network; omit if not.                                                 |
+| `config/global.json`              | **Do not edit** for Permit2/GasZip — keep coreFacets/corePeriphery unchanged; omissions are per-network via the above files. |
+| `config/<bridge>.json`            | New network per indicated bridge (validate addresses).                                                                       |
+| `script/deploy/_targetState.json` | New network block, every contract `"latest"` (scriptMaster use case 7 → 3, or by hand).                                      |
+| `config/whitelist.json`           | **Do not edit** — changing whitelist.json is not allowed; whitelist is managed separately.                                   |

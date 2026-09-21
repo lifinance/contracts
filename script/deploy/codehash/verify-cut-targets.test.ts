@@ -19,7 +19,15 @@ import { getAddress } from 'viem'
 
 import type { IAttestedBuild, IObservedCode } from './attested-set'
 import { FacetCutActionEnum } from './cut-classification'
-import { verifyCutTargets } from './verify-cut-targets'
+import type {
+  ImmutablePricing,
+  IPricedImmutables,
+} from './immutable-expectations'
+import {
+  verifyCutTargets,
+  type IAttestationLookup,
+  type IVerifyCutDeps,
+} from './verify-cut-targets'
 
 const A = getAddress('0x1111111111111111111111111111111111111111')
 const B = getAddress('0x2222222222222222222222222222222222222222')
@@ -62,12 +70,49 @@ const remove = (facetAddress: string) => ({
 
 const deps = (overrides?: {
   observe?: (address: string) => Promise<IObservedCode>
-  attestationsFor?: (address: string) => Promise<IAttestedBuild[]>
+  attestationsFor?: (address: string) => Promise<IAttestationLookup>
+  price?: (
+    address: string,
+    network: string,
+    runtimeCode: string
+  ) => Promise<ImmutablePricing>
   isClosedSet?: boolean
 }) => ({
-  scope: () => ({ isClosedSet: overrides?.isClosedSet ?? true }),
+  scope: () => ({
+    isClosedSet: overrides?.isClosedSet ?? true,
+    holdsImmutablesOffCode: false,
+  }),
   observe: overrides?.observe ?? (async () => observed(HASH)),
-  attestationsFor: overrides?.attestationsFor ?? (async () => [attested(HASH)]),
+  attestationsFor:
+    overrides?.attestationsFor ?? (async () => ({ builds: [attested(HASH)] })),
+  // Layer 2 refuses unless a test says otherwise, so every existing expectation
+  // describes the verdict layer 1 reaches on its own.
+  price:
+    overrides?.price ??
+    (async () => ({
+      decided: false as const,
+      reason: 'no layer 2 in this test',
+    })),
+  readOffCodeImmutables: async () => ({
+    declared: 'some' as const,
+    pricing: { decided: false as const, reason: 'no gate L in this test' },
+    slotByName: {},
+  }),
+})
+
+/** A layer-2 answer that accounts for `bytes` of masked code. */
+const priced = (
+  bytes: number,
+  over: Partial<Omit<IPricedImmutables, 'decided'>> = {}
+): ImmutablePricing => ({
+  decided: true,
+  slots: [],
+  disagreements: [],
+  pricedByteCount: bytes,
+  unpricedByteCount: 0,
+  acknowledgeableByteCount: 0,
+  disagreeingByteCount: 0,
+  ...over,
 })
 
 describe('verifyCutTargets', () => {
@@ -100,12 +145,54 @@ describe('verifyCutTargets', () => {
     // a signer told "red" are being asked different questions.
     const report = await verifyCutTargets(
       { cuts: [add(A)], init: ZERO, network: 'mainnet' },
-      deps({ attestationsFor: async () => [], isClosedSet: false })
+      deps({
+        attestationsFor: async () => ({ builds: [] }),
+        isClosedSet: false,
+      })
     )
 
     expect(report.blocksSigning).toBe(true)
     expect(report.targets[0]?.verdict).toBe('UNVERIFIABLE')
     expect(report.targets[0]?.verdict).not.toBe('MISMATCH')
+  })
+
+  it('says why the attested set is empty when the lookup knows', async () => {
+    const report = await verifyCutTargets(
+      { cuts: [add(A)], init: ZERO, network: 'mainnet' },
+      deps({
+        attestationsFor: async () => ({
+          builds: [],
+          absence:
+            'the deployment record names Foo@1.0.0 but carries no commit',
+        }),
+        isClosedSet: false,
+      })
+    )
+
+    expect(report.targets[0]?.verdict).toBe('UNVERIFIABLE')
+    expect(report.targets[0]?.reason).toBe(
+      'the deployment record names Foo@1.0.0 but carries no commit'
+    )
+    // Still the same refusal. A sentence that explains an empty set must not
+    // also soften it.
+    expect(report.blocksSigning).toBe(true)
+  })
+
+  it('falls back to the bare sentence when the lookup gives no reason', async () => {
+    // The pair for the test above: without it, a lookup that stopped supplying
+    // a reason would leave that assertion passing against a hardcoded string.
+    const report = await verifyCutTargets(
+      { cuts: [add(A)], init: ZERO, network: 'mainnet' },
+      deps({
+        attestationsFor: async () => ({ builds: [] }),
+        isClosedSet: false,
+      })
+    )
+
+    expect(report.targets[0]?.verdict).toBe('UNVERIFIABLE')
+    expect(report.targets[0]?.reason).toBe(
+      'no attested build is available for this contract, so nothing can be compared'
+    )
   })
 
   it('never consults the chain for an address it does not gate', async () => {
@@ -232,7 +319,7 @@ describe('verifyCutTargets', () => {
         ...deps(),
         scope: (network: string) => {
           asked.push(network)
-          return { isClosedSet: true }
+          return { isClosedSet: true, holdsImmutablesOffCode: false }
         },
       }
     )
@@ -253,16 +340,166 @@ describe('verifyCutTargets', () => {
       { cuts: [add(A)], init: ZERO, network: 'mainnet' },
       deps({
         observe: async () => ({ ...observed(HASH), maskedByteCount: 96 }),
-        attestationsFor: async () => [
-          { ...attested(HASH), rawHash: undefined },
-        ],
+        attestationsFor: async () => ({
+          builds: [{ ...attested(HASH), rawHash: undefined }],
+        }),
       })
     )
 
     expect(report.targets[0]?.verdict).toBe('UNVERIFIABLE')
     expect(report.blocksSigning).toBe(true)
     expect(report.targets[0]?.reason).toMatch(/96 bytes/)
-    expect(report.targets[0]?.reason).toMatch(/were not compared/)
+    expect(report.targets[0]?.reason).toMatch(/were not checked/)
+  })
+
+  const DEPLOYED = '0xfeed'
+
+  const maskedMatch = (over: { price: IVerifyCutDeps['price'] }) =>
+    verifyCutTargets({ cuts: [add(A)], init: ZERO, network: 'mainnet' }, {
+      ...deps(over),
+      observe: async () => ({
+        ...observed(HASH),
+        maskedByteCount: 96,
+        runtimeCode: DEPLOYED,
+      }),
+      attestationsFor: async () => ({
+        builds: [{ ...attested(HASH), rawHash: undefined }],
+      }),
+    } as IVerifyCutDeps)
+
+  it('prices the bytes the comparison was built from, not a second read', async () => {
+    let seen: string | undefined
+    const report = await maskedMatch({
+      price: async (_address, _network, runtimeCode) => {
+        seen = runtimeCode
+        return priced(96)
+      },
+    })
+
+    // The whole point of the parameter: layer 1 masked these bytes and vouches
+    // for nothing in them, so layer 2 grading a different reading would leave
+    // the only check of the immutables resting on evidence layer 1 never saw.
+    expect(seen).toBe(DEPLOYED)
+    expect(report.targets[0]?.verdict).toBe('MATCH')
+  })
+
+  it('will not upgrade an observation that carries no bytes to price', async () => {
+    const report = await verifyCutTargets(
+      { cuts: [add(A)], init: ZERO, network: 'mainnet' },
+      {
+        ...deps({ price: async () => priced(96) }),
+        // No `runtimeCode`, as every pre-layer-2 producer of an observation
+        // leaves it.
+        observe: async () => ({ ...observed(HASH), maskedByteCount: 96 }),
+        attestationsFor: async () => ({
+          builds: [{ ...attested(HASH), rawHash: undefined }],
+        }),
+      } as IVerifyCutDeps
+    )
+
+    expect(report.targets[0]?.verdict).toBe('UNVERIFIABLE')
+    expect(report.blocksSigning).toBe(true)
+    expect(report.targets[0]?.reason).toMatch(/did not carry the bytes/u)
+  })
+
+  it('reports MATCH once layer 2 has priced every masked byte', async () => {
+    const report = await maskedMatch({ price: async () => priced(96) })
+
+    expect(report.targets[0]?.verdict).toBe('MATCH')
+    expect(report.blocksSigning).toBe(false)
+    // The qualifier goes with the refusal: nothing is left for a renderer to
+    // warn about.
+    expect(report.targets[0]?.excludedByteCount).toBe(0)
+    expect(report.summary).toMatch(/96 bytes holding immutables were compared/)
+  })
+
+  it('says nothing about immutables for a contract that has none', async () => {
+    // The paired negative for the line above: a clean MATCH reached without
+    // layer 2 must not claim a check that never happened.
+    const report = await verifyCutTargets(
+      { cuts: [add(A)], init: ZERO, network: 'mainnet' },
+      deps()
+    )
+
+    expect(report.targets[0]?.verdict).toBe('MATCH')
+    expect(report.summary).not.toMatch(/immutables/)
+  })
+
+  it('reports MISMATCH, not grey, when a slot holds something config does not declare', async () => {
+    const report = await maskedMatch({
+      price: async () =>
+        priced(64, {
+          unpricedByteCount: 0,
+          disagreeingByteCount: 32,
+          disagreements: [
+            {
+              name: 'SPOKEPOOL',
+              status: 'disagrees',
+              byteCount: 32,
+              observed: `0x${'ee'.repeat(32)}`,
+              expected: `0x${'11'.repeat(32)}`,
+              origin: 'config/across.json.mainnet.spokePool',
+            },
+          ],
+        }),
+    })
+
+    expect(report.targets[0]?.verdict).toBe('MISMATCH')
+    expect(report.blocksSigning).toBe(true)
+    expect(report.targets[0]?.reason).toMatch(/SPOKEPOOL/)
+    expect(report.targets[0]?.reason).toMatch(/across\.json/)
+  })
+
+  it('stays UNVERIFIABLE when a slot has no declared expectation', async () => {
+    // The answer every contract still gets for a slot no entry covers, which
+    // the registry being full makes rarer rather than impossible.
+    const report = await maskedMatch({
+      price: async () =>
+        priced(64, {
+          unpricedByteCount: 32,
+          slots: [
+            {
+              name: 'EXECUTOR',
+              status: 'undeclared',
+              byteCount: 32,
+              observed: `0x${'22'.repeat(32)}`,
+              detail: 'no registry entry',
+            },
+          ],
+        }),
+    })
+
+    expect(report.targets[0]?.verdict).toBe('UNVERIFIABLE')
+    expect(report.blocksSigning).toBe(true)
+    expect(report.targets[0]?.reason).toMatch(/EXECUTOR/)
+  })
+
+  it('leaves layer 1 alone when layer 2 throws, rather than reading the outage as a finding', async () => {
+    const report = await maskedMatch({
+      price: async () => {
+        throw new Error('mongo is unreachable')
+      },
+    })
+
+    expect(report.targets[0]?.verdict).toBe('UNVERIFIABLE')
+    expect(report.targets[0]?.reason).toMatch(/mongo is unreachable/)
+  })
+
+  it('never consults layer 2 for a MISMATCH, so it cannot upgrade one', async () => {
+    let asked = false
+    const report = await verifyCutTargets(
+      { cuts: [add(A)], init: ZERO, network: 'mainnet' },
+      deps({
+        observe: async () => observed(OTHER),
+        price: async () => {
+          asked = true
+          return priced(96)
+        },
+      })
+    )
+
+    expect(report.targets[0]?.verdict).toBe('MISMATCH')
+    expect(asked).toBe(false)
   })
 
   it('still reports MATCH when nothing was excluded, so the downgrade is not blanket', async () => {
@@ -286,14 +523,208 @@ describe('verifyCutTargets', () => {
       { cuts: [add(A)], init: ZERO, network: 'mainnet' },
       deps({
         observe: async () => ({ ...observed(HASH), maskedByteCount: 64 }),
-        attestationsFor: async () => [
-          { ...attested(HASH), rawHash: undefined },
-        ],
+        attestationsFor: async () => ({
+          builds: [{ ...attested(HASH), rawHash: undefined }],
+        }),
       })
     )
 
     expect(report.targets[0]?.excludedByteCount).toBe(64)
     expect(report.summary).toMatch(/immutable/i)
     expect(report.summary).toContain('64')
+  })
+})
+
+/**
+ * A zkEVM MATCH masks nothing, because the immutables are not in the code to
+ * mask. The bytecode claim still stands on its own; the value claim is gate L's
+ * and is carried beside it.
+ */
+describe('verifyCutTargets on a chain holding immutables off-code', () => {
+  const zkDeps = (over: Partial<IVerifyCutDeps> = {}) =>
+    ({
+      ...deps(),
+      scope: () => ({ isClosedSet: true, holdsImmutablesOffCode: true }),
+      // The shape `normalizeRuntimeCode` produces for a zk lineage: an exact
+      // hash pinned and nothing masked, because there is nothing to mask.
+      observe: async () => ({
+        ...observed(HASH),
+        maskedByteCount: 0,
+        runtimeCode: '0xfeed',
+      }),
+      attestationsFor: async () => ({ builds: [attested(HASH)] }),
+      ...over,
+    } as IVerifyCutDeps)
+
+  const zkReport = (over: Partial<IVerifyCutDeps> = {}) =>
+    verifyCutTargets(
+      { cuts: [add(A)], init: ZERO, network: 'zksync' },
+      zkDeps(over)
+    )
+
+  const zkPriced =
+    (
+      slots: IPricedImmutables['slots'],
+      over: Partial<Omit<IPricedImmutables, 'decided' | 'slots'>> = {}
+    ): IVerifyCutDeps['readOffCodeImmutables'] =>
+    async () => ({
+      declared: 'some',
+      pricing: {
+        decided: true,
+        slots,
+        disagreements: slots.filter((one) => one.status === 'disagrees'),
+        pricedByteCount: 32,
+        unpricedByteCount: 0,
+        acknowledgeableByteCount: 0,
+        disagreeingByteCount: 0,
+        ...over,
+      },
+      slotByName: { gasZip: 0 },
+    })
+
+  const verifiedSlot = {
+    name: 'gasZip',
+    status: 'verified' as const,
+    byteCount: 32,
+    observed: `0x${'0'.repeat(24)}${'22'.repeat(20)}`,
+    expected: `0x${'0'.repeat(24)}${'22'.repeat(20)}`,
+    origin: 'config/networks.json.zksync.gasZip',
+  }
+
+  it('lets the bytecode claim stand on a chain that cannot answer for values', async () => {
+    // The whole point of splitting the gates: the code IS a build of ours, and
+    // a chain unable to answer the second question must not lose the first.
+    const report = await zkReport()
+
+    expect(report.targets[0]?.verdict).toBe('MATCH')
+    expect(report.blocksSigning).toBe(false)
+  })
+
+  it('reports the values as assumed, naming the slot each came from', async () => {
+    const report = await zkReport({
+      readOffCodeImmutables: zkPriced([verifiedSlot]),
+    })
+
+    expect(report.targets[0]?.immutables.status).toBe('assumed')
+    expect(report.targets[0]?.immutables.detail).toContain('slot 0 gasZip')
+    expect(report.targets[0]?.immutables.detail).toContain(
+      'the order the contract declares them in'
+    )
+  })
+
+  it('hard-blocks a disagreeing value even though the mapping is assumed', async () => {
+    const report = await zkReport({
+      readOffCodeImmutables: zkPriced([
+        {
+          ...verifiedSlot,
+          status: 'disagrees',
+          observed: `0x${'0'.repeat(24)}${'33'.repeat(20)}`,
+        },
+      ]),
+    })
+
+    expect(report.targets[0]?.immutables.status).toBe('disagrees')
+  })
+
+  it('reports no immutables to check when the contract declares none', async () => {
+    const report = await zkReport({
+      readOffCodeImmutables: async () => ({ declared: 'none' }),
+    })
+
+    expect(report.targets[0]?.immutables.status).toBe('none')
+  })
+
+  it('does not let a failed simulator read read as a clean value claim', async () => {
+    const report = await zkReport({
+      readOffCodeImmutables: async () => {
+        throw new Error('ImmutableSimulator unreachable')
+      },
+    })
+
+    expect(report.targets[0]?.verdict).toBe('MATCH')
+    expect(report.targets[0]?.immutables.status).toBe('unreadable')
+    expect(report.targets[0]?.immutables.detail).toContain('unreachable')
+  })
+
+  it('counts no priced bytes, because layer 1 masked none', async () => {
+    const report = await zkReport({
+      readOffCodeImmutables: zkPriced([verifiedSlot]),
+    })
+
+    // The summary qualifies itself with this number. Counting simulator words
+    // in it would print a confirmation of a mapping nothing confirmed.
+    expect(report.targets[0]?.pricedByteCount).toBe(0)
+  })
+
+  it('still answers the value question when layer 1 has blocked', async () => {
+    // What lens produced: gate K blocked, and gate L reported the values
+    // unestablished for a facet that declares none — an unanswerable row about
+    // immutables that do not exist. The declaration set is a fact about the
+    // contract, not about how the bytecode comparison came out.
+    const report = await zkReport({
+      attestationsFor: async () => ({ builds: [attested(OTHER)] }),
+      readOffCodeImmutables: async () => ({ declared: 'none' }),
+    })
+
+    expect(report.targets[0]?.verdict).toBe('MISMATCH')
+    expect(report.blocksSigning).toBe(true)
+    expect(report.targets[0]?.immutables.status).toBe('none')
+  })
+
+  it('keeps the values unestablished on a block when the contract declares some', async () => {
+    // Those values were read off a deployment layer 1 has just refused to vouch
+    // for, so reporting the pricing would answer gate L about a contract that
+    // may not be ours.
+    const report = await zkReport({
+      attestationsFor: async () => ({ builds: [attested(OTHER)] }),
+      readOffCodeImmutables: zkPriced([verifiedSlot]),
+    })
+
+    expect(report.targets[0]?.verdict).toBe('MISMATCH')
+    expect(report.targets[0]?.immutables.status).toBe('unreadable')
+  })
+
+  it('keeps the values unestablished on a block whose declarations it cannot read', async () => {
+    const report = await zkReport({
+      attestationsFor: async () => ({ builds: [attested(OTHER)] }),
+      readOffCodeImmutables: async () => {
+        throw new Error('ImmutableSimulator unreachable')
+      },
+    })
+
+    expect(report.targets[0]?.verdict).toBe('MISMATCH')
+    expect(report.targets[0]?.immutables.status).toBe('unreadable')
+  })
+
+  it('does not extend the same relief to an inlining chain', async () => {
+    // There the count comes from the masking refs, which are absent — and so
+    // read as zero — whenever the record or its commit could not be read. A
+    // zero there is not evidence that the contract declares none.
+    const report = await verifyCutTargets(
+      { cuts: [add(A)], init: ZERO, network: 'mainnet' },
+      {
+        ...deps({
+          attestationsFor: async () => ({ builds: [attested(OTHER)] }),
+        }),
+        scope: () => ({ isClosedSet: true, holdsImmutablesOffCode: false }),
+      } as IVerifyCutDeps
+    )
+
+    expect(report.targets[0]?.verdict).toBe('MISMATCH')
+    expect(report.targets[0]?.immutables.status).toBe('unreadable')
+  })
+
+  it('leaves a chain that inlines its immutables exactly as it was', async () => {
+    const report = await verifyCutTargets(
+      { cuts: [add(A)], init: ZERO, network: 'mainnet' },
+      {
+        ...deps(),
+        scope: () => ({ isClosedSet: true, holdsImmutablesOffCode: false }),
+      } as IVerifyCutDeps
+    )
+
+    expect(report.targets[0]?.verdict).toBe('MATCH')
+    expect(report.blocksSigning).toBe(false)
+    expect(report.targets[0]?.immutables.status).toBe('none')
   })
 })
