@@ -9,8 +9,8 @@
  * assertion here.
  */
 import { execFileSync } from 'child_process'
-import { readFileSync } from 'fs'
-import { join } from 'path'
+import { readdirSync, readFileSync } from 'fs'
+import { join, relative } from 'path'
 
 import {
   describe,
@@ -93,17 +93,72 @@ describe('prefixNetworkOutput', () => {
   })
 })
 
+/**
+ * Every line that backgrounds a per-network worker, comments excluded.
+ *
+ * Matched on the launch itself rather than on the prefixer, so a worker piped through anything
+ * else — `sed` in either quoting, `awk`, nothing at all — still appears here and fails the
+ * assertion below. Pinning the `| prefixNetworkOutput ...` spelling instead would only catch
+ * the one revert that happens to be spelled the way the old code was.
+ */
+const WORKER_LAUNCH = /^(?!\s*#).*\w+ToNetworkWorker\b.*&\s*$/gm
+
+// the prefixer, passed some network variable - which one is the launcher's business
+const THROUGH_PREFIXER = /\|\s*prefixNetworkOutput\s+"\$\w+"\s*&\s*$/
+
+/**
+ * List every `.sh` file under `dir`, recursively.
+ *
+ * Walked by hand rather than with `readdirSync`'s `recursive` option, which the pinned
+ * `@types/node` (v17) does not know about. Symlinked directories are not followed.
+ *
+ * @param dir - absolute directory to walk
+ * @returns absolute paths
+ */
+function shellScriptsUnder(dir: string): string[] {
+  const found: string[] = []
+  for (const entry of readdirSync(dir, { withFileTypes: true })) {
+    const path = join(dir, entry.name)
+    if (entry.isDirectory()) found.push(...shellScriptsUnder(path))
+    else if (entry.name.endsWith('.sh')) found.push(path)
+  }
+  return found
+}
+
+/**
+ * Find every shell script that launches per-network workers.
+ *
+ * Discovered rather than listed: a third launcher added later is covered without anyone
+ * remembering to extend a hardcoded array, which is the failure a list cannot see.
+ *
+ * @returns repo-relative paths, sorted
+ */
+function findLaunchers(): string[] {
+  return shellScriptsUnder(join(REPO_ROOT, 'script'))
+    .filter((path) => readFileSync(path, 'utf8').match(WORKER_LAUNCH))
+    .map((path) => relative(REPO_ROOT, path))
+    .sort()
+}
+
 describe('wave launchers', () => {
-  const LAUNCHERS = [
-    'script/deploy/deployContractToNetworks.sh',
-    'script/tasks/proposeContractToNetworks.sh',
-  ]
+  const LAUNCHERS = findLaunchers()
 
-  it.each(LAUNCHERS)('%s tags worker output through the prefixer', (file) => {
-    const source = readFileSync(join(REPO_ROOT, file), 'utf8')
-
-    expect(source).toContain('| prefixNetworkOutput "$WAVE_NETWORK" &')
-    // the buffering this replaced is invisible in a passing deploy, so guard the revert
-    expect(source).not.toMatch(/\|\s*sed\s+"s\/\^\//)
+  it('finds the launchers it is meant to guard', () => {
+    // discovery returning nothing would make `it.each` below register no tests at all, and
+    // pass. Named rather than counted, so a launcher added later is covered without an edit
+    // here - which is the whole point of discovering them
+    expect(LAUNCHERS).toContain('script/deploy/deployContractToNetworks.sh')
+    expect(LAUNCHERS).toContain('script/tasks/proposeContractToNetworks.sh')
   })
+
+  it.each(LAUNCHERS)(
+    '%s tags every backgrounded worker through the prefixer',
+    (file) => {
+      const launches =
+        readFileSync(join(REPO_ROOT, file), 'utf8').match(WORKER_LAUNCH) ?? []
+
+      expect(launches.length).toBeGreaterThan(0)
+      for (const launch of launches) expect(launch).toMatch(THROUGH_PREFIXER)
+    }
+  )
 })
