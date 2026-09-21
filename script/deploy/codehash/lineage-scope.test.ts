@@ -111,12 +111,13 @@ describe('deriveToolchainScope', () => {
   it('resolves Tron to the profile the fork actually builds with', () => {
     // Tron is built and deployed out of `lifinance/contracts-tron`, whose Tron
     // scripts never set FOUNDRY_PROFILE and read their artifacts from `out/` —
-    // `[profile.default]`. Six of its 44 production records carry a commit;
-    // five of those reproduce byte for byte under `default` and the sixth is a
-    // wrong record (EXSC-1068). None can under `solc_floor`.
+    // `[profile.default]`. Every Tron record that carries a commit and
+    // reproduces does so under `default`; none can under `solc_floor`.
     //
-    // The pair is asserted, not just the profile name: the name would stay
-    // green through a `foundry.toml` bump that moves every Tron rebuild.
+    // The pair is asserted beside the name because the name alone does not say
+    // which compiler a reader should expect here. It is not what selects the
+    // compiler: the rebuild runs `FOUNDRY_PROFILE=<name>` inside the historical
+    // checkout, so the pair comes from that commit's own `foundry.toml`.
     for (const network of ['tron', 'tronshasta']) {
       const scope = scopeOf(network)
       expect(scope.isClosedSet).toBe(true)

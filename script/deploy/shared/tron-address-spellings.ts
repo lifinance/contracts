@@ -43,6 +43,13 @@ export interface ITronAddressSpellings {
  */
 const TRON_BASE58 = /^T[1-9A-HJ-NP-Za-km-z]{33}$/
 
+/**
+ * The hex spellings a record may carry instead: `0x` and 20 bytes, Tron's own
+ * `41` prefix and 20 bytes, or the 20 bytes bare. Admitted because the codec
+ * normalises all three and a record written in any of them names an address.
+ */
+const TRON_HEX = /^(0x|41)?[0-9a-fA-F]{40}$/
+
 const byNetwork = new Map<string, ITronAddressSpellings>()
 
 /**
@@ -66,7 +73,7 @@ export const createTronAddressSpellings = (
   const spellings: ITronAddressSpellings = {
     toCalldataSpelling: (recordAddress: string): string | undefined => {
       const value = recordAddress.trim()
-      if (!TRON_BASE58.test(value)) return undefined
+      if (!TRON_BASE58.test(value) && !TRON_HEX.test(value)) return undefined
       try {
         // A well-formed word that is not an address — a broken checksum —
         // makes the codec throw rather than default, so the shape check and

@@ -174,8 +174,10 @@ const asInlinedSpelling = (declared: string, network: string): string => {
       createTronAddressSpellings(network)?.toCalldataSpelling(value) ?? value
     )
   } catch {
-    // This module grades a slot unpriceable rather than throwing, and a codec
-    // that cannot be built is not a reason to abandon every other slot.
+    // Infrastructure path, synthetic by necessity: a codec is only unbuildable
+    // when the Tron endpoint config is malformed. This module grades a slot
+    // unpriceable rather than throwing, and one unbuildable codec is not a
+    // reason to abandon every other slot on the contract.
     return value
   }
 }

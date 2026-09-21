@@ -604,6 +604,30 @@ describe('priceImmutables', () => {
     expect(result.disagreeingByteCount).toBe(32)
   })
 
+  it('prices a declared value that config wrote with surrounding whitespace', () => {
+    const result = priceImmutables(
+      {
+        contractName: 'AcrossFacet',
+        observed: [
+          {
+            name: 'wrappedNative',
+            value: slot(WRAPPED_NATIVE),
+            slotByteCount: 32,
+            byteCount: 32,
+          },
+        ],
+        network: 'mainnet',
+        environment: 'production',
+      },
+      REQUIREMENTS,
+      () => ({ mainnet: { wrappedNativeAddress: `  ${WRAPPED_NATIVE}\n` } })
+    )
+    if (!result.decided) throw new Error(result.reason)
+
+    expect(result.slots[0]?.status).toBe('verified')
+    expect(result.unpricedByteCount).toBe(0)
+  })
+
   it('leaves a base58-shaped value on a non-Tron network unpriced', () => {
     // Nothing off Tron spells an address this way, so translating there would
     // invent an expectation out of a config entry nobody can read.

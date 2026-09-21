@@ -102,6 +102,17 @@ describe('createTronAddressSpellings', () => {
       expect(spellings.toCalldataSpelling(base58)).toBe(hex)
   })
 
+  it('reads the hex spellings a record may carry as well as base58', () => {
+    const spellings = createTronAddressSpellings('tron')
+    if (!spellings) throw new Error('tron has no spellings')
+    const [base58, hex] = REAL_PAIRS[0] as [string, string]
+    const bare = hex.slice(2)
+    expect(spellings.toCalldataSpelling(hex)).toBe(hex)
+    expect(spellings.toCalldataSpelling(bare)).toBe(hex)
+    expect(spellings.toCalldataSpelling(`41${bare}`)).toBe(hex)
+    expect(spellings.toCalldataSpelling(base58)).toBe(hex)
+  })
+
   it('falls back to the address itself rather than throwing on nonsense', () => {
     const spellings = createTronAddressSpellings('tron')
     if (!spellings) throw new Error('tron has no spellings')
