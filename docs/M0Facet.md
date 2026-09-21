@@ -79,7 +79,7 @@ allowance from step 2, which is rolled back with the rest of the transaction.
 | `depositAsset` (missing balance or allowance) | Revert — caller keeps everything |
 | Swap fails, or its output is below `bridgeData.minAmount` | `_depositAndSwap` reverts — caller keeps everything |
 | Scaled `amountOut` rounds to `0` (`InvalidAmount`) | Revert, swap rolled back — caller keeps everything |
-| `destinationChainId` does not fit in `uint32` — the large LI.FI non-EVM ids (Aptos, Sui, Tron, …); `LIFI_CHAIN_ID_SOLANA` is translated first and `LIFI_CHAIN_ID_HYPERCORE` (1337) already fits, so neither reverts here. `_toM0ChainId` narrows the rest with `SafeCastLib.toUint32` | Revert with solady's `Overflow()`, not a LI.FI error — caller keeps everything |
+| `destinationChainId` does not fit in `uint32` — the large LI.FI non-EVM ids (Aptos, Sui, Tron, …); `LIFI_CHAIN_ID_SOLANA` is translated first and `LIFI_CHAIN_ID_HYPERCORE` (1337) already fits, so neither reverts here. Reachable only with a plain EVM `bridgeData.receiver`, since the sentinel is rejected for these chains first | Revert with solady's `Overflow()`, not a LI.FI error — caller keeps everything |
 | `bridgeData.minAmount` does not fit in `uint128` (`SafeCastLib.toUint128` on `amountIn`) | Revert with solady's `Overflow()` — caller keeps everything, swap rolled back on the swap path |
 | Scaled `amountOut` does not fit in `uint128` (`SafeCastLib.toUint128`) | Revert with solady's `Overflow()` — caller keeps everything, swap rolled back |
 | `openOrder` reverts (paused, unsupported destination, zero amount, deadline in the past, `solver == recipient`, same-token order) | Revert — caller keeps everything, escrow never funded |
@@ -120,6 +120,7 @@ every protocol rule:
 | `tokenOut != bytes32(0)` → `InvalidCallData` (the OrderBook never checks it, and a zero `tokenOut` escrows funds into an order no solver can fill) | `solver == recipient` collision |
 | EVM: `receiverAddress == bridgeData.receiver` → `InformationMismatch` | `isDestinationSupported(destChainId)` |
 | Non-EVM: `receiverAddress != bytes32(0)` → `InvalidNonEVMReceiver` | Same-token orders |
+| Receiver format is bound to the destination → `InvalidReceiver`: a Solana destination **must** use the `NON_EVM_ADDRESS` sentinel, and the sentinel is rejected for every other destination (including the other non-EVM chain ids the facet cannot translate, such as Tron) | — |
 | Swap path: last swap's `receivingAssetId == bridgeData.sendingAssetId` → `InformationMismatch` | Pause state |
 | `bridgeData.receiver != address(0)` and `minAmount != 0` (custom `validateBridgeDataM0` modifier) | Solver allowlisting and settlement |
 
@@ -313,6 +314,11 @@ struct M0Data {
   - Set `tokenOut` to the SPL mint as bytes32
   - `orderOwner` and `refundRecipient` stay EVM addresses — they live on the origin chain
   - A `BridgeToNonEVMChainBytes32` event is emitted alongside `LiFiTransferStarted`
+  - The sentinel and the Solana destination are bound together: a Solana
+    `destinationChainId` with a plain EVM `bridgeData.receiver`, or the sentinel with any
+    non-Solana destination, both revert `InvalidReceiver`. There is no way to open a Solana
+    order that skips `BridgeToNonEVMChainBytes32`, and no way to use the sentinel to escape
+    the EVM `receiverAddress == bridgeData.receiver` check.
 
 ```solidity
 // EVM -> EVM (or same-chain)

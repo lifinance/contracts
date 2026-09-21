@@ -267,16 +267,35 @@ contract M0Facet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
             revert InvalidCallData();
         }
 
+        // The receiver format is bound to the destination. Without this, a Solana order
+        // could carry a plain EVM receiver — escrowing to a left-padded address that means
+        // nothing on Solana, and skipping BridgeToNonEVMChainBytes32 — while an EVM order
+        // could use the sentinel and escape the receiver equality check entirely, letting
+        // receiverAddress point anywhere.
+        // Solana is the only non-EVM destination this facet can express, so it is also the
+        // only one the sentinel is valid for.
+        bool isSolanaDestination = _bridgeData.destinationChainId ==
+            LIFI_CHAIN_ID_SOLANA;
+
         if (_bridgeData.receiver == NON_EVM_ADDRESS) {
+            if (!isSolanaDestination) {
+                revert InvalidReceiver();
+            }
             if (_m0Data.receiverAddress == bytes32(0)) {
                 revert InvalidNonEVMReceiver();
             }
-        } else if (
-            _m0Data.receiverAddress != LibBytes.toBytes32(_bridgeData.receiver)
-        ) {
+        } else {
+            if (isSolanaDestination) {
+                revert InvalidReceiver();
+            }
             // The OrderBook only ever sees receiverAddress, so a mismatch would deliver to
             // an address the emitted LiFiTransferStarted does not name.
-            revert InformationMismatch();
+            if (
+                _m0Data.receiverAddress !=
+                LibBytes.toBytes32(_bridgeData.receiver)
+            ) {
+                revert InformationMismatch();
+            }
         }
     }
 

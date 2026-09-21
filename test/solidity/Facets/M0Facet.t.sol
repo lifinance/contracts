@@ -8,7 +8,7 @@ import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { M0Facet } from "lifi/Facets/M0Facet.sol";
 import { IM0OrderBook } from "lifi/Interfaces/IM0OrderBook.sol";
 // solhint-disable-next-line max-line-length
-import { CumulativeSlippageTooHigh, InformationMismatch, InvalidAmount, InvalidCallData, InvalidConfig, InvalidNonEVMReceiver, NativeAssetNotSupported } from "lifi/Errors/GenericErrors.sol";
+import { CumulativeSlippageTooHigh, InformationMismatch, InvalidAmount, InvalidCallData, InvalidConfig, InvalidNonEVMReceiver, InvalidReceiver, NativeAssetNotSupported } from "lifi/Errors/GenericErrors.sol";
 import { SafeCastLib } from "solady/utils/SafeCastLib.sol";
 
 /// @dev Read-only slice of the live OrderBook used to assert post-conditions and to
@@ -526,6 +526,43 @@ contract M0FacetTest is TestBaseFacet {
         assertEq(uint256(opened.destChainId), uint256(M0_CHAIN_ID_SOLANA));
     }
 
+    /// @dev A Solana destination must use the NON_EVM_ADDRESS sentinel. A plain EVM
+    ///      receiver would be left-padded into a bytes32 that means nothing on Solana,
+    ///      escrowing into an unfillable order and skipping BridgeToNonEVMChainBytes32.
+    function testRevert_WhenSolanaDestinationCarriesEVMReceiver() public {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
+        bridgeData.receiver = USER_RECEIVER;
+        validM0Data.receiverAddress = bytes32(uint256(uint160(USER_RECEIVER)));
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(InvalidReceiver.selector);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    /// @dev The sentinel must not be usable on an EVM destination: it would skip the
+    ///      receiverAddress equality check and let the escrow recipient point anywhere,
+    ///      while LiFiTransferStarted still reported the sentinel.
+    function testRevert_WhenEVMDestinationUsesNonEVMSentinel() public {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        validM0Data.receiverAddress = bytes32(
+            uint256(uint160(address(0xdead)))
+        );
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(InvalidReceiver.selector);
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
     function testRevert_WhenNonEVMReceiverIsZero() public {
         vm.startPrank(USER_SENDER);
 
@@ -569,7 +606,9 @@ contract M0FacetTest is TestBaseFacet {
 
         usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
 
-        vm.expectRevert(SafeCastLib.Overflow.selector);
+        // Solana is the only non-EVM destination the facet translates, so the sentinel is
+        // rejected outright here rather than reaching the uint32 narrowing
+        vm.expectRevert(InvalidReceiver.selector);
 
         initiateBridgeTxWithFacet(false);
         vm.stopPrank();
