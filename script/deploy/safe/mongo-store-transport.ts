@@ -15,9 +15,17 @@
  * TLS terminates at the tunnel. It is never taken as evidence about the store.
  */
 
-/** The shape a connection string must have before any of it can be trusted. */
+/**
+ * The shape a connection string must have before any of it can be trusted.
+ *
+ * The host group excludes `@` so that a second, unencoded authority delimiter
+ * fails the match instead of splitting mid-credential: Mongo requires a literal
+ * `@` in userinfo to be percent-encoded, so `user:pa@ss@host` is malformed, and
+ * a permissive host group would read `ss@host` as the host and put that half of
+ * the password into the refusal message below.
+ */
 const MONGO_URI =
-  /^(mongodb(?:\+srv)?):\/\/(?:([^@/]*)@)?([^/?]+)(?:\/[^?]*)?(?:\?(.*))?$/i
+  /^(mongodb(?:\+srv)?):\/\/(?:([^@/?#]*)@)?([^@/?#]+)(?:\/[^?#]*)?(?:\?([^#]*))?$/i
 
 /** An octet, bounded: `127.999.999.999` is not an address and must not read as one. */
 const OCTET = String.raw`(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)`
@@ -65,6 +73,38 @@ const negotiatesTls = (scheme: string, query: string): boolean => {
 }
 
 /**
+ * Options that keep TLS on the wire but stop it proving who is on the other
+ * end of it.
+ *
+ * A session that accepts any certificate or any hostname is one an impersonator
+ * can terminate, and the driver hands over the credentials during
+ * authentication — before anything the store says could give it away. So these
+ * belong with `tls=false` rather than with TLS.
+ */
+const PEER_VALIDATION_DISABLED = new Set([
+  'tlsinsecure',
+  'tlsallowinvalidcertificates',
+  'tlsallowinvalidhostnames',
+])
+
+/**
+ * The peer-validation options this URI turns on, in the spelling it used.
+ *
+ * Last occurrence wins, matching `negotiatesTls` and the driver: a repeated
+ * option turned back off is not a finding.
+ */
+const relaxedTlsOptions = (query: string): string[] => {
+  const relaxed = new Map<string, string>()
+  for (const [name, value] of new URLSearchParams(query)) {
+    const option = name.toLowerCase()
+    if (!PEER_VALIDATION_DISABLED.has(option)) continue
+    if (value.toLowerCase() === 'true') relaxed.set(option, name)
+    else relaxed.delete(option)
+  }
+  return [...relaxed.values()]
+}
+
+/**
  * Throws unless every host this URI names can carry its credentials safely.
  *
  * @param uri - A MongoDB connection string. Never included in a thrown message:
@@ -72,7 +112,8 @@ const negotiatesTls = (scheme: string, query: string): boolean => {
  * @param variableName - The environment variable the URI came from, so the
  *   refusal names what to fix.
  * @throws Error if the URI is unparseable, or carries credentials to a host it
- *   would reach over an unencrypted connection.
+ *   would reach over a connection that is unencrypted, or encrypted without
+ *   verifying the peer.
  */
 export function assertStoreCredentialsAreEncrypted(
   uri: string,
@@ -96,14 +137,23 @@ export function assertStoreCredentialsAreEncrypted(
   // that a secret is in the string, not that both halves of one are.
   if (!userInfo) return
 
-  if (negotiatesTls(scheme, query)) return
-
   const exposed = hostList.split(',').filter((host) => !isLoopbackHost(host))
   if (exposed.length === 0) return
 
-  throw new Error(
-    `${variableName} carries credentials to ${exposed.join(
-      ', '
-    )} over an unencrypted connection. This URI reaches a credentialed store, not a local one — add tls=true, or point it at the localhost port that \`lifi-connect prod smart-contracts\` forwards.`
-  )
+  if (!negotiatesTls(scheme, query))
+    throw new Error(
+      `${variableName} carries credentials to ${exposed.join(
+        ', '
+      )} over an unencrypted connection. This URI reaches a credentialed store, not a local one — add tls=true, or point it at the localhost port that \`lifi-connect prod smart-contracts\` forwards.`
+    )
+
+  const relaxed = relaxedTlsOptions(query)
+  if (relaxed.length > 0)
+    throw new Error(
+      `${variableName} carries credentials to ${exposed.join(
+        ', '
+      )} over a TLS connection that does not verify the peer (${relaxed.join(
+        ', '
+      )}). An unverified peer can be impersonated, so the credentials are no better protected than in the clear — drop the option, or point it at the localhost port that \`lifi-connect prod smart-contracts\` forwards.`
+    )
 }

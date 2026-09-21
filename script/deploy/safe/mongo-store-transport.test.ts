@@ -175,6 +175,92 @@ describe('assertStoreCredentialsAreEncrypted', () => {
       )
     ).not.toThrow()
   })
+
+  // TLS that does not verify the peer protects the credentials from everyone
+  // except whoever is worth defending against.
+  it.each([
+    'tlsInsecure',
+    'tlsAllowInvalidCertificates',
+    'tlsAllowInvalidHostnames',
+  ])('refuses a remote host whose tls is relaxed by %s', (option) => {
+    expect(() =>
+      assertStoreCredentialsAreEncrypted(
+        `mongodb://${USER}@mongo.example:27017/?tls=true&${option}=true`
+      )
+    ).toThrow(/does not verify the peer/)
+  })
+
+  it('names the relaxing option, so the refusal says what to drop', () => {
+    expect(() =>
+      assertStoreCredentialsAreEncrypted(
+        `mongodb://${USER}@mongo.example:27017/?tls=true&tlsInsecure=true`
+      )
+    ).toThrow(/tlsInsecure/)
+  })
+
+  it('matches a relaxing option however it was spelled', () => {
+    expect(() =>
+      assertStoreCredentialsAreEncrypted(
+        `mongodb://${USER}@mongo.example:27017/?tls=true&TLSINSECURE=TRUE`
+      )
+    ).toThrow(/does not verify the peer/)
+  })
+
+  it('accepts a relaxing option that is turned off, or turned back off', () => {
+    expect(() =>
+      assertStoreCredentialsAreEncrypted(
+        `mongodb://${USER}@mongo.example:27017/?tls=true&tlsInsecure=false`
+      )
+    ).not.toThrow()
+    expect(() =>
+      assertStoreCredentialsAreEncrypted(
+        `mongodb://${USER}@mongo.example:27017/?tls=true&tlsInsecure=true&tlsInsecure=false`
+      )
+    ).not.toThrow()
+  })
+
+  // The wire still cannot leave the machine, so there is no peer to impersonate.
+  it('leaves a relaxed loopback tunnel alone', () => {
+    expect(() =>
+      assertStoreCredentialsAreEncrypted(
+        `mongodb://${USER}@localhost:27017/?tls=true&tlsInsecure=true`
+      )
+    ).not.toThrow()
+  })
+
+  // A relaxing option on an uncredentialed URI has no credential to strand.
+  it('leaves a relaxed uncredentialed URI alone', () => {
+    expect(() =>
+      assertStoreCredentialsAreEncrypted(
+        'mongodb://mongo.example:27017/?tls=true&tlsInsecure=true'
+      )
+    ).not.toThrow()
+  })
+
+  // Mongo requires a literal `@` in userinfo to be percent-encoded, so this URI
+  // is malformed. It must fail on the shape, before a host built out of the
+  // second half of a password can reach the refusal message.
+  it('refuses a second authority delimiter without echoing the password', () => {
+    let message = ''
+    try {
+      assertStoreCredentialsAreEncrypted(
+        'mongodb://a-user:pa@ss@mongo.example:27017/?tls=false'
+      )
+    } catch (error) {
+      message = (error as Error).message
+    }
+    expect(message).toMatch(/not a MongoDB connection string/)
+    expect(message).not.toContain('ss@mongo.example')
+    expect(message).not.toContain('mongo.example')
+  })
+
+  it('refuses a URI carrying a fragment rather than reading past it', () => {
+    expect(() =>
+      assertStoreCredentialsAreEncrypted(
+        `mongodb://${USER}@mongo.example:27017/?tls=true#tls=false`
+      )
+    ).toThrow(/not a MongoDB connection string/)
+  })
 })
 
 /**
