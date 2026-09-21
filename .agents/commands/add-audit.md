@@ -141,15 +141,24 @@ When `/add-audit` is invoked with a pasted PDF:
        2. User's Desktop: `~/Desktop/` or `/Users/<username>/Desktop/`
        3. Current workspace: `.` or workspace root
        4. Search command: `find ~/Downloads ~/Desktop . -maxdepth 3 -name "*.pdf" -type f 2>/dev/null | grep -i "audit\|report\|repot"`
-     - **If the generated filename already exists** in `audit/reports/`: never overwrite it. A
-       genuine same-day audit of the same contract takes the next `_1` / `_2` suffix (step 5);
-       otherwise this audit is already logged — stop and ask the user which case it is.
+     - **If the generated filename already exists** in `audit/reports/`: never overwrite it, and
+       never read it as proof the audit was logged — the PDF is written first here, so a run that
+       died before the log write leaves exactly this state. Compare the two files
+       (`cmp -s "<source-path>" "audit/reports/<generated-filename>.pdf"`):
+       - **Identical**: an earlier run was interrupted. Keep the existing PDF and continue to the
+         log entry below.
+       - **Different**: a distinct same-day audit of the same contract — take the next `_1` / `_2`
+         suffix (step 5) and copy under that name.
      - **If PDF found**:
        - Copy: `cp "<source-path>" "audit/reports/<generated-filename>.pdf"`
        - Verify: `ls -lh "audit/reports/<generated-filename>.pdf"` (must show file exists, size > 0 bytes)
      - **If PDF not found, or the copy cannot be verified**: stop here and ask the user for the
        file. Do not write the log entry — an entry without its report is incomplete.
-   - **Then write the log entry**:
+   - **Then write the log entry** — `audit/auditLog.json` is the only proof an audit was logged:
+     - First check `audits` for an entry describing this same report (same date, auditor,
+       contracts and `auditCommitHash`). If one is there, the audit is already logged — stop and
+       say so. Do not test this with the step-4 audit ID: that ID is generated to be unique, so
+       it is absent from the log by construction and would never match.
      - Add entry to `audits` section in `audit/auditLog.json`
      - Update `auditedContracts` mapping for each contract/version
      - Follow existing structure (do not invent new fields)
