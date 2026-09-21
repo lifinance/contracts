@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'bun:test' // eslint-disable-line import/no-unresolved
 
+import { createTronAddressSpellings } from '../shared/tron-address-spellings'
+
 import type { IDeploymentIndexEntry } from './calldata-address-check'
 import { withCalldataSpellings } from './deployment-record-spellings'
 
@@ -74,6 +76,34 @@ describe('withCalldataSpellings', () => {
       { toCalldataSpelling: (address) => address.toUpperCase() }
     )
     expect(out).toHaveLength(1)
+  })
+
+  it('respells a real Tron record through the translator production uses', () => {
+    // The stubs above pin the respelling rule; this pins that the one
+    // translator wired at the call site actually satisfies it. Nothing else
+    // couples the two, so a guard tightened inside the translator can drop a
+    // spelling here while every test in both files stays green.
+    const spellings = createTronAddressSpellings('tron')
+    const base58 = 'TMck2qdZHmsdurz4uE4eNVBt14JHHLeoEB'
+    const hex = '0x7fc2ad654bbe72fef9f46d92a9f51dc10d3b8c7e'
+
+    expect(
+      withCalldataSpellings(
+        [entry({ address: base58 })],
+        'tron',
+        spellings
+      )?.[0]?.address
+    ).toBe(hex)
+    // Tron's own `41` hex spelling, which has to be respelt to be found. The
+    // `0x` spelling would pass this whether or not it was translated, so it
+    // says nothing.
+    expect(
+      withCalldataSpellings(
+        [entry({ address: `41${hex.slice(2)}` })],
+        'tron',
+        spellings
+      )?.[0]?.address
+    ).toBe(hex)
   })
 
   it('passes an unread record set and a network without a translator through', () => {

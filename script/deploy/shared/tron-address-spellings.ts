@@ -26,7 +26,7 @@ import {
  * is also read from `script/deploy/codehash/`, which sits below them.
  */
 export interface ITronAddressSpellings {
-  /** The record's base58 as the calldata carries it, or nothing. */
+  /** The record's address as the calldata carries it, or nothing. */
   toCalldataSpelling: (recordAddress: string) => string | undefined
   /** Spellings a record may carry for this calldata address, query order. */
   forCalldataAddress: (calldataAddress: string) => readonly string[]

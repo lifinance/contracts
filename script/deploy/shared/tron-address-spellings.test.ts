@@ -111,6 +111,7 @@ describe('createTronAddressSpellings', () => {
     expect(spellings.toCalldataSpelling(bare)).toBe(hex)
     expect(spellings.toCalldataSpelling(`41${bare}`)).toBe(hex)
     expect(spellings.toCalldataSpelling(base58)).toBe(hex)
+    expect(spellings.toCalldataSpelling(`  ${base58}  `)).toBe(hex)
   })
 
   it('falls back to the address itself rather than throwing on nonsense', () => {
