@@ -218,7 +218,7 @@ const cli = defineCommand({
       required: true,
     },
   },
-  run: async ({ args }) => {
+  run: async ({ args }): Promise<void> => {
     if (!SCENARIO_NAMES.includes(args.scenario as Scenario))
       throw new Error(
         `Unknown scenario "${args.scenario}". Available: ${SCENARIO_NAMES.join(
