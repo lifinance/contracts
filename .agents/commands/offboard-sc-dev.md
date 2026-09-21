@@ -1,6 +1,6 @@
 ---
 name: offboard-sc-dev
-description: Orchestrates a full smart-contract-team offboarding end-to-end — swaps the departing person out of the multisig and rotates every shared SC-owned wallet they held (deployer, dev, pauser) to freshly generated replacements. v1 is EXECUTE-ONLY: it assumes the Linear ticket tree already exists (modeled on EXSC-558) and runs the rotations; it does NOT create the tickets (that is a fast-follow). Use when the user says "offboard <SC dev>", "run the SC-dev offboarding", or "replace <person> as multisig signer and rotate the shared wallets". NOT for non-SC offboarding, and it never reimplements a rotation — it drives `rotate-deployer-wallet`, `rotate-dev-wallet`, `rotate-pauser-wallet`, and `multisig-rollout` for the signer swap, gating on `check-rotation-status`. Requires Foundry, gh, VPN (MongoDB), the Slack MCP server, and a human at the keyboard for key generation and Ledger signing. Never self-signs; never rotates CTO-owned wallets.
+description: Orchestrates a full smart-contract-team offboarding end-to-end — swaps the departing person out of the multisig and rotates every shared SC-owned wallet they held (deployer, dev, pauser) to freshly generated replacements. v1 is EXECUTE-ONLY: it assumes the Linear ticket tree already exists (modeled on EXSC-558) and runs the rotations; it does NOT create the tickets (that is a fast-follow). Use when the user says "offboard <SC dev>", "run the SC-dev offboarding", or "replace <person> as multisig signer and rotate the shared wallets". NOT for non-SC offboarding, and it never reimplements a rotation — it drives `rotate-deployer-wallet`, `rotate-dev-wallet`, `rotate-pauser-wallet`, and `multisig-rollout` for the signer swap, gating on `check-rotation-status`. Requires Foundry, gh, lifi-connect (MongoDB), the Slack MCP server, and a human at the keyboard for key generation and Ledger signing. Never self-signs; never rotates CTO-owned wallets.
 usage: /offboard-sc-dev --person <name> --removed-signer 0x --new-signer 0x [--linear EXSC-XXX]
 ---
 
@@ -51,7 +51,7 @@ Run from the repo root. Confirm and report (don't fix silently):
 
 - The Linear offboarding tree (`--linear`, EXSC-558-style) exists and is the plan being executed. State the EXECUTE-ONLY scope note: ticket-tree creation is a fast-follow, not done here.
 - Departing person, their replacement signer, and which of the three shared wallets they held (all should be rotated regardless — the departing person loses access to all shared keys).
-- `.env` present, `PRODUCTION` correct, `SEND_PROPOSALS_DIRECTLY_TO_DIAMOND` not `true`; Foundry, `gh auth status`, VPN (MongoDB), Slack MCP all available (Slack + VPN needed by `multisig-rollout`).
+- `.env` present, `PRODUCTION` correct, `SEND_PROPOSALS_DIRECTLY_TO_DIAMOND` not `true`; Foundry, `gh auth status`, lifi-connect (MongoDB), Slack MCP all available (Slack + lifi-connect needed by `multisig-rollout`).
 - Set the interaction model up front: this is **semi-automated** — it will pause for the human to (a) generate keys and (b) sign proposals on a Ledger, then resume. Tell the user the pauses are coming so they don't complete signing steps by hand.
 
 ### Phase 1 — Generate + fund the new wallets (BLOCKING human step)

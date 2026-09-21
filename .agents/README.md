@@ -6,7 +6,7 @@ This directory contains rule files (markdown with YAML frontmatter) that guide t
 
 Rules are numbered for ordering by category (**numeric prefixes must be unique**):
 
-- `000-099`: Global/standards rules (always-applied: context monitoring, guardrails, architecture, project structure, final checks)
+- `000-099`: Global/standards rules (always-applied: guardrails, architecture, project structure, final checks)
 - `100-199`: Solidity-related rules (basics, contracts, facets, interfaces, receivers, security, gas, scripts)
 - `200-299`: TypeScript-related rules (scripts, helpers, conventions)
 - `300-399`: Bash-related rules (deployment scripts, shell utilities)
@@ -72,7 +72,7 @@ Custom commands live in `.agents/commands/` (source of truth) and are symlinked 
 | `deprecate-contract.md` | `/deprecate-contract <Name> ...` | Deprecate facet/periphery contracts by removing them from the codebase                  |
 | `deprecate-network.md`  | `/deprecate-network <net> ...`   | Deprecate networks — scrub networks.json, foundry.toml, target state, bridge/integration configs, `CORE_FACET_EXEMPTIONS`, the whitelist (hand-edited) and per-network deploy logs; preserves the master log and comments (never removes) facet chainId mappings |
 | `eip7702-atomic-batch.md` | `/eip7702-atomic-batch --config <path.json> [--broadcast]` | Run calls atomically from an EOA via an EIP-7702 sponsored tx (delegate to Multicall3): a sponsor pays while the EOA only signs — so a gas-starved or compromised/actively-swept key can execute (e.g. `transferOwnership`) with no fundable balance for a sweeper to front-run. Engine: `script/tasks/atomicBatch7702.ts` |
-| `finish-rollout.md` | `/finish-rollout <slack thread link>` | Finish a production rollout after timelock execution — verify (timelock queue + on-chain), dispatch the Timelock Auto Execution workflow if ops are ready-but-unexecuted, close the `#dev-sc-multisig-proposals` thread, sync diamond logs onto the rollout PR, `/pr-ready` → ready → `/post-pr-for-review`. The tail of `multisig-rollout` |
+| `finish-rollout.md` | `/finish-rollout <slack thread link>` | Finish a production rollout after timelock execution — verify (timelock queue + on-chain), dispatch the Timelock Auto Execution workflow if ops are ready-but-unexecuted, close the `#dev-sc-multisig-proposals` thread, sync diamond logs onto the rollout PR, self-review → ready → `/post-pr-for-review`. The tail of `multisig-rollout` |
 | `interact-tron.md` | `/interact-tron <call\|send\|address\|code> ...` | Read/write Tron contract state via `troncast` (the `cast` analog for Tron) — calls, sends, address conversion, bytecode; routing target for EVM skills that hit a Tron network |
 | `manage-wallet-funds.md` | `/manage-wallet-funds <bridge\|swap\|send> --wallet <role\|0x> ...` | Move funds from any `.env` wallet — `bridge`/`swap` route via the LI.FI API (same wallet, autonomous), `send` is a direct native transfer to a different recipient (needs an explicit human `--confirm`); wallet resolved by role or address (EVM) |
 | `move-tron-delegation.md` | `/move-tron-delegation --old-address 0xOLD --new-address 0xNEW [--role dev\|deployer]` | Move Tron staked-resource (energy/bandwidth) delegation from a rotated-out wallet's Tron address to the new one — derive base58 pair, draft the provider (Max) request, verify on Tronscan; delegator-controlled, never signed from our keys |

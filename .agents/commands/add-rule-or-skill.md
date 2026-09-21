@@ -66,7 +66,7 @@ Negation patterns (`!src/**/*.s.sol`) are supported in `globs:` (Cursor) but **n
 ## Scoping & Activation (globs-first)
 
 - Prefer **precise `globs`** over cross-references.
-- Use `alwaysApply: true` (+ omit `paths:`) only for truly universal rules (role/guardrails, architecture, project structure, context monitoring, final checks).
+- Use `alwaysApply: true` (+ omit `paths:`) only for truly universal rules (role/guardrails, architecture, project structure, final checks).
 - Avoid `globs: ['**/*']` unless the rule is an explicit **activation gate** (like tx analysis) or truly universal.
 - Prefer directory scoping by concern:
   - Solidity: `**/*.sol`, narrower `src/**`, `src/Facets/**`, `src/Interfaces/**`, `src/Periphery/Receiver*.sol`, `script/**/*.s.sol`, `test/**/*.t.sol`

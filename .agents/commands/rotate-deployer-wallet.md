@@ -1,6 +1,6 @@
 ---
 name: rotate-deployer-wallet
-description: Rotates the shared SC-owned **Deployer** wallet — `safeOwners[0]` + the Timelock `CANCELLER_ROLE` (and prod timelock executor) — end-to-end: bootstraps the new deployer's gas, swaps the Safe owner and moves the canceller role via Safe proposals, handles Tron, updates config, decommissions the old key, and gates on a completeness check. Thin orchestrator: it CALLS the L1 skills (`sweep-wallet-funds`, `move-tron-delegation`, `update-wallet-config`, `check-rotation-status`) and existing skills (`/multisig-rollout`, `transfer-ownership-to-timelock.ts`), never reimplementing them. Use when the user says "rotate the deployer wallet", "replace safeOwners[0]", "swap the deployer / canceller EOA", or "/rotate-deployer-wallet". This is the heaviest-governance rotation (production Safe + Timelock) — NOT the staging owner (that is `rotate-dev-wallet`), NOT the emergency pauser (that is `rotate-pauser-wallet`), and NOT a full person offboarding (that is `offboard-sc-dev`). Requires Foundry, gh, VPN for MongoDB, and a securely generated new wallet + hardware-wallet signing — both human steps. NEVER self-sign; all on-chain owner/role changes go through Safe/timelock.
+description: Rotates the shared SC-owned **Deployer** wallet — `safeOwners[0]` + the Timelock `CANCELLER_ROLE` (and prod timelock executor) — end-to-end: bootstraps the new deployer's gas, swaps the Safe owner and moves the canceller role via Safe proposals, handles Tron, updates config, decommissions the old key, and gates on a completeness check. Thin orchestrator: it CALLS the L1 skills (`sweep-wallet-funds`, `move-tron-delegation`, `update-wallet-config`, `check-rotation-status`) and existing skills (`/multisig-rollout`, `transfer-ownership-to-timelock.ts`), never reimplementing them. Use when the user says "rotate the deployer wallet", "replace safeOwners[0]", "swap the deployer / canceller EOA", or "/rotate-deployer-wallet". This is the heaviest-governance rotation (production Safe + Timelock) — NOT the staging owner (that is `rotate-dev-wallet`), NOT the emergency pauser (that is `rotate-pauser-wallet`), and NOT a full person offboarding (that is `offboard-sc-dev`). Requires Foundry, gh, lifi-connect for MongoDB, and a securely generated new wallet + hardware-wallet signing — both human steps. NEVER self-sign; all on-chain owner/role changes go through Safe/timelock.
 usage: /rotate-deployer-wallet [--new-address 0xNEW] [--check]
 ---
 
@@ -53,7 +53,7 @@ The **old** deployer address is derived from `PRIVATE_KEY_PRODUCTION` in `.env` 
 
 ## Workflow
 
-Foundry/bun may need `export PATH="$HOME/.foundry/bin:$HOME/.bun/bin:$PATH"`. VPN is required for the MongoDB signature verification inside `multisig-rollout`.
+Foundry/bun may need `export PATH="$HOME/.foundry/bin:$HOME/.bun/bin:$PATH"`. lifi-connect is required for the MongoDB signature verification inside `multisig-rollout`.
 
 ### Phase 0 — Preflight & confirm plan
 
