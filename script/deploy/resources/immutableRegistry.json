@@ -119,18 +119,6 @@
       "authorityBearing": true
     }
   },
-  "EcoFacet": {
-    "PORTAL": {
-      "source": "config",
-      "configData": "_portal",
-      "authorityBearing": true
-    },
-    "BACKEND_SIGNER": {
-      "source": "config",
-      "configData": "_backendSigner",
-      "authorityBearing": true
-    }
-  },
   "EmergencyPauseFacet": {
     "pauserWallet": {
       "source": "config",
