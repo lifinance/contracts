@@ -303,15 +303,80 @@ describe('resolveDeploymentRecord', () => {
     expect(resolveDeploymentRecord([only], ADDRESS, 'tron')).toBe(only)
   })
 
-  it('returns the record when duplicates agree on contract and version', () => {
+  it('returns the record when duplicates agree on every field', () => {
     const first = row({})
 
-    expect(
+    expect(resolveDeploymentRecord([first, row({})], ADDRESS, 'tron')).toBe(
+      first
+    )
+  })
+
+  // The commit is what the rebuild is keyed on, so two of them is the same
+  // disagreement as two versions, and the query is unsorted — picking either
+  // would attest against a different source on an otherwise identical run.
+  it('refuses duplicates that agree on version but name different commits', () => {
+    expect(() =>
       resolveDeploymentRecord(
-        [first, row({ gitCommitHash: 'b'.repeat(40) })],
+        [row({}), row({ gitCommitHash: 'b'.repeat(40) })],
         ADDRESS,
         'tron'
       )
+    ).toThrow(/commit/)
+  })
+
+  it('prefers the row carrying a commit over a blank sibling, whatever the order', () => {
+    const withCommit = row({})
+    const blank = row({ gitCommitHash: '' })
+
+    expect(resolveDeploymentRecord([blank, withCommit], ADDRESS, 'tron')).toBe(
+      withCommit
+    )
+    expect(resolveDeploymentRecord([withCommit, blank], ADDRESS, 'tron')).toBe(
+      withCommit
+    )
+  })
+
+  // Most production rows carry no commit field at all, so absence must stay a
+  // resolvable answer rather than a refusal.
+  it('resolves duplicates that carry no commit at all', () => {
+    const first = { contractName: 'TokenWrapper', version: '1.1.0' }
+
+    expect(
+      resolveDeploymentRecord(
+        [first, { contractName: 'TokenWrapper', version: '1.1.0' }],
+        ADDRESS,
+        'tron'
+      )
+    ).toBe(first)
+  })
+
+  it('treats a whitespace-only version as blank', () => {
+    const versioned = row({ contractName: 'GasZipPeriphery', version: '1.0.2' })
+
+    expect(
+      resolveDeploymentRecord(
+        [row({ contractName: 'GasZipPeriphery', version: '  ' }), versioned],
+        ADDRESS,
+        'moonbeam'
+      )
+    ).toBe(versioned)
+  })
+
+  it('refuses a three-row group where only one row dissents', () => {
+    expect(() =>
+      resolveDeploymentRecord(
+        [row({}), row({}), row({ version: '2.1.2' })],
+        ADDRESS,
+        'tron'
+      )
+    ).toThrow(/2\.1\.2/)
+  })
+
+  it('resolves a group of blank-version rows that name one contract', () => {
+    const first = row({ version: '' })
+
+    expect(
+      resolveDeploymentRecord([first, row({ version: '' })], ADDRESS, 'base')
     ).toBe(first)
   })
 
