@@ -48,7 +48,7 @@ scriptMaster() {
     if ! assertFoundryVersionOrFail; then
       return 1
     fi
-    forge build
+    forge build --skip 'test/**'
   fi
 
   # Warn when SEND_PROPOSALS_DIRECTLY_TO_DIAMOND=true: scripts will send directly to diamond instead of proposing to Safe; use only for new production networks before ownership transfer

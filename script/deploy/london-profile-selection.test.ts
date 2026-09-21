@@ -398,17 +398,28 @@ describe('the floor gate compiles what the london deploy compiles', () => {
       (match) => match[1] ?? ''
     )
 
+  const FLOOR_WORKFLOW = readFileSync(
+    join(REPO_ROOT, '.github', 'workflows', 'solc-floor-build.yml'),
+    'utf8'
+  )
+
   const gateSkips = (): string[] => {
-    const runs = readFileSync(
-      join(REPO_ROOT, '.github', 'workflows', 'solc-floor-build.yml'),
-      'utf8'
-    )
-      .split('\n')
+    const runs = FLOOR_WORKFLOW.split('\n')
       .map((line) => line.trim())
       .filter((line) => line.startsWith('run: forge build'))
     expect(runs).toHaveLength(1)
     return skipsOf(runs[0] ?? '')
   }
+
+  /** Every `forge build` the floor profile reaches, as its source spells it. */
+  const DEPLOY_BUILD_SITES: [string, RegExp][] = [
+    [
+      'script/deploy/resources/deployGroupingHelpers.sh',
+      /^\s*forge build[^\n]*/gm,
+    ],
+    ['script/helperFunctions.sh', /^\s*if ! forge build[^\n]*/gm],
+    ['script/scriptMaster.sh', /^\s*forge build[^\n]*/gm],
+  ]
 
   const buildCommands = (sandbox: ISandbox): string[] =>
     sandbox.forgeCalls().filter((call) => call.startsWith('forge build'))
@@ -435,8 +446,52 @@ describe('the floor gate compiles what the london deploy compiles', () => {
     expect(skipsOf(commands[0] ?? '')).toEqual(gateSkips())
   })
 
+  it('runs the tolerant group build with the gate’s skips', () => {
+    // multiNetworkExecution calls prepareGroupBuild without STRICT, which is a
+    // second `forge build` line rather than the same one with a flag.
+    const sandbox = makeSandbox()
+
+    run(sandbox, [...SOURCE_HELPERS, `prepareGroupBuild "$GROUP_LONDON"`])
+
+    const commands = buildCommands(sandbox)
+    expect(commands).toHaveLength(1)
+    expect(skipsOf(commands[0] ?? '')).toEqual(gateSkips())
+  })
+
   it('skips by glob, not by the `test` alias', () => {
     expect(gateSkips()).toEqual(['test/**'])
+  })
+
+  it.each(DEPLOY_BUILD_SITES)(
+    'quotes the glob at every build site in %s',
+    (file, pattern) => {
+      // Unquoted, the shell expands `test/**` against the deploy runner's cwd
+      // before forge sees it, and the sandbox cannot catch that: it has no
+      // `test/` directory to expand against and records the argv re-joined.
+      const lines =
+        readFileSync(join(REPO_ROOT, file), 'utf8').match(pattern) ?? []
+
+      expect(lines.length).toBeGreaterThan(0)
+      for (const line of lines) expect(line).toContain("--skip 'test/**'")
+    }
+  )
+
+  it('builds under the floor profile, or the job proves nothing', () => {
+    const step = FLOOR_WORKFLOW.split(/\n\s*- name: /).find((section) =>
+      section.includes('run: forge build')
+    )
+
+    expect(step).toContain(`FOUNDRY_PROFILE: ${LONDON_PROFILE}`)
+  })
+
+  it('runs on the trees it compiles', () => {
+    // A path filter narrower than the build's scope skips the job on exactly
+    // the PRs it exists for.
+    const filter = FLOOR_WORKFLOW.split('filters: |')[1]?.split('\n\n')[0] ?? ''
+
+    expect(filter).toContain("'src/**'")
+    expect(filter).toContain("'script/**/*.sol'")
+    expect(filter).toContain("'foundry.toml'")
   })
 })
 
