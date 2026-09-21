@@ -8,9 +8,7 @@
 
 import {
   formatAddressForNetworkCliDisplay,
-  getTronWebCodecOnlyForNetwork,
   isTronNetworkKey,
-  tronBase58ToEvm20Hex,
 } from '@lifi/tron-devkit'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
@@ -39,6 +37,7 @@ import { FacetCutActionEnum } from '../codehash/cut-classification'
 import { ZERO_ADDRESS } from '../shared/constants'
 import { createDefaultCache } from '../shared/deployment-cache'
 import { getGitCommit, sanitizeProvenanceText } from '../shared/git-provenance'
+import { createTronAddressSpellings } from '../shared/tron-address-spellings'
 import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
 
 import {
@@ -910,20 +909,7 @@ const processTxs = async (
   // so without this every Tron address the record does name reads as one
   // nobody deployed.
   const tronRecordTranslator: IRecordSpellingTranslator | undefined =
-    isTronNetworkKey(network)
-      ? (() => {
-          const codec = getTronWebCodecOnlyForNetwork(networkKey)
-          return {
-            toCalldataSpelling: (address: string) => {
-              try {
-                return tronBase58ToEvm20Hex(codec, address).toLowerCase()
-              } catch {
-                return undefined
-              }
-            },
-          }
-        })()
-      : undefined
+    createTronAddressSpellings(networkKey)
 
   // The per-network reads every proposal's simulation and quorum gate shares.
   // Hoisted out of the proposal loop so a prefetched proposal reads the same

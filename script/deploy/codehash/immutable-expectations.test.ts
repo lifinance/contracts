@@ -33,6 +33,10 @@ import {
 } from './immutable-expectations'
 
 const SPOKE_POOL = '0xe35e9842fceaCA96570B734083f4a58e8F7C5f2A'
+/** `config/networks.json` .tron.wrappedNativeAddress, and the hex it is. */
+const TRON_WRAPPED_NATIVE_BASE58 = 'TNUC9Qb1rRpS5CbWLmNMxXBjyFoydXjWFR'
+const TRON_WRAPPED_NATIVE_HEX = '0x891cdb91d149f23b1a45d9c5ca78a88d0cb44c18'
+
 const WRAPPED_NATIVE = '0x82aF49447D8a07e3bd95BD0d56f35241523fBab1'
 
 /** A 20-byte address as a 32-byte immutable slot holds it. */
@@ -542,10 +546,40 @@ describe('priceImmutables', () => {
     expect(result.reason).toContain('32-byte slot')
   })
 
-  it('does not read a Tron base58 config value as a disagreement', () => {
-    // config/networks.json gives .tron.wrappedNativeAddress in base58. Padding
-    // it yields a value no slot can hold, and calling that a mismatch would
-    // block a correctly deployed contract on every Tron chain.
+  it('compares a Tron base58 config value against the slot it fills', () => {
+    // config/networks.json gives .tron.wrappedNativeAddress in base58 while the
+    // compiler inlines the 20-byte hex, so the two spell one address two ways.
+    // Refusing to compare them left every Tron facet with a declared address
+    // unpriced, and gate L blocking on code gate K had already matched.
+    const result = priceImmutables(
+      {
+        contractName: 'AcrossFacet',
+        observed: [
+          {
+            name: 'wrappedNative',
+            value: slot(TRON_WRAPPED_NATIVE_HEX),
+            slotByteCount: 32,
+            byteCount: 32,
+          },
+        ],
+        network: 'tron',
+        environment: 'production',
+      },
+      REQUIREMENTS,
+      () => ({
+        tron: { wrappedNativeAddress: TRON_WRAPPED_NATIVE_BASE58 },
+      })
+    )
+    if (!result.decided) throw new Error(result.reason)
+
+    expect(result.slots[0]?.status).toBe('verified')
+    expect(result.disagreements).toEqual([])
+    expect(result.unpricedByteCount).toBe(0)
+  })
+
+  it('still calls a Tron slot holding another address a disagreement', () => {
+    // The translation must decide, not excuse: a base58 value that resolves to
+    // a different address is exactly what gate L exists to report.
     const result = priceImmutables(
       {
         contractName: 'AcrossFacet',
@@ -562,15 +596,66 @@ describe('priceImmutables', () => {
       },
       REQUIREMENTS,
       () => ({
-        tron: { wrappedNativeAddress: 'TNUC9Qb1rRpS5CbWLmNMxXBjyFoydXjWFR' },
+        tron: { wrappedNativeAddress: TRON_WRAPPED_NATIVE_BASE58 },
+      })
+    )
+    if (!result.decided) throw new Error(result.reason)
+
+    expect(result.slots[0]?.status).toBe('disagrees')
+    expect(result.disagreeingByteCount).toBe(32)
+  })
+
+  it('leaves a base58-shaped value on a non-Tron network unpriced', () => {
+    // Nothing off Tron spells an address this way, so translating there would
+    // invent an expectation out of a config entry nobody can read.
+    const result = priceImmutables(
+      {
+        contractName: 'AcrossFacet',
+        observed: [
+          {
+            name: 'wrappedNative',
+            value: slot(TRON_WRAPPED_NATIVE_HEX),
+            slotByteCount: 32,
+            byteCount: 32,
+          },
+        ],
+        network: 'mainnet',
+        environment: 'production',
+      },
+      REQUIREMENTS,
+      () => ({
+        mainnet: { wrappedNativeAddress: TRON_WRAPPED_NATIVE_BASE58 },
       })
     )
     if (!result.decided) throw new Error(result.reason)
 
     expect(result.slots[0]?.status).toBe('unpriceable')
     expect(result.slots[0]?.detail).toContain('not hex')
-    expect(result.disagreements).toEqual([])
     expect(result.unpricedByteCount).toBe(32)
+  })
+
+  it('keeps refusing a Tron value that is neither hex nor a readable address', () => {
+    const result = priceImmutables(
+      {
+        contractName: 'AcrossFacet',
+        observed: [
+          {
+            name: 'wrappedNative',
+            value: slot(WRAPPED_NATIVE),
+            slotByteCount: 32,
+            byteCount: 32,
+          },
+        ],
+        network: 'tron',
+        environment: 'production',
+      },
+      REQUIREMENTS,
+      () => ({ tron: { wrappedNativeAddress: 'not-an-address' } })
+    )
+    if (!result.decided) throw new Error(result.reason)
+
+    expect(result.slots[0]?.status).toBe('unpriceable')
+    expect(result.slots[0]?.detail).toContain('not hex')
   })
 
   it('grades one slot unpriceable rather than throwing on a malformed configData entry', () => {

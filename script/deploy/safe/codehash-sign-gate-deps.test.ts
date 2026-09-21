@@ -104,9 +104,16 @@ describe('createToolchainScopeResolver', () => {
   })
 
   it('resolves a london network to the floor profile', () => {
-    const scope = resolve('tron')
+    const scope = resolve('fuse')
 
     expect(scope.profiles.map((p) => p.profile)).toEqual(['solc_floor'])
+  })
+
+  it('resolves Tron to the default profile its fork builds with', () => {
+    const scope = resolve('tron')
+
+    expect(scope.isClosedSet).toBe(true)
+    expect(scope.profiles.map((p) => p.profile)).toEqual(['default'])
   })
 
   it('resolves a zkEVM network to the zksolc profile', () => {

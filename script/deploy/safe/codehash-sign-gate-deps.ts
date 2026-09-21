@@ -57,6 +57,7 @@ import {
   type IRebuildRequest,
   type IRebuiltArtifact,
 } from '../codehash/rebuild-attestations'
+import { resolveSourceRemote } from '../codehash/source-remote'
 import type { IVerifyCutDeps } from '../codehash/verify-cut-targets'
 import {
   readZkImmutables,
@@ -73,6 +74,7 @@ import type {
   IImmutableEntry,
 } from '../immutables/registry-schema'
 import { mergeRequirements } from '../immutables/verify-immutable-registry'
+import { createTronAddressSpellings } from '../shared/tron-address-spellings'
 
 import { evaluateRpcQuorum } from './rpc-quorum'
 import {
@@ -1206,6 +1208,7 @@ export const createSignTimeCodehashDeps = (overrides?: {
     toolchainScope: scopeFor,
     build: rebuild.build,
     git,
+    sourceRemote: (network: string) => resolveSourceRemote(network, { git }),
   })
 
   const observe = createRuntimeCodeObserver({
@@ -1294,8 +1297,15 @@ const createMongoRecordSource = (): IRecordSource => ({
     // Latest first: one address can carry several records over its life, and
     // what is meant to be there now is the most recent of them.
     const sort = { timestamp: -1 } as const
+    // A Tron record stores base58 while the cut carries 20-byte hex, so the
+    // address as decoded matches nothing there. Both spellings are offered
+    // rather than the network's own: a store holds what its writer used, and
+    // `$in` costs one query either way.
+    const spellings = createTronAddressSpellings(network)?.forCalldataAddress(
+      address
+    ) ?? [address]
     const exact = await collection.findOne(
-      { address: { $eq: address }, network: { $eq: network } },
+      { address: { $in: spellings }, network: { $eq: network } },
       { sort }
     )
     if (exact) return exact
@@ -1307,6 +1317,10 @@ const createMongoRecordSource = (): IRecordSource => ({
     // matched exactly on purpose — the deploy path writes it from the config
     // key, so it is lowercase by construction, unlike an address that a human
     // or an older script may have written either way.
+    //
+    // Only the calldata spelling, never base58: base58check is case-sensitive,
+    // so folding case there would let a query match an address that is not the
+    // one asked about.
     return collection.findOne(
       {
         network: { $eq: network },

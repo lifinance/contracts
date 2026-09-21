@@ -108,14 +108,32 @@ describe('deriveToolchainScope', () => {
     expect(scope.profiles.map((p) => p.profile)).toEqual(['default'])
   })
 
+  it('resolves Tron to the profile the fork actually builds with', () => {
+    // Tron is built and deployed out of `lifinance/contracts-tron`, whose Tron
+    // scripts never set FOUNDRY_PROFILE and read their artifacts from `out/` —
+    // `[profile.default]`. Measured against six production records: all five
+    // that carry a commit reproduce byte for byte under `default`, and none can
+    // under `solc_floor`, whose build is a different length.
+    for (const network of ['tron', 'tronshasta']) {
+      const scope = scopeOf(network)
+      expect(scope.isClosedSet).toBe(true)
+      expect(scope.profiles.map((p) => p.profile)).toEqual(['default'])
+    }
+  })
+
   it('closes the set for a london network via solc_floor', () => {
-    const london = Object.keys(networks).find(
+    const london = Object.keys(networks).filter(
       (n) => networks[n]?.targetEvmVersion === 'london'
     )
-    expect(london).toBeDefined()
-    const scope = scopeOf(london as string)
-    expect(scope.isClosedSet).toBe(true)
-    expect(scope.profiles.map((p) => p.profile)).toEqual(['solc_floor'])
+    // Named rather than counted: `solc_floor` exists for these chains, and a
+    // config edit that moved the last of them would otherwise make this case
+    // vacuous instead of failing.
+    expect(london).toContain('fuse')
+    for (const network of london) {
+      const scope = scopeOf(network)
+      expect(scope.isClosedSet).toBe(true)
+      expect(scope.profiles.map((p) => p.profile)).toEqual(['solc_floor'])
+    }
   })
 
   it('closes the set for a zkEVM mainnet rather than falling back to open', () => {

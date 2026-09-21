@@ -196,16 +196,34 @@ describe('layer 2 across the deployments this repo records', () => {
     ).toBe('verified')
   })
 
-  it('does not vouch for a Tron address it cannot express in a slot', () => {
-    const slotted = graded(
-      'EmergencyPauseFacet',
-      '_emergencyPauseFacetAddress',
-      'tron',
-      `0x${'11'.repeat(32)}`
-    )
+  it('verifies a Tron slot against the base58 address the record carries', () => {
+    // `deployments/tron.json` stores base58 and the compiler inlines 20-byte
+    // hex, so this slot was unpriceable until the two spellings were joined —
+    // which left gate L blocking every Tron facet gate K had already matched.
+    // Pinned as a literal pair rather than translated here: a test that
+    // computes its own expectation with the function under test agrees with
+    // itself however wrong that function is.
+    const RECORDED_BASE58 = 'TNDAp17M3vKJ432TLPGGEokuhzf4GTQXR6'
+    const INLINED_HEX = '0x8645811516f6eea5d53a5d005a8f99adc280d220'
+    expect(deployed('tron').EmergencyPauseFacet).toBe(RECORDED_BASE58)
 
-    expect(slotted?.status).toBe('unpriceable')
-    expect(slotted?.detail).toMatch(/base58/u)
+    expect(
+      graded(
+        'EmergencyPauseFacet',
+        '_emergencyPauseFacetAddress',
+        'tron',
+        INLINED_HEX
+      )?.status
+    ).toBe('verified')
+
+    expect(
+      graded(
+        'EmergencyPauseFacet',
+        '_emergencyPauseFacetAddress',
+        'tron',
+        `0x${'11'.repeat(20)}`
+      )?.status
+    ).toBe('disagrees')
   })
 
   it('expects zero where config omits a key the requirement lets deploy zero', () => {
