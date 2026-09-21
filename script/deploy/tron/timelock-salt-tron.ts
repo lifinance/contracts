@@ -1,3 +1,4 @@
+import { consola } from 'consola'
 import type { TronWeb } from 'tronweb'
 import type { Address, Hex } from 'viem'
 
@@ -6,6 +7,9 @@ import {
   pickTimelockSaltWith,
   type ITimelockOperationReader,
 } from '../safe/timelock-abi'
+import { retryWithRateLimit } from '../shared/rateLimit'
+
+import { TRON_READ_MAX_ATTEMPTS, TRON_READ_RETRY_DELAY_MS } from './constants'
 
 /** The subset of TronWeb this reader touches; a test supplies a fake. */
 export interface ITronTimelockContractSource {
@@ -74,21 +78,43 @@ export const createTronTimelockReader = (
     TIMELOCK_OPERATION_STATE_ABI,
     timelockAddressBase58
   )
+  // `pickTimelockSaltWith` probes up to MAX_SALT_ATTEMPTS times, so these two
+  // views are the bulk of a propose's TronGrid traffic and the first over the
+  // keyless host's cap. Both are constant calls, so a retry costs only time.
+  const read = <T>(what: string, call: () => Promise<T>): Promise<T> =>
+    retryWithRateLimit(
+      call,
+      TRON_READ_MAX_ATTEMPTS,
+      TRON_READ_RETRY_DELAY_MS,
+      (attempt, delayMs) =>
+        consola.warn(
+          `Rate limited reading ${what}, retry ${attempt}/${
+            TRON_READ_MAX_ATTEMPTS - 1
+          } in ${delayMs}ms`
+        )
+    )
+
   return {
     hashOperationBatch: async (targets, values, payloads, predecessor, salt) =>
       toHex32(
-        await timelock
-          .hashOperationBatch(
-            targets,
-            values.map((value) => value.toString()),
-            payloads,
-            predecessor,
-            salt
-          )
-          .call()
+        await read('the timelock operation id', () =>
+          timelock
+            .hashOperationBatch(
+              targets,
+              values.map((value) => value.toString()),
+              payloads,
+              predecessor,
+              salt
+            )
+            .call()
+        )
       ),
     getTimestamp: async (operationId) =>
-      toBigInt(await timelock.getTimestamp(operationId).call()),
+      toBigInt(
+        await read('the timelock operation state', () =>
+          timelock.getTimestamp(operationId).call()
+        )
+      ),
   }
 }
 

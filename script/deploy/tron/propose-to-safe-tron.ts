@@ -52,18 +52,24 @@ import { retryWithRateLimit } from '../shared/rateLimit'
 
 import {
   TRON_DIAMOND_CONFIRM_OWNERSHIP_SELECTOR,
+  TRON_READ_MAX_ATTEMPTS,
+  TRON_READ_RETRY_DELAY_MS,
   TRON_SAFE_GET_TX_HASH_ABI,
 } from './constants.js'
 import { normalizeTronProposeCalls } from './propose-calls-tron.js'
 import { pickTronTimelockSalt } from './timelock-salt-tron.js'
 import type { IProposeToSafeTronOptions } from './types.js'
 
-/**
- * Backoff for a Tron read the propose path cannot proceed without. Sized for the
- * keyless TronGrid host, whose 3 rps cap suspends the query server for 5 s.
- */
-const TRON_READ_MAX_ATTEMPTS = 3
-const TRON_READ_RETRY_DELAY_MS = 6000
+const warnRateLimited = (
+  what: string,
+  attempt: number,
+  delayMs: number
+): void =>
+  consola.warn(
+    `Rate limited reading ${what}, retry ${attempt}/${
+      TRON_READ_MAX_ATTEMPTS - 1
+    } in ${delayMs}ms`
+  )
 
 async function runPropose(options: IProposeToSafeTronOptions) {
   const networkName: TronTvmNetworkName = options.network ?? 'tron'
@@ -172,7 +178,13 @@ async function runPropose(options: IProposeToSafeTronOptions) {
     ]
     const timelock = tronWeb.contract(timelockAbi, timelockAddressBase58)
     try {
-      const minDelayRes = await timelock.getMinDelay().call()
+      const minDelayRes = await retryWithRateLimit(
+        () => timelock.getMinDelay().call(),
+        TRON_READ_MAX_ATTEMPTS,
+        TRON_READ_RETRY_DELAY_MS,
+        (attempt, delayMs) =>
+          warnRateLimited('the timelock min delay', attempt, delayMs)
+      )
       const valueStr =
         typeof minDelayRes === 'string'
           ? minDelayRes
@@ -304,19 +316,11 @@ async function runPropose(options: IProposeToSafeTronOptions) {
   const safeContract = tronWeb.contract(safeAbiNonce, safeAddressBase58)
   let chainNonceBigInt: bigint
   try {
-    // Keyless TronGrid allows 3 rps, and the salt derivation above spends two
-    // reads immediately before this one, so a propose that would otherwise
-    // abort here is usually one backoff away from succeeding.
     const nonceRes = await retryWithRateLimit(
       () => safeContract.nonce().call(),
       TRON_READ_MAX_ATTEMPTS,
       TRON_READ_RETRY_DELAY_MS,
-      (attempt, delayMs) =>
-        consola.warn(
-          `Rate limited reading the Safe nonce, retry ${attempt}/${
-            TRON_READ_MAX_ATTEMPTS - 1
-          } in ${delayMs}ms`
-        )
+      (attempt, delayMs) => warnRateLimited('the Safe nonce', attempt, delayMs)
     )
     const valueStr =
       typeof nonceRes === 'string' ? nonceRes : nonceRes?.toString?.() ?? '0'
@@ -354,20 +358,29 @@ async function runPropose(options: IProposeToSafeTronOptions) {
   const safeForHash = tronWeb.contract(safeFullAbi, safeAddressBase58)
   let txHashHex: string
   try {
-    const res = await safeForHash
-      .getTransactionHash(
-        hashToBase58,
-        '0',
-        safeTxDataHex,
-        0,
-        '0',
-        '0',
-        '0',
-        zeroBase58,
-        zeroBase58,
-        nextNonce.toString()
-      )
-      .call()
+    // Retried like the reads above, and for one more reason: the Mongo client is
+    // already open here and a throw leaves it so.
+    const res = await retryWithRateLimit(
+      () =>
+        safeForHash
+          .getTransactionHash(
+            hashToBase58,
+            '0',
+            safeTxDataHex,
+            0,
+            '0',
+            '0',
+            '0',
+            zeroBase58,
+            zeroBase58,
+            nextNonce.toString()
+          )
+          .call(),
+      TRON_READ_MAX_ATTEMPTS,
+      TRON_READ_RETRY_DELAY_MS,
+      (attempt, delayMs) =>
+        warnRateLimited('the Safe transaction hash', attempt, delayMs)
+    )
     const raw = res?.toString?.() ?? (typeof res === 'string' ? res : '')
     txHashHex = raw.startsWith('0x') ? raw : '0x' + raw
   } catch (e) {
