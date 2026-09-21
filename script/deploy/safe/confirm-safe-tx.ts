@@ -585,10 +585,15 @@ const processTxs = async (
 
   // Read from the calldata alone: a cut that adds or replaces a facet, sets
   // an init target, or registers a periphery contract puts code into service.
+  // A registration to the zero address is the opposite — it removes one — so it
+  // is not counted, or a proposal that only unregisters would be asked to
+  // acknowledge an installation it does not make.
   const calldataInstallsSomething = (callData: Hex): boolean => {
     const collected = collectDiamondCutTargets(callData)
     return (
-      collected.registrations.length > 0 ||
+      collected.registrations.some(
+        (registration) => registration.address !== ZERO_ADDRESS
+      ) ||
       collected.calls.some(
         (call) =>
           call.init !== ZERO_ADDRESS ||
