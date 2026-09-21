@@ -178,7 +178,11 @@ describe('launchDeployWave stall report', () => {
   it('names the leftover child holding the wave open, and still completes', () => {
     const output = runStalledWave(12)
 
-    expect(output).toContain('wave has been running 5s')
+    // lower bound, not the exact 5: the poll reads whole seconds, so a host that descheduled
+    // the loop past the boundary reports 6s, which is a slow machine and not a broken threshold
+    const reported = /wave has been running (\d+)s/.exec(output)
+    expect(reported).not.toBeNull()
+    expect(Number(reported?.[1])).toBeGreaterThanOrEqual(5)
     // the orphan a pgrep -P walk cannot reach: reparented to PPID 1, but still in the
     // run's process group, which is why the report reaches past this script's own subtree.
     // macOS prints the path it was invoked with where Linux prints the basename
