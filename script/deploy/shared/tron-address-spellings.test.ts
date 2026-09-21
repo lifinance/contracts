@@ -126,6 +126,18 @@ describe('createTronAddressSpellings', () => {
     expect(spellings.toCalldataSpelling(`41${hex.slice(2)}`)).toBe(hex)
   })
 
+  // The encoder skips its `41` prefix when the hex already starts with those
+  // digits, so the same address class comes back as a word that is not a `T`
+  // address and decodes to something else. Offering it would put an address
+  // nobody asked about into the record query.
+  it('offers no base58 spelling it cannot decode back to the address', () => {
+    const spellings = createTronAddressSpellings('tron')
+    if (!spellings) throw new Error('tron has no spellings')
+    const hex = `0x41${'ab'.repeat(19)}`
+
+    expect(spellings.forCalldataAddress(hex)).toEqual([hex])
+  })
+
   it('falls back to the address itself rather than throwing on nonsense', () => {
     const spellings = createTronAddressSpellings('tron')
     if (!spellings) throw new Error('tron has no spellings')

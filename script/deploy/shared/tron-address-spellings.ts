@@ -98,12 +98,21 @@ export const createTronAddressSpellings = (
     // in hex is found by it, and dropping it would trade one miss for another.
     // A value the codec cannot read degrades to that spelling alone, which is
     // the lookup as it was before base58 was understood — a miss, never a hit.
+    //
+    // The base58 is offered only if it decodes back to the address asked
+    // about. The encoder skips its `41` prefix when the hex already starts
+    // with those digits, so an address whose FIRST BYTE is `0x41` encodes 20
+    // bytes instead of 21 and yields a word that is not even a `T` address.
+    // That is a miss either way; refusing to offer it keeps a value that
+    // names a different address out of the query. The encoder's length guard
+    // rejects the 21-byte spelling that would fix it, so the repair belongs
+    // in `@lifi/tron-devkit`, not here.
     forCalldataAddress: (calldataAddress: string): readonly string[] => {
       try {
-        return [
-          calldataAddress,
-          evm20HexStringToTronBase58(codec, calldataAddress),
-        ]
+        const base58 = evm20HexStringToTronBase58(codec, calldataAddress)
+        const decoded = tronBase58ToEvm20Hex(codec, base58).toLowerCase()
+        if (decoded !== calldataAddress.toLowerCase()) return [calldataAddress]
+        return [calldataAddress, base58]
       } catch {
         return [calldataAddress]
       }

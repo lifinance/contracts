@@ -371,8 +371,10 @@ describe('resolveDeploymentRecord', () => {
       'tron'
     )
 
+    expect(resolved?.contractName).toBe('AllBridgeFacet')
     expect(resolved?.version).toBe('2.1.1')
     expect(resolved?.gitCommitHash).toBe('c'.repeat(40))
+    expect(versioned.gitCommitHash).toBe('')
   })
 
   it('prefers the row carrying a commit over a blank sibling, whatever the order', () => {
