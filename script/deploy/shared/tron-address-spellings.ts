@@ -6,8 +6,7 @@
  * every lookup that joins the two has to translate. Built once per network and
  * shared, because a TronWeb codec is not free and because two constructions are
  * how the report-only check and the codehash gate come to disagree about which
- * address a record describes — which they did: the gate read UNVERIFIABLE on
- * Tron facets whose record names them.
+ * address a record describes.
  *
  * Codec-only: this converts addresses and never reaches the network.
  */
@@ -33,6 +32,17 @@ export interface ITronAddressSpellings {
   forCalldataAddress: (calldataAddress: string) => readonly string[]
 }
 
+/**
+ * A Tron base58 address: `T` and 33 more base58 characters.
+ *
+ * Checked before the codec sees the value, because the codec answers a word in
+ * the base58 alphabet with the ZERO ADDRESS instead of refusing it — `n/a`,
+ * `true`, `null` and `TODO` all decode to `0x00…0`. A caller comparing that
+ * against a slot would take a declared non-value for an expectation, and an
+ * immutable legitimately holding zero would satisfy it.
+ */
+const TRON_BASE58 = /^T[1-9A-HJ-NP-Za-km-z]{33}$/
+
 const byNetwork = new Map<string, ITronAddressSpellings>()
 
 /**
@@ -55,14 +65,21 @@ export const createTronAddressSpellings = (
   const codec = getTronWebCodecOnlyForNetwork(key)
   const spellings: ITronAddressSpellings = {
     toCalldataSpelling: (recordAddress: string): string | undefined => {
+      const value = recordAddress.trim()
+      if (!TRON_BASE58.test(value)) return undefined
       try {
-        return tronBase58ToEvm20Hex(codec, recordAddress).toLowerCase()
+        // A well-formed word that is not an address — a broken checksum —
+        // makes the codec throw rather than default, so the shape check and
+        // this catch are between them the whole guard.
+        return tronBase58ToEvm20Hex(codec, value).toLowerCase()
       } catch {
         return undefined
       }
     },
     // The calldata spelling stays first and is always offered: a record written
     // in hex is found by it, and dropping it would trade one miss for another.
+    // A value the codec cannot read degrades to that spelling alone, which is
+    // the lookup as it was before base58 was understood — a miss, never a hit.
     forCalldataAddress: (calldataAddress: string): readonly string[] => {
       try {
         return [

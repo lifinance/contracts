@@ -168,10 +168,16 @@ const HEX_VALUE = /^(0x)?[0-9a-fA-F]+$/
  */
 const asInlinedSpelling = (declared: string, network: string): string => {
   const value = declared.trim()
-  if (HEX_VALUE.test(value)) return declared
-  return (
-    createTronAddressSpellings(network)?.toCalldataSpelling(value) ?? declared
-  )
+  if (HEX_VALUE.test(value)) return value
+  try {
+    return (
+      createTronAddressSpellings(network)?.toCalldataSpelling(value) ?? value
+    )
+  } catch {
+    // This module grades a slot unpriceable rather than throwing, and a codec
+    // that cannot be built is not a reason to abandon every other slot.
+    return value
+  }
 }
 
 /**

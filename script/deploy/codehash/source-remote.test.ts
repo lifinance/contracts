@@ -2,12 +2,10 @@
  * Which repository a network's deployed code is rebuilt from.
  *
  * Tron cut proposals are authored and deployed out of `lifinance/contracts-tron`
- * (`docs/TronFork.md`), so a Tron record's commit is not on `origin` at all. The
- * gate read as UNVERIFIABLE on every Tron address until this existed, and the
- * one machine where it did not was the one whose clone happened to carry the
- * fork as a remote.
+ * (`docs/TronFork.md`), so a Tron record's commit is not on `origin` at all and
+ * whether it is readable must not depend on what a clone happens to carry.
  *
- * The failure this guards against is the other direction: a `tron` remote
+ * The failure in the other direction is the one with teeth: a `tron` remote
  * pointed at a proposer's own fork lets them author the very source the gate
  * grades them against, which is what `isTrustedRemote` exists to refuse.
  */

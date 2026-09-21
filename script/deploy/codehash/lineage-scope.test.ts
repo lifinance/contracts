@@ -111,13 +111,33 @@ describe('deriveToolchainScope', () => {
   it('resolves Tron to the profile the fork actually builds with', () => {
     // Tron is built and deployed out of `lifinance/contracts-tron`, whose Tron
     // scripts never set FOUNDRY_PROFILE and read their artifacts from `out/` —
-    // `[profile.default]`. Measured against six production records: all five
-    // that carry a commit reproduce byte for byte under `default`, and none can
-    // under `solc_floor`, whose build is a different length.
+    // `[profile.default]`. Six of its 44 production records carry a commit;
+    // five of those reproduce byte for byte under `default` and the sixth is a
+    // wrong record (EXSC-1068). None can under `solc_floor`.
+    //
+    // The pair is asserted, not just the profile name: the name would stay
+    // green through a `foundry.toml` bump that moves every Tron rebuild.
     for (const network of ['tron', 'tronshasta']) {
       const scope = scopeOf(network)
       expect(scope.isClosedSet).toBe(true)
       expect(scope.profiles.map((p) => p.profile)).toEqual(['default'])
+      expect(scope.profiles[0]?.solcVersion).toBe('0.8.29')
+      expect(scope.profiles[0]?.evmVersion).toBe('cancun')
+    }
+  })
+
+  it('resolves every network to exactly one profile', () => {
+    // `createImmutableReferencesResolver` throws on a scope with more than one,
+    // because immutable offsets are per lineage and there would be no single
+    // set to mask the deployed code with — so a second profile for any network
+    // turns every address on it UNVERIFIABLE rather than widening the set.
+    for (const network of Object.keys(networks)) {
+      const row = networks[network]
+      if ((row?.targetEvmVersion ?? '') === '') continue
+      if (row?.type !== 'mainnet' || row?.status !== 'active') continue
+      expect(`${network}:${scopeOf(network).profiles.length}`).toBe(
+        `${network}:1`
+      )
     }
   })
 

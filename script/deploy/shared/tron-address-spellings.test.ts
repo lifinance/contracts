@@ -76,6 +76,32 @@ describe('createTronAddressSpellings', () => {
     expect(spellings.forCalldataAddress(hex)[0]).toBe(hex)
   })
 
+  it.each([
+    ['n/a', 'a config idiom this repo already uses elsewhere'],
+    ['true', 'a boolean written as a word'],
+    ['null', 'an absent value written as a word'],
+    ['TODO', 'a placeholder left in config'],
+    ['', 'an empty string'],
+    [
+      'TNUC9Qb1rRpS5CbWLmNMxXBjyFoydXjWFX',
+      'a real address with a broken checksum',
+    ],
+  ])('refuses %s rather than reading it as the zero address', (value) => {
+    const spellings = createTronAddressSpellings('tron')
+    if (!spellings) throw new Error('tron has no spellings')
+    // The codec answers each of the first four with 0x00…0 instead of
+    // refusing. Left unchecked that becomes an expectation, and an immutable
+    // legitimately holding zero would satisfy it.
+    expect(spellings.toCalldataSpelling(value)).toBeUndefined()
+  })
+
+  it('still reads every real address after that guard', () => {
+    const spellings = createTronAddressSpellings('tron')
+    if (!spellings) throw new Error('tron has no spellings')
+    for (const [base58, hex] of REAL_PAIRS)
+      expect(spellings.toCalldataSpelling(base58)).toBe(hex)
+  })
+
   it('falls back to the address itself rather than throwing on nonsense', () => {
     const spellings = createTronAddressSpellings('tron')
     if (!spellings) throw new Error('tron has no spellings')

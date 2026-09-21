@@ -549,8 +549,7 @@ describe('priceImmutables', () => {
   it('compares a Tron base58 config value against the slot it fills', () => {
     // config/networks.json gives .tron.wrappedNativeAddress in base58 while the
     // compiler inlines the 20-byte hex, so the two spell one address two ways.
-    // Refusing to compare them left every Tron facet with a declared address
-    // unpriced, and gate L blocking on code gate K had already matched.
+    // Both spellings name one address, so the slot is decidable.
     const result = priceImmutables(
       {
         contractName: 'AcrossFacet',

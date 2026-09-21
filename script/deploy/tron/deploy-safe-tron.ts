@@ -6,8 +6,8 @@
  * SafeProxyFactory(singleton), then create a Safe proxy via
  * createProxyWithNonce(singleton, initializer, salt) and run setup(owners, threshold, ...).
  *
- * Uses Safe v1.4.1 artifacts from the fixed safe/london/ path, which is where they
- * are built and has never followed the network's configured EVM version.
+ * Uses Safe v1.4.1 artifacts from the fixed safe/london/ path, which is where
+ * they are built; it does not follow the network's configured EVM version.
  * TVM is largely EVM-compatible; if deployment or execution fails, consider compiling
  * the Safe contracts with Tron’s solc and replacing the artifact paths.
  *
