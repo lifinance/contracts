@@ -920,9 +920,15 @@ const processTxs = async (
   const readRespeltDeploymentRecords = async (): Promise<
     readonly IDeploymentIndexEntry[] | undefined
   > => {
-    respeltRecords ??= readDeploymentRecords().then((records) =>
-      withCalldataSpellings(records, network, tronRecordTranslator)
-    )
+    // Never a rejected promise: a cached rejection would be re-thrown for every
+    // later proposal on this network and take the gate dark for the rest of the
+    // run. `undefined` is what the index reports as unavailable, which is the
+    // same contract `loadDeploymentRecords` keeps.
+    respeltRecords ??= readDeploymentRecords()
+      .then((records) =>
+        withCalldataSpellings(records, network, tronRecordTranslator)
+      )
+      .catch(() => undefined)
     return respeltRecords
   }
 

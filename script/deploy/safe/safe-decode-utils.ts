@@ -1249,34 +1249,6 @@ const readCutEntry = (entry: unknown): IFacetCutEntry | undefined => {
 }
 
 /**
- * Recovers every contract a proposal's calldata would install: each
- * `diamondCut` it would perform, and each `registerPeripheryContract` it
- * carries.
- *
- * The cut is decoded with {@link ABI_DIAMOND_CUT}, the same ABI the display path
- * renders from, so the structure vouched for and the structure shown are one
- * decode of one value. Pass one in-memory value and never a re-read of its
- * source: the calldata of the transaction that gets signed, which is the same
- * bytes the display decoded.
- *
- * Two properties keep it from reporting "no cut" about calldata that has one.
- *
- * The hex is lower-cased before anything looks at a selector. Upper-casing the
- * nibbles changes no byte, so the EIP-712 hash and the executed cut are
- * identical — but viem's selector match is case-sensitive, so a case-shifted
- * proposal would decode to nothing while installing exactly what the honest
- * form does.
- *
- * And every frame this decoder could not open is recorded, at any depth. The
- * wrapper list below is a snapshot; a cut one level inside something not on it
- * is refused rather than passed over, which is a statement about frames rather
- * than about the outer selector.
- *
- * @param data - the proposal's calldata, `0x`-prefixed
- * @returns The cuts and registrations found, and any reason the calldata must
- *   not be signed
- */
-/**
  * Whether collected calldata puts code into service, or might.
  *
  * A cut that adds or replaces a facet, a cut that sets an `_init` target, and a
@@ -1310,6 +1282,34 @@ export const collectedInstallsSomething = (
       )
   )
 
+/**
+ * Recovers every contract a proposal's calldata would install: each
+ * `diamondCut` it would perform, and each `registerPeripheryContract` it
+ * carries.
+ *
+ * The cut is decoded with {@link ABI_DIAMOND_CUT}, the same ABI the display path
+ * renders from, so the structure vouched for and the structure shown are one
+ * decode of one value. Pass one in-memory value and never a re-read of its
+ * source: the calldata of the transaction that gets signed, which is the same
+ * bytes the display decoded.
+ *
+ * Two properties keep it from reporting "no cut" about calldata that has one.
+ *
+ * The hex is lower-cased before anything looks at a selector. Upper-casing the
+ * nibbles changes no byte, so the EIP-712 hash and the executed cut are
+ * identical — but viem's selector match is case-sensitive, so a case-shifted
+ * proposal would decode to nothing while installing exactly what the honest
+ * form does.
+ *
+ * And every frame this decoder could not open is recorded, at any depth. The
+ * wrapper list below is a snapshot; a cut one level inside something not on it
+ * is refused rather than passed over, which is a statement about frames rather
+ * than about the outer selector.
+ *
+ * @param data - the proposal's calldata, `0x`-prefixed
+ * @returns The cuts and registrations found, and any reason the calldata must
+ *   not be signed
+ */
 export const collectDiamondCutTargets = (
   data: Hex | undefined
 ): ICollectedDiamondCuts => {
