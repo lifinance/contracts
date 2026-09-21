@@ -61,6 +61,8 @@ const LOCAL_NETWORK = 'localanvil'
 const LONDON_NETWORK = 'fuse'
 /** A cancun mainnet, which builds under the default profile. */
 const CANCUN_NETWORK = 'base'
+/** A zkEVM mainnet, which selects no profile of its own. */
+const ZKEVM_NETWORK = 'zksync'
 const UNSET = '<unset>'
 
 /** A `.env` the helpers accept, holding only path settings and no credentials. */
@@ -490,6 +492,29 @@ describe('deploySingleContract selects the profile from the network', () => {
     expect(output).toContain(`PROFILE_BETWEEN=${LONDON_PROFILE}`)
     expect(output).toContain('RC=0')
     expect(output).toContain(`PROFILE_AFTER=${UNSET}`)
+  })
+
+  // The same loop reaches zkEVM networks, where nothing re-selects: the zk build
+  // names its profile inline. A london profile left standing would still be read by
+  // the plain `forge build` that derives the CREATE2 salt, so it has to go.
+  it('clears the london profile before a zkevm network, salt build included', () => {
+    const sandbox = makeDeploySandbox()
+
+    const output = run(sandbox, [
+      ...SOURCE_HELPERS,
+      `selectFoundryProfileForNetwork ${LONDON_NETWORK}`,
+      `echo "PROFILE_BETWEEN=\${FOUNDRY_PROFILE-${UNSET}}"`,
+      `selectFoundryProfileForNetwork ${ZKEVM_NETWORK}`,
+      'echo "RC=$?"',
+      `echo "PROFILE_AFTER=\${FOUNDRY_PROFILE-${UNSET}}"`,
+      'ensureStandardArtifactForSalt Executor',
+    ])
+
+    expect(output).toContain(`PROFILE_BETWEEN=${LONDON_PROFILE}`)
+    expect(output).toContain('RC=0')
+    expect(output).toContain(`PROFILE_AFTER=${UNSET}`)
+    // What the address actually depends on: the bytecode this build writes to out/.
+    expect(buildProfiles(sandbox)).toEqual([UNSET])
   })
 
   it('verifies, and does not re-select, a profile a group build exported', () => {

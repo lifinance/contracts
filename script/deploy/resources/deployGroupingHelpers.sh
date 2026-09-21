@@ -190,7 +190,8 @@ function assertLondonProfileDeclared() {
 #   NETWORK - the network the next deploy targets
 #
 # Routing/Behavior:
-#   - zkEVM network: nothing is selected; the zk build names its profile inline
+#   - zkEVM network: nothing is selected and any inherited profile is cleared; the zk
+#     build names its profile inline
 #   - FOUNDRY_PROFILE unset, or exported by an earlier call of this function in the
 #     same shell: exported as $PROFILE_LONDON for a london network, left unset for a
 #     cancun one
@@ -209,7 +210,15 @@ function selectFoundryProfileForNetwork() {
         return 1
     fi
 
+    # Nothing is selected for zkEVM, but a profile the previous network in the loop
+    # exported still has to go: deploySingleContract's zk path derives the CREATE2
+    # salt from a plain `forge build` into the standard out/
+    # (ensureStandardArtifactForSalt), and solc_floor writes there too. Left set, it
+    # would decide that bytecode and with it the address. prepareGroupBuild clears it
+    # before the zkevm group for the same reason.
     if isZkEvmNetwork "$NETWORK"; then
+        unset FOUNDRY_PROFILE
+        unset FOUNDRY_PROFILE_SELECTED_FOR_NETWORK
         return 0
     fi
 
