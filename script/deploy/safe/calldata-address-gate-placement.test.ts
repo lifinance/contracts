@@ -70,7 +70,13 @@ describe('the calldata address check surfaces before the signing decision', () =
     const packed = CONFIRM.replace(/\s+/gu, '')
 
     expect(packed).toContain(
-      'buildDeploymentIndex(withCalldataSpellings(records,network,tronRecordTranslator),references.map((reference)=>reference.address),referencedNames(references))'
+      'buildDeploymentIndex(records,references.map((reference)=>reference.address),referencedNames(references))'
+    )
+    // Those records are the respelt ones, memoised once for the whole network
+    // rather than re-derived per proposal.
+    expect(packed).toContain('constrecords=awaitreadRespeltDeploymentRecords()')
+    expect(packed).toContain(
+      'withCalldataSpellings(records,network,tronRecordTranslator)'
     )
   })
 
