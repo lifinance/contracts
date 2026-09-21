@@ -166,7 +166,8 @@ async function runPropose(options: IProposeToSafeTronOptions) {
   // The same batch re-proposed derives the same salt, so the duplicate-intent
   // index can see it; the timelock is asked so a repeat of executed work
   // advances and a repeat of pending work is refused. Only the timelock
-  // branches below need one, so it is picked there.
+  // branches below need one, so it is picked at the schedule encode after the
+  // deploy gate.
   const saltFor = (targetsEvm: Address[], payloads: Hex[]): Promise<Hex> =>
     pickTronTimelockSalt({
       tronWeb,
@@ -257,10 +258,10 @@ async function runPropose(options: IProposeToSafeTronOptions) {
       })
     )
 
-  // Both reads sit after the gate so a proposal the gate refuses never
-  // touches the Timelock.
-  // 1) Get min delay from Timelock (needed for scheduleBatch). Skipped in
-  // direct mode, which doesn't touch the Timelock.
+  // A proposal the gate refuses must never touch the Timelock, so neither the
+  // min-delay read nor the salt pick inside the encode below may move above it.
+  // 1) Get min delay from Timelock (needed for scheduleBatch), skipped in
+  // direct mode.
   let minDelayBigInt = 0n
   if (!useDirect) {
     const timelockAbi = [
