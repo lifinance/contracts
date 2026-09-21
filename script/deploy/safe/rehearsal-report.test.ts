@@ -15,6 +15,10 @@ import {
   type CheckStatus,
 } from './check-ledger'
 import {
+  CONFIRM_CHECK_DEFINITIONS,
+  TARGET_STATE_CHECK,
+} from './confirm-check-registry'
+import {
   MAX_SIGNER_TASKS_SHOWN,
   REHEARSAL_GATE_ROSTER,
   buildGateReport,
@@ -25,6 +29,119 @@ import {
   summariseSignerWorkload,
   verdictsAreActionable,
 } from './rehearsal-report'
+import { rowCountsByCheck } from './rehearsal-run'
+import {
+  REHEARSED_CHECK_IDS,
+  buildRehearsalGateReport,
+  runGateChain,
+} from './verify-rehearsal'
+
+const UNREHEARSED_REGISTRY_IDS = CONFIRM_CHECK_DEFINITIONS.map(
+  (check) => check.checkId
+).filter((checkId) => !REHEARSED_CHECK_IDS.includes(checkId))
+
+const rehearsedPass = (recorded: boolean) => {
+  const ledger = createCheckLedger({
+    expectedNetworks: ['arbitrum'],
+    checks: CONFIRM_CHECK_DEFINITIONS.filter((check) =>
+      REHEARSED_CHECK_IDS.includes(check.checkId)
+    ),
+  })
+  if (recorded)
+    recordCheck(ledger, {
+      checkId: TARGET_STATE_CHECK.checkId,
+      network: 'arbitrum',
+      status: 'pass',
+      expected: 'x',
+      actual: 'x',
+      anchor: 'A-LOCAL',
+    })
+  return [{ proposal: '0xabc', ledger }]
+}
+
+describe('REHEARSAL_GATE_ROSTER', () => {
+  it('names every gate the confirm registry defines', () => {
+    const rostered = REHEARSAL_GATE_ROSTER.map((gate) => gate.checkId)
+    for (const check of CONFIRM_CHECK_DEFINITIONS)
+      expect(rostered).toContain(check.checkId)
+  })
+})
+
+describe('runGateChain', () => {
+  // No cut to read, so the verdict needs no chain or git access. What is under
+  // test is which gates the ledger carries, not what they decide.
+  const emptyProposal = { safeTx: { data: {} } } as never
+  const unreadablePinnedState = (() => ({
+    ok: false,
+    reason: 'remote-unexpected',
+  })) as never
+
+  it('registers exactly the gates this rehearsal wired', () => {
+    const ledger = runGateChain(
+      emptyProposal,
+      'arbitrum',
+      false,
+      unreadablePinnedState
+    )
+    expect([...ledger.checks.keys()].sort()).toEqual(
+      [...REHEARSED_CHECK_IDS].sort()
+    )
+  })
+
+  it('records a row for the gate it wired', () => {
+    const ledger = runGateChain(
+      emptyProposal,
+      'arbitrum',
+      false,
+      unreadablePinnedState
+    )
+    expect(rowCountsByCheck([{ proposal: '0xabc', ledger }])).toEqual({
+      [TARGET_STATE_CHECK.checkId]: 1,
+    })
+  })
+})
+
+describe('buildRehearsalGateReport', () => {
+  it('rehearses only gates the registry defines', () => {
+    const registry = CONFIRM_CHECK_DEFINITIONS.map((check) => check.checkId)
+    expect(REHEARSED_CHECK_IDS.length).toBeGreaterThan(0)
+    for (const checkId of REHEARSED_CHECK_IDS)
+      expect(registry).toContain(checkId)
+    expect(UNREHEARSED_REGISTRY_IDS.length).toBeGreaterThan(0)
+  })
+
+  it('names every registry gate the chain never wired as absent, with where to expect it', () => {
+    const report = buildRehearsalGateReport(rehearsedPass(true))
+    const rendered = renderGateReport(report)
+
+    for (const checkId of UNREHEARSED_REGISTRY_IDS) {
+      const gate = report.find((row) => row.checkId === checkId)
+      expect(gate?.presence).toBe('absent')
+      expect(rendered).toMatch(
+        new RegExp(`^${checkId}\\s+absent\\s+rows=0\\s+\\(expected from: `, 'm')
+      )
+    }
+  })
+
+  it('reports the gate the chain recorded as present', () => {
+    const report = buildRehearsalGateReport(rehearsedPass(true))
+    const target = report.find(
+      (row) => row.checkId === TARGET_STATE_CHECK.checkId
+    )
+    expect(target?.presence).toBe('present')
+    expect(target?.rows).toBe(1)
+  })
+
+  it('keeps a wired gate that answered for nothing apart from an absent one', () => {
+    const report = buildRehearsalGateReport(rehearsedPass(false))
+    expect(
+      report.find((row) => row.checkId === TARGET_STATE_CHECK.checkId)?.presence
+    ).toBe('registered-but-silent')
+    expect(
+      report.find((row) => row.checkId === 'executability')?.presence
+    ).toBe('absent')
+  })
+})
 
 describe('buildGateReport', () => {
   it('names a rostered gate that did not register as absent', () => {
