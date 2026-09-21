@@ -53,5 +53,5 @@ and do not duplicate decode logic into a calling script.
 - **Interfaces**: `IChainExecutor` (Safe `execTransaction`) and `IChainCaller` (generic contract calls + simulation) are defined in `script/common/types.ts`. These are the strategy interfaces — implementations live in `script/deploy/safe/executors/`.
 - **Implementations**: `evm-executor.ts`, `tron-executor.ts` (for `IChainExecutor`); `evm-caller.ts`, `tron-caller.ts` (for `IChainCaller`).
 - **Factory**: `createChainCaller()` in `script/deploy/safe/executors/create-chain-caller.ts` selects the implementation based on `isTronNetworkKey()`. Uses dynamic imports to lazy-load chain-specific modules.
-- **Adding a new chain**: Implement both `IChainExecutor` and `IChainCaller`, add to the factory, and add a network key guard in `tron-network-keys.ts` (or create a new key guard). Consumer scripts should require zero changes.
+- **Adding a new chain**: Implement both `IChainExecutor` and `IChainCaller`, add to the factory, and add a network key guard alongside `isTronNetworkKey()` in `@lifi/tron-devkit` (or create a new key guard). Consumer scripts should require zero changes.
 - **Resource polymorphism**: `IChainSimulateResult.resourceLabel` ("gas" | "energy") enables chain-agnostic display. Use this label in CLI output rather than hardcoding "gas".
