@@ -18,11 +18,17 @@
 /**
  * The shape a connection string must have before any of it can be trusted.
  *
- * The host group excludes `@` so that a second, unencoded authority delimiter
- * fails the match instead of splitting mid-credential: Mongo requires a literal
- * `@` in userinfo to be percent-encoded, so `user:pa@ss@host` is malformed, and
- * a permissive host group would read `ss@host` as the host and put that half of
- * the password into the refusal message below.
+ * The host group excludes `@`, `?` and `#` so that a URI carrying one of them
+ * unencoded fails the match rather than splitting mid-credential. A permissive
+ * host group read the `ss@host` of `user:pa@ss@host` as the host and put that
+ * half of the password into the refusal message below.
+ *
+ * This is deliberately stricter than the driver, which is not a parser we can
+ * borrow here: the connection-string spec requires a literal `@`, `?` or `#` in
+ * userinfo to be percent-encoded, but `mongodb-connection-string-url` accepts
+ * such a URI anyway by splitting on the last `@` and dropping any fragment. We
+ * refuse instead, because the cost of guessing which half is the password is a
+ * leaked credential and the cost of refusing is an operator encoding one.
  */
 const MONGO_URI =
   /^(mongodb(?:\+srv)?):\/\/(?:([^@/?#]*)@)?([^@/?#]+)(?:\/[^?#]*)?(?:\?([^#]*))?$/i
@@ -90,8 +96,9 @@ const PEER_VALIDATION_DISABLED = new Set([
 /**
  * The peer-validation options this URI turns on, in the spelling it used.
  *
- * Last occurrence wins, matching `negotiatesTls` and the driver: a repeated
- * option turned back off is not a finding.
+ * Last occurrence wins, matching `negotiatesTls`. The driver does not get that
+ * far — it refuses a repeated option outright — so this only keeps the guard
+ * from being the one to report a URI the driver would reject anyway.
  */
 const relaxedTlsOptions = (query: string): string[] => {
   const relaxed = new Map<string, string>()
@@ -122,7 +129,7 @@ export function assertStoreCredentialsAreEncrypted(
   const parsed = MONGO_URI.exec(uri.trim())
   if (!parsed)
     throw new Error(
-      `${variableName} is not a MongoDB connection string, so its transport cannot be checked.`
+      `${variableName} is not a MongoDB connection string, so its transport cannot be checked. A literal @, ? or # in the username or password has to be percent-encoded.`
     )
 
   // Groups 1 and 3 are unconditional in the pattern, so the fallbacks below are
