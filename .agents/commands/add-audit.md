@@ -14,14 +14,14 @@ This command processes a PDF audit report and automatically:
 
 1. Extracts audit metadata (contracts, versions, auditor, date, commit hash)
 2. Generates the correct filename according to naming conventions
-3. Updates `audit/auditLog.json` with the new audit entry
-4. Saves the PDF to `audit/reports/` under the generated filename — the log entry is not complete without it
+3. Saves the PDF to `audit/reports/` under the generated filename
+4. Updates `audit/auditLog.json` with the new audit entry — written only once the PDF is in place
 
 ## How to Use
 
 1. Type `/add-audit` in the chat
 2. Paste or attach the PDF audit report file directly into the chat window
-3. The command will automatically extract metadata, update the audit log, save the PDF file, and display results for verification
+3. The command will automatically extract metadata, save the PDF file, update the audit log, and display results for verification
 
 ## Extraction Strategy
 
@@ -133,21 +133,26 @@ When `/add-audit` is invoked with a pasted PDF:
    - **Medium**: found but needs interpretation → flag it and ask the user to verify
    - **Low/Missing**: not found or ambiguous → ask the user to supply it
 
-7. **Update audit log and save PDF file** (do the work automatically):
+7. **Save the PDF, then update the audit log** (do the work automatically):
 
-   - Add entry to `audits` section in `audit/auditLog.json`
-   - Update `auditedContracts` mapping for each contract/version
-   - Follow existing structure (do not invent new fields)
-   - **Locate and save PDF file** (use the PDF file that was already pasted into the chat):
+   - **Locate and save the PDF file** (use the PDF file that was already pasted into the chat):
      - **Search for PDF file** in common locations (in order):
        1. User's Downloads: `~/Downloads/` or `/Users/<username>/Downloads/`
        2. User's Desktop: `~/Desktop/` or `/Users/<username>/Desktop/`
        3. Current workspace: `.` or workspace root
        4. Search command: `find ~/Downloads ~/Desktop . -maxdepth 3 -name "*.pdf" -type f 2>/dev/null | grep -i "audit\|report\|repot"`
+     - **If the generated filename already exists** in `audit/reports/`: never overwrite it. A
+       genuine same-day audit of the same contract takes the next `_1` / `_2` suffix (step 5);
+       otherwise this audit is already logged — stop and ask the user which case it is.
      - **If PDF found**:
        - Copy: `cp "<source-path>" "audit/reports/<generated-filename>.pdf"`
        - Verify: `ls -lh "audit/reports/<generated-filename>.pdf"` (must show file exists, size > 0 bytes)
-     - **If PDF not found**: Note in output that PDF file needs to be provided
+     - **If PDF not found, or the copy cannot be verified**: stop here and ask the user for the
+       file. Do not write the log entry — an entry without its report is incomplete.
+   - **Then write the log entry**:
+     - Add entry to `audits` section in `audit/auditLog.json`
+     - Update `auditedContracts` mapping for each contract/version
+     - Follow existing structure (do not invent new fields)
 
 8. **Display concise summary for user verification**:
 
