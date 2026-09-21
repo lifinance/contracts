@@ -2278,6 +2278,7 @@
         "EmergencyPauseFacet": "latest",
         "GasZipFacet": "latest",
         "GenericSwapFacetV3": "latest",
+        "LayerSwapFacet": "latest",
         "LiFiIntentEscrowFacetV2": "latest",
         "LiFiTimelockController": "latest",
         "OwnershipFacet": "latest",
