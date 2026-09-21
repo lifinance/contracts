@@ -236,15 +236,21 @@ export const createRuntimeCodeObserver = (
   }
 }
 
-/** The slice of the deployment-record store this needs. */
+/**
+ * The slice of the deployment-record store this needs.
+ *
+ * `version` and `gitCommitHash` are optional because the stored rows make them
+ * so — declaring them required does not make them present, it only moves the
+ * absence to a `TypeError` the signer reads as an unreadable record.
+ */
 export interface IRecordSource {
   findByAddress: (
     address: string,
     network: string
   ) => Promise<{
     contractName: string
-    version: string
-    gitCommitHash: string
+    version?: string
+    gitCommitHash?: string
   } | null>
 }
 
@@ -281,7 +287,7 @@ export const createRecordReader = (
     if (!row) return undefined
     return {
       contractName: row.contractName,
-      version: row.version,
+      version: row.version ?? '',
       gitCommitHash: row.gitCommitHash ?? '',
     }
   }
@@ -1296,7 +1302,7 @@ const escapeRegexLiteral = (value: string): string =>
  * @throws When the surviving records disagree on contract, version or commit
  */
 export const resolveDeploymentRecord = <
-  T extends { contractName: string; version: string; gitCommitHash?: string }
+  T extends { contractName: string; version?: string; gitCommitHash?: string }
 >(
   candidates: T[],
   address: string,
@@ -1304,11 +1310,18 @@ export const resolveDeploymentRecord = <
 ): T | null => {
   if (candidates.length === 0) return null
 
+  // Trimmed everywhere, and the identity key below is built from this rather
+  // than from the raw field: a row whose version differs from its twin's by a
+  // space describes the same deploy, and comparing raw strings would refuse
+  // exactly the duplicates this collapses. `version` is optional on the record
+  // interface, so a missing one must read as blank rather than throw.
+  const versionOf = (record: T): string => record.version?.trim() ?? ''
+
   const named = new Set(
-    candidates.filter((r) => r.version.trim() !== '').map((r) => r.contractName)
+    candidates.filter((r) => versionOf(r) !== '').map((r) => r.contractName)
   )
   const kept = candidates.filter(
-    (r) => r.version.trim() !== '' || !named.has(r.contractName)
+    (r) => versionOf(r) !== '' || !named.has(r.contractName)
   )
 
   const refuse = (what: string, values: string[]): never => {
@@ -1321,7 +1334,9 @@ export const resolveDeploymentRecord = <
     )
   }
 
-  const identities = new Set(kept.map((r) => `${r.contractName}@${r.version}`))
+  const identities = new Set(
+    kept.map((r) => `${r.contractName}@${versionOf(r)}`)
+  )
   if (identities.size > 1) refuse('what is', [...identities])
 
   const commits = new Set(
@@ -1358,41 +1373,45 @@ const createMongoRecordSource = (): IRecordSource => ({
     }
     const collection = client.db('contract-deployments').collection<{
       contractName: string
-      version: string
-      gitCommitHash: string
+      version?: string
+      gitCommitHash?: string
     }>(EnvironmentEnum.production)
-
-    // A Tron record stores base58 while the cut carries 20-byte hex, so the
-    // address as decoded matches nothing there. Both spellings are offered
-    // rather than the network's own: a store holds what its writer used, and
-    // `$in` costs one query either way.
-    const spellings = createTronAddressSpellings(network)?.forCalldataAddress(
-      address
-    ) ?? [address]
-    const exact = await collection
-      .find({ address: { $in: spellings }, network: { $eq: network } })
-      .toArray()
-    if (exact.length > 0)
-      return resolveDeploymentRecord(exact, address, network)
 
     // The decoded cut supplies checksummed addresses (`classifyCut` returns
     // `getAddress`), and records were written in either case over the years, so
-    // the exact match above can miss on case alone. Do not "simplify" this by
+    // an exact match alone can miss on case. Do not "simplify" this by
     // lowercasing one side: the stored case is not ours to assume. `network` is
     // matched exactly on purpose — the deploy path writes it from the config
     // key, so it is lowercase by construction, unlike an address that a human
     // or an older script may have written either way.
     //
-    // Only the calldata spelling, never base58: base58check is case-sensitive,
-    // so folding case there would let a query match an address that is not the
-    // one asked about.
-    const insensitive = await collection
+    // One query rather than exact-then-fallback: the fallback only ran when the
+    // exact tier came back empty, so a corrupt row stored in the other casing
+    // sat behind a clean exact match and was never compared against it. Casing
+    // is a spelling of one address, not two addresses.
+    //
+    // A Tron record stores base58 while the cut carries 20-byte hex, so the
+    // address as decoded matches nothing there. Those spellings are matched
+    // exactly and never case-insensitively: base58check is case-sensitive, so
+    // folding case there would match an address that is not the one asked
+    // about.
+    const spellings =
+      createTronAddressSpellings(network)?.forCalldataAddress(address)
+    const matches = await collection
       .find({
         network: { $eq: network },
-        address: { $regex: `^${escapeRegexLiteral(address)}$`, $options: 'i' },
+        $or: [
+          {
+            address: {
+              $regex: `^${escapeRegexLiteral(address)}$`,
+              $options: 'i',
+            },
+          },
+          ...(spellings ? [{ address: { $in: spellings } }] : []),
+        ],
       })
       .toArray()
-    return resolveDeploymentRecord(insensitive, address, network)
+    return resolveDeploymentRecord(matches, address, network)
   },
 })
 
