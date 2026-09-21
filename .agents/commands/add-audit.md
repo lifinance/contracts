@@ -15,7 +15,7 @@ This command processes a PDF audit report and automatically:
 1. Extracts audit metadata (contracts, versions, auditor, date, commit hash)
 2. Generates the correct filename according to naming conventions
 3. Updates `audit/auditLog.json` with the new audit entry
-4. **MANDATORY**: Locates and saves the PDF file to `audit/reports/` with the correct filename
+4. Saves the PDF to `audit/reports/` under the generated filename — the log entry is not complete without it
 
 ## How to Use
 
@@ -73,12 +73,10 @@ This command processes a PDF audit report and automatically:
   - "n/a (This is a forked contract that was audited for [project])"
   - "n/a (one deployed contract instance was audited)"
   - "n/a (audited deployed version)"
-- **CRITICAL - Commit hash verification**:
-  - **ALWAYS** generate and display GitHub commit URL: `https://github.com/lifinance/contracts/commit/<full-40-char-hash>`
-  - Extract repository name from PDF if different (default to "lifinance/contracts")
-  - **ALWAYS** warn user to verify by clicking the URL
-  - Display as clickable link in summary output
-  - If commit hash is "n/a", skip URL generation
+- **Commit hash verification**: display the hash as a clickable GitHub URL
+  (`https://github.com/lifinance/contracts/commit/<full-40-char-hash>`; repo name from
+  the PDF, default `lifinance/contracts`) and ask the user to click through and confirm
+  it — a wrong hash pins the audit to a tree that was never audited. Skip when "n/a".
 - **Post-remediation ([CONV:AUDIT-PIN])**:
   - `auditCommitHash` = scope commit **A** from the report (what was sent).
   - If findings were fixed afterwards, also set `finalCommitHash` = post-remediation
@@ -132,8 +130,8 @@ When `/add-audit` is invoked with a pasted PDF:
 6. **Assess extraction confidence** for each field:
 
    - **High**: Clear, unambiguous match; cross-validated → Show for confirmation
-   - **Medium**: Found but requires interpretation → ⚠️ **MUST flag and ask user to verify**
-   - **Low/Missing**: Not found, ambiguous → ⚠️ **MUST ask user to supply manually**
+   - **Medium**: found but needs interpretation → flag it and ask the user to verify
+   - **Low/Missing**: not found or ambiguous → ask the user to supply it
 
 7. **Update audit log and save PDF file** (do the work automatically):
 
@@ -150,14 +148,11 @@ When `/add-audit` is invoked with a pasted PDF:
        - Copy: `cp "<source-path>" "audit/reports/<generated-filename>.pdf"`
        - Verify: `ls -lh "audit/reports/<generated-filename>.pdf"` (must show file exists, size > 0 bytes)
      - **If PDF not found**: Note in output that PDF file needs to be provided
-   - **CRITICAL**: Both audit log update and PDF file saving must be completed
 
 8. **Display concise summary for user verification**:
 
    - List all extracted information in a concise format
-   - **CRITICAL - Commit hash verification**:
-     - **ALWAYS** display GitHub commit URL as a clickable markdown link: `[Commit URL](https://github.com/lifinance/contracts/commit/<hash>)`
-     - Ask user to verify the commit hash by clicking the link
+   - Display the commit URL as a clickable markdown link — `[Commit URL](https://github.com/lifinance/contracts/commit/<hash>)` — and ask the user to verify it
    - Keep output concise - just list extracted info and ask to verify commit hash
    - Example output:
 
@@ -173,21 +168,6 @@ When `/add-audit` is invoked with a pasted PDF:
      Please verify the commit hash is correct by clicking the link above.
      ```
 
-## Validation Checklist
-
-Before finalizing, validate all of the following:
-
-- [ ] **All required fields present**: date, auditor, contracts, commit hash
-- [ ] **Date format**: Valid `DD.MM.YYYY` or `YYYY-MM-DD` format, reasonable date
-- [ ] **Contract names**: Match actual contract files in `src/` (check Facets, Periphery, Helpers, Libraries, Security)
-- [ ] **Versions**: If found in PDF, verify matches `@custom:version` tag; if not in PDF, use version from tag; if no tag, ask user
-- [ ] **Commit hash**: Either 40-character hex string OR "n/a" with explanation; if provided, GitHub commit URL generated and displayed
-- [ ] **Auditor format**: Individual: "Name (individual security researcher)"; Firm: "Firm Name" or "Firm Name (security firm)"
-- [ ] **GitHub handle**: Valid username or "n/a" (check against known auditors in existing log)
-- [ ] **Audit ID**: Unique, no duplicates (check existing `audits` section)
-- [ ] **Filename**: Follows naming convention, doesn't already exist in `audit/reports/`
-- [ ] **PDF file saved**: File exists at `audit/reports/<generated-filename>.pdf` with size > 0 bytes
-
 ## Error Handling
 
 The command handles:
@@ -198,7 +178,7 @@ The command handles:
 - Duplicate audit entries
 - Invalid JSON structure
 - File system errors (when saving PDF or updating audit log)
-- **CRITICAL**: If PDF cannot be saved, do NOT complete the audit entry - ask user for help
+- If the PDF cannot be saved, stop before writing the log entry and ask the user for the file
 
 ## Key Files
 
@@ -208,8 +188,5 @@ The command handles:
 
 ## Implementation Notes
 
-- The AI agent can directly read and analyze pasted PDF files
-- Implement all logic directly using the patterns described above
-- No helper scripts needed - extract, validate, and update the audit log directly
-- **CRITICAL**: PDF file saving is MANDATORY - the audit entry is incomplete without the PDF file saved to `audit/reports/`
-- Never mark an audit entry as complete without verifying the PDF file exists at the correct path
+- No helper scripts — extract, validate, and update `audit/auditLog.json` directly.
+- An entry is complete only once `audit/reports/<filename>.pdf` exists and is non-empty; verify with `ls -lh` before reporting success.

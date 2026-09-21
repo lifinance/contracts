@@ -168,31 +168,19 @@ function functionName() {
 - Include routing/behavior section for functions with branching logic
 - Provide concrete examples
 
-## Syntax Validation (CRITICAL)
+## Syntax validation
 
-**All bash code must be validated before suggesting changes.**
+Validate before proposing any bash change:
 
-### Required Steps
-
-1. **Syntax**: `bash -n <script>` - always run before suggesting changes
+1. **Syntax**: `bash -n <script>`
 2. **Unbound variables** (with `set -euo pipefail`):
    - Use `${VAR:-}` not `$VAR`; `${ARRAY[@]:-}` not `-v ARRAY[@]`
    - Check `${#ARRAY[@]}` before accessing arrays
 3. **Compatibility**: bash 5.0+ (macOS default); avoid bash 4.0-only features
-4. **Test strict mode**: `bash -c 'set -euo pipefail; source script.sh'`
+4. **Strict mode**: `bash -c 'set -euo pipefail; source script.sh'`
 
-### Validation Checklist
+### Pitfalls not covered above
 
-- [ ] `bash -n` syntax check passes
-- [ ] No unbound variable errors with `set -u`
-- [ ] Array access tested with empty arrays
-- [ ] Parameter expansion uses `:-` defaults
-- [ ] Conditionals work in strict mode
-
-### Common Pitfalls
-
-- Arrays: `${ARRAY[@]:-}` not `-v ARRAY[@]`
-- Variables: `${VAR:-default}` when `set -u` enabled
 - Process substitution: `< <(...)` requires `#!/bin/bash` shebang
 - Conditionals: `[[ ]]` not `[ ]` for bash-specific features
 - Variable case: Use `UPPERCASE` for all variables, including `local` declarations and loop iterators
