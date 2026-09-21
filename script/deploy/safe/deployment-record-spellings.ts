@@ -19,6 +19,10 @@ export interface IRecordSpellingTranslator {
  * check reports as undecidable. A translator that cannot read an address
  * leaves that record as it was rather than dropping it.
  *
+ * The record's own spelling is carried along on `recordSpelling`: the lookup
+ * needs the calldata's, but base58 is what a Tron signer can put into an
+ * explorer, so the render side prints both.
+ *
  * @param records - the deployment entries as read, or undefined when unread
  * @param network - the network the proposal is on
  * @param translator - how that network's record spelling maps to the calldata's
@@ -34,6 +38,8 @@ export const withCalldataSpellings = (
   return records.map((entry) => {
     if (entry.network.trim().toLowerCase() !== wanted) return entry
     const spelt = translator.toCalldataSpelling(entry.address)
-    return spelt ? { ...entry, address: spelt } : entry
+    return spelt
+      ? { ...entry, address: spelt, recordSpelling: entry.address }
+      : entry
   })
 }

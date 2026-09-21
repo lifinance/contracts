@@ -30,6 +30,27 @@ describe('withCalldataSpellings', () => {
     expect(out?.[0]?.timestamp).toBe('2026-08-19T07:13:10.755Z')
   })
 
+  // Respelling is what the lookup needs, but base58 is the string a Tron signer
+  // can put into an explorer, so the record's own spelling has to survive it.
+  it('carries the record spelling the calldata does not use', () => {
+    const out = withCalldataSpellings([entry({})], 'tron', tronToHex)
+    expect(out?.[0]?.recordSpelling).toBe('TMck2qdZHmsdurz4uE4eNVBt14JHHLeoEB')
+  })
+
+  it('sets no record spelling when nothing was respelt', () => {
+    const out = withCalldataSpellings(
+      [
+        entry({
+          network: 'mainnet',
+          address: '0x1111111111111111111111111111111111111111',
+        }),
+      ],
+      'tron',
+      tronToHex
+    )
+    expect(out?.[0]?.recordSpelling).toBeUndefined()
+  })
+
   // Two records of one name at one deploy time read as a tie the check cannot
   // decide, so the respelling must never leave the original beside the copy.
   it('never yields two spellings of one record', () => {

@@ -28,10 +28,11 @@ import { EnvironmentEnum, type SupportedChain } from '../../common/types'
 import { getDeployments } from '../../utils/deploymentHelpers'
 import { normalizeAddressForNetwork } from '../../utils/normalizeAddressStringForViem'
 import { buildExplorerContractPageUrl } from '../../utils/viemScriptHelpers'
-import type {
+import {
   FacetCutActionEnum,
-  IFacetCutEntry,
+  type IFacetCutEntry,
 } from '../codehash/cut-classification'
+import { ZERO_ADDRESS } from '../shared/constants'
 import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
 
 import {
@@ -1275,6 +1276,40 @@ const readCutEntry = (entry: unknown): IFacetCutEntry | undefined => {
  * @returns The cuts and registrations found, and any reason the calldata must
  *   not be signed
  */
+/**
+ * Whether collected calldata puts code into service, or might.
+ *
+ * A cut that adds or replaces a facet, a cut that sets an `_init` target, and a
+ * periphery registration to a non-zero address all install. A registration to
+ * the zero address is the opposite — it removes one — so a proposal that only
+ * unregisters is not asked to account for an installation it does not make.
+ *
+ * Bytes the decoder could not open answer true. "This calldata installs
+ * nothing" is a claim only a calldata read to the end supports; an unopened
+ * frame or a refusal means nobody knows, and a caller rendering false as an
+ * affirmative pass would state more than it read.
+ *
+ * @param collected - the decoder's reading of one proposal's calldata
+ * @returns true when something is installed or the install set is unknown
+ */
+export const collectedInstallsSomething = (
+  collected: ICollectedDiamondCuts
+): boolean =>
+  collected.unopened.length > 0 ||
+  collected.refusals.length > 0 ||
+  collected.registrations.some(
+    (registration) => registration.address !== ZERO_ADDRESS
+  ) ||
+  collected.calls.some(
+    (call) =>
+      call.init !== ZERO_ADDRESS ||
+      call.cuts.some(
+        (cut) =>
+          cut.action === FacetCutActionEnum.Add ||
+          cut.action === FacetCutActionEnum.Replace
+      )
+  )
+
 export const collectDiamondCutTargets = (
   data: Hex | undefined
 ): ICollectedDiamondCuts => {

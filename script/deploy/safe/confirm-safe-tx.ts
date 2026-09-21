@@ -35,8 +35,6 @@ import {
   buildExplorerAddressUrl,
   getFallbackTransportForChain,
 } from '../../utils/viemScriptHelpers'
-import { FacetCutActionEnum } from '../codehash/cut-classification'
-import { ZERO_ADDRESS } from '../shared/constants'
 import { createDefaultCache } from '../shared/deployment-cache'
 import { getGitCommit, sanitizeProvenanceText } from '../shared/git-provenance'
 import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
@@ -163,7 +161,11 @@ import {
   createPinnedBlock,
   ENDPOINT_READ_BUDGET_MS,
 } from './rpc-quorum-collector'
-import { collectDiamondCutTargets, getTargetName } from './safe-decode-utils'
+import {
+  collectDiamondCutTargets,
+  collectedInstallsSomething,
+  getTargetName,
+} from './safe-decode-utils'
 import {
   buildCalldataTarget,
   buildSafeTxDetailLines,
@@ -584,29 +586,6 @@ const processTxs = async (
   // next proposal against it. Re-reading on discard is the fix if that day comes.
   const observedSets = new Map<string, IObservedSet>()
 
-  // Read from the calldata alone: a cut that adds or replaces a facet, sets
-  // an init target, or registers a periphery contract puts code into service.
-  // A registration to the zero address is the opposite — it removes one — so it
-  // is not counted, or a proposal that only unregisters would be asked to
-  // acknowledge an installation it does not make.
-  const calldataInstallsSomething = (callData: Hex): boolean => {
-    const collected = collectDiamondCutTargets(callData)
-    return (
-      collected.registrations.some(
-        (registration) => registration.address !== ZERO_ADDRESS
-      ) ||
-      collected.calls.some(
-        (call) =>
-          call.init !== ZERO_ADDRESS ||
-          call.cuts.some(
-            (cut) =>
-              cut.action === FacetCutActionEnum.Add ||
-              cut.action === FacetCutActionEnum.Replace
-          )
-      )
-    )
-  }
-
   /**
    * What one attempt to read the sign-time set produced: the observation, or
    * why there is none. The three absences reach the ledger as different rows,
@@ -640,7 +619,9 @@ const processTxs = async (
         absence: {
           kind: 'out-of-scope',
           reason,
-          installs: calldataInstallsSomething(callData),
+          installs: collectedInstallsSomething(
+            collectDiamondCutTargets(callData)
+          ),
         },
       }
     }
@@ -929,6 +910,21 @@ const processTxs = async (
           }
         })()
       : undefined
+
+  // One pass over the fleet-sized record set, not one per proposal: nothing in
+  // the respelling varies by proposal, and the TronWeb base58 decode it runs
+  // per Tron row is the expensive part.
+  let respeltRecords:
+    | Promise<readonly IDeploymentIndexEntry[] | undefined>
+    | undefined
+  const readRespeltDeploymentRecords = async (): Promise<
+    readonly IDeploymentIndexEntry[] | undefined
+  > => {
+    respeltRecords ??= readDeploymentRecords().then((records) =>
+      withCalldataSpellings(records, network, tronRecordTranslator)
+    )
+    return respeltRecords
+  }
 
   // The per-network reads every proposal's simulation and quorum gate shares.
   // Hoisted out of the proposal loop so a prefetched proposal reads the same
@@ -1313,7 +1309,7 @@ const processTxs = async (
     )
 
     try {
-      const records = await readDeploymentRecords()
+      const records = await readRespeltDeploymentRecords()
       calldataAddresses = evaluateCalldataAddresses(
         {
           network,
@@ -1321,7 +1317,7 @@ const processTxs = async (
           ...(undecodable.length > 0 ? { undecodable } : {}),
         },
         buildDeploymentIndex(
-          withCalldataSpellings(records, network, tronRecordTranslator),
+          records,
           references.map((reference) => reference.address),
           referencedNames(references)
         )
