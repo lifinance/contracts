@@ -213,8 +213,26 @@ function selectFoundryProfileForNetwork() {
         return 0
     fi
 
+    if ! jq -e --arg network "$NETWORK" '.[$network] != null' "$NETWORKS_JSON_FILE_PATH" > /dev/null; then
+        error "Network '$NETWORK' not found in networks.json - refusing to deploy"
+        return 1
+    fi
+
+    # A row carrying targetEvmVersion as an empty string states nothing the active
+    # profile can contradict; `localanvil`, which the deploy smoke test drives, is the
+    # only one. A row missing the key altogether is a config error rather than a
+    # statement, so it is refused instead of skipping the comparison below.
+    if ! jq -e --arg network "$NETWORK" '.[$network] | has("targetEvmVersion")' "$NETWORKS_JSON_FILE_PATH" > /dev/null; then
+        error "Network '$NETWORK' has no targetEvmVersion in networks.json - refusing to deploy"
+        return 1
+    fi
+
     local TARGET_EVM_VERSION
-    TARGET_EVM_VERSION=$(getNetworkEvmVersion "$NETWORK") || return 1
+    TARGET_EVM_VERSION=$(jq -r --arg network "$NETWORK" '.[$network].targetEvmVersion' "$NETWORKS_JSON_FILE_PATH")
+
+    if [[ -z "$TARGET_EVM_VERSION" ]]; then
+        return 0
+    fi
 
     # scriptMaster deploys one contract to every network in a single loop, so a
     # profile this function exported for the previous network is re-selected rather
