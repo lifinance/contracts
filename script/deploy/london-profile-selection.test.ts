@@ -47,10 +47,9 @@ const FORGE_VERSION = readFileSync(
 ).trim()
 
 /**
- * The literal the runners export and the sign-time rebuild resolves by name.
- * Spelled out rather than read from a constant, because the value is what the
- * rebuild needs to find in a checkout at an older commit — a rename that both
- * sides follow would leave every test green and every london slot MISMATCH.
+ * The literal the runners export. Spelled out rather than read from a constant,
+ * so a rename that both sides follow still shows up here as a change rather
+ * than passing silently.
  */
 const LONDON_PROFILE = 'solc_floor'
 
@@ -500,6 +499,27 @@ describe('deploySingleContract selects the profile from the network', () => {
     expect(output).not.toContain('is not a zkEVM network')
   })
 
+  // The negative control for the refusal above: tightening that guard must not
+  // start refusing the profile the zk toolchain is supposed to run under.
+  it.each([ZKEVM_NETWORK, 'abstract', 'lens'])(
+    'still accepts FOUNDRY_PROFILE=zksync for the zkEVM network %s',
+    (network) => {
+      const output = run(
+        makeSandbox(),
+        [
+          ...SOURCE_HELPERS,
+          `selectFoundryProfileForNetwork ${network}`,
+          'echo "RC=$?"',
+          `echo "PROFILE_AFTER=\${FOUNDRY_PROFILE-${UNSET}}"`,
+        ],
+        { FOUNDRY_PROFILE: ZK_PROFILE }
+      )
+
+      expect(output).toContain('RC=0')
+      expect(output).toContain(`PROFILE_AFTER=${UNSET}`)
+    }
+  )
+
   it('re-selects for the next network when it chose the previous profile itself', () => {
     // scriptMaster deploys one contract to every network in a single loop, so
     // the london export must not be read as the operator's choice at the next
@@ -745,10 +765,9 @@ describe('ensureStandardArtifactForSalt grades the tree it found', () => {
 
 describe('the deploy side and the sign-time rebuild agree on the profile name', () => {
   it('resolves the london network to the profile the runners export', () => {
-    // The rebuild takes this name from today's foundry.toml and hands it to a
-    // forge run inside a checkout at the deployment commit. Renaming the
-    // section moves this resolution with it and leaves the older checkouts
-    // behind, where forge answers the unknown name with [profile.default].
+    // The rebuild resolves a deployment commit's profile by its compiler pair,
+    // so what has to hold is that the pair `deriveToolchainScope` picks for a
+    // london network is the one the runners build it with.
     const row = NETWORKS[LONDON_NETWORK]
     if (row === undefined)
       throw new Error(`config/networks.json has no "${LONDON_NETWORK}" row`)
