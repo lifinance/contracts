@@ -48,6 +48,7 @@ import {
   assertFunnelDeployGate,
   createFunnelGateDeps,
 } from '../shared/funnel-deploy-gate'
+import { retryWithRateLimit } from '../shared/rateLimit'
 
 import {
   TRON_DIAMOND_CONFIRM_OWNERSHIP_SELECTOR,
@@ -56,6 +57,13 @@ import {
 import { normalizeTronProposeCalls } from './propose-calls-tron.js'
 import { pickTronTimelockSalt } from './timelock-salt-tron.js'
 import type { IProposeToSafeTronOptions } from './types.js'
+
+/**
+ * Backoff for a Tron read the propose path cannot proceed without. Sized for the
+ * keyless TronGrid host, whose 3 rps cap suspends the query server for 5 s.
+ */
+const TRON_READ_MAX_ATTEMPTS = 3
+const TRON_READ_RETRY_DELAY_MS = 6000
 
 async function runPropose(options: IProposeToSafeTronOptions) {
   const networkName: TronTvmNetworkName = options.network ?? 'tron'
@@ -296,7 +304,20 @@ async function runPropose(options: IProposeToSafeTronOptions) {
   const safeContract = tronWeb.contract(safeAbiNonce, safeAddressBase58)
   let chainNonceBigInt: bigint
   try {
-    const nonceRes = await safeContract.nonce().call()
+    // Keyless TronGrid allows 3 rps, and the salt derivation above spends two
+    // reads immediately before this one, so a propose that would otherwise
+    // abort here is usually one backoff away from succeeding.
+    const nonceRes = await retryWithRateLimit(
+      () => safeContract.nonce().call(),
+      TRON_READ_MAX_ATTEMPTS,
+      TRON_READ_RETRY_DELAY_MS,
+      (attempt, delayMs) =>
+        consola.warn(
+          `Rate limited reading the Safe nonce, retry ${attempt}/${
+            TRON_READ_MAX_ATTEMPTS - 1
+          } in ${delayMs}ms`
+        )
+    )
     const valueStr =
       typeof nonceRes === 'string' ? nonceRes : nonceRes?.toString?.() ?? '0'
     chainNonceBigInt = BigInt(valueStr)
