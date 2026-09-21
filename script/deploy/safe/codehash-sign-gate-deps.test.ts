@@ -36,6 +36,7 @@ import {
 } from '../immutables/immutable-ast'
 
 import {
+  buildRecordQuery,
   createForgeRebuildRunner,
   createImmutableSimulatorReader,
   createLocalImmutableDeclarations,
@@ -49,6 +50,7 @@ import {
   defaultCheckoutRoot,
   loadImmutableExpectations,
   readToolchainConfig,
+  resolveDeploymentRecord,
 } from './codehash-sign-gate-deps'
 
 /** Real tail of `out/AccessManagerFacet.sol/AccessManagerFacet.json`: 51-byte CBOR trailer plus its length word. */
@@ -105,9 +107,16 @@ describe('createToolchainScopeResolver', () => {
   })
 
   it('resolves a london network to the floor profile', () => {
-    const scope = resolve('tron')
+    const scope = resolve('fuse')
 
     expect(scope.profiles.map((p) => p.profile)).toEqual(['solc_floor'])
+  })
+
+  it('resolves Tron to the default profile its fork builds with', () => {
+    const scope = resolve('tron')
+
+    expect(scope.isClosedSet).toBe(true)
+    expect(scope.profiles.map((p) => p.profile)).toEqual(['default'])
   })
 
   it('resolves a zkEVM network to the zksolc profile', () => {
@@ -275,6 +284,291 @@ describe('createRecordReader', () => {
     })
 
     expect(await rejection(read(ADDRESS, 'mainnet'))).toContain('MongoDB')
+  })
+})
+
+describe('resolveDeploymentRecord', () => {
+  const row = (fields: Record<string, string>) => ({
+    contractName: 'AllBridgeFacet',
+    version: '2.1.1',
+    gitCommitHash: 'a'.repeat(40),
+    ...fields,
+  })
+
+  it('returns null when nothing matches', () => {
+    expect(resolveDeploymentRecord([], ADDRESS, 'mainnet')).toBeNull()
+  })
+
+  it('returns the single record unchanged', () => {
+    const only = row({})
+
+    expect(resolveDeploymentRecord([only], ADDRESS, 'tron')).toBe(only)
+  })
+
+  it('returns the record when duplicates agree on every field', () => {
+    const first = row({})
+
+    expect(resolveDeploymentRecord([first, row({})], ADDRESS, 'tron')).toBe(
+      first
+    )
+  })
+
+  // The commit is what the rebuild is keyed on, so two of them is the same
+  // disagreement as two versions, and the query is unsorted — picking either
+  // would attest against a different source on an otherwise identical run.
+  it('refuses duplicates that agree on version but name different commits', () => {
+    expect(() =>
+      resolveDeploymentRecord(
+        [row({}), row({ gitCommitHash: 'b'.repeat(40) })],
+        ADDRESS,
+        'tron'
+      )
+    ).toThrow(/commit/)
+  })
+
+  // The verification step rewrites the row it verified and loses `version` on
+  // the way through, so the blank row is the checked one. Comparing commits
+  // only across what survives the blank-version collapse let the row that can
+  // fill in a version vouch for a commit nobody verified.
+  it('refuses when a blank-version row names a different commit', () => {
+    expect(() =>
+      resolveDeploymentRecord(
+        [
+          row({ version: '', gitCommitHash: 'c'.repeat(40) }),
+          row({ gitCommitHash: 'd'.repeat(40) }),
+        ],
+        ADDRESS,
+        'tron'
+      )
+    ).toThrow(/commit/)
+  })
+
+  // `UNKNOWN` is what the record writer stores when it could not read a commit,
+  // and the downstream readers already treat it as absence. Counting it as a
+  // claim would refuse a pair whose one real commit is the rebuild key.
+  it('treats an UNKNOWN commit as absent rather than as a second claim', () => {
+    const unknown = row({ gitCommitHash: 'UNKNOWN' })
+    const withCommit = row({})
+
+    expect(
+      resolveDeploymentRecord([unknown, withCommit], ADDRESS, 'tron')
+    ).toBe(withCommit)
+    expect(
+      resolveDeploymentRecord([withCommit, unknown], ADDRESS, 'tron')
+    ).toBe(withCommit)
+  })
+
+  // The blank-version row is the one the verification step rewrote, so it can
+  // be the only row naming a commit. Dropping it in the collapse and then
+  // picking from the survivors returned a row with no commit, which reads
+  // downstream as UNVERIFIABLE for an address whose one commit is right here.
+  it('keeps the commit when the collapse drops the only row naming it', () => {
+    const blank = row({ version: '', gitCommitHash: 'c'.repeat(40) })
+    const versioned = row({ gitCommitHash: '' })
+
+    const resolved = resolveDeploymentRecord(
+      [blank, versioned],
+      ADDRESS,
+      'tron'
+    )
+
+    expect(resolved?.contractName).toBe('AllBridgeFacet')
+    expect(resolved?.version).toBe('2.1.1')
+    expect(resolved?.gitCommitHash).toBe('c'.repeat(40))
+    expect(versioned.gitCommitHash).toBe('')
+  })
+
+  it('prefers the row carrying a commit over a blank sibling, whatever the order', () => {
+    const withCommit = row({})
+    const blank = row({ gitCommitHash: '' })
+
+    expect(resolveDeploymentRecord([blank, withCommit], ADDRESS, 'tron')).toBe(
+      withCommit
+    )
+    expect(resolveDeploymentRecord([withCommit, blank], ADDRESS, 'tron')).toBe(
+      withCommit
+    )
+  })
+
+  // Most production rows carry no commit field at all, so absence must stay a
+  // resolvable answer rather than a refusal.
+  it('resolves duplicates that carry no commit at all', () => {
+    const first = { contractName: 'TokenWrapper', version: '1.1.0' }
+
+    expect(
+      resolveDeploymentRecord(
+        [first, { contractName: 'TokenWrapper', version: '1.1.0' }],
+        ADDRESS,
+        'tron'
+      )
+    ).toBe(first)
+  })
+
+  it('treats a whitespace-only version as blank', () => {
+    const versioned = row({ contractName: 'GasZipPeriphery', version: '1.0.2' })
+
+    expect(
+      resolveDeploymentRecord(
+        [row({ contractName: 'GasZipPeriphery', version: '  ' }), versioned],
+        ADDRESS,
+        'moonbeam'
+      )
+    ).toBe(versioned)
+  })
+
+  // Blankness was judged trimmed while the identity key used the raw string, so
+  // a single space split one deploy into two identities and refused it.
+  it('collapses a whitespace-only version against a blank sibling', () => {
+    const first = row({ contractName: 'PolymerCCTPFacet', version: '  ' })
+
+    expect(
+      resolveDeploymentRecord(
+        [first, row({ contractName: 'PolymerCCTPFacet', version: '' })],
+        ADDRESS,
+        'base'
+      )
+    ).toBe(first)
+  })
+
+  it('does not split one version across rows that pad it differently', () => {
+    const first = row({ version: '2.1.1' })
+
+    expect(
+      resolveDeploymentRecord(
+        [first, row({ version: ' 2.1.1 ' })],
+        ADDRESS,
+        'tron'
+      )
+    ).toBe(first)
+  })
+
+  // `version` is optional on the record interface, and a row omitting it used
+  // to surface at the signer as "could not be read: undefined is not an object".
+  it('treats an absent version as blank rather than throwing', () => {
+    const named = { contractName: 'TokenWrapper', version: '1.1.0' }
+
+    expect(
+      resolveDeploymentRecord(
+        [{ contractName: 'TokenWrapper' }, named],
+        ADDRESS,
+        'tron'
+      )
+    ).toBe(named)
+  })
+
+  // Optional chaining defends against an absent field, not against a stored
+  // number, which reached the signer as "could not be read: r.version.trim is
+  // not a function" — the unactionable message this resolver exists to replace.
+  it('coerces a non-string version instead of dying on its type', () => {
+    const numeric = {
+      contractName: 'TokenWrapper',
+      version: 2 as unknown as string,
+    }
+
+    expect(resolveDeploymentRecord([numeric], ADDRESS, 'tron')).toBe(numeric)
+  })
+
+  it('names the conflict when a non-string version disagrees with a real one', () => {
+    expect(() =>
+      resolveDeploymentRecord(
+        [
+          { contractName: 'TokenWrapper', version: 2 as unknown as string },
+          { contractName: 'TokenWrapper', version: '1.1.0' },
+        ],
+        ADDRESS,
+        'tron'
+      )
+    ).toThrow(/TokenWrapper@1\.1\.0/)
+  })
+
+  it('refuses a three-row group where only one row dissents', () => {
+    expect(() =>
+      resolveDeploymentRecord(
+        [row({}), row({}), row({ version: '2.1.2' })],
+        ADDRESS,
+        'tron'
+      )
+    ).toThrow(/2\.1\.2/)
+  })
+
+  it('resolves a group of blank-version rows that name one contract', () => {
+    const first = row({ version: '' })
+
+    expect(
+      resolveDeploymentRecord([first, row({ version: '' })], ADDRESS, 'base')
+    ).toBe(first)
+  })
+
+  // The verification step rewrites the row it just verified and drops `version`
+  // on the way through, leaving two rows for one deploy that differ only there.
+  // Both describe the same contract, so the versioned one is the answer.
+  it('ignores a blank-version duplicate of a named contract', () => {
+    const versioned = row({
+      contractName: 'PolymerCCTPFacet',
+      version: '2.0.0',
+    })
+    const blank = row({ contractName: 'PolymerCCTPFacet', version: '' })
+
+    expect(resolveDeploymentRecord([blank, versioned], ADDRESS, 'base')).toBe(
+      versioned
+    )
+  })
+
+  it('keeps a blank-version row when no other row names that contract', () => {
+    const blank = row({ contractName: 'GasZipPeriphery', version: '' })
+
+    expect(resolveDeploymentRecord([blank], ADDRESS, 'moonbeam')).toBe(blank)
+  })
+
+  // The real tron/AllBridgeFacet pair: one address, two versions. Whichever way
+  // a sort broke the tie it would name a version to rebuild, and one of the two
+  // is wrong, so the gate must refuse rather than pick.
+  it('refuses two versions of one contract at one address', () => {
+    const conflict = () =>
+      resolveDeploymentRecord(
+        [row({ version: '2.1.1' }), row({ version: '2.1.2' })],
+        ADDRESS,
+        'tron'
+      )
+
+    expect(conflict).toThrow(/2\.1\.1/)
+    expect(conflict).toThrow(/2\.1\.2/)
+  })
+
+  it('refuses two contracts at one address', () => {
+    expect(() =>
+      resolveDeploymentRecord(
+        [
+          row({ contractName: 'LiFuelFeeCollector', version: '1.0.1' }),
+          row({ contractName: 'TokenWrapper', version: '1.0.1' }),
+        ],
+        ADDRESS,
+        'metis'
+      )
+    ).toThrow(/TokenWrapper/)
+  })
+
+  it('names the address and network it could not resolve', () => {
+    expect(() =>
+      resolveDeploymentRecord(
+        [row({ version: '2.1.1' }), row({ version: '2.1.2' })],
+        ADDRESS,
+        'tron'
+      )
+    ).toThrow(new RegExp(`${ADDRESS}.*tron|tron.*${ADDRESS}`))
+  })
+
+  it('refuses a conflict that a blank-version row cannot collapse', () => {
+    expect(() =>
+      resolveDeploymentRecord(
+        [
+          row({ contractName: 'TokenWrapper', version: '' }),
+          row({ contractName: 'AllBridgeFacet', version: '2.1.1' }),
+        ],
+        ADDRESS,
+        'tron'
+      )
+    ).toThrow(/TokenWrapper/)
   })
 })
 
@@ -1616,5 +1910,192 @@ describe('createArtifactCache', () => {
       cache.save('unbuilt', join(tmpdir(), 'no-such-build-directory-here'))
     ).not.toThrow()
     expect(cache.restore('unbuilt', tempRoot())).toBe(false)
+  })
+})
+
+/**
+ * A real production Tron facet, in the two spellings the lookup has to join:
+ * base58 as the deployment record holds it, checksummed hex as a decoded cut
+ * carries it. Taken from `tron-address-spellings.test.ts`, where the mapping is
+ * corroborated on chain rather than against this repo's own codec.
+ */
+const TRON_BASE58 = 'TNZ3fznhvEssLeovS9Uc7zCLgYjKdNjX9P'
+const TRON_HEX = '0x8A07DD6cA9EA2DcCfF2A0015811C895ac1Abfcc5'
+
+/**
+ * Whether a record would be returned by a filter, over the operators the record
+ * query is built from and no others.
+ *
+ * The query is asserted by running rows through it rather than by reading its
+ * shape: "the base58 branch carries no `$options`" is a fact about this object,
+ * while "a base58 spelled in another case is not found" is the property the
+ * gate depends on. An operator this does not model throws instead of being
+ * ignored, so a filter that grew one cannot be reported as behaving like the
+ * filter that did not.
+ */
+const wouldMatch = (query: object, row: Record<string, string>): boolean =>
+  Object.entries(query).every(([field, condition]) => {
+    if (field === '$or') {
+      if (!Array.isArray(condition)) throw new Error('$or is not a list')
+      return condition.some((branch) => wouldMatch(branch as object, row))
+    }
+    if (field.startsWith('$')) throw new Error(`unmodelled operator ${field}`)
+    if (typeof condition !== 'object' || condition === null)
+      throw new Error(`unmodelled condition on ${field}`)
+
+    const operators = condition as Record<string, unknown>
+    const value = row[field]
+    return Object.entries(operators).every(([operator, operand]) => {
+      switch (operator) {
+        case '$eq':
+          return value === operand
+        case '$in':
+          return (operand as string[]).includes(value ?? '')
+        case '$regex': {
+          const options = operators.$options
+          if (options !== undefined && options !== 'i')
+            throw new Error(`unmodelled regex options ${String(options)}`)
+          return new RegExp(
+            asJsPattern(operand as string),
+            options === 'i' ? 'i' : ''
+          ).test(value ?? '')
+        }
+        case '$options':
+          return true
+        default:
+          throw new Error(`unmodelled operator ${operator}`)
+      }
+    })
+  })
+
+/**
+ * A PCRE2 pattern as the JavaScript engine has to spell it to mean the same.
+ *
+ * Only the two end-of-subject anchors differ here, and they differ the way the
+ * query turns on: PCRE2 `$` also matches before a trailing newline while the
+ * JavaScript `$` does not, and PCRE2 `\z` is the strict one JavaScript spells
+ * `$`. Running the pattern unchanged would read `\z` as a literal `z` and read
+ * a regressed `$` as if it were strict — the assertion would pass against the
+ * bug it exists to catch.
+ */
+const asJsPattern = (pattern: string): string =>
+  pattern.replace(/\\.|[$]/g, (token) =>
+    token === '$' ? '(?=\\n?$)' : token === '\\z' ? '$' : token
+  )
+
+/** The same base58 address with its first lowercase letter upper-cased. */
+const caseFlipped = (base58: string): string => {
+  const letter = [...base58].find((c) => c >= 'a' && c <= 'z')
+  if (!letter) throw new Error('no letter to flip')
+  const at = base58.indexOf(letter)
+  const flipped =
+    base58.slice(0, at) + letter.toUpperCase() + base58.slice(at + 1)
+  if (flipped === base58) throw new Error('flipping changed nothing')
+  return flipped
+}
+
+describe('buildRecordQuery', () => {
+  it('finds the hex spelling whatever case the record was written in', () => {
+    const query = buildRecordQuery(TRON_HEX, 'tron')
+
+    expect(wouldMatch(query, { network: 'tron', address: TRON_HEX })).toBe(true)
+    expect(
+      wouldMatch(query, { network: 'tron', address: TRON_HEX.toLowerCase() })
+    ).toBe(true)
+    expect(
+      wouldMatch(query, {
+        network: 'tron',
+        address: '0x' + TRON_HEX.slice(2).toUpperCase(),
+      })
+    ).toBe(true)
+    expect(
+      wouldMatch(query, {
+        network: 'tron',
+        address: '0x0e07d966239d00a7fb445d4cb06b478a0e538b3b',
+      })
+    ).toBe(false)
+  })
+
+  // base58check is case-sensitive, so a folded comparison answers about an
+  // address nobody asked about.
+  it('finds the base58 spelling exactly, and never case-folded', () => {
+    const query = buildRecordQuery(TRON_HEX, 'tron')
+
+    expect(wouldMatch(query, { network: 'tron', address: TRON_BASE58 })).toBe(
+      true
+    )
+    expect(
+      wouldMatch(query, {
+        network: 'tron',
+        address: caseFlipped(TRON_BASE58),
+      })
+    ).toBe(false)
+    expect(
+      wouldMatch(query, { network: 'tron', address: TRON_BASE58.toUpperCase() })
+    ).toBe(false)
+    expect(
+      wouldMatch(query, { network: 'tron', address: TRON_BASE58.toLowerCase() })
+    ).toBe(false)
+  })
+
+  it('offers no base58 spelling on a network that spells addresses one way', () => {
+    const query = buildRecordQuery(TRON_HEX, 'mainnet')
+
+    expect(
+      wouldMatch(query, { network: 'mainnet', address: TRON_HEX.toLowerCase() })
+    ).toBe(true)
+    expect(
+      wouldMatch(query, { network: 'mainnet', address: TRON_BASE58 })
+    ).toBe(false)
+  })
+
+  // The deploy path writes `network` from the config key, so it is lowercase by
+  // construction and a fold there would widen the lookup for nothing.
+  it('matches the network exactly', () => {
+    const query = buildRecordQuery(TRON_HEX, 'tron')
+
+    expect(wouldMatch(query, { network: 'tron', address: TRON_HEX })).toBe(true)
+    expect(wouldMatch(query, { network: 'Tron', address: TRON_HEX })).toBe(
+      false
+    )
+    expect(
+      wouldMatch(query, { network: 'tronshasta', address: TRON_HEX })
+    ).toBe(false)
+  })
+
+  it('matches the whole address, as a literal', () => {
+    const query = buildRecordQuery(TRON_HEX, 'tron')
+
+    expect(
+      wouldMatch(query, { network: 'tron', address: TRON_HEX + '00' })
+    ).toBe(false)
+    // PCRE2 `$` matches before a trailing newline too, so the anchor has to be
+    // `\z`: a row padded with one is a different stored value.
+    expect(
+      wouldMatch(query, { network: 'tron', address: TRON_HEX + '\n' })
+    ).toBe(false)
+    expect(
+      wouldMatch(query, { network: 'tron', address: '00' + TRON_HEX })
+    ).toBe(false)
+    expect(
+      wouldMatch(buildRecordQuery('0x.a', 'mainnet'), {
+        network: 'mainnet',
+        address: '0xba',
+      })
+    ).toBe(false)
+  })
+
+  // Self-check on the harness above: every assertion here is an observation
+  // made through it, so a filter it silently mis-read would report the gate as
+  // safe.
+  it('is asserted through a matcher that refuses what it cannot model', () => {
+    expect(() =>
+      wouldMatch(
+        { address: { $not: { $eq: TRON_HEX } } },
+        {
+          address: TRON_HEX,
+        }
+      )
+    ).toThrow('unmodelled operator $not')
   })
 })

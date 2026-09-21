@@ -116,6 +116,21 @@ normal sync rather than becoming its own untracked delta item).
 `main` branch of the respective repo. A Tron production deploy therefore
 runs from `contracts-tron`'s `main`.
 
+**Signing a Tron cut needs the fork's objects in your `contracts` clone.** The
+sign-time codehash gate rebuilds each installed facet at the commit its
+deployment record names, and for Tron that commit is on the fork, not on
+`origin`. Add the fork as a remote called `tron` once:
+
+```bash
+git remote add tron https://github.com/lifinance/contracts-tron.git
+git fetch tron
+```
+
+A clone without it — or with a `tron` remote pointing at anything other than
+`lifinance/contracts-tron` over https or ssh — is refused by name rather than
+graded, because the source fetched through that remote is what the deployed
+code is compared against.
+
 ### Versioning rules (audit traceability)
 
 Audits are keyed by `ContractName` + `@custom:version`, so **one version

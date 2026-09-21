@@ -8,9 +8,7 @@
 
 import {
   formatAddressForNetworkCliDisplay,
-  getTronWebCodecOnlyForNetwork,
   isTronNetworkKey,
-  tronBase58ToEvm20Hex,
 } from '@lifi/tron-devkit'
 import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
@@ -37,6 +35,7 @@ import {
 } from '../../utils/viemScriptHelpers'
 import { createDefaultCache } from '../shared/deployment-cache'
 import { getGitCommit, sanitizeProvenanceText } from '../shared/git-provenance'
+import { createTronAddressSpellings } from '../shared/tron-address-spellings'
 import { tronHexSuffix } from '../tron/helpers/tronHexSuffix'
 
 import {
@@ -896,20 +895,7 @@ const processTxs = async (
   // so without this every Tron address the record does name reads as one
   // nobody deployed.
   const tronRecordTranslator: IRecordSpellingTranslator | undefined =
-    isTronNetworkKey(network)
-      ? (() => {
-          const codec = getTronWebCodecOnlyForNetwork(networkKey)
-          return {
-            toCalldataSpelling: (address: string) => {
-              try {
-                return tronBase58ToEvm20Hex(codec, address).toLowerCase()
-              } catch {
-                return undefined
-              }
-            },
-          }
-        })()
-      : undefined
+    createTronAddressSpellings(networkKey)
 
   // One pass over the fleet-sized record set, not one per proposal: nothing in
   // the respelling varies by proposal, and the TronWeb base58 decode it runs
