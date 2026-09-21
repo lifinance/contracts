@@ -138,6 +138,7 @@
     "production": {
       "LiFiDiamond": {
         "AccessManagerFacet": "latest",
+        "AcrossFacetV4": "latest",
         "CalldataVerificationFacet": "latest",
         "DiamondCutFacet": "latest",
         "DiamondLoupeFacet": "latest",
@@ -147,6 +148,7 @@
         "OwnershipFacet": "latest",
         "PeripheryRegistryFacet": "latest",
         "PolymerCCTPFacet": "latest",
+        "ReceiverAcrossV4": "latest",
         "SupersetFacet": "latest",
         "WhitelistManagerFacet": "latest",
         "WithdrawFacet": "latest",
@@ -272,6 +274,7 @@
     "production": {
       "LiFiDiamond": {
         "AccessManagerFacet": "latest",
+        "AcrossFacetV4": "latest",
         "CalldataVerificationFacet": "latest",
         "DiamondCutFacet": "latest",
         "DiamondLoupeFacet": "latest",
@@ -281,6 +284,7 @@
         "OwnershipFacet": "latest",
         "PeripheryRegistryFacet": "latest",
         "PolymerCCTPFacet": "latest",
+        "ReceiverAcrossV4": "latest",
         "SupersetFacet": "latest",
         "WhitelistManagerFacet": "latest",
         "WithdrawFacet": "latest",
@@ -2218,6 +2222,7 @@
     "production": {
       "LiFiDiamond": {
         "AccessManagerFacet": "latest",
+        "AcrossFacetV4": "latest",
         "CalldataVerificationFacet": "latest",
         "DiamondCutFacet": "latest",
         "DiamondLoupeFacet": "latest",
@@ -2226,6 +2231,7 @@
         "LiFiIntentEscrowFacetV2": "latest",
         "OwnershipFacet": "latest",
         "PeripheryRegistryFacet": "latest",
+        "ReceiverAcrossV4": "latest",
         "WhitelistManagerFacet": "latest",
         "WithdrawFacet": "latest",
         "LiFiDiamond": "latest"
