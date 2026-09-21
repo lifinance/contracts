@@ -350,9 +350,12 @@ function prepareGroupBuild() {
             ;;
     esac
 
+    # `--skip` filters by name, not by directory, and `test` is an alias for `.t.sol`:
+    # it would still compile the non-test helpers under test/solidity/utils. The glob is
+    # what keeps this build's scope identical to the solc-floor-build gate's.
     if [[ "$STRICT" == "true" ]]; then
-        forge build || { error "forge build failed for $GROUP group"; return 1; }
+        forge build --skip 'test/**' || { error "forge build failed for $GROUP group"; return 1; }
     else
-        forge build || true
+        forge build --skip 'test/**' || true
     fi
 }

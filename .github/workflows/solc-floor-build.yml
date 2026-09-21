@@ -7,8 +7,11 @@
 #   A `solc-floor-build-required` aggregator job always reports a final status so this
 #   workflow can stay a required check on `main` branch protection even when the build
 #   job is skipped (see `.agents/rules/500-github-actions.md`).
-# - script/ is in scope because the london deploy runs a bare `forge build` under this
-#   profile; only test/ is skipped, on the command line rather than in the profile.
+# - script/ is in scope because the london deploy compiles it under this profile. The skip
+#   lives on the command line rather than in the profile, and matches the one the deploy
+#   builds use (`prepareGroupBuild`, `ensureStandardArtifactForSalt`), so nothing a london
+#   deploy compiles is outside this job. `test/**` as a glob, not the `test` alias: the
+#   alias only skips `.t.sol` and would leave the helpers under test/solidity/utils in.
 
 name: Verify Floor-Compiler Build
 on:

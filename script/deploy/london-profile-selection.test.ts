@@ -387,6 +387,60 @@ describe('prepareGroupBuild', () => {
 })
 
 /**
+ * `solc-floor-build` is only evidence about a london deploy for the tree it
+ * compiles, so the skips have to be spelled identically on both sides. They are
+ * easy to get wrong: `--skip` filters by name and `test` is an alias for
+ * `.t.sol`, which leaves the non-test helpers under `test/solidity/utils` in.
+ */
+describe('the floor gate compiles what the london deploy compiles', () => {
+  const skipsOf = (command: string): string[] =>
+    [...command.matchAll(/--skip\s+'?([^\s']+)'?/g)].map(
+      (match) => match[1] ?? ''
+    )
+
+  const gateSkips = (): string[] => {
+    const runs = readFileSync(
+      join(REPO_ROOT, '.github', 'workflows', 'solc-floor-build.yml'),
+      'utf8'
+    )
+      .split('\n')
+      .map((line) => line.trim())
+      .filter((line) => line.startsWith('run: forge build'))
+    expect(runs).toHaveLength(1)
+    return skipsOf(runs[0] ?? '')
+  }
+
+  const buildCommands = (sandbox: ISandbox): string[] =>
+    sandbox.forgeCalls().filter((call) => call.startsWith('forge build'))
+
+  it('runs the group build with the gate’s skips', () => {
+    const sandbox = makeSandbox()
+
+    run(sandbox, [...SOURCE_HELPERS, `prepareGroupBuild "$GROUP_LONDON" true`])
+
+    const commands = buildCommands(sandbox)
+    expect(commands).toHaveLength(1)
+    expect(skipsOf(commands[0] ?? '')).toEqual(gateSkips())
+  })
+
+  it('runs the salt build with the gate’s skips', () => {
+    const sandbox = makeSandbox()
+    const out = join(sandbox.root, 'out')
+    if (existsSync(out)) unlinkSync(out)
+
+    run(sandbox, [...SOURCE_HELPERS, 'ensureStandardArtifactForSalt Executor'])
+
+    const commands = buildCommands(sandbox)
+    expect(commands).toHaveLength(1)
+    expect(skipsOf(commands[0] ?? '')).toEqual(gateSkips())
+  })
+
+  it('skips by glob, not by the `test` alias', () => {
+    expect(gateSkips()).toEqual(['test/**'])
+  })
+})
+
+/**
  * The direct entry points (scriptMaster and the deploy*.sh wrappers) run no
  * group build, so the profile forge compiles under is whatever the shell holds.
  * Each case drives the real deploySingleContract as far as its first

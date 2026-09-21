@@ -1881,14 +1881,14 @@ function ensureStandardArtifactForSalt() {
     return 1
   fi
 
-  echo "[info] standard artifact $ARTIFACT_PATH missing or built under another profile - running 'forge build --skip test' to derive the deploy salt"
-  if ! forge build --skip test; then
-    error "'forge build --skip test' failed - cannot derive the deploy salt for $CONTRACT without $ARTIFACT_PATH"
+  echo "[info] standard artifact $ARTIFACT_PATH missing or built under another profile - running forge build --skip 'test/**' to derive the deploy salt"
+  if ! forge build --skip 'test/**'; then
+    error "forge build --skip 'test/**' failed - cannot derive the deploy salt for $CONTRACT without $ARTIFACT_PATH"
     return 1
   fi
 
   if ! checkIfFileExists "$ARTIFACT_PATH" >/dev/null; then
-    error "'forge build --skip test' did not produce $ARTIFACT_PATH - cannot derive the deploy salt for $CONTRACT (is $CONTRACT.sol still present in src/?)"
+    error "forge build --skip 'test/**' did not produce $ARTIFACT_PATH - cannot derive the deploy salt for $CONTRACT (is $CONTRACT.sol still present in src/?)"
     return 1
   fi
 
