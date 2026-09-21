@@ -8,6 +8,7 @@ deploySingleContract() {
   source script/helperFunctions.sh
   source script/deploy/resources/contractSpecificReminders.sh # pre-commit-checker: not a secret
   source script/deploy/shared/assertTreeRecordable.sh
+  source script/deploy/resources/deployGroupingHelpers.sh
 
   # read function arguments into variables
   local CONTRACT="$1"
@@ -93,6 +94,27 @@ deploySingleContract() {
   # ticket is enforced when the proposal is stored, which is after the contract
   # is on chain.
   if ! assertProposalTicketForRun "$ENVIRONMENT" "$NETWORK"; then
+    if [[ -z "$EXIT_ON_ERROR" || "$EXIT_ON_ERROR" == "false" ]]; then
+      return 1
+    else
+      exit 1
+    fi
+  fi
+
+  # The grouped runners export the profile before launching their workers; a direct
+  # call inherits whatever the shell holds, and forge and the getters below both read it.
+  if ! selectFoundryProfileForNetwork "$NETWORK"; then
+    if [[ -z "$EXIT_ON_ERROR" || "$EXIT_ON_ERROR" == "false" ]]; then
+      return 1
+    else
+      exit 1
+    fi
+  fi
+
+  # The record's compiler pair is what the sign-time rebuild compiles under; an empty
+  # one cannot be rebuilt. Checked before the build for the same reason.
+  if ! getSolcVersion "$NETWORK" >/dev/null || ! getEvmVersion "$NETWORK" >/dev/null; then
+    error "cannot resolve the compiler pair for $NETWORK from foundry.toml - refusing to deploy"
     if [[ -z "$EXIT_ON_ERROR" || "$EXIT_ON_ERROR" == "false" ]]; then
       return 1
     else
