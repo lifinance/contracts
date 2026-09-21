@@ -105,65 +105,6 @@ function killProcessTree() {
   kill -CONT "$ROOT_PID" 2>/dev/null
 }
 
-# reportStalledWave: Report what is still alive in a wave that has outlived its
-# expected runtime, then let it keep running. Nothing here kills anything.
-#
-# A wave is backgrounded pipelines, so it cannot finish until each output reader
-# sees EOF, which needs every holder of that pipe's write end to close it - a
-# child outliving its worker keeps the wave open with no deploy left to do
-# (EXSC-1038).
-#
-# Two sets are listed, because neither finds the other: this script's own subtree
-# (the workers still working, and their forge/cast/bun), plus the processes in
-# this run's process group that have been reparented to init - exactly the child
-# above, which `pgrep -P` can no longer reach once its worker exits, while its
-# process group survives reparenting. The group alone cannot be the filter: this
-# script leads its own group only when a terminal starts it, so under another
-# script or a CI `run:` step the group is the caller's, and listing it would
-# report the caller and its unrelated siblings as this wave's work. `ps -eo`
-# because BSD and GNU `ps` disagree on what `-g` selects. The STAT column is the
-# other half of the answer - a process in D or T state is stuck, not working.
-#
-# `comm=` (executable only), never `command=`: a live `cast send` carries
-# `--private-key` and an `--rpc-url` with the provider key embedded in its
-# arguments, so printing argv would write both into every deploy log
-# ([CONV:REDACT-RPC-URL]). The executable name answers the question this report
-# asks - whether any deploy work is still running. To go deeper on one entry,
-# read its argv by pid, out of band.
-#
-# Usage: reportStalledWave SECONDS_ELAPSED
-#   SECONDS_ELAPSED - how long the wave has been running, measured from its start
-#
-# Returns: 0
-function reportStalledWave() {
-  local SECONDS_ELAPSED="$1"
-  local PGID
-  PGID=$(ps -o pgid= -p $$ 2>/dev/null | tr -d ' ')
-  warning "wave has been running ${SECONDS_ELAPSED}s - processes still alive in this run:"
-  echo "    PID   PGID   PPID STAT ELAPSED EXECUTABLE"
-  ps -eo pid=,pgid=,ppid=,stat=,etime=,comm= 2>/dev/null |
-    awk -v ROOT="$$" -v PGID="$PGID" '
-      { PID[NR] = $1; PGRP[NR] = $2; PPID[NR] = $3; LINE[NR] = $0
-        NAME[NR] = $NF; sub(/^.*\//, "", NAME[NR]) }
-      END {
-        OURS[ROOT] = 1
-        # ps does not order parents before children, so sweep until nothing new
-        do {
-          FOUND = 0
-          for (i = 1; i <= NR; i++)
-            if (!OURS[PID[i]] && OURS[PPID[i]]) { OURS[PID[i]] = 1; FOUND = 1 }
-        } while (FOUND)
-        for (i = 1; i <= NR; i++) {
-          if (PID[i] == ROOT) continue
-          # this pipeline: the only ps/awk that can be an immediate child here
-          if (PPID[i] == ROOT && (NAME[i] == "ps" || NAME[i] == "awk")) continue
-          if (OURS[PID[i]] || (PGRP[i] == PGID && PPID[i] == 1)) print "  " LINE[i]
-        }
-      }
-    '
-  warning "no forge/cast/bun above means the wave is held open by a leftover child, not by work still in progress"
-}
-
 # abortInFlightDeployments: SIGINT/SIGTERM handler. cleanupBackgroundJobs' flat
 # `pkill -P $$` would only reach the worker subshells and orphan their forge/bun
 # grandchildren, which would keep broadcasting transactions (unrecorded in the
@@ -184,61 +125,6 @@ function abortInFlightDeployments() {
   done
   echo "[info] all in-flight deployments killed. Script execution aborted."
   exit 1
-}
-
-# resolveStallReportThreshold: Resolve WAVE_STALL_REPORT_SECONDS to its default
-# and refuse a value the poll cannot use. A zero, negative or non-numeric value
-# reads as 0 in bash arithmetic, which would fire the stall report on every poll -
-# five times a second, for the whole wave.
-#
-# Idempotent, so the caller can validate it up front (before the expensive
-# per-group build, so a typo in .env costs no compile) without leaving the waves
-# dependent on that call having happened.
-#
-# Usage: resolveStallReportThreshold (no arguments)
-#
-# Returns: 0, with WAVE_STALL_REPORT_SECONDS set; exits 1 on an unusable value
-function resolveStallReportThreshold() {
-  WAVE_STALL_REPORT_SECONDS="${WAVE_STALL_REPORT_SECONDS:-600}"
-  if [[ ! "$WAVE_STALL_REPORT_SECONDS" =~ ^[1-9][0-9]*$ ]]; then
-    error "WAVE_STALL_REPORT_SECONDS must be a positive integer (check your .env) - got '$WAVE_STALL_REPORT_SECONDS'"
-    exit 1
-  fi
-}
-
-# waitForWaveCapacity: Block until at most MAX_RUNNING of the wave's workers are
-# still running, reporting what holds the wave open once it has outlived
-# WAVE_STALL_REPORT_SECONDS.
-#
-# Both of a wave's waits run through here - the throttle between launches and the
-# final drain - so a wave stalls loudly wherever it stalls. A wave with more
-# networks than its concurrency spends its launch phase in the throttle (every
-# zkEVM network after the first, that wave being sequential), where a leftover
-# child would otherwise hang the launch loop with nothing reported at all: the
-# EXSC-1038 shape, in the one wave most likely to hit it.
-#
-# Reads WAVE_START and advances NEXT_REPORT in its caller's scope, so elapsed time
-# and report cadence span the whole wave instead of restarting at each wait.
-#
-# Usage: waitForWaveCapacity MAX_RUNNING
-#   MAX_RUNNING - workers allowed to keep running (0 drains the wave)
-#
-# Returns: 0
-function waitForWaveCapacity() {
-  local MAX_RUNNING="$1"
-  local ELAPSED
-  # `jobs -rp`, not `jobs`: from a command substitution `jobs` prints a copy of
-  # the table that the parent never reaps, so a finished job stays in the count
-  while [[ $(jobs -rp | wc -l) -gt $MAX_RUNNING ]]; do
-    # short poll so a wave that finishes quickly is not held up by the poll itself
-    sleep 0.2
-    ELAPSED=$((SECONDS - WAVE_START))
-    # re-check: a wave that finished during the sleep above is not stalled
-    if [[ $ELAPSED -ge $NEXT_REPORT && $(jobs -rp | wc -l) -gt $MAX_RUNNING ]]; then
-      reportStalledWave "$ELAPSED"
-      NEXT_REPORT=$((ELAPSED + WAVE_STALL_REPORT_SECONDS))
-    fi
-  done
 }
 
 # launchDeployWave: Deploy CONTRACT to a set of networks concurrently and block
@@ -266,17 +152,14 @@ function launchDeployWave() {
   local WAVE_NETWORKS=("$@")
   local WAVE_NETWORK
 
-  resolveStallReportThreshold
-
-  # clocked from before the first launch, not from the end of it: a wave with more
-  # networks than its concurrency spends the launch phase waiting in the throttle,
-  # and starting the clock afterwards would hide all of it
-  local WAVE_START=$SECONDS
-  local NEXT_REPORT=$WAVE_STALL_REPORT_SECONDS
-
   for WAVE_NETWORK in "${WAVE_NETWORKS[@]}"; do
-    # throttle: wait for a free slot before launching the next network
-    waitForWaveCapacity $((WAVE_CONCURRENCY - 1))
+    # throttle: wait for a free slot before launching the next network.
+    # `jobs -rp`, not `jobs`: from a command substitution `jobs` prints a copy of
+    # the table that the parent never reaps, so a finished job stays counted and
+    # a concurrency of 1 (the zkEVM wave) blocks here forever (EXSC-1038)
+    while [[ $(jobs -rp | wc -l) -ge $WAVE_CONCURRENCY ]]; do
+      sleep 1
+    done
     # </dev/null makes the no-stdin guarantee explicit - the sourced framework must
     # never block on an interactive prompt inside a background worker;
     # prefixNetworkOutput attributes every line of framework output to its network,
@@ -285,8 +168,7 @@ function launchDeployWave() {
     deployToNetworkWorker "$WAVE_NETWORK" "$WAVE_ENVIRONMENT" "$WAVE_CONTRACT" "$WAVE_VERSION" "$WAVE_RESULT_DIR" </dev/null 2>&1 | prefixNetworkOutput "$WAVE_NETWORK" &
   done
 
-  # drain every network in this wave before the caller repoints foundry.toml
-  waitForWaveCapacity 0
+  # wait for every network in this wave before the caller repoints foundry.toml
   wait
 }
 
@@ -410,8 +292,6 @@ function deployContractToNetworks() {
     error "MAX_CONCURRENT_JOBS must be a positive integer (check your .env) - got '$MAX_CONCURRENT_JOBS'"
     exit 1
   fi
-  # the waves' other .env knob, validated here for the same reason
-  resolveStallReportThreshold
   # The per-group builds below are mandatory for parallel-deploy safety (each wave
   # deploys against a warm, group-specific artifact cache), so COMPILE_ON_STARTUP
   # is not honored here as an opt-out.
