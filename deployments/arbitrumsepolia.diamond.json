@@ -52,6 +52,10 @@
       "0x93ef02A8dE6b729868ceB9605f868A34B0402857": {
         "Name": "LiFiIntentEscrowFacetV2",
         "Version": "1.0.0"
+      },
+      "0xed86e8F84072BC066A353a2180F38E5268F32B26": {
+        "Name": "AcrossFacetV4",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -66,7 +70,7 @@
       "Patcher": "",
       "Permit2Proxy": "0xC55CB7741da5519f0AdF5f13E9609311e7097A24",
       "ReceiverAcrossV3": "",
-      "ReceiverAcrossV4": "",
+      "ReceiverAcrossV4": "0x0957F75A2b33f5088FCbE7C6A768fD0a8c2ce1F0",
       "ReceiverChainflip": "",
       "ReceiverOIF": "0x3ee5F755E44503aCA1ca0246deEaDc278411c755",
       "ReceiverStargateV2": "",
