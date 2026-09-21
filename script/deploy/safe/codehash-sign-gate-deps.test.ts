@@ -48,6 +48,7 @@ import {
   defaultCheckoutRoot,
   loadImmutableExpectations,
   readToolchainConfig,
+  resolveDeploymentRecord,
 } from './codehash-sign-gate-deps'
 
 /** Real tail of `out/AccessManagerFacet.sol/AccessManagerFacet.json`: 51-byte CBOR trailer plus its length word. */
@@ -274,6 +275,109 @@ describe('createRecordReader', () => {
     })
 
     expect(await rejection(read(ADDRESS, 'mainnet'))).toContain('MongoDB')
+  })
+})
+
+describe('resolveDeploymentRecord', () => {
+  const row = (fields: Record<string, string>) => ({
+    contractName: 'AllBridgeFacet',
+    version: '2.1.1',
+    gitCommitHash: 'a'.repeat(40),
+    ...fields,
+  })
+
+  it('returns null when nothing matches', () => {
+    expect(resolveDeploymentRecord([], ADDRESS, 'mainnet')).toBeNull()
+  })
+
+  it('returns the single record unchanged', () => {
+    const only = row({})
+
+    expect(resolveDeploymentRecord([only], ADDRESS, 'tron')).toBe(only)
+  })
+
+  it('returns the record when duplicates agree on contract and version', () => {
+    const first = row({})
+
+    expect(
+      resolveDeploymentRecord(
+        [first, row({ gitCommitHash: 'b'.repeat(40) })],
+        ADDRESS,
+        'tron'
+      )
+    ).toBe(first)
+  })
+
+  // The verification step rewrites the row it just verified and drops `version`
+  // on the way through, leaving two rows for one deploy that differ only there.
+  // Both describe the same contract, so the versioned one is the answer.
+  it('ignores a blank-version duplicate of a named contract', () => {
+    const versioned = row({
+      contractName: 'PolymerCCTPFacet',
+      version: '2.0.0',
+    })
+    const blank = row({ contractName: 'PolymerCCTPFacet', version: '' })
+
+    expect(resolveDeploymentRecord([blank, versioned], ADDRESS, 'base')).toBe(
+      versioned
+    )
+  })
+
+  it('keeps a blank-version row when no other row names that contract', () => {
+    const blank = row({ contractName: 'GasZipPeriphery', version: '' })
+
+    expect(resolveDeploymentRecord([blank], ADDRESS, 'moonbeam')).toBe(blank)
+  })
+
+  // The real tron/AllBridgeFacet pair: one address, two versions. Whichever way
+  // a sort broke the tie it would name a version to rebuild, and one of the two
+  // is wrong, so the gate must refuse rather than pick.
+  it('refuses two versions of one contract at one address', () => {
+    const conflict = () =>
+      resolveDeploymentRecord(
+        [row({ version: '2.1.1' }), row({ version: '2.1.2' })],
+        ADDRESS,
+        'tron'
+      )
+
+    expect(conflict).toThrow(/2\.1\.1/)
+    expect(conflict).toThrow(/2\.1\.2/)
+  })
+
+  it('refuses two contracts at one address', () => {
+    expect(() =>
+      resolveDeploymentRecord(
+        [
+          row({ contractName: 'LiFuelFeeCollector', version: '1.0.1' }),
+          row({ contractName: 'TokenWrapper', version: '1.0.1' }),
+        ],
+        ADDRESS,
+        'metis'
+      )
+    ).toThrow(/TokenWrapper/)
+  })
+
+  it('names the address and network it could not resolve', () => {
+    expect(() =>
+      resolveDeploymentRecord(
+        [row({ version: '2.1.1' }), row({ version: '2.1.2' })],
+        ADDRESS,
+        'tron'
+      )
+    ).toThrow(new RegExp(`${ADDRESS}.*tron|tron.*${ADDRESS}`))
+  })
+
+  it('refuses a conflict that a blank-version row cannot collapse', () => {
+    expect(() =>
+      resolveDeploymentRecord(
+        [
+          row({ contractName: 'TokenWrapper', version: '' }),
+          row({ contractName: 'AllBridgeFacet', version: '2.1.1' }),
+        ],
+        ADDRESS,
+        'tron'
+      )
+    ).toThrow(/TokenWrapper/)
   })
 })
 
