@@ -5,6 +5,14 @@
  * so the sets are pinned here rather than read off a proposal.
  */
 
+import { realpathSync, mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'fs'
+import { tmpdir } from 'os'
+import { join } from 'path'
+
+import {
+  getTronWebCodecOnlyForNetwork,
+  tronAddressToHex,
+} from '@lifi/tron-devkit'
 import {
   describe,
   expect,
@@ -13,11 +21,17 @@ import {
 } from 'bun:test'
 import { getAddress, type Address, type Hex } from 'viem'
 
+import { getFacetAddressFromDiamondLog } from '../../utils/utils'
+
+import type { IFacetRoutingEntry } from './facet-upgrade-cut'
 import {
   assertAddsAreUnrouted,
   buildFacetCuts,
+  holderResolver,
+  indexFacetRouting,
   planFacetUpgrade,
   planSelectorCuts,
+  resolveOutgoingFacet,
 } from './facet-upgrade-cut'
 
 const NEW_FACET = '0x1111111111111111111111111111111111111111' as Address
@@ -116,8 +130,8 @@ describe('planFacetUpgrade', () => {
     })
   })
 
-  // Nothing updates the diamond log on a Tron upgrade, so the second upgrade
-  // through this path is exactly when the recorded address is already dead.
+  // A recorded address the loupe routes nothing to no longer identifies what
+  // the upgrade supersedes, so the cut cannot be planned from it.
   it('refuses a log entry the diamond routes nothing to', () => {
     expect(() =>
       planFacetUpgrade(
@@ -145,6 +159,26 @@ describe('planFacetUpgrade', () => {
       add: ['0xbff90b61'],
       replace: [],
       remove: ['0x7e56b7b0'],
+    })
+  })
+
+  // The proposal is written to the log when it is made, so a rejected or
+  // expired one comes back with the log naming this very deployment and the
+  // loupe routing nothing to it. That is the cut that never executed, not a log
+  // the chain disagrees with — the dead-entry guard must not claim it and tell
+  // the operator to repoint a committed log back to a superseded address.
+  it('plans a plain add when the recorded address never landed', () => {
+    const plan = planFacetUpgrade(
+      'EcoFacet',
+      ['0x0ff754ea', '0xbff90b61'],
+      NEW_FACET,
+      outgoing(NEW_FACET, [])
+    )
+
+    expect(plan).toEqual({
+      add: ['0x0ff754ea', '0xbff90b61'],
+      replace: [],
+      remove: [],
     })
   })
 
@@ -286,6 +320,155 @@ describe('assertAddsAreUnrouted', () => {
         async () => checksummed
       ),
       `already served by ${checksummed}`
+    )
+  })
+})
+
+/**
+ * The layer between the loupe read and the arithmetic: address form, map keying
+ * and resolving the outgoing facet out of the diamond log. Both directions are
+ * silent — a map keyed on one address form and read with another answers
+ * "unrouted", which plans an Add the diamond reverts after the timelock delay —
+ * so the real Tron codec is the point of these fixtures, not a stand-in.
+ */
+describe('routing index', () => {
+  const codec = getTronWebCodecOnlyForNetwork('tron')
+  const toHex = (base58: string): Address =>
+    tronAddressToHex(codec, base58) as Address
+
+  const ECO_V1 = 'TG6586TTEv664XWSD875tMk6yDuwedphpW'
+  const ALLBRIDGE = 'TR15epdwXG9kBXtEBnF5bv6kSYRY5w6mXY'
+  const ECO_V1_HEX = '0x431d16f24befda1794fa7e94805e326dc32c7674'
+  const ECO_V2_HEX = '0x2222222222222222222222222222222222222222' as Address
+
+  // EcoFacet 1.1.0 as the live diamond routed it, plus one unrelated facet.
+  // The uppercase selector is deliberate: troncast has printed both.
+  const ROUTING: IFacetRoutingEntry[] = [
+    {
+      facet: ECO_V1,
+      selectors: ['0x0ff754ea', '0x7e56b7b0', '0x9E75AA95'] as Hex[],
+    },
+    { facet: ALLBRIDGE, selectors: ['0x8da5cb5b'] as Hex[] },
+  ]
+
+  it('keys both views on lowercase hex, whatever the codec returns', () => {
+    const index = indexFacetRouting(ROUTING, (base58) =>
+      getAddress(toHex(base58))
+    )
+
+    expect([...index.selectorsOf.keys()]).toEqual([
+      ECO_V1_HEX,
+      '0xa4e49588c1e391c202ac1d94ad8b69b6fe1da3e1',
+    ])
+    expect(index.selectorsOf.get(ECO_V1_HEX as Address)).toEqual([
+      '0x0ff754ea',
+      '0x7e56b7b0',
+      '0x9e75aa95',
+    ])
+    expect(index.holderOf.get('0x9e75aa95')).toBe(ECO_V1_HEX as Address)
+  })
+
+  it('answers the zero address for a selector the diamond does not route', async () => {
+    const resolve = holderResolver(indexFacetRouting(ROUTING, toHex))
+
+    expect(await resolve('0xbff90b61')).toBe(
+      '0x0000000000000000000000000000000000000000'
+    )
+    expect(await resolve('0x0FF754EA')).toBe(ECO_V1_HEX as Address)
+  })
+
+  it('pairs the recorded address with what it still serves', () => {
+    const index = indexFacetRouting(ROUTING, toHex)
+
+    expect(resolveOutgoingFacet(ECO_V1, index, toHex)).toEqual({
+      label: ECO_V1,
+      addressHex: ECO_V1_HEX as Address,
+      registered: ['0x0ff754ea', '0x7e56b7b0', '0x9e75aa95'],
+    })
+    expect(resolveOutgoingFacet(null, index, toHex)).toBeNull()
+  })
+
+  // End to end over the seam, against the cut this PR verified on the live
+  // diamond: diamond log → outgoing facet → plan → cut entries.
+  it('plans the EcoFacet 2.0.0 cut from a diamond log and a routing table', async () => {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'upgrade-cut-')))
+    const previousCwd = process.cwd()
+    try {
+      mkdirSync(join(root, 'deployments'), { recursive: true })
+      writeFileSync(
+        join(root, 'deployments', 'tron.diamond.json'),
+        JSON.stringify({
+          LiFiDiamond: {
+            Facets: {
+              [ECO_V1]: { Name: 'EcoFacet', Version: '1.1.0' },
+              [ALLBRIDGE]: { Name: 'AllBridgeFacet', Version: '2.2.0' },
+            },
+          },
+        })
+      )
+      process.chdir(root)
+
+      const index = indexFacetRouting(ROUTING, toHex)
+      const outgoingBase58 = await getFacetAddressFromDiamondLog(
+        'tron',
+        'EcoFacet'
+      )
+      const plan = planFacetUpgrade(
+        'EcoFacet',
+        ['0xbff90b61', '0x762aea18', '0x0ff754ea'],
+        ECO_V2_HEX,
+        resolveOutgoingFacet(outgoingBase58, index, toHex)
+      )
+
+      await assertAddsAreUnrouted(
+        plan.add,
+        'EcoFacet',
+        outgoingBase58 ?? 'facet',
+        holderResolver(index)
+      )
+
+      expect(buildFacetCuts(plan, ECO_V2_HEX)).toEqual([
+        {
+          facetAddress: ECO_V2_HEX,
+          action: 0,
+          functionSelectors: ['0xbff90b61', '0x762aea18'],
+        },
+        {
+          facetAddress: ECO_V2_HEX,
+          action: 1,
+          functionSelectors: ['0x0ff754ea'],
+        },
+        {
+          facetAddress: '0x0000000000000000000000000000000000000000',
+          action: 2,
+          functionSelectors: ['0x7e56b7b0', '0x9e75aa95'],
+        },
+      ])
+    } finally {
+      process.chdir(previousCwd)
+      rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  // The collision the guard exists for, reached through the same seam: another
+  // facet already serves a selector the new version introduces.
+  it('refuses when a selector being added is served by a third facet', async () => {
+    const index = indexFacetRouting(ROUTING, toHex)
+    const plan = planFacetUpgrade(
+      'EcoFacet',
+      ['0x8da5cb5b'],
+      ECO_V2_HEX,
+      resolveOutgoingFacet(ECO_V1, index, toHex)
+    )
+
+    await expectRejects(
+      assertAddsAreUnrouted(
+        plan.add,
+        'EcoFacet',
+        ECO_V1,
+        holderResolver(index)
+      ),
+      'is already served by 0xa4e49588c1e391c202ac1d94ad8b69b6fe1da3e1'
     )
   })
 })
