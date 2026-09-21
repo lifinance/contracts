@@ -37,17 +37,16 @@ describe('withCalldataSpellings', () => {
     expect(out?.[0]?.recordSpelling).toBe('TMck2qdZHmsdurz4uE4eNVBt14JHHLeoEB')
   })
 
-  it('sets no record spelling when nothing was respelt', () => {
+  // The record on the network, whose address the translator cannot read — not a
+  // record on another network, which exits at the network guard before the
+  // translator is ever asked.
+  it('sets no record spelling on a record it could not respell', () => {
     const out = withCalldataSpellings(
-      [
-        entry({
-          network: 'mainnet',
-          address: '0x1111111111111111111111111111111111111111',
-        }),
-      ],
+      [entry({ address: '0xnot-an-address' })],
       'tron',
       tronToHex
     )
+    expect(out?.[0]?.address).toBe('0xnot-an-address')
     expect(out?.[0]?.recordSpelling).toBeUndefined()
   })
 
