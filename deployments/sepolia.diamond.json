@@ -44,6 +44,10 @@
       "0xFA322A170966A6e81B1317f01432C885988C661c": {
         "Name": "WithdrawFacet",
         "Version": "1.0.0"
+      },
+      "0x50eB18E9fE614654780B8d173bB900D327053Eb9": {
+        "Name": "AcrossFacetV4",
+        "Version": "1.0.0"
       }
     },
     "Periphery": {
@@ -58,7 +62,7 @@
       "Patcher": "",
       "Permit2Proxy": "0xBC2fEd259E6868c85987EDe6bCD2b1C3B9b3C4Bd",
       "ReceiverAcrossV3": "",
-      "ReceiverAcrossV4": "",
+      "ReceiverAcrossV4": "0x51Cd54Fab6Bc72c4c313C7d2DD4E0bE1A4390f44",
       "ReceiverChainflip": "",
       "ReceiverOIF": "0xb12f19241600F50d6429d3bB69A45201eE9e168A",
       "ReceiverStargateV2": "",
