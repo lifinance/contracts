@@ -646,6 +646,26 @@ describe('each gate that owns a ledger row hands the recorder its verdict', () =
 })
 
 /**
+ * The two scope notes a Tron proposal carries reach the recorder together.
+ *
+ * Each is what turns an unmade read into a named, acknowledgeable limit; a
+ * note that stopped reaching `proposalCheckResults` would silently fall back
+ * to "no read was made", which is the row this exists to replace.
+ */
+describe('the Tron scope notes reach the recorder', () => {
+  it('passes both out-of-scope reasons beside the verdicts', () => {
+    const body = perProposal()
+    const call = body.indexOf('proposalCheckResults({')
+    expect(call).toBeGreaterThan(-1)
+    const end = body.indexOf('proposalChecks.push', call)
+    expect(end).toBeGreaterThan(call)
+    const args = body.slice(call, end)
+    expect(args).toContain('executabilityOutOfScope:')
+    expect(args).toContain('rpcQuorumOutOfScope:')
+  })
+})
+
+/**
  * Gate G has to be graded before the signer is asked to sign.
  *
  * A row pushed from `recordSignedSet` would run after the signature is stored,
@@ -675,6 +695,18 @@ describe('gate G is graded before the signature, not after it', () => {
     // The read reaching the recorder is what makes it a graded row rather than
     // an observation nobody asked for.
     expect(body).toContain('storageAuthority: observedSet')
+  })
+
+  it('hands the recorder why the set is absent, so the absences grade apart', () => {
+    // The three ways the read produces nothing — a chain outside coverage, a
+    // failed read, calldata that schedules nothing — reach the ledger only if
+    // the evidence bundle carries the reason to the recorder. Dropping it
+    // collapses all three back into one blocking row.
+    const body = perProposal()
+    expect(body).toContain('storageAuthorityAbsence')
+    expect(bodyOfFunction('computeProposalEvidence')).toContain(
+      'storageAuthorityAbsence: read.absence'
+    )
   })
 
   it('keeps the observation reachable from both sides, read once', () => {

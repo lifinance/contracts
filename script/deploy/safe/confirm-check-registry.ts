@@ -1269,6 +1269,15 @@ export interface IProposalCheckVerdicts {
   /** Absent when no quorum read was made. */
   rpcQuorum: IRpcQuorumVerdict | undefined
   /**
+   * Why this network's providers cannot be compared, when they cannot.
+   *
+   * The quorum reads every provider at one pinned block, and a chain whose
+   * JSON-RPC serves a code read only at `latest` — Tron — has no height two
+   * providers can be held to. A declared limit, named on the row, kept apart
+   * from a read on a covered chain that simply was not made.
+   */
+  rpcQuorumOutOfScope?: string
+  /**
    * The codehash gate's verdict for this proposal.
    *
    * Required, not optional: the gate is evaluated for every proposal and the
@@ -1282,8 +1291,8 @@ export interface IProposalCheckVerdicts {
    * What the run read at each declared storage authority, and where each
    * expectation came from.
    *
-   * Absent means the read was never made, which blocks: gate G exists to
-   * refuse a proposal whose authorities could not be shown to match, and a
+   * Absent with no reason in `storageAuthorityAbsence` blocks: gate G exists
+   * to refuse a proposal whose authorities could not be shown to match, and a
    * silent absence would be the one way to get past it.
    */
   storageAuthority:
@@ -1301,6 +1310,128 @@ export interface IProposalCheckVerdicts {
         scopeUnreadable?: readonly string[]
       }
     | undefined
+  /**
+   * Why `storageAuthority` is absent, when the caller knows.
+   *
+   * Three absences that must not grade alike: a chain this gate was never
+   * written to read is a declared limit the signer acknowledges, an
+   * observation that could not be made at all (the envelope would not decode,
+   * no client could be built, the deployment file would not load) is
+   * unverified and blocks with the failure on the row, and calldata that
+   * schedules no timelock batch gives the gate nothing to observe — which is
+   * nothing to grade only if the codehash gate found nothing installed
+   * either. An absence with no reason keeps the blocking default. A read that
+   * failed on one address inside an observation that was made is not an
+   * absence: it reaches the row as that address's own unread entry.
+   */
+  storageAuthorityAbsence?: TStorageAuthorityAbsence
+}
+
+export type TStorageAuthorityAbsence =
+  | {
+      kind: 'out-of-scope'
+      reason: string
+      /**
+       * Whether the calldata installs anything, read from the calldata itself.
+       * A proposal that installs nothing has no authority to read on any chain
+       * and stands down as not applicable; only one that does install asks the
+       * signer to take the coverage gap on. Not read from the codehash gate,
+       * which on the same chain also compared nothing.
+       */
+      installs: boolean
+    }
+  | { kind: 'read-failed'; reason: string }
+  | { kind: 'not-scheduled' }
+
+/** The codehash gate never judged, refused, or could not open the calldata. */
+const installSetUnknownPerCodehash = (codehash: ICodehashSignGate): boolean =>
+  !codehash.evaluated ||
+  codehash.refusals.length > 0 ||
+  (codehash.unopened !== undefined && codehash.unopened.length > 0)
+
+/**
+ * Grades gate G when no observation reached the recorder.
+ *
+ * @param absence - why the caller made no read, when it knows
+ * @param codehash - the codehash gate's verdict on the same calldata, which
+ *   decides whether an unscheduled proposal installs anything
+ * @param network - the network the proposal is on
+ * @returns The row to hand to `recordCheck`.
+ */
+const storageAuthorityAbsenceResult = (
+  absence: TStorageAuthorityAbsence | undefined,
+  codehash: ICodehashSignGate,
+  network: string
+): ICheckResult => {
+  // `A-DOCUMENTED`, not `A-UNRESOLVED`: the gap is a reviewed statement of
+  // which chains this gate reads (`resolveGateCoverage`), and that is what the
+  // signer is asked to take on. An integrity check's `needs-ack` survives only
+  // on an anchor a human can decide about.
+  if (absence?.kind === 'out-of-scope')
+    return !absence.installs
+      ? {
+          checkId: STORAGE_AUTHORITY_CHECK_ID,
+          network,
+          status: 'not-applicable',
+          expected: EVERY_INSTALLED_CONTRACT_AUTHORISED,
+          actual:
+            'this proposal installs no contract, so there is no authority to read',
+          anchor: 'A-LOCAL',
+        }
+      : {
+          checkId: STORAGE_AUTHORITY_CHECK_ID,
+          network,
+          status: 'needs-ack',
+          expected: EVERY_INSTALLED_CONTRACT_AUTHORISED,
+          actual: absence.reason,
+          anchor: 'A-DOCUMENTED',
+        }
+
+  if (absence?.kind === 'read-failed')
+    return unresolved(
+      STORAGE_AUTHORITY_CHECK_ID,
+      network,
+      EVERY_INSTALLED_CONTRACT_AUTHORISED,
+      `the contracts this proposal installs could not be read on ${network}: ${absence.reason}`
+    )
+
+  if (absence?.kind === 'not-scheduled') {
+    // Only a calldata read to the end and found to install nothing has nothing
+    // here to grade. Whether it installs is the codehash gate's reading of the
+    // same bytes: one it never judged, refused or could not open leaves the
+    // install set unknown, and one that installs outside a timelock envelope
+    // is something this gate never observed.
+    if (installSetUnknownPerCodehash(codehash))
+      return unresolved(
+        STORAGE_AUTHORITY_CHECK_ID,
+        network,
+        EVERY_INSTALLED_CONTRACT_AUTHORISED,
+        'this proposal schedules no timelock batch and whether it installs anything could not be established, so no authority was read'
+      )
+    if (codehash.targets.length > 0)
+      return unresolved(
+        STORAGE_AUTHORITY_CHECK_ID,
+        network,
+        EVERY_INSTALLED_CONTRACT_AUTHORISED,
+        'this proposal installs outside a timelock schedule, which is the only envelope this gate reads, so its authorities were not observed'
+      )
+    return {
+      checkId: STORAGE_AUTHORITY_CHECK_ID,
+      network,
+      status: 'not-applicable',
+      expected: EVERY_INSTALLED_CONTRACT_AUTHORISED,
+      actual:
+        'this proposal schedules no timelock batch and installs no contract, so there is no authority to read',
+      anchor: 'A-LOCAL',
+    }
+  }
+
+  return unresolved(
+    STORAGE_AUTHORITY_CHECK_ID,
+    network,
+    EVERY_INSTALLED_CONTRACT_AUTHORISED,
+    'no storage-authority read was made for this proposal'
+  )
 }
 
 const unresolved = (
@@ -1421,11 +1552,10 @@ export const proposalCheckResults = (
             network,
             verdicts.storageAuthority.anchors
           )
-      : unresolved(
-          STORAGE_AUTHORITY_CHECK_ID,
-          network,
-          EVERY_INSTALLED_CONTRACT_AUTHORISED,
-          'no storage-authority read was made for this proposal'
+      : storageAuthorityAbsenceResult(
+          verdicts.storageAuthorityAbsence,
+          verdicts.codehash,
+          network
         ),
     targetStateCheckResult(verdicts.targetState, network),
     verdicts.executability
@@ -1438,7 +1568,7 @@ export const proposalCheckResults = (
           expected:
             'every payload simulated against the state it will execute in',
           actual: verdicts.executabilityOutOfScope,
-          anchor: 'A-UNRESOLVED',
+          anchor: 'A-DOCUMENTED',
         }
       : unresolved(
           EXECUTABILITY_CHECK_ID,
@@ -1448,6 +1578,15 @@ export const proposalCheckResults = (
         ),
     verdicts.rpcQuorum
       ? rpcQuorumCheckResult(verdicts.rpcQuorum, network)
+      : verdicts.rpcQuorumOutOfScope
+      ? {
+          checkId: RPC_QUORUM_CHECK_ID,
+          network,
+          status: 'needs-ack',
+          expected: `${MIN_INDEPENDENT_PROVIDERS} independent providers agreeing`,
+          actual: verdicts.rpcQuorumOutOfScope,
+          anchor: 'A-DOCUMENTED',
+        }
       : {
           checkId: RPC_QUORUM_CHECK_ID,
           network,
