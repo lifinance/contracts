@@ -30,8 +30,16 @@ so instances keep reading a stable factory address across logic upgrades.
 The factory is owned by a dedicated **48h TimelockController** (the subsystem
 governance). Every configuration setter below is `onlyOwner`, so it can only be
 called by scheduling a batch through the timelock and executing it after the 48h
-delay (see `script/deploy/vaultWrapper/UpdateVaultWrapperConfig.s.sol`). The
-timelock also owns the proxy's `ProxyAdmin` (factory-logic upgrades) and the
+delay (see `script/deploy/vaultWrapper/UpdateVaultWrapperConfig.s.sol`).
+
+The **initial** values for all of them — approved adapter, underlying allowlist,
+fee bounds, default split — are supplied to `initialize` instead, which runs
+inside the proxy's constructor. That is not a governance bypass: nothing can
+reach the factory before `initialize` returns, so there is no prior state for a
+delay to protect, and without it a freshly deployed factory could not deploy a
+single wrapper until a full 48h cycle had cleared.
+
+The timelock also owns the proxy's `ProxyAdmin` (factory-logic upgrades) and the
 beacon (instance-logic upgrades). Two roles sit outside the timelock:
 
 - **emergencyPauser** — trips the global circuit breaker (`globalPause` /
@@ -62,21 +70,22 @@ function setEmergencyPauser(address _newPauser) external onlyOwner
 function setOnboardingManager(address _newManager) external onlyOwner
 ```
 
-No wrapper can be deployed until the first configuration batch (at least one
-approved adapter and one allowed underlying) has been executed after the 48h
-delay.
+A wrapper can be deployed as soon as the system is deployed, because the deploy
+seeds at least one approved adapter and the underlying allowlist through
+`initialize`. These setters carry the changes made after that point, each behind
+the 48h delay.
 
 ## Fee caps
 
 Each fee type is bounded by a bytecode `constant` cap; governance can only set
 adjustable bounds within it:
 
-| Fee type    | Cap    |
-| ----------- | ------ |
-| performance | 50%    |
-| management  | 10%    |
-| deposit     | 20%    |
-| withdrawal  | 20%    |
+| Fee type    | Cap |
+| ----------- | --- |
+| performance | 50% |
+| management  | 10% |
+| deposit     | 20% |
+| withdrawal  | 20% |
 
 Because the factory is upgradeable (see [Upgradeability](#upgradeability)), these
 caps are a guarantee of the **current logic** only — a future factory-logic
@@ -130,12 +139,12 @@ fresh address for an existing triple bumps the nonce.
 
 **The beacon address is parity-critical.** `_proxyInitCode()` embeds `beacon`
 into the init code that fixes every instance address, and `beacon` lives in
-factory *proxy storage*. It is written once in `initialize` and no setter
+factory _proxy storage_. It is written once in `initialize` and no setter
 exists, which is what keeps addresses stable today — but a timelocked
 factory-logic upgrade could introduce one. Changing the beacon after the first
 deploy would silently move every subsequently predicted address and break parity
 against chains already deployed. Treat `beacon` as write-once for the life of
-the system; replace the *implementation* through the beacon's `upgradeTo`, never
+the system; replace the _implementation_ through the beacon's `upgradeTo`, never
 the beacon itself.
 
 ## Related contracts

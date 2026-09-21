@@ -15,8 +15,10 @@ import { FeeType, FEE_TYPE_COUNT } from "lifi/VaultWrapper/LiFiVaultWrapperTypes
 ///         split. Because the factory owner is the timelock, none of these setters
 ///         can be called directly — the batch must be scheduled by the LI.FI
 ///         multisig (the timelock proposer), and executed after the 48h delay. The
-///         first run is a hard prerequisite: no wrapper can be deployed until at
-///         least one adapter is approved and one underlying is allowed.
+///         deploy script seeds this same configuration in the factory's initialize
+///         call, so a freshly deployed system can already deploy wrappers; this
+///         script carries the CHANGES made after that — a new adapter, a widened
+///         fee bound, another underlying.
 /// @dev Standalone forge-std Script (see [CONV:VW-DEPLOY-DIR]). This script does NOT
 ///      broadcast — the deployer is not a timelock proposer. It reads the live
 ///      factory state and emits the exact `scheduleBatch` and `executeBatch`
@@ -185,10 +187,10 @@ contract UpdateVaultWrapperConfig is Script, DSTest {
         d.allowedUnderlyings = json.readAddressArray(
             string.concat(".", network, ".allowedUnderlyings")
         );
-        // The first batch is a hard prerequisite: no wrapper can deploy until at
-        // least one underlying is allowed. An empty list would emit adapter/fee
-        // ops but zero setUnderlyingAllowed, seeding a factory that still reverts
-        // UnderlyingNotAllowed on every deploy — fail here rather than after 48h.
+        // A factory with no allowed underlying reverts UnderlyingNotAllowed on every
+        // deploy. An empty list here means the config lost the entry the deploy seeded,
+        // which would silently leave the live allowlist untouched (the diff only adds)
+        // — fail on the config instead of reporting an in-sync factory.
         if (d.allowedUnderlyings.length == 0) revert NoAllowedUnderlyings();
 
         string[FEE_TYPE_COUNT] memory names = [

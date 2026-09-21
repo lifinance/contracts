@@ -61,18 +61,18 @@ address.
 
 ## Contracts
 
-| Contract | Path | Custodies funds | Reference |
-| --- | --- | --- | --- |
-| `LiFiVaultWrapper` | `LiFiVaultWrapper.sol` | **Yes** — holds the yield-source position and transiently the asset | [LiFiVaultWrapper.md](./LiFiVaultWrapper.md) |
-| `LiFiVaultWrapperFactory` | `LiFiVaultWrapperFactory.sol` | No | [LiFiVaultWrapperFactory.md](./LiFiVaultWrapperFactory.md) |
-| `ERC4626Adapter` | `adapters/ERC4626Adapter.sol` | No (stateless, delegatecalled) | [ERC4626Adapter.md](./ERC4626Adapter.md) |
-| `ReferenceAccessGate` | `access/ReferenceAccessGate.sol` | No | see [access gate trust model](./LiFiVaultWrapper.md#access-gate--trust-model) |
-| `LibVaultWrapperMath` | `libraries/LibVaultWrapperMath.sol` | No (stateless library) | fee arithmetic — see [LiFiVaultWrapper.md](./LiFiVaultWrapper.md) |
-| `LiFiVaultWrapperTypes` | `LiFiVaultWrapperTypes.sol` | No | shared enums/structs/errors/events |
-| `IAccessGate` | `interfaces/IAccessGate.sol` | — | access-control boundary |
-| `ILiFiVaultWrapper` | `interfaces/ILiFiVaultWrapper.sol` | — | wrapper interface |
-| `ILiFiVaultWrapperFactory` | `interfaces/ILiFiVaultWrapperFactory.sol` | — | factory interface |
-| `IYieldAdapter` | `interfaces/IYieldAdapter.sol` | — | yield-source abstraction |
+| Contract                   | Path                                      | Custodies funds                                                     | Reference                                                                     |
+| -------------------------- | ----------------------------------------- | ------------------------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `LiFiVaultWrapper`         | `LiFiVaultWrapper.sol`                    | **Yes** — holds the yield-source position and transiently the asset | [LiFiVaultWrapper.md](./LiFiVaultWrapper.md)                                  |
+| `LiFiVaultWrapperFactory`  | `LiFiVaultWrapperFactory.sol`             | No                                                                  | [LiFiVaultWrapperFactory.md](./LiFiVaultWrapperFactory.md)                    |
+| `ERC4626Adapter`           | `adapters/ERC4626Adapter.sol`             | No (stateless, delegatecalled)                                      | [ERC4626Adapter.md](./ERC4626Adapter.md)                                      |
+| `ReferenceAccessGate`      | `access/ReferenceAccessGate.sol`          | No                                                                  | see [access gate trust model](./LiFiVaultWrapper.md#access-gate--trust-model) |
+| `LibVaultWrapperMath`      | `libraries/LibVaultWrapperMath.sol`       | No (stateless library)                                              | fee arithmetic — see [LiFiVaultWrapper.md](./LiFiVaultWrapper.md)             |
+| `LiFiVaultWrapperTypes`    | `LiFiVaultWrapperTypes.sol`               | No                                                                  | shared enums/structs/errors/events                                            |
+| `IAccessGate`              | `interfaces/IAccessGate.sol`              | —                                                                   | access-control boundary                                                       |
+| `ILiFiVaultWrapper`        | `interfaces/ILiFiVaultWrapper.sol`        | —                                                                   | wrapper interface                                                             |
+| `ILiFiVaultWrapperFactory` | `interfaces/ILiFiVaultWrapperFactory.sol` | —                                                                   | factory interface                                                             |
+| `IYieldAdapter`            | `interfaces/IYieldAdapter.sol`            | —                                                                   | yield-source abstraction                                                      |
 
 `ReferenceAccessGate` is a **template**: each integrator deploys or forks its own
 gate. LI.FI does not operate it and does not guarantee its safety.
@@ -83,13 +83,13 @@ suites, plus `mocks/`); the Foundry deploy scripts live under
 
 ## Roles and governance
 
-| Role | Held by | Can do | Constraints |
-| --- | --- | --- | --- |
-| Factory owner | dedicated 48h `TimelockController` | every factory setter (allowlist, adapter approvals, fee bounds, default split, `lifiFeeRecipient`, role rotation), beacon `upgradeTo`, factory-logic upgrade via the proxy `ProxyAdmin` | all changes pass the 48h delay |
-| Emergency pauser | EOA/Safe set by the owner | `globalPause` / `globalUnpause` (deposit circuit breaker) | no delay; cannot block withdrawals |
-| Onboarding manager | EOA/Safe set by the owner | assign/revoke an integrator's deployer; may deploy any instance | — |
-| Approved integrator deployer | per-namespace, set by onboarding manager | `deploy` under its namespace | integrator share ≤ factory default (can give LI.FI more, never less) |
-| Instance owner (integrator) | per-vault, set at deploy | `setFeeRate`, `setAccessGate`, receivers, `transferOwnership` | rates ≤ live factory bounds; `renounceOwnership` disabled |
+| Role                         | Held by                                  | Can do                                                                                                                                                                                  | Constraints                                                          |
+| ---------------------------- | ---------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------- |
+| Factory owner                | dedicated 48h `TimelockController`       | every factory setter (allowlist, adapter approvals, fee bounds, default split, `lifiFeeRecipient`, role rotation), beacon `upgradeTo`, factory-logic upgrade via the proxy `ProxyAdmin` | all changes pass the 48h delay                                       |
+| Emergency pauser             | EOA/Safe set by the owner                | `globalPause` / `globalUnpause` (deposit circuit breaker)                                                                                                                               | no delay; cannot block withdrawals                                   |
+| Onboarding manager           | EOA/Safe set by the owner                | assign/revoke an integrator's deployer; may deploy any instance                                                                                                                         | —                                                                    |
+| Approved integrator deployer | per-namespace, set by onboarding manager | `deploy` under its namespace                                                                                                                                                            | integrator share ≤ factory default (can give LI.FI more, never less) |
+| Instance owner (integrator)  | per-vault, set at deploy                 | `setFeeRate`, `setAccessGate`, receivers, `transferOwnership`                                                                                                                           | rates ≤ live factory bounds; `renounceOwnership` disabled            |
 
 Withdrawals are never gated by pause; the global and per-instance controls only
 close the deposit/mint path.
@@ -103,12 +103,12 @@ is bounded by a bytecode `constant` cap; governance sets adjustable bounds withi
 it. Because the factory is upgradeable, that cap is a guarantee of the current
 factory logic only — a future timelocked factory-logic upgrade could change it.
 
-| Fee type | Cap | Kind |
-| --- | --- | --- |
+| Fee type    | Cap | Kind                              |
+| ----------- | --- | --------------------------------- |
 | performance | 50% | high-water-mark dilution (shares) |
-| management | 10% | time-based dilution (shares) |
-| deposit | 20% | asset-side |
-| withdrawal | 20% | asset-side |
+| management  | 10% | time-based dilution (shares)      |
+| deposit     | 20% | asset-side                        |
+| withdrawal  | 20% | asset-side                        |
 
 LI.FI's share always routes to the factory's live `lifiFeeRecipient`; an
 integrator cannot redirect it. The integrator/LI.FI split is validated `< 100%`
@@ -211,10 +211,13 @@ over both an unlimited source and a fuzzed-liquidity source, with
 - The factory (proxy + logic) and beacon are deployed and wired by
   `script/deploy/vaultWrapper/DeployLiFiVaultWrapperFactory.s.sol` and owned by
   the 48h timelock. Per-network parameters come from `config/vaultWrapper.json`.
-- Factory config is timelock-owned: `UpdateVaultWrapperConfig.s.sol` does not
-  broadcast; it emits idempotent `scheduleBatch`/`executeBatch` calldata for the
-  multisig. No wrapper can deploy until the first batch (one approved adapter +
-  one allowed underlying) executes after the 48h delay.
+- The deploy seeds the factory's own configuration (approved adapter, underlying
+  allowlist, fee bounds, default split) in its `initialize` call, so wrappers can
+  be deployed as soon as the deploy script returns.
+- Every later change to that configuration is timelock-owned:
+  `UpdateVaultWrapperConfig.s.sol` does not broadcast; it emits idempotent
+  `scheduleBatch`/`executeBatch` calldata for the multisig, executable after the
+  48h delay.
 - Subsystem-specific deploy conventions:
   [`108-vault-wrapper`](../../.agents/rules/108-vault-wrapper.md).
 

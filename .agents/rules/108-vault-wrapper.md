@@ -31,10 +31,15 @@ and counter-intuitive against the repo's Diamond-era conventions.
   factory get matching system addresses (aligns with the namespace/address-parity
   identity design). Deploying via the CREATE3 proxy is safe only because every
   ownership/role is set from a constructor argument, never `msg.sender`.
-- Factory config is timelock-owned: the seeding/reconcile script does not broadcast;
-  it emits `scheduleBatch`/`executeBatch` calldata for the multisig, and is
-  idempotent (diffs desired config against live state). No wrapper can deploy until
-  the first batch (adapter approval + one allowed underlying) is executed after 48h.
+- The factory's own config (approved adapter, underlying allowlist, fee bounds,
+  default split) is seeded in its `initialize` call, inside the proxy constructor —
+  the system can deploy wrappers the moment the deploy script returns. Seeding it
+  there rather than through the owner's setters is deliberate: the setters are
+  timelocked, and a delay on the very first config protects no prior state because
+  nothing can reach the factory before `initialize` returns.
+- Every LATER change to that config is timelock-owned: the reconcile script does not
+  broadcast; it emits `scheduleBatch`/`executeBatch` calldata for the multisig, and is
+  idempotent (diffs desired config against live state).
 - They are run by explicit path (`forge script script/deploy/vaultWrapper/<Name>.s.sol`),
   and the contract is named after the file so it resolves without a `:Contract` suffix.
 - Consequence (intended): the Diamond's interactive deploy tooling

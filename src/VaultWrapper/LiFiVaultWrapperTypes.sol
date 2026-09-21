@@ -44,6 +44,23 @@ struct FeeBounds {
     uint16 maxBps; // Highest rate an instance may set; must not exceed the fee type's cap.
 }
 
+/// @notice Inputs for the factory's one-time `initialize` call.
+/// @dev Carries the deploy-time configuration as well as the roles. The factory's
+///      owner is the subsystem timelock, so anything omitted here can only be set
+///      later through a timelocked proposal — seeding it at initialize is what keeps
+///      a freshly deployed factory usable before the first governance cycle clears.
+struct FactoryInitParams {
+    address beacon; // UpgradeableBeacon holding the wrapper implementation.
+    address owner; // Factory Ownable2Step owner (the subsystem timelock).
+    address emergencyPauser; // Address authorized to trigger the global pause.
+    address onboardingManager; // Address authorized to assign/revoke namespace deployers.
+    address lifiFeeRecipient; // Recipient of LI.FI's fee share.
+    address adapter; // Yield adapter approved at deploy; zero to seed none.
+    address[] allowedUnderlyings; // Yield sources allowed at deploy; may be empty.
+    FeeBounds[FEE_TYPE_COUNT] feeBounds; // Per-fee-type bounds (index = FeeType ordinal).
+    uint16 defaultIntegratorShareBps; // Default integrator fee share; must be < 100%.
+}
+
 /// @notice Inputs for a single `deploy` call.
 struct DeployParams {
     bytes32 namespace; // Integrator identity seeding the salt (e.g. "Coinbase"); must be assigned to the caller.

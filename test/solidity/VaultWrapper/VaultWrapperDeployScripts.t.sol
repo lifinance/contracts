@@ -9,7 +9,7 @@ import { ICREATE3Factory } from "create3-factory/ICREATE3Factory.sol";
 import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFactory.sol";
 import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
-import { FeeType, FEE_TYPE_COUNT } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
+import { FeeType, FeeBounds } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
 import { DeployLiFiVaultWrapperFactory } from "../../../script/deploy/vaultWrapper/DeployLiFiVaultWrapperFactory.s.sol";
 import { UpdateVaultWrapperConfig } from "../../../script/deploy/vaultWrapper/UpdateVaultWrapperConfig.s.sol";
 import { ProxyAdmin } from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
@@ -126,15 +126,46 @@ contract VaultWrapperDeployScriptsTest is Test {
         deployScript.deploySystem(changed, deployerPk, "vw-test");
     }
 
-    function test_ConfigBatch_SchedulesAndApplies() public {
+    function test_DeploySystem_SeedsFactoryConfig() public view {
+        // The deploy seeds what a wrapper deployment needs, so the system is usable
+        // before the first timelock cycle rather than 48h after it.
+        assertTrue(factory.approvedAdapter(address(adapter)));
+        assertTrue(factory.allowedUnderlying(underlying));
+        assertEq(factory.defaultIntegratorShareBps(), TEST_SPLIT_BPS);
+
+        (uint16 perfMin, uint16 perfMax) = factory.feeBounds(
+            FeeType.Performance
+        );
+        assertEq(perfMin, 0);
+        assertEq(perfMax, 5000);
+    }
+
+    function test_ConfigBatch_IsEmptyRightAfterDeploy() public view {
         UpdateVaultWrapperConfig.Batch memory batch = configScript.buildBatch(
             factory,
             address(adapter),
             _desired()
         );
 
-        // adapter + one underlying + 4 fee bounds + default split
-        assertEq(batch.targets.length, 3 + FEE_TYPE_COUNT);
+        assertEq(batch.targets.length, 0);
+    }
+
+    function test_ConfigBatch_SchedulesAndAppliesALaterChange() public {
+        // Everything at deploy time is already seeded, so the reconcile script only
+        // has to carry changes made after the fact - here, a second underlying.
+        address newUnderlying = makeAddr("newUnderlying");
+        UpdateVaultWrapperConfig.Desired memory desired = _desired();
+        desired.allowedUnderlyings = new address[](2);
+        desired.allowedUnderlyings[0] = underlying;
+        desired.allowedUnderlyings[1] = newUnderlying;
+
+        UpdateVaultWrapperConfig.Batch memory batch = configScript.buildBatch(
+            factory,
+            address(adapter),
+            desired
+        );
+
+        assertEq(batch.targets.length, 1);
         assertEq(batch.delay, MIN_DELAY);
 
         vm.prank(multisig);
@@ -157,48 +188,12 @@ contract VaultWrapperDeployScriptsTest is Test {
             batch.salt
         );
 
-        assertTrue(factory.approvedAdapter(address(adapter)));
-        assertTrue(factory.allowedUnderlying(underlying));
-        assertEq(factory.defaultIntegratorShareBps(), TEST_SPLIT_BPS);
-
-        (uint16 perfMin, uint16 perfMax) = factory.feeBounds(
-            FeeType.Performance
-        );
-        assertEq(perfMin, 0);
-        assertEq(perfMax, 5000);
-    }
-
-    function test_ConfigBatch_IsEmptyWhenInSync() public {
-        UpdateVaultWrapperConfig.Batch memory batch = configScript.buildBatch(
-            factory,
-            address(adapter),
-            _desired()
-        );
-
-        vm.prank(multisig);
-        timelock.scheduleBatch(
-            batch.targets,
-            batch.values,
-            batch.payloads,
-            batch.predecessor,
-            batch.salt,
-            batch.delay
-        );
-
-        vm.warp(block.timestamp + batch.delay + 1);
-
-        timelock.executeBatch(
-            batch.targets,
-            batch.values,
-            batch.payloads,
-            batch.predecessor,
-            batch.salt
-        );
+        assertTrue(factory.allowedUnderlying(newUnderlying));
 
         UpdateVaultWrapperConfig.Batch memory rerun = configScript.buildBatch(
             factory,
             address(adapter),
-            _desired()
+            desired
         );
 
         assertEq(rerun.targets.length, 0);
@@ -243,6 +238,15 @@ contract VaultWrapperDeployScriptsTest is Test {
         cfg.emergencyPauser = pauser;
         cfg.onboardingManager = onboarder;
         cfg.lifiFeeRecipient = lifiRecipient;
+        cfg.defaultIntegratorShareBps = TEST_SPLIT_BPS;
+        cfg.allowedUnderlyings = new address[](1);
+        cfg.allowedUnderlyings[0] = underlying;
+        cfg.feeBounds = [
+            FeeBounds(0, 5000),
+            FeeBounds(0, 1000),
+            FeeBounds(0, 2000),
+            FeeBounds(0, 2000)
+        ];
     }
 
     function _desired()

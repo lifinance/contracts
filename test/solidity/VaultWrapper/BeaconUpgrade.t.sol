@@ -10,7 +10,7 @@ import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 import { MockERC4626Underlying } from "./mocks/MockERC4626Underlying.sol";
 import { MockERC20 } from "solmate/test/utils/mocks/MockERC20.sol";
-import { DeployParams, FeeConfig } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
+import { DeployParams, FeeConfig, FactoryInitParams } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
 import { defaultReceivers } from "test/solidity/VaultWrapper/VaultWrapperTestHelpers.sol";
 
 /// @notice Upgrade target proving a beacon upgrade is observable through clones:
@@ -51,9 +51,17 @@ contract BeaconUpgradeTest is Test {
         implV1 = new LiFiVaultWrapper(predictedProxy);
         implV2 = new MockVaultWrapperV2(predictedProxy);
         beacon = new UpgradeableBeacon(address(implV1), owner);
+        FactoryInitParams memory initParams;
+        initParams.beacon = address(beacon);
+        initParams.owner = owner;
+        initParams.emergencyPauser = pauser;
+        initParams.onboardingManager = onboarder;
+        initParams.lifiFeeRecipient = lifiRecipient;
+        initParams.defaultIntegratorShareBps = 8000;
+
         bytes memory initData = abi.encodeCall(
             LiFiVaultWrapperFactory.initialize,
-            (address(beacon), owner, pauser, onboarder, lifiRecipient)
+            (initParams)
         );
         factory = LiFiVaultWrapperFactory(
             address(

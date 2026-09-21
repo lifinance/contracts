@@ -6,7 +6,7 @@ import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/I
 import { BeaconProxy } from "@openzeppelin/contracts/proxy/beacon/BeaconProxy.sol";
 import { Create2 } from "@openzeppelin/contracts/utils/Create2.sol";
 import { IERC4626 } from "@openzeppelin/contracts/interfaces/IERC4626.sol";
-import { FeeType, FeeBounds, FeeConfig, DeployParams, FEE_TYPE_COUNT } from "./LiFiVaultWrapperTypes.sol";
+import { FeeType, FeeBounds, FeeConfig, DeployParams, FactoryInitParams, FEE_TYPE_COUNT } from "./LiFiVaultWrapperTypes.sol";
 import { ILiFiVaultWrapper } from "./interfaces/ILiFiVaultWrapper.sol";
 import { ILiFiVaultWrapperFactory } from "./interfaces/ILiFiVaultWrapperFactory.sol";
 
@@ -38,8 +38,6 @@ contract LiFiVaultWrapperFactory is
     uint16 internal constant CAP_DEPOSIT_BPS = 2000;
     /// @notice Immutable upper cap for the withdrawal fee (bps); 20%.
     uint16 internal constant CAP_WITHDRAWAL_BPS = 2000;
-    /// @notice Integrator fee share (bps) applied when a deploy does not override it; 80% (LI.FI receives the remaining 20%).
-    uint16 internal constant DEFAULT_INTEGRATOR_SHARE_BPS = 8000;
     /// @notice Sentinel for a DeployParams.integratorShareBps element meaning "inherit the factory default".
     uint16 internal constant DEFAULT_SPLIT_SENTINEL = type(uint16).max;
     /// @notice Basis-point denominator (100%).
@@ -107,37 +105,56 @@ contract LiFiVaultWrapperFactory is
 
     /// Initializer ///
 
-    /// @notice Initializes the factory with a beacon and role addresses.
-    /// @dev Called once through the proxy at deploy (guarded by `initializer`). `_owner`
-    ///      becomes the factory's Ownable2Step owner; the proxy's separate ProxyAdmin,
-    ///      which controls upgrades, is owned by the same address (the subsystem timelock).
-    /// @param _beacon        Address of the UpgradeableBeacon holding the wrapper implementation.
-    /// @param _owner         Address that will own the factory.
-    /// @param _emergencyPauser Address authorized to trigger global pause.
-    /// @param _onboardingManager Address authorized to assign/revoke the deployer for each integrator namespace.
-    /// @param _lifiFeeRecipient Recipient of LI.FI's fee share.
+    /// @notice Initializes the factory with its beacon, role addresses, and the
+    ///         deploy-time configuration a wrapper deployment needs.
+    /// @dev Called once through the proxy at deploy (guarded by `initializer`).
+    ///      `_params.owner` becomes the factory's Ownable2Step owner; the proxy's
+    ///      separate ProxyAdmin, which controls upgrades, is owned by the same address
+    ///      (the subsystem timelock).
+    ///
+    ///      The adapter, underlying allowlist, fee bounds, and default split are seeded
+    ///      here rather than left to the owner's setters. Those setters are timelocked,
+    ///      so a factory initialized without them would be live but unable to deploy a
+    ///      single wrapper until a full governance cycle cleared — a delay that protects
+    ///      no prior state, because this call runs inside the proxy's own constructor and
+    ///      nothing can interact with the factory before it returns. Every LATER change
+    ///      still goes through the timelock.
+    /// @param _params The beacon, role addresses, and initial configuration.
     function initialize(
-        address _beacon,
-        address _owner,
-        address _emergencyPauser,
-        address _onboardingManager,
-        address _lifiFeeRecipient
+        FactoryInitParams calldata _params
     ) external initializer {
         if (
-            _beacon == address(0) ||
-            _emergencyPauser == address(0) ||
-            _onboardingManager == address(0) ||
-            _lifiFeeRecipient == address(0)
+            _params.beacon == address(0) ||
+            _params.emergencyPauser == address(0) ||
+            _params.onboardingManager == address(0) ||
+            _params.lifiFeeRecipient == address(0)
         ) revert ZeroAddress();
-        if (_beacon.code.length == 0) revert InvalidContract();
+        if (_params.beacon.code.length == 0) revert InvalidContract();
 
-        __Ownable_init(_owner);
+        __Ownable_init(_params.owner);
 
-        beacon = _beacon;
-        emergencyPauser = _emergencyPauser;
-        onboardingManager = _onboardingManager;
-        lifiFeeRecipient = _lifiFeeRecipient;
-        defaultIntegratorShareBps = DEFAULT_INTEGRATOR_SHARE_BPS;
+        beacon = _params.beacon;
+        emergencyPauser = _params.emergencyPauser;
+        onboardingManager = _params.onboardingManager;
+        lifiFeeRecipient = _params.lifiFeeRecipient;
+
+        _setDefaultSplit(_params.defaultIntegratorShareBps);
+
+        if (_params.adapter != address(0)) {
+            _setAdapterApproved(_params.adapter, true);
+        }
+
+        for (uint256 i; i < _params.allowedUnderlyings.length; ++i) {
+            _setUnderlyingAllowed(_params.allowedUnderlyings[i], true);
+        }
+
+        for (uint256 i; i < FEE_TYPE_COUNT; ++i) {
+            _setFeeBounds(
+                FeeType(i),
+                _params.feeBounds[i].minBps,
+                _params.feeBounds[i].maxBps
+            );
+        }
     }
 
     /// Config (owner / timelock) ///
@@ -149,9 +166,7 @@ contract LiFiVaultWrapperFactory is
         address _underlying,
         bool _allowed
     ) external onlyOwner {
-        if (_underlying == address(0)) revert ZeroAddress();
-        allowedUnderlying[_underlying] = _allowed;
-        emit UnderlyingAllowedSet(_underlying, _allowed);
+        _setUnderlyingAllowed(_underlying, _allowed);
     }
 
     /// @notice Approve or revoke a yield adapter usable in deployments.
@@ -161,10 +176,7 @@ contract LiFiVaultWrapperFactory is
         address _adapter,
         bool _approved
     ) external onlyOwner {
-        if (_adapter == address(0)) revert ZeroAddress();
-        if (_approved && _adapter.code.length == 0) revert InvalidContract();
-        approvedAdapter[_adapter] = _approved;
-        emit AdapterApprovedSet(_adapter, _approved);
+        _setAdapterApproved(_adapter, _approved);
     }
 
     /// @notice Set adjustable min/max bps bounds for a fee type (within the immutable cap).
@@ -176,10 +188,7 @@ contract LiFiVaultWrapperFactory is
         uint16 _minBps,
         uint16 _maxBps
     ) external onlyOwner {
-        if (_minBps > _maxBps || _maxBps > _cap(_feeType))
-            revert InvalidFeeBounds();
-        feeBounds[_feeType] = FeeBounds(_minBps, _maxBps);
-        emit FeeBoundsSet(_feeType, _minBps, _maxBps);
+        _setFeeBounds(_feeType, _minBps, _maxBps);
     }
 
     /// @notice Set the default integrator fee share (bps) applied to deploys that don't
@@ -187,9 +196,7 @@ contract LiFiVaultWrapperFactory is
     /// @param _integratorBps The integrator's default share (bps); must be < 100% so
     ///        LI.FI always retains a non-zero share.
     function setDefaultSplit(uint16 _integratorBps) external onlyOwner {
-        if (_integratorBps >= BPS_DENOMINATOR) revert InvalidSplit();
-        defaultIntegratorShareBps = _integratorBps;
-        emit DefaultSplitSet(_integratorBps);
+        _setDefaultSplit(_integratorBps);
     }
 
     /// @notice Set the recipient of LI.FI's fee share, read live by vault wrappers.
@@ -351,6 +358,55 @@ contract LiFiVaultWrapperFactory is
     }
 
     /// Internal ///
+
+    /// @notice Applies an underlying allowlist change. Shared by `initialize` and the
+    ///         timelocked `setUnderlyingAllowed`, so both validate and emit identically.
+    /// @param _underlying The yield source to toggle.
+    /// @param _allowed True to allow as a wrapper underlying, false to remove.
+    function _setUnderlyingAllowed(
+        address _underlying,
+        bool _allowed
+    ) internal {
+        if (_underlying == address(0)) revert ZeroAddress();
+        allowedUnderlying[_underlying] = _allowed;
+        emit UnderlyingAllowedSet(_underlying, _allowed);
+    }
+
+    /// @notice Applies an adapter approval change. Shared by `initialize` and the
+    ///         timelocked `setAdapterApproved`.
+    /// @param _adapter The yield adapter to toggle.
+    /// @param _approved True to approve the adapter, false to revoke it.
+    function _setAdapterApproved(address _adapter, bool _approved) internal {
+        if (_adapter == address(0)) revert ZeroAddress();
+        if (_approved && _adapter.code.length == 0) revert InvalidContract();
+        approvedAdapter[_adapter] = _approved;
+        emit AdapterApprovedSet(_adapter, _approved);
+    }
+
+    /// @notice Applies a fee-bounds change. Shared by `initialize` and the timelocked
+    ///         `setFeeBounds`.
+    /// @param _feeType The fee type whose bounds are being set.
+    /// @param _minBps Lowest rate (bps) an instance may set for the fee type.
+    /// @param _maxBps Highest rate (bps) an instance may set; must not exceed the cap.
+    function _setFeeBounds(
+        FeeType _feeType,
+        uint16 _minBps,
+        uint16 _maxBps
+    ) internal {
+        if (_minBps > _maxBps || _maxBps > _cap(_feeType))
+            revert InvalidFeeBounds();
+        feeBounds[_feeType] = FeeBounds(_minBps, _maxBps);
+        emit FeeBoundsSet(_feeType, _minBps, _maxBps);
+    }
+
+    /// @notice Applies a default-split change. Shared by `initialize` and the timelocked
+    ///         `setDefaultSplit`.
+    /// @param _integratorBps The integrator's default share (bps); must be < 100%.
+    function _setDefaultSplit(uint16 _integratorBps) internal {
+        if (_integratorBps >= BPS_DENOMINATOR) revert InvalidSplit();
+        defaultIntegratorShareBps = _integratorBps;
+        emit DefaultSplitSet(_integratorBps);
+    }
 
     /// @notice Derives the CREATE2 salt that fixes a wrapper instance's address.
     /// @dev The namespace is chain-independent (e.g. "Coinbase"), so identical inputs

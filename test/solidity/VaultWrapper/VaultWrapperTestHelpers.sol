@@ -5,7 +5,7 @@ import { Vm } from "forge-std/Vm.sol";
 import { UpgradeableBeacon } from "@openzeppelin/contracts/proxy/beacon/UpgradeableBeacon.sol";
 import { TransparentUpgradeableProxy } from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
 import { ERC1967Utils } from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
-import { FeeReceiver } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
+import { FeeReceiver, FeeBounds, FactoryInitParams } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
 import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
 import { LiFiVaultWrapperFactory } from "lifi/VaultWrapper/LiFiVaultWrapperFactory.sol";
 
@@ -24,6 +24,9 @@ function defaultReceivers() pure returns (FeeReceiver[] memory r) {
 ///         initialized in the same call. Centralizes the CREATE-nonce prediction of the
 ///         proxy so individual suites don't re-derive it.
 library VaultWrapperFactoryDeployer {
+    /// @notice The integrator fee share (bps) suites assume a fresh factory carries.
+    uint16 internal constant DEFAULT_INTEGRATOR_SHARE_BPS = 8000;
+
     // Lowercase `vm` is the forge-std cheatcode idiom; keep it so call sites read
     // like the rest of the suite.
     // solhint-disable-next-line const-name-snakecase
@@ -64,14 +67,28 @@ library VaultWrapperFactoryDeployer {
             _beaconOwner
         );
 
+        // Seeds nothing beyond the roles and the default split: suites that need an
+        // adapter, an underlying, or fee bounds set them through the owner setters,
+        // so the post-initialize state here matches what those suites already assume.
         bytes memory initData = abi.encodeCall(
             LiFiVaultWrapperFactory.initialize,
             (
-                address(beacon),
-                _factoryOwner,
-                _emergencyPauser,
-                _onboardingManager,
-                _lifiFeeRecipient
+                FactoryInitParams({
+                    beacon: address(beacon),
+                    owner: _factoryOwner,
+                    emergencyPauser: _emergencyPauser,
+                    onboardingManager: _onboardingManager,
+                    lifiFeeRecipient: _lifiFeeRecipient,
+                    adapter: address(0),
+                    allowedUnderlyings: new address[](0),
+                    feeBounds: [
+                        FeeBounds(0, 0),
+                        FeeBounds(0, 0),
+                        FeeBounds(0, 0),
+                        FeeBounds(0, 0)
+                    ],
+                    defaultIntegratorShareBps: DEFAULT_INTEGRATOR_SHARE_BPS
+                })
             )
         );
         factory = LiFiVaultWrapperFactory(

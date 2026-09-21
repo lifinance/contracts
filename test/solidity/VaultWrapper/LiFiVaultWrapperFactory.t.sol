@@ -11,7 +11,7 @@ import { LiFiVaultWrapper } from "lifi/VaultWrapper/LiFiVaultWrapper.sol";
 import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 import { IYieldAdapter } from "lifi/VaultWrapper/interfaces/IYieldAdapter.sol";
 import { Errors } from "@openzeppelin/contracts/utils/Errors.sol";
-import { FeeType, DeployParams, FeeConfig } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
+import { FeeType, DeployParams, FeeConfig, FactoryInitParams } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
 import { defaultReceivers } from "test/solidity/VaultWrapper/VaultWrapperTestHelpers.sol";
 import { OwnableUpgradeable } from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import { Initializable } from "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
@@ -78,7 +78,7 @@ contract LiFiVaultWrapperFactoryTest is Test {
         return
             abi.encodeCall(
                 LiFiVaultWrapperFactory.initialize,
-                (beacon_, owner_, pauser_, onboarder_, recipient_)
+                (_initParams(beacon_, owner_, pauser_, onboarder_, recipient_))
             );
     }
 
@@ -99,22 +99,26 @@ contract LiFiVaultWrapperFactoryTest is Test {
     function testRevert_LogicInitializerIsDisabled() public {
         vm.expectRevert(Initializable.InvalidInitialization.selector);
         logic.initialize(
-            address(beacon),
-            owner,
-            pauser,
-            onboarder,
-            lifiRecipient
+            _initParams(
+                address(beacon),
+                owner,
+                pauser,
+                onboarder,
+                lifiRecipient
+            )
         );
     }
 
     function testRevert_ProxyCannotBeInitializedTwice() public {
         vm.expectRevert(Initializable.InvalidInitialization.selector);
         factory.initialize(
-            address(beacon),
-            owner,
-            pauser,
-            onboarder,
-            lifiRecipient
+            _initParams(
+                address(beacon),
+                owner,
+                pauser,
+                onboarder,
+                lifiRecipient
+            )
         );
     }
 
@@ -901,5 +905,24 @@ contract LiFiVaultWrapperFactoryTest is Test {
         vm.prank(owner);
         vm.expectRevert(ILiFiVaultWrapperFactory.InvalidContract.selector);
         factory.setAdapterApproved(makeAddr("eoa"), true);
+    }
+
+    /// @notice Builds initialize params. Seeds only the roles and the default split;
+    ///         suites needing an adapter, an underlying, or fee bounds set them through
+    ///         the owner setters, matching a factory brought up by the test helper.
+    /// @return p The init params.
+    function _initParams(
+        address beacon_,
+        address owner_,
+        address pauser_,
+        address onboarder_,
+        address recipient_
+    ) internal pure returns (FactoryInitParams memory p) {
+        p.beacon = beacon_;
+        p.owner = owner_;
+        p.emergencyPauser = pauser_;
+        p.onboardingManager = onboarder_;
+        p.lifiFeeRecipient = recipient_;
+        p.defaultIntegratorShareBps = 8000;
     }
 }
