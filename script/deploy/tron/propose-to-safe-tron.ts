@@ -163,42 +163,6 @@ async function runPropose(options: IProposeToSafeTronOptions) {
     ? normalizeTronProposeCalls(options.to, options.calldata, !useDirect)
     : undefined
 
-  // 1) Get min delay from Timelock (needed for scheduleBatch). Skipped in
-  // direct mode, which doesn't touch the Timelock.
-  let minDelayBigInt = 0n
-  if (!useDirect) {
-    const timelockAbi = [
-      {
-        inputs: [],
-        name: 'getMinDelay',
-        outputs: [{ type: 'uint256' }],
-        stateMutability: 'view',
-        type: 'function',
-      },
-    ]
-    const timelock = tronWeb.contract(timelockAbi, timelockAddressBase58)
-    try {
-      const minDelayRes = await retryWithRateLimit(
-        () => timelock.getMinDelay().call(),
-        TRON_READ_MAX_ATTEMPTS,
-        TRON_READ_RETRY_DELAY_MS,
-        (attempt, delayMs) =>
-          warnRateLimited('the timelock min delay', attempt, delayMs)
-      )
-      const valueStr =
-        typeof minDelayRes === 'string'
-          ? minDelayRes
-          : minDelayRes?.toString?.() ?? '0'
-      minDelayBigInt = BigInt(valueStr)
-    } catch (e) {
-      throw new Error(
-        `Could not read getMinDelay from Timelock at ${timelockAddressBase58}: ${
-          e instanceof Error ? e.message : String(e)
-        }`
-      )
-    }
-  }
-
   // The same batch re-proposed derives the same salt, so the duplicate-intent
   // index can see it; the timelock is asked so a repeat of executed work
   // advances and a repeat of pending work is refused. Only the timelock
@@ -267,16 +231,6 @@ async function runPropose(options: IProposeToSafeTronOptions) {
     return
   }
 
-  if (scheduled)
-    safeTxDataHex = encodeTimelockScheduleBatch(
-      scheduled.targets,
-      scheduled.payloads,
-      await saltFor(scheduled.targets, scheduled.payloads),
-      minDelayBigInt
-    )
-  if (!safeTxDataHex)
-    throw new Error('No transaction calldata was built for this proposal')
-
   // After the dry run, which proposes nothing, and before the Mongo client is
   // opened: the store-time refusal throws past this function's only
   // `mongoClient.close()`, leaving the connection open and the process hanging.
@@ -302,6 +256,54 @@ async function runPropose(options: IProposeToSafeTronOptions) {
         },
       })
     )
+
+  // Both reads sit after the gate so a proposal the gate refuses never
+  // touches the Timelock.
+  // 1) Get min delay from Timelock (needed for scheduleBatch). Skipped in
+  // direct mode, which doesn't touch the Timelock.
+  let minDelayBigInt = 0n
+  if (!useDirect) {
+    const timelockAbi = [
+      {
+        inputs: [],
+        name: 'getMinDelay',
+        outputs: [{ type: 'uint256' }],
+        stateMutability: 'view',
+        type: 'function',
+      },
+    ]
+    const timelock = tronWeb.contract(timelockAbi, timelockAddressBase58)
+    try {
+      const minDelayRes = await retryWithRateLimit(
+        () => timelock.getMinDelay().call(),
+        TRON_READ_MAX_ATTEMPTS,
+        TRON_READ_RETRY_DELAY_MS,
+        (attempt, delayMs) =>
+          warnRateLimited('the timelock min delay', attempt, delayMs)
+      )
+      const valueStr =
+        typeof minDelayRes === 'string'
+          ? minDelayRes
+          : minDelayRes?.toString?.() ?? '0'
+      minDelayBigInt = BigInt(valueStr)
+    } catch (e) {
+      throw new Error(
+        `Could not read getMinDelay from Timelock at ${timelockAddressBase58}: ${
+          e instanceof Error ? e.message : String(e)
+        }`
+      )
+    }
+  }
+
+  if (scheduled)
+    safeTxDataHex = encodeTimelockScheduleBatch(
+      scheduled.targets,
+      scheduled.payloads,
+      await saltFor(scheduled.targets, scheduled.payloads),
+      minDelayBigInt
+    )
+  if (!safeTxDataHex)
+    throw new Error('No transaction calldata was built for this proposal')
 
   // 2) Get current Safe nonce on chain
   const safeAbiNonce = [
