@@ -114,6 +114,18 @@ describe('createTronAddressSpellings', () => {
     expect(spellings.toCalldataSpelling(`  ${base58}  `)).toBe(hex)
   })
 
+  // The codec strips a leading `41` unconditionally, so the bare form of an
+  // address that genuinely starts with `0x41` used to lose that byte and come
+  // back as a different address — silently, through a shape the regex admits.
+  it('reads a bare hex address whose first byte is 0x41 as itself', () => {
+    const spellings = createTronAddressSpellings('tron')
+    if (!spellings) throw new Error('tron has no spellings')
+    const hex = `0x41${'ab'.repeat(19)}`
+    expect(spellings.toCalldataSpelling(hex.slice(2))).toBe(hex)
+    expect(spellings.toCalldataSpelling(hex)).toBe(hex)
+    expect(spellings.toCalldataSpelling(`41${hex.slice(2)}`)).toBe(hex)
+  })
+
   it('falls back to the address itself rather than throwing on nonsense', () => {
     const spellings = createTronAddressSpellings('tron')
     if (!spellings) throw new Error('tron has no spellings')

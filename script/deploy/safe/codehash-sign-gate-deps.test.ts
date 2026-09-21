@@ -357,6 +357,24 @@ describe('resolveDeploymentRecord', () => {
     ).toBe(withCommit)
   })
 
+  // The blank-version row is the one the verification step rewrote, so it can
+  // be the only row naming a commit. Dropping it in the collapse and then
+  // picking from the survivors returned a row with no commit, which reads
+  // downstream as UNVERIFIABLE for an address whose one commit is right here.
+  it('keeps the commit when the collapse drops the only row naming it', () => {
+    const blank = row({ version: '', gitCommitHash: 'c'.repeat(40) })
+    const versioned = row({ gitCommitHash: '' })
+
+    const resolved = resolveDeploymentRecord(
+      [blank, versioned],
+      ADDRESS,
+      'tron'
+    )
+
+    expect(resolved?.version).toBe('2.1.1')
+    expect(resolved?.gitCommitHash).toBe('c'.repeat(40))
+  })
+
   it('prefers the row carrying a commit over a blank sibling, whatever the order', () => {
     const withCommit = row({})
     const blank = row({ gitCommitHash: '' })

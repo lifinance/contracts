@@ -45,10 +45,20 @@ const TRON_BASE58 = /^T[1-9A-HJ-NP-Za-km-z]{33}$/
 
 /**
  * The hex spellings a record may carry instead: `0x` and 20 bytes, Tron's own
- * `41` prefix and 20 bytes, or the 20 bytes bare. Admitted because the codec
- * normalises all three and a record written in any of them names an address.
+ * `41` prefix and 20 bytes, or the 20 bytes bare. A record written in any of
+ * them names an address.
  */
 const TRON_HEX = /^(0x|41)?[0-9a-fA-F]{40}$/
+
+/**
+ * The bare form, which has to be prefixed before the codec sees it.
+ *
+ * The codec strips a leading `41` unconditionally, so a bare 20-byte address
+ * whose FIRST BYTE is `0x41` loses that byte and comes back left-padded — a
+ * different address, returned without complaint. `0x` tells it the value is
+ * already 20 bytes; the prefixed spellings are unambiguous and pass through.
+ */
+const BARE_20_BYTE_HEX = /^[0-9a-fA-F]{40}$/
 
 const byNetwork = new Map<string, ITronAddressSpellings>()
 
@@ -78,7 +88,8 @@ export const createTronAddressSpellings = (
         // A well-formed word that is not an address — a broken checksum —
         // makes the codec throw rather than default, so the shape check and
         // this catch are between them the whole guard.
-        return tronBase58ToEvm20Hex(codec, value).toLowerCase()
+        const spelled = BARE_20_BYTE_HEX.test(value) ? `0x${value}` : value
+        return tronBase58ToEvm20Hex(codec, spelled).toLowerCase()
       } catch {
         return undefined
       }

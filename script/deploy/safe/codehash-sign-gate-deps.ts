@@ -1418,7 +1418,15 @@ export const resolveDeploymentRecord = <
   )
   if (commits.size > 1) refuse('which commit built what is', [...commits])
 
-  return (kept.find(namesCommit) ?? kept[0]) as T
+  // Commits are compared across every candidate but the row is picked from
+  // `kept`, so the collapse can discard the only row naming the commit and
+  // leave the pick answering "no commit" for an address whose one commit claim
+  // is right here. Carrying it over keeps both halves: the version the collapse
+  // exists to preserve, and the commit it agreed on.
+  const chosen = (kept.find(namesCommit) ?? kept[0]) as T
+  const [agreed] = [...commits]
+  if (agreed === undefined || namesCommit(chosen)) return chosen
+  return { ...chosen, gitCommitHash: agreed }
 }
 
 /**
