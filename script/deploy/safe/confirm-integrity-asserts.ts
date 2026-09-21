@@ -179,7 +179,7 @@ export const resolveRecordedTarget = (
   const versioned = records.filter((record) => record.version.trim() !== '')
   const distinct = new Map<string, IDeploymentRecordRef>()
   for (const record of versioned)
-    distinct.set(`${record.contractName}@${record.version}`, record)
+    distinct.set(`${record.contractName}@${record.version.trim()}`, record)
 
   if (distinct.size > 1)
     return { kind: 'ambiguous', candidates: [...distinct.values()] }
@@ -187,10 +187,13 @@ export const resolveRecordedTarget = (
   const only = [...distinct.values()][0] ?? records[0]
   if (!only) return { kind: 'unknown' }
 
+  // Trimmed, like the identity key above: which of two padded twins the map
+  // kept is arbitrary, so returning the raw field would hand the signer a
+  // version that differs run to run.
   return {
     kind: 'recorded-deployment',
     name: only.contractName,
-    version: only.version,
+    version: only.version.trim(),
   }
 }
 

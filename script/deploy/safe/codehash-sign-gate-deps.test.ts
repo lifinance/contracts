@@ -325,6 +325,23 @@ describe('resolveDeploymentRecord', () => {
     ).toThrow(/commit/)
   })
 
+  // The verification step rewrites the row it verified and loses `version` on
+  // the way through, so the blank row is the checked one. Comparing commits
+  // only across what survives the blank-version collapse let the row that can
+  // fill in a version vouch for a commit nobody verified.
+  it('refuses when a blank-version row names a different commit', () => {
+    expect(() =>
+      resolveDeploymentRecord(
+        [
+          row({ version: '', gitCommitHash: 'c'.repeat(40) }),
+          row({ gitCommitHash: 'd'.repeat(40) }),
+        ],
+        ADDRESS,
+        'tron'
+      )
+    ).toThrow(/commit/)
+  })
+
   it('prefers the row carrying a commit over a blank sibling, whatever the order', () => {
     const withCommit = row({})
     const blank = row({ gitCommitHash: '' })

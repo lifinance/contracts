@@ -1399,8 +1399,12 @@ export const resolveDeploymentRecord = <
   )
   if (identities.size > 1) refuse('what is', [...identities])
 
+  // Every candidate, not `kept`: the blank-version collapse above drops the row
+  // the verification step rewrote, and that row is the one whose commit was
+  // actually verified. Comparing only what survives the collapse lets a row
+  // that can fill in a version outrank the row that was checked.
   const commits = new Set(
-    kept.map((r) => text(r.gitCommitHash)).filter((c) => c !== '')
+    candidates.map((r) => text(r.gitCommitHash)).filter((c) => c !== '')
   )
   if (commits.size > 1) refuse('which commit built what is', [...commits])
 
