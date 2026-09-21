@@ -1277,6 +1277,61 @@ const escapeRegexLiteral = (value: string): string =>
  * `production` and not the operator's environment: this judges proposals
  * against a production Safe, and staging records describe a different deploy.
  */
+/**
+ * Picks the one record that describes an address, or refuses.
+ *
+ * There is no "latest wins" here to implement. An address holds one contract
+ * for its whole life, so two records that disagree about it are not a history —
+ * one of them is wrong, and every ordering picks the wrong one somewhere. The
+ * production collection carries both shapes today: `TCyAJzp…` on tron is
+ * AllBridgeFacet 2.1.1 per the diamond log that recorded the cut, while a later
+ * backfill row claims 2.1.2 at the same address, and `0x851450…` on metis
+ * carries LiFuelFeeCollector and TokenWrapper at once. Sorting by `timestamp`
+ * picks the wrong row for tron's TokenWrapper, sorting by version picks the
+ * wrong row for AllBridgeFacet, and sorting by `createdAt` picks a
+ * blank-version row on three EVM chains. A refusal reaches the signer as
+ * `record-unreadable`, which is the honest answer to a store that holds two.
+ *
+ * The one collapse is a blank `version` alongside a named one for the same
+ * contract: the verification step rewrites the row it just verified and loses
+ * the field on the way through, so those two rows are one deploy.
+ *
+ * @param candidates - every record matching the address and network
+ * @param address - the address being resolved, for the refusal message
+ * @param network - the network being resolved, for the refusal message
+ * @returns The single record, or null when there is none
+ */
+export const resolveDeploymentRecord = <
+  T extends { contractName: string; version: string }
+>(
+  candidates: T[],
+  address: string,
+  network: string
+): T | null => {
+  if (candidates.length === 0) return null
+
+  const named = new Set(
+    candidates.filter((r) => r.version.trim() !== '').map((r) => r.contractName)
+  )
+  const kept = candidates.filter(
+    (r) => r.version.trim() !== '' || !named.has(r.contractName)
+  )
+
+  const identities = new Set(kept.map((r) => `${r.contractName}@${r.version}`))
+  if (identities.size > 1)
+    throw new Error(
+      `the production deployment records disagree about what is at ${address} on ${network}: ${[
+        ...identities,
+      ]
+        .sort()
+        .join(
+          ', '
+        )}. An address holds one contract, so one of these records is wrong and no ordering of them is a safe guess — fix the records before signing against this address.`
+    )
+
+  return kept[0] as T
+}
+
 const createMongoRecordSource = (): IRecordSource => ({
   findByAddress: async (address, network) => {
     const uri = process.env.MONGODB_URI
@@ -1294,9 +1349,6 @@ const createMongoRecordSource = (): IRecordSource => ({
       gitCommitHash: string
     }>(EnvironmentEnum.production)
 
-    // Latest first: one address can carry several records over its life, and
-    // what is meant to be there now is the most recent of them.
-    const sort = { timestamp: -1 } as const
     // A Tron record stores base58 while the cut carries 20-byte hex, so the
     // address as decoded matches nothing there. Both spellings are offered
     // rather than the network's own: a store holds what its writer used, and
@@ -1304,11 +1356,11 @@ const createMongoRecordSource = (): IRecordSource => ({
     const spellings = createTronAddressSpellings(network)?.forCalldataAddress(
       address
     ) ?? [address]
-    const exact = await collection.findOne(
-      { address: { $in: spellings }, network: { $eq: network } },
-      { sort }
-    )
-    if (exact) return exact
+    const exact = await collection
+      .find({ address: { $in: spellings }, network: { $eq: network } })
+      .toArray()
+    if (exact.length > 0)
+      return resolveDeploymentRecord(exact, address, network)
 
     // The decoded cut supplies checksummed addresses (`classifyCut` returns
     // `getAddress`), and records were written in either case over the years, so
@@ -1321,13 +1373,13 @@ const createMongoRecordSource = (): IRecordSource => ({
     // Only the calldata spelling, never base58: base58check is case-sensitive,
     // so folding case there would let a query match an address that is not the
     // one asked about.
-    return collection.findOne(
-      {
+    const insensitive = await collection
+      .find({
         network: { $eq: network },
         address: { $regex: `^${escapeRegexLiteral(address)}$`, $options: 'i' },
-      },
-      { sort }
-    )
+      })
+      .toArray()
+    return resolveDeploymentRecord(insensitive, address, network)
   },
 })
 
