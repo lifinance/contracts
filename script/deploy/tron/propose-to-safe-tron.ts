@@ -233,8 +233,7 @@ async function runPropose(options: IProposeToSafeTronOptions) {
   }
 
   // After the dry run, which proposes nothing, and before the Mongo client is
-  // opened: the store-time refusal throws past this function's only
-  // `mongoClient.close()`, leaving the connection open and the process hanging.
+  // opened, so a missing ticket refuses without a connection ever being made.
   assertTicketPresent(options.ticket)
 
   // Beside the ticket check for the same two reasons: a dry run proposes
@@ -337,114 +336,119 @@ async function runPropose(options: IProposeToSafeTronOptions) {
 
   const { client: mongoClient, pendingTransactions } =
     await getSafeMongoCollection()
-  const nextNonce = await getNextNonce(
-    pendingTransactions,
-    safeAddressEvm,
-    networkName,
-    chainId,
-    chainNonceBigInt
-  )
 
-  const safeTxToEvm = tronBase58ToEvm20Hex(tronWeb, safeTxToBase58)
-
-  const safeTxData = {
-    to: safeTxToEvm,
-    value: 0n,
-    data: safeTxDataHex,
-    operation: OperationTypeEnum.Call,
-    nonce: nextNonce,
-  }
-
-  // 3) Get transaction hash from Safe contract (Tron). Pass base58 for addresses; TronWeb encodes for the contract.
-  const zeroBase58 = tronZeroAddressBase58(tronWeb)
-  const safeFullAbi = [...TRON_SAFE_GET_TX_HASH_ABI]
-  const safeForHash = tronWeb.contract(safeFullAbi, safeAddressBase58)
-  let txHashHex: string
+  // `runPropose` is also called programmatically in a loop, so any throw
+  // between the open and the close leaks a connected client per call.
+  let result: Awaited<ReturnType<typeof storeTransactionInMongoDB>>
   try {
-    // Retried like the reads above, and for one more reason: the Mongo client is
-    // already open here and a throw leaves it so.
-    const res = await retryWithRateLimit(
-      () =>
-        safeForHash
-          .getTransactionHash(
-            hashToBase58,
-            '0',
-            safeTxDataHex,
-            0,
-            '0',
-            '0',
-            '0',
-            zeroBase58,
-            zeroBase58,
-            nextNonce.toString()
-          )
-          .call(),
-      TRON_READ_MAX_ATTEMPTS,
-      TRON_READ_RETRY_DELAY_MS,
-      (attempt, delayMs) =>
-        warnRateLimited('the Safe transaction hash', attempt, delayMs)
+    const nextNonce = await getNextNonce(
+      pendingTransactions,
+      safeAddressEvm,
+      networkName,
+      chainId,
+      chainNonceBigInt
     )
-    const raw = res?.toString?.() ?? (typeof res === 'string' ? res : '')
-    txHashHex = raw.startsWith('0x') ? raw : '0x' + raw
-  } catch (e) {
-    consola.error(
-      'getTransactionHash failed. Ensure Safe ABI and parameters are correct for Tron.'
+
+    const safeTxToEvm = tronBase58ToEvm20Hex(tronWeb, safeTxToBase58)
+
+    const safeTxData = {
+      to: safeTxToEvm,
+      value: 0n,
+      data: safeTxDataHex,
+      operation: OperationTypeEnum.Call,
+      nonce: nextNonce,
+    }
+
+    // 3) Get transaction hash from Safe contract (Tron). Pass base58 for addresses; TronWeb encodes for the contract.
+    const zeroBase58 = tronZeroAddressBase58(tronWeb)
+    const safeFullAbi = [...TRON_SAFE_GET_TX_HASH_ABI]
+    const safeForHash = tronWeb.contract(safeFullAbi, safeAddressBase58)
+    let txHashHex: string
+    try {
+      const res = await retryWithRateLimit(
+        () =>
+          safeForHash
+            .getTransactionHash(
+              hashToBase58,
+              '0',
+              safeTxDataHex,
+              0,
+              '0',
+              '0',
+              '0',
+              zeroBase58,
+              zeroBase58,
+              nextNonce.toString()
+            )
+            .call(),
+        TRON_READ_MAX_ATTEMPTS,
+        TRON_READ_RETRY_DELAY_MS,
+        (attempt, delayMs) =>
+          warnRateLimited('the Safe transaction hash', attempt, delayMs)
+      )
+      const raw = res?.toString?.() ?? (typeof res === 'string' ? res : '')
+      txHashHex = raw.startsWith('0x') ? raw : '0x' + raw
+    } catch (e) {
+      consola.error(
+        'getTransactionHash failed. Ensure Safe ABI and parameters are correct for Tron.'
+      )
+      throw e
+    }
+
+    const txHashBytes32 = (
+      txHashHex.length === 66
+        ? txHashHex
+        : `0x${txHashHex.replace(/^0x/, '').padStart(64, '0')}`
+    ) as Hex
+
+    // 4) Sign hash (EIP-191 over tx hash bytes32, then r+s+v with v+4 for Safe eth_sign)
+    const pk = privateKey.startsWith('0x')
+      ? (privateKey as Hex)
+      : (`0x${privateKey}` as Hex)
+    const rawSig = await signMessage({
+      message: { raw: txHashBytes32 },
+      privateKey: pk,
+    })
+    if (!rawSig || rawSig.length < 130)
+      throw new Error('Invalid signature length from signMessage')
+    const r = rawSig.slice(0, 66)
+    const s = rawSig.slice(66, 130)
+    const vByte = rawSig.slice(130, 132)
+    const vVal = parseInt(vByte, 16)
+    const safeV = (vVal + 4).toString(16).padStart(2, '0')
+    const safeSignatureHex = `0x${r.slice(2)}${s}${safeV}` as Hex
+
+    const sig: ISafeSignature = {
+      signer: proposerEvm,
+      data: safeSignatureHex,
+    }
+    const signatures = new Map<string, ISafeSignature>()
+    signatures.set(proposerEvm.toLowerCase(), sig)
+
+    const safeTx: ISafeTransaction = {
+      data: safeTxData,
+      signatures,
+    }
+    // Mongo stores signatures as plain object; ensure serializable shape
+    const safeTxForMongo = {
+      data: safeTx.data,
+      signatures: Object.fromEntries(safeTx.signatures),
+    } as unknown as ISafeTransaction
+
+    result = await storeTransactionInMongoDB(
+      pendingTransactions,
+      safeAddressEvm as Address,
+      networkName,
+      chainId,
+      safeTxForMongo,
+      txHashBytes32,
+      proposerEvm as Address,
+      undefined,
+      { ticket: options.ticket }
     )
-    throw e
+  } finally {
+    await mongoClient.close()
   }
-
-  const txHashBytes32 = (
-    txHashHex.length === 66
-      ? txHashHex
-      : `0x${txHashHex.replace(/^0x/, '').padStart(64, '0')}`
-  ) as Hex
-
-  // 4) Sign hash (EIP-191 over tx hash bytes32, then r+s+v with v+4 for Safe eth_sign)
-  const pk = privateKey.startsWith('0x')
-    ? (privateKey as Hex)
-    : (`0x${privateKey}` as Hex)
-  const rawSig = await signMessage({
-    message: { raw: txHashBytes32 },
-    privateKey: pk,
-  })
-  if (!rawSig || rawSig.length < 130)
-    throw new Error('Invalid signature length from signMessage')
-  const r = rawSig.slice(0, 66)
-  const s = rawSig.slice(66, 130)
-  const vByte = rawSig.slice(130, 132)
-  const vVal = parseInt(vByte, 16)
-  const safeV = (vVal + 4).toString(16).padStart(2, '0')
-  const safeSignatureHex = `0x${r.slice(2)}${s}${safeV}` as Hex
-
-  const sig: ISafeSignature = {
-    signer: proposerEvm,
-    data: safeSignatureHex,
-  }
-  const signatures = new Map<string, ISafeSignature>()
-  signatures.set(proposerEvm.toLowerCase(), sig)
-
-  const safeTx: ISafeTransaction = {
-    data: safeTxData,
-    signatures,
-  }
-  // Mongo stores signatures as plain object; ensure serializable shape
-  const safeTxForMongo = {
-    data: safeTx.data,
-    signatures: Object.fromEntries(safeTx.signatures),
-  } as unknown as ISafeTransaction
-
-  const result = await storeTransactionInMongoDB(
-    pendingTransactions,
-    safeAddressEvm as Address,
-    networkName,
-    chainId,
-    safeTxForMongo,
-    txHashBytes32,
-    proposerEvm as Address,
-    undefined,
-    { ticket: options.ticket }
-  )
-  await mongoClient.close()
 
   if (result === null) {
     consola.info(
