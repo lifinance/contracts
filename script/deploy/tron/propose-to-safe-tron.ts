@@ -232,8 +232,8 @@ async function runPropose(options: IProposeToSafeTronOptions) {
     return
   }
 
-  // After the dry run, which proposes nothing, and before the Mongo client is
-  // opened, so a missing ticket refuses without a connection ever being made.
+  // After the dry run, which proposes nothing, and before the signature, so a
+  // missing ticket costs none.
   assertTicketPresent(options.ticket)
 
   // Beside the ticket check for the same two reasons: a dry run proposes

@@ -127,11 +127,10 @@ const makeRepo = (diverge: boolean): string => {
  *
  * The order is the whole point and it is not obvious. `spawnSync`'s `timeout`
  * reports ETIMEDOUT in `error` **and** SIGTERM in `signal` while still returning
- * whatever the child had already printed, and the Tron funnel is documented to
- * leave its Mongo connection open and hang after a successful insert. So a probe
- * that DID write is exactly the probe that looks like a timeout, and checking
- * either `error` or `signal` first would report "this proves nothing" and throw
- * the evidence away.
+ * whatever the child had already printed, so a child killed at any point after
+ * its store — the one outcome this probe must never miss — arrives looking
+ * exactly like one that produced nothing. Checking either `error` or `signal`
+ * first would report "this proves nothing" and throw the evidence away.
  * @param result - what `spawnSync` returned
  * @param output - the child's combined stdout and stderr
  */
