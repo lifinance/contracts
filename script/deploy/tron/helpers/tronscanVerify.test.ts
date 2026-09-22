@@ -49,6 +49,22 @@ describe('interpretResponse', () => {
     expect(interpretResponse(true, body).ok).toBe(true)
   })
 
+  it('treats "has already been verified" as success', () => {
+    const body = JSON.stringify({
+      data: { message: 'The contract has already been verified.' },
+    })
+    expect(interpretResponse(true, body).ok).toBe(true)
+  })
+
+  it('treats a queued contract as failure, not an "already" success', () => {
+    const body = JSON.stringify({
+      data: {
+        message: 'The contract is already in the verification queue, wait',
+      },
+    })
+    expect(interpretResponse(true, body).ok).toBe(false)
+  })
+
   it('treats a bytecode mismatch (2007) as failure', () => {
     const body = JSON.stringify({
       data: { status: 2007, message: 'Txxx verification failed. Please retry' },

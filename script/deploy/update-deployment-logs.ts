@@ -38,7 +38,7 @@ import {
   RecordTransformer,
 } from './shared/mongo-log-utils'
 import { codehashFromArgs } from './shared/record-codehash'
-import { resolveRecordToFlag } from './shared/resolve-record-to-flag'
+import { resolveRecordsToFlag } from './shared/resolve-records-to-flag'
 
 // Interface for index specifications with old names
 interface IIndexSpec {
@@ -1030,19 +1030,23 @@ const markVerifiedCommand = defineCommand({
     let exitCode = 0
     try {
       await manager.connect()
-      const latest = resolveRecordToFlag(
-        await manager.getLatestDeployment(args.contract, args.network),
+      const records = resolveRecordsToFlag(
+        await manager.queryDeployments({
+          contractName: args.contract,
+          network: args.network,
+        }),
         args.contract,
         args.network,
         args.address
       )
-      await manager.updateDeployment(
-        args.contract,
-        args.network,
-        latest.version,
-        latest.address,
-        { verified: true }
-      )
+      for (const record of records)
+        await manager.updateDeployment(
+          args.contract,
+          args.network,
+          record.version,
+          record.address,
+          { verified: true }
+        )
       await invalidateDeploymentCache(args.env as keyof typeof EnvironmentEnum)
     } catch (error) {
       consola.error('Mark-verified operation failed:', error)

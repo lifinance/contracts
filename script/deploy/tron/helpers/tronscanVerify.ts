@@ -20,9 +20,13 @@ export const VERIFY_TIMEOUT_MS = 120_000
  * status `2001` ("The contract has been validated.") and a separate code whose
  * message is "Verification success." — so we treat a success *message* as
  * authoritative rather than relying on a single status code.
+ *
+ * "already" is matched only next to "verified": a bare "already" also appears
+ * in the queue message ("already in the verification queue"), which is not a
+ * verified contract, and a match here is persisted to the deployment record.
  */
 export const TRONSCAN_SUCCESS_MESSAGE_RE =
-  /validated|verification success|already/i
+  /validated|verification success|already (been )?verified/i
 
 /** Subdirectories searched under a flattened-sources or `src/` root. */
 const CONTRACT_SUBDIRS = ['', 'Facets', 'Periphery', 'Security', 'Helpers']

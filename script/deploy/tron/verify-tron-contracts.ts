@@ -26,6 +26,7 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 
 import { sleep } from '../../utils/delay'
+import { redactUrls } from '../../utils/redactUrls'
 import { executeShellCommand } from '../../utils/utils'
 import { flagIsOn } from '../safe/cli-flags'
 
@@ -54,21 +55,23 @@ const ALREADY_VERIFIED = new Set(['AccessManagerFacet', 'LiFiDiamond'])
  * on the Tron path writes that flag, unlike the EVM path where
  * `deploySingleContract.sh` sets it inline.
  *
- * A failure is warned about rather than thrown: the contract is verified on the
- * explorer either way, and failing the run over the bookkeeping would be the
- * worse outcome.
+ * A failure is reported rather than thrown: the contract is verified on the
+ * explorer either way, so the remaining contracts should still be submitted.
+ * The caller collects the failures and the run ends non-zero, because a flag
+ * nobody notices is a record that stays `verified: false` for good.
  *
  * @param contractName - Contract whose record to flag
  * @param network - Network key the record is filed under
  * @param address - Address just verified, spelled as the record spells it
  * @param environment - `production` or `staging`
+ * @returns Whether the record was flagged
  */
 async function markVerifiedInDeploymentLog(
   contractName: string,
   network: string,
   address: string,
   environment: string
-): Promise<void> {
+): Promise<boolean> {
   const escapeShellArg = (arg: string) => `'${arg.replace(/'/g, "'\"'\"'")}'`
   try {
     await executeShellCommand(
@@ -80,11 +83,15 @@ async function markVerifiedInDeploymentLog(
         `--address ${escapeShellArg(address)}`,
       ].join(' ')
     )
+    return true
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     consola.warn(
-      `${contractName}: verified on TronScan, but the deployment record was not flagged — ${message}`
+      `${contractName}: verified on TronScan, but the deployment record was not flagged — ${redactUrls(
+        message
+      )}`
     )
+    return false
   }
 }
 
@@ -191,11 +198,12 @@ const main = defineCommand({
       readFileSync(`deployments/${network}.json`, 'utf8')
     ) as Record<string, string>
 
-    // Derived from the network rather than the environment variable the rest of
-    // the Tron tooling reads: `network` is an explicit argument here, and the
-    // addresses being verified come from that network's log, so the records
-    // updated must be the ones filed under the same environment.
-    const environment = network === 'tron' ? 'production' : 'staging'
+    // Tied to the log read above rather than to the network or to the
+    // environment variable the rest of the Tron tooling reads:
+    // `deployments/<network>.json` is the production log for every network,
+    // testnets included — staging lives in `<network>.staging.json` — so the
+    // records to flag are always the production ones.
+    const environment = 'production'
 
     const onlySet = args.only
       ? new Set(args.only.split(',').map((s) => s.trim()))
@@ -209,6 +217,7 @@ const main = defineCommand({
 
     const outcomes: IVerifyOutcome[] = []
     const missing: string[] = []
+    const unflagged: string[] = []
 
     for (const [contractName, address] of Object.entries(deployments)) {
       if (onlySet && !onlySet.has(contractName)) continue
@@ -268,12 +277,13 @@ const main = defineCommand({
         outcomes.push({ contractName, address, ok, message })
         if (ok) {
           consola.success(`${contractName}: ${message}`)
-          await markVerifiedInDeploymentLog(
+          const flagged = await markVerifiedInDeploymentLog(
             contractName,
             network,
             address,
             environment
           )
+          if (!flagged) unflagged.push(contractName)
         } else consola.error(`${contractName}: ${message}`)
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
@@ -290,13 +300,23 @@ const main = defineCommand({
     const failed = outcomes.filter((o) => !o.ok)
     consola.box(
       `Verified: ${verified.length}  Failed: ${failed.length}  ` +
-        `Skipped: ${missing.length}`
+        `Unflagged: ${unflagged.length}  Skipped: ${missing.length}`
     )
     if (failed.length)
       consola.warn(`Failed: ${failed.map((f) => f.contractName).join(', ')}`)
     if (missing.length)
       consola.warn(`Skipped (no source / flatten error): ${missing.join(', ')}`)
-    if (failed.length) process.exit(1)
+    if (unflagged.length)
+      consola.warn(
+        `Verified on TronScan but still unflagged in the deployment log: ` +
+          `${unflagged.join(', ')}. Re-run this command once MongoDB is ` +
+          `reachable, or flag each one with: bunx tsx ` +
+          `script/deploy/update-deployment-logs.ts mark-verified --env ` +
+          `${environment} --contract <name> --network ${network} --address <address>`
+      )
+    // Unflagged records exit non-zero too: nothing else on the Tron path writes
+    // that flag, so a green run is the last chance anyone looks.
+    if (failed.length || unflagged.length) process.exit(1)
   },
 })
 
