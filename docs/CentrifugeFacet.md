@@ -91,10 +91,11 @@ The methods listed above take a variable labeled `_centrifugeData`:
 ///        refunded to `refundRecipient` unless the TokenBridge has a relayer configured, in
 ///        which case the Gateway routes the overage to that relayer instead (`relayer` is
 ///        unset on both supported chains today).
-/// @param refundRecipient Address that receives swap leftovers and positive slippage from
-///        pre-bridge swaps, any excess source-side native, and the messaging-fee overage that
-///        the Centrifuge Gateway refunds. Must accept plain native transfers: a refundRecipient
-///        that rejects them reverts the whole bridge (self-inflicted).
+/// @param refundRecipient Address that receives swap leftovers from pre-bridge swaps, any
+///        excess source-side native, and the messaging-fee overage that the Centrifuge Gateway
+///        refunds. Positive slippage is not refunded: the full swap output is bridged to
+///        `_bridgeData.receiver`. Must accept plain native transfers: a refundRecipient that
+///        rejects them reverts the whole bridge (self-inflicted).
 struct CentrifugeData {
   uint256 nativeFee;
   address refundRecipient;
