@@ -607,15 +607,66 @@ function getContractNamesFromNetworkDeploymentFile() {
   return 0
 }
 
+# getFoundryProfileValue: Reads KEY from the foundry.toml profile forge would build with.
+# The active profile is FOUNDRY_PROFILE (default when unset); a key the active profile
+# leaves out is read from [profile.default], which is how forge itself resolves it.
+#
+# Usage: getFoundryProfileValue KEY
+#   KEY - a scalar key such as solc_version or evm_version
+#
+# Returns: 0 with the unquoted value on stdout; 1 with the reason on stderr (stdout stays
+#          empty, callers capture it) when KEY is missing, the toml file does not exist, or
+#          neither profile declares KEY
+# Example: getFoundryProfileValue "solc_version"
+function getFoundryProfileValue() {
+  local KEY="$1"
+  local TOML_FILE="${FOUNDRY_TOML_FILE_PATH:-foundry.toml}"
+  local PROFILE
+  local VALUE
+
+  if [[ -z "$KEY" ]]; then
+    error "getFoundryProfileValue: KEY is required" >&2
+    return 1
+  fi
+  if [[ ! -f "$TOML_FILE" ]]; then
+    error "foundry.toml not found at $TOML_FILE" >&2
+    return 1
+  fi
+
+  for PROFILE in "${FOUNDRY_PROFILE:-default}" default; do
+    VALUE=$(awk -v section="[profile.$PROFILE]" -v key="$KEY" -v quotes="'\"" '
+      $1 == section { active = 1; next }
+      /^\[/ { active = 0 }
+      active && $0 ~ "^[[:space:]]*" key "[[:space:]]*=" {
+        sub("^[^=]*=[[:space:]]*", "")
+        if ($0 ~ "^[" quotes "]") {
+          sub("^[" quotes "]", "")
+          sub("[" quotes "].*$", "")
+        } else {
+          sub("[[:space:]]*#.*$", "")
+          sub("[[:space:]]+$", "")
+        }
+        print
+        exit
+      }
+    ' "$TOML_FILE")
+    if [[ -n "$VALUE" ]]; then
+      echo "$VALUE"
+      return 0
+    fi
+  done
+
+  error "neither [profile.${FOUNDRY_PROFILE:-default}] nor [profile.default] in $TOML_FILE declares $KEY" >&2
+  return 1
+}
+
 function getSolcVersion() {
   local NETWORK="$1"
 
   if isZkEvmNetwork "$NETWORK"; then
-    # Extract from zksync profile
-    grep -A 10 "^\[profile\.zksync\]" foundry.toml | grep "solc_version" | cut -d "'" -f 2
+    FOUNDRY_PROFILE=zksync getFoundryProfileValue "solc_version"
   else
-    # Extract from default profile
-    grep -A 10 "^\[profile\.default\]" foundry.toml | grep "solc_version" | cut -d "'" -f 2
+    getFoundryProfileValue "solc_version"
   fi
 }
 
@@ -626,8 +677,7 @@ function getEvmVersion() {
     # For zkEVM networks, return appropriate identifier
     echo "zkevm"
   else
-    # Extract from default profile
-    grep -A 10 "^\[profile\.default\]" foundry.toml | grep "evm_version" | cut -d "'" -f 2
+    getFoundryProfileValue "evm_version"
   fi
 }
 
@@ -1077,7 +1127,7 @@ function saveDiamondFacets() {
     fi
 
     # throttle background jobs
-    while [[ $(jobs | wc -l | tr -d ' ') -ge $CONCURRENCY ]]; do
+    while [[ $(jobs -rp | wc -l | tr -d ' ') -ge $CONCURRENCY ]]; do
       sleep 0.1
     done
 
@@ -1242,7 +1292,7 @@ function saveDiamondPeriphery() {
   # resolve each periphery address in parallel and write to temp files
   for CONTRACT in ${PERIPHERY_CONTRACTS}; do
     # throttle background jobs; for Tron wait 2s between dispatches to respect RPC rate limits
-    while [[ $(jobs | wc -l | tr -d ' ') -ge $CONCURRENCY ]]; do
+    while [[ $(jobs -rp | wc -l | tr -d ' ') -ge $CONCURRENCY ]]; do
       if isTronNetwork "$NETWORK"; then sleep 2; else sleep 0.1; fi
     done
 
@@ -1746,6 +1796,47 @@ function getOptimizerRuns() {
 
 }
 
+# standardArtifactMatchesActiveProfile: Whether an artifact was built with the compiler the
+# active FOUNDRY_PROFILE declares. Anything unreadable - a missing file, absent metadata -
+# answers no, because the caller's response is to rebuild and that is also the right response
+# to an artifact nothing can vouch for.
+#
+# A profile that redirects `out` elsewhere answers no whatever the artifact records: it never
+# wrote this path, and [profile.zksync] pins the default profile's compiler pair, so the pair
+# alone would read its tree as this one's.
+#
+# Usage: standardArtifactMatchesActiveProfile ARTIFACT_PATH
+#   ARTIFACT_PATH - path of the standard forge artifact to inspect
+#
+# Returns: 0 when the artifact's recorded solc and evm versions are the active profile's, 1 otherwise
+# Example: standardArtifactMatchesActiveProfile "out/FeeForwarder.sol/FeeForwarder.json"
+function standardArtifactMatchesActiveProfile() {
+  local ARTIFACT_PATH="${1:-}"
+
+  if [[ -z "$ARTIFACT_PATH" ]] || [[ ! -f "$ARTIFACT_PATH" ]]; then
+    return 1
+  fi
+
+  local ACTIVE_OUT
+  ACTIVE_OUT=$(getFoundryProfileValue "out" 2>/dev/null) || return 1
+  [[ "$ACTIVE_OUT" == "out" ]] || return 1
+
+  local EXPECTED_SOLC EXPECTED_EVM ACTUAL_SOLC ACTUAL_EVM
+  EXPECTED_SOLC=$(getFoundryProfileValue "solc_version" 2>/dev/null) || return 1
+  EXPECTED_EVM=$(getFoundryProfileValue "evm_version" 2>/dev/null) || return 1
+  [[ -n "$EXPECTED_SOLC" && -n "$EXPECTED_EVM" ]] || return 1
+
+  ACTUAL_SOLC=$(jq -r '.metadata.compiler.version // empty' "$ARTIFACT_PATH" 2>/dev/null) || return 1
+  ACTUAL_EVM=$(jq -r '.metadata.settings.evmVersion // empty' "$ARTIFACT_PATH" 2>/dev/null) || return 1
+  [[ -n "$ACTUAL_SOLC" && -n "$ACTUAL_EVM" ]] || return 1
+
+  # solc records itself as `0.8.17+commit.8df45f5f`; foundry.toml pins the version alone.
+  [[ "${ACTUAL_SOLC%%+*}" == "$EXPECTED_SOLC" ]] || return 1
+  [[ "$ACTUAL_EVM" == "$EXPECTED_EVM" ]] || return 1
+
+  return 0
+}
+
 # ensureStandardArtifactForSalt: Make sure the standard build artifact a deploy salt is derived
 # from exists, building it if necessary.
 #
@@ -1760,10 +1851,16 @@ function getOptimizerRuns() {
 # the deploy looks like it stopped for no reason - leaving the salt to be derived from the error
 # text rather than from bytecode.
 #
+# An artifact already on disk is only accepted when its recorded compiler pair matches the
+# active profile's: a grouped deploy leaves the previous group's out/ behind, and a london
+# tree left there decides the zkEVM salt, and with it the deployed address, whenever no
+# cancun network ran in between to overwrite it.
+#
 # Usage: ensureStandardArtifactForSalt CONTRACT
 #   CONTRACT - Name of the contract whose artifact is required
 #
-# Returns: 0 if the artifact exists or was built; 1 (with an error) if it cannot be produced.
+# Returns: 0 if the artifact exists for the active profile or was built; 1 (with an error) if
+#          it cannot be produced.
 # Example: ensureStandardArtifactForSalt "FeeForwarder"
 function ensureStandardArtifactForSalt() {
   # read function arguments into variables
@@ -1776,7 +1873,7 @@ function ensureStandardArtifactForSalt() {
 
   local ARTIFACT_PATH="out/$CONTRACT.sol/$CONTRACT.json"
 
-  if checkIfFileExists "$ARTIFACT_PATH" >/dev/null; then
+  if standardArtifactMatchesActiveProfile "$ARTIFACT_PATH"; then
     return 0
   fi
 
@@ -1784,14 +1881,19 @@ function ensureStandardArtifactForSalt() {
     return 1
   fi
 
-  echo "[info] standard artifact $ARTIFACT_PATH not found - running 'forge build --skip test' to derive the deploy salt"
-  if ! forge build --skip test; then
-    error "'forge build --skip test' failed - cannot derive the deploy salt for $CONTRACT without $ARTIFACT_PATH"
+  echo "[info] standard artifact $ARTIFACT_PATH missing or built under another profile - running forge build --skip 'test/**' to derive the deploy salt"
+  if ! forge build --skip 'test/**'; then
+    error "forge build --skip 'test/**' failed - cannot derive the deploy salt for $CONTRACT without $ARTIFACT_PATH"
     return 1
   fi
 
   if ! checkIfFileExists "$ARTIFACT_PATH" >/dev/null; then
-    error "'forge build --skip test' did not produce $ARTIFACT_PATH - cannot derive the deploy salt for $CONTRACT (is $CONTRACT.sol still present in src/?)"
+    error "forge build --skip 'test/**' did not produce $ARTIFACT_PATH - cannot derive the deploy salt for $CONTRACT (is $CONTRACT.sol still present in src/?)"
+    return 1
+  fi
+
+  if ! standardArtifactMatchesActiveProfile "$ARTIFACT_PATH"; then
+    error "$ARTIFACT_PATH was rebuilt but still does not record the compiler pair FOUNDRY_PROFILE=${FOUNDRY_PROFILE:-default} declares - refusing to derive the deploy salt for $CONTRACT from it"
     return 1
   fi
 
@@ -1888,8 +1990,8 @@ function verifyContract() {
   local ARGS=$4
   # Optional toolchain overrides (positional $5-$7). When set (non-zkEVM only),
   # they pin forge verify-contract to the toolchain a contract was BUILT with,
-  # so re-verifying an older contract does not recompile against the current
-  # foundry.toml (which may have moved to a different EVM-version group).
+  # so re-verifying an older contract does not recompile against whichever
+  # profile happens to be active now.
   local SOLC_VERSION_OVERRIDE="${5:-}"
   local EVM_VERSION_OVERRIDE="${6:-}"
   local OPTIMIZER_RUNS_OVERRIDE="${7:-}"
@@ -1948,9 +2050,11 @@ function verifyContract() {
       return 1
     fi
 
-    # Set environment variable for zkEVM
-    export FOUNDRY_PROFILE=zksync
+    # Scoped to this command: an exported profile would outlive the call and decide
+    # the compiler the next network's build and deployment record use.
     VERIFY_CMD=(
+      "env"
+      "FOUNDRY_PROFILE=zksync"
       "./foundry-zksync/forge"
       "verify-contract"
       "--zksync"
@@ -2850,7 +2954,7 @@ function success() {
 #   MESSAGE - Text to log
 #
 # Returns: Writes "[YYYY-MM-DD HH:MM:SS] MESSAGE" to stdout.
-# Example: logWithTimestamp "Backed up foundry.toml"
+# Example: logWithTimestamp "Running forge build for London EVM group..."
 function logWithTimestamp() {
   local MESSAGE="$1"
   local TIMESTAMP
@@ -2873,6 +2977,31 @@ function logNetworkResult() {
   local TIMESTAMP
   TIMESTAMP=$(date '+%Y-%m-%d %H:%M:%S') || return 1
   printf '[%s] [%s] %s: %s\n' "$TIMESTAMP" "$NETWORK" "$STATUS" "$MESSAGE"
+}
+# prefixNetworkOutput: Tag each line of a background worker's output with its network.
+# Reads stdin until EOF, so it is used as the consumer of a pipeline.
+#
+# Prefer this over `| sed "s/^/[$NETWORK] /"`: sed block-buffers when its stdout is
+# not a tty, so a worker's whole output lands at once when it exits, and a wedged
+# run looks identical to a working one in a redirected log (EXSC-1038). The
+# builtins below write one line as soon as it is read.
+#
+# Usage: someNetworkWorker ARGS... | prefixNetworkOutput NETWORK
+#   NETWORK - Network name to prefix each line with
+#
+# Returns: 0. Writes "[NETWORK] LINE" to stdout, one write per input line.
+# Example: deployToNetworkWorker "$NETWORK" ... 2>&1 | prefixNetworkOutput "$NETWORK"
+function prefixNetworkOutput() {
+  local NETWORK="$1"
+  local LINE
+  while IFS= read -r LINE; do
+    printf '[%s] %s\n' "$NETWORK" "$LINE"
+  done
+  # a worker killed mid-line leaves text with no trailing newline: read reports
+  # failure for it but still assigns it, so emit it instead of dropping it
+  if [[ -n "${LINE:-}" ]]; then
+    printf '[%s] %s\n' "$NETWORK" "$LINE"
+  fi
 }
 # <<<<< output to console
 

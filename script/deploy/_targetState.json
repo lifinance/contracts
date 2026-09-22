@@ -2296,7 +2296,10 @@
         "ReceiverOIF": "latest",
         "AcrossFacetV4": "latest",
         "ReceiverAcrossV4": "latest",
-        "RelayDepositoryFacet": "latest"
+        "RelayDepositoryFacet": "latest",
+        "EcoFacet": "latest",
+        "GardenFacet": "latest",
+        "SymbiosisFacet": "latest"
       }
     }
   },

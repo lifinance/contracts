@@ -665,6 +665,21 @@ describe('resolveRecordedTarget', () => {
     expect(resolution.kind).toBe('ambiguous')
   })
 
+  it('collapses one version padded two ways', () => {
+    // Blankness was judged trimmed while the identity key used the raw string,
+    // so one deploy padded two ways read as two candidates and refused.
+    const resolution = resolveRecordedTarget([
+      { contractName: 'GasZipFacet', version: '2.0.0' },
+      { contractName: 'GasZipFacet', version: ' 2.0.0 ' },
+    ])
+
+    expect(resolution).toEqual({
+      kind: 'recorded-deployment',
+      name: 'GasZipFacet',
+      version: '2.0.0',
+    })
+  })
+
   it('reports nothing at all as unknown', () => {
     expect(resolveRecordedTarget([])).toEqual({ kind: 'unknown' })
   })

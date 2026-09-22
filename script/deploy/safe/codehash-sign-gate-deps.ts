@@ -28,7 +28,7 @@ import { tmpdir } from 'os'
 import { dirname, join } from 'path'
 import { fileURLToPath } from 'url'
 
-import { MongoClient } from 'mongodb'
+import { MongoClient, type Filter } from 'mongodb'
 import { createPublicClient, http, type Address, type Chain } from 'viem'
 
 import { EnvironmentEnum } from '../../common/types'
@@ -47,6 +47,7 @@ import type { IOffCodeImmutables } from '../codehash/immutable-verdict'
 import {
   deriveToolchainScope,
   parseBuildProfiles,
+  ZK_PROFILE,
   type IBuildProfile,
   type IToolchainScope,
 } from '../codehash/lineage-scope'
@@ -57,6 +58,7 @@ import {
   type IRebuildRequest,
   type IRebuiltArtifact,
 } from '../codehash/rebuild-attestations'
+import { resolveSourceRemote } from '../codehash/source-remote'
 import type { IVerifyCutDeps } from '../codehash/verify-cut-targets'
 import {
   readZkImmutables,
@@ -73,6 +75,7 @@ import type {
   IImmutableEntry,
 } from '../immutables/registry-schema'
 import { mergeRequirements } from '../immutables/verify-immutable-registry'
+import { createTronAddressSpellings } from '../shared/tron-address-spellings'
 
 import { evaluateRpcQuorum } from './rpc-quorum'
 import {
@@ -234,15 +237,21 @@ export const createRuntimeCodeObserver = (
   }
 }
 
-/** The slice of the deployment-record store this needs. */
+/**
+ * The slice of the deployment-record store this needs.
+ *
+ * `version` and `gitCommitHash` are optional because the stored rows make them
+ * so — declaring them required does not make them present, it only moves the
+ * absence to a `TypeError` the signer reads as an unreadable record.
+ */
 export interface IRecordSource {
   findByAddress: (
     address: string,
     network: string
   ) => Promise<{
     contractName: string
-    version: string
-    gitCommitHash: string
+    version?: string
+    gitCommitHash?: string
   } | null>
 }
 
@@ -279,8 +288,8 @@ export const createRecordReader = (
     if (!row) return undefined
     return {
       contractName: row.contractName,
-      version: row.version,
-      gitCommitHash: row.gitCommitHash ?? '',
+      version: text(row.version),
+      gitCommitHash: text(row.gitCommitHash),
     }
   }
 }
@@ -527,12 +536,86 @@ const assertSubmodulesPinned = (
 }
 
 /**
+ * Names the profile in a checkout's own `foundry.toml` that pins the requested
+ * compiler pair.
+ *
+ * The request carries a profile from HEAD's `foundry.toml`, but the build runs
+ * at the deployment commit, whose file may spell the same pair under another
+ * name or not declare it at all. Forge answers an unknown `FOUNDRY_PROFILE`
+ * with `[profile.default]`, a warning and exit 0, so passing HEAD's name through
+ * unchecked would rebuild a london deployment as cancun and grade it MISMATCH.
+ *
+ * A non-zk pair is matched by its versions, so either spelling of the london
+ * profile resolves. The zk profile is matched by name: its zksolc pin attaches
+ * by name in `parseBuildProfiles`, and older commits carry no pin at all.
+ *
+ * @param deps - the file primitive the runner reads the checkout with
+ * @param checkout - absolute path of the detached worktree
+ * @param requested - HEAD's profile for the lineage being rebuilt
+ * @returns The profile name to export as `FOUNDRY_PROFILE` in that checkout
+ * @throws when the checkout declares no such pair, or more than one profile for it
+ */
+const resolveCheckoutProfile = (
+  deps: Pick<IForgeRebuildDeps, 'readFile'>,
+  checkout: string,
+  requested: IBuildProfile
+): string => {
+  const tomlPath = join(checkout, 'foundry.toml')
+  let toml: string
+  try {
+    toml = deps.readFile(tomlPath)
+  } catch (error) {
+    throw new Error(
+      `refusing to rebuild at ${checkout}: its foundry.toml could not be read (${
+        error instanceof Error ? error.message : String(error)
+      }), so nothing says which profile pins solc ${
+        requested.solcVersion
+      } / evm ${requested.evmVersion} there.`
+    )
+  }
+  const profiles = parseBuildProfiles(toml)
+
+  if (requested.zksolcVersion !== undefined) {
+    if (profiles[ZK_PROFILE] !== undefined) return ZK_PROFILE
+    throw new Error(
+      `refusing to rebuild at ${checkout}: its foundry.toml declares no [profile.${ZK_PROFILE}], so forge would build the zk lineage under [profile.default] with a warning and exit 0.`
+    )
+  }
+
+  const matching = Object.values(profiles).filter(
+    (candidate) =>
+      candidate.profile !== ZK_PROFILE &&
+      candidate.zksolcVersion === undefined &&
+      candidate.solcVersion === requested.solcVersion &&
+      candidate.evmVersion === requested.evmVersion
+  )
+  if (matching.length === 1) return (matching[0] as IBuildProfile).profile
+  const pair = `solc ${requested.solcVersion} / evm ${requested.evmVersion}`
+  if (matching.length === 0)
+    throw new Error(
+      `refusing to rebuild at ${checkout}: its foundry.toml declares no profile pinning ${pair} (HEAD calls it "${requested.profile}"), so forge would build under [profile.default] with a warning and exit 0 and the comparison would run against the wrong compiler.`
+    )
+  throw new Error(
+    `refusing to rebuild at ${checkout}: its foundry.toml declares ${
+      matching.length
+    } profiles pinning ${pair} (${matching
+      .map((candidate) => candidate.profile)
+      .join(
+        ', '
+      )}), so the one the deployment was built with cannot be told apart.`
+  )
+}
+
+/**
  * Compiles one contract at one commit under one profile.
  *
  * The commit is built in its own detached checkout, never in the tree the
  * signer is running from: a signing session must not be able to move the
  * operator's working tree, and a build in place would compile whatever is
  * checked out rather than what was deployed.
+ *
+ * `FOUNDRY_PROFILE` is the name the checkout's own `foundry.toml` gives the
+ * requested compiler pair (`resolveCheckoutProfile`), not HEAD's.
  *
  * Each profile gets its own output directory. Foundry puts `default` and
  * `solc_floor` in the same `out/`, and one run can need both — a fleet rollout
@@ -606,9 +689,16 @@ export const createForgeRebuildRunner = (
       const command = isZk
         ? join(deps.repoRoot, 'foundry-zksync', 'forge')
         : 'forge'
+      // The pin check first: a missing or off-pin zk toolchain names the drift
+      // precisely, and a profile refusal in front of it would mask that.
       if (isZk) assertZkToolchainPinned(deps, command)
+      const checkoutProfile = resolveCheckoutProfile(
+        deps,
+        checkout,
+        request.profile
+      )
       // `test`/`script` are forge aliases for `.t.sol`/`.s.sol` only; the
-      // path globs match `[profile.solc_floor]` and skip the whole trees.
+      // path globs skip the whole trees. Only src/ is attested.
       // `--offline` refuses forge's auto-install so a missing pin cannot be
       // silently substituted mid-build.
       const args = [
@@ -626,7 +716,7 @@ export const createForgeRebuildRunner = (
         '--ast',
       ]
       const env: Record<string, string> = {
-        FOUNDRY_PROFILE: request.profile.profile,
+        FOUNDRY_PROFILE: checkoutProfile,
         ...(isZk
           ? {
               FOUNDRY_ZKSYNC: `{ zksolc = "${request.profile.zksolcVersion}" }`,
@@ -1206,6 +1296,7 @@ export const createSignTimeCodehashDeps = (overrides?: {
     toolchainScope: scopeFor,
     build: rebuild.build,
     git,
+    sourceRemote: (network: string) => resolveSourceRemote(network, { git }),
   })
 
   const observe = createRuntimeCodeObserver({
@@ -1263,6 +1354,164 @@ const escapeRegexLiteral = (value: string): string =>
   value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 /**
+ * A stored field as trimmed text, whatever the row actually holds.
+ *
+ * Coerced rather than optional-chained: a row storing a number reaches the
+ * signer as `record-unreadable`, which is the unactionable message this
+ * resolver exists to replace, and the store's shape is not ours to assume.
+ */
+const text = (value: unknown): string =>
+  value === undefined || value === null ? '' : String(value).trim()
+
+/** The fields the gate reads off a production deployment record. */
+interface IDeploymentRecordFields {
+  contractName: string
+  version?: string
+  gitCommitHash?: string
+}
+
+/**
+ * The filter that finds every production record for one address on one network.
+ *
+ * The decoded cut supplies checksummed addresses (`classifyCut` returns
+ * `getAddress`), and records were written in either case over the years, so an
+ * exact match alone can miss on case. Do not "simplify" this by lowercasing one
+ * side: the stored case is not ours to assume. `network` is matched exactly on
+ * purpose — the deploy path writes it from the config key, so it is lowercase
+ * by construction, unlike an address that a human or an older script may have
+ * written either way.
+ *
+ * A Tron record stores base58 while the cut carries 20-byte hex, so the address
+ * as decoded matches nothing there. Those spellings are matched exactly and
+ * never case-insensitively: base58check is case-sensitive, so folding case
+ * there would match an address that is not the one asked about.
+ *
+ * `\z` rather than `$` on the hex spelling: this is PCRE2, where `$` also
+ * matches before a trailing newline, so `$` would let `<address>\n` answer for
+ * the address.
+ *
+ * @param address - the address as the calldata carries it
+ * @param network - key in `config/networks.json`
+ * @returns The filter both spellings are looked up through
+ */
+export const buildRecordQuery = (
+  address: string,
+  network: string
+): Filter<IDeploymentRecordFields> => {
+  const spellings =
+    createTronAddressSpellings(network)?.forCalldataAddress(address)
+  return {
+    network: { $eq: network },
+    $or: [
+      {
+        address: {
+          $regex: `^${escapeRegexLiteral(address)}\\z`,
+          $options: 'i',
+        },
+      },
+      ...(spellings ? [{ address: { $in: spellings } }] : []),
+    ],
+  }
+}
+
+/**
+ * Picks the one record that describes an address, or refuses.
+ *
+ * There is no "latest wins" here to implement. An address holds one contract
+ * for its whole life, so two records that disagree about it are not a history —
+ * one of them is wrong, and every ordering picks the wrong one somewhere. The
+ * production collection carries both shapes today: `TCyAJzp…` on tron is
+ * AllBridgeFacet 2.1.1 per the diamond log that recorded the cut, while a later
+ * backfill row claims 2.1.2 at the same address, and `0x851450…` on metis
+ * carries LiFuelFeeCollector and TokenWrapper at once. Every caller grades a
+ * refusal fail-closed — `record-unreadable` through `refsFor`, `unestablished`
+ * through the off-code immutables reader, `stillMasked` through the pricer —
+ * so no path reads it as a clean answer.
+ *
+ * The one collapse is a blank field alongside a filled one: the verification
+ * step rewrites the row it just verified and loses `version` on the way
+ * through, and most rows carry no commit at all, so a blank is absence of
+ * evidence rather than a competing claim. Two *filled* values disagreeing is
+ * the refusal, for the commit as much as for the version — the commit is what
+ * the rebuild is keyed on, so picking between two would choose which source to
+ * attest against. The query is unsorted, so picking either would also vary
+ * between runs on identical data.
+ *
+ * @param candidates - every record matching the address and network
+ * @param address - the address being resolved, for the refusal message
+ * @param network - the network being resolved, for the refusal message
+ * @returns The single record, or null when there is none
+ * @throws When the surviving records disagree on contract, version or commit
+ */
+export const resolveDeploymentRecord = <
+  T extends { contractName: string; version?: string; gitCommitHash?: string }
+>(
+  candidates: T[],
+  address: string,
+  network: string
+): T | null => {
+  if (candidates.length === 0) return null
+
+  // Trimmed everywhere, and the identity key below is built from this rather
+  // than from the raw field: a row whose version differs from its twin's by a
+  // space describes the same deploy, and comparing raw strings would refuse
+  // exactly the duplicates this collapses. `version` is optional on the record
+  // interface, so a missing one must read as blank rather than throw.
+  const versionOf = (record: T): string => text(record.version)
+
+  const named = new Set(
+    candidates.filter((r) => versionOf(r) !== '').map((r) => r.contractName)
+  )
+  const kept = candidates.filter(
+    (r) => versionOf(r) !== '' || !named.has(r.contractName)
+  )
+
+  const refuse = (what: string, values: string[]): never => {
+    throw new Error(
+      `the production deployment records disagree about ${what} at ${address} on ${network}: ${values
+        .sort()
+        .join(
+          ', '
+        )}. An address holds one contract, so one of these records is wrong and no ordering of them is a safe guess — fix the records before signing against this address.`
+    )
+  }
+
+  const identities = new Set(
+    kept.map((r) => `${r.contractName}@${versionOf(r)}`)
+  )
+  if (identities.size > 1) refuse('what is', [...identities])
+
+  // Every candidate, not `kept`: the blank-version collapse above drops the row
+  // the verification step rewrote, and that row is the one whose commit was
+  // actually verified. Comparing only what survives the collapse lets a row
+  // that can fill in a version outrank the row that was checked.
+  //
+  // `UNKNOWN` is what the record writer stores when it could not read a commit,
+  // so it is absence of evidence like a blank field is, not a competing claim.
+  // Counting it would refuse a pair whose only real commit is usable, and let
+  // it outrank that commit in the pick below.
+  const namesCommit = (record: T): boolean => {
+    const commit = text(record.gitCommitHash)
+    return commit !== '' && commit !== UNKNOWN_COMMIT
+  }
+
+  const commits = new Set(
+    candidates.filter(namesCommit).map((r) => text(r.gitCommitHash))
+  )
+  if (commits.size > 1) refuse('which commit built what is', [...commits])
+
+  // Commits are compared across every candidate but the row is picked from
+  // `kept`, so the collapse can discard the only row naming the commit and
+  // leave the pick answering "no commit" for an address whose one commit claim
+  // is right here. Carrying it over keeps both halves: the version the collapse
+  // exists to preserve, and the commit it agreed on.
+  const chosen = (kept.find(namesCommit) ?? kept[0]) as T
+  const [agreed] = [...commits]
+  if (agreed === undefined || namesCommit(chosen)) return chosen
+  return { ...chosen, gitCommitHash: agreed }
+}
+
+/**
  * The production deployment-log collection, connected on first use.
  *
  * Queried directly rather than through `CachedDeploymentQuerier`, whose cache
@@ -1285,35 +1534,14 @@ const createMongoRecordSource = (): IRecordSource => ({
       client = new MongoClient(uri)
       await client.connect()
     }
-    const collection = client.db('contract-deployments').collection<{
-      contractName: string
-      version: string
-      gitCommitHash: string
-    }>(EnvironmentEnum.production)
+    const collection = client
+      .db('contract-deployments')
+      .collection<IDeploymentRecordFields>(EnvironmentEnum.production)
 
-    // Latest first: one address can carry several records over its life, and
-    // what is meant to be there now is the most recent of them.
-    const sort = { timestamp: -1 } as const
-    const exact = await collection.findOne(
-      { address: { $eq: address }, network: { $eq: network } },
-      { sort }
-    )
-    if (exact) return exact
-
-    // The decoded cut supplies checksummed addresses (`classifyCut` returns
-    // `getAddress`), and records were written in either case over the years, so
-    // the exact match above can miss on case alone. Do not "simplify" this by
-    // lowercasing one side: the stored case is not ours to assume. `network` is
-    // matched exactly on purpose — the deploy path writes it from the config
-    // key, so it is lowercase by construction, unlike an address that a human
-    // or an older script may have written either way.
-    return collection.findOne(
-      {
-        network: { $eq: network },
-        address: { $regex: `^${escapeRegexLiteral(address)}$`, $options: 'i' },
-      },
-      { sort }
-    )
+    const matches = await collection
+      .find(buildRecordQuery(address, network))
+      .toArray()
+    return resolveDeploymentRecord(matches, address, network)
   },
 })
 

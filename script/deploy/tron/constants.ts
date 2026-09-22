@@ -122,3 +122,11 @@ export const TRANSFER_OWNERSHIP_FEE_LIMIT_SUN = 20_000_000 // 20 TRX
 export const REGISTER_PERIPHERY_FEE_LIMIT_MIN_SUN = 1_000_000 // 1 TRX
 export const REGISTER_PERIPHERY_FEE_LIMIT_MAX_SUN =
   TRON_SCRIPT_FEE_LIMIT_50_TRX_SUN
+
+/**
+ * Backoff for a TronGrid read a propose cannot proceed without. The keyless
+ * public host allows 3 rps and suspends the query server for 5 s, so the delay
+ * has to outlast the suspension rather than merely spread the calls.
+ */
+export const TRON_READ_MAX_ATTEMPTS = 3
+export const TRON_READ_RETRY_DELAY_MS = 6000

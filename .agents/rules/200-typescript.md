@@ -32,7 +32,7 @@ paths:
   - `script/utils/fetchWithTimeout.ts` (external API fetch with timeout; see [CONV:FETCH-TIMEOUT]),
   - `script/utils/normalizeAddressStringForViem.ts` — `normalizeAddressForNetwork()` for network-aware address conversion (handles Tron base58, hex, and EVM; see [CONV:ADDR-NORMALIZE]),
   - `script/deploy/shared/globalContractLists.ts` — `getCoreFacets()` / `getCorePeriphery()` for config-driven contract name arrays (use instead of hardcoding),
-  - `script/deploy/shared/tron-network-keys.ts` — `isTronNetworkKey()` type guard for Tron-vs-EVM branching (see [CONV:TRON-NETWORK-KEY]),
+  - `@lifi/tron-devkit` — `isTronNetworkKey()` type guard for Tron-vs-EVM branching (see [CONV:TRON-NETWORK-KEY]),
   - `script/utils/viemScriptHelpers.ts` — `isTestnetNetwork(network)` for testnet-vs-mainnet branching (EOA-owned diamond, no Safe/Timelock),
   - `script/common/types.ts` (shared types).
 - **Import organization**: Group imports as: external libs (viem, consola, citty, dotenv) → TypeChain types → config files → internal utils/helpers. Use `type` imports for types-only.
@@ -72,11 +72,12 @@ paths:
 
 ### Tron network detection ([CONV:TRON-NETWORK-KEY])
 
-- Use `isTronNetworkKey(networkName)` from `script/deploy/shared/tron-network-keys.ts` as the sole mechanism for Tron-vs-EVM branching. Do NOT compare chain IDs or network names directly. For Tron-specific conventions, see `202-tron-scripts.md`.
+- Use `isTronNetworkKey(networkName)` from `@lifi/tron-devkit` as the sole mechanism for Tron-vs-EVM branching. Do NOT compare chain IDs or network names directly. For Tron-specific conventions, see `202-tron-scripts.md`.
 
 ### Dynamic imports for chain modules
 
-- When a module is only needed for one chain (e.g., TronWeb, Tron executor), use `await import('./path')` instead of top-level imports. This prevents loading chain-specific dependencies when running on other chains. See `create-chain-caller.ts` for the pattern.
+- Applies to **in-repo chain-specific implementation modules** — executors, chain callers, deployers (`script/deploy/safe/executors/tron-caller.ts`, `script/deploy/safe/executors/evm-caller.ts`) — and to any heavy dependency only some code paths need (`script/deploy/safe/ledger.ts`, `viem/accounts`). Load them with `await import('./path')` so a run only evaluates the implementation for the chain it is on. See `script/deploy/safe/executors/create-chain-caller.ts` for the pattern.
+- Import `@lifi/tron-devkit` helpers (`isTronNetworkKey`, the address converters, the chain-ID helpers) at the top level instead. `isTronNetworkKey` is the Tron-vs-EVM branch itself rather than a Tron-only dependency, so it runs on every network — including from synchronous helpers such as `normalizeAddressForNetwork()` that cannot `await`. This does not keep TronWeb out of an EVM-only run: the devkit barrel re-exports `tronWebFactory`, which imports `tronweb` at module scope, so any top-level devkit import loads it. The previous bullet's "only evaluates the implementation for the chain it is on" holds for in-repo modules, not for the devkit.
 
 ### Parallelize independent async work [CONV:PARALLEL-WORK]
 

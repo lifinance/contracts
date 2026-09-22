@@ -30,7 +30,8 @@ export async function createChainCaller(
           'Set PRIVATE_KEY_PRODUCTION in .env.'
       )
 
-    // Lazy-loaded so EVM-only runs never pull in TronWeb (see [CONV:TRON-NETWORK-KEY] / 200-typescript.mdc).
+    // Lazy-loaded to skip the Tron caller's own imports on an EVM run. It does not keep TronWeb
+    // out of the process: the devkit barrel imported at module scope already pulls it in.
     const { TronChainCaller } = await import('./tron-caller')
     return new TronChainCaller(
       params.networkName.toLowerCase() as TronTvmNetworkName,

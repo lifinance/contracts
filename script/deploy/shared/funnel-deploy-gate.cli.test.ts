@@ -127,11 +127,10 @@ const makeRepo = (diverge: boolean): string => {
  *
  * The order is the whole point and it is not obvious. `spawnSync`'s `timeout`
  * reports ETIMEDOUT in `error` **and** SIGTERM in `signal` while still returning
- * whatever the child had already printed, and the Tron funnel is documented to
- * leave its Mongo connection open and hang after a successful insert. So a probe
- * that DID write is exactly the probe that looks like a timeout, and checking
- * either `error` or `signal` first would report "this proves nothing" and throw
- * the evidence away.
+ * whatever the child had already printed, so a child killed at any point after
+ * its store — the one outcome this probe must never miss — arrives looking
+ * exactly like one that produced nothing. Checking either `error` or `signal`
+ * first would report "this proves nothing" and throw the evidence away.
  * @param result - what `spawnSync` returned
  * @param output - the child's combined stdout and stderr
  */
@@ -167,6 +166,7 @@ const spawnCli = (options: {
   args: string[]
   repoRoot: string
   environment?: string
+  tronRpcUrl?: string
 }): { output: string; status: number | null } => {
   const env: Record<string, string> = {
     ...(process.env as Record<string, string>),
@@ -197,6 +197,10 @@ const spawnCli = (options: {
   // the Tron funnel checks the ticket before the gate, so a probe without one
   // would never reach the gate at all
   env.SAFE_PROPOSAL_TICKET = 'EXSC-929'
+  // The devkit falls back to the public TronGrid host, so a case that means to
+  // prove no chain read happened has to take the chain away rather than trust
+  // the call order.
+  if (options.tronRpcUrl !== undefined) env.RPC_URL_TRON = options.tronRpcUrl
   env.PATH = `${join(options.repoRoot, SHIM_BIN_DIR)}:${env.PATH ?? ''}`
 
   const result = spawnSync('bun', [options.cli, ...options.args], {
@@ -263,6 +267,14 @@ const NEXT_STOP_TRON = 'is not a MongoDB connection string'
 const NEXT_STOP_SEND_OR_PROPOSE = 'in environment. Set it, or pass --ledger'
 
 const TRON_FACET = 'CalldataVerificationFacet'
+
+// The discard port: nothing listens, so a connection is refused at once rather
+// than spending the case's budget on a timeout.
+const UNROUTABLE_RPC = 'http://127.0.0.1:9'
+// Owned by `propose-to-safe-tron.ts`; a reword there must be mirrored here. The
+// cases asserting its absence run against `UNROUTABLE_RPC`, where a Timelock
+// read cannot succeed — so the marker is what a read that happened would print.
+const TIMELOCK_READ_FAILURE = 'Could not read getMinDelay from Timelock'
 
 /**
  * Builds a Tron-shaped repo: the funnel reads `deployments/<network>.json` and
@@ -353,7 +365,10 @@ describe('assertChildIsUsable ordering', () => {
 })
 
 describe('propose-to-safe-tron funnel deploy gate', () => {
-  const runTron = (diverge: boolean) => {
+  const runTron = (
+    diverge: boolean,
+    options: { tronRpcUrl?: string; dryRun?: boolean } = {}
+  ) => {
     const { repoRoot, facetAddressHex } = makeTronRepo(diverge)
     const tronLog = JSON.parse(
       readFileSync(join(repoRoot, 'deployments/tron.json'), 'utf8')
@@ -362,7 +377,9 @@ describe('propose-to-safe-tron funnel deploy gate', () => {
     return spawnCli({
       cli: TRON_CLI,
       repoRoot,
+      tronRpcUrl: options.tronRpcUrl,
       args: [
+        ...(options.dryRun ? ['--dryRun'] : []),
         '--network',
         'tron',
         '--to',
@@ -381,7 +398,11 @@ describe('propose-to-safe-tron funnel deploy gate', () => {
   it(
     'refuses a diverged facet addition before the Timelock is read',
     () => {
-      const result = runTron(true)
+      // Unroutable on purpose: with a reachable host every assertion below
+      // holds just as well when the Timelock is read first, which is how this
+      // name stayed wrong while the reads sat above the gate. Now the case
+      // fails with ECONNREFUSED the moment they move back.
+      const result = runTron(true, { tronRpcUrl: UNROUTABLE_RPC })
 
       expect(result.output).toMatch(GATE_REFUSAL)
       expect(result.output).toContain(TRON_FACET)
@@ -389,6 +410,22 @@ describe('propose-to-safe-tron funnel deploy gate', () => {
       // The store is the last step before a production write, so its absence is
       // what makes "the refusal came first" mean anything here
       expect(result.output).not.toContain(NEXT_STOP_TRON)
+      expect(result.output).not.toContain(TIMELOCK_READ_FAILURE)
+    },
+    CASE_TIMEOUT_MS
+  )
+
+  it(
+    'previews a timelock proposal without reading the Timelock',
+    () => {
+      const result = runTron(false, {
+        tronRpcUrl: UNROUTABLE_RPC,
+        dryRun: true,
+      })
+
+      expect(result.output).toContain('[DRY RUN]')
+      expect(result.status).toBe(0)
+      expect(result.output).not.toContain(TIMELOCK_READ_FAILURE)
     },
     CASE_TIMEOUT_MS
   )

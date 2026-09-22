@@ -150,7 +150,7 @@ function proposeToNetworkWorker() {
     WORKER_RC=$?
   fi
 
-  # Stream worker logs to the terminal (prefixed by the launcher's sed).
+  # Stream worker logs to the terminal (the launcher tags each line with its network).
   cat "$PROPOSE_LOG"
 
   if grep -qiE 'Proposal already exists|Duplicate pending proposal' "$PROPOSE_LOG"; then
@@ -197,10 +197,10 @@ function launchProposeWave() {
   fi
 
   for WAVE_NETWORK in "${WAVE_NETWORKS[@]}"; do
-    while [[ $(jobs | wc -l) -ge $WAVE_CONCURRENCY ]]; do
+    while [[ $(jobs -rp | wc -l) -ge $WAVE_CONCURRENCY ]]; do
       sleep 1
     done
-    proposeToNetworkWorker "$WAVE_NETWORK" "$WAVE_ENVIRONMENT" "$WAVE_CONTRACT" "$WAVE_RESULT_DIR" </dev/null 2>&1 | sed "s/^/[$WAVE_NETWORK] /" &
+    proposeToNetworkWorker "$WAVE_NETWORK" "$WAVE_ENVIRONMENT" "$WAVE_CONTRACT" "$WAVE_RESULT_DIR" </dev/null 2>&1 | prefixNetworkOutput "$WAVE_NETWORK" &
   done
   wait
 }
@@ -406,24 +406,18 @@ function proposeContractToNetworks() {
   [[ "$NEEDS_WHITELIST" == "true" ]] && echo "[info] diamond-called periphery — will sync allowlist on OK networks after registration"
   echo "[info] up to $MAX_CONCURRENT_JOBS concurrent network(s) per EVM group; zkEVM runs sequentially"
 
+  # Removed explicitly on every exit path rather than by an EXIT trap: the summary
+  # reads it after the waves.
   local RESULT_DIR
   if ! RESULT_DIR=$(mktemp -d); then
     error "failed to create worker result directory - aborting"
     exit 1
   fi
 
-  backupFoundryToml || {
-    error "failed to back up foundry.toml - aborting"
-    rm -rf "$RESULT_DIR"
-    exit 1
-  }
-  # Do not delete RESULT_DIR in EXIT — summary reads it after waves; clean up explicitly.
-  trap 'restoreFoundryToml 2>/dev/null' EXIT
-
   if [[ ${#LONDON_NETWORKS[@]} -gt 0 ]]; then
     echo ""
     echo "[info] === london group ==="
-    if ! updateFoundryTomlForGroup "$GROUP_LONDON" true; then
+    if ! prepareGroupBuild "$GROUP_LONDON" true; then
       error "london group build failed"
       rm -rf "$RESULT_DIR"
       exit 1
@@ -434,7 +428,7 @@ function proposeContractToNetworks() {
   if [[ ${#CANCUN_NETWORKS[@]} -gt 0 ]]; then
     echo ""
     echo "[info] === cancun group ==="
-    if ! updateFoundryTomlForGroup "$GROUP_CANCUN" true; then
+    if ! prepareGroupBuild "$GROUP_CANCUN" true; then
       error "cancun group build failed"
       rm -rf "$RESULT_DIR"
       exit 1
@@ -445,6 +439,13 @@ function proposeContractToNetworks() {
   if [[ ${#ZKEVM_NETWORKS[@]} -gt 0 ]]; then
     echo ""
     echo "[info] === zkevm group ==="
+    # Clears a profile the london wave exported; the zk workers derive the CREATE2 salt
+    # from a plain `forge build`, which would otherwise compile under it.
+    if ! prepareGroupBuild "$GROUP_ZKEVM" true; then
+      error "zkevm group preparation failed"
+      rm -rf "$RESULT_DIR"
+      exit 1
+    fi
     if ! install_foundry_zksync; then
       error "failed to install foundry-zksync"
       rm -rf "$RESULT_DIR"
@@ -498,6 +499,9 @@ function proposeContractToNetworks() {
   if [[ "$NEEDS_WHITELIST" == "true" && ${#SUCCEEDED_NETWORKS[@]} -gt 0 ]]; then
     echo ""
     echo "[info] syncing diamond-called periphery allowlist on OK networks..."
+    # The sync builds and simulates per network itself; a profile left over from the
+    # last wave must not decide its compiler.
+    unset FOUNDRY_PROFILE
     local WL_ARGS=("${SUCCEEDED_NETWORKS[@]}")
     if [[ "$PRODUCTION_FLAG" == "true" ]]; then
       WL_ARGS+=(--production)
@@ -510,8 +514,6 @@ function proposeContractToNetworks() {
   fi
 
   rm -rf "$RESULT_DIR"
-  trap - EXIT
-  restoreFoundryToml 2>/dev/null
 
   if [[ ${#FAILED_NETWORKS[@]} -gt 0 ]]; then
     exit 1

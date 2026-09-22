@@ -1368,7 +1368,7 @@ function diamondSyncWhitelist {
   fi
 
   for NETWORK in "${NETWORKS[@]}"; do
-    while [[ $(jobs | wc -l) -ge $MAX_CONCURRENT_JOBS ]]; do
+    while [[ $(jobs -rp | wc -l) -ge $MAX_CONCURRENT_JOBS ]]; do
       sleep 1
     done
     processNetwork "$NETWORK" &
@@ -1383,7 +1383,7 @@ function diamondSyncWhitelist {
     echo ""
     ENVIRONMENT="staging"
     for NETWORK in "${NETWORKS[@]}"; do
-      while [[ $(jobs | wc -l) -ge $MAX_CONCURRENT_JOBS ]]; do
+      while [[ $(jobs -rp | wc -l) -ge $MAX_CONCURRENT_JOBS ]]; do
         sleep 1
       done
       processNetwork "$NETWORK" &

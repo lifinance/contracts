@@ -80,9 +80,10 @@ function runForgeBuild(): void {
     stdio: 'pipe',
     timeout: FORGE_BUILD_TIMEOUT_MS,
     maxBuffer: FORGE_BUILD_MAX_BUFFER,
-    // Artifacts are read from `<repo>/out`, but forge writes to `out/<profile>`
-    // under a non-default FOUNDRY_PROFILE — and `helperFunctions.sh` exports
-    // `zksync` without unsetting it, so a propose script can inherit one.
+    // `prepareGroupBuild` exports `solc_floor` into the environment propose
+    // workers inherit, and that profile writes the same `<repo>/out` the
+    // artifacts are read from — so an inherited one would put london bytecode
+    // where this expects the default profile's.
     env: { ...process.env, FOUNDRY_PROFILE: 'default' },
   })
 }
