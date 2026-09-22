@@ -46,13 +46,30 @@ Records `Timelock`, `Implementation`, `Beacon`, `FactoryLogic`, `Factory`,
 `ProxyAdmin`, and `ERC4626Adapter` in the run log. The `Factory` (proxy) address is
 the one everything else uses.
 
-Contracts are created through the CREATE3 factory rather than directly by the
-script's transactions, so `--verify` may skip them. Verify any that were missed:
+**`--verify` will fail on this subsystem.** The OpenZeppelin version routing is a
+context-dependent remapping (`src/VaultWrapper/:@openzeppelin/contracts/=…-v5/…`,
+see `[CONV:VW-OZ-VERSION]`), and `forge verify-contract` ignores the context prefix
+when it builds the standard-json input. It re-resolves the v5 import graph through
+the global v4.9.2 remapping, drops the files that only exist in v5, and Etherscan
+rejects the result with `Source "lib/openzeppelin-contracts-v5/…" not found`.
+
+Work around it by pointing the global remapping at v5 for the duration of the
+verification, then restoring it:
 
 ```bash
-forge verify-contract <address> <path:ContractName> \
-  --chain base --watch --constructor-args "$(cast abi-encode 'c(...)' ...)"
+sed -i.bak 's|^@openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/$|@openzeppelin/contracts/=lib/openzeppelin-contracts-v5/contracts/|' remappings.txt
+forge verify-contract <address> <path:ContractName> --chain base --watch \
+  --constructor-args <abi-encoded-args>
+git checkout -- remappings.txt && forge build
 ```
+
+The rebuild matters: the verification runs recompile `out/` under the override.
+
+`--guess-constructor-args` is not an option — it needs Etherscan's
+`getcontractcreation` endpoint, which is a paid plan on Base. Pass args explicitly.
+Because CREATE3 deploys through an inner call, the args are the tail of the
+`deploy(bytes32,bytes)` payload in `broadcast/…/8453/run-latest.json` rather than
+the tail of the transaction's own creation code.
 
 ## 2. Change the factory config later (not needed for a fresh deploy)
 
