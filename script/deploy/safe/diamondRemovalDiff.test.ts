@@ -1,5 +1,6 @@
 // eslint-disable-next-line import/no-unresolved
 import { describe, expect, it } from 'bun:test'
+import { encodeFunctionData, parseAbi } from 'viem'
 
 import { EnvironmentEnum } from '../../common/types'
 import { buildDiamondCutRemoveCalldata } from '../../utils/viemScriptHelpers'
@@ -39,6 +40,42 @@ const addr = (n: number): `0x${string}` =>
   `0x${n.toString(16).padStart(40, '0')}` as `0x${string}`
 const sel = (n: number): `0x${string}` =>
   `0x${n.toString(16).padStart(8, '0')}` as `0x${string}`
+
+const DIAMOND_CUT_ABI = parseAbi([
+  'function diamondCut((address facetAddress, uint8 action, bytes4[] functionSelectors)[] _diamondCut, address _init, bytes _calldata)',
+])
+
+/**
+ * Builds a primary upgrade `diamondCut` call: Add/Replace against the new facet
+ * plus, optionally, Remove cuts for selectors the new version drops. The
+ * counterpart to `buildDiamondCutRemoveCalldata`, which only ever emits a
+ * removal-only call.
+ *
+ * @param groups - Selectors per FacetCutAction; omitted actions are skipped.
+ * @returns Encoded `diamondCut` calldata.
+ */
+const buildUpgradeCutCalldata = (groups: {
+  add?: `0x${string}`[]
+  replace?: `0x${string}`[]
+  remove?: `0x${string}`[]
+}): `0x${string}` => {
+  const cuts = [
+    { action: 0, selectors: groups.add, facet: addr(42) },
+    { action: 1, selectors: groups.replace, facet: addr(42) },
+    { action: 2, selectors: groups.remove, facet: addr(0) },
+  ]
+    .filter((cut) => cut.selectors?.length)
+    .map((cut) => ({
+      facetAddress: cut.facet,
+      action: cut.action,
+      functionSelectors: cut.selectors as `0x${string}`[],
+    }))
+  return encodeFunctionData({
+    abi: DIAMOND_CUT_ABI,
+    functionName: 'diamondCut',
+    args: [cuts, addr(0), '0x'],
+  })
+}
 
 /**
  * Asserts `promise` rejects with an error whose message matches `match`. Kept as
@@ -1158,7 +1195,9 @@ describe('extractRemoveFacetCuts / buildRemovalSnapshotFromPayloads', () => {
       { name: 'A', selectors: [sel(1), sel(2)] },
     ])
     const cuts = extractRemoveFacetCuts(['0x12345678' as `0x${string}`, remove])
-    expect(cuts).toEqual([{ selectors: [sel(1), sel(2)] }])
+    expect(cuts).toEqual([
+      { selectors: [sel(1), sel(2)], fromRemovalOnlyCall: true },
+    ])
   })
 
   it('returns none when there are no Remove cuts and no parked rows', () => {
@@ -1221,5 +1260,69 @@ describe('extractRemoveFacetCuts / buildRemovalSnapshotFromPayloads', () => {
       [{ facetName: 'A', facetAddress: addr(2) }]
     )
     expect(built.kind).toBe('mismatch')
+  })
+
+  it('flags Remove cuts by whether their diamondCut call carried Add/Replace too', () => {
+    const upgrade = buildUpgradeCutCalldata({
+      add: [sel(1)],
+      replace: [sel(2)],
+      remove: [sel(3)],
+    })
+    const standalone = buildDiamondCutRemoveCalldata([
+      { name: 'A', selectors: [sel(4)] },
+    ])
+    expect(extractRemoveFacetCuts([upgrade, standalone])).toEqual([
+      { selectors: [sel(3)], fromRemovalOnlyCall: false },
+      { selectors: [sel(4)], fromRemovalOnlyCall: true },
+    ])
+  })
+
+  it('returns none for an upgrade cut that removes selectors inline with no parked rows', () => {
+    // EcoFacet v2.0.0 on tron: EcoData grew 6->8 fields, so the two old bridge
+    // selectors are removed by the upgrade cut itself. No parked task exists or
+    // should — the guard has nothing to revalidate and must not fail closed.
+    const upgrade = buildUpgradeCutCalldata({
+      add: [sel(0xbff90b61), sel(0x762aea18)],
+      replace: [sel(0x0ff754ea)],
+      remove: [sel(0x7e56b7b0), sel(0x9e75aa95)],
+    })
+    expect(buildRemovalSnapshotFromPayloads([upgrade], [])).toEqual({
+      kind: 'none',
+    })
+  })
+
+  it('still signals unvalidated for a removal-only call with no parked rows', () => {
+    const cleanup = buildDiamondCutRemoveCalldata([
+      { name: 'Legacy', selectors: [sel(1)] },
+    ])
+    const upgrade = buildUpgradeCutCalldata({ add: [sel(2)], remove: [sel(3)] })
+    expect(buildRemovalSnapshotFromPayloads([upgrade, cleanup], [])).toEqual({
+      kind: 'unvalidated',
+      removeCutCount: 1,
+    })
+  })
+
+  it('signals mismatch when parked rows exist but the only Remove is inline in an upgrade cut', () => {
+    const upgrade = buildUpgradeCutCalldata({ add: [sel(1)], remove: [sel(2)] })
+    const built = buildRemovalSnapshotFromPayloads(
+      [upgrade],
+      [{ facetName: 'A', facetAddress: addr(2) }]
+    )
+    expect(built.kind).toBe('mismatch')
+  })
+
+  it('excludes inline upgrade Removes when zipping the trailing folded cuts', () => {
+    const upgrade = buildUpgradeCutCalldata({ add: [sel(9)], remove: [sel(8)] })
+    const folded = buildDiamondCutRemoveCalldata([
+      { name: 'A', selectors: [sel(1)] },
+    ])
+    const built = buildRemovalSnapshotFromPayloads(
+      [upgrade, folded],
+      [{ facetName: 'A', facetAddress: addr(2) }]
+    )
+    expect(built).toEqual({
+      kind: 'snapshot',
+      snapshot: [{ name: 'A', address: addr(2), selectors: [sel(1)] }],
+    })
   })
 })
