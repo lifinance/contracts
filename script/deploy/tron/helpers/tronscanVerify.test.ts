@@ -49,6 +49,38 @@ describe('interpretResponse', () => {
     expect(interpretResponse(true, body).ok).toBe(true)
   })
 
+  it('treats "has already been verified" as success', () => {
+    const body = JSON.stringify({
+      data: { message: 'The contract has already been verified.' },
+    })
+    expect(interpretResponse(true, body).ok).toBe(true)
+  })
+
+  it('treats a queued contract as failure, not an "already" success', () => {
+    const body = JSON.stringify({
+      data: {
+        message: 'The contract is already in the verification queue, wait',
+      },
+    })
+    expect(interpretResponse(true, body).ok).toBe(false)
+  })
+
+  it('treats a negated success message as failure', () => {
+    const body = JSON.stringify({
+      data: { message: 'The contract is not already verified.' },
+    })
+    expect(interpretResponse(true, body).ok).toBe(false)
+  })
+
+  it('treats an unrecognised message as failure and prints it', () => {
+    const body = JSON.stringify({
+      data: { message: 'Validated the request, verification pending' },
+    })
+    const { ok, message } = interpretResponse(true, body)
+    expect(ok).toBe(false)
+    expect(message).toBe('Validated the request, verification pending')
+  })
+
   it('treats a bytecode mismatch (2007) as failure', () => {
     const body = JSON.stringify({
       data: { status: 2007, message: 'Txxx verification failed. Please retry' },
@@ -63,11 +95,26 @@ describe('interpretResponse', () => {
     expect(interpretResponse(false, body).ok).toBe(false)
   })
 
-  it('falls back to raw text for a non-JSON body', () => {
-    expect(interpretResponse(true, 'contract validated ok').ok).toBe(true)
+  it('falls back to raw text for a non-JSON body, and does not call it success', () => {
+    const prose = interpretResponse(true, 'contract validated ok')
+    expect(prose.ok).toBe(false)
+    expect(prose.message).toBe('contract validated ok')
     const fail = interpretResponse(true, 'gateway timeout')
     expect(fail.ok).toBe(false)
     expect(fail.message).toBe('gateway timeout')
+  })
+
+  // The typed shape says `message` is a string, but the server is not bound by
+  // our types. A truthy non-string trips `.trim()` inside the parse block, so
+  // the catch keeps the raw body and the run reports a failure to the operator
+  // rather than throwing out of the verification loop.
+  it('reports a failure, not a throw, when the server sends a non-string message', () => {
+    for (const message of [2001, { code: 2001 }, ['ok'], true]) {
+      const body = JSON.stringify({ data: { message } })
+      const result = interpretResponse(true, body)
+      expect(result.ok).toBe(false)
+      expect(result.message).toBe(body)
+    }
   })
 })
 
