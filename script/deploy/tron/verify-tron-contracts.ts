@@ -44,6 +44,12 @@ import {
  * skipped by default (override with --only). Contracts verified *through* this
  * tool do NOT belong here: TronScan returns an "already verified" success that
  * the response parser handles, so re-running them is harmless.
+ *
+ * Being skipped, these never reach the record-flagging below, so their records
+ * keep whatever `verified` they were last given — nothing else on the Tron path
+ * writes that flag. Clearing that residue is a one-off `mark-verified` per
+ * contract, not something a run will do on its own; see
+ * docs/DeploymentLogs.md#flagging-a-record-as-explorer-verified.
  */
 const ALREADY_VERIFIED = new Set(['AccessManagerFacet', 'LiFiDiamond'])
 

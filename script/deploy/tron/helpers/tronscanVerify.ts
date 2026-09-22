@@ -17,18 +17,26 @@ export const VERIFY_TIMEOUT_MS = 120_000
 
 /**
  * Complete TronScan success messages, each matched against the whole message.
- * The endpoint returns more than one success shape — status `2001` ("The
- * contract has been validated.") and a separate code whose message is
- * "Verification success." — so we treat a success *message* as authoritative
- * rather than relying on a single status code.
+ *
+ * These three are the only success wordings anyone here has observed. The
+ * endpoint is undocumented, so all three come from the reverse-engineering in
+ * PR #2095: a live submission returned status `2001` ("The contract has been
+ * validated.") and a separate code whose message is "Verification success.",
+ * and re-submitting an already-verified contract returned the third. A success
+ * *message* is authoritative rather than a status code because of the first
+ * two.
  *
  * An allowlist of whole messages rather than a substring search: a match is
  * persisted to the deployment record as `verified: true`, and a substring turns
  * a negated or in-progress message — "not already verified", "already in the
  * verification queue" — into a durable claim that the contract is verified.
- * An unrecognised message is reported as a failure with the wording printed,
- * which is the cheap direction to be wrong in: nothing false is written, and
- * the wording is there to be added here.
+ *
+ * Failing closed is what makes that safe, because it is recoverable: an
+ * unrecognised wording is reported as a failure with the wording printed and
+ * nothing is written, the contract is verified on TronScan either way, and a
+ * re-run answers "already verified" — which this list accepts. So a wording we
+ * have not seen costs one re-run after it is added here, while a wrong accept
+ * is a durable false record.
  */
 export const TRONSCAN_SUCCESS_MESSAGES: readonly RegExp[] = [
   /^the contract has been validated\.?$/i,
