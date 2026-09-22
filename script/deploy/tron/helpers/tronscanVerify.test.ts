@@ -103,6 +103,19 @@ describe('interpretResponse', () => {
     expect(fail.ok).toBe(false)
     expect(fail.message).toBe('gateway timeout')
   })
+
+  // The typed shape says `message` is a string, but the server is not bound by
+  // our types. A truthy non-string trips `.trim()` inside the parse block, so
+  // the catch keeps the raw body and the run reports a failure to the operator
+  // rather than throwing out of the verification loop.
+  it('reports a failure, not a throw, when the server sends a non-string message', () => {
+    for (const message of [2001, { code: 2001 }, ['ok'], true]) {
+      const body = JSON.stringify({ data: { message } })
+      const result = interpretResponse(true, body)
+      expect(result.ok).toBe(false)
+      expect(result.message).toBe(body)
+    }
+  })
 })
 
 describe('resolveFlattenedPath', () => {
