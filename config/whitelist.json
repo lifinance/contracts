@@ -4834,6 +4834,22 @@
           }
         ]
       }
+    },
+    {
+      "name": "SunSwap",
+      "key": "sunswap",
+      "logoURI": "https://raw.githubusercontent.com/lifinance/types/main/src/assets/icons/exchanges/sunswap.svg",
+      "webUrl": "https://sunswap.com/",
+      "contracts": {
+        "tron": [
+          {
+            "address": "TGnC7LMji8hBpyvZt1TTEJhVpAZ5HFyJ3r",
+            "functions": {
+              "0xcef95229": "swapExactInput(address[],string[],uint256[],uint24[],(uint256,uint256,address,uint256))"
+            }
+          }
+        ]
+      }
     }
   ],
   "PERIPHERY": {
