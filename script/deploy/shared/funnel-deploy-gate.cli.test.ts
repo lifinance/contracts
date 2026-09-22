@@ -197,9 +197,12 @@ const spawnCli = (options: {
   // the Tron funnel checks the ticket before the gate, so a probe without one
   // would never reach the gate at all
   env.SAFE_PROPOSAL_TICKET = 'EXSC-929'
-  // The devkit falls back to the public TronGrid host, so a case that means to
-  // prove no chain read happened has to take the chain away rather than trust
-  // the call order.
+  // Deleted, then set per case: bun loads the repo env file into this process,
+  // and the devkit falls back to the public TronGrid host when the var is unset,
+  // so an inherited value silently decides which chain a case reads — that is
+  // how this suite read Tron mainnet in CI while passing locally. Every Tron
+  // case names its own host below.
+  delete env.RPC_URL_TRON
   if (options.tronRpcUrl !== undefined) env.RPC_URL_TRON = options.tronRpcUrl
   env.PATH = `${join(options.repoRoot, SHIM_BIN_DIR)}:${env.PATH ?? ''}`
 
@@ -247,18 +250,13 @@ const GATE_REFUSAL = /Production deploy gate failed/
 
 /**
  * What each funnel prints once it is past the gate, measured from a passing run
- * rather than assumed: the EVM one reads a signing key the harness withheld, and
- * the Tron one reaches the proposal store, whose URI the harness made
- * unparseable. Every absence assertion on these is paired with a positive
- * assertion in the corresponding pass case — a marker that never appears would
- * make the absence assertion prove nothing.
+ * rather than assumed: the EVM one reads a signing key the harness withheld.
+ * Every absence assertion on these is paired with a positive assertion in the
+ * corresponding pass case — a marker that never appears would make the absence
+ * assertion prove nothing. The Tron funnel's marker is
+ * {@link TIMELOCK_READ_FAILURE}, which needs no chain to appear.
  */
 const NEXT_STOP_EVM = 'Private key is missing'
-// `assertStoreCredentialsAreEncrypted` refuses the harness's unparseable URI
-// before the driver is constructed, so this marker is owned by this repo: a
-// reword in `mongo-store-transport.ts` must be mirrored here, and the paired
-// pass-case assertion goes red first if it is not.
-const NEXT_STOP_TRON = 'is not a MongoDB connection string'
 // `sendOrPropose` resolves its key through a different helper than the funnel, so
 // it words the same failure differently. The `--ledger` clause is load-bearing:
 // the bare "Missing <VAR> in environment" prefix is thrown on the direct-tx
@@ -271,9 +269,11 @@ const TRON_FACET = 'CalldataVerificationFacet'
 // The discard port: nothing listens, so a connection is refused at once rather
 // than spending the case's budget on a timeout.
 const UNROUTABLE_RPC = 'http://127.0.0.1:9'
-// Owned by `propose-to-safe-tron.ts`; a reword there must be mirrored here. The
-// cases asserting its absence run against `UNROUTABLE_RPC`, where a Timelock
-// read cannot succeed — so the marker is what a read that happened would print.
+// Owned by `propose-to-safe-tron.ts`; a reword there must be mirrored here.
+// Every Tron case runs against `UNROUTABLE_RPC`, where a Timelock read cannot
+// succeed, which is what makes this marker readable in both directions: the
+// pass case asserts it to prove the funnel reached the read, and the refusal
+// cases assert its absence to prove they never got that far.
 const TIMELOCK_READ_FAILURE = 'Could not read getMinDelay from Timelock'
 
 /**
@@ -407,9 +407,9 @@ describe('propose-to-safe-tron funnel deploy gate', () => {
       expect(result.output).toMatch(GATE_REFUSAL)
       expect(result.output).toContain(TRON_FACET)
       expect(result.status).not.toBe(0)
-      // The store is the last step before a production write, so its absence is
-      // what makes "the refusal came first" mean anything here
-      expect(result.output).not.toContain(NEXT_STOP_TRON)
+      // The Timelock read is the first step past the gate and the proposal
+      // store is opened after it, so a run that never read cannot have stored
+      // either. `assertChildIsUsable` covers the store itself, on every spawn.
       expect(result.output).not.toContain(TIMELOCK_READ_FAILURE)
     },
     CASE_TIMEOUT_MS
@@ -433,12 +433,19 @@ describe('propose-to-safe-tron funnel deploy gate', () => {
   it(
     'lets an unchanged facet addition past the gate',
     () => {
-      const result = runTron(false)
+      // Unroutable like the refusal cases above, which is what keeps this case
+      // off Tron mainnet: with no `RPC_URL_TRON` the devkit falls back to the
+      // public keyless TronGrid host, and the four reads a propose performs
+      // before the proposal store crossed that host's rate limit. The gate
+      // prints its verdict before the first of them, so the read's own failure
+      // is what proves the funnel got past the gate — and it proves it without
+      // a chain to read.
+      const result = runTron(false, { tronRpcUrl: UNROUTABLE_RPC })
 
       expect(result.output).not.toMatch(GATE_REFUSAL)
       expect(result.output).toContain('Production deploy gate passed')
-      // what makes the refusal case's absence assertion mean anything
-      expect(result.output).toContain(NEXT_STOP_TRON)
+      // what makes the refusal cases' absence assertions mean anything
+      expect(result.output).toContain(TIMELOCK_READ_FAILURE)
     },
     CASE_TIMEOUT_MS
   )
