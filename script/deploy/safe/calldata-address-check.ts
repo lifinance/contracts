@@ -99,6 +99,14 @@ export interface IDeploymentIndexEntry {
    * unable to say which record is current.
    */
   timestamp?: Date | string
+  /**
+   * The spelling the deployment record itself carries, when `address` was
+   * respelt to match the calldata's. Tron is the case: the lookup needs the
+   * record's base58 as 20-byte hex, but base58 is what `deployments/tron.json`
+   * and the explorer show, so a row printing only the hex gives a signer
+   * nothing to cross-check against.
+   */
+  recordSpelling?: string
 }
 
 /**
@@ -310,7 +318,11 @@ const isZero = (value: string): boolean =>
   value.trim().toLowerCase() === ZERO_ADDRESS
 
 const describeEntry = (entry: IDeploymentIndexEntry): string =>
-  `${entry.contractName}@${entry.version || 'unversioned'} on ${entry.network}`
+  `${entry.contractName}@${entry.version || 'unversioned'} on ${entry.network}${
+    entry.recordSpelling && entry.recordSpelling !== entry.address
+      ? `, recorded as ${entry.recordSpelling}`
+      : ''
+  }`
 
 const describeIdentity = (identity: IExpectedIdentity): string =>
   `${identity.contractName}@${identity.version ?? 'any version'}`
@@ -865,10 +877,37 @@ export const evaluateCalldataAddresses = (
 }
 
 const ESC = String.fromCharCode(27)
-const REFUSED = `${ESC}[31m⛔ REFUSED${ESC}[0m`
-const CANNOT_CHECK = `${ESC}[31m⛔ CANNOT CHECK${ESC}[0m`
+const REFUSED = `${ESC}[31m× REFUSED${ESC}[0m`
+// Amber, not red: the record may report and never decide, so a check it could
+// not run is a gap in the report, not a refusal.
+const CANNOT_CHECK = `${ESC}[33m⚠ CANNOT CHECK${ESC}[0m`
 const WARN = `${ESC}[33m⚠${ESC}[0m`
 const OK = `${ESC}[32m✓${ESC}[0m`
+/**
+ * One address, said to have been looked at.
+ *
+ * Dim rather than green: the tick belongs to the summary, which is the one line
+ * a signer who is not auditing an address has to read, and a column of ticks
+ * under it would compete with it for exactly the attention the summary is
+ * there to spend once.
+ */
+const VERIFIED = `${ESC}[2m·${ESC}[0m`
+
+/**
+ * What the block says about itself before it says anything about the proposal.
+ *
+ * The lines below carry the same glyphs the gate rows do — a `×` here reads
+ * exactly like a `×` on gate K — while the deployment record may only report,
+ * so none of them stops a signature. Without the heading the block's only
+ * distinguishing feature is that it appears after the roster rather than on it,
+ * which reads as an omission rather than as a class.
+ */
+export const REPORT_ONLY_HEADING = `${ESC}[2mREPORT-ONLY · not a gate · the deployment record may report, never decide, so nothing below blocks signing${ESC}[0m`
+
+/** How the gate manifest names this check, so the roster and the block agree. */
+export const CALLDATA_ADDRESS_MANIFEST_ENTRY = {
+  title: 'Calldata addresses match the deployment record',
+} as const
 
 /**
  * The lines a signer sees.
@@ -876,8 +915,9 @@ const OK = `${ESC}[32m✓${ESC}[0m`
  * A verdict with nothing to say still prints a line, because silence would make
  * "the check found nothing wrong" and "the check was never wired" look
  * identical from the terminal. A proposal that references no address at all
- * gets a different line from one whose addresses resolved, so that the count of
- * verified addresses is never zero on a line claiming verification.
+ * gets a different line from one whose addresses resolved, and so does one
+ * whose every address is a legal zero, so that the count of verified addresses
+ * is never zero on a line claiming verification.
  * @param verdict - what `evaluateCalldataAddresses` decided
  * @returns One or more display lines
  */
@@ -903,41 +943,52 @@ export const renderCalldataAddresses = (
       finding.reference.role === AddressRoleEnum.PeripheryRegistration
     )
       lines.push(`${WARN} ${finding.detail}`)
+    // The two grades that reach the signer through no other path. A tally is
+    // not a statement about an address: "3 of 3 resolved" names neither which
+    // three nor what each was required to be, so a signer who wants to check
+    // one of them against the proposal has nothing to compare. Every other
+    // grade is already spoken for — by `errors` above, by `warnings` below, or
+    // by the refusal — so listing these two adds a line per address without
+    // printing any of them twice.
+    else if (
+      finding.grade === AddressGradeEnum.Resolved ||
+      finding.grade === AddressGradeEnum.NotApplicable
+    )
+      lines.push(`${VERIFIED} ${finding.detail}`)
 
   for (const message of verdict.warnings) lines.push(`${WARN} ${message}`)
 
   if (!verdict.refuses && !verdict.error) {
+    // The denominator is what the record was asked about, not what the calldata
+    // carried. A zero in a role where zero is the legal value — the facet
+    // address of a removal, an absent `_init` — is never looked up, so counting
+    // it puts a verification that did not happen behind a green tick.
+    const lookedUp = verdict.findings.filter(
+      (finding) => finding.grade !== AddressGradeEnum.NotApplicable
+    )
     if (verdict.findings.length === 0)
       lines.push(
-        `${OK} Calldata address check skipped: no call in this proposal references an address.`
+        // Not "references no address": a whitelist proposal references one in
+        // every call, and the extractor collects none of them because a DEX is
+        // not a contract the deploy log has ever heard of. A signer reading the
+        // shorter sentence takes a tick over addresses nothing graded.
+        `${OK} Calldata address check skipped: this proposal references no address in a role this check grades — a facet cut, a cut's \`_init\`, or a periphery registration.`
+      )
+    else if (lookedUp.length === 0)
+      lines.push(
+        `${OK} Calldata address check: no address in this proposal needed a deployment-record lookup — every one is a zero its call allows.`
       )
     else {
-      const resolved = verdict.findings.filter(
+      const resolved = lookedUp.filter(
         (finding) => finding.grade === AddressGradeEnum.Resolved
       ).length
       lines.push(
-        `${OK} ${resolved} of ${verdict.findings.length} calldata addresses resolved to the deployment record with the expected name and version.`
+        `${OK} ${resolved} of ${lookedUp.length} calldata addresses resolved to the deployment record with the expected name and version.`
       )
     }
   }
 
-  return lines
-}
-
-/**
- * Throws unless every address the calldata references is accounted for.
- *
- * Separate from the evaluation so that a call site cannot reduce the verdict to
- * a boolean and then forget to read it.
- * @param verdict - what `evaluateCalldataAddresses` decided
- * @throws When an address contradicts the record, or the check could not decide
- */
-export const assertCalldataAddressesResolve = (
-  verdict: ICalldataAddressVerdict
-): void => {
-  if (!verdict.refuses && !verdict.error) return
-
-  throw new Error(
-    `Calldata address check: this transaction will not be signed. ${verdict.reason} Nothing has been signed.`
-  )
+  // The blank line and the indent are what make this a block of its own rather
+  // than a continuation of whichever gate row precedes it.
+  return ['', `  ${REPORT_ONLY_HEADING}`, ...lines.map((line) => `    ${line}`)]
 }

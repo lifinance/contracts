@@ -7,6 +7,8 @@
  * The path-guard tests pin behavior against real `deployments/` files.
  */
 import * as fs from 'fs'
+import { tmpdir } from 'os'
+import { join } from 'path'
 
 import {
   afterEach,
@@ -47,12 +49,29 @@ mock.module('fs', () => ({
 const {
   displayNetworkInfo,
   getContractAddress,
+  getFacetAddressFromDiamondLog,
   getFacetSelectors,
   getFoundryDefaultOptimizerRuns,
   node_url,
 } = await import('./utils')
 
 type NetworkArg = Parameters<typeof getContractAddress>[0]
+
+/** Per [CONV:TEST-ASSERT-REJECTS] — `expect().rejects` is not a real Promise. */
+async function expectRejects(
+  promise: Promise<unknown>,
+  match: RegExp | string
+): Promise<void> {
+  let error: Error | undefined
+  try {
+    await promise
+  } catch (caught) {
+    error = caught as Error
+  }
+  expect(error).toBeInstanceOf(Error)
+  if (match instanceof RegExp) expect(error?.message).toMatch(match)
+  else expect(error?.message).toContain(match)
+}
 
 afterEach(() => {
   mockedFoundryToml = undefined
@@ -131,17 +150,17 @@ optimizer_runs = 200
 
 describe('getContractAddress path guard', () => {
   it('throws on a network name with parent-directory traversal', async () => {
-    // eslint-disable-next-line @typescript-eslint/await-thenable -- expect().rejects is thenable at runtime
-    await expect(
-      getContractAddress('../../evil' as NetworkArg, 'LiFiDiamond')
-    ).rejects.toThrow(/Invalid network name/)
+    await expectRejects(
+      getContractAddress('../../evil' as NetworkArg, 'LiFiDiamond'),
+      /Invalid network name/
+    )
   })
 
   it('throws on a network name escaping deployments/ into the repo root', async () => {
-    // eslint-disable-next-line @typescript-eslint/await-thenable -- expect().rejects is thenable at runtime
-    await expect(
-      getContractAddress('../foundry' as NetworkArg, 'LiFiDiamond')
-    ).rejects.toThrow(/Invalid network name/)
+    await expectRejects(
+      getContractAddress('../foundry' as NetworkArg, 'LiFiDiamond'),
+      /Invalid network name/
+    )
   })
 
   it('resolves a real network from the live deployments file', async () => {
@@ -152,17 +171,11 @@ describe('getContractAddress path guard', () => {
 
 describe('getFacetSelectors path guard', () => {
   it('throws on a facet name with parent-directory traversal', async () => {
-    // eslint-disable-next-line @typescript-eslint/await-thenable -- expect().rejects is thenable at runtime
-    await expect(getFacetSelectors('../../evil')).rejects.toThrow(
-      /Invalid facet name/
-    )
+    await expectRejects(getFacetSelectors('../../evil'), /Invalid facet name/)
   })
 
   it('throws on an absolute-path facet name', async () => {
-    // eslint-disable-next-line @typescript-eslint/await-thenable -- expect().rejects is thenable at runtime
-    await expect(getFacetSelectors('/etc/passwd')).rejects.toThrow(
-      /Invalid facet name/
-    )
+    await expectRejects(getFacetSelectors('/etc/passwd'), /Invalid facet name/)
   })
 })
 
@@ -218,6 +231,198 @@ describe('endpoint redaction', () => {
       }
       if (previousNetworkUri !== undefined)
         process.env.ETH_NODE_URI_TESTNET = previousNetworkUri
+    }
+  })
+})
+
+describe('getFacetAddressFromDiamondLog', () => {
+  const LOG = JSON.stringify({
+    LiFiDiamond: {
+      Facets: {
+        TG6586TTEv664XWSD875tMk6yDuwedphpW: {
+          Name: 'EcoFacet',
+          Version: '1.1.0',
+        },
+        TR15epdwXG9kBXtEBnF5bv6kSYRY5w6mXY: {
+          Name: 'AllBridgeFacet',
+          Version: '2.2.0',
+        },
+      },
+    },
+  })
+
+  /** Runs `assertions` from a throwaway repo root holding (or missing) a diamond log. */
+  const withDiamondLog = async (
+    contents: string | undefined,
+    assertions: () => Promise<void>
+  ) => {
+    const root = realFs.mkdtempSync(join(tmpdir(), 'diamond-log-'))
+    const previousCwd = process.cwd()
+    try {
+      realFs.mkdirSync(join(root, 'deployments'))
+      if (contents !== undefined)
+        realFs.writeFileSync(
+          join(root, 'deployments', 'tron.diamond.json'),
+          contents
+        )
+      process.chdir(root)
+      await assertions()
+    } finally {
+      process.chdir(previousCwd)
+      realFs.rmSync(root, { recursive: true, force: true })
+    }
+  }
+
+  it('resolves the recorded address by facet name', async () => {
+    await withDiamondLog(LOG, async () => {
+      expect(await getFacetAddressFromDiamondLog('tron', 'EcoFacet')).toBe(
+        'TG6586TTEv664XWSD875tMk6yDuwedphpW'
+      )
+    })
+  })
+
+  // Every miss has to read as "first registration" — never as a wrong removal target.
+  it('returns null for a facet the log does not carry', async () => {
+    await withDiamondLog(LOG, async () => {
+      expect(
+        await getFacetAddressFromDiamondLog('tron', 'MayanFacet')
+      ).toBeNull()
+    })
+  })
+
+  it('returns null when the log is absent', async () => {
+    await withDiamondLog(undefined, async () => {
+      expect(await getFacetAddressFromDiamondLog('tron', 'EcoFacet')).toBeNull()
+    })
+  })
+
+  // Reading a corrupt log as "absent" would plan a first-registration cut, which
+  // drops the Remove entries whenever the new selectors miss the old ones
+  // entirely — the exact failure the upgrade planner exists to prevent.
+  it('throws when the log exists but cannot be parsed', async () => {
+    await withDiamondLog('{ not json', async () => {
+      await expectRejects(
+        getFacetAddressFromDiamondLog('tron', 'EcoFacet'),
+        /No readable tron\.diamond\.json .*tron\.diamond\.json \(/
+      )
+    })
+  })
+
+  // Same reasoning one step further in: a log that parses but carries no facet
+  // section is not a log that records nothing.
+  it('throws when the log has no LiFiDiamond.Facets section', async () => {
+    await withDiamondLog(JSON.stringify({ LiFiDiamond: {} }), async () => {
+      await expectRejects(
+        getFacetAddressFromDiamondLog('tron', 'EcoFacet'),
+        /no LiFiDiamond\.Facets object/
+      )
+    })
+  })
+
+  // `typeof [] === 'object'`, so a list shape clears the object check and then
+  // yields no entries — "nothing recorded" again, by a different route.
+  it('throws when the facet section is an array', async () => {
+    await withDiamondLog(
+      JSON.stringify({ LiFiDiamond: { Facets: [] } }),
+      async () => {
+        await expectRejects(
+          getFacetAddressFromDiamondLog('tron', 'EcoFacet'),
+          /no LiFiDiamond\.Facets object/
+        )
+      }
+    )
+  })
+
+  it('accepts a log whose facet section is genuinely empty', async () => {
+    await withDiamondLog(
+      JSON.stringify({ LiFiDiamond: { Facets: {} } }),
+      async () => {
+        expect(
+          await getFacetAddressFromDiamondLog('tron', 'EcoFacet')
+        ).toBeNull()
+      }
+    )
+  })
+
+  // The deployment roots include the parent workspace, so a file that is not a
+  // diamond log can sit in front of the checkout that owns one. Refusing there
+  // would let an unrelated repo block every Tron upgrade proposal.
+  it('reads past a root whose file is not a diamond log', async () => {
+    const root = realFs.mkdtempSync(join(tmpdir(), 'diamond-log-'))
+    const previousCwd = process.cwd()
+    try {
+      realFs.mkdirSync(join(root, 'deployments'), { recursive: true })
+      realFs.writeFileSync(
+        join(root, 'deployments', 'tron.diamond.json'),
+        JSON.stringify({})
+      )
+      realFs.mkdirSync(join(root, 'contracts', 'deployments'), {
+        recursive: true,
+      })
+      realFs.writeFileSync(
+        join(root, 'contracts', 'deployments', 'tron.diamond.json'),
+        LOG
+      )
+      process.chdir(root)
+
+      expect(await getFacetAddressFromDiamondLog('tron', 'EcoFacet')).toBe(
+        'TG6586TTEv664XWSD875tMk6yDuwedphpW'
+      )
+    } finally {
+      process.chdir(previousCwd)
+      realFs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  // A well-formed log is the answer for its network, so a facet it does not
+  // carry is a first registration — not a cue to go looking in a sibling
+  // checkout, whose entry would name a facet this diamond never routed.
+  it('does not consult a later root once a log answers', async () => {
+    const root = realFs.mkdtempSync(join(tmpdir(), 'diamond-log-'))
+    const previousCwd = process.cwd()
+    try {
+      realFs.mkdirSync(join(root, 'deployments'), { recursive: true })
+      realFs.writeFileSync(join(root, 'deployments', 'tron.diamond.json'), LOG)
+      realFs.mkdirSync(join(root, 'contracts', 'deployments'), {
+        recursive: true,
+      })
+      realFs.writeFileSync(
+        join(root, 'contracts', 'deployments', 'tron.diamond.json'),
+        JSON.stringify({
+          LiFiDiamond: {
+            Facets: {
+              TWd4WrZ9wn84f5x1hZhL4DHvk738ns5jwb: { Name: 'MayanFacet' },
+            },
+          },
+        })
+      )
+      process.chdir(root)
+
+      expect(
+        await getFacetAddressFromDiamondLog('tron', 'MayanFacet')
+      ).toBeNull()
+    } finally {
+      process.chdir(previousCwd)
+      realFs.rmSync(root, { recursive: true, force: true })
+    }
+  })
+
+  it('propagates a read failure that is not a missing file', async () => {
+    const root = realFs.mkdtempSync(join(tmpdir(), 'diamond-log-'))
+    const previousCwd = process.cwd()
+    try {
+      // A directory where the log belongs: readFile fails with EISDIR, not ENOENT.
+      realFs.mkdirSync(join(root, 'deployments', 'tron.diamond.json'), {
+        recursive: true,
+      })
+      process.chdir(root)
+      await expectRejects(
+        getFacetAddressFromDiamondLog('tron', 'EcoFacet'),
+        /EISDIR|illegal operation on a directory/i
+      )
+    } finally {
+      process.chdir(previousCwd)
+      realFs.rmSync(root, { recursive: true, force: true })
     }
   })
 })

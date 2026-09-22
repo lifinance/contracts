@@ -12,7 +12,11 @@
  * target state's is the cross-check against `STATUSES_CLEARED_TO_PROCEED`.
  */
 
+import type { ImmutableVerdictStatus } from '../codehash/immutable-verdict'
+import type { ITargetVerdict } from '../codehash/verify-cut-targets'
+
 import type { ICheckDefinition, ICheckResult } from './check-ledger'
+import type { ICodehashSignGate } from './codehash-sign-gate'
 import {
   CHECK_TIMELOCK_DELAY,
   INTEGRITY_CHECKS_ALWAYS,
@@ -20,13 +24,18 @@ import {
   type IIntegrityAssertRun,
 } from './confirm-integrity-asserts'
 import type { IExecutabilityVerdict } from './executability-simulation'
-import type {
-  ITargetStateFinding,
-  ITargetStateVerdict,
-  TargetStateStatus,
+import {
+  type ITargetStateFinding,
+  type ITargetStateVerdict,
+  TARGET_STATE_STATUS_LABEL,
+  type TargetStateStatus,
 } from './pinned-target-state'
 import type { IPreBroadcastAuthority } from './prebroadcast-authorities'
-import { MIN_INDEPENDENT_PROVIDERS, type IRpcQuorumVerdict } from './rpc-quorum'
+import {
+  describeQuorumStatus,
+  MIN_INDEPENDENT_PROVIDERS,
+  type IRpcQuorumVerdict,
+} from './rpc-quorum'
 import type { ISignedAuthorityEntry } from './signed-set-record'
 
 export const TARGET_STATE_CHECK_ID = 'target-state'
@@ -35,26 +44,57 @@ export const TARGET_STATE_CHECK: ICheckDefinition = {
   checkId: TARGET_STATE_CHECK_ID,
   section: 'Intent',
   checkClass: 'semantic',
-  title: 'Facet version matches the declared target state',
+  gate: 'H',
+  title: 'Contract version matches target state',
 }
 
+/** Persisted in signed-set records, so it does not follow the title. */
 export const STORAGE_AUTHORITY_CHECK_ID = 'storage-authority'
 
 export const STORAGE_AUTHORITY_CHECK: ICheckDefinition = {
   checkId: STORAGE_AUTHORITY_CHECK_ID,
-  section: 'Integrity',
+  section: 'Deployed state',
   checkClass: 'integrity',
-  title: 'Storage authorities match what main declares',
+  gate: 'G',
+  title: 'Contract config matches what main declares',
+  // Every diamond cut carries `LiFiDiamond.owner`, whose expectation comes from
+  // the deployment record — so without this the one gate that reads live
+  // authorities refuses every honest proposal, and the remedy it prints cannot
+  // be followed. A mismatch is untouched and still hard-blocks.
+  undecidableIsAcknowledgeable: true,
 }
+
+/**
+ * The anchor each expectation source rests on.
+ *
+ * A Map rather than a predicate, because the sources that may decide do not all
+ * rest on the same thing: `config/global.json` and the zero address are written
+ * in this repo, while the timelock address is read at `origin/main`. Reporting
+ * that distinction is the whole point of the anchor — a row that claimed
+ * `A-LOCAL` for a value fetched from a remote would overstate what was checked.
+ *
+ * The deployment record as the branch has it stays `A-MONGO`: a proposer can
+ * write it, so it may report and never decide.
+ */
+const EXPECTATION_ANCHORS: ReadonlyMap<
+  IPreBroadcastAuthority['expectationSource'],
+  ICheckResult['anchor']
+> = new Map([
+  ['globalConfig', 'A-LOCAL'],
+  ['zeroAddress', 'A-LOCAL'],
+  ['pinnedDeployments', 'A-MAIN'],
+  ['deployments', 'A-MONGO'],
+] as const)
 
 /**
  * Where each authority's expectation came from, as an anchor.
  *
  * `config/global.json` is a repo file the proposer's branch cannot change
- * without review, so it may decide a pass. The deployment record is written by
- * the proposer, so it may only report — the ledger coerces a `pass` on it to
- * `error`, which is the correct reading of "the value matched the one we were
- * handed".
+ * without review, so it may decide a pass, and so may the zero address, which
+ * is written here and read from nowhere. The deployment record is written by
+ * the proposer, so it may only report: a match against it means no more than
+ * "the value matched the one we were handed", which is for the signer to
+ * accept rather than for the gate to grade green.
  *
  * @param authorities - Observation rows from `observeCalldata`.
  * @returns Label → anchor, for `storageAuthorityCheckResult`.
@@ -65,14 +105,13 @@ export const authorityExpectationAnchors = (
   new Map(
     authorities.map((authority) => [
       authority.label,
-      authority.expectationSource === 'globalConfig'
-        ? ('A-LOCAL' as const)
-        : ('A-MONGO' as const),
+      EXPECTATION_ANCHORS.get(authority.expectationSource) ??
+        ('A-UNRESOLVED' as const),
     ])
   )
 
-export const EVERY_AUTHORITY_MATCHES =
-  'every declared storage authority holding the address main declares'
+export const EVERY_INSTALLED_CONTRACT_AUTHORISED =
+  'every contract this installs holding the authorities main declares'
 
 /**
  * Reduces a network's storage-authority observations to the one row the ledger
@@ -81,15 +120,22 @@ export const EVERY_AUTHORITY_MATCHES =
  * The comparison is a live chain read against a declaration in `main`, so the
  * live side is `A-CHAIN` — but the row is anchored on the weaker of the two,
  * because a comparison is only as good as its expectation. An authority whose
- * expected value comes from the deployment record is `A-MONGO`, which the
- * ledger treats as reporting-only and so coerces to `error` rather than letting
- * it grade green: the proposer writes that record and therefore owns one side
- * of the comparison. One sourced from `config/global.json` is `A-LOCAL` and may
- * decide.
+ * expected value comes from the deployment record is `A-MONGO`: the proposer
+ * writes that record and therefore owns one side of the comparison, so an
+ * all-matched row on it grades `needs-ack` rather than green, naming the labels
+ * whose expectation it rests on. One sourced from `config/global.json` is
+ * `A-LOCAL` and may decide.
  *
- * An empty set is an `error` on `A-UNRESOLVED`, not a pass. No contract in the
- * calldata carried a declared authority, so nothing was compared, and the
- * denominator must not silently shrink.
+ * Only the all-matched case is acknowledgeable. A live value that disagrees, a
+ * read that failed and an expectation of unknown provenance all keep the
+ * integrity class's hard block.
+ *
+ * An empty set is `not-applicable`, never a pass: this proposal installs no
+ * contract whose constructor-written storage there is anything to assert, so
+ * the row satisfies no verified counter and blocks nothing. The caller owes the
+ * distinction — a set that is empty because the calldata could not be read
+ * through never reaches here, because a scope nobody could read is not a scope
+ * known to be empty.
  *
  * @param entries - Authority observations for this network's proposal.
  * @param network - The network the observations are about.
@@ -106,12 +152,11 @@ export const storageAuthorityCheckResult = (
     return {
       checkId: STORAGE_AUTHORITY_CHECK_ID,
       network,
-      status: 'error',
-      expected: EVERY_AUTHORITY_MATCHES,
-      actual: 'no contract in this proposal declares a storage authority',
-      anchor: 'A-UNRESOLVED',
-      detail:
-        'nothing was compared, so this is an absence of evidence rather than a clean read',
+      status: 'not-applicable',
+      expected: EVERY_INSTALLED_CONTRACT_AUTHORISED,
+      actual:
+        'this proposal installs no contract whose authorities main declares',
+      anchor: 'A-LOCAL',
     }
 
   let status: ICheckResult['status'] = 'pass'
@@ -156,23 +201,45 @@ export const storageAuthorityCheckResult = (
 
   // Every entry passed, so no single finding set the anchor. The row still must
   // not claim `A-CHAIN` when an expectation it compared against was
-  // proposer-written, so it takes the weakest anchor in the set.
-  if (failing.length === 0)
+  // proposer-written, so it takes the weakest anchor in the set. `A-UNRESOLVED`
+  // is decided before `A-MONGO` rather than by whichever comes last in calldata
+  // order, because the acknowledgement below turns on that answer.
+  const recordSourced: string[] = []
+  if (failing.length === 0) {
+    let unresolved = false
     for (const entry of entries) {
       const entryAnchor = expectationAnchors.get(entry.label) ?? 'A-UNRESOLVED'
-      if (entryAnchor === 'A-MONGO' || entryAnchor === 'A-UNRESOLVED')
-        anchor = entryAnchor
+      if (entryAnchor === 'A-UNRESOLVED') unresolved = true
+      else if (entryAnchor === 'A-MONGO') recordSourced.push(entry.label)
     }
+    if (unresolved) anchor = 'A-UNRESOLVED'
+    else if (recordSourced.length > 0) anchor = 'A-MONGO'
+  }
+
+  // `A-MONGO` and nothing else. The record is proposer-written, so the row may
+  // not grade green — but every value was read live and matched, and the signer
+  // can be told exactly which expectations rest on the record and take them on.
+  // `A-UNRESOLVED` is the case where nothing answered, so there is nothing to
+  // take on and it keeps blocking.
+  const acknowledgeable = status === 'pass' && anchor === 'A-MONGO'
+  if (acknowledgeable) status = 'needs-ack'
 
   return {
     checkId: STORAGE_AUTHORITY_CHECK_ID,
     network,
     status,
-    expected: EVERY_AUTHORITY_MATCHES,
+    expected: EVERY_INSTALLED_CONTRACT_AUTHORISED,
     actual: failing.length
       ? failing.join('; ')
       : `${entries.length} declared authority value(s) match config`,
     anchor,
+    ...(acknowledgeable
+      ? {
+          detail: `read live and matched, but the expected value came from the deployment record the proposer writes: ${recordSourced.join(
+            ', '
+          )}`,
+        }
+      : {}),
   }
 }
 
@@ -195,32 +262,61 @@ interface IStatusMapping {
  * carries two elements. It also makes the reduction below safe: findings of
  * equal rank keep the first in calldata order, which only ever costs
  * specificity when both sentences are requirements.
+ *
+ * A row that compared exactly one element prints that element's declared
+ * version instead — see `comparedVersions`. A version is the same requirement
+ * stated exactly, and only the single-element case can state it without being
+ * false about a second facet.
  */
 export const ORDERING_HOLDS =
   'no installed version behind what origin/main declares'
+// A pin is graded as equality, not as an ordering — a version NEWER than the pin is
+// refused too — so the row must not tell the signer an ordering was asserted.
+export const VERSION_MATCHES_PIN =
+  'the installed version is exactly the one origin/main pins for this network'
 export const EVERY_ELEMENT_COMPARED =
   'every installed element compared against origin/main'
+/** Why the delay gate stood down, as the signer reads it under "observed". */
+export const NO_TIMELOCK_SCHEDULE =
+  'this proposal carries no timelock schedule, so there is no delay to compare'
 export const NOTHING_TO_COMPARE =
   'a cut that installs nothing requiring a version comparison'
+/** Why this gate stood down, as the signer reads it under "observed". */
+export const NOTHING_INSTALLED_TO_COMPARE =
+  'this proposal installs no facet code, so there is no version to compare'
 
 /**
  * How each graded status reaches the ledger.
  *
  * Split by the anchor each status rests on, not by whether it is cleared to
  * proceed. Every status that had to resolve the proposed version through the
- * deployment record is `A-MONGO` — including the three that then compared it
- * against `origin/main`, because the proposer writes that record and so owns
- * one side of the comparison. `A-MONGO` cannot decide a pass, so those three
- * ask a human instead, which a `semantic` check may legitimately do.
+ * deployment record is `A-MONGO` — including the ones that then compared it
+ * against `origin/main` or against a pin, because the proposer writes that
+ * record and so owns one side of the comparison. `A-MONGO` cannot decide a
+ * pass, so those ask a human instead, which a `semantic` check may legitimately
+ * do.
  *
- * The three unresolvable statuses reach `A-UNRESOLVED` because nothing
- * answered at all: an action that is not Add, Replace or Remove, calldata that
- * could not be read, or an anchor that could not be reached.
+ * No status here is `A-MAIN`, and that is not an oversight: every comparison
+ * this check makes has the proposed version on one side, so none of them rests
+ * on `origin/main` alone. The anchor remains in the ledger vocabulary, which no
+ * check produces today, alongside `A-AUDIT`.
+ *
+ * The four unresolvable statuses reach `A-UNRESOLVED` because nothing answered
+ * at all: an action that is not Add, Replace or Remove, calldata that could not
+ * be read, an anchor that could not be reached, or a `latest` entry whose source
+ * version the anchor did not yield.
  *
  * Keyed exhaustively so a status added to `TargetStateStatus` fails to compile
  * here rather than falling through to a default that would grade it green.
  */
-const STATUS_MAPPING: Readonly<Record<TargetStateStatus, IStatusMapping>> = {
+/**
+ * Exported so the detail block's stand-down set can be checked against this map
+ * rather than against a restatement of it: two copies of one rule agree with
+ * each other while both drift from the page.
+ */
+export const STATUS_MAPPING: Readonly<
+  Record<TargetStateStatus, IStatusMapping>
+> = {
   'matches-main': {
     status: 'needs-ack',
     anchor: 'A-MONGO',
@@ -243,16 +339,40 @@ const STATUS_MAPPING: Readonly<Record<TargetStateStatus, IStatusMapping>> = {
   },
   // The removal branch returns before the anchor is read at all, so there is no
   // claim on `origin/main` to make — the same shape as `no-diamond-cut` below.
-  removal: { status: 'pass', anchor: 'A-LOCAL', expected: NOTHING_TO_COMPARE },
-  // No cut to grade. A pass on `A-LOCAL` rather than a skipped row: the
-  // calldata was read and found to install nothing, which is a verified fact
-  // about this proposal, not an absence of evidence.
-  'no-diamond-cut': {
-    status: 'pass',
+  removal: {
+    status: 'not-applicable',
     anchor: 'A-LOCAL',
     expected: NOTHING_TO_COMPARE,
   },
-  downgrade: { status: 'fail', anchor: 'A-MAIN', expected: ORDERING_HOLDS },
+  'no-diamond-cut': {
+    status: 'not-applicable',
+    anchor: 'A-LOCAL',
+    expected: NOTHING_TO_COMPARE,
+  },
+  // A pin matched. `A-MONGO` although the pin itself comes from `main`: the
+  // version it was compared against was resolved through the proposer-written
+  // deployment record, and the anchor names the weakest evidence the row rests on.
+  'matches-pin': {
+    status: 'needs-ack',
+    anchor: 'A-MONGO',
+    expected: VERSION_MATCHES_PIN,
+  },
+  // A deliberate pin contradicted. A fail, not an acknowledgement: the pin says
+  // this network is held back on purpose, and clicking past it is how a pin stops
+  // meaning anything.
+  'pinned-mismatch': {
+    status: 'fail',
+    anchor: 'A-MONGO',
+    expected: VERSION_MATCHES_PIN,
+  },
+  // The network follows the repo but the repo's version could not be read at the
+  // pinned ref, so no comparison was made.
+  'expected-version-unresolved': {
+    status: 'error',
+    anchor: 'A-UNRESOLVED',
+    expected: EVERY_ELEMENT_COMPARED,
+  },
+  downgrade: { status: 'fail', anchor: 'A-MONGO', expected: ORDERING_HOLDS },
   // Ordering was attempted and the pair could not be ordered, so this one did
   // reach the comparison.
   'version-not-comparable': {
@@ -307,11 +427,26 @@ const STATUS_MAPPING: Readonly<Record<TargetStateStatus, IStatusMapping>> = {
  * read this order at all — `STATUSES_CLEARED_TO_PROCEED` grades each finding
  * separately.
  */
+/**
+ * The statuses that mean this row compared nothing.
+ *
+ * A set rather than a `!== 'pass'` test: `not-applicable` is not a finding a
+ * signer has to read, and listing it beside `pass` is what keeps it out of the
+ * `failing` list that drives `actual` and `detail`.
+ */
+const GRADED_NOTHING: ReadonlySet<ICheckResult['status']> = new Set([
+  'pass',
+  'not-applicable',
+])
+
 const SEVERITY: readonly ICheckResult['status'][] = [
   'fail',
   'error',
   'needs-ack',
   'pass',
+  // Listed rather than left out: a status this array omits gets -1 from
+  // `indexOf`, which ranks it ahead of `fail`.
+  'not-applicable',
 ]
 
 const worstOf = (
@@ -322,7 +457,76 @@ const worstOf = (
 
 const describe = (finding: ITargetStateFinding): string => {
   const name = finding.contractName ?? finding.facetAddress ?? 'unnamed element'
-  return `${name}: ${finding.status}`
+  return `${name}: ${TARGET_STATE_STATUS_LABEL[finding.status]}`
+}
+
+/**
+ * The statuses whose two versions were successfully ordered.
+ *
+ * `version-not-comparable` is deliberately absent, though it too carries both:
+ * a pair printed alone reads as a comparison, and that status exists precisely
+ * because the two could not be compared. Its row keeps the status name, which is
+ * the only cue the signer gets — the bucket it prints under blames their
+ * environment, and a malformed version string is the proposer's.
+ */
+/**
+ * Where each side of the version pair was read.
+ *
+ * Named on the value rather than left to the anchor column, which this view does
+ * not print: without them the row is two numbers, and a signer cannot tell which
+ * one the proposer wrote.
+ */
+export const MAIN_VERSION_SOURCE = 'from the target state on origin/main'
+export const PROPOSED_VERSION_SOURCE = 'from the deployment record'
+
+const COMPARED_BOTH_VERSIONS: ReadonlySet<TargetStateStatus> = new Set([
+  'matches-main',
+  'ahead-of-main',
+  'downgrade',
+])
+
+/**
+ * The version pair a row prints under "expected" and "observed", when it has
+ * one to print.
+ *
+ * The two sides come from different places and only one of them is the
+ * proposer's: the expectation is what `origin/main` declares, the observation is
+ * what the deployment record the proposer writes says the proposed address is.
+ * That is the comparison this gate exists to make, so the signer reads the two
+ * versions rather than a sentence about them — each naming where it was read,
+ * because which side the proposer controls is the whole reason this row asks for
+ * an acknowledgement rather than passing.
+ *
+ * Only for a row that graded exactly one element. `expected` has to hold for the
+ * whole row, and a row covering two facets cannot name one facet's version
+ * without being false about the other.
+ *
+ * Which statuses qualify is an allow-list, not a test that both fields are
+ * populated: a `contract-unidentified` finding carries the record's version
+ * under a blank name, and reading a version off one would print a number no
+ * comparison produced as though it had been compared.
+ *
+ * The name comes back with the pair because the pair displaces it. `actual` used
+ * to carry it, and the surfaces that print a row without its findings beside it
+ * — the run-wide ledger, the proposal card, a superseded-attempt note — have
+ * nowhere else to read which element the two versions belong to.
+ *
+ * @param graded - The findings this row was graded on.
+ * @returns The pair and the element it belongs to, or nothing when the row must state its requirement instead.
+ */
+const comparedVersions = (
+  graded: readonly ITargetStateFinding[]
+): { expected: string; actual: string; contractName: string } | null => {
+  if (graded.length !== 1) return null
+  const [only] = graded
+  if (!only || !COMPARED_BOTH_VERSIONS.has(only.status)) return null
+  if (!only.mainVersion || !only.proposedVersion || !only.contractName)
+    return null
+  return {
+    expected: `v${only.mainVersion} (${MAIN_VERSION_SOURCE})`,
+    actual: `v${only.proposedVersion} (${PROPOSED_VERSION_SOURCE})`,
+    contractName: only.contractName,
+  }
 }
 
 /**
@@ -333,6 +537,9 @@ const describe = (finding: ITargetStateFinding): string => {
  * printed by `formatTargetStateLines`. A verdict with no findings at all is an
  * `error` on `A-UNRESOLVED` rather than a pass — nothing was graded, and the
  * denominator must not silently shrink.
+ *
+ * Where the row graded a single element, `comparedVersions` replaces the
+ * requirement sentence and the status list with the two versions themselves.
  *
  * @param verdict - The network's graded verdict.
  * @param network - The network the verdict is about.
@@ -354,7 +561,11 @@ export const targetStateCheckResult = (
         'no finding was produced for this proposal, so no element was compared against the pinned target state',
     }
 
-  let status: ICheckResult['status'] = 'pass'
+  // Seeded at the weakest status in `SEVERITY`, not at `pass`: `worstOf` keeps
+  // the lower-ranked side, so a `pass` seed would outrank every finding that
+  // maps to `not-applicable` and a cut installing nothing would reduce to a
+  // green row claiming a comparison that never happened.
+  let status: ICheckResult['status'] = 'not-applicable'
   // Replaced by the first finding, since every mapped status outranks the seed.
   // `A-UNRESOLVED` rather than `A-MAIN` so the unreachable case still describes
   // a row nothing decided.
@@ -383,19 +594,31 @@ export const targetStateCheckResult = (
   }
 
   const failing = verdict.findings.filter(
-    (finding) => STATUS_MAPPING[finding.status].status !== 'pass'
+    (finding) => !GRADED_NOTHING.has(STATUS_MAPPING[finding.status].status)
   )
+
+  const versions = comparedVersions(failing)
+  const listed =
+    status === 'not-applicable'
+      ? // Every finding said "nothing to compare", so the row is the reason
+        // rather than a list of element names: `actual` is what a signer reads
+        // to learn why a gate stood down, and `FacetX: removal` does not say it.
+        NOTHING_INSTALLED_TO_COMPARE
+      : (failing.length ? failing : verdict.findings).map(describe).join('; ')
 
   return {
     checkId: TARGET_STATE_CHECK_ID,
     network,
     status,
-    expected,
-    actual: (failing.length ? failing : verdict.findings)
-      .map(describe)
-      .join('; '),
+    expected: versions?.expected ?? expected,
+    actual: versions?.actual ?? listed,
     anchor,
-    ...(failing.length && detail ? { detail } : {}),
+    // The name is prefixed here rather than written into the finding's own
+    // detail, which `formatTargetStateLines` already prints under the element's
+    // name — there it would read twice.
+    ...(failing.length && detail
+      ? { detail: versions ? `${versions.contractName}: ${detail}` : detail }
+      : {}),
   }
 }
 
@@ -434,6 +657,169 @@ export const worstResultPerCheck = (
   return [...worst.values()]
 }
 
+export const EVERY_TARGET_ATTESTED =
+  'every address this proposal installs carrying bytecode an attested build produces'
+/** Why this gate stood down, as the signer reads it under "observed". */
+export const NOTHING_INSTALLED_TO_HASH =
+  'this proposal installs no contract code, so there is no bytecode to compare'
+
+/**
+ * The stand-down sentence for a proposal whose every call the decoder resolved
+ * and found non-installing, naming what it does instead.
+ *
+ * @param knownCalls - Function names the decoder resolved.
+ * @param nothingToCheck - What the gate has none of, as the row's tail.
+ * @param fallback - The sentence when no call was resolved.
+ * @returns The `actual` of the row.
+ */
+const standsDownOver = (
+  knownCalls: readonly string[] | undefined,
+  nothingToCheck: string,
+  fallback: string
+): string =>
+  knownCalls && knownCalls.length > 0
+    ? `this proposal calls ${knownCalls.join(
+        ', '
+      )} and installs no code, so there ${nothingToCheck}`
+    : fallback
+
+/**
+ * What the row states under "observed" and "→" when the gate refused a target.
+ *
+ * A single refusal states why, not just that: `0x…: UNVERIFIABLE` is a status
+ * name, and a signer reading it has to go to the detail line for the sentence
+ * that says what to do about it. The address moves to the detail, which the
+ * summary would otherwise spend on the same sentence a second time.
+ *
+ * Several refusals keep the per-address list and the gate's own summary, which
+ * states each one. A single value cannot carry two reasons without being false
+ * about one of them, and the verdict word stays per address either way: a
+ * MISMATCH and an UNVERIFIABLE in one cut are different facts and must not
+ * average into one.
+ *
+ * @param targets - Every target the gate judged.
+ * @param summary - The gate's own summary, for the rows that still need it.
+ * @returns The `actual` and `detail` of the row.
+ */
+const refusedTargets = (
+  targets: readonly ITargetVerdict[],
+  summary: string
+): { actual: string; detail?: string } => {
+  const refused = targets.filter((target) => target.verdict !== 'MATCH')
+  const [only] = refused
+
+  if (refused.length === 1 && only)
+    return {
+      actual: `${only.verdict} — ${only.reason}`,
+      detail: `the address this refers to is ${only.address}`,
+    }
+
+  return {
+    actual: refused
+      .map((target) => `${target.address}: ${target.verdict}`)
+      .join('; '),
+    ...(summary ? { detail: summary } : {}),
+  }
+}
+
+/**
+ * How the codehash gate reaches the ledger.
+ *
+ * Reporting only. The refusal this gate drives stays in
+ * `assertCodehashSignGateAllowsSigning`, which every sign path funnels through;
+ * this row exists so the gate is accounted for in the same book as the other
+ * ten, and a bug here can make the report wrong but can never make an unsigned
+ * proposal signable.
+ *
+ * `madeNoClaim` is two different facts and is split on `unopened`, never on the
+ * summary sentence: a payload read to the end that contains no cut has nothing
+ * to check, and a payload whose frames would not open has not been checked. The
+ * second is the case a proposer can manufacture, so it errors on
+ * `A-UNRESOLVED` and blocks — the same input Gate G already refuses on, which
+ * is what makes this row a second lock on that door rather than a new one.
+ *
+ * @param gate - The evaluated gate for this proposal.
+ * @param network - The network the gate judged against.
+ * @returns The row to hand to `recordCheck`.
+ */
+export const codehashCheckResult = (
+  gate: ICodehashSignGate,
+  network: string
+): ICheckResult => {
+  if (!gate.evaluated)
+    return unresolved(
+      CODEHASH_CHECK_ID,
+      network,
+      EVERY_TARGET_ATTESTED,
+      gate.summary || 'the codehash gate produced no verdict for this proposal'
+    )
+
+  if (gate.madeNoClaim)
+    return gate.unopened && gate.unopened.length > 0
+      ? unresolved(
+          CODEHASH_CHECK_ID,
+          network,
+          EVERY_TARGET_ATTESTED,
+          `this decoder could not open ${gate.unopened.join(
+            ', '
+          )}, so whether this proposal installs code is unknown`
+        )
+      : {
+          checkId: CODEHASH_CHECK_ID,
+          network,
+          status: 'not-applicable',
+          expected: EVERY_TARGET_ATTESTED,
+          actual: standsDownOver(
+            gate.knownCalls,
+            'is no bytecode to compare',
+            NOTHING_INSTALLED_TO_HASH
+          ),
+          anchor: 'A-LOCAL',
+        }
+
+  if (gate.blocksSigning)
+    return {
+      checkId: CODEHASH_CHECK_ID,
+      network,
+      // A refusal is not a codehash disagreement — it is the cut being
+      // malformed, or the gate being unable to judge it. Only a target the
+      // gate did compare and found different is a mismatch.
+      status: gate.refusals.length > 0 ? 'error' : 'fail',
+      expected: EVERY_TARGET_ATTESTED,
+      anchor: gate.refusals.length > 0 ? 'A-UNRESOLVED' : 'A-AUDIT',
+      ...(gate.refusals.length
+        ? {
+            actual: gate.refusals.join(' '),
+            ...(gate.summary ? { detail: gate.summary } : {}),
+          }
+        : refusedTargets(gate.targets, gate.summary)),
+    }
+
+  // Something this gate did open and found no code in — a removal, whose every
+  // facet address is zero. `madeNoClaim` does not cover it: that is the payload
+  // that installs nothing at all. Left on the `pass` below it graded as "0 installed
+  // address(es) match an attested build", which is a green row satisfying a
+  // verified counter on the strength of nothing.
+  if (gate.targets.length === 0)
+    return {
+      checkId: CODEHASH_CHECK_ID,
+      network,
+      status: 'not-applicable',
+      expected: EVERY_TARGET_ATTESTED,
+      actual: NOTHING_INSTALLED_TO_HASH,
+      anchor: 'A-LOCAL',
+    }
+
+  return {
+    checkId: CODEHASH_CHECK_ID,
+    network,
+    status: 'pass',
+    expected: EVERY_TARGET_ATTESTED,
+    actual: `${gate.targets.length} installed address(es) match an attested build`,
+    anchor: 'A-AUDIT',
+  }
+}
+
 export const EXECUTABILITY_CHECK_ID = 'executability'
 
 export const EXECUTABILITY_CHECK: ICheckDefinition = {
@@ -444,7 +830,8 @@ export const EXECUTABILITY_CHECK: ICheckDefinition = {
   // integrity class would hard-block a legitimate proposal on a stale read with
   // no way for the signer to say so.
   checkClass: 'semantic',
-  title: 'The proposal would execute rather than revert',
+  gate: 'I',
+  title: 'Transaction and calldata do not revert',
 }
 
 export const RPC_QUORUM_CHECK_ID = 'rpc-quorum'
@@ -453,7 +840,215 @@ export const RPC_QUORUM_CHECK: ICheckDefinition = {
   checkId: RPC_QUORUM_CHECK_ID,
   section: 'Evidence',
   checkClass: 'semantic',
-  title: 'Chain reads agreed across independent providers',
+  gate: 'J',
+  title: 'Independent RPCs agree',
+}
+
+export const CODEHASH_CHECK_ID = 'codehash'
+
+/**
+ * Registered, and answered for by `codehashCheckResult`.
+ *
+ * The gate also refuses inside `confirm-integrity-asserts`, outside the ledger.
+ * That refusal is why it needs a letter and a subject of its own: a harness
+ * that cannot run it prints it as not-applicable, and a row with no definition
+ * renders as `Gate undefined`.
+ */
+export const CODEHASH_CHECK: ICheckDefinition = {
+  checkId: CODEHASH_CHECK_ID,
+  section: 'Deployed state',
+  checkClass: 'integrity',
+  gate: 'K',
+  title: 'Installed bytecode matches the attested build',
+}
+
+export const IMMUTABLES_CHECK_ID = 'immutables'
+
+/**
+ * Whether a deployment runs on the values this repo declares for it.
+ *
+ * Separate from gate K because the two claims are not answerable in the same
+ * places. Whether the code is ours is decidable on every chain; whether the
+ * values spliced into it are the declared ones is decidable from the bytes only
+ * where the compiler inlines them. One verdict carrying both would cost a chain
+ * the first claim for want of the second.
+ *
+ * `undecidableIsAcknowledgeable` reaches exactly one case: a chain whose
+ * immutables sit in a system contract, where every value is read from a source
+ * that decides but the mapping from slot to name is derived rather than
+ * recorded. The row then states the derived table and asks a human to confirm
+ * it. A value that DISAGREES is never that case and hard-blocks everywhere.
+ */
+export const IMMUTABLES_CHECK: ICheckDefinition = {
+  checkId: IMMUTABLES_CHECK_ID,
+  section: 'Deployed state',
+  checkClass: 'integrity',
+  gate: 'L',
+  title: 'Immutable values match what config declares',
+  undecidableIsAcknowledgeable: true,
+}
+
+const EVERY_IMMUTABLE_DECLARED =
+  'every immutable holds the value config declares'
+
+const NO_IMMUTABLES_TO_CHECK =
+  'nothing this proposal installs declares an immutable'
+
+/**
+ * The worst thing gate L found across the addresses one cut installs.
+ *
+ * Ordered by how little is established rather than by severity of consequence:
+ * a disagreement is a finding, and everything below it is a check that did not
+ * happen. A run reporting the best of several addresses would let one clean
+ * facet answer for another whose values nobody read.
+ */
+const IMMUTABLE_VERDICT_ORDER: readonly ImmutableVerdictStatus[] = [
+  'disagrees',
+  'unreadable',
+  'unpriced',
+  'documented',
+  'assumed',
+  'verified',
+  'none',
+]
+
+/**
+ * How gate L reaches the ledger.
+ *
+ * Shares the codehash gate's evaluation, because the values are read for the
+ * addresses that gate judged: an address whose code matched nothing has no
+ * deployment of ours whose values could be compared, and grading its immutables
+ * separately would put a second verdict on a contract this repo does not claim.
+ *
+ * @param gate - The evaluated codehash gate for this proposal.
+ * @param network - The network the gate judged against.
+ * @returns The row to hand to `recordCheck`.
+ */
+export const immutablesCheckResult = (
+  gate: ICodehashSignGate,
+  network: string
+): ICheckResult => {
+  if (!gate.evaluated)
+    return unresolved(
+      IMMUTABLES_CHECK_ID,
+      network,
+      EVERY_IMMUTABLE_DECLARED,
+      gate.summary || 'the codehash gate produced no verdict for this proposal'
+    )
+
+  if (gate.madeNoClaim)
+    return gate.unopened && gate.unopened.length > 0
+      ? unresolved(
+          IMMUTABLES_CHECK_ID,
+          network,
+          EVERY_IMMUTABLE_DECLARED,
+          `this decoder could not open ${gate.unopened.join(
+            ', '
+          )}, so whether this proposal installs code carrying immutables is unknown`
+        )
+      : {
+          checkId: IMMUTABLES_CHECK_ID,
+          network,
+          status: 'not-applicable',
+          expected: EVERY_IMMUTABLE_DECLARED,
+          actual: standsDownOver(
+            gate.knownCalls,
+            'are no immutables to read',
+            NO_IMMUTABLES_TO_CHECK
+          ),
+          anchor: 'A-LOCAL',
+        }
+
+  if (gate.refusals.length > 0)
+    return unresolved(
+      IMMUTABLES_CHECK_ID,
+      network,
+      EVERY_IMMUTABLE_DECLARED,
+      gate.refusals.join(' ')
+    )
+
+  if (gate.targets.length === 0)
+    return {
+      checkId: IMMUTABLES_CHECK_ID,
+      network,
+      status: 'not-applicable',
+      expected: EVERY_IMMUTABLE_DECLARED,
+      actual: NO_IMMUTABLES_TO_CHECK,
+      anchor: 'A-LOCAL',
+    }
+
+  const worst = IMMUTABLE_VERDICT_ORDER.find((status) =>
+    gate.targets.some((target) => target.immutables.status === status)
+  )
+  const found = gate.targets.filter(
+    (target) => target.immutables.status === worst
+  )
+  const detail = found.map((target) => target.immutables.detail).join(' ')
+
+  if (worst === 'disagrees')
+    return {
+      checkId: IMMUTABLES_CHECK_ID,
+      network,
+      status: 'fail',
+      expected: EVERY_IMMUTABLE_DECLARED,
+      actual: `${found.length} address(es) hold an immutable this repo does not declare for ${network}`,
+      anchor: 'A-LOCAL',
+      detail,
+    }
+
+  if (worst === 'unreadable' || worst === 'unpriced')
+    return {
+      checkId: IMMUTABLES_CHECK_ID,
+      network,
+      // Not `fail`: nothing disagreed, the values were never established. The
+      // integrity class blocks either way, and the two are different remedies.
+      status: 'error',
+      expected: EVERY_IMMUTABLE_DECLARED,
+      actual: `${found.length} address(es) whose immutable values this run did not establish`,
+      anchor: 'A-UNRESOLVED',
+      detail,
+    }
+
+  if (worst === 'assumed')
+    return {
+      checkId: IMMUTABLES_CHECK_ID,
+      network,
+      status: 'needs-ack',
+      expected: EVERY_IMMUTABLE_DECLARED,
+      actual: `${found.length} address(es) whose values agree under a slot ordering the compiler did not confirm`,
+      anchor: 'A-ASSUMED',
+      detail,
+    }
+
+  if (worst === 'documented')
+    return {
+      checkId: IMMUTABLES_CHECK_ID,
+      network,
+      status: 'needs-ack',
+      expected: EVERY_IMMUTABLE_DECLARED,
+      actual: `${found.length} address(es) holding an immutable this repo states it derives no expectation for`,
+      anchor: 'A-DOCUMENTED',
+      detail,
+    }
+
+  if (worst === 'verified')
+    return {
+      checkId: IMMUTABLES_CHECK_ID,
+      network,
+      status: 'pass',
+      expected: EVERY_IMMUTABLE_DECLARED,
+      actual: `${found.length} address(es) hold the immutable values this repo declares`,
+      anchor: 'A-LOCAL',
+    }
+
+  return {
+    checkId: IMMUTABLES_CHECK_ID,
+    network,
+    status: 'not-applicable',
+    expected: EVERY_IMMUTABLE_DECLARED,
+    actual: NO_IMMUTABLES_TO_CHECK,
+    anchor: 'A-LOCAL',
+  }
 }
 
 /**
@@ -493,10 +1088,33 @@ export const CONFIRM_CHECK_DEFINITIONS: readonly ICheckDefinition[] = [
       throw new Error(`CONFIRM_CHECK_DEFINITIONS: no definition for ${checkId}`)
     return definition
   }),
-  TARGET_STATE_CHECK,
+  CODEHASH_CHECK,
+  IMMUTABLES_CHECK,
   STORAGE_AUTHORITY_CHECK,
+  TARGET_STATE_CHECK,
   EXECUTABILITY_CHECK,
   RPC_QUORUM_CHECK,
+]
+
+/**
+ * Every gate this repo has a name for, registered or not.
+ *
+ * The naming authority, so the letters stay unique across gates that never
+ * share a ledger: `CONFIRM_CHECK_DEFINITIONS` is the subset a run must answer
+ * for, and anything a view might have to name belongs here too.
+ *
+ * Keyed by `checkId` rather than concatenated, because a gate named here may
+ * also be registered — the codehash gate refuses outside the ledger today and
+ * is expected to gain a row. Appending it would then list it twice and give the
+ * roster two entries sharing one letter, which the manifest renders as two
+ * gates and the uniqueness check below reads as a collision.
+ */
+export const ALL_GATE_DEFINITIONS: readonly ICheckDefinition[] = [
+  ...new Map(
+    [...CONFIRM_CHECK_DEFINITIONS, CODEHASH_CHECK, IMMUTABLES_CHECK].map(
+      (definition) => [definition.checkId, definition]
+    )
+  ).values(),
 ]
 
 /**
@@ -525,36 +1143,48 @@ export const executabilityCheckResult = (
       anchor: 'A-UNRESOLVED',
     }
 
-  if (verdict.refuses)
+  if (verdict.refuses) {
+    // Which calls, not every reason: a row's `actual` is one value a signer
+    // compares against `expected` and the ledger stores verbatim, and
+    // `verdict.reason` is the whole finding list joined — including whatever
+    // the node echoed back, which for viem is the entire calldata. The reasons
+    // are not lost: `assertProposalWouldExecute` still refuses with the full
+    // `reason`, and the signer view prints one section per call.
+    const reverting = verdict.calls
+      .filter((call) => call.outcome === 'would-revert')
+      .map((call) => call.path)
+
     return {
       checkId: EXECUTABILITY_CHECK_ID,
       network,
       status: 'fail',
       expected: 'no payload reverts',
-      actual: verdict.reason,
+      actual: reverting.length
+        ? `${reverting.length} of ${
+            verdict.calls.length
+          } call(s) would revert: ${reverting.join(', ')}`
+        : verdict.reason,
       anchor: 'A-CHAIN',
     }
+  }
 
-  // A payload the simulator has no revert model for was not simulated, so the
-  // run has no evidence about it. Recording that as the same green as a fully
-  // simulated proposal is how partial coverage reads as verified, so it is an
-  // acknowledgement on the anchor that decided nothing instead.
-  if (verdict.notSimulated.length > 0)
-    return {
-      checkId: EXECUTABILITY_CHECK_ID,
-      network,
-      status: 'needs-ack',
-      expected: 'every payload simulated against the state it will execute in',
-      actual: `no revert found in the payloads that were simulated; ${verdict.notSimulated.length} payload(s) have no revert model`,
-      anchor: 'A-UNRESOLVED',
-    }
-
+  // A payload with no bespoke revert model is still simulated: its target is
+  // checked for code and its calldata is sent in an eth_call from the account
+  // that will really send it, and both of those had to come back clean to
+  // reach here. Whether we could also have predicted the revert from the bytes
+  // is a property of our modelling, not evidence about the proposal, so it does
+  // not lower the grade. Every way to arrive here without that evidence is
+  // already an `error` above: an eth_call never attempted, a payload with no
+  // result, a call that could not be read through.
   return {
     checkId: EXECUTABILITY_CHECK_ID,
     network,
     status: 'pass',
     expected: 'no payload reverts',
-    actual: 'no revert found in any payload',
+    actual:
+      verdict.notSimulated.length > 0
+        ? `no revert found in any payload; ${verdict.notSimulated.length} of them judged on their target holding code and a clean eth_call alone`
+        : 'no revert found in any payload',
     anchor: 'A-CHAIN',
   }
 }
@@ -584,7 +1214,7 @@ export const rpcQuorumCheckResult = (
   network: string
 ): ICheckResult => {
   const expected = `${verdict.quorum} independent providers agreeing`
-  const actual = `${verdict.agreeingProviders} of ${verdict.independentProviders} agreed (${verdict.status})`
+  const agreed = `${verdict.agreeingProviders} of ${verdict.independentProviders} agreed`
 
   if (verdict.reachesQuorum)
     return {
@@ -592,7 +1222,7 @@ export const rpcQuorumCheckResult = (
       network,
       status: 'pass',
       expected,
-      actual,
+      actual: agreed,
       anchor: 'A-CHAIN',
     }
 
@@ -601,7 +1231,7 @@ export const rpcQuorumCheckResult = (
     network,
     status: 'needs-ack',
     expected,
-    actual,
+    actual: `${agreed} — ${describeQuorumStatus(verdict.status)}`,
     // No quorum on the value the caller asked about: the providers disagreed,
     // there were not enough of them, or they agreed the value is empty, which
     // is agreement without the fact an integrity read wanted.
@@ -612,7 +1242,7 @@ export const rpcQuorumCheckResult = (
     // *endpoint* sends them to re-run a command that would change nothing.
     detail:
       verdict.independentProviders < MIN_INDEPENDENT_PROVIDERS
-        ? `${verdict.detail} — ${verdict.independentProviders} independent provider(s) across ${verdict.endpointsConsulted} configured endpoint(s); a second provider is needed, which "bun fetch-rpcs" picks up where MongoDB holds one`
+        ? `add a second independent RPC provider for this network: ${verdict.independentProviders} independent provider(s) across ${verdict.endpointsConsulted} configured endpoint(s) is below the quorum of ${verdict.quorum}. "bun fetch-rpcs" picks one up where MongoDB holds one`
         : verdict.detail,
   }
 }
@@ -638,6 +1268,170 @@ export interface IProposalCheckVerdicts {
   executabilityOutOfScope?: string
   /** Absent when no quorum read was made. */
   rpcQuorum: IRpcQuorumVerdict | undefined
+  /**
+   * Why this network's providers cannot be compared, when they cannot.
+   *
+   * The quorum reads every provider at one pinned block, and a chain whose
+   * JSON-RPC serves a code read only at `latest` — Tron — has no height two
+   * providers can be held to. A declared limit, named on the row, kept apart
+   * from a read on a covered chain that simply was not made.
+   */
+  rpcQuorumOutOfScope?: string
+  /**
+   * The codehash gate's verdict for this proposal.
+   *
+   * Required, not optional: the gate is evaluated for every proposal and the
+   * caller starts each one at `blockingUnevaluatedGate()`, so there is no path
+   * on which it is legitimately absent — and an optional field would let a
+   * caller that forgot to pass it produce a report with a silent hole where the
+   * eleventh gate should be.
+   */
+  codehash: ICodehashSignGate
+  /**
+   * What the run read at each declared storage authority, and where each
+   * expectation came from.
+   *
+   * Absent with no reason in `storageAuthorityAbsence` blocks: gate G exists
+   * to refuse a proposal whose authorities could not be shown to match, and a
+   * silent absence would be the one way to get past it.
+   */
+  storageAuthority:
+    | {
+        entries: readonly ISignedAuthorityEntry[]
+        anchors: ReadonlyMap<string, ICheckResult['anchor']>
+        /**
+         * Calls whose contents could not be read through, if any.
+         *
+         * What this proposal installs is decoded from its own calldata, so a
+         * call that would not decode leaves the subject set unknown rather than
+         * empty — and an unknown scope read as an empty one is how a gate comes
+         * to report "nothing to check" about a payload nobody could open.
+         */
+        scopeUnreadable?: readonly string[]
+      }
+    | undefined
+  /**
+   * Why `storageAuthority` is absent, when the caller knows.
+   *
+   * Three absences that must not grade alike: a chain this gate was never
+   * written to read is a declared limit the signer acknowledges, an
+   * observation that could not be made at all (the envelope would not decode,
+   * no client could be built, the deployment file would not load) is
+   * unverified and blocks with the failure on the row, and calldata that
+   * schedules no timelock batch gives the gate nothing to observe — which is
+   * nothing to grade only if the codehash gate found nothing installed
+   * either. An absence with no reason keeps the blocking default. A read that
+   * failed on one address inside an observation that was made is not an
+   * absence: it reaches the row as that address's own unread entry.
+   */
+  storageAuthorityAbsence?: TStorageAuthorityAbsence
+}
+
+export type TStorageAuthorityAbsence =
+  | {
+      kind: 'out-of-scope'
+      reason: string
+      /**
+       * Whether the calldata installs anything, read from the calldata itself.
+       * A proposal that installs nothing has no authority to read on any chain
+       * and stands down as not applicable; only one that does install asks the
+       * signer to take the coverage gap on. Not read from the codehash gate,
+       * which on the same chain also compared nothing.
+       */
+      installs: boolean
+    }
+  | { kind: 'read-failed'; reason: string }
+  | { kind: 'not-scheduled' }
+
+/** The codehash gate never judged, refused, or could not open the calldata. */
+const installSetUnknownPerCodehash = (codehash: ICodehashSignGate): boolean =>
+  !codehash.evaluated ||
+  codehash.refusals.length > 0 ||
+  (codehash.unopened !== undefined && codehash.unopened.length > 0)
+
+/**
+ * Grades gate G when no observation reached the recorder.
+ *
+ * @param absence - why the caller made no read, when it knows
+ * @param codehash - the codehash gate's verdict on the same calldata, which
+ *   decides whether an unscheduled proposal installs anything
+ * @param network - the network the proposal is on
+ * @returns The row to hand to `recordCheck`.
+ */
+const storageAuthorityAbsenceResult = (
+  absence: TStorageAuthorityAbsence | undefined,
+  codehash: ICodehashSignGate,
+  network: string
+): ICheckResult => {
+  // `A-DOCUMENTED`, not `A-UNRESOLVED`: the gap is a reviewed statement of
+  // which chains this gate reads (`resolveGateCoverage`), and that is what the
+  // signer is asked to take on. An integrity check's `needs-ack` survives only
+  // on an anchor a human can decide about.
+  if (absence?.kind === 'out-of-scope')
+    return !absence.installs
+      ? {
+          checkId: STORAGE_AUTHORITY_CHECK_ID,
+          network,
+          status: 'not-applicable',
+          expected: EVERY_INSTALLED_CONTRACT_AUTHORISED,
+          actual:
+            'this proposal installs no contract, so there is no authority to read',
+          anchor: 'A-LOCAL',
+        }
+      : {
+          checkId: STORAGE_AUTHORITY_CHECK_ID,
+          network,
+          status: 'needs-ack',
+          expected: EVERY_INSTALLED_CONTRACT_AUTHORISED,
+          actual: absence.reason,
+          anchor: 'A-DOCUMENTED',
+        }
+
+  if (absence?.kind === 'read-failed')
+    return unresolved(
+      STORAGE_AUTHORITY_CHECK_ID,
+      network,
+      EVERY_INSTALLED_CONTRACT_AUTHORISED,
+      `the contracts this proposal installs could not be read on ${network}: ${absence.reason}`
+    )
+
+  if (absence?.kind === 'not-scheduled') {
+    // Only a calldata read to the end and found to install nothing has nothing
+    // here to grade. Whether it installs is the codehash gate's reading of the
+    // same bytes: one it never judged, refused or could not open leaves the
+    // install set unknown, and one that installs outside a timelock envelope
+    // is something this gate never observed.
+    if (installSetUnknownPerCodehash(codehash))
+      return unresolved(
+        STORAGE_AUTHORITY_CHECK_ID,
+        network,
+        EVERY_INSTALLED_CONTRACT_AUTHORISED,
+        'this proposal schedules no timelock batch and whether it installs anything could not be established, so no authority was read'
+      )
+    if (codehash.targets.length > 0)
+      return unresolved(
+        STORAGE_AUTHORITY_CHECK_ID,
+        network,
+        EVERY_INSTALLED_CONTRACT_AUTHORISED,
+        'this proposal installs outside a timelock schedule, which is the only envelope this gate reads, so its authorities were not observed'
+      )
+    return {
+      checkId: STORAGE_AUTHORITY_CHECK_ID,
+      network,
+      status: 'not-applicable',
+      expected: EVERY_INSTALLED_CONTRACT_AUTHORISED,
+      actual:
+        'this proposal schedules no timelock batch and installs no contract, so there is no authority to read',
+      anchor: 'A-LOCAL',
+    }
+  }
+
+  return unresolved(
+    STORAGE_AUTHORITY_CHECK_ID,
+    network,
+    EVERY_INSTALLED_CONTRACT_AUTHORISED,
+    'no storage-authority read was made for this proposal'
+  )
 }
 
 const unresolved = (
@@ -668,8 +1462,8 @@ const unresolved = (
  * run-level ledger registered it and a registered check with no row is counted
  * missing and blocks. The only such check is the timelock delay, and the reason
  * it did not run is that the calldata was read and found not to be a schedule —
- * a verified fact about this proposal, so a pass on `A-LOCAL`, the same way
- * `no-diamond-cut` is a pass rather than an absence.
+ * so the row is `not-applicable` with that reason on it. Not a pass: nothing
+ * was compared, and a pass would put the row in the verified numerator.
  */
 const integrityResults = (
   run: IIntegrityAssertRun | undefined,
@@ -705,9 +1499,9 @@ const integrityResults = (
       return {
         checkId,
         network,
-        status: 'pass' as const,
+        status: 'not-applicable' as const,
         expected: "a schedule's delay is at least the timelock's live minimum",
-        actual: 'this proposal carries no timelock schedule',
+        actual: NO_TIMELOCK_SCHEDULE,
         anchor: 'A-LOCAL' as const,
       }
 
@@ -741,6 +1535,28 @@ export const proposalCheckResults = (
 
   return [
     ...integrityResults(verdicts.integrity, network),
+    codehashCheckResult(verdicts.codehash, network),
+    immutablesCheckResult(verdicts.codehash, network),
+    verdicts.storageAuthority
+      ? verdicts.storageAuthority.scopeUnreadable?.length
+        ? unresolved(
+            STORAGE_AUTHORITY_CHECK_ID,
+            network,
+            EVERY_INSTALLED_CONTRACT_AUTHORISED,
+            `what this proposal installs could not be read from ${verdicts.storageAuthority.scopeUnreadable.join(
+              ', '
+            )}, so the contracts whose authorities to read are unknown`
+          )
+        : storageAuthorityCheckResult(
+            verdicts.storageAuthority.entries,
+            network,
+            verdicts.storageAuthority.anchors
+          )
+      : storageAuthorityAbsenceResult(
+          verdicts.storageAuthorityAbsence,
+          verdicts.codehash,
+          network
+        ),
     targetStateCheckResult(verdicts.targetState, network),
     verdicts.executability
       ? executabilityCheckResult(verdicts.executability, network)
@@ -752,7 +1568,7 @@ export const proposalCheckResults = (
           expected:
             'every payload simulated against the state it will execute in',
           actual: verdicts.executabilityOutOfScope,
-          anchor: 'A-UNRESOLVED',
+          anchor: 'A-DOCUMENTED',
         }
       : unresolved(
           EXECUTABILITY_CHECK_ID,
@@ -762,6 +1578,15 @@ export const proposalCheckResults = (
         ),
     verdicts.rpcQuorum
       ? rpcQuorumCheckResult(verdicts.rpcQuorum, network)
+      : verdicts.rpcQuorumOutOfScope
+      ? {
+          checkId: RPC_QUORUM_CHECK_ID,
+          network,
+          status: 'needs-ack',
+          expected: `${MIN_INDEPENDENT_PROVIDERS} independent providers agreeing`,
+          actual: verdicts.rpcQuorumOutOfScope,
+          anchor: 'A-DOCUMENTED',
+        }
       : {
           checkId: RPC_QUORUM_CHECK_ID,
           network,

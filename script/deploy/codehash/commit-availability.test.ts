@@ -139,3 +139,25 @@ describe('ensureCommitAvailable', () => {
     expect(MAX_FETCH_ATTEMPTS).toBeLessThan(6)
   })
 })
+
+describe('ensureCommitAvailable, fetching from a named remote', () => {
+  it('fetches a Tron commit from the fork remote rather than origin', () => {
+    const { git, calls } = gitFrom({ present: [false, true] })
+    const result = ensureCommitAvailable(SHA, { git }, { remote: 'tron' })
+    expect(result).toEqual({ ok: true, fetched: true })
+    expect(calls[1]).toEqual(['fetch', '--quiet', 'tron', SHA])
+  })
+
+  it('names the remote it could not fetch from', () => {
+    const { git } = gitFrom({
+      present: [false, false, false, false],
+      fetch: () => {
+        throw new Error('fatal: remote error')
+      },
+    })
+    const result = ensureCommitAvailable(SHA, { git }, { remote: 'tron' })
+    expect(result.ok).toBe(false)
+    if (result.ok) throw new Error('expected a refusal')
+    expect(result.reason).toContain('"tron"')
+  })
+})

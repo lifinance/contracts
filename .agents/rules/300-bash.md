@@ -16,6 +16,29 @@ paths:
 - Variable names: all uppercase (e.g., `NETWORK`, `CONTRACT_ADDRESS`).
 - Provide usage/help text; clear exit codes; document TODOs/limits succinctly; keep indentation and naming consistent.
 
+### Export a ticket before any production deploy [CONV:DEPLOY-TICKET]
+
+Every Safe proposal must carry a Linear issue link, so a production deploy on a network with a
+Safe needs one before it starts:
+
+```bash
+export SAFE_PROPOSAL_TICKET="EXSC-1034"   # or the full https://linear.app/... URL
+export SAFE_PROPOSAL_REASON="one line on why this is being proposed now"  # optional
+```
+
+`assertProposalTicketForRun` resolves it before the first build and refuses a run that has none.
+A run with no terminal — CI, an agent, anything piped — cannot be asked, so it is refused rather
+than prompted: **an agent must export the variable itself, never rely on being asked.** Take the
+id from the ticket the work belongs to; do not infer it from the branch name, which is a hint the
+tooling shows and deliberately does not accept on its own. Staging, testnet-only and
+direct-to-diamond runs create no proposal and need no ticket.
+
+A plain `export` is enough from any shell: `script/deploy/shared/captureProposalIntent.sh`
+mirrors both variables into names `.env` does not define, so the blank lines `.env.example`
+ships for them do not overwrite what the caller set. An entry point that can reach a Safe
+proposal must source it **before its first `source .env`** — after that the env file has
+already won, and every non-interactive run is refused.
+
 ## Key Helper Functions [CONV:BASH-HELPERS]
 
 ### Network Abstraction Helpers
@@ -110,7 +133,6 @@ background jobs and aggregate after `wait`.
   "any failures?", "any CRITICAL?") from the collected results **after** `wait`, never from
   inside the loop.
 - Copy an existing pattern rather than reinventing the throttle/wait/merge plumbing:
-  - `processNetworkLine` worker + throttle + `wait` (`helperFunctions.sh`)
   - `( … > "$FILE" ) &` → `wait` → merge per-item files (`helperFunctions.sh`)
   - `executeNetworkInGroup` (`multiNetworkExecution.sh`)
 
@@ -146,31 +168,19 @@ function functionName() {
 - Include routing/behavior section for functions with branching logic
 - Provide concrete examples
 
-## Syntax Validation (CRITICAL)
+## Syntax validation
 
-**All bash code must be validated before suggesting changes.**
+Validate before proposing any bash change:
 
-### Required Steps
-
-1. **Syntax**: `bash -n <script>` - always run before suggesting changes
+1. **Syntax**: `bash -n <script>`
 2. **Unbound variables** (with `set -euo pipefail`):
    - Use `${VAR:-}` not `$VAR`; `${ARRAY[@]:-}` not `-v ARRAY[@]`
    - Check `${#ARRAY[@]}` before accessing arrays
 3. **Compatibility**: bash 5.0+ (macOS default); avoid bash 4.0-only features
-4. **Test strict mode**: `bash -c 'set -euo pipefail; source script.sh'`
+4. **Strict mode**: `bash -c 'set -euo pipefail; source script.sh'`
 
-### Validation Checklist
+### Pitfalls not covered above
 
-- [ ] `bash -n` syntax check passes
-- [ ] No unbound variable errors with `set -u`
-- [ ] Array access tested with empty arrays
-- [ ] Parameter expansion uses `:-` defaults
-- [ ] Conditionals work in strict mode
-
-### Common Pitfalls
-
-- Arrays: `${ARRAY[@]:-}` not `-v ARRAY[@]`
-- Variables: `${VAR:-default}` when `set -u` enabled
 - Process substitution: `< <(...)` requires `#!/bin/bash` shebang
 - Conditionals: `[[ ]]` not `[ ]` for bash-specific features
 - Variable case: Use `UPPERCASE` for all variables, including `local` declarations and loop iterators

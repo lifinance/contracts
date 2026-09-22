@@ -28,7 +28,9 @@ const ZERO_ADDRESS = '0x0000000000000000000000000000000000000000'
  */
 export type AuthorityExpectationSource =
   | { from: 'deployments'; contractName: string }
+  | { from: 'pinnedDeployments'; contractName: string }
   | { from: 'globalConfig'; key: string }
+  | { from: 'zeroAddress' }
 
 /**
  * The getters the gate can call. Kept beside the table below so a getter
@@ -37,6 +39,7 @@ export type AuthorityExpectationSource =
  */
 export const AUTHORITY_ABI = parseAbi([
   'function owner() view returns (address)',
+  'function pendingOwner() view returns (address)',
   'function pauserWallet() view returns (address)',
 ])
 
@@ -59,14 +62,45 @@ export interface IDeclaredAuthority {
  * from this table contributes no authority row and produces no finding, so the
  * gate's PROCEED covers only the authorities named here — absence of a row is
  * not evidence that a contract's authorities were checked.
+ *
+ * `TransferrableOwnership` holds `owner` and `pendingOwner` in storage rather
+ * than as immutables, so two deployments differing only in who controls them
+ * are byte-identical and the immutable layer of the codehash gate cannot tell
+ * them apart. Each `owner` expectation is the `config/global.json` key that
+ * contract's `Deploy<name>.s.sol` passes as `_owner` — the script, not
+ * `deployRequirements.json`, decides what a fresh deployment is constructed
+ * with, and the two disagree on `FeeCollector`. `prebroadcast-authorities.coverage.test`
+ * pins the table against the scripts and fails when a periphery contract is
+ * left unclassified here.
+ *
+ * `pendingOwner` is expected to be zero because a non-zero one lets its holder
+ * claim the contract after this proposal executes.
+ *
+ * The coverage test's universe is `src/Periphery`, so a facet carrying storage
+ * authority — `AcrossFacetPackedV4` is the one in the table — is not enumerated
+ * and its absence would not have failed anything.
  */
 export const DECLARED_STORAGE_AUTHORITIES: Readonly<
   Record<string, readonly IDeclaredAuthority[]>
 > = {
+  // A facet rather than periphery, and the only one here: it inherits
+  // `TransferrableOwnership` and exposes `executeCallAndWithdraw`, an arbitrary
+  // call gated on nothing but `owner`. No `owner` row, because
+  // `DeployAcrossFacetPackedV4.s.sol` constructs it with the deployer rather
+  // than a `config/global.json` wallet, so this repo declares no value to
+  // compare one against; the live fleet holds a retired deployer address, which
+  // an invented expectation would hard-block every proposal over. The pending
+  // slot is asserted because zero is the invariant whoever owns it.
+  AcrossFacetPackedV4: [
+    { getter: 'pendingOwner', source: { from: 'zeroAddress' } },
+  ],
   LiFiDiamond: [
     {
       getter: 'owner',
-      source: { from: 'deployments', contractName: 'LiFiTimelockController' },
+      source: {
+        from: 'pinnedDeployments',
+        contractName: 'LiFiTimelockController',
+      },
     },
     {
       getter: 'pauserWallet',
@@ -74,10 +108,70 @@ export const DECLARED_STORAGE_AUTHORITIES: Readonly<
     },
   ],
   ERC20Proxy: [
+    { getter: 'owner', source: { from: 'globalConfig', key: 'refundWallet' } },
+    { getter: 'pendingOwner', source: { from: 'zeroAddress' } },
+  ],
+  Executor: [
+    { getter: 'owner', source: { from: 'globalConfig', key: 'refundWallet' } },
+    { getter: 'pendingOwner', source: { from: 'zeroAddress' } },
+  ],
+  FeeCollector: [
     {
       getter: 'owner',
-      source: { from: 'globalConfig', key: 'refundWallet' },
+      source: { from: 'globalConfig', key: 'feeCollectorOwner' },
     },
+    { getter: 'pendingOwner', source: { from: 'zeroAddress' } },
+  ],
+  FeeForwarder: [
+    {
+      getter: 'owner',
+      source: { from: 'globalConfig', key: 'withdrawWallet' },
+    },
+    { getter: 'pendingOwner', source: { from: 'zeroAddress' } },
+  ],
+  GasZipPeriphery: [
+    { getter: 'owner', source: { from: 'globalConfig', key: 'refundWallet' } },
+    { getter: 'pendingOwner', source: { from: 'zeroAddress' } },
+  ],
+  LiFiDEXAggregator: [
+    { getter: 'owner', source: { from: 'globalConfig', key: 'refundWallet' } },
+    { getter: 'pendingOwner', source: { from: 'zeroAddress' } },
+  ],
+  LidoWrapper: [
+    { getter: 'owner', source: { from: 'globalConfig', key: 'refundWallet' } },
+    { getter: 'pendingOwner', source: { from: 'zeroAddress' } },
+  ],
+  OutputValidator: [
+    { getter: 'owner', source: { from: 'globalConfig', key: 'refundWallet' } },
+    { getter: 'pendingOwner', source: { from: 'zeroAddress' } },
+  ],
+  Permit2Proxy: [
+    { getter: 'owner', source: { from: 'globalConfig', key: 'refundWallet' } },
+    { getter: 'pendingOwner', source: { from: 'zeroAddress' } },
+  ],
+  ReceiverAcrossV3: [
+    { getter: 'owner', source: { from: 'globalConfig', key: 'refundWallet' } },
+    { getter: 'pendingOwner', source: { from: 'zeroAddress' } },
+  ],
+  ReceiverAcrossV4: [
+    { getter: 'owner', source: { from: 'globalConfig', key: 'refundWallet' } },
+    { getter: 'pendingOwner', source: { from: 'zeroAddress' } },
+  ],
+  ReceiverChainflip: [
+    { getter: 'owner', source: { from: 'globalConfig', key: 'refundWallet' } },
+    { getter: 'pendingOwner', source: { from: 'zeroAddress' } },
+  ],
+  ReceiverOIF: [
+    { getter: 'owner', source: { from: 'globalConfig', key: 'refundWallet' } },
+    { getter: 'pendingOwner', source: { from: 'zeroAddress' } },
+  ],
+  ReceiverStargateV2: [
+    { getter: 'owner', source: { from: 'globalConfig', key: 'refundWallet' } },
+    { getter: 'pendingOwner', source: { from: 'zeroAddress' } },
+  ],
+  TokenWrapper: [
+    { getter: 'owner', source: { from: 'globalConfig', key: 'refundWallet' } },
+    { getter: 'pendingOwner', source: { from: 'zeroAddress' } },
   ],
 }
 
@@ -85,6 +179,14 @@ export const DECLARED_STORAGE_AUTHORITIES: Readonly<
 export interface IPreBroadcastAuthority {
   /** Identifies the value for the operator, e.g. `LiFiDiamond.owner`. */
   label: string
+  /**
+   * The contract the getter was called on, lowercased.
+   *
+   * Carried because the label names the contract and not the address, and the
+   * sign-time gate has to decide per address whether this proposal installs the
+   * contract at all — a question a name cannot answer.
+   */
+  contractAddress: string
   /** Live on-chain value, lowercased; undefined when the read failed. */
   liveValue: string | undefined
   /** Value `main` declares, lowercased; undefined when it declares none. */
@@ -188,11 +290,15 @@ export const buildAddressNameIndex = (
 export const resolveExpectedAuthority = (
   source: AuthorityExpectationSource,
   deployments: Record<string, unknown>,
-  globalConfig: Record<string, unknown>
+  globalConfig: Record<string, unknown>,
+  pinnedDeployments?: Record<string, unknown>
 ): string | undefined => {
+  if (source.from === 'zeroAddress') return ZERO_ADDRESS
   const raw =
     source.from === 'deployments'
       ? deployments[source.contractName]
+      : source.from === 'pinnedDeployments'
+      ? pinnedDeployments?.[source.contractName]
       : globalConfig[source.key]
   if (typeof raw !== 'string') return undefined
   const address = raw.trim().toLowerCase()

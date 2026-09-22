@@ -38,6 +38,13 @@ export interface IToolchainScope {
    * build.
    */
   isClosedSet: boolean
+  /**
+   * True when this network keeps immutables outside the runtime code, so a
+   * code comparison that excluded nothing has still checked none of their
+   * values. zkEVM writes them to `ImmutableSimulator` at construction; every
+   * other lineage inlines them, where the masked byte count already says it.
+   */
+  holdsImmutablesOffCode: boolean
   /** The legitimate pairs, in the order they should be tried. */
   profiles: IBuildProfile[]
 }
@@ -164,7 +171,7 @@ export const deriveToolchainScope = (
       throw new Error(
         `Toolchain scope: "${network}" is zkEVM and foundry.toml has a "${ZK_PROFILE}" profile, but that profile pins no zksolc version. Nothing then says which compiler its code should have been built with, and treating it as an EVM lineage would compare zk bytecode under EVM normalisation.`
       )
-    return { isClosedSet: true, profiles: [zk] }
+    return { isClosedSet: true, holdsImmutablesOffCode: true, profiles: [zk] }
   }
 
   const version = row.targetEvmVersion.trim().toLowerCase()
@@ -197,5 +204,9 @@ export const deriveToolchainScope = (
       `Toolchain scope: "${network}" declares EVM version "${row.targetEvmVersion}", which no foundry.toml profile pins — so there is no attested build to compare against and the legitimate set cannot be enumerated. Add a profile for it, or correct the network's config.`
     )
 
-  return { isClosedSet: true, profiles: matching }
+  return {
+    isClosedSet: true,
+    holdsImmutablesOffCode: false,
+    profiles: matching,
+  }
 }

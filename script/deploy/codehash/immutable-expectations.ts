@@ -22,13 +22,18 @@
  */
 
 import type { IImmutableDeclaration } from '../immutables/immutable-ast'
-import type { DeployRequirements } from '../immutables/registry-schema'
+import type {
+  DeployRequirements,
+  IImmutableEntry,
+  ImmutableEvaluator,
+} from '../immutables/registry-schema'
 import type { IDeployRequirementConfigData } from '../shared/immutableBindings'
 import {
   loadConfigFileFromDisk,
   resolveExpectedAddress,
   substituteConfigKeyPlaceholders,
 } from '../shared/immutableBindings'
+import { createTronAddressSpellings } from '../shared/tron-address-spellings'
 
 import { frameFault, strip0x } from './hex'
 import type { ImmutableReferences } from './immutable-offsets'
@@ -61,12 +66,27 @@ export interface IObservedImmutable {
   byteCount: number
 }
 
-/** What this layer could establish about one immutable. */
+/**
+ * What this layer could establish about one immutable.
+ *
+ * `acknowledgeable` and `undeclared` are both gaps, and they are deliberately
+ * not one status. A slot the registry declares as derived, unchecked or
+ * unverifiable carries a written reason someone reviewed; an undeclared slot is
+ * one nobody noticed. Only the first is something a signer can be shown and
+ * asked to take on — the second must keep blocking, because there is no
+ * statement to take on.
+ *
+ * `unpriceable` stays the hard-blocking gap for a declaration that exists but
+ * does not resolve: config-sourced with nothing in `config/` for this network,
+ * an entry naming a key the contract does not carry, an expectation that cannot
+ * be expressed in the slot's encoding.
+ */
 export type ImmutableStatus =
   | 'verified'
   | 'disagrees'
   | 'undeclared'
   | 'unpriceable'
+  | 'acknowledgeable'
 
 export interface IGradedImmutable {
   name: string
@@ -100,15 +120,27 @@ export interface IPricedImmutables {
   pricedByteCount: number
   /**
    * Bytes with no expectation behind them: undeclared or unpriceable slots.
+   *
+   * Excludes `acknowledgeable`, which is counted on its own below. A caller
+   * that blocks on this alone would let a reviewed gap through unseen, so the
+   * two counters must both be consulted.
    */
   unpricedByteCount: number
   /**
+   * Bytes of slots the registry declares as a reviewed gap, with its reason.
+   *
+   * Separate from `unpricedByteCount` because the two have different remedies:
+   * this one is a statement a signer can be shown and asked to take on, and the
+   * other is a hole nobody has written anything about.
+   */
+  acknowledgeableByteCount: number
+  /**
    * Bytes of slots holding something other than what the registry declares.
    *
-   * Its own counter because the three sum to what layer 1 masked, and folding it
-   * into either of the others loses that: a tampered slot is neither priced nor
-   * missing an expectation. Retiring layer 1's `excludedByteCount` needs this
-   * and `unpricedByteCount` both at zero.
+   * Its own counter because the four sum to what layer 1 masked, and folding it
+   * into any of the others loses that: a tampered slot is neither priced nor
+   * missing an expectation. Retiring layer 1's `excludedByteCount` outright
+   * needs every counter but `pricedByteCount` at zero.
    */
   disagreeingByteCount: number
 }
@@ -119,6 +151,35 @@ const refused = (reason: string): IPricingRefused => ({
   decided: false,
   reason,
 })
+
+/**
+ * A declared address as the compiler would have inlined it on this network.
+ *
+ * Network-gated rather than shape-gated: off Tron nothing spells an address in
+ * base58, so translating there would manufacture an expectation out of a config
+ * entry that is simply unreadable. A value this cannot read comes back
+ * unchanged, and the caller's existing fault reports it.
+ *
+ * @param declared - the value as `config/` writes it
+ * @param network - key in `config/networks.json`
+ */
+const asInlinedSpelling = (declared: string, network: string): string => {
+  const value = declared.trim()
+  try {
+    // Tried before any hex value is passed through: Tron's own `41` prefix is
+    // hex too, and handing those 21 bytes on unchanged would compare a value no
+    // slot can hold instead of the 20 the compiler inlined.
+    const translated =
+      createTronAddressSpellings(network)?.toCalldataSpelling(value)
+    if (translated !== undefined) return translated
+  } catch {
+    // Infrastructure path, synthetic by necessity: a codec is only unbuildable
+    // when the Tron endpoint config is malformed. This module grades a slot
+    // unpriceable rather than throwing, and one unbuildable codec is not a
+    // reason to abandon every other slot on the contract.
+  }
+  return value
+}
 
 /**
  * The declared address as one slot of `slotBytes` holds it.
@@ -132,29 +193,32 @@ const refused = (reason: string): IPricingRefused => ({
  * copy, and padding to it would compare a 20-byte address against two slots
  * concatenated.
  *
- * Requires hex. `config/` also holds Tron addresses in base58 —
+ * Requires hex, so a spelling the compiler never inlines is translated first:
+ * `config/` and `deployments/` hold Tron addresses in base58 —
  * `networks.json` gives `.tron.wrappedNativeAddress` as
- * `TNUC9Qb1rRpS5CbWLmNMxXBjyFoydXjWFR` — and padding one produces a value no
- * slot can hold, which would then read as the deployment disagreeing with
- * config on every Tron chain. An expectation that cannot be expressed in the
- * slot's encoding is not a mismatch, so this returns a fault and the caller
- * leaves the slot unpriced.
+ * `TNUC9Qb1rRpS5CbWLmNMxXBjyFoydXjWFR` — and padding one yields a value no slot
+ * can hold. A value that is still not hex after that is an expectation this
+ * slot's encoding cannot express, which is not a mismatch: it returns a fault
+ * and the caller leaves the slot unpriced.
  *
- * @param address - Address as config writes it, checksummed or not.
+ * @param address - Address as config writes it or an evaluator derived it, checksummed or not.
  * @param slotBytes - Width of a single copy of the immutable.
+ * @param network - Network being graded, which decides the spelling
  * @returns The padded value, or why the declared value cannot fill the slot.
  */
 const paddedToSlot = (
   address: string,
-  slotBytes: number
+  slotBytes: number,
+  network: string
 ): { value: string } | { fault: string } => {
-  const fault = frameFault(address, 'the declared value')
+  const declared = asInlinedSpelling(address, network)
+  const fault = frameFault(declared, 'the declared value')
   if (fault)
     return {
-      fault: `${fault} — a base58 Tron address cannot be compared against an inlined slot`,
+      fault: `${fault} — neither hex nor an address this network's own spelling can be read from`,
     }
 
-  const hex = strip0x(address).toLowerCase()
+  const hex = strip0x(declared).toLowerCase()
   if (hex.length / 2 > slotBytes)
     return {
       fault: `the declared value is ${
@@ -233,8 +297,61 @@ export const observeEvmImmutables = (
   return { ok: true, observed }
 }
 
+/** Width of one `ImmutableSimulator` slot, which holds whole words only. */
+const SIMULATOR_SLOT_BYTES = 32
+
+/**
+ * Names the values a simulator read returned, for the same pricing the inlined
+ * path goes through.
+ *
+ * The slot widths are the platform's, not the artifact's: EraVM stores every
+ * immutable as one whole word whatever it was declared as, so there is no
+ * `immutableReferences` to take a width from and no second copy to count. The
+ * naming is the caller's — {@link zkImmutableOrdinals} derived it — and this
+ * function neither checks nor improves it.
+ *
+ * @param values - Declared name → the word the simulator holds, `0x`-prefixed.
+ * @returns One observation per name, or why none can be reported.
+ */
+export const observeZkImmutables = (
+  values: Record<string, string>
+): { ok: true; observed: IObservedImmutable[] } | IPricingRefused => {
+  const names = Object.keys(values)
+  if (names.length === 0)
+    return refused(
+      'the simulator read returned no values, so there is nothing to compare against what this repo declares'
+    )
+
+  const observed: IObservedImmutable[] = []
+  for (const name of names) {
+    const value = values[name] as string
+    const fault = frameFault(value, `the value read for ${name}`)
+    if (fault) return refused(fault)
+    if (strip0x(value).length / 2 !== SIMULATOR_SLOT_BYTES)
+      return refused(
+        `the value read for ${name} is ${
+          strip0x(value).length / 2
+        } bytes, and a simulator slot holds exactly ${SIMULATOR_SLOT_BYTES} — so the read did not return one slot and no value it produced can be attributed to a name`
+      )
+
+    observed.push({
+      name,
+      value,
+      slotByteCount: SIMULATOR_SLOT_BYTES,
+      byteCount: SIMULATOR_SLOT_BYTES,
+    })
+  }
+
+  return { ok: true, observed }
+}
+
 /**
  * The expected value of one config-sourced immutable.
+ *
+ * An absent key resolves to the zero address when the deploy requirement sets
+ * `allowToDeployWithZeroAddress`, and has no expectation otherwise: only the
+ * first is a chain where the value is declared to be absent rather than one
+ * nobody has filled in yet.
  *
  * @param label - The `configData` key the registry entry names.
  * @param configData - The contract's `configData` section.
@@ -271,8 +388,13 @@ const declaredAddress = (
       reason: `configData key '${label}' names no key within config/${entry.configFileName}`,
     }
 
+  const config = loadConfigFile(entry.configFileName)
+  // Anything but a plain object states nothing about this network, and a
+  // numeric path segment would index a list into an expectation.
+  const configFileLoaded =
+    typeof config === 'object' && config !== null && !Array.isArray(config)
   const { keyUsed, expectedAddress } = resolveExpectedAddress(
-    loadConfigFile(entry.configFileName),
+    configFileLoaded ? config : null,
     entry.keyInConfigFile,
     network,
     environment
@@ -284,10 +406,104 @@ const declaredAddress = (
   )
   const origin = `config/${entry.configFileName}${readableKey}`
 
-  if (expectedAddress === null)
+  if (expectedAddress === null) {
+    // No deploy can have produced a non-zero binding from a key config does not
+    // carry, so where the requirement permits the zero address the absence is
+    // itself the expectation. A config file that could not be read states
+    // neither, which is why the load has to have succeeded.
+    if (configFileLoaded && entry.allowToDeployWithZeroAddress === 'true')
+      return {
+        address: ZERO_ADDRESS,
+        origin: `${origin} (absent for ${network}; ${REQUIREMENTS_ORIGIN} allows the zero address here)`,
+      }
     return { reason: `${origin} has no value for ${network}` }
+  }
 
   return { address: expectedAddress, origin }
+}
+
+/** Where `chainIdEquals` reads a network's chain id. */
+const NETWORKS_FILE = 'networks.json'
+
+const REGISTRY_ORIGIN = 'script/deploy/resources/immutableRegistry.json'
+
+const REQUIREMENTS_ORIGIN = 'script/deploy/resources/deployRequirements.json'
+
+const ZERO_ADDRESS = `0x${'0'.repeat(40)}`
+
+/**
+ * The chain id `config/networks.json` gives a network.
+ *
+ * @param network - Network the deployment lives on.
+ * @param loadConfigFile - Config loader, injectable for tests.
+ * @returns The id, or why none could be read.
+ */
+const declaredChainId = (
+  network: string,
+  loadConfigFile: (fileName: string) => unknown
+): { chainId: number } | { reason: string } => {
+  const networks = loadConfigFile(NETWORKS_FILE) as
+    | Record<string, { chainId?: unknown }>
+    | undefined
+  const chainId = networks?.[network]?.chainId
+  return typeof chainId === 'number' && Number.isSafeInteger(chainId)
+    ? { chainId }
+    : {
+        reason: `config/${NETWORKS_FILE} gives ${network} no usable chainId, so a chain-id comparison has nothing to resolve against`,
+      }
+}
+
+/**
+ * Computes what a `derived` immutable must hold, from the evaluator its registry
+ * entry declares.
+ *
+ * Returns `undefined` for an entry with no evaluator, which is the reviewed gap
+ * the acknowledgement path exists for — distinct from an evaluator that is
+ * present and could not resolve, which is a hole in a declaration that claims to
+ * be complete and so stays hard-blocking.
+ *
+ * @param entry - The registry entry, already known to be `derived`.
+ * @param where - `Contract.immutable`, for the message.
+ * @param address - The address being graded, when the caller carries it.
+ * @param network - Network the deployment lives on.
+ * @param loadConfigFile - Config loader, injectable for tests.
+ * @returns The expected value unpadded plus its origin, why it could not be
+ * computed, or undefined when the entry declares no evaluator.
+ */
+const derivedExpectation = (
+  entry: IImmutableEntry,
+  where: string,
+  address: string | undefined,
+  network: string,
+  loadConfigFile: (fileName: string) => unknown
+): { value: string; origin: string } | { reason: string } | undefined => {
+  const evaluator = entry.evaluator as ImmutableEvaluator | undefined
+  if (evaluator === undefined) return undefined
+
+  if (evaluator.kind === 'selfAddress')
+    return address === undefined
+      ? {
+          reason: `${where} is the deployment's own address, but this caller did not supply the address being graded`,
+        }
+      : { value: address, origin: 'the address being graded' }
+
+  if (evaluator.kind === 'chainIdEquals') {
+    const declared = declaredChainId(network, loadConfigFile)
+    if ('reason' in declared) return declared
+    return {
+      value: declared.chainId === evaluator.chainId ? '0x01' : '0x00',
+      origin: `config/${NETWORKS_FILE}.${network}.chainId == ${evaluator.chainId}`,
+    }
+  }
+
+  const literal = evaluator.value
+  const digits = literal.startsWith('0x')
+    ? strip0x(literal)
+    : BigInt(literal).toString(16)
+  return {
+    value: `0x${digits.length % 2 === 0 ? digits : `0${digits}`}`,
+    origin: `${REGISTRY_ORIGIN} ${where}`,
+  }
 }
 
 /**
@@ -295,9 +511,11 @@ const declaredAddress = (
  *
  * Each slot is answered on its own, so a contract whose one undeclared immutable
  * sits beside four declared ones still gets credit for the four. A slot the
- * registry declares as `config` is compared; one it declares `derived`,
- * `unchecked` or `unverifiable`, and one it does not declare at all, is reported
- * unpriced with its reason.
+ * registry declares as `config`, or as `derived` with an evaluator, is compared.
+ * One declared `derived` without an evaluator, `unchecked` or `unverifiable`
+ * grades `acknowledgeable` and carries the registry's own words. One the
+ * registry does not declare at all, or whose declaration does not resolve,
+ * stays unpriced.
  *
  * @param input - The contract, its observed immutables, and the network to resolve for.
  * @param requirements - `deployRequirements.json` including its registry sections.
@@ -310,6 +528,14 @@ export const priceImmutables = (
     observed: readonly IObservedImmutable[]
     network: string
     environment: string
+    /**
+     * The address whose code was read, for a `selfAddress` evaluator.
+     *
+     * Optional so a caller with no address still grades every other slot. A
+     * `selfAddress` slot then reports unpriceable and keeps blocking, rather
+     * than resolving against something that is not the deployment.
+     */
+    address?: string
   },
   requirements: DeployRequirements,
   loadConfigFile: (fileName: string) => unknown = loadConfigFileFromDisk
@@ -352,19 +578,62 @@ export const priceImmutables = (
       continue
     }
 
+    const where = `${contractName}.${one.name}`
+
     if (entry.source !== 'config') {
+      const computed =
+        entry.source === 'derived'
+          ? derivedExpectation(
+              entry,
+              where,
+              input.address,
+              network,
+              loadConfigFile
+            )
+          : undefined
+
+      if (computed !== undefined) {
+        if ('reason' in computed) {
+          slots.push({
+            ...base,
+            status: 'unpriceable',
+            detail: computed.reason,
+          })
+          continue
+        }
+        const derived = paddedToSlot(computed.value, one.slotByteCount, network)
+        if ('fault' in derived) {
+          slots.push({
+            ...base,
+            status: 'unpriceable',
+            origin: computed.origin,
+            detail: `${computed.origin} cannot be compared against ${one.name}: ${derived.fault}`,
+          })
+          continue
+        }
+        slots.push({
+          ...base,
+          status: derived.value === base.observed ? 'verified' : 'disagrees',
+          expected: derived.value,
+          origin: computed.origin,
+        })
+        continue
+      }
+
       const stated =
         typeof entry.rule === 'string' && entry.rule.trim() !== ''
           ? entry.rule
           : typeof entry.reason === 'string' && entry.reason.trim() !== ''
           ? entry.reason
-          : 'the registry gives no rule or reason'
+          : undefined
+      // Without a rule or a reason the entry states nothing, so there is
+      // nothing for a signer to take on and it is not acknowledgeable.
       slots.push({
         ...base,
-        status: 'unpriceable',
-        detail: `${contractName}.${one.name} is ${String(
-          entry.source
-        )}: ${stated}`,
+        status: stated === undefined ? 'unpriceable' : 'acknowledgeable',
+        detail: `${where} is ${String(entry.source)}: ${
+          stated ?? 'the registry gives no rule or reason'
+        }`,
       })
       continue
     }
@@ -397,7 +666,7 @@ export const priceImmutables = (
       continue
     }
 
-    const expected = paddedToSlot(declared.address, one.slotByteCount)
+    const expected = paddedToSlot(declared.address, one.slotByteCount, network)
     if ('fault' in expected) {
       slots.push({
         ...base,
@@ -427,6 +696,7 @@ export const priceImmutables = (
     disagreements: slots.filter((slot) => slot.status === 'disagrees'),
     pricedByteCount: byteTotal('verified'),
     unpricedByteCount: byteTotal('undeclared', 'unpriceable'),
+    acknowledgeableByteCount: byteTotal('acknowledgeable'),
     disagreeingByteCount: byteTotal('disagrees'),
   }
 }

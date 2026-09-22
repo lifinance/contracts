@@ -75,6 +75,7 @@ const dependencies = (
     return value
   },
   deployments: DEPLOYMENTS,
+  pinnedDeployments: DEPLOYMENTS,
   globalConfig: GLOBAL_CONFIG,
   signTimeRecord: { operationId: OP_ID, codehashes: [], authorities: [] },
   readScheduledAt: async () => 1_700_000_000n,
@@ -207,10 +208,26 @@ describe('observeCalldata — what the sign-time record is built from', () => {
     )
     const owner = authorities.find((row) => row.label.includes('owner'))
     const pauser = authorities.find((row) => row.label.includes('pauser'))
-    // owner is declared against the deployment record, pauserWallet against
-    // config/global.json — the ledger anchors the row on that difference.
-    expect(owner?.expectationSource).toBe('deployments')
+    // owner is declared against the deployment record as `origin/main` has it,
+    // pauserWallet against config/global.json — the ledger anchors the row on
+    // that difference.
+    expect(owner?.expectationSource).toBe('pinnedDeployments')
     expect(pauser?.expectationSource).toBe('globalConfig')
+  })
+
+  it('does not accept a timelock the branch declares and main does not', async () => {
+    const { authorities } = await observeCalldata(OPERATION, {
+      ...dependencies(healthyChain()),
+      pinnedDeployments: {},
+    })
+    const owner = authorities.find((row) => row.label.includes('owner'))
+
+    // The branch's own deploy log still carries the address, so an expectation
+    // that read it would resolve and the row would match. It must not: the
+    // whole point of the pinned source is that a proposer cannot author the
+    // value their proposal is judged against.
+    expect(owner?.liveValue).toBeDefined()
+    expect(owner?.expectedValue).toBeUndefined()
   })
 })
 

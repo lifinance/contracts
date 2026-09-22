@@ -1055,6 +1055,7 @@ describe('the cancel-decision projection', () => {
       errors: ['the endpoint refused'],
       warnings: [],
       notSimulated: [],
+      calls: [],
       reason: 'x',
     }
 
@@ -1177,5 +1178,118 @@ describe('the set of cut actions the walk recognises', () => {
         ExecutabilityFindingEnum.IncorrectFacetCutAction
       )
     }
+  })
+})
+
+describe('the per-call breakdown', () => {
+  it('carries one entry per payload, in execution order', () => {
+    const verdict = evaluateBoth([
+      cutCall([cut(FacetCutActionEnum.Add, LOUPE, [UNSERVED])]),
+      cutCall([cut(FacetCutActionEnum.Add, LOUPE, [UNSERVED], 1)], {
+        path: 'call[1].diamondCut',
+      }),
+    ])
+
+    expect(verdict.calls.map((call) => call.path)).toEqual([
+      PATH,
+      'call[1].diamondCut',
+    ])
+    expect(verdict.calls[0]?.target).toBe(DIAMOND)
+    expect(verdict.calls[0]?.caller).toBe(OWNER)
+  })
+
+  it('separates a call that would execute from one that would revert', () => {
+    const verdict = evaluateExecutability({
+      network: 'mainnet',
+      payloads: [
+        cutCall([cut(FacetCutActionEnum.Add, LOUPE, [UNSERVED])]),
+        cutCall([cut(FacetCutActionEnum.Add, ZERO, [UNSERVED], 1)], {
+          path: 'call[1].diamondCut',
+        }),
+      ],
+      observations: observations(),
+      staticCalls: {
+        attempted: true,
+        results: [
+          { path: PATH, outcome: 'succeeded', from: OWNER },
+          { path: 'call[1].diamondCut', outcome: 'reverted', from: OWNER },
+        ],
+      },
+    })
+
+    expect(verdict.calls[0]?.outcome).toBe('would-execute')
+    expect(verdict.calls[0]?.findings).toHaveLength(0)
+    expect(verdict.calls[1]?.outcome).toBe('would-revert')
+    expect(verdict.calls[1]?.findings.map((finding) => finding.code)).toContain(
+      ExecutabilityFindingEnum.FacetAddressIsZero
+    )
+  })
+
+  it('files the reverting eth_call under the call it was made for', () => {
+    const verdict = evaluateReverting(
+      cutCall([cut(FacetCutActionEnum.Add, LOUPE, [UNSERVED])]),
+      'TimelockController: insufficient delay'
+    )
+
+    expect(verdict.calls[0]?.simulation).toBe('reverted')
+    expect(verdict.calls[0]?.simulationDetail).toBe(
+      'TimelockController: insufficient delay'
+    )
+    expect(verdict.calls[0]?.findings.map((finding) => finding.code)).toContain(
+      ExecutabilityFindingEnum.StaticCallReverted
+    )
+    // And the flat list still holds it: the record's array is the same one the
+    // verdict copied from, so appending to it alone would drop the finding.
+    expect(verdict.findings.map((finding) => finding.code)).toContain(
+      ExecutabilityFindingEnum.StaticCallReverted
+    )
+  })
+
+  it('marks a call unknown when its eth_call could not be made', () => {
+    const verdict = evaluateExecutability({
+      network: 'mainnet',
+      payloads: [cutCall([cut(FacetCutActionEnum.Add, LOUPE, [UNSERVED])])],
+      observations: observations(),
+      staticCalls: {
+        attempted: true,
+        results: [
+          {
+            path: PATH,
+            outcome: 'errored',
+            from: OWNER,
+            errorReason: 'the endpoint refused',
+          },
+        ],
+      },
+    })
+
+    expect(verdict.calls[0]?.outcome).toBe('unknown')
+    expect(verdict.calls[0]?.simulationDetail).toBe('the endpoint refused')
+  })
+
+  it('marks a call unknown when no eth_call result reached it', () => {
+    const verdict = evaluateExecutability({
+      network: 'mainnet',
+      payloads: [cutCall([cut(FacetCutActionEnum.Add, LOUPE, [UNSERVED])])],
+      observations: observations(),
+      staticCalls: { attempted: true, results: [] },
+    })
+
+    expect(verdict.calls[0]?.outcome).toBe('unknown')
+    expect(verdict.calls[0]?.simulation).toBe('none')
+  })
+
+  it('records an opaque payload as one Tier-0 has no model for', () => {
+    const verdict = evaluate({
+      kind: 'opaque',
+      path: 'call[0]',
+      description: 'scheduleBatch',
+      target: DIAMOND,
+      calldataLength: 100,
+      caller: OWNER,
+    })
+
+    expect(verdict.calls[0]?.modelled).toBe(false)
+    expect(verdict.calls[0]?.description).toBe('scheduleBatch')
   })
 })

@@ -34,6 +34,7 @@ import { encodeFunctionData, type Address, type Hex } from 'viem'
 import { generatePrivateKey } from 'viem/accounts'
 
 import { DIAMOND_CUT_ABI, ZERO_ADDRESS } from './constants'
+import { installRemoteIdentityShim, SHIM_BIN_DIR } from './remote-identity-shim'
 
 const FACET = 'AllBridgeFacet'
 const FACET_PATH = `src/Facets/${FACET}.sol`
@@ -115,6 +116,8 @@ const makeRepo = (diverge: boolean): string => {
       `// SPDX-License-Identifier: LGPL-3.0-only\n/// @custom:version 1.0.0\ncontract ${FACET} { uint256 public unreviewed; }\n`
     )
 
+  installRemoteIdentityShim(repoRoot)
+
   return repoRoot
 }
 
@@ -194,6 +197,7 @@ const spawnCli = (options: {
   // the Tron funnel checks the ticket before the gate, so a probe without one
   // would never reach the gate at all
   env.SAFE_PROPOSAL_TICKET = 'EXSC-929'
+  env.PATH = `${join(options.repoRoot, SHIM_BIN_DIR)}:${env.PATH ?? ''}`
 
   const result = spawnSync('bun', [options.cli, ...options.args], {
     cwd: options.repoRoot,
@@ -246,10 +250,11 @@ const GATE_REFUSAL = /Production deploy gate failed/
  * make the absence assertion prove nothing.
  */
 const NEXT_STOP_EVM = 'Private key is missing'
-// Owned by `mongodb-connection-string-url`, not this repo: if a bump rewords it,
-// the paired pass-case assertion goes red first, so the suite reports it rather
-// than quietly letting the refusal case go vacuous.
-const NEXT_STOP_TRON = 'expected connection string to start with'
+// `assertStoreCredentialsAreEncrypted` refuses the harness's unparseable URI
+// before the driver is constructed, so this marker is owned by this repo: a
+// reword in `mongo-store-transport.ts` must be mirrored here, and the paired
+// pass-case assertion goes red first if it is not.
+const NEXT_STOP_TRON = 'is not a MongoDB connection string'
 // `sendOrPropose` resolves its key through a different helper than the funnel, so
 // it words the same failure differently. The `--ledger` clause is load-bearing:
 // the bare "Missing <VAR> in environment" prefix is thrown on the direct-tx

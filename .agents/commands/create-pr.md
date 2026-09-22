@@ -26,9 +26,8 @@ User says any of:
 This skill creates PRs. For **editing** an existing PR's title/body, follow CLAUDE.md →
 "Creating and editing PRs via gh" (uses `gh api -X PATCH` with a JSON payload).
 
-There is no local CodeRabbit pre-flight anymore (`/pr-ready` was removed — the CLI was
-hitting rate limits and wasting review cycles). Cloud CodeRabbit still runs in GitHub CI
-on every PR as the review backstop.
+Review runs in CI: cloud CodeRabbit comments on every PR and is the review backstop.
+There is no local CodeRabbit pre-flight.
 
 ## Workflow
 

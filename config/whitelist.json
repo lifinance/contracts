@@ -4419,6 +4419,14 @@
             }
           }
         ],
+        "arc": [
+          {
+            "address": "0x48a097df16c7844a33b1c3d11ab353457846e13f",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
         "kaia": [
           {
             "address": "0xb4fe60cd05a3e68668007cee83ddfd9a50a45b36",
@@ -4755,6 +4763,14 @@
         "arbitrum": [
           {
             "address": "0xbc1d9760bd6ca468ca9fb5ff2cfbeac35d86c973",
+            "functions": {
+              "0xd984396a": ""
+            }
+          }
+        ],
+        "robinhood": [
+          {
+            "address": "0x114d574247342eafea95b7a9234e62984d48cD9E",
             "functions": {
               "0xd984396a": ""
             }
