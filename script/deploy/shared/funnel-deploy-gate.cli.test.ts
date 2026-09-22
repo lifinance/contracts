@@ -200,9 +200,9 @@ const spawnCli = (options: {
   // Deleted, then set per case: bun loads the repo env file into this process,
   // and the devkit falls back to the public TronGrid host when the var is unset,
   // so an inherited value silently decides which chain a case reads — that is
-  // how this suite read Tron mainnet in CI while passing locally. Every Tron
-  // case names its own host below.
-  delete env.RPC_URL_TRON
+  // how this suite read Tron mainnet in CI while passing locally. The Tron
+  // runner below names the host for every case it spawns.
+  delete env.RPC_URL_TRON // spawn-env: child cwd has no .env
   if (options.tronRpcUrl !== undefined) env.RPC_URL_TRON = options.tronRpcUrl
   env.PATH = `${join(options.repoRoot, SHIM_BIN_DIR)}:${env.PATH ?? ''}`
 
@@ -365,10 +365,7 @@ describe('assertChildIsUsable ordering', () => {
 })
 
 describe('propose-to-safe-tron funnel deploy gate', () => {
-  const runTron = (
-    diverge: boolean,
-    options: { tronRpcUrl?: string; dryRun?: boolean } = {}
-  ) => {
+  const runTron = (diverge: boolean, options: { dryRun?: boolean } = {}) => {
     const { repoRoot, facetAddressHex } = makeTronRepo(diverge)
     const tronLog = JSON.parse(
       readFileSync(join(repoRoot, 'deployments/tron.json'), 'utf8')
@@ -377,7 +374,10 @@ describe('propose-to-safe-tron funnel deploy gate', () => {
     return spawnCli({
       cli: TRON_CLI,
       repoRoot,
-      tronRpcUrl: options.tronRpcUrl,
+      // Fixed here rather than taken per case: an omitted host is not an
+      // inherited one but the public TronGrid fallback, so a case that forgot
+      // to name one would read Tron mainnet again.
+      tronRpcUrl: UNROUTABLE_RPC,
       args: [
         ...(options.dryRun ? ['--dryRun'] : []),
         '--network',
@@ -402,14 +402,15 @@ describe('propose-to-safe-tron funnel deploy gate', () => {
       // holds just as well when the Timelock is read first, which is how this
       // name stayed wrong while the reads sat above the gate. Now the case
       // fails with ECONNREFUSED the moment they move back.
-      const result = runTron(true, { tronRpcUrl: UNROUTABLE_RPC })
+      const result = runTron(true)
 
       expect(result.output).toMatch(GATE_REFUSAL)
       expect(result.output).toContain(TRON_FACET)
       expect(result.status).not.toBe(0)
       // The Timelock read is the first step past the gate and the proposal
-      // store is opened after it, so a run that never read cannot have stored
-      // either. `assertChildIsUsable` covers the store itself, on every spawn.
+      // store is opened after it, so a run that never read never reached the
+      // store. `assertChildIsUsable` reports a write that already happened, so
+      // it is the tripwire behind this assertion, not a second barrier.
       expect(result.output).not.toContain(TIMELOCK_READ_FAILURE)
     },
     CASE_TIMEOUT_MS
@@ -418,10 +419,7 @@ describe('propose-to-safe-tron funnel deploy gate', () => {
   it(
     'previews a timelock proposal without reading the Timelock',
     () => {
-      const result = runTron(false, {
-        tronRpcUrl: UNROUTABLE_RPC,
-        dryRun: true,
-      })
+      const result = runTron(false, { dryRun: true })
 
       expect(result.output).toContain('[DRY RUN]')
       expect(result.status).toBe(0)
@@ -440,7 +438,7 @@ describe('propose-to-safe-tron funnel deploy gate', () => {
       // prints its verdict before the first of them, so the read's own failure
       // is what proves the funnel got past the gate — and it proves it without
       // a chain to read.
-      const result = runTron(false, { tronRpcUrl: UNROUTABLE_RPC })
+      const result = runTron(false)
 
       expect(result.output).not.toMatch(GATE_REFUSAL)
       expect(result.output).toContain('Production deploy gate passed')
