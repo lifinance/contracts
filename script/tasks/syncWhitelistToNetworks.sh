@@ -142,6 +142,10 @@ function syncWhitelistToNetworks() {
       # on TronScan) - so it can never pass there. diamondSyncWhitelist itself is
       # Tron-capable; the Tron route needs the RPC, not a verification key.
       if isTronNetwork "$TARGET_NETWORK"; then
+        if [[ -z "$PRIVATE_KEY" ]]; then
+          error "missing PRIVATE_KEY in .env (required to sync '$TARGET_NETWORK')"
+          exit 1
+        fi
         if ! getRPCUrl "$TARGET_NETWORK" >/dev/null; then
           error "missing RPC URL for Tron network '$TARGET_NETWORK'"
           exit 1
