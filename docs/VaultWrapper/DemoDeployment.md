@@ -52,11 +52,15 @@ forge verify-contract <address> <path:ContractName> \
   --chain base --watch --constructor-args "$(cast abi-encode 'c(...)' ...)"
 ```
 
-## 2. Seed the factory config through the timelock
+## 2. Change the factory config later (not needed for a fresh deploy)
 
-The factory is timelock-owned, so adapter approval, the underlying allowlist, fee
-bounds, and the default split cannot be set directly. Build the batch (this script
-does not broadcast — it prints calldata):
+Step 1 already seeded adapter approval, the underlying allowlist, fee bounds, and the
+default split from `config/vaultWrapper.json` — the deploy script passes them to
+`initialize` and then asserts them back, so a fresh system can deploy wrappers
+immediately. Skip to step 3 unless you need to change something after the fact.
+
+Every later change is timelock-owned. Edit the `basedemo` entry, then build the batch
+(this script does not broadcast — it prints calldata):
 
 ```bash
 NETWORK=basedemo FACTORY=<factory> ADAPTER=<erc4626Adapter> \
@@ -73,8 +77,8 @@ sleep 11
 cast send <timelock> <executeCalldata>  --rpc-url base --private-key $PRIVATE_KEY
 ```
 
-Re-running the script is safe: it diffs desired config against live state and emits
-a smaller batch, or reports the config is already in sync.
+The script diffs desired config against live state, so right after step 1 it reports
+the config is already in sync and emits nothing.
 
 ## 3. Deploy the two wrappers
 
@@ -85,7 +89,8 @@ and differ only in `underlying`.
 Fee rates are `[performance, management, deposit, withdrawal]` in bps:
 `[1000, 100, 10, 10]` — 10% of gains above the high-water mark, 1%/yr on AUM, and
 0.1% on entry and exit. `integratorShareBps` is `65535` (`type(uint16).max`) per fee
-type, which means "use the factory default", currently 8000 — so the integrator
+type, which means "use the factory default" — `defaultIntegratorShareBps` in the
+`basedemo` config, 8000 — so the integrator
 wallet takes 80% of each fee and `lifiFeeRecipient` takes 20%. `accessGate` is the
 zero address, i.e. permissionless.
 
