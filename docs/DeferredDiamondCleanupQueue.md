@@ -305,11 +305,14 @@ Remove payloads + parked tasks (`listParkedTasksBySafeTxHash` +
 `buildRemovalSnapshotFromPayloads`) and aborts if `stale` is non-empty. Under the fold
 that aborts the **entire** timelock batch (primary cut + removals) — the schedule is
 immutable, so "re-propose from `stillRemovable`" means cancel the op and drain again.
-Remove cuts with no parked rows for the Safe tx hash also abort (fail closed) —
-doomed addresses are not recoverable from calldata (`facetAddress = 0`), so
-executing blind would reopen silent live-selector deletion. That covers drain
-unlink (best-effort `setSafeTxHash` never stamped) and legacy
-`cleanUpProdDiamond` until those removals park too.
+Removal-only `diamondCut` calls with no parked rows for the Safe tx hash also abort
+(fail closed) — doomed addresses are not recoverable from calldata
+(`facetAddress = 0`), so executing blind would reopen silent live-selector
+deletion. That covers drain unlink (best-effort `setSafeTxHash` never stamped) and
+legacy `cleanUpProdDiamond` until those removals park too. A `Remove` that rides
+inside an upgrade's own cut, alongside its `Add`/`Replace` elements, is outside the
+guard's remit and does not abort — see §6, "Guard scope — removal-only calls, not
+every Remove".
 
 ---
 

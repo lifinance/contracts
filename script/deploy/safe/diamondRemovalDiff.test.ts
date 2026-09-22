@@ -1312,6 +1312,26 @@ describe('extractRemoveFacetCuts / buildRemovalSnapshotFromPayloads', () => {
     expect(built.kind).toBe('mismatch')
   })
 
+  it('does not let an inline upgrade Remove cover a missing folded cut', () => {
+    // The inline Remove used to pad removeCuts.length up to parked.length, so
+    // the shortfall check passed and the trailing slice zipped it against the
+    // first parked task — revalidating an upgrade's own selectors under a
+    // doomed facet's address. One folded cut for two parked tasks is a genuine
+    // mismatch and must be reported as one.
+    const upgrade = buildUpgradeCutCalldata({ add: [sel(9)], remove: [sel(8)] })
+    const folded = buildDiamondCutRemoveCalldata([
+      { name: 'B', selectors: [sel(1)] },
+    ])
+    const built = buildRemovalSnapshotFromPayloads(
+      [upgrade, folded],
+      [
+        { facetName: 'A', facetAddress: addr(2) },
+        { facetName: 'B', facetAddress: addr(3) },
+      ]
+    )
+    expect(built.kind).toBe('mismatch')
+  })
+
   it('excludes inline upgrade Removes when zipping the trailing folded cuts', () => {
     const upgrade = buildUpgradeCutCalldata({ add: [sel(9)], remove: [sel(8)] })
     const folded = buildDiamondCutRemoveCalldata([
