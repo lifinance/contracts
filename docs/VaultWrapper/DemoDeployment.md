@@ -29,6 +29,8 @@ and a splitter has a single input token:
 ## Prerequisites
 
 - `ETH_NODE_URI_BASE` set, and `PRIVATE_KEY` holding the devWallet key with Base ETH.
+- `MAINNET_ETHERSCAN_API_KEY` set — `foundry.toml` uses it for Base verification.
+- `DEV_WALLET` set to the devWallet address (step 3 passes it as the per-vault admin).
 - An `INTEGRATOR_WALLET` address, distinct from the devWallet, to receive the
   integrator fee share — with both on the same address the 80/20 split is invisible.
 
