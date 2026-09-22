@@ -17,7 +17,7 @@ import { InvalidConfig, InvalidNonEVMReceiver } from "../Errors/GenericErrors.so
 /// @notice WARNING: This facet does NOT support fee-on-transfer tokens (e.g., SafeMoon, PAXG).
 ///         Using such tokens will result in the quote ID being consumed without proper bridging,
 ///         as the contract does not validate destination balances after transfer.
-/// @custom:version 1.1.0
+/// @custom:version 2.0.0
 contract NEARIntentsFacet is
     ILiFi,
     ReentrancyGuard,
@@ -78,7 +78,6 @@ contract NEARIntentsFacet is
     /// Events ///
 
     /// @notice Emitted when a bridge operation starts via NEAR Intents
-    /// @notice Required by NEAR off-chain infrastructure to track deposits and initiate intent settlement
     /// @param transactionId Unique transaction identifier
     /// @param quoteId NEAR Intents quote identifier
     /// @param depositAddress Address tokens were sent to

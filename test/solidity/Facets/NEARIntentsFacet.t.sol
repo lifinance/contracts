@@ -15,7 +15,7 @@ error InvalidDestinationAsset();
 /// @title TestNEARIntentsFacet
 /// @author LI.FI (https://li.fi)
 /// @notice Test contract wrapper for NEARIntentsFacet
-/// @custom:version 1.1.0
+/// @custom:version 2.0.0
 contract TestNEARIntentsFacet is NEARIntentsFacet, TestWhitelistManagerBase {
     constructor(address _backendSigner) NEARIntentsFacet(_backendSigner) {}
 
@@ -36,7 +36,7 @@ contract TestNEARIntentsFacet is NEARIntentsFacet, TestWhitelistManagerBase {
 /// @title NEARIntentsFacetTest
 /// @author LI.FI (https://li.fi)
 /// @notice Test suite for NEARIntentsFacet
-/// @custom:version 1.1.0
+/// @custom:version 2.0.0
 contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
     TestNEARIntentsFacet internal nearIntentsFacet;
 
@@ -1167,7 +1167,7 @@ contract NEARIntentsFacetTest is TestBaseFacet, TestNearIntentsBackendSig {
     }
 
     /// @dev A v1.0.0 signature commits to every field except `destinationAsset`, so a
-    ///      solver could settle the quote in any asset. v1.1.0 must reject it.
+    ///      solver could settle the quote in any asset. v2.0.0 must reject it.
     function testRevert_InvalidSignatureOverLegacyPayloadWithoutDestinationAsset()
         public
     {

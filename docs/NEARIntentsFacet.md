@@ -57,7 +57,7 @@ The backend signature is an EIP-712 signature over the quote parameters (transac
 NEARIntentsPayload(bytes32 transactionId,uint256 minAmount,bytes32 receiver,address depositAddress,uint256 destinationChainId,address sendingAssetId,uint256 deadline,bytes32 quoteId,uint256 minAmountOut,bytes32 destinationAsset)
 ```
 
-The EIP-712 domain is `("LI.FI NEAR Intents Facet", "1", block.chainid, diamond)`. The v1.1.0 type string changes the typehash, so signatures produced for v1.0.0 are rejected.
+The EIP-712 domain is `("LI.FI NEAR Intents Facet", "1", block.chainid, diamond)`. The v2.0.0 type string changes the typehash, so signatures produced for v1.0.0 are rejected.
 
 ## Swap Data
 

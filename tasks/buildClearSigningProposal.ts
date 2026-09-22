@@ -459,7 +459,7 @@ const BRIDGE_EXTRA_RECEIVERS: Record<string, IExtraFieldSpec> = {
 // reason: the signer has to see what the call commits to. Validated as
 // strictly as BRIDGE_EXTRA_RECEIVERS.
 const BRIDGE_EXTRA_FIELDS: Record<string, IExtraFieldSpec[]> = {
-  // NEARIntents v1.1.0 binds the quote's destination asset into the backend's
+  // NEARIntents v2.0.0 binds the quote's destination asset into the backend's
   // EIP-712 signature; a signer who cannot see it cannot spot a swapped quote.
   NEARIntents: [
     {
