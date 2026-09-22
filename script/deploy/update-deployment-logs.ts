@@ -38,6 +38,7 @@ import {
   RecordTransformer,
 } from './shared/mongo-log-utils'
 import { codehashFromArgs } from './shared/record-codehash'
+import { resolveRecordToFlag } from './shared/resolve-record-to-flag'
 
 // Interface for index specifications with old names
 interface IIndexSpec {
@@ -978,6 +979,81 @@ const updateCommand = defineCommand({
   },
 })
 
+/**
+ * Flags an already-recorded deployment as verified on its block explorer.
+ *
+ * Separate from `update` because the caller that needs this — a verification
+ * run — knows the address it just submitted but not the version the record
+ * carries, and `update` matches on version. Resolving it here keeps the version
+ * out of the verifier's hands, where reading it from local source could
+ * disagree with what was deployed: the Tron fork carries `-tron` versions that
+ * `main` does not.
+ */
+const markVerifiedCommand = defineCommand({
+  meta: {
+    name: 'mark-verified',
+    description: 'Flag an existing deployment record as explorer-verified',
+  },
+  args: {
+    env: {
+      type: 'string',
+      description: 'Environment (staging or production)',
+      default: 'production',
+    },
+    contract: {
+      type: 'string',
+      description: 'Contract name',
+      required: true,
+    },
+    network: {
+      type: 'string',
+      description: 'Network name',
+      required: true,
+    },
+    address: {
+      type: 'string',
+      description: 'Address that was verified, spelled as the record spells it',
+      required: true,
+    },
+  },
+  async run({ args }) {
+    if (args.env !== 'staging' && args.env !== 'production') {
+      consola.error('Environment must be either "staging" or "production"')
+      process.exit(1)
+    }
+
+    const manager = new DeploymentLogManager(
+      config,
+      args.env as keyof typeof EnvironmentEnum
+    )
+
+    let exitCode = 0
+    try {
+      await manager.connect()
+      const latest = resolveRecordToFlag(
+        await manager.getLatestDeployment(args.contract, args.network),
+        args.contract,
+        args.network,
+        args.address
+      )
+      await manager.updateDeployment(
+        args.contract,
+        args.network,
+        latest.version,
+        latest.address,
+        { verified: true }
+      )
+      await invalidateDeploymentCache(args.env as keyof typeof EnvironmentEnum)
+    } catch (error) {
+      consola.error('Mark-verified operation failed:', error)
+      exitCode = 1
+    } finally {
+      await manager.disconnect()
+    }
+    if (exitCode !== 0) process.exit(exitCode)
+  },
+})
+
 // Define create-indexes command
 const createIndexesCommand = defineCommand({
   meta: {
@@ -1031,6 +1107,7 @@ const main = defineCommand({
     sync: syncCommand,
     add: addCommand,
     update: updateCommand,
+    'mark-verified': markVerifiedCommand,
     'create-indexes': createIndexesCommand,
   },
 })

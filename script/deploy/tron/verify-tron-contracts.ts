@@ -26,6 +26,7 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 
 import { sleep } from '../../utils/delay'
+import { executeShellCommand } from '../../utils/utils'
 import { flagIsOn } from '../safe/cli-flags'
 
 import {
@@ -44,6 +45,48 @@ import {
  * the response parser handles, so re-running them is harmless.
  */
 const ALREADY_VERIFIED = new Set(['AccessManagerFacet', 'LiFiDiamond'])
+
+/**
+ * Flags the deployment record as verified after a successful submission.
+ *
+ * TronScan and the deployment record are separate systems, so verifying here
+ * otherwise leaves the record saying `verified: false` forever — nothing else
+ * on the Tron path writes that flag, unlike the EVM path where
+ * `deploySingleContract.sh` sets it inline.
+ *
+ * A failure is warned about rather than thrown: the contract is verified on the
+ * explorer either way, and failing the run over the bookkeeping would be the
+ * worse outcome.
+ *
+ * @param contractName - Contract whose record to flag
+ * @param network - Network key the record is filed under
+ * @param address - Address just verified, spelled as the record spells it
+ * @param environment - `production` or `staging`
+ */
+async function markVerifiedInDeploymentLog(
+  contractName: string,
+  network: string,
+  address: string,
+  environment: string
+): Promise<void> {
+  const escapeShellArg = (arg: string) => `'${arg.replace(/'/g, "'\"'\"'")}'`
+  try {
+    await executeShellCommand(
+      [
+        'bunx tsx script/deploy/update-deployment-logs.ts mark-verified',
+        `--env ${escapeShellArg(environment)}`,
+        `--contract ${escapeShellArg(contractName)}`,
+        `--network ${escapeShellArg(network)}`,
+        `--address ${escapeShellArg(address)}`,
+      ].join(' ')
+    )
+  } catch (err) {
+    const message = err instanceof Error ? err.message : String(err)
+    consola.warn(
+      `${contractName}: verified on TronScan, but the deployment record was not flagged — ${message}`
+    )
+  }
+}
 
 /**
  * Compiler settings used for the current Tron deployments. Defaults submitted
@@ -148,6 +191,12 @@ const main = defineCommand({
       readFileSync(`deployments/${network}.json`, 'utf8')
     ) as Record<string, string>
 
+    // Derived from the network rather than the environment variable the rest of
+    // the Tron tooling reads: `network` is an explicit argument here, and the
+    // addresses being verified come from that network's log, so the records
+    // updated must be the ones filed under the same environment.
+    const environment = network === 'tron' ? 'production' : 'staging'
+
     const onlySet = args.only
       ? new Set(args.only.split(',').map((s) => s.trim()))
       : undefined
@@ -217,8 +266,15 @@ const main = defineCommand({
       try {
         const { ok, message } = await verifyContractOnTronscan(params)
         outcomes.push({ contractName, address, ok, message })
-        if (ok) consola.success(`${contractName}: ${message}`)
-        else consola.error(`${contractName}: ${message}`)
+        if (ok) {
+          consola.success(`${contractName}: ${message}`)
+          await markVerifiedInDeploymentLog(
+            contractName,
+            network,
+            address,
+            environment
+          )
+        } else consola.error(`${contractName}: ${message}`)
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err)
         outcomes.push({ contractName, address, ok: false, message })
