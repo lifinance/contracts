@@ -137,7 +137,16 @@ function syncWhitelistToNetworks() {
         error "unknown network '$TARGET_NETWORK' (not found in $NETWORKS_JSON_FILE_PATH)"
         exit 1
       fi
-      if ! checkRequiredVariablesInDotEnv "$TARGET_NETWORK"; then
+      # checkRequiredVariablesInDotEnv resolves a block-explorer API key out of
+      # foundry.toml's [etherscan] table, which has no row for Tron (it verifies
+      # on TronScan) - so it can never pass there. diamondSyncWhitelist itself is
+      # Tron-capable; the Tron route needs the RPC, not a verification key.
+      if isTronNetwork "$TARGET_NETWORK"; then
+        if ! getRPCUrl "$TARGET_NETWORK" >/dev/null; then
+          error "missing RPC URL for Tron network '$TARGET_NETWORK'"
+          exit 1
+        fi
+      elif ! checkRequiredVariablesInDotEnv "$TARGET_NETWORK"; then
         error "missing required .env variables for network '$TARGET_NETWORK'"
         exit 1
       fi
