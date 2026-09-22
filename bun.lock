@@ -16,7 +16,6 @@
         "chalk": "5.6.2",
         "citty": "^0.1.6",
         "consola": "^3.2.3",
-        "markdown-it": "14.3.2",
         "merkletreejs": "^0.3.11",
         "mongodb": "^6.13.0",
         "tronweb": "^6.1.1",
