@@ -32,6 +32,10 @@ Ethereum (1) and Base (8453). Verified against that deployment:
   `SafeTransferLib.safeTransferFrom`, so the Diamond is the payer and must hold an allowance. The
   bridge's inline comment "No approval needed" refers to the later hop, where the Spoke pulls from
   the bridge via `authTransferFrom` — it does not apply to our call.
+- The `amount` is declared `uint256` but narrowed to `uint128` via `MathLib.toUint128` before it
+  reaches the spoke, so an amount above `type(uint128).max` reverts inside the bridge. The facet
+  does not pre-check this: the transaction is atomic, so the late revert costs gas but no funds,
+  and no share token approaches that bound.
 - The `receiver` is a `bytes32` holding the EVM address in its **high** 20 bytes
   (`bytes32(bytes20(addr))`). The destination Spoke decodes it with `CastLib.toAddress`, which reads
   the high 20 bytes and reverts `PrefixNotZero()` unless the low 12 are clear. Nothing on the source

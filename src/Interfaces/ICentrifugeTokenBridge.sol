@@ -14,7 +14,9 @@ interface ICentrifugeTokenBridge {
     ///      amount paying for the cross-chain message is taken from `msg.value` and forwarded to the
     ///      Centrifuge Gateway, which reverts if it is short and refunds the remainder if it is not.
     /// @param token The share token to send across chains
-    /// @param amount The amount of the token to send across chains
+    /// @param amount The amount of the token to send across chains. The TokenBridge narrows this
+    ///        to uint128 via `MathLib.toUint128` before handing it to the spoke, so an amount above
+    ///        `type(uint128).max` reverts inside the bridge rather than on our side.
     /// @param receiver The address that should receive the funds on the destination chain, as a
     ///        RIGHT-padded bytes32 (`bytes32(bytes20(addr))`). Centrifuge's spoke decodes it with
     ///        `CastLib.toAddress`, which reads the high 20 bytes and reverts `PrefixNotZero()`
