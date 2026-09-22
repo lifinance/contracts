@@ -1047,7 +1047,19 @@ const markVerifiedCommand = defineCommand({
           record.address,
           { verified: true }
         )
-      await invalidateDeploymentCache(args.env as keyof typeof EnvironmentEnum)
+      // Kept out of the exit code: the records are written by this point and
+      // the cache is derived from them, so failing here would tell the caller
+      // the contract is still unflagged when it is not.
+      try {
+        await invalidateDeploymentCache(
+          args.env as keyof typeof EnvironmentEnum
+        )
+      } catch (error) {
+        consola.warn(
+          `Flagged ${args.contract} on ${args.network}, but the deployment cache was not invalidated:`,
+          error
+        )
+      }
     } catch (error) {
       consola.error('Mark-verified operation failed:', error)
       exitCode = 1

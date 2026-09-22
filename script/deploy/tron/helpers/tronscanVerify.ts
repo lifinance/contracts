@@ -16,17 +16,34 @@ import { fetchWithTimeout } from '../../../utils/fetchWithTimeout'
 export const VERIFY_TIMEOUT_MS = 120_000
 
 /**
- * TronScan success markers. The endpoint returns more than one success shape —
- * status `2001` ("The contract has been validated.") and a separate code whose
- * message is "Verification success." — so we treat a success *message* as
- * authoritative rather than relying on a single status code.
+ * Complete TronScan success messages, each matched against the whole message.
+ * The endpoint returns more than one success shape — status `2001` ("The
+ * contract has been validated.") and a separate code whose message is
+ * "Verification success." — so we treat a success *message* as authoritative
+ * rather than relying on a single status code.
  *
- * "already" is matched only next to "verified": a bare "already" also appears
- * in the queue message ("already in the verification queue"), which is not a
- * verified contract, and a match here is persisted to the deployment record.
+ * An allowlist of whole messages rather than a substring search: a match is
+ * persisted to the deployment record as `verified: true`, and a substring turns
+ * a negated or in-progress message — "not already verified", "already in the
+ * verification queue" — into a durable claim that the contract is verified.
+ * An unrecognised message is reported as a failure with the wording printed,
+ * which is the cheap direction to be wrong in: nothing false is written, and
+ * the wording is there to be added here.
  */
-export const TRONSCAN_SUCCESS_MESSAGE_RE =
-  /validated|verification success|already (been )?verified/i
+export const TRONSCAN_SUCCESS_MESSAGES: readonly RegExp[] = [
+  /^the contract has been validated\.?$/i,
+  /^verification success\.?$/i,
+  /^(the contract has )?already (been )?verified\.?$/i,
+]
+
+/**
+ * Whether TronScan's response message reports a verified contract.
+ * @param message - Server message, as returned or as raw body text
+ */
+export function isTronscanSuccessMessage(message: string): boolean {
+  const trimmed = message.trim()
+  return TRONSCAN_SUCCESS_MESSAGES.some((pattern) => pattern.test(trimmed))
+}
 
 /** Subdirectories searched under a flattened-sources or `src/` root. */
 const CONTRACT_SUBDIRS = ['', 'Facets', 'Periphery', 'Security', 'Helpers']
@@ -134,9 +151,10 @@ export async function flattenContractSource(
 
 /**
  * Interpret the TronScan verification response. Success is signalled by a
- * success *message* (see {@link TRONSCAN_SUCCESS_MESSAGE_RE}); a mismatch
- * returns "...verification failed...". Falls back to the raw body if it is not
- * the expected JSON shape.
+ * success *message* (see {@link isTronscanSuccessMessage}); a mismatch returns
+ * "...verification failed...". Falls back to the raw body if it is not the
+ * expected JSON shape — which is not one of the accepted messages, so an
+ * unparseable response reads as a failure and is printed for the operator.
  * @returns `{ ok, message }` where message is the human-readable server reason.
  */
 export function interpretResponse(
@@ -150,7 +168,7 @@ export function interpretResponse(
   } catch {
     // Non-JSON body — match against the raw text below.
   }
-  return { ok: httpOk && TRONSCAN_SUCCESS_MESSAGE_RE.test(message), message }
+  return { ok: httpOk && isTronscanSuccessMessage(message), message }
 }
 
 /**
