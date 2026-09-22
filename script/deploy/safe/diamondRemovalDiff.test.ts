@@ -45,6 +45,13 @@ const DIAMOND_CUT_ABI = parseAbi([
   'function diamondCut((address facetAddress, uint8 action, bytes4[] functionSelectors)[] _diamondCut, address _init, bytes _calldata)',
 ])
 
+/** Selectors an upgrade cut touches, grouped by FacetCutAction. */
+interface IUpgradeCutGroups {
+  add?: `0x${string}`[]
+  replace?: `0x${string}`[]
+  remove?: `0x${string}`[]
+}
+
 /**
  * Builds a primary upgrade `diamondCut` call: Add/Replace against the new facet
  * plus, optionally, Remove cuts for selectors the new version drops. The
@@ -54,11 +61,7 @@ const DIAMOND_CUT_ABI = parseAbi([
  * @param groups - Selectors per FacetCutAction; omitted actions are skipped.
  * @returns Encoded `diamondCut` calldata.
  */
-const buildUpgradeCutCalldata = (groups: {
-  add?: `0x${string}`[]
-  replace?: `0x${string}`[]
-  remove?: `0x${string}`[]
-}): `0x${string}` => {
+const buildUpgradeCutCalldata = (groups: IUpgradeCutGroups): `0x${string}` => {
   const cuts = [
     { action: 0, selectors: groups.add, facet: addr(42) },
     { action: 1, selectors: groups.replace, facet: addr(42) },
@@ -1271,7 +1274,8 @@ describe('extractRemoveFacetCuts / buildRemovalSnapshotFromPayloads', () => {
     const standalone = buildDiamondCutRemoveCalldata([
       { name: 'A', selectors: [sel(4)] },
     ])
-    expect(extractRemoveFacetCuts([upgrade, standalone])).toEqual([
+    const cuts = extractRemoveFacetCuts([upgrade, standalone])
+    expect(cuts).toEqual([
       { selectors: [sel(3)], fromRemovalOnlyCall: false },
       { selectors: [sel(4)], fromRemovalOnlyCall: true },
     ])
@@ -1286,9 +1290,8 @@ describe('extractRemoveFacetCuts / buildRemovalSnapshotFromPayloads', () => {
       replace: [sel(0x0ff754ea)],
       remove: [sel(0x7e56b7b0), sel(0x9e75aa95)],
     })
-    expect(buildRemovalSnapshotFromPayloads([upgrade], [])).toEqual({
-      kind: 'none',
-    })
+    const built = buildRemovalSnapshotFromPayloads([upgrade], [])
+    expect(built).toEqual({ kind: 'none' })
   })
 
   it('still signals unvalidated for a removal-only call with no parked rows', () => {
@@ -1296,10 +1299,8 @@ describe('extractRemoveFacetCuts / buildRemovalSnapshotFromPayloads', () => {
       { name: 'Legacy', selectors: [sel(1)] },
     ])
     const upgrade = buildUpgradeCutCalldata({ add: [sel(2)], remove: [sel(3)] })
-    expect(buildRemovalSnapshotFromPayloads([upgrade, cleanup], [])).toEqual({
-      kind: 'unvalidated',
-      removeCutCount: 1,
-    })
+    const built = buildRemovalSnapshotFromPayloads([upgrade, cleanup], [])
+    expect(built).toEqual({ kind: 'unvalidated', removeCutCount: 1 })
   })
 
   it('signals mismatch when parked rows exist but the only Remove is inline in an upgrade cut', () => {
