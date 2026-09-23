@@ -106,8 +106,8 @@ The devWallet is the onboarding manager, which may deploy under any namespace, s
 and differ only in `underlying`.
 
 Fee rates are `[performance, management, deposit, withdrawal]` in bps:
-`[1000, 100, 10, 10]` — 10% of gains above the high-water mark, 1%/yr on AUM, and
-0.1% on entry and exit. `integratorShareBps` is `65535` (`type(uint16).max`) per fee
+`[1000, 100, 0, 0]` — 10% of gains above the high-water mark and 1%/yr on AUM, with
+entry and exit free. `integratorShareBps` is `65535` (`type(uint16).max`) per fee
 type, which means "use the factory default" — `defaultIntegratorShareBps` in the
 `basedemo` config, 8000 — so the integrator
 wallet takes 80% of each fee and `lifiFeeRecipient` takes 20%. `accessGate` is the
@@ -119,12 +119,12 @@ SIG='deploy((bytes32,address,address,address,uint256,(uint16[4]),uint16[4],addre
 
 # Morpho leg
 cast send <factory> "$SIG" \
-  "($NAMESPACE,$DEV_WALLET,<erc4626Adapter>,0x7BfA7C4f149E7415b73bdeDfe609237e29CBF34A,0,([1000,100,10,10]),[65535,65535,65535,65535],0x0000000000000000000000000000000000000000,[($INTEGRATOR_WALLET,10000)])" \
+  "($NAMESPACE,$DEV_WALLET,<erc4626Adapter>,0x7BfA7C4f149E7415b73bdeDfe609237e29CBF34A,0,([1000,100,0,0]),[65535,65535,65535,65535],0x0000000000000000000000000000000000000000,[($INTEGRATOR_WALLET,10000)])" \
   --rpc-url base --private-key $PRIVATE_KEY
 
 # Fluid leg — identical except the underlying
 cast send <factory> "$SIG" \
-  "($NAMESPACE,$DEV_WALLET,<erc4626Adapter>,0xf42f5795D9ac7e9D757dB633D693cD548Cfd9169,0,([1000,100,10,10]),[65535,65535,65535,65535],0x0000000000000000000000000000000000000000,[($INTEGRATOR_WALLET,10000)])" \
+  "($NAMESPACE,$DEV_WALLET,<erc4626Adapter>,0xf42f5795D9ac7e9D757dB633D693cD548Cfd9169,0,([1000,100,0,0]),[65535,65535,65535,65535],0x0000000000000000000000000000000000000000,[($INTEGRATOR_WALLET,10000)])" \
   --rpc-url base --private-key $PRIVATE_KEY
 ```
 
