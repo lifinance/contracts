@@ -237,8 +237,11 @@ syncLedgerClearSigning.yml (push to main touching deployments/ or the
   - runs generateLedgerClearSigning.ts
     - strips the deprecated context.contract.abi (the v2 registry infers
       the ABI from the display.formats keys)
-    - regenerates context.contract.deployments from deployments/* (all active
-      networks, testnets included)
+    - regenerates context.contract.deployments from deployments/* (active
+      mainnets, zkEVM chains excluded), keeping only chains where Sourcify
+      verifies the diamond and every facet — the registry lints with
+      `erc7730 lint --require-verified`; excluded chains are logged with
+      the contracts to verify (needs SOURCIFY_TOKEN to avoid rate limits)
     - merges display.formats from config/clearSigningProposal.json,
       scrubbing our own title-only Packed/Min residue
   - pushes PR to ethereum/clear-signing-erc7730-registry

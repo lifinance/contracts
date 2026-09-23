@@ -4,8 +4,12 @@ import path from 'path'
 import { defineCommand, runMain } from 'citty'
 
 import { flagIsOn } from '../script/deploy/safe/cli-flags'
+import { mapWithConcurrency } from '../script/utils/mapWithConcurrency'
+import { checkSourcifyVerification } from '../script/utils/sourcifyVerification'
 
 type Json = Record<string, unknown>
+
+const SOURCIFY_CHAIN_CONCURRENCY = 4
 
 function installEpipeHandler(): void {
   const onError = (err: unknown) => {
@@ -25,6 +29,17 @@ function installEpipeHandler(): void {
 interface INetworkConfig {
   chainId: number
   status?: string
+  type?: string
+  isZkEVM?: boolean
+}
+
+interface IDeployment {
+  chainId: number
+  address: string
+}
+
+interface IRepoDeployment extends IDeployment {
+  network: string
 }
 
 interface IClearSigningProposal {
@@ -44,7 +59,7 @@ interface ILedgerRegistryFile {
   context?: {
     $id?: string
     contract?: {
-      deployments?: Array<{ chainId: number; address: string }>
+      deployments?: IDeployment[]
       // [Deprecated] Present in older registry files; stripped on every sync.
       abi?: unknown[]
     }
@@ -171,11 +186,11 @@ function mergeDisplayFormats(
 function buildDeploymentsFromRepo(
   deploymentsDir: string,
   networksJsonPath: string
-): Array<{ chainId: number; address: string }> {
+): IRepoDeployment[] {
   const networks =
     readJsonFile<Record<string, INetworkConfig>>(networksJsonPath)
 
-  const entries: Array<{ chainId: number; address: string }> = []
+  const entries: IRepoDeployment[] = []
   const files = fs
     .readdirSync(deploymentsDir)
     .filter((f) => f.endsWith('.json'))
@@ -188,6 +203,10 @@ function buildDeploymentsFromRepo(
     // Catches networks marked inactive whose deployment files are still present
     if (cfg.status && cfg.status !== 'active') continue
 
+    // The registry lints with `--require-verified`, which Sourcify can never
+    // satisfy for zksolc bytecode, and testnet diamonds do not belong in it.
+    if (cfg.type === 'testnet' || cfg.isZkEVM) continue
+
     const deploymentPath = path.resolve(deploymentsDir, file)
     const data = readJsonFile<Record<string, unknown>>(deploymentPath)
 
@@ -195,16 +214,58 @@ function buildDeploymentsFromRepo(
     if (typeof diamondAddr !== 'string') continue
     if (!diamondAddr.startsWith('0x') || diamondAddr.length !== 42) continue
 
-    entries.push({ chainId: cfg.chainId, address: diamondAddr })
+    entries.push({
+      network: networkName,
+      chainId: cfg.chainId,
+      address: diamondAddr,
+    })
   }
 
   // de-dupe by chainId (prefer last-read file in case of duplicates)
-  const byChainId = new Map<number, string>()
-  for (const e of entries) byChainId.set(e.chainId, e.address)
+  const byChainId = new Map<number, IRepoDeployment>()
+  for (const e of entries) byChainId.set(e.chainId, e)
 
-  return Array.from(byChainId.entries())
-    .map(([chainId, address]) => ({ chainId, address }))
-    .sort((a, b) => a.chainId - b.chainId)
+  return Array.from(byChainId.values()).sort((a, b) => a.chainId - b.chainId)
+}
+
+// Keeps only the deployments the registry's `erc7730 lint --require-verified`
+// accepts: Sourcify supports the chain and verifies the diamond and every facet.
+// A dropped deployment is logged with the contracts to verify to bring it back.
+// Inconclusive Sourcify responses throw (see `checkSourcifyVerification`), so a
+// transient fault fails the sync instead of proposing to remove a live chain.
+async function keepSourcifyVerified(
+  deployments: IRepoDeployment[]
+): Promise<IDeployment[]> {
+  const token = process.env.SOURCIFY_TOKEN || undefined
+  const results = await mapWithConcurrency(
+    deployments,
+    SOURCIFY_CHAIN_CONCURRENCY,
+    (d) => checkSourcifyVerification(d.chainId, d.address, { token })
+  )
+
+  const kept: IDeployment[] = []
+  results.forEach((result, i) => {
+    const d = deployments[i] as IRepoDeployment
+    const label = `${d.network} (${d.chainId}) ${d.address}`
+    if (result.status === 'verified') {
+      kept.push({ chainId: d.chainId, address: d.address })
+      return
+    }
+    if (result.status === 'unsupported_chain') {
+      console.warn(`Sourcify: excluding ${label}: chain not supported`)
+      return
+    }
+    console.warn(
+      `Sourcify: excluding ${label}: ${result.contracts.length} contract(s) not verified`
+    )
+    for (const c of result.contracts)
+      console.warn(`  unverified: ${c.name ?? 'contract'} ${c.address}`)
+  })
+
+  console.log(
+    `Sourcify: ${kept.length}/${deployments.length} deployments fully verified`
+  )
+  return kept
 }
 
 function normalizeLedgerFile(input: unknown): ILedgerRegistryFile {
@@ -239,12 +300,12 @@ function safeLogEmptyLine(): void {
 
 function diffLedgerVsLocalDeployments(params: {
   ledger: ILedgerRegistryFile
-  localDeployments: Array<{ chainId: number; address: string }>
+  localDeployments: IDeployment[]
 }): {
   ledgerCount: number
   localCount: number
-  added: Array<{ chainId: number; address: string }>
-  removed: Array<{ chainId: number; address: string }>
+  added: IDeployment[]
+  removed: IDeployment[]
   changed: Array<{ chainId: number; from: string; to: string }>
 } {
   const ledgerDeployments = params.ledger.context?.contract?.deployments ?? []
@@ -257,8 +318,8 @@ function diffLedgerVsLocalDeployments(params: {
   for (const d of params.localDeployments)
     localByChainId.set(d.chainId, normalizeAddress(d.address))
 
-  const added: Array<{ chainId: number; address: string }> = []
-  const removed: Array<{ chainId: number; address: string }> = []
+  const added: IDeployment[] = []
+  const removed: IDeployment[] = []
   const changed: Array<{ chainId: number; from: string; to: string }> = []
 
   for (const [chainId, addr] of localByChainId.entries()) {
@@ -290,7 +351,7 @@ const main = defineCommand({
   meta: {
     name: 'generate-ledger-clear-signing',
     description:
-      'Updates ERC-7730 registry JSON for LiFiDiamond: regenerates context.contract.deployments from this repo, strips the deprecated context.contract.abi, and merges display.formats from config/clearSigningProposal.json (registry entries we own → replaced; entries we do not own → preserved). metadata + other display keys are preserved verbatim.',
+      'Updates ERC-7730 registry JSON for LiFiDiamond: regenerates context.contract.deployments from this repo (active mainnets, excluding zkEVM chains, only where Sourcify verifies the diamond and every facet; set SOURCIFY_TOKEN to avoid rate limits), strips the deprecated context.contract.abi, and merges display.formats from config/clearSigningProposal.json (registry entries we own → replaced; entries we do not own → preserved). metadata + other display keys are preserved verbatim.',
   },
   args: {
     ledgerFilePath: {
@@ -373,9 +434,11 @@ const main = defineCommand({
 
     const nextDeployments = skipDeployments
       ? undefined
-      : buildDeploymentsFromRepo(
-          resolveWithinCwd(deploymentsDir),
-          resolveWithinCwd(networksJson)
+      : await keepSourcifyVerified(
+          buildDeploymentsFromRepo(
+            resolveWithinCwd(deploymentsDir),
+            resolveWithinCwd(networksJson)
+          )
         )
 
     if (printDiff && nextDeployments) {
