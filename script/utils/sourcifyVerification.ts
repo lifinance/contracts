@@ -15,10 +15,10 @@ import { mapWithConcurrency } from './mapWithConcurrency'
 
 const SOURCIFY_API = 'https://sourcify.dev/server'
 // Rate limiting (429) and 5xx are retried with exponential backoff: 2s, 4s,
-// ... 128s (~4 minutes in total). Without a token Sourcify blocks an IP for
+// ... 128s (~4 minutes in total). Sourcify blocks an IP for
 // ~30s after ~200 requests, longer when requests keep arriving during the
 // block, and a full diamond sweep is thousands of requests, so the waits must
-// outlast repeated blocks. With a token there is no rate limit.
+// outlast repeated blocks.
 const MAX_ATTEMPTS = 8
 const DEFAULT_RETRY_DELAY_MS = 2_000 // 2 seconds, doubled after each attempt
 const IMPLEMENTATION_CONCURRENCY = 8 // facet lookups in flight per diamond
@@ -34,8 +34,6 @@ export type SourcifyVerificationResult =
   | { status: 'unverified'; contracts: ISourcifyContractRef[] }
 
 export interface ISourcifyCheckOptions {
-  // Sent as `X-Sourcify-Token`; exempts the caller from Sourcify's rate limit.
-  token?: string
   retryDelayMs?: number
 }
 
@@ -66,7 +64,6 @@ async function fetchWithRetry(
   options: ISourcifyCheckOptions
 ): Promise<Response> {
   const headers: Record<string, string> = { Accept: 'application/json' }
-  if (options.token) headers['X-Sourcify-Token'] = options.token
   const retryDelayMs = options.retryDelayMs ?? DEFAULT_RETRY_DELAY_MS
 
   let lastError = ''
@@ -82,7 +79,7 @@ async function fetchWithRetry(
   }
   throw new Error(
     `Sourcify request failed after ${MAX_ATTEMPTS} attempts (${lastError}): ${url}. ` +
-      'On repeated 429s, set SOURCIFY_TOKEN.'
+      'On repeated 429s, wait a few minutes for the rate-limit block to lift and rerun.'
   )
 }
 
@@ -129,7 +126,7 @@ async function lookupContract(
  * resolves it as a proxy, every implementation behind it (recursively).
  * @param chainId - EIP-155 chain ID
  * @param address - Contract address (the diamond)
- * @param options - Optional Sourcify token and retry delay
+ * @param options - Optional retry delay
  * @returns `verified`, `unsupported_chain`, or `unverified` with every
  *   contract Sourcify does not know (the root, or the unverified implementations)
  * @throws On responses that do not settle the question — rate limiting or

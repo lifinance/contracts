@@ -61,13 +61,10 @@ const notFound = (): Response =>
  */
 function stubSourcify(routes: Record<string, Route | Route[]>): {
   urls: string[]
-  headers: Array<Record<string, string>>
 } {
   const urls: string[] = []
-  const headers: Array<Record<string, string>> = []
-  globalThis.fetch = ((url: string, init?: RequestInit) => {
+  globalThis.fetch = ((url: string) => {
     urls.push(url)
-    headers.push((init?.headers ?? {}) as Record<string, string>)
     const address = new URL(url).pathname.split('/').at(-1) ?? ''
     const route = routes[address]
     if (!route) throw new Error(`unexpected request: ${url}`)
@@ -75,7 +72,7 @@ function stubSourcify(routes: Record<string, Route | Route[]>): {
     if (!next) throw new Error(`route exhausted: ${url}`)
     return Promise.resolve(next())
   }) as unknown as typeof globalThis.fetch
-  return { urls, headers }
+  return { urls }
 }
 
 describe('checkSourcifyVerification', () => {
@@ -241,18 +238,5 @@ describe('checkSourcifyVerification', () => {
       checkSourcifyVerification(CHAIN_ID, DIAMOND, OPTIONS),
       'HTTP 429'
     )
-  })
-
-  it('sends the token header only when a token is given', async () => {
-    const { headers } = stubSourcify({ [DIAMOND]: plain })
-
-    await checkSourcifyVerification(CHAIN_ID, DIAMOND, OPTIONS)
-    await checkSourcifyVerification(CHAIN_ID, DIAMOND, {
-      ...OPTIONS,
-      token: 'secret',
-    })
-
-    expect(headers[0]?.['X-Sourcify-Token']).toBeUndefined()
-    expect(headers[1]?.['X-Sourcify-Token']).toBe('secret')
   })
 })

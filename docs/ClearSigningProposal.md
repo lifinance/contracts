@@ -241,7 +241,7 @@ syncLedgerClearSigning.yml (push to main touching deployments/ or the
       mainnets, zkEVM chains excluded), keeping only chains where Sourcify
       verifies the diamond and every facet — the registry lints with
       `erc7730 lint --require-verified`; excluded chains are logged with
-      the contracts to verify (needs SOURCIFY_TOKEN to avoid rate limits)
+      the contracts to verify
     - merges display.formats from config/clearSigningProposal.json,
       scrubbing our own title-only Packed/Min residue and entries for
       retired LI.FI functions (RETIRED_LIFI_FUNCTIONS)

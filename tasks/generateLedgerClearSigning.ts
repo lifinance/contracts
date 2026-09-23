@@ -253,11 +253,10 @@ function buildDeploymentsFromRepo(
 async function keepSourcifyVerified(
   deployments: IRepoDeployment[]
 ): Promise<IDeployment[]> {
-  const token = process.env.SOURCIFY_TOKEN || undefined
   const results = await mapWithConcurrency(
     deployments,
     SOURCIFY_CHAIN_CONCURRENCY,
-    (d) => checkSourcifyVerification(d.chainId, d.address, { token })
+    (d) => checkSourcifyVerification(d.chainId, d.address)
   )
 
   const kept: IDeployment[] = []
@@ -368,7 +367,7 @@ const main = defineCommand({
   meta: {
     name: 'generate-ledger-clear-signing',
     description:
-      'Updates ERC-7730 registry JSON for LiFiDiamond: regenerates context.contract.deployments from this repo (active mainnets, excluding zkEVM chains, only where Sourcify verifies the diamond and every facet; set SOURCIFY_TOKEN to avoid rate limits), strips the deprecated context.contract.abi, and merges display.formats from config/clearSigningProposal.json (registry entries we own → replaced; entries we do not own → preserved). metadata + other display keys are preserved verbatim.',
+      'Updates ERC-7730 registry JSON for LiFiDiamond: regenerates context.contract.deployments from this repo (active mainnets, excluding zkEVM chains, only where Sourcify verifies the diamond and every facet), strips the deprecated context.contract.abi, and merges display.formats from config/clearSigningProposal.json (registry entries we own → replaced; entries we do not own → preserved). metadata + other display keys are preserved verbatim.',
   },
   args: {
     ledgerFilePath: {

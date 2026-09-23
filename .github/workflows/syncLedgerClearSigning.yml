@@ -58,7 +58,9 @@ jobs:
       cancel-in-progress: true
     if: github.repository == 'lifinance/contracts' # upstream-only, see header
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    # Sourcify lookups are anonymous and rate-limited; a full sweep waits out
+    # repeated rate-limit blocks and has taken up to ~50 minutes.
+    timeout-minutes: 60
     steps:
       - name: Checkout repository
         # No submodules: the sync reads only `deployments/`, `config/` and the
@@ -119,10 +121,6 @@ jobs:
         id: sync # exposes PR_URL as step output for the Slack notification step
         env:
           LEDGER_SYNC_TOKEN: ${{ secrets.LEDGER_SYNC_TOKEN }}
-          # Exempts the generator's and erc7730's Sourcify lookups from rate
-          # limiting. A sweep is thousands of lookups; anonymously it outlasts
-          # the job timeout.
-          SOURCIFY_TOKEN: ${{ secrets.SOURCIFY_TOKEN }}
           LEDGER_FORK: ${{ secrets.LEDGER_FORK || 'lifinance/clear-signing-erc7730-registry' }} # optional override
           LEDGER_UPSTREAM: ethereum/clear-signing-erc7730-registry # Ethereum Foundation-hosted (migrated from LedgerHQ in 2026)
           LEDGER_FILE_PATH: registry/lifi/calldata-LIFIDiamond.json
@@ -146,11 +144,6 @@ jobs:
 
           if [ -z "${LEDGER_SYNC_TOKEN:-}" ]; then
             echo -e "\033[31mError: LEDGER_SYNC_TOKEN secret missing\033[0m"
-            exit 1
-          fi
-
-          if [ -z "${SOURCIFY_TOKEN:-}" ]; then
-            echo -e "\033[31mError: SOURCIFY_TOKEN secret missing (Sourcify rate-limits anonymous lookups; request a token from Sourcify/EF)\033[0m"
             exit 1
           fi
 
