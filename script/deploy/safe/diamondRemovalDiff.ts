@@ -1267,12 +1267,20 @@ const FACET_CUT_REMOVE = 2
 /** One Remove facet-cut extracted from a `diamondCut` payload (address is always 0 on-wire). */
 export interface IRemoveFacetCut {
   selectors: `0x${string}`[]
+  /**
+   * True when the enclosing `diamondCut` call contained nothing but Remove cuts
+   * — the shape `buildDiamondCutRemoveCalldata` emits, and therefore the only
+   * shape a parked-queue removal can arrive in. False means the Remove shared
+   * its call with Add/Replace cuts, i.e. it belongs to an upgrade cut.
+   */
+  fromRemovalOnlyCall: boolean
 }
 
 /**
  * Walks timelock-batch payloads and returns every FacetCut with action=Remove,
  * in appearance order (primary cuts first; drain-folded removals are the trailing
- * suffix — see {@link buildRemovalSnapshotFromPayloads}).
+ * suffix — see {@link buildRemovalSnapshotFromPayloads}), each tagged with whether
+ * its `diamondCut` call carried Add/Replace cuts alongside it.
  *
  * @param payloads - Inner call payloads from a timelock `scheduleBatch` / `executeBatch`.
  * @returns Remove cuts in appearance order (non-`diamondCut` payloads are skipped).
@@ -1296,11 +1304,14 @@ export function extractRemoveFacetCuts(
       number | bigint,
       readonly `0x${string}`[]
     ])[]
+    const fromRemovalOnlyCall = facetCuts.every(
+      (cut) => Number(cut[1]) === FACET_CUT_REMOVE
+    )
     for (const cut of facetCuts) {
       const action = cut[1]
       const selectors = cut[2]
       if (Number(action) === FACET_CUT_REMOVE)
-        cuts.push({ selectors: [...selectors] })
+        cuts.push({ selectors: [...selectors], fromRemovalOnlyCall })
     }
   }
   return cuts
@@ -1313,11 +1324,12 @@ export interface IParkedRemovalIdentity {
 }
 
 /**
- * Result of zipping Remove cuts from a timelock batch with parked-task identities.
- * - `none`: no Remove cuts (and no parked rows) — skip the pre-execute guard.
+ * Result of zipping removal-only Remove cuts from a timelock batch with
+ * parked-task identities.
+ * - `none`: no removal-only cuts (and no parked rows) — skip the pre-execute guard.
  * - `snapshot`: zip succeeded; caller must run {@link revalidateRemovalsOnChain}.
- * - `unvalidated`: Remove cuts present but no parked rows — cannot recover doomed
- *   addresses from calldata (always 0); caller MUST abort (fail closed).
+ * - `unvalidated`: removal-only cuts present but no parked rows — cannot recover
+ *   doomed addresses from calldata (always 0); caller MUST abort (fail closed).
  * - `mismatch`: parked/cut counts disagree — refuse to execute.
  */
 export type RemovalSnapshotBuild =
@@ -1329,11 +1341,19 @@ export type RemovalSnapshotBuild =
 /**
  * Rebuilds the propose-time removal snapshot from immutable schedule payloads +
  * parked-task doomed addresses. Drain appends one Remove call per claimed facet
- * after the primary, so the trailing `parked.length` Remove cuts zip 1:1 with
- * parked tasks sorted by `proposedAt` ascending (then `taskKey` for ties).
+ * after the primary, so the trailing `parked.length` removal-only cuts zip 1:1
+ * with parked tasks sorted by `proposedAt` ascending (then `taskKey` for ties).
  * Same-ms `proposedAt` ties can theoretically mis-label cuts → a false
  * `re-pointed` abort (fail-safe, not silent delete); accepted until an explicit
  * append index is stamped at claim time.
+ *
+ * Only removal-only `diamondCut` calls are considered. A Remove that shares its
+ * call with Add/Replace cuts belongs to the upgrade itself — a facet version
+ * whose selectors changed shape retires the old ones in the same cut — so it has
+ * no parked task, was reviewed as part of the proposal, and is outside this
+ * guard's remit. Counting those cuts made a routine upgrade unexecutable when it
+ * dropped a selector (EcoFacet v2.0.0 on tron) and, worse, let a primary Remove
+ * be zipped against a parked facet's address and revalidated in its place.
  *
  * @param payloads - Inner call payloads from the timelock batch.
  * @param parked - Parked-task identities for this Safe tx, claim/append order.
@@ -1343,22 +1363,24 @@ export function buildRemovalSnapshotFromPayloads(
   payloads: readonly Hex[],
   parked: readonly IParkedRemovalIdentity[]
 ): RemovalSnapshotBuild {
-  const removeCuts = extractRemoveFacetCuts(payloads)
-  if (removeCuts.length === 0) {
+  const removalOnlyCuts = extractRemoveFacetCuts(payloads).filter(
+    (cut) => cut.fromRemovalOnlyCall
+  )
+  if (removalOnlyCuts.length === 0) {
     if (parked.length === 0) return { kind: 'none' }
     return {
       kind: 'mismatch',
-      reason: `parked tasks present (${parked.length}) but no Remove diamondCut payloads found in the timelock batch`,
+      reason: `parked tasks present (${parked.length}) but no removal-only diamondCut payloads found in the timelock batch`,
     }
   }
   if (parked.length === 0)
-    return { kind: 'unvalidated', removeCutCount: removeCuts.length }
-  if (removeCuts.length < parked.length)
+    return { kind: 'unvalidated', removeCutCount: removalOnlyCuts.length }
+  if (removalOnlyCuts.length < parked.length)
     return {
       kind: 'mismatch',
-      reason: `Remove cuts (${removeCuts.length}) < parked tasks (${parked.length}) — cannot zip safely`,
+      reason: `removal-only Remove cuts (${removalOnlyCuts.length}) < parked tasks (${parked.length}) — cannot zip safely`,
     }
-  const folded = removeCuts.slice(-parked.length)
+  const folded = removalOnlyCuts.slice(-parked.length)
   return {
     kind: 'snapshot',
     snapshot: parked.map((task, i) => {

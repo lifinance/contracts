@@ -305,11 +305,14 @@ Remove payloads + parked tasks (`listParkedTasksBySafeTxHash` +
 `buildRemovalSnapshotFromPayloads`) and aborts if `stale` is non-empty. Under the fold
 that aborts the **entire** timelock batch (primary cut + removals) — the schedule is
 immutable, so "re-propose from `stillRemovable`" means cancel the op and drain again.
-Remove cuts with no parked rows for the Safe tx hash also abort (fail closed) —
-doomed addresses are not recoverable from calldata (`facetAddress = 0`), so
-executing blind would reopen silent live-selector deletion. That covers drain
-unlink (best-effort `setSafeTxHash` never stamped) and legacy
-`cleanUpProdDiamond` until those removals park too.
+Removal-only `diamondCut` calls with no parked rows for the Safe tx hash also abort
+(fail closed) — doomed addresses are not recoverable from calldata
+(`facetAddress = 0`), so executing blind would reopen silent live-selector
+deletion. That covers drain unlink (best-effort `setSafeTxHash` never stamped) and
+legacy `cleanUpProdDiamond` until those removals park too. A `Remove` that rides
+inside an upgrade's own cut, alongside its `Add`/`Replace` elements, is outside the
+guard's remit and does not abort — see §6, "Guard scope — removal-only calls, not
+every Remove".
 
 ---
 
@@ -560,6 +563,20 @@ removals target already-deprecated facets), but larger than the old separate-pro
 design. Mitigation if the guard ever false-positives a rollout: cancel the op, then
 re-propose with `DRAIN_PARKED_TASKS` unset — gating the flag off on its own changes nothing
 about an already-scheduled batch, which is immutable once queued.
+
+**Guard scope — removal-only calls, not every Remove.** The guard only inspects `diamondCut`
+calls whose cuts are *all* `Remove`, which is the shape `buildDiamondCutRemoveCalldata` emits
+and therefore the only shape a parked-queue removal can arrive in (drain fold,
+`cleanUpProdDiamond`, unlink-after-link-failure). A `Remove` that rides inside an upgrade's own
+cut alongside its `Add`/`Replace` elements is the upgrade retiring its own selectors — a facet
+version whose struct changed shape drops the old entrypoints in the same cut — so it has no
+parked task, by design, and was reviewed as part of the proposal. Counting those cuts made a
+routine upgrade permanently unexecutable (EcoFacet v2.0.0 on tron, EXSC-757: `EcoData` 6→8
+fields, `unvalidated` on an op no parked task could ever satisfy) and, less visibly, let a
+primary `Remove` be zipped against a parked facet's address and revalidated in its place.
+Residual exposure: an inline upgrade `Remove` is not TOCTOU-revalidated — the same position
+primary cuts held before this queue existed, since calldata carries `facetAddress = 0` and no
+propose-time record of the doomed address exists to check against.
 
 **When the guard fires, the removal is usually obsolete rather than wrong.** If *every*
 snapshotted selector is stale, the doomed facet has already been replaced or unlinked, so
