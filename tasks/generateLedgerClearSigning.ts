@@ -108,12 +108,26 @@ function writePrettyJson(filePath: string, data: unknown): void {
 // that omits `fields` may legally inherit them from a file the registry pulls in
 // via the top-level `includes` key, so it renders fine and is not ours to drop.
 function isResidualTitleOnlyEntry(formatKey: string, entry: unknown): boolean {
-  const parenIndex = formatKey.indexOf('(')
-  const functionName =
-    parenIndex === -1 ? formatKey : formatKey.slice(0, parenIndex)
-  if (!/(Packed|Min)$/u.test(functionName)) return false
+  if (!/(Packed|Min)$/u.test(functionNameOf(formatKey))) return false
   if (!isObject(entry)) return false
   return Array.isArray(entry.fields) && entry.fields.length === 0
+}
+
+function functionNameOf(formatKey: string): string {
+  const parenIndex = formatKey.indexOf('(')
+  return parenIndex === -1 ? formatKey : formatKey.slice(0, parenIndex)
+}
+
+// LI.FI functions whose source is deleted but whose entries earlier syncs
+// pushed. The merge preserves unowned entries, so these stay unless named.
+//  - swapTokensGeneric (deprecated GenericSwapFacet): the entry labels
+//    `_minAmount`, but the only published diamond still routing the function
+//    (Mantle) names it `_minAmountOut`, so `erc7730 lint` rejects the whole
+//    descriptor, and no published chain renders the entry correctly.
+const RETIRED_LIFI_FUNCTIONS = new Set(['swapTokensGeneric'])
+
+function isRetiredLifiEntry(formatKey: string): boolean {
+  return RETIRED_LIFI_FUNCTIONS.has(functionNameOf(formatKey))
 }
 
 // Merges `display.formats` entries from the local proposal into the registry's
@@ -125,8 +139,9 @@ function isResidualTitleOnlyEntry(formatKey: string, entry: unknown): boolean {
 //  - Selectors present in the registry but not in the proposal: PRESERVE.
 //    These may be registry-only entries the EF working group adds, or stale
 //    entries for selectors we deprecated but older deployments still expose.
-//    The one exception is our own title-only `*Packed` / `*Min` residue — see
-//    `isResidualTitleOnlyEntry`.
+//    The exceptions are our own title-only `*Packed` / `*Min` residue (see
+//    `isResidualTitleOnlyEntry`) and entries for retired LI.FI functions (see
+//    `RETIRED_LIFI_FUNCTIONS`).
 //  - Other `display.*` keys (definitions, screens, etc.): PRESERVE verbatim.
 //
 // Returns the next `display` object. Pass `proposalFilePath = null` to skip
@@ -165,18 +180,20 @@ function mergeDisplayFormats(
     nextFormats[sig] = entry as Json
   }
   const dropped: string[] = []
-  for (const [sig, entry] of Object.entries(nextFormats))
-    if (isResidualTitleOnlyEntry(sig, entry)) {
+  for (const [sig, entry] of Object.entries(nextFormats)) {
+    const retired = isRetiredLifiEntry(sig) && !(sig in proposal.formats)
+    if (retired || isResidualTitleOnlyEntry(sig, entry)) {
       delete nextFormats[sig]
       dropped.push(sig)
     }
+  }
 
   const preserved = Object.keys(nextFormats).filter(
     (k) => !(k in proposal.formats)
   ).length
 
   console.log(
-    `display.formats merge: +${added} added, ~${replaced} replaced, =${preserved} preserved (unowned), -${dropped.length} dropped (title-only Packed/Min residue)`
+    `display.formats merge: +${added} added, ~${replaced} replaced, =${preserved} preserved (unowned), -${dropped.length} dropped (title-only Packed/Min residue, retired LI.FI functions)`
   )
   for (const sig of dropped) console.log(`  dropped: ${sig}`)
   next.formats = nextFormats

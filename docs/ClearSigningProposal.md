@@ -243,9 +243,12 @@ syncLedgerClearSigning.yml (push to main touching deployments/ or the
       `erc7730 lint --require-verified`; excluded chains are logged with
       the contracts to verify (needs SOURCIFY_TOKEN to avoid rate limits)
     - merges display.formats from config/clearSigningProposal.json,
-      scrubbing our own title-only Packed/Min residue
+      scrubbing our own title-only Packed/Min residue and entries for
+      retired LI.FI functions (RETIRED_LIFI_FUNCTIONS)
+  - runs the registry's `erc7730 lint --require-verified`; stops without
+    pushing on any error
   - pushes PR to ethereum/clear-signing-erc7730-registry
   - pings #sc-general via SLACK_WEBHOOK_SC_GENERAL on new upstream PRs
 ```
 
-The generator boundary is the single integration point: anything in `display.formats` here is treated as LI.FI-owned and replaces same-selector entries in the registry; everything else is preserved, except the title-only `*Packed` / `*Min` residue described above.
+The generator boundary is the single integration point: anything in `display.formats` here is treated as LI.FI-owned and replaces same-selector entries in the registry; everything else is preserved, except the title-only `*Packed` / `*Min` residue described above and entries for the retired LI.FI functions named in `RETIRED_LIFI_FUNCTIONS` (a proposal entry for the same key still wins).
