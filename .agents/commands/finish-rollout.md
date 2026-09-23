@@ -55,6 +55,9 @@ Correlate queue rows to this rollout by **deployed address in the scheduled payl
      `deployments/<net>.json` diff in the PR.
    - whitelist mode: the added/removed addresses from the whitelist PR's
      `config/whitelist.json` diff.
+   - Tron (`tron`/`tronshasta`): `--payloadContains` matches hex only, so a base58 `T…`
+     address matches nothing. Convert first:
+     `bun troncast address to-hex <base58 csv>` → `0x…` csv to pass as-is.
 2. Run:
 
    ```bash
