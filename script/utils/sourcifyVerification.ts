@@ -15,10 +15,11 @@ import { mapWithConcurrency } from './mapWithConcurrency'
 
 const SOURCIFY_API = 'https://sourcify.dev/server'
 // Rate limiting (429) and 5xx are retried with exponential backoff: 2s, 4s,
-// 8s, 16s, 32s. Without a token Sourcify blocks an IP for ~30s after ~200
-// requests, and a full diamond sweep is thousands, so the waits must add up
-// to more than one block. With a token there is no rate limit.
-const MAX_ATTEMPTS = 6
+// ... 128s (~4 minutes in total). Without a token Sourcify blocks an IP for
+// ~30s after ~200 requests, longer when requests keep arriving during the
+// block, and a full diamond sweep is thousands of requests, so the waits must
+// outlast repeated blocks. With a token there is no rate limit.
+const MAX_ATTEMPTS = 8
 const DEFAULT_RETRY_DELAY_MS = 2_000 // 2 seconds, doubled after each attempt
 const IMPLEMENTATION_CONCURRENCY = 8 // facet lookups in flight per diamond
 
