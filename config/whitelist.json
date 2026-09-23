@@ -4427,6 +4427,14 @@
             }
           }
         ],
+        "hemi": [
+          {
+            "address": "0xc87de04e2ec1f4282dff2933a2d58199f688fc3d",
+            "functions": {
+              "0x3f0bde25": "IceCreamSwap()"
+            }
+          }
+        ],
         "kaia": [
           {
             "address": "0xb4fe60cd05a3e68668007cee83ddfd9a50a45b36",
