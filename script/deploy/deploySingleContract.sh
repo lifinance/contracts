@@ -647,6 +647,10 @@ deploySingleContract() {
         VERIFIED=true
       fi
     fi
+
+    if [[ "$VERIFIED" == "true" ]]; then
+      verifyContractOnSourcify "$NETWORK" "$CONTRACT" "$ADDRESS" "$CONSTRUCTOR_ARGS" || true
+    fi
   fi
 
   # check if log entry was found

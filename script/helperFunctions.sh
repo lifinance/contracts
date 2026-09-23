@@ -2303,6 +2303,91 @@ function verifyContract() {
   return 1
 }
 
+# verifyContractOnSourcify: Submits a deployed contract to Sourcify in addition
+# to the network's block explorer. The ERC-7730 clear-signing sync publishes a
+# chain's LiFiDiamond only when Sourcify verifies the diamond and every facet
+# (the registry lints with `erc7730 lint --require-verified`), so a facet that
+# is verified only on the explorer drops the whole chain from the descriptor.
+# Best-effort: a failure is a warning and never fails the deploy.
+#
+# Usage: verifyContractOnSourcify NETWORK CONTRACT ADDRESS [ARGS]
+#   NETWORK  - Network name from networks.json
+#   CONTRACT - Contract name (resolved to its source path)
+#   ADDRESS  - Deployed contract address
+#   ARGS     - Optional: ABI-encoded constructor args (0x-prefixed hex)
+#
+# Routing/Behavior:
+#   - Testnets and zkEVM networks: skipped (the registry excludes them; Sourcify
+#     cannot verify zksolc bytecode)
+#   - Networks whose verificationType is sourcify: skipped (verifyContract
+#     already submitted there)
+#
+# Returns: 0 if verified or skipped, 1 if Sourcify did not verify the contract
+# Example: verifyContractOnSourcify "arbitrum" "AcrossFacetV4" "0x1234..." "0x"
+function verifyContractOnSourcify() {
+  local NETWORK="$1"
+  local CONTRACT="$2"
+  local ADDRESS="$3"
+  local ARGS="${4:-}"
+
+  if isTestnetNetwork "$NETWORK" || isZkEvmNetwork "$NETWORK"; then
+    return 0
+  fi
+
+  local VERIFICATION_TYPE
+  VERIFICATION_TYPE=$(jq -r --arg network "$NETWORK" '.[$network].verificationType // empty' "$NETWORKS_JSON_FILE_PATH" 2>/dev/null)
+  if [[ "$VERIFICATION_TYPE" == "sourcify" ]]; then
+    return 0
+  fi
+
+  local CHAIN_ID CONTRACT_FILE_PATH API_KEY_NAME
+  CHAIN_ID=$(getChainId "$NETWORK")
+  CONTRACT_FILE_PATH=$(getContractFilePath "$CONTRACT")
+  API_KEY_NAME=$(getEtherscanApiKeyName "$NETWORK" 2>/dev/null || true)
+
+  # forge picks Etherscan whenever the chain's foundry.toml [etherscan] entry
+  # resolves to a non-empty key, even with an explicit `--verifier sourcify`
+  # (forge 1.7.1, crates/verify/src/provider.rs). Blanking that key for this
+  # one command is the only way to reach Sourcify on such a chain.
+  local VERIFY_CMD=("forge" "verify-contract")
+  if [[ -n "$API_KEY_NAME" ]]; then
+    VERIFY_CMD=("env" "$API_KEY_NAME=" "${VERIFY_CMD[@]}")
+  fi
+  VERIFY_CMD+=(
+    "--verifier" "sourcify"
+    "--chain-id" "$CHAIN_ID"
+    "$ADDRESS"
+    "$CONTRACT_FILE_PATH:$CONTRACT"
+  )
+  ARGS=$(echo "$ARGS" | head -1 | tr -d '\n')
+  if [[ "$ARGS" =~ ^0x([0-9a-fA-F]{2})+$ ]]; then
+    VERIFY_CMD+=("--constructor-args" "$ARGS")
+  fi
+
+  echo "[info] submitting $CONTRACT on $NETWORK ($ADDRESS) to Sourcify..."
+  local VERIFY_OUTPUT
+  VERIFY_OUTPUT=$("${VERIFY_CMD[@]}" 2>&1)
+  echoDebug "SOURCIFY VERIFY_OUTPUT: $VERIFY_OUTPUT"
+
+  # Sourcify's lookup API is what the registry lint queries, so it decides
+  # success rather than forge's wording. forge only submits a verification job
+  # and returns, so poll while the job runs (up to 6 x 10s).
+  local STATUS="" ATTEMPT
+  for ATTEMPT in 1 2 3 4 5 6; do
+    STATUS=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 \
+      "https://sourcify.dev/server/v2/contract/$CHAIN_ID/$ADDRESS")
+    if [[ "$STATUS" == "200" ]]; then
+      echo "[info] $CONTRACT on $NETWORK with address $ADDRESS verified on Sourcify"
+      return 0
+    fi
+    [[ "$ATTEMPT" -lt 6 ]] && sleep 10
+  done
+
+  warning "$CONTRACT on $NETWORK ($ADDRESS) is not verified on Sourcify (lookup returned HTTP $STATUS), so the ERC-7730 clear-signing sync will leave $NETWORK out of the registry descriptor until it is. Retry with: ${VERIFY_CMD[*]}"
+  warning "Sourcify output: $VERIFY_OUTPUT"
+  return 1
+}
+
 function getEtherscanApiKeyName() {
   local NETWORK="$1"
 
