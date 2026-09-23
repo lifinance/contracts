@@ -74,6 +74,12 @@ const TSX_INVOCATION = /bunx\s+tsx\s+(?:-{1,2}[\w-]+(?:=\S+)?\s+)*(\S+)/g
 const trimDelimiters = (target: string): string =>
   target.replace(/^['"`]+/, '').replace(/['"`);\],&|]+$/, '')
 
+/**
+ * The repo's tracked files under the given paths.
+ *
+ * @param paths - path specs to list, as `git ls-files` takes them.
+ * @returns repo-relative paths, with the trailing empty line dropped.
+ */
 const trackedFiles = (...paths: string[]): string[] =>
   execFileSync('git', ['ls-files', ...paths], {
     cwd: REPO_ROOT,
