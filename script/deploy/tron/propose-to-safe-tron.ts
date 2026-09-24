@@ -32,6 +32,7 @@ import { consola } from 'consola'
 import { type Address, type Hex } from 'viem'
 import { signMessage } from 'viem/accounts'
 
+import { isEntrypoint } from '../../utils/is-entrypoint'
 import { getEnvVar } from '../../utils/utils'
 import { flagIsOn } from '../safe/cli-flags'
 import { assertTicketPresent } from '../safe/proposal-intent'
@@ -569,5 +570,5 @@ const main = defineCommand({
   },
 })
 
-if (import.meta.main) runMain(main)
+if (isEntrypoint(import.meta.url)) runMain(main)
 export { runPropose }
