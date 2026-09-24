@@ -252,6 +252,29 @@ describe('readImmutableDeclarations', () => {
   })
 })
 
+describe('readImmutableDeclarations definitions', () => {
+  it('names every file defining a contract, outside src/ as well', () => {
+    const outDir = artifactDirWith([
+      {
+        path: 'Sample.sol/Sample.json',
+        ast: contractAst('src/Facets/Sample.sol', [variable('OWNER')]),
+      },
+      {
+        path: 'vendor/Sample.sol/Sample.json',
+        ast: contractAst('lib/vendor/src/Sample.sol', [variable('OTHER')]),
+      },
+    ])
+
+    const { definitions, declarations } = readImmutableDeclarations(outDir)
+
+    expect([...(definitions.get('Sample') ?? [])].sort()).toEqual([
+      'lib/vendor/src/Sample.sol',
+      'src/Facets/Sample.sol',
+    ])
+    expect(declarations.map((one) => one.name)).toEqual(['OWNER'])
+  })
+})
+
 describe('findSourcesWithoutAst', () => {
   it('names a tracked source the enumeration never saw', () => {
     expect(

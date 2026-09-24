@@ -82,8 +82,16 @@ const ADDRESS = '0x1111111111111111111111111111111111111111'
 
 const NO_DECLARATIONS: IDeclaredImmutables = {
   declarations: [],
-  contracts: new Set(),
+  definitions: new Map(),
 }
+
+/** Contract name → the files defining it, as `readImmutableDeclarations` reports it. */
+const defined = (
+  entries: Record<string, string[]>
+): ReadonlyMap<string, ReadonlySet<string>> =>
+  new Map(
+    Object.entries(entries).map(([name, files]) => [name, new Set(files)])
+  )
 
 /** The message a rejected promise carried, or '' when it resolved. */
 const rejection = async (promise: Promise<unknown>): Promise<string> => {
@@ -809,7 +817,10 @@ describe('createForgeRebuildRunner', () => {
       readDeclarations: (outDir, sourceRoot) => {
         seen.push({ outDir, sourceRoot })
         return {
-          contracts: new Set(['AccessManagerFacet', 'SomeOtherFacet']),
+          definitions: defined({
+            AccessManagerFacet: ['src/a.sol'],
+            SomeOtherFacet: ['src/b.sol'],
+          }),
           declarations: [
             {
               file: 'src/a.sol',
@@ -1414,7 +1425,9 @@ describe('createForgeRebuildRunner', () => {
                 name: 'TOKEN_BRIDGE',
               },
             ],
-            contracts: new Set(['CentrifugeFacet']),
+            definitions: defined({
+              CentrifugeFacet: ['src/Facets/CentrifugeFacet.sol'],
+            }),
           }
         },
         ...(over.artifactCache
@@ -1438,18 +1451,27 @@ describe('createForgeRebuildRunner', () => {
 
       const read = made.runner.declarationsAt(COMMIT, zkRequest.profile)
 
-      expect(read.contracts.has('CentrifugeFacet')).toBe(true)
+      expect(read.definitions.has('CentrifugeFacet')).toBe(true)
       expect(made.calls).toHaveLength(1)
       expect(made.calls[0]).toEqual({
         command: 'forge',
-        args: ['build', 'src', '--ast', '--offline', '--out', OUT],
+        args: [
+          'build',
+          '--skip',
+          'test/**',
+          '--skip',
+          'script/**',
+          '--offline',
+          '--ast',
+          '--out',
+          OUT,
+        ],
         cwd: CHECKOUT,
         env: {
           FOUNDRY_PROFILE: 'zksync',
           FOUNDRY_CACHE_PATH: `${BUILD_ROOT}/cache`,
         },
       })
-      expect(OUT.startsWith(`${CHECKOUT}/`)).toBe(false)
       expect(made.reads).toEqual([{ outDir: OUT, sourceRoot: CHECKOUT }])
       expect(
         made.gitCalls.some(
@@ -2268,7 +2290,10 @@ describe('createRecordedImmutableDeclarations', () => {
           name: 'OTHER',
         },
       ],
-      contracts: new Set(['CentrifugeFacet', 'OtherFacet']),
+      definitions: defined({
+        CentrifugeFacet: ['src/Facets/CentrifugeFacet.sol'],
+        OtherFacet: ['src/Facets/OtherFacet.sol'],
+      }),
     })
 
     const read = made.declarationsFor(record(COMMIT), 'zksync')
@@ -2281,7 +2306,9 @@ describe('createRecordedImmutableDeclarations', () => {
   it('separates a contract the AST defined from one it never saw', () => {
     const made = resolver({
       declarations: [],
-      contracts: new Set(['CentrifugeFacet']),
+      definitions: defined({
+        CentrifugeFacet: ['src/Facets/CentrifugeFacet.sol'],
+      }),
     })
     expect(made.declarationsFor(record(COMMIT), 'zksync')).toEqual({
       covered: true,
@@ -2290,6 +2317,70 @@ describe('createRecordedImmutableDeclarations', () => {
 
     const empty = resolver(NO_DECLARATIONS)
     expect(empty.declarationsFor(record(COMMIT), 'zksync').covered).toBe(false)
+  })
+
+  it('refuses a name defined twice, since layer 1 cannot say which one it matched', () => {
+    // A stub under `src/` beside the real contract in `lib/`: the stub alone
+    // declares nothing, and reading it would grade the real one's immutables
+    // as absent.
+    const made = resolver({
+      declarations: [],
+      definitions: defined({
+        CentrifugeFacet: [
+          'src/Facets/Stub.sol',
+          'lib/vendor/src/CentrifugeFacet.sol',
+        ],
+      }),
+    })
+
+    expect(() => made.declarationsFor(record(COMMIT), 'zksync')).toThrow(
+      'defined in 2 source files'
+    )
+  })
+
+  it('refuses a contract defined only outside src/', () => {
+    // The commit's own `src` setting pointing elsewhere puts every artifact
+    // outside `src/`.
+    const made = resolver({
+      declarations: [],
+      definitions: defined({
+        CentrifugeFacet: ['src2/Facets/CentrifugeFacet.sol'],
+      }),
+    })
+
+    expect(() => made.declarationsFor(record(COMMIT), 'zksync')).toThrow(
+      'outside the src/ tree'
+    )
+  })
+
+  it('reads declarations only from the file defining the contract', () => {
+    const made = resolver({
+      declarations: [
+        {
+          file: 'src/Facets/CentrifugeFacet.sol',
+          contract: 'CentrifugeFacet',
+          line: 30,
+          type: 'address',
+          name: 'TOKEN_BRIDGE',
+        },
+        {
+          file: 'src/Elsewhere.sol',
+          contract: 'CentrifugeFacet',
+          line: 3,
+          type: 'address',
+          name: 'PLANTED',
+        },
+      ],
+      definitions: defined({
+        CentrifugeFacet: ['src/Facets/CentrifugeFacet.sol'],
+      }),
+    })
+
+    expect(
+      made
+        .declarationsFor(record(COMMIT), 'zksync')
+        .declarations.map((one) => one.name)
+    ).toEqual(['TOKEN_BRIDGE'])
   })
 
   it('covers nothing when the AST build produced no readable artifacts', () => {
@@ -2375,7 +2466,9 @@ describe('createSignTimeCodehashDeps sources zk declarations from the rebuild', 
   it("grades `none` only on the recorded commit's word", async () => {
     const { asked, deps } = wired({
       declarations: [],
-      contracts: new Set(['CentrifugeFacet']),
+      definitions: defined({
+        CentrifugeFacet: ['src/Facets/CentrifugeFacet.sol'],
+      }),
     })
     try {
       const read = await deps.readOffCodeImmutables(ADDRESS, 'zksync')

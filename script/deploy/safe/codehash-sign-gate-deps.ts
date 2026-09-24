@@ -356,12 +356,14 @@ export const createImmutableReferencesResolver = (deps: {
 }
 
 /**
- * One AST enumeration. {@link contracts} is what makes an empty declaration
- * list mean "declares none" rather than "was never compiled".
+ * One AST enumeration. {@link definitions} is what makes an empty declaration
+ * list mean "declares none" rather than "was never compiled", and says which
+ * file a name was compiled from.
  */
 export interface IDeclaredImmutables {
   declarations: readonly IImmutableDeclaration[]
-  contracts: ReadonlySet<string>
+  /** Contract name → every source file defining it, `lib/` included. */
+  definitions: ReadonlyMap<string, ReadonlySet<string>>
 }
 
 export interface IForgeRebuildDeps {
@@ -861,14 +863,29 @@ export const createForgeRebuildRunner = (
     const buildRoot = join(deps.checkoutRoot, ZK_DECLARATIONS_DIR, key)
     const outPath = join(buildRoot, 'out')
 
-    // Built on every call the memo misses, never taken from disk: nothing
-    // re-checks these declarations, so an output directory this run did not
-    // just write — a partial one from a failed attempt included — is not one
-    // to believe.
+    // Emptied and rebuilt on every call the memo misses: nothing re-checks
+    // these declarations, so no artifact this build did not just write — a
+    // partial one from a failed attempt included — may be read with them.
+    rmSync(buildRoot, { recursive: true, force: true })
     pinSubmodules(checkout)
+    // The same sources the zksolc build compiles: no path argument, so the
+    // commit's own `src` setting applies to both. Naming `src` here while its
+    // profile points elsewhere would read declarations from a tree layer 1 never
+    // built; this way that tree's artifacts fall outside `src/`, where the
+    // enumeration does not look, and the contract reads as not covered.
     const result = deps.run(
       'forge',
-      ['build', 'src', '--ast', '--offline', '--out', outPath],
+      [
+        'build',
+        '--skip',
+        'test/**',
+        '--skip',
+        'script/**',
+        '--offline',
+        '--ast',
+        '--out',
+        outPath,
+      ],
       {
         cwd: checkout,
         env: {
@@ -1247,10 +1264,29 @@ export const createRecordedImmutableDeclarations = (deps: {
         `${network} resolves to ${profiles.length} build profiles, so no single rebuild says which immutables ${record.contractName} declares`
       )
     const all = deps.declarationsAt(commit, profile)
+    const files = [...(all.definitions.get(record.contractName) ?? [])]
+    const [file] = files
+    if (file === undefined) return { covered: false, declarations: [] }
+    // Layer 1 finds its artifact by contract name alone. Two definitions of
+    // that name — a stub under `src/` beside the real one in `lib/` — leave no
+    // way to tell which one it matched, and naming the stub here would grade
+    // the real contract's immutables as absent.
+    if (files.length > 1)
+      throw new Error(
+        `${record.contractName} is defined in ${
+          files.length
+        } source files at its recorded commit (${files.join(
+          ', '
+        )}), so which one layer 1 matched cannot be told`
+      )
+    if (!file.startsWith('src/'))
+      throw new Error(
+        `${record.contractName} is defined in ${file} at its recorded commit, outside the src/ tree whose declarations are read`
+      )
     return {
-      covered: all.contracts.has(record.contractName),
+      covered: true,
       declarations: all.declarations.filter(
-        (one) => one.contract === record.contractName
+        (one) => one.contract === record.contractName && one.file === file
       ),
     }
   }
