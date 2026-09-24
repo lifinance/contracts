@@ -1998,19 +1998,28 @@ function verifyContract() {
   local NETWORK=$1
   local CONTRACT=$2
 
-  if [[ -n "$DO_NOT_VERIFY_IN_THESE_NETWORKS" ]]; then
-    case ",$DO_NOT_VERIFY_IN_THESE_NETWORKS," in
-    *,"$NETWORK",*)
-      echoDebug "network $NETWORK is excluded for contract verification, therefore verification of contract $CONTRACT will be skipped"
-      return 1
-      ;;
-    esac
+  if isNetworkExcludedFromVerification "$NETWORK"; then
+    echoDebug "network $NETWORK is excluded for contract verification, therefore verification of contract $CONTRACT will be skipped"
+    return 1
   fi
 
   local EXPLORER_STATUS=0
   verifyContractOnExplorer "$@" || EXPLORER_STATUS=$?
   verifyContractOnSourcify "$@" || true
   return "$EXPLORER_STATUS"
+}
+
+# isNetworkExcludedFromVerification: Checks whether contract verification is
+# disabled for a network via the comma-separated DO_NOT_VERIFY_IN_THESE_NETWORKS.
+#
+# Usage: isNetworkExcludedFromVerification NETWORK
+#   NETWORK - Network name from networks.json
+#
+# Returns: 0 if NETWORK is listed, 1 otherwise
+# Example: isNetworkExcludedFromVerification "arbitrum"
+function isNetworkExcludedFromVerification() {
+  local NETWORK="$1"
+  [[ -n "${DO_NOT_VERIFY_IN_THESE_NETWORKS:-}" && ",$DO_NOT_VERIFY_IN_THESE_NETWORKS," == *",$NETWORK,"* ]]
 }
 
 function verifyContractOnExplorer() {
@@ -2363,6 +2372,7 @@ function getSourcifyLookupStatus() {
 #   OPTIMIZER_RUNS - Optional: optimizer runs the contract was built with
 #
 # Routing/Behavior:
+#   - Networks in DO_NOT_VERIFY_IN_THESE_NETWORKS: skipped
 #   - Testnets and zkEVM networks: skipped (the registry excludes them; Sourcify
 #     cannot verify zksolc bytecode)
 #   - Networks whose foundry.toml verifier is sourcify.dev (telos): skipped, the
@@ -2383,7 +2393,8 @@ function verifyContractOnSourcify() {
   local OPTIMIZER_RUNS_OVERRIDE="${7:-}"
   local SOURCIFY_SERVER_URL="https://sourcify.dev/server"
 
-  if isTestnetNetwork "$NETWORK" || isZkEvmNetwork "$NETWORK"; then
+  if isNetworkExcludedFromVerification "$NETWORK" ||
+    isTestnetNetwork "$NETWORK" || isZkEvmNetwork "$NETWORK"; then
     return 0
   fi
 

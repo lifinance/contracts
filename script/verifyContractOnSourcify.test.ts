@@ -153,6 +153,29 @@ describe('verifyContractOnSourcify', () => {
     }
   )
 
+  it('skips a network in DO_NOT_VERIFY_IN_THESE_NETWORKS', () => {
+    const result = run({
+      network: 'arbitrum',
+      excludedNetworks: 'bsc,arbitrum',
+      lookups: ['404'],
+    })
+
+    expect(result.status).toBe(0)
+    expect(result.forgeCalls).toHaveLength(0)
+    expect(result.curlCalls).toBe(0)
+  })
+
+  it('submits a network whose name only prefixes an excluded one', () => {
+    const result = run({
+      network: 'arbitrum',
+      excludedNetworks: 'arbitrumnova',
+      lookups: ['404', '200'],
+    })
+
+    expect(result.status).toBe(0)
+    expect(result.forgeCalls).toHaveLength(1)
+  })
+
   it('submits tempo, whose explorer is its own Sourcify instance', () => {
     const result = run({ network: 'tempo', lookups: ['404', '200'] })
 
