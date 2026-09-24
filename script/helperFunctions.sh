@@ -2438,6 +2438,7 @@ function verifyContractOnSourcify() {
     "forge" "verify-contract"
     "--verifier" "sourcify"
     "--verifier-url" "$SOURCIFY_SERVER_URL"
+    "--watch"
     "--chain-id" "$CHAIN_ID"
     "$ADDRESS"
     "$CONTRACT_FILE_PATH:$CONTRACT"
@@ -2456,25 +2457,17 @@ function verifyContractOnSourcify() {
     VERIFY_CMD+=("--num-of-optimizations" "$OPTIMIZER_RUNS_OVERRIDE")
   fi
 
+  # With --watch, forge polls the verification job and exits non-zero when the
+  # job fails or is still pending after its retries (8 x 15s, forge 1.7.1).
   echo "[info] submitting $CONTRACT on $NETWORK ($ADDRESS) to Sourcify..."
   local VERIFY_OUTPUT
-  VERIFY_OUTPUT=$("${VERIFY_CMD[@]}" 2>&1)
-  echoDebug "SOURCIFY VERIFY_OUTPUT: $VERIFY_OUTPUT"
+  if VERIFY_OUTPUT=$("${VERIFY_CMD[@]}" 2>&1); then
+    echoDebug "SOURCIFY VERIFY_OUTPUT: $VERIFY_OUTPUT"
+    echo "[info] $CONTRACT on $NETWORK with address $ADDRESS verified on Sourcify"
+    return 0
+  fi
 
-  # The lookup API decides success rather than forge's wording. forge only
-  # submits a verification job and returns, so poll while the job runs (up to
-  # 6 x 10s).
-  local ATTEMPT
-  for ATTEMPT in 1 2 3 4 5 6; do
-    STATUS=$(getSourcifyLookupStatus "$CHAIN_ID" "$ADDRESS")
-    if [[ "$STATUS" == "200" ]]; then
-      echo "[info] $CONTRACT on $NETWORK with address $ADDRESS verified on Sourcify"
-      return 0
-    fi
-    [[ "$ATTEMPT" -lt 6 ]] && sleep 10
-  done
-
-  warning "$CONTRACT on $NETWORK ($ADDRESS) is not verified on Sourcify (lookup returned HTTP $STATUS), so the ERC-7730 clear-signing sync will leave $NETWORK out of the registry descriptor until it is. Retry with: ${VERIFY_CMD[*]}"
+  warning "$CONTRACT on $NETWORK ($ADDRESS) is not verified on Sourcify, so the ERC-7730 clear-signing sync will leave $NETWORK out of the registry descriptor until it is. Retry with: ${VERIFY_CMD[*]}"
   warning "Sourcify output: $VERIFY_OUTPUT"
   return 1
 }

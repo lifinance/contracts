@@ -1,10 +1,10 @@
 /**
  * Tests for verifyContractOnSourcify (script/helperFunctions.sh): which networks
- * it skips, that forge is steered to Sourcify even when an explorer key is set,
- * and that Sourcify's lookup API (checked first, then polled while the job runs)
- * decides success. Also covers verifyContract running the Sourcify step after
- * the explorer. forge is a PATH stub; curl, sleep and the network lookups are
- * shell functions.
+ * it skips, that a lookup first skips contracts Sourcify already verifies or
+ * chains it does not support, that forge is steered to Sourcify even when an
+ * explorer key is set, and that forge's `--watch` exit code decides success.
+ * Also covers verifyContract running the Sourcify step after the explorer.
+ * forge is a PATH stub; curl and the network lookups are shell functions.
  */
 import { spawnSync } from 'child_process'
 import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
@@ -36,8 +36,9 @@ interface IRun {
 /**
  * Runs `fn` (verifyContractOnSourcify or verifyContract) with stubbed forge and
  * curl. `lookups` are the Sourcify lookup responses, one per request (the last
- * repeats), each `STATUS` or `STATUS|BODY`. For verifyContract the explorer
- * step is stubbed to return `explorerStatus`.
+ * repeats), each `STATUS` or `STATUS|BODY`. forge exits with `forgeStatus`
+ * (default 0). For verifyContract the explorer step is stubbed to return
+ * `explorerStatus`.
  */
 function run(params: {
   network: string
@@ -47,6 +48,7 @@ function run(params: {
   foundryProfile?: string
   explorerStatus?: number
   excludedNetworks?: string
+  forgeStatus?: number
 }): IRun {
   const dir = mkdtempSync(join(tmpdir(), 'sourcify-helper-'))
   const forgeLog = join(dir, 'forge.log')
@@ -62,7 +64,9 @@ function run(params: {
     forge,
     // Records only whether each key is non-empty: helperFunctions.sh sources
     // the repo .env, so the values here can be real explorer keys.
-    `#!/bin/bash\necho "key=[\${MAINNET_ETHERSCAN_API_KEY:+set}] global=[\${ETHERSCAN_API_KEY:+set}\${FOUNDRY_ETHERSCAN_API_KEY:+set}] profile=[\${FOUNDRY_PROFILE:-}] $*" >> "${forgeLog}"\n`
+    `#!/bin/bash\necho "key=[\${MAINNET_ETHERSCAN_API_KEY:+set}] global=[\${ETHERSCAN_API_KEY:+set}\${FOUNDRY_ETHERSCAN_API_KEY:+set}] profile=[\${FOUNDRY_PROFILE:-}] $*" >> "${forgeLog}"\necho "forge output"\nexit ${
+      params.forgeStatus ?? 0
+    }\n`
   )
   chmodSync(forge, 0o755)
 
@@ -91,7 +95,6 @@ function run(params: {
       return ${params.explorerStatus ?? 0}
     }
     warning() { echo "[warning] $*"; }
-    sleep() { :; }
     curl() {
       echo "$*" >> "${curlLog}"
       local N LINES ENTRY
@@ -169,7 +172,7 @@ describe('verifyContractOnSourcify', () => {
     const result = run({
       network: 'arbitrum',
       excludedNetworks: 'arbitrumnova',
-      lookups: ['404', '200'],
+      lookups: ['404'],
     })
 
     expect(result.status).toBe(0)
@@ -177,7 +180,7 @@ describe('verifyContractOnSourcify', () => {
   })
 
   it('submits tempo, whose explorer is its own Sourcify instance', () => {
-    const result = run({ network: 'tempo', lookups: ['404', '200'] })
+    const result = run({ network: 'tempo', lookups: ['404'] })
 
     expect(result.status).toBe(0)
     expect(result.forgeCalls).toHaveLength(1)
@@ -204,35 +207,34 @@ describe('verifyContractOnSourcify', () => {
     expect(result.output).toContain('Sourcify does not support somnia')
   })
 
-  it('treats a 400 without the unsupported_chain code as unverified', () => {
+  it('submits when the lookup returns a 400 without the unsupported_chain code', () => {
     const result = run({
       network: 'arbitrum',
       lookups: ['400|{"customCode":"invalid_address"}'],
     })
 
-    expect(result.status).toBe(1)
+    expect(result.status).toBe(0)
     expect(result.forgeCalls).toHaveLength(1)
-    expect(result.output).toContain('HTTP 400')
   })
 
   it('submits with every explorer key blanked and waits for the job', () => {
     const result = run({
       network: 'arbitrum',
       args: ['0x' + '00'.repeat(32)],
-      lookups: ['404', '404', '404', '200'],
+      lookups: ['404'],
     })
 
     expect(result.status).toBe(0)
     expect(result.forgeCalls).toHaveLength(1)
     const call = result.forgeCalls[0] ?? ''
     expect(call).toStartWith(
-      'key=[] global=[] profile=[] verify-contract --verifier sourcify'
+      'key=[] global=[] profile=[] verify-contract --verifier sourcify --verifier-url https://sourcify.dev/server --watch'
     )
     expect(call).toContain(
       `--chain-id 1 ${ADDRESS} src/Facets/DiamondCutFacet.sol:DiamondCutFacet`
     )
     expect(call).toContain(`--constructor-args 0x${'00'.repeat(32)}`)
-    expect(result.curlCalls).toBe(4)
+    expect(result.curlCalls).toBe(1)
     expect(result.output).toContain('verified on Sourcify')
   })
 
@@ -240,7 +242,7 @@ describe('verifyContractOnSourcify', () => {
     const result = run({
       network: 'arbitrum',
       args: ['not-hex'],
-      lookups: ['404', '200'],
+      lookups: ['404'],
     })
 
     expect(result.status).toBe(0)
@@ -253,6 +255,7 @@ describe('verifyContractOnSourcify', () => {
       args: ['', '0.8.17', 'london', '1000000'],
       foundryProfile: 'london',
       lookups: ['404'],
+      forgeStatus: 1,
     })
 
     const call = result.forgeCalls[0] ?? ''
@@ -265,14 +268,18 @@ describe('verifyContractOnSourcify', () => {
     )
   })
 
-  it('warns and returns 1 when Sourcify never verifies the contract', () => {
-    const result = run({ network: 'arbitrum', lookups: ['404'] })
+  it('warns and returns 1 when forge reports the job failed', () => {
+    const result = run({
+      network: 'arbitrum',
+      lookups: ['404'],
+      forgeStatus: 1,
+    })
 
     expect(result.status).toBe(1)
-    expect(result.curlCalls).toBe(7)
+    expect(result.curlCalls).toBe(1)
     expect(result.output).toContain('is not verified on Sourcify')
-    expect(result.output).toContain('HTTP 404')
     expect(result.output).toContain('leave arbitrum out of the registry')
+    expect(result.output).toContain('Sourcify output: forge output')
     expect(result.output).not.toContain('FOUNDRY_PROFILE=')
   })
 })
@@ -282,7 +289,7 @@ describe('verifyContract', () => {
     const result = run({
       fn: 'verifyContract',
       network: 'arbitrum',
-      lookups: ['404', '200'],
+      lookups: ['404'],
     })
 
     expect(result.status).toBe(0)
@@ -295,7 +302,7 @@ describe('verifyContract', () => {
       fn: 'verifyContract',
       network: 'arbitrum',
       explorerStatus: 1,
-      lookups: ['404', '200'],
+      lookups: ['404'],
     })
 
     expect(result.status).toBe(1)
@@ -307,6 +314,7 @@ describe('verifyContract', () => {
       fn: 'verifyContract',
       network: 'arbitrum',
       lookups: ['404'],
+      forgeStatus: 1,
     })
 
     expect(result.status).toBe(0)
