@@ -19,8 +19,7 @@
  *   bunx tsx script/deploy/resources/contractDependencyReminder.ts <ContractName> <network> <environment>
  * Prints the reminder when deployed dependents exist, otherwise prints nothing. Always exits 0.
  */
-import { realpathSync } from 'fs'
-import { fileURLToPath } from 'url'
+import { isEntrypoint } from '../../utils/is-entrypoint'
 
 import deployRequirementsJson from './deployRequirements.json'
 import { isValidNetworkName, readDeployLog } from './facetCompanionReminder'
@@ -199,17 +198,4 @@ function runCli(): void {
   if (reminder) console.log(reminder)
 }
 
-/**
- * Run the CLI only when this file is executed directly (bunx tsx ...), not when imported by tests.
- */
-function isDirectRun(): boolean {
-  const entry = process.argv[1]
-  if (!entry) return false
-  try {
-    return realpathSync(entry) === realpathSync(fileURLToPath(import.meta.url))
-  } catch {
-    return false
-  }
-}
-
-if (isDirectRun()) runCli()
+if (isEntrypoint(import.meta.url)) runCli()

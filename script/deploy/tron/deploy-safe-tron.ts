@@ -39,6 +39,7 @@ import type { TronWeb } from 'tronweb'
 import globalConfig from '../../../config/global.json'
 import networks from '../../../config/networks.json'
 import { sleep } from '../../utils/delay'
+import { isEntrypoint } from '../../utils/is-entrypoint'
 import { getEnvVar } from '../../utils/utils'
 import { isTestnetNetwork } from '../../utils/viemScriptHelpers'
 import { flagIsOn, readBooleanFlag } from '../safe/cli-flags'
@@ -771,6 +772,6 @@ const main = defineCommand({
   },
 })
 
-if (import.meta.main) runMain(main)
+if (isEntrypoint(import.meta.url)) runMain(main)
 
 export { run }

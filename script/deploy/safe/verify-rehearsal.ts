@@ -23,6 +23,7 @@ import { consola } from 'consola'
 import { MongoClient, type Collection } from 'mongodb'
 import type { Hex } from 'viem'
 
+import { isEntrypoint } from '../../utils/is-entrypoint'
 import {
   summariseGate,
   type IShadowObservation,
@@ -462,5 +463,4 @@ const main = defineCommand({
   },
 })
 
-if (process.argv[1] && process.argv[1].endsWith('verify-rehearsal.ts'))
-  void runMain(main)
+if (isEntrypoint(import.meta.url)) void runMain(main)

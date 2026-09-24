@@ -17,6 +17,8 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 import { type Collection } from 'mongodb'
 
+import { isEntrypoint } from '../../utils/is-entrypoint'
+
 import {
   deletePendingProposals,
   type IDeleteResult,
@@ -231,5 +233,4 @@ const main = defineCommand({
   },
 })
 
-if (process.argv[1] && process.argv[1].endsWith('rehearsal-teardown.ts'))
-  void runMain(main)
+if (isEntrypoint(import.meta.url)) void runMain(main)
