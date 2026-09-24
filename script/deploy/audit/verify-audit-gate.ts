@@ -62,6 +62,16 @@ const readContracts = (
   })
 }
 
+const createVersionReader =
+  (cwd: string) =>
+  (treeish: string, path: string): string | undefined => {
+    const source = createGitSourceReader(treeish, cwd).readFile(path)
+    if (source === undefined) return undefined
+
+    const read = readContractVersion(source)
+    return read.kind === 'ok' ? read.version : undefined
+  }
+
 const main = defineCommand({
   meta: {
     name: 'verify-audit-gate',
@@ -163,7 +173,10 @@ const main = defineCommand({
       log,
       contracts: readContracts(paths, cwd, args.head),
       headTreeish: args.head,
-      deps: { closureAt: createClosureReader(cwd, args.head) },
+      deps: {
+        closureAt: createClosureReader(cwd, args.head),
+        versionAt: createVersionReader(cwd),
+      },
       prTitle: args.prTitle,
     })
 

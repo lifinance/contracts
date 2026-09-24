@@ -60,6 +60,7 @@ const depsFrom = (
   table: Record<string, Hex | 'unfetchable' | 'contract-absent'>
 ): IAuditGateDeps => ({
   closureAt: (treeish, path) => asClosure(table[`${treeish}:${path}`]),
+  versionAt: () => undefined,
 })
 
 describe('contractNameFromPath', () => {
@@ -331,6 +332,7 @@ describe('runAuditGate', () => {
           calls.push(`${treeish}:${path}`)
           return asClosure(table[`${treeish}:${path}`])
         },
+        versionAt: () => undefined,
       },
     })
 
@@ -407,6 +409,156 @@ describe('runAuditGate', () => {
 
     expect(report.verdict).toBe('pass')
     expect(report.blocked).toBe(false)
+  })
+})
+
+describe('runAuditGate crediting drifted imports that carry their own audit', () => {
+  const LIB = 'src/Libraries/LibAsset.sol'
+  const LIB_VERSION = '2.1.3-tron'
+  const LIB_SHA = 'e'.repeat(40)
+  const hash = (digit: string) => `0x${digit.repeat(64)}` as Hex
+  const OWN = hash('1')
+  const OWN_CHANGED = hash('2')
+  const LIB_OLD = hash('3')
+  const LIB_NEW = hash('4')
+
+  const closure = (
+    combined: Hex,
+    files: Record<string, Hex>,
+    dependencies: Record<string, string> = {}
+  ): ClosureAtResult => ({ combined, files, dependencies })
+
+  const log = (libAuditedVersion = LIB_VERSION): IAuditLogFile =>
+    logWith(
+      { audit1: entry(), libAudit: entry({ auditCommitHash: LIB_SHA }) },
+      {
+        FooFacet: { '1.0.0': ['audit1'] },
+        LibAsset: { [libAuditedVersion]: ['libAudit'] },
+      }
+    )
+
+  const run = (
+    closures: Record<string, ClosureAtResult>,
+    versions: Record<string, string> = { [LIB]: LIB_VERSION },
+    auditLog: IAuditLogFile = log()
+  ) =>
+    runAuditGate({
+      log: auditLog,
+      contracts: [{ path: FOO, version: '1.0.0' }],
+      headTreeish: 'HEAD',
+      deps: {
+        closureAt: (treeish, path) =>
+          closures[`${treeish}:${path}`] ?? 'unfetchable',
+        versionAt: (_treeish, path) => versions[path],
+      },
+    })
+
+  const fooDriftsOnLib = {
+    [`HEAD:${FOO}`]: closure(hash('a'), { [FOO]: OWN, [LIB]: LIB_NEW }),
+    [`${AUDIT_SHA}:${FOO}`]: closure(hash('b'), { [FOO]: OWN, [LIB]: LIB_OLD }),
+  }
+  const libMatchesItsAudit = {
+    [`HEAD:${LIB}`]: closure(hash('c'), { [LIB]: LIB_NEW }),
+    [`${LIB_SHA}:${LIB}`]: closure(hash('c'), { [LIB]: LIB_NEW }),
+  }
+
+  it('passes when the only drifted import matches its own audit', () => {
+    const report = run({ ...fooDriftsOnLib, ...libMatchesItsAudit })
+    const [result] = report.results
+
+    expect(report.verdict).toBe('pass')
+    expect(result?.verdict).toBe('pass')
+    expect(result?.matchedAuditId).toBe('audit1')
+    expect(result?.driftingDependencies).toBeUndefined()
+    expect(result?.reason).toContain(
+      `LibAsset@${LIB_VERSION} (audit 'libAudit')`
+    )
+  })
+
+  it('keeps the drift when the import has no audit at its current version', () => {
+    const report = run(
+      { ...fooDriftsOnLib, ...libMatchesItsAudit },
+      { [LIB]: LIB_VERSION },
+      log('2.1.2')
+    )
+
+    expect(report.verdict).toBe('closure-drift')
+    expect(report.results[0]?.driftingDependencies).toEqual([LIB])
+  })
+
+  it("keeps the drift when the import's own source differs from its audit", () => {
+    const report = run({
+      ...fooDriftsOnLib,
+      [`HEAD:${LIB}`]: closure(hash('c'), { [LIB]: LIB_NEW }),
+      [`${LIB_SHA}:${LIB}`]: closure(hash('d'), { [LIB]: LIB_OLD }),
+    })
+
+    expect(report.verdict).toBe('closure-drift')
+    expect(report.blocked).toBe(false)
+    expect(report.results[0]?.driftingDependencies).toEqual([LIB])
+  })
+
+  it("keeps the drift when the import's version cannot be read", () => {
+    const report = run({ ...fooDriftsOnLib, ...libMatchesItsAudit }, {})
+
+    expect(report.verdict).toBe('closure-drift')
+    expect(report.results[0]?.driftingDependencies).toEqual([LIB])
+  })
+
+  it('never credits a submodule, and lists only what stays uncovered', () => {
+    const report = run({
+      [`HEAD:${FOO}`]: closure(
+        hash('a'),
+        { [FOO]: OWN, [LIB]: LIB_NEW },
+        { 'lib/solmate': 'f'.repeat(40) }
+      ),
+      [`${AUDIT_SHA}:${FOO}`]: closure(
+        hash('b'),
+        { [FOO]: OWN, [LIB]: LIB_OLD },
+        { 'lib/solmate': '0'.repeat(40) }
+      ),
+      ...libMatchesItsAudit,
+    })
+    const [result] = report.results
+
+    expect(result?.verdict).toBe('closure-drift')
+    expect(result?.driftingDependencies).toEqual(['lib/solmate'])
+    expect(result?.reason).toContain('covered by their own audits')
+    expect(result?.reason).toContain(`LibAsset@${LIB_VERSION}`)
+  })
+
+  it('terminates on an import cycle and credits neither side', () => {
+    const report = run(
+      {
+        ...fooDriftsOnLib,
+        [`HEAD:${LIB}`]: closure(hash('c'), { [LIB]: LIB_NEW, [FOO]: OWN }),
+        [`${LIB_SHA}:${LIB}`]: closure(hash('d'), {
+          [LIB]: LIB_NEW,
+          [FOO]: OWN_CHANGED,
+        }),
+      },
+      { [LIB]: LIB_VERSION, [FOO]: '1.0.0' }
+    )
+
+    expect(report.verdict).toBe('closure-drift')
+    expect(report.results[0]?.driftingDependencies).toEqual([LIB])
+  })
+
+  it('never softens a contract whose own source changed', () => {
+    const report = run({
+      [`HEAD:${FOO}`]: closure(hash('a'), {
+        [FOO]: OWN_CHANGED,
+        [LIB]: LIB_NEW,
+      }),
+      [`${AUDIT_SHA}:${FOO}`]: closure(hash('b'), {
+        [FOO]: OWN,
+        [LIB]: LIB_OLD,
+      }),
+      ...libMatchesItsAudit,
+    })
+
+    expect(report.verdict).toBe('fail')
+    expect(report.blocked).toBe(true)
   })
 })
 
