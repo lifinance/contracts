@@ -2,8 +2,8 @@
  * Validates the per-immutable registry in `immutableRegistry.json`.
  *
  * Import this from the CI gate. It separates two things the gate must not
- * conflate: an immutable nobody has documented yet is a warning, because the
- * authoring pass is still running, while a registry that asserts something false
+ * conflate: an immutable nobody has documented yet is a warning, which the CLI
+ * fails on only under `--strict`, while a registry that asserts something false
  * is an error whatever the mode.
  */
 
@@ -75,7 +75,7 @@ export type DeployRequirements = Record<string, IContractRequirements>
 export interface IRegistryValidation {
   /** The registry asserts something false. Blocks regardless of mode. */
   errors: string[]
-  /** An immutable nobody has documented yet. The authoring pass closes these. */
+  /** An immutable nobody has documented yet. Fails CI, which runs `--strict`. */
   warnings: string[]
   /** `Contract.immutable` for every entry flagged authority-bearing. */
   authorityBearing: string[]
@@ -100,8 +100,7 @@ const plainObject = (value: unknown): boolean =>
  * A section that is not an object of entries reads to the validator as a
  * contract with no entries, which is indistinguishable from one nobody has
  * authored yet. A truncated or half-edited registry would therefore report its
- * immutables as an authoring gap — warnings today, and nothing at all once
- * `--strict` makes the authored set the thing being enforced.
+ * immutables as missing documentation rather than as a broken file.
  *
  * @param registry - The parsed registry file.
  * @returns One error per malformed section or entry.

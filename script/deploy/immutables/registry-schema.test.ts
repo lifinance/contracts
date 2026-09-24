@@ -101,8 +101,7 @@ describe('validateImmutableRegistry', () => {
   })
 
   it('warns, and does not error, for an immutable with no entry', () => {
-    // The authoring gap. Warn-only until part (ii) lands, per the ordering
-    // constraint that the hard fail comes after the pass.
+    // The authoring gap: a warning here, which the CLI fails on under --strict.
     const result = validateImmutableRegistry(
       [declared('spokePool'), declared('wrappedNative')],
       {

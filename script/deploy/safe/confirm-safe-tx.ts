@@ -250,7 +250,7 @@ dotenv.config()
 // recompile the same commit dozens of times on a fleet rollout.
 let codehashDeps: ISignTimeCodehashDeps | undefined
 const getCodehashDeps = (): ISignTimeCodehashDeps => {
-  codehashDeps ??= createSignTimeCodehashDeps()
+  codehashDeps ??= createSignTimeCodehashDeps({ readPinnedBlob })
   return codehashDeps
 }
 
@@ -372,8 +372,9 @@ const acknowledgementLedger = createAcknowledgementLedger()
 const networkOutcomes: INetworkOutcome[] = []
 
 // One verified fetch and one resolved commit for the whole run, however many networks
-// it covers — and shared with the source-version read below, so the target state and the
-// contract version a proposal is graded against always come from the same commit.
+// it covers — and shared with the source-version read below and with gate K's immutable
+// expectations, so the target state, the contract version and the expected immutable
+// values a proposal is graded against all come from the same commit.
 const pinnedAnchor = createPinnedAnchor()
 const readPinnedTargetState = createPinnedTargetStateReader({
   anchor: pinnedAnchor,

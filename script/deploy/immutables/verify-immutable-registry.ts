@@ -3,8 +3,8 @@
  *
  * Run it from the repo root. It reads `src/`, the registry and the deploy
  * requirements, and reports what the registry gets wrong and what it has yet to
- * cover. Warn-only by default; `--strict` also fails on the authoring gap, which
- * is what flips on once the authoring pass is complete.
+ * cover. Warn-only by default; `--strict`, which CI passes, also fails on an
+ * immutable with no registry entry.
  */
 
 import { execFileSync } from 'child_process'
@@ -69,7 +69,7 @@ export interface IVerificationCounts {
   unenumerated: number
   /** Things the registry gets wrong. */
   errors: number
-  /** Immutables with no registry entry yet. */
+  /** Immutables with no registry entry. */
   warnings: number
 }
 
@@ -196,7 +196,7 @@ const main = (): void => {
 
   if (warnings.length > 0)
     consola.warn(
-      `${warnings.length} immutable(s) have no registry entry yet. Warn-only until the authoring pass completes; pass --strict to fail on these.`
+      `${warnings.length} immutable(s) have no registry entry. CI runs with --strict and fails on these.`
     )
   else consola.success('every immutable in src/ has a registry entry')
 }

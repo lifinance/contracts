@@ -232,6 +232,33 @@ describe('gradeAssumedImmutables', () => {
     expect(verdict.detail).toContain('unchecked')
   })
 
+  it('blocks, and names, a slot whose declaration does not resolve', () => {
+    const verdict = gradeAssumedImmutables(
+      ADDRESS,
+      'zksync',
+      read({
+        declared: 'some',
+        pricing: priced(
+          [
+            slot(),
+            slot({
+              name: 'bridge',
+              status: 'unpriceable',
+              observed: OTHER,
+              detail: 'nothing in config/ for zksync',
+            }),
+          ],
+          { unpricedByteCount: 32 }
+        ),
+        slotByName: { gasZipRouter: 0, bridge: 32 },
+      })
+    )
+
+    expect(verdict.status).toBe('unpriced')
+    expect(verdict.detail).toContain('bridge')
+    expect(verdict.detail).not.toContain('gasZipRouter')
+  })
+
   it('still offers a documented gap for acknowledgement', () => {
     const verdict = gradeAssumedImmutables(
       ADDRESS,
