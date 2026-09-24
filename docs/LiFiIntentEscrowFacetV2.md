@@ -38,7 +38,7 @@ Destination swaps require configuring `.dstCallReceiver` to an instance of `Rece
 
 ## Relative and Absolute Deadlines
 
-Starting with facet version **1.1.0**, both entrypoints resolve `fillDeadline`, `expires`, and the exclusivity deadline in a `0xe0` output context at transaction inclusion. `MAX_RELATIVE_PERIOD_SECONDS` is **31,536,000 seconds (365 days)**:
+Starting with facet version **2.0.0**, both entrypoints resolve `fillDeadline`, `expires`, and the exclusivity deadline in a `0xe0` output context at transaction inclusion. `MAX_RELATIVE_PERIOD_SECONDS` is **31,536,000 seconds (365 days)**:
 
 | Supplied value       | Resolved timestamp        |
 | -------------------- | ------------------------- |
