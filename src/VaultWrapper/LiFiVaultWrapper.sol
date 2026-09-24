@@ -185,9 +185,10 @@ contract LiFiVaultWrapper is
     /// @inheritdoc ILiFiVaultWrapper
     /// @dev Factory-only and single-shot: the bound factory deploys and initializes in one
     ///      transaction, and OpenZeppelin's `initializer` guard blocks any later call. All
-    ///      arguments are validated by the factory before this is reached. Share name/symbol
-    ///      derive from the asset symbol (e.g. "LI.FI Earn USDC" / "lfUSDC"), falling back to
-    ///      "VW" when the asset exposes none.
+    ///      arguments are validated by the factory before this is reached. The share symbol
+    ///      derives from the asset symbol and the name also names the underlying (e.g.
+    ///      "LI.FI Earn USDC via sparkUSDC" / "lfUSDC"); see `_initErc4626Metadata` for the
+    ///      fallbacks.
     function initialize(
         address _underlying,
         address _adapter,
@@ -256,17 +257,27 @@ contract LiFiVaultWrapper is
         emit VaultWrapperConfigured(asset, underlying, adapter, owner());
     }
 
-    /// @dev Derives the share name/symbol from the asset symbol (falling back to "VW") and
-    ///      runs the OZ ERC-20/ERC-4626 initializers. Split out of `initialize` to keep its
-    ///      stack frame small. Only callable while initializing (the ERC-20/4626 initializers
-    ///      carry the `onlyInitializing` guard).
+    /// @dev Derives the share name/symbol and runs the OZ ERC-20/ERC-4626 initializers. The
+    ///      symbol is `lf` + the asset symbol (falling back to "VW"). The name additionally
+    ///      carries the underlying's symbol ("LI.FI Earn USDC via sparkUSDC") so wrappers over
+    ///      the same asset but different yield sources are distinguishable in wallets; the
+    ///      suffix is dropped when the underlying exposes no readable symbol. Reads `underlying`
+    ///      from storage, so it must run after that is set. Split out of `initialize` to keep
+    ///      its stack frame small. Only callable while initializing (the ERC-20/4626
+    ///      initializers carry the `onlyInitializing` guard).
     function _initErc4626Metadata(address _asset) private {
         string memory assetSymbol = _asset.readSymbol();
         if (bytes(assetSymbol).length == 0) assetSymbol = "VW";
-        __ERC20_init(
-            string.concat("LI.FI Earn ", assetSymbol),
-            string.concat("lf", assetSymbol)
-        );
+
+        string memory shareName = string.concat("LI.FI Earn ", assetSymbol);
+        // Embedding a third-party string is acceptable because the underlying had to pass
+        // the governance-owned `allowedUnderlying` allowlist in the factory.
+        string memory underlyingSymbol = underlying.readSymbol();
+        if (bytes(underlyingSymbol).length != 0) {
+            shareName = string.concat(shareName, " via ", underlyingSymbol);
+        }
+
+        __ERC20_init(shareName, string.concat("lf", assetSymbol));
         __ERC4626_init(IERC20(_asset));
     }
 

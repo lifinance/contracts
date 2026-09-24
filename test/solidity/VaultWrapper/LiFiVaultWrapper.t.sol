@@ -16,6 +16,7 @@ import { ERC4626Adapter } from "lifi/VaultWrapper/adapters/ERC4626Adapter.sol";
 import { FeeConfig } from "lifi/VaultWrapper/LiFiVaultWrapperTypes.sol";
 import { defaultReceivers } from "test/solidity/VaultWrapper/VaultWrapperTestHelpers.sol";
 import { MockZeroAdapter } from "test/solidity/VaultWrapper/mocks/MockZeroAdapter.sol";
+import { MockERC4626Underlying } from "test/solidity/VaultWrapper/mocks/MockERC4626Underlying.sol";
 
 /// @notice ERC-4626 underlying that can be armed to revert or re-enter the wrapper on
 ///         deposit, used to test delegatecall revert bubbling and the reentrancy guard.
@@ -174,7 +175,7 @@ contract LiFiVaultWrapperTest is Test {
         // 18-decimal asset: derived offset 0 is floored at the 6 minimum, so shares
         // are 24 decimals (see MIN_DECIMALS_OFFSET).
         assertEq(wrapper.decimals(), 24);
-        assertEq(wrapper.name(), "LI.FI Earn TKN");
+        assertEq(wrapper.name(), "LI.FI Earn TKN via yTKN");
         assertEq(wrapper.symbol(), "lfTKN");
     }
 
@@ -328,7 +329,7 @@ contract LiFiVaultWrapperTest is Test {
     }
 
     function test_NameAndSymbolDeriveFromAssetSymbol() public view {
-        assertEq(wrapper.name(), "LI.FI Earn TKN");
+        assertEq(wrapper.name(), "LI.FI Earn TKN via yTKN");
         assertEq(wrapper.symbol(), "lfTKN");
     }
 
@@ -339,26 +340,43 @@ contract LiFiVaultWrapperTest is Test {
             "Yield",
             "yNS"
         );
-        FeeConfig memory fees;
-        bytes memory initCall = abi.encodeCall(
-            LiFiVaultWrapper.initialize,
-            (
-                address(noSymbolUnderlying),
-                address(adapter),
-                vaultAdmin,
-                _splits8000(),
-                fees,
-                defaultReceivers(),
-                address(0)
-            )
-        );
 
-        LiFiVaultWrapper w = LiFiVaultWrapper(
-            address(new BeaconProxy(address(beacon), initCall))
-        );
+        LiFiVaultWrapper w = _deployWrapperOver(address(noSymbolUnderlying));
 
-        assertEq(w.name(), "LI.FI Earn VW");
+        assertEq(w.name(), "LI.FI Earn VW via yNS");
         assertEq(w.symbol(), "lfVW");
+    }
+
+    function test_NameDistinguishesYieldSourcesOverSameAsset() public {
+        MockERC4626 sparkVault = new MockERC4626(asset, "Spark", "sparkTKN");
+        MockERC4626 fluidVault = new MockERC4626(asset, "Fluid", "fTKN");
+
+        LiFiVaultWrapper viaSpark = _deployWrapperOver(address(sparkVault));
+        LiFiVaultWrapper viaFluid = _deployWrapperOver(address(fluidVault));
+
+        assertEq(viaSpark.name(), "LI.FI Earn TKN via sparkTKN");
+        assertEq(viaFluid.name(), "LI.FI Earn TKN via fTKN");
+        assertEq(viaSpark.symbol(), "lfTKN");
+        assertEq(viaFluid.symbol(), "lfTKN");
+    }
+
+    function test_NameOmitsYieldSourceWhenUnderlyingHasNoSymbol() public {
+        MockERC4626 emptySymbolVault = new MockERC4626(asset, "Empty", "");
+        MockERC4626Underlying noSymbolFnVault = new MockERC4626Underlying(
+            address(asset)
+        );
+
+        LiFiVaultWrapper emptySymbol = _deployWrapperOver(
+            address(emptySymbolVault)
+        );
+        LiFiVaultWrapper noSymbolFn = _deployWrapperOver(
+            address(noSymbolFnVault)
+        );
+
+        assertEq(emptySymbol.name(), "LI.FI Earn TKN");
+        assertEq(emptySymbol.symbol(), "lfTKN");
+        assertEq(noSymbolFn.name(), "LI.FI Earn TKN");
+        assertEq(noSymbolFn.symbol(), "lfTKN");
     }
 
     /// Deposit / pass-through ///
@@ -630,6 +648,29 @@ contract LiFiVaultWrapperTest is Test {
 
     function _splits8000() internal pure returns (uint16[4] memory) {
         return [uint16(8000), 8000, 8000, 8000];
+    }
+
+    function _deployWrapperOver(
+        address _underlying
+    ) internal returns (LiFiVaultWrapper) {
+        FeeConfig memory fees;
+        bytes memory initCall = abi.encodeCall(
+            LiFiVaultWrapper.initialize,
+            (
+                _underlying,
+                address(adapter),
+                vaultAdmin,
+                _splits8000(),
+                fees,
+                defaultReceivers(),
+                address(0)
+            )
+        );
+
+        return
+            LiFiVaultWrapper(
+                address(new BeaconProxy(address(beacon), initCall))
+            );
     }
 
     function _newWrapper(
