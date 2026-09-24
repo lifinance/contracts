@@ -28,12 +28,13 @@ import {
 import { keccak256, type Chain, type Hex } from 'viem'
 
 import type { ImmutableReferences } from '../codehash/immutable-offsets'
-import type { IBuildProfile } from '../codehash/lineage-scope'
+import type { IBuildProfile, IToolchainScope } from '../codehash/lineage-scope'
 import { normalizeRuntimeCode } from '../codehash/rebuild-attestations'
 import {
   readImmutableDeclarations,
   type IImmutableDeclaration,
 } from '../immutables/immutable-ast'
+import type { DeployRequirements } from '../immutables/registry-schema'
 
 import {
   buildRecordQuery,
@@ -41,17 +42,19 @@ import {
   createImmutableSimulatorReader,
   createLocalImmutableDeclarations,
   createOffCodeImmutablesReader,
+  createImmutablePricer,
   createImmutableReferencesResolver,
   createDeployedCodeReader,
   createRecordReader,
   createRuntimeCodeObserver,
   createToolchainScopeResolver,
   createArtifactCache,
+  createPinnedImmutableExpectations,
   defaultCheckoutRoot,
-  loadImmutableExpectations,
   readToolchainConfig,
   resolveDeploymentRecord,
 } from './codehash-sign-gate-deps'
+import type { PinnedJsonRead } from './pinned-target-state'
 
 /** Real tail of `out/AccessManagerFacet.sol/AccessManagerFacet.json`: 51-byte CBOR trailer plus its length word. */
 const REAL_TRAILER =
@@ -1348,20 +1351,104 @@ describe('createForgeRebuildRunner', () => {
   })
 })
 
-describe('loadImmutableExpectations', () => {
-  it('reads the expectation files from the repo regardless of cwd', () => {
-    const originalCwd = process.cwd()
-    const elsewhere = mkdtempSync(join(tmpdir(), 'expectations-cwd-'))
-    let requirements
-    try {
-      process.chdir(elsewhere)
-      requirements = loadImmutableExpectations()
-    } finally {
-      process.chdir(originalCwd)
-      rmSync(elsewhere, { recursive: true, force: true })
-    }
+describe('createPinnedImmutableExpectations', () => {
+  const REQUIREMENTS = 'script/deploy/resources/deployRequirements.json'
+  const REGISTRY = 'script/deploy/resources/immutableRegistry.json'
 
-    expect(Object.keys(requirements).length).toBeGreaterThan(0)
+  const pinned = (blobs: Record<string, PinnedJsonRead>) => {
+    const asked: string[] = []
+    const source = createPinnedImmutableExpectations((repoPath) => {
+      asked.push(repoPath)
+      return blobs[repoPath] ?? { ok: false, reason: 'blob-unreadable' }
+    })
+    return { source, asked }
+  }
+
+  it('joins the registry and the requirements as the pinned commit has them', () => {
+    const { source, asked } = pinned({
+      [REQUIREMENTS]: {
+        ok: true,
+        value: {
+          OnlyOnMainFacet: {
+            configData: {
+              _bridge: { configFileName: 'x.json', keyInConfigFile: '.a' },
+            },
+          },
+        },
+      },
+      [REGISTRY]: {
+        ok: true,
+        value: {
+          OnlyOnMainFacet: {
+            BRIDGE: { source: 'config', configData: '_bridge' },
+          },
+        },
+      },
+    })
+
+    const requirements = source.loadRequirements()
+
+    expect(asked).toEqual([REQUIREMENTS, REGISTRY])
+    expect(requirements.OnlyOnMainFacet?.immutables?.BRIDGE).toEqual({
+      source: 'config',
+      configData: '_bridge',
+    })
+    // The checkout's own registry declares GasZipFacet; the pinned one here
+    // does not, so finding it would mean the working tree was read.
+    expect(
+      readFileSync(join(import.meta.dir, '..', '..', '..', REGISTRY), 'utf8')
+    ).toContain('"GasZipFacet"')
+    expect(requirements.GasZipFacet).toBeUndefined()
+  })
+
+  it('throws when an expectation file cannot be read at the pinned commit', () => {
+    const { source } = pinned({
+      [REQUIREMENTS]: { ok: true, value: {} },
+      [REGISTRY]: { ok: false, reason: 'fetch-failed' },
+    })
+
+    expect(() => source.loadRequirements()).toThrow(
+      `${REGISTRY} could not be read at origin/main (fetch-failed)`
+    )
+  })
+
+  it('reads a config file from config/ at the pinned commit', () => {
+    const { source, asked } = pinned({
+      'config/centrifuge.json': {
+        ok: true,
+        value: { tokenBridge: { mainnet: '0xpinned' } },
+      },
+    })
+
+    expect(source.loadConfigFile('centrifuge.json')).toEqual({
+      tokenBridge: { mainnet: '0xpinned' },
+    })
+    expect(asked).toEqual(['config/centrifuge.json'])
+  })
+
+  it('answers "expected value unknown" for a config file main does not carry', () => {
+    const { source } = pinned({})
+
+    expect(source.loadConfigFile('absent.json')).toBeNull()
+  })
+
+  it('never asks for a config name that is not a plain basename', () => {
+    const { source, asked } = pinned({})
+
+    expect(source.loadConfigFile('../foundry.json')).toBeNull()
+    expect(asked).toEqual([])
+  })
+
+  it('throws rather than answering "unknown" when the anchor itself failed', () => {
+    // A null here would grade as unpriceable with a reason blaming the config
+    // file, when nothing about the file was learned.
+    const { source } = pinned({
+      'config/centrifuge.json': { ok: false, reason: 'remote-unexpected' },
+    })
+
+    expect(() => source.loadConfigFile('centrifuge.json')).toThrow(
+      'config/centrifuge.json could not be read at origin/main (remote-unexpected)'
+    )
   })
 })
 describe('createImmutableReferencesResolver', () => {
@@ -1679,6 +1766,73 @@ describe('createDeployedCodeReader', () => {
  * values were not established", which is a different row from "they disagree" —
  * so nothing here may collapse into a pricing that decided.
  */
+describe('createImmutablePricer', () => {
+  const BRIDGE = `${'22'.repeat(20)}`
+  const RUNTIME = `0x${'5b'.repeat(32)}${'00'.repeat(12)}${BRIDGE}`
+
+  const requirements: DeployRequirements = {
+    CentrifugeFacet: {
+      configData: {
+        _tokenBridge: {
+          configFileName: 'centrifuge.json',
+          keyInConfigFile: '.tokenBridge.<NETWORK>',
+        },
+      },
+      immutables: {
+        TOKEN_BRIDGE: { source: 'config', configData: '_tokenBridge' },
+      },
+    },
+  }
+
+  const price = (configured: string) =>
+    createImmutablePricer({
+      readRecord: async () => ({
+        contractName: 'CentrifugeFacet',
+        version: '1.0.0',
+        gitCommitHash: 'a'.repeat(40),
+      }),
+      scopeFor: () =>
+        ({
+          isClosedSet: true,
+          holdsImmutablesOffCode: false,
+          profiles: [
+            { profile: 'default', solcVersion: '0.8.29', evmVersion: 'cancun' },
+          ],
+        } as unknown as IToolchainScope),
+      build: () => ({
+        runtimeHex: RUNTIME,
+        immutableReferences: { '7': [{ start: 32, length: 32 }] },
+        immutableDeclarations: [
+          {
+            file: 'src/Facets/CentrifugeFacet.sol',
+            contract: 'CentrifugeFacet',
+            line: 33,
+            astId: 7,
+            type: 'address',
+            name: 'TOKEN_BRIDGE',
+          },
+        ],
+      }),
+      loadRequirements: () => requirements,
+      loadConfigFile: (fileName) =>
+        fileName === 'centrifuge.json'
+          ? { tokenBridge: { mainnet: configured } }
+          : null,
+    })(ADDRESS, 'mainnet', RUNTIME)
+
+  it('prices against the config the expectation source supplies', async () => {
+    // config/centrifuge.json on disk names a different mainnet bridge, so both
+    // verdicts below can only come from the injected loader.
+    const agrees = await price(`0x${BRIDGE}`)
+    const differs = await price(`0x${'33'.repeat(20)}`)
+
+    if (agrees.decided) expect(agrees.slots[0]?.status).toBe('verified')
+    else throw new Error(`expected a decided pricing: ${agrees.reason}`)
+    if (differs.decided) expect(differs.slots[0]?.status).toBe('disagrees')
+    else throw new Error(`expected a decided pricing: ${differs.reason}`)
+  })
+})
+
 describe('createOffCodeImmutablesReader', () => {
   const ADDRESS = '0x1111111111111111111111111111111111111111'
   const WORD = `0x${'00'.repeat(12)}${'22'.repeat(20)}`
@@ -1700,6 +1854,8 @@ describe('createOffCodeImmutablesReader', () => {
       address: string,
       index: number
     ) => Promise<string>
+    loadRequirements?: () => DeployRequirements
+    loadConfigFile?: (fileName: string) => unknown
   }) =>
     createOffCodeImmutablesReader({
       readRecord: async () =>
@@ -1713,7 +1869,8 @@ describe('createOffCodeImmutablesReader', () => {
         declarations: over.declarations ?? [declaration('router', 22)],
       }),
       getImmutable: over.getImmutable ?? (async () => WORD),
-      loadRequirements: () => ({}),
+      loadRequirements: over.loadRequirements ?? (() => ({})),
+      loadConfigFile: over.loadConfigFile ?? (() => null),
     })
 
   it('reports a contract declaring no immutables as nothing to grade', async () => {
@@ -1772,6 +1929,7 @@ describe('createOffCodeImmutablesReader', () => {
       }),
       getImmutable: async () => WORD,
       loadRequirements: () => ({}),
+      loadConfigFile: () => null,
     })(ADDRESS, 'zksync')
 
     expect(read).toMatchObject({ declared: 'some' })
@@ -1790,6 +1948,38 @@ describe('createOffCodeImmutablesReader', () => {
     if (read.declared === 'some' && !read.pricing.decided)
       expect(read.pricing.reason).toContain('unreachable')
     else throw new Error('expected a refusal')
+  })
+
+  it('prices against the config the expectation source supplies', async () => {
+    const requirements: DeployRequirements = {
+      GasZipFacet: {
+        configData: {
+          _router: {
+            configFileName: 'fixture.json',
+            keyInConfigFile: '.routers.<NETWORK>',
+          },
+        },
+        immutables: { router: { source: 'config', configData: '_router' } },
+      },
+    }
+    const priced = (configured: string) =>
+      reader({
+        loadRequirements: () => requirements,
+        loadConfigFile: (fileName) =>
+          fileName === 'fixture.json'
+            ? { routers: { zksync: configured } }
+            : null,
+      })(ADDRESS, 'zksync')
+
+    const agrees = await priced(`0x${'22'.repeat(20)}`)
+    const differs = await priced(`0x${'33'.repeat(20)}`)
+
+    if (agrees.declared === 'some' && agrees.pricing.decided)
+      expect(agrees.pricing.slots[0]?.status).toBe('verified')
+    else throw new Error('expected a decided pricing')
+    if (differs.declared === 'some' && differs.pricing.decided)
+      expect(differs.pricing.slots[0]?.status).toBe('disagrees')
+    else throw new Error('expected a decided pricing')
   })
 
   it('refuses when declaration order does not determine a numbering', async () => {
