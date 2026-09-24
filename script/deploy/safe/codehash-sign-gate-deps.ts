@@ -1583,8 +1583,9 @@ export interface IImmutableExpectationSource {
  * and nobody has reviewed yet.
  *
  * A file that could not be read at all throws, which the gate reports as the
- * immutables not having been checked. A config file `main` does not carry
- * reads as `null`, the loader's existing "expected value unknown".
+ * immutables not having been checked. A config file `main` does not carry, or
+ * carries as something other than a JSON object, reads as `null`: the loader's
+ * existing "expected value unknown".
  *
  * @param readPinnedBlob - Reader for JSON blobs at the pinned commit.
  * @returns The `loadRequirements` and `loadConfigFile` layer 2 prices through
