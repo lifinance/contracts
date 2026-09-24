@@ -7,6 +7,7 @@ import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol"
 import { LibSwap } from "lifi/Libraries/LibSwap.sol";
 import { M0Facet } from "lifi/Facets/M0Facet.sol";
 import { IM0OrderBook } from "lifi/Interfaces/IM0OrderBook.sol";
+import { LibBytes } from "lifi/Libraries/LibBytes.sol";
 // solhint-disable-next-line max-line-length
 import { CumulativeSlippageTooHigh, InformationMismatch, InvalidAmount, InvalidCallData, InvalidConfig, InvalidNonEVMReceiver, InvalidReceiver, NativeAssetNotSupported } from "lifi/Errors/GenericErrors.sol";
 import { SafeCastLib } from "solady/utils/SafeCastLib.sol";
@@ -73,6 +74,10 @@ contract M0FacetTest is TestBaseFacet {
     /// @dev A 32-byte Solana account, used as the non-EVM receiver.
     bytes32 internal constant SOLANA_RECEIVER =
         0xc6fa7af3bedbad3a3d65f36aabc97431b1bbe4c2d2f6e0e47ca60203452f5d61;
+    /// @dev A 32-byte SPL mint. Uses the full width, so it is only valid for a non-EVM
+    ///      destination — on an EVM one the facet rejects it as not an address.
+    bytes32 internal constant SOLANA_TOKEN_OUT =
+        0x9f1b3a0d7c25e48af6b1d0c39e7a2b5148d6c03f21aeb97d4e5c8f60a3b7d219;
 
     uint128 internal constant DEFAULT_AMOUNT_OUT = 99 * 1e6;
 
@@ -708,6 +713,74 @@ contract M0FacetTest is TestBaseFacet {
 
         initiateSwapAndBridgeTxWithFacet(false);
         vm.stopPrank();
+    }
+
+    /// @dev On an EVM destination the OrderBook narrows tokenOut with
+    ///      TypeConverter.toAddress when a solver fills. A value with non-zero high bytes
+    ///      opens and escrows fine, then reverts every fill, stranding the deposit until
+    ///      fillDeadline — so the facet rejects it up front.
+    function testRevert_WhenEVMTokenOutIsNotAnAddress() public {
+        vm.startPrank(USER_SENDER);
+
+        validM0Data.tokenOut = SOLANA_TOKEN_OUT;
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                LibBytes.NotAnAddress.selector,
+                SOLANA_TOKEN_OUT
+            )
+        );
+
+        initiateBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    function testRevert_WhenEVMTokenOutIsNotAnAddressOnSwapPath() public {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.hasSourceSwaps = true;
+        validM0Data.tokenOut = SOLANA_TOKEN_OUT;
+        setDefaultSwapDataSingleDAItoUSDC();
+
+        dai.approve(_facetTestContractAddress, swapData[0].fromAmount);
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                LibBytes.NotAnAddress.selector,
+                SOLANA_TOKEN_OUT
+            )
+        );
+
+        initiateSwapAndBridgeTxWithFacet(false);
+        vm.stopPrank();
+    }
+
+    /// @dev The guard above must not reach non-EVM destinations: an SPL mint legitimately
+    ///      uses all 32 bytes.
+    function test_CanOpenOrderToSolanaWithFullWidthTokenOut() public {
+        vm.startPrank(USER_SENDER);
+
+        bridgeData.receiver = NON_EVM_ADDRESS;
+        bridgeData.destinationChainId = LIFI_CHAIN_ID_SOLANA;
+        validM0Data.receiverAddress = SOLANA_RECEIVER;
+        validM0Data.tokenOut = SOLANA_TOKEN_OUT;
+
+        usdc.approve(_facetTestContractAddress, bridgeData.minAmount);
+
+        vm.recordLogs();
+
+        initiateBridgeTxWithFacet(false);
+
+        vm.stopPrank();
+
+        OpenedOrder memory opened = _lastOpenedOrder();
+        assertEq(opened.tokenOut, SOLANA_TOKEN_OUT);
+
+        IM0OrderBookState.Order memory order = IM0OrderBookState(
+            address(ORDER_BOOK)
+        ).getOrder(opened.orderId);
+        assertEq(order.tokenOut, SOLANA_TOKEN_OUT);
     }
 
     function testRevert_WhenReceiverAddressDoesNotMatchBridgeData() public {

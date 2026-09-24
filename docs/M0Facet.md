@@ -121,6 +121,7 @@ every protocol rule:
 | EVM: `receiverAddress == bridgeData.receiver` → `InformationMismatch` | `isDestinationSupported(destChainId)` |
 | Non-EVM: `receiverAddress != bytes32(0)` → `InvalidNonEVMReceiver` | Same-token orders |
 | Receiver format is bound to the destination → `InvalidReceiver`: a Solana destination **must** use the `NON_EVM_ADDRESS` sentinel, and the sentinel is rejected for every other destination (including the other non-EVM chain ids the facet cannot translate, such as Tron) | — |
+| EVM: `tokenOut` is a left-padded address → `NotAnAddress`. The OrderBook narrows `tokenOut` with `TypeConverter.toAddress` only when a solver fills, so a value with non-zero high bytes opens and escrows here and then reverts every fill, stranding the deposit until `fillDeadline`. Non-EVM destinations are exempt — an SPL mint uses all 32 bytes | — |
 | Swap path: last swap's `receivingAssetId == bridgeData.sendingAssetId` → `InformationMismatch` | Pause state |
 | `bridgeData.receiver != address(0)` and `minAmount != 0` (custom `validateBridgeDataM0` modifier) | Solver allowlisting and settlement |
 
