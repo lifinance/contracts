@@ -2590,10 +2590,15 @@ contract LiFiDexAggregatorXSwapV3Test is LiFiDexAggregatorTest {
 
     function setUp() public override {
         customRpcUrlForForking = "ETH_NODE_URI_XDC";
-        customBlockNumberForForking = 89279495;
         fork();
 
         _initializeDexAggregator(USER_DIAMOND_OWNER);
+    }
+
+    // Forks at the latest block: the XDC RPCs CI uses keep only ~850 blocks of state, so any
+    // pinned block stops resolving within the hour.
+    function fork() internal override {
+        vm.createSelectFork(vm.envString(customRpcUrlForForking));
     }
 
     function test_CanSwap() public override {
@@ -2888,13 +2893,18 @@ contract LiFiDexAggregatorEnosysDexV3Test is LiFiDexAggregatorTest {
     address internal constant ENOSYS_V3_POOL =
         0xA7C9E7343bD8f1eb7000F25dE5aeb52c6B78B1b7;
 
-    /// @notice Set up a fork of Flare at block 42652369 and initialize the aggregator
+    /// @notice Set up a fork of Flare at the latest block and initialize the aggregator
     function setUp() public override {
         customRpcUrlForForking = "ETH_NODE_URI_FLARE";
-        customBlockNumberForForking = 42652369;
         fork();
 
         _initializeDexAggregator(USER_DIAMOND_OWNER);
+    }
+
+    // Forks at the latest block: the Flare RPCs CI uses keep under ~50 blocks of state, so any
+    // pinned block stops resolving within minutes.
+    function fork() internal override {
+        vm.createSelectFork(vm.envString(customRpcUrlForForking));
     }
 
     /// @notice Single‐pool swap: USER sends HLN → receives USDT0
