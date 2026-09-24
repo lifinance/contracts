@@ -211,10 +211,10 @@ The registry stores these prettier-formatted at `printWidth: 120`. Prettier keep
 
 Optional sanity checks before opening a PR that touches templates:
 
-1. `pip install erc7730 && erc7730 lint <patched-descriptor>` — schema validation against `specs/erc7730-v2.schema.json` (splice the proposal into a working copy of the registry file first).
+1. Install the `erc7730` the sync workflow pins (`ERC7730_REQUIREMENT` in `syncLedgerClearSigning.yml`; PyPI's `erc7730` lacks `--require-verified`) and run `erc7730 lint --require-verified <patched-descriptor>` — schema validation against `specs/erc7730-v2.schema.json` plus the registry's Sourcify check (splice the proposal into a working copy of the registry file first).
 2. Paste 3-5 real LIFIDiamond calldata samples (one per template class, from [Etherscan](https://etherscan.io/address/0x1231DEB6f5749EF6cE6943a275A1D3E7486F4EaE)) into the [Sourcify playground](https://clear-signing.sourcify.dev/) — visual check of the rendered sentence.
 
-The sync bot does not run these checks itself; they are tools for the dev editing templates locally before pushing.
+The sync bot runs the lint (step 1) before every push, but not the playground check; both are tools for the dev editing templates locally before pushing.
 
 ## Pipeline integration
 

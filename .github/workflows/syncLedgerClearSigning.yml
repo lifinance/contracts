@@ -49,18 +49,21 @@ jobs:
       # they never force-push sync/lifi-clear-signing or update the upstream PR
       # concurrently — a second concurrent run would break the
       # `--force-with-lease` push or send a duplicate Slack ping.
-      # cancel-in-progress lets a newer production run supersede an in-flight
-      # one; force-push is atomic, so whichever wins leaves a consistent branch
-      # + PR. Manual workflow_dispatch keeps its own group so a dry_run can
-      # neither cancel nor be cancelled by a production sync (and repeated
-      # dispatches still cancel each other).
+      # A production run is never cancelled: it takes up to ~50 minutes per
+      # Sourcify sweep, and deploy-log merges land closer together than that on
+      # a busy day, so cancelling would keep any run from reaching the push.
+      # Instead a newer run waits, and GitHub keeps only the newest pending one,
+      # which reads main at its own commit. Manual workflow_dispatch keeps its
+      # own group so a dry_run can neither cancel nor be cancelled by a
+      # production sync, and repeated dispatches still cancel each other.
       group: sync-ledger-clear-signing-${{ github.event_name == 'workflow_dispatch' && 'dispatch' || 'production' }}
-      cancel-in-progress: true
+      cancel-in-progress: ${{ github.event_name == 'workflow_dispatch' }}
     if: github.repository == 'lifinance/contracts' # upstream-only, see header
     runs-on: ubuntu-latest
-    # Sourcify lookups are anonymous and rate-limited; a full sweep waits out
-    # repeated rate-limit blocks and has taken up to ~50 minutes.
-    timeout-minutes: 60
+    # Sourcify lookups are anonymous and rate-limited. The generator's sweep
+    # waits out repeated rate-limit blocks and has taken up to ~50 minutes, and
+    # `erc7730 lint --require-verified` then repeats the lookups on its own.
+    timeout-minutes: 120
     steps:
       - name: Checkout repository
         # No submodules: the sync reads only `deployments/`, `config/` and the
@@ -87,20 +90,19 @@ jobs:
           python-version: '3.12'
 
       - name: Install ERC-7730 CLI (registry's pinned version)
-        # Installs exactly what the registry's own CI installs: its
-        # `.github/requirements.txt` pins a Sourcify fork of erc7730 by commit,
-        # and PyPI's `erc7730` lacks `lint --require-verified`. `erc7730 format`
-        # makes our output match the registry's canonical shape, and
-        # `erc7730 lint --require-verified` is the check the registry runs, so
-        # both have to be the registry's version or they drift from its CI.
-        # Separate from the sync step so no secret is in the environment while
-        # third-party code installs.
-        run: |
-          set -euo pipefail
-          curl -fsSL -o /tmp/erc7730-requirements.txt \
-            https://raw.githubusercontent.com/ethereum/clear-signing-erc7730-registry/HEAD/.github/requirements.txt
-          cat /tmp/erc7730-requirements.txt
-          pip install -r /tmp/erc7730-requirements.txt
+        # The registry's CI installs erc7730 from `.github/requirements.txt`,
+        # which pins a Sourcify fork by commit (PyPI's `erc7730` lacks
+        # `lint --require-verified`). `erc7730 format` makes our output match the
+        # registry's canonical shape and `erc7730 lint --require-verified` is the
+        # check the registry runs, so both must be that version. The commit is
+        # pinned here rather than read from the registry at run time: this code
+        # later runs in the sync step next to LEDGER_SYNC_TOKEN and the fork
+        # checkout's credentials, so only reviewed code may reach it. When the
+        # registry bumps its pin, bump this one to match. Its dependencies are
+        # resolved unpinned, as in the registry's CI.
+        env:
+          ERC7730_REQUIREMENT: 'erc7730 @ git+https://github.com/sourcifyeth/python-erc7730@e823abc2f69b87db902464b8d204912831e8969e'
+        run: pip install "${ERC7730_REQUIREMENT}"
 
       - name: Checkout fork (clear-signing-erc7730-registry) with sync token
         # Use `actions/checkout` rather than a manual `git clone` token-in-URL.
@@ -278,11 +280,13 @@ jobs:
               echo -e "\033[33mWarning: unable to update PR title (insufficient permissions). Continuing.\033[0m"
             fi
           else
+            # shellcheck disable=SC2016 # backticks are literal Markdown in the PR body
             PR_BODY="$(printf '%s\n' \
               '## Summary' \
               '- Auto-sync `registry/lifi/calldata-LIFIDiamond.json` from the LI.FI contracts repo (https://github.com/lifinance/contracts).' \
               '- Strips the deprecated `context.contract.abi`, updates `context.contract.deployments`, and merges `display.formats` from the LI.FI source-of-truth proposal (`config/clearSigningProposal.json`).' \
-              '- Merge policy: selectors LI.FI owns are replaced from the proposal; registry-only entries (e.g. EF working-group additions for non-LI.FI selectors) are preserved; entries for selectors no longer in the LI.FI diamond are also preserved (older deployments may still expose them).' \
+              '- Deployments: active mainnet LI.FI diamonds, excluding zkEVM chains, and only where Sourcify verifies the diamond and every facet (`erc7730 lint --require-verified`). A chain that fails this is left out until its contracts are verified.' \
+              '- Merge policy: selectors LI.FI owns are replaced from the proposal; registry-only entries (e.g. EF working-group additions for non-LI.FI selectors) are preserved; entries for selectors no longer in the LI.FI diamond are also preserved (older deployments may still expose them), except entries for retired LI.FI functions (currently `swapTokensGeneric`) and title-only `*Packed` / `*Min` entries, which fail lint.' \
               '- `metadata.*` and other `display.*` keys (e.g. `definitions`, `screens`) are preserved verbatim.' \
               '' \
               '## Notes' \
