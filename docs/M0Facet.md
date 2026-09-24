@@ -11,11 +11,11 @@ destination leg happens inside the LI.FI transaction.
 Because an order is escrow plus a limit price, the same mechanism covers three route
 shapes with one entrypoint pair:
 
-| Route | `bridgeData.destinationChainId` | Settled by |
-| --- | --- | --- |
-| Cross-chain EVM → EVM | destination chain id | Solver on the destination chain |
-| Cross-chain EVM → Solana | `LIFI_CHAIN_ID_SOLANA`, translated to `1399811149` | Solver on Solana |
-| Same-chain | the source chain id | Solver on the source chain |
+| Route                    | `bridgeData.destinationChainId`                    | Settled by                      |
+| ------------------------ | -------------------------------------------------- | ------------------------------- |
+| Cross-chain EVM → EVM    | destination chain id                               | Solver on the destination chain |
+| Cross-chain EVM → Solana | `LIFI_CHAIN_ID_SOLANA`, translated to `1399811149` | Solver on Solana                |
+| Same-chain               | the source chain id                                | Solver on the source chain      |
 
 ```mermaid
 graph LR;
@@ -73,19 +73,19 @@ Everything up to and including `openOrder` is one atomic transaction, so every r
 that window leaves the caller with their funds and no residual state — including the max
 allowance from step 2, which is rolled back with the rest of the transaction.
 
-| Failure | Where the value ends up |
-| --- | --- |
-| Facet validation (`InvalidCallData`, `InformationMismatch`, `InvalidNonEVMReceiver`, `InvalidReceiver`, `InvalidAmount`) | Revert before any transfer — caller keeps everything |
-| `depositAsset` (missing balance or allowance) | Revert — caller keeps everything |
-| Swap fails, or its output is below `bridgeData.minAmount` | `_depositAndSwap` reverts — caller keeps everything |
-| Scaled `amountOut` rounds to `0` (`InvalidAmount`) | Revert, swap rolled back — caller keeps everything |
-| `destinationChainId` does not fit in `uint32` — the large LI.FI non-EVM ids (Aptos, Sui, Tron, …); `LIFI_CHAIN_ID_SOLANA` is translated first and `LIFI_CHAIN_ID_HYPERCORE` (1337) already fits, so neither reverts here. Reachable only with a plain EVM `bridgeData.receiver`, since the sentinel is rejected for these chains first | Revert with solady's `Overflow()`, not a LI.FI error — caller keeps everything |
-| `bridgeData.minAmount` does not fit in `uint128` (`SafeCastLib.toUint128` on `amountIn`) | Revert with solady's `Overflow()` — caller keeps everything, swap rolled back on the swap path |
-| Scaled `amountOut` does not fit in `uint128` (`SafeCastLib.toUint128`) | Revert with solady's `Overflow()` — caller keeps everything, swap rolled back |
-| `openOrder` reverts (paused, unsupported destination, zero amount, deadline in the past, `solver == recipient`, same-token order) | Revert — caller keeps everything, escrow never funded |
-| `refundRecipient` rejects native on the swap path | `refundExcessNative` reverts the whole call — self-inflicted, caller keeps everything |
-| **Order opened, solver fills** | `amountOut` of `tokenOut` to `receiverAddress` on `destChainId`; escrowed `tokenIn` released to the solver. A partial fill releases `tokenIn` pro rata at the order's exchange rate |
-| **Order opened, nobody fills** | `tokenIn` stays in escrow until the order is cancelled; the refund is paid to `orderOwner` on the **origin** chain (see "Cancellation") |
+| Failure                                                                                                                                                                                                                                                                                                                                | Where the value ends up                                                                                                                                                             |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Facet validation (`InvalidCallData`, `InformationMismatch`, `InvalidNonEVMReceiver`, `InvalidReceiver`, `InvalidAmount`)                                                                                                                                                                                                               | Revert before any transfer — caller keeps everything                                                                                                                                |
+| `depositAsset` (missing balance or allowance)                                                                                                                                                                                                                                                                                          | Revert — caller keeps everything                                                                                                                                                    |
+| Swap fails, or its output is below `bridgeData.minAmount`                                                                                                                                                                                                                                                                              | `_depositAndSwap` reverts — caller keeps everything                                                                                                                                 |
+| Scaled `amountOut` rounds to `0` (`InvalidAmount`)                                                                                                                                                                                                                                                                                     | Revert, swap rolled back — caller keeps everything                                                                                                                                  |
+| `destinationChainId` does not fit in `uint32` — the large LI.FI non-EVM ids (Aptos, Sui, Tron, …); `LIFI_CHAIN_ID_SOLANA` is translated first and `LIFI_CHAIN_ID_HYPERCORE` (1337) already fits, so neither reverts here. Reachable only with a plain EVM `bridgeData.receiver`, since the sentinel is rejected for these chains first | Revert with solady's `Overflow()`, not a LI.FI error — caller keeps everything                                                                                                      |
+| `bridgeData.minAmount` does not fit in `uint128` (`SafeCastLib.toUint128` on `amountIn`)                                                                                                                                                                                                                                               | Revert with solady's `Overflow()` — caller keeps everything, swap rolled back on the swap path                                                                                      |
+| Scaled `amountOut` does not fit in `uint128` (`SafeCastLib.toUint128`)                                                                                                                                                                                                                                                                 | Revert with solady's `Overflow()` — caller keeps everything, swap rolled back                                                                                                       |
+| `openOrder` reverts (paused, unsupported destination, zero amount, deadline in the past, `solver == recipient`, same-token order)                                                                                                                                                                                                      | Revert — caller keeps everything, escrow never funded                                                                                                                               |
+| `refundRecipient` rejects native on the swap path                                                                                                                                                                                                                                                                                      | `refundExcessNative` reverts the whole call — self-inflicted, caller keeps everything                                                                                               |
+| **Order opened, solver fills**                                                                                                                                                                                                                                                                                                         | `amountOut` of `tokenOut` to `receiverAddress` on `destChainId`; escrowed `tokenIn` released to the solver. A partial fill releases `tokenIn` pro rata at the order's exchange rate |
+| **Order opened, nobody fills**                                                                                                                                                                                                                                                                                                         | `tokenIn` stays in escrow until the order is cancelled; the refund is paid to `orderOwner` on the **origin** chain (see "Cancellation")                                             |
 
 After `openOrder` returns, the funds are in M0's escrow and outside LI.FI's control. No
 LI.FI contract can recover, cancel, or re-route them.
@@ -113,17 +113,17 @@ That is why the facet validates only what it is the authority on — the binding
 the analytics/event data (`bridgeData`) and the order it actually opens — and delegates
 every protocol rule:
 
-| Checked by the facet | Delegated to the OrderBook |
-| --- | --- |
-| `refundRecipient != address(0)` → `InvalidCallData` | `fillDeadline` sanity |
-| `orderOwner != address(0)` → `InvalidCallData` | `amountIn` / `amountOut` non-zero |
-| `tokenOut != bytes32(0)` → `InvalidCallData` (the OrderBook never checks it, and a zero `tokenOut` escrows funds into an order no solver can fill) | `solver == recipient` collision |
-| EVM: `receiverAddress == bridgeData.receiver` → `InformationMismatch` | `isDestinationSupported(destChainId)` |
-| Non-EVM: `receiverAddress != bytes32(0)` → `InvalidNonEVMReceiver` | Same-token orders |
-| Receiver format is bound to the destination → `InvalidReceiver`: a Solana destination **must** use the `NON_EVM_ADDRESS` sentinel, and the sentinel is rejected for every other destination (including the other non-EVM chain ids the facet cannot translate, such as Tron) | — |
-| EVM: `tokenOut` is a left-padded address → `NotAnAddress`. The OrderBook narrows `tokenOut` with `TypeConverter.toAddress` only when a solver fills, so a value with non-zero high bytes opens and escrows here and then reverts every fill, stranding the deposit until `fillDeadline`. Non-EVM destinations are exempt — an SPL mint uses all 32 bytes | — |
-| Swap path: last swap's `receivingAssetId == bridgeData.sendingAssetId` → `InformationMismatch` | Pause state |
-| `bridgeData.receiver != address(0)` and `minAmount != 0` (custom `validateBridgeDataM0` modifier) | Solver allowlisting and settlement |
+| Checked by the facet                                                                                                                                                                                                                                                                                                                                     | Delegated to the OrderBook            |
+| -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------- |
+| `refundRecipient != address(0)` → `InvalidCallData`                                                                                                                                                                                                                                                                                                      | `fillDeadline` sanity                 |
+| `orderOwner != address(0)` → `InvalidCallData`                                                                                                                                                                                                                                                                                                           | `amountIn` / `amountOut` non-zero     |
+| `tokenOut != bytes32(0)` → `InvalidCallData` (the OrderBook never checks it, and a zero `tokenOut` escrows funds into an order no solver can fill)                                                                                                                                                                                                       | `solver == recipient` collision       |
+| EVM: `receiverAddress == bridgeData.receiver` → `InformationMismatch`                                                                                                                                                                                                                                                                                    | `isDestinationSupported(destChainId)` |
+| Non-EVM: `receiverAddress != bytes32(0)` → `InvalidNonEVMReceiver`                                                                                                                                                                                                                                                                                       | Same-token orders                     |
+| Receiver format is bound to the destination → `InvalidReceiver`: a Solana destination **must** use the `NON_EVM_ADDRESS` sentinel, and the sentinel is rejected for every other destination (including the other non-EVM chain ids the facet cannot translate, such as Tron)                                                                             | —                                     |
+| EVM: `tokenOut` is a left-padded address → `NotAnAddress`. The OrderBook narrows `tokenOut` with `TypeConverter.toAddress` only when a solver fills, so a value with non-zero high bytes opens and escrows here and then reverts every fill, stranding the deposit until `fillDeadline`. Non-EVM destinations are exempt — an SPL mint uses all 32 bytes | —                                     |
+| Swap path: last swap's `receivingAssetId == bridgeData.sendingAssetId` → `InformationMismatch`                                                                                                                                                                                                                                                           | Pause state                           |
+| `bridgeData.receiver != address(0)` and `minAmount != 0` (custom `validateBridgeDataM0` modifier)                                                                                                                                                                                                                                                        | Solver allowlisting and settlement    |
 
 ## Cancellation
 
@@ -140,13 +140,13 @@ One thing is constant: the refund is always paid on the **origin** chain to `ord
 (`OrderParams.sender`) — not to the diamond, not to the `msg.sender` of the original
 bridge call, and not to `refundRecipient`.
 
-| Cancellation | Cross-chain order | Same-chain order |
-| --- | --- | --- |
-| Sent on | The destination chain | The single chain involved |
-| Who may cancel before `fillDeadline` | `receiverAddress` (the order's `recipient`) only | `receiverAddress` **or** `orderOwner` |
-| Who may cancel after `fillDeadline` | Anyone | Anyone |
-| `msg.value` | Pays for the Portal message back to the origin chain | Must be `0`; a non-zero value reverts `InvalidMsgValue` |
-| Refund to `orderOwner` | On the origin chain, once the Portal message arrives | Immediately, inside the cancelling transaction |
+| Cancellation                         | Cross-chain order                                    | Same-chain order                                        |
+| ------------------------------------ | ---------------------------------------------------- | ------------------------------------------------------- |
+| Sent on                              | The destination chain                                | The single chain involved                               |
+| Who may cancel before `fillDeadline` | `receiverAddress` (the order's `recipient`) only     | `receiverAddress` **or** `orderOwner`                   |
+| Who may cancel after `fillDeadline`  | Anyone                                               | Anyone                                                  |
+| `msg.value`                          | Pays for the Portal message back to the origin chain | Must be `0`; a non-zero value reverts `InvalidMsgValue` |
+| Refund to `orderOwner`               | On the origin chain, once the Portal message arrives | Immediately, inside the cancelling transaction          |
 
 The asymmetry before `fillDeadline` comes from a single authorisation rule: the OrderBook
 admits the `recipient`, or the order's `sender` when `originChainId == block.chainid`. On
@@ -336,9 +336,40 @@ m0Data.tokenOut = 0x...; // SPL mint as bytes32
 
 ### Solver
 
-`solver == bytes32(0)` opens the order to any solver. A non-zero value restricts filling
-to that solver exclusively — the order then sits in escrow until `fillDeadline` if that
-solver does not act, so only set it when the backend has a reason to.
+`solver == bytes32(0)` opens the order to any solver; a non-zero value restricts filling to
+that solver exclusively. **Take this value from the quote — do not default it to zero.**
+
+M0's Orchestration API returns the solver alongside the price, on the `limit-order` leg:
+
+```jsonc
+"solver": {
+  "address": "0x12E9B6C507Ed27eaE9Cc55910B862de26925827B",
+  "name": "Farsight Solver",
+  "exclusive": true,   // <- this leg is bound to this solver on-chain
+  "feeBps": 3
+}
+```
+
+When `exclusive` is `true`, that solver priced the leg **for itself** and is the only one
+obliged to fill it, so it has to become the order's `designatedSolver`. M0's own reference
+calldata puts the address in that slot. When `exclusive` is `false` the quote merely
+reflects that solver's price and any solver may fill, so pass `bytes32(0)`.
+
+Getting this wrong fails **silently**: the transaction succeeds, the funds escrow, nothing
+reverts, and the order simply never fills. It is an open-fill order priced at an exclusive
+quote's rate, which no solver has a reason to take. It sits at `CREATED` until
+`fillDeadline`, after which anyone can cancel it (see [Cancellation](#cancellation)).
+
+Both outcomes, same route and same price, one hour apart on mainnet:
+
+| `designatedSolver`            | Status                   | `amountOutFilled` |
+| ----------------------------- | ------------------------ | ----------------- |
+| `0x00…00`                     | `CREATED` — never filled | `0`               |
+| `0x…12e9b6c5…827b` (Farsight) | `COMPLETED` in ~60s      | `1000000`         |
+
+At the time of writing every same-chain `limit-order` quote comes back `exclusive: true`,
+so in practice the backend must always carry the solver through. Reading `exclusive` rather
+than assuming it keeps this correct if M0 adds open-fill liquidity later.
 
 ## Native Source Asset
 
