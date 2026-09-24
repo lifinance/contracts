@@ -183,7 +183,7 @@ describe('excludeLintUnverified', () => {
           DEPLOYMENTS,
           'checked 1 descriptor files, no errors found ✅'
         ),
-      'no `::error` lines'
+      'without any `::error` annotations'
     )
   })
 

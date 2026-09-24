@@ -317,7 +317,7 @@ export function excludeLintUnverified(
   const errors = parseLintErrors(lintOutput)
   if (errors.length === 0)
     throw new Error(
-      'The erc7730 lint output has no `::error` lines; run the lint with --gha and pass its output.'
+      'erc7730 lint exited non-zero without any `::error` annotations; see its output above.'
     )
 
   const other = errors.filter((e) => !LINT_UNVERIFIED_TITLES.has(e.title))

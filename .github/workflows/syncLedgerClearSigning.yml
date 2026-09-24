@@ -196,12 +196,11 @@ jobs:
           # above therefore lists every eligible deployment.
           #
           # Anonymous Sourcify lookups are rate-limited, and erc7730 retries a
-          # 429 without backing off, so one lint from a cold cache reports most
-          # chains as "Could not fetch ABI" (measured: 40 of 62). erc7730 caches
-          # every successful lookup on disk for an hour, so each pass resumes
-          # where the last was blocked: lint again after a pause, up to 8 passes
-          # (a cold run measured 40 -> 26 -> 16 -> 5 -> 0, about 15 minutes).
-          # The lint before the push re-reads the same cache.
+          # 429 without backing off, so one lint from a cold cache reports many
+          # chains as "Could not fetch ABI". erc7730 caches every successful
+          # lookup on disk for an hour, so each pass resumes where the last was
+          # blocked: lint again after a pause, up to 8 passes. The lint before
+          # the push re-reads the same cache.
           echo -e "\033[32mLinting ${LEDGER_FILE_PATH} to find deployments Sourcify does not verify...\033[0m"
           LINT_STATUS=0
           for LINT_PASS in 1 2 3 4 5 6 7 8; do
@@ -211,10 +210,14 @@ jobs:
             if [ "${RATE_LIMITED}" -eq 0 ]; then
               break
             fi
-            echo -e "\033[33mLint pass ${LINT_PASS}: ${RATE_LIMITED} deployment(s) could not be fetched from Sourcify; retrying in 60s...\033[0m"
-            sleep 60
+            echo -e "\033[33mLint pass ${LINT_PASS}: ${RATE_LIMITED} deployment(s) could not be fetched from Sourcify.\033[0m"
+            if [ "${LINT_PASS}" -lt 8 ]; then
+              echo "Retrying in 60s..."
+              sleep 60
+            fi
           done
           if [ "${LINT_STATUS}" -ne 0 ]; then
+            cat erc7730-lint.txt
             bunx tsx tasks/generateLedgerClearSigning.ts --ledgerFilePath "ledger-registry/${LEDGER_FILE_PATH}" --lintOutputFilePath erc7730-lint.txt
             erc7730 format "ledger-registry/${LEDGER_FILE_PATH}"
           fi
