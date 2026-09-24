@@ -210,7 +210,7 @@ describe('verify-immutable-registry CLI', () => {
     expect(output).toMatch(/src\/Clean\.sol/u)
     expect(output).not.toMatch(/test\/Other\.sol/u)
     expect(output).not.toMatch(/script\/Helper\.sol/u)
-    expect(output).toMatch(/1 immutable\(s\) have no registry entry yet/u)
+    expect(output).toMatch(/1 immutable\(s\) have no registry entry\. CI runs/u)
   })
 
   it('exits 0 when an immutable has no entry and --strict is absent', () => {
