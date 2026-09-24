@@ -10,10 +10,16 @@
  * OPENED; the fill (or the cancellation once `fillDeadline` passes) happens outside this
  * script. See docs/M0Facet.md.
  *
- * `amountOut` is a limit price, not a slippage floor: the scenarios below derive it from
- * `amountIn` and a solver spread, which is only a faithful exchange rate because every
- * pair here is 6-decimals to 6-decimals. A production caller takes both sides from the
- * backend quote.
+ * `amountOut` is a limit price, not a slippage floor. It is taken from M0's Orchestration
+ * API (`POST /quote`, provider `limit-order`), which needs `M0_API_KEY` in `.env`.
+ *
+ * COVERAGE, as probed on 2026-09-24: `limit-order` quotes **nothing**. Every pair tried —
+ * all 8 Ethereum extensions against USDC in both directions, plus USDC and wM cross-chain
+ * to Base, Arbitrum and Solana, at 1e6 and 1e20 — returned 404 `NoQuotesAvailable`. The
+ * routes M0 does serve come back via `wormhole-cctp` or `m-wormhole-portal`, which are
+ * different contracts and never touch the OrderBook this facet calls. So in practice the
+ * fallback below is what runs; it is an arbitrary limit price, not a market rate, and an
+ * order opened at it is unlikely to be filled by anyone.
  */
 import { randomBytes } from 'crypto'
 
@@ -73,6 +79,10 @@ const FILL_DEADLINE_SECONDS = 3600
 // WrappedM by M0 on Ethereum (6 decimals) — the same-chain scenario's tokenOut.
 const ADDRESS_WM_ETH = '0x437cc33344a0B27A429f795ff6B469C72698B291'
 
+// M0's Orchestration API. Needs M0_API_KEY in .env; see the coverage note above.
+const M0_API_URL =
+  process.env.M0_API_URL || 'https://gateway.m0.xyz/v1/orchestration'
+
 type Scenario =
   | 'mainnet-to-base'
   | 'mainnet-to-base-w-swap'
@@ -93,6 +103,17 @@ interface IPreSwap {
   uniswapRouter: Address
 }
 
+/// Chain names as M0's Orchestration API spells them, which is not our chain ids.
+type M0Chain = 'Ethereum' | 'Base' | 'Arbitrum' | 'Solana'
+
+/// The route as `/quote` wants it: the escrowed token on the source chain, and the
+/// destination token in its native text form (hex for EVM, base58 for Solana).
+interface IQuoteRoute {
+  sourceChain: M0Chain
+  destinationChain: M0Chain
+  destinationAsset: string
+}
+
 interface IScenarioConfig {
   description: string
   sourceChain: SupportedChain
@@ -102,7 +123,11 @@ interface IScenarioConfig {
   amount: string // human-readable; ignored when preSwap is set
   tokenOut: Hex // destination token as bytes32
   destinationIsSolana: boolean
-  solverSpreadBps: number // limit price = amountIn minus this spread
+  quoteRoute: IQuoteRoute
+  /// Only used when M0 cannot quote the route. NOT a market rate — an arbitrary limit
+  /// price that lets the demo still open an order, so the facet path stays exercisable
+  /// while `limit-order` has no solver coverage. See `resolveAmountOut`.
+  fallbackLimitPriceBps: number
   preSwap?: IPreSwap
 }
 
@@ -116,7 +141,12 @@ const SCENARIOS: Record<Scenario, IScenarioConfig> = {
     amount: '1',
     tokenOut: zeroPadAddressToBytes32(ADDRESS_USDC_BASE),
     destinationIsSolana: false,
-    solverSpreadBps: 10,
+    quoteRoute: {
+      sourceChain: 'Ethereum',
+      destinationChain: 'Base',
+      destinationAsset: ADDRESS_USDC_BASE,
+    },
+    fallbackLimitPriceBps: 10,
   },
 
   'mainnet-to-base-w-swap': {
@@ -129,7 +159,12 @@ const SCENARIOS: Record<Scenario, IScenarioConfig> = {
     amount: '1', // ignored: the pre-swap output decides amountIn
     tokenOut: zeroPadAddressToBytes32(ADDRESS_USDC_BASE),
     destinationIsSolana: false,
-    solverSpreadBps: 10,
+    quoteRoute: {
+      sourceChain: 'Ethereum',
+      destinationChain: 'Base',
+      destinationAsset: ADDRESS_USDC_BASE,
+    },
+    fallbackLimitPriceBps: 10,
     preSwap: {
       fromToken: getAddress(ADDRESS_USDT_ETH),
       fromAmount: 1_000_000n, // 1 USDT
@@ -150,7 +185,12 @@ const SCENARIOS: Record<Scenario, IScenarioConfig> = {
     amount: '1',
     tokenOut: zeroPadAddressToBytes32(ADDRESS_WM_ETH),
     destinationIsSolana: false,
-    solverSpreadBps: 10,
+    quoteRoute: {
+      sourceChain: 'Ethereum',
+      destinationChain: 'Ethereum',
+      destinationAsset: ADDRESS_WM_ETH,
+    },
+    fallbackLimitPriceBps: 10,
   },
 
   'mainnet-to-solana': {
@@ -162,20 +202,115 @@ const SCENARIOS: Record<Scenario, IScenarioConfig> = {
     amount: '1',
     tokenOut: solanaAddressToBytes32(ADDRESS_USDC_SOL),
     destinationIsSolana: true,
-    solverSpreadBps: 10,
+    quoteRoute: {
+      sourceChain: 'Ethereum',
+      destinationChain: 'Solana',
+      destinationAsset: ADDRESS_USDC_SOL,
+    },
+    fallbackLimitPriceBps: 10,
   },
 }
 
 /**
- * Derives the limit price the order asks for: amountIn minus the solver spread.
- * Both sides are 6-decimals in every scenario, so no decimal conversion is needed.
+ * Asks M0's Orchestration API what a solver would actually pay for this route,
+ * restricted to `limit-order` — the only provider that settles through the OrderBook
+ * this facet calls. Every other provider (portals, wormhole-cctp) is a different
+ * contract entirely, so its quote would not describe the order we open.
+ *
+ * Returns null when M0 cannot quote the route, which today is every route: see the
+ * coverage note in the module header.
  */
-const deriveAmountOut = (amountIn: bigint, spreadBps: number): bigint => {
+const fetchM0LimitOrderQuote = async (
+  route: IQuoteRoute,
+  sendingAssetId: Address,
+  amountIn: bigint,
+  sender: Address,
+  recipient: string
+): Promise<bigint | null> => {
+  const apiKey = process.env.M0_API_KEY
+  if (!apiKey) {
+    consola.warn('M0_API_KEY is not set — cannot request a quote')
+    return null
+  }
+
+  const response = await fetch(`${M0_API_URL}/quote`, {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', 'x-api-key': apiKey },
+    body: JSON.stringify({
+      route: {
+        source: { chain: route.sourceChain, address: sendingAssetId },
+        destination: {
+          chain: route.destinationChain,
+          address: route.destinationAsset,
+        },
+      },
+      amountIn: amountIn.toString(),
+      sender,
+      recipient,
+      providers: { include: ['limit-order'] },
+    }),
+  })
+
+  if (!response.ok) {
+    const error = (await response.json()) as { code?: string; message?: string }
+    consola.warn(
+      `M0 quote unavailable (HTTP ${response.status} ${
+        error.code ?? 'unknown'
+      }): ${error.message ?? ''}`
+    )
+    return null
+  }
+
+  // Quotes come back ranked by best amountOut, so the first is the one to take.
+  const quotes = (await response.json()) as { amountOut: string }[]
+  const best = quotes[0]
+  if (!best) {
+    consola.warn('M0 returned an empty quote list')
+    return null
+  }
+
+  return BigInt(best.amountOut)
+}
+
+/**
+ * The limit price the order asks for. Prefers M0's own quote; falls back to a made-up
+ * spread so the demo still exercises the facet while `limit-order` quotes nothing.
+ * The fallback is only a faithful exchange rate because every pair here is 6-decimals
+ * to 6-decimals — a production caller always takes both sides from the quote.
+ */
+const resolveAmountOut = async (
+  scenario: IScenarioConfig,
+  amountIn: bigint,
+  sender: Address,
+  recipient: string
+): Promise<bigint> => {
+  const quoted = await fetchM0LimitOrderQuote(
+    scenario.quoteRoute,
+    scenario.sendingAssetId,
+    amountIn,
+    sender,
+    recipient
+  )
+
+  if (quoted !== null) {
+    consola.success(
+      `amountOut ${quoted.toString()} — quoted by M0 (limit-order)`
+    )
+    return quoted
+  }
+
+  const spreadBps = scenario.fallbackLimitPriceBps
   const amountOut = (amountIn * BigInt(10000 - spreadBps)) / 10000n
   if (amountOut === 0n)
     throw new Error(
       `Limit price rounds to zero for amountIn=${amountIn} and spread=${spreadBps}bps`
     )
+
+  consola.warn(
+    `Falling back to an arbitrary ${spreadBps}bps limit price (${amountOut.toString()}). ` +
+      'No solver has quoted this route, so the order is unlikely to fill — it opens, ' +
+      'escrows, and can be cancelled once fillDeadline passes.'
+  )
 
   return amountOut
 }
@@ -187,11 +322,18 @@ const deriveAmountOut = (amountIn: bigint, spreadBps: number): bigint => {
 const resolveReceiver = (
   scenario: IScenarioConfig,
   callerAddress: Address
-): { bridgeReceiver: Address; receiverAddress: Hex } => {
+): {
+  bridgeReceiver: Address
+  receiverAddress: Hex
+  // The same recipient in the destination chain's own text form, which is what
+  // M0's quote API wants — it rejects an EVM address for an SVM destination.
+  quoteRecipient: string
+} => {
   if (!scenario.destinationIsSolana)
     return {
       bridgeReceiver: callerAddress,
       receiverAddress: zeroPadAddressToBytes32(callerAddress),
+      quoteRecipient: callerAddress,
     }
 
   const solanaAddress = deriveSolanaAddress(
@@ -202,6 +344,7 @@ const resolveReceiver = (
   return {
     bridgeReceiver: getAddress(NON_EVM_ADDRESS),
     receiverAddress: solanaAddressToBytes32(solanaAddress),
+    quoteRecipient: solanaAddress,
   }
 }
 
@@ -282,7 +425,7 @@ const cli = defineCommand({
         `OrderBook ${orderBookAddress} does not support destination chain ${m0DestinationChainId}`
       )
 
-    const { bridgeReceiver, receiverAddress } = resolveReceiver(
+    const { bridgeReceiver, receiverAddress, quoteRecipient } = resolveReceiver(
       scenario,
       callerAddress
     )
@@ -334,9 +477,11 @@ const cli = defineCommand({
       // bridgeData.minAmount is the declared swap floor, which is also what the facet
       // quotes amountOut against before scaling it by the realized swap output.
       bridgeData.minAmount = floor.toBigInt()
-      m0Data.amountOut = deriveAmountOut(
+      m0Data.amountOut = await resolveAmountOut(
+        scenario,
         floor.toBigInt(),
-        scenario.solverSpreadBps
+        callerAddress,
+        quoteRecipient
       )
 
       consola.info(
@@ -410,7 +555,12 @@ const cli = defineCommand({
     })) as number
     const amountIn = parseUnits(scenario.amount, decimals)
     bridgeData.minAmount = amountIn
-    m0Data.amountOut = deriveAmountOut(amountIn, scenario.solverSpreadBps)
+    m0Data.amountOut = await resolveAmountOut(
+      scenario,
+      amountIn,
+      callerAddress,
+      quoteRecipient
+    )
 
     consola.info(
       `amountIn ${amountIn.toString()}, limit price amountOut ${m0Data.amountOut.toString()}`
