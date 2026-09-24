@@ -36,6 +36,18 @@
  *
  * So the same-chain scenario prices off a real quote, and the cross-chain ones fall back
  * to an arbitrary limit price and are unlikely to be filled by anyone.
+ *
+ * Verified staging run (2026-09-24), `mainnet-samechain`: 4 USDC -> 1 wM on Ethereum,
+ * filled by Farsight Solver two blocks (~24s) after the order opened. The 3 USDC spread is
+ * the solver's flat fee, not slippage. The Diamond retained nothing — it holds the USDC
+ * only between depositAsset and openOrder, inside the one transaction.
+ *   open: https://etherscan.io/tx/0x23d9328cc72a4a35a3a7309a1f046be147404e83209ca808111d4871d3f91be8
+ *   fill: https://etherscan.io/tx/0xf7afafb6ac5304a370b4055ff9bc739179d2b0cc66b0156fb45e08b3b2373b6b
+ *   order 0xf84df03882ed233400682549f7607ccddd293aba8c2b98365fdef152ca1cbc5d
+ *
+ * The run before it is the counter-example for the solver rule above: same route, same
+ * price, opened with bytes32(0), never filled, cancelled after fillDeadline for a full
+ * refund (order 0x719c928678c9073f20339342f1adb290a00f85f2f14cd9c48f53000aac50a239).
  */
 import { randomBytes } from 'crypto'
 
