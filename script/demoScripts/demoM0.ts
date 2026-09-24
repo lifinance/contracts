@@ -13,13 +13,22 @@
  * `amountOut` is a limit price, not a slippage floor. It is taken from M0's Orchestration
  * API (`POST /quote`, provider `limit-order`), which needs `M0_API_KEY` in `.env`.
  *
- * COVERAGE, as probed on 2026-09-24: `limit-order` quotes **nothing**. Every pair tried —
- * all 8 Ethereum extensions against USDC in both directions, plus USDC and wM cross-chain
- * to Base, Arbitrum and Solana, at 1e6 and 1e20 — returned 404 `NoQuotesAvailable`. The
- * routes M0 does serve come back via `wormhole-cctp` or `m-wormhole-portal`, which are
- * different contracts and never touch the OrderBook this facet calls. So in practice the
- * fallback below is what runs; it is an arbitrary limit price, not a market rate, and an
- * order opened at it is unlikely to be filled by anyone.
+ * COVERAGE, as probed on 2026-09-24 against `GET /orders` and `POST /quote`:
+ *
+ *   - `limit-order` quotes SAME-CHAIN routes only, and its payload targets the OrderBook
+ *     this facet calls. Live pairs seen: Ethereum USDC<->USDat, wM->USDC; Arbitrum
+ *     CUSD<->USDC and CUSD<->PYUSD; Base mrUSD/AUSD/wM<->USDC.
+ *   - CROSS-CHAIN returns 404 `NoQuotesAvailable` on every pair and size tried (wM, USDC
+ *     and USDat out of Ethereum/Base/Arbitrum, at 5e6 / 1e8 / 5e9). The OrderBook itself
+ *     supports it — `/orders` still holds Base->Ethereum orders from May and August —
+ *     but no solver quotes it today.
+ *   - Pricing is a FLAT FEE, not a spread: amountIn - amountOut is exactly 3_000_000
+ *     (3 units at 6 decimals) at every size, so a quote needs amountIn >= 4e6 to leave
+ *     the 1e6 minimum output. Below that, 404. A 10-unit order pays 300bps; a 10_000-unit
+ *     order pays 3bps.
+ *
+ * So the same-chain scenario prices off a real quote, and the cross-chain ones fall back
+ * to an arbitrary limit price and are unlikely to be filled by anyone.
  */
 import { randomBytes } from 'crypto'
 
@@ -177,12 +186,14 @@ const SCENARIOS: Record<Scenario, IScenarioConfig> = {
 
   'mainnet-samechain': {
     description:
-      'Ethereum → Ethereum · 1 USDC → WrappedM (same-chain order, asynchronous escrow)',
+      'Ethereum → Ethereum · 10 USDC → WrappedM (same-chain order, asynchronous escrow)',
     sourceChain: 'mainnet',
     sourceChainId: 1,
     destinationChainId: 1n, // == source: same-chain order, allowed on purpose
     sendingAssetId: getAddress(ADDRESS_USDC_ETH),
-    amount: '1',
+    // The only scenario a solver actually quotes. 10 clears the 4e6 floor the flat 3e6
+    // fee imposes; at 1 the quote 404s and the order would open unfillable.
+    amount: '10',
     tokenOut: zeroPadAddressToBytes32(ADDRESS_WM_ETH),
     destinationIsSolana: false,
     quoteRoute: {
@@ -217,8 +228,8 @@ const SCENARIOS: Record<Scenario, IScenarioConfig> = {
  * this facet calls. Every other provider (portals, wormhole-cctp) is a different
  * contract entirely, so its quote would not describe the order we open.
  *
- * Returns null when M0 cannot quote the route, which today is every route: see the
- * coverage note in the module header.
+ * Returns null when M0 cannot quote the route — today that means any cross-chain route,
+ * or an amountIn too small to clear the flat fee. See the coverage note in the header.
  */
 const fetchM0LimitOrderQuote = async (
   route: IQuoteRoute,
@@ -274,9 +285,12 @@ const fetchM0LimitOrderQuote = async (
 
 /**
  * The limit price the order asks for. Prefers M0's own quote; falls back to a made-up
- * spread so the demo still exercises the facet while `limit-order` quotes nothing.
+ * spread on the routes no solver quotes, so the demo still exercises the facet.
  * The fallback is only a faithful exchange rate because every pair here is 6-decimals
  * to 6-decimals — a production caller always takes both sides from the quote.
+ *
+ * Note the fallback under-prices badly against live behaviour: solvers charge a flat
+ * 3e6, so a bps spread on a small order asks for far more than any solver would pay.
  */
 const resolveAmountOut = async (
   scenario: IScenarioConfig,
