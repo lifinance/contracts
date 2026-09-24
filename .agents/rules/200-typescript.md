@@ -18,8 +18,8 @@ paths:
 - MUST use viem for all contract interactions in demo/operational scripts; ethers.js helpers are deprecated.
 - DO NOT use deprecated ethers-based helpers (`getProvider`, `getWalletFromPrivateKeyInDotEnv`, ethers `sendTransaction`, `ensureBalanceAndAllowanceToDiamond`).
 - **Type checking policy**: NEVER use `// @ts-nocheck` or `// @ts-ignore` in new files. Existing files with these directives are technical debt to be resolved. When creating new files or refactoring existing ones, properly type all code and fix type errors instead of suppressing them.
-- **Verify callee signatures before passing new values**: When passing a new literal, argument, or variant into a function, helper, or type defined elsewhere, **read the callee's signature first** — don't infer the accepted set from how other callers use it. Existing callers may all happen to use the safe subset of accepted values, and "code-by-analogy" (copying a call site and substituting a new value) is the dominant source of cross-file type mismatches. Concrete example: `getPrivateKey(keyType, ...)` in `script/deploy/safe/safe-utils.ts` accepts only `'PRIVATE_KEY_PRODUCTION' | 'SAFE_SIGNER_PRIVATE_KEY'`; passing a new string like `'PRIVATE_KEY_STAGING'` is a TS error caught by `bunx tsc-files --noEmit` but invisible to grep-pattern review. Whenever you write `existingCall(NEW_VALUE)` and `NEW_VALUE` isn't already used elsewhere, grep the definition and verify acceptance before committing.
-- **Always run `bunx tsc-files --noEmit <file>` on every TS file you edit** before commit. The repo's `.agents/hooks/post-edit-validate.sh` runs this automatically when the Claude Code session is rooted in the repo, but does NOT fire when the session is rooted elsewhere and you're editing via absolute path — run it manually in that case.
+- **Verify callee signatures before passing new values**: When passing a new literal, argument, or variant into a function, helper, or type defined elsewhere, **read the callee's signature first** — don't infer the accepted set from how other callers use it. Existing callers may all happen to use the safe subset of accepted values, and "code-by-analogy" (copying a call site and substituting a new value) is the dominant source of cross-file type mismatches. Concrete example: `getPrivateKey(keyType, ...)` in `script/deploy/safe/safe-utils.ts` accepts only `'PRIVATE_KEY_PRODUCTION' | 'SAFE_SIGNER_PRIVATE_KEY'`; passing a new string like `'PRIVATE_KEY_STAGING'` is a TS error caught by the type check but invisible to grep-pattern review. Whenever you write `existingCall(NEW_VALUE)` and `NEW_VALUE` isn't already used elsewhere, grep the definition and verify acceptance before committing.
+- **Always run `bash script/utils/typecheck-files.sh <file>` on every TS file you edit** before commit. It checks a shipped module against Node-only types (`tsconfig.node.json`) and a `*.test.ts` against the Bun-typed `tsconfig.json`; a bare `bunx tsc-files` uses the latter for both, so it cannot see a Bun-only API in a shipped module. The repo's `.agents/hooks/post-edit-validate.sh` runs this automatically when the Claude Code session is rooted in the repo, but does NOT fire when the session is rooted elsewhere and you're editing via absolute path — run it manually in that case.
 
 ## Code Quality
 
@@ -145,7 +145,7 @@ If you edit any file matching this rule’s globs, you **MUST** do the following
   - If ESLint reports fixable issues, run: `bunx eslint --fix <changed-file(s)>`
   - Re-run `bunx eslint <changed-file(s)>` and ensure it exits `0`.
 - **Run TypeScript typecheck on the changed file(s)**:
-  - `bunx tsc-files --noEmit <changed-file-1> [<changed-file-2> ...]`
+  - `bash script/utils/typecheck-files.sh <changed-file-1> [<changed-file-2> ...]`
 
 ### Reporting requirement
 

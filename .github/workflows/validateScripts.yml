@@ -1,8 +1,12 @@
 # Validate Scripts (EXSC-331)
 # - Static validation (no script execution) of TS scripts under script/
-# - Type check: `tsc-files --noEmit` over changed TS files under script/ —
-#   removing a used import (TS2304) or a dependency a script imports (TS2307)
-#   fails fast instead of breaking at runtime
+# - Type check: `script/utils/typecheck-files.sh` over changed TS files under
+#   script/ and tasks/ — removing a used import (TS2304), a dependency a script
+#   imports (TS2307), or calling a Bun-only API from a module that runs on Node
+#   (TS2868) fails fast instead of breaking at runtime
+# - Node runtime fence: `bun lint:node-runtime` over all of script/ and tasks/
+#   refuses Bun-only APIs in shipped modules, including `import.meta.main`,
+#   which type-checks but is dropped by tsx (see .eslintrc.node-runtime.cjs)
 # - Import resolution: when package.json / bun.lock / tsconfig.json change,
 #   every bare import in script TS files must resolve to a package declared
 #   in package.json (catches "dependency removed while still imported"
@@ -66,9 +70,13 @@ jobs:
           filters: |
             scripts:
               - 'script/**/*.ts'
+              - 'tasks/**/*.ts'
+              - 'script/utils/typecheck-files.sh'
               - 'package.json'
               - 'bun.lock'
               - 'tsconfig.json'
+              - 'tsconfig.node.json'
+              - '.eslintrc.node-runtime.cjs'
               - '.github/workflows/validateScripts.yml'
               - '.github/actions/setup-foundry/**'
               - '.foundry-version'
@@ -122,6 +130,11 @@ jobs:
 
       - name: Install dev dependencies
         run: bun install
+
+      # Whole tree rather than the diff, and ahead of the forge build so a
+      # Bun-only API fails the job in seconds.
+      - name: Check shipped modules use only Node runtime APIs
+        run: bun lint:node-runtime
 
       - name: Install Foundry
         uses: ./.github/actions/setup-foundry

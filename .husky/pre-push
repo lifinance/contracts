@@ -2,9 +2,10 @@
 # Pre-push hook: static validation of TS scripts about to be pushed (EXSC-331).
 #
 # Runs script/utils/validateScripts.ts over each pushed ref:
-# - tsc-files --noEmit type check on changed TS files under script/
+# - type check (script/utils/typecheck-files.sh) on changed TS files under
+#   script/ and tasks/
 # - bare-import resolution over all script TS files when dependency manifests
-#   (package.json / bun.lock / tsconfig.json) changed
+#   (package.json / bun.lock / tsconfig*.json) changed
 #
 # Fast local feedback only — the validateScripts.yml CI workflow is the
 # enforcement backstop, since hooks can be bypassed with --no-verify.

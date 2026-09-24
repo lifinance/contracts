@@ -12,7 +12,7 @@ ROOT=$(git -C "$(dirname "$FILE")" rev-parse --show-toplevel 2>/dev/null || pwd)
 cd "$ROOT" || exit 0
 
 # Resolve path relative to repo root (macOS-compatible)
-REL="${FILE#$ROOT/}"
+REL="${FILE#"$ROOT"/}"
 
 case "$FILE" in
   *.sol)
@@ -28,7 +28,7 @@ case "$FILE" in
     fi
     ;;
   *.ts)
-    OUTPUT=$(bunx tsc-files --noEmit "$FILE" 2>&1)
+    OUTPUT=$(bash script/utils/typecheck-files.sh "$REL" 2>&1)
     [[ -n "$OUTPUT" ]] && echo "$OUTPUT"
     ;;
   *.sh)
