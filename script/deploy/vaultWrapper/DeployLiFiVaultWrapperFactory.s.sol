@@ -17,16 +17,18 @@ import { FeeType, FeeBounds, FactoryInitParams, FEE_TYPE_COUNT } from "lifi/Vaul
 /// @title DeployLiFiVaultWrapperFactory
 /// @author LI.FI (https://li.fi)
 /// @notice Deploys and wires the vault wrapper system deterministically via the
-///         shared CREATE3 factory: the dedicated 48h timelock, the vault wrapper
+///         shared CREATE3 factory: the dedicated timelock, the vault wrapper
 ///         implementation, its upgradeable beacon, the vault wrapper factory (a
 ///         TransparentUpgradeableProxy in front of the factory logic), and the
 ///         ERC-4626 yield adapter. The timelock owns the factory, the beacon, and
 ///         the proxy's ProxyAdmin, so every factory slow-path call, every beacon
-///         upgrade, and every factory-logic upgrade is gated by the 48h delay.
+///         upgrade, and every factory-logic upgrade is gated by its delay (48h in
+///         production; each network's value is the `timelockDelaySeconds` config field).
 /// @dev Standalone forge-std Script (see [CONV:VW-DEPLOY-DIR]) — it does not extend
 ///      DeployScriptBase. Per-network parameters are read from the scoped
 ///      config/vaultWrapper.json under the `NETWORK` key; the only env vars are
-///      PRIVATE_KEY, NETWORK, and DEPLOYSALT (the salt prefix). Deploy order:
+///      PRIVATE_KEY and NETWORK (the CREATE3 salt prefix is the config's
+///      `deploySalt`, so a deployment is reproducible from the repo alone). Deploy order:
 ///      TimelockController -> LiFiVaultWrapper(predicted factory proxy) ->
 ///      UpgradeableBeacon(impl, timelock) -> LiFiVaultWrapperFactory logic ->
 ///      ERC4626Adapter -> TransparentUpgradeableProxy(logic, admin owner=timelock,
@@ -47,24 +49,24 @@ import { FeeType, FeeBounds, FactoryInitParams, FEE_TYPE_COUNT } from "lifi/Vaul
 ///      The factory's own configuration — approved adapter, underlying allowlist, fee
 ///      bounds, default split — is seeded in the proxy's initialize call, so the system
 ///      can deploy wrappers as soon as this script returns. Because the factory owner is
-///      the 48h timelock, every LATER change to that configuration must be scheduled
+///      the timelock, every LATER change to that configuration must be scheduled
 ///      through the timelock (see UpdateVaultWrapperConfig.s.sol).
 ///
 ///      Dry-run (no broadcast):
-///        NETWORK=mainnet DEPLOYSALT=... PRIVATE_KEY=... \
+///        NETWORK=mainnet PRIVATE_KEY=... \
 ///        forge script script/deploy/vaultWrapper/DeployLiFiVaultWrapperFactory.s.sol
 ///      Broadcast + verify: append `--broadcast --verify`.
 /// @custom:version 1.0.0
 contract DeployLiFiVaultWrapperFactory is Script, DSTest {
     using stdJson for string;
 
-    /// @notice The dedicated governance delay for the vault wrapper subsystem.
-    uint256 internal constant MIN_DELAY = 48 hours;
     /// @notice Basis-point denominator (100%).
     uint256 internal constant BPS_DENOMINATOR = 10000;
 
     error ZeroPrivateKey();
     error ZeroCreate3Factory();
+    error ZeroTimelockDelay();
+    error EmptyDeploySalt();
     error ZeroMultisig();
     error ZeroEmergencyPauser();
     error ZeroOnboardingManager();
@@ -74,6 +76,8 @@ contract DeployLiFiVaultWrapperFactory is Script, DSTest {
 
     struct DeployConfig {
         ICREATE3Factory create3Factory;
+        uint256 timelockDelaySeconds;
+        string deploySalt;
         address multisig;
         address emergencyPauser;
         address onboardingManager;
@@ -99,7 +103,7 @@ contract DeployLiFiVaultWrapperFactory is Script, DSTest {
 
     /// @notice Deploys and wires the full vault wrapper system from config/vaultWrapper.json.
     /// @return factory The deployed vault wrapper factory.
-    /// @return timelock The dedicated 48h timelock owning the factory and beacon.
+    /// @return timelock The dedicated timelock owning the factory and beacon.
     /// @return beacon The upgradeable beacon holding the wrapper implementation.
     /// @return impl The vault wrapper implementation behind the beacon.
     /// @return erc4626Adapter The ERC-4626 yield adapter.
@@ -116,28 +120,22 @@ contract DeployLiFiVaultWrapperFactory is Script, DSTest {
         uint256 deployerPrivateKey = uint256(vm.envBytes32("PRIVATE_KEY"));
         if (deployerPrivateKey == 0) revert ZeroPrivateKey();
 
-        return
-            deploySystem(
-                _readConfig(),
-                deployerPrivateKey,
-                vm.envString("DEPLOYSALT")
-            );
+        return deploySystem(_readConfig(), deployerPrivateKey);
     }
 
     /// @notice Deploys and wires the system from an in-memory config. Shared by
     ///         `run()` (env/config path) and tests (direct-call path).
-    /// @param _cfg The deploy config (CREATE3 factory, multisig, roles, fee recipient).
+    /// @param _cfg The deploy config (CREATE3 factory, timelock delay, salt prefix,
+    ///        multisig, roles, fee recipient).
     /// @param _deployerPrivateKey The broadcasting deployer key.
-    /// @param _saltPrefix The shared CREATE3 salt prefix (DEPLOYSALT).
     /// @return factory The deployed vault wrapper factory.
-    /// @return timelock The dedicated 48h timelock owning the factory and beacon.
+    /// @return timelock The dedicated timelock owning the factory and beacon.
     /// @return beacon The upgradeable beacon holding the wrapper implementation.
     /// @return impl The vault wrapper implementation behind the beacon.
     /// @return erc4626Adapter The ERC-4626 yield adapter.
     function deploySystem(
         DeployConfig memory _cfg,
-        uint256 _deployerPrivateKey,
-        string memory _saltPrefix
+        uint256 _deployerPrivateKey
     )
         public
         returns (
@@ -150,12 +148,14 @@ contract DeployLiFiVaultWrapperFactory is Script, DSTest {
     {
         _validate(_cfg);
         deployer = vm.addr(_deployerPrivateKey);
-        saltPrefix = _saltPrefix;
+        saltPrefix = _cfg.deploySalt;
         create3 = _cfg.create3Factory;
 
         vm.startBroadcast(_deployerPrivateKey);
 
-        timelock = TimelockController(payable(_deployTimelock(_cfg.multisig)));
+        timelock = TimelockController(
+            payable(_deployTimelock(_cfg.multisig, _cfg.timelockDelaySeconds))
+        );
         // The implementation only accepts initialize calls from the factory it is bound
         // to at construction; CREATE3 addresses depend on (deployer, salt) only, so the
         // factory's address is known before it exists.
@@ -226,6 +226,12 @@ contract DeployLiFiVaultWrapperFactory is Script, DSTest {
 
         cfg.create3Factory = ICREATE3Factory(
             json.readAddress(string.concat(".", network, ".create3Factory"))
+        );
+        cfg.timelockDelaySeconds = json.readUint(
+            string.concat(".", network, ".timelockDelaySeconds")
+        );
+        cfg.deploySalt = json.readString(
+            string.concat(".", network, ".deploySalt")
         );
         cfg.multisig = json.readAddress(
             string.concat(".", network, ".multisig")
@@ -299,6 +305,8 @@ contract DeployLiFiVaultWrapperFactory is Script, DSTest {
     function _validate(DeployConfig memory _cfg) internal pure {
         if (address(_cfg.create3Factory) == address(0))
             revert ZeroCreate3Factory();
+        if (_cfg.timelockDelaySeconds == 0) revert ZeroTimelockDelay();
+        if (bytes(_cfg.deploySalt).length == 0) revert EmptyDeploySalt();
         if (_cfg.multisig == address(0)) revert ZeroMultisig();
         if (_cfg.emergencyPauser == address(0)) revert ZeroEmergencyPauser();
         if (_cfg.onboardingManager == address(0))
@@ -308,19 +316,19 @@ contract DeployLiFiVaultWrapperFactory is Script, DSTest {
 
     /// @notice Asserts every deployed contract carries the intended governance wiring.
     /// @dev CREATE3 salts exclude constructor args, so re-running with the same
-    ///      DEPLOYSALT after correcting a role/config value resolves the STALE
+    ///      deploySalt after correcting a role/config value resolves the STALE
     ///      contract (via `_deploy`'s idempotency skip) instead of applying the new
     ///      value. This post-deploy check compares the live wiring against `_cfg`
     ///      and reverts `WiringMismatch` if a stale deployment carries the old roles,
     ///      turning a silent governance error into a loud failure that tells the
-    ///      operator to deploy under a fresh DEPLOYSALT.
+    ///      operator to deploy under a fresh deploySalt.
     /// @param _cfg The intended deploy config.
     /// @param _d The contracts this run resolved.
     function _verifyWiring(
         DeployConfig memory _cfg,
         Deployed memory _d
     ) internal view {
-        if (_d.timelock.getMinDelay() != MIN_DELAY)
+        if (_d.timelock.getMinDelay() != _cfg.timelockDelaySeconds)
             revert WiringMismatch("timelock.minDelay");
         if (!_d.timelock.hasRole(_d.timelock.PROPOSER_ROLE(), _cfg.multisig))
             revert WiringMismatch("timelock.proposer");
@@ -403,11 +411,15 @@ contract DeployLiFiVaultWrapperFactory is Script, DSTest {
         }
     }
 
-    /// @notice Deploys the dedicated 48h timelock (proposer/canceller = multisig,
+    /// @notice Deploys the dedicated timelock (proposer/canceller = multisig,
     ///         open executor, self-administered).
     /// @param _multisig The LI.FI multisig granted proposer and canceller roles.
+    /// @param _delaySeconds The governance delay (48h in production).
     /// @return The deployed timelock address.
-    function _deployTimelock(address _multisig) internal returns (address) {
+    function _deployTimelock(
+        address _multisig,
+        uint256 _delaySeconds
+    ) internal returns (address) {
         address[] memory proposers = new address[](1);
         proposers[0] = _multisig;
         address[] memory executors = new address[](1);
@@ -418,7 +430,7 @@ contract DeployLiFiVaultWrapperFactory is Script, DSTest {
                 "LiFiVaultWrapperTimelock",
                 abi.encodePacked(
                     type(TimelockController).creationCode,
-                    abi.encode(MIN_DELAY, proposers, executors, address(0))
+                    abi.encode(_delaySeconds, proposers, executors, address(0))
                 )
             );
     }
@@ -498,7 +510,7 @@ contract DeployLiFiVaultWrapperFactory is Script, DSTest {
 
     /// @notice The deterministic CREATE3 address `_name` will deploy to under the
     ///         current salt prefix and deployer.
-    /// @param _name The contract name, appended to DEPLOYSALT to form the salt.
+    /// @param _name The contract name, appended to deploySalt to form the salt.
     /// @return The predicted contract address.
     function _predict(string memory _name) internal view returns (address) {
         return
@@ -510,7 +522,7 @@ contract DeployLiFiVaultWrapperFactory is Script, DSTest {
 
     /// @notice Deploys `creationCode` through the CREATE3 factory under a per-contract
     ///         salt, skipping deployment if the deterministic address already has code.
-    /// @param _name The contract name, appended to DEPLOYSALT to form the salt.
+    /// @param _name The contract name, appended to deploySalt to form the salt.
     /// @param _creationCode The full init code (creation bytecode + abi-encoded constructor args).
     /// @return deployed The deterministic contract address.
     function _deploy(

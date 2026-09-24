@@ -23,8 +23,10 @@ and counter-intuitive against the repo's Diamond-era conventions.
   (`networks.json`/`global.json`/`deployRequirements.json`).
 - Per-network parameters come from the subsystem's own scoped config file,
   `config/vaultWrapper.json` (network-first per `[CONV:CONFIG-STRUCTURE]`), read by
-  `NETWORK` key; the only env vars are `PRIVATE_KEY`, `NETWORK`, and `DEPLOYSALT`
-  (plus optional per-script inputs like `FACTORY`/`TIMELOCK`/`ADAPTER`). Duplicating
+  `NETWORK` key; the only env vars are `PRIVATE_KEY` and `NETWORK` (plus optional
+  per-script inputs like `FACTORY`/`TIMELOCK`/`ADAPTER`). The CREATE3 salt prefix
+  (`deploySalt`) and the timelock delay (`timelockDelaySeconds`) are config fields,
+  not env vars, so a deployment is reproducible from the repo alone. Duplicating
   the CREATE3 factory address into `vaultWrapper.json` (rather than reading
   `networks.json`) is the intended cost of keeping the subsystem self-contained.
 - Deploy deterministically through the shared CREATE3 factory so mainnets sharing a
