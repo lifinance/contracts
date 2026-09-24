@@ -239,4 +239,59 @@ describe('checkSourcifyVerification', () => {
       'HTTP 429'
     )
   })
+
+  it('waits for the Retry-After a 429 carries', async () => {
+    stubSourcify({ [DIAMOND]: [() => rateLimited('0.1'), plain] })
+
+    const startedAt = Date.now()
+    const result = await checkSourcifyVerification(CHAIN_ID, DIAMOND, OPTIONS)
+
+    expect(result).toEqual({ status: 'verified' })
+    expect(Date.now() - startedAt).toBeGreaterThanOrEqual(90)
+  })
+
+  it('falls back to backoff when Retry-After is a past date', async () => {
+    const { urls } = stubSourcify({
+      [DIAMOND]: [() => rateLimited('Thu, 01 Jan 1970 00:00:00 GMT'), plain],
+    })
+
+    const startedAt = Date.now()
+    const result = await checkSourcifyVerification(CHAIN_ID, DIAMOND, OPTIONS)
+
+    expect(result).toEqual({ status: 'verified' })
+    expect(urls).toHaveLength(2)
+    expect(Date.now() - startedAt).toBeLessThan(90)
+  })
+
+  it('pauses every concurrent lookup after a 429', async () => {
+    stubSourcify({
+      [DIAMOND]: () => proxyOf([FACET_A, 'A'], [FACET_B, 'B']),
+      [FACET_A]: [() => rateLimited('0.1'), plain],
+      [FACET_B]: [() => json(502, {}), plain],
+    })
+    const stubbed = globalThis.fetch
+    const requestedAt: Array<{ address: string; at: number }> = []
+    globalThis.fetch = ((url: string) => {
+      requestedAt.push({
+        address: new URL(url).pathname.split('/').at(-1) ?? '',
+        at: Date.now(),
+      })
+      return stubbed(url)
+    }) as unknown as typeof globalThis.fetch
+
+    const result = await checkSourcifyVerification(CHAIN_ID, DIAMOND, OPTIONS)
+
+    expect(result).toEqual({ status: 'verified' })
+    const facetB = requestedAt.filter((r) => r.address === FACET_B)
+    const first = facetB[0]?.at ?? Number.NaN
+    const retry = facetB[1]?.at ?? Number.NaN
+    expect(retry - first).toBeGreaterThanOrEqual(90)
+  })
 })
+
+function rateLimited(retryAfter: string): Response {
+  return new Response('{}', {
+    status: 429,
+    headers: { 'retry-after': retryAfter },
+  })
+}

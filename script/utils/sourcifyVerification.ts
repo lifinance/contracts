@@ -15,13 +15,18 @@ import { mapWithConcurrency } from './mapWithConcurrency'
 
 const SOURCIFY_API = 'https://sourcify.dev/server'
 // Rate limiting (429) and 5xx are retried with exponential backoff: 2s, 4s,
-// ... 128s (~4 minutes in total). Sourcify blocks an IP for
-// ~30s after ~200 requests, longer when requests keep arriving during the
-// block, and a full diamond sweep is thousands of requests, so the waits must
-// outlast repeated blocks.
+// ... 128s (~4 minutes in total), or after the server's Retry-After when it
+// sends one. Sourcify blocks an IP for ~30s after ~200 requests, longer when
+// requests keep arriving during the block, and a full diamond sweep is
+// thousands of requests, so the waits must outlast repeated blocks.
 const MAX_ATTEMPTS = 8
 const DEFAULT_RETRY_DELAY_MS = 2_000 // 2 seconds, doubled after each attempt
+const MAX_RETRY_AFTER_MS = 300_000 // 5 minutes; caps a server-sent Retry-After
 const IMPLEMENTATION_CONCURRENCY = 8 // facet lookups in flight per diamond
+
+// A 429 pauses every lookup in the process, not just the one that got it:
+// concurrent workers retrying on their own schedules would keep the block alive.
+let rateLimitedUntil = 0
 
 export interface ISourcifyContractRef {
   address: string
@@ -59,6 +64,22 @@ async function readErrorCode(res: Response): Promise<string | undefined> {
   }
 }
 
+async function waitForRateLimitPause(): Promise<void> {
+  while (Date.now() < rateLimitedUntil)
+    await sleep(rateLimitedUntil - Date.now())
+}
+
+// Retry-After is either delta-seconds or an HTTP date.
+function parseRetryAfterMs(value: string | null): number | undefined {
+  if (!value) return undefined
+  const seconds = Number(value)
+  const ms = Number.isFinite(seconds)
+    ? seconds * 1000
+    : Date.parse(value) - Date.now()
+  if (!Number.isFinite(ms) || ms < 0) return undefined
+  return Math.min(ms, MAX_RETRY_AFTER_MS)
+}
+
 async function fetchWithRetry(
   url: string,
   options: ISourcifyCheckOptions
@@ -68,14 +89,20 @@ async function fetchWithRetry(
 
   let lastError = ''
   for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    await waitForRateLimitPause()
+    let delayMs = retryDelayMs * 2 ** (attempt - 1)
     try {
       const res = await fetchWithTimeout(url, { headers })
       if (res.status !== 429 && res.status < 500) return res
       lastError = `HTTP ${res.status} ${res.statusText}`
+      delayMs = parseRetryAfterMs(res.headers.get('retry-after')) ?? delayMs
+      await res.body?.cancel()
+      if (res.status === 429)
+        rateLimitedUntil = Math.max(rateLimitedUntil, Date.now() + delayMs)
     } catch (error) {
       lastError = error instanceof Error ? error.message : String(error)
     }
-    if (attempt < MAX_ATTEMPTS) await sleep(retryDelayMs * 2 ** (attempt - 1))
+    if (attempt < MAX_ATTEMPTS) await sleep(delayMs)
   }
   throw new Error(
     `Sourcify request failed after ${MAX_ATTEMPTS} attempts (${lastError}): ${url}. ` +
