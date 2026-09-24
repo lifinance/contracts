@@ -1,5 +1,6 @@
 # Run TypeScript Unit Tests
-# - Runs the TypeScript/Bun test suite (`bun test:ts` → every `script/**/*.test.ts`).
+# - Runs the TypeScript/Bun test suite (`bun test:ts` → every `script/**/*.test.ts` and
+#   `tasks/**/*.test.ts`).
 # - Path-gated: the test job runs only when files that can affect the outcome change
 #   (`script/**`, `tasks/**`, `config/**`, `package.json`, `bun.lock`, `tsconfig*.json`,
 #   this workflow).

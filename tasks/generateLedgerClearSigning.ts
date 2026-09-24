@@ -4,6 +4,7 @@ import path from 'path'
 import { defineCommand, runMain } from 'citty'
 
 import { flagIsOn } from '../script/deploy/safe/cli-flags'
+import { isEntrypoint } from '../script/utils/is-entrypoint'
 import { mapWithConcurrency } from '../script/utils/mapWithConcurrency'
 import { checkSourcifyVerification } from '../script/utils/sourcifyVerification'
 
@@ -33,12 +34,12 @@ interface INetworkConfig {
   isZkEVM?: boolean
 }
 
-interface IDeployment {
+export interface IDeployment {
   chainId: number
   address: string
 }
 
-interface IRepoDeployment extends IDeployment {
+export interface IRepoDeployment extends IDeployment {
   network: string
 }
 
@@ -48,7 +49,7 @@ interface IClearSigningProposal {
   formats: Record<string, Json>
 }
 
-interface ILedgerDisplay {
+export interface ILedgerDisplay {
   formats?: Record<string, Json>
   // ERC-7730 also allows `definitions`, `screens`, etc. — preserve via [k: string]
   [k: string]: unknown
@@ -169,7 +170,7 @@ function readProposalFormats(
 //
 // Returns the next `display` object. Pass `proposalFilePath = null` to skip
 // the proposal merge.
-function mergeDisplayFormats(
+export function mergeDisplayFormats(
   existing: ILedgerDisplay | undefined,
   proposalFilePath: string | null
 ): ILedgerDisplay {
@@ -212,7 +213,7 @@ function mergeDisplayFormats(
   return next
 }
 
-function buildDeploymentsFromRepo(
+export function buildDeploymentsFromRepo(
   deploymentsDir: string,
   networksJsonPath: string
 ): IRepoDeployment[] {
@@ -262,7 +263,7 @@ function buildDeploymentsFromRepo(
 // A dropped deployment is logged with the contracts to verify to bring it back.
 // Inconclusive Sourcify responses throw (see `checkSourcifyVerification`), so a
 // transient fault fails the sync instead of proposing to remove a live chain.
-async function keepSourcifyVerified(
+export async function keepSourcifyVerified(
   deployments: IRepoDeployment[]
 ): Promise<IDeployment[]> {
   const results = await mapWithConcurrency(
@@ -568,4 +569,4 @@ const main = defineCommand({
   },
 })
 
-runMain(main)
+if (isEntrypoint(import.meta.url)) runMain(main)
