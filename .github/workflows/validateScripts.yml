@@ -18,8 +18,8 @@
 #   can be bypassed with --no-verify
 # - Immutable registry: verify-immutable-registry.ts checks
 #   script/deploy/resources/immutableRegistry.json against the immutables
-#   declared in src/. Warn-only on the authoring gap until --strict flips on;
-#   see the step's own comment for what it does and does not run on
+#   declared in src/, and fails on any immutable with no entry; see the
+#   step's own comment for what it does and does not run on
 
 name: Validate Scripts
 on:
@@ -191,18 +191,18 @@ jobs:
       - name: Verify immutable registry
         shell: bash
         run: |
-          ##### Warn-only while WP-2.3's authoring pass runs: an immutable with no
-          ##### registry entry is a warning, not a failure. It still exits non-zero
-          ##### for anything the registry gets WRONG — a link to a config key that
-          ##### does not exist, an entry for an immutable no contract declares, an
-          ##### exemption with no reason — and for any src/ file the compiler
-          ##### emitted no AST for, since an immutable it cannot see is one the
-          ##### registry is never asked to account for.
+          ##### --strict: an immutable with no registry entry fails the job. The
+          ##### sign-time gate cannot verify an undeclared immutable, so a contract
+          ##### merged without its entry can be deployed but not signed from main.
+          ##### It also fails for anything the registry gets WRONG — a link to a
+          ##### config key that does not exist, an entry for an immutable no
+          ##### contract declares, an exemption with no reason — and for any src/
+          ##### file the compiler emitted no AST for, since an immutable it cannot
+          ##### see is one the registry is never asked to account for.
           ##### Still skipped on draft PRs, and the workflow has no push trigger;
           ##### the ready_for_review trigger re-runs it against final HEAD.
-          ##### Flip to --strict once every immutable is authored (EXSC-869 part ii).
           bunx tsx ./script/deploy/immutables/verify-immutable-registry.ts \
-            --out-dir out-immutables
+            --out-dir out-immutables --strict
 
   validate-scripts-required:
     # Aggregator job for branch protection. Reports green when the heavy job
