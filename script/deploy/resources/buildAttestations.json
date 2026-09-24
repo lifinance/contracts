@@ -1398,7 +1398,7 @@
         "contractName": "LiFiIntentEscrowFacetV2",
         "sourceId": "src/Facets/LiFiIntentEscrowFacetV2.sol",
         "version": "2.0.0",
-        "closureHash": "0x3b3d2ff2af6797b8ffbe28e1593aa26d9ae2a1ccfd6e7216c796b3b106e456d8",
+        "closureHash": "0x0e4eadc4f3dfe66d5955a37f6737685d5d1112aef9fb2ebccedd9ce92c51e216",
         "settingsHash": "0x48fde5cb6f411b0f8c9ca1c32f840873d478a053cb4a617a579eae3f3f641c71",
         "settingsSource": "artifact",
         "solcVersion": "0.8.29+commit.ab55807c"
@@ -1418,20 +1418,20 @@
           }
         }
       },
-      "maskedHash": "0xe7585fc25ac567cab7eb73817d7f0fe13830ce4c9496d99b3ba792f95e43f22e",
+      "maskedHash": "0xd487e8f95bae4d0711acd4ee9fb0026b18da23ac49b5d664970e6f14a3fd7f5c",
       "lineage": "LiFiIntentEscrowFacetV2@2.0.0 (default: solc 0.8.29, cancun)",
-      "rawByteLength": 10229,
+      "rawByteLength": 10350,
       "immutableOffsets": [
         {
           "start": 72,
           "length": 32
         },
         {
-          "start": 2339,
+          "start": 2414,
           "length": 32
         },
         {
-          "start": 2876,
+          "start": 2951,
           "length": 32
         }
       ]
