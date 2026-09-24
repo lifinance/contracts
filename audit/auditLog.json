@@ -735,6 +735,13 @@
       "auditReportPath": "./audit/reports/2026.09.23_CentrifugeFacet(v1.0.0).pdf",
       "auditCommitHash": "9b3596f57845cec7880763850b371f362ddbd9fd",
       "finalCommitHash": "1e85b1fa80a7a25faebf489b44dbb6008f9368da"
+    },
+    "audit20260924": {
+      "auditCompletedOn": "24.09.2026",
+      "auditedBy": "Sujith Somraaj (individual security researcher)",
+      "auditorGitHandle": "sujithsomraaj",
+      "auditReportPath": "./audit/reports/2026.09.24_NEARIntentsFacet(v2.0.0).pdf",
+      "auditCommitHash": "7d6d79f3e229856f348a03f89c9c28ca0722e68b"
     }
   },
   "auditedContracts": {
@@ -1028,7 +1035,8 @@
       "1.0.0": ["audit20251203_1"]
     },
     "NEARIntentsFacet": {
-      "1.0.0": ["audit20251216"]
+      "1.0.0": ["audit20251216"],
+      "2.0.0": ["audit20260924"]
     },
     "OFTComposeMsgCodec": {
       "1.0.0": ["audit20250508"]
