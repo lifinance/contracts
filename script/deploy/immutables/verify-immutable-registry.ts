@@ -69,7 +69,7 @@ export interface IVerificationCounts {
   unenumerated: number
   /** Things the registry gets wrong. */
   errors: number
-  /** Immutables with no registry entry yet. */
+  /** Immutables with no registry entry. */
   warnings: number
 }
 
