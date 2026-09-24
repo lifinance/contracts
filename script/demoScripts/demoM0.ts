@@ -28,6 +28,12 @@
  *     that range, a run costs 3 units whether you send 4 or 10_000 — size only changes
  *     the balance you have to hold, not what you lose.
  *
+ * A quote also names its solver, and a same-chain quote comes back `exclusive: true` —
+ * that solver priced the leg for itself and is the only one obliged to fill it, so it
+ * has to become the order's `designatedSolver`. Opening with bytes32(0) instead leaves
+ * an open-fill order at an exclusive quote's price, which nobody picks up: it just sits
+ * at CREATED until fillDeadline. Every order in `/orders` names a solver.
+ *
  * So the same-chain scenario prices off a real quote, and the cross-chain ones fall back
  * to an arbitrary limit price and are unlikely to be filled by anyone.
  */
@@ -124,6 +130,32 @@ interface IQuoteRoute {
   destinationAsset: string
 }
 
+/// The solver behind a limit-order leg. `exclusive` means the leg is bound to this
+/// solver on-chain, i.e. it must become the order's designatedSolver.
+interface IM0PayloadSolver {
+  address: string
+  name: string | null
+  exclusive: boolean
+}
+
+interface IM0QuotePayload {
+  provider: string
+  solver?: IM0PayloadSolver
+}
+
+interface IM0QuoteResponse {
+  amountOut: string
+  payloads: IM0QuotePayload[]
+}
+
+/// A quote reduced to what the order actually needs: the limit price and the solver to
+/// designate (bytes32(0) when the quote is open-fill).
+interface IM0Quote {
+  amountOut: bigint
+  solver: Hex
+  solverName: string | null
+}
+
 interface IScenarioConfig {
   description: string
   sourceChain: SupportedChain
@@ -136,7 +168,7 @@ interface IScenarioConfig {
   quoteRoute: IQuoteRoute
   /// Only used when M0 cannot quote the route. NOT a market rate — an arbitrary limit
   /// price that lets the demo still open an order, so the facet path stays exercisable
-  /// while `limit-order` has no solver coverage. See `resolveAmountOut`.
+  /// while `limit-order` has no solver coverage. See `resolveLimitPrice`.
   fallbackLimitPriceBps: number
   preSwap?: IPreSwap
 }
@@ -240,7 +272,7 @@ const fetchM0LimitOrderQuote = async (
   amountIn: bigint,
   sender: Address,
   recipient: string
-): Promise<bigint | null> => {
+): Promise<IM0Quote | null> => {
   const apiKey = process.env.M0_API_KEY
   if (!apiKey) {
     consola.warn('M0_API_KEY is not set — cannot request a quote')
@@ -276,14 +308,27 @@ const fetchM0LimitOrderQuote = async (
   }
 
   // Quotes come back ranked by best amountOut, so the first is the one to take.
-  const quotes = (await response.json()) as { amountOut: string }[]
+  const quotes = (await response.json()) as IM0QuoteResponse[]
   const best = quotes[0]
   if (!best) {
     consola.warn('M0 returned an empty quote list')
     return null
   }
 
-  return BigInt(best.amountOut)
+  // An exclusive solver priced this leg for itself and is the only one obliged to fill
+  // it, so the order has to name it. Opening with bytes32(0) instead leaves an open-fill
+  // order at an exclusive quote's price, which is what nobody picks up.
+  const exclusive = best.payloads
+    .map((payload) => payload.solver)
+    .find((solver): solver is IM0PayloadSolver => solver?.exclusive === true)
+
+  return {
+    amountOut: BigInt(best.amountOut),
+    solver: exclusive
+      ? zeroPadAddressToBytes32(getAddress(exclusive.address))
+      : ANY_SOLVER,
+    solverName: exclusive?.name ?? null,
+  }
 }
 
 /**
@@ -295,12 +340,12 @@ const fetchM0LimitOrderQuote = async (
  * Note the fallback under-prices badly against live behaviour: solvers charge a flat
  * 3e6, so a bps spread on a small order asks for far more than any solver would pay.
  */
-const resolveAmountOut = async (
+const resolveLimitPrice = async (
   scenario: IScenarioConfig,
   amountIn: bigint,
   sender: Address,
   recipient: string
-): Promise<bigint> => {
+): Promise<IM0Quote> => {
   const quoted = await fetchM0LimitOrderQuote(
     scenario.quoteRoute,
     scenario.sendingAssetId,
@@ -311,7 +356,12 @@ const resolveAmountOut = async (
 
   if (quoted !== null) {
     consola.success(
-      `amountOut ${quoted.toString()} — quoted by M0 (limit-order)`
+      `amountOut ${quoted.amountOut.toString()} — quoted by M0 (limit-order)`
+    )
+    consola.info(
+      quoted.solverName === null
+        ? 'Quote is open-fill: any solver may take it'
+        : `Designated solver: ${quoted.solverName} (${quoted.solver})`
     )
     return quoted
   }
@@ -329,7 +379,8 @@ const resolveAmountOut = async (
       'escrows, and can be cancelled once fillDeadline passes.'
   )
 
-  return amountOut
+  // No quote means no solver priced it, so there is none to designate.
+  return { amountOut, solver: ANY_SOLVER, solverName: null }
 }
 
 /**
@@ -467,7 +518,7 @@ const cli = defineCommand({
       refundRecipient: callerAddress,
       orderOwner: callerAddress,
       tokenOut: scenario.tokenOut,
-      solver: ANY_SOLVER,
+      solver: ANY_SOLVER, // replaced below with the quote's solver, per branch
       amountOut: 0n, // set below per branch
       fillDeadline: Math.floor(Date.now() / 1000) + FILL_DEADLINE_SECONDS,
     }
@@ -494,12 +545,14 @@ const cli = defineCommand({
       // bridgeData.minAmount is the declared swap floor, which is also what the facet
       // quotes amountOut against before scaling it by the realized swap output.
       bridgeData.minAmount = floor.toBigInt()
-      m0Data.amountOut = await resolveAmountOut(
+      const swapQuote = await resolveLimitPrice(
         scenario,
         floor.toBigInt(),
         callerAddress,
         quoteRecipient
       )
+      m0Data.amountOut = swapQuote.amountOut
+      m0Data.solver = swapQuote.solver
 
       consola.info(
         `Pre-swap: expected ${expectedOut.toString()}, floor ${floor.toString()} (${
@@ -572,12 +625,14 @@ const cli = defineCommand({
     })) as number
     const amountIn = parseUnits(scenario.amount, decimals)
     bridgeData.minAmount = amountIn
-    m0Data.amountOut = await resolveAmountOut(
+    const quote = await resolveLimitPrice(
       scenario,
       amountIn,
       callerAddress,
       quoteRecipient
     )
+    m0Data.amountOut = quote.amountOut
+    m0Data.solver = quote.solver
 
     consola.info(
       `amountIn ${amountIn.toString()}, limit price amountOut ${m0Data.amountOut.toString()}`
