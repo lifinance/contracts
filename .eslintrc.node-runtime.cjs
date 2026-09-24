@@ -29,7 +29,7 @@ const IMPORT_META_MESSAGE =
   `Shipped modules run on Node via \`bunx tsx\`, which provides only ` +
   `import.meta.{${NODE_IMPORT_META_MEMBERS.join(',')}}. For a CLI entry ` +
   `guard use isEntrypoint(import.meta.url) from script/utils/is-entrypoint.ts; ` +
-  `for the module's directory use import.meta.dirname.`
+  `for the module's directory use dirname(fileURLToPath(import.meta.url)).`
 
 const BUN_MESSAGE =
   `Shipped modules run on Node via \`bunx tsx\`, where Bun APIs do not exist. ` +

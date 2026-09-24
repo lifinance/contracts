@@ -10,8 +10,8 @@
  * operator is indistinguishable from a real empty result — an empty timelock queue, a
  * completed cancellation, a finished ownership handover.
  *
- * The plain `process.argv[1] === fileURLToPath(import.meta.url)` compare that
- * [CONV:NODE-RUNTIME-APIS] prescribes trades that for a quieter version of the same bug:
+ * The plain `process.argv[1] === fileURLToPath(import.meta.url)` compare trades that for a
+ * quieter version of the same bug:
  * Node resolves symlinks as it loads, so `import.meta.url` is already the real path while
  * argv[1] stays as the user typed it. Verified both a symlinked file and a symlinked
  * directory component make the plain compare false. No checkout in use today invokes these
