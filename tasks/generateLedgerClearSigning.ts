@@ -130,6 +130,28 @@ function isRetiredLifiEntry(formatKey: string): boolean {
   return RETIRED_LIFI_FUNCTIONS.has(functionNameOf(formatKey))
 }
 
+// Returns the proposal's `formats`, or none (with a warning) when the file is
+// missing or has no `formats` object.
+function readProposalFormats(
+  proposalFilePath: string
+): IClearSigningProposal['formats'] {
+  const absPath = resolveWithinCwd(proposalFilePath)
+  if (!fs.existsSync(absPath)) {
+    console.warn(
+      `Proposal file not found at ${absPath}; merging no proposal formats.`
+    )
+    return {}
+  }
+  const proposal = readJsonFile<IClearSigningProposal>(absPath)
+  if (!proposal.formats || typeof proposal.formats !== 'object') {
+    console.warn(
+      `Proposal at ${absPath} has no .formats object; merging no proposal formats.`
+    )
+    return {}
+  }
+  return proposal.formats
+}
+
 // Merges `display.formats` entries from the local proposal into the registry's
 // existing display block.
 //
@@ -141,32 +163,22 @@ function isRetiredLifiEntry(formatKey: string): boolean {
 //    entries for selectors we deprecated but older deployments still expose.
 //    The exceptions are our own title-only `*Packed` / `*Min` residue (see
 //    `isResidualTitleOnlyEntry`) and entries for retired LI.FI functions (see
-//    `RETIRED_LIFI_FUNCTIONS`).
+//    `RETIRED_LIFI_FUNCTIONS`), dropped even when no proposal is merged: the
+//    registry lint rejects both.
 //  - Other `display.*` keys (definitions, screens, etc.): PRESERVE verbatim.
 //
 // Returns the next `display` object. Pass `proposalFilePath = null` to skip
-// merging (preserves the registry's display untouched).
+// the proposal merge.
 function mergeDisplayFormats(
   existing: ILedgerDisplay | undefined,
   proposalFilePath: string | null
 ): ILedgerDisplay {
   const next: ILedgerDisplay = { ...(existing ?? {}) }
-  if (!proposalFilePath) return next
-
-  const absPath = resolveWithinCwd(proposalFilePath)
-  if (!fs.existsSync(absPath)) {
-    console.warn(
-      `Proposal file not found at ${absPath}; preserving display.* unchanged.`
-    )
+  const proposalFormats = proposalFilePath
+    ? readProposalFormats(proposalFilePath)
+    : {}
+  if (!existing?.formats && Object.keys(proposalFormats).length === 0)
     return next
-  }
-  const proposal = readJsonFile<IClearSigningProposal>(absPath)
-  if (!proposal.formats || typeof proposal.formats !== 'object') {
-    console.warn(
-      `Proposal at ${absPath} has no .formats object; preserving display.* unchanged.`
-    )
-    return next
-  }
 
   const existingFormats: Record<string, Json> =
     (existing?.formats as Record<string, Json> | undefined) ?? {}
@@ -174,14 +186,14 @@ function mergeDisplayFormats(
 
   let replaced = 0
   let added = 0
-  for (const [sig, entry] of Object.entries(proposal.formats)) {
+  for (const [sig, entry] of Object.entries(proposalFormats)) {
     if (sig in nextFormats) replaced++
     else added++
-    nextFormats[sig] = entry as Json
+    nextFormats[sig] = entry
   }
   const dropped: string[] = []
   for (const [sig, entry] of Object.entries(nextFormats)) {
-    const retired = isRetiredLifiEntry(sig) && !(sig in proposal.formats)
+    const retired = isRetiredLifiEntry(sig) && !(sig in proposalFormats)
     if (retired || isResidualTitleOnlyEntry(sig, entry)) {
       delete nextFormats[sig]
       dropped.push(sig)
@@ -189,7 +201,7 @@ function mergeDisplayFormats(
   }
 
   const preserved = Object.keys(nextFormats).filter(
-    (k) => !(k in proposal.formats)
+    (k) => !(k in proposalFormats)
   ).length
 
   console.log(
@@ -409,7 +421,7 @@ const main = defineCommand({
     skipDisplayMerge: {
       type: 'boolean',
       description:
-        'Do not merge display.formats from the proposal file. Useful for emergency runs when the proposal is known stale or the gate is being debugged.',
+        'Do not merge display.formats from the proposal file (title-only Packed/Min residue and retired LI.FI entries are still dropped). Useful for emergency runs when the proposal is known stale or the gate is being debugged.',
     },
     printDiff: {
       type: 'boolean',
@@ -511,8 +523,9 @@ const main = defineCommand({
     //  - selectors removed from our diamond (in registry but not in proposal):
     //    preserve. Some older deployments may still expose them; dropping the
     //    entry would break clear-signing for those signers. Dead entries are
-    //    a cheap cost. The exception is title-only `*Packed` / `*Min` residue we
-    //    pushed ourselves, which the registry rejects (`isResidualTitleOnlyEntry`).
+    //    a cheap cost. The exceptions are title-only `*Packed` / `*Min` residue we
+    //    pushed ourselves (`isResidualTitleOnlyEntry`) and entries for retired
+    //    LI.FI functions (`RETIRED_LIFI_FUNCTIONS`), which the registry rejects.
     //
     // Other `display.*` keys (definitions, screens, etc.) are preserved verbatim.
     const nextDisplay = mergeDisplayFormats(
