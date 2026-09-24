@@ -51,7 +51,6 @@ Starting with facet version **2.0.0**, both entrypoints accept the chain's nativ
 - **For swaps that end in native, attached `msg.value` funds the intent.** The swap output is measured as the diamond's native balance increase, with `msg.value` excluded from the baseline. Any `msg.value` the swaps don't consume is therefore escrowed rather than refunded, and it raises the committed output through `outputAmountMultiplier`. Send `value = 0` for ERC20 → native routes.
 - **The final swap asset must equal `sendingAssetId`.** `swapAndStartBridgeTokensViaLiFiIntentEscrowV2` reverts with `InformationMismatch()` otherwise, so a swap output can't be escrowed as a different asset.
 - **Native recipients must accept native transfers.** The settler pays native inputs out with a plain value transfer on `refund` (to `depositAndRefundAddress`) and `finalise` (to the solver's destination). A contract that rejects native transfers blocks that payout. On the facet side, a `depositAndRefundAddress` that rejects an excess refund reverts the whole call.
-- **Tron:** the currently configured Tron input settler predates native support (`open` is non-payable). Native TRX inputs revert until a native-aware Tron settler is deployed and configured.
 
 ## Relative and Absolute Deadlines
 
