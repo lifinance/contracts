@@ -15,12 +15,14 @@ import type { AuditLogEntry, IAuditLogFile } from './audit-log-guard'
 import { classifyContentVerdict } from './closure-drift'
 import type { IClosureDetail } from './source-closure'
 import {
+  classifyAuditEntry,
   verifyAuditContent,
   resolvePinCommit,
   type AuditVerdict,
   type ClosureResolutionFailure,
   type IAuditCheckResult,
   type IAuditEntryInput,
+  type IDriftCandidate,
 } from './verify-audit-content'
 
 /** A closure at a tree-ish, hashed whole and per file, or why one could not be taken. */
@@ -190,55 +192,217 @@ const worst = (verdicts: AuditVerdict[]): AuditVerdict => {
   return 'pass'
 }
 
+/** Whether a drifted import vouches for itself, and when it does not, why. */
+type ImportCredit =
+  | { covered: true; label: string }
+  | { covered: false; why?: string }
+
+interface ICandidateCredit {
+  candidate: IDriftCandidate
+  covered: string[]
+  uncovered: string[]
+  notes: string[]
+}
+
+const creditCandidate = (
+  candidate: IDriftCandidate,
+  creditFor: (path: string) => ImportCredit
+): ICandidateCredit => {
+  const credit: ICandidateCredit = {
+    candidate,
+    covered: [],
+    uncovered: [],
+    notes: [],
+  }
+  for (const path of candidate.driftingDependencies) {
+    const judged = creditFor(path)
+    if (judged.covered) {
+      credit.covered.push(judged.label)
+      continue
+    }
+    credit.uncovered.push(path)
+    if (judged.why) credit.notes.push(judged.why)
+  }
+
+  return credit
+}
+
 /**
  * Re-judges a `closure-drift` verdict after crediting every drifted import that
  * passes the gate on its own.
  *
  * An import whose current source matches its own audit is not unreviewed code,
  * so it is dropped from the drift. Only a `pass` credits: an import that itself
- * drifts, fails or cannot be judged stays listed. Without this, a fork that
- * carries an audited library overlay (`LibAsset@2.1.3-tron`) reports drift on
- * every contract importing it, permanently.
+ * drifts, fails or cannot be judged stays listed, with the reason it was not
+ * credited. Without this, a fork that carries an audited library overlay
+ * (`LibAsset@2.1.3-tron`) reports drift on every contract importing it,
+ * permanently.
+ *
+ * Every drifting audit entry is tried, and the one leaving the fewest imports
+ * uncovered is reported, so the verdict does not depend on log order.
  *
  * @param subject - `Name@version`, for the reason line.
  * @param result - the verdict before crediting.
- * @param coveredLabel - `Name@version (audit 'id')` for a covered import, else `undefined`.
- * @returns the verdict unchanged, a `pass` when every drifted import is covered,
- * or a narrower `closure-drift` listing only the uncovered ones.
+ * @param creditFor - judges one drifted import.
+ * @returns the verdict unchanged, a `pass` when some entry's drifted imports are
+ * all covered, or a narrower `closure-drift` listing only the uncovered ones.
  */
 const creditCoveredDependencies = (
   subject: string,
   result: IAuditCheckResult,
-  coveredLabel: (path: string) => string | undefined
+  creditFor: (path: string) => ImportCredit
 ): IAuditCheckResult => {
   if (result.verdict !== 'closure-drift') return result
 
-  const covered: string[] = []
-  const uncovered: string[] = []
-  for (const path of result.driftingDependencies ?? []) {
-    const label = coveredLabel(path)
-    if (label) covered.push(label)
-    else uncovered.push(path)
-  }
-  if (covered.length === 0) return result
+  const credits = (result.driftCandidates ?? []).map((candidate) =>
+    creditCandidate(candidate, creditFor)
+  )
+  const [first, ...rest] = credits
+  if (!first) return result
+  const best = rest.reduce(
+    (kept, next) =>
+      next.uncovered.length < kept.uncovered.length ? next : kept,
+    first
+  )
+  if (best.covered.length === 0 && best.notes.length === 0) return result
 
-  const credit = `covered by their own audits: ${covered.join(', ')}`
-  if (uncovered.length === 0)
+  const { auditId, basis } = best.candidate
+  const credit = `covered by their own audits: ${best.covered.join(', ')}`
+  if (best.uncovered.length === 0)
     return {
       verdict: 'pass',
-      reason: `${subject}: own source matches audit '${result.matchedAuditId}', and every import that moved since is ${credit}`,
-      matchedAuditId: result.matchedAuditId,
+      reason: `${subject}: own source matches audit '${auditId}' (${basis}), and every import that moved since is ${credit}`,
+      matchedAuditId: auditId,
     }
 
   const { reason } = classifyContentVerdict(subject, {
     ownSourceMatches: true,
     closureMatches: false,
-    driftingDependencies: uncovered,
+    driftingDependencies: best.uncovered,
   })
+  const creditNote =
+    best.covered.length > 0 ? `; other moved imports are ${credit}` : ''
+  const notes = best.notes.map((note) => `\n  ${note}`).join('')
   return {
-    ...result,
-    reason: `${reason} (audit '${result.matchedAuditId}'; other moved imports are ${credit})`,
-    driftingDependencies: uncovered,
+    verdict: 'closure-drift',
+    reason: `${reason} (audit '${auditId}', ${basis}${creditNote})${notes}`,
+    matchedAuditId: auditId,
+    driftingDependencies: best.uncovered,
+  }
+}
+
+/**
+ * A pass on a pinned baseline records a closure without claiming anyone reviewed
+ * it, so it must not vouch for the contracts importing it.
+ */
+const passedOnAudit = (log: IAuditLogFile, auditId: string): boolean => {
+  const entry = log.audits?.[auditId]
+  return (
+    entry !== undefined &&
+    classifyAuditEntry(toEntryInput(auditId, entry)).kind !== 'unverifiable'
+  )
+}
+
+/**
+ * An import's verdict reason, cut to what explains the missing credit. The full
+ * reason ends in remediation advice meant for the contract itself, which would
+ * mislead on a line about one of its imports.
+ */
+const headline = (reason: string): string => {
+  const [first = '', second] = reason.split('\n')
+  return first.endsWith(':') && second ? `${first} ${second.trim()}` : first
+}
+
+interface IImportCreditContext {
+  log: IAuditLogFile
+  headTreeish: string
+  versionAt: IAuditGateDeps['versionAt']
+  evaluate: (contract: IContractUnderCheck) => IContractGateResult
+}
+
+const creditImport = (
+  path: string,
+  context: IImportCreditContext
+): ImportCredit => {
+  // Submodule dirs have no version and no audit entry of their own.
+  if (!path.endsWith('.sol')) return { covered: false }
+
+  const version = context.versionAt(context.headTreeish, path)
+  if (version === undefined)
+    return {
+      covered: false,
+      why: `${path}: not credited — no readable @custom:version at PR head, so its audits cannot be looked up`,
+    }
+
+  const result = context.evaluate({ path, version })
+  const subject = `${result.contract}@${version}`
+  if (result.verdict !== 'pass' || result.matchedAuditId === undefined)
+    return { covered: false, why: `not credited — ${headline(result.reason)}` }
+
+  if (!passedOnAudit(context.log, result.matchedAuditId))
+    return {
+      covered: false,
+      why: `${subject}: not credited — it matches only the pinned baseline on '${result.matchedAuditId}', which is not an audit`,
+    }
+
+  return {
+    covered: true,
+    label: `${subject} (audit '${result.matchedAuditId}')`,
+  }
+}
+
+interface IJudgeContext {
+  log: IAuditLogFile
+  headTreeish: string
+  closureAt: IAuditGateDeps['closureAt']
+  prTitle?: string
+}
+
+const judgeContract = (
+  contract: IContractUnderCheck,
+  context: IJudgeContext
+): IContractGateResult => {
+  const { closureAt } = context
+  const name = contractNameFromPath(contract.path)
+  const subject = `${name}@${contract.version}`
+  const head = closureAt(context.headTreeish, contract.path)
+
+  // Not knowing what is being merged is an ERROR, never a pass: the gate has
+  // nothing to compare, and per T3 that blocks without an acknowledgement path.
+  if (!isClosureDetail(head))
+    return {
+      contract: name,
+      version: contract.version,
+      verdict: 'error',
+      reason: `${subject}: the source closure at PR head could not be computed (${head}) — the gate cannot compare what it cannot read`,
+    }
+
+  const entries = collectEntriesForContract(
+    context.log,
+    name,
+    contract.version
+  ).map((entry) => {
+    const pinCommit = resolvePinCommit(entry)
+    return {
+      ...entry,
+      closureAtAuditCommit: /^[0-9a-f]{40}$/i.test(pinCommit)
+        ? closureAt(pinCommit, contract.path)
+        : undefined,
+    }
+  })
+
+  return {
+    contract: name,
+    version: contract.version,
+    ...verifyAuditContent({
+      contract: name,
+      version: contract.version,
+      headClosureHash: head.combined,
+      headClosureDetail: head,
+      contractPath: contract.path,
+      entries,
+      prTitle: context.prTitle,
+    }),
   }
 }
 
@@ -269,88 +433,43 @@ export const runAuditGate = (input: IAuditGateInput): IAuditGateReport => {
     return resolved
   }
 
-  const judge = (contract: IContractUnderCheck): IContractGateResult => {
-    const name = contractNameFromPath(contract.path)
-    const subject = `${name}@${contract.version}`
-    const head = closureAt(headTreeish, contract.path)
-
-    // Not knowing what is being merged is an ERROR, never a pass: the gate has
-    // nothing to compare, and per T3 that blocks without an acknowledgement path.
-    if (!isClosureDetail(head))
-      return {
-        contract: name,
-        version: contract.version,
-        verdict: 'error',
-        reason: `${subject}: the source closure at PR head could not be computed (${head}) — the gate cannot compare what it cannot read`,
-      }
-
-    const entries = collectEntriesForContract(log, name, contract.version).map(
-      (entry) => {
-        const pinCommit = resolvePinCommit(entry)
-        return {
-          ...entry,
-          closureAtAuditCommit: /^[0-9a-f]{40}$/i.test(pinCommit)
-            ? closureAt(pinCommit, contract.path)
-            : undefined,
-        }
-      }
-    )
-
-    return {
-      contract: name,
-      version: contract.version,
-      ...verifyAuditContent({
-        contract: name,
-        version: contract.version,
-        headClosureHash: head.combined,
-        headClosureDetail: head,
-        contractPath: contract.path,
-        entries,
-        prTitle: input.prTitle,
-      }),
-    }
-  }
-
+  const judgeContext = { log, headTreeish, closureAt, prTitle: input.prTitle }
   const evaluated = new Map<string, IContractGateResult>()
   const inProgress = new Set<string>()
-
-  const coveredLabel = (path: string): string | undefined => {
-    // Submodule dirs have no version and no audit entry of their own.
-    if (!path.endsWith('.sol')) return undefined
-    const version = deps.versionAt(headTreeish, path)
-    if (version === undefined) return undefined
-
-    const result = evaluate({ path, version })
-    return result.verdict === 'pass'
-      ? `${result.contract}@${version} (audit '${result.matchedAuditId}')`
-      : undefined
-  }
 
   const evaluate = (contract: IContractUnderCheck): IContractGateResult => {
     const key = `${contract.path}@${contract.version}`
     const done = evaluated.get(key)
     if (done) return done
 
+    const name = contractNameFromPath(contract.path)
     // A contract reached again through its own imports is still being judged, so
     // it cannot vouch for anything yet. Not cached: it is a placeholder, not a verdict.
     if (inProgress.has(key))
       return {
-        contract: contractNameFromPath(contract.path),
+        contract: name,
         version: contract.version,
         verdict: 'closure-drift',
-        reason: `${contract.path}@${contract.version}: reached through an import cycle`,
+        reason: `${name}@${contract.version}: reached through an import cycle, so it cannot vouch for what imports it`,
       }
 
     inProgress.add(key)
-    const base = judge(contract)
-    const result: IContractGateResult = {
+    const base = judgeContract(contract, judgeContext)
+    const credited = creditCoveredDependencies(
+      `${base.contract}@${base.version}`,
+      base,
+      (path) =>
+        creditImport(path, {
+          log,
+          headTreeish,
+          versionAt: deps.versionAt,
+          evaluate,
+        })
+    )
+    const result = {
       contract: base.contract,
       version: base.version,
-      ...creditCoveredDependencies(
-        `${base.contract}@${base.version}`,
-        base,
-        coveredLabel
-      ),
+      ...credited,
     }
     inProgress.delete(key)
     evaluated.set(key, result)

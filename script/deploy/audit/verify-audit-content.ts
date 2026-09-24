@@ -80,12 +80,26 @@ export const resolvePinCommit = (entry: {
  */
 export type AuditVerdict = 'pass' | 'fail' | 'error' | 'closure-drift'
 
+/** One audit entry under which the contract's own source matched but its closure moved. */
+export interface IDriftCandidate {
+  auditId: string
+  /** What the closure was compared against, e.g. `pin commit <sha>`. */
+  basis: string
+  driftingDependencies: string[]
+}
+
 export interface IAuditCheckResult {
   verdict: AuditVerdict
   reason: string
   matchedAuditId?: string
   /** Closure files that moved since the audit, for a `closure-drift` verdict. */
   driftingDependencies?: string[]
+  /**
+   * Every entry that drifted, in log order, for a `closure-drift` verdict. The
+   * verdict reports the first; a caller crediting imports must consider them all,
+   * or the outcome would depend on the order audit ids are listed in.
+   */
+  driftCandidates?: IDriftCandidate[]
 }
 
 /**
@@ -216,11 +230,7 @@ export const verifyAuditContent = (
 
   const errors: string[] = []
   const failures: string[] = []
-  const drifts: {
-    reason: string
-    auditId: string
-    driftingDependencies: string[]
-  }[] = []
+  const drifts: (IDriftCandidate & { reason: string })[] = []
 
   for (const entry of entries) {
     const { kind } = classifyAuditEntry(entry)
@@ -261,9 +271,11 @@ export const verifyAuditContent = (
             matchedAuditId: entry.auditId,
           }
         if (classified.verdict === 'closure-drift') {
+          const basis = `recorded hash ${entry.sourceClosureHash}`
           drifts.push({
-            reason: `${classified.reason} (audit '${entry.auditId}', recorded hash ${entry.sourceClosureHash})`,
+            reason: `${classified.reason} (audit '${entry.auditId}', ${basis})`,
             auditId: entry.auditId,
+            basis,
             driftingDependencies: recordedComparison.driftingDependencies,
           })
           continue
@@ -336,9 +348,11 @@ export const verifyAuditContent = (
             matchedAuditId: entry.auditId,
           }
         if (classified.verdict === 'closure-drift') {
+          const basis = `pin commit ${pinCommit}`
           drifts.push({
-            reason: `${classified.reason} (audit '${entry.auditId}', pin commit ${pinCommit})`,
+            reason: `${classified.reason} (audit '${entry.auditId}', ${basis})`,
             auditId: entry.auditId,
+            basis,
             driftingDependencies: comparison.driftingDependencies,
           })
           continue
@@ -387,6 +401,13 @@ export const verifyAuditContent = (
       reason: best.reason,
       matchedAuditId: best.auditId,
       driftingDependencies: best.driftingDependencies,
+      driftCandidates: drifts.map(
+        ({ auditId, basis, driftingDependencies }) => ({
+          auditId,
+          basis,
+          driftingDependencies,
+        })
+      ),
     }
   }
 

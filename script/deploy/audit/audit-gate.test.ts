@@ -560,6 +560,109 @@ describe('runAuditGate crediting drifted imports that carry their own audit', ()
     expect(report.verdict).toBe('fail')
     expect(report.blocked).toBe(true)
   })
+
+  it("keeps the drift when the import's own audit commit cannot be fetched, and says so", () => {
+    const report = run({
+      ...fooDriftsOnLib,
+      [`HEAD:${LIB}`]: closure(hash('c'), { [LIB]: LIB_NEW }),
+    })
+    const [result] = report.results
+
+    expect(report.verdict).toBe('closure-drift')
+    expect(report.blocked).toBe(false)
+    expect(result?.driftingDependencies).toEqual([LIB])
+    expect(result?.reason).toContain('not credited')
+    expect(result?.reason).toContain('could not be fetched')
+    expect(result?.reason).toContain(`pin commit ${AUDIT_SHA}`)
+  })
+
+  it('never credits an import that matches only a pinned baseline', () => {
+    const pinnedLog = logWith(
+      {
+        audit1: entry(),
+        libPin: entry({
+          auditCommitHash: 'deployed-instance',
+          pinnedClosureHash: hash('c'),
+        }),
+      },
+      {
+        FooFacet: { '1.0.0': ['audit1'] },
+        LibAsset: { [LIB_VERSION]: ['libPin'] },
+      }
+    )
+    const report = run(
+      {
+        ...fooDriftsOnLib,
+        [`HEAD:${LIB}`]: closure(hash('c'), { [LIB]: LIB_NEW }),
+      },
+      { [LIB]: LIB_VERSION },
+      pinnedLog
+    )
+    const [result] = report.results
+
+    expect(report.verdict).toBe('closure-drift')
+    expect(result?.driftingDependencies).toEqual([LIB])
+    expect(result?.reason).toContain("pinned baseline on 'libPin'")
+  })
+
+  it("says why an import with no readable version wasn't credited", () => {
+    const report = run({ ...fooDriftsOnLib, ...libMatchesItsAudit }, {})
+
+    expect(report.results[0]?.reason).toContain(
+      'no readable @custom:version at PR head'
+    )
+  })
+
+  describe('with two audits of the contract that drift on different imports', () => {
+    const ERRORS = 'src/Errors/GenericErrors.sol'
+    const twoAudits = (order: string[]): IAuditLogFile =>
+      logWith(
+        {
+          older: entry(),
+          newer: entry({ auditCommitHash: SECOND_SHA }),
+          libAudit: entry({ auditCommitHash: LIB_SHA }),
+        },
+        {
+          FooFacet: { '1.0.0': order },
+          LibAsset: { [LIB_VERSION]: ['libAudit'] },
+        }
+      )
+    // `older` also drifts on GenericErrors, which has no audit of its own;
+    // `newer` drifts only on the covered LibAsset.
+    const closures = {
+      [`HEAD:${FOO}`]: closure(hash('a'), {
+        [FOO]: OWN,
+        [LIB]: LIB_NEW,
+        [ERRORS]: hash('9'),
+      }),
+      [`${AUDIT_SHA}:${FOO}`]: closure(hash('b'), {
+        [FOO]: OWN,
+        [LIB]: LIB_OLD,
+        [ERRORS]: hash('8'),
+      }),
+      [`${SECOND_SHA}:${FOO}`]: closure(hash('5'), {
+        [FOO]: OWN,
+        [LIB]: LIB_OLD,
+        [ERRORS]: hash('9'),
+      }),
+      ...libMatchesItsAudit,
+    }
+
+    it.each([[['older', 'newer']], [['newer', 'older']]])(
+      'passes on the entry whose imports are all covered, for log order %p',
+      (order) => {
+        const [result] = run(
+          closures,
+          { [LIB]: LIB_VERSION },
+          twoAudits(order)
+        ).results
+
+        expect(result?.verdict).toBe('pass')
+        expect(result?.matchedAuditId).toBe('newer')
+        expect(result?.reason).toContain(`pin commit ${SECOND_SHA}`)
+      }
+    )
+  })
 })
 
 describe('resolveContractSource', () => {
