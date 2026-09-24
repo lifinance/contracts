@@ -14,7 +14,14 @@
  * masking path at all.
  */
 
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'fs'
 import { tmpdir } from 'os'
 import { join } from 'path'
 
@@ -1515,6 +1522,23 @@ describe('createForgeRebuildRunner', () => {
       expect(made.calls).toHaveLength(1)
       expect(made.reads).toHaveLength(1)
       expect(touched).toEqual([])
+    })
+
+    it('empties its build root first, so a stale artifact is never read', () => {
+      const stale = `${OUT}/Stale.sol/Stale.json`
+      mkdirSync(join(stale, '..'), { recursive: true })
+      writeFileSync(stale, '{}')
+      try {
+        harness().runner.declarationsAt(COMMIT, zkRequest.profile)
+
+        expect(existsSync(stale)).toBe(false)
+        expect(existsSync('/tmp/rebuilds/zk-declarations')).toBe(true)
+      } finally {
+        rmSync('/tmp/rebuilds/zk-declarations', {
+          recursive: true,
+          force: true,
+        })
+      }
     })
 
     it('builds even when its output path already holds something', () => {

@@ -871,8 +871,7 @@ export const createForgeRebuildRunner = (
     // The same sources the zksolc build compiles: no path argument, so the
     // commit's own `src` setting applies to both. Naming `src` here while its
     // profile points elsewhere would read declarations from a tree layer 1 never
-    // built; this way that tree's artifacts fall outside `src/`, where the
-    // enumeration does not look, and the contract reads as not covered.
+    // built.
     const result = deps.run(
       'forge',
       [
@@ -1267,10 +1266,10 @@ export const createRecordedImmutableDeclarations = (deps: {
     const files = [...(all.definitions.get(record.contractName) ?? [])]
     const [file] = files
     if (file === undefined) return { covered: false, declarations: [] }
-    // Layer 1 finds its artifact by contract name alone. Two definitions of
-    // that name — a stub under `src/` beside the real one in `lib/` — leave no
-    // way to tell which one it matched, and naming the stub here would grade
-    // the real contract's immutables as absent.
+    // Layer 1's artifact path names the contract, not the file it came from.
+    // Two definitions of that name — a stub under `src/` beside the real one
+    // in `lib/` — leave no way to tell which one it matched, and naming the
+    // stub here would grade the real contract's immutables as absent.
     if (files.length > 1)
       throw new Error(
         `${record.contractName} is defined in ${
