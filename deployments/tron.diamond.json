@@ -41,10 +41,6 @@
         "Name": "AllBridgeFacet",
         "Version": "2.2.0"
       },
-      "TG6586TTEv664XWSD875tMk6yDuwedphpW": {
-        "Name": "EcoFacet",
-        "Version": "1.1.0"
-      },
       "TViNVAJsVwfsL96yS8RqYMzg6uB9JmAYWn": {
         "Name": "WhitelistManagerFacet",
         "Version": "1.1.0"
@@ -64,6 +60,10 @@
       "TMck2qdZHmsdurz4uE4eNVBt14JHHLeoEB": {
         "Name": "LiFiIntentEscrowFacetV2",
         "Version": "1.0.0"
+      },
+      "TRzEvqhoK6pC58rmUFMgCoEtQgiHYh2FCQ": {
+        "Name": "EcoFacet",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {

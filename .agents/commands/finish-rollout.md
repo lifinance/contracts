@@ -1,6 +1,6 @@
 ---
 name: finish-rollout
-description: Finishes a production multisig rollout after its timelock ops have executed — verifies execution (MongoDB timelock queue + on-chain isOperationDone), closes the #dev-sc-multisig-proposals Slack thread ("Executed" reply + rocket reaction), syncs the diamond logs for the impacted chains onto the rollout PR, and takes that PR through /pr-ready → ready-for-review → /post-pr-for-review. If the ops are executable but the cron hasn't run yet, it dispatches the Timelock Auto Execution workflow and waits before proceeding. Use when the user says "finish the rollout", "the timelock executed, wrap it up", "close out the deployment", or supplies a #dev-sc-multisig-proposals thread link with finishing intent. This is the tail of `multisig-rollout` (which ends at "timelock ops execute via the scheduled pipeline"); it never executes or cancels timelock ops itself — direct execution stays with the workflow / `execute-pending-timelock-tx.ts`. Requires gh and the Slack MCP server. No VPN needed.
+description: Finishes a production multisig rollout after its timelock ops have executed — verifies execution (MongoDB timelock queue + on-chain isOperationDone), closes the #dev-sc-multisig-proposals Slack thread ("Executed" reply + rocket reaction), syncs the diamond logs for the impacted chains onto the rollout PR, and takes that PR through self-review → ready-for-review → /post-pr-for-review. If the ops are executable but the cron hasn't run yet, it dispatches the Timelock Auto Execution workflow and waits before proceeding. Use when the user says "finish the rollout", "the timelock executed, wrap it up", "close out the deployment", or supplies a #dev-sc-multisig-proposals thread link with finishing intent. This is the tail of `multisig-rollout` (which ends at "timelock ops execute via the scheduled pipeline"); it never executes or cancels timelock ops itself — direct execution stays with the workflow / `execute-pending-timelock-tx.ts`. Requires gh and the Slack MCP server. No lifi-connect tunnel needed.
 usage: /finish-rollout <slack thread link>
 ---
 
@@ -21,8 +21,8 @@ by inserting a `.` before the last 6 digits (`p1783082088092039` → `1783082088
   mutation until Phase 2 verifies every op of THIS rollout as executed (all-or-nothing).
 - **Op-level scope.** The gate covers only ops correlated to this rollout. Unrelated
   queued/unexecuted ops on the same networks are never stoppers (mention as FYI at most).
-- **No VPN.** Verification uses the non-gated `MONGODB_URI` timelock queue plus public RPCs.
-  Do not call `list-pending-proposals.ts` (VPN-gated `SC_MONGODB_URI`) as part of this skill.
+- **No lifi-connect tunnel.** Verification uses the non-gated `MONGODB_URI` timelock queue plus public RPCs.
+  Do not call `list-pending-proposals.ts` (lifi-connect-gated `SC_MONGODB_URI`) as part of this skill.
 - The thread must live in `#dev-sc-multisig-proposals` (`C09DKGYQ1GC`). Anything else: stop
   and ask.
 
@@ -140,7 +140,7 @@ delete that entry with the rest of the cut.
 
 ## Phase 5 — PR finish (deploy mode only)
 
-1. `/pr-ready` (mandatory local review gate — resolve findings first).
+1. Self-review the full diff (the local review gate — resolve findings first).
 2. `gh pr ready <N>` (draft → ready for review).
 3. `/post-pr-for-review` (posts to `#dev-sc-review`, tags the team, enables auto-merge).
 

@@ -33,6 +33,7 @@ import {
   resolveExpectedAddress,
   substituteConfigKeyPlaceholders,
 } from '../shared/immutableBindings'
+import { createTronAddressSpellings } from '../shared/tron-address-spellings'
 
 import { frameFault, strip0x } from './hex'
 import type { ImmutableReferences } from './immutable-offsets'
@@ -152,6 +153,35 @@ const refused = (reason: string): IPricingRefused => ({
 })
 
 /**
+ * A declared address as the compiler would have inlined it on this network.
+ *
+ * Network-gated rather than shape-gated: off Tron nothing spells an address in
+ * base58, so translating there would manufacture an expectation out of a config
+ * entry that is simply unreadable. A value this cannot read comes back
+ * unchanged, and the caller's existing fault reports it.
+ *
+ * @param declared - the value as `config/` writes it
+ * @param network - key in `config/networks.json`
+ */
+const asInlinedSpelling = (declared: string, network: string): string => {
+  const value = declared.trim()
+  try {
+    // Tried before any hex value is passed through: Tron's own `41` prefix is
+    // hex too, and handing those 21 bytes on unchanged would compare a value no
+    // slot can hold instead of the 20 the compiler inlined.
+    const translated =
+      createTronAddressSpellings(network)?.toCalldataSpelling(value)
+    if (translated !== undefined) return translated
+  } catch {
+    // Infrastructure path, synthetic by necessity: a codec is only unbuildable
+    // when the Tron endpoint config is malformed. This module grades a slot
+    // unpriceable rather than throwing, and one unbuildable codec is not a
+    // reason to abandon every other slot on the contract.
+  }
+  return value
+}
+
+/**
  * The declared address as one slot of `slotBytes` holds it.
  *
  * Left-padded, because that is how the EVM stores a narrow value in a wide slot
@@ -163,29 +193,32 @@ const refused = (reason: string): IPricingRefused => ({
  * copy, and padding to it would compare a 20-byte address against two slots
  * concatenated.
  *
- * Requires hex. `config/` also holds Tron addresses in base58 —
+ * Requires hex, so a spelling the compiler never inlines is translated first:
+ * `config/` and `deployments/` hold Tron addresses in base58 —
  * `networks.json` gives `.tron.wrappedNativeAddress` as
- * `TNUC9Qb1rRpS5CbWLmNMxXBjyFoydXjWFR` — and padding one produces a value no
- * slot can hold, which would then read as the deployment disagreeing with
- * config on every Tron chain. An expectation that cannot be expressed in the
- * slot's encoding is not a mismatch, so this returns a fault and the caller
- * leaves the slot unpriced.
+ * `TNUC9Qb1rRpS5CbWLmNMxXBjyFoydXjWFR` — and padding one yields a value no slot
+ * can hold. A value that is still not hex after that is an expectation this
+ * slot's encoding cannot express, which is not a mismatch: it returns a fault
+ * and the caller leaves the slot unpriced.
  *
- * @param address - Address as config writes it, checksummed or not.
+ * @param address - Address as config writes it or an evaluator derived it, checksummed or not.
  * @param slotBytes - Width of a single copy of the immutable.
+ * @param network - Network being graded, which decides the spelling
  * @returns The padded value, or why the declared value cannot fill the slot.
  */
 const paddedToSlot = (
   address: string,
-  slotBytes: number
+  slotBytes: number,
+  network: string
 ): { value: string } | { fault: string } => {
-  const fault = frameFault(address, 'the declared value')
+  const declared = asInlinedSpelling(address, network)
+  const fault = frameFault(declared, 'the declared value')
   if (fault)
     return {
-      fault: `${fault} — a base58 Tron address cannot be compared against an inlined slot`,
+      fault: `${fault} — neither hex nor an address this network's own spelling can be read from`,
     }
 
-  const hex = strip0x(address).toLowerCase()
+  const hex = strip0x(declared).toLowerCase()
   if (hex.length / 2 > slotBytes)
     return {
       fault: `the declared value is ${
@@ -568,7 +601,7 @@ export const priceImmutables = (
           })
           continue
         }
-        const derived = paddedToSlot(computed.value, one.slotByteCount)
+        const derived = paddedToSlot(computed.value, one.slotByteCount, network)
         if ('fault' in derived) {
           slots.push({
             ...base,
@@ -633,7 +666,7 @@ export const priceImmutables = (
       continue
     }
 
-    const expected = paddedToSlot(declared.address, one.slotByteCount)
+    const expected = paddedToSlot(declared.address, one.slotByteCount, network)
     if ('fault' in expected) {
       slots.push({
         ...base,

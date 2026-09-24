@@ -72,6 +72,12 @@ describe('the calldata address check surfaces before the signing decision', () =
     expect(packed).toContain(
       'buildDeploymentIndex(records,references.map((reference)=>reference.address),referencedNames(references))'
     )
+    // Those records are the respelt ones, memoised once for the whole network
+    // rather than re-derived per proposal.
+    expect(packed).toContain('constrecords=awaitreadRespeltDeploymentRecords()')
+    expect(packed).toContain(
+      'withCalldataSpellings(records,network,tronRecordTranslator)'
+    )
   })
 
   it('reports a run it could not make through the sanitiser', () => {

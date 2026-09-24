@@ -10,9 +10,11 @@ usage: /analyze-tx <network> <tx_hash>
 >
 > Example: `/analyze-tx ethereum 0x1234...abcd`
 
-## ⚠️ CRITICAL: Trace-First Analysis Principle
+## Trace-first analysis
 
-**THE EXECUTION TRACE AND LOGS ARE THE SOURCE OF TRUTH - THEY SHOW WHAT ACTUALLY HAPPENED.**
+The execution trace and the receipt logs are the source of truth. Source code shows what
+should happen; only the trace shows what did. Report what the trace and logs contain — if
+a call or an event is not in them, it did not happen, whatever the code implies.
 
 ### Source of Truth Hierarchy
 
@@ -54,35 +56,29 @@ usage: /analyze-tx <network> <tx_hash>
 - ❌ **WRONG**: "The transaction called `swapAndStartBridgeTokensViaStargate` and emitted `LiFiTransferStarted` events."
 - ✅ **CORRECT**: "The trace shows `swapTokensMultipleV3ERC20ToERC20` was called. The receipt logs show `LiFiGenericSwapCompleted` was emitted. No `LiFiTransferStarted` events are present in the logs."
 
-## Quick Checklist
+## Rules that catch real failures here
 
-1. ✅ **Fetch Data** - Use premium RPC (via `analyzeFailingTx <NETWORK> <TX_HASH>` or user-provided RPC)
-2. ✅ **Identify** - Was LiFiDiamond called? If not, state: "Not one of our transactions"
-3. ✅ **Decode** - Extract calldata, `msg.value` (from receipt, NOT trace), map addresses to names
-4. ✅ **Facet** - Identify facet, load code, find config file (check deploy script for correct filename)
-5. ✅ **Params** - Extract BridgeData, SwapData, FacetData
-6. ✅ **Trace** - Analyze step-by-step from ACTUAL trace data (not code assumptions), find ALL revert points
-7. ✅ **Events** - Verify events from receipt logs (never assume based on code)
-8. ✅ **Root Cause** - Expected vs. provided, why failed, what's needed
+The workflow below is the procedure; these are the points where a plausible-looking
+analysis goes wrong.
 
-## Critical Rules
-
-1. ⚠️ **Premium RPC only** - Use `analyzeFailingTx` or user-provided premium RPC; NEVER silently fall back to public RPCs
-2. ⚠️ **LiFiDiamond check first** - Confirm involvement (direct/indirect) or state it's not our transaction
-3. ⚠️ **msg.value from receipt** - NOT from trace
-4. ⚠️ **TRACE IS SOURCE OF TRUTH** - Never claim something happened if it's not in the trace/logs (see Trace-First Principle above)
-5. ⚠️ **VERIFY function selectors** - NEVER assume; ALWAYS cross-check with:
-   - Actual function name from trace (preferred)
-   - `out/<ContractName>.sol/<ContractName>.json` methodIdentifiers
-   - `cast sig "<FUNCTION_SIGNATURE>"` to get expected selector
-   - If `cast 4byte` returns different function, use trace function name!
-6. ⚠️ **VERIFY events from logs** - NEVER assume events were emitted based on code; check receipt logs
-7. ⚠️ **Enrich all addresses** - Use whitelist.json (DEXS/PERIPHERY), deployments, configs
-8. ⚠️ **Config file from deploy script** - Don't assume filename matches facet name
-9. ⚠️ **DEX names from whitelist.json** - Never use generic terms when specific name available
-10. ⚠️ **Check native fees** - Verify FacetData requirements
-11. ⚠️ **Find ALL reverts** - There may be multiple failure points
-12. ⚠️ **Never assume** - Nested calls may have failed; value may not have come from root tx
+1. **Premium RPC only** — use `analyzeFailingTx` or a user-supplied premium RPC. A silent
+   fallback to a public RPC returns a truncated trace that reads like a complete one.
+2. **Confirm LiFiDiamond involvement first** (direct or indirect), or say the transaction
+   is not ours and stop.
+3. **`msg.value` from the receipt**, not the trace — a nested call's value is not the root
+   transaction's.
+4. **Cross-check every function selector**, in this order: the function name in the trace,
+   then `out/<ContractName>.sol/<ContractName>.json` methodIdentifiers, then
+   `cast sig "<FUNCTION_SIGNATURE>"`. Where `cast 4byte` disagrees with the trace, the
+   trace wins.
+5. **Events from the receipt logs**, never from the code that would have emitted them.
+6. **Enrich every address** via whitelist.json (DEXS/PERIPHERY) → deployments → configs,
+   and name the DEX from whitelist.json rather than a generic term.
+7. **Find the config file from the deploy script** — the filename does not always match
+   the facet name.
+8. **Check native fee requirements** in FacetData.
+9. **Find every revert point** — a failing transaction often has more than one, and a
+   nested call may have failed without reverting the root.
 
 ## Tron-Specific Analysis
 
@@ -222,7 +218,7 @@ When root transaction calls a contract other than LiFiDiamond:
    - Navigate to "Contract" tab → "Write Contract" sub-tab
    - Extract: contract name, function signatures, selectors, parameters
 
-3. **Verify function selector (CRITICAL):**
+3. **Verify function selector:**
 
    - Extract selector from trace (first 4 bytes of calldata)
    - Cross-check with actual function name from trace (preferred)
@@ -357,7 +353,7 @@ bridgeData = abi.decode(data[4:], (ILiFi.BridgeData));
 - **From:** [address]
 - **To:** [contract name] ([address])
 - **Function:** [name] ([selector])
-- **Value:** [amount] [symbol] - **CRITICAL: From receipt**
+- **Value:** [amount] [symbol] (read from the receipt, not the trace)
 - **Status:** [Success/Fail]
 
 ## Parameters Decoded
@@ -387,7 +383,7 @@ bridgeData = abi.decode(data[4:], (ILiFi.BridgeData));
 
 ### Facet-Specific Data
 
-[Native Fee Required: [amount] - **CRITICAL**, other params]
+[Native Fee Required: [amount], other params]
 
 ## Execution Flow
 
@@ -425,28 +421,6 @@ bridgeData = abi.decode(data[4:], (ILiFi.BridgeData));
 **Impact:** [Who/what is affected]
 ```
 
-## Quality Checks
-
-Before finalizing:
-
-- [ ] Premium RPC used (via `analyzeFailingTx` or user-provided)
-- [ ] LiFiDiamond involvement confirmed
-- [ ] Root tx value verified from receipt
-- [ ] **All events verified from receipt logs** (never assume based on code)
-- [ ] **All function calls verified from trace** (never assume based on code)
-- [ ] Root transaction calldata decoded (if not direct LiFiDiamond call)
-- [ ] Block explorer URL obtained and contract researched (if needed)
-- [ ] Function selector verified against trace data (never assume!)
-- [ ] Selector cross-checked with methodIdentifiers
-- [ ] All addresses enriched (whitelist.json → deployments)
-- [ ] Correct config file identified from deploy script
-- [ ] All DEX names from whitelist.json (no generic terms)
-- [ ] All parameters decoded and displayed
-- [ ] Execution flow traced completely from trace data
-- [ ] ALL failure points identified
-- [ ] Root cause clearly explained
-- [ ] Summary clear for non-technical readers
-
 ## Command Execution Flow
 
 When user invokes `/analyze-tx <network> <tx_hash>`:
@@ -456,4 +430,3 @@ When user invokes `/analyze-tx <network> <tx_hash>`:
 3. **Fetch transaction data**: Use premium RPC via `analyzeFailingTx` or prompt for RPC URL
 4. **Follow analysis workflow**: Execute all steps from "Analysis Workflow" section
 5. **Generate output**: Format results according to "Output Format" section
-6. **Quality check**: Verify all items in "Quality Checks" are complete

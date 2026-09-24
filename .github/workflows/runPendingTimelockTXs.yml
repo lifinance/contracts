@@ -111,6 +111,10 @@ jobs:
           # deliver and no webhook, rather than dropping it.
           WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS: ${{ secrets.SLACK_WEBHOOK_DEV_SC_GITHUB_CI_NOTIFICATIONS }}
           MONGODB_URI: ${{ secrets.MONGODB_URI }}
+          # Without it the Tron broadcast goes out against TronGrid's anonymous rate
+          # limit and `sendRawTransaction` fails the whole run on a 429, having already
+          # cleared every guard. The devkit picks it up from the environment.
+          TRONGRID_API_KEY: ${{ secrets.TRONGRID_API_KEY }}
           GH_TOKEN: ${{ github.token }} # required by `gh api` to resolve the job's html_url
           # The devkit default of 50 TRX caps a Tron tx at 500k energy, which a multi-call
           # timelock batch exceeds — it aborts mid-SSTORE as OUT_OF_ENERGY and is retried forever.

@@ -141,6 +141,7 @@ const sourceWith = (
       gitCalls.push(args)
       return ''
     },
+    sourceRemote: () => ({ ok: true, remote: 'origin' }),
     ...over,
   }
   return { source: createAttestationSource(deps), requests, gitCalls }
@@ -794,5 +795,58 @@ describe('falsification — the attested set against real observed code', () => 
 
     expect(verdict.verdict).toBe('MATCH')
     expect(verdict.excludedByteCount).toBe(0)
+  })
+})
+
+describe('createAttestationSource, source remote', () => {
+  it('fetches a missing commit from the remote the network resolves to', async () => {
+    const { source, gitCalls } = sourceWith({
+      sourceRemote: () => ({ ok: true, remote: 'tron' }),
+      git: (args: string[]): string => {
+        gitCalls.push(args)
+        if (args[0] === 'cat-file' && gitCalls.length === 1)
+          throw new Error('Not a valid object name')
+        return ''
+      },
+    })
+
+    await source.attestationsFor(ADDRESS, 'tron')
+
+    expect(
+      gitCalls.some((call) => call[0] === 'fetch' && call[2] === 'tron')
+    ).toBe(true)
+    expect(gitCalls.some((call) => call[2] === 'origin')).toBe(false)
+  })
+
+  it('errors with the remedy when the network has no source remote here', async () => {
+    const { source, requests } = sourceWith({
+      sourceRemote: () => ({
+        ok: false,
+        reason: 'this clone has no "tron" remote — git remote add tron …',
+      }),
+    })
+
+    await expectRejects(
+      source.attestationsFor(ADDRESS, 'tron'),
+      /no "tron" remote/
+    )
+    expect(requests).toEqual([])
+  })
+
+  it('does not consult the source remote for a record carrying no commit', async () => {
+    let asked = 0
+    const { source } = sourceWith({
+      readRecord: async () => ({ ...RECORD, gitCommitHash: '' }),
+      sourceRemote: () => {
+        asked += 1
+        return { ok: false, reason: 'this clone has no "tron" remote' }
+      },
+    })
+
+    const lookup = await source.attestationsFor(ADDRESS, 'tron')
+
+    expect(lookup.builds).toEqual([])
+    expect(lookup.absence).toContain('carries no commit')
+    expect(asked).toBe(0)
   })
 })

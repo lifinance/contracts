@@ -466,7 +466,7 @@ describe('findEndpointIndex', () => {
 
 describe('normalizeRpcUrlForNetwork', () => {
   // The rewrite is keyed on the TronGrid host family, which a synthetic host cannot stand in for.
-  const TRONGRID_ROOT = 'https://api.trongrid.io'
+  const TRONGRID_ROOT = 'https://api.trongrid.io' // pre-commit-checker: not a secret
 
   it('routes a TronGrid endpoint to its JSON-RPC path', () => {
     const normalizedUrl = normalizeRpcUrlForNetwork('tron', TRONGRID_ROOT)
@@ -499,7 +499,7 @@ describe('normalizeRpcUrlForNetwork', () => {
 
   // The two hosts config/networks.json actually stores. Used literally because the rewrite is
   // keyed on the TronGrid host family, which a synthetic host cannot stand in for.
-  const TRONGRID_HOST = 'https://api.trongrid.io'
+  const TRONGRID_HOST = 'https://api.trongrid.io' // pre-commit-checker: not a secret
 
   // A provider that scopes the chain onto the path is already pointed at JSON-RPC there.
   // dRPC answers `eth_blockNumber` at `/tron/<key>` and 404s under `/tron/<key>/jsonrpc`, so

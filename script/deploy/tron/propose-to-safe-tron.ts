@@ -32,6 +32,7 @@ import { consola } from 'consola'
 import { type Address, type Hex } from 'viem'
 import { signMessage } from 'viem/accounts'
 
+import { isEntrypoint } from '../../utils/is-entrypoint'
 import { getEnvVar } from '../../utils/utils'
 import { flagIsOn } from '../safe/cli-flags'
 import { assertTicketPresent } from '../safe/proposal-intent'
@@ -48,13 +49,28 @@ import {
   assertFunnelDeployGate,
   createFunnelGateDeps,
 } from '../shared/funnel-deploy-gate'
+import { retryWithRateLimit } from '../shared/rateLimit'
 
 import {
   TRON_DIAMOND_CONFIRM_OWNERSHIP_SELECTOR,
+  TRON_READ_MAX_ATTEMPTS,
+  TRON_READ_RETRY_DELAY_MS,
   TRON_SAFE_GET_TX_HASH_ABI,
 } from './constants.js'
 import { normalizeTronProposeCalls } from './propose-calls-tron.js'
+import { pickTronTimelockSalt } from './timelock-salt-tron.js'
 import type { IProposeToSafeTronOptions } from './types.js'
+
+const warnRateLimited = (
+  what: string,
+  attempt: number,
+  delayMs: number
+): void =>
+  consola.warn(
+    `Rate limited reading ${what}, retry ${attempt}/${
+      TRON_READ_MAX_ATTEMPTS - 1
+    } in ${delayMs}ms`
+  )
 
 async function runPropose(options: IProposeToSafeTronOptions) {
   const networkName: TronTvmNetworkName = options.network ?? 'tron'
@@ -148,52 +164,39 @@ async function runPropose(options: IProposeToSafeTronOptions) {
     ? normalizeTronProposeCalls(options.to, options.calldata, !useDirect)
     : undefined
 
-  // 1) Get min delay from Timelock (needed for scheduleBatch). Skipped in
-  // direct mode, which doesn't touch the Timelock.
-  let minDelayBigInt = 0n
-  if (!useDirect) {
-    const timelockAbi = [
-      {
-        inputs: [],
-        name: 'getMinDelay',
-        outputs: [{ type: 'uint256' }],
-        stateMutability: 'view',
-        type: 'function',
-      },
-    ]
-    const timelock = tronWeb.contract(timelockAbi, timelockAddressBase58)
-    try {
-      const minDelayRes = await timelock.getMinDelay().call()
-      const valueStr =
-        typeof minDelayRes === 'string'
-          ? minDelayRes
-          : minDelayRes?.toString?.() ?? '0'
-      minDelayBigInt = BigInt(valueStr)
-    } catch (e) {
-      throw new Error(
-        `Could not read getMinDelay from Timelock at ${timelockAddressBase58}: ${
-          e instanceof Error ? e.message : String(e)
-        }`
-      )
-    }
-  }
-
-  const salt = `0x${Date.now().toString(16).padStart(64, '0')}` as Hex
+  // The same batch re-proposed derives the same salt, so the duplicate-intent
+  // index can see it; the timelock is asked so a repeat of executed work
+  // advances and a repeat of pending work is refused. Only the timelock
+  // branches below need one, so it is picked at the schedule encode after the
+  // deploy gate.
+  const saltFor = (targetsEvm: Address[], payloads: Hex[]): Promise<Hex> =>
+    pickTronTimelockSalt({
+      tronWeb,
+      chainId,
+      timelockAddressBase58: timelockAddressBase58 as string,
+      timelockAddressEvm: tronBase58ToEvm20Hex(
+        tronWeb,
+        timelockAddressBase58 as string
+      ) as Address,
+      targets: targetsEvm,
+      payloads,
+    })
 
   let safeTxToBase58: string
-  let safeTxDataHex: Hex
+  let safeTxDataHex: Hex | undefined
+  // The calls a timelock branch will schedule; the calldata is built after
+  // the dry-run return, so a preview never reads the timelock or refuses.
+  let scheduled: { targets: Address[]; payloads: Hex[] } | undefined
   let hashToBase58: string
   let dryRunDescription: string
 
   // branching on the parsed calls rather than the flag lets the compiler see
   // that generic mode has them; the two are set together and cannot disagree
   if (!genericCalls) {
-    safeTxDataHex = encodeTimelockScheduleBatch(
-      [diamondAddressEvm] as Address[],
-      [TRON_DIAMOND_CONFIRM_OWNERSHIP_SELECTOR],
-      salt,
-      minDelayBigInt
-    )
+    scheduled = {
+      targets: [diamondAddressEvm] as Address[],
+      payloads: [TRON_DIAMOND_CONFIRM_OWNERSHIP_SELECTOR],
+    }
     safeTxToBase58 = timelockAddressBase58
     hashToBase58 = timelockAddressBase58
     dryRunDescription =
@@ -208,12 +211,7 @@ async function runPropose(options: IProposeToSafeTronOptions) {
       const targetsEvm = targets.map((t) =>
         tronBase58ToEvm20Hex(tronWeb, t)
       ) as Address[]
-      safeTxDataHex = encodeTimelockScheduleBatch(
-        targetsEvm,
-        calldatas,
-        salt,
-        minDelayBigInt
-      )
+      scheduled = { targets: targetsEvm, payloads: calldatas }
       safeTxToBase58 = timelockAddressBase58
       hashToBase58 = timelockAddressBase58
       dryRunDescription = `scheduleBatch(${
@@ -235,9 +233,8 @@ async function runPropose(options: IProposeToSafeTronOptions) {
     return
   }
 
-  // After the dry run, which proposes nothing, and before the Mongo client is
-  // opened: the store-time refusal throws past this function's only
-  // `mongoClient.close()`, leaving the connection open and the process hanging.
+  // After the dry run, which proposes nothing, and before the signature, so a
+  // missing ticket costs none.
   assertTicketPresent(options.ticket)
 
   // Beside the ticket check for the same two reasons: a dry run proposes
@@ -261,6 +258,54 @@ async function runPropose(options: IProposeToSafeTronOptions) {
       })
     )
 
+  // A proposal the gate refuses must never touch the Timelock, so neither the
+  // min-delay read nor the salt pick inside the encode below may move above it.
+  // 1) Get min delay from Timelock (needed for scheduleBatch), skipped in
+  // direct mode.
+  let minDelayBigInt = 0n
+  if (!useDirect) {
+    const timelockAbi = [
+      {
+        inputs: [],
+        name: 'getMinDelay',
+        outputs: [{ type: 'uint256' }],
+        stateMutability: 'view',
+        type: 'function',
+      },
+    ]
+    const timelock = tronWeb.contract(timelockAbi, timelockAddressBase58)
+    try {
+      const minDelayRes = await retryWithRateLimit(
+        () => timelock.getMinDelay().call(),
+        TRON_READ_MAX_ATTEMPTS,
+        TRON_READ_RETRY_DELAY_MS,
+        (attempt, delayMs) =>
+          warnRateLimited('the timelock min delay', attempt, delayMs)
+      )
+      const valueStr =
+        typeof minDelayRes === 'string'
+          ? minDelayRes
+          : minDelayRes?.toString?.() ?? '0'
+      minDelayBigInt = BigInt(valueStr)
+    } catch (e) {
+      throw new Error(
+        `Could not read getMinDelay from Timelock at ${timelockAddressBase58}: ${
+          e instanceof Error ? e.message : String(e)
+        }`
+      )
+    }
+  }
+
+  if (scheduled)
+    safeTxDataHex = encodeTimelockScheduleBatch(
+      scheduled.targets,
+      scheduled.payloads,
+      await saltFor(scheduled.targets, scheduled.payloads),
+      minDelayBigInt
+    )
+  if (!safeTxDataHex)
+    throw new Error('No transaction calldata was built for this proposal')
+
   // 2) Get current Safe nonce on chain
   const safeAbiNonce = [
     {
@@ -274,7 +319,12 @@ async function runPropose(options: IProposeToSafeTronOptions) {
   const safeContract = tronWeb.contract(safeAbiNonce, safeAddressBase58)
   let chainNonceBigInt: bigint
   try {
-    const nonceRes = await safeContract.nonce().call()
+    const nonceRes = await retryWithRateLimit(
+      () => safeContract.nonce().call(),
+      TRON_READ_MAX_ATTEMPTS,
+      TRON_READ_RETRY_DELAY_MS,
+      (attempt, delayMs) => warnRateLimited('the Safe nonce', attempt, delayMs)
+    )
     const valueStr =
       typeof nonceRes === 'string' ? nonceRes : nonceRes?.toString?.() ?? '0'
     chainNonceBigInt = BigInt(valueStr)
@@ -287,105 +337,119 @@ async function runPropose(options: IProposeToSafeTronOptions) {
 
   const { client: mongoClient, pendingTransactions } =
     await getSafeMongoCollection()
-  const nextNonce = await getNextNonce(
-    pendingTransactions,
-    safeAddressEvm,
-    networkName,
-    chainId,
-    chainNonceBigInt
-  )
 
-  const safeTxToEvm = tronBase58ToEvm20Hex(tronWeb, safeTxToBase58)
-
-  const safeTxData = {
-    to: safeTxToEvm,
-    value: 0n,
-    data: safeTxDataHex,
-    operation: OperationTypeEnum.Call,
-    nonce: nextNonce,
-  }
-
-  // 3) Get transaction hash from Safe contract (Tron). Pass base58 for addresses; TronWeb encodes for the contract.
-  const zeroBase58 = tronZeroAddressBase58(tronWeb)
-  const safeFullAbi = [...TRON_SAFE_GET_TX_HASH_ABI]
-  const safeForHash = tronWeb.contract(safeFullAbi, safeAddressBase58)
-  let txHashHex: string
+  // `runPropose` is also called programmatically in a loop, so any throw
+  // between the open and the close leaks a connected client per call.
+  let result: Awaited<ReturnType<typeof storeTransactionInMongoDB>>
   try {
-    const res = await safeForHash
-      .getTransactionHash(
-        hashToBase58,
-        '0',
-        safeTxDataHex,
-        0,
-        '0',
-        '0',
-        '0',
-        zeroBase58,
-        zeroBase58,
-        nextNonce.toString()
-      )
-      .call()
-    const raw = res?.toString?.() ?? (typeof res === 'string' ? res : '')
-    txHashHex = raw.startsWith('0x') ? raw : '0x' + raw
-  } catch (e) {
-    consola.error(
-      'getTransactionHash failed. Ensure Safe ABI and parameters are correct for Tron.'
+    const nextNonce = await getNextNonce(
+      pendingTransactions,
+      safeAddressEvm,
+      networkName,
+      chainId,
+      chainNonceBigInt
     )
-    throw e
+
+    const safeTxToEvm = tronBase58ToEvm20Hex(tronWeb, safeTxToBase58)
+
+    const safeTxData = {
+      to: safeTxToEvm,
+      value: 0n,
+      data: safeTxDataHex,
+      operation: OperationTypeEnum.Call,
+      nonce: nextNonce,
+    }
+
+    // 3) Get transaction hash from Safe contract (Tron). Pass base58 for addresses; TronWeb encodes for the contract.
+    const zeroBase58 = tronZeroAddressBase58(tronWeb)
+    const safeFullAbi = [...TRON_SAFE_GET_TX_HASH_ABI]
+    const safeForHash = tronWeb.contract(safeFullAbi, safeAddressBase58)
+    let txHashHex: string
+    try {
+      const res = await retryWithRateLimit(
+        () =>
+          safeForHash
+            .getTransactionHash(
+              hashToBase58,
+              '0',
+              safeTxDataHex,
+              0,
+              '0',
+              '0',
+              '0',
+              zeroBase58,
+              zeroBase58,
+              nextNonce.toString()
+            )
+            .call(),
+        TRON_READ_MAX_ATTEMPTS,
+        TRON_READ_RETRY_DELAY_MS,
+        (attempt, delayMs) =>
+          warnRateLimited('the Safe transaction hash', attempt, delayMs)
+      )
+      const raw = res?.toString?.() ?? (typeof res === 'string' ? res : '')
+      txHashHex = raw.startsWith('0x') ? raw : '0x' + raw
+    } catch (e) {
+      consola.error(
+        'getTransactionHash failed. Ensure Safe ABI and parameters are correct for Tron.'
+      )
+      throw e
+    }
+
+    const txHashBytes32 = (
+      txHashHex.length === 66
+        ? txHashHex
+        : `0x${txHashHex.replace(/^0x/, '').padStart(64, '0')}`
+    ) as Hex
+
+    // 4) Sign hash (EIP-191 over tx hash bytes32, then r+s+v with v+4 for Safe eth_sign)
+    const pk = privateKey.startsWith('0x')
+      ? (privateKey as Hex)
+      : (`0x${privateKey}` as Hex)
+    const rawSig = await signMessage({
+      message: { raw: txHashBytes32 },
+      privateKey: pk,
+    })
+    if (!rawSig || rawSig.length < 130)
+      throw new Error('Invalid signature length from signMessage')
+    const r = rawSig.slice(0, 66)
+    const s = rawSig.slice(66, 130)
+    const vByte = rawSig.slice(130, 132)
+    const vVal = parseInt(vByte, 16)
+    const safeV = (vVal + 4).toString(16).padStart(2, '0')
+    const safeSignatureHex = `0x${r.slice(2)}${s}${safeV}` as Hex
+
+    const sig: ISafeSignature = {
+      signer: proposerEvm,
+      data: safeSignatureHex,
+    }
+    const signatures = new Map<string, ISafeSignature>()
+    signatures.set(proposerEvm.toLowerCase(), sig)
+
+    const safeTx: ISafeTransaction = {
+      data: safeTxData,
+      signatures,
+    }
+    // Mongo stores signatures as plain object; ensure serializable shape
+    const safeTxForMongo = {
+      data: safeTx.data,
+      signatures: Object.fromEntries(safeTx.signatures),
+    } as unknown as ISafeTransaction
+
+    result = await storeTransactionInMongoDB(
+      pendingTransactions,
+      safeAddressEvm as Address,
+      networkName,
+      chainId,
+      safeTxForMongo,
+      txHashBytes32,
+      proposerEvm as Address,
+      undefined,
+      { ticket: options.ticket }
+    )
+  } finally {
+    await mongoClient.close()
   }
-
-  const txHashBytes32 = (
-    txHashHex.length === 66
-      ? txHashHex
-      : `0x${txHashHex.replace(/^0x/, '').padStart(64, '0')}`
-  ) as Hex
-
-  // 4) Sign hash (EIP-191 over tx hash bytes32, then r+s+v with v+4 for Safe eth_sign)
-  const pk = privateKey.startsWith('0x')
-    ? (privateKey as Hex)
-    : (`0x${privateKey}` as Hex)
-  const rawSig = await signMessage({
-    message: { raw: txHashBytes32 },
-    privateKey: pk,
-  })
-  if (!rawSig || rawSig.length < 130)
-    throw new Error('Invalid signature length from signMessage')
-  const r = rawSig.slice(0, 66)
-  const s = rawSig.slice(66, 130)
-  const vByte = rawSig.slice(130, 132)
-  const vVal = parseInt(vByte, 16)
-  const safeV = (vVal + 4).toString(16).padStart(2, '0')
-  const safeSignatureHex = `0x${r.slice(2)}${s}${safeV}` as Hex
-
-  const sig: ISafeSignature = {
-    signer: proposerEvm,
-    data: safeSignatureHex,
-  }
-  const signatures = new Map<string, ISafeSignature>()
-  signatures.set(proposerEvm.toLowerCase(), sig)
-
-  const safeTx: ISafeTransaction = {
-    data: safeTxData,
-    signatures,
-  }
-  // Mongo stores signatures as plain object; ensure serializable shape
-  const safeTxForMongo = {
-    data: safeTx.data,
-    signatures: Object.fromEntries(safeTx.signatures),
-  } as unknown as ISafeTransaction
-
-  const result = await storeTransactionInMongoDB(
-    pendingTransactions,
-    safeAddressEvm as Address,
-    networkName,
-    chainId,
-    safeTxForMongo,
-    txHashBytes32,
-    proposerEvm as Address,
-    undefined,
-    { ticket: options.ticket }
-  )
-  await mongoClient.close()
 
   if (result === null) {
     consola.info(
@@ -506,5 +570,5 @@ const main = defineCommand({
   },
 })
 
-if (import.meta.main) runMain(main)
+if (isEntrypoint(import.meta.url)) runMain(main)
 export { runPropose }

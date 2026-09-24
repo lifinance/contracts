@@ -31,10 +31,12 @@ export interface IRosteredGate {
 /**
  * Every gate the confirm chain is meant to compose onto the run ledger.
  *
- * Each entry names the source that is meant to register it. An entry whose
- * source has not merged reports `absent` rather than dropping out of the
+ * Each entry names the source that is meant to register it. An entry the
+ * caller did not register reports `absent` rather than dropping out of the
  * report, which is the whole point: a roster that shrank to what is wired
- * would grade a smaller chain green every time one went missing.
+ * would grade a smaller chain green every time one went missing. A merged but
+ * unwired gate therefore still reads `absent`: the status is about the
+ * caller's wiring, not about whether the source exists.
  */
 export const REHEARSAL_GATE_ROSTER: readonly IRosteredGate[] = [
   {
@@ -66,6 +68,21 @@ export const REHEARSAL_GATE_ROSTER: readonly IRosteredGate[] = [
     checkId: 'INT-TIMELOCK-DELAY',
     title: 'Scheduled delay is at least the timelock minimum',
     source: 'confirm-integrity-asserts.ts, mirrored by EXSC-994',
+  },
+  {
+    checkId: 'codehash',
+    title: 'Installed bytecode matches the attested build',
+    source: 'confirm-check-registry.ts (merged)',
+  },
+  {
+    checkId: 'immutables',
+    title: 'Immutable values match what config declares',
+    source: 'confirm-check-registry.ts (merged)',
+  },
+  {
+    checkId: 'storage-authority',
+    title: 'Contract config matches what main declares',
+    source: 'confirm-check-registry.ts (merged)',
   },
   {
     checkId: 'target-state',
@@ -252,10 +269,22 @@ export const summariseSignerWorkload = (
 }
 
 /**
+ * Enough rows to show the shape of the work without burying the three counts
+ * above them, which are what the signer reads first.
+ */
+export const MAX_SIGNER_TASKS_SHOWN = 10
+
+/**
  * Renders the workload split for a signer.
  *
+ * Each line leads with its proposal because `needsYou` is keyed per proposal,
+ * not across the run: `summariseSignerWorkload` dedupes `(checkId, network)`
+ * within one ledger only, so the same pair recurs legitimately across proposals
+ * and is not enough to tell two rows apart.
+ *
  * @param workload - the split
- * @returns a short block naming what is settled, what is blocked, and what is left
+ * @returns a short block naming what is settled, what is blocked, and at most
+ * {@link MAX_SIGNER_TASKS_SHOWN} of what is left, with any remainder counted
  */
 export const renderSignerWorkload = (workload: ISignerWorkload): string => {
   const lines = [
@@ -263,9 +292,15 @@ export const renderSignerWorkload = (workload: ISignerWorkload): string => {
     `blocked               : ${workload.blocked} row(s) — refused; not yours to wave through`,
     `needs your judgement  : ${workload.needsYou.length} row(s) — acknowledging one IS answering it`,
   ]
-  for (const task of workload.needsYou.slice(0, 10))
+  for (const task of workload.needsYou.slice(0, MAX_SIGNER_TASKS_SHOWN))
     lines.push(
-      `  ${task.checkId} on ${task.network}: expected ${task.expected}, observed ${task.actual}`
+      `  ${task.proposal} ${task.checkId} on ${task.network}: expected ${task.expected}, observed ${task.actual}`
+    )
+  const undisclosed = workload.needsYou.length - MAX_SIGNER_TASKS_SHOWN
+  // Unindented, so it reads as a summary of the list and not an entry in it.
+  if (undisclosed > 0)
+    lines.push(
+      `${undisclosed} further row(s) not shown — narrow the run to see them`
     )
   return lines.join('\n')
 }

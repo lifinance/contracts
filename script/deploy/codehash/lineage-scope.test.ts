@@ -108,14 +108,53 @@ describe('deriveToolchainScope', () => {
     expect(scope.profiles.map((p) => p.profile)).toEqual(['default'])
   })
 
+  it('resolves Tron to the profile the fork actually builds with', () => {
+    // Tron is built and deployed out of `lifinance/contracts-tron`, whose Tron
+    // scripts never set FOUNDRY_PROFILE and read their artifacts from `out/` —
+    // `[profile.default]`. Every Tron record that carries a commit and
+    // reproduces does so under `default`; none can under `solc_floor`.
+    //
+    // The pair is asserted beside the name because the name alone does not say
+    // which compiler a reader should expect here. It is not what selects the
+    // compiler: the rebuild runs `FOUNDRY_PROFILE=<name>` inside the historical
+    // checkout, so the pair comes from that commit's own `foundry.toml`.
+    for (const network of ['tron', 'tronshasta']) {
+      const scope = scopeOf(network)
+      expect(scope.isClosedSet).toBe(true)
+      expect(scope.profiles.map((p) => p.profile)).toEqual(['default'])
+      expect(scope.profiles[0]?.solcVersion).toBe('0.8.29')
+      expect(scope.profiles[0]?.evmVersion).toBe('cancun')
+    }
+  })
+
+  it('resolves every network to exactly one profile', () => {
+    // `createImmutableReferencesResolver` throws on a scope with more than one,
+    // because immutable offsets are per lineage and there would be no single
+    // set to mask the deployed code with — so a second profile for any network
+    // turns every address on it UNVERIFIABLE rather than widening the set.
+    for (const network of Object.keys(networks)) {
+      const row = networks[network]
+      if ((row?.targetEvmVersion ?? '') === '') continue
+      if (row?.type !== 'mainnet' || row?.status !== 'active') continue
+      expect(`${network}:${scopeOf(network).profiles.length}`).toBe(
+        `${network}:1`
+      )
+    }
+  })
+
   it('closes the set for a london network via solc_floor', () => {
-    const london = Object.keys(networks).find(
+    const london = Object.keys(networks).filter(
       (n) => networks[n]?.targetEvmVersion === 'london'
     )
-    expect(london).toBeDefined()
-    const scope = scopeOf(london as string)
-    expect(scope.isClosedSet).toBe(true)
-    expect(scope.profiles.map((p) => p.profile)).toEqual(['solc_floor'])
+    // Named rather than counted: `solc_floor` exists for these chains, and a
+    // config edit that moved the last of them would otherwise make this case
+    // vacuous instead of failing.
+    expect(london).toContain('fuse')
+    for (const network of london) {
+      const scope = scopeOf(network)
+      expect(scope.isClosedSet).toBe(true)
+      expect(scope.profiles.map((p) => p.profile)).toEqual(['solc_floor'])
+    }
   })
 
   it('closes the set for a zkEVM mainnet rather than falling back to open', () => {

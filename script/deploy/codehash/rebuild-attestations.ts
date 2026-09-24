@@ -47,6 +47,7 @@ import {
 import { frameFault, strip0x } from './hex'
 import { maskImmutables, type ImmutableReferences } from './immutable-offsets'
 import type { IBuildProfile, IToolchainScope } from './lineage-scope'
+import type { SourceRemoteResolution } from './source-remote'
 import type { IAttestationLookup } from './verify-cut-targets'
 
 /**
@@ -108,6 +109,15 @@ export interface IAttestationSourceDeps {
    */
   build: (request: IRebuildRequest) => IRebuiltArtifact
   git: ICommitAvailabilityDeps['git']
+  /**
+   * Which git remote holds this network's source, or why none here does.
+   *
+   * Required rather than defaulted to `origin`: Tron's code is built in
+   * `lifinance/contracts-tron` and its commits are not on `origin` at all, so a
+   * source constructed without this answers UNVERIFIABLE for every Tron address
+   * while looking complete.
+   */
+  sourceRemote: (network: string) => SourceRemoteResolution
 }
 
 export type AttestationStage =
@@ -421,7 +431,23 @@ export const createAttestationSource = (
         reason: `no attested build is available: the deployment record names ${record.contractName}@${record.version} but carries no commit, so there is no source to rebuild it from`,
       }
 
-    const availability = ensureCommitAvailable(commit, { git: deps.git })
+    // After the commit, not before it: a network with no source remote here
+    // still has addresses the record is silent about and records too old to
+    // carry a commit, and those two stay the answers they were rather than
+    // becoming an infrastructure error about a rebuild nobody was going to run.
+    const remote = deps.sourceRemote(network)
+    if (!remote.ok)
+      return {
+        kind: 'error',
+        stage: 'commit-unfetchable',
+        reason: `${address} on ${network}: ${remote.reason}`,
+      }
+
+    const availability = ensureCommitAvailable(
+      commit,
+      { git: deps.git },
+      { remote: remote.remote }
+    )
     if (!availability.ok)
       return {
         kind: 'error',
