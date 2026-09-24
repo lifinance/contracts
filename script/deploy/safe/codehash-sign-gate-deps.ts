@@ -78,11 +78,7 @@ import { mergeRequirements } from '../immutables/verify-immutable-registry'
 import { isValidConfigFileName } from '../shared/immutableBindings'
 import { createTronAddressSpellings } from '../shared/tron-address-spellings'
 
-import {
-  createPinnedBlobReader,
-  PINNED_REF,
-  type PinnedJsonRead,
-} from './pinned-target-state'
+import { PINNED_REF, type PinnedJsonRead } from './pinned-target-state'
 import { evaluateRpcQuorum } from './rpc-quorum'
 import {
   collectProviderObservations,
@@ -1598,9 +1594,7 @@ export interface IImmutableExpectationSource {
  * @returns The `loadRequirements` and `loadConfigFile` layer 2 prices through
  */
 export const createPinnedImmutableExpectations = (
-  readPinnedBlob: (
-    repoPath: string
-  ) => PinnedJsonRead = createPinnedBlobReader()
+  readPinnedBlob: (repoPath: string) => PinnedJsonRead
 ): IImmutableExpectationSource => {
   const unavailable = (repoPath: string, reason: string): Error =>
     new Error(
