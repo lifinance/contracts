@@ -4,7 +4,7 @@ pragma solidity ^0.8.17;
 import { TestBaseFacet } from "../utils/TestBaseFacet.sol";
 import { LiFiIntentEscrowFacetV2 } from "lifi/Facets/LiFiIntentEscrowFacetV2.sol";
 import { TestWhitelistManagerBase } from "../utils/TestWhitelistManagerBase.sol";
-import { InvalidReceiver, NativeAssetNotSupported, InvalidAmount, InformationMismatch, InvalidCallData } from "lifi/Errors/GenericErrors.sol";
+import { InvalidReceiver, InvalidAmount, InformationMismatch, InvalidCallData, ReentrancyError } from "lifi/Errors/GenericErrors.sol";
 import { ReceiverOIF } from "lifi/Periphery/ReceiverOIF.sol";
 import { Executor } from "lifi/Periphery/Executor.sol";
 import { TokenWrapper } from "lifi/Periphery/TokenWrapper.sol";
@@ -15,8 +15,13 @@ import { LiFiData } from "lifi/Helpers/LiFiData.sol";
 
 import { MandateOutput, StandardOrder } from "lifi/Interfaces/IOpenIntentFramework.sol";
 
-import { OUTPUT_SETTLER_COIN, OutputSettler } from "../Periphery/ReceiverOIF.t.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
+import { OutputSettler, NonETHReceiver } from "../Periphery/ReceiverOIF.t.sol";
 import { DeployPeripheryHelpers } from "../utils/DeployPeripheryHelpers.sol";
+
+// Production deployments from config/lifiintentescrow.json.
+address constant LIFI_ESCROW_INPUT_SETTLER = 0x00fC00edbe7C003b006f870068c548940000223e;
+address constant OIF_OUTPUT_SETTLER = 0x75220B7600c300005038432a0000f308e0000068;
 
 contract AlwaysYesOracle {
     function isProven(
@@ -56,6 +61,10 @@ interface ILiFiIntentEscrowSettler {
     function orderIdentifier(
         StandardOrder calldata order
     ) external view returns (bytes32);
+
+    function refund(StandardOrder calldata order) external;
+
+    function governanceFee() external view returns (uint64);
 }
 
 // Stub LiFiIntentEscrowFacetV2 Contract
@@ -66,6 +75,28 @@ contract TestLiFiIntentEscrowFacetV2 is
     constructor(
         address escrowSettler
     ) LiFiIntentEscrowFacetV2(escrowSettler) {}
+}
+
+// Accepts native refunds but first replays `reentryCall` into the diamond,
+// recording the revert selector so tests can assert which guard stopped it.
+contract ReentrantRefundRecipient {
+    address internal immutable DIAMOND;
+    bytes internal reentryCall;
+    bytes4 public reentryError;
+
+    constructor(address _diamond) {
+        DIAMOND = _diamond;
+    }
+
+    function setReentryCall(bytes calldata _call) external {
+        reentryCall = _call;
+    }
+
+    // solhint-disable-next-line no-complex-fallback
+    receive() external payable {
+        (bool success, bytes memory result) = DIAMOND.call(reentryCall);
+        if (!success && result.length >= 4) reentryError = bytes4(result);
+    }
 }
 
 contract LiFiIntentEscrowFacetV2Test is TestBaseFacet {
@@ -110,7 +141,7 @@ contract LiFiIntentEscrowFacetV2Test is TestBaseFacet {
                 fillDeadline: type(uint32).max,
                 inputOracle: alwaysYesOracle, // Not used
                 outputOracle: bytes32(0), // not used
-                outputSettler: bytes32(uint256(uint160(OUTPUT_SETTLER_COIN))),
+                outputSettler: bytes32(uint256(uint160(OIF_OUTPUT_SETTLER))),
                 outputToken: bytes32(uint256(888999888)),
                 outputAmountMultiplier: uint128(MULTIPLIER_BASE),
                 dstCallSwapData: new LibSwap.SwapData[](0),
@@ -119,9 +150,16 @@ contract LiFiIntentEscrowFacetV2Test is TestBaseFacet {
     }
 
     function setUp() public {
-        // Block after deployment.
-        customBlockNumberForForking = 23695990;
+        // After the native-aware production input settler (block 25696049).
+        customBlockNumberForForking = 26046602;
         initTestBase();
+        assertGt(LIFI_ESCROW_INPUT_SETTLER.code.length, 0);
+        assertGt(OIF_OUTPUT_SETTLER.code.length, 0);
+        assertEq(
+            ILiFiIntentEscrowSettler(LIFI_ESCROW_INPUT_SETTLER)
+                .governanceFee(),
+            0
+        );
 
         // Instead of accessing the mainnet deployment, deploy here.
         // This saves a lot of RPC calls and significantly speeds up testing suite.
@@ -131,7 +169,7 @@ contract LiFiIntentEscrowFacetV2Test is TestBaseFacet {
             new ReceiverOIF(
                 address(this),
                 address(executor),
-                OUTPUT_SETTLER_COIN
+                OIF_OUTPUT_SETTLER
             )
         );
         tokenWrapper = payable(
@@ -141,7 +179,7 @@ contract LiFiIntentEscrowFacetV2Test is TestBaseFacet {
         // deploy oracle & allocator
         alwaysYesOracle = address(new AlwaysYesOracle());
 
-        lifiIntentEscrowSettler = 0x000025c3226C00B2Cdc200005a1600509f4e00C0;
+        lifiIntentEscrowSettler = LIFI_ESCROW_INPUT_SETTLER;
 
         baseLiFiIntentEscrowFacet = new TestLiFiIntentEscrowFacetV2(
             lifiIntentEscrowSettler
@@ -374,18 +412,6 @@ contract LiFiIntentEscrowFacetV2Test is TestBaseFacet {
             validLIFIIntentData
         );
         vm.stopPrank();
-    }
-
-    function testRevert_LIFIIntentNativeNotSupported() external {
-        LiFiIntentEscrowFacetV2.LiFiIntentEscrowDataV2
-            memory validLIFIIntentData = _validLIFIIntentData();
-        bridgeData.sendingAssetId = address(0);
-
-        vm.expectRevert(NativeAssetNotSupported.selector);
-        lifiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrowV2(
-            bridgeData,
-            validLIFIIntentData
-        );
     }
 
     function testRevert_LIFIIntentZeroDepositAndRefundAddress() external {
@@ -649,9 +675,13 @@ contract LiFiIntentEscrowFacetV2Test is TestBaseFacet {
     }
 
     function initiateBridgeTxWithFacet(bool isNative) internal override {
-        if (isNative) {} else {
-            LiFiIntentEscrowFacetV2.LiFiIntentEscrowDataV2
-                memory validLIFIIntentData = _validLIFIIntentData();
+        LiFiIntentEscrowFacetV2.LiFiIntentEscrowDataV2
+            memory validLIFIIntentData = _validLIFIIntentData();
+        if (isNative) {
+            lifiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrowV2{
+                value: bridgeData.minAmount + addToMessageValue
+            }(bridgeData, validLIFIIntentData);
+        } else {
             lifiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrowV2(
                 bridgeData,
                 validLIFIIntentData
@@ -662,9 +692,14 @@ contract LiFiIntentEscrowFacetV2Test is TestBaseFacet {
     function initiateSwapAndBridgeTxWithFacet(
         bool isNative
     ) internal override {
-        if (isNative) {} else {
-            LiFiIntentEscrowFacetV2.LiFiIntentEscrowDataV2
-                memory validLIFIIntentData = _validLIFIIntentData();
+        LiFiIntentEscrowFacetV2.LiFiIntentEscrowDataV2
+            memory validLIFIIntentData = _validLIFIIntentData();
+        if (isNative) {
+            lifiIntentEscrowFacet
+                .swapAndStartBridgeTokensViaLiFiIntentEscrowV2{
+                value: swapData[0].fromAmount
+            }(bridgeData, swapData, validLIFIIntentData);
+        } else {
             lifiIntentEscrowFacet
                 .swapAndStartBridgeTokensViaLiFiIntentEscrowV2(
                     bridgeData,
@@ -672,14 +707,6 @@ contract LiFiIntentEscrowFacetV2Test is TestBaseFacet {
                     validLIFIIntentData
                 );
         }
-    }
-
-    function testBase_CanBridgeNativeTokens() public override {
-        // facet does not support bridging of native assets
-    }
-
-    function testBase_CanSwapAndBridgeNativeTokens() public override {
-        // facet does not support bridging of native assets
     }
 
     function testBase_Revert_BridgeToSameChainId() public override {
@@ -1180,7 +1207,7 @@ contract LiFiIntentEscrowFacetV2Test is TestBaseFacet {
                 .orderIdentifier(order);
             deal(ADDRESS_USDC, otherSolver, order.outputs[0].amount);
             vm.startPrank(otherSolver);
-            usdc.approve(OUTPUT_SETTLER_COIN, order.outputs[0].amount);
+            usdc.approve(OIF_OUTPUT_SETTLER, order.outputs[0].amount);
             vm.warp(2_000_000_059);
             vm.expectRevert(
                 abi.encodeWithSignature(
@@ -1189,7 +1216,7 @@ contract LiFiIntentEscrowFacetV2Test is TestBaseFacet {
                 )
             );
 
-            OutputSettler(OUTPUT_SETTLER_COIN).fill(
+            OutputSettler(OIF_OUTPUT_SETTLER).fill(
                 orderId,
                 order.outputs[0],
                 order.fillDeadline,
@@ -1329,8 +1356,8 @@ contract LiFiIntentEscrowFacetV2Test is TestBaseFacet {
         uint256 beforeBalance = usdc.balanceOf(USER_RECEIVER);
         vm.startPrank(_solver);
 
-        usdc.approve(OUTPUT_SETTLER_COIN, amount);
-        OutputSettler(OUTPUT_SETTLER_COIN).fill(
+        usdc.approve(OIF_OUTPUT_SETTLER, amount);
+        OutputSettler(OIF_OUTPUT_SETTLER).fill(
             orderId,
             _order.outputs[0],
             _order.fillDeadline,
@@ -1673,10 +1700,10 @@ contract LiFiIntentEscrowFacetV2Test is TestBaseFacet {
 
         // Get us the fill tokens.
         TokenWrapper(tokenWrapper).deposit{ value: amount }();
-        weth.approve(OUTPUT_SETTLER_COIN, type(uint256).max);
+        weth.approve(OIF_OUTPUT_SETTLER, type(uint256).max);
 
         // Fill the output. We don't really care about whether the intent is filled properly, just that it is filled and trigger the execution.
-        OutputSettler(OUTPUT_SETTLER_COIN).fill(
+        OutputSettler(OIF_OUTPUT_SETTLER).fill(
             bytes32(0),
             output,
             type(uint48).max,
@@ -1686,5 +1713,716 @@ contract LiFiIntentEscrowFacetV2Test is TestBaseFacet {
         uint256 afterExecutionBalance = bridgeData.receiver.balance;
 
         assertEq(afterExecutionBalance - beforeExecutionBalance, amount);
+    }
+
+    // --- Native inputs --- //
+
+    function _prepareNativeBridge(uint256 _amount) internal {
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = _amount;
+        vm.deal(USER_SENDER, 100 ether);
+    }
+
+    function _setupUsdcToExactEthSwap(
+        uint256 _ethOut
+    ) internal returns (uint256 usdcIn) {
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_USDC;
+        path[1] = ADDRESS_WRAPPED_NATIVE;
+        usdcIn = uniswap.getAmountsIn(_ethOut, path)[0];
+
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: ADDRESS_UNISWAP,
+                approveTo: ADDRESS_UNISWAP,
+                sendingAssetId: ADDRESS_USDC,
+                receivingAssetId: address(0),
+                fromAmount: usdcIn,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapTokensForExactETH.selector,
+                    _ethOut,
+                    usdcIn,
+                    path,
+                    address(lifiIntentEscrowFacet),
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
+        usdc.approve(address(lifiIntentEscrowFacet), usdcIn);
+    }
+
+    function _setupEthToExactUsdcSwap(
+        uint256 _usdcOut,
+        uint256 _ethIn
+    ) internal {
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_WRAPPED_NATIVE;
+        path[1] = ADDRESS_USDC;
+
+        delete swapData;
+        swapData.push(
+            LibSwap.SwapData({
+                callTo: ADDRESS_UNISWAP,
+                approveTo: ADDRESS_UNISWAP,
+                sendingAssetId: address(0),
+                receivingAssetId: ADDRESS_USDC,
+                fromAmount: _ethIn,
+                callData: abi.encodeWithSelector(
+                    uniswap.swapETHForExactTokens.selector,
+                    _usdcOut,
+                    path,
+                    address(lifiIntentEscrowFacet),
+                    block.timestamp + 20 minutes
+                ),
+                requiresDeposit: true
+            })
+        );
+    }
+
+    function _orderStatus(
+        StandardOrder memory _order
+    ) internal returns (uint8) {
+        return
+            ILiFiIntentEscrowSettler(lifiIntentEscrowSettler).orderStatus(
+                ILiFiIntentEscrowSettler(lifiIntentEscrowSettler)
+                    .orderIdentifier(_order)
+            );
+    }
+
+    function test_NativeInputOpensOrderWithExactValue() external {
+        LiFiIntentEscrowFacetV2.LiFiIntentEscrowDataV2
+            memory intent = _validLIFIIntentData();
+        uint256 amount = defaultNativeAmount;
+        _prepareNativeBridge(amount);
+        uint256 settlerBefore = lifiIntentEscrowSettler.balance;
+        uint256 diamondBefore = address(lifiIntentEscrowFacet).balance;
+        vm.startPrank(USER_SENDER);
+
+        StandardOrder memory order = _expectOpenWithScaledOutput(
+            intent,
+            amount,
+            amount
+        );
+
+        lifiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrowV2{
+            value: amount
+        }(bridgeData, intent);
+
+        vm.stopPrank();
+
+        assertEq(order.inputs[0][0], 0);
+        assertEq(_orderStatus(order), 1);
+        assertEq(lifiIntentEscrowSettler.balance - settlerBefore, amount);
+        assertEq(address(lifiIntentEscrowFacet).balance, diamondBefore);
+    }
+
+    function test_NativeExcessRefundedToDepositAndRefundAddress() external {
+        LiFiIntentEscrowFacetV2.LiFiIntentEscrowDataV2
+            memory intent = _validLIFIIntentData();
+        uint256 amount = defaultNativeAmount;
+        uint256 excess = 0.25 ether;
+        _prepareNativeBridge(amount);
+        address refundAddress = intent.depositAndRefundAddress;
+        assertTrue(refundAddress != USER_SENDER);
+        assertTrue(refundAddress != USER_RECEIVER);
+        uint256 senderBefore = USER_SENDER.balance;
+        uint256 refundBefore = refundAddress.balance;
+        uint256 settlerBefore = lifiIntentEscrowSettler.balance;
+        vm.startPrank(USER_SENDER);
+
+        _expectOpenWithScaledOutput(intent, amount, amount);
+
+        lifiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrowV2{
+            value: amount + excess
+        }(bridgeData, intent);
+
+        vm.stopPrank();
+
+        assertEq(senderBefore - USER_SENDER.balance, amount + excess);
+        assertEq(refundAddress.balance - refundBefore, excess);
+        assertEq(lifiIntentEscrowSettler.balance - settlerBefore, amount);
+    }
+
+    function testRevert_NativeInputInsufficientValue() external {
+        LiFiIntentEscrowFacetV2.LiFiIntentEscrowDataV2
+            memory intent = _validLIFIIntentData();
+        uint256 amount = defaultNativeAmount;
+        _prepareNativeBridge(amount);
+        uint256 settlerBefore = lifiIntentEscrowSettler.balance;
+        vm.startPrank(USER_SENDER);
+
+        vm.expectRevert(InvalidAmount.selector);
+
+        lifiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrowV2{
+            value: amount - 1
+        }(bridgeData, intent);
+
+        vm.stopPrank();
+
+        assertEq(_orderStatus(_scaledOrder(intent, amount, amount)), 0);
+        assertEq(lifiIntentEscrowSettler.balance, settlerBefore);
+    }
+
+    function test_ERC20InputStrayValueRefundedToDepositAndRefundAddress()
+        external
+    {
+        LiFiIntentEscrowFacetV2.LiFiIntentEscrowDataV2
+            memory intent = _validLIFIIntentData();
+        uint256 strayValue = 0.5 ether;
+        bridgeData.sendingAssetId = ADDRESS_USDC;
+        vm.deal(USER_SENDER, strayValue);
+        uint256 refundBefore = intent.depositAndRefundAddress.balance;
+        uint256 settlerEthBefore = lifiIntentEscrowSettler.balance;
+        uint256 settlerUsdcBefore = usdc.balanceOf(lifiIntentEscrowSettler);
+        vm.startPrank(USER_SENDER);
+
+        usdc.approve(address(lifiIntentEscrowFacet), bridgeData.minAmount);
+        _expectOpenWithScaledOutput(
+            intent,
+            bridgeData.minAmount,
+            bridgeData.minAmount
+        );
+
+        lifiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrowV2{
+            value: strayValue
+        }(bridgeData, intent);
+
+        vm.stopPrank();
+
+        assertEq(
+            intent.depositAndRefundAddress.balance - refundBefore,
+            strayValue
+        );
+        assertEq(lifiIntentEscrowSettler.balance, settlerEthBefore);
+        assertEq(
+            usdc.balanceOf(lifiIntentEscrowSettler) - settlerUsdcBefore,
+            bridgeData.minAmount
+        );
+    }
+
+    function test_SwapERC20ToNativeOpensOrderWithSwapOutput() external {
+        LiFiIntentEscrowFacetV2.LiFiIntentEscrowDataV2
+            memory intent = _validLIFIIntentData();
+        uint256 ethOut = defaultNativeAmount;
+        intent.outputAmountMultiplier = uint128(MULTIPLIER_BASE / 2);
+        bridgeData.hasSourceSwaps = true;
+        _prepareNativeBridge(ethOut);
+        uint256 settlerBefore = lifiIntentEscrowSettler.balance;
+        vm.startPrank(USER_SENDER);
+
+        _setupUsdcToExactEthSwap(ethOut);
+        StandardOrder memory order = _expectOpenWithScaledOutput(
+            intent,
+            ethOut,
+            ethOut / 2
+        );
+
+        lifiIntentEscrowFacet.swapAndStartBridgeTokensViaLiFiIntentEscrowV2(
+            bridgeData,
+            swapData,
+            intent
+        );
+
+        vm.stopPrank();
+
+        assertEq(_orderStatus(order), 1);
+        assertEq(lifiIntentEscrowSettler.balance - settlerBefore, ethOut);
+        assertEq(address(lifiIntentEscrowFacet).balance, 0);
+    }
+
+    function test_SwapToNativeStrayValueFundsIntent() external {
+        LiFiIntentEscrowFacetV2.LiFiIntentEscrowDataV2
+            memory intent = _validLIFIIntentData();
+        uint256 ethOut = defaultNativeAmount;
+        uint256 strayValue = 0.1 ether;
+        bridgeData.hasSourceSwaps = true;
+        _prepareNativeBridge(ethOut);
+        uint256 refundBefore = intent.depositAndRefundAddress.balance;
+        uint256 settlerBefore = lifiIntentEscrowSettler.balance;
+        vm.startPrank(USER_SENDER);
+
+        _setupUsdcToExactEthSwap(ethOut);
+        StandardOrder memory order = _expectOpenWithScaledOutput(
+            intent,
+            ethOut + strayValue,
+            ethOut + strayValue
+        );
+
+        lifiIntentEscrowFacet.swapAndStartBridgeTokensViaLiFiIntentEscrowV2{
+            value: strayValue
+        }(bridgeData, swapData, intent);
+
+        vm.stopPrank();
+
+        assertEq(_orderStatus(order), 1);
+        assertEq(
+            lifiIntentEscrowSettler.balance - settlerBefore,
+            ethOut + strayValue
+        );
+        assertEq(intent.depositAndRefundAddress.balance, refundBefore);
+    }
+
+    function test_SwapNativeToERC20LeftoversToDepositAndRefundAddress()
+        external
+    {
+        LiFiIntentEscrowFacetV2.LiFiIntentEscrowDataV2
+            memory intent = _validLIFIIntentData();
+        uint256 usdcOut = 1_000 * 10 ** usdc.decimals();
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_WRAPPED_NATIVE;
+        path[1] = ADDRESS_USDC;
+        uint256 ethNeeded = uniswap.getAmountsIn(usdcOut, path)[0];
+        uint256 extra = 0.3 ether;
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.sendingAssetId = ADDRESS_USDC;
+        bridgeData.minAmount = usdcOut;
+        vm.deal(USER_SENDER, ethNeeded + extra);
+        uint256 refundBefore = intent.depositAndRefundAddress.balance;
+        vm.startPrank(USER_SENDER);
+
+        _setupEthToExactUsdcSwap(usdcOut, ethNeeded + extra);
+        StandardOrder memory order = _expectOpenWithScaledOutput(
+            intent,
+            usdcOut,
+            usdcOut
+        );
+
+        lifiIntentEscrowFacet.swapAndStartBridgeTokensViaLiFiIntentEscrowV2{
+            value: ethNeeded + extra
+        }(bridgeData, swapData, intent);
+
+        vm.stopPrank();
+
+        assertEq(_orderStatus(order), 1);
+        assertEq(intent.depositAndRefundAddress.balance - refundBefore, extra);
+        assertEq(USER_SENDER.balance, 0);
+        assertEq(address(lifiIntentEscrowFacet).balance, 0);
+    }
+
+    function testRevert_SwapFinalAssetIsERC20ButInputIsNative() external {
+        LiFiIntentEscrowFacetV2.LiFiIntentEscrowDataV2
+            memory intent = _validLIFIIntentData();
+        uint256 amountIn = 1_000 * 10 ** dai.decimals();
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.sendingAssetId = address(0);
+        bridgeData.minAmount = 1;
+        // Stray diamond ETH must not be usable to fund the escrow.
+        vm.deal(address(lifiIntentEscrowFacet), 10 ether);
+        vm.startPrank(USER_SENDER);
+
+        _setupDaiToUsdcSwap(amountIn, 1);
+
+        vm.expectRevert(InformationMismatch.selector);
+
+        lifiIntentEscrowFacet.swapAndStartBridgeTokensViaLiFiIntentEscrowV2(
+            bridgeData,
+            swapData,
+            intent
+        );
+
+        vm.stopPrank();
+
+        assertEq(address(lifiIntentEscrowFacet).balance, 10 ether);
+    }
+
+    function testRevert_SwapFinalAssetIsNativeButInputIsERC20() external {
+        LiFiIntentEscrowFacetV2.LiFiIntentEscrowDataV2
+            memory intent = _validLIFIIntentData();
+        uint256 ethOut = defaultNativeAmount;
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.sendingAssetId = ADDRESS_USDC;
+        bridgeData.minAmount = 1;
+        // Stray diamond USDC must not be usable to fund the escrow.
+        deal(ADDRESS_USDC, address(lifiIntentEscrowFacet), 10_000 * 10 ** 6);
+        vm.startPrank(USER_SENDER);
+
+        _setupUsdcToExactEthSwap(ethOut);
+
+        vm.expectRevert(InformationMismatch.selector);
+
+        lifiIntentEscrowFacet.swapAndStartBridgeTokensViaLiFiIntentEscrowV2(
+            bridgeData,
+            swapData,
+            intent
+        );
+
+        vm.stopPrank();
+
+        assertEq(
+            usdc.balanceOf(address(lifiIntentEscrowFacet)),
+            10_000 * 10 ** 6
+        );
+    }
+
+    function testRevert_RefundRecipientRejectsNative() external {
+        LiFiIntentEscrowFacetV2.LiFiIntentEscrowDataV2
+            memory intent = _validLIFIIntentData();
+        uint256 amount = defaultNativeAmount;
+        _prepareNativeBridge(amount);
+        intent.depositAndRefundAddress = address(new NonETHReceiver());
+        uint256 settlerBefore = lifiIntentEscrowSettler.balance;
+        vm.startPrank(USER_SENDER);
+
+        vm.expectRevert(SafeTransferLib.ETHTransferFailed.selector);
+
+        lifiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrowV2{
+            value: amount + 1
+        }(bridgeData, intent);
+
+        vm.stopPrank();
+
+        assertEq(_orderStatus(_scaledOrder(intent, amount, amount)), 0);
+        assertEq(lifiIntentEscrowSettler.balance, settlerBefore);
+    }
+
+    function test_ReentrantRefundRecipientBlockedOnExcessRefund() external {
+        LiFiIntentEscrowFacetV2.LiFiIntentEscrowDataV2
+            memory intent = _validLIFIIntentData();
+        uint256 amount = defaultNativeAmount;
+        _prepareNativeBridge(amount);
+        ReentrantRefundRecipient recipient = new ReentrantRefundRecipient(
+            address(lifiIntentEscrowFacet)
+        );
+        intent.depositAndRefundAddress = address(recipient);
+        recipient.setReentryCall(
+            abi.encodeCall(
+                LiFiIntentEscrowFacetV2.startBridgeTokensViaLiFiIntentEscrowV2,
+                (bridgeData, intent)
+            )
+        );
+        vm.startPrank(USER_SENDER);
+
+        lifiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrowV2{
+            value: amount + 1
+        }(bridgeData, intent);
+
+        vm.stopPrank();
+
+        assertEq(recipient.reentryError(), ReentrancyError.selector);
+        assertEq(address(recipient).balance, 1);
+        assertEq(_orderStatus(_scaledOrder(intent, amount, amount)), 1);
+    }
+
+    function test_ReentrantRefundRecipientBlockedOnSwapLeftovers() external {
+        LiFiIntentEscrowFacetV2.LiFiIntentEscrowDataV2
+            memory intent = _validLIFIIntentData();
+        uint256 usdcOut = 1_000 * 10 ** usdc.decimals();
+        address[] memory path = new address[](2);
+        path[0] = ADDRESS_WRAPPED_NATIVE;
+        path[1] = ADDRESS_USDC;
+        uint256 ethIn = uniswap.getAmountsIn(usdcOut, path)[0] + 0.1 ether;
+        bridgeData.hasSourceSwaps = true;
+        bridgeData.sendingAssetId = ADDRESS_USDC;
+        bridgeData.minAmount = usdcOut;
+        vm.deal(USER_SENDER, ethIn);
+        ReentrantRefundRecipient recipient = new ReentrantRefundRecipient(
+            address(lifiIntentEscrowFacet)
+        );
+        intent.depositAndRefundAddress = address(recipient);
+        _setupEthToExactUsdcSwap(usdcOut, ethIn);
+        recipient.setReentryCall(
+            abi.encodeCall(
+                LiFiIntentEscrowFacetV2
+                    .swapAndStartBridgeTokensViaLiFiIntentEscrowV2,
+                (bridgeData, swapData, intent)
+            )
+        );
+        vm.startPrank(USER_SENDER);
+
+        lifiIntentEscrowFacet.swapAndStartBridgeTokensViaLiFiIntentEscrowV2{
+            value: ethIn
+        }(bridgeData, swapData, intent);
+
+        vm.stopPrank();
+
+        assertEq(recipient.reentryError(), ReentrancyError.selector);
+        assertEq(address(recipient).balance, 0.1 ether);
+        assertEq(_orderStatus(_scaledOrder(intent, usdcOut, usdcOut)), 1);
+    }
+
+    function test_NativeOrderRefundAfterExpiry() external {
+        LiFiIntentEscrowFacetV2.LiFiIntentEscrowDataV2
+            memory intent = _validLIFIIntentData();
+        uint256 amount = defaultNativeAmount;
+        _prepareNativeBridge(amount);
+        intent.fillDeadline = uint32(block.timestamp + 1 hours);
+        intent.expires = uint32(block.timestamp + 2 hours);
+        vm.startPrank(USER_SENDER);
+
+        StandardOrder memory order = _expectOpenWithScaledOutput(
+            intent,
+            amount,
+            amount
+        );
+
+        lifiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrowV2{
+            value: amount
+        }(bridgeData, intent);
+
+        vm.stopPrank();
+
+        vm.warp(intent.expires + 1);
+        uint256 refundBefore = intent.depositAndRefundAddress.balance;
+
+        ILiFiIntentEscrowSettler(lifiIntentEscrowSettler).refund(order);
+
+        assertEq(
+            intent.depositAndRefundAddress.balance - refundBefore,
+            amount
+        );
+        assertEq(_orderStatus(order), 3);
+    }
+
+    function test_NativeOrderFinalisePaysSolver() external {
+        LiFiIntentEscrowFacetV2.LiFiIntentEscrowDataV2
+            memory intent = _validLIFIIntentData();
+        uint256 amount = defaultNativeAmount;
+        _prepareNativeBridge(amount);
+        vm.startPrank(USER_SENDER);
+
+        StandardOrder memory order = _expectOpenWithScaledOutput(
+            intent,
+            amount,
+            amount
+        );
+
+        lifiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrowV2{
+            value: amount
+        }(bridgeData, intent);
+
+        vm.stopPrank();
+
+        address solver = address(7788778877);
+        bytes32 solverIdentifier = bytes32(uint256(uint160(solver)));
+        SolveParams[] memory solveParams = new SolveParams[](1);
+        solveParams[0] = SolveParams({
+            timestamp: type(uint32).max,
+            solver: solverIdentifier
+        });
+        uint256 solverBefore = solver.balance;
+        vm.startPrank(solver);
+
+        ILiFiIntentEscrowSettler(lifiIntentEscrowSettler).finalise(
+            order,
+            solveParams,
+            solverIdentifier,
+            hex""
+        );
+
+        vm.stopPrank();
+
+        assertEq(solver.balance - solverBefore, amount);
+        assertEq(_orderStatus(order), 2);
+    }
+
+    function test_NativeInputWithDestinationCallAndRelativeDeadlines()
+        external
+    {
+        LiFiIntentEscrowFacetV2.LiFiIntentEscrowDataV2
+            memory intent = _validLIFIIntentData();
+        uint256 amount = defaultNativeAmount;
+        _prepareNativeBridge(amount);
+        bridgeData.hasDestinationCall = true;
+        intent.dstCallSwapData = new LibSwap.SwapData[](1);
+        intent.fillDeadline = 1 hours;
+        intent.expires = 2 hours;
+
+        MandateOutput[] memory outputs = new MandateOutput[](1);
+        outputs[0] = MandateOutput({
+            oracle: intent.outputOracle,
+            settler: intent.outputSettler,
+            chainId: bridgeData.destinationChainId,
+            token: intent.outputToken,
+            amount: amount,
+            recipient: intent.dstCallReceiver,
+            callbackData: abi.encode(
+                bridgeData.transactionId,
+                intent.dstCallSwapData,
+                intent.recipient
+            ),
+            context: intent.outputContext
+        });
+        uint256[2][] memory inputs = new uint256[2][](1);
+        inputs[0] = [uint256(0), amount];
+        StandardOrder memory order = StandardOrder({
+            user: intent.depositAndRefundAddress,
+            nonce: intent.nonce,
+            originChainId: block.chainid,
+            expires: uint32(block.timestamp + 2 hours),
+            fillDeadline: uint32(block.timestamp + 1 hours),
+            inputOracle: intent.inputOracle,
+            inputs: inputs,
+            outputs: outputs
+        });
+        bytes32 orderId = ILiFiIntentEscrowSettler(lifiIntentEscrowSettler)
+            .orderIdentifier(order);
+        vm.startPrank(USER_SENDER);
+
+        vm.expectEmit(true, true, true, true, lifiIntentEscrowSettler);
+        emit Open(orderId, order);
+
+        lifiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrowV2{
+            value: amount
+        }(bridgeData, intent);
+
+        vm.stopPrank();
+
+        assertEq(_orderStatus(order), 1);
+    }
+
+    function testRevert_NativeInputInsufficientValueWithFundedDiamond()
+        external
+    {
+        LiFiIntentEscrowFacetV2.LiFiIntentEscrowDataV2
+            memory intent = _validLIFIIntentData();
+        uint256 amount = defaultNativeAmount;
+        _prepareNativeBridge(amount);
+        vm.deal(address(lifiIntentEscrowFacet), 10 ether);
+        vm.startPrank(USER_SENDER);
+
+        vm.expectRevert(InvalidAmount.selector);
+
+        lifiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrowV2{
+            value: amount - 1
+        }(bridgeData, intent);
+
+        vm.stopPrank();
+
+        assertEq(address(lifiIntentEscrowFacet).balance, 10 ether);
+    }
+
+    function test_NativeInputDoesNotTouchFundedDiamondBalance() external {
+        LiFiIntentEscrowFacetV2.LiFiIntentEscrowDataV2
+            memory intent = _validLIFIIntentData();
+        uint256 amount = defaultNativeAmount;
+        uint256 excess = 0.2 ether;
+        _prepareNativeBridge(amount);
+        vm.deal(address(lifiIntentEscrowFacet), 10 ether);
+        uint256 refundBefore = intent.depositAndRefundAddress.balance;
+        uint256 settlerBefore = lifiIntentEscrowSettler.balance;
+        vm.startPrank(USER_SENDER);
+
+        _expectOpenWithScaledOutput(intent, amount, amount);
+
+        lifiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrowV2{
+            value: amount + excess
+        }(bridgeData, intent);
+
+        vm.stopPrank();
+
+        assertEq(address(lifiIntentEscrowFacet).balance, 10 ether);
+        assertEq(lifiIntentEscrowSettler.balance - settlerBefore, amount);
+        assertEq(
+            intent.depositAndRefundAddress.balance - refundBefore,
+            excess
+        );
+    }
+
+    function test_SwapToNativeDoesNotTouchFundedDiamondBalance() external {
+        LiFiIntentEscrowFacetV2.LiFiIntentEscrowDataV2
+            memory intent = _validLIFIIntentData();
+        uint256 ethOut = defaultNativeAmount;
+        bridgeData.hasSourceSwaps = true;
+        _prepareNativeBridge(ethOut);
+        vm.deal(address(lifiIntentEscrowFacet), 10 ether);
+        uint256 refundBefore = intent.depositAndRefundAddress.balance;
+        uint256 settlerBefore = lifiIntentEscrowSettler.balance;
+        vm.startPrank(USER_SENDER);
+
+        _setupUsdcToExactEthSwap(ethOut);
+        _expectOpenWithScaledOutput(intent, ethOut, ethOut);
+
+        lifiIntentEscrowFacet.swapAndStartBridgeTokensViaLiFiIntentEscrowV2(
+            bridgeData,
+            swapData,
+            intent
+        );
+
+        vm.stopPrank();
+
+        assertEq(address(lifiIntentEscrowFacet).balance, 10 ether);
+        assertEq(lifiIntentEscrowSettler.balance - settlerBefore, ethOut);
+        assertEq(intent.depositAndRefundAddress.balance, refundBefore);
+    }
+
+    function testRevert_NativeOrderRefundToRejectingUser() external {
+        LiFiIntentEscrowFacetV2.LiFiIntentEscrowDataV2
+            memory intent = _validLIFIIntentData();
+        uint256 amount = defaultNativeAmount;
+        _prepareNativeBridge(amount);
+        intent.depositAndRefundAddress = address(new NonETHReceiver());
+        intent.fillDeadline = uint32(block.timestamp + 1 hours);
+        intent.expires = uint32(block.timestamp + 2 hours);
+        vm.startPrank(USER_SENDER);
+
+        StandardOrder memory order = _expectOpenWithScaledOutput(
+            intent,
+            amount,
+            amount
+        );
+
+        lifiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrowV2{
+            value: amount
+        }(bridgeData, intent);
+
+        vm.stopPrank();
+
+        vm.warp(intent.expires + 1);
+        uint256 settlerBefore = lifiIntentEscrowSettler.balance;
+
+        vm.expectRevert(bytes4(keccak256("FailedCall()")));
+
+        ILiFiIntentEscrowSettler(lifiIntentEscrowSettler).refund(order);
+
+        assertEq(_orderStatus(order), 1);
+        assertEq(lifiIntentEscrowSettler.balance, settlerBefore);
+    }
+
+    function testRevert_NativeOrderFinaliseToRejectingDestination() external {
+        LiFiIntentEscrowFacetV2.LiFiIntentEscrowDataV2
+            memory intent = _validLIFIIntentData();
+        uint256 amount = defaultNativeAmount;
+        _prepareNativeBridge(amount);
+        vm.startPrank(USER_SENDER);
+
+        StandardOrder memory order = _expectOpenWithScaledOutput(
+            intent,
+            amount,
+            amount
+        );
+
+        lifiIntentEscrowFacet.startBridgeTokensViaLiFiIntentEscrowV2{
+            value: amount
+        }(bridgeData, intent);
+
+        vm.stopPrank();
+
+        address solver = address(7788778877);
+        bytes32 rejectingDestination = bytes32(
+            uint256(uint160(address(new NonETHReceiver())))
+        );
+        SolveParams[] memory solveParams = new SolveParams[](1);
+        solveParams[0] = SolveParams({
+            timestamp: type(uint32).max,
+            solver: bytes32(uint256(uint160(solver)))
+        });
+        uint256 settlerBefore = lifiIntentEscrowSettler.balance;
+        vm.startPrank(solver);
+
+        vm.expectRevert(bytes4(keccak256("FailedCall()")));
+
+        ILiFiIntentEscrowSettler(lifiIntentEscrowSettler).finalise(
+            order,
+            solveParams,
+            rejectingDestination,
+            hex""
+        );
+
+        vm.stopPrank();
+
+        assertEq(_orderStatus(order), 1);
+        assertEq(lifiIntentEscrowSettler.balance, settlerBefore);
     }
 }
