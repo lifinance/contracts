@@ -28,6 +28,7 @@ import { defineCommand, runMain } from 'citty'
 import { consola } from 'consola'
 
 import { EnvironmentEnum } from '../../common/types'
+import { isEntrypoint } from '../../utils/is-entrypoint'
 import { getContractVersion } from '../shared/getContractVersion'
 import {
   isTrustedRemote,
@@ -755,4 +756,4 @@ const main = defineCommand({
   },
 })
 
-if (import.meta.main) runMain(main)
+if (isEntrypoint(import.meta.url)) runMain(main)

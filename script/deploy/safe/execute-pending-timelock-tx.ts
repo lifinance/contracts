@@ -1573,13 +1573,18 @@ type GuardOutcome = 'ok' | 'retry' | 'blocked'
 
 /**
  * Pre-execute guard for folded parked facet removals. Rebuilds the propose-time
- * snapshot from Remove payloads + parked tasks (doomed addresses), re-reads the
- * loupe via the runner's `publicClient` (honours `--rpcUrl`), and aborts the
- * whole batch if any selector is stale. Remove cuts with no parked rows for the
- * Safe tx hash also abort — doomed addresses are not recoverable from calldata
- * (`facetAddress = 0`), so executing blind would reopen the silent-delete hole
- * (covers unlink after a best-effort drain link failure, and legacy
- * `cleanUpProdDiamond` until those removals park too).
+ * snapshot from removal-only Remove payloads + parked tasks (doomed addresses),
+ * re-reads the loupe via the runner's `publicClient` (honours `--rpcUrl`), and
+ * aborts the whole batch if any selector is stale. Removal-only cuts with no
+ * parked rows for the Safe tx hash also abort — doomed addresses are not
+ * recoverable from calldata (`facetAddress = 0`), so executing blind would
+ * reopen the silent-delete hole (covers unlink after a best-effort drain link
+ * failure, and legacy `cleanUpProdDiamond` until those removals park too).
+ *
+ * Removes that ride inside an upgrade's own `diamondCut` — alongside its
+ * Add/Replace cuts — are out of scope: they carry no parked task by design and
+ * were reviewed as part of the proposal. See
+ * {@link buildRemovalSnapshotFromPayloads}.
  *
  * @returns See {@link GuardOutcome}.
  */
@@ -1609,8 +1614,10 @@ async function revalidateFoldedRemovalsOrAbort(
       await client.close()
     }
   } catch (error) {
-    // Queue unreachable — refuse Remove cuts rather than execute them blind.
-    // Leave the row queued so a transient outage can retry (do not mark failed).
+    // Queue unreachable — refuse removal-only cuts rather than execute them
+    // blind. Leave the row queued so a transient outage can retry (do not mark
+    // failed); a batch whose only Removes are inline in an upgrade cut needs no
+    // parked snapshot and proceeds.
     const removeHint = buildRemovalSnapshotFromPayloads(operation.payloads, [])
     if (removeHint.kind === 'none') return 'ok'
     consola.warn(
@@ -1638,13 +1645,13 @@ async function revalidateFoldedRemovalsOrAbort(
     // warn-then-proceed would reopen silent live-selector deletion on unlink /
     // legacy cleanup. Cancel the op and re-propose via the parked drain (or
     // park the facets first for cleanUpProdDiamond).
-    const reason = `Remove diamondCut(s) present (${built.removeCutCount}) but no parked tasks for safeTxHash ${operation.safeTxHash} — cannot revalidate; aborting whole batch`
+    const reason = `Removal-only diamondCut(s) present (${built.removeCutCount}) but no parked tasks for safeTxHash ${operation.safeTxHash} — cannot revalidate; aborting whole batch`
     consola.error(`${networkPrefix} ❌ ${reason}`)
     if (!isDryRun)
       await blockTimelockOp(
         networkName,
         operation.id,
-        'Remove cuts without parked-task snapshot — cannot revalidate',
+        'Removal-only cuts without parked-task snapshot — cannot revalidate',
         networkPrefix
       )
     await alertFailure(new Error(reason))

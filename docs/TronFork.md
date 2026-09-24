@@ -561,14 +561,34 @@ Tron uses Tronscan instead of Etherscan:
 - **Mainnet**: <https://tronscan.org>
 - **Testnet (Shasta)**: <https://shasta.tronscan.org>
 
-Verification process:
+Verification runs through `verify-tron-contracts.ts`, which replays the multipart
+request Tronscan's verify form submits — there is no official verification API and
+`forge verify-contract` cannot target Tron:
 
-1. Navigate to contract address on Tronscan.
-2. Click "Contract" tab.
-3. Click "Verify and Publish".
-4. Select compiler version (check `foundry.toml`).
-5. Upload flattened source (use `forge flatten`).
-6. Provide constructor arguments (ABI-encoded).
+```bash
+bunx tsx script/deploy/tron/verify-tron-contracts.ts \
+  --network tron --repo-root ../contracts-tron
+```
+
+Point `--repo-root` at the `contracts-tron` checkout. Sources are flattened per
+contract from there; flattening from a drifted `main` fails with a bytecode mismatch
+even when the compiler settings are right, because of
+[the delta](#what-actually-differs-in-the-fork-the-delta). Useful flags:
+`--only`/`--skip` (comma-separated contract names), `--dry-run`, `--flattened-dir`
+for pre-flattened sources, and `--compiler`/`--optimizer-runs`/`--via-ir` when a
+contract was built with settings other than the current defaults.
+
+A successful submission also flags that contract's MongoDB deployment record as
+`verified` — nothing else on the Tron path writes that flag, unlike EVM where
+`deploySingleContract.sh` sets it inline. A record that fails to flag is a warning,
+not a failed verification, and the run still ends non-zero so it is not lost;
+re-running the contract is the fix. See
+[Flagging a record as explorer-verified](DeploymentLogs.md#flagging-a-record-as-explorer-verified)
+for the standalone command and for the two contracts this CLI skips.
+
+The browser path at <https://tronscan.org/contracts/verify> remains as a fallback:
+upload the `forge flatten` output, pick the compiler version from `foundry.toml`,
+and supply ABI-encoded constructor arguments.
 
 Tronscan API endpoints (from `config/networks.json`):
 

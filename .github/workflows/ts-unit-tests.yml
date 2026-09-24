@@ -6,8 +6,13 @@
 # - A `ts-tests-required` aggregator job always reports a final status so this workflow
 #   can remain a required check on `main` branch protection even when the test job is
 #   skipped (same pattern as `forge-unit-tests.yml`, see `.agents/rules/500-github-actions.md`).
-# - Lightweight: the suite is fully self-contained (no Foundry, submodules, MongoDB, RPC,
-#   or generated typechain bindings), so the job only installs Bun deps and runs the tests.
+# - Lightweight: no Foundry, submodules, MongoDB, RPC, or generated typechain bindings, so
+#   the job only installs Bun deps and runs the tests. Two network dependencies remain, and
+#   neither is a chain read: `calldata-effect-lines.test.ts` resolves selectors that are not
+#   in the local table through the Sourcify 4byte API, and the CLI probes that spawn
+#   `bunx tsx` into a fixture directory resolve `tsx` from the npm registry. Both were
+#   measured by running the suite with outbound network denied, which is how to re-check
+#   this claim rather than trusting it.
 
 name: Run TypeScript Unit Tests
 on:

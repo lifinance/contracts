@@ -102,6 +102,7 @@
     "mongo-logs:sync": "bun script/deploy/update-deployment-logs.ts sync",
     "mongo-logs:add": "bun script/deploy/update-deployment-logs.ts add",
     "mongo-logs:update": "bun script/deploy/update-deployment-logs.ts update",
+    "mongo-logs:mark-verified": "bunx tsx script/deploy/update-deployment-logs.ts mark-verified",
     "mongo-logs:query": "bun script/deploy/query-deployment-logs.ts",
     "mongo-logs:latest": "bun script/deploy/query-deployment-logs.ts latest",
     "mongo-logs:list": "bun script/deploy/query-deployment-logs.ts list --format table",

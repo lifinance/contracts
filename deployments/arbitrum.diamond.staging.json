@@ -177,10 +177,6 @@
         "Name": "LiFiIntentEscrowFacet",
         "Version": "1.1.1"
       },
-      "0x2c748Eda11e9717Bd487c8CF6e52862351909Ad0": {
-        "Name": "NEARIntentsFacet",
-        "Version": "1.0.0"
-      },
       "0x2B8F8C0Cf809EdbbD1257B4c4f27FdAe318062b1": {
         "Name": "AcrossV4SwapFacet",
         "Version": "1.0.0"
@@ -232,6 +228,10 @@
       "0x401Aaf6A650A17677821E665838367EBD5bE77BD": {
         "Name": "FraxFacet",
         "Version": "1.0.0"
+      },
+      "0x6dc82e75056F7bd92f31AE5aE0860DeC36c79CCe": {
+        "Name": "NEARIntentsFacet",
+        "Version": "2.0.0"
       }
     },
     "Periphery": {
