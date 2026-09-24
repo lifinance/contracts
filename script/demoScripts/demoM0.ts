@@ -22,10 +22,11 @@
  *     and USDat out of Ethereum/Base/Arbitrum, at 5e6 / 1e8 / 5e9). The OrderBook itself
  *     supports it — `/orders` still holds Base->Ethereum orders from May and August —
  *     but no solver quotes it today.
- *   - Pricing is a FLAT FEE, not a spread: amountIn - amountOut is exactly 3_000_000
- *     (3 units at 6 decimals) at every size, so a quote needs amountIn >= 4e6 to leave
- *     the 1e6 minimum output. Below that, 404. A 10-unit order pays 300bps; a 10_000-unit
- *     order pays 3bps.
+ *   - Pricing is fee = max(3_000_000, 3bps), so it is flat below 10_000 units and
+ *     proportional above. The minimum is exactly 4e6: 3_999_999 is refused and 4e6
+ *     quotes 1e6 out, i.e. the fee must leave at least 1e6. Because the fee is flat in
+ *     that range, a run costs 3 units whether you send 4 or 10_000 — size only changes
+ *     the balance you have to hold, not what you lose.
  *
  * So the same-chain scenario prices off a real quote, and the cross-chain ones fall back
  * to an arbitrary limit price and are unlikely to be filled by anyone.
@@ -186,14 +187,16 @@ const SCENARIOS: Record<Scenario, IScenarioConfig> = {
 
   'mainnet-samechain': {
     description:
-      'Ethereum → Ethereum · 10 USDC → WrappedM (same-chain order, asynchronous escrow)',
+      'Ethereum → Ethereum · 5 USDC → WrappedM (same-chain order, asynchronous escrow)',
     sourceChain: 'mainnet',
     sourceChainId: 1,
     destinationChainId: 1n, // == source: same-chain order, allowed on purpose
     sendingAssetId: getAddress(ADDRESS_USDC_ETH),
-    // The only scenario a solver actually quotes. 10 clears the 4e6 floor the flat 3e6
-    // fee imposes; at 1 the quote 404s and the order would open unfillable.
-    amount: '10',
+    // The only scenario a solver actually quotes. The floor is exactly 4 (below that the
+    // 3-unit fee leaves less than the 1e6 minimum output and the quote 404s); 5 keeps a
+    // unit of headroom in case M0 nudges the fee. Raising it would not cost more — the
+    // fee is flat up to 10_000 — so this is just the smallest balance worth holding.
+    amount: '5',
     tokenOut: zeroPadAddressToBytes32(ADDRESS_WM_ETH),
     destinationIsSolana: false,
     quoteRoute: {
