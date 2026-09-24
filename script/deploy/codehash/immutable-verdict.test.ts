@@ -213,7 +213,7 @@ describe('gradeAssumedImmutables', () => {
     expect(verdict.status).toBe('disagrees')
   })
 
-  it('shows an unpriced slot as unchecked inside the table it asks about', () => {
+  it('blocks a slot with no registry entry, as the inlined path does', () => {
     const verdict = gradeAssumedImmutables(
       ADDRESS,
       'zksync',
@@ -227,8 +227,34 @@ describe('gradeAssumedImmutables', () => {
       })
     )
 
-    expect(verdict.status).toBe('assumed')
+    expect(verdict.status).toBe('unpriced')
+    expect(verdict.detail).toContain('slot 0 gasZipRouter')
     expect(verdict.detail).toContain('unchecked')
+  })
+
+  it('still offers a documented gap for acknowledgement', () => {
+    const verdict = gradeAssumedImmutables(
+      ADDRESS,
+      'zksync',
+      read({
+        declared: 'some',
+        pricing: priced(
+          [
+            slot(),
+            slot({
+              name: 'derived',
+              status: 'acknowledgeable',
+              observed: OTHER,
+              detail: 'derived at deploy time',
+            }),
+          ],
+          { acknowledgeableByteCount: 32 }
+        ),
+        slotByName: { gasZipRouter: 0, derived: 32 },
+      })
+    )
+
+    expect(verdict.status).toBe('assumed')
   })
 
   it('reports a contract declaring no immutables as nothing to grade', () => {

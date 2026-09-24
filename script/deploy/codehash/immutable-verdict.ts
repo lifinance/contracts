@@ -175,6 +175,10 @@ export const gradeInlinedImmutables = (
   }
 }
 
+/** A 32-byte word of zeroes, whatever casing or padding it arrived in. */
+const isZeroWord = (value: string): boolean =>
+  /^0x0*$/u.test(value.trim().toLowerCase())
+
 /**
  * Grades the values of a contract whose immutables the simulator holds.
  *
@@ -188,16 +192,15 @@ export const gradeInlinedImmutables = (
  * assumed makes a disagreement harder to attribute, not less real — and a
  * mis-ordered read is as likely to surface as a disagreement as a tampered
  * value is, so treating one as acknowledgeable would hand the same path to both.
+ * A slot with no declared expectation blocks for the reason it does on the
+ * inlined path: there is no statement for the signer to take on, and a table
+ * showing its value would read as one.
  *
  * @param address - The target the verdict is about.
  * @param network - The network the expectations were resolved for.
  * @param read - What the simulator read established, with its slot numbering.
  * @returns The verdict gate L records for this address.
  */
-/** A 32-byte word of zeroes, whatever casing or padding it arrived in. */
-const isZeroWord = (value: string): boolean =>
-  /^0x0*$/u.test(value.trim().toLowerCase())
-
 export const gradeAssumedImmutables = (
   address: string,
   network: string,
@@ -228,6 +231,20 @@ export const gradeAssumedImmutables = (
       address,
       `every slot read zero, which is also what ${IMMUTABLE_SIMULATOR_ADDRESS} answers for an address that registered no immutables at all, so this read establishes nothing about ${address}`
     )
+
+  if (pricing.unpricedByteCount > 0)
+    return {
+      status: 'unpriced',
+      detail: `${address}: ${
+        pricing.unpricedByteCount
+      } bytes of its immutables have no declared expectation to compare against — ${table(
+        pricing.slots.filter(
+          (slot) =>
+            slot.status === 'undeclared' || slot.status === 'unpriceable'
+        ),
+        slotByName
+      )}.`,
+    }
 
   return {
     status: 'assumed',

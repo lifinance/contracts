@@ -66,7 +66,6 @@ import {
   IMMUTABLE_SIMULATOR_ADDRESS,
 } from '../codehash/zk-immutables'
 import {
-  buildAst,
   readImmutableDeclarations,
   type IImmutableDeclaration,
 } from '../immutables/immutable-ast'
@@ -97,6 +96,13 @@ const UNKNOWN_COMMIT = 'UNKNOWN'
  * the profile's `out`, and exposes no flag of its own to redirect it.
  */
 const ZK_OUT_DIR = 'zkout'
+
+/**
+ * Where a zk lineage's declarations build writes, inside the commit's checkout.
+ * Apart from `zkout/` and from every `out-codehash-*`, because the vanilla solc
+ * artifacts it produces must never be read back as the attested bytecode.
+ */
+const ZK_DECLARATIONS_OUT_DIR = 'out-immutables-zksync'
 
 /** Repo root, resolved from this module so a caller's cwd cannot change it. */
 const REPO_ROOT = join(
@@ -347,6 +353,15 @@ export const createImmutableReferencesResolver = (deps: {
   }
 }
 
+/**
+ * One AST enumeration. {@link contracts} is what makes an empty declaration
+ * list mean "declares none" rather than "was never compiled".
+ */
+export interface IDeclaredImmutables {
+  declarations: readonly IImmutableDeclaration[]
+  contracts: ReadonlySet<string>
+}
+
 export interface IForgeRebuildDeps {
   repoRoot: string
   /** Where the per-commit checkouts go. */
@@ -361,12 +376,10 @@ export interface IForgeRebuildDeps {
   readFile: (path: string) => string
   /**
    * Immutable declarations out of a directory of AST-carrying artifacts,
-   * with repo-relative source paths resolved against `sourceRoot`.
+   * with repo-relative source paths resolved against `sourceRoot`, and every
+   * contract those artifacts define.
    */
-  readDeclarations: (
-    outDir: string,
-    sourceRoot: string
-  ) => readonly IImmutableDeclaration[]
+  readDeclarations: (outDir: string, sourceRoot: string) => IDeclaredImmutables
   /**
    * Where a build survives between runs, keyed on commit and profile.
    *
@@ -606,6 +619,16 @@ const resolveCheckoutProfile = (
   )
 }
 
+export interface IForgeRebuildRunner {
+  build: (request: IRebuildRequest) => IRebuiltArtifact
+  /** Throws for a non-zk profile, and when the AST build fails. */
+  declarationsAt: (
+    commit: string,
+    profile: IBuildProfile
+  ) => IDeclaredImmutables
+  cleanup: () => void
+}
+
 /**
  * Compiles one contract at one commit under one profile.
  *
@@ -623,29 +646,40 @@ const resolveCheckoutProfile = (
  * the second profile the first one's artifact.
  *
  * @param deps - the checkout locations and the git, process and file primitives
- * @returns The `build` dependency, and a cleanup for the checkouts it made
+ * @returns The `build` dependency, the zk declarations read from the same
+ * checkouts, and a cleanup for the checkouts it made
  */
 export const createForgeRebuildRunner = (
   deps: IForgeRebuildDeps
-): {
-  build: (request: IRebuildRequest) => IRebuiltArtifact
-  cleanup: () => void
-} => {
+): IForgeRebuildRunner => {
   const created = new Set<string>()
 
-  const build = (request: IRebuildRequest): IRebuiltArtifact => {
+  const checkoutAt = (commit: string): string => {
     // The commit comes from a Mongo row and reaches both a path join and git's
     // argv. `ensureCommitAvailable` checks the same shape, but it runs in a
     // different module on a different call, so this does not rely on ordering.
-    if (!FULL_SHA.test(request.commit))
+    if (!FULL_SHA.test(commit))
       throw new Error(
-        `refusing to rebuild at "${request.commit}": a commit must be a full 40-character lowercase SHA before it reaches a path or a git argument.`
+        `refusing to rebuild at "${commit}": a commit must be a full 40-character lowercase SHA before it reaches a path or a git argument.`
       )
-    const checkout = join(deps.checkoutRoot, request.commit)
+    const checkout = join(deps.checkoutRoot, commit)
     if (!deps.exists(checkout)) {
-      deps.git(['worktree', 'add', '--detach', checkout, request.commit])
+      deps.git(['worktree', 'add', '--detach', checkout, commit])
       created.add(checkout)
     }
+    return checkout
+  }
+
+  const pinSubmodules = (checkout: string): void => {
+    // `worktree add --detach` does not populate `lib/`. Without pinning,
+    // forge's auto-install clones at tip revisions and the rebuilt runtime
+    // cannot match what was deployed — every cut grades MISMATCH.
+    deps.git(['-C', checkout, 'submodule', 'update', '--init', '--recursive'])
+    assertSubmodulesPinned(deps.git, checkout)
+  }
+
+  const build = (request: IRebuildRequest): IRebuiltArtifact => {
+    const checkout = checkoutAt(request.commit)
 
     // The zk toolchain writes to `zkout/` and ignores `--out`, so the path the
     // artifact is read from has to follow the toolchain rather than the flag.
@@ -663,8 +697,8 @@ export const createForgeRebuildRunner = (
     // existence check while carrying no declarations, which would report every
     // immutable as unpriceable instead of rebuilding. Treat it as absent.
     // zksolc emits no AST at all, so requiring one there would rebuild on every
-    // call and never be satisfied. It costs only layer 2, which cannot name a
-    // simulator slot without it either way.
+    // call and never be satisfied. The names a simulator slot needs come from
+    // `declarationsAt` instead.
     const usable = (): boolean =>
       deps.exists(artifactPath) && (isZk || carriesAst(deps, artifactPath))
 
@@ -680,11 +714,7 @@ export const createForgeRebuildRunner = (
     if (!usable()) deps.artifactCache?.restore(cacheKey, join(checkout, outDir))
 
     if (!usable()) {
-      // `worktree add --detach` does not populate `lib/`. Without pinning,
-      // forge's auto-install clones at tip revisions and the rebuilt runtime
-      // cannot match what was deployed — every cut grades MISMATCH.
-      deps.git(['-C', checkout, 'submodule', 'update', '--init', '--recursive'])
-      assertSubmodulesPinned(deps.git, checkout)
+      pinSubmodules(checkout)
 
       const command = isZk
         ? join(deps.repoRoot, 'foundry-zksync', 'forge')
@@ -783,7 +813,7 @@ export const createForgeRebuildRunner = (
     // graded rather than whatever the operator has checked out.
     const declarations = deps
       .readDeclarations(join(checkout, outDir), checkout)
-      .filter((one) => one.contract === request.contractName)
+      .declarations.filter((one) => one.contract === request.contractName)
 
     return {
       runtimeHex,
@@ -796,8 +826,84 @@ export const createForgeRebuildRunner = (
     }
   }
 
+  const zkDeclarations = new Map<string, IDeclaredImmutables>()
+
+  /**
+   * The immutables `src/` declares at the commit a zk lineage was rebuilt at.
+   *
+   * zksolc emits no AST, `--ast` included (checked against foundry-zksync
+   * v0.0.32), so {@link build} has none to read on this path. A vanilla solc
+   * `--ast` build of the same checkout supplies it instead: same commit, same
+   * submodule pins, so the names describe the source whose bytes layer 1
+   * matched rather than whatever the signer has checked out. Nothing from this
+   * build is ever compared as bytecode.
+   *
+   * Kept out of {@link IForgeRebuildDeps.artifactCache}, which is safe only
+   * because a tampered bytecode build fails against the chain. Nothing checks
+   * these declarations against anything, so a cached set with a declaration
+   * stripped would grade `none` on every later run.
+   */
+  const declarationsAt = (
+    commit: string,
+    profile: IBuildProfile
+  ): IDeclaredImmutables => {
+    if (profile.zksolcVersion === undefined)
+      throw new Error(
+        `profile ${profile.profile} is not a zk lineage, and an EVM lineage's declarations come from its own rebuild`
+      )
+    const key = `${commit}-${profile.profile}`
+    const memoised = zkDeclarations.get(key)
+    if (memoised) return memoised
+
+    const checkout = checkoutAt(commit)
+    const outPath = join(checkout, ZK_DECLARATIONS_OUT_DIR)
+
+    if (!deps.exists(outPath)) {
+      pinSubmodules(checkout)
+      const result = deps.run(
+        'forge',
+        [
+          'build',
+          'src',
+          '--ast',
+          '--offline',
+          '--out',
+          ZK_DECLARATIONS_OUT_DIR,
+        ],
+        {
+          cwd: checkout,
+          env: {
+            FOUNDRY_PROFILE: resolveCheckoutProfile(deps, checkout, profile),
+            // The zk profile's `cache_path` is the one the zksolc build uses,
+            // and a solc build sharing it would invalidate that one's cache.
+            FOUNDRY_CACHE_PATH: 'cache-immutables-zksync',
+          },
+        }
+      )
+      if (!result.ok)
+        throw new Error(
+          `the AST build naming the immutables of ${commit.slice(
+            0,
+            9
+          )} failed: ${redactUrls(result.output)}`
+        )
+      if (!deps.exists(outPath))
+        throw new Error(
+          `the AST build of ${commit.slice(
+            0,
+            9
+          )} reported success but wrote nothing to ${outPath}`
+        )
+    }
+
+    const read = deps.readDeclarations(outPath, checkout)
+    zkDeclarations.set(key, read)
+    return read
+  }
+
   return {
     build,
+    declarationsAt,
     cleanup: (): void => {
       for (const checkout of created)
         try {
@@ -1097,52 +1203,56 @@ export const createImmutableSimulatorReader = (
 }
 
 /**
- * What this checkout's AST says about one contract.
+ * What the recorded commit's AST says about one contract.
  *
  * An empty {@link declarations} means "declares no immutables" only when
  * {@link covered} is true; otherwise it means the enumeration never reached that
  * contract, which is not a fact about the deployment at all.
  */
-export interface ILocalImmutableDeclarations {
+export interface IRecordedImmutableDeclarations {
   covered: boolean
   declarations: readonly IImmutableDeclaration[]
 }
 
 /**
- * The immutables `src/` declares, from the checkout the signer is running in.
+ * The immutables a zk deployment's own source declares, at the commit its
+ * record names — the commit layer 1 rebuilt and matched.
  *
- * Not from the rebuild of the recorded commit, which is where the EVM path gets
- * them: zksolc emits no AST, so the zk rebuild cannot supply them, and a
- * vanilla-solc `--ast` build of that commit is a second full compile nobody has
- * already paid for. The operator's own tree is the cheaper source AND the
- * anchor a proposer does not reach, which is why the row it feeds is A-LOCAL
- * in provenance even though it is graded under A-ASSUMED.
+ * Never from the tree the signer runs in. Whether a slot exists at all is
+ * decided here, so a checkout that drops an `immutable` keyword would report
+ * `none`, which gate L ranks best. The commit layer 1 attested is the one
+ * source whose declarations describe the bytes on chain.
  *
- * What it costs: a checkout at a different commit from the deployment declares
- * a different set, and a declaration added or removed since shifts every
- * ordinal after it. That reads as a disagreement rather than as a pass, and the
- * table the signer confirms names the slots — but it is the reason this result
- * is confirmed rather than believed.
+ * Throws rather than answering for anything it cannot pin to one commit and
+ * one lineage; the reader turns that into a refusal.
  *
- * Built once per run and only when a zk target is actually reached, because it
- * compiles the whole of `src/`.
- *
- * @returns A resolver from contract name to its own immutable declarations, and
- * to whether the enumeration covered that contract at all.
+ * @param deps - the lineage resolver and the rebuild runner's AST read
+ * @returns A resolver from a deployment record to its contract's declarations
  */
-export const createLocalImmutableDeclarations = (
-  read: () => {
-    declarations: readonly IImmutableDeclaration[]
-    contracts: ReadonlySet<string>
-  } = () => readImmutableDeclarations(buildAst())
-): ((contractName: string) => ILocalImmutableDeclarations) => {
-  let all: ReturnType<typeof read> | undefined
-  return (contractName: string): ILocalImmutableDeclarations => {
-    all ??= read()
+export const createRecordedImmutableDeclarations = (deps: {
+  scopeFor: (network: string) => IToolchainScope
+  declarationsAt: IForgeRebuildRunner['declarationsAt']
+}): ((
+  record: IDeploymentRecordRef,
+  network: string
+) => IRecordedImmutableDeclarations) => {
+  return (record, network) => {
+    const commit = record.gitCommitHash.trim()
+    if (commit === '' || commit === UNKNOWN_COMMIT)
+      throw new Error(
+        `the deployment record for ${record.contractName} carries no commit, so there is no source whose declarations describe it`
+      )
+    const { profiles } = deps.scopeFor(network)
+    const profile = profiles[0]
+    if (profiles.length !== 1 || !profile)
+      throw new Error(
+        `${network} resolves to ${profiles.length} build profiles, so no single rebuild says which immutables ${record.contractName} declares`
+      )
+    const all = deps.declarationsAt(commit, profile)
     return {
-      covered: all.contracts.has(contractName),
+      covered: all.contracts.has(record.contractName),
       declarations: all.declarations.filter(
-        (one) => one.contract === contractName
+        (one) => one.contract === record.contractName
       ),
     }
   }
@@ -1151,9 +1261,10 @@ export const createLocalImmutableDeclarations = (
 /**
  * Reads and prices the immutables of a contract that keeps them off its code.
  *
- * Every value comes from the chain and every expectation from this checkout, so
- * the pricing is exactly the one the inlined path performs. What it cannot take
- * from either side is which slot belongs to which name — see
+ * Every value comes from the chain, every declaration from the rebuild of the
+ * recorded commit and every expectation from this checkout, so the pricing is
+ * exactly the one the inlined path performs. What it cannot take from any of
+ * them is which slot belongs to which name — see
  * {@link zkImmutableOrdinals} — so gate L grades the result as assumed and puts
  * the table to the signer.
  *
@@ -1161,7 +1272,7 @@ export const createLocalImmutableDeclarations = (
  * carried as an undecided pricing rather than thrown: gate L reports "the
  * values were not established", which is a different row from "they disagree".
  *
- * @param deps - the record read, the local declarations, the simulator read and the config source
+ * @param deps - the record read, the recorded commit's declarations, the simulator read and the config source
  * @returns The `readOffCodeImmutables` dependency of `verifyCutTargets`
  */
 export const createOffCodeImmutablesReader = (deps: {
@@ -1169,7 +1280,10 @@ export const createOffCodeImmutablesReader = (deps: {
     address: string,
     network: string
   ) => Promise<IDeploymentRecordRef | undefined>
-  declarationsFor: (contractName: string) => ILocalImmutableDeclarations
+  declarationsFor: (
+    record: IDeploymentRecordRef,
+    network: string
+  ) => IRecordedImmutableDeclarations
   getImmutable: (
     network: string,
     address: string,
@@ -1193,17 +1307,28 @@ export const createOffCodeImmutablesReader = (deps: {
         `the deployment record says nothing about ${address} on ${network}, so there is no contract whose immutables could be looked up`
       )
 
-    const local = deps.declarationsFor(record.contractName)
-    // "I found nothing" is not "there is nothing": a contract this checkout
-    // never compiled — renamed or deleted since the deployment, or an AST build
-    // that produced no artifacts at all — contributes the same empty list as one
-    // that genuinely declares no immutables, and grading that as `none` passes a
-    // contract whose values were never looked at.
-    if (!local.covered)
+    let recorded: IRecordedImmutableDeclarations
+    try {
+      recorded = deps.declarationsFor(record, network)
+    } catch (error) {
       return refused(
-        `no AST from this checkout covers ${record.contractName}, so whether it declares immutables was never established — this tree does not compile that contract`
+        `which immutables ${
+          record.contractName
+        } declares at its recorded commit was not established: ${
+          error instanceof Error ? error.message : String(error)
+        }`
       )
-    const { declarations } = local
+    }
+    // "I found nothing" is not "there is nothing": a contract the AST build
+    // never reached — a record naming a contract its commit does not define, or
+    // a build that produced no artifacts at all — contributes the same empty
+    // list as one that genuinely declares no immutables, and grading that as
+    // `none` passes a contract whose values were never looked at.
+    if (!recorded.covered)
+      return refused(
+        `the AST of ${record.contractName}'s recorded commit does not define it, so whether it declares immutables was never established`
+      )
+    const { declarations } = recorded
     if (declarations.length === 0) return { declared: 'none' }
 
     const numbered = zkImmutableOrdinals(declarations)
@@ -1242,6 +1367,7 @@ export const createSignTimeCodehashDeps = (overrides?: {
   recordSource?: IRecordSource
   checkoutRoot?: string
   artifactCacheRoot?: string
+  rebuild?: IForgeRebuildRunner
 }): ISignTimeCodehashDeps => {
   const scopeFor = createToolchainScopeResolver(readToolchainConfig())
   // Outside the repo: a `git worktree` under the checkout would show up as an
@@ -1263,7 +1389,7 @@ export const createSignTimeCodehashDeps = (overrides?: {
     return result.stdout ?? ''
   }
 
-  const rebuild = createForgeRebuildRunner({
+  const forgeRebuild = createForgeRebuildRunner({
     repoRoot: REPO_ROOT,
     checkoutRoot,
     git,
@@ -1280,10 +1406,10 @@ export const createSignTimeCodehashDeps = (overrides?: {
     },
     exists: existsSync,
     readFile: (path) => readFileSync(path, 'utf8'),
-    readDeclarations: (outDir, sourceRoot) =>
-      readImmutableDeclarations(outDir, sourceRoot).declarations,
+    readDeclarations: readImmutableDeclarations,
     artifactCache: createArtifactCache(overrides?.artifactCacheRoot),
   })
+  const rebuild = overrides?.rebuild ?? forgeRebuild
 
   const recordSource = overrides?.recordSource ?? createMongoRecordSource()
   // One read per (address, network), shared by the attestation side and the
@@ -1330,7 +1456,10 @@ export const createSignTimeCodehashDeps = (overrides?: {
     price,
     readOffCodeImmutables: createOffCodeImmutablesReader({
       readRecord,
-      declarationsFor: createLocalImmutableDeclarations(),
+      declarationsFor: createRecordedImmutableDeclarations({
+        scopeFor,
+        declarationsAt: rebuild.declarationsAt,
+      }),
       getImmutable: createImmutableSimulatorReader(),
       loadRequirements: loadImmutableExpectations,
     }),
