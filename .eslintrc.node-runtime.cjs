@@ -11,7 +11,8 @@
  *   exits 0 without doing anything. The rule allowlists the members Node 22
  *   implements rather than denylisting Bun's, so `dir`, `file`, `path`, `env`
  *   and a destructured or passed-around `import.meta` are refused as well.
- * - the `Bun` global and `bun` / `bun:*` imports. `tsconfig.node.json` already
+ * - the `Bun` global and `bun` / `bun:*` loaded by import, `import()` or
+ *   `require()`.`tsconfig.node.json` already
  *   rejects these for the files `typecheck-files.sh` is given; this repeats the
  *   check over the whole tree, so it holds even for a caller that type-checks
  *   against the wrong config.
@@ -34,6 +35,8 @@ const IMPORT_META_MESSAGE =
 const BUN_MESSAGE =
   `Shipped modules run on Node via \`bunx tsx\`, where Bun APIs do not exist. ` +
   `Use the node: equivalent (e.g. readFile/writeFile from node:fs/promises).`
+
+const BUN_SPECIFIER = '/^bun(:|$)/'
 
 const ALLOWED_MEMBER = `MemberExpression[computed=false][property.name=/^(${NODE_IMPORT_META_MEMBERS.join(
   '|'
@@ -58,6 +61,15 @@ module.exports = {
           {
             selector: `MetaProperty[meta.name='import']:not(${ALLOWED_MEMBER} > MetaProperty.object)`,
             message: IMPORT_META_MESSAGE,
+          },
+          // `no-restricted-imports` sees only import/export declarations.
+          {
+            selector: `ImportExpression[source.value=${BUN_SPECIFIER}]`,
+            message: BUN_MESSAGE,
+          },
+          {
+            selector: `CallExpression[callee.name='require'][arguments.0.value=${BUN_SPECIFIER}]`,
+            message: BUN_MESSAGE,
           },
         ],
         'no-restricted-globals': [
