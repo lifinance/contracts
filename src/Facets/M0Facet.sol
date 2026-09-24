@@ -33,20 +33,6 @@ import { SafeCastLib } from "solady/utils/SafeCastLib.sol";
 ///         bake in assumptions that an upgrade can invalidate.
 /// @custom:version 1.0.0
 contract M0Facet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
-    /// @notice Validates bridge data for M0 orders.
-    /// @dev Omits the same-network guard of `validateBridgeData` because the OrderBook
-    ///      supports same-chain orders.
-    /// @param _bridgeData The core information needed for bridging
-    modifier validateBridgeDataM0(ILiFi.BridgeData memory _bridgeData) {
-        if (LibUtil.isZeroAddress(_bridgeData.receiver)) {
-            revert InvalidReceiver();
-        }
-        if (_bridgeData.minAmount == 0) {
-            revert InvalidAmount();
-        }
-        _;
-    }
-
     /// Constants ///
 
     /// @dev M0's chain id for Solana. LI.FI uses its own made-up id for non-EVM chains
@@ -102,6 +88,22 @@ contract M0Facet is ILiFi, ReentrancyGuard, SwapperV2, Validatable, LiFiData {
             revert InvalidConfig();
         }
         M0_ORDER_BOOK = _orderBook;
+    }
+
+    /// Modifiers ///
+
+    /// @notice Validates bridge data for M0 orders.
+    /// @dev Omits the same-network guard of `validateBridgeData` because the OrderBook
+    ///      supports same-chain orders.
+    /// @param _bridgeData The core information needed for bridging
+    modifier validateBridgeDataM0(ILiFi.BridgeData memory _bridgeData) {
+        if (LibUtil.isZeroAddress(_bridgeData.receiver)) {
+            revert InvalidReceiver();
+        }
+        if (_bridgeData.minAmount == 0) {
+            revert InvalidAmount();
+        }
+        _;
     }
 
     /// External Methods ///

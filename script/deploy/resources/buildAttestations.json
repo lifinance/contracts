@@ -1537,7 +1537,7 @@
         "contractName": "M0Facet",
         "sourceId": "src/Facets/M0Facet.sol",
         "version": "1.0.0",
-        "closureHash": "0x8bb29f3d7e1a81620444d677868ee5e8f70c7c861f9c49a435d5d202e5b6d6b8",
+        "closureHash": "0x377528b502b21753d8db181f2b10a0652162f069f236e730cd5890aa55926afb",
         "settingsHash": "0x48fde5cb6f411b0f8c9ca1c32f840873d478a053cb4a617a579eae3f3f641c71",
         "settingsSource": "artifact",
         "solcVersion": "0.8.29+commit.ab55807c"
