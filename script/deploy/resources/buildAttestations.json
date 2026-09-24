@@ -496,7 +496,7 @@
         "contractName": "CentrifugeFacet",
         "sourceId": "src/Facets/CentrifugeFacet.sol",
         "version": "1.0.0",
-        "closureHash": "0x1d57402435392f7f61c8250f56bfb4840c986602159b6d1fa9478500d6299310",
+        "closureHash": "0xc04c7defa0958e931e2eccdc4cbf3b3c97115c839bb992a419017cad43f0e33c",
         "settingsHash": "0x48fde5cb6f411b0f8c9ca1c32f840873d478a053cb4a617a579eae3f3f641c71",
         "settingsSource": "artifact",
         "solcVersion": "0.8.29+commit.ab55807c"
