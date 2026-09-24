@@ -5,8 +5,8 @@
 
 import 'dotenv/config'
 
-import { readFileSync } from 'fs'
-import { readFile } from 'node:fs/promises'
+import { existsSync, readFileSync } from 'fs'
+import { readFile, writeFile } from 'node:fs/promises'
 import { dirname, isAbsolute, relative, resolve } from 'path'
 import { fileURLToPath } from 'url'
 
@@ -18,7 +18,6 @@ import type {
   EVMVersion,
   IDeploymentResult,
   IFoundryProfileDefaultConfig,
-  IFoundryTomlConfig,
   INetwork,
   INetworkInfo,
   INetworksObject,
@@ -98,48 +97,39 @@ export const OUT_ROOT = resolve(
   '../../out'
 )
 
+/**
+ * Reads the three scalar settings the script helpers need from `[profile.default]`.
+ * Extracted by pattern rather than parsed: the repo carries no TOML parser, and
+ * three flat keys do not justify adding one.
+ */
 function readFoundryProfileDefaultConfig(): IFoundryProfileDefaultConfig {
   const content = readFileSync(FOUNDRY_TOML_PATH, 'utf8')
 
-  try {
-    const parsed = Bun.TOML.parse(content) as IFoundryTomlConfig
-    const defaultProfile = parsed.profile?.default
-    if (!defaultProfile)
-      throw new Error('Missing [profile.default] section in foundry.toml')
-    return defaultProfile
-  } catch {
-    // Bun's TOML parser rejects keys starting with digits (e.g. "0g" in rpc_endpoints).
-    // Fall back to regex extraction of [profile.default] values.
-    // Extract only the section body (up to the next section header or end of file)
-    // so keys from other profiles are never matched.
-    const sectionBody =
-      content.match(/\[profile\.default\]\n([\s\S]*?)(?=\n\[|$)/)?.[1] ?? ''
-    if (!sectionBody)
-      throw new Error('Missing [profile.default] section in foundry.toml')
+  // Only the section body (up to the next header or end of file), so keys from
+  // other profiles are never matched.
+  const sectionBody =
+    content.match(/\[profile\.default\]\n([\s\S]*?)(?=\n\[|$)/)?.[1] ?? ''
+  if (!sectionBody)
+    throw new Error('Missing [profile.default] section in foundry.toml')
 
-    const extract = (key: string): string | undefined =>
-      sectionBody.match(
-        new RegExp(`^${key}\\s*=\\s*['"]([^'"]+)['"]`, 'm')
-      )?.[1]
+  const extract = (key: string): string | undefined =>
+    sectionBody.match(new RegExp(`^${key}\\s*=\\s*['"]([^'"]+)['"]`, 'm'))?.[1]
 
-    const extractNumeric = (key: string): number | undefined => {
-      const match = sectionBody.match(
-        new RegExp(`^${key}\\s*=\\s*(\\d(?:_?\\d)*)`, 'm')
-      )?.[1]
-      if (!match) return undefined
-      const value = Number(match.replace(/_/g, ''))
-      return Number.isSafeInteger(value) && value >= 0 ? value : undefined
-    }
+  const extractNumeric = (key: string): number | undefined => {
+    // Anchored to the end of the value, so `1.5` or `200abc` is rejected rather
+    // than read as its leading digits.
+    const match = sectionBody.match(
+      new RegExp(`^${key}\\s*=\\s*(\\d(?:_?\\d)*)\\s*(?:#.*)?$`, 'm')
+    )?.[1]
+    if (!match) return undefined
+    const value = Number(match.replace(/_/g, ''))
+    return Number.isSafeInteger(value) && value >= 0 ? value : undefined
+  }
 
-    const solc_version = extract('solc_version')
-    const evm_version = extract('evm_version')
-    const optimizer_runs = extractNumeric('optimizer_runs')
-
-    return {
-      solc_version,
-      evm_version,
-      optimizer_runs,
-    } as IFoundryProfileDefaultConfig
+  return {
+    solc_version: extract('solc_version'),
+    evm_version: extract('evm_version'),
+    optimizer_runs: extractNumeric('optimizer_runs'),
   }
 }
 
@@ -285,12 +275,10 @@ async function pickDeploymentRootForWrites(
   const envDeploymentPath = `deployments/${network}.${fileSuffix}json`
 
   for (const candidate of roots)
-    if (await Bun.file(resolve(candidate, envDeploymentPath)).exists())
-      return candidate
+    if (existsSync(resolve(candidate, envDeploymentPath))) return candidate
 
   for (const candidate of roots)
-    if (await Bun.file(resolve(candidate, 'deployments')).exists())
-      return candidate
+    if (existsSync(resolve(candidate, 'deployments'))) return candidate
 
   const fallback = roots[0]
   if (!fallback) throw new Error('No deployment root available')
@@ -302,7 +290,7 @@ async function pickDeploymentRootForWrites(
  */
 export async function readJsonFile<T>(filePath: string): Promise<T | null> {
   try {
-    return (await Bun.file(filePath).json()) as T
+    return JSON.parse(await readFile(filePath, 'utf8')) as T
   } catch {
     return null
   }
@@ -394,18 +382,12 @@ export async function saveContractAddress(
     `deployments/${network}.${fileSuffix}json`
   )
 
-  let deployments: Record<string, string> = {}
-
-  try {
-    const existing = await Bun.file(deploymentFile).json()
-    deployments = existing
-  } catch {
-    // File doesn't exist, start fresh
-  }
+  const deployments =
+    (await readJsonFile<Record<string, string>>(deploymentFile)) ?? {}
 
   deployments[contract] = address
 
-  await Bun.write(deploymentFile, JSON.stringify(deployments, null, 2) + '\n')
+  await writeFile(deploymentFile, JSON.stringify(deployments, null, 2) + '\n')
 }
 
 /**
@@ -484,7 +466,7 @@ export async function saveDiamondDeployment(
       Version: facetInfo.version,
     }
 
-  await Bun.write(diamondFile, JSON.stringify(diamondData, null, 2))
+  await writeFile(diamondFile, JSON.stringify(diamondData, null, 2))
 }
 
 /**
@@ -503,21 +485,12 @@ export async function getFacetSelectors(
   if (relativePath.startsWith('..') || isAbsolute(relativePath))
     throw new Error(`Invalid facet name: ${facetName}`)
 
-  // Check if artifact exists
-  try {
-    const exists = await Bun.file(artifactPath).exists()
-    if (!exists)
-      throw new Error(
-        `Build artifact not found for ${facetName}. Run 'forge build' first.`
-      )
-  } catch (error) {
+  if (!existsSync(artifactPath))
     throw new Error(
       `Build artifact not found for ${facetName}. Run 'forge build' first.`
     )
-  }
 
-  // Read artifact file
-  const artifact = await Bun.file(artifactPath).json()
+  const artifact = JSON.parse(await readFile(artifactPath, 'utf8'))
 
   if (!artifact.methodIdentifiers)
     throw new Error(`No method identifiers found in ${facetName} artifact`)
@@ -616,7 +589,7 @@ export async function updateDiamondJson(
     // Read existing file or create new structure
     let diamondData: any
     try {
-      const fileContent = await Bun.file(diamondJsonPath).text()
+      const fileContent = await readFile(diamondJsonPath, 'utf8')
       diamondData = JSON.parse(fileContent)
     } catch {
       // File doesn't exist or is invalid, create new structure
@@ -675,7 +648,7 @@ export async function updateDiamondJson(
     }
 
     // Write updated file
-    await Bun.write(
+    await writeFile(
       diamondJsonPath,
       JSON.stringify(diamondData, null, 2) + '\n'
     )
@@ -796,7 +769,7 @@ export async function updateDiamondJsonBatch(
     // Read existing file or create new structure
     let diamondData: any
     try {
-      const fileContent = await Bun.file(diamondJsonPath).text()
+      const fileContent = await readFile(diamondJsonPath, 'utf8')
       diamondData = JSON.parse(fileContent)
     } catch {
       diamondData = {
@@ -866,7 +839,7 @@ export async function updateDiamondJsonBatch(
 
     if (updatedCount > 0) {
       // Write updated file
-      await Bun.write(
+      await writeFile(
         diamondJsonPath,
         JSON.stringify(diamondData, null, 2) + '\n'
       )
@@ -902,7 +875,7 @@ export async function updateDiamondJsonPeriphery(
     // Read existing file or create new structure
     let diamondData: any
     try {
-      const fileContent = await Bun.file(diamondJsonPath).text()
+      const fileContent = await readFile(diamondJsonPath, 'utf8')
       diamondData = JSON.parse(fileContent)
     } catch {
       // File doesn't exist or is invalid, create new structure
@@ -943,7 +916,7 @@ export async function updateDiamondJsonPeriphery(
     periphery[contractName] = contractAddress
 
     // Write updated file
-    await Bun.write(
+    await writeFile(
       diamondJsonPath,
       JSON.stringify(diamondData, null, 2) + '\n'
     )

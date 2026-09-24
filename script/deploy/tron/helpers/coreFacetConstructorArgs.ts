@@ -10,6 +10,8 @@
  * fails on it.
  */
 
+import { readFile } from 'node:fs/promises'
+
 import {
   evmHexToTronBase58,
   getTronWebCodecOnlyForNetwork,
@@ -43,7 +45,9 @@ export async function getConstructorArgs(
   networksConfig: unknown
 ): Promise<unknown[]> {
   if (facetName === 'EmergencyPauseFacet') {
-    const globalConfig = await Bun.file('config/global.json').json()
+    const globalConfig = JSON.parse(
+      await readFile('config/global.json', 'utf8')
+    )
     const pauserWallet = globalConfig.pauserWallet // EVM 0x address
     const pauserWalletTron = globalConfig.tronWallets?.pauserWallet // Tron base58 address
 
@@ -77,7 +81,9 @@ export async function getConstructorArgs(
     )
     return [nativeAddress]
   } else if (facetName === 'LiFiIntentEscrowFacetV2') {
-    const escrowConfig = await Bun.file('config/lifiintentescrow.json').json()
+    const escrowConfig = JSON.parse(
+      await readFile('config/lifiintentescrow.json', 'utf8')
+    )
     const inputSettlerTron = escrowConfig[network]?.lifiEscrowInputSettler
 
     if (!inputSettlerTron)

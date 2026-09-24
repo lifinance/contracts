@@ -1,5 +1,7 @@
 #!/usr/bin/env bun
 
+import { readFile } from 'node:fs/promises'
+
 import {
   MIN_BALANCE_WARNING,
   TronContractDeployer,
@@ -95,7 +97,9 @@ async function deployAndRegisterNEARIntentsFacet(options: {
 
     await validateBalance(tronWeb, MIN_BALANCE_WARNING)
 
-    const nearIntentsConfig = await Bun.file('config/nearintents.json').json()
+    const nearIntentsConfig = JSON.parse(
+      await readFile('config/nearintents.json', 'utf8')
+    )
     const envKey =
       environment === EnvironmentEnum.production ? 'production' : 'staging'
     const networkConfig = nearIntentsConfig[envKey]
