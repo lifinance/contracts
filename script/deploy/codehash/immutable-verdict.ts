@@ -115,7 +115,7 @@ const table = (
  * Grades the values of a contract whose immutables are inlined in its code.
  *
  * The value is read out of the bytes gate K hashed and the expectation comes
- * from this checkout, so an outcome here is undecidable only where this repo
+ * from `origin/main`, so an outcome here is undecidable only where this repo
  * says so itself. A slot with no expectation is graded as unchecked rather than
  * as passing, because those are the two facts this gate exists to keep apart —
  * and `documented` is kept apart from `unpriced` for the same reason: a gap

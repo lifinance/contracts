@@ -75,8 +75,10 @@ import type {
   IImmutableEntry,
 } from '../immutables/registry-schema'
 import { mergeRequirements } from '../immutables/verify-immutable-registry'
+import { isValidConfigFileName } from '../shared/immutableBindings'
 import { createTronAddressSpellings } from '../shared/tron-address-spellings'
 
+import { PINNED_REF, type PinnedJsonRead } from './pinned-target-state'
 import { evaluateRpcQuorum } from './rpc-quorum'
 import {
   collectProviderObservations,
@@ -1151,7 +1153,7 @@ export const createLocalImmutableDeclarations = (
 /**
  * Reads and prices the immutables of a contract that keeps them off its code.
  *
- * Every value comes from the chain and every expectation from this checkout, so
+ * Every value comes from the chain and every expectation from `origin/main`, so
  * the pricing is exactly the one the inlined path performs. What it cannot take
  * from either side is which slot belongs to which name — see
  * {@link zkImmutableOrdinals} — so gate L grades the result as assumed and puts
@@ -1176,6 +1178,7 @@ export const createOffCodeImmutablesReader = (deps: {
     index: number
   ) => Promise<string>
   loadRequirements: () => DeployRequirements
+  loadConfigFile: (fileName: string) => unknown
 }): ((address: string, network: string) => Promise<IOffCodeImmutables>) => {
   const refused = (reason: string): IOffCodeImmutables => ({
     declared: 'some',
@@ -1231,22 +1234,31 @@ export const createOffCodeImmutablesReader = (deps: {
           environment: EnvironmentEnum.production,
           address,
         },
-        deps.loadRequirements()
+        deps.loadRequirements(),
+        deps.loadConfigFile
       ),
       slotByName: numbered.ordinals,
     }
   }
 }
 
-export const createSignTimeCodehashDeps = (overrides?: {
+export const createSignTimeCodehashDeps = (overrides: {
   recordSource?: IRecordSource
   checkoutRoot?: string
   artifactCacheRoot?: string
+  /**
+   * The caller's pinned reader, so every sign-time gate grades against one
+   * commit. Required so that a caller cannot fall back to a second anchor.
+   */
+  readPinnedBlob: (repoPath: string) => PinnedJsonRead
 }): ISignTimeCodehashDeps => {
   const scopeFor = createToolchainScopeResolver(readToolchainConfig())
+  const expectations = createPinnedImmutableExpectations(
+    overrides.readPinnedBlob
+  )
   // Outside the repo: a `git worktree` under the checkout would show up as an
   // untracked path in the tree the deploy flow refuses to record from.
-  const checkoutRoot = overrides?.checkoutRoot ?? defaultCheckoutRoot()
+  const checkoutRoot = overrides.checkoutRoot ?? defaultCheckoutRoot()
   mkdirSync(checkoutRoot, { recursive: true })
 
   const git = (args: string[]): string => {
@@ -1282,10 +1294,10 @@ export const createSignTimeCodehashDeps = (overrides?: {
     readFile: (path) => readFileSync(path, 'utf8'),
     readDeclarations: (outDir, sourceRoot) =>
       readImmutableDeclarations(outDir, sourceRoot).declarations,
-    artifactCache: createArtifactCache(overrides?.artifactCacheRoot),
+    artifactCache: createArtifactCache(overrides.artifactCacheRoot),
   })
 
-  const recordSource = overrides?.recordSource ?? createMongoRecordSource()
+  const recordSource = overrides.recordSource ?? createMongoRecordSource()
   // One read per (address, network), shared by the attestation side and the
   // offsets side: two reads of a mutable source is the failure this design
   // exists to prevent, even where the worst outcome is a mask asymmetry.
@@ -1315,13 +1327,13 @@ export const createSignTimeCodehashDeps = (overrides?: {
   // Same record read and same rebuild cache as the observer, and the deployed
   // bytes are handed over by the observer rather than fetched again, so the two
   // layers cannot grade different readings of one address. The expectations are
-  // the one input taken from somewhere else: this checkout, which is the anchor
-  // the proposer does not reach.
+  // the one input taken from somewhere else: `origin/main`, which the proposer
+  // does not reach.
   const price = createImmutablePricer({
     readRecord,
     scopeFor,
     build: rebuild.build,
-    loadRequirements: loadImmutableExpectations,
+    ...expectations,
   })
 
   return {
@@ -1332,7 +1344,7 @@ export const createSignTimeCodehashDeps = (overrides?: {
       readRecord,
       declarationsFor: createLocalImmutableDeclarations(),
       getImmutable: createImmutableSimulatorReader(),
-      loadRequirements: loadImmutableExpectations,
+      ...expectations,
     }),
     attestationsFor: attestations.attestationsFor,
     close: async (): Promise<void> => {
@@ -1552,43 +1564,69 @@ const closeMongoRecordSource = async (): Promise<void> => {
   await open.close(true).catch(() => undefined)
 }
 
+const REQUIREMENTS_REPO_PATH = 'script/deploy/resources/deployRequirements.json'
+
+const REGISTRY_REPO_PATH = 'script/deploy/resources/immutableRegistry.json'
+
+/** What layer 2 prices against: the joined requirements and the config they point into. */
+export interface IImmutableExpectationSource {
+  loadRequirements: () => DeployRequirements
+  loadConfigFile: (fileName: string) => unknown
+}
+
 /**
- * `deployRequirements.json` joined with `immutableRegistry.json`, from the
- * checkout the signer is running in.
+ * The immutable expectations as `origin/main` has them.
  *
- * Read fresh on each call rather than cached at module load: a signing session
- * outlives a `git pull`, and an expectation set from before one is not the one
- * the operator believes they are checking against.
+ * Never the signer's checkout: signing from the deploy PR's branch would grade a
+ * deployment against a registry entry and a config value its own proposer wrote
+ * and nobody has reviewed yet.
  *
- * @returns The merged requirements layer 2 resolves expectations through
+ * Read once per run at the anchor's commit, not per call: a merge to `main`
+ * mid-run is not picked up, so every proposal in the run is graded against the
+ * same expectations.
+ *
+ * A file that could not be read at all throws, which the gate reports as the
+ * immutables not having been checked. A config file `main` does not carry, or
+ * carries as something other than a JSON object, reads as `null`: the loader's
+ * existing "expected value unknown".
+ *
+ * @param readPinnedBlob - Reader for JSON blobs at the pinned commit.
+ * @returns The `loadRequirements` and `loadConfigFile` layer 2 prices through
  */
-export const loadImmutableExpectations = (): DeployRequirements =>
-  mergeRequirements(
-    JSON.parse(
-      readFileSync(
-        join(
-          REPO_ROOT,
-          'script',
-          'deploy',
-          'resources',
-          'deployRequirements.json'
-        ),
-        'utf8'
-      )
-    ) as DeployRequirements,
-    JSON.parse(
-      readFileSync(
-        join(
-          REPO_ROOT,
-          'script',
-          'deploy',
-          'resources',
-          'immutableRegistry.json'
-        ),
-        'utf8'
-      )
-    ) as Record<string, Record<string, IImmutableEntry>>
-  )
+export const createPinnedImmutableExpectations = (
+  readPinnedBlob: (repoPath: string) => PinnedJsonRead
+): IImmutableExpectationSource => {
+  const unavailable = (repoPath: string, reason: string): Error =>
+    new Error(
+      `${repoPath} could not be read at ${PINNED_REF} (${reason}), so no immutable expectation could be established`
+    )
+
+  const read = (repoPath: string): Record<string, unknown> => {
+    const blob = readPinnedBlob(repoPath)
+    if (!blob.ok) throw unavailable(repoPath, blob.reason)
+    return blob.value
+  }
+
+  return {
+    loadRequirements: () =>
+      mergeRequirements(
+        read(REQUIREMENTS_REPO_PATH) as DeployRequirements,
+        read(REGISTRY_REPO_PATH) as Record<
+          string,
+          Record<string, IImmutableEntry>
+        >
+      ),
+    loadConfigFile: (fileName: string): unknown => {
+      if (!isValidConfigFileName(fileName)) return null
+      const repoPath = `config/${fileName}`
+      const blob = readPinnedBlob(repoPath)
+      if (blob.ok) return blob.value
+      if (blob.reason === 'blob-unreadable' || blob.reason === 'invalid-shape')
+        return null
+      throw unavailable(repoPath, blob.reason)
+    },
+  }
+}
 
 /**
  * Prices the bytes layer 1 masked, for one address on one network.
@@ -1596,7 +1634,7 @@ export const loadImmutableExpectations = (): DeployRequirements =>
  * Every input comes from a side the proposer does not control: the runtime code
  * from the chain, the offsets and declarations from a rebuild of the commit the
  * record names, and the expectations from `immutableRegistry.json` plus
- * `deployRequirements.json` plus `config/` **in the operator's own checkout**.
+ * `deployRequirements.json` plus `config/` **at `origin/main`**.
  * The rebuild's checkout sits at a commit the proposer influences, so reading
  * the expectations from there would let a proposal declare what it should be
  * compared against.
@@ -1621,6 +1659,7 @@ export const createImmutablePricer = (deps: {
   scopeFor: (network: string) => IToolchainScope
   build: (request: IRebuildRequest) => IRebuiltArtifact
   loadRequirements: () => DeployRequirements
+  loadConfigFile: (fileName: string) => unknown
 }): ((
   address: string,
   network: string,
@@ -1694,7 +1733,8 @@ export const createImmutablePricer = (deps: {
         environment: EnvironmentEnum.production,
         address,
       },
-      deps.loadRequirements()
+      deps.loadRequirements(),
+      deps.loadConfigFile
     )
   }
 }
