@@ -187,16 +187,16 @@ const SCENARIOS: Record<Scenario, IScenarioConfig> = {
 
   'mainnet-samechain': {
     description:
-      'Ethereum → Ethereum · 5 USDC → WrappedM (same-chain order, asynchronous escrow)',
+      'Ethereum → Ethereum · 4 USDC → WrappedM (same-chain order, asynchronous escrow)',
     sourceChain: 'mainnet',
     sourceChainId: 1,
     destinationChainId: 1n, // == source: same-chain order, allowed on purpose
     sendingAssetId: getAddress(ADDRESS_USDC_ETH),
-    // The only scenario a solver actually quotes. The floor is exactly 4 (below that the
-    // 3-unit fee leaves less than the 1e6 minimum output and the quote 404s); 5 keeps a
-    // unit of headroom in case M0 nudges the fee. Raising it would not cost more — the
-    // fee is flat up to 10_000 — so this is just the smallest balance worth holding.
-    amount: '5',
+    // The only scenario a solver actually quotes, at exactly the floor: 3_999_999 is
+    // refused and 4_000_000 quotes 1_000_000 out, because the fee must leave at least
+    // 1e6. Sending more would not cost more — the fee is flat up to 10_000 — so the
+    // floor is simply the smallest balance the run needs.
+    amount: '4',
     tokenOut: zeroPadAddressToBytes32(ADDRESS_WM_ETH),
     destinationIsSolana: false,
     quoteRoute: {
