@@ -1427,9 +1427,17 @@ describe('createPinnedImmutableExpectations', () => {
   })
 
   it('answers "expected value unknown" for a config file main does not carry', () => {
+    // centrifuge.json exists in this checkout, so a fallback to the working
+    // tree would return its contents instead.
     const { source } = pinned({})
 
-    expect(source.loadConfigFile('absent.json')).toBeNull()
+    expect(
+      readFileSync(
+        join(import.meta.dir, '..', '..', '..', 'config', 'centrifuge.json'),
+        'utf8'
+      )
+    ).toContain('tokenBridge')
+    expect(source.loadConfigFile('centrifuge.json')).toBeNull()
   })
 
   it('never asks for a config name that is not a plain basename', () => {

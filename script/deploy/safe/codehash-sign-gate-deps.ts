@@ -1246,20 +1246,23 @@ export const createOffCodeImmutablesReader = (deps: {
   }
 }
 
-export const createSignTimeCodehashDeps = (overrides?: {
+export const createSignTimeCodehashDeps = (overrides: {
   recordSource?: IRecordSource
   checkoutRoot?: string
   artifactCacheRoot?: string
-  /** The caller's pinned reader, so every sign-time gate grades against one commit. */
-  readPinnedBlob?: (repoPath: string) => PinnedJsonRead
+  /**
+   * The caller's pinned reader, so every sign-time gate grades against one
+   * commit. Required so that a caller cannot fall back to a second anchor.
+   */
+  readPinnedBlob: (repoPath: string) => PinnedJsonRead
 }): ISignTimeCodehashDeps => {
   const scopeFor = createToolchainScopeResolver(readToolchainConfig())
   const expectations = createPinnedImmutableExpectations(
-    overrides?.readPinnedBlob
+    overrides.readPinnedBlob
   )
   // Outside the repo: a `git worktree` under the checkout would show up as an
   // untracked path in the tree the deploy flow refuses to record from.
-  const checkoutRoot = overrides?.checkoutRoot ?? defaultCheckoutRoot()
+  const checkoutRoot = overrides.checkoutRoot ?? defaultCheckoutRoot()
   mkdirSync(checkoutRoot, { recursive: true })
 
   const git = (args: string[]): string => {
@@ -1295,10 +1298,10 @@ export const createSignTimeCodehashDeps = (overrides?: {
     readFile: (path) => readFileSync(path, 'utf8'),
     readDeclarations: (outDir, sourceRoot) =>
       readImmutableDeclarations(outDir, sourceRoot).declarations,
-    artifactCache: createArtifactCache(overrides?.artifactCacheRoot),
+    artifactCache: createArtifactCache(overrides.artifactCacheRoot),
   })
 
-  const recordSource = overrides?.recordSource ?? createMongoRecordSource()
+  const recordSource = overrides.recordSource ?? createMongoRecordSource()
   // One read per (address, network), shared by the attestation side and the
   // offsets side: two reads of a mutable source is the failure this design
   // exists to prevent, even where the worst outcome is a mask asymmetry.
@@ -1581,6 +1584,10 @@ export interface IImmutableExpectationSource {
  * Never the signer's checkout: signing from the deploy PR's branch would grade a
  * deployment against a registry entry and a config value its own proposer wrote
  * and nobody has reviewed yet.
+ *
+ * Read once per run at the anchor's commit, not per call: a merge to `main`
+ * mid-run is not picked up, so every proposal in the run is graded against the
+ * same expectations.
  *
  * A file that could not be read at all throws, which the gate reports as the
  * immutables not having been checked. A config file `main` does not carry, or
