@@ -53,7 +53,7 @@ The on-chain loop relies on three sources already being correct for `NETWORK`. V
 
 ### 4. Verify each contract on-chain
 
-`verifyContract <network> <contract> <address> <constructorArgs>` lives in [`script/helperFunctions.sh`](../../script/helperFunctions.sh). Source `.env` then the helper, then loop over the address map.
+`verifyContract <network> <contract> <address> <constructorArgs>` lives in [`script/helperFunctions.sh`](../../script/helperFunctions.sh). Source `.env` then the helper, then loop over the address map. On mainnet non-zkEVM networks it also submits each contract to sourcify.dev (best-effort, a warning on failure; the ERC-7730 clear-signing sync needs it). Its return value is the explorer result only.
 
 **Key fact: blockscout and sourcify match RUNTIME bytecode, so constructor args are NOT required — pass `""`.** (etherscan-type verifiers can need them; the helper skips invalid/empty args safely either way.)
 

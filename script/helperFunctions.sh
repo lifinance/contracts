@@ -1982,19 +1982,21 @@ function redactRpcUrl() {
   printf '%s' "${1:-}" | sed -E 's#[a-zA-Z][a-zA-Z0-9+.-]*://[^[:space:]]+#[redacted-url]#g'
 }
 
+# verifyContract: Verifies a deployed contract on the network's block explorer,
+# then submits it to Sourcify (see verifyContractOnSourcify). The Sourcify step
+# is best-effort and runs whatever the explorer result, because the ERC-7730
+# clear-signing sync needs it independently of the explorer.
+#
+# Usage: verifyContract NETWORK CONTRACT ADDRESS ARGS [SOLC_VERSION] [EVM_VERSION] [OPTIMIZER_RUNS]
+#   The optional toolchain overrides pin forge to the toolchain the contract
+#   was BUILT with (non-zkEVM only), so re-verifying an older contract does not
+#   recompile against whichever profile happens to be active now.
+#
+# Returns: the explorer verification result (0 verified, 1 not verified or
+#   network excluded via DO_NOT_VERIFY_IN_THESE_NETWORKS)
 function verifyContract() {
-  # read function arguments into variables
   local NETWORK=$1
   local CONTRACT=$2
-  local ADDRESS=$3
-  local ARGS=$4
-  # Optional toolchain overrides (positional $5-$7). When set (non-zkEVM only),
-  # they pin forge verify-contract to the toolchain a contract was BUILT with,
-  # so re-verifying an older contract does not recompile against whichever
-  # profile happens to be active now.
-  local SOLC_VERSION_OVERRIDE="${5:-}"
-  local EVM_VERSION_OVERRIDE="${6:-}"
-  local OPTIMIZER_RUNS_OVERRIDE="${7:-}"
 
   if [[ -n "$DO_NOT_VERIFY_IN_THESE_NETWORKS" ]]; then
     case ",$DO_NOT_VERIFY_IN_THESE_NETWORKS," in
@@ -2005,6 +2007,22 @@ function verifyContract() {
     esac
   fi
 
+  local EXPLORER_STATUS=0
+  verifyContractOnExplorer "$@" || EXPLORER_STATUS=$?
+  verifyContractOnSourcify "$@" || true
+  return "$EXPLORER_STATUS"
+}
+
+function verifyContractOnExplorer() {
+  # read function arguments into variables
+  local NETWORK=$1
+  local CONTRACT=$2
+  local ADDRESS=$3
+  local ARGS=$4
+  local SOLC_VERSION_OVERRIDE="${5:-}"
+  local EVM_VERSION_OVERRIDE="${6:-}"
+  local OPTIMIZER_RUNS_OVERRIDE="${7:-}"
+
   # verify contract using forge
   MAX_RETRIES=$MAX_ATTEMPTS_PER_CONTRACT_VERIFICATION
   RETRY_COUNT=0
@@ -2014,7 +2032,7 @@ function verifyContract() {
 
   # logging for debug purposes
   echo ""
-  echoDebug "in function verifyContract"
+  echoDebug "in function verifyContractOnExplorer"
   echoDebug "NETWORK=$NETWORK"
   echoDebug "CONTRACT=$CONTRACT"
   echoDebug "ADDRESS=$ADDRESS"
@@ -2303,24 +2321,55 @@ function verifyContract() {
   return 1
 }
 
-# verifyContractOnSourcify: Submits a deployed contract to Sourcify in addition
-# to the network's block explorer. The ERC-7730 clear-signing sync publishes a
-# chain's LiFiDiamond only when Sourcify verifies the diamond and every facet
-# (the registry lints with `erc7730 lint --require-verified`), so a facet that
-# is verified only on the explorer drops the whole chain from the descriptor.
-# Best-effort: a failure is a warning and never fails the deploy.
+# getSourcifyLookupStatus: Queries Sourcify's lookup API (the endpoint the
+# registry lint reads) for one contract.
 #
-# Usage: verifyContractOnSourcify NETWORK CONTRACT ADDRESS [ARGS]
-#   NETWORK  - Network name from networks.json
-#   CONTRACT - Contract name (resolved to its source path)
-#   ADDRESS  - Deployed contract address
-#   ARGS     - Optional: ABI-encoded constructor args (0x-prefixed hex)
+# Usage: getSourcifyLookupStatus CHAIN_ID ADDRESS
+#   CHAIN_ID - EIP-155 chain ID
+#   ADDRESS  - Contract address
+#
+# Returns: prints "200" (verified), "unsupported_chain", or the HTTP status
+#   (e.g. "404" not verified, "000" no response); always exits 0
+# Example: getSourcifyLookupStatus 42161 "0x1234..."
+function getSourcifyLookupStatus() {
+  local CHAIN_ID="$1"
+  local ADDRESS="$2"
+
+  local RESPONSE STATUS
+  RESPONSE=$(curl -s --max-time 10 -w '\n%{http_code}' \
+    "https://sourcify.dev/server/v2/contract/$CHAIN_ID/$ADDRESS" || true)
+  STATUS="${RESPONSE##*$'\n'}"
+  if [[ "$STATUS" == "400" && "$RESPONSE" == *'"unsupported_chain"'* ]]; then
+    echo "unsupported_chain"
+    return 0
+  fi
+  echo "$STATUS"
+}
+
+# verifyContractOnSourcify: Submits a deployed contract to sourcify.dev in
+# addition to the network's block explorer. The ERC-7730 clear-signing sync
+# publishes a chain's LiFiDiamond only when Sourcify verifies the diamond and
+# every facet (the registry lints with `erc7730 lint --require-verified`), so a
+# facet that is verified only on the explorer drops the whole chain from the
+# descriptor. Best-effort: a failure is a warning and never fails the caller.
+#
+# Usage: verifyContractOnSourcify NETWORK CONTRACT ADDRESS [ARGS] [SOLC_VERSION] [EVM_VERSION] [OPTIMIZER_RUNS]
+#   NETWORK        - Network name from networks.json
+#   CONTRACT       - Contract name (resolved to its source path)
+#   ADDRESS        - Deployed contract address
+#   ARGS           - Optional: ABI-encoded constructor args (0x-prefixed hex)
+#   SOLC_VERSION   - Optional: compiler version the contract was built with
+#   EVM_VERSION    - Optional: EVM version the contract was built with
+#   OPTIMIZER_RUNS - Optional: optimizer runs the contract was built with
 #
 # Routing/Behavior:
 #   - Testnets and zkEVM networks: skipped (the registry excludes them; Sourcify
 #     cannot verify zksolc bytecode)
-#   - Networks whose verificationType is sourcify: skipped (verifyContract
-#     already submitted there)
+#   - Networks whose foundry.toml verifier is sourcify.dev (telos): skipped, the
+#     explorer verification already submitted there. A network with its own
+#     Sourcify instance (tempo) is still submitted to sourcify.dev.
+#   - Already verified on Sourcify, or chain not supported by Sourcify: returns
+#     without submitting
 #
 # Returns: 0 if verified or skipped, 1 if Sourcify did not verify the contract
 # Example: verifyContractOnSourcify "arbitrum" "AcrossFacetV4" "0x1234..." "0x"
@@ -2329,32 +2378,55 @@ function verifyContractOnSourcify() {
   local CONTRACT="$2"
   local ADDRESS="$3"
   local ARGS="${4:-}"
+  local SOLC_VERSION_OVERRIDE="${5:-}"
+  local EVM_VERSION_OVERRIDE="${6:-}"
+  local OPTIMIZER_RUNS_OVERRIDE="${7:-}"
+  local SOURCIFY_SERVER_URL="https://sourcify.dev/server"
 
   if isTestnetNetwork "$NETWORK" || isZkEvmNetwork "$NETWORK"; then
     return 0
   fi
 
-  local VERIFICATION_TYPE
-  VERIFICATION_TYPE=$(jq -r --arg network "$NETWORK" '.[$network].verificationType // empty' "$NETWORKS_JSON_FILE_PATH" 2>/dev/null)
-  if [[ "$VERIFICATION_TYPE" == "sourcify" ]]; then
+  local EXPLORER_VERIFIER_URL
+  EXPLORER_VERIFIER_URL=$(getVerifierUrlFromFoundryToml "$NETWORK" 2>/dev/null || true)
+  if [[ "$EXPLORER_VERIFIER_URL" == "$SOURCIFY_SERVER_URL"* ]]; then
     return 0
   fi
 
-  local CHAIN_ID CONTRACT_FILE_PATH API_KEY_NAME
+  local CHAIN_ID STATUS
   CHAIN_ID=$(getChainId "$NETWORK")
+  STATUS=$(getSourcifyLookupStatus "$CHAIN_ID" "$ADDRESS")
+  if [[ "$STATUS" == "200" ]]; then
+    echo "[info] $CONTRACT on $NETWORK with address $ADDRESS is already verified on Sourcify"
+    return 0
+  fi
+  if [[ "$STATUS" == "unsupported_chain" ]]; then
+    echo "[info] Sourcify does not support $NETWORK (chain $CHAIN_ID); skipping Sourcify verification of $CONTRACT"
+    return 0
+  fi
+
+  local CONTRACT_FILE_PATH API_KEY_NAME
   CONTRACT_FILE_PATH=$(getContractFilePath "$CONTRACT")
   API_KEY_NAME=$(getEtherscanApiKeyName "$NETWORK" 2>/dev/null || true)
 
-  # forge picks Etherscan whenever the chain's foundry.toml [etherscan] entry
-  # resolves to a non-empty key, even with an explicit `--verifier sourcify`
-  # (forge 1.7.1, crates/verify/src/provider.rs). Blanking that key for this
-  # one command is the only way to reach Sourcify on such a chain.
-  local VERIFY_CMD=("forge" "verify-contract")
+  # forge picks Etherscan whenever it resolves a non-empty Etherscan key, even
+  # with an explicit `--verifier sourcify` (forge 1.7.1,
+  # crates/verify/src/provider.rs). The key comes from the chain's foundry.toml
+  # [etherscan] entry (blanked: unsetting a var foundry.toml references fails
+  # config interpolation) or from the global ETHERSCAN_API_KEY /
+  # FOUNDRY_ETHERSCAN_API_KEY. FOUNDRY_PROFILE is spelled out so the printed
+  # retry command compiles with the profile the deploy wave exported (london).
+  local VERIFY_CMD=("env" "-u" "ETHERSCAN_API_KEY" "-u" "FOUNDRY_ETHERSCAN_API_KEY")
+  if [[ -n "${FOUNDRY_PROFILE:-}" ]]; then
+    VERIFY_CMD+=("FOUNDRY_PROFILE=$FOUNDRY_PROFILE")
+  fi
   if [[ -n "$API_KEY_NAME" ]]; then
-    VERIFY_CMD=("env" "$API_KEY_NAME=" "${VERIFY_CMD[@]}")
+    VERIFY_CMD+=("$API_KEY_NAME=")
   fi
   VERIFY_CMD+=(
+    "forge" "verify-contract"
     "--verifier" "sourcify"
+    "--verifier-url" "$SOURCIFY_SERVER_URL"
     "--chain-id" "$CHAIN_ID"
     "$ADDRESS"
     "$CONTRACT_FILE_PATH:$CONTRACT"
@@ -2363,19 +2435,27 @@ function verifyContractOnSourcify() {
   if [[ "$ARGS" =~ ^0x([0-9a-fA-F]{2})+$ ]]; then
     VERIFY_CMD+=("--constructor-args" "$ARGS")
   fi
+  if [[ -n "$SOLC_VERSION_OVERRIDE" ]]; then
+    VERIFY_CMD+=("--compiler-version" "$SOLC_VERSION_OVERRIDE")
+  fi
+  if [[ -n "$EVM_VERSION_OVERRIDE" ]]; then
+    VERIFY_CMD+=("--evm-version" "$EVM_VERSION_OVERRIDE")
+  fi
+  if [[ -n "$OPTIMIZER_RUNS_OVERRIDE" ]]; then
+    VERIFY_CMD+=("--num-of-optimizations" "$OPTIMIZER_RUNS_OVERRIDE")
+  fi
 
   echo "[info] submitting $CONTRACT on $NETWORK ($ADDRESS) to Sourcify..."
   local VERIFY_OUTPUT
   VERIFY_OUTPUT=$("${VERIFY_CMD[@]}" 2>&1)
   echoDebug "SOURCIFY VERIFY_OUTPUT: $VERIFY_OUTPUT"
 
-  # Sourcify's lookup API is what the registry lint queries, so it decides
-  # success rather than forge's wording. forge only submits a verification job
-  # and returns, so poll while the job runs (up to 6 x 10s).
-  local STATUS="" ATTEMPT
+  # The lookup API decides success rather than forge's wording. forge only
+  # submits a verification job and returns, so poll while the job runs (up to
+  # 6 x 10s).
+  local ATTEMPT
   for ATTEMPT in 1 2 3 4 5 6; do
-    STATUS=$(curl -s -o /dev/null -w '%{http_code}' --max-time 10 \
-      "https://sourcify.dev/server/v2/contract/$CHAIN_ID/$ADDRESS")
+    STATUS=$(getSourcifyLookupStatus "$CHAIN_ID" "$ADDRESS")
     if [[ "$STATUS" == "200" ]]; then
       echo "[info] $CONTRACT on $NETWORK with address $ADDRESS verified on Sourcify"
       return 0

@@ -647,10 +647,10 @@ deploySingleContract() {
         VERIFIED=true
       fi
     fi
-
-    if [[ "$VERIFIED" == "true" ]]; then
-      verifyContractOnSourcify "$NETWORK" "$CONTRACT" "$ADDRESS" "$CONSTRUCTOR_ARGS" || true
-    fi
+  elif [[ $VERIFY_CONTRACTS == "true" ]]; then
+    # The log's VERIFIED flag records the explorer only; Sourcify is checked
+    # separately (one lookup when already verified there).
+    verifyContractOnSourcify "$NETWORK" "$CONTRACT" "$ADDRESS" "$CONSTRUCTOR_ARGS" || true
   fi
 
   # check if log entry was found
